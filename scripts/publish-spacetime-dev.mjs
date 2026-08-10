@@ -302,7 +302,8 @@ export const INNER_KEEP_V15_TABLE_CONTRACTS = Object.freeze({
     productTypeRef: 60,
     access: 'Public',
     fields: Object.freeze([
-      'building_key', 'castle_id', 'slot_key', 'slot_id', 'building_kind',
+      'building_key', 'castle_id', 'building_kind', 'local_x_microunits',
+      'local_z_microunits', 'rotation_milli_degrees',
       'completed_level', 'target_level', 'phase', 'started_at_micros',
       'completes_at_micros', 'revision', 'policy_version',
     ]),
@@ -320,7 +321,8 @@ export const INNER_KEEP_V15_TABLE_CONTRACTS = Object.freeze({
     access: 'Private',
     fields: Object.freeze([
       'receipt_key', 'fid', 'request_key', 'castle_id', 'building_key',
-      'slot_id', 'building_kind', 'target_level', 'deducted_food',
+      'building_kind', 'local_x_microunits', 'local_z_microunits',
+      'rotation_milli_degrees', 'target_level', 'deducted_food',
       'deducted_wood', 'deducted_stone', 'deducted_gold', 'started_at',
       'policy_version',
     ]),
@@ -656,6 +658,10 @@ const INNER_KEEP_OPTION_U64_TYPE = workerSumType([
   ['some', 'U64'],
   ['none', workerProductType([])],
 ]);
+const INNER_KEEP_OPTION_I64_TYPE = workerSumType([
+  ['some', 'I64'],
+  ['none', workerProductType([])],
+]);
 const INNER_KEEP_OPTION_U32_TYPE = workerSumType([
   ['some', 'U32'],
   ['none', workerProductType([])],
@@ -669,12 +675,15 @@ const INNER_KEEP_V15_SCHEDULE_ROW_FIELDS = Object.freeze([
 ]);
 const INNER_KEEP_V15_REDUCER_FIELDS = Object.freeze({
   inner_keep_start_project_v1: Object.freeze([
-    ['slotId', 'String'],
     ['buildingKind', 'String'],
+    ['localXMicrounits', 'I64'],
+    ['localZMicrounits', 'I64'],
+    ['rotationMilliDegrees', 'U32'],
     ['requestKey', 'String'],
     ['expectedTargetLevel', 'U32'],
     ['expectedProjectRevision', 'String'],
     ['expectedPolicyDigest', 'String'],
+    ['expectedLayoutDigest', 'String'],
   ]),
   admin_seed_inner_keep_catalog_v1: Object.freeze([
     ['capability', 'String'],
@@ -742,8 +751,10 @@ const INNER_KEEP_V15_REQUEST_STATUS_FIELDS = Object.freeze([
   ['found', 'Bool'],
   ['castleId', INNER_KEEP_OPTION_U64_TYPE],
   ['buildingKey', INNER_KEEP_OPTION_STRING_TYPE],
-  ['slotId', INNER_KEEP_OPTION_STRING_TYPE],
   ['buildingKind', INNER_KEEP_OPTION_STRING_TYPE],
+  ['localXMicrounits', INNER_KEEP_OPTION_I64_TYPE],
+  ['localZMicrounits', INNER_KEEP_OPTION_I64_TYPE],
+  ['rotationMilliDegrees', INNER_KEEP_OPTION_U32_TYPE],
   ['targetLevel', INNER_KEEP_OPTION_U32_TYPE],
   ['deductedFood', INNER_KEEP_OPTION_U64_TYPE],
   ['deductedWood', INNER_KEEP_OPTION_U64_TYPE],
@@ -980,7 +991,8 @@ const DAILY_MARK_V14_STATUS_KEYS = Object.freeze([
   ...DAILY_MARK_V14_BOOLEAN_FIELDS,
 ].sort());
 const INNER_KEEP_V15_POLICY_VERSION = 'genesis-001-inner-keep-construction-v1';
-const INNER_KEEP_V15_LAYOUT_POLICY_VERSION = 'genesis-001-inner-keep-layout-v1';
+const INNER_KEEP_V15_LAYOUT_POLICY_VERSION =
+  'genesis-001-inner-keep-free-placement-v1';
 const INNER_KEEP_V15_STATUS_COUNT_FIELDS = Object.freeze([
   'layoutRows',
   'slotRows',

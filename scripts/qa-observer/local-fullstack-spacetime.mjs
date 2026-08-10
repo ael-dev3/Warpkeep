@@ -49,12 +49,25 @@ const ENTRY_AGREEMENT_VERSION = '2026-07-31-hegemony-entry-agreement-v4';
 const INNER_KEEP_PROTOCOL_CAPABILITY = 'inner-keep-construction-v1';
 const INNER_KEEP_POLICY_VERSION = 'genesis-001-inner-keep-construction-v1';
 const INNER_KEEP_POLICY_DIGEST =
-  '9dc58e83c0c8e16ec853c7249b42dcbb5bdea47fe527261248cdf71de912776c';
-const INNER_KEEP_LAYOUT_POLICY_VERSION = 'genesis-001-inner-keep-layout-v1';
+  'cbffcdc223b5d99625cab7549f3a5ae211c725893574b629aa83f8260668a779';
+const INNER_KEEP_LAYOUT_POLICY_VERSION =
+  'genesis-001-inner-keep-free-placement-v1';
 const INNER_KEEP_LAYOUT_DIGEST =
-  'c5bbb38f49b853e10ce61fe463cdf2428df2bad50f96e68826c26fe5fc65a534';
+  '1b3a452794c28f8d7f8814ce6064da8582725d34bb0ee0271d51f40c2fbdfad7';
 const INNER_KEEP_ASSET_CATALOG_DIGEST =
-  '00304c5dbf819cec6cb656996c1105f64efcf36acf8099c431f5b04b822679f0';
+  'cf1fdac091e310cce3362d43403be938fe7946e46df906f2efb8cff601497c6d';
+const LOCAL_FULLSTACK_INNER_KEEP_PLACEMENTS = Object.freeze({
+  'city-mill': Object.freeze({
+    localXMicrounits: 14_000_000n,
+    localZMicrounits: -10_000_000n,
+    rotationMilliDegrees: 0n,
+  }),
+  'lumber-camp': Object.freeze({
+    localXMicrounits: 29_000_000n,
+    localZMicrounits: -10_000_000n,
+    rotationMilliDegrees: 0n,
+  }),
+});
 const LOCAL_INNER_KEEP_FIRST_COMPLETION_DELAY_MICROS = 15_000_000n;
 const LOCAL_FULLSTACK_FOUNDERS = Object.freeze(Array.from(
   { length: LOCAL_FULLSTACK_FOUNDER_COUNT },
@@ -553,6 +566,16 @@ function readUnsigned(value) {
   return parsed;
 }
 
+function readSigned(value) {
+  const parsed = typeof value === 'number' && Number.isSafeInteger(value)
+    ? BigInt(value)
+    : typeof value === 'string' && /^-?(?:0|[1-9]\d*)$/.test(value)
+      ? BigInt(value)
+      : undefined;
+  if (parsed === undefined) fail('Inner Keep signed coordinate was invalid.');
+  return parsed;
+}
+
 function parseWorkerRollout(
   text,
   expectedCastleCount = BigInt(LOCAL_FULLSTACK_FOUNDER_COUNT),
@@ -685,6 +708,11 @@ function readOptionalUnsigned(value) {
   return unwrapped === undefined ? undefined : readUnsigned(unwrapped);
 }
 
+function readOptionalSigned(value) {
+  const unwrapped = readOptionalValue(value);
+  return unwrapped === undefined ? undefined : readSigned(unwrapped);
+}
+
 function parseInnerKeepCatalogPlan(text) {
   let value;
   try {
@@ -696,9 +724,9 @@ function parseInnerKeepCatalogPlan(text) {
     !Array.isArray(value)
     || value.length !== 5
     || ![0n, 1n].includes(readUnsigned(value[0]))
-    || ![0n, 12n].includes(readUnsigned(value[1]))
-    || ![0n, 4n].includes(readUnsigned(value[2]))
-    || ![0n, 20n].includes(readUnsigned(value[3]))
+    || readUnsigned(value[1]) !== 0n
+    || ![0n, 6n].includes(readUnsigned(value[2]))
+    || ![0n, 30n].includes(readUnsigned(value[3]))
     || typeof value[4] !== 'boolean'
   ) fail('Inner Keep catalog plan was invalid.');
   const plan = Object.freeze({
@@ -850,29 +878,33 @@ function parseInnerKeepReceipt(text, expectedRequestKey) {
   } catch {
     fail('Inner Keep receipt JSON was invalid.');
   }
-  if (!Array.isArray(value) || value.length !== 12 || value[0] !== true) {
+  if (!Array.isArray(value) || value.length !== 14 || value[0] !== true) {
     fail('Inner Keep receipt shape was invalid.');
   }
   const receipt = Object.freeze({
     castleId: readOptionalUnsigned(value[1]),
     buildingKey: readOptionalString(value[2]),
-    slotId: readOptionalString(value[3]),
-    buildingKind: readOptionalString(value[4]),
-    targetLevel: readOptionalUnsigned(value[5]),
-    deductedFood: readOptionalUnsigned(value[6]),
-    deductedWood: readOptionalUnsigned(value[7]),
-    deductedStone: readOptionalUnsigned(value[8]),
-    deductedGold: readOptionalUnsigned(value[9]),
-    startedAtMicros: readOptionalUnsigned(value[10]),
-    policyVersion: readOptionalString(value[11]),
+    buildingKind: readOptionalString(value[3]),
+    localXMicrounits: readOptionalSigned(value[4]),
+    localZMicrounits: readOptionalSigned(value[5]),
+    rotationMilliDegrees: readOptionalUnsigned(value[6]),
+    targetLevel: readOptionalUnsigned(value[7]),
+    deductedFood: readOptionalUnsigned(value[8]),
+    deductedWood: readOptionalUnsigned(value[9]),
+    deductedStone: readOptionalUnsigned(value[10]),
+    deductedGold: readOptionalUnsigned(value[11]),
+    startedAtMicros: readOptionalUnsigned(value[12]),
+    policyVersion: readOptionalString(value[13]),
     requestKey: expectedRequestKey,
   });
   if (
     receipt.castleId === undefined
     || receipt.castleId === 0n
     || receipt.buildingKey === undefined
-    || receipt.slotId === undefined
     || receipt.buildingKind === undefined
+    || receipt.localXMicrounits === undefined
+    || receipt.localZMicrounits === undefined
+    || receipt.rotationMilliDegrees === undefined
     || receipt.targetLevel === undefined
     || receipt.deductedFood === undefined
     || receipt.deductedWood === undefined
@@ -1067,9 +1099,9 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
   );
   if (
     catalogPlan.missingLayout !== 1
-    || catalogPlan.missingSlots !== 12
-    || catalogPlan.missingBuildings !== 4
-    || catalogPlan.missingLevels !== 20
+    || catalogPlan.missingSlots !== 0
+    || catalogPlan.missingBuildings !== 6
+    || catalogPlan.missingLevels !== 30
     || catalogPlan.ready
   ) fail('Inner Keep catalog did not begin from the exact empty state.');
   await callAdmin('admin_seed_inner_keep_catalog_v1', JSON.stringify([
@@ -1116,9 +1148,9 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
   );
   if (
     activeInnerKeep.layoutRows !== 1n
-    || activeInnerKeep.slotRows !== 12n
-    || activeInnerKeep.buildingCatalogRows !== 4n
-    || activeInnerKeep.levelPolicyRows !== 20n
+    || activeInnerKeep.slotRows !== 0n
+    || activeInnerKeep.buildingCatalogRows !== 6n
+    || activeInnerKeep.levelPolicyRows !== 30n
     || activeInnerKeep.castleRows !== BigInt(LOCAL_FULLSTACK_FOUNDER_COUNT)
     || activeInnerKeep.builderRows !== BigInt(LOCAL_FULLSTACK_FOUNDER_COUNT)
     || activeInnerKeep.buildingRows !== 0n
@@ -1218,8 +1250,13 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
       readControlState(),
     ]);
     if (
-      receipt.slotId !== 'inner-keep-slot-m01'
-      || receipt.buildingKind !== 'city-mill'
+      receipt.buildingKind !== 'city-mill'
+      || receipt.localXMicrounits
+        !== LOCAL_FULLSTACK_INNER_KEEP_PLACEMENTS['city-mill'].localXMicrounits
+      || receipt.localZMicrounits
+        !== LOCAL_FULLSTACK_INNER_KEEP_PLACEMENTS['city-mill'].localZMicrounits
+      || receipt.rotationMilliDegrees
+        !== LOCAL_FULLSTACK_INNER_KEEP_PLACEMENTS['city-mill'].rotationMilliDegrees
       || receipt.targetLevel !== 1n
       || receipt.deductedFood !== 300n
       || receipt.deductedWood !== 900n
@@ -1260,6 +1297,11 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
       deductedGold: receipt.deductedGold.toString(),
       deductedStone: receipt.deductedStone.toString(),
       deductedWood: receipt.deductedWood.toString(),
+      placement: Object.freeze({
+        localXMicrounits: receipt.localXMicrounits.toString(),
+        localZMicrounits: receipt.localZMicrounits.toString(),
+        rotationMilliDegrees: receipt.rotationMilliDegrees.toString(),
+      }),
       receiptRows: 1,
       resourceRevision: state.resourceRevision.toString(),
       scheduleRows: 1,
@@ -1294,15 +1336,25 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
     const expectedWood = LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.wood - 900n - 700n;
     const expectedStone = LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.stone - 600n - 650n;
     if (
-      firstReceipt.slotId !== 'inner-keep-slot-m01'
-      || firstReceipt.buildingKind !== 'city-mill'
+      firstReceipt.buildingKind !== 'city-mill'
+      || firstReceipt.localXMicrounits
+        !== LOCAL_FULLSTACK_INNER_KEEP_PLACEMENTS['city-mill'].localXMicrounits
+      || firstReceipt.localZMicrounits
+        !== LOCAL_FULLSTACK_INNER_KEEP_PLACEMENTS['city-mill'].localZMicrounits
+      || firstReceipt.rotationMilliDegrees
+        !== LOCAL_FULLSTACK_INNER_KEEP_PLACEMENTS['city-mill'].rotationMilliDegrees
       || firstReceipt.targetLevel !== 1n
       || firstReceipt.deductedFood !== 300n
       || firstReceipt.deductedWood !== 900n
       || firstReceipt.deductedStone !== 600n
       || firstReceipt.deductedGold !== 0n
-      || secondReceipt.slotId !== 'inner-keep-slot-m02'
       || secondReceipt.buildingKind !== 'lumber-camp'
+      || secondReceipt.localXMicrounits
+        !== LOCAL_FULLSTACK_INNER_KEEP_PLACEMENTS['lumber-camp'].localXMicrounits
+      || secondReceipt.localZMicrounits
+        !== LOCAL_FULLSTACK_INNER_KEEP_PLACEMENTS['lumber-camp'].localZMicrounits
+      || secondReceipt.rotationMilliDegrees
+        !== LOCAL_FULLSTACK_INNER_KEEP_PLACEMENTS['lumber-camp'].rotationMilliDegrees
       || secondReceipt.targetLevel !== 1n
       || secondReceipt.deductedFood !== 480n
       || secondReceipt.deductedWood !== 700n
@@ -1327,9 +1379,9 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
       || state.projectedGold !== LOCAL_FULLSTACK_INNER_KEEP_RESOURCES.gold
       || state.resourceRevision !== 2n
       || aggregate.layoutRows !== 1n
-      || aggregate.slotRows !== 12n
-      || aggregate.buildingCatalogRows !== 4n
-      || aggregate.levelPolicyRows !== 20n
+      || aggregate.slotRows !== 0n
+      || aggregate.buildingCatalogRows !== 6n
+      || aggregate.levelPolicyRows !== 30n
       || aggregate.castleRows !== BigInt(LOCAL_FULLSTACK_FOUNDER_COUNT)
       || aggregate.builderRows !== BigInt(LOCAL_FULLSTACK_FOUNDER_COUNT)
       || aggregate.buildingRows !== 2n
@@ -1361,6 +1413,20 @@ async function seedLocalRealm(server, privateKey, moduleDigest) {
       exactDeductions: Object.freeze([
         Object.freeze({ food: '300', wood: '900', stone: '600', gold: '0' }),
         Object.freeze({ food: '480', wood: '700', stone: '650', gold: '0' }),
+      ]),
+      exactPlacements: Object.freeze([
+        Object.freeze({
+          buildingKind: firstReceipt.buildingKind,
+          localXMicrounits: firstReceipt.localXMicrounits.toString(),
+          localZMicrounits: firstReceipt.localZMicrounits.toString(),
+          rotationMilliDegrees: firstReceipt.rotationMilliDegrees.toString(),
+        }),
+        Object.freeze({
+          buildingKind: secondReceipt.buildingKind,
+          localXMicrounits: secondReceipt.localXMicrounits.toString(),
+          localZMicrounits: secondReceipt.localZMicrounits.toString(),
+          rotationMilliDegrees: secondReceipt.rotationMilliDegrees.toString(),
+        }),
       ]),
       receiptRows: Number(aggregate.receiptRows),
       resourceRevision: state.resourceRevision.toString(),

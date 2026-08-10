@@ -53,9 +53,9 @@ function status(overrides: Partial<InnerKeepStatus> = {}): InnerKeepStatus {
   const attestation = innerKeepStaticAttestation();
   return Object.freeze({
     layoutRows: 1n,
-    slotRows: 12n,
-    buildingCatalogRows: 4n,
-    levelPolicyRows: 20n,
+    slotRows: 0n,
+    buildingCatalogRows: 6n,
+    levelPolicyRows: 30n,
     castleRows: 3n,
     builderRows: 3n,
     buildingRows: 0n,
@@ -148,18 +148,18 @@ describe('Inner Keep operator arguments', () => {
     const base = [
       'seed-inner-keep-catalog',
       '--expected-missing-layout', '1',
-      '--expected-missing-slots', '12',
-      '--expected-missing-buildings', '4',
-      '--expected-missing-levels', '20',
+      '--expected-missing-slots', '0',
+      '--expected-missing-buildings', '6',
+      '--expected-missing-levels', '30',
     ];
     const parsed = parseInnerKeepOperatorArguments(base);
     expect(parsed).toMatchObject({
       command: 'seed-inner-keep-catalog',
       confirmed: false,
       expectedMissingLayout: 1,
-      expectedMissingSlots: 12,
-      expectedMissingBuildings: 4,
-      expectedMissingLevels: 20,
+      expectedMissingSlots: 0,
+      expectedMissingBuildings: 6,
+      expectedMissingLevels: 30,
     });
     expect(parseInnerKeepOperatorArguments([...base, '--confirm']).confirmed).toBe(true);
     expect(parseInnerKeepOperatorArguments([...base, '--dry-run']).confirmed).toBe(false);
@@ -267,17 +267,17 @@ describe('Inner Keep operator aggregate boundary', () => {
   it('validates deterministic catalog and Builder plans', () => {
     const catalog = projectInnerKeepCatalogPlan({
       missingLayout: 1,
-      missingSlots: 12,
-      missingBuildings: 4,
-      missingLevels: 20,
+      missingSlots: 0,
+      missingBuildings: 6,
+      missingLevels: 30,
       ready: false,
     });
     assertCatalogPlanMatchesArguments(catalog, parseInnerKeepOperatorArguments([
       'seed-inner-keep-catalog',
       '--expected-missing-layout', '1',
-      '--expected-missing-slots', '12',
-      '--expected-missing-buildings', '4',
-      '--expected-missing-levels', '20',
+      '--expected-missing-slots', '0',
+      '--expected-missing-buildings', '6',
+      '--expected-missing-levels', '30',
     ]));
     const builders = projectInnerKeepBuilderPlan({
       expectedCastles: 3,

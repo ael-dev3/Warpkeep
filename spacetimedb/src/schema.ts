@@ -1244,7 +1244,7 @@ export const innerKeepLayoutV1 = table(
   },
 );
 
-/** Public fixed construction-pad catalogue; clients never submit coordinates. */
+/** Retired empty v15 compatibility table; free placement has no fixed pads. */
 export const innerKeepSlotV1 = table(
   { name: 'inner_keep_slot_v1', public: true },
   {
@@ -1259,7 +1259,7 @@ export const innerKeepSlotV1 = table(
   },
 );
 
-/** Public immutable projection of the canonical four-building policy. */
+/** Public immutable projection of the canonical six-building policy. */
 export const innerKeepBuildingCatalogV1 = table(
   { name: 'inner_keep_building_catalog_v1', public: true },
   {
@@ -1310,9 +1310,10 @@ export const castleInnerKeepBuildingV1 = table(
   {
     buildingKey: t.string().primaryKey(),
     castleId: t.u64(),
-    slotKey: t.string().unique(),
-    slotId: t.string(),
     buildingKind: t.string(),
+    localXMicrounits: t.i64(),
+    localZMicrounits: t.i64(),
+    rotationMilliDegrees: t.u32(),
     completedLevel: t.u32(),
     targetLevel: t.u32(),
     phase: t.string(),
@@ -1347,8 +1348,10 @@ export const castleInnerBuildReceiptV1 = table(
     requestKey: t.string(),
     castleId: t.u64(),
     buildingKey: t.string(),
-    slotId: t.string(),
     buildingKind: t.string(),
+    localXMicrounits: t.i64(),
+    localZMicrounits: t.i64(),
+    rotationMilliDegrees: t.u32(),
     targetLevel: t.u32(),
     deductedFood: t.u64(),
     deductedWood: t.u64(),

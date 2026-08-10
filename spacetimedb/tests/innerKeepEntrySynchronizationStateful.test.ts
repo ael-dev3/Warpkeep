@@ -5,10 +5,7 @@ import test from 'node:test';
 import { build, type Plugin } from 'esbuild';
 
 import type * as InnerKeepAuthority from '../src/innerKeepAuthority';
-import {
-  CANONICAL_INNER_KEEP_LAYOUT,
-  CANONICAL_INNER_KEEP_SLOTS,
-} from '../src/innerKeepLayoutPolicy';
+import { CANONICAL_INNER_KEEP_LAYOUT } from '../src/innerKeepLayoutPolicy';
 import {
   CANONICAL_INNER_KEEP_BUILDING_CATALOG,
   CANONICAL_INNER_KEEP_LEVEL_POLICIES,
@@ -131,7 +128,6 @@ function makeFixture(options: FixtureOptions = {}) {
     createdAt: timestamp(startedAtMicros),
     activatedAt: timestamp(startedAtMicros),
   };
-  const slots = new Map(CANONICAL_INNER_KEEP_SLOTS.map(row => [row.slotId, { ...row }]));
   const catalogs = new Map(CANONICAL_INNER_KEEP_BUILDING_CATALOG.map(row => {
     const { baseCost: _baseCost, ...stored } = row;
     return [stored.buildingKind, { ...stored }] as const;
@@ -144,9 +140,10 @@ function makeFixture(options: FixtureOptions = {}) {
   const buildings = new Map<string, AnyRow>([[buildingKey, {
     buildingKey,
     castleId,
-    slotKey: `${castleId.toString()}:inner-keep-slot-m01`,
-    slotId: 'inner-keep-slot-m01',
     buildingKind: 'city-mill',
+    localXMicrounits: -30_000_000n,
+    localZMicrounits: -25_000_000n,
+    rotationMilliDegrees: 0,
     completedLevel: 0,
     targetLevel: 1,
     phase: 'constructing',
@@ -182,6 +179,9 @@ function makeFixture(options: FixtureOptions = {}) {
   }
   const receipts = new Map([['77:entry-sync', {
     receiptKey: '77:entry-sync',
+    localXMicrounits: -30_000_000n,
+    localZMicrounits: -25_000_000n,
+    rotationMilliDegrees: 0,
     deductedFood: 300n,
     deductedWood: 900n,
     deductedStone: 600n,
@@ -203,8 +203,8 @@ function makeFixture(options: FixtureOptions = {}) {
         layoutId: { find: (key: string) => key === layout.layoutId ? layout : null },
       },
       innerKeepSlotV1: {
-        count: () => BigInt(slots.size),
-        slotId: { find: (key: string) => slots.get(key) ?? null },
+        count: () => 0n,
+        slotId: { find: (_key: string) => null },
       },
       innerKeepBuildingCatalogV1: {
         count: () => BigInt(catalogs.size),

@@ -39,7 +39,7 @@ export type InnerKeepQaScenario = Readonly<{
   state: InnerKeepQaScenarioState;
   level: number | null;
   progressBasisPoints: number | null;
-  selectedSlotId: string | null;
+  catalogueOpen: boolean;
   selectedBuildingKind: InnerKeepBuildingKind | null;
   initialElapsedSeconds?: number;
 }>;

@@ -41,24 +41,24 @@ afterEach(() => {
 });
 
 const EXPECTED_TERRAIN_TRIANGLES = Object.freeze({
-  high: 6_160,
-  balanced: 3_776,
-  reduced: 1_480,
+  high: 9_760,
+  balanced: 5_632,
+  reduced: 2_120,
 } satisfies Readonly<Record<InnerKeepSceneQuality, number>>);
 const EXPECTED_FIELD_PARCELS = Object.freeze({
-  high: 250,
-  balanced: 250,
-  reduced: 208,
+  high: 820,
+  balanced: 648,
+  reduced: 360,
 } satisfies Readonly<Record<InnerKeepSceneQuality, number>>);
 const EXPECTED_TOTAL_TRIANGLES = Object.freeze({
-  high: 8_416,
-  balanced: 5_184,
-  reduced: 2_184,
+  high: 12_768,
+  balanced: 7_464,
+  reduced: 3_036,
 } satisfies Readonly<Record<InnerKeepSceneQuality, number>>);
 const EXPECTED_VISIBLE_HEDGEROWS = Object.freeze({
-  high: Object.freeze([6, 12, 9] as const),
-  balanced: Object.freeze([5, 9, 5] as const),
-  reduced: Object.freeze([2, 5, 2] as const),
+  high: Object.freeze([7, 21, 16] as const),
+  balanced: Object.freeze([4, 11, 10] as const),
+  reduced: Object.freeze([0, 5, 4] as const),
 } satisfies Readonly<Record<InnerKeepSceneQuality, readonly number[]>>);
 
 function instancePosition(mesh: THREE.InstancedMesh, index: number) {
@@ -111,17 +111,17 @@ function reviewedCamera(width: number, height: number) {
 describe('Inner Keep far countryside presentation', () => {
   it('pins a non-authoritative overscan policy to the reviewed camera contract', () => {
     expect(INNER_KEEP_FAR_COUNTRYSIDE_POLICY_VERSION)
-      .toBe('inner-keep-far-countryside-presentation-v1');
+      .toBe('inner-keep-far-countryside-presentation-v2-expanded-town');
     expect(createHash('sha256')
       .update(canonicalInnerKeepFarCountrysideDigestInput())
       .digest('hex')).toBe(INNER_KEEP_FAR_COUNTRYSIDE_POLICY_DIGEST);
     expect(INNER_KEEP_FAR_COUNTRYSIDE_INNER_HALF_EXTENTS_METERS)
       .toBe(INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS);
-    expect(INNER_KEEP_FAR_COUNTRYSIDE_HALF_EXTENTS_METERS).toEqual([96, 144]);
-    expect(INNER_KEEP_FAR_COUNTRYSIDE_EDGE_FADE_METERS).toBe(16);
-    expect(INNER_KEEP_FAR_COUNTRYSIDE_INNER_HEIGHT_BLEND_METERS).toBe(18);
-    expect(INNER_KEEP_FAR_COUNTRYSIDE_TINT_BLEND_METERS).toBe(24);
-    expect(INNER_KEEP_FAR_COUNTRYSIDE_MINIMUM_CAMERA_BUFFER_METERS).toBe(12);
+    expect(INNER_KEEP_FAR_COUNTRYSIDE_HALF_EXTENTS_METERS).toEqual([208, 272]);
+    expect(INNER_KEEP_FAR_COUNTRYSIDE_EDGE_FADE_METERS).toBe(20);
+    expect(INNER_KEEP_FAR_COUNTRYSIDE_INNER_HEIGHT_BLEND_METERS).toBe(24);
+    expect(INNER_KEEP_FAR_COUNTRYSIDE_TINT_BLEND_METERS).toBe(32);
+    expect(INNER_KEEP_FAR_COUNTRYSIDE_MINIMUM_CAMERA_BUFFER_METERS).toBe(16);
     expect(INNER_KEEP_FAR_COUNTRYSIDE_AUTHORITY).toEqual({
       presentationOnly: true,
       gameplayAuthorityClaimed: false,
@@ -134,8 +134,8 @@ describe('Inner Keep far countryside presentation', () => {
     expect(INNER_KEEP_FAR_COUNTRYSIDE_CAMERA.sourcePresentationLayoutDigest)
       .toBe(INNER_KEEP_PRESENTATION_LAYOUT_DIGEST);
     expect(INNER_KEEP_FAR_COUNTRYSIDE_CAMERA.panBoundsMeters).toEqual({
-      x: [-3, 3],
-      z: [-3, 3],
+      x: [-9, 9],
+      z: [-9, 9],
     });
     expect(INNER_KEEP_FAR_COUNTRYSIDE_CAMERA.panScreenTrackingRatio).toBe(0.2);
     expect(INNER_KEEP_FAR_COUNTRYSIDE_CAMERA.panBoundsMeters.x[0])
@@ -149,12 +149,13 @@ describe('Inner Keep far countryside presentation', () => {
   });
 
   it('uses viewport-aware framing without exceeding the canonical zoom range', () => {
-    expect(innerKeepFarCountrysideMinimumZoomForAspect(1440 / 900)).toBeCloseTo(0.72, 8);
-    expect(innerKeepFarCountrysideMinimumZoomForAspect(844 / 390)).toBeCloseTo(0.72, 8);
-    expect(innerKeepFarCountrysideMinimumZoomForAspect(390 / 844)).toBeCloseTo(0.72, 8);
-    expect(innerKeepFarCountrysideMinimumZoomForAspect(320 / 800)).toBeCloseTo(0.72, 8);
-    expect(innerKeepFarCountrysideMinimumZoomForAspect(0.2)).toBeCloseTo(1.4, 8);
-    expect(innerKeepFarCountrysideMinimumZoomForAspect(6)).toBeCloseTo(1.5, 8);
+    expect(innerKeepFarCountrysideMinimumZoomForAspect(1440 / 900)).toBeCloseTo(0.8, 8);
+    expect(innerKeepFarCountrysideMinimumZoomForAspect(844 / 390))
+      .toBeCloseTo(0.8656410256, 8);
+    expect(innerKeepFarCountrysideMinimumZoomForAspect(390 / 844)).toBeCloseTo(0.8, 8);
+    expect(innerKeepFarCountrysideMinimumZoomForAspect(320 / 800)).toBeCloseTo(0.9, 8);
+    expect(innerKeepFarCountrysideMinimumZoomForAspect(0.2)).toBeCloseTo(1.8, 8);
+    expect(innerKeepFarCountrysideMinimumZoomForAspect(6)).toBeCloseTo(2, 8);
     for (let index = 0; index <= 256; index += 1) {
       const aspect = 0.2 + index / 256 * 5.8;
       const zoom = innerKeepFarCountrysideMinimumZoomForAspect(aspect);
@@ -182,8 +183,8 @@ describe('Inner Keep far countryside presentation', () => {
       ) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
       expect(terrain).toBeInstanceOf(THREE.Mesh);
       terrain.geometry.computeBoundingBox();
-      expect(terrain.geometry.boundingBox?.min.toArray()).toEqual([-96, expect.any(Number), -144]);
-      expect(terrain.geometry.boundingBox?.max.toArray()).toEqual([96, expect.any(Number), 144]);
+      expect(terrain.geometry.boundingBox?.min.toArray()).toEqual([-208, expect.any(Number), -272]);
+      expect(terrain.geometry.boundingBox?.max.toArray()).toEqual([208, expect.any(Number), 272]);
       expect(terrain.material.vertexColors).toBe(true);
       expect(terrain.userData).toMatchObject({
         presentationOnly: true,
@@ -339,9 +340,9 @@ describe('Inner Keep far countryside presentation', () => {
     const positions = terrain.geometry.getAttribute('position');
     const colors = terrain.geometry.getAttribute('color');
     const seamIndex = Array.from({ length: positions.count }, (_, index) => index)
-      .find((index) => positions.getX(index) === -34 && positions.getZ(index) === 0)!;
+      .find((index) => positions.getX(index) === -72 && positions.getZ(index) === 0)!;
     const rimIndex = Array.from({ length: positions.count }, (_, index) => index)
-      .find((index) => positions.getX(index) === -96 && positions.getZ(index) === 0)!;
+      .find((index) => positions.getX(index) === -208 && positions.getZ(index) === 0)!;
     const seamBase = new THREE.Color(
       colors.getX(seamIndex),
       colors.getY(seamIndex),
@@ -376,7 +377,7 @@ describe('Inner Keep far countryside presentation', () => {
     for (const quality of ['high', 'balanced', 'reduced'] as const) {
       const [widthSegments, depthSegments] =
         INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS[quality].terrainSegments;
-      const detailed = new THREE.PlaneGeometry(68, 76, widthSegments, depthSegments);
+      const detailed = new THREE.PlaneGeometry(144, 144, widthSegments, depthSegments);
       detailed.rotateX(-Math.PI / 2);
       const detailedSampler = createInnerKeepOuterWorldRenderedTerrainSampler(quality);
       const detailedPositions = detailed.getAttribute('position');
@@ -397,8 +398,8 @@ describe('Inner Keep far countryside presentation', () => {
       for (let index = 0; index < detailedPositions.count; index += 1) {
         const x = detailedPositions.getX(index);
         const z = detailedPositions.getZ(index);
-        if (Math.abs(Math.abs(x) - 34) > 0.000_01
-          && Math.abs(Math.abs(z) - 38) > 0.000_01) continue;
+        if (Math.abs(Math.abs(x) - 72) > 0.000_01
+          && Math.abs(Math.abs(z) - 72) > 0.000_01) continue;
         detailedByPosition.set(`${x.toFixed(5)}:${z.toFixed(5)}`, new THREE.Vector3(
           detailedNormal.getX(index),
           detailedNormal.getY(index),

@@ -23,41 +23,94 @@ import {
   matchesCanonicalInnerKeepLevelPolicy,
 } from '../src/innerKeepPolicy';
 import {
+  CANONICAL_INNER_KEEP_PLACEMENT_EXCLUSIONS,
+  CANONICAL_INNER_KEEP_PLACEMENT_FOOTPRINTS,
   CANONICAL_INNER_KEEP_LAYOUT,
   CANONICAL_INNER_KEEP_SLOTS,
   INNER_KEEP_ASSET_CATALOG_DIGEST,
+  INNER_KEEP_BUILDABLE_SUPPORT,
   INNER_KEEP_LARGE_SLOT_COUNT,
   INNER_KEEP_LAYOUT_DIGEST,
   INNER_KEEP_MEDIUM_SLOT_COUNT,
+  INNER_KEEP_PLACEMENT_ROTATIONS_MILLI_DEGREES,
+  INNER_KEEP_PLACEMENT_SNAP_MICROUNITS,
   INNER_KEEP_SLOT_COUNT,
   canonicalInnerKeepLayoutDigestInput,
+  evaluateCanonicalInnerKeepPlacement,
   innerKeepActivationLifecycle,
   innerKeepLifecycleRequiresBuilders,
   matchesCanonicalInnerKeepLayout,
   matchesCanonicalInnerKeepSlot,
 } from '../src/innerKeepLayoutPolicy';
 
-test('Inner Keep pins four unique economy buildings and twenty exact level rows', () => {
+test('Inner Keep pins six unique placeable buildings and thirty exact level rows', () => {
   assert.deepEqual(canonicalInnerKeepBuildingKinds(), [
     'city-mill',
     'lumber-camp',
     'city-stoneworks',
     'city-goldworks',
+    'city-barracks',
+    'grand-covenant-cathedral',
   ]);
-  assert.equal(CANONICAL_INNER_KEEP_BUILDING_CATALOG.length, 4);
-  assert.equal(new Set(CANONICAL_INNER_KEEP_BUILDING_CATALOG.map(row => row.publicLabel)).size, 4);
-  assert.equal(new Set(CANONICAL_INNER_KEEP_BUILDING_CATALOG.map(row => row.runtimeAssetId)).size, 4);
+  assert.equal(CANONICAL_INNER_KEEP_BUILDING_CATALOG.length, 6);
+  assert.equal(new Set(CANONICAL_INNER_KEEP_BUILDING_CATALOG.map(row => row.publicLabel)).size, 6);
+  assert.equal(new Set(CANONICAL_INNER_KEEP_BUILDING_CATALOG.map(row => row.runtimeAssetId)).size, 6);
   assert.deepEqual(
     new Set(CANONICAL_INNER_KEEP_BUILDING_CATALOG.map(row => row.matchingDiscountResource)),
-    new Set(['food', 'wood', 'stone', 'gold']),
+    new Set(['food', 'wood', 'stone', 'gold', 'none']),
   );
-  assert.equal(CANONICAL_INNER_KEEP_LEVEL_POLICIES.length, 20);
-  assert.equal(new Set(CANONICAL_INNER_KEEP_LEVEL_POLICIES.map(row => row.levelKey)).size, 20);
+  assert.deepEqual(
+    Object.fromEntries(CANONICAL_INNER_KEEP_BUILDING_CATALOG.map(row => [
+      row.buildingKind,
+      {
+        category: row.category,
+        footprintClass: row.footprintClass,
+        matchingDiscountResource: row.matchingDiscountResource,
+        discountBasisPointsPerLevel: row.discountBasisPointsPerLevel,
+        discountCapBasisPoints: row.discountCapBasisPoints,
+      },
+    ])),
+    {
+      'city-mill': {
+        category: 'economy', footprintClass: 'medium', matchingDiscountResource: 'food',
+        discountBasisPointsPerLevel: 500, discountCapBasisPoints: 2_500,
+      },
+      'lumber-camp': {
+        category: 'economy', footprintClass: 'medium', matchingDiscountResource: 'wood',
+        discountBasisPointsPerLevel: 500, discountCapBasisPoints: 2_500,
+      },
+      'city-stoneworks': {
+        category: 'economy', footprintClass: 'medium', matchingDiscountResource: 'stone',
+        discountBasisPointsPerLevel: 500, discountCapBasisPoints: 2_500,
+      },
+      'city-goldworks': {
+        category: 'economy', footprintClass: 'medium', matchingDiscountResource: 'gold',
+        discountBasisPointsPerLevel: 500, discountCapBasisPoints: 2_500,
+      },
+      'city-barracks': {
+        category: 'military', footprintClass: 'large', matchingDiscountResource: 'none',
+        discountBasisPointsPerLevel: 0, discountCapBasisPoints: 0,
+      },
+      'grand-covenant-cathedral': {
+        category: 'civic', footprintClass: 'large', matchingDiscountResource: 'none',
+        discountBasisPointsPerLevel: 0, discountCapBasisPoints: 0,
+      },
+    },
+  );
+  assert.equal(CANONICAL_INNER_KEEP_LEVEL_POLICIES.length, 30);
+  assert.equal(new Set(CANONICAL_INNER_KEEP_LEVEL_POLICIES.map(row => row.levelKey)).size, 30);
   assert.equal(Object.isFrozen(CANONICAL_INNER_KEEP_BUILDING_CATALOG), true);
   assert.equal(Object.isFrozen(CANONICAL_INNER_KEEP_LEVEL_POLICIES), true);
   for (const building of CANONICAL_INNER_KEEP_BUILDING_CATALOG) {
     assert.equal(building.maximumLevel, INNER_KEEP_MAXIMUM_LEVEL);
-    assert.equal(building.footprintClass, 'medium');
+    assert.equal(
+      building.footprintClass,
+      building.category === 'economy' ? 'medium' : 'large',
+    );
+    assert.equal(
+      building.matchingDiscountResource === 'none',
+      building.category !== 'economy',
+    );
     assert.equal(building.uniquePerCastle, true);
     assert.equal(building.active, true);
     assert.equal(building.policyVersion, INNER_KEEP_POLICY_VERSION);
@@ -76,6 +129,8 @@ test('Inner Keep base recipes, multipliers, and durations are exact', () => {
     'lumber-camp': { food: 500n, wood: 700n, stone: 650n, gold: 0n },
     'city-stoneworks': { food: 500n, wood: 900n, stone: 450n, gold: 0n },
     'city-goldworks': { food: 700n, wood: 1_200n, stone: 1_000n, gold: 500n },
+    'city-barracks': { food: 800n, wood: 1_600n, stone: 1_400n, gold: 300n },
+    'grand-covenant-cathedral': { food: 1_200n, wood: 1_800n, stone: 3_200n, gold: 1_200n },
   } as const;
   const expectedMultipliers = [10_000, 22_400, 37_632, 56_197, 78_676];
   const expectedDurations = [
@@ -197,16 +252,16 @@ test('first activation is zero-state while reactivation preserves completed hist
   }), false);
   assert.equal(innerKeepActivationRowsAreSafe({
     previouslyActivated: true,
-    buildingRows: 4n,
+    buildingRows: 6n,
     activeProjects: 0n,
-    receiptRows: 20n,
+    receiptRows: 30n,
     scheduleRows: 0n,
   }), true);
   assert.equal(innerKeepActivationRowsAreSafe({
     previouslyActivated: true,
-    buildingRows: 4n,
+    buildingRows: 6n,
     activeProjects: 1n,
-    receiptRows: 20n,
+    receiptRows: 30n,
     scheduleRows: 1n,
   }), false);
 });
@@ -236,6 +291,14 @@ test('deactivation preserves the ever-activated lifecycle for founder Builder co
 });
 
 test('Inner Keep policy and layout digests detect checked-in drift', () => {
+  assert.equal(
+    INNER_KEEP_POLICY_DIGEST,
+    'cbffcdc223b5d99625cab7549f3a5ae211c725893574b629aa83f8260668a779',
+  );
+  assert.equal(
+    INNER_KEEP_LAYOUT_DIGEST,
+    '1b3a452794c28f8d7f8814ce6064da8582725d34bb0ee0271d51f40c2fbdfad7',
+  );
   assert.deepEqual(
     canonicalInnerKeepPolicyDigestInput().split('|').slice(0, 7),
     [
@@ -264,20 +327,120 @@ test('Inner Keep policy and layout digests detect checked-in drift', () => {
   }), false);
 });
 
-test('layout contains eight active medium and four reserved large slots', () => {
+test('layout retains an empty compatibility slot catalog for free placement', () => {
   assert.equal(CANONICAL_INNER_KEEP_SLOTS.length, INNER_KEEP_SLOT_COUNT);
-  assert.equal(new Set(CANONICAL_INNER_KEEP_SLOTS.map(slot => slot.slotId)).size, 12);
-  assert.equal(new Set(CANONICAL_INNER_KEEP_SLOTS.map(slot => slot.sortOrder)).size, 12);
-  assert.equal(
-    CANONICAL_INNER_KEEP_SLOTS.filter(slot => slot.footprintClass === 'medium').length,
-    INNER_KEEP_MEDIUM_SLOT_COUNT,
+  assert.equal(INNER_KEEP_SLOT_COUNT, 0);
+  assert.equal(INNER_KEEP_MEDIUM_SLOT_COUNT, 0);
+  assert.equal(INNER_KEEP_LARGE_SLOT_COUNT, 0);
+  assert.equal(matchesCanonicalInnerKeepSlot({
+    slotId: 'retired-slot',
+    layoutId: CANONICAL_INNER_KEEP_LAYOUT.layoutId,
+    footprintClass: 'medium',
+    localXMicrounits: 0n,
+    localZMicrounits: 0n,
+    rotationMilliDegrees: 0,
+    sortOrder: 0,
+    active: false,
+  }), false);
+});
+
+test('free-placement geometry pins grid, quarter turns, support, exclusions, and footprints', () => {
+  assert.equal(INNER_KEEP_PLACEMENT_SNAP_MICROUNITS, 500_000n);
+  assert.deepEqual(INNER_KEEP_PLACEMENT_ROTATIONS_MILLI_DEGREES, [0, 90_000, 180_000, 270_000]);
+  assert.deepEqual(INNER_KEEP_BUILDABLE_SUPPORT, {
+    minimumXMicrounits: -44_000_000n,
+    maximumXMicrounits: 44_000_000n,
+    minimumZMicrounits: -40_000_000n,
+    maximumZMicrounits: 32_000_000n,
+  });
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(CANONICAL_INNER_KEEP_PLACEMENT_FOOTPRINTS).map(
+      ([kind, row]) => [kind, [row.halfXMicrounits, row.halfZMicrounits]],
+    )),
+    {
+      'city-mill': [5_650_000n, 4_750_000n],
+      'lumber-camp': [5_300_000n, 4_400_000n],
+      'city-stoneworks': [5_500_000n, 4_600_000n],
+      'city-goldworks': [5_500_000n, 4_600_000n],
+      'city-barracks': [9_250_000n, 7_750_000n],
+      'grand-covenant-cathedral': [18_500_000n, 16_010_000n],
+    },
   );
-  assert.equal(
-    CANONICAL_INNER_KEEP_SLOTS.filter(slot => slot.footprintClass === 'large').length,
-    INNER_KEEP_LARGE_SLOT_COUNT,
+  assert.deepEqual(
+    CANONICAL_INNER_KEEP_PLACEMENT_EXCLUSIONS,
+    [
+      {
+        exclusionId: 'inner-keep-permanent-gate-spine',
+        centerXMicrounits: 0n,
+        centerZMicrounits: 14_500_000n,
+        halfXMicrounits: 3_000_000n,
+        halfZMicrounits: 17_500_000n,
+      },
+      {
+        exclusionId: 'inner-keep-permanent-civic-commons',
+        centerXMicrounits: 0n,
+        centerZMicrounits: 2_000_000n,
+        halfXMicrounits: 5_000_000n,
+        halfZMicrounits: 5_000_000n,
+      },
+      {
+        exclusionId: 'inner-keep-permanent-gate-approach',
+        centerXMicrounits: 0n,
+        centerZMicrounits: 30_000_000n,
+        halfXMicrounits: 4_000_000n,
+        halfZMicrounits: 2_000_000n,
+      },
+    ],
   );
-  for (const slot of CANONICAL_INNER_KEEP_SLOTS) {
-    assert.equal(matchesCanonicalInnerKeepSlot(slot), true);
-    assert.equal(slot.active, slot.footprintClass === 'medium');
-  }
+});
+
+test('placement validation rejects off-grid, rotation, boundary, reserved, and overlap while allowing touch', () => {
+  const evaluateMill = (
+    localXMicrounits: bigint,
+    localZMicrounits: bigint,
+    rotationMilliDegrees = 0,
+  ) => evaluateCanonicalInnerKeepPlacement('city-mill', {
+    localXMicrounits,
+    localZMicrounits,
+    rotationMilliDegrees,
+  }, []);
+  assert.deepEqual(evaluateMill(-30_250_000n, -25_000_000n), {
+    valid: false,
+    reason: 'INNER_KEEP_PLACEMENT_OFF_GRID',
+  });
+  assert.deepEqual(evaluateMill(-30_000_000n, -25_000_000n, 45_000), {
+    valid: false,
+    reason: 'INNER_KEEP_PLACEMENT_ROTATION',
+  });
+  assert.deepEqual(evaluateMill(-38_500_000n, -25_000_000n), {
+    valid: false,
+    reason: 'INNER_KEEP_PLACEMENT_OUTSIDE',
+  });
+  assert.deepEqual(evaluateMill(0n, 0n), {
+    valid: false,
+    reason: 'INNER_KEEP_PLACEMENT_RESERVED',
+    conflictId: 'inner-keep-permanent-gate-spine',
+  });
+
+  const occupied = [{
+    buildingKey: '1:city-stoneworks',
+    buildingKind: 'city-stoneworks' as const,
+    localXMicrounits: -20_000_000n,
+    localZMicrounits: -20_000_000n,
+    rotationMilliDegrees: 0,
+  }];
+  assert.deepEqual(evaluateCanonicalInnerKeepPlacement('city-goldworks', {
+    localXMicrounits: -9_500_000n,
+    localZMicrounits: -20_000_000n,
+    rotationMilliDegrees: 0,
+  }, occupied), {
+    valid: false,
+    reason: 'INNER_KEEP_PLACEMENT_OCCUPIED',
+    conflictId: '1:city-stoneworks',
+  });
+  assert.deepEqual(evaluateCanonicalInnerKeepPlacement('city-goldworks', {
+    localXMicrounits: -9_000_000n,
+    localZMicrounits: -20_000_000n,
+    rotationMilliDegrees: 0,
+  }, occupied), { valid: true });
 });

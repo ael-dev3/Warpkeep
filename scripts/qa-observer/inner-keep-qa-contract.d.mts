@@ -12,7 +12,7 @@ export const INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS: Readonly<Record<
 >>;
 
 export type InnerKeepQaEvidence = Readonly<{
-  version: 2;
+  version: 3;
   scenario: InnerKeepQaScenarioId;
   renderMode: 'webgl' | 'fallback';
   innerKeepRenderer: 'webgl' | 'fallback';
@@ -30,10 +30,17 @@ export type InnerKeepQaEvidence = Readonly<{
   webglContextCount: number;
   rafOwnerCount: number;
   maximumPendingRafCount: number;
+  catalogueBuildingControlCount: number;
+  enabledCatalogueBuildingControlCount: number;
+  mapBuildingControlCount: number;
+  enabledMapBuildingControlCount: number;
   slotControlCount: number;
   enabledSlotControlCount: number;
   slotCount: number;
   slotGeometryCount: number;
+  buildingPickTargetCount: number;
+  placementPreviewActive: boolean;
+  placementPreviewValid: boolean;
   smokeSpriteCount: number;
   grassBladeCount: number;
   waterSurfaceCount: number;

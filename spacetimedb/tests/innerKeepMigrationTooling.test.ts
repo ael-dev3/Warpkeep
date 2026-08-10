@@ -42,7 +42,7 @@ test('v15 is the exact v14 prefix plus Inner Keep refs 56-63', () => {
   assert.deepEqual(candidateTables, v15Tables);
 });
 
-test('v15 fixture pins public projection, private authority, and all-table sentinel', () => {
+test('v15 fixture pins public projection, private authority, and an empty compatibility slot table', () => {
   const fixture = source('../migration-fixtures/additive-v15-schema/src/index.ts');
   const packageJson = source('../migration-fixtures/additive-v15-schema/package.json');
   const lock = source('../pnpm-lock.yaml');
@@ -69,11 +69,32 @@ test('v15 fixture pins public projection, private authority, and all-table senti
   }
   assert.match(fixture, /name: 'fixture_seed_inner_keep_sentinel_v15'/);
   for (const accessor of innerKeepRegistrations) {
+    if (accessor === 'innerKeepSlotV1') continue;
     assert.match(
       fixture.slice(fixture.indexOf("name: 'fixture_seed_inner_keep_sentinel_v15'")),
       new RegExp(`ctx\\.db\\.${accessor}\\.insert`),
     );
   }
+  const buildingDeclaration = fixture.slice(
+    fixture.indexOf('const castleInnerKeepBuildingV1'),
+    fixture.indexOf('/** v15 private Builder'),
+  );
+  const receiptDeclaration = fixture.slice(
+    fixture.indexOf('const castleInnerBuildReceiptV1'),
+    fixture.indexOf('const castleInnerConstructionScheduleV1'),
+  );
+  for (const declaration of [buildingDeclaration, receiptDeclaration]) {
+    assert.match(declaration, /localXMicrounits: t\.i64\(\)/);
+    assert.match(declaration, /localZMicrounits: t\.i64\(\)/);
+    assert.match(declaration, /rotationMilliDegrees: t\.u32\(\)/);
+    assert.doesNotMatch(declaration, /slot(?:Key|Id):/);
+  }
+  const sentinel = fixture.slice(
+    fixture.indexOf("name: 'fixture_seed_inner_keep_sentinel_v15'"),
+    fixture.indexOf('/** Retain the v13 populated-suffix fixture reducer'),
+  );
+  assert.match(sentinel, /slotCount: 0, mediumSlotCount: 0, largeSlotCount: 0/);
+  assert.doesNotMatch(sentinel, /ctx\.db\.innerKeepSlotV1\.insert/);
   assert.match(packageJson, /warpkeep-additive-v15-schema-migration-fixture/);
   assert.match(lock, /migration-fixtures\/additive-v15-schema:/);
 });

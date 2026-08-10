@@ -105,7 +105,7 @@ import {
   workerPrivateSyncStatus
 } from './workerPrivateSync';
 import type {
-  InnerKeepBuildingKind,
+  InnerKeepProjectIntent,
   InnerKeepPresentation
 } from '../components/inner-keep/innerKeepPresentation';
 import {
@@ -113,6 +113,7 @@ import {
   InnerKeepProjectNoCommitError,
   innerKeepQuoteAffordable
 } from '../components/inner-keep/innerKeepPresentation';
+import { evaluateInnerKeepPlacementDraft } from '../components/inner-keep/innerKeepPlacement';
 import {
   classifyInnerKeepDefinitiveRejection,
   innerKeepCommandAttemptFor,
@@ -261,10 +262,7 @@ export type WarpkeepBackendControllerValue = Readonly<{
   /** Caller-bound Inner Keep projection; absent until compatible v15 activation. */
   innerKeep?: InnerKeepPresentation;
   /** Start one exact quoted project with a retained memory-only request key. */
-  startInnerKeepProject: (
-    slotId: string,
-    buildingKind: InnerKeepBuildingKind
-  ) => Promise<void>;
+  startInnerKeepProject: (intent: InnerKeepProjectIntent) => Promise<void>;
   /** Reconcile private receipt plus public project without resending a command. */
   retryInnerKeepSync: () => void;
 }>;
@@ -1063,8 +1061,7 @@ export function WarpkeepSpacetimeProvider({
   }, []);
 
   const startInnerKeepProject = useCallback(async (
-    slotId: string,
-    buildingKind: InnerKeepBuildingKind
+    intent: InnerKeepProjectIntent
   ) => {
     const generation = generationRef.current;
     const currentState = stateRef.current;
@@ -1107,13 +1104,30 @@ export function WarpkeepSpacetimeProvider({
         'Inner Keep construction is unavailable.'
       );
     }
+    const existingBuilding = currentState.innerKeep.buildings.find((building) => (
+      building.buildingKind === intent.buildingKind
+    ));
+    const placement = intent.kind === 'construct'
+      ? intent.placement
+      : existingBuilding?.placement;
+    const placementValid = placement !== undefined && (
+      intent.kind === 'upgrade'
+        ? existingBuilding?.phase === 'complete'
+        : existingBuilding === undefined
+          && evaluateInnerKeepPlacementDraft(
+            intent.buildingKind,
+            placement,
+            currentState.innerKeep.buildings,
+          ).evaluation.valid
+    );
     const quote = currentState.innerKeep.quotes.find((candidate) => (
-      candidate.slotId === slotId
-      && candidate.buildingKind === buildingKind
+      candidate.buildingKind === intent.buildingKind
       && candidate.available
     ));
     if (
-      quote === undefined
+      !placementValid
+      || placement === undefined
+      || quote === undefined
       || !innerKeepQuoteAffordable(quote, currentState.innerKeep.resources.available)
       || INNER_KEEP_RESOURCE_ORDER.some((resource) => (
         currentState.innerKeep!.resources.available[resource] < quote.cost[resource]
@@ -1126,8 +1140,8 @@ export function WarpkeepSpacetimeProvider({
       existingAttempt,
       retainedProjection.value.scope,
       Object.freeze({
-        slotId,
-        buildingKind,
+        buildingKind: intent.buildingKind,
+        placement,
         targetLevel: quote.targetLevel,
         cost: quote.cost,
         durationMicros: quote.durationMicros
@@ -1172,12 +1186,13 @@ export function WarpkeepSpacetimeProvider({
     try {
       await withResourceOperationDeadline(runtime.startInnerKeepProject(
         connection,
-        slotId,
-        buildingKind,
+        intent.buildingKind,
+        placement,
         attempt.requestKey,
         attempt.intent.targetLevel,
         attempt.scope.projectRevision.toString(),
-        attempt.scope.policyDigest
+        attempt.scope.policyDigest,
+        attempt.scope.layoutDigest
       ));
       if (
         generationRef.current !== generation

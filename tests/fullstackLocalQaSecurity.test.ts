@@ -423,6 +423,12 @@ describe('disposable connected local QA dependency and network boundaries', () =
     expect(launcherSource).toContain(
       "await callAdmin('admin_activate_inner_keep_v1'"
     );
+    expect(launcherSource).toContain('value.length !== 14');
+    expect(launcherSource).toContain('LOCAL_FULLSTACK_INNER_KEEP_PLACEMENTS');
+    expect(launcherSource).toContain('localXMicrounits: readOptionalSigned(value[4])');
+    expect(launcherSource).toContain('localZMicrounits: readOptionalSigned(value[5])');
+    expect(launcherSource).toContain('rotationMilliDegrees: readOptionalUnsigned(value[6])');
+    expect(launcherSource).not.toContain('receipt.slotId');
     expect(launcherSource).not.toContain('qa_inner_keep');
     expect(launcherSource).not.toContain('admin_complete_inner_keep');
     expect(innerKeepAuthoritySource).toContain(
@@ -450,17 +456,25 @@ describe('disposable connected local QA dependency and network boundaries', () =
       'database.inspectInnerKeepFirstProject(',
       "'.inner-keep-worksite__scaffold'",
       "'.inner-keep-worksite__smoke'",
+      "'[data-inner-keep-building-key]'",
+      "buttonWithText('CONFIRM PLACEMENT', panel)",
+      "'14000000:-10000000:0'",
+      "'29000000:-10000000:0'",
       "value.discountedFoodCost !== 480",
       "value.worksiteCount !== 1",
       "value.cameraPreserved !== true",
       "value.publicWorkerCount !== 28",
     ]) expect(browserSource).toContain(evidence);
+    expect(browserSource).not.toContain('data-inner-keep-slot-id');
+    expect(browserSource).not.toContain('START CONSTRUCTION');
     for (const evidence of [
       'data-local-fullstack-inner-keep-attempt',
       'data-local-fullstack-inner-keep-request-key',
+      'data-local-fullstack-inner-keep-placement',
       'data-local-fullstack-inner-keep-expected-target-level',
       'data-local-fullstack-inner-keep-expected-project-revision',
       'data-local-fullstack-inner-keep-expected-policy-digest',
+      'data-local-fullstack-inner-keep-expected-layout-digest',
       'data-local-fullstack-inner-keep-state',
       'DEFAULT_WARPKEEP_BACKEND_RUNTIME.startInnerKeepProject',
     ]) expect(appSource).toContain(evidence);

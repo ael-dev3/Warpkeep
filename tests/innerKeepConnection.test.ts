@@ -20,12 +20,18 @@ import {
   INNER_KEEP_LAYOUT_DIGEST
 } from '../spacetimedb/src/innerKeepLayoutPolicy';
 import { WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION } from '../src/spacetime/warpkeepProtocol';
+import { INNER_KEEP_PROJECT_REVISION_MAX } from '../src/components/inner-keep/innerKeepPresentation';
 
 const INNER_KEEP_SCOPE = Object.freeze({
   generation: 3,
   fid: 12_345,
   castleId: 7n,
   backendProtocolVersion: WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION
+});
+const PLACEMENT = Object.freeze({
+  localXMicrounits: 14_000_000n,
+  localZMicrounits: -10_000_000n,
+  rotationMilliDegrees: 0
 });
 
 function subscriptionDouble() {
@@ -117,8 +123,10 @@ function connectionHarness(
     found: false,
     castleId: undefined,
     buildingKey: undefined,
-    slotId: undefined,
     buildingKind: undefined,
+    localXMicrounits: undefined,
+    localZMicrounits: undefined,
+    rotationMilliDegrees: undefined,
     targetLevel: undefined,
     deductedFood: undefined,
     deductedWood: undefined,
@@ -229,6 +237,49 @@ describe('Inner Keep browser connection boundary', () => {
     subscription.unsubscribe();
   });
 
+  it('normalizes flat generated building rows into the nested placement projection', async () => {
+    const flatSdkRow = Object.freeze({
+      buildingKey: '7:city-mill',
+      castleId: 7n,
+      buildingKind: 'city-mill',
+      localXMicrounits: PLACEMENT.localXMicrounits,
+      localZMicrounits: PLACEMENT.localZMicrounits,
+      rotationMilliDegrees: PLACEMENT.rotationMilliDegrees,
+      completedLevel: 1,
+      targetLevel: 1,
+      phase: 'complete',
+      startedAtMicros: 1n,
+      completesAtMicros: 86_400_000_001n,
+      revision: 1n,
+      policyVersion: INNER_KEEP_POLICY_VERSION
+    });
+    const harness = connectionHarness([flatSdkRow]);
+    const subscription = subscribeToWarpkeepRealm(
+      harness.connection,
+      vi.fn(),
+      vi.fn(),
+      INNER_KEEP_SCOPE.fid
+    );
+    harness.core.apply();
+    harness.innerKeep.apply();
+
+    const projection = await readWarpkeepInnerKeepProjection(harness.connection, {
+      scope: INNER_KEEP_SCOPE,
+      commandsAvailable: true
+    });
+
+    expect(projection?.buildings).toEqual([
+      expect.objectContaining({
+        buildingKey: flatSdkRow.buildingKey,
+        placement: PLACEMENT
+      })
+    ]);
+    expect(projection?.presentation.buildings[0]?.placement).toEqual(PLACEMENT);
+    expect(projection?.buildings[0]).not.toHaveProperty('localXMicrounits');
+
+    subscription.unsubscribe();
+  });
+
   it('does not fall back to a realm-wide building subscription without an owned castle', async () => {
     const harness = connectionHarness();
     const onApplied = vi.fn();
@@ -298,54 +349,91 @@ describe('Inner Keep browser connection boundary', () => {
     )).toEqual({ found: false });
     await startWarpkeepInnerKeepProject(
       harness.connection,
-      'inner-keep-slot-m01',
       'city-mill',
+      PLACEMENT,
       requestKey,
       2,
       '18446744073709551616',
-      INNER_KEEP_POLICY_DIGEST
+      INNER_KEEP_POLICY_DIGEST,
+      INNER_KEEP_LAYOUT_DIGEST
     );
     expect(harness.getMyInnerKeepRequestStatusV1).toHaveBeenCalledWith({ requestKey });
     expect(harness.innerKeepStartProjectV1).toHaveBeenCalledWith({
-      slotId: 'inner-keep-slot-m01',
       buildingKind: 'city-mill',
+      localXMicrounits: 14_000_000n,
+      localZMicrounits: -10_000_000n,
+      rotationMilliDegrees: 0,
       requestKey,
       expectedTargetLevel: 2,
       expectedProjectRevision: '18446744073709551616',
-      expectedPolicyDigest: INNER_KEEP_POLICY_DIGEST
+      expectedPolicyDigest: INNER_KEEP_POLICY_DIGEST,
+      expectedLayoutDigest: INNER_KEEP_LAYOUT_DIGEST
     });
     await expect(startWarpkeepInnerKeepProject(
       harness.connection,
-      'inner-keep-slot-m01',
       'city-mill',
+      PLACEMENT,
       requestKey,
       2,
       '018446744073709551616',
-      INNER_KEEP_POLICY_DIGEST
+      INNER_KEEP_POLICY_DIGEST,
+      INNER_KEEP_LAYOUT_DIGEST
     )).rejects.toThrow('Inner Keep construction is unavailable.');
     for (const [target, revision] of [
       [0, '0'],
       [6, '0'],
       [2, '+0'],
-      [2, '110680464442257309691'],
+      [2, (INNER_KEEP_PROJECT_REVISION_MAX + 1n).toString()],
     ] as const) {
       await expect(startWarpkeepInnerKeepProject(
         harness.connection,
-        'inner-keep-slot-m01',
         'city-mill',
+        PLACEMENT,
         requestKey,
         target,
         revision,
-        INNER_KEEP_POLICY_DIGEST
+        INNER_KEEP_POLICY_DIGEST,
+        INNER_KEEP_LAYOUT_DIGEST
       )).rejects.toThrow('Inner Keep construction is unavailable.');
     }
     await expect(startWarpkeepInnerKeepProject(
       harness.connection,
-      'inner-keep-slot-m01',
       'city-mill',
+      PLACEMENT,
       requestKey,
       2,
       '18446744073709551616',
+      '0'.repeat(64),
+      INNER_KEEP_LAYOUT_DIGEST
+    )).rejects.toThrow('Inner Keep construction is unavailable.');
+    await expect(startWarpkeepInnerKeepProject(
+      harness.connection,
+      'city-mill',
+      { ...PLACEMENT, localXMicrounits: 14_000_001n },
+      requestKey,
+      2,
+      '18446744073709551616',
+      INNER_KEEP_POLICY_DIGEST,
+      INNER_KEEP_LAYOUT_DIGEST
+    )).rejects.toThrow('Inner Keep construction is unavailable.');
+    await expect(startWarpkeepInnerKeepProject(
+      harness.connection,
+      'city-mill',
+      { ...PLACEMENT, rotationMilliDegrees: 45_000 },
+      requestKey,
+      2,
+      '18446744073709551616',
+      INNER_KEEP_POLICY_DIGEST,
+      INNER_KEEP_LAYOUT_DIGEST
+    )).rejects.toThrow('Inner Keep construction is unavailable.');
+    await expect(startWarpkeepInnerKeepProject(
+      harness.connection,
+      'city-mill',
+      PLACEMENT,
+      requestKey,
+      2,
+      '18446744073709551616',
+      INNER_KEEP_POLICY_DIGEST,
       '0'.repeat(64)
     )).rejects.toThrow('Inner Keep construction is unavailable.');
     expect(harness.innerKeepStartProjectV1).toHaveBeenCalledTimes(1);

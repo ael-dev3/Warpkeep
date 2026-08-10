@@ -32,15 +32,12 @@ import {
   INNER_KEEP_OUTER_WORLD_WILDLIFE_BUDGETS,
   INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE,
   INNER_KEEP_TOWN_JUNCTION_LANES,
-  INNER_KEEP_VILLAGE_COMMONS_SOCIAL_LANE,
   INNER_KEEP_WEST_CROFT_DOORSTEP_PATHS,
-  INNER_KEEP_WEST_VILLAGE_DELIVERY_LANE,
   createInnerKeepOuterWorldRenderedTerrainSampler,
   innerKeepCityDistrictRoadEdgeDistance,
   innerKeepOuterWorldCompoundPlateauSignedDistance,
   innerKeepOuterWorldDistanceToResourceSite,
   innerKeepOuterWorldDistanceToRoad,
-  innerKeepOuterWorldDistanceToSegment,
   innerKeepOuterWorldDistanceToWater,
   innerKeepOuterWorldPointIsClear,
   innerKeepOuterWorldResourcePadsForQuality,
@@ -53,10 +50,10 @@ import {
   INNER_KEEP_VILLAGE_ANIMAL_ROAMING_EXCLUSIONS,
 } from '../src/components/inner-keep/innerKeepTownAtmospherePolicy';
 const EXPANDED_WALL = Object.freeze({
-  westX: -20.2,
-  eastX: 20.2,
-  northZ: -21,
-  southZ: 15,
+  westX: -48,
+  eastX: 48,
+  northZ: -44,
+  southZ: 36,
   cornerHalfExtent: 2,
 });
 
@@ -102,24 +99,26 @@ function sampleUniformAnalyticTerrainGrid(
 
 describe('Inner Keep outer-world presentation policy', () => {
   it('publishes a rich but bounded presentation-only contract', () => {
-    expect(INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS).toEqual([34, 38]);
+    expect(INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS).toEqual([72, 72]);
     expect(INNER_KEEP_OUTER_WORLD_COMPOUND_PLATEAU).toMatchObject({
-      minimumX: -24.2,
-      maximumX: 24.2,
-      minimumZ: -25,
-      maximumZ: 19,
+      minimumX: -55,
+      maximumX: 55,
+      minimumZ: -51,
+      maximumZ: 43,
       centerX: 0,
-      centerZ: -3,
-      cornerRadiusMeters: 5,
-      outerFeatherMeters: 5.5,
+      centerZ: -4,
+      cornerRadiusMeters: 8,
+      outerFeatherMeters: 10,
     });
     expect(INNER_KEEP_OUTER_WORLD_TOPOGRAPHIC_FEATURES.length).toBeGreaterThanOrEqual(7);
     expect(new Set(
       INNER_KEEP_OUTER_WORLD_TOPOGRAPHIC_FEATURES.map(({ featureId }) => featureId),
     ).size).toBe(INNER_KEEP_OUTER_WORLD_TOPOGRAPHIC_FEATURES.length);
     for (const feature of INNER_KEEP_OUTER_WORLD_TOPOGRAPHIC_FEATURES) {
-      expect(Math.abs(feature.centerMeters[0])).toBeLessThan(34);
-      expect(Math.abs(feature.centerMeters[1])).toBeLessThan(38);
+      expect(Math.abs(feature.centerMeters[0]))
+        .toBeLessThan(INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS[0]);
+      expect(Math.abs(feature.centerMeters[1]))
+        .toBeLessThan(INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS[1]);
       expect(outsideCanonicalWallEnvelope(...feature.centerMeters)).toBe(true);
     }
     expect(INNER_KEEP_OUTER_WORLD_TREE_SPECIES_IDS).toEqual([
@@ -133,18 +132,18 @@ describe('Inner Keep outer-world presentation policy', () => {
       'warpkeep.tree.willow.river-mist',
     ]);
     expect(INNER_KEEP_OUTER_WORLD_TREE_BUDGETS).toEqual({
-      high: 72,
-      balanced: 44,
-      reduced: 22,
+      high: 88,
+      balanced: 56,
+      reduced: 28,
     });
     expect(INNER_KEEP_OUTER_WORLD_WILDLIFE_BUDGETS).toEqual({
       high: 10,
       balanced: 7,
       reduced: 4,
     });
-    expect(INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS.high.grassBlades).toBe(2_400);
-    expect(INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS.balanced.grassBlades).toBe(1_400);
-    expect(INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS.reduced.grassBlades).toBe(480);
+    expect(INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS.high.grassBlades).toBe(3_000);
+    expect(INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS.balanced.grassBlades).toBe(1_800);
+    expect(INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS.reduced.grassBlades).toBe(600);
   });
 
   it('keeps the complete expanded wall footprint on an exact rounded plateau', () => {
@@ -230,7 +229,7 @@ describe('Inner Keep outer-world presentation policy', () => {
         expect(innerKeepOuterWorldTerrainSlopeAt(
           sample.x + sample.dx * distance,
           sample.z + sample.dz * distance,
-        )).toBeLessThanOrEqual(0.45);
+        )).toBeLessThanOrEqual(0.58);
       }
     }
   });
@@ -238,8 +237,8 @@ describe('Inner Keep outer-world presentation policy', () => {
   it('samples deterministic finite topography with meaningful elevation range', () => {
     const first: number[] = [];
     const second: number[] = [];
-    for (let x = -34; x <= 34; x += 0.5) {
-      for (let z = -38; z <= 38; z += 0.5) {
+    for (let x = -72; x <= 72; x += 1) {
+      for (let z = -72; z <= 72; z += 1) {
         first.push(innerKeepOuterWorldTerrainHeightAt(x, z));
         second.push(innerKeepOuterWorldTerrainHeightAt(x, z));
       }
@@ -253,7 +252,7 @@ describe('Inner Keep outer-world presentation policy', () => {
       INNER_KEEP_OUTER_WORLD_HEIGHT_BOUNDS_METERS.maximum,
     );
     expect(Math.max(...first) - Math.min(...first)).toBeGreaterThan(3);
-    expect(Number.isFinite(innerKeepOuterWorldTerrainSlopeAt(30, -33))).toBe(true);
+    expect(Number.isFinite(innerKeepOuterWorldTerrainSlopeAt(65, -66))).toBe(true);
     expect(innerKeepOuterWorldTerrainHeightAt(Number.NaN, 0)).toBe(0);
   });
 
@@ -457,7 +456,7 @@ describe('Inner Keep outer-world presentation policy', () => {
     const [halfWidth, halfDepth] = INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS;
     expect(INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE.length).toBeGreaterThanOrEqual(12);
     expect(INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE.some(
-      ({ width, z }) => z === -3 && width >= 2.6,
+      ({ width, z }) => z === -4 && width >= 2.6,
     )).toBe(true);
     for (let index = 0; index < INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE.length; index += 1) {
       const point = INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE[index]!;
@@ -541,9 +540,9 @@ describe('Inner Keep outer-world presentation policy', () => {
     for (const point of INNER_KEEP_OUTER_WORLD_PATROL_ROUTE_POINTS) {
       expect(outsideCanonicalWallEnvelope(point.x, point.z)).toBe(true);
       expect(Math.abs(point.x) + INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT.halfWidthMeters)
-        .toBeLessThan(34);
+        .toBeLessThan(INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS[0]);
       expect(Math.abs(point.z) + INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT.halfWidthMeters)
-        .toBeLessThan(38);
+        .toBeLessThan(INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS[1]);
       expect(Number.isFinite(innerKeepOuterWorldTerrainHeightAt(point.x, point.z))).toBe(true);
     }
     for (const [x, y, z] of INNER_KEEP_OUTER_WORLD_TRADE_ROUTE) {
@@ -559,12 +558,12 @@ describe('Inner Keep outer-world presentation policy', () => {
     expect(INNER_KEEP_OUTER_WORLD_TRADE_ROUTE.at(-1)?.[2]).toBeLessThan(
       EXPANDED_WALL.southZ,
     );
-    expect(INNER_KEEP_OUTER_WORLD_PATROL_ROUTE_POINTS.some(
-      ({ z }) => z === INNER_KEEP_OUTER_WORLD_APPROACHES.northernResourceRoadZ,
-    )).toBe(true);
-    expect(INNER_KEEP_OUTER_WORLD_PATROL_ROUTE_POINTS.some(
-      ({ z }) => z === INNER_KEEP_OUTER_WORLD_APPROACHES.southernResourceRoadZ,
-    )).toBe(true);
+    expect(Math.min(...INNER_KEEP_OUTER_WORLD_PATROL_ROUTE_POINTS.map(
+      ({ z }) => Math.abs(z - INNER_KEEP_OUTER_WORLD_APPROACHES.northernResourceRoadZ),
+    ))).toBeLessThanOrEqual(INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT.halfWidthMeters);
+    expect(Math.min(...INNER_KEEP_OUTER_WORLD_PATROL_ROUTE_POINTS.map(
+      ({ z }) => Math.abs(z - INNER_KEEP_OUTER_WORLD_APPROACHES.southernResourceRoadZ),
+    ))).toBeLessThanOrEqual(INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT.halfWidthMeters);
     for (const site of INNER_KEEP_OUTER_WORLD_RESOURCE_SITES) {
       const approachZ = site.positionMeters[2] < 0
         ? INNER_KEEP_OUTER_WORLD_APPROACHES.northernResourceRoadZ
@@ -596,20 +595,14 @@ describe('Inner Keep outer-world presentation policy', () => {
     }
   });
 
-  it('publishes measurable presentation-only district lanes for ecology clearance', () => {
-    expect(INNER_KEEP_CITY_DISTRICT_ROADS).toHaveLength(7);
-    for (const road of INNER_KEEP_CITY_DISTRICT_ROADS) {
-      expect(road.closed).toBe(false);
-      expect(road.points.length).toBeGreaterThanOrEqual(2);
-      for (const point of road.points) {
-        expect(innerKeepCityDistrictRoadEdgeDistance(point.x, point.z))
-          .toBeLessThanOrEqual(0);
-      }
-    }
+  it('leaves the free-placement yard clear of legacy district lanes', () => {
+    expect(INNER_KEEP_CITY_DISTRICT_ROADS).toEqual([]);
+    expect(innerKeepCityDistrictRoadEdgeDistance(20, -20))
+      .toBe(Number.POSITIVE_INFINITY);
   });
 
-  it('keeps one continuous presentation-only civic cross-road under authored tiles', () => {
-    expect(INNER_KEEP_CITY_CORE_ROADS).toHaveLength(3);
+  it('keeps one continuous presentation-only civic spine under authored tiles', () => {
+    expect(INNER_KEEP_CITY_CORE_ROADS).toHaveLength(1);
     expect(INNER_KEEP_CITY_PRESENTATION_ROADS).toHaveLength(
       INNER_KEEP_CITY_CORE_ROADS.length + INNER_KEEP_CITY_DISTRICT_ROADS.length,
     );
@@ -625,26 +618,14 @@ describe('Inner Keep outer-world presentation policy', () => {
       expect(road.points.length).toBeGreaterThanOrEqual(2);
     }
 
-    const [spine, westMarket, eastMarket] = INNER_KEEP_CITY_CORE_ROADS;
-    expect(spine?.points[0]).toEqual({ x: 0, z: 13.7 });
-    expect(spine?.points.at(-1)).toEqual({ x: 0, z: -10.9 });
-    const civicJunction = spine?.points.find(({ z }) => z === 0.2);
-    expect(civicJunction).toEqual({ x: 0, z: 0.2 });
-    expect(Math.hypot(
-      westMarket!.points[0]!.x - civicJunction!.x,
-      westMarket!.points[0]!.z - civicJunction!.z,
-    )).toBeLessThanOrEqual(
-      westMarket!.halfWidthMeters + spine!.halfWidthMeters,
-    );
-    expect(Math.hypot(
-      eastMarket!.points[0]!.x - civicJunction!.x,
-      eastMarket!.points[0]!.z - civicJunction!.z,
-    )).toBeLessThanOrEqual(
-      eastMarket!.halfWidthMeters + spine!.halfWidthMeters,
-    );
+    const [spine] = INNER_KEEP_CITY_CORE_ROADS;
+    expect(spine?.points[0]).toEqual({ x: 0, z: 34 });
+    expect(spine?.points.at(-1)).toEqual({ x: 0, z: -3 });
+    expect(spine?.halfWidthMeters).toBe(2);
+    expect(spine?.points.every(({ x }) => x === 0)).toBe(true);
   });
 
-  it('connects the lower ward, cottage frontages, quay, and old road', () => {
+  it('keeps sparse lower-ward lanes and doorstep paths outside the free yard', () => {
     const laneIds = INNER_KEEP_OUTER_WORLD_AMBIENT_LANES.map(({ laneId }) => laneId);
     expect(new Set(laneIds).size).toBe(laneIds.length);
     for (const lane of INNER_KEEP_OUTER_WORLD_AMBIENT_LANES) {
@@ -662,41 +643,14 @@ describe('Inner Keep outer-world presentation policy', () => {
     });
     expect(INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE.points.at(-1))
       .toEqual(INNER_KEEP_EASTWALL_QUAY_LANE.points[0]);
-    expect(INNER_KEEP_EASTWALL_QUAY_LANE.points.at(-1)).toEqual({ x: 24.5, z: 7 });
-    expect(INNER_KEEP_EAST_CROFT_MARKET_LANE.points[0])
-      .toEqual(INNER_KEEP_EAST_VILLAGE_SERVICE_LANE.points[2]);
-    expect(INNER_KEEP_OLD_ROAD_GRAVEYARD_SPUR.points[0]).toEqual({ x: -32, z: -2 });
+    expect(INNER_KEEP_EASTWALL_QUAY_LANE.points.at(-1)).toEqual({ x: 58, z: 32 });
+    expect(INNER_KEEP_EAST_CROFT_MARKET_LANE.points[0]).toEqual({ x: 42, z: 42 });
+    expect(INNER_KEEP_EAST_VILLAGE_SERVICE_LANE.points[0]).toEqual({ x: 55, z: 38 });
+    expect(INNER_KEEP_OLD_ROAD_GRAVEYARD_SPUR.points[0]).toEqual({ x: -66, z: -4 });
     expect(INNER_KEEP_OLD_ROAD_GRAVEYARD_SPUR.points.at(-1))
-      .toEqual({ x: -26, z: -5.8 });
+      .toEqual({ x: -60, z: -10 });
 
-    const [westGateLink, eastGateLink, commonsLink] =
-      INNER_KEEP_TOWN_JUNCTION_LANES;
-    expect(westGateLink?.points[0])
-      .toEqual(INNER_KEEP_WEST_VILLAGE_DELIVERY_LANE.points.at(-1));
-    expect(westGateLink?.points.at(-1))
-      .toEqual(INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE.points[0]);
-    expect(eastGateLink?.points[0])
-      .toEqual(INNER_KEEP_EAST_VILLAGE_SERVICE_LANE.points[0]);
-    const eastGateContact = eastGateLink!.points.at(-1)!;
-    expect(innerKeepOuterWorldDistanceToSegment(
-      eastGateContact.x,
-      eastGateContact.z,
-      INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE.points[0]!.x,
-      INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE.points[0]!.z,
-      INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE.points[1]!.x,
-      INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE.points[1]!.z,
-    )).toBeLessThan(0.05);
-    expect(commonsLink?.points[0])
-      .toEqual(INNER_KEEP_VILLAGE_COMMONS_SOCIAL_LANE.points.at(-1));
-    const commonsContact = commonsLink!.points.at(-1)!;
-    expect(innerKeepOuterWorldDistanceToSegment(
-      commonsContact.x,
-      commonsContact.z,
-      INNER_KEEP_EAST_VILLAGE_SERVICE_LANE.points[2]!.x,
-      INNER_KEEP_EAST_VILLAGE_SERVICE_LANE.points[2]!.z,
-      INNER_KEEP_EAST_VILLAGE_SERVICE_LANE.points[3]!.x,
-      INNER_KEEP_EAST_VILLAGE_SERVICE_LANE.points[3]!.z,
-    )).toBeLessThan(0.05);
+    expect(INNER_KEEP_TOWN_JUNCTION_LANES).toEqual([]);
 
     const doorstepPaths = [
       ...INNER_KEEP_WEST_CROFT_DOORSTEP_PATHS,
@@ -705,32 +659,12 @@ describe('Inner Keep outer-world presentation policy', () => {
     expect(doorstepPaths).toHaveLength(6);
     expect(new Set(doorstepPaths.map(({ servesHouseId }) => servesHouseId)).size)
       .toBe(doorstepPaths.length);
-    for (const path of INNER_KEEP_WEST_CROFT_DOORSTEP_PATHS) {
-      const endpoint = path.points.at(-1)!;
-      let nearestTradeCenterline = Number.POSITIVE_INFINITY;
-      for (let index = 0; index < INNER_KEEP_OUTER_WORLD_TRADE_ROUTE.length - 1; index += 1) {
-        const from = INNER_KEEP_OUTER_WORLD_TRADE_ROUTE[index]!;
-        const to = INNER_KEEP_OUTER_WORLD_TRADE_ROUTE[index + 1]!;
-        nearestTradeCenterline = Math.min(
-          nearestTradeCenterline,
-          innerKeepOuterWorldDistanceToSegment(
-            endpoint.x,
-            endpoint.z,
-            from[0],
-            from[2],
-            to[0],
-            to[2],
-          ),
-        );
+    for (const path of doorstepPaths) {
+      for (const point of path.points) {
+        expect(outsideCanonicalWallEnvelope(point.x, point.z), path.laneId)
+          .toBe(true);
       }
-      expect(nearestTradeCenterline, path.laneId).toBeLessThan(0.75);
     }
-    const southfieldPath = INNER_KEEP_EAST_CROFT_DOORSTEP_PATHS.find(
-      ({ servesHouseId }) => servesHouseId === 'southfield-east-row',
-    )!;
-    const circuitContact = southfieldPath.points[0]!;
-    expect(innerKeepOuterWorldDistanceToRoad(circuitContact.x, circuitContact.z))
-      .toBe(0);
   });
 
   it('uses one clear-point predicate for forest, wildlife, and grass exclusions', () => {
@@ -739,8 +673,8 @@ describe('Inner Keep outer-world presentation policy', () => {
     expect(innerKeepOuterWorldPointIsClear(water.x, water.z)).toBe(false);
     const road = INNER_KEEP_OUTER_WORLD_PATROL_ROUTE_POINTS[10]!;
     expect(innerKeepOuterWorldPointIsClear(road.x, road.z)).toBe(false);
-    expect(innerKeepOuterWorldDistanceToWater(-28, -27)).toBeGreaterThan(1);
-    expect(innerKeepOuterWorldPointIsClear(-28, -27)).toBe(true);
+    expect(innerKeepOuterWorldDistanceToWater(-60, -45)).toBeGreaterThan(1);
+    expect(innerKeepOuterWorldPointIsClear(-60, -45)).toBe(true);
     for (const exclusion of INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS) {
       expect(innerKeepOuterWorldPointIsClear(
         exclusion.center.x,

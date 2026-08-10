@@ -13,7 +13,7 @@ export const INNER_KEEP_QA_SCENARIO_MANIFEST = Object.freeze([
     state: 'empty',
     level: null,
     progressBasisPoints: null,
-    selectedSlotId: null,
+    catalogueOpen: false,
     selectedBuildingKind: null,
   }),
   Object.freeze({
@@ -25,7 +25,7 @@ export const INNER_KEEP_QA_SCENARIO_MANIFEST = Object.freeze([
     state: 'empty',
     level: null,
     progressBasisPoints: null,
-    selectedSlotId: null,
+    catalogueOpen: true,
     selectedBuildingKind: null,
   }),
   Object.freeze({
@@ -37,7 +37,7 @@ export const INNER_KEEP_QA_SCENARIO_MANIFEST = Object.freeze([
     state: 'empty',
     level: null,
     progressBasisPoints: null,
-    selectedSlotId: null,
+    catalogueOpen: false,
     selectedBuildingKind: null,
     initialElapsedSeconds: 20,
   }),
@@ -50,8 +50,8 @@ export const INNER_KEEP_QA_SCENARIO_MANIFEST = Object.freeze([
     state: 'complete',
     level,
     progressBasisPoints: null,
-    selectedSlotId: null,
-    selectedBuildingKind: null,
+    catalogueOpen: false,
+    selectedBuildingKind: 'city-mill',
   })),
   ...[100, 5_000, 9_900].map((progressBasisPoints) => Object.freeze({
     id: `construction-${progressBasisPoints / 100}-percent`,
@@ -62,8 +62,8 @@ export const INNER_KEEP_QA_SCENARIO_MANIFEST = Object.freeze([
     state: 'constructing',
     level: 1,
     progressBasisPoints,
-    selectedSlotId: 'inner-keep-slot-m01',
-    selectedBuildingKind: null,
+    catalogueOpen: false,
+    selectedBuildingKind: 'city-mill',
   })),
   Object.freeze({
     id: 'completion-reveal',
@@ -74,8 +74,8 @@ export const INNER_KEEP_QA_SCENARIO_MANIFEST = Object.freeze([
     state: 'completion-reveal',
     level: 1,
     progressBasisPoints: 9_900,
-    selectedSlotId: 'inner-keep-slot-m01',
-    selectedBuildingKind: null,
+    catalogueOpen: false,
+    selectedBuildingKind: 'city-mill',
   }),
   Object.freeze({
     id: 'builder-busy',
@@ -86,7 +86,7 @@ export const INNER_KEEP_QA_SCENARIO_MANIFEST = Object.freeze([
     state: 'builder-busy',
     level: 1,
     progressBasisPoints: 5_000,
-    selectedSlotId: 'inner-keep-slot-m02',
+    catalogueOpen: false,
     selectedBuildingKind: 'lumber-camp',
   }),
   Object.freeze({
@@ -98,7 +98,7 @@ export const INNER_KEEP_QA_SCENARIO_MANIFEST = Object.freeze([
     state: 'insufficient',
     level: null,
     progressBasisPoints: null,
-    selectedSlotId: 'inner-keep-slot-m01',
+    catalogueOpen: false,
     selectedBuildingKind: 'city-mill',
   }),
   Object.freeze({
@@ -110,8 +110,8 @@ export const INNER_KEEP_QA_SCENARIO_MANIFEST = Object.freeze([
     state: 'complete',
     level: 3,
     progressBasisPoints: null,
-    selectedSlotId: null,
-    selectedBuildingKind: null,
+    catalogueOpen: false,
+    selectedBuildingKind: 'city-mill',
   }),
   Object.freeze({
     id: 'reduced-motion',
@@ -122,8 +122,8 @@ export const INNER_KEEP_QA_SCENARIO_MANIFEST = Object.freeze([
     state: 'constructing',
     level: 1,
     progressBasisPoints: 5_000,
-    selectedSlotId: 'inner-keep-slot-m01',
-    selectedBuildingKind: null,
+    catalogueOpen: false,
+    selectedBuildingKind: 'city-mill',
   }),
   Object.freeze({
     id: 'missing-asset-fallback',
@@ -134,8 +134,8 @@ export const INNER_KEEP_QA_SCENARIO_MANIFEST = Object.freeze([
     state: 'missing-asset',
     level: 3,
     progressBasisPoints: null,
-    selectedSlotId: 'inner-keep-slot-m01',
-    selectedBuildingKind: null,
+    catalogueOpen: false,
+    selectedBuildingKind: 'city-mill',
   }),
   Object.freeze({
     id: '2d-fallback',
@@ -146,8 +146,8 @@ export const INNER_KEEP_QA_SCENARIO_MANIFEST = Object.freeze([
     state: 'complete',
     level: 2,
     progressBasisPoints: null,
-    selectedSlotId: null,
-    selectedBuildingKind: null,
+    catalogueOpen: false,
+    selectedBuildingKind: 'city-mill',
   }),
 ]);
 

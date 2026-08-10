@@ -13,23 +13,23 @@ import {
  * and ambient actors can meet the same ground without becoming authoritative.
  */
 export const INNER_KEEP_OUTER_WORLD_POLICY_VERSION =
-  'inner-keep-outer-world-presentation-v4';
+  'inner-keep-outer-world-presentation-v5-free-placement-town';
 
 export const INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS = Object.freeze([
-  34,
-  38,
+  72,
+  72,
 ] as const);
 
 export const INNER_KEEP_OUTER_WORLD_COMPOUND_PLATEAU = Object.freeze({
-  minimumX: -24.2,
-  maximumX: 24.2,
-  minimumZ: -25,
-  maximumZ: 19,
+  minimumX: -55,
+  maximumX: 55,
+  minimumZ: -51,
+  maximumZ: 43,
   centerX: 0,
-  centerZ: -3,
-  cornerRadiusMeters: 5,
+  centerZ: -4,
+  cornerRadiusMeters: 8,
   elevationMeters: 0,
-  outerFeatherMeters: 5.5,
+  outerFeatherMeters: 10,
 });
 
 export const INNER_KEEP_OUTER_WORLD_HEIGHT_BOUNDS_METERS = Object.freeze({
@@ -51,63 +51,63 @@ readonly InnerKeepOuterWorldTopographicFeature[] = Object.freeze([
     featureId: 'northern-crown-ridge',
     name: 'Northern Crown Ridge',
     kind: 'ridge',
-    centerMeters: Object.freeze([0, -36] as const),
+    centerMeters: Object.freeze([0, -66] as const),
     description: 'A broad northern rise that silhouettes the estate approach.',
   }),
   Object.freeze({
     featureId: 'goldvein-rise',
     name: 'Goldvein Rise',
     kind: 'ridge',
-    centerMeters: Object.freeze([-9, -31] as const),
+    centerMeters: Object.freeze([-18, -62] as const),
     description: 'A weathered north-west shoulder around the scenic gold site.',
   }),
   Object.freeze({
     featureId: 'granite-scar',
     name: 'Granite Scar',
     kind: 'shelf',
-    centerMeters: Object.freeze([12, -31] as const),
+    centerMeters: Object.freeze([18, -62] as const),
     description: 'A stepped stone shelf carrying the scenic quarry.',
   }),
   Object.freeze({
     featureId: 'headwater-shelf',
     name: 'Headwater Shelf',
     kind: 'shelf',
-    centerMeters: Object.freeze([30, -33] as const),
+    centerMeters: Object.freeze([62, -64] as const),
     description: 'High eastern ground where the visible watercourse begins.',
   }),
   Object.freeze({
     featureId: 'western-watch-hills',
     name: 'Western Watch Hills',
     kind: 'ridge',
-    centerMeters: Object.freeze([-31, -4] as const),
+    centerMeters: Object.freeze([-65, -4] as const),
     description: 'Rolling watch hills beyond the western wall.',
   }),
   Object.freeze({
     featureId: 'southfield-meadows',
     name: 'Southfield Meadows',
     kind: 'meadow',
-    centerMeters: Object.freeze([-10, 29] as const),
+    centerMeters: Object.freeze([-20, 59] as const),
     description: 'Open farm country around the wheat and logging clearings.',
   }),
   Object.freeze({
     featureId: 'alderwood-margin',
     name: 'Alderwood Margin',
     kind: 'woodland',
-    centerMeters: Object.freeze([24, 25] as const),
+    centerMeters: Object.freeze([58, 55] as const),
     description: 'Willow and alder wetland between the lower canal and mere.',
   }),
   Object.freeze({
     featureId: 'eastwall-rill',
     name: 'Eastwall Canal',
     kind: 'watercourse',
-    centerMeters: Object.freeze([27.7, -3] as const),
+    centerMeters: Object.freeze([60, -4] as const),
     description: 'A narrow headwater opening into a punt-width lower canal.',
   }),
   Object.freeze({
     featureId: 'south-eastern-mere',
     name: 'South-eastern Mere',
     kind: 'lake',
-    centerMeters: Object.freeze([27.5, 27] as const),
+    centerMeters: Object.freeze([60, 56] as const),
     description: 'A reed-ringed lowland mere receiving the east-wall canal.',
   }),
 ]);
@@ -136,9 +136,9 @@ const RESOURCE_SITE_DEFINITIONS = Object.freeze([
     name: 'Southfield Wheat Farm',
     resourceKind: 'food',
     assetId: 'hegemony-wheat-farm',
-    x: -10,
+    x: -20,
     y: 0.22,
-    z: 28.5,
+    z: 59,
     rotationYMilliDegrees: 9_000,
     targetFootprintDiameter: 3.6,
     padRadiusMeters: 2.65,
@@ -150,9 +150,9 @@ const RESOURCE_SITE_DEFINITIONS = Object.freeze([
     name: 'Southfield Logging Camp',
     resourceKind: 'wood',
     assetId: 'hegemony-logging-camp',
-    x: 5,
+    x: 8,
     y: 0.3,
-    z: 29,
+    z: 60,
     rotationYMilliDegrees: -12_000,
     targetFootprintDiameter: 3.8,
     padRadiusMeters: 2.8,
@@ -164,9 +164,9 @@ const RESOURCE_SITE_DEFINITIONS = Object.freeze([
     name: 'Granite Scar Quarry',
     resourceKind: 'stone',
     assetId: 'hegemony-stone-quarry',
-    x: 12,
+    x: 18,
     y: 1.68,
-    z: -31,
+    z: -62,
     rotationYMilliDegrees: 168_000,
     targetFootprintDiameter: 3.8,
     padRadiusMeters: 2.15,
@@ -178,9 +178,9 @@ const RESOURCE_SITE_DEFINITIONS = Object.freeze([
     name: 'Goldvein Scenic Mine',
     resourceKind: 'gold',
     assetId: 'hegemony-gold-mine',
-    x: -9,
+    x: -18,
     y: 1.54,
-    z: -31,
+    z: -62,
     rotationYMilliDegrees: 194_000,
     targetFootprintDiameter: 3.4,
     padRadiusMeters: 2.1,
@@ -270,27 +270,27 @@ export type InnerKeepOuterWorldWaterPoint = Readonly<{
 /** Narrow headwater -> punt-width lower canal -> lake inlet; strictly downhill. */
 export const INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE:
 readonly InnerKeepOuterWorldWaterPoint[] = Object.freeze([
-  Object.freeze({ x: 30, z: -33.2, width: 0.74, y: 1.76 }),
-  Object.freeze({ x: 29.9, z: -30.8, width: 0.78, y: 1.52 }),
-  Object.freeze({ x: 29.7, z: -27.8, width: 0.84, y: 1.25 }),
-  Object.freeze({ x: 29.4, z: -23.8, width: 0.96, y: 0.84 }),
-  Object.freeze({ x: 29, z: -18, width: 1.3, y: 0.55 }),
-  Object.freeze({ x: 28.5, z: -13, width: 2.2, y: 0.48 }),
-  Object.freeze({ x: 28, z: -8, width: 2.45, y: 0.44 }),
-  Object.freeze({ x: 27.7, z: -3, width: 2.6, y: 0.4 }),
-  Object.freeze({ x: 27.6, z: 2, width: 2.7, y: 0.36 }),
-  Object.freeze({ x: 27.4, z: 7, width: 2.8, y: 0.32 }),
-  Object.freeze({ x: 27.2, z: 12, width: 2.9, y: 0.285 }),
-  Object.freeze({ x: 27, z: 16.5, width: 3.05, y: 0.255 }),
-  Object.freeze({ x: 27.2, z: 20.2, width: 3.2, y: 0.225 }),
-  Object.freeze({ x: 27.5, z: 23, width: 3.4, y: 0.205 }),
-  Object.freeze({ x: 27.5, z: 24.6, width: 4.9, y: 0.198 }),
-  Object.freeze({ x: 27.5, z: 26, width: 6.05, y: 0.193 }),
-  Object.freeze({ x: 27.5, z: 27, width: 6.4, y: 0.19 }),
+  Object.freeze({ x: 62, z: -64, width: 0.74, y: 1.76 }),
+  Object.freeze({ x: 61.9, z: -60, width: 0.78, y: 1.52 }),
+  Object.freeze({ x: 61.6, z: -54, width: 0.84, y: 1.25 }),
+  Object.freeze({ x: 61.2, z: -46, width: 0.96, y: 0.84 }),
+  Object.freeze({ x: 60.8, z: -36, width: 1.3, y: 0.55 }),
+  Object.freeze({ x: 60.5, z: -26, width: 2.2, y: 0.48 }),
+  Object.freeze({ x: 60.2, z: -16, width: 2.45, y: 0.44 }),
+  Object.freeze({ x: 60, z: -4, width: 2.6, y: 0.4 }),
+  Object.freeze({ x: 59.8, z: 8, width: 2.7, y: 0.36 }),
+  Object.freeze({ x: 59.6, z: 20, width: 2.8, y: 0.32 }),
+  Object.freeze({ x: 59.5, z: 32, width: 2.9, y: 0.285 }),
+  Object.freeze({ x: 59.5, z: 42, width: 3.05, y: 0.255 }),
+  Object.freeze({ x: 59.7, z: 48, width: 3.2, y: 0.225 }),
+  Object.freeze({ x: 60, z: 52, width: 3.4, y: 0.205 }),
+  Object.freeze({ x: 60, z: 54, width: 4.9, y: 0.198 }),
+  Object.freeze({ x: 60, z: 55, width: 6.05, y: 0.193 }),
+  Object.freeze({ x: 60, z: 56, width: 6.4, y: 0.19 }),
 ]);
 
 export const INNER_KEEP_OUTER_WORLD_LAKE = Object.freeze({
-  center: Object.freeze({ x: 27.5, y: 0.19, z: 27 }),
+  center: Object.freeze({ x: 60, y: 0.19, z: 56 }),
   radii: Object.freeze({ x: 3.2, z: 4 }),
 });
 
@@ -315,7 +315,7 @@ export const INNER_KEEP_OUTER_WORLD_BOAT_ROUTE = Object.freeze({
 
 /** Bounded south-east wetland used only by deterministic scenic presenters. */
 export const INNER_KEEP_OUTER_WORLD_MARSH = Object.freeze({
-  center: Object.freeze({ x: 25.6, z: 26.4 }),
+  center: Object.freeze({ x: 58, z: 55 }),
   radii: Object.freeze({ x: 5, z: 6.1 }),
   presentationOnly: true as const,
   gameplayAuthority: 'none' as const,
@@ -333,36 +333,32 @@ export const INNER_KEEP_OUTER_WORLD_MARSH_BUDGETS = Object.freeze({
 }>>>);
 
 export const INNER_KEEP_OUTER_WORLD_PATROL_ROUTE_POINTS = Object.freeze([
-  Object.freeze({ x: -31, z: -29 }),
-  Object.freeze({ x: -27, z: -33.5 }),
-  Object.freeze({ x: -20, z: -35 }),
-  Object.freeze({ x: -10, z: -35 }),
-  Object.freeze({ x: 0, z: -35 }),
-  Object.freeze({ x: 10, z: -35 }),
-  Object.freeze({ x: 20, z: -35 }),
-  Object.freeze({ x: 27, z: -35.5 }),
-  Object.freeze({ x: 31.8, z: -35.4 }),
-  Object.freeze({ x: 32.8, z: -31 }),
-  Object.freeze({ x: 32, z: -22 }),
-  Object.freeze({ x: 32, z: -12 }),
-  Object.freeze({ x: 32, z: -2 }),
-  Object.freeze({ x: 32, z: 8 }),
-  Object.freeze({ x: 32, z: 18 }),
-  Object.freeze({ x: 32.7, z: 23.5 }),
-  Object.freeze({ x: 32.84, z: 30.5 }),
-  Object.freeze({ x: 32.84, z: 33 }),
-  Object.freeze({ x: 26, z: 33 }),
-  Object.freeze({ x: 16, z: 33 }),
-  Object.freeze({ x: 5, z: 33 }),
-  Object.freeze({ x: -6, z: 33 }),
-  Object.freeze({ x: -17, z: 33 }),
-  Object.freeze({ x: -26, z: 32 }),
-  Object.freeze({ x: -31, z: 27 }),
-  Object.freeze({ x: -32, z: 18 }),
-  Object.freeze({ x: -32, z: 8 }),
-  Object.freeze({ x: -32, z: -2 }),
-  Object.freeze({ x: -32, z: -12 }),
-  Object.freeze({ x: -32, z: -22 }),
+  Object.freeze({ x: -70, z: -54 }),
+  Object.freeze({ x: -68, z: -65 }),
+  Object.freeze({ x: -52, z: -69 }),
+  Object.freeze({ x: -28, z: -69 }),
+  Object.freeze({ x: 0, z: -69 }),
+  Object.freeze({ x: 28, z: -69 }),
+  Object.freeze({ x: 52, z: -69 }),
+  Object.freeze({ x: 68, z: -65 }),
+  Object.freeze({ x: 70, z: -54 }),
+  Object.freeze({ x: 68, z: -34 }),
+  Object.freeze({ x: 68, z: -12 }),
+  Object.freeze({ x: 68, z: 10 }),
+  Object.freeze({ x: 68, z: 32 }),
+  Object.freeze({ x: 70, z: 50 }),
+  Object.freeze({ x: 70, z: 64 }),
+  Object.freeze({ x: 58, z: 69 }),
+  Object.freeze({ x: 36, z: 69 }),
+  Object.freeze({ x: 12, z: 69 }),
+  Object.freeze({ x: -12, z: 69 }),
+  Object.freeze({ x: -36, z: 69 }),
+  Object.freeze({ x: -58, z: 67 }),
+  Object.freeze({ x: -67, z: 50 }),
+  Object.freeze({ x: -68, z: 30 }),
+  Object.freeze({ x: -68, z: 8 }),
+  Object.freeze({ x: -68, z: -14 }),
+  Object.freeze({ x: -68, z: -36 }),
 ] as const);
 
 export const INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT = Object.freeze({
@@ -375,10 +371,10 @@ export const INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT = Object.freeze({
 });
 
 export const INNER_KEEP_OUTER_WORLD_APPROACHES = Object.freeze({
-  northernResourceRoadZ: -35,
-  southernResourceRoadZ: 33,
-  gateOuterZ: 16.8,
-  gateInnerZ: 13.6,
+  northernResourceRoadZ: -66,
+  southernResourceRoadZ: 64,
+  gateOuterZ: 38,
+  gateInnerZ: 34,
 });
 
 export type InnerKeepCityPresentationRoad = Readonly<{
@@ -392,118 +388,34 @@ export type InnerKeepCityPresentationRoad = Readonly<{
 
 /** Presentation-only ground treatment that softens the palisade perimeter. */
 export const INNER_KEEP_CITY_EDGE_APRON_POINTS = Object.freeze([
-  Object.freeze({ x: -16, z: -21.15 }),
-  Object.freeze({ x: -8.1, z: -21.34 }),
-  Object.freeze({ x: 0.2, z: -21.12 }),
-  Object.freeze({ x: 8.15, z: -21.3 }),
-  Object.freeze({ x: 16, z: -21.08 }),
-  Object.freeze({ x: 20.18, z: -17 }),
-  Object.freeze({ x: 20.34, z: -9.1 }),
-  Object.freeze({ x: 20.12, z: -1 }),
-  Object.freeze({ x: 20.3, z: 7.1 }),
-  Object.freeze({ x: 20.12, z: 11 }),
-  Object.freeze({ x: 16.05, z: 15.08 }),
-  Object.freeze({ x: 8.2, z: 15.22 }),
-  Object.freeze({ x: 0, z: 15.1 }),
-  Object.freeze({ x: -8.15, z: 15.25 }),
-  Object.freeze({ x: -16.1, z: 15.06 }),
-  Object.freeze({ x: -20.16, z: 11 }),
-  Object.freeze({ x: -20.32, z: 7 }),
-  Object.freeze({ x: -20.14, z: -1.1 }),
-  Object.freeze({ x: -20.3, z: -9 }),
-  Object.freeze({ x: -20.12, z: -17.05 }),
+  Object.freeze({ x: -40, z: -44.15 }),
+  Object.freeze({ x: -24, z: -44.28 }),
+  Object.freeze({ x: -8, z: -44.12 }),
+  Object.freeze({ x: 8, z: -44.26 }),
+  Object.freeze({ x: 24, z: -44.1 }),
+  Object.freeze({ x: 40, z: -44.2 }),
+  Object.freeze({ x: 48.18, z: -36 }),
+  Object.freeze({ x: 48.3, z: -20 }),
+  Object.freeze({ x: 48.12, z: -4 }),
+  Object.freeze({ x: 48.28, z: 12 }),
+  Object.freeze({ x: 48.12, z: 28 }),
+  Object.freeze({ x: 40, z: 36.08 }),
+  Object.freeze({ x: 24, z: 36.22 }),
+  Object.freeze({ x: 8, z: 36.1 }),
+  Object.freeze({ x: -8, z: 36.24 }),
+  Object.freeze({ x: -24, z: 36.06 }),
+  Object.freeze({ x: -40, z: 36.2 }),
+  Object.freeze({ x: -48.16, z: 28 }),
+  Object.freeze({ x: -48.32, z: 12 }),
+  Object.freeze({ x: -48.14, z: -4 }),
+  Object.freeze({ x: -48.3, z: -20 }),
+  Object.freeze({ x: -48.12, z: -36 }),
 ] as const);
-export const INNER_KEEP_CITY_EDGE_APRON_HALF_WIDTH_METERS = 1.72;
+export const INNER_KEEP_CITY_EDGE_APRON_HALF_WIDTH_METERS = 1.9;
 
 /** Presentation-only district lanes shared by rendering and ecology clearance. */
 export const INNER_KEEP_CITY_DISTRICT_ROADS:
-readonly InnerKeepCityPresentationRoad[] = Object.freeze([
-  Object.freeze({
-    roadId: 'inner-keep-west-north-wall-lane-v1',
-    points: Object.freeze([
-      Object.freeze({ x: -17.2, z: -15.7 }),
-      Object.freeze({ x: -17.4, z: -9 }),
-    ]),
-    closed: false,
-    halfWidthMeters: 0.62,
-    presentationOnly: true,
-    gameplayAuthorityClaimed: false,
-  }),
-  Object.freeze({
-    roadId: 'inner-keep-east-north-wall-lane-v1',
-    points: Object.freeze([
-      Object.freeze({ x: 17.2, z: -15.7 }),
-      Object.freeze({ x: 17.4, z: -7.8 }),
-      Object.freeze({ x: 17.25, z: -2.1 }),
-    ]),
-    closed: false,
-    halfWidthMeters: 0.62,
-    presentationOnly: true,
-    gameplayAuthorityClaimed: false,
-  }),
-  Object.freeze({
-    roadId: 'inner-keep-west-south-wall-lane-v1',
-    points: Object.freeze([
-      Object.freeze({ x: -17.25, z: 4.5 }),
-      Object.freeze({ x: -17.35, z: 7.8 }),
-      Object.freeze({ x: -16.2, z: 11.5 }),
-    ]),
-    closed: false,
-    halfWidthMeters: 0.62,
-    presentationOnly: true,
-    gameplayAuthorityClaimed: false,
-  }),
-  Object.freeze({
-    roadId: 'inner-keep-east-south-wall-lane-v1',
-    points: Object.freeze([
-      Object.freeze({ x: 17.25, z: 2.3 }),
-      Object.freeze({ x: 17.35, z: 7.8 }),
-      Object.freeze({ x: 16.2, z: 11.5 }),
-    ]),
-    closed: false,
-    halfWidthMeters: 0.62,
-    presentationOnly: true,
-    gameplayAuthorityClaimed: false,
-  }),
-  Object.freeze({
-    roadId: 'inner-keep-south-cross-street-v1',
-    points: Object.freeze([
-      Object.freeze({ x: -16.2, z: 11.5 }),
-      Object.freeze({ x: -10, z: 12.45 }),
-      Object.freeze({ x: 0, z: 13.15 }),
-      Object.freeze({ x: 10, z: 12.45 }),
-      Object.freeze({ x: 16.2, z: 11.5 }),
-    ]),
-    closed: false,
-    halfWidthMeters: 0.68,
-    presentationOnly: true,
-    gameplayAuthorityClaimed: false,
-  }),
-  Object.freeze({
-    roadId: 'inner-keep-northwest-cathedral-lane-v1',
-    points: Object.freeze([
-      Object.freeze({ x: -17.2, z: -15.7 }),
-      Object.freeze({ x: -13.1, z: -18.2 }),
-      Object.freeze({ x: -7.4, z: -19.2 }),
-    ]),
-    closed: false,
-    halfWidthMeters: 0.54,
-    presentationOnly: true,
-    gameplayAuthorityClaimed: false,
-  }),
-  Object.freeze({
-    roadId: 'inner-keep-northeast-cathedral-lane-v1',
-    points: Object.freeze([
-      Object.freeze({ x: 7.4, z: -19.2 }),
-      Object.freeze({ x: 13.1, z: -18.2 }),
-      Object.freeze({ x: 17.2, z: -15.7 }),
-    ]),
-    closed: false,
-    halfWidthMeters: 0.54,
-    presentationOnly: true,
-    gameplayAuthorityClaimed: false,
-  }),
-]);
+readonly InnerKeepCityPresentationRoad[] = Object.freeze([]);
 
 /**
  * Always-visible civic streets beneath the authored road tiles.
@@ -518,45 +430,17 @@ readonly InnerKeepCityPresentationRoad[] = Object.freeze([
   Object.freeze({
     roadId: 'inner-keep-civic-spine-v1',
     points: Object.freeze([
-      Object.freeze({ x: 0, z: 13.7 }),
-      Object.freeze({ x: 0, z: 10 }),
-      Object.freeze({ x: 0, z: 6 }),
-      Object.freeze({ x: 0, z: 3.2 }),
-      Object.freeze({ x: 0, z: 0.2 }),
-      Object.freeze({ x: 0, z: -3.8 }),
-      Object.freeze({ x: 0, z: -7.8 }),
-      Object.freeze({ x: 0, z: -10.9 }),
+      Object.freeze({ x: 0, z: 34 }),
+      Object.freeze({ x: 0, z: 30 }),
+      Object.freeze({ x: 0, z: 24 }),
+      Object.freeze({ x: 0, z: 18 }),
+      Object.freeze({ x: 0, z: 12 }),
+      Object.freeze({ x: 0, z: 7 }),
+      Object.freeze({ x: 0, z: 2 }),
+      Object.freeze({ x: 0, z: -3 }),
     ]),
     closed: false,
-    halfWidthMeters: 1.18,
-    presentationOnly: true,
-    gameplayAuthorityClaimed: false,
-  }),
-  Object.freeze({
-    roadId: 'inner-keep-west-market-street-v1',
-    points: Object.freeze([
-      Object.freeze({ x: -2, z: 0.2 }),
-      Object.freeze({ x: -5, z: 0.2 }),
-      Object.freeze({ x: -8, z: 0.1 }),
-      Object.freeze({ x: -11.5, z: 0.05 }),
-      Object.freeze({ x: -12, z: 0 }),
-    ]),
-    closed: false,
-    halfWidthMeters: 0.85,
-    presentationOnly: true,
-    gameplayAuthorityClaimed: false,
-  }),
-  Object.freeze({
-    roadId: 'inner-keep-east-market-street-v1',
-    points: Object.freeze([
-      Object.freeze({ x: 2, z: 0.2 }),
-      Object.freeze({ x: 5, z: 0.2 }),
-      Object.freeze({ x: 8, z: 0.1 }),
-      Object.freeze({ x: 11.5, z: 0.05 }),
-      Object.freeze({ x: 14.5, z: 0 }),
-    ]),
-    closed: false,
-    halfWidthMeters: 0.85,
+    halfWidthMeters: 2,
     presentationOnly: true,
     gameplayAuthorityClaimed: false,
   }),
@@ -570,21 +454,21 @@ readonly InnerKeepCityPresentationRoad[] = Object.freeze([
 
 export const INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS = Object.freeze({
   high: Object.freeze({
-    terrainSegments: Object.freeze([64, 70] as const),
-    grassBlades: 2_400,
-    authoredTrees: 72,
+    terrainSegments: Object.freeze([112, 112] as const),
+    grassBlades: 3_000,
+    authoredTrees: 88,
     wildlifeActors: 10,
   }),
   balanced: Object.freeze({
-    terrainSegments: Object.freeze([48, 54] as const),
-    grassBlades: 1_400,
-    authoredTrees: 44,
+    terrainSegments: Object.freeze([80, 80] as const),
+    grassBlades: 1_800,
+    authoredTrees: 56,
     wildlifeActors: 7,
   }),
   reduced: Object.freeze({
-    terrainSegments: Object.freeze([30, 34] as const),
-    grassBlades: 480,
-    authoredTrees: 22,
+    terrainSegments: Object.freeze([48, 48] as const),
+    grassBlades: 600,
+    authoredTrees: 28,
     wildlifeActors: 4,
   }),
 } satisfies Readonly<Record<InnerKeepSceneQuality, Readonly<{
@@ -715,7 +599,7 @@ export function innerKeepOuterWorldCompoundPlateauSignedDistance(x: number, z: n
 }
 
 export const INNER_KEEP_OUTER_WORLD_AUTHORED_TREE_RESERVE_METERS = 3.4;
-const INNER_KEEP_OUTER_WORLD_AUTHORED_SOUTH_TREE_HALF_WIDTH_METERS = 20.5;
+const INNER_KEEP_OUTER_WORLD_AUTHORED_SOUTH_TREE_HALF_WIDTH_METERS = 45;
 
 /** Keeps independently planned countryside actors beyond the authored grove. */
 export function innerKeepOuterWorldClearsAuthoredTreeReserve(
@@ -768,14 +652,14 @@ function rawTerrainHeightAt(x: number, z: number) {
     + Math.sin((x + z) * 0.39) * 0.055;
   return 0.14
     + rollingNoise
-    + gaussian(x, z, 0, -36, 14, 3.5) * 3.9
-    + gaussian(x, z, -9, -31, 6.5, 5) * 0.95
-    + gaussian(x, z, 12, -31, 6, 4.7) * 1.15
-    + gaussian(x, z, 30, -33, 5.8, 7.5) * 1.25
-    + gaussian(x, z, -31, -4, 5.2, 13) * 1.45
-    + gaussian(x, z, -10, 29, 12, 7.5) * 0.58
-    + gaussian(x, z, 14, 29, 9, 7) * 0.42
-    - gaussian(x, z, 27.5, 27, 5.2, 6.1) * 0.88;
+    + gaussian(x, z, 0, -66, 24, 5.5) * 3.9
+    + gaussian(x, z, -18, -62, 8.5, 7) * 0.95
+    + gaussian(x, z, 18, -62, 8, 6.7) * 1.15
+    + gaussian(x, z, 62, -64, 7.8, 9.5) * 1.25
+    + gaussian(x, z, -65, -4, 7.2, 18) * 1.45
+    + gaussian(x, z, -20, 59, 18, 10.5) * 0.58
+    + gaussian(x, z, 20, 59, 14, 10) * 0.42
+    - gaussian(x, z, 60, 56, 5.2, 6.1) * 0.88;
 }
 
 function innerKeepOuterWorldTerrainHeightWithResourcePadsAt(
@@ -1005,10 +889,10 @@ InnerKeepOuterWorldAmbientLane = Object.freeze({
   halfWidthMeters: 0.62,
   reservedHalfWidthMeters: 1.15,
   points: Object.freeze([
-    Object.freeze({ x: -19.2, z: 30.5 }),
-    Object.freeze({ x: -13.4, z: 26.6 }),
-    Object.freeze({ x: -6.5, z: 23.1 }),
-    Object.freeze({ x: -1.8, z: 20.9 }),
+    Object.freeze({ x: -62, z: 12 }),
+    Object.freeze({ x: -62, z: 20 }),
+    Object.freeze({ x: -61, z: 28 }),
+    Object.freeze({ x: -60, z: 36 }),
   ]),
   presentationOnly: true,
   gameplayAuthorityClaimed: false,
@@ -1020,15 +904,10 @@ InnerKeepOuterWorldAmbientLane = Object.freeze({
   halfWidthMeters: 1.05,
   reservedHalfWidthMeters: 1.15,
   points: Object.freeze([
-    Object.freeze({ x: 2.6, z: 18.5 }),
-    Object.freeze({ x: 3.8, z: 19.4 }),
-    Object.freeze({ x: 5, z: 22.8 }),
-    Object.freeze({ x: 7, z: 24.8 }),
-    Object.freeze({ x: 8.5, z: 27 }),
-    Object.freeze({ x: 9.4, z: 29.5 }),
-    Object.freeze({ x: 13.8, z: 30 }),
-    Object.freeze({ x: 16.5, z: 30.7 }),
-    Object.freeze({ x: 16, z: 33 }),
+    Object.freeze({ x: 55, z: 38 }),
+    Object.freeze({ x: 54, z: 42 }),
+    Object.freeze({ x: 52, z: 46 }),
+    Object.freeze({ x: 50, z: 50 }),
   ]),
   presentationOnly: true,
   gameplayAuthorityClaimed: false,
@@ -1040,10 +919,10 @@ InnerKeepOuterWorldAmbientLane = Object.freeze({
   halfWidthMeters: 1.05,
   reservedHalfWidthMeters: 0.72,
   points: Object.freeze([
-    Object.freeze({ x: 1.5, z: 23 }),
-    Object.freeze({ x: 2.2, z: 24 }),
-    Object.freeze({ x: 3.4, z: 24.4 }),
-    Object.freeze({ x: 4.2, z: 25.4 }),
+    Object.freeze({ x: 8, z: 52 }),
+    Object.freeze({ x: 12, z: 54 }),
+    Object.freeze({ x: 16, z: 55 }),
+    Object.freeze({ x: 20, z: 56 }),
   ]),
   presentationOnly: true,
   gameplayAuthorityClaimed: false,
@@ -1056,14 +935,14 @@ InnerKeepOuterWorldAmbientLane = Object.freeze({
   halfWidthMeters: 0.62,
   reservedHalfWidthMeters: 0.84,
   points: Object.freeze([
-    Object.freeze({ x: 0, z: 16.8 }),
-    Object.freeze({ x: 4, z: 16.85 }),
-    Object.freeze({ x: 8, z: 16.8 }),
-    Object.freeze({ x: 12, z: 16.7 }),
-    Object.freeze({ x: 16, z: 16.8 }),
-    Object.freeze({ x: 19, z: 16.7 }),
-    Object.freeze({ x: 21.8, z: 16.8 }),
-    Object.freeze({ x: 24.2, z: 16.8 }),
+    Object.freeze({ x: 0, z: 38 }),
+    Object.freeze({ x: 8, z: 39 }),
+    Object.freeze({ x: 16, z: 40 }),
+    Object.freeze({ x: 24, z: 40 }),
+    Object.freeze({ x: 32, z: 40 }),
+    Object.freeze({ x: 40, z: 40 }),
+    Object.freeze({ x: 48, z: 43 }),
+    Object.freeze({ x: 56, z: 48 }),
   ]),
   presentationOnly: true,
   gameplayAuthorityClaimed: false,
@@ -1076,11 +955,11 @@ InnerKeepOuterWorldAmbientLane = Object.freeze({
   halfWidthMeters: 0.42,
   reservedHalfWidthMeters: 0.7,
   points: Object.freeze([
-    Object.freeze({ x: 24.2, z: 16.8 }),
-    Object.freeze({ x: 23.4, z: 14 }),
-    Object.freeze({ x: 23.3, z: 11 }),
-    Object.freeze({ x: 23.7, z: 8.5 }),
-    Object.freeze({ x: 24.5, z: 7 }),
+    Object.freeze({ x: 56, z: 48 }),
+    Object.freeze({ x: 56.5, z: 44 }),
+    Object.freeze({ x: 57, z: 40 }),
+    Object.freeze({ x: 57, z: 36 }),
+    Object.freeze({ x: 58, z: 32 }),
   ]),
   presentationOnly: true,
   gameplayAuthorityClaimed: false,
@@ -1093,13 +972,11 @@ InnerKeepOuterWorldAmbientLane = Object.freeze({
   halfWidthMeters: 0.34,
   reservedHalfWidthMeters: 0.48,
   points: Object.freeze([
-    Object.freeze({ x: 5, z: 22.8 }),
-    Object.freeze({ x: 8.8, z: 22.5 }),
-    Object.freeze({ x: 12, z: 22.5 }),
-    Object.freeze({ x: 14.8, z: 22.5 }),
-    Object.freeze({ x: 15.5, z: 22.5 }),
-    Object.freeze({ x: 15.5, z: 21 }),
-    Object.freeze({ x: 17.4, z: 20.6 }),
+    Object.freeze({ x: 42, z: 42 }),
+    Object.freeze({ x: 40, z: 43 }),
+    Object.freeze({ x: 32, z: 43 }),
+    Object.freeze({ x: 24, z: 43 }),
+    Object.freeze({ x: 16, z: 43 }),
   ]),
   presentationOnly: true,
   gameplayAuthorityClaimed: false,
@@ -1125,74 +1002,43 @@ function townFootpath(
 
 /** Short visual joins that make the lower-ward street graph continuous. */
 export const INNER_KEEP_TOWN_JUNCTION_LANES:
-readonly InnerKeepOuterWorldAmbientLane[] = Object.freeze([
-  townFootpath(
-    'inner-keep-west-delivery-gate-link-v1',
-    [
-      { x: -1.8, z: 20.9 },
-      { x: -0.9, z: 19.3 },
-      { x: 0, z: 16.8 },
-    ],
-    0.48,
-    0.68,
-  ),
-  townFootpath(
-    'inner-keep-east-service-gate-link-v1',
-    [
-      { x: 2.6, z: 18.5 },
-      { x: 2.6, z: 17.5 },
-      { x: 2.6, z: 16.8 },
-    ],
-    0.46,
-    0.68,
-  ),
-  townFootpath(
-    'inner-keep-commons-service-link-v1',
-    [
-      { x: 4.2, z: 25.4 },
-      { x: 5.2, z: 24.6 },
-      { x: 6.1, z: 23.9 },
-    ],
-    0.3,
-    0.5,
-  ),
-]);
+readonly InnerKeepOuterWorldAmbientLane[] = Object.freeze([]);
 
 export const INNER_KEEP_WEST_CROFT_DOORSTEP_PATHS:
 readonly InnerKeepOuterWorldAmbientLane[] = Object.freeze([
   townFootpath('inner-keep-gate-west-croft-doorstep-v1', [
-    { x: -15.45, z: 20.68 },
-    { x: -15.1, z: 22.35 },
-    { x: -15, z: 23.3 },
+    { x: -17.8, z: 44.8 },
+    { x: -16.8, z: 44 },
+    { x: -15.8, z: 43.4 },
   ], 0.28, 0.48, 'gate-west-croft'),
   townFootpath('inner-keep-tanners-doorstep-v1', [
-    { x: -19.1, z: 24.4 },
-    { x: -18.8, z: 25 },
-    { x: -18.4, z: 25.6 },
+    { x: -27.8, z: 49.1 },
+    { x: -27, z: 48.8 },
+    { x: -26.2, z: 48.5 },
   ], 0.28, 0.48, 'tanners-west-row'),
   townFootpath('inner-keep-alder-row-doorstep-v1', [
-    { x: -23.9, z: 27.1 },
-    { x: -23.3, z: 27.7 },
-    { x: -22.6, z: 28.5 },
+    { x: -37.8, z: 54.1 },
+    { x: -37, z: 52.8 },
+    { x: -36, z: 51.4 },
   ], 0.28, 0.48, 'alder-west-row'),
 ]);
 
 export const INNER_KEEP_EAST_CROFT_DOORSTEP_PATHS:
 readonly InnerKeepOuterWorldAmbientLane[] = Object.freeze([
   townFootpath('inner-keep-eastwall-croft-doorstep-v1', [
-    { x: 15, z: 30.3 },
-    { x: 15.7, z: 29.8 },
-    { x: 16.5, z: 29.3 },
+    { x: 42, z: 46 },
+    { x: 41, z: 46 },
+    { x: 40, z: 46 },
   ], 0.28, 0.48, 'eastwall-croft'),
   townFootpath('inner-keep-southfield-row-doorstep-v1', [
-    { x: 18.5, z: 33 },
-    { x: 19.1, z: 31.3 },
-    { x: 19.8, z: 30 },
+    { x: 38, z: 58 },
+    { x: 39, z: 57 },
+    { x: 40, z: 56 },
   ], 0.28, 0.48, 'southfield-east-row'),
   townFootpath('inner-keep-alder-lane-croft-doorstep-v1', [
-    { x: 9, z: 28.6 },
-    { x: 9.8, z: 27.9 },
-    { x: 10.6, z: 27.2 },
+    { x: 24, z: 57 },
+    { x: 24, z: 53 },
+    { x: 24, z: 48 },
   ], 0.28, 0.48, 'alder-lane-croft'),
 ]);
 
@@ -1201,10 +1047,10 @@ export const INNER_KEEP_OLD_ROAD_GRAVEYARD_SPUR:
 InnerKeepOuterWorldAmbientLane = townFootpath(
   'inner-keep-old-road-graveyard-spur-v1',
   [
-    { x: -32, z: -2 },
-    { x: -30.8, z: -3.4 },
-    { x: -28.6, z: -4.8 },
-    { x: -26, z: -5.8 },
+    { x: -66, z: -4 },
+    { x: -64, z: -6 },
+    { x: -62, z: -8 },
+    { x: -60, z: -10 },
   ],
   0.4,
   0.64,
@@ -1283,10 +1129,11 @@ export function innerKeepOuterWorldPointIsClear(
 }
 
 export const INNER_KEEP_OUTER_WORLD_TRADE_ROUTE = Object.freeze([
-  Object.freeze([-26, innerKeepOuterWorldTerrainHeightAt(-26, 32), 32] as const),
-  Object.freeze([-21, innerKeepOuterWorldTerrainHeightAt(-21, 28), 28] as const),
-  Object.freeze([-15, innerKeepOuterWorldTerrainHeightAt(-15, 24), 24] as const),
-  Object.freeze([-8, innerKeepOuterWorldTerrainHeightAt(-8, 20.5), 20.5] as const),
+  Object.freeze([-44, innerKeepOuterWorldTerrainHeightAt(-44, 65), 65] as const),
+  Object.freeze([-36, innerKeepOuterWorldTerrainHeightAt(-36, 62), 62] as const),
+  Object.freeze([-28, innerKeepOuterWorldTerrainHeightAt(-28, 59), 59] as const),
+  Object.freeze([-18, innerKeepOuterWorldTerrainHeightAt(-18, 53), 53] as const),
+  Object.freeze([-8, innerKeepOuterWorldTerrainHeightAt(-8, 45), 45] as const),
   Object.freeze([0, innerKeepOuterWorldTerrainHeightAt(
     0,
     INNER_KEEP_OUTER_WORLD_APPROACHES.gateOuterZ,

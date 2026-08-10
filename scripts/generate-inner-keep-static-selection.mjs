@@ -27,13 +27,13 @@ const LANDMARKS = Object.freeze([
     id: 'grand-covenant-cathedral',
     package: 'Warpkeep_GrandCovenantCathedral_GameReady',
     displayName: 'Grand Covenant Cathedral',
-    intendedUse: 'Permanent northern civic and ceremonial anchor'
+    intendedUse: 'Player-placed civic construction outcome; absent until built'
   }),
   Object.freeze({
     id: 'city-barracks',
     package: 'Warpkeep_CityBarracks_GameReady',
     displayName: 'Hegemony Shieldcourt Barracks',
-    intendedUse: 'Permanent western garrison and patrol origin'
+    intendedUse: 'Player-placed military construction outcome; absent until built'
   })
 ]);
 

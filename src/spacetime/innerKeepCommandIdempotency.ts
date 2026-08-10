@@ -3,6 +3,7 @@ import { SenderError } from 'spacetimedb';
 import {
   INNER_KEEP_PROJECT_REVISION_MAX,
   type InnerKeepBuildingKind,
+  type InnerKeepPlacementTransform,
   type InnerKeepResourceAmounts
 } from '../components/inner-keep/innerKeepPresentation';
 import { INNER_KEEP_POLICY_DIGEST } from '../../spacetimedb/src/innerKeepPolicy';
@@ -26,8 +27,8 @@ export type InnerKeepCommandScope = Readonly<{
 }>;
 
 export type InnerKeepCommandIntent = Readonly<{
-  slotId: string;
   buildingKind: InnerKeepBuildingKind;
+  placement: InnerKeepPlacementTransform;
   targetLevel: number;
   cost: InnerKeepResourceAmounts;
   durationMicros: bigint;
@@ -50,8 +51,8 @@ export type InnerKeepRequestReceipt = Readonly<{
   found: true;
   castleId: bigint;
   buildingKey: string;
-  slotId: string;
   buildingKind: InnerKeepBuildingKind;
+  placement: InnerKeepPlacementTransform;
   targetLevel: number;
   deducted: InnerKeepResourceAmounts;
   startedAtMicros: bigint;
@@ -61,8 +62,8 @@ export type InnerKeepRequestReceipt = Readonly<{
 export type InnerKeepReconciliationBuilding = Readonly<{
   castleId: bigint;
   buildingKey: string;
-  slotId: string;
   buildingKind: InnerKeepBuildingKind;
+  placement: InnerKeepPlacementTransform;
   completedLevel: number;
   targetLevel: number;
   phase: 'constructing' | 'complete';
@@ -78,8 +79,12 @@ export type InnerKeepDefinitiveRejection = Readonly<{
 const INNER_KEEP_DEFINITIVE_REJECTION_MESSAGES = Object.freeze({
   INNER_KEEP_STATE_CHANGED: 'Inner Keep state changed. Review the refreshed quote before trying again.',
   INNER_KEEP_BUILDER_BUSY: 'The Builder is already working on another project.',
-  INNER_KEEP_SLOT_OCCUPIED: 'That build site is already occupied.',
-  INNER_KEEP_FOOTPRINT_INCOMPATIBLE: 'That building does not fit this build site.',
+  INNER_KEEP_PLACEMENT_INVALID: 'That building location is not valid.',
+  INNER_KEEP_PLACEMENT_OFF_GRID: 'That building must align to the town planning grid.',
+  INNER_KEEP_PLACEMENT_ROTATION: 'Choose one of the four supported building orientations.',
+  INNER_KEEP_PLACEMENT_OUTSIDE: 'That building must stay inside the town walls.',
+  INNER_KEEP_PLACEMENT_RESERVED: 'That building would block a permanent road or civic space.',
+  INNER_KEEP_PLACEMENT_OCCUPIED: 'That building would overlap another building.',
   INNER_KEEP_BUILDING_ALREADY_EXISTS: 'That unique building already occupies another site.',
   INNER_KEEP_MAXIMUM_LEVEL: 'That building has already reached Level 5.',
   INNER_KEEP_INSUFFICIENT_FOOD: 'There is not enough stored Food for this project.',
@@ -88,7 +93,6 @@ const INNER_KEEP_DEFINITIVE_REJECTION_MESSAGES = Object.freeze({
   INNER_KEEP_INSUFFICIENT_GOLD: 'There is not enough stored Gold for this project.',
   INNER_KEEP_BACKEND_SYNCHRONIZING: 'Inner Keep construction is still synchronizing. No project was started.',
   INNER_KEEP_UNAVAILABLE: 'Inner Keep construction is currently unavailable.',
-  INNER_KEEP_SLOT_UNAVAILABLE: 'That build site is currently unavailable.',
   INNER_KEEP_BUILDING_UNAVAILABLE: 'That building is currently unavailable.',
   AUTH_REQUIRED: 'Your Realm session changed. Reconnect before trying again.',
   INVALID_ISSUER: 'Your Realm session changed. Reconnect before trying again.',
@@ -108,7 +112,6 @@ const INNER_KEEP_DEFINITIVE_REJECTION_MESSAGES = Object.freeze({
   ALPHA_TERMS_REQUIRED: 'Accept the current Alpha Terms before starting construction.',
   INNER_KEEP_REQUEST_KEY_INVALID: 'The construction request could not be verified. No project was started.',
   INNER_KEEP_CASTLE_ID_INVALID: 'The construction request could not be verified. No project was started.',
-  INNER_KEEP_SLOT_INVALID: 'The construction request could not be verified. No project was started.',
   INNER_KEEP_FID_INVALID: 'The construction request could not be verified. No project was started.',
   INNER_KEEP_NOT_OWNED: 'Only your own castle can start this project.',
   INNER_KEEP_IDEMPOTENCY_CONFLICT: 'The construction request could not be verified. No project was started.',
@@ -197,8 +200,10 @@ export function serializeInnerKeepCommandFingerprint(
     scope.layoutDigest,
     scope.assetCatalogDigest,
     scope.projectRevision,
-    intent.slotId,
     intent.buildingKind,
+    intent.placement.localXMicrounits,
+    intent.placement.localZMicrounits,
+    intent.placement.rotationMilliDegrees,
     intent.targetLevel,
     intent.cost.food,
     intent.cost.wood,
@@ -210,7 +215,7 @@ export function serializeInnerKeepCommandFingerprint(
 
 /**
  * Retain one request key only for the exact caller, connection generation,
- * public policy, castle lifecycle, slot, project, and authoritative quote.
+ * public policy, castle lifecycle, placement, project, and authoritative quote.
  */
 export function innerKeepCommandAttemptFor(
   retained: InnerKeepCommandAttempt | undefined,
@@ -220,7 +225,11 @@ export function innerKeepCommandAttemptFor(
 ): InnerKeepCommandAttempt | undefined {
   if (
     !validScope(scope)
-    || !/^inner-keep-slot-[ml][0-9]{2}$/.test(intent.slotId)
+    || intent.placement.localXMicrounits % 500_000n !== 0n
+    || intent.placement.localZMicrounits % 500_000n !== 0n
+    || ![0, 90_000, 180_000, 270_000].includes(
+      intent.placement.rotationMilliDegrees
+    )
     || !Number.isSafeInteger(intent.targetLevel)
     || intent.targetLevel < 1
     || intent.targetLevel > 5
@@ -235,7 +244,11 @@ export function innerKeepCommandAttemptFor(
   }
   return Object.freeze({
     scope: Object.freeze({ ...scope }),
-    intent: Object.freeze({ ...intent, cost: Object.freeze({ ...intent.cost }) }),
+    intent: Object.freeze({
+      ...intent,
+      placement: Object.freeze({ ...intent.placement }),
+      cost: Object.freeze({ ...intent.cost })
+    }),
     fingerprint,
     requestKey,
     phase: 'sending' as const
@@ -264,8 +277,13 @@ export function reconcileInnerKeepCommandAttempt(
   const expectedBuildingKey = `${attempt.scope.castleId.toString()}:${attempt.intent.buildingKind}`;
   const exactReceipt = receipt.castleId === attempt.scope.castleId
     && receipt.buildingKey === expectedBuildingKey
-    && receipt.slotId === attempt.intent.slotId
     && receipt.buildingKind === attempt.intent.buildingKind
+    && receipt.placement.localXMicrounits
+      === attempt.intent.placement.localXMicrounits
+    && receipt.placement.localZMicrounits
+      === attempt.intent.placement.localZMicrounits
+    && receipt.placement.rotationMilliDegrees
+      === attempt.intent.placement.rotationMilliDegrees
     && receipt.targetLevel === attempt.intent.targetLevel
     && receipt.policyVersion === attempt.scope.policyVersion
     && receipt.deducted.food === attempt.intent.cost.food
@@ -276,8 +294,13 @@ export function reconcileInnerKeepCommandAttempt(
   const matches = buildings.filter((building) => (
     building.castleId === receipt.castleId
     && building.buildingKey === receipt.buildingKey
-    && building.slotId === receipt.slotId
     && building.buildingKind === receipt.buildingKind
+    && building.placement.localXMicrounits
+      === receipt.placement.localXMicrounits
+    && building.placement.localZMicrounits
+      === receipt.placement.localZMicrounits
+    && building.placement.rotationMilliDegrees
+      === receipt.placement.rotationMilliDegrees
     && building.policyVersion === receipt.policyVersion
     && (
       building.completedLevel >= receipt.targetLevel

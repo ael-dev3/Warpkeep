@@ -1414,17 +1414,35 @@ async function prepareLocalInnerKeepFirstStart(session) {
           ? candidate : undefined;
       });
       if (!(innerKeep instanceof HTMLElement)) return { stage: 'inner-keep-ready' };
-      const slots = innerKeep.querySelectorAll('[data-inner-keep-slot-id]');
+      const initialBuildings = innerKeep.querySelectorAll(
+        '[data-inner-keep-building-key]'
+      );
       const exactResources = ['Food', 'Wood', 'Stone', 'Gold'].every((resource) => (
         innerKeep.querySelector('[aria-label="10,000 stored ' + resource + '"]') !== null
       ));
-      if (slots.length !== 12 || !exactResources) return { stage: 'inner-keep-initial-state' };
-      const millSlot = innerKeep.querySelector('[data-inner-keep-slot-id="inner-keep-slot-m01"]');
-      if (!(millSlot instanceof HTMLButtonElement)) return { stage: 'inner-keep-mill-slot' };
-      millSlot.click();
-      const sitePanel = await waitFor(() => document.querySelector('.inner-keep-panel[data-panel-kind="site"]'));
-      if (!(sitePanel instanceof HTMLElement)) return { stage: 'inner-keep-site-panel' };
-      const millReview = sitePanel.querySelector('[data-inner-keep-building-kind="city-mill"]');
+      if (initialBuildings.length !== 0 || !exactResources) {
+        return { stage: 'inner-keep-initial-state' };
+      }
+      const builder = innerKeep.querySelector('.inner-keep-builder');
+      if (
+        !(builder instanceof HTMLButtonElement)
+        || builder.disabled
+        || !/BUILDER AVAILABLE/.test(builder.textContent ?? '')
+        || !/BUILD/.test(builder.textContent ?? '')
+      ) return { stage: 'inner-keep-build-catalogue' };
+      builder.click();
+      const catalogue = await waitFor(() => {
+        const candidate = document.querySelector(
+          '.inner-keep-panel .inner-keep-catalogue[aria-label="Available town buildings"]'
+        );
+        return candidate instanceof HTMLUListElement ? candidate : undefined;
+      });
+      if (!(catalogue instanceof HTMLUListElement)) {
+        return { stage: 'inner-keep-catalogue-open' };
+      }
+      const millReview = catalogue.querySelector(
+        '[data-inner-keep-building-kind="city-mill"]'
+      );
       if (!(millReview instanceof HTMLButtonElement) || millReview.disabled) {
         return { stage: 'inner-keep-mill-review' };
       }
@@ -1432,18 +1450,40 @@ async function prepareLocalInnerKeepFirstStart(session) {
         root.querySelector('.inner-keep-project-cost [data-resource="' + resource + '"] dd')
           ?.textContent?.replaceAll(',', '').trim() ?? ''
       );
+      const millCard = millReview.closest('li');
       if (
-        readCost(millReview.closest('li'), 'food') !== '300'
-        || readCost(millReview.closest('li'), 'wood') !== '900'
-        || readCost(millReview.closest('li'), 'stone') !== '600'
-        || readCost(millReview.closest('li'), 'gold') !== '0'
+        !(millCard instanceof HTMLLIElement)
+        || readCost(millCard, 'food') !== '300'
+        || readCost(millCard, 'wood') !== '900'
+        || readCost(millCard, 'stone') !== '600'
+        || readCost(millCard, 'gold') !== '0'
       ) return { stage: 'inner-keep-mill-quote' };
       millReview.click();
-      const confirmation = await waitFor(() => document.querySelector('.inner-keep-confirmation'));
-      if (!(confirmation instanceof HTMLElement)) return { stage: 'inner-keep-mill-confirmation' };
-      const start = buttonWithText('START CONSTRUCTION', confirmation);
+      const placement = await waitFor(() => {
+        const panel = document.querySelector(
+          '.inner-keep-panel--placement[data-placement-valid="true"]'
+        );
+        const ghost = innerKeep.querySelector(
+          '.inner-keep-map-placement-ghost[data-valid="true"]'
+        );
+        const coordinates = panel?.querySelector(
+          '.inner-keep-placement__coordinates'
+        )?.textContent?.trim();
+        const confirm = panel instanceof HTMLElement
+          ? buttonWithText('CONFIRM PLACEMENT', panel)
+          : undefined;
+        return panel instanceof HTMLElement
+          && ghost instanceof HTMLElement
+          && innerKeep.getAttribute('data-inner-keep-placement') === 'city-mill'
+          && coordinates === 'X 14.0 m · Z -10.0 m · 0°'
+          && confirm instanceof HTMLButtonElement
+          && !confirm.disabled
+          ? { panel, confirm } : undefined;
+      });
+      if (!placement) return { stage: 'inner-keep-mill-placement' };
+      const start = placement.confirm;
       if (!(start instanceof HTMLButtonElement) || start.disabled) {
-        return { stage: 'inner-keep-mill-start' };
+        return { stage: 'inner-keep-mill-confirm' };
       }
       start.scrollIntoView({ block: 'center', inline: 'center' });
       await new Promise((resolve) => requestAnimationFrame(() => (
@@ -1458,6 +1498,8 @@ async function prepareLocalInnerKeepFirstStart(session) {
         activationX,
         activationY,
         targetHit: hit === start || (hit instanceof Node && start.contains(hit)),
+        catalogueOpened: true,
+        placementCoordinates: '14000000:-10000000:0',
         initialAttemptCount: Number(document.documentElement.getAttribute(
           'data-local-fullstack-inner-keep-attempt'
         ) ?? '0'),
@@ -1483,6 +1525,8 @@ async function prepareLocalInnerKeepFirstStart(session) {
     || value.activationY < 0
     || value.activationY > VIEWPORT.height
     || value.targetHit !== true
+    || value.catalogueOpened !== true
+    || value.placementCoordinates !== '14000000:-10000000:0'
     || value.initialAttemptCount !== 0
     || typeof value.cameraStateToken !== 'string'
     || value.cameraStateToken.length === 0
@@ -1515,16 +1559,22 @@ async function observeLocalInnerKeepFirstStart(session) {
       };
       const constructing = await waitFor(() => {
         const candidate = document.querySelector('.inner-keep');
-        const slot = candidate?.querySelector(
-          '[data-inner-keep-slot-id="inner-keep-slot-m01"]'
-        );
+        const mill = [...(candidate?.querySelectorAll(
+          '[data-inner-keep-building-key]'
+        ) ?? [])].find((building) => (
+          building.getAttribute('data-inner-keep-building-key')?.endsWith(
+            ':city-mill'
+          ) === true
+        ));
         return candidate instanceof HTMLElement
           && candidate.getAttribute('data-inner-keep-phase') === 'constructing'
           && document.documentElement.getAttribute(
             'data-local-fullstack-inner-keep-state'
           ) === 'accepted'
-          && slot?.querySelector('.inner-keep-worksite') !== null
-          ? { candidate, slot } : undefined;
+          && mill instanceof HTMLButtonElement
+          && mill.getAttribute('data-phase') === 'constructing'
+          && mill.querySelector('.inner-keep-worksite') !== null
+          ? { candidate, mill } : undefined;
       });
       if (!constructing) return { stage: 'inner-keep-mill-constructing' };
       const requestKey = document.documentElement.getAttribute(
@@ -1533,7 +1583,16 @@ async function observeLocalInnerKeepFirstStart(session) {
       const activationAttemptCount = Number(document.documentElement.getAttribute(
         'data-local-fullstack-inner-keep-attempt'
       ) ?? '0');
-      const noFinalModel = constructing.slot.querySelector(
+      const submittedPlacement = document.documentElement.getAttribute(
+        'data-local-fullstack-inner-keep-placement'
+      );
+      const submittedBuilding = document.documentElement.getAttribute(
+        'data-local-fullstack-inner-keep-building'
+      );
+      const buildingKey = constructing.mill.getAttribute(
+        'data-inner-keep-building-key'
+      );
+      const noFinalModel = constructing.mill.querySelector(
         '.inner-keep-building-art, .inner-keep-building-art-fallback'
       ) === null;
       const readyProbe = document.querySelector('[data-local-fullstack-backend]');
@@ -1544,9 +1603,12 @@ async function observeLocalInnerKeepFirstStart(session) {
         stage: 'inner-keep-first-start-complete',
         requestKey,
         activationAttemptCount,
+        buildingKey,
+        submittedBuilding,
+        submittedPlacement,
         noFinalModel,
-        scaffold: constructing.slot.querySelector('.inner-keep-worksite__scaffold') !== null,
-        smoke: constructing.slot.querySelector('.inner-keep-worksite__smoke') !== null,
+        scaffold: constructing.mill.querySelector('.inner-keep-worksite__scaffold') !== null,
+        smoke: constructing.mill.querySelector('.inner-keep-worksite__smoke') !== null,
         workerCount: Number(readyProbe.getAttribute('data-local-fullstack-workers')),
         publicWorkerCount: Number(
           readyProbe.getAttribute('data-local-fullstack-public-workers')
@@ -1565,6 +1627,10 @@ async function observeLocalInnerKeepFirstStart(session) {
     || typeof value.requestKey !== 'string'
     || !/^[a-z0-9][a-z0-9-]{15,79}$/.test(value.requestKey)
     || value.activationAttemptCount !== 1
+    || typeof value.buildingKey !== 'string'
+    || !value.buildingKey.endsWith(':city-mill')
+    || value.submittedBuilding !== 'city-mill'
+    || value.submittedPlacement !== '14000000:-10000000:0'
     || value.noFinalModel !== true
     || value.scaffold !== true
     || value.smoke !== true
@@ -1623,23 +1689,26 @@ async function exerciseLocalInnerKeepCompletionAndSecondStart(session, firstStar
         .find((button) => visible(button) && (button.textContent ?? '').trim() === text);
       const innerKeep = await waitFor(() => {
         const candidate = document.querySelector('.inner-keep');
-        const mill = candidate?.querySelector(
-          '[data-inner-keep-slot-id="inner-keep-slot-m01"]'
-        );
+        const mill = [...(candidate?.querySelectorAll(
+          '[data-inner-keep-building-key]'
+        ) ?? [])].find((building) => (
+          building.getAttribute('data-inner-keep-building-key')?.endsWith(
+            ':city-mill'
+          ) === true
+        ));
         return candidate instanceof HTMLElement
           && candidate.getAttribute('data-inner-keep-phase') === 'ready'
-          && mill?.querySelector('.inner-keep-worksite') === null
-          && mill?.querySelector(
+          && mill instanceof HTMLButtonElement
+          && mill.getAttribute('data-phase') === 'complete'
+          && mill.querySelector('.inner-keep-worksite') === null
+          && mill.querySelector(
             '.inner-keep-building-art, .inner-keep-building-art-fallback'
           ) !== null
-          ? candidate : undefined;
+          ? { candidate, mill } : undefined;
       });
-      if (!(innerKeep instanceof HTMLElement)) return { stage: 'inner-keep-first-completion' };
-      const millSlot = innerKeep.querySelector(
-        '[data-inner-keep-slot-id="inner-keep-slot-m01"]'
-      );
-      if (!(millSlot instanceof HTMLButtonElement)) return { stage: 'inner-keep-first-reveal' };
-      millSlot.click();
+      if (!innerKeep) return { stage: 'inner-keep-first-completion' };
+      const innerKeepRoot = innerKeep.candidate;
+      innerKeep.mill.click();
       const completedDetail = await waitFor(() => {
         const candidate = document.querySelector('.inner-keep-building-detail');
         return candidate instanceof HTMLElement
@@ -1650,16 +1719,23 @@ async function exerciseLocalInnerKeepCompletionAndSecondStart(session, firstStar
           ? candidate : undefined;
       });
       if (!(completedDetail instanceof HTMLElement)) return { stage: 'inner-keep-discount-reveal' };
-      const lumberSlot = innerKeep.querySelector(
-        '[data-inner-keep-slot-id="inner-keep-slot-m02"]'
-      );
-      if (!(lumberSlot instanceof HTMLButtonElement)) return { stage: 'inner-keep-lumber-slot' };
-      lumberSlot.click();
-      const sitePanel = await waitFor(() => document.querySelector(
-        '.inner-keep-panel[data-panel-kind="site"]'
-      ));
-      if (!(sitePanel instanceof HTMLElement)) return { stage: 'inner-keep-lumber-site' };
-      const lumberReview = sitePanel.querySelector(
+      const builder = innerKeepRoot.querySelector('.inner-keep-builder');
+      if (
+        !(builder instanceof HTMLButtonElement)
+        || builder.disabled
+        || !/BUILDER AVAILABLE/.test(builder.textContent ?? '')
+      ) return { stage: 'inner-keep-second-build-catalogue' };
+      builder.click();
+      const catalogue = await waitFor(() => {
+        const candidate = document.querySelector(
+          '.inner-keep-panel .inner-keep-catalogue[aria-label="Available town buildings"]'
+        );
+        return candidate instanceof HTMLUListElement ? candidate : undefined;
+      });
+      if (!(catalogue instanceof HTMLUListElement)) {
+        return { stage: 'inner-keep-second-catalogue-open' };
+      }
+      const lumberReview = catalogue.querySelector(
         '[data-inner-keep-building-kind="lumber-camp"]'
       );
       if (!(lumberReview instanceof HTMLButtonElement) || lumberReview.disabled) {
@@ -1678,23 +1754,56 @@ async function exerciseLocalInnerKeepCompletionAndSecondStart(session, firstStar
         || readCost(lumberCard, 'gold') !== '0'
       ) return { stage: 'inner-keep-discounted-quote' };
       lumberReview.click();
-      const confirmation = await waitFor(() => document.querySelector('.inner-keep-confirmation'));
-      if (!(confirmation instanceof HTMLElement)) return { stage: 'inner-keep-lumber-confirmation' };
-      const start = buttonWithText('START CONSTRUCTION', confirmation);
+      const placement = await waitFor(() => {
+        const panel = document.querySelector(
+          '.inner-keep-panel--placement[data-placement-valid="true"]'
+        );
+        const ghost = innerKeepRoot.querySelector(
+          '.inner-keep-map-placement-ghost[data-valid="true"]'
+        );
+        const coordinates = panel?.querySelector(
+          '.inner-keep-placement__coordinates'
+        )?.textContent?.trim();
+        const confirm = panel instanceof HTMLElement
+          ? buttonWithText('CONFIRM PLACEMENT', panel)
+          : undefined;
+        return panel instanceof HTMLElement
+          && ghost instanceof HTMLElement
+          && innerKeepRoot.getAttribute('data-inner-keep-placement') === 'lumber-camp'
+          && coordinates === 'X 29.0 m · Z -10.0 m · 0°'
+          && confirm instanceof HTMLButtonElement
+          && !confirm.disabled
+          ? { confirm } : undefined;
+      });
+      if (!placement) return { stage: 'inner-keep-lumber-placement' };
+      const start = placement.confirm;
       if (!(start instanceof HTMLButtonElement) || start.disabled) {
-        return { stage: 'inner-keep-lumber-start' };
+        return { stage: 'inner-keep-lumber-confirm' };
       }
       start.click();
       const secondProject = await waitFor(() => {
         const candidate = document.querySelector('.inner-keep');
-        const mill = candidate?.querySelector(
-          '[data-inner-keep-slot-id="inner-keep-slot-m01"]'
-        );
-        const lumber = candidate?.querySelector(
-          '[data-inner-keep-slot-id="inner-keep-slot-m02"]'
-        );
+        const buildings = [...(candidate?.querySelectorAll(
+          '[data-inner-keep-building-key]'
+        ) ?? [])];
+        const mill = buildings.find((building) => (
+          building.getAttribute('data-inner-keep-building-key')?.endsWith(
+            ':city-mill'
+          ) === true
+        ));
+        const lumber = buildings.find((building) => (
+          building.getAttribute('data-inner-keep-building-key')?.endsWith(
+            ':lumber-camp'
+          ) === true
+        ));
         const requestKey = document.documentElement.getAttribute(
           'data-local-fullstack-inner-keep-request-key'
+        );
+        const submittedPlacement = document.documentElement.getAttribute(
+          'data-local-fullstack-inner-keep-placement'
+        );
+        const submittedBuilding = document.documentElement.getAttribute(
+          'data-local-fullstack-inner-keep-building'
         );
         return candidate instanceof HTMLElement
           && candidate.getAttribute('data-inner-keep-phase') === 'constructing'
@@ -1706,19 +1815,25 @@ async function exerciseLocalInnerKeepCompletionAndSecondStart(session, firstStar
           ) === 'accepted'
           && requestKey !== expected.firstRequestKey
           && typeof requestKey === 'string'
-          && mill?.querySelector(
+          && submittedPlacement === '29000000:-10000000:0'
+          && submittedBuilding === 'lumber-camp'
+          && mill instanceof HTMLButtonElement
+          && mill.getAttribute('data-phase') === 'complete'
+          && mill.querySelector(
             '.inner-keep-building-art, .inner-keep-building-art-fallback'
           ) !== null
-          && lumber?.querySelector('.inner-keep-worksite') !== null
-          ? { candidate, lumber, requestKey } : undefined;
+          && lumber instanceof HTMLButtonElement
+          && lumber.getAttribute('data-phase') === 'constructing'
+          && lumber.querySelector('.inner-keep-worksite') !== null
+          ? { candidate, lumber, requestKey, submittedPlacement } : undefined;
       });
       if (!secondProject) return { stage: 'inner-keep-second-project' };
-      const worksiteCount = innerKeep.querySelectorAll('.inner-keep-worksite').length;
-      const builderCopy = innerKeep.querySelector('.inner-keep-builder')?.textContent ?? '';
+      const worksiteCount = innerKeepRoot.querySelectorAll('.inner-keep-worksite').length;
+      const builderCopy = innerKeepRoot.querySelector('.inner-keep-builder')?.textContent ?? '';
       const secondNoFinalModel = secondProject.lumber.querySelector(
         '.inner-keep-building-art, .inner-keep-building-art-fallback'
       ) === null;
-      const close = buttonWithText('CLOSE TO REALM', innerKeep);
+      const close = buttonWithText('CLOSE TO REALM', innerKeepRoot);
       if (!(close instanceof HTMLButtonElement)) return { stage: 'inner-keep-close' };
       close.click();
       const realmContinuity = await waitFor(() => {
@@ -1742,6 +1857,10 @@ async function exerciseLocalInnerKeepCompletionAndSecondStart(session, firstStar
       return {
         stage: 'inner-keep-second-start-complete',
         secondRequestKey: secondProject.requestKey,
+        secondBuildingKey: secondProject.lumber.getAttribute(
+          'data-inner-keep-building-key'
+        ),
+        secondPlacement: secondProject.submittedPlacement,
         completedBuildingRevealed: true,
         discountBasisPoints: 500,
         discountedFoodCost: 480,
@@ -1770,6 +1889,9 @@ async function exerciseLocalInnerKeepCompletionAndSecondStart(session, firstStar
     || typeof value.secondRequestKey !== 'string'
     || !/^[a-z0-9][a-z0-9-]{15,79}$/.test(value.secondRequestKey)
     || value.secondRequestKey === firstStart.requestKey
+    || typeof value.secondBuildingKey !== 'string'
+    || !value.secondBuildingKey.endsWith(':lumber-camp')
+    || value.secondPlacement !== '29000000:-10000000:0'
     || value.completedBuildingRevealed !== true
     || value.discountBasisPoints !== 500
     || value.discountedFoodCost !== 480
@@ -1863,20 +1985,31 @@ async function exerciseLocalInnerKeepReloadPersistence(session) {
       innerEntry.click();
       const innerKeep = await waitFor(() => {
         const candidate = document.querySelector('.inner-keep');
-        const mill = candidate?.querySelector(
-          '[data-inner-keep-slot-id="inner-keep-slot-m01"]'
-        );
-        const lumber = candidate?.querySelector(
-          '[data-inner-keep-slot-id="inner-keep-slot-m02"]'
-        );
+        const buildings = [...(candidate?.querySelectorAll(
+          '[data-inner-keep-building-key]'
+        ) ?? [])];
+        const mill = buildings.find((building) => (
+          building.getAttribute('data-inner-keep-building-key')?.endsWith(
+            ':city-mill'
+          ) === true
+        ));
+        const lumber = buildings.find((building) => (
+          building.getAttribute('data-inner-keep-building-key')?.endsWith(
+            ':lumber-camp'
+          ) === true
+        ));
         return candidate instanceof HTMLElement
           && candidate.getAttribute('data-inner-keep-phase') === 'constructing'
           && candidate.getAttribute('data-inner-keep-valid') === 'true'
-          && mill?.querySelector(
+          && mill instanceof HTMLButtonElement
+          && mill.getAttribute('data-phase') === 'complete'
+          && mill.querySelector(
             '.inner-keep-building-art, .inner-keep-building-art-fallback'
           ) !== null
-          && mill?.querySelector('.inner-keep-worksite') === null
-          && lumber?.querySelector('.inner-keep-worksite') !== null
+          && mill.querySelector('.inner-keep-worksite') === null
+          && lumber instanceof HTMLButtonElement
+          && lumber.getAttribute('data-phase') === 'constructing'
+          && lumber.querySelector('.inner-keep-worksite') !== null
           && candidate.querySelectorAll('.inner-keep-worksite').length === 1
           && /BUILDER OCCUPIED/.test(
             candidate.querySelector('.inner-keep-builder')?.textContent ?? ''

@@ -17,6 +17,8 @@ import {
 } from '../spacetimedb/src/resourceAuthorityPolicy';
 
 const DAY_MICROS = 24n * 60n * 60n * 1_000_000n;
+const REVIEWED_GATHERING_WINDOW_MINUTES = 3n * 24n * 60n;
+const MAXIMUM_COST_ACCOUNT_CAP_DIVISOR = 20n;
 const RESOURCE_ORDER = Object.freeze([
   'food',
   'wood',
@@ -35,7 +37,7 @@ export type InnerKeepAffordabilityRow = Readonly<{
   assignedResourceCount: number;
   longestGatheringMinutes: bigint;
   totalGatheringMinutes: bigint;
-  reachableWithFourWorkersInOneGatheringDay: boolean;
+  reachableWithFourWorkersInReviewedWindow: boolean;
   requiresGoldGathering: boolean;
 }>;
 
@@ -117,37 +119,38 @@ export function buildInnerKeepAffordabilityReport(): InnerKeepAffordabilityRepor
         // One worker can cover each nonzero resource bucket in parallel. This
         // deliberately leaves travel out of the exact number; UI estimates
         // must label return travel separately and stored authority still wins.
-        reachableWithFourWorkersInOneGatheringDay:
+        reachableWithFourWorkersInReviewedWindow:
           assignedResourceCount <= CASTLE_WORKERS_PER_CASTLE
-          && longestGatheringMinutes <= 24n * 60n,
+          && longestGatheringMinutes <= REVIEWED_GATHERING_WINDOW_MINUTES,
         requiresGoldGathering: deficits.gold > 0n,
       }));
     }
   }
 
   const allLevelOneProjectsReachable = rows.every(row => (
-    row.reachableWithFourWorkersInOneGatheringDay
+    row.reachableWithFourWorkersInReviewedWindow
   ));
   const allTerrainsProgressionCapable = (
     Object.keys(REALM_RESOURCE_TERRAIN_RATES) as TerrainKind[]
   ).every(terrain => rows
     .filter(row => row.terrain === terrain)
-    .every(row => row.reachableWithFourWorkersInOneGatheringDay));
+    .every(row => row.reachableWithFourWorkersInReviewedWindow));
   // Every terrain can reach every Level-1 recipe from the same zero-balance
   // starting assumption. No completed Inner Keep discount is required, so the
   // simulation does not make one building a mathematical prerequisite.
   const noMandatoryFirstChoice = CANONICAL_INNER_KEEP_BUILDING_CATALOG.every(
     building => rows
       .filter(row => row.buildingKind === building.buildingKind)
-      .every(row => row.reachableWithFourWorkersInOneGatheringDay),
+      .every(row => row.reachableWithFourWorkersInReviewedWindow),
   );
   const goldworksRows = rows.filter(row => row.buildingKind === 'city-goldworks');
   const goldworksRequiresGathering = goldworksRows.length > 0
     && goldworksRows.every(row => row.requiresGoldGathering);
-  // "Approaches" is pinned here to a conservative one-percent warning line.
-  // The current maximum is far below it; a future recipe drift fails loudly.
+  // A single resource component must stay below five percent of the account
+  // cap. This accommodates the deliberately larger civic landmark while still
+  // leaving a twenty-times safety margin against the authoritative ceiling.
   const noCostApproachesAccountCap = maximumLevelCost
-    < INNER_KEEP_RESOURCE_BALANCE_CAP / 100n;
+    < INNER_KEEP_RESOURCE_BALANCE_CAP / MAXIMUM_COST_ACCOUNT_CAP_DIVISOR;
 
   if (
     !allLevelOneProjectsReachable
@@ -182,8 +185,9 @@ export function formatInnerKeepAffordabilityReport(
     '# Inner Keep V1 affordability report',
     '',
     'Assumption: zero stored resources, one exact day of passive terrain output,',
-    'with one external Worker assigned alongside it for each remaining resource',
-    'bucket at the current rate. All listed Worker minutes fit inside that day.',
+    'with one external Worker assigned to each remaining resource bucket at the',
+    'current rate. Every project fits the reviewed three-day gathering window;',
+    'the civic landmark is intentionally a longer first project than a workshop.',
     'Travel is deliberately excluded from the minute number and must remain a',
     'presentation caveat. Only stored server-authoritative balances are spendable.',
     '',
@@ -192,14 +196,14 @@ export function formatInnerKeepAffordabilityReport(
     ...report.rows.map(row => (
       `| ${row.terrain} | ${row.buildingLabel} | ${formatCost(row.deficits)} | `
       + `${row.longestGatheringMinutes} min | `
-      + `${row.reachableWithFourWorkersInOneGatheringDay ? 'yes' : 'no'} |`
+      + `${row.reachableWithFourWorkersInReviewedWindow ? 'yes' : 'no'} |`
     )),
     '',
     `Maximum raw Level-5 resource component: ${report.maximumLevelCost.toString()}.`,
     `All Level-1 terrain/building pairs reachable: ${report.allLevelOneProjectsReachable}.`,
     `No Level-1 building is a mandatory first choice: ${report.noMandatoryFirstChoice}.`,
     `Goldworks always requires Gold gathering: ${report.goldworksRequiresGathering}.`,
-    `Maximum cost remains below 1% of account cap: ${report.noCostApproachesAccountCap}.`,
+    `Maximum cost remains below 5% of account cap: ${report.noCostApproachesAccountCap}.`,
     'Active expedition reservations are protected by the existing authoritative settlement path.',
   ];
   return `${lines.join('\n')}\n`;

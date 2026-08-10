@@ -158,37 +158,47 @@ describe('Inner Keep ambient presentation policy', () => {
     }
   });
 
-  it('reserves construction, slots, roads, and both landmark footprints', () => {
+  it('binds dynamic free placement while keeping static actors on permanent surfaces', () => {
     expect(INNER_KEEP_AMBIENT_CLEARANCE_POLICY).toMatchObject({
       presentationOnly: true,
       gameplayAuthorityClaimed: false,
       sourcePresentationLayoutDigest: INNER_KEEP_PRESENTATION_LAYOUT_DIGEST,
       construction: {
-        reserveEveryCanonicalSlot: true,
-        slotCount: 12,
-        additionalRouteClearanceMeters: 0.35
+        placementBoundsMicrounits: {
+          minimumX: -44_000_000n,
+          maximumX: 44_000_000n,
+          minimumZ: -40_000_000n,
+          maximumZ: 32_000_000n
+        },
+        snapIncrementMicrounits: 500_000n,
+        supportedRotationMilliDegrees: [0, 90_000, 180_000, 270_000],
+        dynamicBuildingExclusionsRequired: true,
+        staticRoutesUsePermanentSurfacesOnly: true
       },
       road: {
         northSouthCenterX: 0,
-        northSouthHalfWidth: 1.3,
-        requiredClearSideBuffer: 0.25
+        northSouthHalfWidth: 2,
+        requiredClearSideBuffer: 1
       },
       building: {
-        cathedralCenterMeters: [0, -15.4],
-        cathedralHalfExtentsMeters: [5.1, 4.353],
-        barracksCenterMeters: [-16, 0],
-        barracksHalfExtentsMeters: [3.04, 2.47]
+        initialPrebuiltConstructibleCount: 0,
+        templateScalePermille: 1_000,
+        constructibleBuildingKinds: [
+          'city-mill',
+          'lumber-camp',
+          'city-stoneworks',
+          'city-goldworks',
+          'city-barracks',
+          'grand-covenant-cathedral'
+        ]
       }
     });
-    expect(INNER_KEEP_AMBIENT_CLEARANCE_POLICY.slots).toHaveLength(12);
-    expect(INNER_KEEP_AMBIENT_CLEARANCE_POLICY.slots.map(({ exclusionId }) => (
-      exclusionId
-    ))).toEqual(INNER_KEEP_PRESENTATION_SLOTS.map(({ slotId }) => slotId));
+    expect(INNER_KEEP_PRESENTATION_SLOTS).toEqual([]);
+    expect('slots' in INNER_KEEP_AMBIENT_CLEARANCE_POLICY).toBe(false);
     expect(INNER_KEEP_AMBIENT_EXCLUSIONS.map(({ exclusionId }) => exclusionId))
-      .toEqual(expect.arrayContaining([
+      .not.toEqual(expect.arrayContaining([
         'grand-covenant-cathedral',
-        'shieldcourt-barracks',
-        ...INNER_KEEP_PRESENTATION_SLOTS.map(({ slotId }) => slotId)
+        'shieldcourt-barracks'
       ]));
     expect(INNER_KEEP_AMBIENT_AUTHORITY_BOUNDARY).toEqual({
       presentationOnly: true,
@@ -225,19 +235,19 @@ describe('Inner Keep ambient presentation policy', () => {
     ))).toBe(true);
     expect(INNER_KEEP_FOOT_DUTY_ROUTES.map(({ purpose }) => purpose))
       .toEqual([
-        'cathedral-watch',
+        'south-gate-watch',
         'west-road-watch',
-        'garrison-watch',
+        'south-gate-watch',
         'north-road-watch',
-        'east-wall-watch',
+        'south-gate-watch',
         'east-road-watch',
-        'cathedral-watch',
+        'south-road-watch',
         'south-gate-watch'
       ]);
     expect(INNER_KEEP_CIVIC_MOUNTED_ROUTES.map(({ purpose }) => purpose))
       .toEqual(['village-delivery', 'village-shrine-service']);
     expect(INNER_KEEP_AMBIENT_ROUTES.filter(innerKeepAmbientRouteIsExterior))
-      .toHaveLength(9);
+      .toHaveLength(10);
     expect(INNER_KEEP_CIVIC_MOUNTED_ROUTES.every(innerKeepAmbientRouteIsExterior))
       .toBe(true);
     expect(INNER_KEEP_MOUNTED_DUTY_ROUTES.every(innerKeepAmbientRouteIsExterior))

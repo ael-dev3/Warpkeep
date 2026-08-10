@@ -476,11 +476,14 @@ the official Inner Keep and to make the Grand Covenant Cathedral its main
 building. Warpkeep records that owner-authorized exact subset as 114 GLBs and
 six PNG previews at
 selection digest
-`00304c5dbf819cec6cb656996c1105f64efcf36acf8099c431f5b04b822679f0`.
+`cf1fdac091e310cce3362d43403be938fe7946e46df906f2efb8cff601497c6d`.
 The exact content-addressed outputs are authorized for the public
-`ael-dev3/Warpkeep` repository and official `warpkeep.com` client. The Grand
-Covenant Cathedral is the permanent northern civic and visual anchor; the
-Hegemony Shieldcourt Barracks is the western garrison anchor.
+`ael-dev3/Warpkeep` repository and official `warpkeep.com` client. The retained
+authorization record includes the original main-building/anchor direction for
+the Grand Covenant Cathedral and Hegemony Shieldcourt Barracks. Later reviewed
+product direction uses those same authorized files as player-built outcomes,
+initially absent from the town, rather than as prebuilt anchors. That placement
+decision neither replaces nor broadens the recorded file-use authorization.
 
 This is exact runtime-use authorization only. The subset remains
 `LicenseRef-Warpkeep-Provenance-Required`; committing and serving these files

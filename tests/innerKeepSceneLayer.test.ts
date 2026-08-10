@@ -13,15 +13,19 @@ import {
   INNER_KEEP_PRESENTATION_ASSETS,
   INNER_KEEP_PRESENTATION_CAMERA_PRESETS,
   INNER_KEEP_PRESENTATION_PLACEMENTS,
-  INNER_KEEP_PRESENTATION_SLOTS,
 } from '../src/components/inner-keep/innerKeepPresentationLayoutPolicy';
 import {
+  INNER_KEEP_GRASS_PATCH_SUPPORT_RADIUS_METERS,
   INNER_KEEP_WATER_CENTERLINE,
   INNER_KEEP_WATER_POND
 } from '../src/components/inner-keep/createInnerKeepEcology';
+import {
+  INNER_KEEP_FREE_PLACEMENT_ENVELOPES
+} from '../src/components/inner-keep/innerKeepFreePlacementPolicy';
 import { allInnerKeepStaticRuntimeAssetIds } from '../src/components/inner-keep/createInnerKeepAuthoredPresentation';
 import {
   createInnerKeepOuterWorldRenderedTerrainSampler,
+  INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS,
   INNER_KEEP_OUTER_WORLD_HEIGHT_BOUNDS_METERS,
 } from '../src/components/inner-keep/innerKeepOuterWorldPolicy';
 import {
@@ -44,7 +48,11 @@ import {
   INNER_KEEP_TOWN_ATMOSPHERE_POLICY_VERSION,
   INNER_KEEP_TOWN_TONAL_PALETTE,
 } from '../src/components/inner-keep/innerKeepTownAtmospherePolicy';
-import { createInnerKeepPresentation } from './fixtures/innerKeepPresentation';
+import {
+  createInnerKeepPresentation,
+  createInnerKeepTestBuilding,
+} from './fixtures/innerKeepPresentation';
+import { evaluateInnerKeepPlacementDraft } from '../src/components/inner-keep/innerKeepPlacement';
 
 afterEach(() => {
   document.body.replaceChildren();
@@ -95,7 +103,27 @@ function createLayer(
   };
 }
 
-function fakeRuntimePrefab(id: string): InnerKeepRuntimePrefab {
+function sceneGrassPositions(scene: THREE.Scene) {
+  const matrix = new THREE.Matrix4();
+  const position = new THREE.Vector3();
+  const positions: THREE.Vector3[] = [];
+  scene.traverse((object) => {
+    if (
+      !(object instanceof THREE.InstancedMesh)
+      || !object.name.startsWith('inner-keep-dense-grass')
+    ) return;
+    for (let index = 0; index < object.count; index += 1) {
+      object.getMatrixAt(index, matrix);
+      positions.push(position.setFromMatrixPosition(matrix).clone());
+    }
+  });
+  return positions;
+}
+
+function fakeRuntimePrefab(
+  id: string,
+  boundsMeters: readonly [number, number, number] = [1, 1, 1],
+): InnerKeepRuntimePrefab {
   const root = new THREE.Group();
   root.add(new THREE.Mesh(
     new THREE.BoxGeometry(1, 1, 1),
@@ -105,12 +133,27 @@ function fakeRuntimePrefab(id: string): InnerKeepRuntimePrefab {
     id,
     root,
     clips: Object.freeze([]),
-    boundsMeters: Object.freeze([1, 1, 1] as const),
+    boundsMeters: Object.freeze([...boundsMeters] as [number, number, number]),
     triangles: 12,
     drawCalls: 1,
     animated: false,
     mounted: false,
     clone: () => root.clone(true)
+  });
+}
+
+function fakeRuntimeBundleWithCanonicalStaticBounds(): InnerKeepRuntimeAssetBundle {
+  const boundsById = new Map(INNER_KEEP_PRESENTATION_ASSETS.map((asset) => (
+    [asset.assetId, asset.boundsMeters] as const
+  )));
+  return Object.freeze({
+    staticPrefabs: new Map(allInnerKeepStaticRuntimeAssetIds().map((id) => [
+      id,
+      fakeRuntimePrefab(id, boundsById.get(id) ?? [1, 1, 1]),
+    ])),
+    populationPrefabs: new Map(),
+    failures: Object.freeze([]),
+    dispose: vi.fn(),
   });
 }
 
@@ -191,7 +234,7 @@ describe('procedural Inner Keep scene layer', () => {
     layer.dispose();
   });
 
-  it('pins all twelve pads to the canonical v15 layout without another canvas or RAF', () => {
+  it('opens as a sparse free-placement yard without legacy pads or prebuilt landmarks', () => {
     const requestAnimationFrame = vi.spyOn(window, 'requestAnimationFrame');
     const { layer } = createLayer();
     layer.setViewport(1280, 720);
@@ -199,67 +242,104 @@ describe('procedural Inner Keep scene layer', () => {
       owningTerrainKind: 'forest'
     });
 
-    const pads: THREE.Object3D[] = [];
-    layer.scene.traverse((object) => {
-      if (object.name.startsWith('inner-keep-slot-pad:')) pads.push(object);
-    });
-    const first = pads.find((pad) => (
-      pad.name === 'inner-keep-slot-pad:inner-keep-slot-m01'
-    ));
-    const firstReserved = pads.find((pad) => (
-      pad.name === 'inner-keep-slot-pad:inner-keep-slot-l01'
-    ));
     expect(layer.getTelemetry()).toMatchObject({
       status: 'ready',
-      slotCount: 12,
-      exteriorTreeCount: 44,
+      slotCount: 0,
+      buildingPickTargetCount: 0,
+      completedBuildingCount: 0,
+      constructionSiteCount: 0,
+      exteriorTreeCount: 56,
       scenicResourceNodeCount: 6,
       wildlifeCount: 7,
       proceduralWildlifeCount: 7,
       exactWildlifeCount: 0,
       tradeWagonCount: 1
     });
-    expect(pads).toHaveLength(12);
-    expect(first?.position.x).toBe(-9);
-    expect(first?.position.z).toBe(-3.4);
-    expect(first).toBeInstanceOf(THREE.Mesh);
-    expect((first as THREE.Mesh).geometry).toBeInstanceOf(THREE.BoxGeometry);
-    expect((first as THREE.Mesh<THREE.BoxGeometry>).geometry.parameters).toMatchObject({
-      width: 3.35,
-      height: 0.1,
-      depth: 2.55,
-    });
-    expect(first?.userData.innerKeepSlotVisualRole).toBe('active-work-yard');
-    expect(firstReserved?.userData.innerKeepSlotVisualRole)
-      .toBe('reserved-grass-yard');
-    expect(pads.every((pad) => (
-      (pad as THREE.Mesh).geometry instanceof THREE.BoxGeometry
-    ))).toBe(true);
-    const activeColors = new Set<number>();
-    const reservedColors = new Set<number>();
-    for (const slot of INNER_KEEP_PRESENTATION_SLOTS) {
-      const pad = pads.find(({ name }) => (
-        name === `inner-keep-slot-pad:${slot.slotId}`
-      )) as THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial>;
-      expect(pad.position.x, slot.slotId).toBe(slot.positionMeters[0]);
-      expect(pad.position.z, slot.slotId).toBe(slot.positionMeters[2]);
-      expect(pad.rotation.y, slot.slotId).toBeCloseTo(
-        slot.rotationYMilliDegrees * Math.PI / 180_000,
-        10,
-      );
-      expect(pad.scale.x, slot.slotId)
-        .toBe(slot.footprintClass === 'large' ? 1.14 : 1);
-      expect(pad.scale.z, slot.slotId).toBe(pad.scale.x);
-      expect(pad.userData.innerKeepSlotVisualRole, slot.slotId).toBe(
-        slot.active ? 'active-work-yard' : 'reserved-grass-yard',
-      );
-      (slot.active ? activeColors : reservedColors).add(pad.material.color.getHex());
-    }
-    expect(activeColors.size).toBe(1);
-    expect(reservedColors.size).toBe(1);
-    expect([...activeColors]).not.toEqual([...reservedColors]);
+    expect(layer.scene.getObjectByName('inner-keep-slot-pad:inner-keep-slot-m01'))
+      .toBeUndefined();
+    expect(layer.scene.getObjectByName('inner-keep-procedural-cathedral-fallback'))
+      .toBeUndefined();
+    expect(layer.scene.getObjectByName('inner-keep-procedural-barracks-fallback'))
+      .toBeUndefined();
+    expect(layer.scene.getObjectByName('inner-keep-completed-building:city-barracks'))
+      .toBeUndefined();
+    expect(layer.scene.getObjectByName(
+      'inner-keep-completed-building:grand-covenant-cathedral',
+    )).toBeUndefined();
+    expect(layer.scene.getObjectByName('inner-keep-procedural-builder-noticeboard'))
+      .toBeDefined();
     expect(document.querySelectorAll('canvas')).toHaveLength(1);
     expect(requestAnimationFrame).not.toHaveBeenCalled();
+    layer.dispose();
+  });
+
+  it('culls soft yard dressing beneath every authoritative building envelope', () => {
+    const { layer } = createLayer();
+    const placement = Object.freeze({
+      localXMicrounits: -10_500_000n,
+      localZMicrounits: 9_000_000n,
+      rotationMilliDegrees: 0
+    });
+    expect(evaluateInnerKeepPlacementDraft(
+      'lumber-camp',
+      placement,
+      []
+    ).evaluation.valid).toBe(true);
+
+    layer.reconcile(createInnerKeepPresentation({
+      buildings: [createInnerKeepTestBuilding({
+        buildingKind: 'lumber-camp',
+        placement
+      })]
+    }), { owningTerrainKind: 'meadow' });
+
+    expect(layer.scene.getObjectByName('inner-keep-soft-yard-dressing:0'))
+      .toBeUndefined();
+    const retainedDressing: THREE.Object3D[] = [];
+    layer.scene.traverse((object) => {
+      if (object.name.startsWith('inner-keep-soft-yard-dressing:')) {
+        retainedDressing.push(object);
+      }
+    });
+    expect(retainedDressing).toHaveLength(5);
+    layer.dispose();
+  });
+
+  it('makes fixed fallback civic dressing yield to a legal building footprint', () => {
+    const { layer } = createLayer();
+    const placement = Object.freeze({
+      localXMicrounits: -11_000_000n,
+      localZMicrounits: 22_000_000n,
+      rotationMilliDegrees: 0
+    });
+    expect(evaluateInnerKeepPlacementDraft(
+      'city-mill',
+      placement,
+      []
+    ).evaluation.valid).toBe(true);
+
+    layer.reconcile(createInnerKeepPresentation({
+      buildings: [createInnerKeepTestBuilding({
+        buildingKind: 'city-mill',
+        placement
+      })]
+    }), { owningTerrainKind: 'meadow' });
+
+    const noticeboard = layer.scene.getObjectByName(
+      'inner-keep-procedural-yielding-placement:builder-noticeboard'
+    );
+    const sign = layer.scene.getObjectByName(
+      'inner-keep-procedural-yielding-placement:civic-direction-sign'
+    );
+    expect(noticeboard?.children).toHaveLength(4);
+    expect(noticeboard?.visible).toBe(false);
+    expect(sign?.visible).toBe(true);
+
+    layer.reconcile(createInnerKeepPresentation(), {
+      owningTerrainKind: 'meadow'
+    });
+    expect(noticeboard?.visible).toBe(true);
+    expect(sign?.visible).toBe(true);
     layer.dispose();
   });
 
@@ -281,8 +361,10 @@ describe('procedural Inner Keep scene layer', () => {
       for (let index = 0; index < detailedPositions.count; index += 1) {
         const x = detailedPositions.getX(index);
         const z = detailedPositions.getZ(index);
-        if (Math.abs(Math.abs(x) - 34) > 0.000_01
-          && Math.abs(Math.abs(z) - 38) > 0.000_01) continue;
+        if (Math.abs(Math.abs(x) - INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS[0])
+            > 0.000_01
+          && Math.abs(Math.abs(z) - INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS[1])
+            > 0.000_01) continue;
         detailedOutputByPosition.set(`${x.toFixed(5)}:${z.toFixed(5)}`, new THREE.Color(
           detailedColors.getX(index),
           detailedColors.getY(index),
@@ -332,19 +414,12 @@ describe('procedural Inner Keep scene layer', () => {
       )),
     ));
     const fallbackToAuthored = [
-      ['inner-keep-procedural-cathedral-fallback', 'grand-covenant-cathedral-main-building'],
-      ['inner-keep-procedural-barracks-fallback', 'shieldcourt-barracks-west-garrison'],
       ['inner-keep-procedural-south-gate-frame', 'south-gate-frame'],
       ['inner-keep-procedural-gate-standard-west', 'gate-standard-west'],
       ['inner-keep-procedural-gate-standard-east', 'gate-standard-east'],
       ['inner-keep-procedural-builder-noticeboard', 'builder-noticeboard'],
       ['inner-keep-procedural-civic-direction-sign', 'civic-direction-sign'],
       ['inner-keep-procedural-south-east-water-trough', 'south-east-water-trough'],
-      ['inner-keep-procedural-hedge-west-north', 'hedge-west-north'],
-      ['inner-keep-procedural-hedge-east-north', 'hedge-east-north'],
-      ['inner-keep-procedural-hedge-west-south', 'hedge-west-south'],
-      ['inner-keep-procedural-hedge-east-south', 'hedge-east-south'],
-      ['inner-keep-procedural-north-collapsed-arch', 'north-collapsed-arch'],
     ] as const;
     for (const [fallbackName, placementId] of fallbackToAuthored) {
       const fallback = layer.scene.getObjectByName(fallbackName);
@@ -353,6 +428,15 @@ describe('procedural Inner Keep scene layer', () => {
       expect(fallback?.position.x, fallbackName).toBe(authored.positionMeters[0]);
       expect(fallback?.position.z, fallbackName).toBe(authored.positionMeters[2]);
     }
+    for (const removedName of [
+      'inner-keep-procedural-cathedral-fallback',
+      'inner-keep-procedural-barracks-fallback',
+      'inner-keep-procedural-hedge-west-north',
+      'inner-keep-procedural-hedge-east-north',
+      'inner-keep-procedural-hedge-west-south',
+      'inner-keep-procedural-hedge-east-south',
+      'inner-keep-procedural-north-collapsed-arch',
+    ]) expect(layer.scene.getObjectByName(removedName), removedName).toBeUndefined();
     layer.dispose();
   });
 
@@ -432,7 +516,8 @@ describe('procedural Inner Keep scene layer', () => {
       const coreStreets = layer.scene.getObjectByName(
         'inner-keep-city-core-road-network'
       );
-      for (const presentationOnly of [estateRoads, apron, streets, coreStreets]) {
+      expect((streets as THREE.Mesh).geometry.getAttribute('position').count).toBe(0);
+      for (const presentationOnly of [estateRoads, apron, coreStreets]) {
         expect(presentationOnly).toBeInstanceOf(THREE.Mesh);
         expect(presentationOnly?.userData).toMatchObject({
           presentationOnly: true,
@@ -582,44 +667,57 @@ describe('procedural Inner Keep scene layer', () => {
     },
   );
 
-  it('keeps diagnostic slot projection and exact picking aligned after pan and zoom', () => {
+  it('keeps authoritative building projection and exact picking aligned after pan and zoom', () => {
     const { layer } = createLayer();
     layer.setViewport(1280, 720);
-    layer.reconcile(createInnerKeepPresentation(), {
+    const mill = createInnerKeepTestBuilding({ buildingKind: 'city-mill' });
+    layer.reconcile(createInnerKeepPresentation({ buildings: [mill] }), {
       owningTerrainKind: 'meadow'
     });
 
-    const initial = layer.getSlotProjectionFrame();
-    const initialWest = initial.slots.find(({ slotId }) => (
-      slotId === 'inner-keep-slot-m01'
+    const initial = layer.getBuildingProjectionFrame();
+    const initialMill = initial.buildings.find(({ buildingKey }) => (
+      buildingKey === mill.buildingKey
     ));
-    expect(initial.slots).toHaveLength(12);
-    expect(initialWest).toMatchObject({ visible: true });
-    expect(initialWest?.width).toBeGreaterThan(0);
-    expect(initialWest?.height).toBeGreaterThan(0);
-    expect(layer.pickSlot(initialWest!.x, initialWest!.y)).toBe(
-      'inner-keep-slot-m01'
-    );
+    expect(initial.buildings).toHaveLength(1);
+    expect(initialMill).toMatchObject({ visible: true });
+    expect(initialMill?.width).toBeGreaterThan(0);
+    expect(initialMill?.height).toBeGreaterThan(0);
+    expect(layer.pickBuilding(initialMill!.x, initialMill!.y)).toBe(mill.buildingKey);
+    layer.setSelectedBuilding(mill.buildingKey);
+    let selectedRoot: THREE.Object3D | undefined;
+    layer.scene.traverse((object) => {
+      if (object.userData.innerKeepBuildingKey === mill.buildingKey) selectedRoot ??= object;
+    });
+    expect(selectedRoot?.userData.innerKeepSelected).toBe(true);
+    const selectedMaterials: THREE.MeshStandardMaterial[] = [];
+    selectedRoot?.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of materials) {
+        if (material instanceof THREE.MeshStandardMaterial) selectedMaterials.push(material);
+      }
+    });
+    expect(selectedMaterials.some(({ emissiveIntensity }) => emissiveIntensity >= 0.2))
+      .toBe(true);
+    layer.setSelectedBuilding(null);
+    expect(selectedRoot?.userData.innerKeepSelected).toBe(false);
 
     layer.panByPixels(140, -70);
-    const pannedWest = layer.getSlotProjectionFrame().slots.find(({ slotId }) => (
-      slotId === 'inner-keep-slot-m01'
+    const pannedMill = layer.getBuildingProjectionFrame().buildings.find(({ buildingKey }) => (
+      buildingKey === mill.buildingKey
     ));
-    expect(pannedWest?.x).not.toBeCloseTo(initialWest!.x, 3);
-    expect(pannedWest?.y).not.toBeCloseTo(initialWest!.y, 3);
-    expect(layer.pickSlot(pannedWest!.x, pannedWest!.y)).toBe(
-      'inner-keep-slot-m01'
-    );
+    expect(pannedMill?.x).not.toBeCloseTo(initialMill!.x, 3);
+    expect(pannedMill?.y).not.toBeCloseTo(initialMill!.y, 3);
+    expect(layer.pickBuilding(pannedMill!.x, pannedMill!.y)).toBe(mill.buildingKey);
 
     layer.zoomByWheel(-240, WheelEvent.DOM_DELTA_PIXEL);
-    const zoomedWest = layer.getSlotProjectionFrame().slots.find(({ slotId }) => (
-      slotId === 'inner-keep-slot-m01'
+    const zoomedMill = layer.getBuildingProjectionFrame().buildings.find(({ buildingKey }) => (
+      buildingKey === mill.buildingKey
     ));
-    expect(zoomedWest?.width).toBeGreaterThan(pannedWest!.width);
-    expect(zoomedWest?.height).toBeGreaterThan(pannedWest!.height);
-    expect(layer.pickSlot(zoomedWest!.x, zoomedWest!.y)).toBe(
-      'inner-keep-slot-m01'
-    );
+    expect(zoomedMill?.width).toBeGreaterThan(pannedMill!.width);
+    expect(zoomedMill?.height).toBeGreaterThan(pannedMill!.height);
+    expect(layer.pickBuilding(zoomedMill!.x, zoomedMill!.y)).toBe(mill.buildingKey);
     layer.dispose();
   });
 
@@ -627,7 +725,7 @@ describe('procedural Inner Keep scene layer', () => {
     const { layer } = createLayer(false, 390, 844);
     layer.setViewport(390, 844);
     const portraitAspect = 390 / 844;
-    const portraitZoom = innerKeepFarCountrysideMinimumZoomForAspect(portraitAspect);
+    const portraitZoom = INNER_KEEP_FAR_COUNTRYSIDE_CAMERA.initialZoom.portrait;
     expect(layer.camera.right).toBeCloseTo(
       INNER_KEEP_PRESENTATION_CAMERA_PRESETS.minimumHalfWidth / portraitZoom,
       6
@@ -638,7 +736,7 @@ describe('procedural Inner Keep scene layer', () => {
       ) / portraitAspect,
       6
     );
-    expect(layer.camera.position).toMatchObject({ x: 0, y: 47, z: 26 });
+    expect(layer.camera.position).toMatchObject({ x: 0, y: 112, z: 72 });
 
     const assetById = new Map(INNER_KEEP_PRESENTATION_ASSETS.map((asset) => (
       [asset.assetId, asset] as const
@@ -740,18 +838,21 @@ describe('procedural Inner Keep scene layer', () => {
       - INNER_KEEP_PRESENTATION_CAMERA_PRESETS.positionMeters[0];
     const clampedFocusZ = layer.camera.position.z
       - INNER_KEEP_PRESENTATION_CAMERA_PRESETS.positionMeters[2];
-    expect(clampedFocusX).toBeGreaterThanOrEqual(-3);
-    expect(clampedFocusX).toBeLessThanOrEqual(3);
-    expect(clampedFocusZ).toBeGreaterThanOrEqual(-3);
-    expect(clampedFocusZ).toBeLessThanOrEqual(3);
-    expect(Math.max(Math.abs(clampedFocusX), Math.abs(clampedFocusZ))).toBeCloseTo(3, 6);
+    const [minimumPanX, maximumPanX] = INNER_KEEP_FAR_COUNTRYSIDE_CAMERA.panBoundsMeters.x;
+    const [minimumPanZ, maximumPanZ] = INNER_KEEP_FAR_COUNTRYSIDE_CAMERA.panBoundsMeters.z;
+    expect(clampedFocusX).toBeGreaterThanOrEqual(minimumPanX);
+    expect(clampedFocusX).toBeLessThanOrEqual(maximumPanX);
+    expect(clampedFocusZ).toBeGreaterThanOrEqual(minimumPanZ);
+    expect(clampedFocusZ).toBeLessThanOrEqual(maximumPanZ);
+    expect(Math.max(Math.abs(clampedFocusX), Math.abs(clampedFocusZ)))
+      .toBeCloseTo(maximumPanX, 6);
     layer.panByPixels(-1_000_000, -1_000_000);
     expect(Math.abs(
       layer.camera.position.x - INNER_KEEP_PRESENTATION_CAMERA_PRESETS.positionMeters[0],
-    )).toBeLessThanOrEqual(3);
+    )).toBeLessThanOrEqual(maximumPanX);
     expect(Math.abs(
       layer.camera.position.z - INNER_KEEP_PRESENTATION_CAMERA_PRESETS.positionMeters[2],
-    )).toBeLessThanOrEqual(3);
+    )).toBeLessThanOrEqual(maximumPanZ);
 
     layer.setViewport(390, 844);
     expect(layer.camera.top).toBeCloseTo(
@@ -788,11 +889,13 @@ describe('procedural Inner Keep scene layer', () => {
       const { layer } = createLayer(false, width, height);
       layer.setViewport(width, height);
       layer.zoomByWheel(1_000_000, WheelEvent.DOM_DELTA_PIXEL);
+      const [minimumPanX, maximumPanX] = INNER_KEEP_FAR_COUNTRYSIDE_CAMERA.panBoundsMeters.x;
+      const [minimumPanZ, maximumPanZ] = INNER_KEEP_FAR_COUNTRYSIDE_CAMERA.panBoundsMeters.z;
       for (const [focusX, focusZ] of [
-        [-3, -3],
-        [3, -3],
-        [-3, 3],
-        [3, 3],
+        [minimumPanX, minimumPanZ],
+        [maximumPanX, minimumPanZ],
+        [minimumPanX, maximumPanZ],
+        [maximumPanX, maximumPanZ],
       ] as const) {
         const camera = layer.camera.clone();
         camera.position.x += focusX;
@@ -839,7 +942,7 @@ describe('procedural Inner Keep scene layer', () => {
       .toBe('synthetic far countryside failure');
     expect(layer.getTelemetry()).toMatchObject({
       status: 'ready',
-      slotCount: 12,
+      slotCount: 0,
       farCountrysideStatus: 'degraded',
       farCountrysideTerrainTriangleCount: 0,
       farCountrysideFieldParcelCount: 0,
@@ -933,70 +1036,188 @@ describe('procedural Inner Keep scene layer', () => {
     layer.dispose();
   });
 
-  it('raycasts exact pads through compact AABB overlaps and rejects blank AABB corners', () => {
+  it('projects snapped ground placements and previews valid and blocked footprints', () => {
     const { layer } = createLayer(false, 320, 800);
     layer.setViewport(320, 800);
-    layer.reconcile(createInnerKeepPresentation(), {
+    const presentation = createInnerKeepPresentation();
+    layer.reconcile(presentation, {
       owningTerrainKind: 'meadow'
     });
-    const projections = layer.getSlotProjectionFrame().slots;
-    const legacyTouchBoxes = projections.map((projection) => ({
-      ...projection,
-      left: projection.x - Math.max(44, projection.width) * 0.5,
-      right: projection.x + Math.max(44, projection.width) * 0.5,
-      top: projection.y - Math.max(44, projection.height) * 0.5,
-      bottom: projection.y + Math.max(44, projection.height) * 0.5
-    }));
-    const overlap = legacyTouchBoxes.flatMap((left, leftIndex) => (
-      legacyTouchBoxes.slice(leftIndex + 1).flatMap((right) => {
-        const overlapLeft = Math.max(left.left, right.left);
-        const overlapRight = Math.min(left.right, right.right);
-        const overlapTop = Math.max(left.top, right.top);
-        const overlapBottom = Math.min(left.bottom, right.bottom);
-        return overlapRight > overlapLeft && overlapBottom > overlapTop
-          ? [{
-              x: (overlapLeft + overlapRight) * 0.5,
-              y: (overlapTop + overlapBottom) * 0.5
-            }]
-          : [];
-      })
-    ))[0];
-    expect(overlap).toBeDefined();
-    const overlapCandidates = legacyTouchBoxes.filter((box) => (
-      overlap!.x >= box.left
-      && overlap!.x <= box.right
-      && overlap!.y >= box.top
-      && overlap!.y <= box.bottom
-    ));
-    expect(overlapCandidates.length).toBeGreaterThan(1);
-    const exactOverlapHit = layer.pickSlot(overlap!.x, overlap!.y);
-    expect(
-      exactOverlapHit === null
-      || overlapCandidates.some(({ slotId }) => slotId === exactOverlapHit)
-    ).toBe(true);
 
-    const blankGap = projections.flatMap((projection) => {
-      const inset = 0.5;
-      return [
-        { x: projection.x - projection.width * 0.5 + inset,
-          y: projection.y - projection.height * 0.5 + inset },
-        { x: projection.x + projection.width * 0.5 - inset,
-          y: projection.y - projection.height * 0.5 + inset },
-        { x: projection.x - projection.width * 0.5 + inset,
-          y: projection.y + projection.height * 0.5 - inset },
-        { x: projection.x + projection.width * 0.5 - inset,
-          y: projection.y + projection.height * 0.5 - inset }
-      ];
-    }).find((point) => layer.pickSlot(point.x, point.y) === null);
-    expect(blankGap).toBeDefined();
-    expect(layer.pickSlot(blankGap!.x, blankGap!.y)).toBeNull();
+    const projected = layer.projectGroundPlacement(160, 520, 'city-mill');
+    expect(projected).not.toBeNull();
+    expect(projected!.transform.localXMicrounits % 500_000n).toBe(0n);
+    expect(projected!.transform.localZMicrounits % 500_000n).toBe(0n);
+
+    const validDraft = evaluateInnerKeepPlacementDraft('city-mill', {
+      localXMicrounits: 14_000_000n,
+      localZMicrounits: -10_000_000n,
+      rotationMilliDegrees: 90_000,
+    }, presentation.buildings);
+    expect(validDraft.evaluation.valid).toBe(true);
+    layer.setPlacementDraft(validDraft);
+    expect(layer.scene.getObjectByName('inner-keep-placement-preview-footprint'))
+      .toBeInstanceOf(THREE.Mesh);
+    expect(layer.getTelemetry()).toMatchObject({
+      placementPreviewActive: true,
+      placementPreviewValid: true,
+    });
+
+    const blockedDraft = evaluateInnerKeepPlacementDraft('city-mill', {
+      localXMicrounits: 0n,
+      localZMicrounits: 2_000_000n,
+      rotationMilliDegrees: 0,
+    }, presentation.buildings);
+    expect(blockedDraft.evaluation).toMatchObject({
+      valid: false,
+      reason: 'permanent-exclusion',
+    });
+    layer.setPlacementDraft(blockedDraft);
+    expect(layer.getTelemetry()).toMatchObject({
+      placementPreviewActive: true,
+      placementPreviewValid: false,
+    });
+    layer.setPlacementDraft(null);
+    expect(layer.scene.getObjectByName('inner-keep-placement-preview-footprint'))
+      .toBeUndefined();
+    layer.dispose();
+  });
+
+  it('culls grass for valid previews and authoritative building envelopes', () => {
+    const { layer } = createLayer(
+      true, 1280, 720, 'disabled', undefined, 'reduced'
+    );
+    const emptyPresentation = createInnerKeepPresentation();
+    layer.reconcile(emptyPresentation, { owningTerrainKind: 'meadow' });
+    const originalPositions = sceneGrassPositions(layer.scene);
+    const nominalGrassBladeCount = layer.getTelemetry().grassBladeCount;
+    const validDraft = originalPositions.map((position) => (
+      evaluateInnerKeepPlacementDraft('city-mill', Object.freeze({
+        localXMicrounits: BigInt(Math.round(position.x * 2)) * 500_000n,
+        localZMicrounits: BigInt(Math.round(position.z * 2)) * 500_000n,
+        rotationMilliDegrees: 0
+      }), emptyPresentation.buildings)
+    )).find((draft) => draft.evaluation.valid);
+    expect(validDraft).toBeDefined();
+    const centerX = Number(validDraft!.transform.localXMicrounits) / 1_000_000;
+    const centerZ = Number(validDraft!.transform.localZMicrounits) / 1_000_000;
+    const halfExtents = INNER_KEEP_FREE_PLACEMENT_ENVELOPES['city-mill']
+      .halfExtentsMeters;
+    const clearsEnvelope = (position: THREE.Vector3) => (
+      Math.abs(position.x - centerX)
+        > halfExtents[0] + INNER_KEEP_GRASS_PATCH_SUPPORT_RADIUS_METERS
+      || Math.abs(position.z - centerZ)
+        > halfExtents[1] + INNER_KEEP_GRASS_PATCH_SUPPORT_RADIUS_METERS
+    );
+
+    layer.setPlacementDraft(validDraft!);
+    const previewPositions = sceneGrassPositions(layer.scene);
+    expect(previewPositions.length).toBeLessThan(originalPositions.length);
+    expect(previewPositions.every(clearsEnvelope)).toBe(true);
+    expect(layer.getTelemetry().grassBladeCount).toBe(nominalGrassBladeCount);
+
+    layer.setPlacementDraft(null);
+    expect(sceneGrassPositions(layer.scene).map(({ x, y, z }) => [x, y, z]))
+      .toEqual(originalPositions.map(({ x, y, z }) => [x, y, z]));
+
+    const building = createInnerKeepTestBuilding({
+      buildingKind: 'city-mill',
+      placement: validDraft!.transform
+    });
+    layer.reconcile(createInnerKeepPresentation({
+      projectRevision: 2n,
+      buildings: [building]
+    }), { owningTerrainKind: 'meadow' });
+    const authoritativePositions = sceneGrassPositions(layer.scene);
+    expect(authoritativePositions.length).toBeLessThan(originalPositions.length);
+    expect(authoritativePositions.every(clearsEnvelope)).toBe(true);
+    expect(layer.getTelemetry().grassBladeCount).toBe(nominalGrassBladeCount);
+    layer.dispose();
+  });
+
+  it('culls and restores the exact seeded perimeter tree across preview and authority changes', async () => {
+    const bundle = fakeRuntimeBundleWithCanonicalStaticBounds();
+    let settleBundle: ((value: InnerKeepRuntimeAssetBundle) => void) | undefined;
+    const { layer } = createLayer(
+      true,
+      1_280,
+      720,
+      'auto',
+      vi.fn(() => new Promise<InnerKeepRuntimeAssetBundle>((resolve) => {
+        settleBundle = resolve;
+      })),
+      'reduced',
+    );
+    const emptyPresentation = Object.freeze({
+      ...createInnerKeepPresentation(),
+      castleId: 700_000_000_000_000_007n,
+    });
+    layer.reconcile(emptyPresentation, { owningTerrainKind: 'forest' });
+    expect(layer.scene.userData.innerKeepVisualSeed).toBe(975_150_069);
+    const validDraft = evaluateInnerKeepPlacementDraft('city-mill', {
+      localXMicrounits: -38_000_000n,
+      localZMicrounits: -19_000_000n,
+      rotationMilliDegrees: 0,
+    }, emptyPresentation.buildings);
+    expect(validDraft.evaluation.valid).toBe(true);
+    layer.setPlacementDraft(validDraft);
+    settleBundle!(bundle);
+    const treeName =
+      'inner-keep-authored-perimeter-tree:courtyard-linden-teardrop:0';
+    await vi.waitFor(() => {
+      expect(layer.getTelemetry()).toMatchObject({
+        assetStatus: 'ready',
+        authoredTreeCount: 6,
+      });
+      expect(layer.scene.getObjectByName(treeName)).toBeDefined();
+    });
+    const tree = layer.scene.getObjectByName(treeName)!;
+    expect(tree.visible).toBe(false);
+    expect(layer.getTelemetry().authoredTreeCount).toBe(6);
+
+    const invalidDraft = evaluateInnerKeepPlacementDraft('city-mill', {
+      localXMicrounits: 0n,
+      localZMicrounits: 2_000_000n,
+      rotationMilliDegrees: 0,
+    }, emptyPresentation.buildings);
+    expect(invalidDraft.evaluation.valid).toBe(false);
+    layer.setPlacementDraft(invalidDraft);
+    expect(tree.visible).toBe(true);
+
+    layer.setPlacementDraft(validDraft);
+    expect(tree.visible).toBe(false);
+    layer.setPlacementDraft(null);
+    expect(tree.visible).toBe(true);
+
+    const building = Object.freeze({
+      ...createInnerKeepTestBuilding({
+        buildingKind: 'city-mill',
+        placement: validDraft.transform,
+      }),
+      buildingKey: `${emptyPresentation.castleId}:city-mill`,
+    });
+    layer.reconcile(Object.freeze({
+      ...createInnerKeepPresentation({
+        projectRevision: 2n,
+        buildings: [building],
+      }),
+      castleId: emptyPresentation.castleId,
+    }), { owningTerrainKind: 'forest' });
+    expect(tree.visible).toBe(false);
+    expect(layer.getTelemetry().authoredTreeCount).toBe(6);
+
+    layer.reconcile(Object.freeze({
+      ...createInnerKeepPresentation({ projectRevision: 3n }),
+      castleId: emptyPresentation.castleId,
+    }), { owningTerrainKind: 'forest' });
+    expect(tree.visible).toBe(true);
+    expect(layer.getTelemetry().authoredTreeCount).toBe(6);
     layer.dispose();
   });
 
   it('shows only worksite geometry while constructing, then performs a bounded reveal', () => {
     const { layer } = createLayer();
-    const constructing: InnerKeepBuildingPresentation = Object.freeze({
-      slotId: 'inner-keep-slot-m01',
+    const constructing: InnerKeepBuildingPresentation = createInnerKeepTestBuilding({
       buildingKind: 'city-mill',
       completedLevel: 0,
       targetLevel: 1,
@@ -1010,7 +1231,7 @@ describe('procedural Inner Keep scene layer', () => {
       buildings: [constructing],
       builder: {
         state: 'busy',
-        slotId: constructing.slotId,
+        buildingKey: constructing.buildingKey,
         buildingKind: constructing.buildingKind,
         targetLevel: constructing.targetLevel,
         completesAtMicros: constructing.completesAtMicros!
@@ -1064,8 +1285,7 @@ describe('procedural Inner Keep scene layer', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise(() => {}));
     const { layer } = createLayer(false, 1280, 720, 'auto');
     layer.reconcile(createInnerKeepPresentation({
-      buildings: [{
-        slotId: 'inner-keep-slot-m01',
+      buildings: [createInnerKeepTestBuilding({
         buildingKind: 'city-mill',
         completedLevel: 1,
         targetLevel: 1,
@@ -1073,7 +1293,7 @@ describe('procedural Inner Keep scene layer', () => {
         startedAtMicros: 1n,
         completesAtMicros: 10n,
         revision: 1n
-      }]
+      })]
     }), { owningTerrainKind: 'meadow' });
 
     expect(layer.scene.getObjectByName('inner-keep-construction-scaffold')).toBeDefined();
@@ -1099,8 +1319,7 @@ describe('procedural Inner Keep scene layer', () => {
       'auto',
       runtimeAssetLoader,
     );
-    const constructing: InnerKeepBuildingPresentation = Object.freeze({
-      slotId: 'inner-keep-slot-m01',
+    const constructing: InnerKeepBuildingPresentation = createInnerKeepTestBuilding({
       buildingKind: 'city-mill',
       completedLevel: 0,
       targetLevel: 1,
@@ -1113,7 +1332,7 @@ describe('procedural Inner Keep scene layer', () => {
       buildings: [constructing],
       builder: {
         state: 'busy',
-        slotId: constructing.slotId,
+        buildingKey: constructing.buildingKey,
         buildingKind: constructing.buildingKind,
         targetLevel: constructing.targetLevel,
         completesAtMicros: constructing.completesAtMicros!,
@@ -1162,8 +1381,7 @@ describe('procedural Inner Keep scene layer', () => {
       'auto',
       runtimeAssetLoader
     );
-    const completeBuilding: InnerKeepBuildingPresentation = Object.freeze({
-      slotId: 'inner-keep-slot-m01',
+    const completeBuilding: InnerKeepBuildingPresentation = createInnerKeepTestBuilding({
       buildingKind: 'city-mill',
       completedLevel: 1,
       targetLevel: 1,
@@ -1270,7 +1488,7 @@ describe('procedural Inner Keep scene layer', () => {
     expect(layer.getTelemetry()).toMatchObject({
       assetStatus: 'loading',
       authoredAssetCount: 38,
-      authoredPlacementCount: 76
+      authoredPlacementCount: 101
     });
     expect(layer.scene.getObjectByName('inner-keep-procedural-asset-fallback')?.visible)
       .toBe(false);
@@ -1319,7 +1537,7 @@ describe('procedural Inner Keep scene layer', () => {
     expect(second.dispose).toHaveBeenCalledTimes(1);
     expect(layer.getTelemetry()).toMatchObject({
       authoredAssetCount: 38,
-      authoredPlacementCount: 76,
+      authoredPlacementCount: 101,
       runtimeAssetFailureCount: 1
     });
     expect(layer.scene.getObjectByName('inner-keep-procedural-asset-fallback')?.visible)
@@ -1436,8 +1654,7 @@ describe('procedural Inner Keep scene layer', () => {
       runtimeAssetLoader
     );
     layer.reconcile(createInnerKeepPresentation({
-      buildings: [{
-        slotId: 'inner-keep-slot-m01',
+      buildings: [createInnerKeepTestBuilding({
         buildingKind: 'city-mill',
         completedLevel: 1,
         targetLevel: 1,
@@ -1445,7 +1662,7 @@ describe('procedural Inner Keep scene layer', () => {
         startedAtMicros: 1n,
         completesAtMicros: 10n,
         revision: 1n
-      }]
+      })]
     }), { owningTerrainKind: 'meadow' });
 
     await vi.waitFor(() => expect(layer.getTelemetry().assetStatus).toBe('degraded'));
@@ -1486,8 +1703,7 @@ describe('procedural Inner Keep scene layer', () => {
       runtimeAssetLoader
     );
     layer.reconcile(createInnerKeepPresentation({
-      buildings: [{
-        slotId: 'inner-keep-slot-m01',
+      buildings: [createInnerKeepTestBuilding({
         buildingKind: 'city-mill',
         completedLevel: 1,
         targetLevel: 1,
@@ -1495,7 +1711,7 @@ describe('procedural Inner Keep scene layer', () => {
         startedAtMicros: 1n,
         completesAtMicros: 10n,
         revision: 1n
-      }]
+      })]
     }), { owningTerrainKind: 'meadow' });
 
     await vi.waitFor(() => expect(layer.getTelemetry().assetStatus).toBe('degraded'));

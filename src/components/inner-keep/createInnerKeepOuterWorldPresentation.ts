@@ -264,7 +264,7 @@ const OUTER_WILDLIFE_MINIMUM_SPACING_METERS = 1.65;
 
 /** A small marsh-edge meadow guarantees visible wildlife without tree clipping. */
 export const INNER_KEEP_OUTER_WORLD_NORTHEAST_WILDLIFE_CLEARING = Object.freeze({
-  center: Object.freeze({ x: 22.2, z: 23.5 }),
+  center: Object.freeze({ x: 16, z: 52 }),
   radiusMeters: 1.45,
 });
 
@@ -287,26 +287,26 @@ function exteriorCandidate(index: number, seed: number) {
   const across = deterministicUnit(index, seed + 11);
   const depth = deterministicUnit(index, seed + 23);
   // Most candidates form a readable western forest mass.
-  if (band <= 5) return { x: -30.7 + depth * 6.2, z: -26 + across * 52 };
+  if (band <= 5) return { x: -66 + depth * 9, z: -50 + across * 100 };
   // The eastern cluster is deliberately wetter and narrower around the mere.
-  if (band <= 7) return { x: 22 + depth * 2.1, z: 19.6 + across * 11.4 };
-  if (band === 8) return { x: -27 + across * 54, z: -33.4 + depth * 5.4 };
-  return { x: -27 + across * 47, z: 19.5 + depth * 11.3 };
+  if (band <= 7) return { x: 55 + depth * 11, z: -50 + across * 98 };
+  if (band === 8) return { x: -55 + across * 110, z: -67 + depth * 12 };
+  return { x: -52 + across * 104, z: 48 + depth * 19 };
 }
 
 function wildlifeCandidate(index: number, seed: number) {
   const meadow = index % 4;
   const xUnit = deterministicUnit(index, seed + 37);
   const zUnit = deterministicUnit(index, seed + 59);
-  if (meadow === 0) return { x: -28 + xUnit * 44, z: 20 + zUnit * 11 };
+  if (meadow === 0) return { x: -48 + xUnit * 96, z: 47 + zUnit * 18 };
   if (meadow === 1) return {
     x: INNER_KEEP_OUTER_WORLD_NORTHEAST_WILDLIFE_CLEARING.center.x
       + (xUnit - 0.5) * 0.4,
     z: INNER_KEEP_OUTER_WORLD_NORTHEAST_WILDLIFE_CLEARING.center.z
       + (zUnit - 0.5) * 0.6,
   };
-  if (meadow === 2) return { x: -30.5 + xUnit * 6.5, z: -14 + zUnit * 34 };
-  return { x: -17 + xUnit * 30, z: 20 + zUnit * 11 };
+  if (meadow === 2) return { x: -66 + xUnit * 9, z: -40 + zUnit * 80 };
+  return { x: -48 + xUnit * 96, z: -67 + zUnit * 15 };
 }
 
 function acceptsSpacing(

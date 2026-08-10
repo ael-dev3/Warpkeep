@@ -13,20 +13,20 @@ import {
  * solely to keep a fog-softened landscape behind every supported camera pose.
  */
 export const INNER_KEEP_FAR_COUNTRYSIDE_POLICY_VERSION =
-  'inner-keep-far-countryside-presentation-v1';
+  'inner-keep-far-countryside-presentation-v2-expanded-town';
 
 export const INNER_KEEP_FAR_COUNTRYSIDE_INNER_HALF_EXTENTS_METERS =
   INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS;
 
 export const INNER_KEEP_FAR_COUNTRYSIDE_HALF_EXTENTS_METERS = Object.freeze([
-  96,
-  144,
+  208,
+  272,
 ] as const);
 
-export const INNER_KEEP_FAR_COUNTRYSIDE_EDGE_FADE_METERS = 16;
-export const INNER_KEEP_FAR_COUNTRYSIDE_INNER_HEIGHT_BLEND_METERS = 18;
-export const INNER_KEEP_FAR_COUNTRYSIDE_TINT_BLEND_METERS = 24;
-export const INNER_KEEP_FAR_COUNTRYSIDE_MINIMUM_CAMERA_BUFFER_METERS = 12;
+export const INNER_KEEP_FAR_COUNTRYSIDE_EDGE_FADE_METERS = 20;
+export const INNER_KEEP_FAR_COUNTRYSIDE_INNER_HEIGHT_BLEND_METERS = 24;
+export const INNER_KEEP_FAR_COUNTRYSIDE_TINT_BLEND_METERS = 32;
+export const INNER_KEEP_FAR_COUNTRYSIDE_MINIMUM_CAMERA_BUFFER_METERS = 16;
 
 export const INNER_KEEP_FAR_COUNTRYSIDE_RADIAL_SEGMENTS = Object.freeze({
   high: 10,
@@ -35,15 +35,15 @@ export const INNER_KEEP_FAR_COUNTRYSIDE_RADIAL_SEGMENTS = Object.freeze({
 } satisfies Readonly<Record<InnerKeepSceneQuality, number>>);
 
 export const INNER_KEEP_FAR_COUNTRYSIDE_FIELD_TUFT_BUDGETS = Object.freeze({
-  high: 240,
-  balanced: 144,
-  reduced: 72,
+  high: 320,
+  balanced: 192,
+  reduced: 96,
 } satisfies Readonly<Record<InnerKeepSceneQuality, number>>);
 
 export const INNER_KEEP_FAR_COUNTRYSIDE_HEDGEROW_TREE_BUDGETS = Object.freeze({
-  high: 24,
-  balanced: 16,
-  reduced: 8,
+  high: 32,
+  balanced: 20,
+  reduced: 10,
 } satisfies Readonly<Record<InnerKeepSceneQuality, number>>);
 
 export const INNER_KEEP_FAR_COUNTRYSIDE_FIELD_PALETTE = Object.freeze([
@@ -60,11 +60,11 @@ export const INNER_KEEP_FAR_COUNTRYSIDE_FIELD_PALETTE = Object.freeze([
 export const INNER_KEEP_FAR_COUNTRYSIDE_CAMERA = Object.freeze({
   sourcePresentationLayoutDigest: INNER_KEEP_PRESENTATION_LAYOUT_DIGEST,
   panBoundsMeters: Object.freeze({
-    x: Object.freeze([-3, 3] as const),
-    z: Object.freeze([-3, 3] as const),
+    x: Object.freeze([-9, 9] as const),
+    z: Object.freeze([-9, 9] as const),
   }),
   panScreenTrackingRatio: 0.2,
-  initialZoom: Object.freeze({ landscape: 0.78, portrait: 0.72 }),
+  initialZoom: Object.freeze({ landscape: 1, portrait: 1 }),
   portrait: Object.freeze({
     positionMeters: INNER_KEEP_PRESENTATION_CAMERA_PRESETS.portrait.positionMeters,
     targetMeters: INNER_KEEP_PRESENTATION_CAMERA_PRESETS.portrait.targetMeters,
@@ -75,8 +75,8 @@ export function innerKeepFarCountrysideMinimumZoomForAspect(aspect: number) {
   const safeAspect = Number.isFinite(aspect) ? Math.max(0.2, aspect) : 1;
   const required = safeAspect
     < INNER_KEEP_PRESENTATION_CAMERA_PRESETS.portrait.maximumAspectExclusive
-    ? Math.max(0.72, 0.28 / safeAspect)
-    : Math.max(0.72, 0.69 / safeAspect, 0.3 * safeAspect);
+    ? Math.max(0.8, 0.36 / safeAspect)
+    : Math.max(0.8, 0.9 / safeAspect, 0.4 * safeAspect);
   return Math.max(
     INNER_KEEP_PRESENTATION_CAMERA_PRESETS.zoom.minimum,
     Math.min(INNER_KEEP_PRESENTATION_CAMERA_PRESETS.zoom.maximum, required),
@@ -128,4 +128,4 @@ export function canonicalInnerKeepFarCountrysideDigestInput() {
 
 // SHA-256 of canonicalInnerKeepFarCountrysideDigestInput().
 export const INNER_KEEP_FAR_COUNTRYSIDE_POLICY_DIGEST =
-  '507505898f5c8117a3133273c2faf67c038d7b46726bc479e976e1f2d550e46a';
+  '20e1a2f00edbaee520aa96f67d651721da6786e29c19d555fa7bfda161e9eacc';

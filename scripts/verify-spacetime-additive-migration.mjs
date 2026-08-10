@@ -1520,7 +1520,8 @@ function assertAdditiveV15Schema(before, after) {
     castle_inner_keep_building_v1: {
       access: 'Public',
       fields: [
-        'building_key', 'castle_id', 'slot_key', 'slot_id', 'building_kind',
+        'building_key', 'castle_id', 'building_kind', 'local_x_microunits',
+        'local_z_microunits', 'rotation_milli_degrees',
         'completed_level', 'target_level', 'phase', 'started_at_micros',
         'completes_at_micros', 'revision', 'policy_version',
       ],
@@ -1536,7 +1537,8 @@ function assertAdditiveV15Schema(before, after) {
       access: 'Private',
       fields: [
         'receipt_key', 'fid', 'request_key', 'castle_id', 'building_key',
-        'slot_id', 'building_kind', 'target_level', 'deducted_food',
+        'building_kind', 'local_x_microunits', 'local_z_microunits',
+        'rotation_milli_degrees', 'target_level', 'deducted_food',
         'deducted_wood', 'deducted_stone', 'deducted_gold', 'started_at',
         'policy_version',
       ],
@@ -8498,7 +8500,7 @@ async function main() {
       + 'identity-safe generic worker readiness, roster, assignment, occupation, bounded receipt, and private schedule tables appended at exact refs 47-52, '
       + 'private access-request intent and authoritative request timestamp appended at exact ref 53, '
       + 'private exactly-once daily Mark receipts and identity-free cadence appended at exact refs 54-55, '
-      + 'public Inner Keep layout, slots, building catalog, levels, and castle buildings plus private builders, receipts, and schedules appended at exact refs 56-63, '
+      + 'public Inner Keep layout, empty compatibility-slot table, building catalog, levels, and castle buildings plus private builders, receipts, and schedules appended at exact refs 56-63, '
       + '61-tile empty, synthetic nonempty, and populated Water/Stone/Water-revision fixtures remained preserved through v15, '
       + 'every v12 table was populated and retained through the real candidate, the v13 request suffix survived populated, '
       + 'both v14 tables and all eight v15 tables started empty, fixture republish remained idempotent, '

@@ -1,7 +1,6 @@
 import {
   INNER_KEEP_LAYOUT_V1_DIGEST,
   INNER_KEEP_LAYOUT_V1_ID,
-  INNER_KEEP_LAYOUT_V1_SLOTS,
   INNER_KEEP_LAYOUT_V1_VERSION
 } from '../components/inner-keep/innerKeepLayoutV1';
 import {
@@ -9,9 +8,9 @@ import {
   type InnerKeepBuildingKind,
   type InnerKeepBuildingPresentation,
   type InnerKeepCatalogueEntry,
+  type InnerKeepPlacementTransform,
   type InnerKeepPresentation,
-  type InnerKeepResourceAmounts,
-  type InnerKeepSlotPresentation
+  type InnerKeepResourceAmounts
 } from '../components/inner-keep/innerKeepPresentation';
 import {
   INNER_KEEP_STATIC_RUNTIME_ASSETS
@@ -38,34 +37,12 @@ const NO_RESOURCES: InnerKeepResourceAmounts = Object.freeze({
   gold: 0n
 });
 
-const SLOT_LABELS = Object.freeze([
-  'West Courtyard',
-  'Northwest Terrace',
-  'North Market Site',
-  'East Courtyard',
-  'West Road Site',
-  'East Road Site',
-  'Southwest Green',
-  'Southeast Green',
-  'Northwest Reserve',
-  'Northeast Reserve',
-  'Southwest Reserve',
-  'Southeast Reserve'
-]);
-
-const QA_SLOTS: readonly InnerKeepSlotPresentation[] = Object.freeze(
-  INNER_KEEP_LAYOUT_V1_SLOTS.map((slot, index) => Object.freeze({
-    slotId: slot.slotId,
-    label: SLOT_LABELS[index]!,
-    footprintClass: slot.footprintClass,
-    sortOrder: slot.sortOrder,
-    active: slot.active
-  }))
-);
-
 const QA_BUILDING_PREVIEW_PATHS = new Map(
   INNER_KEEP_STATIC_RUNTIME_ASSETS
-    .filter((asset) => asset.family === 'buildings' && asset.preview !== undefined)
+    .filter((asset) => (
+      (asset.family === 'buildings' || asset.family === 'landmarks')
+      && asset.preview !== undefined
+    ))
     .map((asset) => [asset.id, asset.preview!.path] as const)
 );
 
@@ -78,17 +55,22 @@ function exactQaBuildingPreviewPath(buildingKind: InnerKeepBuildingKind) {
 const QA_CATALOGUE: readonly InnerKeepCatalogueEntry[] = Object.freeze(
   CANONICAL_INNER_KEEP_BUILDING_CATALOG.map((policy) => Object.freeze({
     buildingKind: policy.buildingKind,
-    label: policy.publicLabel.toUpperCase(),
+    label: policy.publicLabel,
+    category: policy.category,
     footprintClass: policy.footprintClass,
     maximumLevel: policy.maximumLevel,
     matchingDiscountResource: policy.matchingDiscountResource,
     discountBasisPointsPerLevel: policy.discountBasisPointsPerLevel,
     discountCapBasisPoints: policy.discountCapBasisPoints,
-    effectCopy: innerKeepCatalogueEffectCopy(
-      policy.matchingDiscountResource,
-      policy.discountBasisPointsPerLevel,
-      policy.discountCapBasisPoints,
-    ),
+    effectCopy: policy.matchingDiscountResource === 'none'
+      ? policy.category === 'military'
+        ? 'A major military project for the growing town.'
+        : 'A monumental civic project for the heart of the town.'
+      : innerKeepCatalogueEffectCopy(
+        policy.matchingDiscountResource,
+        policy.discountBasisPointsPerLevel,
+        policy.discountCapBasisPoints,
+      ),
     previewUrl: exactQaBuildingPreviewPath(policy.buildingKind)
   }))
 );
@@ -99,6 +81,7 @@ const QA_MISSING_ASSET_CATALOGUE: readonly InnerKeepCatalogueEntry[] =
     return Object.freeze({
       buildingKind: entry.buildingKind,
       label: entry.label,
+      category: entry.category,
       footprintClass: entry.footprintClass,
       maximumLevel: entry.maximumLevel,
       matchingDiscountResource: entry.matchingDiscountResource,
@@ -111,11 +94,17 @@ const QA_MISSING_ASSET_CATALOGUE: readonly InnerKeepCatalogueEntry[] =
 const LEVEL_ONE_COSTS: Readonly<Record<
   InnerKeepBuildingKind,
   InnerKeepResourceAmounts
->> = Object.freeze({
-  'city-mill': Object.freeze({ food: 300n, wood: 900n, stone: 600n, gold: 0n }),
-  'lumber-camp': Object.freeze({ food: 500n, wood: 700n, stone: 650n, gold: 0n }),
-  'city-stoneworks': Object.freeze({ food: 500n, wood: 900n, stone: 450n, gold: 0n }),
-  'city-goldworks': Object.freeze({ food: 700n, wood: 1_200n, stone: 1_000n, gold: 500n })
+>> = Object.freeze(Object.fromEntries(
+  CANONICAL_INNER_KEEP_BUILDING_CATALOG.map((policy) => [
+    policy.buildingKind,
+    policy.baseCost,
+  ])
+) as Record<InnerKeepBuildingKind, InnerKeepResourceAmounts>);
+
+const QA_MILL_PLACEMENT: InnerKeepPlacementTransform = Object.freeze({
+  localXMicrounits: -20_000_000n,
+  localZMicrounits: -12_000_000n,
+  rotationMilliDegrees: 0,
 });
 
 function constructionBuilding(
@@ -125,8 +114,9 @@ function constructionBuilding(
   const elapsed = DAY_MICROS * BigInt(progressBasisPoints) / 10_000n;
   const startedAtMicros = observedAtMicros - elapsed;
   return Object.freeze({
-    slotId: 'inner-keep-slot-m01',
+    buildingKey: `${SYNTHETIC_CASTLE_ID}:city-mill`,
     buildingKind: 'city-mill',
+    placement: QA_MILL_PLACEMENT,
     completedLevel: 0,
     targetLevel: 1,
     phase: 'constructing',
@@ -138,8 +128,9 @@ function constructionBuilding(
 
 function completedBuilding(level: number, revision = 1n): InnerKeepBuildingPresentation {
   return Object.freeze({
-    slotId: 'inner-keep-slot-m01',
+    buildingKey: `${SYNTHETIC_CASTLE_ID}:city-mill`,
     buildingKind: 'city-mill',
+    placement: QA_MILL_PLACEMENT,
     completedLevel: level,
     targetLevel: level,
     phase: 'complete',
@@ -170,37 +161,21 @@ function buildingsForScenario(
 }
 
 function quotesForBuildings(buildings: readonly InnerKeepBuildingPresentation[]) {
-  const existing = buildings[0];
-  return Object.freeze(QA_SLOTS.flatMap((slot) => {
-    if (!slot.active) return [];
-    return QA_CATALOGUE.flatMap((entry) => {
-      if (existing?.buildingKind === entry.buildingKind) {
-        if (
-          existing.phase !== 'complete'
-          || existing.completedLevel >= entry.maximumLevel
-          || slot.slotId !== existing.slotId
-        ) return [];
-        return [Object.freeze({
-          slotId: slot.slotId,
-          buildingKind: entry.buildingKind,
-          targetLevel: existing.completedLevel + 1,
-          cost: LEVEL_ONE_COSTS[entry.buildingKind],
-          durationMicros: DAY_MICROS,
-          policyVersion: INNER_KEEP_POLICY_VERSION,
-          available: true
-        })];
-      }
-      if (existing?.slotId === slot.slotId) return [];
-      return [Object.freeze({
-        slotId: slot.slotId,
-        buildingKind: entry.buildingKind,
-        targetLevel: 1,
-        cost: LEVEL_ONE_COSTS[entry.buildingKind],
-        durationMicros: DAY_MICROS,
-        policyVersion: INNER_KEEP_POLICY_VERSION,
-        available: true
-      })];
-    });
+  return Object.freeze(QA_CATALOGUE.flatMap((entry) => {
+    const existing = buildings.find((building) => (
+      building.buildingKind === entry.buildingKind
+    ));
+    if (existing?.completedLevel === entry.maximumLevel) {
+      return [];
+    }
+    return [Object.freeze({
+      buildingKind: entry.buildingKind,
+      targetLevel: existing ? existing.completedLevel + 1 : 1,
+      cost: LEVEL_ONE_COSTS[entry.buildingKind],
+      durationMicros: DAY_MICROS,
+      policyVersion: INNER_KEEP_POLICY_VERSION,
+      available: true
+    })];
   }));
 }
 
@@ -223,7 +198,6 @@ export function createSyntheticInnerKeepQaPresentation(
       pending: NO_RESOURCES,
       observedAtMicros
     }),
-    slots: QA_SLOTS,
     catalogue: scenario.state === 'missing-asset'
       ? QA_MISSING_ASSET_CATALOGUE
       : QA_CATALOGUE,
@@ -231,7 +205,7 @@ export function createSyntheticInnerKeepQaPresentation(
     quotes: quotesForBuildings(buildings),
     builder: constructing ? Object.freeze({
       state: 'busy' as const,
-      slotId: constructing.slotId,
+      buildingKey: constructing.buildingKey,
       buildingKind: constructing.buildingKind,
       targetLevel: constructing.targetLevel,
       completesAtMicros: constructing.completesAtMicros!
@@ -244,18 +218,21 @@ export function completeSyntheticInnerKeepQaPresentation(
 ): InnerKeepPresentation {
   const building = presentation.buildings.find((entry) => entry.phase === 'constructing');
   if (!building) return presentation;
+  const buildings = Object.freeze([Object.freeze({
+    buildingKey: building.buildingKey,
+    buildingKind: building.buildingKind,
+    placement: building.placement,
+    completedLevel: building.targetLevel,
+    targetLevel: building.targetLevel,
+    phase: 'complete' as const,
+    revision: building.revision + 1n
+  })]);
   return Object.freeze({
     ...presentation,
     phase: 'completion-observed',
     projectRevision: presentation.projectRevision + 1n,
-    buildings: Object.freeze([Object.freeze({
-      slotId: building.slotId,
-      buildingKind: building.buildingKind,
-      completedLevel: building.targetLevel,
-      targetLevel: building.targetLevel,
-      phase: 'complete' as const,
-      revision: building.revision + 1n
-    })]),
+    buildings,
+    quotes: quotesForBuildings(buildings),
     builder: Object.freeze({ state: 'idle' as const })
   });
 }

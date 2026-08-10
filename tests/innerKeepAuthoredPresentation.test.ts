@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 
 import {
+  allInnerKeepStaticSceneryRuntimeAssetIds,
   allInnerKeepStaticRuntimeAssetIds,
   createInnerKeepAuthoredBuilding,
   createInnerKeepAuthoredStaticPresentation,
@@ -11,6 +12,7 @@ import {
   INNER_KEEP_AUTHORED_PERIMETER_TREE_CANDIDATES_PER_PLACEMENT,
   INNER_KEEP_AUTHORED_PERIMETER_TREE_CLEARANCE_METERS,
   INNER_KEEP_AUTHORED_PERIMETER_TREE_GROUND_LIFT_METERS,
+  innerKeepAuthoredPerimeterTreeIntersectsBuilding,
   innerKeepAuthoredPerimeterTreeTrunkRadiusMeters,
   planInnerKeepAuthoredPerimeterTrees,
 } from '../src/components/inner-keep/createInnerKeepAuthoredPresentation';
@@ -51,6 +53,7 @@ import {
   INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS,
   INNER_KEEP_PALISADE_CORNER_VISUAL_OVERRIDES,
   INNER_KEEP_PALISADE_GATE_LEAF_VISUAL_OVERRIDES,
+  INNER_KEEP_PALISADE_SOUTH_WALL_VISUAL_OVERRIDES,
   INNER_KEEP_PALISADE_VISUAL_CORRECTION_DIGEST,
   INNER_KEEP_PALISADE_VISUAL_CORRECTION_POLICY,
   INNER_KEEP_VILLAGE_ANIMAL_ROAMING_EXCLUSIONS,
@@ -60,6 +63,8 @@ import type {
   InnerKeepRuntimeAssetBundle,
   InnerKeepRuntimePrefab,
 } from '../src/components/inner-keep/loadInnerKeepRuntimeAssets';
+import { evaluateInnerKeepPlacement } from '../src/components/inner-keep/innerKeepFreePlacementPolicy';
+import { createInnerKeepTestBuilding } from './fixtures/innerKeepPresentation';
 
 function prefab(
   id: string,
@@ -229,7 +234,7 @@ function renderComplexity(root: THREE.Object3D) {
 }
 
 describe('authored Inner Keep presentation composition', () => {
-  it('makes the Cathedral the northern anchor and Barracks the western garrison', () => {
+  it('does not prebuild the Cathedral or Barracks in the initial authored scene', () => {
     const presentation = createInnerKeepAuthoredStaticPresentation({
       bundle: fullStaticBundle(),
       quality: 'balanced',
@@ -241,10 +246,8 @@ describe('authored Inner Keep presentation composition', () => {
     const barracks = presentation.group.getObjectByName(
       'inner-keep-authored-placement:shieldcourt-barracks-west-garrison',
     );
-    expect(cathedral?.position.toArray()).toEqual([0, 0, -15.4]);
-    expect(cathedral?.scale.toArray()).toEqual([0.3, 0.3, 0.3]);
-    expect(barracks?.position.toArray()).toEqual([-16, 0, 0]);
-    expect(barracks?.scale.toArray()).toEqual([0.38, 0.38, 0.38]);
+    expect(cathedral).toBeUndefined();
+    expect(barracks).toBeUndefined();
     expect(presentation).toMatchObject({
       loadedAssetCount: 38,
       cathedralReady: true,
@@ -269,7 +272,7 @@ describe('authored Inner Keep presentation composition', () => {
       disposableMaterials,
     });
     expect(building?.name).toBe('inner-keep-completed-building:city-mill');
-    expect(building?.scale.x).toBeCloseTo(0.374);
+    expect(building?.scale.toArray()).toEqual([1, 1, 1]);
     const sourceMaterial = (source.root.children[0] as THREE.Mesh).material;
     let clonedMaterial: THREE.Material | THREE.Material[] | undefined;
     building?.traverse((object) => {
@@ -338,7 +341,7 @@ describe('authored Inner Keep presentation composition', () => {
     expect(wallInstances).toBeInstanceOf(THREE.InstancedMesh);
     expect(wallInstances.count).toBe(expectedLongWallCount);
     // One fake primitive per fixed asset group plus one per perimeter species.
-    expect(complexity.drawCalls).toBe(37);
+    expect(complexity.drawCalls).toBe(36);
     expect(complexity.triangles).toBe(
       (
         presentation.placementInstanceCount
@@ -371,7 +374,7 @@ describe('authored Inner Keep presentation composition', () => {
         `inner-keep-authored-placement:${override.placementId}`,
       )!;
       expect(marker.position.toArray()).toEqual(override.positionMeters);
-      expect(marker.scale.toArray()).toEqual([0.6, 1, 0.6]);
+      expect(marker.scale.toArray()).toEqual([1, 1, 1]);
       expect(marker.position.y).toBe(0);
       expect(marker.scale.y).toBe(1);
 
@@ -382,17 +385,148 @@ describe('authored Inner Keep presentation composition', () => {
       expect(elbow.x).toBeCloseTo(canonical.positionMeters[0], 2);
       expect(elbow.z).toBeCloseTo(canonical.positionMeters[2], 2);
 
-      const visualHalfExtentMeters = 2 * marker.scale.x;
-      expect(Math.abs(marker.position.x - canonical.positionMeters[0])
-        + visualHalfExtentMeters).toBeLessThanOrEqual(2.35);
-      expect(Math.abs(marker.position.z - canonical.positionMeters[2])
-        + visualHalfExtentMeters).toBeLessThanOrEqual(2.35);
+      expect(Math.abs(marker.position.x - canonical.positionMeters[0]))
+        .toBeCloseTo(1.66, 10);
+      expect(Math.abs(marker.position.z - canonical.positionMeters[2]))
+        .toBeCloseTo(1.66, 10);
     }
+  });
+
+  it('joins every native-scale south wall run directly to the six-metre gate frame', () => {
+    const presentation = createInnerKeepAuthoredStaticPresentation({
+      bundle: fullStaticBundle(),
+      quality: 'balanced',
+      visualSeed: 42,
+    });
+    const assetWidthById = new Map(INNER_KEEP_PRESENTATION_ASSETS.map((asset) => (
+      [asset.assetId, asset.boundsMeters[0]] as const
+    )));
+    const wallIntervals = INNER_KEEP_PALISADE_SOUTH_WALL_VISUAL_OVERRIDES.map(
+      (override) => {
+        const marker = presentation.group.getObjectByName(
+          `inner-keep-authored-placement:${override.placementId}`,
+        )!;
+        expect(marker.position.toArray()).toEqual(override.positionMeters);
+        expect(marker.scale.toArray()).toEqual([1, 1, 1]);
+        const halfWidth = assetWidthById.get(override.assetId)! * 0.5;
+        return Object.freeze({
+          minimumX: marker.position.x - halfWidth,
+          maximumX: marker.position.x + halfWidth,
+        });
+      },
+    );
+    const gateFrame = presentation.group.getObjectByName(
+      'inner-keep-authored-placement:south-gate-frame',
+    )!;
+    expect(gateFrame.position.toArray()).toEqual([0, 0, 36]);
+    expect(gateFrame.scale.toArray()).toEqual([1, 1, 1]);
+    const gateHalfWidth = assetWidthById.get('palisade-gate-frame-6m')! * 0.5;
+    wallIntervals.push(Object.freeze({
+      minimumX: gateFrame.position.x - gateHalfWidth,
+      maximumX: gateFrame.position.x + gateHalfWidth,
+    }));
+    wallIntervals.sort((left, right) => left.minimumX - right.minimumX);
+
+    expect(wallIntervals[0]!.minimumX).toBe(-47);
+    expect(wallIntervals.at(-1)!.maximumX).toBe(47);
+    for (let index = 1; index < wallIntervals.length; index += 1) {
+      expect(
+        wallIntervals[index]!.minimumX - wallIntervals[index - 1]!.maximumX,
+      ).toBeCloseTo(0, 10);
+    }
+  });
+
+  it('hides and restores fixed dressing beneath legal authoritative envelopes', () => {
+    const presentation = createInnerKeepAuthoredStaticPresentation({
+      bundle: fullStaticBundle(),
+      quality: 'balanced',
+      visualSeed: 42,
+    });
+    const cases = [
+      ['builder-noticeboard', -11, 22],
+      ['civic-direction-sign', 9, 22],
+      ['west-service-band-picket', -38, 14],
+    ] as const;
+
+    for (const [placementId, x, z] of cases) {
+      const transform = Object.freeze({
+        localXMicrounits: BigInt(x * 1_000_000),
+        localZMicrounits: BigInt(z * 1_000_000),
+        rotationMilliDegrees: 0 as const,
+      });
+      expect(evaluateInnerKeepPlacement('city-mill', transform, []).valid).toBe(true);
+      const building = createInnerKeepTestBuilding({
+        buildingKind: 'city-mill',
+        placement: transform,
+      });
+      const marker = presentation.group.getObjectByName(
+        `inner-keep-authored-placement:${placementId}`,
+      )!;
+
+      expect(presentation.reconcileBuildingExclusions([building])).toBe(1);
+      expect(marker.visible, placementId).toBe(false);
+      expect(presentation.reconcileBuildingExclusions([])).toBe(0);
+      expect(marker.visible, placementId).toBe(true);
+    }
+  });
+
+  it('hides and restores the exact seeded perimeter tree beneath an authoritative envelope', () => {
+    const visualSeed = 975_150_069;
+    const presentation = createInnerKeepAuthoredStaticPresentation({
+      bundle: fullStaticBundle(),
+      quality: 'reduced',
+      visualSeed,
+    });
+    const plan = planInnerKeepAuthoredPerimeterTrees({
+      bundle: fullStaticBundle(),
+      quality: 'reduced',
+      visualSeed,
+    });
+    const tree = plan.find(({ name }) => (
+      name === 'inner-keep-authored-perimeter-tree:courtyard-linden-teardrop:0'
+    ))!;
+    expect(tree).toMatchObject({
+      candidateIndex: 152,
+      sector: 'west',
+    });
+    expect(tree.positionMeters[0]).toBeCloseTo(-43.792_458_039_570_974, 10);
+    expect(tree.positionMeters[2]).toBeCloseTo(-14.207_912_230_715_522, 10);
+    const transform = Object.freeze({
+      localXMicrounits: -38_000_000n,
+      localZMicrounits: -19_000_000n,
+      rotationMilliDegrees: 0 as const,
+    });
+    expect(evaluateInnerKeepPlacement('city-mill', transform, []).valid).toBe(true);
+    const building = createInnerKeepTestBuilding({
+      buildingKind: 'city-mill',
+      placement: transform,
+    });
+    expect(innerKeepAuthoredPerimeterTreeIntersectsBuilding(tree, building)).toBe(true);
+    const marker = presentation.group.getObjectByName(tree.name)!;
+    const perimeterTrees = presentation.group.getObjectByName(
+      'inner-keep-authored-perimeter-trees',
+    )!;
+    perimeterTrees.traverse((object) => {
+      expect(object.userData).toMatchObject({
+        presentationOnly: true,
+        gameplayAuthorityClaimed: false,
+        pickable: false,
+      });
+      expect(object.raycast([] as never, [] as never)).toBeUndefined();
+    });
+
+    expect(marker.visible).toBe(true);
+    presentation.reconcileBuildingExclusions([building]);
+    expect(marker.visible).toBe(false);
+    expect(presentation.authoredTreeCount).toBe(6);
+    presentation.reconcileBuildingExclusions([]);
+    expect(marker.visible).toBe(true);
+    expect(presentation.authoredTreeCount).toBe(6);
   });
 
   it('pins the presentation-only palisade correction to the reviewed layout', () => {
     expect(INNER_KEEP_PALISADE_VISUAL_CORRECTION_POLICY).toMatchObject({
-      policyVersion: 'inner-keep-palisade-visual-correction-v1',
+      policyVersion: 'inner-keep-palisade-visual-correction-v2-south-gate-joints',
       sourcePresentationLayoutDigest: INNER_KEEP_PRESENTATION_LAYOUT_DIGEST,
       presentationOnly: true,
       gameplayAuthorityClaimed: false,
@@ -423,8 +557,8 @@ describe('authored Inner Keep presentation composition', () => {
       const isLeft = override.assetId === 'palisade-gate-leaf-left';
       const centeredHinge = new THREE.Vector3(isLeft ? -1.05 : 1.05, 0, 0)
         .applyMatrix4(marker.matrixWorld);
-      expect(centeredHinge.x).toBeCloseTo(isLeft ? -2.1 : 2.1, 10);
-      expect(centeredHinge.z).toBeCloseTo(15.6, 10);
+      expect(centeredHinge.x).toBeCloseTo(isLeft ? -2.55 : 2.55, 10);
+      expect(centeredHinge.z).toBeCloseTo(36.8, 10);
 
       const rectangle = orientedRectangleCorners(
         [marker.position.x, marker.position.z],
@@ -438,14 +572,13 @@ describe('authored Inner Keep presentation composition', () => {
       const wagonHalfWidth =
         INNER_KEEP_OUTER_WORLD_SUPPLY_WAGON_FOOTPRINT_METERS * 0.5;
       const reviewedRoadHalfClearance =
-        INNER_KEEP_PRESENTATION_CLEARANCES.road.northSouthHalfWidth
-        + INNER_KEEP_PRESENTATION_CLEARANCES.road.requiredClearSideBuffer;
+        INNER_KEEP_PRESENTATION_CLEARANCES.road.northSouthHalfWidth;
       expect(Math.abs(innerEdgeX)).toBeGreaterThanOrEqual(Math.max(
         wagonHalfWidth + 0.3,
         reviewedRoadHalfClearance,
       ));
 
-      const standardCenter = [isLeft ? -2.55 : 2.55, 13.05] as const;
+      const standardCenter = [isLeft ? -3.4 : 3.4, 34] as const;
       const standardRectangle = orientedRectangleCorners(
         standardCenter,
         [1.6341 * 0.85 * 0.5, 1.0083 * 0.85 * 0.5],
@@ -457,11 +590,9 @@ describe('authored Inner Keep presentation composition', () => {
 
     const leftInnerEdge = Math.max(...renderedLeafRectangles[0]!.map(({ x }) => x));
     const rightInnerEdge = Math.min(...renderedLeafRectangles[1]!.map(({ x }) => x));
-    expect(rightInnerEdge - leftInnerEdge).toBeGreaterThanOrEqual(
-      2 * (
-        INNER_KEEP_PRESENTATION_CLEARANCES.road.northSouthHalfWidth
-        + INNER_KEEP_PRESENTATION_CLEARANCES.road.requiredClearSideBuffer
-      ),
+    expect(rightInnerEdge - leftInnerEdge).toBeCloseTo(
+      INNER_KEEP_PRESENTATION_CLEARANCES.wall.southGateVisualClearWidth,
+      10,
     );
   });
 
@@ -472,14 +603,24 @@ describe('authored Inner Keep presentation composition', () => {
     ]);
   });
 
-  it('requires all 38 exact static prefabs before an authored/fallback swap', () => {
+  it('requires fixed scenery without making an unbuilt project block the swap', () => {
     const complete = fullStaticBundle();
-    const partial = Object.freeze({
+    const withoutCathedral = Object.freeze({
       ...complete,
-      staticPrefabs: new Map([...complete.staticPrefabs].slice(0, -1)),
+      staticPrefabs: new Map([...complete.staticPrefabs].filter(([id]) => (
+        id !== 'grand-covenant-cathedral'
+      ))),
+    });
+    const missingSceneryId = allInnerKeepStaticSceneryRuntimeAssetIds()[0]!;
+    const withoutFixedScenery = Object.freeze({
+      ...complete,
+      staticPrefabs: new Map([...complete.staticPrefabs].filter(([id]) => (
+        id !== missingSceneryId
+      ))),
     });
     expect(hasCompleteInnerKeepStaticRuntimeCoverage(complete)).toBe(true);
-    expect(hasCompleteInnerKeepStaticRuntimeCoverage(partial)).toBe(false);
+    expect(hasCompleteInnerKeepStaticRuntimeCoverage(withoutCathedral)).toBe(true);
+    expect(hasCompleteInnerKeepStaticRuntimeCoverage(withoutFixedScenery)).toBe(false);
   });
 
   it('fills every quality budget from a bounded deterministic collision-free tree pool', () => {

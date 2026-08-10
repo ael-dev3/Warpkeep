@@ -22,7 +22,9 @@ export type InnerKeepBuildingKind =
   | 'city-mill'
   | 'lumber-camp'
   | 'city-stoneworks'
-  | 'city-goldworks';
+  | 'city-goldworks'
+  | 'city-barracks'
+  | 'grand-covenant-cathedral';
 export type InnerKeepFootprintClass = 'medium' | 'large';
 
 export type InnerKeepResourceCost = Readonly<{
@@ -35,11 +37,11 @@ export type InnerKeepResourceCost = Readonly<{
 export type InnerKeepBuildingPolicy = Readonly<{
   buildingKind: InnerKeepBuildingKind;
   publicLabel: string;
-  category: 'economy';
-  footprintClass: 'medium';
+  category: 'economy' | 'military' | 'civic';
+  footprintClass: InnerKeepFootprintClass;
   maximumLevel: number;
   uniquePerCastle: true;
-  matchingDiscountResource: InnerKeepResourceKind;
+  matchingDiscountResource: InnerKeepResourceKind | 'none';
   discountBasisPointsPerLevel: number;
   discountCapBasisPoints: number;
   runtimeAssetId: string;
@@ -143,6 +145,38 @@ const BUILDING_POLICIES: Readonly<Record<InnerKeepBuildingKind, InnerKeepBuildin
       policyVersion: INNER_KEEP_POLICY_VERSION,
       baseCost: freezeCost({ food: 700n, wood: 1_200n, stone: 1_000n, gold: 500n }),
     }),
+    'city-barracks': Object.freeze({
+      buildingKind: 'city-barracks',
+      publicLabel: 'City Barracks',
+      category: 'military',
+      footprintClass: 'large',
+      maximumLevel: INNER_KEEP_MAXIMUM_LEVEL,
+      uniquePerCastle: true,
+      matchingDiscountResource: 'none',
+      discountBasisPointsPerLevel: 0,
+      discountCapBasisPoints: 0,
+      runtimeAssetId: 'warpkeep.city-buildings.city-barracks',
+      previewAssetId: 'warpkeep.inner-keep.preview.city-barracks',
+      active: true,
+      policyVersion: INNER_KEEP_POLICY_VERSION,
+      baseCost: freezeCost({ food: 800n, wood: 1_600n, stone: 1_400n, gold: 300n }),
+    }),
+    'grand-covenant-cathedral': Object.freeze({
+      buildingKind: 'grand-covenant-cathedral',
+      publicLabel: 'Grand Covenant Cathedral',
+      category: 'civic',
+      footprintClass: 'large',
+      maximumLevel: INNER_KEEP_MAXIMUM_LEVEL,
+      uniquePerCastle: true,
+      matchingDiscountResource: 'none',
+      discountBasisPointsPerLevel: 0,
+      discountCapBasisPoints: 0,
+      runtimeAssetId: 'warpkeep.city-buildings.grand-covenant-cathedral',
+      previewAssetId: 'warpkeep.inner-keep.preview.grand-covenant-cathedral',
+      active: true,
+      policyVersion: INNER_KEEP_POLICY_VERSION,
+      baseCost: freezeCost({ food: 1_200n, wood: 1_800n, stone: 3_200n, gold: 1_200n }),
+    }),
   });
 
 const BUILDING_KINDS = Object.freeze([
@@ -150,6 +184,8 @@ const BUILDING_KINDS = Object.freeze([
   'lumber-camp',
   'city-stoneworks',
   'city-goldworks',
+  'city-barracks',
+  'grand-covenant-cathedral',
 ] as const satisfies readonly InnerKeepBuildingKind[]);
 
 const TARGET_LEVELS = Object.freeze([
@@ -458,4 +494,4 @@ export function canonicalInnerKeepPolicyDigestInput(): string {
 // SHA-256 of canonicalInnerKeepPolicyDigestInput(). This literal keeps the
 // deterministic module independent of Node's crypto implementation.
 export const INNER_KEEP_POLICY_DIGEST =
-  '9dc58e83c0c8e16ec853c7249b42dcbb5bdea47fe527261248cdf71de912776c';
+  'cbffcdc223b5d99625cab7549f3a5ae211c725893574b629aa83f8260668a779';

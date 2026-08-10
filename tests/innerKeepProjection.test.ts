@@ -94,18 +94,17 @@ describe('Inner Keep caller-bound projection', () => {
     });
 
     expect(resolved?.presentation.castleId).toBe(7n);
-    expect(resolved?.presentation.slots).toHaveLength(12);
-    expect(resolved?.presentation.catalogue).toHaveLength(4);
+    expect(resolved?.presentation.buildings).toHaveLength(0);
+    expect(resolved?.presentation.catalogue).toHaveLength(6);
     expect(resolved?.presentation.catalogue.every((entry) => (
       /^images\/inner-keep\/catalog\/[a-z-]+-[a-f0-9]{16}\.png$/
         .test(entry.previewUrl ?? '')
     ))).toBe(true);
-    expect(resolved?.presentation.quotes).toHaveLength(48);
+    expect(resolved?.presentation.quotes).toHaveLength(6);
     expect(resolved?.presentation.resources.available.food).toBe(400n);
     expect(resolved?.presentation.resources.pending?.food).toBe(1_000n);
     const lumber = resolved?.presentation.quotes.find((quote) => (
-      quote.slotId === 'inner-keep-slot-m01'
-      && quote.buildingKind === 'lumber-camp'
+      quote.buildingKind === 'lumber-camp'
     ));
     expect(lumber?.cost.food).toBe(500n);
     expect(innerKeepQuoteAffordable(
@@ -118,9 +117,12 @@ describe('Inner Keep caller-bound projection', () => {
     const building: InnerKeepBuildingRow = Object.freeze({
       buildingKey: '7:city-mill',
       castleId: 7n,
-      slotKey: '7:inner-keep-slot-m01',
-      slotId: 'inner-keep-slot-m01',
       buildingKind: 'city-mill',
+      placement: Object.freeze({
+        localXMicrounits: 14_000_000n,
+        localZMicrounits: -10_000_000n,
+        rotationMilliDegrees: 0
+      }),
       completedLevel: 1,
       targetLevel: 1,
       phase: 'complete',
@@ -136,13 +138,11 @@ describe('Inner Keep caller-bound projection', () => {
       commandsAvailable: true
     });
     const lumber = resolved?.presentation.quotes.find((quote) => (
-      quote.slotId === 'inner-keep-slot-m02'
-      && quote.buildingKind === 'lumber-camp'
+      quote.buildingKind === 'lumber-camp'
       && quote.targetLevel === 1
     ));
     const millUpgrade = resolved?.presentation.quotes.find((quote) => (
-      quote.slotId === 'inner-keep-slot-m01'
-      && quote.buildingKind === 'city-mill'
+      quote.buildingKind === 'city-mill'
       && quote.targetLevel === 2
     ));
     expect(lumber?.cost).toEqual({ food: 480n, wood: 700n, stone: 650n, gold: 0n });
@@ -180,8 +180,10 @@ describe('Inner Keep caller-bound projection', () => {
       found: true,
       castleId: 7n,
       buildingKey: '7:city-mill',
-      slotId: 'inner-keep-slot-m01',
       buildingKind: 'city-mill',
+      localXMicrounits: 14_000_000n,
+      localZMicrounits: -10_000_000n,
+      rotationMilliDegrees: 0,
       targetLevel: 1,
       deductedFood: 300n,
       deductedWood: 900n,
@@ -193,8 +195,12 @@ describe('Inner Keep caller-bound projection', () => {
       found: true,
       castleId: 7n,
       buildingKey: '7:city-mill',
-      slotId: 'inner-keep-slot-m01',
       buildingKind: 'city-mill',
+      placement: {
+        localXMicrounits: 14_000_000n,
+        localZMicrounits: -10_000_000n,
+        rotationMilliDegrees: 0
+      },
       targetLevel: 1,
       deducted: { food: 300n, wood: 900n, stone: 600n, gold: 0n },
       startedAtMicros: 100n,
@@ -204,8 +210,10 @@ describe('Inner Keep caller-bound projection', () => {
       found: false,
       castleId: undefined,
       buildingKey: undefined,
-      slotId: undefined,
       buildingKind: undefined,
+      localXMicrounits: undefined,
+      localZMicrounits: undefined,
+      rotationMilliDegrees: undefined,
       targetLevel: undefined,
       deductedFood: undefined,
       deductedWood: undefined,

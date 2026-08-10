@@ -50,6 +50,7 @@ import {
 } from '../../game/map/realmVegetationMask';
 import { terrainHeightAtWorld } from '../../game/map/terrainHeight';
 import type { InnerKeepPresentation } from '../inner-keep/innerKeepPresentation';
+import type { InnerKeepPlacementDraft } from '../inner-keep/innerKeepPlacement';
 import type {
   InnerKeepSceneLayer,
   InnerKeepSceneTelemetry,
@@ -792,8 +793,10 @@ export type RealmSceneHandle = Readonly<{
     presentation: InnerKeepPresentation | null,
     context?: InnerKeepSceneVisualContext
   ) => void;
-  /** Mirrors the accessible DOM selection into the procedural 3D build pad. */
-  setSelectedInnerKeepSlotId?: (slotId: string | null) => void;
+  /** Mirrors the accessible placement controls into the procedural ghost. */
+  setInnerKeepPlacementDraft?: (draft: InnerKeepPlacementDraft | null) => void;
+  /** Mirrors the accessible building selection into the procedural town. */
+  setSelectedInnerKeepBuildingKey?: (buildingKey: string | null) => void;
   /** Enables visible presentation work only after this scene owns the active canvas. */
   setPresentationActive: (active: boolean) => void;
   reconcileLiveGatheringState: (state: RealmLiveGatheringState) => void;
@@ -999,8 +1002,10 @@ export type CreateRealmSceneOptions = Readonly<{
   onWorldSelectionFeedback?: (point: Readonly<{ x: number; y: number }>) => void;
   /** Reports only the optional procedural layer's local presentation lifecycle. */
   onInnerKeepSceneStatusChange?: (status: InnerKeepSceneStatus) => void;
-  /** Canvas picking feeds the same typed route used by the accessible site controls. */
-  onInnerKeepSlotSelect?: (slotId: string) => void;
+  /** Canvas picking feeds the same building route used by accessible controls. */
+  onInnerKeepBuildingSelect?: (buildingKey: string) => void;
+  /** Canvas ground selection feeds the same controlled placement draft as the panel. */
+  onInnerKeepPlacementDraftChange?: (draft: InnerKeepPlacementDraft) => void;
   /** Bounded renderer diagnostics; never an authority or command input. */
   onInnerKeepTelemetry?: (telemetry: InnerKeepSceneTelemetry) => void;
 }>;
@@ -2810,7 +2815,8 @@ function initializeRealmScene(
   let innerKeepLayer: InnerKeepSceneLayer | null = null;
   let innerKeepPresentation: InnerKeepPresentation | null = null;
   let innerKeepVisualContext: InnerKeepSceneVisualContext | undefined;
-  let selectedInnerKeepSlotId: string | null = null;
+  let selectedInnerKeepBuildingKey: string | null = null;
+  let innerKeepPlacementDraft: InnerKeepPlacementDraft | null = null;
   let innerKeepLoadGeneration = 0;
   let contextLossCount = 0;
   let contextRestoreCount = 0;
@@ -3827,7 +3833,8 @@ function initializeRealmScene(
     if (cleanup.isDisposed() || sceneMode !== 'INNER_KEEP') return;
     if (innerKeepLayer) {
       innerKeepLayer.reconcile(innerKeepPresentation, innerKeepVisualContext);
-      innerKeepLayer.setSelectedSlot(selectedInnerKeepSlotId);
+      innerKeepLayer.setPlacementDraft(innerKeepPlacementDraft);
+      innerKeepLayer.setSelectedBuilding(selectedInnerKeepBuildingKey);
       publishInnerKeepLayerState();
       syncAmbientFrameCap();
       ambientScheduler?.setActive(ambientIsNeeded());
@@ -3856,7 +3863,8 @@ function initializeRealmScene(
         Math.max(1, options.canvas.clientHeight || window.innerHeight || 1)
       );
       layer.reconcile(innerKeepPresentation, innerKeepVisualContext);
-      layer.setSelectedSlot(selectedInnerKeepSlotId);
+      layer.setPlacementDraft(innerKeepPlacementDraft);
+      layer.setSelectedBuilding(selectedInnerKeepBuildingKey);
       publishInnerKeepLayerState();
       syncAmbientFrameCap();
       ambientScheduler?.setActive(ambientIsNeeded());
@@ -4269,6 +4277,33 @@ function initializeRealmScene(
     syncGesturePhase(result);
   };
 
+  const projectInnerKeepPlacement = (clientX: number, clientY: number) => {
+    const layer = innerKeepLayer;
+    const current = innerKeepPlacementDraft;
+    if (!layer || !current) return false;
+    const next = layer.projectGroundPlacement(
+      clientX,
+      clientY,
+      current.buildingKind
+    );
+    if (!next) return false;
+    const unchanged = next.transform.localXMicrounits
+        === current.transform.localXMicrounits
+      && next.transform.localZMicrounits
+        === current.transform.localZMicrounits
+      && next.transform.rotationMilliDegrees
+        === current.transform.rotationMilliDegrees
+      && next.evaluation.valid === current.evaluation.valid
+      && next.evaluation.reason === current.evaluation.reason
+      && next.evaluation.conflictingId === current.evaluation.conflictingId;
+    if (unchanged) return true;
+    innerKeepPlacementDraft = next;
+    layer.setPlacementDraft(next);
+    options.onInnerKeepPlacementDraftChange?.(next);
+    if (presentationActive) render();
+    return true;
+  };
+
   const handlePointerMove = (event: PointerEvent) => {
     if (!sceneAcceptsInteraction()) return;
     if (contextLost && (
@@ -4282,6 +4317,12 @@ function initializeRealmScene(
     if (pointerGestures.snapshot().pointerCount === 0) {
       if (sceneMode === 'WORLD' && event.target === options.canvas) {
         scheduleHover(event.clientX, event.clientY);
+      } else if (
+        sceneMode === 'INNER_KEEP'
+        && event.target === options.canvas
+        && event.pointerType !== 'touch'
+      ) {
+        projectInnerKeepPlacement(event.clientX, event.clientY);
       }
       return;
     }
@@ -4316,8 +4357,14 @@ function initializeRealmScene(
     pointerType: string
   ) => {
     if (sceneMode === 'INNER_KEEP') {
-      const slotId = innerKeepLayer?.pickSlot(clientX, clientY);
-      if (slotId) options.onInnerKeepSlotSelect?.(slotId);
+      const layer = innerKeepLayer;
+      if (!layer) return;
+      if (innerKeepPlacementDraft) {
+        projectInnerKeepPlacement(clientX, clientY);
+        return;
+      }
+      const buildingKey = layer.pickBuilding(clientX, clientY);
+      if (buildingKey) options.onInnerKeepBuildingSelect?.(buildingKey);
       return;
     }
     const picked = pick(clientX, clientY, pointerType === 'touch');
@@ -5316,10 +5363,16 @@ function initializeRealmScene(
       ambientScheduler?.setActive(ambientIsNeeded());
       if (sceneMode === 'INNER_KEEP' && presentationActive) render();
     },
-    setSelectedInnerKeepSlotId: (slotId) => {
+    setInnerKeepPlacementDraft: (draft) => {
       if (cleanup.isDisposed()) return;
-      selectedInnerKeepSlotId = slotId;
-      innerKeepLayer?.setSelectedSlot(slotId);
+      innerKeepPlacementDraft = draft;
+      innerKeepLayer?.setPlacementDraft(draft);
+      if (sceneMode === 'INNER_KEEP' && presentationActive) render();
+    },
+    setSelectedInnerKeepBuildingKey: (buildingKey) => {
+      if (cleanup.isDisposed()) return;
+      selectedInnerKeepBuildingKey = buildingKey;
+      innerKeepLayer?.setSelectedBuilding(buildingKey);
       if (sceneMode === 'INNER_KEEP' && presentationActive) render();
     },
     setPresentationActive: (active) => {

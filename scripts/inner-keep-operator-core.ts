@@ -82,8 +82,8 @@ export type InnerKeepProtectedStateProof = Readonly<{
 }>;
 
 const MAX_CASTLES = 100n;
-const MAX_BUILDINGS = MAX_CASTLES * 4n;
-const MAX_RECEIPTS = MAX_CASTLES * 20n;
+const MAX_BUILDINGS = MAX_CASTLES * 6n;
+const MAX_RECEIPTS = MAX_CASTLES * 30n;
 const SHA256_HEX = /^[0-9a-f]{64}$/u;
 const GIT_COMMIT_HEX = /^[0-9a-f]{40}$/u;
 const CLIENT_RELEASE = /^(?:alpha-)?0\.3\.[0-9]+(?:[-+][a-z0-9.-]+)?$/u;
@@ -394,9 +394,9 @@ export function projectInnerKeepStatus(value: unknown): InnerKeepStatus {
   const status = row as unknown as InnerKeepStatus;
   if (
     status.layoutRows > 1n
-    || status.slotRows > 12n
-    || status.buildingCatalogRows > 4n
-    || status.levelPolicyRows > 20n
+    || status.slotRows > 0n
+    || status.buildingCatalogRows > 6n
+    || status.levelPolicyRows > 30n
     || status.castleRows > MAX_CASTLES
     || status.builderRows > MAX_CASTLES
     || status.buildingRows > MAX_BUILDINGS
@@ -406,9 +406,9 @@ export function projectInnerKeepStatus(value: unknown): InnerKeepStatus {
     || status.missingBuilders > status.castleRows
     || status.staticCatalogExact && (
       status.layoutRows !== 1n
-      || status.slotRows !== 12n
-      || status.buildingCatalogRows !== 4n
-      || status.levelPolicyRows !== 20n
+      || status.slotRows !== 0n
+      || status.buildingCatalogRows !== 6n
+      || status.levelPolicyRows !== 30n
     )
     || status.readyForCatalogSeed && (
       status.layoutRows !== 0n
@@ -500,13 +500,13 @@ export function projectInnerKeepCatalogPlan(value: unknown): InnerKeepCatalogPla
     || (row.missingLayout !== 0 && row.missingLayout !== 1)
     || !Number.isInteger(row.missingSlots)
     || Number(row.missingSlots) < 0
-    || Number(row.missingSlots) > 12
+    || Number(row.missingSlots) > 0
     || !Number.isInteger(row.missingBuildings)
     || Number(row.missingBuildings) < 0
-    || Number(row.missingBuildings) > 4
+    || Number(row.missingBuildings) > 6
     || !Number.isInteger(row.missingLevels)
     || Number(row.missingLevels) < 0
-    || Number(row.missingLevels) > 20
+    || Number(row.missingLevels) > 30
     || typeof row.ready !== 'boolean'
     || row.ready !== (
       row.missingLayout === 0
@@ -677,13 +677,13 @@ export function parseInnerKeepOperatorArguments(
       values.get('--expected-missing-layout'), '--expected-missing-layout', 1,
     );
     result.expectedMissingSlots = readBoundedDecimal(
-      values.get('--expected-missing-slots'), '--expected-missing-slots', 12,
+      values.get('--expected-missing-slots'), '--expected-missing-slots', 0,
     );
     result.expectedMissingBuildings = readBoundedDecimal(
-      values.get('--expected-missing-buildings'), '--expected-missing-buildings', 4,
+      values.get('--expected-missing-buildings'), '--expected-missing-buildings', 6,
     );
     result.expectedMissingLevels = readBoundedDecimal(
-      values.get('--expected-missing-levels'), '--expected-missing-levels', 20,
+      values.get('--expected-missing-levels'), '--expected-missing-levels', 30,
     );
     if (values.size !== 4) fail('Inner Keep catalog seed arguments are invalid.');
   } else if (command === 'backfill-inner-keep-builders') {

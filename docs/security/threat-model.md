@@ -138,16 +138,24 @@ operation. Anonymous visitors do not connect to the game database.
   closed rather than being repaired from browser data.
 - Resource reads and collection are caller-scoped. Peer balances do not enter
   the public Realm subscription, and the browser applies no optimistic credit.
-- Inner Keep commands accept the requested slot, building kind, idempotency key,
-  `expectedTargetLevel`, canonical decimal `expectedProjectRevision`, and
-  `expectedPolicyDigest`. The three expected values are untrusted quote-binding
-  compare-and-set assertions. The server derives ownership, the current target,
-  and the current policy digest. Before a new mutation, it verifies all three
-  against current authority, then derives cost, settlement, duration, and
-  outcome from versioned policy. It deducts resources atomically and permits
-  only one active project for the castle's single Builder. Public building
-  progress is a projection; request receipts and Builder state remain private
-  to caller-scoped procedures.
+- Inner Keep commands accept the requested building kind, signed local X/Z
+  microunits, quarter-turn rotation, idempotency key, `expectedTargetLevel`,
+  canonical decimal `expectedProjectRevision`, `expectedPolicyDigest`, and
+  `expectedLayoutDigest`. The four expected values are untrusted
+  quote-and-placement-binding compare-and-set assertions. The server derives
+  ownership, the current target, the current policy digest, and the current
+  layout digest. After a prior accepted receipt has short-circuited
+  idempotently, a new request first verifies the policy and layout digests, then
+  transactionally reconciles an exact overdue project. It authoritatively
+  validates half-meter snapping, rotation, support bounds, permanent road/civic
+  exclusions, and oriented footprint collisions before checking target and
+  aggregate-revision assertions against the reconciled graph. Any mismatch
+  rolls the whole reducer back before reconciliation, settlement, or deduction
+  can commit. It then derives cost, settlement, duration, and outcome from
+  versioned policy, deducts resources atomically, and permits only one active
+  project for the castle's single Builder. Public building progress and
+  persisted transforms are projections; transform-bound receipts and Builder
+  state remain private to caller-scoped procedures.
 - Terms acceptance is recorded only after authenticated, explicit acceptance
   of the current version. The pre-authentication checkbox is local to one
   dialog attempt and is discarded on cancellation or failure.
@@ -211,8 +219,8 @@ operation. Anonymous visitors do not connect to the game database.
 | Access token stolen by script or extension | Memory-only storage and short lifetime limit exposure, but a compromised origin or device can use the token until expiry. |
 | Resolver token stolen while fresh | One-FID binding and least-privilege guards limit access; a fresh token may still expose that FID's admission status and public subscriptions until disconnect. |
 | Private data exposed through schema drift | Private tables, generated-binding checks, aggregate preflight, and the empty legacy table requirement block known paths; every schema change needs renewed review. |
-| Parallel construction double-spends resources | One server transaction settles balances, checks the Builder and slot, deducts resources, records the receipt, and schedules completion; database or transaction-semantics regressions remain a review trigger. |
-| Client forges a construction cost, timer, slot, expected target, aggregate revision, or policy digest | The server treats `expectedTargetLevel`, `expectedProjectRevision`, and `expectedPolicyDigest` as untrusted quote-binding compare-and-set assertions. Before a new mutation, it resolves ownership, the current target, and current policy digest, verifies all three against current authority, and derives fixed layouts, costs, settlement, timing, and outcome itself; catalog or policy changes still require additive-migration and economy review. |
+| Parallel construction double-spends resources | One server transaction settles balances, checks the Builder and placement, deducts resources, records the transform-bound receipt, and schedules completion; database or transaction-semantics regressions remain a review trigger. |
+| Client forges a construction cost, timer, transform, expected target, aggregate revision, policy digest, or layout digest | The server treats placement fields plus `expectedTargetLevel`, `expectedProjectRevision`, `expectedPolicyDigest`, and `expectedLayoutDigest` as untrusted input. After a prior receipt has short-circuited idempotently, a new request verifies policy/layout digests, transactionally reconciles any exact overdue project, validates snapped placement against support, exclusions, and persisted footprints, then checks target/revision assertions against the reconciled graph before resource settlement. A mismatch rolls the whole reducer back, and the server derives costs, settlement, timing, and outcome itself; catalog or policy changes still require additive-migration and economy review. |
 | Construction receipts leak player activity | Receipts and Builder state are private and returned only by caller-scoped procedures; diagnostics and future analytics must preserve that boundary. |
 | Unapproved archive material enters a release | Checksum-pinned allowlists, exact per-file checks, and owner authorization records block unknown, altered, or unauthorized files; owner authorization and license provenance remain human approval steps. |
 | Spoofed profile or wallet data | Browser fields are presentation-only; trusted updates use separate operator paths. External source data may still be stale or incorrect. |

@@ -7,9 +7,11 @@ full engineering record.
 ## [Unreleased]
 
 - Prepared the inactive Inner Keep V1 foundation as one server-authoritative
-  construction loop: twelve fixed slots, four five-level economy buildings,
-  one internal Builder, exact resource recipes, offline completion, and a
-  functional portrait-first fallback.
+  construction loop: continuous half-meter-snapped player placement with
+  quarter turns, six five-level buildings, one internal Builder, exact resource
+  recipes, offline completion, and a functional portrait-first fallback. The
+  retained compatibility-slot table has zero rows, while the catalog contains
+  six building policies and thirty level policies.
 - Added dormant server support for the Inner Keep. It remains inactive until a
   separately reviewed activation. The
   [activation runbook](docs/operations/inner-keep-activation.md) retains the
@@ -19,17 +21,22 @@ full engineering record.
   environment assets across 114 GLBs, six catalog previews, and 20 ambient
   actors across 40 GLBs. The feature remains dormant until separately reviewed
   activation.
-- Built a living presentation around the Grand Covenant Cathedral and western
-  Barracks with a larger 1,454-square-meter walled city, roomier build sites,
-  dirt wall aprons, district lanes, bright painted lower-town cottages, warm
-  ruin-stone grave markers, staggered authored trees, mounted patrols, civic
-  conversations, dense wind-swept grass, deterministic clearances, bounded
-  animation, and atomic fail-safe asset loading.
+- Pinned the final Inner Keep asset, presentation, combined-layout, palisade,
+  far-countryside, and construction-policy digests in the design and activation
+  records so later review can attest the whole dormant feature coherently.
+- Built a mostly empty 96 x 80 meter walled town with continuous valid ground
+  across x `[-44, 44]` / z `[-40, 32]`, a central road and civic commons,
+  modest non-functional town dressing, dirt wall aprons, district lanes,
+  bright painted lower-town cottages, warm ruin-stone grave markers, staggered
+  authored trees, mounted patrols, civic conversations, dense wind-swept grass,
+  deterministic clearances, bounded animation, and atomic fail-safe asset
+  loading. City Barracks and Grand Covenant Cathedral now begin absent and are
+  player-built outcomes rather than fixed anchors.
 - Extended that presentation beyond the walls with nine named landforms, one
   connected headwater-to-lake course, a rounded terrain shoulder across a
-  detailed 68 x 76 meter estate, quality-scaled fields and woodland, scenic
+  detailed 144 x 144 meter estate, quality-scaled fields and woodland, scenic
   resource structures and a trade wagon, outer patrols, and rabbits. A
-  fog-softened 192 x 288 meter countryside of farm parcels, crop tufts, and
+  fog-softened 416 x 544 meter countryside of farm parcels, crop tufts, and
   hedgerows now continues behind the detailed estate, while responsive camera
   movement is tightly limited so its visual edge cannot be exposed. Exact
   optional wildlife can fall back independently to bounded procedural animals;

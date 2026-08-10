@@ -92,7 +92,7 @@ function evidenceExpression(expectedLevel) {
         ? Number(progressValue)
         : -1;
     const bodyText = document.body?.innerText ?? '';
-    const semanticSlotLabels = [...document.querySelectorAll('[data-inner-keep-slot-id]')]
+    const semanticBuildingLabels = [...document.querySelectorAll('[data-inner-keep-building-key]')]
       .map((control) => control.getAttribute('aria-label') ?? '')
       .join(' ');
     const documentWidth = Math.max(
@@ -107,7 +107,7 @@ function evidenceExpression(expectedLevel) {
     const viewportHeight = window.innerHeight;
     const expectedLevel = ${expectedLevel === null ? 'null' : JSON.stringify(expectedLevel)};
     return {
-      version: 2,
+      version: 3,
       scenario: root.getAttribute('data-inner-keep-qa-scenario'),
       renderMode: root.getAttribute('data-inner-keep-qa-render-mode'),
       innerKeepRenderer: screen.getAttribute('data-inner-keep-renderer'),
@@ -125,11 +125,25 @@ function evidenceExpression(expectedLevel) {
       webglContextCount: integer('data-inner-keep-qa-webgl-context-count'),
       rafOwnerCount: integer('data-inner-keep-qa-raf-owner-count'),
       maximumPendingRafCount: integer('data-inner-keep-qa-maximum-pending-raf-count'),
+      catalogueBuildingControlCount:
+        document.querySelectorAll('[data-inner-keep-building-kind]').length,
+      enabledCatalogueBuildingControlCount:
+        document.querySelectorAll('[data-inner-keep-building-kind]:not(:disabled)').length,
+      mapBuildingControlCount:
+        document.querySelectorAll('[data-inner-keep-building-key]').length,
+      enabledMapBuildingControlCount:
+        document.querySelectorAll('[data-inner-keep-building-key]:not(:disabled)').length,
       slotControlCount: document.querySelectorAll('[data-inner-keep-slot-id]').length,
       enabledSlotControlCount:
         document.querySelectorAll('[data-inner-keep-slot-id]:not(:disabled)').length,
       slotCount: integer('data-inner-keep-qa-slot-count'),
       slotGeometryCount: integer('data-inner-keep-qa-slot-geometry-count'),
+      buildingPickTargetCount:
+        integer('data-inner-keep-qa-building-pick-target-count'),
+      placementPreviewActive:
+        boolean('data-inner-keep-qa-placement-preview-active'),
+      placementPreviewValid:
+        boolean('data-inner-keep-qa-placement-preview-valid'),
       smokeSpriteCount: integer('data-inner-keep-qa-smoke-sprite-count'),
       grassBladeCount: integer('data-inner-keep-qa-grass-blade-count'),
       waterSurfaceCount: integer('data-inner-keep-qa-water-surface-count'),
@@ -193,7 +207,7 @@ function evidenceExpression(expectedLevel) {
       insufficientResourcesVisible: bodyText.includes('Not enough Food.'),
       levelVisible: expectedLevel === null
         || bodyText.includes('Level ' + expectedLevel)
-        || semanticSlotLabels.includes('Level ' + expectedLevel),
+        || semanticBuildingLabels.includes('Level ' + expectedLevel),
       viewportWidth,
       viewportHeight,
       documentWidth,
@@ -267,16 +281,17 @@ const HIGH_QUALITY_SCREENSHOT_FACTS = Object.freeze({
   animationMixerCount: 30,
   assetStatus: 'ready',
   authoredAssetCount: 38,
-  authoredPlacementCount: 76,
+  authoredPlacementCount: 101,
   authoredTreeCount: 18,
-  barracksPlacementPresent: true,
-  cathedralPlacementPresent: true,
+  barracksPlacementPresent: false,
+  catalogueBuildingControlCount: 6,
+  cathedralPlacementPresent: false,
   exactWildlifeCount: 10,
-  exteriorActorCount: 9,
+  exteriorActorCount: 10,
   exteriorMountedActorCount: 6,
-  exteriorPatrolUnitCount: 7,
-  exteriorTreeCount: 72,
-  grassBladeCount: 2_400,
+  exteriorPatrolUnitCount: 8,
+  exteriorTreeCount: 88,
+  grassBladeCount: 3_000,
   mountedActorCount: 6,
   outerWorldRuntimeAssetFailureCount: 0,
   outerWorldStatus: 'ready',
@@ -378,7 +393,7 @@ async function observeCompletionReveal(session, probeCase) {
 async function exerciseFunctionalFallback(session) {
   const activated = await session.command('Runtime.evaluate', {
     expression: `(async () => {
-      const control = document.querySelector('[data-inner-keep-slot-id]');
+      const control = document.querySelector('.inner-keep-builder');
       if (!(control instanceof HTMLButtonElement) || control.disabled) {
         return { activated: false, panelVisible: false, retainedFallback: false };
       }
@@ -413,9 +428,7 @@ async function exerciseWebglNativeKeyboardActivation(session, geometryCase) {
   const focused = runtimeValue(await session.command('Runtime.evaluate', {
     expression: `(() => {
       const root = document.querySelector('.inner-keep');
-      const control = document.querySelector(
-        '[data-inner-keep-slot-id="inner-keep-slot-m01"]'
-      );
+      const control = document.querySelector('.inner-keep-builder');
       if (
         !(root instanceof HTMLElement)
         || !(control instanceof HTMLButtonElement)
@@ -434,23 +447,23 @@ async function exerciseWebglNativeKeyboardActivation(session, geometryCase) {
   }));
   if (
     focused?.active !== true
-    || focused.pointerEvents !== 'none'
+    || focused.pointerEvents === 'none'
     || focused.renderer !== 'webgl'
-  ) throw new Error('Inner Keep WebGL semantic site index was unavailable.');
+  ) throw new Error('Inner Keep WebGL Builder control was unavailable.');
 
   await session.command('Input.dispatchKeyEvent', {
-    code: 'Enter',
-    key: 'Enter',
-    nativeVirtualKeyCode: 13,
+    code: 'Space',
+    key: ' ',
+    nativeVirtualKeyCode: 32,
     type: 'keyDown',
-    windowsVirtualKeyCode: 13,
+    windowsVirtualKeyCode: 32,
   });
   await session.command('Input.dispatchKeyEvent', {
-    code: 'Enter',
-    key: 'Enter',
-    nativeVirtualKeyCode: 13,
+    code: 'Space',
+    key: ' ',
+    nativeVirtualKeyCode: 32,
     type: 'keyUp',
-    windowsVirtualKeyCode: 13,
+    windowsVirtualKeyCode: 32,
   });
 
   const deadline = Date.now() + CDP_TIMEOUT_MILLISECONDS;
@@ -468,9 +481,6 @@ async function exerciseWebglNativeKeyboardActivation(session, geometryCase) {
             top: bounds.top
           };
         };
-        const control = document.querySelector(
-          '[data-inner-keep-slot-id="inner-keep-slot-m01"]'
-        );
         const panel = document.querySelector('.inner-keep-panel');
         const header = document.querySelector('.inner-keep__header');
         const resources = document.querySelector('.inner-keep__resources');
@@ -488,8 +498,11 @@ async function exerciseWebglNativeKeyboardActivation(session, geometryCase) {
           panelTouchAction: panelBody instanceof HTMLElement
             ? getComputedStyle(panelBody).touchAction
             : null,
+          buildingControlCount: document.querySelectorAll(
+            '[data-inner-keep-building-kind]'
+          ).length,
           previewCount: previews.length,
-          previewsLoaded: previews.length === 4 && previews.every((preview) => (
+          previewsLoaded: previews.length === 6 && previews.every((preview) => (
             preview instanceof HTMLImageElement
             && preview.complete
             && preview.naturalWidth === 320
@@ -499,12 +512,11 @@ async function exerciseWebglNativeKeyboardActivation(session, geometryCase) {
               .test(new URL(preview.currentSrc || preview.src).pathname)
           )),
           resourcesRect: rect(resources),
-          selected: control?.getAttribute('aria-pressed') === 'true',
         };
       })()`,
       returnByValue: true,
     }));
-    if (activation?.selected === true && activation.panelLabel === 'West Courtyard') {
+    if (activation?.panelLabel === 'Choose a town building') {
       panelObserved = true;
       const panelRect = activation.panelRect;
       const headerRect = activation.headerRect;
@@ -529,8 +541,8 @@ async function exerciseWebglNativeKeyboardActivation(session, geometryCase) {
       if (!clearsPanel) {
         throw new Error(`Inner Keep ${geometryCase.id} panel covered global town chrome.`);
       }
-      if (activation.previewCount !== 4) {
-        throw new Error('Inner Keep catalogue did not render four reviewed previews.');
+      if (activation.buildingControlCount !== 6 || activation.previewCount !== 6) {
+        throw new Error('Inner Keep catalogue did not render six reviewed buildings.');
       }
       if (activation.previewsLoaded === true) return;
     }
@@ -539,10 +551,12 @@ async function exerciseWebglNativeKeyboardActivation(session, geometryCase) {
   if (panelObserved) {
     throw new Error('Inner Keep reviewed catalogue previews did not load.');
   }
-  throw new Error('Inner Keep WebGL native Enter activation did not open the site.');
+  throw new Error('Inner Keep WebGL native keyboard activation did not open the catalogue.');
 }
 
 async function navigateCase(session, probeCase) {
+  await session.command('HeapProfiler.collectGarbage');
+  await session.command('Network.clearBrowserCache');
   await session.command('Emulation.setDeviceMetricsOverride', {
     deviceScaleFactor: 1,
     height: probeCase.viewport.height,
@@ -582,7 +596,13 @@ export async function runInnerKeepBrowserProbe(options = {}) {
     await chmod(profileDirectory, 0o700);
     vite = await createLoopbackViteServer(profileDirectory);
     const loopbackOrigin = `http://127.0.0.1:${vite.port}`;
-    const cases = innerKeepQaBrowserCases(vite.port);
+    // Run the multi-viewport empty-town interaction last. Switching Chrome's
+    // mobile emulation mode while exact GLBs are decoding can strand the next
+    // page in a synthetic loading state even though the game layer is sound.
+    const cases = [...innerKeepQaBrowserCases(vite.port)].sort((left, right) => {
+      if (left.id === 'empty') return right.id === 'empty' ? 0 : 1;
+      return right.id === 'empty' ? -1 : 0;
+    });
     if (
       cases.length !== INNER_KEEP_QA_CASE_COUNT
       || new Set(cases.map((probeCase) => probeCase.id)).size !== INNER_KEEP_QA_CASE_COUNT
@@ -662,8 +682,10 @@ export async function runInnerKeepBrowserProbe(options = {}) {
     await Promise.all([
       devtools.command('Page.enable'),
       devtools.command('Runtime.enable'),
+      devtools.command('HeapProfiler.enable'),
       devtools.command('Log.enable'),
       devtools.command('Network.enable'),
+      devtools.command('Network.setCacheDisabled', { cacheDisabled: true }),
       devtools.command('Page.setDownloadBehavior', { behavior: 'deny' }),
       devtools.command('Fetch.enable', {
         patterns: [{ requestStage: 'Request', urlPattern: '*' }],
@@ -673,11 +695,11 @@ export async function runInnerKeepBrowserProbe(options = {}) {
     for (const probeCase of cases) {
       await navigateCase(devtools, probeCase);
       const evidence = await waitForEvidence(devtools, probeCase);
-      if (probeCase.id === '2d-fallback') {
-        await exerciseFunctionalFallback(devtools);
-      }
       if (SCREENSHOT_CASES.has(probeCase.id)) {
         await captureVerifiedScenarioScreenshot(devtools, probeCase);
+      }
+      if (probeCase.id === '2d-fallback') {
+        await exerciseFunctionalFallback(devtools);
       }
       if (probeCase.id === 'empty') {
         for (const [index, geometryCase] of PANEL_GEOMETRY_CASES.entries()) {
@@ -686,11 +708,25 @@ export async function runInnerKeepBrowserProbe(options = {}) {
             viewport: geometryCase.viewport,
           });
           if (index > 0) {
-            await navigateCase(devtools, geometryProbeCase);
-            await waitForEvidence(devtools, geometryProbeCase);
+            await devtools.command('Emulation.setDeviceMetricsOverride', {
+              deviceScaleFactor: 1,
+              height: geometryProbeCase.viewport.height,
+              mobile: geometryProbeCase.viewport.width <= 480,
+              screenHeight: geometryProbeCase.viewport.height,
+              screenWidth: geometryProbeCase.viewport.width,
+              width: geometryProbeCase.viewport.width,
+            });
           }
           await exerciseWebglNativeKeyboardActivation(devtools, geometryCase);
         }
+        await devtools.command('Emulation.setDeviceMetricsOverride', {
+          deviceScaleFactor: 1,
+          height: probeCase.viewport.height,
+          mobile: probeCase.viewport.width <= 480,
+          screenHeight: probeCase.viewport.height,
+          screenWidth: probeCase.viewport.width,
+          width: probeCase.viewport.width,
+        });
       }
       if (probeCase.id === 'completion-reveal') {
         await observeCompletionReveal(devtools, probeCase);

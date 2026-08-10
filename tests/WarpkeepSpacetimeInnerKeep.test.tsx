@@ -44,6 +44,16 @@ const CONFIG: WarpkeepRuntimeConfig = Object.freeze({
   publicConfigValid: true,
   sharedAlphaEnabled: true
 });
+const PLACEMENT = Object.freeze({
+  localXMicrounits: 14_000_000n,
+  localZMicrounits: -10_000_000n,
+  rotationMilliDegrees: 0
+});
+const CONSTRUCT_MILL = Object.freeze({
+  kind: 'construct' as const,
+  buildingKind: 'city-mill' as const,
+  placement: PLACEMENT
+});
 
 function jwtPart(value: unknown) {
   return Buffer.from(JSON.stringify(value)).toString('base64url');
@@ -131,9 +141,8 @@ function projectionFor(
   const building = Object.freeze({
     castleId: input.scope.castleId,
     buildingKey: `${input.scope.castleId}:city-mill`,
-    slotKey: `${input.scope.castleId}:inner-keep-slot-m01`,
-    slotId: 'inner-keep-slot-m01',
     buildingKind: 'city-mill' as const,
+    placement: PLACEMENT,
     completedLevel: advanced ? 1 : 0,
     targetLevel: advanced ? 2 : 1,
     phase: 'constructing' as const,
@@ -153,7 +162,7 @@ function projectionFor(
         buildings: [building],
         builder: Object.freeze({
           state: 'busy',
-          slotId: building.slotId,
+          buildingKey: building.buildingKey,
           buildingKind: building.buildingKind,
           targetLevel: building.targetLevel,
           completesAtMicros: building.completesAtMicros
@@ -320,19 +329,20 @@ describe('Inner Keep provider command lifecycle', () => {
     let first!: Promise<void>;
     let second!: Promise<void>;
     act(() => {
-      first = captured!.startInnerKeepProject('inner-keep-slot-m01', 'city-mill');
-      second = captured!.startInnerKeepProject('inner-keep-slot-m01', 'city-mill');
+      first = captured!.startInnerKeepProject(CONSTRUCT_MILL);
+      second = captured!.startInnerKeepProject(CONSTRUCT_MILL);
     });
     await expect(second).rejects.toThrow('status is uncertain');
     expect(startInnerKeepProject).toHaveBeenCalledTimes(1);
     expect(startInnerKeepProject).toHaveBeenCalledWith(
       expect.anything(),
-      'inner-keep-slot-m01',
       'city-mill',
+      PLACEMENT,
       expect.any(String),
       1,
       '1',
-      INNER_KEEP_POLICY_DIGEST
+      INNER_KEEP_POLICY_DIGEST,
+      INNER_KEEP_LAYOUT_DIGEST
     );
     await act(async () => {
       reducer.resolve();
@@ -356,8 +366,8 @@ describe('Inner Keep provider command lifecycle', () => {
       found: true,
       castleId: BigInt(snapshot.ownCastle.castleId),
       buildingKey: `${snapshot.ownCastle.castleId}:city-mill`,
-      slotId: 'inner-keep-slot-m01',
       buildingKind: 'city-mill',
+      placement: PLACEMENT,
       targetLevel: 1,
       deducted: Object.freeze({ food: 300n, wood: 900n, stone: 600n, gold: 0n }),
       startedAtMicros: 100n,
@@ -378,8 +388,8 @@ describe('Inner Keep provider command lifecycle', () => {
       found: true,
       castleId: BigInt(snapshot.ownCastle.castleId),
       buildingKey: `${snapshot.ownCastle.castleId}:city-mill`,
-      slotId: 'inner-keep-slot-m01',
       buildingKind: 'city-mill',
+      placement: PLACEMENT,
       targetLevel: 1,
       deducted: Object.freeze({ food: 300n, wood: 900n, stone: 600n, gold: 0n }),
       startedAtMicros: 100n,
@@ -422,7 +432,7 @@ describe('Inner Keep provider command lifecycle', () => {
     await waitFor(() => expect(screen.getByTestId('inner-phase').textContent).toBe('ready'));
 
     await act(async () => {
-      await expect(captured!.startInnerKeepProject('inner-keep-slot-m01', 'city-mill'))
+      await expect(captured!.startInnerKeepProject(CONSTRUCT_MILL))
         .rejects.toThrow('Inner Keep construction status is uncertain.');
     });
     await waitFor(() => expect(screen.getByTestId('inner-phase').textContent)
@@ -452,7 +462,10 @@ describe('Inner Keep provider command lifecycle', () => {
     let rejection: unknown;
     await act(async () => {
       try {
-        await captured!.startInnerKeepProject('not-a-canonical-slot', 'city-mill');
+        await captured!.startInnerKeepProject({
+          ...CONSTRUCT_MILL,
+          placement: { ...PLACEMENT, localXMicrounits: 14_000_001n }
+        });
       } catch (error) {
         rejection = error;
       }
@@ -461,7 +474,7 @@ describe('Inner Keep provider command lifecycle', () => {
     expect(startInnerKeepProject).not.toHaveBeenCalled();
 
     await act(async () => {
-      await captured!.startInnerKeepProject('inner-keep-slot-m01', 'city-mill');
+      await captured!.startInnerKeepProject(CONSTRUCT_MILL);
     });
     expect(startInnerKeepProject).toHaveBeenCalledOnce();
   });
@@ -480,7 +493,7 @@ describe('Inner Keep provider command lifecycle', () => {
     await waitFor(() => expect(screen.getByTestId('inner-phase').textContent).toBe('ready'));
 
     await act(async () => {
-      await expect(captured!.startInnerKeepProject('inner-keep-slot-m01', 'city-mill'))
+      await expect(captured!.startInnerKeepProject(CONSTRUCT_MILL))
         .rejects.toThrow('There is not enough stored Wood for this project.');
     });
     await waitFor(() => expect(screen.getByTestId('inner-phase').textContent).toBe('failed'));
@@ -492,7 +505,7 @@ describe('Inner Keep provider command lifecycle', () => {
     act(() => captured!.retryInnerKeepSync());
     await waitFor(() => expect(screen.getByTestId('inner-phase').textContent).toBe('ready'));
     await act(async () => {
-      await captured!.startInnerKeepProject('inner-keep-slot-m01', 'city-mill');
+      await captured!.startInnerKeepProject(CONSTRUCT_MILL);
     });
     expect(startInnerKeepProject).toHaveBeenCalledTimes(2);
     await waitFor(() => expect(screen.getByTestId('inner-phase').textContent)
@@ -513,7 +526,7 @@ describe('Inner Keep provider command lifecycle', () => {
     await waitFor(() => expect(screen.getByTestId('inner-phase').textContent).toBe('ready'));
 
     await act(async () => {
-      await expect(captured!.startInnerKeepProject('inner-keep-slot-m01', 'city-mill'))
+      await expect(captured!.startInnerKeepProject(CONSTRUCT_MILL))
         .rejects.toThrow('Inner Keep construction status is uncertain.');
     });
     await waitFor(() => expect(screen.getByTestId('inner-phase').textContent)

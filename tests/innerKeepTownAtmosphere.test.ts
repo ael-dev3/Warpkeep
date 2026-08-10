@@ -177,10 +177,14 @@ describe('Inner Keep sunlit living-town atmosphere', () => {
     expect(INNER_KEEP_LOWER_WARD_ROW_HOUSES).toHaveLength(12);
     expect(new Set(INNER_KEEP_LOWER_WARD_ROW_HOUSES.map(({ houseId }) => houseId)).size)
       .toBe(INNER_KEEP_LOWER_WARD_ROW_HOUSES.length);
-    expect(INNER_KEEP_WEATHERED_WALL_SKIRT_PLACEMENTS).toHaveLength(24);
-    expect(INNER_KEEP_WEATHERED_WALL_SKIRT_PLACEMENTS.filter((placement) => (
+    expect(INNER_KEEP_WEATHERED_WALL_SKIRT_PLACEMENTS).toHaveLength(14);
+    const southSkirt = INNER_KEEP_WEATHERED_WALL_SKIRT_PLACEMENTS.filter((placement) => (
       placement.placementId.startsWith('south-')
-    )).every((placement) => Math.abs(placement.positionMeters[0]) >= 8)).toBe(true);
+    ));
+    expect(southSkirt).toHaveLength(4);
+    expect(southSkirt.every((placement) => (
+      Math.abs(placement.positionMeters[0]) >= 16
+    ))).toBe(true);
     expect(INNER_KEEP_OUTER_WORLD_BOAT_ROUTE).toMatchObject({
       closed: false,
       presentationOnly: true,
@@ -194,8 +198,8 @@ describe('Inner Keep sunlit living-town atmosphere', () => {
     const ground = new THREE.Color(INNER_KEEP_TOWN_TONAL_PALETTE.terrain.lowland);
     expect(sky.getHSL({ h: 0, s: 0, l: 0 }).l).toBeGreaterThan(0.65);
     expect(ground.getHSL({ h: 0, s: 0, l: 0 }).l).toBeGreaterThan(0.2);
-    expect(INNER_KEEP_TOWN_TONAL_PALETTE.fogNearMeters).toBeGreaterThanOrEqual(48);
-    expect(INNER_KEEP_TOWN_TONAL_PALETTE.fogFarMeters).toBeGreaterThanOrEqual(100);
+    expect(INNER_KEEP_TOWN_TONAL_PALETTE.fogNearMeters).toBe(95);
+    expect(INNER_KEEP_TOWN_TONAL_PALETTE.fogFarMeters).toBe(210);
     expect(INNER_KEEP_TOWN_TONAL_PALETTE.lighting.sunIntensity).toBeGreaterThan(3);
     const townSun = new THREE.Vector3(
       ...INNER_KEEP_TOWN_TONAL_PALETTE.lighting.sunPositionMeters,
@@ -324,7 +328,7 @@ describe('Inner Keep sunlit living-town atmosphere', () => {
     const vertex = new THREE.Vector3();
     const maximumX = INNER_KEEP_LOWER_WARD_ROW_HOUSE_ENVELOPE_METERS.width * 0.5;
     const maximumZ = INNER_KEEP_LOWER_WARD_ROW_HOUSE_ENVELOPE_METERS.depth * 0.5;
-    const matrixPrecisionMeters = 0.000_002;
+    const matrixPrecisionMeters = 0.000_003;
     INNER_KEEP_LOWER_WARD_ROW_HOUSES.forEach((house, houseIndex) => {
       const marker = atmosphere.group.getObjectByName(
         `inner-keep-lower-ward-row-house:${house.houseId}`,

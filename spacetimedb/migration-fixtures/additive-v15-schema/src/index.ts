@@ -250,8 +250,9 @@ const castleInnerKeepBuildingV1 = table({
   name: 'castle_inner_keep_building_v1', public: true,
   indexes: [{ accessor: 'byCastle', algorithm: 'btree', columns: ['castleId'] as const }] as const,
 }, {
-  buildingKey: t.string().primaryKey(), castleId: t.u64(), slotKey: t.string().unique(),
-  slotId: t.string(), buildingKind: t.string(), completedLevel: t.u32(), targetLevel: t.u32(),
+  buildingKey: t.string().primaryKey(), castleId: t.u64(), buildingKind: t.string(),
+  localXMicrounits: t.i64(), localZMicrounits: t.i64(), rotationMilliDegrees: t.u32(),
+  completedLevel: t.u32(), targetLevel: t.u32(),
   phase: t.string(), startedAtMicros: t.u64(), completesAtMicros: t.u64(), revision: t.u64(),
   policyVersion: t.string(),
 });
@@ -264,7 +265,8 @@ const castleInnerBuilderV1 = table({ name: 'castle_inner_builder_v1' }, {
 });
 const castleInnerBuildReceiptV1 = table({ name: 'castle_inner_build_receipt_v1' }, {
   receiptKey: t.string().primaryKey(), fid: t.u64().index(), requestKey: t.string(),
-  castleId: t.u64(), buildingKey: t.string(), slotId: t.string(), buildingKind: t.string(),
+  castleId: t.u64(), buildingKey: t.string(), buildingKind: t.string(),
+  localXMicrounits: t.i64(), localZMicrounits: t.i64(), rotationMilliDegrees: t.u32(),
   targetLevel: t.u32(), deductedFood: t.u64(), deductedWood: t.u64(), deductedStone: t.u64(),
   deductedGold: t.u64(), startedAt: t.timestamp(), policyVersion: t.string(),
 });
@@ -339,7 +341,7 @@ export const runInnerKeepConstructionScheduleV1 = db.reducer(
   () => {},
 );
 
-/** Populates all eight v15 tables so forward republish and rollback are provable. */
+/** Populates the seven state-bearing v15 tables; the retired slot table stays empty. */
 export const fixtureSeedInnerKeepSentinelV15 = db.reducer(
   { name: 'fixture_seed_inner_keep_sentinel_v15' },
   ctx => {
@@ -356,20 +358,18 @@ export const fixtureSeedInnerKeepSentinelV15 = db.reducer(
     const castleId = 991_301n;
     const fid = 991_302n;
     const layoutId = 'migration-inner-keep-layout';
-    const slotId = 'migration-inner-keep-slot';
     const buildingKind = 'migration-inner-keep-building';
     const buildingKey = `${castleId}:${buildingKind}`;
+    const localXMicrounits = 14_000_000n;
+    const localZMicrounits = -10_000_000n;
+    const rotationMilliDegrees = 90_000;
     const startedAtMicros = ctx.timestamp.microsSinceUnixEpoch;
     const completesAtMicros = startedAtMicros + 86_400_000_000n;
     ctx.db.innerKeepLayoutV1.insert({
       layoutId, layoutVersion: 1, policyVersion: 'migration-inner-keep-v1',
-      slotCount: 1, mediumSlotCount: 1, largeSlotCount: 0,
+      slotCount: 0, mediumSlotCount: 0, largeSlotCount: 0,
       assetCatalogDigest: '2'.repeat(64), layoutDigest: '3'.repeat(64),
       active: false, createdAt: ctx.timestamp, activatedAt: undefined,
-    });
-    ctx.db.innerKeepSlotV1.insert({
-      slotId, layoutId, footprintClass: 'medium', localXMicrounits: 0n,
-      localZMicrounits: 0n, rotationMilliDegrees: 0, sortOrder: 1, active: true,
     });
     ctx.db.innerKeepBuildingCatalogV1.insert({
       buildingKind, publicLabel: 'Migration Building', category: 'economy',
@@ -385,7 +385,8 @@ export const fixtureSeedInnerKeepSentinelV15 = db.reducer(
       policyVersion: 'migration-inner-keep-v1',
     });
     ctx.db.castleInnerKeepBuildingV1.insert({
-      buildingKey, castleId, slotKey: `${castleId}:${slotId}`, slotId, buildingKind,
+      buildingKey, castleId, buildingKind,
+      localXMicrounits, localZMicrounits, rotationMilliDegrees,
       completedLevel: 0, targetLevel: 1, phase: 'constructing', startedAtMicros,
       completesAtMicros, revision: 0n, policyVersion: 'migration-inner-keep-v1',
     });
@@ -396,7 +397,8 @@ export const fixtureSeedInnerKeepSentinelV15 = db.reducer(
     });
     ctx.db.castleInnerBuildReceiptV1.insert({
       receiptKey: `${fid}:migration-inner-keep-request`, fid,
-      requestKey: 'migration-inner-keep-request', castleId, buildingKey, slotId, buildingKind,
+      requestKey: 'migration-inner-keep-request', castleId, buildingKey, buildingKind,
+      localXMicrounits, localZMicrounits, rotationMilliDegrees,
       targetLevel: 1, deductedFood: 300n, deductedWood: 900n, deductedStone: 600n,
       deductedGold: 0n, startedAt: ctx.timestamp, policyVersion: 'migration-inner-keep-v1',
     });
