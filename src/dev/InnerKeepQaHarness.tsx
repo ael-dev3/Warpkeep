@@ -14,6 +14,7 @@ import {
   type InnerKeepSceneTelemetry
 } from '../components/inner-keep/createInnerKeepSceneLayer';
 import type { InnerKeepBuildingKind } from '../components/inner-keep/innerKeepPresentation';
+import { REALM_LIGHTING_SPECS } from '../components/realm/realmQuality';
 import {
   completeSyntheticInnerKeepQaPresentation,
   createSyntheticInnerKeepQaPresentation
@@ -357,6 +358,9 @@ export function InnerKeepQaHarness({ scenario }: Readonly<{
       });
       unregisterRenderer = qaInstrumentation.recordRendererCreated();
       renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure =
+        REALM_LIGHTING_SPECS[scenario.quality].toneMappingExposure;
       renderer.shadowMap.enabled = scenario.quality !== 'reduced';
       renderer.shadowMap.type = THREE.PCFShadowMap;
       rendererRef.current = renderer;

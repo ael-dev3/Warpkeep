@@ -17,6 +17,10 @@ import {
   innerKeepOuterWorldPointIsClear,
   innerKeepOuterWorldTerrainHeightAt,
 } from './innerKeepOuterWorldPolicy';
+import {
+  INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS,
+  INNER_KEEP_TOWN_TONAL_PALETTE,
+} from './innerKeepTownAtmospherePolicy';
 import type { InnerKeepSceneQuality } from './createInnerKeepSceneLayer';
 
 export const INNER_KEEP_GRASS_BUDGET = Object.freeze({
@@ -159,6 +163,16 @@ function grassCandidateIsClear(x: number, z: number) {
       exclusion.halfExtentsMeters[1] + exclusion.clearanceMarginMeters,
     )
   ))) return false;
+  if (INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS.some((exclusion) => (
+    insideRoundedBox(
+      x,
+      z,
+      exclusion.center.x,
+      exclusion.center.z,
+      exclusion.halfExtentsMeters[0] + exclusion.clearanceMarginMeters,
+      exclusion.halfExtentsMeters[1] + exclusion.clearanceMarginMeters,
+    )
+  ))) return false;
   if (overlapsAmbientRoute(x, z)) return false;
   for (const slot of INNER_KEEP_LAYOUT_V1_SLOTS) {
     const slotX = Number(slot.localXMicrounits) / 1_000_000;
@@ -239,7 +253,7 @@ function createGrass(
   const windTime = { value: 0 };
   const material = new THREE.MeshBasicMaterial({
     // Unlit foliage keeps each tiny crossed blade readable at the overview camera.
-    color: 0x6f9948,
+    color: INNER_KEEP_TOWN_TONAL_PALETTE.foliage.grass,
     side: THREE.DoubleSide,
     toneMapped: true,
     vertexColors: false,
@@ -343,10 +357,10 @@ function createWaterMaterial(flowTime: { value: number }) {
   return new THREE.ShaderMaterial({
     uniforms: {
       innerKeepFlowTime: flowTime,
-      deepColor: { value: new THREE.Color(0x1e4b59) },
-      shallowColor: { value: new THREE.Color(0x5ca9a8) },
-      foamColor: { value: new THREE.Color(0xe8f5e9) },
-      skyColor: { value: new THREE.Color(0x96c6c2) },
+      deepColor: { value: new THREE.Color(INNER_KEEP_TOWN_TONAL_PALETTE.water.deep) },
+      shallowColor: { value: new THREE.Color(INNER_KEEP_TOWN_TONAL_PALETTE.water.shallow) },
+      foamColor: { value: new THREE.Color(INNER_KEEP_TOWN_TONAL_PALETTE.water.foam) },
+      skyColor: { value: new THREE.Color(INNER_KEEP_TOWN_TONAL_PALETTE.water.sky) },
     },
     vertexShader: `
       uniform float innerKeepFlowTime;
@@ -432,12 +446,12 @@ export function createInnerKeepEcology(options: Readonly<{
   const waterMaterial = createWaterMaterial(flowTime);
   materials.add(waterMaterial);
   const bankMaterial = new THREE.MeshStandardMaterial({
-    color: 0x8d866d,
+    color: INNER_KEEP_TOWN_TONAL_PALETTE.water.bank,
     roughness: 0.98,
   });
   materials.add(bankMaterial);
   const bedMaterial = new THREE.MeshStandardMaterial({
-    color: 0x304f4f,
+    color: INNER_KEEP_TOWN_TONAL_PALETTE.water.bed,
     roughness: 0.88,
   });
   materials.add(bedMaterial);

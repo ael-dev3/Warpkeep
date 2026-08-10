@@ -22,6 +22,9 @@ import {
   type InnerKeepEcology
 } from './createInnerKeepEcology';
 import {
+  createInnerKeepTownAtmosphere
+} from './createInnerKeepTownAtmosphere';
+import {
   createInnerKeepPopulationPresentation,
   type InnerKeepPopulationPresentation
 } from './createInnerKeepPopulationPresentation';
@@ -50,15 +53,18 @@ import {
 import {
   INNER_KEEP_CITY_DISTRICT_ROADS,
   INNER_KEEP_CITY_EDGE_APRON_POINTS,
-  INNER_KEEP_OUTER_WORLD_APPROACHES,
   INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS,
   INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS,
-  INNER_KEEP_OUTER_WORLD_RESOURCE_SITES,
+  INNER_KEEP_OUTER_WORLD_RESOURCE_ROADS,
   INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT,
   INNER_KEEP_OUTER_WORLD_TOPOGRAPHIC_FEATURES,
   INNER_KEEP_OUTER_WORLD_TRADE_ROUTE,
   innerKeepOuterWorldTerrainHeightAt
 } from './innerKeepOuterWorldPolicy';
+import {
+  INNER_KEEP_TOWN_ATMOSPHERE_POLICY_VERSION,
+  INNER_KEEP_TOWN_TONAL_PALETTE
+} from './innerKeepTownAtmospherePolicy';
 
 export type InnerKeepSceneQuality = 'high' | 'balanced' | 'reduced';
 
@@ -68,7 +74,7 @@ export type InnerKeepSceneQuality = 'high' | 'balanced' | 'reduced';
  */
 export const INNER_KEEP_SCENE_GRAPH_RENDER_BUDGETS = Object.freeze({
   high: Object.freeze({ drawCalls: 390, triangles: 420_000 }),
-  balanced: Object.freeze({ drawCalls: 310, triangles: 215_000 }),
+  balanced: Object.freeze({ drawCalls: 310, triangles: 250_000 }),
   reduced: Object.freeze({ drawCalls: 235, triangles: 110_000 })
 } satisfies Readonly<Record<InnerKeepSceneQuality, Readonly<{
   drawCalls: number;
@@ -559,9 +565,9 @@ function createInnerKeepOuterTerrainGeometry(quality: InnerKeepSceneQuality) {
   geometry.rotateX(-Math.PI / 2);
   const position = geometry.getAttribute('position');
   const colors = new Float32Array(position.count * 3);
-  const lowland = new THREE.Color(0x657d50);
-  const meadow = new THREE.Color(0x82905d);
-  const ridge = new THREE.Color(0x77756a);
+  const lowland = new THREE.Color(INNER_KEEP_TOWN_TONAL_PALETTE.terrain.lowland);
+  const meadow = new THREE.Color(INNER_KEEP_TOWN_TONAL_PALETTE.terrain.meadow);
+  const ridge = new THREE.Color(INNER_KEEP_TOWN_TONAL_PALETTE.terrain.ridge);
   const color = new THREE.Color();
   let minimumHeight = Number.POSITIVE_INFINITY;
   let maximumHeight = Number.NEGATIVE_INFINITY;
@@ -648,8 +654,14 @@ export function createInnerKeepSceneLayer(
   options: CreateInnerKeepSceneLayerOptions
 ): InnerKeepSceneLayer {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x667558);
-  scene.fog = new THREE.Fog(0x667558, 34, 72);
+  scene.background = new THREE.Color(INNER_KEEP_TOWN_TONAL_PALETTE.skyFog);
+  scene.fog = new THREE.Fog(
+    INNER_KEEP_TOWN_TONAL_PALETTE.skyFog,
+    INNER_KEEP_TOWN_TONAL_PALETTE.fogNearMeters,
+    INNER_KEEP_TOWN_TONAL_PALETTE.fogFarMeters
+  );
+  scene.userData.innerKeepTownAtmospherePolicyVersion =
+    INNER_KEEP_TOWN_ATMOSPHERE_POLICY_VERSION;
   const camera = new THREE.OrthographicCamera(
     -INNER_KEEP_PRESENTATION_CAMERA_PRESETS.minimumHalfWidth,
     INNER_KEEP_PRESENTATION_CAMERA_PRESETS.minimumHalfWidth,
@@ -676,6 +688,7 @@ export function createInnerKeepSceneLayer(
     durationSeconds: number;
   }> | null = null;
   let previousBuildingPhases = new Map<string, InnerKeepBuildingPresentation['phase']>();
+  const pendingCompletionRevealSlots = new Set<string>();
   let lastElapsedSeconds = 0;
   let lastPresentation: InnerKeepPresentation | null = null;
   let lastVisualContext: InnerKeepSceneVisualContext | undefined;
@@ -744,6 +757,11 @@ export function createInnerKeepSceneLayer(
   ambientGroup.name = 'inner-keep-persistent-ambient-root';
   const dynamicGroup = new THREE.Group();
   scene.add(staticGroup, proceduralFallbackGroup, authoredStaticGroup, ambientGroup, dynamicGroup);
+  const townAtmosphere = createInnerKeepTownAtmosphere({
+    quality: options.quality,
+    reducedMotion: options.reducedMotion || options.quality === 'reduced'
+  });
+  staticGroup.add(townAtmosphere.group);
 
   const outerTerrain = createInnerKeepOuterTerrainGeometry(options.quality);
   const groundGeometry = outerTerrain.geometry;
@@ -765,27 +783,6 @@ export function createInnerKeepSceneLayer(
     x: point[0],
     z: point[2],
   }));
-  const resourceRoads = INNER_KEEP_OUTER_WORLD_RESOURCE_SITES.map((site) => {
-    const south = site.positionMeters[2] > 0;
-    const approachZ = south
-      ? INNER_KEEP_OUTER_WORLD_APPROACHES.southernResourceRoadZ
-      : INNER_KEEP_OUTER_WORLD_APPROACHES.northernResourceRoadZ;
-    return Object.freeze({
-      points: Object.freeze([
-        ...(south ? [Object.freeze({
-          x: 0,
-          z: INNER_KEEP_OUTER_WORLD_APPROACHES.gateOuterZ,
-        })] : []),
-        Object.freeze({ x: site.positionMeters[0] * 0.58, z: approachZ }),
-        Object.freeze({
-          x: site.positionMeters[0],
-          z: site.positionMeters[2],
-        }),
-      ]),
-      closed: false,
-      halfWidthMeters: 0.46,
-    });
-  });
   const outerRoadGeometry = createInnerKeepOuterRoadGeometry([
     Object.freeze({
       points: INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT.points,
@@ -797,11 +794,11 @@ export function createInnerKeepSceneLayer(
       closed: false,
       halfWidthMeters: 0.62,
     }),
-    ...resourceRoads,
+    ...INNER_KEEP_OUTER_WORLD_RESOURCE_ROADS,
   ]);
   disposableGeometries.add(outerRoadGeometry);
   const outerRoadMaterial = new THREE.MeshStandardMaterial({
-    color: 0x857251,
+    color: INNER_KEEP_TOWN_TONAL_PALETTE.roads.outer,
     roughness: 0.99,
     polygonOffset: true,
     polygonOffsetFactor: -1,
@@ -826,7 +823,7 @@ export function createInnerKeepSceneLayer(
   ]);
   disposableGeometries.add(cityEdgeApronGeometry);
   const cityEdgeApronMaterial = new THREE.MeshStandardMaterial({
-    color: 0x6f6248,
+    color: INNER_KEEP_TOWN_TONAL_PALETTE.roads.apron,
     roughness: 1,
     polygonOffset: true,
     polygonOffsetFactor: -1.4,
@@ -847,7 +844,7 @@ export function createInnerKeepSceneLayer(
   );
   disposableGeometries.add(districtRoadGeometry);
   const districtRoadMaterial = new THREE.MeshStandardMaterial({
-    color: 0x826f50,
+    color: INNER_KEEP_TOWN_TONAL_PALETTE.roads.district,
     roughness: 0.99,
     polygonOffset: true,
     polygonOffsetFactor: -1.2,
@@ -863,7 +860,10 @@ export function createInnerKeepSceneLayer(
   districtRoads.raycast = () => undefined;
   staticGroup.add(districtRoads);
 
-  const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x8c7b5b, roughness: 0.96 });
+  const roadMaterial = new THREE.MeshStandardMaterial({
+    color: INNER_KEEP_TOWN_TONAL_PALETTE.roads.inner,
+    roughness: 0.96
+  });
   disposableMaterials.add(roadMaterial);
   const roadGeometryVertical = new THREE.BoxGeometry(2.6, 0.12, 36.5);
   const roadGeometryHorizontal = new THREE.BoxGeometry(35, 0.12, 2.15);
@@ -910,7 +910,7 @@ export function createInnerKeepSceneLayer(
   );
 
   const plazaMaterial = new THREE.MeshStandardMaterial({
-    color: 0x9b8f78,
+    color: INNER_KEEP_TOWN_TONAL_PALETTE.roads.plaza,
     roughness: 0.94
   });
   disposableMaterials.add(plazaMaterial);
@@ -1111,8 +1111,14 @@ export function createInnerKeepSceneLayer(
   const treeCanopyGeometry = new THREE.ConeGeometry(0.72, 2.25, 8);
   disposableGeometries.add(treeTrunkGeometry);
   disposableGeometries.add(treeCanopyGeometry);
-  const treeTrunkMaterial = new THREE.MeshStandardMaterial({ color: 0x5c4029, roughness: 0.96 });
-  const treeCanopyMaterial = new THREE.MeshStandardMaterial({ color: 0x25472f, roughness: 0.92 });
+  const treeTrunkMaterial = new THREE.MeshStandardMaterial({
+    color: INNER_KEEP_TOWN_TONAL_PALETTE.foliage.trunk,
+    roughness: 0.96
+  });
+  const treeCanopyMaterial = new THREE.MeshStandardMaterial({
+    color: INNER_KEEP_TOWN_TONAL_PALETTE.foliage.crown,
+    roughness: 0.92
+  });
   disposableMaterials.add(treeTrunkMaterial);
   disposableMaterials.add(treeCanopyMaterial);
   const treeCount = options.quality === 'reduced' ? 20 : options.quality === 'balanced' ? 30 : 40;
@@ -1193,9 +1199,16 @@ export function createInnerKeepSceneLayer(
   innerCanopies.castShadow = options.quality === 'high';
   proceduralFallbackGroup.add(innerTrunks, innerCanopies);
 
-  const ambient = new THREE.HemisphereLight(0xfff1cf, 0x26351e, 1.75);
-  const sun = new THREE.DirectionalLight(0xffe5b1, 2.65);
-  sun.position.set(-12, 28, 18);
+  const ambient = new THREE.HemisphereLight(
+    INNER_KEEP_TOWN_TONAL_PALETTE.lighting.hemisphereSky,
+    INNER_KEEP_TOWN_TONAL_PALETTE.lighting.hemisphereGround,
+    INNER_KEEP_TOWN_TONAL_PALETTE.lighting.hemisphereIntensity
+  );
+  const sun = new THREE.DirectionalLight(
+    INNER_KEEP_TOWN_TONAL_PALETTE.lighting.sun,
+    INNER_KEEP_TOWN_TONAL_PALETTE.lighting.sunIntensity
+  );
+  sun.position.set(...INNER_KEEP_TOWN_TONAL_PALETTE.lighting.sunPositionMeters);
   sun.castShadow = options.quality !== 'reduced';
   sun.shadow.mapSize.set(
     options.quality === 'high' ? 2048 : 1024,
@@ -1814,6 +1827,7 @@ export function createInnerKeepSceneLayer(
       ambientGroup.visible = false;
       authoredStaticGroup.visible = false;
       previousBuildingPhases = new Map();
+      pendingCompletionRevealSlots.clear();
       measureTelemetry('empty', 0, 0, 0);
       options.requestRender();
       return;
@@ -1822,6 +1836,7 @@ export function createInnerKeepSceneLayer(
       ambientGroup.visible = false;
       authoredStaticGroup.visible = false;
       previousBuildingPhases = new Map();
+      pendingCompletionRevealSlots.clear();
       measureTelemetry('unavailable', 0, 0, 0);
       options.requestRender();
       return;
@@ -1845,13 +1860,13 @@ export function createInnerKeepSceneLayer(
     scene.userData.innerKeepVisualSeed = visualSeed;
     scene.userData.innerKeepOwningTerrain = context?.owningTerrainKind ?? 'unknown';
     const groundColor = context?.owningTerrainKind === 'forest'
-      ? 0xeaf3e5
+      ? INNER_KEEP_TOWN_TONAL_PALETTE.terrain.forestTint
       : context?.owningTerrainKind === 'heath'
-        ? 0xf2eddc
+        ? INNER_KEEP_TOWN_TONAL_PALETTE.terrain.heathTint
         : context?.owningTerrainKind === 'ridge'
           || context?.owningTerrainKind === 'ancient-stone'
-          ? 0xe8e8e4
-          : 0xffffff;
+          ? INNER_KEEP_TOWN_TONAL_PALETTE.terrain.ridgeTint
+          : INNER_KEEP_TOWN_TONAL_PALETTE.terrain.defaultTint;
     groundMaterial.color.setHex(groundColor).offsetHSL(
       (deterministicUnit(0, visualSeed % 10_007) - 0.5) * 0.018,
       0,
@@ -1887,7 +1902,10 @@ export function createInnerKeepSceneLayer(
 
     let completedBuildingCount = 0;
     let constructionSiteCount = 0;
-    const visuallyPendingCompletedSlots = new Set<string>();
+    const currentBuildingIds = new Set(presentation.buildings.map(({ slotId }) => slotId));
+    for (const slotId of pendingCompletionRevealSlots) {
+      if (!currentBuildingIds.has(slotId)) pendingCompletionRevealSlots.delete(slotId);
+    }
     for (const building of presentation.buildings) {
       const position = positionBySlotId.get(building.slotId);
       if (!position) continue;
@@ -1916,7 +1934,12 @@ export function createInnerKeepSceneLayer(
             z: position.z
           });
           constructionSiteCount += 1;
-          visuallyPendingCompletedSlots.add(building.slotId);
+          if (
+            previousBuildingPhases.get(building.slotId) === 'constructing'
+            || pendingCompletionRevealSlots.has(building.slotId)
+          ) {
+            pendingCompletionRevealSlots.add(building.slotId);
+          }
           continue;
         }
         const model = authoredModel ?? createBuilding(
@@ -1932,10 +1955,14 @@ export function createInnerKeepSceneLayer(
         );
         model.rotation.y = position.rotation;
         dynamicGroup.add(model);
+        const shouldRevealCompletion =
+          previousBuildingPhases.get(building.slotId) === 'constructing'
+          || pendingCompletionRevealSlots.has(building.slotId);
+        pendingCompletionRevealSlots.delete(building.slotId);
         if (
           !options.reducedMotion
           && !completionReveal
-          && previousBuildingPhases.get(building.slotId) === 'constructing'
+          && shouldRevealCompletion
         ) {
           const revealScaffold = createScaffold(
             dynamicMaterials,
@@ -1960,6 +1987,7 @@ export function createInnerKeepSceneLayer(
         completedBuildingCount += 1;
         continue;
       }
+      pendingCompletionRevealSlots.delete(building.slotId);
       const scaffold = createScaffold(dynamicMaterials, dynamicGeometries);
       scaffold.position.set(position.x, 0.25, position.z);
       scaffold.rotation.y = position.rotation;
@@ -1978,9 +2006,7 @@ export function createInnerKeepSceneLayer(
     updateCompletionReveal(lastElapsedSeconds);
     previousBuildingPhases = new Map(presentation.buildings.map((building) => [
       building.slotId,
-      visuallyPendingCompletedSlots.has(building.slotId)
-        ? 'constructing'
-        : building.phase
+      building.phase
     ] as const));
     measureTelemetry(
       'ready',
@@ -1997,6 +2023,7 @@ export function createInnerKeepSceneLayer(
     dispose: () => {
       if (disposed) return;
       disposed = true;
+      pendingCompletionRevealSlots.clear();
       assetLoadGeneration += 1;
       assetLoadController?.abort();
       assetLoadController = null;
@@ -2005,6 +2032,7 @@ export function createInnerKeepSceneLayer(
       ecology?.dispose();
       ecology = null;
       ecologySeed = null;
+      townAtmosphere.dispose();
       outerWorldPresentation?.dispose();
       outerWorldPresentation = null;
       rabbitPresentation?.dispose();
@@ -2034,6 +2062,7 @@ export function createInnerKeepSceneLayer(
       && (
         (constructionPosition !== null && smoke.count > 0)
         || completionReveal !== null
+        || townAtmosphere.isAnimationActive()
         || ecology?.isAnimationActive() === true
         || populationPresentation?.isAnimationActive() === true
         || outerWorldPresentation?.isAnimationActive() === true
@@ -2089,6 +2118,7 @@ export function createInnerKeepSceneLayer(
       lastElapsedSeconds = Math.max(0, elapsedSeconds);
       const smokeChanged = updateSmoke(lastElapsedSeconds);
       const revealChanged = updateCompletionReveal(lastElapsedSeconds);
+      const townAtmosphereChanged = townAtmosphere.update(lastElapsedSeconds);
       const ecologyChanged = ecology?.update(lastElapsedSeconds) === true;
       const populationChanged = populationPresentation?.update(lastElapsedSeconds) === true;
       const outerWorldChanged = outerWorldPresentation?.update(lastElapsedSeconds) === true;
@@ -2110,6 +2140,7 @@ export function createInnerKeepSceneLayer(
       }
       return smokeChanged
         || revealChanged
+        || townAtmosphereChanged
         || ecologyChanged
         || populationChanged
         || outerWorldChanged

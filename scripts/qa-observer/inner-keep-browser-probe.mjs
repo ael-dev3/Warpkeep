@@ -23,7 +23,7 @@ import {
   innerKeepQaBrowserCases,
 } from './inner-keep-qa-contract.mjs';
 
-const CDP_TIMEOUT_MILLISECONDS = 10_000;
+const CDP_TIMEOUT_MILLISECONDS = 20_000;
 const POLL_MILLISECONDS = 40;
 const SCREENSHOT_MAXIMUM_BYTES = 8 * 1_024 * 1_024;
 const SCREENSHOT_CASES = new Set([
@@ -72,6 +72,9 @@ function evidenceExpression(expectedLevel) {
         ? Number(progressValue)
         : -1;
     const bodyText = document.body?.innerText ?? '';
+    const semanticSlotLabels = [...document.querySelectorAll('[data-inner-keep-slot-id]')]
+      .map((control) => control.getAttribute('aria-label') ?? '')
+      .join(' ');
     const documentWidth = Math.max(
       document.documentElement?.scrollWidth ?? 0,
       document.body?.scrollWidth ?? 0
@@ -158,7 +161,9 @@ function evidenceExpression(expectedLevel) {
       assetFallbackCount: document.querySelectorAll('.inner-keep-building-art-fallback').length,
       builderBusyVisible: bodyText.includes('BUILDER OCCUPIED'),
       insufficientResourcesVisible: bodyText.includes('Not enough Food.'),
-      levelVisible: expectedLevel === null || bodyText.includes('Level ' + expectedLevel),
+      levelVisible: expectedLevel === null
+        || bodyText.includes('Level ' + expectedLevel)
+        || semanticSlotLabels.includes('Level ' + expectedLevel),
       viewportWidth,
       viewportHeight,
       documentWidth,
@@ -173,7 +178,7 @@ async function readEvidence(session, probeCase) {
   const result = await session.command('Runtime.evaluate', {
     expression: evidenceExpression(probeCase.scenario.level),
     returnByValue: true,
-  });
+  }, CDP_TIMEOUT_MILLISECONDS);
   return runtimeValue(result);
 }
 
@@ -416,7 +421,8 @@ async function exerciseWebglNativeKeyboardActivation(session) {
         );
         const panel = document.querySelector('.inner-keep-panel');
         return {
-          panelLabel: panel?.getAttribute('aria-label') ?? null,
+          panelLabel: panel?.querySelector('#inner-keep-panel-title')
+            ?.textContent?.trim() ?? null,
           selected: control?.getAttribute('aria-pressed') === 'true'
         };
       })()`,

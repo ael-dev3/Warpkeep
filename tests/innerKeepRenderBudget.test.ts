@@ -12,6 +12,10 @@ import {
 } from '../src/components/inner-keep/createInnerKeepSceneLayer';
 import { INNER_KEEP_PRESENTATION_PLACEMENTS } from '../src/components/inner-keep/innerKeepPresentationLayoutPolicy';
 import { INNER_KEEP_STATIC_RUNTIME_ASSETS } from '../src/components/inner-keep/innerKeepRuntimeAssetCatalog.generated';
+import {
+  INNER_KEEP_WEATHERED_WALL_SKIRT_ASSET_ID,
+  INNER_KEEP_WEATHERED_WALL_SKIRT_PLACEMENTS,
+} from '../src/components/inner-keep/innerKeepTownAtmospherePolicy';
 import { INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS } from '../scripts/qa-observer/inner-keep-qa-contract.mjs';
 
 function maximumAuthoredStaticComplexity(quality: InnerKeepSceneQuality) {
@@ -42,6 +46,10 @@ function maximumAuthoredStaticComplexity(quality: InnerKeepSceneQuality) {
     ]!;
     triangleCount += modelByAssetId.get(assetId)!.triangles;
   }
+  const weatheredWall = modelByAssetId.get(INNER_KEEP_WEATHERED_WALL_SKIRT_ASSET_ID)!;
+  drawCalls += weatheredWall.drawCalls;
+  triangleCount += weatheredWall.triangles
+    * INNER_KEEP_WEATHERED_WALL_SKIRT_PLACEMENTS.length;
   return Object.freeze({ drawCalls, triangleCount });
 }
 

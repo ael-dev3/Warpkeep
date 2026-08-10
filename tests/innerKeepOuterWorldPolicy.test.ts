@@ -26,6 +26,7 @@ import {
   innerKeepOuterWorldTerrainHeightAt,
   innerKeepOuterWorldTerrainSlopeAt,
 } from '../src/components/inner-keep/innerKeepOuterWorldPolicy';
+import { INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS } from '../src/components/inner-keep/innerKeepTownAtmospherePolicy';
 const EXPANDED_WALL = Object.freeze({
   westX: -20.2,
   eastX: 20.2,
@@ -355,5 +356,11 @@ describe('Inner Keep outer-world presentation policy', () => {
     expect(innerKeepOuterWorldPointIsClear(road.x, road.z)).toBe(false);
     expect(innerKeepOuterWorldDistanceToWater(-28, -27)).toBeGreaterThan(1);
     expect(innerKeepOuterWorldPointIsClear(-28, -27)).toBe(true);
+    for (const exclusion of INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS) {
+      expect(innerKeepOuterWorldPointIsClear(
+        exclusion.center.x,
+        exclusion.center.z,
+      ), exclusion.exclusionId).toBe(false);
+    }
   });
 });
