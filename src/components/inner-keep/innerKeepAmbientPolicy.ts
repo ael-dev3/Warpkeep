@@ -6,9 +6,9 @@ import {
 } from '../../game/map/realmSeed';
 import {
   INNER_KEEP_PRESENTATION_CLEARANCES,
-  INNER_KEEP_PRESENTATION_LAYOUT_DIGEST,
-  INNER_KEEP_PRESENTATION_SLOTS
+  INNER_KEEP_PRESENTATION_LAYOUT_DIGEST
 } from './innerKeepPresentationLayoutPolicy';
+import { INNER_KEEP_FREE_PLACEMENT_POLICY } from './innerKeepFreePlacementPolicy';
 import {
   compileInnerKeepPath,
   sampleInnerKeepPath,
@@ -24,14 +24,15 @@ import {
 import {
   INNER_KEEP_EAST_VILLAGE_SERVICE_LANE,
   INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT,
+  INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE,
   INNER_KEEP_VILLAGE_COMMONS_SOCIAL_LANE,
   INNER_KEEP_WEST_VILLAGE_DELIVERY_LANE,
   innerKeepOuterWorldDistanceToSegment,
   innerKeepOuterWorldDistanceToRoad,
 } from './innerKeepOuterWorldPolicy';
 
-export const INNER_KEEP_AMBIENT_POLICY_ID = 'genesis-001-inner-keep-ambient-v2';
-export const INNER_KEEP_AMBIENT_POLICY_VERSION = 2;
+export const INNER_KEEP_AMBIENT_POLICY_ID = 'genesis-001-inner-keep-ambient-v3';
+export const INNER_KEEP_AMBIENT_POLICY_VERSION = 3;
 
 export type InnerKeepAmbientQuality = 'high' | 'balanced' | 'reduced';
 export type InnerKeepAmbientActorFamily =
@@ -466,9 +467,9 @@ export const INNER_KEEP_CITIZEN_WORK_ROUTES: readonly InnerKeepAmbientRoute[] =
       'district-supply-run',
       0.28,
       [
-        { x: -12, z: 7.2 },
-        { x: -10, z: 7.6 },
-        { x: -8, z: 7.2 }
+        { x: -2.4, z: -1 },
+        { x: -1.9, z: -1 },
+        { x: -1.4, z: -1 }
       ],
       false
     ),
@@ -478,9 +479,9 @@ export const INNER_KEEP_CITIZEN_WORK_ROUTES: readonly InnerKeepAmbientRoute[] =
       'district-supply-run',
       0.28,
       [
-        { x: 10, z: 7 },
-        { x: 12, z: 7.4 },
-        { x: 14, z: 7 }
+        { x: 1.4, z: -1 },
+        { x: 1.9, z: -1 },
+        { x: 2.4, z: -1 }
       ],
       false
     ),
@@ -490,9 +491,9 @@ export const INNER_KEEP_CITIZEN_WORK_ROUTES: readonly InnerKeepAmbientRoute[] =
       'district-supply-run',
       0.28,
       [
-        { x: -10.5, z: -10 },
-        { x: -8.6, z: -9.6 },
-        { x: -6.8, z: -10 }
+        { x: -0.55, z: 5 },
+        { x: -0.55, z: 6.25 },
+        { x: -0.55, z: 7.5 }
       ],
       false
     )
@@ -501,14 +502,14 @@ export const INNER_KEEP_CITIZEN_WORK_ROUTES: readonly InnerKeepAmbientRoute[] =
 export const INNER_KEEP_FOOT_DUTY_ROUTES: readonly InnerKeepAmbientRoute[] =
   Object.freeze([
     ambientRoute(
-      'inner-keep-cathedral-west-watch-v1',
+      'inner-keep-civic-spine-watch-v1',
       'foot-duty-shuttle',
-      'cathedral-watch',
+      'south-gate-watch',
       0.32,
       [
-        { x: -9.2, z: -16.5 },
-        { x: -9.7, z: -14.5 },
-        { x: -9.2, z: -12.5 }
+        { x: 0.55, z: 10 },
+        { x: 0.55, z: 11.25 },
+        { x: 0.55, z: 12.5 }
       ],
       false
     ),
@@ -518,21 +519,21 @@ export const INNER_KEEP_FOOT_DUTY_ROUTES: readonly InnerKeepAmbientRoute[] =
       'west-road-watch',
       0.32,
       [
-        { x: -32, z: -22 },
-        { x: -32, z: -12 },
-        { x: -32, z: -2 }
+        { x: -68, z: -36 },
+        { x: -68, z: -24 },
+        { x: -68, z: -12 }
       ],
       false
     ),
     ambientRoute(
-      'inner-keep-garrison-road-watch-v1',
+      'inner-keep-gate-spine-watch-v1',
       'foot-duty-shuttle',
-      'garrison-watch',
+      'south-gate-watch',
       0.32,
       [
-        { x: -14.8, z: 3.9 },
-        { x: -14.4, z: 5.35 },
-        { x: -14.8, z: 6.8 }
+        { x: -0.55, z: 15 },
+        { x: -0.55, z: 16.25 },
+        { x: -0.55, z: 17.5 }
       ],
       false
     ),
@@ -542,21 +543,21 @@ export const INNER_KEEP_FOOT_DUTY_ROUTES: readonly InnerKeepAmbientRoute[] =
       'north-road-watch',
       0.32,
       [
-        { x: -27, z: -33.5 },
-        { x: -20, z: -35 },
-        { x: -10, z: -35 }
+        { x: -52, z: -69 },
+        { x: -40, z: -69 },
+        { x: -28, z: -69 }
       ],
       false
     ),
     ambientRoute(
-      'inner-keep-east-wall-watch-v1',
+      'inner-keep-outer-south-gate-watch-v1',
       'foot-duty-shuttle',
-      'east-wall-watch',
+      'south-gate-watch',
       0.32,
       [
-        { x: 14, z: -5 },
-        { x: 14.4, z: -3 },
-        { x: 14, z: -1 }
+        { x: 0.55, z: 20 },
+        { x: 0.55, z: 21.25 },
+        { x: 0.55, z: 22.5 }
       ],
       false
     ),
@@ -566,21 +567,21 @@ export const INNER_KEEP_FOOT_DUTY_ROUTES: readonly InnerKeepAmbientRoute[] =
       'east-road-watch',
       0.32,
       [
-        { x: 32, z: -12 },
-        { x: 32, z: -2 },
-        { x: 32, z: 8 }
+        { x: 68, z: -12 },
+        { x: 68, z: -2 },
+        { x: 68, z: 8 }
       ],
       false
     ),
     ambientRoute(
-      'inner-keep-cathedral-east-watch-v1',
+      'inner-keep-south-road-foot-watch-v1',
       'foot-duty-shuttle',
-      'cathedral-watch',
+      'south-road-watch',
       0.32,
       [
-        { x: 9, z: -16.5 },
-        { x: 9.5, z: -15 },
-        { x: 9, z: -13.5 }
+        { x: 36, z: 69 },
+        { x: 28, z: 69 },
+        { x: 20, z: 69 }
       ],
       false
     ),
@@ -590,9 +591,9 @@ export const INNER_KEEP_FOOT_DUTY_ROUTES: readonly InnerKeepAmbientRoute[] =
       'south-gate-watch',
       0.32,
       [
-        { x: -3, z: 10 },
-        { x: -1, z: 10.35 },
-        { x: 1, z: 10 }
+        { x: -0.55, z: 25 },
+        { x: -0.55, z: 26.25 },
+        { x: -0.55, z: 27.5 }
       ],
       false
     )
@@ -626,9 +627,9 @@ export const INNER_KEEP_MOUNTED_DUTY_ROUTES: readonly InnerKeepAmbientRoute[] =
       'west-road-watch',
       0.42,
       [
-        { x: -32, z: 18 },
-        { x: -32, z: 10 },
-        { x: -32, z: 2 }
+        { x: -68, z: 12 },
+        { x: -68, z: 21 },
+        { x: -68, z: 30 }
       ],
       false
     ),
@@ -638,9 +639,9 @@ export const INNER_KEEP_MOUNTED_DUTY_ROUTES: readonly InnerKeepAmbientRoute[] =
       'north-road-watch',
       0.42,
       [
-        { x: 0, z: -35 },
-        { x: 10, z: -35 },
-        { x: 20, z: -35 }
+        { x: 28, z: -69 },
+        { x: 40, z: -69 },
+        { x: 52, z: -69 }
       ],
       false
     ),
@@ -650,9 +651,9 @@ export const INNER_KEEP_MOUNTED_DUTY_ROUTES: readonly InnerKeepAmbientRoute[] =
       'east-road-watch',
       0.42,
       [
-        { x: 32, z: 18 },
-        { x: 32.7, z: 23.5 },
-        { x: 32.84, z: 30.5 }
+        { x: 68, z: 16 },
+        { x: 68, z: 32 },
+        { x: 70, z: 50 }
       ],
       false
     ),
@@ -662,10 +663,9 @@ export const INNER_KEEP_MOUNTED_DUTY_ROUTES: readonly InnerKeepAmbientRoute[] =
       'south-road-watch',
       0.42,
       [
-        { x: 4, z: 33 },
-        { x: -4, z: 33 },
-        { x: -12, z: 33 },
-        { x: -20, z: 33 }
+        { x: -20, z: 69 },
+        { x: -28, z: 69 },
+        { x: -36, z: 69 }
       ],
       false
     )
@@ -726,42 +726,37 @@ export const INNER_KEEP_CONVERSATION_ANCHORS: readonly InnerKeepConversationAnch
   Object.freeze([
     conversationAnchor(
       'east-village-commons',
-      { x: 1.5, z: 23 },
-      { x: 2.2, z: 24 },
-      { x: 4.2, z: 25.4 },
-      { x: 3.4, z: 24.4 },
-      [{ x: 1.9, z: 23.5 }],
-      [{ x: 3.8, z: 24.9 }]
+      { x: 8, z: 52 },
+      { x: 12, z: 54 },
+      { x: 20, z: 56 },
+      { x: 16, z: 55 },
+      [{ x: 10, z: 53 }],
+      [{ x: 18, z: 55.5 }]
     ),
     conversationAnchor(
       'gate-approach',
-      { x: -0.78, z: 12.45 },
-      { x: -0.5, z: 11.9 },
-      { x: 0.78, z: 12.45 },
-      { x: 0.5, z: 11.9 },
-      [{ x: -0.88, z: 12.15 }],
-      [{ x: 0.88, z: 12.15 }]
+      { x: 2, z: 38.25 },
+      { x: 5, z: 38.625 },
+      { x: 10, z: 39.25 },
+      { x: 7, z: 38.875 }
     ),
     conversationAnchor(
       'civic-road-watch',
-      { x: -0.78, z: 4.1 },
-      { x: -0.75, z: 3.35 },
-      { x: 0.78, z: 4.1 },
-      { x: 0.75, z: 3.35 }
+      { x: -68, z: -8 },
+      { x: -68, z: 1 },
+      { x: -68, z: 8 },
+      { x: -68, z: 3 }
     ),
     conversationAnchor(
       'north-road-watch',
-      { x: -0.78, z: -3.85 },
-      { x: -0.75, z: -5.35 },
-      { x: 0.78, z: -3.85 },
-      { x: 0.75, z: -5.35 }
+      { x: -24, z: -69 },
+      { x: -1, z: -69 },
+      { x: 24, z: -69 },
+      { x: 1, z: -69 }
     )
   ]);
 
 export type InnerKeepAmbientExclusionKind =
-  | 'slot-building-and-construction'
-  | 'central-building'
-  | 'civic-prop'
   | 'fixed-authored-placement'
   | 'lower-ward-house'
   | 'town-scenery';
@@ -773,22 +768,6 @@ export type InnerKeepAmbientExclusion = Readonly<{
   halfExtentsMeters: readonly [number, number];
   additionalClearanceMeters: number;
 }>;
-
-const slotExclusions: readonly InnerKeepAmbientExclusion[] = Object.freeze(
-  INNER_KEEP_PRESENTATION_SLOTS.map((slot) => {
-    const halfExtents = slot.footprintClass === 'large'
-      ? INNER_KEEP_PRESENTATION_CLEARANCES.slot.largeReservedHalfExtents
-      : INNER_KEEP_PRESENTATION_CLEARANCES.slot.mediumHalfExtents;
-    return Object.freeze({
-      exclusionId: slot.slotId,
-      kind: 'slot-building-and-construction' as const,
-      center: Object.freeze({ x: slot.positionMeters[0], z: slot.positionMeters[2] }),
-      halfExtentsMeters: Object.freeze([halfExtents[0], halfExtents[1]] as const),
-      additionalClearanceMeters:
-        INNER_KEEP_PRESENTATION_CLEARANCES.slot.decorativeBuffer
-    });
-  })
-);
 
 const fixedAuthoredExclusions: readonly InnerKeepAmbientExclusion[] =
   Object.freeze(INNER_KEEP_FIXED_PLACEMENT_EXCLUSIONS.flatMap((candidate) => (
@@ -825,47 +804,15 @@ const townSceneryExclusions: readonly InnerKeepAmbientExclusion[] =
     })
   )));
 
-function exclusion(
-  exclusionId: string,
-  kind: Exclude<InnerKeepAmbientExclusionKind, 'slot-building-and-construction'>,
-  x: number,
-  z: number,
-  halfX: number,
-  halfZ: number,
-  additionalClearanceMeters: number
-): InnerKeepAmbientExclusion {
-  return Object.freeze({
-    exclusionId,
-    kind,
-    center: Object.freeze({ x, z }),
-    halfExtentsMeters: Object.freeze([halfX, halfZ] as const),
-    additionalClearanceMeters
-  });
-}
-
 /**
- * Every authoritative slot stays reserved even while empty, so construction
- * can begin without an ambient route suddenly becoming invalid.
+ * Static routes reserve only fixed scenery. Runtime building reconciliation
+ * owns dynamic project occupancy; ambient routes stay on permanent surfaces.
  */
 export const INNER_KEEP_AMBIENT_EXCLUSIONS: readonly InnerKeepAmbientExclusion[] =
   Object.freeze([
-    ...slotExclusions,
     ...fixedAuthoredExclusions,
     ...lowerWardHouseExclusions,
-    ...townSceneryExclusions,
-    exclusion('central-keep', 'central-building', 0, -0.15, 2.3, 1.9, 0.18),
-    // Exact layout scale is applied to the selected landmark X/Z bounds.
-    exclusion('grand-covenant-cathedral', 'central-building', 0, -15.4, 5.1, 4.353, 0.8),
-    exclusion('shieldcourt-barracks', 'central-building', -16, 0, 3.04, 2.47, 0.55),
-    exclusion('east-wall-keep-well', 'civic-prop', 16.7, 0.4, 1, 0.9, 0.12),
-    exclusion('water-trough', 'civic-prop', 5.2, 12.7, 0.9, 0.5, 0.12),
-    exclusion('west-plaza-bench', 'civic-prop', -3.1, 1.6, 1, 0.5, 0.12),
-    exclusion('east-plaza-bench', 'civic-prop', 3.1, 1.6, 1, 0.5, 0.12),
-    exclusion('west-plaza-lamp', 'civic-prop', -1.6, 4.95, 0.3, 0.3, 0.12),
-    exclusion('east-plaza-lamp', 'civic-prop', 1.6, 4.95, 0.3, 0.3, 0.12),
-    exclusion('west-plaza-brazier', 'civic-prop', -1.45, 2.05, 0.35, 0.35, 0.12),
-    exclusion('east-plaza-brazier', 'civic-prop', 1.45, 2.05, 0.35, 0.35, 0.12),
-    exclusion('builder-noticeboard', 'civic-prop', -3, 11.65, 1.1, 0.4, 0.12)
+    ...townSceneryExclusions
   ]);
 
 export const INNER_KEEP_AMBIENT_CLEARANCE_POLICY = Object.freeze({
@@ -873,31 +820,32 @@ export const INNER_KEEP_AMBIENT_CLEARANCE_POLICY = Object.freeze({
   gameplayAuthorityClaimed: false,
   sourcePresentationLayoutDigest: INNER_KEEP_PRESENTATION_LAYOUT_DIGEST,
   construction: Object.freeze({
-    reserveEveryCanonicalSlot: true,
-    slotCount: INNER_KEEP_PRESENTATION_SLOTS.length,
-    additionalRouteClearanceMeters:
-      INNER_KEEP_PRESENTATION_CLEARANCES.slot.decorativeBuffer
+    placementBoundsMicrounits: INNER_KEEP_FREE_PLACEMENT_POLICY.supportBoundsMicrounits,
+    snapIncrementMicrounits: INNER_KEEP_FREE_PLACEMENT_POLICY.snapIncrementMicrounits,
+    supportedRotationMilliDegrees:
+      INNER_KEEP_FREE_PLACEMENT_POLICY.rotationsMilliDegrees,
+    dynamicBuildingExclusionsRequired: true,
+    staticRoutesUsePermanentSurfacesOnly: true
   }),
   building: Object.freeze({
-    centralKeepCenterMeters: Object.freeze([0, -0.15] as const),
-    centralKeepHalfExtentsMeters: Object.freeze([2.3, 1.9] as const),
-    cathedralCenterMeters: Object.freeze([0, -15.4] as const),
-    cathedralHalfExtentsMeters: Object.freeze([5.1, 4.353] as const),
-    barracksCenterMeters: Object.freeze([-16, 0] as const),
-    barracksHalfExtentsMeters: Object.freeze([3.04, 2.47] as const)
+    initialPrebuiltConstructibleCount: 0,
+    templateScalePermille: 1_000,
+    constructibleBuildingKinds: Object.freeze(
+      Object.keys(INNER_KEEP_FREE_PLACEMENT_POLICY.envelopes),
+    )
   }),
   road: Object.freeze({
     northSouthCenterX: INNER_KEEP_PRESENTATION_CLEARANCES.road.northSouthCenterX,
     northSouthHalfWidth: INNER_KEEP_PRESENTATION_CLEARANCES.road.northSouthHalfWidth,
     requiredClearSideBuffer:
       INNER_KEEP_PRESENTATION_CLEARANCES.road.requiredClearSideBuffer,
-    southernNavigableMinimumZ: 2.42,
-    southernNavigableMaximumZ: 13.68
+    southernNavigableMinimumZ: INNER_KEEP_PRESENTATION_CLEARANCES.road.minimumZ,
+    southernNavigableMaximumZ: INNER_KEEP_PRESENTATION_CLEARANCES.road.maximumZ
   }),
   plaza: Object.freeze({
-    centerMeters: Object.freeze([0, 3.15] as const),
-    radiusMeters: 3.15,
-    requiredEdgeBufferMeters: 0.2
+    centerMeters: INNER_KEEP_PRESENTATION_CLEARANCES.road.commonsCenter,
+    radiusMeters: 4.5,
+    requiredEdgeBufferMeters: 0.25
   }),
   outerCourtyard: Object.freeze({
     westX: INNER_KEEP_PRESENTATION_CLEARANCES.wall.westX,
@@ -905,8 +853,7 @@ export const INNER_KEEP_AMBIENT_CLEARANCE_POLICY = Object.freeze({
     northZ: INNER_KEEP_PRESENTATION_CLEARANCES.wall.northZ,
     southZ: INNER_KEEP_PRESENTATION_CLEARANCES.wall.southZ,
     requiredWallBufferMeters: 0.45
-  }),
-  slots: Object.freeze(slotExclusions)
+  })
 });
 
 export type InnerKeepAmbientRouteClearanceViolation = Readonly<{
@@ -961,12 +908,6 @@ export function isInnerKeepAmbientPointNavigable(
     point.x - plaza.centerMeters[0],
     point.z - plaza.centerMeters[1]
   ) <= plazaRadius;
-  const courtyard = INNER_KEEP_AMBIENT_CLEARANCE_POLICY.outerCourtyard;
-  const wallBuffer = courtyard.requiredWallBufferMeters + actorRadiusMeters;
-  const inOuterCourtyard = point.x >= courtyard.westX + wallBuffer
-    && point.x <= courtyard.eastX - wallBuffer
-    && point.z >= courtyard.northZ + wallBuffer
-    && point.z <= courtyard.southZ - wallBuffer;
   const outerRoadHalfWidth = Math.max(
     0.08,
     INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT.halfWidthMeters - actorRadiusMeters,
@@ -994,13 +935,20 @@ export function isInnerKeepAmbientPointNavigable(
     0.08,
     INNER_KEEP_VILLAGE_COMMONS_SOCIAL_LANE.halfWidthMeters - actorRadiusMeters
   );
+  const onSouthGateFerryLane = distanceToOpenAmbientLane(
+    point,
+    INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE.points
+  ) <= Math.max(
+    0.08,
+    INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE.halfWidthMeters - actorRadiusMeters
+  );
   return onRoad
     || onPlaza
-    || inOuterCourtyard
     || onOuterEstateRoad
     || onTradeDeliveryRoad
     || onEastVillageLane
-    || onVillageCommonsSocialLane;
+    || onVillageCommonsSocialLane
+    || onSouthGateFerryLane;
 }
 
 function pointOverlapsExclusion(

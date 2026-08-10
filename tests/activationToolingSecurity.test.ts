@@ -477,7 +477,7 @@ function emptyInactiveInnerKeepV15Status(
     active: false,
     policyVersion: 'genesis-001-inner-keep-construction-v1',
     policyDigest: 'a'.repeat(64),
-    layoutPolicyVersion: 'genesis-001-inner-keep-layout-v1',
+    layoutPolicyVersion: 'genesis-001-inner-keep-free-placement-v1',
     layoutDigest: 'b'.repeat(64),
     assetCatalogDigest: 'c'.repeat(64),
     ...overrides,
@@ -1113,12 +1113,15 @@ function innerKeepV15ModuleSchemaDescription() {
 
   description.reducers.push(
     reducer('inner_keep_start_project_v1', [
-      ['slotId', 'String'],
       ['buildingKind', 'String'],
+      ['localXMicrounits', 'I64'],
+      ['localZMicrounits', 'I64'],
+      ['rotationMilliDegrees', 'U32'],
       ['requestKey', 'String'],
       ['expectedTargetLevel', 'U32'],
       ['expectedProjectRevision', 'String'],
       ['expectedPolicyDigest', 'String'],
+      ['expectedLayoutDigest', 'String'],
     ]),
     reducer('admin_seed_inner_keep_catalog_v1', [
       ['capability', 'String'],
@@ -1191,8 +1194,10 @@ function innerKeepV15ModuleSchemaDescription() {
     ['found', 'Bool'],
     ['castleId', option('U64')],
     ['buildingKey', option('String')],
-    ['slotId', option('String')],
     ['buildingKind', option('String')],
+    ['localXMicrounits', option('I64')],
+    ['localZMicrounits', option('I64')],
+    ['rotationMilliDegrees', option('U32')],
     ['targetLevel', option('U32')],
     ['deductedFood', option('U64')],
     ['deductedWood', option('U64')],
@@ -2835,6 +2840,12 @@ describe('activation publish safety', () => {
       JSON.stringify({ ...empty, fid: '123' }),
       4,
     )).toThrow(/unexpected fields/i);
+    expect(() => verifyEmptyInactiveInnerKeepV15StatusOutput(
+      JSON.stringify(emptyInactiveInnerKeepV15Status({
+        layoutPolicyVersion: 'genesis-001-inner-keep-layout-v1',
+      })),
+      4,
+    )).toThrow(/invalid policy attestations/i);
     const privateAccessRequestPage = {
       entries: [{
         fid: '123',

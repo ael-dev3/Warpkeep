@@ -17,7 +17,7 @@ source archive, any unlisted asset, or unrelated redistribution.
 | Attachment size | 234,962,670 bytes |
 | Attachment SHA-256 | `f13bc9e7b8e32a6767b1959307a202d894123f384e11fd19550d75e0dfe5f6c9` |
 | Trusted release manifest SHA-256 | `67a31bee8c63718143a9071e9cb906f2229b9776c55d9d6fce3fd87bf2f032ae` |
-| Selection digest | `00304c5dbf819cec6cb656996c1105f64efcf36acf8099c431f5b04b822679f0` |
+| Selection digest | `cf1fdac091e310cce3362d43403be938fe7946e46df906f2efb8cff601497c6d` |
 
 The [machine-readable selection](manifest.json) pins every selected source
 member, byte count, SHA-256 digest, triangle count, bound, and
@@ -35,7 +35,7 @@ such as `9` versus `9.0`, which are the same JSON number after parsing.
 | Family | Assets |
 | --- | ---: |
 | Economy buildings | 4 |
-| Permanent landmarks | 2 |
+| Barracks and Cathedral buildables | 2 |
 | Palisade pieces | 6 |
 | Town items | 19 |
 | Stone and ruin pieces | 4 |
@@ -44,9 +44,9 @@ such as `9` versus `9.0`, which are the same JSON number after parsing.
 
 The selected subset contains 114 GLBs: High, Balanced, and Compact for each of
 38 assets. Six 320×320 previews cover the four economy buildings plus the
-Grand Covenant Cathedral and Hegemony Shieldcourt Barracks. The Cathedral is
-the Inner Keep's permanent main-building and northern visual anchor. The
-Barracks is its western garrison anchor.
+Grand Covenant Cathedral and Hegemony Shieldcourt Barracks. The later product
+contract keeps both absent initially and presents them only after a player
+places and constructs them.
 
 | Profile | Bytes | Triangles |
 | --- | ---: | ---: |
@@ -64,9 +64,15 @@ On 2026-08-04, Ael instructed the project to use Warpkeep-Assets 3D objects in
 the official Inner Keep and to make the Grand Covenant Cathedral its main
 building. That instruction authorizes the exact 114 GLBs and six PNG previews
 at selection digest
-`00304c5dbf819cec6cb656996c1105f64efcf36acf8099c431f5b04b822679f0`
+`cf1fdac091e310cce3362d43403be938fe7946e46df906f2efb8cff601497c6d`
 for the public `ael-dev3/Warpkeep` repository and official `warpkeep.com`
 client.
+
+The authorization record preserves the original instruction to make the Grand
+Covenant Cathedral the main building. Later reviewed product direction changes
+when and where that exact authorized asset appears: Cathedral and Barracks are
+player-built outcomes rather than prebuilt anchors. It does not alter,
+relicense, replace, or broaden the selected files or their permitted use.
 
 This is runtime-use authorization only. It does not relicense the source
 archive, authorize unlisted or substitute files, grant general derivative or

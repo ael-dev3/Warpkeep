@@ -53,13 +53,17 @@ const EVIDENCE_KEYS = Object.freeze([
   'authoredTreeCount',
   'barracksPlacementPresent',
   'builderBusyVisible',
+  'buildingPickTargetCount',
   'canvasCount',
+  'catalogueBuildingControlCount',
   'cathedralPlacementPresent',
   'completedBuildingCount',
   'completionRevealActive',
   'constructionSiteCount',
   'documentHeight',
   'documentWidth',
+  'enabledCatalogueBuildingControlCount',
+  'enabledMapBuildingControlCount',
   'enabledSlotControlCount',
   'exactWildlifeCount',
   'exteriorActorCount',
@@ -77,11 +81,14 @@ const EVIDENCE_KEYS = Object.freeze([
   'innerKeepRenderer',
   'insufficientResourcesVisible',
   'levelVisible',
+  'mapBuildingControlCount',
   'maximumPendingRafCount',
   'mountedActorCount',
   'outerWorldRuntimeAssetFailureCount',
   'outerWorldStatus',
   'patrolUnitCount',
+  'placementPreviewActive',
+  'placementPreviewValid',
   'proceduralWildlifeCount',
   'progressBasisPoints',
   'quality',
@@ -122,7 +129,7 @@ export function parseInnerKeepQaEvidence(value) {
   if (
     keys.length !== EVIDENCE_KEYS.length
     || keys.some((key, index) => key !== EVIDENCE_KEYS[index])
-    || candidate.version !== 2
+    || candidate.version !== 3
     || !INNER_KEEP_QA_SCENARIO_IDS.includes(candidate.scenario)
     || !['webgl', 'fallback'].includes(candidate.renderMode)
     || !['webgl', 'fallback'].includes(candidate.innerKeepRenderer)
@@ -158,6 +165,8 @@ export function parseInnerKeepQaEvidence(value) {
     || typeof candidate.builderBusyVisible !== 'boolean'
     || typeof candidate.insufficientResourcesVisible !== 'boolean'
     || typeof candidate.levelVisible !== 'boolean'
+    || typeof candidate.placementPreviewActive !== 'boolean'
+    || typeof candidate.placementPreviewValid !== 'boolean'
     || ![
       candidate.activeConversationCount,
       candidate.ambientActorCount,
@@ -167,11 +176,15 @@ export function parseInnerKeepQaEvidence(value) {
       candidate.authoredAssetCount,
       candidate.authoredPlacementCount,
       candidate.authoredTreeCount,
+      candidate.buildingPickTargetCount,
       candidate.canvasCount,
+      candidate.catalogueBuildingControlCount,
       candidate.completedBuildingCount,
       candidate.constructionSiteCount,
       candidate.documentHeight,
       candidate.documentWidth,
+      candidate.enabledCatalogueBuildingControlCount,
+      candidate.enabledMapBuildingControlCount,
       candidate.enabledSlotControlCount,
       candidate.exactWildlifeCount,
       candidate.exteriorActorCount,
@@ -184,6 +197,7 @@ export function parseInnerKeepQaEvidence(value) {
       candidate.farCountrysideTerrainTriangleCount,
       candidate.finalModelCount,
       candidate.grassBladeCount,
+      candidate.mapBuildingControlCount,
       candidate.maximumPendingRafCount,
       candidate.mountedActorCount,
       candidate.outerWorldRuntimeAssetFailureCount,
@@ -220,9 +234,9 @@ export function parseInnerKeepQaEvidence(value) {
 }
 
 export const INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS = Object.freeze({
-  high: Object.freeze({ drawCalls: 450, triangles: 460_000 }),
-  balanced: Object.freeze({ drawCalls: 350, triangles: 280_000 }),
-  reduced: Object.freeze({ drawCalls: 270, triangles: 135_000 }),
+  high: Object.freeze({ drawCalls: 650, triangles: 900_000 }),
+  balanced: Object.freeze({ drawCalls: 550, triangles: 520_000 }),
+  reduced: Object.freeze({ drawCalls: 400, triangles: 250_000 }),
 });
 
 const EXPECTED_LIVING_SCENE_BY_QUALITY = Object.freeze({
@@ -231,23 +245,23 @@ const EXPECTED_LIVING_SCENE_BY_QUALITY = Object.freeze({
     ambientActorCount: 20,
     animationFrameCap: 30,
     authoredTreeCount: 18,
-    exteriorActorCount: 9,
+    exteriorActorCount: 10,
     exteriorMountedActorCount: 6,
-    exteriorPatrolUnitCount: 7,
-    exteriorTreeCount: 72,
-    grassBladeCount: 2_400,
+    exteriorPatrolUnitCount: 8,
+    exteriorTreeCount: 88,
+    grassBladeCount: 3_000,
     mountedActorCount: 6,
     patrolUnitCount: 12,
-    rendererDrawCallsMaximum: 750,
-    rendererTrianglesMaximum: 720_000,
+    rendererDrawCallsMaximum: 1_000,
+    rendererTrianglesMaximum: 1_200_000,
     scenicResourceNodeCount: 8,
     sceneGraphDrawCallsMaximum: INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.high.drawCalls,
     sceneGraphTrianglesMaximum: INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.high.triangles,
-    farCountrysideFieldParcelCount: 250,
-    farCountrysideFieldTuftCount: 240,
-    farCountrysideHedgerowTreeCount: 24,
-    farCountrysideTerrainTriangleCount: 6_160,
-    terrainTriangleCount: 15_120,
+    farCountrysideFieldParcelCount: 820,
+    farCountrysideFieldTuftCount: 320,
+    farCountrysideHedgerowTreeCount: 32,
+    farCountrysideTerrainTriangleCount: 9_760,
+    terrainTriangleCount: 34_848,
     wildlifeCount: 10,
   }),
   balanced: Object.freeze({
@@ -258,23 +272,22 @@ const EXPECTED_LIVING_SCENE_BY_QUALITY = Object.freeze({
     exteriorActorCount: 6,
     exteriorMountedActorCount: 4,
     exteriorPatrolUnitCount: 4,
-    exteriorTreeCount: 44,
-    grassBladeCount: 1_400,
+    exteriorTreeCount: 56,
+    grassBladeCount: 1_800,
     mountedActorCount: 4,
     patrolUnitCount: 6,
-    // The reviewed far-countryside camera exposes more of the living scene.
-    // Construction peaked at 401 renderer draws across repeated local Chrome
-    // captures; 416 retains a tight 15-draw allowance for capture variation.
-    rendererDrawCallsMaximum: 416,
-    rendererTrianglesMaximum: 270_000,
+    // The enlarged keep and distant countryside expose materially more exact
+    // scenery while retaining a bounded single-renderer presentation.
+    rendererDrawCallsMaximum: 700,
+    rendererTrianglesMaximum: 750_000,
     scenicResourceNodeCount: 6,
     sceneGraphDrawCallsMaximum: INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.balanced.drawCalls,
     sceneGraphTrianglesMaximum: INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.balanced.triangles,
-    farCountrysideFieldParcelCount: 250,
-    farCountrysideFieldTuftCount: 144,
-    farCountrysideHedgerowTreeCount: 16,
-    farCountrysideTerrainTriangleCount: 3_776,
-    terrainTriangleCount: 8_960,
+    farCountrysideFieldParcelCount: 648,
+    farCountrysideFieldTuftCount: 192,
+    farCountrysideHedgerowTreeCount: 20,
+    farCountrysideTerrainTriangleCount: 5_632,
+    terrainTriangleCount: 18_432,
     wildlifeCount: 7,
   }),
   reduced: Object.freeze({
@@ -285,20 +298,20 @@ const EXPECTED_LIVING_SCENE_BY_QUALITY = Object.freeze({
     exteriorActorCount: 3,
     exteriorMountedActorCount: 2,
     exteriorPatrolUnitCount: 2,
-    exteriorTreeCount: 22,
-    grassBladeCount: 480,
+    exteriorTreeCount: 28,
+    grassBladeCount: 600,
     mountedActorCount: 2,
     patrolUnitCount: 4,
-    rendererDrawCallsMaximum: 260,
-    rendererTrianglesMaximum: 130_000,
+    rendererDrawCallsMaximum: 450,
+    rendererTrianglesMaximum: 350_000,
     scenicResourceNodeCount: 4,
     sceneGraphDrawCallsMaximum: INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.reduced.drawCalls,
     sceneGraphTrianglesMaximum: INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.reduced.triangles,
-    farCountrysideFieldParcelCount: 208,
-    farCountrysideFieldTuftCount: 72,
-    farCountrysideHedgerowTreeCount: 8,
-    farCountrysideTerrainTriangleCount: 1_480,
-    terrainTriangleCount: 3_520,
+    farCountrysideFieldParcelCount: 360,
+    farCountrysideFieldTuftCount: 96,
+    farCountrysideHedgerowTreeCount: 10,
+    farCountrysideTerrainTriangleCount: 2_120,
+    terrainTriangleCount: 6_728,
     wildlifeCount: 4,
   }),
 });
@@ -350,7 +363,7 @@ function expectLivingScene(evidence, scenario) {
     : evidence.activeConversationCount <= expected.activeConversationMaximum;
   return evidence.assetStatus === 'ready'
     && evidence.authoredAssetCount === 38
-    && evidence.authoredPlacementCount === 76
+    && evidence.authoredPlacementCount === 101
     && evidence.authoredTreeCount === expected.authoredTreeCount
     && evidence.grassBladeCount === expected.grassBladeCount
     && evidence.waterSurfaceCount === 2
@@ -396,8 +409,8 @@ function expectLivingScene(evidence, scenario) {
     && evidence.exteriorActorCount === expected.exteriorActorCount
     && evidence.exteriorMountedActorCount === expected.exteriorMountedActorCount
     && evidence.exteriorPatrolUnitCount === expected.exteriorPatrolUnitCount
-    && evidence.cathedralPlacementPresent === true
-    && evidence.barracksPlacementPresent === true;
+    && evidence.cathedralPlacementPresent === false
+    && evidence.barracksPlacementPresent === false;
 }
 
 function expectCompletedPresentation(evidence) {
@@ -428,6 +441,19 @@ export function assertInnerKeepQaScenarioEvidence(
   const evidence = parseInnerKeepQaEvidence(value);
   const scenario = innerKeepQaScenarioById(expectedScenarioId);
   const expectedProgress = scenario.progressBasisPoints;
+  const hasAuthoritativeBuilding = [
+    'complete',
+    'constructing',
+    'completion-reveal',
+    'builder-busy',
+    'missing-asset',
+  ].includes(scenario.state);
+  const placementPreviewExpected = [
+    'builder-busy',
+    'insufficient',
+  ].includes(scenario.state) && scenario.renderMode === 'webgl';
+  const expectedCatalogueControlCount = scenario.catalogueOpen ? 6 : 0;
+  const expectedMapBuildingControlCount = hasAuthoritativeBuilding ? 1 : 0;
   if (
     scenario.id !== expectedScenarioId
     || evidence.scenario !== scenario.id
@@ -436,9 +462,15 @@ export function assertInnerKeepQaScenarioEvidence(
     || evidence.quality !== scenario.quality
     || evidence.reducedMotion !== scenario.reducedMotion
     || evidence.progressBasisPoints !== expectedProgress
-    || evidence.slotControlCount !== 12
-    || evidence.enabledSlotControlCount !== 12
-    || evidence.slotCount !== 12
+    || evidence.catalogueBuildingControlCount !== expectedCatalogueControlCount
+    || evidence.enabledCatalogueBuildingControlCount !== expectedCatalogueControlCount
+    || evidence.mapBuildingControlCount !== expectedMapBuildingControlCount
+    || evidence.enabledMapBuildingControlCount !== expectedMapBuildingControlCount
+    || evidence.slotControlCount !== 0
+    || evidence.enabledSlotControlCount !== 0
+    || evidence.slotCount !== 0
+    || evidence.placementPreviewActive !== placementPreviewExpected
+    || evidence.placementPreviewValid !== placementPreviewExpected
     || evidence.horizontalOverflow
     || evidence.verticalOverflow
     || evidence.documentWidth > evidence.viewportWidth + 1
@@ -454,7 +486,8 @@ export function assertInnerKeepQaScenarioEvidence(
       || evidence.webglContextCount !== 1
       || evidence.rafOwnerCount !== 1
       || evidence.maximumPendingRafCount > 1
-      || evidence.slotGeometryCount !== 12
+      || evidence.slotGeometryCount !== 0
+      || evidence.buildingPickTargetCount !== expectedMapBuildingControlCount
     ) throw new TypeError('Inner Keep QA single-renderer evidence mismatched.');
   } else if (
     evidence.canvasCount !== 0
@@ -465,6 +498,7 @@ export function assertInnerKeepQaScenarioEvidence(
     || evidence.rafOwnerCount !== 0
     || evidence.maximumPendingRafCount !== 0
     || evidence.slotGeometryCount !== 0
+    || evidence.buildingPickTargetCount !== 0
   ) {
     throw new TypeError('Inner Keep QA fallback resource evidence mismatched.');
   }

@@ -11,10 +11,13 @@ import {
 } from "spacetimedb";
 
 export default {
-  slotId: __t.string(),
   buildingKind: __t.string(),
+  localXMicrounits: __t.i64(),
+  localZMicrounits: __t.i64(),
+  rotationMilliDegrees: __t.u32(),
   requestKey: __t.string(),
   expectedTargetLevel: __t.u32(),
   expectedProjectRevision: __t.string(),
   expectedPolicyDigest: __t.string(),
+  expectedLayoutDigest: __t.string(),
 };

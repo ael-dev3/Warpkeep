@@ -17,7 +17,7 @@ const outputPath = resolve(
 );
 
 const STATIC_SELECTION_DIGEST =
-  '00304c5dbf819cec6cb656996c1105f64efcf36acf8099c431f5b04b822679f0';
+  'cf1fdac091e310cce3362d43403be938fe7946e46df906f2efb8cff601497c6d';
 const POPULATION_SELECTION_DIGEST =
   '79237fbe85a4db7a0592eb0c27cc00f8e72e85e58be867bec4dd35992f0b87f7';
 const SHA256_PATTERN = /^[a-f0-9]{64}$/;

@@ -67,11 +67,11 @@ function evidenceFor(
         animationFrameCap: 30,
         animationMixerCount: 30,
         authoredTreeCount: 18,
-        exteriorActorCount: 9,
+        exteriorActorCount: 10,
         exteriorMountedActorCount: 6,
-        exteriorPatrolUnitCount: 7,
-        exteriorTreeCount: 72,
-        grassBladeCount: 2_400,
+        exteriorPatrolUnitCount: 8,
+        exteriorTreeCount: 88,
+        grassBladeCount: 3_000,
         mountedActorCount: 6,
         patrolUnitCount: 12,
         rendererDrawCalls: 636,
@@ -79,11 +79,11 @@ function evidenceFor(
         resourceNodeCount: 8,
         sceneGraphDrawCalls: 329,
         sceneGraphTriangles: 274_564,
-        farFieldParcelCount: 250,
-        farFieldTuftCount: 240,
-        farHedgerowTreeCount: 24,
-        farTerrainTriangleCount: 6_160,
-        terrainTriangleCount: 15_120,
+        farFieldParcelCount: 820,
+        farFieldTuftCount: 320,
+        farHedgerowTreeCount: 32,
+        farTerrainTriangleCount: 9_760,
+        terrainTriangleCount: 34_848,
         wildlifeCount: 10
       }
     : scenario.quality === 'reduced'
@@ -95,8 +95,8 @@ function evidenceFor(
         exteriorActorCount: 3,
         exteriorMountedActorCount: 2,
         exteriorPatrolUnitCount: 2,
-        exteriorTreeCount: 22,
-        grassBladeCount: 480,
+        exteriorTreeCount: 28,
+        grassBladeCount: 600,
         mountedActorCount: 2,
         patrolUnitCount: 4,
         rendererDrawCalls: 188,
@@ -104,11 +104,11 @@ function evidenceFor(
         resourceNodeCount: 4,
         sceneGraphDrawCalls: 190,
         sceneGraphTriangles: 75_000,
-        farFieldParcelCount: 208,
-        farFieldTuftCount: 72,
-        farHedgerowTreeCount: 8,
-        farTerrainTriangleCount: 1_480,
-        terrainTriangleCount: 3_520,
+        farFieldParcelCount: 360,
+        farFieldTuftCount: 96,
+        farHedgerowTreeCount: 10,
+        farTerrainTriangleCount: 2_120,
+        terrainTriangleCount: 6_728,
         wildlifeCount: 4
       }
     : {
@@ -119,8 +119,8 @@ function evidenceFor(
         exteriorActorCount: 6,
         exteriorMountedActorCount: 4,
         exteriorPatrolUnitCount: 4,
-        exteriorTreeCount: 44,
-        grassBladeCount: 1_400,
+        exteriorTreeCount: 56,
+        grassBladeCount: 1_800,
         mountedActorCount: 4,
         patrolUnitCount: 6,
         rendererDrawCalls: 261,
@@ -128,15 +128,15 @@ function evidenceFor(
         resourceNodeCount: 6,
         sceneGraphDrawCalls: 250,
         sceneGraphTriangles: 160_000,
-        farFieldParcelCount: 250,
-        farFieldTuftCount: 144,
-        farHedgerowTreeCount: 16,
-        farTerrainTriangleCount: 3_776,
-        terrainTriangleCount: 8_960,
+        farFieldParcelCount: 648,
+        farFieldTuftCount: 192,
+        farHedgerowTreeCount: 20,
+        farTerrainTriangleCount: 5_632,
+        terrainTriangleCount: 18_432,
         wildlifeCount: 7
       };
   return {
-    version: 2,
+    version: 3,
     scenario: scenario.id,
     renderMode: scenario.renderMode,
     innerKeepRenderer: scenario.renderMode,
@@ -154,15 +154,28 @@ function evidenceFor(
     webglContextCount: webgl ? 1 : 0,
     rafOwnerCount: webgl ? 1 : 0,
     maximumPendingRafCount: webgl ? 1 : 0,
-    slotControlCount: 12,
-    enabledSlotControlCount: 12,
-    slotCount: 12,
-    slotGeometryCount: webgl ? 12 : 0,
+    catalogueBuildingControlCount: scenario.catalogueOpen ? 6 : 0,
+    enabledCatalogueBuildingControlCount: scenario.catalogueOpen ? 6 : 0,
+    mapBuildingControlCount: constructing || completed ? 1 : 0,
+    enabledMapBuildingControlCount: constructing || completed ? 1 : 0,
+    slotControlCount: 0,
+    enabledSlotControlCount: 0,
+    slotCount: 0,
+    slotGeometryCount: 0,
+    buildingPickTargetCount: webgl && (constructing || completed) ? 1 : 0,
+    placementPreviewActive: webgl && [
+      'builder-busy',
+      'insufficient'
+    ].includes(scenario.state),
+    placementPreviewValid: webgl && [
+      'builder-busy',
+      'insufficient'
+    ].includes(scenario.state),
     smokeSpriteCount: constructing ? 96 : 0,
     grassBladeCount: webgl ? living.grassBladeCount : 0,
     waterSurfaceCount: webgl ? 2 : 0,
     authoredAssetCount: webgl ? 38 : 0,
-    authoredPlacementCount: webgl ? 76 : 0,
+    authoredPlacementCount: webgl ? 101 : 0,
     authoredTreeCount: webgl ? living.authoredTreeCount : 0,
     ambientActorCount: webgl ? living.actorCount : 0,
     animationFrameCap: webgl && !scenario.reducedMotion
@@ -195,8 +208,8 @@ function evidenceFor(
     exteriorActorCount: webgl ? living.exteriorActorCount : 0,
     exteriorMountedActorCount: webgl ? living.exteriorMountedActorCount : 0,
     exteriorPatrolUnitCount: webgl ? living.exteriorPatrolUnitCount : 0,
-    barracksPlacementPresent: webgl,
-    cathedralPlacementPresent: webgl,
+    barracksPlacementPresent: false,
+    cathedralPlacementPresent: false,
     constructionSiteCount: constructing ? 1 : 0,
     completedBuildingCount: completed ? 1 : 0,
     finalModelCount: completed && webgl ? 1 : 0,
@@ -260,6 +273,28 @@ describe('local Inner Keep QA fixtures', () => {
     expect(readInnerKeepQaScenario('?scenario=empty&extra=true').id).toBe('empty');
     expect(readInnerKeepQaScenario('?scenario=empty&scenario=completed-level-5').id)
       .toBe('empty');
+    expect(INNER_KEEP_QA_SCENARIO_MANIFEST.every((scenario) => (
+      !Object.hasOwn(scenario, 'selectedSlotId')
+    ))).toBe(true);
+    expect(INNER_KEEP_QA_SCENARIO_MANIFEST.filter(({ catalogueOpen }) => (
+      catalogueOpen
+    )).map(({ id }) => id)).toEqual(['high-quality']);
+  });
+
+  it('starts from an empty yard and keeps Barracks and Cathedral player-built', () => {
+    const presentation = createSyntheticInnerKeepQaPresentation(
+      innerKeepQaScenarioById('empty'),
+      2_000_000_000_000_000n
+    );
+    expect(presentation.buildings).toEqual([]);
+    expect(presentation.catalogue.map(({ buildingKind }) => buildingKind)).toEqual([
+      'city-mill',
+      'lumber-camp',
+      'city-stoneworks',
+      'city-goldworks',
+      'city-barracks',
+      'grand-covenant-cathedral'
+    ]);
   });
 
   it('builds integrity-valid synthetic projections with exact construction progress', () => {
@@ -271,8 +306,7 @@ describe('local Inner Keep QA fixtures', () => {
       );
       expect(innerKeepPresentationIntegrity(presentation), scenario.id).toBe(true);
       expect(presentation.castleId).toBeTypeOf('bigint');
-      expect(presentation.slots).toHaveLength(12);
-      expect(presentation.catalogue).toHaveLength(4);
+      expect(presentation.catalogue).toHaveLength(6);
       expect(JSON.stringify(presentation, (_key, value) => (
         typeof value === 'bigint' ? value.toString() : value
       ))).not.toMatch(/(?:fid|token|wallet|receipt|requestKey)/i);
@@ -293,7 +327,7 @@ describe('local Inner Keep QA fixtures', () => {
       2_000_000_000_000_000n
     );
     const previewPaths = presentation.catalogue.map((entry) => entry.previewUrl);
-    expect(new Set(previewPaths).size).toBe(4);
+    expect(new Set(previewPaths).size).toBe(6);
     expect(previewPaths.every((path) => (
       /^images\/inner-keep\/catalog\/[a-z-]+-[a-f0-9]{16}\.png$/.test(path ?? '')
     ))).toBe(true);
@@ -301,7 +335,9 @@ describe('local Inner Keep QA fixtures', () => {
       'Each completed level lowers future Food costs by 5%, up to 25%.',
       'Each completed level lowers future Wood costs by 5%, up to 25%.',
       'Each completed level lowers future Stone costs by 5%, up to 25%.',
-      'Each completed level lowers future Gold costs by 5%, up to 25%.'
+      'Each completed level lowers future Gold costs by 5%, up to 25%.',
+      'A major military project for the growing town.',
+      'A monumental civic project for the heart of the town.'
     ]);
   });
 
@@ -317,7 +353,9 @@ describe('local Inner Keep QA fixtures', () => {
       { buildingKind: 'city-mill', previewUrl: undefined },
       expect.objectContaining({ buildingKind: 'lumber-camp' }),
       expect.objectContaining({ buildingKind: 'city-stoneworks' }),
-      expect.objectContaining({ buildingKind: 'city-goldworks' })
+      expect.objectContaining({ buildingKind: 'city-goldworks' }),
+      expect.objectContaining({ buildingKind: 'city-barracks' }),
+      expect.objectContaining({ buildingKind: 'grand-covenant-cathedral' })
     ]);
   });
 
@@ -422,12 +460,15 @@ describe('local Inner Keep rendered evidence contract', () => {
       evidenceFor('construction-50-percent'),
       'construction-50-percent'
     )).toMatchObject({
+      buildingPickTargetCount: 1,
       canvasCount: 1,
       finalModelCount: 0,
       rendererCount: 1,
       rendererDrawCalls: 261,
       rendererTriangles: 148_096,
       scaffoldPresent: true,
+      slotCount: 0,
+      slotGeometryCount: 0,
       webglContextCount: 1
     });
     expect(assertInnerKeepQaScenarioEvidence(
@@ -443,7 +484,9 @@ describe('local Inner Keep rendered evidence contract', () => {
       rendererCount: 0,
       rendererDrawCalls: 0,
       rendererTriangles: 0,
-      slotControlCount: 12,
+      buildingPickTargetCount: 0,
+      slotControlCount: 0,
+      slotCount: 0,
       webglContextCount: 0
     });
     for (const override of [
@@ -453,16 +496,26 @@ describe('local Inner Keep rendered evidence contract', () => {
       { webglContextCount: 2 },
       { rafOwnerCount: 2 },
       { maximumPendingRafCount: 2 },
-      { slotGeometryCount: 11 }
+      { slotGeometryCount: 1 }
     ]) {
       expect(() => assertInnerKeepQaScenarioEvidence(
         evidenceFor('empty', override),
         'empty'
       )).toThrow(/single-renderer/i);
     }
+    for (const override of [
+      { slotControlCount: 1 },
+      { enabledSlotControlCount: 1 },
+      { slotCount: 1 }
+    ]) {
+      expect(() => assertInnerKeepQaScenarioEvidence(
+        evidenceFor('empty', override),
+        'empty'
+      )).toThrow(/mismatched/i);
+    }
   });
 
-  it('keeps the version-two living-world evidence shape exact', () => {
+  it('keeps the version-three free-placement evidence shape exact', () => {
     const complete = evidenceFor('empty');
     const { wildlifeCount, ...missingWildlifeCount } = complete;
     expect(wildlifeCount).toBe(7);
@@ -482,9 +535,9 @@ describe('local Inner Keep rendered evidence contract', () => {
 
   it('rejects quality-cap drift in animation, scene-graph, and renderer evidence', () => {
     expect(assertInnerKeepQaScenarioEvidence(
-      evidenceFor('empty', { rendererDrawCalls: 416 }),
+      evidenceFor('empty', { rendererDrawCalls: 700 }),
       'empty'
-    )).toMatchObject({ rendererDrawCalls: 416 });
+    )).toMatchObject({ rendererDrawCalls: 700 });
     for (const override of [
       { animationFrameCap: 25 },
       {
@@ -495,8 +548,8 @@ describe('local Inner Keep rendered evidence contract', () => {
         sceneGraphTriangles:
           INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.balanced.triangles + 1,
       },
-      { rendererDrawCalls: 417 },
-      { rendererTriangles: 270_001 }
+      { rendererDrawCalls: 701 },
+      { rendererTriangles: 750_001 }
     ]) {
       expect(() => assertInnerKeepQaScenarioEvidence(
         evidenceFor('empty', override),
@@ -514,25 +567,25 @@ describe('local Inner Keep rendered evidence contract', () => {
       animationMixerCount: 19,
       assetStatus: 'ready',
       authoredAssetCount: 38,
-      authoredPlacementCount: 76,
+      authoredPlacementCount: 101,
       authoredTreeCount: 12,
-      barracksPlacementPresent: true,
-      cathedralPlacementPresent: true,
+      barracksPlacementPresent: false,
+      cathedralPlacementPresent: false,
       exactWildlifeCount: 7,
       exteriorActorCount: 6,
       exteriorMountedActorCount: 4,
       exteriorPatrolUnitCount: 4,
-      exteriorTreeCount: 44,
-      grassBladeCount: 1_400,
+      exteriorTreeCount: 56,
+      grassBladeCount: 1_800,
       mountedActorCount: 4,
       patrolUnitCount: 6,
       scenicResourceNodeCount: 6,
-      farCountrysideFieldParcelCount: 250,
-      farCountrysideFieldTuftCount: 144,
-      farCountrysideHedgerowTreeCount: 16,
+      farCountrysideFieldParcelCount: 648,
+      farCountrysideFieldTuftCount: 192,
+      farCountrysideHedgerowTreeCount: 20,
       farCountrysideStatus: 'ready',
-      farCountrysideTerrainTriangleCount: 3_776,
-      terrainTriangleCount: 8_960,
+      farCountrysideTerrainTriangleCount: 5_632,
+      terrainTriangleCount: 18_432,
       topographicFeatureCount: 9,
       tradeWagonCount: 1,
       wildlifeAssetStatus: 'ready',
@@ -554,8 +607,8 @@ describe('local Inner Keep rendered evidence contract', () => {
       authoredTreeCount: 6,
       exactWildlifeCount: 4,
       exteriorActorCount: 3,
-      exteriorTreeCount: 22,
-      grassBladeCount: 480,
+      exteriorTreeCount: 28,
+      grassBladeCount: 600,
       mountedActorCount: 2,
       patrolUnitCount: 4
     });
@@ -566,10 +619,12 @@ describe('local Inner Keep rendered evidence contract', () => {
       ambientActorCount: 20,
       animationMixerCount: 30,
       authoredTreeCount: 18,
+      catalogueBuildingControlCount: 6,
+      enabledCatalogueBuildingControlCount: 6,
       exactWildlifeCount: 10,
-      exteriorActorCount: 9,
-      exteriorTreeCount: 72,
-      grassBladeCount: 2_400,
+      exteriorActorCount: 10,
+      exteriorTreeCount: 88,
+      grassBladeCount: 3_000,
       mountedActorCount: 6,
       patrolUnitCount: 12
     });
@@ -614,9 +669,9 @@ describe('local Inner Keep rendered evidence contract', () => {
       { assetStatus: 'loading' },
       { assetStatus: 'degraded' },
       { authoredAssetCount: 37 },
-      { authoredPlacementCount: 66 },
+      { authoredPlacementCount: 100 },
       { authoredTreeCount: 11 },
-      { grassBladeCount: 1_399 },
+      { grassBladeCount: 1_799 },
       { waterSurfaceCount: 1 },
       { ambientActorCount: 11 },
       { mountedActorCount: 3 },
@@ -626,14 +681,14 @@ describe('local Inner Keep rendered evidence contract', () => {
       { outerWorldStatus: 'loading' },
       { outerWorldRuntimeAssetFailureCount: 1 },
       { topographicFeatureCount: 8 },
-      { terrainTriangleCount: 8_959 },
+      { terrainTriangleCount: 18_431 },
       { farCountrysideStatus: 'degraded' },
-      { farCountrysideTerrainTriangleCount: 3_775 },
-      { farCountrysideFieldParcelCount: 249 },
-      { farCountrysideFieldTuftCount: 143 },
-      { farCountrysideHedgerowTreeCount: 15 },
+      { farCountrysideTerrainTriangleCount: 5_631 },
+      { farCountrysideFieldParcelCount: 647 },
+      { farCountrysideFieldTuftCount: 191 },
+      { farCountrysideHedgerowTreeCount: 19 },
       { terrainHeightRangeMillimeters: 0 },
-      { exteriorTreeCount: 43 },
+      { exteriorTreeCount: 55 },
       { scenicResourceNodeCount: 5 },
       { wildlifeAssetStatus: 'loading' },
       { wildlifeCount: 6 },
@@ -643,8 +698,8 @@ describe('local Inner Keep rendered evidence contract', () => {
       { exteriorActorCount: 5 },
       { exteriorMountedActorCount: 3 },
       { exteriorPatrolUnitCount: 3 },
-      { barracksPlacementPresent: false },
-      { cathedralPlacementPresent: false }
+      { barracksPlacementPresent: true },
+      { cathedralPlacementPresent: true }
     ]) {
       expect(() => assertInnerKeepQaScenarioEvidence(
         evidenceFor('empty', override),
@@ -690,11 +745,23 @@ describe('local Inner Keep rendered evidence contract', () => {
     expect(assertInnerKeepQaScenarioEvidence(
       evidenceFor('builder-busy'),
       'builder-busy'
-    ).builderBusyVisible).toBe(true);
+    )).toMatchObject({
+      builderBusyVisible: true,
+      buildingPickTargetCount: 1,
+      mapBuildingControlCount: 1,
+      placementPreviewActive: true,
+      placementPreviewValid: true
+    });
     expect(assertInnerKeepQaScenarioEvidence(
       evidenceFor('insufficient-resources'),
       'insufficient-resources'
-    ).insufficientResourcesVisible).toBe(true);
+    )).toMatchObject({
+      buildingPickTargetCount: 0,
+      insufficientResourcesVisible: true,
+      mapBuildingControlCount: 0,
+      placementPreviewActive: true,
+      placementPreviewValid: true
+    });
     expect(assertInnerKeepQaScenarioEvidence(
       evidenceFor('missing-asset-fallback'),
       'missing-asset-fallback'
@@ -760,7 +827,11 @@ describe('local Inner Keep QA production boundary', () => {
     expect(browserProbe).not.toMatch(/\bwriteFile\s*\(/u);
     expect(browserProbe).toContain("'Input.dispatchKeyEvent'");
     expect(browserProbe).toContain('exerciseWebglNativeKeyboardActivation');
-    expect(browserProbe).toContain('semanticSlotLabels');
+    expect(browserProbe).toContain('semanticBuildingLabels');
+    expect(browserProbe).toContain('catalogueBuildingControlCount');
+    expect(browserProbe).toContain('buildingPickTargetCount');
+    expect(browserProbe).toContain('placementPreviewValid');
+    expect(browserProbe).toContain("'[data-inner-keep-slot-id]'");
     expect(browserProbe).toContain("querySelector('#inner-keep-panel-title')");
     expect(browserProbe).toContain("querySelector('.inner-keep-builder')");
     expect(browserProbe).toContain('panelTouchAction');

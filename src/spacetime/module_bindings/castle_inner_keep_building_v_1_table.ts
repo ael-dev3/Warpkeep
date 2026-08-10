@@ -13,9 +13,10 @@ import {
 export default __t.row({
   buildingKey: __t.string().primaryKey().name("building_key"),
   castleId: __t.u64().name("castle_id"),
-  slotKey: __t.string().name("slot_key"),
-  slotId: __t.string().name("slot_id"),
   buildingKind: __t.string().name("building_kind"),
+  localXMicrounits: __t.i64().name("local_x_microunits"),
+  localZMicrounits: __t.i64().name("local_z_microunits"),
+  rotationMilliDegrees: __t.u32().name("rotation_milli_degrees"),
   completedLevel: __t.u32().name("completed_level"),
   targetLevel: __t.u32().name("target_level"),
   phase: __t.string(),

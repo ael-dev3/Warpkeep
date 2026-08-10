@@ -28,16 +28,29 @@ test('project start derives caller, castle, level, cost, and server time', () =>
     'export function startInnerKeepProject',
     '/** Exact schedule completion',
   );
+  const idempotency = section(
+    authority,
+    'function priorReceiptMatches',
+    'export type InnerKeepStartResult',
+  );
   assert.match(wire, /name: 'inner_keep_start_project_v1'/);
-  assert.match(wire, /slotId: t\.string\(\)/);
   assert.match(wire, /buildingKind: t\.string\(\)/);
+  assert.match(wire, /localXMicrounits: t\.i64\(\)/);
+  assert.match(wire, /localZMicrounits: t\.i64\(\)/);
+  assert.match(wire, /rotationMilliDegrees: t\.u32\(\)/);
+  assert.doesNotMatch(wire, /slot(?:Id|Key):/);
   assert.match(wire, /requestKey: t\.string\(\)/);
   assert.match(wire, /expectedTargetLevel: t\.u32\(\)/);
   assert.match(wire, /expectedProjectRevision: t\.string\(\)/);
   assert.match(wire, /expectedPolicyDigest: t\.string\(\)/);
+  assert.match(wire, /expectedLayoutDigest: t\.string\(\)/);
   assert.doesNotMatch(wire, /fid: t\.|castleId: t\.|expectedCost|expectedDuration|completion/i);
   assert.match(wire, /const \{ claims, castle \} = requireGameplayPlayerV1\(ctx\)/);
   assert.match(start, /const prior = ctx\.db\.castleInnerBuildReceiptV1\.receiptKey\.find/);
+  assert.match(idempotency, /row\.localXMicrounits === input\.localXMicrounits/);
+  assert.match(idempotency, /row\.localZMicrounits === input\.localZMicrounits/);
+  assert.match(idempotency, /row\.rotationMilliDegrees === input\.rotationMilliDegrees/);
+  assert.match(start, /evaluateCanonicalInnerKeepPlacement\(/);
   assert.ok(start.indexOf('if (prior !== null)') < start.indexOf('assertInnerKeepComponentActive(ctx)'));
   assert.ok(
     start.indexOf('if (prior !== null)')
@@ -45,6 +58,10 @@ test('project start derives caller, castle, level, cost, and server time', () =>
   );
   assert.ok(
     start.indexOf('retainedPolicyDigest !== INNER_KEEP_POLICY_DIGEST')
+      < start.indexOf('reconcileOverdueProject('),
+  );
+  assert.ok(
+    start.indexOf('retainedLayoutDigest !== INNER_KEEP_LAYOUT_DIGEST')
       < start.indexOf('reconcileOverdueProject('),
   );
   assert.match(start, /targetLevel = existing\.completedLevel \+ 1/);
@@ -190,6 +207,21 @@ test('public bindings expose projections while Builder, receipt, and schedule st
     'castle_inner_build_receipt_v_1_table.ts',
     'castle_inner_construction_schedule_v_1_table.ts',
   ]) assert.equal(existsSync(new URL(privateTable, bindings)), false);
+
+  const publicBuilding = readFileSync(
+    new URL('castle_inner_keep_building_v_1_table.ts', bindings),
+    'utf8',
+  );
+  const startReducer = readFileSync(
+    new URL('inner_keep_start_project_v_1_reducer.ts', bindings),
+    'utf8',
+  );
+  for (const generated of [publicBuilding, startReducer]) {
+    assert.match(generated, /localXMicrounits: __t\.i64\(\)/);
+    assert.match(generated, /localZMicrounits: __t\.i64\(\)/);
+    assert.match(generated, /rotationMilliDegrees: __t\.u32\(\)/);
+    assert.doesNotMatch(generated, /slot(?:Key|Id):/);
+  }
 });
 
 test('admin transitions are separate, attested, counts-bound, and never activate during seed', () => {

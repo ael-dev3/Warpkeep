@@ -5,21 +5,29 @@ import {
   innerKeepPresentationIntegrity,
   type InnerKeepBuildingPresentation,
   type InnerKeepBuildingKind,
+  type InnerKeepPlacementTransform,
   type InnerKeepPresentation
 } from './innerKeepPresentation';
 import {
-  INNER_KEEP_LAYOUT_V1_SLOTS
-} from './innerKeepLayoutV1';
+  evaluateInnerKeepPlacementDraft,
+  type InnerKeepPlacementDraft
+} from './innerKeepPlacement';
+import {
+  INNER_KEEP_FREE_PLACEMENT_ENVELOPES
+} from './innerKeepFreePlacementPolicy';
 import {
   allInnerKeepStaticRuntimeAssetIds,
   createInnerKeepAuthoredBuilding,
   createInnerKeepAuthoredStaticPresentation,
   hasCompleteInnerKeepStaticRuntimeCoverage,
+  innerKeepFixedDressingIntersectsBuilding,
+  type InnerKeepAuthoredBuildingExclusion,
   type InnerKeepAuthoredStaticPresentation
 } from './createInnerKeepAuthoredPresentation';
 import {
   createInnerKeepEcology,
-  type InnerKeepEcology
+  type InnerKeepEcology,
+  type InnerKeepEcologyBuildingExclusion
 } from './createInnerKeepEcology';
 import {
   createInnerKeepTownAtmosphere
@@ -90,9 +98,9 @@ export type InnerKeepSceneQuality = 'high' | 'balanced' | 'reduced';
  * calls are captured separately because shadow passes can redraw casters.
  */
 export const INNER_KEEP_SCENE_GRAPH_RENDER_BUDGETS = Object.freeze({
-  high: Object.freeze({ drawCalls: 450, triangles: 460_000 }),
-  balanced: Object.freeze({ drawCalls: 350, triangles: 280_000 }),
-  reduced: Object.freeze({ drawCalls: 270, triangles: 135_000 })
+  high: Object.freeze({ drawCalls: 650, triangles: 900_000 }),
+  balanced: Object.freeze({ drawCalls: 550, triangles: 520_000 }),
+  reduced: Object.freeze({ drawCalls: 400, triangles: 250_000 })
 } satisfies Readonly<Record<InnerKeepSceneQuality, Readonly<{
   drawCalls: number;
   triangles: number;
@@ -148,14 +156,18 @@ export type InnerKeepSceneTelemetry = Readonly<{
   exteriorMountedActorCount: number;
   exteriorPatrolUnitCount: number;
   slotCount: number;
+  buildingPickTargetCount: number;
+  placementPreviewActive: boolean;
+  placementPreviewValid: boolean;
   completedBuildingCount: number;
   constructionSiteCount: number;
   completionRevealActive: boolean;
 }>;
 
-export type InnerKeepSlotProjection = Readonly<{
-  slotId: string;
-  /** Client-space center of the exact rendered pad bounds. */
+export type InnerKeepBuildingProjection = Readonly<{
+  buildingKey: string;
+  buildingKind: InnerKeepBuildingKind;
+  /** Client-space center of the authoritative building footprint. */
   x: number;
   y: number;
   /** Client-space bounds of the exact rendered pad, before the CSS tap floor. */
@@ -164,12 +176,12 @@ export type InnerKeepSlotProjection = Readonly<{
   visible: boolean;
 }>;
 
-export type InnerKeepSlotProjectionFrame = Readonly<{
+export type InnerKeepBuildingProjectionFrame = Readonly<{
   viewportLeft: number;
   viewportTop: number;
   viewportWidth: number;
   viewportHeight: number;
-  slots: readonly InnerKeepSlotProjection[];
+  buildings: readonly InnerKeepBuildingProjection[];
 }>;
 
 export type InnerKeepSceneLayer = Readonly<{
@@ -177,16 +189,22 @@ export type InnerKeepSceneLayer = Readonly<{
   camera: THREE.OrthographicCamera;
   dispose: () => void;
   getAnimationFrameCap: () => number;
-  getSlotProjectionFrame: () => InnerKeepSlotProjectionFrame;
+  getBuildingProjectionFrame: () => InnerKeepBuildingProjectionFrame;
   getTelemetry: () => InnerKeepSceneTelemetry;
   isAnimationActive: () => boolean;
   panByPixels: (deltaX: number, deltaY: number) => void;
-  pickSlot: (clientX: number, clientY: number) => string | null;
+  pickBuilding: (clientX: number, clientY: number) => string | null;
+  projectGroundPlacement: (
+    clientX: number,
+    clientY: number,
+    buildingKind: InnerKeepBuildingKind
+  ) => InnerKeepPlacementDraft | null;
   reconcile: (
     presentation: InnerKeepPresentation | null,
     context?: InnerKeepSceneVisualContext
   ) => void;
-  setSelectedSlot: (slotId: string | null) => void;
+  setPlacementDraft: (draft: InnerKeepPlacementDraft | null) => void;
+  setSelectedBuilding: (buildingKey: string | null) => void;
   setViewport: (width: number, height: number) => void;
   update: (elapsedSeconds: number) => boolean;
   zoomByWheel: (deltaY: number, deltaMode: number) => void;
@@ -208,17 +226,6 @@ export type CreateInnerKeepSceneLayerOptions = Readonly<{
   /** Test-only failure seam for the optional presentation-only horizon. */
   farCountrysideFactory?: typeof createInnerKeepFarCountryside;
 }>;
-
-const SLOT_POSITIONS = new Map(INNER_KEEP_LAYOUT_V1_SLOTS.map((slot) => [
-  slot.slotId,
-  Object.freeze({
-    x: Number(slot.localXMicrounits) / 1_000_000,
-    z: Number(slot.localZMicrounits) / 1_000_000,
-    rotation: slot.rotationMilliDegrees * Math.PI / 180_000,
-    active: slot.active
-  })
-] as const));
-type InnerKeepSlotPosition = NonNullable<ReturnType<typeof SLOT_POSITIONS.get>>;
 
 const SMOKE_SPRITE_BUDGET: Readonly<Record<InnerKeepSceneQuality, number>> =
   Object.freeze({ high: 160, balanced: 96, reduced: 48 });
@@ -245,6 +252,50 @@ function deterministicVisualSeed(
     hash = Math.imul(hash, 16_777_619);
   }
   return hash >>> 0;
+}
+
+function innerKeepEcologyBuildingExclusion(
+  buildingKind: InnerKeepBuildingKind,
+  placement: InnerKeepPlacementTransform
+): InnerKeepEcologyBuildingExclusion {
+  const envelope = INNER_KEEP_FREE_PLACEMENT_ENVELOPES[buildingKind];
+  const quarterTurn = placement.rotationMilliDegrees === 90_000
+    || placement.rotationMilliDegrees === 270_000;
+  return Object.freeze({
+    centerMeters: Object.freeze([
+      Number(placement.localXMicrounits) / 1_000_000,
+      Number(placement.localZMicrounits) / 1_000_000
+    ] as const),
+    halfExtentsMeters: quarterTurn
+      ? Object.freeze([
+        envelope.halfExtentsMeters[1],
+        envelope.halfExtentsMeters[0]
+      ] as const)
+      : envelope.halfExtentsMeters
+  });
+}
+
+const INNER_KEEP_YARD_DRESSING_CLEARANCE_METERS = 0.9;
+
+function yardDressingIntersectsBuilding(
+  x: number,
+  z: number,
+  buildingKind: InnerKeepBuildingKind,
+  placement: InnerKeepPlacementTransform
+) {
+  const envelope = INNER_KEEP_FREE_PLACEMENT_ENVELOPES[buildingKind];
+  const quarterTurn = placement.rotationMilliDegrees === 90_000
+    || placement.rotationMilliDegrees === 270_000;
+  const halfX = quarterTurn
+    ? envelope.halfExtentsMeters[1]
+    : envelope.halfExtentsMeters[0];
+  const halfZ = quarterTurn
+    ? envelope.halfExtentsMeters[0]
+    : envelope.halfExtentsMeters[1];
+  const centerX = Number(placement.localXMicrounits) / 1_000_000;
+  const centerZ = Number(placement.localZMicrounits) / 1_000_000;
+  return Math.abs(x - centerX) < halfX + INNER_KEEP_YARD_DRESSING_CLEARANCE_METERS
+    && Math.abs(z - centerZ) < halfZ + INNER_KEEP_YARD_DRESSING_CLEARANCE_METERS;
 }
 
 function setShadow(mesh: THREE.Mesh, cast = true, receive = true) {
@@ -498,6 +549,7 @@ function disposeInstancedMeshBuffers(root: THREE.Object3D) {
 function createDeterministicYardDressing(
   seed: number,
   terrainKind: RealmTerrainKind | undefined,
+  buildings: readonly InnerKeepBuildingPresentation[],
   disposableMaterials: Set<THREE.Material>,
   disposableGeometries: Set<THREE.BufferGeometry>
 ) {
@@ -535,12 +587,22 @@ function createDeterministicYardDressing(
   safeAnchors.forEach(([anchorX, anchorZ], index) => {
     const x = anchorX + (deterministicUnit(index, salt + 1) - 0.5) * 0.58;
     const z = anchorZ + (deterministicUnit(index, salt + 2) - 0.5) * 0.42;
+    if (buildings.some((building) => yardDressingIntersectsBuilding(
+      x,
+      z,
+      building.buildingKind,
+      building.placement
+    ))) return;
+    const anchorGroup = new THREE.Group();
+    anchorGroup.name = `inner-keep-soft-yard-dressing:${index}`;
+    anchorGroup.userData.innerKeepYardDressingAnchorX = x;
+    anchorGroup.userData.innerKeepYardDressingAnchorZ = z;
     const shrub = setShadow(new THREE.Mesh(shrubGeometry, shrubMaterial));
     const shrubScale = 0.72 + deterministicUnit(index, salt + 3) * 0.62;
     shrub.position.set(x, 0.46 * shrubScale, z);
     shrub.scale.setScalar(shrubScale);
     shrub.rotation.y = deterministicUnit(index, salt + 4) * Math.PI;
-    group.add(shrub);
+    anchorGroup.add(shrub);
     const rubble = setShadow(new THREE.Mesh(rubbleGeometry, rubbleMaterial));
     const rubbleScale = 0.58 + deterministicUnit(index, salt + 5) * 0.62;
     rubble.position.set(
@@ -554,7 +616,8 @@ function createDeterministicYardDressing(
       deterministicUnit(index, salt + 9) * Math.PI,
       deterministicUnit(index, salt + 10) * 0.28
     );
-    group.add(rubble);
+    anchorGroup.add(rubble);
+    group.add(anchorGroup);
   });
   return group;
 }
@@ -800,7 +863,8 @@ export function createInnerKeepSceneLayer(
   let viewportWidth = 1;
   let viewportHeight = 1;
   let disposed = false;
-  let selectedSlotId: string | null = null;
+  let selectedBuildingKey: string | null = null;
+  let placementDraft: InnerKeepPlacementDraft | null = null;
   let constructionPosition: Readonly<{ x: number; y: number; z: number }> | null = null;
   let completionReveal: Readonly<{
     building: THREE.Group;
@@ -809,7 +873,7 @@ export function createInnerKeepSceneLayer(
     durationSeconds: number;
   }> | null = null;
   let previousBuildingPhases = new Map<string, InnerKeepBuildingPresentation['phase']>();
-  const pendingCompletionRevealSlots = new Set<string>();
+  const pendingCompletionRevealBuildings = new Set<string>();
   let lastElapsedSeconds = 0;
   let lastPresentation: InnerKeepPresentation | null = null;
   let lastVisualContext: InnerKeepSceneVisualContext | undefined;
@@ -865,6 +929,9 @@ export function createInnerKeepSceneLayer(
     exteriorMountedActorCount: 0,
     exteriorPatrolUnitCount: 0,
     slotCount: 0,
+    buildingPickTargetCount: 0,
+    placementPreviewActive: false,
+    placementPreviewValid: false,
     completedBuildingCount: 0,
     constructionSiteCount: 0,
     completionRevealActive: false
@@ -877,12 +944,25 @@ export function createInnerKeepSceneLayer(
   const staticGroup = new THREE.Group();
   const proceduralFallbackGroup = new THREE.Group();
   proceduralFallbackGroup.name = 'inner-keep-procedural-asset-fallback';
+  const proceduralYieldingDressing = new Map<string, THREE.Group>();
   const authoredStaticGroup = new THREE.Group();
   authoredStaticGroup.name = 'inner-keep-authored-static-root';
   const ambientGroup = new THREE.Group();
   ambientGroup.name = 'inner-keep-persistent-ambient-root';
   const dynamicGroup = new THREE.Group();
-  scene.add(staticGroup, proceduralFallbackGroup, authoredStaticGroup, ambientGroup, dynamicGroup);
+  const placementPreviewGroup = new THREE.Group();
+  placementPreviewGroup.name = 'inner-keep-placement-preview-root';
+  placementPreviewGroup.userData.presentationOnly = true;
+  placementPreviewGroup.userData.gameplayAuthorityClaimed = false;
+  placementPreviewGroup.raycast = () => undefined;
+  scene.add(
+    staticGroup,
+    proceduralFallbackGroup,
+    authoredStaticGroup,
+    ambientGroup,
+    dynamicGroup,
+    placementPreviewGroup
+  );
   const outerTerrain = createInnerKeepOuterTerrainGeometry(options.quality);
   const renderedTerrainHeightAt = outerTerrain.heightAt;
   let farCountryside: InnerKeepFarCountryside;
@@ -1119,63 +1199,23 @@ export function createInnerKeepSceneLayer(
     roughness: 0.94
   });
   disposableMaterials.add(plazaMaterial);
-  const plazaGeometry = new THREE.CylinderGeometry(3.15, 3.25, 0.14, 32);
+  const plazaGeometry = new THREE.CylinderGeometry(4.7, 4.85, 0.14, 40);
   disposableGeometries.add(plazaGeometry);
   const plaza = setShadow(new THREE.Mesh(plazaGeometry, plazaMaterial), false, true);
-  plaza.position.set(0, 0.12, 3.15);
+  plaza.position.set(0, 0.12, 2);
   proceduralFallbackGroup.add(plaza);
 
-  const keepMaterial = new THREE.MeshStandardMaterial({ color: 0x9a8b72, roughness: 0.84 });
   const keepRoofMaterial = new THREE.MeshStandardMaterial({ color: 0x4d3e3b, roughness: 0.72 });
   const bannerMaterial = new THREE.MeshStandardMaterial({ color: 0x63347f, roughness: 0.7 });
-  disposableMaterials.add(keepMaterial);
   disposableMaterials.add(keepRoofMaterial);
   disposableMaterials.add(bannerMaterial);
-  const keepGeometry = new THREE.BoxGeometry(8.6, 5.5, 7.2);
-  disposableGeometries.add(keepGeometry);
-  const keep = setShadow(new THREE.Mesh(keepGeometry, keepMaterial));
-  keep.name = 'inner-keep-procedural-cathedral-fallback';
-  keep.position.set(0, 2.85, -15.4);
-  proceduralFallbackGroup.add(keep);
-  for (const [x, z] of [[-4.25, -18.55], [4.25, -18.55], [-4.25, -12.25], [4.25, -12.25]]) {
-    const towerGeometry = new THREE.CylinderGeometry(1.15, 1.3, 6.5, 10);
-    const roofGeometry = new THREE.ConeGeometry(1.45, 1.5, 10);
-    disposableGeometries.add(towerGeometry);
-    disposableGeometries.add(roofGeometry);
-    const tower = setShadow(new THREE.Mesh(towerGeometry, keepMaterial));
-    tower.position.set(x!, 3.3, z!);
-    const roof = setShadow(new THREE.Mesh(roofGeometry, keepRoofMaterial));
-    roof.position.set(x!, 7.2, z!);
-    proceduralFallbackGroup.add(tower, roof);
-  }
-  const bannerGeometry = new THREE.PlaneGeometry(0.9, 1.45);
-  disposableGeometries.add(bannerGeometry);
-  const banner = new THREE.Mesh(bannerGeometry, bannerMaterial);
-  banner.position.set(0, 3.55, -11.76);
-  proceduralFallbackGroup.add(banner);
-
-  const fallbackBarracksGeometry = new THREE.BoxGeometry(5.7, 2.8, 4.6);
-  const fallbackBarracksRoofGeometry = new THREE.ConeGeometry(4, 2.1, 4);
-  disposableGeometries.add(fallbackBarracksGeometry);
-  disposableGeometries.add(fallbackBarracksRoofGeometry);
-  const fallbackBarracks = setShadow(new THREE.Mesh(
-    fallbackBarracksGeometry,
-    keepMaterial
-  ));
-  fallbackBarracks.name = 'inner-keep-procedural-barracks-fallback';
-  fallbackBarracks.position.set(-16, 1.5, 0);
-  const fallbackBarracksRoof = setShadow(new THREE.Mesh(
-    fallbackBarracksRoofGeometry,
-    keepRoofMaterial
-  ));
-  fallbackBarracksRoof.position.set(-16, 3.7, 0);
-  fallbackBarracksRoof.rotation.y = Math.PI / 4;
-  proceduralFallbackGroup.add(fallbackBarracks, fallbackBarracksRoof);
+  // Barracks and Cathedral are construction outcomes. An absent authoritative
+  // building row must remain visibly unbuilt even when exact asset loading is
+  // disabled, so the procedural fallback contains no landmark substitute.
 
   const civicTimber = new THREE.MeshStandardMaterial({ color: 0x62401f, roughness: 0.92 });
   const civicStone = new THREE.MeshStandardMaterial({ color: 0x807b70, roughness: 0.95 });
   const civicIron = new THREE.MeshStandardMaterial({ color: 0x25252a, roughness: 0.66, metalness: 0.56 });
-  const civicGreen = new THREE.MeshStandardMaterial({ color: 0x36522d, roughness: 0.96 });
   const lampGlow = new THREE.MeshStandardMaterial({
     color: 0xe6ad55,
     emissive: 0xc56f21,
@@ -1190,7 +1230,6 @@ export function createInnerKeepSceneLayer(
   disposableMaterials.add(civicTimber);
   disposableMaterials.add(civicStone);
   disposableMaterials.add(civicIron);
-  disposableMaterials.add(civicGreen);
   disposableMaterials.add(lampGlow);
   disposableMaterials.add(waterMaterial);
   const addCivicBox = (
@@ -1201,14 +1240,15 @@ export function createInnerKeepSceneLayer(
     y: number,
     z: number,
     material: THREE.Material,
-    rotationY = 0
+    rotationY = 0,
+    target: THREE.Group = proceduralFallbackGroup
   ) => {
     const geometry = new THREE.BoxGeometry(width, height, depth);
     disposableGeometries.add(geometry);
     const mesh = setShadow(new THREE.Mesh(geometry, material));
     mesh.position.set(x, y, z);
     mesh.rotation.y = rotationY;
-    proceduralFallbackGroup.add(mesh);
+    target.add(mesh);
     return mesh;
   };
   const addCivicCylinder = (
@@ -1219,7 +1259,8 @@ export function createInnerKeepSceneLayer(
     y: number,
     z: number,
     material: THREE.Material,
-    segments = 12
+    segments = 12,
+    target: THREE.Group = proceduralFallbackGroup
   ) => {
     const geometry = new THREE.CylinderGeometry(
       radiusTop,
@@ -1230,50 +1271,75 @@ export function createInnerKeepSceneLayer(
     disposableGeometries.add(geometry);
     const mesh = setShadow(new THREE.Mesh(geometry, material));
     mesh.position.set(x, y, z);
-    proceduralFallbackGroup.add(mesh);
+    target.add(mesh);
     return mesh;
   };
 
   // Open gate, approach standards, and readable civic landmarks.
+  const gateZ = wall.southZ;
   const fallbackGateWestPost = addCivicBox(
-    0.48, 3.5, 0.48, -2.7, 1.75, 15, civicTimber
+    0.48, 3.5, 0.48, -2.7, 1.75, gateZ, civicTimber
   );
   fallbackGateWestPost.name = 'inner-keep-procedural-south-gate-west-post';
   fallbackGateWestPost.userData.presentationOnly = true;
   fallbackGateWestPost.userData.gameplayAuthorityClaimed = false;
   fallbackGateWestPost.raycast = () => undefined;
   const fallbackGateEastPost = addCivicBox(
-    0.48, 3.5, 0.48, 2.7, 1.75, 15, civicTimber
+    0.48, 3.5, 0.48, 2.7, 1.75, gateZ, civicTimber
   );
   fallbackGateEastPost.name = 'inner-keep-procedural-south-gate-east-post';
   fallbackGateEastPost.userData.presentationOnly = true;
   fallbackGateEastPost.userData.gameplayAuthorityClaimed = false;
   fallbackGateEastPost.raycast = () => undefined;
   const fallbackGateFrame = addCivicBox(
-    5.9, 0.42, 0.52, 0, 3.42, 15, civicTimber
+    5.9, 0.42, 0.52, 0, 3.42, gateZ, civicTimber
   );
   fallbackGateFrame.name = 'inner-keep-procedural-south-gate-frame';
-  for (const [side, x] of [['west', -2.55], ['east', 2.55]] as const) {
-    const standard = addCivicBox(0.12, 3.1, 0.12, x, 1.63, 13.05, civicTimber);
+  for (const [side, x] of [['west', -3.4], ['east', 3.4]] as const) {
+    const standard = addCivicBox(0.12, 3.1, 0.12, x, 1.63, gateZ - 2, civicTimber);
     standard.name = `inner-keep-procedural-gate-standard-${side}`;
     const gateBannerGeometry = new THREE.PlaneGeometry(0.72, 1.28);
     disposableGeometries.add(gateBannerGeometry);
     const gateBanner = new THREE.Mesh(gateBannerGeometry, bannerMaterial);
-    gateBanner.position.set(x, 2.38, 12.98);
+    gateBanner.position.set(x, 2.38, gateZ - 2.07);
     proceduralFallbackGroup.add(gateBanner);
   }
 
   // Builder noticeboard and directional sign beside the gate approach.
-  addCivicBox(0.16, 1.7, 0.16, -3.64, 0.9, 11.65, civicTimber);
-  addCivicBox(0.16, 1.7, 0.16, -2.36, 0.9, 11.65, civicTimber);
+  const fallbackNoticeboardGroup = new THREE.Group();
+  fallbackNoticeboardGroup.name =
+    'inner-keep-procedural-yielding-placement:builder-noticeboard';
+  proceduralFallbackGroup.add(fallbackNoticeboardGroup);
+  proceduralYieldingDressing.set('builder-noticeboard', fallbackNoticeboardGroup);
+  addCivicBox(
+    0.16, 1.7, 0.16, -4.99, 0.9, 27, civicTimber, 0,
+    fallbackNoticeboardGroup
+  );
+  addCivicBox(
+    0.16, 1.7, 0.16, -3.71, 0.9, 27, civicTimber, 0,
+    fallbackNoticeboardGroup
+  );
   const fallbackNoticeboard = addCivicBox(
-    1.65, 0.92, 0.13, -3, 1.45, 11.65, civicTimber
+    1.65, 0.92, 0.13, -4.35, 1.45, 27, civicTimber, 0,
+    fallbackNoticeboardGroup
   );
   fallbackNoticeboard.name = 'inner-keep-procedural-builder-noticeboard';
-  addCivicBox(2, 0.18, 0.75, -3, 2.02, 11.65, keepRoofMaterial);
-  addCivicBox(0.12, 1.42, 0.12, 3.65, 0.8, 11.7, civicTimber);
+  addCivicBox(
+    2, 0.18, 0.75, -4.35, 2.02, 27, keepRoofMaterial, 0,
+    fallbackNoticeboardGroup
+  );
+  const fallbackSignGroup = new THREE.Group();
+  fallbackSignGroup.name =
+    'inner-keep-procedural-yielding-placement:civic-direction-sign';
+  proceduralFallbackGroup.add(fallbackSignGroup);
+  proceduralYieldingDressing.set('civic-direction-sign', fallbackSignGroup);
+  addCivicBox(
+    0.12, 1.42, 0.12, 4, 0.8, 27, civicTimber, 0,
+    fallbackSignGroup
+  );
   const fallbackSign = addCivicBox(
-    1.15, 0.18, 0.14, 4, 1.3, 11.7, civicTimber, -0.12
+    1.15, 0.18, 0.14, 4.35, 1.3, 27, civicTimber, -0.12,
+    fallbackSignGroup
   );
   fallbackSign.name = 'inner-keep-procedural-civic-direction-sign';
 
@@ -1288,7 +1354,7 @@ export function createInnerKeepSceneLayer(
     addCivicBox(1.7, 0.44, 0.12, x, 0.88, 1.85, civicTimber);
   }
   const fallbackTrough = addCivicBox(
-    1.55, 0.54, 0.62, 5.2, 0.42, 12.7, civicTimber, Math.PI / 2
+    1.55, 0.54, 0.62, 2.8, 0.42, 29.5, civicTimber, Math.PI / 2
   );
   fallbackTrough.name = 'inner-keep-procedural-south-east-water-trough';
   for (const x of [-1.7, 1.7]) {
@@ -1300,115 +1366,6 @@ export function createInnerKeepSceneLayer(
     addCivicCylinder(0.34, 0.2, 0.24, x, 0.94, 2.05, civicIron, 12);
     addCivicCylinder(0.18, 0.08, 0.3, x, 1.17, 2.05, lampGlow, 9);
   }
-
-  // Clipped hedges and restrained ruined masonry frame the authored yard.
-  for (const [name, x, z, rotation] of [
-    ['west-north', -12.5, -1.3, Math.PI / 2],
-    ['east-north', 12.5, -1.3, Math.PI / 2],
-    ['west-south', -12.5, 4.8, Math.PI / 2],
-    ['east-south', 12.5, 4.8, Math.PI / 2]
-  ] as const) {
-    const hedge = addCivicBox(0.72, 0.72, 2.4, x, 0.48, z, civicGreen, rotation);
-    hedge.name = `inner-keep-procedural-hedge-${name}`;
-  }
-  const fallbackCollapsedArch = addCivicCylinder(
-    0.48, 0.56, 2.5, 0, 1.35, -9, civicStone, 10
-  );
-  fallbackCollapsedArch.name = 'inner-keep-procedural-north-collapsed-arch';
-  addCivicCylinder(0.42, 0.5, 1.55, 1.37, 0.88, -9.26, civicStone, 10);
-  addCivicBox(1.65, 0.3, 0.54, 2.5, 0.28, -9.08, civicStone, 0.28);
-
-  const treeTrunkGeometry = new THREE.CylinderGeometry(0.11, 0.16, 1.25, 6);
-  const treeCanopyGeometry = new THREE.ConeGeometry(0.72, 2.25, 8);
-  disposableGeometries.add(treeTrunkGeometry);
-  disposableGeometries.add(treeCanopyGeometry);
-  const treeTrunkMaterial = new THREE.MeshStandardMaterial({
-    color: INNER_KEEP_TOWN_TONAL_PALETTE.foliage.trunk,
-    roughness: 0.96
-  });
-  const treeCanopyMaterial = new THREE.MeshStandardMaterial({
-    color: INNER_KEEP_TOWN_TONAL_PALETTE.foliage.crown,
-    roughness: 0.92
-  });
-  disposableMaterials.add(treeTrunkMaterial);
-  disposableMaterials.add(treeCanopyMaterial);
-  const treeCount = options.quality === 'reduced' ? 20 : options.quality === 'balanced' ? 30 : 40;
-  const trunks = new THREE.InstancedMesh(treeTrunkGeometry, treeTrunkMaterial, treeCount);
-  const canopies = new THREE.InstancedMesh(treeCanopyGeometry, treeCanopyMaterial, treeCount);
-  trunks.castShadow = options.quality !== 'reduced';
-  trunks.receiveShadow = true;
-  canopies.castShadow = options.quality === 'high';
-  canopies.receiveShadow = true;
-  const treeMatrix = new THREE.Matrix4();
-  for (let index = 0; index < treeCount; index += 1) {
-    const side = index % 4;
-    const alongX = deterministicUnit(index, 1) * 36 - 18;
-    const alongZ = deterministicUnit(index, 6) * 30 - 16.5;
-    const x = side < 2
-      ? (side === 0 ? -21.5 : 21.5) + (deterministicUnit(index, 2) - 0.5) * 1.2
-      : alongX;
-    const z = side >= 2
-      ? (side === 2 ? -22.4 : 16.4) + (deterministicUnit(index, 3) - 0.5) * 1.2
-      : alongZ;
-    const scale = 0.82 + deterministicUnit(index, 4) * 0.52;
-    const terrainHeight = renderedTerrainHeightAt(x, z);
-    treeMatrix.compose(
-      new THREE.Vector3(x, terrainHeight + 0.72 * scale, z),
-      new THREE.Quaternion(),
-      new THREE.Vector3(scale, scale, scale)
-    );
-    trunks.setMatrixAt(index, treeMatrix);
-    treeMatrix.compose(
-      new THREE.Vector3(x, terrainHeight + 2.2 * scale, z),
-      new THREE.Quaternion().setFromAxisAngle(
-        new THREE.Vector3(0, 1, 0),
-        deterministicUnit(index, 5) * Math.PI
-      ),
-      new THREE.Vector3(scale, scale, scale)
-    );
-    canopies.setMatrixAt(index, treeMatrix);
-  }
-  trunks.instanceMatrix.needsUpdate = true;
-  canopies.instanceMatrix.needsUpdate = true;
-  proceduralFallbackGroup.add(trunks, canopies);
-  const innerTreePositions = [
-    [-12.25, -1.8, 0.76],
-    [12.25, -1.8, 0.82],
-    [-11.55, 5.1, 0.68],
-    [11.55, 5.1, 0.72]
-  ] as const;
-  const innerTrunks = new THREE.InstancedMesh(
-    treeTrunkGeometry,
-    treeTrunkMaterial,
-    innerTreePositions.length
-  );
-  const innerCanopies = new THREE.InstancedMesh(
-    treeCanopyGeometry,
-    treeCanopyMaterial,
-    innerTreePositions.length
-  );
-  innerTreePositions.forEach(([x, z, scale], index) => {
-    treeMatrix.compose(
-      new THREE.Vector3(x, 0.72 * scale, z),
-      new THREE.Quaternion(),
-      new THREE.Vector3(scale, scale, scale)
-    );
-    innerTrunks.setMatrixAt(index, treeMatrix);
-    treeMatrix.compose(
-      new THREE.Vector3(x, 2.2 * scale, z),
-      new THREE.Quaternion().setFromAxisAngle(
-        new THREE.Vector3(0, 1, 0),
-        index * 0.78
-      ),
-      new THREE.Vector3(scale, scale, scale)
-    );
-    innerCanopies.setMatrixAt(index, treeMatrix);
-  });
-  innerTrunks.instanceMatrix.needsUpdate = true;
-  innerCanopies.instanceMatrix.needsUpdate = true;
-  innerTrunks.castShadow = options.quality !== 'reduced';
-  innerCanopies.castShadow = options.quality === 'high';
-  proceduralFallbackGroup.add(innerTrunks, innerCanopies);
 
   const ambient = new THREE.HemisphereLight(
     INNER_KEEP_TOWN_TONAL_PALETTE.lighting.hemisphereSky,
@@ -1425,39 +1382,24 @@ export function createInnerKeepSceneLayer(
     options.quality === 'high' ? 2048 : 1024,
     options.quality === 'high' ? 2048 : 1024
   );
-  sun.shadow.camera.left = -29;
-  sun.shadow.camera.right = 29;
-  sun.shadow.camera.top = 29;
-  sun.shadow.camera.bottom = -29;
+  sun.shadow.camera.left = -64;
+  sun.shadow.camera.right = 64;
+  sun.shadow.camera.top = 64;
+  sun.shadow.camera.bottom = -64;
   sun.shadow.camera.near = 1;
-  sun.shadow.camera.far = 80;
+  sun.shadow.camera.far = 190;
   sun.shadow.bias = -0.00035;
   sun.shadow.normalBias = 0.025;
   scene.add(ambient, sun);
 
-  // Canonical slot coordinates stay unchanged; only their presentation shifts
-  // from ritual-looking circles to low, rectangular working yards that align
-  // with the town's street-and-block language.
-  const padGeometry = new THREE.BoxGeometry(3.35, 0.1, 2.55);
-  disposableGeometries.add(padGeometry);
-  const padMaterial = new THREE.MeshStandardMaterial({ color: 0x9a835e, roughness: 0.99 });
-  const reservedPadMaterial = new THREE.MeshStandardMaterial({
-    color: 0x718061,
-    roughness: 1
-  });
-  const selectedPadMaterial = new THREE.MeshStandardMaterial({
-    color: 0xc5aa67,
-    emissive: 0x4b3512,
-    emissiveIntensity: 0.42,
-    roughness: 0.88
-  });
-  disposableMaterials.add(padMaterial);
-  disposableMaterials.add(reservedPadMaterial);
-  disposableMaterials.add(selectedPadMaterial);
-  const padMeshes = new Map<string, THREE.Mesh>();
+  const buildingRoots = new Map<string, THREE.Object3D>();
+  const previewMaterials = new Set<THREE.Material>();
+  const previewGeometries = new Set<THREE.BufferGeometry>();
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
   const projectionPoint = new THREE.Vector3();
+  const placementPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const placementPoint = new THREE.Vector3();
   const smokeTexture = createSmokeTexture();
   if (smokeTexture) disposableTextures.add(smokeTexture);
   const smokeGeometry = new THREE.PlaneGeometry(0.9, 0.9);
@@ -1500,6 +1442,44 @@ export function createInnerKeepSceneLayer(
     });
     ecologySeed = visualSeed;
     ambientGroup.add(ecology.group);
+  };
+
+  const refreshEcologyBuildingExclusions = () => {
+    if (!ecology) return false;
+    const exclusions = (lastPresentation?.buildings ?? []).map((building) => (
+      innerKeepEcologyBuildingExclusion(
+        building.buildingKind,
+        building.placement
+      )
+    ));
+    if (placementDraft?.evaluation.valid === true) {
+      exclusions.push(innerKeepEcologyBuildingExclusion(
+        placementDraft.buildingKind,
+        placementDraft.transform
+      ));
+    }
+    return ecology.setBuildingExclusions(exclusions);
+  };
+
+  const refreshFixedDressingBuildingExclusions = (
+    buildings: readonly InnerKeepBuildingPresentation[]
+  ) => {
+    const exclusions: InnerKeepAuthoredBuildingExclusion[] = [...buildings];
+    if (
+      lastPresentation
+      && placementDraft?.evaluation.valid === true
+    ) {
+      exclusions.push(Object.freeze({
+        buildingKind: placementDraft.buildingKind,
+        placement: placementDraft.transform
+      }));
+    }
+    authoredPresentation?.reconcileBuildingExclusions(exclusions);
+    for (const [placementId, dressing] of proceduralYieldingDressing) {
+      dressing.visible = !exclusions.some((building) => (
+        innerKeepFixedDressingIntersectsBuilding(placementId, building)
+      ));
+    }
   };
 
   const ensureOuterWorld = (visualSeed: number) => {
@@ -1594,6 +1574,9 @@ export function createInnerKeepSceneLayer(
     runtimeAssetFailureCount = bundle.failures.length;
     assetStatus = bundle.failures.length === 0 ? 'ready' : 'degraded';
     proceduralFallbackGroup.visible = !completeStaticCoverage;
+    refreshFixedDressingBuildingExclusions(
+      lastPresentation?.buildings ?? []
+    );
     scene.userData.innerKeepAssetStatus = assetStatus;
     scene.userData.innerKeepRuntimeAssetFailures = bundle.failures;
     scene.userData.innerKeepAssetLoadAttemptCount = assetLoadAttemptCount;
@@ -1778,49 +1761,48 @@ export function createInnerKeepSceneLayer(
   };
   updateCamera();
 
-  const getSlotProjectionFrame = (): InnerKeepSlotProjectionFrame => {
+  const getBuildingProjectionFrame = (): InnerKeepBuildingProjectionFrame => {
     const rect = options.canvas.getBoundingClientRect();
-    const viewportWidth = Math.max(0, rect.width);
-    const viewportHeight = Math.max(0, rect.height);
-    if (disposed || viewportWidth <= 0 || viewportHeight <= 0) {
+    const frameWidth = Math.max(0, rect.width);
+    const frameHeight = Math.max(0, rect.height);
+    if (disposed || frameWidth <= 0 || frameHeight <= 0) {
       return Object.freeze({
         viewportLeft: rect.left,
         viewportTop: rect.top,
-        viewportWidth,
-        viewportHeight,
-        slots: Object.freeze([])
+        viewportWidth: frameWidth,
+        viewportHeight: frameHeight,
+        buildings: Object.freeze([])
       });
     }
     scene.updateMatrixWorld(true);
     camera.updateMatrixWorld(true);
-    const slots = [...padMeshes.entries()].map(([slotId, pad]) => {
-      if (pad.geometry.boundingBox === null) pad.geometry.computeBoundingBox();
-      const bounds = pad.geometry.boundingBox;
-      if (!bounds) {
-        return Object.freeze({
-          slotId,
-          x: rect.left,
-          y: rect.top,
-          width: 0,
-          height: 0,
-          visible: false
-        });
-      }
+    const buildings = (lastPresentation?.buildings ?? []).map((building) => {
+      const envelope = INNER_KEEP_FREE_PLACEMENT_ENVELOPES[building.buildingKind];
+      const quarterTurn = building.placement.rotationMilliDegrees === 90_000
+        || building.placement.rotationMilliDegrees === 270_000;
+      const halfX = quarterTurn ? envelope.halfExtentsMeters[1] : envelope.halfExtentsMeters[0];
+      const halfZ = quarterTurn ? envelope.halfExtentsMeters[0] : envelope.halfExtentsMeters[1];
+      const centerX = Number(building.placement.localXMicrounits) / 1_000_000;
+      const centerZ = Number(building.placement.localZMicrounits) / 1_000_000;
+      const modelHeight = building.buildingKind === 'grand-covenant-cathedral'
+        ? 31.5
+        : building.buildingKind === 'city-barracks'
+          ? 10.1
+          : 9;
       let minimumX = Number.POSITIVE_INFINITY;
       let maximumX = Number.NEGATIVE_INFINITY;
       let minimumY = Number.POSITIVE_INFINITY;
       let maximumY = Number.NEGATIVE_INFINITY;
       let minimumDepth = Number.POSITIVE_INFINITY;
       let maximumDepth = Number.NEGATIVE_INFINITY;
-      for (const x of [bounds.min.x, bounds.max.x]) {
-        for (const y of [bounds.min.y, bounds.max.y]) {
-          for (const z of [bounds.min.z, bounds.max.z]) {
+      for (const x of [centerX - halfX, centerX + halfX]) {
+        for (const y of [0, modelHeight]) {
+          for (const z of [centerZ - halfZ, centerZ + halfZ]) {
             projectionPoint
               .set(x, y, z)
-              .applyMatrix4(pad.matrixWorld)
               .project(camera);
-            const clientX = rect.left + (projectionPoint.x + 1) * 0.5 * viewportWidth;
-            const clientY = rect.top + (1 - projectionPoint.y) * 0.5 * viewportHeight;
+            const clientX = rect.left + (projectionPoint.x + 1) * 0.5 * frameWidth;
+            const clientY = rect.top + (1 - projectionPoint.y) * 0.5 * frameHeight;
             minimumX = Math.min(minimumX, clientX);
             maximumX = Math.max(maximumX, clientX);
             minimumY = Math.min(minimumY, clientY);
@@ -1843,7 +1825,8 @@ export function createInnerKeepSceneLayer(
         && maximumY >= rect.top
         && minimumY <= rect.bottom;
       return Object.freeze({
-        slotId,
+        buildingKey: building.buildingKey,
+        buildingKind: building.buildingKind,
         x: (minimumX + maximumX) * 0.5,
         y: (minimumY + maximumY) * 0.5,
         width,
@@ -1854,9 +1837,9 @@ export function createInnerKeepSceneLayer(
     return Object.freeze({
       viewportLeft: rect.left,
       viewportTop: rect.top,
-      viewportWidth,
-      viewportHeight,
-      slots: Object.freeze(slots)
+      viewportWidth: frameWidth,
+      viewportHeight: frameHeight,
+      buildings: Object.freeze(buildings)
     });
   };
 
@@ -1933,12 +1916,120 @@ export function createInnerKeepSceneLayer(
     dynamicMaterials.forEach((material) => material.dispose());
     dynamicGeometries.clear();
     dynamicMaterials.clear();
-    for (const mesh of padMeshes.values()) staticGroup.remove(mesh);
-    padMeshes.clear();
+    buildingRoots.clear();
     constructionPosition = null;
     completionReveal = null;
     smoke.count = 0;
     smokeMaterial.opacity = 0.68;
+  };
+
+  const clearPlacementPreview = () => {
+    placementPreviewGroup.clear();
+    previewGeometries.forEach((geometry) => geometry.dispose());
+    previewMaterials.forEach((material) => material.dispose());
+    previewGeometries.clear();
+    previewMaterials.clear();
+  };
+
+  const refreshBuildingSelection = () => {
+    for (const [buildingKey, root] of buildingRoots) {
+      const selected = buildingKey === selectedBuildingKey;
+      root.userData.innerKeepSelected = selected;
+      root.traverse((object) => {
+        object.userData.innerKeepSelected = selected;
+        if (!(object instanceof THREE.Mesh)) return;
+        const materials = Array.isArray(object.material)
+          ? object.material
+          : [object.material];
+        for (const material of materials) {
+          if (!(material instanceof THREE.MeshStandardMaterial)) continue;
+          const storedHex = material.userData.innerKeepSelectionBaseEmissiveHex;
+          const storedIntensity = material.userData.innerKeepSelectionBaseEmissiveIntensity;
+          if (!Number.isSafeInteger(storedHex)) {
+            material.userData.innerKeepSelectionBaseEmissiveHex = material.emissive.getHex();
+            material.userData.innerKeepSelectionBaseEmissiveIntensity =
+              material.emissiveIntensity;
+          }
+          const baseHex = Number(
+            material.userData.innerKeepSelectionBaseEmissiveHex,
+          );
+          const baseIntensity = Number(
+            material.userData.innerKeepSelectionBaseEmissiveIntensity,
+          );
+          if (selected) {
+            material.emissive.setHex(0xffc96b);
+            material.emissiveIntensity = Math.max(baseIntensity, 0.2);
+          } else {
+            material.emissive.setHex(baseHex);
+            material.emissiveIntensity = baseIntensity;
+          }
+        }
+      });
+    }
+  };
+
+  const refreshPlacementPreview = () => {
+    clearPlacementPreview();
+    if (!placementDraft) return;
+    const valid = placementDraft.evaluation.valid;
+    const tint = valid ? 0x74d58a : 0xdd626c;
+    const envelope = INNER_KEEP_FREE_PLACEMENT_ENVELOPES[placementDraft.buildingKind];
+    const footprintGeometry = new THREE.BoxGeometry(
+      envelope.halfExtentsMeters[0] * 2,
+      0.14,
+      envelope.halfExtentsMeters[1] * 2
+    );
+    const footprintMaterial = new THREE.MeshBasicMaterial({
+      color: tint,
+      transparent: true,
+      opacity: 0.28,
+      depthWrite: false,
+      side: THREE.DoubleSide
+    });
+    previewGeometries.add(footprintGeometry);
+    previewMaterials.add(footprintMaterial);
+    const footprint = new THREE.Mesh(footprintGeometry, footprintMaterial);
+    footprint.name = 'inner-keep-placement-preview-footprint';
+    footprint.position.y = 0.09;
+    placementPreviewGroup.add(footprint);
+
+    const authoredGhost = createInnerKeepAuthoredBuilding({
+      bundle: runtimeAssetBundle,
+      buildingKind: placementDraft.buildingKind,
+      completedLevel: 1,
+      disposableMaterials: previewMaterials
+    });
+    if (authoredGhost) {
+      authoredGhost.name = `inner-keep-placement-preview:${placementDraft.buildingKind}`;
+      authoredGhost.traverse((object) => {
+        object.userData.presentationOnly = true;
+        object.userData.gameplayAuthorityClaimed = false;
+        object.userData.innerKeepPlacementPreview = true;
+        object.raycast = () => undefined;
+        if (!(object instanceof THREE.Mesh)) return;
+        const materials = Array.isArray(object.material)
+          ? object.material
+          : [object.material];
+        materials.forEach((material) => {
+          material.transparent = true;
+          material.opacity = 0.54;
+          material.depthWrite = false;
+          if (material instanceof THREE.MeshStandardMaterial) {
+            material.emissive.setHex(tint);
+            material.emissiveIntensity = 0.22;
+          }
+        });
+      });
+      authoredGhost.position.y = 0.13;
+      placementPreviewGroup.add(authoredGhost);
+    }
+    placementPreviewGroup.position.set(
+      Number(placementDraft.transform.localXMicrounits) / 1_000_000,
+      0,
+      Number(placementDraft.transform.localZMicrounits) / 1_000_000
+    );
+    placementPreviewGroup.rotation.y =
+      placementDraft.transform.rotationMilliDegrees * Math.PI / 180_000;
   };
 
   const measureTelemetry = (
@@ -2016,6 +2107,9 @@ export function createInnerKeepSceneLayer(
         actor.presentationRole === 'ceremonial-patrol'
       )).length,
       slotCount,
+      buildingPickTargetCount: buildingRoots.size,
+      placementPreviewActive: placementDraft !== null,
+      placementPreviewValid: placementDraft?.evaluation.valid === true,
       completedBuildingCount,
       constructionSiteCount,
       completionRevealActive: completionReveal !== null
@@ -2048,8 +2142,11 @@ export function createInnerKeepSceneLayer(
     if (!presentation) {
       ambientGroup.visible = false;
       authoredStaticGroup.visible = false;
+      ecology?.setBuildingExclusions([]);
+      refreshFixedDressingBuildingExclusions([]);
       previousBuildingPhases = new Map();
-      pendingCompletionRevealSlots.clear();
+      pendingCompletionRevealBuildings.clear();
+      clearPlacementPreview();
       measureTelemetry('empty', 0, 0, 0);
       options.requestRender();
       return;
@@ -2057,15 +2154,15 @@ export function createInnerKeepSceneLayer(
     if (!innerKeepPresentationIntegrity(presentation)) {
       ambientGroup.visible = false;
       authoredStaticGroup.visible = false;
+      ecology?.setBuildingExclusions([]);
+      refreshFixedDressingBuildingExclusions([]);
       previousBuildingPhases = new Map();
-      pendingCompletionRevealSlots.clear();
+      pendingCompletionRevealBuildings.clear();
+      clearPlacementPreview();
       measureTelemetry('unavailable', 0, 0, 0);
       options.requestRender();
       return;
     }
-    const orderedSlots = [...presentation.slots].sort((left, right) => (
-      left.sortOrder - right.sortOrder
-    ));
     const visualSeed = deterministicVisualSeed(presentation, context);
     currentVisualSeed = visualSeed;
     ambientGroup.visible = true;
@@ -2103,43 +2200,41 @@ export function createInnerKeepSceneLayer(
     dynamicGroup.add(createDeterministicYardDressing(
       visualSeed,
       context?.owningTerrainKind,
+      presentation.buildings,
       dynamicMaterials,
       dynamicGeometries
     ));
-    const positionBySlotId = new Map<string, InnerKeepSlotPosition>();
-    orderedSlots.forEach((slot) => {
-      const position = SLOT_POSITIONS.get(slot.slotId)!;
-      positionBySlotId.set(slot.slotId, position);
-      const pad = setShadow(new THREE.Mesh(
-        padGeometry,
-        slot.slotId === selectedSlotId
-          ? selectedPadMaterial
-          : position.active
-            ? padMaterial
-            : reservedPadMaterial
-      ), false, true);
-      const footprintScale = slot.footprintClass === 'large' ? 1.14 : 1;
-      pad.scale.set(footprintScale, 1, footprintScale);
-      pad.position.set(position.x, 0.09, position.z);
-      pad.rotation.y = position.rotation;
-      pad.userData.innerKeepSlotId = slot.slotId;
-      pad.userData.innerKeepSlotVisualRole = position.active
-        ? 'active-work-yard'
-        : 'reserved-grass-yard';
-      pad.name = `inner-keep-slot-pad:${slot.slotId}`;
-      padMeshes.set(slot.slotId, pad);
-      staticGroup.add(pad);
-    });
-
     let completedBuildingCount = 0;
     let constructionSiteCount = 0;
-    const currentBuildingIds = new Set(presentation.buildings.map(({ slotId }) => slotId));
-    for (const slotId of pendingCompletionRevealSlots) {
-      if (!currentBuildingIds.has(slotId)) pendingCompletionRevealSlots.delete(slotId);
+    const currentBuildingIds = new Set(presentation.buildings.map(({ buildingKey }) => buildingKey));
+    for (const buildingKey of pendingCompletionRevealBuildings) {
+      if (!currentBuildingIds.has(buildingKey)) {
+        pendingCompletionRevealBuildings.delete(buildingKey);
+      }
     }
     for (const building of presentation.buildings) {
-      const position = positionBySlotId.get(building.slotId);
-      if (!position) continue;
+      const position = Object.freeze({
+        x: Number(building.placement.localXMicrounits) / 1_000_000,
+        z: Number(building.placement.localZMicrounits) / 1_000_000,
+        rotation: building.placement.rotationMilliDegrees * Math.PI / 180_000
+      });
+      const registerBuildingRoot = (root: THREE.Object3D) => {
+        root.userData.innerKeepBuildingKey = building.buildingKey;
+        root.userData.innerKeepBuildingKind = building.buildingKind;
+        root.traverse((object) => {
+          object.userData.innerKeepBuildingKey = building.buildingKey;
+          object.userData.innerKeepBuildingKind = building.buildingKind;
+        });
+        buildingRoots.set(building.buildingKey, root);
+      };
+      const sizeScaffold = (scaffold: THREE.Group) => {
+        const envelope = INNER_KEEP_FREE_PLACEMENT_ENVELOPES[building.buildingKind];
+        scaffold.scale.set(
+          Math.max(1, envelope.halfExtentsMeters[0] / 1.65),
+          building.buildingKind === 'grand-covenant-cathedral' ? 1.8 : 1,
+          Math.max(1, envelope.halfExtentsMeters[1] / 1.3)
+        );
+      };
       if (building.phase === 'complete') {
         const terminalAssetFallback = options.assetLoading === 'disabled'
           || (
@@ -2156,8 +2251,10 @@ export function createInnerKeepSceneLayer(
         });
         if (!authoredModel && !terminalAssetFallback) {
           const scaffold = createScaffold(dynamicMaterials, dynamicGeometries);
+          sizeScaffold(scaffold);
           scaffold.position.set(position.x, 0.25, position.z);
           scaffold.rotation.y = position.rotation;
+          registerBuildingRoot(scaffold);
           dynamicGroup.add(scaffold);
           constructionPosition = Object.freeze({
             x: position.x,
@@ -2166,10 +2263,10 @@ export function createInnerKeepSceneLayer(
           });
           constructionSiteCount += 1;
           if (
-            previousBuildingPhases.get(building.slotId) === 'constructing'
-            || pendingCompletionRevealSlots.has(building.slotId)
+            previousBuildingPhases.get(building.buildingKey) === 'constructing'
+            || pendingCompletionRevealBuildings.has(building.buildingKey)
           ) {
-            pendingCompletionRevealSlots.add(building.slotId);
+            pendingCompletionRevealBuildings.add(building.buildingKey);
           }
           continue;
         }
@@ -2181,15 +2278,16 @@ export function createInnerKeepSceneLayer(
         );
         model.position.set(
           position.x,
-          model.userData.innerKeepAuthoredAsset === true ? 0.13 : 0.26,
+          model.userData.innerKeepAuthoredAsset === true ? 0.02 : 0.26,
           position.z
         );
         model.rotation.y = position.rotation;
+        registerBuildingRoot(model);
         dynamicGroup.add(model);
         const shouldRevealCompletion =
-          previousBuildingPhases.get(building.slotId) === 'constructing'
-          || pendingCompletionRevealSlots.has(building.slotId);
-        pendingCompletionRevealSlots.delete(building.slotId);
+          previousBuildingPhases.get(building.buildingKey) === 'constructing'
+          || pendingCompletionRevealBuildings.has(building.buildingKey);
+        pendingCompletionRevealBuildings.delete(building.buildingKey);
         if (
           !options.reducedMotion
           && !completionReveal
@@ -2199,6 +2297,7 @@ export function createInnerKeepSceneLayer(
             dynamicMaterials,
             dynamicGeometries
           );
+          sizeScaffold(revealScaffold);
           revealScaffold.position.set(position.x, 0.25, position.z);
           revealScaffold.rotation.y = position.rotation;
           setGroupOpacity(model, 0.12);
@@ -2218,10 +2317,12 @@ export function createInnerKeepSceneLayer(
         completedBuildingCount += 1;
         continue;
       }
-      pendingCompletionRevealSlots.delete(building.slotId);
+      pendingCompletionRevealBuildings.delete(building.buildingKey);
       const scaffold = createScaffold(dynamicMaterials, dynamicGeometries);
+      sizeScaffold(scaffold);
       scaffold.position.set(position.x, 0.25, position.z);
       scaffold.rotation.y = position.rotation;
+      registerBuildingRoot(scaffold);
       dynamicGroup.add(scaffold);
       constructionPosition = Object.freeze({
         x: position.x,
@@ -2230,18 +2331,29 @@ export function createInnerKeepSceneLayer(
       });
       constructionSiteCount += 1;
     }
+    refreshBuildingSelection();
     smoke.count = constructionPosition
       ? SMOKE_SPRITE_BUDGET[options.quality]
       : 0;
     updateSmoke(lastElapsedSeconds);
     updateCompletionReveal(lastElapsedSeconds);
     previousBuildingPhases = new Map(presentation.buildings.map((building) => [
-      building.slotId,
+      building.buildingKey,
       building.phase
     ] as const));
+    if (placementDraft) {
+      placementDraft = evaluateInnerKeepPlacementDraft(
+        placementDraft.buildingKind,
+        placementDraft.transform,
+        presentation.buildings
+      );
+      refreshPlacementPreview();
+    }
+    refreshFixedDressingBuildingExclusions(presentation.buildings);
+    refreshEcologyBuildingExclusions();
     measureTelemetry(
       'ready',
-      orderedSlots.length,
+      0,
       completedBuildingCount,
       constructionSiteCount
     );
@@ -2254,7 +2366,7 @@ export function createInnerKeepSceneLayer(
     dispose: () => {
       if (disposed) return;
       disposed = true;
-      pendingCompletionRevealSlots.clear();
+      pendingCompletionRevealBuildings.clear();
       assetLoadGeneration += 1;
       assetLoadController?.abort();
       assetLoadController = null;
@@ -2278,7 +2390,8 @@ export function createInnerKeepSceneLayer(
       disposableGeometries.clear();
       disposableMaterials.clear();
       disposableTextures.clear();
-      padMeshes.clear();
+      buildingRoots.clear();
+      clearPlacementPreview();
     },
     getAnimationFrameCap: () => options.reducedMotion
       ? 0
@@ -2286,7 +2399,7 @@ export function createInnerKeepSceneLayer(
           SMOKE_FRAME_CAP[options.quality],
           ambientPlan?.animationFrameCap ?? LIVING_FRAME_CAP[options.quality]
         ),
-    getSlotProjectionFrame,
+    getBuildingProjectionFrame,
     getTelemetry: () => telemetry,
     isAnimationActive: () => (
       !disposed
@@ -2317,7 +2430,7 @@ export function createInnerKeepSceneLayer(
       updateCamera();
       options.requestRender();
     },
-    pickSlot: (clientX, clientY) => {
+    pickBuilding: (clientX, clientY) => {
       if (disposed) return null;
       const rect = options.canvas.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) return null;
@@ -2326,21 +2439,70 @@ export function createInnerKeepSceneLayer(
         -((clientY - rect.top) / rect.height) * 2 + 1
       );
       raycaster.setFromCamera(pointer, camera);
-      const hit = raycaster.intersectObjects([...padMeshes.values()], false)[0];
-      const slotId = hit?.object.userData.innerKeepSlotId;
-      return typeof slotId === 'string' ? slotId : null;
+      const hit = raycaster.intersectObjects([...buildingRoots.values()], true)[0];
+      const buildingKey = hit?.object.userData.innerKeepBuildingKey;
+      if (typeof buildingKey === 'string') return buildingKey;
+      // Scaffolds and several authored silhouettes have intentional open
+      // centers. Keep their whole reviewed occupancy envelope selectable so
+      // a visually empty beam gap does not turn into a dead click target.
+      return getBuildingProjectionFrame().buildings
+        .filter((projection) => (
+          projection.visible
+          && clientX >= projection.x - projection.width * 0.5
+          && clientX <= projection.x + projection.width * 0.5
+          && clientY >= projection.y - projection.height * 0.5
+          && clientY <= projection.y + projection.height * 0.5
+        ))
+        .sort((left, right) => (
+          left.width * left.height - right.width * right.height
+        ))[0]?.buildingKey ?? null;
+    },
+    projectGroundPlacement: (clientX, clientY, buildingKind) => {
+      if (disposed || !lastPresentation) return null;
+      const rect = options.canvas.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return null;
+      pointer.set(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -((clientY - rect.top) / rect.height) * 2 + 1
+      );
+      raycaster.setFromCamera(pointer, camera);
+      if (!raycaster.ray.intersectPlane(placementPlane, placementPoint)) return null;
+      const rotationMilliDegrees = placementDraft?.buildingKind === buildingKind
+        ? placementDraft.transform.rotationMilliDegrees
+        : 0;
+      return evaluateInnerKeepPlacementDraft(buildingKind, Object.freeze({
+        localXMicrounits: BigInt(Math.round(placementPoint.x * 2)) * 500_000n,
+        localZMicrounits: BigInt(Math.round(placementPoint.z * 2)) * 500_000n,
+        rotationMilliDegrees
+      }), lastPresentation.buildings);
     },
     reconcile,
-    setSelectedSlot: (slotId) => {
-      if (disposed || selectedSlotId === slotId) return;
-      selectedSlotId = slotId;
-      for (const [id, pad] of padMeshes) {
-        pad.material = id === slotId
-          ? selectedPadMaterial
-          : SLOT_POSITIONS.get(id)?.active === true
-            ? padMaterial
-            : reservedPadMaterial;
-      }
+    setPlacementDraft: (draft) => {
+      if (disposed) return;
+      placementDraft = draft && lastPresentation
+        ? evaluateInnerKeepPlacementDraft(
+          draft.buildingKind,
+          draft.transform,
+          lastPresentation.buildings
+        )
+        : draft;
+      refreshPlacementPreview();
+      refreshFixedDressingBuildingExclusions(
+        lastPresentation?.buildings ?? []
+      );
+      refreshEcologyBuildingExclusions();
+      telemetry = Object.freeze({
+        ...telemetry,
+        placementPreviewActive: placementDraft !== null,
+        placementPreviewValid: placementDraft?.evaluation.valid === true
+      });
+      options.requestRender();
+    },
+    setSelectedBuilding: (buildingKey) => {
+      if (disposed || selectedBuildingKey === buildingKey) return;
+      selectedBuildingKey = buildingKey;
+      scene.userData.innerKeepSelectedBuildingKey = buildingKey;
+      refreshBuildingSelection();
       options.requestRender();
     },
     setViewport: (width, height) => {

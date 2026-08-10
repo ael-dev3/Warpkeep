@@ -15,33 +15,42 @@ function ruleBody(css: string, selector: string) {
 }
 
 describe('Inner Keep WebGL input CSS', () => {
-  it('gives pointer ownership to the canvas and retains a focus-revealed site index', () => {
+  it('gives pointer ownership to the canvas and retains focus-revealed building controls', () => {
     const css = readFileSync(
       resolve(root, 'src/components/inner-keep/InnerKeepScreen.css'),
       'utf8'
     );
-    const siteIndex = ruleBody(
+    const buildingControl = ruleBody(
       css,
-      '.inner-keep[data-inner-keep-renderer="webgl"] .inner-keep-map__slots'
+      '.inner-keep[data-inner-keep-renderer="webgl"] .inner-keep-map-building'
     );
-    expect(siteIndex).toContain('left: -200vw;');
-    expect(siteIndex).toContain('pointer-events: none;');
-    expect(siteIndex).not.toContain('visibility: hidden;');
+    expect(buildingControl).toContain('left: -200vw !important;');
+    expect(buildingControl).toContain(
+      'width: min(18rem, calc(100vw - 1rem)) !important;'
+    );
+    expect(buildingControl).toContain('height: 44px !important;');
+    expect(buildingControl).toContain('pointer-events: none;');
+    expect(buildingControl).not.toContain('visibility: hidden;');
 
-    const focusedIndex = ruleBody(
+    const focusedBuilding = ruleBody(
       css,
-      '.inner-keep[data-inner-keep-renderer="webgl"] .inner-keep-map__slots:focus-within'
+      '.inner-keep[data-inner-keep-renderer="webgl"] .inner-keep-map-building:focus'
     );
-    expect(focusedIndex).toContain('left: max(0.5rem, var(--realm-safe-left, 0px));');
+    expect(focusedBuilding).toContain(
+      'left: max(0.5rem, var(--realm-safe-left, 0px)) !important;'
+    );
 
-    const semanticButton = ruleBody(
+    const fallbackBuilding = ruleBody(css, '.inner-keep-map-building');
+    expect(fallbackBuilding).toContain('position: absolute;');
+    expect(fallbackBuilding).not.toMatch(/\b(?:width|height):/);
+    const fallbackPlacementGhost = ruleBody(
       css,
-      '.inner-keep[data-inner-keep-renderer="webgl"] .inner-keep-map__slots button'
+      '.inner-keep-map-placement-ghost'
     );
-    expect(semanticButton).toContain('position: relative;');
-    expect(semanticButton).toContain('pointer-events: none;');
-    expect(semanticButton).toContain('touch-action: none;');
-    expect(semanticButton).not.toContain('--inner-keep-slot-');
+    expect(fallbackPlacementGhost).not.toMatch(/\b(?:width|height):/);
+    expect(css).not.toContain('.inner-keep-map-building[data-footprint=');
+    expect(css).not.toContain('.inner-keep-map-placement-ghost[data-footprint=');
+    expect(css).not.toContain('.inner-keep-map__slots');
     expect(css).not.toContain('data-inner-keep-slot-projected');
   });
 

@@ -10,46 +10,49 @@ import {
 } from '../src/components/inner-keep/innerKeepLayoutV1';
 import {
   INNER_KEEP_PROJECT_REVISION_MAX,
-  INNER_KEEP_SLOT_COUNT,
   innerKeepCatalogueEffectCopy,
   innerKeepPresentationIntegrity,
   innerKeepQuoteAffordable,
   innerKeepQuoteBlockedReason
 } from '../src/components/inner-keep/innerKeepPresentation';
-import { createInnerKeepPresentation } from './fixtures/innerKeepPresentation';
+import {
+  createInnerKeepPresentation,
+  createInnerKeepTestBuilding,
+  INNER_KEEP_TEST_PLACEMENTS
+} from './fixtures/innerKeepPresentation';
 
 describe('Inner Keep presentation boundary', () => {
-  it('derives catalogue effect copy from the reviewed policy values', () => {
+  it('formats economy and landmark effects without inventing a landmark discount', () => {
     expect(innerKeepCatalogueEffectCopy('stone', 375, 1_875)).toBe(
       'Each completed level lowers future Stone costs by 3.75%, up to 18.75%.'
     );
+    expect(innerKeepCatalogueEffectCopy('none', 0, 0)).toContain(
+      'does not apply a resource construction discount'
+    );
   });
 
-  it('keeps the browser-pinned layout byte-for-byte aligned with v15 policy', () => {
+  it('pins the free-placement digest and retires every fixed slot', () => {
     expect(INNER_KEEP_LAYOUT_V1_DIGEST).toBe(INNER_KEEP_LAYOUT_DIGEST);
-    expect(INNER_KEEP_LAYOUT_V1_SLOTS).toEqual(CANONICAL_INNER_KEEP_SLOTS.map((slot) => ({
-      slotId: slot.slotId,
-      footprintClass: slot.footprintClass,
-      localXMicrounits: slot.localXMicrounits,
-      localZMicrounits: slot.localZMicrounits,
-      rotationMilliDegrees: slot.rotationMilliDegrees,
-      sortOrder: slot.sortOrder,
-      active: slot.active
-    })));
+    expect(INNER_KEEP_LAYOUT_V1_SLOTS).toEqual([]);
+    expect(CANONICAL_INNER_KEEP_SLOTS).toEqual([]);
   });
 
-  it('accepts one exact twelve-slot caller-bound projection', () => {
+  it('accepts an empty town with all six catalogue kinds and one quote each', () => {
     const presentation = createInnerKeepPresentation();
-    expect(presentation.slots).toHaveLength(INNER_KEEP_SLOT_COUNT);
+    expect(presentation.catalogue).toHaveLength(6);
+    expect(presentation.quotes).toHaveLength(6);
+    expect(presentation.buildings).toEqual([]);
+    expect(presentation.catalogue.find((entry) => (
+      entry.buildingKind === 'city-barracks'
+    ))).toMatchObject({ category: 'military', matchingDiscountResource: 'none' });
+    expect(presentation.catalogue.find((entry) => (
+      entry.buildingKind === 'grand-covenant-cathedral'
+    ))).toMatchObject({ category: 'civic', matchingDiscountResource: 'none' });
     expect(innerKeepPresentationIntegrity(presentation)).toBe(true);
-    expect(innerKeepPresentationIntegrity({
-      ...presentation,
-      castleId: 18_446_744_073_709_551_615n
-    })).toBe(true);
-    expect(innerKeepPresentationIntegrity({
-      ...presentation,
-      projectRevision: 18_446_744_073_709_551_616n
-    })).toBe(true);
+  });
+
+  it('bounds the lossless aggregate revision without coercing it to Number', () => {
+    const presentation = createInnerKeepPresentation();
     expect(innerKeepPresentationIntegrity({
       ...presentation,
       projectRevision: INNER_KEEP_PROJECT_REVISION_MAX
@@ -60,55 +63,67 @@ describe('Inner Keep presentation boundary', () => {
     })).toBe(false);
   });
 
-  it('pins the exact v15 digest, slot order, footprint, and activation policy', () => {
-    const presentation = createInnerKeepPresentation();
-    expect(innerKeepPresentationIntegrity({
-      ...presentation,
-      layoutDigest: '0'.repeat(64)
-    })).toBe(false);
-    expect(innerKeepPresentationIntegrity({
-      ...presentation,
-      slots: presentation.slots.map((slot, index) => (
-        index === 0 ? { ...slot, sortOrder: 12 } : slot
-      ))
-    })).toBe(false);
-    expect(innerKeepPresentationIntegrity({
-      ...presentation,
-      slots: presentation.slots.map((slot, index) => (
-        index === 8 ? { ...slot, active: true } : slot
-      ))
-    })).toBe(false);
+  it('rejects off-grid, reserved, outside, and overlapping building transforms', () => {
+    const valid = createInnerKeepTestBuilding({ buildingKind: 'city-mill' });
+    const offGrid = { ...valid, placement: { ...valid.placement, localXMicrounits: 1n } };
+    const reserved = { ...valid, placement: {
+      localXMicrounits: 0n,
+      localZMicrounits: 0n,
+      rotationMilliDegrees: 0
+    } };
+    const outside = { ...valid, placement: {
+      localXMicrounits: 44_000_000n,
+      localZMicrounits: -10_000_000n,
+      rotationMilliDegrees: 0
+    } };
+    const overlap = createInnerKeepTestBuilding({
+      buildingKind: 'lumber-camp',
+      placement: INNER_KEEP_TEST_PLACEMENTS['city-mill']
+    });
+    expect(innerKeepPresentationIntegrity(createInnerKeepPresentation({
+      buildings: [offGrid]
+    }))).toBe(false);
+    expect(innerKeepPresentationIntegrity(createInnerKeepPresentation({
+      buildings: [reserved]
+    }))).toBe(false);
+    expect(innerKeepPresentationIntegrity(createInnerKeepPresentation({
+      buildings: [outside]
+    }))).toBe(false);
+    expect(innerKeepPresentationIntegrity(createInnerKeepPresentation({
+      buildings: [valid, overlap]
+    }))).toBe(false);
   });
 
-  it('fails duplicate, missing, and mismatched Builder state closed', () => {
-    const presentation = createInnerKeepPresentation();
-    expect(innerKeepPresentationIntegrity({
-      ...presentation,
-      slots: presentation.slots.slice(0, -1)
-    })).toBe(false);
-    expect(innerKeepPresentationIntegrity({
-      ...presentation,
-      slots: [presentation.slots[0]!, ...presentation.slots.slice(0, -1)]
-    })).toBe(false);
-    expect(innerKeepPresentationIntegrity({
-      ...presentation,
+  it('fails mismatched Builder state and construction lifecycle closed', () => {
+    const constructing = createInnerKeepTestBuilding({
+      buildingKind: 'city-mill',
+      phase: 'constructing'
+    });
+    const presentation = createInnerKeepPresentation({ buildings: [constructing] });
+    expect(innerKeepPresentationIntegrity(presentation)).toBe(false);
+    expect(innerKeepPresentationIntegrity(createInnerKeepPresentation({
+      buildings: [constructing],
       builder: {
         state: 'busy',
-        slotId: presentation.slots[0]!.slotId,
-        buildingKind: 'city-mill',
-        targetLevel: 1,
-        completesAtMicros: 10n
+        buildingKey: constructing.buildingKey,
+        buildingKind: constructing.buildingKind,
+        targetLevel: constructing.targetLevel,
+        completesAtMicros: constructing.completesAtMicros!
       }
-    })).toBe(false);
+    }))).toBe(true);
   });
 
-  it('rejects drifted catalogue discounts, duplicate quotes, and over-cap balances', () => {
+  it('rejects catalogue drift, missing quotes, duplicate quotes, and over-cap balances', () => {
     const presentation = createInnerKeepPresentation();
     expect(innerKeepPresentationIntegrity({
       ...presentation,
       catalogue: presentation.catalogue.map((entry, index) => (
-        index === 0 ? { ...entry, discountBasisPointsPerLevel: 501 } : entry
+        index === 0 ? { ...entry, category: 'civic' as const } : entry
       ))
+    })).toBe(false);
+    expect(innerKeepPresentationIntegrity({
+      ...presentation,
+      quotes: presentation.quotes.slice(1)
     })).toBe(false);
     expect(innerKeepPresentationIntegrity({
       ...presentation,
@@ -118,10 +133,7 @@ describe('Inner Keep presentation boundary', () => {
       ...presentation,
       resources: {
         ...presentation.resources,
-        available: {
-          ...presentation.resources.available,
-          food: 1_000_001n
-        }
+        available: { ...presentation.resources.available, food: 1_000_001n }
       }
     })).toBe(false);
   });
@@ -131,8 +143,7 @@ describe('Inner Keep presentation boundary', () => {
       available: { food: 299n, wood: 900n, stone: 600n, gold: 0n }
     });
     const quote = presentation.quotes.find((candidate) => (
-      candidate.slotId === presentation.slots[0]!.slotId
-      && candidate.buildingKind === 'city-mill'
+      candidate.buildingKind === 'city-mill'
     ))!;
     expect(innerKeepQuoteAffordable(quote, presentation.resources.available)).toBe(false);
     expect(innerKeepQuoteBlockedReason(quote, presentation.resources.available))

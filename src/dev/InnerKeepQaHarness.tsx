@@ -14,6 +14,10 @@ import {
   type InnerKeepSceneTelemetry
 } from '../components/inner-keep/createInnerKeepSceneLayer';
 import type { InnerKeepBuildingKind } from '../components/inner-keep/innerKeepPresentation';
+import {
+  initialInnerKeepPlacementDraft,
+  type InnerKeepPlacementDraft
+} from '../components/inner-keep/innerKeepPlacement';
 import { REALM_LIGHTING_SPECS } from '../components/realm/realmQuality';
 import {
   completeSyntheticInnerKeepQaPresentation,
@@ -61,6 +65,9 @@ const EMPTY_TELEMETRY: InnerKeepSceneTelemetry = Object.freeze({
   exteriorMountedActorCount: 0,
   exteriorPatrolUnitCount: 0,
   slotCount: 0,
+  buildingPickTargetCount: 0,
+  placementPreviewActive: false,
+  placementPreviewValid: false,
   completedBuildingCount: 0,
   constructionSiteCount: 0,
   completionRevealActive: false
@@ -85,11 +92,13 @@ function sceneEvidence(layer: InnerKeepSceneLayer): SceneEvidence {
     if (
       object.name
         === 'inner-keep-authored-placement:grand-covenant-cathedral-main-building'
+      || object.name === 'inner-keep-completed-building:grand-covenant-cathedral'
     ) {
       cathedralPlacementPresent = true;
     } else if (
       object.name
         === 'inner-keep-authored-placement:shieldcourt-barracks-west-garrison'
+      || object.name === 'inner-keep-completed-building:city-barracks'
     ) {
       barracksPlacementPresent = true;
     } else if (object.name.startsWith('inner-keep-completed-building:')) {
@@ -148,6 +157,9 @@ function telemetryKey(telemetry: InnerKeepSceneTelemetry, evidence: SceneEvidenc
     telemetry.exteriorMountedActorCount,
     telemetry.exteriorPatrolUnitCount,
     telemetry.slotCount,
+    telemetry.buildingPickTargetCount,
+    telemetry.placementPreviewActive,
+    telemetry.placementPreviewValid,
     telemetry.completedBuildingCount,
     telemetry.constructionSiteCount,
     telemetry.completionRevealActive,
@@ -165,12 +177,28 @@ export function InnerKeepQaHarness({ scenario }: Readonly<{
   const [presentation, setPresentation] = useState(() => (
     createSyntheticInnerKeepQaPresentation(scenario)
   ));
-  const [selectedSlotId, setSelectedSlotId] = useState<string | undefined>(
-    scenario.selectedSlotId ?? undefined
+  const initialScenarioBuildingKind = (
+    scenario.selectedBuildingKind as InnerKeepBuildingKind | null
   );
+  const initialScenarioBuildingExists = initialScenarioBuildingKind !== null
+    && presentation.buildings.some(({ buildingKind }) => (
+      buildingKind === initialScenarioBuildingKind
+    ));
+  const [catalogueOpen, setCatalogueOpen] = useState(scenario.catalogueOpen);
+  const [placementBuildingKind, setPlacementBuildingKind] =
+    useState<InnerKeepBuildingKind | undefined>(
+      initialScenarioBuildingKind !== null && !initialScenarioBuildingExists
+        ? initialScenarioBuildingKind
+        : undefined
+    );
+  const [placementDraft, setPlacementDraft] = useState<InnerKeepPlacementDraft | null>(() => (
+    initialScenarioBuildingKind !== null && !initialScenarioBuildingExists
+      ? initialInnerKeepPlacementDraft(initialScenarioBuildingKind, presentation.buildings)
+      : null
+  ));
   const [selectedBuildingKind, setSelectedBuildingKind] =
     useState<InnerKeepBuildingKind | undefined>(
-      scenario.selectedBuildingKind ?? undefined
+      initialScenarioBuildingExists ? initialScenarioBuildingKind ?? undefined : undefined
     );
   const [sceneTelemetry, setSceneTelemetry] = useState(EMPTY_TELEMETRY);
   const [sceneState, setSceneState] = useState<'loading' | 'ready' | 'unavailable'>(
@@ -183,10 +211,8 @@ export function InnerKeepQaHarness({ scenario }: Readonly<{
   const frameRef = useRef<number | null>(null);
   const firstFrameTimeRef = useRef<number | null>(null);
   const presentationRef = useRef(presentation);
-  const selectedSlotIdRef = useRef(selectedSlotId);
   const lastTelemetryKeyRef = useRef('');
   presentationRef.current = presentation;
-  selectedSlotIdRef.current = selectedSlotId;
 
   const publishBrowserEvidence = useCallback((
     layer: InnerKeepSceneLayer | null = layerRef.current
@@ -199,7 +225,7 @@ export function InnerKeepQaHarness({ scenario }: Readonly<{
     const telemetry = layer?.getTelemetry() ?? Object.freeze({
       ...EMPTY_TELEMETRY,
       status: scenario.renderMode === 'fallback' ? 'ready' : 'empty',
-      slotCount: scenario.renderMode === 'fallback' ? currentPresentation.slots.length : 0,
+      slotCount: 0,
       completedBuildingCount: scenario.renderMode === 'fallback'
         ? currentPresentation.buildings.filter((building) => building.phase === 'complete').length
         : 0,
@@ -230,6 +256,15 @@ export function InnerKeepQaHarness({ scenario }: Readonly<{
       layer?.getAnimationFrameCap() ?? 0
     );
     root.dataset.innerKeepQaSlotCount = String(telemetry.slotCount);
+    root.dataset.innerKeepQaBuildingPickTargetCount = String(
+      telemetry.buildingPickTargetCount
+    );
+    root.dataset.innerKeepQaPlacementPreviewActive = String(
+      telemetry.placementPreviewActive
+    );
+    root.dataset.innerKeepQaPlacementPreviewValid = String(
+      telemetry.placementPreviewValid
+    );
     root.dataset.innerKeepQaTriangleCount = String(telemetry.triangleCount);
     root.dataset.innerKeepQaDrawCalls = String(telemetry.drawCalls);
     root.dataset.innerKeepQaRendererDrawCalls = String(rendererEvidence.drawCalls);
@@ -406,7 +441,13 @@ export function InnerKeepQaHarness({ scenario }: Readonly<{
       };
       resize();
       layer.reconcile(presentationRef.current, { owningTerrainKind: 'forest' });
-      layer.setSelectedSlot(selectedSlotIdRef.current ?? null);
+      layer.setPlacementDraft(placementDraft);
+      const selected = selectedBuildingKind === undefined
+        ? undefined
+        : presentationRef.current.buildings.find(({ buildingKind }) => (
+          buildingKind === selectedBuildingKind
+        ));
+      layer.setSelectedBuilding(selected?.buildingKey ?? null);
       setSceneState('ready');
       publishBrowserEvidence(layer);
       const resizeObserver = typeof ResizeObserver === 'function'
@@ -424,6 +465,7 @@ export function InnerKeepQaHarness({ scenario }: Readonly<{
         }
         layer?.dispose();
         renderer.dispose();
+        renderer.forceContextLoss();
         unregisterRenderer?.();
         unregisterRenderer = null;
         layerRef.current = null;
@@ -434,6 +476,7 @@ export function InnerKeepQaHarness({ scenario }: Readonly<{
       disposed = true;
       layer?.dispose();
       rendererRef.current?.dispose();
+      rendererRef.current?.forceContextLoss();
       rendererRef.current = null;
       layerRef.current = null;
       unregisterRenderer?.();
@@ -463,17 +506,31 @@ export function InnerKeepQaHarness({ scenario }: Readonly<{
 
   useEffect(() => {
     const layer = layerRef.current;
-    layer?.setSelectedSlot(selectedSlotId ?? null);
+    layer?.setPlacementDraft(placementDraft);
+    const selected = selectedBuildingKind === undefined
+      ? undefined
+      : presentation.buildings.find(({ buildingKind }) => (
+        buildingKind === selectedBuildingKind
+      ));
+    layer?.setSelectedBuilding(selected?.buildingKey ?? null);
     publishBrowserEvidence(layer);
-  }, [publishBrowserEvidence, selectedSlotId]);
+  }, [placementDraft, presentation.buildings, publishBrowserEvidence, selectedBuildingKind]);
 
   const handleBack = useCallback(() => {
+    if (placementBuildingKind) {
+      setPlacementBuildingKind(undefined);
+      setPlacementDraft(null);
+      return;
+    }
+    if (catalogueOpen) {
+      setCatalogueOpen(false);
+      return;
+    }
     if (selectedBuildingKind) {
       setSelectedBuildingKind(undefined);
       return;
     }
-    setSelectedSlotId(undefined);
-  }, [selectedBuildingKind]);
+  }, [catalogueOpen, placementBuildingKind, selectedBuildingKind]);
 
   const observeCompletion = useCallback(() => {
     setPresentation((current) => completeSyntheticInnerKeepQaPresentation(current));
@@ -510,19 +567,38 @@ export function InnerKeepQaHarness({ scenario }: Readonly<{
       ) : null}
 
       <InnerKeepScreen
+        catalogueOpen={catalogueOpen}
         onBack={handleBack}
-        onCloseToRealm={() => undefined}
-        onOpenSlot={(slotId) => {
-          setSelectedSlotId(slotId);
+        onBeginPlacement={(buildingKind) => {
+          setCatalogueOpen(false);
           setSelectedBuildingKind(undefined);
+          setPlacementBuildingKind(buildingKind);
+          setPlacementDraft(initialInnerKeepPlacementDraft(
+            buildingKind,
+            presentation.buildings
+          ));
         }}
+        onCloseToRealm={() => undefined}
+        onOpenBuilding={(buildingKind) => {
+          setCatalogueOpen(false);
+          setPlacementBuildingKind(undefined);
+          setPlacementDraft(null);
+          setSelectedBuildingKind(buildingKind);
+        }}
+        onOpenCatalogue={() => {
+          setSelectedBuildingKind(undefined);
+          setPlacementBuildingKind(undefined);
+          setPlacementDraft(null);
+          setCatalogueOpen(true);
+        }}
+        onPlacementDraftChange={setPlacementDraft}
         onRequestSync={() => undefined}
-        onReviewBuilding={setSelectedBuildingKind}
         onStartProject={async () => undefined}
+        placementBuildingKind={placementBuildingKind}
+        placementDraft={placementDraft}
         presentation={presentation}
         renderMode={scenario.renderMode}
         selectedBuildingKind={selectedBuildingKind}
-        selectedSlotId={selectedSlotId}
       />
 
       <aside

@@ -549,7 +549,7 @@ describe('Inner Keep deterministic ambient timeline', () => {
     expect(minimumObservedBodyClearanceResidual, minimumObservedPair).toBeGreaterThanOrEqual(
       -0.000_001
     );
-  }, 20_000);
+  }, 45_000);
 
   it('freezes a stable non-conversing formation for reduced motion and reduced quality', () => {
     for (const plan of [

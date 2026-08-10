@@ -69,16 +69,26 @@ to its caller and settled by server time. Public occupation rows show only the
 site, phase, timeline, and origin castle. Construction, upgrades, units, combat,
 alliances, trading, chat, seasons, and governance are not playable yet.
 
-The inactive Inner Keep V1 foundation defines twelve fixed castle-compound
-slots, four unique economy buildings with five levels, and one internal Builder
-per founded castle. It is separate from the four external gathering Workers.
-The client submits a fixed slot, building kind, idempotency key,
-`expectedTargetLevel`, canonical decimal `expectedProjectRevision`, and
-`expectedPolicyDigest`. The three expected values are untrusted quote-binding
+The inactive Inner Keep V1 foundation defines a continuous buildable interior,
+six unique buildings with five levels, and one internal Builder per founded
+castle. It is separate from the four external gathering Workers. The retained
+v15 compatibility-slot table has zero rows; Barracks and Cathedral begin absent
+alongside the four economy buildings.
+
+The client submits a building kind, local X/Z microunits, quarter-turn rotation,
+idempotency key, `expectedTargetLevel`, canonical decimal
+`expectedProjectRevision`, `expectedPolicyDigest`, and `expectedLayoutDigest`.
+The four expected values are untrusted quote-and-placement-binding
 compare-and-set assertions. The server derives ownership, the current target,
-and current policy digest. Before a new mutation, it verifies all three against
-current authority, then derives cost, discount, duration, settlement, deduction,
-and completion.
+current policy digest, and current layout digest. After a prior accepted receipt
+has short-circuited idempotently, a new request verifies policy/layout digests
+and transactionally reconciles any exact overdue project. It validates the
+half-meter-snapped transform inside x `[-44, 44]` / z `[-40, 32]`, rejects
+road/civic exclusions and persisted footprint overlap, then checks target and
+aggregate revision against the reconciled graph. A mismatch rolls the whole
+reducer back before reconciliation, settlement, or deduction can commit. It
+then derives cost, discount, duration, settlement, deduction, and completion.
+
 Merging to protected `main` triggers the existing verified Pages deployment of
 the compatible, dormant client. Publication, catalog seed, Builder backfill,
 runtime asset verification, and activation remain separate owner-reviewed
@@ -106,21 +116,23 @@ but never world membership, resource placement, or authority.
 The Realm and Inner Keep use one canvas, WebGL renderer, quality policy,
 recovery path, and animation scheduler. Switching to the Inner Keep suspends
 world interaction instead of creating a second graphics context. A functional
-twelve-slot HTML/CSS view preserves navigation, costs, Builder status, and
-guarded actions when 3D or an optional model is unavailable.
+HTML/CSS placement view preserves navigation, the valid-ground map, costs,
+Builder status, and guarded actions when 3D or an optional model is unavailable.
 
-The installed Inner Keep presentation uses the Grand Covenant Cathedral as its
-northern anchor and the Barracks as its western garrison. Fixed authored
-scenery, quality-bounded grass and water, and deterministic ambient citizens
-and patrols remain client-only presentation. They never provide server
-coordinates, collision, unit, chat, resource, reward, or ownership authority.
-Static placement is atomic, loading is bounded and retry-safe, and a procedural
-compound remains available until exact coverage is safe to reveal.
+The installed Inner Keep presentation begins mostly empty, with roads, a civic
+commons, walls, and modest non-functional town dressing. Grand Covenant
+Cathedral and City Barracks appear only as player-built outcomes at persisted
+server transforms. Fixed authored scenery, quality-bounded grass and water,
+and deterministic ambient citizens and patrols remain client-only
+presentation. They never provide unit, chat, resource, reward, or ownership
+authority. Static placement is atomic, loading is bounded and retry-safe, and
+a procedural compound remains available until exact coverage is safe to reveal.
 
-The 40.4 x 36 meter palisade and re-spaced slot transforms are part of the
-canonical layout attestation. Presentation-only dirt aprons and district roads
-make the larger footprint readable, while native slot controls and server
-commands remain keyed only by the twelve fixed slot identities.
+The 96 x 80 meter palisade surrounds an 88 x 72 meter authoritative support
+rectangle after the four-meter interior setback. Presentation-only dirt aprons
+and district roads make the larger footprint readable. Native placement
+controls use a 0.5-meter snap and 0 / 90 / 180 / 270-degree rotations, while
+the server revalidates the same geometry before accepting a command.
 
 The surrounding-estate policy is a separate client contract and does not
 change the canonical Inner Keep layout digest. One finite deterministic height
@@ -128,13 +140,14 @@ sampler grounds its nine topographic features, connected headwater-rill-lake,
 outer patrol road, grass, trees, animals, trade wagon, and scenic resource
 structures. The compound footprint samples to exactly zero; terrain feathers
 through a rounded 5.5-meter shoulder only beyond the walls. The estate spans
-68 x 76 meters. A separately digested, non-pickable countryside ring extends
-the rendered field to 192 x 288 meters without changing the detailed sampler,
+144 x 144 meters. A separately digested, non-pickable countryside ring extends
+the rendered field to 416 x 544 meters without changing the detailed sampler,
 placement density, canonical layout digest, or server authority. It fades to
-the scene fog and caps crop tufts at 240 / 144 / 72 and procedural hedgerow
-silhouettes at 24 / 16 / 8. Camera focus is presentation-clamped to three
-meters per axis. Quality caps detailed grass at 2,400 / 1,400 / 480 blades and
-eight Warpkeep-Assets tree species at 72 / 44 / 22 instances.
+the scene fog and caps crop tufts at 320 / 192 / 96 and procedural hedgerow
+silhouettes at 32 / 20 / 10. Camera focus is presentation-clamped to nine
+meters per axis with reduced screen tracking so the visual boundary remains
+outside supported views. Quality caps detailed grass at 2,400 / 1,400 / 480
+blades and eight Warpkeep-Assets tree species at 72 / 44 / 22 instances.
 
 The same outer policy caps presentation-only resource structures at 8 / 6 / 4
 and rabbits at 10 / 7 / 4, with one trade wagon in every tier. The optional

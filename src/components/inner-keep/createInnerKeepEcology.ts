@@ -7,7 +7,6 @@ import {
   REALM_GRASS_VARIANT_COUNTS,
 } from '../realm/createLowPolyGrassGeometry';
 import { createInnerKeepTerrainDrapedEllipseGeometry } from './createInnerKeepTerrainDrapedGeometry';
-import { INNER_KEEP_LAYOUT_V1_SLOTS } from './innerKeepLayoutV1';
 import { INNER_KEEP_AMBIENT_ROUTES } from './innerKeepAmbientPolicy';
 import {
   INNER_KEEP_FIXED_PLACEMENT_EXCLUSIONS,
@@ -152,14 +151,23 @@ export type InnerKeepFixedEcologyExclusion = InnerKeepFixedPlacementExclusion;
 export const INNER_KEEP_FIXED_ECOLOGY_EXCLUSIONS =
   INNER_KEEP_FIXED_PLACEMENT_EXCLUSIONS;
 
+export type InnerKeepEcologyBuildingExclusion = Readonly<{
+  centerMeters: readonly [number, number];
+  halfExtentsMeters: readonly [number, number];
+}>;
+
 export type InnerKeepEcology = Readonly<{
   group: THREE.Group;
+  /** Nominal deterministic population; dynamic culling does not alter budgets. */
   grassBladeCount: number;
   waterSurfaceCount: number;
   marshWetGroundPatchCount: number;
   marshReedCount: number;
   marshLilyPadCount: number;
   marshDeadSnagCount: number;
+  setBuildingExclusions: (
+    exclusions: readonly InnerKeepEcologyBuildingExclusion[],
+  ) => boolean;
   update: (elapsedSeconds: number) => boolean;
   isAnimationActive: () => boolean;
   dispose: () => void;
@@ -472,14 +480,24 @@ function grassCandidateIsClear(x: number, z: number) {
     && x <= wall.eastX + support
     && z >= wall.northZ - support
     && z <= wall.southZ + support;
+  const road = INNER_KEEP_PRESENTATION_CLEARANCES.road;
+  const overlapsCivicSpine = (
+    Math.abs(x - road.northSouthCenterX)
+      < road.northSouthHalfWidth + 0.5 + support
+    && z >= road.minimumZ - support
+    && z <= road.maximumZ + support
+  );
+  const overlapsCommons = insideRoundedBox(
+    x,
+    z,
+    road.commonsCenter[0],
+    road.commonsCenter[1],
+    road.commonsHalfExtents[0] + support,
+    road.commonsHalfExtents[1] + support,
+  );
   if (
     insideInnerKeepEcologyArea
-    && (
-      Math.abs(x - INNER_KEEP_PRESENTATION_CLEARANCES.road.northSouthCenterX)
-        < INNER_KEEP_PRESENTATION_CLEARANCES.road.northSouthHalfWidth + 0.5 + support
-      || Math.abs(z - INNER_KEEP_PRESENTATION_CLEARANCES.road.eastWestCenterZ)
-        < INNER_KEEP_PRESENTATION_CLEARANCES.road.eastWestHalfWidth + 0.38 + support
-    )
+    && (overlapsCivicSpine || overlapsCommons)
   ) return false;
   if (innerKeepCityDistrictRoadEdgeDistance(x, z) < 0.34 + support) return false;
   if (innerKeepCityEdgeApronDistance(x, z) < 0.14 + support) return false;
@@ -506,26 +524,6 @@ function grassCandidateIsClear(x: number, z: number) {
     )
   ))) return false;
   if (overlapsAmbientRoute(x, z, support)) return false;
-  for (const slot of INNER_KEEP_LAYOUT_V1_SLOTS) {
-    const slotX = Number(slot.localXMicrounits) / 1_000_000;
-    const slotZ = Number(slot.localZMicrounits) / 1_000_000;
-    const angle = -slot.rotationMilliDegrees * Math.PI / 180_000;
-    const deltaX = x - slotX;
-    const deltaZ = z - slotZ;
-    const localX = deltaX * Math.cos(angle) - deltaZ * Math.sin(angle);
-    const localZ = deltaX * Math.sin(angle) + deltaZ * Math.cos(angle);
-    const halfExtents = slot.footprintClass === 'large'
-      ? INNER_KEEP_PRESENTATION_CLEARANCES.slot.largeReservedHalfExtents
-      : INNER_KEEP_PRESENTATION_CLEARANCES.slot.mediumHalfExtents;
-    if (insideRoundedBox(
-      localX,
-      localZ,
-      0,
-      0,
-      halfExtents[0] + INNER_KEEP_PRESENTATION_CLEARANCES.slot.decorativeBuffer + support,
-      halfExtents[1] + INNER_KEEP_PRESENTATION_CLEARANCES.slot.decorativeBuffer + support,
-    )) return false;
-  }
   const plateau = INNER_KEEP_OUTER_WORLD_COMPOUND_PLATEAU;
   const isInsideCompoundPlateau = x >= plateau.minimumX
     && x <= plateau.maximumX
@@ -610,6 +608,11 @@ function createGrass(
       capacity,
       count: 0,
       mesh: new THREE.InstancedMesh(geometry, material, capacity),
+      placements: [] as Array<Readonly<{
+        matrix: THREE.Matrix4;
+        x: number;
+        z: number;
+      }>>,
     };
   });
   if (partialBladeCount > 0) {
@@ -620,6 +623,11 @@ function createGrass(
       capacity: 1,
       count: 0,
       mesh: new THREE.InstancedMesh(geometry, material, 1),
+      placements: [] as Array<Readonly<{
+        matrix: THREE.Matrix4;
+        x: number;
+        z: number;
+      }>>,
     });
   }
   batches.forEach((batch, index) => {
@@ -713,6 +721,7 @@ function createGrass(
       yaw,
     )) continue;
     batch.mesh.setMatrixAt(batch.count, matrix);
+    batch.placements.push(Object.freeze({ matrix: matrix.clone(), x, z }));
     batch.count += 1;
     acceptedBladeCount += batch.bladeCount;
     accepted += 1;
@@ -721,10 +730,46 @@ function createGrass(
     batch.mesh.count = batch.count;
     batch.mesh.instanceMatrix.needsUpdate = true;
   });
+  let activeExclusionSignature = '';
+  const setBuildingExclusions = (
+    exclusions: readonly InnerKeepEcologyBuildingExclusion[],
+  ) => {
+    const normalized = exclusions.filter((exclusion) => (
+      exclusion.centerMeters.every(Number.isFinite)
+      && exclusion.halfExtentsMeters.every((extent) => (
+        Number.isFinite(extent) && extent >= 0
+      ))
+    ));
+    const signature = normalized.map((exclusion) => [
+      ...exclusion.centerMeters,
+      ...exclusion.halfExtentsMeters,
+    ].join(':')).join('|');
+    if (signature === activeExclusionSignature) return false;
+    activeExclusionSignature = signature;
+    const support = INNER_KEEP_GRASS_PATCH_SUPPORT_RADIUS_METERS;
+    batches.forEach((batch) => {
+      let visibleCount = 0;
+      batch.placements.forEach((placement) => {
+        const hidden = normalized.some((exclusion) => (
+          Math.abs(placement.x - exclusion.centerMeters[0])
+            <= exclusion.halfExtentsMeters[0] + support
+          && Math.abs(placement.z - exclusion.centerMeters[1])
+            <= exclusion.halfExtentsMeters[1] + support
+        ));
+        if (hidden) return;
+        batch.mesh.setMatrixAt(visibleCount, placement.matrix);
+        visibleCount += 1;
+      });
+      batch.mesh.count = visibleCount;
+      batch.mesh.instanceMatrix.needsUpdate = true;
+    });
+    return true;
+  };
   return Object.freeze({
     grassMeshes: Object.freeze(batches.map((batch) => batch.mesh)),
     windTime,
     bladeCount: acceptedBladeCount,
+    setBuildingExclusions,
   });
 }
 
@@ -997,7 +1042,12 @@ export function createInnerKeepEcology(options: Readonly<{
   group.name = 'inner-keep-living-ecology';
   const geometries = new Set<THREE.BufferGeometry>();
   const materials = new Set<THREE.Material>();
-  const { grassMeshes, windTime, bladeCount } = createGrass(
+  const {
+    grassMeshes,
+    windTime,
+    bladeCount,
+    setBuildingExclusions,
+  } = createGrass(
     options.quality,
     options.visualSeed,
     geometries,
@@ -1145,6 +1195,9 @@ export function createInnerKeepEcology(options: Readonly<{
     marshReedCount: marshPlan.reeds.length,
     marshLilyPadCount: marshPlan.lilyPads.length,
     marshDeadSnagCount: marshPlan.deadSnags.length,
+    setBuildingExclusions: (exclusions) => (
+      disposed ? false : setBuildingExclusions(exclusions)
+    ),
     update: (elapsedSeconds) => {
       if (disposed || options.reducedMotion || !Number.isFinite(elapsedSeconds)) return false;
       const time = Math.max(0, elapsedSeconds);

@@ -25,6 +25,21 @@ dry run, and a separately confirmed publication operation.
 - short-lived Hermes administrator credential through the private operator
   input path.
 
+The reviewed inactive artifacts currently pin asset-selection digest
+`cf1fdac091e310cce3362d43403be938fe7946e46df906f2efb8cff601497c6d`,
+presentation digest
+`533ff0c18624445af874f97b71d1d3ae4c6cb4a61f8b7732ba905ee10a61b443`,
+combined layout digest
+`1b3a452794c28f8d7f8814ce6064da8582725d34bb0ee0271d51f40c2fbdfad7`,
+palisade/compound digest
+`e3a6e117e7610cb942432c18d0c1ce38485a5c3b6e37069bdc07787e7ef273a8`,
+far-countryside digest
+`20e1a2f00edbaee520aa96f67d651721da6786e29c19d555fa7bfda161e9eacc`,
+and construction-policy digest
+`cbffcdc223b5d99625cab7549f3a5ae211c725893574b629aa83f8260668a779`.
+Any later reviewed artifact must replace these pins coherently before an
+operator proceeds.
+
 Never place credentials, FIDs, balances, receipts, request keys, private rows,
 or raw production output in a public record.
 
@@ -51,8 +66,9 @@ owner/legal decisions.
    backfill, or activate as a side effect.
 6. Reinspect. Require the v14 prefix and all historical counts unchanged and
    all v15 tables empty.
-7. Seed the exact inactive layout, twelve slots, four building catalog rows,
-   and twenty level-policy rows. Require the reviewed digests and no duplicates.
+7. Seed the exact inactive layout, zero compatibility-slot rows, six building
+   catalog rows, and thirty level-policy rows. Require the reviewed digests and
+   no duplicates.
 8. Backfill exactly one idle private Builder for each existing founded castle.
    Require no resource, building, schedule, receipt, Worker, Mark, castle, or
    Terms mutation.
@@ -123,9 +139,9 @@ npm run stdb:inner-keep:inspect
 npm run stdb:inner-keep:plan-catalog
 npm run stdb:inner-keep:seed-catalog -- \
   --expected-missing-layout 1 \
-  --expected-missing-slots 12 \
-  --expected-missing-buildings 4 \
-  --expected-missing-levels 20
+  --expected-missing-slots 0 \
+  --expected-missing-buildings 6 \
+  --expected-missing-levels 30
 npm run stdb:inner-keep:plan-builders
 npm run stdb:inner-keep:backfill-builders -- \
   --expected-castles <count> \
@@ -182,10 +198,11 @@ exercise any of those production gates.
 ## Activation invariants
 
 - one active layout with the exact catalog and layout digests;
-- twelve exact slots: eight medium and four reserved large;
-- four exact active building kinds and five level policies per kind;
+- zero rows in the retained `inner_keep_slot_v1` compatibility table;
+- six exact active building kinds and five level policies per kind;
 - one private idle Builder for every founded castle;
-- zero duplicate castle/slot or castle/building assignments;
+- zero duplicate castle/building assignments or overlapping persisted
+  footprints;
 - zero orphan or mismatched schedules;
 - zero active projects at first activation;
 - the current generic four-Worker system active and legacy expeditions drained;

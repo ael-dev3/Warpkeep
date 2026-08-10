@@ -29,11 +29,15 @@ world foundation and visual representation of what is being built.
 The next useful slice gives gathered resources a small, understandable purpose
 inside each player's own castle:
 
-1. enter a twelve-slot Inner Keep compound without leaving the Realm session;
-2. spend stored resources on one of four server-priced economy buildings;
-3. let one internal Builder complete construction while the player is away;
-4. keep the completed level visible and use its matching resource discount;
-5. test whether that loop is enjoyable before adding breadth.
+1. enter a 96 x 80 meter Inner Keep compound without leaving the Realm session;
+2. choose any valid half-meter-snapped position and quarter-turn orientation
+   within the continuous interior;
+3. spend stored resources on one of six server-priced buildings, including a
+   Barracks and Cathedral that are initially absent;
+4. let one internal Builder complete construction while the player is away;
+5. keep the completed level visible and apply an economy building's matching
+   resource discount;
+6. test whether that loop is enjoyable before adding breadth.
 
 This work is prepared behind an inactive component gate. A merge to protected
 `main` triggers the existing verified Pages deployment of the compatible,

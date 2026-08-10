@@ -37,7 +37,16 @@ const mocked = vi.hoisted(() => {
     onInnerKeepSceneStatusChange?: (
       status: 'inactive' | 'loading' | 'ready' | 'unavailable'
     ) => void;
-    onInnerKeepSlotSelect?: (slotId: string) => void;
+    onInnerKeepBuildingSelect?: (buildingKey: string) => void;
+    onInnerKeepPlacementDraftChange?: (draft: Readonly<{
+      buildingKind: 'city-mill';
+      transform: Readonly<{
+        localXMicrounits: bigint;
+        localZMicrounits: bigint;
+        rotationMilliDegrees: number;
+      }>;
+      evaluation: Readonly<{ valid: boolean; reason: null }>;
+    }>) => void;
     onCastlesReady?: (castleCount: number) => void;
     onRendererFailure?: (failure: {
       code: string;
@@ -119,7 +128,8 @@ const mocked = vi.hoisted(() => {
     dispose: ReturnType<typeof vi.fn>;
     setSceneMode: ReturnType<typeof vi.fn>;
     reconcileInnerKeepPresentation: ReturnType<typeof vi.fn>;
-    setSelectedInnerKeepSlotId: ReturnType<typeof vi.fn>;
+    setInnerKeepPlacementDraft: ReturnType<typeof vi.fn>;
+    setSelectedInnerKeepBuildingKey: ReturnType<typeof vi.fn>;
     setPresentationActive: ReturnType<typeof vi.fn>;
     reconcileLiveGatheringState: ReturnType<typeof vi.fn>;
     getCameraAttestation: ReturnType<typeof vi.fn>;
@@ -153,7 +163,8 @@ const mocked = vi.hoisted(() => {
         );
       }),
       reconcileInnerKeepPresentation: vi.fn(),
-      setSelectedInnerKeepSlotId: vi.fn(),
+      setInnerKeepPlacementDraft: vi.fn(),
+      setSelectedInnerKeepBuildingKey: vi.fn(),
       setPresentationActive: vi.fn(),
       reconcileLiveGatheringState: vi.fn(),
       getCameraAttestation: vi.fn(() => ({ marker: 'camera-attestation' })),
@@ -702,52 +713,58 @@ describe('live realm quality recreation', () => {
       innerKeep,
       expect.objectContaining({ owningTerrainKind: expect.any(String) })
     );
-    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000);
+    vi.spyOn(Date, 'now').mockReturnValue(1_000);
     innerKeepSfx.length = 0;
-    act(() => {
-      sceneOptions.onInnerKeepSlotSelect?.('inner-keep-slot-m01');
-      expect(innerKeepSfx.filter((kind) => kind === 'inner-keep-menu-opened'))
-        .toHaveLength(0);
-    });
+    fireEvent.click(screen.getByRole('button', {
+      name: /BUILD — choose a town project/i
+    }));
     await waitFor(() => expect(
-      screen.getByRole('heading', { name: /West Courtyard/i })
+      screen.getByRole('heading', { name: /Choose a town building/i })
     ).toBeDefined());
     expect(innerKeepSfx.filter((kind) => kind === 'inner-keep-menu-opened'))
       .toHaveLength(1);
 
-    // A native semantic activation is the same target route as the canvas
-    // raycast. It stays silent both immediately and after the old 400 ms
-    // debounce window because no route, id, or kind changed.
-    fireEvent.click(screen.getByLabelText(/West Courtyard\. Empty build site/i));
-    expect(innerKeepSfx.filter((kind) => kind === 'inner-keep-menu-opened'))
-      .toHaveLength(1);
-    now.mockReturnValue(1_501);
-    fireEvent.click(screen.getByLabelText(/West Courtyard\. Empty build site/i));
-    expect(innerKeepSfx.filter((kind) => kind === 'inner-keep-menu-opened'))
-      .toHaveLength(1);
-
-    fireEvent.click(screen.getAllByRole('button', { name: 'REVIEW BUILD' })[0]!);
+    const millCard = screen.getByRole('heading', { name: 'City Mill' }).closest('li');
+    expect(millCard).not.toBeNull();
+    fireEvent.click(within(millCard!).getByRole('button', { name: 'PLACE BUILDING' }));
     await waitFor(() => expect(
-      screen.getByRole('button', { name: 'START CONSTRUCTION' })
+      screen.getByRole('heading', { name: 'City Mill' })
     ).toBeDefined());
     expect(innerKeepSfx.filter((kind) => kind === 'inner-keep-menu-opened'))
       .toHaveLength(2);
 
+    const draft = Object.freeze({
+      buildingKind: 'city-mill' as const,
+      transform: Object.freeze({
+        localXMicrounits: 14_000_000n,
+        localZMicrounits: -10_000_000n,
+        rotationMilliDegrees: 0
+      }),
+      evaluation: Object.freeze({ valid: true, reason: null as null })
+    });
     act(() => {
-      sceneOptions.onInnerKeepSlotSelect?.('inner-keep-slot-m01');
+      sceneOptions.onInnerKeepPlacementDraftChange?.(draft);
     });
     await waitFor(() => expect(
-      screen.getByRole('heading', { name: /West Courtyard/i })
+      screen.getByText('This location is ready for construction.')
     ).toBeDefined());
+    expect(handle.setInnerKeepPlacementDraft).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        buildingKind: draft.buildingKind,
+        transform: draft.transform,
+        evaluation: expect.objectContaining({ valid: true, reason: null })
+      })
+    );
     const innerKeepHistory = (
       window.history.state as Record<string, unknown>
     )[REALM_SURFACE_HISTORY_KEY] as {
-      stack: readonly { kind: string; slotId?: string }[];
+      stack: readonly { kind: string; buildingKind?: string }[];
     };
     expect(innerKeepHistory.stack).toEqual([
       { kind: 'commands' },
       { kind: 'inner-keep' },
-      { kind: 'inner-keep-slot', slotId: 'inner-keep-slot-m01' }
+      { kind: 'inner-keep-catalogue' },
+      { kind: 'inner-keep-placement', buildingKind: 'city-mill' }
     ]);
 
     fireEvent.click(screen.getByRole('button', { name: 'CLOSE TO REALM' }));

@@ -1,7 +1,7 @@
 {
   "schema": "warpkeep.inner-keep-asset-selection.v1",
   "selectionId": "inner-keep-v1",
-  "selectionDigestSha256": "00304c5dbf819cec6cb656996c1105f64efcf36acf8099c431f5b04b822679f0",
+  "selectionDigestSha256": "cf1fdac091e310cce3362d43403be938fe7946e46df906f2efb8cff601497c6d",
   "selectionDigestAlgorithm": "sha256-ecmascript-canonical-json-v1",
   "recordedAt": "2026-08-04",
   "sourceRelease": {
@@ -2244,7 +2244,7 @@
       "sourcePackage": "Warpkeep_GrandCovenantCathedral_GameReady",
       "sourceAssetId": "warpkeep.city-buildings.grand-covenant-cathedral",
       "displayName": "Grand Covenant Cathedral",
-      "intendedUse": "Permanent northern civic and ceremonial anchor",
+      "intendedUse": "Player-placed civic construction outcome; absent until built",
       "boundsMeters": [
         34,
         31.5,
@@ -2311,7 +2311,7 @@
       "sourcePackage": "Warpkeep_CityBarracks_GameReady",
       "sourceAssetId": "warpkeep.city-buildings.city-barracks",
       "displayName": "Hegemony Shieldcourt Barracks",
-      "intendedUse": "Permanent western garrison and patrol origin",
+      "intendedUse": "Player-placed military construction outcome; absent until built",
       "boundsMeters": [
         16,
         10.1,

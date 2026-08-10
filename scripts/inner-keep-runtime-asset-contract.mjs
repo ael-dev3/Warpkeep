@@ -5,7 +5,7 @@ import { basename, dirname, resolve } from 'node:path';
 export const INNER_KEEP_ASSET_SELECTION_RECORD =
   'docs/reference/assets/2026-08-02-inner-keep-3d-library/manifest.json';
 export const INNER_KEEP_ASSET_SELECTION_DIGEST =
-  '00304c5dbf819cec6cb656996c1105f64efcf36acf8099c431f5b04b822679f0';
+  'cf1fdac091e310cce3362d43403be938fe7946e46df906f2efb8cff601497c6d';
 export const INNER_KEEP_ASSET_PROFILES = Object.freeze(['high', 'balanced', 'compact']);
 export const INNER_KEEP_ASSET_AUTHORIZATION_INSTRUCTION =
   'Use Warpkeep-Assets 3D objects to populate the official Inner Keep runtime, with the Grand Covenant Cathedral as the main building.';

@@ -1,6 +1,7 @@
 import {
   INNER_KEEP_RESOURCE_ORDER,
   innerKeepCatalogueEffectCopy,
+  innerKeepPlacementTransformIntegrity,
   innerKeepPresentationIntegrity,
   isInnerKeepBuildingKind,
   type InnerKeepBuildingKind,
@@ -8,9 +9,7 @@ import {
   type InnerKeepCatalogueEntry,
   type InnerKeepPresentation,
   type InnerKeepProjectQuote,
-  type InnerKeepResource,
-  type InnerKeepResourceAmounts,
-  type InnerKeepSlotPresentation
+  type InnerKeepResourceAmounts
 } from '../components/inner-keep/innerKeepPresentation';
 import {
   INNER_KEEP_STATIC_RUNTIME_ASSETS
@@ -49,7 +48,10 @@ const INNER_KEEP_BUILDING_KINDS = Object.freeze(
 );
 const INNER_KEEP_BUILDING_PREVIEW_PATHS = new Map(
   INNER_KEEP_STATIC_RUNTIME_ASSETS
-    .filter((asset) => asset.family === 'buildings' && asset.preview !== undefined)
+    .filter((asset) => (
+      (asset.family === 'buildings' || asset.family === 'landmarks')
+      && asset.preview !== undefined
+    ))
     .map((asset) => [asset.id, asset.preview!.path] as const)
 );
 
@@ -81,8 +83,10 @@ const REQUEST_STATUS_KEYS = Object.freeze([
   'found',
   'castleId',
   'buildingKey',
-  'slotId',
   'buildingKind',
+  'localXMicrounits',
+  'localZMicrounits',
+  'rotationMilliDegrees',
   'targetLevel',
   'deductedFood',
   'deductedWood',
@@ -171,7 +175,6 @@ export type InnerKeepBuildLevelRow = Readonly<{
 }>;
 
 export type InnerKeepBuildingRow = InnerKeepReconciliationBuilding & Readonly<{
-  slotKey: string;
   completesAtMicros: bigint;
   revision: bigint;
 }>;
@@ -354,9 +357,16 @@ export function decodeInnerKeepRequestStatus(
     !u64(raw.castleId)
     || raw.castleId !== scope.castleId
     || typeof raw.buildingKey !== 'string'
-    || typeof raw.slotId !== 'string'
     || typeof raw.buildingKind !== 'string'
     || !isInnerKeepBuildingKind(raw.buildingKind)
+    || typeof raw.localXMicrounits !== 'bigint'
+    || typeof raw.localZMicrounits !== 'bigint'
+    || typeof raw.rotationMilliDegrees !== 'number'
+    || !innerKeepPlacementTransformIntegrity({
+      localXMicrounits: raw.localXMicrounits,
+      localZMicrounits: raw.localZMicrounits,
+      rotationMilliDegrees: raw.rotationMilliDegrees,
+    })
     || !positiveSafeInteger(raw.targetLevel)
     || raw.targetLevel > INNER_KEEP_MAXIMUM_LEVEL
     || !u64(raw.deductedFood)
@@ -370,8 +380,12 @@ export function decodeInnerKeepRequestStatus(
     found: true as const,
     castleId: scope.castleId,
     buildingKey: raw.buildingKey,
-    slotId: raw.slotId,
     buildingKind: raw.buildingKind,
+    placement: Object.freeze({
+      localXMicrounits: raw.localXMicrounits,
+      localZMicrounits: raw.localZMicrounits,
+      rotationMilliDegrees: raw.rotationMilliDegrees,
+    }),
     targetLevel: raw.targetLevel,
     deducted: resourceAmounts(
       raw.deductedFood,
@@ -382,12 +396,6 @@ export function decodeInnerKeepRequestStatus(
     startedAtMicros: raw.startedAtMicros,
     policyVersion: INNER_KEEP_POLICY_VERSION
   });
-}
-
-function slotLabel(slot: InnerKeepSlotRow) {
-  return slot.active
-    ? `Build site ${slot.sortOrder}`
-    : `Reserved large site ${slot.sortOrder - 8}`;
 }
 
 function completedLevels(
@@ -444,18 +452,15 @@ function canonicalOwnBuildings(
   const own = rows.filter((row) => row.castleId === scope.castleId);
   if (own.length > INNER_KEEP_BUILDING_KINDS.length) return undefined;
   const kinds = new Set<string>();
-  const slots = new Set<string>();
+  const buildingKeys = new Set<string>();
   let constructing: InnerKeepBuildingRow | undefined;
   for (const row of own) {
-    const slot = CANONICAL_INNER_KEEP_SLOTS.find((candidate) => candidate.slotId === row.slotId);
     if (
       !isInnerKeepBuildingKind(row.buildingKind)
       || kinds.has(row.buildingKind)
-      || slots.has(row.slotId)
-      || slot === undefined
-      || !slot.active
+      || buildingKeys.has(row.buildingKey)
       || row.buildingKey !== `${scope.castleId.toString()}:${row.buildingKind}`
-      || row.slotKey !== `${scope.castleId.toString()}:${row.slotId}`
+      || !innerKeepPlacementTransformIntegrity(row.placement)
       || row.policyVersion !== INNER_KEEP_POLICY_VERSION
       || !Number.isSafeInteger(row.completedLevel)
       || row.completedLevel < 0
@@ -475,7 +480,7 @@ function canonicalOwnBuildings(
       constructing = row;
     }
     kinds.add(row.buildingKind);
-    slots.add(row.slotId);
+    buildingKeys.add(row.buildingKey);
   }
   if (privateState.builderBusy) {
     if (
@@ -486,28 +491,21 @@ function canonicalOwnBuildings(
   } else if (constructing !== undefined) {
     return undefined;
   }
-  return Object.freeze([...own].sort((left, right) => left.slotId.localeCompare(right.slotId)));
+  return Object.freeze([...own].sort((left, right) => (
+    left.buildingKind.localeCompare(right.buildingKind)
+  )));
 }
 
 function quoteBlockedReason(
-  slot: InnerKeepSlotRow,
   buildingKind: InnerKeepBuildingKind,
   buildings: readonly InnerKeepBuildingRow[],
   builderBusy: boolean
 ) {
   const building = buildings.find((row) => row.buildingKind === buildingKind);
-  if (!slot.active) return 'This large site is reserved for a future release.';
-  if (slot.footprintClass !== 'medium') return 'This project needs a medium build site.';
   if (builderBusy) return 'The Builder is already working on another project.';
-  if (building !== undefined && building.slotId !== slot.slotId) {
-    return 'This unique building already occupies another site.';
-  }
   if (building?.phase === 'constructing') return 'This project is already under construction.';
   if (building?.completedLevel === INNER_KEEP_MAXIMUM_LEVEL) {
     return 'This building has reached Level 5.';
-  }
-  if (buildings.some((row) => row.slotId === slot.slotId && row.buildingKind !== buildingKind)) {
-    return 'This site is already occupied.';
   }
   return undefined;
 }
@@ -548,18 +546,6 @@ export function resolveReadyInnerKeepProjection(input: Readonly<{
     )
   ) return undefined;
 
-  const sortedSlots = Object.freeze([...rows.slots].sort((left, right) => (
-    left.sortOrder - right.sortOrder
-  )));
-  const slots: readonly InnerKeepSlotPresentation[] = Object.freeze(sortedSlots.map((slot) => (
-    Object.freeze({
-      slotId: slot.slotId,
-      label: slotLabel(slot),
-      footprintClass: slot.footprintClass as 'medium' | 'large',
-      sortOrder: slot.sortOrder,
-      active: slot.active
-    })
-  )));
   const catalogue: readonly InnerKeepCatalogueEntry[] = Object.freeze(
     CANONICAL_INNER_KEEP_BUILDING_CATALOG.map((canonical) => {
       const row = rows.catalogue.find((candidate) => (
@@ -568,13 +554,16 @@ export function resolveReadyInnerKeepProjection(input: Readonly<{
       return Object.freeze({
         buildingKind: canonical.buildingKind,
         label: row.publicLabel,
-        footprintClass: 'medium' as const,
+        category: row.category as InnerKeepCatalogueEntry['category'],
+        footprintClass: row.footprintClass as InnerKeepCatalogueEntry['footprintClass'],
         maximumLevel: row.maximumLevel,
-        matchingDiscountResource: row.matchingDiscountResource as InnerKeepResource,
+        matchingDiscountResource: row.matchingDiscountResource as
+          InnerKeepCatalogueEntry['matchingDiscountResource'],
         discountBasisPointsPerLevel: row.discountBasisPointsPerLevel,
         discountCapBasisPoints: row.discountCapBasisPoints,
         effectCopy: innerKeepCatalogueEffectCopy(
-          row.matchingDiscountResource as InnerKeepResource,
+          row.matchingDiscountResource as
+            InnerKeepCatalogueEntry['matchingDiscountResource'],
           row.discountBasisPointsPerLevel,
           row.discountCapBasisPoints,
         ),
@@ -586,8 +575,9 @@ export function resolveReadyInnerKeepProjection(input: Readonly<{
   );
   const buildings: readonly InnerKeepBuildingPresentation[] = Object.freeze(
     ownBuildings.map((row) => Object.freeze({
-      slotId: row.slotId,
+      buildingKey: row.buildingKey,
       buildingKind: row.buildingKind,
+      placement: row.placement,
       completedLevel: row.completedLevel,
       targetLevel: row.targetLevel,
       phase: row.phase,
@@ -598,38 +588,34 @@ export function resolveReadyInnerKeepProjection(input: Readonly<{
   );
   const completed = completedLevels(ownBuildings);
   const quotes: InnerKeepProjectQuote[] = [];
-  for (const slot of sortedSlots) {
-    for (const buildingKind of INNER_KEEP_BUILDING_KINDS) {
-      const current = ownBuildings.find((row) => row.buildingKind === buildingKind);
-      const targetLevel = current?.phase === 'complete'
-        ? current.completedLevel + 1
-        : 1;
-      if (targetLevel > INNER_KEEP_MAXIMUM_LEVEL) continue;
-      const cost = canonicalInnerKeepCost(buildingKind, targetLevel, completed);
-      const blockedReason = quoteBlockedReason(
-        slot,
-        buildingKind,
-        ownBuildings,
-        privateState.builderBusy
-      );
-      quotes.push(Object.freeze({
-        slotId: slot.slotId,
-        buildingKind,
-        targetLevel,
-        cost: cost.effectiveCost,
-        durationMicros: cost.durationMicros,
-        policyVersion: cost.policyVersion,
-        available: blockedReason === undefined,
-        ...(blockedReason === undefined ? {} : { blockedReason })
-      }));
-    }
+  for (const buildingKind of INNER_KEEP_BUILDING_KINDS) {
+    const current = ownBuildings.find((row) => row.buildingKind === buildingKind);
+    const targetLevel = current?.phase === 'complete'
+      ? current.completedLevel + 1
+      : 1;
+    if (targetLevel > INNER_KEEP_MAXIMUM_LEVEL) continue;
+    const cost = canonicalInnerKeepCost(buildingKind, targetLevel, completed);
+    const blockedReason = quoteBlockedReason(
+      buildingKind,
+      ownBuildings,
+      privateState.builderBusy
+    );
+    quotes.push(Object.freeze({
+      buildingKind,
+      targetLevel,
+      cost: cost.effectiveCost,
+      durationMicros: cost.durationMicros,
+      policyVersion: cost.policyVersion,
+      available: blockedReason === undefined,
+      ...(blockedReason === undefined ? {} : { blockedReason })
+    }));
   }
   const constructing = ownBuildings.find((building) => building.phase === 'constructing');
   const builder = constructing === undefined
     ? Object.freeze({ state: 'idle' as const })
     : Object.freeze({
         state: 'busy' as const,
-        slotId: constructing.slotId,
+        buildingKey: constructing.buildingKey,
         buildingKind: constructing.buildingKind,
         targetLevel: constructing.targetLevel,
         completesAtMicros: constructing.completesAtMicros
@@ -677,7 +663,6 @@ export function resolveReadyInnerKeepProjection(input: Readonly<{
       pending,
       observedAtMicros: privateState.observedAtMicros
     }),
-    slots,
     catalogue,
     buildings,
     quotes: Object.freeze(quotes),

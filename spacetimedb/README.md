@@ -61,8 +61,9 @@ Public subscriptions contain only shared-world presentation:
   timeline, and origin castle;
 - active four-worker roster and generic node-lease projections; the public
   rows contain no FID, cargo, accrual, balance, request, or auth data;
-- the inactive Inner Keep layout, twelve fixed slots, four-building policy,
-  twenty target-level recipes, and identity-minimized castle building rows;
+- the inactive Inner Keep layout, an empty public compatibility-slot table,
+  six-building policy, thirty target-level recipes, and identity-minimized
+  castle building rows with authoritative placement transforms;
 - public Community Marks projection only when its policy permits it.
 
 Private tables contain admission, ownership, unclaimed-slot decisions, resource
@@ -133,24 +134,40 @@ Schema generation 15 appends eight tables without changing refs 0–55:
 | Ref | Table | Visibility and purpose |
 | ---: | --- | --- |
 | 56 | `inner_keep_layout_v1` | public inactive layout root and digests |
-| 57 | `inner_keep_slot_v1` | public twelve-slot fixed catalogue |
-| 58 | `inner_keep_building_catalog_v1` | public four-building policy |
+| 57 | `inner_keep_slot_v1` | retained public compatibility table; exactly zero rows |
+| 58 | `inner_keep_building_catalog_v1` | public six-building policy |
 | 59 | `inner_keep_build_level_v1` | public exact recipes and timers |
 | 60 | `castle_inner_keep_building_v1` | public durable building/project projection |
 | 61 | `castle_inner_builder_v1` | private one-Builder authority |
 | 62 | `castle_inner_build_receipt_v1` | private exact deduction/idempotency receipt |
 | 63 | `castle_inner_construction_schedule_v_1` | private scheduler correlation |
 
-One project reducer accepts a fixed slot ID, building kind, bounded request key,
+Catalog seed creates six policy rows and thirty level rows but no castle
+buildings. City Mill, Lumber Camp, City Stoneworks, City Goldworks, City
+Barracks, and Grand Covenant Cathedral are all player construction choices;
+Barracks and Cathedral are not prebuilt anchors.
+The reviewed construction-policy digest is
+`cbffcdc223b5d99625cab7549f3a5ae211c725893574b629aa83f8260668a779`,
+and the presentation-bound combined layout digest is
+`1b3a452794c28f8d7f8814ce6064da8582725d34bb0ee0271d51f40c2fbdfad7`.
+
+One project reducer accepts a building kind, signed local X/Z microunits,
+quarter-turn rotation in milli-degrees, bounded request key,
 `expectedTargetLevel`, canonical decimal `expectedProjectRevision`, and
-`expectedPolicyDigest`. The three expected values are untrusted quote-binding
-compare-and-set assertions. The server derives ownership, the current target,
-and current policy digest. Before a new mutation, it verifies all three against
-current authority, ahead of any settlement or deduction. It then derives
-discounts, stored-resource cost, timestamps, Builder capacity, and completion.
-It settles current Worker accrual, then commits deduction, project, Builder,
-schedule, and receipt atomically. The four gathering Workers remain independent
-from the one internal Builder.
+`expectedPolicyDigest` plus `expectedLayoutDigest`. The four expected values are
+untrusted quote-and-placement-binding compare-and-set assertions. The server
+derives ownership, the current target, current policy digest, and current layout
+digest. After an accepted receipt has had its idempotent short-circuit, a new
+request verifies policy/layout digests and transactionally reconciles any exact
+overdue project. It validates the transform against the half-meter grid,
+quarter turns, the continuous x `[-44, 44]` / z `[-40, 32]` support, permanent
+road/civic exclusions, and every persisted building footprint, then checks the
+target and aggregate revision against the reconciled graph. A mismatch rolls
+the whole reducer back before reconciliation, settlement, or deduction can
+commit. It then derives discounts, stored-resource cost, timestamps, Builder
+capacity, and completion. It settles current Worker accrual, then commits
+deduction, project, Builder, schedule, and transform-bound receipt atomically.
+The four gathering Workers remain independent from the one internal Builder.
 
 The source tree does not make this component playable. A merge to protected
 `main` triggers the existing verified Pages deployment of the compatible,

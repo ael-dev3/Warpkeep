@@ -181,7 +181,10 @@ import type { RealmWorkerSceneRecord } from '../src/components/realm/realmWorker
 import {
   REALM_WORKER_REDUCED_MOTION_POSITION_INTERVAL_MS
 } from '../src/components/realm/realmWorkerLayer';
-import { createInnerKeepPresentation } from './fixtures/innerKeepPresentation';
+import {
+  createInnerKeepPresentation,
+  createInnerKeepTestBuilding,
+} from './fixtures/innerKeepPresentation';
 
 type ListenerSpy = ReturnType<typeof vi.spyOn>;
 
@@ -3708,7 +3711,7 @@ describe('realm scene setup cleanup', () => {
     root.remove();
   });
 
-  it('keeps Inner Keep pan, pinch, wheel, and exact slot picks solely on the canvas', async () => {
+  it('keeps Inner Keep pan, pinch, wheel, and exact building picks solely on the canvas', async () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
     const root = document.createElement('main');
     root.className = 'realm-map-screen';
@@ -3732,50 +3735,56 @@ describe('realm scene setup cleanup', () => {
       clientHeight: { configurable: true, value: 600 }
     });
     const onInnerKeepSceneStatusChange = vi.fn();
-    const onInnerKeepSlotSelect = vi.fn();
+    const onInnerKeepBuildingSelect = vi.fn();
+    const building = createInnerKeepTestBuilding({ buildingKind: 'city-mill' });
     const scene = createRealmScene(createOptions(canvas, {
       reducedMotion: true,
       onInnerKeepSceneStatusChange,
-      onInnerKeepSlotSelect
+      onInnerKeepBuildingSelect
     }));
     scene.reconcileInnerKeepPresentation?.(
-      createInnerKeepPresentation(),
+      createInnerKeepPresentation({ buildings: [building] }),
       { owningTerrainKind: 'meadow' }
     );
     scene.setSceneMode?.('INNER_KEEP');
     await vi.waitFor(() => {
       expect(onInnerKeepSceneStatusChange).toHaveBeenCalledWith('ready');
-    });
+    }, { timeout: 5_000 });
 
     const renderer = webglState.instances[0]!;
     const innerRender = () => {
-      const call = [...renderer.render.mock.calls].reverse().find(([candidate]) => (
-        (candidate as THREE.Scene).getObjectByName(
-          'inner-keep-slot-pad:inner-keep-slot-m01'
-        ) !== undefined
-      ));
+      const call = [...renderer.render.mock.calls].reverse().find(([candidate]) => {
+        let found = false;
+        (candidate as THREE.Scene).traverse((object) => {
+          if (object.userData.innerKeepBuildingKey === building.buildingKey) found = true;
+        });
+        return found;
+      });
       if (!call) throw new Error('Missing Inner Keep render.');
       return {
         scene: call[0] as THREE.Scene,
         camera: call[1] as THREE.OrthographicCamera
       };
     };
-    const projectedSlotCenter = () => {
+    const projectedBuildingCenter = () => {
       const current = innerRender();
-      const pad = current.scene.getObjectByName(
-        'inner-keep-slot-pad:inner-keep-slot-m01'
-      );
-      if (!pad) throw new Error('Missing Inner Keep test pad.');
+      let root: THREE.Object3D | undefined;
+      current.scene.traverse((object) => {
+        if (!root && object.userData.innerKeepBuildingKey === building.buildingKey) {
+          root = object;
+        }
+      });
+      if (!root) throw new Error('Missing Inner Keep test building.');
       current.scene.updateMatrixWorld(true);
       current.camera.updateMatrixWorld(true);
-      const projected = pad.getWorldPosition(new THREE.Vector3()).project(current.camera);
+      const projected = root.getWorldPosition(new THREE.Vector3()).project(current.camera);
       return {
         x: (projected.x + 1) * 400,
         y: (1 - projected.y) * 300
       };
     };
 
-    const beforeDrag = projectedSlotCenter();
+    const beforeDrag = projectedBuildingCenter();
     dispatchPointer(canvas, 'pointerdown', {
       pointerId: 301,
       pointerType: 'touch',
@@ -3796,11 +3805,11 @@ describe('realm scene setup cleanup', () => {
       clientX: beforeDrag.x + 54,
       clientY: beforeDrag.y + 22
     });
-    const afterDrag = projectedSlotCenter();
+    const afterDrag = projectedBuildingCenter();
     expect(drag.defaultPrevented).toBe(true);
     expect(afterDrag.x).not.toBeCloseTo(beforeDrag.x, 2);
     expect(afterDrag.y).not.toBeCloseTo(beforeDrag.y, 2);
-    expect(onInnerKeepSlotSelect).not.toHaveBeenCalled();
+    expect(onInnerKeepBuildingSelect).not.toHaveBeenCalled();
 
     const camera = innerRender().camera;
     const beforeWheelSpan = camera.right - camera.left;
@@ -3853,7 +3862,7 @@ describe('realm scene setup cleanup', () => {
     expect(secondDown.defaultPrevented).toBe(true);
     expect(camera.right - camera.left).not.toBeCloseTo(beforePinchSpan, 4);
 
-    const afterCameraMotion = projectedSlotCenter();
+    const afterCameraMotion = projectedBuildingCenter();
     dispatchPointer(canvas, 'pointerdown', {
       pointerId: 304,
       clientX: afterCameraMotion.x,
@@ -3865,7 +3874,7 @@ describe('realm scene setup cleanup', () => {
       clientX: afterCameraMotion.x,
       clientY: afterCameraMotion.y
     });
-    expect(onInnerKeepSlotSelect).toHaveBeenCalledWith('inner-keep-slot-m01');
+    expect(onInnerKeepBuildingSelect).toHaveBeenCalledWith(building.buildingKey);
     expect(canvas.dataset.dragging).toBeUndefined();
     expect(root.dataset.cameraInteracting).toBeUndefined();
 

@@ -42,12 +42,15 @@ describe('Realm surface navigation', () => {
     expect(readRealmSurfaceRoute({ kind: 'inner-keep' })).toEqual({
       kind: 'inner-keep'
     });
+    expect(readRealmSurfaceRoute({ kind: 'inner-keep-catalogue' })).toEqual({
+      kind: 'inner-keep-catalogue'
+    });
     expect(readRealmSurfaceRoute({
-      kind: 'inner-keep-slot',
-      slotId: 'inner-keep-slot-m01'
+      kind: 'inner-keep-placement',
+      buildingKind: 'city-mill'
     })).toEqual({
-      kind: 'inner-keep-slot',
-      slotId: 'inner-keep-slot-m01'
+      kind: 'inner-keep-placement',
+      buildingKind: 'city-mill'
     });
     expect(readRealmSurfaceRoute({
       kind: 'inner-keep-building',
@@ -59,6 +62,10 @@ describe('Realm surface navigation', () => {
     expect(readRealmSurfaceRoute({
       kind: 'inner-keep-slot',
       slotId: 'inner-keep-slot-m01',
+    })).toBeUndefined();
+    expect(readRealmSurfaceRoute({
+      kind: 'inner-keep-placement',
+      buildingKind: 'city-mill',
       cost: 300
     })).toBeUndefined();
     expect(readRealmSurfaceRoute({

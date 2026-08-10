@@ -125,9 +125,15 @@ describe('Inner Keep outer-world visual presentation', () => {
       expect(firstWildlife.some(({ anchorMeters }) => (
         anchorMeters[0] > 20 && anchorMeters[2] > 20
       ))).toBe(true);
-      const northeastWildlife = firstWildlife.find(({ anchorMeters }) => (
-        anchorMeters[0] > 20 && anchorMeters[2] > 20
-      ));
+      const northeastWildlife = firstWildlife.reduce((nearest, candidate) => {
+        const distance = (wildlife: typeof candidate) => Math.hypot(
+          wildlife.anchorMeters[0]
+            - INNER_KEEP_OUTER_WORLD_NORTHEAST_WILDLIFE_CLEARING.center.x,
+          wildlife.anchorMeters[2]
+            - INNER_KEEP_OUTER_WORLD_NORTHEAST_WILDLIFE_CLEARING.center.z,
+        );
+        return distance(candidate) < distance(nearest) ? candidate : nearest;
+      });
       expect(Math.hypot(
         northeastWildlife!.anchorMeters[0]
           - INNER_KEEP_OUTER_WORLD_NORTHEAST_WILDLIFE_CLEARING.center.x,
@@ -350,8 +356,8 @@ describe('Inner Keep outer-world visual presentation', () => {
     const telemetry = presentation.getTelemetry();
     expect(telemetry).toMatchObject({
       status: 'fallback',
-      treeCount: 44,
-      fallbackTreeCount: 44,
+      treeCount: 56,
+      fallbackTreeCount: 56,
       resourceCount: 6,
       fallbackResourceCount: 6,
       wildlifeCount: 7,
@@ -360,7 +366,7 @@ describe('Inner Keep outer-world visual presentation', () => {
       exactCoreBundleRequired: false,
       coreBundleDependency: 'none',
     });
-    expect(telemetry.groundContactCount).toBe(44 + 6 + 7 + 1);
+    expect(telemetry.groundContactCount).toBe(56 + 6 + 7 + 1);
     presentation.group.traverse((object) => {
       expect(object.userData.presentationOnly).toBe(true);
       expect(object.userData.gameplayAuthorityClaimed).toBe(false);
@@ -396,8 +402,8 @@ describe('Inner Keep outer-world visual presentation', () => {
       treeAssetState: 'exact',
       resourceAssetState: 'exact',
       supplyWagonAssetState: 'exact',
-      treeCount: 22,
-      exactTreeCount: 22,
+      treeCount: 28,
+      exactTreeCount: 28,
       fallbackTreeCount: 0,
       exactTreeSpeciesCount: 8,
       resourceCount: 4,

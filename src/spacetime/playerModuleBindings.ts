@@ -117,11 +117,9 @@ const tablesSchema = __schema({
     indexes: [
       { accessor: 'buildingKey', name: 'castle_inner_keep_building_v1_building_key_idx_btree', algorithm: 'btree', columns: ['buildingKey'] },
       { accessor: 'byCastle', name: 'castle_inner_keep_building_v1_castle_id_idx_btree', algorithm: 'btree', columns: ['castleId'] },
-      { accessor: 'slotKey', name: 'castle_inner_keep_building_v1_slot_key_idx_btree', algorithm: 'btree', columns: ['slotKey'] },
     ],
     constraints: [
       { name: 'castle_inner_keep_building_v1_building_key_key', constraint: 'unique', columns: ['buildingKey'] },
-      { name: 'castle_inner_keep_building_v1_slot_key_key', constraint: 'unique', columns: ['slotKey'] },
     ],
   }, CastleInnerKeepBuildingV1Row),
   // Generic workers expose only stable identity, timing, and public node

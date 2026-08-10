@@ -88,7 +88,7 @@ describe('Inner Keep authorized runtime asset selection', () => {
       INNER_KEEP_ASSET_SELECTION_DIGEST
     );
     expect(INNER_KEEP_ASSET_SELECTION_DIGEST).toBe(
-      '00304c5dbf819cec6cb656996c1105f64efcf36acf8099c431f5b04b822679f0'
+      'cf1fdac091e310cce3362d43403be938fe7946e46df906f2efb8cff601497c6d'
     );
   });
 

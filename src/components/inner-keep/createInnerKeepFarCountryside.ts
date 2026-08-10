@@ -492,6 +492,7 @@ function createHedgerowTrees(
   resources: InnerKeepFarCountrysideOwnedResources,
 ) {
   const targetCount = INNER_KEEP_FAR_COUNTRYSIDE_HEDGEROW_TREE_BUDGETS[quality];
+  const [innerX, innerZ] = INNER_KEEP_FAR_COUNTRYSIDE_INNER_HALF_EXTENTS_METERS;
   const placements: Array<
     Readonly<{
       x: number;
@@ -507,18 +508,20 @@ function createHedgerowTrees(
     const across = deterministicUnit(attempt, 503);
     const depth = deterministicUnit(attempt, 509);
     const band = attempt % 4;
+    const lateralX = -innerX + 4 + across * (innerX * 2 - 8);
+    const lateralZ = -innerZ + 4 + across * (innerZ * 2 - 8);
     const x =
       band === 0
-        ? -37.5 - depth * 11
+        ? -innerX - 8 - depth * 30
         : band === 1
-          ? 37.5 + depth * 11
-          : -50 + across * 100;
+          ? innerX + 8 + depth * 30
+          : lateralX;
     const z =
       band === 2
-        ? -41 - depth * 11
+        ? -innerZ - 8 - depth * 30
         : band === 3
-          ? 41 + depth * 11
-          : -50 + across * 100;
+          ? innerZ + 8 + depth * 30
+          : lateralZ;
     const scale = 2.35 + deterministicUnit(attempt, 521) * 1.25;
     if (!insideFarPlantingEnvelope(x, z, 0.7 * scale)) continue;
     if (terrainSlopeAt(terrainHeightAt, x, z) > 0.42) continue;

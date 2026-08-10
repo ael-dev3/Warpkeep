@@ -130,9 +130,12 @@ import {
 } from './innerKeepCommandIdempotency';
 import {
   INNER_KEEP_PROJECT_REVISION_MAX,
+  innerKeepPlacementTransformIntegrity,
+  type InnerKeepPlacementTransform,
   isInnerKeepBuildingKind
 } from '../components/inner-keep/innerKeepPresentation';
 import { INNER_KEEP_POLICY_DIGEST } from '../../spacetimedb/src/innerKeepPolicy';
+import { INNER_KEEP_LAYOUT_V1_DIGEST } from '../components/inner-keep/innerKeepLayoutV1';
 
 export type WarpkeepConnectionFailureReason =
   | 'handshake_timeout'
@@ -595,12 +598,28 @@ type PublicInnerKeepCastleTable<Row> = PublicInnerKeepTable<Row> & Readonly<{
   }>;
 }>;
 
+type PublicInnerKeepSdkBuildingRow = Readonly<{
+  buildingKey: string;
+  castleId: bigint;
+  buildingKind: string;
+  localXMicrounits: bigint;
+  localZMicrounits: bigint;
+  rotationMilliDegrees: number;
+  completedLevel: number;
+  targetLevel: number;
+  phase: string;
+  startedAtMicros: bigint;
+  completesAtMicros: bigint;
+  revision: bigint;
+  policyVersion: string;
+}>;
+
 type PublicInnerKeepTables = Readonly<{
   innerKeepLayoutV1: PublicInnerKeepTable<InnerKeepLayoutRow>;
   innerKeepSlotV1: PublicInnerKeepTable<InnerKeepSlotRow>;
   innerKeepBuildingCatalogV1: PublicInnerKeepTable<InnerKeepBuildingCatalogRow>;
   innerKeepBuildLevelV1: PublicInnerKeepTable<InnerKeepBuildLevelRow>;
-  castleInnerKeepBuildingV1: PublicInnerKeepCastleTable<InnerKeepBuildingRow>;
+  castleInnerKeepBuildingV1: PublicInnerKeepCastleTable<PublicInnerKeepSdkBuildingRow>;
 }>;
 
 function publicInnerKeepTables(
@@ -658,6 +677,31 @@ function boundedTableRows<Row>(
   return Object.freeze(rows);
 }
 
+function projectPublicInnerKeepBuildingRow(
+  row: PublicInnerKeepSdkBuildingRow
+): InnerKeepBuildingRow {
+  // Generated SpacetimeDB rows are flat. Keep that ABI shape at the connection
+  // boundary and expose only the explicit browser projection consumed by the
+  // placement/idempotency policy.
+  return Object.freeze({
+    buildingKey: row.buildingKey,
+    castleId: row.castleId,
+    buildingKind: row.buildingKind as InnerKeepBuildingRow['buildingKind'],
+    placement: Object.freeze({
+      localXMicrounits: row.localXMicrounits,
+      localZMicrounits: row.localZMicrounits,
+      rotationMilliDegrees: row.rotationMilliDegrees
+    }),
+    completedLevel: row.completedLevel,
+    targetLevel: row.targetLevel,
+    phase: row.phase as InnerKeepBuildingRow['phase'],
+    startedAtMicros: row.startedAtMicros,
+    completesAtMicros: row.completesAtMicros,
+    revision: row.revision,
+    policyVersion: row.policyVersion
+  });
+}
+
 function readPublicInnerKeepRows(
   connection: WarpkeepConnection,
   scope: InnerKeepReadScope
@@ -668,9 +712,9 @@ function readPublicInnerKeepRows(
   const publicTables = publicInnerKeepTables(connection);
   if (publicTables === undefined) return undefined;
   const layouts = boundedTableRows(publicTables.innerKeepLayoutV1, 2);
-  const slots = boundedTableRows(publicTables.innerKeepSlotV1, 13);
-  const catalogue = boundedTableRows(publicTables.innerKeepBuildingCatalogV1, 5);
-  const levels = boundedTableRows(publicTables.innerKeepBuildLevelV1, 21);
+  const slots = boundedTableRows(publicTables.innerKeepSlotV1, 1);
+  const catalogue = boundedTableRows(publicTables.innerKeepBuildingCatalogV1, 7);
+  const levels = boundedTableRows(publicTables.innerKeepBuildLevelV1, 31);
   if (
     layouts === undefined
     || slots === undefined
@@ -679,8 +723,8 @@ function readPublicInnerKeepRows(
   ) throw new Error('Inner Keep public policy is unavailable.');
   const buildings: InnerKeepBuildingRow[] = [];
   for (const row of publicTables.castleInnerKeepBuildingV1.byCastle.filter(scope.castleId)) {
-    if (buildings.length >= 5) throw new Error('Inner Keep public projects are unavailable.');
-    buildings.push(row);
+    if (buildings.length >= 7) throw new Error('Inner Keep public projects are unavailable.');
+    buildings.push(projectPublicInnerKeepBuildingRow(row));
   }
   return Object.freeze({
     layouts,
@@ -777,16 +821,17 @@ export async function readWarpkeepInnerKeepRequestStatus(
 /** The browser binds its reviewed policy/target/revision; the server still derives all economics. */
 export async function startWarpkeepInnerKeepProject(
   connection: WarpkeepConnection,
-  slotId: string,
   buildingKind: string,
+  placement: InnerKeepPlacementTransform,
   requestKey: string,
   expectedTargetLevel: number,
   expectedProjectRevision: string,
-  expectedPolicyDigest: string
+  expectedPolicyDigest: string,
+  expectedLayoutDigest: string
 ) {
   if (
-    !/^inner-keep-slot-[ml][0-9]{2}$/.test(slotId)
-    || !isInnerKeepBuildingKind(buildingKind)
+    !isInnerKeepBuildingKind(buildingKind)
+    || !innerKeepPlacementTransformIntegrity(placement)
     || !INNER_KEEP_REQUEST_KEY_PATTERN.test(requestKey)
     || !Number.isSafeInteger(expectedTargetLevel)
     || expectedTargetLevel < 1
@@ -795,25 +840,32 @@ export async function startWarpkeepInnerKeepProject(
     || !/^(?:0|[1-9][0-9]*)$/.test(expectedProjectRevision)
     || BigInt(expectedProjectRevision) > INNER_KEEP_PROJECT_REVISION_MAX
     || expectedPolicyDigest !== INNER_KEEP_POLICY_DIGEST
+    || expectedLayoutDigest !== INNER_KEEP_LAYOUT_V1_DIGEST
   ) throw new Error('Inner Keep construction is unavailable.');
   const reducer = (connection.reducers as unknown as {
     innerKeepStartProjectV1?: (input: Readonly<{
-      slotId: string;
       buildingKind: string;
+      localXMicrounits: bigint;
+      localZMicrounits: bigint;
+      rotationMilliDegrees: number;
       requestKey: string;
       expectedTargetLevel: number;
       expectedProjectRevision: string;
       expectedPolicyDigest: string;
+      expectedLayoutDigest: string;
     }>) => Promise<unknown> | unknown;
   }).innerKeepStartProjectV1;
   if (typeof reducer !== 'function') throw new Error('Inner Keep construction is unavailable.');
   await reducer({
-    slotId,
     buildingKind,
+    localXMicrounits: placement.localXMicrounits,
+    localZMicrounits: placement.localZMicrounits,
+    rotationMilliDegrees: placement.rotationMilliDegrees,
     requestKey,
     expectedTargetLevel,
     expectedProjectRevision,
-    expectedPolicyDigest
+    expectedPolicyDigest,
+    expectedLayoutDigest
   });
 }
 

@@ -16,7 +16,11 @@ import {
   type InnerKeepAmbientRoute,
 } from './innerKeepAmbientPolicy';
 import { INNER_KEEP_FIXED_PLACEMENT_EXCLUSIONS } from './innerKeepFixedPlacementExclusions';
-import type { InnerKeepBuildingKind } from './innerKeepPresentation';
+import type {
+  InnerKeepBuildingKind,
+  InnerKeepPlacementTransform,
+} from './innerKeepPresentation';
+import { INNER_KEEP_FREE_PLACEMENT_ENVELOPES } from './innerKeepFreePlacementPolicy';
 import type {
   InnerKeepRuntimeAssetBundle,
   InnerKeepRuntimePrefab,
@@ -36,6 +40,7 @@ import {
   INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS,
   INNER_KEEP_PALISADE_CORNER_VISUAL_OVERRIDES,
   INNER_KEEP_PALISADE_GATE_LEAF_VISUAL_OVERRIDES,
+  INNER_KEEP_PALISADE_SOUTH_WALL_VISUAL_OVERRIDES,
   INNER_KEEP_PALISADE_VISUAL_CORRECTION_POLICY,
   INNER_KEEP_VILLAGE_ANIMAL_ROAMING_EXCLUSIONS,
   INNER_KEEP_WEATHERED_WALL_SKIRT_ASSET_ID,
@@ -46,6 +51,7 @@ const INNER_KEEP_PALISADE_VISUAL_OVERRIDE_BY_PLACEMENT_ID = new Map(
   [
     ...INNER_KEEP_PALISADE_CORNER_VISUAL_OVERRIDES,
     ...INNER_KEEP_PALISADE_GATE_LEAF_VISUAL_OVERRIDES,
+    ...INNER_KEEP_PALISADE_SOUTH_WALL_VISUAL_OVERRIDES,
   ].map((override) => [
     override.placementId,
     override,
@@ -64,6 +70,14 @@ export type InnerKeepAuthoredStaticPresentation = Readonly<{
   authoredTreeCount: number;
   cathedralReady: boolean;
   barracksReady: boolean;
+  reconcileBuildingExclusions: (
+    buildings: readonly InnerKeepAuthoredBuildingExclusion[],
+  ) => number;
+}>;
+
+export type InnerKeepAuthoredBuildingExclusion = Readonly<{
+  buildingKind: InnerKeepBuildingKind;
+  placement: InnerKeepPlacementTransform;
 }>;
 
 function deterministicUnit(index: number, salt: number) {
@@ -97,6 +111,85 @@ type AuthoredCopy = Readonly<{
   scalePermille: readonly [number, number, number];
 }>;
 
+type AuthoredCopyVisibilityController = Readonly<{
+  setVisibleCopies: (visibleCopies: readonly boolean[]) => void;
+}>;
+
+type YieldingFixedPlacementGroup = Readonly<{
+  controller: AuthoredCopyVisibilityController;
+  placementIds: readonly string[];
+}>;
+
+type YieldingPerimeterTreeGroup = Readonly<{
+  controller: AuthoredCopyVisibilityController;
+  placements: readonly InnerKeepAuthoredPerimeterTreePlacement[];
+}>;
+
+const INNER_KEEP_FIXED_PLACEMENT_EXCLUSION_BY_ID = new Map(
+  INNER_KEEP_FIXED_PLACEMENT_EXCLUSIONS.map((exclusion) => [
+    exclusion.placementId,
+    exclusion,
+  ] as const),
+);
+
+/**
+ * Decorative fixed dressing yields to every verified project envelope,
+ * including authoritative projects and a currently valid local preview.
+ * The props remain presentation-only and therefore never invalidate a legal
+ * server placement; their reviewed clearance only decides when to hide them.
+ */
+export function innerKeepFixedDressingIntersectsBuilding(
+  placementId: string,
+  building: InnerKeepAuthoredBuildingExclusion,
+) {
+  const exclusion = INNER_KEEP_FIXED_PLACEMENT_EXCLUSION_BY_ID.get(placementId);
+  if (!exclusion) return false;
+  const envelope = INNER_KEEP_FREE_PLACEMENT_ENVELOPES[building.buildingKind];
+  const quarterTurn = building.placement.rotationMilliDegrees === 90_000
+    || building.placement.rotationMilliDegrees === 270_000;
+  const buildingHalfX = quarterTurn
+    ? envelope.halfExtentsMeters[1]
+    : envelope.halfExtentsMeters[0];
+  const buildingHalfZ = quarterTurn
+    ? envelope.halfExtentsMeters[0]
+    : envelope.halfExtentsMeters[1];
+  const buildingX = Number(building.placement.localXMicrounits) / 1_000_000;
+  const buildingZ = Number(building.placement.localZMicrounits) / 1_000_000;
+  return Math.abs(buildingX - exclusion.center.x)
+      <= buildingHalfX
+        + exclusion.halfExtentsMeters[0]
+        + exclusion.clearanceMarginMeters
+    && Math.abs(buildingZ - exclusion.center.z)
+      <= buildingHalfZ
+        + exclusion.halfExtentsMeters[1]
+        + exclusion.clearanceMarginMeters;
+}
+
+/** Full visual crown clearance; the much smaller trunk is never left inside a project. */
+export function innerKeepAuthoredPerimeterTreeIntersectsBuilding(
+  tree: InnerKeepAuthoredPerimeterTreePlacement,
+  building: InnerKeepAuthoredBuildingExclusion,
+) {
+  const envelope = INNER_KEEP_FREE_PLACEMENT_ENVELOPES[building.buildingKind];
+  const quarterTurn = building.placement.rotationMilliDegrees === 90_000
+    || building.placement.rotationMilliDegrees === 270_000;
+  const buildingHalfX = quarterTurn
+    ? envelope.halfExtentsMeters[1]
+    : envelope.halfExtentsMeters[0];
+  const buildingHalfZ = quarterTurn
+    ? envelope.halfExtentsMeters[0]
+    : envelope.halfExtentsMeters[1];
+  const buildingX = Number(building.placement.localXMicrounits) / 1_000_000;
+  const buildingZ = Number(building.placement.localZMicrounits) / 1_000_000;
+  return aabbOverlaps(
+    [tree.positionMeters[0], tree.positionMeters[2]],
+    tree.halfExtentsMeters,
+    [buildingX, buildingZ],
+    [buildingHalfX, buildingHalfZ],
+    INNER_KEEP_AUTHORED_PERIMETER_TREE_CLEARANCE_METERS,
+  );
+}
+
 export type InnerKeepAuthoredPerimeterTreeSector =
   | 'west'
   | 'east'
@@ -129,7 +222,8 @@ function addAuthoredCopies(
   target: THREE.Group,
   prefab: InnerKeepRuntimePrefab,
   copies: readonly AuthoredCopy[],
-) {
+  mutableVisibility = false,
+): AuthoredCopyVisibilityController {
   if (copies.length === 1) {
     const copy = copies[0]!;
     const clone = prefab.clone();
@@ -141,11 +235,17 @@ function addAuthoredCopies(
       copy.scalePermille,
     );
     target.add(clone);
-    return;
+    const sourceVisible = clone.visible;
+    return Object.freeze({
+      setVisibleCopies: (visibleCopies: readonly boolean[]) => {
+        clone.visible = sourceVisible && visibleCopies[0] !== false;
+      },
+    });
   }
 
   const assetGroup = new THREE.Group();
   assetGroup.name = `inner-keep-authored-instanced-asset:${prefab.id}`;
+  const markers: THREE.Group[] = [];
   const copyMatrices = copies.map((copy) => {
     const marker = new THREE.Group();
     marker.name = copy.name;
@@ -157,11 +257,16 @@ function addAuthoredCopies(
     );
     marker.updateMatrix();
     target.add(marker);
+    markers.push(marker);
     return marker.matrix.clone();
   });
 
   prefab.root.updateWorldMatrix(true, true);
   const inverseRootMatrix = prefab.root.matrixWorld.clone().invert();
+  const instanceRecords: Array<Readonly<{
+    instances: THREE.InstancedMesh;
+    relativeMatrix: THREE.Matrix4;
+  }>> = [];
   let sourceMeshIndex = 0;
   prefab.root.traverse((object) => {
     if (!(object instanceof THREE.Mesh)) return;
@@ -185,13 +290,45 @@ function addAuthoredCopies(
     copyMatrices.forEach((copyMatrix, index) => {
       instances.setMatrixAt(index, copyMatrix.clone().multiply(relativeMatrix));
     });
-    instances.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+    instances.instanceMatrix.setUsage(
+      mutableVisibility ? THREE.DynamicDrawUsage : THREE.StaticDrawUsage,
+    );
     instances.computeBoundingBox();
     instances.computeBoundingSphere();
     assetGroup.add(instances);
+    instanceRecords.push(Object.freeze({ instances, relativeMatrix }));
     sourceMeshIndex += 1;
   });
   target.add(assetGroup);
+  let previousVisibility = copies.map(() => true);
+  return Object.freeze({
+    setVisibleCopies: (visibleCopies: readonly boolean[]) => {
+      const nextVisibility = copies.map((_, index) => visibleCopies[index] !== false);
+      if (nextVisibility.every((visible, index) => (
+        visible === previousVisibility[index]
+      ))) return;
+      const visibleIndices: number[] = [];
+      nextVisibility.forEach((visible, index) => {
+        markers[index]!.visible = visible;
+        if (visible) visibleIndices.push(index);
+      });
+      for (const { instances, relativeMatrix } of instanceRecords) {
+        visibleIndices.forEach((copyIndex, renderedIndex) => {
+          instances.setMatrixAt(
+            renderedIndex,
+            copyMatrices[copyIndex]!.clone().multiply(relativeMatrix),
+          );
+        });
+        instances.count = visibleIndices.length;
+        instances.instanceMatrix.needsUpdate = true;
+        if (visibleIndices.length > 0) {
+          instances.computeBoundingBox();
+          instances.computeBoundingSphere();
+        }
+      }
+      previousVisibility = nextVisibility;
+    },
+  });
 }
 
 export const INNER_KEEP_AUTHORED_PERIMETER_TREE_BUDGETS = Object.freeze({
@@ -207,9 +344,9 @@ export const INNER_KEEP_AUTHORED_PERIMETER_TREE_SPECIES = Object.freeze([
 ] as const);
 
 export const INNER_KEEP_AUTHORED_STATIC_RENDER_BUDGETS = Object.freeze({
-  high: Object.freeze({ drawCalls: 92, triangles: 212_464 }),
-  balanced: Object.freeze({ drawCalls: 91, triangles: 113_216 }),
-  reduced: Object.freeze({ drawCalls: 82, triangles: 54_413 }),
+  high: Object.freeze({ drawCalls: 90, triangles: 142_916 }),
+  balanced: Object.freeze({ drawCalls: 89, triangles: 78_532 }),
+  reduced: Object.freeze({ drawCalls: 80, triangles: 37_523 }),
 } satisfies Readonly<Record<InnerKeepSceneQuality, Readonly<{
   drawCalls: number;
   triangles: number;
@@ -741,7 +878,17 @@ function addPerimeterTrees(
   visualSeed: number,
   terrainHeightAt: (x: number, z: number) => number,
 ) {
+  const treeGroup = new THREE.Group();
+  treeGroup.name = 'inner-keep-authored-perimeter-trees';
+  treeGroup.userData.presentationOnly = true;
+  treeGroup.userData.gameplayAuthorityClaimed = false;
+  treeGroup.userData.pickable = false;
   const copiesBySpecies = new Map<string, AuthoredCopy[]>();
+  const placementsBySpecies = new Map<
+    string,
+    InnerKeepAuthoredPerimeterTreePlacement[]
+  >();
+  const yieldingGroups: YieldingPerimeterTreeGroup[] = [];
   const plan = planInnerKeepAuthoredPerimeterTrees({
     bundle,
     quality,
@@ -752,12 +899,30 @@ function addPerimeterTrees(
     const copies = copiesBySpecies.get(placement.speciesId) ?? [];
     copies.push(placement);
     copiesBySpecies.set(placement.speciesId, copies);
+    const placements = placementsBySpecies.get(placement.speciesId) ?? [];
+    placements.push(placement);
+    placementsBySpecies.set(placement.speciesId, placements);
   }
   copiesBySpecies.forEach((copies, speciesId) => {
     const prefab = bundle.staticPrefabs.get(speciesId);
-    if (prefab) addAuthoredCopies(target, prefab, copies);
+    const placements = placementsBySpecies.get(speciesId);
+    if (!prefab || !placements) return;
+    yieldingGroups.push(Object.freeze({
+      controller: addAuthoredCopies(treeGroup, prefab, copies, true),
+      placements: Object.freeze(placements),
+    }));
   });
-  return plan.length;
+  treeGroup.traverse((object) => {
+    object.userData.presentationOnly = true;
+    object.userData.gameplayAuthorityClaimed = false;
+    object.userData.pickable = false;
+    object.raycast = () => undefined;
+  });
+  target.add(treeGroup);
+  return Object.freeze({
+    count: plan.length,
+    yieldingGroups: Object.freeze(yieldingGroups),
+  });
 }
 
 function addWeatheredWallSkirt(
@@ -789,9 +954,9 @@ function addWeatheredWallSkirt(
 }
 
 /**
- * Builds visual-only fixed placements from the exact runtime selection. Slot
- * occupants remain under reconcile() because only server projections decide
- * whether an economy building exists.
+ * Builds visual-only fixed placements from the exact runtime selection.
+ * Constructible outcomes remain under reconcile() because only server
+ * projections decide whether a player-placed building exists.
  */
 export function createInnerKeepAuthoredStaticPresentation(options: Readonly<{
   bundle: InnerKeepRuntimeAssetBundle;
@@ -802,12 +967,13 @@ export function createInnerKeepAuthoredStaticPresentation(options: Readonly<{
   const terrainHeightAt = options.terrainHeightAt ?? innerKeepOuterWorldTerrainHeightAt;
   const group = new THREE.Group();
   group.name = 'inner-keep-authored-static-presentation';
+  const yieldingFixedPlacementGroups: YieldingFixedPlacementGroup[] = [];
   let placementInstanceCount = 0;
   for (const placement of INNER_KEEP_PRESENTATION_PLACEMENTS) {
     if (placement.anchor !== 'fixed') continue;
     const prefab = options.bundle.staticPrefabs.get(placement.assetId);
     if (!prefab) continue;
-    addAuthoredCopies(group, prefab, placement.instances.map((instance) => {
+    const copies = placement.instances.map((instance) => {
       const candidateVisualOverride =
         INNER_KEEP_PALISADE_VISUAL_OVERRIDE_BY_PLACEMENT_ID.get(
           instance.placementId,
@@ -822,11 +988,27 @@ export function createInnerKeepAuthoredStaticPresentation(options: Readonly<{
           ?? instance.rotationMilliDegrees,
         scalePermille: visualOverride?.scalePermille ?? instance.scalePermille,
       });
-    }));
+    });
+    const yieldsToBuildings =
+      placement.collisionClearanceRole === 'decorative-slot-clearance';
+    const controller = addAuthoredCopies(
+      group,
+      prefab,
+      copies,
+      yieldsToBuildings,
+    );
+    if (yieldsToBuildings) {
+      yieldingFixedPlacementGroups.push(Object.freeze({
+        controller,
+        placementIds: Object.freeze(placement.instances.map(
+          ({ placementId }) => placementId,
+        )),
+      }));
+    }
     placementInstanceCount += placement.instances.length;
   }
   addWeatheredWallSkirt(group, options.bundle);
-  const authoredTreeCount = addPerimeterTrees(
+  const perimeterTrees = addPerimeterTrees(
     group,
     options.bundle,
     options.quality,
@@ -837,18 +1019,41 @@ export function createInnerKeepAuthoredStaticPresentation(options: Readonly<{
     group,
     loadedAssetCount: options.bundle.staticPrefabs.size,
     placementInstanceCount,
-    authoredTreeCount,
+    authoredTreeCount: perimeterTrees.count,
     cathedralReady: options.bundle.staticPrefabs.has('grand-covenant-cathedral'),
     barracksReady: options.bundle.staticPrefabs.has('city-barracks'),
+    reconcileBuildingExclusions: (
+      buildings: readonly InnerKeepAuthoredBuildingExclusion[],
+    ) => {
+      let hiddenPlacementCount = 0;
+      for (const yieldingGroup of yieldingFixedPlacementGroups) {
+        const visibleCopies = yieldingGroup.placementIds.map((placementId) => {
+          const visible = !buildings.some((building) => (
+            innerKeepFixedDressingIntersectsBuilding(placementId, building)
+          ));
+          if (!visible) hiddenPlacementCount += 1;
+          return visible;
+        });
+        yieldingGroup.controller.setVisibleCopies(visibleCopies);
+      }
+      for (const yieldingGroup of perimeterTrees.yieldingGroups) {
+        yieldingGroup.controller.setVisibleCopies(yieldingGroup.placements.map((tree) => (
+          !buildings.some((building) => (
+            innerKeepAuthoredPerimeterTreeIntersectsBuilding(tree, building)
+          ))
+        )));
+      }
+      return hiddenPlacementCount;
+    },
   });
 }
 
 function buildingTemplateScale(buildingKind: InnerKeepBuildingKind) {
   const placement = INNER_KEEP_PRESENTATION_PLACEMENTS.find((candidate) => (
     candidate.assetId === buildingKind
-    && candidate.anchor === 'active-medium-slot-template'
+    && candidate.anchor === 'free-placement-template'
   ));
-  return (placement?.instances[0]?.scalePermille[0] ?? 300) / 1_000;
+  return (placement?.instances[0]?.scalePermille[0] ?? 1_000) / 1_000;
 }
 
 function cloneMaterialsForReveal(
@@ -883,8 +1088,7 @@ export function createInnerKeepAuthoredBuilding(options: Readonly<{
   const root = prefab.clone();
   root.name = `inner-keep-completed-building:${options.buildingKind}`;
   cloneMaterialsForReveal(root, options.disposableMaterials);
-  const levelLift = 1 + Math.max(0, Math.min(4, options.completedLevel - 1)) * 0.025;
-  root.scale.setScalar(buildingTemplateScale(options.buildingKind) * levelLift);
+  root.scale.setScalar(buildingTemplateScale(options.buildingKind));
   root.userData.innerKeepAuthoredAsset = true;
   root.userData.innerKeepCompletedLevel = options.completedLevel;
   return root;
@@ -908,10 +1112,24 @@ export function allInnerKeepStaticRuntimeAssetIds() {
     .map((asset) => asset.assetId));
 }
 
+/** Exact native-scale project outcomes; none is an initial static placement. */
+export function allInnerKeepConstructibleRuntimeAssetIds() {
+  return Object.freeze(INNER_KEEP_PRESENTATION_PLACEMENTS
+    .filter(({ anchor }) => anchor === 'free-placement-template')
+    .map(({ assetId }) => assetId));
+}
+
+/** Fixed scenery can install even when an unbuilt project prefab is unavailable. */
+export function allInnerKeepStaticSceneryRuntimeAssetIds() {
+  return Object.freeze(INNER_KEEP_PRESENTATION_PLACEMENTS
+    .filter(({ anchor }) => anchor === 'fixed')
+    .map(({ assetId }) => assetId));
+}
+
 export function hasCompleteInnerKeepStaticRuntimeCoverage(
   bundle: Pick<InnerKeepRuntimeAssetBundle, 'staticPrefabs'>,
 ) {
-  return allInnerKeepStaticRuntimeAssetIds().every((assetId) => (
+  return allInnerKeepStaticSceneryRuntimeAssetIds().every((assetId) => (
     bundle.staticPrefabs.has(assetId)
   ));
 }

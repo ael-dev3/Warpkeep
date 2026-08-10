@@ -11,15 +11,14 @@ import {
 } from './innerKeepBuilderAuthority';
 import {
   CANONICAL_INNER_KEEP_LAYOUT,
-  CANONICAL_INNER_KEEP_SLOTS,
   INNER_KEEP_ASSET_CATALOG_DIGEST,
   INNER_KEEP_LAYOUT_DIGEST,
   INNER_KEEP_LAYOUT_ID,
   INNER_KEEP_LAYOUT_POLICY_VERSION,
   innerKeepActivationLifecycle,
   innerKeepLifecycleRequiresBuilders,
+  evaluateCanonicalInnerKeepPlacement,
   matchesCanonicalInnerKeepLayout,
-  matchesCanonicalInnerKeepSlot,
 } from './innerKeepLayoutPolicy';
 import {
   CANONICAL_INNER_KEEP_BUILDING_CATALOG,
@@ -51,7 +50,7 @@ type ReceiptRow = NonNullable<ReturnType<WarpkeepReducerContext['db']['castleInn
 type ScheduleRow = NonNullable<ReturnType<WarpkeepReducerContext['db']['castleInnerConstructionScheduleV1']['scheduleId']['find']>>;
 
 const U64_MAX = (1n << 64n) - 1n;
-const INNER_KEEP_BUILDINGS_PER_CASTLE = 4;
+const INNER_KEEP_BUILDINGS_PER_CASTLE = 6;
 const INNER_KEEP_PROJECT_REVISION_MAX = BigInt(INNER_KEEP_BUILDINGS_PER_CASTLE + 2) * U64_MAX;
 const INNER_KEEP_PROJECT_REVISION_PATTERN = /^(?:0|[1-9][0-9]*)$/;
 const INNER_KEEP_REQUEST_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
@@ -99,13 +98,6 @@ export function innerKeepBuildingKey(castleId: bigint, buildingKind: string): st
   return `${castleId.toString()}:${buildingKind}`;
 }
 
-export function innerKeepSlotKey(castleId: bigint, slotId: string): string {
-  if (castleId < 0n || castleId > U64_MAX || !/^inner-keep-slot-[ml][0-9]{2}$/.test(slotId)) {
-    fail('INNER_KEEP_SLOT_INVALID');
-  }
-  return `${castleId.toString()}:${slotId}`;
-}
-
 function receiptKey(fid: bigint, requestKey: string): string {
   assertInnerKeepRequestKey(requestKey);
   if (fid <= 0n || fid > U64_MAX) fail('INNER_KEEP_FID_INVALID');
@@ -133,16 +125,7 @@ function staticCatalogState(ctx: WarpkeepReducerContext): Readonly<{
     && matchesCanonicalInnerKeepLayout(layout)
     && layoutTimeValid;
 
-  let slotsExact = ctx.db.innerKeepSlotV1.count() === BigInt(CANONICAL_INNER_KEEP_SLOTS.length);
-  if (slotsExact) {
-    for (const expected of CANONICAL_INNER_KEEP_SLOTS) {
-      const stored = ctx.db.innerKeepSlotV1.slotId.find(expected.slotId);
-      if (stored === null || !matchesCanonicalInnerKeepSlot(stored)) {
-        slotsExact = false;
-        break;
-      }
-    }
-  }
+  const slotsExact = ctx.db.innerKeepSlotV1.count() === 0n;
 
   let buildingsExact = ctx.db.innerKeepBuildingCatalogV1.count()
     === BigInt(CANONICAL_INNER_KEEP_BUILDING_CATALOG.length);
@@ -250,15 +233,14 @@ function buildingRowIsConsistent(ctx: WarpkeepReducerContext, row: BuildingRow):
     const policy = canonicalInnerKeepBuildingPolicy(row.buildingKind);
     const levelPolicy = canonicalInnerKeepLevelPolicy(row.buildingKind, row.targetLevel);
     const castle = ctx.db.castle.castleId.find(row.castleId);
-    const slot = ctx.db.innerKeepSlotV1.slotId.find(row.slotId);
     if (
       castle === null
-      || slot === null
-      || !matchesCanonicalInnerKeepSlot(slot)
-      || !slot.active
-      || slot.footprintClass !== policy.footprintClass
       || row.buildingKey !== innerKeepBuildingKey(row.castleId, row.buildingKind)
-      || row.slotKey !== innerKeepSlotKey(row.castleId, row.slotId)
+      || !evaluateCanonicalInnerKeepPlacement(policy.buildingKind, {
+        localXMicrounits: row.localXMicrounits,
+        localZMicrounits: row.localZMicrounits,
+        rotationMilliDegrees: row.rotationMilliDegrees,
+      }, []).valid
       || row.completedLevel < 0
       || row.targetLevel < 1
       || row.targetLevel > policy.maximumLevel
@@ -296,6 +278,21 @@ function assertBuilderProjectGraph(
 ): readonly BuildingRow[] {
   const buildings = buildingRowsForCastle(ctx, castle.castleId);
   if (buildings.some(row => !buildingRowIsConsistent(ctx, row))) fail('INNER_KEEP_BUILDING_INTEGRITY');
+  for (let index = 0; index < buildings.length; index += 1) {
+    const building = buildings[index]!;
+    const occupied = buildings.filter((_, otherIndex) => otherIndex !== index).map(row => ({
+      buildingKey: row.buildingKey,
+      buildingKind: row.buildingKind as InnerKeepBuildingKind,
+      localXMicrounits: row.localXMicrounits,
+      localZMicrounits: row.localZMicrounits,
+      rotationMilliDegrees: row.rotationMilliDegrees,
+    }));
+    if (!evaluateCanonicalInnerKeepPlacement(
+      building.buildingKind as InnerKeepBuildingKind,
+      building,
+      occupied,
+    ).valid) fail('INNER_KEEP_BUILDING_INTEGRITY');
+  }
   const constructing = buildings.filter(row => row.phase === 'constructing');
   if (constructing.length > 1) fail('INNER_KEEP_BUILDER_INTEGRITY');
   if (builder.activeBuildingKey === undefined) {
@@ -436,6 +433,11 @@ function expectedPolicyDigest(value: string): string {
   return value;
 }
 
+function expectedLayoutDigest(value: string): string {
+  if (!SHA256_HEX.test(value)) fail('INNER_KEEP_STATE_CHANGED');
+  return value;
+}
+
 function currentProjectRevision(
   builder: BuilderRow,
   resourceRevision: bigint,
@@ -453,8 +455,10 @@ function priorReceiptMatches(
   input: Readonly<{
     fid: bigint;
     castle: CastleRow;
-    slotId: string;
     buildingKind: string;
+    localXMicrounits: bigint;
+    localZMicrounits: bigint;
+    rotationMilliDegrees: number;
     requestKey: string;
     expectedTargetLevel: number;
   }>,
@@ -465,8 +469,10 @@ function priorReceiptMatches(
       && row.requestKey === input.requestKey
       && row.castleId === input.castle.castleId
       && row.buildingKey === innerKeepBuildingKey(input.castle.castleId, input.buildingKind)
-      && row.slotId === input.slotId
       && row.buildingKind === input.buildingKind
+      && row.localXMicrounits === input.localXMicrounits
+      && row.localZMicrounits === input.localZMicrounits
+      && row.rotationMilliDegrees === input.rotationMilliDegrees
       && row.targetLevel === input.expectedTargetLevel
       && row.targetLevel >= 1
       && row.targetLevel <= INNER_KEEP_MAXIMUM_LEVEL
@@ -490,12 +496,15 @@ export function startInnerKeepProject(
   input: Readonly<{
     fid: bigint;
     castle: CastleRow;
-    slotId: string;
     buildingKind: string;
+    localXMicrounits: bigint;
+    localZMicrounits: bigint;
+    rotationMilliDegrees: number;
     requestKey: string;
     expectedTargetLevel: number;
     expectedProjectRevision: string;
     expectedPolicyDigest: string;
+    expectedLayoutDigest: string;
   }>,
 ): InnerKeepStartResult {
   if (
@@ -505,6 +514,7 @@ export function startInnerKeepProject(
   ) fail('INNER_KEEP_STATE_CHANGED');
   const retainedProjectRevision = expectedProjectRevision(input.expectedProjectRevision);
   const retainedPolicyDigest = expectedPolicyDigest(input.expectedPolicyDigest);
+  const retainedLayoutDigest = expectedLayoutDigest(input.expectedLayoutDigest);
   const requestReceiptKey = receiptKey(input.fid, input.requestKey);
   const prior = ctx.db.castleInnerBuildReceiptV1.receiptKey.find(requestReceiptKey);
   if (prior !== null) {
@@ -513,25 +523,22 @@ export function startInnerKeepProject(
     if (
       building === null
       || building.castleId !== input.castle.castleId
-      || building.slotId !== prior.slotId
       || building.buildingKind !== prior.buildingKind
+      || building.localXMicrounits !== prior.localXMicrounits
+      || building.localZMicrounits !== prior.localZMicrounits
+      || building.rotationMilliDegrees !== prior.rotationMilliDegrees
       || building.completedLevel < prior.targetLevel && building.targetLevel !== prior.targetLevel
       || !buildingRowIsConsistent(ctx, building)
     ) fail('INNER_KEEP_IDEMPOTENCY_STALE');
     return Object.freeze({ building, receipt: prior, idempotent: true });
   }
 
-  if (retainedPolicyDigest !== INNER_KEEP_POLICY_DIGEST) fail('INNER_KEEP_STATE_CHANGED');
+  if (
+    retainedPolicyDigest !== INNER_KEEP_POLICY_DIGEST
+    || retainedLayoutDigest !== INNER_KEEP_LAYOUT_DIGEST
+  ) fail('INNER_KEEP_STATE_CHANGED');
   assertInnerKeepComponentActive(ctx);
   if (input.castle.ownerFid !== input.fid) fail('INNER_KEEP_NOT_OWNED');
-  const canonicalSlot = CANONICAL_INNER_KEEP_SLOTS.find(row => row.slotId === input.slotId);
-  const storedSlot = ctx.db.innerKeepSlotV1.slotId.find(input.slotId);
-  if (
-    canonicalSlot === undefined
-    || storedSlot === null
-    || !matchesCanonicalInnerKeepSlot(storedSlot)
-    || !storedSlot.active
-  ) fail('INNER_KEEP_SLOT_UNAVAILABLE');
   const buildingPolicy = canonicalInnerKeepBuildingPolicy(input.buildingKind);
   const storedCatalog = ctx.db.innerKeepBuildingCatalogV1.buildingKind.find(input.buildingKind);
   if (
@@ -539,10 +546,6 @@ export function startInnerKeepProject(
     || !matchesCanonicalInnerKeepBuildingPolicy(storedCatalog)
     || !storedCatalog.active
   ) fail('INNER_KEEP_BUILDING_UNAVAILABLE');
-  if (storedSlot.footprintClass !== buildingPolicy.footprintClass) {
-    fail('INNER_KEEP_FOOTPRINT_INCOMPATIBLE');
-  }
-
   let builder = builderForCastle(ctx, input.castle);
   builder = reconcileOverdueProject(ctx, input.castle, builder, ctx.timestamp.microsSinceUnixEpoch);
   if (builder.activeBuildingKey !== undefined || builder.busyUntilMicros !== undefined) {
@@ -550,18 +553,27 @@ export function startInnerKeepProject(
   }
   const buildings = assertBuilderProjectGraph(ctx, input.castle, builder);
   const projectKey = innerKeepBuildingKey(input.castle.castleId, input.buildingKind);
-  const requestedSlotKey = innerKeepSlotKey(input.castle.castleId, input.slotId);
-  const slotOccupant = ctx.db.castleInnerKeepBuildingV1.slotKey.find(requestedSlotKey);
   let existing = ctx.db.castleInnerKeepBuildingV1.buildingKey.find(projectKey);
   let targetLevel: number;
   if (existing === null) {
-    if (slotOccupant !== null) fail('INNER_KEEP_SLOT_OCCUPIED');
+    const placement = evaluateCanonicalInnerKeepPlacement(
+      buildingPolicy.buildingKind,
+      input,
+      buildings.map(row => ({
+        buildingKey: row.buildingKey,
+        buildingKind: row.buildingKind as InnerKeepBuildingKind,
+        localXMicrounits: row.localXMicrounits,
+        localZMicrounits: row.localZMicrounits,
+        rotationMilliDegrees: row.rotationMilliDegrees,
+      })),
+    );
+    if (!placement.valid) fail(placement.reason ?? 'INNER_KEEP_PLACEMENT_INVALID');
     targetLevel = 1;
   } else {
     if (
-      existing.slotId !== input.slotId
-      || existing.slotKey !== requestedSlotKey
-      || slotOccupant?.buildingKey !== existing.buildingKey
+      existing.localXMicrounits !== input.localXMicrounits
+      || existing.localZMicrounits !== input.localZMicrounits
+      || existing.rotationMilliDegrees !== input.rotationMilliDegrees
     ) fail('INNER_KEEP_BUILDING_ALREADY_EXISTS');
     if (existing.phase !== 'complete' || !buildingRowIsConsistent(ctx, existing)) {
       fail('INNER_KEEP_BUILDING_INTEGRITY');
@@ -611,9 +623,10 @@ export function startInnerKeepProject(
     ? {
       buildingKey: projectKey,
       castleId: input.castle.castleId,
-      slotKey: requestedSlotKey,
-      slotId: input.slotId,
       buildingKind: buildingPolicy.buildingKind,
+      localXMicrounits: input.localXMicrounits,
+      localZMicrounits: input.localZMicrounits,
+      rotationMilliDegrees: input.rotationMilliDegrees,
       completedLevel: 0,
       targetLevel,
       phase: 'constructing',
@@ -654,8 +667,10 @@ export function startInnerKeepProject(
     requestKey: input.requestKey,
     castleId: input.castle.castleId,
     buildingKey: project.buildingKey,
-    slotId: input.slotId,
     buildingKind: buildingPolicy.buildingKind,
+    localXMicrounits: input.localXMicrounits,
+    localZMicrounits: input.localZMicrounits,
+    rotationMilliDegrees: input.rotationMilliDegrees,
     targetLevel,
     deductedFood: cost.effectiveCost.food,
     deductedWood: cost.effectiveCost.wood,
@@ -790,8 +805,10 @@ export function getMyInnerKeepRequestStatus(
   if (castle === null || !priorReceiptMatches(receipt, {
     fid,
     castle,
-    slotId: receipt.slotId,
     buildingKind: receipt.buildingKind,
+    localXMicrounits: receipt.localXMicrounits,
+    localZMicrounits: receipt.localZMicrounits,
+    rotationMilliDegrees: receipt.rotationMilliDegrees,
     requestKey,
     expectedTargetLevel: receipt.targetLevel,
   })) fail('INNER_KEEP_RECEIPT_INTEGRITY');
@@ -810,18 +827,13 @@ export type InnerKeepCatalogPlan = Readonly<{
 export function planInnerKeepCatalogSeed(ctx: WarpkeepReducerContext): InnerKeepCatalogPlan {
   if (
     ctx.db.innerKeepLayoutV1.count() > 1n
-    || ctx.db.innerKeepSlotV1.count() > BigInt(CANONICAL_INNER_KEEP_SLOTS.length)
+    || ctx.db.innerKeepSlotV1.count() !== 0n
     || ctx.db.innerKeepBuildingCatalogV1.count() > BigInt(CANONICAL_INNER_KEEP_BUILDING_CATALOG.length)
     || ctx.db.innerKeepBuildLevelV1.count() > BigInt(CANONICAL_INNER_KEEP_LEVEL_POLICIES.length)
   ) fail('INNER_KEEP_CATALOG_CONFLICT');
   const layout = ctx.db.innerKeepLayoutV1.layoutId.find(INNER_KEEP_LAYOUT_ID);
   if (layout !== null && !matchesCanonicalInnerKeepLayout(layout)) fail('INNER_KEEP_CATALOG_CONFLICT');
-  let missingSlots = 0;
-  for (const expected of CANONICAL_INNER_KEEP_SLOTS) {
-    const stored = ctx.db.innerKeepSlotV1.slotId.find(expected.slotId);
-    if (stored === null) missingSlots += 1;
-    else if (!matchesCanonicalInnerKeepSlot(stored)) fail('INNER_KEEP_CATALOG_CONFLICT');
-  }
+  const missingSlots = 0;
   let missingBuildings = 0;
   for (const expected of CANONICAL_INNER_KEEP_BUILDING_CATALOG) {
     const stored = ctx.db.innerKeepBuildingCatalogV1.buildingKind.find(expected.buildingKind);
@@ -837,8 +849,7 @@ export function planInnerKeepCatalogSeed(ctx: WarpkeepReducerContext): InnerKeep
   const missingLayout = layout === null ? 1 : 0;
   if (
     ctx.db.innerKeepLayoutV1.count() !== BigInt(1 - missingLayout)
-    || ctx.db.innerKeepSlotV1.count()
-      !== BigInt(CANONICAL_INNER_KEEP_SLOTS.length - missingSlots)
+    || ctx.db.innerKeepSlotV1.count() !== 0n
     || ctx.db.innerKeepBuildingCatalogV1.count()
       !== BigInt(CANONICAL_INNER_KEEP_BUILDING_CATALOG.length - missingBuildings)
     || ctx.db.innerKeepBuildLevelV1.count()
@@ -871,9 +882,6 @@ export function seedInnerKeepCatalog(ctx: WarpkeepReducerContext): InnerKeepCata
       createdAt: ctx.timestamp,
       activatedAt: undefined,
     });
-  }
-  for (const row of CANONICAL_INNER_KEEP_SLOTS) {
-    if (ctx.db.innerKeepSlotV1.slotId.find(row.slotId) === null) ctx.db.innerKeepSlotV1.insert({ ...row });
   }
   for (const row of CANONICAL_INNER_KEEP_BUILDING_CATALOG) {
     if (ctx.db.innerKeepBuildingCatalogV1.buildingKind.find(row.buildingKind) !== null) continue;

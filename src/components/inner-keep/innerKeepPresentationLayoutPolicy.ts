@@ -1,18 +1,20 @@
 /**
  * Canonical client-facing Inner Keep presentation layout.
  *
- * SpacetimeDB stores only the construction slots needed for authority. This
- * manifest pins the denser presentation contract without turning decorative
- * props into database rows. Every asset path is an installed, exact output of
- * the separately reviewed owner-authorized runtime selection.
+ * SpacetimeDB stores authoritative free-placement transforms. This manifest
+ * pins the matching buildable envelope plus presentation-only town dressing
+ * without turning decorative props into database rows. Every asset path is an
+ * installed, exact output of the reviewed owner-authorized runtime selection.
  */
+
+import { INNER_KEEP_FREE_PLACEMENT_POLICY } from './innerKeepFreePlacementPolicy';
 
 export const INNER_KEEP_PRESENTATION_LAYOUT_ID = 'genesis-001-inner-keep-v1';
 export const INNER_KEEP_PRESENTATION_LAYOUT_VERSION = 1;
 export const INNER_KEEP_PRESENTATION_LAYOUT_POLICY_VERSION =
-  'genesis-001-inner-keep-presentation-layout-v1';
+  'genesis-001-inner-keep-presentation-layout-v2-free-placement';
 export const INNER_KEEP_PRESENTATION_ASSET_SELECTION_DIGEST =
-  '00304c5dbf819cec6cb656996c1105f64efcf36acf8099c431f5b04b822679f0';
+  'cf1fdac091e310cce3362d43403be938fe7946e46df906f2efb8cff601497c6d';
 export const INNER_KEEP_PRESENTATION_ASSET_USE_STATUS =
   'authorized-owner-runtime-use';
 
@@ -261,21 +263,9 @@ export type InnerKeepPresentationSlot = Readonly<{
   active: boolean;
 }>;
 
+/** Legacy compatibility surface: free-placement layouts have no fixed slots. */
 export const INNER_KEEP_PRESENTATION_SLOTS: readonly InnerKeepPresentationSlot[] =
-  Object.freeze([
-    Object.freeze({ slotId: 'inner-keep-slot-m01', footprintClass: 'medium', positionMeters: Object.freeze([-9, 0, -3.4] as const), rotationYMilliDegrees: 25_000, active: true }),
-    Object.freeze({ slotId: 'inner-keep-slot-m02', footprintClass: 'medium', positionMeters: Object.freeze([-4.6, 0, -6.8] as const), rotationYMilliDegrees: 15_000, active: true }),
-    Object.freeze({ slotId: 'inner-keep-slot-m03', footprintClass: 'medium', positionMeters: Object.freeze([4.6, 0, -6.8] as const), rotationYMilliDegrees: 345_000, active: true }),
-    Object.freeze({ slotId: 'inner-keep-slot-m04', footprintClass: 'medium', positionMeters: Object.freeze([9, 0, -3.4] as const), rotationYMilliDegrees: 335_000, active: true }),
-    Object.freeze({ slotId: 'inner-keep-slot-m05', footprintClass: 'medium', positionMeters: Object.freeze([-9.1, 0, 2.5] as const), rotationYMilliDegrees: 155_000, active: true }),
-    Object.freeze({ slotId: 'inner-keep-slot-m06', footprintClass: 'medium', positionMeters: Object.freeze([-4.7, 0, 6.9] as const), rotationYMilliDegrees: 170_000, active: true }),
-    Object.freeze({ slotId: 'inner-keep-slot-m07', footprintClass: 'medium', positionMeters: Object.freeze([4.7, 0, 6.9] as const), rotationYMilliDegrees: 190_000, active: true }),
-    Object.freeze({ slotId: 'inner-keep-slot-m08', footprintClass: 'medium', positionMeters: Object.freeze([9.1, 0, 2.5] as const), rotationYMilliDegrees: 205_000, active: true }),
-    Object.freeze({ slotId: 'inner-keep-slot-l01', footprintClass: 'large', positionMeters: Object.freeze([-13.7, 0, -10.8] as const), rotationYMilliDegrees: 35_000, active: false }),
-    Object.freeze({ slotId: 'inner-keep-slot-l02', footprintClass: 'large', positionMeters: Object.freeze([13.7, 0, -10.8] as const), rotationYMilliDegrees: 325_000, active: false }),
-    Object.freeze({ slotId: 'inner-keep-slot-l03', footprintClass: 'large', positionMeters: Object.freeze([-13.8, 0, 10.6] as const), rotationYMilliDegrees: 145_000, active: false }),
-    Object.freeze({ slotId: 'inner-keep-slot-l04', footprintClass: 'large', positionMeters: Object.freeze([13.8, 0, 10.6] as const), rotationYMilliDegrees: 215_000, active: false }),
-  ]);
+  Object.freeze([]);
 
 export type InnerKeepPresentationPlacementInstance = Readonly<{
   placementId: string;
@@ -286,10 +276,10 @@ export type InnerKeepPresentationPlacementInstance = Readonly<{
 
 export type InnerKeepPresentationPlacementGroup = Readonly<{
   assetId: string;
-  anchor: 'fixed' | 'active-medium-slot-template';
+  anchor: 'fixed' | 'free-placement-template';
   slotIds: readonly string[];
   footprint: Readonly<{
-    kind: 'asset-bounds-xz' | 'medium-slot-box';
+    kind: 'asset-bounds-xz' | 'free-placement-envelope';
     halfExtentsMeters?: readonly [number, number];
     clearanceMarginMeters: number;
   }>;
@@ -303,8 +293,7 @@ export type InnerKeepPresentationPlacementGroup = Readonly<{
     | 'trunk-only-presentation'
     | 'decorative-slot-clearance'
     | 'north-edge-scenery'
-    | 'primary-civic-anchor'
-    | 'garrison-anchor';
+    | 'constructible-outcome';
   qualityAvailability: readonly InnerKeepPresentationAssetQuality[];
   instances: readonly InnerKeepPresentationPlacementInstance[];
 }>;
@@ -322,10 +311,6 @@ function instance(
     scalePermille: Object.freeze([scalePermille, scalePermille, scalePermille] as const),
   });
 }
-
-const ACTIVE_MEDIUM_SLOT_IDS = Object.freeze(
-  INNER_KEEP_PRESENTATION_SLOTS.filter((slot) => slot.active).map((slot) => slot.slotId),
-);
 
 function placementGroup(
   assetId: string,
@@ -358,258 +343,248 @@ function placementGroup(
   });
 }
 
-function buildingTemplate(
+function freePlacementBuildingTemplate(
   assetId: string,
-  scalePermille: number,
   halfExtentsMeters: readonly [number, number],
 ): InnerKeepPresentationPlacementGroup {
   return placementGroup(
     assetId,
-    'slot-occupant',
-    [instance(`${assetId}:active-medium-slot-template`, [0, 0, 0], 0, scalePermille)],
+    'constructible-outcome',
+    [instance(`${assetId}:free-placement-template`, [0, 0, 0])],
     {
-      anchor: 'active-medium-slot-template',
-      slotIds: ACTIVE_MEDIUM_SLOT_IDS,
-      pickingRole: 'native-slot-control',
-      footprintKind: 'medium-slot-box',
+      anchor: 'free-placement-template',
+      pickingRole: 'none',
+      footprintKind: 'free-placement-envelope',
       halfExtentsMeters,
-      clearanceMarginMeters: 0.12,
+      clearanceMarginMeters: 0,
     },
   );
 }
 
+const INNER_KEEP_NORTH_WALL_X_METERS = Object.freeze([
+  -44, -36, -28, -20, -12, -4, 4, 12, 20, 28, 36, 44,
+] as const);
+const INNER_KEEP_SIDE_WALL_Z_METERS = Object.freeze([
+  -40, -32, -24, -16, -8, 0, 8, 16, 24, 32,
+] as const);
+const INNER_KEEP_SOUTH_WALL_X_METERS = Object.freeze([
+  -44, -36, -28, -20, -12, 12, 20, 28, 36, 44,
+] as const);
+
 /**
- * Fixed placements are presentation-only. Slot templates compose their local
- * transform with the canonical slot transform above; the browser never sends
- * a transform to gameplay authority.
+ * Fixed placements are presentation-only. Constructible templates have no
+ * initial world instance: their authoritative transform arrives from the
+ * server only after a player confirms a valid free placement.
  */
 export const INNER_KEEP_PRESENTATION_PLACEMENTS:
 readonly InnerKeepPresentationPlacementGroup[] = Object.freeze([
-  buildingTemplate('city-mill', 340, [1.581, 1.275]),
-  buildingTemplate('lumber-camp', 360, [1.548, 1.224]),
-  buildingTemplate('city-stoneworks', 340, [1.53, 1.224]),
-  buildingTemplate('city-goldworks', 340, [1.53, 1.224]),
-  placementGroup('grand-covenant-cathedral', 'primary-civic-anchor', [
-    instance('grand-covenant-cathedral-main-building', [0, 0, -15.4], 0, 300),
-  ], { clearanceMarginMeters: 0.8 }),
-  placementGroup('city-barracks', 'garrison-anchor', [
-    instance('shieldcourt-barracks-west-garrison', [-16, 0, 0], 0, 380),
-  ], { clearanceMarginMeters: 0.55 }),
+  freePlacementBuildingTemplate('city-mill', [5.65, 4.75]),
+  freePlacementBuildingTemplate('lumber-camp', [5.3, 4.4]),
+  freePlacementBuildingTemplate('city-stoneworks', [5.5, 4.6]),
+  freePlacementBuildingTemplate('city-goldworks', [5.5, 4.6]),
+  freePlacementBuildingTemplate('grand-covenant-cathedral', [18.5, 16.01]),
+  freePlacementBuildingTemplate('city-barracks', [9.25, 7.75]),
   placementGroup('palisade-wall-straight-4m', 'perimeter-solid', [
-    instance('wall-south-gate-west-infill', [-5, 0, 15]),
-    instance('wall-south-gate-east-infill', [5, 0, 15]),
-    instance('wall-south-west-corner-infill', [-17, 0, 15]),
-    instance('wall-south-east-corner-infill', [17, 0, 15]),
+    instance('wall-south-gate-west-infill', [-6, 0, 36]),
+    instance('wall-south-gate-east-infill', [6, 0, 36]),
   ], { clearanceMarginMeters: 0.35 }),
   placementGroup('palisade-wall-straight-8m', 'perimeter-solid', [
-    instance('wall-north-west-outer', [-16, 0, -21]),
-    instance('wall-north-west-inner', [-8, 0, -21]),
-    instance('wall-north-center', [0, 0, -21]),
-    instance('wall-north-east-inner', [8, 0, -21]),
-    instance('wall-north-east-outer', [16, 0, -21]),
-    instance('wall-south-west', [-11, 0, 15]),
-    instance('wall-south-east', [11, 0, 15]),
-    instance('wall-west-far-north', [-20.2, 0, -15], 90_000),
-    instance('wall-west-north', [-20.2, 0, -7], 90_000),
-    instance('wall-west-center', [-20.2, 0, 1], 90_000),
-    instance('wall-west-south', [-20.2, 0, 9], 90_000),
-    instance('wall-east-far-north', [20.2, 0, -15], 90_000),
-    instance('wall-east-north', [20.2, 0, -7], 90_000),
-    instance('wall-east-center', [20.2, 0, 1], 90_000),
-    instance('wall-east-south', [20.2, 0, 9], 90_000),
+    ...INNER_KEEP_NORTH_WALL_X_METERS.map((x) => instance(
+      `wall-north-${x}`,
+      [x, 0, -44],
+    )),
+    ...INNER_KEEP_SOUTH_WALL_X_METERS.map((x) => instance(
+      `wall-south-${x}`,
+      [x, 0, 36],
+    )),
+    ...INNER_KEEP_SIDE_WALL_Z_METERS.flatMap((z) => [
+      instance(`wall-west-${z}`, [-48, 0, z], 90_000),
+      instance(`wall-east-${z}`, [48, 0, z], 90_000),
+    ]),
   ], { clearanceMarginMeters: 0.35 }),
   placementGroup('palisade-wall-corner-90', 'perimeter-solid', [
-    instance('wall-corner-north-west', [-20.2, 0, -21]),
-    instance('wall-corner-north-east', [20.2, 0, -21], 90_000),
-    instance('wall-corner-south-east', [20.2, 0, 15], 180_000),
-    instance('wall-corner-south-west', [-20.2, 0, 15], 270_000),
+    instance('wall-corner-north-west', [-48, 0, -44]),
+    instance('wall-corner-north-east', [48, 0, -44], 90_000),
+    instance('wall-corner-south-east', [48, 0, 36], 180_000),
+    instance('wall-corner-south-west', [-48, 0, 36], 270_000),
   ], { clearanceMarginMeters: 0.35 }),
   placementGroup('palisade-gate-frame-6m', 'gate-opening', [
-    instance('south-gate-frame', [0, 0, 15]),
+    instance('south-gate-frame', [0, 0, 36]),
   ], { clearanceMarginMeters: 0.4 }),
   placementGroup('palisade-gate-leaf-left', 'gate-opening', [
-    instance('south-gate-leaf-left-open', [-1.25, 0, 14.75], -65_000),
+    instance('south-gate-leaf-left-open', [-2.55, 0, 35.75], 90_000),
   ], { clearanceMarginMeters: 0.2 }),
   placementGroup('palisade-gate-leaf-right', 'gate-opening', [
-    instance('south-gate-leaf-right-open', [1.25, 0, 14.75], 65_000),
+    instance('south-gate-leaf-right-open', [2.55, 0, 35.75], -90_000),
   ], { clearanceMarginMeters: 0.2 }),
   placementGroup('courtyard-linden-teardrop', 'trunk-only-presentation', [
-    instance('linden-west', [-17.4, 0, -5.4], 35_000, 760),
-    instance('linden-east', [17.4, 0, -5.4], 215_000, 820),
+    instance('linden-west', [-53, 0, -20], 35_000, 760),
+    instance('linden-east', [53, 0, -18], 215_000, 820),
   ], { clearanceMarginMeters: 0.45 }),
   placementGroup('pruned-ornamental-three-tier', 'decorative-slot-clearance', [
-    instance('ornamental-west', [-17.2, 0, 5.2], 80_000, 680),
-    instance('ornamental-east', [17.2, 0, 5.2], 260_000, 720),
+    instance('ornamental-west', [-51, 0, 8], 80_000, 680),
+    instance('ornamental-east', [51, 0, 10], 260_000, 720),
   ], { clearanceMarginMeters: 0.45 }),
   placementGroup('giant-ancient-cedar', 'north-edge-scenery', [
-    instance('ancient-cedar-north-east-landmark', [15.8, 0, -17.2], 18_000, 420),
+    instance('ancient-cedar-north-east-landmark', [55, 0, -38], 18_000, 420),
   ], { clearanceMarginMeters: 0.6 }),
   placementGroup('compact-processional-standard', 'gate-opening', [
-    instance('gate-standard-west', [-2.55, 0, 13.05], 0, 850),
-    instance('gate-standard-east', [2.55, 0, 13.05], 180_000, 850),
+    instance('gate-standard-west', [-3.4, 0, 34], 0, 850),
+    instance('gate-standard-east', [3.4, 0, 34], 180_000, 850),
   ]),
   placementGroup('roofed-noticeboard', 'decorative-slot-clearance', [
-    instance('builder-noticeboard', [-3, 0, 11.65], 0, 780),
+    instance('builder-noticeboard', [-4.35, 0, 27], 0, 780),
   ]),
   placementGroup('directional-signpost', 'decorative-slot-clearance', [
-    instance('civic-direction-sign', [4, 0, 11.7], -7_000, 720),
+    instance('civic-direction-sign', [4.35, 0, 27], -7_000, 720),
   ]),
   placementGroup('timber-bench', 'decorative-slot-clearance', [
-    instance('plaza-bench-west', [-3.1, 0, 1.6], 90_000, 720),
-    instance('plaza-bench-east', [3.1, 0, 1.6], 270_000, 720),
+    instance('plaza-bench-west', [-3.7, 0, 2], 90_000, 720),
+    instance('plaza-bench-east', [3.7, 0, 2], 270_000, 720),
   ]),
   placementGroup('timber-post-lamp', 'decorative-slot-clearance', [
-    instance('road-lamp-west', [-1.6, 0, 4.95], 0, 720),
-    instance('road-lamp-east', [1.6, 0, 4.95], 180_000, 720),
+    instance('road-lamp-west', [-2.1, 0, 8], 0, 720),
+    instance('road-lamp-east', [2.1, 0, 8], 180_000, 720),
   ]),
   placementGroup('stone-pedestal-brazier', 'decorative-slot-clearance', [
-    instance('plaza-brazier-west', [-1.45, 0, 2.05], 0, 720),
-    instance('plaza-brazier-east', [1.45, 0, 2.05], 180_000, 720),
+    instance('plaza-brazier-west', [-2, 0, 2], 0, 720),
+    instance('plaza-brazier-east', [2, 0, 2], 180_000, 720),
   ]),
   placementGroup('timber-water-trough', 'decorative-slot-clearance', [
-    instance('south-east-water-trough', [5.2, 0, 12.7], 90_000, 700),
+    instance('south-east-water-trough', [2.8, 0, 29.5], 90_000, 700),
   ]),
   placementGroup('formal-hedge-straight', 'decorative-slot-clearance', [
-    instance('hedge-west-north', [-12.5, 0, -1.3], 90_000, 600),
-    instance('hedge-east-north', [12.5, 0, -1.3], 90_000, 600),
-    instance('hedge-west-south', [-12.5, 0, 4.8], 90_000, 600),
-    instance('hedge-east-south', [12.5, 0, 4.8], 90_000, 600),
+    instance('hedge-west-north', [-55, 0, -18], 90_000, 600),
+    instance('hedge-east-north', [55, 0, -18], 90_000, 600),
+    instance('hedge-west-south', [-55, 0, 8], 90_000, 600),
+    instance('hedge-east-south', [55, 0, 8], 90_000, 600),
   ], { clearanceMarginMeters: 0.35 }),
   placementGroup('formal-hedge-corner', 'decorative-slot-clearance', [
-    instance('hedge-corner-west', [-18.2, 0, 8.5], 0, 560),
-    instance('hedge-corner-east', [18.2, 0, 8.5], 270_000, 560),
+    instance('hedge-corner-west', [-54, 0, 30], 0, 560),
+    instance('hedge-corner-east', [54, 0, 30], 270_000, 560),
   ], { clearanceMarginMeters: 0.35 }),
   placementGroup('clipped-boxwood-mound', 'decorative-slot-clearance', [
-    instance('boxwood-south-west', [-7.2, 0, 12.3], 35_000, 720),
-    instance('boxwood-south-east', [7.2, 0, 12.3], 210_000, 760),
+    instance('boxwood-south-west', [-5.2, 0, 34], 35_000, 720),
+    instance('boxwood-south-east', [5.2, 0, 34], 210_000, 760),
   ], { clearanceMarginMeters: 0.35 }),
-  placementGroup('picket-fence-4m', 'slot-level-dressing', [
-    instance('level-dressing-fence-template', [0, 0, 1.7], 0, 650),
-  ], {
-    anchor: 'active-medium-slot-template',
-    slotIds: ACTIVE_MEDIUM_SLOT_IDS,
-    footprintKind: 'medium-slot-box',
-    halfExtentsMeters: [1.3, 0.1],
-    clearanceMarginMeters: 0.08,
-  }),
+  placementGroup('picket-fence-4m', 'decorative-slot-clearance', [
+    instance('west-service-band-picket', [-43, 0, 20], 90_000, 650),
+  ], { clearanceMarginMeters: 0.08 }),
   placementGroup('dirt-road-straight-4m', 'road-surface', [
-    instance('road-south-approach', [0, 0, 13]),
-    instance('road-south-inner', [0, 0, 9]),
-    instance('road-south-plaza', [0, 0, 5]),
-    instance('road-north-inner', [0, 0, -3.8]),
-    instance('road-north-middle', [0, 0, -7.8]),
-    instance('road-north-terminal', [0, 0, -10.8]),
+    ...[30, 26, 22, 18, 14, 10, 6].map((z) => instance(
+      `road-gate-spine-${z}`,
+      [0, 0, z],
+      90_000,
+    )),
   ], { clearanceMarginMeters: 0 }),
   placementGroup('dirt-road-curve-90-4m', 'road-surface', [
-    instance('road-curve-west', [-2, 0, 0.2], 90_000),
-    instance('road-curve-east', [2, 0, 0.2], 180_000),
+    instance('road-commons-curve', [0, 0, 4], 90_000),
   ], { clearanceMarginMeters: 0 }),
   placementGroup('dirt-road-t-junction-4m', 'road-surface', [
-    instance('road-civic-t-junction', [0, 0, 0.2]),
+    instance('road-civic-t-junction', [0, 0, 7], 90_000),
   ], { clearanceMarginMeters: 0 }),
   placementGroup('cobble-road-straight-4m', 'road-surface', [
-    instance('cobble-civic-spine', [0, 0, 3.2]),
+    instance('cobble-civic-spine', [0, 0, 2], 90_000),
   ], { clearanceMarginMeters: 0 }),
   placementGroup('cobble-plaza-6m', 'road-surface', [
-    instance('central-civic-plaza', [0, 0, 3.15]),
+    instance('central-civic-commons', [0, 0, 2]),
   ], { clearanceMarginMeters: 0 }),
   placementGroup('stone-curb-2m', 'road-surface', [
-    instance('plaza-curb-west', [-3.15, 0, 3.15], 90_000),
-    instance('plaza-curb-east', [3.15, 0, 3.15], 90_000),
-    instance('plaza-curb-north', [0, 0, 0], 0),
+    instance('commons-curb-west', [-5, 0, 2], 90_000),
+    instance('commons-curb-east', [5, 0, 2], 90_000),
+    instance('commons-curb-north', [0, 0, -3], 0),
+    instance('commons-curb-south', [0, 0, 7], 0),
   ], { clearanceMarginMeters: 0 }),
   placementGroup('boulder-cluster-3m', 'north-edge-scenery', [
-    instance('north-east-boulder-cluster', [17.8, 0, -16.8], 28_000, 720),
-    instance('north-west-wall-joint-boulders', [-17.8, 0, -16.8], -24_000, 680),
+    instance('north-east-boulder-cluster', [52, 0, -39], 28_000, 720),
+    instance('north-west-wall-joint-boulders', [-52, 0, -39], -24_000, 680),
   ], { clearanceMarginMeters: 0.4 }),
   placementGroup('masonry-rubble-2m', 'north-edge-scenery', [
-    instance('south-gate-small-rubble', [-6.1, 0, 13.7], -18_000, 780),
-    instance('west-wall-joint-small-rubble', [-18, 0, -11.7], 14_000, 740),
-    instance('east-wall-joint-small-rubble', [18, 0, -10.8], -11_000, 740),
+    instance('south-gate-small-rubble', [-6.2, 0, 34.5], -18_000, 780),
+    instance('west-wall-joint-small-rubble', [-51, 0, -12], 14_000, 740),
+    instance('east-wall-joint-small-rubble', [51, 0, -10], -11_000, 740),
   ], { clearanceMarginMeters: 0.35 }),
   placementGroup('canopied-keep-well', 'decorative-slot-clearance', [
-    instance('east-wall-keep-well', [16.7, 0, 0.4], 0, 760),
+    instance('civic-commons-well', [0, 0, 2], 0, 760),
   ], { clearanceMarginMeters: 0.45 }),
   placementGroup('collapsed-courtyard-arch', 'north-edge-scenery', [
-    instance('north-collapsed-arch', [0, 0, -9], 12_000, 760),
+    instance('west-old-road-collapsed-arch', [-55, 0, -29], 12_000, 760),
   ], { clearanceMarginMeters: 0.4 }),
   placementGroup('masonry-rubble-cluster', 'north-edge-scenery', [
-    instance('south-west-large-rubble', [-18.3, 0, 12.2], 16_000, 720),
-    instance('south-east-wall-joint-rubble', [18.3, 0, 12.2], 164_000, 700),
+    instance('south-west-large-rubble', [-52, 0, 33], 16_000, 720),
+    instance('south-east-wall-joint-rubble', [52, 0, 33], 164_000, 700),
   ], { clearanceMarginMeters: 0.35 }),
   placementGroup('breached-keep-wall', 'north-edge-scenery', [
-    instance('north-breached-wall', [7.6, 0, -11.7], -8_000, 760),
+    instance('north-breached-wall', [20, 0, -46], -8_000, 760),
   ], { clearanceMarginMeters: 0.4 }),
 ]);
 
 export const INNER_KEEP_PRESENTATION_PROCEDURAL_ANCHORS = Object.freeze([
   Object.freeze({
-    anchorId: 'central-keep-procedural-fallback',
+    anchorId: 'civic-commons-procedural-fallback',
     transform: Object.freeze({
-      positionMeters: Object.freeze([0, 1.85, -0.15] as const),
+      positionMeters: Object.freeze([0, 0.1, 2] as const),
       rotationMilliDegrees: Object.freeze([0, 0, 0] as const),
       scalePermille: Object.freeze([1_000, 1_000, 1_000] as const),
     }),
-    footprint: Object.freeze({ halfExtentsMeters: Object.freeze([2.3, 1.9] as const) }),
+    footprint: Object.freeze({ halfExtentsMeters: Object.freeze([5, 5] as const) }),
     pickingRole: 'none',
-    collisionClearanceRole: 'central-civic-anchor',
-  }),
-  Object.freeze({
-    anchorId: 'construction-pad-procedural-template',
-    slotIds: Object.freeze(INNER_KEEP_PRESENTATION_SLOTS.map((slot) => slot.slotId)),
-    mediumRadiusMeters: 1.85,
-    largeReservedRadiusMeters: 2.1,
-    pickingRole: 'native-slot-control',
-    collisionClearanceRole: 'slot-footprint-visualization',
+    collisionClearanceRole: 'permanent-civic-commons',
   }),
 ]);
 
 export const INNER_KEEP_PRESENTATION_CLEARANCES = Object.freeze({
   units: 'meters',
   ground: Object.freeze({
-    halfExtentsMeters: Object.freeze([24.2, 22] as const),
-    minimumLandmarkEdgeBuffer: 0.35,
+    halfExtentsMeters: Object.freeze([72, 72] as const),
+    minimumFixedSceneryEdgeBuffer: 0.35,
   }),
-  slot: Object.freeze({
-    mediumHalfExtents: Object.freeze([1.8, 1.55] as const),
-    largeReservedHalfExtents: Object.freeze([2.1, 2.1] as const),
-    minimumBetweenFootprints: 0.2,
-    decorativeBuffer: 0.35,
+  freePlacement: Object.freeze({
+    minimumX: -44,
+    maximumX: 44,
+    minimumZ: -40,
+    maximumZ: 32,
+    snapIncrementMeters: 0.5,
+    rotationsMilliDegrees: Object.freeze([0, 90_000, 180_000, 270_000] as const),
+    wallInteriorSetbackMeters: 4,
   }),
   road: Object.freeze({
     northSouthCenterX: 0,
-    northSouthHalfWidth: 1.3,
-    eastWestCenterZ: 0.2,
-    eastWestHalfWidth: 1.075,
-    requiredClearSideBuffer: 0.25,
+    northSouthHalfWidth: 2,
+    minimumZ: -3,
+    maximumZ: 32,
+    requiredClearSideBuffer: 1,
+    commonsCenter: Object.freeze([0, 2] as const),
+    commonsHalfExtents: Object.freeze([5, 5] as const),
   }),
   wall: Object.freeze({
-    westX: -20.2,
-    eastX: 20.2,
-    northZ: -21,
-    southZ: 15,
-    interiorClearance: 0.08,
+    westX: -48,
+    eastX: 48,
+    northZ: -44,
+    southZ: 36,
+    interiorClearance: 4,
     southGateClearWidth: 6,
+    southGateVisualClearWidth: 4.82,
   }),
 });
 
 export const INNER_KEEP_PRESENTATION_CAMERA_PRESETS = Object.freeze({
   projection: 'orthographic',
-  positionMeters: Object.freeze([25, 29, 29] as const),
-  targetMeters: Object.freeze([0, 1, -3] as const),
+  positionMeters: Object.freeze([68, 82, 78] as const),
+  targetMeters: Object.freeze([0, 1, -4] as const),
   near: 0.1,
-  far: 120,
-  minimumHalfWidth: 22,
-  landscape: Object.freeze({ minimumAspect: 0.78, baseHalfHeight: 19.6 }),
+  far: 300,
+  minimumHalfWidth: 64,
+  landscape: Object.freeze({ minimumAspect: 0.78, baseHalfHeight: 48 }),
   portrait: Object.freeze({
     maximumAspectExclusive: 0.78,
-    baseHalfHeight: 26.4,
-    positionMeters: Object.freeze([0, 47, 26] as const),
-    targetMeters: Object.freeze([0, 1, -3] as const),
-    initialZoomMultiplier: 0.9,
+    baseHalfHeight: 72,
+    positionMeters: Object.freeze([0, 112, 72] as const),
+    targetMeters: Object.freeze([0, 1, -4] as const),
+    initialZoomMultiplier: 1,
   }),
-  zoom: Object.freeze({ minimum: 0.72, initial: 1, maximum: 1.5 }),
-  panBoundsMeters: Object.freeze({ x: Object.freeze([-8, 8] as const), z: Object.freeze([-9, 7] as const) }),
+  zoom: Object.freeze({ minimum: 0.8, initial: 1, maximum: 2 }),
+  panBoundsMeters: Object.freeze({ x: Object.freeze([-9, 9] as const), z: Object.freeze([-9, 9] as const) }),
 });
 
 const INNER_KEEP_PRESENTATION_LAYOUT_DIGEST_PAYLOAD = Object.freeze({
@@ -622,11 +597,13 @@ const INNER_KEEP_PRESENTATION_LAYOUT_DIGEST_PAYLOAD = Object.freeze({
   slots: INNER_KEEP_PRESENTATION_SLOTS,
   placements: INNER_KEEP_PRESENTATION_PLACEMENTS,
   proceduralAnchors: INNER_KEEP_PRESENTATION_PROCEDURAL_ANCHORS,
+  freePlacementPolicy: INNER_KEEP_FREE_PLACEMENT_POLICY,
   clearances: INNER_KEEP_PRESENTATION_CLEARANCES,
   cameraPresets: INNER_KEEP_PRESENTATION_CAMERA_PRESETS,
 });
 
 function canonicalize(value: unknown): unknown {
+  if (typeof value === 'bigint') return value.toString();
   if (Array.isArray(value)) return value.map(canonicalize);
   if (value && typeof value === 'object') {
     const record = value as Record<string, unknown>;
@@ -644,7 +621,7 @@ export function canonicalInnerKeepPresentationLayoutDigestInput(): string {
 
 // SHA-256 of canonicalInnerKeepPresentationLayoutDigestInput().
 export const INNER_KEEP_PRESENTATION_LAYOUT_DIGEST =
-  'f2f06d1362d544e0caec13f227817017b18cadd675eb00dae696b79d2d63ce04';
+  '533ff0c18624445af874f97b71d1d3ae4c6cb4a61f8b7732ba905ee10a61b443';
 
 export const CANONICAL_INNER_KEEP_PRESENTATION_LAYOUT = Object.freeze({
   ...INNER_KEEP_PRESENTATION_LAYOUT_DIGEST_PAYLOAD,
@@ -656,8 +633,7 @@ const placedAssetIds = INNER_KEEP_PRESENTATION_PLACEMENTS.map((entry) => entry.a
 if (
   INNER_KEEP_PRESENTATION_ASSETS.length !== 38
   || new Set(assetIds).size !== 38
-  || INNER_KEEP_PRESENTATION_SLOTS.length !== 12
-  || new Set(INNER_KEEP_PRESENTATION_SLOTS.map((slot) => slot.slotId)).size !== 12
+  || INNER_KEEP_PRESENTATION_SLOTS.length !== 0
   || INNER_KEEP_PRESENTATION_PLACEMENTS.length !== 38
   || new Set(placedAssetIds).size !== 38
   || assetIds.some((assetId) => !placedAssetIds.includes(assetId))

@@ -22,7 +22,6 @@ import {
   planInnerKeepMarshPresentation,
 } from '../src/components/inner-keep/createInnerKeepEcology';
 import { REALM_PREVAILING_WIND } from '../src/game/map/realmPrevailingWind';
-import { INNER_KEEP_LAYOUT_V1_SLOTS } from '../src/components/inner-keep/innerKeepLayoutV1';
 import {
   INNER_KEEP_OUTER_WORLD_BOAT_ROUTE,
   INNER_KEEP_OUTER_WORLD_COMPOUND_PLATEAU,
@@ -96,24 +95,6 @@ function insideCompoundPlateau(x: number, z: number) {
     && z <= plateau.maximumZ;
 }
 
-function pointClearsSlot(
-  x: number,
-  z: number,
-  clearance: number,
-  slot: (typeof INNER_KEEP_LAYOUT_V1_SLOTS)[number],
-) {
-  const angle = -slot.rotationMilliDegrees * Math.PI / 180_000;
-  const deltaX = x - Number(slot.localXMicrounits) / 1_000_000;
-  const deltaZ = z - Number(slot.localZMicrounits) / 1_000_000;
-  const localX = deltaX * Math.cos(angle) - deltaZ * Math.sin(angle);
-  const localZ = deltaX * Math.sin(angle) + deltaZ * Math.cos(angle);
-  const halfExtents = slot.footprintClass === 'large'
-    ? INNER_KEEP_PRESENTATION_CLEARANCES.slot.largeReservedHalfExtents
-    : INNER_KEEP_PRESENTATION_CLEARANCES.slot.mediumHalfExtents;
-  return Math.abs(localX) > halfExtents[0] + clearance
-    || Math.abs(localZ) > halfExtents[1] + clearance;
-}
-
 function pointClearsFixedPlacement(x: number, z: number, clearance: number) {
   return INNER_KEEP_FIXED_ECOLOGY_EXCLUSIONS.every((exclusion) => (
     Math.abs(x - exclusion.center.x) > exclusion.halfExtentsMeters[0]
@@ -159,15 +140,18 @@ describe('Inner Keep living estate grass and connected water presentation', () =
           && position.x <= wall.eastX
           && position.z >= wall.northZ
           && position.z <= wall.southZ;
+        const overlapsGateSpine = Math.abs(position.x - road.northSouthCenterX)
+          < road.northSouthHalfWidth + road.requiredClearSideBuffer
+          && position.z >= road.minimumZ
+          && position.z <= road.maximumZ;
+        const overlapsCommons = Math.abs(position.x - road.commonsCenter[0])
+          < road.commonsHalfExtents[0]
+          && Math.abs(position.z - road.commonsCenter[1])
+          < road.commonsHalfExtents[1];
         if (
           firstGrassClearanceFailure === ''
           && insideInnerKeepEcologyArea
-          && (
-            Math.abs(position.x - road.northSouthCenterX)
-              < road.northSouthHalfWidth + 0.5
-            || Math.abs(position.z - road.eastWestCenterZ)
-              < road.eastWestHalfWidth + 0.38
-          )
+          && (overlapsGateSpine || overlapsCommons)
         ) firstGrassClearanceFailure = `inner-road:${position.x}:${position.z}`;
         if (
           firstGrassClearanceFailure === ''
@@ -211,23 +195,6 @@ describe('Inner Keep living estate grass and connected water presentation', () =
           if (firstGrassClearanceFailure === '' && overlaps) {
             firstGrassClearanceFailure = [
               exclusion.exclusionId,
-              position.x,
-              position.z,
-            ].join(':');
-          }
-        }
-        for (const slot of INNER_KEEP_LAYOUT_V1_SLOTS) {
-          if (
-            firstGrassClearanceFailure === ''
-            && !pointClearsSlot(
-              position.x,
-              position.z,
-              INNER_KEEP_PRESENTATION_CLEARANCES.slot.decorativeBuffer,
-              slot,
-            )
-          ) {
-            firstGrassClearanceFailure = [
-              slot.slotId,
               position.x,
               position.z,
             ].join(':');
@@ -287,6 +254,41 @@ describe('Inner Keep living estate grass and connected water presentation', () =
     }
     ecology.dispose();
   }, 10_000);
+
+  it('reversibly culls planted grass against dynamic building envelopes', () => {
+    const ecology = createInnerKeepEcology({
+      quality: 'reduced',
+      reducedMotion: true,
+      visualSeed: 99,
+    });
+    const originalPositions = grassPositions(ecology);
+    const target = originalPositions[Math.floor(originalPositions.length / 2)]!;
+    const exclusion = Object.freeze({
+      centerMeters: Object.freeze([target.x, target.z] as const),
+      halfExtentsMeters: Object.freeze([5.65, 4.75] as const),
+    });
+
+    expect(ecology.setBuildingExclusions([exclusion])).toBe(true);
+    const culledPositions = grassPositions(ecology);
+    expect(culledPositions.length).toBeLessThan(originalPositions.length);
+    expect(culledPositions.every((position) => (
+      Math.abs(position.x - target.x)
+        > exclusion.halfExtentsMeters[0]
+          + INNER_KEEP_GRASS_PATCH_SUPPORT_RADIUS_METERS
+      || Math.abs(position.z - target.z)
+        > exclusion.halfExtentsMeters[1]
+          + INNER_KEEP_GRASS_PATCH_SUPPORT_RADIUS_METERS
+    ))).toBe(true);
+    expect(ecology.grassBladeCount).toBe(INNER_KEEP_GRASS_BUDGET.reduced);
+    expect(ecology.setBuildingExclusions([exclusion])).toBe(false);
+
+    expect(ecology.setBuildingExclusions([])).toBe(true);
+    expect(grassPositions(ecology).map(({ x, y, z }) => [x, y, z])).toEqual(
+      originalPositions.map(({ x, y, z }) => [x, y, z]),
+    );
+    ecology.dispose();
+    expect(ecology.setBuildingExclusions([exclusion])).toBe(false);
+  });
 
   it('animates wind and downstream flow only when motion is allowed', () => {
     const moving = createInnerKeepEcology({
@@ -573,9 +575,6 @@ describe('Inner Keep living estate grass and connected water presentation', () =
         expect(Math.abs(z) + clearance).toBeLessThan(halfDepth);
         expect(y).toBeGreaterThan(innerKeepOuterWorldTerrainHeightAt(x, z));
         expect(pointClearsFixedPlacement(x, z, clearance)).toBe(true);
-        for (const slot of INNER_KEEP_LAYOUT_V1_SLOTS) {
-          expect(pointClearsSlot(x, z, clearance, slot)).toBe(true);
-        }
       }
     }
 
