@@ -79,6 +79,26 @@ function prefixedEmptyZipFixture(): Buffer {
   return Buffer.concat([prefix, local, name, central, name, end]);
 }
 
+function encodedAuthorityFixture(
+  field: string,
+  width: 1 | 2 | 4,
+  bigEndian = false,
+): Buffer {
+  if (width === 1) return Buffer.from(field, 'utf8');
+  if (width === 2) {
+    const bytes = Buffer.from(field, 'utf16le');
+    if (bigEndian) bytes.swap16();
+    return bytes;
+  }
+  const bytes = Buffer.allocUnsafe([...field].length * 4);
+  [...field].forEach((character, index) => {
+    const value = character.codePointAt(0)!;
+    if (bigEndian) bytes.writeUInt32BE(value, index * 4);
+    else bytes.writeUInt32LE(value, index * 4);
+  });
+  return bytes;
+}
+
 function sanitizedReviewEvidence(): string {
   const candidates = Array.from({ length: 1 }, (_, index) => Object.freeze({
     candidateHandle: `GR-A-${String.fromCharCode(65 + index)}AAAAAAAAAAAAAAA`,
@@ -1172,12 +1192,40 @@ describe('Greater Realm public and release boundary', () => {
     const bytes = Buffer.alloc(16 * 1_024 * 1_024 + 2 * 64 * 1_024, 0x80);
     bytes[0] = 0xff;
     bytes[1] = 0xfe;
-    const authority = Buffer.from('EcOlOgYcLaSs', 'utf16le');
+    const authority = Buffer.from('WiLdFlOwErDeNsItY', 'utf16le');
     authority.copy(bytes, 8 * 1_024 * 1_024 + 64 * 1_024 - 9);
     try {
       writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
     } finally {
       authority.fill(0);
+      bytes.fill(0);
+    }
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it.each([
+    ['UTF-8 camel-case groundcover', 'GrOuNdCoVeRdEnSiTy', 1, false],
+    ['UTF-16LE kebab-case groundcover', 'GrOuNdCoVeR-DeNsItY', 2, false],
+    ['UTF-16BE camel-case wildflower', 'WiLdFlOwErDeNsItY', 2, true],
+    ['UTF-32LE kebab-case wildflower', 'WiLdFlOwEr-DeNsItY', 4, false],
+    ['UTF-32BE camel-case groundcover', 'GrOuNdCoVeRdEnSiTy', 4, true],
+  ] as const)('rejects case-folded %s authority aliases', (
+    _label,
+    field,
+    width,
+    bigEndian,
+  ) => {
+    const paths = scannerRepository();
+    const relativePath = 'public/encoded-groundcover-authority.bin';
+    const bytes = encodedAuthorityFixture(field, width, bigEndian);
+    try {
+      writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+    } finally {
       bytes.fill(0);
     }
 
@@ -1256,7 +1304,7 @@ describe('Greater Realm public and release boundary', () => {
         : 'public/large-authority-json.bin';
       if (staged) runFixtureGit(paths.repositoryRoot, ['init', '--quiet']);
       const bytes = Buffer.alloc(16 * 1_024 * 1_024 + 2 * 64 * 1_024, 0x20);
-      const payload = Buffer.from('{"EcOlOgYcLaSs":"AgAEBg=="}', 'utf8');
+      const payload = Buffer.from('{"GrOuNdCoVeRdEnSiTy":"AgAEBg=="}', 'utf8');
       payload.copy(bytes, 8 * 1_024 * 1_024 + 64 * 1_024 - 7);
       try {
         writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
@@ -1319,6 +1367,8 @@ describe('Greater Realm public and release boundary', () => {
       'dressing-excluded',
       'ecology-class',
       'vegetation-density',
+      'groundcover-density',
+      'wildflower-density',
       'route-class',
       'landmark-class',
       'ambient-life-class',
@@ -1347,6 +1397,8 @@ describe('Greater Realm public and release boundary', () => {
       'dressing-excluded',
       'ecology-class',
       'vegetation-density',
+      'groundcover-density',
+      'wildflower-density',
       'route-class',
       'landmark-class',
       'ambient-life-class',
@@ -1368,6 +1420,8 @@ describe('Greater Realm public and release boundary', () => {
       ['Dressing-Excluded', 64 * 1_024 - 5],
       ['Ecology-Class', 2 * 1_024 * 1_024 + 11],
       ['Vegetation-Density', 5 * 1_024 * 1_024 + 23],
+      ['Groundcover-Density', 6 * 1_024 * 1_024 + 29],
+      ['Wildflower-Density', 7 * 1_024 * 1_024 + 31],
       ['Route-Class', 8 * 1_024 * 1_024 + 37],
       ['Landmark-Class', 11 * 1_024 * 1_024 + 41],
       ['Ambient-Life-Class', 15 * 1_024 * 1_024 + 53],
@@ -1396,6 +1450,8 @@ describe('Greater Realm public and release boundary', () => {
         'dressing-excluded\0',
         'ecology-class\0',
         'vegetation-density\0',
+        'groundcover-density\0',
+        'wildflower-density\0',
         'route-class\0',
         'landmark-class\0',
         'ambient-life-class\0',
@@ -1423,6 +1479,8 @@ describe('Greater Realm public and release boundary', () => {
       'dressing-excluded',
       'ecology-class',
       'vegetation-density',
+      'groundcover-density',
+      'wildflower-density',
       'route-class',
       'landmark-class',
       'ambient-life-class',
@@ -1833,6 +1891,8 @@ describe('Greater Realm public and release boundary', () => {
         ['dressingExcluded', Array.of(0, 1, 0, 0)],
         ['ecologyClass', Array.of(2, 0, 4, 6)],
         ['vegetationDensity', Array.of(80, 0, 150, 220)],
+        ['groundcoverDensity', Array.of(60, 0, 180, 210)],
+        ['wildflowerDensity', Array.of(12, 0, 96, 140)],
         ['routeClass', Array.of(0, 3, 1, 0)],
         ['landmarkClass', Array.of(0, 0, 4, 7)],
         ['ambientLifeClass', Array.of(1, 0, 4, 5)],
@@ -1851,6 +1911,8 @@ describe('Greater Realm public and release boundary', () => {
           { name: 'dressing-excluded', type: 2, width: 1 },
           { name: 'ecology-class', type: 2, width: 1 },
           { name: 'vegetation-density', type: 2, width: 1 },
+          { name: 'groundcover-density', type: 2, width: 1 },
+          { name: 'wildflower-density', type: 2, width: 1 },
           { name: 'route-class', type: 2, width: 1 },
           { name: 'landmark-class', type: 2, width: 1 },
           { name: 'ambient-life-class', type: 2, width: 1 },
@@ -2074,6 +2136,93 @@ describe('Greater Realm public and release boundary', () => {
   });
 
   it.each([
+    [
+      'Buffer.from string',
+      ['groundcover', 'Density'].join(''),
+      (name: string) => `export const ${name} = Buffer.from("AQIDBA==", "base64");\n`,
+    ],
+    [
+      'atob string',
+      ['wildflower', 'Density'].join(''),
+      (name: string) => `export const ${name} = atob("AQIDBA==");\n`,
+    ],
+    [
+      'Uint8Array-wrapped string',
+      ['groundcover', 'Density'].join(''),
+      (name: string) => [
+        `export const ${name} = Uint8Array.from(atob("AQIDBA=="),`,
+        '  value => value.charCodeAt(0));',
+        '',
+      ].join('\n'),
+    ],
+    [
+      'encoded object',
+      ['wildflower', 'Density'].join(''),
+      (name: string) => [
+        `export const ${name} = {`,
+        '  encoding: "base64",',
+        '  data: "AQIDBA==",',
+        '};',
+        '',
+      ].join('\n'),
+    ],
+    [
+      'Uint8Array.of numbers',
+      ['groundcover', 'Density'].join(''),
+      (name: string) => `export const ${name} = Uint8Array.of(12, 34, 56);\n`,
+    ],
+    [
+      'Buffer-wrapped Uint8Array.of numbers',
+      ['wildflower', 'Density'].join(''),
+      (name: string) => (
+        `export const ${name} = Buffer.from(Uint8Array.of(7, 8, 9));\n`
+      ),
+    ],
+    [
+      'Buffer-wrapped Uint8Array numbers',
+      ['groundcover', 'Density'].join(''),
+      (name: string) => (
+        `export const ${name} = Buffer.from(new Uint8Array([1, 2, 3]));\n`
+      ),
+    ],
+    [
+      'Buffer-wrapped Uint8Array.from numbers',
+      ['wildflower', 'Density'].join(''),
+      (name: string) => (
+        `export const ${name} = Buffer.from(Uint8Array.from([4, 5, 6]));\n`
+      ),
+    ],
+    [
+      'Uint8Array-wrapped Buffer numbers',
+      ['groundcover', 'Density'].join(''),
+      (name: string) => (
+        `export const ${name} = new Uint8Array(Buffer.from([7, 8, 9]));\n`
+      ),
+    ],
+  ])('rejects a markerless %s authority initializer embedded in source', (
+    _label,
+    authorityName,
+    fixture,
+  ) => {
+    for (const staged of [false, true]) {
+      const paths = scannerRepository();
+      const relativePath = `src/encoded-${_label.replaceAll(' ', '-')}.ts`;
+      if (staged) runFixtureGit(paths.repositoryRoot, ['init', '--quiet']);
+      writeFileSync(join(paths.repositoryRoot, relativePath), fixture(authorityName));
+      if (staged) {
+        runFixtureGit(paths.repositoryRoot, ['add', '--', relativePath]);
+        writeFileSync(join(paths.repositoryRoot, relativePath), 'ordinary replacement\n');
+      }
+
+      expect(() => verifyGreaterRealmPublicBoundary({
+        repositoryRoot: paths.repositoryRoot,
+        scanRoots: [],
+        ...(staged ? {} : { trackedPaths: [relativePath] }),
+      })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+    }
+  });
+
+  it.each([
     ['csv column', 'tools/ecology.csv', 'ecologyClass\n1\n2\n'],
     ['case-folded CSV column', 'tools/folded-ecology.csv', 'EcologyClass\n1\n'],
     [
@@ -2116,9 +2265,24 @@ describe('Greater Realm public and release boundary', () => {
     [
       'JSON encoded object',
       'tools/routes-encoded.json',
-      '{"routeClass":{"encoding":"base64","data":"AwQ="}}\n',
+      `${JSON.stringify(Object.fromEntries([
+        [
+          ['route', 'Class'].join(''),
+          { encoding: 'base64', data: 'AwQ=' },
+        ],
+      ]))}\n`,
     ],
     ['NDJSON value', 'tools/vegetation.ndjson', '{"vegetationDensity":120}\n'],
+    [
+      'case-folded groundcover JSON value',
+      'tools/groundcover.json',
+      '{"GrOuNdCoVeRdEnSiTy":180}\n',
+    ],
+    [
+      'wildflower TSV column',
+      'tools/wildflowers.tsv',
+      'name\twildflower-density\nordinary\t96\n',
+    ],
   ])('rejects a markerless single authority field with numeric %s', (
     _label,
     relativePath,
@@ -2161,9 +2325,17 @@ describe('Greater Realm public and release boundary', () => {
       '  dressingExcluded: Uint8Array;',
       '  ecologyClass: Uint8Array;',
       '  vegetationDensity: Uint8Array;',
+      '  groundcoverDensity: Uint8Array;',
+      '  wildflowerDensity: Uint8Array;',
       '  routeClass: [number, number];',
       '  landmarkClass: Uint8Array;',
       '  ambientLifeClass: Uint8Array;',
+      '}',
+      'export function allocateLivingWorld(cellCount: number) {',
+      '  return {',
+      '    groundcoverDensity: new Uint8Array(cellCount),',
+      '    wildflowerDensity: new Uint8Array(cellCount),',
+      '  };',
       '}',
       '',
     ].join('\n'));
@@ -2171,7 +2343,8 @@ describe('Greater Realm public and release boundary', () => {
       '# Living-world vocabulary',
       '',
       '`dressing-excluded`, `ecology-class`, `vegetation-density`,',
-      '`route-class`, `landmark-class`, and `ambient-life-class` are private',
+      '`groundcover-density`, `wildflower-density`, `route-class`,',
+      '`landmark-class`, and `ambient-life-class` are private',
       'authority field names; this document intentionally contains no values.',
       '',
     ].join('\n'));

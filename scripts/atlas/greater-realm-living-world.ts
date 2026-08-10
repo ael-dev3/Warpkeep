@@ -17,7 +17,7 @@ import type { IndexedAxialGrid } from './greater-realm-terrain';
  * neutral and reproducible without Node-specific APIs.
  */
 export const GREATER_REALM_LIVING_WORLD_VERSION =
-  'greater-realm-private-living-world-v2' as const;
+  'greater-realm-private-living-world-v3' as const;
 
 export const GREATER_REALM_ECOLOGY_CLASS = Object.freeze({
   NONE: 0,
@@ -119,6 +119,26 @@ export type GreaterRealmLivingWorldMetrics = Readonly<{
   minimumVegetationPatchSize: number;
   isolatedVegetationCellCount: number;
   smallVegetationPatchCellCount: number;
+  groundcoverCellCount: number;
+  groundcoverBasisPoints: number;
+  eligibleLandGroundcoverBasisPoints: number;
+  groundcoverPatchCount: number;
+  minimumGroundcoverPatchSize: number;
+  isolatedGroundcoverCellCount: number;
+  smallGroundcoverPatchCellCount: number;
+  largestGroundcoverPatchBasisPoints: number;
+  groundcoverDistinctDensityValueCount: number;
+  groundcoverWithoutVegetationCellCount: number;
+  vegetationGroundcoverJaccardBasisPoints: number;
+  wildflowerCellCount: number;
+  wildflowerBasisPoints: number;
+  groundcoveredLandWildflowerBasisPoints: number;
+  wildflowerPatchCount: number;
+  minimumWildflowerPatchSize: number;
+  isolatedWildflowerCellCount: number;
+  smallWildflowerPatchCellCount: number;
+  largestWildflowerPatchBasisPoints: number;
+  wildflowerDistinctDensityValueCount: number;
   routeCellCounts: Readonly<{
     track: number;
     road: number;
@@ -159,6 +179,11 @@ export type GreaterRealmLivingWorldMetrics = Readonly<{
   rabbitDensityViolationCount: number;
   vegetationReservedClearanceViolationCount: number;
   vegetationLandmarkClearanceViolationCount: number;
+  groundcoverCompatibilityViolationCount: number;
+  wildflowerCompatibilityViolationCount: number;
+  wildflowerGroundcoverViolationCount: number;
+  groundcoverReservedClearanceViolationCount: number;
+  groundcoverLandmarkClearanceViolationCount: number;
   legacyPreservationViolationCount: number;
   waterExclusionViolationCount: number;
   reservedSiteExclusionViolationCount: number;
@@ -184,6 +209,16 @@ export type GreaterRealmLivingWorldCandidateCapacityMetrics = Readonly<
     | 'ecologyCellCounts'
     | 'eligibleLandVegetatedBasisPoints'
     | 'eligibleLandOpenBasisPoints'
+    | 'groundcoverCellCount'
+    | 'wildflowerCellCount'
+    | 'eligibleLandGroundcoverBasisPoints'
+    | 'groundcoveredLandWildflowerBasisPoints'
+    | 'groundcoverPatchCount'
+    | 'largestGroundcoverPatchBasisPoints'
+    | 'groundcoverDistinctDensityValueCount'
+    | 'wildflowerPatchCount'
+    | 'largestWildflowerPatchBasisPoints'
+    | 'wildflowerDistinctDensityValueCount'
     | 'routeCellCounts'
     | 'landmarkCellCounts'
     | 'ambientLifeCellCounts'
@@ -196,6 +231,11 @@ export type GreaterRealmLivingWorldInvariants = Readonly<{
   reservedSitesExcluded: boolean;
   ecologiesCompatible: boolean;
   vegetationNaturallyClustered: boolean;
+  groundcoverNaturallyClustered: boolean;
+  wildflowersNaturallyClustered: boolean;
+  groundcoverCompatible: boolean;
+  groundcoverIndependentFromWoodyVegetation: boolean;
+  wildflowersCompatibleWithGroundcover: boolean;
   landmarksSpaced: boolean;
   landmarksRouteAdjacent: boolean;
   ruinWallsAnchored: boolean;
@@ -209,6 +249,7 @@ export type GreaterRealmLivingWorldInvariants = Readonly<{
   couriersUseConnectedRoutes: boolean;
   rabbitHabitatVegetated: boolean;
   vegetationClearancesPreserved: boolean;
+  groundcoverClearancesPreserved: boolean;
 }>;
 
 export type GreaterRealmLivingWorldAuthority = Readonly<{
@@ -216,8 +257,12 @@ export type GreaterRealmLivingWorldAuthority = Readonly<{
   /** Union of all protected, strategic, and water exclusions. */
   dressingExcluded: Uint8Array;
   ecologyClass: Uint8Array;
-  /** Fixed-point canopy/groundcover potential in the inclusive range 0..255. */
+  /** Fixed-point canopy/woody-vegetation potential in the range 0..255. */
   vegetationDensity: Uint8Array;
+  /** Private grass/sedge/heath groundcover potential in the range 0..255. */
+  groundcoverDensity: Uint8Array;
+  /** Private wildflower potential, always bounded by groundcover density. */
+  wildflowerDensity: Uint8Array;
   routeClass: Uint8Array;
   landmarkClass: Uint8Array;
   ambientLifeClass: Uint8Array;
@@ -235,6 +280,8 @@ const WATER_SEA = 5;
 const UINT32_MAX = 0xffff_ffff;
 const BASIS_POINTS = 10_000;
 const MINIMUM_VEGETATION_PATCH_CELLS = 6;
+const MINIMUM_GROUNDCOVER_PATCH_CELLS = 6;
+const MINIMUM_WILDFLOWER_PATCH_CELLS = 3;
 const RUIN_SPACING = 12;
 const WAYSTONE_SPACING = 6;
 const LAMP_SPACING = 3;
@@ -242,6 +289,15 @@ const OPTIONAL_ROUTE_HUBS_PER_TIER_BIOME = 2;
 
 function allNonNegativeSafeIntegers(values: readonly number[]): boolean {
   return values.every((value) => Number.isSafeInteger(value) && value >= 0);
+}
+
+function roundedBasisPointsFromCounts(count: number, denominator: number): number {
+  if (!allNonNegativeSafeIntegers([count, denominator]) || denominator <= 0) return -1;
+  const divisor = BigInt(denominator);
+  const numerator = BigInt(count) * BigInt(BASIS_POINTS);
+  const quotient = numerator / divisor;
+  const remainder = numerator % divisor;
+  return Number(quotient + (remainder * 2n >= divisor ? 1n : 0n));
 }
 
 /**
@@ -271,11 +327,23 @@ export function hasGreaterRealmCandidateScaleLivingWorldCapacity(
   const landmarks = metrics.landmarkCellCounts;
   const ambient = metrics.ambientLifeCellCounts;
   const ambientCounts = Object.values(ambient);
+  const groundcover = metrics.groundcoverCellCount;
+  const wildflowers = metrics.wildflowerCellCount;
   if (
     !allNonNegativeSafeIntegers([
       eligible,
       metrics.eligibleLandVegetatedBasisPoints,
       metrics.eligibleLandOpenBasisPoints,
+      groundcover,
+      wildflowers,
+      metrics.eligibleLandGroundcoverBasisPoints,
+      metrics.groundcoveredLandWildflowerBasisPoints,
+      metrics.groundcoverPatchCount,
+      metrics.largestGroundcoverPatchBasisPoints,
+      metrics.groundcoverDistinctDensityValueCount,
+      metrics.wildflowerPatchCount,
+      metrics.largestWildflowerPatchBasisPoints,
+      metrics.wildflowerDistinctDensityValueCount,
       ...ecologyCounts,
       ...routeCounts,
       ...Object.values(landmarks),
@@ -284,10 +352,29 @@ export function hasGreaterRealmCandidateScaleLivingWorldCapacity(
     || eligible <= 0
     || metrics.eligibleLandVegetatedBasisPoints > BASIS_POINTS
     || metrics.eligibleLandOpenBasisPoints > BASIS_POINTS
+    || metrics.eligibleLandGroundcoverBasisPoints > BASIS_POINTS
+    || metrics.groundcoveredLandWildflowerBasisPoints > BASIS_POINTS
+    || metrics.largestGroundcoverPatchBasisPoints > BASIS_POINTS
+    || metrics.largestWildflowerPatchBasisPoints > BASIS_POINTS
+    || metrics.groundcoverDistinctDensityValueCount
+      > Math.min(255, groundcover)
+    || metrics.wildflowerDistinctDensityValueCount
+      > Math.min(255, wildflowers)
+    || BigInt(metrics.groundcoverPatchCount)
+      * BigInt(MINIMUM_GROUNDCOVER_PATCH_CELLS) > BigInt(groundcover)
+    || BigInt(metrics.wildflowerPatchCount)
+      * BigInt(MINIMUM_WILDFLOWER_PATCH_CELLS) > BigInt(wildflowers)
     || metrics.eligibleLandVegetatedBasisPoints
       + metrics.eligibleLandOpenBasisPoints !== BASIS_POINTS
     || ecologyCounts.reduce((total, count) => total + BigInt(count), 0n)
       !== BigInt(eligible)
+    || groundcover > eligible
+    || groundcover <= 0
+    || wildflowers > groundcover
+    || metrics.eligibleLandGroundcoverBasisPoints
+      !== roundedBasisPointsFromCounts(groundcover, eligible)
+    || metrics.groundcoveredLandWildflowerBasisPoints
+      !== roundedBasisPointsFromCounts(wildflowers, groundcover)
   )
     return false;
 
@@ -313,6 +400,18 @@ export function hasGreaterRealmCandidateScaleLivingWorldCapacity(
     metrics.eligibleLandVegetatedBasisPoints >= 2_500 &&
     metrics.eligibleLandVegetatedBasisPoints <= 8_500 &&
     metrics.eligibleLandOpenBasisPoints >= 1_500 &&
+    metrics.eligibleLandGroundcoverBasisPoints >= 3_500 &&
+    metrics.eligibleLandGroundcoverBasisPoints <= 8_500 &&
+    metrics.groundcoveredLandWildflowerBasisPoints >= 200 &&
+    metrics.groundcoveredLandWildflowerBasisPoints <= 2_000 &&
+    metrics.groundcoverPatchCount >= 8 &&
+    metrics.largestGroundcoverPatchBasisPoints > 0 &&
+    metrics.largestGroundcoverPatchBasisPoints <= 6_000 &&
+    metrics.groundcoverDistinctDensityValueCount >= 32 &&
+    metrics.wildflowerPatchCount >= 8 &&
+    metrics.largestWildflowerPatchBasisPoints > 0 &&
+    metrics.largestWildflowerPatchBasisPoints <= 3_000 &&
+    metrics.wildflowerDistinctDensityValueCount >= 16 &&
     summedShareAtLeast(dryRoutes, 500) &&
     summedShareAtMost(dryRoutes, 2_000) &&
     landmarks.abandonedRuin >= 32 &&
@@ -332,6 +431,18 @@ export function hasGreaterRealmCandidateScaleLivingWorldCapacity(
 const VEGETATION_CHANNEL = channelId('greater-realm-living-world-vegetation');
 const VEGETATION_DETAIL_CHANNEL = channelId(
   'greater-realm-living-world-vegetation-detail',
+);
+const GROUNDCOVER_CHANNEL = channelId(
+  'greater-realm-living-world-groundcover',
+);
+const GROUNDCOVER_DETAIL_CHANNEL = channelId(
+  'greater-realm-living-world-groundcover-detail',
+);
+const WILDFLOWER_CHANNEL = channelId(
+  'greater-realm-living-world-wildflower',
+);
+const WILDFLOWER_DETAIL_CHANNEL = channelId(
+  'greater-realm-living-world-wildflower-detail',
 );
 const ROUTE_COST_CHANNEL = channelId('greater-realm-living-world-route-cost');
 const LANDMARK_CHANNEL = channelId('greater-realm-living-world-landmark');
@@ -686,6 +797,185 @@ function sourceBiomeDensityCap(biome: number): number {
     case GREATER_REALM_BIOME_ID.ASH_MEADOW: return 112;
     default: return 255;
   }
+}
+
+function groundcoverEcologyCap(ecology: GreaterRealmEcologyClass): number {
+  switch (ecology) {
+    case GREATER_REALM_ECOLOGY_CLASS.PLAINS: return 235;
+    case GREATER_REALM_ECOLOGY_CLASS.FOREST: return 210;
+    case GREATER_REALM_ECOLOGY_CLASS.TAIGA: return 180;
+    case GREATER_REALM_ECOLOGY_CLASS.JUNGLE: return 220;
+    case GREATER_REALM_ECOLOGY_CLASS.SWAMP: return 200;
+    case GREATER_REALM_ECOLOGY_CLASS.SAVANNA: return 190;
+    case GREATER_REALM_ECOLOGY_CLASS.ALPINE: return 105;
+    default: return 0;
+  }
+}
+
+function groundcoverEcologyBase(ecology: GreaterRealmEcologyClass): number {
+  switch (ecology) {
+    case GREATER_REALM_ECOLOGY_CLASS.PLAINS: return 178;
+    case GREATER_REALM_ECOLOGY_CLASS.FOREST: return 150;
+    case GREATER_REALM_ECOLOGY_CLASS.TAIGA: return 116;
+    case GREATER_REALM_ECOLOGY_CLASS.JUNGLE: return 165;
+    case GREATER_REALM_ECOLOGY_CLASS.SWAMP: return 148;
+    case GREATER_REALM_ECOLOGY_CLASS.SAVANNA: return 132;
+    case GREATER_REALM_ECOLOGY_CLASS.ALPINE: return 60;
+    default: return 0;
+  }
+}
+
+function sourceBiomeGroundcoverCap(biome: number): number {
+  switch (biome) {
+    case GREATER_REALM_BIOME_ID.UNCLASSIFIED:
+    case GREATER_REALM_BIOME_ID.ALPINE_SNOW:
+    case GREATER_REALM_BIOME_ID.DUNE_DESERT:
+    case GREATER_REALM_BIOME_ID.ROCKY_DESERT:
+    case GREATER_REALM_BIOME_ID.RED_BADLANDS:
+    case GREATER_REALM_BIOME_ID.VOLCANIC_UPLAND:
+    case GREATER_REALM_BIOME_ID.SALTWATER:
+    case GREATER_REALM_BIOME_ID.LAKE:
+    case GREATER_REALM_BIOME_ID.RIVER_STREAM:
+      return 0;
+    case GREATER_REALM_BIOME_ID.TUNDRA: return 100;
+    case GREATER_REALM_BIOME_ID.ASH_MEADOW: return 90;
+    case GREATER_REALM_BIOME_ID.ROCKY_HIGHLAND: return 80;
+    case GREATER_REALM_BIOME_ID.SALT_MARSH: return 135;
+    case GREATER_REALM_BIOME_ID.COASTAL: return 165;
+    default: return 255;
+  }
+}
+
+function sourceBiomeGroundcoverPatchThreshold(biome: number): number {
+  switch (biome) {
+    case GREATER_REALM_BIOME_ID.FLOWER_MEADOW: return -6_000;
+    case GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND:
+    case GREATER_REALM_BIOME_ID.HEATHLAND:
+    case GREATER_REALM_BIOME_ID.SAVANNA:
+    case GREATER_REALM_BIOME_ID.COASTAL:
+      return -5_000;
+    case GREATER_REALM_BIOME_ID.WARM_SCRUB: return -4_000;
+    case GREATER_REALM_BIOME_ID.FRESHWATER_MARSH:
+    case GREATER_REALM_BIOME_ID.SALT_MARSH:
+    case GREATER_REALM_BIOME_ID.RIVER_DELTA:
+      return -3_500;
+    case GREATER_REALM_BIOME_ID.OAK_FOREST:
+    case GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST:
+    case GREATER_REALM_BIOME_ID.TUNDRA:
+    case GREATER_REALM_BIOME_ID.ROCKY_HIGHLAND:
+      return -2_500;
+    case GREATER_REALM_BIOME_ID.PINE_FOREST: return -2_000;
+    case GREATER_REALM_BIOME_ID.ASH_MEADOW: return -1_500;
+    default: return 0x7fff_ffff;
+  }
+}
+
+function wildflowerEcologyCompatible(ecology: GreaterRealmEcologyClass): boolean {
+  return ecology === GREATER_REALM_ECOLOGY_CLASS.PLAINS
+    || ecology === GREATER_REALM_ECOLOGY_CLASS.FOREST
+    || ecology === GREATER_REALM_ECOLOGY_CLASS.TAIGA
+    || ecology === GREATER_REALM_ECOLOGY_CLASS.SAVANNA
+    || ecology === GREATER_REALM_ECOLOGY_CLASS.ALPINE;
+}
+
+function sourceBiomeWildflowerCap(biome: number): number {
+  switch (biome) {
+    case GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND: return 165;
+    case GREATER_REALM_BIOME_ID.FLOWER_MEADOW: return 230;
+    case GREATER_REALM_BIOME_ID.OAK_FOREST: return 120;
+    case GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST: return 100;
+    case GREATER_REALM_BIOME_ID.PINE_FOREST: return 80;
+    case GREATER_REALM_BIOME_ID.TUNDRA: return 120;
+    case GREATER_REALM_BIOME_ID.HEATHLAND: return 190;
+    case GREATER_REALM_BIOME_ID.SAVANNA: return 115;
+    case GREATER_REALM_BIOME_ID.WARM_SCRUB: return 105;
+    case GREATER_REALM_BIOME_ID.ASH_MEADOW: return 60;
+    case GREATER_REALM_BIOME_ID.COASTAL: return 140;
+    default: return 0;
+  }
+}
+
+function wildflowerEcologyBase(ecology: GreaterRealmEcologyClass): number {
+  switch (ecology) {
+    case GREATER_REALM_ECOLOGY_CLASS.PLAINS: return 78;
+    case GREATER_REALM_ECOLOGY_CLASS.FOREST: return 42;
+    case GREATER_REALM_ECOLOGY_CLASS.TAIGA: return 28;
+    case GREATER_REALM_ECOLOGY_CLASS.SAVANNA: return 48;
+    case GREATER_REALM_ECOLOGY_CLASS.ALPINE: return 34;
+    default: return 0;
+  }
+}
+
+function sourceBiomeWildflowerBoost(biome: number): number {
+  switch (biome) {
+    case GREATER_REALM_BIOME_ID.FLOWER_MEADOW: return 100;
+    case GREATER_REALM_BIOME_ID.HEATHLAND: return 65;
+    case GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND: return 40;
+    case GREATER_REALM_BIOME_ID.COASTAL: return 35;
+    case GREATER_REALM_BIOME_ID.TUNDRA: return 30;
+    case GREATER_REALM_BIOME_ID.SAVANNA: return 25;
+    case GREATER_REALM_BIOME_ID.OAK_FOREST: return 22;
+    case GREATER_REALM_BIOME_ID.WARM_SCRUB: return 20;
+    case GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST: return 15;
+    case GREATER_REALM_BIOME_ID.PINE_FOREST: return 8;
+    case GREATER_REALM_BIOME_ID.ASH_MEADOW: return 5;
+    default: return 0;
+  }
+}
+
+function sourceBiomeWildflowerPatchThreshold(biome: number): number {
+  switch (biome) {
+    case GREATER_REALM_BIOME_ID.FLOWER_MEADOW: return 2_750;
+    case GREATER_REALM_BIOME_ID.HEATHLAND: return 4_750;
+    case GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND:
+    case GREATER_REALM_BIOME_ID.COASTAL:
+      return 6_250;
+    case GREATER_REALM_BIOME_ID.TUNDRA: return 6_750;
+    case GREATER_REALM_BIOME_ID.SAVANNA:
+    case GREATER_REALM_BIOME_ID.WARM_SCRUB:
+      return 7_250;
+    case GREATER_REALM_BIOME_ID.OAK_FOREST: return 7_750;
+    case GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST:
+    case GREATER_REALM_BIOME_ID.PINE_FOREST:
+      return 8_250;
+    case GREATER_REALM_BIOME_ID.ASH_MEADOW: return 8_750;
+    default: return 0x7fff_ffff;
+  }
+}
+
+function groundcoverCompatibleAt(
+  input: GreaterRealmLivingWorldInput,
+  ecology: GreaterRealmEcologyClass,
+  cell: number,
+  density: number,
+): boolean {
+  return density === 0 || (
+    input.waterRegime[cell] === WATER_DRY
+    && input.slope[cell]! < 1_800
+    && density <= Math.min(
+      groundcoverEcologyCap(ecology),
+      sourceBiomeGroundcoverCap(input.biomeId[cell]!),
+    )
+  );
+}
+
+function wildflowerCompatibleAt(
+  input: GreaterRealmLivingWorldInput,
+  ecology: GreaterRealmEcologyClass,
+  cell: number,
+  groundcoverDensity: number,
+  wildflowerDensity: number,
+): boolean {
+  return wildflowerDensity === 0 || (
+    input.waterRegime[cell] === WATER_DRY
+    && wildflowerEcologyCompatible(ecology)
+    && input.slope[cell]! < 1_300
+    && input.wetnessIndex[cell]! < 6_500
+    && input.moisture[cell]! > -800
+    && input.moisture[cell]! < 6_000
+    && wildflowerDensity <= groundcoverDensity
+    && wildflowerDensity <= sourceBiomeWildflowerCap(input.biomeId[cell]!)
+  );
 }
 
 function routeReservationClear(input: GreaterRealmLivingWorldInput, cell: number): boolean {
@@ -1669,15 +1959,16 @@ function placeLandmarkAnchors(
   }
 }
 
-function pruneSmallVegetationPatches(
+function pruneSmallDensityPatches(
   grid: IndexedAxialGrid,
-  vegetationDensity: Uint8Array,
+  density: Uint8Array,
+  minimumPatchCells: number,
 ): void {
   const seen = new Uint8Array(grid.cellCount);
   const queue = new Uint32Array(grid.cellCount);
   try {
     for (let start = 0; start < grid.cellCount; start += 1) {
-      if (vegetationDensity[start] === 0 || seen[start] === 1) continue;
+      if (density[start] === 0 || seen[start] === 1) continue;
       let head = 0;
       let tail = 0;
       queue[tail++] = start;
@@ -1686,16 +1977,16 @@ function pruneSmallVegetationPatches(
         const cell = queue[head++]!;
         for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
           const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
-          if (neighbor < 0 || seen[neighbor] === 1 || vegetationDensity[neighbor] === 0) {
+          if (neighbor < 0 || seen[neighbor] === 1 || density[neighbor] === 0) {
             continue;
           }
           seen[neighbor] = 1;
           queue[tail++] = neighbor;
         }
       }
-      if (tail >= MINIMUM_VEGETATION_PATCH_CELLS) continue;
+      if (tail >= minimumPatchCells) continue;
       for (let offset = 0; offset < tail; offset += 1) {
-        vegetationDensity[queue[offset]!] = 0;
+        density[queue[offset]!] = 0;
       }
     }
   } finally {
@@ -1704,27 +1995,40 @@ function pruneSmallVegetationPatches(
   }
 }
 
-function vegetationPatchMetrics(
+function densityPatchMetrics(
   grid: IndexedAxialGrid,
-  vegetationDensity: Uint8Array,
+  density: Uint8Array,
+  minimumPatchCells: number,
 ): Readonly<{
   vegetatedCellCount: number;
   patchCount: number;
   minimumPatchSize: number;
+  largestPatchSize: number;
+  distinctNonzeroDensityValueCount: number;
   isolatedCellCount: number;
   smallPatchCellCount: number;
 }> {
   const seen = new Uint8Array(grid.cellCount);
   const queue = new Uint32Array(grid.cellCount);
+  const densityValues = new Uint8Array(256);
   let vegetatedCellCount = 0;
   let patchCount = 0;
   let minimumPatchSize = grid.cellCount + 1;
+  let largestPatchSize = 0;
+  let distinctNonzeroDensityValueCount = 0;
   let isolatedCellCount = 0;
   let smallPatchCellCount = 0;
   try {
-    for (const value of vegetationDensity) vegetatedCellCount += value > 0 ? 1 : 0;
+    for (const value of density) {
+      if (value === 0) continue;
+      vegetatedCellCount += 1;
+      if (densityValues[value] === 0) {
+        densityValues[value] = 1;
+        distinctNonzeroDensityValueCount += 1;
+      }
+    }
     for (let start = 0; start < grid.cellCount; start += 1) {
-      if (vegetationDensity[start] === 0 || seen[start] === 1) continue;
+      if (density[start] === 0 || seen[start] === 1) continue;
       let head = 0;
       let tail = 0;
       queue[tail++] = start;
@@ -1733,7 +2037,7 @@ function vegetationPatchMetrics(
         const cell = queue[head++]!;
         for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
           const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
-          if (neighbor < 0 || seen[neighbor] === 1 || vegetationDensity[neighbor] === 0) {
+          if (neighbor < 0 || seen[neighbor] === 1 || density[neighbor] === 0) {
             continue;
           }
           seen[neighbor] = 1;
@@ -1742,19 +2046,23 @@ function vegetationPatchMetrics(
       }
       patchCount += 1;
       minimumPatchSize = Math.min(minimumPatchSize, tail);
+      largestPatchSize = Math.max(largestPatchSize, tail);
       if (tail === 1) isolatedCellCount += 1;
-      if (tail < MINIMUM_VEGETATION_PATCH_CELLS) smallPatchCellCount += tail;
+      if (tail < minimumPatchCells) smallPatchCellCount += tail;
     }
     return Object.freeze({
       vegetatedCellCount,
       patchCount,
       minimumPatchSize: patchCount === 0 ? 0 : minimumPatchSize,
+      largestPatchSize,
+      distinctNonzeroDensityValueCount,
       isolatedCellCount,
       smallPatchCellCount,
     });
   } finally {
     seen.fill(0);
     queue.fill(0);
+    densityValues.fill(0);
   }
 }
 
@@ -1899,6 +2207,8 @@ export function deriveGreaterRealmLivingWorld(
   const dressingExcluded = new Uint8Array(grid.cellCount);
   const ecologyClass = new Uint8Array(grid.cellCount);
   const vegetationDensity = new Uint8Array(grid.cellCount);
+  const groundcoverDensity = new Uint8Array(grid.cellCount);
+  const wildflowerDensity = new Uint8Array(grid.cellCount);
   const routeClass = new Uint8Array(grid.cellCount);
   const landmarkClass = new Uint8Array(grid.cellCount);
   const ambientLifeClass = new Uint8Array(grid.cellCount);
@@ -1906,6 +2216,10 @@ export function deriveGreaterRealmLivingWorld(
   const landmarkSpatialIndex: LandmarkSpatialIndex = new Map();
   let vegetationBroad: Int32Array | undefined;
   let vegetationDetail: Int32Array | undefined;
+  let groundcoverBroad: Int32Array | undefined;
+  let groundcoverDetail: Int32Array | undefined;
+  let wildflowerBroad: Int32Array | undefined;
+  let wildflowerDetail: Int32Array | undefined;
   let routeEvidence: RouteBackboneEvidence | undefined;
   let completed = false;
 
@@ -1920,6 +2234,20 @@ export function deriveGreaterRealmLivingWorld(
 
     vegetationBroad = smoothedIntegerField(grid, seed, VEGETATION_CHANNEL, 7);
     vegetationDetail = smoothedIntegerField(grid, seed, VEGETATION_DETAIL_CHANNEL, 2);
+    groundcoverBroad = smoothedIntegerField(grid, seed, GROUNDCOVER_CHANNEL, 6);
+    groundcoverDetail = smoothedIntegerField(
+      grid,
+      seed,
+      GROUNDCOVER_DETAIL_CHANNEL,
+      2,
+    );
+    wildflowerBroad = smoothedIntegerField(grid, seed, WILDFLOWER_CHANNEL, 5);
+    wildflowerDetail = smoothedIntegerField(
+      grid,
+      seed,
+      WILDFLOWER_DETAIL_CHANNEL,
+      1,
+    );
     for (let cell = 0; cell < grid.cellCount; cell += 1) {
       if (dressingExcluded[cell] === 1) continue;
       const ecology = classifyEcology(input, cell);
@@ -1945,6 +2273,122 @@ export function deriveGreaterRealmLivingWorld(
         ),
       );
       vegetationDensity[cell] = density < 18 ? 0 : density;
+
+      const groundcoverCap = Math.min(
+        groundcoverEcologyCap(ecology),
+        sourceBiomeGroundcoverCap(input.biomeId[cell]!),
+      );
+      if (
+        groundcoverCap > 0
+        && input.slope[cell]! < 1_800
+        && groundcoverBroad[cell]!
+          >= sourceBiomeGroundcoverPatchThreshold(input.biomeId[cell]!)
+      ) {
+        const groundcoverMoisture = clamp(
+          roundedDivide(input.moisture[cell]!, 160),
+          -55,
+          55,
+        );
+        const groundcoverWetness = clamp(
+          roundedDivide(input.wetnessIndex[cell]!, 550),
+          0,
+          28,
+        );
+        const saturationPenalty = ecology === GREATER_REALM_ECOLOGY_CLASS.SWAMP
+          ? 0
+          : clamp(roundedDivide(input.wetnessIndex[cell]! - 6_000, 90), 0, 35);
+        const groundcoverSlopePenalty = clamp(
+          roundedDivide(input.slope[cell]!, 36),
+          0,
+          80,
+        );
+        const groundcoverExposurePenalty = clamp(
+          roundedDivide(Math.max(0, input.exposure[cell]!), 70),
+          0,
+          35,
+        );
+        const shelterBonus = clamp(
+          roundedDivide(Math.max(0, -input.exposure[cell]!), 160),
+          0,
+          12,
+        );
+        const groundcoverVariation = roundedDivide(groundcoverBroad[cell]!, 125)
+          + roundedDivide(groundcoverDetail[cell]!, 360);
+        const groundcover = clamp(
+          groundcoverEcologyBase(ecology)
+            + groundcoverMoisture
+            + groundcoverWetness
+            + shelterBonus
+            - saturationPenalty
+            - groundcoverSlopePenalty
+            - groundcoverExposurePenalty
+            + groundcoverVariation,
+          0,
+          groundcoverCap,
+        );
+        groundcoverDensity[cell] = groundcover < 24 ? 0 : groundcover;
+      }
+
+      const wildflowerCap = Math.min(
+        groundcoverDensity[cell]!,
+        sourceBiomeWildflowerCap(input.biomeId[cell]!),
+      );
+      if (
+        wildflowerCap > 0
+        && wildflowerBroad[cell]!
+          >= sourceBiomeWildflowerPatchThreshold(input.biomeId[cell]!)
+        && wildflowerEcologyCompatible(ecology)
+        && input.slope[cell]! < 1_300
+        && input.wetnessIndex[cell]! < 6_500
+        && input.moisture[cell]! > -800
+        && input.moisture[cell]! < 6_000
+      ) {
+        const moistureOptimum = ecology === GREATER_REALM_ECOLOGY_CLASS.SAVANNA
+          ? 1_200
+          : ecology === GREATER_REALM_ECOLOGY_CLASS.ALPINE
+            ? 1_800
+            : 2_800;
+        const wildflowerMoisturePenalty = clamp(
+          roundedDivide(Math.abs(input.moisture[cell]! - moistureOptimum), 120),
+          0,
+          58,
+        );
+        const wildflowerWetnessBonus = clamp(
+          roundedDivide(input.wetnessIndex[cell]!, 1_100),
+          0,
+          8,
+        );
+        const wildflowerSaturationPenalty = clamp(
+          roundedDivide(input.wetnessIndex[cell]! - 5_000, 75),
+          0,
+          20,
+        );
+        const wildflowerSlopePenalty = clamp(
+          roundedDivide(input.slope[cell]!, 85),
+          0,
+          42,
+        );
+        const wildflowerExposurePenalty = clamp(
+          roundedDivide(Math.max(0, input.exposure[cell]!), 100),
+          0,
+          24,
+        );
+        const wildflowerVariation = roundedDivide(wildflowerBroad[cell]!, 150)
+          + roundedDivide(wildflowerDetail[cell]!, 420);
+        const wildflowers = clamp(
+          wildflowerEcologyBase(ecology)
+            + sourceBiomeWildflowerBoost(input.biomeId[cell]!)
+            + wildflowerWetnessBonus
+            - wildflowerMoisturePenalty
+            - wildflowerSaturationPenalty
+            - wildflowerSlopePenalty
+            - wildflowerExposurePenalty
+            + wildflowerVariation,
+          0,
+          wildflowerCap,
+        );
+        wildflowerDensity[cell] = wildflowers < 18 ? 0 : wildflowers;
+      }
     }
 
     routeEvidence = deriveConnectedRouteBackbone(input, seed, routeClass);
@@ -2089,9 +2533,30 @@ export function deriveGreaterRealmLivingWorld(
           dressingExcluded[cell] === 0
           && hasAdjacentMask(grid, cell, vegetationClearanceMasks)
         )
-      ) vegetationDensity[cell] = 0;
+      ) {
+        vegetationDensity[cell] = 0;
+        groundcoverDensity[cell] = 0;
+        wildflowerDensity[cell] = 0;
+      }
     }
-    pruneSmallVegetationPatches(grid, vegetationDensity);
+    pruneSmallDensityPatches(
+      grid,
+      vegetationDensity,
+      MINIMUM_VEGETATION_PATCH_CELLS,
+    );
+    pruneSmallDensityPatches(
+      grid,
+      groundcoverDensity,
+      MINIMUM_GROUNDCOVER_PATCH_CELLS,
+    );
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      if (groundcoverDensity[cell] === 0) wildflowerDensity[cell] = 0;
+    }
+    pruneSmallDensityPatches(
+      grid,
+      wildflowerDensity,
+      MINIMUM_WILDFLOWER_PATCH_CELLS,
+    );
 
     for (let cell = 0; cell < grid.cellCount; cell += 1) {
       if (dressingExcluded[cell] === 1 || landmarkClass[cell] !== 0) continue;
@@ -2181,7 +2646,21 @@ export function deriveGreaterRealmLivingWorld(
       ambientLifeClass[courierFallback] = GREATER_REALM_AMBIENT_LIFE_CLASS.COURIER_ROUTE;
     }
 
-    const vegetationMetrics = vegetationPatchMetrics(grid, vegetationDensity);
+    const vegetationMetrics = densityPatchMetrics(
+      grid,
+      vegetationDensity,
+      MINIMUM_VEGETATION_PATCH_CELLS,
+    );
+    const groundcoverMetrics = densityPatchMetrics(
+      grid,
+      groundcoverDensity,
+      MINIMUM_GROUNDCOVER_PATCH_CELLS,
+    );
+    const wildflowerMetrics = densityPatchMetrics(
+      grid,
+      wildflowerDensity,
+      MINIMUM_WILDFLOWER_PATCH_CELLS,
+    );
     if (!routeEvidence) fail('GREATER_REALM_LIVING_WORLD_ROUTE_EVIDENCE_MISSING');
     const connectivity = routeConnectivityEvidence(
       input,
@@ -2208,9 +2687,19 @@ export function deriveGreaterRealmLivingWorld(
     let rabbitDensityViolationCount = 0;
     let vegetationReservedClearanceViolationCount = 0;
     let vegetationLandmarkClearanceViolationCount = 0;
+    let groundcoverCompatibilityViolationCount = 0;
+    let wildflowerCompatibilityViolationCount = 0;
+    let wildflowerGroundcoverViolationCount = 0;
+    let groundcoverReservedClearanceViolationCount = 0;
+    let groundcoverLandmarkClearanceViolationCount = 0;
+    let groundcoverWithoutVegetationCellCount = 0;
+    let vegetationGroundcoverIntersectionCellCount = 0;
+    let vegetationGroundcoverUnionCellCount = 0;
     const surfaceOutputAt = (cell: number): boolean => (
       ecologyClass[cell] !== 0
       || vegetationDensity[cell] !== 0
+      || groundcoverDensity[cell] !== 0
+      || wildflowerDensity[cell] !== 0
       || landmarkClass[cell] !== 0
       || ambientLifeClass[cell] !== 0
     );
@@ -2223,6 +2712,12 @@ export function deriveGreaterRealmLivingWorld(
       routeCounts[routeClass[cell]!] += 1;
       landmarkCounts[landmarkClass[cell]!] += 1;
       ambientCounts[ambientLifeClass[cell]!] += 1;
+      const hasVegetation = vegetationDensity[cell] !== 0;
+      const hasGroundcover = groundcoverDensity[cell] !== 0;
+      if (hasVegetation || hasGroundcover) vegetationGroundcoverUnionCellCount += 1;
+      if (hasVegetation && hasGroundcover) {
+        vegetationGroundcoverIntersectionCellCount += 1;
+      } else if (hasGroundcover) groundcoverWithoutVegetationCellCount += 1;
       if (input.legacyProtectedCell[cell] !== 0 && anyOutputAt(cell)) {
         legacyPreservationViolationCount += 1;
       }
@@ -2273,6 +2768,31 @@ export function deriveGreaterRealmLivingWorld(
         vegetationDensity[cell] !== 0
         && landmarkAtOrAdjacent(grid, landmarkClass, cell)
       ) vegetationLandmarkClearanceViolationCount += 1;
+      if (!groundcoverCompatibleAt(
+        input,
+        ecologyClass[cell]! as GreaterRealmEcologyClass,
+        cell,
+        groundcoverDensity[cell]!,
+      )) groundcoverCompatibilityViolationCount += 1;
+      if (!wildflowerCompatibleAt(
+        input,
+        ecologyClass[cell]! as GreaterRealmEcologyClass,
+        cell,
+        groundcoverDensity[cell]!,
+        wildflowerDensity[cell]!,
+      )) wildflowerCompatibilityViolationCount += 1;
+      if (wildflowerDensity[cell]! > groundcoverDensity[cell]!) {
+        wildflowerGroundcoverViolationCount += 1;
+      }
+      if (
+        groundcoverDensity[cell] !== 0
+        && dressingExcluded[cell] === 0
+        && hasAdjacentMask(grid, cell, vegetationClearanceMasks)
+      ) groundcoverReservedClearanceViolationCount += 1;
+      if (
+        groundcoverDensity[cell] !== 0
+        && landmarkAtOrAdjacent(grid, landmarkClass, cell)
+      ) groundcoverLandmarkClearanceViolationCount += 1;
       if (isStrategicReserved(input, cell) && anyOutputAt(cell)) {
         reservedSiteExclusionViolationCount += 1;
       }
@@ -2358,6 +2878,26 @@ export function deriveGreaterRealmLivingWorld(
         vegetationMetrics.vegetatedCellCount * BASIS_POINTS,
         dressingEligibleCellCount,
       );
+    const eligibleLandGroundcoverBasisPoints = dressingEligibleCellCount === 0
+      ? 0
+      : roundedDivide(
+        groundcoverMetrics.vegetatedCellCount * BASIS_POINTS,
+        dressingEligibleCellCount,
+      );
+    const groundcoveredLandWildflowerBasisPoints =
+      groundcoverMetrics.vegetatedCellCount === 0
+        ? 0
+        : roundedDivide(
+          wildflowerMetrics.vegetatedCellCount * BASIS_POINTS,
+          groundcoverMetrics.vegetatedCellCount,
+        );
+    const vegetationGroundcoverJaccardBasisPoints =
+      vegetationGroundcoverUnionCellCount === 0
+        ? 0
+        : roundedDivide(
+          vegetationGroundcoverIntersectionCellCount * BASIS_POINTS,
+          vegetationGroundcoverUnionCellCount,
+        );
 
     const metrics: GreaterRealmLivingWorldMetrics = Object.freeze({
       cellCount: grid.cellCount,
@@ -2382,6 +2922,46 @@ export function deriveGreaterRealmLivingWorld(
       minimumVegetationPatchSize: vegetationMetrics.minimumPatchSize,
       isolatedVegetationCellCount: vegetationMetrics.isolatedCellCount,
       smallVegetationPatchCellCount: vegetationMetrics.smallPatchCellCount,
+      groundcoverCellCount: groundcoverMetrics.vegetatedCellCount,
+      groundcoverBasisPoints: roundedDivide(
+        groundcoverMetrics.vegetatedCellCount * BASIS_POINTS,
+        grid.cellCount,
+      ),
+      eligibleLandGroundcoverBasisPoints,
+      groundcoverPatchCount: groundcoverMetrics.patchCount,
+      minimumGroundcoverPatchSize: groundcoverMetrics.minimumPatchSize,
+      isolatedGroundcoverCellCount: groundcoverMetrics.isolatedCellCount,
+      smallGroundcoverPatchCellCount: groundcoverMetrics.smallPatchCellCount,
+      largestGroundcoverPatchBasisPoints:
+        groundcoverMetrics.vegetatedCellCount === 0
+          ? 0
+          : roundedBasisPointsFromCounts(
+            groundcoverMetrics.largestPatchSize,
+            groundcoverMetrics.vegetatedCellCount,
+          ),
+      groundcoverDistinctDensityValueCount:
+        groundcoverMetrics.distinctNonzeroDensityValueCount,
+      groundcoverWithoutVegetationCellCount,
+      vegetationGroundcoverJaccardBasisPoints,
+      wildflowerCellCount: wildflowerMetrics.vegetatedCellCount,
+      wildflowerBasisPoints: roundedDivide(
+        wildflowerMetrics.vegetatedCellCount * BASIS_POINTS,
+        grid.cellCount,
+      ),
+      groundcoveredLandWildflowerBasisPoints,
+      wildflowerPatchCount: wildflowerMetrics.patchCount,
+      minimumWildflowerPatchSize: wildflowerMetrics.minimumPatchSize,
+      isolatedWildflowerCellCount: wildflowerMetrics.isolatedCellCount,
+      smallWildflowerPatchCellCount: wildflowerMetrics.smallPatchCellCount,
+      largestWildflowerPatchBasisPoints:
+        wildflowerMetrics.vegetatedCellCount === 0
+          ? 0
+          : roundedBasisPointsFromCounts(
+            wildflowerMetrics.largestPatchSize,
+            wildflowerMetrics.vegetatedCellCount,
+          ),
+      wildflowerDistinctDensityValueCount:
+        wildflowerMetrics.distinctNonzeroDensityValueCount,
       routeCellCounts: Object.freeze({
         track: routeCounts[GREATER_REALM_ROUTE_CLASS.TRACK]!,
         road: routeCounts[GREATER_REALM_ROUTE_CLASS.ROAD]!,
@@ -2426,6 +3006,11 @@ export function deriveGreaterRealmLivingWorld(
       rabbitDensityViolationCount,
       vegetationReservedClearanceViolationCount,
       vegetationLandmarkClearanceViolationCount,
+      groundcoverCompatibilityViolationCount,
+      wildflowerCompatibilityViolationCount,
+      wildflowerGroundcoverViolationCount,
+      groundcoverReservedClearanceViolationCount,
+      groundcoverLandmarkClearanceViolationCount,
       legacyPreservationViolationCount,
       waterExclusionViolationCount,
       reservedSiteExclusionViolationCount,
@@ -2439,6 +3024,8 @@ export function deriveGreaterRealmLivingWorld(
         dressingExcluded,
         ecologyClass,
         vegetationDensity,
+        groundcoverDensity,
+        wildflowerDensity,
         routeClass,
         landmarkClass,
         ambientLifeClass,
@@ -2452,6 +3039,30 @@ export function deriveGreaterRealmLivingWorld(
       vegetationNaturallyClustered:
         vegetationMetrics.isolatedCellCount === 0
         && vegetationMetrics.smallPatchCellCount === 0,
+      groundcoverNaturallyClustered:
+        groundcoverMetrics.vegetatedCellCount > 0
+        && groundcoverMetrics.patchCount > 1
+        && groundcoverMetrics.isolatedCellCount === 0
+        && groundcoverMetrics.smallPatchCellCount === 0
+        && groundcoverMetrics.largestPatchSize * 10
+          <= groundcoverMetrics.vegetatedCellCount * 9
+        && groundcoverMetrics.distinctNonzeroDensityValueCount >= 8,
+      wildflowersNaturallyClustered:
+        wildflowerMetrics.vegetatedCellCount > 0
+        && wildflowerMetrics.patchCount > 1
+        && wildflowerMetrics.isolatedCellCount === 0
+        && wildflowerMetrics.smallPatchCellCount === 0
+        && wildflowerMetrics.largestPatchSize * 20
+          <= wildflowerMetrics.vegetatedCellCount * 19
+        && wildflowerMetrics.distinctNonzeroDensityValueCount >= 4,
+      groundcoverCompatible: groundcoverCompatibilityViolationCount === 0,
+      groundcoverIndependentFromWoodyVegetation:
+        groundcoverWithoutVegetationCellCount * 100
+          >= groundcoverMetrics.vegetatedCellCount
+        && vegetationGroundcoverJaccardBasisPoints <= 9_500,
+      wildflowersCompatibleWithGroundcover:
+        wildflowerCompatibilityViolationCount === 0
+        && wildflowerGroundcoverViolationCount === 0,
       landmarksSpaced: landmarkSpacingViolationCount === 0,
       landmarksRouteAdjacent: landmarkRouteAdjacencyViolationCount === 0,
       ruinWallsAnchored:
@@ -2481,12 +3092,17 @@ export function deriveGreaterRealmLivingWorld(
       vegetationClearancesPreserved:
         vegetationReservedClearanceViolationCount === 0
         && vegetationLandmarkClearanceViolationCount === 0,
+      groundcoverClearancesPreserved:
+        groundcoverReservedClearanceViolationCount === 0
+        && groundcoverLandmarkClearanceViolationCount === 0,
     });
     const authority = Object.freeze({
       version: GREATER_REALM_LIVING_WORLD_VERSION,
       dressingExcluded,
       ecologyClass,
       vegetationDensity,
+      groundcoverDensity,
+      wildflowerDensity,
       routeClass,
       landmarkClass,
       ambientLifeClass,
@@ -2500,6 +3116,10 @@ export function deriveGreaterRealmLivingWorld(
     routeEvidence?.routeAnchorCell.fill(0);
     vegetationBroad?.fill(0);
     vegetationDetail?.fill(0);
+    groundcoverBroad?.fill(0);
+    groundcoverDetail?.fill(0);
+    wildflowerBroad?.fill(0);
+    wildflowerDetail?.fill(0);
     for (const anchor of anchors) {
       anchor.cell = 0;
       anchor.landmarkClass = GREATER_REALM_LANDMARK_CLASS.NONE;
@@ -2511,6 +3131,8 @@ export function deriveGreaterRealmLivingWorld(
       dressingExcluded.fill(0);
       ecologyClass.fill(0);
       vegetationDensity.fill(0);
+      groundcoverDensity.fill(0);
+      wildflowerDensity.fill(0);
       routeClass.fill(0);
       landmarkClass.fill(0);
       ambientLifeClass.fill(0);
@@ -2524,6 +3146,8 @@ export function clearGreaterRealmLivingWorldAuthority(
   authority.dressingExcluded.fill(0);
   authority.ecologyClass.fill(0);
   authority.vegetationDensity.fill(0);
+  authority.groundcoverDensity.fill(0);
+  authority.wildflowerDensity.fill(0);
   authority.routeClass.fill(0);
   authority.landmarkClass.fill(0);
   authority.ambientLifeClass.fill(0);

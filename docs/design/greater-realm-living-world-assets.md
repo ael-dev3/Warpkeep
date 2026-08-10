@@ -22,7 +22,7 @@ appear in a sanitized report.
 
 | Layer              | Private candidate meaning                                                                                                 | Explicit non-meaning                                               |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Vegetation patches | Connected canopy, understory, groundcover, density, edge, clearing, and open-country potential                            | Placed meshes, draw calls, harvestable trees, or resource nodes    |
+| Vegetation patches | Connected canopy/woody vegetation, groundcover, wildflower, edge, clearing, and open-country potential                    | Placed blades, meshes, draw calls, harvestable trees, or resource nodes |
 | Habitat character  | Compatibility for temperate forest, taiga, jungle, wetland/swamp, savanna, desert, alpine/snow, meadow, heath, and plains | A biome renderer, weather system, or playable ecology              |
 | Route corridors    | Dry road potential and explicitly fordable river/stream crossings between stable strategic anchors                        | Movement authority, pathfinding, bridges, ferries, or gate opening |
 | Scenic anchors     | Terrain-supported potential for abandoned ruins, partial walls, waystones, lamps, and roadside details                    | Imported art, collision, ownership, loot, quests, or persistence   |
@@ -37,6 +37,27 @@ coverage. Jungle capacity requires warm, wet, connected terrain; taiga and
 snow capacity require cold evidence; wetland/swamp capacity requires verified
 wetness and drainage; savanna and desert capacity require the corresponding
 heat/moisture regime. A visual label cannot override the physical fields.
+
+Living-world v3 keeps canopy/woody potential in `vegetationDensity` and adds
+private, cell-level `groundcoverDensity` and `wildflowerDensity` channels.
+Groundcover represents grass, sedge, heath, or similarly low vegetation;
+wildflowers are a sparse compatible subset and can never exceed groundcover at
+the same cell. Both channels are zero on water, the protected Lowlands,
+reserved sites, strategic clearances, unsupported slopes, and incompatible
+biome/landform combinations. Their patches use independent deterministic
+channels so flowers do not merely trace every grass edge and grass does not
+become a uniform carpet.
+
+Layer validation preserves connected texture without equating grass with
+woody cover. Every retained groundcover patch has at least six cells and every
+retained wildflower patch at least three; each layer has more than one patch,
+no isolated or undersized remainder, and at least 8 and 4 distinct nonzero
+density values respectively. The largest groundcover patch may cover at most
+90% of groundcovered cells, while the largest wildflower patch may cover at
+most 95% of flower-positive cells. At least 1% of groundcovered cells must have
+zero woody-vegetation density, and the vegetation/groundcover Jaccard overlap
+may not exceed 95%. These are private authority checks, not rendered-instance
+or gameplay counts.
 
 Road potential prefers connected, low-slope, dry corridors and may cross only
 river/stream cells that this authority explicitly classifies and proves as
@@ -55,19 +76,53 @@ coverage, incompatible overlaps, blocked strategic approaches, and collisions
 with protected Lowlands authority. Candidate-scale gates require at least eight
 cells in every ecology class; at least 20% lush, 8% cold/upland, and 3%
 arid/savanna ecology; no single class above 55%; 25–85% vegetated eligible land
-with at least 15% open country; and dry tracks, roads, and carriageways covering
-5–20% of eligible land. Ford cells are validated separately and never count
-toward that dry-land percentage because they occupy river or stream cells.
+with at least 15% open country; groundcover on 35–85% of eligible land;
+wildflowers on 2–20% of groundcovered land; and dry tracks, roads, and
+carriageways covering 5–20% of eligible land. Ford cells are validated
+separately and never count toward that dry-land percentage because they occupy
+river or stream cells.
+
+Candidate eligibility further requires at least eight groundcover patches and
+eight wildflower patches, caps their largest patches at 60% and 30% of their
+respective positive cells, and requires at least 32 and 16 distinct nonzero
+density values respectively. Patch counts, minimum component sizes, density
+diversity, and positive-cell totals are cross-checked so an internally
+impossible aggregate cannot satisfy the gate.
+
 They also require at least 32 abandoned ruins with exactly 2–3 adjacent ruined
 wall cells each, 64 waystones, 96 lamps, 128 rabbit habitats, 64 civilian
 footfall cells, 16 guard posts, 32 ordinary courier cells, and 4 exotic-courier
 cells, while all ambient capacity stays at or below 2% of eligible land. These
 are coordinate-free candidate-quality bounds, not runtime spawn quotas.
 
-A private `dressing` preview makes field
-coherence, open-country balance, corridors, and anchor/capacity classes visible
-to the owner. It is the seventh marked preview in the intended package
-contract and must never be committed or published.
+A private `dressing` preview makes field coherence, grass/flower patch
+variation, open-country balance, corridors, and anchor/capacity classes visible
+to the owner. It is the seventh marked preview in the intended package contract
+and must never be committed or published.
+
+The added channels advance the living-world authority to
+`greater-realm-private-living-world-v3`, the generator algorithm to
+`greater-realm-v2-natural-continent-pr-a.13`, and the private atlas format to
+7. The terrain-seed namespace remains `.3`, so this package revision does not
+silently reroll the candidate.
+
+## Clean-room grass reference
+
+The grass architecture review used Steve245270533's
+[`three-stylized` commit
+`3275628b85b51b6d611703e8a956a05f43b31645`](https://github.com/Steve245270533/three-stylized/tree/3275628b85b51b6d611703e8a956a05f43b31645),
+published under its
+[MIT License](https://github.com/Steve245270533/three-stylized/blob/3275628b85b51b6d611703e8a956a05f43b31645/LICENSE).
+That repository's README in turn credits cortiz2894's MIT-licensed
+[`stylized-components` at commit
+`b182d81bff64531e584f50d71f046ae05fab3c87`](https://github.com/cortiz2894/stylized-components/tree/b182d81bff64531e584f50d71f046ae05fab3c87)
+([license](https://github.com/cortiz2894/stylized-components/blob/b182d81bff64531e584f50d71f046ae05fab3c87/LICENSE)).
+Only general concepts informed this contract: deterministic density layers,
+seeded surface sampling, a distinct sparse wildflower layer, batched instanced
+geometry, terrain-aware placement, and vertex-stage wind. PR A copies no code,
+shader, asset, test, data, constants, or generated output. A later pull request
+that imports or adapts implementation material must conduct its own provenance
+review and preserve every applicable license notice.
 
 ## Asset readiness and provenance boundary
 
@@ -111,6 +166,34 @@ Until licensed assets pass that later review, the renderer may use a separately
 reviewed procedural/material fallback or omit the decorative role. It must not
 silently substitute an unrelated asset, reveal a private placement, or claim
 missing content is live.
+
+## Dormant renderer handoff
+
+An authorized renderer follow-on should expand only visible, approved cells
+into deterministic client-side presentation. It must not write individual
+blades, flower stems, transforms, wind phases, or LOD decisions to SpacetimeDB.
+Those details are ephemeral render data derived from the approved world
+revision, cell key, density channel, and bounded local sample ordinal.
+
+The initial acceptance budget has three camera bands, measured over the whole
+visible chunk set rather than independently per cell:
+
+| Band | Intended presentation | Initial profiling guardrail (not release-final) |
+| ---- | --------------------- | ----------------------------------------------- |
+| Near | Bent blade/clump geometry plus sparse flower heads | 65,536 instances and 8 grass/flower draw submissions |
+| Mid  | Simplified clumps with reduced segments and no individual flower heads | 32,768 instances and 4 draw submissions |
+| Far  | Terrain tint, roughness, and normal response only | No blade or flower geometry |
+
+Chunk transitions require stable seeded sampling and a short stochastic or
+dithered cross-fade so camera movement does not reshuffle or visibly pop the
+field. The vertex stage may align roots to terrain, apply height/width
+variation, bend tips with low-frequency world wind plus per-instance phase, and
+carry a root-to-tip color response. The fragment/material stage may blend
+biome tint, sun exposure, and restrained subsurface-like rim light. None of
+those effects may alter authoritative density, reveal hidden cells, allocate
+unbounded work, or bypass fog-safe visibility. The ceilings remain provisional
+until representative desktop and mobile GPU traces prove frame time, memory,
+overdraw, and shader-variant budgets in a separate pull request.
 
 ## Follow-on ownership
 

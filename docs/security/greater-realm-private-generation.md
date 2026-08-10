@@ -9,7 +9,7 @@ exists. This document applies to the candidate-generation pull request only.
 | Data                                                                                                                                                                                              | Classification            | Allowed location                                       |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- | ------------------------------------------------------ |
 | Root/candidate seed bytes                                                                                                                                                                         | Private authority         | Owner-only workspace outside the repository            |
-| Exact canvas, cells, geology/geomorphology processes, paired topography/biomes, vegetation patches, route/site anchors, ambient-life potentials, regions, gates, slots, sites, fields, transforms | Private authority         | Owner-only workspace outside the repository            |
+| Exact canvas, cells, geology/geomorphology processes, paired topography/biomes, vegetation/groundcover/wildflower patches, route/site anchors, ambient-life potentials, regions, gates, slots, sites, fields, transforms | Private authority         | Owner-only workspace outside the repository            |
 | Chunk/topography-patch manifests, package/layout/stage digests, toolchain records, and inventories                                                                                                | Private operational data  | Owner-only workspace outside the repository            |
 | Candidate maps and contact sheets                                                                                                                                                                 | Private owner-review data | Owner-only workspace outside the repository            |
 | Aggregate allowlisted candidate metrics                                                                                                                                                           | Public sanitized evidence | `docs/evidence/greater-realm/` after strict validation |
@@ -18,6 +18,11 @@ exists. This document applies to the candidate-generation pull request only.
 The browser, Vite `public/` tree, production `dist/`, source maps, Git history,
 pull-request comments, CI artifacts, logs, and public SpacetimeDB tables are not
 private storage.
+
+The two additional density channels are bound by living-world authority v3,
+generator algorithm `.13`, and private atlas format 7. The terrain-seed
+namespace remains `.3`; a package-layout revision is not permission to reroll
+private world authority.
 
 ## Local workspace controls
 
@@ -58,10 +63,17 @@ The private workspace must:
   generation/topography/partition versions, exact process-and-derived field
   inventory, payload length, and payload digest;
 - bind every private dressing field through the same canonical chunk cells,
-  deterministic vegetation/corridor/scenic-anchor/ambient-capacity field
-  inventory, payload length, and payload digest; these fields are dormant
-  semantics and must never be interpreted as runtime actors, assets, routes,
-  or persistence records;
+  deterministic vegetation/groundcover/wildflower/corridor/scenic-anchor/
+  ambient-capacity field inventory, payload length, and payload digest; these
+  fields are dormant semantics and must never be interpreted as runtime actors,
+  assets, routes, per-blade records, or persistence records;
+- recompute grass-quality metrics from those bound fields and fail closed when
+  retained groundcover/wildflower components are smaller than six/three cells,
+  candidate patch counts fall below eight each, largest-patch shares exceed
+  60%/30%, distinct nonzero density counts fall below 32/16, fewer than 1% of
+  groundcovered cells are free of woody density, vegetation/groundcover
+  Jaccard overlap exceeds 95%, or the aggregate counts are internally
+  impossible;
 - include final elevation, the low-frequency terrace delta, each
   glacial/arid/volcanic/coastal elevation delta, and the corresponding process
   masks/classes in that canonical inventory so
@@ -99,12 +111,20 @@ arrays.
 
 Natural-composition review derives only coordinate-free scalar summaries and
 five public proof booleans from final private terrain authority. Temporary land,
-saltwater, dry-ground, forest, mountain, vegetation, route, site, habitat,
-distance, component, queue, and raster
+saltwater, dry-ground, forest, mountain, vegetation, groundcover, wildflower,
+route, site, habitat, distance, component, queue, and raster
 buffers are scoped to the measurement and overwritten on both success and
 failure. Owner-supplied visual references remain outside the repository and are
 used only as review criteria; their files, names, paths, and pixels never enter
 a candidate package or sanitized report.
+
+The `three-stylized` review is pinned to
+`3275628b85b51b6d611703e8a956a05f43b31645` and its MIT license for provenance.
+Its credited MIT upstream is pinned separately to `stylized-components` commit
+`b182d81bff64531e584f50d71f046ae05fab3c87`.
+It contributes clean-room concepts only. No third-party implementation or
+artifact enters the private package, public tree, dependency graph, or runtime;
+any later code adaptation requires a separate license and integrity review.
 
 This is defense in depth, not a secure-erasure guarantee: V8 strings and
 garbage-collected/native-library copies cannot be reliably overwritten, and
@@ -273,16 +293,25 @@ The pull request must prove that it rejects:
 - a markerless single-field living-world authority in JSON, including encoded
   string/object values, or a numeric table/key-value row in CSV, TSV, NDJSON,
   DAT, DATA, TXT, or an unfamiliar text extension, including case-folded names
-  and quoted delimiters;
+  and quoted delimiters; this includes both camel- and kebab-case groundcover
+  and wildflower density aliases;
+- an exact living-world field in source/config initialized from a numeric
+  array, numeric typed-array factory, one-level nested Buffer/typed-array
+  constructor, inline encoded Buffer/`atob`/typed-array call, or encoded object;
+  value-free declarations and size-only typed-array allocation remain
+  reviewable source controls outside deploy roots, while local public serving
+  fails closed on the authority aliases themselves;
 - source/config/seed/package substitution;
 - a malformed or wrongly typed seed envelope, including a renamed private seed
   that still carries the private marker;
 - chunk, topography-patch, process-field, cell-index, inventory, or toolchain
   substitution;
-- dressing-field substitution; biome/landform-incompatible vegetation; an
-  anchor on unsupported terrain; a road/ford corridor through forbidden water;
-  or an ambient-life potential without its required habitat, route, clearance,
-  or site evidence;
+- dressing-field substitution; biome/landform-incompatible vegetation,
+  groundcover, or wildflowers; flowers outside groundcover; either density on
+  water or a protected clearance; grass patch, diversity, woody-separation, or
+  overlap evidence outside the bound quality limits; an anchor on unsupported
+  terrain; a road/ford corridor through forbidden water; or an ambient-life
+  potential without its required habitat, route, clearance, or site evidence;
 - a changed `tsx` or native dependency tree and package-lock integrity drift,
   before any injected dependency code executes;
 - nondeterministic stage output, integer overflow, flow cycles, uphill routing,
@@ -301,8 +330,8 @@ maps to GitHub. A later server design must independently prove caller-bounded
 hidden-region access; this offline boundary does not make client-side fog safe.
 PR A changes no SpacetimeDB schema, browser/runtime data, renderer, public
 generated asset, imported asset, spawned actor, persistence record, deployment,
-or production authority; the current Lowlands is
-untouched.
+or production authority. In particular, no per-blade or per-flower state is
+stored in SpacetimeDB; the current Lowlands is untouched.
 The CI workflow hardening only copies GitHub-hosted Node into an ephemeral
 runner-private executable path before dependency installation and re-attests it
 afterward. It does not alter the deployment target, inputs, artifact, domain, or

@@ -273,7 +273,7 @@ describe('local Vite public boundary', () => {
     const root = mkdtempSync(join(tmpdir(), 'warpkeep-public-authority-'));
     const publicDirectory = join(root, 'public');
     mkdirSync(publicDirectory);
-    const authority = Buffer.from('"EcOlOgYcLaSs"\n : "AgAEBg=="', 'utf8');
+    const authority = Buffer.from('"GrOuNdCoVeRdEnSiTy"\n : "AgAEBg=="', 'utf8');
     const bytes = Buffer.alloc(64 * 1024 + authority.length, 0x20);
     authority.copy(bytes, 64 * 1024 - 7);
     try {
@@ -292,7 +292,7 @@ describe('local Vite public boundary', () => {
     const root = mkdtempSync(join(tmpdir(), 'warpkeep-public-late-authority-'));
     const publicDirectory = join(root, 'public');
     mkdirSync(publicDirectory);
-    const bytes = Buffer.from('{"route-class":{"encoding":"base64"}}\n', 'utf8');
+    const bytes = Buffer.from('{"wildflower-density":{"encoding":"base64"}}\n', 'utf8');
     try {
       const middleware = configuredBoundary(publicDirectory);
       writeFileSync(join(publicDirectory, 'ordinary-authority.json'), bytes);
@@ -307,19 +307,98 @@ describe('local Vite public boundary', () => {
 
   it.each([
     [
+      'Buffer.from string',
+      ['groundcover', 'Density'].join(''),
+      (name: string) => `export const ${name} = Buffer.from("AQIDBA==", "base64");\n`,
+    ],
+    [
+      'atob string',
+      ['wildflower', 'Density'].join(''),
+      (name: string) => `export const ${name} = atob("AQIDBA==");\n`,
+    ],
+    [
+      'Uint8Array-wrapped string',
+      ['groundcover', 'Density'].join(''),
+      (name: string) => (
+        `export const ${name} = Uint8Array.from(atob("AQIDBA=="), value => value.charCodeAt(0));\n`
+      ),
+    ],
+    [
+      'encoded object',
+      ['wildflower', 'Density'].join(''),
+      (name: string) => (
+        `export const ${name} = { encoding: "base64", data: "AQIDBA==" };\n`
+      ),
+    ],
+    [
+      'Uint8Array.of numbers',
+      ['groundcover', 'Density'].join(''),
+      (name: string) => `export const ${name} = Uint8Array.of(12, 34, 56);\n`,
+    ],
+    [
+      'Buffer-wrapped Uint8Array.of numbers',
+      ['wildflower', 'Density'].join(''),
+      (name: string) => (
+        `export const ${name} = Buffer.from(Uint8Array.of(7, 8, 9));\n`
+      ),
+    ],
+    [
+      'Buffer-wrapped Uint8Array numbers',
+      ['groundcover', 'Density'].join(''),
+      (name: string) => (
+        `export const ${name} = Buffer.from(new Uint8Array([1, 2, 3]));\n`
+      ),
+    ],
+    [
+      'Buffer-wrapped Uint8Array.from numbers',
+      ['wildflower', 'Density'].join(''),
+      (name: string) => (
+        `export const ${name} = Buffer.from(Uint8Array.from([4, 5, 6]));\n`
+      ),
+    ],
+    [
+      'Uint8Array-wrapped Buffer numbers',
+      ['groundcover', 'Density'].join(''),
+      (name: string) => (
+        `export const ${name} = new Uint8Array(Buffer.from([7, 8, 9]));\n`
+      ),
+    ],
+  ])('blocks a public source-like %s authority initializer', (
+    _label,
+    authorityName,
+    fixture,
+  ) => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-public-encoded-source-'));
+    const publicDirectory = join(root, 'public');
+    mkdirSync(publicDirectory);
+    try {
+      writeFileSync(
+        join(publicDirectory, 'ordinary-module.js'),
+        fixture(authorityName),
+      );
+      expect(() => configuredBoundary(publicDirectory)).toThrow(
+        'Warpkeep public directory contains a prohibited local artifact.',
+      );
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it.each([
+    [
       'UTF-16LE',
-      Buffer.from('EcOlOgYcLaSs', 'utf16le'),
+      Buffer.from('GrOuNdCoVeR-DeNsItY', 'utf16le'),
     ],
     [
       'UTF-16BE',
       (() => {
-        const bytes = Buffer.from('EcOlOgYcLaSs', 'utf16le');
+        const bytes = Buffer.from('WiLdFlOwErDeNsItY', 'utf16le');
         bytes.swap16();
         return bytes;
       })(),
     ],
-    ['UTF-32LE', utf32Authority('EcOlOgYcLaSs', false)],
-    ['UTF-32BE', utf32Authority('EcOlOgYcLaSs', true)],
+    ['UTF-32LE', utf32Authority('WiLdFlOwEr-DeNsItY', false)],
+    ['UTF-32BE', utf32Authority('GrOuNdCoVeRdEnSiTy', true)],
   ])('blocks case-folded %s living-world authority', (_label, authority) => {
     const root = mkdtempSync(join(tmpdir(), 'warpkeep-public-encoded-authority-'));
     const publicDirectory = join(root, 'public');
@@ -374,7 +453,7 @@ describe('local Vite public boundary', () => {
     const publicDirectory = join(root, 'public');
     mkdirSync(publicDirectory);
     const benign = Buffer.from('{"message":"ordinary\\ntext"}\n', 'utf8');
-    const authority = Buffer.from('{"ecology\\u0043lass":1}\n', 'utf8');
+    const authority = Buffer.from('{"groundcover\\u0044ensity":1}\n', 'utf8');
     try {
       writeFileSync(join(publicDirectory, 'ordinary.json'), benign);
       const middleware = configuredBoundary(publicDirectory);

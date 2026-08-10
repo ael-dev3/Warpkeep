@@ -4,8 +4,10 @@ Status: candidate-generation design only
 
 Atlas: `GENESIS_001_GREATER_REALM`
 
-Generator algorithm: `greater-realm-v2-natural-continent-pr-a.12`
+Generator algorithm: `greater-realm-v2-natural-continent-pr-a.13`
 Terrain-seed namespace: `greater-realm-v2-natural-continent-pr-a.3`
+Private atlas format: `7`
+Living-world authority: `greater-realm-private-living-world-v3`
 Production state: unchanged
 
 This document defines the offline, owner-reviewed candidate stage for a future
@@ -68,6 +70,12 @@ reroll; the separate generator algorithm version still identifies and binds
 the package implementation. There is no mutable random stream and no
 `Math.random` in generation authority.
 
+Adding the two private density channels changes the living-world authority from
+v2 to v3, the generator algorithm from `.12` to `.13`, and the private atlas
+format from 6 to 7. The terrain-seed namespace intentionally remains `.3`:
+this is an authority/package revision, not authorization to reroll the owner’s
+candidate ordinal.
+
 Each candidate runs independently through these stage families:
 
 1. Build a larger private axial canvas, 7–12 separated pseudo-tectonic domains,
@@ -111,10 +119,13 @@ Each candidate runs independently through these stage families:
    compatible meadow, heath, or temperate-lowland transitions, leaving broad
    clustered woods and meaningful open plains and other open country.
    Candidate-only ecological semantics extend that same evidence into coherent
-   vegetation and habitat
-   patches for temperate forest, taiga, jungle, wetland/swamp, savanna, desert,
-   alpine/snow, meadow, heath, and plains. The frozen Lowlands surface is
-   excluded from this cleanup and from new-generator composition scoring.
+   vegetation and habitat patches for temperate forest, taiga, jungle,
+   wetland/swamp, savanna, desert, alpine/snow, meadow, heath, and plains.
+   Separate private `groundcoverDensity` and `wildflowerDensity` channels
+   reserve irregular grass/sedge/heath and flower potential without converting
+   a cell into a blade, mesh, draw call, or spawned object. The frozen Lowlands
+   surface is excluded from this cleanup and from new-generator composition
+   scoring.
    The final reconciled dry surface must also pass a private second-order
    structure-function audit at lags 1, 4, and 12 along all three undirected hex
    axes. Only complete dry, non-Lowlands corridors contribute; the proof
@@ -163,6 +174,21 @@ exponential height-fog treatment documented in the
 [Crytek SIGGRAPH 2006 course notes](https://advances.realtimerendering.com/s2006/Course_26_SIGGRAPH_2006.pdf).
 It does not copy third-party code, data, maps, art, labels, or balance tables.
 
+Grass presentation was additionally studied against Steve245270533's
+[`three-stylized` repository at commit
+`3275628b85b51b6d611703e8a956a05f43b31645`](https://github.com/Steve245270533/three-stylized/tree/3275628b85b51b6d611703e8a956a05f43b31645),
+whose source is published under the
+[MIT License](https://github.com/Steve245270533/three-stylized/blob/3275628b85b51b6d611703e8a956a05f43b31645/LICENSE).
+Its README credits the MIT-licensed upstream
+[`stylized-components` commit
+`b182d81bff64531e584f50d71f046ae05fab3c87`](https://github.com/cortiz2894/stylized-components/tree/b182d81bff64531e584f50d71f046ae05fab3c87)
+([license](https://github.com/cortiz2894/stylized-components/blob/b182d81bff64531e584f50d71f046ae05fab3c87/LICENSE)).
+Warpkeep uses that review only as clean-room concept research: deterministic
+density layers, seeded surface distribution, separate flower sparsity,
+instanced geometry, terrain-aware placement, and vertex-driven wind. No source,
+shader, test, texture, model, parameter table, or generated artifact from that
+repository is copied or vendored by PR A.
+
 The Procedural Terrains comparison is an architectural cross-check rather than
 a shader import. Its multi-octave frequency/amplitude stack maps to Warpkeep's
 independently named macro, meso, and local integer fields; domain-warped massifs
@@ -172,8 +198,9 @@ hydraulic masks map to Warpkeep's authoritative flow, incision, sediment,
 slope, wetness, and coastal process fields. Smooth terrace ramps and restored
 weathering detail are retained together, so broad playable plateaus do not
 become vertical contour walls. Camera LOD, GPU material blending, triplanar
-detail, shoreline shading, and interactive splines remain renderer concerns
-for a later activation PR and cannot alter PR A's private terrain authority.
+detail, shoreline shading, interactive splines, grass geometry, wind shaders,
+and flower rendering remain renderer concerns for a later activation PR and
+cannot alter PR A's private terrain authority.
 
 ## Candidate hard gates
 
@@ -206,6 +233,16 @@ A candidate is ineligible if any of these proofs fail:
   terrestrial potential on open water, or fails to reserve meaningful plains,
   meadow, heath, savanna, desert, wetland/swamp, jungle, taiga, and alpine/snow
   character where the reconciled climate and landform evidence supports it;
+- groundcover or wildflower authority reaches water, protected Lowlands,
+  reserved sites, strategic clearances, incompatible biome/landform classes,
+  or unsupported slopes; a retained groundcover or wildflower component is
+  smaller than six or three cells respectively; either layer has fewer than
+  eight candidate-scale patches; the largest groundcover patch exceeds 60% or
+  the largest wildflower patch exceeds 30% of its layer; groundcover exposes
+  fewer than 32 or wildflowers fewer than 16 distinct nonzero density values;
+  fewer than 1% of groundcovered cells are free of woody-vegetation density;
+  vegetation/groundcover Jaccard overlap exceeds 95%; or wildflowers exceed
+  groundcover or appear where the groundcover channel is zero;
 - generated mountain authority is outside the 3%–28% dry-land envelope, lacks
   at least two coherent systems, remains dominated by speckles or one massif,
   or has no sufficiently long, anisotropic, off-centre belt. Ancient-stone
@@ -287,8 +324,9 @@ no recommendation; only the owner can approve the candidate.
 The generator workspace lives outside the repository in an owner-only
 directory. It contains marked, type-tagged seed envelopes; exact cells,
 coordinates and transforms; geology and geomorphology process fields; paired
-topography/biome authority; private vegetation patches, route/site anchors and
-ambient-life potentials; regions, gates, slots and sites; stage digests;
+topography/biome authority; private vegetation, groundcover, and wildflower
+patches, route/site anchors and ambient-life potentials; regions, gates, slots
+and sites; stage digests;
 exact chunk manifests whose payloads bind the dressing fields, exact
 topography-patch manifests, packages, and seven marked private previews. The
 intended package contract adds a `dressing` view to the

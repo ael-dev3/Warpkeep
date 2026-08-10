@@ -152,6 +152,8 @@ const PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS = Object.freeze([
   Object.freeze(['dressingExcluded', 'dressing-excluded']),
   Object.freeze(['ecologyClass', 'ecology-class']),
   Object.freeze(['vegetationDensity', 'vegetation-density']),
+  Object.freeze(['groundcoverDensity', 'groundcover-density']),
+  Object.freeze(['wildflowerDensity', 'wildflower-density']),
   Object.freeze(['routeClass', 'route-class']),
   Object.freeze(['landmarkClass', 'landmark-class']),
   Object.freeze(['ambientLifeClass', 'ambient-life-class']),
@@ -265,6 +267,21 @@ const PRIVATE_LIVING_WORLD_AUTHORITY_ARRAY = new RegExp(
     + '|Buffer\\.from\\s*\\(\\s*)?\\[\\s*[-+]?\\d',
   'mu',
 );
+const PRIVATE_LIVING_WORLD_AUTHORITY_INITIALIZER = new RegExp(
+  `(?:["'\`](?:${PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS.flat().join('|')})["'\`]`
+    + `|(?:^|[^\\p{ID_Continue}$-])(?:${PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS
+      .flat()
+      .join('|')}))`
+    + '\\s*(?::|=)\\s*',
+  'gimu',
+);
+const PRIVATE_LIVING_WORLD_ENCODED_CALL = /^(?:(?:Buffer\.from|atob)\s*\(\s*["'`]|(?:(?:new\s+)?Uint8Array\s*\(|Uint8Array\.from\s*\()\s*(?:(?:Buffer\.from|atob)\s*\(\s*)?["'`])/u;
+const PRIVATE_LIVING_WORLD_NUMERIC_FACTORY_CALL = /^(?:Uint8Array\.of\s*\(\s*[-+]?\d|Buffer\.from\s*\(\s*Uint8Array\.of\s*\(\s*[-+]?\d)/u;
+const PRIVATE_LIVING_WORLD_NESTED_NUMERIC_CALL = /^(?:Buffer\.from\s*\(\s*(?:(?:new\s+)?Uint8Array\s*\(\s*|Uint8Array\.from\s*\(\s*)\[\s*[-+]?\d|(?:new\s+)?Uint8Array\s*\(\s*Buffer\.from\s*\(\s*\[\s*[-+]?\d)/u;
+const PRIVATE_LIVING_WORLD_ENCODED_OBJECT = /^(?:Object\.freeze\s*\(\s*)?\(?\s*\{/u;
+const PRIVATE_LIVING_WORLD_ENCODED_OBJECT_ENCODING = /(?:^|,)\s*["'`]?encoding["'`]?\s*:\s*["'`](?:base64(?:url)?|hex)["'`]/iu;
+const PRIVATE_LIVING_WORLD_ENCODED_OBJECT_DATA = /(?:^|,)\s*["'`]?data["'`]?\s*:\s*["'`][A-Za-z0-9+/_=-]{2,}["'`]/u;
+const PRIVATE_LIVING_WORLD_ENCODED_INITIALIZER_MAXIMUM_LENGTH = 1_024;
 const PRIVATE_RELIEF_STRUCTURE_MATRIX_FIELDS = Object.freeze([
   'pairCountsByLagAndAxis',
   'pairCoverageBasisPointsByLagAndAxis',
@@ -1128,6 +1145,32 @@ function containsPrivateLivingWorldTabularAuthority(text, relativePath) {
   return false;
 }
 
+function containsPrivateLivingWorldInitializedPayload(text) {
+  for (const match of text.matchAll(PRIVATE_LIVING_WORLD_AUTHORITY_INITIALIZER)) {
+    const start = (match.index ?? 0) + match[0].length;
+    const value = text.slice(
+      start,
+      start + PRIVATE_LIVING_WORLD_ENCODED_INITIALIZER_MAXIMUM_LENGTH,
+    );
+    if (
+      PRIVATE_LIVING_WORLD_ENCODED_CALL.test(value)
+      || PRIVATE_LIVING_WORLD_NUMERIC_FACTORY_CALL.test(value)
+      || PRIVATE_LIVING_WORLD_NESTED_NUMERIC_CALL.test(value)
+    ) return true;
+    const object = PRIVATE_LIVING_WORLD_ENCODED_OBJECT.exec(value);
+    if (object === null) continue;
+    const bodyStart = object[0].length;
+    const bodyEnd = value.indexOf('}', bodyStart);
+    if (bodyEnd < 0) continue;
+    const body = value.slice(bodyStart, bodyEnd);
+    if (
+      PRIVATE_LIVING_WORLD_ENCODED_OBJECT_ENCODING.test(body)
+      && PRIVATE_LIVING_WORLD_ENCODED_OBJECT_DATA.test(body)
+    ) return true;
+  }
+  return false;
+}
+
 function containsPrivateReliefStructureAuthority(text, relativePath) {
   if (
     PRIVATE_RELIEF_STRUCTURE_INITIALIZED_MATRIX.test(text)
@@ -1146,11 +1189,14 @@ function containsPrivateLivingWorldAuthority(text, relativePath) {
   // Exact initialized numeric authority arrays remain private even when they
   // are pasted into an otherwise ordinary source module. Requiring the first
   // array element to be numeric preserves type-only tuple declarations.
-  if (PRIVATE_LIVING_WORLD_AUTHORITY_ARRAY.test(text)) return true;
+  if (
+    PRIVATE_LIVING_WORLD_AUTHORITY_ARRAY.test(text)
+    || containsPrivateLivingWorldInitializedPayload(text)
+  ) return true;
   if (containsPrivateLivingWorldTabularAuthority(text, relativePath)) return true;
   if (!privateLivingWorldDataPath(relativePath, text)) return false;
 
-  // Encoded private atlases carry a complete six-name field inventory before
+  // Encoded private atlases carry a complete eight-name field inventory before
   // their byte arrays. Requiring every exact authority name avoids treating a
   // single word in ordinary content as private, while still catching mixed
   // camel/kebab encodings after an artifact is renamed or its WKGR marker is

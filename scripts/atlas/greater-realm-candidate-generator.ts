@@ -60,7 +60,7 @@ import {
 } from './greater-realm-relief-structure';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.12' as const;
+  'greater-realm-v2-natural-continent-pr-a.13' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -327,6 +327,8 @@ export type GreaterRealmPrivateCandidate = Readonly<{
   dressingExcluded: Uint8Array;
   ecologyClass: Uint8Array;
   vegetationDensity: Uint8Array;
+  groundcoverDensity: Uint8Array;
+  wildflowerDensity: Uint8Array;
   routeClass: Uint8Array;
   landmarkClass: Uint8Array;
   ambientLifeClass: Uint8Array;
@@ -8359,8 +8361,9 @@ function candidateStageDigests(
     ]],
     ['strategy', ['regionId', 'tierId', 'barrier', 'castleSlot', 'throneAnchor']],
     ['dressing', [
-      'dressingExcluded', 'ecologyClass', 'vegetationDensity', 'routeClass',
-      'landmarkClass', 'ambientLifeClass',
+      'dressingExcluded', 'ecologyClass', 'vegetationDensity',
+      'groundcoverDensity', 'wildflowerDensity', 'routeClass', 'landmarkClass',
+      'ambientLifeClass',
     ]],
     ['final', Object.keys(fields)],
   ] as const;
@@ -8987,6 +8990,8 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       dressingExcluded: livingWorld.dressingExcluded,
       ecologyClass: livingWorld.ecologyClass,
       vegetationDensity: livingWorld.vegetationDensity,
+      groundcoverDensity: livingWorld.groundcoverDensity,
+      wildflowerDensity: livingWorld.wildflowerDensity,
       routeClass: livingWorld.routeClass,
       landmarkClass: livingWorld.landmarkClass,
       ambientLifeClass: livingWorld.ambientLifeClass,
@@ -9058,6 +9063,8 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       dressingExcluded: livingWorld.dressingExcluded,
       ecologyClass: livingWorld.ecologyClass,
       vegetationDensity: livingWorld.vegetationDensity,
+      groundcoverDensity: livingWorld.groundcoverDensity,
+      wildflowerDensity: livingWorld.wildflowerDensity,
       routeClass: livingWorld.routeClass,
       landmarkClass: livingWorld.landmarkClass,
       ambientLifeClass: livingWorld.ambientLifeClass,

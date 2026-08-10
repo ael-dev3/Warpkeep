@@ -185,6 +185,8 @@ function outputAt(
   return [
     result.ecologyClass[cell]!,
     result.vegetationDensity[cell]!,
+    result.groundcoverDensity[cell]!,
+    result.wildflowerDensity[cell]!,
     result.routeClass[cell]!,
     result.landmarkClass[cell]!,
     result.ambientLifeClass[cell]!,
@@ -234,7 +236,7 @@ function adjacentToAnyMask(
 describe('Greater Realm private living-world authority', () => {
   it('freezes serialized living-world class identifiers', () => {
     expect(GREATER_REALM_LIVING_WORLD_VERSION)
-      .toBe('greater-realm-private-living-world-v2');
+      .toBe('greater-realm-private-living-world-v3');
     expect(GREATER_REALM_ECOLOGY_CLASS).toEqual({
       NONE: 0,
       PLAINS: 1,
@@ -287,6 +289,16 @@ describe('Greater Realm private living-world authority', () => {
       },
       eligibleLandVegetatedBasisPoints: 2_500,
       eligibleLandOpenBasisPoints: 7_500,
+      groundcoverCellCount: 35_000,
+      wildflowerCellCount: 700,
+      eligibleLandGroundcoverBasisPoints: 3_500,
+      groundcoveredLandWildflowerBasisPoints: 200,
+      groundcoverPatchCount: 8,
+      largestGroundcoverPatchBasisPoints: 6_000,
+      groundcoverDistinctDensityValueCount: 32,
+      wildflowerPatchCount: 8,
+      largestWildflowerPatchBasisPoints: 3_000,
+      wildflowerDistinctDensityValueCount: 16,
       routeCellCounts: {
         track: 1_000,
         road: 2_500,
@@ -315,6 +327,10 @@ describe('Greater Realm private living-world authority', () => {
         ...lowerBoundary,
         eligibleLandVegetatedBasisPoints: 8_500,
         eligibleLandOpenBasisPoints: 1_500,
+        groundcoverCellCount: 85_000,
+        wildflowerCellCount: 17_000,
+        eligibleLandGroundcoverBasisPoints: 8_500,
+        groundcoveredLandWildflowerBasisPoints: 2_000,
         routeCellCounts: {
           track: 4_000,
           road: 12_000,
@@ -349,6 +365,16 @@ describe('Greater Realm private living-world authority', () => {
       },
       eligibleLandVegetatedBasisPoints: 5_000,
       eligibleLandOpenBasisPoints: 5_000,
+      groundcoverCellCount: 60_000,
+      wildflowerCellCount: 6_000,
+      eligibleLandGroundcoverBasisPoints: 6_000,
+      groundcoveredLandWildflowerBasisPoints: 1_000,
+      groundcoverPatchCount: 80,
+      largestGroundcoverPatchBasisPoints: 2_000,
+      groundcoverDistinctDensityValueCount: 180,
+      wildflowerPatchCount: 120,
+      largestWildflowerPatchBasisPoints: 500,
+      wildflowerDistinctDensityValueCount: 100,
       routeCellCounts: {
         track: 2_000,
         road: 6_000,
@@ -461,6 +487,97 @@ describe('Greater Realm private living-world authority', () => {
           eligibleLandVegetatedBasisPoints: 8_501,
           eligibleLandOpenBasisPoints: 1_499,
         },
+      ],
+      [
+        'groundcover floor',
+        {
+          ...valid,
+          groundcoverCellCount: 34_994,
+          wildflowerCellCount: 3_499,
+          eligibleLandGroundcoverBasisPoints: 3_499,
+          groundcoveredLandWildflowerBasisPoints: 1_000,
+        },
+      ],
+      [
+        'groundcover cap',
+        {
+          ...valid,
+          groundcoverCellCount: 85_006,
+          wildflowerCellCount: 8_501,
+          eligibleLandGroundcoverBasisPoints: 8_501,
+          groundcoveredLandWildflowerBasisPoints: 1_000,
+        },
+      ],
+      [
+        'wildflower floor',
+        {
+          ...valid,
+          wildflowerCellCount: 1_196,
+          groundcoveredLandWildflowerBasisPoints: 199,
+        },
+      ],
+      [
+        'wildflower cap',
+        {
+          ...valid,
+          wildflowerCellCount: 12_004,
+          groundcoveredLandWildflowerBasisPoints: 2_001,
+        },
+      ],
+      [
+        'wildflowers exceed groundcover',
+        {
+          ...valid,
+          wildflowerCellCount: 60_001,
+          groundcoveredLandWildflowerBasisPoints: 10_000,
+        },
+      ],
+      [
+        'groundcover count/basis mismatch',
+        {
+          ...valid,
+          groundcoverCellCount: 60_006,
+        },
+      ],
+      [
+        'groundcover patch floor',
+        { ...valid, groundcoverPatchCount: 7 },
+      ],
+      [
+        'groundcover largest-patch cap',
+        { ...valid, largestGroundcoverPatchBasisPoints: 6_001 },
+      ],
+      [
+        'groundcover density-diversity floor',
+        { ...valid, groundcoverDistinctDensityValueCount: 31 },
+      ],
+      [
+        'groundcover patch cardinality contradiction',
+        { ...valid, groundcoverPatchCount: 10_001 },
+      ],
+      [
+        'groundcover density-diversity contradiction',
+        { ...valid, groundcoverDistinctDensityValueCount: 256 },
+      ],
+      [
+        'wildflower patch floor',
+        { ...valid, wildflowerPatchCount: 7 },
+      ],
+      [
+        'wildflower largest-patch cap',
+        { ...valid, largestWildflowerPatchBasisPoints: 3_001 },
+      ],
+      [
+        'wildflower density-diversity floor',
+        { ...valid, wildflowerDistinctDensityValueCount: 15 },
+      ],
+      [
+        'wildflower patch cardinality contradiction',
+        { ...valid, wildflowerPatchCount: 2_001 },
+      ],
+      [
+        'wildflower density-diversity contradiction',
+        { ...valid, wildflowerDistinctDensityValueCount: 256 },
       ],
       [
         'route floor',
@@ -602,6 +719,8 @@ describe('Greater Realm private living-world authority', () => {
     expect(first.dressingExcluded).toEqual(second.dressingExcluded);
     expect(first.ecologyClass).toEqual(second.ecologyClass);
     expect(first.vegetationDensity).toEqual(second.vegetationDensity);
+    expect(first.groundcoverDensity).toEqual(second.groundcoverDensity);
+    expect(first.wildflowerDensity).toEqual(second.wildflowerDensity);
     expect(first.routeClass).toEqual(second.routeClass);
     expect(first.landmarkClass).toEqual(second.landmarkClass);
     expect(first.ambientLifeClass).toEqual(second.ambientLifeClass);
@@ -654,7 +773,7 @@ describe('Greater Realm private living-world authority', () => {
       expect(result.dressingExcluded[cell]).toBe(1);
       if (reserved || input.waterRegime[cell] === 1
         || input.waterRegime[cell] === 2 || input.waterRegime[cell] === 5) {
-        expect(outputAt(result, cell)).toEqual([0, 0, 0, 0, 0]);
+        expect(outputAt(result, cell)).toEqual([0, 0, 0, 0, 0, 0, 0]);
       } else {
         expect(result.ecologyClass[cell]).toBe(0);
         expect(result.vegetationDensity[cell]).toBe(0);
@@ -906,6 +1025,160 @@ describe('Greater Realm private living-world authority', () => {
     expect(supportedVegetationCells).toBe(result.metrics.vegetatedCellCount);
   });
 
+  it('derives coherent groundcover and subordinate biome-compatible wildflowers', () => {
+    const input = syntheticLivingWorldInput();
+    const result = deriveGreaterRealmLivingWorld(input);
+    expect(result.metrics.groundcoverCellCount).toBeGreaterThan(input.grid.cellCount / 4);
+    expect(result.metrics.wildflowerCellCount).toBeGreaterThan(0);
+    expect(result.metrics.groundcoverPatchCount).toBeGreaterThan(0);
+    expect(result.metrics.minimumGroundcoverPatchSize).toBeGreaterThanOrEqual(6);
+    expect(result.metrics.isolatedGroundcoverCellCount).toBe(0);
+    expect(result.metrics.smallGroundcoverPatchCellCount).toBe(0);
+    expect(result.metrics.wildflowerPatchCount).toBeGreaterThan(0);
+    expect(result.metrics.minimumWildflowerPatchSize).toBeGreaterThanOrEqual(3);
+    expect(result.metrics.isolatedWildflowerCellCount).toBe(0);
+    expect(result.metrics.smallWildflowerPatchCellCount).toBe(0);
+    expect(result.metrics.groundcoveredLandWildflowerBasisPoints)
+      .toBeGreaterThanOrEqual(500);
+    expect(result.metrics.groundcoveredLandWildflowerBasisPoints)
+      .toBeLessThanOrEqual(1_500);
+    expect(result.metrics.groundcoverPatchCount).toBeGreaterThan(1);
+    expect(result.metrics.largestGroundcoverPatchBasisPoints).toBeGreaterThan(0);
+    expect(result.metrics.largestGroundcoverPatchBasisPoints).toBeLessThanOrEqual(9_000);
+    expect(result.metrics.groundcoverDistinctDensityValueCount).toBeGreaterThanOrEqual(8);
+    expect(result.metrics.wildflowerPatchCount).toBeGreaterThan(1);
+    expect(result.metrics.largestWildflowerPatchBasisPoints).toBeGreaterThan(0);
+    expect(result.metrics.largestWildflowerPatchBasisPoints).toBeLessThanOrEqual(9_500);
+    expect(result.metrics.wildflowerDistinctDensityValueCount).toBeGreaterThanOrEqual(4);
+
+    let groundcoverDiffersFromVegetation = false;
+    let groundcoverWithoutVegetation = 0;
+    let vegetationGroundcoverIntersection = 0;
+    let vegetationGroundcoverUnion = 0;
+    const clearanceMasks = [
+      input.legacyProtectedCell,
+      input.castleSlot,
+      input.throneAnchor,
+      input.barrier,
+      input.gateCell,
+      input.gateApproachCell,
+    ];
+    for (let cell = 0; cell < input.grid.cellCount; cell += 1) {
+      const vegetation = result.vegetationDensity[cell]!;
+      const groundcover = result.groundcoverDensity[cell]!;
+      const wildflowers = result.wildflowerDensity[cell]!;
+      if (groundcover !== vegetation) groundcoverDiffersFromVegetation = true;
+      const hasVegetation = vegetation !== 0;
+      const hasGroundcover = groundcover !== 0;
+      if (hasVegetation || hasGroundcover) vegetationGroundcoverUnion += 1;
+      if (hasVegetation && hasGroundcover) vegetationGroundcoverIntersection += 1;
+      if (!hasVegetation && hasGroundcover) groundcoverWithoutVegetation += 1;
+      expect(wildflowers).toBeLessThanOrEqual(groundcover);
+      if (result.dressingExcluded[cell] !== 0) {
+        expect(groundcover).toBe(0);
+        expect(wildflowers).toBe(0);
+      }
+      if (
+        landmarkAtOrAdjacent(input, result.landmarkClass, cell)
+        || (
+          result.dressingExcluded[cell] === 0
+          && adjacentToAnyMask(input, cell, clearanceMasks)
+        )
+      ) {
+        expect(groundcover).toBe(0);
+        expect(wildflowers).toBe(0);
+      }
+      if (wildflowers !== 0) {
+        expect([
+          GREATER_REALM_ECOLOGY_CLASS.PLAINS,
+          GREATER_REALM_ECOLOGY_CLASS.FOREST,
+          GREATER_REALM_ECOLOGY_CLASS.TAIGA,
+          GREATER_REALM_ECOLOGY_CLASS.SAVANNA,
+          GREATER_REALM_ECOLOGY_CLASS.ALPINE,
+        ]).toContain(result.ecologyClass[cell]);
+      }
+    }
+    expect(groundcoverDiffersFromVegetation).toBe(true);
+    expect(groundcoverWithoutVegetation).toBeGreaterThan(0);
+    expect(groundcoverWithoutVegetation * 100)
+      .toBeGreaterThanOrEqual(result.metrics.groundcoverCellCount);
+    expect(result.metrics.groundcoverWithoutVegetationCellCount)
+      .toBe(groundcoverWithoutVegetation);
+    expect(result.metrics.vegetationGroundcoverJaccardBasisPoints).toBe(
+      Math.round(vegetationGroundcoverIntersection * 10_000 / vegetationGroundcoverUnion),
+    );
+    expect(result.metrics.vegetationGroundcoverJaccardBasisPoints).toBeLessThanOrEqual(9_500);
+    expect(result.metrics.groundcoverCompatibilityViolationCount).toBe(0);
+    expect(result.metrics.wildflowerCompatibilityViolationCount).toBe(0);
+    expect(result.metrics.wildflowerGroundcoverViolationCount).toBe(0);
+    expect(result.metrics.groundcoverReservedClearanceViolationCount).toBe(0);
+    expect(result.metrics.groundcoverLandmarkClearanceViolationCount).toBe(0);
+    expect(result.invariants.groundcoverNaturallyClustered).toBe(true);
+    expect(result.invariants.wildflowersNaturallyClustered).toBe(true);
+    expect(result.invariants.groundcoverCompatible).toBe(true);
+    expect(result.invariants.groundcoverIndependentFromWoodyVegetation).toBe(true);
+    expect(result.invariants.wildflowersCompatibleWithGroundcover).toBe(true);
+    expect(result.invariants.groundcoverClearancesPreserved).toBe(true);
+  });
+
+  it('reports empty groundcover topology with zero-valued patch shares', () => {
+    const input = syntheticLivingWorldInput();
+    input.slope.fill(1_800);
+    const result = deriveGreaterRealmLivingWorld(input);
+    expect(result.metrics.groundcoverCellCount).toBe(0);
+    expect(result.metrics.groundcoverPatchCount).toBe(0);
+    expect(result.metrics.largestGroundcoverPatchBasisPoints).toBe(0);
+    expect(result.metrics.groundcoverDistinctDensityValueCount).toBe(0);
+    expect(result.metrics.wildflowerCellCount).toBe(0);
+    expect(result.metrics.wildflowerPatchCount).toBe(0);
+    expect(result.metrics.largestWildflowerPatchBasisPoints).toBe(0);
+    expect(result.metrics.wildflowerDistinctDensityValueCount).toBe(0);
+  });
+
+  it('separates open grassland density from canopy while retaining savanna cover', () => {
+    const deriveAtComparableSite = (biome: number) => {
+      const input = syntheticLivingWorldInput();
+      const cell = input.grid.indexOf({ q: -8, r: 8 });
+      expect(cell).toBeGreaterThanOrEqual(0);
+      input.waterRegime[cell] = 0;
+      input.biomeId[cell] = biome;
+      input.landformId[cell] = GREATER_REALM_LANDFORM_ID.LOWLAND;
+      input.temperature[cell] = 4_500;
+      input.moisture[cell] = 2_200;
+      input.wetnessIndex[cell] = 2_500;
+      input.elevation[cell] = 4_000;
+      input.slope[cell] = 250;
+      input.exposure[cell] = 0;
+      return { cell, result: deriveGreaterRealmLivingWorld(input) };
+    };
+
+    const meadow = deriveAtComparableSite(GREATER_REALM_BIOME_ID.FLOWER_MEADOW);
+    const oldGrowth = deriveAtComparableSite(GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST);
+    const savanna = deriveAtComparableSite(GREATER_REALM_BIOME_ID.SAVANNA);
+    expect(meadow.result.groundcoverDensity[meadow.cell]).toBeGreaterThan(
+      oldGrowth.result.groundcoverDensity[oldGrowth.cell]!,
+    );
+    expect(savanna.result.vegetationDensity[savanna.cell]).toBeLessThan(
+      oldGrowth.result.vegetationDensity[oldGrowth.cell]!,
+    );
+    expect(savanna.result.groundcoverDensity[savanna.cell]).toBeGreaterThanOrEqual(64);
+
+    const grassland = deriveGreaterRealmLivingWorld(syntheticLivingWorldInput());
+    const grassWithoutCanopy = grassland.groundcoverDensity.findIndex(
+      (density, cell) => density !== 0 && grassland.vegetationDensity[cell] === 0,
+    );
+    expect(grassWithoutCanopy).toBeGreaterThanOrEqual(0);
+    expect([
+      GREATER_REALM_ECOLOGY_CLASS.PLAINS,
+      GREATER_REALM_ECOLOGY_CLASS.FOREST,
+      GREATER_REALM_ECOLOGY_CLASS.TAIGA,
+      GREATER_REALM_ECOLOGY_CLASS.JUNGLE,
+      GREATER_REALM_ECOLOGY_CLASS.SWAMP,
+      GREATER_REALM_ECOLOGY_CLASS.SAVANNA,
+      GREATER_REALM_ECOLOGY_CLASS.ALPINE,
+    ]).toContain(grassland.ecologyClass[grassWithoutCanopy]);
+  });
+
   it('keeps harsh ecologies sparse and clears landmark and reservation buffers', () => {
     const input = syntheticLivingWorldInput();
     const volcanicCell = input.grid.indexOf({ q: -3, r: 10 });
@@ -1086,6 +1359,8 @@ describe('Greater Realm private living-world authority', () => {
       result.dressingExcluded,
       result.ecologyClass,
       result.vegetationDensity,
+      result.groundcoverDensity,
+      result.wildflowerDensity,
       result.routeClass,
       result.landmarkClass,
       result.ambientLifeClass,

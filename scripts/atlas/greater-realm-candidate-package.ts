@@ -52,7 +52,7 @@ import {
   measureGreaterRealmReliefStructure,
 } from './greater-realm-relief-structure';
 
-const PRIVATE_ATLAS_FORMAT_VERSION = 6;
+const PRIVATE_ATLAS_FORMAT_VERSION = 7;
 const PRIVATE_ATLAS_MAXIMUM_BYTES = 128 * 1024 * 1024;
 const PRIVATE_PREVIEW_MAXIMUM_BYTES = 16 * 1024 * 1024;
 const PRIVATE_MANIFEST_MAXIMUM_BYTES = 4 * 1024 * 1024;
@@ -743,6 +743,8 @@ function privateFields(candidate: GreaterRealmPrivateCandidate): readonly Encode
     { name: 'dressing-excluded', type: 2, width: 1, array: candidate.dressingExcluded },
     { name: 'ecology-class', type: 2, width: 1, array: candidate.ecologyClass },
     { name: 'vegetation-density', type: 2, width: 1, array: candidate.vegetationDensity },
+    { name: 'groundcover-density', type: 2, width: 1, array: candidate.groundcoverDensity },
+    { name: 'wildflower-density', type: 2, width: 1, array: candidate.wildflowerDensity },
     { name: 'route-class', type: 2, width: 1, array: candidate.routeClass },
     { name: 'landmark-class', type: 2, width: 1, array: candidate.landmarkClass },
     { name: 'ambient-life-class', type: 2, width: 1, array: candidate.ambientLifeClass },
@@ -829,6 +831,8 @@ function assertPrivateLivingWorldAuthority(candidate: GreaterRealmPrivateCandida
     candidate.dressingExcluded,
     candidate.ecologyClass,
     candidate.vegetationDensity,
+    candidate.groundcoverDensity,
+    candidate.wildflowerDensity,
     candidate.routeClass,
     candidate.landmarkClass,
     candidate.ambientLifeClass,
@@ -912,6 +916,8 @@ function assertPrivateLivingWorldAuthority(candidate: GreaterRealmPrivateCandida
       || !equalPrivateBytes(expected.dressingExcluded, candidate.dressingExcluded)
       || !equalPrivateBytes(expected.ecologyClass, candidate.ecologyClass)
       || !equalPrivateBytes(expected.vegetationDensity, candidate.vegetationDensity)
+      || !equalPrivateBytes(expected.groundcoverDensity, candidate.groundcoverDensity)
+      || !equalPrivateBytes(expected.wildflowerDensity, candidate.wildflowerDensity)
       || !equalPrivateBytes(expected.routeClass, candidate.routeClass)
       || !equalPrivateBytes(expected.landmarkClass, candidate.landmarkClass)
       || !equalPrivateBytes(expected.ambientLifeClass, candidate.ambientLifeClass)
@@ -1708,11 +1714,29 @@ async function renderValidatedGreaterRealmPrivatePreview(
             ecologyPalette[
               candidate.ecologyClass[index] ?? GREATER_REALM_ECOLOGY_CLASS.NONE
             ]!;
-          const density = candidate.vegetationDensity[index]!;
+          const vegetation = candidate.vegetationDensity[index]!;
+          const groundcover = candidate.groundcoverDensity[index]!;
+          const wildflowers = candidate.wildflowerDensity[index]!;
+          const groundcoverGreen = Math.floor(groundcover / 9);
+          const wildflowerAccent = Math.floor(wildflowers / 4);
           color = [
-            clampPreview(base[0] - Math.floor(density / 14)),
-            clampPreview(base[1] + Math.floor(density / 18)),
-            clampPreview(base[2] - Math.floor(density / 24)),
+            clampPreview(
+              base[0]
+                - Math.floor(vegetation / 14)
+                + Math.floor(wildflowerAccent * 3 / 4),
+            ),
+            clampPreview(
+              base[1]
+                + Math.floor(vegetation / 18)
+                + groundcoverGreen
+                + Math.floor(wildflowerAccent / 4),
+            ),
+            clampPreview(
+              base[2]
+                - Math.floor(vegetation / 24)
+                + Math.floor(groundcover / 24)
+                + wildflowerAccent,
+            ),
           ];
           const route = candidate.routeClass[index]!;
           if (route !== GREATER_REALM_ROUTE_CLASS.NONE) {
@@ -2147,6 +2171,8 @@ function verifyPrivateAtlasBinary(atlas: Buffer, expectedCellCount: number): voi
     ['dressing-excluded', 2, 1],
     ['ecology-class', 2, 1],
     ['vegetation-density', 2, 1],
+    ['groundcover-density', 2, 1],
+    ['wildflower-density', 2, 1],
     ['route-class', 2, 1],
     ['landmark-class', 2, 1],
     ['ambient-life-class', 2, 1],

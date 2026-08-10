@@ -142,6 +142,8 @@ function candidateFields(
     dressingExcluded: candidate.dressingExcluded,
     ecologyClass: candidate.ecologyClass,
     vegetationDensity: candidate.vegetationDensity,
+    groundcoverDensity: candidate.groundcoverDensity,
+    wildflowerDensity: candidate.wildflowerDensity,
     routeClass: candidate.routeClass,
     landmarkClass: candidate.landmarkClass,
     ambientLifeClass: candidate.ambientLifeClass,
@@ -378,6 +380,8 @@ describe('Greater Realm private candidate generator', () => {
         dressingExcluded: candidate.dressingExcluded,
         ecologyClass: candidate.ecologyClass,
         vegetationDensity: candidate.vegetationDensity,
+        groundcoverDensity: candidate.groundcoverDensity,
+        wildflowerDensity: candidate.wildflowerDensity,
         routeClass: candidate.routeClass,
         landmarkClass: candidate.landmarkClass,
         ambientLifeClass: candidate.ambientLifeClass,
@@ -524,6 +528,8 @@ describe('Greater Realm private candidate generator', () => {
       if (
         candidate.ecologyClass[cell] !== 0 ||
         candidate.vegetationDensity[cell] !== 0 ||
+        candidate.groundcoverDensity[cell] !== 0 ||
+        candidate.wildflowerDensity[cell] !== 0 ||
         candidate.landmarkClass[cell] !== 0 ||
         candidate.ambientLifeClass[cell] !== 0 ||
         (candidate.routeClass[cell] !== 0 &&
@@ -543,7 +549,7 @@ describe('Greater Realm private candidate generator', () => {
       excludedOutputViolationCount: 0,
     });
     expect(JSON.stringify(candidate.aggregate)).not.toMatch(
-      /(?:livingWorld|reliefStructure|meanSquaredDifference|pairCountsByLag|layoutFingerprint|dressingExcluded|ecologyClass|vegetationDensity|routeClass|landmarkClass|ambientLifeClass|eligibleLandVegetatedBasisPoints|eligibleLandOpenBasisPoints|landmarkCellCounts|ambientLifeCellCounts)/u,
+      /(?:livingWorld|reliefStructure|meanSquaredDifference|pairCountsByLag|layoutFingerprint|dressingExcluded|ecologyClass|vegetationDensity|groundcoverDensity|wildflowerDensity|routeClass|landmarkClass|ambientLifeClass|eligibleLandVegetatedBasisPoints|eligibleLandOpenBasisPoints|eligibleLandGroundcoverBasisPoints|groundcoveredLandWildflowerBasisPoints|landmarkCellCounts|ambientLifeCellCounts)/u,
     );
   });
 
