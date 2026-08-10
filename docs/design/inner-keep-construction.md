@@ -92,7 +92,9 @@ For each resource, the server multiplies the Level-1 base by the target-level
 multiplier, divides by 10,000, and rounds upward to the next ten whole
 resources. It then applies the matching completed-building discount and rounds
 upward to ten again. All authority uses checked integer arithmetic. The exact
-effective deduction is recorded in a caller-private receipt.
+effective deduction is recorded in a caller-private receipt. The policy digest
+binds the 10,000-basis-point denominator, ten-resource rounding quantum, every
+multiplier, discount, base recipe, duration, and balance cap.
 
 The server starts the timer at the reducer timestamp. Construction continues
 offline and finishes through a scheduled reducer. A later authoritative Inner
@@ -125,16 +127,20 @@ revision. The absence of a building row means the slot is empty.
 
 Caller-private state contains Builder ownership, the active project pointer,
 exact receipts and request keys, deducted costs, and resource balances. A
-player command supplies only a canonical slot ID, building kind, and bounded
-idempotency key. SpacetimeDB derives the FID, castle, level, costs, discounts,
-time, and outcome.
+player command supplies a canonical slot ID, building kind, bounded idempotency
+key, `expectedTargetLevel`, canonical decimal `expectedProjectRevision`, and
+`expectedPolicyDigest`. The three expected values are untrusted quote-binding
+compare-and-set assertions. SpacetimeDB derives the FID, castle, current target,
+and current policy digest from authority. Before a new mutation, it verifies the
+three assertions, then derives costs, discounts, time, settlement, and outcome.
 
-Starting a project first materializes authoritative Worker/resource settlement
-while preserving active expedition reservation capacity. It then validates the
-single Builder, slot, footprint, uniqueness, level cap, and stored balances.
-Resource deduction, project state, Builder state, schedule, and receipt commit
-as one transaction or not at all. Replaying the same accepted request returns
-the same result and cannot deduct twice.
+Starting a project validates the single Builder, slot, footprint, uniqueness,
+level cap, and quote-binding assertions before materializing authoritative
+Worker/resource settlement. Active expedition reservation capacity remains
+preserved. The server then validates stored balances. Resource deduction,
+project state, Builder state, schedule, and receipt commit as one transaction or
+not at all. Replaying the same accepted request returns the same result and
+cannot deduct twice.
 
 ## Presentation contract
 

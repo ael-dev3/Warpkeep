@@ -1,9 +1,11 @@
 import { SenderError } from 'spacetimedb';
 
-import type {
-  InnerKeepBuildingKind,
-  InnerKeepResourceAmounts
+import {
+  INNER_KEEP_PROJECT_REVISION_MAX,
+  type InnerKeepBuildingKind,
+  type InnerKeepResourceAmounts
 } from '../components/inner-keep/innerKeepPresentation';
+import { INNER_KEEP_POLICY_DIGEST } from '../../spacetimedb/src/innerKeepPolicy';
 import { createExpeditionIdempotencyKey } from './expeditionIdempotencyKey';
 import { WARPKEEP_EXPECTED_BACKEND_PROTOCOL_VERSION } from './warpkeepProtocol';
 
@@ -74,6 +76,7 @@ export type InnerKeepDefinitiveRejection = Readonly<{
 }>;
 
 const INNER_KEEP_DEFINITIVE_REJECTION_MESSAGES = Object.freeze({
+  INNER_KEEP_STATE_CHANGED: 'Inner Keep state changed. Review the refreshed quote before trying again.',
   INNER_KEEP_BUILDER_BUSY: 'The Builder is already working on another project.',
   INNER_KEEP_SLOT_OCCUPIED: 'That build site is already occupied.',
   INNER_KEEP_FOOTPRINT_INCOMPATIBLE: 'That building does not fit this build site.',
@@ -171,10 +174,11 @@ function validScope(scope: InnerKeepCommandScope) {
     && scope.layoutVersion > 0
     && scope.layoutId.length > 0
     && scope.policyVersion.length > 0
-    && /^[0-9a-f]{64}$/.test(scope.policyDigest)
+    && scope.policyDigest === INNER_KEEP_POLICY_DIGEST
     && /^[0-9a-f]{64}$/.test(scope.layoutDigest)
     && /^[0-9a-f]{64}$/.test(scope.assetCatalogDigest)
-    && scope.projectRevision >= 0n;
+    && scope.projectRevision >= 0n
+    && scope.projectRevision <= INNER_KEEP_PROJECT_REVISION_MAX;
 }
 
 export function serializeInnerKeepCommandFingerprint(

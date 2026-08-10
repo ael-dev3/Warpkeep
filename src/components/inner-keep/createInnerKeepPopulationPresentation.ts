@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 
+import { disposeRealmObjectSkeletons } from '../realm/loadHegemonyKeep';
 import {
   sampleInnerKeepAmbientFrame,
   type InnerKeepAmbientActorPose,
@@ -38,6 +39,15 @@ type ActorRenderState = {
   targetHeight: number;
   authored: boolean;
 };
+
+function runPopulationCleanup(cleanup: () => void) {
+  try {
+    cleanup();
+  } catch {
+    // One renderer disposal hook must not strand the remaining mixers, scene
+    // nodes, or presentation-owned GPU resources.
+  }
+}
 
 export type InnerKeepPopulationClipWeight = Readonly<{
   clipName: string;
@@ -318,14 +328,21 @@ export function createInnerKeepPopulationPresentation(options: Readonly<{
       if (disposed) return;
       disposed = true;
       states.forEach((state) => {
-        state.mixer?.stopAllAction();
-        if (state.mixer) state.mixer.uncacheRoot(state.model);
+        runPopulationCleanup(() => state.mixer?.stopAllAction());
+        if (state.mixer) {
+          runPopulationCleanup(() => state.mixer!.uncacheRoot(state.model));
+        }
       });
+      runPopulationCleanup(() => disposeRealmObjectSkeletons(group));
       states.clear();
-      group.removeFromParent();
-      geometries.forEach((geometry) => geometry.dispose());
-      materials.forEach((material) => material.dispose());
-      conversationTexture?.dispose();
+      runPopulationCleanup(() => group.removeFromParent());
+      geometries.forEach((geometry) => {
+        runPopulationCleanup(() => geometry.dispose());
+      });
+      materials.forEach((material) => {
+        runPopulationCleanup(() => material.dispose());
+      });
+      runPopulationCleanup(() => conversationTexture?.dispose());
       geometries.clear();
       materials.clear();
     },

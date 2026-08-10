@@ -124,6 +124,70 @@ describe('Inner Keep exact rabbit presentation', () => {
     expect(release).toHaveBeenCalledTimes(1);
   });
 
+  it('retires every rabbit and its lease when one skeleton disposal throws', async () => {
+    const release = vi.fn();
+    const skeletons: THREE.Skeleton[] = [];
+    const acquire = vi.fn<AcquireInnerKeepRabbitPrefab>(async ({ lod }) => Object.freeze({
+      prefab: Object.freeze({
+        lod,
+        assetUrl: `/rabbit-${lod}.glb`,
+        sourceRoot: new THREE.Group(),
+        clips: Object.freeze([]),
+        boundsMeters: Object.freeze([0.2, 0.26, 0.34] as const),
+        footprintDiameter: 0.34,
+        visualHeight: 0.26,
+        triangles: 350,
+        animated: false,
+        clone: () => {
+          const root = new THREE.Group();
+          const bone = new THREE.Bone();
+          const skeleton = new THREE.Skeleton([bone]);
+          const geometry = new THREE.BoxGeometry(0.2, 0.26, 0.34);
+          const material = new THREE.MeshStandardMaterial();
+          root.add(bone);
+          for (let index = 0; index < 2; index += 1) {
+            const mesh = new THREE.SkinnedMesh(geometry, material);
+            mesh.bind(skeleton);
+            root.add(mesh);
+          }
+          skeletons.push(skeleton);
+          return root;
+        },
+      }),
+      release,
+    }));
+    const presentation = createInnerKeepRabbitPresentation({
+      quality: 'reduced',
+      visualSeed: 17,
+      reducedMotion: true,
+      baseUrl: '/',
+      acquirePrefab: acquire,
+    });
+    await presentation.ready;
+    const disposals = skeletons.map((skeleton, index) => {
+      skeleton.computeBoneTexture();
+      const disposeSkeleton = skeleton.dispose.bind(skeleton);
+      const disposal = vi.spyOn(skeleton, 'dispose');
+      if (index === 0) {
+        disposal.mockImplementation(() => {
+          disposeSkeleton();
+          throw new Error('synthetic rabbit skeleton disposal failure');
+        });
+      }
+      return disposal;
+    });
+
+    expect(() => presentation.dispose()).not.toThrow();
+    presentation.dispose();
+
+    expect(skeletons).toHaveLength(4);
+    disposals.forEach((dispose) => expect(dispose).toHaveBeenCalledOnce());
+    skeletons.forEach((skeleton) => expect(skeleton.boneTexture).toBeNull());
+    expect(release).toHaveBeenCalledOnce();
+    expect(presentation.group.children).toHaveLength(0);
+    expect(presentation.getTelemetry().status).toBe('disposed');
+  });
+
   it('fails independently so the caller can retain procedural wildlife', async () => {
     const presentation = createInnerKeepRabbitPresentation({
       quality: 'balanced',

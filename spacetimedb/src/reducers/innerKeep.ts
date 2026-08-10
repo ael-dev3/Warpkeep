@@ -215,8 +215,22 @@ export const getMyInnerKeepRequestStatusV1 = warpkeep.procedure(
 
 export const innerKeepStartProjectV1 = warpkeep.reducer(
   { name: 'inner_keep_start_project_v1' },
-  { slotId: t.string(), buildingKind: t.string(), requestKey: t.string() },
-  (ctx, { slotId, buildingKind, requestKey }) => {
+  {
+    slotId: t.string(),
+    buildingKind: t.string(),
+    requestKey: t.string(),
+    expectedTargetLevel: t.u32(),
+    expectedProjectRevision: t.string(),
+    expectedPolicyDigest: t.string(),
+  },
+  (ctx, {
+    slotId,
+    buildingKind,
+    requestKey,
+    expectedTargetLevel,
+    expectedProjectRevision,
+    expectedPolicyDigest,
+  }) => {
     try {
       const { claims, castle } = requireGameplayPlayerV1(ctx);
       startInnerKeepProject(ctx, {
@@ -225,6 +239,9 @@ export const innerKeepStartProjectV1 = warpkeep.reducer(
         slotId,
         buildingKind,
         requestKey,
+        expectedTargetLevel,
+        expectedProjectRevision,
+        expectedPolicyDigest,
       });
     } catch (error) {
       return senderInnerKeepError(error);

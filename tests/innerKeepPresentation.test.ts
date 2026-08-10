@@ -9,6 +9,7 @@ import {
   INNER_KEEP_LAYOUT_V1_SLOTS
 } from '../src/components/inner-keep/innerKeepLayoutV1';
 import {
+  INNER_KEEP_PROJECT_REVISION_MAX,
   INNER_KEEP_SLOT_COUNT,
   innerKeepPresentationIntegrity,
   innerKeepQuoteAffordable,
@@ -38,6 +39,18 @@ describe('Inner Keep presentation boundary', () => {
       ...presentation,
       castleId: 18_446_744_073_709_551_615n
     })).toBe(true);
+    expect(innerKeepPresentationIntegrity({
+      ...presentation,
+      projectRevision: 18_446_744_073_709_551_616n
+    })).toBe(true);
+    expect(innerKeepPresentationIntegrity({
+      ...presentation,
+      projectRevision: INNER_KEEP_PROJECT_REVISION_MAX
+    })).toBe(true);
+    expect(innerKeepPresentationIntegrity({
+      ...presentation,
+      projectRevision: INNER_KEEP_PROJECT_REVISION_MAX + 1n
+    })).toBe(false);
   });
 
   it('pins the exact v15 digest, slot order, footprint, and activation policy', () => {

@@ -539,6 +539,152 @@ describe('Inner Keep outer-world visual presentation', () => {
     expect(wagonRelease).toHaveBeenCalledTimes(1);
   });
 
+  it('preserves the setup failure while skeleton cleanup throws', async () => {
+    const assets = fakeAssetAcquirers();
+    const wagonRelease = vi.fn();
+    let clonedSkeletonDispose: ReturnType<typeof vi.spyOn> | null = null;
+    const acquireExpeditionPrefab = vi.fn<AcquireOuterWorldExpeditionPrefab>(
+      async (request) => {
+        if (request.materialRole !== 'wagon') {
+          return assets.acquireExpeditionPrefab(request);
+        }
+        const root = new THREE.Group();
+        const bone = new THREE.Bone();
+        const skeleton = new THREE.Skeleton([bone]);
+        const mesh = new THREE.SkinnedMesh(
+          new THREE.BoxGeometry(1, 1, 1),
+          new THREE.MeshStandardMaterial(),
+        );
+        mesh.bind(skeleton);
+        root.add(bone, mesh);
+        const cloneSkeleton = skeleton.clone.bind(skeleton);
+        vi.spyOn(skeleton, 'clone').mockImplementation(() => {
+          const clonedSkeleton = cloneSkeleton();
+          const disposeSkeleton = clonedSkeleton.dispose.bind(clonedSkeleton);
+          clonedSkeletonDispose = vi.spyOn(clonedSkeleton, 'dispose').mockImplementation(() => {
+            disposeSkeleton();
+            throw new Error('synthetic wagon skeleton disposal failure');
+          });
+          return clonedSkeleton;
+        });
+        const brokenClip = {} as THREE.AnimationClip;
+        Object.defineProperty(brokenClip, 'uuid', {
+          get: () => {
+            throw new Error('original wagon setup failure');
+          },
+        });
+        return Object.freeze({
+          model: Object.freeze({
+            root,
+            clips: Object.freeze([brokenClip]),
+            footprintDiameter: request.targetFootprintDiameter,
+            visualHeight: 1,
+            assetUrl: '/fake/skinned-broken-wagon.glb',
+          }),
+          release: wagonRelease,
+        });
+      },
+    );
+    const presentation = createInnerKeepOuterWorldPresentation({
+      quality: 'reduced',
+      visualSeed: 314,
+      reducedMotion: false,
+      baseUrl: '/',
+      acquireTreePrefab: assets.acquireTreePrefab,
+      acquireExpeditionPrefab,
+    });
+
+    await presentation.ready;
+
+    expect(clonedSkeletonDispose).not.toBeNull();
+    expect(clonedSkeletonDispose!).toHaveBeenCalledOnce();
+    expect(wagonRelease).toHaveBeenCalledOnce();
+    expect(presentation.getTelemetry().failures).toContainEqual(
+      expect.objectContaining({
+        scope: 'supply-wagon',
+        assetId: 'supply-wagon',
+        message: 'original wagon setup failure',
+      }),
+    );
+    expect(presentation.group.getObjectByName('inner-keep-outer-exact-supply-wagon-model'))
+      .toBeUndefined();
+    expect(presentation.group.getObjectByName('inner-keep-outer-fallback-supply-wagon'))
+      .toBeDefined();
+    presentation.dispose();
+  });
+
+  it('retires every outer-world lease when wagon skeleton disposal throws', async () => {
+    const assets = fakeAssetAcquirers();
+    const wagonRelease = vi.fn();
+    const acquireExpeditionPrefab = vi.fn<AcquireOuterWorldExpeditionPrefab>(
+      async (request) => {
+        if (request.materialRole !== 'wagon') {
+          return assets.acquireExpeditionPrefab(request);
+        }
+        const root = new THREE.Group();
+        const bone = new THREE.Bone();
+        const skeleton = new THREE.Skeleton([bone]);
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
+        const material = new THREE.MeshStandardMaterial();
+        root.add(bone);
+        for (let index = 0; index < 2; index += 1) {
+          const mesh = new THREE.SkinnedMesh(geometry, material);
+          mesh.bind(skeleton);
+          root.add(mesh);
+        }
+        return Object.freeze({
+          model: Object.freeze({
+            root,
+            clips: Object.freeze([]),
+            footprintDiameter: request.targetFootprintDiameter,
+            visualHeight: 1,
+            assetUrl: '/fake/skinned-wagon.glb',
+          }),
+          release: wagonRelease,
+        });
+      },
+    );
+    const presentation = createInnerKeepOuterWorldPresentation({
+      quality: 'reduced',
+      visualSeed: 314,
+      reducedMotion: true,
+      baseUrl: '/',
+      acquireTreePrefab: assets.acquireTreePrefab,
+      acquireExpeditionPrefab,
+    });
+    await presentation.ready;
+    const wagon = presentation.group.getObjectByName(
+      'inner-keep-outer-exact-supply-wagon-model',
+    )!;
+    const skeletons = new Set<THREE.Skeleton>();
+    wagon.traverse((object) => {
+      if (object instanceof THREE.SkinnedMesh) skeletons.add(object.skeleton);
+    });
+    expect(skeletons.size).toBeGreaterThan(0);
+    const disposals = [...skeletons].map((skeleton, index) => {
+      skeleton.computeBoneTexture();
+      const disposeSkeleton = skeleton.dispose.bind(skeleton);
+      const disposal = vi.spyOn(skeleton, 'dispose');
+      if (index === 0) {
+        disposal.mockImplementation(() => {
+          disposeSkeleton();
+          throw new Error('synthetic wagon skeleton disposal failure');
+        });
+      }
+      return disposal;
+    });
+
+    expect(() => presentation.dispose()).not.toThrow();
+    presentation.dispose();
+
+    disposals.forEach((dispose) => expect(dispose).toHaveBeenCalledOnce());
+    skeletons.forEach((skeleton) => expect(skeleton.boneTexture).toBeNull());
+    expect(wagonRelease).toHaveBeenCalledOnce();
+    assets.treeReleases.forEach((release) => expect(release).toHaveBeenCalledOnce());
+    assets.expeditionReleases.forEach((release) => expect(release).toHaveBeenCalledOnce());
+    expect(presentation.group.children).toHaveLength(0);
+  });
+
   it('keeps one failed resource family on its own fallback without affecting peers', async () => {
     const assets = fakeAssetAcquirers({ failResourceKind: 'stone' });
     const presentation = createInnerKeepOuterWorldPresentation({

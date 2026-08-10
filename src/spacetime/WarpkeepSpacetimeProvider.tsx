@@ -1174,7 +1174,10 @@ export function WarpkeepSpacetimeProvider({
         connection,
         slotId,
         buildingKind,
-        attempt.requestKey
+        attempt.requestKey,
+        attempt.intent.targetLevel,
+        attempt.scope.projectRevision.toString(),
+        attempt.scope.policyDigest
       ));
       if (
         generationRef.current !== generation

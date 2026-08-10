@@ -236,7 +236,14 @@ function createLocalFullstackBackendRuntime(): WarpkeepBackendRuntime {
       }
     },
     async startInnerKeepProject(...args) {
-      const [, slotId, buildingKind, requestKey] = args;
+      const [,
+        slotId,
+        buildingKind,
+        requestKey,
+        expectedTargetLevel,
+        expectedProjectRevision,
+        expectedPolicyDigest,
+      ] = args;
       const attempt = Number(document.documentElement.getAttribute(
         'data-local-fullstack-inner-keep-attempt'
       ) ?? '0');
@@ -255,6 +262,18 @@ function createLocalFullstackBackendRuntime(): WarpkeepBackendRuntime {
       document.documentElement.setAttribute(
         'data-local-fullstack-inner-keep-building',
         buildingKind
+      );
+      document.documentElement.setAttribute(
+        'data-local-fullstack-inner-keep-expected-target-level',
+        String(expectedTargetLevel)
+      );
+      document.documentElement.setAttribute(
+        'data-local-fullstack-inner-keep-expected-project-revision',
+        expectedProjectRevision
+      );
+      document.documentElement.setAttribute(
+        'data-local-fullstack-inner-keep-expected-policy-digest',
+        expectedPolicyDigest
       );
       document.documentElement.setAttribute(
         'data-local-fullstack-inner-keep-state',

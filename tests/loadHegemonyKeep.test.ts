@@ -9,6 +9,7 @@ import {
   calculateKeepNormalization,
   clearHegemonyKeepBinaryCacheForTests,
   disposeRealmObject,
+  disposeRealmObjectSkeletons,
   HEGEMONY_MODEL_MATERIAL_CALIBRATION,
   keepAssetPathForQuality,
   loadHegemonyKeep,
@@ -469,6 +470,57 @@ describe('Hegemony keep runtime assets', () => {
     disposeRealmObject(root);
 
     expect(bitmap.close).toHaveBeenCalledOnce();
+  });
+
+  it('disposes one shared skeleton bone texture once with its owned object', () => {
+    const root = new THREE.Group();
+    const bone = new THREE.Bone();
+    const skeleton = new THREE.Skeleton([bone]);
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshStandardMaterial();
+    root.add(bone);
+    for (let index = 0; index < 2; index += 1) {
+      const mesh = new THREE.SkinnedMesh(geometry, material);
+      mesh.bind(skeleton);
+      root.add(mesh);
+    }
+    skeleton.computeBoneTexture();
+    const disposeSkeleton = vi.spyOn(skeleton, 'dispose');
+
+    disposeRealmObject(root);
+
+    expect(disposeSkeleton).toHaveBeenCalledOnce();
+    expect(skeleton.boneTexture).toBeNull();
+  });
+
+  it('continues disposing distinct skeletons before reporting the first failure', () => {
+    const root = new THREE.Group();
+    const skeletons = Array.from({ length: 2 }, () => {
+      const bone = new THREE.Bone();
+      const skeleton = new THREE.Skeleton([bone]);
+      const mesh = new THREE.SkinnedMesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshStandardMaterial(),
+      );
+      mesh.bind(skeleton);
+      root.add(bone, mesh);
+      skeleton.computeBoneTexture();
+      return skeleton;
+    });
+    const firstDispose = vi.spyOn(skeletons[0]!, 'dispose').mockImplementation(() => {
+      skeletons[0]!.boneTexture?.dispose();
+      skeletons[0]!.boneTexture = null;
+      throw new Error('synthetic skeleton disposal failure');
+    });
+    const secondDispose = vi.spyOn(skeletons[1]!, 'dispose');
+
+    expect(() => disposeRealmObjectSkeletons(root)).toThrow(
+      /synthetic skeleton disposal failure/i,
+    );
+
+    expect(firstDispose).toHaveBeenCalledOnce();
+    expect(secondDispose).toHaveBeenCalledOnce();
+    skeletons.forEach((skeleton) => expect(skeleton.boneTexture).toBeNull());
   });
 
   it('continues disposing every unique resource when an earlier texture throws', () => {

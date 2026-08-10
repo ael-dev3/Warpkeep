@@ -10,6 +10,7 @@ import {
 import {
   CANONICAL_INNER_KEEP_BUILDING_CATALOG,
   CANONICAL_INNER_KEEP_LEVEL_POLICIES,
+  INNER_KEEP_POLICY_DIGEST,
   INNER_KEEP_POLICY_VERSION
 } from '../spacetimedb/src/innerKeepPolicy';
 import {
@@ -299,14 +300,55 @@ describe('Inner Keep browser connection boundary', () => {
       harness.connection,
       'inner-keep-slot-m01',
       'city-mill',
-      requestKey
+      requestKey,
+      2,
+      '18446744073709551616',
+      INNER_KEEP_POLICY_DIGEST
     );
     expect(harness.getMyInnerKeepRequestStatusV1).toHaveBeenCalledWith({ requestKey });
     expect(harness.innerKeepStartProjectV1).toHaveBeenCalledWith({
       slotId: 'inner-keep-slot-m01',
       buildingKind: 'city-mill',
-      requestKey
+      requestKey,
+      expectedTargetLevel: 2,
+      expectedProjectRevision: '18446744073709551616',
+      expectedPolicyDigest: INNER_KEEP_POLICY_DIGEST
     });
+    await expect(startWarpkeepInnerKeepProject(
+      harness.connection,
+      'inner-keep-slot-m01',
+      'city-mill',
+      requestKey,
+      2,
+      '018446744073709551616',
+      INNER_KEEP_POLICY_DIGEST
+    )).rejects.toThrow('Inner Keep construction is unavailable.');
+    for (const [target, revision] of [
+      [0, '0'],
+      [6, '0'],
+      [2, '+0'],
+      [2, '110680464442257309691'],
+    ] as const) {
+      await expect(startWarpkeepInnerKeepProject(
+        harness.connection,
+        'inner-keep-slot-m01',
+        'city-mill',
+        requestKey,
+        target,
+        revision,
+        INNER_KEEP_POLICY_DIGEST
+      )).rejects.toThrow('Inner Keep construction is unavailable.');
+    }
+    await expect(startWarpkeepInnerKeepProject(
+      harness.connection,
+      'inner-keep-slot-m01',
+      'city-mill',
+      requestKey,
+      2,
+      '18446744073709551616',
+      '0'.repeat(64)
+    )).rejects.toThrow('Inner Keep construction is unavailable.');
+    expect(harness.innerKeepStartProjectV1).toHaveBeenCalledTimes(1);
     subscription.unsubscribe();
   });
 });

@@ -128,7 +128,11 @@ import {
   type InnerKeepCommandAttempt,
   type InnerKeepRequestReceipt
 } from './innerKeepCommandIdempotency';
-import { isInnerKeepBuildingKind } from '../components/inner-keep/innerKeepPresentation';
+import {
+  INNER_KEEP_PROJECT_REVISION_MAX,
+  isInnerKeepBuildingKind
+} from '../components/inner-keep/innerKeepPresentation';
+import { INNER_KEEP_POLICY_DIGEST } from '../../spacetimedb/src/innerKeepPolicy';
 
 export type WarpkeepConnectionFailureReason =
   | 'handshake_timeout'
@@ -770,27 +774,47 @@ export async function readWarpkeepInnerKeepRequestStatus(
   return receipt;
 }
 
-/** The browser supplies only a reviewed slot, building kind, and retained key. */
+/** The browser binds its reviewed policy/target/revision; the server still derives all economics. */
 export async function startWarpkeepInnerKeepProject(
   connection: WarpkeepConnection,
   slotId: string,
   buildingKind: string,
-  requestKey: string
+  requestKey: string,
+  expectedTargetLevel: number,
+  expectedProjectRevision: string,
+  expectedPolicyDigest: string
 ) {
   if (
     !/^inner-keep-slot-[ml][0-9]{2}$/.test(slotId)
     || !isInnerKeepBuildingKind(buildingKind)
     || !INNER_KEEP_REQUEST_KEY_PATTERN.test(requestKey)
+    || !Number.isSafeInteger(expectedTargetLevel)
+    || expectedTargetLevel < 1
+    || expectedTargetLevel > 5
+    || expectedProjectRevision.length > INNER_KEEP_PROJECT_REVISION_MAX.toString().length
+    || !/^(?:0|[1-9][0-9]*)$/.test(expectedProjectRevision)
+    || BigInt(expectedProjectRevision) > INNER_KEEP_PROJECT_REVISION_MAX
+    || expectedPolicyDigest !== INNER_KEEP_POLICY_DIGEST
   ) throw new Error('Inner Keep construction is unavailable.');
   const reducer = (connection.reducers as unknown as {
     innerKeepStartProjectV1?: (input: Readonly<{
       slotId: string;
       buildingKind: string;
       requestKey: string;
+      expectedTargetLevel: number;
+      expectedProjectRevision: string;
+      expectedPolicyDigest: string;
     }>) => Promise<unknown> | unknown;
   }).innerKeepStartProjectV1;
   if (typeof reducer !== 'function') throw new Error('Inner Keep construction is unavailable.');
-  await reducer({ slotId, buildingKind, requestKey });
+  await reducer({
+    slotId,
+    buildingKind,
+    requestKey,
+    expectedTargetLevel,
+    expectedProjectRevision,
+    expectedPolicyDigest
+  });
 }
 
 function workerReducerSurface(connection: WarpkeepConnection) {

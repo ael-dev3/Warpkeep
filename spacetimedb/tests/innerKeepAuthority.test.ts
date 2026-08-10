@@ -29,14 +29,33 @@ test('project start derives caller, castle, level, cost, and server time', () =>
     '/** Exact schedule completion',
   );
   assert.match(wire, /name: 'inner_keep_start_project_v1'/);
-  assert.match(wire, /\{ slotId: t\.string\(\), buildingKind: t\.string\(\), requestKey: t\.string\(\) \}/);
-  assert.doesNotMatch(wire, /fid: t\.|castleId: t\.|targetLevel: t\.|cost|completion/i);
+  assert.match(wire, /slotId: t\.string\(\)/);
+  assert.match(wire, /buildingKind: t\.string\(\)/);
+  assert.match(wire, /requestKey: t\.string\(\)/);
+  assert.match(wire, /expectedTargetLevel: t\.u32\(\)/);
+  assert.match(wire, /expectedProjectRevision: t\.string\(\)/);
+  assert.match(wire, /expectedPolicyDigest: t\.string\(\)/);
+  assert.doesNotMatch(wire, /fid: t\.|castleId: t\.|expectedCost|expectedDuration|completion/i);
   assert.match(wire, /const \{ claims, castle \} = requireGameplayPlayerV1\(ctx\)/);
   assert.match(start, /const prior = ctx\.db\.castleInnerBuildReceiptV1\.receiptKey\.find/);
   assert.ok(start.indexOf('if (prior !== null)') < start.indexOf('assertInnerKeepComponentActive(ctx)'));
+  assert.ok(
+    start.indexOf('if (prior !== null)')
+      < start.indexOf('retainedPolicyDigest !== INNER_KEEP_POLICY_DIGEST'),
+  );
+  assert.ok(
+    start.indexOf('retainedPolicyDigest !== INNER_KEEP_POLICY_DIGEST')
+      < start.indexOf('reconcileOverdueProject('),
+  );
   assert.match(start, /targetLevel = existing\.completedLevel \+ 1/);
+  assert.match(start, /input\.expectedTargetLevel !== targetLevel/);
+  assert.match(start, /retainedProjectRevision !== currentProjectRevision/);
   assert.match(start, /canonicalInnerKeepCost\([\s\S]*completedLevels\(buildings\)/);
   assert.match(start, /settleAllWorkerAssignmentsForFid\(ctx, input\.fid, ctx\.timestamp\.microsSinceUnixEpoch\)/);
+  assert.ok(
+    start.indexOf("fail('INNER_KEEP_STATE_CHANGED')")
+      < start.indexOf('settleAllWorkerAssignmentsForFid('),
+  );
   assert.match(start, /resource\.food - cost\.effectiveCost\.food/);
   assert.match(start, /ScheduleAt\.time\(project\.completesAtMicros\)/);
   assert.equal((start.match(/castleInnerBuildReceiptV1\.insert\(/g) ?? []).length, 1);
