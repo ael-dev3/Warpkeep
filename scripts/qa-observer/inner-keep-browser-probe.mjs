@@ -35,6 +35,26 @@ const SCREENSHOT_CASES = new Set([
   'missing-asset-fallback',
   '2d-fallback',
 ]);
+const PANEL_GEOMETRY_CASES = Object.freeze([
+  Object.freeze({
+    id: 'short-landscape',
+    mode: 'side',
+    safeRightPixels: 32,
+    viewport: Object.freeze({ width: 844, height: 390 }),
+  }),
+  Object.freeze({
+    id: 'desktop',
+    mode: 'side',
+    safeRightPixels: 24,
+    viewport: Object.freeze({ width: 1_440, height: 900 }),
+  }),
+  Object.freeze({
+    id: 'mobile-portrait',
+    mode: 'sheet',
+    safeRightPixels: 20,
+    viewport: Object.freeze({ width: 390, height: 844 }),
+  }),
+]);
 
 function delay(milliseconds) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
@@ -374,13 +394,24 @@ async function exerciseFunctionalFallback(session) {
   ) throw new Error('Inner Keep functional fallback interaction failed.');
 }
 
-async function exerciseWebglNativeKeyboardActivation(session) {
+async function exerciseWebglNativeKeyboardActivation(session, geometryCase) {
+  if (
+    !PANEL_GEOMETRY_CASES.includes(geometryCase)
+    || !Number.isSafeInteger(geometryCase.safeRightPixels)
+    || geometryCase.safeRightPixels < 0
+  ) throw new TypeError('Invalid Inner Keep panel geometry case.');
   const focused = runtimeValue(await session.command('Runtime.evaluate', {
     expression: `(() => {
+      const root = document.querySelector('.inner-keep');
       const control = document.querySelector(
         '[data-inner-keep-slot-id="inner-keep-slot-m01"]'
       );
-      if (!(control instanceof HTMLButtonElement) || control.disabled) return null;
+      if (
+        !(root instanceof HTMLElement)
+        || !(control instanceof HTMLButtonElement)
+        || control.disabled
+      ) return null;
+      root.style.setProperty('--realm-safe-right', '${geometryCase.safeRightPixels}px');
       control.focus({ preventScroll: true });
       return {
         active: document.activeElement === control,
@@ -413,23 +444,90 @@ async function exerciseWebglNativeKeyboardActivation(session) {
   });
 
   const deadline = Date.now() + CDP_TIMEOUT_MILLISECONDS;
+  let panelObserved = false;
   while (Date.now() < deadline) {
     const activation = runtimeValue(await session.command('Runtime.evaluate', {
       expression: `(() => {
+        const rect = (element) => {
+          if (!(element instanceof HTMLElement)) return null;
+          const bounds = element.getBoundingClientRect();
+          return {
+            bottom: bounds.bottom,
+            left: bounds.left,
+            right: bounds.right,
+            top: bounds.top
+          };
+        };
         const control = document.querySelector(
           '[data-inner-keep-slot-id="inner-keep-slot-m01"]'
         );
         const panel = document.querySelector('.inner-keep-panel');
+        const header = document.querySelector('.inner-keep__header');
+        const resources = document.querySelector('.inner-keep__resources');
+        const builder = document.querySelector('.inner-keep-builder');
+        const panelBody = document.querySelector('.inner-keep-panel__body');
+        const previews = [...document.querySelectorAll(
+          '.inner-keep-panel img.inner-keep-building-art'
+        )];
         return {
+          builderRect: rect(builder),
+          headerRect: rect(header),
           panelLabel: panel?.querySelector('#inner-keep-panel-title')
             ?.textContent?.trim() ?? null,
-          selected: control?.getAttribute('aria-pressed') === 'true'
+          panelRect: rect(panel),
+          panelTouchAction: panelBody instanceof HTMLElement
+            ? getComputedStyle(panelBody).touchAction
+            : null,
+          previewCount: previews.length,
+          previewsLoaded: previews.length === 4 && previews.every((preview) => (
+            preview instanceof HTMLImageElement
+            && preview.complete
+            && preview.naturalWidth === 320
+            && preview.naturalHeight === 320
+            && new URL(preview.currentSrc || preview.src).origin === location.origin
+            && /\\/images\\/inner-keep\\/catalog\\/[a-z-]+-[a-f0-9]{16}\\.png$/
+              .test(new URL(preview.currentSrc || preview.src).pathname)
+          )),
+          resourcesRect: rect(resources),
+          selected: control?.getAttribute('aria-pressed') === 'true',
         };
       })()`,
       returnByValue: true,
     }));
-    if (activation?.selected === true && activation.panelLabel === 'West Courtyard') return;
+    if (activation?.selected === true && activation.panelLabel === 'West Courtyard') {
+      panelObserved = true;
+      const panelRect = activation.panelRect;
+      const headerRect = activation.headerRect;
+      const resourcesRect = activation.resourcesRect;
+      const builderRect = activation.builderRect;
+      const validRects = [panelRect, headerRect, resourcesRect, builderRect].every((rect) => (
+        rect !== null
+        && typeof rect === 'object'
+        && ['bottom', 'left', 'right', 'top'].every((key) => Number.isFinite(rect[key]))
+      ));
+      if (!validRects || activation.panelTouchAction !== 'pan-y') {
+        throw new Error(`Inner Keep ${geometryCase.id} panel geometry was invalid.`);
+      }
+      const clearsPanel = geometryCase.mode === 'side'
+        ? [headerRect, resourcesRect, builderRect].every((rect) => (
+            rect.right <= panelRect.left + 0.5
+          ))
+        : headerRect.bottom <= panelRect.top + 0.5
+          && resourcesRect.bottom <= panelRect.top + 0.5
+          && panelRect.left >= -0.5
+          && panelRect.right <= geometryCase.viewport.width + 0.5;
+      if (!clearsPanel) {
+        throw new Error(`Inner Keep ${geometryCase.id} panel covered global town chrome.`);
+      }
+      if (activation.previewCount !== 4) {
+        throw new Error('Inner Keep catalogue did not render four reviewed previews.');
+      }
+      if (activation.previewsLoaded === true) return;
+    }
     await delay(POLL_MILLISECONDS);
+  }
+  if (panelObserved) {
+    throw new Error('Inner Keep reviewed catalogue previews did not load.');
   }
   throw new Error('Inner Keep WebGL native Enter activation did not open the site.');
 }
@@ -572,7 +670,17 @@ export async function runInnerKeepBrowserProbe(options = {}) {
         await captureVerifiedScenarioScreenshot(devtools, probeCase);
       }
       if (probeCase.id === 'empty') {
-        await exerciseWebglNativeKeyboardActivation(devtools);
+        for (const [index, geometryCase] of PANEL_GEOMETRY_CASES.entries()) {
+          const geometryProbeCase = Object.freeze({
+            ...probeCase,
+            viewport: geometryCase.viewport,
+          });
+          if (index > 0) {
+            await navigateCase(devtools, geometryProbeCase);
+            await waitForEvidence(devtools, geometryProbeCase);
+          }
+          await exerciseWebglNativeKeyboardActivation(devtools, geometryCase);
+        }
       }
       if (probeCase.id === 'completion-reveal') {
         await observeCompletionReveal(devtools, probeCase);

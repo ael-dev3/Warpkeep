@@ -530,7 +530,7 @@ The complete actor list, archive and manifest pins, per-file hashes, LODs,
 triangle counts, clip sets, installation policy, and exact authorization are in
 the dated [Inner Keep population selection record](docs/reference/assets/2026-08-04-inner-keep-population/).
 
-## Inner Keep Lowlands Rabbit wildlife
+## Lowlands Rabbit wildlife runtime
 
 The public Warpkeep-Assets release
 [`rabbit-runtime-ui-bundle-2026-07-30`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/rabbit-runtime-ui-bundle-2026-07-30)
@@ -545,12 +545,15 @@ no separate open-license grant asserted. Its source status is
 
 On 2026-08-04, Ael instructed Warpkeep to use the official Lowlands Rabbit
 outside the Inner Keep so the surrounding world feels alive. That instruction
-authorizes the exact High, Balanced, and Compact content-addressed GLBs under
-`public/models/hegemony/inner-keep/wildlife/rabbit/` for the public
-`ael-dev3/Warpkeep` repository and official `warpkeep.com` client. It does not
-relicense the source archive, authorize unrelated reuse or substitute files,
-or approve activation, merge, or deployment. The files remain
-`LicenseRef-Warpkeep-Provenance-Required`.
+authorizes the exact content-addressed High and Balanced GLBs under
+`public/models/hegemony/inner-keep/wildlife/rabbit/` and the shared Compact GLB
+at
+`public/models/hegemony/environment/wildlife/rabbit/hegemony-lowlands-rabbit-compact-2ecc7b1adf4c1d79.glb`
+for the public `ael-dev3/Warpkeep` repository and official `warpkeep.com`
+client. The shared path is an organizational runtime coordinate, not a broader
+license. This authorization does not relicense the source archive, authorize
+unrelated reuse or substitute files, or approve activation, merge, or
+deployment. The files remain `LicenseRef-Warpkeep-Provenance-Required`.
 
 Rabbit models and animations are optional client presentation only. They do
 not define animal population, collision, pathing, resources, rewards,

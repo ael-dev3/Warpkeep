@@ -1,10 +1,12 @@
+import { REALM_RABBIT_RUNTIME_ASSET } from '../realm/realmRabbitRuntimeAsset';
+
 /**
  * Immutable, content-addressed Lowlands Rabbit catalog. These files are
  * optional presentation media only: model selection cannot establish animal
  * population, collision, resources, rewards, ownership, or world authority.
  */
 export const INNER_KEEP_RABBIT_RUNTIME_SELECTION_DIGEST =
-  '58cab83f4c4e1773012d2b099da5b05ab3fa857d6e8395710e60cd4db337b958';
+  '39ff0df2a78e475f1a8caaeac3fe48505c812905e894fe9eb282f01deb1a7eb0';
 
 export const INNER_KEEP_RABBIT_RUNTIME_LODS = Object.freeze([
   'high',
@@ -60,12 +62,11 @@ export const INNER_KEEP_RABBIT_RUNTIME_ASSETS: Readonly<Record<
     animations: INNER_KEEP_RABBIT_ANIMATION_CLIPS,
   }),
   compact: Object.freeze({
-    path: 'models/hegemony/inner-keep/wildlife/rabbit/'
-      + 'inner-keep-lowlands-rabbit-compact-2ecc7b1adf4c1d79.glb',
-    bytes: 14_808,
-    sha256: '2ecc7b1adf4c1d79b7ca2d5ea9a6727ed3f6d9072047466082bb912d34ea930c',
-    triangles: 146,
-    uploadedVertices: 384,
+    path: REALM_RABBIT_RUNTIME_ASSET.path,
+    bytes: REALM_RABBIT_RUNTIME_ASSET.bytes,
+    sha256: REALM_RABBIT_RUNTIME_ASSET.sha256,
+    triangles: REALM_RABBIT_RUNTIME_ASSET.triangles,
+    uploadedVertices: REALM_RABBIT_RUNTIME_ASSET.uploadedVertices,
     drawCalls: 1,
     rigged: false,
     animations: Object.freeze([]),

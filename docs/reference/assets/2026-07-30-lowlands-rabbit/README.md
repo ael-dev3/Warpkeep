@@ -34,6 +34,13 @@ embedded vertex-color material and have no external texture dependency.
 The 2048px UI image is intentionally excluded. The exterior scene needs only
 the three runtime GLBs, so unused UI media is not copied into Warpkeep.
 
+The rigged High and Balanced files remain under the Inner Keep wildlife
+directory because this selection is their only current consumer. The Compact
+static file uses the shared environment-wildlife coordinate so Realm and Inner
+Keep presentation can consume the same content-addressed bytes without keeping
+duplicate runtime files. That shared coordinate does not broaden the recorded
+license or runtime-use authorization.
+
 ## Reproduce and verify locally
 
 Place the exact trusted release manifest at

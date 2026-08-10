@@ -3,7 +3,7 @@
   "selectionId": "inner-keep-lowlands-rabbit-v1",
   "recordedAt": "2026-08-04",
   "selectionDigestAlgorithm": "sha256-ecmascript-canonical-json-v1",
-  "selectionDigestSha256": "58cab83f4c4e1773012d2b099da5b05ab3fa857d6e8395710e60cd4db337b958",
+  "selectionDigestSha256": "39ff0df2a78e475f1a8caaeac3fe48505c812905e894fe9eb282f01deb1a7eb0",
   "authorization": {
     "archiveDistributionAuthorized": true,
     "officialRepositoryRuntimeUseAuthorized": true,
@@ -152,7 +152,7 @@
       "tier": "LOD2_Compact",
       "mode": "static",
       "sourcePath": "Warpkeep_Rabbit_Runtime_UI_Bundle/Runtime/Environment/Wildlife/Rabbit/Warpkeep_Rabbit_LOD2_Compact_Static_Runtime.glb",
-      "destinationPath": "public/models/hegemony/inner-keep/wildlife/rabbit/inner-keep-lowlands-rabbit-compact-2ecc7b1adf4c1d79.glb",
+      "destinationPath": "public/models/hegemony/environment/wildlife/rabbit/hegemony-lowlands-rabbit-compact-2ecc7b1adf4c1d79.glb",
       "bytes": 14808,
       "sha256": "2ecc7b1adf4c1d79b7ca2d5ea9a6727ed3f6d9072047466082bb912d34ea930c",
       "triangles": 146,

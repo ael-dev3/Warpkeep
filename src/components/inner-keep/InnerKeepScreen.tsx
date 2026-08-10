@@ -9,6 +9,7 @@ import {
 import {
   INNER_KEEP_RESOURCE_ORDER,
   innerKeepPresentationIntegrity,
+  innerKeepBasisPointsPercentCopy,
   isInnerKeepProjectNoCommitError,
   innerKeepQuoteAffordable,
   innerKeepQuoteBlockedReason,
@@ -22,6 +23,8 @@ import {
   type StartInnerKeepProject
 } from './innerKeepPresentation';
 import { emitWarpkeepSfx } from '../audio/sfxEvents';
+import { useRealmRemainingDuration } from '../realm/realmAuthoritySchedule';
+import { formatCompactRealmResourceQuantity } from '../realm/realmResourcePresentation';
 import './InnerKeepScreen.css';
 
 const RESOURCE_COPY: Readonly<Record<InnerKeepResource, Readonly<{
@@ -52,6 +55,22 @@ type SubmissionState = Readonly<{
   phase: 'submitting' | 'awaiting-authority' | 'uncertain';
 }>;
 
+function otherSubmissionButtonCopy(submission: SubmissionState) {
+  if (submission.phase === 'submitting') return 'ANOTHER REQUEST SUBMITTING';
+  if (submission.phase === 'uncertain') return 'ANOTHER REQUEST NEEDS STATUS';
+  return 'ANOTHER REQUEST PENDING';
+}
+
+function otherSubmissionStatusCopy(submission: SubmissionState) {
+  if (submission.phase === 'submitting') {
+    return 'Another construction request is still being submitted. This action remains sealed until authoritative state changes.';
+  }
+  if (submission.phase === 'uncertain') {
+    return 'Another construction request has an uncertain result. This action remains sealed until authoritative state changes. Check its status before trying again.';
+  }
+  return 'Another construction request is waiting for authoritative Realm confirmation. This action remains sealed until authoritative state changes.';
+}
+
 export type InnerKeepScreenProps = Readonly<{
   presentation: InnerKeepPresentation;
   selectedSlotId?: string;
@@ -71,17 +90,7 @@ function publicAssetUrl(path: string) {
 }
 
 function compactQuantity(value: bigint) {
-  const absolute = value < 0n ? -value : value;
-  const sign = value < 0n ? '-' : '';
-  if (absolute < 1_000n) return `${value}`;
-  if (absolute < 1_000_000n) {
-    const whole = absolute / 1_000n;
-    const decimal = (absolute % 1_000n) / 100n;
-    return `${sign}${whole}${decimal > 0n ? `.${decimal}` : ''}k`;
-  }
-  const whole = absolute / 1_000_000n;
-  const decimal = (absolute % 1_000_000n) / 100_000n;
-  return `${sign}${whole}${decimal > 0n ? `.${decimal}` : ''}m`;
+  return formatCompactRealmResourceQuantity(value) ?? value.toString();
 }
 
 function exactQuantity(value: bigint) {
@@ -102,33 +111,12 @@ function durationCopy(durationMicros: bigint) {
   return parts.join(' ') || 'Less than one minute';
 }
 
-function basisPointsPercentCopy(basisPoints: number) {
-  const whole = Math.floor(basisPoints / 100);
-  const fraction = basisPoints % 100;
-  return fraction === 0
-    ? `${whole}%`
-    : `${whole}.${String(fraction).padStart(2, '0').replace(/0+$/, '')}%`;
-}
-
 function completedEffectCopy(entry: InnerKeepCatalogueEntry, completedLevel: number) {
   const basisPoints = Math.min(
     entry.discountCapBasisPoints,
     entry.discountBasisPointsPerLevel * completedLevel
   );
-  return `${RESOURCE_COPY[entry.matchingDiscountResource].label} construction costs -${basisPointsPercentCopy(basisPoints)}.`;
-}
-
-function remainingCopy(completesAtMicros: bigint, nowMilliseconds: number) {
-  const nowMicros = BigInt(Math.max(0, Math.trunc(nowMilliseconds))) * 1_000n;
-  if (completesAtMicros <= nowMicros) return 'FINALIZING WITH THE REALM…';
-  const remaining = completesAtMicros - nowMicros;
-  const minutes = (remaining + 59_999_999n) / 60_000_000n;
-  const days = minutes / (24n * 60n);
-  const hours = (minutes % (24n * 60n)) / 60n;
-  const minuteRemainder = minutes % 60n;
-  if (days > 0n) return `${days}d ${hours}h remaining`;
-  if (hours > 0n) return `${hours}h ${minuteRemainder}m remaining`;
-  return `${minuteRemainder}m remaining`;
+  return `${RESOURCE_COPY[entry.matchingDiscountResource].label} construction costs -${innerKeepBasisPointsPercentCopy(basisPoints)}.`;
 }
 
 function dateTimeForMicros(value: bigint) {
@@ -136,17 +124,6 @@ function dateTimeForMicros(value: bigint) {
   if (milliseconds < 0n || milliseconds > BigInt(Number.MAX_SAFE_INTEGER)) return undefined;
   const date = new Date(Number(milliseconds));
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
-}
-
-function useCoarseClock(active: boolean) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!active) return undefined;
-    setNow(Date.now());
-    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => window.clearInterval(timer);
-  }, [active]);
-  return now;
 }
 
 function buildingLabel(
@@ -197,7 +174,7 @@ function BuildingArt({ entry }: Readonly<{ entry?: InnerKeepCatalogueEntry }>) {
       className="inner-keep-building-art"
       decoding="async"
       draggable="false"
-      src={entry.previewUrl}
+      src={publicAssetUrl(entry.previewUrl)}
     />
   ) : (
     <span aria-hidden="true" className="inner-keep-building-art-fallback">
@@ -397,7 +374,11 @@ export function InnerKeepScreen({
   const [announcement, setAnnouncement] = useState('');
   const priorBuildingPhasesRef = useRef<Map<string, string> | null>(null);
   const authoritySignature = projectAuthoritySignature(presentation);
-  const now = useCoarseClock(presentation.builder.state === 'busy');
+  const builderRemaining = useRealmRemainingDuration(
+    presentation.builder.state === 'busy'
+      ? presentation.builder.completesAtMicros
+      : undefined,
+  );
 
   useEffect(() => {
     headingRef.current?.focus({ preventScroll: true });
@@ -744,7 +725,7 @@ export function InnerKeepScreen({
         }}
         type="button"
       >
-        <span aria-hidden="true" className="inner-keep-builder__crest">⚒</span>
+        <span aria-hidden="true" className="inner-keep-builder__crest" />
         <span>
           <small>{presentation.builder.state === 'idle'
             ? 'BUILDER AVAILABLE'
@@ -759,7 +740,7 @@ export function InnerKeepScreen({
               )} · Building Level ${presentation.builder.targetLevel}`}</strong>
           {presentation.builder.state === 'busy' ? (
             <time dateTime={dateTimeForMicros(presentation.builder.completesAtMicros)}>
-              {remainingCopy(presentation.builder.completesAtMicros, now)}
+              {builderRemaining ?? 'Awaiting Realm update'}
             </time>
           ) : null}
         </span>
@@ -782,7 +763,7 @@ export function InnerKeepScreen({
                     : selectedSlot.label}
               </h2>
             </div>
-            <button aria-label="Back" onClick={onBack} type="button">×</button>
+            <button aria-label="Close Inner Keep panel" onClick={onBack} type="button">×</button>
           </header>
 
           <div className="inner-keep-panel__body">
@@ -823,6 +804,8 @@ export function InnerKeepScreen({
                     ? 'SUBMITTING…'
                     : selectedSubmission
                       ? 'AWAITING REALM STATUS'
+                      : submission
+                        ? otherSubmissionButtonCopy(submission)
                       : 'START CONSTRUCTION'}
                 </button>
                 {startDisabled ? (
@@ -831,12 +814,14 @@ export function InnerKeepScreen({
                       ? selectedSubmission.phase === 'uncertain'
                         ? 'The result is uncertain. This action remains sealed until authoritative state changes.'
                         : 'Waiting for the authoritative construction record.'
+                      : submission
+                        ? otherSubmissionStatusCopy(submission)
                       : !onStartProject
                         ? 'Construction is not active on this backend.'
                         : commandBlockedReason}
                   </p>
                 ) : null}
-                {selectedSubmission && !statusCheckRequired && onRequestSync ? (
+                {submission && !statusCheckRequired && onRequestSync ? (
                   <button disabled={syncPending} onClick={checkStatus} type="button">
                     {syncPending ? 'CHECKING…' : 'CHECK STATUS'}
                   </button>
@@ -851,7 +836,7 @@ export function InnerKeepScreen({
                 <strong>Building Level {selectedBuilding.targetLevel}</strong>
                 {selectedBuilding.completesAtMicros !== undefined ? (
                   <time dateTime={dateTimeForMicros(selectedBuilding.completesAtMicros)}>
-                    {remainingCopy(selectedBuilding.completesAtMicros, now)}
+                    {builderRemaining ?? 'Awaiting Realm update'}
                   </time>
                 ) : null}
                 <p>The Realm completes this project automatically. No claim action is needed.</p>

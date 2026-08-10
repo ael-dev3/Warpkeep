@@ -96,6 +96,10 @@ describe('Inner Keep caller-bound projection', () => {
     expect(resolved?.presentation.castleId).toBe(7n);
     expect(resolved?.presentation.slots).toHaveLength(12);
     expect(resolved?.presentation.catalogue).toHaveLength(4);
+    expect(resolved?.presentation.catalogue.every((entry) => (
+      /^images\/inner-keep\/catalog\/[a-z-]+-[a-f0-9]{16}\.png$/
+        .test(entry.previewUrl ?? '')
+    ))).toBe(true);
     expect(resolved?.presentation.quotes).toHaveLength(48);
     expect(resolved?.presentation.resources.available.food).toBe(400n);
     expect(resolved?.presentation.resources.pending?.food).toBe(1_000n);

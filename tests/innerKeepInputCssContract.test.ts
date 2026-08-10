@@ -56,4 +56,44 @@ describe('Inner Keep WebGL input CSS', () => {
     );
     expect(activeCanvas).toContain('pointer-events: auto;');
   });
+
+  it('keeps global chrome clear of the project drawer in desktop and short landscape', () => {
+    const css = readFileSync(
+      resolve(root, 'src/components/inner-keep/InnerKeepScreen.css'),
+      'utf8'
+    );
+    expect(css).toContain(
+      '.inner-keep:has(.inner-keep-panel) .inner-keep__header,'
+    );
+    expect(css).toContain(
+      '.inner-keep:has(.inner-keep-panel) .inner-keep__resources {'
+    );
+    expect(css).toContain(
+      'margin-right: var(--inner-keep-side-panel-reserve);'
+    );
+    expect(css).toContain(
+      '+ max(0.55rem, var(--realm-safe-right, 0px))'
+    );
+    expect(css).toContain(
+      '.inner-keep:has(.inner-keep-panel) .inner-keep-builder {'
+    );
+    const shortLandscape = css.slice(css.indexOf(
+      '@media (max-height: 600px) and (min-width: 581px)'
+    ));
+    expect(shortLandscape).toContain(
+      'grid-template-rows: auto auto minmax(0, 1fr) auto;'
+    );
+    const resourceRule = ruleBody(shortLandscape, '.inner-keep__resources');
+    expect(resourceRule).toContain('position: relative;');
+    expect(resourceRule).not.toContain('position: absolute;');
+    expect(shortLandscape).toContain(
+      '.inner-keep:has(.inner-keep-panel) .inner-keep__stage,'
+    );
+    expect(shortLandscape).toContain(
+      '.inner-keep:has(.inner-keep-panel) .inner-keep-builder,'
+    );
+    expect(shortLandscape).toContain(
+      'calc(100% - var(--inner-keep-side-panel-reserve) - 1rem)'
+    );
+  });
 });

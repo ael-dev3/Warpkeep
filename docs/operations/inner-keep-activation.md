@@ -169,9 +169,9 @@ Dry runs still return before credential access, network access, or snapshotting.
 Future activation also requires `--expected-castles`, `--client-release`,
 `--client-artifact-digest`, `--module-artifact-digest`, and `--source-commit`.
 Even with `--confirm`, it fails before reading a credential or using the network
-until both exact runtime-use authorizations are recorded, all selected static
-and population files form the exact combined registry, and the local artifacts
-come from clean protected `main`. Deactivation similarly binds
+until all three exact runtime-use authorizations are recorded, all selected
+static, population, and rabbit files form the exact combined registry, and the
+local artifacts come from clean protected `main`. Deactivation similarly binds
 `--expected-castles` and
 `--expected-active-projects` to a fresh preflight. The deactivation reducer
 rechecks both counts and the active state in its own transaction, immediately

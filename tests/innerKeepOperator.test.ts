@@ -752,6 +752,11 @@ describe('Inner Keep operator safety gates', () => {
   });
 
   it('accepts all owner-authorized exact runtime registries', () => {
+    expect(new Set([
+      ...INNER_KEEP_PLANNED_RUNTIME_PATHS,
+      ...INNER_KEEP_POPULATION_RUNTIME_PATHS,
+      ...INNER_KEEP_RABBIT_RUNTIME_PATHS,
+    ]).size).toBe(163);
     expect(() => verifyAuthorizedInnerKeepRuntimeRegistry()).not.toThrow();
   });
 

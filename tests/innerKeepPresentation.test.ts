@@ -11,6 +11,7 @@ import {
 import {
   INNER_KEEP_PROJECT_REVISION_MAX,
   INNER_KEEP_SLOT_COUNT,
+  innerKeepCatalogueEffectCopy,
   innerKeepPresentationIntegrity,
   innerKeepQuoteAffordable,
   innerKeepQuoteBlockedReason
@@ -18,6 +19,12 @@ import {
 import { createInnerKeepPresentation } from './fixtures/innerKeepPresentation';
 
 describe('Inner Keep presentation boundary', () => {
+  it('derives catalogue effect copy from the reviewed policy values', () => {
+    expect(innerKeepCatalogueEffectCopy('stone', 375, 1_875)).toBe(
+      'Each completed level lowers future Stone costs by 3.75%, up to 18.75%.'
+    );
+  });
+
   it('keeps the browser-pinned layout byte-for-byte aligned with v15 policy', () => {
     expect(INNER_KEEP_LAYOUT_V1_DIGEST).toBe(INNER_KEEP_LAYOUT_DIGEST);
     expect(INNER_KEEP_LAYOUT_V1_SLOTS).toEqual(CANONICAL_INNER_KEEP_SLOTS.map((slot) => ({

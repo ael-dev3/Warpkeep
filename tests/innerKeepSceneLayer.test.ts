@@ -444,19 +444,22 @@ describe('procedural Inner Keep scene layer', () => {
         }
       }
 
-      const grass = layer.scene.getObjectByName(
-        'inner-keep-dense-grass',
-      ) as THREE.InstancedMesh;
       const matrix = new THREE.Matrix4();
       const position = new THREE.Vector3();
-      for (let index = 0; index < grass.count; index += 1) {
-        grass.getMatrixAt(index, matrix);
-        position.setFromMatrixPosition(matrix);
-        expect(position.y, `grass:${index}`).toBeCloseTo(
-          terrainHeightAt(position.x, position.z) + 0.115,
-          5,
-        );
-      }
+      layer.scene.traverse((object) => {
+        if (
+          !(object instanceof THREE.InstancedMesh)
+          || !object.name.startsWith('inner-keep-dense-grass')
+        ) return;
+        for (let index = 0; index < object.count; index += 1) {
+          object.getMatrixAt(index, matrix);
+          position.setFromMatrixPosition(matrix);
+          expect(position.y, `${object.name}:${index}`).toBeCloseTo(
+            terrainHeightAt(position.x, position.z),
+            5,
+          );
+        }
+      });
 
       const rabbitBodies = layer.scene.getObjectByName(
         'inner-keep-outer-rabbit-bodies',

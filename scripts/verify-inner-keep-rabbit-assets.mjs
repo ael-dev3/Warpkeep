@@ -7,12 +7,12 @@ import {
   readFileSync,
   readdirSync,
 } from 'node:fs';
-import { join, relative, resolve, sep } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import {
   INNER_KEEP_RABBIT_MODELS,
-  INNER_KEEP_RABBIT_RUNTIME_DIRECTORY,
+  INNER_KEEP_RABBIT_RUNTIME_DIRECTORIES,
   INNER_KEEP_RABBIT_RUNTIME_PATHS,
   INNER_KEEP_RABBIT_SELECTION,
   INNER_KEEP_RABBIT_SELECTION_DIGEST,
@@ -22,7 +22,6 @@ import {
 } from './inner-keep-rabbit-runtime-contract.mjs';
 
 const ROOT = resolve(import.meta.dirname, '..');
-const PRODUCTION_DIRECTORY = INNER_KEEP_RABBIT_RUNTIME_DIRECTORY.replace(/^public\//u, '');
 
 function fail(detail) {
   throw new Error(`Inner Keep rabbit runtime verification: ${detail}`);
@@ -117,19 +116,34 @@ export function verifyInnerKeepRabbitRuntimeInstall(options = {}) {
     || INNER_KEEP_RABBIT_MODELS.length !== 3
     || INNER_KEEP_RABBIT_RUNTIME_PATHS.length !== 3
     || new Set(INNER_KEEP_RABBIT_RUNTIME_PATHS).size !== 3
+    || INNER_KEEP_RABBIT_RUNTIME_DIRECTORIES.length !== 2
+    || new Set(INNER_KEEP_RABBIT_RUNTIME_DIRECTORIES).size !== 2
   ) fail('exact selection digest or allowlist cardinality changed.');
   const production = mode === 'production-dist';
   const outputRoot = resolve(options.outputRoot ?? (production ? resolve(ROOT, 'dist') : ROOT));
-  const directory = production ? PRODUCTION_DIRECTORY : INNER_KEEP_RABBIT_RUNTIME_DIRECTORY;
-  assertOrdinaryDirectoryChain(outputRoot, directory);
   const expectedPaths = INNER_KEEP_RABBIT_RUNTIME_PATHS.map((path) => (
     production ? path.replace(/^public\//u, '') : path
   )).sort();
-  const observedPaths = collectRegularFiles(outputRoot, directory).sort();
-  if (
-    observedPaths.length !== expectedPaths.length
-    || observedPaths.some((path, index) => path !== expectedPaths[index])
-  ) fail(`installed ${mode} output does not match the exact three-file allowlist.`);
+  const expectedDirectories = INNER_KEEP_RABBIT_RUNTIME_DIRECTORIES.map((directory) => (
+    production ? directory.replace(/^public\//u, '') : directory
+  )).sort();
+  for (const directory of expectedDirectories) {
+    assertOrdinaryDirectoryChain(outputRoot, directory);
+    const expectedDirectoryPaths = expectedPaths
+      .filter((path) => dirname(path) === directory)
+      .sort();
+    const observedPaths = collectRegularFiles(outputRoot, directory).sort();
+    if (
+      expectedDirectoryPaths.length === 0
+      || observedPaths.length !== expectedDirectoryPaths.length
+      || observedPaths.some((path, index) => path !== expectedDirectoryPaths[index])
+    ) {
+      fail(
+        `installed ${mode} output does not match the exact three-file allowlist `
+          + 'across its two leaf directories.',
+      );
+    }
+  }
 
   let totalBytes = 0;
   for (const model of INNER_KEEP_RABBIT_MODELS) {

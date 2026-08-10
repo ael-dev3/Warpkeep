@@ -27,6 +27,7 @@ import {
   INNER_KEEP_RABBIT_RUNTIME_SELECTION_DIGEST,
   innerKeepRabbitLodForQuality,
 } from '../src/components/inner-keep/innerKeepRabbitRuntimeAssets';
+import { REALM_RABBIT_RUNTIME_ASSET } from '../src/components/realm/realmRabbitRuntimeAsset';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const temporaryDirectories: string[] = [];
@@ -51,7 +52,7 @@ function productionFixture() {
 describe('Inner Keep Lowlands Rabbit runtime selection', () => {
   it('pins the exact release, narrow authorization, and three-model budget', () => {
     expect(INNER_KEEP_RABBIT_SELECTION_DIGEST).toBe(
-      '58cab83f4c4e1773012d2b099da5b05ab3fa857d6e8395710e60cd4db337b958',
+      '39ff0df2a78e475f1a8caaeac3fe48505c812905e894fe9eb282f01deb1a7eb0',
     );
     expect(calculateInnerKeepRabbitSelectionDigest(INNER_KEEP_RABBIT_SELECTION)).toBe(
       INNER_KEEP_RABBIT_SELECTION_DIGEST,
@@ -114,6 +115,13 @@ describe('Inner Keep Lowlands Rabbit runtime selection', () => {
     expect(innerKeepRabbitLodForQuality('balanced', false)).toBe('balanced');
     expect(innerKeepRabbitLodForQuality('high', true)).toBe('compact');
     expect(innerKeepRabbitLodForQuality('reduced', false)).toBe('compact');
+    expect(INNER_KEEP_RABBIT_RUNTIME_ASSETS.compact).toMatchObject({
+      path: REALM_RABBIT_RUNTIME_ASSET.path,
+      bytes: REALM_RABBIT_RUNTIME_ASSET.bytes,
+      sha256: REALM_RABBIT_RUNTIME_ASSET.sha256,
+      triangles: REALM_RABBIT_RUNTIME_ASSET.triangles,
+      uploadedVertices: REALM_RABBIT_RUNTIME_ASSET.uploadedVertices,
+    });
   });
 
   it('verifies every installed GLB, including rig, clips, vertices, and triangles', () => {
@@ -136,7 +144,7 @@ describe('Inner Keep Lowlands Rabbit runtime selection', () => {
     }
   });
 
-  it('maps the exact allowlist into production and rejects an unexpected file', () => {
+  it('maps the exact allowlist into production and rejects extras in either leaf', () => {
     const outputRoot = productionFixture();
     expect(verifyInnerKeepRabbitRuntimeInstall({
       mode: 'production-dist',
@@ -147,6 +155,16 @@ describe('Inner Keep Lowlands Rabbit runtime selection', () => {
       'models/hegemony/inner-keep/wildlife/rabbit/unreviewed.glb',
     );
     writeFileSync(extra, 'not authorized', 'utf8');
+    expect(() => verifyInnerKeepRabbitRuntimeInstall({
+      mode: 'production-dist',
+      outputRoot,
+    })).toThrow(/three-file allowlist/i);
+    rmSync(extra);
+    const sharedExtra = resolve(
+      outputRoot,
+      'models/hegemony/environment/wildlife/rabbit/unreviewed.glb',
+    );
+    writeFileSync(sharedExtra, 'not authorized', 'utf8');
     expect(() => verifyInnerKeepRabbitRuntimeInstall({
       mode: 'production-dist',
       outputRoot,
@@ -164,7 +182,7 @@ describe('Inner Keep Lowlands Rabbit runtime selection', () => {
     expect(packageJson.scripts['prepare:inner-keep-rabbit-assets'])
       .toBe('node scripts/install-inner-keep-rabbit-assets.mjs --install');
     const notice = readFileSync(resolve(ROOT, 'ASSETS-LICENSE.md'), 'utf8');
-    expect(notice).toContain('Inner Keep Lowlands Rabbit wildlife');
+    expect(notice).toContain('Lowlands Rabbit wildlife runtime');
     expect(notice).toContain('public-archive-authorized-no-separate-open-license');
     expect(notice).toContain('LicenseRef-Warpkeep-Provenance-Required');
     expect(notice).toMatch(/do\s+not define animal population/u);

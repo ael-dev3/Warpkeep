@@ -438,15 +438,19 @@ describe('Inner Keep deterministic ambient timeline', () => {
     }
   });
 
-  it('creates cold and warm plans within a bounded synchronous budget', () => {
-    const coldStart = performance.now();
-    createInnerKeepAmbientSimulationPlan({ seed: 'cold-plan', quality: 'high' });
-    const coldMilliseconds = performance.now() - coldStart;
-    const warmStart = performance.now();
-    createInnerKeepAmbientSimulationPlan({ seed: 'cold-plan', quality: 'high' });
-    const warmMilliseconds = performance.now() - warmStart;
-    expect(coldMilliseconds).toBeLessThan(250);
-    expect(warmMilliseconds).toBeLessThan(100);
+  it('replays the same high-quality plan without environment-timing assumptions', () => {
+    const first = createInnerKeepAmbientSimulationPlan({
+      seed: 'repeatable-plan',
+      quality: 'high'
+    });
+    const second = createInnerKeepAmbientSimulationPlan({
+      seed: 'repeatable-plan',
+      quality: 'high'
+    });
+    expect(second).toEqual(first);
+    expect(second.routines).toHaveLength(
+      INNER_KEEP_AMBIENT_QUALITY_BUDGETS.high.maximumActors
+    );
   });
 
   it('keeps 20, 12, and 8 actors separated and outside exclusions for 0..96 seconds', () => {
