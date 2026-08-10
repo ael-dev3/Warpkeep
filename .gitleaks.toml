@@ -12,6 +12,14 @@ regexes = ['''^4a9977d2-c7c4-4d63-8e65-f28f966c0c33$''']
 paths = ['''^tests/warpkeepConnection\.test\.ts$''']
 
 [[allowlists]]
+description = "One public canonical Inner Keep slot ID used in a stateful reducer fixture"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^inner-keep-slot-m01$''']
+paths = ['''^spacetimedb/tests/innerKeepProjectLifecycleStateful\.test\.ts$''']
+
+[[allowlists]]
 description = "Public Farcaster custody address inside the signed domain-association header"
 targetRules = ["generic-api-key"]
 condition = "AND"

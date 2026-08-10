@@ -498,12 +498,12 @@ test('twenty serialized same-key retries reuse one receipt', () => {
 
 test('idempotent retries bind the accepted target while ignoring later CAS drift', () => {
   const fixture = makeFixture();
-  const key = requestKey('same-command-target');
-  fixture.start('city-mill', key);
+  const requestCorrelation = requestKey('same-command-target');
+  fixture.start('city-mill', requestCorrelation);
   const afterFirst = fixture.snapshot();
 
   assert.throws(
-    () => fixture.start('city-mill', key, 'inner-keep-slot-m01', {
+    () => fixture.start('city-mill', requestCorrelation, 'inner-keep-slot-m01', {
       expectedTargetLevel: 2,
       expectedProjectRevision: fixture.projectRevision().toString(),
     }),
@@ -511,7 +511,7 @@ test('idempotent retries bind the accepted target while ignoring later CAS drift
   );
   assert.deepEqual(fixture.snapshot(), afterFirst);
 
-  const replay = fixture.start('city-mill', key, 'inner-keep-slot-m01', {
+  const replay = fixture.start('city-mill', requestCorrelation, 'inner-keep-slot-m01', {
     expectedTargetLevel: 1,
     expectedProjectRevision: '0',
     expectedPolicyDigest: '0'.repeat(64),
