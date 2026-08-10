@@ -333,7 +333,7 @@ export function createInnerKeepTownAtmosphere(options: Readonly<{
   });
   const graveStoneMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
-    roughness: 1,
+    roughness: 0.86,
   });
   const graveTimberMaterial = new THREE.MeshStandardMaterial({
     color: INNER_KEEP_TOWN_TONAL_PALETTE.graveyard.timber,
@@ -733,7 +733,7 @@ export function createInnerKeepTownAtmosphere(options: Readonly<{
         quaternion,
         new THREE.Vector3(0.21 * marker.scale, 0.15 * marker.scale, 0.13 * marker.scale),
       ));
-      graveCaps.setColorAt(index, stoneColor);
+      graveCaps.setColorAt(index, stoneColor.clone().offsetHSL(0, 0, 0.04));
     }
   });
   crosses.forEach((marker, index) => {

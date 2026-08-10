@@ -21,10 +21,10 @@ full engineering record.
   activation.
 - Built a living presentation around the Grand Covenant Cathedral and western
   Barracks with a larger 1,454-square-meter walled city, roomier build sites,
-  dirt wall aprons, district lanes, bright painted lower-town cottages,
-  staggered authored trees, mounted patrols, civic conversations, dense
-  wind-swept grass, deterministic clearances, bounded animation, and atomic
-  fail-safe asset loading.
+  dirt wall aprons, district lanes, bright painted lower-town cottages, warm
+  ruin-stone grave markers, staggered authored trees, mounted patrols, civic
+  conversations, dense wind-swept grass, deterministic clearances, bounded
+  animation, and atomic fail-safe asset loading.
 - Extended that presentation beyond the walls with nine named landforms, one
   connected headwater-to-lake course, a rounded terrain shoulder across a
   68 x 76 meter estate, quality-scaled fields and six-species woodland, scenic
