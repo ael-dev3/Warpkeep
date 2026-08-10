@@ -153,6 +153,16 @@ function evidenceExpression(expectedLevel) {
       terrainTriangleCount: integer('data-inner-keep-qa-terrain-triangle-count'),
       terrainHeightRangeMillimeters:
         integer('data-inner-keep-qa-terrain-height-range-millimeters'),
+      farCountrysideStatus:
+        root.getAttribute('data-inner-keep-qa-far-countryside-status'),
+      farCountrysideTerrainTriangleCount:
+        integer('data-inner-keep-qa-far-countryside-terrain-triangle-count'),
+      farCountrysideFieldParcelCount:
+        integer('data-inner-keep-qa-far-countryside-field-parcel-count'),
+      farCountrysideFieldTuftCount:
+        integer('data-inner-keep-qa-far-countryside-field-tuft-count'),
+      farCountrysideHedgerowTreeCount:
+        integer('data-inner-keep-qa-far-countryside-hedgerow-tree-count'),
       exteriorTreeCount: integer('data-inner-keep-qa-exterior-tree-count'),
       scenicResourceNodeCount:
         integer('data-inner-keep-qa-scenic-resource-node-count'),

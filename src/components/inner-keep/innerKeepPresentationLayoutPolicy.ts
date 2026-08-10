@@ -604,7 +604,7 @@ export const INNER_KEEP_PRESENTATION_CAMERA_PRESETS = Object.freeze({
   portrait: Object.freeze({
     maximumAspectExclusive: 0.78,
     baseHalfHeight: 26.4,
-    positionMeters: Object.freeze([0, 31, 34] as const),
+    positionMeters: Object.freeze([0, 47, 26] as const),
     targetMeters: Object.freeze([0, 1, -3] as const),
     initialZoomMultiplier: 0.9,
   }),
@@ -644,7 +644,7 @@ export function canonicalInnerKeepPresentationLayoutDigestInput(): string {
 
 // SHA-256 of canonicalInnerKeepPresentationLayoutDigestInput().
 export const INNER_KEEP_PRESENTATION_LAYOUT_DIGEST =
-  '0a976765d6f6e740eb6282fca90f59b412ecbd7ed382f001da89a0b7abeca756';
+  'f2f06d1362d544e0caec13f227817017b18cadd675eb00dae696b79d2d63ce04';
 
 export const CANONICAL_INNER_KEEP_PRESENTATION_LAYOUT = Object.freeze({
   ...INNER_KEEP_PRESENTATION_LAYOUT_DIGEST_PAYLOAD,

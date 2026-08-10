@@ -50,11 +50,11 @@ their exact content-addressed High/Balanced/Compact runtime paths, fixed and
 slot-relative transforms, scale, footprint, picking and clearance roles,
 quality availability, road/slot/wall clearances, and camera presets. Its
 SHA-256 digest is
-`0a976765d6f6e740eb6282fca90f59b412ecbd7ed382f001da89a0b7abeca756`.
+`f2f06d1362d544e0caec13f227817017b18cadd675eb00dae696b79d2d63ce04`.
 
 The server's compact slot-policy digest includes that presentation digest, so
 the client and activation tooling pin the combined layout digest
-`dec272175dc96085b26d2bc96125e77c6433331c698f150d80dfbbb4881ee3d7`.
+`c5bbb38f49b853e10ce61fe463cdf2428df2bad50f96e68826c26fe5fc65a534`.
 Decorative transforms remain client presentation data rather than database
 rows, and the browser never sends a transform to construction authority.
 
@@ -167,11 +167,12 @@ not instantiated visibly while the public project is constructing. If the
 model is not ready at completion, the worksite remains until it is safe to
 reveal without an empty or white frame.
 
-Portrait framing uses a front-facing fit that keeps every authored building
-and the full east drain on screen at the 390 x 844 reference viewport, with at
-least 10 CSS pixels of measured edge clearance. After the player pans or
-zooms, resize and orientation changes preserve that choice instead of snapping
-the camera back to its initial pose.
+Portrait framing uses a raised front-facing fit that keeps every authored
+building and the full east drain on screen at the 390 x 844 reference viewport.
+The camera accepts only a three-meter focus offset in either world axis. Drag
+motion is mapped through the current screen basis so horizontal and vertical
+gestures remain direct, while orientation changes select the correct camera
+rig and preserve the player's bounded focus and manual zoom intent.
 
 ## Living presentation and budgets
 
@@ -184,8 +185,18 @@ Civic routines use only Greet, Idle, Walk, and Work. Patrols use Idle and Walk;
 combat clips are excluded. Conversation bubbles and every ambient identity are
 synthetic presentation, never player chat or server state.
 
-The ecology layer now continues across a 68 x 76 meter estate with nine named
-topographic features. The complete wall footprint remains on an exact level,
+The detailed ecology layer continues across a 68 x 76 meter estate with nine
+named topographic features. A separate 192 x 288 meter, presentation-only
+countryside ring carries deterministic field colors, crop tufts, and sparse
+hedgerows into the scene fog. It shares the detailed terrain edge exactly but
+never participates in picking, navigation, resources, routes, or placement.
+Its independently reviewed presentation digest is
+`507505898f5c8117a3133273c2faf67c038d7b46726bc479e976e1f2d550e46a`;
+the digest source-binds the canonical layout before recording the overscan and
+its stricter renderer-only pan subset. The canonical portrait pose is raised
+and steepened so tall viewports keep their ground rays inside the reviewed
+near/far range instead of exposing a background edge.
+The complete wall footprint remains on an exact level,
 rounded plateau. Its five-meter corners and 5.5-meter feather blend into
 ridges, stone shelves, meadows, woodland margins, and a south-eastern lake.
 One strictly downhill watercourse runs from its north-eastern headwater, along
@@ -203,16 +214,16 @@ creating another population or claiming unit authority.
 | Quality | Actors (mounted / patrol) | Compound trees | Grass | Max active fps | Scene graph max (draws / triangles) | Renderer evidence max (draws / triangles) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | High | 20 (6 / 12) | 18 | 2,400 | 30 | 450 / 460,000 | 750 / 720,000 |
-| Balanced | 12 (4 / 6) | 12 | 1,400 | 24 | 350 / 280,000 | 384 / 270,000 |
+| Balanced | 12 (4 / 6) | 12 | 1,400 | 24 | 350 / 280,000 | 416 / 270,000 |
 | Reduced | 8 (2 / 4) | 6 | 480 | 18 | 270 / 135,000 | 260 / 130,000 |
 
 The exterior has its own quality budget:
 
-| Quality | Authored trees across six species | Scenic resource structures | Rabbits | Trade wagons |
-| --- | ---: | ---: | ---: | ---: |
-| High | 72 | 8 | 10 | 1 |
-| Balanced | 44 | 6 | 7 | 1 |
-| Reduced | 22 | 4 | 4 | 1 |
+| Quality | Authored trees across eight species | Scenic resource structures | Rabbits | Trade wagons | Far crop tufts / hedgerow trees |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| High | 72 | 8 | 10 | 1 | 240 / 24 |
+| Balanced | 44 | 6 | 7 | 1 | 144 / 16 |
+| Reduced | 22 | 4 | 4 | 1 | 72 / 8 |
 
 The four resource families and supply wagon are presentation-only uses of the
 reviewed Warpkeep-Assets runtime models. High and Balanced use their Balanced

@@ -25,6 +25,11 @@ import {
   createInnerKeepTownAtmosphere
 } from './createInnerKeepTownAtmosphere';
 import {
+  createEmptyInnerKeepFarCountryside,
+  createInnerKeepFarCountryside,
+  type InnerKeepFarCountryside
+} from './createInnerKeepFarCountryside';
+import {
   createInnerKeepPopulationPresentation,
   type InnerKeepPopulationPresentation
 } from './createInnerKeepPopulationPresentation';
@@ -70,6 +75,13 @@ import {
   INNER_KEEP_TOWN_ATMOSPHERE_POLICY_VERSION,
   INNER_KEEP_TOWN_TONAL_PALETTE
 } from './innerKeepTownAtmospherePolicy';
+import {
+  INNER_KEEP_FAR_COUNTRYSIDE_CAMERA,
+  INNER_KEEP_FAR_COUNTRYSIDE_HALF_EXTENTS_METERS,
+  INNER_KEEP_FAR_COUNTRYSIDE_POLICY_DIGEST,
+  INNER_KEEP_FAR_COUNTRYSIDE_POLICY_VERSION,
+  innerKeepFarCountrysideMinimumZoomForAspect
+} from './innerKeepFarCountrysidePolicy';
 
 export type InnerKeepSceneQuality = 'high' | 'balanced' | 'reduced';
 
@@ -94,7 +106,6 @@ export function innerKeepSceneGraphExceedsRenderBudget(
   return telemetry.drawCalls > budget.drawCalls
     || telemetry.triangleCount > budget.triangles;
 }
-
 export type InnerKeepSceneVisualContext = Readonly<{
   owningTerrainKind: RealmTerrainKind;
 }>;
@@ -121,6 +132,11 @@ export type InnerKeepSceneTelemetry = Readonly<{
   topographicFeatureCount: number;
   terrainTriangleCount: number;
   terrainHeightRangeMillimeters: number;
+  farCountrysideStatus: 'idle' | 'ready' | 'degraded';
+  farCountrysideTerrainTriangleCount: number;
+  farCountrysideFieldParcelCount: number;
+  farCountrysideFieldTuftCount: number;
+  farCountrysideHedgerowTreeCount: number;
   exteriorTreeCount: number;
   scenicResourceNodeCount: number;
   wildlifeAssetStatus: 'idle' | InnerKeepRabbitPresentationStatus;
@@ -189,6 +205,8 @@ export type CreateInnerKeepSceneLayerOptions = Readonly<{
   outerWorldAssetLoading?: 'auto' | 'disabled';
   /** Deterministic test seam; production always uses the integrity-pinned loader. */
   runtimeAssetLoader?: typeof loadInnerKeepRuntimeAssetBundle;
+  /** Test-only failure seam for the optional presentation-only horizon. */
+  farCountrysideFactory?: typeof createInnerKeepFarCountryside;
 }>;
 
 const SLOT_POSITIONS = new Map(INNER_KEEP_LAYOUT_V1_SLOTS.map((slot) => [
@@ -209,14 +227,6 @@ const SMOKE_FRAME_CAP: Readonly<Record<InnerKeepSceneQuality, number>> =
 const LIVING_FRAME_CAP: Readonly<Record<InnerKeepSceneQuality, number>> =
   Object.freeze({ high: 30, balanced: 24, reduced: 0 });
 const MAX_RUNTIME_ASSET_LOAD_ATTEMPTS = 2;
-const INNER_KEEP_OUTER_WORLD_INITIAL_ZOOM = Object.freeze({
-  landscape: 0.78,
-  portrait: 0.72
-});
-const INNER_KEEP_OUTER_WORLD_PAN_BOUNDS = Object.freeze({
-  x: Object.freeze([-14, 14] as const),
-  z: Object.freeze([-17, 14] as const)
-});
 
 function deterministicUnit(index: number, salt: number) {
   const value = Math.sin((index + 1) * 12.9898 + salt * 78.233) * 43_758.5453;
@@ -767,6 +777,12 @@ export function createInnerKeepSceneLayer(
   );
   scene.userData.innerKeepTownAtmospherePolicyVersion =
     INNER_KEEP_TOWN_ATMOSPHERE_POLICY_VERSION;
+  scene.userData.innerKeepFarCountrysidePolicyVersion = INNER_KEEP_FAR_COUNTRYSIDE_POLICY_VERSION;
+  scene.userData.innerKeepFarCountrysidePolicyDigest = INNER_KEEP_FAR_COUNTRYSIDE_POLICY_DIGEST;
+  scene.userData.innerKeepFarCountrysideHalfExtentsMeters =
+    INNER_KEEP_FAR_COUNTRYSIDE_HALF_EXTENTS_METERS;
+  scene.userData.innerKeepFarCountrysidePanBoundsMeters =
+    INNER_KEEP_FAR_COUNTRYSIDE_CAMERA.panBoundsMeters;
   const camera = new THREE.OrthographicCamera(
     -INNER_KEEP_PRESENTATION_CAMERA_PRESETS.minimumHalfWidth,
     INNER_KEEP_PRESENTATION_CAMERA_PRESETS.minimumHalfWidth,
@@ -780,7 +796,7 @@ export function createInnerKeepSceneLayer(
   let zoom: number = INNER_KEEP_PRESENTATION_CAMERA_PRESETS.zoom.initial;
   let cameraFramingMode: 'uninitialized' | 'landscape' | 'portrait' =
     'uninitialized';
-  let cameraWasManuallyAdjusted = false;
+  let zoomWasManuallyAdjusted = false;
   let viewportWidth = 1;
   let viewportHeight = 1;
   let disposed = false;
@@ -833,6 +849,11 @@ export function createInnerKeepSceneLayer(
     topographicFeatureCount: INNER_KEEP_OUTER_WORLD_TOPOGRAPHIC_FEATURES.length,
     terrainTriangleCount: 0,
     terrainHeightRangeMillimeters: 0,
+    farCountrysideStatus: 'idle',
+    farCountrysideTerrainTriangleCount: 0,
+    farCountrysideFieldParcelCount: 0,
+    farCountrysideFieldTuftCount: 0,
+    farCountrysideHedgerowTreeCount: 0,
     exteriorTreeCount: 0,
     scenicResourceNodeCount: 0,
     wildlifeAssetStatus: 'idle',
@@ -864,6 +885,58 @@ export function createInnerKeepSceneLayer(
   scene.add(staticGroup, proceduralFallbackGroup, authoredStaticGroup, ambientGroup, dynamicGroup);
   const outerTerrain = createInnerKeepOuterTerrainGeometry(options.quality);
   const renderedTerrainHeightAt = outerTerrain.heightAt;
+  let farCountryside: InnerKeepFarCountryside;
+  const recordFarCountrysideFailure = (error: unknown) => {
+    scene.userData.innerKeepFarCountrysideError =
+      error instanceof Error
+        ? error.message.slice(0, 240)
+        : 'Unknown far-countryside presentation failure.';
+  };
+  const updateFarCountrysideMetadata = () => {
+    scene.userData.innerKeepFarCountrysideStatus = farCountryside.status;
+    scene.userData.innerKeepFarCountrysideFieldParcelCount = farCountryside.fieldParcelCount;
+    scene.userData.innerKeepFarCountrysideFieldTuftCount = farCountryside.fieldTuftCount;
+    scene.userData.innerKeepFarCountrysideHedgerowTreeCount = farCountryside.hedgerowTreeCount;
+  };
+  const retireFarCountryside = (candidate: InnerKeepFarCountryside) => {
+    try {
+      candidate.group.removeFromParent();
+    } catch {
+      // The optional horizon must not block the canonical scene from mounting.
+    }
+    try {
+      candidate.dispose();
+    } catch {
+      // Continue to the bounded empty presenter even if cleanup is degraded.
+    }
+  };
+  const replaceFarCountrysideWithEmpty = (
+    candidate: InnerKeepFarCountryside | null,
+    error: unknown
+  ) => {
+    if (candidate) retireFarCountryside(candidate);
+    try {
+      outerTerrain.geometry.computeVertexNormals();
+    } catch {
+      // A failed seam stitch must not prevent the detailed terrain from loading.
+    }
+    const fallback = createEmptyInnerKeepFarCountryside();
+    staticGroup.add(fallback.group);
+    recordFarCountrysideFailure(error);
+    return fallback;
+  };
+  let farCountrysideCandidate: InnerKeepFarCountryside | null = null;
+  try {
+    farCountrysideCandidate = (options.farCountrysideFactory ?? createInnerKeepFarCountryside)(
+      options.quality
+    );
+    farCountrysideCandidate.stitchDetailedTerrainBoundaryNormals(outerTerrain.geometry);
+    staticGroup.add(farCountrysideCandidate.group);
+    farCountryside = farCountrysideCandidate;
+  } catch (error: unknown) {
+    farCountryside = replaceFarCountrysideWithEmpty(farCountrysideCandidate, error);
+  }
+  updateFarCountrysideMetadata();
   const townAtmosphere = createInnerKeepTownAtmosphere({
     quality: options.quality,
     reducedMotion: options.reducedMotion || options.quality === 'reduced',
@@ -1654,12 +1727,16 @@ export function createInnerKeepSceneLayer(
 
   const updateCamera = () => {
     const aspect = Math.max(0.2, viewportWidth / Math.max(1, viewportHeight));
-    const minimumHalfWidth = INNER_KEEP_PRESENTATION_CAMERA_PRESETS.minimumHalfWidth / zoom;
+    const effectiveZoom = Math.max(
+      innerKeepFarCountrysideMinimumZoomForAspect(aspect),
+      Math.min(INNER_KEEP_PRESENTATION_CAMERA_PRESETS.zoom.maximum, zoom)
+    );
+    const minimumHalfWidth = INNER_KEEP_PRESENTATION_CAMERA_PRESETS.minimumHalfWidth / effectiveZoom;
     const baseHalfHeight = (
       aspect < INNER_KEEP_PRESENTATION_CAMERA_PRESETS.landscape.minimumAspect
         ? INNER_KEEP_PRESENTATION_CAMERA_PRESETS.portrait.baseHalfHeight
         : INNER_KEEP_PRESENTATION_CAMERA_PRESETS.landscape.baseHalfHeight
-    ) / zoom;
+    ) / effectiveZoom;
     const halfHeight = Math.max(baseHalfHeight, minimumHalfWidth / aspect);
     const halfWidth = halfHeight * aspect;
     camera.left = -halfWidth;
@@ -1668,10 +1745,10 @@ export function createInnerKeepSceneLayer(
     camera.bottom = -halfHeight;
     const portraitFraming = cameraFramingMode === 'portrait';
     const [cameraX, cameraY, cameraZ] = portraitFraming
-      ? INNER_KEEP_PRESENTATION_CAMERA_PRESETS.portrait.positionMeters
+      ? INNER_KEEP_FAR_COUNTRYSIDE_CAMERA.portrait.positionMeters
       : INNER_KEEP_PRESENTATION_CAMERA_PRESETS.positionMeters;
     const [targetX, targetY, targetZ] = portraitFraming
-      ? INNER_KEEP_PRESENTATION_CAMERA_PRESETS.portrait.targetMeters
+      ? INNER_KEEP_FAR_COUNTRYSIDE_CAMERA.portrait.targetMeters
       : INNER_KEEP_PRESENTATION_CAMERA_PRESETS.targetMeters;
     camera.position.set(cameraX + focusX, cameraY, cameraZ + focusZ);
     camera.lookAt(targetX + focusX, targetY, targetZ + focusZ);
@@ -1685,20 +1762,18 @@ export function createInnerKeepSceneLayer(
       < INNER_KEEP_PRESENTATION_CAMERA_PRESETS.portrait.maximumAspectExclusive
       ? 'portrait'
       : 'landscape';
-    if (
-      cameraWasManuallyAdjusted
-      || cameraFramingMode === nextMode
+    if (cameraFramingMode === nextMode
     ) return;
     cameraFramingMode = nextMode;
-    const initialZoom = nextMode === 'portrait'
-      ? INNER_KEEP_OUTER_WORLD_INITIAL_ZOOM.portrait
-      : INNER_KEEP_OUTER_WORLD_INITIAL_ZOOM.landscape;
+    if (!zoomWasManuallyAdjusted) {
+      zoom = nextMode === 'portrait'
+      ? INNER_KEEP_FAR_COUNTRYSIDE_CAMERA.initialZoom.portrait
+      : INNER_KEEP_FAR_COUNTRYSIDE_CAMERA.initialZoom.landscape;
+    }
     zoom = Math.max(
       INNER_KEEP_PRESENTATION_CAMERA_PRESETS.zoom.minimum,
       Math.min(
-        INNER_KEEP_PRESENTATION_CAMERA_PRESETS.zoom.maximum,
-        initialZoom
-      )
+        INNER_KEEP_PRESENTATION_CAMERA_PRESETS.zoom.maximum, zoom)
     );
   };
   updateCamera();
@@ -1921,8 +1996,13 @@ export function createInnerKeepSceneLayer(
       outerWorldRuntimeAssetFailureCount: (outerTelemetry?.failures.length ?? 0)
         + (rabbitTelemetry?.runtimeAssetFailureCount ?? 0),
       topographicFeatureCount: INNER_KEEP_OUTER_WORLD_TOPOGRAPHIC_FEATURES.length,
-      terrainTriangleCount: outerTerrain.triangleCount,
+      terrainTriangleCount: outerTerrain.triangleCount + farCountryside.terrainTriangleCount,
       terrainHeightRangeMillimeters: outerTerrain.heightRangeMillimeters,
+      farCountrysideStatus: farCountryside.status,
+      farCountrysideTerrainTriangleCount: farCountryside.terrainTriangleCount,
+      farCountrysideFieldParcelCount: farCountryside.fieldParcelCount,
+      farCountrysideFieldTuftCount: farCountryside.fieldTuftCount,
+      farCountrysideHedgerowTreeCount: farCountryside.hedgerowTreeCount,
       exteriorTreeCount: outerTelemetry?.treeCount ?? 0,
       scenicResourceNodeCount: outerTelemetry?.resourceCount ?? 0,
       wildlifeAssetStatus: rabbitTelemetry?.status ?? 'idle',
@@ -2014,6 +2094,12 @@ export function createInnerKeepSceneLayer(
       0,
       (deterministicUnit(1, visualSeed % 10_007) - 0.5) * 0.045
     );
+    try {
+      farCountryside.setDetailedTerrainTint(groundMaterial.color);
+    } catch (error: unknown) {
+      farCountryside = replaceFarCountrysideWithEmpty(farCountryside, error);
+      updateFarCountrysideMetadata();
+    }
     dynamicGroup.add(createDeterministicYardDressing(
       visualSeed,
       context?.owningTerrainKind,
@@ -2178,6 +2264,7 @@ export function createInnerKeepSceneLayer(
       ecology = null;
       ecologySeed = null;
       townAtmosphere.dispose();
+      farCountryside.dispose();
       outerWorldPresentation?.dispose();
       outerWorldPresentation = null;
       rabbitPresentation?.dispose();
@@ -2216,12 +2303,17 @@ export function createInnerKeepSceneLayer(
     ),
     panByPixels: (deltaX, deltaY) => {
       if (disposed || !Number.isFinite(deltaX) || !Number.isFinite(deltaY)) return;
-      if (deltaX !== 0 || deltaY !== 0) cameraWasManuallyAdjusted = true;
-      const scale = 0.012 / zoom;
-      const [minimumX, maximumX] = INNER_KEEP_OUTER_WORLD_PAN_BOUNDS.x;
-      const [minimumZ, maximumZ] = INNER_KEEP_OUTER_WORLD_PAN_BOUNDS.z;
-      focusX = Math.max(minimumX, Math.min(maximumX, focusX - deltaX * scale));
-      focusZ = Math.max(minimumZ, Math.min(maximumZ, focusZ - deltaY * scale));
+      const elements = camera.matrixWorld.elements;
+      const right = new THREE.Vector2(elements[0]!, elements[2]!).normalize();
+      const screenUpOnGround = new THREE.Vector2(elements[4]!, elements[6]!).normalize();
+      const worldMetersPerPixel = (camera.top - camera.bottom) / Math.max(1, viewportHeight);
+      const scale = worldMetersPerPixel * INNER_KEEP_FAR_COUNTRYSIDE_CAMERA.panScreenTrackingRatio;
+      const requestedX = -right.x * deltaX * scale - screenUpOnGround.x * deltaY * scale;
+      const requestedZ = -right.y * deltaX * scale - screenUpOnGround.y * deltaY * scale;
+      const [minimumX, maximumX] = INNER_KEEP_FAR_COUNTRYSIDE_CAMERA.panBoundsMeters.x;
+      const [minimumZ, maximumZ] = INNER_KEEP_FAR_COUNTRYSIDE_CAMERA.panBoundsMeters.z;
+      focusX = Math.max(minimumX, Math.min(maximumX, focusX + requestedX));
+      focusZ = Math.max(minimumZ, Math.min(maximumZ, focusZ + requestedZ));
       updateCamera();
       options.requestRender();
     },
@@ -2293,7 +2385,7 @@ export function createInnerKeepSceneLayer(
     },
     zoomByWheel: (deltaY, deltaMode) => {
       if (disposed || !Number.isFinite(deltaY)) return;
-      if (deltaY !== 0) cameraWasManuallyAdjusted = true;
+      if (deltaY !== 0) zoomWasManuallyAdjusted = true;
       const unit = deltaMode === WheelEvent.DOM_DELTA_LINE
         ? 16
         : deltaMode === WheelEvent.DOM_DELTA_PAGE

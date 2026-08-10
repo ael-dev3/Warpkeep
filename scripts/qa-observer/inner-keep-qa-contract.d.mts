@@ -59,6 +59,11 @@ export type InnerKeepQaEvidence = Readonly<{
   topographicFeatureCount: number;
   terrainTriangleCount: number;
   terrainHeightRangeMillimeters: number;
+  farCountrysideStatus: 'idle' | 'ready' | 'degraded';
+  farCountrysideTerrainTriangleCount: number;
+  farCountrysideFieldParcelCount: number;
+  farCountrysideFieldTuftCount: number;
+  farCountrysideHedgerowTreeCount: number;
   exteriorTreeCount: number;
   scenicResourceNodeCount: number;
   wildlifeAssetStatus:

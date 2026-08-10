@@ -361,7 +361,7 @@ describe('Inner Keep deterministic presentation layout manifest', () => {
       portrait: {
         maximumAspectExclusive: 0.78,
         baseHalfHeight: 26.4,
-        positionMeters: [0, 31, 34],
+        positionMeters: [0, 47, 26],
         targetMeters: [0, 1, -3],
         initialZoomMultiplier: 0.9,
       },
