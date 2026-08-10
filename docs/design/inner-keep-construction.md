@@ -202,9 +202,9 @@ creating another population or claiming unit authority.
 
 | Quality | Actors (mounted / patrol) | Compound trees | Grass | Max active fps | Scene graph max (draws / triangles) | Renderer evidence max (draws / triangles) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| High | 20 (6 / 12) | 18 | 2,400 | 30 | 390 / 420,000 | 750 / 720,000 |
-| Balanced | 12 (4 / 6) | 12 | 1,400 | 24 | 310 / 215,000 | 380 / 260,000 |
-| Reduced | 8 (2 / 4) | 6 | 480 | 18 | 235 / 110,000 | 260 / 130,000 |
+| High | 20 (6 / 12) | 18 | 2,400 | 30 | 450 / 460,000 | 750 / 720,000 |
+| Balanced | 12 (4 / 6) | 12 | 1,400 | 24 | 350 / 280,000 | 384 / 270,000 |
+| Reduced | 8 (2 / 4) | 6 | 480 | 18 | 270 / 135,000 | 260 / 130,000 |
 
 The exterior has its own quality budget:
 

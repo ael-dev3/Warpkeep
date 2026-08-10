@@ -248,7 +248,9 @@ const EXPECTED_LIVING_SCENE_BY_QUALITY = Object.freeze({
     grassBladeCount: 1_400,
     mountedActorCount: 4,
     patrolUnitCount: 6,
-    rendererDrawCallsMaximum: 380,
+    // The additional planted-grass batch raises the measured balanced color
+    // pass; this small margin covers reviewed screenshot-capture variation.
+    rendererDrawCallsMaximum: 384,
     rendererTrianglesMaximum: 270_000,
     scenicResourceNodeCount: 6,
     sceneGraphDrawCallsMaximum: INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.balanced.drawCalls,
@@ -493,7 +495,9 @@ export function innerKeepQaBrowserCases(port) {
     scenario,
     url: innerKeepQaUrl({ port: selectedPort, scenario: scenario.id }),
     viewport: Object.freeze(
-      ['construction-99-percent', 'compact-quality', 'reduced-motion',
+      scenario.id === 'empty'
+        ? { width: 844, height: 390 }
+        : ['construction-99-percent', 'compact-quality', 'reduced-motion',
         'missing-asset-fallback', '2d-fallback'].includes(scenario.id)
         ? { width: 390, height: 844 }
         : { width: 1_440, height: 900 }

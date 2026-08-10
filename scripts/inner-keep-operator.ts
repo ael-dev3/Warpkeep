@@ -40,6 +40,7 @@ import {
   INNER_KEEP_RABBIT_MODELS,
   INNER_KEEP_RABBIT_RUNTIME_PATHS,
   INNER_KEEP_RABBIT_SELECTION,
+  SHARED_LOWLANDS_RABBIT_RUNTIME_DIRECTORY,
   assertInnerKeepRabbitRuntimeUseAuthorized,
 } from './inner-keep-rabbit-runtime-contract.mjs';
 import {
@@ -85,6 +86,7 @@ import { attestExactProtectedWorkerRolloutMain } from './worker-rollout-operator
 const REPOSITORY_ROOT = resolve(import.meta.dirname, '..');
 const INNER_KEEP_RUNTIME_ROOTS = Object.freeze([
   'public/models/hegemony/inner-keep',
+  SHARED_LOWLANDS_RABBIT_RUNTIME_DIRECTORY,
   'public/images/inner-keep/catalog',
 ]);
 const INNER_KEEP_AUTHORIZED_RUNTIME_PATHS = Object.freeze([

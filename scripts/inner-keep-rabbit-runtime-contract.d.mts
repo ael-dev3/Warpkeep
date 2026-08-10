@@ -1,10 +1,13 @@
 export const INNER_KEEP_RABBIT_SELECTION_RECORD: string;
 export const INNER_KEEP_RABBIT_SELECTION_DIGEST: string;
 export const INNER_KEEP_RABBIT_RUNTIME_DIRECTORY: string;
+export const SHARED_LOWLANDS_RABBIT_RUNTIME_DIRECTORY: string;
+export const SHARED_LOWLANDS_RABBIT_COMPACT_RUNTIME_PATH: string;
 export const INNER_KEEP_RABBIT_NESTED_MEMBERS: readonly string[];
 export const INNER_KEEP_RABBIT_SELECTION: Readonly<Record<string, any>>;
 export const INNER_KEEP_RABBIT_MODELS: readonly Readonly<Record<string, any>>[];
 export const INNER_KEEP_RABBIT_RUNTIME_PATHS: readonly string[];
+export const INNER_KEEP_RABBIT_RUNTIME_DIRECTORIES: readonly string[];
 
 export function innerKeepRabbitSha256(bytes: Uint8Array): string;
 export function calculateInnerKeepRabbitSelectionDigest(

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
@@ -35,6 +36,38 @@ function localRuntimePath(destinationPath, sha256) {
     || !destinationPath.endsWith(`-${sha256.slice(0, 16)}.glb`)
   ) fail(`unsafe or non-content-addressed destination ${String(destinationPath)}`);
   return destinationPath.slice('public/'.length);
+}
+
+async function exactPreview(preview, assetId) {
+  if (
+    preview === undefined
+    || !Number.isSafeInteger(preview.bytes)
+    || preview.bytes <= 0
+    || !SHA256_PATTERN.test(preview.sha256)
+    || preview.width !== 320
+    || preview.height !== 320
+    || typeof preview.destinationPath !== 'string'
+    || !preview.destinationPath.startsWith('public/images/inner-keep/catalog/')
+    || preview.destinationPath.includes('\\')
+    || preview.destinationPath.split('/').includes('..')
+    || !preview.destinationPath.endsWith(`-${preview.sha256.slice(0, 16)}.png`)
+  ) fail(`unsafe or non-content-addressed preview ${assetId}`);
+  const bytes = await readFile(resolve(repositoryRoot, preview.destinationPath));
+  if (
+    bytes.byteLength !== preview.bytes
+    || createHash('sha256').update(bytes).digest('hex') !== preview.sha256
+    || bytes.byteLength < 24
+    || bytes.toString('hex', 0, 8) !== '89504e470d0a1a0a'
+    || bytes.readUInt32BE(16) !== preview.width
+    || bytes.readUInt32BE(20) !== preview.height
+  ) fail(`preview coordinate drift ${assetId}`);
+  return {
+    path: preview.destinationPath.slice('public/'.length),
+    bytes: preview.bytes,
+    sha256: preview.sha256,
+    width: preview.width,
+    height: preview.height,
+  };
 }
 
 async function exactGlbDrawCalls(destinationPath) {
@@ -126,6 +159,9 @@ async function main() {
       family: asset.family,
       displayName: asset.displayName,
       boundsMeters: exactBounds(asset.boundsMeters, asset.id),
+      ...(asset.preview === undefined
+        ? {}
+        : { preview: await exactPreview(asset.preview, asset.id) }),
       models,
     };
   }));
@@ -161,9 +197,11 @@ async function main() {
     + `export type InnerKeepStaticRuntimeProfile = 'high' | 'balanced' | 'compact';\n`
     + `export type InnerKeepPopulationRuntimeProfile = 'balanced' | 'compact';\n`
     + `export type InnerKeepRuntimeModel = Readonly<{ path: string; bytes: number; sha256: string; triangles: number; drawCalls: number }>;\n`
+    + `export type InnerKeepRuntimePreview = Readonly<{ path: string; bytes: number; sha256: string; width: 320; height: 320 }>;\n`
     + `export type InnerKeepStaticRuntimeAsset = Readonly<{\n`
     + `  id: string; family: 'buildings' | 'landmarks' | 'palisade' | 'stone' | 'town-items' | 'trees';\n`
     + `  displayName: string; boundsMeters: readonly [number, number, number];\n`
+    + `  preview?: InnerKeepRuntimePreview;\n`
     + `  models: Readonly<Record<InnerKeepStaticRuntimeProfile, InnerKeepRuntimeModel>>;\n`
     + `}>;\n`
     + `export type InnerKeepPopulationRuntimeModel = InnerKeepRuntimeModel & Readonly<{\n`

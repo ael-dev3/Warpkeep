@@ -61,7 +61,7 @@ describe('Inner Keep authored render budgets', () => {
   });
 
   for (const quality of ['high', 'balanced', 'reduced'] as const) {
-    it(`keeps exact ${quality} static metadata within its hard instanced budget`, () => {
+    it(`keeps exact ${quality} static metadata within its reviewed instanced ceiling`, () => {
       expect(maximumAuthoredStaticComplexity(quality)).toEqual({
         drawCalls: INNER_KEEP_AUTHORED_STATIC_RENDER_BUDGETS[quality].drawCalls,
         triangleCount: INNER_KEEP_AUTHORED_STATIC_RENDER_BUDGETS[quality].triangles,

@@ -5,9 +5,14 @@ import { dirname, resolve } from 'node:path';
 export const INNER_KEEP_RABBIT_SELECTION_RECORD =
   'docs/reference/assets/2026-07-30-lowlands-rabbit/manifest.json';
 export const INNER_KEEP_RABBIT_SELECTION_DIGEST =
-  '58cab83f4c4e1773012d2b099da5b05ab3fa857d6e8395710e60cd4db337b958';
+  '39ff0df2a78e475f1a8caaeac3fe48505c812905e894fe9eb282f01deb1a7eb0';
 export const INNER_KEEP_RABBIT_RUNTIME_DIRECTORY =
   'public/models/hegemony/inner-keep/wildlife/rabbit';
+export const SHARED_LOWLANDS_RABBIT_RUNTIME_DIRECTORY =
+  'public/models/hegemony/environment/wildlife/rabbit';
+export const SHARED_LOWLANDS_RABBIT_COMPACT_RUNTIME_PATH =
+  `${SHARED_LOWLANDS_RABBIT_RUNTIME_DIRECTORY}/`
+    + 'hegemony-lowlands-rabbit-compact-2ecc7b1adf4c1d79.glb';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
@@ -221,6 +226,10 @@ export function assertInnerKeepRabbitSelectionRecord(record) {
     const profile = profiles[index];
     const expected = EXPECTED_MODELS[profile];
     const expectedAnimations = expected.mode === 'animated' ? EXPECTED_CLIPS : [];
+    const expectedDestinationPath = profile === 'compact'
+      ? SHARED_LOWLANDS_RABBIT_COMPACT_RUNTIME_PATH
+      : `${INNER_KEEP_RABBIT_RUNTIME_DIRECTORY}/`
+        + `inner-keep-lowlands-rabbit-${profile}-${expected.sha256.slice(0, 16)}.glb`;
     if (
       model?.profile !== profile
       || model.tier !== expected.tier
@@ -233,8 +242,7 @@ export function assertInnerKeepRabbitSelectionRecord(record) {
       || !exactArray(model.animations, expectedAnimations)
       || !safePath(model.sourcePath)
       || dirname(model.sourcePath) !== dirname(source.runtimeManifest.path)
-      || model.destinationPath !== `${INNER_KEEP_RABBIT_RUNTIME_DIRECTORY}/`
-        + `inner-keep-lowlands-rabbit-${profile}-${expected.sha256.slice(0, 16)}.glb`
+      || model.destinationPath !== expectedDestinationPath
       || !safePath(model.destinationPath)
       || destinations.has(model.destinationPath)
       || !Array.isArray(model.boundsMeters)
@@ -269,6 +277,9 @@ export const INNER_KEEP_RABBIT_SELECTION = readSelection();
 export const INNER_KEEP_RABBIT_MODELS = INNER_KEEP_RABBIT_SELECTION.models;
 export const INNER_KEEP_RABBIT_RUNTIME_PATHS = Object.freeze(
   INNER_KEEP_RABBIT_MODELS.map((model) => model.destinationPath).sort()
+);
+export const INNER_KEEP_RABBIT_RUNTIME_DIRECTORIES = Object.freeze(
+  [...new Set(INNER_KEEP_RABBIT_MODELS.map((model) => dirname(model.destinationPath)))].sort()
 );
 
 export function assertInnerKeepRabbitRuntimeUseAuthorized(

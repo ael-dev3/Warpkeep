@@ -4,16 +4,23 @@ import {
   INNER_KEEP_LAYOUT_V1_SLOTS,
   INNER_KEEP_LAYOUT_V1_VERSION
 } from '../components/inner-keep/innerKeepLayoutV1';
-import type {
-  InnerKeepBuildingKind,
-  InnerKeepBuildingPresentation,
-  InnerKeepCatalogueEntry,
-  InnerKeepPresentation,
-  InnerKeepResourceAmounts,
-  InnerKeepSlotPresentation
+import {
+  innerKeepCatalogueEffectCopy,
+  type InnerKeepBuildingKind,
+  type InnerKeepBuildingPresentation,
+  type InnerKeepCatalogueEntry,
+  type InnerKeepPresentation,
+  type InnerKeepResourceAmounts,
+  type InnerKeepSlotPresentation
 } from '../components/inner-keep/innerKeepPresentation';
+import {
+  INNER_KEEP_STATIC_RUNTIME_ASSETS
+} from '../components/inner-keep/innerKeepRuntimeAssetCatalog.generated';
 import type { InnerKeepQaScenario } from './innerKeepQaScenarioManifest.mjs';
-import { INNER_KEEP_POLICY_VERSION } from '../../spacetimedb/src/innerKeepPolicy';
+import {
+  CANONICAL_INNER_KEEP_BUILDING_CATALOG,
+  INNER_KEEP_POLICY_VERSION
+} from '../../spacetimedb/src/innerKeepPolicy';
 
 const SYNTHETIC_CASTLE_ID = 700_000_000_000_000_007n;
 const DAY_MICROS = 86_400_000_000n;
@@ -56,48 +63,50 @@ const QA_SLOTS: readonly InnerKeepSlotPresentation[] = Object.freeze(
   }))
 );
 
-const QA_CATALOGUE: readonly InnerKeepCatalogueEntry[] = Object.freeze([
-  Object.freeze({
-    buildingKind: 'city-mill',
-    label: 'CITY MILL',
-    footprintClass: 'medium',
-    maximumLevel: 5,
-    matchingDiscountResource: 'food',
-    discountBasisPointsPerLevel: 500,
-    discountCapBasisPoints: 2_500,
-    effectCopy: 'Food construction costs fall by 5% after each completed level.'
-  }),
-  Object.freeze({
-    buildingKind: 'lumber-camp',
-    label: 'LUMBER CAMP',
-    footprintClass: 'medium',
-    maximumLevel: 5,
-    matchingDiscountResource: 'wood',
-    discountBasisPointsPerLevel: 500,
-    discountCapBasisPoints: 2_500,
-    effectCopy: 'Wood construction costs fall by 5% after each completed level.'
-  }),
-  Object.freeze({
-    buildingKind: 'city-stoneworks',
-    label: 'CITY STONEWORKS',
-    footprintClass: 'medium',
-    maximumLevel: 5,
-    matchingDiscountResource: 'stone',
-    discountBasisPointsPerLevel: 500,
-    discountCapBasisPoints: 2_500,
-    effectCopy: 'Stone construction costs fall by 5% after each completed level.'
-  }),
-  Object.freeze({
-    buildingKind: 'city-goldworks',
-    label: 'CITY GOLDWORKS',
-    footprintClass: 'medium',
-    maximumLevel: 5,
-    matchingDiscountResource: 'gold',
-    discountBasisPointsPerLevel: 500,
-    discountCapBasisPoints: 2_500,
-    effectCopy: 'Gold construction costs fall by 5% after each completed level.'
-  })
-]);
+const QA_BUILDING_PREVIEW_PATHS = new Map(
+  INNER_KEEP_STATIC_RUNTIME_ASSETS
+    .filter((asset) => asset.family === 'buildings' && asset.preview !== undefined)
+    .map((asset) => [asset.id, asset.preview!.path] as const)
+);
+
+function exactQaBuildingPreviewPath(buildingKind: InnerKeepBuildingKind) {
+  const path = QA_BUILDING_PREVIEW_PATHS.get(buildingKind);
+  if (!path) throw new TypeError(`Missing reviewed QA preview for ${buildingKind}.`);
+  return path;
+}
+
+const QA_CATALOGUE: readonly InnerKeepCatalogueEntry[] = Object.freeze(
+  CANONICAL_INNER_KEEP_BUILDING_CATALOG.map((policy) => Object.freeze({
+    buildingKind: policy.buildingKind,
+    label: policy.publicLabel.toUpperCase(),
+    footprintClass: policy.footprintClass,
+    maximumLevel: policy.maximumLevel,
+    matchingDiscountResource: policy.matchingDiscountResource,
+    discountBasisPointsPerLevel: policy.discountBasisPointsPerLevel,
+    discountCapBasisPoints: policy.discountCapBasisPoints,
+    effectCopy: innerKeepCatalogueEffectCopy(
+      policy.matchingDiscountResource,
+      policy.discountBasisPointsPerLevel,
+      policy.discountCapBasisPoints,
+    ),
+    previewUrl: exactQaBuildingPreviewPath(policy.buildingKind)
+  }))
+);
+
+const QA_MISSING_ASSET_CATALOGUE: readonly InnerKeepCatalogueEntry[] =
+  Object.freeze(QA_CATALOGUE.map((entry) => {
+    if (entry.buildingKind !== 'city-mill') return entry;
+    return Object.freeze({
+      buildingKind: entry.buildingKind,
+      label: entry.label,
+      footprintClass: entry.footprintClass,
+      maximumLevel: entry.maximumLevel,
+      matchingDiscountResource: entry.matchingDiscountResource,
+      discountBasisPointsPerLevel: entry.discountBasisPointsPerLevel,
+      discountCapBasisPoints: entry.discountCapBasisPoints,
+      effectCopy: entry.effectCopy
+    });
+  }));
 
 const LEVEL_ONE_COSTS: Readonly<Record<
   InnerKeepBuildingKind,
@@ -215,7 +224,9 @@ export function createSyntheticInnerKeepQaPresentation(
       observedAtMicros
     }),
     slots: QA_SLOTS,
-    catalogue: QA_CATALOGUE,
+    catalogue: scenario.state === 'missing-asset'
+      ? QA_MISSING_ASSET_CATALOGUE
+      : QA_CATALOGUE,
     buildings,
     quotes: quotesForBuildings(buildings),
     builder: constructing ? Object.freeze({

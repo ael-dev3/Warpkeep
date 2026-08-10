@@ -1,3 +1,5 @@
+import { REALM_SUN_LIGHT_POSITION } from '../realm/createRealmEnvironment';
+
 /**
  * Presentation-only mood and lower-ward composition for the Inner Keep.
  *
@@ -49,8 +51,14 @@ export const INNER_KEEP_TOWN_TONAL_PALETTE = Object.freeze({
     hemisphereGround: 0x536b3d,
     hemisphereIntensity: 2.05,
     sun: 0xffe4ad,
+    // The isolated overview has no Realm IBL/fill rig, so it retains its
+    // brighter reviewed exposure while sharing the same world-space sun.
     sunIntensity: 3.05,
-    sunPositionMeters: Object.freeze([-19, 29, 17] as const),
+    sunPositionMeters: Object.freeze([
+      REALM_SUN_LIGHT_POSITION.x,
+      REALM_SUN_LIGHT_POSITION.y,
+      REALM_SUN_LIGHT_POSITION.z,
+    ] as const),
   }),
   rowHouse: Object.freeze({
     plaster: Object.freeze([0xd9caa2, 0xc9b68d, 0xe1d1ad, 0xbfa77c] as const),

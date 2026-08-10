@@ -164,6 +164,92 @@ describe('InnerKeepScreen functional fallback', () => {
     });
   });
 
+  it('explains a sealed construction request after navigating to another project', () => {
+    const onStartProject = vi.fn(() => new Promise<void>(() => undefined));
+    const props = {
+      onBack: vi.fn(),
+      onCloseToRealm: vi.fn(),
+      onOpenSlot: vi.fn(),
+      onReviewBuilding: vi.fn(),
+      onStartProject,
+      presentation: createInnerKeepPresentation(),
+      renderMode: 'fallback' as const
+    };
+    const view = render(
+      <InnerKeepScreen
+        {...props}
+        selectedBuildingKind="city-mill"
+        selectedSlotId="inner-keep-slot-m01"
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'START CONSTRUCTION' }));
+    view.rerender(
+      <InnerKeepScreen
+        {...props}
+        selectedBuildingKind="lumber-camp"
+        selectedSlotId="inner-keep-slot-m02"
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'ANOTHER REQUEST SUBMITTING' }))
+      .toBeDisabled();
+    expect(screen.getByText(
+      'Another construction request is still being submitted. This action remains sealed until authoritative state changes.'
+    )).toBeVisible();
+  });
+
+  it('retains an uncertain safety warning after navigating to another project', async () => {
+    const onRequestSync = vi.fn();
+    const onStartProject = vi.fn(async () => {
+      throw new Error('synthetic ambiguous result');
+    });
+    const props = {
+      onBack: vi.fn(),
+      onCloseToRealm: vi.fn(),
+      onOpenSlot: vi.fn(),
+      onRequestSync,
+      onReviewBuilding: vi.fn(),
+      onStartProject,
+      presentation: createInnerKeepPresentation(),
+      renderMode: 'fallback' as const
+    };
+    const view = render(
+      <InnerKeepScreen
+        {...props}
+        selectedBuildingKind="city-mill"
+        selectedSlotId="inner-keep-slot-m01"
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'START CONSTRUCTION' }));
+    await waitFor(() => {
+      expect(screen.getByText(
+        'The result is uncertain. This action remains sealed until authoritative state changes.'
+      )).toBeVisible();
+    });
+
+    view.rerender(
+      <InnerKeepScreen
+        {...props}
+        selectedBuildingKind="lumber-camp"
+        selectedSlotId="inner-keep-slot-m02"
+      />
+    );
+
+    expect(screen.getByRole('button', { name: 'ANOTHER REQUEST NEEDS STATUS' }))
+      .toBeDisabled();
+    expect(screen.getByText(
+      'Another construction request has an uncertain result. This action remains sealed until authoritative state changes. Check its status before trying again.'
+    )).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK STATUS' }));
+    expect(onRequestSync).toHaveBeenCalledOnce();
+  });
+
+  it('names the panel dismiss control as a close action', () => {
+    renderScreen({ selectedSlotId: 'inner-keep-slot-m01' });
+    expect(screen.getByRole('button', { name: 'Close Inner Keep panel' }))
+      .toHaveTextContent('×');
+  });
+
   it('shows build time on catalogue cards', () => {
     renderScreen({ selectedSlotId: 'inner-keep-slot-m01' });
     expect(screen.getAllByText('Build time')).toHaveLength(4);
@@ -399,7 +485,7 @@ describe('InnerKeepScreen functional fallback', () => {
       />
     );
 
-    expect(screen.getByRole('time')).toHaveTextContent('2h 0m remaining');
+    expect(screen.getByRole('time')).toHaveTextContent('2h remaining');
   });
 
   it('announces and cues an upgrade start and completion exactly once', async () => {

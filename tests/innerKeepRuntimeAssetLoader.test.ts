@@ -80,6 +80,16 @@ describe('Inner Keep browser runtime asset loader', () => {
         && !model.path.startsWith('/')
       ))
     ))).toBe(true);
+    const previews = INNER_KEEP_STATIC_RUNTIME_ASSETS.flatMap((asset) => (
+      asset.preview === undefined ? [] : [asset.preview]
+    ));
+    expect(previews).toHaveLength(6);
+    expect(previews.every((preview) => (
+      preview.path.startsWith('images/inner-keep/catalog/')
+      && preview.path.endsWith(`-${preview.sha256.slice(0, 16)}.png`)
+      && preview.width === 320
+      && preview.height === 320
+    ))).toBe(true);
   });
 
   it('integrity-checks, parses, grounds, and clones a compact authored prop', async () => {

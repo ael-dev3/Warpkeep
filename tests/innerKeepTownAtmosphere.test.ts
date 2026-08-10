@@ -53,6 +53,7 @@ import {
   INNER_KEEP_WET_RUT_PLACEMENTS,
   sampleInnerKeepVillageAnimalPosition,
 } from '../src/components/inner-keep/innerKeepTownAtmospherePolicy';
+import { REALM_SUN_DIRECTION } from '../src/components/realm/createRealmEnvironment';
 import { createInnerKeepPresentation } from './fixtures/innerKeepPresentation';
 
 function instancedMesh(root: THREE.Object3D, name: string) {
@@ -169,6 +170,12 @@ describe('Inner Keep sunlit living-town atmosphere', () => {
     expect(INNER_KEEP_TOWN_TONAL_PALETTE.fogNearMeters).toBeGreaterThanOrEqual(48);
     expect(INNER_KEEP_TOWN_TONAL_PALETTE.fogFarMeters).toBeGreaterThanOrEqual(100);
     expect(INNER_KEEP_TOWN_TONAL_PALETTE.lighting.sunIntensity).toBeGreaterThan(3);
+    const townSun = new THREE.Vector3(
+      ...INNER_KEEP_TOWN_TONAL_PALETTE.lighting.sunPositionMeters,
+    ).normalize();
+    expect(townSun.x).toBeCloseTo(REALM_SUN_DIRECTION.x, 12);
+    expect(townSun.y).toBeCloseTo(REALM_SUN_DIRECTION.y, 12);
+    expect(townSun.z).toBeCloseTo(REALM_SUN_DIRECTION.z, 12);
   });
 
   for (const quality of ['high', 'balanced', 'reduced'] as const) {

@@ -74,8 +74,8 @@ import {
 export type InnerKeepSceneQuality = 'high' | 'balanced' | 'reduced';
 
 /**
- * Hard visible scene-graph ceilings. Actual GPU calls are captured separately
- * by the QA renderer because high-quality shadow passes can redraw casters.
+ * Reviewed QA and telemetry ceilings for the visible scene graph. Actual GPU
+ * calls are captured separately because shadow passes can redraw casters.
  */
 export const INNER_KEEP_SCENE_GRAPH_RENDER_BUDGETS = Object.freeze({
   high: Object.freeze({ drawCalls: 450, triangles: 460_000 }),

@@ -15,6 +15,13 @@ export const INNER_KEEP_STATIC_RUNTIME_ASSETS = Object.freeze([
         7.1229,
         7.5
       ],
+      preview: {
+        path: "images/inner-keep/catalog/city-mill-717cf59d3bba1485.png",
+        bytes: 160025,
+        sha256: "717cf59d3bba14858b49dc7fb692066285d7ab9b27f6dfeae1b2238d542cdb02",
+        width: 320,
+        height: 320
+      },
       models: {
         high: {
           path: "models/hegemony/inner-keep/buildings/inner-keep-city-mill-high-8613faf8ac5a61f5.glb",
@@ -48,6 +55,13 @@ export const INNER_KEEP_STATIC_RUNTIME_ASSETS = Object.freeze([
         6.05,
         6.8
       ],
+      preview: {
+        path: "images/inner-keep/catalog/lumber-camp-d180ce53c9573f7f.png",
+        bytes: 159403,
+        sha256: "d180ce53c9573f7f7e7969dbd46fbacc1c4bca1c5f8aa090a1804f86d98bcfea",
+        width: 320,
+        height: 320
+      },
       models: {
         high: {
           path: "models/hegemony/inner-keep/buildings/inner-keep-lumber-camp-high-a4f6831dd6ddcb09.glb",
@@ -81,6 +95,13 @@ export const INNER_KEEP_STATIC_RUNTIME_ASSETS = Object.freeze([
         5.39,
         7.2
       ],
+      preview: {
+        path: "images/inner-keep/catalog/city-stoneworks-e4c562fc94705fc7.png",
+        bytes: 157575,
+        sha256: "e4c562fc94705fc71b1e77f7b3911ce88854464e24a72f45a5bfa07c88260f07",
+        width: 320,
+        height: 320
+      },
       models: {
         high: {
           path: "models/hegemony/inner-keep/buildings/inner-keep-city-stoneworks-high-01df9557bccaed14.glb",
@@ -114,6 +135,13 @@ export const INNER_KEEP_STATIC_RUNTIME_ASSETS = Object.freeze([
         5.39,
         7.2
       ],
+      preview: {
+        path: "images/inner-keep/catalog/city-goldworks-4b0caa06c4ffb1e8.png",
+        bytes: 157682,
+        sha256: "4b0caa06c4ffb1e8871ec8c8044ce108faa6b345bf73d6365eb5cb8fa52aff79",
+        width: 320,
+        height: 320
+      },
       models: {
         high: {
           path: "models/hegemony/inner-keep/buildings/inner-keep-city-goldworks-high-9cd4a9851ce291a9.glb",
@@ -1203,6 +1231,13 @@ export const INNER_KEEP_STATIC_RUNTIME_ASSETS = Object.freeze([
         31.5,
         29.02
       ],
+      preview: {
+        path: "images/inner-keep/catalog/grand-covenant-cathedral-cc1eb98b0c3e811e.png",
+        bytes: 142878,
+        sha256: "cc1eb98b0c3e811e2e559bc81537617493939ff38e7117f5defd9ad05907462f",
+        width: 320,
+        height: 320
+      },
       models: {
         high: {
           path: "models/hegemony/inner-keep/landmarks/inner-keep-grand-covenant-cathedral-high-9bf438bdf020d274.glb",
@@ -1236,6 +1271,13 @@ export const INNER_KEEP_STATIC_RUNTIME_ASSETS = Object.freeze([
         10.1,
         13
       ],
+      preview: {
+        path: "images/inner-keep/catalog/city-barracks-7aa4f0901fa752a6.png",
+        bytes: 150811,
+        sha256: "7aa4f0901fa752a6a86afa99c74ccf97c879aca9818d22aae40d4197f5491175",
+        width: 320,
+        height: 320
+      },
       models: {
         high: {
           path: "models/hegemony/inner-keep/landmarks/inner-keep-city-barracks-high-21b4c204adbde086.glb",
@@ -2104,9 +2146,11 @@ export const INNER_KEEP_POPULATION_RUNTIME_ACTORS = Object.freeze([
 export type InnerKeepStaticRuntimeProfile = 'high' | 'balanced' | 'compact';
 export type InnerKeepPopulationRuntimeProfile = 'balanced' | 'compact';
 export type InnerKeepRuntimeModel = Readonly<{ path: string; bytes: number; sha256: string; triangles: number; drawCalls: number }>;
+export type InnerKeepRuntimePreview = Readonly<{ path: string; bytes: number; sha256: string; width: 320; height: 320 }>;
 export type InnerKeepStaticRuntimeAsset = Readonly<{
   id: string; family: 'buildings' | 'landmarks' | 'palisade' | 'stone' | 'town-items' | 'trees';
   displayName: string; boundsMeters: readonly [number, number, number];
+  preview?: InnerKeepRuntimePreview;
   models: Readonly<Record<InnerKeepStaticRuntimeProfile, InnerKeepRuntimeModel>>;
 }>;
 export type InnerKeepPopulationRuntimeModel = InnerKeepRuntimeModel & Readonly<{

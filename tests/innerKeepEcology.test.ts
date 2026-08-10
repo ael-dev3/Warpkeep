@@ -5,6 +5,12 @@ import {
   createInnerKeepEcology,
   INNER_KEEP_FIXED_ECOLOGY_EXCLUSIONS,
   INNER_KEEP_GRASS_BUDGET,
+  INNER_KEEP_GRASS_MAXIMUM_ROOT_TERRAIN_DELTA_METERS,
+  INNER_KEEP_GRASS_MAXIMUM_TERRAIN_SLOPE,
+  INNER_KEEP_GRASS_PATCH_BUDGET,
+  INNER_KEEP_GRASS_PATCH_SUPPORT_RADIUS_METERS,
+  INNER_KEEP_GRASS_SHADER_CACHE_KEY,
+  INNER_KEEP_GRASS_TERRAIN_NORMAL_SAMPLE_STEP_METERS,
   INNER_KEEP_MARSH_BOAT_OBSTACLE_CLEARANCE_METERS,
   INNER_KEEP_MARSH_LILY_PAD_BOAT_CLEARANCE_METERS,
   INNER_KEEP_WATER_BANK_EXTRA_WIDTH_METERS,
@@ -12,8 +18,10 @@ import {
   INNER_KEEP_WATER_LAKE_BANK_INLET_GAP_RADIANS,
   INNER_KEEP_WATER_POND,
   innerKeepMarshDistanceToBoatRoute,
+  injectInnerKeepGrassVertexShader,
   planInnerKeepMarshPresentation,
 } from '../src/components/inner-keep/createInnerKeepEcology';
+import { REALM_PREVAILING_WIND } from '../src/game/map/realmPrevailingWind';
 import { INNER_KEEP_LAYOUT_V1_SLOTS } from '../src/components/inner-keep/innerKeepLayoutV1';
 import {
   INNER_KEEP_OUTER_WORLD_BOAT_ROUTE,
@@ -22,6 +30,7 @@ import {
   INNER_KEEP_OUTER_WORLD_MARSH_BUDGETS,
   INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT,
   INNER_KEEP_OUTER_WORLD_RESOURCE_SITES,
+  createInnerKeepOuterWorldRenderedTerrainSampler,
   innerKeepCityDistrictRoadEdgeDistance,
   innerKeepCityEdgeApronDistance,
   innerKeepOuterWorldDistanceToRoad,
@@ -35,13 +44,21 @@ import { INNER_KEEP_PRESENTATION_CLEARANCES } from '../src/components/inner-keep
 import { INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS } from '../src/components/inner-keep/innerKeepTownAtmospherePolicy';
 
 function grassPositions(ecology: ReturnType<typeof createInnerKeepEcology>) {
-  const grass = ecology.group.getObjectByName('inner-keep-dense-grass') as THREE.InstancedMesh;
   const matrix = new THREE.Matrix4();
   const position = new THREE.Vector3();
-  return Array.from({ length: grass.count }, (_, index) => {
-    grass.getMatrixAt(index, matrix);
-    return position.setFromMatrixPosition(matrix).clone();
+  const positions: THREE.Vector3[] = [];
+  ecology.group.traverse((object) => {
+    if (
+      object instanceof THREE.InstancedMesh
+      && object.name.startsWith('inner-keep-dense-grass')
+    ) {
+      for (let index = 0; index < object.count; index += 1) {
+        object.getMatrixAt(index, matrix);
+        positions.push(position.setFromMatrixPosition(matrix).clone());
+      }
+    }
   });
+  return positions;
 }
 
 function terrainDeltaRange(geometry: THREE.BufferGeometry) {
@@ -118,7 +135,7 @@ describe('Inner Keep living estate grass and connected water presentation', () =
       const positions = grassPositions(ecology);
       const [halfWidth, halfDepth] = INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS;
       expect(ecology.grassBladeCount).toBe(INNER_KEEP_GRASS_BUDGET[quality]);
-      expect(positions).toHaveLength(INNER_KEEP_GRASS_BUDGET[quality]);
+      expect(positions).toHaveLength(INNER_KEEP_GRASS_PATCH_BUDGET[quality]);
       let outsideCompoundCount = 0;
       let firstGrassClearanceFailure = '';
       for (const position of positions) {
@@ -126,7 +143,7 @@ describe('Inner Keep living estate grass and connected water presentation', () =
         const expectedGroundY = innerKeepOuterWorldTerrainHeightAt(
           position.x,
           position.z,
-        ) + 0.115;
+        );
         if (
           firstGrassClearanceFailure === ''
           && Math.abs(position.y - expectedGroundY) > 0.000_01
@@ -244,11 +261,17 @@ describe('Inner Keep living estate grass and connected water presentation', () =
     });
     for (const position of grassPositions(ecology)) {
       expect(innerKeepCityDistrictRoadEdgeDistance(position.x, position.z))
-        .toBeGreaterThanOrEqual(0.34);
+        .toBeGreaterThanOrEqual(
+          0.34 + INNER_KEEP_GRASS_PATCH_SUPPORT_RADIUS_METERS,
+        );
       expect(innerKeepCityEdgeApronDistance(position.x, position.z))
-        .toBeGreaterThanOrEqual(0.14);
+        .toBeGreaterThanOrEqual(
+          0.14 + INNER_KEEP_GRASS_PATCH_SUPPORT_RADIUS_METERS,
+        );
       expect(innerKeepOuterWorldDistanceToRenderedRoadEdge(position.x, position.z))
-        .toBeGreaterThanOrEqual(0.13);
+        .toBeGreaterThanOrEqual(
+          0.13 + INNER_KEEP_GRASS_PATCH_SUPPORT_RADIUS_METERS,
+        );
       for (const site of INNER_KEEP_OUTER_WORLD_RESOURCE_SITES) {
         expect(Math.hypot(
           position.x - site.positionMeters[0],
@@ -284,6 +307,131 @@ describe('Inner Keep living estate grass and connected water presentation', () =
     expect(still.isAnimationActive()).toBe(false);
     expect(still.update(12.5)).toBe(false);
     still.dispose();
+  });
+
+  it('aligns planted patches to rendered terrain and bounds every root gap', () => {
+    const terrain = createInnerKeepOuterWorldRenderedTerrainSampler('high');
+    const ecology = createInnerKeepEcology({
+      quality: 'high',
+      reducedMotion: false,
+      // This seed put an upright pre-fix root more than 0.6 m above terrain.
+      visualSeed: 63,
+      terrainHeightAt: terrain.heightAt,
+    });
+    const instanceMatrix = new THREE.Matrix4();
+    const instancePosition = new THREE.Vector3();
+    const instanceRotation = new THREE.Quaternion();
+    const instanceScale = new THREE.Vector3();
+    const actualUp = new THREE.Vector3();
+    const expectedNormal = new THREE.Vector3();
+    const plantedRoot = new THREE.Vector3();
+    const worldUp = new THREE.Vector3(0, 1, 0);
+    const step = INNER_KEEP_GRASS_TERRAIN_NORMAL_SAMPLE_STEP_METERS;
+    let rootCount = 0;
+    let maximumRootDelta = 0;
+    let maximumSlope = 0;
+    let minimumNormalAlignment = 1;
+
+    ecology.group.traverse((object) => {
+      if (
+        !(object instanceof THREE.InstancedMesh)
+        || !object.name.startsWith('inner-keep-dense-grass')
+      ) return;
+      const geometryPosition = object.geometry.getAttribute('position');
+      for (let instanceIndex = 0; instanceIndex < object.count; instanceIndex += 1) {
+        object.getMatrixAt(instanceIndex, instanceMatrix);
+        instanceMatrix.decompose(instancePosition, instanceRotation, instanceScale);
+        const slopeX = (
+          terrain.heightAt(instancePosition.x + step, instancePosition.z)
+          - terrain.heightAt(instancePosition.x - step, instancePosition.z)
+        ) / (step * 2);
+        const slopeZ = (
+          terrain.heightAt(instancePosition.x, instancePosition.z + step)
+          - terrain.heightAt(instancePosition.x, instancePosition.z - step)
+        ) / (step * 2);
+        maximumSlope = Math.max(maximumSlope, Math.hypot(slopeX, slopeZ));
+        expectedNormal.set(-slopeX, 1, -slopeZ).normalize();
+        actualUp.copy(worldUp).applyQuaternion(instanceRotation).normalize();
+        minimumNormalAlignment = Math.min(
+          minimumNormalAlignment,
+          actualUp.dot(expectedNormal),
+        );
+        for (
+          let bladeOffset = 0;
+          bladeOffset < geometryPosition.count;
+          bladeOffset += 5
+        ) {
+          for (
+            let rootVertex = bladeOffset;
+            rootVertex <= bladeOffset + 1;
+            rootVertex += 1
+          ) {
+            plantedRoot
+              .fromBufferAttribute(geometryPosition, rootVertex)
+              .applyMatrix4(instanceMatrix);
+            maximumRootDelta = Math.max(
+              maximumRootDelta,
+              Math.abs(
+                plantedRoot.y
+                  - terrain.heightAt(plantedRoot.x, plantedRoot.z),
+              ),
+            );
+            rootCount += 1;
+          }
+        }
+      }
+    });
+
+    expect(ecology.grassBladeCount).toBe(INNER_KEEP_GRASS_BUDGET.high);
+    expect(rootCount).toBe(INNER_KEEP_GRASS_BUDGET.high * 2);
+    expect(maximumSlope).toBeGreaterThan(0.02);
+    expect(maximumSlope).toBeLessThanOrEqual(INNER_KEEP_GRASS_MAXIMUM_TERRAIN_SLOPE);
+    expect(minimumNormalAlignment).toBeGreaterThan(0.999_99);
+    expect(maximumRootDelta)
+      .toBeLessThanOrEqual(INNER_KEEP_GRASS_MAXIMUM_ROOT_TERRAIN_DELTA_METERS + 0.000_001);
+    ecology.dispose();
+  });
+
+  it('shares the Realm wind and color-managed fog pipeline', () => {
+    const ecology = createInnerKeepEcology({
+      quality: 'balanced',
+      reducedMotion: false,
+      visualSeed: 7,
+    });
+    const grass = ecology.group.getObjectByName(
+      'inner-keep-dense-grass',
+    ) as THREE.InstancedMesh;
+    const grassMaterial = grass.material as THREE.MeshStandardMaterial;
+    expect(grassMaterial).toBeInstanceOf(THREE.MeshStandardMaterial);
+    expect((grassMaterial.userData.innerKeepWindDirection as THREE.Vector2).toArray())
+      .toEqual([REALM_PREVAILING_WIND.x, REALM_PREVAILING_WIND.z]);
+    expect(grassMaterial.customProgramCacheKey())
+      .toBe(INNER_KEEP_GRASS_SHADER_CACHE_KEY);
+    const injectedGrass = injectInnerKeepGrassVertexShader(
+      '#include <common>\n#include <begin_vertex>',
+    );
+    expect(injectedGrass).toContain('attribute vec4 grassBladeData;');
+    expect(injectedGrass).toContain('uniform vec2 innerKeepWindDirection;');
+    expect(injectedGrass).toContain('innerKeepGrassWorldToLocalXZ');
+    expect(injectedGrass).toContain('innerKeepGrassLocalWind');
+    expect(injectedGrass).toContain('innerKeepGrassBladePhase = grassBladeData.z');
+    expect(injectedGrass).toContain('innerKeepGrassWorldOrigin.xz');
+    expect(() => injectInnerKeepGrassVertexShader('void main() {}'))
+      .toThrowError('INNER_KEEP_GRASS_SHADER_CONTRACT_CHANGED');
+
+    const water = ecology.group.getObjectByName(
+      'inner-keep-flowing-cistern-rill',
+    ) as THREE.Mesh;
+    const waterMaterial = water.material as THREE.ShaderMaterial;
+    expect(waterMaterial.fog).toBe(true);
+    expect(waterMaterial.uniforms.fogColor?.value).toBeInstanceOf(THREE.Color);
+    expect(waterMaterial.uniforms.fogNear).toBeDefined();
+    expect(waterMaterial.uniforms.fogFar).toBeDefined();
+    expect(waterMaterial.vertexShader).toContain('#include <fog_vertex>');
+    expect(waterMaterial.fragmentShader).toContain('#include <tonemapping_fragment>');
+    expect(waterMaterial.fragmentShader).toContain('#include <colorspace_fragment>');
+    expect(waterMaterial.fragmentShader).toContain('#include <fog_fragment>');
+    ecology.dispose();
   });
 
   it.each(['high', 'balanced', 'reduced'] as const)(

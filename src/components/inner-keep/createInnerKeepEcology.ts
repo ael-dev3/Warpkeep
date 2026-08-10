@@ -1,5 +1,11 @@
 import * as THREE from 'three';
 
+import { REALM_PREVAILING_WIND } from '../../game/map/realmPrevailingWind';
+import {
+  createLowPolyGrassGeometry,
+  REALM_GRASS_BLADES_PER_PATCH,
+  REALM_GRASS_VARIANT_COUNTS,
+} from '../realm/createLowPolyGrassGeometry';
 import { createInnerKeepTerrainDrapedEllipseGeometry } from './createInnerKeepTerrainDrapedGeometry';
 import { INNER_KEEP_LAYOUT_V1_SLOTS } from './innerKeepLayoutV1';
 import { INNER_KEEP_AMBIENT_ROUTES } from './innerKeepAmbientPolicy';
@@ -38,6 +44,100 @@ export const INNER_KEEP_GRASS_BUDGET = Object.freeze({
   balanced: INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS.balanced.grassBlades,
   reduced: INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS.reduced.grassBlades,
 } satisfies Readonly<Record<InnerKeepSceneQuality, number>>);
+
+export const INNER_KEEP_GRASS_TERRAIN_NORMAL_SAMPLE_STEP_METERS = 0.2;
+export const INNER_KEEP_GRASS_MAXIMUM_TERRAIN_SLOPE = 0.32;
+export const INNER_KEEP_GRASS_MAXIMUM_ROOT_TERRAIN_DELTA_METERS = 0.08;
+/**
+ * Conservative horizontal support after maximum width/height scale, the
+ * bounded terrain-normal tilt above, and the two orthogonal wind components.
+ */
+export const INNER_KEEP_GRASS_PATCH_SUPPORT_RADIUS_METERS = 1.2;
+export const INNER_KEEP_GRASS_PATCH_BUDGET = Object.freeze({
+  high: Math.ceil(
+    INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS.high.grassBlades
+      / REALM_GRASS_BLADES_PER_PATCH.high,
+  ),
+  balanced: Math.ceil(
+    INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS.balanced.grassBlades
+      / REALM_GRASS_BLADES_PER_PATCH.balanced,
+  ),
+  reduced: Math.ceil(
+    INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS.reduced.grassBlades
+      / REALM_GRASS_BLADES_PER_PATCH.reduced,
+  ),
+} satisfies Readonly<Record<InnerKeepSceneQuality, number>>);
+
+export const INNER_KEEP_GRASS_SHADER_CACHE_KEY =
+  'inner-keep-dense-grass-wind-v3-world-basis-terrain-fit-three-r185';
+
+export function injectInnerKeepGrassVertexShader(vertexShader: string) {
+  const commonMarker = '#include <common>';
+  const beginVertexMarker = '#include <begin_vertex>';
+  if (
+    !vertexShader.includes(commonMarker)
+    || !vertexShader.includes(beginVertexMarker)
+  ) {
+    throw new Error('INNER_KEEP_GRASS_SHADER_CONTRACT_CHANGED');
+  }
+  return vertexShader
+    .replace(
+      commonMarker,
+      `${commonMarker}
+attribute vec4 grassBladeData;
+uniform float innerKeepWindTime;
+uniform vec2 innerKeepWindDirection;`,
+    )
+    .replace(
+      beginVertexMarker,
+      `${beginVertexMarker}
+        #ifdef USE_INSTANCING
+          vec4 innerKeepGrassWorldOrigin = modelMatrix
+            * instanceMatrix
+            * vec4(0.0, 0.0, 0.0, 1.0);
+          vec2 innerKeepGrassWind = normalize(
+            innerKeepWindDirection + vec2(0.00001, 0.00001)
+          );
+          vec2 innerKeepGrassCrossWind = vec2(
+            -innerKeepGrassWind.y,
+            innerKeepGrassWind.x
+          );
+          mat3 innerKeepGrassInstanceBasis = mat3(modelMatrix * instanceMatrix);
+          mat2 innerKeepGrassLocalToWorldXZ = mat2(
+            innerKeepGrassInstanceBasis[0].xz,
+            innerKeepGrassInstanceBasis[2].xz
+          );
+          float innerKeepGrassBasisDeterminant = determinant(
+            innerKeepGrassLocalToWorldXZ
+          );
+          mat2 innerKeepGrassWorldToLocalXZ = abs(innerKeepGrassBasisDeterminant)
+            > 0.000001
+            ? inverse(innerKeepGrassLocalToWorldXZ)
+            : mat2(1.0);
+          vec2 innerKeepGrassLocalWind = innerKeepGrassWorldToLocalXZ
+            * innerKeepGrassWind;
+          vec2 innerKeepGrassLocalCrossWind = innerKeepGrassWorldToLocalXZ
+            * innerKeepGrassCrossWind;
+          float innerKeepGrassTip = pow(
+            clamp(grassBladeData.y, 0.0, 1.0),
+            1.85
+          );
+          float innerKeepGrassBladePhase = grassBladeData.z;
+          float innerKeepGrassWave = sin(
+            innerKeepWindTime * 1.55
+            + dot(innerKeepGrassWorldOrigin.xz, innerKeepGrassWind) * 0.89
+            + innerKeepGrassBladePhase * 0.11
+          );
+          transformed.xz += innerKeepGrassLocalWind
+            * innerKeepGrassWave * 0.085 * innerKeepGrassTip;
+          transformed.xz += innerKeepGrassLocalCrossWind * cos(
+            innerKeepWindTime * 1.08
+            + dot(innerKeepGrassWorldOrigin.xz, innerKeepGrassCrossWind)
+            + innerKeepGrassBladePhase * 0.31
+          ) * 0.035 * innerKeepGrassTip;
+        #endif`,
+    );
+}
 
 /** Backward-compatible names now covering the connected outer watercourse. */
 export const INNER_KEEP_WATER_CENTERLINE = INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE;
@@ -335,12 +435,12 @@ const AMBIENT_ROUTE_SEGMENTS = Object.freeze(INNER_KEEP_AMBIENT_ROUTES.flatMap((
   });
 }));
 
-function overlapsAmbientRoute(x: number, z: number) {
+function overlapsAmbientRoute(x: number, z: number, extraClearance = 0) {
   return AMBIENT_ROUTE_SEGMENTS.some((segment) => (
-    x >= segment.minimumX
-    && x <= segment.maximumX
-    && z >= segment.minimumZ
-    && z <= segment.maximumZ
+    x >= segment.minimumX - extraClearance
+    && x <= segment.maximumX + extraClearance
+    && z >= segment.minimumZ - extraClearance
+    && z <= segment.maximumZ + extraClearance
     && distanceToSegment(
       x,
       z,
@@ -348,36 +448,42 @@ function overlapsAmbientRoute(x: number, z: number) {
       segment.from.z,
       segment.to.x,
       segment.to.z,
-    ) < segment.clearance
+    ) < segment.clearance + extraClearance
   ));
 }
 
 function grassCandidateIsClear(x: number, z: number) {
+  const support = INNER_KEEP_GRASS_PATCH_SUPPORT_RADIUS_METERS;
   const [outerHalfWidth, outerHalfDepth] = INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS;
-  if (Math.abs(x) > outerHalfWidth - 0.4 || Math.abs(z) > outerHalfDepth - 0.4) {
+  if (
+    Math.abs(x) > outerHalfWidth - support
+    || Math.abs(z) > outerHalfDepth - support
+  ) {
     return false;
   }
   if (Math.hypot(
-    (x - INNER_KEEP_OUTER_WORLD_MARSH.center.x) / INNER_KEEP_OUTER_WORLD_MARSH.radii.x,
-    (z - INNER_KEEP_OUTER_WORLD_MARSH.center.z) / INNER_KEEP_OUTER_WORLD_MARSH.radii.z,
+    (x - INNER_KEEP_OUTER_WORLD_MARSH.center.x)
+      / (INNER_KEEP_OUTER_WORLD_MARSH.radii.x + support),
+    (z - INNER_KEEP_OUTER_WORLD_MARSH.center.z)
+      / (INNER_KEEP_OUTER_WORLD_MARSH.radii.z + support),
   ) <= 1) return false;
   const wall = INNER_KEEP_PRESENTATION_CLEARANCES.wall;
-  const insideInnerKeepEcologyArea = x >= wall.westX
-    && x <= wall.eastX
-    && z >= wall.northZ
-    && z <= wall.southZ;
+  const insideInnerKeepEcologyArea = x >= wall.westX - support
+    && x <= wall.eastX + support
+    && z >= wall.northZ - support
+    && z <= wall.southZ + support;
   if (
     insideInnerKeepEcologyArea
     && (
       Math.abs(x - INNER_KEEP_PRESENTATION_CLEARANCES.road.northSouthCenterX)
-        < INNER_KEEP_PRESENTATION_CLEARANCES.road.northSouthHalfWidth + 0.5
+        < INNER_KEEP_PRESENTATION_CLEARANCES.road.northSouthHalfWidth + 0.5 + support
       || Math.abs(z - INNER_KEEP_PRESENTATION_CLEARANCES.road.eastWestCenterZ)
-        < INNER_KEEP_PRESENTATION_CLEARANCES.road.eastWestHalfWidth + 0.38
+        < INNER_KEEP_PRESENTATION_CLEARANCES.road.eastWestHalfWidth + 0.38 + support
     )
   ) return false;
-  if (innerKeepCityDistrictRoadEdgeDistance(x, z) < 0.34) return false;
-  if (innerKeepCityEdgeApronDistance(x, z) < 0.14) return false;
-  if (innerKeepOuterWorldDistanceToRenderedRoadEdge(x, z) < 0.13) return false;
+  if (innerKeepCityDistrictRoadEdgeDistance(x, z) < 0.34 + support) return false;
+  if (innerKeepCityEdgeApronDistance(x, z) < 0.14 + support) return false;
+  if (innerKeepOuterWorldDistanceToRenderedRoadEdge(x, z) < 0.13 + support) return false;
   if (INNER_KEEP_FIXED_ECOLOGY_EXCLUSIONS.some((exclusion) => (
     !exclusion.isRoadSurface
     && insideRoundedBox(
@@ -385,8 +491,8 @@ function grassCandidateIsClear(x: number, z: number) {
       z,
       exclusion.center.x,
       exclusion.center.z,
-      exclusion.halfExtentsMeters[0] + exclusion.clearanceMarginMeters,
-      exclusion.halfExtentsMeters[1] + exclusion.clearanceMarginMeters,
+      exclusion.halfExtentsMeters[0] + exclusion.clearanceMarginMeters + support,
+      exclusion.halfExtentsMeters[1] + exclusion.clearanceMarginMeters + support,
     )
   ))) return false;
   if (INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS.some((exclusion) => (
@@ -395,11 +501,11 @@ function grassCandidateIsClear(x: number, z: number) {
       z,
       exclusion.center.x,
       exclusion.center.z,
-      exclusion.halfExtentsMeters[0] + exclusion.clearanceMarginMeters,
-      exclusion.halfExtentsMeters[1] + exclusion.clearanceMarginMeters,
+      exclusion.halfExtentsMeters[0] + exclusion.clearanceMarginMeters + support,
+      exclusion.halfExtentsMeters[1] + exclusion.clearanceMarginMeters + support,
     )
   ))) return false;
-  if (overlapsAmbientRoute(x, z)) return false;
+  if (overlapsAmbientRoute(x, z, support)) return false;
   for (const slot of INNER_KEEP_LAYOUT_V1_SLOTS) {
     const slotX = Number(slot.localXMicrounits) / 1_000_000;
     const slotZ = Number(slot.localZMicrounits) / 1_000_000;
@@ -416,8 +522,8 @@ function grassCandidateIsClear(x: number, z: number) {
       localZ,
       0,
       0,
-      halfExtents[0] + INNER_KEEP_PRESENTATION_CLEARANCES.slot.decorativeBuffer,
-      halfExtents[1] + INNER_KEEP_PRESENTATION_CLEARANCES.slot.decorativeBuffer,
+      halfExtents[0] + INNER_KEEP_PRESENTATION_CLEARANCES.slot.decorativeBuffer + support,
+      halfExtents[1] + INNER_KEEP_PRESENTATION_CLEARANCES.slot.decorativeBuffer + support,
     )) return false;
   }
   const plateau = INNER_KEEP_OUTER_WORLD_COMPOUND_PLATEAU;
@@ -427,43 +533,35 @@ function grassCandidateIsClear(x: number, z: number) {
     && z <= plateau.maximumZ;
   return isInsideCompoundPlateau
     ? true
-    : innerKeepOuterWorldPointIsClear(x, z, 0.08);
+    : innerKeepOuterWorldPointIsClear(x, z, support);
 }
 
-function createCrossedGrassBladeGeometry() {
-  const halfBase = 0.105;
-  const halfMiddle = 0.062;
-  const halfTip = 0.012;
-  const middleY = 0.36;
-  const tipY = 0.72;
-  const positions = [
-    -halfBase, 0, 0,
-    halfBase, 0, 0,
-    -halfMiddle, middleY, 0,
-    halfMiddle, middleY, 0,
-    -halfTip, tipY, 0,
-    halfTip, tipY, 0,
-    0, 0, -halfBase,
-    0, 0, halfBase,
-    0, middleY, -halfMiddle,
-    0, middleY, halfMiddle,
-    0, tipY, -halfTip,
-    0, tipY, halfTip,
-  ];
-  const indices = [
-    0, 1, 2,
-    1, 3, 2,
-    2, 3, 4,
-    3, 5, 4,
-    6, 8, 7,
-    7, 8, 9,
-    8, 10, 9,
-    9, 10, 11,
-  ];
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
+function createPartialGrassPatchGeometry(
+  quality: InnerKeepSceneQuality,
+  bladeCount: number,
+) {
+  const geometry = createLowPolyGrassGeometry(quality, 0);
+  const vertexCount = bladeCount * 5;
+  for (const attributeName of ['position', 'normal', 'grassBladeData'] as const) {
+    const attribute = geometry.getAttribute(attributeName);
+    geometry.setAttribute(
+      attributeName,
+      new THREE.Float32BufferAttribute(
+        Array.from(attribute.array).slice(0, vertexCount * attribute.itemSize),
+        attribute.itemSize,
+        attribute.normalized,
+      ),
+    );
+  }
+  geometry.setIndex(new THREE.Uint16BufferAttribute(
+    Array.from(geometry.index!.array).slice(0, bladeCount * 9),
+    1,
+  ));
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  geometry.userData.realmGrassBladeCount = bladeCount;
+  geometry.userData.realmGrassTriangleCount = bladeCount * 3;
+  geometry.userData.realmGrassPartialPatch = true;
   return geometry;
 }
 
@@ -474,55 +572,128 @@ function createGrass(
   materials: Set<THREE.Material>,
   terrainHeightAt: (x: number, z: number) => number,
 ) {
-  const bladeCount = INNER_KEEP_GRASS_BUDGET[quality];
-  const geometry = createCrossedGrassBladeGeometry();
-  geometries.add(geometry);
+  const bladeBudget = INNER_KEEP_GRASS_BUDGET[quality];
+  const bladesPerFullPatch = REALM_GRASS_BLADES_PER_PATCH[quality];
+  const fullPatchCount = Math.floor(bladeBudget / bladesPerFullPatch);
+  const partialBladeCount = bladeBudget % bladesPerFullPatch;
+  const variantCount = REALM_GRASS_VARIANT_COUNTS[quality];
   const windTime = { value: 0 };
-  const material = new THREE.MeshBasicMaterial({
-    // Unlit foliage keeps each tiny crossed blade readable at the overview camera.
+  const windDirection = {
+    value: new THREE.Vector2(
+      REALM_PREVAILING_WIND.x,
+      REALM_PREVAILING_WIND.z,
+    ),
+  };
+  const material = new THREE.MeshStandardMaterial({
     color: INNER_KEEP_TOWN_TONAL_PALETTE.foliage.grass,
+    roughness: 0.98,
+    metalness: 0,
     side: THREE.DoubleSide,
     toneMapped: true,
     vertexColors: false,
   });
   material.onBeforeCompile = (shader) => {
     shader.uniforms.innerKeepWindTime = windTime;
-    shader.vertexShader = shader.vertexShader
-      .replace(
-        '#include <common>',
-        '#include <common>\nuniform float innerKeepWindTime;',
-      )
-      .replace(
-        '#include <begin_vertex>',
-        `#include <begin_vertex>
-        #ifdef USE_INSTANCING
-          vec3 innerKeepGrassOrigin = vec3(instanceMatrix[3]);
-          float innerKeepGrassTip = smoothstep(0.04, 0.72, position.y);
-          float innerKeepGrassWave = sin(
-            innerKeepWindTime * 1.55
-            + innerKeepGrassOrigin.x * 0.73
-            + innerKeepGrassOrigin.z * 0.51
-          );
-          transformed.x += innerKeepGrassWave * 0.085 * innerKeepGrassTip;
-          transformed.z += cos(innerKeepWindTime * 1.08 + innerKeepGrassOrigin.z) * 0.035 * innerKeepGrassTip;
-        #endif`,
-      );
+    shader.uniforms.innerKeepWindDirection = windDirection;
+    shader.vertexShader = injectInnerKeepGrassVertexShader(shader.vertexShader);
   };
-  material.customProgramCacheKey = () => 'inner-keep-dense-grass-wind-v1';
+  material.customProgramCacheKey = () => INNER_KEEP_GRASS_SHADER_CACHE_KEY;
+  material.userData.innerKeepWindDirection = windDirection.value;
   materials.add(material);
-  const grass = new THREE.InstancedMesh(geometry, material, bladeCount);
-  grass.name = 'inner-keep-dense-grass';
-  grass.castShadow = false;
-  grass.receiveShadow = true;
-  grass.frustumCulled = false;
+  const batches = Array.from({ length: variantCount }, (_, variant) => {
+    const capacity = Math.floor(fullPatchCount / variantCount)
+      + (variant < fullPatchCount % variantCount ? 1 : 0);
+    const geometry = createLowPolyGrassGeometry(quality, variant);
+    geometries.add(geometry);
+    return {
+      bladeCount: bladesPerFullPatch,
+      capacity,
+      count: 0,
+      mesh: new THREE.InstancedMesh(geometry, material, capacity),
+    };
+  });
+  if (partialBladeCount > 0) {
+    const geometry = createPartialGrassPatchGeometry(quality, partialBladeCount);
+    geometries.add(geometry);
+    batches.push({
+      bladeCount: partialBladeCount,
+      capacity: 1,
+      count: 0,
+      mesh: new THREE.InstancedMesh(geometry, material, 1),
+    });
+  }
+  batches.forEach((batch, index) => {
+    batch.mesh.name = index === 0
+      ? 'inner-keep-dense-grass'
+      : `inner-keep-dense-grass-variant-${index}`;
+    batch.mesh.castShadow = false;
+    batch.mesh.receiveShadow = true;
+    batch.mesh.frustumCulled = false;
+  });
+  const placementSchedule = batches.flatMap((batch, batchIndex) => (
+    Array.from({ length: batch.capacity }, () => batchIndex)
+  ));
   const matrix = new THREE.Matrix4();
   const position = new THREE.Vector3();
   const quaternion = new THREE.Quaternion();
   const scale = new THREE.Vector3();
+  const up = new THREE.Vector3(0, 1, 0);
+  const surfaceNormal = new THREE.Vector3();
+  const surfaceRotation = new THREE.Quaternion();
+  const yawRotation = new THREE.Quaternion();
+  const plantedRoot = new THREE.Vector3();
+  const patchFitsRenderedTerrain = (
+    geometry: THREE.BufferGeometry,
+    x: number,
+    z: number,
+    width: number,
+    height: number,
+    yaw: number,
+  ) => {
+    const step = INNER_KEEP_GRASS_TERRAIN_NORMAL_SAMPLE_STEP_METERS;
+    const centerHeight = terrainHeightAt(x, z);
+    const heightWest = terrainHeightAt(x - step, z);
+    const heightEast = terrainHeightAt(x + step, z);
+    const heightNorth = terrainHeightAt(x, z - step);
+    const heightSouth = terrainHeightAt(x, z + step);
+    if (![centerHeight, heightWest, heightEast, heightNorth, heightSouth].every(
+      Number.isFinite,
+    )) return false;
+    const slopeX = (heightEast - heightWest) / (step * 2);
+    const slopeZ = (heightSouth - heightNorth) / (step * 2);
+    if (Math.hypot(slopeX, slopeZ) > INNER_KEEP_GRASS_MAXIMUM_TERRAIN_SLOPE) {
+      return false;
+    }
+    surfaceNormal.set(-slopeX, 1, -slopeZ).normalize();
+    surfaceRotation.setFromUnitVectors(up, surfaceNormal);
+    yawRotation.setFromAxisAngle(surfaceNormal, yaw);
+    quaternion.copy(yawRotation).multiply(surfaceRotation).normalize();
+    position.set(x, centerHeight, z);
+    scale.set(width, height, width);
+    matrix.compose(position, quaternion, scale);
+
+    const geometryPosition = geometry.getAttribute('position');
+    for (let bladeOffset = 0; bladeOffset < geometryPosition.count; bladeOffset += 5) {
+      for (let rootVertex = bladeOffset; rootVertex <= bladeOffset + 1; rootVertex += 1) {
+        plantedRoot.fromBufferAttribute(geometryPosition, rootVertex).applyMatrix4(matrix);
+        const expectedRootHeight = terrainHeightAt(plantedRoot.x, plantedRoot.z);
+        if (
+          !Number.isFinite(expectedRootHeight)
+          || Math.abs(plantedRoot.y - expectedRootHeight)
+            > INNER_KEEP_GRASS_MAXIMUM_ROOT_TERRAIN_DELTA_METERS
+        ) return false;
+      }
+    }
+    return true;
+  };
   let accepted = 0;
   let attempt = 0;
   const [outerHalfWidth, outerHalfDepth] = INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS;
-  while (accepted < bladeCount && attempt < bladeCount * 24) {
+  let acceptedBladeCount = 0;
+  while (
+    accepted < placementSchedule.length
+    && attempt < placementSchedule.length * 64
+  ) {
     const x = -outerHalfWidth + 0.45
       + deterministicUnit(attempt, seed + 1) * (outerHalfWidth * 2 - 0.9);
     const z = -outerHalfDepth + 0.45
@@ -531,19 +702,30 @@ function createGrass(
     if (!grassCandidateIsClear(x, z)) continue;
     const height = 0.58 + deterministicUnit(attempt, seed + 3) * 0.5;
     const width = 0.78 + deterministicUnit(attempt, seed + 4) * 0.46;
-    position.set(x, terrainHeightAt(x, z) + 0.115, z);
-    quaternion.setFromAxisAngle(
-      new THREE.Vector3(0, 1, 0),
-      deterministicUnit(attempt, seed + 5) * Math.PI,
-    );
-    scale.set(width, height, width);
-    matrix.compose(position, quaternion, scale);
-    grass.setMatrixAt(accepted, matrix);
+    const batch = batches[placementSchedule[accepted]!]!;
+    const yaw = deterministicUnit(attempt, seed + 5) * Math.PI;
+    if (!patchFitsRenderedTerrain(
+      batch.mesh.geometry,
+      x,
+      z,
+      width,
+      height,
+      yaw,
+    )) continue;
+    batch.mesh.setMatrixAt(batch.count, matrix);
+    batch.count += 1;
+    acceptedBladeCount += batch.bladeCount;
     accepted += 1;
   }
-  grass.count = accepted;
-  grass.instanceMatrix.needsUpdate = true;
-  return Object.freeze({ grass, windTime, bladeCount: accepted });
+  batches.forEach((batch) => {
+    batch.mesh.count = batch.count;
+    batch.mesh.instanceMatrix.needsUpdate = true;
+  });
+  return Object.freeze({
+    grassMeshes: Object.freeze(batches.map((batch) => batch.mesh)),
+    windTime,
+    bladeCount: acceptedBladeCount,
+  });
 }
 
 function createFlowRibbonGeometry(extraWidth = 0, surfaceOffsetY = 0) {
@@ -581,8 +763,10 @@ function createFlowRibbonGeometry(extraWidth = 0, surfaceOffsetY = 0) {
 }
 
 function createWaterMaterial(flowTime: { value: number }) {
+  const fogUniforms = THREE.UniformsUtils.clone(THREE.UniformsLib.fog);
   return new THREE.ShaderMaterial({
     uniforms: {
+      ...fogUniforms,
       innerKeepFlowTime: flowTime,
       deepColor: { value: new THREE.Color(INNER_KEEP_TOWN_TONAL_PALETTE.water.deep) },
       shallowColor: { value: new THREE.Color(INNER_KEEP_TOWN_TONAL_PALETTE.water.shallow) },
@@ -590,6 +774,7 @@ function createWaterMaterial(flowTime: { value: number }) {
       skyColor: { value: new THREE.Color(INNER_KEEP_TOWN_TONAL_PALETTE.water.sky) },
     },
     vertexShader: `
+      #include <fog_pars_vertex>
       uniform float innerKeepFlowTime;
       varying vec2 vUv;
       varying float vWave;
@@ -602,13 +787,15 @@ function createWaterMaterial(flowTime: { value: number }) {
         float fineWave = sin(uv.y * 67.0 + innerKeepFlowTime * 2.1 - uv.x * 11.0);
         vWave = broadWave * 0.72 + fineWave * 0.28;
         transformed.y += vWave * 0.022;
-        vec4 viewPosition = modelViewMatrix * vec4(transformed, 1.0);
+        vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.0);
         vViewNormal = normalize(normalMatrix * normal);
-        vViewPosition = -viewPosition.xyz;
-        gl_Position = projectionMatrix * viewPosition;
+        vViewPosition = -mvPosition.xyz;
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
       }
     `,
     fragmentShader: `
+      #include <fog_pars_fragment>
       uniform float innerKeepFlowTime;
       uniform vec3 deepColor;
       uniform vec3 shallowColor;
@@ -644,8 +831,12 @@ function createWaterMaterial(flowTime: { value: number }) {
           clamp(edgeFoam * 0.24 + movingFoam * 0.34, 0.0, 0.5)
         );
         gl_FragColor = vec4(water, 0.82);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+        #include <fog_fragment>
       }
     `,
+    fog: true,
     transparent: true,
     depthWrite: false,
     side: THREE.DoubleSide,
@@ -806,14 +997,14 @@ export function createInnerKeepEcology(options: Readonly<{
   group.name = 'inner-keep-living-ecology';
   const geometries = new Set<THREE.BufferGeometry>();
   const materials = new Set<THREE.Material>();
-  const { grass, windTime, bladeCount } = createGrass(
+  const { grassMeshes, windTime, bladeCount } = createGrass(
     options.quality,
     options.visualSeed,
     geometries,
     materials,
     terrainHeightAt,
   );
-  group.add(grass);
+  group.add(...grassMeshes);
   const marshPlan = planInnerKeepMarshPresentation({
     quality: options.quality,
     visualSeed: options.visualSeed,

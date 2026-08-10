@@ -35,6 +35,25 @@ export type InnerKeepBuildingKind =
 
 export type InnerKeepResourceAmounts = Readonly<Record<InnerKeepResource, bigint>>;
 
+export function innerKeepBasisPointsPercentCopy(basisPoints: number) {
+  const whole = Math.floor(basisPoints / 100);
+  const fraction = basisPoints % 100;
+  return fraction === 0
+    ? `${whole}%`
+    : `${whole}.${String(fraction).padStart(2, '0').replace(/0+$/, '')}%`;
+}
+
+export function innerKeepCatalogueEffectCopy(
+  resource: InnerKeepResource,
+  basisPointsPerLevel: number,
+  capBasisPoints: number,
+) {
+  const label = resource[0].toUpperCase() + resource.slice(1);
+  return `Each completed level lowers future ${label} costs by ${
+    innerKeepBasisPointsPercentCopy(basisPointsPerLevel)
+  }, up to ${innerKeepBasisPointsPercentCopy(capBasisPoints)}.`;
+}
+
 export type InnerKeepSlotPresentation = Readonly<{
   slotId: string;
   label: string;

@@ -59,6 +59,7 @@ body {
   .worker-inspection__drawer,
   .worker-inspection__body,
   .worker-command-center,
+  .inner-keep-panel__body,
   .warpkeep-credits[data-presentation="reading"] .warpkeep-credits__viewport
 ) {
   -webkit-overflow-scrolling: touch;

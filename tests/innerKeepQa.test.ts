@@ -270,6 +270,40 @@ describe('local Inner Keep QA fixtures', () => {
     }
   });
 
+  it('uses only reviewed content-addressed catalogue previews and shared effect copy', () => {
+    const presentation = createSyntheticInnerKeepQaPresentation(
+      innerKeepQaScenarioById('empty'),
+      2_000_000_000_000_000n
+    );
+    const previewPaths = presentation.catalogue.map((entry) => entry.previewUrl);
+    expect(new Set(previewPaths).size).toBe(4);
+    expect(previewPaths.every((path) => (
+      /^images\/inner-keep\/catalog\/[a-z-]+-[a-f0-9]{16}\.png$/.test(path ?? '')
+    ))).toBe(true);
+    expect(presentation.catalogue.map((entry) => entry.effectCopy)).toEqual([
+      'Each completed level lowers future Food costs by 5%, up to 25%.',
+      'Each completed level lowers future Wood costs by 5%, up to 25%.',
+      'Each completed level lowers future Stone costs by 5%, up to 25%.',
+      'Each completed level lowers future Gold costs by 5%, up to 25%.'
+    ]);
+  });
+
+  it('removes only the reviewed missing-art preview in the fallback scenario', () => {
+    const presentation = createSyntheticInnerKeepQaPresentation(
+      innerKeepQaScenarioById('missing-asset-fallback'),
+      2_000_000_000_000_000n
+    );
+    expect(presentation.catalogue.map(({ buildingKind, previewUrl }) => ({
+      buildingKind,
+      previewUrl
+    }))).toEqual([
+      { buildingKind: 'city-mill', previewUrl: undefined },
+      expect.objectContaining({ buildingKind: 'lumber-camp' }),
+      expect.objectContaining({ buildingKind: 'city-stoneworks' }),
+      expect.objectContaining({ buildingKind: 'city-goldworks' })
+    ]);
+  });
+
   it('models an authoritative construction-to-complete observation without an empty state', () => {
     const scenario = innerKeepQaScenarioById('completion-reveal');
     const constructing = createSyntheticInnerKeepQaPresentation(
@@ -352,6 +386,10 @@ describe('local Inner Keep rendered evidence contract', () => {
     })).toThrow(/scenario/i);
     const cases = innerKeepQaBrowserCases(41734);
     expect(cases.map((entry) => entry.id)).toEqual(EXPECTED_SCENARIOS);
+    expect(cases.find((entry) => entry.id === 'empty')?.viewport).toEqual({
+      width: 844,
+      height: 390
+    });
     expect(cases.filter((entry) => entry.viewport.width === 390).map((entry) => entry.id))
       .toEqual([
         'construction-99-percent',
@@ -436,7 +474,7 @@ describe('local Inner Keep rendered evidence contract', () => {
         sceneGraphTriangles:
           INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.balanced.triangles + 1,
       },
-      { rendererDrawCalls: 381 },
+      { rendererDrawCalls: 385 },
       { rendererTriangles: 270_001 }
     ]) {
       expect(() => assertInnerKeepQaScenarioEvidence(
@@ -692,6 +730,12 @@ describe('local Inner Keep QA production boundary', () => {
     expect(browserProbe).toContain('exerciseWebglNativeKeyboardActivation');
     expect(browserProbe).toContain('semanticSlotLabels');
     expect(browserProbe).toContain("querySelector('#inner-keep-panel-title')");
+    expect(browserProbe).toContain("querySelector('.inner-keep-builder')");
+    expect(browserProbe).toContain('panelTouchAction');
+    expect(browserProbe).toContain('preview.naturalWidth === 320');
+    for (const geometryCase of ['desktop', 'short-landscape', 'mobile-portrait']) {
+      expect(browserProbe).toContain(`id: '${geometryCase}'`);
+    }
     expect(browserProbe).toContain('CDP_TIMEOUT_MILLISECONDS');
     expect(browserProbe).toContain('createLoopbackViteServer');
     expect(packageJson.scripts['qa:inner-keep']).toBe(

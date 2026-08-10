@@ -1,5 +1,6 @@
 import {
   INNER_KEEP_RESOURCE_ORDER,
+  innerKeepCatalogueEffectCopy,
   innerKeepPresentationIntegrity,
   isInnerKeepBuildingKind,
   type InnerKeepBuildingKind,
@@ -11,6 +12,9 @@ import {
   type InnerKeepResourceAmounts,
   type InnerKeepSlotPresentation
 } from '../components/inner-keep/innerKeepPresentation';
+import {
+  INNER_KEEP_STATIC_RUNTIME_ASSETS
+} from '../components/inner-keep/innerKeepRuntimeAssetCatalog.generated';
 import {
   CANONICAL_INNER_KEEP_BUILDING_CATALOG,
   CANONICAL_INNER_KEEP_LEVEL_POLICIES,
@@ -42,6 +46,11 @@ const U64_MAX = (1n << 64n) - 1n;
 const RESOURCE_BALANCE_CAP = 1_000_000n;
 const INNER_KEEP_BUILDING_KINDS = Object.freeze(
   CANONICAL_INNER_KEEP_BUILDING_CATALOG.map((row) => row.buildingKind)
+);
+const INNER_KEEP_BUILDING_PREVIEW_PATHS = new Map(
+  INNER_KEEP_STATIC_RUNTIME_ASSETS
+    .filter((asset) => asset.family === 'buildings' && asset.preview !== undefined)
+    .map((asset) => [asset.id, asset.preview!.path] as const)
 );
 
 const PRIVATE_STATE_KEYS = Object.freeze([
@@ -375,13 +384,6 @@ export function decodeInnerKeepRequestStatus(
   });
 }
 
-function effectCopy(kind: InnerKeepBuildingKind) {
-  if (kind === 'city-mill') return 'Each completed level lowers future Food costs by 5%, up to 25%.';
-  if (kind === 'lumber-camp') return 'Each completed level lowers future Wood costs by 5%, up to 25%.';
-  if (kind === 'city-stoneworks') return 'Each completed level lowers future Stone costs by 5%, up to 25%.';
-  return 'Each completed level lowers future Gold costs by 5%, up to 25%.';
-}
-
 function slotLabel(slot: InnerKeepSlotRow) {
   return slot.active
     ? `Build site ${slot.sortOrder}`
@@ -571,9 +573,14 @@ export function resolveReadyInnerKeepProjection(input: Readonly<{
         matchingDiscountResource: row.matchingDiscountResource as InnerKeepResource,
         discountBasisPointsPerLevel: row.discountBasisPointsPerLevel,
         discountCapBasisPoints: row.discountCapBasisPoints,
-        effectCopy: effectCopy(canonical.buildingKind)
-        // Runtime previews stay absent until their separately reviewed public
-        // copy authorization and content-addressed registry are both present.
+        effectCopy: innerKeepCatalogueEffectCopy(
+          row.matchingDiscountResource as InnerKeepResource,
+          row.discountBasisPointsPerLevel,
+          row.discountCapBasisPoints,
+        ),
+        // Ignore server-provided paths. This path comes only from the exact,
+        // owner-authorized, generated browser asset catalog.
+        previewUrl: INNER_KEEP_BUILDING_PREVIEW_PATHS.get(canonical.buildingKind)
       });
     })
   );
