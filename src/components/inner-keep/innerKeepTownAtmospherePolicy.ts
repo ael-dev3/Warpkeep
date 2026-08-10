@@ -8,7 +8,7 @@
  */
 
 export const INNER_KEEP_TOWN_ATMOSPHERE_POLICY_VERSION =
-  'inner-keep-sunlit-lowlands-atmosphere-v2';
+  'inner-keep-sunlit-lowlands-atmosphere-v3';
 
 export const INNER_KEEP_TOWN_TONAL_PALETTE = Object.freeze({
   skyFog: 0xc3dce5,
@@ -359,6 +359,109 @@ export type InnerKeepWeatheredWallPlacement = Readonly<{
   rotationMilliDegrees: readonly [number, number, number];
   scalePermille: readonly [number, number, number];
 }>;
+
+export type InnerKeepPalisadeVisualOverride = Readonly<{
+  assetId:
+    | 'palisade-wall-corner-90'
+    | 'palisade-gate-leaf-left'
+    | 'palisade-gate-leaf-right';
+  placementId: string;
+  positionMeters: readonly [number, number, number];
+  rotationMilliDegrees: readonly [number, number, number];
+  scalePermille: readonly [number, number, number];
+}>;
+
+/**
+ * The exact corner prefab is centered on its four-meter tile, while its elbow
+ * sits roughly 1.66 meters off that origin on both axes. These presentation-
+ * only transforms put the wooden elbow on the canonical wall intersection and
+ * tuck both arms into the straight runs. The canonical placement/digest and
+ * four-meter collision envelope remain unchanged.
+ */
+export const INNER_KEEP_PALISADE_CORNER_VISUAL_OVERRIDES:
+readonly InnerKeepPalisadeVisualOverride[] = Object.freeze([
+  Object.freeze({
+    assetId: 'palisade-wall-corner-90',
+    placementId: 'wall-corner-north-west',
+    positionMeters: Object.freeze([-19.2, 0, -20] as const),
+    rotationMilliDegrees: Object.freeze([0, 270_000, 0] as const),
+    scalePermille: Object.freeze([600, 1_000, 600] as const),
+  }),
+  Object.freeze({
+    assetId: 'palisade-wall-corner-90',
+    placementId: 'wall-corner-north-east',
+    positionMeters: Object.freeze([19.2, 0, -20] as const),
+    rotationMilliDegrees: Object.freeze([0, 180_000, 0] as const),
+    scalePermille: Object.freeze([600, 1_000, 600] as const),
+  }),
+  Object.freeze({
+    assetId: 'palisade-wall-corner-90',
+    placementId: 'wall-corner-south-east',
+    positionMeters: Object.freeze([19.2, 0, 14] as const),
+    rotationMilliDegrees: Object.freeze([0, 90_000, 0] as const),
+    scalePermille: Object.freeze([600, 1_000, 600] as const),
+  }),
+  Object.freeze({
+    assetId: 'palisade-wall-corner-90',
+    placementId: 'wall-corner-south-west',
+    positionMeters: Object.freeze([-19.2, 0, 14] as const),
+    rotationMilliDegrees: Object.freeze([0, 0, 0] as const),
+    scalePermille: Object.freeze([600, 1_000, 600] as const),
+  }),
+]);
+
+/**
+ * Runtime assets are normalized around their measured X/Z bounds before the
+ * placement wrapper is transformed. These centered-wrapper transforms put the
+ * leaves' original hinge pivots at x=+/-2.1, z=15.6 and fold them north beside
+ * the gateway. The resulting 3.1949-meter visual opening clears both the
+ * 2.35-meter supply wagon and the reviewed 3.1-meter road-side buffer.
+ */
+export const INNER_KEEP_PALISADE_GATE_LEAF_VISUAL_OVERRIDES:
+readonly InnerKeepPalisadeVisualOverride[] = Object.freeze([
+  Object.freeze({
+    assetId: 'palisade-gate-leaf-left',
+    placementId: 'south-gate-leaf-left-open',
+    positionMeters: Object.freeze([
+      -1.917_669_413_449_723_2,
+      0,
+      14.565_951_859_337_181,
+    ] as const),
+    rotationMilliDegrees: Object.freeze([0, 80_000, 0] as const),
+    scalePermille: Object.freeze([1_000, 1_000, 1_000] as const),
+  }),
+  Object.freeze({
+    assetId: 'palisade-gate-leaf-right',
+    placementId: 'south-gate-leaf-right-open',
+    positionMeters: Object.freeze([
+      1.917_669_413_449_723_2,
+      0,
+      14.565_951_859_337_181,
+    ] as const),
+    rotationMilliDegrees: Object.freeze([0, -80_000, 0] as const),
+    scalePermille: Object.freeze([1_000, 1_000, 1_000] as const),
+  }),
+]);
+
+export const INNER_KEEP_PALISADE_VISUAL_CORRECTION_POLICY = Object.freeze({
+  policyVersion: 'inner-keep-palisade-visual-correction-v1',
+  sourcePresentationLayoutDigest:
+    '0a976765d6f6e740eb6282fca90f59b412ecbd7ed382f001da89a0b7abeca756',
+  presentationOnly: true,
+  gameplayAuthorityClaimed: false,
+  changesCanonicalLayoutDigest: false,
+  cornerOverrides: INNER_KEEP_PALISADE_CORNER_VISUAL_OVERRIDES,
+  gateLeafOverrides: INNER_KEEP_PALISADE_GATE_LEAF_VISUAL_OVERRIDES,
+});
+
+/** Stable UTF-8 input for the reviewed visual-correction SHA-256. */
+export function canonicalInnerKeepPalisadeVisualCorrectionDigestInput() {
+  return JSON.stringify(INNER_KEEP_PALISADE_VISUAL_CORRECTION_POLICY);
+}
+
+// SHA-256 of canonicalInnerKeepPalisadeVisualCorrectionDigestInput().
+export const INNER_KEEP_PALISADE_VISUAL_CORRECTION_DIGEST =
+  '2972e25e56e3ccfc81f892e5bce9b4680d5f95ab0b1b3e5712bf101300d13899';
 
 function wallSkirt(
   placementId: string,

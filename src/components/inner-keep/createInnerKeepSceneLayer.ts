@@ -997,32 +997,44 @@ export function createInnerKeepSceneLayer(
 
   const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x745536, roughness: 0.92 });
   disposableMaterials.add(wallMaterial);
-  const addWall = (width: number, depth: number, x: number, z: number) => {
+  const addWall = (
+    wallId: string,
+    width: number,
+    depth: number,
+    x: number,
+    z: number,
+  ) => {
     const geometry = new THREE.BoxGeometry(width, 1.25, depth);
     disposableGeometries.add(geometry);
     const wall = setShadow(new THREE.Mesh(geometry, wallMaterial));
-    wall.position.set(x, 0.72, z);
+    wall.name = `inner-keep-procedural-wall:${wallId}`;
+    wall.position.set(x, 0.625, z);
+    wall.userData.presentationOnly = true;
+    wall.userData.gameplayAuthorityClaimed = false;
+    wall.raycast = () => undefined;
     proceduralFallbackGroup.add(wall);
   };
   const wall = INNER_KEEP_PRESENTATION_CLEARANCES.wall;
   const wallWidth = wall.eastX - wall.westX;
   const wallDepth = wall.southZ - wall.northZ;
   const wallCenterZ = (wall.northZ + wall.southZ) * 0.5;
-  addWall(wallWidth + 0.4, 0.36, 0, wall.northZ);
-  addWall(0.36, wallDepth + 0.4, wall.westX, wallCenterZ);
-  addWall(0.36, wallDepth + 0.4, wall.eastX, wallCenterZ);
+  addWall('north', wallWidth + 0.4, 0.36, 0, wall.northZ);
+  addWall('west', 0.36, wallDepth + 0.4, wall.westX, wallCenterZ);
+  addWall('east', 0.36, wallDepth + 0.4, wall.eastX, wallCenterZ);
   // The southern wall is deliberately split around the playable gate and
   // road approach; a decorative wall must never visually close the route.
   const southernWallRunWidth = (wallWidth - wall.southGateClearWidth) * 0.5;
   const southernWallCenterOffset = wall.southGateClearWidth * 0.5
     + southernWallRunWidth * 0.5;
   addWall(
+    'south-west',
     southernWallRunWidth,
     0.42,
     -southernWallCenterOffset,
     wall.southZ
   );
   addWall(
+    'south-east',
     southernWallRunWidth,
     0.42,
     southernWallCenterOffset,
@@ -1151,13 +1163,19 @@ export function createInnerKeepSceneLayer(
 
   // Open gate, approach standards, and readable civic landmarks.
   const fallbackGateWestPost = addCivicBox(
-    0.48, 3.5, 0.48, -2.7, 1.85, 15, civicTimber
+    0.48, 3.5, 0.48, -2.7, 1.75, 15, civicTimber
   );
   fallbackGateWestPost.name = 'inner-keep-procedural-south-gate-west-post';
+  fallbackGateWestPost.userData.presentationOnly = true;
+  fallbackGateWestPost.userData.gameplayAuthorityClaimed = false;
+  fallbackGateWestPost.raycast = () => undefined;
   const fallbackGateEastPost = addCivicBox(
-    0.48, 3.5, 0.48, 2.7, 1.85, 15, civicTimber
+    0.48, 3.5, 0.48, 2.7, 1.75, 15, civicTimber
   );
   fallbackGateEastPost.name = 'inner-keep-procedural-south-gate-east-post';
+  fallbackGateEastPost.userData.presentationOnly = true;
+  fallbackGateEastPost.userData.gameplayAuthorityClaimed = false;
+  fallbackGateEastPost.raycast = () => undefined;
   const fallbackGateFrame = addCivicBox(
     5.9, 0.42, 0.52, 0, 3.42, 15, civicTimber
   );

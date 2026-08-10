@@ -280,6 +280,66 @@ describe('procedural Inner Keep scene layer', () => {
     layer.dispose();
   });
 
+  it('grounds every fallback wall run and leaves the south gate visibly open', () => {
+    const { layer } = createLayer();
+    const terrain = createInnerKeepOuterWorldRenderedTerrainSampler('balanced');
+    const wallNames = [
+      'north',
+      'west',
+      'east',
+      'south-west',
+      'south-east',
+    ] as const;
+    const wallBounds = new Map<string, THREE.Box3>();
+    for (const wallName of wallNames) {
+      const wall = layer.scene.getObjectByName(
+        `inner-keep-procedural-wall:${wallName}`,
+      );
+      expect(wall, wallName).toBeInstanceOf(THREE.Mesh);
+      const bounds = new THREE.Box3().setFromObject(wall!);
+      wallBounds.set(wallName, bounds);
+      expect(bounds.min.y, wallName).toBeCloseTo(
+        terrain.heightAt(wall!.position.x, wall!.position.z),
+        10,
+      );
+      expect(wall!.userData).toMatchObject({
+        presentationOnly: true,
+        gameplayAuthorityClaimed: false,
+      });
+    }
+
+    expect(wallBounds.get('north')!.intersectsBox(wallBounds.get('west')!)).toBe(true);
+    expect(wallBounds.get('north')!.intersectsBox(wallBounds.get('east')!)).toBe(true);
+    expect(wallBounds.get('south-west')!.intersectsBox(wallBounds.get('west')!))
+      .toBe(true);
+    expect(wallBounds.get('south-east')!.intersectsBox(wallBounds.get('east')!))
+      .toBe(true);
+
+    const southWestBounds = new THREE.Box3().setFromObject(
+      layer.scene.getObjectByName('inner-keep-procedural-wall:south-west')!,
+    );
+    const southEastBounds = new THREE.Box3().setFromObject(
+      layer.scene.getObjectByName('inner-keep-procedural-wall:south-east')!,
+    );
+    expect(southWestBounds.max.x).toBeCloseTo(-3, 6);
+    expect(southEastBounds.min.x).toBeCloseTo(3, 6);
+
+    for (const postName of [
+      'inner-keep-procedural-south-gate-west-post',
+      'inner-keep-procedural-south-gate-east-post',
+    ]) {
+      const post = layer.scene.getObjectByName(postName);
+      expect(post, postName).toBeInstanceOf(THREE.Mesh);
+      expect(new THREE.Box3().setFromObject(post!).min.y, postName)
+        .toBeCloseTo(terrain.heightAt(post!.position.x, post!.position.z), 10);
+      expect(post!.userData).toMatchObject({
+        presentationOnly: true,
+        gameplayAuthorityClaimed: false,
+      });
+    }
+    layer.dispose();
+  });
+
   it.each(['high', 'balanced', 'reduced'] as const)(
     'grounds the %s earth apron and streets on the rendered terrain triangles',
     (quality) => {
