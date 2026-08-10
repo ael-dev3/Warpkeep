@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  assertInnerKeepInstanceColorContract,
   createInnerKeepTownAtmosphere,
+  INNER_KEEP_ROW_HOUSE_TIMBER_PIECE_COUNT,
   resolveInnerKeepRowHouseGrounding,
 } from '../src/components/inner-keep/createInnerKeepTownAtmosphere';
 import {
@@ -60,6 +62,25 @@ function instancedMesh(root: THREE.Object3D, name: string) {
   const object = root.getObjectByName(name);
   expect(object, name).toBeInstanceOf(THREE.InstancedMesh);
   return object as THREE.InstancedMesh;
+}
+
+function srgbLuminance(color: THREE.Color) {
+  const srgb = color.clone().convertLinearToSRGB();
+  return srgb.r * 0.2126 + srgb.g * 0.7152 + srgb.b * 0.0722;
+}
+
+function minimumEffectiveInstanceLuminance(mesh: THREE.InstancedMesh) {
+  const color = new THREE.Color();
+  const material = mesh.material as THREE.MeshStandardMaterial;
+  let minimum = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < mesh.count; index += 1) {
+    mesh.getColorAt(index, color);
+    minimum = Math.min(
+      minimum,
+      srgbLuminance(color.clone().multiply(material.color)),
+    );
+  }
+  return minimum;
 }
 
 function segmentTouchesExpandedAabb(
@@ -178,6 +199,208 @@ describe('Inner Keep sunlit living-town atmosphere', () => {
     expect(townSun.z).toBeCloseTo(REALM_SUN_DIRECTION.z, 12);
   });
 
+  it('renders bright painted cottages without multiplying missing vertex colors', () => {
+    const atmosphere = createInnerKeepTownAtmosphere({
+      quality: 'high',
+      reducedMotion: false,
+    });
+    const bodies = instancedMesh(
+      atmosphere.group,
+      'inner-keep-lower-ward-wattle-bodies',
+    );
+    const roofs = instancedMesh(
+      atmosphere.group,
+      'inner-keep-lower-ward-crooked-gables',
+    );
+    const foundations = instancedMesh(
+      atmosphere.group,
+      'inner-keep-lower-ward-stone-foundations',
+    );
+    const timbers = instancedMesh(
+      atmosphere.group,
+      'inner-keep-lower-ward-painted-timbers',
+    );
+    const doors = instancedMesh(
+      atmosphere.group,
+      'inner-keep-lower-ward-cottage-doors',
+    );
+    const shutters = instancedMesh(
+      atmosphere.group,
+      'inner-keep-lower-ward-window-shutters',
+    );
+    const windows = instancedMesh(
+      atmosphere.group,
+      'inner-keep-lower-ward-warm-windows',
+    );
+
+    for (const mesh of [bodies, roofs, foundations, timbers, doors, shutters]) {
+      expect(mesh.geometry.getAttribute('color'), mesh.name).toBeUndefined();
+      expect((mesh.material as THREE.MeshStandardMaterial).vertexColors, mesh.name)
+        .toBe(false);
+      expect(mesh.instanceColor, mesh.name).not.toBeNull();
+    }
+    atmosphere.group.traverse((object) => {
+      if (
+        !(object instanceof THREE.InstancedMesh)
+        || object.instanceColor === null
+        || object.geometry.getAttribute('color') !== undefined
+      ) return;
+      expect((object.material as THREE.Material & { vertexColors?: boolean }).vertexColors,
+        object.name).not.toBe(true);
+    });
+    expect(minimumEffectiveInstanceLuminance(bodies)).toBeGreaterThan(0.68);
+    expect(minimumEffectiveInstanceLuminance(roofs)).toBeGreaterThan(0.38);
+    expect(minimumEffectiveInstanceLuminance(foundations)).toBeGreaterThan(0.62);
+    expect(minimumEffectiveInstanceLuminance(timbers)).toBeGreaterThan(0.32);
+    expect(minimumEffectiveInstanceLuminance(doors)).toBeGreaterThan(0.34);
+    expect(minimumEffectiveInstanceLuminance(shutters)).toBeGreaterThan(0.36);
+    expect((bodies.material as THREE.MeshStandardMaterial).roughness).toBe(0.92);
+    expect((roofs.material as THREE.MeshStandardMaterial).roughness).toBe(0.82);
+    expect((timbers.material as THREE.MeshStandardMaterial).roughness).toBe(0.86);
+    expect((doors.material as THREE.MeshStandardMaterial).roughness).toBe(0.84);
+    expect((shutters.material as THREE.MeshStandardMaterial).roughness).toBe(0.82);
+    expect(windows.count).toBe(INNER_KEEP_LOWER_WARD_ROW_HOUSE_BUDGETS.high * 3);
+    const windowMaterial = windows.material as THREE.MeshStandardMaterial;
+    expect(windowMaterial.color.getHex(THREE.SRGBColorSpace))
+      .toBe(INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.window);
+    expect(windowMaterial.emissive.getHex(THREE.SRGBColorSpace))
+      .toBe(INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.window);
+    expect(windowMaterial.emissiveIntensity).toBe(0.42);
+    expect(new Set(INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.plaster)).toHaveLength(4);
+    expect(new Set(INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.roof)).toHaveLength(4);
+    expect(new Set(INNER_KEEP_TOWN_TONAL_PALETTE.rowHouse.shutter)).toHaveLength(4);
+
+    atmosphere.group.updateMatrixWorld(true);
+    const instanceMatrix = new THREE.Matrix4();
+    const worldToHouse = new THREE.Matrix4();
+    const vertex = new THREE.Vector3();
+    const maximumX = INNER_KEEP_LOWER_WARD_ROW_HOUSE_ENVELOPE_METERS.width * 0.5;
+    const maximumZ = INNER_KEEP_LOWER_WARD_ROW_HOUSE_ENVELOPE_METERS.depth * 0.5;
+    const matrixPrecisionMeters = 0.000_002;
+    INNER_KEEP_LOWER_WARD_ROW_HOUSES.forEach((house, houseIndex) => {
+      const marker = atmosphere.group.getObjectByName(
+        `inner-keep-lower-ward-row-house:${house.houseId}`,
+      )!;
+      worldToHouse.copy(marker.matrixWorld).invert();
+      for (
+        let pieceIndex = 0;
+        pieceIndex < INNER_KEEP_ROW_HOUSE_TIMBER_PIECE_COUNT;
+        pieceIndex += 1
+      ) {
+        timbers.getMatrixAt(
+          houseIndex * INNER_KEEP_ROW_HOUSE_TIMBER_PIECE_COUNT + pieceIndex,
+          instanceMatrix,
+        );
+        const position = timbers.geometry.getAttribute('position');
+        for (let vertexIndex = 0; vertexIndex < position.count; vertexIndex += 1) {
+          vertex.fromBufferAttribute(position, vertexIndex)
+            .applyMatrix4(instanceMatrix)
+            .applyMatrix4(worldToHouse);
+          expect(Math.abs(vertex.x)).toBeLessThanOrEqual(
+            maximumX + matrixPrecisionMeters,
+          );
+          expect(Math.abs(vertex.z)).toBeLessThanOrEqual(
+            maximumZ + matrixPrecisionMeters,
+          );
+          expect(vertex.y).toBeGreaterThanOrEqual(-0.000_001);
+          expect(vertex.y).toBeLessThanOrEqual(
+            INNER_KEEP_LOWER_WARD_ROW_HOUSE_ENVELOPE_METERS.maximumHeight
+              + 0.000_001,
+          );
+        }
+      }
+    });
+    atmosphere.dispose();
+  });
+
+  it('fails closed if an instance tint would be multiplied by a missing color', () => {
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshStandardMaterial({ vertexColors: true });
+    const mesh = new THREE.InstancedMesh(geometry, material, 1);
+    mesh.setColorAt(0, new THREE.Color(0xffffff));
+    expect(() => assertInnerKeepInstanceColorContract(mesh))
+      .toThrowError('INNER_KEEP_INSTANCE_COLOR_REQUIRES_GEOMETRY_COLOR');
+    geometry.dispose();
+    material.dispose();
+  });
+
+  it('surface-mounts the painted trim along the cottage gables and ridge', () => {
+    const atmosphere = createInnerKeepTownAtmosphere({
+      quality: 'high',
+      reducedMotion: false,
+    });
+    const timbers = instancedMesh(
+      atmosphere.group,
+      'inner-keep-lower-ward-painted-timbers',
+    );
+    const house = INNER_KEEP_LOWER_WARD_ROW_HOUSES[0]!;
+    const grounding = resolveInnerKeepRowHouseGrounding(
+      house,
+      innerKeepOuterWorldTerrainHeightAt,
+    );
+    const rotation = house.rotationMilliDegrees * Math.PI / 180_000;
+    const houseBase = new THREE.Matrix4().compose(
+      new THREE.Vector3(
+        house.positionMeters[0],
+        grounding.foundationTopMeters,
+        house.positionMeters[1],
+      ),
+      new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotation),
+      new THREE.Vector3(1, house.heightScale, 1),
+    );
+    const inverseHouseBase = houseBase.clone().invert();
+    const instanceMatrix = new THREE.Matrix4();
+    const localMatrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const quaternion = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    const readPiece = (pieceIndex: number) => {
+      timbers.getMatrixAt(pieceIndex, instanceMatrix);
+      localMatrix.multiplyMatrices(inverseHouseBase, instanceMatrix)
+        .decompose(position, quaternion, scale);
+      return Object.freeze({ position: position.clone(), scale: scale.clone() });
+    };
+
+    const frontGable = readPiece(7);
+    const backGable = readPiece(8);
+    const ridge = readPiece(14);
+    const expectVectorClose = (
+      actual: THREE.Vector3,
+      expected: readonly [number, number, number],
+    ) => {
+      expect(actual.x).toBeCloseTo(expected[0], 5);
+      expect(actual.y).toBeCloseTo(expected[1], 5);
+      expect(actual.z).toBeCloseTo(expected[2], 5);
+    };
+    expectVectorClose(frontGable.position, [0, 2.3, 0.93]);
+    expectVectorClose(backGable.position, [0, 2.3, -0.93]);
+    expectVectorClose(frontGable.scale, [1.9, 0.1, 0.04]);
+    expectVectorClose(backGable.scale, [1.9, 0.1, 0.04]);
+    expectVectorClose(ridge.position, [0, 2.94, 0]);
+    expectVectorClose(ridge.scale, [0.1, 0.08, 1.82]);
+
+    const roofHalfWidthAtGableRailTop = 2.78 * 0.5
+      * (1 - ((2.3 + 0.05) - 2.1) / 0.82);
+    expect(frontGable.scale.x * 0.5)
+      .toBeLessThanOrEqual(roofHalfWidthAtGableRailTop);
+    expect(frontGable.position.z - frontGable.scale.z * 0.5).toBeLessThan(0.93);
+    expect(frontGable.position.z + frontGable.scale.z * 0.5).toBeGreaterThan(0.93);
+    expect(Math.abs(backGable.position.z) - backGable.scale.z * 0.5).toBeLessThan(0.93);
+    expect(Math.abs(backGable.position.z) + backGable.scale.z * 0.5).toBeGreaterThan(0.93);
+    expect(frontGable.position.z + frontGable.scale.z * 0.5)
+      .toBeLessThanOrEqual(
+        INNER_KEEP_LOWER_WARD_ROW_HOUSE_ENVELOPE_METERS.depth * 0.5 + 0.000_001,
+      );
+    expect(Math.abs(backGable.position.z) + backGable.scale.z * 0.5)
+      .toBeLessThanOrEqual(
+        INNER_KEEP_LOWER_WARD_ROW_HOUSE_ENVELOPE_METERS.depth * 0.5 + 0.000_001,
+      );
+    expect(ridge.scale.z * 0.5).toBeLessThanOrEqual(0.93);
+    expect(ridge.position.y - ridge.scale.y * 0.5).toBeLessThan(2.92);
+    expect(ridge.position.y + ridge.scale.y * 0.5).toBeGreaterThan(2.92);
+    atmosphere.dispose();
+  });
+
   for (const quality of ['high', 'balanced', 'reduced'] as const) {
     it(`builds the exact ${quality} ward and wet-street budgets`, () => {
       const atmosphere = createInnerKeepTownAtmosphere({
@@ -229,8 +452,12 @@ describe('Inner Keep sunlit living-town atmosphere', () => {
       ).count).toBe(houseBudget);
       expect(instancedMesh(
         atmosphere.group,
-        'inner-keep-lower-ward-dark-timbers',
-      ).count).toBe(houseBudget * 7);
+        'inner-keep-lower-ward-warm-windows',
+      ).count).toBe(houseBudget * 3);
+      expect(instancedMesh(
+        atmosphere.group,
+        'inner-keep-lower-ward-painted-timbers',
+      ).count).toBe(houseBudget * INNER_KEEP_ROW_HOUSE_TIMBER_PIECE_COUNT);
       expect(atmosphere.group.getObjectByName(
         'inner-keep-rain-darkened-wheel-ruts',
       )?.userData.innerKeepWetRutCount).toBe(INNER_KEEP_WET_RUT_BUDGETS[quality]);

@@ -5,12 +5,12 @@ import { REALM_SUN_LIGHT_POSITION } from '../realm/createRealmEnvironment';
  *
  * This policy deliberately sits outside the canonical v15 layout digest. It
  * cannot create a building, occupy a construction slot, block a route, or
- * claim gameplay authority. The generic houses are background silhouettes;
+ * claim gameplay authority. The generic houses are background town dressing;
  * build-catalogue assets remain exclusive to authoritative player projects.
  */
 
 export const INNER_KEEP_TOWN_ATMOSPHERE_POLICY_VERSION =
-  'inner-keep-sunlit-lowlands-atmosphere-v3';
+  'inner-keep-sunlit-lowlands-atmosphere-v4-painted-cottages';
 
 export const INNER_KEEP_TOWN_TONAL_PALETTE = Object.freeze({
   skyFog: 0xc3dce5,
@@ -61,13 +61,14 @@ export const INNER_KEEP_TOWN_TONAL_PALETTE = Object.freeze({
     ] as const),
   }),
   rowHouse: Object.freeze({
-    plaster: Object.freeze([0xd9caa2, 0xc9b68d, 0xe1d1ad, 0xbfa77c] as const),
-    roof: Object.freeze([0x76513d, 0x8a5e42, 0x5e4a37, 0x9a6845] as const),
-    timber: 0x493321,
-    window: 0xe6b764,
+    plaster: Object.freeze([0xf2d9a6, 0xe9c77f, 0xdce5bd, 0xe8b9a5] as const),
+    roof: Object.freeze([0xa87333, 0xb77d38, 0x50a0a0, 0x8a769d] as const),
+    foundation: Object.freeze([0xb8b7a5, 0xc2b59d, 0x9fa99b, 0xc1aa91] as const),
+    timber: Object.freeze([0x8b603b, 0x77573b, 0x6c6546, 0x855344] as const),
+    window: 0xffd889,
     smoke: 0xc6c9bd,
-    door: 0x65442b,
-    shutter: 0x6d5034,
+    door: Object.freeze([0x95613b, 0x55796c, 0x71678f, 0xa0713b] as const),
+    shutter: Object.freeze([0x4f8179, 0x9c7042, 0x718552, 0x7075a0] as const),
     garden: Object.freeze([0x6f963e, 0x819f49, 0x5f8739] as const),
     linen: Object.freeze([0xe8ddbd, 0xb5c8ad, 0xd7a178] as const),
   }),
