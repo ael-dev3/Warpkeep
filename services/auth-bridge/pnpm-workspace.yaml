@@ -10,3 +10,6 @@ overrides:
   # Vite's compatible range otherwise resolves to a PostCSS release affected by
   # GHSA-566m-qj78-rww5. Keep this exact until the toolchain raises its floor.
   postcss: 8.5.25
+  # PostCSS accepts this patched 3.x release while Vitest's Vite toolchain can
+  # otherwise retain a Nano ID build affected by GHSA-2v37-7h3g-55p8.
+  nanoid: 3.3.17
