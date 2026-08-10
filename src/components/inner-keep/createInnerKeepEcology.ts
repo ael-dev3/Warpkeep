@@ -21,6 +21,7 @@ import {
   innerKeepCityEdgeApronDistance,
   innerKeepCityDistrictRoadEdgeDistance,
   innerKeepOuterWorldDistanceToResourceSite,
+  innerKeepOuterWorldDistanceToRenderedRoadEdge,
   innerKeepOuterWorldDistanceToRoad,
   innerKeepOuterWorldDistanceToSegment,
   innerKeepOuterWorldPointIsClear,
@@ -376,6 +377,7 @@ function grassCandidateIsClear(x: number, z: number) {
   ) return false;
   if (innerKeepCityDistrictRoadEdgeDistance(x, z) < 0.34) return false;
   if (innerKeepCityEdgeApronDistance(x, z) < 0.14) return false;
+  if (innerKeepOuterWorldDistanceToRenderedRoadEdge(x, z) < 0.13) return false;
   if (INNER_KEEP_FIXED_ECOLOGY_EXCLUSIONS.some((exclusion) => (
     !exclusion.isRoadSurface
     && insideRoundedBox(

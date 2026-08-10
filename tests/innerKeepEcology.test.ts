@@ -25,6 +25,7 @@ import {
   innerKeepCityDistrictRoadEdgeDistance,
   innerKeepCityEdgeApronDistance,
   innerKeepOuterWorldDistanceToRoad,
+  innerKeepOuterWorldDistanceToRenderedRoadEdge,
   innerKeepOuterWorldDistanceToWater,
   innerKeepOuterWorldPointIsClear,
   innerKeepOuterWorldTerrainHeightAt,
@@ -159,6 +160,13 @@ describe('Inner Keep living estate grass and connected water presentation', () =
           firstGrassClearanceFailure === ''
           && innerKeepCityEdgeApronDistance(position.x, position.z) < 0.14
         ) firstGrassClearanceFailure = `city-apron:${position.x}:${position.z}`;
+        if (
+          firstGrassClearanceFailure === ''
+          && innerKeepOuterWorldDistanceToRenderedRoadEdge(
+            position.x,
+            position.z,
+          ) < 0.13
+        ) firstGrassClearanceFailure = `town-road:${position.x}:${position.z}`;
 
         for (const exclusion of INNER_KEEP_FIXED_ECOLOGY_EXCLUSIONS) {
           if (exclusion.isRoadSurface) continue;
@@ -239,6 +247,8 @@ describe('Inner Keep living estate grass and connected water presentation', () =
         .toBeGreaterThanOrEqual(0.34);
       expect(innerKeepCityEdgeApronDistance(position.x, position.z))
         .toBeGreaterThanOrEqual(0.14);
+      expect(innerKeepOuterWorldDistanceToRenderedRoadEdge(position.x, position.z))
+        .toBeGreaterThanOrEqual(0.13);
       for (const site of INNER_KEEP_OUTER_WORLD_RESOURCE_SITES) {
         expect(Math.hypot(
           position.x - site.positionMeters[0],

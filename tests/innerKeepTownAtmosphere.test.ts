@@ -399,6 +399,10 @@ describe('Inner Keep sunlit living-town atmosphere', () => {
         }
       }
       for (const lane of INNER_KEEP_OUTER_WORLD_AMBIENT_LANES) {
+        if (
+          lane.servesHouseId !== undefined
+          && exclusion.exclusionId === `lower-ward-row-house:${lane.servesHouseId}`
+        ) continue;
         for (let segmentIndex = 0; segmentIndex < lane.points.length - 1; segmentIndex += 1) {
           expect(segmentTouchesExpandedAabb(
             lane.points[segmentIndex]!,

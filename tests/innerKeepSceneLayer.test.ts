@@ -8,7 +8,8 @@ import {
 import {
   INNER_KEEP_PRESENTATION_ASSETS,
   INNER_KEEP_PRESENTATION_CAMERA_PRESETS,
-  INNER_KEEP_PRESENTATION_PLACEMENTS
+  INNER_KEEP_PRESENTATION_PLACEMENTS,
+  INNER_KEEP_PRESENTATION_SLOTS,
 } from '../src/components/inner-keep/innerKeepPresentationLayoutPolicy';
 import {
   INNER_KEEP_WATER_CENTERLINE,
@@ -173,6 +174,9 @@ describe('procedural Inner Keep scene layer', () => {
     const first = pads.find((pad) => (
       pad.name === 'inner-keep-slot-pad:inner-keep-slot-m01'
     ));
+    const firstReserved = pads.find((pad) => (
+      pad.name === 'inner-keep-slot-pad:inner-keep-slot-l01'
+    ));
     expect(layer.getTelemetry()).toMatchObject({
       status: 'ready',
       slotCount: 12,
@@ -186,6 +190,42 @@ describe('procedural Inner Keep scene layer', () => {
     expect(pads).toHaveLength(12);
     expect(first?.position.x).toBe(-9);
     expect(first?.position.z).toBe(-3.4);
+    expect(first).toBeInstanceOf(THREE.Mesh);
+    expect((first as THREE.Mesh).geometry).toBeInstanceOf(THREE.BoxGeometry);
+    expect((first as THREE.Mesh<THREE.BoxGeometry>).geometry.parameters).toMatchObject({
+      width: 3.35,
+      height: 0.1,
+      depth: 2.55,
+    });
+    expect(first?.userData.innerKeepSlotVisualRole).toBe('active-work-yard');
+    expect(firstReserved?.userData.innerKeepSlotVisualRole)
+      .toBe('reserved-grass-yard');
+    expect(pads.every((pad) => (
+      (pad as THREE.Mesh).geometry instanceof THREE.BoxGeometry
+    ))).toBe(true);
+    const activeColors = new Set<number>();
+    const reservedColors = new Set<number>();
+    for (const slot of INNER_KEEP_PRESENTATION_SLOTS) {
+      const pad = pads.find(({ name }) => (
+        name === `inner-keep-slot-pad:${slot.slotId}`
+      )) as THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial>;
+      expect(pad.position.x, slot.slotId).toBe(slot.positionMeters[0]);
+      expect(pad.position.z, slot.slotId).toBe(slot.positionMeters[2]);
+      expect(pad.rotation.y, slot.slotId).toBeCloseTo(
+        slot.rotationYMilliDegrees * Math.PI / 180_000,
+        10,
+      );
+      expect(pad.scale.x, slot.slotId)
+        .toBe(slot.footprintClass === 'large' ? 1.14 : 1);
+      expect(pad.scale.z, slot.slotId).toBe(pad.scale.x);
+      expect(pad.userData.innerKeepSlotVisualRole, slot.slotId).toBe(
+        slot.active ? 'active-work-yard' : 'reserved-grass-yard',
+      );
+      (slot.active ? activeColors : reservedColors).add(pad.material.color.getHex());
+    }
+    expect(activeColors.size).toBe(1);
+    expect(reservedColors.size).toBe(1);
+    expect([...activeColors]).not.toEqual([...reservedColors]);
     expect(document.querySelectorAll('canvas')).toHaveLength(1);
     expect(requestAnimationFrame).not.toHaveBeenCalled();
     layer.dispose();
@@ -253,7 +293,10 @@ describe('procedural Inner Keep scene layer', () => {
       const streets = layer.scene.getObjectByName(
         'inner-keep-city-district-road-network'
       );
-      for (const presentationOnly of [estateRoads, apron, streets]) {
+      const coreStreets = layer.scene.getObjectByName(
+        'inner-keep-city-core-road-network'
+      );
+      for (const presentationOnly of [estateRoads, apron, streets, coreStreets]) {
         expect(presentationOnly).toBeInstanceOf(THREE.Mesh);
         expect(presentationOnly?.userData).toMatchObject({
           presentationOnly: true,
@@ -781,6 +824,8 @@ describe('procedural Inner Keep scene layer', () => {
       .toBeUndefined();
     expect(layer.scene.getObjectByName('inner-keep-procedural-asset-fallback')?.visible)
       .toBe(false);
+    expect(layer.scene.getObjectByName('inner-keep-city-core-road-network'))
+      .toMatchObject({ visible: true });
     expect(layer.scene.getObjectByName('inner-keep-weathered-town-atmosphere'))
       .toBeDefined();
     expect(layer.scene.getObjectByName('inner-keep-weathered-masonry-skirt'))

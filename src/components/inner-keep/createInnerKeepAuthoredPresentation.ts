@@ -25,6 +25,7 @@ import {
   INNER_KEEP_CITY_DISTRICT_ROADS,
   INNER_KEEP_CITY_EDGE_APRON_HALF_WIDTH_METERS,
   INNER_KEEP_CITY_EDGE_APRON_POINTS,
+  INNER_KEEP_OUTER_WORLD_AMBIENT_LANES,
   INNER_KEEP_OUTER_WORLD_RESOURCE_ROADS,
   INNER_KEEP_OUTER_WORLD_SUPPLY_WAGON_FOOTPRINT_METERS,
   INNER_KEEP_OUTER_WORLD_TRADE_ROUTE,
@@ -533,6 +534,18 @@ function candidateIsClear(
       INNER_KEEP_OUTER_WORLD_SUPPLY_WAGON_FOOTPRINT_METERS * 0.5
         + INNER_KEEP_AMBIENT_MINIMUM_BODY_CLEARANCE_METERS,
     )) return false;
+  }
+  for (const lane of INNER_KEEP_OUTER_WORLD_AMBIENT_LANES) {
+    for (let index = 0; index < lane.points.length - 1; index += 1) {
+      if (segmentTouchesExpandedAabb(
+        lane.points[index]!,
+        lane.points[index + 1]!,
+        center,
+        trunkHalfExtents,
+        lane.reservedHalfWidthMeters
+          + INNER_KEEP_AUTHORED_PERIMETER_TREE_CLEARANCE_METERS,
+      )) return false;
+    }
   }
   for (const road of INNER_KEEP_OUTER_WORLD_RESOURCE_ROADS) {
     for (let index = 0; index < road.points.length - 1; index += 1) {

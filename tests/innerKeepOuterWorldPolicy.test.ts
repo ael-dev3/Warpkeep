@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 
 import {
+  INNER_KEEP_CITY_CORE_ROADS,
   INNER_KEEP_CITY_DISTRICT_ROADS,
+  INNER_KEEP_CITY_PRESENTATION_ROADS,
+  INNER_KEEP_EASTWALL_QUAY_LANE,
+  INNER_KEEP_EAST_CROFT_DOORSTEP_PATHS,
+  INNER_KEEP_EAST_CROFT_MARKET_LANE,
+  INNER_KEEP_EAST_VILLAGE_SERVICE_LANE,
+  INNER_KEEP_OLD_ROAD_GRAVEYARD_SPUR,
+  INNER_KEEP_OUTER_WORLD_AMBIENT_LANES,
   INNER_KEEP_OUTER_WORLD_APPROACHES,
   INNER_KEEP_OUTER_WORLD_BOAT_ROUTE,
   INNER_KEEP_OUTER_WORLD_COMPOUND_PLATEAU,
@@ -22,11 +30,17 @@ import {
   INNER_KEEP_OUTER_WORLD_TREE_SPECIES_IDS,
   INNER_KEEP_OUTER_WORLD_WATER_CENTERLINE,
   INNER_KEEP_OUTER_WORLD_WILDLIFE_BUDGETS,
+  INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE,
+  INNER_KEEP_TOWN_JUNCTION_LANES,
+  INNER_KEEP_VILLAGE_COMMONS_SOCIAL_LANE,
+  INNER_KEEP_WEST_CROFT_DOORSTEP_PATHS,
+  INNER_KEEP_WEST_VILLAGE_DELIVERY_LANE,
   createInnerKeepOuterWorldRenderedTerrainSampler,
   innerKeepCityDistrictRoadEdgeDistance,
   innerKeepOuterWorldCompoundPlateauSignedDistance,
   innerKeepOuterWorldDistanceToResourceSite,
   innerKeepOuterWorldDistanceToRoad,
+  innerKeepOuterWorldDistanceToSegment,
   innerKeepOuterWorldDistanceToWater,
   innerKeepOuterWorldPointIsClear,
   innerKeepOuterWorldResourcePadsForQuality,
@@ -592,6 +606,131 @@ describe('Inner Keep outer-world presentation policy', () => {
           .toBeLessThanOrEqual(0);
       }
     }
+  });
+
+  it('keeps one continuous presentation-only civic cross-road under authored tiles', () => {
+    expect(INNER_KEEP_CITY_CORE_ROADS).toHaveLength(3);
+    expect(INNER_KEEP_CITY_PRESENTATION_ROADS).toHaveLength(
+      INNER_KEEP_CITY_CORE_ROADS.length + INNER_KEEP_CITY_DISTRICT_ROADS.length,
+    );
+    const roadIds = INNER_KEEP_CITY_PRESENTATION_ROADS.map(({ roadId }) => roadId);
+    expect(new Set(roadIds).size).toBe(roadIds.length);
+    for (const road of INNER_KEEP_CITY_PRESENTATION_ROADS) {
+      expect(road).toMatchObject({
+        closed: false,
+        presentationOnly: true,
+        gameplayAuthorityClaimed: false,
+      });
+      expect(road.halfWidthMeters).toBeGreaterThan(0);
+      expect(road.points.length).toBeGreaterThanOrEqual(2);
+    }
+
+    const [spine, westMarket, eastMarket] = INNER_KEEP_CITY_CORE_ROADS;
+    expect(spine?.points[0]).toEqual({ x: 0, z: 13.7 });
+    expect(spine?.points.at(-1)).toEqual({ x: 0, z: -10.9 });
+    const civicJunction = spine?.points.find(({ z }) => z === 0.2);
+    expect(civicJunction).toEqual({ x: 0, z: 0.2 });
+    expect(Math.hypot(
+      westMarket!.points[0]!.x - civicJunction!.x,
+      westMarket!.points[0]!.z - civicJunction!.z,
+    )).toBeLessThanOrEqual(
+      westMarket!.halfWidthMeters + spine!.halfWidthMeters,
+    );
+    expect(Math.hypot(
+      eastMarket!.points[0]!.x - civicJunction!.x,
+      eastMarket!.points[0]!.z - civicJunction!.z,
+    )).toBeLessThanOrEqual(
+      eastMarket!.halfWidthMeters + spine!.halfWidthMeters,
+    );
+  });
+
+  it('connects the lower ward, cottage frontages, quay, and old road', () => {
+    const laneIds = INNER_KEEP_OUTER_WORLD_AMBIENT_LANES.map(({ laneId }) => laneId);
+    expect(new Set(laneIds).size).toBe(laneIds.length);
+    for (const lane of INNER_KEEP_OUTER_WORLD_AMBIENT_LANES) {
+      expect(lane).toMatchObject({
+        presentationOnly: true,
+        gameplayAuthorityClaimed: false,
+      });
+      expect(lane.points.length).toBeGreaterThanOrEqual(2);
+      expect(lane.reservedHalfWidthMeters).toBeGreaterThan(0);
+    }
+
+    expect(INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE.points[0]).toEqual({
+      x: 0,
+      z: INNER_KEEP_OUTER_WORLD_APPROACHES.gateOuterZ,
+    });
+    expect(INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE.points.at(-1))
+      .toEqual(INNER_KEEP_EASTWALL_QUAY_LANE.points[0]);
+    expect(INNER_KEEP_EASTWALL_QUAY_LANE.points.at(-1)).toEqual({ x: 24.5, z: 7 });
+    expect(INNER_KEEP_EAST_CROFT_MARKET_LANE.points[0])
+      .toEqual(INNER_KEEP_EAST_VILLAGE_SERVICE_LANE.points[2]);
+    expect(INNER_KEEP_OLD_ROAD_GRAVEYARD_SPUR.points[0]).toEqual({ x: -32, z: -2 });
+    expect(INNER_KEEP_OLD_ROAD_GRAVEYARD_SPUR.points.at(-1))
+      .toEqual({ x: -26, z: -5.8 });
+
+    const [westGateLink, eastGateLink, commonsLink] =
+      INNER_KEEP_TOWN_JUNCTION_LANES;
+    expect(westGateLink?.points[0])
+      .toEqual(INNER_KEEP_WEST_VILLAGE_DELIVERY_LANE.points.at(-1));
+    expect(westGateLink?.points.at(-1))
+      .toEqual(INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE.points[0]);
+    expect(eastGateLink?.points[0])
+      .toEqual(INNER_KEEP_EAST_VILLAGE_SERVICE_LANE.points[0]);
+    const eastGateContact = eastGateLink!.points.at(-1)!;
+    expect(innerKeepOuterWorldDistanceToSegment(
+      eastGateContact.x,
+      eastGateContact.z,
+      INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE.points[0]!.x,
+      INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE.points[0]!.z,
+      INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE.points[1]!.x,
+      INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE.points[1]!.z,
+    )).toBeLessThan(0.05);
+    expect(commonsLink?.points[0])
+      .toEqual(INNER_KEEP_VILLAGE_COMMONS_SOCIAL_LANE.points.at(-1));
+    const commonsContact = commonsLink!.points.at(-1)!;
+    expect(innerKeepOuterWorldDistanceToSegment(
+      commonsContact.x,
+      commonsContact.z,
+      INNER_KEEP_EAST_VILLAGE_SERVICE_LANE.points[2]!.x,
+      INNER_KEEP_EAST_VILLAGE_SERVICE_LANE.points[2]!.z,
+      INNER_KEEP_EAST_VILLAGE_SERVICE_LANE.points[3]!.x,
+      INNER_KEEP_EAST_VILLAGE_SERVICE_LANE.points[3]!.z,
+    )).toBeLessThan(0.05);
+
+    const doorstepPaths = [
+      ...INNER_KEEP_WEST_CROFT_DOORSTEP_PATHS,
+      ...INNER_KEEP_EAST_CROFT_DOORSTEP_PATHS,
+    ];
+    expect(doorstepPaths).toHaveLength(6);
+    expect(new Set(doorstepPaths.map(({ servesHouseId }) => servesHouseId)).size)
+      .toBe(doorstepPaths.length);
+    for (const path of INNER_KEEP_WEST_CROFT_DOORSTEP_PATHS) {
+      const endpoint = path.points.at(-1)!;
+      let nearestTradeCenterline = Number.POSITIVE_INFINITY;
+      for (let index = 0; index < INNER_KEEP_OUTER_WORLD_TRADE_ROUTE.length - 1; index += 1) {
+        const from = INNER_KEEP_OUTER_WORLD_TRADE_ROUTE[index]!;
+        const to = INNER_KEEP_OUTER_WORLD_TRADE_ROUTE[index + 1]!;
+        nearestTradeCenterline = Math.min(
+          nearestTradeCenterline,
+          innerKeepOuterWorldDistanceToSegment(
+            endpoint.x,
+            endpoint.z,
+            from[0],
+            from[2],
+            to[0],
+            to[2],
+          ),
+        );
+      }
+      expect(nearestTradeCenterline, path.laneId).toBeLessThan(0.75);
+    }
+    const southfieldPath = INNER_KEEP_EAST_CROFT_DOORSTEP_PATHS.find(
+      ({ servesHouseId }) => servesHouseId === 'southfield-east-row',
+    )!;
+    const circuitContact = southfieldPath.points[0]!;
+    expect(innerKeepOuterWorldDistanceToRoad(circuitContact.x, circuitContact.z))
+      .toBe(0);
   });
 
   it('uses one clear-point predicate for forest, wildlife, and grass exclusions', () => {
