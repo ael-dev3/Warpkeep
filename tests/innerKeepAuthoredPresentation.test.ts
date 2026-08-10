@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 
@@ -31,6 +33,7 @@ import { INNER_KEEP_FIXED_PLACEMENT_EXCLUSIONS } from '../src/components/inner-k
 import {
   INNER_KEEP_PRESENTATION_ASSETS,
   INNER_KEEP_PRESENTATION_CLEARANCES,
+  INNER_KEEP_PRESENTATION_LAYOUT_DIGEST,
   INNER_KEEP_PRESENTATION_PLACEMENTS,
 } from '../src/components/inner-keep/innerKeepPresentationLayoutPolicy';
 import {
@@ -44,7 +47,12 @@ import {
   innerKeepOuterWorldTerrainHeightAt,
 } from '../src/components/inner-keep/innerKeepOuterWorldPolicy';
 import {
+  canonicalInnerKeepPalisadeVisualCorrectionDigestInput,
   INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS,
+  INNER_KEEP_PALISADE_CORNER_VISUAL_OVERRIDES,
+  INNER_KEEP_PALISADE_GATE_LEAF_VISUAL_OVERRIDES,
+  INNER_KEEP_PALISADE_VISUAL_CORRECTION_DIGEST,
+  INNER_KEEP_PALISADE_VISUAL_CORRECTION_POLICY,
   INNER_KEEP_VILLAGE_ANIMAL_ROAMING_EXCLUSIONS,
   INNER_KEEP_WEATHERED_WALL_SKIRT_PLACEMENTS,
 } from '../src/components/inner-keep/innerKeepTownAtmospherePolicy';
@@ -127,6 +135,42 @@ function segmentTouchesExpandedAabb(
     if (entry > exit) return false;
   }
   return true;
+}
+
+function orientedRectangleCorners(
+  center: readonly [number, number],
+  halfExtents: readonly [number, number],
+  yawRadians: number,
+) {
+  const cosine = Math.cos(yawRadians);
+  const sine = Math.sin(yawRadians);
+  return [
+    [-halfExtents[0], -halfExtents[1]],
+    [halfExtents[0], -halfExtents[1]],
+    [halfExtents[0], halfExtents[1]],
+    [-halfExtents[0], halfExtents[1]],
+  ].map(([x, z]) => new THREE.Vector2(
+    center[0] + cosine * x + sine * z,
+    center[1] - sine * x + cosine * z,
+  ));
+}
+
+function separatingAxisGapMeters(
+  left: readonly THREE.Vector2[],
+  right: readonly THREE.Vector2[],
+) {
+  const axes = [left, right].flatMap((corners) => [0, 1].map((index) => {
+    const edge = corners[index + 1]!.clone().sub(corners[index]!);
+    return new THREE.Vector2(-edge.y, edge.x).normalize();
+  }));
+  return Math.max(...axes.map((axis) => {
+    const leftProjection = left.map((corner) => corner.dot(axis));
+    const rightProjection = right.map((corner) => corner.dot(axis));
+    return Math.max(
+      Math.min(...rightProjection) - Math.max(...leftProjection),
+      Math.min(...leftProjection) - Math.max(...rightProjection),
+    );
+  }));
 }
 
 function routeCategories(route: InnerKeepAmbientRoute): readonly InnerKeepAmbientActorCategory[] {
@@ -301,6 +345,123 @@ describe('authored Inner Keep presentation composition', () => {
         + presentation.authoredTreeCount
         + INNER_KEEP_WEATHERED_WALL_SKIRT_PLACEMENTS.length
       ) * 12,
+    );
+  });
+
+  it('tucks every off-centre palisade elbow into its canonical corner envelope', () => {
+    const presentation = createInnerKeepAuthoredStaticPresentation({
+      bundle: fullStaticBundle(),
+      quality: 'balanced',
+      visualSeed: 42,
+    });
+    const canonicalCorners = INNER_KEEP_PRESENTATION_PLACEMENTS.find(
+      ({ assetId }) => assetId === 'palisade-wall-corner-90',
+    )!.instances;
+    expect(INNER_KEEP_PALISADE_CORNER_VISUAL_OVERRIDES).toHaveLength(4);
+    expect(new Set(INNER_KEEP_PALISADE_CORNER_VISUAL_OVERRIDES.map(
+      ({ placementId }) => placementId,
+    )).size).toBe(4);
+
+    const localElbow = new THREE.Vector3(-1.66, 0, 1.66);
+    for (const override of INNER_KEEP_PALISADE_CORNER_VISUAL_OVERRIDES) {
+      const canonical = canonicalCorners.find(
+        ({ placementId }) => placementId === override.placementId,
+      )!;
+      const marker = presentation.group.getObjectByName(
+        `inner-keep-authored-placement:${override.placementId}`,
+      )!;
+      expect(marker.position.toArray()).toEqual(override.positionMeters);
+      expect(marker.scale.toArray()).toEqual([0.6, 1, 0.6]);
+      expect(marker.position.y).toBe(0);
+      expect(marker.scale.y).toBe(1);
+
+      const elbow = localElbow.clone()
+        .multiply(marker.scale)
+        .applyEuler(marker.rotation)
+        .add(marker.position);
+      expect(elbow.x).toBeCloseTo(canonical.positionMeters[0], 2);
+      expect(elbow.z).toBeCloseTo(canonical.positionMeters[2], 2);
+
+      const visualHalfExtentMeters = 2 * marker.scale.x;
+      expect(Math.abs(marker.position.x - canonical.positionMeters[0])
+        + visualHalfExtentMeters).toBeLessThanOrEqual(2.35);
+      expect(Math.abs(marker.position.z - canonical.positionMeters[2])
+        + visualHalfExtentMeters).toBeLessThanOrEqual(2.35);
+    }
+  });
+
+  it('pins the presentation-only palisade correction to the reviewed layout', () => {
+    expect(INNER_KEEP_PALISADE_VISUAL_CORRECTION_POLICY).toMatchObject({
+      policyVersion: 'inner-keep-palisade-visual-correction-v1',
+      sourcePresentationLayoutDigest: INNER_KEEP_PRESENTATION_LAYOUT_DIGEST,
+      presentationOnly: true,
+      gameplayAuthorityClaimed: false,
+      changesCanonicalLayoutDigest: false,
+    });
+    expect(createHash('sha256')
+      .update(canonicalInnerKeepPalisadeVisualCorrectionDigestInput())
+      .digest('hex')).toBe(INNER_KEEP_PALISADE_VISUAL_CORRECTION_DIGEST);
+  });
+
+  it('folds the south gate leaves onto their hinges without blocking the wagon', () => {
+    const presentation = createInnerKeepAuthoredStaticPresentation({
+      bundle: fullStaticBundle(),
+      quality: 'balanced',
+      visualSeed: 42,
+    });
+    expect(INNER_KEEP_PALISADE_GATE_LEAF_VISUAL_OVERRIDES).toHaveLength(2);
+    const renderedLeafRectangles: THREE.Vector2[][] = [];
+
+    for (const [index, override] of
+      INNER_KEEP_PALISADE_GATE_LEAF_VISUAL_OVERRIDES.entries()) {
+      const marker = presentation.group.getObjectByName(
+        `inner-keep-authored-placement:${override.placementId}`,
+      )!;
+      marker.updateWorldMatrix(true, true);
+      expect(marker.position.toArray()).toEqual(override.positionMeters);
+      expect(marker.scale.toArray()).toEqual([1, 1, 1]);
+      const isLeft = override.assetId === 'palisade-gate-leaf-left';
+      const centeredHinge = new THREE.Vector3(isLeft ? -1.05 : 1.05, 0, 0)
+        .applyMatrix4(marker.matrixWorld);
+      expect(centeredHinge.x).toBeCloseTo(isLeft ? -2.1 : 2.1, 10);
+      expect(centeredHinge.z).toBeCloseTo(15.6, 10);
+
+      const rectangle = orientedRectangleCorners(
+        [marker.position.x, marker.position.z],
+        [1.05, 0.14],
+        marker.rotation.y,
+      );
+      renderedLeafRectangles.push(rectangle);
+      const innerEdgeX = isLeft
+        ? Math.max(...rectangle.map(({ x }) => x))
+        : Math.min(...rectangle.map(({ x }) => x));
+      const wagonHalfWidth =
+        INNER_KEEP_OUTER_WORLD_SUPPLY_WAGON_FOOTPRINT_METERS * 0.5;
+      const reviewedRoadHalfClearance =
+        INNER_KEEP_PRESENTATION_CLEARANCES.road.northSouthHalfWidth
+        + INNER_KEEP_PRESENTATION_CLEARANCES.road.requiredClearSideBuffer;
+      expect(Math.abs(innerEdgeX)).toBeGreaterThanOrEqual(Math.max(
+        wagonHalfWidth + 0.3,
+        reviewedRoadHalfClearance,
+      ));
+
+      const standardCenter = [isLeft ? -2.55 : 2.55, 13.05] as const;
+      const standardRectangle = orientedRectangleCorners(
+        standardCenter,
+        [1.6341 * 0.85 * 0.5, 1.0083 * 0.85 * 0.5],
+        index === 0 ? 0 : Math.PI,
+      );
+      expect(separatingAxisGapMeters(rectangle, standardRectangle))
+        .toBeGreaterThan(0.01);
+    }
+
+    const leftInnerEdge = Math.max(...renderedLeafRectangles[0]!.map(({ x }) => x));
+    const rightInnerEdge = Math.min(...renderedLeafRectangles[1]!.map(({ x }) => x));
+    expect(rightInnerEdge - leftInnerEdge).toBeGreaterThanOrEqual(
+      2 * (
+        INNER_KEEP_PRESENTATION_CLEARANCES.road.northSouthHalfWidth
+        + INNER_KEEP_PRESENTATION_CLEARANCES.road.requiredClearSideBuffer
+      ),
     );
   });
 

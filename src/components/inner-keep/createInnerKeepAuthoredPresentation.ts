@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import {
   INNER_KEEP_PRESENTATION_ASSETS,
   INNER_KEEP_PRESENTATION_CLEARANCES,
+  INNER_KEEP_PRESENTATION_LAYOUT_DIGEST,
   INNER_KEEP_PRESENTATION_PLACEMENTS,
 } from './innerKeepPresentationLayoutPolicy';
 import {
@@ -33,10 +34,28 @@ import {
 } from './innerKeepOuterWorldPolicy';
 import {
   INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS,
+  INNER_KEEP_PALISADE_CORNER_VISUAL_OVERRIDES,
+  INNER_KEEP_PALISADE_GATE_LEAF_VISUAL_OVERRIDES,
+  INNER_KEEP_PALISADE_VISUAL_CORRECTION_POLICY,
   INNER_KEEP_VILLAGE_ANIMAL_ROAMING_EXCLUSIONS,
   INNER_KEEP_WEATHERED_WALL_SKIRT_ASSET_ID,
   INNER_KEEP_WEATHERED_WALL_SKIRT_PLACEMENTS,
 } from './innerKeepTownAtmospherePolicy';
+
+const INNER_KEEP_PALISADE_VISUAL_OVERRIDE_BY_PLACEMENT_ID = new Map(
+  [
+    ...INNER_KEEP_PALISADE_CORNER_VISUAL_OVERRIDES,
+    ...INNER_KEEP_PALISADE_GATE_LEAF_VISUAL_OVERRIDES,
+  ].map((override) => [
+    override.placementId,
+    override,
+  ] as const),
+);
+
+if (
+  INNER_KEEP_PALISADE_VISUAL_CORRECTION_POLICY.sourcePresentationLayoutDigest
+  !== INNER_KEEP_PRESENTATION_LAYOUT_DIGEST
+) throw new Error('Inner Keep palisade visual correction targets a stale layout.');
 
 export type InnerKeepAuthoredStaticPresentation = Readonly<{
   group: THREE.Group;
@@ -788,12 +807,22 @@ export function createInnerKeepAuthoredStaticPresentation(options: Readonly<{
     if (placement.anchor !== 'fixed') continue;
     const prefab = options.bundle.staticPrefabs.get(placement.assetId);
     if (!prefab) continue;
-    addAuthoredCopies(group, prefab, placement.instances.map((instance) => Object.freeze({
-      name: `inner-keep-authored-placement:${instance.placementId}`,
-      positionMeters: instance.positionMeters,
-      rotationMilliDegrees: instance.rotationMilliDegrees,
-      scalePermille: instance.scalePermille,
-    })));
+    addAuthoredCopies(group, prefab, placement.instances.map((instance) => {
+      const candidateVisualOverride =
+        INNER_KEEP_PALISADE_VISUAL_OVERRIDE_BY_PLACEMENT_ID.get(
+          instance.placementId,
+        );
+      const visualOverride = candidateVisualOverride?.assetId === placement.assetId
+        ? candidateVisualOverride
+        : undefined;
+      return Object.freeze({
+        name: `inner-keep-authored-placement:${instance.placementId}`,
+        positionMeters: visualOverride?.positionMeters ?? instance.positionMeters,
+        rotationMilliDegrees: visualOverride?.rotationMilliDegrees
+          ?? instance.rotationMilliDegrees,
+        scalePermille: visualOverride?.scalePermille ?? instance.scalePermille,
+      });
+    }));
     placementInstanceCount += placement.instances.length;
   }
   addWeatheredWallSkirt(group, options.bundle);
