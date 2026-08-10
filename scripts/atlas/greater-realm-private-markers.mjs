@@ -20,6 +20,11 @@ export const GREATER_REALM_PRIVATE_MARKER_TEXT = Object.freeze([
   'warpkeep.greater-realm.private-chunk-manifest.v1',
   'warpkeep.greater-realm.private-topography-patch.v1',
   'warpkeep.greater-realm.private-provenance.v1',
+  'WKGR-PRIVATE-CHECKPOINT-OWNER-KEY-V1',
+  'WKGR-PRIVATE-ATTEMPT-CHECKPOINT-V1',
+  'WKGR-PRIVATE-ATTEMPT-COMPLETION-V1',
+  'warpkeep.greater-realm.private-attempt-checkpoint.v1',
+  'warpkeep.greater-realm.private-attempt-completion.v1',
 ]);
 
 function utf16BigEndian(text) {

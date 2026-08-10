@@ -23,6 +23,7 @@ import {
   generateGreaterRealmCandidate,
   type GreaterRealmPrivateCandidate,
 } from '../scripts/atlas/greater-realm-candidate-generator';
+import { GREATER_REALM_ATLAS_ID } from '../scripts/atlas/greater-realm-contracts';
 import {
   GREATER_REALM_PRIVATE_DRESSING_PREVIEW_LAYOUT,
   GREATER_REALM_PRIVATE_PREVIEW_COUNT,
@@ -89,7 +90,7 @@ let atlasDigest = '';
 let manifestDigest = '';
 let batchSeedDigest = '';
 
-type GreaterRealmV7ManifestAuthority = {
+type GreaterRealmV8ManifestAuthority = {
   barrierCrossSections: Array<{ cells: number[] }>;
   gates: Array<{
     firstApproachPath: number[];
@@ -354,14 +355,24 @@ describe('Greater Realm owner-only candidate package', () => {
     let comparisonMetrics: GreaterRealmVerifiedPrivateShortlistMetrics | undefined;
     try {
       expect(first.equals(second)).toBe(true);
-      expect(privateAtlasFormatVersion(first)).toBe(7);
+      expect(privateAtlasFormatVersion(first)).toBe(8);
       expect(createHash('sha256').update(first).digest('hex')).toBe(atlasDigest);
       const atlasFields = privateAtlasFieldNames(first);
-      expect(atlasFields).toHaveLength(62);
+      expect(atlasFields).toHaveLength(68);
       expect(atlasFields.filter(name => name === 'geological-barrier-band'))
         .toEqual(['geological-barrier-band']);
       expect(atlasFields.indexOf('geological-barrier-band'))
         .toBe(atlasFields.indexOf('barrier') + 1);
+      const waterRegimeIndex = atlasFields.indexOf('water-regime');
+      expect(atlasFields.slice(waterRegimeIndex, waterRegimeIndex + 7)).toEqual([
+        'water-regime',
+        'water-body-id',
+        'water-depth-class',
+        'water-surface-level',
+        'water-downstream',
+        'water-bank-seed',
+        'water-generation-version',
+      ]);
       expect(atlasFields.slice(-8)).toEqual([
         'dressing-excluded',
         'ecology-class',
@@ -388,6 +399,12 @@ describe('Greater Realm owner-only candidate package', () => {
         'geomorphology-coastal-class',
         'geomorphology-temperature',
         'geomorphology-moisture',
+        'water-body-id',
+        'water-depth-class',
+        'water-surface-level',
+        'water-downstream',
+        'water-bank-seed',
+        'water-generation-version',
         'throne-anchor',
         'dressing-excluded',
         'ecology-class',
@@ -458,7 +475,7 @@ describe('Greater Realm owner-only candidate package', () => {
     let derivedSeed: Buffer | undefined;
     try {
       expect(GREATER_REALM_GENERATOR_VERSION)
-        .toBe('greater-realm-v2-natural-continent-pr-a.13');
+        .toBe('greater-realm-v2-natural-continent-pr-a.15');
       expect(GREATER_REALM_TERRAIN_SEED_NAMESPACE)
         .toBe('greater-realm-v2-natural-continent-pr-a.3');
       expect(GREATER_REALM_GENERATOR_VERSION).not.toBe(
@@ -860,14 +877,13 @@ describe('Greater Realm owner-only candidate package', () => {
     }
   }, PRIVATE_REPLAY_TEST_TIMEOUT_MS);
 
-  it('keeps the atmospheric hillshade invariant under a global atlas translation', async () => {
+  it('binds coordinate-addressed water authority before standalone hillshade rendering', async () => {
     const fixture = requireFixture();
     const translationQ = 1;
     const translationR = 0;
     const translatedQ = new Int32Array(fixture.candidate.grid.q);
     const translatedR = new Int32Array(fixture.candidate.grid.r);
     let baseline: Buffer | undefined;
-    let translated: Buffer | undefined;
     let livingWorld: GreaterRealmLivingWorldAuthority | undefined;
     try {
       baseline = await renderGreaterRealmPrivatePreview(
@@ -913,18 +929,15 @@ describe('Greater Realm owner-only candidate package', () => {
           }),
         }),
       }) as GreaterRealmPrivateCandidate;
-      translated = await renderGreaterRealmPrivatePreview(
+      await expect(renderGreaterRealmPrivatePreview(
         translatedCandidate,
         'hillshade',
-      );
-
-      expect(translated.equals(baseline)).toBe(true);
+      )).rejects.toThrow('GREATER_REALM_PRIVATE_HYDROLOGY_AUTHORITY_INVALID');
     } finally {
       translatedQ.fill(0);
       translatedR.fill(0);
       clearLivingWorldForPackageTest(livingWorld);
       baseline?.fill(0);
-      translated?.fill(0);
     }
   }, PRIVATE_REPLAY_TEST_TIMEOUT_MS);
 
@@ -934,8 +947,10 @@ describe('Greater Realm owner-only candidate package', () => {
     try {
       const parsed = JSON.parse(bytes.toString('utf8')) as {
         formatVersion: number;
-        barrierCrossSections: GreaterRealmV7ManifestAuthority['barrierCrossSections'];
-        gates: GreaterRealmV7ManifestAuthority['gates'];
+        atlasId: string;
+        barrierCrossSections: GreaterRealmV8ManifestAuthority['barrierCrossSections'];
+        domains: Array<{ baseThickness: number; rockFamily: number }>;
+        gates: GreaterRealmV8ManifestAuthority['gates'];
         geomorphologyVersion: string;
         toolchainVersions: {
           architecture: string;
@@ -994,6 +1009,24 @@ describe('Greater Realm owner-only candidate package', () => {
           regionId: number;
           tierId: number;
         };
+        privateMetrics: {
+          geologyAuthority: { version: string; metrics: { proof: boolean } };
+          hydrologyAuthority: {
+            version: string;
+            generationVersion: number;
+            metrics: { proof: boolean };
+          };
+          strategicAudits: {
+            version: string;
+            regionBoundaryAlignment: { proof: boolean };
+            tierPotentialDensity: { proof: boolean };
+            castleSuitability: { proof: boolean };
+            innerGateThrone: { proof: boolean };
+          };
+          topographicQa: { version: string };
+          chunkBenchmark: { version: string; selectedAxisSpan: number; proof: boolean };
+          topographyPatchSupport: { version: string; proof: boolean };
+        };
         chunkManifests: Array<{
           chunkKey: string;
           partitionVersion: string;
@@ -1016,10 +1049,15 @@ describe('Greater Realm owner-only candidate package', () => {
           topographyPatchId: string;
           geomorphologyVersion: string;
           encodingVersion: string;
+          supportVersion: string;
+          reconstruction: string;
+          lodModel: string;
+          supportedLevelOfDetail: number[];
           topographyVersion: string;
         }>;
       };
-      expect(parsed.formatVersion).toBe(7);
+      expect(parsed.formatVersion).toBe(8);
+      expect(parsed.atlasId).toBe(GREATER_REALM_ATLAS_ID);
       expect(parsed.toolchainVersions.configuredNodeEngine).toBe('>=22.13 <23');
       expect(parsed.toolchainVersions.configuredPackageManager).toBe('npm@10.9.8');
       expect(parsed.toolchainVersions.libvips).toBe('8.18.3');
@@ -1071,7 +1109,40 @@ describe('Greater Realm owner-only candidate package', () => {
         expect(file.path).toMatch(/^node_modules\//u);
         expect(file.sha256).toMatch(/^[0-9a-f]{64}$/u);
       }
-      expect(parsed.geomorphologyVersion).toBe('greater-realm-geomorphology-v4');
+      expect(parsed.geomorphologyVersion).toBe('greater-realm-geomorphology-v5');
+      expect(parsed.domains).toHaveLength(fixture.candidate.domains.length);
+      expect(parsed.domains.every(domain => (
+        Number.isSafeInteger(domain.baseThickness)
+        && Number.isSafeInteger(domain.rockFamily)
+      ))).toBe(true);
+      expect(parsed.privateMetrics.geologyAuthority).toMatchObject({
+        version: 'greater-realm-geology-authority-v1',
+        metrics: { proof: true },
+      });
+      expect(parsed.privateMetrics.hydrologyAuthority).toMatchObject({
+        version: 'greater-realm-hydrology-authority-v1',
+        generationVersion: 1,
+        metrics: { proof: true },
+      });
+      expect(parsed.privateMetrics.strategicAudits.version)
+        .toBe('greater-realm-strategic-audits-v1');
+      expect([
+        parsed.privateMetrics.strategicAudits.regionBoundaryAlignment.proof,
+        parsed.privateMetrics.strategicAudits.tierPotentialDensity.proof,
+        parsed.privateMetrics.strategicAudits.castleSuitability.proof,
+        parsed.privateMetrics.strategicAudits.innerGateThrone.proof,
+      ]).toEqual([true, true, true, true]);
+      expect(parsed.privateMetrics.topographicQa.version)
+        .toBe('greater-realm-topographic-qa-v2');
+      expect(parsed.privateMetrics.chunkBenchmark).toMatchObject({
+        version: 'greater-realm-private-chunk-benchmark-v1',
+        selectedAxisSpan: 15,
+        proof: true,
+      });
+      expect(parsed.privateMetrics.topographyPatchSupport).toMatchObject({
+        version: 'greater-realm-topography-patch-support-v1',
+        proof: true,
+      });
       const throneCell = fixture.candidate.throneAnchor.findIndex(value => value === 1);
       expect(throneCell).toBeGreaterThanOrEqual(0);
       expect(parsed.throneAnchor).toEqual({
@@ -1108,12 +1179,16 @@ describe('Greater Realm owner-only candidate package', () => {
         const patch = parsed.topographyPatchManifests[index]!;
         expect(patch.chunkKey).toBe(chunk.chunkKey);
         expect(chunk.partitionVersion).toBe('axial-bin-15-v1');
-        expect(chunk.fieldCount).toBe(62);
-        expect(chunk.geomorphologyVersion).toBe('greater-realm-geomorphology-v4');
-        expect(chunk.topographyVersion).toBe('greater-realm-advanced-topography-v2');
-        expect(patch.geomorphologyVersion).toBe('greater-realm-geomorphology-v4');
-        expect(patch.encodingVersion).toBe('wkgr-topography-fields-v2');
-        expect(patch.topographyVersion).toBe('greater-realm-advanced-topography-v2');
+        expect(chunk.fieldCount).toBe(68);
+        expect(chunk.geomorphologyVersion).toBe('greater-realm-geomorphology-v5');
+        expect(chunk.topographyVersion).toBe('greater-realm-advanced-topography-v3');
+        expect(patch.geomorphologyVersion).toBe('greater-realm-geomorphology-v5');
+        expect(patch.encodingVersion).toBe('wkgr-topography-fields-v3');
+        expect(patch.supportVersion).toBe('greater-realm-topography-patch-support-v1');
+        expect(patch.reconstruction).toBe('fixed-point-hex-gradient-curvature-v1');
+        expect(patch.lodModel).toBe('stable-axial-decimation-v1');
+        expect(patch.supportedLevelOfDetail).toEqual([0, 1, 2, 3]);
+        expect(patch.topographyVersion).toBe('greater-realm-advanced-topography-v3');
         expect(patch.topographyPatchId).toBe(chunk.topographyPatchId);
         expect(patch.manifestDigest).toBe(chunk.topographyPatchDigest);
         expect(patch.sampleCount).toBe(chunk.cellCount);
@@ -1121,8 +1196,8 @@ describe('Greater Realm owner-only candidate package', () => {
         expect(patch.sampleWidth).toBeLessThanOrEqual(15);
         expect(patch.sampleHeight).toBeGreaterThan(0);
         expect(patch.sampleHeight).toBeLessThanOrEqual(15);
-        expect(patch.fieldCount).toBe(30);
-        expect(patch.payloadByteCount).toBe(patch.sampleCount * 88);
+        expect(patch.fieldCount).toBe(37);
+        expect(patch.payloadByteCount).toBe(patch.sampleCount * 104);
         expect(patch.payloadDigest).toMatch(/^[0-9a-f]{64}$/u);
       }
     } finally {
@@ -1350,6 +1425,8 @@ describe('Greater Realm owner-only candidate package', () => {
     'route-class',
     'groundcover-density',
     'wildflower-density',
+    'water-body-id',
+    'water-generation-version',
   ] as const)('rejects %s payload tampering with an updated atlas digest', async (field) => {
     const relativePath = candidateRelativePath('atlas.wkgr-atlas');
     const original = requireFixture().workspace.readFile(relativePath);
@@ -1373,6 +1450,27 @@ describe('Greater Realm owner-only candidate package', () => {
     const truncated = Buffer.from(original.subarray(
       0,
       payloadOffset + Math.floor(fixture.candidate.grid.cellCount / 2),
+    ));
+    original.fill(0);
+    const truncatedDigest = createHash('sha256').update(truncated).digest('hex');
+
+    await replacePrivateFile(relativePath, truncated, async () => {
+      await expect(verifyFixture({ expectedAtlasDigest: truncatedDigest }))
+        .rejects.toThrow('GREATER_REALM_PRIVATE_ATLAS_INVALID');
+    });
+  }, PRIVATE_REPLAY_TEST_TIMEOUT_MS);
+
+  it('rejects an atlas truncated inside final water metadata with an updated digest', async () => {
+    const relativePath = candidateRelativePath('atlas.wkgr-atlas');
+    const fixture = requireFixture();
+    const original = fixture.workspace.readFile(relativePath);
+    const payloadOffset = privateAtlasFieldPayloadOffset(
+      original,
+      'water-generation-version',
+    );
+    const truncated = Buffer.from(original.subarray(
+      0,
+      payloadOffset + fixture.candidate.grid.cellCount,
     ));
     original.fill(0);
     const truncatedDigest = createHash('sha256').update(truncated).digest('hex');
@@ -1430,7 +1528,7 @@ describe('Greater Realm owner-only candidate package', () => {
 
   it.each<[
     string,
-    (manifest: GreaterRealmV7ManifestAuthority) => void,
+    (manifest: GreaterRealmV8ManifestAuthority) => void,
   ]>([
     ['barrier cross-section cells', manifest => {
       manifest.barrierCrossSections[0]!.cells[0] =
@@ -1452,10 +1550,10 @@ describe('Greater Realm owner-only candidate package', () => {
       manifest.gates[0]!.secondAlternateApproachPath[0] =
         manifest.gates[0]!.secondAlternateApproachPath[0]! + 1;
     }],
-  ])('rejects tampered v7 %s authority with an updated digest', async (_label, mutate) => {
+  ])('rejects tampered v8 %s authority with an updated digest', async (_label, mutate) => {
     const relativePath = candidateRelativePath('manifest.private.json');
     const original = requireFixture().workspace.readFile(relativePath);
-    const parsed = JSON.parse(original.toString('utf8')) as GreaterRealmV7ManifestAuthority;
+    const parsed = JSON.parse(original.toString('utf8')) as GreaterRealmV8ManifestAuthority;
     original.fill(0);
     mutate(parsed);
     const corrupted = Buffer.from(`${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
@@ -1679,6 +1777,196 @@ describe('Greater Realm owner-only candidate package', () => {
     }) as unknown as GreaterRealmPrivateCandidate;
     expect(() => serializeGreaterRealmPrivateAtlas(invalid)).toThrow(
       'GREATER_REALM_PRIVATE_FIELD_INVALID',
+    );
+  });
+
+  it.each([
+    ['waterBodyId', () => new Uint16Array(requireFixture().candidate.grid.cellCount)],
+    ['waterDepthClass', () => new Uint8ClampedArray(requireFixture().candidate.grid.cellCount)],
+    ['waterSurfaceLevel', () => new Uint32Array(requireFixture().candidate.grid.cellCount)],
+    ['waterDownstream', () => new Uint32Array(requireFixture().candidate.grid.cellCount)],
+    ['waterBankSeed', () => new Int32Array(requireFixture().candidate.grid.cellCount)],
+    ['waterGenerationVersion', () => new Uint32Array(requireFixture().candidate.grid.cellCount)],
+  ] as const)('rejects malformed %s runtime authority types before validation', (
+    field,
+    malformed,
+  ) => {
+    const fixture = requireFixture();
+    const invalid = Object.freeze({
+      ...fixture.candidate,
+      [field]: malformed(),
+    }) as unknown as GreaterRealmPrivateCandidate;
+    expect(() => serializeGreaterRealmPrivateAtlas(invalid)).toThrow(
+      'GREATER_REALM_PRIVATE_FIELD_INVALID',
+    );
+  });
+
+  it('rejects concurrently mutable shared atlas authority memory', () => {
+    const fixture = requireFixture();
+    const waterBodyId = new Uint32Array(
+      new SharedArrayBuffer(fixture.candidate.grid.cellCount * Uint32Array.BYTES_PER_ELEMENT),
+    );
+    const invalid = Object.freeze({
+      ...fixture.candidate,
+      waterBodyId,
+    }) as GreaterRealmPrivateCandidate;
+    expect(() => serializeGreaterRealmPrivateAtlas(invalid)).toThrow(
+      'GREATER_REALM_PRIVATE_FIELD_INVALID',
+    );
+  });
+
+  it('rejects domain material drift before encoding private geology authority', () => {
+    const fixture = requireFixture();
+    const domains = fixture.candidate.domains.map((domain, index) => Object.freeze({
+      ...domain,
+      baseThickness: domain.baseThickness + (index === 0 ? 1 : 0),
+    }));
+    const invalid = Object.freeze(
+      { ...fixture.candidate, domains },
+    ) as GreaterRealmPrivateCandidate;
+    expect(() => serializeGreaterRealmPrivateAtlas(invalid)).toThrow(
+      'GREATER_REALM_PRIVATE_GEOLOGY_AUTHORITY_INVALID',
+    );
+  });
+
+  it('rejects private geology metric drift before encoding', () => {
+    const fixture = requireFixture();
+    const geologyAuthority = fixture.candidate.privateMetrics.geologyAuthority;
+    const invalid = Object.freeze({
+      ...fixture.candidate,
+      privateMetrics: Object.freeze({
+        ...fixture.candidate.privateMetrics,
+        geologyAuthority: Object.freeze({
+          ...geologyAuthority,
+          metrics: Object.freeze({
+            ...geologyAuthority.metrics,
+            domainCount: geologyAuthority.metrics.domainCount + 1,
+          }),
+        }),
+      }),
+    }) as GreaterRealmPrivateCandidate;
+    expect(() => serializeGreaterRealmPrivateAtlas(invalid)).toThrow(
+      'GREATER_REALM_PRIVATE_GEOLOGY_AUTHORITY_INVALID',
+    );
+  });
+
+  it.each([
+    ['waterBodyId', (value: Uint32Array, cell: number) => { value[cell] ^= 1; }],
+    ['waterDepthClass', (value: Uint8Array, cell: number) => { value[cell] ^= 1; }],
+    ['waterSurfaceLevel', (value: Int32Array, cell: number) => { value[cell] += 1; }],
+    ['waterDownstream', (value: Int32Array, cell: number) => { value[cell] ^= 1; }],
+    ['waterBankSeed', (value: Uint32Array, cell: number) => { value[cell] ^= 1; }],
+    ['waterGenerationVersion', (value: Uint16Array, cell: number) => { value[cell] ^= 1; }],
+  ] as const)('rejects valid-type %s authority drift before encoding', (field, mutate) => {
+    const fixture = requireFixture();
+    const waterCell = fixture.candidate.waterRegime.findIndex(regime => regime !== 0);
+    expect(waterCell).toBeGreaterThanOrEqual(0);
+    const fieldValue = new (fixture.candidate[field].constructor as {
+      new (source: typeof fixture.candidate[typeof field]): typeof fixture.candidate[typeof field];
+    })(fixture.candidate[field]);
+    mutate(fieldValue as never, waterCell);
+    const invalid = Object.freeze({
+      ...fixture.candidate,
+      [field]: fieldValue,
+    }) as GreaterRealmPrivateCandidate;
+    expect(() => serializeGreaterRealmPrivateAtlas(invalid)).toThrow(
+      'GREATER_REALM_PRIVATE_HYDROLOGY_AUTHORITY_INVALID',
+    );
+  });
+
+  it('rejects private hydrology metric drift before encoding', () => {
+    const fixture = requireFixture();
+    const hydrologyAuthority = fixture.candidate.privateMetrics.hydrologyAuthority;
+    const invalid = Object.freeze({
+      ...fixture.candidate,
+      privateMetrics: Object.freeze({
+        ...fixture.candidate.privateMetrics,
+        hydrologyAuthority: Object.freeze({
+          ...hydrologyAuthority,
+          metrics: Object.freeze({
+            ...hydrologyAuthority.metrics,
+            waterBodyCount: hydrologyAuthority.metrics.waterBodyCount + 1,
+          }),
+        }),
+      }),
+    }) as GreaterRealmPrivateCandidate;
+    expect(() => serializeGreaterRealmPrivateAtlas(invalid)).toThrow(
+      'GREATER_REALM_PRIVATE_HYDROLOGY_AUTHORITY_INVALID',
+    );
+  });
+
+  it('rejects strategic audit drift before encoding', () => {
+    const fixture = requireFixture();
+    const strategicAudits = fixture.candidate.privateMetrics.strategicAudits;
+    const invalid = Object.freeze({
+      ...fixture.candidate,
+      privateMetrics: Object.freeze({
+        ...fixture.candidate.privateMetrics,
+        strategicAudits: Object.freeze({
+          ...strategicAudits,
+          regionBoundaryAlignment: Object.freeze({
+            ...strategicAudits.regionBoundaryAlignment,
+            proof: false,
+          }),
+        }),
+      }),
+    }) as GreaterRealmPrivateCandidate;
+    expect(() => serializeGreaterRealmPrivateAtlas(invalid)).toThrow(
+      'GREATER_REALM_PRIVATE_STRATEGIC_AUTHORITY_INVALID',
+    );
+  });
+
+  it('rejects topographic QA drift before encoding', () => {
+    const fixture = requireFixture();
+    const topographicQa = fixture.candidate.privateMetrics.topographicQa;
+    const invalid = Object.freeze({
+      ...fixture.candidate,
+      privateMetrics: Object.freeze({
+        ...fixture.candidate.privateMetrics,
+        topographicQa: Object.freeze({
+          ...topographicQa,
+          cellCount: topographicQa.cellCount + 1,
+        }),
+      }),
+    }) as GreaterRealmPrivateCandidate;
+    expect(() => serializeGreaterRealmPrivateAtlas(invalid)).toThrow(
+      'GREATER_REALM_PRIVATE_TOPOGRAPHIC_QA_INVALID',
+    );
+  });
+
+  it('rejects chunk benchmark drift before encoding', () => {
+    const fixture = requireFixture();
+    const chunkBenchmark = fixture.candidate.privateMetrics.chunkBenchmark;
+    const invalid = Object.freeze({
+      ...fixture.candidate,
+      privateMetrics: Object.freeze({
+        ...fixture.candidate.privateMetrics,
+        chunkBenchmark: Object.freeze({ ...chunkBenchmark, proof: false }),
+      }),
+    }) as GreaterRealmPrivateCandidate;
+    expect(() => serializeGreaterRealmPrivateAtlas(invalid)).toThrow(
+      'GREATER_REALM_PRIVATE_CHUNK_BENCHMARK_INVALID',
+    );
+  });
+
+  it('rejects topography patch-support drift before encoding and standalone preview', async () => {
+    const fixture = requireFixture();
+    const topographyPatchSupport = fixture.candidate.privateMetrics.topographyPatchSupport;
+    const invalid = Object.freeze({
+      ...fixture.candidate,
+      privateMetrics: Object.freeze({
+        ...fixture.candidate.privateMetrics,
+        topographyPatchSupport: Object.freeze({
+          ...topographyPatchSupport,
+          proof: false,
+        }),
+      }),
+    }) as GreaterRealmPrivateCandidate;
+    expect(() => serializeGreaterRealmPrivateAtlas(invalid)).toThrow(
+      'GREATER_REALM_PRIVATE_TOPOGRAPHY_PATCH_SUPPORT_INVALID',
+    );
+    await expect(renderGreaterRealmPrivatePreview(invalid, 'silhouette')).rejects.toThrow(
+      'GREATER_REALM_PRIVATE_TOPOGRAPHY_PATCH_SUPPORT_INVALID',
     );
   });
 
@@ -2012,6 +2300,12 @@ describe('Greater Realm owner-only candidate package', () => {
       regionId: u8(),
       tierId: u8(),
       waterRegime: u8(),
+      waterBodyId: Uint32Array.of(1),
+      waterDepthClass: u8(),
+      waterSurfaceLevel: i32(),
+      waterDownstream: i32(),
+      waterBankSeed: Uint32Array.of(1),
+      waterGenerationVersion: Uint16Array.of(1),
       biomeId: u8(),
       landformId: u8(),
       barrier: u8(),
@@ -2044,6 +2338,12 @@ describe('Greater Realm owner-only candidate package', () => {
     expect(gatePaths.every(path => path.every(value => value === 0))).toBe(true);
     expect(barrierCrossSectionCells.every(value => value === 0)).toBe(true);
     expect(dummy.geologicalBarrierBand.every(value => value === 0)).toBe(true);
+    expect(dummy.waterBodyId.every(value => value === 0)).toBe(true);
+    expect(dummy.waterDepthClass.every(value => value === 0)).toBe(true);
+    expect(dummy.waterSurfaceLevel.every(value => value === 0)).toBe(true);
+    expect(dummy.waterDownstream.every(value => value === 0)).toBe(true);
+    expect(dummy.waterBankSeed.every(value => value === 0)).toBe(true);
+    expect(dummy.waterGenerationVersion.every(value => value === 0)).toBe(true);
     for (const array of Object.values(advanced)) {
       expect(array.every(value => value === 0)).toBe(true);
     }

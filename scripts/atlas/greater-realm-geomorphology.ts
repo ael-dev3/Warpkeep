@@ -14,7 +14,7 @@ import {
 } from "./greater-realm-terraces";
 
 export const GREATER_REALM_GEOMORPHOLOGY_VERSION =
-  "greater-realm-geomorphology-v4" as const;
+  "greater-realm-geomorphology-v5" as const;
 
 export const GREATER_REALM_COASTAL_CLASS = Object.freeze({
   none: 0,
@@ -78,6 +78,8 @@ export type GreaterRealmGeomorphologyResult = Readonly<{
   elevation: Int32Array;
   temperature: Int32Array;
   moisture: Int32Array;
+  /** Internal process-climate scratch; callers must retire after role scoring. */
+  processMoisture: Int32Array;
   totalDelta: Int32Array;
   terraceDelta: Int32Array;
   glacialDelta: Int32Array;
@@ -357,8 +359,12 @@ function deriveClimate(
     coastDistance: Uint16Array;
     slope: Uint16Array;
     accumulation: BigUint64Array;
+    tectonicUplift: Int32Array;
+    legacyReserveCell: Uint8Array;
   }>,
-): GreaterRealmGeomorphologyClimate {
+): GreaterRealmGeomorphologyClimate & Readonly<{
+  processMoisture: Int32Array;
+}> {
   const {
     grid,
     candidateSeed,
@@ -367,6 +373,8 @@ function deriveClimate(
     coastDistance,
     slope,
     accumulation,
+    tectonicUplift,
+    legacyReserveCell,
   } = input;
   const equatorOffset =
     (greaterRealmCounterRandomU32(
@@ -379,8 +387,12 @@ function deriveClimate(
     20;
   let temperatureNoise: Int32Array | undefined;
   let moistureNoise: Int32Array | undefined;
+  let rainShadow: Int32Array | undefined;
+  let rainShadowScratch: Int32Array | undefined;
+  let windwardRainfall: Int32Array | undefined;
   let temperature: Int32Array | undefined;
   let moisture: Int32Array | undefined;
+  let processMoisture: Int32Array | undefined;
   let completed = false;
   try {
     temperatureNoise = createGreaterRealmMultiscaleIntegerField(
@@ -413,8 +425,139 @@ function deriveClimate(
         },
       ],
     );
+    rainShadow = new Int32Array(grid.cellCount);
+    rainShadowScratch = new Int32Array(grid.cellCount);
+    windwardRainfall = new Int32Array(grid.cellCount);
+    const prevailingWindDirection = greaterRealmCounterRandomU32(
+      candidateSeed,
+      greaterRealmTerrainChannelId("geomorphology-prevailing-wind"),
+      0,
+      0,
+    ) % NEIGHBOR_COUNT;
+    const firstUpwindDirection = (
+      prevailingWindDirection + Math.floor(NEIGHBOR_COUNT / 2)
+    ) % NEIGHBOR_COUNT;
+    const upwindDirections = Object.freeze([
+      firstUpwindDirection,
+      (firstUpwindDirection + 1) % NEIGHBOR_COUNT,
+    ]);
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      if (
+        legacyReserveCell[cell] === 1
+        || elevation[cell]! <= seaLevel
+      ) continue;
+      let combinedBarrier = 0;
+      for (const upwindDirection of upwindDirections) {
+        let cursor = cell;
+        let strongestBarrier = 0;
+        for (let distance = 1; distance <= 12; distance += 1) {
+          cursor = grid.neighbors[cursor * NEIGHBOR_COUNT + upwindDirection]!;
+          if (cursor < 0 || elevation[cursor]! <= seaLevel) break;
+          const reliefBarrier = Math.max(
+            0,
+            elevation[cursor]! - elevation[cell]!,
+          );
+          const upliftBarrier = Math.max(
+            0,
+            tectonicUplift[cursor]!
+              - Math.floor(Math.max(0, tectonicUplift[cell]!) / 2),
+          );
+          strongestBarrier = Math.max(
+            strongestBarrier,
+            reliefBarrier
+              + Math.floor(upliftBarrier / 2)
+              - distance * 180,
+          );
+        }
+        combinedBarrier += Math.max(0, strongestBarrier);
+      }
+      rainShadow[cell] = clamp(
+        Math.floor((combinedBarrier * 3) / 10),
+        0,
+        6_500,
+      );
+    }
+    // Three bounded isotropic relaxation passes turn the paired directional
+    // samples into a broad lee-side field without erasing the physical
+    // mountain signal or leaking it into the immutable Lowlands reserve.
+    for (let pass = 0; pass < 3; pass += 1) {
+      for (let cell = 0; cell < grid.cellCount; cell += 1) {
+        if (
+          legacyReserveCell[cell] === 1
+          || elevation[cell]! <= seaLevel
+        ) continue;
+        let total = rainShadow[cell]! * 4;
+        let weight = 4;
+        for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
+          const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
+          if (
+            neighbor < 0
+            || legacyReserveCell[neighbor] === 1
+            || elevation[neighbor]! <= seaLevel
+          ) continue;
+          total += rainShadow[neighbor]!;
+          weight += 1;
+        }
+        rainShadowScratch[cell] = Math.round(total / weight);
+      }
+      rainShadow.set(rainShadowScratch);
+      rainShadowScratch.fill(0);
+    }
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      if (
+        legacyReserveCell[cell] === 1
+        || elevation[cell]! <= seaLevel
+      ) continue;
+      let combinedLift = 0;
+      for (const upwindDirection of upwindDirections) {
+        const upwind = grid.neighbors[
+          cell * NEIGHBOR_COUNT + upwindDirection
+        ]!;
+        if (upwind < 0) continue;
+        const upwindElevation = Math.max(seaLevel, elevation[upwind]!);
+        const reliefLift = Math.max(0, elevation[cell]! - upwindElevation);
+        const upliftLift = Math.max(
+          0,
+          tectonicUplift[cell]!
+            - Math.floor(Math.max(0, tectonicUplift[upwind]!) / 2),
+        );
+        combinedLift += reliefLift + Math.floor(upliftLift / 2);
+      }
+      windwardRainfall[cell] = clamp(
+        Math.floor(combinedLift / 6),
+        0,
+        3_200,
+      );
+    }
+    // The immediate lift signal is deliberately relaxed farther than the lee
+    // shadow. This models a broad windward precipitation belt instead of
+    // tracing local ridge facets into speckled biome islands.
+    for (let pass = 0; pass < 12; pass += 1) {
+      for (let cell = 0; cell < grid.cellCount; cell += 1) {
+        if (
+          legacyReserveCell[cell] === 1
+          || elevation[cell]! <= seaLevel
+        ) continue;
+        let total = windwardRainfall[cell]! * 4;
+        let weight = 4;
+        for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
+          const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
+          if (
+            neighbor < 0
+            || legacyReserveCell[neighbor] === 1
+            || elevation[neighbor]! <= seaLevel
+          ) continue;
+          total += windwardRainfall[neighbor]!;
+          weight += 1;
+        }
+        rainShadowScratch[cell] = Math.round(total / weight);
+      }
+      windwardRainfall.set(rainShadowScratch);
+      rainShadowScratch.fill(0);
+    }
     temperature = new Int32Array(grid.cellCount);
     moisture = new Int32Array(grid.cellCount);
+    processMoisture = new Int32Array(grid.cellCount);
     for (let cell = 0; cell < grid.cellCount; cell += 1) {
       temperature[cell] = clamp(
         8_500 -
@@ -428,24 +571,38 @@ function deriveClimate(
         4_200,
         accumulationMagnitude(accumulation[cell]!) * 360,
       );
-      moisture[cell] = clamp(
-        moistureNoise[cell]! +
+      const commonMoisture = moistureNoise[cell]! +
           Math.max(0, 1_500 - coastDistance[cell]! * 90) +
           drainage -
-          Math.floor(slope[cell]! / 4),
+          Math.floor(slope[cell]! / 4) -
+          rainShadow[cell]!;
+      moisture[cell] = clamp(
+        commonMoisture + windwardRainfall[cell]!,
+        -10_000,
+        16_000,
+      );
+      processMoisture[cell] = clamp(
+        commonMoisture + Math.max(
+          0,
+          windwardRainfall[cell]! - rainShadow[cell]! * 16,
+        ),
         -10_000,
         16_000,
       );
     }
-    const result = Object.freeze({ temperature, moisture });
+    const result = Object.freeze({ temperature, moisture, processMoisture });
     completed = true;
     return result;
   } finally {
     temperatureNoise?.fill(0);
     moistureNoise?.fill(0);
+    rainShadow?.fill(0);
+    rainShadowScratch?.fill(0);
+    windwardRainfall?.fill(0);
     if (!completed) {
       temperature?.fill(0);
       moisture?.fill(0);
+      processMoisture?.fill(0);
     }
   }
 }
@@ -1263,12 +1420,19 @@ export function shapeGreaterRealmGeomorphology(
             coastDistance,
             slope,
             accumulation: hydrology.accumulation,
+            tectonicUplift: input.tectonicUplift,
+            legacyReserveCell: input.legacyReserveCell,
           })
         : Object.freeze({
             temperature: new Int32Array(input.climate.temperature),
             moisture: new Int32Array(input.climate.moisture),
+            processMoisture: new Int32Array(input.climate.moisture),
           });
-    failureNumberArrays.push(climate.temperature, climate.moisture);
+    failureNumberArrays.push(
+      climate.temperature,
+      climate.moisture,
+      climate.processMoisture,
+    );
 
     const glacial = glacialProcess({
       grid: input.grid,
@@ -1288,7 +1452,7 @@ export function shapeGreaterRealmGeomorphology(
       seaLevel,
       slope,
       temperature: climate.temperature,
-      moisture: climate.moisture,
+      moisture: climate.processMoisture,
       accumulation: hydrology.accumulation,
       receiver: hydrology.receiver,
       rockResistance: input.rockResistance,
@@ -1325,6 +1489,51 @@ export function shapeGreaterRealmGeomorphology(
     });
     transientNumberArrays.push(coastal.sourceMask);
     failureNumberArrays.push(coastal.mask, coastal.coastalClass, coastal.delta);
+
+    if (input.climate === undefined) {
+      // Geomorphic process masks bind the true cold/arid extremes first. The
+      // remaining production moisture field then receives a bounded isotropic
+      // ecological relaxation, removing isolated mesoscale humidity speckles
+      // without changing process terrain, named regions, the Lowlands reserve,
+      // or any cell which carries glacial/arid authority.
+      const ecologicalMoistureScratch = new Int32Array(input.grid.cellCount);
+      transientNumberArrays.push(ecologicalMoistureScratch);
+      const preservesProcessMoisture = (cell: number): boolean => {
+        if (
+          input.legacyReserveCell[cell] === 1
+          || initialElevation[cell]! <= seaLevel
+          || glacial.mask[cell] === 1
+          || arid.mask[cell] === 1
+          || climate.processMoisture[cell]! <= -1_600
+          || climate.processMoisture[cell]! >= 4_300
+        ) return true;
+        return false;
+      };
+      for (let pass = 0; pass < 8; pass += 1) {
+        for (let cell = 0; cell < input.grid.cellCount; cell += 1) {
+          if (preservesProcessMoisture(cell)) {
+            ecologicalMoistureScratch[cell] = climate.processMoisture[cell]!;
+            continue;
+          }
+          let total = climate.moisture[cell]! * 4;
+          let weight = 4;
+          for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
+            const neighbor = input.grid.neighbors[
+              cell * NEIGHBOR_COUNT + direction
+            ]!;
+            if (
+              neighbor < 0
+              || preservesProcessMoisture(neighbor)
+            ) continue;
+            total += climate.moisture[neighbor]!;
+            weight += 1;
+          }
+          ecologicalMoistureScratch[cell] = Math.round(total / weight);
+        }
+        climate.moisture.set(ecologicalMoistureScratch);
+        ecologicalMoistureScratch.fill(0);
+      }
+    }
 
     const totalDelta = new Int32Array(input.grid.cellCount);
     const elevation = new Int32Array(input.grid.cellCount);
@@ -1404,6 +1613,7 @@ export function shapeGreaterRealmGeomorphology(
       elevation,
       temperature: climate.temperature,
       moisture: climate.moisture,
+      processMoisture: climate.processMoisture,
       totalDelta,
       terraceDelta: terraces.delta,
       glacialDelta: glacial.delta,
@@ -1436,7 +1646,7 @@ export function shapeGreaterRealmGeomorphology(
           arid.mask,
           (cell) =>
             climate.temperature[cell]! >= 5_500 &&
-            climate.moisture[cell]! <= -1_000,
+            climate.processMoisture[cell]! <= -1_000,
         ),
         volcanicTectonicCompatibilityBasisPoints: compatibilityBasisPoints(
           volcanic.anchorMask,

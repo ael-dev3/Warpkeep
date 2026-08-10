@@ -14,6 +14,7 @@ import {
   GREATER_REALM_LANDFORM_CLASS_COUNT,
   GREATER_REALM_LANDFORM_ID,
 } from '../scripts/atlas/greater-realm-biomes';
+import { GREATER_REALM_WATER_REGIME_ID } from '../scripts/atlas/greater-realm-hydrology-authority';
 import { indexGreaterRealmAxialGrid } from '../scripts/atlas/greater-realm-terrain';
 import { deriveGreaterRealmTopography } from '../scripts/atlas/greater-realm-topography';
 
@@ -54,6 +55,12 @@ function independentlyCompatiblePair(regime: number, biome: number, landform: nu
   if (regime === 1 || regime === 5) return biome === 20 && landform === 16;
   if (regime === 2) return biome === 21 && landform === 10;
   if (regime === 3 || regime === 4) return biome === 22 && landform === 2;
+  if (regime === GREATER_REALM_WATER_REGIME_ID.MARSH) {
+    return (
+      biome === GREATER_REALM_BIOME_ID.FRESHWATER_MARSH
+      || biome === GREATER_REALM_BIOME_ID.SALT_MARSH
+    ) && landform === GREATER_REALM_LANDFORM_ID.BASIN;
+  }
   return regime === 0 && DRY_COMPATIBLE_PAIRS.has(`${biome}:${landform}`);
 }
 
@@ -238,10 +245,14 @@ describe('Greater Realm derived topography', () => {
     const oceanCell = grid.indexOf({ q: 8, r: 0 });
     const seaCell = grid.indexOf({ q: 8, r: -1 });
     const lakeCell = grid.indexOf({ q: -8, r: 0 });
+    const saltMarshCell = grid.indexOf({ q: 7, r: 0 });
+    const freshwaterMarshCell = grid.indexOf({ q: -7, r: 0 });
     const waterRegime = new Uint8Array(grid.cellCount);
     waterRegime[oceanCell] = 1;
     waterRegime[seaCell] = 5;
     waterRegime[lakeCell] = 2;
+    waterRegime[saltMarshCell] = GREATER_REALM_WATER_REGIME_ID.MARSH;
+    waterRegime[freshwaterMarshCell] = GREATER_REALM_WATER_REGIME_ID.MARSH;
     const legacyProtectedCell = new Uint8Array(grid.cellCount);
     legacyProtectedCell[protectedCell] = 1;
     const protectedBiomeId = new Uint8Array(grid.cellCount);
@@ -310,6 +321,12 @@ describe('Greater Realm derived topography', () => {
     expect(result.landformId[coastalCell]).toBe(GREATER_REALM_LANDFORM_ID.SEA_CLIFF);
     expect(result.biomeId[seaCell]).toBe(GREATER_REALM_BIOME_ID.SALTWATER);
     expect(result.landformId[seaCell]).toBe(GREATER_REALM_LANDFORM_ID.ISLAND_SHELF);
+    expect(result.biomeId[saltMarshCell]).toBe(GREATER_REALM_BIOME_ID.SALT_MARSH);
+    expect(result.landformId[saltMarshCell]).toBe(GREATER_REALM_LANDFORM_ID.BASIN);
+    expect(result.biomeId[freshwaterMarshCell])
+      .toBe(GREATER_REALM_BIOME_ID.FRESHWATER_MARSH);
+    expect(result.landformId[freshwaterMarshCell])
+      .toBe(GREATER_REALM_LANDFORM_ID.BASIN);
     expect(result.biomeMetrics.incompatibleBiomeLandformPairCount).toBe(0);
     for (let cell = 0; cell < grid.cellCount; cell += 1) {
       expect(independentlyCompatiblePair(

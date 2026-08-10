@@ -17,7 +17,7 @@ import type { IndexedAxialGrid } from './greater-realm-terrain';
  * neutral and reproducible without Node-specific APIs.
  */
 export const GREATER_REALM_LIVING_WORLD_VERSION =
-  'greater-realm-private-living-world-v3' as const;
+  'greater-realm-private-living-world-v4' as const;
 
 export const GREATER_REALM_ECOLOGY_CLASS = Object.freeze({
   NONE: 0,
@@ -277,6 +277,7 @@ const WATER_LAKE = 2;
 const WATER_RIVER = 3;
 const WATER_STREAM = 4;
 const WATER_SEA = 5;
+const WATER_MARSH = 6;
 const UINT32_MAX = 0xffff_ffff;
 const BASIS_POINTS = 10_000;
 const MINIMUM_VEGETATION_PATCH_CELLS = 6;
@@ -286,6 +287,7 @@ const RUIN_SPACING = 12;
 const WAYSTONE_SPACING = 6;
 const LAMP_SPACING = 3;
 const OPTIONAL_ROUTE_HUBS_PER_TIER_BIOME = 2;
+const MANDATORY_ROUTE_CONNECTOR_RADIUS = 2;
 
 function allNonNegativeSafeIntegers(values: readonly number[]): boolean {
   return values.every((value) => Number.isSafeInteger(value) && value >= 0);
@@ -614,6 +616,11 @@ function assertInput(input: GreaterRealmLivingWorldInput): void {
     const neighbor = grid.neighbors[offset]!;
     if (neighbor < -1 || neighbor >= grid.cellCount) {
       fail('GREATER_REALM_LIVING_WORLD_GRID_INVALID');
+    }
+  }
+  for (const regime of input.waterRegime) {
+    if (regime > WATER_MARSH) {
+      fail('GREATER_REALM_LIVING_WORLD_WATER_REGIME_INVALID');
     }
   }
 }
@@ -1133,6 +1140,24 @@ function bestLegalRouteNeighbor(
   return selected;
 }
 
+function routeTerminalPrecedes(
+  cell: number,
+  cost: number,
+  priority: number,
+  selectedCell: number,
+  selectedCost: number,
+  selectedPriority: number,
+): boolean {
+  return selectedCell < 0
+    || cost < selectedCost
+    || (cost === selectedCost && priority < selectedPriority)
+    || (
+      cost === selectedCost
+      && priority === selectedPriority
+      && cell < selectedCell
+    );
+}
+
 function markPredecessorPath(
   start: number,
   predecessor: Int32Array,
@@ -1214,12 +1239,26 @@ function deriveConnectedRouteBackbone(
   const mandatorySiteVisited = new Uint8Array(grid.cellCount);
   const mandatoryTerminalBySite = new Int32Array(grid.cellCount);
   mandatoryTerminalBySite.fill(-1);
+  const firstFootprintDirectByComponent = new Int32Array(grid.cellCount);
+  firstFootprintDirectByComponent.fill(-1);
+  const secondFootprintDirectByComponent = new Int32Array(grid.cellCount);
+  secondFootprintDirectByComponent.fill(-1);
+  const firstFootprintApproachByComponent = new Int32Array(grid.cellCount);
+  firstFootprintApproachByComponent.fill(-1);
+  const secondFootprintApproachByComponent = new Int32Array(grid.cellCount);
+  secondFootprintApproachByComponent.fill(-1);
+  const footprintDirectCell = new Uint8Array(grid.cellCount);
+  const footprintLocalConnectorCell = new Uint8Array(grid.cellCount);
+  const mandatoryMajorRoute = new Uint8Array(grid.cellCount);
   const traversalCost = new Uint32Array(grid.cellCount);
   const heapCells: number[] = [];
   const heapCosts: number[] = [];
   const components: number[][] = [];
   const terminalsByComponent: number[][] = [];
   const ordinaryDryRouteCells: number[] = [];
+  const footprintTouchedComponents: number[] = [];
+  const footprintDirectCells: number[] = [];
+  const footprintLocalConnectorCells: number[] = [];
   const optionalHubBuckets: OptionalRouteHub[][] = Array.from(
     { length: 2 * 4 * 32 },
     () => [],
@@ -1276,6 +1315,66 @@ function deriveConnectedRouteBackbone(
       terminalsByComponent[component]!.push(cell);
     };
 
+    const rankedTerminalPrecedes = (cell: number, selectedCell: number): boolean => (
+      routeTerminalPrecedes(
+        cell,
+        traversalCost[cell]!,
+        randomU32(
+          seed,
+          ROUTE_COST_CHANNEL,
+          grid.q[cell]!,
+          grid.r[cell]!,
+          5,
+        ),
+        selectedCell,
+        selectedCell >= 0 ? traversalCost[selectedCell]! : UINT32_MAX,
+        selectedCell >= 0
+          ? randomU32(
+            seed,
+            ROUTE_COST_CHANNEL,
+            grid.q[selectedCell]!,
+            grid.r[selectedCell]!,
+            5,
+          )
+          : UINT32_MAX,
+      )
+    );
+    const rankedPairPrecedes = (
+      first: number,
+      second: number,
+      selectedFirst: number,
+      selectedSecond: number,
+    ): boolean => selectedFirst < 0
+      || rankedTerminalPrecedes(first, selectedFirst)
+      || (first === selectedFirst && rankedTerminalPrecedes(second, selectedSecond));
+    const routeCellsAdjacent = (first: number, second: number): boolean => {
+      for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
+        if (grid.neighbors[first * NEIGHBOR_COUNT + direction] === second) return true;
+      }
+      return false;
+    };
+    const considerFootprintTerminal = (
+      candidate: number,
+      firstByComponent: Int32Array,
+      secondByComponent: Int32Array,
+    ): void => {
+      const component = eligibleComponent[candidate]!;
+      if (component < 0) return;
+      if (
+        firstFootprintDirectByComponent[component] < 0
+        && firstFootprintApproachByComponent[component] < 0
+      ) footprintTouchedComponents.push(component);
+      const first = firstByComponent[component]!;
+      const second = secondByComponent[component]!;
+      if (candidate === first || candidate === second) return;
+      if (rankedTerminalPrecedes(candidate, first)) {
+        secondByComponent[component] = first;
+        firstByComponent[component] = candidate;
+      } else if (rankedTerminalPrecedes(candidate, second)) {
+        secondByComponent[component] = candidate;
+      }
+    };
+
     // Resolve each reserved gate-approach component to one legal exterior
     // route terminal before mandatory sites are anchored. Approach cells are
     // authority-owned transitions rather than route surface: they remain
@@ -1314,24 +1413,19 @@ function deriveConnectedRouteBackbone(
       if (selectedTerminal >= 0) addTerminal(selectedTerminal);
     }
 
-    // Adjacent castle/throne cells form one reserved site footprint. Select a
-    // single legal perimeter terminal for the whole footprint so a multi-cell
-    // keep is reachable even when an interior member has no legal neighbour of
-    // its own. If no direct perimeter is available, the footprint may inherit
-    // the proven exterior terminal of an adjacent gate-approach component. It
-    // never routes across that reserved component, and a sealed component
-    // cannot make the footprint reachable. Each cell and edge is visited a
-    // constant number of times.
+    // Adjacent castle/throne cells form one reserved site footprint. Select the
+    // best two distinct legal perimeter terminals from one eligible component
+    // where available, rather than seeding disconnected route roots on opposite
+    // sides of water or a reserved clearance. A multi-cell keep remains
+    // reachable even when an interior member has no legal neighbour of its own.
+    // Direct perimeter pairs take precedence; approach terminals are fallbacks
+    // only inside the same proven exterior component. The route never crosses a
+    // reserved component, and a sealed component cannot make the footprint
+    // reachable. Each cell and edge is visited a constant number of times.
     for (let cell = 0; cell < grid.cellCount; cell += 1) {
       if (hasMandatoryRouteSite(input, cell) && mandatorySiteVisited[cell] === 0) {
         let head = 0;
         let tail = 0;
-        let directTerminal = -1;
-        let directCost = UINT32_MAX;
-        let directPriority = UINT32_MAX;
-        let approachTerminal = -1;
-        let approachCost = UINT32_MAX;
-        let approachPriority = UINT32_MAX;
         queue[tail++] = cell;
         mandatorySiteVisited[cell] = 1;
         while (head < tail) {
@@ -1347,27 +1441,15 @@ function deriveConnectedRouteBackbone(
               continue;
             }
             if (routeEligible(input, neighbor)) {
-              const cost = traversalCost[neighbor]!;
-              const priority = randomU32(
-                seed,
-                ROUTE_COST_CHANNEL,
-                grid.q[neighbor]!,
-                grid.r[neighbor]!,
-                5,
-              );
-              if (
-                cost < directCost
-                || (cost === directCost && priority < directPriority)
-                || (
-                  cost === directCost
-                  && priority === directPriority
-                  && neighbor < directTerminal
-                )
-              ) {
-                directTerminal = neighbor;
-                directCost = cost;
-                directPriority = priority;
+              if (footprintDirectCell[neighbor] === 0) {
+                footprintDirectCell[neighbor] = 1;
+                footprintDirectCells.push(neighbor);
               }
+              considerFootprintTerminal(
+                neighbor,
+                firstFootprintDirectByComponent,
+                secondFootprintDirectByComponent,
+              );
               continue;
             }
             if (input.gateApproachCell[neighbor] === 0) continue;
@@ -1376,40 +1458,246 @@ function deriveConnectedRouteBackbone(
               ? approachTerminalByComponent[componentId]!
               : -1;
             if (terminal < 0) continue;
-            const cost = traversalCost[terminal]!;
-            const priority = randomU32(
-              seed,
-              ROUTE_COST_CHANNEL,
-              grid.q[terminal]!,
-              grid.r[terminal]!,
-              5,
+            considerFootprintTerminal(
+              terminal,
+              firstFootprintApproachByComponent,
+              secondFootprintApproachByComponent,
             );
+          }
+        }
+
+        let primaryTerminal = -1;
+        let secondaryTerminal = -1;
+        let selectedDirectPair = false;
+        // Prefer a directly connected dry pair. Both cells become adjacent
+        // carriageways without adding or promoting a remote backbone branch.
+        for (const firstCell of footprintDirectCells) {
+          if (input.waterRegime[firstCell] !== WATER_DRY) continue;
+          for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
+            const secondCell = grid.neighbors[
+              firstCell * NEIGHBOR_COUNT + direction
+            ]!;
             if (
-              cost < approachCost
-              || (cost === approachCost && priority < approachPriority)
-              || (
-                cost === approachCost
-                && priority === approachPriority
-                && terminal < approachTerminal
-              )
-            ) {
-              approachTerminal = terminal;
-              approachCost = cost;
-              approachPriority = priority;
+              secondCell < 0
+              || firstCell >= secondCell
+              || footprintDirectCell[secondCell] !== 1
+              || input.waterRegime[secondCell] !== WATER_DRY
+              || eligibleComponent[firstCell] !== eligibleComponent[secondCell]
+            ) continue;
+            const first = rankedTerminalPrecedes(firstCell, secondCell)
+              ? firstCell
+              : secondCell;
+            const second = first === firstCell ? secondCell : firstCell;
+            if (rankedPairPrecedes(
+              first,
+              second,
+              primaryTerminal,
+              secondaryTerminal,
+            )) {
+              primaryTerminal = first;
+              secondaryTerminal = second;
+              selectedDirectPair = true;
             }
           }
         }
-        const selectedTerminal = directTerminal >= 0 ? directTerminal : approachTerminal;
-        if (selectedTerminal < 0) {
+        // Preserve a valid non-adjacent direct pair when no adjacent pair is
+        // available. A bounded footprint-local connector is resolved below.
+        if (primaryTerminal < 0) {
+          for (const component of footprintTouchedComponents) {
+            const first = firstFootprintDirectByComponent[component]!;
+            const second = secondFootprintDirectByComponent[component]!;
+            if (
+              first >= 0
+              && second >= 0
+              && rankedPairPrecedes(
+                first,
+                second,
+                primaryTerminal,
+                secondaryTerminal,
+              )
+            ) {
+              primaryTerminal = first;
+              secondaryTerminal = second;
+              selectedDirectPair = true;
+            }
+          }
+        }
+        // Otherwise pair the best direct entry with a distinct approach
+        // terminal only when the approach reaches that same exterior component.
+        if (primaryTerminal < 0) {
+          for (const component of footprintTouchedComponents) {
+            const first = firstFootprintDirectByComponent[component]!;
+            if (first < 0) continue;
+            const firstApproach = firstFootprintApproachByComponent[component]!;
+            const secondApproach = secondFootprintApproachByComponent[component]!;
+            const approach = firstApproach >= 0 && firstApproach !== first
+              ? firstApproach
+              : secondApproach;
+            if (
+              approach >= 0
+              && approach !== first
+              && rankedPairPrecedes(
+                first,
+                approach,
+                primaryTerminal,
+                secondaryTerminal,
+              )
+            ) {
+              primaryTerminal = first;
+              secondaryTerminal = approach;
+              selectedDirectPair = false;
+            }
+          }
+        }
+        // A footprint sealed from every direct perimeter cell may still inherit
+        // two exterior terminals, but never from different eligible components.
+        if (primaryTerminal < 0) {
+          for (const component of footprintTouchedComponents) {
+            const first = firstFootprintApproachByComponent[component]!;
+            const second = secondFootprintApproachByComponent[component]!;
+            if (
+              first >= 0
+              && second >= 0
+              && rankedPairPrecedes(
+                first,
+                second,
+                primaryTerminal,
+                secondaryTerminal,
+              )
+            ) {
+              primaryTerminal = first;
+              secondaryTerminal = second;
+              selectedDirectPair = false;
+            }
+          }
+        }
+        // Preserve the former one-terminal reachability fallback when no safe
+        // same-component pair exists.
+        if (primaryTerminal < 0) {
+          for (const component of footprintTouchedComponents) {
+            const direct = firstFootprintDirectByComponent[component]!;
+            if (direct >= 0 && rankedTerminalPrecedes(direct, primaryTerminal)) {
+              primaryTerminal = direct;
+              selectedDirectPair = false;
+            }
+          }
+        }
+        if (primaryTerminal < 0) {
+          for (const component of footprintTouchedComponents) {
+            const approach = firstFootprintApproachByComponent[component]!;
+            if (approach >= 0 && rankedTerminalPrecedes(approach, primaryTerminal)) {
+              primaryTerminal = approach;
+              selectedDirectPair = false;
+            }
+          }
+        }
+
+        // Retain the original reserved footprint before the optional local
+        // connector search reuses `queue`. Connector cells are route surface,
+        // never mandatory castle/throne sites.
+        if (primaryTerminal < 0) {
           unreachableMandatorySiteCount += tail;
         } else {
-          addTerminal(selectedTerminal);
+          addTerminal(primaryTerminal);
+          if (secondaryTerminal >= 0 && secondaryTerminal !== primaryTerminal) {
+            addTerminal(secondaryTerminal);
+          }
           for (let memberIndex = 0; memberIndex < tail; memberIndex += 1) {
             const member = queue[memberIndex]!;
             requiredAnchorSite[member] = 1;
-            mandatoryTerminalBySite[member] = selectedTerminal;
+            mandatoryTerminalBySite[member] = primaryTerminal;
           }
         }
+
+        if (
+          selectedDirectPair
+          && primaryTerminal >= 0
+          && secondaryTerminal >= 0
+          && !routeCellsAdjacent(primaryTerminal, secondaryTerminal)
+          && input.waterRegime[primaryTerminal] === WATER_DRY
+          && input.waterRegime[secondaryTerminal] === WATER_DRY
+        ) {
+          const component = eligibleComponent[primaryTerminal]!;
+          const addLocalConnectorCell = (candidate: number): void => {
+            if (
+              candidate < 0
+              || footprintLocalConnectorCell[candidate] === 1
+              || input.waterRegime[candidate] !== WATER_DRY
+              || eligibleComponent[candidate] !== component
+            ) return;
+            footprintLocalConnectorCell[candidate] = 1;
+            footprintLocalConnectorCells.push(candidate);
+          };
+          for (let memberIndex = 0; memberIndex < tail; memberIndex += 1) {
+            const member = queue[memberIndex]!;
+            for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
+              const firstRing = grid.neighbors[
+                member * NEIGHBOR_COUNT + direction
+              ]!;
+              addLocalConnectorCell(firstRing);
+              if (MANDATORY_ROUTE_CONNECTOR_RADIUS < 2 || firstRing < 0) continue;
+              for (
+                let outerDirection = 0;
+                outerDirection < NEIGHBOR_COUNT;
+                outerDirection += 1
+              ) {
+                addLocalConnectorCell(grid.neighbors[
+                  firstRing * NEIGHBOR_COUNT + outerDirection
+                ]!);
+              }
+            }
+          }
+          let connectorHead = 0;
+          let connectorTail = 0;
+          let connectorFound = false;
+          queue[connectorTail++] = primaryTerminal;
+          predecessor[primaryTerminal] = primaryTerminal;
+          while (connectorHead < connectorTail && !connectorFound) {
+            const routeCell = queue[connectorHead++]!;
+            for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
+              const neighbor = grid.neighbors[
+                routeCell * NEIGHBOR_COUNT + direction
+              ]!;
+              if (
+                neighbor < 0
+                || footprintLocalConnectorCell[neighbor] !== 1
+                || predecessor[neighbor] >= 0
+                || !routeNeighborEligible(input, routeCell, neighbor)
+              ) continue;
+              predecessor[neighbor] = routeCell;
+              queue[connectorTail++] = neighbor;
+              if (neighbor === secondaryTerminal) {
+                connectorFound = true;
+                break;
+              }
+            }
+          }
+          if (connectorFound) {
+            let connector = secondaryTerminal;
+            while (connector !== primaryTerminal) {
+              mandatoryMajorRoute[connector] = 1;
+              connector = predecessor[connector]!;
+            }
+            mandatoryMajorRoute[primaryTerminal] = 1;
+          }
+          for (const connectorCell of footprintLocalConnectorCells) {
+            footprintLocalConnectorCell[connectorCell] = 0;
+            predecessor[connectorCell] = -1;
+          }
+          footprintLocalConnectorCells.fill(0);
+          footprintLocalConnectorCells.length = 0;
+        }
+        for (const component of footprintTouchedComponents) {
+          firstFootprintDirectByComponent[component] = -1;
+          secondFootprintDirectByComponent[component] = -1;
+          firstFootprintApproachByComponent[component] = -1;
+          secondFootprintApproachByComponent[component] = -1;
+        }
+        footprintTouchedComponents.fill(0);
+        footprintTouchedComponents.length = 0;
+        for (const directCell of footprintDirectCells) footprintDirectCell[directCell] = 0;
+        footprintDirectCells.fill(0);
+        footprintDirectCells.length = 0;
       }
 
       // Resource/core masks are intentionally broad suitability fields, so
@@ -1575,6 +1863,14 @@ function deriveConnectedRouteBackbone(
     }
 
     for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      if (mandatoryMajorRoute[cell] !== 1) continue;
+      if (!dryRouteEligible(input, cell)) {
+        fail('GREATER_REALM_LIVING_WORLD_MANDATORY_CONNECTOR_INVALID');
+      }
+      backbone[cell] = 1;
+    }
+
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
       if (backbone[cell] !== 1 || input.waterRegime[cell] === WATER_DRY) continue;
       const pair = oppositeDryFordPair(input, cell);
       if (!pair) fail('GREATER_REALM_LIVING_WORLD_FORD_BANKS_INVALID');
@@ -1591,6 +1887,8 @@ function deriveConnectedRouteBackbone(
         routeClass[cell] = GREATER_REALM_ROUTE_CLASS.FORD;
       } else if (routeTouchesMajorAuthority(input, cell)) {
         routeClass[cell] = GREATER_REALM_ROUTE_CLASS.CARRIAGEWAY;
+      } else if (mandatoryMajorRoute[cell] === 1) {
+        routeClass[cell] = GREATER_REALM_ROUTE_CLASS.ROAD;
       } else {
         ordinaryDryRouteCells.push(cell);
         if (
@@ -1681,6 +1979,13 @@ function deriveConnectedRouteBackbone(
     requiredAnchorSite.fill(0);
     mandatorySiteVisited.fill(0);
     mandatoryTerminalBySite.fill(0);
+    firstFootprintDirectByComponent.fill(0);
+    secondFootprintDirectByComponent.fill(0);
+    firstFootprintApproachByComponent.fill(0);
+    secondFootprintApproachByComponent.fill(0);
+    footprintDirectCell.fill(0);
+    footprintLocalConnectorCell.fill(0);
+    mandatoryMajorRoute.fill(0);
     traversalCost.fill(0);
     heapCells.fill(0);
     heapCosts.fill(0);
@@ -1688,6 +1993,12 @@ function deriveConnectedRouteBackbone(
     heapCosts.length = 0;
     ordinaryDryRouteCells.fill(0);
     ordinaryDryRouteCells.length = 0;
+    footprintTouchedComponents.fill(0);
+    footprintTouchedComponents.length = 0;
+    footprintDirectCells.fill(0);
+    footprintDirectCells.length = 0;
+    footprintLocalConnectorCells.fill(0);
+    footprintLocalConnectorCells.length = 0;
     for (const component of components) component.fill(0);
     for (const terminals of terminalsByComponent) terminals.fill(0);
     for (const bucket of optionalHubBuckets) {
@@ -1822,6 +2133,7 @@ function potentialWallNeighbors(
       && dressingExcluded[neighbor] === 0
       && routeClass[neighbor] === GREATER_REALM_ROUTE_CLASS.NONE
       && landmarkClass[neighbor] === GREATER_REALM_LANDMARK_CLASS.NONE
+      && !hasAdjacentMask(input.grid, neighbor, [input.castleSlot])
       && input.slope[neighbor]! < 1_400
     ) result.push(neighbor);
   }
@@ -1843,6 +2155,7 @@ function potentialWallNeighborCount(
       && dressingExcluded[neighbor] === 0
       && routeClass[neighbor] === GREATER_REALM_ROUTE_CLASS.NONE
       && landmarkClass[neighbor] === GREATER_REALM_LANDMARK_CLASS.NONE
+      && !hasAdjacentMask(input.grid, neighbor, [input.castleSlot])
       && input.slope[neighbor]! < 1_400
     ) count += 1;
   }
@@ -2400,6 +2713,7 @@ export function deriveGreaterRealmLivingWorld(
       dressingExcluded[cell] === 0
       && routeClass[cell] === GREATER_REALM_ROUTE_CLASS.NONE
       && routeAtOrAdjacent(grid, routeClass, cell)
+      && !hasAdjacentMask(grid, cell, [input.castleSlot])
       && input.slope[cell]! < 950
       && input.distanceToFreshwater[cell]! > 1
       && ecologyClass[cell] !== GREATER_REALM_ECOLOGY_CLASS.SWAMP
@@ -2473,6 +2787,7 @@ export function deriveGreaterRealmLivingWorld(
       && landmarkClass[cell] === GREATER_REALM_LANDMARK_CLASS.NONE
       && routeClass[cell] === GREATER_REALM_ROUTE_CLASS.NONE
       && routeAtOrAdjacent(grid, routeClass, cell)
+      && !hasAdjacentMask(grid, cell, [input.castleSlot])
       && input.slope[cell]! < 1_200
       && ecologyClass[cell] !== GREATER_REALM_ECOLOGY_CLASS.SWAMP
       && ecologyClass[cell] !== GREATER_REALM_ECOLOGY_CLASS.SNOW
@@ -2497,6 +2812,7 @@ export function deriveGreaterRealmLivingWorld(
       && landmarkClass[cell] === GREATER_REALM_LANDMARK_CLASS.NONE
       && routeClass[cell] === GREATER_REALM_ROUTE_CLASS.NONE
       && routeAtOrAdjacent(grid, routeClass, cell)
+      && !hasAdjacentMask(grid, cell, [input.castleSlot])
       && input.slope[cell]! < 900
       && ecologyClass[cell] !== GREATER_REALM_ECOLOGY_CLASS.SWAMP
       && ecologyClass[cell] !== GREATER_REALM_ECOLOGY_CLASS.ALPINE

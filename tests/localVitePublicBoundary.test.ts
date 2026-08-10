@@ -386,6 +386,73 @@ describe('local Vite public boundary', () => {
 
   it.each([
     [
+      'advanced typed-array of factory',
+      ['lodSample', 'Counts'].join(''),
+      (name: string) => `export const ${name} = Uint32Array.of(100, 40, 20, 8);\n`,
+    ],
+    [
+      'advanced typed-array from factory',
+      ['rockFamily', 'Counts'].join(''),
+      (name: string) => `export const ${name} = Uint16Array.from([0, 2, 1]);\n`,
+    ],
+    [
+      'advanced typed-array constructor',
+      ['waterCellCountsBy', 'Regime'].join(''),
+      (name: string) => `export const ${name} = new Uint32Array([0, 10, 2, 3]);\n`,
+    ],
+    [
+      'advanced frozen array',
+      ['lodSample', 'Counts'].join(''),
+      (name: string) => `export const ${name} = Object.freeze([100, 40, 20, 8]);\n`,
+    ],
+    [
+      'advanced frozen typed array',
+      ['rockFamily', 'Counts'].join(''),
+      (name: string) => (
+        `export const ${name} = Object.freeze(new Uint8Array([0, 2, 1]));\n`
+      ),
+    ],
+    [
+      'advanced encoded Buffer call',
+      ['waterCellCountsByDepth', 'Class'].join(''),
+      (name: string) => `export const ${name} = Buffer.from("AAECAw==", "base64");\n`,
+    ],
+    [
+      'advanced encoded atob call',
+      ['lodSample', 'Counts'].join(''),
+      (name: string) => `export const ${name} = globalThis.atob("AAECAw==");\n`,
+    ],
+    [
+      'advanced encoded frozen object',
+      ['rockFamily', 'Counts'].join(''),
+      (name: string) => (
+        `export const ${name} = Object.freeze({ encoding: "base64", data: "AAECAw==" });\n`
+      ),
+    ],
+    [
+      'advanced encoded string',
+      ['waterCellCountsBy', 'Regime'].join(''),
+      (name: string) => `export const ${name} = "AAECAw==";\n`,
+    ],
+  ] as const)('blocks a public %s initializer', (_label, authorityName, fixture) => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-public-advanced-source-'));
+    const publicDirectory = join(root, 'public');
+    mkdirSync(publicDirectory);
+    try {
+      writeFileSync(
+        join(publicDirectory, 'ordinary-module.js'),
+        fixture(authorityName),
+      );
+      expect(() => configuredBoundary(publicDirectory)).toThrow(
+        'Warpkeep public directory contains a prohibited local artifact.',
+      );
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it.each([
+    [
       'UTF-16LE',
       Buffer.from('GrOuNdCoVeR-DeNsItY', 'utf16le'),
     ],
@@ -413,6 +480,49 @@ describe('local Vite public boundary', () => {
     } finally {
       bytes.fill(0);
       authority.fill(0);
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it('blocks encoded final hydrology authority and private QA reports', () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-public-water-authority-'));
+    const publicDirectory = join(root, 'public');
+    mkdirSync(publicDirectory);
+    try {
+      writeFileSync(
+        join(publicDirectory, 'ordinary-water.bin'),
+        Buffer.from('WaTeR-BoDy-Id', 'utf16le'),
+      );
+      expect(() => configuredBoundary(publicDirectory)).toThrow(
+        'Warpkeep public directory contains a prohibited local artifact.',
+      );
+      rmSync(join(publicDirectory, 'ordinary-water.bin'));
+      writeFileSync(
+        join(publicDirectory, 'ordinary-domain.bin'),
+        Buffer.from('RoCk-FaMiLy', 'utf16le'),
+      );
+      expect(() => configuredBoundary(publicDirectory)).toThrow(
+        'Warpkeep public directory contains a prohibited local artifact.',
+      );
+      rmSync(join(publicDirectory, 'ordinary-domain.bin'));
+      writeFileSync(
+        join(publicDirectory, 'ordinary-metrics.bin'),
+        Buffer.from('LoDSampleCounts', 'utf16le'),
+      );
+      expect(() => configuredBoundary(publicDirectory)).toThrow(
+        'Warpkeep public directory contains a prohibited local artifact.',
+      );
+      rmSync(join(publicDirectory, 'ordinary-metrics.bin'));
+      writeFileSync(
+        join(publicDirectory, 'ordinary-report.json'),
+        `${JSON.stringify({
+          [['topographic', 'Qa'].join('')]: { cellCount: 100_000 },
+        })}\n`,
+      );
+      expect(() => configuredBoundary(publicDirectory)).toThrow(
+        'Warpkeep public directory contains a prohibited local artifact.',
+      );
+    } finally {
       rmSync(root, { force: true, recursive: true });
     }
   });

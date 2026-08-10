@@ -90,7 +90,7 @@ describe("Greater Realm geomorphic shaping", () => {
     const second = shapeGreaterRealmGeomorphology(input);
 
     expect(GREATER_REALM_GEOMORPHOLOGY_VERSION).toBe(
-      "greater-realm-geomorphology-v4",
+      "greater-realm-geomorphology-v5",
     );
     expect(first).toEqual(second);
     expect(fixture.elevation).toEqual(originalElevation);
@@ -290,6 +290,80 @@ describe("Greater Realm geomorphic shaping", () => {
     expect(first.moisture.length).toBe(fixture.grid.cellCount);
     expect(new Set(first.temperature).size).toBeGreaterThan(1);
     expect(new Set(first.moisture).size).toBeGreaterThan(1);
+  });
+
+  it("derives smooth uplift rain shadows and windward lift without changing reserve climate", () => {
+    const { climate: _fixtureClimate, ...fixture } = syntheticFixture();
+    const noUplift = new Int32Array(fixture.grid.cellCount);
+    const candidateSeed = new Uint32Array([
+      0x4411_2200, 0x8877_6655, 0xccbb_aa99, 0x1020_3040,
+    ]);
+    const shadowed = shapeGreaterRealmGeomorphology({
+      ...fixture,
+      candidateSeed,
+    });
+    const repeated = shapeGreaterRealmGeomorphology({
+      ...fixture,
+      candidateSeed: new Uint32Array(candidateSeed),
+    });
+    const unshadowed = shapeGreaterRealmGeomorphology({
+      ...fixture,
+      tectonicUplift: noUplift,
+      candidateSeed: new Uint32Array(candidateSeed),
+    });
+
+    expect(shadowed.moisture).toEqual(repeated.moisture);
+    let strictlyDrierCellCount = 0;
+    let strictlyWetterCellCount = 0;
+    const shadowDelta = new Int32Array(fixture.grid.cellCount);
+    for (let cell = 0; cell < fixture.grid.cellCount; cell += 1) {
+      if (fixture.legacyReserveCell[cell] === 1) {
+        expect(shadowed.moisture[cell]).toBe(unshadowed.moisture[cell]);
+        continue;
+      }
+      if (shadowed.moisture[cell]! < unshadowed.moisture[cell]!) {
+        strictlyDrierCellCount += 1;
+      } else if (shadowed.moisture[cell]! > unshadowed.moisture[cell]!) {
+        strictlyWetterCellCount += 1;
+      }
+      shadowDelta[cell] = unshadowed.moisture[cell]!
+        - shadowed.moisture[cell]!;
+    }
+    expect(strictlyDrierCellCount).toBeGreaterThan(0);
+    expect(strictlyWetterCellCount).toBeGreaterThan(0);
+    const axisDeltaSums = [0, 0, 0];
+    const axisEdgeCounts = [0, 0, 0];
+    for (let cell = 0; cell < fixture.grid.cellCount; cell += 1) {
+      if (
+        fixture.legacyReserveCell[cell] === 1
+        || fixture.elevation[cell]! <= 0
+      ) continue;
+      for (let axis = 0; axis < 3; axis += 1) {
+        const neighbor = fixture.grid.neighbors[cell * 6 + axis]!;
+        if (
+          neighbor < 0
+          || fixture.legacyReserveCell[neighbor] === 1
+          || fixture.elevation[neighbor]! <= 0
+        ) continue;
+        axisDeltaSums[axis] += Math.abs(
+          shadowDelta[cell]! - shadowDelta[neighbor]!,
+        );
+        axisEdgeCounts[axis] += 1;
+      }
+    }
+    const axisMeanDeltas = axisDeltaSums.map((total, axis) => (
+      Math.round(total / axisEdgeCounts[axis]!)
+    ));
+    const maximumAxisMeanDelta = Math.max(...axisMeanDeltas);
+    const minimumAxisMeanDelta = Math.min(...axisMeanDeltas);
+    expect(maximumAxisMeanDelta).toBeGreaterThan(0);
+    expect(Math.round(
+      ((maximumAxisMeanDelta - minimumAxisMeanDelta) * 10_000)
+        / maximumAxisMeanDelta,
+    )).toBeLessThanOrEqual(7_000);
+    expect(shadowed.metrics.aridClimateCompatibilityBasisPoints).toBe(10_000);
+    expect(fixture.tectonicUplift).not.toEqual(noUplift);
+    shadowDelta.fill(0);
   });
 
   it("zeroizes owned buffers after a late geomorphology failure", () => {

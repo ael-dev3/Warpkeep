@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   chmodSync,
   existsSync,
@@ -22,6 +22,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   buildGreaterRealmPrivateCandidateShortlist,
+  greaterRealmCliArgumentTestSeams,
   greaterRealmPublicEvidenceTestSeams,
   resolveGreaterRealmPublicEvidenceDestination,
   verifyGreaterRealmPrivateRejectedAttempt,
@@ -78,6 +79,24 @@ afterEach(() => {
 });
 
 describe('Greater Realm atlas CLI security boundary', () => {
+  it('keeps inspect-package stdout free of private comparison authority', () => {
+    const status = greaterRealmCliArgumentTestSeams.inspectPackagePublicStatus({
+      candidateCount: 1,
+      selectionStatus: 'pending',
+    });
+
+    expect(status).toEqual({
+      candidateCount: 1,
+      selectionStatus: 'pending',
+      privatePackageVerified: true,
+      coordinateDisclosure: false,
+      productionUntouched: true,
+    });
+    expect(JSON.stringify(status)).not.toMatch(
+      /(?:candidateOrdinal|attemptsUsed|rejectedAttempt|privateComparison|barrier|chunk|topology|stageDigest|packageDigest|layoutDigest)/iu,
+    );
+  });
+
   it('creates a pending unranked one-world owner review without choosing a winner', () => {
     const candidate = (
       suffix: string,
@@ -164,39 +183,19 @@ describe('Greater Realm atlas CLI security boundary', () => {
     const multiCandidates = Object.freeze([
       ...candidates,
       candidate('C', [8_000, 5_000, 5_000, 5, 2]),
-      candidate('D', [8_000, 5_000, 5_000, 5, 2]),
-      candidate('E', [8_000, 5_000, 5_000, 5, 2]),
-      candidate('F', [8_000, 5_000, 5_000, 12, 9]),
-      candidate('G', [8_100, 5_100, 5_100, 6, 3]),
-      candidate('H', [7_000, 4_000, 4_000, 4, 1]),
-      candidate('I', [7_100, 4_100, 4_100, 4, 1]),
     ]);
-    const multiPrivateMetrics = Object.freeze(multiCandidates.map((entry, index) => Object.freeze({
+    const multiPrivateMetrics = Object.freeze(multiCandidates.map(entry => Object.freeze({
       ...privateMetrics[0]!,
       candidateHandle: entry.candidateHandle,
-      minimumLargestPassableRegionShareBasisPoints: index === 1 ? 9_900 : 8_000,
-      chunkPopulationSpread: index === 2 ? 1 : 100,
-      ridgeUpliftAlignmentBasisPoints: index === 3 ? 9_900 : 7_000,
     }) satisfies GreaterRealmVerifiedPrivateShortlistMetrics));
     const multiReview = {
       ...review,
       candidates: multiCandidates,
     } as unknown as GreaterRealmSanitizedReview;
-    const multi = buildGreaterRealmPrivateCandidateShortlist(
+    expect(() => buildGreaterRealmPrivateCandidateShortlist(
       multiReview,
       multiPrivateMetrics,
-    );
-    const reversed = buildGreaterRealmPrivateCandidateShortlist({
-      ...multiReview,
-      candidates: [...multiReview.candidates].reverse(),
-    }, [...multiPrivateMetrics].reverse());
-    expect(multi).toEqual(reversed);
-    expect(multi.shortlistCount).toBeGreaterThanOrEqual(3);
-    expect(multi.shortlistCount).toBeLessThanOrEqual(5);
-    expect(multi.candidateHandles).toEqual(
-      multiCandidates.slice(0, 5).map(entry => entry.candidateHandle).sort(),
-    );
-    expect(multi.method).toBe('pareto-private-vector-diversity-v2');
+    )).toThrow('GREATER_REALM_PRIVATE_SHORTLIST_INVALID');
 
     expect(() => buildGreaterRealmPrivateCandidateShortlist({
       ...review,
@@ -263,6 +262,31 @@ describe('Greater Realm atlas CLI security boundary', () => {
     }
   });
 
+  it('accepts exactly one explicitly requested generated world', () => {
+    expect(greaterRealmCliArgumentTestSeams.generatedWorldCount('1')).toBe(1);
+    for (const rejected of ['0', '2', '16']) {
+      expect(() => greaterRealmCliArgumentTestSeams.generatedWorldCount(rejected))
+        .toThrow('GREATER_REALM_CLI_INTEGER_INVALID');
+    }
+  });
+
+  it('binds accepted replay to atlas and manifest authority together', () => {
+    const atlasDigest = 'a'.repeat(64);
+    const manifestDigest = 'b'.repeat(64);
+    const accepted = greaterRealmCliArgumentTestSeams.acceptedCandidateDigest(
+      atlasDigest,
+      manifestDigest,
+    );
+    expect(greaterRealmCliArgumentTestSeams.acceptedCandidateDigest(
+      atlasDigest,
+      'c'.repeat(64),
+    )).not.toBe(accepted);
+    expect(greaterRealmCliArgumentTestSeams.acceptedCandidateDigest(
+      'd'.repeat(64),
+      manifestDigest,
+    )).not.toBe(accepted);
+  });
+
   it('refuses a private workspace inside the repository before writing anything', () => {
     expect(existsSync(forbiddenWorkspace)).toBe(false);
 
@@ -284,7 +308,7 @@ describe('Greater Realm atlas CLI security boundary', () => {
     expect(existsSync(forbiddenWorkspace)).toBe(false);
   });
 
-  it('rejects an attempt budget smaller than the requested candidate count', () => {
+  it('rejects every request for more than the one authorized world', () => {
     const result = runAtlasCli([
       'generate-candidates',
       '--count',
@@ -296,7 +320,45 @@ describe('Greater Realm atlas CLI security boundary', () => {
     expect(result.error).toBeUndefined();
     expect(result.status).toBe(1);
     expect(result.stdout).toBe('');
-    expect(result.stderr).toBe('GREATER_REALM_CLI_ARGUMENTS_INVALID\n');
+    expect(result.stderr).toBe('GREATER_REALM_CLI_INTEGER_INVALID\n');
+  });
+
+  it('rejects combining checkpoint abort with generation or resume options', () => {
+    for (const extra of [
+      ['--resume'],
+      ['--count', '1'],
+      ['--maximum-attempts', '8'],
+    ]) {
+      const result = runAtlasCli([
+        'generate-candidates',
+        '--abort-checkpoint',
+        ...extra,
+      ]);
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toBe('GREATER_REALM_CLI_ARGUMENTS_INVALID\n');
+    }
+  });
+
+  it('permits resume past only the exact recoverable pending-report artifacts', () => {
+    const report = greaterRealmPublicEvidenceTestSeams.pendingOwnerReportPath;
+    const temporary = `${report}.${randomUUID()}.tmp`;
+    expect(greaterRealmPublicEvidenceTestSeams.isRecoverablePendingOwnerReportStatus(
+      `?? ${report}\0`,
+    )).toBe(true);
+    expect(greaterRealmPublicEvidenceTestSeams.isRecoverablePendingOwnerReportStatus(
+      `?? ${report}\0?? ${temporary}\0`,
+    )).toBe(true);
+    for (const status of [
+      ` M ${report}\0`,
+      `?? ${report}.not-a-writer-temp.tmp\0`,
+      `?? docs/evidence/greater-realm/unrelated.json\0`,
+      `?? ${report}\0?? package.json\0`,
+    ]) {
+      expect(greaterRealmPublicEvidenceTestSeams
+        .isRecoverablePendingOwnerReportStatus(status)).toBe(false);
+    }
   });
 
   it('regenerates rejected attempts and rejects a tampered failure ledger', () => {

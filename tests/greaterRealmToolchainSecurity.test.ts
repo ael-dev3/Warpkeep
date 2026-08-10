@@ -16,8 +16,11 @@ import { isAbsolute, join, resolve } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-// @ts-expect-error Executable ESM bootstrap exposes named test seams.
-import { computeGreaterRealmPackageTree, verifyGreaterRealmTrustedToolchain } from '../scripts/atlas/greater-realm-toolchain-bootstrap.mjs';
+import {
+  computeGreaterRealmPackageTree,
+  reverifyGreaterRealmTrustedToolchain,
+  verifyGreaterRealmTrustedToolchain,
+} from '../scripts/atlas/greater-realm-toolchain-bootstrap.mjs';
 
 import {
   inspectGreaterRealmTrustedGit,
@@ -195,6 +198,25 @@ describe('Greater Realm toolchain provenance', () => {
       architecture: 'arm64',
     })).toThrow('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_PACKAGE_TAMPERED');
     expect(existsSync(marker)).toBe(false);
+  });
+
+  it('rejects package-tree drift during the child run at final re-attestation', () => {
+    const fixture = toolchainFixture();
+    const input = Object.freeze({
+      repositoryRoot: fixture.repositoryRoot,
+      runtimeNode: '22.13.0',
+      platform: 'darwin',
+      architecture: 'arm64',
+    });
+    const receipt = verifyGreaterRealmTrustedToolchain(input);
+    writeFileSync(
+      join(fixture.nodeModules, 'semver', 'runtime.js'),
+      'export const packageName = "mutated-during-child";\n',
+      { mode: 0o644 },
+    );
+
+    expect(() => reverifyGreaterRealmTrustedToolchain(receipt, input))
+      .toThrow('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_PACKAGE_TAMPERED');
   });
 
   it('binds npm\'s installed esbuild executable to the locked native package', () => {

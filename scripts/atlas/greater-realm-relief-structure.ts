@@ -1,4 +1,7 @@
-import { type IndexedAxialGrid } from './greater-realm-terrain';
+import {
+  isCanonicalGreaterRealmAxialGrid,
+  type IndexedAxialGrid,
+} from './greater-realm-terrain';
 
 export const GREATER_REALM_RELIEF_STRUCTURE_VERSION =
   'greater-realm-final-relief-structure-v1' as const;
@@ -197,10 +200,8 @@ export function measureGreaterRealmReliefStructure(
     grid.neighbors.length !== grid.cellCount * HEX_NEIGHBOR_COUNT
   )
     fail('GREATER_REALM_RELIEF_STRUCTURE_GRID_INVALID');
-  for (const neighbor of grid.neighbors) {
-    if (neighbor < -1 || neighbor >= grid.cellCount) {
-      fail('GREATER_REALM_RELIEF_STRUCTURE_GRID_INVALID');
-    }
+  if (!isCanonicalGreaterRealmAxialGrid(grid)) {
+    fail('GREATER_REALM_RELIEF_STRUCTURE_GRID_INVALID');
   }
   if (
     !(input.elevation instanceof Int32Array) ||

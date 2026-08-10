@@ -38,8 +38,9 @@ snow capacity require cold evidence; wetland/swamp capacity requires verified
 wetness and drainage; savanna and desert capacity require the corresponding
 heat/moisture regime. A visual label cannot override the physical fields.
 
-Living-world v3 keeps canopy/woody potential in `vegetationDensity` and adds
-private, cell-level `groundcoverDensity` and `wildflowerDensity` channels.
+Living-world v4 keeps canopy/woody potential in `vegetationDensity` and retains
+the private, cell-level `groundcoverDensity` and `wildflowerDensity` channels
+introduced by v3.
 Groundcover represents grass, sedge, heath, or similarly low vegetation;
 wildflowers are a sparse compatible subset and can never exceed groundcover at
 the same cell. Both channels are zero on water, the protected Lowlands,
@@ -100,9 +101,10 @@ variation, open-country balance, corridors, and anchor/capacity classes visible
 to the owner. It is the seventh marked preview in the intended package contract
 and must never be committed or published.
 
-The added channels advance the living-world authority to
-`greater-realm-private-living-world-v3`, the generator algorithm to
-`greater-realm-v2-natural-continent-pr-a.13`, and the private atlas format to 7. The terrain-seed namespace remains `.3`, so this package revision does not
+The added channels and marsh-aware dressing rules advance the living-world
+authority to `greater-realm-private-living-world-v4`, the generator algorithm
+to `greater-realm-v2-natural-continent-pr-a.15`, and the private atlas format
+to 8. The terrain-seed namespace remains `.3`, so this package revision does not
 silently reroll the candidate.
 
 ## Clean-room grass reference
@@ -113,8 +115,9 @@ The grass architecture review used Steve245270533's
 published under its
 [MIT License](https://github.com/Steve245270533/three-stylized/blob/3275628b85b51b6d611703e8a956a05f43b31645/LICENSE).
 That repository's README in turn credits cortiz2894's MIT-licensed
-[`stylized-components` at commit
-`b182d81bff64531e584f50d71f046ae05fab3c87`](https://github.com/cortiz2894/stylized-components/tree/b182d81bff64531e584f50d71f046ae05fab3c87)
+[`stylized-components`](https://github.com/cortiz2894/stylized-components/tree/b182d81bff64531e584f50d71f046ae05fab3c87)
+as its upstream. This review separately pins that upstream at commit
+`b182d81bff64531e584f50d71f046ae05fab3c87`
 ([license](https://github.com/cortiz2894/stylized-components/blob/b182d81bff64531e584f50d71f046ae05fab3c87/LICENSE)).
 Only general concepts informed this contract: deterministic density layers,
 seeded surface sampling, a distinct sparse wildflower layer, batched instanced

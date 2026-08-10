@@ -32,6 +32,7 @@ import {
   type LegacyLowlandsAtlasTransform,
 } from './greater-realm-legacy-lowlands';
 import {
+  GREATER_REALM_COASTAL_CLASS,
   shapeGreaterRealmGeomorphology,
   type GreaterRealmGeomorphologyMetrics,
 } from './greater-realm-geomorphology';
@@ -58,9 +59,45 @@ import {
   measureGreaterRealmReliefStructure,
   type GreaterRealmReliefStructureMetrics,
 } from './greater-realm-relief-structure';
+import {
+  GREATER_REALM_GEOLOGY_AUTHORITY_VERSION,
+  deriveGreaterRealmDomainMaterialAuthority,
+  type GreaterRealmDomainMaterialMetrics,
+  type GreaterRealmRockFamilyId,
+} from './greater-realm-geology-authority';
+import {
+  GREATER_REALM_HYDROLOGY_AUTHORITY_VERSION,
+  GREATER_REALM_HYDROLOGY_GENERATION_VERSION,
+  deriveGreaterRealmHydrologyAuthority,
+  type GreaterRealmHydrologyAuthorityMetrics,
+} from './greater-realm-hydrology-authority';
+import {
+  GREATER_REALM_STRATEGIC_AUDITS_VERSION,
+  measureGreaterRealmCastleSuitability,
+  measureGreaterRealmInnerGateThroneRedundancy,
+  measureGreaterRealmRegionBoundaryAlignment,
+  measureGreaterRealmTierPotentialDensity,
+  type GreaterRealmCastleAuditMetrics,
+  type GreaterRealmInnerGateThroneMetrics,
+  type GreaterRealmRegionBoundaryAlignmentMetrics,
+  type GreaterRealmTierPotentialDensityMetrics,
+} from './greater-realm-strategic-audits';
+import {
+  GREATER_REALM_REGIONAL_HYDROGEOMORPHOLOGY_POLICY,
+  measureGreaterRealmTopographicQa,
+  type GreaterRealmTopographicQaReport,
+} from './greater-realm-topographic-qa';
+import {
+  benchmarkGreaterRealmChunkPartition,
+  type GreaterRealmChunkPartitionBenchmark,
+} from './greater-realm-chunk-benchmark';
+import {
+  measureGreaterRealmTopographyPatchSupport,
+  type GreaterRealmTopographyPatchSupportMetrics,
+} from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.13' as const;
+  'greater-realm-v2-natural-continent-pr-a.15' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -85,6 +122,7 @@ const WATER_LAKE = 2;
 const WATER_RIVER = 3;
 const WATER_STREAM = 4;
 const WATER_SEA = 5;
+const WATER_MARSH = 6;
 // Calibrated against ordinary deterministic continents so the generated river
 // network falls inside the reviewed 48–72 range without truncating valid
 // watersheds after the fact. The flow authority remains continuous; this is
@@ -242,7 +280,14 @@ export type GreaterRealmPseudoTectonicDomain = Readonly<{
   resistance: number;
   volcanicPotential: number;
   age: number;
+  baseThickness: number;
+  rockFamily: GreaterRealmRockFamilyId;
 }>;
+
+type GreaterRealmPseudoTectonicDomainSeed = Omit<
+  GreaterRealmPseudoTectonicDomain,
+  'baseThickness' | 'rockFamily'
+>;
 
 export type GreaterRealmPrivateGate = Readonly<{
   gateIndex: number;
@@ -304,6 +349,12 @@ export type GreaterRealmPrivateCandidate = Readonly<{
   regionId: Uint8Array;
   tierId: Uint8Array;
   waterRegime: Uint8Array;
+  waterBodyId: Uint32Array;
+  waterDepthClass: Uint8Array;
+  waterSurfaceLevel: Int32Array;
+  waterDownstream: Int32Array;
+  waterBankSeed: Uint32Array;
+  waterGenerationVersion: Uint16Array;
   biomeId: Uint8Array;
   landformId: Uint8Array;
   slope: Uint16Array;
@@ -378,6 +429,25 @@ export type GreaterRealmPrivateCandidate = Readonly<{
     naturalComposition: GreaterRealmNaturalCompositionMetrics;
     geomorphology: GreaterRealmGeomorphologyMetrics;
     reliefStructure: GreaterRealmReliefStructureMetrics;
+    geologyAuthority: Readonly<{
+      version: typeof GREATER_REALM_GEOLOGY_AUTHORITY_VERSION;
+      metrics: GreaterRealmDomainMaterialMetrics;
+    }>;
+    hydrologyAuthority: Readonly<{
+      version: typeof GREATER_REALM_HYDROLOGY_AUTHORITY_VERSION;
+      generationVersion: typeof GREATER_REALM_HYDROLOGY_GENERATION_VERSION;
+      metrics: GreaterRealmHydrologyAuthorityMetrics;
+    }>;
+    strategicAudits: Readonly<{
+      version: typeof GREATER_REALM_STRATEGIC_AUDITS_VERSION;
+      regionBoundaryAlignment: GreaterRealmRegionBoundaryAlignmentMetrics;
+      tierPotentialDensity: GreaterRealmTierPotentialDensityMetrics;
+      castleSuitability: GreaterRealmCastleAuditMetrics;
+      innerGateThrone: GreaterRealmInnerGateThroneMetrics;
+    }>;
+    topographicQa: GreaterRealmTopographicQaReport;
+    chunkBenchmark: GreaterRealmChunkPartitionBenchmark;
+    topographyPatchSupport: GreaterRealmTopographyPatchSupportMetrics;
     livingWorld: Readonly<{
       version: typeof GREATER_REALM_LIVING_WORLD_VERSION;
       metrics: GreaterRealmLivingWorldMetrics;
@@ -491,7 +561,7 @@ export function greaterRealmPrivateCanvas(): IndexedAxialGrid {
 
 function separatedDomains(
   candidateSeed: GreaterRealmTerrainSeed,
-): readonly GreaterRealmPseudoTectonicDomain[] {
+): readonly GreaterRealmPseudoTectonicDomainSeed[] {
   const count = 7 + (
     greaterRealmCounterRandomU32(
       candidateSeed,
@@ -500,7 +570,7 @@ function separatedDomains(
       0,
     ) % 6
   );
-  const domains: GreaterRealmPseudoTectonicDomain[] = [];
+  const domains: GreaterRealmPseudoTectonicDomainSeed[] = [];
   const positionChannel = greaterRealmTerrainChannelId('tectonic-domain-position');
   for (let ordinal = 0; ordinal < 4_096 && domains.length < count; ordinal += 1) {
     const qRandom = greaterRealmCounterRandomU32(candidateSeed, positionChannel, 0, 0, ordinal * 2);
@@ -540,7 +610,7 @@ function separatedDomains(
 
 function nearestDomains(
   grid: IndexedAxialGrid,
-  domains: readonly GreaterRealmPseudoTectonicDomain[],
+  domains: readonly GreaterRealmPseudoTectonicDomainSeed[],
 ): Readonly<{
   domainId: Uint8Array;
   nearestDistance: Uint16Array;
@@ -573,7 +643,7 @@ function nearestDomains(
 function macroGeology(
   grid: IndexedAxialGrid,
   candidateSeed: GreaterRealmTerrainSeed,
-  domains: readonly GreaterRealmPseudoTectonicDomain[],
+  domains: readonly GreaterRealmPseudoTectonicDomainSeed[],
 ): Readonly<{
   bedrock: Int32Array;
   uplift: Int32Array;
@@ -604,6 +674,13 @@ function macroGeology(
   );
   const islandAnchors: Array<Readonly<{ q: number; r: number }>> = [];
   const islandLobes: Array<Readonly<{ q: number; r: number; radius: number; peak: number }>> = [];
+  const islandRifts: Array<Readonly<{
+    q: number;
+    r: number;
+    directionQ: number;
+    directionR: number;
+    projection: number;
+  }>> = [];
   for (let attempt = 0; attempt < 4_096 && islandAnchors.length < islandArcCount; attempt += 1) {
     const q = (greaterRealmCounterRandomU32(
       candidateSeed,
@@ -632,13 +709,14 @@ function macroGeology(
     ) continue;
     const arc = islandAnchors.length;
     islandAnchors.push(Object.freeze({ q, r }));
-    const direction = GREATER_REALM_AXIAL_DIRECTIONS[greaterRealmCounterRandomU32(
+    const directionIndex = greaterRealmCounterRandomU32(
       candidateSeed,
       islandChannel,
       q,
       r,
       8_000 + arc,
-    ) % HEX_NEIGHBOR_COUNT]!;
+    ) % HEX_NEIGHBOR_COUNT;
+    const direction = GREATER_REALM_AXIAL_DIRECTIONS[directionIndex]!;
     const lobeCount = 2 + (greaterRealmCounterRandomU32(
       candidateSeed,
       islandChannel,
@@ -665,6 +743,20 @@ function macroGeology(
           r,
           20_000 + arc * 4 + lobe,
         ) % 10_001),
+      }));
+    }
+    if (arc === 1) {
+      // An off-center extensional rift splits one volcanic chain into a main
+      // island and a meaningful satellite without inflating the reviewed
+      // large-island count. The rift is recorded in bedrock and uplift
+      // authority, and its deep transverse cut survives relaxation as a true
+      // saltwater strait instead of an assignment-only island boundary.
+      islandRifts.push(Object.freeze({
+        q,
+        r,
+        directionQ: direction.q,
+        directionR: direction.r,
+        projection: 19,
       }));
     }
   }
@@ -715,17 +807,36 @@ function macroGeology(
         );
       }
     }
+    let islandArcRift = 0;
+    for (const rift of islandRifts) {
+      const relativeQ = q - rift.q;
+      const relativeR = r - rift.r;
+      if (
+        axialDistance(q, r, rift.q, rift.r) <= 24
+        && Math.abs(
+          hexDot(
+            relativeQ,
+            relativeR,
+            rift.directionQ,
+            rift.directionR,
+          ) - rift.projection
+        ) <= 2
+      ) islandArcRift = 52_000;
+    }
     // Island arcs are themselves tectonic highlands. Record a bounded share
     // of their endogenic rise in the authoritative uplift field so later
     // ridge/barrier reasoning cannot mistake them for unexplained peaks.
     uplift[index] = clamp(
-      continentalUplift + Math.floor(islandArcUplift / 4),
+      continentalUplift
+        + Math.floor(islandArcUplift / 4)
+        - Math.floor(islandArcRift / 4),
       -12_000,
       18_000,
     );
     bedrock[index] = clamp(
       broadContinent + crustBias + domain.buoyancy + relief[index]! + continentalUplift
-        + islandArcUplift - (islandArcUplift > 0 ? 0 : islandArcTrench) - edgeOcean,
+        + islandArcUplift - islandArcRift
+        - (islandArcUplift > 0 ? 0 : islandArcTrench) - edgeOcean,
       -60_000,
       60_000,
     );
@@ -3801,11 +3912,22 @@ function remapTierOneNaturalBasinsByCharacter(
   const scoreSums = Array.from({ length: TIER_I_REGION_COUNT }, () => (
     Array<bigint>(TIER_I_REGION_COUNT - 1).fill(0n)
   ));
-  const landCounts = new Uint32Array(TIER_I_REGION_COUNT);
+  const landCounts = Array<number>(TIER_I_REGION_COUNT).fill(0);
+  const dryCounts = Array<number>(TIER_I_REGION_COUNT).fill(0);
+  const fjordCounts = Array<number>(TIER_I_REGION_COUNT).fill(0);
+  const aridProcessCounts = Array<number>(TIER_I_REGION_COUNT).fill(0);
   for (let cell = 0; cell < grid.cellCount; cell += 1) {
     const basin = provisional.regionId[cell]!;
-    if (provisional.tierId[cell] !== 1 || basin === 0 || elevation[cell]! <= SEA_LEVEL) continue;
+    if (provisional.tierId[cell] !== 1 || basin === 0) continue;
+    if (coastalClass[cell] === GREATER_REALM_COASTAL_CLASS.glacialFjord) {
+      fjordCounts[basin] += 1;
+    }
+    if (elevation[cell]! <= SEA_LEVEL) continue;
     landCounts[basin] += 1;
+    if (waterRegime[cell] === WATER_DRY) {
+      dryCounts[basin] += 1;
+      if (aridMask[cell] === 1) aridProcessCounts[basin] += 1;
+    }
     const temperature = temperatureField[cell]!;
     const moisture = moistureField[cell]!;
     let flowMagnitude = 0;
@@ -3870,6 +3992,31 @@ function remapTierOneNaturalBasinsByCharacter(
     normalizedScores[basin]![3] += BigInt(
       islandiness * 4 + Math.min(10, meaningfulIslands) * 500,
     );
+    const aridProcessBasisPoints = dryCounts[basin] === 0
+      ? 0
+      : Math.round(
+        (aridProcessCounts[basin]! * 10_000) / dryCounts[basin]!,
+      );
+    // Character assignment is evidence-led. A basin which already carries
+    // enough glacial coast or naturally generated arid-process terrain gets a
+    // lexicographic-scale role bonus; this never paints or edits terrain and
+    // merely names the physical basin that best satisfies the role.
+    if (
+      fjordCounts[basin]!
+        >= GREATER_REALM_REGIONAL_HYDROGEOMORPHOLOGY_POLICY
+          .frostmereMinimumFjordCells
+    ) {
+      normalizedScores[basin]![0] += 1_000_000n
+        + BigInt(fjordCounts[basin]!) * 10_000n;
+    }
+    if (
+      aridProcessBasisPoints
+        >= GREATER_REALM_REGIONAL_HYDROGEOMORPHOLOGY_POLICY
+          .sunscarMinimumAridDryLandBasisPoints
+    ) {
+      normalizedScores[basin]![1] += 1_000_000n
+        + BigInt(aridProcessBasisPoints) * 100n;
+    }
   }
   let bestScore: bigint | undefined;
   let bestPermutation: readonly number[] | undefined;
@@ -7804,6 +7951,11 @@ function castleAndPotentialSites(
   tierId: Uint8Array,
   regionId: Uint8Array,
   barrier: Uint8Array,
+  slope: Uint16Array,
+  wetnessIndex: Uint16Array,
+  distanceToFreshwater: Uint16Array,
+  distanceToCoast: Uint16Array,
+  landformId: Uint8Array,
   gates: readonly GreaterRealmPrivateGate[],
   legacyProtectedCell: Uint8Array,
   legacyCastleSlot: Uint8Array,
@@ -7816,18 +7968,45 @@ function castleAndPotentialSites(
   resourcePotentialCount: number;
   corePotentialCount: number;
 }> {
-  const gateCells = new Uint8Array(grid.cellCount);
+  type CastleOwnedArray =
+    | Uint8Array
+    | Uint16Array
+    | Int32Array
+    | Float64Array;
+  const ownedArrays = new Set<CastleOwnedArray>();
+  const retainedArrays = new Set<CastleOwnedArray>();
+  const coordinateScratch: number[][] = [];
+  const own = <T extends CastleOwnedArray>(array: T): T => {
+    ownedArrays.add(array);
+    return array;
+  };
+  const trackCoordinates = (cells: number[]): number[] => {
+    coordinateScratch.push(cells);
+    return cells;
+  };
+  try {
+  const gateCells = own(new Uint8Array(grid.cellCount));
+  const gateApproachCells = own(new Uint8Array(grid.cellCount));
   for (const gate of gates) {
     gateCells[gate.firstCell] = 1;
     gateCells[gate.secondCell] = 1;
+    for (const path of [
+      gate.firstApproachPath,
+      gate.firstAlternateApproachPath,
+      gate.secondApproachPath,
+      gate.secondAlternateApproachPath,
+    ]) {
+      for (const cell of path) gateApproachCells[cell] = 1;
+    }
   }
-  const gateDistance = gates.length > 0
+  const gateDistance = own(gates.length > 0
     ? distanceFromMask(grid, gateCells)
-    : new Uint16Array(grid.cellCount).fill(0xffff);
+    : new Uint16Array(grid.cellCount).fill(0xffff));
   const topology = passableRegionTopology(grid, regionId, waterRegime, barrier);
+  own(topology.componentId);
   const candidateChannel = greaterRealmTerrainChannelId('castle-suitability-order');
-  const castleSlot = new Uint8Array(legacyCastleSlot);
-  const selectedAll: number[] = [];
+  const castleSlot = own(new Uint8Array(legacyCastleSlot));
+  const selectedAll = trackCoordinates([]);
   let castleCount = 0;
   for (let cell = 0; cell < castleSlot.length; cell += 1) {
     if (castleSlot[cell] !== 1) continue;
@@ -7837,11 +8016,50 @@ function castleAndPotentialSites(
   if (castleCount !== GREATER_REALM_LEGACY_LOWLANDS_LOCK_PINS_V1.castleSlotCount) {
     fail('GREATER_REALM_LEGACY_CASTLE_SLOT_COUNT_INVALID');
   }
+  const regionPassableCellCounts = own(new Int32Array(TIER_I_REGION_COUNT));
+  const regionQTotals = own(new Float64Array(TIER_I_REGION_COUNT));
+  const regionRTotals = own(new Float64Array(TIER_I_REGION_COUNT));
+  for (let cell = 0; cell < grid.cellCount; cell += 1) {
+    const region = regionId[cell]!;
+    if (
+      region >= TIER_I_REGION_COUNT
+      || !strategicallyPassableSurface(waterRegime[cell]!)
+      || barrier[cell] !== 0
+    ) continue;
+    regionPassableCellCounts[region] += 1;
+    regionQTotals[region] += grid.q[cell]!;
+    regionRTotals[region] += grid.r[cell]!;
+  }
+  const distributionSector = (cell: number, region: number): number => {
+    const regionCellCount = regionPassableCellCounts[region]!;
+    if (regionCellCount <= 0) fail('GREATER_REALM_CASTLE_DISTRIBUTION_REGION_EMPTY');
+    const deltaQ = grid.q[cell]! * regionCellCount - regionQTotals[region]!;
+    const deltaR = grid.r[cell]! * regionCellCount - regionRTotals[region]!;
+    let selectedSector = 0;
+    let selectedScore = Number.NEGATIVE_INFINITY;
+    for (let sector = 0; sector < GREATER_REALM_AXIAL_DIRECTIONS.length; sector += 1) {
+      const direction = GREATER_REALM_AXIAL_DIRECTIONS[sector]!;
+      const score = hexDot(deltaQ, deltaR, direction.q, direction.r);
+      if (score > selectedScore) {
+        selectedScore = score;
+        selectedSector = sector;
+      }
+    }
+    return selectedSector;
+  };
+  const stableCastleLandform = (landform: number): boolean => (
+    landform === GREATER_REALM_LANDFORM_ID.COASTAL_PLAIN
+    || landform === GREATER_REALM_LANDFORM_ID.LOWLAND
+    || landform === GREATER_REALM_LANDFORM_ID.ROLLING_LOWLAND
+    || landform === GREATER_REALM_LANDFORM_ID.HILL
+    || landform === GREATER_REALM_LANDFORM_ID.HIGHLAND
+    || landform === GREATER_REALM_LANDFORM_ID.ALPINE_PLATEAU
+  );
   for (let region = 0; region < TIER_I_REGION_COUNT; region += 1) {
     // Region zero already contains the exact 100 deployed castle slots. The
     // other five regions receive dormant candidate slots only.
     if (region === 0) continue;
-    const candidates: number[] = [];
+    const candidates = trackCoordinates([]);
     for (let cell = 0; cell < grid.cellCount; cell += 1) {
       if (
         regionId[cell] !== region
@@ -7849,7 +8067,13 @@ function castleAndPotentialSites(
         || waterRegime[cell] !== 0
         || barrier[cell] === 1
         || gateCells[cell] === 1
+        || gateApproachCells[cell] === 1
         || gateDistance[cell]! < 3
+        || slope[cell]! > 6_000
+        || wetnessIndex[cell]! > 5_000
+        || distanceToFreshwater[cell]! < 2
+        || distanceToCoast[cell]! < 2
+        || !stableCastleLandform(landformId[cell]!)
         || topology.componentId[cell]! < 0
         || topology.componentSizes[topology.componentId[cell]!]! < 200
       ) continue;
@@ -7864,6 +8088,8 @@ function castleAndPotentialSites(
           regionId[neighbor] === region
           && waterRegime[neighbor] === 0
           && barrier[neighbor] === 0
+          && gateCells[neighbor] === 0
+          && gateApproachCells[neighbor] === 0
           && topology.componentId[neighbor] === topology.componentId[cell]
         ) {
           neighborPassable[directionIndex] = true;
@@ -7873,13 +8099,17 @@ function castleAndPotentialSites(
       const hasLocalAlternateRoute = neighborPassable.some((passable, direction) => (
         passable && neighborPassable[(direction + 1) % HEX_NEIGHBOR_COUNT]
       ));
-      if (passableNeighbors >= 4 && hasLocalAlternateRoute && maximumDrop <= 6_000) {
+      if (
+        passableNeighbors === HEX_NEIGHBOR_COUNT
+        && hasLocalAlternateRoute
+        && maximumDrop <= 6_000
+      ) {
         candidates.push(cell);
       }
     }
     let selected: number[] = [];
     for (let attempt = 0; attempt < 16 && selected.length < 100; attempt += 1) {
-      const ordered = [...candidates].sort((first, second) => {
+      const ordered = trackCoordinates([...candidates].sort((first, second) => {
         const sample = region * 32 + attempt;
         const firstScore = greaterRealmCounterRandomU32(
           candidateSeed,
@@ -7896,16 +8126,44 @@ function castleAndPotentialSites(
           sample,
         );
         return firstScore - secondScore || first - second;
-      });
-      const trial: number[] = [];
-      for (const cell of ordered) {
-        if ([...selectedAll, ...trial].some(existing => axialDistance(
+      }));
+      const trial = trackCoordinates([]);
+      const sectorCounts = own(new Uint8Array(HEX_NEIGHBOR_COUNT));
+      const spacedFromSelected = (cell: number): boolean => (
+        !selectedAll.some(existing => axialDistance(
           grid.q[cell]!,
           grid.r[cell]!,
           grid.q[existing]!,
           grid.r[existing]!,
-        ) < 5)) continue;
+        ) < 5)
+        && !trial.some(existing => axialDistance(
+          grid.q[cell]!,
+          grid.r[cell]!,
+          grid.q[existing]!,
+          grid.r[existing]!,
+        ) < 5)
+      );
+      // Establish angular coverage before the stochastic fill. A pure greedy
+      // order could consume the spacing budget in four dense sectors even
+      // when stable sites existed in the other two, creating a false castle
+      // distribution rejection after otherwise valid geology changes.
+      for (let offset = 0; offset < HEX_NEIGHBOR_COUNT; offset += 1) {
+        const targetSector = (offset + attempt) % HEX_NEIGHBOR_COUNT;
+        const cell = ordered.find(candidate => (
+          distributionSector(candidate, region) === targetSector
+          && spacedFromSelected(candidate)
+        ));
+        if (cell === undefined) continue;
         trial.push(cell);
+        sectorCounts[targetSector] += 1;
+      }
+      for (const cell of ordered) {
+        if (trial.includes(cell)) continue;
+        const sector = distributionSector(cell, region);
+        if (sectorCounts[sector]! >= 35) continue;
+        if (!spacedFromSelected(cell)) continue;
+        trial.push(cell);
+        sectorCounts[sector] += 1;
         if (trial.length === 100) break;
       }
       if (trial.length > selected.length) selected = trial;
@@ -7929,6 +8187,8 @@ function castleAndPotentialSites(
         && regionId[neighbor] === region
         && waterRegime[neighbor] === 0
         && barrier[neighbor] === 0
+        && gateCells[neighbor] === 0
+        && gateApproachCells[neighbor] === 0
         && topology.componentId[neighbor] === topology.componentId[cell]
       ) independentlyVerifiedPassableNeighbors += 1;
     }
@@ -7938,10 +8198,16 @@ function castleAndPotentialSites(
       || tierId[cell] !== 1
       || waterRegime[cell] !== 0
       || barrier[cell] !== 0
+      || gateApproachCells[cell] !== 0
       || gateDistance[cell]! < 3
+      || slope[cell]! > 6_000
+      || wetnessIndex[cell]! > 5_000
+      || distanceToFreshwater[cell]! < 2
+      || distanceToCoast[cell]! < 2
+      || !stableCastleLandform(landformId[cell]!)
       || topology.componentId[cell]! < 0
       || topology.componentSizes[topology.componentId[cell]!]! < 200
-      || independentlyVerifiedPassableNeighbors < 4
+      || independentlyVerifiedPassableNeighbors !== HEX_NEIGHBOR_COUNT
     ) placementProof = false;
     for (let previous = 0; previous < ordinal; previous += 1) {
       const other = selectedAll[previous]!;
@@ -7953,8 +8219,40 @@ function castleAndPotentialSites(
       ) < 5) placementProof = false;
     }
   }
-  const resourcePotential = new Uint8Array(grid.cellCount);
-  const corePotential = new Uint8Array(grid.cellCount);
+  const verifiedSectorCounts = own(new Uint8Array(
+    TIER_I_REGION_COUNT * HEX_NEIGHBOR_COUNT,
+  ));
+  for (const cell of selectedAll) {
+    if (legacyCastleSlot[cell] === 1) continue;
+    const region = regionId[cell]!;
+    if (region <= 0 || region >= TIER_I_REGION_COUNT) {
+      placementProof = false;
+      continue;
+    }
+    const sector = distributionSector(cell, region);
+    verifiedSectorCounts[region * HEX_NEIGHBOR_COUNT + sector] += 1;
+  }
+  for (let region = 1; region < TIER_I_REGION_COUNT; region += 1) {
+    let occupiedSectors = 0;
+    let maximumSectorCount = 0;
+    for (let sector = 0; sector < HEX_NEIGHBOR_COUNT; sector += 1) {
+      const count = verifiedSectorCounts[region * HEX_NEIGHBOR_COUNT + sector]!;
+      if (count > 0) occupiedSectors += 1;
+      maximumSectorCount = Math.max(maximumSectorCount, count);
+    }
+    if (occupiedSectors < 5 || maximumSectorCount > 35) placementProof = false;
+  }
+  const resourcePotential = own(new Uint8Array(grid.cellCount));
+  const corePotential = own(new Uint8Array(grid.cellCount));
+  const castleClearanceCell = own(new Uint8Array(grid.cellCount));
+  for (const cell of selectedAll) {
+    castleClearanceCell[cell] = 1;
+    if (legacyCastleSlot[cell] === 1) continue;
+    for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
+      const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
+      if (neighbor >= 0) castleClearanceCell[neighbor] = 1;
+    }
+  }
   let resourcePotentialCount = 0;
   let corePotentialCount = 0;
   const resourceChannel = greaterRealmTerrainChannelId('resource-potential');
@@ -7963,7 +8261,7 @@ function castleAndPotentialSites(
     if (
       waterRegime[cell] !== 0
       || barrier[cell] === 1
-      || castleSlot[cell] === 1
+      || castleClearanceCell[cell] === 1
       || legacyProtectedCell[cell] === 1
     ) continue;
     const resourceThreshold = tierId[cell] === 1 ? 2_000 : tierId[cell] === 2 ? 2_800 : 4_000;
@@ -7987,7 +8285,9 @@ function castleAndPotentialSites(
       corePotentialCount += 1;
     }
   }
-  return Object.freeze({
+  castleClearanceCell.fill(0);
+  verifiedSectorCounts.fill(0);
+  const result = Object.freeze({
     castleSlot,
     resourcePotential,
     corePotential,
@@ -7996,6 +8296,22 @@ function castleAndPotentialSites(
     resourcePotentialCount,
     corePotentialCount,
   });
+  // Retain only after result construction succeeds. Any exceptional exit,
+  // including a future failing result wrapper, therefore wipes every owned
+  // buffer instead of accidentally treating an unreturned array as public.
+  retainedArrays.add(castleSlot);
+  retainedArrays.add(resourcePotential);
+  retainedArrays.add(corePotential);
+  return result;
+  } finally {
+    for (const array of ownedArrays) {
+      if (!retainedArrays.has(array)) array.fill(0);
+    }
+    for (const cells of coordinateScratch) cells.fill(0);
+    ownedArrays.clear();
+    retainedArrays.clear();
+    coordinateScratch.length = 0;
+  }
 }
 
 function dormantThroneAnchor(
@@ -8353,7 +8669,12 @@ function candidateStageDigests(
       'geomorphologyCoastalMask',
       'geomorphologyCoastalClass',
     ]],
-    ['hydrology', ['elevation', 'filledElevation', 'flowReceiver', 'waterRegime']],
+    ['hydrology', [
+      'elevation', 'filledElevation', 'sedimentDepth', 'flowReceiver',
+      'flowAccumulation', 'waterRegime', 'waterBodyId', 'waterDepthClass',
+      'waterSurfaceLevel', 'waterDownstream', 'waterBankSeed',
+      'waterGenerationVersion',
+    ]],
     ['topography', [
       'slope', 'aspect', 'profileCurvature', 'planCurvature', 'wetnessIndex',
       'exposure', 'distanceToCoast', 'distanceToFreshwater', 'watershedId',
@@ -8387,9 +8708,29 @@ export function generateGreaterRealmCandidate(input: Readonly<{
   );
   const candidateSeed = deriveCandidateSeed(seedMaterial);
   let livingWorldOnFailure: ReturnType<typeof deriveGreaterRealmLivingWorld> | undefined;
+  let hydrologyOnFailure: ReturnType<typeof deriveGreaterRealmHydrologyAuthority> | undefined;
+  let reconciledFlowAccumulationOnFailure: BigUint64Array | undefined;
+  let engineeredWaterClearanceMaskOnFailure: Uint8Array | undefined;
+  let geomorphologyProcessMoistureOnFailure: Int32Array | undefined;
   try {
     const canvas = greaterRealmPrivateCanvasAuthority();
-    const domains = separatedDomains(candidateSeed);
+    const domainSeeds = separatedDomains(candidateSeed);
+    const domainMaterials = deriveGreaterRealmDomainMaterialAuthority({
+      seed: candidateSeed,
+      domains: domainSeeds,
+    });
+    const geologyAuthorityMetrics = domainMaterials.metrics;
+    const domains: readonly GreaterRealmPseudoTectonicDomain[] = (() => {
+      try {
+        return Object.freeze(domainSeeds.map(domain => Object.freeze({
+          ...domain,
+          baseThickness: domainMaterials.baseThickness[domain.id]!,
+          rockFamily: domainMaterials.rockFamily[domain.id]! as GreaterRealmRockFamilyId,
+        })));
+      } finally {
+        domainMaterials.clear();
+      }
+    })();
     const geology = macroGeology(canvas, candidateSeed, domains);
     const thermallyShaped = erodeGreaterRealmThermally(canvas, geology.bedrock, {
       iterations: 3,
@@ -8421,6 +8762,7 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       legacyReserveCell: legacy.reserveCell,
       seaLevel: SEA_LEVEL,
     });
+    geomorphologyProcessMoistureOnFailure = geomorphology.processMoisture;
     const fluvial = fluvialPass(
       grid,
       geomorphology.elevation,
@@ -8454,6 +8796,38 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       geomorphology.temperature,
       geomorphology.moisture,
     );
+    // Reconcile the ecological climate against the now-materialized drainage
+    // network. Naturally process-dry banks retain their lee-side moisture so
+    // freshwater can create real oasis margins instead of the broad ecological
+    // relaxation washing every dry bank into humid woodland. This is wholly
+    // region-blind and does not edit water, terrain, or biome quotas.
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      if (
+        legacy.reserveCell[cell] === 1
+        || geomorphology.temperature[cell]! < 5_500
+        || geomorphology.processMoisture[cell]! > 1_500
+      ) continue;
+      let freshwaterMargin = false;
+      for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
+        const neighbor = grid.neighbors[
+          cell * HEX_NEIGHBOR_COUNT + direction
+        ]!;
+        if (
+          neighbor >= 0
+          && (
+            surface.waterRegime[neighbor] === WATER_LAKE
+            || surface.waterRegime[neighbor] === WATER_RIVER
+            || surface.waterRegime[neighbor] === WATER_STREAM
+          )
+        ) {
+          freshwaterMargin = true;
+          break;
+        }
+      }
+      if (freshwaterMargin) {
+        geomorphology.moisture[cell] = geomorphology.processMoisture[cell]!;
+      }
+    }
     const legacySurfaceProof = overlayLegacyLowlandsSurface(
       grid,
       legacy,
@@ -8479,7 +8853,7 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       domains,
       surface.waterRegime,
       geomorphology.temperature,
-      geomorphology.moisture,
+      geomorphology.processMoisture,
       geomorphology.glacialMask,
       geomorphology.aridMask,
       geomorphology.volcanicMask,
@@ -8494,36 +8868,36 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       capacityStrategy.tierTwoPassableOwner,
       capacityStrategy.tierTwoSpineOwner,
     );
-    const topography = deriveGreaterRealmTopography({
-      grid,
-      elevation: reconciled.elevation,
-      flowReceiver: reconciled.flowReceiver,
-      flowAccumulation: reconciled.flowAccumulation,
-      waterRegime: surface.waterRegime,
-      geologyId,
-      tectonicUplift: uplift,
-      rockResistance: resistance,
-      regionId: strategy.regionId,
-      tierId: strategy.tierId,
-      legacyProtectedCell: legacy.protectedCell,
-      protectedBiomeId: surface.biomeId,
-      protectedLandformId: surface.landformId,
-      geomorphicTemperature: geomorphology.temperature,
-      geomorphicMoisture: geomorphology.moisture,
-      geomorphicGlacialMask: geomorphology.glacialMask,
-      geomorphicAridMask: geomorphology.aridMask,
-      geomorphicVolcanicMask: geomorphology.volcanicMask,
-      geomorphicCoastalClass: geomorphology.coastalClass,
-    });
-    const finalHydrology = finalHydrologyMetrics(
-      grid,
-      reconciled.elevation,
-      reconciled.filledElevation,
-      reconciled.flowReceiver,
-      reconciled.flowAccumulation,
-      surface.waterRegime,
-      legacy.protectedCell,
-    );
+    let topography: ReturnType<typeof deriveGreaterRealmTopography>;
+    try {
+      topography = deriveGreaterRealmTopography({
+        grid,
+        elevation: reconciled.elevation,
+        flowReceiver: reconciled.flowReceiver,
+        flowAccumulation: reconciled.flowAccumulation,
+        waterRegime: surface.waterRegime,
+        geologyId,
+        tectonicUplift: uplift,
+        rockResistance: resistance,
+        regionId: strategy.regionId,
+        tierId: strategy.tierId,
+        legacyProtectedCell: legacy.protectedCell,
+        protectedBiomeId: surface.biomeId,
+        protectedLandformId: surface.landformId,
+        geomorphicTemperature: geomorphology.temperature,
+        geomorphicMoisture: geomorphology.moisture,
+        geomorphicHydrologyMoisture: geomorphology.processMoisture,
+        geomorphicGlacialMask: geomorphology.glacialMask,
+        geomorphicAridMask: geomorphology.aridMask,
+        geomorphicVolcanicMask: geomorphology.volcanicMask,
+        geomorphicCoastalClass: geomorphology.coastalClass,
+      });
+    } finally {
+      // Process climate is private role/saturation scratch. The candidate
+      // retains only the ecological climate authority used by final visuals.
+      geomorphology.processMoisture.fill(0);
+      geomorphologyProcessMoistureOnFailure = undefined;
+    }
     const strategicBarrier = barriersAndGates(
       grid,
       candidateSeed,
@@ -8536,6 +8910,58 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       legacy.protectedCell,
       capacityStrategy.tierTwoPassableOwner,
       capacityStrategy.tierTwoSpineOwner,
+    );
+    const marshMask = new Uint8Array(grid.cellCount);
+    const engineeredWaterClearanceMask = new Uint8Array(grid.cellCount);
+    engineeredWaterClearanceMaskOnFailure = engineeredWaterClearanceMask;
+    let hydrology: ReturnType<typeof deriveGreaterRealmHydrologyAuthority>;
+    try {
+      for (const gate of strategicBarrier.gates) {
+        engineeredWaterClearanceMask[gate.firstCell] = 1;
+        engineeredWaterClearanceMask[gate.secondCell] = 1;
+        for (const path of [
+          gate.firstApproachPath,
+          gate.firstAlternateApproachPath,
+          gate.secondApproachPath,
+          gate.secondAlternateApproachPath,
+        ]) {
+          for (const cell of path) engineeredWaterClearanceMask[cell] = 1;
+        }
+      }
+      for (let cell = 0; cell < grid.cellCount; cell += 1) {
+        if (
+          engineeredWaterClearanceMask[cell] === 0
+          && (
+            topography.biomeId[cell] === GREATER_REALM_BIOME_ID.FRESHWATER_MARSH
+            || topography.biomeId[cell] === GREATER_REALM_BIOME_ID.SALT_MARSH
+          )
+        ) marshMask[cell] = 1;
+      }
+      hydrology = deriveGreaterRealmHydrologyAuthority({
+        grid,
+        seed: candidateSeed,
+        waterRegime: surface.waterRegime,
+        marshMask,
+        flowContinuityExemptionMask: legacy.protectedCell,
+        elevation: reconciled.elevation,
+        filledElevation: reconciled.filledElevation,
+        flowReceiver: reconciled.flowReceiver,
+        flowAccumulation: reconciled.flowAccumulation,
+        seaLevel: SEA_LEVEL,
+      });
+      hydrologyOnFailure = hydrology;
+      reconciledFlowAccumulationOnFailure = reconciled.flowAccumulation;
+    } finally {
+      marshMask.fill(0);
+    }
+    const finalHydrology = finalHydrologyMetrics(
+      grid,
+      reconciled.elevation,
+      reconciled.filledElevation,
+      reconciled.flowReceiver,
+      hydrology.flowAccumulation,
+      hydrology.waterRegime,
+      legacy.protectedCell,
     );
     const finalTierAuthorityCounts: [number, number, number] = [0, 0, 0];
     const finalRegionAuthorityCounts = Array<number>(REGION_COUNT).fill(0);
@@ -8562,10 +8988,15 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       grid,
       candidateSeed,
       reconciled.elevation,
-      surface.waterRegime,
+      hydrology.waterRegime,
       strategy.tierId,
       strategy.regionId,
       strategicBarrier.barrier,
+      topography.slope,
+      topography.wetnessIndex,
+      topography.distanceToFreshwater,
+      topography.distanceToCoast,
+      topography.landformId,
       strategicBarrier.gates,
       legacy.protectedCell,
       legacy.castleSlot,
@@ -8573,7 +9004,7 @@ export function generateGreaterRealmCandidate(input: Readonly<{
     const throne = dormantThroneAnchor(
       grid,
       reconciled.elevation,
-      surface.waterRegime,
+      hydrology.waterRegime,
       strategy.regionId,
       strategicBarrier.barrier,
       sites.castleSlot,
@@ -8600,7 +9031,7 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       livingWorld = deriveGreaterRealmLivingWorld({
         grid,
         seed: candidateSeed,
-        waterRegime: surface.waterRegime,
+        waterRegime: hydrology.waterRegime,
         biomeId: topography.biomeId,
         landformId: topography.landformId,
         elevation: reconciled.elevation,
@@ -8625,16 +9056,18 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       gateCell.fill(0);
       gateApproachCell.fill(0);
     }
-    const boundary = boundaryMetrics(grid, surface.waterRegime);
+    const boundary = boundaryMetrics(grid, hydrology.waterRegime);
     const landmasses = topographicLandmassMetrics(grid, reconciled.elevation);
     const chunks = chunkMetrics(grid);
     let landCellCount = 0;
     let waterCellCount = 0;
     let mountainBarrierCells = 0;
     for (let index = 0; index < grid.cellCount; index += 1) {
-      // Public land/water shares describe the continent's topographic footprint;
-      // rivers and enclosed surface-water overlays remain features of that land.
-      if (reconciled.elevation[index]! > SEA_LEVEL) landCellCount += 1;
+      // Public composition reports the exact final hydrology partition. The
+      // separate landmass proof continues to measure the sea-level footprint,
+      // so rivers, streams and marshes remain visible in the requested final
+      // water total without changing continental-shape authority.
+      if (hydrology.waterRegime[index] === WATER_DRY) landCellCount += 1;
       else waterCellCount += 1;
       if (strategicBarrier.geologicalBarrierBand[index] !== 0) mountainBarrierCells += 1;
     }
@@ -8662,7 +9095,7 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       grid,
       strategy.tierId,
       strategy.regionId,
-      surface.waterRegime,
+      hydrology.waterRegime,
       strategicBarrier.barrier,
       topology,
     );
@@ -8678,7 +9111,7 @@ export function generateGreaterRealmCandidate(input: Readonly<{
     const reliefStructure = measureGreaterRealmReliefStructure({
       grid,
       elevation: reconciled.elevation,
-      waterRegime: surface.waterRegime,
+      waterRegime: hydrology.waterRegime,
       legacyProtectedCell: legacy.protectedCell,
       dryWaterRegime: WATER_DRY,
     });
@@ -8687,7 +9120,7 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       canvasRadius: PRIVATE_CANVAS_RADIUS,
       elevation: reconciled.elevation,
       tierId: strategy.tierId,
-      waterRegime: surface.waterRegime,
+      waterRegime: hydrology.waterRegime,
       biomeId: topography.biomeId,
       legacyProtectedCell: legacy.protectedCell,
       ridgeId: topography.ridgeId,
@@ -8698,6 +9131,117 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       oceanWaterRegime: WATER_OCEAN,
       seaWaterRegime: WATER_SEA,
     });
+    const regionBoundaryAlignment = measureGreaterRealmRegionBoundaryAlignment({
+      grid,
+      regionId: strategy.regionId,
+      waterRegime: hydrology.waterRegime,
+      barrier: strategicBarrier.barrier,
+      geologicalBarrierBand: strategicBarrier.geologicalBarrierBand,
+      watershedId: topography.watershedId,
+      ridgeId: topography.ridgeId,
+      landformId: topography.landformId,
+      biomeId: topography.biomeId,
+      gates: strategicBarrier.gates,
+    });
+    const tierPotentialDensity = measureGreaterRealmTierPotentialDensity({
+      tierId: strategy.tierId,
+      waterRegime: hydrology.waterRegime,
+      barrier: strategicBarrier.barrier,
+      castleSlot: sites.castleSlot,
+      legacyProtectedCell: legacy.protectedCell,
+      resourcePotential: sites.resourcePotential,
+      corePotential: sites.corePotential,
+    });
+    const castleSuitability = measureGreaterRealmCastleSuitability({
+      grid,
+      regionId: strategy.regionId,
+      tierId: strategy.tierId,
+      waterRegime: hydrology.waterRegime,
+      barrier: strategicBarrier.barrier,
+      castleSlot: sites.castleSlot,
+      legacyCastleSlot: legacy.castleSlot,
+      resourcePotential: sites.resourcePotential,
+      corePotential: sites.corePotential,
+      throneAnchor: throne.mask,
+      slope: topography.slope,
+      wetnessIndex: topography.wetnessIndex,
+      distanceToFreshwater: topography.distanceToFreshwater,
+      distanceToCoast: topography.distanceToCoast,
+      landformId: topography.landformId,
+      ecologyClass: livingWorld.ecologyClass,
+      routeClass: livingWorld.routeClass,
+      landmarkClass: livingWorld.landmarkClass,
+      gates: strategicBarrier.gates,
+    });
+    const innerGateThrone = measureGreaterRealmInnerGateThroneRedundancy({
+      grid,
+      regionId: strategy.regionId,
+      waterRegime: hydrology.waterRegime,
+      barrier: strategicBarrier.barrier,
+      throneAnchor: throne.mask,
+      gates: strategicBarrier.gates,
+    });
+    const topographicQa = (() => {
+      try {
+        return measureGreaterRealmTopographicQa({
+          grid,
+          regionId: strategy.regionId,
+          geomorphologyCoastalClass: geomorphology.coastalClass,
+          elevation: reconciled.elevation,
+          preErosionElevation: geomorphology.elevation,
+          sedimentDepth: fluvial.sedimentDepth,
+          flowReceiver: reconciled.flowReceiver,
+          flowAccumulation: hydrology.flowAccumulation,
+          waterRegime: hydrology.waterRegime,
+          biomeId: topography.biomeId,
+          landformId: topography.landformId,
+          slope: topography.slope,
+          aspect: topography.aspect,
+          profileCurvature: topography.profileCurvature,
+          planCurvature: topography.planCurvature,
+          watershedId: topography.watershedId,
+          ridgeId: topography.ridgeId,
+          legacyProtectedCell: legacy.protectedCell,
+          waterClassificationExemptionMask: engineeredWaterClearanceMask,
+          seaLevel: SEA_LEVEL,
+        });
+      } finally {
+        engineeredWaterClearanceMask.fill(0);
+        engineeredWaterClearanceMaskOnFailure = undefined;
+      }
+    })();
+    const chunkBenchmark = benchmarkGreaterRealmChunkPartition({
+      grid,
+      canvasRadius: PRIVATE_CANVAS_RADIUS,
+    });
+    const topographyPatchSupport = measureGreaterRealmTopographyPatchSupport({
+      grid,
+      elevation: reconciled.elevation,
+      waterRegime: hydrology.waterRegime,
+      waterDepthClass: hydrology.depthClass,
+      waterSurfaceLevel: hydrology.surfaceLevel,
+      bankSeed: hydrology.bankSeed,
+      landformId: topography.landformId,
+      geologicalBarrierBand: strategicBarrier.geologicalBarrierBand,
+      slope: topography.slope,
+      aspect: topography.aspect,
+      profileCurvature: topography.profileCurvature,
+      planCurvature: topography.planCurvature,
+      ridgeId: topography.ridgeId,
+      routeClass: livingWorld.routeClass,
+    });
+    const finalGateWaterClearanceProof = strategicBarrier.gates.every(gate => (
+      hydrology.waterRegime[gate.firstCell] === WATER_DRY
+      && hydrology.waterRegime[gate.secondCell] === WATER_DRY
+      && [
+        gate.firstApproachPath,
+        gate.firstAlternateApproachPath,
+        gate.secondApproachPath,
+        gate.secondAlternateApproachPath,
+      ].every(path => path.every(cell => (
+        strategicallyPassableSurface(hydrology.waterRegime[cell]!)
+      )))
+    ));
     const proofs = Object.freeze({
       activeMaskConnected: allActiveConnected(grid)
         && activeMaskHasNoEnclosedVoids(canvas, maskResult.mask),
@@ -8716,10 +9260,11 @@ export function generateGreaterRealmCandidate(input: Readonly<{
         && topography.biomeMetrics.minimumTierIIMajorVisualBiomeClassCount >= 5
         && topography.biomeMetrics.tierIIIMajorVisualBiomeClassCount >= 3
         && topography.biomeMetrics.maximumTierISingleBiomeShareBasisPoints <= 5_500,
-      castleCapacity: sites.placementProof,
+      castleCapacity: sites.placementProof && castleSuitability.proof,
       deepOceanBoundary: boundary.deepOceanBoundary,
       dormantThroneAnchor: throne.proof,
-      gateApproaches: strategicBarrier.gateApproachProof,
+      gateApproaches: strategicBarrier.gateApproachProof
+        && finalGateWaterClearanceProof,
       gateGraph: strategicBarrier.gateGraphProof,
       geologicalHighlandBarriers: strategicBarrier.geologicalHighlandProof,
       advancedGeomorphology: geomorphology.metrics.changedCellCount > 0
@@ -8767,7 +9312,8 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       hydrologySurfaceConsistency: finalHydrology.surfaceConsistencyProof,
       legacyLowlandsPreserved: legacy.proof && legacySurfaceProof,
       naturalLandmassTopology: landmasses.proof,
-      naturalStrategicRegions: strategicShape.nonRadialProof,
+      naturalStrategicRegions: strategicShape.nonRadialProof
+        && regionBoundaryAlignment.proof,
       naturalOuterBoundary: boundary.naturalBoundary,
       regionLandCoherence: strategicBarrier.passableRegionProof
         && strategicShape.fragmentationProof
@@ -8786,8 +9332,6 @@ export function generateGreaterRealmCandidate(input: Readonly<{
         `PROOF_${key.replace(/([a-z])([A-Z])/gu, '$1_$2').toUpperCase()}`,
         value,
       ])),
-      LAND_SHARE_6200_7200: landCellCount * 10_000 >= grid.cellCount * 6_200
-        && landCellCount * 10_000 <= grid.cellCount * 7_200,
       TIER_I_SHARE_6800_7400: tierIBasisPoints >= 6_800 && tierIBasisPoints <= 7_400,
       TIER_II_SHARE_2200_2700: tierIIBasisPoints >= 2_200 && tierIIBasisPoints <= 2_700,
       TIER_III_SHARE_0300_0600: tierIIIBasisPoints >= 300 && tierIIIBasisPoints <= 600,
@@ -8805,6 +9349,22 @@ export function generateGreaterRealmCandidate(input: Readonly<{
         && finalHydrology.minorStreams <= 240,
       HYDROLOGY_LAKES_48_96: finalHydrology.lakes >= 48
         && finalHydrology.lakes <= 96,
+      GEOLOGY_DOMAIN_MATERIAL_AUTHORITY: geologyAuthorityMetrics.proof,
+      HYDROLOGY_DESCRIPTOR_AUTHORITY: hydrology.metrics.proof,
+      STRATEGIC_REGION_BOUNDARY_ALIGNMENT: regionBoundaryAlignment.proof,
+      TIER_POTENTIAL_DENSITY: tierPotentialDensity.proof,
+      CASTLE_SUITABILITY: castleSuitability.proof,
+      INNER_GATE_THRONE_REDUNDANCY: innerGateThrone.proof,
+      TOPOGRAPHIC_QA_COMPLETE:
+        topographicQa.cellCount === grid.cellCount
+        && topographicQa.landCellCount + topographicQa.waterCellCount === grid.cellCount
+        && topographicQa.biomeElevationConsistency.inconsistentCellCount === 0
+        && topographicQa.biomeElevationConsistency.highGradientMarshCellCount === 0
+        && topographicQa.biomeElevationConsistency.marshClassificationMismatchCount === 0,
+      REGIONAL_HYDROGEOMORPHOLOGY_QA:
+        topographicQa.regionalHydrogeomorphology.proof,
+      CHUNK_PARTITION_BENCHMARK: chunkBenchmark.proof,
+      TOPOGRAPHY_PATCH_SUPPORT: topographyPatchSupport.proof,
       SEDIMENT_MATERIAL_BUDGET: fluvial.erodedMaterialUnits
         === fluvial.depositedMaterialUnits + fluvial.exportedSedimentUnits,
       LIVING_WORLD_DORMANT_CAPACITY:
@@ -8944,7 +9504,7 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       filledElevation: reconciled.filledElevation,
       sedimentDepth: fluvial.sedimentDepth,
       flowReceiver: reconciled.flowReceiver,
-      flowAccumulation: reconciled.flowAccumulation,
+      flowAccumulation: hydrology.flowAccumulation,
       domainId,
       geologyId,
       tectonicUplift: uplift,
@@ -8966,7 +9526,13 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       geomorphologyCoastalClass: geomorphology.coastalClass,
       regionId: strategy.regionId,
       tierId: strategy.tierId,
-      waterRegime: surface.waterRegime,
+      waterRegime: hydrology.waterRegime,
+      waterBodyId: hydrology.waterBodyId,
+      waterDepthClass: hydrology.depthClass,
+      waterSurfaceLevel: hydrology.surfaceLevel,
+      waterDownstream: hydrology.downstream,
+      waterBankSeed: hydrology.bankSeed,
+      waterGenerationVersion: hydrology.generationVersion,
       biomeId: topography.biomeId,
       landformId: topography.landformId,
       slope: topography.slope,
@@ -9001,7 +9567,7 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       legacyLowlandsCastleSlot: legacy.castleSlot,
     });
     const stageDigests = candidateStageDigests(grid, fields);
-    return Object.freeze({
+    const candidate = Object.freeze({
       candidateOrdinal: input.candidateOrdinal,
       seedMaterial,
       candidateSeed,
@@ -9017,7 +9583,7 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       filledElevation: reconciled.filledElevation,
       sedimentDepth: fluvial.sedimentDepth,
       flowReceiver: reconciled.flowReceiver,
-      flowAccumulation: reconciled.flowAccumulation,
+      flowAccumulation: hydrology.flowAccumulation,
       domainId,
       geologyId,
       tectonicUplift: uplift,
@@ -9039,7 +9605,13 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       geomorphologyCoastalClass: geomorphology.coastalClass,
       regionId: strategy.regionId,
       tierId: strategy.tierId,
-      waterRegime: surface.waterRegime,
+      waterRegime: hydrology.waterRegime,
+      waterBodyId: hydrology.waterBodyId,
+      waterDepthClass: hydrology.depthClass,
+      waterSurfaceLevel: hydrology.surfaceLevel,
+      waterDownstream: hydrology.downstream,
+      waterBankSeed: hydrology.bankSeed,
+      waterGenerationVersion: hydrology.generationVersion,
       biomeId: topography.biomeId,
       landformId: topography.landformId,
       slope: topography.slope,
@@ -9119,6 +9691,25 @@ export function generateGreaterRealmCandidate(input: Readonly<{
         naturalComposition,
         geomorphology: geomorphology.metrics,
         reliefStructure,
+        geologyAuthority: Object.freeze({
+          version: GREATER_REALM_GEOLOGY_AUTHORITY_VERSION,
+          metrics: geologyAuthorityMetrics,
+        }),
+        hydrologyAuthority: Object.freeze({
+          version: GREATER_REALM_HYDROLOGY_AUTHORITY_VERSION,
+          generationVersion: GREATER_REALM_HYDROLOGY_GENERATION_VERSION,
+          metrics: hydrology.metrics,
+        }),
+        strategicAudits: Object.freeze({
+          version: GREATER_REALM_STRATEGIC_AUDITS_VERSION,
+          regionBoundaryAlignment,
+          tierPotentialDensity,
+          castleSuitability,
+          innerGateThrone,
+        }),
+        topographicQa,
+        chunkBenchmark,
+        topographyPatchSupport,
         livingWorld: Object.freeze({
           version: livingWorld.version,
           metrics: livingWorld.metrics,
@@ -9130,11 +9721,27 @@ export function generateGreaterRealmCandidate(input: Readonly<{
         eligibilityFailureCodes,
       }),
     });
+    // Hydrology owns the candidate's exact accumulation copy. Retire the
+    // reconciled pre-authority duplicate once every downstream audit is bound.
+    reconciled.flowAccumulation.fill(0n);
+    reconciledFlowAccumulationOnFailure = undefined;
+    hydrologyOnFailure = undefined;
+    return candidate;
   } catch (error) {
     if (livingWorldOnFailure) {
       clearGreaterRealmLivingWorldAuthority(livingWorldOnFailure);
       livingWorldOnFailure = undefined;
     }
+    if (hydrologyOnFailure) {
+      hydrologyOnFailure.clear();
+      hydrologyOnFailure = undefined;
+    }
+    engineeredWaterClearanceMaskOnFailure?.fill(0);
+    engineeredWaterClearanceMaskOnFailure = undefined;
+    geomorphologyProcessMoistureOnFailure?.fill(0);
+    geomorphologyProcessMoistureOnFailure = undefined;
+    reconciledFlowAccumulationOnFailure?.fill(0n);
+    reconciledFlowAccumulationOnFailure = undefined;
     seedMaterial.fill(0);
     candidateSeed.fill(0);
     throw error;

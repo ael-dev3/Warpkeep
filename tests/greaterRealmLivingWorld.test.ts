@@ -236,7 +236,7 @@ function adjacentToAnyMask(
 describe('Greater Realm private living-world authority', () => {
   it('freezes serialized living-world class identifiers', () => {
     expect(GREATER_REALM_LIVING_WORLD_VERSION)
-      .toBe('greater-realm-private-living-world-v3');
+      .toBe('greater-realm-private-living-world-v4');
     expect(GREATER_REALM_ECOLOGY_CLASS).toEqual({
       NONE: 0,
       PLAINS: 1,
@@ -756,6 +756,9 @@ describe('Greater Realm private living-world authority', () => {
 
   it('hard-excludes water, frozen Lowlands, deployed sites, barriers, gates, and approaches', () => {
     const input = syntheticLivingWorldInput();
+    const marshCell = input.grid.indexOf({ q: 2, r: 8 });
+    expect(marshCell).toBeGreaterThanOrEqual(0);
+    input.waterRegime[marshCell] = 6;
     const result = deriveGreaterRealmLivingWorld(input);
     const masks = [
       input.legacyProtectedCell,
@@ -772,7 +775,8 @@ describe('Greater Realm private living-world authority', () => {
       if (!excluded) continue;
       expect(result.dressingExcluded[cell]).toBe(1);
       if (reserved || input.waterRegime[cell] === 1
-        || input.waterRegime[cell] === 2 || input.waterRegime[cell] === 5) {
+        || input.waterRegime[cell] === 2 || input.waterRegime[cell] === 5
+        || input.waterRegime[cell] === 6) {
         expect(outputAt(result, cell)).toEqual([0, 0, 0, 0, 0, 0, 0]);
       } else {
         expect(result.ecologyClass[cell]).toBe(0);
@@ -791,12 +795,26 @@ describe('Greater Realm private living-world authority', () => {
       expect(input.waterRegime[cell]).toBe(0);
       expect(result.dressingExcluded[cell]).toBe(0);
     }
+    for (let cell = 0; cell < input.grid.cellCount; cell += 1) {
+      if (input.castleSlot[cell] !== 1) continue;
+      for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
+        const neighbor = input.grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
+        if (neighbor >= 0) expect(result.landmarkClass[neighbor]).toBe(0);
+      }
+    }
     expect(result.metrics.legacyPreservationViolationCount).toBe(0);
     expect(result.metrics.waterExclusionViolationCount).toBe(0);
     expect(result.metrics.reservedSiteExclusionViolationCount).toBe(0);
     expect(result.invariants.legacyProtectedCellsPreserved).toBe(true);
     expect(result.invariants.waterExcluded).toBe(true);
     expect(result.invariants.reservedSitesExcluded).toBe(true);
+  });
+
+  it('fails closed on an unknown water regime', () => {
+    const input = syntheticLivingWorldInput();
+    input.waterRegime[0] = 7;
+    expect(() => deriveGreaterRealmLivingWorld(input))
+      .toThrow('GREATER_REALM_LIVING_WORLD_WATER_REGIME_INVALID');
   });
 
   it('maps broad climate and topography into compatible natural ecology classes', () => {
@@ -934,6 +952,142 @@ describe('Greater Realm private living-world authority', () => {
     expect(result.invariants.sealedGateEndpointsClear).toBe(true);
   });
 
+  it('gives a clear mandatory castle two distinct exterior major-route approaches', () => {
+    const input = syntheticLivingWorldInput(12);
+    const castle = input.castleSlot.findIndex(value => value !== 0);
+    expect(castle).toBeGreaterThanOrEqual(0);
+    input.waterRegime.fill(0);
+    input.legacyProtectedCell.fill(0);
+    input.resourcePotential.fill(0);
+    input.corePotential.fill(0);
+    input.throneAnchor.fill(0);
+    input.barrier.fill(0);
+    input.gateCell.fill(0);
+    input.gateApproachCell.fill(0);
+
+    const result = deriveGreaterRealmLivingWorld(input);
+    const exteriorMajorRoutes: number[] = [];
+    for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
+      const neighbor = input.grid.neighbors[castle * NEIGHBOR_COUNT + direction]!;
+      if (
+        neighbor >= 0
+        && (
+          result.routeClass[neighbor] === GREATER_REALM_ROUTE_CLASS.ROAD
+          || result.routeClass[neighbor] === GREATER_REALM_ROUTE_CLASS.CARRIAGEWAY
+        )
+      ) exteriorMajorRoutes.push(neighbor);
+    }
+    expect(result.routeClass[castle]).toBe(GREATER_REALM_ROUTE_CLASS.NONE);
+    expect(new Set(exteriorMajorRoutes).size).toBeGreaterThanOrEqual(2);
+    expect(exteriorMajorRoutes.every(
+      terminal => result.routeClass[terminal] === GREATER_REALM_ROUTE_CLASS.CARRIAGEWAY,
+    )).toBe(true);
+    expect(result.metrics.unreachableMandatorySiteCount).toBe(0);
+    expect(result.metrics.uncoveredRouteAnchorCount).toBe(0);
+    expect(result.invariants.mandatoryRouteAnchorsReachable).toBe(true);
+  });
+
+  it('prefers an adjacent perimeter pair over cheaper disconnected alternatives', () => {
+    const input = syntheticLivingWorldInput(12);
+    const castle = input.castleSlot.findIndex(value => value !== 0);
+    expect(castle).toBeGreaterThanOrEqual(0);
+    input.waterRegime.fill(0);
+    input.legacyProtectedCell.fill(0);
+    input.resourcePotential.fill(0);
+    input.corePotential.fill(0);
+    input.throneAnchor.fill(0);
+    input.gateCell.fill(0);
+    input.gateApproachCell.fill(0);
+    input.barrier.fill(1);
+    input.barrier[castle] = 0;
+
+    const firstEntry = input.grid.neighbors[castle * NEIGHBOR_COUNT]!;
+    const connector = input.grid.neighbors[castle * NEIGHBOR_COUNT + 1]!;
+    const secondEntry = input.grid.neighbors[castle * NEIGHBOR_COUNT + 2]!;
+    const isolatedCheaperEntry = input.grid.neighbors[castle * NEIGHBOR_COUNT + 4]!;
+    for (const entry of [
+      firstEntry,
+      connector,
+      secondEntry,
+      isolatedCheaperEntry,
+    ]) {
+      expect(entry).toBeGreaterThanOrEqual(0);
+      input.barrier[entry] = 0;
+      input.exposure[entry] = 0;
+      input.distanceToFreshwater[entry] = 0;
+    }
+    input.slope[isolatedCheaperEntry] = 0;
+    input.slope[firstEntry] = 100;
+    input.slope[secondEntry] = 300;
+    input.slope[connector] = 1_500;
+
+    const result = deriveGreaterRealmLivingWorld(input);
+    expect(result.routeClass[isolatedCheaperEntry])
+      .toBe(GREATER_REALM_ROUTE_CLASS.NONE);
+    for (const entry of [firstEntry, connector]) {
+      expect(result.routeClass[entry]).toBe(GREATER_REALM_ROUTE_CLASS.CARRIAGEWAY);
+    }
+    expect(result.routeClass[secondEntry]).toBe(GREATER_REALM_ROUTE_CLASS.NONE);
+    expect(result.metrics.routeComponentCount).toBe(1);
+    expect(result.metrics.unreachableMandatorySiteCount).toBe(0);
+    expect(result.metrics.uncoveredRouteAnchorCount).toBe(0);
+  });
+
+  it('connects a non-adjacent fallback pair only through a short dry local road', () => {
+    const input = syntheticLivingWorldInput(12);
+    const castle = input.castleSlot.findIndex(value => value !== 0);
+    expect(castle).toBeGreaterThanOrEqual(0);
+    input.waterRegime.fill(0);
+    input.legacyProtectedCell.fill(0);
+    input.resourcePotential.fill(0);
+    input.corePotential.fill(0);
+    input.throneAnchor.fill(0);
+    input.gateCell.fill(0);
+    input.gateApproachCell.fill(0);
+    input.barrier.fill(1);
+    input.barrier[castle] = 0;
+
+    const q = input.grid.q[castle]!;
+    const r = input.grid.r[castle]!;
+    const localPath = [
+      { q: q + 1, r },
+      { q: q + 2, r: r - 1 },
+      { q: q + 2, r: r - 2 },
+      { q: q + 1, r: r - 2 },
+      { q, r: r - 2 },
+      { q: q - 1, r: r - 1 },
+      { q: q - 1, r },
+    ].map(coordinate => input.grid.indexOf(coordinate));
+    expect(localPath.every(cell => cell >= 0)).toBe(true);
+    for (const pathCell of localPath) {
+      input.barrier[pathCell] = 0;
+      input.slope[pathCell] = 200;
+      input.exposure[pathCell] = 0;
+      input.distanceToFreshwater[pathCell] = 0;
+    }
+
+    const result = deriveGreaterRealmLivingWorld(input);
+    expect(localPath.map(cell => result.routeClass[cell])).toEqual([
+      GREATER_REALM_ROUTE_CLASS.CARRIAGEWAY,
+      GREATER_REALM_ROUTE_CLASS.ROAD,
+      GREATER_REALM_ROUTE_CLASS.ROAD,
+      GREATER_REALM_ROUTE_CLASS.ROAD,
+      GREATER_REALM_ROUTE_CLASS.ROAD,
+      GREATER_REALM_ROUTE_CLASS.ROAD,
+      GREATER_REALM_ROUTE_CLASS.CARRIAGEWAY,
+    ]);
+    for (const connectorCell of localPath.slice(1, -1)) {
+      expect(result.routeClass[connectorCell]).toBe(GREATER_REALM_ROUTE_CLASS.ROAD);
+      expect(input.waterRegime[connectorCell]).toBe(0);
+      expect(input.barrier[connectorCell]).toBe(0);
+    }
+    expect(result.metrics.routeComponentCount).toBe(1);
+    expect(result.metrics.requiredRouteAnchorCount).toBe(1);
+    expect(result.metrics.coveredRouteAnchorCount).toBe(1);
+    expect(result.metrics.unreachableMandatorySiteCount).toBe(0);
+    expect(result.metrics.uncoveredRouteAnchorCount).toBe(0);
+  });
+
   it('independently reports a mandatory castle or throne with no legal route neighbour', () => {
     const input = syntheticLivingWorldInput();
     const castle = input.castleSlot.findIndex(value => value !== 0);
@@ -947,7 +1101,7 @@ describe('Greater Realm private living-world authority', () => {
     expect(result.invariants.mandatoryRouteAnchorsReachable).toBe(false);
   });
 
-  it('routes an adjacent mandatory-site cluster through one legal perimeter terminal', () => {
+  it('routes an adjacent mandatory-site cluster through its legal perimeter', () => {
     const input = syntheticLivingWorldInput();
     const castle = input.castleSlot.findIndex(value => value !== 0);
     expect(castle).toBeGreaterThanOrEqual(0);

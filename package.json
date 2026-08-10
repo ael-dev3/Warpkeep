@@ -29,6 +29,7 @@
     "atlas:toolchain-preflight": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs --verify-only",
     "atlas:generate-candidates": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs generate-candidates",
     "atlas:compare-candidates": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs compare-candidates",
+    "atlas:inspect-package": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs inspect-package",
     "atlas:verify-private-package": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs verify-private-package",
     "atlas:export-sanitized-review": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs export-sanitized-review",
     "atlas:verify-sanitized-review": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs verify-sanitized-review",

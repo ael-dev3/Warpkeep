@@ -4,6 +4,9 @@ import { createRequire } from 'node:module';
 import { basename, dirname, relative, resolve, sep } from 'node:path';
 
 import {
+  GREATER_REALM_ATLAS_ID,
+} from './greater-realm-contracts';
+import {
   GREATER_REALM_GENERATOR_VERSION,
   GREATER_REALM_PRIVATE_MANIFEST_KIND,
   GREATER_REALM_PRIVATE_PACKAGE_MAGIC,
@@ -51,8 +54,20 @@ import {
   GREATER_REALM_RELIEF_STRUCTURE_VERSION,
   measureGreaterRealmReliefStructure,
 } from './greater-realm-relief-structure';
+import {
+  GREATER_REALM_REVIEWED_CHUNK_AXIS_SPAN,
+} from './greater-realm-chunk-benchmark';
+import {
+  GREATER_REALM_TOPOGRAPHY_PATCH_LOD_MODEL,
+  GREATER_REALM_TOPOGRAPHY_PATCH_RECONSTRUCTION,
+  GREATER_REALM_TOPOGRAPHY_PATCH_SUPPORTED_LEVELS,
+  GREATER_REALM_TOPOGRAPHY_PATCH_SUPPORT_VERSION,
+} from './greater-realm-topography-patch-support';
+import {
+  assertGreaterRealmPrivateAdvancedAuthorities,
+} from './greater-realm-private-authority-validation';
 
-const PRIVATE_ATLAS_FORMAT_VERSION = 7;
+const PRIVATE_ATLAS_FORMAT_VERSION = 8;
 const PRIVATE_ATLAS_MAXIMUM_BYTES = 128 * 1024 * 1024;
 const PRIVATE_PREVIEW_MAXIMUM_BYTES = 16 * 1024 * 1024;
 const PRIVATE_MANIFEST_MAXIMUM_BYTES = 4 * 1024 * 1024;
@@ -80,6 +95,7 @@ const PRIVATE_PREVIEW_WATER_LAKE = 2;
 const PRIVATE_PREVIEW_WATER_RIVER = 3;
 const PRIVATE_PREVIEW_WATER_STREAM = 4;
 const PRIVATE_PREVIEW_WATER_SEA = 5;
+const PRIVATE_PREVIEW_WATER_MARSH = 6;
 const PRIVATE_PREVIEW_FOG_COLOR = Object.freeze([24, 22, 31] as const);
 const PRIVATE_PREVIEW_SKY_HAZE = Object.freeze([174, 188, 207] as const);
 export const GREATER_REALM_PRIVATE_DRESSING_PREVIEW_LAYOUT = Object.freeze({
@@ -119,15 +135,15 @@ const PRIVATE_DRESSING_ECOLOGY_PALETTE = Object.freeze([
 const PRIVATE_PREVIEW_CAMERA_HEIGHT = 80_000;
 const PRIVATE_PREVIEW_HORIZONTAL_SCALE = 120;
 const PRIVATE_CANVAS_RADIUS = 270;
-const PRIVATE_CHUNK_AXIS_SPAN = 15;
+const PRIVATE_CHUNK_AXIS_SPAN = GREATER_REALM_REVIEWED_CHUNK_AXIS_SPAN;
 const PRIVATE_CHUNK_PARTITION_VERSION = 'axial-bin-15-v1' as const;
 const PRIVATE_CHUNK_SCHEMA = 'warpkeep.greater-realm.private-chunk-manifest.v1' as const;
 const PRIVATE_TOPOGRAPHY_PATCH_SCHEMA =
   'warpkeep.greater-realm.private-topography-patch.v1' as const;
 const PRIVATE_TOPOGRAPHY_VERSION =
-  'greater-realm-advanced-topography-v2' as const;
+  'greater-realm-advanced-topography-v3' as const;
 const PRIVATE_TOPOGRAPHY_ENCODING_VERSION =
-  'wkgr-topography-fields-v2' as const;
+  'wkgr-topography-fields-v3' as const;
 
 const PRIVATE_PINNED_TOOLCHAIN = Object.freeze({
   configuredNodeEngine: '>=22.13 <23',
@@ -156,6 +172,7 @@ type GreaterRealmPrivatePreviewMode = typeof PRIVATE_PREVIEW_MODES[number];
 
 const PRIVATE_MANIFEST_KEYS = Object.freeze([
   'aggregate',
+  'atlasId',
   'atlasDigest',
   'barrierCrossSections',
   'batchHandle',
@@ -651,6 +668,17 @@ function privateFields(candidate: GreaterRealmPrivateCandidate): readonly Encode
     { name: 'region-id', type: 2, width: 1, array: candidate.regionId },
     { name: 'tier-id', type: 2, width: 1, array: candidate.tierId },
     { name: 'water-regime', type: 2, width: 1, array: candidate.waterRegime },
+    { name: 'water-body-id', type: 6, width: 4, array: candidate.waterBodyId },
+    { name: 'water-depth-class', type: 2, width: 1, array: candidate.waterDepthClass },
+    { name: 'water-surface-level', type: 5, width: 4, array: candidate.waterSurfaceLevel },
+    { name: 'water-downstream', type: 5, width: 4, array: candidate.waterDownstream },
+    { name: 'water-bank-seed', type: 6, width: 4, array: candidate.waterBankSeed },
+    {
+      name: 'water-generation-version',
+      type: 4,
+      width: 2,
+      array: candidate.waterGenerationVersion,
+    },
     { name: 'biome-id', type: 2, width: 1, array: candidate.biomeId },
     { name: 'landform-id', type: 2, width: 1, array: candidate.landformId },
     { name: 'barrier', type: 2, width: 1, array: candidate.barrier },
@@ -962,6 +990,10 @@ function assertPrivateLivingWorldAuthority(candidate: GreaterRealmPrivateCandida
 }
 
 function encodedFieldHasExactType(field: EncodedField): boolean {
+  if (
+    !ArrayBuffer.isView(field.array)
+    || !(field.array.buffer instanceof ArrayBuffer)
+  ) return false;
   if (field.type === 1) return field.width === 1 && field.array instanceof Int8Array;
   if (field.type === 2) {
     return field.width === 1
@@ -977,7 +1009,10 @@ function encodedFieldHasExactType(field: EncodedField): boolean {
 }
 
 function hasCanonicalPrivateCandidateShape(candidate: GreaterRealmPrivateCandidate): boolean {
-  if (!isCanonicalGreaterRealmAxialGrid(candidate.grid)) return false;
+  if (
+    !isCanonicalGreaterRealmAxialGrid(candidate.grid)
+    || !(candidate.grid.neighbors.buffer instanceof ArrayBuffer)
+  ) return false;
   return privateFields(candidate).every(field => (
     encodedFieldHasExactType(field)
     && field.array.length === candidate.grid.cellCount
@@ -1014,8 +1049,12 @@ function writeArray(buffer: Buffer, offset: number, field: EncodedField): number
 export function serializeGreaterRealmPrivateAtlas(
   candidate: GreaterRealmPrivateCandidate,
 ): Buffer {
+  if (!hasCanonicalPrivateCandidateShape(candidate)) {
+    fail('GREATER_REALM_PRIVATE_FIELD_INVALID');
+  }
   assertPrivateReliefStructureAuthority(candidate);
   assertPrivateLivingWorldAuthority(candidate);
+  assertGreaterRealmPrivateAdvancedAuthorities(candidate);
   const fields = privateFields(candidate);
   const magic = Buffer.from(GREATER_REALM_PRIVATE_PACKAGE_MAGIC, 'ascii');
   let buffer: Buffer | undefined;
@@ -1090,6 +1129,12 @@ function candidateRegionCounts(candidate: GreaterRealmPrivateCandidate): readonl
 }
 
 const PRIVATE_TOPOGRAPHY_FIELD_NAMES = Object.freeze([
+  'erosion-elevation',
+  'water-regime',
+  'water-depth-class',
+  'water-surface-level',
+  'water-bank-seed',
+  'landform-id',
   'geological-barrier-band',
   'tectonic-uplift',
   'rock-resistance',
@@ -1118,6 +1163,7 @@ const PRIVATE_TOPOGRAPHY_FIELD_NAMES = Object.freeze([
   'distance-to-freshwater',
   'watershed-id',
   'ridge-id',
+  'route-class',
   'temperature',
   'moisture',
 ] as const);
@@ -1157,6 +1203,10 @@ const PRIVATE_TOPOGRAPHY_PATCH_KEYS = Object.freeze([
   'sampleHeight',
   'sampleCount',
   'encodingVersion',
+  'supportVersion',
+  'reconstruction',
+  'lodModel',
+  'supportedLevelOfDetail',
   'minimumElevationMilli',
   'maximumElevationMilli',
   'fieldCount',
@@ -1370,6 +1420,10 @@ function buildCandidatePrivateChunkManifests(
       sampleHeight: maximumR - minimumR + 1,
       sampleCount: chunk.cellIndices.length,
       encodingVersion: PRIVATE_TOPOGRAPHY_ENCODING_VERSION,
+      supportVersion: GREATER_REALM_TOPOGRAPHY_PATCH_SUPPORT_VERSION,
+      reconstruction: GREATER_REALM_TOPOGRAPHY_PATCH_RECONSTRUCTION,
+      lodModel: GREATER_REALM_TOPOGRAPHY_PATCH_LOD_MODEL,
+      supportedLevelOfDetail: GREATER_REALM_TOPOGRAPHY_PATCH_SUPPORTED_LEVELS,
       minimumElevationMilli,
       maximumElevationMilli,
       fieldCount: topographyFields.length,
@@ -1931,6 +1985,8 @@ async function renderValidatedGreaterRealmPrivatePreview(
           || regime === PRIVATE_PREVIEW_WATER_STREAM
         ) {
           color = [72, 143, 190];
+        } else if (regime === PRIVATE_PREVIEW_WATER_MARSH) {
+          color = [79, 126, 104];
         } else {
           fail('GREATER_REALM_PRIVATE_PREVIEW_WATER_INVALID');
         }
@@ -2010,6 +2066,7 @@ export async function renderGreaterRealmPrivatePreview(
   }
   assertPrivateReliefStructureAuthority(candidate);
   assertPrivateLivingWorldAuthority(candidate);
+  assertGreaterRealmPrivateAdvancedAuthorities(candidate);
   return renderValidatedGreaterRealmPrivatePreview(candidate, mode);
 }
 
@@ -2189,10 +2246,11 @@ export async function writeGreaterRealmPrivateCandidate(
   }
   const previewDigestEntries: Array<readonly [GreaterRealmPrivatePreviewMode, string]> = [];
   for (const mode of PRIVATE_PREVIEW_MODES) {
-    // Atlas serialization above re-derived and validated the complete dormant
-    // living-world authority. Keep the unchecked renderer private so this
-    // package orchestration can reuse that proof across all seven previews;
-    // standalone callers still enter through the fail-closed exported wrapper.
+    // Atlas serialization above re-derived the complete advanced-topography,
+    // hydrology, strategic, and dormant living-world authorities. Keep the
+    // unchecked renderer private so package orchestration can reuse that proof
+    // across all seven previews; standalone callers still enter through the
+    // fail-closed exported wrapper.
     const preview = await renderValidatedGreaterRealmPrivatePreview(
       input.candidate,
       mode,
@@ -2213,6 +2271,7 @@ export async function writeGreaterRealmPrivateCandidate(
   }
   const manifest = Object.freeze({
     kind: GREATER_REALM_PRIVATE_MANIFEST_KIND,
+    atlasId: GREATER_REALM_ATLAS_ID,
     formatVersion: PRIVATE_ATLAS_FORMAT_VERSION,
     generatorVersion: GREATER_REALM_GENERATOR_VERSION,
     geomorphologyVersion: GREATER_REALM_GEOMORPHOLOGY_VERSION,
@@ -2312,6 +2371,12 @@ function verifyPrivateAtlasBinary(atlas: Buffer, expectedCellCount: number): voi
     ['region-id', 2, 1],
     ['tier-id', 2, 1],
     ['water-regime', 2, 1],
+    ['water-body-id', 6, 4],
+    ['water-depth-class', 2, 1],
+    ['water-surface-level', 5, 4],
+    ['water-downstream', 5, 4],
+    ['water-bank-seed', 6, 4],
+    ['water-generation-version', 4, 2],
     ['biome-id', 2, 1],
     ['landform-id', 2, 1],
     ['barrier', 2, 1],
@@ -2709,6 +2774,7 @@ export async function verifyGreaterRealmPrivateCandidatePackage(input: Readonly<
     });
     if (
       manifest.kind !== GREATER_REALM_PRIVATE_MANIFEST_KIND
+      || manifest.atlasId !== GREATER_REALM_ATLAS_ID
       || manifest.formatVersion !== PRIVATE_ATLAS_FORMAT_VERSION
       || manifest.generatorVersion !== GREATER_REALM_GENERATOR_VERSION
       || manifest.geomorphologyVersion !== GREATER_REALM_GEOMORPHOLOGY_VERSION

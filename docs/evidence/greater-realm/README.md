@@ -2,12 +2,18 @@
 
 This directory accepts only canonical aggregate review reports produced by
 `atlas:export-sanitized-review` and verified by
-`atlas:verify-sanitized-review`.
+`atlas:verify-sanitized-review`, plus the single fixed
+`pending-owner-review-v1.json` projection. The generation CLI may install that
+projection only after regenerating and verifying the one private candidate
+package, reparsing the canonical aggregate, and proving every hard gate true.
+The projection remains pending, inactive, and production-untouched; it is not
+an approval receipt.
 
 Allowed evidence is newly constructed from an exact allowlist and contains only
 opaque random candidate handles, aggregate counts, broad size ranges,
-topography/biome/geomorphology/hydrology quality metrics, boolean proof
-outcomes, rounded performance figures, selection status, and one report digest.
+geology/topography/biome/hydrology metrics, aggregate quality metrics, boolean
+proof outcomes, rounded performance figures, selection status, and one report
+digest.
 It must never contain seeds or seed digests, generation-canvas coordinates,
 cell or chunk payloads, process fields, topography patches,
 layout/stage/package/private digests, exact region geometry, transforms, gates,

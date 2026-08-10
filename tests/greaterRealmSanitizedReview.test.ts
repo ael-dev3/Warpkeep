@@ -120,6 +120,26 @@ describe('Greater Realm sanitized candidate review', () => {
     ))).toEqual(review);
   });
 
+  it('reports an exact final water partition without forcing the approximate share target', () => {
+    const input = mutableClone(source()) as unknown as {
+      candidates: Array<{
+        landCellCount: number;
+        waterCellCount: number;
+      }>;
+    };
+    input.candidates[0]!.landCellCount = 70_000;
+    input.candidates[0]!.waterCellCount = 50_000;
+
+    const review = createGreaterRealmSanitizedReview(input);
+    expect(review.candidates[0]).toMatchObject({
+      eligible: true,
+      landCellCount: 70_000,
+      waterCellCount: 50_000,
+      landBasisPoints: 5_833,
+      waterBasisPoints: 4_167,
+    });
+  });
+
   it('sorts candidates canonically and binds every public field into the digest', () => {
     const input = {
       ...source(),

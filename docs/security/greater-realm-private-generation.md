@@ -19,8 +19,9 @@ The browser, Vite `public/` tree, production `dist/`, source maps, Git history,
 pull-request comments, CI artifacts, logs, and public SpacetimeDB tables are not
 private storage.
 
-The two additional density channels are bound by living-world authority v3,
-generator algorithm `.13`, and private atlas format 7. The terrain-seed
+The two additional density channels and marsh-aware dressing rules are bound by
+living-world authority v4, generator algorithm `.15`, and private atlas format
+8. The terrain-seed
 namespace remains `.3`; a package-layout revision is not permission to reroll
 private world authority.
 
@@ -89,6 +90,12 @@ The private workspace must:
   growth, and axial-anisotropy metrics only in the private manifest; the
   complete-corridor eligibility mask and moment accumulators are zeroized, and
   public evidence receives only the existing advanced-geomorphology boolean;
+- replay the coordinate-free regional hydrogeomorphology report exactly from
+  private region, coastal-process, final surface, flow, landform, and biome
+  authority; require its conjunction as a private hard gate, retain no cell
+  indexes or coordinates in the report, and zeroize component labels, masks,
+  queues, bounded-distance visits, and class-presence scratch on success and
+  failure;
 - bind the single dormant Tier III throne anchor as private atlas geometry and
   private manifest coordinates; expose only its boolean proof publicly;
 - fail closed on a stale lock, substitution, permission drift, oversized
@@ -108,6 +115,20 @@ their lifetime ends, including temporary seed digests and failed atlas
 serialization or persistence. Private candidate retirement also clears the
 coordinate lookup captured by its indexed grid before clearing canonical field
 arrays.
+
+Single-world checkpoints, their owner key, and the seed-free completion receipt
+use no-clobber atomic files whose inode and parent directory are both synced
+before success is reported. Generation and per-publication locks carry a
+validated process identifier: a live owner remains exclusive, while a complete
+dead-owner record or strict pre-operation prefix can be retired and synced after
+a hard process crash. Pending package stages are grouped by a domain-separated
+digest of their exact logical target and protected by the same live lock, so
+resume overwrites and unlinks only that target's orphan files. Checkpoint and
+stage retirement overwrites the pinned open inode, syncs it, unlinks it, and
+syncs each removed parent directory. Every checkpoint lifecycle entry first
+inventories and securely finishes any exact owner-only retired UUID directory
+left between the durable rename and deletion by a hard crash; malformed,
+substituted, or special entries fail closed.
 
 Natural-composition review derives only coordinate-free scalar summaries and
 five public proof booleans from final private terrain authority. Temporary land,
@@ -149,7 +170,10 @@ TypeScript, esbuild, Sharp, libvips, or their JavaScript dependencies. It:
   shadows; and
 - hashes every executable-package file, executable-bit classification,
   relative path, and byte count against the committed package-tree records
-  before launching the pinned absolute `tsx` entrypoint. Package-manager
+  before launching the pinned absolute `tsx` entrypoint. The CLI repeats the
+  complete attestation after candidate/package construction and immediately
+  before its staged directory may be published; after a successful child exit,
+  the bootstrap repeats it once more. Package-manager
   `.bin` launch shims are not part of registry package trees and are excluded;
   the child receives only the trusted Node executable directory in `PATH`, so
   those shims cannot participate in command resolution. npm's reviewed
@@ -213,6 +237,27 @@ excluded from world identity. The memory field is deliberately named
 `processPeakMemoryMiBRounded`; Node's `maxRSS` is not a per-candidate peak.
 Timestamps, machine paths, host details, preview encodings, and tool diagnostics
 are also excluded from authority digests.
+
+The versioned pending-owner-report helper is a projection over the canonical
+sanitized review, not another sanitizer and not a redaction routine. Its input
+has exactly two fields: the already-sanitized review and a literal assertion
+that the caller's private-package verification completed. The helper reparses
+the review, reconstructs and verifies its source report digest, requires exactly
+one eligible in-range candidate with all hard proofs true, and refuses selected
+or multi-candidate reviews. Its output is an exact allowlist with pending owner
+validation and selection, inactive activation, and production-untouched status.
+Accessors, unknown fields, raw arrays, coordinates, seeds, package structures,
+paths, and reconstructive material cannot enter through this API.
+
+The assertion is an API precondition, not an independent proof of package
+verification. Command integration invokes the helper only after
+`verifyPrivateReviewBatch` has successfully rebound the canonical sanitized
+aggregate to the regenerated private package. It serializes and reparses the
+exact `warpkeep.greater-realm.pending-owner-report.v1` document before the
+pinned public-evidence writer installs it at
+`docs/evidence/greater-realm/pending-owner-review-v1.json`. No real public owner
+report exists or is published until the final verified generation workflow
+runs.
 
 ## Determinism and integrity
 
@@ -294,13 +339,17 @@ The pull request must prove that it rejects:
   string/object values, or a numeric table/key-value row in CSV, TSV, NDJSON,
   DAT, DATA, TXT, or an unfamiliar text extension, including case-folded names
   and quoted delimiters; this includes both camel- and kebab-case groundcover
-  and wildflower density aliases;
+  and wildflower density aliases, final-water metadata, and the private domain
+  base-thickness/rock-family fields;
 - an exact living-world field in source/config initialized from a numeric
   array, numeric typed-array factory, one-level nested Buffer/typed-array
   constructor, inline encoded Buffer/`atob`/typed-array call, or encoded object;
   value-free declarations and size-only typed-array allocation remain
   reviewable source controls outside deploy roots, while local public serving
   fails closed on the authority aliases themselves;
+- a markerless extracted geology, final-hydrology, strategic-audit, regional-QA,
+  chunk-benchmark, or topography-patch metric, including typed-array,
+  `Object.freeze`, Buffer/`atob`, encoded-object, and nested source initializers;
 - source/config/seed/package substitution;
 - a malformed or wrongly typed seed envelope, including a renamed private seed
   that still carries the private marker;

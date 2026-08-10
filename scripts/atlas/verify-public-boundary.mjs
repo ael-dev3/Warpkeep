@@ -144,10 +144,12 @@ const TEXT_EXACT_FILENAMES = new Set([
   'makefile',
   'procfile',
 ]);
-const PRIVATE_TEXT_FIELD = /(?:["'](?:privateSeedHex|seedMaterial|seedBytes|hiddenCellPayload|privateCanvasDescriptor)["']|(?:^|[^\p{ID_Continue}$])(?:privateSeedHex|seedMaterial|seedBytes|hiddenCellPayload|privateCanvasDescriptor))\s*:/mu;
+const PRIVATE_TEXT_FIELD = /(?:["'](?:privateSeedHex|seedMaterial|seedBytes|hiddenCellPayload|privateCanvasDescriptor|topographicQa|hydrologyAuthority|geologyAuthority|strategicAudits|topographyPatchSupport|chunkBenchmark)["']|(?:^|[^\p{ID_Continue}$])(?:privateSeedHex|seedMaterial|seedBytes|hiddenCellPayload|privateCanvasDescriptor|topographicQa|hydrologyAuthority|geologyAuthority|strategicAudits|topographyPatchSupport|chunkBenchmark))\s*:/mu;
 const PRIVATE_EVIDENCE_FIELD = /["'](?:layoutDigest|stageDigest|packageDigest)["']\s*:/u;
 const PRIVATE_IDENTIFIER_STRING_VALUE = /(?:(?:\b(?:seed|private)[A-Za-z0-9_$]*\b)|(?:\b[A-Za-z_$][A-Za-z0-9_$]*(?:seed|private)[A-Za-z0-9_$]*\b)|(?:\\?["'`][A-Za-z0-9_$.-]*(?:seed|private)[A-Za-z0-9_$.-]*\\?["'`]))\s*(?::|=)\s*\\?["'`]([A-Za-z0-9+/_=-]{43,64})\\?["'`]/giu;
 const INLINE_DATA_SOURCE_MAP = /sourceMappingURL\s*=\s*data:/iu;
+const PRIVATE_DRESSING_AUTHORITY_FIELD_COUNT = 8;
+const PRIVATE_HYDROLOGY_AUTHORITY_FIELD_COUNT = 6;
 const PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS = Object.freeze([
   Object.freeze(['dressingExcluded', 'dressing-excluded']),
   Object.freeze(['ecologyClass', 'ecology-class']),
@@ -157,6 +159,14 @@ const PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS = Object.freeze([
   Object.freeze(['routeClass', 'route-class']),
   Object.freeze(['landmarkClass', 'landmark-class']),
   Object.freeze(['ambientLifeClass', 'ambient-life-class']),
+  Object.freeze(['waterBodyId', 'water-body-id']),
+  Object.freeze(['waterDepthClass', 'water-depth-class']),
+  Object.freeze(['waterSurfaceLevel', 'water-surface-level']),
+  Object.freeze(['waterDownstream', 'water-downstream']),
+  Object.freeze(['waterBankSeed', 'water-bank-seed']),
+  Object.freeze(['waterGenerationVersion', 'water-generation-version']),
+  Object.freeze(['baseThickness', 'base-thickness']),
+  Object.freeze(['rockFamily', 'rock-family']),
 ]);
 const PRIVATE_LIVING_WORLD_DATA_EXTENSIONS = new Set([
   '.csv',
@@ -297,6 +307,62 @@ const PRIVATE_RELIEF_STRUCTURE_BOOLEAN_FIELDS = Object.freeze([
   'scaleGrowthProof',
   'axialAnisotropyProof',
 ]);
+const PRIVATE_ADVANCED_AGGREGATE_AUTHORITY_FIELDS = Object.freeze([
+  'minimumBaseThickness',
+  'maximumBaseThickness',
+  'rockFamilyCounts',
+  'waterCellCountsByRegime',
+  'waterBodyCountsByRegime',
+  'waterCellCountsByDepthClass',
+  'regionBoundaryAlignment',
+  'tierPotentialDensity',
+  'castleSuitability',
+  'innerGateThrone',
+  'regionalHydrogeomorphology',
+  'selectedAxisSpan',
+  'reviewedPopulationCellShareBasisPoints',
+  'lodSampleCounts',
+  'ridgeOrValleySupportCellCount',
+  'localNormalGenerationProof',
+  'lodSimplificationProof',
+  'featureSupportProof',
+]);
+const PRIVATE_ADVANCED_AGGREGATE_JSON_FIELD = new RegExp(
+  `["'](?:${PRIVATE_ADVANCED_AGGREGATE_AUTHORITY_FIELDS.join('|')})["']\\s*:`,
+  'iu',
+);
+const PRIVATE_ADVANCED_AGGREGATE_INITIALIZED_VALUE = new RegExp(
+  `(?:["'\`](?:${PRIVATE_ADVANCED_AGGREGATE_AUTHORITY_FIELDS.join('|')})["'\`]`
+    + `|(?:^|[^\\p{ID_Continue}$-])(?:${PRIVATE_ADVANCED_AGGREGATE_AUTHORITY_FIELDS
+      .join('|')}))`
+    + '\\s*(?::|=)\\s*'
+    + '(?:[-+]?\\d|true|false|\\['
+    + '|(?:Object\\.freeze\\s*\\(\\s*)?\\(?\\s*\\{'
+    + '(?=[\\s\\S]{0,512}(?:[-+]?\\d|true|false|\\[)))',
+  'imu',
+);
+const PRIVATE_ADVANCED_AGGREGATE_INITIALIZER = new RegExp(
+  `(?:["'\`](?:${PRIVATE_ADVANCED_AGGREGATE_AUTHORITY_FIELDS.join('|')})["'\`]`
+    + `|(?:^|[^\\p{ID_Continue}$-])(?:${PRIVATE_ADVANCED_AGGREGATE_AUTHORITY_FIELDS
+      .join('|')}))`
+    + '\\s*(?::|=)\\s*',
+  'gimu',
+);
+const PRIVATE_ADVANCED_AGGREGATE_VALUE_WRAPPERS =
+  /^(?:(?:Object\.freeze\s*\(\s*|\(\s*)){0,4}/u;
+const PRIVATE_ADVANCED_AGGREGATE_ARRAY_TYPE =
+  '(?:Big(?:Int64|Uint64)Array|Float(?:16|32|64)Array|Int(?:8|16|32)Array|Uint8ClampedArray|Uint(?:8|16|32)Array)';
+const PRIVATE_ADVANCED_AGGREGATE_ARRAY_FACTORY = new RegExp(
+  `^(?:(?:new\\s+)?${PRIVATE_ADVANCED_AGGREGATE_ARRAY_TYPE}\\s*\\(`
+    + `|(?:${PRIVATE_ADVANCED_AGGREGATE_ARRAY_TYPE}|Array|Buffer)`
+    + '\\.(?:from|of)\\s*\\()',
+  'u',
+);
+const PRIVATE_ADVANCED_AGGREGATE_ENCODED_CALL =
+  /^(?:atob|globalThis\.atob)\s*\(\s*["'`]/u;
+const PRIVATE_ADVANCED_AGGREGATE_ENCODED_STRING =
+  /^["'`][A-Za-z0-9+/_=-]{2,}["'`]/u;
+const PRIVATE_ADVANCED_AGGREGATE_INITIALIZER_MAXIMUM_LENGTH = 1_024;
 const PRIVATE_RELIEF_STRUCTURE_BINARY_PATTERNS = Object.freeze([
   ...PRIVATE_RELIEF_STRUCTURE_MATRIX_FIELDS,
   ...PRIVATE_RELIEF_STRUCTURE_VECTOR_FIELDS,
@@ -318,6 +384,13 @@ const PRIVATE_BINARY_TEXT_FIELD_PATTERNS = Object.freeze([
   'seedBytes',
   'hiddenCellPayload',
   'privateCanvasDescriptor',
+  'topographicQa',
+  'hydrologyAuthority',
+  'geologyAuthority',
+  'strategicAudits',
+  'topographyPatchSupport',
+  'chunkBenchmark',
+  ...PRIVATE_ADVANCED_AGGREGATE_AUTHORITY_FIELDS,
 ].flatMap(field => {
   const casefolded = field.toLowerCase();
   return Object.freeze([
@@ -398,15 +471,20 @@ const PRIVATE_RELIEF_STRUCTURE_INITIALIZED_SUBPROOF = new RegExp(
 const SANITIZED_REVIEW_EVIDENCE_PATH =
   /^docs\/evidence\/greater-realm\/[a-z0-9][a-z0-9._-]{0,126}\.json$/u;
 const SANITIZED_REVIEW_EVIDENCE_PREFIX = 'docs/evidence/greater-realm/';
+const PENDING_OWNER_REVIEW_EVIDENCE_PATH =
+  'docs/evidence/greater-realm/pending-owner-review-v1.json';
 const SANITIZED_REVIEW_EVIDENCE_README =
   'docs/evidence/greater-realm/README.md';
-const SANITIZED_REVIEW_EVIDENCE_README_BYTES = 1_421;
+const SANITIZED_REVIEW_EVIDENCE_README_BYTES = 1_787;
 const SANITIZED_REVIEW_EVIDENCE_README_SHA256 =
-  'e61fa36df40a8b1a37372ee41b27456b77f49e32480fcd8ba613d29b2914cb79';
+  '3009102d39beb03a830898dec072b7f3fcdc824d5a3b8111e105506913374abb';
 const SANITIZED_REVIEW_MAXIMUM_BYTES = 4 * 1024 * 1024;
 const SANITIZED_REVIEW_MINIMUM_CANDIDATE_COUNT = 1;
 const SANITIZED_REVIEW_MAXIMUM_CANDIDATE_COUNT = 16;
 const SANITIZED_REVIEW_SCHEMA = 'warpkeep.greater-realm.candidate-review.v1';
+const PENDING_OWNER_REVIEW_SCHEMA =
+  'warpkeep.greater-realm.pending-owner-report.v1';
+const PENDING_OWNER_REVIEW_ATLAS_ID = 'GENESIS_001_GREATER_REALM';
 const SANITIZED_REVIEW_PRIVACY_BOUNDARY =
   'aggregate-only-no-private-generation-material-v1';
 const SANITIZED_REVIEW_PROOF_KEYS = Object.freeze([
@@ -459,6 +537,23 @@ const SANITIZED_REVIEW_CANDIDATE_KEYS = Object.freeze([
   'waterBasisPoints',
   'tierBasisPoints',
 ]);
+const PENDING_OWNER_REVIEW_KEYS = Object.freeze([
+  'schema',
+  'atlasId',
+  'generatorVersion',
+  'sourceCommit',
+  'reviewBatchHandle',
+  'sourceReportDigest',
+  'worldCount',
+  'candidate',
+  'automatedValidationStatus',
+  'ownerValidationStatus',
+  'selectionStatus',
+  'selectedCandidateHandle',
+  'activationStatus',
+  'productionUntouched',
+  'privacyBoundary',
+]);
 const SANITIZED_REVIEW_FORBIDDEN_KEY =
   /(?:^|_)(?:q|r|x|y|z)(?:$|_)|coord|latitude|longitude|seed|transform|translation|rotation|chunk|layoutdigest|stagedigest|packagedigest|preview|screenshot|thumbnail|image|filepath|pathname|url/iu;
 const SANITIZED_REVIEW_FORBIDDEN_STRING =
@@ -476,8 +571,8 @@ function privateMarkerText(index) {
   return marker;
 }
 
-function sourceAllowance(fragment, count = 1) {
-  return Object.freeze({ fragment, count });
+function sourceAllowance(fragment, count = 1, allowAbsent = false) {
+  return Object.freeze({ fragment, count, allowAbsent });
 }
 
 function markerConstAllowance(index) {
@@ -498,6 +593,12 @@ const TRACKED_PRIVATE_SOURCE_ALLOWANCES = new Map([
     markerConstAllowance(5),
     sourceAllowance(`${privateFieldName('seed', 'Material')}: Buffer;`),
     sourceAllowance(`${privateFieldName('seed', 'Material')}: Uint8Array,`),
+    sourceAllowance(`${privateFieldName('geology', 'Authority')}:`, 2, true),
+    sourceAllowance(`${privateFieldName('hydrology', 'Authority')}:`, 2, true),
+    sourceAllowance(`${privateFieldName('strategic', 'Audits')}:`, 2, true),
+    sourceAllowance(`${privateFieldName('topographic', 'Qa')}:`, 1, true),
+    sourceAllowance(`${privateFieldName('chunk', 'Benchmark')}:`, 1, true),
+    sourceAllowance(`${privateFieldName('topographyPatch', 'Support')}:`, 1, true),
   ])],
   ['scripts/atlas/greater-realm-candidate-package.ts', Object.freeze([
     markerConstAllowance(3),
@@ -521,12 +622,90 @@ const TRACKED_PRIVATE_SOURCE_ALLOWANCES = new Map([
   ['scripts/atlas/greater-realm-private-seed.ts', Object.freeze([
     sourceAllowance(`const PRIVATE_SEED_MARKER = '${privateMarkerText(4)}' as const;`),
   ])],
+  ['scripts/atlas/greater-realm-geology-authority.ts', Object.freeze([
+    sourceAllowance(`let ${privateFieldName('minimum', 'BaseThickness')} = 0xffff;`),
+    sourceAllowance(`let ${privateFieldName('maximum', 'BaseThickness')} = 0;`),
+    sourceAllowance(
+      `${privateFieldName('rockFamily', 'Counts')}: Object.freeze(Array.from(rockFamilyCountsWorking)),`,
+    ),
+  ])],
+  ['scripts/atlas/greater-realm-hydrology-authority.ts', Object.freeze([
+    sourceAllowance(
+      `${privateFieldName('waterCellCountsBy', 'Regime')}: Object.freeze(`,
+      1,
+      true,
+    ),
+    sourceAllowance(
+      `${privateFieldName('waterBodyCountsBy', 'Regime')}: Object.freeze(`,
+      1,
+      true,
+    ),
+    sourceAllowance(
+      `${privateFieldName('waterCellCountsByDepth', 'Class')}: Object.freeze(`,
+      1,
+      true,
+    ),
+  ])],
+  ['scripts/atlas/greater-realm-topography-patch-support.ts', Object.freeze([
+    sourceAllowance(`let ${privateFieldName('ridgeOrValleySupportCell', 'Count')} = 0;`),
+    sourceAllowance(`let ${privateFieldName('localNormalGeneration', 'Proof')} = true;`),
+    sourceAllowance(`${privateFieldName('localNormalGeneration', 'Proof')} = false;`),
+    sourceAllowance(
+      `const ${privateFieldName('lodSample', 'Counts')} = Object.freeze(Array.from(lodSampleCountsWorking));`,
+      1,
+      true,
+    ),
+  ])],
+  ['scripts/atlas/greater-realm-attempt-checkpoint.ts', Object.freeze([
+    sourceAllowance(`const CHECKPOINT_KIND = '${privateMarkerText(17)}' as const;`),
+    sourceAllowance(`const COMPLETION_KIND = '${privateMarkerText(18)}' as const;`),
+    sourceAllowance(
+      `const OWNER_KEY_MARKER = Buffer.from('${privateMarkerText(14)}\\0', 'ascii');`,
+    ),
+    sourceAllowance(
+      `const CHECKPOINT_MARKER = Buffer.from('${privateMarkerText(15)}\\0', 'ascii');`,
+    ),
+    sourceAllowance(
+      `const COMPLETION_MARKER = Buffer.from('${privateMarkerText(16)}\\0', 'ascii');`,
+    ),
+  ])],
   ['scripts/atlas/greater-realm-private-markers.mjs', Object.freeze([
     ...GREATER_REALM_PRIVATE_MARKER_TEXT.map(marker => sourceAllowance(`'${marker}',`)),
   ])],
   ['tests/greaterRealmCandidateGenerator.test.ts', Object.freeze([
     sourceAllowance(
       `${privateFieldName('seed', 'Material')}: Buffer.from(candidate.${privateFieldName('seed', 'Material')}),`,
+    ),
+  ])],
+  ['tests/greaterRealmHydrologyAuthority.test.ts', Object.freeze([
+    sourceAllowance(
+      `${privateFieldName('waterCellCountsBy', 'Regime')}: Array.from(`,
+      1,
+      true,
+    ),
+    sourceAllowance(
+      `${privateFieldName('waterBodyCountsBy', 'Regime')}: Array.from(`,
+      1,
+      true,
+    ),
+    sourceAllowance(
+      `${privateFieldName('waterCellCountsByDepth', 'Class')}: Array.from(`,
+      1,
+      true,
+    ),
+  ])],
+  ['tests/greaterRealmCandidatePackage.test.ts', Object.freeze([
+    sourceAllowance(`${privateFieldName('geology', 'Authority')}:`, 2, true),
+    sourceAllowance(`${privateFieldName('hydrology', 'Authority')}:`, 2, true),
+    sourceAllowance(`${privateFieldName('strategic', 'Audits')}:`, 2, true),
+    sourceAllowance(`${privateFieldName('topographic', 'Qa')}:`, 2, true),
+    sourceAllowance(`${privateFieldName('chunk', 'Benchmark')}:`, 2, true),
+    sourceAllowance(`${privateFieldName('topographyPatch', 'Support')}:`, 2, true),
+    sourceAllowance(`${privateFieldName('selectedAxis', 'Span')}: 15,`, 1, true),
+    sourceAllowance(
+      `${privateFieldName('regionBoundary', 'Alignment')}: Object.freeze({`,
+      1,
+      true,
     ),
   ])],
 ]);
@@ -892,13 +1071,19 @@ function scrubExpectedPrivateSourceLiterals(text, relativePath) {
   if (allowances === undefined) return text;
   let scrubbed = text;
   for (const allowance of allowances) {
+    const occurrenceCount = exactOccurrenceCount(text, allowance.fragment);
     if (
       typeof allowance.fragment !== 'string'
       || allowance.fragment.length === 0
       || !Number.isSafeInteger(allowance.count)
       || allowance.count < 1
-      || exactOccurrenceCount(text, allowance.fragment) !== allowance.count
+      || typeof allowance.allowAbsent !== 'boolean'
+      || (
+        occurrenceCount !== allowance.count
+        && !(allowance.allowAbsent && occurrenceCount === 0)
+      )
     ) fail('GREATER_REALM_PUBLIC_BOUNDARY_SOURCE_ALLOWANCE_INVALID');
+    if (occurrenceCount === 0) continue;
     scrubbed = scrubbed.split(allowance.fragment).join(' '.repeat(allowance.fragment.length));
   }
   return scrubbed;
@@ -1185,6 +1370,35 @@ function containsPrivateReliefStructureAuthority(text, relativePath) {
   );
 }
 
+function containsPrivateAdvancedAggregateAuthority(text, relativePath) {
+  if (PRIVATE_ADVANCED_AGGREGATE_INITIALIZED_VALUE.test(text)) return true;
+  for (const match of text.matchAll(PRIVATE_ADVANCED_AGGREGATE_INITIALIZER)) {
+    const start = (match.index ?? 0) + match[0].length;
+    const rawValue = text.slice(
+      start,
+      start + PRIVATE_ADVANCED_AGGREGATE_INITIALIZER_MAXIMUM_LENGTH,
+    );
+    const wrappers = PRIVATE_ADVANCED_AGGREGATE_VALUE_WRAPPERS.exec(rawValue);
+    const value = rawValue.slice(wrappers?.[0].length ?? 0);
+    if (
+      value.startsWith('[')
+      || PRIVATE_ADVANCED_AGGREGATE_ARRAY_FACTORY.test(value)
+      || PRIVATE_ADVANCED_AGGREGATE_ENCODED_CALL.test(value)
+      || PRIVATE_ADVANCED_AGGREGATE_ENCODED_STRING.test(value)
+    ) return true;
+    if (!value.startsWith('{')) continue;
+    const bodyEnd = value.indexOf('}', 1);
+    if (bodyEnd < 0) continue;
+    const body = value.slice(1, bodyEnd);
+    if (
+      PRIVATE_LIVING_WORLD_ENCODED_OBJECT_ENCODING.test(body)
+      && PRIVATE_LIVING_WORLD_ENCODED_OBJECT_DATA.test(body)
+    ) return true;
+  }
+  return privateLivingWorldDataPath(relativePath, text)
+    && PRIVATE_ADVANCED_AGGREGATE_JSON_FIELD.test(text);
+}
+
 function containsPrivateLivingWorldAuthority(text, relativePath) {
   // Exact initialized numeric authority arrays remain private even when they
   // are pasted into an otherwise ordinary source module. Requiring the first
@@ -1196,13 +1410,21 @@ function containsPrivateLivingWorldAuthority(text, relativePath) {
   if (containsPrivateLivingWorldTabularAuthority(text, relativePath)) return true;
   if (!privateLivingWorldDataPath(relativePath, text)) return false;
 
-  // Encoded private atlases carry a complete eight-name field inventory before
-  // their byte arrays. Requiring every exact authority name avoids treating a
-  // single word in ordinary content as private, while still catching mixed
-  // camel/kebab encodings after an artifact is renamed or its WKGR marker is
-  // stripped.
-  return PRIVATE_LIVING_WORLD_AUTHORITY_FIELD_PATTERNS.every(pattern => (
-    pattern.test(text)
+  // Encoded private atlases carry complete dressing, hydrology, and domain
+  // material inventories before their byte arrays. Keep the wire groups independently
+  // recognizable so extending one inventory never weakens detection of the
+  // other after an artifact is renamed or its WKGR marker is stripped.
+  const initializedInventory = patterns => patterns.every(pattern => pattern.test(text));
+  const hydrologyStart = PRIVATE_DRESSING_AUTHORITY_FIELD_COUNT;
+  const geologyStart = hydrologyStart + PRIVATE_HYDROLOGY_AUTHORITY_FIELD_COUNT;
+  return initializedInventory(PRIVATE_LIVING_WORLD_AUTHORITY_FIELD_PATTERNS.slice(
+    0,
+    hydrologyStart,
+  )) || initializedInventory(PRIVATE_LIVING_WORLD_AUTHORITY_FIELD_PATTERNS.slice(
+    hydrologyStart,
+    geologyStart,
+  )) || initializedInventory(PRIVATE_LIVING_WORLD_AUTHORITY_FIELD_PATTERNS.slice(
+    geologyStart,
   ));
 }
 
@@ -1574,10 +1796,15 @@ function sanitizedQuality(value) {
     'ridgeContinuityBasisPoints',
     'hydrologyCoherenceBasisPoints',
   ]);
-  return Object.fromEntries(Object.entries(row).map(([key, entry]) => [
-    key,
-    sanitizedInteger(entry, 10_000),
-  ]));
+  return {
+    naturalnessBasisPoints: sanitizedInteger(row.naturalnessBasisPoints, 10_000),
+    axialArtifactBasisPoints: sanitizedInteger(row.axialArtifactBasisPoints, 10_000),
+    ridgeContinuityBasisPoints: sanitizedInteger(row.ridgeContinuityBasisPoints, 10_000),
+    hydrologyCoherenceBasisPoints: sanitizedInteger(
+      row.hydrologyCoherenceBasisPoints,
+      10_000,
+    ),
+  };
 }
 
 function sanitizedProofs(value) {
@@ -1585,7 +1812,7 @@ function sanitizedProofs(value) {
   for (const key of SANITIZED_REVIEW_PROOF_KEYS) {
     if (typeof row[key] !== 'boolean') invalidSanitizedReview();
   }
-  return row;
+  return Object.fromEntries(SANITIZED_REVIEW_PROOF_KEYS.map(key => [key, row[key]]));
 }
 
 function sanitizedPerformance(value) {
@@ -1638,9 +1865,9 @@ function validateSanitizedCandidate(value) {
     waterCellCount,
   );
   const biomes = sanitizedBiomes(row.biomes);
-  sanitizedQuality(row.quality);
+  const quality = sanitizedQuality(row.quality);
   const proofs = sanitizedProofs(row.proofs);
-  sanitizedPerformance(row.performance);
+  const performance = sanitizedPerformance(row.performance);
   const gateCount = sanitizedInteger(row.gateCount, 10_000);
   const castleSlotCount = sanitizedInteger(row.castleSlotCount, 100_000);
   const insideApprovedRange = activeCellCount >= 100_000 && activeCellCount <= 150_000;
@@ -1652,8 +1879,6 @@ function validateSanitizedCandidate(value) {
   ) invalidSanitizedReview();
   if (row.eligible && (
     !insideApprovedRange
-    || landBasisPoints < 6_200
-    || landBasisPoints > 7_200
     || tierBasisPoints.tierI < 6_800
     || tierBasisPoints.tierI > 7_400
     || tierBasisPoints.tierII < 2_200
@@ -1696,7 +1921,28 @@ function validateSanitizedCandidate(value) {
     || biomes.incompatibleVisualAdjacencyCount !== 0
     || biomes.incompatibleBiomeLandformPairCount !== 0
   )) invalidSanitizedReview();
-  return Object.freeze({ candidateHandle: row.candidateHandle, eligible: row.eligible });
+  return Object.freeze({
+    candidateHandle: row.candidateHandle,
+    eligible: row.eligible,
+    activeCellCount,
+    landCellCount,
+    waterCellCount,
+    tierCellCounts,
+    regionSizeRanges,
+    hydrology,
+    geology,
+    topography,
+    biomes,
+    quality,
+    gateCount,
+    castleSlotCount,
+    proofs,
+    performance,
+    insideApprovedRange,
+    landBasisPoints,
+    waterBasisPoints: 10_000 - landBasisPoints,
+    tierBasisPoints,
+  });
 }
 
 function canonicalSanitizedValue(value, depth = 0) {
@@ -1776,6 +2022,73 @@ function validateSanitizedReviewEvidence(text) {
   if (digest !== reportDigest) invalidSanitizedReview();
   const canonicalText = `${JSON.stringify(canonicalSanitizedValue(row), null, 2)}\n`;
   if (text !== canonicalText) invalidSanitizedReview();
+}
+
+function validatePendingOwnerReviewEvidence(text) {
+  let value;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return invalidSanitizedReview();
+  }
+  assertNoSanitizedPrivateMaterial(value);
+  const row = exactSanitizedRecord(value, PENDING_OWNER_REVIEW_KEYS);
+  if (
+    row.schema !== PENDING_OWNER_REVIEW_SCHEMA
+    || row.atlasId !== PENDING_OWNER_REVIEW_ATLAS_ID
+    || typeof row.generatorVersion !== 'string'
+    || !SANITIZED_REVIEW_GENERATOR_VERSION.test(row.generatorVersion)
+    || typeof row.sourceCommit !== 'string'
+    || !SANITIZED_REVIEW_SOURCE_COMMIT.test(row.sourceCommit)
+    || typeof row.reviewBatchHandle !== 'string'
+    || !SANITIZED_REVIEW_BATCH_HANDLE.test(row.reviewBatchHandle)
+    || typeof row.sourceReportDigest !== 'string'
+    || !SANITIZED_REVIEW_SHA256.test(row.sourceReportDigest)
+    || row.worldCount !== 1
+    || row.automatedValidationStatus
+      !== 'private-package-and-sanitized-aggregate-verified'
+    || row.ownerValidationStatus !== 'pending'
+    || row.selectionStatus !== 'pending'
+    || row.selectedCandidateHandle !== null
+    || row.activationStatus !== 'inactive'
+    || row.productionUntouched !== true
+    || row.privacyBoundary !== SANITIZED_REVIEW_PRIVACY_BOUNDARY
+  ) invalidSanitizedReview();
+  const candidate = validateSanitizedCandidate(row.candidate);
+  if (!candidate.eligible || !candidate.insideApprovedRange) invalidSanitizedReview();
+  const sourceReviewBody = {
+    schema: SANITIZED_REVIEW_SCHEMA,
+    generatorVersion: row.generatorVersion,
+    sourceCommit: row.sourceCommit,
+    reviewBatchHandle: row.reviewBatchHandle,
+    selectionStatus: 'pending',
+    selectedCandidateHandle: null,
+    candidateCount: 1,
+    candidates: [candidate],
+    privacyBoundary: SANITIZED_REVIEW_PRIVACY_BOUNDARY,
+  };
+  const sourceDigest = createHash('sha256')
+    .update(JSON.stringify(canonicalSanitizedValue(sourceReviewBody)), 'utf8')
+    .digest('hex');
+  if (sourceDigest !== row.sourceReportDigest) invalidSanitizedReview();
+  const expected = {
+    schema: PENDING_OWNER_REVIEW_SCHEMA,
+    atlasId: PENDING_OWNER_REVIEW_ATLAS_ID,
+    generatorVersion: row.generatorVersion,
+    sourceCommit: row.sourceCommit,
+    reviewBatchHandle: row.reviewBatchHandle,
+    sourceReportDigest: row.sourceReportDigest,
+    worldCount: 1,
+    candidate,
+    automatedValidationStatus: 'private-package-and-sanitized-aggregate-verified',
+    ownerValidationStatus: 'pending',
+    selectionStatus: 'pending',
+    selectedCandidateHandle: null,
+    activationStatus: 'inactive',
+    productionUntouched: true,
+    privacyBoundary: SANITIZED_REVIEW_PRIVACY_BOUNDARY,
+  };
+  if (text !== `${JSON.stringify(expected, null, 2)}\n`) invalidSanitizedReview();
 }
 
 function validateSanitizedReviewEvidenceReadme(bytes) {
@@ -1905,6 +2218,7 @@ function scanText(text, relativePath) {
   if (
     PRIVATE_TEXT_FIELD.test(scrubbed)
     || containsPrivateReliefStructureAuthority(scrubbed, relativePath)
+    || containsPrivateAdvancedAggregateAuthority(scrubbed, relativePath)
     || containsPrivateLivingWorldAuthority(scrubbed, relativePath)
     || containsPrivateIdentifierSecretValue(scrubbed)
     || INLINE_DATA_SOURCE_MAP.test(scrubbed)
@@ -1931,7 +2245,11 @@ function scanLoadedBytes(bytes, relativePath, knownText) {
     scanText(text, relativePath);
     if (SANITIZED_REVIEW_EVIDENCE_PATH.test(relativePath)) {
       if (bytes.length > SANITIZED_REVIEW_MAXIMUM_BYTES) invalidSanitizedReview();
-      validateSanitizedReviewEvidence(text);
+      if (relativePath === PENDING_OWNER_REVIEW_EVIDENCE_PATH) {
+        validatePendingOwnerReviewEvidence(text);
+      } else {
+        validateSanitizedReviewEvidence(text);
+      }
     }
   } else if (encodedUnicodeText !== undefined) {
     scanText(encodedUnicodeText, relativePath);

@@ -37,11 +37,17 @@ const PRIVATE_PUBLICATION_RESERVED_PREFIX = '.wk-publish-';
 const PRIVATE_PUBLICATION_ENVELOPE = '.wk-publish-envelope-v1';
 const PRIVATE_PUBLICATION_COMMIT = '.wk-publish-commit-v1';
 const PRIVATE_PUBLICATION_PAYLOAD_PREFIX = '.wk-publish-payload-';
+const PRIVATE_PENDING_DIRECTORY = '.pending';
+const PRIVATE_PENDING_TARGET_PREFIX = 'target-';
 const PRIVATE_PUBLICATION_ENVELOPE_BYTES = Buffer.from(
   'warpkeep-greater-realm-private-directory-envelope-v1\n',
   'utf8',
 );
 const PRIVATE_PUBLICATION_PAYLOAD = /^\.wk-publish-payload-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+const PRIVATE_PENDING_STAGE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+const PRIVATE_LOCK_PREFIX = 'greater-realm-private-lock-v2\npid:';
+const PRIVATE_LOCK_SUFFIX = '\n';
+const PRIVATE_LOCK_MAXIMUM_BYTES = 96;
 const DEFAULT_MAXIMUM_FILE_BYTES = 512 * 1024 * 1024;
 const MAXIMUM_TREE_ENTRIES = 250_000;
 const FORBIDDEN_SECRET_ARGUMENT = /^(?:--)?(?:private-)?(?:atlas-)?(?:seed|seed-hex|seed-material|layout-digest|stage-digest|package-digest)(?:=|$)/iu;
@@ -214,6 +220,34 @@ function hardenNewPrivateDirectory(path: string): void {
   }
 }
 
+function fsyncTrustedDirectoryEntry(path: string): void {
+  let descriptor: number | undefined;
+  try {
+    const before = lstatSync(path);
+    assertTrustedAncestorStatus(before);
+    descriptor = openSync(
+      path,
+      constants.O_RDONLY
+        | (constants.O_DIRECTORY ?? 0)
+        | (constants.O_NOFOLLOW ?? 0),
+    );
+    const opened = fstatSync(descriptor);
+    if (!sameIdentity(before, opened)) {
+      fail('GREATER_REALM_PRIVATE_DIRECTORY_CHANGED');
+    }
+    fsyncSync(descriptor);
+    const after = lstatSync(path);
+    if (!sameIdentity(opened, after)) {
+      fail('GREATER_REALM_PRIVATE_DIRECTORY_CHANGED');
+    }
+  } catch (error) {
+    if (error instanceof GreaterRealmPrivateWorkspaceError) throw error;
+    fail('GREATER_REALM_PRIVATE_DIRECTORY_CHANGED');
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
 function assertExistingPathHasNoSymlinks(path: string): void {
   const absolute = resolve(path);
   const root = parse(absolute).root;
@@ -257,6 +291,7 @@ function ensurePrivateWorkspaceRoot(path: string): void {
   const components = relative(root, absolute).split(sep).filter(Boolean);
   let current = root;
   for (const component of components) {
+    const parent = current;
     current = join(current, component);
     let status = existsSync(current) ? lstatSync(current) : undefined;
     let created = false;
@@ -276,6 +311,7 @@ function ensurePrivateWorkspaceRoot(path: string): void {
     }
     if (created) {
       hardenNewPrivateDirectory(current);
+      fsyncTrustedDirectoryEntry(parent);
     }
   }
   ownerOnlyDirectory(absolute);
@@ -318,6 +354,14 @@ function publicationClaimName(component: string): string {
     .update(component, 'utf8')
     .digest('hex');
   return `${PRIVATE_PUBLICATION_RESERVED_PREFIX}claim-${digest}`;
+}
+
+function pendingPublicationTargetName(relativePath: string): string {
+  const digest = createHash('sha256')
+    .update('warpkeep-greater-realm-private-pending-target-v1\0', 'utf8')
+    .update(relativePath, 'utf8')
+    .digest('hex');
+  return `${PRIVATE_PENDING_TARGET_PREFIX}${digest}`;
 }
 
 function resolvePrivatePath(root: string, value: string): string {
@@ -378,6 +422,28 @@ function zeroizeOpenFile(
   } catch {
     // Secure erasure cannot be guaranteed by a filesystem. We still overwrite
     // every reachable byte best-effort before unlinking the private inode.
+  } finally {
+    zeros.fill(0);
+  }
+}
+
+function zeroizeOpenFileStrict(
+  descriptor: number,
+  byteLength: number,
+): void {
+  if (!Number.isSafeInteger(byteLength) || byteLength < 0) {
+    fail('GREATER_REALM_PRIVATE_FILE_INVALID');
+  }
+  const zeros = Buffer.alloc(Math.min(64 * 1_024, Math.max(1, byteLength)));
+  try {
+    let offset = 0;
+    while (offset < byteLength) {
+      const length = Math.min(zeros.byteLength, byteLength - offset);
+      const written = writeSync(descriptor, zeros, 0, length, offset);
+      if (written !== length) fail('GREATER_REALM_PRIVATE_WRITE_FAILED');
+      offset += written;
+    }
+    fsyncSync(descriptor);
   } finally {
     zeros.fill(0);
   }
@@ -444,6 +510,8 @@ export type GreaterRealmPrivateWorkspace = Readonly<{
   hasFile(relativePath: string): boolean;
   readFile(relativePath: string, maximumBytes?: number): Buffer;
   writeFileAtomic(relativePath: string, bytes: Uint8Array, maximumBytes?: number): void;
+  recoverAtomicFileWrite(relativePath: string): 'absent' | 'installed';
+  recoverAtomicDirectoryPublish(relativePath: string): 'absent' | 'published';
   attestTree(relativePath?: string): GreaterRealmPrivateTreeAttestation;
   withExclusiveLock<T>(relativePath: string, operation: () => Promise<T>): Promise<T>;
   withAtomicDirectoryPublish<T>(
@@ -688,7 +756,12 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
       } catch {
         if (!existsSync(next)) fail('GREATER_REALM_PRIVATE_DIRECTORY_CREATE_FAILED');
       }
-      if (created) hardenNewPrivateDirectory(next);
+      if (created) {
+        hardenNewPrivateDirectory(next);
+        // A durable child inode is not enough: the parent directory entry must
+        // reach stable storage before a later checkpoint can depend on it.
+        fsyncPrivateDirectory(current, parentAttestation.identity);
+      }
       const nextAttestation = attestDirectory(next, true);
       attestDirectory(current, true, parentAttestation.identity);
       current = next;
@@ -870,6 +943,7 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
       if (!sameIdentity(openInstalled, temporaryIdentity)) {
         fail('GREATER_REALM_PRIVATE_FILE_CHANGED');
       }
+      fsyncPrivateDirectory(parent, parentAttestation.at(-1)!.identity);
       attestPrivateDirectoryChain(parent, parentAttestation);
       closeSync(descriptor);
       descriptor = undefined;
@@ -960,13 +1034,16 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
 
   /**
    * Remove only the exact entries reached below a pinned private directory.
-   * Cleanup never opens file contents and never follows a symbolic or hard
-   * link. This is deletion, not secure erasure: copy-on-write and journaled
-   * filesystems cannot promise physical media overwrites.
+   * Regular files are pinned without following links, overwritten, synced,
+   * and unlinked. Copy-on-write and journaled filesystems still cannot promise
+   * physical-media erasure. A rejected live staging operation may retire its
+   * own symbolic-link inode without following it; crash recovery remains
+   * fail-closed for links and special files.
    */
   const removePrivateTree = (
     path: string,
     expectedRoot?: FilesystemIdentity,
+    retireRejectedStageLinks = false,
   ): void => {
     const parent = dirname(path);
     const parentAttestation = attestPrivateDirectoryChain(parent);
@@ -975,10 +1052,52 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
       if (expected !== undefined && !sameIdentity(status, expected)) {
         fail('GREATER_REALM_PRIVATE_DIRECTORY_CHANGED');
       }
-      if (!status.isDirectory() || status.isSymbolicLink()) {
+      if (status.isSymbolicLink() && retireRejectedStageLinks) {
         const identity = Object.freeze({ dev: status.dev, ino: status.ino });
         safeUnlinkIdentity(entryPath, identity);
         if (existsSync(entryPath)) fail('GREATER_REALM_PRIVATE_STAGING_CLEANUP_FAILED');
+        const entryParent = dirname(entryPath);
+        const entryParentIdentity = attestDirectory(entryParent, true).identity;
+        fsyncPrivateDirectory(entryParent, entryParentIdentity);
+        return;
+      }
+      if (!status.isDirectory() || status.isSymbolicLink()) {
+        if (!status.isFile() || status.isSymbolicLink()) {
+          fail('GREATER_REALM_PRIVATE_SPECIAL_FILE');
+        }
+        const identity = Object.freeze({ dev: status.dev, ino: status.ino });
+        let descriptor: number | undefined;
+        try {
+          descriptor = openSync(
+            entryPath,
+            constants.O_RDWR | (constants.O_NOFOLLOW ?? 0),
+          );
+          const opened = fstatSync(descriptor);
+          assertRegularOwnerFileStatus(opened);
+          if (
+            !sameIdentity(status, opened)
+            || opened.size !== status.size
+            || (opened.mode & 0o777) !== PRIVATE_FILE_MODE
+          ) fail('GREATER_REALM_PRIVATE_FILE_CHANGED');
+          zeroizeOpenFileStrict(descriptor, opened.size);
+          const after = fstatSync(descriptor);
+          const current = lstatSync(entryPath);
+          if (
+            !sameIdentity(opened, after)
+            || !sameIdentity(after, current)
+            || after.nlink !== 1
+            || after.size !== opened.size
+          ) fail('GREATER_REALM_PRIVATE_FILE_CHANGED');
+          closeSync(descriptor);
+          descriptor = undefined;
+        } finally {
+          if (descriptor !== undefined) closeSync(descriptor);
+        }
+        safeUnlinkIdentity(entryPath, identity);
+        if (existsSync(entryPath)) fail('GREATER_REALM_PRIVATE_STAGING_CLEANUP_FAILED');
+        const entryParent = dirname(entryPath);
+        const entryParentIdentity = attestDirectory(entryParent, true).identity;
+        fsyncPrivateDirectory(entryParent, entryParentIdentity);
         return;
       }
       const directory = attestDirectory(entryPath, true, expected);
@@ -993,6 +1112,9 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
       attestDirectory(entryPath, true, directory.identity);
       rmdirSync(entryPath);
       if (existsSync(entryPath)) fail('GREATER_REALM_PRIVATE_STAGING_CLEANUP_FAILED');
+      const directoryParent = dirname(entryPath);
+      const directoryParentIdentity = attestDirectory(directoryParent, true).identity;
+      fsyncPrivateDirectory(directoryParent, directoryParentIdentity);
     };
     visit(path, expectedRoot);
     attestPrivateDirectoryChain(parent, parentAttestation);
@@ -1026,6 +1148,407 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
     } finally {
       if (descriptor !== undefined) closeSync(descriptor);
     }
+  };
+
+  const assertAtomicArtifactStatus = (status: Stats): void => {
+    if (
+      !status.isFile()
+      || status.isSymbolicLink()
+      || (status.nlink !== 1 && status.nlink !== 2)
+      || (process.getuid !== undefined && status.uid !== process.getuid())
+      || (status.mode & 0o777) !== PRIVATE_FILE_MODE
+    ) fail('GREATER_REALM_PRIVATE_FILE_INVALID');
+  };
+
+  /**
+   * Complete or retire only a UUID-scoped temporary inode created by this
+   * module. A two-link inode is recoverable only when its other name is the
+   * exact destination; every replacement, extra link, or special file fails
+   * closed. An uninstalled temporary is overwritten best-effort before unlink.
+   */
+  const recoverAtomicTemporary = (
+    temporary: string,
+    destinations: readonly string[],
+    parent: string,
+    parentAttestation: readonly DirectoryAttestation[],
+  ): void => {
+    const before = lstatSync(temporary);
+    assertAtomicArtifactStatus(before);
+    const identity = Object.freeze({ dev: before.dev, ino: before.ino });
+    if (before.nlink === 2) {
+      const matchingDestinations = destinations.filter(destination => {
+        if (!existsSync(destination)) return false;
+        const status = lstatSync(destination);
+        assertAtomicArtifactStatus(status);
+        return sameIdentity(status, identity);
+      });
+      if (matchingDestinations.length !== 1) {
+        fail('GREATER_REALM_PRIVATE_FILE_CHANGED');
+      }
+      attestPrivateDirectoryChain(parent, parentAttestation);
+      safeUnlinkIdentity(temporary, identity);
+      if (existsSync(temporary)) fail('GREATER_REALM_PRIVATE_FILE_CHANGED');
+      const installed = assertRegularOwnerFile(matchingDestinations[0]!);
+      if (
+        !sameIdentity(installed, identity)
+        || (installed.mode & 0o777) !== PRIVATE_FILE_MODE
+      ) fail('GREATER_REALM_PRIVATE_FILE_CHANGED');
+      attestPrivateDirectoryChain(parent, parentAttestation);
+      return;
+    }
+
+    let descriptor: number | undefined;
+    try {
+      descriptor = openSync(
+        temporary,
+        constants.O_RDWR | (constants.O_NOFOLLOW ?? 0),
+      );
+      const opened = fstatSync(descriptor);
+      assertAtomicArtifactStatus(opened);
+      const current = lstatSync(temporary);
+      if (
+        opened.nlink !== 1
+        || !sameIdentity(before, opened)
+        || !sameIdentity(opened, current)
+        || opened.size !== current.size
+      ) fail('GREATER_REALM_PRIVATE_FILE_CHANGED');
+      zeroizeOpenFile(descriptor, opened.size);
+      const after = fstatSync(descriptor);
+      if (!sameIdentity(opened, after) || after.nlink !== 1) {
+        fail('GREATER_REALM_PRIVATE_FILE_CHANGED');
+      }
+      closeSync(descriptor);
+      descriptor = undefined;
+      attestPrivateDirectoryChain(parent, parentAttestation);
+      safeUnlinkIdentity(temporary, identity);
+      if (existsSync(temporary)) fail('GREATER_REALM_PRIVATE_FILE_CHANGED');
+      attestPrivateDirectoryChain(parent, parentAttestation);
+    } catch (error) {
+      if (error instanceof GreaterRealmPrivateWorkspaceError) throw error;
+      fail('GREATER_REALM_PRIVATE_FILE_CHANGED');
+    } finally {
+      if (descriptor !== undefined) closeSync(descriptor);
+    }
+  };
+
+  const recoverAtomicFileWrite = (
+    relativePath: string,
+  ): 'absent' | 'installed' => {
+    const destination = resolveWorkspacePath(relativePath);
+    assertExistingPathHasNoSymlinks(destination);
+    const parent = dirname(destination);
+    const parentAttestation = attestPrivateDirectoryChain(parent);
+    const escapedName = basename(destination).replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+    const temporaryPattern = new RegExp(
+      `^\\.${escapedName}\\.[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.tmp$`,
+      'u',
+    );
+    let recoveredTemporary = false;
+    for (const entry of readdirSync(parent).sort()) {
+      if (!temporaryPattern.test(entry)) continue;
+      recoverAtomicTemporary(
+        join(parent, entry),
+        [destination],
+        parent,
+        parentAttestation,
+      );
+      recoveredTemporary = true;
+    }
+    let result: 'absent' | 'installed' = 'absent';
+    if (existsSync(destination)) {
+      const installed = assertRegularOwnerFile(destination);
+      if ((installed.mode & 0o777) !== PRIVATE_FILE_MODE) {
+        fail('GREATER_REALM_PRIVATE_FILE_INVALID');
+      }
+      result = 'installed';
+    }
+    if (recoveredTemporary) {
+      fsyncPrivateDirectory(parent, parentAttestation.at(-1)!.identity);
+    }
+    attestPrivateDirectoryChain(parent, parentAttestation);
+    return result;
+  };
+
+  const recoverPrivatePublicationControlTemporaries = (
+    destination: string,
+    destinationAttestation: readonly DirectoryAttestation[],
+  ): void => {
+    const temporaryPattern = /^\.wk-publish-temporary-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+    for (const entry of readdirSync(destination).sort()) {
+      if (!entry.startsWith(`${PRIVATE_PUBLICATION_RESERVED_PREFIX}temporary-`)) continue;
+      if (!temporaryPattern.test(entry)) {
+        fail('GREATER_REALM_PRIVATE_PUBLICATION_INCOMPLETE');
+      }
+      recoverAtomicTemporary(
+        join(destination, entry),
+        [
+          join(destination, PRIVATE_PUBLICATION_ENVELOPE),
+          join(destination, PRIVATE_PUBLICATION_COMMIT),
+        ],
+        destination,
+        destinationAttestation,
+      );
+    }
+  };
+
+  const inspectPrivatePublication = (
+    destination: string,
+  ): Readonly<{
+    status: 'absent' | 'incomplete' | 'published';
+    identity?: FilesystemIdentity;
+  }> => {
+    if (!existsSync(destination)) return Object.freeze({ status: 'absent' });
+    const destinationStatus = lstatSync(destination);
+    if (!destinationStatus.isDirectory() || destinationStatus.isSymbolicLink()) {
+      fail('GREATER_REALM_PRIVATE_PUBLICATION_INCOMPLETE');
+    }
+    const destinationIdentity = attestDirectory(destination, true).identity;
+    const destinationAttestation = attestPrivateDirectoryChain(destination);
+    recoverPrivatePublicationControlTemporaries(destination, destinationAttestation);
+    const entries = readdirSync(destination).sort();
+    const payloadNames = entries.filter(entry => PRIVATE_PUBLICATION_PAYLOAD.test(entry));
+    const allowedEntries = new Set([
+      PRIVATE_PUBLICATION_ENVELOPE,
+      PRIVATE_PUBLICATION_COMMIT,
+      ...payloadNames,
+    ]);
+    if (
+      payloadNames.length > 1
+      || entries.some(entry => !allowedEntries.has(entry))
+    ) fail('GREATER_REALM_PRIVATE_PUBLICATION_INCOMPLETE');
+
+    const envelopeMarker = join(destination, PRIVATE_PUBLICATION_ENVELOPE);
+    const commitMarker = join(destination, PRIVATE_PUBLICATION_COMMIT);
+    const hasEnvelope = existsSync(envelopeMarker);
+    const hasCommit = existsSync(commitMarker);
+    let envelopeBytes: Buffer | undefined;
+    let commitBytes: Buffer | undefined;
+    let committedPayloadName: string | undefined;
+    try {
+      if (hasEnvelope) {
+        envelopeBytes = readPrivatePublicationControl(
+          envelopeMarker,
+          PRIVATE_PUBLICATION_ENVELOPE_BYTES.byteLength,
+        );
+        if (!envelopeBytes.equals(PRIVATE_PUBLICATION_ENVELOPE_BYTES)) {
+          fail('GREATER_REALM_PRIVATE_PUBLICATION_INCOMPLETE');
+        }
+      }
+      if (hasCommit) {
+        commitBytes = readPrivatePublicationControl(commitMarker, 256);
+        committedPayloadName = /^warpkeep-greater-realm-private-directory-commit-v1\n([^\n]+)\n$/u
+          .exec(commitBytes.toString('utf8'))?.[1];
+        if (
+          committedPayloadName === undefined
+          || !PRIVATE_PUBLICATION_PAYLOAD.test(committedPayloadName)
+        ) fail('GREATER_REALM_PRIVATE_PUBLICATION_INCOMPLETE');
+      }
+      if (hasEnvelope && hasCommit) {
+        const expectedEntries = [
+          PRIVATE_PUBLICATION_COMMIT,
+          PRIVATE_PUBLICATION_ENVELOPE,
+          committedPayloadName!,
+        ].sort();
+        if (
+          entries.length !== expectedEntries.length
+          || entries.some((entry, index) => entry !== expectedEntries[index])
+        ) fail('GREATER_REALM_PRIVATE_PUBLICATION_INCOMPLETE');
+        const payload = join(destination, committedPayloadName!);
+        attestDirectory(payload, true);
+        attestTreeAt(payload);
+        attestDirectory(destination, true, destinationIdentity);
+        return Object.freeze({
+          status: 'published',
+          identity: destinationIdentity,
+        });
+      }
+      // The publisher creates these in strict order: envelope, payload,
+      // commit. Any other incomplete arrangement is not one of our crash
+      // states and must not be retired automatically.
+      if (
+        hasCommit
+        || (!hasEnvelope && payloadNames.length !== 0)
+        || (hasEnvelope && payloadNames.length > 1)
+      ) fail('GREATER_REALM_PRIVATE_PUBLICATION_INCOMPLETE');
+      if (payloadNames.length === 1) {
+        attestDirectory(join(destination, payloadNames[0]!), true);
+      }
+      attestTreeAt(destination);
+      attestDirectory(destination, true, destinationIdentity);
+      return Object.freeze({
+        status: 'incomplete',
+        identity: destinationIdentity,
+      });
+    } finally {
+      envelopeBytes?.fill(0);
+      commitBytes?.fill(0);
+    }
+  };
+
+  /**
+   * Staging directories are grouped by a digest of their exact logical
+   * destination. A hard crash before the publication claim is installed can
+   * therefore be recovered without sweeping another batch's private work.
+   */
+  const recoverPendingPublicationStages = (
+    destinationRelativePath: string,
+  ): void => {
+    const pending = join(workspaceRoot, PRIVATE_PENDING_DIRECTORY);
+    if (!existsSync(pending)) return;
+    const pendingAttestation = attestPrivateDirectoryChain(pending);
+    const target = join(
+      pending,
+      pendingPublicationTargetName(destinationRelativePath),
+    );
+    if (!existsSync(target)) {
+      attestPrivateDirectoryChain(pending, pendingAttestation);
+      return;
+    }
+    const targetIdentity = attestDirectory(target, true).identity;
+    for (const entry of readdirSync(target, { withFileTypes: true })
+      .sort((left, right) => left.name.localeCompare(right.name))) {
+      if (
+        !PRIVATE_PENDING_STAGE.test(entry.name)
+        || !entry.isDirectory()
+        || entry.isSymbolicLink()
+      ) fail('GREATER_REALM_PRIVATE_PUBLICATION_INCOMPLETE');
+      const stage = join(target, entry.name);
+      const stageIdentity = attestDirectory(stage, true).identity;
+      removePrivateTree(stage, stageIdentity);
+    }
+    const currentTarget = lstatSync(target);
+    if (!sameIdentity(currentTarget, targetIdentity)) {
+      fail('GREATER_REALM_PRIVATE_DIRECTORY_CHANGED');
+    }
+    rmdirSync(target);
+    if (existsSync(target)) fail('GREATER_REALM_PRIVATE_STAGING_CLEANUP_FAILED');
+    fsyncPrivateDirectory(pending, pendingAttestation.at(-1)!.identity);
+    attestPrivateDirectoryChain(pending, pendingAttestation);
+  };
+
+  const recoverAtomicDirectoryPublish = (
+    relativePath: string,
+  ): 'absent' | 'published' => {
+    const destinationComponents = validateRelativePath(relativePath);
+    if (destinationComponents[0] === '.pending') {
+      fail('GREATER_REALM_PRIVATE_STAGING_SCOPE_INVALID');
+    }
+    const parentRelativePath = destinationComponents.slice(0, -1).join('/');
+    const parent = parentRelativePath
+      ? ensureDirectory(parentRelativePath)
+      : workspaceRoot;
+    const destinationName = destinationComponents.at(-1);
+    if (destinationName === undefined) fail('GREATER_REALM_PRIVATE_RELATIVE_PATH_INVALID');
+    const destination = join(parent, destinationName);
+    const claim = join(parent, publicationClaimName(destinationName));
+    const parentAttestation = attestPrivateDirectoryChain(parent);
+    assertExistingPathHasNoSymlinks(destination);
+    recoverPendingPublicationStages(destinationComponents.join('/'));
+
+    let claimIdentity: FilesystemIdentity | undefined;
+    if (existsSync(claim)) {
+      const claimStatus = assertRegularOwnerFile(claim);
+      if (
+        (claimStatus.mode & 0o777) !== PRIVATE_FILE_MODE
+        || claimStatus.size < 0
+      ) {
+        fail('GREATER_REALM_PRIVATE_PUBLICATION_INCOMPLETE');
+      }
+      claimIdentity = Object.freeze({ dev: claimStatus.dev, ino: claimStatus.ino });
+      const expectedClaim = Buffer.from(
+        `warpkeep-greater-realm-private-directory-claim-v1\n${destinationName}\n`,
+        'utf8',
+      );
+      let claimDescriptor: number | undefined;
+      let actualClaim: Buffer | undefined;
+      try {
+        if (claimStatus.size > expectedClaim.byteLength) {
+          fail('GREATER_REALM_PRIVATE_PUBLICATION_INCOMPLETE');
+        }
+        claimDescriptor = openSync(
+          claim,
+          constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0),
+        );
+        const openedClaim = fstatSync(claimDescriptor);
+        if (
+          !sameIdentity(openedClaim, claimIdentity)
+          || openedClaim.size !== claimStatus.size
+          || openedClaim.nlink !== 1
+          || (openedClaim.mode & 0o777) !== PRIVATE_FILE_MODE
+        ) fail('GREATER_REALM_PRIVATE_PUBLICATION_INCOMPLETE');
+        actualClaim = Buffer.alloc(openedClaim.size);
+        let offset = 0;
+        while (offset < actualClaim.byteLength) {
+          const count = readSync(
+            claimDescriptor,
+            actualClaim,
+            offset,
+            actualClaim.byteLength - offset,
+            null,
+          );
+          if (count <= 0) fail('GREATER_REALM_PRIVATE_PUBLICATION_INCOMPLETE');
+          offset += count;
+        }
+        const currentClaim = assertRegularOwnerFile(claim);
+        if (
+          !sameIdentity(currentClaim, claimIdentity)
+          || currentClaim.size !== actualClaim.byteLength
+        ) fail('GREATER_REALM_PRIVATE_PUBLICATION_INCOMPLETE');
+        const completeClaim = actualClaim.equals(expectedClaim);
+        const recoverablePartialClaim = (
+          !existsSync(destination)
+          && actualClaim.byteLength < expectedClaim.byteLength
+          && expectedClaim.subarray(0, actualClaim.byteLength).equals(actualClaim)
+        );
+        if (!completeClaim && !recoverablePartialClaim) {
+          fail('GREATER_REALM_PRIVATE_PUBLICATION_INCOMPLETE');
+        }
+        if (recoverablePartialClaim) {
+          closeSync(claimDescriptor);
+          claimDescriptor = undefined;
+          safeUnlinkIdentity(claim, claimIdentity);
+          if (existsSync(claim) || existsSync(destination)) {
+            fail('GREATER_REALM_PRIVATE_FILE_CHANGED');
+          }
+          fsyncPrivateDirectory(parent, parentAttestation.at(-1)!.identity);
+          attestPrivateDirectoryChain(parent, parentAttestation);
+          return 'absent';
+        }
+      } finally {
+        if (claimDescriptor !== undefined) closeSync(claimDescriptor);
+        actualClaim?.fill(0);
+        expectedClaim.fill(0);
+      }
+    }
+
+    const publication = inspectPrivatePublication(destination);
+    if (claimIdentity === undefined) {
+      if (publication.status === 'absent') return 'absent';
+      if (publication.status !== 'published' || publication.identity === undefined) {
+        fail('GREATER_REALM_PRIVATE_PUBLICATION_INCOMPLETE');
+      }
+      fsyncPrivateDirectory(destination, publication.identity);
+      fsyncPrivateDirectory(parent, parentAttestation.at(-1)!.identity);
+      return 'published';
+    }
+
+    if (publication.status === 'incomplete') {
+      if (publication.identity === undefined) {
+        fail('GREATER_REALM_PRIVATE_PUBLICATION_INCOMPLETE');
+      }
+      removePrivateTree(destination, publication.identity);
+      if (existsSync(destination)) fail('GREATER_REALM_PRIVATE_STAGING_CLEANUP_FAILED');
+    } else if (publication.status === 'published') {
+      if (publication.identity === undefined) {
+        fail('GREATER_REALM_PRIVATE_PUBLICATION_INCOMPLETE');
+      }
+      fsyncPrivateDirectory(destination, publication.identity);
+    }
+    safeUnlinkIdentity(claim, claimIdentity);
+    if (existsSync(claim)) fail('GREATER_REALM_PRIVATE_FILE_CHANGED');
+    fsyncPrivateDirectory(parent, parentAttestation.at(-1)!.identity);
+    attestPrivateDirectoryChain(parent, parentAttestation);
+    return publication.status === 'published' ? 'published' : 'absent';
   };
 
   const writePrivatePublicationControlAtomic = (
@@ -1100,6 +1623,7 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
         || finalOpened.size !== bytes.byteLength
         || (installed.mode & 0o777) !== PRIVATE_FILE_MODE
       ) fail('GREATER_REALM_PRIVATE_FILE_CHANGED');
+      fsyncPrivateDirectory(parent, parentAttestation.at(-1)!.identity);
       attestPrivateDirectoryChain(parent, parentAttestation);
       completed = true;
       return temporaryIdentity;
@@ -1117,6 +1641,87 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
     }
   };
 
+  const recoverStaleExclusiveLock = (
+    lockPath: string,
+    parent: string,
+    parentAttestation: readonly DirectoryAttestation[],
+  ): boolean => {
+    let descriptor: number | undefined;
+    let bytes: Buffer | undefined;
+    try {
+      const before = lstatSync(lockPath);
+      assertRegularOwnerFileStatus(before);
+      if (
+        before.nlink !== 1
+        || (before.mode & 0o777) !== PRIVATE_FILE_MODE
+        || before.size < 0
+        || before.size > PRIVATE_LOCK_MAXIMUM_BYTES
+      ) fail('GREATER_REALM_PRIVATE_FILE_INVALID');
+      const identity = Object.freeze({ dev: before.dev, ino: before.ino });
+      descriptor = openSync(
+        lockPath,
+        constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0),
+      );
+      const opened = fstatSync(descriptor);
+      if (!sameIdentity(opened, identity) || opened.size !== before.size) {
+        fail('GREATER_REALM_PRIVATE_FILE_CHANGED');
+      }
+      bytes = Buffer.alloc(opened.size);
+      let offset = 0;
+      while (offset < bytes.byteLength) {
+        const count = readSync(descriptor, bytes, offset, bytes.byteLength - offset, null);
+        if (count <= 0) fail('GREATER_REALM_PRIVATE_FILE_CHANGED');
+        offset += count;
+      }
+      const after = fstatSync(descriptor);
+      const current = lstatSync(lockPath);
+      if (
+        !sameIdentity(opened, after)
+        || !sameIdentity(after, current)
+        || opened.size !== after.size
+        || opened.mtimeMs !== after.mtimeMs
+        || opened.ctimeMs !== after.ctimeMs
+      ) fail('GREATER_REALM_PRIVATE_FILE_CHANGED');
+      const text = bytes.toString('utf8');
+      const match = /^greater-realm-private-lock-v2\npid:([1-9][0-9]*)\n$/u.exec(text);
+      let recoverable = false;
+      if (match !== null) {
+        const pid = Number(match[1]);
+        if (!Number.isSafeInteger(pid) || pid < 1 || pid > 2_147_483_647) {
+          fail('GREATER_REALM_PRIVATE_FILE_INVALID');
+        }
+        try {
+          process.kill(pid, 0);
+        } catch (error) {
+          recoverable = (error as NodeJS.ErrnoException)?.code === 'ESRCH';
+        }
+        if (!recoverable) return false;
+      } else {
+        // A strict prefix can only be left before operation() is entered. The
+        // creator rechecks the path identity after the full record is fsynced,
+        // so racing recovery cannot let two operations enter concurrently.
+        recoverable = PRIVATE_LOCK_PREFIX.startsWith(text)
+          || (
+            text.startsWith(PRIVATE_LOCK_PREFIX)
+            && /^[1-9][0-9]*$/u.test(text.slice(PRIVATE_LOCK_PREFIX.length))
+          );
+        if (!recoverable) fail('GREATER_REALM_PRIVATE_FILE_INVALID');
+      }
+      attestPrivateDirectoryChain(parent, parentAttestation);
+      safeUnlinkIdentity(lockPath, identity);
+      if (existsSync(lockPath)) fail('GREATER_REALM_PRIVATE_FILE_CHANGED');
+      fsyncPrivateDirectory(parent, parentAttestation.at(-1)!.identity);
+      attestPrivateDirectoryChain(parent, parentAttestation);
+      return true;
+    } catch (error) {
+      if (error instanceof GreaterRealmPrivateWorkspaceError) throw error;
+      fail('GREATER_REALM_PRIVATE_FILE_INVALID');
+    } finally {
+      bytes?.fill(0);
+      if (descriptor !== undefined) closeSync(descriptor);
+    }
+  };
+
   const withExclusiveLock = async <T>(
     relativePath: string,
     operation: () => Promise<T>,
@@ -1128,22 +1733,34 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
       fail('GREATER_REALM_PRIVATE_RELATIVE_PATH_INVALID');
     }
     const parentAttestation = attestPrivateDirectoryChain(parent);
-    let descriptor: number;
-    try {
-      descriptor = openSync(
-        lockPath,
-        constants.O_CREAT
-          | constants.O_EXCL
-          | constants.O_WRONLY
-          | (constants.O_NOFOLLOW ?? 0),
-        PRIVATE_FILE_MODE,
-      );
-    } catch {
-      fail('GREATER_REALM_PRIVATE_ALREADY_RUNNING');
+    let descriptor: number | undefined;
+    for (;;) {
+      try {
+        descriptor = openSync(
+          lockPath,
+          constants.O_CREAT
+            | constants.O_EXCL
+            | constants.O_WRONLY
+            | (constants.O_NOFOLLOW ?? 0),
+          PRIVATE_FILE_MODE,
+        );
+        break;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException)?.code !== 'EEXIST') {
+          fail('GREATER_REALM_PRIVATE_FILE_INVALID');
+        }
+        if (!recoverStaleExclusiveLock(lockPath, parent, parentAttestation)) {
+          fail('GREATER_REALM_PRIVATE_ALREADY_RUNNING');
+        }
+      }
     }
     let lockIdentity: FilesystemIdentity | undefined;
-    const lockBytes = Buffer.from('greater-realm-private-lock-v1\n', 'utf8');
+    const lockBytes = Buffer.from(
+      `${PRIVATE_LOCK_PREFIX}${process.pid}${PRIVATE_LOCK_SUFFIX}`,
+      'utf8',
+    );
     try {
+      if (descriptor === undefined) fail('GREATER_REALM_PRIVATE_FILE_INVALID');
       const created = fstatSync(descriptor);
       lockIdentity = Object.freeze({ dev: created.dev, ino: created.ino });
       fchmodSync(descriptor, PRIVATE_FILE_MODE);
@@ -1151,11 +1768,23 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
       attestPrivateDirectoryChain(parent, parentAttestation);
       writeAll(descriptor, lockBytes);
       fsyncSync(descriptor);
+      const written = fstatSync(descriptor);
+      const current = assertRegularOwnerFile(lockPath);
+      if (
+        !sameIdentity(written, lockIdentity)
+        || !sameIdentity(current, lockIdentity)
+        || written.size !== lockBytes.byteLength
+        || current.size !== lockBytes.byteLength
+        || (written.mode & 0o777) !== PRIVATE_FILE_MODE
+      ) fail('GREATER_REALM_PRIVATE_FILE_CHANGED');
+      fsyncPrivateDirectory(parent, parentAttestation.at(-1)!.identity);
+      attestPrivateDirectoryChain(parent, parentAttestation);
       return await operation();
     } finally {
       lockBytes.fill(0);
       let lockInvalid = false;
       try {
+        if (descriptor === undefined) throw new Error('lock descriptor missing');
         const opened = fstatSync(descriptor);
         const current = lstatSync(lockPath);
         if (
@@ -1168,9 +1797,14 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
       } catch {
         lockInvalid = true;
       }
-      try { closeSync(descriptor); } catch { lockInvalid = true; }
+      if (descriptor !== undefined) {
+        try { closeSync(descriptor); } catch { lockInvalid = true; }
+        descriptor = undefined;
+      }
       if (lockIdentity !== undefined) safeUnlinkIdentity(lockPath, lockIdentity);
       try {
+        if (existsSync(lockPath)) lockInvalid = true;
+        fsyncPrivateDirectory(parent, parentAttestation.at(-1)!.identity);
         attestPrivateDirectoryChain(parent, parentAttestation);
       } catch {
         lockInvalid = true;
@@ -1191,6 +1825,10 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
       fail('GREATER_REALM_PRIVATE_STAGING_SCOPE_INVALID');
     }
     const destinationRelativePath = destinationComponents.join('/');
+    const publicationLockPath = (
+      `locks/publications/${pendingPublicationTargetName(destinationRelativePath)}.lock`
+    );
+    return withExclusiveLock(publicationLockPath, async () => {
     const destinationParentRelativePath = destinationComponents.slice(0, -1).join('/');
     const destinationParent = destinationParentRelativePath
       ? ensureDirectory(destinationParentRelativePath)
@@ -1205,10 +1843,16 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
       fail('GREATER_REALM_PRIVATE_DESTINATION_EXISTS');
     }
 
-    const pendingRelativePath = '.pending';
+    recoverPendingPublicationStages(destinationRelativePath);
+    const pendingRelativePath = PRIVATE_PENDING_DIRECTORY;
     const pending = ensureDirectory(pendingRelativePath);
     const pendingAttestation = attestPrivateDirectoryChain(pending);
-    const stagingRelativePath = `${pendingRelativePath}/${randomUUID()}`;
+    const pendingTargetRelativePath = (
+      `${pendingRelativePath}/${pendingPublicationTargetName(destinationRelativePath)}`
+    );
+    const pendingTarget = ensureDirectory(pendingTargetRelativePath);
+    const pendingTargetIdentity = attestDirectory(pendingTarget, true).identity;
+    const stagingRelativePath = `${pendingTargetRelativePath}/${randomUUID()}`;
     const staging = ensureDirectory(stagingRelativePath);
     const stagingIdentity = attestDirectory(staging, true).identity;
 
@@ -1228,6 +1872,10 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
       readFile: (path, maximumBytes) => readFile(translate(path), maximumBytes),
       writeFileAtomic: (path, bytes, maximumBytes) => (
         writeFileAtomic(translate(path), bytes, maximumBytes)
+      ),
+      recoverAtomicFileWrite: path => recoverAtomicFileWrite(translate(path)),
+      recoverAtomicDirectoryPublish: () => (
+        fail('GREATER_REALM_PRIVATE_STAGING_SCOPE_INVALID')
       ),
       attestTree: path => attestTree(path === undefined
         ? stagingRelativePath
@@ -1285,6 +1933,10 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
         || currentClaim.size !== claimBytes.byteLength
         || (writtenClaim.mode & 0o777) !== PRIVATE_FILE_MODE
       ) fail('GREATER_REALM_PRIVATE_FILE_CHANGED');
+      fsyncPrivateDirectory(
+        destinationParent,
+        destinationParentAttestation.at(-1)!.identity,
+      );
       attestPrivateDirectoryChain(destinationParent, destinationParentAttestation);
 
       try {
@@ -1295,6 +1947,10 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
         fail('GREATER_REALM_PRIVATE_DIRECTORY_CREATE_FAILED');
       }
       hardenNewPrivateDirectory(destination);
+      fsyncPrivateDirectory(
+        destinationParent,
+        destinationParentAttestation.at(-1)!.identity,
+      );
       envelopeIdentity = attestDirectory(destination, true).identity;
       const envelopeAttestation = attestPrivateDirectoryChain(destination);
       writePrivatePublicationControlAtomic(
@@ -1308,6 +1964,8 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
       const payload = join(destination, payloadName);
       renameSync(staging, payload);
       attestDirectory(payload, true, stagingIdentity);
+      fsyncPrivateDirectory(destination, envelopeIdentity);
+      fsyncPrivateDirectory(pendingTarget, pendingTargetIdentity);
       const installedTree = attestTreeAt(payload);
       if (
         installedTree.entryCount !== stagedTree.entryCount
@@ -1335,6 +1993,7 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
       attestPrivateDirectoryChain(destination, envelopeAttestation);
       fsyncPrivateDirectory(destination, envelopeIdentity);
       fsyncPrivateDirectory(destinationParent, destinationParentAttestation.at(-1)!.identity);
+      recoverPendingPublicationStages(destinationRelativePath);
       attestPrivateDirectoryChain(pending, pendingAttestation);
 
       const finalClaimDescriptor = fstatSync(claimDescriptor);
@@ -1351,6 +2010,10 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
       claimDescriptor = undefined;
       safeUnlinkIdentity(claim, claimIdentity);
       if (existsSync(claim)) fail('GREATER_REALM_PRIVATE_FILE_CHANGED');
+      fsyncPrivateDirectory(
+        destinationParent,
+        destinationParentAttestation.at(-1)!.identity,
+      );
       claimRemoved = true;
       return result;
     } catch (error) {
@@ -1368,7 +2031,15 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
           cleanupFailed = true;
         }
         if (existsSync(staging)) {
-          removePrivateTree(staging, stagingIdentity);
+          removePrivateTree(staging, stagingIdentity, true);
+        }
+        if (existsSync(pendingTarget)) {
+          const currentPendingTarget = lstatSync(pendingTarget);
+          if (!sameIdentity(currentPendingTarget, pendingTargetIdentity)) {
+            cleanupFailed = true;
+          } else {
+            recoverPendingPublicationStages(destinationRelativePath);
+          }
         }
         if (claimDescriptor !== undefined) {
           try { closeSync(claimDescriptor); } catch { cleanupFailed = true; }
@@ -1391,6 +2062,7 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
         try { closeSync(claimDescriptor); } catch { /* Catch path owns diagnostics. */ }
       }
     }
+    });
   };
 
   return Object.freeze({
@@ -1399,8 +2071,23 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
     hasFile,
     readFile,
     writeFileAtomic,
+    recoverAtomicFileWrite,
+    recoverAtomicDirectoryPublish,
     attestTree,
     withExclusiveLock,
     withAtomicDirectoryPublish,
   });
 }
+
+/** Executable-only seams for crash-state construction in focused tests. */
+export const greaterRealmPrivateWorkspaceTestSeams = Object.freeze({
+  lockRecord(pid: number): string {
+    if (!Number.isSafeInteger(pid) || pid < 1 || pid > 2_147_483_647) {
+      fail('GREATER_REALM_PRIVATE_FILE_INVALID');
+    }
+    return `${PRIVATE_LOCK_PREFIX}${pid}${PRIVATE_LOCK_SUFFIX}`;
+  },
+  pendingTargetName(relativePath: string): string {
+    return pendingPublicationTargetName(validateRelativePath(relativePath).join('/'));
+  },
+});

@@ -13,6 +13,7 @@ import {
   GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1,
   transformLegacyLowlandsToGlobal,
 } from '../scripts/atlas/greater-realm-legacy-lowlands';
+import { GREATER_REALM_WATER_REGIME_ID } from '../scripts/atlas/greater-realm-hydrology-authority';
 
 const PINNED_ROOT_LABEL = 'greater-realm-ordinary-parent-a';
 const PINNED_ORDINAL = 9;
@@ -23,6 +24,26 @@ const TIER_III_REGION_INDEX = 9;
 const DISTANCE_UNREACHED = 0xffff;
 const EXPECTED_SEALED_GATE_COUNT = 18;
 const EXPECTED_MAJOR_RIVER_DISCHARGE = 144n;
+const VALID_WATER_REGIMES: ReadonlySet<number> = new Set(
+  Object.values(GREATER_REALM_WATER_REGIME_ID),
+);
+
+function strategicallyPassableWaterRegime(regime: number): boolean {
+  return regime === GREATER_REALM_WATER_REGIME_ID.DRY
+    || regime === GREATER_REALM_WATER_REGIME_ID.RIVER
+    || regime === GREATER_REALM_WATER_REGIME_ID.STREAM
+    // Final hydrology promotes pre-authority dry marsh terrain after the
+    // strategic proofs are measured. Replays must preserve that passability.
+    || regime === GREATER_REALM_WATER_REGIME_ID.MARSH;
+}
+
+function finalStrategicShapePassableWaterRegime(regime: number): boolean {
+  // Compactness is intentionally measured after hydrology promotion: marsh
+  // cuts a wet boundary into the earlier passable authority topology.
+  return regime === GREATER_REALM_WATER_REGIME_ID.DRY
+    || regime === GREATER_REALM_WATER_REGIME_ID.RIVER
+    || regime === GREATER_REALM_WATER_REGIME_ID.STREAM;
+}
 
 const AXIAL_DIRECTIONS = Object.freeze([
   Object.freeze({ q: 1, r: 0 }),
@@ -169,7 +190,7 @@ function auditPassableRegions(candidate: GreaterRealmPrivateCandidate): Passable
   const passableCounts = Array<number>(REGION_COUNT).fill(0);
   for (let cell = 0; cell < candidate.grid.cellCount; cell += 1) {
     if (
-      ![0, 3, 4].includes(candidate.waterRegime[cell]!)
+      !strategicallyPassableWaterRegime(candidate.waterRegime[cell]!)
       || candidate.barrier[cell] !== 0
     ) continue;
     passable[cell] = 1;
@@ -199,7 +220,7 @@ function auditRobustRegions(candidate: GreaterRealmPrivateCandidate): RobustRegi
   const passable = new Uint8Array(candidate.grid.cellCount);
   for (let cell = 0; cell < candidate.grid.cellCount; cell += 1) {
     if (
-      [0, 3, 4].includes(candidate.waterRegime[cell]!)
+      strategicallyPassableWaterRegime(candidate.waterRegime[cell]!)
       && candidate.barrier[cell] === 0
     ) passable[cell] = 1;
   }
@@ -621,7 +642,7 @@ describe('Greater Realm advanced authority invariants', () => {
 
     const landCells = Array.from({ length: candidate.grid.cellCount }, (_, cell) => cell)
       .filter(cell => (
-        [0, 3, 4].includes(candidate.waterRegime[cell]!)
+        strategicallyPassableWaterRegime(candidate.waterRegime[cell]!)
         && candidate.elevation[cell]! > 0
         && candidate.legacyLowlandsProtectedCell[cell] !== 1
       ));
@@ -830,8 +851,8 @@ describe('Greater Realm advanced authority invariants', () => {
         if (
           neighbor <= cell
           || candidate.tierId[cell] === candidate.tierId[neighbor]
-          || ![0, 3, 4].includes(candidate.waterRegime[cell]!)
-          || ![0, 3, 4].includes(candidate.waterRegime[neighbor]!)
+          || !strategicallyPassableWaterRegime(candidate.waterRegime[cell]!)
+          || !strategicallyPassableWaterRegime(candidate.waterRegime[neighbor]!)
           || (candidate.barrier[cell] === 1 && !endpointMate.has(cell))
           || (candidate.barrier[neighbor] === 1 && !endpointMate.has(neighbor))
         ) continue;
@@ -851,7 +872,7 @@ describe('Greater Realm advanced authority invariants', () => {
           if (
             neighbor >= 0
             && candidate.tierId[endpoint] !== candidate.tierId[neighbor]
-            && [0, 3, 4].includes(candidate.waterRegime[neighbor]!)
+            && strategicallyPassableWaterRegime(candidate.waterRegime[neighbor]!)
             && (candidate.barrier[neighbor] === 0
               || neighbor === gate.firstCell
               || neighbor === gate.secondCell)
@@ -992,7 +1013,7 @@ describe('Greater Realm advanced authority invariants', () => {
       expect(crossSection.cells[crossSection.firstSideCellCount])
         .toBe(crossSection.secondCell);
       expect(crossSection.waterAssistedCellCount).toBe(crossSection.cells.filter(
-        cell => ![0, 3, 4].includes(candidate.waterRegime[cell]!),
+        cell => !strategicallyPassableWaterRegime(candidate.waterRegime[cell]!),
       ).length);
       minimumWidth = Math.min(minimumWidth, measuredWidth);
       maximumWidth = Math.max(maximumWidth, measuredWidth);
@@ -1055,7 +1076,10 @@ describe('Greater Realm advanced authority invariants', () => {
       if (component >= 0 && componentRegion[component] === -1) {
         componentRegion[component] = candidate.regionId[cell]!;
       }
-      if (component < 0) continue;
+      if (
+        component < 0
+        || !finalStrategicShapePassableWaterRegime(candidate.waterRegime[cell]!)
+      ) continue;
       const region = candidate.regionId[cell]!;
       let sameNeighbors = 0;
       for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
@@ -1064,6 +1088,7 @@ describe('Greater Realm advanced authority invariants', () => {
           neighbor >= 0
           && topology.componentId[neighbor]! >= 0
           && candidate.regionId[neighbor] === region
+          && finalStrategicShapePassableWaterRegime(candidate.waterRegime[neighbor]!)
         ) sameNeighbors += 1;
         else boundarySides[region] += 1;
       }
@@ -1105,7 +1130,9 @@ describe('Greater Realm advanced authority invariants', () => {
       if (candidate.waterRegime[cell] === 1) ocean[cell] = 1;
       if (candidate.waterRegime[cell] === 5) sea[cell] = 1;
       if (candidate.waterRegime[cell] === 2) lake[cell] = 1;
-      if (candidate.waterRegime[cell]! > 5) invalidWaterRegimes += 1;
+      if (!VALID_WATER_REGIMES.has(candidate.waterRegime[cell]!)) {
+        invalidWaterRegimes += 1;
+      }
       if (
         candidate.legacyLowlandsProtectedCell[cell] !== 1
         && candidate.elevation[cell]! > 0

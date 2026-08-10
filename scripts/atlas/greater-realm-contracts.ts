@@ -1,5 +1,7 @@
 import { randomBytes } from 'node:crypto';
 
+/** Stable identity of the one Greater Realm atlas governed by this PR stack. */
+export const GREATER_REALM_ATLAS_ID = 'GENESIS_001_GREATER_REALM' as const;
 export const GREATER_REALM_SANITIZED_REVIEW_SCHEMA =
   'warpkeep.greater-realm.candidate-review.v1' as const;
 export const GREATER_REALM_SANITIZED_PRIVACY_BOUNDARY =

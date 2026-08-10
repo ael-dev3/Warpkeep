@@ -42,6 +42,7 @@ const ALLOWED_COMMANDS = Object.freeze([
   'compare-candidates',
   'export-sanitized-review',
   'generate-candidates',
+  'inspect-package',
   'select-candidate',
   'verify-private-package',
   'verify-sanitized-review',
@@ -764,6 +765,26 @@ export function verifyGreaterRealmTrustedToolchain(input = {}) {
   });
 }
 
+export function reverifyGreaterRealmTrustedToolchain(receipt, input = {}) {
+  if (
+    receipt === null
+    || typeof receipt !== 'object'
+    || Array.isArray(receipt)
+    || !SHA256_PATTERN.test(receipt.manifestSha256 ?? '')
+    || typeof receipt.profile !== 'string'
+    || typeof receipt.tsxCli !== 'string'
+    || !Number.isSafeInteger(receipt.verifiedPackageCount)
+  ) fail('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_INVALID');
+  const finalReceipt = verifyGreaterRealmTrustedToolchain(input);
+  if (
+    finalReceipt.manifestSha256 !== receipt.manifestSha256
+    || finalReceipt.profile !== receipt.profile
+    || finalReceipt.tsxCli !== receipt.tsxCli
+    || finalReceipt.verifiedPackageCount !== receipt.verifiedPackageCount
+  ) fail('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_PACKAGE_TAMPERED');
+  return finalReceipt;
+}
+
 function possibleSecretEnvironmentEntry(key, value) {
   return typeof value === 'string'
     && POSSIBLE_SECRET_VALUE.test(value)
@@ -828,6 +849,9 @@ function main() {
   );
   if (result.error || result.signal !== null || result.status === null) {
     fail('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_CHILD_FAILED');
+  }
+  if (result.status === 0) {
+    reverifyGreaterRealmTrustedToolchain(receipt);
   }
   process.exitCode = result.status;
 }

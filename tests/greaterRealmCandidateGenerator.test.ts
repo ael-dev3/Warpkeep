@@ -9,9 +9,16 @@ import {
   generateGreaterRealmCandidate,
   type GreaterRealmPrivateCandidate,
 } from '../scripts/atlas/greater-realm-candidate-generator';
+import {
+  greaterRealmCandidateRejectionCode,
+} from '../scripts/atlas/greater-realm-candidate-rejection';
 import { GREATER_REALM_PROOF_KEYS } from '../scripts/atlas/greater-realm-contracts';
 import { GREATER_REALM_ROUTE_CLASS } from '../scripts/atlas/greater-realm-living-world';
 import { measureGreaterRealmReliefStructure } from '../scripts/atlas/greater-realm-relief-structure';
+import { measureGreaterRealmCastleSuitability } from '../scripts/atlas/greater-realm-strategic-audits';
+import {
+  GREATER_REALM_REGIONAL_HYDROGEOMORPHOLOGY_POLICY,
+} from '../scripts/atlas/greater-realm-topographic-qa';
 import {
   GREATER_REALM_LEGACY_LOWLANDS_LOCK_PINS_V1,
   GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1,
@@ -31,8 +38,9 @@ const SAME_FIRST_WORD_BASELINE_ROOT_INDEX = 23_248;
 const SAME_FIRST_WORD_ROOT_INDEX = 41_769;
 const PINNED_ORDINAL = 9;
 const SAME_FIRST_WORD_ORDINAL = 0;
-const SECONDARY_ROOT_LABEL = 'greater-realm-secondary-fixture';
-const SECONDARY_ORDINAL = 19;
+const SECONDARY_ORDINAL = 10;
+const REJECTED_ROOT_LABEL = 'greater-realm-secondary-fixture';
+const REJECTED_ORDINAL = 19;
 const EXPECTED_ACTIVE_CELL_MINIMUM = 100_000;
 const EXPECTED_ACTIVE_CELL_MAXIMUM = 150_000;
 const EXPECTED_CASTLES_PER_FRONTIER_REGION = 100;
@@ -119,6 +127,12 @@ function candidateFields(
     regionId: candidate.regionId,
     tierId: candidate.tierId,
     waterRegime: candidate.waterRegime,
+    waterBodyId: candidate.waterBodyId,
+    waterDepthClass: candidate.waterDepthClass,
+    waterSurfaceLevel: candidate.waterSurfaceLevel,
+    waterDownstream: candidate.waterDownstream,
+    waterBankSeed: candidate.waterBankSeed,
+    waterGenerationVersion: candidate.waterGenerationVersion,
     biomeId: candidate.biomeId,
     landformId: candidate.landformId,
     slope: candidate.slope,
@@ -215,9 +229,6 @@ function crossTierGraphAudit(
 
 beforeAll(() => {
   const firstRoot = pinnedRoot();
-  const secondaryRoot = Uint8Array.from(createHash('sha256')
-    .update(`${SECONDARY_ROOT_LABEL}\0`, 'utf8')
-    .digest());
   const collisionRoot = programmaticRoot(SAME_FIRST_WORD_BASELINE_ROOT_INDEX);
   const secondRoot = programmaticRoot(SAME_FIRST_WORD_ROOT_INDEX);
   const randomSpy = vi.spyOn(Math, 'random').mockImplementation(() => {
@@ -234,7 +245,7 @@ beforeAll(() => {
       candidateOrdinal: PINNED_ORDINAL,
     });
     secondary = generateGreaterRealmCandidate({
-      rootSeed: secondaryRoot,
+      rootSeed: firstRoot,
       candidateOrdinal: SECONDARY_ORDINAL,
     });
     sameFirstWordBaseline = deriveTestCandidateSeed(collisionRoot);
@@ -242,7 +253,6 @@ beforeAll(() => {
   } finally {
     randomSpy.mockRestore();
     firstRoot.fill(0);
-    secondaryRoot.fill(0);
     collisionRoot.fill(0);
     secondRoot.fill(0);
   }
@@ -275,6 +285,81 @@ describe('Greater Realm private candidate generator', () => {
     expect(candidate.grid.r).toEqual(repeated.grid.r);
   });
 
+  it('binds domain materials, exact water descriptors, strategic audits, QA, chunks and LOD support', () => {
+    const [candidate] = requireCandidates();
+
+    expect(candidate.domains).toHaveLength(
+      candidate.privateMetrics.geologyAuthority.metrics.domainCount,
+    );
+    expect(candidate.domains.every(domain => (
+      Number.isSafeInteger(domain.baseThickness)
+      && domain.baseThickness > 0
+      && Number.isSafeInteger(domain.rockFamily)
+      && domain.rockFamily >= 1
+      && domain.rockFamily <= 6
+    ))).toBe(true);
+    expect(candidate.privateMetrics.geologyAuthority.metrics.proof).toBe(true);
+    expect(candidate.privateMetrics.hydrologyAuthority.metrics.proof).toBe(true);
+    expect(
+      candidate.privateMetrics.hydrologyAuthority.metrics.waterCellCountsByRegime[6],
+    ).toBeGreaterThan(0);
+    let marshCells = 0;
+    let invalidDryMetadata = 0;
+    let invalidWaterMetadata = 0;
+    for (let cell = 0; cell < candidate.grid.cellCount; cell += 1) {
+      if (candidate.waterRegime[cell] === 0) {
+        if (
+          candidate.waterBodyId[cell] !== 0
+          || candidate.waterDepthClass[cell] !== 0
+          || candidate.waterSurfaceLevel[cell] !== -0x8000_0000
+          || candidate.waterDownstream[cell] !== -1
+          || candidate.waterBankSeed[cell] !== 0
+          || candidate.waterGenerationVersion[cell] !== 0
+        ) invalidDryMetadata += 1;
+      } else {
+        if (candidate.waterRegime[cell] === 6) marshCells += 1;
+        if (
+          candidate.waterBodyId[cell] === 0
+          || candidate.waterDepthClass[cell] === 0
+          || candidate.waterSurfaceLevel[cell]! < candidate.elevation[cell]!
+          || candidate.waterGenerationVersion[cell] !== 1
+        ) invalidWaterMetadata += 1;
+      }
+    }
+    expect({ marshCells, invalidDryMetadata, invalidWaterMetadata }).toEqual({
+      marshCells: candidate.privateMetrics.hydrologyAuthority.metrics
+        .waterCellCountsByRegime[6],
+      invalidDryMetadata: 0,
+      invalidWaterMetadata: 0,
+    });
+    expect(Object.entries(candidate.privateMetrics.strategicAudits)
+      .filter(([key]) => key !== 'version')
+      .every(([, metrics]) => (metrics as { proof: boolean }).proof)).toBe(true);
+    expect(candidate.privateMetrics.topographicQa.cellCount).toBe(candidate.grid.cellCount);
+    expect(
+      candidate.privateMetrics.topographicQa.biomeElevationConsistency.inconsistentCellCount,
+    ).toBe(0);
+    const regional = candidate.privateMetrics.topographicQa
+      .regionalHydrogeomorphology;
+    expect(regional.proof).toBe(true);
+    expect(Object.values(regional)
+      .filter(value => typeof value === 'object')
+      .every(value => (value as { proof: boolean }).proof)).toBe(true);
+    expect(regional.mirefen.braidedChannelProxyEdgeCount).toBeGreaterThanOrEqual(
+      GREATER_REALM_REGIONAL_HYDROGEOMORPHOLOGY_POLICY
+        .mirefenMinimumBraidedChannelProxyEdges,
+    );
+    expect(regional.stonewake.narrowIslandStraitCellCount)
+      .toBeGreaterThanOrEqual(
+        GREATER_REALM_REGIONAL_HYDROGEOMORPHOLOGY_POLICY
+          .stonewakeMinimumNarrowIslandStraitCells,
+      );
+    expect(candidate.privateMetrics.chunkBenchmark.proof).toBe(true);
+    expect(candidate.privateMetrics.chunkBenchmark.selectedAxisSpan).toBe(15);
+    expect(candidate.privateMetrics.topographyPatchSupport.proof).toBe(true);
+    expect(candidate.privateMetrics.topographyPatchSupport.lodSampleCounts).toHaveLength(4);
+  });
+
   it('uses all 128 candidate-seed bits instead of collapsing to the first word', () => {
     if (!sameFirstWordBaseline || !sameFirstWordVariant) {
       throw new Error('GREATER_REALM_COLLISION_FIXTURE_MISSING');
@@ -303,6 +388,29 @@ describe('Greater Realm private candidate generator', () => {
     expect(variant.stageDigests.final).not.toBe(candidate.stageDigests.final);
     expect(variant.grid.q).not.toEqual(candidate.grid.q);
   });
+
+  it('classifies bounded dry-gate-apron exhaustion as a typed candidate rejection', () => {
+    const rootSeed = Uint8Array.from(createHash('sha256')
+      .update(`${REJECTED_ROOT_LABEL}\0`, 'utf8')
+      .digest());
+    let unexpectedlyGenerated: GreaterRealmPrivateCandidate | undefined;
+    let rejectionCode: ReturnType<typeof greaterRealmCandidateRejectionCode>;
+    try {
+      try {
+        unexpectedlyGenerated = generateGreaterRealmCandidate({
+          rootSeed,
+          candidateOrdinal: REJECTED_ORDINAL,
+        });
+      } catch (error) {
+        rejectionCode = greaterRealmCandidateRejectionCode(error);
+        if (rejectionCode === undefined) throw error;
+      }
+      expect(rejectionCode).toBe('GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT');
+    } finally {
+      if (unexpectedlyGenerated) clearGreaterRealmCandidateSecret(unexpectedlyGenerated);
+      rootSeed.fill(0);
+    }
+  }, 180_000);
 
   it('binds multiscale final relief and genuine forest patches across independent worlds', () => {
     const [candidate, , variant] = requireCandidates();
@@ -333,8 +441,16 @@ describe('Greater Realm private candidate generator', () => {
       hydrology: digestGreaterRealmTerrainStage('hydrology', candidate.grid, {
         elevation: candidate.elevation,
         filledElevation: candidate.filledElevation,
+        sedimentDepth: candidate.sedimentDepth,
         flowReceiver: candidate.flowReceiver,
+        flowAccumulation: candidate.flowAccumulation,
         waterRegime: candidate.waterRegime,
+        waterBodyId: candidate.waterBodyId,
+        waterDepthClass: candidate.waterDepthClass,
+        waterSurfaceLevel: candidate.waterSurfaceLevel,
+        waterDownstream: candidate.waterDownstream,
+        waterBankSeed: candidate.waterBankSeed,
+        waterGenerationVersion: candidate.waterGenerationVersion,
       }),
       geomorphology: digestGreaterRealmTerrainStage('geomorphology', candidate.grid, {
         geomorphologyElevation: candidate.geomorphologyElevation,
@@ -444,7 +560,7 @@ describe('Greater Realm private candidate generator', () => {
         regionCounts[region] += 1;
         if (GREATER_REALM_REGION_SPECS[region]!.tier !== tier) tierRegionMismatch += 1;
       }
-      if (candidate.elevation[cell]! > 0) landCells += 1;
+      if (candidate.waterRegime[cell] === 0) landCells += 1;
     }
     expect({ invalidTier, invalidRegion, tierRegionMismatch }).toEqual({
       invalidTier: 0,
@@ -854,6 +970,51 @@ describe('Greater Realm private candidate generator', () => {
         castles => castles.length === EXPECTED_CASTLES_PER_FRONTIER_REGION,
       ),
     );
+  });
+
+  it('admits every new pinned castle through the strategic suitability audit', () => {
+    const [candidate] = requireCandidates();
+    const metrics = measureGreaterRealmCastleSuitability({
+      grid: candidate.grid,
+      regionId: candidate.regionId,
+      tierId: candidate.tierId,
+      waterRegime: candidate.waterRegime,
+      barrier: candidate.barrier,
+      castleSlot: candidate.castleSlot,
+      legacyCastleSlot: candidate.legacyLowlandsCastleSlot,
+      resourcePotential: candidate.resourcePotential,
+      corePotential: candidate.corePotential,
+      throneAnchor: candidate.throneAnchor,
+      slope: candidate.slope,
+      wetnessIndex: candidate.wetnessIndex,
+      distanceToFreshwater: candidate.distanceToFreshwater,
+      distanceToCoast: candidate.distanceToCoast,
+      landformId: candidate.landformId,
+      ecologyClass: candidate.ecologyClass,
+      routeClass: candidate.routeClass,
+      landmarkClass: candidate.landmarkClass,
+      gates: candidate.gates,
+    });
+    expect(metrics).toMatchObject({
+      totalCastleSlotCount: 600,
+      legacyCastleSlotCount: 100,
+      newCastleSlotCount: 500,
+      minimumRegionCastleSlotCount: 100,
+      maximumRegionCastleSlotCount: 100,
+      fullyClearNewCastleFootprintCount: 500,
+      twoRouteAccessNewCastleCount: 500,
+      slopeOrStabilityViolationCount: 0,
+      floodOrWaterClearanceViolationCount: 0,
+      ecologyViolationCount: 0,
+      footprintViolationCount: 0,
+      spacingViolationPairCount: 0,
+      exactCapacityProof: true,
+      suitabilityProof: true,
+      fullFootprintProof: true,
+      distributionProof: true,
+      twoRouteAccessProof: true,
+      proof: true,
+    });
   });
 
   it('returns adjacent downhill acyclic flow whose outlets conserve all local runoff', () => {

@@ -249,6 +249,20 @@ describe('Greater Realm final-relief structure function', () => {
       }),
     ).toThrow('GREATER_REALM_RELIEF_STRUCTURE_GRID_INVALID');
 
+    const missingNeighbors = new Int32Array(fixture.grid.neighbors);
+    const firstNeighborSlot = missingNeighbors.findIndex(value => value >= 0);
+    const cell = Math.floor(firstNeighborSlot / 6);
+    const direction = firstNeighborSlot % 6;
+    const neighbor = missingNeighbors[firstNeighborSlot]!;
+    missingNeighbors[firstNeighborSlot] = -1;
+    missingNeighbors[neighbor * 6 + ((direction + 3) % 6)] = -1;
+    expect(() =>
+      measureGreaterRealmReliefStructure({
+        ...fixture,
+        grid: Object.freeze({ ...fixture.grid, neighbors: missingNeighbors }),
+      }),
+    ).toThrow('GREATER_REALM_RELIEF_STRUCTURE_GRID_INVALID');
+
     expect(() =>
       measureGreaterRealmReliefStructure({
         ...fixture,

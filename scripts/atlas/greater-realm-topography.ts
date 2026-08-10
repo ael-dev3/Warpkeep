@@ -3,19 +3,24 @@ import {
   GREATER_REALM_BIOME_ID,
   GREATER_REALM_LANDFORM_ID,
 } from './greater-realm-biomes';
+import { GREATER_REALM_WATER_REGIME_ID } from './greater-realm-hydrology-authority';
 import {
   type IndexedAxialGrid,
 } from './greater-realm-terrain';
 
 const NEIGHBOR_COUNT = 6;
-const WATER_DRY = 0;
-const WATER_OCEAN = 1;
-const WATER_LAKE = 2;
-const WATER_RIVER = 3;
-const WATER_STREAM = 4;
-const WATER_SEA = 5;
+const WATER_DRY = GREATER_REALM_WATER_REGIME_ID.DRY;
+const WATER_OCEAN = GREATER_REALM_WATER_REGIME_ID.OCEAN;
+const WATER_LAKE = GREATER_REALM_WATER_REGIME_ID.LAKE;
+const WATER_RIVER = GREATER_REALM_WATER_REGIME_ID.RIVER;
+const WATER_STREAM = GREATER_REALM_WATER_REGIME_ID.STREAM;
+const WATER_SEA = GREATER_REALM_WATER_REGIME_ID.SEA;
+const WATER_MARSH = GREATER_REALM_WATER_REGIME_ID.MARSH;
 const MINIMUM_GENERATED_FOREST_PATCH_CELLS = 28;
 const PHYSICALLY_ARID_MOISTURE_THRESHOLD = -1_200;
+const PHYSICALLY_SATURATED_MOISTURE_THRESHOLD = 5_000;
+const WARM_DEEP_LEE_MOISTURE_THRESHOLD = -2_200;
+const WARM_DEEP_LEE_TEMPERATURE_THRESHOLD = 5_500;
 const PHYSICALLY_FROZEN_TEMPERATURE_THRESHOLD = 500;
 const PHYSICALLY_COLD_TEMPERATURE_THRESHOLD = 2_000;
 // Preserve the existing pair-count layout and its deterministic tie scan.
@@ -218,6 +223,11 @@ function isCompatibleBiomeLandformPair(
   if (waterRegime === WATER_RIVER || waterRegime === WATER_STREAM) {
     return biome === BIOME.RIVER_STREAM && landform === LANDFORM.WATERCOURSE;
   }
+  if (waterRegime === WATER_MARSH) {
+    return (
+      biome === BIOME.FRESHWATER_MARSH || biome === BIOME.SALT_MARSH
+    ) && landform === LANDFORM.BASIN;
+  }
   if (waterRegime !== WATER_DRY) return false;
   return DRY_LANDFORMS_BY_BIOME[biome]?.has(landform) === true;
 }
@@ -349,6 +359,8 @@ export function deriveGreaterRealmTopography(input: Readonly<{
   protectedLandformId: Uint8Array;
   geomorphicTemperature: Int32Array;
   geomorphicMoisture: Int32Array;
+  /** Unsmeared geomorphic climate used for saturation and deep-lee aridity. */
+  geomorphicHydrologyMoisture?: Int32Array;
   geomorphicGlacialMask: Uint8Array;
   geomorphicAridMask: Uint8Array;
   geomorphicVolcanicMask: Uint8Array;
@@ -375,6 +387,8 @@ export function deriveGreaterRealmTopography(input: Readonly<{
     geomorphicVolcanicMask,
     geomorphicCoastalClass,
   } = input;
+  const geomorphicHydrologyMoisture = input.geomorphicHydrologyMoisture
+    ?? geomorphicMoisture;
   assertLengths(grid, [
     elevation,
     flowReceiver,
@@ -390,6 +404,7 @@ export function deriveGreaterRealmTopography(input: Readonly<{
     protectedLandformId,
     geomorphicTemperature,
     geomorphicMoisture,
+    geomorphicHydrologyMoisture,
     geomorphicGlacialMask,
     geomorphicAridMask,
     geomorphicVolcanicMask,
@@ -501,15 +516,16 @@ export function deriveGreaterRealmTopography(input: Readonly<{
 
   const temperature = new Int32Array(geomorphicTemperature);
   const moisture = new Int32Array(grid.cellCount);
+  const derivedMoistureAt = (base: Int32Array, cell: number): number => clamp(
+    base[cell]!
+      + Math.max(0, 1_800 - distanceToFreshwater[cell]! * 180)
+      + Math.max(0, 1_000 - distanceToCoast[cell]! * 70)
+      + Math.min(4_500, wetnessIndex[cell]! * 3),
+    -10_000,
+    16_000,
+  );
   for (let cell = 0; cell < grid.cellCount; cell += 1) {
-    moisture[cell] = clamp(
-      geomorphicMoisture[cell]!
-        + Math.max(0, 1_800 - distanceToFreshwater[cell]! * 180)
-        + Math.max(0, 1_000 - distanceToCoast[cell]! * 70)
-        + Math.min(4_500, wetnessIndex[cell]! * 3),
-      -10_000,
-      16_000,
-    );
+    moisture[cell] = derivedMoistureAt(geomorphicMoisture, cell);
   }
 
   const biomeId = new Uint8Array(grid.cellCount);
@@ -522,6 +538,13 @@ export function deriveGreaterRealmTopography(input: Readonly<{
     }
     const regime = waterRegime[cell]!;
     if (regime !== WATER_DRY) {
+      if (regime === WATER_MARSH) {
+        biomeId[cell] = distanceToCoast[cell]! <= 1
+          ? BIOME.SALT_MARSH
+          : BIOME.FRESHWATER_MARSH;
+        landformId[cell] = LANDFORM.BASIN;
+        continue;
+      }
       const saltwater = regime === WATER_OCEAN || regime === WATER_SEA;
       biomeId[cell] = saltwater ? BIOME.SALTWATER : regime === WATER_LAKE ? BIOME.LAKE : BIOME.RIVER_STREAM;
       landformId[cell] = saltwater ? LANDFORM.ISLAND_SHELF : regime === WATER_LAKE ? LANDFORM.LAKE_BASIN : LANDFORM.WATERCOURSE;
@@ -529,8 +552,20 @@ export function deriveGreaterRealmTopography(input: Readonly<{
     }
     const coastClass = geomorphicCoastalClass[cell]!;
     const cold = temperature[cell]! < PHYSICALLY_COLD_TEMPERATURE_THRESHOLD;
-    const arid = moisture[cell]! < PHYSICALLY_ARID_MOISTURE_THRESHOLD;
-    const saturated = moisture[cell]! > 4_300 || wetnessIndex[cell]! > 5_000;
+    // Raw process climate remains authoritative at the deepest warm lee-side
+    // extremes. Hydrologic proximity can green the broader ecological field,
+    // but it must not erase a physically generated arid oasis rim.
+    const warmDeepLeeArid = temperature[cell]!
+        >= WARM_DEEP_LEE_TEMPERATURE_THRESHOLD
+      && geomorphicHydrologyMoisture[cell]!
+        <= WARM_DEEP_LEE_MOISTURE_THRESHOLD;
+    const arid = moisture[cell]! < PHYSICALLY_ARID_MOISTURE_THRESHOLD
+      || warmDeepLeeArid;
+    const saturated = derivedMoistureAt(
+      geomorphicHydrologyMoisture,
+      cell,
+    ) > PHYSICALLY_SATURATED_MOISTURE_THRESHOLD
+      || wetnessIndex[cell]! > 5_000;
     const high = elevation[cell]! > 13_500;
     const steep = slope[cell]! > 1_500;
     const volcanic = tectonicUplift[cell]! > 6_500
@@ -654,6 +689,11 @@ export function deriveGreaterRealmTopography(input: Readonly<{
     waterRegime[cell] !== WATER_DRY
     || legacyProtectedCell[cell] === 1
     || isPhysicallyExtremeClimate(moisture[cell]!, temperature[cell]!)
+    || (
+      temperature[cell]! >= WARM_DEEP_LEE_TEMPERATURE_THRESHOLD
+      && geomorphicHydrologyMoisture[cell]!
+        <= WARM_DEEP_LEE_MOISTURE_THRESHOLD
+    )
     || landformId[cell] === LANDFORM.MOUNTAIN
     || landformId[cell] === LANDFORM.BADLANDS
     || landformId[cell] === LANDFORM.DELTA
@@ -777,6 +817,11 @@ export function deriveGreaterRealmTopography(input: Readonly<{
         waterRegime[cell] === WATER_DRY
         && legacyProtectedCell[cell] !== 1
         && geomorphicAridMask[cell] !== 1
+        && !(
+          temperature[cell]! >= WARM_DEEP_LEE_TEMPERATURE_THRESHOLD
+          && geomorphicHydrologyMoisture[cell]!
+            <= WARM_DEEP_LEE_MOISTURE_THRESHOLD
+        )
         && !isBiomeCompatibleWithPhysicalClimate(
           biomeId[cell]!,
           moisture[cell]!,

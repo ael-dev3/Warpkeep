@@ -9,6 +9,7 @@ import {
   linkSync,
   lstatSync,
   openSync,
+  readdirSync,
   readSync,
   realpathSync,
   unlinkSync,
@@ -27,6 +28,22 @@ import {
   greaterRealmCandidateRejectionCode,
   type GreaterRealmCandidateRejectionCode,
 } from './greater-realm-candidate-rejection';
+import {
+  abortGreaterRealmAttemptCheckpoint,
+  assertGreaterRealmAttemptSelectionReady,
+  clearGreaterRealmAttemptCheckpointSecret,
+  createGreaterRealmAttemptCheckpoint,
+  readGreaterRealmAttemptCompletionReceipt,
+  reconcileGreaterRealmAttemptCompletion,
+  recordGreaterRealmAcceptedAttempt,
+  recordGreaterRealmRejectedAttempt,
+  resumeGreaterRealmAttemptCheckpoint,
+  writeGreaterRealmAttemptCompletionReceipt,
+  type GreaterRealmAttemptCompletionReceipt,
+  type GreaterRealmAttemptCheckpointBinding,
+  type GreaterRealmAttemptCheckpointState,
+  type GreaterRealmCheckpointRejectedAttempt,
+} from './greater-realm-attempt-checkpoint';
 import {
   GREATER_REALM_PRIVATE_PREVIEW_COUNT,
   clearGreaterRealmPrivateCandidateBuffers,
@@ -47,6 +64,11 @@ import {
   assertGreaterRealmLegacyLowlandsPatchLocked,
 } from './greater-realm-legacy-lowlands';
 import {
+  createGreaterRealmPendingOwnerReport,
+  parseGreaterRealmPendingOwnerReport,
+  serializeGreaterRealmPendingOwnerReport,
+} from './greater-realm-pending-owner-report';
+import {
   assertGreaterRealmPrivateInvocation,
   defaultGreaterRealmPrivateWorkspaceRoot,
   openGreaterRealmPrivateWorkspace,
@@ -62,10 +84,12 @@ import {
   serializeGreaterRealmSanitizedReview,
 } from './greater-realm-sanitized-review';
 import { runGreaterRealmTrustedGit } from './greater-realm-git';
+import { verifyGreaterRealmTrustedToolchain } from './greater-realm-toolchain-bootstrap.mjs';
 
 type Command =
   | 'generate-candidates'
   | 'compare-candidates'
+  | 'inspect-package'
   | 'verify-private-package'
   | 'export-sanitized-review'
   | 'verify-sanitized-review'
@@ -82,6 +106,8 @@ type ParsedArguments = Readonly<{
   outputPath?: string;
   inputPath?: string;
   confirmSelection: boolean;
+  abortCheckpoint: boolean;
+  resume: boolean;
 }>;
 
 const BATCH_HANDLE = /^GR-B-[A-Z2-7]{16}$/u;
@@ -98,6 +124,8 @@ const PRIVATE_BATCH_MAXIMUM_BYTES = GREATER_REALM_MAXIMUM_CANDIDATE_COUNT
   )
   + 4 * PRIVATE_JSON_MAXIMUM_BYTES
   + GREATER_REALM_PRIVATE_SEED_ENVELOPE_BYTES;
+const PENDING_OWNER_REPORT_PATH =
+  'docs/evidence/greater-realm/pending-owner-review-v1.json';
 
 function fail(code: string): never {
   throw new Error(code);
@@ -141,6 +169,7 @@ function parseArguments(argv: readonly string[]): ParsedArguments {
   if (![
     'generate-candidates',
     'compare-candidates',
+    'inspect-package',
     'verify-private-package',
     'export-sanitized-review',
     'verify-sanitized-review',
@@ -156,6 +185,8 @@ function parseArguments(argv: readonly string[]): ParsedArguments {
   let outputPath: string | undefined;
   let inputPath: string | undefined;
   let confirmSelection = false;
+  let abortCheckpoint = false;
+  let resume = false;
   const seen = new Set<string>();
   for (let index = 1; index < argv.length; index += 1) {
     const flag = argv[index]!;
@@ -163,6 +194,14 @@ function parseArguments(argv: readonly string[]): ParsedArguments {
     seen.add(flag);
     if (flag === '--confirm-selection') {
       confirmSelection = true;
+      continue;
+    }
+    if (flag === '--resume') {
+      resume = true;
+      continue;
+    }
+    if (flag === '--abort-checkpoint') {
+      abortCheckpoint = true;
       continue;
     }
     if (![
@@ -173,11 +212,7 @@ function parseArguments(argv: readonly string[]): ParsedArguments {
     if (value === undefined || value.startsWith('--')) fail('GREATER_REALM_CLI_ARGUMENTS_INVALID');
     index += 1;
     if (flag === '--workspace') workspaceRoot = value;
-    else if (flag === '--count') count = safeInteger(
-      value,
-      GREATER_REALM_MINIMUM_CANDIDATE_COUNT,
-      GREATER_REALM_MAXIMUM_CANDIDATE_COUNT,
-    );
+    else if (flag === '--count') count = safeInteger(value, 1, 1);
     else if (flag === '--maximum-attempts') maximumAttempts = safeInteger(value, 8, 256);
     else if (flag === '--batch') batchHandle = value;
     else if (flag === '--candidate') candidateHandle = value;
@@ -199,22 +234,29 @@ function parseArguments(argv: readonly string[]): ParsedArguments {
     if (batchHandle || candidateHandle || approvalReference || outputPath || inputPath || confirmSelection) {
       fail('GREATER_REALM_CLI_ARGUMENTS_INVALID');
     }
+    if (count !== undefined && count !== 1) {
+      fail('GREATER_REALM_CLI_ARGUMENTS_INVALID');
+    }
+    if (
+      abortCheckpoint
+      && (resume || count !== undefined || maximumAttempts !== undefined)
+    ) fail('GREATER_REALM_CLI_ARGUMENTS_INVALID');
     if (count !== undefined && maximumAttempts !== undefined && maximumAttempts < count) {
       fail('GREATER_REALM_CLI_ARGUMENTS_INVALID');
     }
   } else if (command === 'verify-sanitized-review') {
-    if (!inputPath || count || maximumAttempts || batchHandle || candidateHandle || approvalReference || outputPath || confirmSelection) {
+    if (!inputPath || count || maximumAttempts || batchHandle || candidateHandle || approvalReference || outputPath || confirmSelection || abortCheckpoint || resume) {
       fail('GREATER_REALM_CLI_ARGUMENTS_INVALID');
     }
   } else if (command === 'select-candidate') {
-    if (!batchHandle || !candidateHandle || !approvalReference || !confirmSelection || count || maximumAttempts || outputPath || inputPath) {
+    if (!batchHandle || !candidateHandle || !approvalReference || !confirmSelection || count || maximumAttempts || outputPath || inputPath || abortCheckpoint || resume) {
       fail('GREATER_REALM_CLI_ARGUMENTS_INVALID');
     }
   } else if (command === 'export-sanitized-review') {
-    if (!batchHandle || !outputPath || count || maximumAttempts || candidateHandle || approvalReference || inputPath || confirmSelection) {
+    if (!batchHandle || !outputPath || count || maximumAttempts || candidateHandle || approvalReference || inputPath || confirmSelection || abortCheckpoint || resume) {
       fail('GREATER_REALM_CLI_ARGUMENTS_INVALID');
     }
-  } else if (!batchHandle || count || maximumAttempts || candidateHandle || approvalReference || outputPath || inputPath || confirmSelection) {
+  } else if (!batchHandle || count || maximumAttempts || candidateHandle || approvalReference || outputPath || inputPath || confirmSelection || abortCheckpoint || resume) {
     fail('GREATER_REALM_CLI_ARGUMENTS_INVALID');
   }
   return Object.freeze({
@@ -228,10 +270,56 @@ function parseArguments(argv: readonly string[]): ParsedArguments {
     ...(outputPath === undefined ? {} : { outputPath }),
     ...(inputPath === undefined ? {} : { inputPath }),
     confirmSelection,
+    abortCheckpoint,
+    resume,
   });
 }
 
-function sourceCommit(): string {
+/** Executable ESM test seam for the one-world CLI cardinality contract. */
+export const greaterRealmCliArgumentTestSeams = Object.freeze({
+  generatedWorldCount(value: string): number | undefined {
+    return parseArguments(['generate-candidates', '--count', value]).count;
+  },
+  acceptedCandidateDigest(atlasDigest: string, manifestDigest: string): string {
+    return acceptedCandidateDigest(atlasDigest, manifestDigest);
+  },
+  inspectPackagePublicStatus(
+    review: Pick<GreaterRealmSanitizedReview, 'candidateCount' | 'selectionStatus'>,
+  ) {
+    return inspectPackagePublicStatus(review);
+  },
+});
+
+function inspectPackagePublicStatus(
+  review: Pick<GreaterRealmSanitizedReview, 'candidateCount' | 'selectionStatus'>,
+) {
+  return Object.freeze({
+    candidateCount: review.candidateCount,
+    selectionStatus: review.selectionStatus,
+    privatePackageVerified: true,
+    coordinateDisclosure: false,
+    productionUntouched: true,
+  });
+}
+
+function isRecoverablePendingOwnerReportStatus(status: string): boolean {
+  const temporaryPattern = new RegExp(
+    '^\\?\\? docs/evidence/greater-realm/pending-owner-review-v1\\.json\\.'
+      + '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.tmp$',
+    'u',
+  );
+  const entries = status.split('\0');
+  if (entries.at(-1) !== '') return false;
+  entries.pop();
+  return entries.length > 0 && entries.every(entry => (
+    entry === `?? ${PENDING_OWNER_REPORT_PATH}`
+    || temporaryPattern.test(entry)
+  ));
+}
+
+function sourceCommit(options: Readonly<{
+  allowPendingOwnerReportRecovery?: boolean;
+}> = {}): string {
   const topLevel = runGreaterRealmTrustedGit(
     ['rev-parse', '--path-format=absolute', '--show-toplevel'],
     ROOT,
@@ -263,7 +351,13 @@ function sourceCommit(): string {
     status.error
     || status.status !== 0
     || status.stderr.length !== 0
-    || status.stdout.length !== 0
+    || (
+      status.stdout.length !== 0
+      && !(
+        options.allowPendingOwnerReportRecovery === true
+        && isRecoverablePendingOwnerReportStatus(status.stdout)
+      )
+    )
   ) {
     fail('GREATER_REALM_CLI_SOURCE_TREE_DIRTY');
   }
@@ -364,148 +458,469 @@ function writePrivateJson(
   }
 }
 
-async function generateCandidates(arguments_: ParsedArguments): Promise<void> {
+type GeneratedPrivateCandidateReceipt = Readonly<{
+  candidateHandle: string;
+  candidateOrdinal: number;
+  manifestDigest: string;
+  atlasDigest: string;
+}>;
+
+function writeGeneratedBatchMetadata(input: Readonly<{
+  workspace: ReturnType<typeof openGreaterRealmPrivateWorkspace>;
+  batchHandle: string;
+  sourceCommit: string;
+  rootSeed: Uint8Array;
+  requestedCount: number;
+  maximumAttempts: number;
+  publicCandidates: readonly GreaterRealmSanitizedCandidateSource[];
+  privateCandidates: readonly GeneratedPrivateCandidateReceipt[];
+  rejectedAttempts: readonly GreaterRealmCheckpointRejectedAttempt[];
+}>): void {
+  const review = createGreaterRealmSanitizedReview({
+    generatorVersion: GREATER_REALM_GENERATOR_VERSION,
+    sourceCommit: input.sourceCommit,
+    reviewBatchHandle: input.batchHandle,
+    selectionStatus: 'pending',
+    selectedCandidateHandle: null,
+    candidates: input.publicCandidates,
+  });
+  const sanitizedBytes = Buffer.from(
+    serializeGreaterRealmSanitizedReview(review),
+    'utf8',
+  );
+  try {
+    input.workspace.writeFileAtomic(
+      `batches/${input.batchHandle}/sanitized-review.json`,
+      sanitizedBytes,
+      4 * 1024 * 1024,
+    );
+  } finally {
+    sanitizedBytes.fill(0);
+  }
+  writePrivateJson(
+    input.workspace,
+    `batches/${input.batchHandle}/batch.private.json`,
+    {
+      kind: 'warpkeep.greater-realm.private-batch.v1',
+      generatorVersion: GREATER_REALM_GENERATOR_VERSION,
+      sourceCommit: input.sourceCommit,
+      batchHandle: input.batchHandle,
+      batchSeedDigest: createHash('sha256').update(input.rootSeed).digest('hex'),
+      sanitizedReviewDigest: review.reportDigest,
+      requestedCount: input.requestedCount,
+      maximumAttempts: input.maximumAttempts,
+      attemptsUsed: input.privateCandidates.length + input.rejectedAttempts.length,
+      candidates: input.privateCandidates,
+      rejectedAttempts: input.rejectedAttempts,
+    },
+  );
+}
+
+function attemptCheckpointBinding(
+  commit: string,
+  maximumAttempts: number,
+): GreaterRealmAttemptCheckpointBinding {
+  const toolchainReceipt = process.env.WKGR_TOOLCHAIN_PREFLIGHT_RECEIPT;
+  const toolchainProfile = process.env.WKGR_TOOLCHAIN_PREFLIGHT_PROFILE;
+  if (toolchainReceipt === undefined || toolchainProfile === undefined) {
+    fail('GREATER_REALM_ATTEMPT_CHECKPOINT_REQUEST_INVALID');
+  }
+  return Object.freeze({
+    generatorVersion: GREATER_REALM_GENERATOR_VERSION,
+    sourceCommit: commit,
+    toolchainReceipt,
+    toolchainProfile,
+    nodeVersion: process.versions.node,
+    requestedCount: 1,
+    maximumAttempts,
+  });
+}
+
+function acceptedCandidateDigest(
+  atlasDigest: string,
+  manifestDigest: string,
+): string {
+  if (
+    !/^[0-9a-f]{64}$/u.test(atlasDigest)
+    || !/^[0-9a-f]{64}$/u.test(manifestDigest)
+  ) fail('GREATER_REALM_ATTEMPT_CHECKPOINT_INVALID');
+  return createHash('sha256')
+    .update('warpkeep.greater-realm.accepted-candidate.v1\0', 'utf8')
+    .update(atlasDigest, 'utf8')
+    .update('\0', 'utf8')
+    .update(manifestDigest, 'utf8')
+    .digest('hex');
+}
+
+function reattestAttemptToolchain(
+  binding: GreaterRealmAttemptCheckpointBinding,
+): void {
+  const receipt = verifyGreaterRealmTrustedToolchain();
+  if (
+    `sha256:${receipt.manifestSha256}` !== binding.toolchainReceipt
+    || receipt.profile !== binding.toolchainProfile
+    || process.versions.node !== binding.nodeVersion
+  ) fail('GREATER_REALM_ATTEMPT_CHECKPOINT_REQUEST_MISMATCH');
+}
+
+function installPendingOwnerReport(
+  review: GreaterRealmSanitizedReview,
+  repositoryRoot = ROOT,
+): void {
+  const report = createGreaterRealmPendingOwnerReport({
+    sanitizedReview: review,
+    privatePackageVerified: true,
+  });
+  const serialized = serializeGreaterRealmPendingOwnerReport(report);
+  const reparsed = parseGreaterRealmPendingOwnerReport(
+    JSON.parse(serialized) as unknown,
+  );
+  const canonical = serializeGreaterRealmPendingOwnerReport(reparsed);
+  if (canonical !== serialized) {
+    fail('GREATER_REALM_PENDING_OWNER_REPORT_INVALID');
+  }
+  const bytes = Buffer.from(canonical, 'utf8');
+  try {
+    const destination = resolvePublicEvidenceDestination(
+      repositoryRoot,
+      PENDING_OWNER_REPORT_PATH,
+    );
+    if (
+      recoverPublicEvidenceInstall(destination, bytes, repositoryRoot)
+      === 'installed'
+    ) {
+      const installed = readPublicEvidence(PENDING_OWNER_REPORT_PATH, repositoryRoot);
+      try {
+        const installedReport = parseGreaterRealmPendingOwnerReport(
+          JSON.parse(installed.toString('utf8')) as unknown,
+        );
+        if (
+          !installed.equals(bytes)
+          || serializeGreaterRealmPendingOwnerReport(installedReport) !== canonical
+        ) fail('GREATER_REALM_PUBLIC_EVIDENCE_DESTINATION_INVALID');
+      } finally {
+        installed.fill(0);
+      }
+      return;
+    }
+    writePublicEvidence(destination, bytes, repositoryRoot);
+  } finally {
+    bytes.fill(0);
+  }
+}
+
+async function assertPublishedBatchMatchesAttempt(
+  workspace: ReturnType<typeof openGreaterRealmPrivateWorkspace>,
+  attempt: GreaterRealmAttemptCheckpointState | GreaterRealmAttemptCompletionReceipt,
+): Promise<GreaterRealmSanitizedReview> {
+  const acceptedPerformance = attempt.acceptedPerformance;
+  const expectedCandidateDigest = attempt.acceptedCandidateDigest;
+  if (
+    acceptedPerformance === null
+    || expectedCandidateDigest === null
+    || ('phase' in attempt && attempt.phase !== 'accepted')
+  ) {
+    fail('GREATER_REALM_ATTEMPT_CHECKPOINT_INVALID');
+  }
+  const { review, pendingReview, batch } = await verifyPrivateReviewBatch(
+    workspace,
+    attempt.batchHandle,
+  );
+  const candidate = batch.candidates[0];
+  const publicCandidate = review.candidates[0];
+  if (
+    review.generatorVersion !== attempt.binding.generatorVersion
+    || review.sourceCommit !== attempt.binding.sourceCommit
+    || review.selectionStatus !== 'pending'
+    || review.selectedCandidateHandle !== null
+    || pendingReview.selectionStatus !== 'pending'
+    || pendingReview.selectedCandidateHandle !== null
+    || review.reportDigest !== pendingReview.reportDigest
+    || review.candidateCount !== 1
+    || batch.requestedCount !== 1
+    || batch.maximumAttempts !== attempt.binding.maximumAttempts
+    || batch.attemptsUsed !== attempt.nextOrdinal + 1
+    || candidate?.candidateHandle !== attempt.candidateHandle
+    || candidate.candidateOrdinal !== attempt.nextOrdinal
+    || acceptedCandidateDigest(candidate.atlasDigest, candidate.manifestDigest)
+      !== expectedCandidateDigest
+    || publicCandidate?.candidateHandle !== attempt.candidateHandle
+    || publicCandidate.performance.generationMillisecondsRounded
+      !== acceptedPerformance.generationMilliseconds
+    || publicCandidate.performance.processPeakMemoryMiBRounded
+      !== acceptedPerformance.processPeakMemoryMiB
+    || JSON.stringify(batch.rejectedAttempts)
+      !== JSON.stringify(attempt.rejectedAttempts)
+  ) fail('GREATER_REALM_ATTEMPT_CHECKPOINT_INVALID');
+  return pendingReview;
+}
+
+async function generateSingleWorldCandidate(
+  arguments_: ParsedArguments,
+  maximumAttempts: number,
+): Promise<void> {
   assertGreaterRealmLegacyLowlandsPatchLocked();
   const workspace = openGreaterRealmPrivateWorkspace({
     repositoryRoot: ROOT,
     workspaceRoot: arguments_.workspaceRoot,
   });
-  const batchHandle = createGreaterRealmReviewBatchHandle();
-  const requestedCount = arguments_.count ?? 1;
-  const maximumAttempts = arguments_.maximumAttempts ?? Math.max(128, requestedCount * 16);
-  if (maximumAttempts < requestedCount) fail('GREATER_REALM_CLI_ARGUMENTS_INVALID');
-  const commit = sourceCommit();
-  const rootSeed = randomBytes(32);
+  const commit = sourceCommit({
+    allowPendingOwnerReportRecovery: arguments_.resume,
+  });
+  const binding = attemptCheckpointBinding(commit, maximumAttempts);
+  let checkpoint: GreaterRealmAttemptCheckpointState | undefined;
+  let publishedBatchHandle = '';
   try {
-    await workspace.withAtomicDirectoryPublish(
-      `batches/${batchHandle}`,
-      async stagedWorkspace => {
-        await workspace.withExclusiveLock('locks/generate-candidates.lock', async () => {
-          const batchSeedEnvelope = encodeGreaterRealmPrivateSeed(rootSeed, 'batch');
+    publishedBatchHandle = await workspace.withExclusiveLock(
+      'locks/generate-candidates.lock',
+      async () => {
+        if (arguments_.resume) {
+          const completion = readGreaterRealmAttemptCompletionReceipt({ workspace, binding });
+          if (completion !== null) {
+            if (
+              workspace.recoverAtomicDirectoryPublish(
+                `batches/${completion.batchHandle}`,
+              ) !== 'published'
+            ) fail('GREATER_REALM_ATTEMPT_COMPLETION_INVALID');
+            const review = await assertPublishedBatchMatchesAttempt(workspace, completion);
+            installPendingOwnerReport(review);
+            reconcileGreaterRealmAttemptCompletion({ workspace, receipt: completion });
+            return completion.batchHandle;
+          }
+          checkpoint = resumeGreaterRealmAttemptCheckpoint({ workspace, binding });
+        } else {
+          const rootSeed = randomBytes(32);
           try {
-            stagedWorkspace.writeFileAtomic(
-              `batches/${batchHandle}/batch-seed.bin`,
-              batchSeedEnvelope,
-              GREATER_REALM_PRIVATE_SEED_ENVELOPE_BYTES,
-            );
+            checkpoint = createGreaterRealmAttemptCheckpoint({
+              workspace,
+              binding,
+              batchHandle: createGreaterRealmReviewBatchHandle(),
+              rootSeed,
+              candidateHandle: createGreaterRealmCandidateHandle(),
+            });
           } finally {
-            batchSeedEnvelope.fill(0);
+            rootSeed.fill(0);
           }
-          const publicCandidates: GreaterRealmSanitizedCandidateSource[] = [];
-          const privateCandidates: Array<Readonly<{
-            candidateHandle: string;
-            candidateOrdinal: number;
-            manifestDigest: string;
-            atlasDigest: string;
-          }>> = [];
-          const rejectedAttempts: GreaterRealmPrivateRejectedAttempt[] = [];
-          for (
-            let ordinal = 0;
-            ordinal < maximumAttempts && publicCandidates.length < requestedCount;
-            ordinal += 1
-          ) {
-            const startedAt = process.hrtime.bigint();
-            let candidate: ReturnType<typeof generateGreaterRealmCandidate> | undefined;
-            try {
-              candidate = generateGreaterRealmCandidate({
-                rootSeed,
-                candidateOrdinal: ordinal,
-              });
-              const performance = roundedPerformance(startedAt);
-              if (!candidate.aggregate.eligible) {
-                rejectedAttempts.push(Object.freeze({
-                  kind: 'proof-rejection',
-                  candidateOrdinal: ordinal,
-                  activeCellCount: candidate.grid.cellCount,
-                  failedProofs: candidate.privateMetrics.eligibilityFailureCodes,
-                }));
-                continue;
-              }
-              const candidateHandle = createGreaterRealmCandidateHandle();
-              const written = await writeGreaterRealmPrivateCandidate({
-                workspace: stagedWorkspace,
-                batchHandle,
-                candidateHandle,
-                sourceCommit: commit,
-                candidate,
-                performance,
-              });
-              privateCandidates.push(Object.freeze({
-                candidateHandle,
-                candidateOrdinal: ordinal,
-                manifestDigest: written.manifestDigest,
-                atlasDigest: written.atlasDigest,
-              }));
-              publicCandidates.push(Object.freeze({
-                candidateHandle,
-                ...candidate.aggregate,
-                performance: publicPerformance(performance),
-              }));
-            } catch (error) {
-              const rejectionCode = greaterRealmCandidateRejectionCode(error);
-              if (rejectionCode === undefined) throw error;
-              rejectedAttempts.push(Object.freeze({
-                kind: 'geography-exhaustion',
-                candidateOrdinal: ordinal,
-                rejectionCode,
-              }));
-            } finally {
-              if (candidate) clearGreaterRealmPrivateCandidateBuffers(candidate);
-            }
-          }
-          if (publicCandidates.length !== requestedCount) {
-            fail('GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE');
-          }
-          const review = createGreaterRealmSanitizedReview({
-            generatorVersion: GREATER_REALM_GENERATOR_VERSION,
-            sourceCommit: commit,
-            reviewBatchHandle: batchHandle,
-            selectionStatus: 'pending',
-            selectedCandidateHandle: null,
-            candidates: publicCandidates,
+        }
+        const activeCheckpoint = checkpoint;
+        if (activeCheckpoint === undefined) {
+          fail('GREATER_REALM_ATTEMPT_CHECKPOINT_INVALID');
+        }
+        const batchHandle = activeCheckpoint.batchHandle;
+        const batchPath = `batches/${batchHandle}`;
+        const publicationStatus = workspace.recoverAtomicDirectoryPublish(batchPath);
+        if (publicationStatus === 'published') {
+          if (!arguments_.resume) fail('GREATER_REALM_ATTEMPT_CHECKPOINT_INVALID');
+          const review = await assertPublishedBatchMatchesAttempt(workspace, activeCheckpoint);
+          installPendingOwnerReport(review);
+          const completion = writeGreaterRealmAttemptCompletionReceipt({
+            workspace,
+            state: activeCheckpoint,
           });
-          const sanitizedBytes = Buffer.from(
-            serializeGreaterRealmSanitizedReview(review),
-            'utf8',
-          );
-          try {
-            stagedWorkspace.writeFileAtomic(
-              `batches/${batchHandle}/sanitized-review.json`,
-              sanitizedBytes,
-              4 * 1024 * 1024,
+          reconcileGreaterRealmAttemptCompletion({ workspace, receipt: completion });
+          return batchHandle;
+        }
+        await workspace.withAtomicDirectoryPublish(
+          batchPath,
+          async stagedWorkspace => {
+            const batchSeedEnvelope = encodeGreaterRealmPrivateSeed(
+              activeCheckpoint.rootSeed,
+              'batch',
             );
-          } finally {
-            sanitizedBytes.fill(0);
-          }
-          writePrivateJson(
-            stagedWorkspace,
-            `batches/${batchHandle}/batch.private.json`,
-            {
-              kind: 'warpkeep.greater-realm.private-batch.v1',
-              generatorVersion: GREATER_REALM_GENERATOR_VERSION,
-              sourceCommit: commit,
+            try {
+              stagedWorkspace.writeFileAtomic(
+                `batches/${batchHandle}/batch-seed.bin`,
+                batchSeedEnvelope,
+                GREATER_REALM_PRIVATE_SEED_ENVELOPE_BYTES,
+              );
+            } finally {
+              batchSeedEnvelope.fill(0);
+            }
+            const publicCandidates: GreaterRealmSanitizedCandidateSource[] = [];
+            const privateCandidates: Array<Readonly<{
+              candidateHandle: string;
+              candidateOrdinal: number;
+              manifestDigest: string;
+              atlasDigest: string;
+            }>> = [];
+            let current = activeCheckpoint;
+            while (
+              current.nextOrdinal < maximumAttempts
+              && publicCandidates.length === 0
+            ) {
+              const ordinal = current.nextOrdinal;
+              const startedAt = process.hrtime.bigint();
+              let candidate: ReturnType<typeof generateGreaterRealmCandidate> | undefined;
+              try {
+                try {
+                  candidate = generateGreaterRealmCandidate({
+                    rootSeed: current.rootSeed,
+                    candidateOrdinal: ordinal,
+                  });
+                } catch (error) {
+                  if (current.phase === 'accepted') {
+                    fail('GREATER_REALM_ATTEMPT_CHECKPOINT_REPLAY_MISMATCH');
+                  }
+                  const rejectionCode = greaterRealmCandidateRejectionCode(error);
+                  if (rejectionCode === undefined) throw error;
+                  const rejectedAttempt: GreaterRealmCheckpointRejectedAttempt = Object.freeze({
+                    kind: 'geography-exhaustion',
+                    candidateOrdinal: ordinal,
+                    rejectionCode,
+                  });
+                  current = recordGreaterRealmRejectedAttempt({
+                    workspace,
+                    state: current,
+                    rejectedAttempt,
+                    nextCandidateHandle: createGreaterRealmCandidateHandle(),
+                  });
+                  checkpoint = current;
+                  continue;
+                }
+                if (!candidate.aggregate.eligible) {
+                  if (current.phase === 'accepted') {
+                    fail('GREATER_REALM_ATTEMPT_CHECKPOINT_REPLAY_MISMATCH');
+                  }
+                  const rejectedAttempt: GreaterRealmCheckpointRejectedAttempt = Object.freeze({
+                    kind: 'proof-rejection',
+                    candidateOrdinal: ordinal,
+                    activeCellCount: candidate.grid.cellCount,
+                    failedProofs: candidate.privateMetrics.eligibilityFailureCodes,
+                  });
+                  current = recordGreaterRealmRejectedAttempt({
+                    workspace,
+                    state: current,
+                    rejectedAttempt,
+                    nextCandidateHandle: createGreaterRealmCandidateHandle(),
+                  });
+                  checkpoint = current;
+                  continue;
+                }
+                const performance = current.phase === 'accepted'
+                  ? current.acceptedPerformance
+                  : roundedPerformance(startedAt);
+                if (performance === null) {
+                  fail('GREATER_REALM_ATTEMPT_CHECKPOINT_INVALID');
+                }
+                const written = await writeGreaterRealmPrivateCandidate({
+                  workspace: stagedWorkspace,
+                  batchHandle,
+                  candidateHandle: current.candidateHandle,
+                  sourceCommit: commit,
+                  candidate,
+                  performance,
+                });
+                if (current.phase === 'accepted') {
+                  if (
+                    current.acceptedCandidateDigest
+                      !== acceptedCandidateDigest(written.atlasDigest, written.manifestDigest)
+                  ) {
+                    fail('GREATER_REALM_ATTEMPT_CHECKPOINT_REPLAY_MISMATCH');
+                  }
+                } else {
+                  current = recordGreaterRealmAcceptedAttempt({
+                    workspace,
+                    state: current,
+                    performance,
+                    candidateDigest: acceptedCandidateDigest(
+                      written.atlasDigest,
+                      written.manifestDigest,
+                    ),
+                  });
+                  checkpoint = current;
+                }
+                privateCandidates.push(Object.freeze({
+                  candidateHandle: current.candidateHandle,
+                  candidateOrdinal: ordinal,
+                  manifestDigest: written.manifestDigest,
+                  atlasDigest: written.atlasDigest,
+                }));
+                publicCandidates.push(Object.freeze({
+                  candidateHandle: current.candidateHandle,
+                  ...candidate.aggregate,
+                  performance: publicPerformance(performance),
+                }));
+              } finally {
+                if (candidate) clearGreaterRealmPrivateCandidateBuffers(candidate);
+              }
+            }
+            if (
+              publicCandidates.length !== 1
+              || privateCandidates.length !== 1
+              || current.phase !== 'accepted'
+              || current.acceptedPerformance === null
+            ) fail('GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE');
+            writeGeneratedBatchMetadata({
+              workspace: stagedWorkspace,
               batchHandle,
-              batchSeedDigest: createHash('sha256').update(rootSeed).digest('hex'),
-              sanitizedReviewDigest: review.reportDigest,
-              requestedCount,
+              sourceCommit: commit,
+              rootSeed: current.rootSeed,
+              requestedCount: 1,
               maximumAttempts,
-              attemptsUsed: privateCandidates.length + rejectedAttempts.length,
-              candidates: privateCandidates,
-              rejectedAttempts,
-            },
-          );
+              publicCandidates,
+              privateCandidates,
+              rejectedAttempts: current.rejectedAttempts,
+            });
+            // This runs after every generator/package read but immediately
+            // before the staged directory is allowed to become visible.
+            reattestAttemptToolchain(current.binding);
+            checkpoint = current;
+          },
+        );
+        const completedCheckpoint = checkpoint;
+        if (completedCheckpoint === undefined || completedCheckpoint.phase !== 'accepted') {
+          fail('GREATER_REALM_ATTEMPT_CHECKPOINT_INVALID');
+        }
+        if (workspace.recoverAtomicDirectoryPublish(batchPath) !== 'published') {
+          fail('GREATER_REALM_ATTEMPT_CHECKPOINT_INVALID');
+        }
+        const review = await assertPublishedBatchMatchesAttempt(workspace, completedCheckpoint);
+        installPendingOwnerReport(review);
+        const completion = writeGreaterRealmAttemptCompletionReceipt({
+          workspace,
+          state: completedCheckpoint,
         });
+        reconcileGreaterRealmAttemptCompletion({ workspace, receipt: completion });
+        return batchHandle;
       },
     );
   } finally {
-    rootSeed.fill(0);
+    clearGreaterRealmAttemptCheckpointSecret(checkpoint);
   }
   process.stdout.write(`${JSON.stringify({
-    batchHandle,
-    eligibleCandidates: requestedCount,
+    batchHandle: publishedBatchHandle,
+    eligibleCandidates: 1,
     selectionStatus: 'pending',
     productionUntouched: true,
   })}\n`);
+}
+
+async function abortSingleWorldCandidateGeneration(
+  arguments_: ParsedArguments,
+): Promise<void> {
+  const workspace = openGreaterRealmPrivateWorkspace({
+    repositoryRoot: ROOT,
+    workspaceRoot: arguments_.workspaceRoot,
+  });
+  await workspace.withExclusiveLock(
+    'locks/generate-candidates.lock',
+    async () => {
+      abortGreaterRealmAttemptCheckpoint({ workspace });
+    },
+  );
+  process.stdout.write(`${JSON.stringify({
+    checkpointAborted: true,
+    productionUntouched: true,
+  })}\n`);
+}
+
+async function generateCandidates(arguments_: ParsedArguments): Promise<void> {
+  if (arguments_.abortCheckpoint) {
+    await abortSingleWorldCandidateGeneration(arguments_);
+    return;
+  }
+  const maximumAttempts = arguments_.maximumAttempts ?? 128;
+  await generateSingleWorldCandidate(arguments_, maximumAttempts);
 }
 
 function reviewRelativePath(batchHandle: string): string {
@@ -821,50 +1236,9 @@ const PRIVATE_SHORTLIST_HARD_CONSTRAINTS = Object.freeze([
   'range-inclusive:MOUNTAIN_BARRIER_WIDTH_4_8',
 ] as const);
 
-function shortlistObjectiveComparison(
-  first: ShortlistCandidate,
-  second: ShortlistCandidate,
-  objective: typeof PRIVATE_SHORTLIST_OBJECTIVES[number],
-): number {
-  const firstValue = objective.value(first);
-  const secondValue = objective.value(second);
-  return objective.direction === 'maximize'
-    ? firstValue - secondValue
-    : secondValue - firstValue;
-}
-
-function shortlistCandidateDominates(
-  first: ShortlistCandidate,
-  second: ShortlistCandidate,
-): boolean {
-  let strictlyBetter = false;
-  for (const objective of PRIVATE_SHORTLIST_OBJECTIVES) {
-    const comparison = shortlistObjectiveComparison(first, second, objective);
-    if (comparison < 0) return false;
-    if (comparison > 0) strictlyBetter = true;
-  }
-  return strictlyBetter;
-}
-
-function shortlistDiversityDistance(
-  first: ShortlistCandidate,
-  second: ShortlistCandidate,
-  ranges: readonly Readonly<{ minimum: number; span: number }>[],
-): number {
-  let maximumDistance = 0;
-  for (let index = 0; index < PRIVATE_SHORTLIST_OBJECTIVES.length; index += 1) {
-    const objective = PRIVATE_SHORTLIST_OBJECTIVES[index]!;
-    const range = ranges[index]!;
-    const distance = Math.abs(objective.value(first) - objective.value(second)) / range.span;
-    maximumDistance = Math.max(maximumDistance, distance);
-  }
-  return maximumDistance;
-}
-
 /**
- * Produces an unranked owner-review set. A single-candidate batch remains a
- * pending owner review; multi-candidate batches use Pareto specialists and
- * vector separation. Neither path recommends or selects a world.
+ * Produces the one unranked, pending owner-review record authorized by PR A.
+ * It neither recommends nor selects the world.
  */
 export function buildGreaterRealmPrivateCandidateShortlist(
   review: GreaterRealmSanitizedReview,
@@ -873,7 +1247,7 @@ export function buildGreaterRealmPrivateCandidateShortlist(
   if (
     review.selectionStatus !== 'pending'
     || review.selectedCandidateHandle !== null
-    || review.candidates.length < GREATER_REALM_MINIMUM_CANDIDATE_COUNT
+    || review.candidates.length !== GREATER_REALM_MINIMUM_CANDIDATE_COUNT
     || review.candidates.some(candidate => candidate.eligible !== true)
     || review.candidates.some(candidate => (
       candidate.biomes.incompatibleVisualAdjacencyCount !== 0
@@ -890,58 +1264,14 @@ export function buildGreaterRealmPrivateCandidateShortlist(
     }
     privateByHandle.set(metrics.candidateHandle, metrics);
   }
-  const candidates = review.candidates.map(publicCandidate => {
-    const privateMetrics = privateByHandle.get(publicCandidate.candidateHandle);
-    if (!privateMetrics) fail('GREATER_REALM_PRIVATE_SHORTLIST_INVALID');
-    return Object.freeze({
-      candidateHandle: publicCandidate.candidateHandle,
-      publicCandidate,
-      privateMetrics,
-    });
-  }).sort((first, second) => first.candidateHandle.localeCompare(second.candidateHandle));
-  const paretoFront = candidates.filter(candidate => !candidates.some(other => (
-    other !== candidate && shortlistCandidateDominates(other, candidate)
-  )));
-  const selected = new Map<string, ShortlistCandidate>();
-  for (const objective of PRIVATE_SHORTLIST_OBJECTIVES) {
-    const specialist = [...paretoFront].sort((first, second) => {
-      const comparison = shortlistObjectiveComparison(second, first, objective);
-      return comparison === 0
-        ? first.candidateHandle.localeCompare(second.candidateHandle)
-        : comparison;
-    })[0];
-    if (specialist) selected.set(specialist.candidateHandle, specialist);
-    if (selected.size === 5) break;
+  const candidate = review.candidates[0]!;
+  if (!privateByHandle.has(candidate.candidateHandle)) {
+    fail('GREATER_REALM_PRIVATE_SHORTLIST_INVALID');
   }
-  const ranges = PRIVATE_SHORTLIST_OBJECTIVES.map(objective => {
-    const values = candidates.map(candidate => objective.value(candidate));
-    const minimum = Math.min(...values);
-    return Object.freeze({ minimum, span: Math.max(1, Math.max(...values) - minimum) });
-  });
-  const minimumReviewSetSize = Math.min(3, candidates.length);
-  while (selected.size < minimumReviewSetSize) {
-    const remaining = candidates.filter(candidate => !selected.has(candidate.candidateHandle));
-    if (remaining.length === 0) fail('GREATER_REALM_PRIVATE_SHORTLIST_INVALID');
-    const next = remaining.sort((first, second) => {
-      const minimumDistance = (candidate: ShortlistCandidate) => Math.min(
-        ...[...selected.values()].map(chosen => (
-          shortlistDiversityDistance(candidate, chosen, ranges)
-        )),
-      );
-      const firstDistance = selected.size === 0 ? 0 : minimumDistance(first);
-      const secondDistance = selected.size === 0 ? 0 : minimumDistance(second);
-      return secondDistance === firstDistance
-        ? first.candidateHandle.localeCompare(second.candidateHandle)
-        : secondDistance - firstDistance;
-    })[0]!;
-    selected.set(next.candidateHandle, next);
-  }
-  const candidateHandles = Object.freeze([...selected.keys()].sort());
+  const candidateHandles = Object.freeze([candidate.candidateHandle]);
   return Object.freeze({
     kind: 'warpkeep.greater-realm.private-owner-shortlist.v1' as const,
-    method: candidates.length === 1
-      ? 'single-candidate-reference-review-v1' as const
-      : 'pareto-private-vector-diversity-v2' as const,
+    method: 'single-candidate-reference-review-v1' as const,
     comparisonBasis: 'verified-private-package-aggregate-metrics-v1' as const,
     batchHandle: review.reviewBatchHandle,
     sourceReviewDigest: review.reportDigest,
@@ -1599,8 +1929,8 @@ export function resolveGreaterRealmPublicEvidenceDestination(path: string): stri
   return resolvePublicEvidenceDestination(ROOT, path);
 }
 
-function readPublicEvidence(path: string): Buffer {
-  const absolute = resolveGreaterRealmPublicEvidenceDestination(path);
+function readPublicEvidence(path: string, repositoryRoot = ROOT): Buffer {
+  const absolute = resolvePublicEvidenceDestination(repositoryRoot, path);
   let descriptor: number | undefined;
   try {
     descriptor = openSync(absolute, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
@@ -1624,6 +1954,9 @@ function readPublicEvidence(path: string): Buffer {
       || before.mtimeMs !== after.mtimeMs
       || !current.isFile()
       || current.isSymbolicLink()
+      || current.nlink !== 1
+      || (process.getuid !== undefined && current.uid !== process.getuid())
+      || (current.mode & 0o777) !== PUBLIC_EVIDENCE_FILE_MODE
       || current.dev !== after.dev
       || current.ino !== after.ino
     ) {
@@ -1699,6 +2032,130 @@ function safeUnlinkPublicEvidenceIdentity(
     if (samePublicEvidenceIdentity(current, identity)) unlinkSync(path);
   } catch {
     // Cleanup never removes a substituted entry.
+  }
+}
+
+/**
+ * Recover only UUID-scoped temporary links created by writePublicEvidence.
+ *
+ * A one-link temporary was never installed and is safe to retire. A two-link
+ * temporary is accepted only when its other name is the exact destination and
+ * both names still expose the canonical bytes. Everything else fails closed.
+ */
+function recoverPublicEvidenceInstall(
+  path: string,
+  expected: Buffer,
+  repositoryRoot = ROOT,
+): 'absent' | 'installed' {
+  if (
+    expected.byteLength < 1
+    || expected.byteLength > PUBLIC_EVIDENCE_MAXIMUM_BYTES
+  ) fail('GREATER_REALM_PUBLIC_EVIDENCE_WRITE_FAILED');
+  const destination = resolvePublicEvidenceDestination(repositoryRoot, path);
+  const parent = dirname(destination);
+  const parentAttestation = openPublicEvidenceDirectory(parent, repositoryRoot);
+  const destinationName = basename(destination);
+  const temporaryPrefix = `${destinationName}.`;
+  const temporaryPattern = new RegExp(
+    `^${destinationName.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}\\.`
+      + '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.tmp$',
+    'u',
+  );
+  let descriptor: number | undefined;
+  try {
+    attestPublicEvidenceDirectory(parentAttestation, repositoryRoot);
+    const names = readdirSync(parent).sort((left, right) => left.localeCompare(right));
+    const temporaryNames: string[] = [];
+    for (const name of names) {
+      if (!name.startsWith(temporaryPrefix) || !name.endsWith('.tmp')) continue;
+      if (!temporaryPattern.test(name)) {
+        fail('GREATER_REALM_PUBLIC_EVIDENCE_WRITE_FAILED');
+      }
+      temporaryNames.push(name);
+    }
+
+    for (const name of temporaryNames) {
+      const temporary = resolve(parent, name);
+      const before = lstatSync(temporary);
+      const currentUser = process.getuid?.();
+      const mode = before.mode & 0o777;
+      if (
+        !before.isFile()
+        || before.isSymbolicLink()
+        || (before.nlink !== 1 && before.nlink !== 2)
+        || (currentUser !== undefined && before.uid !== currentUser)
+        || before.size > PUBLIC_EVIDENCE_MAXIMUM_BYTES
+        || (mode & 0o133) !== 0
+        || (mode & 0o600) !== 0o600
+      ) fail('GREATER_REALM_PUBLIC_EVIDENCE_WRITE_FAILED');
+      const identity = Object.freeze({ dev: before.dev, ino: before.ino });
+
+      if (before.nlink === 1) {
+        attestPublicEvidenceDirectory(parentAttestation, repositoryRoot);
+        safeUnlinkPublicEvidenceIdentity(temporary, identity);
+        if (existsSync(temporary)) fail('GREATER_REALM_PUBLIC_EVIDENCE_WRITE_FAILED');
+        fsyncSync(parentAttestation.descriptor);
+        attestPublicEvidenceDirectory(parentAttestation, repositoryRoot);
+        continue;
+      }
+
+      if (!existsSync(destination)) fail('GREATER_REALM_PUBLIC_EVIDENCE_WRITE_FAILED');
+      const installed = lstatSync(destination);
+      assertPublicEvidenceFileStatus(
+        before,
+        identity,
+        expected.byteLength,
+        2,
+      );
+      assertPublicEvidenceFileStatus(
+        installed,
+        identity,
+        expected.byteLength,
+        2,
+      );
+      descriptor = openSync(
+        destination,
+        constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0),
+      );
+      attestPublicEvidenceBytes(descriptor, identity, expected, 2);
+      closeSync(descriptor);
+      descriptor = undefined;
+      attestPublicEvidenceDirectory(parentAttestation, repositoryRoot);
+      safeUnlinkPublicEvidenceIdentity(temporary, identity);
+      if (existsSync(temporary)) fail('GREATER_REALM_PUBLIC_EVIDENCE_WRITE_FAILED');
+      assertPublicEvidenceFileStatus(
+        lstatSync(destination),
+        identity,
+        expected.byteLength,
+        1,
+      );
+      fsyncSync(parentAttestation.descriptor);
+      attestPublicEvidenceDirectory(parentAttestation, repositoryRoot);
+    }
+
+    if (!existsSync(destination)) return 'absent';
+    const status = lstatSync(destination);
+    const identity = Object.freeze({ dev: status.dev, ino: status.ino });
+    assertPublicEvidenceFileStatus(status, identity, expected.byteLength, 1);
+    descriptor = openSync(
+      destination,
+      constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0),
+    );
+    attestPublicEvidenceBytes(descriptor, identity, expected, 1);
+    closeSync(descriptor);
+    descriptor = undefined;
+    attestPublicEvidenceDirectory(parentAttestation, repositoryRoot);
+    return 'installed';
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('GREATER_REALM_')) {
+      throw error;
+    }
+    return fail('GREATER_REALM_PUBLIC_EVIDENCE_WRITE_FAILED');
+  } finally {
+    if (descriptor !== undefined) {
+      try { closeSync(descriptor); } catch { /* Preserve the fixed diagnostic. */ }
+    }
+    try { closeSync(parentAttestation.descriptor); } catch { /* Preserve the fixed diagnostic. */ }
   }
 }
 
@@ -1823,6 +2280,14 @@ function writePublicEvidence(
 
 /** Executable ESM test seam for deterministic substitution regressions. */
 export const greaterRealmPublicEvidenceTestSeams = Object.freeze({
+  pendingOwnerReportPath: PENDING_OWNER_REPORT_PATH,
+  isRecoverablePendingOwnerReportStatus,
+  installPendingOwnerReport(input: Readonly<{
+    repositoryRoot: string;
+    review: GreaterRealmSanitizedReview;
+  }>): void {
+    installPendingOwnerReport(input.review, input.repositoryRoot);
+  },
   write(input: Readonly<{
     repositoryRoot: string;
     path: string;
@@ -1904,6 +2369,14 @@ async function main(): Promise<void> {
     })}\n`);
     return;
   }
+  if (arguments_.command === 'inspect-package') {
+    const { review } = await verifyPrivateReviewBatch(
+      workspace,
+      arguments_.batchHandle!,
+    );
+    process.stdout.write(`${JSON.stringify(inspectPackagePublicStatus(review))}\n`);
+    return;
+  }
   if (arguments_.command === 'export-sanitized-review') {
     const { review } = await verifyPrivateReviewBatch(workspace, arguments_.batchHandle!);
     const bytes = Buffer.from(serializeGreaterRealmSanitizedReview(review), 'utf8');
@@ -1924,36 +2397,42 @@ async function main(): Promise<void> {
   }
   const batchHandle = arguments_.batchHandle!;
   const selectedHandle = await workspace.withExclusiveLock(
-    `locks/${batchHandle}.selection.lock`,
+    'locks/generate-candidates.lock',
     async () => {
-      if (workspace.hasFile(selectionRelativePath(batchHandle))) {
-        fail('GREATER_REALM_SELECTION_INVALID');
-      }
-      const { review } = await verifyPrivateReviewBatch(workspace, batchHandle);
-      const selected = review.candidates.find(candidate => (
-        candidate.candidateHandle === arguments_.candidateHandle && candidate.eligible
-      ));
-      if (!selected || review.selectionStatus !== 'pending') {
-        fail('GREATER_REALM_SELECTION_INVALID');
-      }
-      const selectedReview = createGreaterRealmSanitizedReview({
-        generatorVersion: review.generatorVersion,
-        sourceCommit: review.sourceCommit,
-        reviewBatchHandle: review.reviewBatchHandle,
-        selectionStatus: 'selected',
-        selectedCandidateHandle: selected.candidateHandle,
-        candidates: review.candidates.map(candidateSource),
-      });
-      writePrivateJson(workspace, selectionRelativePath(batchHandle), {
-        kind: 'warpkeep.greater-realm.private-owner-selection.v1',
-        batchHandle,
-        candidateHandle: arguments_.candidateHandle,
-        approvalReference: arguments_.approvalReference,
-        generatorVersion: GREATER_REALM_GENERATOR_VERSION,
-        sourceReviewDigest: review.reportDigest,
-        selectedReview,
-      });
-      return selected.candidateHandle;
+      assertGreaterRealmAttemptSelectionReady({ workspace });
+      return workspace.withExclusiveLock(
+        `locks/${batchHandle}.selection.lock`,
+        async () => {
+          if (workspace.hasFile(selectionRelativePath(batchHandle))) {
+            fail('GREATER_REALM_SELECTION_INVALID');
+          }
+          const { review } = await verifyPrivateReviewBatch(workspace, batchHandle);
+          const selected = review.candidates.find(candidate => (
+            candidate.candidateHandle === arguments_.candidateHandle && candidate.eligible
+          ));
+          if (!selected || review.selectionStatus !== 'pending') {
+            fail('GREATER_REALM_SELECTION_INVALID');
+          }
+          const selectedReview = createGreaterRealmSanitizedReview({
+            generatorVersion: review.generatorVersion,
+            sourceCommit: review.sourceCommit,
+            reviewBatchHandle: review.reviewBatchHandle,
+            selectionStatus: 'selected',
+            selectedCandidateHandle: selected.candidateHandle,
+            candidates: review.candidates.map(candidateSource),
+          });
+          writePrivateJson(workspace, selectionRelativePath(batchHandle), {
+            kind: 'warpkeep.greater-realm.private-owner-selection.v1',
+            batchHandle,
+            candidateHandle: arguments_.candidateHandle,
+            approvalReference: arguments_.approvalReference,
+            generatorVersion: GREATER_REALM_GENERATOR_VERSION,
+            sourceReviewDigest: review.reportDigest,
+            selectedReview,
+          });
+          return selected.candidateHandle;
+        },
+      );
     },
   );
   process.stdout.write(`${JSON.stringify({

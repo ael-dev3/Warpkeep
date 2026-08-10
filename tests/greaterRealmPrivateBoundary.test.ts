@@ -32,6 +32,10 @@ import {
   createGreaterRealmSanitizedReview,
   serializeGreaterRealmSanitizedReview,
 } from '../scripts/atlas/greater-realm-sanitized-review';
+import {
+  createGreaterRealmPendingOwnerReport,
+  serializeGreaterRealmPendingOwnerReport,
+} from '../scripts/atlas/greater-realm-pending-owner-report';
 
 // @ts-expect-error Executable ESM verifier exposes named test seams.
 import { verifyGreaterRealmPublicBoundary } from '../scripts/atlas/verify-public-boundary.mjs';
@@ -172,6 +176,16 @@ function sanitizedReviewEvidence(): string {
     candidates: Object.freeze(candidates),
   });
   return serializeGreaterRealmSanitizedReview(createGreaterRealmSanitizedReview(source));
+}
+
+function pendingOwnerReviewEvidence(): string {
+  const sanitizedReview = JSON.parse(sanitizedReviewEvidence());
+  return serializeGreaterRealmPendingOwnerReport(
+    createGreaterRealmPendingOwnerReport({
+      sanitizedReview,
+      privatePackageVerified: true,
+    }),
+  );
 }
 
 function runFixtureGit(repositoryRoot: string, arguments_: string[]) {
@@ -636,6 +650,87 @@ describe('Greater Realm public and release boundary', () => {
     })).toMatchObject({ trackedPathCount: 1 });
   });
 
+  it('accepts the exact verified one-world pending owner report', () => {
+    const paths = scannerRepository();
+    const relativePath = 'docs/evidence/greater-realm/pending-owner-review-v1.json';
+    mkdirSync(dirname(join(paths.repositoryRoot, relativePath)), { recursive: true });
+    writeFileSync(join(paths.repositoryRoot, relativePath), pendingOwnerReviewEvidence());
+
+    expect(verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      trackedPaths: [relativePath],
+    })).toMatchObject({ trackedPathCount: 1 });
+  });
+
+  it('rejects a pending owner report whose source aggregate digest was not rebound', () => {
+    const paths = scannerRepository();
+    const relativePath = 'docs/evidence/greater-realm/pending-owner-review-v1.json';
+    mkdirSync(dirname(join(paths.repositoryRoot, relativePath)), { recursive: true });
+    const report = JSON.parse(pendingOwnerReviewEvidence()) as {
+      candidate: { quality: { naturalnessBasisPoints: number } };
+    };
+    report.candidate.quality.naturalnessBasisPoints -= 1;
+    writeFileSync(
+      join(paths.repositoryRoot, relativePath),
+      `${JSON.stringify(report, null, 2)}\n`,
+    );
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_SANITIZED_REVIEW_INVALID');
+  });
+
+  it('rejects private material added to a pending owner report', () => {
+    const paths = scannerRepository();
+    const relativePath = 'docs/evidence/greater-realm/pending-owner-review-v1.json';
+    mkdirSync(dirname(join(paths.repositoryRoot, relativePath)), { recursive: true });
+    const report = JSON.parse(pendingOwnerReviewEvidence()) as {
+      candidate: Record<string, unknown>;
+    };
+    report.candidate.firstQ = 42;
+    writeFileSync(
+      join(paths.repositoryRoot, relativePath),
+      `${JSON.stringify(report, null, 2)}\n`,
+    );
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_SANITIZED_REVIEW_INVALID');
+  });
+
+  it('rejects activated or owner-selected state in the pending owner report', () => {
+    const paths = scannerRepository();
+    const relativePath = 'docs/evidence/greater-realm/pending-owner-review-v1.json';
+    mkdirSync(dirname(join(paths.repositoryRoot, relativePath)), { recursive: true });
+    const report = JSON.parse(pendingOwnerReviewEvidence()) as {
+      activationStatus: string;
+    };
+    report.activationStatus = 'active';
+    writeFileSync(
+      join(paths.repositoryRoot, relativePath),
+      `${JSON.stringify(report, null, 2)}\n`,
+    );
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_SANITIZED_REVIEW_INVALID');
+  });
+
+  it('does not accept the pending owner schema under an unreviewed basename', () => {
+    const paths = scannerRepository();
+    const relativePath = 'docs/evidence/greater-realm/pending-owner-renamed-v1.json';
+    mkdirSync(dirname(join(paths.repositoryRoot, relativePath)), { recursive: true });
+    writeFileSync(join(paths.repositoryRoot, relativePath), pendingOwnerReviewEvidence());
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_SANITIZED_REVIEW_INVALID');
+  });
+
   it('accepts only the immutable canonical Greater Realm evidence README bytes', () => {
     const paths = scannerRepository();
     const relativePath = 'docs/evidence/greater-realm/README.md';
@@ -943,6 +1038,37 @@ describe('Greater Realm public and release boundary', () => {
       repositoryRoot: paths.repositoryRoot,
       trackedPaths: [],
     })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it.each([
+    [
+      'renamed checkpoint owner key',
+      ['WKGR-PRIVATE-', 'CHECKPOINT-OWNER-KEY-V1'].join(''),
+      'utf8',
+    ],
+    [
+      'renamed encrypted attempt checkpoint',
+      ['WKGR-PRIVATE-', 'ATTEMPT-CHECKPOINT-V1'].join(''),
+      'utf16le',
+    ],
+    [
+      'renamed attempt completion kind',
+      ['warpkeep.greater-realm.private-', 'attempt-completion.v1'].join(''),
+      'utf8',
+    ],
+  ] as const)('rejects a %s marker', (_label, marker, encoding) => {
+    const paths = scannerRepository();
+    const relativePath = 'public/ordinary-state.bin';
+    const bytes = Buffer.from(marker, encoding);
+    try {
+      writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+      expect(() => verifyGreaterRealmPublicBoundary({
+        repositoryRoot: paths.repositoryRoot,
+        trackedPaths: [relativePath],
+      })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_MARKER');
+    } finally {
+      bytes.fill(0);
+    }
   });
 
   it('scans complete binary artifacts instead of trusting an ordinary prefix', () => {
@@ -2135,6 +2261,221 @@ describe('Greater Realm public and release boundary', () => {
     })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
   });
 
+  it('rejects initialized private hydrology authority and aggregate QA reports', () => {
+    const paths = scannerRepository();
+    const hydrologyPath = 'tools/private-water.ts';
+    const reportPath = 'tools/ordinary-report.json';
+    mkdirSync(join(paths.repositoryRoot, 'tools'));
+    writeFileSync(
+      join(paths.repositoryRoot, hydrologyPath),
+      `export const ${['water', 'BodyId'].join('')} = new Uint8Array([1, 2, 3]);\n`,
+    );
+    writeFileSync(
+      join(paths.repositoryRoot, reportPath),
+      `${JSON.stringify({
+        [['topographic', 'Qa'].join('')]: { cellCount: 100_000 },
+      })}\n`,
+    );
+    for (const relativePath of [hydrologyPath, reportPath]) {
+      expect(() => verifyGreaterRealmPublicBoundary({
+        repositoryRoot: paths.repositoryRoot,
+        trackedPaths: [relativePath],
+      })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+    }
+  });
+
+  it('rejects markerless private domain-material authority in data and binary files', () => {
+    const paths = scannerRepository();
+    const dataPath = 'tools/private-domain.json';
+    const binaryPath = 'tools/ordinary-domain.bin';
+    mkdirSync(join(paths.repositoryRoot, 'tools'));
+    writeFileSync(
+      join(paths.repositoryRoot, dataPath),
+      `${JSON.stringify({
+        [['base', 'Thickness'].join('')]: 420,
+        [['rock', 'Family'].join('')]: 3,
+      })}\n`,
+    );
+    writeFileSync(
+      join(paths.repositoryRoot, binaryPath),
+      Buffer.from(['RoCk', 'FaMiLy'].join('-'), 'utf16le'),
+    );
+
+    for (const relativePath of [dataPath, binaryPath]) {
+      expect(() => verifyGreaterRealmPublicBoundary({
+        repositoryRoot: paths.repositoryRoot,
+        trackedPaths: [relativePath],
+      })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+    }
+  });
+
+  it.each([
+    [
+      'domain-material metrics',
+      'tools/domain-metrics.json',
+      () => `${JSON.stringify({
+        [['minimumBase', 'Thickness'].join('')]: 28_000,
+        [['maximumBase', 'Thickness'].join('')]: 52_000,
+        [['rockFamily', 'Counts'].join('')]: [0, 2, 1],
+      })}\n`,
+    ],
+    [
+      'final-hydrology metrics',
+      'tools/hydrology-metrics.data',
+      () => `${JSON.stringify({
+        [['waterCellCountsBy', 'Regime'].join('')]: [0, 10, 2, 3, 4, 1, 5],
+        [['waterBodyCountsBy', 'Regime'].join('')]: [0, 1, 1, 2, 2, 1, 3],
+        [['waterCellCountsByDepth', 'Class'].join('')]: [0, 8, 9, 8],
+      })}\n`,
+    ],
+    [
+      'strategic subreport in source',
+      'tools/strategic-metrics.ts',
+      () => `export const ${['regionBoundary', 'Alignment'].join('')} = { proof: true, boundaryEdgeCount: 12 };\n`,
+    ],
+    [
+      'regional hydrogeomorphology report',
+      'tools/regional-metrics.json',
+      () => `${JSON.stringify({
+        [['regionalHydro', 'geomorphology'].join('')]: {
+          frostmere: { proof: true },
+          mirefen: { proof: true },
+          sunscar: { proof: true },
+          stonewake: { proof: true },
+          tierII: { proof: true },
+          throneheart: { proof: true },
+          proof: true,
+        },
+      })}\n`,
+    ],
+    [
+      'chunk benchmark metrics',
+      'tools/chunk-metrics.json',
+      () => `${JSON.stringify({
+        [['selectedAxis', 'Span'].join('')]: 15,
+        [['reviewedPopulationCellShareBasis', 'Points'].join('')]: 9_500,
+      })}\n`,
+    ],
+    [
+      'topography patch-support metrics',
+      'tools/patch-metrics.json',
+      () => `${JSON.stringify({
+        [['lodSample', 'Counts'].join('')]: [100, 40, 20, 8],
+        [['ridgeOrValleySupportCell', 'Count'].join('')]: 50,
+      })}\n`,
+    ],
+  ] as const)('rejects an extracted private %s', (_label, relativePath, payload) => {
+    const paths = scannerRepository();
+    mkdirSync(join(paths.repositoryRoot, 'tools'));
+    writeFileSync(join(paths.repositoryRoot, relativePath), payload());
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it.each([
+    [
+      'typed-array of factory',
+      ['lodSample', 'Counts'].join(''),
+      (name: string) => `export const ${name} = Uint32Array.of(100, 40, 20, 8);\n`,
+    ],
+    [
+      'typed-array from factory',
+      ['rockFamily', 'Counts'].join(''),
+      (name: string) => `export const ${name} = Uint16Array.from([0, 2, 1]);\n`,
+    ],
+    [
+      'typed-array constructor',
+      ['waterCellCountsBy', 'Regime'].join(''),
+      (name: string) => `export const ${name} = new Uint32Array([0, 10, 2, 3]);\n`,
+    ],
+    [
+      'frozen array',
+      ['lodSample', 'Counts'].join(''),
+      (name: string) => `export const ${name} = Object.freeze([100, 40, 20, 8]);\n`,
+    ],
+    [
+      'frozen typed array',
+      ['rockFamily', 'Counts'].join(''),
+      (name: string) => (
+        `export const ${name} = Object.freeze(new Uint8Array([0, 2, 1]));\n`
+      ),
+    ],
+    [
+      'encoded Buffer call',
+      ['waterCellCountsByDepth', 'Class'].join(''),
+      (name: string) => `export const ${name} = Buffer.from("AAECAw==", "base64");\n`,
+    ],
+    [
+      'encoded atob call',
+      ['lodSample', 'Counts'].join(''),
+      (name: string) => `export const ${name} = globalThis.atob("AAECAw==");\n`,
+    ],
+    [
+      'encoded frozen object',
+      ['rockFamily', 'Counts'].join(''),
+      (name: string) => (
+        `export const ${name} = Object.freeze({ encoding: "base64", data: "AAECAw==" });\n`
+      ),
+    ],
+    [
+      'encoded string',
+      ['waterCellCountsBy', 'Regime'].join(''),
+      (name: string) => `export const ${name} = "AAECAw==";\n`,
+    ],
+  ] as const)('rejects a markerless advanced aggregate %s initializer in source', (
+    _label,
+    authorityName,
+    fixture,
+  ) => {
+    for (const staged of [false, true]) {
+      const paths = scannerRepository();
+      const relativePath = `src/advanced-${_label.replaceAll(' ', '-')}.ts`;
+      if (staged) runFixtureGit(paths.repositoryRoot, ['init', '--quiet']);
+      writeFileSync(join(paths.repositoryRoot, relativePath), fixture(authorityName));
+      if (staged) {
+        runFixtureGit(paths.repositoryRoot, ['add', '--', relativePath]);
+        writeFileSync(join(paths.repositoryRoot, relativePath), 'ordinary replacement\n');
+      }
+
+      expect(() => verifyGreaterRealmPublicBoundary({
+        repositoryRoot: paths.repositoryRoot,
+        scanRoots: [],
+        ...(staged ? {} : { trackedPaths: [relativePath] }),
+      })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+    }
+  });
+
+  it('allows advanced aggregate vocabulary and type declarations without values', () => {
+    const paths = scannerRepository();
+    const sourcePath = 'src/advanced-aggregate-types.ts';
+    const documentationPath = 'docs/advanced-aggregate-vocabulary.md';
+    writeFileSync(join(paths.repositoryRoot, sourcePath), [
+      'export interface AdvancedAggregateMetrics {',
+      '  lodSampleCounts: readonly number[];',
+      '  rockFamilyCounts: Uint32Array;',
+      '  waterCellCountsByRegime: ReadonlyArray<number>;',
+      '  localNormalGenerationProof: boolean;',
+      '  regionalHydrogeomorphology: Readonly<Record<string, unknown>>;',
+      '}',
+      'export declare const selectedAxisSpan: number;',
+      '',
+    ].join('\n'));
+    writeFileSync(join(paths.repositoryRoot, documentationPath), [
+      '# Advanced aggregate vocabulary',
+      '',
+      '`lodSampleCounts`, `rockFamilyCounts`, and `regionalHydrogeomorphology`',
+      'are private metric names; this document intentionally contains no values.',
+      '',
+    ].join('\n'));
+
+    expect(verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      trackedPaths: [sourcePath, documentationPath],
+    })).toMatchObject({ trackedPathCount: 2 });
+  });
+
   it.each([
     [
       'Buffer.from string',
@@ -2330,6 +2671,14 @@ describe('Greater Realm public and release boundary', () => {
       '  routeClass: [number, number];',
       '  landmarkClass: Uint8Array;',
       '  ambientLifeClass: Uint8Array;',
+      '  waterBodyId: Uint32Array;',
+      '  waterDepthClass: Uint8Array;',
+      '  waterSurfaceLevel: Int32Array;',
+      '  waterDownstream: Int32Array;',
+      '  waterBankSeed: Uint32Array;',
+      '  waterGenerationVersion: Uint16Array;',
+      '  baseThickness: number;',
+      '  rockFamily: number;',
       '}',
       'export function allocateLivingWorld(cellCount: number) {',
       '  return {',
@@ -2345,6 +2694,9 @@ describe('Greater Realm public and release boundary', () => {
       '`dressing-excluded`, `ecology-class`, `vegetation-density`,',
       '`groundcover-density`, `wildflower-density`, `route-class`,',
       '`landmark-class`, and `ambient-life-class` are private',
+      '`water-body-id`, `water-depth-class`, `water-surface-level`,',
+      '`water-downstream`, `water-bank-seed`, and `water-generation-version`',
+      '`base-thickness` and `rock-family`',
       'authority field names; this document intentionally contains no values.',
       '',
     ].join('\n'));

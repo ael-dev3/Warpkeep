@@ -523,8 +523,6 @@ function candidate(
   )) fail('GREATER_REALM_SANITIZED_REVIEW_INVALID');
   if (parsed.eligible && (
     !parsed.insideApprovedRange
-    || parsed.landBasisPoints < 6_200
-    || parsed.landBasisPoints > 7_200
     || parsed.tierBasisPoints.tierI < 6_800
     || parsed.tierBasisPoints.tierI > 7_400
     || parsed.tierBasisPoints.tierII < 2_200

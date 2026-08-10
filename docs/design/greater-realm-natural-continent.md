@@ -4,10 +4,10 @@ Status: candidate-generation design only
 
 Atlas: `GENESIS_001_GREATER_REALM`
 
-Generator algorithm: `greater-realm-v2-natural-continent-pr-a.13`
+Generator algorithm: `greater-realm-v2-natural-continent-pr-a.15`
 Terrain-seed namespace: `greater-realm-v2-natural-continent-pr-a.3`
-Private atlas format: `7`
-Living-world authority: `greater-realm-private-living-world-v3`
+Private atlas format: `8`
+Living-world authority: `greater-realm-private-living-world-v4`
 Production state: unchanged
 
 This document defines the offline, owner-reviewed candidate stage for a future
@@ -70,17 +70,20 @@ reroll; the separate generator algorithm version still identifies and binds
 the package implementation. There is no mutable random stream and no
 `Math.random` in generation authority.
 
-Adding the two private density channels changes the living-world authority from
-v2 to v3, the generator algorithm from `.12` to `.13`, and the private atlas
-format from 6 to 7. The terrain-seed namespace intentionally remains `.3`:
-this is an authority/package revision, not authorization to reroll the owner’s
-candidate ordinal.
+The current authority revision binds the two private density channels,
+marsh-aware dressing, domain material records, final water-body metadata, and
+the audited patch/chunk contract as living-world v4, generator `.15`, and
+private atlas format 8. The terrain-seed namespace intentionally remains `.3`:
+these are authority and package revisions, not authorization to reroll the
+owner's candidate ordinal.
 
 Each candidate runs independently through these stage families:
 
 1. Build a larger private axial canvas, 7–12 separated pseudo-tectonic domains,
-   and 3–8 irregular subduction-style island arcs with crust, age, rock
-   resistance, buoyancy, volcanic potential, and integer motion vectors.
+   and 3–8 irregular subduction-style island arcs with crust, age, stable rock
+   family, base thickness, resistance, buoyancy, volcanic potential, and
+   integer motion vectors. Domain material arrays are re-derived and cleared
+   after their exact values are bound into the private domain records.
 2. Derive continentalness, basin structure, convergent uplift, rifts, transform
    scarps, volcanic relief, and independent macro/meso/local relief channels.
 3. Apply synchronous, material-conserving thermal shaping.
@@ -108,7 +111,11 @@ Each candidate runs independently through these stage families:
    transport. Re-run thermal relaxation and hydrology, deposit the routed
    sediment onto that relaxed surface, and run final hydrology before
    reconciling the immutable Lowlands topography and surface. Incision and
-   deposition never alter protected Lowlands cells.
+   deposition never alter protected Lowlands cells. Final hydrology assigns
+   every wet or marsh cell an exact regime, water-body identifier, depth class,
+   surface level, downstream cell, accumulated flow, deterministic bank seed,
+   and generation version. Marsh promotion is climate/topography-derived and
+   cannot consume the reviewed dry gate and approach corridors.
 7. Derive paired topography and visual-biome authority from the same reconciled
    elevation, routed flow, geology, climate, water, region, and geomorphology
    process fields. The paired result includes slope, aspect, profile/plan
@@ -131,14 +138,33 @@ Each candidate runs independently through these stage families:
    axes. Only complete dry, non-Lowlands corridors contribute; the proof
    requires adequate pair coverage, genuine multiscale growth, and bounded
    axial anisotropy so white noise, one-scale blobs, and grid-aligned bands
-   cannot satisfy the terrain gate.
+   cannot satisfy the terrain gate. A separate coordinate-free topographic QA
+   report checks final biome/elevation/water agreement, drainage and outlet
+   behavior, erosion/sediment coupling, and marsh gradient/classification. Its
+   hard regional proof additionally requires Frostmere fjord systems, Mirefen
+   marsh/delta evidence and low-gradient lateral-channel braiding proxy,
+   Sunscar arid diversity with seasonal drainage and distinct oasis margins,
+   Stonewake meaningful islands with genuine distinct-island saltwater
+   straits, highland channel sources in every Tier II realm, and dense but
+   connected navigable Throneheart drainage. The Mirefen count is explicitly a
+   proxy because the authoritative hydrology is a single-receiver DAG and
+   therefore cannot itself represent divergent braided flow.
 8. Grow natural geographic basins, bind the working region identities by
    climate/process character, assign the fixed strategic graph, and align tier
    barriers and gate saddles with coherent highlands rather than radial bands.
-9. Choose dormant castle suitability and potential sites; derive private
+   Independent final-surface audits prove boundary/landform alignment,
+   per-tier resource/core density, and two internally independent routes from
+   every inner gate to the corresponding throne center.
+9. Choose exactly 500 new dormant castle sites in addition to the immutable 100
+   Lowlands slots, with independently replayed slope, flood, landform,
+   ecology, spacing, angular-distribution, gate, six-neighbour footprint,
+   resource/core, and two-route suitability proofs; derive private
    road/ford corridors, ruin/wall/waystone/lamp anchors, and bounded
    ambient-life potentials; then write private chunks whose payloads bind those
-   dressing fields, topography patches, and aggregate quality metrics. These
+   dressing fields, exact 68-field atlas inventory, topography patches, and
+   aggregate quality metrics. Reviewed axial chunks remain in the 192–256-cell
+   population band, and private LOD support proves deterministic reconstruction
+   at levels 0–3 without adding a runtime renderer. These
    are semantic candidate fields, not spawned actors, routes, meshes,
    persistence records, or gameplay systems. Their detailed contract is
    documented in
@@ -155,10 +181,12 @@ Sea level and mask parameters are fixed before a candidate attempt. A result
 outside the approved cell range is rejected; the generator never pads, trims,
 or adds filler to reach a requested count.
 
-Aggregate land and water shares describe the continent's topographic
-footprint at sea level. Rivers, streams, and enclosed surface-water overlays
-remain features of that footprint; they do not silently shrink the continent
-when a hydrology threshold changes.
+Aggregate land and water shares report the exact final dry-versus-water-regime
+partition, including rivers, streams, lakes, seas, oceans, and marsh. The
+separate natural-landmass proof continues to measure the continent's sea-level
+footprint. The requested 62%–72% land range remains a design target rather than
+a forced hard gate when meeting it would damage landmass shape, Tier
+connectivity, or hydrology.
 
 The design adapts practical ideas from research on
 [procedural tectonic structure](https://onlinelibrary.wiley.com/doi/10.1111/cgf.13614),
@@ -180,8 +208,9 @@ Grass presentation was additionally studied against Steve245270533's
 whose source is published under the
 [MIT License](https://github.com/Steve245270533/three-stylized/blob/3275628b85b51b6d611703e8a956a05f43b31645/LICENSE).
 Its README credits the MIT-licensed upstream
-[`stylized-components` commit
-`b182d81bff64531e584f50d71f046ae05fab3c87`](https://github.com/cortiz2894/stylized-components/tree/b182d81bff64531e584f50d71f046ae05fab3c87)
+[`stylized-components`](https://github.com/cortiz2894/stylized-components/tree/b182d81bff64531e584f50d71f046ae05fab3c87).
+This review separately pins that upstream at commit
+`b182d81bff64531e584f50d71f046ae05fab3c87`
 ([license](https://github.com/cortiz2894/stylized-components/blob/b182d81bff64531e584f50d71f046ae05fab3c87/LICENSE)).
 Warpkeep uses that review only as clean-room concept research: deterministic
 density layers, seeded surface distribution, separate flower sparsity,
@@ -282,6 +311,10 @@ A candidate is ineligible if any of these proofs fail:
   lake exists. Every connected lake body must have one exact filled-surface
   elevation and a legal spill or sea-level outlet; adjacent bodies at different
   filled elevations must not be merged for counting or proof;
+- final water metadata cannot be replayed exactly, a body crosses incompatible
+  regimes or surfaces, a depth/downstream/bank field is malformed, marsh occurs
+  on protected Lowlands or reviewed gate approaches, or marsh gradient and
+  biome/landform classification disagree;
 - derived topography is degenerate, a region misses its tier-specific biome
   diversity floor, a Tier-I biome exceeds 55% of that region's land, or an
   incompatible hot-arid/frozen visual adjacency survives classification;
@@ -293,7 +326,14 @@ A candidate is ineligible if any of these proofs fail:
   compatibility, or omits the required glacial, arid, volcanic, and coastal
   process evidence;
 - the locked Lowlands patch or any protected catalog differs;
-- castle candidates lack local passability, spacing, or clearance;
+- a generated castle candidate violates its slope, flood, stable-landform,
+  ecology, water, gate, six-neighbour footprint, spacing, regional/angular
+  distribution, resource/core, or two-route clearance contract;
+- a final political boundary lacks natural landform/geology/watershed support,
+  per-tier resource/core densities fall outside their reviewed bands, or an
+  inner gate lacks two independent same-region routes to its throne center;
+- reviewed chunk populations or exact level-0 topography reconstruction fail,
+  or levels 1–3 lack their bounded deterministic support evidence;
 - a private road/ford corridor crosses forbidden water or impassable terrain,
   or a ruin, wall, waystone, lamp, rabbit, citizen, guard, courier, or
   exotic-mount potential violates its deterministic clearance, habitat, route,
@@ -323,10 +363,11 @@ no recommendation; only the owner can approve the candidate.
 
 The generator workspace lives outside the repository in an owner-only
 directory. It contains marked, type-tagged seed envelopes; exact cells,
-coordinates and transforms; geology and geomorphology process fields; paired
-topography/biome authority; private vegetation, groundcover, and wildflower
-patches, route/site anchors and ambient-life potentials; regions, gates, slots
-and sites; stage digests;
+coordinates and transforms; geology and geomorphology process fields and
+domain material records; final water-body/depth/surface/downstream/bank
+authority; paired topography/biome authority; private vegetation, groundcover,
+and wildflower patches, route/site anchors and ambient-life potentials;
+regions, gates, slots and sites; stage digests;
 exact chunk manifests whose payloads bind the dressing fields, exact
 topography-patch manifests, packages, and seven marked private previews. The
 intended package contract adds a `dressing` view to the
@@ -337,16 +378,28 @@ its process and derived-field inventory and payload. These artifacts are never
 committed, served, copied to `public/`, attached to a pull request, or printed
 to logs.
 
-The only candidate artifact suitable for Git is a newly constructed sanitized
-aggregate report. It may contain:
+The only candidate material suitable for Git is newly constructed, allowlisted
+public evidence: a sanitized aggregate report and the fixed pending-owner
+projection described below. A sanitized aggregate report may contain:
 
 - an independently random opaque review handle;
 - exact total cell, land, and water counts;
 - tier totals and broad per-tier region size ranges;
 - aggregate water, geology, topography, hydrology, naturalness, gate, castle,
-  runtime, and memory metrics;
+  generation-time, and process-memory metrics;
 - boolean hard-proof results;
 - selection status, which remains `pending` in this pull request.
+
+PR A provides a narrow pending-owner-report projection with schema
+`warpkeep.greater-realm.pending-owner-report.v1`. It accepts only a canonical
+sanitized review that has already passed the existing recursive validator, plus
+an explicit assertion from the caller that private-package verification
+succeeded. It then requires exactly one eligible in-range world, every hard
+proof true, `selectionStatus: pending`, and no selected handle. The projection
+adds explicit automated-validation, owner-validation, activation, and
+production-untouched status while retaining the source sanitized-report digest;
+it does not accept generator candidates, private arrays, coordinates, seeds,
+package objects, paths, or preview material.
 
 It must not contain coordinates, named exact hidden-region sizes, transforms,
 seeds, seed digests, private/layout/stage/package digests, chunk keys, exact
@@ -392,6 +445,15 @@ records `pending`, carries no recommendation, and has no automatic-selection
 side effect. The record stores only an opaque candidate handle, objective
 directions, and hard-constraint labels—never metric values or reconstructive
 material. No scalar score makes the final choice.
+
+The CLI invokes the public pending-report projection only after
+`verifyPrivateReviewBatch` has rebound the canonical pending review to the
+regenerated private package. It serializes schema
+`warpkeep.greater-realm.pending-owner-report.v1`, reparses those exact bytes,
+and installs them through the pinned public-evidence writer at
+`docs/evidence/greater-realm/pending-owner-review-v1.json`. Raw generator or
+package values have no alternative input path. No real owner report exists or
+is published until the final verified generation workflow runs.
 
 Only an explicit owner approval may be recorded as a private selection receipt.
 After that approval, a separate pull request may bind the selected private
