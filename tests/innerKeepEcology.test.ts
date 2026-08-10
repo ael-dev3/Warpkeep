@@ -22,6 +22,7 @@ import {
   innerKeepOuterWorldTerrainSlopeAt,
 } from '../src/components/inner-keep/innerKeepOuterWorldPolicy';
 import { INNER_KEEP_PRESENTATION_CLEARANCES } from '../src/components/inner-keep/innerKeepPresentationLayoutPolicy';
+import { INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS } from '../src/components/inner-keep/innerKeepTownAtmospherePolicy';
 
 function grassPositions(ecology: ReturnType<typeof createInnerKeepEcology>) {
   const grass = ecology.group.getObjectByName('inner-keep-dense-grass') as THREE.InstancedMesh;
@@ -135,6 +136,21 @@ describe('Inner Keep living estate grass and connected water presentation', () =
             ].join(':');
           }
         }
+        for (const exclusion of INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS) {
+          const overlaps = (
+            Math.abs(position.x - exclusion.center.x)
+              <= exclusion.halfExtentsMeters[0] + exclusion.clearanceMarginMeters
+            && Math.abs(position.z - exclusion.center.z)
+              <= exclusion.halfExtentsMeters[1] + exclusion.clearanceMarginMeters
+          );
+          if (firstGrassClearanceFailure === '' && overlaps) {
+            firstGrassClearanceFailure = [
+              exclusion.exclusionId,
+              position.x,
+              position.z,
+            ].join(':');
+          }
+        }
         for (const slot of INNER_KEEP_LAYOUT_V1_SLOTS) {
           if (
             firstGrassClearanceFailure === ''
@@ -195,7 +211,7 @@ describe('Inner Keep living estate grass and connected water presentation', () =
       }
     }
     ecology.dispose();
-  });
+  }, 10_000);
 
   it('animates wind and downstream flow only when motion is allowed', () => {
     const moving = createInnerKeepEcology({

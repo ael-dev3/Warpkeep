@@ -20,6 +20,11 @@ import type {
   InnerKeepRuntimePrefab
 } from '../src/components/inner-keep/loadInnerKeepRuntimeAssets';
 import type { InnerKeepBuildingPresentation } from '../src/components/inner-keep/innerKeepPresentation';
+import {
+  INNER_KEEP_LOWER_WARD_ROW_HOUSE_BUDGETS,
+  INNER_KEEP_TOWN_ATMOSPHERE_POLICY_VERSION,
+  INNER_KEEP_TOWN_TONAL_PALETTE,
+} from '../src/components/inner-keep/innerKeepTownAtmospherePolicy';
 import { createInnerKeepPresentation } from './fixtures/innerKeepPresentation';
 
 afterEach(() => {
@@ -110,6 +115,47 @@ function fakeRuntimeBundleWithIds(
 }
 
 describe('procedural Inner Keep scene layer', () => {
+  it('pins the persistent weathered-lowlands palette and lower ward', () => {
+    const { layer } = createLayer();
+    expect((layer.scene.background as THREE.Color).getHex())
+      .toBe(INNER_KEEP_TOWN_TONAL_PALETTE.skyFog);
+    expect(layer.scene.fog).toBeInstanceOf(THREE.Fog);
+    expect((layer.scene.fog as THREE.Fog).color.getHex())
+      .toBe(INNER_KEEP_TOWN_TONAL_PALETTE.skyFog);
+    expect((layer.scene.fog as THREE.Fog).near)
+      .toBe(INNER_KEEP_TOWN_TONAL_PALETTE.fogNearMeters);
+    expect((layer.scene.fog as THREE.Fog).far)
+      .toBe(INNER_KEEP_TOWN_TONAL_PALETTE.fogFarMeters);
+    expect(layer.scene.userData.innerKeepTownAtmospherePolicyVersion)
+      .toBe(INNER_KEEP_TOWN_ATMOSPHERE_POLICY_VERSION);
+
+    const hemisphere = layer.scene.children.find(
+      (object): object is THREE.HemisphereLight => object instanceof THREE.HemisphereLight,
+    );
+    const sun = layer.scene.children.find(
+      (object): object is THREE.DirectionalLight => object instanceof THREE.DirectionalLight,
+    );
+    expect(hemisphere?.color.getHex())
+      .toBe(INNER_KEEP_TOWN_TONAL_PALETTE.lighting.hemisphereSky);
+    expect(hemisphere?.groundColor.getHex())
+      .toBe(INNER_KEEP_TOWN_TONAL_PALETTE.lighting.hemisphereGround);
+    expect(hemisphere?.intensity)
+      .toBe(INNER_KEEP_TOWN_TONAL_PALETTE.lighting.hemisphereIntensity);
+    expect(sun?.color.getHex()).toBe(INNER_KEEP_TOWN_TONAL_PALETTE.lighting.sun);
+    expect(sun?.intensity).toBe(INNER_KEEP_TOWN_TONAL_PALETTE.lighting.sunIntensity);
+    expect(sun?.position.toArray())
+      .toEqual([...INNER_KEEP_TOWN_TONAL_PALETTE.lighting.sunPositionMeters]);
+
+    const atmosphere = layer.scene.getObjectByName(
+      'inner-keep-weathered-town-atmosphere',
+    );
+    expect(atmosphere).toBeDefined();
+    expect(atmosphere?.children.filter(({ name }) => (
+      name.startsWith('inner-keep-lower-ward-row-house:')
+    ))).toHaveLength(INNER_KEEP_LOWER_WARD_ROW_HOUSE_BUDGETS.balanced);
+    layer.dispose();
+  });
+
   it('pins all twelve pads to the canonical v15 layout without another canvas or RAF', () => {
     const requestAnimationFrame = vi.spyOn(window, 'requestAnimationFrame');
     const { layer } = createLayer();
@@ -454,7 +500,7 @@ describe('procedural Inner Keep scene layer', () => {
     layer.dispose();
   });
 
-  it('keeps a completed building under scaffold until its exact prefab settles', () => {
+  it('uses a scaffold fallback while an initially complete prefab is still loading', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise(() => {}));
     const { layer } = createLayer(false, 1280, 720, 'auto');
     layer.reconcile(createInnerKeepPresentation({
@@ -478,6 +524,69 @@ describe('procedural Inner Keep scene layer', () => {
       completedBuildingCount: 0,
       constructionSiteCount: 1
     });
+    layer.dispose();
+  });
+
+  it('preserves a real completion reveal while its exact prefab finishes loading', async () => {
+    let settleBundle: ((bundle: InnerKeepRuntimeAssetBundle) => void) | undefined;
+    const runtimeAssetLoader = vi.fn(() => new Promise<InnerKeepRuntimeAssetBundle>((resolve) => {
+      settleBundle = resolve;
+    }));
+    const { layer } = createLayer(
+      false,
+      1280,
+      720,
+      'auto',
+      runtimeAssetLoader,
+    );
+    const constructing: InnerKeepBuildingPresentation = Object.freeze({
+      slotId: 'inner-keep-slot-m01',
+      buildingKind: 'city-mill',
+      completedLevel: 0,
+      targetLevel: 1,
+      phase: 'constructing',
+      startedAtMicros: 1n,
+      completesAtMicros: 10n,
+      revision: 1n,
+    });
+    layer.reconcile(createInnerKeepPresentation({
+      buildings: [constructing],
+      builder: {
+        state: 'busy',
+        slotId: constructing.slotId,
+        buildingKind: constructing.buildingKind,
+        targetLevel: constructing.targetLevel,
+        completesAtMicros: constructing.completesAtMicros!,
+      },
+    }), { owningTerrainKind: 'meadow' });
+    layer.reconcile(createInnerKeepPresentation({
+      projectRevision: 2n,
+      buildings: [{
+        ...constructing,
+        completedLevel: 1,
+        phase: 'complete',
+        revision: 2n,
+      }],
+    }), { owningTerrainKind: 'meadow' });
+    expect(layer.getTelemetry()).toMatchObject({
+      assetStatus: 'loading',
+      completionRevealActive: false,
+      constructionSiteCount: 1,
+    });
+
+    settleBundle!(fakeRuntimeBundle(true));
+    await vi.waitFor(() => {
+      expect(layer.getTelemetry()).toMatchObject({
+        assetStatus: 'ready',
+        completedBuildingCount: 1,
+        completionRevealActive: true,
+        constructionSiteCount: 0,
+      });
+    });
+    expect(layer.scene.getObjectByName('inner-keep-construction-scaffold'))
+      .toBeDefined();
+    expect(layer.scene.getObjectByName('inner-keep-completed-building:city-mill'))
+      .toBeDefined();
     layer.dispose();
   });
 
@@ -522,10 +631,17 @@ describe('procedural Inner Keep scene layer', () => {
       assetStatus: 'ready',
       authoredAssetCount: 38,
       completedBuildingCount: 1,
-      completionRevealActive: true
+      completionRevealActive: false,
+      smokeSpriteCount: 0
     });
+    expect(layer.scene.getObjectByName('inner-keep-construction-scaffold'))
+      .toBeUndefined();
     expect(layer.scene.getObjectByName('inner-keep-procedural-asset-fallback')?.visible)
       .toBe(false);
+    expect(layer.scene.getObjectByName('inner-keep-weathered-town-atmosphere'))
+      .toBeDefined();
+    expect(layer.scene.getObjectByName('inner-keep-weathered-masonry-skirt'))
+      .toBeDefined();
     layer.dispose();
   });
 

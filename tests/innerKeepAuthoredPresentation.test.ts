@@ -26,6 +26,10 @@ import {
   INNER_KEEP_PRESENTATION_PLACEMENTS,
 } from '../src/components/inner-keep/innerKeepPresentationLayoutPolicy';
 import { innerKeepOuterWorldTerrainHeightAt } from '../src/components/inner-keep/innerKeepOuterWorldPolicy';
+import {
+  INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS,
+  INNER_KEEP_WEATHERED_WALL_SKIRT_PLACEMENTS,
+} from '../src/components/inner-keep/innerKeepTownAtmospherePolicy';
 import type {
   InnerKeepRuntimeAssetBundle,
   InnerKeepRuntimePrefab,
@@ -222,12 +226,16 @@ describe('authored Inner Keep presentation composition', () => {
     });
     const stablePlacementMarkers: THREE.Object3D[] = [];
     const stableTreeMarkers: THREE.Object3D[] = [];
+    const weatheredWallMarkers: THREE.Object3D[] = [];
     presentation.group.traverse((object) => {
       if (object.name.startsWith('inner-keep-authored-placement:')) {
         stablePlacementMarkers.push(object);
       }
       if (object.name.startsWith('inner-keep-authored-perimeter-tree:')) {
         stableTreeMarkers.push(object);
+      }
+      if (object.name.startsWith('inner-keep-weathered-wall-skirt:')) {
+        weatheredWallMarkers.push(object);
       }
     });
     const wallInstances = presentation.group.getObjectByName(
@@ -244,12 +252,37 @@ describe('authored Inner Keep presentation composition', () => {
     expect(presentation.placementInstanceCount).toBe(expectedFixedPlacementCount);
     expect(stablePlacementMarkers).toHaveLength(expectedFixedPlacementCount);
     expect(stableTreeMarkers).toHaveLength(presentation.authoredTreeCount);
+    expect(weatheredWallMarkers).toHaveLength(
+      INNER_KEEP_WEATHERED_WALL_SKIRT_PLACEMENTS.length,
+    );
+    const weatheredWallSkirt = presentation.group.getObjectByName(
+      'inner-keep-weathered-masonry-skirt',
+    );
+    expect(weatheredWallSkirt).toMatchObject({
+        userData: {
+          presentationOnly: true,
+          gameplayAuthorityClaimed: false,
+          authoritativeBuilding: false,
+        },
+      });
+    weatheredWallSkirt?.traverse((object) => {
+      expect(object.userData).toMatchObject({
+        presentationOnly: true,
+        gameplayAuthorityClaimed: false,
+        authoritativeBuilding: false,
+      });
+      expect(object.raycast([] as never, [] as never)).toBeUndefined();
+    });
     expect(wallInstances).toBeInstanceOf(THREE.InstancedMesh);
     expect(wallInstances.count).toBe(expectedLongWallCount);
     // One fake primitive per fixed asset group plus one per perimeter species.
-    expect(complexity.drawCalls).toBe(36);
+    expect(complexity.drawCalls).toBe(37);
     expect(complexity.triangles).toBe(
-      (presentation.placementInstanceCount + presentation.authoredTreeCount) * 12,
+      (
+        presentation.placementInstanceCount
+        + presentation.authoredTreeCount
+        + INNER_KEEP_WEATHERED_WALL_SKIRT_PLACEMENTS.length
+      ) * 12,
     );
   });
 
@@ -356,6 +389,15 @@ describe('authored Inner Keep presentation composition', () => {
               exclusion.additionalClearanceMeters,
             ), `${visualSeed}:${quality}:${tree.name}:${exclusion.exclusionId}`).toBe(false);
           }
+          for (const exclusion of INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS) {
+            expect(aabbsOverlap(
+              center,
+              tree.halfExtentsMeters,
+              [exclusion.center.x, exclusion.center.z],
+              exclusion.halfExtentsMeters,
+              exclusion.clearanceMarginMeters,
+            ), `${visualSeed}:${quality}:${tree.name}:${exclusion.exclusionId}`).toBe(false);
+          }
           for (const route of INNER_KEEP_AMBIENT_ROUTES) {
             const expansion = exactRouteSweepRadius(route, quality)
               + INNER_KEEP_AMBIENT_MINIMUM_BODY_CLEARANCE_METERS;
@@ -381,6 +423,29 @@ describe('authored Inner Keep presentation composition', () => {
             ), `${visualSeed}:${quality}:${tree.name}:${previous.name}`).toBe(false);
           }
         });
+      }
+    }
+  }, 30_000);
+
+  it('keeps the lower ward outside every exact ambient actor sweep', () => {
+    for (const quality of ['high', 'balanced', 'reduced'] as const) {
+      for (const exclusion of INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS) {
+        for (const route of INNER_KEEP_AMBIENT_ROUTES) {
+          const expansion = exactRouteSweepRadius(route, quality)
+            + INNER_KEEP_AMBIENT_MINIMUM_BODY_CLEARANCE_METERS
+            + exclusion.clearanceMarginMeters;
+          const points = route.path.points;
+          const segmentCount = route.path.closed ? points.length : points.length - 1;
+          for (let segmentIndex = 0; segmentIndex < segmentCount; segmentIndex += 1) {
+            expect(segmentTouchesExpandedAabb(
+              points[segmentIndex]!,
+              points[(segmentIndex + 1) % points.length]!,
+              [exclusion.center.x, exclusion.center.z],
+              exclusion.halfExtentsMeters,
+              expansion,
+            ), `${quality}:${exclusion.exclusionId}:${route.routeId}`).toBe(false);
+          }
+        }
       }
     }
   });

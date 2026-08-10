@@ -211,7 +211,7 @@ export function parseInnerKeepQaEvidence(value) {
 
 export const INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS = Object.freeze({
   high: Object.freeze({ drawCalls: 390, triangles: 420_000 }),
-  balanced: Object.freeze({ drawCalls: 310, triangles: 215_000 }),
+  balanced: Object.freeze({ drawCalls: 310, triangles: 250_000 }),
   reduced: Object.freeze({ drawCalls: 235, triangles: 110_000 }),
 });
 

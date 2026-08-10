@@ -1,4 +1,5 @@
 import type { InnerKeepSceneQuality } from './createInnerKeepSceneLayer';
+import { INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS } from './innerKeepTownAtmospherePolicy';
 
 /**
  * Presentation-only landscape around the canonical Inner Keep compound.
@@ -664,6 +665,12 @@ export function innerKeepOuterWorldPointIsClear(
     return false;
   }
   const clearance = Math.max(0, clearanceMeters);
+  if (INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS.some((exclusion) => (
+    Math.abs(x - exclusion.center.x)
+      <= exclusion.halfExtentsMeters[0] + exclusion.clearanceMarginMeters + clearance
+    && Math.abs(z - exclusion.center.z)
+      <= exclusion.halfExtentsMeters[1] + exclusion.clearanceMarginMeters + clearance
+  ))) return false;
   if (innerKeepOuterWorldCompoundPlateauSignedDistance(x, z) <= clearance) return false;
   const [halfWidth, halfDepth] = INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS;
   if (Math.abs(x) > halfWidth - 0.35 - clearance) return false;
@@ -693,3 +700,36 @@ export const INNER_KEEP_OUTER_WORLD_TRADE_ROUTE = Object.freeze([
     INNER_KEEP_OUTER_WORLD_APPROACHES.gateInnerZ,
   ), INNER_KEEP_OUTER_WORLD_APPROACHES.gateInnerZ] as const),
 ] as const);
+
+/** Conservative presentation footprint used to keep the supply road open. */
+export const INNER_KEEP_OUTER_WORLD_SUPPLY_WAGON_FOOTPRINT_METERS = 2.35;
+
+export const INNER_KEEP_OUTER_WORLD_RESOURCE_ROAD_HALF_WIDTH_METERS = 0.46;
+
+/** Visual service lanes connecting each scenic resource site to the estate road. */
+export const INNER_KEEP_OUTER_WORLD_RESOURCE_ROADS = Object.freeze(
+  INNER_KEEP_OUTER_WORLD_RESOURCE_SITES.map((site) => {
+    const south = site.positionMeters[2] > 0;
+    const approachZ = south
+      ? INNER_KEEP_OUTER_WORLD_APPROACHES.southernResourceRoadZ
+      : INNER_KEEP_OUTER_WORLD_APPROACHES.northernResourceRoadZ;
+    return Object.freeze({
+      roadId: `outer-resource-road:${site.siteId}`,
+      points: Object.freeze([
+        ...(south ? [Object.freeze({
+          x: 0,
+          z: INNER_KEEP_OUTER_WORLD_APPROACHES.gateOuterZ,
+        })] : []),
+        Object.freeze({ x: site.positionMeters[0] * 0.58, z: approachZ }),
+        Object.freeze({
+          x: site.positionMeters[0],
+          z: site.positionMeters[2],
+        }),
+      ]),
+      closed: false as const,
+      halfWidthMeters: INNER_KEEP_OUTER_WORLD_RESOURCE_ROAD_HALF_WIDTH_METERS,
+      presentationOnly: true as const,
+      gameplayAuthority: 'none' as const,
+    });
+  }),
+);

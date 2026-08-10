@@ -18,6 +18,7 @@ import {
 } from '../src/dev/innerKeepQaScenarioManifest.mjs';
 import {
   INNER_KEEP_QA_CASE_COUNT,
+  INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS,
   assertInnerKeepQaScenarioEvidence,
   innerKeepQaBrowserCases,
   innerKeepQaUrl
@@ -428,7 +429,10 @@ describe('local Inner Keep rendered evidence contract', () => {
     for (const override of [
       { animationFrameCap: 25 },
       { sceneGraphDrawCalls: 311 },
-      { sceneGraphTriangles: 215_001 },
+      {
+        sceneGraphTriangles:
+          INNER_KEEP_QA_SCENE_GRAPH_RENDER_BUDGETS.balanced.triangles + 1,
+      },
       { rendererDrawCalls: 381 },
       { rendererTriangles: 260_001 }
     ]) {
@@ -661,6 +665,9 @@ describe('local Inner Keep QA production boundary', () => {
     expect(harness.match(/new THREE\.WebGLRenderer/g)).toHaveLength(1);
     expect(harness).toContain('createInnerKeepSceneLayer');
     expect(harness).toContain('data-inner-keep-qa-canvas');
+    expect(harness).toContain('THREE.ACESFilmicToneMapping');
+    expect(harness).toContain('REALM_LIGHTING_SPECS');
+    expect(harness).toContain('toneMappingExposure');
     expect(`${fixture}\n${manifest}`).not.toMatch(
       /(?:useFarcasterAuth|FarcasterAuthProvider|useWarpkeepBackend|WarpkeepSpacetimeProvider|\bfetch\s*\(|XMLHttpRequest|WebSocket|EventSource|localStorage|sessionStorage|document\.cookie|auth\.warpkeep\.com)/
     );
@@ -680,6 +687,9 @@ describe('local Inner Keep QA production boundary', () => {
     expect(browserProbe).not.toMatch(/\bwriteFile\s*\(/u);
     expect(browserProbe).toContain("'Input.dispatchKeyEvent'");
     expect(browserProbe).toContain('exerciseWebglNativeKeyboardActivation');
+    expect(browserProbe).toContain('semanticSlotLabels');
+    expect(browserProbe).toContain("querySelector('#inner-keep-panel-title')");
+    expect(browserProbe).toContain('CDP_TIMEOUT_MILLISECONDS');
     expect(browserProbe).toContain('createLoopbackViteServer');
     expect(packageJson.scripts['qa:inner-keep']).toBe(
       'node scripts/qa-observer/inner-keep-browser-probe.mjs'

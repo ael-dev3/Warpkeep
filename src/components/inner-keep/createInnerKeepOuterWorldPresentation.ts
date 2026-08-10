@@ -27,6 +27,7 @@ import type { InnerKeepSceneQuality } from './createInnerKeepSceneLayer';
 import {
   INNER_KEEP_OUTER_WORLD_RESOURCE_SITES,
   INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS,
+  INNER_KEEP_OUTER_WORLD_SUPPLY_WAGON_FOOTPRINT_METERS,
   INNER_KEEP_OUTER_WORLD_TRADE_ROUTE,
   INNER_KEEP_OUTER_WORLD_TREE_BUDGETS,
   INNER_KEEP_OUTER_WORLD_TREE_SPECIES_IDS,
@@ -169,7 +170,6 @@ const OUTER_TREE_CANDIDATES_PER_PLACEMENT = 768;
 const OUTER_WILDLIFE_CANDIDATES_PER_PLACEMENT = 384;
 const OUTER_TREE_MINIMUM_SPACING_METERS = 0.92;
 const OUTER_WILDLIFE_MINIMUM_SPACING_METERS = 1.65;
-const SUPPLY_WAGON_TARGET_FOOTPRINT_METERS = 2.35;
 
 function deterministicUnit(index: number, salt: number) {
   const value = Math.sin((index + 1) * 12.9898 + salt * 78.233) * 43_758.5453;
@@ -1042,7 +1042,7 @@ export function createInnerKeepOuterWorldPresentation(
       asset: HEGEMONY_SUPPLY_WAGON_RUNTIME_ASSETS[expeditionLod],
       materialRole: 'wagon',
       baseUrl,
-      targetFootprintDiameter: SUPPLY_WAGON_TARGET_FOOTPRINT_METERS,
+      targetFootprintDiameter: INNER_KEEP_OUTER_WORLD_SUPPLY_WAGON_FOOTPRINT_METERS,
       dynamicShadows: false,
       maxAnisotropy: Math.max(1, Math.trunc(options.maxAnisotropy ?? 1)),
       signal: internalAbortController.signal,

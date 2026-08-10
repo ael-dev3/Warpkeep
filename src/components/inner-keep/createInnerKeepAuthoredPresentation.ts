@@ -22,6 +22,11 @@ import type {
 } from './loadInnerKeepRuntimeAssets';
 import type { InnerKeepSceneQuality } from './createInnerKeepSceneLayer';
 import { innerKeepOuterWorldTerrainHeightAt } from './innerKeepOuterWorldPolicy';
+import {
+  INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS,
+  INNER_KEEP_WEATHERED_WALL_SKIRT_ASSET_ID,
+  INNER_KEEP_WEATHERED_WALL_SKIRT_PLACEMENTS,
+} from './innerKeepTownAtmospherePolicy';
 
 export type InnerKeepAuthoredStaticPresentation = Readonly<{
   group: THREE.Group;
@@ -163,9 +168,9 @@ export const INNER_KEEP_AUTHORED_PERIMETER_TREE_SPECIES = Object.freeze([
 ] as const);
 
 export const INNER_KEEP_AUTHORED_STATIC_RENDER_BUDGETS = Object.freeze({
-  high: Object.freeze({ drawCalls: 91, triangles: 204_592 }),
-  balanced: Object.freeze({ drawCalls: 90, triangles: 105_632 }),
-  reduced: Object.freeze({ drawCalls: 81, triangles: 52_013 }),
+  high: Object.freeze({ drawCalls: 92, triangles: 212_464 }),
+  balanced: Object.freeze({ drawCalls: 91, triangles: 113_216 }),
+  reduced: Object.freeze({ drawCalls: 82, triangles: 54_413 }),
 } satisfies Readonly<Record<InnerKeepSceneQuality, Readonly<{
   drawCalls: number;
   triangles: number;
@@ -466,6 +471,13 @@ function candidateIsClear(
     fixed.halfExtentsMeters,
     fixed.clearanceMarginMeters,
   ))) return false;
+  if (INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS.some((exclusion) => aabbOverlaps(
+    center,
+    candidate.halfExtentsMeters,
+    [exclusion.center.x, exclusion.center.z],
+    exclusion.halfExtentsMeters,
+    exclusion.clearanceMarginMeters,
+  ))) return false;
   if (INNER_KEEP_AMBIENT_EXCLUSIONS.some((exclusion) => aabbOverlaps(
     center,
     candidate.halfExtentsMeters,
@@ -626,6 +638,34 @@ function addPerimeterTrees(
   return plan.length;
 }
 
+function addWeatheredWallSkirt(
+  target: THREE.Group,
+  bundle: InnerKeepRuntimeAssetBundle,
+) {
+  const prefab = bundle.staticPrefabs.get(INNER_KEEP_WEATHERED_WALL_SKIRT_ASSET_ID);
+  if (!prefab) return;
+  const group = new THREE.Group();
+  group.name = 'inner-keep-weathered-masonry-skirt';
+  group.userData.presentationOnly = true;
+  group.userData.gameplayAuthorityClaimed = false;
+  group.userData.authoritativeBuilding = false;
+  addAuthoredCopies(group, prefab, INNER_KEEP_WEATHERED_WALL_SKIRT_PLACEMENTS.map(
+    (placement) => Object.freeze({
+      name: `inner-keep-weathered-wall-skirt:${placement.placementId}`,
+      positionMeters: placement.positionMeters,
+      rotationMilliDegrees: placement.rotationMilliDegrees,
+      scalePermille: placement.scalePermille,
+    }),
+  ));
+  group.traverse((object) => {
+    object.userData.presentationOnly = true;
+    object.userData.gameplayAuthorityClaimed = false;
+    object.userData.authoritativeBuilding = false;
+    object.raycast = () => undefined;
+  });
+  target.add(group);
+}
+
 /**
  * Builds visual-only fixed placements from the exact runtime selection. Slot
  * occupants remain under reconcile() because only server projections decide
@@ -651,6 +691,7 @@ export function createInnerKeepAuthoredStaticPresentation(options: Readonly<{
     })));
     placementInstanceCount += placement.instances.length;
   }
+  addWeatheredWallSkirt(group, options.bundle);
   const authoredTreeCount = addPerimeterTrees(
     group,
     options.bundle,
