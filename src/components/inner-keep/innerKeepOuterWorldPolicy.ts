@@ -13,7 +13,7 @@ import {
  * and ambient actors can meet the same ground without becoming authoritative.
  */
 export const INNER_KEEP_OUTER_WORLD_POLICY_VERSION =
-  'inner-keep-outer-world-presentation-v3';
+  'inner-keep-outer-world-presentation-v4';
 
 export const INNER_KEEP_OUTER_WORLD_HALF_EXTENTS_METERS = Object.freeze([
   34,
@@ -382,9 +382,12 @@ export const INNER_KEEP_OUTER_WORLD_APPROACHES = Object.freeze({
 });
 
 export type InnerKeepCityPresentationRoad = Readonly<{
+  roadId: string;
   points: readonly Readonly<{ x: number; z: number }>[];
   closed: boolean;
   halfWidthMeters: number;
+  presentationOnly: true;
+  gameplayAuthorityClaimed: false;
 }>;
 
 /** Presentation-only ground treatment that softens the palisade perimeter. */
@@ -416,28 +419,54 @@ export const INNER_KEEP_CITY_EDGE_APRON_HALF_WIDTH_METERS = 1.72;
 export const INNER_KEEP_CITY_DISTRICT_ROADS:
 readonly InnerKeepCityPresentationRoad[] = Object.freeze([
   Object.freeze({
+    roadId: 'inner-keep-west-north-wall-lane-v1',
     points: Object.freeze([
       Object.freeze({ x: -17.2, z: -15.7 }),
-      Object.freeze({ x: -17.4, z: -7.8 }),
-      Object.freeze({ x: -17.15, z: 0 }),
+      Object.freeze({ x: -17.4, z: -9 }),
+    ]),
+    closed: false,
+    halfWidthMeters: 0.62,
+    presentationOnly: true,
+    gameplayAuthorityClaimed: false,
+  }),
+  Object.freeze({
+    roadId: 'inner-keep-east-north-wall-lane-v1',
+    points: Object.freeze([
+      Object.freeze({ x: 17.2, z: -15.7 }),
+      Object.freeze({ x: 17.4, z: -7.8 }),
+      Object.freeze({ x: 17.25, z: -2.1 }),
+    ]),
+    closed: false,
+    halfWidthMeters: 0.62,
+    presentationOnly: true,
+    gameplayAuthorityClaimed: false,
+  }),
+  Object.freeze({
+    roadId: 'inner-keep-west-south-wall-lane-v1',
+    points: Object.freeze([
+      Object.freeze({ x: -17.25, z: 4.5 }),
       Object.freeze({ x: -17.35, z: 7.8 }),
       Object.freeze({ x: -16.2, z: 11.5 }),
     ]),
     closed: false,
     halfWidthMeters: 0.62,
+    presentationOnly: true,
+    gameplayAuthorityClaimed: false,
   }),
   Object.freeze({
+    roadId: 'inner-keep-east-south-wall-lane-v1',
     points: Object.freeze([
-      Object.freeze({ x: 17.2, z: -15.7 }),
-      Object.freeze({ x: 17.4, z: -7.8 }),
-      Object.freeze({ x: 17.15, z: 0 }),
+      Object.freeze({ x: 17.25, z: 2.3 }),
       Object.freeze({ x: 17.35, z: 7.8 }),
       Object.freeze({ x: 16.2, z: 11.5 }),
     ]),
     closed: false,
     halfWidthMeters: 0.62,
+    presentationOnly: true,
+    gameplayAuthorityClaimed: false,
   }),
   Object.freeze({
+    roadId: 'inner-keep-south-cross-street-v1',
     points: Object.freeze([
       Object.freeze({ x: -16.2, z: 11.5 }),
       Object.freeze({ x: -10, z: 12.45 }),
@@ -447,24 +476,11 @@ readonly InnerKeepCityPresentationRoad[] = Object.freeze([
     ]),
     closed: false,
     halfWidthMeters: 0.68,
+    presentationOnly: true,
+    gameplayAuthorityClaimed: false,
   }),
   Object.freeze({
-    points: Object.freeze([
-      Object.freeze({ x: -17.2, z: -0.15 }),
-      Object.freeze({ x: -13.2, z: -0.1 }),
-    ]),
-    closed: false,
-    halfWidthMeters: 0.52,
-  }),
-  Object.freeze({
-    points: Object.freeze([
-      Object.freeze({ x: 13.2, z: -0.1 }),
-      Object.freeze({ x: 17.2, z: -0.15 }),
-    ]),
-    closed: false,
-    halfWidthMeters: 0.52,
-  }),
-  Object.freeze({
+    roadId: 'inner-keep-northwest-cathedral-lane-v1',
     points: Object.freeze([
       Object.freeze({ x: -17.2, z: -15.7 }),
       Object.freeze({ x: -13.1, z: -18.2 }),
@@ -472,8 +488,11 @@ readonly InnerKeepCityPresentationRoad[] = Object.freeze([
     ]),
     closed: false,
     halfWidthMeters: 0.54,
+    presentationOnly: true,
+    gameplayAuthorityClaimed: false,
   }),
   Object.freeze({
+    roadId: 'inner-keep-northeast-cathedral-lane-v1',
     points: Object.freeze([
       Object.freeze({ x: 7.4, z: -19.2 }),
       Object.freeze({ x: 13.1, z: -18.2 }),
@@ -481,7 +500,72 @@ readonly InnerKeepCityPresentationRoad[] = Object.freeze([
     ]),
     closed: false,
     halfWidthMeters: 0.54,
+    presentationOnly: true,
+    gameplayAuthorityClaimed: false,
   }),
+]);
+
+/**
+ * Always-visible civic streets beneath the authored road tiles.
+ *
+ * The selected straight-road prefab is four metres long on its local X axis,
+ * so the fixed north/south tile placements do not form a continuous street
+ * after the procedural fallback is hidden. These draped surfaces preserve the
+ * intended road hierarchy without changing the canonical authored layout.
+ */
+export const INNER_KEEP_CITY_CORE_ROADS:
+readonly InnerKeepCityPresentationRoad[] = Object.freeze([
+  Object.freeze({
+    roadId: 'inner-keep-civic-spine-v1',
+    points: Object.freeze([
+      Object.freeze({ x: 0, z: 13.7 }),
+      Object.freeze({ x: 0, z: 10 }),
+      Object.freeze({ x: 0, z: 6 }),
+      Object.freeze({ x: 0, z: 3.2 }),
+      Object.freeze({ x: 0, z: 0.2 }),
+      Object.freeze({ x: 0, z: -3.8 }),
+      Object.freeze({ x: 0, z: -7.8 }),
+      Object.freeze({ x: 0, z: -10.9 }),
+    ]),
+    closed: false,
+    halfWidthMeters: 1.18,
+    presentationOnly: true,
+    gameplayAuthorityClaimed: false,
+  }),
+  Object.freeze({
+    roadId: 'inner-keep-west-market-street-v1',
+    points: Object.freeze([
+      Object.freeze({ x: -2, z: 0.2 }),
+      Object.freeze({ x: -5, z: 0.2 }),
+      Object.freeze({ x: -8, z: 0.1 }),
+      Object.freeze({ x: -11.5, z: 0.05 }),
+      Object.freeze({ x: -12, z: 0 }),
+    ]),
+    closed: false,
+    halfWidthMeters: 0.85,
+    presentationOnly: true,
+    gameplayAuthorityClaimed: false,
+  }),
+  Object.freeze({
+    roadId: 'inner-keep-east-market-street-v1',
+    points: Object.freeze([
+      Object.freeze({ x: 2, z: 0.2 }),
+      Object.freeze({ x: 5, z: 0.2 }),
+      Object.freeze({ x: 8, z: 0.1 }),
+      Object.freeze({ x: 11.5, z: 0.05 }),
+      Object.freeze({ x: 14.5, z: 0 }),
+    ]),
+    closed: false,
+    halfWidthMeters: 0.85,
+    presentationOnly: true,
+    gameplayAuthorityClaimed: false,
+  }),
+]);
+
+export const INNER_KEEP_CITY_PRESENTATION_ROADS:
+readonly InnerKeepCityPresentationRoad[] = Object.freeze([
+  ...INNER_KEEP_CITY_CORE_ROADS,
+  ...INNER_KEEP_CITY_DISTRICT_ROADS,
 ]);
 
 export const INNER_KEEP_OUTER_WORLD_QUALITY_BUDGETS = Object.freeze({
@@ -910,6 +994,7 @@ export type InnerKeepOuterWorldAmbientLane = Readonly<{
   halfWidthMeters: number;
   reservedHalfWidthMeters: number;
   points: readonly Readonly<{ x: number; z: number }>[];
+  servesHouseId?: string;
   presentationOnly: true;
   gameplayAuthorityClaimed: false;
 }>;
@@ -964,11 +1049,179 @@ InnerKeepOuterWorldAmbientLane = Object.freeze({
   gameplayAuthorityClaimed: false,
 });
 
+/** A readable high street from the south gate to the ferry landing. */
+export const INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE:
+InnerKeepOuterWorldAmbientLane = Object.freeze({
+  laneId: 'inner-keep-south-gate-ferry-market-lane-v1',
+  halfWidthMeters: 0.62,
+  reservedHalfWidthMeters: 0.84,
+  points: Object.freeze([
+    Object.freeze({ x: 0, z: 16.8 }),
+    Object.freeze({ x: 4, z: 16.85 }),
+    Object.freeze({ x: 8, z: 16.8 }),
+    Object.freeze({ x: 12, z: 16.7 }),
+    Object.freeze({ x: 16, z: 16.8 }),
+    Object.freeze({ x: 19, z: 16.7 }),
+    Object.freeze({ x: 21.8, z: 16.8 }),
+    Object.freeze({ x: 24.2, z: 16.8 }),
+  ]),
+  presentationOnly: true,
+  gameplayAuthorityClaimed: false,
+});
+
+/** Exterior quay serving both presentation-only canal landings. */
+export const INNER_KEEP_EASTWALL_QUAY_LANE:
+InnerKeepOuterWorldAmbientLane = Object.freeze({
+  laneId: 'inner-keep-eastwall-quay-lane-v1',
+  halfWidthMeters: 0.42,
+  reservedHalfWidthMeters: 0.7,
+  points: Object.freeze([
+    Object.freeze({ x: 24.2, z: 16.8 }),
+    Object.freeze({ x: 23.4, z: 14 }),
+    Object.freeze({ x: 23.3, z: 11 }),
+    Object.freeze({ x: 23.7, z: 8.5 }),
+    Object.freeze({ x: 24.5, z: 7 }),
+  ]),
+  presentationOnly: true,
+  gameplayAuthorityClaimed: false,
+});
+
+/** Narrow frontage street through the eastern cottage row. */
+export const INNER_KEEP_EAST_CROFT_MARKET_LANE:
+InnerKeepOuterWorldAmbientLane = Object.freeze({
+  laneId: 'inner-keep-east-croft-market-lane-v1',
+  halfWidthMeters: 0.34,
+  reservedHalfWidthMeters: 0.48,
+  points: Object.freeze([
+    Object.freeze({ x: 5, z: 22.8 }),
+    Object.freeze({ x: 8.8, z: 22.5 }),
+    Object.freeze({ x: 12, z: 22.5 }),
+    Object.freeze({ x: 14.8, z: 22.5 }),
+    Object.freeze({ x: 15.5, z: 22.5 }),
+    Object.freeze({ x: 15.5, z: 21 }),
+    Object.freeze({ x: 17.4, z: 20.6 }),
+  ]),
+  presentationOnly: true,
+  gameplayAuthorityClaimed: false,
+});
+
+function townFootpath(
+  laneId: string,
+  points: readonly Readonly<{ x: number; z: number }>[],
+  halfWidthMeters = 0.28,
+  reservedHalfWidthMeters = 0.48,
+  servesHouseId?: string,
+): InnerKeepOuterWorldAmbientLane {
+  return Object.freeze({
+    laneId,
+    halfWidthMeters,
+    reservedHalfWidthMeters,
+    points: Object.freeze(points.map((point) => Object.freeze({ ...point }))),
+    ...(servesHouseId === undefined ? {} : { servesHouseId }),
+    presentationOnly: true,
+    gameplayAuthorityClaimed: false,
+  });
+}
+
+/** Short visual joins that make the lower-ward street graph continuous. */
+export const INNER_KEEP_TOWN_JUNCTION_LANES:
+readonly InnerKeepOuterWorldAmbientLane[] = Object.freeze([
+  townFootpath(
+    'inner-keep-west-delivery-gate-link-v1',
+    [
+      { x: -1.8, z: 20.9 },
+      { x: -0.9, z: 19.3 },
+      { x: 0, z: 16.8 },
+    ],
+    0.48,
+    0.68,
+  ),
+  townFootpath(
+    'inner-keep-east-service-gate-link-v1',
+    [
+      { x: 2.6, z: 18.5 },
+      { x: 2.6, z: 17.5 },
+      { x: 2.6, z: 16.8 },
+    ],
+    0.46,
+    0.68,
+  ),
+  townFootpath(
+    'inner-keep-commons-service-link-v1',
+    [
+      { x: 4.2, z: 25.4 },
+      { x: 5.2, z: 24.6 },
+      { x: 6.1, z: 23.9 },
+    ],
+    0.3,
+    0.5,
+  ),
+]);
+
+export const INNER_KEEP_WEST_CROFT_DOORSTEP_PATHS:
+readonly InnerKeepOuterWorldAmbientLane[] = Object.freeze([
+  townFootpath('inner-keep-gate-west-croft-doorstep-v1', [
+    { x: -15.45, z: 20.68 },
+    { x: -15.1, z: 22.35 },
+    { x: -15, z: 23.3 },
+  ], 0.28, 0.48, 'gate-west-croft'),
+  townFootpath('inner-keep-tanners-doorstep-v1', [
+    { x: -19.1, z: 24.4 },
+    { x: -18.8, z: 25 },
+    { x: -18.4, z: 25.6 },
+  ], 0.28, 0.48, 'tanners-west-row'),
+  townFootpath('inner-keep-alder-row-doorstep-v1', [
+    { x: -23.9, z: 27.1 },
+    { x: -23.3, z: 27.7 },
+    { x: -22.6, z: 28.5 },
+  ], 0.28, 0.48, 'alder-west-row'),
+]);
+
+export const INNER_KEEP_EAST_CROFT_DOORSTEP_PATHS:
+readonly InnerKeepOuterWorldAmbientLane[] = Object.freeze([
+  townFootpath('inner-keep-eastwall-croft-doorstep-v1', [
+    { x: 15, z: 30.3 },
+    { x: 15.7, z: 29.8 },
+    { x: 16.5, z: 29.3 },
+  ], 0.28, 0.48, 'eastwall-croft'),
+  townFootpath('inner-keep-southfield-row-doorstep-v1', [
+    { x: 18.5, z: 33 },
+    { x: 19.1, z: 31.3 },
+    { x: 19.8, z: 30 },
+  ], 0.28, 0.48, 'southfield-east-row'),
+  townFootpath('inner-keep-alder-lane-croft-doorstep-v1', [
+    { x: 9, z: 28.6 },
+    { x: 9.8, z: 27.9 },
+    { x: 10.6, z: 27.2 },
+  ], 0.28, 0.48, 'alder-lane-croft'),
+]);
+
+/** Old-road footpath ending at the graveyard's open southern fence. */
+export const INNER_KEEP_OLD_ROAD_GRAVEYARD_SPUR:
+InnerKeepOuterWorldAmbientLane = townFootpath(
+  'inner-keep-old-road-graveyard-spur-v1',
+  [
+    { x: -32, z: -2 },
+    { x: -30.8, z: -3.4 },
+    { x: -28.6, z: -4.8 },
+    { x: -26, z: -5.8 },
+  ],
+  0.4,
+  0.64,
+);
+
 export const INNER_KEEP_OUTER_WORLD_AMBIENT_LANES:
 readonly InnerKeepOuterWorldAmbientLane[] = Object.freeze([
   INNER_KEEP_WEST_VILLAGE_DELIVERY_LANE,
   INNER_KEEP_EAST_VILLAGE_SERVICE_LANE,
   INNER_KEEP_VILLAGE_COMMONS_SOCIAL_LANE,
+  INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE,
+  INNER_KEEP_EASTWALL_QUAY_LANE,
+  INNER_KEEP_EAST_CROFT_MARKET_LANE,
+  ...INNER_KEEP_TOWN_JUNCTION_LANES,
+  ...INNER_KEEP_WEST_CROFT_DOORSTEP_PATHS,
+  ...INNER_KEEP_EAST_CROFT_DOORSTEP_PATHS,
+  INNER_KEEP_OLD_ROAD_GRAVEYARD_SPUR,
 ]);
 
 /** Signed centerline-edge distance to the nearest presentation-only town lane. */

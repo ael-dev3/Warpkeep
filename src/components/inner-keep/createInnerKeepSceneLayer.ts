@@ -52,6 +52,7 @@ import {
   INNER_KEEP_PRESENTATION_CLEARANCES
 } from './innerKeepPresentationLayoutPolicy';
 import {
+  INNER_KEEP_CITY_CORE_ROADS,
   INNER_KEEP_CITY_DISTRICT_ROADS,
   INNER_KEEP_CITY_EDGE_APRON_HALF_WIDTH_METERS,
   INNER_KEEP_CITY_EDGE_APRON_POINTS,
@@ -925,6 +926,28 @@ export function createInnerKeepSceneLayer(
   outerRoad.raycast = () => undefined;
   staticGroup.add(outerRoad);
 
+  const cityCoreRoadGeometry = createInnerKeepOuterRoadGeometry(
+    INNER_KEEP_CITY_CORE_ROADS,
+    renderedTerrainHeightAt,
+  );
+  disposableGeometries.add(cityCoreRoadGeometry);
+  const cityCoreRoadMaterial = new THREE.MeshStandardMaterial({
+    color: INNER_KEEP_TOWN_TONAL_PALETTE.roads.inner,
+    roughness: 0.97,
+    polygonOffset: true,
+    polygonOffsetFactor: -1.25,
+    polygonOffsetUnits: -2,
+  });
+  disposableMaterials.add(cityCoreRoadMaterial);
+  const cityCoreRoads = new THREE.Mesh(cityCoreRoadGeometry, cityCoreRoadMaterial);
+  cityCoreRoads.name = 'inner-keep-city-core-road-network';
+  cityCoreRoads.receiveShadow = true;
+  cityCoreRoads.castShadow = false;
+  cityCoreRoads.userData.presentationOnly = true;
+  cityCoreRoads.userData.gameplayAuthorityClaimed = false;
+  cityCoreRoads.raycast = () => undefined;
+  staticGroup.add(cityCoreRoads);
+
   const cityEdgeApronGeometry = createInnerKeepOuterRoadGeometry([
     Object.freeze({
       points: INNER_KEEP_CITY_EDGE_APRON_POINTS,
@@ -971,21 +994,6 @@ export function createInnerKeepSceneLayer(
   districtRoads.userData.gameplayAuthorityClaimed = false;
   districtRoads.raycast = () => undefined;
   staticGroup.add(districtRoads);
-
-  const roadMaterial = new THREE.MeshStandardMaterial({
-    color: INNER_KEEP_TOWN_TONAL_PALETTE.roads.inner,
-    roughness: 0.96
-  });
-  disposableMaterials.add(roadMaterial);
-  const roadGeometryVertical = new THREE.BoxGeometry(2.6, 0.12, 36.5);
-  const roadGeometryHorizontal = new THREE.BoxGeometry(35, 0.12, 2.15);
-  disposableGeometries.add(roadGeometryVertical);
-  disposableGeometries.add(roadGeometryHorizontal);
-  const roadVertical = setShadow(new THREE.Mesh(roadGeometryVertical, roadMaterial), false, true);
-  roadVertical.position.set(0, 0.08, -3);
-  const roadHorizontal = setShadow(new THREE.Mesh(roadGeometryHorizontal, roadMaterial), false, true);
-  roadHorizontal.position.set(0, 0.085, 0.2);
-  proceduralFallbackGroup.add(roadVertical, roadHorizontal);
 
   const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x745536, roughness: 0.92 });
   disposableMaterials.add(wallMaterial);
@@ -1336,12 +1344,15 @@ export function createInnerKeepSceneLayer(
   sun.shadow.normalBias = 0.025;
   scene.add(ambient, sun);
 
-  const padGeometry = new THREE.CylinderGeometry(1.72, 1.85, 0.2, 24);
+  // Canonical slot coordinates stay unchanged; only their presentation shifts
+  // from ritual-looking circles to low, rectangular working yards that align
+  // with the town's street-and-block language.
+  const padGeometry = new THREE.BoxGeometry(3.35, 0.1, 2.55);
   disposableGeometries.add(padGeometry);
-  const padMaterial = new THREE.MeshStandardMaterial({ color: 0x978867, roughness: 0.98 });
+  const padMaterial = new THREE.MeshStandardMaterial({ color: 0x9a835e, roughness: 0.99 });
   const reservedPadMaterial = new THREE.MeshStandardMaterial({
-    color: 0x5f6258,
-    roughness: 0.98
+    color: 0x718061,
+    roughness: 1
   });
   const selectedPadMaterial = new THREE.MeshStandardMaterial({
     color: 0xc5aa67,
@@ -2003,11 +2014,14 @@ export function createInnerKeepSceneLayer(
             ? padMaterial
             : reservedPadMaterial
       ), false, true);
-      const footprintScale = slot.footprintClass === 'large' ? 2.1 / 1.85 : 1;
+      const footprintScale = slot.footprintClass === 'large' ? 1.14 : 1;
       pad.scale.set(footprintScale, 1, footprintScale);
-      pad.position.set(position.x, 0.16, position.z);
+      pad.position.set(position.x, 0.09, position.z);
       pad.rotation.y = position.rotation;
       pad.userData.innerKeepSlotId = slot.slotId;
+      pad.userData.innerKeepSlotVisualRole = position.active
+        ? 'active-work-yard'
+        : 'reserved-grass-yard';
       pad.name = `inner-keep-slot-pad:${slot.slotId}`;
       padMeshes.set(slot.slotId, pad);
       staticGroup.add(pad);

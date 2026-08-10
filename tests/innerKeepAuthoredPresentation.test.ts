@@ -37,6 +37,7 @@ import {
   INNER_KEEP_CITY_DISTRICT_ROADS,
   INNER_KEEP_CITY_EDGE_APRON_HALF_WIDTH_METERS,
   INNER_KEEP_CITY_EDGE_APRON_POINTS,
+  INNER_KEEP_OUTER_WORLD_AMBIENT_LANES,
   INNER_KEEP_OUTER_WORLD_RESOURCE_ROADS,
   INNER_KEEP_OUTER_WORLD_SUPPLY_WAGON_FOOTPRINT_METERS,
   INNER_KEEP_OUTER_WORLD_TRADE_ROUTE,
@@ -457,6 +458,19 @@ describe('authored Inner Keep presentation composition', () => {
               INNER_KEEP_OUTER_WORLD_SUPPLY_WAGON_FOOTPRINT_METERS * 0.5
                 + INNER_KEEP_AMBIENT_MINIMUM_BODY_CLEARANCE_METERS,
             ), `${visualSeed}:${quality}:${tree.name}:trade:${segmentIndex}`).toBe(false);
+          }
+          for (const lane of INNER_KEEP_OUTER_WORLD_AMBIENT_LANES) {
+            for (let segmentIndex = 0; segmentIndex < lane.points.length - 1; segmentIndex += 1) {
+              expect(segmentTouchesExpandedAabb(
+                lane.points[segmentIndex]!,
+                lane.points[segmentIndex + 1]!,
+                center,
+                trunkHalfExtents,
+                lane.reservedHalfWidthMeters
+                  + INNER_KEEP_AUTHORED_PERIMETER_TREE_CLEARANCE_METERS,
+              ), `${visualSeed}:${quality}:${tree.name}:${lane.laneId}:${segmentIndex}`)
+                .toBe(false);
+            }
           }
           for (const road of INNER_KEEP_OUTER_WORLD_RESOURCE_ROADS) {
             for (let segmentIndex = 0; segmentIndex < road.points.length - 1; segmentIndex += 1) {
