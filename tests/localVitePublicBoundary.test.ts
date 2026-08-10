@@ -58,6 +58,16 @@ function invoke(middleware: BoundaryMiddleware, url: string) {
   return { next, response };
 }
 
+function utf32Authority(field: string, bigEndian: boolean) {
+  const bytes = Buffer.allocUnsafe([...field].length * 4);
+  [...field].forEach((character, index) => {
+    const value = character.codePointAt(0)!;
+    if (bigEndian) bytes.writeUInt32BE(value, index * 4);
+    else bytes.writeUInt32LE(value, index * 4);
+  });
+  return bytes;
+}
+
 describe('local Vite public boundary', () => {
   it('denies every ignored credential, capture, database, and recovery class', () => {
     expect(WARPKEEP_LOCAL_VITE_FS_DENY).toEqual(expect.arrayContaining([
@@ -71,7 +81,7 @@ describe('local Vite public boundary', () => {
       '*.{log,har,trace}',
       '*.{bak,backup,tmp}',
       '*.{sqlite,sqlite3,db,dump}',
-      '*.{zip,tar,tar.gz,tgz,7z}',
+      '*.{7z,bz2,gz,rar,tar,tar.gz,tgz,xz,zip,zst}',
       '**/.git/**',
       '**/.cache/**',
       '**/.wrangler/**',
@@ -94,7 +104,12 @@ describe('local Vite public boundary', () => {
     'private-session.har',
     'operator.trace',
     'session.sqlite3',
+    'recovery.bz2',
+    'recovery.gz',
+    'recovery.rar',
     'recovery.tar.gz',
+    'recovery.xz',
+    'recovery.zst',
     'candidate.wkgr-atlas',
     'checkpoint.wkgr-checkpoint',
     'seed.bin',
@@ -185,6 +200,209 @@ describe('local Vite public boundary', () => {
       expect(response.statusCode).toBe(404);
       expect(response.setHeader).toHaveBeenCalledWith('cache-control', 'no-store');
     } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it.each([
+    ['ZIP', Buffer.from([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0])],
+    ['GZIP', Buffer.from([0x1f, 0x8b, 0x08, 0, 0, 0, 0, 0])],
+    ['Zstandard', Buffer.from([0x28, 0xb5, 0x2f, 0xfd, 0, 0, 0, 0])],
+    [
+      'tar',
+      (() => {
+        const bytes = Buffer.alloc(512);
+        bytes.write('ustar', 257, 'ascii');
+        return bytes;
+      })(),
+    ],
+  ])('refuses renamed %s archive magic before local serving', (_label, bytes) => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-public-archive-'));
+    const publicDirectory = join(root, 'public');
+    mkdirSync(publicDirectory);
+    try {
+      writeFileSync(join(publicDirectory, 'ordinary-container.bin'), bytes);
+      expect(() => configuredBoundary(publicDirectory)).toThrow(
+        'Warpkeep public directory contains a prohibited local artifact.',
+      );
+    } finally {
+      bytes.fill(0);
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it('blocks a renamed archive created after local startup', () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-public-late-archive-'));
+    const publicDirectory = join(root, 'public');
+    mkdirSync(publicDirectory);
+    const bytes = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0]);
+    try {
+      const middleware = configuredBoundary(publicDirectory);
+      writeFileSync(join(publicDirectory, 'ordinary-container.bin'), bytes);
+      const { next, response } = invoke(middleware, '/ordinary-container.bin');
+      expect(next).not.toHaveBeenCalled();
+      expect(response.statusCode).toBe(404);
+      expect(response.setHeader).toHaveBeenCalledWith('cache-control', 'no-store');
+    } finally {
+      bytes.fill(0);
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it('retains self-extracting ZIP evidence across all public-file chunks', () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-public-sfx-archive-'));
+    const publicDirectory = join(root, 'public');
+    mkdirSync(publicDirectory);
+    const bytes = Buffer.alloc(2 * 64 * 1024 + 16, 0x41);
+    Buffer.from([0x50, 0x4b, 0x03, 0x04]).copy(bytes, 101);
+    Buffer.from([0x50, 0x4b, 0x01, 0x02]).copy(bytes, 64 * 1024 - 2);
+    Buffer.from([0x50, 0x4b, 0x05, 0x06]).copy(bytes, 2 * 64 * 1024 + 4);
+    try {
+      const middleware = configuredBoundary(publicDirectory);
+      writeFileSync(join(publicDirectory, 'ordinary-self-extractor.bin'), bytes);
+      const { next, response } = invoke(middleware, '/ordinary-self-extractor.bin');
+      expect(next).not.toHaveBeenCalled();
+      expect(response.statusCode).toBe(404);
+    } finally {
+      bytes.fill(0);
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it('case-folds initialized living-world JSON authority across read chunks', () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-public-authority-'));
+    const publicDirectory = join(root, 'public');
+    mkdirSync(publicDirectory);
+    const authority = Buffer.from('"EcOlOgYcLaSs"\n : "AgAEBg=="', 'utf8');
+    const bytes = Buffer.alloc(64 * 1024 + authority.length, 0x20);
+    authority.copy(bytes, 64 * 1024 - 7);
+    try {
+      writeFileSync(join(publicDirectory, 'ordinary-authority.json'), bytes);
+      expect(() => configuredBoundary(publicDirectory)).toThrow(
+        'Warpkeep public directory contains a prohibited local artifact.',
+      );
+    } finally {
+      bytes.fill(0);
+      authority.fill(0);
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it('blocks living-world JSON authority created after local startup', () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-public-late-authority-'));
+    const publicDirectory = join(root, 'public');
+    mkdirSync(publicDirectory);
+    const bytes = Buffer.from('{"route-class":{"encoding":"base64"}}\n', 'utf8');
+    try {
+      const middleware = configuredBoundary(publicDirectory);
+      writeFileSync(join(publicDirectory, 'ordinary-authority.json'), bytes);
+      const { next, response } = invoke(middleware, '/ordinary-authority.json');
+      expect(next).not.toHaveBeenCalled();
+      expect(response.statusCode).toBe(404);
+    } finally {
+      bytes.fill(0);
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it.each([
+    [
+      'UTF-16LE',
+      Buffer.from('EcOlOgYcLaSs', 'utf16le'),
+    ],
+    [
+      'UTF-16BE',
+      (() => {
+        const bytes = Buffer.from('EcOlOgYcLaSs', 'utf16le');
+        bytes.swap16();
+        return bytes;
+      })(),
+    ],
+    ['UTF-32LE', utf32Authority('EcOlOgYcLaSs', false)],
+    ['UTF-32BE', utf32Authority('EcOlOgYcLaSs', true)],
+  ])('blocks case-folded %s living-world authority', (_label, authority) => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-public-encoded-authority-'));
+    const publicDirectory = join(root, 'public');
+    mkdirSync(publicDirectory);
+    const bytes = Buffer.alloc(64 * 1024 + authority.length, 0x80);
+    authority.copy(bytes, 64 * 1024 - 7);
+    try {
+      writeFileSync(join(publicDirectory, 'ordinary-authority.bin'), bytes);
+      expect(() => configuredBoundary(publicDirectory)).toThrow(
+        'Warpkeep public directory contains a prohibited local artifact.',
+      );
+    } finally {
+      bytes.fill(0);
+      authority.fill(0);
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it.each([
+    [
+      'UTF-16BE relief metric',
+      (() => {
+        const bytes = Buffer.from('PaIrCoUnTsByLaGaNdAxIs', 'utf16le');
+        bytes.swap16();
+        return bytes;
+      })(),
+    ],
+    [
+      'UTF-32LE private text field',
+      utf32Authority('PrIvAtEsEeDhEx', false),
+    ],
+  ])('blocks encoded %s authority', (_label, authority) => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-public-encoded-private-field-'));
+    const publicDirectory = join(root, 'public');
+    mkdirSync(publicDirectory);
+    const bytes = Buffer.alloc(64 * 1024 + authority.length, 0x80);
+    authority.copy(bytes, 64 * 1024 - 7);
+    try {
+      writeFileSync(join(publicDirectory, 'ordinary-private-field.bin'), bytes);
+      expect(() => configuredBoundary(publicDirectory)).toThrow(
+        'Warpkeep public directory contains a prohibited local artifact.',
+      );
+    } finally {
+      bytes.fill(0);
+      authority.fill(0);
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it('blocks escaped private JSON keys without rejecting ordinary escaped JSON', () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-public-escaped-authority-'));
+    const publicDirectory = join(root, 'public');
+    mkdirSync(publicDirectory);
+    const benign = Buffer.from('{"message":"ordinary\\ntext"}\n', 'utf8');
+    const authority = Buffer.from('{"ecology\\u0043lass":1}\n', 'utf8');
+    try {
+      writeFileSync(join(publicDirectory, 'ordinary.json'), benign);
+      const middleware = configuredBoundary(publicDirectory);
+      expect(invoke(middleware, '/ordinary.json').next).toHaveBeenCalledTimes(1);
+      writeFileSync(join(publicDirectory, 'ordinary-authority.json'), authority);
+      const { next, response } = invoke(middleware, '/ordinary-authority.json');
+      expect(next).not.toHaveBeenCalled();
+      expect(response.statusCode).toBe(404);
+    } finally {
+      benign.fill(0);
+      authority.fill(0);
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it.each([
+    ['PNG', Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])],
+    ['GLB', Buffer.from([0x67, 0x6c, 0x54, 0x46, 2, 0, 0, 0])],
+  ])('continues to allow ordinary %s media signatures', (_label, bytes) => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-public-media-'));
+    const publicDirectory = join(root, 'public');
+    mkdirSync(publicDirectory);
+    try {
+      writeFileSync(join(publicDirectory, 'ordinary-media.bin'), bytes);
+      const middleware = configuredBoundary(publicDirectory);
+      expect(invoke(middleware, '/ordinary-media.bin').next).toHaveBeenCalledTimes(1);
+    } finally {
+      bytes.fill(0);
       rmSync(root, { force: true, recursive: true });
     }
   });

@@ -974,6 +974,79 @@ function encodeIntegerArray(array: IntegerTerrainArray): Readonly<{
   return Object.freeze({ type, bytes });
 }
 
+export function isCanonicalGreaterRealmAxialGrid(grid: IndexedAxialGrid): boolean {
+  if (
+    !Number.isSafeInteger(grid.cellCount)
+    || grid.cellCount <= 0
+    || grid.cellCount > UINT32_MAX
+    || !(grid.q instanceof Int32Array)
+    || !(grid.r instanceof Int32Array)
+    || grid.q.length !== grid.cellCount
+    || grid.r.length !== grid.cellCount
+    || !(grid.neighbors instanceof Int32Array)
+    || grid.neighbors.length !== grid.cellCount * NEIGHBOR_COUNT
+  ) return false;
+
+  for (let cell = 0; cell < grid.cellCount; cell += 1) {
+    if (
+      cell > 0
+      && (
+        grid.q[cell]! < grid.q[cell - 1]!
+        || (
+          grid.q[cell] === grid.q[cell - 1]
+          && grid.r[cell]! <= grid.r[cell - 1]!
+        )
+      )
+    ) return false;
+  }
+
+  // Translating a lexicographically sorted coordinate inventory by one fixed
+  // axial direction preserves its order. A monotonic merge per direction can
+  // therefore validate every exact neighbor slot in O(6N), without retaining
+  // a private coordinate map or repeatedly binary-searching boundary misses.
+  for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
+    const offset = GREATER_REALM_AXIAL_DIRECTIONS[direction]!;
+    let coordinateIndex = 0;
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      const expectedQ = grid.q[cell]! + offset.q;
+      const expectedR = grid.r[cell]! + offset.r;
+      if (
+        expectedQ < INT32_MIN
+        || expectedQ > INT32_MAX
+        || expectedR < INT32_MIN
+        || expectedR > INT32_MAX
+      ) return false;
+      while (
+        coordinateIndex < grid.cellCount
+        && (
+          grid.q[coordinateIndex]! < expectedQ
+          || (
+            grid.q[coordinateIndex] === expectedQ
+            && grid.r[coordinateIndex]! < expectedR
+          )
+        )
+      ) {
+        coordinateIndex += 1;
+      }
+      const expectedNeighbor = (
+        coordinateIndex < grid.cellCount
+        && grid.q[coordinateIndex] === expectedQ
+        && grid.r[coordinateIndex] === expectedR
+      ) ? coordinateIndex : -1;
+      if (grid.neighbors[cell * NEIGHBOR_COUNT + direction] !== expectedNeighbor) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+function assertCanonicalDigestGrid(grid: IndexedAxialGrid): void {
+  if (!isCanonicalGreaterRealmAxialGrid(grid)) {
+    fail('GREATER_REALM_STAGE_DIGEST_GRID_INVALID');
+  }
+}
+
 /**
  * SHA-256 over canonical coordinates and sorted integer fields. Values are
  * explicitly little-endian so evidence is not host-endian dependent.
@@ -984,6 +1057,7 @@ export function digestGreaterRealmTerrainStage(
   fields: Readonly<Record<string, IntegerTerrainArray>>,
 ): string {
   if (stage.length === 0) fail('GREATER_REALM_STAGE_DIGEST_NAME_INVALID');
+  assertCanonicalDigestGrid(grid);
   const digest = createHash('sha256');
   updateLengthPrefixedText(digest, GREATER_REALM_TERRAIN_CORE_VERSION);
   updateLengthPrefixedText(digest, stage);
@@ -998,6 +1072,9 @@ export function digestGreaterRealmTerrainStage(
       )
     ) {
       fail('GREATER_REALM_STAGE_DIGEST_FIELD_INVALID');
+    }
+    if (Object.values(fields).some((array) => array.length !== grid.cellCount)) {
+      fail('GREATER_REALM_STAGE_DIGEST_FIELD_LENGTH_INVALID');
     }
 
     for (const [name, array] of [

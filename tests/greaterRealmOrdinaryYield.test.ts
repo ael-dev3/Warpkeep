@@ -7,6 +7,11 @@ import { describe, expect, it } from 'vitest';
 import { generateGreaterRealmCandidate } from '../scripts/atlas/greater-realm-candidate-generator';
 import { clearGreaterRealmPrivateCandidateBuffers } from '../scripts/atlas/greater-realm-candidate-package';
 
+// This full-size fixture can share a two-worker CI process with another
+// 100k+ cell replay. Keep the allowance bounded while covering measured
+// scheduler contention; the candidate's authority assertions remain exact.
+const FULL_CANDIDATE_ORDINARY_YIELD_TIMEOUT_MS = 120_000;
+
 function ordinaryRoot(label: string): Uint8Array {
   return Uint8Array.from(createHash('sha256').update(`${label}\0`, 'utf8').digest());
 }
@@ -32,5 +37,5 @@ describe('Greater Realm ordinary deterministic candidate yield', () => {
         if (candidate) clearGreaterRealmPrivateCandidateBuffers(candidate);
       }
     }
-  }, 60_000);
+  }, FULL_CANDIDATE_ORDINARY_YIELD_TIMEOUT_MS);
 });

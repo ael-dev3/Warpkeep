@@ -257,7 +257,17 @@ export function hasGreaterRealmCandidateScaleLivingWorldCapacity(
   const eligible = metrics.dressingEligibleCellCount;
   const ecology = metrics.ecologyCellCounts;
   const ecologyCounts = Object.values(ecology);
-  const routes = Object.values(metrics.routeCellCounts);
+  const routeCounts = Object.values(metrics.routeCellCounts);
+  // `dressingEligibleCellCount` is dry, non-excluded land. Fords occupy
+  // river/stream cells outside that denominator, so including them would let
+  // water crossings manufacture the 5% dry-route floor (or spuriously breach
+  // the 20% dry-route cap). Keep ford cardinality validated, but gate only the
+  // three route classes which can occupy eligible land.
+  const dryRoutes = [
+    metrics.routeCellCounts.track,
+    metrics.routeCellCounts.road,
+    metrics.routeCellCounts.carriageway,
+  ] as const;
   const landmarks = metrics.landmarkCellCounts;
   const ambient = metrics.ambientLifeCellCounts;
   const ambientCounts = Object.values(ambient);
@@ -267,7 +277,7 @@ export function hasGreaterRealmCandidateScaleLivingWorldCapacity(
       metrics.eligibleLandVegetatedBasisPoints,
       metrics.eligibleLandOpenBasisPoints,
       ...ecologyCounts,
-      ...routes,
+      ...routeCounts,
       ...Object.values(landmarks),
       ...ambientCounts,
     ])
@@ -303,8 +313,8 @@ export function hasGreaterRealmCandidateScaleLivingWorldCapacity(
     metrics.eligibleLandVegetatedBasisPoints >= 2_500 &&
     metrics.eligibleLandVegetatedBasisPoints <= 8_500 &&
     metrics.eligibleLandOpenBasisPoints >= 1_500 &&
-    summedShareAtLeast(routes, 500) &&
-    summedShareAtMost(routes, 2_000) &&
+    summedShareAtLeast(dryRoutes, 500) &&
+    summedShareAtMost(dryRoutes, 2_000) &&
     landmarks.abandonedRuin >= 32 &&
     BigInt(landmarks.ruinedWall) >= BigInt(landmarks.abandonedRuin) * 2n &&
     BigInt(landmarks.ruinedWall) <= BigInt(landmarks.abandonedRuin) * 3n &&

@@ -21,13 +21,22 @@ private storage.
 
 ## Local workspace controls
 
-The tool accepts no secret through arguments or environment variables. It
-creates a 256-bit candidate root internally. Secrets are never
-included in an error, path, log, metric, preview watermark, or public handle.
+The tool accepts no secret through arguments or environment variables. Secret
+shapes include case-folded hexadecimal and standard or URL-safe Base64, and
+reserved/loader environment keys are matched case-insensitively for portable
+Windows semantics. The exact host metadata key
+`NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S` may carry its public hexadecimal
+browser-client digest; similarly named or spoofed digest keys receive no
+exception. The tool creates a 256-bit candidate root internally. Secrets are
+never included in an error, path, log, metric, preview watermark, or public
+handle.
 
 The private workspace must:
 
 - resolve to an absolute canonical directory outside the repository;
+- reject cross-platform path aliases before any filesystem operation,
+  including Win32 drive-relative/alternate-stream syntax, reserved device
+  names, silently trimmed trailing dots/spaces, controls, and wildcard names;
 - be owned by the current user with directory mode `0700` and file mode `0600`;
 - reject symbolic links and special files in every inspected path component;
 - use an exclusive operation lock;
@@ -76,6 +85,11 @@ The private workspace must:
 Private paths are also ignored defensively. Ignore rules are not the security
 boundary: a tracked-file scanner independently rejects private magic,
 extensions, fields, images, or directories in Git and release surfaces.
+Because compressed containers are opaque to exact marker and field inspection,
+that scanner also rejects archive extensions and ZIP, GZIP, 7z, RAR, XZ,
+Bzip2, Zstandard, or tar magic even after a file is renamed, including a ZIP
+appended to a self-extracting prefix. Ordinary runtime media signatures such
+as PNG and GLB remain permitted and are scanned normally.
 
 Owned `Buffer` and typed-array copies are overwritten in `finally` blocks when
 their lifetime ends, including temporary seed digests and failed atlas
@@ -244,13 +258,22 @@ The pull request must prove that it rejects:
   preview references in public evidence;
 - tracked private package extensions or private magic in source, docs,
   `public/`, `dist/`, and source maps;
-- a markerless binary containing the complete six-field living-world authority
-  inventory, including UTF-8-looking unknown extensions and streamed files;
+- archive extensions and renamed opaque archive/container magic from both the
+  worktree and exact staged blob, without classifying ordinary PNG/GLB media;
+- a private marker encoded as UTF-8, UTF-16LE/BE, or UTF-32LE/BE, including
+  when it crosses a streamed scan boundary; unknown/binary surfaces fail closed
+  on any exact living-world authority or distinctive relief-metric alias in
+  those encodings, while source and documentation keep value-aware rules;
+- BOM-marked or BOM-less streamed UTF-16/UTF-32 private text, including trailing
+  junk and decoded-text/binary polyglots, plus initialized JSON authority under
+  a renamed extension;
 - any initialized distinctive private final-relief matrix, vector, or named
-  subproof on a text surface, plus ambiguous eligible-cell scalars in data;
-- a markerless single-field numeric living-world authority table or key/value
-  row in CSV, TSV, JSON, NDJSON, DAT, DATA, TXT, or an unfamiliar text
-  extension, including case-folded names and quoted delimiters;
+  subproof on a text surface, including raw, typed-array, `.from`, Buffer, and
+  object-shaped initializers, plus ambiguous eligible-cell scalars in data;
+- a markerless single-field living-world authority in JSON, including encoded
+  string/object values, or a numeric table/key-value row in CSV, TSV, NDJSON,
+  DAT, DATA, TXT, or an unfamiliar text extension, including case-folded names
+  and quoted delimiters;
 - source/config/seed/package substitution;
 - a malformed or wrongly typed seed envelope, including a renamed private seed
   that still carries the private marker;

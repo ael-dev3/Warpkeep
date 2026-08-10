@@ -55,7 +55,9 @@ coverage, incompatible overlaps, blocked strategic approaches, and collisions
 with protected Lowlands authority. Candidate-scale gates require at least eight
 cells in every ecology class; at least 20% lush, 8% cold/upland, and 3%
 arid/savanna ecology; no single class above 55%; 25–85% vegetated eligible land
-with at least 15% open country; and routes covering 5–20% of eligible land.
+with at least 15% open country; and dry tracks, roads, and carriageways covering
+5–20% of eligible land. Ford cells are validated separately and never count
+toward that dry-land percentage because they occupy river or stream cells.
 They also require at least 32 abandoned ruins with exactly 2–3 adjacent ruined
 wall cells each, 64 waystones, 96 lamps, 128 rabbit habitats, 64 civilian
 footfall cells, 16 guard posts, 32 ordinary courier cells, and 4 exotic-courier

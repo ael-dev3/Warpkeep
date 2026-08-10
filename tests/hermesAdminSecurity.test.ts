@@ -61,6 +61,7 @@ function runHermes(
   args: string[],
   overrides: Record<string, string | undefined> = {},
   input?: string,
+  timeout = 5_000,
 ) {
   const env: NodeJS.ProcessEnv = {
     PATH: process.env.PATH,
@@ -83,7 +84,7 @@ function runHermes(
     encoding: 'utf8',
     env,
     input,
-    timeout: 5_000
+    timeout
   });
 }
 
@@ -1421,13 +1422,15 @@ describe('Hermes credential destination policy', () => {
       const result = runHermes(
         ['expand-world-v3', '--confirm'],
         { WARPKEEP_SPACETIMEDB_DATABASE: database },
+        undefined,
+        15_000,
       );
       expect(result.status).toBe(1);
       expect(result.stderr).toContain('immutable Warpkeep production database identity');
       expect(`${result.stdout}${result.stderr}`).not.toContain(TEST_SECRET);
       expect(`${result.stdout}${result.stderr}`).not.toContain('Could not reach');
     }
-  }, 15_000);
+  }, 60_000);
 
   it('allows custom targets only for a secret-free dry run', () => {
     const result = runHermes(

@@ -15,7 +15,10 @@ import {
   type GreaterRealmPrivateCandidate,
 } from './greater-realm-candidate-generator';
 import type { GreaterRealmPrivateWorkspace } from './greater-realm-private-workspace';
-import type { IntegerTerrainArray } from './greater-realm-terrain';
+import {
+  isCanonicalGreaterRealmAxialGrid,
+  type IntegerTerrainArray,
+} from './greater-realm-terrain';
 import { GREATER_REALM_GEOMORPHOLOGY_VERSION } from './greater-realm-geomorphology';
 import {
   GREATER_REALM_LEGACY_LOWLANDS_LOCK_PINS_V1,
@@ -168,6 +171,12 @@ type PrivateChunk = Readonly<{
   chunkR: number;
   cellIndices: readonly number[];
 }>;
+
+type PrivateChunkScratch = {
+  chunkQ: number;
+  chunkR: number;
+  cellIndices: number[];
+};
 
 function fail(code: string): never {
   throw new Error(code);
@@ -929,6 +938,14 @@ function encodedFieldHasExactType(field: EncodedField): boolean {
   return field.type === 8 && field.width === 8 && field.array instanceof BigUint64Array;
 }
 
+function hasCanonicalPrivateCandidateShape(candidate: GreaterRealmPrivateCandidate): boolean {
+  if (!isCanonicalGreaterRealmAxialGrid(candidate.grid)) return false;
+  return privateFields(candidate).every(field => (
+    encodedFieldHasExactType(field)
+    && field.array.length === candidate.grid.cellCount
+  ));
+}
+
 function writeFieldValue(
   buffer: Buffer,
   offset: number,
@@ -1127,12 +1144,16 @@ function privateTopographyFields(
   }));
 }
 
-function privateChunkPartition(candidate: GreaterRealmPrivateCandidate): readonly PrivateChunk[] {
-  const chunks = new Map<string, {
-    chunkQ: number;
-    chunkR: number;
-    cellIndices: number[];
-  }>();
+function clearPrivateChunkCellIndices(
+  chunks: Iterable<Readonly<{ cellIndices: readonly number[] }>>,
+): void {
+  for (const chunk of chunks) (chunk.cellIndices as number[]).fill(0);
+}
+
+function buildPrivateChunkPartition(
+  candidate: GreaterRealmPrivateCandidate,
+  chunks: Map<string, PrivateChunkScratch>,
+): readonly PrivateChunk[] {
   for (let index = 0; index < candidate.grid.cellCount; index += 1) {
     const q = candidate.grid.q[index]!;
     const r = candidate.grid.r[index]!;
@@ -1155,8 +1176,20 @@ function privateChunkPartition(candidate: GreaterRealmPrivateCandidate): readonl
       chunkKey,
       chunkQ: chunk.chunkQ,
       chunkR: chunk.chunkR,
-      cellIndices: Object.freeze(chunk.cellIndices),
+      // This index inventory is internal scratch, not a manifest field. Keep
+      // it mutable so the manifest builder can erase it after hashing.
+      cellIndices: chunk.cellIndices,
     })));
+}
+
+function privateChunkPartition(candidate: GreaterRealmPrivateCandidate): readonly PrivateChunk[] {
+  const chunks = new Map<string, PrivateChunkScratch>();
+  try {
+    return buildPrivateChunkPartition(candidate, chunks);
+  } catch (error) {
+    clearPrivateChunkCellIndices(chunks.values());
+    throw error;
+  }
 }
 
 function fieldInventoryDigest(fields: readonly EncodedField[]): string {
@@ -1246,8 +1279,10 @@ function digestPrivateManifestEntry(domain: string, value: unknown): string {
   }
 }
 
-function candidatePrivateChunkManifests(candidate: GreaterRealmPrivateCandidate) {
-  const chunks = privateChunkPartition(candidate);
+function buildCandidatePrivateChunkManifests(
+  candidate: GreaterRealmPrivateCandidate,
+  chunks: ReturnType<typeof privateChunkPartition>,
+) {
   const allFields = privateFields(candidate);
   const topographyFields = privateTopographyFields(candidate);
   const topographyInventoryDigest = fieldInventoryDigest(topographyFields);
@@ -1352,6 +1387,15 @@ function candidatePrivateChunkManifests(candidate: GreaterRealmPrivateCandidate)
     chunkManifests: Object.freeze(chunkManifests),
     topographyPatchManifests: Object.freeze(topographyPatchManifests),
   });
+}
+
+function candidatePrivateChunkManifests(candidate: GreaterRealmPrivateCandidate) {
+  const chunks = privateChunkPartition(candidate);
+  try {
+    return buildCandidatePrivateChunkManifests(candidate, chunks);
+  } finally {
+    clearPrivateChunkCellIndices(chunks);
+  }
 }
 
 export type GreaterRealmCandidatePerformance = Readonly<{
@@ -1888,6 +1932,7 @@ export async function writeGreaterRealmPrivateCandidate(
     || !Number.isSafeInteger(input.candidate.grid.cellCount)
     || input.candidate.grid.cellCount < 100_000
     || input.candidate.grid.cellCount > 150_000
+    || !hasCanonicalPrivateCandidateShape(input.candidate)
     || input.candidate.aggregate.activeCellCount !== input.candidate.grid.cellCount
     || input.candidate.seedMaterial.byteLength !== 32
     || input.candidate.aggregate.eligible !== true
@@ -2216,18 +2261,23 @@ export function clearGreaterRealmPrivateCandidateBuffers(
   for (const crossSection of candidate.barrierCrossSections) {
     (crossSection.cells as number[]).fill(0);
   }
-  candidate.grid.clearIndex?.();
-  new Uint8Array(
-    candidate.grid.neighbors.buffer,
-    candidate.grid.neighbors.byteOffset,
-    candidate.grid.neighbors.byteLength,
-  ).fill(0);
-  for (const field of privateFields(candidate)) {
+  try {
+    candidate.grid.clearIndex?.();
+  } finally {
+    // The lookup is an optional best-effort hook and may fail independently.
+    // Never let that prevent canonical private atlas bytes from being erased.
     new Uint8Array(
-      field.array.buffer,
-      field.array.byteOffset,
-      field.array.byteLength,
+      candidate.grid.neighbors.buffer,
+      candidate.grid.neighbors.byteOffset,
+      candidate.grid.neighbors.byteLength,
     ).fill(0);
+    for (const field of privateFields(candidate)) {
+      new Uint8Array(
+        field.array.buffer,
+        field.array.byteOffset,
+        field.array.byteLength,
+      ).fill(0);
+    }
   }
 }
 

@@ -339,7 +339,10 @@ describe('Greater Realm atlas CLI security boundary', () => {
       clearGreaterRealmPrivateCandidateBuffers(candidate);
       rootSeed.fill(0);
     }
-  }, 180_000);
+  // Four independent full-candidate generations prove that verification never
+  // trusts the supplied rejection ledger. Two-worker CI measured 329 seconds;
+  // retain a bounded eight-minute ceiling without weakening replay coverage.
+  }, 480_000);
 
   it('restricts public evidence exports to one canonical JSON basename', () => {
     const expected = resolve(

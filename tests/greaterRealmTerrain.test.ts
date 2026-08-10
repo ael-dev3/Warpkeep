@@ -267,6 +267,54 @@ describe('Greater Realm deterministic terrain core', () => {
     }));
   });
 
+  it('rejects malformed stage-evidence grid and field shapes before hashing', () => {
+    const grid = indexGreaterRealmAxialGrid(hexDisc(1));
+
+    expect(() => digestGreaterRealmTerrainStage('truncated', grid, {
+      elevation: new Int32Array(grid.cellCount - 1),
+    })).toThrow('GREATER_REALM_STAGE_DIGEST_FIELD_LENGTH_INVALID');
+    expect(() => digestGreaterRealmTerrainStage('extended', grid, {
+      elevation: new Int32Array(grid.cellCount + 1),
+    })).toThrow('GREATER_REALM_STAGE_DIGEST_FIELD_LENGTH_INVALID');
+    expect(() => digestGreaterRealmTerrainStage('malformed-grid', {
+      ...grid,
+      q: new Int32Array(grid.cellCount - 1),
+    }, {
+      elevation: new Int32Array(grid.cellCount),
+    })).toThrow('GREATER_REALM_STAGE_DIGEST_GRID_INVALID');
+
+    const alteredNeighbors = new Int32Array(grid.neighbors);
+    const center = grid.indexOf({ q: 0, r: 0 });
+    alteredNeighbors[center * 6] = grid.indexOf({ q: 0, r: 1 });
+    expect(() => digestGreaterRealmTerrainStage('altered-neighbor', {
+      ...grid,
+      neighbors: alteredNeighbors,
+    }, {
+      elevation: new Int32Array(grid.cellCount),
+    })).toThrow('GREATER_REALM_STAGE_DIGEST_GRID_INVALID');
+
+    const missingNeighbor = new Int32Array(grid.neighbors);
+    missingNeighbor[center * 6] = -1;
+    expect(() => digestGreaterRealmTerrainStage('missing-neighbor', {
+      ...grid,
+      neighbors: missingNeighbor,
+    }, {
+      elevation: new Int32Array(grid.cellCount),
+    })).toThrow('GREATER_REALM_STAGE_DIGEST_GRID_INVALID');
+
+    const unsortedQ = new Int32Array(grid.q);
+    const unsortedR = new Int32Array(grid.r);
+    [unsortedQ[0], unsortedQ[1]] = [unsortedQ[1]!, unsortedQ[0]!];
+    [unsortedR[0], unsortedR[1]] = [unsortedR[1]!, unsortedR[0]!];
+    expect(() => digestGreaterRealmTerrainStage('unsorted-grid', {
+      ...grid,
+      q: unsortedQ,
+      r: unsortedR,
+    }, {
+      elevation: new Int32Array(grid.cellCount),
+    })).toThrow('GREATER_REALM_STAGE_DIGEST_GRID_INVALID');
+  });
+
   it('zeroes every owned metadata and encoded-field buffer after stage hashing', () => {
     const grid = indexGreaterRealmAxialGrid(hexDisc(1));
     const elevation = new Int32Array(grid.cellCount);

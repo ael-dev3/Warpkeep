@@ -15,7 +15,7 @@ import {
 } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, win32 as win32Path } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -54,6 +54,29 @@ function scannerRepository() {
   }
   writeFileSync(join(paths.repositoryRoot, 'public', 'ordinary.txt'), 'ordinary fixture\n');
   return paths;
+}
+
+function prefixedEmptyZipFixture(): Buffer {
+  const prefix = Buffer.alloc(1_024, 0x90);
+  const name = Buffer.from('a', 'ascii');
+  const local = Buffer.alloc(30);
+  local.writeUInt32LE(0x04034b50, 0);
+  local.writeUInt16LE(20, 4);
+  local.writeUInt16LE(name.length, 26);
+  const centralOffset = prefix.length + local.length + name.length;
+  const central = Buffer.alloc(46);
+  central.writeUInt32LE(0x02014b50, 0);
+  central.writeUInt16LE(20, 4);
+  central.writeUInt16LE(20, 6);
+  central.writeUInt16LE(name.length, 28);
+  central.writeUInt32LE(prefix.length, 42);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(1, 8);
+  end.writeUInt16LE(1, 10);
+  end.writeUInt32LE(central.length + name.length, 12);
+  end.writeUInt32LE(centralOffset, 16);
+  return Buffer.concat([prefix, local, name, central, name, end]);
 }
 
 function sanitizedReviewEvidence(): string {
@@ -457,6 +480,7 @@ describe('Greater Realm private generation workspace', () => {
     const generatedSecret = Buffer.from(
       Uint8Array.from({ length: 32 }, (_, index) => (index * 29 + 7) & 0xff),
     ).toString('hex');
+    const generatedBase64UrlSecret = Buffer.alloc(32, 0xff).toString('base64url');
 
     expect(() => assertGreaterRealmPrivateInvocation(
       [`--seed=${generatedSecret}`],
@@ -471,9 +495,57 @@ describe('Greater Realm private generation workspace', () => {
       { GENERIC_SECRET: generatedSecret },
     )).toThrow('GREATER_REALM_PRIVATE_INVOCATION_REJECTED');
     expect(() => assertGreaterRealmPrivateInvocation(
+      ['generate-candidates'],
+      { warpkeep_greater_realm_seed: 'case-folded-reserved-channel' },
+    )).toThrow('GREATER_REALM_PRIVATE_INVOCATION_REJECTED');
+    expect(() => assertGreaterRealmPrivateInvocation(
+      ['generate-candidates'],
+      { GENERIC_UPPERCASE_SECRET: generatedSecret.toUpperCase() },
+    )).toThrow('GREATER_REALM_PRIVATE_INVOCATION_REJECTED');
+    expect(() => assertGreaterRealmPrivateInvocation(
+      ['generate-candidates'],
+      { GENERIC_VALUE: generatedSecret.toUpperCase() },
+    )).toThrow('GREATER_REALM_PRIVATE_INVOCATION_REJECTED');
+    expect(() => assertGreaterRealmPrivateInvocation(
+      ['generate-candidates'],
+      { GENERIC_BASE64URL_SECRET: generatedBase64UrlSecret },
+    )).toThrow('GREATER_REALM_PRIVATE_INVOCATION_REJECTED');
+    expect(() => assertGreaterRealmPrivateInvocation(
+      ['generate-candidates'],
+      { GENERIC_VALUE: generatedBase64UrlSecret },
+    )).toThrow('GREATER_REALM_PRIVATE_INVOCATION_REJECTED');
+    expect(() => assertGreaterRealmPrivateInvocation(
+      ['generate-candidates'],
+      { PUBLIC_ATLAS_SHA256: generatedSecret.toUpperCase() },
+    )).toThrow('GREATER_REALM_PRIVATE_INVOCATION_REJECTED');
+    expect(() => assertGreaterRealmPrivateInvocation(
+      ['generate-candidates'],
+      { NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S: generatedSecret.toUpperCase() },
+    )).not.toThrow();
+    expect(() => assertGreaterRealmPrivateInvocation(
       ['generate-candidates', '--candidate-count', '12'],
       { HOME: '/controlled/home' },
     )).not.toThrow();
+  });
+
+  it.each([
+    ['drive-relative component', win32Path.join('candidate', 'C:seed.bin')],
+    ['NTFS alternate stream', win32Path.join('candidate', 'atlas.bin:seed')],
+    ['reserved DOS device', win32Path.join('candidate', 'NUL.txt')],
+    ['reserved extended DOS device', win32Path.join('candidate', 'COM\u00b9.log')],
+    ['trailing dot alias', win32Path.join('candidate', 'seed.bin.')],
+    ['trailing space alias', win32Path.join('candidate', 'seed.bin ')],
+    ['control character', win32Path.join('candidate', 'seed\u0001.bin')],
+    ['Win32 wildcard', win32Path.join('candidate', 'seed?.bin')],
+  ])('rejects a non-portable Windows %s before touching the filesystem', (
+    _label,
+    relativePath,
+  ) => {
+    const paths = isolatedPaths();
+    const workspace = openGreaterRealmPrivateWorkspace(paths);
+    expect(() => workspace.ensureDirectory(relativePath))
+      .toThrow('GREATER_REALM_PRIVATE_RELATIVE_PATH_INVALID');
+    expect(readdirSync(workspace.root)).toEqual([]);
   });
 
   it('serializes operations with an inode-safe exclusive lock', async () => {
@@ -690,6 +762,38 @@ describe('Greater Realm public and release boundary', () => {
     })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_MARKER');
   });
 
+  it.each([
+    ['UTF-32LE', false, Buffer.from([0xff, 0xfe, 0, 0])],
+    ['UTF-32BE', true, Buffer.from([0, 0, 0xfe, 0xff])],
+  ] as const)('rejects a renamed private marker encoded as %s', (
+    _label,
+    bigEndian,
+    bom,
+  ) => {
+    const paths = scannerRepository();
+    const relativePath = 'public/ordinary-looking-utf32.bin';
+    const marker = ['WKGR-PRIVATE-', 'ATLAS-V1'].join('');
+    const body = Buffer.allocUnsafe([...marker].length * 4);
+    [...marker].forEach((character, index) => {
+      const value = character.codePointAt(0)!;
+      if (bigEndian) body.writeUInt32BE(value, index * 4);
+      else body.writeUInt32LE(value, index * 4);
+    });
+    const bytes = Buffer.concat([bom, body]);
+    try {
+      writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+    } finally {
+      body.fill(0);
+      bytes.fill(0);
+    }
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_MARKER');
+  });
+
   it('rejects a missing worktree file even when its private blob remains staged', () => {
     const paths = scannerRepository();
     runFixtureGit(paths.repositoryRoot, ['init', '--quiet']);
@@ -833,6 +937,381 @@ describe('Greater Realm public and release boundary', () => {
     })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_MARKER');
   });
 
+  it.each([
+    ['UTF-16LE', 'utf16le', Buffer.from([0xff, 0xfe])],
+    ['UTF-16BE', 'utf16le', Buffer.from([0xfe, 0xff])],
+  ] as const)('rejects a renamed private marker encoded as %s', (
+    _label,
+    encoding,
+    bom,
+  ) => {
+    const paths = scannerRepository();
+    const relativePath = 'public/ordinary-looking.bin';
+    const body = Buffer.from(['WKGR-PRIVATE-', 'ATLAS-V1'].join(''), encoding);
+    if (bom[0] === 0xfe) body.swap16();
+    const bytes = Buffer.concat([bom, body]);
+    try {
+      writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+    } finally {
+      body.fill(0);
+      bytes.fill(0);
+    }
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_MARKER');
+  });
+
+  it.each([
+    ['UTF-16LE with BOM', false, true],
+    ['UTF-16BE with BOM', true, true],
+    ['BOM-less UTF-16LE', false, false],
+    ['BOM-less UTF-16BE', true, false],
+  ] as const)('rejects markerless private JSON encoded as %s', (
+    _label,
+    bigEndian,
+    includeBom,
+  ) => {
+    const paths = scannerRepository();
+    const relativePath = 'public/ordinary-authority.bin';
+    const body = Buffer.from('{"ecologyClass":1}\n', 'utf16le');
+    if (bigEndian) body.swap16();
+    const prefix = includeBom
+      ? Buffer.from(bigEndian ? [0xfe, 0xff] : [0xff, 0xfe])
+      : Buffer.alloc(0);
+    const bytes = Buffer.concat([prefix, body]);
+    try {
+      writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+    } finally {
+      prefix.fill(0);
+      body.fill(0);
+      bytes.fill(0);
+    }
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it.each([
+    ['UTF-32LE with BOM', false, Buffer.from([0xff, 0xfe, 0, 0])],
+    ['UTF-32BE with BOM', true, Buffer.from([0, 0, 0xfe, 0xff])],
+  ] as const)('rejects markerless private JSON encoded as %s', (
+    _label,
+    bigEndian,
+    bom,
+  ) => {
+    const paths = scannerRepository();
+    const relativePath = 'public/ordinary-authority-utf32.bin';
+    const payload = '{"ecologyClass":"AgAEBg=="}\n';
+    const body = Buffer.allocUnsafe([...payload].length * 4);
+    [...payload].forEach((character, index) => {
+      const value = character.codePointAt(0)!;
+      if (bigEndian) body.writeUInt32BE(value, index * 4);
+      else body.writeUInt32LE(value, index * 4);
+    });
+    const bytes = Buffer.concat([bom, body]);
+    try {
+      writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+    } finally {
+      body.fill(0);
+      bytes.fill(0);
+    }
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it.each([
+    [
+      'raw ASCII private marker',
+      ['WKGR-PRIVATE-', 'ATLAS-V1'].join(''),
+      'GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_MARKER',
+    ],
+    [
+      'raw ASCII authority inventory',
+      [
+        'dressing-excluded',
+        'ecology-class',
+        'vegetation-density',
+        'route-class',
+        'landmark-class',
+        'ambient-life-class',
+      ].join('\n'),
+      'GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD',
+    ],
+  ])('binary-scans a UTF-16-decoding polyglot containing %s', (
+    _label,
+    payload,
+    expectedError,
+  ) => {
+    const paths = scannerRepository();
+    const relativePath = 'public/encoded-polyglot.bin';
+    const body = Buffer.from(payload, 'ascii');
+    const padding = Buffer.alloc(body.length % 2, 0x20);
+    const bytes = Buffer.concat([Buffer.from([0xff, 0xfe]), body, padding]);
+    try {
+      writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+    } finally {
+      body.fill(0);
+      padding.fill(0);
+      bytes.fill(0);
+    }
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+      trackedPaths: [relativePath],
+    })).toThrow(expectedError);
+  });
+
+  it.each(['UTF-16LE', 'UTF-32LE'] as const)(
+    'retains %s classification when encoded private JSON has trailing junk',
+    encoding => {
+      const paths = scannerRepository();
+      const relativePath = 'public/encoded-trailing-junk.bin';
+      const payload = '{"EcOlOgYcLaSs":1}';
+      const body = encoding === 'UTF-16LE'
+        ? Buffer.from(payload, 'utf16le')
+        : (() => {
+          const output = Buffer.allocUnsafe([...payload].length * 4);
+          [...payload].forEach((character, index) => {
+            output.writeUInt32LE(character.codePointAt(0)!, index * 4);
+          });
+          return output;
+        })();
+      const bom = Buffer.from(encoding === 'UTF-16LE'
+        ? [0xff, 0xfe]
+        : [0xff, 0xfe, 0, 0]);
+      const bytes = Buffer.concat([bom, body, Buffer.from([0x80])]);
+      try {
+        writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+      } finally {
+        bom.fill(0);
+        body.fill(0);
+        bytes.fill(0);
+      }
+
+      expect(() => verifyGreaterRealmPublicBoundary({
+        repositoryRoot: paths.repositoryRoot,
+        scanRoots: [],
+        trackedPaths: [relativePath],
+      })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+    },
+  );
+
+  it.each([
+    ['UTF-16LE', 2, false],
+    ['UTF-16BE', 2, true],
+    ['UTF-32LE', 4, false],
+    ['UTF-32BE', 4, true],
+  ] as const)('rejects BOM-less %s private text fields after non-ASCII padding', (
+    _label,
+    width,
+    bigEndian,
+  ) => {
+    const paths = scannerRepository();
+    const relativePath = 'public/bomless-private-text-field.bin';
+    const payload = `${'\u4241'.repeat(2_048)}{"PrIvAtEsEeDhEx":"${'a'.repeat(64)}"}`;
+    const bytes = width === 2
+      ? Buffer.from(payload, 'utf16le')
+      : (() => {
+        const output = Buffer.allocUnsafe([...payload].length * 4);
+        [...payload].forEach((character, index) => {
+          output.writeUInt32LE(character.codePointAt(0)!, index * 4);
+        });
+        return output;
+      })();
+    if (bigEndian) {
+      if (width === 2) bytes.swap16();
+      else bytes.swap32();
+    }
+    try {
+      writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+    } finally {
+      bytes.fill(0);
+    }
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it('retains an encoded private marker split across streamed binary chunks', () => {
+    const paths = scannerRepository();
+    const relativePath = 'public/streamed-utf16-marker.bin';
+    const bytes = Buffer.alloc(16 * 1_024 * 1_024 + 2 * 64 * 1_024, 0x80);
+    const marker = Buffer.from(['WKGR-PRIVATE-', 'CHECKPOINT-V1'].join(''), 'utf16le');
+    marker.copy(bytes, 64 * 1_024 - 7);
+    try {
+      writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+    } finally {
+      marker.fill(0);
+      bytes.fill(0);
+    }
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_MARKER');
+  });
+
+  it('case-folds UTF-16 authority split across streamed binary chunks', () => {
+    const paths = scannerRepository();
+    const relativePath = 'public/streamed-utf16-authority.bin';
+    const bytes = Buffer.alloc(16 * 1_024 * 1_024 + 2 * 64 * 1_024, 0x80);
+    bytes[0] = 0xff;
+    bytes[1] = 0xfe;
+    const authority = Buffer.from('EcOlOgYcLaSs', 'utf16le');
+    authority.copy(bytes, 8 * 1_024 * 1_024 + 64 * 1_024 - 9);
+    try {
+      writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+    } finally {
+      authority.fill(0);
+      bytes.fill(0);
+    }
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it('retains alignment for delayed BOM-less UTF-16 stream detection', () => {
+    const paths = scannerRepository();
+    const relativePath = 'public/streamed-bomless-utf16-authority.bin';
+    const bytes = Buffer.alloc(16 * 1_024 * 1_024 + 2 * 64 * 1_024);
+    for (let offset = 0; offset < 64 * 1_024; offset += 2) {
+      bytes[offset] = 0x41;
+      bytes[offset + 1] = 0x42;
+    }
+    for (let offset = 64 * 1_024; offset < bytes.length; offset += 2) {
+      bytes[offset] = 0x20;
+    }
+    const authority = Buffer.from('{"EcOlOgYcLaSs":1}', 'utf16le');
+    authority.copy(bytes, 8 * 1_024 * 1_024 + 64 * 1_024 - 10);
+    try {
+      writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+    } finally {
+      authority.fill(0);
+      bytes.fill(0);
+    }
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it('streams a delayed BOM-less UTF-16 authority from the exact staged blob', () => {
+    const paths = scannerRepository();
+    const relativePath = 'public/staged-bomless-utf16-authority.bin';
+    runFixtureGit(paths.repositoryRoot, ['init', '--quiet']);
+    const bytes = Buffer.alloc(16 * 1_024 * 1_024 + 2 * 64 * 1_024);
+    for (let offset = 0; offset < 64 * 1_024; offset += 2) {
+      bytes[offset] = 0x41;
+      bytes[offset + 1] = 0x42;
+    }
+    for (let offset = 64 * 1_024; offset < bytes.length; offset += 2) {
+      bytes[offset] = 0x20;
+    }
+    const authority = Buffer.from('{"EcOlOgYcLaSs":1}', 'utf16le');
+    authority.copy(bytes, 8 * 1_024 * 1_024 + 64 * 1_024 - 10);
+    try {
+      writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+      runFixtureGit(paths.repositoryRoot, ['add', '--', relativePath]);
+    } finally {
+      authority.fill(0);
+      bytes.fill(0);
+    }
+    writeFileSync(join(paths.repositoryRoot, relativePath), 'ordinary replacement\n');
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it.each([
+    ['worktree', false],
+    ['staged', true],
+  ] as const)(
+    'rejects large initialized UTF-8 authority JSON from the %s surface',
+    (_surface, staged) => {
+      const paths = scannerRepository();
+      const relativePath = staged
+        ? 'public/staged-large-authority-json.bin'
+        : 'public/large-authority-json.bin';
+      if (staged) runFixtureGit(paths.repositoryRoot, ['init', '--quiet']);
+      const bytes = Buffer.alloc(16 * 1_024 * 1_024 + 2 * 64 * 1_024, 0x20);
+      const payload = Buffer.from('{"EcOlOgYcLaSs":"AgAEBg=="}', 'utf8');
+      payload.copy(bytes, 8 * 1_024 * 1_024 + 64 * 1_024 - 7);
+      try {
+        writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+        if (staged) runFixtureGit(paths.repositoryRoot, ['add', '--', relativePath]);
+      } finally {
+        payload.fill(0);
+        bytes.fill(0);
+      }
+      if (staged) {
+        writeFileSync(join(paths.repositoryRoot, relativePath), 'ordinary replacement\n');
+      }
+
+      expect(() => verifyGreaterRealmPublicBoundary({
+        repositoryRoot: paths.repositoryRoot,
+        scanRoots: [],
+        ...(staged ? {} : { trackedPaths: [relativePath] }),
+      })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+    },
+  );
+
+  it('rejects a distinctive relief metric alias in a large streamed binary', () => {
+    const paths = scannerRepository();
+    const relativePath = 'public/large-relief-metric.bin';
+    const bytes = Buffer.alloc(16 * 1_024 * 1_024 + 2 * 64 * 1_024, 0x80);
+    const metric = Buffer.from('PaIrCoUnTsByLaGaNdAxIs', 'ascii');
+    metric.copy(bytes, 8 * 1_024 * 1_024 + 64 * 1_024 - 11);
+    try {
+      writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+    } finally {
+      metric.fill(0);
+      bytes.fill(0);
+    }
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+      trackedPaths: [relativePath],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+  });
+
+  it('allows evidence-only digest vocabulary in an unknown binary surface', () => {
+    const paths = scannerRepository();
+    const relativePath = 'public/digest-vocabulary.bin';
+    writeFileSync(
+      join(paths.repositoryRoot, relativePath),
+      'layoutDigest stageDigest packageDigest\n',
+    );
+
+    expect(verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+      trackedPaths: [relativePath],
+    })).toMatchObject({ trackedPathCount: 1 });
+  });
+
   it('rejects a markerless non-UTF8 binary carrying the complete authority inventory', () => {
     const paths = scannerRepository();
     const relativePath = 'public/ordinary-authority.bin';
@@ -881,17 +1360,17 @@ describe('Greater Realm public and release boundary', () => {
     })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
   });
 
-  it('retains binary authority evidence across chunks and split field names', () => {
+  it('case-folds ASCII authority across chunks and split field names', () => {
     const paths = scannerRepository();
     const relativePath = 'public/streamed-authority.bin';
     const bytes = Buffer.alloc(16 * 1_024 * 1_024 + 2 * 64 * 1_024, 0x80);
     const fields = [
-      ['dressing-excluded', 64 * 1_024 - 5],
-      ['ecology-class', 2 * 1_024 * 1_024 + 11],
-      ['vegetation-density', 5 * 1_024 * 1_024 + 23],
-      ['route-class', 8 * 1_024 * 1_024 + 37],
-      ['landmark-class', 11 * 1_024 * 1_024 + 41],
-      ['ambient-life-class', 15 * 1_024 * 1_024 + 53],
+      ['Dressing-Excluded', 64 * 1_024 - 5],
+      ['Ecology-Class', 2 * 1_024 * 1_024 + 11],
+      ['Vegetation-Density', 5 * 1_024 * 1_024 + 23],
+      ['Route-Class', 8 * 1_024 * 1_024 + 37],
+      ['Landmark-Class', 11 * 1_024 * 1_024 + 41],
+      ['Ambient-Life-Class', 15 * 1_024 * 1_024 + 53],
     ] as const;
     for (const [field, offset] of fields) bytes.write(field, offset, 'ascii');
     try {
@@ -1017,6 +1496,123 @@ describe('Greater Realm public and release boundary', () => {
       repositoryRoot: paths.repositoryRoot,
       trackedPaths: [],
     })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_BINARY_LIMIT');
+  });
+
+  it.each([
+    ['ZIP', Buffer.from([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0])],
+    ['GZIP', Buffer.from([0x1f, 0x8b, 0x08, 0, 0, 0, 0, 0])],
+    ['7z', Buffer.from([0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c, 0, 0])],
+    ['RAR', Buffer.from([0x52, 0x61, 0x72, 0x21, 0x1a, 0x07, 0, 0])],
+    [
+      'tar',
+      (() => {
+        const bytes = Buffer.alloc(512);
+        bytes.write('ustar', 257, 'ascii');
+        return bytes;
+      })(),
+    ],
+  ])('rejects a renamed opaque %s container in the worktree', (
+    _label,
+    bytes,
+  ) => {
+    const paths = scannerRepository();
+    const relativePath = 'public/ordinary-container.bin';
+    try {
+      writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+      expect(() => verifyGreaterRealmPublicBoundary({
+        repositoryRoot: paths.repositoryRoot,
+        scanRoots: [],
+        trackedPaths: [relativePath],
+      })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_OPAQUE_ARCHIVE');
+    } finally {
+      bytes.fill(0);
+    }
+  });
+
+  it('rejects a prefixed self-extracting ZIP container in the worktree', () => {
+    const paths = scannerRepository();
+    const relativePath = 'public/prefixed-container.bin';
+    const bytes = prefixedEmptyZipFixture();
+    try {
+      writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+      expect(() => verifyGreaterRealmPublicBoundary({
+        repositoryRoot: paths.repositoryRoot,
+        scanRoots: [],
+        trackedPaths: [relativePath],
+      })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_OPAQUE_ARCHIVE');
+    } finally {
+      bytes.fill(0);
+    }
+  });
+
+  it('rejects a prefixed ZIP from the staged blob, not a safer worktree', () => {
+    const paths = scannerRepository();
+    const relativePath = 'public/staged-prefixed-container.bin';
+    runFixtureGit(paths.repositoryRoot, ['init', '--quiet']);
+    const bytes = prefixedEmptyZipFixture();
+    try {
+      writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+      runFixtureGit(paths.repositoryRoot, ['add', '--', relativePath]);
+    } finally {
+      bytes.fill(0);
+    }
+    writeFileSync(join(paths.repositoryRoot, relativePath), 'ordinary replacement\n');
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_OPAQUE_ARCHIVE');
+  });
+
+  it('rejects opaque archive magic from the staged blob, not a safer worktree', () => {
+    const paths = scannerRepository();
+    const relativePath = 'public/staged-container.snapshot';
+    runFixtureGit(paths.repositoryRoot, ['init', '--quiet']);
+    const bytes = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0]);
+    try {
+      writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+      runFixtureGit(paths.repositoryRoot, ['add', '--', relativePath]);
+    } finally {
+      bytes.fill(0);
+    }
+    writeFileSync(join(paths.repositoryRoot, relativePath), 'ordinary replacement\n');
+
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      scanRoots: [],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_OPAQUE_ARCHIVE');
+  });
+
+  it.each([
+    ['PNG media', Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])],
+    ['GLB media', Buffer.from([0x67, 0x6c, 0x54, 0x46, 2, 0, 0, 0])],
+    [
+      'binary with one interior ZIP-like signature',
+      Buffer.from([0x80, 0x81, 0x50, 0x4b, 0x03, 0x04, 0x82, 0x83]),
+    ],
+    [
+      'binary with two incomplete interior ZIP-like signatures',
+      Buffer.from([
+        0x80, 0x81,
+        0x50, 0x4b, 0x03, 0x04,
+        0x82, 0x83,
+        0x50, 0x4b, 0x05, 0x06,
+        0x84, 0x85,
+      ]),
+    ],
+  ])('does not classify harmless %s as an opaque archive', (_label, bytes) => {
+    const paths = scannerRepository();
+    const relativePath = 'public/ordinary-media.bin';
+    try {
+      writeFileSync(join(paths.repositoryRoot, relativePath), bytes);
+      expect(verifyGreaterRealmPublicBoundary({
+        repositoryRoot: paths.repositoryRoot,
+        scanRoots: [],
+        trackedPaths: [relativePath],
+      })).toMatchObject({ trackedPathCount: 1 });
+    } finally {
+      bytes.fill(0);
+    }
   });
 
   it('scans tracked binaries outside ordinary deploy roots for private package markers', () => {
@@ -1360,6 +1956,16 @@ describe('Greater Realm public and release boundary', () => {
       `${['pairCountsByLag', 'AndAxis'].join('')}: [[1,2,3],[4,5,6],[7,8,9]]\n`,
     ],
     [
+      'parenthesized pair-count matrix in source',
+      'src/leak-parenthesized-matrix.ts',
+      `export const ${['pairCountsByLag', 'AndAxis'].join('')} = ([[1,2,3]]);\n`,
+    ],
+    [
+      'frozen parenthesized scale-growth vector in source',
+      'src/leak-parenthesized-vector.ts',
+      `export const ${['lagOneToFourGrowthBasisPointsBy', 'Axis'].join('')} = Object.freeze(([1,2,3]));\n`,
+    ],
+    [
       'distinctive second-moment matrix in source',
       'src/leak.ts',
       `export const ${['meanSquaredDifferenceByLag', 'AndAxis'].join('')} = [[1,2,3],[4,5,6],[7,8,9]];\n`,
@@ -1368,6 +1974,51 @@ describe('Greater Realm public and release boundary', () => {
       'named relief subproof in source',
       'src/leak-proof.ts',
       `export const ${['scaleGrowth', 'Proof'].join('')} = true;\n`,
+    ],
+    [
+      'typed pair-count authority in source',
+      'src/leak-typed.ts',
+      `export const ${['pairCountsByLag', 'AndAxis'].join('')} = new Uint32Array([1,2,3,4,5,6,7,8,9]);\n`,
+    ],
+    [
+      'parenthesized typed pair-count authority in source',
+      'src/leak-parenthesized-typed.ts',
+      `export const ${['pairCountsByLag', 'AndAxis'].join('')} = (new Uint32Array([1,2]));\n`,
+    ],
+    [
+      'typed second-moment authority via from',
+      'src/leak-from.ts',
+      `export const ${['meanSquaredDifferenceByLag', 'AndAxis'].join('')} = Uint32Array.from([1,2,3,4,5,6,7,8,9]);\n`,
+    ],
+    [
+      'buffer-backed scale-growth authority',
+      'src/leak-buffer.ts',
+      `export const ${['lagOneToFourGrowthBasisPointsBy', 'Axis'].join('')} = Buffer.from([10,20,30]);\n`,
+    ],
+    [
+      'object-shaped pair-count authority in JSON',
+      'docs/leak-relief.json',
+      `${JSON.stringify(Object.fromEntries([
+        [
+          ['pairCountsByLag', 'AndAxis'].join(''),
+          { lag1: [1, 2, 3], lag4: [4, 5, 6], lag12: [7, 8, 9] },
+        ],
+      ]))}\n`,
+    ],
+    [
+      'object-shaped pair-count authority in source',
+      'src/leak-relief-object.ts',
+      `export const ${['pairCountsByLag', 'AndAxis'].join('')} = { lag1: [1], lag4: [2], lag12: [3] };\n`,
+    ],
+    [
+      'parenthesized object-shaped pair-count authority in source',
+      'src/leak-relief-parenthesized-object.ts',
+      `export const ${['pairCountsByLag', 'AndAxis'].join('')} = ({ lag1: [1] });\n`,
+    ],
+    [
+      'frozen parenthesized object-shaped pair-count authority in source',
+      'src/leak-relief-frozen-object.ts',
+      `export const ${['pairCountsByLag', 'AndAxis'].join('')} = Object.freeze(({ lag1: [1] }));\n`,
     ],
   ])('rejects an initialized %s', (_label, relativePath, payload) => {
     const paths = scannerRepository();
@@ -1456,6 +2107,16 @@ describe('Greater Realm public and release boundary', () => {
       'JSON object map',
       'tools/routes.json',
       '{"cell-a":{"routeClass":3},"cell-b":{"routeClass":4}}\n',
+    ],
+    [
+      'JSON encoded string',
+      'tools/ecology-encoded.json',
+      '{"ecologyClass":"AgAEBg=="}\n',
+    ],
+    [
+      'JSON encoded object',
+      'tools/routes-encoded.json',
+      '{"routeClass":{"encoding":"base64","data":"AwQ="}}\n',
     ],
     ['NDJSON value', 'tools/vegetation.ndjson', '{"vegetationDensity":120}\n'],
   ])('rejects a markerless single authority field with numeric %s', (

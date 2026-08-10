@@ -676,56 +676,71 @@ export function deriveGreaterRealmTopography(input: Readonly<{
     for (let pass = 0; pass < 2; pass += 1) {
       const nextBiome = new Uint8Array(biomeId);
       const nextLandform = new Uint8Array(landformId);
-      for (let cell = 0; cell < grid.cellCount; cell += 1) {
-        if (smoothingLocked(cell)) continue;
-        // Preserve the established biome-majority rule, then choose the most
-        // common compatible landform carried by neighbors of that biome. This
-        // prevents a biome split across two valid landforms from disabling the
-        // smoothing which would previously have occurred.
-        const biomeCounts = new Uint8Array(GREATER_REALM_BIOME_CLASS_COUNT);
-        const pairCounts = new Uint8Array(GREATER_REALM_BIOME_CLASS_COUNT * LANDFORM_PAIR_STRIDE);
-        for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
-          const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
-          if (neighbor < 0 || waterRegime[neighbor] !== WATER_DRY) continue;
-          if (!isCompatibleBiomeLandformPair(
-            WATER_DRY,
-            biomeId[neighbor]!,
-            landformId[neighbor]!,
-          )) continue;
-          if (!isBiomeCompatibleWithPhysicalClimate(
-            biomeId[neighbor]!,
-            moisture[cell]!,
-            temperature[cell]!,
-          )) continue;
-          biomeCounts[biomeId[neighbor]!] += 1;
-          pairCounts[biomeId[neighbor]! * LANDFORM_PAIR_STRIDE + landformId[neighbor]!] += 1;
-        }
-        let bestBiome = biomeId[cell]!;
-        let bestCount = biomeCounts[bestBiome]!;
-        for (let biome = 0; biome < biomeCounts.length; biome += 1) {
-          if (biomeCounts[biome]! > bestCount) {
-            bestBiome = biome;
-            bestCount = biomeCounts[biome]!;
+      const biomeCounts = new Uint8Array(GREATER_REALM_BIOME_CLASS_COUNT);
+      const pairCounts = new Uint8Array(
+        GREATER_REALM_BIOME_CLASS_COUNT * LANDFORM_PAIR_STRIDE,
+      );
+      try {
+        for (let cell = 0; cell < grid.cellCount; cell += 1) {
+          if (smoothingLocked(cell)) continue;
+          // Preserve the established biome-majority rule, then choose the most
+          // common compatible landform carried by neighbors of that biome. This
+          // prevents a biome split across two valid landforms from disabling the
+          // smoothing which would previously have occurred. The two histograms
+          // are fixed-size scratch state; reusing them avoids hundreds of
+          // thousands of short-lived typed-array allocations on a full candidate.
+          biomeCounts.fill(0);
+          pairCounts.fill(0);
+          for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
+            const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
+            if (neighbor < 0 || waterRegime[neighbor] !== WATER_DRY) continue;
+            if (!isCompatibleBiomeLandformPair(
+              WATER_DRY,
+              biomeId[neighbor]!,
+              landformId[neighbor]!,
+            )) continue;
+            if (!isBiomeCompatibleWithPhysicalClimate(
+              biomeId[neighbor]!,
+              moisture[cell]!,
+              temperature[cell]!,
+            )) continue;
+            biomeCounts[biomeId[neighbor]!] += 1;
+            pairCounts[
+              biomeId[neighbor]! * LANDFORM_PAIR_STRIDE + landformId[neighbor]!
+            ] += 1;
           }
-        }
-        if (bestCount >= 4) {
-          let bestLandform = biomeId[cell] === bestBiome ? landformId[cell]! : 0;
-          let bestPairCount = biomeId[cell] === bestBiome
-            ? pairCounts[bestBiome * LANDFORM_PAIR_STRIDE + bestLandform]!
-            : -1;
-          for (let landform = 0; landform < LANDFORM_PAIR_STRIDE; landform += 1) {
-            const count = pairCounts[bestBiome * LANDFORM_PAIR_STRIDE + landform]!;
-            if (count > bestPairCount) {
-              bestLandform = landform;
-              bestPairCount = count;
+          let bestBiome = biomeId[cell]!;
+          let bestCount = biomeCounts[bestBiome]!;
+          for (let biome = 0; biome < biomeCounts.length; biome += 1) {
+            if (biomeCounts[biome]! > bestCount) {
+              bestBiome = biome;
+              bestCount = biomeCounts[biome]!;
             }
           }
-          nextBiome[cell] = bestBiome;
-          nextLandform[cell] = bestLandform;
+          if (bestCount >= 4) {
+            let bestLandform = biomeId[cell] === bestBiome ? landformId[cell]! : 0;
+            let bestPairCount = biomeId[cell] === bestBiome
+              ? pairCounts[bestBiome * LANDFORM_PAIR_STRIDE + bestLandform]!
+              : -1;
+            for (let landform = 0; landform < LANDFORM_PAIR_STRIDE; landform += 1) {
+              const count = pairCounts[bestBiome * LANDFORM_PAIR_STRIDE + landform]!;
+              if (count > bestPairCount) {
+                bestLandform = landform;
+                bestPairCount = count;
+              }
+            }
+            nextBiome[cell] = bestBiome;
+            nextLandform[cell] = bestLandform;
+          }
         }
+        biomeId.set(nextBiome);
+        landformId.set(nextLandform);
+      } finally {
+        nextBiome.fill(0);
+        nextLandform.fill(0);
+        biomeCounts.fill(0);
+        pairCounts.fill(0);
       }
-      biomeId.set(nextBiome);
-      landformId.set(nextLandform);
     }
 
     // Broad forest masses remain, while generated salt-and-pepper woods become

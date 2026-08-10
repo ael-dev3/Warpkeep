@@ -276,6 +276,59 @@ describe('Greater Realm toolchain provenance', () => {
     expect(result.stderr).toBe('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_ENVIRONMENT_INVALID\n');
   });
 
+  it('rejects case-folded loader overrides on every supported host', () => {
+    const bootstrap = join(
+      repositoryRoot,
+      'scripts',
+      'atlas',
+      'greater-realm-toolchain-bootstrap.mjs',
+    );
+    const result = spawnSync(process.execPath, [bootstrap, '--verify-only'], {
+      cwd: repositoryRoot,
+      encoding: 'utf8',
+      env: {
+        node_options: '--require=untrusted-loader',
+      },
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toBe('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_ENVIRONMENT_INVALID\n');
+  });
+
+  it('permits only the exact trusted host public-digest metadata key', () => {
+    const bootstrap = join(
+      repositoryRoot,
+      'scripts',
+      'atlas',
+      'greater-realm-toolchain-bootstrap.mjs',
+    );
+    const digest = 'A'.repeat(64);
+    const accepted = spawnSync(process.execPath, [bootstrap, '--verify-only'], {
+      cwd: repositoryRoot,
+      encoding: 'utf8',
+      env: { NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S: digest },
+    });
+
+    expect(accepted.status).toBe(0);
+    expect(accepted.stderr).toBe('');
+    expect(JSON.parse(accepted.stdout)).toMatchObject({ verified: true });
+
+    for (const environment of [
+      { PUBLIC_ATLAS_SHA256: digest },
+      { GENERIC_VALUE: Buffer.alloc(32, 0xff).toString('base64url') },
+    ]) {
+      const rejected = spawnSync(process.execPath, [bootstrap, '--verify-only'], {
+        cwd: repositoryRoot,
+        encoding: 'utf8',
+        env: environment,
+      });
+      expect(rejected.status).toBe(1);
+      expect(rejected.stdout).toBe('');
+      expect(rejected.stderr).toBe('GREATER_REALM_PRIVATE_INVOCATION_REJECTED\n');
+    }
+  });
+
   it('uses an attested absolute Git binary and disables inherited executable config', () => {
     const root = temporaryRoot();
     const fakeGit = join(root, 'git');

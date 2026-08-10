@@ -450,7 +450,7 @@ describe('Greater Realm owner-only candidate package', () => {
     let derivedSeed: Buffer | undefined;
     try {
       expect(GREATER_REALM_GENERATOR_VERSION)
-        .toBe('greater-realm-v2-natural-continent-pr-a.11');
+        .toBe('greater-realm-v2-natural-continent-pr-a.12');
       expect(GREATER_REALM_TERRAIN_SEED_NAMESPACE)
         .toBe('greater-realm-v2-natural-continent-pr-a.3');
       expect(GREATER_REALM_GENERATOR_VERSION).not.toBe(
@@ -912,6 +912,98 @@ describe('Greater Realm owner-only candidate package', () => {
         processPeakMemoryMiB: 1_048_584,
       }),
     })).rejects.toThrow('GREATER_REALM_PRIVATE_PACKAGE_INPUT_INVALID');
+  });
+
+  it('rejects malformed candidate grid and field shapes before package work', async () => {
+    const fixture = requireFixture();
+    const before = fixture.workspace.attestTree().fileCount;
+    const invalidNeighbors = new Int32Array(fixture.candidate.grid.neighbors);
+    const occupiedNeighborSlot = invalidNeighbors.findIndex(value => value >= 0);
+    expect(occupiedNeighborSlot).toBeGreaterThanOrEqual(0);
+    invalidNeighbors[occupiedNeighborSlot] = (
+      invalidNeighbors[occupiedNeighborSlot]! + 1
+    ) % fixture.candidate.grid.cellCount;
+    const invalidCandidates = [
+      Object.freeze({
+        ...fixture.candidate,
+        grid: Object.freeze({
+          ...fixture.candidate.grid,
+          q: fixture.candidate.grid.q.subarray(0, fixture.candidate.grid.cellCount - 1),
+        }),
+      }),
+      Object.freeze({
+        ...fixture.candidate,
+        grid: Object.freeze({
+          ...fixture.candidate.grid,
+          neighbors: invalidNeighbors,
+        }),
+      }),
+      Object.freeze({
+        ...fixture.candidate,
+        biomeId: fixture.candidate.biomeId.subarray(
+          0,
+          fixture.candidate.grid.cellCount - 1,
+        ),
+      }),
+    ] as const;
+
+    for (const invalidCandidate of invalidCandidates) {
+      await expect(writeGreaterRealmPrivateCandidate({
+        workspace: fixture.workspace,
+        batchHandle: BATCH_HANDLE,
+        candidateHandle: CANDIDATE_HANDLE,
+        sourceCommit: SOURCE_COMMIT,
+        candidate: invalidCandidate as GreaterRealmPrivateCandidate,
+        performance: PERFORMANCE,
+      })).rejects.toThrow('GREATER_REALM_PRIVATE_PACKAGE_INPUT_INVALID');
+    }
+
+    expect(fixture.workspace.attestTree().fileCount).toBe(before);
+    expect(readdirSync(repositoryRoot)).toEqual([]);
+  });
+
+  it('retires partial chunk-index scratch when a late coordinate is out of canvas', async () => {
+    const fixture = requireFixture();
+    let maximumQ = Number.NEGATIVE_INFINITY;
+    let minimumQ = Number.POSITIVE_INFINITY;
+    for (const q of fixture.candidate.grid.q) {
+      maximumQ = Math.max(maximumQ, q);
+      minimumQ = Math.min(minimumQ, q);
+    }
+    const qOffset = 271 - maximumQ;
+    expect(minimumQ + qOffset).toBeGreaterThanOrEqual(-270);
+    const shiftedQ = Int32Array.from(fixture.candidate.grid.q, q => q + qOffset);
+    const partialChunkIndices: number[][] = [];
+    const originalArrayFill = Array.prototype.fill;
+    const fillSpy = vi.spyOn(Array.prototype, 'fill').mockImplementation(function <T>(
+      this: T[],
+      value: T,
+      start?: number,
+      end?: number,
+    ): T[] {
+      if (value === 0 && this.length > 0) partialChunkIndices.push(this as number[]);
+      return originalArrayFill.call(this, value, start, end);
+    });
+    try {
+      await expect(writeGreaterRealmPrivateCandidate({
+        workspace: fixture.workspace,
+        batchHandle: BATCH_HANDLE,
+        candidateHandle: CANDIDATE_HANDLE,
+        sourceCommit: SOURCE_COMMIT,
+        candidate: Object.freeze({
+          ...fixture.candidate,
+          grid: Object.freeze({ ...fixture.candidate.grid, q: shiftedQ }),
+        }),
+        performance: PERFORMANCE,
+      })).rejects.toThrow('GREATER_REALM_PRIVATE_CHUNK_COORDINATE_INVALID');
+    } finally {
+      fillSpy.mockRestore();
+      shiftedQ.fill(0);
+    }
+
+    expect(partialChunkIndices.length).toBeGreaterThan(0);
+    expect(partialChunkIndices.every(indices => indices.every(index => index === 0)))
+      .toBe(true);
   });
 
   it('rejects an unknown private preview mode before allocating image data', async () => {
@@ -1536,7 +1628,7 @@ describe('Greater Realm owner-only candidate package', () => {
     expect(exposedSeed.every(value => value === 0)).toBe(true);
   });
 
-  it('zeroes every topography, dormant-throne, and living-world authority buffer', () => {
+  it('zeroes every private authority buffer when coordinate-index cleanup fails', () => {
     const advanced = {
       tectonicUplift: Int32Array.of(1),
       rockResistance: Int32Array.of(2),
@@ -1583,7 +1675,14 @@ describe('Greater Realm owner-only candidate package', () => {
         secondAlternateApproachPath: gatePaths[3],
       }],
       barrierCrossSections: [{ cells: barrierCrossSectionCells }],
-      grid: { q: i32(), r: i32(), neighbors: i32() },
+      grid: {
+        q: i32(),
+        r: i32(),
+        neighbors: i32(),
+        clearIndex() {
+          throw new Error('CONTROLLED_PRIVATE_INDEX_CLEAR_FAILURE');
+        },
+      },
       bedrockElevation: i32(),
       elevation: i32(),
       filledElevation: i32(),
@@ -1616,7 +1715,9 @@ describe('Greater Realm owner-only candidate package', () => {
       ...advanced,
     } as unknown as GreaterRealmPrivateCandidate;
 
-    clearGreaterRealmPrivateCandidateBuffers(dummy);
+    expect(() => clearGreaterRealmPrivateCandidateBuffers(dummy)).toThrow(
+      'CONTROLLED_PRIVATE_INDEX_CLEAR_FAILURE',
+    );
 
     expect(dummy.seedMaterial.every(value => value === 0)).toBe(true);
     expect(dummy.candidateSeed.every(value => value === 0)).toBe(true);
@@ -1633,6 +1734,8 @@ describe('Greater Realm owner-only candidate package', () => {
     expect(dummy.routeClass.every(value => value === 0)).toBe(true);
     expect(dummy.landmarkClass.every(value => value === 0)).toBe(true);
     expect(dummy.ambientLifeClass.every(value => value === 0)).toBe(true);
+    expect(dummy.grid.q.every(value => value === 0)).toBe(true);
+    expect(dummy.grid.r.every(value => value === 0)).toBe(true);
     expect(dummy.grid.neighbors.every(value => value === 0)).toBe(true);
   });
 });

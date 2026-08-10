@@ -45,8 +45,14 @@ const PRIVATE_PUBLICATION_PAYLOAD = /^\.wk-publish-payload-[0-9a-f]{8}-[0-9a-f]{
 const DEFAULT_MAXIMUM_FILE_BYTES = 512 * 1024 * 1024;
 const MAXIMUM_TREE_ENTRIES = 250_000;
 const FORBIDDEN_SECRET_ARGUMENT = /^(?:--)?(?:private-)?(?:atlas-)?(?:seed|seed-hex|seed-material|layout-digest|stage-digest|package-digest)(?:=|$)/iu;
-const RESERVED_ENVIRONMENT_KEY = /^WARPKEEP_GREATER_REALM_/u;
-const POSSIBLE_SECRET_VALUE = /^(?:[0-9a-f]{64}|[A-Za-z0-9+/]{43}=?)$/u;
+const RESERVED_ENVIRONMENT_KEY = /^WARPKEEP_GREATER_REALM_/iu;
+const POSSIBLE_SECRET_VALUE = /^(?:[0-9a-f]{64}|[A-Za-z0-9+/_-]{43}=?)$/iu;
+const ALLOWED_PUBLIC_DIGEST_ENVIRONMENT_KEYS = new Set([
+  'NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S',
+]);
+const POSSIBLE_HEX_SECRET_VALUE = /^[0-9a-f]{64}$/iu;
+const WINDOWS_FORBIDDEN_COMPONENT_CHARACTER = /[\u0000-\u001f\u007f<>:"|?*]/u;
+const WINDOWS_RESERVED_DEVICE_STEM = /^(?:aux|clock\$|com[1-9\u00b9\u00b2\u00b3]|con|conin\$|conout\$|lpt[1-9\u00b9\u00b2\u00b3]|nul|prn)$/iu;
 
 type FilesystemIdentity = Readonly<{
   dev: number;
@@ -292,6 +298,16 @@ function validateRelativePath(value: string): readonly string[] {
     || component.startsWith(PRIVATE_PUBLICATION_RESERVED_PREFIX)
     || component.length > 255
     || component.normalize('NFC') !== component
+    // The workspace is portable across supported platforms. Reject Windows
+    // drive-relative paths, NTFS alternate streams, device aliases, control
+    // characters, and names that Win32 silently trims even on POSIX hosts so
+    // a package cannot acquire a different identity after being moved.
+    || WINDOWS_FORBIDDEN_COMPONENT_CHARACTER.test(component)
+    || component.endsWith('.')
+    || component.endsWith(' ')
+    || WINDOWS_RESERVED_DEVICE_STEM.test(
+      component.split('.')[0]!.replace(/[ .]+$/u, ''),
+    )
   ))) fail('GREATER_REALM_PRIVATE_RELATIVE_PATH_INVALID');
   return Object.freeze(components);
 }
@@ -385,6 +401,15 @@ export function defaultGreaterRealmPrivateWorkspaceRoot(): string {
   return join(homedir(), '.warpkeep', 'private', 'greater-realm');
 }
 
+function possibleSecretEnvironmentEntry(key: string, value: string | undefined): boolean {
+  return typeof value === 'string'
+    && POSSIBLE_SECRET_VALUE.test(value)
+    && !(
+      POSSIBLE_HEX_SECRET_VALUE.test(value)
+      && ALLOWED_PUBLIC_DIGEST_ENVIRONMENT_KEYS.has(key.toUpperCase())
+    );
+}
+
 /**
  * The atlas CLI accepts only non-secret selectors. Generation material must be
  * created internally or read from a protected file descriptor.
@@ -400,7 +425,7 @@ export function assertGreaterRealmPrivateInvocation(
   ))) fail('GREATER_REALM_PRIVATE_INVOCATION_REJECTED');
   if (Object.entries(environment).some(([key, value]) => (
     RESERVED_ENVIRONMENT_KEY.test(key)
-    || (typeof value === 'string' && POSSIBLE_SECRET_VALUE.test(value))
+    || possibleSecretEnvironmentEntry(key, value)
   ))) {
     fail('GREATER_REALM_PRIVATE_INVOCATION_REJECTED');
   }

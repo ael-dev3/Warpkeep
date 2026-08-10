@@ -69,9 +69,37 @@ const OWNER_PREVIEW_EXTENSIONS = new Set([
   '.svg',
   '.webp',
 ]);
+const OPAQUE_ARCHIVE_EXTENSIONS = new Set([
+  '.7z',
+  '.bz2',
+  '.gz',
+  '.rar',
+  '.tar',
+  '.tgz',
+  '.xz',
+  '.zip',
+  '.zst',
+]);
+const ZIP_LOCAL_FILE_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+const ZIP_CENTRAL_DIRECTORY_MAGIC = Buffer.from([0x50, 0x4b, 0x01, 0x02]);
+const ZIP_END_OF_CENTRAL_DIRECTORY_MAGIC = Buffer.from([0x50, 0x4b, 0x05, 0x06]);
+const OPAQUE_ARCHIVE_PREFIXES = Object.freeze([
+  Buffer.from([0x1f, 0x8b, 0x08]),
+  Buffer.from([0x28, 0xb5, 0x2f, 0xfd]),
+  Buffer.from([0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c]),
+  Buffer.from([0x42, 0x5a, 0x68]),
+  ZIP_LOCAL_FILE_MAGIC,
+  ZIP_END_OF_CENTRAL_DIRECTORY_MAGIC,
+  Buffer.from([0x50, 0x4b, 0x07, 0x08]),
+  Buffer.from([0x52, 0x61, 0x72, 0x21, 0x1a, 0x07]),
+  Buffer.from([0xfd, 0x37, 0x7a, 0x58, 0x5a, 0x00]),
+]);
+const TAR_USTAR_MAGIC = Buffer.from('ustar', 'ascii');
+const TAR_USTAR_OFFSET = 257;
 const TEXT_EXTENSIONS = new Set([
   '.bash',
   '.cjs',
+  '.csv',
   '.cts',
   '.css',
   '.example',
@@ -88,6 +116,7 @@ const TEXT_EXTENSIONS = new Set([
   '.mjs',
   '.map',
   '.mts',
+  '.ndjson',
   '.properties',
   '.py',
   '.rb',
@@ -98,6 +127,7 @@ const TEXT_EXTENSIONS = new Set([
   '.template',
   '.ts',
   '.tsx',
+  '.tsv',
   '.toml',
   '.txt',
   '.vue',
@@ -146,6 +176,46 @@ const PRIVATE_LIVING_WORLD_AUTHORITY_ALIASES = Object.freeze(
 const PRIVATE_LIVING_WORLD_AUTHORITY_ALIASES_CASEFOLDED = Object.freeze(
   PRIVATE_LIVING_WORLD_AUTHORITY_ALIASES.map(alias => alias.toLowerCase()),
 );
+const PRIVATE_LIVING_WORLD_AUTHORITY_ASCII_FIELDS = Object.freeze(
+  PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS.map(aliases => Object.freeze(
+    aliases.map(alias => Buffer.from(alias.toLowerCase(), 'ascii')),
+  )),
+);
+function utf16BigEndianBytes(text) {
+  const bytes = Buffer.from(text, 'utf16le');
+  for (let offset = 0; offset < bytes.length; offset += 2) {
+    const first = bytes[offset];
+    bytes[offset] = bytes[offset + 1];
+    bytes[offset + 1] = first;
+  }
+  return bytes;
+}
+function utf32Bytes(text, bigEndian) {
+  const codePoints = [...text];
+  const bytes = Buffer.allocUnsafe(codePoints.length * 4);
+  for (let index = 0; index < codePoints.length; index += 1) {
+    const value = codePoints[index].codePointAt(0);
+    if (bigEndian) bytes.writeUInt32BE(value, index * 4);
+    else bytes.writeUInt32LE(value, index * 4);
+  }
+  return bytes;
+}
+const PRIVATE_LIVING_WORLD_AUTHORITY_UTF16_FIELDS = Object.freeze(
+  PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS.map(aliases => Object.freeze(
+    aliases.flatMap(alias => Object.freeze([
+      Buffer.from(alias.toLowerCase(), 'utf16le'),
+      utf16BigEndianBytes(alias.toLowerCase()),
+    ])),
+  )),
+);
+const PRIVATE_LIVING_WORLD_AUTHORITY_UTF32_FIELDS = Object.freeze(
+  PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS.map(aliases => Object.freeze(
+    aliases.flatMap(alias => Object.freeze([
+      utf32Bytes(alias.toLowerCase(), false),
+      utf32Bytes(alias.toLowerCase(), true),
+    ])),
+  )),
+);
 const PRIVATE_LIVING_WORLD_AUTHORITY_ALIAS_MINIMUM_LENGTH = Math.min(
   ...PRIVATE_LIVING_WORLD_AUTHORITY_ALIASES.map(alias => alias.length),
 );
@@ -154,19 +224,28 @@ const PRIVATE_LIVING_WORLD_AUTHORITY_ALIAS_MAXIMUM_LENGTH = Math.max(
 );
 const PRIVATE_LIVING_WORLD_AUTHORITY_FIELD_MASK =
   (1 << PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS.length) - 1;
+const PRIVATE_BINARY_SCAN_UTF16_TEXT =
+  1 << PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS.length;
+const PRIVATE_BINARY_SCAN_STARTED =
+  1 << (PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS.length + 1);
+const PRIVATE_BINARY_SCAN_ZIP_LOCAL =
+  1 << (PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS.length + 2);
+const PRIVATE_BINARY_SCAN_ZIP_CENTRAL =
+  1 << (PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS.length + 3);
+const PRIVATE_BINARY_SCAN_ZIP_END =
+  1 << (PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS.length + 4);
 const PRIVATE_LIVING_WORLD_AUTHORITY_OVERLAP_BYTES = Math.max(
   ...PRIVATE_LIVING_WORLD_AUTHORITY_ALIASES.map(alias => (
-    Buffer.byteLength(alias, 'ascii') - 1
+    Buffer.byteLength(alias, 'utf16le') * 2 - 1
   )),
 );
-const PRIVATE_BINARY_SCAN_OVERLAP_BYTES = Math.max(
+const PRIVATE_BINARY_SCAN_OVERLAP_BYTES = Math.ceil(Math.max(
   GREATER_REALM_PRIVATE_MARKER_OVERLAP_BYTES,
   PRIVATE_LIVING_WORLD_AUTHORITY_OVERLAP_BYTES,
-);
-const PRIVATE_LIVING_WORLD_JSON_NUMERIC_FIELD = new RegExp(
+) / 4) * 4;
+const PRIVATE_LIVING_WORLD_JSON_INITIALIZED_FIELD = new RegExp(
   `["'](?:${PRIVATE_LIVING_WORLD_AUTHORITY_ALIASES.join('|')})["']`
-    + '\\s*:\\s*[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:e[-+]?\\d+)?'
-    + '(?=\\s*[,}])',
+    + '\\s*:',
   'iu',
 );
 const PRIVATE_LIVING_WORLD_AUTHORITY_FIELD_PATTERNS = Object.freeze(
@@ -201,19 +280,88 @@ const PRIVATE_RELIEF_STRUCTURE_BOOLEAN_FIELDS = Object.freeze([
   'scaleGrowthProof',
   'axialAnisotropyProof',
 ]);
+const PRIVATE_RELIEF_STRUCTURE_BINARY_PATTERNS = Object.freeze([
+  ...PRIVATE_RELIEF_STRUCTURE_MATRIX_FIELDS,
+  ...PRIVATE_RELIEF_STRUCTURE_VECTOR_FIELDS,
+  ...PRIVATE_RELIEF_STRUCTURE_BOOLEAN_FIELDS,
+  'eligibleCellCount',
+].flatMap(field => {
+  const casefolded = field.toLowerCase();
+  return Object.freeze([
+    Buffer.from(casefolded, 'ascii'),
+    Buffer.from(casefolded, 'utf16le'),
+    utf16BigEndianBytes(casefolded),
+    utf32Bytes(casefolded, false),
+    utf32Bytes(casefolded, true),
+  ]);
+}));
+const PRIVATE_BINARY_TEXT_FIELD_PATTERNS = Object.freeze([
+  'privateSeedHex',
+  'seedMaterial',
+  'seedBytes',
+  'hiddenCellPayload',
+  'privateCanvasDescriptor',
+].flatMap(field => {
+  const casefolded = field.toLowerCase();
+  return Object.freeze([
+    Buffer.from(casefolded, 'ascii'),
+    Buffer.from(casefolded, 'utf16le'),
+    utf16BigEndianBytes(casefolded),
+    utf32Bytes(casefolded, false),
+    utf32Bytes(casefolded, true),
+  ]);
+}));
 const PRIVATE_RELIEF_STRUCTURE_NUMERIC_VALUE =
   '[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:e[-+]?\\d+)?';
+const PRIVATE_RELIEF_STRUCTURE_ARRAY_FIELDS = Object.freeze([
+  ...PRIVATE_RELIEF_STRUCTURE_MATRIX_FIELDS,
+  ...PRIVATE_RELIEF_STRUCTURE_VECTOR_FIELDS,
+]);
+const PRIVATE_RELIEF_STRUCTURE_NUMERIC_ARRAY_TYPE =
+  '(?:Big(?:Int64|Uint64)Array|Float(?:16|32|64)Array|Int(?:8|16|32)Array|Uint8ClampedArray|Uint(?:8|16|32)Array)';
+const PRIVATE_RELIEF_STRUCTURE_VALUE_WRAPPERS =
+  '(?:(?:Object\\.freeze\\s*\\(\\s*|\\(\\s*)){0,4}';
 const PRIVATE_RELIEF_STRUCTURE_INITIALIZED_MATRIX = new RegExp(
   `(?:["'\`](?:${PRIVATE_RELIEF_STRUCTURE_MATRIX_FIELDS.join('|')})["'\`]`
     + `|(?:^|[^\\p{ID_Continue}$-])(?:${PRIVATE_RELIEF_STRUCTURE_MATRIX_FIELDS.join('|')}))`
-    + `\\s*(?::|=)\\s*\\[\\s*\\[\\s*${PRIVATE_RELIEF_STRUCTURE_NUMERIC_VALUE}`,
+    + `\\s*(?::|=)\\s*${PRIVATE_RELIEF_STRUCTURE_VALUE_WRAPPERS}`
+    + `\\[\\s*\\[\\s*${PRIVATE_RELIEF_STRUCTURE_NUMERIC_VALUE}`,
   'imu',
 );
 const PRIVATE_RELIEF_STRUCTURE_INITIALIZED_VECTOR = new RegExp(
   `(?:["'\`](?:${PRIVATE_RELIEF_STRUCTURE_VECTOR_FIELDS.join('|')})["'\`]`
     + `|(?:^|[^\\p{ID_Continue}$-])(?:${PRIVATE_RELIEF_STRUCTURE_VECTOR_FIELDS.join('|')}))`
-    + `\\s*(?::|=)\\s*\\[\\s*${PRIVATE_RELIEF_STRUCTURE_NUMERIC_VALUE}`,
+    + `\\s*(?::|=)\\s*${PRIVATE_RELIEF_STRUCTURE_VALUE_WRAPPERS}`
+    + `\\[\\s*${PRIVATE_RELIEF_STRUCTURE_NUMERIC_VALUE}`,
   'imu',
+);
+const PRIVATE_RELIEF_STRUCTURE_INITIALIZED_TYPED_ARRAY = new RegExp(
+  `(?:["'\`](?:${PRIVATE_RELIEF_STRUCTURE_ARRAY_FIELDS.join('|')})["'\`]`
+    + `|(?:^|[^\\p{ID_Continue}$-])(?:${PRIVATE_RELIEF_STRUCTURE_ARRAY_FIELDS.join('|')}))`
+    + '\\s*(?::|=)\\s*'
+    + PRIVATE_RELIEF_STRUCTURE_VALUE_WRAPPERS
+    + `(?:(?:(?:new\\s+)?${PRIVATE_RELIEF_STRUCTURE_NUMERIC_ARRAY_TYPE}\\s*\\(\\s*`
+    + `|(?:${PRIVATE_RELIEF_STRUCTURE_NUMERIC_ARRAY_TYPE}|Array|Buffer)\\.from\\s*\\(\\s*)?`
+    + `\\[\\s*(?:\\[\\s*)?${PRIVATE_RELIEF_STRUCTURE_NUMERIC_VALUE}`
+    + `|(?:${PRIVATE_RELIEF_STRUCTURE_NUMERIC_ARRAY_TYPE}|Array)\\.of\\s*\\(\\s*`
+    + `${PRIVATE_RELIEF_STRUCTURE_NUMERIC_VALUE})`,
+  'imu',
+);
+const PRIVATE_RELIEF_STRUCTURE_INITIALIZED_OBJECT = new RegExp(
+  `(?:["'\`](?:${PRIVATE_RELIEF_STRUCTURE_ARRAY_FIELDS.join('|')})["'\`]`
+    + `|(?:^|[^\\p{ID_Continue}$-])(?:${PRIVATE_RELIEF_STRUCTURE_ARRAY_FIELDS.join('|')}))`
+    + `\\s*(?::|=)\\s*${PRIVATE_RELIEF_STRUCTURE_VALUE_WRAPPERS}\\{\\s*`
+    + '(?:["\'`][A-Za-z_$][A-Za-z0-9_$-]*["\'`]|[A-Za-z_$][A-Za-z0-9_$]*)'
+    + `\\s*:\\s*(?:\\[\\s*)?${PRIVATE_RELIEF_STRUCTURE_NUMERIC_VALUE}`,
+  'imu',
+);
+const PRIVATE_RELIEF_STRUCTURE_JSON_INITIALIZED_FIELD = new RegExp(
+  `["'](?:${[
+    ...PRIVATE_RELIEF_STRUCTURE_ARRAY_FIELDS,
+    ...PRIVATE_RELIEF_STRUCTURE_BOOLEAN_FIELDS,
+    'eligibleCellCount',
+  ].join('|')})["']\\s*:`,
+  'iu',
 );
 const PRIVATE_RELIEF_STRUCTURE_INITIALIZED_ELIGIBLE_SCALAR = new RegExp(
   `(?:["'\`]eligibleCellCount["'\`]`
@@ -423,6 +571,26 @@ function ownerPreviewEvidencePath(relativePath) {
   const normalized = normalizedRelativePath(relativePath).toLowerCase();
   if (!normalized.startsWith('docs/evidence/greater-realm/')) return false;
   return OWNER_PREVIEW_EXTENSIONS.has(extension(normalized));
+}
+
+function opaqueArchivePath(relativePath) {
+  return OPAQUE_ARCHIVE_EXTENSIONS.has(extension(relativePath));
+}
+
+function startsWithBytes(bytes, prefix) {
+  return bytes.length >= prefix.length
+    && bytes.subarray(0, prefix.length).equals(prefix);
+}
+
+function containsOpaqueArchiveMagic(bytes) {
+  return OPAQUE_ARCHIVE_PREFIXES.some(prefix => startsWithBytes(bytes, prefix))
+    || (
+      bytes.length >= TAR_USTAR_OFFSET + TAR_USTAR_MAGIC.length
+      && bytes.subarray(
+        TAR_USTAR_OFFSET,
+        TAR_USTAR_OFFSET + TAR_USTAR_MAGIC.length,
+      ).equals(TAR_USTAR_MAGIC)
+    );
 }
 
 function statFingerprint(status) {
@@ -939,9 +1107,14 @@ function containsDelimitedLivingWorldAuthority(
 
 function containsPrivateLivingWorldTabularAuthority(text, relativePath) {
   const suffix = extension(relativePath);
-  if (suffix === '.json' || suffix === '.ndjson') {
-    return PRIVATE_LIVING_WORLD_JSON_NUMERIC_FIELD.test(text);
+  if (
+    (suffix === '.json' || suffix === '.ndjson'
+      || privateLivingWorldDataPath(relativePath, text))
+    && PRIVATE_LIVING_WORLD_JSON_INITIALIZED_FIELD.test(text)
+  ) {
+    return true;
   }
+  if (suffix === '.json' || suffix === '.ndjson') return false;
   if (suffix === '.csv') return containsDelimitedLivingWorldAuthority(text, ',');
   if (suffix === '.tsv') return containsDelimitedLivingWorldAuthority(text, '\t');
   // Data-oriented text formats and unfamiliar UTF-8 files are content-sniffed
@@ -959,10 +1132,14 @@ function containsPrivateReliefStructureAuthority(text, relativePath) {
   if (
     PRIVATE_RELIEF_STRUCTURE_INITIALIZED_MATRIX.test(text)
     || PRIVATE_RELIEF_STRUCTURE_INITIALIZED_VECTOR.test(text)
+    || PRIVATE_RELIEF_STRUCTURE_INITIALIZED_TYPED_ARRAY.test(text)
+    || PRIVATE_RELIEF_STRUCTURE_INITIALIZED_OBJECT.test(text)
     || PRIVATE_RELIEF_STRUCTURE_INITIALIZED_SUBPROOF.test(text)
   ) return true;
-  return privateLivingWorldDataPath(relativePath, text)
-    && PRIVATE_RELIEF_STRUCTURE_INITIALIZED_ELIGIBLE_SCALAR.test(text);
+  return privateLivingWorldDataPath(relativePath, text) && (
+    PRIVATE_RELIEF_STRUCTURE_JSON_INITIALIZED_FIELD.test(text)
+    || PRIVATE_RELIEF_STRUCTURE_INITIALIZED_ELIGIBLE_SCALAR.test(text)
+  );
 }
 
 function containsPrivateLivingWorldAuthority(text, relativePath) {
@@ -984,26 +1161,120 @@ function containsPrivateLivingWorldAuthority(text, relativePath) {
 }
 
 function privateLivingWorldAuthorityByteMask(bytes, initialMask = 0) {
-  let mask = initialMask;
-  for (let index = 0; index < PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS.length; index += 1) {
-    const bit = 1 << index;
-    if ((mask & bit) !== 0) continue;
-    if (PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS[index].some(alias => (
-      bytes.indexOf(alias, 0, 'ascii') !== -1
-    ))) mask |= bit;
+  const casefolded = Buffer.allocUnsafe(bytes.length);
+  try {
+    for (let offset = 0; offset < bytes.length; offset += 1) {
+      const value = bytes[offset];
+      casefolded[offset] = value >= 0x41 && value <= 0x5a ? value + 0x20 : value;
+    }
+    if (
+      PRIVATE_RELIEF_STRUCTURE_BINARY_PATTERNS.some(pattern => (
+        casefolded.indexOf(pattern) !== -1
+      ))
+      || PRIVATE_BINARY_TEXT_FIELD_PATTERNS.some(pattern => (
+        casefolded.indexOf(pattern) !== -1
+      ))
+    ) fail('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
+    let mask = initialMask;
+    for (let index = 0; index < PRIVATE_LIVING_WORLD_AUTHORITY_FIELDS.length; index += 1) {
+      const bit = 1 << index;
+      if ((mask & bit) !== 0) continue;
+      if (
+        PRIVATE_LIVING_WORLD_AUTHORITY_ASCII_FIELDS[index].some(alias => (
+          casefolded.indexOf(alias) !== -1
+        ))
+        || PRIVATE_LIVING_WORLD_AUTHORITY_UTF16_FIELDS[index].some(alias => (
+          casefolded.indexOf(alias) !== -1
+        ))
+        || PRIVATE_LIVING_WORLD_AUTHORITY_UTF32_FIELDS[index].some(alias => (
+          casefolded.indexOf(alias) !== -1
+        ))
+      ) mask |= bit;
+    }
+    return mask;
+  } finally {
+    casefolded.fill(0);
   }
-  return mask;
 }
 
-function scanBinaryBytes(bytes, initialAuthorityMask = 0) {
+function scanBinaryBytes(bytes, initialState = 0) {
+  let state = initialState;
+  if ((state & PRIVATE_BINARY_SCAN_STARTED) === 0) {
+    if (containsOpaqueArchiveMagic(bytes)) {
+      fail('GREATER_REALM_PUBLIC_BOUNDARY_OPAQUE_ARCHIVE');
+    }
+    state |= PRIVATE_BINARY_SCAN_STARTED;
+  }
+  if (bytes.indexOf(ZIP_LOCAL_FILE_MAGIC) !== -1) {
+    state |= PRIVATE_BINARY_SCAN_ZIP_LOCAL;
+  }
+  if (bytes.indexOf(ZIP_CENTRAL_DIRECTORY_MAGIC) !== -1) {
+    state |= PRIVATE_BINARY_SCAN_ZIP_CENTRAL;
+  }
+  if (bytes.indexOf(ZIP_END_OF_CENTRAL_DIRECTORY_MAGIC) !== -1) {
+    state |= PRIVATE_BINARY_SCAN_ZIP_END;
+  }
+  if (
+    (state & (
+      PRIVATE_BINARY_SCAN_ZIP_LOCAL
+      | PRIVATE_BINARY_SCAN_ZIP_CENTRAL
+      | PRIVATE_BINARY_SCAN_ZIP_END
+    )) === (
+      PRIVATE_BINARY_SCAN_ZIP_LOCAL
+      | PRIVATE_BINARY_SCAN_ZIP_CENTRAL
+      | PRIVATE_BINARY_SCAN_ZIP_END
+    )
+  ) fail('GREATER_REALM_PUBLIC_BOUNDARY_OPAQUE_ARCHIVE');
   if (containsGreaterRealmPrivateMarker(bytes)) {
     fail('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_MARKER');
   }
-  const authorityMask = privateLivingWorldAuthorityByteMask(bytes, initialAuthorityMask);
-  if (authorityMask === PRIVATE_LIVING_WORLD_AUTHORITY_FIELD_MASK) {
+  if (
+    (state & PRIVATE_BINARY_SCAN_UTF16_TEXT) === 0
+    && (
+      likelyUtf16ByteOrder(bytes) !== undefined
+      || likelyUtf32ByteOrder(bytes) !== undefined
+    )
+  ) state |= PRIVATE_BINARY_SCAN_UTF16_TEXT;
+  state = privateLivingWorldAuthorityByteMask(bytes, state);
+  const authorityMask = state & PRIVATE_LIVING_WORLD_AUTHORITY_FIELD_MASK;
+  if (authorityMask !== 0) {
     fail('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
   }
-  return authorityMask;
+  return state;
+}
+
+function scanBinaryChunk(chunk, priorCarry, priorState) {
+  let window;
+  try {
+    window = priorCarry.length === 0 ? chunk : Buffer.concat([priorCarry, chunk]);
+    const state = scanBinaryBytes(window, priorState);
+    const carry = Buffer.from(window.subarray(Math.max(
+      0,
+      window.length - PRIVATE_BINARY_SCAN_OVERLAP_BYTES,
+    )));
+    return { carry, state };
+  } finally {
+    priorCarry.fill(0);
+    if (window !== undefined && window !== chunk) window.fill(0);
+  }
+}
+
+function scanBinaryBuffer(bytes) {
+  let carry = Buffer.alloc(0);
+  let state = 0;
+  try {
+    for (let offset = 0; offset < bytes.length; offset += BINARY_SCAN_CHUNK_BYTES) {
+      const chunk = bytes.subarray(offset, Math.min(
+        bytes.length,
+        offset + BINARY_SCAN_CHUNK_BYTES,
+      ));
+      const scanned = scanBinaryChunk(chunk, carry, state);
+      carry = scanned.carry;
+      state = scanned.state;
+    }
+  } finally {
+    carry.fill(0);
+  }
 }
 
 function invalidSanitizedReview() {
@@ -1486,6 +1757,98 @@ function decodeUtf8Text(bytes, allowNul = false) {
   }
 }
 
+function likelyUtf16ByteOrder(bytes) {
+  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) return 'utf-16le';
+  if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) return 'utf-16be';
+  if (bytes.length < 8 || bytes.length % 2 !== 0) return undefined;
+  const sampleBytes = Math.min(bytes.length, 4_096) & ~1;
+  let evenZeros = 0;
+  let oddZeros = 0;
+  for (let offset = 0; offset < sampleBytes; offset += 2) {
+    if (bytes[offset] === 0) evenZeros += 1;
+    if (bytes[offset + 1] === 0) oddZeros += 1;
+  }
+  const codeUnits = sampleBytes / 2;
+  if (oddZeros * 4 >= codeUnits * 3 && evenZeros * 20 <= codeUnits) {
+    return 'utf-16le';
+  }
+  if (evenZeros * 4 >= codeUnits * 3 && oddZeros * 20 <= codeUnits) {
+    return 'utf-16be';
+  }
+  return undefined;
+}
+
+function likelyUtf32ByteOrder(bytes) {
+  if (
+    bytes.length >= 4
+    && bytes[0] === 0xff && bytes[1] === 0xfe
+    && bytes[2] === 0 && bytes[3] === 0
+  ) return 'utf-32le';
+  if (
+    bytes.length >= 4
+    && bytes[0] === 0 && bytes[1] === 0
+    && bytes[2] === 0xfe && bytes[3] === 0xff
+  ) return 'utf-32be';
+  if (bytes.length < 16 || bytes.length % 4 !== 0) return undefined;
+  const sampleBytes = Math.min(bytes.length, 4_096) & ~3;
+  const laneZeros = [0, 0, 0, 0];
+  for (let offset = 0; offset < sampleBytes; offset += 4) {
+    for (let lane = 0; lane < 4; lane += 1) {
+      if (bytes[offset + lane] === 0) laneZeros[lane] += 1;
+    }
+  }
+  const codeUnits = sampleBytes / 4;
+  const mostlyZero = lane => laneZeros[lane] * 4 >= codeUnits * 3;
+  const mostlyNonzero = lane => laneZeros[lane] * 20 <= codeUnits;
+  if (mostlyNonzero(0) && mostlyZero(1) && mostlyZero(2) && mostlyZero(3)) {
+    return 'utf-32le';
+  }
+  if (mostlyZero(0) && mostlyZero(1) && mostlyZero(2) && mostlyNonzero(3)) {
+    return 'utf-32be';
+  }
+  return undefined;
+}
+
+function decodeUtf16Text(bytes) {
+  const encoding = likelyUtf16ByteOrder(bytes);
+  if (encoding === undefined) return undefined;
+  try {
+    const text = new TextDecoder(encoding, { fatal: true }).decode(bytes);
+    return text.includes('\0') ? undefined : text;
+  } catch {
+    return undefined;
+  }
+}
+
+function decodeUtf32Text(bytes) {
+  const encoding = likelyUtf32ByteOrder(bytes);
+  if (encoding === undefined) return undefined;
+  const parts = [];
+  let chunk = '';
+  try {
+    for (let offset = 0; offset < bytes.length; offset += 4) {
+      const value = encoding === 'utf-32be'
+        ? bytes.readUInt32BE(offset)
+        : bytes.readUInt32LE(offset);
+      if (offset === 0 && value === 0xfeff) continue;
+      if (
+        value === 0
+        || value > 0x10ffff
+        || (value >= 0xd800 && value <= 0xdfff)
+      ) return undefined;
+      chunk += String.fromCodePoint(value);
+      if (chunk.length >= 8_192) {
+        parts.push(chunk);
+        chunk = '';
+      }
+    }
+    parts.push(chunk);
+    return parts.join('');
+  } catch {
+    return undefined;
+  }
+}
+
 function scanText(text, relativePath) {
   const scrubbed = normalizePrivacyScanText(
     scrubExpectedPrivateSourceLiterals(text, relativePath),
@@ -1510,7 +1873,10 @@ function scanLoadedBytes(bytes, relativePath, knownText) {
   if (relativePath === SANITIZED_REVIEW_EVIDENCE_README) {
     validateSanitizedReviewEvidenceReadme(bytes);
   }
-  if (!knownText) scanBinaryBytes(bytes);
+  const encodedUnicodeText = knownText
+    ? undefined
+    : decodeUtf16Text(bytes) ?? decodeUtf32Text(bytes);
+  if (!knownText) scanBinaryBuffer(bytes);
   const text = decodeUtf8Text(bytes);
   if (knownText && text === undefined) {
     fail('GREATER_REALM_PUBLIC_BOUNDARY_TEXT_ENCODING_INVALID');
@@ -1521,11 +1887,16 @@ function scanLoadedBytes(bytes, relativePath, knownText) {
       if (bytes.length > SANITIZED_REVIEW_MAXIMUM_BYTES) invalidSanitizedReview();
       validateSanitizedReviewEvidence(text);
     }
+  } else if (encodedUnicodeText !== undefined) {
+    scanText(encodedUnicodeText, relativePath);
   }
 }
 
 function scanGitBlob(bytes, relativePath) {
   assertSanitizedReviewEvidencePath(relativePath);
+  if (opaqueArchivePath(relativePath)) {
+    fail('GREATER_REALM_PUBLIC_BOUNDARY_OPAQUE_ARCHIVE');
+  }
   const knownText = knownTextPath(relativePath);
   if (knownText && bytes.length > MAXIMUM_SCANNED_TEXT_BYTES) {
     fail('GREATER_REALM_PUBLIC_BOUNDARY_TEXT_LIMIT');
@@ -1536,12 +1907,15 @@ function scanGitBlob(bytes, relativePath) {
   if (knownText || bytes.length <= MAXIMUM_SCANNED_TEXT_BYTES) {
     scanLoadedBytes(bytes, relativePath, knownText);
   } else {
-    scanBinaryBytes(bytes);
+    scanBinaryBuffer(bytes);
   }
 }
 
 function scanFile(path, relativePath) {
   assertSanitizedReviewEvidencePath(relativePath);
+  if (opaqueArchivePath(relativePath)) {
+    fail('GREATER_REALM_PUBLIC_BOUNDARY_OPAQUE_ARCHIVE');
+  }
   const status = lstatSync(path);
   if (!status.isFile() || status.isSymbolicLink()) {
     fail('GREATER_REALM_PUBLIC_BOUNDARY_SPECIAL_ENTRY');
@@ -1580,12 +1954,11 @@ function scanFile(path, relativePath) {
       }
     } else {
       let carry = Buffer.alloc(0);
-      let authorityMask = 0;
+      let binaryScanState = 0;
       try {
         let remaining = opened.size;
         while (remaining > 0) {
           const chunk = Buffer.alloc(Math.min(BINARY_SCAN_CHUNK_BYTES, remaining));
-          let window;
           try {
             let offset = 0;
             while (offset < chunk.length) {
@@ -1594,16 +1967,10 @@ function scanFile(path, relativePath) {
               offset += count;
             }
             remaining -= chunk.length;
-            window = carry.length === 0 ? chunk : Buffer.concat([carry, chunk]);
-            authorityMask = scanBinaryBytes(window, authorityMask);
-            const nextCarry = Buffer.from(window.subarray(Math.max(
-              0,
-              window.length - PRIVATE_BINARY_SCAN_OVERLAP_BYTES,
-            )));
-            carry.fill(0);
-            carry = nextCarry;
+            const scanned = scanBinaryChunk(chunk, carry, binaryScanState);
+            carry = scanned.carry;
+            binaryScanState = scanned.state;
           } finally {
-            if (window !== undefined && window !== chunk) window.fill(0);
             chunk.fill(0);
           }
         }

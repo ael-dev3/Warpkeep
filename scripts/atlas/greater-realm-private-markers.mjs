@@ -22,8 +22,38 @@ export const GREATER_REALM_PRIVATE_MARKER_TEXT = Object.freeze([
   'warpkeep.greater-realm.private-provenance.v1',
 ]);
 
+function utf16BigEndian(text) {
+  const bytes = Buffer.from(text, 'utf16le');
+  for (let offset = 0; offset < bytes.length; offset += 2) {
+    const first = bytes[offset];
+    bytes[offset] = bytes[offset + 1];
+    bytes[offset + 1] = first;
+  }
+  return bytes;
+}
+
+function utf32Bytes(text, bigEndian) {
+  const codePoints = [...text];
+  const bytes = Buffer.allocUnsafe(codePoints.length * 4);
+  for (let index = 0; index < codePoints.length; index += 1) {
+    const value = codePoints[index].codePointAt(0);
+    if (bigEndian) bytes.writeUInt32BE(value, index * 4);
+    else bytes.writeUInt32LE(value, index * 4);
+  }
+  return bytes;
+}
+
+// A renamed private artifact can be wrapped in UTF-16 without changing its
+// semantic payload. Keep the exact marker inventory encoded in all text
+// representations that public scanners accept or content-sniff.
 const GREATER_REALM_PRIVATE_MARKERS = Object.freeze(
-  GREATER_REALM_PRIVATE_MARKER_TEXT.map(marker => Buffer.from(marker, 'utf8')),
+  GREATER_REALM_PRIVATE_MARKER_TEXT.flatMap(marker => Object.freeze([
+    Buffer.from(marker, 'utf8'),
+    Buffer.from(marker, 'utf16le'),
+    utf16BigEndian(marker),
+    utf32Bytes(marker, false),
+    utf32Bytes(marker, true),
+  ])),
 );
 
 export const GREATER_REALM_PRIVATE_MARKER_OVERLAP_BYTES = Math.max(

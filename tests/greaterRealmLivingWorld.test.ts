@@ -290,7 +290,7 @@ describe('Greater Realm private living-world authority', () => {
       routeCellCounts: {
         track: 1_000,
         road: 2_500,
-        carriageway: 1_000,
+        carriageway: 1_500,
         ford: 500,
       },
       landmarkCellCounts: {
@@ -318,7 +318,7 @@ describe('Greater Realm private living-world authority', () => {
         routeCellCounts: {
           track: 4_000,
           road: 12_000,
-          carriageway: 3_000,
+          carriageway: 4_000,
           ford: 1_000,
         },
         landmarkCellCounts: {
@@ -469,8 +469,8 @@ describe('Greater Realm private living-world authority', () => {
           routeCellCounts: {
             track: 1_000,
             road: 2_499,
-            carriageway: 1_000,
-            ford: 500,
+            carriageway: 1_500,
+            ford: 50_000,
           },
         },
       ],
@@ -481,8 +481,8 @@ describe('Greater Realm private living-world authority', () => {
           routeCellCounts: {
             track: 4_000,
             road: 12_001,
-            carriageway: 3_000,
-            ford: 1_000,
+            carriageway: 4_000,
+            ford: 0,
           },
         },
       ],

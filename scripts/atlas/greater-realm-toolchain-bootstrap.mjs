@@ -32,8 +32,12 @@ const SRI_PATTERN = /^sha512-[A-Za-z0-9+/]{86}==$/u;
 const VERSION_PATTERN = /^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$/u;
 const PACKAGE_NAME_PATTERN = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/u;
 const FORBIDDEN_SECRET_ARGUMENT = /^(?:--)?(?:private-)?(?:atlas-)?(?:seed|seed-hex|seed-material|layout-digest|stage-digest|package-digest)(?:=|$)/iu;
-const RESERVED_ENVIRONMENT_KEY = /^WARPKEEP_GREATER_REALM_/u;
-const POSSIBLE_SECRET_VALUE = /^(?:[0-9a-f]{64}|[A-Za-z0-9+/]{43}=?)$/u;
+const RESERVED_ENVIRONMENT_KEY = /^WARPKEEP_GREATER_REALM_/iu;
+const POSSIBLE_SECRET_VALUE = /^(?:[0-9a-f]{64}|[A-Za-z0-9+/_-]{43}=?)$/iu;
+const ALLOWED_PUBLIC_DIGEST_ENVIRONMENT_KEYS = new Set([
+  'NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S',
+]);
+const POSSIBLE_HEX_SECRET_VALUE = /^[0-9a-f]{64}$/iu;
 const ALLOWED_COMMANDS = Object.freeze([
   'compare-candidates',
   'export-sanitized-review',
@@ -90,6 +94,13 @@ const DANGEROUS_CHILD_ENVIRONMENT_KEYS = Object.freeze([
   'SHARP_IGNORE_GLOBAL_LIBVIPS',
   'TSX_TSCONFIG_PATH',
 ]);
+const DANGEROUS_CHILD_ENVIRONMENT_KEY_SET = new Set(
+  DANGEROUS_CHILD_ENVIRONMENT_KEYS.map(key => key.toUpperCase()),
+);
+
+function dangerousChildEnvironmentKey(key) {
+  return DANGEROUS_CHILD_ENVIRONMENT_KEY_SET.has(key.toUpperCase());
+}
 
 function fail(code) {
   throw new Error(code);
@@ -753,6 +764,15 @@ export function verifyGreaterRealmTrustedToolchain(input = {}) {
   });
 }
 
+function possibleSecretEnvironmentEntry(key, value) {
+  return typeof value === 'string'
+    && POSSIBLE_SECRET_VALUE.test(value)
+    && !(
+      POSSIBLE_HEX_SECRET_VALUE.test(value)
+      && ALLOWED_PUBLIC_DIGEST_ENVIRONMENT_KEYS.has(key.toUpperCase())
+    );
+}
+
 function assertBootstrapInvocation(arguments_, environment) {
   if (
     !Array.isArray(arguments_)
@@ -763,10 +783,10 @@ function assertBootstrapInvocation(arguments_, environment) {
     ))
     || Object.entries(environment).some(([key, value]) => (
       RESERVED_ENVIRONMENT_KEY.test(key)
-      || (typeof value === 'string' && POSSIBLE_SECRET_VALUE.test(value))
+      || possibleSecretEnvironmentEntry(key, value)
     ))
   ) fail('GREATER_REALM_PRIVATE_INVOCATION_REJECTED');
-  if (DANGEROUS_CHILD_ENVIRONMENT_KEYS.some(key => environment[key] !== undefined)) {
+  if (Object.keys(environment).some(dangerousChildEnvironmentKey)) {
     fail('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_ENVIRONMENT_INVALID');
   }
 }
@@ -789,7 +809,9 @@ function main() {
     return;
   }
   const environment = { ...process.env };
-  for (const key of DANGEROUS_CHILD_ENVIRONMENT_KEYS) delete environment[key];
+  for (const key of Object.keys(environment)) {
+    if (dangerousChildEnvironmentKey(key)) delete environment[key];
+  }
   environment.PATH = dirname(process.execPath);
   environment.WKGR_TOOLCHAIN_PREFLIGHT_RECEIPT = `sha256:${receipt.manifestSha256}`;
   environment.WKGR_TOOLCHAIN_PREFLIGHT_PROFILE = receipt.profile;

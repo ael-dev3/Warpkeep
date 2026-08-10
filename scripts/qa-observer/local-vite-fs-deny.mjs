@@ -18,6 +18,90 @@ import {
 const MAXIMUM_PUBLIC_TREE_ENTRIES = 250_000;
 const MAXIMUM_PUBLIC_FILE_BYTES = 128 * 1024 * 1024;
 const PUBLIC_SCAN_CHUNK_BYTES = 64 * 1024;
+const OPAQUE_ARCHIVE_PREFIXES = Object.freeze([
+  Buffer.from([0x1f, 0x8b, 0x08]),
+  Buffer.from([0x28, 0xb5, 0x2f, 0xfd]),
+  Buffer.from([0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c]),
+  Buffer.from([0x42, 0x5a, 0x68]),
+  Buffer.from([0x50, 0x4b, 0x03, 0x04]),
+  Buffer.from([0x50, 0x4b, 0x05, 0x06]),
+  Buffer.from([0x50, 0x4b, 0x07, 0x08]),
+  Buffer.from([0x52, 0x61, 0x72, 0x21, 0x1a, 0x07]),
+  Buffer.from([0xfd, 0x37, 0x7a, 0x58, 0x5a, 0x00]),
+]);
+const ZIP_LOCAL_FILE_MAGIC = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
+const ZIP_CENTRAL_DIRECTORY_MAGIC = Buffer.from([0x50, 0x4b, 0x01, 0x02]);
+const ZIP_END_OF_CENTRAL_DIRECTORY_MAGIC = Buffer.from([0x50, 0x4b, 0x05, 0x06]);
+const ZIP_LOCAL_FILE_EVIDENCE = 1;
+const ZIP_CENTRAL_DIRECTORY_EVIDENCE = 2;
+const ZIP_END_OF_CENTRAL_DIRECTORY_EVIDENCE = 4;
+const COMPLETE_ZIP_EVIDENCE = ZIP_LOCAL_FILE_EVIDENCE
+  | ZIP_CENTRAL_DIRECTORY_EVIDENCE
+  | ZIP_END_OF_CENTRAL_DIRECTORY_EVIDENCE;
+const TAR_USTAR_MAGIC = Buffer.from('ustar', 'ascii');
+const TAR_USTAR_OFFSET = 257;
+const PRIVATE_LIVING_WORLD_AUTHORITY_KEYS = new Set([
+  'ambient-life-class',
+  'ambientlifeclass',
+  'dressing-excluded',
+  'dressingexcluded',
+  'ecology-class',
+  'ecologyclass',
+  'landmark-class',
+  'landmarkclass',
+  'route-class',
+  'routeclass',
+  'vegetation-density',
+  'vegetationdensity',
+  'paircountsbylagandaxis',
+  'paircoveragebasispointsbylagandaxis',
+  'meansquareddifferencebylagandaxis',
+  'lagonetofourgrowthbasispointsbyaxis',
+  'lagfourtwelvegrowthbasispointsbyaxis',
+  'axialanisotropybasispointsbylag',
+  'paircoverageproof',
+  'scalegrowthproof',
+  'axialanisotropyproof',
+  'eligiblecellcount',
+  'privateseedhex',
+  'seedmaterial',
+  'seedbytes',
+  'hiddencellpayload',
+  'privatecanvasdescriptor',
+]);
+function utf16BigEndianBytes(text) {
+  const bytes = Buffer.from(text, 'utf16le');
+  bytes.swap16();
+  return bytes;
+}
+function utf32Bytes(text, bigEndian) {
+  const bytes = Buffer.allocUnsafe([...text].length * 4);
+  [...text].forEach((character, index) => {
+    const value = character.codePointAt(0);
+    if (bigEndian) bytes.writeUInt32BE(value, index * 4);
+    else bytes.writeUInt32LE(value, index * 4);
+  });
+  return bytes;
+}
+const PRIVATE_LIVING_WORLD_AUTHORITY_PATTERNS = Object.freeze(
+  [...PRIVATE_LIVING_WORLD_AUTHORITY_KEYS].flatMap(key => Object.freeze([
+    Buffer.from(key, 'ascii'),
+    Buffer.from(key, 'utf16le'),
+    utf16BigEndianBytes(key),
+    utf32Bytes(key, false),
+    utf32Bytes(key, true),
+  ])),
+);
+const PRIVATE_LIVING_WORLD_AUTHORITY_KEY_MAXIMUM_BYTES = Math.max(
+  ...PRIVATE_LIVING_WORLD_AUTHORITY_PATTERNS.map(pattern => pattern.length),
+);
+const LOCAL_PRIVATE_SCAN_OVERLAP_BYTES = Math.max(
+  GREATER_REALM_PRIVATE_MARKER_OVERLAP_BYTES,
+  PRIVATE_LIVING_WORLD_AUTHORITY_KEY_MAXIMUM_BYTES - 1,
+  ZIP_LOCAL_FILE_MAGIC.length - 1,
+  ZIP_CENTRAL_DIRECTORY_MAGIC.length - 1,
+  ZIP_END_OF_CENTRAL_DIRECTORY_MAGIC.length - 1,
+);
 const PUBLIC_BOUNDARY_PROHIBITED =
   'Warpkeep public directory contains a prohibited local artifact.';
 const PUBLIC_BOUNDARY_ATTESTATION_FAILED =
@@ -45,7 +129,7 @@ export const WARPKEEP_LOCAL_VITE_FS_DENY = Object.freeze([
   '*.{log,har,trace}',
   '*.{bak,backup,tmp}',
   '*.{sqlite,sqlite3,db,dump}',
-  '*.{zip,tar,tar.gz,tgz,7z}',
+  '*.{7z,bz2,gz,rar,tar,tar.gz,tgz,xz,zip,zst}',
   '**/.git/**',
   '**/.cache/**',
   '**/.wrangler/**',
@@ -106,11 +190,16 @@ const SENSITIVE_PUBLIC_SUFFIXES = Object.freeze([
   '.sqlite3',
   '.db',
   '.dump',
+  '.bz2',
+  '.gz',
+  '.rar',
   '.zip',
   '.tar',
   '.tar.gz',
   '.tgz',
   '.7z',
+  '.xz',
+  '.zst',
   '.wkgr-atlas',
   '.wkgr-checkpoint',
   '.wkgr-private',
@@ -178,6 +267,161 @@ function samePublicFileFingerprint(left, right) {
   return Object.keys(left).every(key => left[key] === right[key]);
 }
 
+function startsWithBytes(bytes, prefix) {
+  return bytes.length >= prefix.length
+    && bytes.subarray(0, prefix.length).equals(prefix);
+}
+
+function containsOpaqueArchiveMagic(bytes) {
+  return OPAQUE_ARCHIVE_PREFIXES.some(prefix => startsWithBytes(bytes, prefix))
+    || (
+      bytes.length >= TAR_USTAR_OFFSET + TAR_USTAR_MAGIC.length
+      && bytes.subarray(
+        TAR_USTAR_OFFSET,
+        TAR_USTAR_OFFSET + TAR_USTAR_MAGIC.length,
+      ).equals(TAR_USTAR_MAGIC)
+    );
+}
+
+function asciiLowercaseByte(value) {
+  return value >= 0x41 && value <= 0x5a ? value + 0x20 : value;
+}
+
+function jsonWhitespaceByte(value) {
+  return value === 0x20 || value === 0x09 || value === 0x0a || value === 0x0d;
+}
+
+function hexadecimalNibble(value) {
+  if (value >= 0x30 && value <= 0x39) return value - 0x30;
+  const casefolded = asciiLowercaseByte(value);
+  return casefolded >= 0x61 && casefolded <= 0x66
+    ? casefolded - 0x61 + 10
+    : -1;
+}
+
+function containsPrivateLivingWorldAuthority(bytes) {
+  const casefolded = Buffer.allocUnsafe(bytes.length);
+  try {
+    for (let offset = 0; offset < bytes.length; offset += 1) {
+      casefolded[offset] = asciiLowercaseByte(bytes[offset]);
+    }
+    return PRIVATE_LIVING_WORLD_AUTHORITY_PATTERNS.some(pattern => (
+      casefolded.indexOf(pattern) !== -1
+    ));
+  } finally {
+    casefolded.fill(0);
+  }
+}
+
+function createPrivateLivingWorldJsonScanner() {
+  const key = Buffer.alloc(PRIVATE_LIVING_WORLD_AUTHORITY_KEY_MAXIMUM_BYTES);
+  let keyLength = 0;
+  let mode = 0;
+  let candidatePossible = true;
+  let unicodeDigits = 0;
+  let unicodeValue = 0;
+  const resetCandidate = () => {
+    key.fill(0);
+    keyLength = 0;
+    candidatePossible = true;
+    unicodeDigits = 0;
+    unicodeValue = 0;
+  };
+  const appendCandidateByte = value => {
+    if (!candidatePossible || keyLength >= key.length) {
+      candidatePossible = false;
+      return;
+    }
+    key[keyLength] = asciiLowercaseByte(value);
+    keyLength += 1;
+  };
+  return Object.freeze({
+    scan(bytes) {
+      for (const value of bytes) {
+        if (mode === 0) {
+          if (value === 0x22) {
+            resetCandidate();
+            mode = 1;
+          }
+          continue;
+        }
+        if (mode === 1) {
+          if (value === 0x22) {
+            const candidate = candidatePossible
+              ? key.subarray(0, keyLength).toString('ascii')
+              : '';
+            key.fill(0);
+            keyLength = 0;
+            mode = PRIVATE_LIVING_WORLD_AUTHORITY_KEYS.has(candidate) ? 2 : 0;
+          } else if (value === 0x5c) {
+            mode = 3;
+          } else if (
+            value < 0x20
+            || value > 0x7e
+          ) {
+            candidatePossible = false;
+          } else {
+            appendCandidateByte(value);
+          }
+          continue;
+        }
+        if (mode === 3) {
+          if (value === 0x75) {
+            unicodeDigits = 0;
+            unicodeValue = 0;
+            mode = 4;
+          } else {
+            candidatePossible = false;
+            mode = 1;
+          }
+          continue;
+        }
+        if (mode === 4) {
+          const nibble = hexadecimalNibble(value);
+          if (nibble < 0) {
+            candidatePossible = false;
+            mode = 1;
+            continue;
+          }
+          unicodeValue = unicodeValue * 16 + nibble;
+          unicodeDigits += 1;
+          if (unicodeDigits === 4) {
+            if (unicodeValue >= 0x20 && unicodeValue <= 0x7e) {
+              appendCandidateByte(unicodeValue);
+            } else {
+              candidatePossible = false;
+            }
+            unicodeDigits = 0;
+            unicodeValue = 0;
+            mode = 1;
+          }
+          continue;
+        }
+        if (jsonWhitespaceByte(value)) continue;
+        if (value === 0x3a) publicBoundaryProhibited();
+        resetCandidate();
+        mode = value === 0x22 ? 1 : 0;
+      }
+    },
+    clear() {
+      resetCandidate();
+      mode = 0;
+    },
+  });
+}
+
+function zipEvidenceInBytes(bytes, initialEvidence) {
+  let evidence = initialEvidence;
+  if (bytes.indexOf(ZIP_LOCAL_FILE_MAGIC) !== -1) evidence |= ZIP_LOCAL_FILE_EVIDENCE;
+  if (bytes.indexOf(ZIP_CENTRAL_DIRECTORY_MAGIC) !== -1) {
+    evidence |= ZIP_CENTRAL_DIRECTORY_EVIDENCE;
+  }
+  if (bytes.indexOf(ZIP_END_OF_CENTRAL_DIRECTORY_MAGIC) !== -1) {
+    evidence |= ZIP_END_OF_CENTRAL_DIRECTORY_EVIDENCE;
+  }
+  return evidence;
+}
+
 function scanRegularPublicFile(path, expectedStats) {
   if (
     !expectedStats.isFile()
@@ -199,6 +443,9 @@ function scanRegularPublicFile(path, expectedStats) {
 
     let carry = Buffer.alloc(0);
     let remaining = opened.size;
+    let firstChunk = true;
+    let zipEvidence = 0;
+    const livingWorldJsonScanner = createPrivateLivingWorldJsonScanner();
     try {
       while (remaining > 0) {
         const chunk = Buffer.alloc(Math.min(PUBLIC_SCAN_CHUNK_BYTES, remaining));
@@ -212,11 +459,19 @@ function scanRegularPublicFile(path, expectedStats) {
             offset += count;
           }
           remaining -= chunk.length;
+          if (firstChunk) {
+            firstChunk = false;
+            if (containsOpaqueArchiveMagic(chunk)) publicBoundaryProhibited();
+          }
+          livingWorldJsonScanner.scan(chunk);
           window = carry.length === 0 ? chunk : Buffer.concat([carry, chunk]);
+          zipEvidence = zipEvidenceInBytes(window, zipEvidence);
+          if (zipEvidence === COMPLETE_ZIP_EVIDENCE) publicBoundaryProhibited();
+          if (containsPrivateLivingWorldAuthority(window)) publicBoundaryProhibited();
           if (containsGreaterRealmPrivateMarker(window)) publicBoundaryProhibited();
           nextCarry = Buffer.from(window.subarray(Math.max(
             0,
-            window.length - GREATER_REALM_PRIVATE_MARKER_OVERLAP_BYTES,
+            window.length - LOCAL_PRIVATE_SCAN_OVERLAP_BYTES,
           )));
         } finally {
           carry.fill(0);
@@ -227,6 +482,7 @@ function scanRegularPublicFile(path, expectedStats) {
       }
     } finally {
       carry.fill(0);
+      livingWorldJsonScanner.clear();
     }
 
     const after = fstatSync(descriptor);

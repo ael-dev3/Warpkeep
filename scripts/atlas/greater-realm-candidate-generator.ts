@@ -60,7 +60,7 @@ import {
 } from './greater-realm-relief-structure';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.11' as const;
+  'greater-realm-v2-natural-continent-pr-a.12' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
