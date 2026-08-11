@@ -15,7 +15,9 @@ export {
   adminSeedWorld,
   adminExpandGenesisWorldV3,
   adminAllowFid,
+  adminAllowFidForAccessRequestV1,
   adminAdmitFounderV1,
+  adminAdmitFounderForAccessRequestV2,
   adminDisableFid,
   adminBumpAuthEpoch,
   adminGetAlphaStatus,
@@ -34,6 +36,7 @@ export {
   accessRequestGetStatusV1,
   accessRequestSubmitV1,
   adminListAccessRequestsV1,
+  adminGetAccessRequestAdmissionStatusV1,
   adminGetAccessRequestResetStatusV1,
   adminResetAccessRequestV1,
 } from './reducers/accessRequests';

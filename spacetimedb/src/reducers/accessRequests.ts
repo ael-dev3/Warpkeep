@@ -52,6 +52,17 @@ const adminAccessRequestResetStatusV1 = t.object('AdminAccessRequestResetStatusV
   requestedAtMicros: t.option(t.u64()),
 });
 
+const adminAccessRequestAdmissionStatusV1 = t.object(
+  'AdminAccessRequestAdmissionStatusV1',
+  {
+    admissionState: t.string(),
+    authEpoch: t.u32(),
+    requestState: t.string(),
+    requestCycle: t.option(t.u64()),
+    requestedAtMicros: t.option(t.u64()),
+  },
+);
+
 type AdmissionState = AuthResolverAdmission['state'];
 
 function resolveAdmissionState(
@@ -156,6 +167,64 @@ function adminResetStatus(
   return {
     admissionState,
     authEpoch: allowed.authEpoch,
+    requestState,
+    requestCycle: request?.requestCycle,
+    requestedAtMicros: request === null ? undefined : requestedAtMicros(request),
+  };
+}
+
+/**
+ * Exact read-only admission/request view used by Hermes to prepare a request-
+ * CAS transition. The module does not observe notification delivery. Missing
+ * identities use epoch and cycle zero; existing identities retain their private
+ * auth epoch. Impossible future request cycles fail closed.
+ */
+function adminAdmissionStatus(
+  tx: Parameters<typeof requireAdmin>[0],
+  fid: bigint,
+) {
+  const allowed = tx.db.allowedFid.fid.find(fid);
+  const admissionState = resolveAdmissionState(allowed);
+  let authEpoch = 0;
+  if (allowed !== null) {
+    if (
+      !Number.isInteger(allowed.authEpoch)
+      || allowed.authEpoch < 1
+      || allowed.authEpoch > MAX_AUTH_EPOCH
+    ) {
+      throw new SenderError('ACCESS_REQUEST_STATE_INTEGRITY');
+    }
+    authEpoch = allowed.authEpoch;
+    assertGenesisFounderForFid(tx, fid);
+    assertGenesisResourceForFid(tx, fid);
+  }
+
+  const request = tx.db.accessRequestV1.fid.find(fid);
+  const currentRequestCycle = requestCycleForAdmission(allowed, admissionState);
+  const maximumStoredRequestCycle = admissionState === 'disabled'
+    ? BigInt(authEpoch) + 1n
+    : BigInt(authEpoch);
+  if (
+    request !== null
+    && (
+      (allowed === null && request.requestCycle !== 0n)
+      || (
+        allowed !== null
+        && request.requestCycle > maximumStoredRequestCycle
+      )
+    )
+  ) {
+    throw new SenderError('ACCESS_REQUEST_STATE_INTEGRITY');
+  }
+  const requestState = request === null
+    ? 'not_requested'
+    : currentRequestCycle !== undefined
+      && request.requestCycle === currentRequestCycle
+      ? 'pending'
+      : 'resolved';
+  return {
+    admissionState,
+    authEpoch,
     requestState,
     requestCycle: request?.requestCycle,
     requestedAtMicros: request === null ? undefined : requestedAtMicros(request),
@@ -346,6 +415,22 @@ export const adminListAccessRequestsV1 = warpkeep.procedure(
         totalRequests,
         pendingRequests,
       };
+    }),
+);
+
+/**
+ * Admin-only exact state for one request-CAS admission decision. The product
+ * contains no profile, note, notification credential, or external identity.
+ */
+export const adminGetAccessRequestAdmissionStatusV1 = warpkeep.procedure(
+  { name: 'admin_get_access_request_admission_status_v1' },
+  { fid: t.u64() },
+  adminAccessRequestAdmissionStatusV1,
+  (ctx, { fid }) =>
+    ctx.withTx(tx => {
+      requireAdmin(tx);
+      requireSupportedFid(fid);
+      return adminAdmissionStatus(tx, fid);
     }),
 );
 

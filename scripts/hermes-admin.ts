@@ -3,6 +3,10 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import type {
+  AdmissionNotificationDiagnostics,
+  AdmissionNotificationRetryReason,
+} from '../services/auth-bridge/src/types';
 import { DbConnection } from '../src/spacetime/module_bindings';
 import {
   WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
@@ -87,6 +91,7 @@ type Command =
   | 'inspect-access-request-reset'
   | 'reset-access-request'
   | 'admit-founder'
+  | 'inspect-admission-notification'
   | 'allow-fid'
   | 'disable-fid'
   | 'bump-auth-epoch'
@@ -116,6 +121,19 @@ const MAX_ADMIN_TOKEN_RESPONSE_BYTES = 32 * 1_024;
 const ADMISSION_NOTIFICATION_PATH = 'v1/admin/admission-notification';
 const ADMISSION_NOTIFICATION_STATUS_PATH = 'v1/admin/admission-notification-status';
 const ADMISSION_NOTIFICATION_SETTLEMENT_WAIT_MILLISECONDS = 35_000;
+const ADMISSION_NOTIFICATION_DIAGNOSTIC_REQUIRED_KEYS = Object.freeze([
+  'deliveryAttemptCount',
+  'retryReasons',
+  'status',
+  'verificationFailureCount',
+] as const);
+const ADMISSION_NOTIFICATION_DIAGNOSTIC_OPTIONAL_KEYS = Object.freeze([
+  'authEpoch',
+  'generation',
+  'lastAttemptAt',
+  'lastFailureReason',
+  'nextAttemptAt',
+] as const);
 const ADMIN_TOKEN_CLOCK_SAFETY_MILLISECONDS = 20_000;
 const MAX_RESOURCE_BACKFILL_FOUNDERS = 100n;
 const GENESIS_GENERATION_V2_WORLD_CELLS = 1_261n;
@@ -153,6 +171,7 @@ const ACCESS_REQUEST_RESET_STATUS_KEYS = Object.freeze([
   'requestedAtMicros',
   'requestState',
 ].sort());
+const ACCESS_REQUEST_ADMISSION_STATUS_KEYS = ACCESS_REQUEST_RESET_STATUS_KEYS;
 const WORKER_STATUS_V12_U64_FIELDS = Object.freeze([
   'systemRows',
   'expectedCastleCount',
@@ -216,7 +235,8 @@ export const FOUNDER_ADMISSION_TARGET_CONFIGURATION_DIGEST = createHash('sha256'
     databaseName: LEGACY_DATABASE_ALIAS,
     databaseIdentity: DEFAULT_DATABASE_IDENTITY,
     bridgeUrl: DEFAULT_BRIDGE,
-    reducer: 'admin_admit_founder_v1',
+    statusProcedure: 'admin_get_access_request_admission_status_v1',
+    reducer: 'admin_admit_founder_for_access_request_v2',
   }), 'utf8')
   .digest('hex');
 export const ACCESS_REQUEST_RESET_TARGET_CONFIGURATION_DIGEST = createHash('sha256')
@@ -381,6 +401,7 @@ function commandFrom(value: string | undefined): Command {
     || value === 'inspect-access-request-reset'
     || value === 'reset-access-request'
     || value === 'admit-founder'
+    || value === 'inspect-admission-notification'
     || value === 'allow-fid'
     || value === 'disable-fid'
     || value === 'bump-auth-epoch'
@@ -401,7 +422,7 @@ function commandFrom(value: string | undefined): Command {
   }
   fail(
     'Usage: hermes-admin.ts '
-    + '<seed-world|expand-world-v3|list-access-requests|inspect-access-request-reset|reset-access-request|admit-founder|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
+    + '<seed-world|expand-world-v3|list-access-requests|inspect-access-request-reset|reset-access-request|admit-founder|inspect-admission-notification|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
     + '[...args] [--dry-run] [--confirm]. admit-founder requires private stdin: '
     + '--input-stdin --dry-run creates a reviewed plan; --input-stdin --confirm consumes it; '
     + 'allow-fid only re-enables an existing complete founder. list-access-requests accepts '
@@ -463,10 +484,13 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     || command === 'inspect-publish-pre-v12'
     || command === 'inspect-publish-post-v12'
     || command === 'list-access-requests'
-    || command === 'inspect-access-request-reset';
+    || command === 'inspect-access-request-reset'
+    || command === 'inspect-admission-notification';
   const expectedPositionals = command === 'reset-access-request'
     ? 3
     : command === 'inspect-access-request-reset'
+      ? 2
+    : command === 'inspect-admission-notification'
       ? 2
     : command === 'allow-fid'
     || command === 'disable-fid'
@@ -712,6 +736,22 @@ type AccessRequestResetStatus = Readonly<{
   requestCycle: bigint | undefined;
   requestedAtMicros: bigint | undefined;
 }>;
+
+type AccessRequestAdmissionStatus = Readonly<{
+  admissionState: 'missing' | 'enabled' | 'disabled';
+  authEpoch: number;
+  requestState: 'not_requested' | 'pending' | 'resolved';
+  requestCycle: bigint | undefined;
+  requestedAtMicros: bigint | undefined;
+}>;
+
+type PendingAccessRequestAdmissionStatus<State extends 'missing' | 'disabled'> =
+  AccessRequestAdmissionStatus & Readonly<{
+    admissionState: State;
+    requestState: 'pending';
+    requestCycle: bigint;
+    requestedAtMicros: bigint;
+  }>;
 
 function exactObjectKeys(
   value: Record<string, unknown>,
@@ -976,6 +1016,122 @@ export function projectAccessRequestResetStatus(value: unknown): AccessRequestRe
     requestCycle,
     requestedAtMicros,
   });
+}
+
+/** Strict private projection used to bind one admission to one request tuple. */
+export function projectAccessRequestAdmissionStatus(
+  value: unknown,
+): AccessRequestAdmissionStatus {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    fail('Access request admission status was invalid.');
+  }
+  const status = value as Record<string, unknown>;
+  exactObjectKeys(
+    status,
+    ACCESS_REQUEST_ADMISSION_STATUS_KEYS,
+    'Access request admission status returned unexpected fields.',
+  );
+  if (
+    status.admissionState !== 'missing'
+    && status.admissionState !== 'enabled'
+    && status.admissionState !== 'disabled'
+  ) {
+    fail('Access request admission status returned an invalid admission state.');
+  }
+  if (
+    typeof status.authEpoch !== 'number'
+    || !Number.isInteger(status.authEpoch)
+    || status.authEpoch < 0
+    || status.authEpoch > 0xffff_ffff
+    || (status.admissionState === 'missing' && status.authEpoch !== 0)
+    || (status.admissionState !== 'missing' && status.authEpoch < 1)
+  ) {
+    fail('Access request admission status returned an invalid auth epoch.');
+  }
+  const requestCycle = status.requestCycle === undefined
+    ? undefined
+    : requireU64(
+      status.requestCycle,
+      true,
+      'Access request admission status returned an invalid request cycle.',
+    );
+  const requestedAtMicros = status.requestedAtMicros === undefined
+    ? undefined
+    : requireU64(
+      status.requestedAtMicros,
+      false,
+      'Access request admission status returned an invalid timestamp.',
+    );
+  if ((requestCycle === undefined) !== (requestedAtMicros === undefined)) {
+    fail('Access request admission status returned an incomplete request tuple.');
+  }
+  const maximumStoredRequestCycle = status.admissionState === 'disabled'
+    ? BigInt(status.authEpoch) + 1n
+    : BigInt(status.authEpoch);
+  if (requestCycle !== undefined && requestCycle > maximumStoredRequestCycle) {
+    fail('Access request admission status returned an impossible future request cycle.');
+  }
+  if (
+    status.requestState !== 'not_requested'
+    && status.requestState !== 'pending'
+    && status.requestState !== 'resolved'
+  ) {
+    fail('Access request admission status returned an invalid request state.');
+  }
+  const currentCycle = status.admissionState === 'missing'
+    ? 0n
+    : status.admissionState === 'disabled'
+      ? BigInt(status.authEpoch) + 1n
+      : undefined;
+  const expectedState = requestCycle === undefined
+    ? 'not_requested'
+    : currentCycle !== undefined && requestCycle === currentCycle
+      ? 'pending'
+      : 'resolved';
+  if (status.requestState !== expectedState) {
+    fail('Access request admission status returned an inconsistent request state.');
+  }
+  return Object.freeze({
+    admissionState: status.admissionState,
+    authEpoch: status.authEpoch,
+    requestState: status.requestState,
+    requestCycle,
+    requestedAtMicros,
+  });
+}
+
+export function requirePendingAdmissionRequest<State extends 'missing' | 'disabled'>(
+  status: AccessRequestAdmissionStatus,
+  expectedAdmissionState: State,
+): PendingAccessRequestAdmissionStatus<State> {
+  if (
+    status.admissionState !== expectedAdmissionState
+    || status.requestState !== 'pending'
+    || status.requestCycle === undefined
+    || status.requestedAtMicros === undefined
+  ) {
+    fail('Admission requires one exact pending access request of the expected kind.');
+  }
+  return Object.freeze({ ...status }) as PendingAccessRequestAdmissionStatus<State>;
+}
+
+export function requireUnchangedPendingAdmissionRequest<
+  State extends 'missing' | 'disabled',
+>(
+  before: PendingAccessRequestAdmissionStatus<State> | AccessRequestAdmissionStatus,
+  after: AccessRequestAdmissionStatus,
+  expectedAdmissionState: State,
+): PendingAccessRequestAdmissionStatus<State> {
+  const exactBefore = requirePendingAdmissionRequest(before, expectedAdmissionState);
+  const exactAfter = requirePendingAdmissionRequest(after, expectedAdmissionState);
+  if (
+    exactAfter.requestCycle !== exactBefore.requestCycle
+    || exactAfter.requestedAtMicros !== exactBefore.requestedAtMicros
+    || exactAfter.authEpoch !== exactBefore.authEpoch
+  ) {
+    fail('The exact pending access request changed before admission.');
+  }
+  return exactAfter;
 }
 
 function accessRequestTimestamp(micros: bigint): string {
@@ -1345,14 +1501,17 @@ export function verifyFounderAdmissionResourcePostconditionV4(
 export function verifyFounderReenablePrecondition(
   world: GenesisExpansionStatusV3,
   resources: ResourceAggregateV4,
-  target: AccessRequestResetStatus,
+  target: AccessRequestAdmissionStatus,
 ): Readonly<{
   world: GenesisExpansionStatusV3;
   resources: ResourceAggregateV4;
-  target: AccessRequestResetStatus;
+  target: AccessRequestAdmissionStatus;
 }> {
   verifyFounderAdmissionCheckpointV3(world, false);
   verifyExpectedResourceAggregateV4(resources, world.allowedFids);
+  if (target.admissionState === 'disabled' && target.authEpoch >= 0xffff_ffff) {
+    fail('Existing founder re-enable cannot rotate an exhausted auth epoch.');
+  }
   if (
     target.admissionState !== 'disabled'
     || target.requestState !== 'pending'
@@ -1371,7 +1530,7 @@ export function verifyFounderReenablePrecondition(
 export function verifyFounderReenablePostcondition(
   world: GenesisExpansionStatusV3,
   resources: ResourceAggregateV4,
-  target: AccessRequestResetStatus,
+  target: AccessRequestAdmissionStatus,
   before: ReturnType<typeof verifyFounderReenablePrecondition>,
 ): void {
   verifyFounderAdmissionCheckpointV3(world, false);
@@ -1411,6 +1570,29 @@ export function verifyFounderReenablePostcondition(
         + 'Do not retry before a bounded read-only investigation.',
       );
     }
+  }
+}
+
+export function verifyFounderAdmissionRequestPostcondition(
+  target: AccessRequestAdmissionStatus,
+  before: AccessRequestAdmissionStatus,
+): void {
+  if (
+    before.admissionState !== 'missing'
+    || before.authEpoch !== 0
+    || before.requestState !== 'pending'
+    || before.requestCycle !== 0n
+    || before.requestedAtMicros === undefined
+    || target.admissionState !== 'enabled'
+    || target.authEpoch !== 1
+    || target.requestState !== 'resolved'
+    || target.requestCycle !== before.requestCycle
+    || target.requestedAtMicros !== before.requestedAtMicros
+  ) {
+    fail(
+      'Founder admission request postcondition failed. The mutation outcome may be '
+      + 'indeterminate; perform a fresh bounded read-only inspection before any retry.',
+    );
   }
 }
 
@@ -1628,6 +1810,124 @@ export type AdmissionNotificationStatus =
   | 'delivery-exhausted'
   | 'not-subscribed';
 
+function isAdmissionNotificationRetryReason(
+  value: unknown,
+): value is AdmissionNotificationRetryReason {
+  return value === 'admission-verification'
+    || value === 'request-verification'
+    || value === 'transport'
+    || value === 'transport-timeout'
+    || value === 'transport-fetch-rejected'
+    || value === 'upstream-status'
+    || value === 'upstream-redirect'
+    || value === 'upstream-client-status'
+    || value === 'upstream-server-status'
+    || value === 'invalid-response'
+    || value === 'response-content-type'
+    || value === 'response-size'
+    || value === 'response-body'
+    || value === 'response-json'
+    || value === 'response-schema'
+    || value === 'rate-limited'
+    || value === 'provider-domain-mismatch'
+    || value === 'provider-target-url-mismatch'
+    || value === 'provider-no-webhook-url'
+    || value === 'provider-invalid-token'
+    || value === 'provider-unknown';
+}
+
+function isDiagnosticTimestamp(value: unknown): value is number {
+  return typeof value === 'number'
+    && Number.isSafeInteger(value)
+    && value >= 0;
+}
+
+/**
+ * Strict token-free projection for the bridge operator diagnostic. Unknown
+ * fields are rejected before any value can reach stdout.
+ */
+export function projectAdmissionNotificationDiagnostics(
+  value: unknown,
+): AdmissionNotificationDiagnostics {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    fail('The Warpkeep admission notification bridge returned invalid diagnostics.');
+  }
+  const diagnostic = value as Record<string, unknown>;
+  const keys = Object.keys(diagnostic);
+  if (
+    !ADMISSION_NOTIFICATION_DIAGNOSTIC_REQUIRED_KEYS.every(key => (
+      Object.prototype.hasOwnProperty.call(diagnostic, key)
+    ))
+    || !keys.every(key => (
+      ADMISSION_NOTIFICATION_DIAGNOSTIC_REQUIRED_KEYS.includes(
+        key as typeof ADMISSION_NOTIFICATION_DIAGNOSTIC_REQUIRED_KEYS[number],
+      )
+      || ADMISSION_NOTIFICATION_DIAGNOSTIC_OPTIONAL_KEYS.includes(
+        key as typeof ADMISSION_NOTIFICATION_DIAGNOSTIC_OPTIONAL_KEYS[number],
+      )
+    ))
+    || (
+      diagnostic.status !== 'queued'
+      && diagnostic.status !== 'already-sent'
+      && diagnostic.status !== 'delivery-exhausted'
+      && diagnostic.status !== 'not-subscribed'
+    )
+    || (
+      diagnostic.generation !== undefined
+      && diagnostic.generation !== 'admitted'
+      && diagnostic.generation !== 'pending-request'
+    )
+    || (
+      diagnostic.authEpoch !== undefined
+      && (
+        typeof diagnostic.authEpoch !== 'number'
+        || !Number.isInteger(diagnostic.authEpoch)
+        || diagnostic.authEpoch < 1
+        || diagnostic.authEpoch > 0xffff_ffff
+      )
+    )
+    || (diagnostic.generation === 'pending-request' && diagnostic.authEpoch !== undefined)
+    || (diagnostic.generation === 'admitted' && diagnostic.authEpoch === undefined)
+    || (diagnostic.generation !== 'admitted' && diagnostic.authEpoch !== undefined)
+    || typeof diagnostic.deliveryAttemptCount !== 'number'
+    || !Number.isSafeInteger(diagnostic.deliveryAttemptCount)
+    || diagnostic.deliveryAttemptCount < 0
+    || typeof diagnostic.verificationFailureCount !== 'number'
+    || !Number.isSafeInteger(diagnostic.verificationFailureCount)
+    || diagnostic.verificationFailureCount < 0
+    || !Array.isArray(diagnostic.retryReasons)
+    || diagnostic.retryReasons.some(reason => !isAdmissionNotificationRetryReason(reason))
+    || new Set(diagnostic.retryReasons).size !== diagnostic.retryReasons.length
+    || (diagnostic.lastAttemptAt !== undefined
+      && !isDiagnosticTimestamp(diagnostic.lastAttemptAt))
+    || (diagnostic.lastFailureReason !== undefined
+      && !isAdmissionNotificationRetryReason(diagnostic.lastFailureReason))
+    || (diagnostic.nextAttemptAt !== undefined
+      && !isDiagnosticTimestamp(diagnostic.nextAttemptAt))
+  ) {
+    fail('The Warpkeep admission notification bridge returned invalid diagnostics.');
+  }
+  return Object.freeze({
+    status: diagnostic.status,
+    ...(diagnostic.generation === undefined ? {} : { generation: diagnostic.generation }),
+    ...(diagnostic.authEpoch === undefined ? {} : { authEpoch: diagnostic.authEpoch }),
+    deliveryAttemptCount: diagnostic.deliveryAttemptCount,
+    verificationFailureCount: diagnostic.verificationFailureCount,
+    retryReasons: Object.freeze([
+      ...diagnostic.retryReasons,
+    ] as AdmissionNotificationRetryReason[]),
+    ...(diagnostic.lastAttemptAt === undefined
+      ? {}
+      : { lastAttemptAt: diagnostic.lastAttemptAt }),
+    ...(diagnostic.lastFailureReason === undefined
+      ? {}
+      : { lastFailureReason: diagnostic.lastFailureReason }),
+    ...(diagnostic.nextAttemptAt === undefined
+      ? {}
+      : { nextAttemptAt: diagnostic.nextAttemptAt }),
+  }) as AdmissionNotificationDiagnostics;
+}
+
 export function readNotificationOperatorSecret(value: string | undefined): string {
   const bytes = new TextEncoder().encode(value ?? '');
   try {
@@ -1696,7 +1996,10 @@ export async function inspectAdmissionNotification(
   fid: bigint,
   secret: string,
   fetchImpl: typeof fetch = fetch,
-): Promise<AdmissionNotificationStatus> {
+): Promise<AdmissionNotificationDiagnostics> {
+  if (fid < 1n || fid > BigInt(Number.MAX_SAFE_INTEGER)) {
+    fail('A positive, JavaScript-safe decimal FID is required.');
+  }
   readNotificationOperatorSecret(secret);
   let response: Response;
   try {
@@ -1718,18 +2021,7 @@ export async function inspectAdmissionNotification(
   }
   if (!response.ok) fail('The Warpkeep admission notification bridge rejected inspection.');
   const body = await readBoundedAdminResponse(response);
-  const status = body && typeof body === 'object' && !Array.isArray(body)
-    ? (body as { status?: unknown }).status
-    : undefined;
-  if (
-    status !== 'queued'
-    && status !== 'already-sent'
-    && status !== 'delivery-exhausted'
-    && status !== 'not-subscribed'
-  ) {
-    fail('The Warpkeep admission notification bridge returned invalid diagnostics.');
-  }
-  return status;
+  return projectAdmissionNotificationDiagnostics(body);
 }
 
 export async function requireNotificationBeforeAdmission(
@@ -1760,10 +2052,19 @@ export async function requireNotificationBeforeAdmission(
       + 'Admission remains unchanged; reconcile notification consent before retrying.',
     );
   }
+  if (status === 'not-subscribed') {
+    fail(
+      'Farcaster notifications are not enabled for this identity. '
+      + 'Admission remains pending until the player enables notifications.',
+    );
+  }
+  if (status !== 'already-sent') {
+    fail('The pending-request notification did not reach a safe admission state.');
+  }
   console.log(JSON.stringify({
     admissionNotification: status,
-    providerAcceptanceRequired: status !== 'not-subscribed',
-    providerAcceptedBeforeAdmission: status === 'already-sent',
+    providerAcceptanceRequired: true,
+    providerAcceptedBeforeAdmission: true,
   }));
   return status;
 }
@@ -1829,6 +2130,15 @@ export function requireGenesisExpansionProductionTarget(database: string): void 
 export function requireAccessRequestInspectionProductionTarget(database: string): void {
   if (database !== DEFAULT_DATABASE_IDENTITY) {
     fail('Access request inspection requires the immutable Warpkeep production database identity.');
+  }
+}
+
+/** Notification diagnostics are a separate credential domain pinned to prod. */
+export function requireAdmissionNotificationInspectionProductionTarget(
+  bridgeUrl: string,
+): void {
+  if (bridgeUrl !== DEFAULT_BRIDGE) {
+    fail('Admission notification inspection requires the canonical Warpkeep bridge.');
   }
 }
 
@@ -1906,6 +2216,53 @@ export function connect(
       rejectUnavailable();
     }
   });
+}
+
+type NotificationGatedReconnectDependencies = Readonly<{
+  waitForNotification?: typeof requireNotificationBeforeAdmission;
+  requestToken?: typeof requestAdminToken;
+  connectToDatabase?: typeof connect;
+}>;
+
+/**
+ * Do not retain a privileged Spacetime connection or expiring admin JWT while
+ * notification delivery settles. Fresh database authority is minted only after
+ * provider acceptance and immediately before the exact request-CAS recheck.
+ */
+export async function reconnectAfterAdmissionNotification(
+  input: Readonly<{
+    connection: DbConnection;
+    bridgeUrl: string;
+    fid: bigint;
+    notificationOperatorSecret: string | undefined;
+    adminSecret: string;
+    uri: string;
+    database: string;
+  }>,
+  dependencies: NotificationGatedReconnectDependencies = {},
+): Promise<DbConnection> {
+  disconnectSilently(input.connection);
+  await (
+    dependencies.waitForNotification
+    ?? requireNotificationBeforeAdmission
+  )(
+    input.bridgeUrl,
+    input.fid,
+    input.notificationOperatorSecret,
+  );
+  let freshToken = '';
+  try {
+    freshToken = await (
+      dependencies.requestToken
+      ?? requestAdminToken
+    )(input.bridgeUrl, input.adminSecret);
+    return await (
+      dependencies.connectToDatabase
+      ?? connect
+    )(input.uri, input.database, freshToken);
+  } finally {
+    freshToken = '';
+  }
 }
 
 export async function readStatus(
@@ -2050,7 +2407,23 @@ async function main() {
   } = parseHermesArguments();
   const notificationOperatorSecret = process.env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET;
   delete process.env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET;
-  configureHermesMachineOutput(machineReadableInspection);
+  configureHermesMachineOutput(
+    machineReadableInspection || command === 'inspect-admission-notification',
+  );
+  if (command === 'inspect-admission-notification') {
+    const bridgeUrl = readHttpsUrl(
+      process.env.WARPKEEP_AUTH_BRIDGE_URL,
+      'WARPKEEP_AUTH_BRIDGE_URL',
+    );
+    requireAdmissionNotificationInspectionProductionTarget(bridgeUrl);
+    const diagnostics = await inspectAdmissionNotification(
+      bridgeUrl,
+      readFid(positional[1]),
+      readNotificationOperatorSecret(notificationOperatorSecret),
+    );
+    console.log(JSON.stringify(diagnostics));
+    return;
+  }
   // Durable data migrations and new founder admission always require a visible
   // command-line confirmation.
   // The legacy noninteractive switch remains available to older bounded
@@ -2271,8 +2644,15 @@ async function main() {
       ? '1'
       : process.env.WARPKEEP_ADMIN_TOKEN_SECRET_STDIN,
   );
-  const token = await requestAdminToken(bridgeUrl, secret);
-  const connection = await connect(uri, database, token);
+  let token = await requestAdminToken(bridgeUrl, secret);
+  let connection: DbConnection;
+  try {
+    connection = await connect(uri, database, token);
+  } finally {
+    // The connected SDK transport owns its authenticated session. Do not keep
+    // a second immutable JWT alive while the operator performs checks.
+    token = '';
+  }
   let founderAdmissionClaimed = false;
   let accessRequestResetClaimed = false;
   try {
@@ -2519,6 +2899,41 @@ async function main() {
       && admissionPlan !== undefined
       && admissionPlanReference !== undefined
     ) {
+      const initialTarget = requirePendingAdmissionRequest(
+        projectAccessRequestAdmissionStatus(
+          await withOperationTimeout(
+            connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
+          ),
+        ),
+        'missing',
+      );
+      const initialWorld = verifyFounderAdmissionPreconditionV3(
+        await readStatus(connection, 'v3') as GenesisExpansionStatusV3,
+      );
+      verifyFounderAdmissionResourcePreconditionV4(
+        await readStatus(connection, 'v4') as ResourceAggregateV4,
+        initialWorld.allowedFids,
+      );
+      normalizeAdmissionReadyTrustedProfile(admissionProfile);
+
+      connection = await reconnectAfterAdmissionNotification({
+        connection,
+        bridgeUrl,
+        fid,
+        notificationOperatorSecret,
+        adminSecret: secret,
+        uri,
+        database,
+      });
+      const freshTarget = requireUnchangedPendingAdmissionRequest(
+        initialTarget,
+        projectAccessRequestAdmissionStatus(
+          await withOperationTimeout(
+            connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
+          ),
+        ),
+        'missing',
+      );
       const before = verifyFounderAdmissionPreconditionV3(
         await readStatus(connection, 'v3') as GenesisExpansionStatusV3,
       );
@@ -2526,34 +2941,31 @@ async function main() {
         await readStatus(connection, 'v4') as ResourceAggregateV4,
         before.allowedFids,
       );
-      const targetAuthEpoch = await withOperationTimeout(
-        connection.procedures.adminGetFidAuthEpoch({ fid }),
-      );
-      if (targetAuthEpoch !== 0) {
-        fail('Profiled admission requires a founder FID that has not been admitted before.');
-      }
-      // All local, credential, connection, plan, profile, capacity, and
-      // persistent graph checks have passed. Bind provider acceptance to the
-      // still-current request immediately before the one admission mutation.
-      await requireNotificationBeforeAdmission(
-        bridgeUrl,
-        fid,
-        notificationOperatorSecret,
-      );
+      const freshAdmissionProfile = normalizeAdmissionReadyTrustedProfile(admissionProfile);
       claimReviewedFounderAdmissionPlan({
         plan: admissionPlan,
         sha256: admissionPlanReference.sha256,
       });
       founderAdmissionClaimed = true;
-      await withOperationTimeout(connection.reducers.adminAdmitFounderV1({
+      await withOperationTimeout(connection.reducers.adminAdmitFounderForAccessRequestV2({
         fid,
         note,
-        canonicalUsername: admissionProfile.canonicalUsername,
-        displayName: admissionProfile.displayName,
-        pfpUrl: admissionProfile.pfpUrl,
-        publicBio: admissionProfile.publicBio,
+        expectedRequestCycle: freshTarget.requestCycle,
+        expectedRequestedAtMicros: freshTarget.requestedAtMicros,
+        canonicalUsername: freshAdmissionProfile.canonicalUsername,
+        displayName: freshAdmissionProfile.displayName,
+        pfpUrl: freshAdmissionProfile.pfpUrl,
+        publicBio: freshAdmissionProfile.publicBio,
         profilePolicyVersion: FARCASTER_PROFILE_POLICY_VERSION,
       }));
+      verifyFounderAdmissionRequestPostcondition(
+        projectAccessRequestAdmissionStatus(
+          await withOperationTimeout(
+            connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
+          ),
+        ),
+        freshTarget,
+      );
       verifyFounderAdmissionPostconditionV3(
         await readStatus(connection, 'v3') as GenesisExpansionStatusV3,
         before,
@@ -2565,28 +2977,51 @@ async function main() {
       founderAdmissionClaimed = false;
       mutationStatusHandled = true;
     } else if (command === 'allow-fid' && fid !== undefined && note !== undefined) {
-      const beforeTarget = projectAccessRequestResetStatus(
+      const initialTarget = projectAccessRequestAdmissionStatus(
         await withOperationTimeout(
-          connection.procedures.adminGetAccessRequestResetStatusV1({ fid }),
+          connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
         ),
+      );
+      verifyFounderReenablePrecondition(
+        await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
+        await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
+        initialTarget,
+      );
+      connection = await reconnectAfterAdmissionNotification({
+        connection,
+        bridgeUrl,
+        fid,
+        notificationOperatorSecret,
+        adminSecret: secret,
+        uri,
+        database,
+      });
+      const freshTarget = requireUnchangedPendingAdmissionRequest(
+        initialTarget,
+        projectAccessRequestAdmissionStatus(
+          await withOperationTimeout(
+            connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
+          ),
+        ),
+        'disabled',
       );
       const before = verifyFounderReenablePrecondition(
         await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
         await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
-        beforeTarget,
+        freshTarget,
       );
-      await requireNotificationBeforeAdmission(
-        bridgeUrl,
+      await withOperationTimeout(connection.reducers.adminAllowFidForAccessRequestV1({
         fid,
-        notificationOperatorSecret,
-      );
-      await withOperationTimeout(connection.reducers.adminAllowFid({ fid, note }));
+        note,
+        expectedRequestCycle: freshTarget.requestCycle,
+        expectedRequestedAtMicros: freshTarget.requestedAtMicros,
+      }));
       verifyFounderReenablePostcondition(
         await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
         await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
-        projectAccessRequestResetStatus(
+        projectAccessRequestAdmissionStatus(
           await withOperationTimeout(
-            connection.procedures.adminGetAccessRequestResetStatusV1({ fid }),
+            connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
           ),
         ),
         before,

@@ -13,8 +13,10 @@ import AdminActivateGenesisWaterRevisionV1Reducer from "../admin_activate_genesi
 import AdminActivateInnerKeepV1Reducer from "../admin_activate_inner_keep_v_1_reducer";
 import AdminActivateRealmChatV1Reducer from "../admin_activate_realm_chat_v_1_reducer";
 import AdminActivateWorkerSystemV1Reducer from "../admin_activate_worker_system_v_1_reducer";
+import AdminAdmitFounderForAccessRequestV2Reducer from "../admin_admit_founder_for_access_request_v_2_reducer";
 import AdminAdmitFounderV1Reducer from "../admin_admit_founder_v_1_reducer";
 import AdminAllowFidReducer from "../admin_allow_fid_reducer";
+import AdminAllowFidForAccessRequestV1Reducer from "../admin_allow_fid_for_access_request_v_1_reducer";
 import AdminBackfillDailyMarkAccountsV1Reducer from "../admin_backfill_daily_mark_accounts_v_1_reducer";
 import AdminBackfillInnerKeepBuildersV1Reducer from "../admin_backfill_inner_keep_builders_v_1_reducer";
 import AdminBackfillResourceAccountsV1Reducer from "../admin_backfill_resource_accounts_v_1_reducer";
@@ -68,8 +70,10 @@ export type AdminActivateGenesisWaterRevisionV1Params = __Infer<typeof AdminActi
 export type AdminActivateInnerKeepV1Params = __Infer<typeof AdminActivateInnerKeepV1Reducer>;
 export type AdminActivateRealmChatV1Params = __Infer<typeof AdminActivateRealmChatV1Reducer>;
 export type AdminActivateWorkerSystemV1Params = __Infer<typeof AdminActivateWorkerSystemV1Reducer>;
+export type AdminAdmitFounderForAccessRequestV2Params = __Infer<typeof AdminAdmitFounderForAccessRequestV2Reducer>;
 export type AdminAdmitFounderV1Params = __Infer<typeof AdminAdmitFounderV1Reducer>;
 export type AdminAllowFidParams = __Infer<typeof AdminAllowFidReducer>;
+export type AdminAllowFidForAccessRequestV1Params = __Infer<typeof AdminAllowFidForAccessRequestV1Reducer>;
 export type AdminBackfillDailyMarkAccountsV1Params = __Infer<typeof AdminBackfillDailyMarkAccountsV1Reducer>;
 export type AdminBackfillInnerKeepBuildersV1Params = __Infer<typeof AdminBackfillInnerKeepBuildersV1Reducer>;
 export type AdminBackfillResourceAccountsV1Params = __Infer<typeof AdminBackfillResourceAccountsV1Reducer>;

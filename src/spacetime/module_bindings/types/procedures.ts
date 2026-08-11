@@ -8,6 +8,7 @@ import { type Infer as __Infer } from "spacetimedb";
 // Import all procedure arg schemas
 import * as AccessRequestGetStatusV1Procedure from "../access_request_get_status_v_1_procedure";
 import * as AccessRequestSubmitV1Procedure from "../access_request_submit_v_1_procedure";
+import * as AdminGetAccessRequestAdmissionStatusV1Procedure from "../admin_get_access_request_admission_status_v_1_procedure";
 import * as AdminGetAccessRequestResetStatusV1Procedure from "../admin_get_access_request_reset_status_v_1_procedure";
 import * as AdminGetAlphaStatusProcedure from "../admin_get_alpha_status_procedure";
 import * as AdminGetAlphaStatusV2Procedure from "../admin_get_alpha_status_v_2_procedure";
@@ -52,6 +53,8 @@ export type AccessRequestGetStatusV1Args = __Infer<typeof AccessRequestGetStatus
 export type AccessRequestGetStatusV1Result = __Infer<typeof AccessRequestGetStatusV1Procedure.returnType>;
 export type AccessRequestSubmitV1Args = __Infer<typeof AccessRequestSubmitV1Procedure.params>;
 export type AccessRequestSubmitV1Result = __Infer<typeof AccessRequestSubmitV1Procedure.returnType>;
+export type AdminGetAccessRequestAdmissionStatusV1Args = __Infer<typeof AdminGetAccessRequestAdmissionStatusV1Procedure.params>;
+export type AdminGetAccessRequestAdmissionStatusV1Result = __Infer<typeof AdminGetAccessRequestAdmissionStatusV1Procedure.returnType>;
 export type AdminGetAccessRequestResetStatusV1Args = __Infer<typeof AdminGetAccessRequestResetStatusV1Procedure.params>;
 export type AdminGetAccessRequestResetStatusV1Result = __Infer<typeof AdminGetAccessRequestResetStatusV1Procedure.returnType>;
 export type AdminGetAlphaStatusArgs = __Infer<typeof AdminGetAlphaStatusProcedure.params>;
