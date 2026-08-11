@@ -233,7 +233,16 @@ pass. Confirm:
 ### Admission notification rollout
 
 Farcaster admission notifications are an optional auth-bridge capability, not
-a SpacetimeDB schema change. Roll them out in this order:
+a SpacetimeDB schema change. The checked-in Hermes activation-client literal
+`FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED`, Worker literal
+`APPROVAL_NOTIFICATIONS_ENABLED`, and Pages presentation literal
+`VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED` begin `false`. Hermes and Pages
+must remain `false` until the separately approved final notification phase;
+the Worker may become live only in the protected bridge-prepared phase below.
+This is an intentional temporary admission blackout: confirmed `admit-founder` and `allow-fid`
+execution stops before bridge delivery, administrator-token issuance, database
+connection, plan claim, or reducer submission. A false Hermes gate must never
+skip delivery and continue admission. Roll them out in this order:
 
 1. Add a dedicated managed `NOTIFICATION_OPERATOR_SECRET` to the currently
    deployed bridge before introducing the two checked-in notification settings.
@@ -253,16 +262,21 @@ a SpacetimeDB schema change. Roll them out in this order:
    `APPROVAL_NOTIFICATIONS_ENABLED=false` first, so the advertised endpoint is
    present but cannot record new consent or deliver an alert. Signed opt-outs
    remain usable through the paused bridge.
-5. In a separate, explicitly approved Worker configuration change, enable and
-   attest the backend gate without changing the manifest or frontend gate. Use
-   one owner-controlled production client to generate a real
-   enable/add event followed by a disable/remove event. Confirm only
-   privacy-safe static evidence; never retain the signed body or token.
-6. Keep `VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED=false` until both signed
-   canary events pass. Then change only that public presentation gate to the
-   literal value `true` in a reviewed frontend release; it does not enable the
-   Worker or grant admission.
-7. Give Hermes both isolated secrets through its private environment. For
+5. Keep all three literals `false` through backend, manifest, and client
+   rehearsal. Then create a protected `notification-bridge-prepared` receipt
+   only after the reviewed Worker is live and verified with its delivery gate
+   enabled while Hermes and Pages remain `false`. This preparation phase has
+   zero Hermes delivery, token, database, or admission calls. The release
+   verifier must attest the exact source literals and protected bridge receipt;
+   publisher approval alone is not activation-client or live-bridge evidence.
+6. In the separately approved final notification phase, require that protected
+   receipt and change Hermes plus Pages to `true` while preserving the verified
+   Worker. No Hermes-only or Pages-only `true` posture is admissible. Use one
+   owner-controlled production client for the signed enable/add and
+   disable/remove canary, and retain only privacy-safe static evidence—not the
+   signed body or token.
+7. Give Hermes both isolated secrets through its private environment only after
+   that coordinated release. For
    `allow-fid` and confirmed `admit-founder`, Hermes must queue the exact pending
    request generation before requesting the fresh mutation-session administrator
    token or invoking a reducer. If the player opted in, require Farcaster
@@ -292,8 +306,8 @@ it.
    `miniapp_notification_unsubscribed`. This proves the signed opt-out reached
    the private erasure path. Confirm ordinary authentication still works and no
    approval notification was sent during this canary.
-4. After review, enable the client presentation gate in one narrow release and
-   verify the deployed build SHA. With a fresh pending request cycle, confirm
+4. After review, execute the coordinated Hermes, Worker, and client activation
+   described above and verify the deployed build SHA. With a fresh pending request cycle, confirm
    **REQUEST RECEIVED**, select **ENABLE ADMISSION ALERTS** once, accept the
    native prompt, and observe either the enabled host hint or the truthful
    setup-requested state. The access request timestamp and state must not
@@ -320,9 +334,10 @@ It contains no realm name or player identity. The admitted-epoch payload is
 retired and must be cancelled without delivery. Any copy change requires a
 separate reviewed Worker rollout.
 
-For rollback, set `APPROVAL_NOTIFICATIONS_ENABLED=false` first, then return
-`VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED=false` and deploy the last
-reviewed frontend. Leave the webhook verifier and client configuration
+For rollback, first return the Hermes literal and
+`VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED` to `false`, restoring the
+admission blackout, then set `APPROVAL_NOTIFICATIONS_ENABLED=false` and deploy
+the last reviewed frontend. Leave the webhook verifier and client configuration
 available so signed disable/remove events can erase stored tokens. Keep the
 manifest webhook, `v5` class, binding, and cleanup implementation; do not
 destructively delete private state, disable public authentication, or revoke

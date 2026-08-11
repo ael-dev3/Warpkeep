@@ -148,6 +148,7 @@ const MAX_ADMIN_TOKEN_RESPONSE_BYTES = 32 * 1_024;
 const ADMISSION_NOTIFICATION_PATH = 'v1/admin/admission-notification';
 const ADMISSION_NOTIFICATION_RECOVERY_PATH = 'v1/admin/admission-notification-recovery';
 const ADMISSION_NOTIFICATION_STATUS_PATH = 'v1/admin/admission-notification-status';
+export const FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = false as const;
 const ADMISSION_NOTIFICATION_SETTLEMENT_WAIT_MILLISECONDS = 35_000;
 const ADMISSION_NOTIFICATION_DIAGNOSTIC_REQUIRED_KEYS = Object.freeze([
   'deliveryAttemptCount',
@@ -344,6 +345,20 @@ class HermesClaimedAdmissionNotificationRecoveryOutcomeError extends Error {
 
 function fail(message: string): never {
   throw new HermesCliError(message);
+}
+
+type NotificationGatedFounderCommand = Extract<Command, 'admit-founder' | 'allow-fid'>;
+
+export function requireFounderAdmissionNotificationDeliveryApproval(
+  command: NotificationGatedFounderCommand,
+  approved: boolean = FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED,
+): void {
+  if (!approved) {
+    fail(
+      'Founder admission notification delivery is not approved. '
+      + `${command} remains unavailable until the coordinated notification release.`,
+    );
+  }
 }
 
 export function privacySafeHermesErrorMessage(error: unknown): string {
@@ -2749,6 +2764,14 @@ async function main() {
     privateInputStdin,
     accessRequestList,
   } = parseHermesArguments();
+  // This checked-in literal is the activation-client side of the coordinated
+  // notification release envelope. False is a complete mutation blackout: it
+  // is checked before credentials, bridge delivery, administrator-token
+  // issuance, database connection, reviewed-plan access or claim, and either
+  // admission reducer. It must never become a skip-delivery path.
+  if ((command === 'admit-founder' || command === 'allow-fid') && !dryRun) {
+    requireFounderAdmissionNotificationDeliveryApproval(command);
+  }
   const notificationOperatorSecret = process.env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET;
   delete process.env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET;
   configureHermesMachineOutput(

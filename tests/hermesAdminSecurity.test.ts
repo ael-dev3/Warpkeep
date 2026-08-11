@@ -12,6 +12,7 @@ import { configureHermesMachineOutput } from '../scripts/hermes-machine-output';
 import {
   admissionReadinessSummary,
   connect,
+  FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED,
   FOUNDER_ADMISSION_SOURCE_CONFIGURATION_DIGEST,
   inspectAdmissionNotification,
   listAccessRequests,
@@ -38,6 +39,7 @@ import {
   requireAlphaComponentActivationProductionTarget,
   requireCredentialedProductionTarget,
   requireFounderAdmissionProductionTarget,
+  requireFounderAdmissionNotificationDeliveryApproval,
   requireGenesisExpansionProductionTarget,
   requireResourceBackfillProductionTarget,
   resolveAdmissionReadyFounderProfile,
@@ -787,6 +789,91 @@ describe('Hermes machine-readable output', () => {
 });
 
 describe('Hermes command-line boundary', () => {
+  it('keeps both founder mutation paths behind one literal notification release gate', () => {
+    expect(FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED).toBe(false);
+
+    for (const command of ['admit-founder', 'allow-fid'] as const) {
+      const calls = {
+        bridgeDelivery: vi.fn(),
+        token: vi.fn(),
+        connection: vi.fn(),
+        planClaim: vi.fn(),
+        reducer: vi.fn(),
+      };
+      const execute = (approved: boolean) => {
+        requireFounderAdmissionNotificationDeliveryApproval(command, approved);
+        calls.bridgeDelivery();
+        calls.token();
+        calls.connection();
+        calls.planClaim();
+        calls.reducer();
+      };
+
+      expect(() => execute(false)).toThrow(
+        `Founder admission notification delivery is not approved. ${command} remains unavailable until the coordinated notification release.`,
+      );
+      expect(Object.values(calls).every(call => call.mock.calls.length === 0)).toBe(true);
+
+      expect(() => execute(true)).not.toThrow();
+      expect(Object.values(calls).every(call => call.mock.calls.length === 1)).toBe(true);
+    }
+  });
+
+  it('checks the functional notification gate before transport, claims, or reducers', () => {
+    const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
+    expect(source.match(
+      /export const FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = false as const;/g,
+    )).toHaveLength(1);
+
+    const mainSource = source.slice(source.indexOf('async function main()'));
+    const releaseGate = mainSource.indexOf(
+      'requireFounderAdmissionNotificationDeliveryApproval(command);',
+    );
+    const notificationCredential = mainSource.indexOf(
+      'const notificationOperatorSecret = process.env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET;',
+    );
+    const credential = mainSource.indexOf('const secret = readAdminSecret(');
+    const token = mainSource.indexOf('let token = await requestAdminToken(');
+    const connection = mainSource.indexOf('connection = await connect(');
+    const claim = mainSource.indexOf('claimReviewedFounderAdmissionPlan({');
+    const admissionReducer = mainSource.indexOf(
+      'connection.reducers.adminAdmitFounderForAccessRequestV2(',
+    );
+    const reenableReducer = mainSource.indexOf(
+      'connection.reducers.adminAllowFidForAccessRequestV1(',
+    );
+    expect(releaseGate).toBeGreaterThan(-1);
+    expect(notificationCredential).toBeGreaterThan(releaseGate);
+    expect(credential).toBeGreaterThan(releaseGate);
+    expect(token).toBeGreaterThan(releaseGate);
+    expect(connection).toBeGreaterThan(releaseGate);
+    expect(claim).toBeGreaterThan(releaseGate);
+    expect(admissionReducer).toBeGreaterThan(claim);
+    expect(reenableReducer).toBeGreaterThan(releaseGate);
+  });
+
+  it('blacks out confirmed founder execution before reading credentials or targets', () => {
+    for (const [command, arguments_] of [
+      ['admit-founder', ['admit-founder', '--input-stdin', '--confirm']],
+      ['allow-fid', ['allow-fid', '12345', 'reviewed note', '--confirm']],
+    ] as const) {
+      const result = runHermes([...arguments_], {
+        WARPKEEP_NOTIFICATION_OPERATOR_SECRET: 'MUST_NOT_BE_READ',
+        WARPKEEP_ADMIN_TOKEN_SECRET: undefined,
+        WARPKEEP_SPACETIMEDB_URI: 'http://invalid.example',
+        WARPKEEP_SPACETIMEDB_DATABASE: 'INVALID_DATABASE',
+        WARPKEEP_AUTH_BRIDGE_URL: 'http://invalid.example',
+      });
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(result.stderr.trim()).toBe(
+        `Founder admission notification delivery is not approved. ${command} remains unavailable until the coordinated notification release.`,
+      );
+      expect(result.stderr).not.toContain('MUST_NOT_BE_READ');
+      expect(result.stderr).not.toContain('WARPKEEP_');
+    }
+  });
+
   it('rejects unknown, duplicate, misplaced, and extra arguments', () => {
     expect(parseHermesArguments(['inspect-alpha', '--json'])).toMatchObject({
       command: 'inspect-alpha',

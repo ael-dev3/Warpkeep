@@ -12,7 +12,8 @@ full engineering record.
   target-specific proofs. Added one auditable recovery cycle for an exhausted
   first-time Farcaster alert without changing its notification ID, terminal
   receipts, notification consent, or admission state. Notification and
-  presentation gates remain off.
+  presentation gates remain off, including an explicit Hermes mutation-blackout
+  literal bound to both founder admission paths.
 
 - Added the active-only Greater Realm founding authority behind the existing
   profiled admission paths. Future founders receive a server-selected balanced
