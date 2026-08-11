@@ -1,6 +1,7 @@
 import type { InferSchema, ReducerCtx } from 'spacetimedb/server';
 import { ScheduleAt } from 'spacetimedb';
 
+import { greaterRealmLegacyJourneyDispatchIsOpenV1 } from './greaterRealmActivationState';
 import {
   GOLD_EXPEDITION_POLICY_VERSION,
   GOLD_EXPEDITION_U64_MAX,
@@ -417,6 +418,9 @@ export function dispatchGenesisGoldExpedition(
     return Object.freeze({ expedition, idempotent: true });
   }
 
+  if (!greaterRealmLegacyJourneyDispatchIsOpenV1(ctx)) {
+    fail('GREATER_REALM_LEGACY_DISPATCH_CLOSED');
+  }
   assertLegacyExpeditionDispatchAllowed(ctx, 'gold', input.siteId);
   const site = ctx.db.goldSiteV1.siteId.find(input.siteId);
   if (site === null || !site.active) fail('GOLD_SITE_UNAVAILABLE');

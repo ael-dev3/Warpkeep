@@ -1,6 +1,7 @@
 import type { InferSchema, ReducerCtx } from 'spacetimedb/server';
 import { ScheduleAt } from 'spacetimedb';
 
+import { greaterRealmLegacyJourneyDispatchIsOpenV1 } from './greaterRealmActivationState';
 import {
   FOOD_EXPEDITION_POLICY_VERSION,
   FOOD_EXPEDITION_U64_MAX,
@@ -437,6 +438,9 @@ export function dispatchGenesisFoodExpedition(
     return Object.freeze({ expedition, idempotent: true });
   }
 
+  if (!greaterRealmLegacyJourneyDispatchIsOpenV1(ctx)) {
+    fail('GREATER_REALM_LEGACY_DISPATCH_CLOSED');
+  }
   assertLegacyExpeditionDispatchAllowed(ctx, 'food', input.siteId);
   const site = ctx.db.foodSiteV1.siteId.find(input.siteId);
   if (site === null || !site.active) fail('FOOD_SITE_UNAVAILABLE');

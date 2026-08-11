@@ -1,6 +1,7 @@
 import type { InferSchema, ReducerCtx } from 'spacetimedb/server';
 import { ScheduleAt } from 'spacetimedb';
 
+import { greaterRealmLegacyJourneyDispatchIsOpenV1 } from './greaterRealmActivationState';
 import { assertGenesisResourceForFid } from './resourceAuthority';
 import { RESOURCE_BALANCE_CAP } from './resourceAuthorityPolicy';
 import {
@@ -677,6 +678,9 @@ export function dispatchCastleWorker(
     }
     return Object.freeze({ assignment, idempotent: true });
   }
+  if (!greaterRealmLegacyJourneyDispatchIsOpenV1(ctx)) {
+    fail('GREATER_REALM_LEGACY_DISPATCH_CLOSED');
+  }
   workerSystemActive(ctx);
   if (!canonicalCastleOwnershipMatches(ctx, input.fid, input.castle.castleId)) fail('WORKER_NOT_OWNED');
   const callerGraph = assertCallerWorkerGraph(ctx, input.fid, input.castle.castleId);
@@ -1341,6 +1345,21 @@ function activeWorkerGraphIsHealthy(graph: WorkerGraphAggregate): boolean {
   return activeWorkerGraphBaseIsValid(graph)
     && graph.schedules === graph.assignments
     && workerGraphIntegrityViolations(graph) === 0n;
+}
+
+/**
+ * Bounded read-only attestation for callers that must preserve a possibly
+ * active canonical worker graph. Unlike the idle-only cutover gate, this
+ * accepts healthy outbound, gathering, and returning assignments while
+ * rejecting every orphan, linkage mismatch, legacy journey, or bad receipt.
+ */
+export function assertCastleWorkerActiveGraphHealthyV1(
+  ctx: WarpkeepReducerContext,
+): void {
+  assertWorkerReturnRepairInspectionCapacity(ctx);
+  if (!activeWorkerGraphIsHealthy(inspectCastleWorkerGraph(ctx))) {
+    fail('WORKER_GRAPH_INTEGRITY');
+  }
 }
 
 function assertWorkerReturnRepairInspectionCapacity(

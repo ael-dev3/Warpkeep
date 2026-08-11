@@ -83,7 +83,7 @@ export const GREATER_REALM_ACTIVATION_TRANSITIONS: Readonly<
   planned: Object.freeze(['canary', 'halted', 'rolled-back'] as const),
   canary: Object.freeze(['active', 'halted', 'rolled-back'] as const),
   active: Object.freeze(['halted'] as const),
-  halted: Object.freeze(['rolled-back'] as const),
+  halted: Object.freeze(['active', 'rolled-back'] as const),
   'rolled-back': Object.freeze([] as const),
 });
 
@@ -239,6 +239,7 @@ function snapshotActivationCheckpoint(
       || phase === 'draining'
       || phase === 'frozen'
       || phase === 'planned'
+      || phase === 'canary'
       || phase === 'rolled-back')
     && (postCanaryFoundingCount !== 0 || postCanaryDispatchCount !== 0)
   ) fail('GREATER_REALM_PRE_CANARY_COUNTER_INVALID');
@@ -299,7 +300,7 @@ export function planGreaterRealmActivationTransitionV1(
     if (!countersChanged) {
       return Object.freeze({ result: 'unchanged', checkpoint: nextSnapshot });
     }
-    if (currentSnapshot.phase !== 'canary' && currentSnapshot.phase !== 'active') {
+    if (currentSnapshot.phase !== 'active') {
       fail('GREATER_REALM_POST_CANARY_COUNTER_PHASE_INVALID');
     }
     const foundingDelta = nextSnapshot.postCanaryFoundingCount
@@ -334,7 +335,7 @@ export function advanceGreaterRealmPostCanaryCounterV1(
   if (kind !== 'founding' && kind !== 'dispatch') {
     fail('GREATER_REALM_POST_CANARY_COUNTER_KIND_INVALID');
   }
-  if (currentSnapshot.phase !== 'canary' && currentSnapshot.phase !== 'active') {
+  if (currentSnapshot.phase !== 'active') {
     fail('GREATER_REALM_POST_CANARY_COUNTER_PHASE_INVALID');
   }
   let next: GreaterRealmActivationCheckpointV1;

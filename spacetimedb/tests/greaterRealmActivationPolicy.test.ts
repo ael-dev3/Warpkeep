@@ -133,18 +133,23 @@ test('the activation phase matrix is exact and every exact retry is immutable', 
     planned: ['canary', 'halted', 'rolled-back'],
     canary: ['active', 'halted', 'rolled-back'],
     active: ['halted'],
-    halted: ['rolled-back'],
+    halted: ['active', 'rolled-back'],
     'rolled-back': [],
   });
   for (const from of GREATER_REALM_ACTIVATION_PHASES) {
     for (const to of GREATER_REALM_ACTIVATION_PHASES) {
       const expected = from === to || GREATER_REALM_ACTIVATION_TRANSITIONS[from].includes(to);
-      const current = checkpoint(from);
+      const current = checkpoint(
+        from,
+        0,
+        0,
+        from === 'active' || (from === 'halted' && to === 'active'),
+      );
       const next = checkpoint(
         to,
         0,
         0,
-        to === 'active' || (from === 'active' && to === 'halted'),
+        to === 'active' || current.everActive,
       );
       if (expected) {
         const plan = planGreaterRealmActivationTransitionV1(current, next);
@@ -159,13 +164,13 @@ test('the activation phase matrix is exact and every exact retry is immutable', 
   }
 });
 
-test('post-canary counters are monotone, phase-bound, bounded, and close rollback', () => {
-  const canary = checkpoint('canary');
-  const founded = advanceGreaterRealmPostCanaryCounterV1(canary, 'founding');
+test('post-commit counters are monotone, phase-bound, bounded, and close rollback', () => {
+  const active = checkpoint('active');
+  const founded = advanceGreaterRealmPostCanaryCounterV1(active, 'founding');
   const dispatched = advanceGreaterRealmPostCanaryCounterV1(founded, 'dispatch');
-  assert.deepEqual(dispatched, checkpoint('canary', 1, 1));
+  assert.deepEqual(dispatched, checkpoint('active', 1, 1));
   assert.equal(
-    planGreaterRealmActivationTransitionV1(canary, founded).result,
+    planGreaterRealmActivationTransitionV1(active, founded).result,
     'counter-advance',
   );
   assert.equal(
@@ -173,15 +178,15 @@ test('post-canary counters are monotone, phase-bound, bounded, and close rollbac
     'counter-advance',
   );
   assert.equal(
-    code(() => planGreaterRealmActivationTransitionV1(canary, checkpoint('canary', 1, 1))),
+    code(() => planGreaterRealmActivationTransitionV1(active, checkpoint('active', 1, 1))),
     'GREATER_REALM_POST_CANARY_COUNTER_ADVANCE_INVALID',
   );
   assert.equal(
-    code(() => planGreaterRealmActivationTransitionV1(canary, checkpoint('canary', 2, 0))),
+    code(() => planGreaterRealmActivationTransitionV1(active, checkpoint('active', 2, 0))),
     'GREATER_REALM_POST_CANARY_COUNTER_ADVANCE_INVALID',
   );
   assert.equal(
-    code(() => planGreaterRealmActivationTransitionV1(dispatched, checkpoint('canary', 0, 1))),
+    code(() => planGreaterRealmActivationTransitionV1(dispatched, checkpoint('active', 0, 1))),
     'GREATER_REALM_POST_CANARY_COUNTER_ROLLBACK',
   );
   assert.equal(
@@ -190,7 +195,7 @@ test('post-canary counters are monotone, phase-bound, bounded, and close rollbac
   );
   const halted = planGreaterRealmActivationTransitionV1(
     dispatched,
-    checkpoint('halted', 1, 1),
+    checkpoint('halted', 1, 1, true),
   ).checkpoint;
   assert.equal(
     code(() => planGreaterRealmActivationTransitionV1(halted, checkpoint('rolled-back'))),
@@ -200,10 +205,14 @@ test('post-canary counters are monotone, phase-bound, bounded, and close rollbac
     code(() => advanceGreaterRealmPostCanaryCounterV1(checkpoint('planned'), 'founding')),
     'GREATER_REALM_POST_CANARY_COUNTER_PHASE_INVALID',
   );
+  assert.equal(
+    code(() => advanceGreaterRealmPostCanaryCounterV1(checkpoint('canary'), 'founding')),
+    'GREATER_REALM_POST_CANARY_COUNTER_PHASE_INVALID',
+  );
   for (const kind of ['unknown', 'Dispatch', 0, null, undefined]) {
     assert.equal(
       code(() => advanceGreaterRealmPostCanaryCounterV1(
-        checkpoint('canary'),
+        checkpoint('active'),
         kind as unknown as 'dispatch',
       )),
       'GREATER_REALM_POST_CANARY_COUNTER_KIND_INVALID',
@@ -253,6 +262,13 @@ test('entering active is an irreversible commit even before founding or dispatch
     committed,
     checkpoint('halted', 0, 0, true),
   ).checkpoint;
+  assert.equal(
+    planGreaterRealmActivationTransitionV1(
+      halted,
+      checkpoint('active', 0, 0, true),
+    ).result,
+    'phase-transition',
+  );
   assert.equal(
     code(() => planGreaterRealmActivationTransitionV1(halted, checkpoint('rolled-back'))),
     'GREATER_REALM_ROLLBACK_WINDOW_CLOSED',

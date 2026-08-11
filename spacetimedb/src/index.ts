@@ -1,5 +1,9 @@
 import warpkeep from './schema';
 
+// Compile the dormant, gate-false relocation core through the production
+// Spacetime bundler without registering reducers or generating client bindings.
+export { GREATER_REALM_RELOCATION_DORMANT_COMPILE_ANCHOR_V1 } from './greaterRealmRelocationDormant';
+
 export default warpkeep;
 
 export { onConnect } from './lifecycle';
