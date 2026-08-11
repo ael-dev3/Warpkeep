@@ -1,0 +1,207 @@
+import { describe, expect, it, vi } from 'vitest';
+
+import { GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE } from '../src/dev/greaterRealmSyntheticTierOneFixture';
+import { createGreaterRealmSceneRuntime } from '../src/greater-realm/createGreaterRealmSceneRuntime';
+import {
+  GREATER_REALM_AMBIENCE_CLASS,
+  GREATER_REALM_TRAVEL_CLASS,
+  decodeGreaterRealmChunkDto
+} from '../src/greater-realm/greaterRealmPublicContract';
+import { GREATER_REALM_GRAPHICS_BUDGETS } from '../src/greater-realm/greaterRealmRuntimePolicy';
+
+const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+function handle(ordinal: number) {
+  let value = ordinal;
+  let encoded = '';
+  do {
+    encoded = BASE32[value % 32]! + encoded;
+    value = Math.trunc(value / 32);
+  } while (value > 0);
+  return `GRK-${encoded.padStart(26, 'A')}`;
+}
+
+function viewChunks() {
+  return GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks.map((chunk, index) => ({
+    chunk,
+    distanceChunks: index
+  }));
+}
+
+function shiftedChunk(ordinal: number) {
+  const raw = structuredClone(
+    GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[ordinal % 2]
+  ) as any;
+  const nextHandle = handle(100 + ordinal);
+  const shift = ordinal * 20;
+  const cellKeys = new Map<string, string>();
+  raw.chunkHandle = nextHandle;
+  for (const cell of [...raw.coreCells, ...raw.apronCells]) {
+    const previous = cell.cellKey;
+    cell.atlasQ += shift;
+    cell.cellKey = `T1_LOWLANDS:${cell.atlasQ}:${cell.atlasR}`;
+    cellKeys.set(previous, cell.cellKey);
+  }
+  raw.coreCells.forEach((cell: any) => { cell.chunkHandle = nextHandle; });
+  raw.resourceLocations.forEach((location: any) => {
+    location.atlasQ += shift;
+    location.cellKey = cellKeys.get(location.cellKey) ?? location.cellKey;
+    location.locationId = `GRL-${BASE32[ordinal % 32]!.repeat(26)}`;
+  });
+  return decodeGreaterRealmChunkDto(raw);
+}
+
+function largeWaterChunk(ordinal: number) {
+  const base = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[1].coreCells[0]!;
+  const chunkHandle = handle(500 + ordinal);
+  const apronOwner = handle(700 + ordinal);
+  const cells = Array.from({ length: 350 }, (_, index) => {
+    const atlasQ = ordinal * 1_000 + index % 25;
+    const atlasR = Math.trunc(index / 25);
+    return {
+      ...base,
+      cellKey: `T1_LOWLANDS:${atlasQ}:${atlasR}`,
+      chunkHandle: index < 225 ? chunkHandle : apronOwner,
+      atlasQ,
+      atlasR,
+      travelClass: GREATER_REALM_TRAVEL_CLASS.NONE,
+      ambienceClass: GREATER_REALM_AMBIENCE_CLASS.NONE,
+      canopyBasisPoints: 0,
+      groundcoverBasisPoints: 0,
+      wildflowerBasisPoints: 0,
+      presentationVariant: index
+    };
+  });
+  return decodeGreaterRealmChunkDto({
+    atlasId: base.regionId,
+    revision: 1n,
+    chunkHandle,
+    lod: 0,
+    sourceCellCount: 225,
+    coreCells: cells.slice(0, 225),
+    apronCells: cells.slice(225),
+    resourceLocations: []
+  });
+}
+
+describe('Greater Realm scene runtime', () => {
+  it('uploads bounded per-chunk resources and preserves explicit cell access', () => {
+    const invalidate = vi.fn();
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'desktop',
+      graphicsProfile: 'high',
+      onInvalidate: invalidate
+    });
+    runtime.setView({ revision: 1n, cellSize: 1, chunks: viewChunks() });
+    expect(runtime.flushUploads()).toBeLessThanOrEqual(
+      GREATER_REALM_GRAPHICS_BUDGETS.high.maximumUploadsPerFrame
+    );
+    const telemetry = runtime.getTelemetry();
+    expect(telemetry.uploadedChunkCount).toBe(2);
+    expect(telemetry.drawCallCount).toBeLessThanOrEqual(
+      GREATER_REALM_GRAPHICS_BUDGETS.high.maximumDrawCalls
+    );
+    expect(telemetry.instanceCount).toBeLessThanOrEqual(
+      GREATER_REALM_GRAPHICS_BUDGETS.high.maximumSceneInstances
+    );
+    expect(telemetry.uploadBytesThisFrame).toBeLessThanOrEqual(
+      telemetry.maximumUploadBytesPerFrame
+    );
+    expect(runtime.isCoordinatePassable({ atlasQ: 0, atlasR: 0 })).toBe(true);
+    expect(runtime.isCoordinatePassable({ atlasQ: 2, atlasR: -1 })).toBe(false);
+    expect(runtime.getCellAccess({ atlasQ: 2, atlasR: -1 })?.passable).toBe(false);
+    expect(runtime.update(1.5)).toBe(true);
+    expect(invalidate).toHaveBeenCalled();
+    runtime.dispose();
+    expect(runtime.group.children).toHaveLength(0);
+  });
+
+  it('drops resources on context loss and rebuilds only after restoration', () => {
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'desktop',
+      graphicsProfile: 'high'
+    });
+    const canvas = document.createElement('canvas');
+    runtime.bindCanvas(canvas);
+    runtime.setView({ revision: 1n, cellSize: 1, chunks: viewChunks() });
+    runtime.flushUploads();
+    expect(runtime.getTelemetry().uploadedChunkCount).toBe(2);
+
+    const lost = new Event('webglcontextlost', { cancelable: true });
+    canvas.dispatchEvent(lost);
+    expect(lost.defaultPrevented).toBe(true);
+    expect(runtime.getTelemetry()).toMatchObject({
+      contextLost: true,
+      uploadedChunkCount: 0,
+      pendingUploadCount: 2
+    });
+    expect(runtime.flushUploads()).toBe(0);
+
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(runtime.getTelemetry().contextLost).toBe(false);
+    runtime.flushUploads();
+    expect(runtime.getTelemetry().uploadedChunkCount).toBe(2);
+    runtime.dispose();
+  });
+
+  it('turns moving water and ephemeral actors static under reduced motion', () => {
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'desktop',
+      graphicsProfile: 'high',
+      reducedMotion: true
+    });
+    runtime.setView({ revision: 1n, cellSize: 1, chunks: viewChunks() });
+    runtime.flushUploads();
+    expect(runtime.update(42)).toBe(false);
+    expect(runtime.getTelemetry().reducedMotion).toBe(true);
+    runtime.setReducedMotion(false);
+    expect(runtime.update(42)).toBe(true);
+    runtime.dispose();
+  });
+
+  it('caps a large requested view before allocation on Reduced', () => {
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'mobile',
+      graphicsProfile: 'reduced'
+    });
+    const chunks = Array.from({ length: 15 }, (_, ordinal) => ({
+      chunk: shiftedChunk(ordinal),
+      distanceChunks: ordinal
+    }));
+    runtime.setView({ revision: 1n, cellSize: 1, chunks });
+    const beforeUpload = runtime.getTelemetry();
+    expect(beforeUpload.selectedChunkCount).toBeLessThanOrEqual(
+      GREATER_REALM_GRAPHICS_BUDGETS.reduced.maximumVisibleChunks
+    );
+    expect(beforeUpload.skippedByBudgetCount).toBeGreaterThan(0);
+    let guard = 0;
+    while (runtime.getTelemetry().pendingUploadCount > 0 && guard < 20) {
+      guard += 1;
+      expect(runtime.flushUploads()).toBeLessThanOrEqual(1);
+      expect(runtime.getTelemetry().uploadBytesThisFrame).toBeLessThanOrEqual(196_608);
+    }
+    expect(runtime.getTelemetry().pendingUploadCount).toBe(0);
+    expect(runtime.getTelemetry().flowerCount).toBe(0);
+    expect(runtime.getTelemetry().flowerGeometryBytes).toBe(0);
+    runtime.dispose();
+  });
+
+  it('cannot exceed the Balanced byte cap across two queued uploads', () => {
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'desktop',
+      graphicsProfile: 'balanced'
+    });
+    const chunks = [largeWaterChunk(0), largeWaterChunk(1)].map((chunk, index) => ({
+      chunk,
+      distanceChunks: index
+    }));
+    runtime.setView({ revision: 1n, cellSize: 1, chunks });
+    expect(runtime.getTelemetry().pendingUploadCount).toBe(2);
+    expect(runtime.flushUploads()).toBe(1);
+    expect(runtime.getTelemetry().uploadBytesThisFrame).toBeLessThanOrEqual(524_288);
+    expect(runtime.getTelemetry().pendingUploadCount).toBe(1);
+    expect(runtime.flushUploads()).toBe(1);
+    expect(runtime.getTelemetry().uploadBytesThisFrame).toBeLessThanOrEqual(524_288);
+    runtime.dispose();
+  });
+});

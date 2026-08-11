@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="robots" content="noindex,nofollow,noarchive" />
+    <meta name="referrer" content="no-referrer" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: ws://127.0.0.1:* ws://localhost:* wss://127.0.0.1:* wss://localhost:*; worker-src 'self' blob:; manifest-src 'none'" />
+    <meta name="color-scheme" content="dark" />
+    <title>Warpkeep Greater Realm Local QA</title>
+  </head>
+  <body>
+    <main id="greater-realm-qa" data-greater-realm-qa-status="loading">
+      <canvas data-greater-realm-qa-canvas aria-label="Synthetic Tier-I Greater Realm rendering"></canvas>
+      <aside aria-live="polite">
+        <strong>Greater Realm runtime QA</strong>
+        <span data-greater-realm-qa-copy>Loading bounded public presentation rows…</span>
+      </aside>
+    </main>
+    <script type="module" src="/src/dev/greaterRealmQaMain.ts"></script>
+  </body>
+</html>
