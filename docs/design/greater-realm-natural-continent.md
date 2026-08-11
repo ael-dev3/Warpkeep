@@ -465,8 +465,13 @@ package and create a declassified Tier-I import tree outside Git. The export is
 partitioned by `axial-bin-15-tier-one-filter-v1`, retains reversible Lowlands
 catalog identity, remaps topology and runtime handles under an independent
 public-release seed, and binds canonical cells plus bounded slot/resource
-batches into component, region, and release hashes. It contains no Tier-II or
-Tier-III geometry and is not activation.
+batches into component, region, and release hashes. The bridge verifier proves
+the exact canonical 10,000-cell Lowlands subset and frozen water authority even
+when additional Tier-I Lowlands cells coexist. Each region has exactly 100
+inactive slots and 500 inactive nodes of every resource kind. Resource rows use
+lexically ordered contiguous location blocks (at most 32 nodes each), while
+every chunk is capped at 128 slots, 256 nodes, and 128 distinct locations. It
+contains no Tier-II or Tier-III geometry and is not activation.
 
 A separate pull request may bind that release to an additive, inactive
 SpacetimeDB schema. Later pull requests separately cover the fog-safe atlas

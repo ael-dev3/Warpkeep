@@ -32,6 +32,27 @@ export const GREATER_REALM_RUNTIME_RELEASE_FIXTURE_LEGACY_RESOURCE_COUNT = Objec
   GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.resources,
 ).reduce((sum, resource) => sum + resource.sites.length, 0);
 
+function legacyVisualClass(terrainKind: string): readonly [number, number] {
+  switch (terrainKind) {
+    case 'lowland':
+      return [GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND, GREATER_REALM_LANDFORM_ID.LOWLAND];
+    case 'meadow':
+      return [GREATER_REALM_BIOME_ID.FLOWER_MEADOW, GREATER_REALM_LANDFORM_ID.LOWLAND];
+    case 'forest':
+      return [GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST, GREATER_REALM_LANDFORM_ID.LOWLAND];
+    case 'heath':
+      return [GREATER_REALM_BIOME_ID.SAVANNA, GREATER_REALM_LANDFORM_ID.LOWLAND];
+    case 'ridge':
+      return [GREATER_REALM_BIOME_ID.ROCKY_HIGHLAND, GREATER_REALM_LANDFORM_ID.HIGHLAND];
+    case 'lake':
+      return [GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND, GREATER_REALM_LANDFORM_ID.LOWLAND];
+    case 'ancient-stone':
+      return [GREATER_REALM_BIOME_ID.ROCKY_HIGHLAND, GREATER_REALM_LANDFORM_ID.HILL];
+    default:
+      throw new Error('GREATER_REALM_RUNTIME_RELEASE_TEST_LEGACY_CLASSIFICATION_INVALID');
+  }
+}
+
 export function createGreaterRealmRuntimeReleaseFixtureSource(options: Readonly<{
   fillUnusedOwnerSelectionChannel?: boolean;
 }> = {}): GreaterRealmRuntimeReleaseSource {
@@ -39,11 +60,18 @@ export function createGreaterRealmRuntimeReleaseFixtureSource(options: Readonly<
     .world.tiles.map(tile => ({ q: tile.q, r: tile.r }));
   const regionByCoordinate = new Map<string, number>();
   for (const coordinate of coordinates) regionByCoordinate.set(`${coordinate.q},${coordinate.r}`, 0);
+  for (const water of GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.water.enabledCells) {
+    if (regionByCoordinate.has(water.cellKey)) continue;
+    coordinates.push({ q: water.q, r: water.r });
+    regionByCoordinate.set(water.cellKey, 0);
+  }
   for (let region = 1; region < 6; region += 1) {
     const originQ = region * 1_000;
     const originR = region * -1_000;
-    for (let q = 0; q < 30; q += 1) {
-      for (let r = 0; r < 24; r += 1) {
+    // Keep the synthetic public locations spread across enough fixed 15-cell
+    // axial bins to exercise the importer's bounded per-chunk row contract.
+    for (let q = 0; q < 360; q += 1) {
+      for (let r = 0; r < 2; r += 1) {
         const coordinate = { q: originQ + q, r: originR + r };
         coordinates.push(coordinate);
         regionByCoordinate.set(`${coordinate.q},${coordinate.r}`, region);
@@ -113,6 +141,15 @@ export function createGreaterRealmRuntimeReleaseFixtureSource(options: Readonly<
     .fill(GREATER_REALM_AMBIENT_LIFE_CLASS.RABBIT_HABITAT);
 
   const canonicalKeys = new Set(GREATER_REALM_RUNTIME_RELEASE_FIXTURE_LOWLANDS_TILE_KEYS);
+  const legacyMetadataByKey = new Map(
+    GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.world.metadata
+      .map(metadata => [metadata.tileKey, metadata] as const),
+  );
+  const legacyWaterByKey = new Map(
+    GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.water.enabledCells
+      .map(water => [water.cellKey, water] as const),
+  );
+  const legacyBodyIds = new Map<string, number>();
   const legacySlotByKey = new Map(
     GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.castleSlots.rows
       .map(slot => [slot.tileKey, slot.slotId] as const),
@@ -125,10 +162,56 @@ export function createGreaterRealmRuntimeReleaseFixtureSource(options: Readonly<
     regionId[cell] = region;
     tierId[cell] = region < 6 ? 1 : 2;
     regionCells[region]!.push(cell);
-    if (canonicalKeys.has(key)) legacyLowlandsCell[cell] = 1;
+    if (canonicalKeys.has(key)) {
+      legacyLowlandsCell[cell] = 1;
+      const metadata = legacyMetadataByKey.get(key);
+      if (metadata === undefined) {
+        throw new Error('GREATER_REALM_RUNTIME_RELEASE_TEST_LEGACY_METADATA_MISSING');
+      }
+      const [legacyBiome, legacyLandform] = legacyVisualClass(metadata.terrainKind);
+      biomeId[cell] = legacyBiome;
+      landformId[cell] = legacyLandform;
+    }
+    const water = legacyWaterByKey.get(key);
+    if (water !== undefined) {
+      waterRegime[cell] = water.regime === 'ocean'
+        ? GREATER_REALM_WATER_REGIME_ID.OCEAN
+        : water.regime === 'river'
+          ? GREATER_REALM_WATER_REGIME_ID.RIVER
+          : GREATER_REALM_WATER_REGIME_ID.LAKE;
+      let bodyId = legacyBodyIds.get(water.bodyId);
+      if (bodyId === undefined) {
+        bodyId = legacyBodyIds.size + 1;
+        legacyBodyIds.set(water.bodyId, bodyId);
+      }
+      waterBodyId[cell] = bodyId;
+      waterDepthClass[cell] = water.depthClass;
+      waterSurfaceLevel[cell] = water.surfaceLevelMilli;
+      flowAccumulation[cell] = BigInt(water.flowAccumulation);
+      waterBankSeed[cell] = water.bankSeed;
+      waterGenerationVersion[cell] = water.generationVersion;
+      biomeId[cell] = water.regime === 'ocean'
+        ? GREATER_REALM_BIOME_ID.SALTWATER
+        : water.regime === 'river'
+          ? GREATER_REALM_BIOME_ID.RIVER_STREAM
+          : GREATER_REALM_BIOME_ID.LAKE;
+      landformId[cell] = water.regime === 'ocean'
+        ? GREATER_REALM_LANDFORM_ID.ISLAND_SHELF
+        : water.regime === 'river'
+          ? GREATER_REALM_LANDFORM_ID.WATERCOURSE
+          : GREATER_REALM_LANDFORM_ID.LAKE_BASIN;
+    }
     if (legacySlotByKey.has(key)) {
       legacyLowlandsCastleSlot[cell] = 1;
       castleSlot[cell] = 1;
+    }
+  }
+  for (const water of legacyWaterByKey.values()) {
+    if (water.downstreamWaterCellKey === undefined) continue;
+    const cell = grid.indexOf({ q: water.q, r: water.r });
+    const downstream = legacyWaterByKey.get(water.downstreamWaterCellKey);
+    if (cell >= 0 && downstream !== undefined) {
+      waterDownstream[cell] = grid.indexOf({ q: downstream.q, r: downstream.r });
     }
   }
   for (let region = 1; region < 6; region += 1) {
@@ -161,6 +244,9 @@ export function createGreaterRealmRuntimeReleaseFixtureSource(options: Readonly<
   waterDepthClass[fordCell] = GREATER_REALM_WATER_DEPTH_CLASS_ID.SHALLOW;
   waterSurfaceLevel[fordCell] = 110;
   routeClass[fordCell] = GREATER_REALM_ROUTE_CLASS.FORD;
+  waterSurfaceLevel[wetCells[1]!] = 100;
+  flowAccumulation[wetCells[1]!] = 2n;
+  waterDownstream[fordCell] = wetCells[1]!;
   for (const cell of regionCells[1]!.slice(100, 200)) ridgeId[cell] = 42;
   return Object.freeze({
     grid,

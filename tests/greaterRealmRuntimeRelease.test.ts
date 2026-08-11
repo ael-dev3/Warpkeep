@@ -16,9 +16,15 @@ import {
   GREATER_REALM_WATER_REGIME_ID,
 } from '../scripts/atlas/greater-realm-hydrology-authority';
 import {
+  GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1,
+} from '../scripts/atlas/greater-realm-legacy-lowlands';
+import {
   GREATER_REALM_ROUTE_CLASS,
 } from '../scripts/atlas/greater-realm-living-world';
-import { openGreaterRealmPrivateWorkspace } from '../scripts/atlas/greater-realm-private-workspace';
+import {
+  openGreaterRealmPrivateWorkspace,
+  type GreaterRealmPrivateWorkspace,
+} from '../scripts/atlas/greater-realm-private-workspace';
 import {
   GREATER_REALM_RUNTIME_RELEASE_FIXTURE_LEGACY_RESOURCE_COUNT,
   GREATER_REALM_RUNTIME_RELEASE_FIXTURE_LOWLANDS_TILE_KEYS,
@@ -27,7 +33,12 @@ import {
   greaterRealmRuntimeReleaseFixtureSeed,
 } from '../scripts/atlas/greater-realm-runtime-release-test-fixture';
 import {
+  GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_CASTLE_SLOTS,
+  GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_RESOURCE_LOCATIONS,
+  GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_RESOURCE_NODES,
+  GREATER_REALM_RUNTIME_MAXIMUM_NODES_PER_LOCATION,
   GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+  GREATER_REALM_RUNTIME_FRAMING_SPEC_V1,
   GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH,
   createGreaterRealmRuntimeRelease,
   greaterRealmRuntimeReleaseTestSeams,
@@ -35,8 +46,12 @@ import {
   readGreaterRealmRuntimeRelease,
   verifyGreaterRealmRuntimeReleaseArtifacts,
   writeGreaterRealmRuntimeRelease,
+  type GreaterRealmRuntimeCell,
+  type GreaterRealmRuntimeChunkPayload,
   type GreaterRealmRuntimeReleaseArtifacts,
+  type GreaterRealmRuntimeResourceNode,
   type GreaterRealmRuntimeReleaseSource,
+  type GreaterRealmRuntimeSlot,
 } from '../scripts/atlas/greater-realm-runtime-release';
 
 vi.setConfig({ testTimeout: 90_000 });
@@ -98,6 +113,203 @@ function mutateAndRehashChunk(
   });
 }
 
+type MutableRuntimeChunk = {
+  path: string;
+  payload: Record<string, unknown>;
+};
+
+function readOnlyWorkspace(
+  files: ReadonlyMap<string, Buffer>,
+  readFile = vi.fn((path: string, maximumBytes?: number): Buffer => {
+    const bytes = files.get(path);
+    if (bytes === undefined) throw new Error(`TEST_FILE_MISSING:${path}`);
+    if (maximumBytes !== undefined && bytes.byteLength > maximumBytes) {
+      throw new Error('GREATER_REALM_PRIVATE_WORKSPACE_FILE_SIZE_INVALID');
+    }
+    return Buffer.from(bytes);
+  }),
+): Readonly<{ workspace: GreaterRealmPrivateWorkspace; readFile: typeof readFile }> {
+  return Object.freeze({
+    workspace: Object.freeze({ readFile }) as unknown as GreaterRealmPrivateWorkspace,
+    readFile,
+  });
+}
+
+function fullyRehashArtifacts(
+  sourceArtifacts: GreaterRealmRuntimeReleaseArtifacts,
+  mutate: (draft: Readonly<{
+    manifest: Record<string, unknown>;
+    chunks: MutableRuntimeChunk[];
+  }>) => void,
+): GreaterRealmRuntimeReleaseArtifacts {
+  const manifestSeed = JSON.parse(JSON.stringify(sourceArtifacts.manifest)) as Record<string, unknown>;
+  const mutableChunks = sourceArtifacts.chunks.map(chunk => ({
+    path: chunk.path,
+    payload: JSON.parse(JSON.stringify(chunk.payload)) as Record<string, unknown>,
+  }));
+  mutate({ manifest: manifestSeed, chunks: mutableChunks });
+  const descriptors = JSON.parse(JSON.stringify(manifestSeed.chunks)) as Array<Record<string, unknown>>;
+  const rebuiltChunks = mutableChunks.map((chunk, index) => {
+    const payload = chunk.payload;
+    const cells = payload.cells as GreaterRealmRuntimeCell[];
+    const apron = payload.apronCellKeys as string[];
+    const slots = payload.castleSlots as GreaterRealmRuntimeSlot[];
+    const nodes = payload.resourceNodes as GreaterRealmRuntimeResourceNode[];
+    const lod1 = payload.lod1CellKeys as string[];
+    const lod2 = payload.lod2CellKeys as string[];
+    const lod3 = payload.lod3CellKeys as string[];
+    payload.importBatches = {
+      castleSlots: greaterRealmRuntimeReleaseTestSeams.importBatchDescriptors(slots, 128),
+      resourceNodes: greaterRealmRuntimeReleaseTestSeams.importBatchDescriptors(nodes, 256),
+    };
+    payload.sectionDigests = {
+      cellsSha256: greaterRealmRuntimeReleaseTestSeams.sha256(
+        greaterRealmRuntimeReleaseTestSeams.canonicalBytes(cells),
+      ),
+      apronSha256: greaterRealmRuntimeReleaseTestSeams.sha256(
+        greaterRealmRuntimeReleaseTestSeams.canonicalBytes(apron),
+      ),
+      lodSha256: greaterRealmRuntimeReleaseTestSeams.sha256(
+        greaterRealmRuntimeReleaseTestSeams.canonicalBytes({ lod1, lod2, lod3 }),
+      ),
+      castleSlotsSha256: greaterRealmRuntimeReleaseTestSeams.sha256(
+        greaterRealmRuntimeReleaseTestSeams.canonicalBytes(slots),
+      ),
+      resourceNodesSha256: greaterRealmRuntimeReleaseTestSeams.sha256(
+        greaterRealmRuntimeReleaseTestSeams.canonicalBytes(nodes),
+      ),
+    };
+    const bytes = greaterRealmRuntimeReleaseTestSeams.canonicalBytes(payload);
+    const descriptor = descriptors[index]!;
+    descriptor.firstCellOrdinal = cells[0]?.releaseOrdinal;
+    descriptor.coreCellCount = cells.length;
+    descriptor.apronCellCount = apron.length;
+    descriptor.lod0CellCount = cells.length;
+    descriptor.lod1CellCount = lod1.length;
+    descriptor.lod2CellCount = lod2.length;
+    descriptor.lod3CellCount = lod3.length;
+    descriptor.payloadSha256 = greaterRealmRuntimeReleaseTestSeams.sha256(bytes);
+    descriptor.sectionDigests = payload.sectionDigests;
+    return Object.freeze({
+      path: chunk.path,
+      bytes,
+      payload: payload as GreaterRealmRuntimeChunkPayload,
+    });
+  });
+  const cells = rebuiltChunks.flatMap(chunk => chunk.payload.cells)
+    .sort((first, second) => first.releaseOrdinal - second.releaseOrdinal);
+  const slots = rebuiltChunks.flatMap(chunk => chunk.payload.castleSlots)
+    .sort((first, second) => first.releaseOrdinal - second.releaseOrdinal);
+  const nodes = rebuiltChunks.flatMap(chunk => chunk.payload.resourceNodes)
+    .sort((first, second) => first.releaseOrdinal - second.releaseOrdinal);
+  const components = (manifestSeed.components as Array<Record<string, unknown>>).map(component => {
+    const componentKey = String(component.componentKey);
+    const componentCells = cells.filter(cell => cell.componentKey === componentKey);
+    const componentSlots = slots.filter(slot => slot.componentKey === componentKey);
+    const componentNodes = nodes.filter(node => node.componentKey === componentKey);
+    component.regionMask = componentCells.reduce((mask, cell) => {
+      const ordinal = greaterRealmRuntimeReleaseTestSeams.publicRegionSpecs
+        .find(region => region.id === cell.regionId)!.ordinal;
+      return mask | (1 << ordinal);
+    }, 0);
+    component.expectedCellCount = componentCells.length;
+    component.maxRouteDepth = Math.max(...componentCells.map(cell => cell.routeDepth ?? 0));
+    component.expectedSlotCount = componentSlots.length;
+    component.expectedFoodNodeCount = componentNodes
+      .filter(node => node.resourceKind === 'food').length;
+    component.expectedWoodNodeCount = componentNodes
+      .filter(node => node.resourceKind === 'wood').length;
+    component.expectedStoneNodeCount = componentNodes
+      .filter(node => node.resourceKind === 'stone').length;
+    component.expectedGoldNodeCount = componentNodes
+      .filter(node => node.resourceKind === 'gold').length;
+    component.componentSha256 = greaterRealmRuntimeReleaseTestSeams.digestComponent(
+      componentKey,
+      componentCells,
+      componentSlots,
+      componentNodes,
+    );
+    return component;
+  });
+  const regions = greaterRealmRuntimeReleaseTestSeams.publicRegionSpecs.map(region => {
+    const regionCells = cells.filter(cell => cell.regionId === region.id);
+    const regionSlots = slots.filter(slot => slot.regionId === region.id);
+    const regionNodes = nodes.filter(node => node.regionId === region.id);
+    const countKind = (kind: 'food' | 'wood' | 'stone' | 'gold') => (
+      regionNodes.filter(node => node.resourceKind === kind).length
+    );
+    return {
+      regionId: region.id,
+      publicName: region.name,
+      ordinal: region.ordinal,
+      tier: 1,
+      cellCount: regionCells.length,
+      passableCellCount: regionCells.filter(cell => cell.passable).length,
+      chunkCount: new Set(regionCells.map(cell => cell.chunkHandle)).size,
+      castleCapacity: regionSlots.length,
+      resourceLocationCount: new Set(regionNodes.map(node => node.locationId)).size,
+      resourceNodeCount: regionNodes.length,
+      foodNodeCount: countKind('food'),
+      woodNodeCount: countKind('wood'),
+      stoneNodeCount: countKind('stone'),
+      goldNodeCount: countKind('gold'),
+      active: false,
+    };
+  });
+  const totals = {
+    regionCount: regions.length,
+    componentCount: components.length,
+    chunkCount: descriptors.length,
+    cellCount: cells.length,
+    castleSlotCount: slots.length,
+    resourceNodeCount: nodes.length,
+  };
+  const header = greaterRealmRuntimeReleaseTestSeams.releaseHeader({
+    publicReleaseId: String(manifestSeed.publicReleaseId),
+    publicApprovalReceiptId: String(manifestSeed.publicApprovalReceiptId),
+    sourceCommit: String(manifestSeed.sourceCommit),
+    totals,
+    legacyLowlandsBridge: manifestSeed.legacyLowlandsBridge as Readonly<Record<string, unknown>>,
+  });
+  const releaseSha256 = greaterRealmRuntimeReleaseTestSeams.framedSha256(
+    'warpkeep.greater-realm.release.v1',
+    [
+      greaterRealmRuntimeReleaseTestSeams.canonicalBytes(header),
+      ...rebuiltChunks.map(chunk => chunk.bytes),
+      greaterRealmRuntimeReleaseTestSeams.canonicalBytes(components),
+      greaterRealmRuntimeReleaseTestSeams.canonicalBytes(regions),
+    ],
+  );
+  const manifest: Record<string, unknown> = {
+    ...header,
+    regions,
+    components,
+    chunks: descriptors,
+    releaseSha256,
+  };
+  const status = {
+    schema: sourceArtifacts.status.schema,
+    publicReleaseId: String(manifest.publicReleaseId),
+    verified: true,
+    tierOneOnly: true,
+    regionCount: regions.length,
+    componentCount: components.length,
+    chunkCount: descriptors.length,
+    cellCount: cells.length,
+    castleSlotCount: slots.length,
+    resourceNodeCount: nodes.length,
+    releaseSha256,
+    productionUntouched: true,
+  };
+  return Object.freeze({
+    manifest: Object.freeze(manifest),
+    manifestBytes: greaterRealmRuntimeReleaseTestSeams.canonicalBytes(manifest),
+    status: Object.freeze(status),
+    statusBytes: greaterRealmRuntimeReleaseTestSeams.canonicalBytes(status),
+    chunks: Object.freeze(rebuiltChunks),
+  });
+}
+
 describe('Greater Realm declassified runtime release', () => {
   let source: GreaterRealmRuntimeReleaseSource;
   let artifacts: GreaterRealmRuntimeReleaseArtifacts;
@@ -144,10 +356,21 @@ describe('Greater Realm declassified runtime release', () => {
     });
     // Contract vector: length-framed canonical header, ordered chunks,
     // components, and all six four-kind region aggregates.
+    const header = greaterRealmRuntimeReleaseTestSeams.releaseHeader({
+      publicReleaseId: String(artifacts.manifest.publicReleaseId),
+      publicApprovalReceiptId: String(artifacts.manifest.publicApprovalReceiptId),
+      sourceCommit: String(artifacts.manifest.sourceCommit),
+      totals: artifacts.manifest.totals as Readonly<Record<string, number>>,
+      legacyLowlandsBridge: artifacts.manifest.legacyLowlandsBridge as Readonly<Record<string, unknown>>,
+    });
+    const headerBytes = greaterRealmRuntimeReleaseTestSeams.canonicalBytes(header);
+    expect(headerBytes).toHaveLength(1_421);
+    expect(greaterRealmRuntimeReleaseTestSeams.sha256(headerBytes))
+      .toBe('b36165d389cf860e9fefc37ae52a805ea9d561ec2ba89e05e8f47cb949ff7045');
     expect(artifacts.manifest.releaseSha256)
-      .toBe('79586429fc5667ca33fd1d6d957891c51c376588ab83e6d39adbfe2df03e68ad');
+      .toBe('7ede966168cd17fdd2950550feec575d5e570ae38b7918bbd398320cfe5e818c');
     expect((artifacts.manifest.components as Array<Record<string, unknown>>)[0]!.componentSha256)
-      .toBe('041f1c83565865d554ffe4a74325959aa6d2e588ca64fb780a9ec31ece2243e3');
+      .toBe('9dbde65cc9b3d3a8ba5210ffbe23fc6564d9bfa9d6b0e7c66a857a2ebcc7cf1d');
     const slotless = (artifacts.manifest.components as Array<Record<string, number>>)
       .filter(component => component.expectedSlotCount === 0);
     expect(slotless.length).toBeGreaterThan(0);
@@ -198,6 +421,72 @@ describe('Greater Realm declassified runtime release', () => {
       expect(chunk.payload.lod3CellKeys.some(key => coreKeys.has(key))).toBe(true);
     }
     expect(sawApronHeavyBorderChunk).toBe(true);
+  });
+
+  it('uses contiguous balanced location blocks within every resource ordinal group', () => {
+    const nodes = artifacts.chunks.flatMap(chunk => chunk.payload.resourceNodes)
+      .sort((first, second) => first.releaseOrdinal - second.releaseOrdinal);
+    const groups = new Map<string, typeof nodes>();
+    for (const node of nodes) {
+      const key = `${node.componentKey}:${node.regionId}:${node.resourceKind}`;
+      const values = groups.get(key) ?? [];
+      values.push(node);
+      groups.set(key, values);
+    }
+    for (const group of groups.values()) {
+      const seen = new Set<string>();
+      const counts = new Map<string, number>();
+      const projections = new Map<string, string>();
+      let previous = '';
+      for (const node of group) {
+        if (node.locationId !== previous) {
+          expect(seen.has(node.locationId)).toBe(false);
+          if (previous !== '') expect(node.locationId.localeCompare(previous)).toBeGreaterThan(0);
+          seen.add(node.locationId);
+          previous = node.locationId;
+        }
+        const projection = JSON.stringify({
+          cellKey: node.cellKey,
+          regionId: node.regionId,
+          componentKey: node.componentKey,
+          resourceKind: node.resourceKind,
+          legacyCatalogId: node.legacyCatalogId,
+          policyVersion: node.policyVersion,
+        });
+        expect(projections.get(node.locationId) ?? projection).toBe(projection);
+        projections.set(node.locationId, projection);
+        counts.set(node.locationId, (counts.get(node.locationId) ?? 0) + 1);
+      }
+      const locationCounts = [...counts.values()];
+      expect(Math.max(...locationCounts)).toBeLessThanOrEqual(
+        GREATER_REALM_RUNTIME_MAXIMUM_NODES_PER_LOCATION,
+      );
+      expect(Math.max(...locationCounts) - Math.min(...locationCounts)).toBeLessThanOrEqual(1);
+    }
+    for (const chunk of artifacts.chunks) {
+      expect(chunk.payload.castleSlots.length)
+        .toBeLessThanOrEqual(GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_CASTLE_SLOTS);
+      expect(chunk.payload.resourceNodes.length)
+        .toBeLessThanOrEqual(GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_RESOURCE_NODES);
+      expect(new Set(chunk.payload.resourceNodes.map(node => node.locationId)).size)
+        .toBeLessThanOrEqual(GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_RESOURCE_LOCATIONS);
+    }
+  });
+
+  it('freezes UTF-8 canonical JSON and unsigned u64 big-endian framing', () => {
+    const vector = GREATER_REALM_RUNTIME_FRAMING_SPEC_V1.compatibilityVector;
+    const frames = vector.frames.map(frame => {
+      const bytes = Buffer.from(frame.canonicalJson, 'utf8');
+      const length = Buffer.alloc(8);
+      length.writeBigUInt64BE(BigInt(bytes.byteLength));
+      expect(bytes.byteLength).toBe(frame.byteLength);
+      expect(bytes.toString('hex')).toBe(frame.utf8Hex);
+      expect(length.toString('hex')).toBe(frame.lengthPrefixHex);
+      return bytes;
+    });
+    expect(Buffer.from(`${vector.domain}\n`, 'utf8').toString('hex')).toBe(vector.domainUtf8Hex);
+    expect(greaterRealmRuntimeReleaseTestSeams.framedSha256(vector.domain, frames))
+      .toBe(vector.digestSha256);
   });
 
   it('pins every passable parent and retains only reviewed river or stream fords as wet routes', () => {
@@ -267,7 +556,7 @@ describe('Greater Realm declassified runtime release', () => {
     const lowlandsKeys = new Set(cells
       .filter(cell => cell.regionId === 'T1_LOWLANDS')
       .map(cell => `${cell.localQ},${cell.localR}`));
-    expect(lowlandsKeys.size).toBe(10_000);
+    expect(lowlandsKeys.size).toBeGreaterThanOrEqual(10_000);
     for (const key of GREATER_REALM_RUNTIME_RELEASE_FIXTURE_LOWLANDS_TILE_KEYS) {
       expect(lowlandsKeys.has(key)).toBe(true);
     }
@@ -379,6 +668,419 @@ describe('Greater Realm declassified runtime release', () => {
     });
     expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(countTampered))
       .toThrow('GREATER_REALM_RUNTIME_RELEASE_COUNT_INVALID');
+  });
+
+  it('rejects fully rehashed split and cross-group resource location reuse', () => {
+    const splitLocation = fullyRehashArtifacts(artifacts, draft => {
+      const nodes = draft.chunks.flatMap(chunk => (
+        chunk.payload.resourceNodes as Array<Record<string, unknown>>
+      )).sort((first, second) => Number(first.releaseOrdinal) - Number(second.releaseOrdinal));
+      const first = nodes[0]!;
+      const group = nodes.filter(node => (
+        node.componentKey === first.componentKey
+        && node.regionId === first.regionId
+        && node.resourceKind === first.resourceKind
+      ));
+      const firstDifferent = group.findIndex(node => node.locationId !== first.locationId);
+      const target = group[firstDifferent + 1]!;
+      for (const key of [
+        'locationId',
+        'cellKey',
+        'regionId',
+        'componentKey',
+        'resourceKind',
+        'policyVersion',
+      ]) target[key] = first[key];
+      if (first.legacyCatalogId === undefined) delete target.legacyCatalogId;
+      else target.legacyCatalogId = first.legacyCatalogId;
+    });
+    expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(splitLocation))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_RESOURCE_LOCATION_INVALID');
+
+    const crossGroupReuse = fullyRehashArtifacts(artifacts, draft => {
+      const nodes = draft.chunks.flatMap(chunk => (
+        chunk.payload.resourceNodes as Array<Record<string, unknown>>
+      )).sort((first, second) => Number(first.releaseOrdinal) - Number(second.releaseOrdinal));
+      const first = nodes[0]!;
+      const target = nodes.find(node => (
+        node.componentKey !== first.componentKey
+        || node.regionId !== first.regionId
+        || node.resourceKind !== first.resourceKind
+      ))!;
+      target.locationId = first.locationId;
+    });
+    expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(crossGroupReuse))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_RESOURCE_LOCATION_INVALID');
+  });
+
+  it('rejects fully rehashed per-chunk slot, node, and distinct-location overflow', () => {
+    const overSlots = fullyRehashArtifacts(artifacts, draft => {
+      const target = draft.chunks.find(chunk => (
+        (chunk.payload.castleSlots as unknown[]).length === 0
+      ))!;
+      const targetRows = target.payload.castleSlots as unknown[];
+      for (const donor of draft.chunks) {
+        if (donor === target) continue;
+        const rows = donor.payload.castleSlots as unknown[];
+        while (
+          rows.length > 0
+          && targetRows.length <= GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_CASTLE_SLOTS
+        ) targetRows.push(rows.shift()!);
+      }
+    });
+    expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(overSlots))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_CHUNK_INVALID');
+
+    const overNodes = fullyRehashArtifacts(artifacts, draft => {
+      const target = draft.chunks.find(chunk => (
+        (chunk.payload.resourceNodes as unknown[]).length === 0
+      ))!;
+      const targetRows = target.payload.resourceNodes as unknown[];
+      for (const donor of draft.chunks) {
+        if (donor === target) continue;
+        const rows = donor.payload.resourceNodes as unknown[];
+        while (
+          rows.length > 0
+          && targetRows.length <= GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_RESOURCE_NODES
+        ) targetRows.push(rows.shift()!);
+      }
+    });
+    expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(overNodes))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_CHUNK_INVALID');
+
+    const overLocations = fullyRehashArtifacts(artifacts, draft => {
+      const target = draft.chunks.find(chunk => (
+        (chunk.payload.resourceNodes as unknown[]).length === 0
+      ))!;
+      const targetRows = target.payload.resourceNodes as Array<Record<string, unknown>>;
+      const seen = new Set<string>();
+      for (const donor of draft.chunks) {
+        if (donor === target) continue;
+        const rows = donor.payload.resourceNodes as Array<Record<string, unknown>>;
+        for (let index = 0; index < rows.length && (
+          seen.size <= GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_RESOURCE_LOCATIONS
+        );) {
+          const locationId = String(rows[index]!.locationId);
+          if (seen.has(locationId)) {
+            index += 1;
+          } else {
+            seen.add(locationId);
+            targetRows.push(rows.splice(index, 1)[0]!);
+          }
+        }
+      }
+    });
+    expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(overLocations))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_CHUNK_INVALID');
+
+    const files = new Map<string, Buffer>([
+      [`${GREATER_REALM_RUNTIME_RELEASE_DIRECTORY}/import-manifest.json`, overNodes.manifestBytes],
+      [`${GREATER_REALM_RUNTIME_RELEASE_DIRECTORY}/status.json`, overNodes.statusBytes],
+      ...overNodes.chunks.map(chunk => [
+        `${GREATER_REALM_RUNTIME_RELEASE_DIRECTORY}/${chunk.path}`,
+        chunk.bytes,
+      ] as const),
+    ]);
+    const bounded = readOnlyWorkspace(files);
+    expect(() => readGreaterRealmRuntimeRelease(bounded.workspace))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+  });
+
+  it('rejects fully rehashed Lowlands lock substitutions and valid-field reclassification', () => {
+    const canonicalKeys = new Set(GREATER_REALM_RUNTIME_RELEASE_FIXTURE_LOWLANDS_TILE_KEYS);
+    const alteredField = fullyRehashArtifacts(artifacts, draft => {
+      const cell = draft.chunks.flatMap(chunk => (
+        chunk.payload.cells as Array<Record<string, unknown>>
+      )).find(candidate => (
+        candidate.regionId === 'T1_LOWLANDS'
+        && canonicalKeys.has(`${candidate.localQ},${candidate.localR}`)
+      ))!;
+      cell.biomeClass = cell.biomeClass === 0 ? 1 : 0;
+    });
+    expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(alteredField))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_CLASSIFICATION_INVALID');
+
+    const replacedCoordinate = fullyRehashArtifacts(artifacts, draft => {
+      const used = new Set(draft.chunks.flatMap(chunk => [
+        ...(chunk.payload.castleSlots as Array<Record<string, unknown>>).map(slot => slot.cellKey),
+        ...(chunk.payload.resourceNodes as Array<Record<string, unknown>>).map(node => node.cellKey),
+      ]));
+      const roots = new Set((draft.manifest.components as Array<Record<string, unknown>>)
+        .map(component => component.rootCellKey));
+      const cell = draft.chunks.flatMap(chunk => (
+        chunk.payload.cells as Array<Record<string, unknown>>
+      )).find(candidate => (
+        candidate.regionId === 'T1_LOWLANDS'
+        && canonicalKeys.has(`${candidate.localQ},${candidate.localR}`)
+        && !used.has(candidate.cellKey)
+        && !roots.has(candidate.cellKey)
+      ))!;
+      const oldKey = String(cell.cellKey);
+      cell.localQ = Number(cell.localQ) + 1_000_000;
+      cell.localR = Number(cell.localR) - 1_000_000;
+      const newKey = `T1_LOWLANDS:${cell.localQ}:${cell.localR}`;
+      cell.cellKey = newKey;
+      for (const chunk of draft.chunks) {
+        for (const key of ['apronCellKeys', 'lod1CellKeys', 'lod2CellKeys', 'lod3CellKeys']) {
+          chunk.payload[key] = (chunk.payload[key] as string[])
+            .map(value => value === oldKey ? newKey : value);
+        }
+      }
+    });
+    expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(replacedCoordinate))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_GEOMETRY_INVALID');
+
+    const alteredYield = fullyRehashArtifacts(artifacts, draft => {
+      const cell = draft.chunks.flatMap(chunk => (
+        chunk.payload.cells as Array<Record<string, unknown>>
+      )).find(candidate => (
+        candidate.regionId === 'T1_LOWLANDS'
+        && canonicalKeys.has(`${candidate.localQ},${candidate.localR}`)
+        && candidate.passable === true
+      ))!;
+      cell.yieldClass = cell.yieldClass === 1 ? 2 : 1;
+    });
+    expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(alteredYield))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_CLASSIFICATION_INVALID');
+
+    const alteredPassability = fullyRehashArtifacts(artifacts, draft => {
+      const cells = draft.chunks.flatMap(chunk => (
+        chunk.payload.cells as Array<Record<string, unknown>>
+      ));
+      const byAtlas = new Map(cells.map(cell => [
+        `${cell.atlasQ},${cell.atlasR}`,
+        cell,
+      ] as const));
+      const riverKeys = new Set(
+        GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.water.enabledCells
+          .filter(water => water.regime === 'river')
+          .map(water => water.cellKey),
+      );
+      const directions = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+      let selected: Record<string, unknown> | undefined;
+      let parent: Record<string, unknown> | undefined;
+      let parentDirection = -1;
+      for (const cell of cells) {
+        if (
+          cell.regionId !== 'T1_LOWLANDS'
+          || !riverKeys.has(`${cell.localQ},${cell.localR}`)
+          || cell.passable !== false
+        ) continue;
+        for (let direction = 0; direction < directions.length; direction += 1) {
+          const delta = directions[direction]!;
+          const neighbor = byAtlas.get(
+            `${Number(cell.atlasQ) + delta[0]!},${Number(cell.atlasR) + delta[1]!}`,
+          );
+          if (neighbor?.passable === true && Number(neighbor.routeDepth) < 4_096) {
+            selected = cell;
+            parent = neighbor;
+            parentDirection = direction;
+            break;
+          }
+        }
+        if (selected !== undefined) break;
+      }
+      if (selected === undefined || parent === undefined || parentDirection < 0) {
+        throw new Error('GREATER_REALM_RUNTIME_RELEASE_TEST_PASSABILITY_FIXTURE_MISSING');
+      }
+      selected.passable = true;
+      selected.travelClass = GREATER_REALM_ROUTE_CLASS.FORD;
+      selected.componentKey = parent.componentKey;
+      selected.routeDepth = Number(parent.routeDepth) + 1;
+      selected.routeParentDirection = parentDirection;
+    });
+    expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(alteredPassability))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_CLASSIFICATION_INVALID');
+
+    const alteredWaterBody = fullyRehashArtifacts(artifacts, draft => {
+      const cells = draft.chunks.flatMap(chunk => (
+        chunk.payload.cells as Array<Record<string, unknown>>
+      ));
+      const waters = GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.water.enabledCells;
+      const first = waters[0]!;
+      const other = waters.find(water => water.bodyId !== first.bodyId)!;
+      const firstCell = cells.find(cell => (
+        cell.regionId === 'T1_LOWLANDS'
+        && `${cell.localQ},${cell.localR}` === first.cellKey
+      ))!;
+      const otherCell = cells.find(cell => (
+        cell.regionId === 'T1_LOWLANDS'
+        && `${cell.localQ},${cell.localR}` === other.cellKey
+      ))!;
+      firstCell.hydroBodyId = otherCell.hydroBodyId;
+    });
+    expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(alteredWaterBody))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_WATER_INVALID');
+
+    const alteredWaterDirection = fullyRehashArtifacts(artifacts, draft => {
+      const internal = GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.water.enabledCells
+        .find(water => water.downstreamWaterCellKey !== undefined)!;
+      const cell = draft.chunks.flatMap(chunk => (
+        chunk.payload.cells as Array<Record<string, unknown>>
+      )).find(candidate => (
+        candidate.regionId === 'T1_LOWLANDS'
+        && `${candidate.localQ},${candidate.localR}` === internal.cellKey
+      ))!;
+      cell.hydroFlowDirection = (Number(cell.hydroFlowDirection) + 1) % 6;
+    });
+    expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(alteredWaterDirection))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_WATER_INVALID');
+  });
+
+  it('rejects a fully rehashed river-to-stream transition that otherwise closes', () => {
+    const invalidTransition = fullyRehashArtifacts(artifacts, draft => {
+      const cells = draft.chunks.flatMap(chunk => (
+        chunk.payload.cells as Array<Record<string, unknown>>
+      ));
+      const byAtlas = new Map(cells.map(cell => [
+        `${cell.atlasQ},${cell.atlasR}`,
+        cell,
+      ] as const));
+      const river = cells.find(cell => (
+        cell.regionId !== 'T1_LOWLANDS'
+        && cell.hydroRegime === GREATER_REALM_WATER_REGIME_ID.RIVER
+        && cell.hydroFlowDirection !== undefined
+      ))!;
+      const directions = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
+      const riverDelta = directions[Number(river.hydroFlowDirection)]!;
+      const stream = byAtlas.get(
+        `${Number(river.atlasQ) + riverDelta[0]!},${Number(river.atlasR) + riverDelta[1]!}`,
+      )!;
+      const standingWater = directions.map((delta, direction) => ({
+        direction,
+        cell: byAtlas.get(
+          `${Number(stream.atlasQ) + delta[0]!},${Number(stream.atlasR) + delta[1]!}`,
+        ),
+      })).find(candidate => (
+        candidate.cell !== undefined
+        && candidate.cell !== river
+        && candidate.cell.hydroRegime === GREATER_REALM_WATER_REGIME_ID.LAKE
+      ))!;
+      stream.hydroRegime = GREATER_REALM_WATER_REGIME_ID.STREAM;
+      stream.hydroBodyId = `GRW-${'A'.repeat(26)}`;
+      stream.hydroFlowDirection = standingWater.direction;
+      stream.hydroSurfaceMilli = 100;
+      stream.flowAccumulation = '2';
+      standingWater.cell!.hydroSurfaceMilli = 90;
+      standingWater.cell!.flowAccumulation = '3';
+    });
+    expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(invalidTransition))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_HYDROLOGY_FLOW_INVALID');
+  });
+
+  it('rejects fully rehashed slot relocation, per-region skew, and omission', () => {
+    const legacyRelocated = fullyRehashArtifacts(artifacts, draft => {
+      const slots = draft.chunks.flatMap(chunk => (
+        chunk.payload.castleSlots as Array<Record<string, unknown>>
+      ));
+      const lowlands = slots.find(slot => slot.legacySlotId !== undefined)!;
+      const nonLowlands = slots.find(slot => slot.regionId !== 'T1_LOWLANDS')!;
+      const legacySlotId = lowlands.legacySlotId;
+      delete lowlands.legacySlotId;
+      nonLowlands.legacySlotId = legacySlotId;
+    });
+    expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(legacyRelocated))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_SLOT_INVALID');
+
+    const regionRelocated = fullyRehashArtifacts(artifacts, draft => {
+      const cells = draft.chunks.flatMap(chunk => (
+        chunk.payload.cells as Array<Record<string, unknown>>
+      ));
+      const cellByKey = new Map(cells.map(cell => [String(cell.cellKey), cell] as const));
+      const slots = draft.chunks.flatMap(chunk => (
+        chunk.payload.castleSlots as Array<Record<string, unknown>>
+      ));
+      const occupied = new Set(slots.map(slot => slot.cellKey));
+      const moved = slots.find(slot => slot.regionId === 'T1_FROSTMERE')!;
+      const target = cells.find(cell => (
+        cell.regionId === 'T1_SUNSCAR'
+        && cell.passable === true
+        && cell.hydroRegime === GREATER_REALM_WATER_REGIME_ID.DRY
+        && !occupied.has(cell.cellKey)
+      ))!;
+      moved.cellKey = target.cellKey;
+      moved.regionId = target.regionId;
+      moved.componentKey = target.componentKey;
+      slots.sort((first, second) => (
+        Number(cellByKey.get(String(first.cellKey))!.releaseOrdinal)
+        - Number(cellByKey.get(String(second.cellKey))!.releaseOrdinal)
+      ));
+      slots.forEach((slot, index) => { slot.releaseOrdinal = index; });
+    });
+    expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(regionRelocated))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+
+    const omitted = fullyRehashArtifacts(artifacts, draft => {
+      const chunk = draft.chunks.find(candidate => (
+        (candidate.payload.castleSlots as unknown[]).length > 0
+      ))!;
+      (chunk.payload.castleSlots as unknown[]).pop();
+    });
+    expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(omitted))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+  });
+
+  it('bounds manifest bytes, descriptor counts, aggregates, and cumulative artifact bytes', () => {
+    const oversizedManifest = Buffer.alloc(
+      greaterRealmRuntimeReleaseTestSeams.maximumRuntimeManifestBytes + 1,
+      0x20,
+    );
+    const oversizedRead = vi.fn(() => oversizedManifest);
+    const oversizedWorkspace = Object.freeze({
+      readFile: oversizedRead,
+    }) as unknown as GreaterRealmPrivateWorkspace;
+    expect(() => readGreaterRealmRuntimeRelease(oversizedWorkspace))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+    expect(oversizedRead).toHaveBeenCalledTimes(1);
+    expect(oversizedRead).toHaveBeenCalledWith(
+      `${GREATER_REALM_RUNTIME_RELEASE_DIRECTORY}/import-manifest.json`,
+      greaterRealmRuntimeReleaseTestSeams.maximumRuntimeManifestBytes,
+    );
+
+    const descriptorOverflow = JSON.parse(JSON.stringify(artifacts.manifest)) as Record<string, unknown>;
+    const seedDescriptor = (descriptorOverflow.chunks as Array<Record<string, unknown>>)[0]!;
+    descriptorOverflow.chunks = Array.from(
+      { length: greaterRealmRuntimeReleaseTestSeams.maximumRuntimeChunks + 1 },
+      (_, importOrdinal) => ({ ...seedDescriptor, importOrdinal }),
+    );
+    (descriptorOverflow.totals as Record<string, unknown>).chunkCount =
+      greaterRealmRuntimeReleaseTestSeams.maximumRuntimeChunks + 1;
+    const descriptorFiles = new Map<string, Buffer>([[
+      `${GREATER_REALM_RUNTIME_RELEASE_DIRECTORY}/import-manifest.json`,
+      greaterRealmRuntimeReleaseTestSeams.canonicalBytes(descriptorOverflow),
+    ]]);
+    const descriptorWorkspace = readOnlyWorkspace(descriptorFiles);
+    expect(() => readGreaterRealmRuntimeRelease(descriptorWorkspace.workspace))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+    expect(descriptorWorkspace.readFile).toHaveBeenCalledTimes(1);
+
+    const aggregateOverflow = JSON.parse(JSON.stringify(artifacts.manifest)) as Record<string, unknown>;
+    (aggregateOverflow.totals as Record<string, unknown>).cellCount = 150_001;
+    const aggregateFiles = new Map<string, Buffer>([[
+      `${GREATER_REALM_RUNTIME_RELEASE_DIRECTORY}/import-manifest.json`,
+      greaterRealmRuntimeReleaseTestSeams.canonicalBytes(aggregateOverflow),
+    ]]);
+    const aggregateWorkspace = readOnlyWorkspace(aggregateFiles);
+    expect(() => readGreaterRealmRuntimeRelease(aggregateWorkspace.workspace))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+    expect(aggregateWorkspace.readFile).toHaveBeenCalledTimes(1);
+
+    const maximumChunk = Buffer.alloc(
+      greaterRealmRuntimeReleaseTestSeams.maximumRuntimeChunkBytes,
+    );
+    const cumulativeOverflow = Object.freeze({
+      ...artifacts,
+      chunks: Object.freeze(Array.from({ length: 129 }, (_, index) => Object.freeze({
+        ...artifacts.chunks[0]!,
+        path: `chunks/overflow-${index}.json`,
+        bytes: maximumChunk,
+      }))),
+    });
+    expect(129 * maximumChunk.byteLength).toBeGreaterThan(
+      greaterRealmRuntimeReleaseTestSeams.maximumRuntimeReleaseBytes,
+    );
+    expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(cumulativeOverflow))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
   });
 
   it('persists a 0600 seed control before a 0700 release and makes exact retries idempotent', async () => {

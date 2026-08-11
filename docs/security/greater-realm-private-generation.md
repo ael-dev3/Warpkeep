@@ -300,7 +300,13 @@ geometry, or hidden topology identity. Water and ridge identities, release,
 chunk, component, slot, location, and node handles are independently remapped
 under the public-release seed. Lowlands retains reversible region-local cell
 keys and the exact legacy slot and resource-catalog identities; its private
-placement transform is never exported.
+placement transform is never exported. Verification independently recovers one
+consistent reversible transform and proves the complete canonical 10,000-cell
+local-coordinate subset. It locks every derivable legacy gameplay field and all
+3,271 frozen water rows, including the 13 one-to-one remapped water bodies,
+surface/depth/flow authority, internal downstream directions, and the 12
+reviewed terminal mouths. Every frozen water row remains blocked with zero
+yield and the runtime movement sentinel.
 
 The audited partition is `axial-bin-15-tier-one-filter-v1`: each chunk contains
 one canonical 15-by-15 axial-bin core of at most 225 cells and a Tier-I-only
@@ -313,7 +319,27 @@ including reviewed river/stream fords; non-routable cells remain renderable but
 have no component or parent. Every component/region pair receives at least five
 nodes of each resource kind per castle slot, while slotless components receive
 none. The capacity release contains 600 inactive slots and 12,000 inactive
-nodes; no allocation privilege or production mutation is part of export.
+nodes; every approved region has exactly 100 slots and 500 nodes of each kind.
+Only the 100 exact Lowlands slots carry unique legacy IDs 1 through 100.
+Resource locations form lexically increasing, contiguous blocks inside each
+component/region/kind stream, with at most 32 nodes per location. A chunk is
+rejected above 128 slots, 256 nodes, or 128 distinct resource locations; a real
+candidate whose fixed axial bin exceeds those bounds is not exportable. No
+allocation privilege or production mutation is part of export.
+
+Canonical JSON is the UTF-8 encoding of insertion-ordered `JSON.stringify`
+followed by one line feed, without a BOM or key sorting. Component and release
+digests start with their literal domain plus one line feed, then frame every
+canonical byte sequence with an unsigned 64-bit big-endian byte length. The
+exporter carries a cross-language non-ASCII compatibility vector plus pinned
+header, component, and release fixtures for the server implementation.
+
+Readers fail before status or chunk access if the manifest advertises more than
+2,048 chunks, 4,096 components, 150,000 Tier-I cells, 600 slots, or 12,000
+nodes, or if its six region/component aggregates cannot close. File reads are
+bounded to 4 MiB for the manifest, 64 KiB for status, and 4 MiB per chunk, with
+a 512 MiB cumulative release ceiling. Counts and cumulative bytes are checked
+again as each canonical chunk is read.
 
 Run the flow only from the final clean integrated commit, using one absolute
 owner-workspace path throughout:

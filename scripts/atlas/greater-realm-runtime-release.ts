@@ -2,14 +2,19 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypt
 
 import {
   GREATER_REALM_BIOME_CLASS_COUNT,
+  GREATER_REALM_BIOME_ID,
   GREATER_REALM_LANDFORM_CLASS_COUNT,
+  GREATER_REALM_LANDFORM_ID,
 } from './greater-realm-biomes';
 import {
   GREATER_REALM_GENERATOR_VERSION,
   GREATER_REALM_REGION_SPECS,
   type GreaterRealmPrivateCandidate,
 } from './greater-realm-candidate-generator';
-import { GREATER_REALM_ATLAS_ID } from './greater-realm-contracts';
+import {
+  GREATER_REALM_ATLAS_ID,
+  GREATER_REALM_MAXIMUM_ACTIVE_CELL_COUNT,
+} from './greater-realm-contracts';
 import {
   GREATER_REALM_WATER_DEPTH_CLASS_ID,
   GREATER_REALM_WATER_REGIME_ID,
@@ -50,8 +55,17 @@ const UINT32_MAX = 0xffff_ffff;
 const RELEASE_SEED_BYTES = 32;
 const MAXIMUM_CHUNK_CORE_CELLS = 225;
 const MAXIMUM_CHUNK_VISIBLE_CELLS = 384;
+export const GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_CASTLE_SLOTS = 128;
+export const GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_RESOURCE_NODES = 256;
+export const GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_RESOURCE_LOCATIONS = 128;
+export const GREATER_REALM_RUNTIME_MAXIMUM_NODES_PER_LOCATION = 32;
+const MAXIMUM_RUNTIME_CHUNKS = 2_048;
 const MAXIMUM_NAVIGATION_COMPONENTS = 4_096;
 const MAXIMUM_ROUTE_DEPTH = 4_096;
+const MAXIMUM_RUNTIME_MANIFEST_BYTES = 4 * 1024 * 1024;
+const MAXIMUM_RUNTIME_STATUS_BYTES = 64 * 1024;
+const MAXIMUM_RUNTIME_CHUNK_BYTES = 4 * 1024 * 1024;
+const MAXIMUM_RUNTIME_RELEASE_BYTES = 512 * 1024 * 1024;
 const RESOURCE_MARGIN_PER_SLOT = 5;
 const RESOURCE_KINDS = Object.freeze(['food', 'wood', 'stone', 'gold'] as const);
 const PUBLIC_REGION_SPECS = Object.freeze([
@@ -65,6 +79,19 @@ const PUBLIC_REGION_SPECS = Object.freeze([
 const LEGACY_LOWLANDS_META_BY_KEY = new Map(
   GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.world.metadata
     .map(row => [row.tileKey, row] as const),
+);
+const LEGACY_LOWLANDS_TILE_BY_KEY = new Map(
+  GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.world.tiles
+    .map(row => [row.key, row] as const),
+);
+const LEGACY_LOWLANDS_WATER_BY_KEY: ReadonlyMap<string, LegacyLowlandsWaterRow> = new Map(
+  GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.water.enabledCells
+    .map(row => [row.cellKey, row] as const),
+);
+const LEGACY_LOWLANDS_RIVER_MOUTH_KEYS: ReadonlySet<string> = new Set(
+  GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.water.enabledCells
+    .filter(row => row.regime === 'river' && row.downstreamWaterCellKey === undefined)
+    .map(row => row.cellKey),
 );
 const SOURCE_COMMIT_PATTERN = /^[0-9a-f]{40}$/u;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/u;
@@ -343,12 +370,212 @@ function framedSha256(domain: string, frames: Iterable<Uint8Array>): string {
   }
 }
 
+/**
+ * Cross-language framing authority. Canonical objects are constructed in the
+ * listed insertion order, encoded as UTF-8 `JSON.stringify(value) + "\n"`
+ * without a BOM, and are never key-sorted. Every frame is prefixed by its
+ * unsigned 64-bit byte length in network (big-endian) order.
+ */
+export const GREATER_REALM_RUNTIME_FRAMING_SPEC_V1 = Object.freeze({
+  algorithm: 'sha256-domain-lf-u64be-frames-v1',
+  canonicalJson: 'utf8-json-stringify-insertion-order-plus-lf-no-bom',
+  lengthPrefix: 'unsigned-u64-big-endian-byte-length',
+  release: Object.freeze({
+    domain: 'warpkeep.greater-realm.release.v1',
+    frames: Object.freeze([
+      'canonical-release-header',
+      'canonical-chunk-payload-bytes-in-importOrdinal-order',
+      'canonical-component-manifest-array',
+      'canonical-six-region-manifest-array',
+    ]),
+  }),
+  component: Object.freeze({
+    domain: 'warpkeep.greater-realm.component.v1',
+    frames: Object.freeze([
+      'canonical-component-key-object',
+      'canonical-cells-section-count-object',
+      'canonical-cell-rows-in-releaseOrdinal-order',
+      'canonical-castle-slots-section-count-object',
+      'canonical-castle-slot-rows-in-releaseOrdinal-order',
+      'canonical-resource-nodes-section-count-object',
+      'canonical-resource-node-rows-in-releaseOrdinal-order',
+    ]),
+  }),
+  compatibilityVector: Object.freeze({
+    domain: 'warpkeep.greater-realm.framing-compatibility.v1',
+    domainUtf8Hex:
+      '776172706b6565702e677265617465722d7265616c6d2e6672616d696e672d636f6d7061746962696c6974792e76310a',
+    frames: Object.freeze([
+      Object.freeze({
+        canonicalJson: '{"schema":"wkgr-framing-vector-v1","label":"Lowlands Δ","ordinal":7,"active":false}\n',
+        byteLength: 85,
+        lengthPrefixHex: '0000000000000055',
+        utf8Hex:
+          '7b22736368656d61223a22776b67722d6672616d696e672d766563746f722d7631222c226c6162656c223a224c6f776c616e647320ce94222c226f7264696e616c223a372c22616374697665223a66616c73657d0a',
+      }),
+      Object.freeze({
+        canonicalJson: '["T1_LOWLANDS",100,500]\n',
+        byteLength: 24,
+        lengthPrefixHex: '0000000000000018',
+        utf8Hex: '5b2254315f4c4f574c414e4453222c3130302c3530305d0a',
+      }),
+    ]),
+    digestSha256: '68512713b3db4d97f3702f8491d88c23b04f472f6a29f1fe100fe5ce3e58992e',
+  }),
+} as const);
+
 function maximumInteger(values: Iterable<number>): number {
   let maximum = 0;
   for (const value of values) {
     if (value > maximum) maximum = value;
   }
   return maximum;
+}
+
+function publicHydrologyTransitionAllowed(source: number, target: number): boolean {
+  if (source === GREATER_REALM_WATER_REGIME_ID.RIVER) {
+    return target === GREATER_REALM_WATER_REGIME_ID.RIVER
+      || target === GREATER_REALM_WATER_REGIME_ID.MARSH
+      || target === GREATER_REALM_WATER_REGIME_ID.LAKE
+      || target === GREATER_REALM_WATER_REGIME_ID.OCEAN
+      || target === GREATER_REALM_WATER_REGIME_ID.SEA;
+  }
+  if (source === GREATER_REALM_WATER_REGIME_ID.STREAM) {
+    return target === GREATER_REALM_WATER_REGIME_ID.STREAM
+      || target === GREATER_REALM_WATER_REGIME_ID.RIVER
+      || target === GREATER_REALM_WATER_REGIME_ID.MARSH
+      || target === GREATER_REALM_WATER_REGIME_ID.LAKE
+      || target === GREATER_REALM_WATER_REGIME_ID.OCEAN
+      || target === GREATER_REALM_WATER_REGIME_ID.SEA;
+  }
+  return false;
+}
+
+type LegacyLowlandsGameplayProjection = Readonly<{
+  passable: boolean;
+  biomeClass: number;
+  landformClass: number;
+  yieldClass: number;
+  movementCost: number;
+  hydroRegime: number;
+}>;
+
+type LegacyLowlandsWaterRow =
+  (typeof GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.water.enabledCells)[number];
+
+type LegacyLowlandsWaterProjection = Readonly<{
+  row: LegacyLowlandsWaterRow;
+  hydroRegime: number;
+  biomeClass: number;
+  landformClass: number;
+}>;
+
+function legacyLowlandsVisualClass(terrainKind: string): Readonly<{
+  biomeClass: number;
+  landformClass: number;
+}> {
+  switch (terrainKind) {
+    case 'lowland':
+      return Object.freeze({
+        biomeClass: GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND,
+        landformClass: GREATER_REALM_LANDFORM_ID.LOWLAND,
+      });
+    case 'meadow':
+      return Object.freeze({
+        biomeClass: GREATER_REALM_BIOME_ID.FLOWER_MEADOW,
+        landformClass: GREATER_REALM_LANDFORM_ID.LOWLAND,
+      });
+    case 'forest':
+      return Object.freeze({
+        biomeClass: GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST,
+        landformClass: GREATER_REALM_LANDFORM_ID.LOWLAND,
+      });
+    case 'heath':
+      return Object.freeze({
+        biomeClass: GREATER_REALM_BIOME_ID.SAVANNA,
+        landformClass: GREATER_REALM_LANDFORM_ID.LOWLAND,
+      });
+    case 'ridge':
+      return Object.freeze({
+        biomeClass: GREATER_REALM_BIOME_ID.ROCKY_HIGHLAND,
+        landformClass: GREATER_REALM_LANDFORM_ID.HIGHLAND,
+      });
+    case 'lake':
+      return Object.freeze({
+        biomeClass: GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND,
+        landformClass: GREATER_REALM_LANDFORM_ID.LOWLAND,
+      });
+    case 'ancient-stone':
+      return Object.freeze({
+        biomeClass: GREATER_REALM_BIOME_ID.ROCKY_HIGHLAND,
+        landformClass: GREATER_REALM_LANDFORM_ID.HILL,
+      });
+    default:
+      fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_CLASSIFICATION_INVALID');
+  }
+}
+
+function legacyLowlandsWaterProjection(
+  localQ: number,
+  localR: number,
+): LegacyLowlandsWaterProjection | undefined {
+  const row = LEGACY_LOWLANDS_WATER_BY_KEY.get(`${localQ},${localR}`);
+  if (row === undefined) return undefined;
+  if (row.regime === 'ocean') {
+    return Object.freeze({
+      row,
+      hydroRegime: GREATER_REALM_WATER_REGIME_ID.OCEAN,
+      biomeClass: GREATER_REALM_BIOME_ID.SALTWATER,
+      landformClass: GREATER_REALM_LANDFORM_ID.ISLAND_SHELF,
+    });
+  }
+  if (row.regime === 'river') {
+    return Object.freeze({
+      row,
+      hydroRegime: GREATER_REALM_WATER_REGIME_ID.RIVER,
+      biomeClass: GREATER_REALM_BIOME_ID.RIVER_STREAM,
+      landformClass: GREATER_REALM_LANDFORM_ID.WATERCOURSE,
+    });
+  }
+  return Object.freeze({
+    row,
+    hydroRegime: GREATER_REALM_WATER_REGIME_ID.LAKE,
+    biomeClass: GREATER_REALM_BIOME_ID.LAKE,
+    landformClass: GREATER_REALM_LANDFORM_ID.LAKE_BASIN,
+  });
+}
+
+function legacyLowlandsGameplayProjection(
+  localQ: number,
+  localR: number,
+): LegacyLowlandsGameplayProjection {
+  const key = `${localQ},${localR}`;
+  const tile = LEGACY_LOWLANDS_TILE_BY_KEY.get(key);
+  const metadata = LEGACY_LOWLANDS_META_BY_KEY.get(key);
+  if (tile === undefined || metadata === undefined || metadata.tileKey !== tile.key) {
+    fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_GEOMETRY_INVALID');
+  }
+  const water = legacyLowlandsWaterProjection(localQ, localR);
+  const hydroRegime = water?.hydroRegime ?? GREATER_REALM_WATER_REGIME_ID.DRY;
+  const visual = water === undefined
+    ? legacyLowlandsVisualClass(metadata.terrainKind)
+    : water;
+  const passable = metadata.passable
+    && hydroRegime === GREATER_REALM_WATER_REGIME_ID.DRY;
+  const yieldClass = !passable
+    ? 0
+    : metadata.staticContentKind === 'resource-capable'
+      || metadata.staticContentKind === 'core-capable'
+      ? 2
+      : 1;
+  return Object.freeze({
+    passable,
+    biomeClass: visual.biomeClass,
+    landformClass: visual.landformClass,
+    yieldClass,
+    movementCost: passable ? metadata.movementCost : 1_000_000,
+    hydroRegime,
+  });
 }
 
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -495,16 +722,34 @@ function assertLegacyLowlandsBridge(source: GreaterRealmRuntimeReleaseSource): M
     GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.castleSlots.rows
       .map(slot => [slot.tileKey, slot.slotId] as const),
   );
+  const missingWaterKeys = new Set(LEGACY_LOWLANDS_WATER_BY_KEY.keys());
   const legacySlotByCell = new Map<number, number>();
   let cellCount = 0;
   let slotCount = 0;
   for (let cell = 0; cell < source.grid.cellCount; cell += 1) {
+    let lowlandsLocal: Readonly<{ q: number; r: number }> | undefined;
+    if (source.tierId[cell] === 1 && source.regionId[cell] === 0) {
+      lowlandsLocal = inverseGlobalToLegacyLowlands({
+        q: source.grid.q[cell]!,
+        r: source.grid.r[cell]!,
+      }, source.legacyLowlandsTransform);
+      const water = legacyLowlandsWaterProjection(lowlandsLocal.q, lowlandsLocal.r);
+      if (water !== undefined) {
+        missingWaterKeys.delete(water.row.cellKey);
+        if (
+          source.waterRegime[cell] !== water.hydroRegime
+          || source.biomeId[cell] !== water.biomeClass
+          || source.landformId[cell] !== water.landformClass
+          || source.geologicalBarrierBand[cell] !== 0
+        ) fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_WATER_INVALID');
+      }
+    }
     if (source.legacyLowlandsCell[cell] !== 1) continue;
     cellCount += 1;
     if (source.tierId[cell] !== 1 || source.regionId[cell] !== 0) {
       fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_TIER_INVALID');
     }
-    const local = inverseGlobalToLegacyLowlands({
+    const local = lowlandsLocal ?? inverseGlobalToLegacyLowlands({
       q: source.grid.q[cell]!,
       r: source.grid.r[cell]!,
     }, source.legacyLowlandsTransform);
@@ -512,6 +757,16 @@ function assertLegacyLowlandsBridge(source: GreaterRealmRuntimeReleaseSource): M
     if (!canonicalByKey.delete(key)) {
       fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_GEOMETRY_INVALID');
     }
+    const projection = legacyLowlandsGameplayProjection(
+      local.q,
+      local.r,
+    );
+    if (
+      source.waterRegime[cell] !== projection.hydroRegime
+      || source.biomeId[cell] !== projection.biomeClass
+      || source.landformId[cell] !== projection.landformClass
+      || source.geologicalBarrierBand[cell] !== 0
+    ) fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_CLASSIFICATION_INVALID');
     const legacySlotId = canonicalSlotByKey.get(key);
     if (source.legacyLowlandsCastleSlot[cell] === 1) {
       if (legacySlotId === undefined || source.castleSlot[cell] !== 1) {
@@ -526,6 +781,7 @@ function assertLegacyLowlandsBridge(source: GreaterRealmRuntimeReleaseSource): M
   if (
     cellCount !== GREATER_REALM_LEGACY_LOWLANDS_LOCK_PINS_V1.worldCellCount
     || canonicalByKey.size !== 0
+    || missingWaterKeys.size !== 0
     || slotCount !== GREATER_REALM_LEGACY_LOWLANDS_LOCK_PINS_V1.castleSlotCount
   ) fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_GEOMETRY_INVALID');
   return legacySlotByCell;
@@ -540,7 +796,10 @@ function tierOneCells(source: GreaterRealmRuntimeReleaseSource): number[] {
     }
     cells.push(cell);
   }
-  if (cells.length === 0) fail('GREATER_REALM_RUNTIME_RELEASE_TIER_ONE_EMPTY');
+  if (
+    cells.length === 0
+    || cells.length > GREATER_REALM_MAXIMUM_ACTIVE_CELL_COUNT
+  ) fail('GREATER_REALM_RUNTIME_RELEASE_TIER_ONE_COUNT_INVALID');
   return cells;
 }
 
@@ -560,9 +819,19 @@ function discoverNavigationComponents(
       )
       && source.routeClass[cell] === GREATER_REALM_ROUTE_CLASS.FORD
     );
-    if (
-      source.tierId[cell] === 1
-      && (source.waterRegime[cell] === GREATER_REALM_WATER_REGIME_ID.DRY || ford)
+    if (source.tierId[cell] !== 1) continue;
+    if (source.regionId[cell] === 0) {
+      const local = localCoordinate(source, cell);
+      if (legacyLowlandsWaterProjection(local.q, local.r) !== undefined) continue;
+    }
+    if (source.legacyLowlandsCell[cell] === 1) {
+      const local = localCoordinate(source, cell);
+      if (legacyLowlandsGameplayProjection(
+        local.q,
+        local.r,
+      ).passable) navigable[cell] = 1;
+    } else if (
+      (source.waterRegime[cell] === GREATER_REALM_WATER_REGIME_ID.DRY || ford)
       && source.barrier[cell] === 0
     ) navigable[cell] = 1;
   }
@@ -691,6 +960,9 @@ function partitionTierOneCells(
     });
   }
   included.fill(0);
+  if (chunks.length < 1 || chunks.length > MAXIMUM_RUNTIME_CHUNKS) {
+    fail('GREATER_REALM_RUNTIME_RELEASE_CHUNK_COUNT_INVALID');
+  }
   return chunks;
 }
 
@@ -760,12 +1032,10 @@ function passiveYieldClass(
   if (!passable) return 0;
   if (source.legacyLowlandsCell[cell] === 1) {
     const local = localCoordinate(source, cell);
-    const meta = LEGACY_LOWLANDS_META_BY_KEY.get(`${local.q},${local.r}`);
-    if (meta === undefined || !meta.passable) return 0;
-    return meta.staticContentKind === 'resource-capable'
-      || meta.staticContentKind === 'core-capable'
-      ? 2
-      : 1;
+    return legacyLowlandsGameplayProjection(
+      local.q,
+      local.r,
+    ).yieldClass;
   }
   const fertile = source.moisture[cell]! >= 4_000
     && source.slope[cell]! <= 4_000
@@ -783,25 +1053,32 @@ function buildCell(
   publicWaterIdByPrivateId: Map<string, string>,
   publicRidgeIdByPrivateId: Map<number, string>,
 ): GreaterRealmRuntimeCell {
+  const local = localCoordinate(source, cell);
+  const lockedWater = source.regionId[cell] === 0
+    ? legacyLowlandsWaterProjection(local.q, local.r)
+    : undefined;
   const regime = assertIntegerRange(
-    source.waterRegime[cell]!,
+    lockedWater?.hydroRegime ?? source.waterRegime[cell]!,
     GREATER_REALM_WATER_REGIME_ID.DRY,
     GREATER_REALM_WATER_REGIME_ID.MARSH,
     'GREATER_REALM_RUNTIME_RELEASE_WATER_REGIME_INVALID',
   );
   const depthClass = assertIntegerRange(
-    source.waterDepthClass[cell]!,
+    lockedWater?.row.depthClass ?? source.waterDepthClass[cell]!,
     GREATER_REALM_WATER_DEPTH_CLASS_ID.DRY,
     GREATER_REALM_WATER_DEPTH_CLASS_ID.DEEP,
     'GREATER_REALM_RUNTIME_RELEASE_WATER_DEPTH_INVALID',
   );
   const passable = component !== undefined;
-  const local = localCoordinate(source, cell);
   let hydroBodyId: string | undefined;
   if (regime !== GREATER_REALM_WATER_REGIME_ID.DRY) {
     const privateWaterId = source.waterBodyId[cell]!;
-    if (privateWaterId === 0) fail('GREATER_REALM_RUNTIME_RELEASE_WATER_ID_INVALID');
-    const lookup = `${privateWaterId}`;
+    if (lockedWater === undefined && privateWaterId === 0) {
+      fail('GREATER_REALM_RUNTIME_RELEASE_WATER_ID_INVALID');
+    }
+    const lookup = lockedWater === undefined
+      ? `generated:${privateWaterId}`
+      : `legacy-lowlands:${lockedWater.row.bodyId}`;
     hydroBodyId = publicWaterIdByPrivateId.get(lookup);
     if (hydroBodyId === undefined) {
       hydroBodyId = opaqueId(releaseSeed, 'GRW', 'hydro-body', lookup);
@@ -822,16 +1099,39 @@ function buildCell(
     fail('GREATER_REALM_RUNTIME_RELEASE_RIDGE_INVALID');
   }
   let hydroFlowDirection: number | undefined;
-  const downstream = source.waterDownstream[cell]!;
+  let downstream = source.waterDownstream[cell]!;
+  if (lockedWater?.row.downstreamWaterCellKey !== undefined) {
+    const downstreamWater = LEGACY_LOWLANDS_WATER_BY_KEY.get(
+      lockedWater.row.downstreamWaterCellKey,
+    );
+    if (downstreamWater === undefined) {
+      fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_WATER_INVALID');
+    }
+    downstream = source.grid.indexOf(transformLegacyLowlandsToGlobal(
+      downstreamWater,
+      source.legacyLowlandsTransform,
+    ));
+    if (downstream < 0 || source.tierId[downstream] !== 1) {
+      fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_WATER_INVALID');
+    }
+  } else if (lockedWater !== undefined) {
+    downstream = -1;
+  }
   if (downstream >= 0) {
     const direction = Array.from({ length: 6 }, (_, index) => index)
       .find(index => source.grid.neighbors[cell * 6 + index] === downstream);
     if (direction === undefined) fail('GREATER_REALM_RUNTIME_RELEASE_HYDROLOGY_FLOW_INVALID');
-    if (source.tierId[downstream] === 1) hydroFlowDirection = direction;
+    if (
+      source.tierId[downstream] === 1
+      && (regime === GREATER_REALM_WATER_REGIME_ID.RIVER
+        || regime === GREATER_REALM_WATER_REGIME_ID.STREAM)
+    ) hydroFlowDirection = direction;
   } else if (downstream !== -1) {
     fail('GREATER_REALM_RUNTIME_RELEASE_HYDROLOGY_FLOW_INVALID');
   }
-  const flowAccumulation = source.flowAccumulation[cell]!;
+  const flowAccumulation = lockedWater === undefined
+    ? source.flowAccumulation[cell]!
+    : BigInt(lockedWater.row.flowAccumulation);
   if (flowAccumulation < 0n || flowAccumulation > 0xffff_ffff_ffff_ffffn) {
     fail('GREATER_REALM_RUNTIME_RELEASE_FLOW_ACCUMULATION_INVALID');
   }
@@ -841,6 +1141,18 @@ function buildCell(
     GREATER_REALM_ROUTE_CLASS.FORD,
     'GREATER_REALM_RUNTIME_RELEASE_ROUTE_INVALID',
   );
+  const legacyProjection = source.legacyLowlandsCell[cell] === 1
+    ? legacyLowlandsGameplayProjection(local.q, local.r)
+    : undefined;
+  if (
+    legacyProjection !== undefined
+    && (
+      legacyProjection.passable !== passable
+      || legacyProjection.hydroRegime !== regime
+      || legacyProjection.biomeClass !== source.biomeId[cell]
+      || legacyProjection.landformClass !== source.landformId[cell]
+    )
+  ) fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_CLASSIFICATION_INVALID');
   const routeDepth = component?.depth.get(cell);
   const routeParentDirection = component?.parentDirection.get(cell);
   if (component !== undefined && routeDepth === undefined) {
@@ -885,17 +1197,18 @@ function buildCell(
       'GREATER_REALM_RUNTIME_RELEASE_LANDFORM_INVALID',
     ),
     yieldClass: passiveYieldClass(source, cell, passable),
-    movementCost: component === undefined ? 1_000_000 : movementCost(source, cell),
+    movementCost: legacyProjection?.movementCost
+      ?? (component === undefined ? 1_000_000 : movementCost(source, cell)),
     sealedBoundaryMask: sealedBoundaryMask(source, cell),
     hydroRegime: regime,
     ...(hydroBodyId === undefined ? {} : { hydroBodyId }),
     hydroDepthClass: depthClass,
-    hydroSurfaceMilli: source.waterSurfaceLevel[cell]!,
+    hydroSurfaceMilli: lockedWater?.row.surfaceLevelMilli ?? source.waterSurfaceLevel[cell]!,
     ...(hydroFlowDirection === undefined ? {} : { hydroFlowDirection }),
     flowAccumulation: flowAccumulation.toString(10),
     bankVariant: publicUint32(releaseSeed, 'bank-variant', `${cell}`),
     hydrologyRevision: assertIntegerRange(
-      source.waterGenerationVersion[cell]!,
+      lockedWater?.row.generationVersion ?? source.waterGenerationVersion[cell]!,
       0,
       0xffff,
       'GREATER_REALM_RUNTIME_RELEASE_HYDROLOGY_REVISION_INVALID',
@@ -992,6 +1305,9 @@ function buildSlots(
   if (legacyIds.size !== 100 || [...legacyIds].some(id => id < 1 || id > 100)) {
     fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_SLOT_INVALID');
   }
+  if (slotCells.some(cell => (
+    (source.regionId[cell] === 0) !== legacySlotByCell.has(cell)
+  ))) fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_SLOT_INVALID');
   return slotCells.map((cell, releaseOrdinal) => {
     const runtimeCell = cellsBySourceIndex.get(cell)!;
     const component = componentByCell.get(cell)!;
@@ -1104,12 +1420,31 @@ function buildResourceNodes(
             siteId: undefined,
             policyVersion: GREATER_REALM_RESOURCE_POLICY_VERSION,
           }));
-        const locations = region.ordinal === 0 ? legacyRows : newLocations;
+        const locations = [...(region.ordinal === 0 ? legacyRows : newLocations)]
+          .map(location => Object.freeze({
+            ...location,
+            locationId: opaqueId(
+              releaseSeed,
+              'GRL',
+              'resource-location',
+              `${component.ordinal}:${region.ordinal}:${kind}:${location.sourceIndex}`,
+            ),
+          }))
+          .sort((first, second) => first.locationId.localeCompare(second.locationId));
         if (locations.length === 0 || locations.length > requiredPerKind) {
           fail('GREATER_REALM_RUNTIME_RELEASE_RESOURCE_MARGIN_INVALID');
         }
+        if (locations.some((location, index) => (
+          index > 0 && location.locationId === locations[index - 1]!.locationId
+        ))) fail('GREATER_REALM_RUNTIME_RELEASE_RESOURCE_LOCATION_INVALID');
+        if (
+          Math.ceil(requiredPerKind / locations.length)
+            > GREATER_REALM_RUNTIME_MAXIMUM_NODES_PER_LOCATION
+        ) fail('GREATER_REALM_RUNTIME_RELEASE_RESOURCE_MARGIN_INVALID');
         for (let nodeOrdinal = 0; nodeOrdinal < requiredPerKind; nodeOrdinal += 1) {
-          const selectedRow = locations[nodeOrdinal % locations.length]!;
+          const selectedRow = locations[Math.floor(
+            (nodeOrdinal * locations.length) / requiredPerKind,
+          )]!;
           const runtimeCell = cellsBySourceIndex.get(selectedRow.sourceIndex)!;
           if (
             !runtimeCell.passable
@@ -1121,12 +1456,7 @@ function buildResourceNodes(
             nodeId: opaqueId(releaseSeed, 'GRN', 'resource-node', `${releaseOrdinal}`),
             releaseOrdinal,
             atlasId: GREATER_REALM_ATLAS_ID,
-            locationId: opaqueId(
-              releaseSeed,
-              'GRL',
-              'resource-location',
-              `${component.ordinal}:${region.ordinal}:${kind}:${selectedRow.sourceIndex}`,
-            ),
+            locationId: selectedRow.locationId,
             cellKey: runtimeCell.cellKey,
             regionId: runtimeCell.regionId,
             componentKey: component.key,
@@ -1384,6 +1714,12 @@ export function createGreaterRealmRuntimeRelease(input: Readonly<{
     const chunkNodes = Object.freeze(
       coreCells.flatMap(cell => nodesByCellKey.get(cell.cellKey) ?? []),
     );
+    const chunkLocationCount = new Set(chunkNodes.map(node => node.locationId)).size;
+    if (
+      chunkSlots.length > GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_CASTLE_SLOTS
+      || chunkNodes.length > GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_RESOURCE_NODES
+      || chunkLocationCount > GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_RESOURCE_LOCATIONS
+    ) fail('GREATER_REALM_RUNTIME_RELEASE_CHUNK_CAPACITY_INVALID');
     const sectionDigests = Object.freeze({
       cellsSha256: sha256(canonicalBytes(coreCells)),
       apronSha256: sha256(canonicalBytes(apronKeys)),
@@ -1666,15 +2002,19 @@ export async function writeGreaterRealmRuntimeRelease(input: Readonly<{
       staged.writeFileAtomic(
         runtimeReleasePath('import-manifest.json'),
         input.artifacts.manifestBytes,
-        4 * 1024 * 1024,
+        MAXIMUM_RUNTIME_MANIFEST_BYTES,
       );
       for (const chunk of input.artifacts.chunks) {
-        staged.writeFileAtomic(runtimeReleasePath(chunk.path), chunk.bytes, 4 * 1024 * 1024);
+        staged.writeFileAtomic(
+          runtimeReleasePath(chunk.path),
+          chunk.bytes,
+          MAXIMUM_RUNTIME_CHUNK_BYTES,
+        );
       }
       staged.writeFileAtomic(
         runtimeReleasePath('status.json'),
         input.artifacts.statusBytes,
-        64 * 1024,
+        MAXIMUM_RUNTIME_STATUS_BYTES,
       );
     },
   );
@@ -1693,6 +2033,265 @@ function parsedJson(bytes: Buffer, code: string): unknown {
   }
 }
 
+function assertRuntimeReleaseManifestBounds(manifest: Record<string, unknown>): void {
+  const regions = manifest.regions;
+  const components = manifest.components;
+  const descriptors = manifest.chunks;
+  const totals = manifest.totals;
+  if (
+    !Array.isArray(regions)
+    || !Array.isArray(components)
+    || !Array.isArray(descriptors)
+    || regions.length !== PUBLIC_REGION_SPECS.length
+    || components.length < 1
+    || components.length > MAXIMUM_NAVIGATION_COMPONENTS
+    || descriptors.length < 1
+    || descriptors.length > MAXIMUM_RUNTIME_CHUNKS
+    || totals === null
+    || typeof totals !== 'object'
+    || !hasExactKeys(totals, [
+      'regionCount',
+      'componentCount',
+      'chunkCount',
+      'cellCount',
+      'castleSlotCount',
+      'resourceNodeCount',
+    ])
+    || totals.regionCount !== PUBLIC_REGION_SPECS.length
+    || totals.componentCount !== components.length
+    || totals.chunkCount !== descriptors.length
+    || !integerInRange(totals.cellCount, 1, GREATER_REALM_MAXIMUM_ACTIVE_CELL_COUNT)
+    || totals.castleSlotCount !== 600
+    || totals.resourceNodeCount !== 12_000
+  ) fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+  let descriptorCellCount = 0;
+  const descriptorPaths = new Set<string>();
+  for (let index = 0; index < descriptors.length; index += 1) {
+    const descriptor = descriptors[index] as Record<string, unknown>;
+    if (
+      descriptor === null
+      || typeof descriptor !== 'object'
+      || !hasExactKeys(descriptor, [
+        'chunkHandle',
+        'chunkCoordKey',
+        'importOrdinal',
+        'binQ',
+        'binR',
+        'firstCellOrdinal',
+        'coreCellCount',
+        'apronCellCount',
+        'lod0CellCount',
+        'lod1CellCount',
+        'lod2CellCount',
+        'lod3CellCount',
+        'payloadSha256',
+        'sectionDigests',
+        'path',
+      ])
+      || descriptor.importOrdinal !== index
+      || !integerInRange(descriptor.coreCellCount, 1, MAXIMUM_CHUNK_CORE_CELLS)
+      || !integerInRange(
+        descriptor.apronCellCount,
+        0,
+        MAXIMUM_CHUNK_VISIBLE_CELLS - Number(descriptor.coreCellCount),
+      )
+      || descriptor.lod0CellCount !== descriptor.coreCellCount
+      || descriptor.lod1CellCount !== Math.ceil(
+        (Number(descriptor.coreCellCount) + Number(descriptor.apronCellCount)) / 2,
+      )
+      || descriptor.lod2CellCount !== Math.ceil(Number(descriptor.lod1CellCount) / 2)
+      || descriptor.lod3CellCount !== Math.ceil(Number(descriptor.lod2CellCount) / 2)
+      || !/^GRK-[A-Z2-7]{26}$/u.test(String(descriptor.chunkHandle))
+      || descriptor.path !== `chunks/${descriptor.chunkHandle}.json`
+      || descriptorPaths.has(String(descriptor.path))
+      || !SHA256_PATTERN.test(String(descriptor.payloadSha256))
+    ) fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+    descriptorPaths.add(String(descriptor.path));
+    descriptorCellCount += Number(descriptor.coreCellCount);
+    if (descriptorCellCount > GREATER_REALM_MAXIMUM_ACTIVE_CELL_COUNT) {
+      fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+    }
+  }
+  if (descriptorCellCount !== totals.cellCount) {
+    fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+  }
+  let regionCellCount = 0;
+  let regionResourceNodeCount = 0;
+  for (const value of regions) {
+    const region = value as Record<string, unknown>;
+    if (
+      region === null
+      || typeof region !== 'object'
+      || !integerInRange(region.cellCount, 100, GREATER_REALM_MAXIMUM_ACTIVE_CELL_COUNT)
+      || !integerInRange(region.passableCellCount, 100, Number(region.cellCount))
+      || !integerInRange(region.chunkCount, 1, descriptors.length)
+      || region.castleCapacity !== 100
+      || region.resourceNodeCount !== 2_000
+      || region.foodNodeCount !== 500
+      || region.woodNodeCount !== 500
+      || region.stoneNodeCount !== 500
+      || region.goldNodeCount !== 500
+    ) fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+    regionCellCount += Number(region.cellCount);
+    regionResourceNodeCount += Number(region.resourceNodeCount);
+  }
+  if (
+    regionCellCount !== totals.cellCount
+    || regionResourceNodeCount !== totals.resourceNodeCount
+  ) fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+  let componentCellCount = 0;
+  let componentSlotCount = 0;
+  const componentKindCounts = [0, 0, 0, 0];
+  for (const value of components) {
+    const component = value as Record<string, unknown>;
+    if (
+      component === null
+      || typeof component !== 'object'
+      || !integerInRange(component.expectedCellCount, 1, Number(totals.cellCount))
+      || !integerInRange(component.expectedSlotCount, 0, 600)
+      || !integerInRange(component.expectedFoodNodeCount, 0, 3_000)
+      || !integerInRange(component.expectedWoodNodeCount, 0, 3_000)
+      || !integerInRange(component.expectedStoneNodeCount, 0, 3_000)
+      || !integerInRange(component.expectedGoldNodeCount, 0, 3_000)
+    ) fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+    componentCellCount += Number(component.expectedCellCount);
+    componentSlotCount += Number(component.expectedSlotCount);
+    componentKindCounts[0] += Number(component.expectedFoodNodeCount);
+    componentKindCounts[1] += Number(component.expectedWoodNodeCount);
+    componentKindCounts[2] += Number(component.expectedStoneNodeCount);
+    componentKindCounts[3] += Number(component.expectedGoldNodeCount);
+  }
+  if (
+    componentCellCount > totals.cellCount
+    || componentSlotCount !== 600
+    || componentKindCounts.some(count => count !== 3_000)
+  ) fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+}
+
+function assertReleasedLowlandsLock(cells: readonly GreaterRealmRuntimeCell[]): void {
+  const lowlands = cells.filter(cell => cell.regionId === 'T1_LOWLANDS');
+  if (lowlands.length < GREATER_REALM_LEGACY_LOWLANDS_LOCK_PINS_V1.worldCellCount) {
+    fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_GEOMETRY_INVALID');
+  }
+  const first = lowlands[0]!;
+  const matchingTransforms = Array.from({ length: 6 }, (_, rotationSteps) => {
+    const rotated = transformLegacyLowlandsToGlobal(
+      { q: first.localQ, r: first.localR },
+      {
+        rotationSteps: rotationSteps as 0 | 1 | 2 | 3 | 4 | 5,
+        globalOffsetQ: 0,
+        globalOffsetR: 0,
+      },
+    );
+    const transform = Object.freeze({
+      rotationSteps: rotationSteps as 0 | 1 | 2 | 3 | 4 | 5,
+      globalOffsetQ: first.atlasQ - rotated.q,
+      globalOffsetR: first.atlasR - rotated.r,
+    });
+    return lowlands.every(cell => {
+      const atlas = transformLegacyLowlandsToGlobal(
+        { q: cell.localQ, r: cell.localR },
+        transform,
+      );
+      return atlas.q === cell.atlasQ && atlas.r === cell.atlasR;
+    }) ? transform : undefined;
+  }).filter(transform => transform !== undefined);
+  if (matchingTransforms.length !== 1) {
+    fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_GEOMETRY_INVALID');
+  }
+  const lowlandsByLocalKey = new Map<string, GreaterRealmRuntimeCell>(
+    lowlands.map(cell => [`${cell.localQ},${cell.localR}`, cell] as const),
+  );
+  const lowlandsByAtlasCoord = new Map<string, GreaterRealmRuntimeCell>(
+    lowlands.map(cell => [`${cell.atlasQ},${cell.atlasR}`, cell] as const),
+  );
+  const missingCanonicalKeys = new Set(LEGACY_LOWLANDS_TILE_BY_KEY.keys());
+  for (const cell of lowlands) {
+    const localKey = `${cell.localQ},${cell.localR}`;
+    if (!missingCanonicalKeys.delete(localKey)) continue;
+    const projection = legacyLowlandsGameplayProjection(
+      cell.localQ,
+      cell.localR,
+    );
+    if (
+      cell.passable !== projection.passable
+      || cell.biomeClass !== projection.biomeClass
+      || cell.landformClass !== projection.landformClass
+      || cell.yieldClass !== projection.yieldClass
+      || cell.movementCost !== projection.movementCost
+      || cell.hydroRegime !== projection.hydroRegime
+      || cell.geologicalBarrierBand !== 0
+    ) fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_CLASSIFICATION_INVALID');
+  }
+  if (missingCanonicalKeys.size !== 0) {
+    fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_GEOMETRY_INVALID');
+  }
+  const publicBodyByLegacyBody = new Map<string, string>();
+  const legacyBodyByPublicBody = new Map<string, string>();
+  for (const water of GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.water.enabledCells) {
+    const cell = lowlandsByLocalKey.get(water.cellKey);
+    const projection = legacyLowlandsWaterProjection(water.q, water.r);
+    if (
+      cell === undefined
+      || projection === undefined
+      || cell.hydroRegime !== projection.hydroRegime
+      || cell.hydroDepthClass !== water.depthClass
+      || cell.hydroSurfaceMilli !== water.surfaceLevelMilli
+      || cell.flowAccumulation !== BigInt(water.flowAccumulation).toString(10)
+      || cell.hydrologyRevision !== water.generationVersion
+      || cell.biomeClass !== projection.biomeClass
+      || cell.landformClass !== projection.landformClass
+      || cell.geologicalBarrierBand !== 0
+      || cell.hydroBodyId === undefined
+      || cell.passable
+      || cell.yieldClass !== 0
+      || cell.movementCost !== 1_000_000
+    ) fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_WATER_INVALID');
+    const existingPublicBody = publicBodyByLegacyBody.get(water.bodyId);
+    const existingLegacyBody = legacyBodyByPublicBody.get(cell.hydroBodyId);
+    if (
+      (existingPublicBody !== undefined && existingPublicBody !== cell.hydroBodyId)
+      || (existingLegacyBody !== undefined && existingLegacyBody !== water.bodyId)
+    ) fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_WATER_INVALID');
+    publicBodyByLegacyBody.set(water.bodyId, cell.hydroBodyId);
+    legacyBodyByPublicBody.set(cell.hydroBodyId, water.bodyId);
+    if (water.downstreamWaterCellKey !== undefined) {
+      const downstream = lowlandsByLocalKey.get(water.downstreamWaterCellKey);
+      if (downstream === undefined) {
+        fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_WATER_INVALID');
+      }
+      const direction = GREATER_REALM_AXIAL_DIRECTIONS.findIndex(delta => (
+        cell.atlasQ + delta.q === downstream.atlasQ
+        && cell.atlasR + delta.r === downstream.atlasR
+      ));
+      if (direction < 0 || cell.hydroFlowDirection !== direction) {
+        fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_WATER_INVALID');
+      }
+    } else {
+      if (cell.hydroFlowDirection !== undefined) {
+        fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_WATER_INVALID');
+      }
+      const hasVisibleStandingWaterOutlet = GREATER_REALM_AXIAL_DIRECTIONS.some(delta => {
+        const neighbor = lowlandsByAtlasCoord.get(
+          `${cell.atlasQ + delta.q},${cell.atlasR + delta.r}`,
+        );
+        return neighbor !== undefined
+          && (neighbor.hydroRegime === GREATER_REALM_WATER_REGIME_ID.OCEAN
+            || neighbor.hydroRegime === GREATER_REALM_WATER_REGIME_ID.LAKE)
+          && neighbor.hydroSurfaceMilli <= cell.hydroSurfaceMilli;
+      });
+      if (water.regime === 'river' && !hasVisibleStandingWaterOutlet) {
+        fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_WATER_INVALID');
+      }
+    }
+  }
+  if (
+    publicBodyByLegacyBody.size
+      !== GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.water.enabledBodies.length
+    || legacyBodyByPublicBody.size !== publicBodyByLegacyBody.size
+  ) fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_WATER_INVALID');
+}
+
 /**
  * Re-hash a staged release and enforce its privacy, count, and parent closure.
  * The forthcoming importer can call this verifier before opening any mutation.
@@ -1700,6 +2299,24 @@ function parsedJson(bytes: Buffer, code: string): unknown {
 export function verifyGreaterRealmRuntimeReleaseArtifacts(
   artifacts: GreaterRealmRuntimeReleaseArtifacts,
 ): void {
+  let artifactBytes = artifacts.manifestBytes.byteLength + artifacts.statusBytes.byteLength;
+  if (
+    artifacts.manifestBytes.byteLength < 1
+    || artifacts.manifestBytes.byteLength > MAXIMUM_RUNTIME_MANIFEST_BYTES
+    || artifacts.statusBytes.byteLength < 1
+    || artifacts.statusBytes.byteLength > MAXIMUM_RUNTIME_STATUS_BYTES
+    || artifacts.chunks.length < 1
+    || artifacts.chunks.length > MAXIMUM_RUNTIME_CHUNKS
+  ) fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+  for (const chunk of artifacts.chunks) {
+    if (chunk.bytes.byteLength < 1 || chunk.bytes.byteLength > MAXIMUM_RUNTIME_CHUNK_BYTES) {
+      fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+    }
+    artifactBytes += chunk.bytes.byteLength;
+    if (artifactBytes > MAXIMUM_RUNTIME_RELEASE_BYTES) {
+      fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+    }
+  }
   const manifest = parsedJson(
     artifacts.manifestBytes,
     'GREATER_REALM_RUNTIME_RELEASE_MANIFEST_INVALID',
@@ -1769,6 +2386,7 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
     || !SHA256_PATTERN.test(String(manifest.releaseSha256))
     || manifest.visibleTierMax !== 1
   ) fail('GREATER_REALM_RUNTIME_RELEASE_MANIFEST_INVALID');
+  assertRuntimeReleaseManifestBounds(manifest);
   const regions = manifest.regions as Array<Record<string, unknown>>;
   const components = manifest.components as Array<Record<string, unknown>>;
   const descriptors = manifest.chunks as Array<Record<string, unknown>>;
@@ -1942,6 +2560,12 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
       || chunk.payload.cells.length > MAXIMUM_CHUNK_CORE_CELLS
       || chunk.payload.cells.length + chunk.payload.apronCellKeys.length
         > MAXIMUM_CHUNK_VISIBLE_CELLS
+      || chunk.payload.castleSlots.length
+        > GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_CASTLE_SLOTS
+      || chunk.payload.resourceNodes.length
+        > GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_RESOURCE_NODES
+      || new Set(chunk.payload.resourceNodes.map(node => node.locationId)).size
+        > GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_RESOURCE_LOCATIONS
       || chunk.payload.lod1CellKeys.length < 1
       || chunk.payload.lod2CellKeys.length < 1
       || chunk.payload.lod3CellKeys.length < 1
@@ -2199,6 +2823,33 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
     cellByKey.set(cell.cellKey, cell);
     cellByAtlasCoord.set(cell.atlasCoordKey, cell);
   }
+  assertReleasedLowlandsLock(cells);
+  for (const cell of cells) {
+    const flowing = cell.hydroRegime === GREATER_REALM_WATER_REGIME_ID.RIVER
+      || cell.hydroRegime === GREATER_REALM_WATER_REGIME_ID.STREAM;
+    if (cell.hydroFlowDirection === undefined) {
+      const frozenMouth = cell.regionId === 'T1_LOWLANDS'
+        && cell.hydroRegime === GREATER_REALM_WATER_REGIME_ID.RIVER
+        && LEGACY_LOWLANDS_RIVER_MOUTH_KEYS.has(`${cell.localQ},${cell.localR}`);
+      if (flowing && !frozenMouth) {
+        fail('GREATER_REALM_RUNTIME_RELEASE_HYDROLOGY_FLOW_INVALID');
+      }
+      continue;
+    }
+    const delta = GREATER_REALM_AXIAL_DIRECTIONS[cell.hydroFlowDirection]!;
+    const target = cellByAtlasCoord.get(
+      `A:${cell.atlasQ + delta.q}:${cell.atlasR + delta.r}`,
+    );
+    if (
+      target === undefined
+      || !publicHydrologyTransitionAllowed(cell.hydroRegime, target.hydroRegime)
+      || target.hydroRegime === GREATER_REALM_WATER_REGIME_ID.DRY
+      || target.hydroSurfaceMilli > cell.hydroSurfaceMilli
+      || BigInt(target.flowAccumulation) <= BigInt(cell.flowAccumulation)
+      || ((target.hydroRegime === cell.hydroRegime)
+        !== (target.hydroBodyId === cell.hydroBodyId))
+    ) fail('GREATER_REALM_RUNTIME_RELEASE_HYDROLOGY_FLOW_INVALID');
+  }
   for (const cell of cells) {
     let expectedSealedBoundaryMask = 0;
     for (let direction = 0; direction < GREATER_REALM_AXIAL_DIRECTIONS.length; direction += 1) {
@@ -2325,6 +2976,9 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
   const legacySlotIds = new Set<number>();
   const publicSlotIds = new Set<string>();
   const slotCellKeys = new Set<string>();
+  const slotCountsByRegion = new Map<string, number>(
+    PUBLIC_REGION_SPECS.map(region => [region.id, 0] as const),
+  );
   let previousSlotCellOrdinal = -1;
   for (const slot of slots) {
     const cell = cellByKey.get(slot.cellKey);
@@ -2356,10 +3010,12 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
       || cell.componentKey !== slot.componentKey
       || cell.regionId !== slot.regionId
       || cell.releaseOrdinal <= previousSlotCellOrdinal
+      || ((slot.regionId === 'T1_LOWLANDS') !== (slot.legacySlotId !== undefined))
     ) fail('GREATER_REALM_RUNTIME_RELEASE_SLOT_INVALID');
     previousSlotCellOrdinal = cell.releaseOrdinal;
     publicSlotIds.add(slot.slotId);
     slotCellKeys.add(slot.cellKey);
+    slotCountsByRegion.set(slot.regionId, (slotCountsByRegion.get(slot.regionId) ?? 0) + 1);
     if (slot.legacySlotId !== undefined) {
       if (
         slot.regionId !== 'T1_LOWLANDS'
@@ -2374,10 +3030,18 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
       legacySlotIds.add(slot.legacySlotId);
     }
   }
-  if (legacySlotIds.size !== 100) fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_SLOT_INVALID');
+  if (
+    legacySlotIds.size !== 100
+    || Array.from({ length: 100 }, (_, index) => index + 1)
+      .some(id => !legacySlotIds.has(id))
+  ) fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_SLOT_INVALID');
+  if (PUBLIC_REGION_SPECS.some(region => slotCountsByRegion.get(region.id) !== 100)) {
+    fail('GREATER_REALM_RUNTIME_RELEASE_SLOT_COUNT_INVALID');
+  }
   const legacyCatalogIds = new Set<string>();
   const locationByKindAndCell = new Map<string, string>();
   const locationOwner = new Map<string, string>();
+  const locationProjection = new Map<string, string>();
   const publicNodeIds = new Set<string>();
   for (const node of nodes) {
     const cell = cellByKey.get(node.cellKey);
@@ -2426,6 +3090,19 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
     ) fail('GREATER_REALM_RUNTIME_RELEASE_RESOURCE_LOCATION_INVALID');
     locationByKindAndCell.set(locationKey, node.locationId);
     locationOwner.set(node.locationId, locationKey);
+    const projection = JSON.stringify({
+      cellKey: node.cellKey,
+      regionId: node.regionId,
+      componentKey: node.componentKey,
+      resourceKind: node.resourceKind,
+      legacyCatalogId: node.legacyCatalogId,
+      policyVersion: node.policyVersion,
+    });
+    const existingProjection = locationProjection.get(node.locationId);
+    if (existingProjection !== undefined && existingProjection !== projection) {
+      fail('GREATER_REALM_RUNTIME_RELEASE_RESOURCE_LOCATION_INVALID');
+    }
+    locationProjection.set(node.locationId, projection);
     if (node.legacyCatalogId !== undefined) {
       const key = `${node.resourceKind}:${node.legacyCatalogId}`;
       if (node.regionId !== 'T1_LOWLANDS') {
@@ -2457,6 +3134,19 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
   let previousNodeGroup = '';
   let previousNodeGroupRank = -1;
   let expectedNodeOrdinal = 0;
+  let previousLocationId = '';
+  let groupLocationCounts = new Map<string, number>();
+  let groupSeenLocations = new Set<string>();
+  const assertBalancedLocationBlocks = (): void => {
+    if (groupLocationCounts.size === 0) return;
+    const counts = [...groupLocationCounts.values()];
+    if (
+      Math.max(...counts) > GREATER_REALM_RUNTIME_MAXIMUM_NODES_PER_LOCATION
+      || Math.max(...counts) - Math.min(...counts) > 1
+    ) {
+      fail('GREATER_REALM_RUNTIME_RELEASE_RESOURCE_LOCATION_INVALID');
+    }
+  };
   for (const node of nodes) {
     const componentOrdinal = Number(componentByKey.get(node.componentKey)?.componentOrdinal);
     const regionOrdinal = PUBLIC_REGION_SPECS.find(region => region.id === node.regionId)?.ordinal;
@@ -2476,14 +3166,33 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
       if (groupRank <= previousNodeGroupRank) {
         fail('GREATER_REALM_RUNTIME_RELEASE_RESOURCE_ORDINAL_INVALID');
       }
+      assertBalancedLocationBlocks();
       previousNodeGroup = group;
       previousNodeGroupRank = groupRank;
       expectedNodeOrdinal = 0;
+      previousLocationId = '';
+      groupLocationCounts = new Map<string, number>();
+      groupSeenLocations = new Set<string>();
     }
     if (node.nodeOrdinal !== expectedNodeOrdinal) {
       fail('GREATER_REALM_RUNTIME_RELEASE_RESOURCE_ORDINAL_INVALID');
     }
+    if (node.locationId !== previousLocationId) {
+      if (groupSeenLocations.has(node.locationId)) {
+        fail('GREATER_REALM_RUNTIME_RELEASE_RESOURCE_LOCATION_INVALID');
+      }
+      if (previousLocationId !== '' && node.locationId.localeCompare(previousLocationId) <= 0) {
+        fail('GREATER_REALM_RUNTIME_RELEASE_RESOURCE_LOCATION_INVALID');
+      }
+      groupSeenLocations.add(node.locationId);
+      previousLocationId = node.locationId;
+    }
+    groupLocationCounts.set(
+      node.locationId,
+      (groupLocationCounts.get(node.locationId) ?? 0) + 1,
+    );
   }
+  assertBalancedLocationBlocks();
   for (let index = 0; index < regions.length; index += 1) {
     const region = regions[index]!;
     const regionId = PUBLIC_REGION_SPECS[index]!.id;
@@ -2498,12 +3207,15 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
       || region.passableCellCount !== regionCells.filter(cell => cell.passable).length
       || region.chunkCount !== new Set(regionCells.map(cell => cell.chunkHandle)).size
       || region.castleCapacity !== regionSlots.length
+      || regionSlots.length !== 100
       || region.resourceLocationCount !== new Set(regionNodes.map(node => node.locationId)).size
       || region.resourceNodeCount !== regionNodes.length
+      || regionNodes.length !== 2_000
       || region.foodNodeCount !== countKind('food')
       || region.woodNodeCount !== countKind('wood')
       || region.stoneNodeCount !== countKind('stone')
       || region.goldNodeCount !== countKind('gold')
+      || RESOURCE_KINDS.some(kind => countKind(kind) !== 500)
       || RESOURCE_KINDS.some(kind => countKind(kind) < regionSlots.length * RESOURCE_MARGIN_PER_SLOT)
     ) fail('GREATER_REALM_RUNTIME_RELEASE_REGION_INVALID');
   }
@@ -2556,27 +3268,121 @@ export function readGreaterRealmRuntimeRelease(
 ): GreaterRealmRuntimeReleaseArtifacts {
   const manifestBytes = workspace.readFile(
     runtimeReleasePath('import-manifest.json'),
-    4 * 1024 * 1024,
+    MAXIMUM_RUNTIME_MANIFEST_BYTES,
   );
-  const statusBytes = workspace.readFile(runtimeReleasePath('status.json'), 64 * 1024);
+  if (
+    manifestBytes.byteLength < 1
+    || manifestBytes.byteLength > MAXIMUM_RUNTIME_MANIFEST_BYTES
+  ) fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
   const manifest = parsedJson(
     manifestBytes,
     'GREATER_REALM_RUNTIME_RELEASE_MANIFEST_INVALID',
   ) as Record<string, unknown>;
+  if (!manifestBytes.equals(canonicalBytes(manifest))) {
+    fail('GREATER_REALM_RUNTIME_RELEASE_CANONICAL_JSON_INVALID');
+  }
+  assertNoPrivateReleaseMaterial(manifest);
+  assertRuntimeReleaseManifestBounds(manifest);
+  let cumulativeBytes = manifestBytes.byteLength;
+  const statusBytes = workspace.readFile(
+    runtimeReleasePath('status.json'),
+    Math.min(
+      MAXIMUM_RUNTIME_STATUS_BYTES,
+      MAXIMUM_RUNTIME_RELEASE_BYTES - cumulativeBytes,
+    ),
+  );
+  if (
+    statusBytes.byteLength < 1
+    || statusBytes.byteLength > MAXIMUM_RUNTIME_STATUS_BYTES
+  ) fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+  cumulativeBytes += statusBytes.byteLength;
+  if (cumulativeBytes > MAXIMUM_RUNTIME_RELEASE_BYTES) {
+    fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+  }
   const status = parsedJson(
     statusBytes,
     'GREATER_REALM_RUNTIME_RELEASE_STATUS_INVALID',
   ) as Record<string, unknown>;
-  if (!Array.isArray(manifest.chunks)) fail('GREATER_REALM_RUNTIME_RELEASE_MANIFEST_INVALID');
-  const chunks = manifest.chunks.map((descriptor: Record<string, unknown>) => {
+  if (!statusBytes.equals(canonicalBytes(status))) {
+    fail('GREATER_REALM_RUNTIME_RELEASE_CANONICAL_JSON_INVALID');
+  }
+  assertNoPrivateReleaseMaterial(status);
+  const totals = manifest.totals as Record<string, number>;
+  let cellCount = 0;
+  let slotCount = 0;
+  let resourceNodeCount = 0;
+  const chunks = (manifest.chunks as Array<Record<string, unknown>>)
+    .map((descriptor, index) => {
     const path = String(descriptor.path);
-    const bytes = workspace.readFile(runtimeReleasePath(path), 4 * 1024 * 1024);
+    const remainingBytes = MAXIMUM_RUNTIME_RELEASE_BYTES - cumulativeBytes;
+    if (remainingBytes < 1) fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+    const bytes = workspace.readFile(
+      runtimeReleasePath(path),
+      Math.min(MAXIMUM_RUNTIME_CHUNK_BYTES, remainingBytes),
+    );
+    if (bytes.byteLength < 1 || bytes.byteLength > MAXIMUM_RUNTIME_CHUNK_BYTES) {
+      fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+    }
+    cumulativeBytes += bytes.byteLength;
+    if (cumulativeBytes > MAXIMUM_RUNTIME_RELEASE_BYTES) {
+      fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+    }
     const payload = parsedJson(
       bytes,
       'GREATER_REALM_RUNTIME_RELEASE_CHUNK_INVALID',
     ) as GreaterRealmRuntimeChunkPayload;
+    const resourceCountByLocation = new Map<string, number>();
+    if (Array.isArray(payload?.resourceNodes)) {
+      for (const node of payload.resourceNodes) {
+        const locationId = typeof node?.locationId === 'string' ? node.locationId : '';
+        resourceCountByLocation.set(locationId, (resourceCountByLocation.get(locationId) ?? 0) + 1);
+      }
+    }
+    if (
+      payload === null
+      || typeof payload !== 'object'
+      || !bytes.equals(canonicalBytes(payload))
+      || descriptor.payloadSha256 !== sha256(bytes)
+      || payload.schema !== GREATER_REALM_RUNTIME_CHUNK_SCHEMA
+      || payload.publicReleaseId !== manifest.publicReleaseId
+      || payload.chunkHandle !== descriptor.chunkHandle
+      || payload.importOrdinal !== index
+      || !Array.isArray(payload.cells)
+      || !Array.isArray(payload.apronCellKeys)
+      || !Array.isArray(payload.lod1CellKeys)
+      || !Array.isArray(payload.lod2CellKeys)
+      || !Array.isArray(payload.lod3CellKeys)
+      || !Array.isArray(payload.castleSlots)
+      || !Array.isArray(payload.resourceNodes)
+      || payload.cells.length !== descriptor.coreCellCount
+      || payload.apronCellKeys.length !== descriptor.apronCellCount
+      || payload.lod1CellKeys.length !== descriptor.lod1CellCount
+      || payload.lod2CellKeys.length !== descriptor.lod2CellCount
+      || payload.lod3CellKeys.length !== descriptor.lod3CellCount
+      || payload.castleSlots.length > GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_CASTLE_SLOTS
+      || payload.resourceNodes.length > GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_RESOURCE_NODES
+      || new Set(payload.resourceNodes.map(node => node.locationId)).size
+        > GREATER_REALM_RUNTIME_MAXIMUM_CHUNK_RESOURCE_LOCATIONS
+      || [...resourceCountByLocation.values()].some(
+        count => count > GREATER_REALM_RUNTIME_MAXIMUM_NODES_PER_LOCATION,
+      )
+    ) fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
+    assertNoPrivateReleaseMaterial(payload);
+    cellCount += payload.cells.length;
+    slotCount += payload.castleSlots.length;
+    resourceNodeCount += payload.resourceNodes.length;
+    if (
+      cellCount > totals.cellCount
+      || slotCount > 600
+      || resourceNodeCount > 12_000
+    ) fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
     return Object.freeze({ path, bytes, payload });
   });
+  if (
+    cellCount !== totals.cellCount
+    || slotCount !== 600
+    || resourceNodeCount !== 12_000
+  ) fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
   const artifacts = Object.freeze({
     manifest: Object.freeze(manifest),
     manifestBytes,
@@ -2591,8 +3397,15 @@ export function readGreaterRealmRuntimeRelease(
 export const greaterRealmRuntimeReleaseTestSeams = Object.freeze({
   assertNoPrivateReleaseMaterial,
   canonicalBytes,
+  digestComponent,
+  framedSha256,
   importBatchDescriptors,
+  maximumRuntimeChunkBytes: MAXIMUM_RUNTIME_CHUNK_BYTES,
+  maximumRuntimeChunks: MAXIMUM_RUNTIME_CHUNKS,
+  maximumRuntimeManifestBytes: MAXIMUM_RUNTIME_MANIFEST_BYTES,
+  maximumRuntimeReleaseBytes: MAXIMUM_RUNTIME_RELEASE_BYTES,
   publicRegionSpecs: PUBLIC_REGION_SPECS,
+  releaseHeader,
   resourceKinds: RESOURCE_KINDS,
   sha256,
 });
