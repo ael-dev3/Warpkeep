@@ -20,12 +20,9 @@ import {
   GREATER_REALM_RUNTIME_RELEASE_FIXTURE_SOURCE_COMMIT,
 } from './atlas/greater-realm-runtime-release-test-fixture';
 import { createGreaterRealmRuntimeRelease } from './atlas/greater-realm-runtime-release';
+import { parseGreaterRealmConnectedProductionGateMode } from './greater-realm-connected-gate-mode';
 import {
-  DISPOSABLE_ACTIVATION_GATE_DECLARATION,
-  DISPOSABLE_IMPORT_GATE_DECLARATION,
   DISPOSABLE_RELOCATION_REDUCER_MODULE,
-  PRODUCTION_ACTIVATION_GATE_DECLARATION,
-  PRODUCTION_IMPORT_GATE_DECLARATION,
   assertCanonicalSeedCounts,
   callLoopback,
   childEnvironment,
@@ -2793,12 +2790,10 @@ async function main(): Promise<void> {
     const productionPolicy = await readFile(productionPolicyPath, 'utf8');
     const productionIndex = await readFile(productionIndexPath, 'utf8');
     if (
-      occurrenceCount(productionPolicy, PRODUCTION_IMPORT_GATE_DECLARATION) !== 1
-      || occurrenceCount(productionPolicy, PRODUCTION_ACTIVATION_GATE_DECLARATION) !== 1
-      || occurrenceCount(productionPolicy, DISPOSABLE_IMPORT_GATE_DECLARATION) !== 0
-      || occurrenceCount(productionPolicy, DISPOSABLE_ACTIVATION_GATE_DECLARATION) !== 0
+      parseGreaterRealmConnectedProductionGateMode(productionPolicy).mode
+        !== disposable.productionGateMode
       || occurrenceCount(productionIndex, DISPOSABLE_RELOCATION_REDUCER_MODULE) !== 0
-    ) fail('Checked-in Greater Realm mutations did not remain closed.');
+    ) fail('Checked-in Greater Realm mutation mode did not remain exact.');
   } catch (error) {
     if (error instanceof GreaterRealmConnectedActivePopulationError) {
       throw new GreaterRealmConnectedActivePopulationError(

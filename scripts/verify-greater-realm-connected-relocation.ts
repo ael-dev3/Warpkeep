@@ -31,6 +31,12 @@ import {
   exactGreaterRealmReleaseHeader,
   parseGreaterRealmConnectedStatus,
 } from './verify-greater-realm-connected-import';
+import {
+  assertGreaterRealmConnectedDisposableGateMode,
+  normalizeGreaterRealmConnectedDisposableGateMode,
+  parseGreaterRealmConnectedProductionGateMode,
+  type GreaterRealmConnectedProductionGateMode,
+} from './greater-realm-connected-gate-mode';
 // @ts-expect-error The migration proof deliberately exposes these shared JavaScript helpers.
 import { acquireDisposableIdentity, adminServiceClaims, cleanupMigrationProofResources, containServerProcessErrors, createEphemeralJwt, freeLoopbackPort, installMigrationProofSignalCleanup } from './verify-spacetime-additive-migration.mjs';
 
@@ -44,14 +50,6 @@ export const GREATER_REALM_CONNECTED_FOUNDER_COUNT = 100;
 export const GREATER_REALM_CONNECTED_WORKER_COUNT = 400;
 export const GREATER_REALM_CONNECTED_STATIC_FLIP_COUNT = 12_600;
 
-export const PRODUCTION_IMPORT_GATE_DECLARATION =
-  'export const GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED = false;';
-export const DISPOSABLE_IMPORT_GATE_DECLARATION =
-  'export const GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED = true;';
-export const PRODUCTION_ACTIVATION_GATE_DECLARATION =
-  'export const GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED = false;';
-export const DISPOSABLE_ACTIVATION_GATE_DECLARATION =
-  'export const GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED = true;';
 export const DISPOSABLE_RELOCATION_REDUCER_MODULE =
   './reducers/greaterRealmRelocationConnectedRehearsal';
 
@@ -277,25 +275,9 @@ function countOccurrences(value: string, needle: string): number {
   return value.split(needle).length - 1;
 }
 
-/** Flip only the two exact copied v17 mutation declarations. */
+/** Normalize only the copied policy to the fully enabled rehearsal scenario. */
 export function enableDisposableGreaterRealmRelocationGates(source: string): string {
-  if (
-    typeof source !== 'string'
-    || countOccurrences(source, PRODUCTION_IMPORT_GATE_DECLARATION) !== 1
-    || countOccurrences(source, DISPOSABLE_IMPORT_GATE_DECLARATION) !== 0
-    || countOccurrences(source, PRODUCTION_ACTIVATION_GATE_DECLARATION) !== 1
-    || countOccurrences(source, DISPOSABLE_ACTIVATION_GATE_DECLARATION) !== 0
-  ) fail('Production Greater Realm mutation gates were not exact and closed.');
-  const enabled = source
-    .replace(PRODUCTION_IMPORT_GATE_DECLARATION, DISPOSABLE_IMPORT_GATE_DECLARATION)
-    .replace(PRODUCTION_ACTIVATION_GATE_DECLARATION, DISPOSABLE_ACTIVATION_GATE_DECLARATION);
-  if (
-    countOccurrences(enabled, PRODUCTION_IMPORT_GATE_DECLARATION) !== 0
-    || countOccurrences(enabled, DISPOSABLE_IMPORT_GATE_DECLARATION) !== 1
-    || countOccurrences(enabled, PRODUCTION_ACTIVATION_GATE_DECLARATION) !== 0
-    || countOccurrences(enabled, DISPOSABLE_ACTIVATION_GATE_DECLARATION) !== 1
-  ) fail('Disposable Greater Realm gate substitution was not exact.');
-  return enabled;
+  return normalizeGreaterRealmConnectedDisposableGateMode(source, 'TT');
 }
 
 const reducerExportAppend = `
@@ -411,6 +393,7 @@ export type DisposableModule = Readonly<{
   productionPolicyBytes: Buffer;
   productionIndexBytes: Buffer;
   productionSourceDigest: string;
+  productionGateMode: GreaterRealmConnectedProductionGateMode;
   disposableSourceDigest: string;
 }>;
 
@@ -419,7 +402,9 @@ export async function createDisposableGreaterRealmRelocationModule(
 ): Promise<DisposableModule> {
   const productionPolicyBytes = await readFile(productionPolicyPath);
   const productionIndexBytes = await readFile(productionIndexPath);
-  enableDisposableGreaterRealmRelocationGates(productionPolicyBytes.toString('utf8'));
+  const productionGateMode = parseGreaterRealmConnectedProductionGateMode(
+    productionPolicyBytes.toString('utf8'),
+  ).mode;
   const productionIndex = productionIndexBytes.toString('utf8');
   if (
     productionIndex.includes(DISPOSABLE_RELOCATION_REDUCER_MODULE)
@@ -468,6 +453,7 @@ export async function createDisposableGreaterRealmRelocationModule(
   await writeFile(copiedPolicyPath, enabledPolicy, {
     encoding: 'utf8', mode: 0o600, flag: 'w',
   });
+  assertGreaterRealmConnectedDisposableGateMode(enabledPolicy, 'TT');
   const copiedIndex = await readFile(copiedIndexPath, 'utf8');
   if (
     countOccurrences(copiedIndex, 'warpkeep-disposable-connected-relocation-rehearsal-v1') !== 0
@@ -483,8 +469,9 @@ export async function createDisposableGreaterRealmRelocationModule(
   if (
     (await readFile(productionPolicyPath)).compare(productionPolicyBytes) !== 0
     || (await readFile(productionIndexPath)).compare(productionIndexBytes) !== 0
-    || countOccurrences(enabledPolicy, DISPOSABLE_IMPORT_GATE_DECLARATION) !== 1
-    || countOccurrences(enabledPolicy, DISPOSABLE_ACTIVATION_GATE_DECLARATION) !== 1
+    || parseGreaterRealmConnectedProductionGateMode(
+      await readFile(productionPolicyPath, 'utf8'),
+    ).mode !== productionGateMode
     || countOccurrences(await readFile(copiedIndexPath, 'utf8'), DISPOSABLE_RELOCATION_REDUCER_MODULE) !== 1
     || countOccurrences(hostileReducerSource, 'warpkeep.reducer(') !== 1
     || countOccurrences(
@@ -499,6 +486,7 @@ export async function createDisposableGreaterRealmRelocationModule(
     productionPolicyBytes,
     productionIndexBytes,
     productionSourceDigest,
+    productionGateMode,
     disposableSourceDigest,
   });
 }
@@ -2490,13 +2478,11 @@ async function main(): Promise<void> {
     const productionPolicy = await readFile(productionPolicyPath, 'utf8');
     const productionIndex = await readFile(productionIndexPath, 'utf8');
     if (
-      countOccurrences(productionPolicy, PRODUCTION_IMPORT_GATE_DECLARATION) !== 1
-      || countOccurrences(productionPolicy, PRODUCTION_ACTIVATION_GATE_DECLARATION) !== 1
-      || countOccurrences(productionPolicy, DISPOSABLE_IMPORT_GATE_DECLARATION) !== 0
-      || countOccurrences(productionPolicy, DISPOSABLE_ACTIVATION_GATE_DECLARATION) !== 0
+      parseGreaterRealmConnectedProductionGateMode(productionPolicy).mode
+        !== disposable.productionGateMode
       || countOccurrences(productionIndex, DISPOSABLE_RELOCATION_REDUCER_MODULE) !== 0
       || /\brehearsal(?:_|[A-Z])/u.test(productionIndex)
-    ) fail('Checked-in relocation gates or reducer registration escaped closed state.');
+    ) fail('Checked-in relocation gate mode or reducer registration changed.');
     const totalVerificationCalls = results.reduce(
       (total, result) => total + result.verificationCalls,
       0,

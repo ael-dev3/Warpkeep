@@ -32,6 +32,12 @@ import {
   type GreaterRealmRuntimeChunkArtifact,
   type GreaterRealmRuntimeReleaseArtifacts,
 } from './atlas/greater-realm-runtime-release';
+import {
+  assertGreaterRealmConnectedDisposableGateMode,
+  normalizeGreaterRealmConnectedDisposableGateMode,
+  parseGreaterRealmConnectedProductionGateMode,
+  type GreaterRealmConnectedProductionGateMode,
+} from './greater-realm-connected-gate-mode';
 // @ts-expect-error The migration proof deliberately exposes these shared JavaScript helpers.
 import { acquireDisposableIdentity, adminServiceClaims, cleanupMigrationProofResources, containServerProcessErrors, createEphemeralJwt, freeLoopbackPort, installMigrationProofSignalCleanup } from './verify-spacetime-additive-migration.mjs';
 
@@ -50,15 +56,6 @@ export const GREATER_REALM_CONNECTED_AUDITED_SERVER_COMMITS = Object.freeze([
 export const GREATER_REALM_CONNECTED_DATABASE =
   'warpkeep-greater-realm-connected-import';
 export const GREATER_REALM_CONNECTED_IMPORT_TIMEOUT_MILLISECONDS = 8 * 60 * 1_000;
-
-export const PRODUCTION_IMPORT_GATE_DECLARATION =
-  'export const GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED = false;';
-export const DISPOSABLE_IMPORT_GATE_DECLARATION =
-  'export const GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED = true;';
-export const PRODUCTION_ACTIVATION_GATE_DECLARATION =
-  'export const GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED = false;';
-export const FORBIDDEN_ACTIVATION_GATE_DECLARATION =
-  'export const GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED = true;';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const sourceModule = join(repositoryRoot, 'spacetimedb');
@@ -133,34 +130,12 @@ function fail(message: string): never {
   throw new GreaterRealmConnectedImportError(message);
 }
 
-function countOccurrences(value: string, needle: string): number {
-  if (needle.length === 0) fail('Disposable gate substitution needle was invalid.');
-  return value.split(needle).length - 1;
-}
-
 /**
- * Enable only the copied import authority. Both the input and result are
- * exact-count checked so source drift cannot widen this one-off proof build.
+ * Normalize only the copied import authority to the import-only scenario.
+ * Reviewed production source may be FF, TF, or FT, but never TT.
  */
 export function enableDisposableGreaterRealmImportGate(source: string): string {
-  if (
-    typeof source !== 'string'
-    || countOccurrences(source, PRODUCTION_IMPORT_GATE_DECLARATION) !== 1
-    || countOccurrences(source, DISPOSABLE_IMPORT_GATE_DECLARATION) !== 0
-    || countOccurrences(source, PRODUCTION_ACTIVATION_GATE_DECLARATION) !== 1
-    || countOccurrences(source, FORBIDDEN_ACTIVATION_GATE_DECLARATION) !== 0
-  ) fail('Production Greater Realm mutation gates were not exact and closed.');
-  const enabled = source.replace(
-    PRODUCTION_IMPORT_GATE_DECLARATION,
-    DISPOSABLE_IMPORT_GATE_DECLARATION,
-  );
-  if (
-    countOccurrences(enabled, PRODUCTION_IMPORT_GATE_DECLARATION) !== 0
-    || countOccurrences(enabled, DISPOSABLE_IMPORT_GATE_DECLARATION) !== 1
-    || countOccurrences(enabled, PRODUCTION_ACTIVATION_GATE_DECLARATION) !== 1
-    || countOccurrences(enabled, FORBIDDEN_ACTIVATION_GATE_DECLARATION) !== 0
-  ) fail('Disposable Greater Realm import-gate substitution was not exact.');
-  return enabled;
+  return normalizeGreaterRealmConnectedDisposableGateMode(source, 'TF');
 }
 
 function sha256(value: Uint8Array | string): string {
@@ -398,10 +373,13 @@ async function createDisposableModule(runtimeDirectory: string): Promise<Readonl
   moduleDirectory: string;
   productionPolicyBytes: Buffer;
   productionSourceDigest: string;
+  productionGateMode: GreaterRealmConnectedProductionGateMode;
 }>> {
   const productionPolicyBytes = await readFile(productionPolicyPath);
   const productionPolicy = productionPolicyBytes.toString('utf8');
-  enableDisposableGreaterRealmImportGate(productionPolicy);
+  const productionGateMode = parseGreaterRealmConnectedProductionGateMode(
+    productionPolicy,
+  ).mode;
   const productionSourceDigest = await directoryDigest(join(sourceModule, 'src'));
   const moduleDirectory = join(runtimeDirectory, 'module');
   await mkdir(moduleDirectory, { mode: 0o700 });
@@ -433,12 +411,19 @@ async function createDisposableModule(runtimeDirectory: string): Promise<Readonl
     mode: 0o600,
     flag: 'w',
   });
+  assertGreaterRealmConnectedDisposableGateMode(enabledPolicy, 'TF');
   if (
     (await readFile(productionPolicyPath)).compare(productionPolicyBytes) !== 0
-    || countOccurrences(enabledPolicy, DISPOSABLE_IMPORT_GATE_DECLARATION) !== 1
-    || countOccurrences(enabledPolicy, PRODUCTION_ACTIVATION_GATE_DECLARATION) !== 1
+    || parseGreaterRealmConnectedProductionGateMode(
+      await readFile(productionPolicyPath, 'utf8'),
+    ).mode !== productionGateMode
   ) fail('Disposable module mutation escaped its private copy.');
-  return Object.freeze({ moduleDirectory, productionPolicyBytes, productionSourceDigest });
+  return Object.freeze({
+    moduleDirectory,
+    productionPolicyBytes,
+    productionSourceDigest,
+    productionGateMode,
+  });
 }
 
 function childEnvironment(): Readonly<Record<string, string>> {
@@ -1145,6 +1130,7 @@ async function main(): Promise<void> {
   let serverProcess: ChildProcess | undefined;
   let productionPolicyBytes: Buffer | undefined;
   let productionSourceDigest: string | undefined;
+  let productionGateMode: GreaterRealmConnectedProductionGateMode | undefined;
   let authorityToken: string | undefined;
   let receipt: string | undefined;
   const forceCleanup = () => {
@@ -1173,6 +1159,7 @@ async function main(): Promise<void> {
     const copied = await createDisposableModule(runtimeDirectory);
     productionPolicyBytes = copied.productionPolicyBytes;
     productionSourceDigest = copied.productionSourceDigest;
+    productionGateMode = copied.productionGateMode;
 
     proofStage = 'disposable-module-build';
     const built = await runCommand(control, [
@@ -1508,6 +1495,9 @@ async function main(): Promise<void> {
     if (
       (await readFile(productionPolicyPath)).compare(productionPolicyBytes) !== 0
       || await directoryDigest(join(sourceModule, 'src')) !== productionSourceDigest
+      || parseGreaterRealmConnectedProductionGateMode(
+        await readFile(productionPolicyPath, 'utf8'),
+      ).mode !== productionGateMode
     ) fail('Production module source changed during the disposable proof.');
     receipt = 'Greater Realm connected synthetic import proof passed: '
       + `audited_exporter_upstream=${GREATER_REALM_CONNECTED_AUDITED_EXPORTER_COMMIT} `

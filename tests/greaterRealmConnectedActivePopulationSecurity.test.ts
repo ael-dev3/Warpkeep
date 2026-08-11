@@ -23,12 +23,12 @@ import {
   parseGreaterRealmConnectedSqlTimestampNanoseconds,
 } from '../scripts/verify-greater-realm-connected-active-population';
 import {
-  DISPOSABLE_ACTIVATION_GATE_DECLARATION,
-  DISPOSABLE_IMPORT_GATE_DECLARATION,
   DISPOSABLE_RELOCATION_REDUCER_MODULE,
-  PRODUCTION_ACTIVATION_GATE_DECLARATION,
-  PRODUCTION_IMPORT_GATE_DECLARATION,
 } from '../scripts/verify-greater-realm-connected-relocation';
+import {
+  GREATER_REALM_CONNECTED_PRODUCTION_GATE_MODES,
+  parseGreaterRealmConnectedProductionGateMode,
+} from '../scripts/greater-realm-connected-gate-mode';
 
 const root = resolve(import.meta.dirname, '..');
 const runner = readFileSync(
@@ -56,14 +56,14 @@ function occurrences(value: string, needle: string): number {
 }
 
 describe('connected active Greater Realm population proof boundary', () => {
-  it('keeps checked-in gates literal false and all rehearsal reducers unregistered', () => {
-    expect(occurrences(policy, PRODUCTION_IMPORT_GATE_DECLARATION)).toBe(1);
-    expect(occurrences(policy, PRODUCTION_ACTIVATION_GATE_DECLARATION)).toBe(1);
-    expect(occurrences(policy, DISPOSABLE_IMPORT_GATE_DECLARATION)).toBe(0);
-    expect(occurrences(policy, DISPOSABLE_ACTIVATION_GATE_DECLARATION)).toBe(0);
+  it('accepts only a reviewed production mode and leaves all rehearsal reducers unregistered', () => {
+    const initial = parseGreaterRealmConnectedProductionGateMode(policy);
+    expect(GREATER_REALM_CONNECTED_PRODUCTION_GATE_MODES).toContain(initial.mode);
     expect(index).not.toContain(DISPOSABLE_RELOCATION_REDUCER_MODULE);
     expect(index).not.toContain('rehearsal_halt_greater_realm_activation_v1');
     expect(runner).toContain('createDisposableGreaterRealmRelocationModule(runtimeRoot)');
+    expect(runner).toContain('parseGreaterRealmConnectedProductionGateMode(productionPolicy).mode');
+    expect(relocationRunner).toContain("normalizeGreaterRealmConnectedDisposableGateMode(source, 'TT')");
     expect(runner).not.toContain('writeFile(productionPolicyPath');
     expect(runner).not.toContain('writeFile(productionIndexPath');
   });

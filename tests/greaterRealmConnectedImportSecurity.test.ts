@@ -4,19 +4,24 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
-  DISPOSABLE_IMPORT_GATE_DECLARATION,
-  FORBIDDEN_ACTIVATION_GATE_DECLARATION,
   GREATER_REALM_CONNECTED_DATABASE,
   GREATER_REALM_CONNECTED_AUDITED_EXPORTER_COMMIT,
   GREATER_REALM_CONNECTED_IMPORT_TIMEOUT_MILLISECONDS,
   GREATER_REALM_CONNECTED_AUDITED_SERVER_COMMITS,
-  PRODUCTION_ACTIVATION_GATE_DECLARATION,
-  PRODUCTION_IMPORT_GATE_DECLARATION,
   createGreaterRealmChildBindingTamper,
   enableDisposableGreaterRealmImportGate,
   exactGreaterRealmReleaseHeader,
   parseGreaterRealmConnectedStatus,
 } from '../scripts/verify-greater-realm-connected-import';
+import {
+  GREATER_REALM_ACTIVATION_GATE_FALSE_DECLARATION,
+  GREATER_REALM_ACTIVATION_GATE_TRUE_DECLARATION,
+  GREATER_REALM_CONNECTED_PRODUCTION_GATE_MODES,
+  GREATER_REALM_IMPORT_GATE_FALSE_DECLARATION,
+  GREATER_REALM_IMPORT_GATE_TRUE_DECLARATION,
+  assertGreaterRealmConnectedDisposableGateMode,
+  parseGreaterRealmConnectedProductionGateMode,
+} from '../scripts/greater-realm-connected-gate-mode';
 
 const root = resolve(import.meta.dirname, '..');
 const runner = readFileSync(
@@ -39,22 +44,32 @@ function occurrences(value: string, needle: string) {
 }
 
 describe('disposable Greater Realm connected import security boundary', () => {
-  it('keeps both production mutation gates literally closed and changes only one copied import gate', () => {
-    expect(occurrences(policy, PRODUCTION_IMPORT_GATE_DECLARATION)).toBe(1);
-    expect(occurrences(policy, DISPOSABLE_IMPORT_GATE_DECLARATION)).toBe(0);
-    expect(occurrences(policy, PRODUCTION_ACTIVATION_GATE_DECLARATION)).toBe(1);
-    expect(occurrences(policy, FORBIDDEN_ACTIVATION_GATE_DECLARATION)).toBe(0);
-
+  it('accepts only a reviewed production mode and normalizes the copy to import-only', () => {
+    const initial = parseGreaterRealmConnectedProductionGateMode(policy);
+    expect(GREATER_REALM_CONNECTED_PRODUCTION_GATE_MODES).toContain(initial.mode);
     const enabled = enableDisposableGreaterRealmImportGate(policy);
-    expect(occurrences(enabled, PRODUCTION_IMPORT_GATE_DECLARATION)).toBe(0);
-    expect(occurrences(enabled, DISPOSABLE_IMPORT_GATE_DECLARATION)).toBe(1);
-    expect(occurrences(enabled, PRODUCTION_ACTIVATION_GATE_DECLARATION)).toBe(1);
-    expect(occurrences(enabled, FORBIDDEN_ACTIVATION_GATE_DECLARATION)).toBe(0);
-    expect(policy).toContain(PRODUCTION_IMPORT_GATE_DECLARATION);
-    expect(() => enableDisposableGreaterRealmImportGate(enabled)).toThrow(/exact and closed/i);
-    expect(() => enableDisposableGreaterRealmImportGate(
-      policy.replace(PRODUCTION_ACTIVATION_GATE_DECLARATION, FORBIDDEN_ACTIVATION_GATE_DECLARATION),
-    )).toThrow(/exact and closed/i);
+    expect(() => assertGreaterRealmConnectedDisposableGateMode(enabled, 'TF'))
+      .not.toThrow();
+    expect(enableDisposableGreaterRealmImportGate(enabled)).toBe(enabled);
+    expect(parseGreaterRealmConnectedProductionGateMode(policy)).toEqual(initial);
+    expect(runner).toContain('parseGreaterRealmConnectedProductionGateMode(');
+    expect(runner).toContain("assertGreaterRealmConnectedDisposableGateMode(enabledPolicy, 'TF')");
+
+    const fullyOpen = policy
+      .replace(
+        initial.importMutationsAllowed
+          ? GREATER_REALM_IMPORT_GATE_TRUE_DECLARATION
+          : GREATER_REALM_IMPORT_GATE_FALSE_DECLARATION,
+        GREATER_REALM_IMPORT_GATE_TRUE_DECLARATION,
+      )
+      .replace(
+        initial.activationMutationsAllowed
+          ? GREATER_REALM_ACTIVATION_GATE_TRUE_DECLARATION
+          : GREATER_REALM_ACTIVATION_GATE_FALSE_DECLARATION,
+        GREATER_REALM_ACTIVATION_GATE_TRUE_DECLARATION,
+      );
+    expect(() => enableDisposableGreaterRealmImportGate(fullyOpen))
+      .toThrow(/both open/i);
   });
 
   it('pins the requested exporter/server provenance and only constructs the tracked synthetic fixture', () => {

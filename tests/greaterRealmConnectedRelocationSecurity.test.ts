@@ -3,8 +3,6 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import {
-  DISPOSABLE_ACTIVATION_GATE_DECLARATION,
-  DISPOSABLE_IMPORT_GATE_DECLARATION,
   DISPOSABLE_RELOCATION_REDUCER_MODULE,
   GREATER_REALM_CONNECTED_CANARY_TIMEOUT_MILLISECONDS,
   GREATER_REALM_CONNECTED_CUTOVER_STATUS_FIELDS,
@@ -16,12 +14,17 @@ import {
   GREATER_REALM_CONNECTED_RELOCATION_TIMEOUT_MILLISECONDS,
   GREATER_REALM_CONNECTED_STATIC_FLIP_COUNT,
   GREATER_REALM_CONNECTED_WORKER_COUNT,
-  PRODUCTION_ACTIVATION_GATE_DECLARATION,
-  PRODUCTION_IMPORT_GATE_DECLARATION,
   disposableGreaterRealmRelocationReducerSource,
   enableDisposableGreaterRealmRelocationGates,
   parseConnectedCutoverStatus,
 } from '../scripts/verify-greater-realm-connected-relocation';
+import {
+  GREATER_REALM_CONNECTED_PRODUCTION_GATE_MODES,
+  GREATER_REALM_IMPORT_GATE_FALSE_DECLARATION,
+  GREATER_REALM_IMPORT_GATE_TRUE_DECLARATION,
+  assertGreaterRealmConnectedDisposableGateMode,
+  parseGreaterRealmConnectedProductionGateMode,
+} from '../scripts/greater-realm-connected-gate-mode';
 
 const root = resolve(import.meta.dirname, '..');
 const runner = readFileSync(
@@ -54,24 +57,25 @@ function occurrences(value: string, needle: string): number {
 }
 
 describe('disposable Greater Realm connected relocation boundary', () => {
-  it('keeps both checked-in gates literally false and flips each exactly once in a copy', () => {
-    expect(occurrences(policy, PRODUCTION_IMPORT_GATE_DECLARATION)).toBe(1);
-    expect(occurrences(policy, PRODUCTION_ACTIVATION_GATE_DECLARATION)).toBe(1);
-    expect(occurrences(policy, DISPOSABLE_IMPORT_GATE_DECLARATION)).toBe(0);
-    expect(occurrences(policy, DISPOSABLE_ACTIVATION_GATE_DECLARATION)).toBe(0);
-
+  it('accepts only a reviewed production mode and fully enables the private copy', () => {
+    const initial = parseGreaterRealmConnectedProductionGateMode(policy);
+    expect(GREATER_REALM_CONNECTED_PRODUCTION_GATE_MODES).toContain(initial.mode);
     const enabled = enableDisposableGreaterRealmRelocationGates(policy);
-    expect(occurrences(enabled, PRODUCTION_IMPORT_GATE_DECLARATION)).toBe(0);
-    expect(occurrences(enabled, PRODUCTION_ACTIVATION_GATE_DECLARATION)).toBe(0);
-    expect(occurrences(enabled, DISPOSABLE_IMPORT_GATE_DECLARATION)).toBe(1);
-    expect(occurrences(enabled, DISPOSABLE_ACTIVATION_GATE_DECLARATION)).toBe(1);
-    expect(policy).toContain(PRODUCTION_IMPORT_GATE_DECLARATION);
-    expect(policy).toContain(PRODUCTION_ACTIVATION_GATE_DECLARATION);
+    expect(() => assertGreaterRealmConnectedDisposableGateMode(enabled, 'TT'))
+      .not.toThrow();
+    expect(parseGreaterRealmConnectedProductionGateMode(policy)).toEqual(initial);
     expect(() => enableDisposableGreaterRealmRelocationGates(enabled))
-      .toThrow(/exact and closed/i);
+      .toThrow(/both open/i);
     expect(() => enableDisposableGreaterRealmRelocationGates(
-      policy.replace(PRODUCTION_IMPORT_GATE_DECLARATION, ''),
-    )).toThrow(/exact and closed/i);
+      policy.replace(
+        initial.importMutationsAllowed
+          ? GREATER_REALM_IMPORT_GATE_TRUE_DECLARATION
+          : GREATER_REALM_IMPORT_GATE_FALSE_DECLARATION,
+        '',
+      ),
+    )).toThrow(/missing, duplicated, or malformed/i);
+    expect(runner).toContain('parseGreaterRealmConnectedProductionGateMode(');
+    expect(runner).toContain("assertGreaterRealmConnectedDisposableGateMode(enabledPolicy, 'TT')");
   });
 
   it('uses the nine registered production reducers and leaves zero rehearsal exports', () => {
