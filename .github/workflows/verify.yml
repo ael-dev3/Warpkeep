@@ -158,7 +158,7 @@ jobs:
 
   spacetimedb-module:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -219,6 +219,10 @@ jobs:
       - name: Rehearse connected Greater Realm relocation and rollback
         timeout-minutes: 22
         run: timeout --signal=TERM --kill-after=15s 21m npm run stdb:verify-greater-realm-connected-relocation
+
+      - name: Rehearse connected active Greater Realm population and gathering
+        timeout-minutes: 27
+        run: timeout --signal=TERM --kill-after=15s 26m npm run stdb:verify-greater-realm-connected-active-population
 
       - name: Audit module dependencies
         run: pnpm --dir spacetimedb audit --audit-level low

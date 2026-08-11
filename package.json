@@ -105,6 +105,7 @@
     "stdb:verify-admission-cas-rehearsal": "node scripts/verify-admission-request-cas-rehearsal.mjs",
     "stdb:verify-greater-realm-connected-import": "tsx scripts/verify-greater-realm-connected-import.ts",
     "stdb:verify-greater-realm-connected-relocation": "tsx scripts/verify-greater-realm-connected-relocation.ts",
+    "stdb:verify-greater-realm-connected-active-population": "tsx scripts/verify-greater-realm-connected-active-population.ts",
     "stdb:publish:dev": "node scripts/publish-spacetime-dev.mjs",
     "stdb:seed-world": "tsx scripts/hermes-admin.ts seed-world",
     "stdb:expand-world-v3": "tsx scripts/hermes-admin.ts expand-world-v3",

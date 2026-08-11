@@ -272,7 +272,7 @@ export const rehearsalHostileGreaterRealmCanaryV1 = warpkeep.reducer(
 `;
 }
 
-function sha256(value: Uint8Array | string): string {
+export function sha256(value: Uint8Array | string): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
@@ -280,7 +280,7 @@ function canonicalJsonText(value: unknown): string {
   return `${JSON.stringify(value)}\n`;
 }
 
-async function directoryDigest(root: string): Promise<string> {
+export async function directoryDigest(root: string): Promise<string> {
   const metadata = await lstat(root);
   if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
     fail('Module source root was not a real directory.');
@@ -391,14 +391,14 @@ export async function createDisposableGreaterRealmRelocationModule(
   });
 }
 
-function childEnvironment(): Readonly<Record<string, string>> {
+export function childEnvironment(): Readonly<Record<string, string>> {
   const inherited = Object.fromEntries(safeChildEnvironmentKeys
     .filter(key => typeof process.env[key] === 'string' && process.env[key]!.length > 0)
     .map(key => [key, process.env[key]!]));
   return Object.freeze({ ...inherited, CI: '1', LANG: 'C', NO_COLOR: '1' });
 }
 
-function terminateProcess(child: ChildProcess | undefined): void {
+export function terminateProcess(child: ChildProcess | undefined): void {
   if (child === undefined || child.exitCode !== null || child.signalCode !== null) return;
   try { child.kill('SIGKILL'); } catch { /* Bounded cleanup remains authoritative. */ }
 }
@@ -426,7 +426,7 @@ function collectBounded(
   };
 }
 
-type RuntimeControl = {
+export type RuntimeControl = {
   deadline: number;
   environment: Readonly<Record<string, string>>;
   activeCliProcess?: ChildProcess;
@@ -445,7 +445,7 @@ function remainingTimeout(
   return Math.max(1, Math.min(maximum, remaining));
 }
 
-async function runCommand(
+export async function runCommand(
   control: RuntimeControl,
   arguments_: readonly string[],
   options: Readonly<{ secrets?: readonly string[]; timeout?: number }> = {},
@@ -550,7 +550,7 @@ async function readBoundedResponse(
   return text;
 }
 
-async function callLoopback(
+export async function callLoopback(
   control: RuntimeControl,
   server: string,
   database: string,
@@ -598,7 +598,7 @@ async function callLoopback(
   return text;
 }
 
-async function sqlRaw(
+export async function sqlRaw(
   control: RuntimeControl,
   server: string,
   database: string,
@@ -636,7 +636,7 @@ async function sqlRaw(
   return result.stdout;
 }
 
-function sqlRows(
+export function sqlRows(
   text: string,
   columns: readonly string[],
 ): ReadonlyArray<Readonly<Record<string, string>>> {
@@ -679,7 +679,7 @@ function sqlRows(
   return Object.freeze(rows);
 }
 
-async function queryRows(
+export async function queryRows(
   control: RuntimeControl,
   server: string,
   database: string,
@@ -690,7 +690,7 @@ async function queryRows(
   return sqlRows(await sqlRaw(control, server, database, ownerToken, query), columns);
 }
 
-function readUnsigned(value: unknown, label: string): bigint {
+export function readUnsigned(value: unknown, label: string): bigint {
   const parsed = typeof value === 'number' && Number.isSafeInteger(value)
     ? BigInt(value)
     : typeof value === 'string' && /^(?:0|[1-9][0-9]*)$/.test(value)
@@ -700,13 +700,13 @@ function readUnsigned(value: unknown, label: string): bigint {
   return parsed;
 }
 
-function readBoolean(value: unknown, label: string): boolean {
+export function readBoolean(value: unknown, label: string): boolean {
   if (value === true || value === 'true') return true;
   if (value === false || value === 'false') return false;
   fail(`${label} was not boolean.`);
 }
 
-async function countWhere(
+export async function countWhere(
   control: RuntimeControl,
   server: string,
   database: string,
@@ -731,7 +731,7 @@ async function countWhere(
   return readUnsigned(rows[0]!.warpkeep_count, 'Loopback aggregate count');
 }
 
-async function tableDigest(
+export async function tableDigest(
   control: RuntimeControl,
   server: string,
   database: string,
@@ -861,7 +861,7 @@ async function canonicalTableValueDigests(
   return Object.freeze(Object.fromEntries(entries));
 }
 
-function manifestParts(artifacts: GreaterRealmRuntimeReleaseArtifacts) {
+export function manifestParts(artifacts: GreaterRealmRuntimeReleaseArtifacts) {
   const manifest = artifacts.manifest as Readonly<Record<string, any>>;
   const totals = manifest.totals as Readonly<Record<string, unknown>>;
   if (
@@ -934,7 +934,7 @@ function regionManifestWireRow(row: Readonly<Record<string, unknown>>) {
   };
 }
 
-type AdminCaller = (
+export type AdminCaller = (
   name: string,
   arguments_?: readonly unknown[],
   expectedStatus?: number,
@@ -1064,7 +1064,7 @@ function parseInnerKeepStatus(text: string) {
   });
 }
 
-async function seedCanonicalLegacyV16(
+export async function seedCanonicalLegacyV16(
   callAdmin: AdminCaller,
   moduleDigest: string,
   database: string,
@@ -1202,7 +1202,7 @@ async function seedCanonicalLegacyV16(
   ) fail('Inner Keep graph was not exactly active and idle.');
 }
 
-async function importReadyGreaterRealmV17(
+export async function importReadyGreaterRealmV17(
   callAdmin: AdminCaller,
   artifacts: GreaterRealmRuntimeReleaseArtifacts,
   database: string,
@@ -1321,7 +1321,7 @@ function readSigned(value: unknown, label: string): bigint {
   return parsed;
 }
 
-async function assertCanonicalSeedCounts(
+export async function assertCanonicalSeedCounts(
   control: RuntimeControl,
   server: string,
   database: string,
@@ -1372,7 +1372,7 @@ type ActivationAudit = Readonly<{
   snapshotOccupancyCount: bigint;
 }>;
 
-async function readActivationAudit(
+export async function readActivationAudit(
   control: RuntimeControl,
   server: string,
   database: string,
@@ -1414,7 +1414,7 @@ async function readActivationAudit(
   });
 }
 
-async function assertRelocatedCastleGraph(
+export async function assertRelocatedCastleGraph(
   control: RuntimeControl,
   server: string,
   database: string,
@@ -1521,7 +1521,7 @@ async function assertRelocatedCastleGraph(
   ) fail('Relocation allocation/preimage uniqueness was invalid.');
 }
 
-async function assertCanaryOrActiveState(
+export async function assertCanaryOrActiveState(
   control: RuntimeControl,
   server: string,
   database: string,
@@ -1575,14 +1575,14 @@ async function assertCanaryOrActiveState(
   await assertRelocatedCastleGraph(control, server, database, ownerToken);
 }
 
-async function runActivationPrefix(callAdmin: AdminCaller): Promise<void> {
+export async function runActivationPrefix(callAdmin: AdminCaller): Promise<void> {
   await callAdmin(activationReducerNames.prepare);
   await callAdmin(activationReducerNames.beginDrain);
   await callAdmin(activationReducerNames.freeze, [], 200, 120_000);
   await callAdmin(activationReducerNames.plan, [], 200, 120_000);
 }
 
-type ScenarioCoordinates = Readonly<{
+export type ScenarioCoordinates = Readonly<{
   control: RuntimeControl;
   server: string;
   database: string;
@@ -1708,7 +1708,7 @@ async function runRollbackScenario(
   return Object.freeze({ canaryElapsed, hostileRollbackDigest: atomicAfter });
 }
 
-async function runActiveResumeScenario(
+export async function runActiveResumeScenario(
   coordinates: ScenarioCoordinates,
 ): Promise<Readonly<{ canaryElapsed: number; activatedAt: string; haltedAt: string }>> {
   const { control, server, database, ownerToken, callAdmin } = coordinates;
@@ -1776,7 +1776,7 @@ async function runActiveResumeScenario(
   });
 }
 
-async function publishDisposableDatabase(
+export async function publishDisposableDatabase(
   control: RuntimeControl,
   server: string,
   database: string,
