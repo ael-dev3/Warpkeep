@@ -27,19 +27,34 @@ const innerKeepRegistrations = [
   'castleInnerConstructionScheduleV1',
 ] as const;
 
-test('v15 is the exact v14 prefix plus Inner Keep refs 56-63', () => {
+const realmChatRegistrations = [
+  'realmChatStatusV1',
+  'realmChatChannelV1',
+  'realmChatMessageV1',
+  'realmChatRecentV1',
+  'realmChatRateEventV1',
+  'realmChatSendReceiptV1',
+  'realmChatReportV1',
+] as const;
+
+test('v15 remains the exact v14 prefix plus Inner Keep refs 56-63 before v16', () => {
   const v14 = source('../migration-fixtures/additive-v14-schema/src/index.ts');
   const v15 = source('../migration-fixtures/additive-v15-schema/src/index.ts');
+  const v16 = source('../migration-fixtures/additive-v16-schema/src/index.ts');
   const candidate = source('../src/schema.ts');
   const v14Tables = registrations(v14, 'const db = schema({');
   const v15Tables = registrations(v15, 'const db = schema({');
+  const v16Tables = registrations(v16, 'const db = schema({');
   const candidateTables = registrations(candidate, 'const warpkeep = schema({');
 
   assert.equal(v14Tables.length, 56);
   assert.equal(v15Tables.length, 64);
+  assert.equal(v16Tables.length, 71);
   assert.deepEqual(v15Tables.slice(0, 56), v14Tables);
   assert.deepEqual(v15Tables.slice(56), innerKeepRegistrations);
-  assert.deepEqual(candidateTables, v15Tables);
+  assert.deepEqual(v16Tables.slice(0, 64), v15Tables);
+  assert.deepEqual(v16Tables.slice(64), realmChatRegistrations);
+  assert.deepEqual(candidateTables, v16Tables);
 });
 
 test('v15 fixture pins public projection, private authority, and an empty compatibility slot table', () => {

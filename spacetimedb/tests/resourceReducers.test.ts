@@ -95,6 +95,13 @@ test('resource and Gold prefixes remain intact through later additive suffixes',
     'castleInnerBuilderV1',
     'castleInnerBuildReceiptV1',
     'castleInnerConstructionScheduleV1',
+    'realmChatStatusV1',
+    'realmChatChannelV1',
+    'realmChatMessageV1',
+    'realmChatRecentV1',
+    'realmChatRateEventV1',
+    'realmChatSendReceiptV1',
+    'realmChatReportV1',
   ]);
 
   const account = tableDefinition(schema, 'resourceAccountV1');

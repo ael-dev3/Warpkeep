@@ -1382,6 +1382,120 @@ export const castleInnerConstructionScheduleV1 = table(
   },
 );
 
+/** Public, identity-free readiness projection for the single Realm channel. */
+export const realmChatStatusV1 = table(
+  { name: 'realm_chat_status_v1', public: true },
+  {
+    channelKey: t.string().primaryKey(),
+    realmId: t.string().index(),
+    policyVersion: t.string(),
+    mode: t.string(),
+    recentLimit: t.u32(),
+    historyPageLimit: t.u32(),
+    updatedAt: t.timestamp(),
+  },
+);
+
+/** Private channel authority and monotonic sequence cursor. */
+export const realmChatChannelV1 = table(
+  { name: 'realm_chat_channel_v1' },
+  {
+    channelKey: t.string().primaryKey(),
+    realmId: t.string().unique(),
+    policyVersion: t.string(),
+    mode: t.string(),
+    nextSequence: t.u64(),
+    updatedAt: t.timestamp(),
+  },
+);
+
+/**
+ * Private permanent message archive. The full body and moderation metadata
+ * must never be exposed by a public subscription.
+ */
+export const realmChatMessageV1 = table(
+  {
+    name: 'realm_chat_message_v1',
+    indexes: [{
+      accessor: 'byChannelAndSequence',
+      algorithm: 'btree',
+      columns: ['channelKey', 'sequence'] as const,
+    }] as const,
+  },
+  {
+    messageId: t.string().primaryKey(),
+    sequence: t.u64().unique(),
+    channelKey: t.string(),
+    senderFid: t.u64().index(),
+    body: t.string(),
+    sentAt: t.timestamp(),
+    visibility: t.string(),
+    moderatedAt: t.option(t.timestamp()),
+    moderationCode: t.option(t.string()),
+  },
+);
+
+/** Bounded public projection maintained transactionally at at most 128 rows. */
+export const realmChatRecentV1 = table(
+  { name: 'realm_chat_recent_v1', public: true },
+  {
+    sequence: t.u64().primaryKey(),
+    messageId: t.string().unique(),
+    channelKey: t.string().index(),
+    senderFid: t.u64().index(),
+    body: t.string(),
+    sentAt: t.timestamp(),
+    visibility: t.string(),
+  },
+);
+
+/** Private, per-sender rolling-window ledger; authority prunes it to one hour. */
+export const realmChatRateEventV1 = table(
+  { name: 'realm_chat_rate_event_v1' },
+  {
+    eventId: t.string().primaryKey(),
+    fid: t.u64().index(),
+    acceptedAtMicros: t.u64(),
+    bodyDigest: t.string(),
+  },
+);
+
+/** Private exactly-once receipts for retried browser send operations. */
+export const realmChatSendReceiptV1 = table(
+  { name: 'realm_chat_send_receipt_v1' },
+  {
+    operationKey: t.string().primaryKey(),
+    fid: t.u64().index(),
+    requestKey: t.string(),
+    bodyDigest: t.string(),
+    messageId: t.string().unique(),
+    sequence: t.u64().unique(),
+    createdAt: t.timestamp(),
+  },
+);
+
+/** Private, one-reporter/one-message evidence record. No automatic sanction. */
+export const realmChatReportV1 = table(
+  { name: 'realm_chat_report_v1' },
+  {
+    reportOrdinal: t.u64().primaryKey().autoInc(),
+    reportKey: t.string().unique(),
+    reportId: t.string().unique(),
+    reporterFid: t.u64().index(),
+    messageId: t.string().index(),
+    reportedSenderFid: t.u64(),
+    messageSequence: t.u64(),
+    category: t.string(),
+    details: t.string(),
+    contextFirstSequence: t.u64(),
+    contextLastSequence: t.u64(),
+    createdAt: t.timestamp(),
+    status: t.string(),
+    reviewedAt: t.option(t.timestamp()),
+    resolutionCode: t.option(t.string()),
+  },
+);
+
 const warpkeep = schema({
   // Preserve the original production schema prefix exactly. New tables are
   // append-only so SpacetimeDB can apply this migration without rewriting it.
@@ -1450,6 +1564,14 @@ const warpkeep = schema({
   castleInnerBuilderV1,
   castleInnerBuildReceiptV1,
   castleInnerConstructionScheduleV1,
+  // Additive v16 Realm Chat suffix. Refs 0-63 above remain frozen verbatim.
+  realmChatStatusV1,
+  realmChatChannelV1,
+  realmChatMessageV1,
+  realmChatRecentV1,
+  realmChatRateEventV1,
+  realmChatSendReceiptV1,
+  realmChatReportV1,
 });
 
 /**
