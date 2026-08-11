@@ -51,7 +51,8 @@ generated client bindings must remain compatible.
 A review-only Realm Chat V1 implementation is isolated from the large Realm
 snapshot. SpacetimeDB owns sender identity, order, time, anti-abuse state,
 history, reporting, and moderation evidence; the browser may subscribe only to
-one status row and a bounded recent projection. Independent client and server
+one body-free status row and obtains bounded recent bodies through a
+caller-authenticated, visibility-gated polling procedure. Independent client and server
 gates plus a blocked production publication lane keep it unavailable pending a
 separate legal and operational activation review.
 

@@ -47,6 +47,7 @@ export {
 } from './reducers/dailyMarks';
 export {
   sendRealmChatMessageV1,
+  getRealmChatRecentV1,
   getRealmChatHistoryV1,
   reportRealmChatMessageV1,
   adminGetRealmChatStatusV1,

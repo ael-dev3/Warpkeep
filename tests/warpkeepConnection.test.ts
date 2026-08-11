@@ -24,6 +24,8 @@ import {
   dispatchWarpkeepWoodExpedition,
   observeWarpkeepRealm,
   observeWarpkeepRealmChat,
+  readWarpkeepRealmChatRecent,
+  reportWarpkeepRealmChatMessage,
   readWarpkeepBackendInfo,
   readWarpkeepAdmissionStatus,
   readWarpkeepEntryAgreementStatus,
@@ -389,16 +391,13 @@ function observableConnectionForCandidate(candidate: WarpkeepRealmSnapshotCandid
 
 function observableRealmChatConnection() {
   const status = observableTableDouble([]);
-  const recent = observableTableDouble([]);
   return {
     connection: {
       db: {
-        realmChatStatusV1: status.table,
-        realmChatRecentV1: recent.table
+        realmChatStatusV1: status.table
       }
     } as unknown as WarpkeepConnection,
-    status,
-    recent
+    status
   };
 }
 
@@ -1967,22 +1966,20 @@ describe('Warpkeep authenticated connection boundary', () => {
 
     cleanupObserver();
     cleanupObserver();
-    for (const source of [observed.status.table, observed.recent.table]) {
-      expect(source.removeOnInsert).toHaveBeenCalledOnce();
-      expect(source.removeOnDelete).toHaveBeenCalledOnce();
-      expect(source.removeOnUpdate).toHaveBeenCalledOnce();
-    }
+    expect(observed.status.table.removeOnInsert).toHaveBeenCalledOnce();
+    expect(observed.status.table.removeOnDelete).toHaveBeenCalledOnce();
+    expect(observed.status.table.removeOnUpdate).toHaveBeenCalledOnce();
   });
 
   it('rolls back partial Chat listener registration before exposing cleanup', () => {
     const observed = observableRealmChatConnection();
-    observed.recent.table.onInsert.mockImplementationOnce((listener) => {
-      observed.recent.listeners.insert = listener;
+    observed.status.table.onDelete.mockImplementationOnce((listener) => {
+      observed.status.listeners.delete = listener;
       throw new Error('synthetic Chat observer registration failure');
     });
-    observed.recent.table.removeOnInsert.mockImplementationOnce((listener) => {
-      if (observed.recent.listeners.insert === listener) {
-        observed.recent.listeners.insert = undefined;
+    observed.status.table.removeOnDelete.mockImplementationOnce((listener) => {
+      if (observed.status.listeners.delete === listener) {
+        observed.status.listeners.delete = undefined;
       }
     });
 
@@ -1993,11 +1990,72 @@ describe('Warpkeep authenticated connection boundary', () => {
     )).toThrow('synthetic Chat observer registration failure');
     expect(observed.status.table.removeOnInsert).toHaveBeenCalledOnce();
     expect(observed.status.table.removeOnDelete).toHaveBeenCalledOnce();
-    expect(observed.status.table.removeOnUpdate).toHaveBeenCalledOnce();
-    expect(observed.recent.table.removeOnInsert).toHaveBeenCalledOnce();
-    expect(observed.recent.listeners.insert).toBeUndefined();
-    expect(observed.recent.table.onDelete).not.toHaveBeenCalled();
-    expect(observed.recent.table.onUpdate).not.toHaveBeenCalled();
+    expect(observed.status.listeners.delete).toBeUndefined();
+    expect(observed.status.table.onUpdate).not.toHaveBeenCalled();
+  });
+
+  it('accepts only monotonic bounded recent pages from the caller-gated procedure', async () => {
+    const page = {
+      channelKey: 'realm:genesis-001',
+      policyVersion: '2026-08-03-realm-chat-policy-v1',
+      messages: [{
+        messageId: '018f7b44-5f2f-7c54-8c0d-000000000006',
+        sequence: 6n,
+        senderFid: 2n,
+        body: 'fresh',
+        sentAtMicros: 1_000_006n,
+        visibility: 'visible'
+      }],
+      nextAfterSequence: 6n,
+      hasMore: false
+    };
+    const getRealmChatRecentV1 = vi.fn(async () => page);
+    const connection = {
+      procedures: { getRealmChatRecentV1 }
+    } as unknown as WarpkeepConnection;
+
+    await expect(readWarpkeepRealmChatRecent(connection, 5n, 128)).resolves.toMatchObject({
+      nextAfterSequence: 6n
+    });
+    expect(getRealmChatRecentV1).toHaveBeenCalledWith({ afterSequence: 5n, limit: 128 });
+
+    getRealmChatRecentV1.mockResolvedValueOnce({
+      ...page,
+      messages: [],
+      nextAfterSequence: 99n
+    });
+    await expect(readWarpkeepRealmChatRecent(connection, 6n, 128))
+      .rejects.toThrow(/recent messages are unavailable/i);
+  });
+
+  it('enforces the report-details scalar and UTF-8 bounds before the reducer', async () => {
+    const reportRealmChatMessageV1 = vi.fn(async () => undefined);
+    const connection = {
+      reducers: { reportRealmChatMessageV1 }
+    } as unknown as WarpkeepConnection;
+    const messageId = '018f7b44-5f2f-7c54-8c0d-000000000006';
+
+    await expect(reportWarpkeepRealmChatMessage(
+      connection,
+      messageId,
+      'other',
+      `${'€'.repeat(170)}ab`
+    )).resolves.toBeUndefined();
+    expect(reportRealmChatMessageV1).toHaveBeenCalledOnce();
+
+    await expect(reportWarpkeepRealmChatMessage(
+      connection,
+      messageId,
+      'other',
+      'x'.repeat(251)
+    )).rejects.toThrow(/command is unavailable/i);
+    await expect(reportWarpkeepRealmChatMessage(
+      connection,
+      messageId,
+      'other',
+      '€'.repeat(171)
+    )).rejects.toThrow(/command is unavailable/i);
+    expect(reportRealmChatMessageV1).toHaveBeenCalledOnce();
   });
 
   it('observes and releases both public forest tables with the Realm lifecycle', () => {

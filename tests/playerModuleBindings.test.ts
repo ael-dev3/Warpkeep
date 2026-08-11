@@ -19,7 +19,6 @@ const PLAYER_TABLE_KEYS = [
   'innerKeepLayoutV1',
   'innerKeepSlotV1',
   'playerV2',
-  'realmChatRecentV1',
   'realmChatStatusV1',
   'realmEnvironmentV1',
   'realmForestInstanceV1',
@@ -89,6 +88,8 @@ describe('player SpacetimeDB bindings', () => {
 
     expect(connection).toContain("from './playerModuleBindings'")
     expect(connection).not.toContain("from './module_bindings'")
+    expect(connection).toContain('.subscribe([tables.realmChatStatusV1])')
+    expect(connection).not.toContain('tables.realmChatRecentV1')
     expect(playerBindings).toContain("'accept_alpha_terms_v1'")
     expect(playerBindings).toContain("'bootstrap_player_v2'")
     expect(playerBindings).toContain("'collect_food_expedition_v1'")
@@ -112,6 +113,7 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).toContain("'get_my_worker_control_state_v1'")
     expect(playerBindings).toContain("'get_my_worker_roster_v1'")
     expect(playerBindings).toContain("'get_realm_chat_history_v1'")
+    expect(playerBindings).toContain("'get_realm_chat_recent_v1'")
     expect(playerBindings).toContain("'dispatch_worker_v1'")
     expect(playerBindings).toContain("'inner_keep_start_project_v1'")
     expect(playerBindings).toContain("'get_my_inner_keep_request_status_v1'")
@@ -126,6 +128,7 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).toContain("'return_legacy_expedition_v1'")
     expect(playerBindings).toContain("'send_realm_chat_message_v1'")
     expect(playerBindings).toContain("'report_realm_chat_message_v1'")
+    expect(playerBindings).not.toContain("name: 'realm_chat_recent_v1'")
     expect(playerBindings).toContain("'realm_forest_layout_v1'")
     expect(playerBindings).toContain("'realm_forest_instance_v1'")
     expect(playerBindings).toContain("'realm_water_revision_v1'")
@@ -212,6 +215,7 @@ describe('player SpacetimeDB bindings', () => {
       'getMyWorkerControlStateV1',
       'getMyWorkerRosterV1',
       'getRealmChatHistoryV1',
+      'getRealmChatRecentV1',
     ])
 
     connection.disconnect()

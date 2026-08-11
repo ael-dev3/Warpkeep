@@ -46,6 +46,7 @@ import * as GetMyWoodExpeditionStateV1Procedure from "../get_my_wood_expedition_
 import * as GetMyWorkerControlStateV1Procedure from "../get_my_worker_control_state_v_1_procedure";
 import * as GetMyWorkerRosterV1Procedure from "../get_my_worker_roster_v_1_procedure";
 import * as GetRealmChatHistoryV1Procedure from "../get_realm_chat_history_v_1_procedure";
+import * as GetRealmChatRecentV1Procedure from "../get_realm_chat_recent_v_1_procedure";
 import * as QaObserverGetRealmAttestationV2Procedure from "../qa_observer_get_realm_attestation_v_2_procedure";
 import * as QaObserverGetRealmSnapshotV1Procedure from "../qa_observer_get_realm_snapshot_v_1_procedure";
 
@@ -129,6 +130,8 @@ export type GetMyWorkerRosterV1Args = __Infer<typeof GetMyWorkerRosterV1Procedur
 export type GetMyWorkerRosterV1Result = __Infer<typeof GetMyWorkerRosterV1Procedure.returnType>;
 export type GetRealmChatHistoryV1Args = __Infer<typeof GetRealmChatHistoryV1Procedure.params>;
 export type GetRealmChatHistoryV1Result = __Infer<typeof GetRealmChatHistoryV1Procedure.returnType>;
+export type GetRealmChatRecentV1Args = __Infer<typeof GetRealmChatRecentV1Procedure.params>;
+export type GetRealmChatRecentV1Result = __Infer<typeof GetRealmChatRecentV1Procedure.returnType>;
 export type QaObserverGetRealmAttestationV2Args = __Infer<typeof QaObserverGetRealmAttestationV2Procedure.params>;
 export type QaObserverGetRealmAttestationV2Result = __Infer<typeof QaObserverGetRealmAttestationV2Procedure.returnType>;
 export type QaObserverGetRealmSnapshotV1Args = __Infer<typeof QaObserverGetRealmSnapshotV1Procedure.params>;

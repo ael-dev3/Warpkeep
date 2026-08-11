@@ -56,6 +56,7 @@ test('v13 through v15 remain frozen prefixes before the v16 Realm Chat append', 
     'realmChatRateEventV1',
     'realmChatSendReceiptV1',
     'realmChatReportV1',
+    'realmChatReportRateEventV1',
   ]);
   assert.ok(
     [v15Tables, v16Tables].some(boundary => (

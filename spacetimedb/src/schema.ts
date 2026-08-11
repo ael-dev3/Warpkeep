@@ -1405,6 +1405,7 @@ export const realmChatChannelV1 = table(
     policyVersion: t.string(),
     mode: t.string(),
     nextSequence: t.u64(),
+    pendingReports: t.u32(),
     updatedAt: t.timestamp(),
   },
 );
@@ -1435,9 +1436,9 @@ export const realmChatMessageV1 = table(
   },
 );
 
-/** Bounded public projection maintained transactionally at at most 128 rows. */
+/** Private bounded cache exposed only by the caller-authenticated recent procedure. */
 export const realmChatRecentV1 = table(
-  { name: 'realm_chat_recent_v1', public: true },
+  { name: 'realm_chat_recent_v1' },
   {
     sequence: t.u64().primaryKey(),
     messageId: t.string().unique(),
@@ -1490,9 +1491,19 @@ export const realmChatReportV1 = table(
     contextFirstSequence: t.u64(),
     contextLastSequence: t.u64(),
     createdAt: t.timestamp(),
-    status: t.string(),
+    status: t.string().index(),
     reviewedAt: t.option(t.timestamp()),
     resolutionCode: t.option(t.string()),
+  },
+);
+
+/** Private globally bounded one-day report-ingress ledger. */
+export const realmChatReportRateEventV1 = table(
+  { name: 'realm_chat_report_rate_event_v1' },
+  {
+    eventId: t.string().primaryKey(),
+    reporterFid: t.u64().index(),
+    acceptedAtMicros: t.u64(),
   },
 );
 
@@ -1572,6 +1583,7 @@ const warpkeep = schema({
   realmChatRateEventV1,
   realmChatSendReceiptV1,
   realmChatReportV1,
+  realmChatReportRateEventV1,
 });
 
 /**

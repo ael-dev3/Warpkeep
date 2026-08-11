@@ -5,9 +5,19 @@ import {
   REALM_CHAT_MAX_LINES,
   REALM_CHAT_MAX_PER_HOUR,
   REALM_CHAT_MAX_PER_MINUTE,
+  REALM_CHAT_REPORT_DAY_WINDOW_MICROS,
+  REALM_CHAT_REPORT_MAX_GLOBAL_DAY,
+  REALM_CHAT_REPORT_MAX_GLOBAL_HOUR,
+  REALM_CHAT_REPORT_MAX_PER_MESSAGE,
+  REALM_CHAT_REPORT_MAX_PER_REPORTER_DAY,
+  REALM_CHAT_REPORT_MAX_PER_REPORTER_HOUR,
+  REALM_CHAT_REPORT_PENDING_LIMIT,
+  REALM_CHAT_REPORT_SEND_PAUSE_THRESHOLD,
   RealmChatPolicyError,
+  evaluateRealmChatReportRateLimit,
   evaluateRealmChatRateLimit,
   normalizeRealmChatBody,
+  normalizeRealmChatReportDetails,
   realmChatBodyDigest,
   realmChatContextBounds,
   requireRealmChatMessageId,
@@ -56,6 +66,36 @@ describe('Realm Chat policy', () => {
       .toBe('REALM_CHAT_REPORT_CATEGORY_INVALID');
   });
 
+  it('bounds optional report details to 250 Unicode scalars and 512 UTF-8 bytes', () => {
+    expect(normalizeRealmChatReportDetails('a'.repeat(250))).toBe('a'.repeat(250));
+    expect(code(() => normalizeRealmChatReportDetails('a'.repeat(251))))
+      .toBe('REALM_CHAT_REPORT_DETAILS_SCALARS');
+    expect(normalizeRealmChatReportDetails(`${'€'.repeat(170)}ab`))
+      .toBe(`${'€'.repeat(170)}ab`);
+    expect(code(() => normalizeRealmChatReportDetails('€'.repeat(171))))
+      .toBe('REALM_CHAT_REPORT_DETAILS_BYTES');
+  });
+
+  it('pins the pre-activation report and moderation-backlog envelope', () => {
+    expect({
+      reporterHour: REALM_CHAT_REPORT_MAX_PER_REPORTER_HOUR,
+      reporterDay: REALM_CHAT_REPORT_MAX_PER_REPORTER_DAY,
+      perMessage: REALM_CHAT_REPORT_MAX_PER_MESSAGE,
+      globalHour: REALM_CHAT_REPORT_MAX_GLOBAL_HOUR,
+      globalDay: REALM_CHAT_REPORT_MAX_GLOBAL_DAY,
+      sendPause: REALM_CHAT_REPORT_SEND_PAUSE_THRESHOLD,
+      pendingLimit: REALM_CHAT_REPORT_PENDING_LIMIT,
+    }).toEqual({
+      reporterHour: 5,
+      reporterDay: 20,
+      perMessage: 20,
+      globalHour: 250,
+      globalDay: 1_000,
+      sendPause: 4_000,
+      pendingLimit: 5_000,
+    });
+  });
+
   it('enforces cooldown, duplicate, exact rolling minute, and rolling hour limits', () => {
     const now = 4_000_000_000n;
     const digest = realmChatBodyDigest('hello');
@@ -96,5 +136,53 @@ describe('Realm Chat policy', () => {
     expect(realmChatContextBounds(1n, 1n)).toEqual({ first: 1n, last: 1n });
     expect(realmChatContextBounds(100n, 105n)).toEqual({ first: 90n, last: 105n });
     expect(realmChatContextBounds(100n, 120n)).toEqual({ first: 90n, last: 110n });
+  });
+
+  it('enforces exact rolling reporter report quotas using server-time events', () => {
+    const now = 100_000_000_000n;
+    const reporter = 7n;
+    expect(code(() => evaluateRealmChatReportRateLimit(
+      Array.from({ length: REALM_CHAT_REPORT_MAX_PER_REPORTER_HOUR }, (_, index) => ({
+        reporterFid: reporter,
+        acceptedAtMicros: now - 1n - BigInt(index),
+      })),
+      now,
+      reporter,
+    ))).toBe('REALM_CHAT_REPORT_RATE_REPORTER_HOUR');
+
+    expect(code(() => evaluateRealmChatReportRateLimit(
+      Array.from({ length: REALM_CHAT_REPORT_MAX_PER_REPORTER_DAY }, (_, index) => ({
+        reporterFid: reporter,
+        acceptedAtMicros: now - REALM_CHAT_HOUR_WINDOW_MICROS - 1n - BigInt(index),
+      })),
+      now,
+      reporter,
+    ))).toBe('REALM_CHAT_REPORT_RATE_REPORTER_DAY');
+  });
+
+  it('enforces exact global report quotas and expires the day boundary', () => {
+    const now = 100_000_000_000n;
+    expect(code(() => evaluateRealmChatReportRateLimit(
+      Array.from({ length: REALM_CHAT_REPORT_MAX_GLOBAL_HOUR }, (_, index) => ({
+        reporterFid: BigInt(index + 1),
+        acceptedAtMicros: now - 1n - BigInt(index),
+      })),
+      now,
+      10_000n,
+    ))).toBe('REALM_CHAT_REPORT_RATE_GLOBAL_HOUR');
+
+    expect(code(() => evaluateRealmChatReportRateLimit(
+      Array.from({ length: REALM_CHAT_REPORT_MAX_GLOBAL_DAY }, (_, index) => ({
+        reporterFid: BigInt(index + 1),
+        acceptedAtMicros: now - REALM_CHAT_HOUR_WINDOW_MICROS - 1n - BigInt(index),
+      })),
+      now,
+      10_000n,
+    ))).toBe('REALM_CHAT_REPORT_RATE_GLOBAL_DAY');
+
+    expect(evaluateRealmChatReportRateLimit([{
+      reporterFid: 1n,
+      acceptedAtMicros: now - REALM_CHAT_REPORT_DAY_WINDOW_MICROS,
+    }], now, 1n)).toEqual([]);
   });
 });

@@ -108,6 +108,7 @@ assert.deepEqual(v16Registrations.slice(64), [
   'realmChatRateEventV1',
   'realmChatSendReceiptV1',
   'realmChatReportV1',
+  'realmChatReportRateEventV1',
 ]);
 const candidateMatchesV15 = JSON.stringify(candidateRegistrations) === JSON.stringify(v15Registrations);
 const candidateMatchesV16 = JSON.stringify(candidateRegistrations) === JSON.stringify(v16Registrations);

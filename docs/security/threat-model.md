@@ -60,7 +60,7 @@ operation. Anonymous visitors do not connect to the game database.
 | Inner Keep projects and Builder state | Server-derived costs and timers, atomic resource deduction, private receipts, and one Builder per castle. |
 | Deployment authority | Least privilege, reviewed changes, protected branches, and reproducible artifacts. |
 | Player privacy | Minimum collection, bounded presentation fields, redacted diagnostics, and private operational records. |
-| Realm Chat and moderation evidence | Server-authored identity/order/time, bounded public history, private archive/reports/rate state, audited moderation, and no activation before approved retention and minor-participation policy. |
+| Realm Chat and moderation evidence | Server-authored identity/order/time, body-free public status, caller-gated bounded history/recent reads, private archive/reports/rate state, audited moderation, and no activation before approved retention and minor-participation policy. |
 
 ## Trust boundaries
 
@@ -164,9 +164,10 @@ operation. Anonymous visitors do not connect to the game database.
   only public display fields, may merge only after a successful same-FID
   refresh, and never restores authority.
 - Review-only Realm Chat keeps its permanent archive, rate events, idempotency
-  receipts, reports, and moderator evidence private. Only one status row and an
-  exact newest 128-message projection can become public after separate
-  activation. The ordinary Realm snapshot never absorbs chat history.
+  receipts, recent cache, reports, and moderator evidence private. Only one
+  body-free status row is public. Every bounded recent/history read rechecks
+  caller gameplay authority, and the ordinary Realm snapshot never absorbs chat
+  history.
 
 ### Input, transport, and abuse controls
 
@@ -190,6 +191,10 @@ operation. Anonymous visitors do not connect to the game database.
   controls, applies exact rolling per-FID limits, and records reports against a
   frozen context range. Report submission does not automatically hide content
   or punish another player.
+- Report ingress uses server time and transactional limits of 5/reporter/hour,
+  20/reporter/day, 20/message, 250/global/hour, and 1,000/global/day. Report
+  details are capped at 250 scalars/512 bytes; pending-report counters stop sends
+  at 4,000 and reports at 5,000.
 
 ### Operations and software supply chain
 
@@ -257,6 +262,10 @@ operation. Anonymous visitors do not connect to the game database.
   blocked until qualified review approves retention/erasure, data-subject
   handling, age/minor participation, moderation access, incident response, and
   exact production migration checkpoints.
+- The proposed 90-day erasure/anonymization workflow is not approved or
+  implemented. Its scope, holds, anonymization semantics, backup handling, and
+  audited execution remain separate release work; the current schema adds no
+  deletion scheduler.
 - Hosting-layer security headers, including HSTS, require ongoing deployment
   verification. The production CSP keeps exact source and egress allowlists,
   but SpacetimeDB 2.6.1 requires a narrowly scoped `script-src 'unsafe-eval'`

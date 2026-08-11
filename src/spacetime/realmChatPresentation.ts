@@ -35,6 +35,12 @@ export type RealmChatHistoryPagePresentation = Readonly<{
   hasMore: boolean;
 }>;
 
+export type RealmChatRecentPagePresentation = Readonly<{
+  messages: readonly RealmChatMessagePresentation[];
+  nextAfterSequence: bigint;
+  hasMore: boolean;
+}>;
+
 export const UNAVAILABLE_REALM_CHAT_PRESENTATION: RealmChatPresentation =
   Object.freeze({ availability: 'unavailable', messages: Object.freeze([]) });
 
@@ -113,16 +119,14 @@ export function decodeRealmChatMessage(
   });
 }
 
-export function decodeRealmChatProjection(input: Readonly<{
+export function decodeRealmChatStatusProjection(input: Readonly<{
   statusRows: Iterable<unknown>;
-  messageRows: Iterable<unknown>;
 }>): RealmChatPresentation {
   const statusRows = [...input.statusRows];
-  const messageRows = [...input.messageRows];
-  if (statusRows.length === 0 && messageRows.length === 0) {
+  if (statusRows.length === 0) {
     return UNAVAILABLE_REALM_CHAT_PRESENTATION;
   }
-  if (statusRows.length !== 1 || messageRows.length > REALM_CHAT_RECENT_LIMIT) {
+  if (statusRows.length !== 1) {
     throw new Error('Realm Chat projection is invalid.');
   }
   const status = record(statusRows[0]);
@@ -138,24 +142,72 @@ export function decodeRealmChatProjection(input: Readonly<{
     || mode === undefined
   ) throw new Error('Realm Chat projection is invalid.');
 
-  const messages = messageRows.map(row => decodeRealmChatMessage(row, 'sentAt'));
-  if (messages.some(message => message === undefined)) {
-    throw new Error('Realm Chat projection is invalid.');
-  }
-  const sorted = (messages as RealmChatMessagePresentation[])
-    .sort((left, right) => left.sequence < right.sequence ? -1 : left.sequence > right.sequence ? 1 : 0);
-  for (let index = 1; index < sorted.length; index += 1) {
-    if (sorted[index - 1].sequence >= sorted[index].sequence) {
-      throw new Error('Realm Chat projection is invalid.');
-    }
-  }
   return Object.freeze({
     availability: 'ready',
     channelKey: WARPKEEP_REALM_CHAT_CHANNEL_KEY,
     policyVersion: WARPKEEP_REALM_CHAT_POLICY_VERSION,
     mode,
-    messages: Object.freeze(sorted)
+    messages: Object.freeze([])
   });
+}
+
+export function decodeRealmChatRecentPage(value: unknown): RealmChatRecentPagePresentation {
+  const page = record(value);
+  if (
+    page?.channelKey !== WARPKEEP_REALM_CHAT_CHANNEL_KEY
+    || page.policyVersion !== WARPKEEP_REALM_CHAT_POLICY_VERSION
+    || !Array.isArray(page.messages)
+    || page.messages.length > REALM_CHAT_RECENT_LIMIT
+    || typeof page.nextAfterSequence !== 'bigint'
+    || page.nextAfterSequence < 0n
+    || typeof page.hasMore !== 'boolean'
+  ) throw new Error('Realm Chat recent page is invalid.');
+  const messages = page.messages.map(row => decodeRealmChatMessage(row, 'sentAtMicros'));
+  if (messages.some(message => message === undefined)) {
+    throw new Error('Realm Chat recent page is invalid.');
+  }
+  const decoded = messages as RealmChatMessagePresentation[];
+  for (let index = 1; index < decoded.length; index += 1) {
+    if (decoded[index - 1].sequence >= decoded[index].sequence) {
+      throw new Error('Realm Chat recent page is invalid.');
+    }
+  }
+  if (
+    decoded.length === 0
+      ? page.hasMore
+      : page.nextAfterSequence !== decoded[decoded.length - 1].sequence
+  ) throw new Error('Realm Chat recent page is invalid.');
+  return Object.freeze({
+    messages: Object.freeze(decoded),
+    nextAfterSequence: page.nextAfterSequence,
+    hasMore: page.hasMore
+  });
+}
+
+export function mergeRealmChatRecentPage(
+  status: RealmChatPresentation,
+  current: RealmChatPresentation,
+  page: RealmChatRecentPagePresentation
+): RealmChatPresentation {
+  if (
+    status.availability !== 'ready'
+    || status.mode !== 'active'
+    || status.channelKey === undefined
+    || status.policyVersion === undefined
+  ) return status;
+  const bySequence = new Map<bigint, RealmChatMessagePresentation>();
+  if (
+    current.availability === 'ready'
+    && current.channelKey === status.channelKey
+    && current.policyVersion === status.policyVersion
+  ) {
+    for (const message of current.messages) bySequence.set(message.sequence, message);
+  }
+  for (const message of page.messages) bySequence.set(message.sequence, message);
+  const messages = [...bySequence.values()]
+    .sort((left, right) => left.sequence < right.sequence ? -1 : left.sequence > right.sequence ? 1 : 0)
+    .slice(-REALM_CHAT_RECENT_LIMIT);
+  return Object.freeze({ ...status, messages: Object.freeze(messages) });
 }
 
 export function decodeRealmChatHistoryPage(value: unknown): RealmChatHistoryPagePresentation {

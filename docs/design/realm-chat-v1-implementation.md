@@ -41,24 +41,29 @@ limits, report linkage, and moderation state.
 ```text
 admitted player
   -> send/report reducer (private intent, caller-derived FID)
-  -> private archive / receipt / rate / report tables
-  -> bounded public status + newest 128-message projection
-  -> isolated browser subscription
+  -> private archive / recent cache / receipt / rate / report tables
+  -> body-free public status subscription
+  -> caller-authenticated recent/history procedures
+  -> visibility-gated browser polling
   -> desktop dock or compact Realm destination
 ```
 
 The implementation uses the official SpacetimeDB model deliberately:
 
 - reducers are the only message/report mutation boundary;
-- public tables contain only channel status and the bounded recent projection;
-- private tables contain the permanent archive, channel sequence, rate events,
-  idempotency receipts, and reports;
+- the only public Chat table is body-free channel status;
+- private tables contain the permanent archive, bounded recent cache, channel
+  sequence, message/report rate events, idempotency receipts, and reports;
+- the recent procedure re-runs gameplay admission/current-agreement and active
+  channel checks on every read, returns at most 128 rows, and is polled only
+  while the document is visible (two-second cadence with bounded exponential
+  failure backoff and full-window hydration after backgrounding);
 - older history is a caller-gated procedure with an exclusive indexed cursor,
   at most 50 sequence lookups, and no full-table scan;
 - moderator procedures are admin-only, bounded, and read-only unless the named
   reducer records an audited state change; and
-- generated browser bindings expose only two public tables, two self-service
-  reducers, and one caller-safe history procedure.
+- generated browser bindings expose only one body-free public Chat table, two
+  self-service reducers, and two caller-safe recent/history procedures.
 
 Relevant platform references:
 
@@ -68,27 +73,29 @@ Relevant platform references:
 - [SpacetimeDB reducers](https://spacetimedb.com/docs/functions/reducers/)
 - [SpacetimeDB views and caller-scoped reads](https://spacetimedb.com/docs/functions/views/)
 
-Chat is not joined to Warpkeep's large Realm snapshot. Its two-table
-subscription has its own observer and failure boundary, so chat reconnects or
-malformed chat rows cannot invalidate terrain, keeps, resources, or Workers.
+Chat is not joined to Warpkeep's large Realm snapshot. Its status-only
+subscription and bounded polling loop have their own observer/failure boundary,
+so Chat reconnects or malformed procedure output cannot invalidate terrain,
+keeps, resources, or Workers.
 
 ## Persistence and migration
 
-Protocol V16 appends exactly seven tables after the frozen V15 schema:
+Protocol V16 appends exactly eight tables after the frozen V15 schema:
 
 | Table | Visibility | Purpose |
 | --- | --- | --- |
 | `realm_chat_status_v1` | Public | Policy, mode, and projection limits |
 | `realm_chat_channel_v1` | Private | Canonical sequence and channel state |
 | `realm_chat_message_v1` | Private | Authoritative message archive and moderation evidence |
-| `realm_chat_recent_v1` | Public | Exact newest window, capped at 128 rows |
+| `realm_chat_recent_v1` | Private | Exact newest cache, capped at 128 rows and exposed only by the caller-gated procedure |
 | `realm_chat_rate_event_v1` | Private | Bounded rolling anti-spam evidence |
 | `realm_chat_send_receipt_v1` | Private | Exactly-once retry receipts |
-| `realm_chat_report_v1` | Private | One caller/message report and frozen context range |
+| `realm_chat_report_v1` | Private | One caller/message report, indexed pending state, and frozen context range |
+| `realm_chat_report_rate_event_v1` | Private | Globally bounded rolling one-day report-ingress ledger |
 
 The V15 fixture stays frozen. A separate V16 fixture, static schema checks, and
 a disposable populated-database proof establish additive preservation,
-idempotent republish, all-seven-table row retention, and refusal of destructive
+idempotent republish, all-eight-table row retention, and refusal of destructive
 V16-to-V15 rollback. The canonical production publisher intentionally has no
 V16 publication lane in this branch.
 
@@ -115,6 +122,14 @@ last sequence that existed when the report was created, so later conversation
 cannot silently alter evidence. Public moderation replaces the body with a
 tombstone while the private admin evidence procedure retains the original text.
 Reporting never automatically hides a message or punishes a player.
+
+Report details are capped at 250 Unicode scalars and 512 UTF-8 bytes. Atomic
+server-time quotas enforce 5 reports/reporter/hour, 20/reporter/day,
+20/message, 250/global/hour, and 1,000/global/day. The one-day ledger is bounded
+to 1,000 rows. A private channel counter stops new sends at 4,000 pending
+reports and stops new reports at 5,000; resolution decrements it atomically.
+Admin health counts pending rows through the private `status` index with the
+same 5,000-row ceiling.
 
 ## Player experience
 
@@ -166,3 +181,9 @@ requires a separate reviewed change that records all of the following:
 Until then, the client flag is `false`, server activation is not compiled, the
 channel is unseeded, the production publisher rejects V16 mutation, and no chat
 data is collected.
+
+In particular, a proposed 90-day erasure/anonymization workflow remains
+unapproved and unimplemented release work. This schema introduces no message
+deletion or retention scheduler. Its scope, legal/moderation holds,
+anonymization behavior, backup handling, and audited operator path require a
+separate owner/legal decision and implementation before activation.

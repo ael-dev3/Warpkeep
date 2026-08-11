@@ -17,10 +17,10 @@ Realm Chat must remain unavailable until all of these are complete:
 1. The project owner and a qualified legal reviewer approve the proposed Terms,
    Social Contract, Privacy Notice, persistence language, moderation process,
    and an explicit age/minor-participation policy.
-2. A later additive SpacetimeDB PR implements and verifies the private archive,
-   caller-bounded views, reducers, indexes, and report records.
-3. A later client PR implements the portrait and desktop experiences without
-   creating browser-side identity, sequence, or time authority.
+2. The additive SpacetimeDB authority, private archive/cache, caller-bounded
+   procedures, reducers, indexes, and report records pass independent review.
+3. The prepared portrait and desktop clients pass review without creating
+   browser-side identity, sequence, time, or visibility authority.
 4. Operator moderation procedures, evidence handling, release checks, and a
    tested kill switch exist.
 5. A separate activation record names the reviewed versions, exact deployment,
@@ -66,17 +66,20 @@ server derives the admitted sender FID, public-profile reference, channel,
 sequence, authoritative time, and any visibility state. It validates the exact
 current entry agreement and active channel before accepting a message.
 
-The future permanent message archive must be private. Clients must not be able
+The permanent message archive and bounded recent cache must be private. Clients must not be able
 to subscribe to or enumerate the full archive, report records, moderator notes,
-or internal enforcement state. A bounded recent projection may expose up to 128
-permitted messages. A caller-specific paginated history view may expose at most
-50 permitted messages per request and must use indexed lookups. SpacetimeDB
-documents that private tables are unavailable to clients and that views can
-filter private rows by caller; that is the required later authority pattern:
+or internal enforcement state. The only public Chat table is body-free channel
+status. A caller-authenticated recent procedure may expose up to 128 permitted
+messages and must recheck admission, the current agreement, resource ownership,
+and active-channel state on every call. A caller-specific paginated history
+procedure may expose at most 50 permitted messages per request and must use
+indexed lookups. SpacetimeDB documents that private tables are unavailable to
+clients; that is the required authority pattern:
 [table access permissions](https://spacetimedb.com/docs/tables/access-permissions/)
 and [views](https://spacetimedb.com/docs/functions/views/).
 
-Messages form persistent Realm history and have no routine gameplay expiry.
+Messages currently form persistent Realm history and have no implemented
+routine expiry or deletion path.
 That is not a promise of immutable public display or universal physical
 retention. Authorized moderation, safety, privacy, legal, service-integrity, or
 Realm-reset work may restrict, tombstone, anonymise, or erase a record. Provider
@@ -96,6 +99,15 @@ The following are implementation candidates, not approved live limits:
 
 The authority PR must define normalization, Unicode handling, counting windows,
 retry responses, and adversarial tests before these numbers become enforceable.
+
+The review-only report-ingress envelope is deliberately bounded even while
+activation remains forbidden: optional details are capped at 250 Unicode
+scalars and 512 UTF-8 bytes; one reporter may submit at most 5 reports per
+rolling hour and 20 per rolling day; one message may receive at most 20 reports;
+and the service may accept at most 250 reports per rolling hour and 1,000 per
+rolling day. At 4,000 pending reports new Chat sends stop, and at 5,000 pending
+reports new reports stop. These are safety ceilings, not production retention or
+moderation-service commitments.
 
 ## Conduct and moderation
 
@@ -148,6 +160,14 @@ The age/minor-participation policy is intentionally unresolved. This contract
 sets no age threshold. Activation is blocked until the owner and qualified legal
 reviewer approve the applicable policy and any required parent/guardian, notice,
 consent, or access measures.
+
+A proposed 90-day erasure/anonymization workflow is also unresolved release
+work, not an approved retention rule. No production timer, message/report
+erasure reducer, or operator approval is introduced by this implementation. Before activation, the
+owner and qualified legal reviewer must decide the exact scope, start event,
+moderation/legal-hold exceptions, anonymization semantics, backup treatment,
+data-subject handling, and auditable operator procedure, then the project must
+implement and test that decision separately.
 
 ## Planned PR sequence
 

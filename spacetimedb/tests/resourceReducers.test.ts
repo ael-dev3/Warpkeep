@@ -102,6 +102,7 @@ test('resource and Gold prefixes remain intact through later additive suffixes',
     'realmChatRateEventV1',
     'realmChatSendReceiptV1',
     'realmChatReportV1',
+    'realmChatReportRateEventV1',
   ]);
 
   const account = tableDefinition(schema, 'resourceAccountV1');

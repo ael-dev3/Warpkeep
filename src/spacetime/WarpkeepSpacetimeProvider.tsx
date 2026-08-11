@@ -49,6 +49,7 @@ import {
   readWarpkeepRealmSnapshot,
   readWarpkeepRealmChat,
   readWarpkeepRealmChatHistory,
+  readWarpkeepRealmChatRecent,
   reportWarpkeepRealmChatMessage,
   sendWarpkeepRealmChatMessage,
   subscribeToWarpkeepRealmChat,
@@ -56,8 +57,10 @@ import {
   type WarpkeepConnection
 } from './warpkeepConnection';
 import {
+  mergeRealmChatRecentPage,
   UNAVAILABLE_REALM_CHAT_PRESENTATION,
   type RealmChatHistoryPagePresentation,
+  type RealmChatRecentPagePresentation,
   type RealmChatPresentation
 } from './realmChatPresentation';
 import { WARPKEEP_REALM_CHAT_CLIENT_ENTRY_ENABLED } from '../legal/realmChatPolicy';
@@ -150,8 +153,21 @@ const MAX_WORKER_PROJECTION_PAIR_READ_ATTEMPTS = 2;
 const TRANSPORT_RECONNECT_RETRY_DELAYS_MILLISECONDS =
   Object.freeze([250, 1_000, 4_000] as const);
 const REALM_CHAT_SEND_RETRY_RETENTION_MILLISECONDS = 2 * 60 * 1_000;
+export const REALM_CHAT_POLL_INTERVAL_MILLISECONDS = 2_000;
+export const REALM_CHAT_POLL_MAX_BACKOFF_MILLISECONDS = 30_000;
 const REALM_CHAT_REQUEST_KEY_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+export function realmChatPollDelayMilliseconds(failureCount: number): number {
+  if (!Number.isSafeInteger(failureCount) || failureCount < 0) {
+    return REALM_CHAT_POLL_MAX_BACKOFF_MILLISECONDS;
+  }
+  if (failureCount === 0) return REALM_CHAT_POLL_INTERVAL_MILLISECONDS;
+  return Math.min(
+    REALM_CHAT_POLL_MAX_BACKOFF_MILLISECONDS,
+    REALM_CHAT_POLL_INTERVAL_MILLISECONDS * (2 ** Math.min(failureCount - 1, 4))
+  );
+}
 
 class BackendStageOperationDeadlineError extends Error {
   constructor() {
@@ -349,6 +365,7 @@ export type WarpkeepBackendRuntime = Readonly<{
   subscribeRealm: typeof subscribeToWarpkeepRealm;
   observeRealmChat?: typeof observeWarpkeepRealmChat;
   readRealmChat?: typeof readWarpkeepRealmChat;
+  readRealmChatRecent?: typeof readWarpkeepRealmChatRecent;
   subscribeRealmChat?: typeof subscribeToWarpkeepRealmChat;
   sendRealmChatMessage?: typeof sendWarpkeepRealmChatMessage;
   reportRealmChatMessage?: typeof reportWarpkeepRealmChatMessage;
@@ -392,6 +409,7 @@ export const DEFAULT_WARPKEEP_BACKEND_RUNTIME: WarpkeepBackendRuntime = Object.f
   subscribeRealm: subscribeToWarpkeepRealm,
   observeRealmChat: observeWarpkeepRealmChat,
   readRealmChat: readWarpkeepRealmChat,
+  readRealmChatRecent: readWarpkeepRealmChatRecent,
   subscribeRealmChat: subscribeToWarpkeepRealmChat,
   sendRealmChatMessage: sendWarpkeepRealmChatMessage,
   reportRealmChatMessage: reportWarpkeepRealmChatMessage,
@@ -4448,7 +4466,9 @@ export function WarpkeepSpacetimeProvider({
       || state.admission !== 'ready'
       || runtime.observeRealmChat === undefined
       || runtime.readRealmChat === undefined
+      || runtime.readRealmChatRecent === undefined
       || runtime.subscribeRealmChat === undefined
+      || typeof document === 'undefined'
     ) {
       setRealmChat(UNAVAILABLE_REALM_CHAT_PRESENTATION);
       return;
@@ -4460,31 +4480,115 @@ export function WarpkeepSpacetimeProvider({
     }
     let active = true;
     let applied = false;
+    let polling = false;
+    let pollFailureCount = 0;
+    let afterSequence = 0n;
+    let statusProjection: RealmChatPresentation = UNAVAILABLE_REALM_CHAT_PRESENTATION;
+    let pollTimer: ReturnType<typeof setTimeout> | undefined;
+    let poll: () => Promise<void>;
+    setRealmChat(UNAVAILABLE_REALM_CHAT_PRESENTATION);
+    const cancelPoll = () => {
+      if (pollTimer !== undefined) clearTimeout(pollTimer);
+      pollTimer = undefined;
+    };
     const unavailable = () => {
+      cancelPoll();
+      statusProjection = UNAVAILABLE_REALM_CHAT_PRESENTATION;
       if (active) setRealmChat(UNAVAILABLE_REALM_CHAT_PRESENTATION);
     };
-    const publish = (projection?: RealmChatPresentation) => {
+    const schedulePoll = (delay: number) => {
+      cancelPoll();
+      if (!active || !applied || document.hidden || statusProjection.mode !== 'active') return;
+      pollTimer = setTimeout(() => { void poll(); }, delay);
+    };
+    const publishStatus = (projection?: RealmChatPresentation) => {
       if (!active || !applied) return;
       try {
-        setRealmChat(projection ?? runtime.readRealmChat!(connection));
+        const status = projection ?? runtime.readRealmChat!(connection);
+        statusProjection = status;
+        if (status.availability !== 'ready' || status.mode !== 'active') {
+          afterSequence = 0n;
+          cancelPoll();
+          setRealmChat(status);
+          return;
+        }
+        setRealmChat(current => Object.freeze({
+          ...status,
+          messages: current.availability === 'ready'
+            && current.channelKey === status.channelKey
+            && current.policyVersion === status.policyVersion
+            ? current.messages
+            : Object.freeze([])
+        }));
+        schedulePoll(0);
       } catch {
         unavailable();
       }
     };
+    poll = async () => {
+      if (
+        !active
+        || !applied
+        || polling
+        || document.hidden
+        || statusProjection.availability !== 'ready'
+        || statusProjection.mode !== 'active'
+      ) return;
+      cancelPoll();
+      polling = true;
+      const requestedAfterSequence = afterSequence;
+      try {
+        const page: RealmChatRecentPagePresentation = await withResourceOperationDeadline(
+          runtime.readRealmChatRecent!(connection, requestedAfterSequence, 128)
+        );
+        if (
+          !active
+          || document.hidden
+          || statusProjection.availability !== 'ready'
+          || statusProjection.mode !== 'active'
+        ) return;
+        if (
+          page.nextAfterSequence < requestedAfterSequence
+          || page.messages.some(message => message.sequence <= requestedAfterSequence)
+        ) throw new Error('Realm Chat recent cursor regressed.');
+        afterSequence = page.nextAfterSequence;
+        pollFailureCount = 0;
+        setRealmChat(current => mergeRealmChatRecentPage(statusProjection, current, page));
+        schedulePoll(page.hasMore ? 0 : REALM_CHAT_POLL_INTERVAL_MILLISECONDS);
+      } catch {
+        if (!active) return;
+        pollFailureCount += 1;
+        setRealmChat(UNAVAILABLE_REALM_CHAT_PRESENTATION);
+        schedulePoll(realmChatPollDelayMilliseconds(pollFailureCount));
+      } finally {
+        polling = false;
+      }
+    };
+    const onVisibilityChange = () => {
+      if (document.hidden) cancelPoll();
+      else {
+        // Rehydrate the entire bounded live window after backgrounding. This
+        // avoids presenting an apparent continuous timeline if more than one
+        // cache window arrived while polling was suspended.
+        afterSequence = 0n;
+        schedulePoll(0);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
     let cleanupObserver: (() => void) | undefined;
     let subscription: ReturnType<NonNullable<WarpkeepBackendRuntime['subscribeRealmChat']>>
       | undefined;
     try {
       cleanupObserver = runtime.observeRealmChat(
         connection,
-        projection => publish(projection),
+        projection => publishStatus(projection),
         unavailable
       );
       subscription = runtime.subscribeRealmChat(
         connection,
         () => {
           applied = true;
-          publish();
+          publishStatus();
         },
         unavailable
       );
@@ -4493,6 +4597,8 @@ export function WarpkeepSpacetimeProvider({
     }
     return () => {
       active = false;
+      cancelPoll();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       try {
         cleanupObserver?.();
       } finally {

@@ -7,10 +7,16 @@ import {
   REALM_CHAT_POLICY_VERSION,
   REALM_CHAT_RECEIPTS_PER_FID,
   REALM_CHAT_RECENT_LIMIT,
+  REALM_CHAT_REPORT_DAY_WINDOW_MICROS,
+  REALM_CHAT_REPORT_MAX_PER_MESSAGE,
+  REALM_CHAT_REPORT_PENDING_LIMIT,
+  REALM_CHAT_REPORT_RATE_EVENTS_MAX,
+  REALM_CHAT_REPORT_SEND_PAUSE_THRESHOLD,
   REALM_CHAT_SERVER_ACTIVATION_ALLOWED,
   REALM_CHAT_CHANNEL_KEY,
   REALM_CHAT_REALM_ID,
   RealmChatPolicyError,
+  evaluateRealmChatReportRateLimit,
   evaluateRealmChatRateLimit,
   normalizeRealmChatBody,
   normalizeRealmChatReportDetails,
@@ -52,6 +58,14 @@ const realmChatHistoryPageV1 = t.object('RealmChatHistoryPageV1', {
   hasMore: t.bool(),
 });
 
+const realmChatRecentPageV1 = t.object('RealmChatRecentPageV1', {
+  channelKey: t.string(),
+  policyVersion: t.string(),
+  messages: t.array(realmChatMessageProjectionV1),
+  nextAfterSequence: t.u64(),
+  hasMore: t.bool(),
+});
+
 const adminRealmChatStatusV1 = t.object('AdminRealmChatStatusV1', {
   channelKey: t.string(),
   policyVersion: t.string(),
@@ -61,7 +75,9 @@ const adminRealmChatStatusV1 = t.object('AdminRealmChatStatusV1', {
   recentMessages: t.u64(),
   reports: t.u64(),
   rateEvents: t.u64(),
+  reportRateEvents: t.u64(),
   sendReceipts: t.u64(),
+  pendingReports: t.u32(),
   graphValid: t.bool(),
   activationCompiled: t.bool(),
 });
@@ -146,6 +162,15 @@ function boundedFidRows<Row>(
   return result;
 }
 
+function boundedRowCount<Row>(rows: Iterable<Row>, maximum: number): number | undefined {
+  let count = 0;
+  for (const _row of rows) {
+    if (count === maximum) return undefined;
+    count += 1;
+  }
+  return count;
+}
+
 function pruneExpiredRateEvents(
   ctx: ChatContext,
   rows: readonly { eventId: string; acceptedAtMicros: bigint }[],
@@ -157,6 +182,20 @@ function pruneExpiredRateEvents(
       && row.acceptedAtMicros <= nowMicros
       && nowMicros - row.acceptedAtMicros >= REALM_CHAT_HOUR_WINDOW_MICROS
     ) ctx.db.realmChatRateEventV1.eventId.delete(row.eventId);
+  }
+}
+
+function pruneExpiredReportRateEvents(
+  ctx: ChatContext,
+  rows: readonly { eventId: string; acceptedAtMicros: bigint }[],
+  nowMicros: bigint,
+): void {
+  for (const row of rows) {
+    if (
+      row.acceptedAtMicros > 0n
+      && row.acceptedAtMicros <= nowMicros
+      && nowMicros - row.acceptedAtMicros >= REALM_CHAT_REPORT_DAY_WINDOW_MICROS
+    ) ctx.db.realmChatReportRateEventV1.eventId.delete(row.eventId);
   }
 }
 
@@ -218,9 +257,9 @@ function projectEvidenceMessage(message: Parameters<typeof projectMessage>[0]) {
 }
 
 /**
- * The public table is a bounded cache, not an independent source of truth.
+ * The private table is a bounded cache, not an independent source of truth.
  * Admin health checks verify that it is the exact newest archive window and
- * that tombstoned bodies cannot survive in the public projection.
+ * that tombstoned bodies cannot survive in the caller-gated projection.
  */
 function recentProjectionMatchesArchive(
   ctx: ChatContext,
@@ -311,6 +350,9 @@ export const sendRealmChatMessageV1 = warpkeep.reducer(
       }
 
       const channel = requireChannel(ctx, true);
+      if (channel.pendingReports >= REALM_CHAT_REPORT_SEND_PAUSE_THRESHOLD) {
+        throw new SenderError('REALM_CHAT_MODERATION_BACKLOG');
+      }
       const nowMicros = ctx.timestamp.microsSinceUnixEpoch;
       const rateRows = boundedFidRows(
         ctx.db.realmChatRateEventV1.fid.filter(claims.fid),
@@ -369,6 +411,50 @@ export const sendRealmChatMessageV1 = warpkeep.reducer(
       return senderPolicyError(error);
     }
   },
+);
+
+/**
+ * Caller-authenticated live window. Every poll rechecks admission, current
+ * agreement, resource graph, and active-channel state before returning bodies.
+ */
+export const getRealmChatRecentV1 = warpkeep.procedure(
+  { name: 'get_realm_chat_recent_v1' },
+  { afterSequence: t.u64(), limit: t.u32() },
+  realmChatRecentPageV1,
+  (ctx, { afterSequence, limit }) => ctx.withTx(tx => {
+    try {
+      requireGameplayPlayerV1(tx);
+      const channel = requireChannel(tx, true);
+      if (!Number.isInteger(limit) || limit < 1 || limit > REALM_CHAT_RECENT_LIMIT) {
+        throw new SenderError('REALM_CHAT_RECENT_LIMIT');
+      }
+      const latestSequence = channel.nextSequence - 1n;
+      if (afterSequence > latestSequence) throw new SenderError('REALM_CHAT_RECENT_CURSOR');
+      if (!recentProjectionMatchesArchive(tx, channel)) {
+        throw new SenderError('REALM_CHAT_RECENT_STATE_INTEGRITY');
+      }
+      const rows = boundedFidRows(
+        tx.db.realmChatRecentV1.iter(),
+        REALM_CHAT_RECENT_LIMIT,
+        'REALM_CHAT_RECENT_STATE_INTEGRITY',
+      ).sort((left, right) => (
+        left.sequence < right.sequence ? -1 : left.sequence > right.sequence ? 1 : 0
+      ));
+      const candidates = rows.filter(row => row.sequence > afterSequence);
+      const messages = candidates.slice(0, limit).map(projectMessage);
+      return {
+        channelKey: channel.channelKey,
+        policyVersion: channel.policyVersion,
+        messages,
+        nextAfterSequence: messages.length === 0
+          ? afterSequence
+          : messages[messages.length - 1]!.sequence,
+        hasMore: candidates.length > messages.length,
+      };
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  }),
 );
 
 /** Caller-gated, exclusive-cursor history. It reads at most 50 sequence keys. */
@@ -439,11 +525,30 @@ export const reportRealmChatMessageV1 = warpkeep.reducer(
         ) throw new SenderError('REALM_CHAT_REPORT_ALREADY_EXISTS');
         return;
       }
+      if (channel.pendingReports >= REALM_CHAT_REPORT_PENDING_LIMIT) {
+        throw new SenderError('REALM_CHAT_REPORT_BACKLOG_FULL');
+      }
+      const reportsForMessage = boundedFidRows(
+        ctx.db.realmChatReportV1.messageId.filter(message.messageId),
+        REALM_CHAT_REPORT_MAX_PER_MESSAGE,
+        'REALM_CHAT_REPORT_TARGET_STATE_INTEGRITY',
+      );
+      if (reportsForMessage.length >= REALM_CHAT_REPORT_MAX_PER_MESSAGE) {
+        throw new SenderError('REALM_CHAT_REPORT_TARGET_SATURATED');
+      }
+      const nowMicros = ctx.timestamp.microsSinceUnixEpoch;
+      const reportRateRows = boundedFidRows(
+        ctx.db.realmChatReportRateEventV1.iter(),
+        REALM_CHAT_REPORT_RATE_EVENTS_MAX,
+        'REALM_CHAT_REPORT_RATE_STATE_INTEGRITY',
+      );
+      evaluateRealmChatReportRateLimit(reportRateRows, nowMicros, claims.fid);
       const context = realmChatContextBounds(message.sequence, channel.nextSequence - 1n);
+      const reportId = ctx.newUuidV7().toString();
       ctx.db.realmChatReportV1.insert({
         reportOrdinal: 0n,
         reportKey: key,
-        reportId: ctx.newUuidV7().toString(),
+        reportId,
         reporterFid: claims.fid,
         messageId: message.messageId,
         reportedSenderFid: message.senderFid,
@@ -457,6 +562,17 @@ export const reportRealmChatMessageV1 = warpkeep.reducer(
         reviewedAt: undefined,
         resolutionCode: undefined,
       });
+      pruneExpiredReportRateEvents(ctx, reportRateRows, nowMicros);
+      ctx.db.realmChatReportRateEventV1.insert({
+        eventId: reportId,
+        reporterFid: claims.fid,
+        acceptedAtMicros: nowMicros,
+      });
+      ctx.db.realmChatChannelV1.channelKey.update({
+        ...channel,
+        pendingReports: channel.pendingReports + 1,
+        updatedAt: ctx.timestamp,
+      });
     } catch (error) {
       return senderPolicyError(error);
     }
@@ -465,6 +581,10 @@ export const reportRealmChatMessageV1 = warpkeep.reducer(
 
 function inspectRealmChat(ctx: ChatContext) {
   const channel = ctx.db.realmChatChannelV1.channelKey.find(REALM_CHAT_CHANNEL_KEY);
+  const pendingReportCount = boundedRowCount(
+    ctx.db.realmChatReportV1.status.filter('pending'),
+    REALM_CHAT_REPORT_PENDING_LIMIT,
+  );
   return {
     channelKey: REALM_CHAT_CHANNEL_KEY,
     policyVersion: REALM_CHAT_POLICY_VERSION,
@@ -474,18 +594,26 @@ function inspectRealmChat(ctx: ChatContext) {
     recentMessages: ctx.db.realmChatRecentV1.count(),
     reports: ctx.db.realmChatReportV1.count(),
     rateEvents: ctx.db.realmChatRateEventV1.count(),
+    reportRateEvents: ctx.db.realmChatReportRateEventV1.count(),
     sendReceipts: ctx.db.realmChatSendReceiptV1.count(),
+    pendingReports: channel?.pendingReports ?? 0,
     graphValid: channel === null
       ? ctx.db.realmChatStatusV1.count() === 0n
         && ctx.db.realmChatChannelV1.count() === 0n
         && ctx.db.realmChatMessageV1.count() === 0n
         && ctx.db.realmChatRecentV1.count() === 0n
         && ctx.db.realmChatRateEventV1.count() === 0n
+        && ctx.db.realmChatReportRateEventV1.count() === 0n
         && ctx.db.realmChatSendReceiptV1.count() === 0n
         && ctx.db.realmChatReportV1.count() === 0n
       : ctx.db.realmChatStatusV1.count() === 1n
         && ctx.db.realmChatChannelV1.count() === 1n
         && statusMatchesChannel(ctx)
+        && channel.pendingReports <= REALM_CHAT_REPORT_PENDING_LIMIT
+        && ctx.db.realmChatReportRateEventV1.count()
+          <= BigInt(REALM_CHAT_REPORT_RATE_EVENTS_MAX)
+        && pendingReportCount !== undefined
+        && pendingReportCount === channel.pendingReports
         && channel.nextSequence === ctx.db.realmChatMessageV1.count() + 1n
         && recentProjectionMatchesArchive(ctx, channel),
     activationCompiled: REALM_CHAT_SERVER_ACTIVATION_ALLOWED,
@@ -519,6 +647,7 @@ export const adminStageRealmChatV1 = warpkeep.reducer(
       policyVersion: REALM_CHAT_POLICY_VERSION,
       mode: 'staged',
       nextSequence: 1n,
+      pendingReports: 0,
       updatedAt: ctx.timestamp,
     });
     ctx.db.realmChatStatusV1.insert({
@@ -701,11 +830,18 @@ export const adminResolveRealmChatReportV1 = warpkeep.reducer(
       return;
     }
     if (report.status !== 'pending') throw new SenderError('REALM_CHAT_REPORT_STATE_INTEGRITY');
+    const channel = requireChannel(ctx, false);
+    if (channel.pendingReports <= 0) throw new SenderError('REALM_CHAT_REPORT_STATE_INTEGRITY');
     ctx.db.realmChatReportV1.reportOrdinal.update({
       ...report,
       status: 'resolved',
       reviewedAt: ctx.timestamp,
       resolutionCode,
+    });
+    ctx.db.realmChatChannelV1.channelKey.update({
+      ...channel,
+      pendingReports: channel.pendingReports - 1,
+      updatedAt: ctx.timestamp,
     });
     ctx.db.adminAudit.insert({
       id: 0n,

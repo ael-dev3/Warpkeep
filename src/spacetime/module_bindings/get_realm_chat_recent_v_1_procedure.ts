@@ -10,12 +10,12 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default __t.row({
-  sequence: __t.u64().primaryKey(),
-  messageId: __t.string().name("message_id"),
-  channelKey: __t.string().name("channel_key"),
-  senderFid: __t.u64().name("sender_fid"),
-  body: __t.string(),
-  sentAt: __t.timestamp().name("sent_at"),
-  visibility: __t.string(),
-});
+import {
+  RealmChatRecentPageV1,
+} from "./types";
+
+export const params = {
+  afterSequence: __t.u64(),
+  limit: __t.u32(),
+};
+export const returnType = RealmChatRecentPageV1

@@ -18,7 +18,7 @@ balance, advance a timer, or decide an expedition outcome.
 | Access-request suffix | ref 53; active |
 | Daily Marks suffix | private refs 54–55; activation is separate |
 | Inner Keep suffix | refs 56–63; inactive until separate seed, backfill, client, asset, and activation gates |
-| Realm Chat suffix | refs 64–70; review-only and not publishable or activatable by this build |
+| Realm Chat suffix | refs 64–71; review-only and not publishable or activatable by this build |
 
 Deployed tables retain their original declaration order and shape. Later
 features append new tables; they do not rename or delete existing data. The
@@ -65,7 +65,7 @@ Public subscriptions contain only shared-world presentation:
 - the inactive Inner Keep layout, an empty public compatibility-slot table,
   six-building policy, thirty target-level recipes, and identity-minimized
   castle building rows with authoritative placement transforms;
-- the dormant Realm Chat readiness row and bounded recent-message projection;
+- the dormant, body-free Realm Chat readiness row;
 - public Community Marks projection only when its policy permits it.
 
 Private tables contain admission, ownership, unclaimed-slot decisions, resource
@@ -79,10 +79,12 @@ schedules are private. Player clients obtain only their own Builder/resources
 projection and accepted-request status through caller-authenticated procedures;
 browser bindings contain none of those private tables.
 
-Realm Chat channel authority, permanent archive, rolling rate ledger,
-idempotency receipts, reports, and moderation evidence remain private. The
-public recent projection is bounded and cannot reveal reports or operator
-state. Chat is disabled and collects no production data in this build.
+Realm Chat channel authority, permanent archive, bounded recent cache, message
+and report rate ledgers, idempotency receipts, reports, and moderation evidence
+remain private. A caller-authenticated procedure rechecks gameplay authority
+and active-channel state on every bounded recent read; generated browser
+bindings contain no recent table. Chat is disabled and collects no production
+data in this build.
 
 The pinned SDK requires scheduled expedition rows to be public. Those rows are
 therefore deliberately minimal: schedule/stage identifiers, site, origin
@@ -184,17 +186,18 @@ remain distinct owner-reviewed operations.
 
 ## Review-only Realm Chat authority
 
-Schema generation 16 appends seven tables without changing refs 0–63:
+Schema generation 16 appends eight tables without changing refs 0–63:
 
 | Ref | Table | Visibility and purpose |
 | ---: | --- | --- |
 | 64 | `realm_chat_status_v1` | public dormant readiness projection |
 | 65 | `realm_chat_channel_v1` | private channel policy and sequence cursor |
 | 66 | `realm_chat_message_v1` | private permanent message archive |
-| 67 | `realm_chat_recent_v1` | public bounded recent-message projection |
+| 67 | `realm_chat_recent_v1` | private bounded recent-message cache |
 | 68 | `realm_chat_rate_event_v1` | private rolling rate ledger |
 | 69 | `realm_chat_send_receipt_v1` | private exactly-once send receipt |
 | 70 | `realm_chat_report_v1` | private moderation report and evidence bounds |
+| 71 | `realm_chat_report_rate_event_v1` | private bounded one-day report-ingress ledger |
 
 The additive proof independently freezes v15, publishes the auth-neutral v16
 fixture, seeds one typed row in every Chat table, rejects a v16-to-v15
@@ -202,6 +205,13 @@ downgrade, and verifies the real candidate preserves those rows. The receipt
 binds separate v15 and v16 schema digests to one compiled artifact. This is
 migration evidence only: staging, activation, client entry, and production
 publication remain unauthorized.
+
+The review-only authority uses atomic server-time report ceilings of
+5/reporter/hour, 20/reporter/day, 20/message, 250/global/hour, and
+1,000/global/day. Optional details are capped at 250 scalars/512 UTF-8 bytes;
+new sends stop at 4,000 pending reports and new reports stop at 5,000. A
+proposed 90-day erasure/anonymization workflow remains unapproved and
+unimplemented release work; this schema adds no deletion scheduler.
 
 ## Entry agreement and Marks
 

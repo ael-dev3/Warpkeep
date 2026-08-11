@@ -21,9 +21,18 @@ export const REALM_CHAT_MAX_PER_HOUR = 60;
 export const REALM_CHAT_DUPLICATE_WINDOW_MICROS = 60_000_000n;
 export const REALM_CHAT_RATE_EVENTS_PER_FID = REALM_CHAT_MAX_PER_HOUR;
 export const REALM_CHAT_RECEIPTS_PER_FID = 64;
-export const REALM_CHAT_REPORT_DETAILS_MAX_SCALARS = 500;
-export const REALM_CHAT_REPORT_DETAILS_MAX_UTF8_BYTES = 2_048;
+export const REALM_CHAT_REPORT_DETAILS_MAX_SCALARS = 250;
+export const REALM_CHAT_REPORT_DETAILS_MAX_UTF8_BYTES = 512;
 export const REALM_CHAT_REPORT_CONTEXT_RADIUS = 10n;
+export const REALM_CHAT_REPORT_MAX_PER_REPORTER_HOUR = 5;
+export const REALM_CHAT_REPORT_MAX_PER_REPORTER_DAY = 20;
+export const REALM_CHAT_REPORT_MAX_GLOBAL_HOUR = 250;
+export const REALM_CHAT_REPORT_MAX_GLOBAL_DAY = 1_000;
+export const REALM_CHAT_REPORT_MAX_PER_MESSAGE = 20;
+export const REALM_CHAT_REPORT_PENDING_LIMIT = 5_000;
+export const REALM_CHAT_REPORT_SEND_PAUSE_THRESHOLD = 4_000;
+export const REALM_CHAT_REPORT_DAY_WINDOW_MICROS = 86_400_000_000n;
+export const REALM_CHAT_REPORT_RATE_EVENTS_MAX = REALM_CHAT_REPORT_MAX_GLOBAL_DAY;
 export const REALM_CHAT_MESSAGE_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
@@ -161,6 +170,11 @@ export type RealmChatRateEvent = Readonly<{
   bodyDigest: string;
 }>;
 
+export type RealmChatReportRateEvent = Readonly<{
+  reporterFid: bigint;
+  acceptedAtMicros: bigint;
+}>;
+
 export type RealmChatRateDecision = Readonly<{
   retained: readonly RealmChatRateEvent[];
   retryAfterMicros: bigint;
@@ -227,6 +241,52 @@ export function evaluateRealmChatRateLimit(
       0n,
     ),
   });
+}
+
+/**
+ * Evaluate the absolute report-ingress envelope from a globally bounded
+ * server-time ledger. The one-day global ceiling also bounds this ledger to
+ * 1,000 rows; rejected reports never consume quota.
+ */
+export function evaluateRealmChatReportRateLimit(
+  events: Iterable<RealmChatReportRateEvent>,
+  nowMicros: bigint,
+  reporterFid: bigint,
+): readonly RealmChatReportRateEvent[] {
+  if (nowMicros <= 0n || reporterFid <= 0n) {
+    fail('REALM_CHAT_REPORT_RATE_STATE_INTEGRITY');
+  }
+  const all = [...events];
+  if (all.length > REALM_CHAT_REPORT_RATE_EVENTS_MAX) {
+    fail('REALM_CHAT_REPORT_RATE_STATE_INTEGRITY');
+  }
+  if (all.some(event => (
+    event.reporterFid <= 0n
+    || event.acceptedAtMicros <= 0n
+    || event.acceptedAtMicros > nowMicros
+  ))) fail('REALM_CHAT_REPORT_RATE_STATE_INTEGRITY');
+
+  const retained = all.filter(event => (
+    nowMicros - event.acceptedAtMicros < REALM_CHAT_REPORT_DAY_WINDOW_MICROS
+  ));
+  const globalHour = retained.filter(event => (
+    nowMicros - event.acceptedAtMicros < REALM_CHAT_HOUR_WINDOW_MICROS
+  ));
+  const reporterDay = retained.filter(event => event.reporterFid === reporterFid);
+  const reporterHour = globalHour.filter(event => event.reporterFid === reporterFid);
+  if (reporterHour.length >= REALM_CHAT_REPORT_MAX_PER_REPORTER_HOUR) {
+    fail('REALM_CHAT_REPORT_RATE_REPORTER_HOUR');
+  }
+  if (reporterDay.length >= REALM_CHAT_REPORT_MAX_PER_REPORTER_DAY) {
+    fail('REALM_CHAT_REPORT_RATE_REPORTER_DAY');
+  }
+  if (globalHour.length >= REALM_CHAT_REPORT_MAX_GLOBAL_HOUR) {
+    fail('REALM_CHAT_REPORT_RATE_GLOBAL_HOUR');
+  }
+  if (retained.length >= REALM_CHAT_REPORT_MAX_GLOBAL_DAY) {
+    fail('REALM_CHAT_REPORT_RATE_GLOBAL_DAY');
+  }
+  return Object.freeze(retained);
 }
 
 export function realmChatOperationKey(fid: bigint, requestKey: string): string {

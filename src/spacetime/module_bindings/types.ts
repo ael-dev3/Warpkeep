@@ -344,7 +344,9 @@ export const AdminRealmChatStatusV1 = __t.object("AdminRealmChatStatusV1", {
   recentMessages: __t.u64(),
   reports: __t.u64(),
   rateEvents: __t.u64(),
+  reportRateEvents: __t.u64(),
   sendReceipts: __t.u64(),
+  pendingReports: __t.u32(),
   graphValid: __t.bool(),
   activationCompiled: __t.bool(),
 });
@@ -1170,6 +1172,7 @@ export const RealmChatChannelV1 = __t.object("RealmChatChannelV1", {
   policyVersion: __t.string(),
   mode: __t.string(),
   nextSequence: __t.u64(),
+  pendingReports: __t.u32(),
   updatedAt: __t.timestamp(),
 });
 export type RealmChatChannelV1 = __Infer<typeof RealmChatChannelV1>;
@@ -1216,6 +1219,17 @@ export const RealmChatRateEventV1 = __t.object("RealmChatRateEventV1", {
 });
 export type RealmChatRateEventV1 = __Infer<typeof RealmChatRateEventV1>;
 
+export const RealmChatRecentPageV1 = __t.object("RealmChatRecentPageV1", {
+  channelKey: __t.string(),
+  policyVersion: __t.string(),
+  get messages() {
+    return __t.array(RealmChatMessageProjectionV1);
+  },
+  nextAfterSequence: __t.u64(),
+  hasMore: __t.bool(),
+});
+export type RealmChatRecentPageV1 = __Infer<typeof RealmChatRecentPageV1>;
+
 export const RealmChatRecentV1 = __t.object("RealmChatRecentV1", {
   sequence: __t.u64(),
   messageId: __t.string(),
@@ -1226,6 +1240,13 @@ export const RealmChatRecentV1 = __t.object("RealmChatRecentV1", {
   visibility: __t.string(),
 });
 export type RealmChatRecentV1 = __Infer<typeof RealmChatRecentV1>;
+
+export const RealmChatReportRateEventV1 = __t.object("RealmChatReportRateEventV1", {
+  eventId: __t.string(),
+  reporterFid: __t.u64(),
+  acceptedAtMicros: __t.u64(),
+});
+export type RealmChatReportRateEventV1 = __Infer<typeof RealmChatReportRateEventV1>;
 
 export const RealmChatReportV1 = __t.object("RealmChatReportV1", {
   reportOrdinal: __t.u64(),

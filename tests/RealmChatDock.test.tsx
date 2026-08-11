@@ -33,10 +33,13 @@ const profiles = new Map<number, RealmChatSenderProfile>([
   [2, Object.freeze({ fid: 2, label: '@rival', castleId: 2, castleName: 'Rival Keep' })]
 ]);
 
-function readyChat(messages: readonly RealmChatMessagePresentation[]): RealmChatPresentation {
+function readyChat(
+  messages: readonly RealmChatMessagePresentation[],
+  channelKey = 'realm:genesis-001'
+): RealmChatPresentation {
   return Object.freeze({
     availability: 'ready',
-    channelKey: 'realm:genesis-001',
+    channelKey,
     policyVersion: '2026-08-03-realm-chat-policy-v1',
     mode: 'active',
     messages
@@ -114,6 +117,12 @@ describe('Realm Chat presentation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'View @rival' }));
     fireEvent.click(screen.getByRole('button', { name: 'Report message' }));
     const dialog = screen.getByRole('dialog', { name: 'Report message' });
+    fireEvent.change(within(dialog).getByLabelText(/Details/), {
+      target: { value: 'x'.repeat(251) }
+    });
+    expect((within(dialog).getByRole('button', { name: 'Submit report' }) as HTMLButtonElement).disabled)
+      .toBe(true);
+    expect(within(dialog).getByRole('alert').textContent).toContain('250 characters');
     fireEvent.change(within(dialog).getByLabelText('Reason'), {
       target: { value: 'spam_or_disruption' }
     });
@@ -144,6 +153,76 @@ describe('Realm Chat presentation', () => {
     await screen.findByText('Message 1');
     const bodies = screen.getAllByText(/Message [123]/).map((element) => element.textContent);
     expect(bodies).toEqual(['Message 1', 'Message 2', 'Message 3']);
+  });
+
+  it('ignores stale send completion after the FID and channel operation scope changes', async () => {
+    let resolveSend!: () => void;
+    const sendPromise = new Promise<void>((resolve) => { resolveSend = resolve; });
+    const onSend = vi.fn(() => sendPromise);
+    const { props, view } = renderChat({ onSend });
+    fireEvent.click(screen.getByRole('button', { name: 'Open Realm Chat' }));
+    const composer = screen.getByPlaceholderText('Message the Realm…');
+    fireEvent.change(composer, { target: { value: 'old scope draft' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Sending…' })).toBeTruthy());
+
+    view.rerender(
+      <RealmChatDock
+        {...props}
+        chat={readyChat([message(2n)], 'realm:genesis-002')}
+        identityFid={3}
+      />
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Realm Chat' }));
+    const nextComposer = screen.getByPlaceholderText('Message the Realm…');
+    fireEvent.change(nextComposer, { target: { value: 'new scope draft' } });
+    expect((screen.getByRole('button', { name: 'Send' }) as HTMLButtonElement).disabled).toBe(false);
+
+    await act(async () => {
+      resolveSend();
+      await sendPromise;
+    });
+    expect((nextComposer as HTMLTextAreaElement).value).toBe('new scope draft');
+    expect(screen.queryByText(/wasn’t sent/)).toBeNull();
+  });
+
+  it('resets history flags and ignores stale history hydration after a channel change', async () => {
+    let resolveHistory!: (page: {
+      messages: readonly RealmChatMessagePresentation[];
+      nextBeforeSequence: bigint;
+      hasMore: boolean;
+    }) => void;
+    const historyPromise = new Promise<{
+      messages: readonly RealmChatMessagePresentation[];
+      nextBeforeSequence: bigint;
+      hasMore: boolean;
+    }>((resolve) => { resolveHistory = resolve; });
+    const onLoadEarlier = vi.fn(() => historyPromise);
+    const { props, view } = renderChat({
+      chat: readyChat([message(3n)]),
+      onLoadEarlier
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Open Realm Chat' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Load earlier messages' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Opening archive…' })).toBeTruthy());
+
+    view.rerender(
+      <RealmChatDock
+        {...props}
+        chat={readyChat([message(10n)], 'realm:genesis-002')}
+      />
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'Open Realm Chat' }));
+    expect((screen.getByRole('button', {
+      name: 'Load earlier messages'
+    }) as HTMLButtonElement).disabled).toBe(false);
+
+    await act(async () => {
+      resolveHistory({ messages: [message(1n)], nextBeforeSequence: 1n, hasMore: false });
+      await historyPromise;
+    });
+    expect(screen.queryByText('Message 1')).toBeNull();
+    expect(screen.queryByText('Earlier messages are unavailable.')).toBeNull();
   });
 
   it('delegates compact Back to the Realm owner and closes reports before chat', async () => {

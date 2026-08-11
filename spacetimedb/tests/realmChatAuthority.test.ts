@@ -23,7 +23,7 @@ function registrations(text: string, marker: string): string[] {
     .filter(value => /^[A-Za-z][A-Za-z0-9]*$/.test(value));
 }
 
-test('v16 appends exactly seven privacy-separated Realm Chat tables after frozen v15', () => {
+test('v16 appends exactly eight privacy-separated Realm Chat tables after frozen v15', () => {
   const schema = source('../src/schema.ts');
   const v15 = source('../migration-fixtures/additive-v15-schema/src/index.ts');
   const v16 = source('../migration-fixtures/additive-v16-schema/src/index.ts');
@@ -41,29 +41,36 @@ test('v16 appends exactly seven privacy-separated Realm Chat tables after frozen
     'realmChatRateEventV1',
     'realmChatSendReceiptV1',
     'realmChatReportV1',
+    'realmChatReportRateEventV1',
   ];
 
   assert.equal(predecessor.length, 64);
-  assert.equal(current.length, 71);
+  assert.equal(current.length, 72);
   assert.deepEqual(current, fixture);
   assert.deepEqual(current.slice(0, predecessor.length), predecessor);
   assert.deepEqual(current.slice(predecessor.length), chatTables);
 
-  for (const publicName of ['realmChatStatusV1', 'realmChatRecentV1']) {
+  for (const publicName of ['realmChatStatusV1']) {
     assert.match(section(schema, `export const ${publicName} = table(`, '\n);'), /public: true/);
   }
   for (const privateName of [
     'realmChatChannelV1',
     'realmChatMessageV1',
+    'realmChatRecentV1',
     'realmChatRateEventV1',
     'realmChatSendReceiptV1',
     'realmChatReportV1',
+    'realmChatReportRateEventV1',
   ]) {
     assert.doesNotMatch(
       section(schema, `export const ${privateName} = table(`, '\n);'),
       /public: true/,
     );
   }
+  assert.match(
+    section(schema, 'export const realmChatReportV1 = table(', '\n);'),
+    /status: t\.string\(\)\.index\(\)/,
+  );
 
   assert.match(v16, /fixtureSeedRealmChatSentinelV16/);
   assert.match(v16, /name: 'fixture_seed_realm_chat_sentinel_v16'/);
@@ -78,12 +85,17 @@ test('v16 appends exactly seven privacy-separated Realm Chat tables after frozen
   assert.match(lock, /migration-fixtures\/additive-v16-schema:/);
 });
 
-test('send, history, and reporting derive identity, time, order, and context on the server', () => {
+test('send, recent, history, and reporting derive identity, time, order, and context on the server', () => {
   const reducer = source('../src/reducers/realmChat.ts');
   const send = section(
     reducer,
     'export const sendRealmChatMessageV1',
-    '/** Caller-gated, exclusive-cursor history.',
+    'export const getRealmChatRecentV1',
+  );
+  const recent = section(
+    reducer,
+    'export const getRealmChatRecentV1',
+    'export const getRealmChatHistoryV1',
   );
   const history = section(
     reducer,
@@ -105,9 +117,16 @@ test('send, history, and reporting derive identity, time, order, and context on 
   assert.match(send, /sentAt: ctx\.timestamp/);
   assert.match(send, /sequence: channel\.nextSequence/);
   assert.match(send, /realmChatSendReceiptV1\.operationKey\.find\(operationKey\)/);
+  assert.match(send, /channel\.pendingReports >= REALM_CHAT_REPORT_SEND_PAUSE_THRESHOLD/);
   assert.match(send, /pruneRecentProjection\(ctx\)/);
   assert.match(reducer, /function recentProjectionMatchesArchive/);
   assert.match(reducer, /recentProjectionMatchesArchive\(ctx, channel\)/);
+
+  assert.match(recent, /requireGameplayPlayerV1\(tx\)/);
+  assert.match(recent, /requireChannel\(tx, true\)/);
+  assert.match(recent, /limit < 1 \|\| limit > REALM_CHAT_RECENT_LIMIT/);
+  assert.match(recent, /realmChatRecentV1\.iter\(\)/);
+  assert.match(recent, /boundedFidRows\([\s\S]*REALM_CHAT_RECENT_LIMIT/);
 
   assert.match(history, /requireGameplayPlayerV1\(tx\)/);
   assert.match(history, /limit < 1 \|\| limit > REALM_CHAT_HISTORY_PAGE_LIMIT/);
@@ -119,6 +138,16 @@ test('send, history, and reporting derive identity, time, order, and context on 
   assert.match(report, /canonicalMessageId\(messageId\)/);
   assert.match(report, /message\.senderFid === claims\.fid/);
   assert.match(report, /realmChatReportV1\.reportKey\.find\(key\)/);
+  assert.match(report, /channel\.pendingReports >= REALM_CHAT_REPORT_PENDING_LIMIT/);
+  assert.match(report, /reportsForMessage\.length >= REALM_CHAT_REPORT_MAX_PER_MESSAGE/);
+  assert.match(report, /const nowMicros = ctx\.timestamp\.microsSinceUnixEpoch/);
+  assert.match(report, /evaluateRealmChatReportRateLimit\(reportRateRows, nowMicros, claims\.fid\)/);
+  assert.match(report, /pendingReports: channel\.pendingReports \+ 1/);
+  assert.match(reducer, /realmChatReportV1\.status\.filter\('pending'\)/);
+  assert.doesNotMatch(
+    section(reducer, 'function inspectRealmChat', 'export const adminGetRealmChatStatusV1'),
+    /realmChatReportV1\.iter\(\)/,
+  );
   assert.match(
     report,
     /realmChatContextBounds\(message\.sequence, channel\.nextSequence - 1n\)/,
@@ -126,7 +155,7 @@ test('send, history, and reporting derive identity, time, order, and context on 
   assert.doesNotMatch(report, /visibility:\s*'tombstoned'|realmChatRecentV1\..*update/);
 });
 
-test('moderation preserves private evidence while public tombstones reveal no body', () => {
+test('moderation preserves private evidence while caller-gated tombstones reveal no body', () => {
   const reducer = source('../src/reducers/realmChat.ts');
   const evidence = section(reducer, 'function projectEvidenceMessage', 'function reportEntry');
   const tombstone = section(

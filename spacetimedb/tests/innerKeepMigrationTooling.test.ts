@@ -35,6 +35,7 @@ const realmChatRegistrations = [
   'realmChatRateEventV1',
   'realmChatSendReceiptV1',
   'realmChatReportV1',
+  'realmChatReportRateEventV1',
 ] as const;
 
 test('v15 remains the exact v14 prefix plus Inner Keep refs 56-63 before v16', () => {
@@ -49,7 +50,7 @@ test('v15 remains the exact v14 prefix plus Inner Keep refs 56-63 before v16', (
 
   assert.equal(v14Tables.length, 56);
   assert.equal(v15Tables.length, 64);
-  assert.equal(v16Tables.length, 71);
+  assert.equal(v16Tables.length, 72);
   assert.deepEqual(v15Tables.slice(0, 56), v14Tables);
   assert.deepEqual(v15Tables.slice(56), innerKeepRegistrations);
   assert.deepEqual(v16Tables.slice(0, 64), v15Tables);

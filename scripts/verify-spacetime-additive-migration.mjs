@@ -316,6 +316,7 @@ const additiveV16Tables = Object.freeze([
   'realm_chat_rate_event_v1',
   'realm_chat_send_receipt_v1',
   'realm_chat_report_v1',
+  'realm_chat_report_rate_event_v1',
 ]);
 const deployedV3Tables = Object.freeze([
   ...existingTables,
@@ -445,6 +446,7 @@ const expectedProductTypeRefs = Object.freeze({
   realm_chat_rate_event_v1: 68,
   realm_chat_send_receipt_v1: 69,
   realm_chat_report_v1: 70,
+  realm_chat_report_rate_event_v1: 71,
 });
 const childEnvironmentKeys = Object.freeze([
   'PATH', 'HOME', 'USER', 'LOGNAME', 'TMPDIR', 'TMP', 'TEMP',
@@ -1616,7 +1618,7 @@ function assertAdditiveV16Schema(before, after) {
       access: 'Private',
       fields: [
         'channel_key', 'realm_id', 'policy_version', 'mode', 'next_sequence',
-        'updated_at',
+        'pending_reports', 'updated_at',
       ],
     },
     realm_chat_message_v1: {
@@ -1627,7 +1629,7 @@ function assertAdditiveV16Schema(before, after) {
       ],
     },
     realm_chat_recent_v1: {
-      access: 'Public',
+      access: 'Private',
       fields: [
         'sequence', 'message_id', 'channel_key', 'sender_fid', 'body',
         'sent_at', 'visibility',
@@ -1652,6 +1654,10 @@ function assertAdditiveV16Schema(before, after) {
         'details', 'context_first_sequence', 'context_last_sequence',
         'created_at', 'status', 'reviewed_at', 'resolution_code',
       ],
+    },
+    realm_chat_report_rate_event_v1: {
+      access: 'Private',
+      fields: ['event_id', 'reporter_fid', 'accepted_at_micros'],
     },
   };
   for (const [name, contract] of Object.entries(contracts)) {
@@ -7837,7 +7843,7 @@ async function main() {
     }
 
     // Freeze v16 independently before the real candidate. The complete v15
-    // Inner Keep predecessor remains unchanged and all seven Chat tables start
+    // Inner Keep predecessor remains unchanged and all eight Chat tables start
     // empty on every representative database.
     await publish(server, owner.token, additiveV16SchemaFixture, emptyDatabase);
     await publish(server, owner.token, additiveV16SchemaFixture, nonemptyDatabase);
@@ -8762,10 +8768,10 @@ async function main() {
       + 'private access-request intent and authoritative request timestamp appended at exact ref 53, '
       + 'private exactly-once daily Mark receipts and identity-free cadence appended at exact refs 54-55, '
       + 'public Inner Keep layout, empty compatibility-slot table, building catalog, levels, and castle buildings plus private builders, receipts, and schedules appended at exact refs 56-63, '
-      + 'public Chat readiness and bounded recent projection plus private channel, archive, rate, receipt, and report authority appended at exact refs 64-70, '
+      + 'public Chat readiness plus private channel, archive, bounded recent cache, send/report rate, receipt, and report authority appended at exact refs 64-71, '
       + '61-tile empty, synthetic nonempty, and populated Water/Stone/Water-revision fixtures remained preserved through v16, '
       + 'every v12 table was populated and retained through the real candidate, the v13 request suffix survived populated, '
-      + 'both v14 tables, all eight v15 tables, and all seven v16 tables started empty, fixture republish remained idempotent, '
+      + 'both v14 tables, all eight v15 tables, and all eight v16 tables started empty, fixture republish remained idempotent, '
       + 'the populated Chat sentinel survived the real candidate and the complete state was protected from v16-to-v15 and older downgrades, '
       + 'exact resolver HTTP lifecycle enforced without mutation, '
       + `atomic 1,261-to-10,000 world expansion proved in ${worldExpansionDurationMilliseconds}ms with an idempotent retry, `

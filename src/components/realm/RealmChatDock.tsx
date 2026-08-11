@@ -22,6 +22,8 @@ import './RealmChatDock.css';
 const CHAT_CHARACTER_LIMIT = 500;
 const CHAT_LINE_LIMIT = 8;
 const CHAT_LOCAL_MESSAGE_LIMIT = 512;
+const REPORT_DETAILS_CHARACTER_LIMIT = 250;
+const REPORT_DETAILS_UTF8_BYTE_LIMIT = 512;
 
 const REPORT_CATEGORIES = Object.freeze([
   ['threat_or_harm', 'Threats or harm'],
@@ -119,21 +121,30 @@ function RealmChatReportDialog({
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
   const detailsLength = [...details].length;
-  const detailsValid = detailsLength <= 500;
+  const detailsByteLength = new TextEncoder().encode(details).byteLength;
+  const detailsValid = detailsLength <= REPORT_DETAILS_CHARACTER_LIMIT
+    && detailsByteLength <= REPORT_DETAILS_UTF8_BYTE_LIMIT;
+  const operationGenerationRef = useRef(0);
+  useEffect(() => () => {
+    operationGenerationRef.current += 1;
+  }, []);
   useModalFocusBoundary({ dialogRef, initialFocusRef: headingRef, onEscape: onCancel });
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (pending || !detailsValid) return;
+    const operationGeneration = operationGenerationRef.current;
     setPending(true);
     setFailed(false);
     try {
       await onReport(message.messageId, category, details);
+      if (operationGenerationRef.current !== operationGeneration) return;
       onCancel();
     } catch {
+      if (operationGenerationRef.current !== operationGeneration) return;
       setFailed(true);
     } finally {
-      setPending(false);
+      if (operationGenerationRef.current === operationGeneration) setPending(false);
     }
   };
 
@@ -175,9 +186,17 @@ function RealmChatReportDialog({
               value={details}
               onChange={(event) => setDetails(event.target.value)}
             />
-            <small>{detailsLength}/500</small>
+            <small>
+              {detailsLength}/{REPORT_DETAILS_CHARACTER_LIMIT} · {detailsByteLength}/
+              {REPORT_DETAILS_UTF8_BYTE_LIMIT} bytes
+            </small>
           </label>
-          {!detailsValid ? <p role="alert">Report details can use up to 500 characters.</p> : null}
+          {!detailsValid ? (
+            <p role="alert">
+              Report details can use up to {REPORT_DETAILS_CHARACTER_LIMIT} characters and{' '}
+              {REPORT_DETAILS_UTF8_BYTE_LIMIT} UTF-8 bytes.
+            </p>
+          ) : null}
           {failed ? <p role="alert">The report could not be submitted. Try again.</p> : null}
           <div className="realm-chat-report__actions">
             <button disabled={pending} onClick={onCancel} type="button">Cancel</button>
@@ -223,6 +242,16 @@ export function RealmChatDock({
   const initialProjectionRef = useRef(true);
   const launcherRef = useRef<HTMLButtonElement>(null);
   const wasOpenRef = useRef(false);
+  const operationScopeKey = `${identityFid}:${chat.channelKey ?? ''}`;
+  const operationScopeRef = useRef<Readonly<{ key: string; generation: number }>>(
+    Object.freeze({ key: operationScopeKey, generation: 0 })
+  );
+  if (operationScopeRef.current.key !== operationScopeKey) {
+    operationScopeRef.current = Object.freeze({
+      key: operationScopeKey,
+      generation: operationScopeRef.current.generation + 1
+    });
+  }
   const compact = chromeMode !== 'desktop-web';
 
   useEffect(() => {
@@ -271,6 +300,10 @@ export function RealmChatDock({
     setDraft('');
     setHistory([]);
     setHistoryHasMore(undefined);
+    setHistoryPending(false);
+    setHistoryFailed(false);
+    setSendPending(false);
+    setSendFailed(false);
     setMutedFids(new Set());
     setSelectedMessageId(undefined);
     setReportMessage(undefined);
@@ -325,17 +358,20 @@ export function RealmChatDock({
 
   const submitMessage = useCallback(async () => {
     if (!draftValid || sendPending) return;
+    const operationScope = operationScopeRef.current;
     const retainedDraft = draft;
     setSendPending(true);
     setSendFailed(false);
     try {
       await onSend(retainedDraft);
+      if (operationScopeRef.current !== operationScope) return;
       setDraft('');
       setAtBottom(true);
     } catch {
+      if (operationScopeRef.current !== operationScope) return;
       setSendFailed(true);
     } finally {
-      setSendPending(false);
+      if (operationScopeRef.current === operationScope) setSendPending(false);
     }
   }, [draft, draftValid, onSend, sendPending]);
 
@@ -353,12 +389,14 @@ export function RealmChatDock({
   const loadEarlier = async () => {
     const oldest = messages.at(0);
     if (!oldest || historyPending || !canLoadEarlier) return;
+    const operationScope = operationScopeRef.current;
     const scroll = scrollRef.current;
     const previousHeight = scroll?.scrollHeight ?? 0;
     setHistoryPending(true);
     setHistoryFailed(false);
     try {
       const page = await onLoadEarlier(oldest.sequence);
+      if (operationScopeRef.current !== operationScope) return;
       const remainingCapacity = Math.max(0, CHAT_LOCAL_MESSAGE_LIMIT - messages.length);
       const retainedPage = page.messages.slice(0, remainingCapacity);
       setHistory((current) => mergeMessages(current, retainedPage));
@@ -376,9 +414,10 @@ export function RealmChatDock({
         restoreScroll();
       }
     } catch {
+      if (operationScopeRef.current !== operationScope) return;
       setHistoryFailed(true);
     } finally {
-      setHistoryPending(false);
+      if (operationScopeRef.current === operationScope) setHistoryPending(false);
     }
   };
 
@@ -603,6 +642,7 @@ export function RealmChatDock({
       <p aria-live="polite" className="warpkeep-visually-hidden">{announcement}</p>
       {reportMessage ? (
         <RealmChatReportDialog
+          key={`${operationScopeKey}:${reportMessage.messageId}`}
           message={reportMessage}
           profile={senderProfiles.get(reportMessage.senderFid) ?? fallbackSender(reportMessage.senderFid)}
           onCancel={() => setReportMessage(undefined)}

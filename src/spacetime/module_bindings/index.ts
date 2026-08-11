@@ -132,6 +132,7 @@ import * as GetMyWoodExpeditionStateV1Procedure from "./get_my_wood_expedition_s
 import * as GetMyWorkerControlStateV1Procedure from "./get_my_worker_control_state_v_1_procedure";
 import * as GetMyWorkerRosterV1Procedure from "./get_my_worker_roster_v_1_procedure";
 import * as GetRealmChatHistoryV1Procedure from "./get_realm_chat_history_v_1_procedure";
+import * as GetRealmChatRecentV1Procedure from "./get_realm_chat_recent_v_1_procedure";
 import * as QaObserverGetRealmAttestationV2Procedure from "./qa_observer_get_realm_attestation_v_2_procedure";
 import * as QaObserverGetRealmSnapshotV1Procedure from "./qa_observer_get_realm_snapshot_v_1_procedure";
 
@@ -152,7 +153,6 @@ import InnerKeepLayoutV1Row from "./inner_keep_layout_v_1_table";
 import InnerKeepSlotV1Row from "./inner_keep_slot_v_1_table";
 import PlayerRow from "./player_table";
 import PlayerV2Row from "./player_v_2_table";
-import RealmChatRecentV1Row from "./realm_chat_recent_v_1_table";
 import RealmChatStatusV1Row from "./realm_chat_status_v_1_table";
 import RealmEnvironmentV1Row from "./realm_environment_v_1_table";
 import RealmForestInstanceV1Row from "./realm_forest_instance_v_1_table";
@@ -403,27 +403,6 @@ const tablesSchema = __schema({
       { name: 'player_v2_fid_key', constraint: 'unique', columns: ['fid'] },
     ],
   }, PlayerV2Row),
-  realmChatRecentV1: __table({
-    name: 'realm_chat_recent_v1',
-    indexes: [
-      { accessor: 'channelKey', name: 'realm_chat_recent_v1_channel_key_idx_btree', algorithm: 'btree', columns: [
-        'channelKey',
-      ] },
-      { accessor: 'messageId', name: 'realm_chat_recent_v1_message_id_idx_btree', algorithm: 'btree', columns: [
-        'messageId',
-      ] },
-      { accessor: 'senderFid', name: 'realm_chat_recent_v1_sender_fid_idx_btree', algorithm: 'btree', columns: [
-        'senderFid',
-      ] },
-      { accessor: 'sequence', name: 'realm_chat_recent_v1_sequence_idx_btree', algorithm: 'btree', columns: [
-        'sequence',
-      ] },
-    ],
-    constraints: [
-      { name: 'realm_chat_recent_v1_message_id_key', constraint: 'unique', columns: ['messageId'] },
-      { name: 'realm_chat_recent_v1_sequence_key', constraint: 'unique', columns: ['sequence'] },
-    ],
-  }, RealmChatRecentV1Row),
   realmChatStatusV1: __table({
     name: 'realm_chat_status_v1',
     indexes: [
@@ -802,6 +781,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("get_my_worker_control_state_v1", GetMyWorkerControlStateV1Procedure.params, GetMyWorkerControlStateV1Procedure.returnType),
   __procedureSchema("get_my_worker_roster_v1", GetMyWorkerRosterV1Procedure.params, GetMyWorkerRosterV1Procedure.returnType),
   __procedureSchema("get_realm_chat_history_v_1", GetRealmChatHistoryV1Procedure.params, GetRealmChatHistoryV1Procedure.returnType),
+  __procedureSchema("get_realm_chat_recent_v_1", GetRealmChatRecentV1Procedure.params, GetRealmChatRecentV1Procedure.returnType),
   __procedureSchema("qa_observer_get_realm_attestation_v2", QaObserverGetRealmAttestationV2Procedure.params, QaObserverGetRealmAttestationV2Procedure.returnType),
   __procedureSchema("qa_observer_get_realm_snapshot_v1", QaObserverGetRealmSnapshotV1Procedure.params, QaObserverGetRealmSnapshotV1Procedure.returnType),
 );

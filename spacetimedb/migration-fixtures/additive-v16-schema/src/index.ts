@@ -288,7 +288,7 @@ const realmChatStatusV1 = table({ name: 'realm_chat_status_v1', public: true }, 
 /** v16 private channel authority and monotonic sequence cursor. */
 const realmChatChannelV1 = table({ name: 'realm_chat_channel_v1' }, {
   channelKey: t.string().primaryKey(), realmId: t.string().unique(), policyVersion: t.string(),
-  mode: t.string(), nextSequence: t.u64(), updatedAt: t.timestamp(),
+  mode: t.string(), nextSequence: t.u64(), pendingReports: t.u32(), updatedAt: t.timestamp(),
 });
 
 /** v16 private permanent message archive. */
@@ -301,8 +301,8 @@ const realmChatMessageV1 = table({
   moderatedAt: t.option(t.timestamp()), moderationCode: t.option(t.string()),
 });
 
-/** v16 bounded public recent-message projection. */
-const realmChatRecentV1 = table({ name: 'realm_chat_recent_v1', public: true }, {
+/** v16 private bounded recent-message cache. */
+const realmChatRecentV1 = table({ name: 'realm_chat_recent_v1' }, {
   sequence: t.u64().primaryKey(), messageId: t.string().unique(), channelKey: t.string().index(),
   senderFid: t.u64().index(), body: t.string(), sentAt: t.timestamp(), visibility: t.string(),
 });
@@ -324,7 +324,12 @@ const realmChatReportV1 = table({ name: 'realm_chat_report_v1' }, {
   reportId: t.string().unique(), reporterFid: t.u64().index(), messageId: t.string().index(),
   reportedSenderFid: t.u64(), messageSequence: t.u64(), category: t.string(), details: t.string(),
   contextFirstSequence: t.u64(), contextLastSequence: t.u64(), createdAt: t.timestamp(),
-  status: t.string(), reviewedAt: t.option(t.timestamp()), resolutionCode: t.option(t.string()),
+  status: t.string().index(), reviewedAt: t.option(t.timestamp()), resolutionCode: t.option(t.string()),
+});
+
+/** v16 private globally bounded one-day report-ingress ledger. */
+const realmChatReportRateEventV1 = table({ name: 'realm_chat_report_rate_event_v1' }, {
+  eventId: t.string().primaryKey(), reporterFid: t.u64().index(), acceptedAtMicros: t.u64(),
 });
 
 const db = schema({
@@ -347,6 +352,7 @@ const db = schema({
   // Additive v16 Realm Chat suffix. Refs 0-63 above remain frozen verbatim.
   realmChatStatusV1, realmChatChannelV1, realmChatMessageV1, realmChatRecentV1,
   realmChatRateEventV1, realmChatSendReceiptV1, realmChatReportV1,
+  realmChatReportRateEventV1,
 });
 
 export const runWorkerAssignmentScheduleV1 = db.reducer(
@@ -472,6 +478,7 @@ export const fixtureSeedRealmChatSentinelV16 = db.reducer(
       || ctx.db.realmChatRateEventV1.count() !== 0n
       || ctx.db.realmChatSendReceiptV1.count() !== 0n
       || ctx.db.realmChatReportV1.count() !== 0n
+      || ctx.db.realmChatReportRateEventV1.count() !== 0n
     ) throw new Error('FIXTURE_REALM_CHAT_NOT_EMPTY');
     const channelKey = 'realm:genesis-001';
     const messageId = '018f7b44-5f2f-7c54-8c0d-3f521d46b193';
@@ -482,7 +489,7 @@ export const fixtureSeedRealmChatSentinelV16 = db.reducer(
     });
     ctx.db.realmChatChannelV1.insert({
       channelKey, realmId: 'HEGEMONY_GENESIS_001', policyVersion: 'migration-chat-v1',
-      mode: 'staged', nextSequence: 2n, updatedAt: ctx.timestamp,
+      mode: 'staged', nextSequence: 2n, pendingReports: 1, updatedAt: ctx.timestamp,
     });
     ctx.db.realmChatMessageV1.insert({
       messageId, sequence: 1n, channelKey, senderFid: 991_301n, body: 'migration sentinel',
@@ -508,6 +515,10 @@ export const fixtureSeedRealmChatSentinelV16 = db.reducer(
       category: 'other', details: 'migration sentinel', contextFirstSequence: 1n,
       contextLastSequence: 11n, createdAt: ctx.timestamp, status: 'pending',
       reviewedAt: undefined, resolutionCode: undefined,
+    });
+    ctx.db.realmChatReportRateEventV1.insert({
+      eventId: '018f7b44-5f2f-7c54-8c0d-3f521d46b195', reporterFid: 991_302n,
+      acceptedAtMicros: ctx.timestamp.microsSinceUnixEpoch,
     });
   },
 );
