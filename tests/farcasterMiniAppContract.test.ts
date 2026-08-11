@@ -61,7 +61,7 @@ describe('Farcaster Mini App release contract', () => {
       readFileSync(resolve(process.cwd(), 'package-lock.json'), 'utf8')
     ) as { packages?: Record<string, { engines?: { node?: string } }> };
 
-    expect(packageJson.engines?.node).toBe('>=22.11 <23');
+    expect(packageJson.engines?.node).toBe('>=22.13 <23');
     expect(packageLock.packages?.['']?.engines?.node).toBe(
       packageJson.engines?.node
     );
