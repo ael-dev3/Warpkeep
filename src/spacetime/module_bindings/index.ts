@@ -49,21 +49,30 @@ import AdminBackfillDailyMarkAccountsV1Reducer from "./admin_backfill_daily_mark
 import AdminBackfillInnerKeepBuildersV1Reducer from "./admin_backfill_inner_keep_builders_v_1_reducer";
 import AdminBackfillResourceAccountsV1Reducer from "./admin_backfill_resource_accounts_v_1_reducer";
 import AdminBackfillWorkerRosterV1Reducer from "./admin_backfill_worker_roster_v_1_reducer";
+import AdminBeginGreaterRealmDrainV1Reducer from "./admin_begin_greater_realm_drain_v_1_reducer";
 import AdminBeginGreaterRealmVerificationV1Reducer from "./admin_begin_greater_realm_verification_v_1_reducer";
 import AdminBeginWorkerLegacyDrainV1Reducer from "./admin_begin_worker_legacy_drain_v_1_reducer";
 import AdminBumpAuthEpochReducer from "./admin_bump_auth_epoch_reducer";
+import AdminCommitGreaterRealmActiveV1Reducer from "./admin_commit_greater_realm_active_v_1_reducer";
 import AdminCompleteWorkerLegacyDrainV1Reducer from "./admin_complete_worker_legacy_drain_v_1_reducer";
 import AdminDeactivateInnerKeepV1Reducer from "./admin_deactivate_inner_keep_v_1_reducer";
 import AdminDisableFidReducer from "./admin_disable_fid_reducer";
 import AdminDisableRealmChatV1Reducer from "./admin_disable_realm_chat_v_1_reducer";
 import AdminExpandGenesisWorldV3Reducer from "./admin_expand_genesis_world_v_3_reducer";
 import AdminFinalizeGreaterRealmReleaseV1Reducer from "./admin_finalize_greater_realm_release_v_1_reducer";
+import AdminFreezeGreaterRealmActivationV1Reducer from "./admin_freeze_greater_realm_activation_v_1_reducer";
+import AdminHaltGreaterRealmActivationV1Reducer from "./admin_halt_greater_realm_activation_v_1_reducer";
 import AdminImportGreaterRealmChunkV1Reducer from "./admin_import_greater_realm_chunk_v_1_reducer";
 import AdminImportGreaterRealmComponentsV1Reducer from "./admin_import_greater_realm_components_v_1_reducer";
 import AdminImportGreaterRealmRegionsV1Reducer from "./admin_import_greater_realm_regions_v_1_reducer";
+import AdminPlanGreaterRealmRelocationV1Reducer from "./admin_plan_greater_realm_relocation_v_1_reducer";
+import AdminPrepareGreaterRealmActivationV1Reducer from "./admin_prepare_greater_realm_activation_v_1_reducer";
+import AdminRelocateGreaterRealmCanaryV1Reducer from "./admin_relocate_greater_realm_canary_v_1_reducer";
 import AdminRepairMissingWorkerReturnScheduleV1Reducer from "./admin_repair_missing_worker_return_schedule_v_1_reducer";
 import AdminResetAccessRequestV1Reducer from "./admin_reset_access_request_v_1_reducer";
 import AdminResolveRealmChatReportV1Reducer from "./admin_resolve_realm_chat_report_v_1_reducer";
+import AdminResumeGreaterRealmActiveV1Reducer from "./admin_resume_greater_realm_active_v_1_reducer";
+import AdminRollbackGreaterRealmBeforeCommitV1Reducer from "./admin_rollback_greater_realm_before_commit_v_1_reducer";
 import AdminSeedGenesisForestLayoutV1Reducer from "./admin_seed_genesis_forest_layout_v_1_reducer";
 import AdminSeedGenesisTierIFoodSitesV1Reducer from "./admin_seed_genesis_tier_i_food_sites_v_1_reducer";
 import AdminSeedGenesisTierIGoldSitesV1Reducer from "./admin_seed_genesis_tier_i_gold_sites_v_1_reducer";
@@ -112,7 +121,9 @@ import * as AdminGetAlphaStatusV8Procedure from "./admin_get_alpha_status_v_8_pr
 import * as AdminGetAlphaStatusV10Procedure from "./admin_get_alpha_status_v_10_procedure";
 import * as AdminGetDailyMarksStatusV1Procedure from "./admin_get_daily_marks_status_v_1_procedure";
 import * as AdminGetFidAuthEpochProcedure from "./admin_get_fid_auth_epoch_procedure";
+import * as AdminGetGreaterRealmCutoverStatusV1Procedure from "./admin_get_greater_realm_cutover_status_v_1_procedure";
 import * as AdminGetGreaterRealmImportPlanV1Procedure from "./admin_get_greater_realm_import_plan_v_1_procedure";
+import * as AdminGetGreaterRealmReenableStatusV1Procedure from "./admin_get_greater_realm_reenable_status_v_1_procedure";
 import * as AdminGetGreaterRealmStatusV1Procedure from "./admin_get_greater_realm_status_v_1_procedure";
 import * as AdminGetInnerKeepStatusV1Procedure from "./admin_get_inner_keep_status_v_1_procedure";
 import * as AdminGetRealmChatReportContextV1Procedure from "./admin_get_realm_chat_report_context_v_1_procedure";
@@ -781,21 +792,30 @@ const reducersSchema = __reducers(
   __reducerSchema("admin_backfill_inner_keep_builders_v1", AdminBackfillInnerKeepBuildersV1Reducer),
   __reducerSchema("admin_backfill_resource_accounts_v1", AdminBackfillResourceAccountsV1Reducer),
   __reducerSchema("admin_backfill_worker_roster_v1", AdminBackfillWorkerRosterV1Reducer),
+  __reducerSchema("admin_begin_greater_realm_drain_v1", AdminBeginGreaterRealmDrainV1Reducer),
   __reducerSchema("admin_begin_greater_realm_verification_v1", AdminBeginGreaterRealmVerificationV1Reducer),
   __reducerSchema("admin_begin_worker_legacy_drain_v1", AdminBeginWorkerLegacyDrainV1Reducer),
   __reducerSchema("admin_bump_auth_epoch", AdminBumpAuthEpochReducer),
+  __reducerSchema("admin_commit_greater_realm_active_v1", AdminCommitGreaterRealmActiveV1Reducer),
   __reducerSchema("admin_complete_worker_legacy_drain_v1", AdminCompleteWorkerLegacyDrainV1Reducer),
   __reducerSchema("admin_deactivate_inner_keep_v1", AdminDeactivateInnerKeepV1Reducer),
   __reducerSchema("admin_disable_fid", AdminDisableFidReducer),
   __reducerSchema("admin_disable_realm_chat_v1", AdminDisableRealmChatV1Reducer),
   __reducerSchema("admin_expand_genesis_world_v3", AdminExpandGenesisWorldV3Reducer),
   __reducerSchema("admin_finalize_greater_realm_release_v1", AdminFinalizeGreaterRealmReleaseV1Reducer),
+  __reducerSchema("admin_freeze_greater_realm_activation_v1", AdminFreezeGreaterRealmActivationV1Reducer),
+  __reducerSchema("admin_halt_greater_realm_activation_v1", AdminHaltGreaterRealmActivationV1Reducer),
   __reducerSchema("admin_import_greater_realm_chunk_v1", AdminImportGreaterRealmChunkV1Reducer),
   __reducerSchema("admin_import_greater_realm_components_v1", AdminImportGreaterRealmComponentsV1Reducer),
   __reducerSchema("admin_import_greater_realm_regions_v1", AdminImportGreaterRealmRegionsV1Reducer),
+  __reducerSchema("admin_plan_greater_realm_relocation_v1", AdminPlanGreaterRealmRelocationV1Reducer),
+  __reducerSchema("admin_prepare_greater_realm_activation_v1", AdminPrepareGreaterRealmActivationV1Reducer),
+  __reducerSchema("admin_relocate_greater_realm_canary_v1", AdminRelocateGreaterRealmCanaryV1Reducer),
   __reducerSchema("admin_repair_missing_worker_return_schedule_v1", AdminRepairMissingWorkerReturnScheduleV1Reducer),
   __reducerSchema("admin_reset_access_request_v1", AdminResetAccessRequestV1Reducer),
   __reducerSchema("admin_resolve_realm_chat_report_v1", AdminResolveRealmChatReportV1Reducer),
+  __reducerSchema("admin_resume_greater_realm_active_v1", AdminResumeGreaterRealmActiveV1Reducer),
+  __reducerSchema("admin_rollback_greater_realm_before_commit_v1", AdminRollbackGreaterRealmBeforeCommitV1Reducer),
   __reducerSchema("admin_seed_genesis_forest_layout_v1", AdminSeedGenesisForestLayoutV1Reducer),
   __reducerSchema("admin_seed_genesis_tier_i_food_sites_v1", AdminSeedGenesisTierIFoodSitesV1Reducer),
   __reducerSchema("admin_seed_genesis_tier_i_gold_sites_v1", AdminSeedGenesisTierIGoldSitesV1Reducer),
@@ -846,7 +866,9 @@ const proceduresSchema = __procedures(
   __procedureSchema("admin_get_alpha_status_v_10", AdminGetAlphaStatusV10Procedure.params, AdminGetAlphaStatusV10Procedure.returnType),
   __procedureSchema("admin_get_daily_marks_status_v1", AdminGetDailyMarksStatusV1Procedure.params, AdminGetDailyMarksStatusV1Procedure.returnType),
   __procedureSchema("admin_get_fid_auth_epoch", AdminGetFidAuthEpochProcedure.params, AdminGetFidAuthEpochProcedure.returnType),
+  __procedureSchema("admin_get_greater_realm_cutover_status_v_1", AdminGetGreaterRealmCutoverStatusV1Procedure.params, AdminGetGreaterRealmCutoverStatusV1Procedure.returnType),
   __procedureSchema("admin_get_greater_realm_import_plan_v1", AdminGetGreaterRealmImportPlanV1Procedure.params, AdminGetGreaterRealmImportPlanV1Procedure.returnType),
+  __procedureSchema("admin_get_greater_realm_reenable_status_v_1", AdminGetGreaterRealmReenableStatusV1Procedure.params, AdminGetGreaterRealmReenableStatusV1Procedure.returnType),
   __procedureSchema("admin_get_greater_realm_status_v1", AdminGetGreaterRealmStatusV1Procedure.params, AdminGetGreaterRealmStatusV1Procedure.returnType),
   __procedureSchema("admin_get_inner_keep_status_v1", AdminGetInnerKeepStatusV1Procedure.params, AdminGetInnerKeepStatusV1Procedure.returnType),
   __procedureSchema("admin_get_realm_chat_report_context_v_1", AdminGetRealmChatReportContextV1Procedure.params, AdminGetRealmChatReportContextV1Procedure.returnType),

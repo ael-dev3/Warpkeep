@@ -18,7 +18,9 @@ import * as AdminGetAlphaStatusV8Procedure from "../admin_get_alpha_status_v_8_p
 import * as AdminGetAlphaStatusV10Procedure from "../admin_get_alpha_status_v_10_procedure";
 import * as AdminGetDailyMarksStatusV1Procedure from "../admin_get_daily_marks_status_v_1_procedure";
 import * as AdminGetFidAuthEpochProcedure from "../admin_get_fid_auth_epoch_procedure";
+import * as AdminGetGreaterRealmCutoverStatusV1Procedure from "../admin_get_greater_realm_cutover_status_v_1_procedure";
 import * as AdminGetGreaterRealmImportPlanV1Procedure from "../admin_get_greater_realm_import_plan_v_1_procedure";
+import * as AdminGetGreaterRealmReenableStatusV1Procedure from "../admin_get_greater_realm_reenable_status_v_1_procedure";
 import * as AdminGetGreaterRealmStatusV1Procedure from "../admin_get_greater_realm_status_v_1_procedure";
 import * as AdminGetInnerKeepStatusV1Procedure from "../admin_get_inner_keep_status_v_1_procedure";
 import * as AdminGetRealmChatReportContextV1Procedure from "../admin_get_realm_chat_report_context_v_1_procedure";
@@ -82,8 +84,12 @@ export type AdminGetDailyMarksStatusV1Args = __Infer<typeof AdminGetDailyMarksSt
 export type AdminGetDailyMarksStatusV1Result = __Infer<typeof AdminGetDailyMarksStatusV1Procedure.returnType>;
 export type AdminGetFidAuthEpochArgs = __Infer<typeof AdminGetFidAuthEpochProcedure.params>;
 export type AdminGetFidAuthEpochResult = __Infer<typeof AdminGetFidAuthEpochProcedure.returnType>;
+export type AdminGetGreaterRealmCutoverStatusV1Args = __Infer<typeof AdminGetGreaterRealmCutoverStatusV1Procedure.params>;
+export type AdminGetGreaterRealmCutoverStatusV1Result = __Infer<typeof AdminGetGreaterRealmCutoverStatusV1Procedure.returnType>;
 export type AdminGetGreaterRealmImportPlanV1Args = __Infer<typeof AdminGetGreaterRealmImportPlanV1Procedure.params>;
 export type AdminGetGreaterRealmImportPlanV1Result = __Infer<typeof AdminGetGreaterRealmImportPlanV1Procedure.returnType>;
+export type AdminGetGreaterRealmReenableStatusV1Args = __Infer<typeof AdminGetGreaterRealmReenableStatusV1Procedure.params>;
+export type AdminGetGreaterRealmReenableStatusV1Result = __Infer<typeof AdminGetGreaterRealmReenableStatusV1Procedure.returnType>;
 export type AdminGetGreaterRealmStatusV1Args = __Infer<typeof AdminGetGreaterRealmStatusV1Procedure.params>;
 export type AdminGetGreaterRealmStatusV1Result = __Infer<typeof AdminGetGreaterRealmStatusV1Procedure.returnType>;
 export type AdminGetInnerKeepStatusV1Args = __Infer<typeof AdminGetInnerKeepStatusV1Procedure.params>;

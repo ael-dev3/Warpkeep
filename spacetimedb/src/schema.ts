@@ -1792,7 +1792,7 @@ export const greaterRealmResourceNodeV1 = table(
   },
 );
 
-/** Private quiet-window and rollback envelope. No activation writer exists yet. */
+/** Private quiet-window and rollback envelope. Writers are registered but compile-gated closed. */
 export const greaterRealmActivationV1 = table(
   { name: 'greater_realm_activation_v1' },
   {

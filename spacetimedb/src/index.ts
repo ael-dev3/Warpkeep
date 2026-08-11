@@ -165,3 +165,16 @@ export {
   getRealmAtlasResourceLocationsV1,
   planRealmRouteV1,
 } from './reducers/greaterRealm';
+export {
+  adminGetGreaterRealmCutoverStatusV1,
+  adminGetGreaterRealmReenableStatusV1,
+  adminPrepareGreaterRealmActivationV1,
+  adminBeginGreaterRealmDrainV1,
+  adminFreezeGreaterRealmActivationV1,
+  adminPlanGreaterRealmRelocationV1,
+  adminRelocateGreaterRealmCanaryV1,
+  adminCommitGreaterRealmActiveV1,
+  adminHaltGreaterRealmActivationV1,
+  adminResumeGreaterRealmActiveV1,
+  adminRollbackGreaterRealmBeforeCommitV1,
+} from './reducers/greaterRealmCutover';

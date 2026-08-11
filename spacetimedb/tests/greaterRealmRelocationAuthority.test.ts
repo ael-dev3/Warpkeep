@@ -7,6 +7,8 @@ import { build, type Plugin } from 'esbuild';
 
 import type * as FoundingAuthority from '../src/foundingAuthority';
 import type * as RelocationAuthority from '../src/greaterRealmRelocationAuthority';
+import type * as CutoverStatus from '../src/greaterRealmCutoverStatus';
+import type * as CutoverAudit from '../src/greaterRealmCutoverAudit';
 import type * as CastleWorkerAuthority from '../src/castleWorkerAuthority';
 
 import {
@@ -130,6 +132,18 @@ const {
   rollbackGreaterRealmBeforeCommitAuthorizedTransactionV1,
 } = await loadExactProductionModule<typeof RelocationAuthority>(
   new URL('../src/greaterRealmRelocationAuthority.ts', import.meta.url),
+);
+const {
+  projectGreaterRealmCutoverStatusV1,
+  projectGreaterRealmReenableStatusV1,
+} = await loadExactProductionModule<typeof CutoverStatus>(
+  new URL('../src/greaterRealmCutoverStatus.ts', import.meta.url),
+);
+const {
+  GREATER_REALM_CUTOVER_AUDIT_NOTE_V1,
+  runGreaterRealmCutoverTransitionWithAuditV1,
+} = await loadExactProductionModule<typeof CutoverAudit>(
+  new URL('../src/greaterRealmCutoverAudit.ts', import.meta.url),
 );
 const {
   dispatchGreaterRealmCastleWorkerV2,
@@ -261,12 +275,12 @@ function opaqueSuffix(value: number): string {
 }
 
 function makeRegions() {
-  return GREATER_REALM_PUBLIC_REGIONS.map(region => ({
+  return GREATER_REALM_PUBLIC_REGIONS.map((region, index) => ({
     regionId: region.id,
     publicName: region.name,
     ordinal: region.ordinal,
     tier: 1,
-    cellCount: 100,
+    cellCount: index === 0 ? 101 : 100,
     passableCellCount: 100,
     chunkCount: 1,
     castleCapacity: 100,
@@ -291,7 +305,7 @@ function tableSet(): Record<string, MemoryTable> {
       [],
       true,
     ),
-    adminAudit: empty('id'),
+    adminAudit: empty('id', {}, true),
     playerV2: empty('fid'),
     playerOwnershipV2: empty('fid', { identity: 'identity' }),
     realmV1: empty('realmId'),
@@ -577,9 +591,13 @@ class Fixture {
       expectedRegionCount: 6,
       expectedComponentCount: 6,
       expectedChunkCount: 6,
-      expectedCellCount: 600,
+      expectedCellCount: 601,
       expectedSlotCount: 600,
       expectedResourceNodeCount: 12_000,
+      componentExpectedCellCount: 600,
+      componentExpectedSlotCount: 600,
+      componentExpectedResourceNodeCount: 12_000,
+      importedPassableCellCount: 600,
       expectedReleaseSha256: SHA_A,
       releaseHeaderSha256: SHA_B,
       importEpoch: 1n,
@@ -600,7 +618,7 @@ class Fixture {
       verificationDigest: SHA_B,
       verifiedComponentCount: 6,
       verifiedChunkCount: 6,
-      verifiedCellCount: 600,
+      verifiedCellCount: 601,
       verifiedSlotCount: 600,
       verifiedResourceNodeCount: 12_000,
       state: 'ready',
@@ -662,6 +680,25 @@ class Fixture {
         });
       }
     }
+    db.greaterRealmCellV1.rows.push({
+      cellKey: 'T1_LOWLANDS:impassable:0',
+      atlasCoordKey: 'A:99999:-99999',
+      releaseOrdinal: 600,
+      atlasId,
+      chunkHandle: `GRK-${opaqueSuffix(0)}`,
+      regionId: GREATER_REALM_PUBLIC_REGIONS[0]!.id,
+      componentKey: `GRC-${opaqueSuffix(0)}`,
+      localQ: 100,
+      localR: 0,
+      atlasQ: 99_999,
+      atlasR: -99_999,
+      tier: 1,
+      passable: false,
+      yieldClass: 0,
+      routeDepth: 0,
+      routeParentDirection: undefined,
+      sealedBoundaryMask: 0,
+    });
     let resourceOrdinal = 0;
     for (const region of GREATER_REALM_PUBLIC_REGIONS) {
       for (const kind of ['food', 'wood', 'stone', 'gold']) {
@@ -1073,10 +1110,384 @@ function addOnePostCommitFounder(
   return Object.freeze({ fid, castleId, claim });
 }
 
-test('the dormant production boundary stays compiled closed and unregistered', () => {
+test('the bounded cutover status tracks every production phase and admission boundary', () => {
+  const fixture = new Fixture();
+  let status = projectGreaterRealmCutoverStatusV1(fixture.ctx);
+  assert.equal(status.releaseState, 'ready');
+  assert.equal(status.activationMode, 'absent');
+  assert.equal(status.releaseImportsExact, true);
+  assert.equal(status.releaseVerificationExact, true);
+  assert.equal(status.expectedCellCount, 601);
+  assert.equal(status.importedPassableCellCount, 600);
+  assert.equal(status.componentExpectedCellCount, 600);
+  assert.equal(status.activationMutationsCompiled, false);
+  assert.equal(status.currentFounderCount, 100);
+  assert.equal(status.founderCapacityRemaining, 500);
+  assert.equal(status.legacyClaimRows, 100n);
+  assert.equal(status.legacyOccupiedWorldTileRows, 100n);
+  assert.equal(status.activeSlotRows, 0n);
+  assert.equal(status.activeResourceNodeRows, 0n);
+  assert.equal(status.auditRows, 1n);
+  assert.equal(status.legacyFoundingOpen, true);
+  assert.equal(status.currentWorldGraphApplicable, false);
+  assert.equal(status.activeAdmissionEligible, false);
+
+  assert.equal(
+    prepareGreaterRealmActivationAuthorizedTransactionV1(fixture.ctx, 'admin:fixture'),
+    'prepared',
+  );
+  status = projectGreaterRealmCutoverStatusV1(fixture.ctx);
+  assert.equal(status.activationMode, 'prepared');
+  assert.equal(status.rollbackEligible, true);
+  assert.equal(status.legacyFoundingOpen, true);
+
+  assert.equal(beginGreaterRealmDrainAuthorizedTransactionV1(fixture.ctx), 'draining');
+  status = projectGreaterRealmCutoverStatusV1(fixture.ctx);
+  assert.equal(status.activationMode, 'draining');
+  assert.equal(status.legacyFoundingOpen, false);
+  assert.equal(status.legacyJourneyDispatchOpen, false);
+
+  assert.equal(freezeGreaterRealmActivationAuthorizedTransactionV1(fixture.ctx), 'frozen');
+  assert.equal(planGreaterRealmRelocationAuthorizedTransactionV1(fixture.ctx), 'planned');
+  status = projectGreaterRealmCutoverStatusV1(fixture.ctx);
+  assert.equal(status.activationMode, 'planned');
+  assert.equal(status.plannedClaimRows, 100n);
+  assert.equal(status.activeClaimRows, 0n);
+  assert.equal(status.currentWorldGraphApplicable, false);
+
+  assert.equal(
+    fixture.transaction(() => relocateGreaterRealmCanaryAuthorizedTransactionV1(fixture.ctx)),
+    'canary',
+  );
+  status = projectGreaterRealmCutoverStatusV1(fixture.ctx);
+  assert.equal(status.releaseState, 'canary');
+  assert.equal(status.activationMode, 'canary');
+  assert.equal(status.atlasMode, 'canary');
+  assert.equal(status.workerSystemV2Mode, 'canary');
+  assert.equal(status.legacyRealmActive, false);
+  assert.equal(status.legacyClaimRows, 0n);
+  assert.equal(status.legacyOccupiedWorldTileRows, 0n);
+  assert.equal(status.greaterRealmClaimRows, 100n);
+  assert.equal(status.greaterRealmOccupancyRows, 100n);
+  assert.equal(status.activeSlotRows, 600n);
+  assert.equal(status.activeResourceNodeRows, 12_000n);
+  assert.equal(status.relocatedClaimRows, 100n);
+  assert.equal(status.foundedClaimRows, 0n);
+  assert.equal(status.currentWorldGraphApplicable, true);
+  assert.equal(status.currentWorldGraphExact, true);
+  assert.equal(status.currentWorldIntegrityViolationCount, 0);
+  assert.equal(status.rollbackEligible, true);
+  assert.equal(status.activeAdmissionEligible, false);
+  assert.equal(
+    status.lowlandsFounderCount
+      + status.frostmereFounderCount
+      + status.sunscarFounderCount
+      + status.mirefenFounderCount
+      + status.stonewakeFounderCount
+      + status.emberwoodFounderCount,
+    100,
+  );
+  for (const journeyField of [
+    'goldNodeOccupationRows',
+    'goldExpeditionRows',
+    'goldExpeditionScheduleRows',
+    'foodNodeOccupationRows',
+    'foodExpeditionRows',
+    'foodExpeditionScheduleRows',
+    'woodNodeOccupationRows',
+    'woodExpeditionRows',
+    'woodExpeditionScheduleRows',
+    'stoneNodeOccupationRows',
+    'stoneExpeditionRows',
+    'stoneExpeditionScheduleRows',
+    'workerAssignmentRows',
+    'workerNodeOccupationRows',
+    'workerAssignmentScheduleRows',
+  ] as const) assert.equal(status[journeyField], 0n, journeyField);
+
+  assert.equal(commitGreaterRealmActiveAuthorizedTransactionV1(fixture.ctx), 'active');
+  status = projectGreaterRealmCutoverStatusV1(fixture.ctx);
+  assert.equal(status.activationMode, 'active');
+  assert.equal(status.everActive, true);
+  assert.equal(status.rollbackEligible, false);
+  assert.equal(status.resumeEligible, false);
+  assert.equal(status.activeAdmissionEligible, true);
+
+  assert.equal(haltGreaterRealmActivationAuthorizedTransactionV1(fixture.ctx), 'halted');
+  status = projectGreaterRealmCutoverStatusV1(fixture.ctx);
+  assert.equal(status.activationMode, 'halted');
+  assert.equal(status.currentWorldGraphExact, true);
+  assert.equal(status.resumeEligible, true);
+  assert.equal(status.activeAdmissionEligible, false);
+
+  assert.equal(resumeGreaterRealmActiveAuthorizedTransactionV1(fixture.ctx), 'active');
+  status = projectGreaterRealmCutoverStatusV1(fixture.ctx);
+  assert.equal(status.activationMode, 'active');
+  assert.equal(status.activeAdmissionEligible, true);
+
+  fixture.tables.greaterRealmReleaseV1.rows[0]!.verifiedSlotCount = 599;
+  status = projectGreaterRealmCutoverStatusV1(fixture.ctx);
+  assert.equal(status.releaseImportsExact, true);
+  assert.equal(status.releaseVerificationExact, false);
+  assert.equal(status.currentWorldGraphExact, false);
+  assert.equal(status.currentWorldIntegrityViolationCount, 1);
+  assert.equal(status.activeAdmissionEligible, false);
+
+  fixture.tables.greaterRealmReleaseV1.rows[0]!.verifiedSlotCount = 600;
+  fixture.tables.greaterRealmReleaseV1.rows[0]!.componentExpectedCellCount = 601;
+  status = projectGreaterRealmCutoverStatusV1(fixture.ctx);
+  assert.equal(status.releaseImportsExact, false);
+  assert.equal(status.releaseVerificationExact, false);
+  fixture.tables.greaterRealmReleaseV1.rows[0]!.componentExpectedCellCount = 600;
+  fixture.tables.greaterRealmReleaseV1.rows[0]!.importedPassableCellCount = 601;
+  status = projectGreaterRealmCutoverStatusV1(fixture.ctx);
+  assert.equal(status.releaseImportsExact, false);
+  assert.equal(status.releaseVerificationExact, false);
+});
+
+test('each changed cutover transition adds one fixed audit row while exact retries add none', () => {
+  const fixture = new Fixture();
+  const actorSubject = 'admin:audit-fixture';
+  const transitions = [
+    ['prepare_greater_realm_activation_v1', 'prepared', () => (
+      prepareGreaterRealmActivationAuthorizedTransactionV1(fixture.ctx, actorSubject)
+    )],
+    ['begin_greater_realm_drain_v1', 'draining', () => (
+      beginGreaterRealmDrainAuthorizedTransactionV1(fixture.ctx)
+    )],
+    ['freeze_greater_realm_activation_v1', 'frozen', () => (
+      freezeGreaterRealmActivationAuthorizedTransactionV1(fixture.ctx)
+    )],
+    ['plan_greater_realm_relocation_v1', 'planned', () => (
+      planGreaterRealmRelocationAuthorizedTransactionV1(fixture.ctx)
+    )],
+    ['relocate_greater_realm_canary_v1', 'canary', () => (
+      relocateGreaterRealmCanaryAuthorizedTransactionV1(fixture.ctx)
+    )],
+    ['commit_greater_realm_active_v1', 'active', () => (
+      commitGreaterRealmActiveAuthorizedTransactionV1(fixture.ctx)
+    )],
+    ['halt_greater_realm_activation_v1', 'halted', () => (
+      haltGreaterRealmActivationAuthorizedTransactionV1(fixture.ctx)
+    )],
+    ['resume_greater_realm_active_v1', 'active', () => (
+      resumeGreaterRealmActiveAuthorizedTransactionV1(fixture.ctx)
+    )],
+  ] as const;
+
+  for (const [action, changedResult, run] of transitions) {
+    const before = fixture.tables.adminAudit.count();
+    assert.equal(
+      fixture.transaction(() => runGreaterRealmCutoverTransitionWithAuditV1(
+        fixture.ctx,
+        actorSubject,
+        action,
+        run,
+      )),
+      changedResult,
+      action,
+    );
+    assert.equal(fixture.tables.adminAudit.count(), before + 1n, action);
+    assert.equal(projectGreaterRealmCutoverStatusV1(fixture.ctx).auditRows, before + 1n, action);
+    const row = fixture.tables.adminAudit.rows.at(-1)!;
+    assert.equal(row.action, action);
+    assert.equal(row.targetFid, undefined);
+    assert.equal(row.actorSubject, actorSubject);
+    assert.deepEqual(row.createdAt, NOW);
+    assert.equal(row.note, GREATER_REALM_CUTOVER_AUDIT_NOTE_V1);
+
+    assert.equal(
+      fixture.transaction(() => runGreaterRealmCutoverTransitionWithAuditV1(
+        fixture.ctx,
+        actorSubject,
+        action,
+        run,
+      )),
+      'unchanged',
+      `${action} retry`,
+    );
+    assert.equal(fixture.tables.adminAudit.count(), before + 1n, `${action} retry`);
+  }
+
+  const rollback = new Fixture();
+  assert.equal(
+    rollback.transaction(() => runGreaterRealmCutoverTransitionWithAuditV1(
+      rollback.ctx,
+      actorSubject,
+      'prepare_greater_realm_activation_v1',
+      () => prepareGreaterRealmActivationAuthorizedTransactionV1(rollback.ctx, actorSubject),
+    )),
+    'prepared',
+  );
+  assert.equal(
+    rollback.transaction(() => runGreaterRealmCutoverTransitionWithAuditV1(
+      rollback.ctx,
+      actorSubject,
+      'rollback_greater_realm_before_commit_v1',
+      () => rollbackGreaterRealmBeforeCommitAuthorizedTransactionV1(rollback.ctx),
+    )),
+    'rolled-back',
+  );
+  assert.equal(projectGreaterRealmCutoverStatusV1(rollback.ctx).auditRows, 3n);
+  assert.equal(
+    rollback.transaction(() => runGreaterRealmCutoverTransitionWithAuditV1(
+      rollback.ctx,
+      actorSubject,
+      'rollback_greater_realm_before_commit_v1',
+      () => rollbackGreaterRealmBeforeCommitAuthorizedTransactionV1(rollback.ctx),
+    )),
+    'unchanged',
+  );
+  assert.equal(projectGreaterRealmCutoverStatusV1(rollback.ctx).auditRows, 3n);
+});
+
+test('audit insertion faults roll back both a small transition and the full canary transaction', () => {
+  const actorSubject = 'admin:audit-fault';
+  const prepare = new Fixture();
+  const preparedBefore = stateText(prepare);
+  assert.equal(
+    errorCode(() => prepare.transaction(() => runGreaterRealmCutoverTransitionWithAuditV1(
+      prepare.ctx,
+      actorSubject,
+      'prepare_greater_realm_activation_v1',
+      () => prepareGreaterRealmActivationAuthorizedTransactionV1(prepare.ctx, actorSubject),
+    ), 2)),
+    'INJECTED_TRANSACTION_FAULT',
+  );
+  assert.equal(stateText(prepare), preparedBefore);
+
+  const canary = new Fixture();
+  advanceToPlanned(canary);
+  const plannedSnapshot = canary.snapshot();
+  const plannedText = stateText(canary);
+  assert.equal(
+    canary.transaction(() => runGreaterRealmCutoverTransitionWithAuditV1(
+      canary.ctx,
+      actorSubject,
+      'relocate_greater_realm_canary_v1',
+      () => relocateGreaterRealmCanaryAuthorizedTransactionV1(canary.ctx),
+    )),
+    'canary',
+  );
+  const auditMutation = canary.mutationCount;
+  assert.ok(auditMutation > 1_000);
+  canary.restore(plannedSnapshot);
+  assert.equal(
+    errorCode(() => canary.transaction(() => runGreaterRealmCutoverTransitionWithAuditV1(
+      canary.ctx,
+      actorSubject,
+      'relocate_greater_realm_canary_v1',
+      () => relocateGreaterRealmCanaryAuthorizedTransactionV1(canary.ctx),
+    ), auditMutation)),
+    'INJECTED_TRANSACTION_FAULT',
+  );
+  assert.equal(stateText(canary), plannedText);
+});
+
+test('cutover status proves rollback restoration and closes admission at exact capacity', () => {
+  const rollback = new Fixture();
+  advanceToPlanned(rollback);
+  rollback.transaction(() => relocateGreaterRealmCanaryAuthorizedTransactionV1(rollback.ctx));
+  assert.equal(
+    rollback.transaction(() => rollbackGreaterRealmBeforeCommitAuthorizedTransactionV1(rollback.ctx)),
+    'rolled-back',
+  );
+  let status = projectGreaterRealmCutoverStatusV1(rollback.ctx);
+  assert.equal(status.activationMode, 'rolled-back');
+  assert.equal(status.releaseState, 'ready');
+  assert.equal(status.rollbackEligible, false);
+  assert.equal(status.legacyFoundingOpen, true);
+  assert.equal(status.legacyClaimRows, 100n);
+  assert.equal(status.legacyOccupiedWorldTileRows, 100n);
+  assert.equal(status.greaterRealmClaimRows, 0n);
+  assert.equal(status.greaterRealmOccupancyRows, 0n);
+  assert.equal(status.activeSlotRows, 0n);
+  assert.equal(status.activeResourceNodeRows, 0n);
+  assert.equal(status.currentWorldGraphApplicable, false);
+  assert.equal(status.activeAdmissionEligible, false);
+
+  const full = new Fixture();
+  advanceToActive(full);
+  for (let index = 0; index < 500; index += 1) {
+    addOnePostCommitFounder(full, BigInt(50_000 + index));
+  }
+  status = projectGreaterRealmCutoverStatusV1(full.ctx);
+  assert.equal(status.currentFounderCount, 600);
+  assert.equal(status.founderCapacityRemaining, 0);
+  assert.equal(status.greaterRealmClaimRows, 600n);
+  assert.equal(status.greaterRealmOccupancyRows, 600n);
+  assert.equal(status.relocatedClaimRows, 100n);
+  assert.equal(status.foundedClaimRows, 500n);
+  assert.equal(status.currentWorldGraphExact, true);
+  assert.equal(status.activeAdmissionEligible, false);
+  for (const count of [
+    status.lowlandsFounderCount,
+    status.frostmereFounderCount,
+    status.sunscarFounderCount,
+    status.mirefenFounderCount,
+    status.stonewakeFounderCount,
+    status.emberwoodFounderCount,
+  ]) assert.equal(count, 100);
+});
+
+test('cutover status keeps a disabled founder globally exact and proves only an exact v17 re-enable target', () => {
+  const fixture = new Fixture();
+  advanceToActive(fixture);
+  const allowed = fixture.tables.allowedFid.fid.find(1_001n)!;
+  fixture.tables.allowedFid.fid.update({ ...allowed, enabled: false });
+
+  let aggregate = projectGreaterRealmCutoverStatusV1(fixture.ctx);
+  assert.equal(aggregate.currentWorldGraphExact, true);
+  assert.equal(aggregate.enabledAllowedFidRows, 99n);
+  assert.equal(aggregate.activeAdmissionEligible, true);
+
+  let target = projectGreaterRealmReenableStatusV1(fixture.ctx, 1_001n);
+  assert.deepEqual(target, {
+    currentWorldGraphApplicable: true,
+    targetFounderGraphExact: true,
+    targetAllowedEnabled: false,
+    targetAuthEpoch: 1,
+    targetRequestCycle: 2n,
+    targetRequestedAtMicros: 1n,
+    targetReenableEligible: true,
+  });
+
+  fixture.tables.accessRequestV1.fid.update({
+    ...fixture.tables.accessRequestV1.fid.find(1_001n)!,
+    requestCycle: 3n,
+  });
+  target = projectGreaterRealmReenableStatusV1(fixture.ctx, 1_001n);
+  assert.equal(target.targetFounderGraphExact, true);
+  assert.equal(target.targetReenableEligible, false);
+
+  fixture.tables.accessRequestV1.fid.update({
+    ...fixture.tables.accessRequestV1.fid.find(1_001n)!,
+    requestCycle: 2n,
+  });
+  fixture.tables.allowedFid.fid.update({
+    ...fixture.tables.allowedFid.fid.find(1_001n)!,
+    enabled: true,
+    authEpoch: 2,
+  });
+  target = projectGreaterRealmReenableStatusV1(fixture.ctx, 1_001n);
+  assert.equal(target.targetFounderGraphExact, true);
+  assert.equal(target.targetAllowedEnabled, true);
+  assert.equal(target.targetAuthEpoch, 2);
+  assert.equal(target.targetReenableEligible, false);
+
+  aggregate = projectGreaterRealmCutoverStatusV1(fixture.ctx);
+  assert.equal(aggregate.currentWorldGraphExact, true);
+  assert.equal(aggregate.enabledAllowedFidRows, 100n);
+});
+
+test('the registered production boundary stays compiled closed and privacy-safe', () => {
   assert.equal(GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED, false);
   const schema = readFileSync(new URL('../src/schema.ts', import.meta.url), 'utf8');
   const reducers = readFileSync(new URL('../src/reducers/greaterRealm.ts', import.meta.url), 'utf8');
+  const cutoverReducers = readFileSync(
+    new URL('../src/reducers/greaterRealmCutover.ts', import.meta.url),
+    'utf8',
+  );
   const authority = readFileSync(new URL('../src/greaterRealmRelocationDormant.ts', import.meta.url), 'utf8');
   const indexSource = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
   const snapshotAuthority = readFileSync(
@@ -1090,6 +1501,32 @@ test('the dormant production boundary stays compiled closed and unregistered', (
   assert.doesNotMatch(schema, /greaterRealmRelocationAuthority/);
   assert.doesNotMatch(reducers, /relocate_greater_realm|rollback_greater_realm|commit_greater_realm/);
   assert.match(indexSource, /GREATER_REALM_RELOCATION_DORMANT_COMPILE_ANCHOR_V1/);
+  for (const name of [
+    'admin_prepare_greater_realm_activation_v1',
+    'admin_begin_greater_realm_drain_v1',
+    'admin_freeze_greater_realm_activation_v1',
+    'admin_plan_greater_realm_relocation_v1',
+    'admin_relocate_greater_realm_canary_v1',
+    'admin_commit_greater_realm_active_v1',
+    'admin_halt_greater_realm_activation_v1',
+    'admin_resume_greater_realm_active_v1',
+    'admin_rollback_greater_realm_before_commit_v1',
+    'admin_get_greater_realm_cutover_status_v1',
+  ]) {
+    assert.match(cutoverReducers, new RegExp(`name: '${name}'`), name);
+  }
+  const registeredBoundary = cutoverReducers.slice(
+    cutoverReducers.indexOf('function authorizedActivation'),
+    cutoverReducers.indexOf('export const adminPrepareGreaterRealmActivationV1'),
+  );
+  assert.ok(
+    registeredBoundary.indexOf('requireGreaterRealmV17ActivationGate();')
+      < registeredBoundary.indexOf('const admin = requireAdmin(ctx);'),
+  );
+  assert.doesNotMatch(
+    cutoverReducers.slice(0, cutoverReducers.indexOf('function senderActivationError')),
+    /actorSubject: t\.|fid: t\.|castleId: t\.|cellKey: t\.|slotId: t\.|centerQ: t\.|centerR: t\.|t\.array\(/,
+  );
   const dormantBodies = [...authority.matchAll(/export function dormant[\s\S]*?\n\}\n/gu)]
     .map(match => match[0]);
   assert.equal(dormantBodies.length, 9);
