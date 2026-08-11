@@ -52,6 +52,7 @@ export const GREATER_REALM_RESOURCE_POLICY_VERSION =
   'greater-realm-tier-i-resource-v2' as const;
 
 const UINT32_MAX = 0xffff_ffff;
+const INT32_MIN = -0x8000_0000;
 const RELEASE_SEED_BYTES = 32;
 const MAXIMUM_CHUNK_CORE_CELLS = 225;
 const MAXIMUM_CHUNK_VISIBLE_CELLS = 384;
@@ -1243,6 +1244,14 @@ function buildCell(
   const legacyProjection = source.legacyLowlandsCell[cell] === 1
     ? legacyLowlandsGameplayProjection(local.q, local.r)
     : undefined;
+  const hydroSurfaceMilli = lockedWater?.row.surfaceLevelMilli
+    ?? source.waterSurfaceLevel[cell]!;
+  const hydrologyRevision = assertIntegerRange(
+    lockedWater?.row.generationVersion ?? source.waterGenerationVersion[cell]!,
+    0,
+    0xffff,
+    'GREATER_REALM_RUNTIME_RELEASE_HYDROLOGY_REVISION_INVALID',
+  );
   if (
     legacyProjection !== undefined
     && (
@@ -1250,6 +1259,13 @@ function buildCell(
       || legacyProjection.hydroRegime !== regime
       || legacyProjection.biomeClass !== source.biomeId[cell]
       || legacyProjection.landformClass !== source.landformId[cell]
+      || (legacyProjection.hydroRegime === GREATER_REALM_WATER_REGIME_ID.DRY && (
+        depthClass !== GREATER_REALM_WATER_DEPTH_CLASS_ID.DRY
+        || hydroSurfaceMilli !== INT32_MIN
+        || hydroBodyId !== undefined
+        || hydroFlowDirection !== undefined
+        || hydrologyRevision !== 0
+      ))
     )
   ) fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_CLASSIFICATION_INVALID');
   const routeDepth = component?.depth.get(cell);
@@ -1302,16 +1318,11 @@ function buildCell(
     hydroRegime: regime,
     ...(hydroBodyId === undefined ? {} : { hydroBodyId }),
     hydroDepthClass: depthClass,
-    hydroSurfaceMilli: lockedWater?.row.surfaceLevelMilli ?? source.waterSurfaceLevel[cell]!,
+    hydroSurfaceMilli,
     ...(hydroFlowDirection === undefined ? {} : { hydroFlowDirection }),
     flowAccumulation: flowAccumulation.toString(10),
     bankVariant: publicUint32(releaseSeed, 'bank-variant', `${cell}`),
-    hydrologyRevision: assertIntegerRange(
-      lockedWater?.row.generationVersion ?? source.waterGenerationVersion[cell]!,
-      0,
-      0xffff,
-      'GREATER_REALM_RUNTIME_RELEASE_HYDROLOGY_REVISION_INVALID',
-    ),
+    hydrologyRevision,
     ...(routeParentDirection === undefined ? {} : { routeParentDirection }),
     ...(routeDepth === undefined ? {} : { routeDepth }),
     travelClass: route,
@@ -2320,6 +2331,13 @@ function assertReleasedLowlandsLock(cells: readonly GreaterRealmRuntimeCell[]): 
       || cell.movementCost !== projection.movementCost
       || cell.hydroRegime !== projection.hydroRegime
       || cell.geologicalBarrierBand !== 0
+      || (projection.hydroRegime === GREATER_REALM_WATER_REGIME_ID.DRY && (
+        cell.hydroDepthClass !== GREATER_REALM_WATER_DEPTH_CLASS_ID.DRY
+        || cell.hydroSurfaceMilli !== INT32_MIN
+        || cell.hydroBodyId !== undefined
+        || cell.hydroFlowDirection !== undefined
+        || cell.hydrologyRevision !== 0
+      ))
     ) fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_CLASSIFICATION_INVALID');
   }
   if (missingCanonicalKeys.size !== 0) {

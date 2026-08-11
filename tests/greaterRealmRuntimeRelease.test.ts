@@ -526,9 +526,9 @@ describe('Greater Realm declassified runtime release', () => {
     expect(greaterRealmRuntimeReleaseTestSeams.sha256(headerBytes))
       .toBe('b36165d389cf860e9fefc37ae52a805ea9d561ec2ba89e05e8f47cb949ff7045');
     expect(artifacts.manifest.releaseSha256)
-      .toBe('7ede966168cd17fdd2950550feec575d5e570ae38b7918bbd398320cfe5e818c');
+      .toBe('c7b6743fa207d24efb03d9b793f9c82e548d4c13a342e78b1bf6d3db256be596');
     expect((artifacts.manifest.components as Array<Record<string, unknown>>)[0]!.componentSha256)
-      .toBe('9dbde65cc9b3d3a8ba5210ffbe23fc6564d9bfa9d6b0e7c66a857a2ebcc7cf1d');
+      .toBe('31955d3985dd9f906fe881990e4a051d7df3bfb5d24e3aa555870044a0f0a732');
     const slotless = (artifacts.manifest.components as Array<Record<string, number>>)
       .filter(component => component.expectedSlotCount === 0);
     expect(slotless.length).toBeGreaterThan(0);
@@ -766,6 +766,28 @@ describe('Greater Realm declassified runtime release', () => {
         .toEqual(artifacts.chunks.map(chunk => chunk.bytes));
     } finally {
       alternateSource.grid.clearIndex?.();
+    }
+  });
+
+  it('rejects a synthetic source that revises a frozen dry Lowlands cell', () => {
+    const hostileSource = createGreaterRealmRuntimeReleaseFixtureSource();
+    try {
+      const waterKeys = new Set(
+        GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.water.enabledCells
+          .map(water => water.cellKey),
+      );
+      const dryTile = GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.world.tiles
+        .find(tile => !waterKeys.has(tile.key))!;
+      const dryCell = hostileSource.grid.indexOf({ q: dryTile.q, r: dryTile.r });
+      if (dryCell < 0) throw new Error('GREATER_REALM_RUNTIME_RELEASE_TEST_DRY_CELL_MISSING');
+      hostileSource.waterGenerationVersion[dryCell] = 1;
+      expect(() => createGreaterRealmRuntimeRelease({
+        source: hostileSource,
+        sourceCommit: GREATER_REALM_RUNTIME_RELEASE_FIXTURE_SOURCE_COMMIT,
+        releaseSeed: greaterRealmRuntimeReleaseFixtureSeed(),
+      })).toThrow('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_CLASSIFICATION_INVALID');
+    } finally {
+      hostileSource.grid.clearIndex?.();
     }
   });
 
@@ -1248,6 +1270,20 @@ describe('Greater Realm declassified runtime release', () => {
       cell.yieldClass = cell.yieldClass === 1 ? 2 : 1;
     });
     expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(alteredYield))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_CLASSIFICATION_INVALID');
+
+    const alteredDryHydrology = fullyRehashArtifacts(artifacts, draft => {
+      const cell = draft.chunks.flatMap(chunk => (
+        chunk.payload.cells as Array<Record<string, unknown>>
+      )).find(candidate => (
+        candidate.regionId === 'T1_LOWLANDS'
+        && canonicalKeys.has(`${candidate.localQ},${candidate.localR}`)
+        && candidate.hydroRegime === GREATER_REALM_WATER_REGIME_ID.DRY
+      ))!;
+      cell.hydroSurfaceMilli = 0;
+      cell.hydrologyRevision = 1;
+    });
+    expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(alteredDryHydrology))
       .toThrow('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_CLASSIFICATION_INVALID');
 
     const alteredPassability = fullyRehashArtifacts(artifacts, draft => {

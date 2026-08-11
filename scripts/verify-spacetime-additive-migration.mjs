@@ -1884,7 +1884,7 @@ function assertAdditiveV17Schema(before, after) {
   }
 }
 
-async function freeLoopbackPort() {
+export async function freeLoopbackPort() {
   return new Promise((resolvePromise, rejectPromise) => {
     const server = createServer();
     server.once('error', rejectPromise);
@@ -1900,7 +1900,7 @@ async function freeLoopbackPort() {
   });
 }
 
-async function acquireDisposableIdentity(server) {
+export async function acquireDisposableIdentity(server) {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     try {
       const response = await fetch(`${server}/v1/identity`, {
@@ -1942,7 +1942,7 @@ async function acquireDisposableIdentity(server) {
   fail('Disposable loopback server did not become ready.');
 }
 
-function createEphemeralJwt(privateKey, claims) {
+export function createEphemeralJwt(privateKey, claims) {
   const header = Buffer.from(JSON.stringify({ alg: 'ES256', typ: 'JWT' })).toString('base64url');
   const payload = Buffer.from(JSON.stringify(claims)).toString('base64url');
   const signingInput = `${header}.${payload}`;
@@ -2000,7 +2000,7 @@ function accessRequestServiceClaims(requestFid, requestOperation) {
   };
 }
 
-function adminServiceClaims() {
+export function adminServiceClaims() {
   return serviceClaims('service:hermes', ['warpkeep-admin'], 240);
 }
 

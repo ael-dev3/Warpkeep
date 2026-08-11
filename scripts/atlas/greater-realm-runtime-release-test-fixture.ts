@@ -111,7 +111,10 @@ export function createGreaterRealmRuntimeReleaseFixtureSource(options: Readonly<
   const waterDownstream = new Int32Array(count).fill(-1);
   const flowAccumulation = new BigUint64Array(count).fill(1n);
   const waterBankSeed = new Uint32Array(count).fill(0xdead_beef);
-  const waterGenerationVersion = new Uint16Array(count).fill(1);
+  // Dry legacy cells predate the Water revision and therefore carry revision
+  // zero in the frozen v16 authority. Synthetic wet cells below opt in to the
+  // fixture's generated revision explicitly.
+  const waterGenerationVersion = new Uint16Array(count);
   const biomeId = new Uint8Array(count).fill(GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND);
   const landformId = new Uint8Array(count).fill(GREATER_REALM_LANDFORM_ID.LOWLAND);
   const slope = new Uint16Array(count).fill(600);
@@ -235,6 +238,7 @@ export function createGreaterRealmRuntimeReleaseFixtureSource(options: Readonly<
     waterBodyId[cell] = 777;
     waterDepthClass[cell] = GREATER_REALM_WATER_DEPTH_CLASS_ID.SHALLOW;
     waterSurfaceLevel[cell] = 120;
+    waterGenerationVersion[cell] = 1;
     biomeId[cell] = GREATER_REALM_BIOME_ID.LAKE;
     landformId[cell] = GREATER_REALM_LANDFORM_ID.LAKE_BASIN;
   }
@@ -243,6 +247,7 @@ export function createGreaterRealmRuntimeReleaseFixtureSource(options: Readonly<
   waterBodyId[fordCell] = 888;
   waterDepthClass[fordCell] = GREATER_REALM_WATER_DEPTH_CLASS_ID.SHALLOW;
   waterSurfaceLevel[fordCell] = 110;
+  waterGenerationVersion[fordCell] = 1;
   routeClass[fordCell] = GREATER_REALM_ROUTE_CLASS.FORD;
   waterSurfaceLevel[wetCells[1]!] = 100;
   flowAccumulation[wetCells[1]!] = 2n;
