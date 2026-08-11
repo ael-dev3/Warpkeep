@@ -8,6 +8,10 @@ import type {
   AdmissionNotificationRetryReason,
 } from '../services/auth-bridge/src/types';
 import { DbConnection } from '../src/spacetime/module_bindings';
+import type {
+  AdminGreaterRealmCutoverStatusV1,
+  AdminGreaterRealmReenableStatusV1,
+} from '../src/spacetime/module_bindings/types';
 import {
   WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
 } from '../spacetimedb/src/entryAgreementPolicy';
@@ -83,6 +87,28 @@ import {
   type ReviewedAccessRequestResetPlan,
   type ReviewedAccessRequestResetPlanReference,
 } from './access-requests/reset-plan';
+import {
+  AdmissionNotificationRecoveryPlanError,
+  REVIEWED_ADMISSION_NOTIFICATION_RECOVERY_PLAN_LIFETIME_MS,
+  admissionNotificationRecoveryStateDigest,
+  claimReviewedAdmissionNotificationRecoveryPlan,
+  createReviewedAdmissionNotificationRecoveryPlan,
+  parseReviewedAdmissionNotificationRecoveryPlanReference,
+  readReviewedAdmissionNotificationRecoveryPlan,
+  writeReviewedAdmissionNotificationRecoveryPlan,
+  type ReviewedAdmissionNotificationRecoveryPlan,
+  type ReviewedAdmissionNotificationRecoveryPlanReference,
+} from './admission-notifications/recovery-plan';
+import {
+  FounderAdmissionAuthorityError,
+  selectFounderAdmissionAuthorityMode,
+  verifyGreaterRealmAdmissionPostcondition,
+  verifyGreaterRealmAdmissionPrecondition,
+  verifyGreaterRealmReenablePostconditionV1,
+  verifyGreaterRealmReenablePreconditionV1,
+  type FounderAdmissionAuthorityMode,
+  type GreaterRealmReenableCheckpoint,
+} from './founder-admission-authority';
 
 type Command =
   | 'seed-world'
@@ -92,6 +118,7 @@ type Command =
   | 'reset-access-request'
   | 'admit-founder'
   | 'inspect-admission-notification'
+  | 'recover-admission-notification'
   | 'allow-fid'
   | 'disable-fid'
   | 'bump-auth-epoch'
@@ -119,10 +146,13 @@ const CONNECT_TIMEOUT_MS = 30_000;
 const OPERATION_TIMEOUT_MS = 15_000;
 const MAX_ADMIN_TOKEN_RESPONSE_BYTES = 32 * 1_024;
 const ADMISSION_NOTIFICATION_PATH = 'v1/admin/admission-notification';
+const ADMISSION_NOTIFICATION_RECOVERY_PATH = 'v1/admin/admission-notification-recovery';
 const ADMISSION_NOTIFICATION_STATUS_PATH = 'v1/admin/admission-notification-status';
 const ADMISSION_NOTIFICATION_SETTLEMENT_WAIT_MILLISECONDS = 35_000;
 const ADMISSION_NOTIFICATION_DIAGNOSTIC_REQUIRED_KEYS = Object.freeze([
   'deliveryAttemptCount',
+  'subscribed',
+  'recoveryCount',
   'retryReasons',
   'status',
   'verificationFailureCount',
@@ -130,6 +160,8 @@ const ADMISSION_NOTIFICATION_DIAGNOSTIC_REQUIRED_KEYS = Object.freeze([
 const ADMISSION_NOTIFICATION_DIAGNOSTIC_OPTIONAL_KEYS = Object.freeze([
   'authEpoch',
   'generation',
+  'requestedAtMicros',
+  'lastRecoveryAt',
   'lastAttemptAt',
   'lastFailureReason',
   'nextAttemptAt',
@@ -236,6 +268,7 @@ export const FOUNDER_ADMISSION_TARGET_CONFIGURATION_DIGEST = createHash('sha256'
     databaseIdentity: DEFAULT_DATABASE_IDENTITY,
     bridgeUrl: DEFAULT_BRIDGE,
     statusProcedure: 'admin_get_access_request_admission_status_v1',
+    cutoverStatusProcedure: 'admin_get_greater_realm_cutover_status_v_1',
     reducer: 'admin_admit_founder_for_access_request_v2',
   }), 'utf8')
   .digest('hex');
@@ -246,6 +279,16 @@ export const ACCESS_REQUEST_RESET_TARGET_CONFIGURATION_DIGEST = createHash('sha2
     bridgeUrl: DEFAULT_BRIDGE,
     statusProcedure: 'admin_get_access_request_reset_status_v1',
     reducer: 'admin_reset_access_request_v1',
+  }), 'utf8')
+  .digest('hex');
+export const ADMISSION_NOTIFICATION_RECOVERY_TARGET_CONFIGURATION_DIGEST = createHash('sha256')
+  .update(JSON.stringify({
+    databaseUri: DEFAULT_URI,
+    databaseIdentity: DEFAULT_DATABASE_IDENTITY,
+    bridgeUrl: DEFAULT_BRIDGE,
+    statusProcedure: 'admin_get_access_request_admission_status_v1',
+    notificationStatusPath: ADMISSION_NOTIFICATION_STATUS_PATH,
+    notificationRecoveryPath: ADMISSION_NOTIFICATION_RECOVERY_PATH,
   }), 'utf8')
   .digest('hex');
 
@@ -270,7 +313,8 @@ class HermesClaimedAdmissionOutcomeError extends Error {
   constructor() {
     super(
       'Founder admission may have committed after the reviewed plan was claimed. '
-      + 'Inspect fresh v3/v4 aggregate state before creating or submitting another plan.',
+      + 'Inspect the fresh mode-aware cutover and legacy/v17 aggregate state before '
+      + 'creating or submitting another plan.',
     );
     this.name = 'HermesClaimedAdmissionOutcomeError';
   }
@@ -287,6 +331,17 @@ class HermesClaimedAccessRequestResetOutcomeError extends Error {
   }
 }
 
+class HermesClaimedAdmissionNotificationRecoveryOutcomeError extends Error {
+  constructor() {
+    super(
+      'The reviewed admission-notification recovery plan was consumed and the bridge outcome '
+      + 'may be indeterminate. Inspect the token-free notification status and the unchanged '
+      + 'pending access request before any new recovery plan or admission attempt.',
+    );
+    this.name = 'HermesClaimedAdmissionNotificationRecoveryOutcomeError';
+  }
+}
+
 function fail(message: string): never {
   throw new HermesCliError(message);
 }
@@ -297,6 +352,8 @@ export function privacySafeHermesErrorMessage(error: unknown): string {
     || error instanceof HermesOperationTimeoutError
     || error instanceof HermesClaimedAdmissionOutcomeError
     || error instanceof HermesClaimedAccessRequestResetOutcomeError
+    || error instanceof HermesClaimedAdmissionNotificationRecoveryOutcomeError
+    || error instanceof FounderAdmissionAuthorityError
     || error instanceof AlphaActivationControlError
     || error instanceof AlphaV10ActivationControlError
   ) {
@@ -308,6 +365,7 @@ export function privacySafeHermesErrorMessage(error: unknown): string {
     || error instanceof ProfileTransportError
     || error instanceof ProfileAuthorityPolicyError
     || error instanceof AccessRequestResetPlanError
+    || error instanceof AdmissionNotificationRecoveryPlanError
   ) return error.code;
   return 'Hermes command failed.';
 }
@@ -316,7 +374,11 @@ export function throwHermesOperationFailure(
   error: unknown,
   founderAdmissionClaimed: boolean,
   accessRequestResetClaimed = false,
+  notificationRecoveryClaimed = false,
 ): never {
+  if (notificationRecoveryClaimed) {
+    throw new HermesClaimedAdmissionNotificationRecoveryOutcomeError();
+  }
   if (accessRequestResetClaimed) {
     throw new HermesClaimedAccessRequestResetOutcomeError();
   }
@@ -402,6 +464,7 @@ function commandFrom(value: string | undefined): Command {
     || value === 'reset-access-request'
     || value === 'admit-founder'
     || value === 'inspect-admission-notification'
+    || value === 'recover-admission-notification'
     || value === 'allow-fid'
     || value === 'disable-fid'
     || value === 'bump-auth-epoch'
@@ -422,13 +485,15 @@ function commandFrom(value: string | undefined): Command {
   }
   fail(
     'Usage: hermes-admin.ts '
-    + '<seed-world|expand-world-v3|list-access-requests|inspect-access-request-reset|reset-access-request|admit-founder|inspect-admission-notification|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
+    + '<seed-world|expand-world-v3|list-access-requests|inspect-access-request-reset|reset-access-request|admit-founder|inspect-admission-notification|recover-admission-notification|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
     + '[...args] [--dry-run] [--confirm]. admit-founder requires private stdin: '
     + '--input-stdin --dry-run creates a reviewed plan; --input-stdin --confirm consumes it; '
     + 'allow-fid only re-enables an existing complete founder. list-access-requests accepts '
     + '[--limit 1..100] [--after-requested-at-micros U64 --after-fid FID] '
     + '[--include-resolved] [--json]. reset-access-request dry-run requires FID and note; '
-    + 'confirmed execution accepts the reviewed plan filename and digest, while '
+    + 'confirmed execution accepts the reviewed plan filename and digest. '
+    + 'recover-admission-notification uses the same reviewed-plan shape for one '
+    + 'exhausted first-time request generation, while '
     + '--input-stdin carries the administrator secret.',
   );
 }
@@ -487,6 +552,7 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     || command === 'inspect-access-request-reset'
     || command === 'inspect-admission-notification';
   const expectedPositionals = command === 'reset-access-request'
+    || command === 'recover-admission-notification'
     ? 3
     : command === 'inspect-access-request-reset'
       ? 2
@@ -537,6 +603,16 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     }
     if (!flags.has('--input-stdin')) {
       fail('Access request reset requires the administrator secret through --input-stdin.');
+    }
+  } else if (command === 'recover-admission-notification') {
+    if (flags.has('--json')) {
+      fail('Hermes command received a flag that is invalid for this operation.');
+    }
+    if (flags.has('--dry-run') === flags.has('--confirm')) {
+      fail('Admission notification recovery requires exactly one of --dry-run or --confirm.');
+    }
+    if (!flags.has('--input-stdin')) {
+      fail('Admission notification recovery requires the administrator secret through --input-stdin.');
     }
   } else if (command === 'seed-alpha-component') {
     parseSeedableAlphaComponent(positional[1]);
@@ -1887,14 +1963,32 @@ export function projectAdmissionNotificationDiagnostics(
       )
     )
     || (diagnostic.generation === 'pending-request' && diagnostic.authEpoch !== undefined)
+    || (
+      diagnostic.generation === 'pending-request'
+      && (
+        typeof diagnostic.requestedAtMicros !== 'number'
+        || !Number.isSafeInteger(diagnostic.requestedAtMicros)
+        || diagnostic.requestedAtMicros < 1
+      )
+    )
     || (diagnostic.generation === 'admitted' && diagnostic.authEpoch === undefined)
     || (diagnostic.generation !== 'admitted' && diagnostic.authEpoch !== undefined)
+    || (diagnostic.generation !== 'pending-request' && diagnostic.requestedAtMicros !== undefined)
     || typeof diagnostic.deliveryAttemptCount !== 'number'
     || !Number.isSafeInteger(diagnostic.deliveryAttemptCount)
     || diagnostic.deliveryAttemptCount < 0
     || typeof diagnostic.verificationFailureCount !== 'number'
     || !Number.isSafeInteger(diagnostic.verificationFailureCount)
     || diagnostic.verificationFailureCount < 0
+    || typeof diagnostic.subscribed !== 'boolean'
+    || typeof diagnostic.recoveryCount !== 'number'
+    || !Number.isSafeInteger(diagnostic.recoveryCount)
+    || diagnostic.recoveryCount < 0
+    || diagnostic.recoveryCount > 1
+    || (diagnostic.lastRecoveryAt !== undefined
+      && !isDiagnosticTimestamp(diagnostic.lastRecoveryAt))
+    || (diagnostic.recoveryCount === 0) !== (diagnostic.lastRecoveryAt === undefined)
+    || (diagnostic.recoveryCount === 1 && diagnostic.generation !== 'pending-request')
     || !Array.isArray(diagnostic.retryReasons)
     || diagnostic.retryReasons.some(reason => !isAdmissionNotificationRetryReason(reason))
     || new Set(diagnostic.retryReasons).size !== diagnostic.retryReasons.length
@@ -1911,8 +2005,16 @@ export function projectAdmissionNotificationDiagnostics(
     status: diagnostic.status,
     ...(diagnostic.generation === undefined ? {} : { generation: diagnostic.generation }),
     ...(diagnostic.authEpoch === undefined ? {} : { authEpoch: diagnostic.authEpoch }),
+    ...(diagnostic.requestedAtMicros === undefined
+      ? {}
+      : { requestedAtMicros: diagnostic.requestedAtMicros }),
     deliveryAttemptCount: diagnostic.deliveryAttemptCount,
     verificationFailureCount: diagnostic.verificationFailureCount,
+    subscribed: diagnostic.subscribed,
+    recoveryCount: diagnostic.recoveryCount,
+    ...(diagnostic.lastRecoveryAt === undefined
+      ? {}
+      : { lastRecoveryAt: diagnostic.lastRecoveryAt }),
     retryReasons: Object.freeze([
       ...diagnostic.retryReasons,
     ] as AdmissionNotificationRetryReason[]),
@@ -1938,6 +2040,29 @@ export function readNotificationOperatorSecret(value: string | undefined): strin
   } finally {
     bytes.fill(0);
   }
+}
+
+export function requireAdmissionNotificationRecoveryPrecondition(
+  diagnostics: AdmissionNotificationDiagnostics,
+  expectedRequestedAtMicros: bigint,
+): AdmissionNotificationDiagnostics {
+  if (
+    expectedRequestedAtMicros < 1n
+    || expectedRequestedAtMicros > BigInt(Number.MAX_SAFE_INTEGER)
+    || diagnostics.status !== 'delivery-exhausted'
+    || diagnostics.generation !== 'pending-request'
+    || diagnostics.requestedAtMicros !== Number(expectedRequestedAtMicros)
+    || diagnostics.recoveryCount !== 0
+    || diagnostics.lastRecoveryAt !== undefined
+    || !diagnostics.subscribed
+  ) {
+    fail(
+      diagnostics.status === 'not-subscribed' || !diagnostics.subscribed
+        ? 'Farcaster notifications are not enabled for this identity. Recovery remains blocked until the player enables notifications.'
+        : 'Admission notification recovery requires one exact exhausted, unrecovered pending-request generation.',
+    );
+  }
+  return Object.freeze({ ...diagnostics });
 }
 
 export async function requestAdmissionNotification(
@@ -2022,6 +2147,75 @@ export async function inspectAdmissionNotification(
   if (!response.ok) fail('The Warpkeep admission notification bridge rejected inspection.');
   const body = await readBoundedAdminResponse(response);
   return projectAdmissionNotificationDiagnostics(body);
+}
+
+export async function requestAdmissionNotificationRecovery(
+  bridgeUrl: string,
+  fid: bigint,
+  requestedAtMicros: bigint,
+  recoveryId: string,
+  secret: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<AdmissionNotificationStatus> {
+  if (fid < 1n || fid > BigInt(Number.MAX_SAFE_INTEGER)) {
+    fail('A positive, JavaScript-safe decimal FID is required.');
+  }
+  if (
+    requestedAtMicros < 1n
+    || requestedAtMicros > BigInt(Number.MAX_SAFE_INTEGER)
+    || !/^[0-9a-f]{32}$/.test(recoveryId)
+  ) {
+    fail('The reviewed notification recovery authorization was invalid.');
+  }
+  readNotificationOperatorSecret(secret);
+  let response: Response;
+  try {
+    response = await fetchImpl(
+      new URL(ADMISSION_NOTIFICATION_RECOVERY_PATH, `${bridgeUrl}/`),
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${secret}`,
+          accept: 'application/json',
+          'content-type': 'application/json',
+          'cache-control': 'no-store',
+        },
+        body: JSON.stringify({
+          fid: fid.toString(),
+          requestedAtMicros: Number(requestedAtMicros),
+          recoveryId,
+        }),
+        cache: 'no-store',
+        redirect: 'error',
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+  } catch {
+    fail('Could not reach the Warpkeep admission notification recovery bridge.');
+  }
+  if (!response.ok) {
+    fail('The Warpkeep admission notification recovery bridge rejected the request.');
+  }
+  const body = await readBoundedAdminResponse(response);
+  if (
+    !body
+    || typeof body !== 'object'
+    || Array.isArray(body)
+    || Object.keys(body).length !== 1
+    || !Object.prototype.hasOwnProperty.call(body, 'status')
+  ) {
+    fail('The Warpkeep admission notification recovery bridge returned an invalid response.');
+  }
+  const status = (body as { status?: unknown }).status;
+  if (
+    status !== 'queued'
+    && status !== 'already-sent'
+    && status !== 'delivery-exhausted'
+    && status !== 'not-subscribed'
+  ) {
+    fail('The Warpkeep admission notification recovery bridge returned an invalid response.');
+  }
+  return status;
 }
 
 export async function requireNotificationBeforeAdmission(
@@ -2394,6 +2588,156 @@ export async function readStatus(
   console.log(JSON.stringify(printable(status)));
 }
 
+type LegacyFounderAdmissionAuthorityCheckpoint = Readonly<{
+  mode: 'legacy';
+  world: GenesisExpansionStatusV3;
+  resources: ResourceAggregateV4;
+}>;
+
+type GreaterRealmFounderAdmissionAuthorityCheckpoint = Readonly<{
+  mode: 'greater-realm';
+  status: Readonly<AdminGreaterRealmCutoverStatusV1>;
+}>;
+
+type FounderAdmissionAuthorityCheckpoint =
+  | LegacyFounderAdmissionAuthorityCheckpoint
+  | GreaterRealmFounderAdmissionAuthorityCheckpoint;
+
+type LegacyFounderReenableAuthorityCheckpoint = Readonly<{
+  mode: 'legacy';
+  checkpoint: ReturnType<typeof verifyFounderReenablePrecondition>;
+}>;
+
+type GreaterRealmFounderReenableAuthorityCheckpoint = Readonly<{
+  mode: 'greater-realm';
+  checkpoint: GreaterRealmReenableCheckpoint;
+}>;
+
+type FounderReenableAuthorityCheckpoint =
+  | LegacyFounderReenableAuthorityCheckpoint
+  | GreaterRealmFounderReenableAuthorityCheckpoint;
+
+async function readGreaterRealmCutoverStatus(
+  connection: DbConnection,
+): Promise<AdminGreaterRealmCutoverStatusV1> {
+  return withOperationTimeout(
+    connection.procedures.adminGetGreaterRealmCutoverStatusV1({}),
+  );
+}
+
+async function readGreaterRealmReenableStatus(
+  connection: DbConnection,
+  fid: bigint,
+): Promise<AdminGreaterRealmReenableStatusV1> {
+  return withOperationTimeout(
+    connection.procedures.adminGetGreaterRealmReenableStatusV1({ fid }),
+  );
+}
+
+function requireUnchangedFounderAuthorityMode(
+  initial: FounderAdmissionAuthorityMode,
+  current: FounderAdmissionAuthorityMode,
+): void {
+  if (initial !== current) {
+    fail('Founder admission authority mode changed; no mutation was submitted.');
+  }
+}
+
+async function readFounderAdmissionAuthorityPrecondition(
+  connection: DbConnection,
+): Promise<FounderAdmissionAuthorityCheckpoint> {
+  const cutover = await readGreaterRealmCutoverStatus(connection);
+  const mode = selectFounderAdmissionAuthorityMode(cutover);
+  if (mode === 'greater-realm') {
+    return Object.freeze({
+      mode,
+      status: verifyGreaterRealmAdmissionPrecondition(cutover),
+    });
+  }
+  const world = verifyFounderAdmissionPreconditionV3(
+    await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
+  );
+  const resources = verifyFounderAdmissionResourcePreconditionV4(
+    await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
+    world.allowedFids,
+  );
+  return Object.freeze({ mode, world, resources });
+}
+
+async function verifyFounderAdmissionAuthorityPostcondition(
+  connection: DbConnection,
+  before: FounderAdmissionAuthorityCheckpoint,
+): Promise<void> {
+  const cutover = await readGreaterRealmCutoverStatus(connection);
+  const mode = selectFounderAdmissionAuthorityMode(cutover);
+  requireUnchangedFounderAuthorityMode(before.mode, mode);
+  if (before.mode === 'greater-realm') {
+    verifyGreaterRealmAdmissionPostcondition(cutover, before.status);
+    return;
+  }
+  verifyFounderAdmissionPostconditionV3(
+    await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
+    before.world,
+  );
+  verifyFounderAdmissionResourcePostconditionV4(
+    await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
+    before.resources,
+  );
+}
+
+async function readFounderReenableAuthorityPrecondition(
+  connection: DbConnection,
+  fid: bigint,
+  target: AccessRequestAdmissionStatus,
+): Promise<FounderReenableAuthorityCheckpoint> {
+  const cutover = await readGreaterRealmCutoverStatus(connection);
+  const mode = selectFounderAdmissionAuthorityMode(cutover);
+  if (mode === 'greater-realm') {
+    return Object.freeze({
+      mode,
+      checkpoint: verifyGreaterRealmReenablePreconditionV1(
+        cutover,
+        await readGreaterRealmReenableStatus(connection, fid),
+        target,
+      ),
+    });
+  }
+  return Object.freeze({
+    mode,
+    checkpoint: verifyFounderReenablePrecondition(
+      await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
+      await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
+      target,
+    ),
+  });
+}
+
+async function verifyFounderReenableAuthorityPostcondition(
+  connection: DbConnection,
+  fid: bigint,
+  target: AccessRequestAdmissionStatus,
+  before: FounderReenableAuthorityCheckpoint,
+): Promise<void> {
+  const cutover = await readGreaterRealmCutoverStatus(connection);
+  const mode = selectFounderAdmissionAuthorityMode(cutover);
+  requireUnchangedFounderAuthorityMode(before.mode, mode);
+  if (before.mode === 'greater-realm') {
+    verifyGreaterRealmReenablePostconditionV1(
+      cutover,
+      await readGreaterRealmReenableStatus(connection, fid),
+      target,
+      before.checkpoint,
+    );
+    return;
+  }
+  verifyFounderReenablePostcondition(
+    await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
+    await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
+    target,
+    before.checkpoint,
+  );
+}
+
 async function main() {
   const {
     command,
@@ -2432,6 +2776,7 @@ async function main() {
     command !== 'backfill-resources'
     && command !== 'expand-world-v3'
     && command !== 'reset-access-request'
+    && command !== 'recover-admission-notification'
     && command !== 'admit-founder'
     && command !== 'seed-alpha-component'
     && command !== 'activate-alpha-water'
@@ -2452,6 +2797,7 @@ async function main() {
     || command === 'bump-auth-epoch'
     || command === 'inspect-access-request-reset'
     || (command === 'reset-access-request' && dryRun)
+    || (command === 'recover-admission-notification' && dryRun)
     ? readFid(positional[1])
     : undefined;
   const expectedFounderCount = command === 'backfill-resources'
@@ -2463,6 +2809,7 @@ async function main() {
   let note = command === 'allow-fid'
     || command === 'disable-fid'
     || (command === 'reset-access-request' && dryRun)
+    || (command === 'recover-admission-notification' && dryRun)
     ? sanitizeNote(positional[2])
     : command === 'bump-auth-epoch'
       ? sanitizeNote(positional[2], 'auth epoch rotation')
@@ -2472,6 +2819,9 @@ async function main() {
   let admissionPlanReference: ReviewedFounderAdmissionPlanReference | undefined;
   let accessRequestResetPlan: ReviewedAccessRequestResetPlan | undefined;
   let accessRequestResetPlanReference: ReviewedAccessRequestResetPlanReference | undefined;
+  let notificationRecoveryPlan: ReviewedAdmissionNotificationRecoveryPlan | undefined;
+  let notificationRecoveryPlanReference:
+    ReviewedAdmissionNotificationRecoveryPlanReference | undefined;
 
   if (command === 'admit-founder') {
     // The target is fixed before reading sensitive stdin. A plan can never be
@@ -2531,6 +2881,23 @@ async function main() {
     note = accessRequestResetPlan.note;
   }
 
+  if (command === 'recover-admission-notification' && !dryRun) {
+    notificationRecoveryPlanReference =
+      parseReviewedAdmissionNotificationRecoveryPlanReference({
+        reviewedAdmissionNotificationRecoveryPlan: {
+          filename: positional[1],
+          sha256: positional[2],
+        },
+      });
+    notificationRecoveryPlan = readReviewedAdmissionNotificationRecoveryPlan({
+      reference: notificationRecoveryPlanReference,
+      expectedTargetConfigurationDigest:
+        ADMISSION_NOTIFICATION_RECOVERY_TARGET_CONFIGURATION_DIGEST,
+    });
+    fid = BigInt(notificationRecoveryPlan.fid);
+    note = notificationRecoveryPlan.note;
+  }
+
   if (command === 'expand-world-v3') {
     requireGenesisExpansionProductionTarget(database);
   }
@@ -2539,6 +2906,9 @@ async function main() {
   }
   if (command === 'reset-access-request' || command === 'inspect-access-request-reset') {
     requireAccessRequestResetProductionTarget(database);
+  }
+  if (command === 'recover-admission-notification') {
+    requireFounderAdmissionProductionTarget(database);
   }
 
   if ((command === 'seed-alpha-component' || command === 'activate-alpha-water') && !dryRun) {
@@ -2566,6 +2936,9 @@ async function main() {
   if (command === 'reset-access-request' && !dryRun && !confirmed) {
     fail('Refusing access request reset without --confirm.');
   }
+  if (command === 'recover-admission-notification' && !dryRun && !confirmed) {
+    fail('Refusing admission notification recovery without --confirm.');
+  }
 
   let prevalidatedBridgeUrl: string | undefined;
   if (command === 'admit-founder' && !dryRun) {
@@ -2575,7 +2948,11 @@ async function main() {
     );
     requireCredentialedProductionTarget(uri, database, prevalidatedBridgeUrl);
   }
-  if (dryRun && command !== 'reset-access-request') {
+  if (
+    dryRun
+    && command !== 'reset-access-request'
+    && command !== 'recover-admission-notification'
+  ) {
     console.log(JSON.stringify(printable({
       command,
       fid,
@@ -2614,10 +2991,16 @@ async function main() {
     })));
     return;
   }
-  if (mutation && !confirmed && !(command === 'reset-access-request' && dryRun)) {
+  if (
+    mutation
+    && !confirmed
+    && !(command === 'reset-access-request' && dryRun)
+    && !(command === 'recover-admission-notification' && dryRun)
+  ) {
     fail(
       command === 'backfill-resources' || command === 'expand-world-v3'
         || command === 'reset-access-request'
+        || command === 'recover-admission-notification'
         || command === 'seed-alpha-component' || command === 'activate-alpha-water'
         ? 'Refusing mutation without --confirm.'
         : 'Refusing mutation without --confirm (or WARPKEEP_HERMES_NONINTERACTIVE=yes).',
@@ -2631,16 +3014,21 @@ async function main() {
     ?? readHttpsUrl(process.env.WARPKEEP_AUTH_BRIDGE_URL, 'WARPKEEP_AUTH_BRIDGE_URL');
   requireCredentialedProductionTarget(uri, database, bridgeUrl);
   if (
-    command === 'reset-access-request'
+    (command === 'reset-access-request' || command === 'recover-admission-notification')
     && process.env.WARPKEEP_ADMIN_TOKEN_SECRET !== undefined
   ) {
-    fail('Access request reset refuses an administrator secret from the environment.');
+    fail(
+      command === 'reset-access-request'
+        ? 'Access request reset refuses an administrator secret from the environment.'
+        : 'Admission notification recovery refuses an administrator secret from the environment.',
+    );
   }
   const secret = readAdminSecret(
-    command === 'reset-access-request'
+    command === 'reset-access-request' || command === 'recover-admission-notification'
       ? undefined
       : process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
-    command === 'reset-access-request' && privateInputStdin
+    (command === 'reset-access-request' || command === 'recover-admission-notification')
+      && privateInputStdin
       ? '1'
       : process.env.WARPKEEP_ADMIN_TOKEN_SECRET_STDIN,
   );
@@ -2655,6 +3043,7 @@ async function main() {
   }
   let founderAdmissionClaimed = false;
   let accessRequestResetClaimed = false;
+  let notificationRecoveryClaimed = false;
   try {
     let mutationStatusHandled = false;
     if (command === 'list-access-requests') {
@@ -2664,6 +3053,134 @@ async function main() {
         machineReadableInspection,
       );
       mutationStatusHandled = true;
+    } else if (
+      command === 'recover-admission-notification'
+      && fid !== undefined
+      && note !== undefined
+    ) {
+      const targetBefore = requirePendingAdmissionRequest(
+        projectAccessRequestAdmissionStatus(
+          await withOperationTimeout(
+            connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
+          ),
+        ),
+        'missing',
+      );
+      const operatorSecret = readNotificationOperatorSecret(
+        notificationOperatorSecret,
+      );
+      const diagnosticsBefore = requireAdmissionNotificationRecoveryPrecondition(
+        await inspectAdmissionNotification(
+          bridgeUrl,
+          fid,
+          operatorSecret,
+        ),
+        targetBefore.requestedAtMicros,
+      );
+      const notificationStateDigest = admissionNotificationRecoveryStateDigest(
+        diagnosticsBefore,
+      );
+      if (dryRun) {
+        const plan = createReviewedAdmissionNotificationRecoveryPlan({
+          targetConfigurationDigest:
+            ADMISSION_NOTIFICATION_RECOVERY_TARGET_CONFIGURATION_DIGEST,
+          fid,
+          note,
+          expectedRequestedAtMicros: targetBefore.requestedAtMicros,
+          expectedNotificationStateDigest: notificationStateDigest,
+        });
+        const reference = writeReviewedAdmissionNotificationRecoveryPlan({ plan });
+        console.log(JSON.stringify({
+          admissionNotificationRecoveryPlan: {
+            status: diagnosticsBefore.status,
+            generation: diagnosticsBefore.generation,
+            requestedAtMicros: targetBefore.requestedAtMicros.toString(),
+            recoveryCount: diagnosticsBefore.recoveryCount,
+            reviewedPlan: {
+              filename: reference.filename,
+              sha256: reference.sha256,
+            },
+            expiresAt: reference.expiresAt,
+            lifetimeMinutes:
+              REVIEWED_ADMISSION_NOTIFICATION_RECOVERY_PLAN_LIFETIME_MS / 60_000,
+            admissionState: targetBefore.admissionState,
+            admissionMutationSubmitted: false,
+            notificationRecoverySubmitted: false,
+          },
+        }));
+        mutationStatusHandled = true;
+      } else {
+        if (
+          notificationRecoveryPlan === undefined
+          || notificationRecoveryPlanReference === undefined
+        ) fail('Confirmed admission notification recovery requires one reviewed plan.');
+        if (
+          notificationRecoveryPlan.fid !== fid.toString()
+          || notificationRecoveryPlan.expectedRequestedAtMicros
+            !== targetBefore.requestedAtMicros.toString()
+          || notificationRecoveryPlan.expectedNotificationStateDigest
+            !== notificationStateDigest
+        ) {
+          fail(
+            'Reviewed admission notification recovery plan no longer matches current state. '
+            + 'No recovery request or admission mutation was submitted.',
+          );
+        }
+        claimReviewedAdmissionNotificationRecoveryPlan({
+          plan: notificationRecoveryPlan,
+          sha256: notificationRecoveryPlanReference.sha256,
+        });
+        notificationRecoveryClaimed = true;
+        const recoveryStatus = await requestAdmissionNotificationRecovery(
+          bridgeUrl,
+          fid,
+          targetBefore.requestedAtMicros,
+          notificationRecoveryPlan.planId,
+          operatorSecret,
+        );
+        const targetAfter = requireUnchangedPendingAdmissionRequest(
+          targetBefore,
+          projectAccessRequestAdmissionStatus(
+            await withOperationTimeout(
+              connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
+            ),
+          ),
+          'missing',
+        );
+        const diagnosticsAfter = await inspectAdmissionNotification(
+          bridgeUrl,
+          fid,
+          operatorSecret,
+        );
+        if (
+          targetAfter.requestedAtMicros !== targetBefore.requestedAtMicros
+          || diagnosticsAfter.generation !== 'pending-request'
+          || diagnosticsAfter.requestedAtMicros !== Number(targetBefore.requestedAtMicros)
+          || diagnosticsAfter.recoveryCount !== (
+            recoveryStatus === 'not-subscribed' ? 0 : 1
+          )
+          || (diagnosticsAfter.lastRecoveryAt === undefined)
+            !== (recoveryStatus === 'not-subscribed')
+          || (recoveryStatus === 'already-sent' && diagnosticsAfter.status !== 'already-sent')
+        ) {
+          throw new HermesClaimedAdmissionNotificationRecoveryOutcomeError();
+        }
+        notificationRecoveryClaimed = false;
+        console.log(JSON.stringify({
+          admissionNotificationRecovery: {
+            status: recoveryStatus,
+            observedStatus: diagnosticsAfter.status,
+            generation: diagnosticsAfter.generation,
+            requestedAtMicros: targetAfter.requestedAtMicros.toString(),
+            recoveryCount: diagnosticsAfter.recoveryCount,
+            admissionState: targetAfter.admissionState,
+            admissionMutationSubmitted: false,
+            pendingRequestUnchanged: true,
+            safeToRetryAdmission: diagnosticsAfter.status === 'already-sent',
+          },
+        }));
+        mutationStatusHandled = true;
+      }
     } else if (command === 'inspect-access-request-reset' && fid !== undefined) {
       const status = projectAccessRequestResetStatus(
         await withOperationTimeout(
@@ -2907,13 +3424,7 @@ async function main() {
         ),
         'missing',
       );
-      const initialWorld = verifyFounderAdmissionPreconditionV3(
-        await readStatus(connection, 'v3') as GenesisExpansionStatusV3,
-      );
-      verifyFounderAdmissionResourcePreconditionV4(
-        await readStatus(connection, 'v4') as ResourceAggregateV4,
-        initialWorld.allowedFids,
-      );
+      const initialAuthority = await readFounderAdmissionAuthorityPrecondition(connection);
       normalizeAdmissionReadyTrustedProfile(admissionProfile);
 
       connection = await reconnectAfterAdmissionNotification({
@@ -2934,13 +3445,8 @@ async function main() {
         ),
         'missing',
       );
-      const before = verifyFounderAdmissionPreconditionV3(
-        await readStatus(connection, 'v3') as GenesisExpansionStatusV3,
-      );
-      const beforeResources = verifyFounderAdmissionResourcePreconditionV4(
-        await readStatus(connection, 'v4') as ResourceAggregateV4,
-        before.allowedFids,
-      );
+      const beforeAuthority = await readFounderAdmissionAuthorityPrecondition(connection);
+      requireUnchangedFounderAuthorityMode(initialAuthority.mode, beforeAuthority.mode);
       const freshAdmissionProfile = normalizeAdmissionReadyTrustedProfile(admissionProfile);
       claimReviewedFounderAdmissionPlan({
         plan: admissionPlan,
@@ -2966,14 +3472,7 @@ async function main() {
         ),
         freshTarget,
       );
-      verifyFounderAdmissionPostconditionV3(
-        await readStatus(connection, 'v3') as GenesisExpansionStatusV3,
-        before,
-      );
-      verifyFounderAdmissionResourcePostconditionV4(
-        await readStatus(connection, 'v4') as ResourceAggregateV4,
-        beforeResources,
-      );
+      await verifyFounderAdmissionAuthorityPostcondition(connection, beforeAuthority);
       founderAdmissionClaimed = false;
       mutationStatusHandled = true;
     } else if (command === 'allow-fid' && fid !== undefined && note !== undefined) {
@@ -2982,9 +3481,9 @@ async function main() {
           connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
         ),
       );
-      verifyFounderReenablePrecondition(
-        await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
-        await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
+      const initialAuthority = await readFounderReenableAuthorityPrecondition(
+        connection,
+        fid,
         initialTarget,
       );
       connection = await reconnectAfterAdmissionNotification({
@@ -3005,26 +3504,27 @@ async function main() {
         ),
         'disabled',
       );
-      const before = verifyFounderReenablePrecondition(
-        await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
-        await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
+      const beforeAuthority = await readFounderReenableAuthorityPrecondition(
+        connection,
+        fid,
         freshTarget,
       );
+      requireUnchangedFounderAuthorityMode(initialAuthority.mode, beforeAuthority.mode);
       await withOperationTimeout(connection.reducers.adminAllowFidForAccessRequestV1({
         fid,
         note,
         expectedRequestCycle: freshTarget.requestCycle,
         expectedRequestedAtMicros: freshTarget.requestedAtMicros,
       }));
-      verifyFounderReenablePostcondition(
-        await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
-        await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
+      await verifyFounderReenableAuthorityPostcondition(
+        connection,
+        fid,
         projectAccessRequestAdmissionStatus(
           await withOperationTimeout(
             connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
           ),
         ),
-        before,
+        beforeAuthority,
       );
       mutationStatusHandled = true;
     } else if (command === 'disable-fid' && fid !== undefined && note !== undefined) {
@@ -3154,6 +3654,7 @@ async function main() {
       error,
       founderAdmissionClaimed,
       accessRequestResetClaimed,
+      notificationRecoveryClaimed,
     );
   } finally {
     disconnectSilently(connection);

@@ -2,6 +2,7 @@ import { createSiweMessage } from 'viem/siwe'
 import { Errors as QuickAuthErrors } from '@farcaster/quick-auth'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  ADMISSION_NOTIFICATION_RECOVERY_PATH,
   ADMISSION_NOTIFICATION_STATUS_PATH,
   FARCASTER_VERIFICATION_TIMEOUT_MILLISECONDS,
   QUICK_AUTH_MAX_ISSUER_LIFETIME_SECONDS,
@@ -11,6 +12,7 @@ import {
   type AuthBridgeDependencies,
 } from '../src/app'
 import { MemoryChallengeStore } from '../src/challengeStore'
+import { AdmissionNotificationRecoveryConflictError } from '../src/admissionNotifications'
 import { PLAYER_TOKEN_TTL_SECONDS, PRODUCTION_SPACETIMEDB_DATABASE } from '../src/config'
 import { FarcasterVerifierUnavailableError } from '../src/farcaster'
 import { qaObserverKeyThumbprint } from '../src/qaObserver'
@@ -68,6 +70,7 @@ const SERVER_ONLY_ADMIN_PATHS = [
   '/v1/admin/auth-epoch-probe',
   '/v1/admin/config-attestation',
   ADMISSION_NOTIFICATION_PATH,
+  ADMISSION_NOTIFICATION_RECOVERY_PATH,
   ADMISSION_NOTIFICATION_STATUS_PATH,
 ] as const
 const BINDING_VERIFIER = 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'
@@ -2432,7 +2435,7 @@ describe('Warpkeep auth bridge', () => {
       }),
     })
 
-    it('keeps both endpoints independently fail-closed while rollout is paused', async () => {
+    it('keeps every notification endpoint independently fail-closed while rollout is paused', async () => {
       const verify = vi.fn(async () => verifiedEnableEvent)
       const applyEvent = vi.fn(async () => undefined)
       const queueAdmission = vi.fn(async () => 'queued' as const)
@@ -2444,6 +2447,13 @@ describe('Warpkeep auth bridge', () => {
       for (const candidate of [
         request(MINIAPP_WEBHOOK_PATH, { header: 'h', payload: 'p', signature: 's' }),
         request(ADMISSION_NOTIFICATION_PATH, { fid: FID }, {
+          headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` },
+        }),
+        request(ADMISSION_NOTIFICATION_RECOVERY_PATH, {
+          fid: FID,
+          requestedAtMicros: 1_785_414_896_000_000,
+          recoveryId: 'c'.repeat(32),
+        }, {
           headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` },
         }),
         request(ADMISSION_NOTIFICATION_STATUS_PATH, { fid: FID }, {
@@ -2705,12 +2715,212 @@ describe('Warpkeep auth bridge', () => {
       })
     })
 
+    it('authorizes recovery only for the exact first-time pending request generation', async () => {
+      const requestedAtMicros = 1_785_414_896_000_000
+      const recoveryId = 'c'.repeat(32)
+      const recoverAdmission = vi.fn(async () => 'queued' as const)
+      const getStatus = vi.fn(async () => ({
+        status: 'requested' as const,
+        requestedAtMicros,
+      }))
+      const h = harness({
+        epoch: 0,
+        accessRequestResolver: {
+          getStatus,
+          submit: vi.fn(async () => ({ status: 'not-requested' } as const)),
+        },
+        admissionNotificationStore: {
+          applyEvent: vi.fn(async () => undefined),
+          queueAdmission: vi.fn(async () => 'delivery-exhausted' as const),
+          recoverAdmission,
+        },
+      })
+      h.setNow(1_800_000_000_000)
+
+      const response = await h.app.fetch(request(
+        ADMISSION_NOTIFICATION_RECOVERY_PATH,
+        { fid: FID, requestedAtMicros, recoveryId },
+        { headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` } },
+      ), notificationEnv())
+
+      expect(response.status).toBe(202)
+      await expect(response.json()).resolves.toEqual({ status: 'queued' })
+      expect(h.resolver.resolve).toHaveBeenCalledWith(FID)
+      expect(getStatus).toHaveBeenCalledWith(FID)
+      expect(recoverAdmission).toHaveBeenCalledWith({
+        fid: FID,
+        kind: 'pending-request',
+        requestedAtMicros,
+        recoveryId,
+        recoveredAt: 1_800_000_000_000,
+      })
+      expect(h.events).toContain('admission_notification_recovery_authorized')
+      expect(h.events).toContain('admission_notification_queued')
+    })
+
+    it('rejects recovery credentials, non-founders, and stale request CAS before the store', async () => {
+      const requestedAtMicros = 1_785_414_896_000_000
+      const recoverAdmission = vi.fn(async () => 'queued' as const)
+      const recoveryRequest = (
+        authorization: string,
+        requestedAt = requestedAtMicros,
+        origin?: string,
+      ) => request(ADMISSION_NOTIFICATION_RECOVERY_PATH, {
+        fid: FID,
+        requestedAtMicros: requestedAt,
+        recoveryId: 'd'.repeat(32),
+      }, {
+        headers: {
+          authorization: `Bearer ${authorization}`,
+          ...(origin ? { origin } : {}),
+        },
+      })
+      const store = {
+        applyEvent: vi.fn(async () => undefined),
+        queueAdmission: vi.fn(async () => 'delivery-exhausted' as const),
+        recoverAdmission,
+      }
+      const pendingResolver = {
+        getStatus: vi.fn(async () => ({
+          status: 'requested' as const,
+          requestedAtMicros,
+        })),
+        submit: vi.fn(async () => ({ status: 'not-requested' } as const)),
+      }
+      const missing = harness({
+        epoch: 0,
+        accessRequestResolver: pendingResolver,
+        admissionNotificationStore: store,
+      })
+      expect((await missing.app.fetch(
+        recoveryRequest(ADMIN_SECRET),
+        notificationEnv(),
+      )).status).toBe(401)
+      expect((await missing.app.fetch(
+        recoveryRequest(NOTIFICATION_OPERATOR_SECRET, requestedAtMicros, ORIGIN),
+        notificationEnv(),
+      )).status).toBe(403)
+      expect((await missing.app.fetch(
+        recoveryRequest(NOTIFICATION_OPERATOR_SECRET, requestedAtMicros + 1),
+        notificationEnv(),
+      )).status).toBe(409)
+      for (const candidate of [
+        request(
+          `${ADMISSION_NOTIFICATION_RECOVERY_PATH}?retry=true`,
+          { fid: FID, requestedAtMicros, recoveryId: 'd'.repeat(32) },
+          { headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` } },
+        ),
+        request(
+          ADMISSION_NOTIFICATION_RECOVERY_PATH,
+          { fid: FID, requestedAtMicros, recoveryId: 'not-a-reviewed-plan' },
+          { headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` } },
+        ),
+        request(
+          ADMISSION_NOTIFICATION_RECOVERY_PATH,
+          { fid: FID, requestedAtMicros, recoveryId: 'd'.repeat(32), extra: true },
+          { headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` } },
+        ),
+      ]) {
+        expect((await missing.app.fetch(candidate, notificationEnv())).status).toBe(400)
+      }
+
+      for (const resolution of [
+        { state: 'enabled', authEpoch: 8 } as const,
+        { state: 'disabled', authEpoch: 0 } as const,
+      ]) {
+        const ineligible = harness({
+          resolver: { resolve: vi.fn(async () => resolution) },
+          accessRequestResolver: pendingResolver,
+          admissionNotificationStore: store,
+        })
+        const response = await ineligible.app.fetch(
+          recoveryRequest(NOTIFICATION_OPERATOR_SECRET),
+          notificationEnv(),
+        )
+        expect(response.status).toBe(409)
+        await expect(response.json()).resolves.toMatchObject({
+          error: { code: 'admission_notification_recovery_not_applicable' },
+        })
+      }
+      expect(recoverAdmission).not.toHaveBeenCalled()
+    })
+
+    it('fails closed when the recovery store is absent or unavailable', async () => {
+      const requestedAtMicros = 1_785_414_896_000_000
+      const accessRequestResolver = {
+        getStatus: vi.fn(async () => ({
+          status: 'requested' as const,
+          requestedAtMicros,
+        })),
+        submit: vi.fn(async () => ({ status: 'not-requested' } as const)),
+      }
+      for (const admissionNotificationStore of [
+        {
+          applyEvent: vi.fn(async () => undefined),
+          queueAdmission: vi.fn(async () => 'delivery-exhausted' as const),
+        },
+        {
+          applyEvent: vi.fn(async () => undefined),
+          queueAdmission: vi.fn(async () => 'delivery-exhausted' as const),
+          recoverAdmission: vi.fn(async () => { throw new Error('private store detail') }),
+        },
+      ]) {
+        const h = harness({
+          epoch: 0,
+          accessRequestResolver,
+          admissionNotificationStore,
+        })
+        const response = await h.app.fetch(request(
+          ADMISSION_NOTIFICATION_RECOVERY_PATH,
+          { fid: FID, requestedAtMicros, recoveryId: 'e'.repeat(32) },
+          { headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` } },
+        ), notificationEnv())
+        expect(response.status).toBe(503)
+        expect(await response.text()).not.toContain('private store detail')
+      }
+    })
+
+    it('maps a competing recovery CAS to a fixed conflict without leaking store state', async () => {
+      const requestedAtMicros = 1_785_414_896_000_000
+      const h = harness({
+        epoch: 0,
+        accessRequestResolver: {
+          getStatus: vi.fn(async () => ({
+            status: 'requested' as const,
+            requestedAtMicros,
+          })),
+          submit: vi.fn(async () => ({ status: 'not-requested' } as const)),
+        },
+        admissionNotificationStore: {
+          applyEvent: vi.fn(async () => undefined),
+          queueAdmission: vi.fn(async () => 'delivery-exhausted' as const),
+          recoverAdmission: vi.fn(async () => {
+            throw new AdmissionNotificationRecoveryConflictError()
+          }),
+        },
+      })
+      const response = await h.app.fetch(request(
+        ADMISSION_NOTIFICATION_RECOVERY_PATH,
+        { fid: FID, requestedAtMicros, recoveryId: 'e'.repeat(32) },
+        { headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` } },
+      ), notificationEnv())
+
+      expect(response.status).toBe(409)
+      const text = await response.text()
+      expect(JSON.parse(text)).toMatchObject({
+        error: { code: 'admission_notification_recovery_conflict' },
+      })
+      expect(text).not.toContain('Admission notification recovery conflict.')
+    })
+
     it('exposes only token-free diagnostics to the separate operator credential', async () => {
       const inspect = vi.fn(async () => Object.freeze({
         status: 'queued' as const,
         authEpoch: 7,
         deliveryAttemptCount: 1,
         verificationFailureCount: 0,
+        subscribed: true,
+        recoveryCount: 0,
         retryReasons: Object.freeze(['invalid-response'] as const),
         nextAttemptAt: 1_800_000_030_000,
       }))
@@ -2750,6 +2960,8 @@ describe('Warpkeep auth bridge', () => {
         authEpoch: 7,
         deliveryAttemptCount: 1,
         verificationFailureCount: 0,
+        subscribed: true,
+        recoveryCount: 0,
         retryReasons: ['invalid-response'],
         nextAttemptAt: 1_800_000_030_000,
       })

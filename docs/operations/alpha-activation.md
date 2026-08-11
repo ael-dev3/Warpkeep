@@ -248,12 +248,14 @@ a SpacetimeDB schema change. Roll them out in this order:
    pair, Durable Object binding, webhook isolation, and redacted configuration
    attestation. Keep raw notification tokens and signed webhook bodies out of
    logs and release evidence.
-4. Enable and attest the backend gate while the public manifest still has no
-   `webhookUrl`. This proves configuration and route isolation, but it cannot
-   prove a real client event: Farcaster clients discover the endpoint from the
-   production-domain manifest.
-5. Publish the manifest `webhookUrl` alone as a bounded canary. After manifest
-   convergence, use one owner-controlled production client to generate a real
+4. The checked-in production manifest already pins the exact reviewed
+   `webhookUrl`; preserve it byte-for-byte. Deploy and attest the backend with
+   `APPROVAL_NOTIFICATIONS_ENABLED=false` first, so the advertised endpoint is
+   present but cannot record new consent or deliver an alert. Signed opt-outs
+   remain usable through the paused bridge.
+5. In a separate, explicitly approved Worker configuration change, enable and
+   attest the backend gate without changing the manifest or frontend gate. Use
+   one owner-controlled production client to generate a real
    enable/add event followed by a disable/remove event. Confirm only
    privacy-safe static evidence; never retain the signed body or token.
 6. Keep `VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED=false` until both signed
@@ -262,10 +264,12 @@ a SpacetimeDB schema change. Roll them out in this order:
    Worker or grant admission.
 7. Give Hermes both isolated secrets through its private environment. For
    `allow-fid` and confirmed `admit-founder`, Hermes must queue the exact pending
-   request generation before requesting an administrator token. If the player
-   opted in, require Farcaster provider acceptance before mutating admission;
-   `queued` or `delivery-exhausted` aborts unchanged. `not-subscribed` is an
-   explicit audited fallback for a player without consent. Never queue a
+   request generation before requesting the fresh mutation-session administrator
+   token or invoking a reducer. If the player opted in, require Farcaster
+   provider acceptance before mutating admission;
+   `queued`, `delivery-exhausted`, or `not-subscribed` aborts unchanged. This
+   tooling cannot override the no-consent boundary; a policy change requires
+   separate explicit owner approval. Never queue a
    post-admission reconciliation notification; that legacy path is retired.
 
 ### Owner canary and end-to-end acceptance

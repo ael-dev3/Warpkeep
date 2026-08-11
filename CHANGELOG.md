@@ -6,6 +6,14 @@ full engineering record.
 
 ## [Unreleased]
 
+- Made reviewed founder admission verification follow the exact current world:
+  the unchanged legacy 100-slot path remains strict, while active Greater Realm
+  founding and existing-founder re-enable use bounded 600-slot aggregate and
+  target-specific proofs. Added one auditable recovery cycle for an exhausted
+  first-time Farcaster alert without changing its notification ID, terminal
+  receipts, notification consent, or admission state. Notification and
+  presentation gates remain off.
+
 - Added the active-only Greater Realm founding authority behind the existing
   profiled admission paths. Future founders receive a server-selected balanced
   Tier-I castle, four workers, Inner Keep Builder, Marks and resource state in

@@ -39,7 +39,8 @@ future rollout step requires exact-head verification and recorded authority.
 | `POST` | `/v1/admin/auth-epoch-probe` | Server-only, input-free structured resolver check. |
 | `POST` | `/v1/admin/config-attestation` | Server-only digest of security-relevant runtime configuration. |
 | `POST` | `/v1/farcaster/miniapp/webhook` | Verifies signed add/remove and notification enable/disable events; returns exact `200`. |
-| `POST` | `/v1/admin/admission-notification` | Separate-secret Hermes hook; queues one alert for the exact pending request, or reconciles an already-live admission epoch. |
+| `POST` | `/v1/admin/admission-notification` | Separate-secret Hermes hook; queues one alert for the exact pending request and never delivers an already-live admission epoch. |
+| `POST` | `/v1/admin/admission-notification-recovery` | Separate-secret, reviewed one-shot recovery for one exhausted first-time pending-request generation; never mutates admission. |
 | `POST` | `/v1/admin/admission-notification-status` | Separate-secret, token-free delivery diagnostics for one exact FID. |
 
 The legacy public `/v1/farcaster/challenge` and `/v1/farcaster/exchange` routes
@@ -399,10 +400,17 @@ Once selected, a request's transport target is immutable; opt-out, token
 rotation, expiry, or client removal terminates that generation rather than
 redirecting it. Terminal request timestamps are monotonic high-water marks, so
 rollback or stale operator input cannot revive an older alert.
+One reviewed 128-bit plan ID may authorize one recovery attempt cycle only when
+that exact first-time pending generation is exhausted, still pending, unsent,
+and currently subscribed. The exhausted receipt remains durable, the
+request-scoped notification ID does not change, a matching plan replay is
+idempotent, and a competing plan conflicts. A sent receipt always wins and can
+never be reset.
 The operator-only status projection contains only queue state, generation kind,
-aggregate attempt counts, static retry categories, and bounded retry timing. It
-never returns a request timestamp, notification token, delivery URL, webhook
-payload, or provider response. Delivery parsing accepts Farcaster's optional additive
+the request timestamp already visible in the private access ledger, aggregate
+attempt/recovery counts, static retry categories, and bounded retry timing. It
+never returns a notification token, delivery URL, webhook payload, or provider
+response. Delivery parsing accepts Farcaster's optional additive
 `failedTokens` field, ignores harmless provider metadata, and still rejects
 invalid reasons, contradictory known outcome categories, and token mismatches.
 
@@ -484,7 +492,8 @@ request/response, or symmetric secret. `/v1/admin/token`,
 `Authorization: Bearer <ADMIN_TOKEN_SECRET>`, reject browser `Origin` headers,
 emit no admin CORS headers, and are only for a server-side operator process.
 Never expose their credential or response to frontend code.
-`/v1/admin/admission-notification` and its token-free `-status` companion have
+`/v1/admin/admission-notification`, its reviewed `-recovery` route, and its
+token-free `-status` companion have
 the same no-Origin/no-CORS boundary but use only
 `NOTIFICATION_OPERATOR_SECRET`; neither accepts the general admin secret. The
 public webhook accepts no browser Origin and trusts only a valid

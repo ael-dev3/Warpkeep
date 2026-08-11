@@ -12,6 +12,7 @@ import type {
   AccessRequestResolver,
   AdmissionNotificationGeneration,
   AdmissionNotificationQueueInput,
+  AdmissionNotificationRecoveryInput,
   AdmissionNotificationQueueStatus,
   AdmissionNotificationDiagnostics,
   AdmissionNotificationRetryReason,
@@ -82,6 +83,7 @@ type AdmissionDelivery = Readonly<{
   queuedAt: number
   expiresAt: number
   attempts: readonly DeliveryAttempt[]
+  recoveryId?: string
 }> & AdmissionNotificationGeneration
 
 type RetiredAdmittedQueueInput = Readonly<{
@@ -125,6 +127,9 @@ type PersistedNotificationState = Readonly<{
   lastExhaustedAuthEpoch?: number
   lastSentRequestAtMicros?: number
   lastExhaustedRequestAtMicros?: number
+  lastRecoveryRequestAtMicros?: number
+  lastRecoveryId?: string
+  lastRecoveryAt?: number
   delivery?: AdmissionDelivery
 }>
 
@@ -133,11 +138,15 @@ type PersistedPendingNotificationState = Readonly<{
   fid: string
   lastSentRequestAtMicros?: number
   lastExhaustedRequestAtMicros?: number
+  lastRecoveryRequestAtMicros?: number
+  lastRecoveryId?: string
+  lastRecoveryAt?: number
   delivery?: Readonly<{
     requestedAtMicros: number
     queuedAt: number
     expiresAt: number
     attempts: readonly DeliveryAttempt[]
+    recoveryId?: string
   }>
 }>
 
@@ -237,6 +246,10 @@ function isToken(value: unknown): value is string {
 
 function isTokenId(value: unknown): value is string {
   return typeof value === 'string' && /^[0-9a-f]{64}$/.test(value)
+}
+
+function isRecoveryId(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-9a-f]{32}$/.test(value)
 }
 
 function isStoredDeliveryUrl(value: unknown): value is string {
@@ -505,7 +518,14 @@ function readPendingState(value: unknown): PersistedPendingNotificationState | n
     || !exactKeys(
       value,
       ['version', 'fid'],
-      ['delivery', 'lastSentRequestAtMicros', 'lastExhaustedRequestAtMicros'],
+      [
+        'delivery',
+        'lastSentRequestAtMicros',
+        'lastExhaustedRequestAtMicros',
+        'lastRecoveryRequestAtMicros',
+        'lastRecoveryId',
+        'lastRecoveryAt',
+      ],
     )
     || value.version !== STATE_VERSION
     || !isSafeFid(value.fid)
@@ -517,6 +537,17 @@ function readPendingState(value: unknown): PersistedPendingNotificationState | n
       value.lastExhaustedRequestAtMicros !== undefined
       && !isRequestedAtMicros(value.lastExhaustedRequestAtMicros)
     )
+    || (
+      value.lastRecoveryRequestAtMicros !== undefined
+      && !isRequestedAtMicros(value.lastRecoveryRequestAtMicros)
+    )
+    || (value.lastRecoveryId !== undefined && !isRecoveryId(value.lastRecoveryId))
+    || (value.lastRecoveryAt !== undefined && !isTimestamp(value.lastRecoveryAt))
+    || new Set([
+      value.lastRecoveryRequestAtMicros !== undefined,
+      value.lastRecoveryId !== undefined,
+      value.lastRecoveryAt !== undefined,
+    ]).size !== 1
   ) throw new Error('Invalid pending admission notification state.')
   let delivery: PersistedPendingNotificationState['delivery']
   if (value.delivery !== undefined) {
@@ -525,6 +556,7 @@ function readPendingState(value: unknown): PersistedPendingNotificationState | n
       || !exactKeys(
         value.delivery,
         ['requestedAtMicros', 'queuedAt', 'expiresAt', 'attempts'],
+        ['recoveryId'],
       )
       || !isRequestedAtMicros(value.delivery.requestedAtMicros)
       || !isTimestamp(value.delivery.queuedAt)
@@ -532,6 +564,7 @@ function readPendingState(value: unknown): PersistedPendingNotificationState | n
       || value.delivery.expiresAt <= value.delivery.queuedAt
       || value.delivery.expiresAt - value.delivery.queuedAt
         !== DELIVERY_LIFETIME_MILLISECONDS
+      || (value.delivery.recoveryId !== undefined && !isRecoveryId(value.delivery.recoveryId))
     ) throw new Error('Invalid pending admission notification state.')
     const attempts = readDeliveryAttempts(value.delivery.attempts)
     if (!attempts) throw new Error('Invalid pending admission notification state.')
@@ -540,8 +573,37 @@ function readPendingState(value: unknown): PersistedPendingNotificationState | n
       queuedAt: value.delivery.queuedAt,
       expiresAt: value.delivery.expiresAt,
       attempts,
+      ...(value.delivery.recoveryId === undefined
+        ? {}
+        : { recoveryId: value.delivery.recoveryId }),
     })
   }
+  const recoveryRequestAtMicros = value.lastRecoveryRequestAtMicros
+  const recoveryPresent = recoveryRequestAtMicros !== undefined
+  if (
+    recoveryPresent
+    && (
+      value.lastExhaustedRequestAtMicros === undefined
+      || value.lastExhaustedRequestAtMicros < recoveryRequestAtMicros
+      || (
+        delivery !== undefined
+        && delivery.requestedAtMicros === recoveryRequestAtMicros
+        && (
+          delivery.recoveryId !== value.lastRecoveryId
+          || delivery.queuedAt !== value.lastRecoveryAt
+        )
+      )
+    )
+  ) throw new Error('Invalid pending admission notification state.')
+  if (
+    delivery?.recoveryId !== undefined
+    && (
+      !recoveryPresent
+      || delivery.requestedAtMicros !== recoveryRequestAtMicros
+      || delivery.recoveryId !== value.lastRecoveryId
+      || delivery.queuedAt !== value.lastRecoveryAt
+    )
+  ) throw new Error('Invalid pending admission notification state.')
   return Object.freeze({
     version: 1,
     fid: value.fid,
@@ -551,6 +613,11 @@ function readPendingState(value: unknown): PersistedPendingNotificationState | n
     ...(value.lastExhaustedRequestAtMicros === undefined
       ? {}
       : { lastExhaustedRequestAtMicros: value.lastExhaustedRequestAtMicros }),
+    ...(value.lastRecoveryRequestAtMicros === undefined
+      ? {}
+      : { lastRecoveryRequestAtMicros: value.lastRecoveryRequestAtMicros }),
+    ...(value.lastRecoveryId === undefined ? {} : { lastRecoveryId: value.lastRecoveryId }),
+    ...(value.lastRecoveryAt === undefined ? {} : { lastRecoveryAt: value.lastRecoveryAt }),
     ...(delivery ? { delivery } : {}),
   })
 }
@@ -583,6 +650,15 @@ async function readCombinedState(
     ...(pending?.lastExhaustedRequestAtMicros === undefined
       ? {}
       : { lastExhaustedRequestAtMicros: pending.lastExhaustedRequestAtMicros }),
+    ...(pending?.lastRecoveryRequestAtMicros === undefined
+      ? {}
+      : { lastRecoveryRequestAtMicros: pending.lastRecoveryRequestAtMicros }),
+    ...(pending?.lastRecoveryId === undefined
+      ? {}
+      : { lastRecoveryId: pending.lastRecoveryId }),
+    ...(pending?.lastRecoveryAt === undefined
+      ? {}
+      : { lastRecoveryAt: pending.lastRecoveryAt }),
     ...(!legacy.delivery && pending?.delivery
       ? {
           delivery: Object.freeze({
@@ -591,6 +667,9 @@ async function readCombinedState(
             queuedAt: pending.delivery.queuedAt,
             expiresAt: pending.delivery.expiresAt,
             attempts: pending.delivery.attempts,
+            ...(pending.delivery.recoveryId === undefined
+              ? {}
+              : { recoveryId: pending.delivery.recoveryId }),
           }),
         }
       : {}),
@@ -632,7 +711,7 @@ async function objectName(fid: string): Promise<string> {
   }
 }
 
-function internalUrl(path: 'event' | 'queue' | 'status'): string {
+function internalUrl(path: 'event' | 'queue' | 'recover' | 'status'): string {
   return `${INTERNAL_ORIGIN}/${path}`
 }
 
@@ -661,8 +740,23 @@ async function readDiagnostics(response: Response): Promise<AdmissionNotificatio
     !isRecord(value)
     || !exactKeys(
       value,
-      ['status', 'deliveryAttemptCount', 'verificationFailureCount', 'retryReasons'],
-      ['generation', 'authEpoch', 'lastAttemptAt', 'lastFailureReason', 'nextAttemptAt'],
+      [
+        'status',
+        'deliveryAttemptCount',
+        'verificationFailureCount',
+        'subscribed',
+        'recoveryCount',
+        'retryReasons',
+      ],
+      [
+        'generation',
+        'authEpoch',
+        'requestedAtMicros',
+        'lastRecoveryAt',
+        'lastAttemptAt',
+        'lastFailureReason',
+        'nextAttemptAt',
+      ],
     )
     || (
       value.status !== 'queued'
@@ -677,13 +771,23 @@ async function readDiagnostics(response: Response): Promise<AdmissionNotificatio
       && value.generation !== 'pending-request'
     )
     || (value.generation === 'pending-request' && value.authEpoch !== undefined)
+    || (value.generation === 'pending-request' && !isRequestedAtMicros(value.requestedAtMicros))
     || (value.generation === 'admitted' && !isAuthEpoch(value.authEpoch))
+    || (value.generation !== 'pending-request' && value.requestedAtMicros !== undefined)
     || typeof value.deliveryAttemptCount !== 'number'
     || !Number.isSafeInteger(value.deliveryAttemptCount)
     || value.deliveryAttemptCount < 0
     || typeof value.verificationFailureCount !== 'number'
     || !Number.isSafeInteger(value.verificationFailureCount)
     || value.verificationFailureCount < 0
+    || typeof value.subscribed !== 'boolean'
+    || typeof value.recoveryCount !== 'number'
+    || !Number.isSafeInteger(value.recoveryCount)
+    || value.recoveryCount < 0
+    || value.recoveryCount > 1
+    || (value.lastRecoveryAt !== undefined && !isTimestamp(value.lastRecoveryAt))
+    || (value.recoveryCount === 0) !== (value.lastRecoveryAt === undefined)
+    || (value.recoveryCount === 1 && value.generation !== 'pending-request')
     || !Array.isArray(value.retryReasons)
     || value.retryReasons.some(reason => !isRetryReason(reason))
     || new Set(value.retryReasons).size !== value.retryReasons.length
@@ -697,8 +801,14 @@ async function readDiagnostics(response: Response): Promise<AdmissionNotificatio
     status: value.status,
     ...(value.generation === undefined ? {} : { generation: value.generation }),
     ...(value.authEpoch === undefined ? {} : { authEpoch: value.authEpoch }),
+    ...(value.requestedAtMicros === undefined
+      ? {}
+      : { requestedAtMicros: value.requestedAtMicros as number }),
     deliveryAttemptCount: value.deliveryAttemptCount as number,
     verificationFailureCount: value.verificationFailureCount as number,
+    subscribed: value.subscribed as boolean,
+    recoveryCount: value.recoveryCount as number,
+    ...(value.lastRecoveryAt === undefined ? {} : { lastRecoveryAt: value.lastRecoveryAt }),
     retryReasons: Object.freeze([...value.retryReasons] as AdmissionNotificationRetryReason[]),
     ...(value.lastAttemptAt === undefined ? {} : { lastAttemptAt: value.lastAttemptAt }),
     ...(value.lastFailureReason === undefined
@@ -738,6 +848,18 @@ export class DurableObjectAdmissionNotificationStore implements AdmissionNotific
     return readQueueStatus(response)
   }
 
+  async recoverAdmission(
+    input: AdmissionNotificationRecoveryInput,
+  ): Promise<AdmissionNotificationQueueStatus> {
+    const response = await (await this.stub(input.fid)).fetch(internalUrl('recover'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+    if (response.status === 409) throw new AdmissionNotificationRecoveryConflictError()
+    return readQueueStatus(response)
+  }
+
   async inspect(fid: string): Promise<AdmissionNotificationDiagnostics> {
     const response = await (await this.stub(fid)).fetch(internalUrl('status'), {
       method: 'POST',
@@ -745,6 +867,13 @@ export class DurableObjectAdmissionNotificationStore implements AdmissionNotific
       body: JSON.stringify({ fid }),
     })
     return readDiagnostics(response)
+  }
+}
+
+export class AdmissionNotificationRecoveryConflictError extends Error {
+  constructor() {
+    super('Admission notification recovery conflict.')
+    this.name = 'AdmissionNotificationRecoveryConflictError'
   }
 }
 
@@ -800,6 +929,19 @@ function validQueueInput(value: unknown): value is InternalAdmissionNotification
     || value.kind === 'pending-request'
       && exactKeys(value, ['fid', 'kind', 'requestedAtMicros', 'queuedAt'])
       && isRequestedAtMicros(value.requestedAtMicros)
+}
+
+function validRecoveryInput(value: unknown): value is AdmissionNotificationRecoveryInput {
+  return isRecord(value)
+    && exactKeys(
+      value,
+      ['fid', 'kind', 'requestedAtMicros', 'recoveredAt', 'recoveryId'],
+    )
+    && isSafeFid(value.fid)
+    && value.kind === 'pending-request'
+    && isRequestedAtMicros(value.requestedAtMicros)
+    && isTimestamp(value.recoveredAt)
+    && isRecoveryId(value.recoveryId)
 }
 
 function withSeenEvent(
@@ -956,12 +1098,16 @@ function pendingStateForPersistence(
         queuedAt: state.delivery.queuedAt,
         expiresAt: state.delivery.expiresAt,
         attempts: Object.freeze(state.delivery.attempts.map(attemptForPersistence)),
+        ...(state.delivery.recoveryId === undefined
+          ? {}
+          : { recoveryId: state.delivery.recoveryId }),
       })
     : undefined
   if (
     !delivery
     && state.lastSentRequestAtMicros === undefined
     && state.lastExhaustedRequestAtMicros === undefined
+    && state.lastRecoveryRequestAtMicros === undefined
   ) return null
   return Object.freeze({
     version: 1,
@@ -972,6 +1118,11 @@ function pendingStateForPersistence(
     ...(state.lastExhaustedRequestAtMicros === undefined
       ? {}
       : { lastExhaustedRequestAtMicros: state.lastExhaustedRequestAtMicros }),
+    ...(state.lastRecoveryRequestAtMicros === undefined
+      ? {}
+      : { lastRecoveryRequestAtMicros: state.lastRecoveryRequestAtMicros }),
+    ...(state.lastRecoveryId === undefined ? {} : { lastRecoveryId: state.lastRecoveryId }),
+    ...(state.lastRecoveryAt === undefined ? {} : { lastRecoveryAt: state.lastRecoveryAt }),
     ...(delivery ? { delivery } : {}),
   })
 }
@@ -1368,11 +1519,26 @@ function exhaustedForGeneration(
       && state.lastExhaustedRequestAtMicros >= generation.requestedAtMicros
 }
 
+function deliveryIsAuthorizedRecovery(
+  state: PersistedNotificationState,
+  delivery: AdmissionDelivery,
+): boolean {
+  return delivery.kind === 'pending-request'
+    && delivery.recoveryId !== undefined
+    && state.lastRecoveryRequestAtMicros === delivery.requestedAtMicros
+    && state.lastRecoveryId === delivery.recoveryId
+    && state.lastRecoveryAt !== undefined
+}
+
 function queueStatus(state: PersistedNotificationState): AdmissionNotificationQueueStatus {
   if (state.delivery && sentForGeneration(state, deliveryGeneration(state.delivery))) {
     return 'already-sent'
   }
-  if (state.delivery && exhaustedForGeneration(state, deliveryGeneration(state.delivery))) {
+  if (
+    state.delivery
+    && exhaustedForGeneration(state, deliveryGeneration(state.delivery))
+    && !deliveryIsAuthorizedRecovery(state, state.delivery)
+  ) {
     return 'delivery-exhausted'
   }
   if (!state.delivery || state.subscriptions.length === 0) return 'not-subscribed'
@@ -1398,6 +1564,8 @@ function diagnosticsForState(
       status: 'not-subscribed',
       deliveryAttemptCount: 0,
       verificationFailureCount: 0,
+      subscribed: false,
+      recoveryCount: 0,
       retryReasons: Object.freeze([]),
     })
   }
@@ -1424,15 +1592,25 @@ function diagnosticsForState(
     ? persistedDiagnostics
     : undefined
   const retryReasons = matchingDiagnostics?.retryReasons ?? Object.freeze([])
+  const recoveryMatchesGeneration = generation?.kind === 'pending-request'
+    && state.lastRecoveryRequestAtMicros === generation.requestedAtMicros
   return Object.freeze({
     status,
     ...(generation === undefined ? {} : { generation: generation.kind }),
     ...(generation?.kind === 'admitted' ? { authEpoch: generation.authEpoch } : {}),
+    ...(generation?.kind === 'pending-request'
+      ? { requestedAtMicros: generation.requestedAtMicros }
+      : {}),
     deliveryAttemptCount: attempts.reduce((sum, attempt) => sum + attempt.attempts, 0),
     verificationFailureCount: attempts.reduce(
       (sum, attempt) => sum + attempt.verificationFailures,
       0,
     ),
+    subscribed: state.subscriptions.length > 0,
+    recoveryCount: recoveryMatchesGeneration ? 1 : 0,
+    ...(recoveryMatchesGeneration && state.lastRecoveryAt !== undefined
+      ? { lastRecoveryAt: state.lastRecoveryAt }
+      : {}),
     retryReasons,
     ...(matchingDiagnostics?.lastAttemptAt === undefined
       ? {}
@@ -1544,7 +1722,13 @@ export class AdmissionNotification {
       return next
     }
     const generation = deliveryGeneration(delivery)
-    if (sentForGeneration(pruned, generation) || exhaustedForGeneration(pruned, generation)) {
+    if (
+      sentForGeneration(pruned, generation)
+      || (
+        exhaustedForGeneration(pruned, generation)
+        && !deliveryIsAuthorizedRecovery(pruned, delivery)
+      )
+    ) {
       // A terminal generation receipt always wins over webhook refreshes and
       // stale alarms. Clear the retained delivery shell before any attempt can
       // be rebuilt around a new token.
@@ -1881,6 +2065,96 @@ export class AdmissionNotification {
       return new Response(null, { status: 204 })
     }
 
+    if (url.pathname === '/recover') {
+      if (!validRecoveryInput(value)) return new Response(null, { status: 400 })
+      if (!config.approvalNotificationsEnabled) return new Response(null, { status: 503 })
+      const now = this.currentTime()
+      if (Math.abs(now - value.recoveredAt) > 60_000) return new Response(null, { status: 400 })
+      const existing = await readCombinedState(this.state.storage)
+      if (!existing || existing.fid !== value.fid) return new Response(null, { status: 409 })
+      const generation: AdmissionNotificationGeneration = Object.freeze({
+        kind: 'pending-request',
+        requestedAtMicros: value.requestedAtMicros,
+      })
+      if (sentForGeneration(existing, generation)) {
+        return new Response(JSON.stringify({ status: 'already-sent' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+        })
+      }
+      if (existing.lastRecoveryRequestAtMicros === generation.requestedAtMicros) {
+        if (existing.lastRecoveryId !== value.recoveryId) {
+          return new Response(null, { status: 409 })
+        }
+        let replayed = existing
+        if (
+          replayed.delivery
+          && generationEquals(deliveryGeneration(replayed.delivery), generation)
+        ) replayed = await this.attemptDelivery(replayed)
+        return new Response(JSON.stringify({ status: replayed.delivery
+          ? queueStatus(replayed)
+          : 'delivery-exhausted' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+        })
+      }
+      if (
+        existing.lastRecoveryRequestAtMicros !== undefined
+        && existing.lastRecoveryRequestAtMicros > generation.requestedAtMicros
+      ) return new Response(null, { status: 409 })
+      if (
+        existing.lastExhaustedRequestAtMicros !== generation.requestedAtMicros
+        || (
+          existing.delivery !== undefined
+          && (
+            !generationEquals(deliveryGeneration(existing.delivery), generation)
+            || existing.delivery.attempts.some(attempt => (
+              attempt.status !== 'sent' && attempt.status !== 'exhausted'
+            ))
+          )
+        )
+      ) return new Response(null, { status: 409 })
+
+      const pruned = pruneSubscriptions(existing, config, now)
+      if (pruned.subscriptions.length === 0) {
+        if (pruned !== existing) {
+          await persistAndSchedule(
+            this.state.storage,
+            withNextRevision(pruned),
+            now,
+          )
+        }
+        return new Response(JSON.stringify({ status: 'not-subscribed' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+        })
+      }
+
+      const delivery: AdmissionDelivery = Object.freeze({
+        ...generation,
+        queuedAt: value.recoveredAt,
+        expiresAt: value.recoveredAt + DELIVERY_LIFETIME_MILLISECONDS,
+        attempts: Object.freeze([]),
+        recoveryId: value.recoveryId,
+      })
+      let next = withNextRevision(Object.freeze({
+        ...pruned,
+        lastRecoveryRequestAtMicros: generation.requestedAtMicros,
+        lastRecoveryId: value.recoveryId,
+        lastRecoveryAt: value.recoveredAt,
+        delivery: Object.freeze({
+          ...delivery,
+          attempts: attemptsForSubscriptions(delivery, pruned.subscriptions),
+        }),
+      }))
+      await persistAndSchedule(this.state.storage, next, now)
+      next = await this.attemptDelivery(next)
+      return new Response(JSON.stringify({ status: queueStatus(next) }), {
+        status: 200,
+        headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
+      })
+    }
+
     if (url.pathname === '/queue') {
       if (!validQueueInput(value)) return new Response(null, { status: 400 })
       if (!config.approvalNotificationsEnabled) return new Response(null, { status: 503 })
@@ -1921,7 +2195,10 @@ export class AdmissionNotification {
           headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
         })
       }
-      if (exhaustedForGeneration(next, generation)) {
+      if (
+        exhaustedForGeneration(next, generation)
+        && !(next.delivery && deliveryIsAuthorizedRecovery(next, next.delivery))
+      ) {
         return new Response(JSON.stringify({ status: 'delivery-exhausted' }), {
           status: 200,
           headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },

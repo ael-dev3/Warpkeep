@@ -26,6 +26,8 @@ import {
   readStatus,
   reconnectAfterAdmissionNotification,
   requestAdmissionNotification,
+  requestAdmissionNotificationRecovery,
+  requireAdmissionNotificationRecoveryPrecondition,
   requirePendingAdmissionRequest,
   requireAdmissionNotificationInspectionProductionTarget,
   requireUnchangedPendingAdmissionRequest,
@@ -66,6 +68,8 @@ function admissionNotificationDiagnostics(overrides: Record<string, unknown> = {
     status: 'not-subscribed',
     deliveryAttemptCount: 0,
     verificationFailureCount: 0,
+    subscribed: false,
+    recoveryCount: 0,
     retryReasons: [],
     ...overrides,
   };
@@ -229,7 +233,9 @@ describe('Hermes machine-readable output', () => {
       caught = error;
     }
     const rendered = privacySafeHermesErrorMessage(caught);
-    expect(rendered).toMatch(/may have committed.*inspect fresh v3\/v4 aggregate state/i);
+    expect(rendered).toMatch(
+      /may have committed.*inspect the fresh mode-aware cutover and legacy\/v17 aggregate state/i,
+    );
     expect(rendered).not.toContain('private FID');
     expect(rendered).not.toContain('server response');
   });
@@ -842,6 +848,32 @@ describe('Hermes command-line boundary', () => {
       'reset-access-request', '123', 'owner canary reset', '--dry-run',
     ])).toThrow(/administrator secret.*--input-stdin/i);
     expect(parseHermesArguments([
+      'recover-admission-notification',
+      '123',
+      'reviewed exhausted delivery recovery',
+      '--input-stdin',
+      '--dry-run',
+    ])).toMatchObject({
+      command: 'recover-admission-notification',
+      inspection: false,
+      dryRun: true,
+      privateInputStdin: true,
+    });
+    expect(parseHermesArguments([
+      'recover-admission-notification',
+      'admission-notification-recovery-plan-20260811T130000000Z-0123456789abcdef0123456789abcdef.json',
+      'b'.repeat(64),
+      '--input-stdin',
+      '--confirm',
+    ])).toMatchObject({
+      command: 'recover-admission-notification',
+      confirmedByFlag: true,
+      privateInputStdin: true,
+    });
+    expect(() => parseHermesArguments([
+      'recover-admission-notification', '123', 'note', '--dry-run',
+    ])).toThrow(/administrator secret.*--input-stdin/i);
+    expect(parseHermesArguments([
       'inspect-access-request-reset', '123', '--json',
     ])).toMatchObject({
       command: 'inspect-access-request-reset',
@@ -1415,6 +1447,8 @@ describe('Hermes atomic profiled admission boundary', () => {
       .toBe('tsx scripts/hermes-admin.ts admit-founder');
     expect(packageManifest.scripts['stdb:inspect-admission-notification'])
       .toBe('tsx scripts/hermes-admin.ts inspect-admission-notification');
+    expect(packageManifest.scripts['stdb:recover-admission-notification'])
+      .toBe('tsx scripts/hermes-admin.ts recover-admission-notification');
     expect(packageManifest.scripts['stdb:notify-admitted']).toBeUndefined();
     expect(mainSource).not.toContain("| 'notify-admitted'");
   });
@@ -1445,6 +1479,99 @@ describe('Hermes atomic profiled admission boundary', () => {
     expect(submit).toBeGreaterThan(freshTarget);
     expect(resolvedTarget).toBeGreaterThan(submit);
     expect(branch).not.toContain('adminAllowFid({');
+  });
+
+  it('locks both admission commands to the real mode-aware cutover procedures', () => {
+    const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
+    const helperSource = source.slice(
+      source.indexOf('async function readGreaterRealmCutoverStatus('),
+      source.indexOf('async function main()'),
+    );
+    expect(helperSource).toContain('adminGetGreaterRealmCutoverStatusV1({})');
+    expect(helperSource).toContain('adminGetGreaterRealmReenableStatusV1({ fid })');
+    expect(helperSource).toContain('selectFounderAdmissionAuthorityMode(cutover)');
+    expect(helperSource).toContain('verifyGreaterRealmAdmissionPrecondition(cutover)');
+    expect(helperSource).toContain('verifyGreaterRealmReenablePreconditionV1(');
+
+    const mainSource = source.slice(source.indexOf('async function main()'));
+    const operations = mainSource.slice(mainSource.indexOf('let mutationStatusHandled = false'));
+    const admission = operations.slice(
+      operations.indexOf("command === 'admit-founder'"),
+      operations.indexOf("command === 'allow-fid' && fid !== undefined"),
+    );
+    const admissionInitial = admission.indexOf(
+      'readFounderAdmissionAuthorityPrecondition(connection)',
+    );
+    const admissionReconnect = admission.indexOf('await reconnectAfterAdmissionNotification({');
+    const admissionFresh = admission.indexOf(
+      'readFounderAdmissionAuthorityPrecondition(connection)',
+      admissionInitial + 1,
+    );
+    const admissionLock = admission.indexOf('requireUnchangedFounderAuthorityMode(');
+    const admissionSubmit = admission.indexOf('adminAdmitFounderForAccessRequestV2(');
+    const admissionPost = admission.indexOf(
+      'verifyFounderAdmissionAuthorityPostcondition(connection, beforeAuthority)',
+    );
+    expect(admissionInitial).toBeGreaterThan(-1);
+    expect(admissionReconnect).toBeGreaterThan(admissionInitial);
+    expect(admissionFresh).toBeGreaterThan(admissionReconnect);
+    expect(admissionLock).toBeGreaterThan(admissionFresh);
+    expect(admissionSubmit).toBeGreaterThan(admissionLock);
+    expect(admissionPost).toBeGreaterThan(admissionSubmit);
+
+    const reenable = operations.slice(
+      operations.indexOf("command === 'allow-fid' && fid !== undefined"),
+      operations.indexOf("command === 'disable-fid' && fid !== undefined"),
+    );
+    const reenableInitial = reenable.indexOf('readFounderReenableAuthorityPrecondition(');
+    const reenableReconnect = reenable.indexOf('await reconnectAfterAdmissionNotification({');
+    const reenableFresh = reenable.indexOf(
+      'readFounderReenableAuthorityPrecondition(',
+      reenableInitial + 1,
+    );
+    const reenableLock = reenable.indexOf('requireUnchangedFounderAuthorityMode(');
+    const reenableSubmit = reenable.indexOf('adminAllowFidForAccessRequestV1(');
+    const reenablePost = reenable.indexOf('verifyFounderReenableAuthorityPostcondition(');
+    expect(reenableInitial).toBeGreaterThan(-1);
+    expect(reenableReconnect).toBeGreaterThan(reenableInitial);
+    expect(reenableFresh).toBeGreaterThan(reenableReconnect);
+    expect(reenableLock).toBeGreaterThan(reenableFresh);
+    expect(reenableSubmit).toBeGreaterThan(reenableLock);
+    expect(reenablePost).toBeGreaterThan(reenableSubmit);
+  });
+
+  it('keeps notification recovery as a reviewed, claim-before-send non-admission operation', () => {
+    const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
+    const mainSource = source.slice(source.indexOf('async function main()'));
+    const operations = mainSource.slice(mainSource.indexOf('let mutationStatusHandled = false'));
+    const recoveryBranchStart = operations.indexOf(
+      "command === 'recover-admission-notification'",
+    );
+    const branch = operations.slice(
+      recoveryBranchStart,
+      operations.indexOf("command === 'inspect-access-request-reset'", recoveryBranchStart),
+    );
+    const targetBefore = branch.indexOf('adminGetAccessRequestAdmissionStatusV1({ fid })');
+    const inspectBefore = branch.indexOf('await inspectAdmissionNotification(');
+    const digestBefore = branch.indexOf('admissionNotificationRecoveryStateDigest(');
+    const createPlan = branch.indexOf('createReviewedAdmissionNotificationRecoveryPlan({');
+    const writePlan = branch.indexOf('writeReviewedAdmissionNotificationRecoveryPlan({ plan })');
+    const claimPlan = branch.indexOf('claimReviewedAdmissionNotificationRecoveryPlan({');
+    const submitRecovery = branch.indexOf('await requestAdmissionNotificationRecovery(');
+    const targetAfter = branch.indexOf(
+      'adminGetAccessRequestAdmissionStatusV1({ fid })',
+      targetBefore + 1,
+    );
+    expect(targetBefore).toBeGreaterThan(-1);
+    expect(inspectBefore).toBeGreaterThan(targetBefore);
+    expect(digestBefore).toBeGreaterThan(inspectBefore);
+    expect(createPlan).toBeGreaterThan(digestBefore);
+    expect(writePlan).toBeGreaterThan(createPlan);
+    expect(claimPlan).toBeGreaterThan(writePlan);
+    expect(submitRecovery).toBeGreaterThan(claimPlan);
+    expect(targetAfter).toBeGreaterThan(submitRecovery);
+    expect(branch).not.toContain('connection.reducers.');
+    expect(branch).toContain('admissionMutationSubmitted: false');
   });
 
   it('does not accept a founder identity or note in argv', () => {
@@ -1763,10 +1890,82 @@ describe('Hermes credential destination policy', () => {
     )).rejects.toThrow(/rejected the request/i);
   });
 
+  it('submits one reviewed recovery ID for one exact pending generation', async () => {
+    const requestedAtMicros = 1_799_999_999_000_000n;
+    const recoveryId = 'c'.repeat(32);
+    const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+      expect(String(input)).toBe(
+        'https://auth.warpkeep.com/v1/admin/admission-notification-recovery',
+      );
+      expect(init?.method).toBe('POST');
+      expect(init?.redirect).toBe('error');
+      expect(init?.cache).toBe('no-store');
+      const headers = new Headers(init?.headers);
+      expect(headers.get('authorization')).toBe(`Bearer ${NOTIFICATION_SECRET}`);
+      expect(headers.has('origin')).toBe(false);
+      expect(JSON.parse(String(init?.body))).toEqual({
+        fid: '12345',
+        requestedAtMicros: Number(requestedAtMicros),
+        recoveryId,
+      });
+      return Response.json({ status: 'queued' }, { status: 202 });
+    });
+    await expect(requestAdmissionNotificationRecovery(
+      'https://auth.warpkeep.com',
+      12_345n,
+      requestedAtMicros,
+      recoveryId,
+      NOTIFICATION_SECRET,
+      fetchImpl,
+    )).resolves.toBe('queued');
+
+    await expect(requestAdmissionNotificationRecovery(
+      'https://auth.warpkeep.com',
+      12_345n,
+      requestedAtMicros,
+      'invalid',
+      NOTIFICATION_SECRET,
+      fetchImpl,
+    )).rejects.toThrow(/authorization was invalid/i);
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it('permits recovery only for an exhausted unrecovered matching request', () => {
+    const requestedAtMicros = 1_799_999_999_000_000n;
+    const recoverable = projectAdmissionNotificationDiagnostics(
+      admissionNotificationDiagnostics({
+        status: 'delivery-exhausted',
+        generation: 'pending-request',
+        requestedAtMicros: Number(requestedAtMicros),
+        subscribed: true,
+      }),
+    );
+    expect(requireAdmissionNotificationRecoveryPrecondition(
+      recoverable,
+      requestedAtMicros,
+    )).toEqual(recoverable);
+
+    for (const candidate of [
+      { ...recoverable, status: 'queued' as const },
+      { ...recoverable, requestedAtMicros: Number(requestedAtMicros + 1n) },
+      { ...recoverable, recoveryCount: 1, lastRecoveryAt: 1_800_000_000_000 },
+    ]) {
+      expect(() => requireAdmissionNotificationRecoveryPrecondition(
+        candidate,
+        requestedAtMicros,
+      )).toThrow(/exact exhausted, unrecovered/i);
+    }
+    expect(() => requireAdmissionNotificationRecoveryPrecondition(
+      projectAdmissionNotificationDiagnostics(admissionNotificationDiagnostics()),
+      requestedAtMicros,
+    )).toThrow(/not enabled.*remains blocked/i);
+  });
+
   it('inspects only the allowlisted token-free per-FID notification state', async () => {
     const diagnostics = admissionNotificationDiagnostics({
       status: 'already-sent',
       generation: 'pending-request',
+      requestedAtMicros: 1_799_999_999_000_000,
       deliveryAttemptCount: 1,
       retryReasons: ['transport'],
       lastAttemptAt: 1_800_000_000_000,

@@ -51,7 +51,10 @@ import {
   readVerifiedSessionCookie,
   sessionSetCookie,
 } from './sessionCookie'
-import { DurableObjectAdmissionNotificationStore } from './admissionNotifications'
+import {
+  AdmissionNotificationRecoveryConflictError,
+  DurableObjectAdmissionNotificationStore,
+} from './admissionNotifications'
 import {
   MiniAppWebhookInvalidError,
   MiniAppWebhookVerifierUnavailableError,
@@ -133,6 +136,7 @@ const V2_ACCESS_STATUS_PATH = '/v2/access/status'
 const V2_ACCESS_REQUEST_PATH = '/v2/access/request'
 export const MINIAPP_WEBHOOK_PATH = '/v1/farcaster/miniapp/webhook'
 export const ADMISSION_NOTIFICATION_PATH = '/v1/admin/admission-notification'
+export const ADMISSION_NOTIFICATION_RECOVERY_PATH = '/v1/admin/admission-notification-recovery'
 export const ADMISSION_NOTIFICATION_STATUS_PATH = '/v1/admin/admission-notification-status'
 const LEGACY_CHALLENGE_PATH = '/v1/farcaster/challenge'
 const LEGACY_EXCHANGE_PATH = '/v1/farcaster/exchange'
@@ -383,6 +387,7 @@ function isServerOnlyAdminPath(pathname: string): boolean {
     || pathname === AUTH_EPOCH_PROBE_PATH
     || pathname === CONFIG_ATTESTATION_PATH
     || pathname === ADMISSION_NOTIFICATION_PATH
+    || pathname === ADMISSION_NOTIFICATION_RECOVERY_PATH
     || pathname === ADMISSION_NOTIFICATION_STATUS_PATH
 }
 
@@ -742,6 +747,20 @@ function canonicalNotificationFid(value: unknown): string {
     throw new HttpError(400, 'invalid_request', 'Invalid fid.')
   }
   return fid
+}
+
+function canonicalNotificationRequestedAtMicros(value: unknown): number {
+  if (!Number.isSafeInteger(value) || (value as number) < 1) {
+    throw new HttpError(400, 'invalid_request', 'Invalid request generation.')
+  }
+  return value as number
+}
+
+function canonicalNotificationRecoveryId(value: unknown): string {
+  if (typeof value !== 'string' || !/^[0-9a-f]{32}$/.test(value)) {
+    throw new HttpError(400, 'invalid_request', 'Invalid recovery authorization.')
+  }
+  return value
 }
 
 /**
@@ -2544,6 +2563,140 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           return json({ status }, status === 'queued' ? 202 : 200)
         }
 
+        if (request.method === 'POST' && url.pathname === ADMISSION_NOTIFICATION_RECOVERY_PATH) {
+          requireAdminNoOrigin(request)
+          if (!config.approvalNotificationsEnabled) {
+            throw new HttpError(
+              503,
+              'approval_notifications_paused',
+              'Admission notifications are temporarily unavailable.',
+            )
+          }
+          if (url.search) {
+            throw new HttpError(400, 'notification_query_not_allowed', 'This endpoint does not accept query parameters.')
+          }
+          await enforceRateLimit(
+            request,
+            'admission-notification',
+            env,
+            dependencies.rateLimiter,
+            logger,
+          )
+          const notificationConfig = config.miniAppNotifications
+          if (!notificationConfig) throw new ConfigurationError()
+          const credential = adminCredential(request)
+          if (!credential || !(await timingSafeSecretMatch(
+            credential,
+            notificationConfig.operatorSecret,
+          ))) {
+            logger.event('admission_notification_recovery_rejected')
+            throw new HttpError(
+              401,
+              'invalid_notification_credentials',
+              'Notification operator credentials are invalid.',
+            )
+          }
+          const body = await parseObjectBody(request)
+          requireExactKeys(body, ['fid', 'recoveryId', 'requestedAtMicros'])
+          const fid = canonicalNotificationFid(body.fid)
+          const requestedAtMicros = canonicalNotificationRequestedAtMicros(
+            body.requestedAtMicros,
+          )
+          const recoveryId = canonicalNotificationRecoveryId(body.recoveryId)
+
+          let admission: AdmissionResolution
+          try {
+            admission = await (
+              dependencies.authEpochResolver
+              ?? defaultAuthEpochResolver(config)
+            ).resolve(fid)
+          } catch (error) {
+            logAuthEpochFailure(logger, error)
+            throw new HttpError(
+              503,
+              'authorization_unavailable',
+              'Authorization is temporarily unavailable.',
+            )
+          }
+          if (admission.state !== 'missing') {
+            logger.event('admission_notification_recovery_rejected')
+            throw new HttpError(
+              409,
+              'admission_notification_recovery_not_applicable',
+              'Notification recovery is limited to a first-time pending founder.',
+            )
+          }
+
+          let requestStatus: AccessRequestResolution
+          try {
+            requestStatus = await (
+              dependencies.accessRequestResolver
+              ?? defaultAccessRequestResolver(config)
+            ).getStatus(fid)
+          } catch (error) {
+            logAccessRequestFailure(logger, error)
+            throw new HttpError(
+              503,
+              'access_request_unavailable',
+              'The access request ledger is temporarily unavailable.',
+            )
+          }
+          if (
+            requestStatus.status !== 'requested'
+            || requestStatus.requestedAtMicros !== requestedAtMicros
+          ) {
+            logger.event('admission_notification_recovery_rejected')
+            throw new HttpError(
+              409,
+              'access_request_generation_changed',
+              'The reviewed access request generation is no longer pending.',
+            )
+          }
+
+          const recoveredAt = now()
+          if (!Number.isSafeInteger(recoveredAt) || recoveredAt < 0) {
+            throw new ConfigurationError()
+          }
+          const store = dependencies.admissionNotificationStore
+            ?? defaultAdmissionNotificationStore(env)
+          if (!store.recoverAdmission) {
+            throw new HttpError(
+              503,
+              'admission_notification_unavailable',
+              'Admission notification delivery is temporarily unavailable.',
+            )
+          }
+          let status
+          try {
+            status = await store.recoverAdmission({
+              fid,
+              kind: 'pending-request',
+              requestedAtMicros,
+              recoveryId,
+              recoveredAt,
+            })
+          } catch (error) {
+            if (error instanceof AdmissionNotificationRecoveryConflictError) {
+              throw new HttpError(
+                409,
+                'admission_notification_recovery_conflict',
+                'The notification generation is not eligible for recovery.',
+              )
+            }
+            throw new HttpError(
+              503,
+              'admission_notification_unavailable',
+              'Admission notification delivery is temporarily unavailable.',
+            )
+          }
+          logger.event('admission_notification_recovery_authorized')
+          if (status === 'already-sent') logger.event('admission_notification_succeeded')
+          else if (status === 'delivery-exhausted') logger.event('admission_notification_exhausted')
+          else if (status === 'not-subscribed') logger.event('admission_notification_not_subscribed')
+          else logger.event('admission_notification_queued')
+          return json({ status }, status === 'queued' ? 202 : 200)
+        }
+
         if (request.method === 'POST' && url.pathname === ADMISSION_NOTIFICATION_STATUS_PATH) {
           requireAdminNoOrigin(request)
           if (!config.approvalNotificationsEnabled) {
@@ -2679,6 +2832,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
               config.miniAppNotifications?.clients.map(client => client.appFid) ?? [],
             miniAppWebhookPath: MINIAPP_WEBHOOK_PATH,
             admissionNotificationPath: ADMISSION_NOTIFICATION_PATH,
+            admissionNotificationRecoveryPath: ADMISSION_NOTIFICATION_RECOVERY_PATH,
             admissionNotificationStatusPath: ADMISSION_NOTIFICATION_STATUS_PATH,
             publicAuthEnabled: config.publicAuthEnabled,
             accessExpectedFidRequired: config.accessExpectedFidRequired,

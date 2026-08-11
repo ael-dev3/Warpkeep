@@ -344,8 +344,10 @@ separate-secret operator endpoint for the exact pending access-request
 timestamp. The Durable Object proves that request is still pending and that
 admission is not enabled immediately before sending. For an opted-in player,
 Hermes proceeds only after Farcaster reports the matching token in
-`successfulTokens`; without notification consent, it records the explicit
-`not-subscribed` result and may proceed. Provider acceptance proves handoff to
+`successfulTokens`; without notification consent, the explicit
+`not-subscribed` result leaves admission pending. This recovery mechanism cannot
+override that boundary; changing it requires separate explicit owner approval.
+Provider acceptance proves handoff to
 Farcaster, not device display or that the player opened the alert.
 
 Queue-before-webhook races are retained without a token for at most 24 hours,
@@ -355,7 +357,13 @@ notification ID and at most one active transport target. The current pending
 access request is the sole player-visible admission notification generation.
 Already-admitted reconciliation is non-delivering, and the former standalone
 operator command has been retired. A genuinely new pending-request timestamp
-after a reviewed reset is the only event that permits another admission alert.
+after a reviewed reset permits another admission alert. For a first-time
+founder whose exact request reached `delivery-exhausted`, one separately
+reviewed recovery plan may instead authorize one additional attempt cycle for
+that same request timestamp. The bridge preserves the exhausted receipt and
+stable notification ID, refuses every sent receipt, rechecks the still-pending
+request, and permits at most one recovery plan ID. Recovery never changes
+admission.
 Notification preference and delivery add no SpacetimeDB schema or browser
 authority.
 
