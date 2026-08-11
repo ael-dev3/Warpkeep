@@ -531,6 +531,32 @@ describe('Greater Realm atlas CLI security boundary', () => {
   // retain a bounded eight-minute ceiling without weakening replay coverage.
   }, 480_000);
 
+  it('replays out-of-contract active grids only through the branded geography ledger', () => {
+    const rootSeed = Uint8Array.from(createHash('sha256')
+      .update('greater-realm-layout-yield-sample-1\0', 'utf8')
+      .digest());
+    try {
+      expect(() => verifyGreaterRealmPrivateRejectedAttempt({
+        rootSeed,
+        rejectedAttempt: Object.freeze({
+          kind: 'geography-exhaustion',
+          candidateOrdinal: 0,
+          rejectionCode: 'GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE',
+        }),
+      })).not.toThrow();
+      expect(() => verifyGreaterRealmPrivateRejectedAttempt({
+        rootSeed,
+        rejectedAttempt: Object.freeze({
+          kind: 'geography-exhaustion',
+          candidateOrdinal: 0,
+          rejectionCode: 'GREATER_REALM_AUDIT_GRID_SIZE_INVALID' as never,
+        }),
+      })).toThrow('GREATER_REALM_PRIVATE_ATTEMPT_LEDGER_INVALID');
+    } finally {
+      rootSeed.fill(0);
+    }
+  }, 120_000);
+
   it('restricts public evidence exports to one canonical JSON basename', () => {
     const expected = resolve(
       repositoryRoot,

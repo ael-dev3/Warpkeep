@@ -49,7 +49,7 @@ function binding(
   overrides: Partial<GreaterRealmAttemptCheckpointBinding> = {},
 ): GreaterRealmAttemptCheckpointBinding {
   return Object.freeze({
-    generatorVersion: 'greater-realm-v2-natural-continent-pr-a.16',
+    generatorVersion: 'greater-realm-v2-natural-continent-pr-a.17',
     sourceCommit: 'a'.repeat(40),
     toolchainReceipt: `sha256:${'b'.repeat(64)}`,
     toolchainProfile: 'darwin-arm64',
@@ -185,7 +185,7 @@ describe('Greater Realm attempt-boundary checkpoint', () => {
         rejectedAttempt: Object.freeze({
           kind: 'geography-exhaustion',
           candidateOrdinal: 1,
-          rejectionCode: 'GREATER_REALM_ACTIVE_MASK_EMPTY',
+          rejectionCode: 'GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE',
         }),
         nextCandidateHandle: THIRD_CANDIDATE,
       });
@@ -217,7 +217,7 @@ describe('Greater Realm attempt-boundary checkpoint', () => {
           {
             kind: 'geography-exhaustion',
             candidateOrdinal: 1,
-            rejectionCode: 'GREATER_REALM_ACTIVE_MASK_EMPTY',
+            rejectionCode: 'GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE',
           },
         ]);
         expect(resumed.acceptedPerformance).toEqual({
@@ -278,7 +278,7 @@ describe('Greater Realm attempt-boundary checkpoint', () => {
     const state = createInitial(workspace);
     try {
       for (const stale of [
-        binding({ generatorVersion: 'greater-realm-v2-natural-continent-pr-a.17' }),
+        binding({ generatorVersion: 'greater-realm-v2-natural-continent-pr-a.18' }),
         binding({ sourceCommit: 'c'.repeat(40) }),
         binding({ toolchainReceipt: `sha256:${'d'.repeat(64)}` }),
         binding({ toolchainProfile: 'linux-x64' }),
@@ -300,6 +300,17 @@ describe('Greater Realm attempt-boundary checkpoint', () => {
     const initial = createInitial(workspace);
     let next: GreaterRealmAttemptCheckpointState | undefined;
     try {
+      expect(() => recordGreaterRealmRejectedAttempt({
+        workspace,
+        state: initial,
+        rejectedAttempt: Object.freeze({
+          kind: 'geography-exhaustion',
+          candidateOrdinal: 0,
+          rejectionCode: 'GREATER_REALM_AUDIT_GRID_SIZE_INVALID' as never,
+        }),
+        nextCandidateHandle: SECOND_CANDIDATE,
+      })).toThrow('GREATER_REALM_ATTEMPT_CHECKPOINT_INVALID');
+
       expect(() => recordGreaterRealmRejectedAttempt({
         workspace,
         state: initial,
