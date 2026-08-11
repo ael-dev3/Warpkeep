@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { POINTY_TOP_AXIAL_DIRECTIONS, axialToWorld } from '../src/game/map/hexCoordinates';
 import {
   GREATER_REALM_SYNTHETIC_REVISION,
   GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE,
@@ -95,6 +96,35 @@ describe('Greater Realm presentation plan', () => {
     expect(plan.sealedEdges).toHaveLength(explicitEdges);
     expect(plan.actors).toEqual([]);
     expect(plan.resources).toEqual([]);
+  });
+
+  it('maps each sealed-mask bit to the matching pointy-top neighbor side', () => {
+    for (let direction = 0; direction < POINTY_TOP_AXIAL_DIRECTIONS.length; direction += 1) {
+      const raw = structuredClone(
+        GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[0]
+      ) as any;
+      [...raw.coreCells, ...raw.apronCells].forEach((cell: any) => {
+        cell.sealedBoundaryMask = 0;
+      });
+      raw.coreCells[0].sealedBoundaryMask = 1 << direction;
+      const chunk = decodeGreaterRealmChunkDto(raw);
+      const plan = createGreaterRealmChunkPresentationPlan({
+        chunk,
+        graphicsProfile: 'balanced',
+        cellSize: 1
+      });
+      expect(plan.sealedEdges).toHaveLength(1);
+      const edge = plan.sealedEdges[0]!;
+      const cell = chunk.coreCells[0]!;
+      const delta = POINTY_TOP_AXIAL_DIRECTIONS[direction]!;
+      const center = axialToWorld({ q: cell.atlasQ, r: cell.atlasR }, 1);
+      const neighbor = axialToWorld({
+        q: cell.atlasQ + delta.q,
+        r: cell.atlasR + delta.r
+      }, 1);
+      expect((edge.from.x + edge.to.x) / 2).toBeCloseTo((center.x + neighbor.x) / 2, 12);
+      expect((edge.from.z + edge.to.z) / 2).toBeCloseTo((center.z + neighbor.z) / 2, 12);
+    }
   });
 
   it('pins the exact High/Balanced/Reduced grass, flower, and upload ceilings', () => {

@@ -26,10 +26,11 @@ function handle(ordinal: number) {
   return `GRK-${encoded.padStart(26, 'A')}`;
 }
 
-function rawChunk(chunkHandle: string, lod: GreaterRealmLod = 0) {
+function rawChunk(chunkHandle: string, lod: GreaterRealmLod = 0, revision = 1n) {
   const raw = structuredClone(GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[0]) as any;
   raw.chunkHandle = chunkHandle;
   raw.lod = lod;
+  raw.revision = revision;
   raw.coreCells.forEach((cell: any) => { cell.chunkHandle = chunkHandle; });
   return raw;
 }
@@ -139,6 +140,67 @@ describe('Greater Realm chunk stream', () => {
     await stream.awaitIdle();
     expect(stream.getSnapshot().residentChunkCount).toBeLessThanOrEqual(36);
     expect(evicted.length).toBeGreaterThan(0);
+    stream.dispose();
+  });
+
+  it('treats revision zero as real state and refetches the same handle at revision one', async () => {
+    const target = handle(400);
+    const fetched: bigint[] = [];
+    const evicted: bigint[] = [];
+    const stream = createGreaterRealmChunkStream({
+      deviceClass: 'desktop',
+      graphicsProfile: 'high',
+      fetchChunk: async (request) => {
+        fetched.push(request.expectedRevision);
+        return rawChunk(request.chunkHandle, request.lod, request.expectedRevision);
+      },
+      onChunkEvicted: (chunk) => { evicted.push(chunk.revision); }
+    });
+
+    stream.setDesired(0n, [{ chunkHandle: target, distanceChunks: 0, lod: 0 }]);
+    await stream.awaitIdle();
+    expect(stream.getChunk(target)?.revision).toBe(0n);
+
+    stream.setDesired(1n, [{ chunkHandle: target, distanceChunks: 0, lod: 0 }]);
+    await stream.awaitIdle();
+    expect(fetched).toEqual([0n, 1n]);
+    expect(evicted).toContain(0n);
+    expect(stream.getChunk(target)?.revision).toBe(1n);
+    expect(stream.getSnapshot().residentChunkCount).toBe(1);
+    stream.dispose();
+  });
+
+  it('keeps a throwing ready validator out of residence and retries cleanly', async () => {
+    const target = handle(401);
+    let fetched = 0;
+    let ready = 0;
+    const errors: unknown[] = [];
+    const stream = createGreaterRealmChunkStream({
+      deviceClass: 'desktop',
+      graphicsProfile: 'high',
+      fetchChunk: async (request) => {
+        fetched += 1;
+        return rawChunk(request.chunkHandle, request.lod, request.expectedRevision);
+      },
+      onChunkReady: () => {
+        ready += 1;
+        if (ready === 1) throw new Error('GREATER_REALM_DESCRIPTOR_MISMATCH');
+      },
+      onError: (_chunkHandle, error) => { errors.push(error); }
+    });
+
+    stream.setDesired(1n, [{ chunkHandle: target, distanceChunks: 0, lod: 0 }]);
+    await stream.awaitIdle();
+    expect(stream.getChunk(target)).toBeUndefined();
+    expect(stream.getSnapshot()).toMatchObject({ residentChunkCount: 0, failedCount: 1 });
+    expect(errors).toHaveLength(1);
+
+    stream.retryFailed();
+    await stream.awaitIdle();
+    expect(fetched).toBe(2);
+    expect(ready).toBe(2);
+    expect(stream.getChunk(target)?.chunkHandle).toBe(target);
+    expect(stream.getSnapshot()).toMatchObject({ residentChunkCount: 1, failedCount: 0 });
     stream.dispose();
   });
 });

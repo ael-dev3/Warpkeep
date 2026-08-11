@@ -1,4 +1,5 @@
 import {
+  assertGreaterRealmRoutePageMatchesRequest,
   createGreaterRealmChunkRequest,
   createGreaterRealmRoutePlanRequest,
   createGreaterRealmWindowRequest,
@@ -75,6 +76,12 @@ function ensureNotAborted(signal: AbortSignal) {
 export function createGreaterRealmProcedureTransport(
   invoker: GreaterRealmProcedureInvoker
 ): GreaterRealmPublicTransport {
+  let atlasContext: Readonly<{ atlasId: string; revision: bigint }> | undefined;
+  const assertContextRevision = (expectedRevision: bigint) => {
+    if (atlasContext && atlasContext.revision !== expectedRevision) {
+      throw new Error('GREATER_REALM_ATLAS_CONTEXT_MISMATCH');
+    }
+  };
   return Object.freeze({
     getBootstrap: async (signal) => {
       if (!GREATER_REALM_SERVER_PRESENTATION_ALLOWED) return unavailable(signal);
@@ -85,11 +92,13 @@ export function createGreaterRealmProcedureTransport(
         signal
       ));
       ensureNotAborted(signal);
+      atlasContext = Object.freeze({ atlasId: decoded.atlasId, revision: decoded.revision });
       return decoded;
     },
     getWindow: async (requested, signal) => {
       if (!GREATER_REALM_SERVER_PRESENTATION_ALLOWED) return unavailable(signal);
       const request = createGreaterRealmWindowRequest(requested);
+      assertContextRevision(request.expectedRevision);
       ensureNotAborted(signal);
       const decoded = decodeGreaterRealmWindowDto(await invoker.call(
         GREATER_REALM_PUBLIC_PROCEDURES.window,
@@ -99,6 +108,7 @@ export function createGreaterRealmProcedureTransport(
       ensureNotAborted(signal);
       if (
         decoded.revision !== request.expectedRevision
+        || (atlasContext !== undefined && decoded.atlasId !== atlasContext.atlasId)
         || decoded.centerQ !== request.centerQ
         || decoded.centerR !== request.centerR
         || decoded.radius !== request.radius
@@ -108,6 +118,7 @@ export function createGreaterRealmProcedureTransport(
     getChunk: async (requested, signal) => {
       if (!GREATER_REALM_SERVER_PRESENTATION_ALLOWED) return unavailable(signal);
       const request = createGreaterRealmChunkRequest(requested);
+      assertContextRevision(request.expectedRevision);
       ensureNotAborted(signal);
       const decoded = decodeGreaterRealmChunkDto(await invoker.call(
         GREATER_REALM_PUBLIC_PROCEDURES.chunk,
@@ -119,12 +130,14 @@ export function createGreaterRealmProcedureTransport(
         decoded.chunkHandle !== request.chunkHandle
         || decoded.lod !== request.lod
         || decoded.revision !== request.expectedRevision
+        || (atlasContext !== undefined && decoded.atlasId !== atlasContext.atlasId)
       ) throw new Error('GREATER_REALM_CHUNK_RESPONSE_MISMATCH');
       return decoded;
     },
     planRoute: async (requested, signal) => {
       if (!GREATER_REALM_SERVER_PRESENTATION_ALLOWED) return unavailable(signal);
       const request = createGreaterRealmRoutePlanRequest(requested);
+      assertContextRevision(request.expectedRevision);
       ensureNotAborted(signal);
       const decoded = decodeGreaterRealmRoutePageDto(await invoker.call(
         GREATER_REALM_PUBLIC_PROCEDURES.planRoute,
@@ -132,19 +145,7 @@ export function createGreaterRealmProcedureTransport(
         signal
       ));
       ensureNotAborted(signal);
-      const pageEnd = request.offset + decoded.cells.length;
-      if (
-        decoded.revision !== request.expectedRevision
-        || decoded.cells.length > request.limit
-        || pageEnd > decoded.totalLength
-        || (request.offset === 0
-          && decoded.cells[0]?.cellKey !== request.originCellKey)
-        || (decoded.complete
-          && decoded.cells.at(-1)?.cellKey !== request.destinationCellKey)
-        || (decoded.complete
-          ? pageEnd !== decoded.totalLength
-          : decoded.nextOffset !== pageEnd)
-      ) throw new Error('GREATER_REALM_ROUTE_PLAN_RESPONSE_MISMATCH');
+      assertGreaterRealmRoutePageMatchesRequest(decoded, request, atlasContext?.atlasId);
       return decoded;
     }
   });

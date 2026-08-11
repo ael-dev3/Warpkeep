@@ -655,15 +655,21 @@ export function decodeGreaterRealmChunkDto(value: unknown): GreaterRealmChunkDto
     GREATER_REALM_PUBLIC_LIMITS.maximumChunkSourceCells,
     code
   );
-  const coreCells = Object.freeze(row.coreCells.map(decodeGreaterRealmPublicCellDto));
-  const apronCells = Object.freeze(row.apronCells.map(decodeGreaterRealmPublicCellDto));
+  const coreRows = row.coreCells as unknown[];
+  const apronRows = row.apronCells as unknown[];
+  const resourceRows = row.resourceLocations as unknown[];
   if (
-    coreCells.length < 1
-    || coreCells.length > sourceCellCount
-    || (selectedLod === 0 && coreCells.length !== sourceCellCount)
-    || coreCells.length + apronCells.length > GREATER_REALM_PUBLIC_LIMITS.maximumChunkVisibleCells
-    || row.resourceLocations.length > GREATER_REALM_PUBLIC_LIMITS.maximumResourceLocations
+    coreRows.length < 1
+    || coreRows.length > sourceCellCount
+    || (selectedLod === 0 && coreRows.length !== sourceCellCount)
+    || coreRows.length + apronRows.length
+      > GREATER_REALM_PUBLIC_LIMITS.maximumChunkVisibleCells
+    || resourceRows.length > GREATER_REALM_PUBLIC_LIMITS.maximumResourceLocations
   ) fail(code);
+  // Lengths are deliberately sealed before any element decode. A hostile
+  // sparse array must not make the decoder traverse attacker-sized input.
+  const coreCells = Object.freeze(coreRows.map(decodeGreaterRealmPublicCellDto));
+  const apronCells = Object.freeze(apronRows.map(decodeGreaterRealmPublicCellDto));
   const chunkHandle = identifier(row.chunkHandle, CHUNK_HANDLE, code);
   if (
     coreCells.some((cell) => cell.chunkHandle !== chunkHandle)
@@ -675,7 +681,7 @@ export function decodeGreaterRealmChunkDto(value: unknown): GreaterRealmChunkDto
     new Set(coordinates).size !== coordinates.length
     || new Set(cellKeys).size !== cellKeys.length
   ) fail(code);
-  const resourceLocations = Object.freeze(row.resourceLocations.map(decodeResourceLocation));
+  const resourceLocations = Object.freeze(resourceRows.map(decodeResourceLocation));
   const returnedCells = new Map(
     [...coreCells, ...apronCells].map((cell) => [cell.cellKey, cell] as const)
   );
@@ -718,7 +724,10 @@ export function decodeGreaterRealmRoutePageDto(value: unknown): GreaterRealmRout
   if (cells.some((cell) => !cell.passable)) fail(code);
   const complete = bool(row.complete, code);
   const nextOffset = row.nextOffset === undefined ? undefined : u32(row.nextOffset, code);
-  if (complete === (nextOffset !== undefined)) fail(code);
+  if (
+    complete === (nextOffset !== undefined)
+    || (!complete && cells.length === 0)
+  ) fail(code);
   const totalLength = u32(row.totalLength, code, 8_193);
   const coordinateKeys = cells.map(greaterRealmCoordinateKey);
   if (
@@ -748,6 +757,27 @@ export function decodeGreaterRealmRoutePageDto(value: unknown): GreaterRealmRout
     ...(nextOffset === undefined ? {} : { nextOffset }),
     complete
   });
+}
+
+/** Cross-response pagination checks that require the originating request. */
+export function assertGreaterRealmRoutePageMatchesRequest(
+  page: GreaterRealmRoutePageDto,
+  requested: GreaterRealmRoutePlanRequest,
+  expectedAtlasId?: string
+) {
+  const request = createGreaterRealmRoutePlanRequest(requested);
+  const pageEnd = request.offset + page.cells.length;
+  if (
+    page.revision !== request.expectedRevision
+    || (expectedAtlasId !== undefined && page.atlasId !== expectedAtlasId)
+    || page.cells.length > request.limit
+    || pageEnd > page.totalLength
+    || (request.offset === 0 && page.cells[0]?.cellKey !== request.originCellKey)
+    || (page.complete && page.cells.at(-1)?.cellKey !== request.destinationCellKey)
+    || (page.complete
+      ? pageEnd !== page.totalLength
+      : page.nextOffset !== pageEnd || page.nextOffset <= request.offset)
+  ) fail('GREATER_REALM_ROUTE_PLAN_RESPONSE_MISMATCH');
 }
 
 export function createGreaterRealmWindowRequest(

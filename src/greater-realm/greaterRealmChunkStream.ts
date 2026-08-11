@@ -60,12 +60,17 @@ export type CreateGreaterRealmChunkStreamOptions = Readonly<{
   onError?: (chunkHandle: string, error: unknown) => void;
 }>;
 
-type Demand = Readonly<{ priority: number; lod: GreaterRealmLod }>;
-type Operation = Readonly<{ controller: AbortController; lod: GreaterRealmLod }>;
+type Demand = Readonly<{ priority: number; lod: GreaterRealmLod; revision: bigint }>;
+type Operation = Readonly<{
+  controller: AbortController;
+  lod: GreaterRealmLod;
+  revision: bigint;
+}>;
 type DecodeQueueEntry = Readonly<{
   chunkHandle: string;
   priority: number;
   lod: GreaterRealmLod;
+  revision: bigint;
   raw: unknown;
   controller: AbortController;
 }>;
@@ -93,7 +98,7 @@ export function createGreaterRealmChunkStream(
   const graphics = GREATER_REALM_GRAPHICS_BUDGETS[options.graphicsProfile];
   const decodeChunk = options.decodeChunk ?? ((value: unknown) => decodeGreaterRealmChunkDto(value));
   let disposed = false;
-  let revision = 0n;
+  let revision: bigint | undefined;
   let touchSequence = 0;
   let residentCellCount = 0;
   let peakFetchConcurrency = 0;
@@ -112,7 +117,10 @@ export function createGreaterRealmChunkStream(
   const alreadyResident = (handle: string) => {
     const entry = resident.get(handle);
     const demand = desired.get(handle);
-    return entry !== undefined && demand !== undefined && entry.chunk.lod === demand.lod;
+    return entry !== undefined
+      && demand !== undefined
+      && entry.chunk.lod === demand.lod
+      && entry.chunk.revision === demand.revision;
   };
   const pendingFetch = () => [...desired.keys()].some((handle) => (
     !alreadyResident(handle)
@@ -156,6 +164,10 @@ export function createGreaterRealmChunkStream(
   };
 
   const store = (chunk: GreaterRealmChunkDto) => {
+    // Treat onChunkReady as a synchronous validator before committing the
+    // resident entry. A throwing descriptor check is retryable and cannot
+    // leave an invalid chunk satisfying future demand.
+    options.onChunkReady?.(chunk);
     const previous = resident.get(chunk.chunkHandle);
     if (previous) {
       residentCellCount -= previous.chunk.coreCells.length + previous.chunk.apronCells.length;
@@ -163,16 +175,18 @@ export function createGreaterRealmChunkStream(
     resident.set(chunk.chunkHandle, { chunk, touched: ++touchSequence });
     residentCellCount += chunk.coreCells.length + chunk.apronCells.length;
     enforceLru(chunk.chunkHandle);
-    if (resident.has(chunk.chunkHandle)) options.onChunkReady?.(chunk);
   };
 
   const operationActive = (
     handle: string,
     lod: GreaterRealmLod,
+    expectedRevision: bigint,
     controller: AbortController
   ) => (
     !disposed
     && desired.get(handle)?.lod === lod
+    && desired.get(handle)?.revision === expectedRevision
+    && revision === expectedRevision
     && !controller.signal.aborted
   );
 
@@ -183,20 +197,31 @@ export function createGreaterRealmChunkStream(
         left.priority - right.priority || left.chunkHandle.localeCompare(right.chunkHandle)
       ));
       const entry = decodeQueue.shift()!;
-      if (!operationActive(entry.chunkHandle, entry.lod, entry.controller)) continue;
+      if (!operationActive(
+        entry.chunkHandle,
+        entry.lod,
+        entry.revision,
+        entry.controller
+      )) continue;
       decoding.set(entry.chunkHandle, Object.freeze({
         controller: entry.controller,
-        lod: entry.lod
+        lod: entry.lod,
+        revision: entry.revision
       }));
       peakDecodeConcurrency = Math.max(peakDecodeConcurrency, decoding.size);
       void Promise.resolve()
         .then(() => decodeChunk(entry.raw, entry.controller.signal))
         .then((chunk) => {
-          if (!operationActive(entry.chunkHandle, entry.lod, entry.controller)) return;
+          if (!operationActive(
+            entry.chunkHandle,
+            entry.lod,
+            entry.revision,
+            entry.controller
+          )) return;
           if (
             chunk.chunkHandle !== entry.chunkHandle
             || chunk.lod !== entry.lod
-            || chunk.revision !== revision
+            || chunk.revision !== entry.revision
           ) throw new Error('GREATER_REALM_CHUNK_RESPONSE_MISMATCH');
           store(chunk);
         })
@@ -234,20 +259,30 @@ export function createGreaterRealmChunkStream(
       if (!row) break;
       const [chunkHandle, demand] = row;
       const controller = new AbortController();
-      fetching.set(chunkHandle, Object.freeze({ controller, lod: demand.lod }));
+      fetching.set(chunkHandle, Object.freeze({
+        controller,
+        lod: demand.lod,
+        revision: demand.revision
+      }));
       peakFetchConcurrency = Math.max(peakFetchConcurrency, fetching.size);
       const request = createGreaterRealmChunkRequest({
         chunkHandle,
         lod: demand.lod,
-        expectedRevision: revision
+        expectedRevision: demand.revision
       });
       void options.fetchChunk(request, controller.signal)
         .then((raw) => {
-          if (!operationActive(chunkHandle, demand.lod, controller)) return;
+          if (!operationActive(
+            chunkHandle,
+            demand.lod,
+            demand.revision,
+            controller
+          )) return;
           decodeQueue.push(Object.freeze({
             chunkHandle,
             priority: demand.priority,
             lod: demand.lod,
+            revision: demand.revision,
             raw,
             controller
           }));
@@ -267,15 +302,21 @@ export function createGreaterRealmChunkStream(
     settleIdle();
   }
 
-  const cancelStale = (keep: ReadonlyMap<string, GreaterRealmLod> = new Map()) => {
+  const cancelStale = (keep: ReadonlyMap<string, Demand> = new Map()) => {
     const cancel = (handle: string, operation: Operation) => {
-      if (keep.get(handle) !== operation.lod) operation.controller.abort(abortError());
+      const demand = keep.get(handle);
+      if (
+        !demand
+        || demand.lod !== operation.lod
+        || demand.revision !== operation.revision
+      ) operation.controller.abort(abortError());
     };
     fetching.forEach((operation, handle) => cancel(handle, operation));
     decoding.forEach((operation, handle) => cancel(handle, operation));
     for (let index = decodeQueue.length - 1; index >= 0; index -= 1) {
       const entry = decodeQueue[index]!;
-      if (keep.get(entry.chunkHandle) === entry.lod) continue;
+      const demand = keep.get(entry.chunkHandle);
+      if (demand?.lod === entry.lod && demand.revision === entry.revision) continue;
       entry.controller.abort(abortError());
       decodeQueue.splice(index, 1);
     }
@@ -311,8 +352,12 @@ export function createGreaterRealmChunkStream(
           lod: 0,
           expectedRevision: nextWorldRevision
         }).expectedRevision;
-      const keep = new Map(bounded.map((row) => [row.chunkHandle, row.lod] as const));
-      if (revision !== 0n && revision !== nextRevision) {
+      const keep = new Map(bounded.map((row) => [row.chunkHandle, Object.freeze({
+        priority: row.priority,
+        lod: row.lod,
+        revision: row.revision
+      })] as const));
+      if (revision !== undefined && revision !== nextRevision) {
         cancelStale();
         for (const handle of [...resident.keys()]) evict(handle);
       } else {
@@ -322,11 +367,15 @@ export function createGreaterRealmChunkStream(
       desired.clear();
       bounded.forEach((row) => desired.set(row.chunkHandle, Object.freeze({
         priority: row.priority,
-        lod: row.lod
+        lod: row.lod,
+        revision: row.revision
       })));
       for (const [handle, entry] of resident) {
         const demand = desired.get(handle);
-        if (demand && demand.lod !== entry.chunk.lod) evict(handle);
+        if (demand && (
+          demand.lod !== entry.chunk.lod
+          || demand.revision !== entry.chunk.revision
+        )) evict(handle);
       }
       failed.clear();
       pumpDecode();
@@ -334,7 +383,10 @@ export function createGreaterRealmChunkStream(
     },
     getChunk: (chunkHandle) => {
       const entry = resident.get(chunkHandle);
-      if (!entry) return undefined;
+      if (!entry || revision === undefined || entry.chunk.revision !== revision) {
+        if (entry) evict(chunkHandle);
+        return undefined;
+      }
       entry.touched = ++touchSequence;
       return entry.chunk;
     },

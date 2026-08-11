@@ -100,6 +100,31 @@ export type GreaterRealmActorAllowance = Readonly<{
   flowerLayer: boolean;
 }>;
 
+/**
+ * Actual BufferGeometry byte sizes for the fixed Three.js primitives used by
+ * the scene runtime, including positions, normals, UVs, and indices. Dynamic
+ * instance matrices/colors are accounted separately below.
+ */
+const STATIC_GEOMETRY_BYTES = Object.freeze({
+  crossing: 840,
+  canopy: 796,
+  grass: 516,
+  flower: 656,
+  npc: 1_208,
+  wildlife: 840,
+  boat: 840,
+  resource: 768
+});
+
+const POINTY_TOP_SIDE_CORNER_INDICES = Object.freeze([
+  Object.freeze([1, 2] as const),
+  Object.freeze([0, 1] as const),
+  Object.freeze([5, 0] as const),
+  Object.freeze([4, 5] as const),
+  Object.freeze([3, 4] as const),
+  Object.freeze([2, 3] as const)
+]);
+
 function stableUnit(cell: GreaterRealmPublicCellDto, channel: number) {
   let value = cell.presentationVariant ^ Math.imul(channel + 1, 0x9e3779b1);
   value ^= value >>> 16;
@@ -281,19 +306,18 @@ function sealedEdges(cells: readonly GreaterRealmPublicCellDto[], cellSize: numb
     const center = cellPosition(cell, cellSize);
     for (let direction = 0; direction < 6; direction += 1) {
       if ((cell.sealedBoundaryMask & (1 << direction)) === 0) continue;
-      const angle = Math.PI / 180 * (60 * direction - 30);
-      const next = Math.PI / 180 * (60 * (direction + 1) - 30);
+      const corners = POINTY_TOP_SIDE_CORNER_INDICES[direction]!;
+      const point = (corner: number) => {
+        const angle = -Math.PI / 2 + Math.PI * 2 * corner / 6;
+        return Object.freeze({
+          x: center.x + Math.cos(angle) * cellSize,
+          y: center.y,
+          z: center.z + Math.sin(angle) * cellSize
+        });
+      };
       output.push(Object.freeze({
-        from: Object.freeze({
-          x: center.x + Math.cos(angle) * cellSize * 0.99,
-          y: center.y,
-          z: center.z + Math.sin(angle) * cellSize * 0.99
-        }),
-        to: Object.freeze({
-          x: center.x + Math.cos(next) * cellSize * 0.99,
-          y: center.y,
-          z: center.z + Math.sin(next) * cellSize * 0.99
-        })
+        from: point(corners[0]),
+        to: point(corners[1])
       }));
     }
   }
@@ -446,13 +470,19 @@ export function createGreaterRealmChunkPresentationPlan(input: Readonly<{
     + actorKinds.size
     + resourceKinds.size;
   const instanceCount = actors.length + routes.crossings.length + resources.length;
+  // Exact-or-conservative GPU buffer accounting for the current Three scene:
+  // custom geometry attributes, static primitive attributes/indices, instance
+  // matrices/colors, and the separately reviewed flower geometry allowance.
   const estimatedUploadBytes = cells.length * 648
-    + waterCells.length * 360
+    + waterCells.length * 432
     + routes.segments.length * 48
-    + routes.crossings.length * 96
-    + boundaries.length * 96
-    + actors.length * 96
-    + resources.length * 96
+    + routes.crossings.length * 76
+    + (routes.crossings.length > 0 ? STATIC_GEOMETRY_BYTES.crossing : 0)
+    + boundaries.length * 144
+    + actors.length * 64
+    + [...actorKinds].reduce((total, kind) => total + STATIC_GEOMETRY_BYTES[kind], 0)
+    + resources.length * 64
+    + resourceKinds.size * STATIC_GEOMETRY_BYTES.resource
     + flowerGeometryBytes;
   return Object.freeze({
     chunkHandle: input.chunk.chunkHandle,

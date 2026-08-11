@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
+import * as THREE from 'three';
 
 import { GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE } from '../src/dev/greaterRealmSyntheticTierOneFixture';
 import { createGreaterRealmSceneRuntime } from '../src/greater-realm/createGreaterRealmSceneRuntime';
+import { createGreaterRealmChunkPresentationPlan } from '../src/greater-realm/greaterRealmPresentationPlan';
 import {
   GREATER_REALM_AMBIENCE_CLASS,
   GREATER_REALM_TRAVEL_CLASS,
@@ -51,11 +53,11 @@ function shiftedChunk(ordinal: number) {
   return decodeGreaterRealmChunkDto(raw);
 }
 
-function largeWaterChunk(ordinal: number) {
-  const base = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[1].coreCells[0]!;
+function oceanChunk(ordinal: number) {
+  const base = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[1].coreCells[4]!;
   const chunkHandle = handle(500 + ordinal);
   const apronOwner = handle(700 + ordinal);
-  const cells = Array.from({ length: 350 }, (_, index) => {
+  const cells = Array.from({ length: 243 }, (_, index) => {
     const atlasQ = ordinal * 1_000 + index % 25;
     const atlasR = Math.trunc(index / 25);
     return {
@@ -66,6 +68,7 @@ function largeWaterChunk(ordinal: number) {
       atlasR,
       travelClass: GREATER_REALM_TRAVEL_CLASS.NONE,
       ambienceClass: GREATER_REALM_AMBIENCE_CLASS.NONE,
+      sealedBoundaryMask: 0,
       canopyBasisPoints: 0,
       groundcoverBasisPoints: 0,
       wildflowerBasisPoints: 0,
@@ -82,6 +85,30 @@ function largeWaterChunk(ordinal: number) {
     apronCells: cells.slice(225),
     resourceLocations: []
   });
+}
+
+function geometryUploadBytes(root: THREE.Object3D) {
+  const geometries = new Set<THREE.BufferGeometry>();
+  let bytes = 0;
+  root.traverse((object) => {
+    const renderable = object as THREE.Mesh;
+    if (renderable.geometry instanceof THREE.BufferGeometry) {
+      geometries.add(renderable.geometry);
+    }
+    if (object instanceof THREE.InstancedMesh) {
+      bytes += object.instanceMatrix.array.byteLength;
+      bytes += object.instanceColor?.array.byteLength ?? 0;
+    }
+  });
+  geometries.forEach((geometry) => {
+    Object.values(geometry.attributes).forEach((attribute) => {
+      bytes += (attribute.array as ArrayBufferView).byteLength;
+    });
+    bytes += geometry.index
+      ? (geometry.index.array as ArrayBufferView).byteLength
+      : 0;
+  });
+  return bytes;
 }
 
 describe('Greater Realm scene runtime', () => {
@@ -106,6 +133,9 @@ describe('Greater Realm scene runtime', () => {
     );
     expect(telemetry.uploadBytesThisFrame).toBeLessThanOrEqual(
       telemetry.maximumUploadBytesPerFrame
+    );
+    expect(geometryUploadBytes(runtime.group)).toBeLessThanOrEqual(
+      telemetry.uploadBytesThisFrame
     );
     expect(runtime.isCoordinatePassable({ atlasQ: 0, atlasR: 0 })).toBe(true);
     expect(runtime.isCoordinatePassable({ atlasQ: 2, atlasR: -1 })).toBe(false);
@@ -141,6 +171,34 @@ describe('Greater Realm scene runtime', () => {
     expect(runtime.getTelemetry().contextLost).toBe(false);
     runtime.flushUploads();
     expect(runtime.getTelemetry().uploadedChunkCount).toBe(2);
+    runtime.dispose();
+  });
+
+  it('resolves a detached canvas loss when a fresh canvas is bound', () => {
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'desktop',
+      graphicsProfile: 'high'
+    });
+    const lostCanvas = document.createElement('canvas');
+    runtime.bindCanvas(lostCanvas);
+    runtime.setView({ revision: 1n, cellSize: 1, chunks: viewChunks() });
+    runtime.flushUploads();
+    lostCanvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+    expect(runtime.getTelemetry()).toMatchObject({
+      contextLost: true,
+      uploadedChunkCount: 0,
+      pendingUploadCount: 2
+    });
+    expect(runtime.update(2)).toBe(false);
+
+    runtime.bindCanvas(document.createElement('canvas'));
+    expect(runtime.getTelemetry().contextLost).toBe(false);
+    expect(runtime.flushUploads()).toBe(2);
+    expect(runtime.getTelemetry()).toMatchObject({
+      uploadedChunkCount: 2,
+      pendingUploadCount: 0
+    });
+    expect(runtime.update(2)).toBe(true);
     runtime.dispose();
   });
 
@@ -186,19 +244,32 @@ describe('Greater Realm scene runtime', () => {
     runtime.dispose();
   });
 
-  it('cannot exceed the Balanced byte cap across two queued uploads', () => {
+  it('accounts every GPU buffer before a 2x243-ocean Balanced upload', () => {
     const runtime = createGreaterRealmSceneRuntime({
       deviceClass: 'desktop',
       graphicsProfile: 'balanced'
     });
-    const chunks = [largeWaterChunk(0), largeWaterChunk(1)].map((chunk, index) => ({
+    const oceanChunks = [oceanChunk(0), oceanChunk(1)];
+    const plans = oceanChunks.map((chunk) => createGreaterRealmChunkPresentationPlan({
+      chunk,
+      graphicsProfile: 'balanced',
+      cellSize: 1
+    }));
+    expect(plans.map((plan) => plan.estimatedUploadBytes)).toEqual([262_440, 262_440]);
+    expect(plans.reduce((total, plan) => total + plan.estimatedUploadBytes, 0)).toBe(524_880);
+    expect(GREATER_REALM_GRAPHICS_BUDGETS.balanced.maximumUploadBytesPerFrame).toBe(524_288);
+
+    const chunks = oceanChunks.map((chunk, index) => ({
       chunk,
       distanceChunks: index
     }));
     runtime.setView({ revision: 1n, cellSize: 1, chunks });
     expect(runtime.getTelemetry().pendingUploadCount).toBe(2);
     expect(runtime.flushUploads()).toBe(1);
-    expect(runtime.getTelemetry().uploadBytesThisFrame).toBeLessThanOrEqual(524_288);
+    const firstFrame = runtime.getTelemetry();
+    expect(firstFrame.uploadBytesThisFrame).toBe(262_440);
+    expect(firstFrame.uploadBytesThisFrame).toBeLessThanOrEqual(524_288);
+    expect(geometryUploadBytes(runtime.group)).toBeLessThanOrEqual(firstFrame.uploadBytesThisFrame);
     expect(runtime.getTelemetry().pendingUploadCount).toBe(1);
     expect(runtime.flushUploads()).toBe(1);
     expect(runtime.getTelemetry().uploadBytesThisFrame).toBeLessThanOrEqual(524_288);

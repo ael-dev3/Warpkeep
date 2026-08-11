@@ -6,10 +6,12 @@ import {
   createGreaterRealmSyntheticTransport
 } from '../src/dev/greaterRealmSyntheticTierOneFixture';
 import {
+  GREATER_REALM_PUBLIC_LIMITS,
   GREATER_REALM_TRAVEL_CLASS,
   GreaterRealmPublicContractError,
   assertGreaterRealmChunkMatchesDescriptor,
   assertGreaterRealmMonotonicLodChunks,
+  assertGreaterRealmRoutePageMatchesRequest,
   decodeGreaterRealmBootstrapDto,
   decodeGreaterRealmChunkDto,
   decodeGreaterRealmRoutePageDto,
@@ -123,6 +125,32 @@ describe('Greater Realm public runtime contract', () => {
     );
   });
 
+  it('rejects hostile raw array cardinality before decoding any element', () => {
+    for (const field of ['coreCells', 'apronCells', 'resourceLocations'] as const) {
+      const hostile = mutable(
+        GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[0]
+      ) as any;
+      let traversed = false;
+      const sparse = new Array(0xffff_ffff);
+      const guarded = new Proxy(sparse, {
+        get: (target, property, receiver) => {
+          if (property === 'map' || property === '0') {
+            traversed = true;
+            throw new Error('HOSTILE_ARRAY_TRAVERSED');
+          }
+          return Reflect.get(target, property, receiver);
+        }
+      });
+      hostile[field] = guarded;
+      expect(() => decodeGreaterRealmChunkDto(hostile)).toThrow(
+        'GREATER_REALM_CHUNK_INVALID'
+      );
+      expect(traversed).toBe(false);
+    }
+    expect(GREATER_REALM_PUBLIC_LIMITS.maximumChunkVisibleCells).toBe(384);
+    expect(GREATER_REALM_PUBLIC_LIMITS.maximumResourceLocations).toBe(128);
+  });
+
   it('trusts explicit passability for a river ford and never grants it implicitly', () => {
     const ford = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks
       .flatMap((chunk) => chunk.coreCells)
@@ -189,6 +217,37 @@ describe('Greater Realm public runtime contract', () => {
     expect(() => decodeGreaterRealmRoutePageDto(tooLong)).toThrow(
       'GREATER_REALM_ROUTE_PLAN_INVALID'
     );
+
+    const request = {
+      originCellKey: routeKeys[0]!,
+      destinationCellKey: routeKeys.at(-1)!,
+      offset: 0,
+      limit: 3,
+      expectedRevision: GREATER_REALM_SYNTHETIC_REVISION
+    } as const;
+    const incomplete = await transport.planRoute(request, signal);
+    expect(incomplete.complete).toBe(false);
+
+    const empty = mutable(incomplete) as any;
+    empty.cells = [];
+    empty.nextOffset = 0;
+    expect(() => decodeGreaterRealmRoutePageDto(empty)).toThrow(
+      'GREATER_REALM_ROUTE_PLAN_INVALID'
+    );
+
+    const stalled = mutable(incomplete) as any;
+    stalled.nextOffset = request.offset;
+    const decodedStalled = decodeGreaterRealmRoutePageDto(stalled);
+    expect(() => assertGreaterRealmRoutePageMatchesRequest(
+      decodedStalled,
+      request,
+      incomplete.atlasId
+    )).toThrow('GREATER_REALM_ROUTE_PLAN_RESPONSE_MISMATCH');
+    expect(() => assertGreaterRealmRoutePageMatchesRequest(
+      incomplete,
+      request,
+      'wrong-atlas'
+    )).toThrow('GREATER_REALM_ROUTE_PLAN_RESPONSE_MISMATCH');
   });
 
   it('keeps exact production procedure names fail-closed before v17 activation', async () => {

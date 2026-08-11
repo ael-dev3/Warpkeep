@@ -508,6 +508,15 @@ export function createGreaterRealmSceneRuntime(
     boundCanvas = canvas;
     boundCanvas?.addEventListener('webglcontextlost', handleContextLost);
     boundCanvas?.addEventListener('webglcontextrestored', handleContextRestored);
+    // A replacement canvas owns a fresh WebGL context. It will never emit the
+    // restoration event belonging to the detached canvas, so resolve the old
+    // loss explicitly and rebuild selected per-chunk resources on the new one.
+    if (!disposed && contextLost && boundCanvas !== null) {
+      contextLost = false;
+      queueAllSelected();
+      syncScheduler();
+      options.onInvalidate?.();
+    }
   };
 
   const telemetry = (): GreaterRealmSceneTelemetry => {
