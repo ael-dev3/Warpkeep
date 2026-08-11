@@ -501,7 +501,7 @@ function assertGreaterRealmConnectionAuthority(
 
 /**
  * Exact authenticated v17 player seam. It intentionally has no generic SDK
- * escape hatch: only the four reviewed public atlas procedures are callable,
+ * escape hatch: only the five reviewed public atlas procedures are callable,
  * and a stale provider generation can neither start nor publish a result.
  */
 export function createWarpkeepGreaterRealmProcedureInvoker(
@@ -529,6 +529,12 @@ export function createWarpkeepGreaterRealmProcedureInvoker(
             chunkHandle: input.chunkHandle as string,
             lod: input.lod as number,
             expectedRevision: input.expectedRevision as bigint
+          });
+          break;
+        case GREATER_REALM_PUBLIC_PROCEDURES.resourceLocations:
+          operation = connection.procedures.getRealmAtlasResourceLocationsV1({
+            expectedRevision: input.expectedRevision as bigint,
+            chunkHandles: input.chunkHandles as string[]
           });
           break;
         case GREATER_REALM_PUBLIC_PROCEDURES.planRoute:

@@ -162,5 +162,6 @@ export {
   getRealmAtlasBootstrapV1,
   getRealmAtlasWindowV1,
   getRealmAtlasChunkV1,
+  getRealmAtlasResourceLocationsV1,
   planRealmRouteV1,
 } from './reducers/greaterRealm';

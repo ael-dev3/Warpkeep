@@ -1,11 +1,15 @@
 import {
   assertGreaterRealmChunkMatchesDescriptor,
+  assertGreaterRealmResourceLocationBatchMatchesRequest,
   createGreaterRealmRoutePlanRequest,
   createGreaterRealmWindowRequest,
+  GREATER_REALM_PUBLIC_LIMITS,
   type GreaterRealmBootstrapDto,
   type GreaterRealmChunkDto,
   type GreaterRealmLod,
+  type GreaterRealmResourceKind,
   type GreaterRealmRoutePageDto,
+  type GreaterRealmResourceLocationSummaryDto,
   type GreaterRealmWindowChunkDto,
   type GreaterRealmWindowDto
 } from './greaterRealmPublicContract';
@@ -21,6 +25,30 @@ import {
 import type { GreaterRealmPublicTransport } from './greaterRealmTransport';
 
 export const GREATER_REALM_CLIENT_CELL_SIZE = 1 as const;
+export const GREATER_REALM_RESOURCE_AFFORDANCES_PER_KIND = 6 as const;
+export const GREATER_REALM_MAXIMUM_RESOURCE_AFFORDANCES = 24 as const;
+
+/**
+ * The server orders locations by caller-relative distance. Retaining that
+ * order while taking at most six of each kind gives small clients a stable,
+ * balanced control surface without recomputing or exposing private topology.
+ */
+export function selectGreaterRealmResourceAffordances(
+  locations: readonly GreaterRealmResourceLocationSummaryDto[]
+): readonly GreaterRealmResourceLocationSummaryDto[] {
+  const counts: Record<GreaterRealmResourceKind, number> = {
+    food: 0,
+    wood: 0,
+    stone: 0,
+    gold: 0
+  };
+  return Object.freeze(locations.filter((location) => {
+    const count = counts[location.resourceKind];
+    if (count >= GREATER_REALM_RESOURCE_AFFORDANCES_PER_KIND) return false;
+    counts[location.resourceKind] = count + 1;
+    return true;
+  }));
+}
 
 export type GreaterRealmClientPhase =
   | 'idle'
@@ -37,6 +65,12 @@ export type GreaterRealmClientFailureReason =
   | 'bootstrap-failed'
   | 'window-failed'
   | 'chunk-load-failed';
+
+export type GreaterRealmResourceLocationPhase =
+  | 'idle'
+  | 'loading'
+  | 'ready'
+  | 'failed';
 
 export type GreaterRealmClientViewRequest = Readonly<{
   centerQ: number;
@@ -68,6 +102,9 @@ export type GreaterRealmClientSnapshot = Readonly<{
   view?: GreaterRealmClientViewRequest;
   chunks: readonly GreaterRealmClientViewChunk[];
   selectedChunkCount: number;
+  resourceLocationPhase: GreaterRealmResourceLocationPhase;
+  resourceLocations: readonly GreaterRealmResourceLocationSummaryDto[];
+  resourceLocationsTruncated: boolean;
   stream: GreaterRealmChunkStreamSnapshot;
   failureReason?: GreaterRealmClientFailureReason;
 }>;
@@ -160,12 +197,16 @@ export function createGreaterRealmClientRuntime(
   let windowDto: GreaterRealmWindowDto | undefined;
   let view: GreaterRealmClientViewRequest | undefined;
   let selectedDescriptors: readonly GreaterRealmWindowChunkDto[] = Object.freeze([]);
+  let resourceLocationPhase: GreaterRealmResourceLocationPhase = 'idle';
+  let resourceLocations: readonly GreaterRealmResourceLocationSummaryDto[] = Object.freeze([]);
+  let resourceLocationsTruncated = false;
   let snapshot: GreaterRealmClientSnapshot;
   let requestSequence = 0;
   let releaseSequence = 0;
   let bootstrapController: AbortController | undefined;
   let bootstrapPromise: Promise<GreaterRealmBootstrapDto> | undefined;
   let windowController: AbortController | undefined;
+  let resourceLocationController: AbortController | undefined;
   let routeController: AbortController | undefined;
   const loaded = new Map<string, GreaterRealmChunkDto>();
   const listeners = new Set<(value: GreaterRealmClientSnapshot) => void>();
@@ -228,6 +269,9 @@ export function createGreaterRealmClientRuntime(
       ...(view === undefined ? {} : { view }),
       chunks: currentChunks(),
       selectedChunkCount: selectedDescriptors.length,
+      resourceLocationPhase,
+      resourceLocations,
+      resourceLocationsTruncated,
       stream: stream.getSnapshot(),
       ...(failureReason === undefined ? {} : { failureReason })
     });
@@ -259,10 +303,14 @@ export function createGreaterRealmClientRuntime(
       || reason === 'window-failed'
     ) {
       windowController?.abort(cancellation('GREATER_REALM_GENERATION_REPLACED'));
+      resourceLocationController?.abort(cancellation('GREATER_REALM_GENERATION_REPLACED'));
       routeController?.abort(cancellation('GREATER_REALM_GENERATION_REPLACED'));
       windowDto = undefined;
       loaded.clear();
       selectedDescriptors = Object.freeze([]);
+      resourceLocationPhase = 'idle';
+      resourceLocations = Object.freeze([]);
+      resourceLocationsTruncated = false;
       stream.setDesired(bootstrap?.revision ?? 0n, []);
     }
     publish();
@@ -346,7 +394,12 @@ export function createGreaterRealmClientRuntime(
     const normalizedView = normalizeView(requestedView);
     const sequence = ++requestSequence;
     windowController?.abort(cancellation('GREATER_REALM_WINDOW_SUPERSEDED'));
+    resourceLocationController?.abort(cancellation('GREATER_REALM_WINDOW_SUPERSEDED'));
     windowController = undefined;
+    resourceLocationController = undefined;
+    resourceLocationPhase = 'idle';
+    resourceLocations = Object.freeze([]);
+    resourceLocationsTruncated = false;
     try {
       const release = await ensureBootstrap();
       if (disposed || sequence !== requestSequence) return snapshot;
@@ -380,6 +433,63 @@ export function createGreaterRealmClientRuntime(
       view = normalizedView;
       selectedDescriptors = selected;
       loaded.clear();
+      const resourceHandles = selected
+        .slice(0, GREATER_REALM_PUBLIC_LIMITS.maximumResourceLocationChunkHandles)
+        .map(descriptor => descriptor.chunkHandle);
+      if (resourceHandles.length === 0) {
+        resourceLocationPhase = 'ready';
+      } else {
+        const resourceController = new AbortController();
+        resourceLocationController = resourceController;
+        resourceLocationPhase = 'loading';
+        const resourceRequest = Object.freeze({
+          expectedRevision: release.revision,
+          chunkHandles: Object.freeze(resourceHandles)
+        });
+        void Promise.resolve().then(() => options.transport.getResourceLocations(
+          resourceRequest,
+          resourceController.signal
+        )).then((batch) => {
+          if (
+            disposed
+            || sequence !== requestSequence
+            || resourceController.signal.aborted
+            || !options.isSessionCurrent()
+          ) return;
+          assertSessionCurrent();
+          assertGreaterRealmResourceLocationBatchMatchesRequest(
+            batch,
+            resourceRequest,
+            release.atlasId,
+            selected
+          );
+          const affordances = selectGreaterRealmResourceAffordances(
+            batch.resourceLocations
+          );
+          resourceLocations = affordances;
+          resourceLocationsTruncated = batch.truncated
+            || batch.resourceLocations.length > affordances.length
+            || selected.length > resourceHandles.length;
+          resourceLocationPhase = 'ready';
+          publish();
+        }).catch((error: unknown) => {
+          if (
+            disposed
+            || sequence !== requestSequence
+            || isCancellation(error)
+            || resourceController.signal.aborted
+            || !options.isSessionCurrent()
+          ) return;
+          resourceLocations = Object.freeze([]);
+          resourceLocationsTruncated = false;
+          resourceLocationPhase = 'failed';
+          publish();
+        }).finally(() => {
+          if (resourceLocationController === resourceController) {
+            resourceLocationController = undefined;
+          }
+        });
+      }
       phase = 'streaming-chunks';
       failureReason = undefined;
       stream.setDesired(release.revision, selected.map((descriptor) => ({
@@ -409,15 +519,20 @@ export function createGreaterRealmClientRuntime(
     releaseSequence += 1;
     bootstrapController?.abort(cancellation('GREATER_REALM_RELEASE_REFRESHED'));
     windowController?.abort(cancellation('GREATER_REALM_RELEASE_REFRESHED'));
+    resourceLocationController?.abort(cancellation('GREATER_REALM_RELEASE_REFRESHED'));
     routeController?.abort(cancellation('GREATER_REALM_RELEASE_REFRESHED'));
     bootstrapController = undefined;
     bootstrapPromise = undefined;
     windowController = undefined;
+    resourceLocationController = undefined;
     routeController = undefined;
     bootstrap = undefined;
     windowDto = undefined;
     selectedDescriptors = Object.freeze([]);
     loaded.clear();
+    resourceLocationPhase = 'idle';
+    resourceLocations = Object.freeze([]);
+    resourceLocationsTruncated = false;
     stream.setDesired(0n, []);
     phase = 'idle';
     failureReason = undefined;
@@ -483,14 +598,19 @@ export function createGreaterRealmClientRuntime(
     releaseSequence += 1;
     bootstrapController?.abort(cancellation('GREATER_REALM_CLIENT_DISPOSED'));
     windowController?.abort(cancellation('GREATER_REALM_CLIENT_DISPOSED'));
+    resourceLocationController?.abort(cancellation('GREATER_REALM_CLIENT_DISPOSED'));
     routeController?.abort(cancellation('GREATER_REALM_CLIENT_DISPOSED'));
     bootstrapController = undefined;
     windowController = undefined;
+    resourceLocationController = undefined;
     routeController = undefined;
     bootstrapPromise = undefined;
     stream.dispose();
     loaded.clear();
     selectedDescriptors = Object.freeze([]);
+    resourceLocationPhase = 'idle';
+    resourceLocations = Object.freeze([]);
+    resourceLocationsTruncated = false;
     phase = 'disposed';
     failureReason = undefined;
     publish();

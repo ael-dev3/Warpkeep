@@ -2191,6 +2191,7 @@ for (const name of [
   'get_realm_atlas_bootstrap_v1',
   'get_realm_atlas_window_v1',
   'get_realm_atlas_chunk_v1',
+  'get_realm_atlas_resource_locations_v1',
   'plan_realm_route_v1',
 ]) {
   warpkeep.moduleDef.explicitNames.entries.push({

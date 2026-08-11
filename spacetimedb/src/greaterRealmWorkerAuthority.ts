@@ -18,10 +18,12 @@ import {
 } from './greaterRealmCurrentAuthority';
 import {
   GREATER_REALM_MAX_ROUTE_DEPTH,
-  GREATER_REALM_MAX_RESOURCE_NODES_PER_LOCATION,
   GREATER_REALM_PUBLIC_REGIONS,
-  GREATER_REALM_UNASSIGNED_RANK,
 } from './greaterRealmV17Policy';
+import {
+  greaterRealmResourceLocationAuthorityErrorCode,
+  resolveGreaterRealmResourceLocationV1,
+} from './greaterRealmResourceLocationAuthority';
 import {
   formatGreaterRealmWorkerDispatchReceiptKindV2,
   greaterRealmWorkerCapacityDigestV1,
@@ -47,7 +49,6 @@ const AXIAL_DIRECTIONS = Object.freeze([
   Object.freeze([1, 0]), Object.freeze([1, -1]), Object.freeze([0, -1]),
   Object.freeze([-1, 0]), Object.freeze([-1, 1]), Object.freeze([0, 1]),
 ] as const);
-const U32_MAX = 0xffff_ffff;
 
 export class GreaterRealmWorkerAuthorityError extends Error {
   constructor(readonly code: string) {
@@ -64,7 +65,8 @@ function translatePolicyError(error: unknown): never {
   const code = greaterRealmWorkerPolicyErrorCode(error)
     ?? greaterRealmCurrentAuthorityErrorCode(error)
     ?? greaterRealmActivationPolicyErrorCode(error)
-    ?? greaterRealmActivationStateErrorCode(error);
+    ?? greaterRealmActivationStateErrorCode(error)
+    ?? greaterRealmResourceLocationAuthorityErrorCode(error);
   if (code !== undefined) fail(code);
   throw error;
 }
@@ -76,19 +78,6 @@ function sameTimestamp(
   return left === undefined
     ? right === undefined
     : right !== undefined && left.microsSinceUnixEpoch === right.microsSinceUnixEpoch;
-}
-
-function boundedRows<Row>(
-  rows: Iterable<Row>,
-  maximum: number,
-  code: string,
-): readonly Row[] {
-  const result: Row[] = [];
-  for (const row of rows) {
-    if (result.length >= maximum) fail(code);
-    result.push(row);
-  }
-  return Object.freeze(result);
 }
 
 export type GreaterRealmWorkerDispatchInputV2 = Readonly<{
@@ -320,78 +309,33 @@ export function resolveGreaterRealmWorkerDispatchTargetV2(
   validatedFingerprint = validateGreaterRealmWorkerDispatchInputV2(input),
 ): GreaterRealmWorkerDispatchTargetV2 {
   const { founder, activation, release, atlas } = requireActiveDispatchRoots(ctx, input);
-  const rows = [...boundedRows(
-    ctx.db.greaterRealmResourceNodeV1.locationId.filter(input.locationId),
-    GREATER_REALM_MAX_RESOURCE_NODES_PER_LOCATION,
-    'GREATER_REALM_WORKER_LOCATION_OVERSIZED',
-  )].sort((left, right) => left.releaseOrdinal - right.releaseOrdinal);
-  if (rows.length === 0) fail('GREATER_REALM_WORKER_LOCATION_UNAVAILABLE');
+  let resolved: ReturnType<typeof resolveGreaterRealmResourceLocationV1>;
+  try {
+    resolved = resolveGreaterRealmResourceLocationV1(
+      ctx,
+      activation.atlasId,
+      input.locationId,
+    );
+  } catch (error) {
+    return translatePolicyError(error);
+  }
+  const rows = resolved.rows;
   const first = rows[0]!;
-  const lastNodeOrdinal = first.nodeOrdinal + rows.length - 1;
-  const lastReleaseOrdinal = first.releaseOrdinal + rows.length - 1;
-  if (
-    !Number.isSafeInteger(first.nodeOrdinal)
-    || first.nodeOrdinal < 0
-    || first.nodeOrdinal > U32_MAX
-    || !Number.isSafeInteger(lastNodeOrdinal)
-    || lastNodeOrdinal > U32_MAX
-    || !Number.isSafeInteger(first.releaseOrdinal)
-    || first.releaseOrdinal < 0
-    || first.releaseOrdinal > U32_MAX
-    || !Number.isSafeInteger(lastReleaseOrdinal)
-    || lastReleaseOrdinal > U32_MAX
-  ) fail('GREATER_REALM_WORKER_LOCATION_INTEGRITY');
-  for (let index = 0; index < rows.length; index += 1) {
-    const row = rows[index]!;
-    const previous = rows[index - 1];
-    if (
-      row.atlasId !== activation.atlasId
-      || row.locationId !== input.locationId
-      || row.cellKey !== first.cellKey
-      || row.regionId !== first.regionId
-      || row.componentKey !== first.componentKey
-      || row.resourceKind !== input.resourceKind
-      || row.resourceKind !== first.resourceKind
-      || row.policyVersion !== first.policyVersion
-      || row.legacyCatalogId !== first.legacyCatalogId
-      || row.tier !== 1
-      || row.nodeOrdinal !== first.nodeOrdinal + index
-      || row.releaseOrdinal !== first.releaseOrdinal + index
-      || row.allocationRank !== GREATER_REALM_UNASSIGNED_RANK
-      || !row.active
-      || (previous !== undefined && (
-        row.releaseOrdinal !== previous.releaseOrdinal + 1
-        || row.nodeOrdinal !== previous.nodeOrdinal + 1
-      ))
-    ) fail('GREATER_REALM_WORKER_LOCATION_INTEGRITY');
+  if (resolved.resourceKind !== input.resourceKind) {
+    fail('GREATER_REALM_WORKER_LOCATION_INTEGRITY');
   }
   if (
     release.expectedResourceNodeCount <= 0
     || ctx.db.greaterRealmResourceNodeV1.count()
       !== BigInt(release.expectedResourceNodeCount)
   ) fail('GREATER_REALM_WORKER_RESOURCE_ROOT_INVALID');
-  const region = ctx.db.realmAtlasVisibleRegionV1.regionId.find(first.regionId);
-  const component = ctx.db.greaterRealmNavigationComponentV1.componentKey.find(first.componentKey);
-  const destination = ctx.db.greaterRealmCellV1.cellKey.find(first.cellKey);
+  const component = resolved.component;
+  const destination = resolved.destination;
   const origin = ctx.db.greaterRealmCellV1.cellKey.find(founder.castle.tileKey);
   if (
-    region === null
-    || component === null
-    || destination === null
-    || origin === null
+    origin === null
     || !GREATER_REALM_PUBLIC_REGIONS.some(candidate => candidate.id === first.regionId)
-    || !region.active
-    || region.atlasId !== activation.atlasId
-    || region.tier !== 1
-    || component.atlasId !== activation.atlasId
-    || !component.active
     || component.componentKey !== first.componentKey
-    || destination.atlasId !== activation.atlasId
-    || destination.cellKey !== first.cellKey
-    || destination.regionId !== first.regionId
-    || destination.componentKey !== first.componentKey
-    || destination.tier !== 1
-    || !destination.passable
     || origin.atlasId !== activation.atlasId
     || origin.cellKey !== founder.castle.tileKey
     || origin.componentKey !== first.componentKey

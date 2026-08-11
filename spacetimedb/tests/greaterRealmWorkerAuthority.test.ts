@@ -46,15 +46,26 @@ test('authenticated public input validation precedes receipt replay and every fr
 
 test('fresh target resolution uses the exact location index and first-free public capacity ordinal', () => {
   const authority = source('../src/greaterRealmWorkerAuthority.ts');
+  const shared = source('../src/greaterRealmResourceLocationAuthority.ts');
   assert.match(
-    authority,
-    /greaterRealmResourceNodeV1\.locationId\.filter\(input\.locationId\)/,
+    shared,
+    /greaterRealmResourceNodeV1\.locationId\.filter\(locationId\)/,
   );
-  assert.match(authority, /GREATER_REALM_MAX_RESOURCE_NODES_PER_LOCATION/);
-  assert.match(authority, /row\.nodeOrdinal !== first\.nodeOrdinal \+ index/);
-  assert.match(authority, /lastNodeOrdinal > U32_MAX/);
-  assert.match(authority, /lastReleaseOrdinal > U32_MAX/);
-  assert.match(authority, /row\.releaseOrdinal !== first\.releaseOrdinal \+ index/);
+  assert.match(authority, /resolveGreaterRealmResourceLocationV1\(/);
+  assert.match(authority, /return translatePolicyError\(error\)/);
+  assert.match(shared, /GREATER_REALM_MAX_RESOURCE_NODES_PER_LOCATION/);
+  assert.match(shared, /!Number\.isSafeInteger\(first\.nodeOrdinal\)/);
+  assert.match(shared, /first\.nodeOrdinal < 0/);
+  assert.match(shared, /first\.nodeOrdinal > U32_MAX/);
+  assert.match(shared, /!Number\.isSafeInteger\(first\.releaseOrdinal\)/);
+  assert.match(shared, /first\.releaseOrdinal < 0/);
+  assert.match(shared, /first\.releaseOrdinal > U32_MAX/);
+  assert.match(shared, /!Number\.isSafeInteger\(lastNodeOrdinal\)/);
+  assert.match(shared, /lastNodeOrdinal > U32_MAX/);
+  assert.match(shared, /!Number\.isSafeInteger\(lastReleaseOrdinal\)/);
+  assert.match(shared, /lastReleaseOrdinal > U32_MAX/);
+  assert.match(shared, /row\.nodeOrdinal !== first\.nodeOrdinal \+ index/);
+  assert.match(shared, /row\.releaseOrdinal !== first\.releaseOrdinal \+ index/);
   assert.match(authority, /occupiedCapacityOrdinals/);
   assert.match(authority, /selectGreaterRealmPublicCapacityLeaseV1\(\{/);
   assert.match(authority, /priorReceipt: null/);

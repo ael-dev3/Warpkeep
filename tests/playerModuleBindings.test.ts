@@ -116,6 +116,7 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).toContain("'get_realm_chat_recent_v1'")
     expect(playerBindings).toContain("'get_realm_atlas_bootstrap_v1'")
     expect(playerBindings).toContain("'get_realm_atlas_chunk_v1'")
+    expect(playerBindings).toContain("'get_realm_atlas_resource_locations_v1'")
     expect(playerBindings).toContain("'get_realm_atlas_window_v1'")
     expect(playerBindings).toContain("'plan_realm_route_v1'")
     expect(playerBindings).toContain("'dispatch_worker_v1'")
@@ -227,6 +228,7 @@ describe('player SpacetimeDB bindings', () => {
       'getMyWorkerRosterV1',
       'getRealmAtlasBootstrapV1',
       'getRealmAtlasChunkV1',
+      'getRealmAtlasResourceLocationsV1',
       'getRealmAtlasWindowV1',
       'getRealmChatHistoryV1',
       'getRealmChatRecentV1',

@@ -58,6 +58,7 @@ import * as GetMyWorkerControlStateV2Procedure from './module_bindings/get_my_wo
 import * as GetMyWorkerRosterV1Procedure from './module_bindings/get_my_worker_roster_v_1_procedure'
 import * as GetRealmAtlasBootstrapV1Procedure from './module_bindings/get_realm_atlas_bootstrap_v_1_procedure'
 import * as GetRealmAtlasChunkV1Procedure from './module_bindings/get_realm_atlas_chunk_v_1_procedure'
+import * as GetRealmAtlasResourceLocationsV1Procedure from './module_bindings/get_realm_atlas_resource_locations_v_1_procedure'
 import * as GetRealmAtlasWindowV1Procedure from './module_bindings/get_realm_atlas_window_v_1_procedure'
 import * as PlanRealmRouteV1Procedure from './module_bindings/plan_realm_route_v_1_procedure'
 import DispatchFoodExpeditionV1Reducer from './module_bindings/dispatch_food_expedition_v_1_reducer'
@@ -570,6 +571,11 @@ const proceduresSchema = __procedures(
     'get_realm_atlas_chunk_v1',
     GetRealmAtlasChunkV1Procedure.params,
     GetRealmAtlasChunkV1Procedure.returnType,
+  ),
+  __procedureSchema(
+    'get_realm_atlas_resource_locations_v1',
+    GetRealmAtlasResourceLocationsV1Procedure.params,
+    GetRealmAtlasResourceLocationsV1Procedure.returnType,
   ),
   __procedureSchema(
     'get_realm_atlas_window_v1',

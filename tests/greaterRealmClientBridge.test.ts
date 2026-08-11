@@ -124,6 +124,16 @@ function productionShapedWindowTransport(input: Readonly<{
         activeFetches -= 1;
       }
     },
+    getResourceLocations: async (request, signal) => {
+      if (signal.aborted) throw signal.reason;
+      return Object.freeze({
+        atlasId: GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.bootstrap.atlasId,
+        revision: request.expectedRevision,
+        chunkHandles: Object.freeze([...request.chunkHandles]),
+        truncated: false,
+        resourceLocations: Object.freeze([])
+      });
+    },
     planRoute: synthetic.planRoute
   });
 }
@@ -226,9 +236,18 @@ describe('Greater Realm client/provider bridge', () => {
     runtime.dispose();
   });
 
-  it('maps only the four reviewed procedures and rejects stale generations', async () => {
+  it('maps only the five reviewed procedures and rejects stale generations', async () => {
     let current = true;
     let resolvePending: ((value: unknown) => void) | undefined;
+    const resourceBatch = Object.freeze({
+      atlasId: GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.bootstrap.atlasId,
+      revision: GREATER_REALM_SYNTHETIC_REVISION,
+      chunkHandles: Object.freeze([
+        GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.window.chunks[0]!.chunkHandle
+      ]),
+      truncated: false,
+      resourceLocations: Object.freeze([])
+    });
     const procedures = {
       getRealmAtlasBootstrapV1: vi.fn(async () => (
         GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.bootstrap
@@ -239,6 +258,7 @@ describe('Greater Realm client/provider bridge', () => {
       getRealmAtlasChunkV1: vi.fn(async () => (
         GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[0]
       )),
+      getRealmAtlasResourceLocationsV1: vi.fn(async () => resourceBatch),
       planRealmRouteV1: vi.fn(async () => new Promise((resolve) => {
         resolvePending = resolve;
       }))
@@ -268,6 +288,14 @@ describe('Greater Realm client/provider bridge', () => {
       }),
       signal
     )).resolves.toBe(GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[0]);
+    await expect(invoker.call(
+      GREATER_REALM_PUBLIC_PROCEDURES.resourceLocations,
+      Object.freeze({
+        expectedRevision: 1n,
+        chunkHandles: resourceBatch.chunkHandles
+      }),
+      signal
+    )).resolves.toBe(resourceBatch);
     await expect(invoker.call(
       'admin_get_greater_realm_status_v1',
       Object.freeze({}),
@@ -410,6 +438,13 @@ describe('Greater Realm client/provider bridge', () => {
       }),
       getChunk: async (request, signal) => Object.freeze({
         ...await synthetic.getChunk({ ...request, expectedRevision: 1n }, signal),
+        revision
+      }),
+      getResourceLocations: async (request, signal) => Object.freeze({
+        ...await synthetic.getResourceLocations({
+          ...request,
+          expectedRevision: 1n
+        }, signal),
         revision
       }),
       planRoute: async (request, signal) => Object.freeze({

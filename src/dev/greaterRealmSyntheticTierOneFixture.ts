@@ -6,10 +6,12 @@ import {
   GREATER_REALM_RENDERER_CONTRACT_VERSION,
   GREATER_REALM_TRAVEL_CLASS,
   createGreaterRealmChunkRequest,
+  createGreaterRealmResourceLocationRequest,
   createGreaterRealmRoutePlanRequest,
   createGreaterRealmWindowRequest,
   decodeGreaterRealmBootstrapDto,
   decodeGreaterRealmChunkDto,
+  decodeGreaterRealmResourceLocationBatchDto,
   decodeGreaterRealmRoutePageDto,
   decodeGreaterRealmWindowDto,
   type GreaterRealmChunkDto,
@@ -223,7 +225,7 @@ function createChunk(source: SyntheticChunkSource, lod: GreaterRealmLod): Greate
     sourceCellCount: source.core.length,
     coreCells: source.core.filter((cell) => selected.has(cell.cellKey)),
     apronCells: source.apron.filter((cell) => selected.has(cell.cellKey)),
-    resourceLocations: [source.location]
+    resourceLocations: lod === 0 ? [source.location] : []
   });
 }
 
@@ -347,6 +349,34 @@ export function createGreaterRealmSyntheticTransport(): GreaterRealmPublicTransp
         throw new Error('GREATER_REALM_SYNTHETIC_CHUNK_UNAVAILABLE');
       }
       return createChunk(source, request.lod);
+    },
+    getResourceLocations: async (requested, signal) => {
+      const request = createGreaterRealmResourceLocationRequest(requested);
+      abortIfNeeded(signal);
+      if (request.expectedRevision !== GREATER_REALM_SYNTHETIC_REVISION) {
+        throw new Error('GREATER_REALM_SYNTHETIC_RESOURCE_LOCATIONS_UNAVAILABLE');
+      }
+      const resourceLocations = request.chunkHandles.flatMap((chunkHandle) => {
+        const source = sources.find((entry) => entry.handle === chunkHandle);
+        if (source === undefined) {
+          throw new Error('GREATER_REALM_SYNTHETIC_RESOURCE_LOCATIONS_UNAVAILABLE');
+        }
+        return createChunk(source, 0).resourceLocations.map((location) => ({
+          chunkHandle,
+          locationId: location.locationId,
+          atlasQ: location.atlasQ,
+          atlasR: location.atlasR,
+          resourceKind: location.resourceKind,
+          nodeCount: location.nodeCount
+        }));
+      });
+      return decodeGreaterRealmResourceLocationBatchDto({
+        atlasId: ATLAS_ID,
+        revision: GREATER_REALM_SYNTHETIC_REVISION,
+        chunkHandles: request.chunkHandles,
+        truncated: false,
+        resourceLocations
+      });
     },
     planRoute: async (requested, signal) => {
       const request = createGreaterRealmRoutePlanRequest(requested);

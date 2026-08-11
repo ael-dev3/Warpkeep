@@ -14,6 +14,10 @@ import {
   verifyGreaterRealmBatchV1,
 } from '../greaterRealmV17Authority';
 import {
+  GREATER_REALM_RESOURCE_LOCATION_MAX_CHUNK_HANDLES,
+  projectGreaterRealmResourceLocationBatchV1,
+} from '../greaterRealmResourceLocationAuthority';
+import {
   GREATER_REALM_MAX_ROUTE_DEPTH,
   GREATER_REALM_MAX_ROUTE_PAGE,
   GREATER_REALM_MAX_RESOURCE_NODES_PER_LOCATION,
@@ -233,6 +237,29 @@ const greaterRealmChunkProjectionV1 = t.object('GreaterRealmChunkProjectionV1', 
   resourceLocations: t.array(greaterRealmResourceLocationProjectionV1),
 });
 
+const greaterRealmResourceLocationSummaryV1 = t.object(
+  'GreaterRealmResourceLocationSummaryV1',
+  {
+    chunkHandle: t.string(),
+    locationId: t.string(),
+    atlasQ: t.i32(),
+    atlasR: t.i32(),
+    resourceKind: t.string(),
+    nodeCount: t.u32(),
+  },
+);
+
+const greaterRealmResourceLocationBatchV1 = t.object(
+  'GreaterRealmResourceLocationBatchV1',
+  {
+    atlasId: t.string(),
+    revision: t.u64(),
+    chunkHandles: t.array(t.string()),
+    truncated: t.bool(),
+    resourceLocations: t.array(greaterRealmResourceLocationSummaryV1),
+  },
+);
+
 const greaterRealmRoutePageV1 = t.object('GreaterRealmRoutePageV1', {
   atlasId: t.string(),
   revision: t.u64(),
@@ -274,7 +301,7 @@ function audit(
 function requireReadableAtlas(ctx: GreaterRealmReadContext, expectedRevision?: bigint) {
   let selected: NonNullable<ReturnType<typeof ctx.db.realmAtlasV1.atlasId.find>> | undefined;
   for (const row of ctx.db.realmAtlasV1.iter()) {
-    if (row.mode !== 'canary' && row.mode !== 'active') continue;
+    if (row.mode !== 'canary' && row.mode !== 'active' && row.mode !== 'halted') continue;
     if (selected !== undefined) unavailable();
     selected = row;
   }
@@ -770,6 +797,39 @@ export const getRealmAtlasChunkV1 = warpkeep.procedure(
         coreCells,
         apronCells,
         resourceLocations,
+      };
+    } catch {
+      return unavailable();
+    }
+  }),
+);
+
+export const getRealmAtlasResourceLocationsV1 = warpkeep.procedure(
+  { name: 'get_realm_atlas_resource_locations_v1' },
+  { expectedRevision: t.u64(), chunkHandles: t.array(t.string()) },
+  greaterRealmResourceLocationBatchV1,
+  (ctx, { expectedRevision, chunkHandles }) => ctx.withTx(tx => {
+    try {
+      const { castle } = requireGameplayPlayerV1(tx);
+      requireGreaterRealmSafeInteger(
+        chunkHandles.length,
+        1,
+        GREATER_REALM_RESOURCE_LOCATION_MAX_CHUNK_HANDLES,
+        'GREATER_REALM_RESOURCE_LOCATION_BATCH_INVALID',
+      );
+      const atlas = requireReadableAtlas(tx, expectedRevision);
+      const result = projectGreaterRealmResourceLocationBatchV1(
+        tx,
+        atlas,
+        castle,
+        chunkHandles,
+      );
+      return {
+        atlasId: result.atlasId,
+        revision: result.revision,
+        chunkHandles: [...result.chunkHandles],
+        truncated: result.truncated,
+        resourceLocations: result.resourceLocations.map(row => ({ ...row })),
       };
     } catch {
       return unavailable();

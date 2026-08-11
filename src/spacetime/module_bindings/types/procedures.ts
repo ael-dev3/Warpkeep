@@ -50,6 +50,7 @@ import * as GetMyWorkerControlStateV2Procedure from "../get_my_worker_control_st
 import * as GetMyWorkerRosterV1Procedure from "../get_my_worker_roster_v_1_procedure";
 import * as GetRealmAtlasBootstrapV1Procedure from "../get_realm_atlas_bootstrap_v_1_procedure";
 import * as GetRealmAtlasChunkV1Procedure from "../get_realm_atlas_chunk_v_1_procedure";
+import * as GetRealmAtlasResourceLocationsV1Procedure from "../get_realm_atlas_resource_locations_v_1_procedure";
 import * as GetRealmAtlasWindowV1Procedure from "../get_realm_atlas_window_v_1_procedure";
 import * as GetRealmChatHistoryV1Procedure from "../get_realm_chat_history_v_1_procedure";
 import * as GetRealmChatRecentV1Procedure from "../get_realm_chat_recent_v_1_procedure";
@@ -145,6 +146,8 @@ export type GetRealmAtlasBootstrapV1Args = __Infer<typeof GetRealmAtlasBootstrap
 export type GetRealmAtlasBootstrapV1Result = __Infer<typeof GetRealmAtlasBootstrapV1Procedure.returnType>;
 export type GetRealmAtlasChunkV1Args = __Infer<typeof GetRealmAtlasChunkV1Procedure.params>;
 export type GetRealmAtlasChunkV1Result = __Infer<typeof GetRealmAtlasChunkV1Procedure.returnType>;
+export type GetRealmAtlasResourceLocationsV1Args = __Infer<typeof GetRealmAtlasResourceLocationsV1Procedure.params>;
+export type GetRealmAtlasResourceLocationsV1Result = __Infer<typeof GetRealmAtlasResourceLocationsV1Procedure.returnType>;
 export type GetRealmAtlasWindowV1Args = __Infer<typeof GetRealmAtlasWindowV1Procedure.params>;
 export type GetRealmAtlasWindowV1Result = __Infer<typeof GetRealmAtlasWindowV1Procedure.returnType>;
 export type GetRealmChatHistoryV1Args = __Infer<typeof GetRealmChatHistoryV1Procedure.params>;

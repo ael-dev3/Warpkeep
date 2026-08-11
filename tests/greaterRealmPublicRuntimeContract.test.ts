@@ -12,8 +12,10 @@ import {
   assertGreaterRealmChunkMatchesDescriptor,
   assertGreaterRealmMonotonicLodChunks,
   assertGreaterRealmRoutePageMatchesRequest,
+  createGreaterRealmResourceLocationRequest,
   decodeGreaterRealmBootstrapDto,
   decodeGreaterRealmChunkDto,
+  decodeGreaterRealmResourceLocationBatchDto,
   decodeGreaterRealmRoutePageDto,
   decodeGreaterRealmWindowDto
 } from '../src/greater-realm/greaterRealmPublicContract';
@@ -46,6 +48,9 @@ describe('Greater Realm public runtime contract', () => {
   });
 
   it('seals bootstrap region identity, capacity, resources, and readable modes', () => {
+    const halted = mutable(GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.bootstrap) as any;
+    halted.mode = 'halted';
+    expect(decodeGreaterRealmBootstrapDto(halted).mode).toBe('halted');
     for (const mutate of [
       (row: any) => { row.regions[0].publicName = 'Lookalike'; },
       (row: any) => { row.regions[0].castleCapacity = 99; row.castleCapacity = 599; },
@@ -151,6 +156,51 @@ describe('Greater Realm public runtime contract', () => {
     expect(GREATER_REALM_PUBLIC_LIMITS.maximumResourceLocations).toBe(128);
   });
 
+  it('seals the bounded resource-location request and privacy-minimal response', async () => {
+    const transport = createGreaterRealmSyntheticTransport();
+    const descriptor = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.window.chunks[0]!;
+    const request = createGreaterRealmResourceLocationRequest({
+      expectedRevision: GREATER_REALM_SYNTHETIC_REVISION,
+      chunkHandles: [descriptor.chunkHandle]
+    });
+    const batch = await transport.getResourceLocations(
+      request,
+      new AbortController().signal
+    );
+    expect(batch.resourceLocations).toHaveLength(1);
+    expect(Object.keys(batch.resourceLocations[0]!).sort()).toEqual([
+      'atlasQ', 'atlasR', 'chunkHandle', 'locationId', 'nodeCount', 'resourceKind'
+    ]);
+
+    for (const privateField of [
+      'nodeId', 'cellKey', 'regionId', 'componentKey', 'policyVersion', 'capacityDigest'
+    ]) {
+      const hostile = mutable(batch) as any;
+      hostile.resourceLocations[0][privateField] = 'private';
+      expect(() => decodeGreaterRealmResourceLocationBatchDto(hostile)).toThrow(
+        'GREATER_REALM_RESOURCE_LOCATION_BATCH_INVALID'
+      );
+    }
+
+    const sparseRequest = {
+      expectedRevision: GREATER_REALM_SYNTHETIC_REVISION,
+      chunkHandles: new Array(1)
+    } as any;
+    expect(() => createGreaterRealmResourceLocationRequest(sparseRequest)).toThrow(
+      'GREATER_REALM_RESOURCE_LOCATION_REQUEST_INVALID'
+    );
+    const sparseHandles = mutable(batch) as any;
+    sparseHandles.chunkHandles = new Array(1);
+    expect(() => decodeGreaterRealmResourceLocationBatchDto(sparseHandles)).toThrow(
+      'GREATER_REALM_RESOURCE_LOCATION_BATCH_INVALID'
+    );
+    const sparseLocations = mutable(batch) as any;
+    sparseLocations.resourceLocations = new Array(1);
+    expect(() => decodeGreaterRealmResourceLocationBatchDto(sparseLocations)).toThrow(
+      'GREATER_REALM_RESOURCE_LOCATION_BATCH_INVALID'
+    );
+  });
+
   it('trusts explicit passability for a river ford and never grants it implicitly', () => {
     const ford = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks
       .flatMap((chunk) => chunk.coreCells)
@@ -180,6 +230,7 @@ describe('Greater Realm public runtime contract', () => {
       }, signal)
     )));
     expect(() => assertGreaterRealmMonotonicLodChunks(chunks)).not.toThrow();
+    expect(chunks.slice(1).every(chunk => chunk.resourceLocations.length === 0)).toBe(true);
     chunks.forEach((chunk) => {
       expect(() => assertGreaterRealmChunkMatchesDescriptor(chunk, descriptor)).not.toThrow();
     });
@@ -259,6 +310,7 @@ describe('Greater Realm public runtime contract', () => {
       bootstrap: 'get_realm_atlas_bootstrap_v1',
       window: 'get_realm_atlas_window_v1',
       chunk: 'get_realm_atlas_chunk_v1',
+      resourceLocations: 'get_realm_atlas_resource_locations_v1',
       planRoute: 'plan_realm_route_v1',
       workerControlState: 'get_my_worker_control_state_v2'
     });

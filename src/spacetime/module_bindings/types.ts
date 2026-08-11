@@ -1237,6 +1237,17 @@ export const GreaterRealmReleaseV1 = __t.object("GreaterRealmReleaseV1", {
 });
 export type GreaterRealmReleaseV1 = __Infer<typeof GreaterRealmReleaseV1>;
 
+export const GreaterRealmResourceLocationBatchV1 = __t.object("GreaterRealmResourceLocationBatchV1", {
+  atlasId: __t.string(),
+  revision: __t.u64(),
+  chunkHandles: __t.array(__t.string()),
+  truncated: __t.bool(),
+  get resourceLocations() {
+    return __t.array(GreaterRealmResourceLocationSummaryV1);
+  },
+});
+export type GreaterRealmResourceLocationBatchV1 = __Infer<typeof GreaterRealmResourceLocationBatchV1>;
+
 export const GreaterRealmResourceLocationProjectionV1 = __t.object("GreaterRealmResourceLocationProjectionV1", {
   locationId: __t.string(),
   cellKey: __t.string(),
@@ -1248,6 +1259,16 @@ export const GreaterRealmResourceLocationProjectionV1 = __t.object("GreaterRealm
   policyVersion: __t.string(),
 });
 export type GreaterRealmResourceLocationProjectionV1 = __Infer<typeof GreaterRealmResourceLocationProjectionV1>;
+
+export const GreaterRealmResourceLocationSummaryV1 = __t.object("GreaterRealmResourceLocationSummaryV1", {
+  chunkHandle: __t.string(),
+  locationId: __t.string(),
+  atlasQ: __t.i32(),
+  atlasR: __t.i32(),
+  resourceKind: __t.string(),
+  nodeCount: __t.u32(),
+});
+export type GreaterRealmResourceLocationSummaryV1 = __Infer<typeof GreaterRealmResourceLocationSummaryV1>;
 
 export const GreaterRealmResourceNodeV1 = __t.object("GreaterRealmResourceNodeV1", {
   nodeId: __t.string(),

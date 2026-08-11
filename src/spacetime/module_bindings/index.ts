@@ -144,6 +144,7 @@ import * as GetMyWorkerControlStateV2Procedure from "./get_my_worker_control_sta
 import * as GetMyWorkerRosterV1Procedure from "./get_my_worker_roster_v_1_procedure";
 import * as GetRealmAtlasBootstrapV1Procedure from "./get_realm_atlas_bootstrap_v_1_procedure";
 import * as GetRealmAtlasChunkV1Procedure from "./get_realm_atlas_chunk_v_1_procedure";
+import * as GetRealmAtlasResourceLocationsV1Procedure from "./get_realm_atlas_resource_locations_v_1_procedure";
 import * as GetRealmAtlasWindowV1Procedure from "./get_realm_atlas_window_v_1_procedure";
 import * as GetRealmChatHistoryV1Procedure from "./get_realm_chat_history_v_1_procedure";
 import * as GetRealmChatRecentV1Procedure from "./get_realm_chat_recent_v_1_procedure";
@@ -877,6 +878,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("get_my_worker_roster_v1", GetMyWorkerRosterV1Procedure.params, GetMyWorkerRosterV1Procedure.returnType),
   __procedureSchema("get_realm_atlas_bootstrap_v1", GetRealmAtlasBootstrapV1Procedure.params, GetRealmAtlasBootstrapV1Procedure.returnType),
   __procedureSchema("get_realm_atlas_chunk_v1", GetRealmAtlasChunkV1Procedure.params, GetRealmAtlasChunkV1Procedure.returnType),
+  __procedureSchema("get_realm_atlas_resource_locations_v1", GetRealmAtlasResourceLocationsV1Procedure.params, GetRealmAtlasResourceLocationsV1Procedure.returnType),
   __procedureSchema("get_realm_atlas_window_v1", GetRealmAtlasWindowV1Procedure.params, GetRealmAtlasWindowV1Procedure.returnType),
   __procedureSchema("get_realm_chat_history_v_1", GetRealmChatHistoryV1Procedure.params, GetRealmChatHistoryV1Procedure.returnType),
   __procedureSchema("get_realm_chat_recent_v_1", GetRealmChatRecentV1Procedure.params, GetRealmChatRecentV1Procedure.returnType),

@@ -7,6 +7,7 @@ export const GREATER_REALM_PUBLIC_LIMITS = Object.freeze({
   maximumChunkSourceCells: 225,
   maximumChunkVisibleCells: 384,
   maximumResourceLocations: 128,
+  maximumResourceLocationChunkHandles: 8,
   maximumRoutePageCells: 128
 });
 
@@ -222,6 +223,28 @@ export type GreaterRealmChunkRequest = Readonly<{
   expectedRevision: bigint;
 }>;
 
+export type GreaterRealmResourceLocationSummaryDto = Readonly<{
+  chunkHandle: string;
+  locationId: string;
+  atlasQ: number;
+  atlasR: number;
+  resourceKind: GreaterRealmResourceKind;
+  nodeCount: number;
+}>;
+
+export type GreaterRealmResourceLocationBatchDto = Readonly<{
+  atlasId: string;
+  revision: bigint;
+  chunkHandles: readonly string[];
+  truncated: boolean;
+  resourceLocations: readonly GreaterRealmResourceLocationSummaryDto[];
+}>;
+
+export type GreaterRealmResourceLocationRequest = Readonly<{
+  expectedRevision: bigint;
+  chunkHandles: readonly string[];
+}>;
+
 export type GreaterRealmRoutePlanRequest = Readonly<{
   originCellKey: string;
   destinationCellKey: string;
@@ -238,9 +261,17 @@ export class GreaterRealmPublicContractError extends Error {
 }
 
 const CHUNK_HANDLE = /^GRK-[A-Z2-7]{26}$/u;
+const RESOURCE_LOCATION_ID = /^GRL-[A-Z2-7]{26}$/u;
 const PUBLIC_RELEASE_ID = /^GRR-[A-Z2-7]{26}$/u;
 const HYDRO_BODY_ID = /^GRW-[A-Z2-7]{26}$/u;
 const PUBLIC_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
+
+function denseArray(value: readonly unknown[], code: string): void {
+  for (let index = 0; index < value.length; index += 1) {
+    if (!Object.prototype.hasOwnProperty.call(value, index)) fail(code);
+  }
+}
+
 const VERSION = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/u;
 const RESOURCE_KINDS = new Set<GreaterRealmResourceKind>(['food', 'wood', 'stone', 'gold']);
 const TIER_ONE_REGIONS = Object.freeze([
@@ -411,7 +442,7 @@ export function decodeGreaterRealmBootstrapDto(value: unknown): GreaterRealmBoot
     || castleCapacity !== 600
   ) fail(code);
   const mode = safeString(row.mode, 32, code);
-  if (mode !== 'canary' && mode !== 'active') fail(code);
+  if (mode !== 'canary' && mode !== 'active' && mode !== 'halted') fail(code);
   const myCellKey = optionalIdentifier(row.myCellKey, PUBLIC_ID, code);
   return Object.freeze({
     atlasId: identifier(row.atlasId, PUBLIC_ID, code),
@@ -713,6 +744,72 @@ export function decodeGreaterRealmChunkDto(value: unknown): GreaterRealmChunkDto
   });
 }
 
+function decodeResourceLocationSummary(
+  value: unknown
+): GreaterRealmResourceLocationSummaryDto {
+  const code = 'GREATER_REALM_RESOURCE_LOCATION_BATCH_INVALID';
+  const row = record(value, code);
+  exactKeys(row, [
+    'chunkHandle', 'locationId', 'atlasQ', 'atlasR', 'resourceKind', 'nodeCount'
+  ], [], code);
+  const resourceKind = safeString(row.resourceKind, 16, code) as GreaterRealmResourceKind;
+  if (!RESOURCE_KINDS.has(resourceKind)) fail(code);
+  return Object.freeze({
+    chunkHandle: identifier(row.chunkHandle, CHUNK_HANDLE, code),
+    locationId: identifier(row.locationId, RESOURCE_LOCATION_ID, code),
+    atlasQ: i32(row.atlasQ, code),
+    atlasR: i32(row.atlasR, code),
+    resourceKind,
+    nodeCount: integer(row.nodeCount, 1, 32, code)
+  });
+}
+
+export function decodeGreaterRealmResourceLocationBatchDto(
+  value: unknown
+): GreaterRealmResourceLocationBatchDto {
+  const code = 'GREATER_REALM_RESOURCE_LOCATION_BATCH_INVALID';
+  const row = record(value, code);
+  exactKeys(row, [
+    'atlasId', 'revision', 'chunkHandles', 'truncated', 'resourceLocations'
+  ], [], code);
+  if (
+    !Array.isArray(row.chunkHandles)
+    || row.chunkHandles.length < 1
+    || row.chunkHandles.length
+      > GREATER_REALM_PUBLIC_LIMITS.maximumResourceLocationChunkHandles
+    || !Array.isArray(row.resourceLocations)
+    || row.resourceLocations.length > GREATER_REALM_PUBLIC_LIMITS.maximumResourceLocations
+  ) fail(code);
+  denseArray(row.chunkHandles, code);
+  denseArray(row.resourceLocations, code);
+  const chunkHandles = Object.freeze(row.chunkHandles.map(handle => (
+    identifier(handle, CHUNK_HANDLE, code)
+  )));
+  const resourceLocations = Object.freeze(
+    row.resourceLocations.map(decodeResourceLocationSummary)
+  );
+  const truncated = bool(row.truncated, code);
+  const handleSet = new Set(chunkHandles);
+  if (
+    new Set(chunkHandles).size !== chunkHandles.length
+    || new Set(resourceLocations.map(location => location.locationId)).size
+      !== resourceLocations.length
+    || new Set(resourceLocations.map(location => (
+      `${location.atlasQ}:${location.atlasR}:${location.resourceKind}`
+    ))).size !== resourceLocations.length
+    || resourceLocations.some(location => !handleSet.has(location.chunkHandle))
+    || (truncated && resourceLocations.length
+      !== GREATER_REALM_PUBLIC_LIMITS.maximumResourceLocations)
+  ) fail(code);
+  return Object.freeze({
+    atlasId: identifier(row.atlasId, PUBLIC_ID, code),
+    revision: u64(row.revision, code),
+    chunkHandles,
+    truncated,
+    resourceLocations
+  });
+}
+
 export function decodeGreaterRealmRoutePageDto(value: unknown): GreaterRealmRoutePageDto {
   const code = 'GREATER_REALM_ROUTE_PLAN_INVALID';
   const row = record(value, code);
@@ -801,6 +898,57 @@ export function createGreaterRealmChunkRequest(
     lod: lod(value.lod, code),
     expectedRevision: u64(value.expectedRevision, code)
   });
+}
+
+export function createGreaterRealmResourceLocationRequest(
+  value: GreaterRealmResourceLocationRequest
+): GreaterRealmResourceLocationRequest {
+  const code = 'GREATER_REALM_RESOURCE_LOCATION_REQUEST_INVALID';
+  if (
+    !Array.isArray(value.chunkHandles)
+    || value.chunkHandles.length < 1
+    || value.chunkHandles.length
+      > GREATER_REALM_PUBLIC_LIMITS.maximumResourceLocationChunkHandles
+  ) fail(code);
+  denseArray(value.chunkHandles, code);
+  const chunkHandles = Object.freeze(value.chunkHandles.map(handle => (
+    identifier(handle, CHUNK_HANDLE, code)
+  )));
+  if (new Set(chunkHandles).size !== chunkHandles.length) fail(code);
+  return Object.freeze({
+    expectedRevision: u64(value.expectedRevision, code),
+    chunkHandles
+  });
+}
+
+export function assertGreaterRealmResourceLocationBatchMatchesRequest(
+  batch: GreaterRealmResourceLocationBatchDto,
+  requested: GreaterRealmResourceLocationRequest,
+  expectedAtlasId?: string,
+  descriptors?: readonly GreaterRealmWindowChunkDto[]
+) {
+  const request = createGreaterRealmResourceLocationRequest(requested);
+  denseArray(batch.chunkHandles, 'GREATER_REALM_RESOURCE_LOCATION_RESPONSE_MISMATCH');
+  denseArray(batch.resourceLocations, 'GREATER_REALM_RESOURCE_LOCATION_RESPONSE_MISMATCH');
+  if (
+    batch.revision !== request.expectedRevision
+    || (expectedAtlasId !== undefined && batch.atlasId !== expectedAtlasId)
+    || batch.chunkHandles.length !== request.chunkHandles.length
+    || batch.chunkHandles.some((handle, index) => handle !== request.chunkHandles[index])
+  ) fail('GREATER_REALM_RESOURCE_LOCATION_RESPONSE_MISMATCH');
+  if (descriptors === undefined) return;
+  const descriptorByHandle = new Map(descriptors.map(descriptor => (
+    [descriptor.chunkHandle, descriptor] as const
+  )));
+  if (
+    request.chunkHandles.some(handle => !descriptorByHandle.has(handle))
+    || batch.resourceLocations.some((location) => {
+      const descriptor = descriptorByHandle.get(location.chunkHandle);
+      return descriptor === undefined
+        || Math.floor(location.atlasQ / 15) !== descriptor.binQ
+        || Math.floor(location.atlasR / 15) !== descriptor.binR;
+    })
+  ) fail('GREATER_REALM_RESOURCE_LOCATION_RESPONSE_MISMATCH');
 }
 
 export function createGreaterRealmRoutePlanRequest(

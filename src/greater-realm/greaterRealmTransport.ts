@@ -1,15 +1,20 @@
 import {
   assertGreaterRealmRoutePageMatchesRequest,
+  assertGreaterRealmResourceLocationBatchMatchesRequest,
   createGreaterRealmChunkRequest,
+  createGreaterRealmResourceLocationRequest,
   createGreaterRealmRoutePlanRequest,
   createGreaterRealmWindowRequest,
   decodeGreaterRealmBootstrapDto,
   decodeGreaterRealmChunkDto,
+  decodeGreaterRealmResourceLocationBatchDto,
   decodeGreaterRealmRoutePageDto,
   decodeGreaterRealmWindowDto,
   type GreaterRealmBootstrapDto,
   type GreaterRealmChunkDto,
   type GreaterRealmChunkRequest,
+  type GreaterRealmResourceLocationBatchDto,
+  type GreaterRealmResourceLocationRequest,
   type GreaterRealmRoutePageDto,
   type GreaterRealmRoutePlanRequest,
   type GreaterRealmWindowDto,
@@ -23,6 +28,7 @@ export const GREATER_REALM_PUBLIC_PROCEDURES = Object.freeze({
   bootstrap: 'get_realm_atlas_bootstrap_v1',
   window: 'get_realm_atlas_window_v1',
   chunk: 'get_realm_atlas_chunk_v1',
+  resourceLocations: 'get_realm_atlas_resource_locations_v1',
   planRoute: 'plan_realm_route_v1',
   workerControlState: 'get_my_worker_control_state_v2'
 });
@@ -45,6 +51,10 @@ export type GreaterRealmPublicTransport = Readonly<{
     request: GreaterRealmChunkRequest,
     signal: AbortSignal
   ) => Promise<GreaterRealmChunkDto>;
+  getResourceLocations: (
+    request: GreaterRealmResourceLocationRequest,
+    signal: AbortSignal
+  ) => Promise<GreaterRealmResourceLocationBatchDto>;
   planRoute: (
     request: GreaterRealmRoutePlanRequest,
     signal: AbortSignal
@@ -132,6 +142,24 @@ export function createGreaterRealmProcedureTransport(
         || decoded.revision !== request.expectedRevision
         || (atlasContext !== undefined && decoded.atlasId !== atlasContext.atlasId)
       ) throw new Error('GREATER_REALM_CHUNK_RESPONSE_MISMATCH');
+      return decoded;
+    },
+    getResourceLocations: async (requested, signal) => {
+      if (!GREATER_REALM_SERVER_PRESENTATION_ALLOWED) return unavailable(signal);
+      const request = createGreaterRealmResourceLocationRequest(requested);
+      assertContextRevision(request.expectedRevision);
+      ensureNotAborted(signal);
+      const decoded = decodeGreaterRealmResourceLocationBatchDto(await invoker.call(
+        GREATER_REALM_PUBLIC_PROCEDURES.resourceLocations,
+        request,
+        signal
+      ));
+      ensureNotAborted(signal);
+      assertGreaterRealmResourceLocationBatchMatchesRequest(
+        decoded,
+        request,
+        atlasContext?.atlasId
+      );
       return decoded;
     },
     planRoute: async (requested, signal) => {
