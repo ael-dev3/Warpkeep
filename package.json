@@ -39,6 +39,8 @@
     "verify:alpha-production:operator": "node scripts/verify-alpha-production.mjs --require-auth-v2-enabled --require-rpc-role-attestation",
     "verify:alpha-production:contained": "node scripts/verify-alpha-production.mjs --require-auth-v2",
     "verify:auth-bridge-config": "node scripts/auth-bridge-config-attestation.mjs",
+    "verify:auth-bridge-notification-prepared": "node scripts/verify-auth-bridge-notification-prepared-receipt.mjs",
+    "verify:auth-bridge-notification-prepared-policy": "node scripts/verify-auth-bridge-notification-prepared-policy.mjs",
     "assets:fetch": "node scripts/fetch-title-assets.mjs",
     "assets:fetch:castle:source-0.3.4": "node scripts/fetch-hegemony-castle-assets.mjs",
     "assets:fetch:hegemony-supply-wagon": "node scripts/fetch-hegemony-supply-wagon-assets.mjs",

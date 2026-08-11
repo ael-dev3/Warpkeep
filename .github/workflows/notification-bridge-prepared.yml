@@ -1,0 +1,139 @@
+name: Prepare Admission Notification Auth Bridge
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: Exact protected main commit to prepare
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: notification-bridge-prepared
+  cancel-in-progress: false
+
+jobs:
+  notification-bridge-prepared:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: notification-bridge-prepared
+    permissions:
+      actions: read
+      contents: read
+    env:
+      WARPKEEP_EXPECTED_SOURCE_COMMIT: ${{ inputs.source_commit }}
+      # This protected manual phase is bridge-only. Later execution and
+      # presentation gates remain inert in both source and the receipt ABI.
+      WARPKEEP_BRIDGE_NOTIFICATION_DELIVERY_ENABLED: 'true'
+      WARPKEEP_HERMES_EXECUTION_APPROVED: 'false'
+      WARPKEEP_PAGES_PRESENTATION_ENABLED: 'false'
+      # No reviewed repository adapter currently preserves the two live auth
+      # modes, proves the Cloudflare control plane, and durably exports a 0600
+      # receipt. This stays false until all three mechanics are checked in.
+      WARPKEEP_SAFE_DEPLOYMENT_MECHANICS_REVIEWED: 'false'
+    steps:
+      - name: Resolve exact protected main commit
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$WARPKEEP_EXPECTED_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'The requested bridge source commit was invalid.' >&2
+            exit 1
+          fi
+          protected_main="$(
+            gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha'
+          )"
+          if [[ ! "$protected_main" =~ ^[0-9a-f]{40}$ \
+            || "$protected_main" != "$WARPKEEP_EXPECTED_SOURCE_COMMIT" ]]; then
+            echo 'The requested bridge source is not the current protected main commit.' >&2
+            exit 1
+          fi
+
+      - name: Checkout exact protected source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.source_commit }}
+          persist-credentials: false
+
+      - name: Re-attest detached protected checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_commit="$(git rev-parse --verify HEAD^{commit})"
+          origin_url="$(git remote get-url origin)"
+          if [[ "$actual_commit" != "$WARPKEEP_EXPECTED_SOURCE_COMMIT" \
+            || "$origin_url" != 'https://github.com/ael-dev3/Warpkeep' \
+            || -n "$(git status --porcelain=v1 --untracked-files=all)" ]]; then
+            echo 'The protected bridge checkout was not exact and clean.' >&2
+            exit 1
+          fi
+          if git symbolic-ref -q HEAD >/dev/null; then
+            echo 'The protected bridge checkout was not detached.' >&2
+            exit 1
+          fi
+
+      - name: Setup pinned pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.7.0
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: services/auth-bridge/pnpm-lock.yaml
+
+      - name: Install exact auth bridge dependencies
+        run: pnpm --dir services/auth-bridge install --frozen-lockfile
+
+      - name: Check exact auth bridge source
+        run: pnpm --dir services/auth-bridge run check
+
+      - name: Prove bridge-only static release policy
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node scripts/verify-auth-bridge-notification-prepared-policy.mjs
+          if [[ "$WARPKEEP_BRIDGE_NOTIFICATION_DELIVERY_ENABLED" != 'true' \
+            || "$WARPKEEP_HERMES_EXECUTION_APPROVED" != 'false' \
+            || "$WARPKEEP_PAGES_PRESENTATION_ENABLED" != 'false' ]]; then
+            echo 'The bridge-only release gates were not exact.' >&2
+            exit 1
+          fi
+          variable="$(
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/variables" \
+              --jq '.variables[] | select(.name == "WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED") | .value'
+          )"
+          pages_value="${variable:-false}"
+          if [[ "$pages_value" != 'false' ]]; then
+            echo 'Pages notification presentation is not inert.' >&2
+            exit 1
+          fi
+
+      # Fail before loading either the bridge administrator token or Cloudflare
+      # credentials. The repository has no reviewed adapter that can read the
+      # PRE-deploy private attestation, preserve both auth modes, deploy via the
+      # pinned Wrangler package, prove control-plane convergence, and install
+      # the receipt into a durable protected 0600 sink. Direct Wrangler calls or
+      # an Actions artifact would fabricate that missing boundary.
+      - name: Require reviewed deploy adapter and durable private receipt sink
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$WARPKEEP_SAFE_DEPLOYMENT_MECHANICS_REVIEWED" != 'false' ]]; then
+            echo 'The checked deployment blocker was not exact.' >&2
+            exit 1
+          fi
+          echo 'AUTH_BRIDGE_PREPARED_DEPLOY_ADAPTER_AND_PRIVATE_SINK_UNAVAILABLE' >&2
+          exit 1

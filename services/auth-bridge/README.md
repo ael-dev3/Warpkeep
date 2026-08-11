@@ -17,6 +17,10 @@ privately recorded operation. World generation and resource features do not
 change this bridge contract. The QA aggregate parser recognizes only supported
 world tuples and never infers economy readiness from partial counts.
 
+The bridge-only notification preparation receipt, verifier, protected manual
+workflow, and current fail-closed deployment dependency are documented in
+[`docs/operations/auth-bridge-notification-prepared.md`](../../docs/operations/auth-bridge-notification-prepared.md).
+
 `https://auth.warpkeep.com` is the canonical bridge coordinate, but its
 existence is not evidence that an arbitrary local v2 source is deployed. Every
 future rollout step requires exact-head verification and recorded authority.
