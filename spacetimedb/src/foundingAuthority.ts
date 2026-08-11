@@ -17,6 +17,10 @@ import {
   type GreaterRealmCurrentFounderV1,
 } from './greaterRealmCurrentAuthority';
 import {
+  ensureGreaterRealmFounderActiveV1,
+  greaterRealmFoundingAuthorityErrorCode,
+} from './greaterRealmFoundingAuthority';
+import {
   ADMITTED_DAILY_MARK_POLICY_VERSION,
   markAccountIsConsistent,
 } from './marksAuthorityPolicy';
@@ -292,6 +296,15 @@ export function ensureGenesisFounder(
     return 'preserved';
   }
   if (!greaterRealmLegacyFoundingIsOpenV1(ctx)) {
+    if (greaterRealmCutoverIsCurrentV1(ctx)) {
+      try {
+        return ensureGreaterRealmFounderActiveV1(ctx, fid, admissionProfile);
+      } catch (error) {
+        const code = greaterRealmFoundingAuthorityErrorCode(error);
+        if (code !== undefined) fail(code);
+        throw error;
+      }
+    }
     fail('GREATER_REALM_FOUNDING_REQUIRES_V17_AUTHORITY');
   }
   if (

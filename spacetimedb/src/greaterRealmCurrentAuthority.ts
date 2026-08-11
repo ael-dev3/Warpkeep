@@ -5,6 +5,10 @@ import {
   greaterRealmCutoverIsCurrentV1,
 } from './greaterRealmActivationState';
 import { selectGreaterRealmCastleAllocationV1 } from './greaterRealmActivationPolicy';
+import {
+  greaterRealmFoundedPassiveTerrainForYieldClassV1,
+  greaterRealmFoundingPolicyErrorCode,
+} from './greaterRealmFoundingPolicy';
 import { existingFounderAssignmentIsConsistent } from './foundingPolicy';
 import {
   ADMITTED_DAILY_MARK_POLICY_VERSION,
@@ -52,6 +56,9 @@ type ActivationRow = NonNullable<
 >;
 type ReleaseRow = NonNullable<
   ReturnType<WarpkeepReducerContext['db']['greaterRealmReleaseV1']['atlasId']['find']>
+>;
+type AtlasRow = NonNullable<
+  ReturnType<WarpkeepReducerContext['db']['realmAtlasV1']['atlasId']['find']>
 >;
 
 const INITIAL_ATLAS_REVISION = 1n;
@@ -137,7 +144,7 @@ function assertCurrentPublicRoots(
   ctx: WarpkeepReducerContext,
   activation: ActivationRow,
   release: ReleaseRow,
-): NonNullable<ReturnType<WarpkeepReducerContext['db']['realmAtlasV1']['atlasId']['find']>> {
+): AtlasRow {
   const atlas = ctx.db.realmAtlasV1.atlasId.find(activation.atlasId);
   const worker = ctx.db.realmWorkerSystemV2.atlasId.find(activation.atlasId);
   const legacyRealm = ctx.db.realmV1.realmId.find(HEGEMONY_REALM_ID);
@@ -217,6 +224,35 @@ function assertCurrentPublicRoots(
     ) fail();
   }
   return atlas;
+}
+
+export type GreaterRealmCurrentWorldV1 = Readonly<{
+  activation: ActivationRow;
+  release: ReleaseRow;
+  atlas: AtlasRow;
+}>;
+
+/**
+ * Validate the complete bounded v17 population and its exact public roots.
+ * Founding calls require `active`; caller-scoped reads may also remain live in
+ * canary or halted mode without reopening mutation ingress.
+ */
+export function assertGreaterRealmCurrentWorldV1(
+  ctx: WarpkeepReducerContext,
+  requiredMode?: 'active',
+): GreaterRealmCurrentWorldV1 {
+  const activation = currentGreaterRealmActivationRowV1(ctx);
+  if (
+    activation === undefined
+    || activation.canaryAt === undefined
+    || activation.rolledBackAt !== undefined
+    || (requiredMode !== undefined && activation.mode !== requiredMode)
+  ) fail('GREATER_REALM_CURRENT_WORLD_UNAVAILABLE');
+  const release = ctx.db.greaterRealmReleaseV1.atlasId.find(activation.atlasId);
+  if (release === null) fail('GREATER_REALM_CURRENT_WORLD_UNAVAILABLE');
+  assertCurrentClaimSequence(ctx, activation);
+  const atlas = assertCurrentPublicRoots(ctx, activation, release);
+  return Object.freeze({ activation, release, atlas });
 }
 
 function profileMatchesMarks(
@@ -480,16 +516,15 @@ function v17Founder(
     || claim.activatedAt === undefined
     || (!completeRelocationPreimage(claim) && !emptyFoundingPreimage(claim))
   ) fail();
-  assertCurrentClaimSequence(ctx, activation);
+  const currentWorld = assertGreaterRealmCurrentWorldV1(ctx);
+  if (currentWorld.activation.activationId !== activation.activationId) fail();
   const slot = ctx.db.greaterRealmCastleSlotV1.slotId.find(claim.slotId);
   const cell = slot === null ? null : ctx.db.greaterRealmCellV1.cellKey.find(slot.cellKey);
   const occupancy = ctx.db.greaterRealmCellOccupancyV1.castleId.find(castle.castleId);
-  const release = ctx.db.greaterRealmReleaseV1.atlasId.find(activation.atlasId);
   if (
     slot === null
     || cell === null
     || occupancy === null
-    || release === null
     || ctx.db.greaterRealmCastleClaimV1.count() !== ctx.db.castle.count()
     || ctx.db.greaterRealmCellOccupancyV1.count() !== ctx.db.castle.count()
     || ctx.db.castleSlotClaimV1.count() !== 0n
@@ -512,7 +547,7 @@ function v17Founder(
     || occupancy.atlasRevision !== INITIAL_ATLAS_REVISION
     || !sameTimestamp(occupancy.occupiedAt, claim.activatedAt)
   ) fail();
-  const atlas = assertCurrentPublicRoots(ctx, activation, release);
+  const atlas = currentWorld.atlas;
   if (occupancy.atlasRevision !== atlas.revision) fail();
   if (completeRelocationPreimage(claim)) {
     const legacySlot = ctx.db.castleSlotV1.slotId.find(claim.legacySlotId!);
@@ -566,14 +601,44 @@ export function assertGreaterRealmCurrentFounderForProfileRepairV1(
 }
 
 /**
- * Passive production for a relocated founder remains frozen to the v16 tile
- * stored in the rollback preimage. The new Greater Realm cell is never read as
- * a legacy terrain key.
+ * Direct v17 founders derive passive production from their selected cell's
+ * reviewed yield class. Relocated founders remain frozen to the v16 tile in
+ * their rollback preimage; a new Greater Realm cell is never treated as a
+ * legacy terrain key.
  */
 export function greaterRealmCurrentPassiveTerrainV1(
   ctx: WarpkeepReducerContext,
   founder: GreaterRealmCurrentFounderV1,
 ): GenesisResourceTerrainKind {
+  if (
+    founder.source === 'v17'
+    && founder.greaterRealmClaim?.claimKind === 'founded'
+  ) {
+    const slot = ctx.db.greaterRealmCastleSlotV1.slotId.find(
+      founder.greaterRealmClaim.slotId,
+    );
+    const cell = slot === null
+      ? null
+      : ctx.db.greaterRealmCellV1.cellKey.find(slot.cellKey);
+    if (
+      slot === null
+      || cell === null
+      || !slot.active
+      || slot.tier !== 1
+      || cell.tier !== 1
+      || !cell.passable
+      || cell.cellKey !== founder.castle.tileKey
+      || cell.atlasQ !== founder.castle.q
+      || cell.atlasR !== founder.castle.r
+    ) fail('RESOURCE_TERRAIN_AUTHORITY_MISSING');
+    try {
+      return greaterRealmFoundedPassiveTerrainForYieldClassV1(cell.yieldClass);
+    } catch (error) {
+      const code = greaterRealmFoundingPolicyErrorCode(error);
+      if (code !== undefined) fail(code);
+      throw error;
+    }
+  }
   const tileKey = founder.source === 'v16'
     ? founder.castle.tileKey
     : founder.greaterRealmClaim?.claimKind === 'relocated'

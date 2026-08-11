@@ -6,6 +6,13 @@ full engineering record.
 
 ## [Unreleased]
 
+- Added the active-only Greater Realm founding authority behind the existing
+  profiled admission paths. Future founders receive a server-selected balanced
+  Tier-I castle, four workers, Inner Keep Builder, Marks and resource state in
+  one transaction; the 600-castle cap, replay behavior, and cell-derived
+  passive yield policy are covered by fault-injected stateful tests. Greater
+  Realm import, activation, and client presentation gates remain closed.
+
 - Added a dormant, generation-bound Greater Realm browser bridge for the four
   public v17 atlas procedures. Desktop and mobile clients now have a tested
   bounded bootstrap/window/chunk/route controller and an explicit Realm scene

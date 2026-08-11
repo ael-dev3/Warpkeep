@@ -13,6 +13,9 @@ import {
   greaterRealmCurrentPassiveTerrainV1,
 } from '../src/greaterRealmCurrentAuthority';
 import {
+  GREATER_REALM_FOUNDED_PASSIVE_YIELD_POLICY_VERSION,
+} from '../src/greaterRealmFoundingPolicy';
+import {
   greaterRealmLegacyFoundingIsOpenV1,
   greaterRealmLegacyJourneyDispatchIsOpenV1,
 } from '../src/greaterRealmActivationState';
@@ -31,6 +34,8 @@ import {
 } from '../src/castleWorkerPolicy';
 import { expectedWorkerRowsForCastle } from '../src/castleWorkerRoster';
 import { ADMITTED_DAILY_MARK_POLICY_VERSION } from '../src/marksAuthorityPolicy';
+import { CANONICAL_INNER_KEEP_LAYOUT } from '../src/innerKeepLayoutPolicy';
+import { INNER_KEEP_POLICY_VERSION } from '../src/innerKeepPolicy';
 import {
   GREATER_REALM_JOURNEY_TABLES,
   GREATER_REALM_TIER_ONE_REGION_IDS,
@@ -129,6 +134,8 @@ class MemoryTable {
   rows: Row[];
   readonly primary: string;
   readonly indexFields: Readonly<Record<string, string>>;
+  readonly uniqueFields: ReadonlySet<string>;
+  readonly autoInc: boolean;
   mutate: () => void;
   [key: string]: any;
 
@@ -136,10 +143,18 @@ class MemoryTable {
     primary: string,
     indexFields: Readonly<Record<string, string>> = {},
     rows: readonly Row[] = [],
+    autoInc = false,
   ) {
     this.primary = primary;
     this.indexFields = { [primary]: primary, ...indexFields };
+    this.uniqueFields = new Set([
+      primary,
+      ...Object.entries(indexFields)
+        .filter(([accessor]) => !accessor.startsWith('by'))
+        .map(([, field]) => field),
+    ]);
     this.rows = clone(rows as Row[]);
+    this.autoInc = autoInc;
     this.mutate = () => {};
     for (const [accessor, field] of Object.entries(this.indexFields)) {
       this[accessor] = {
@@ -173,17 +188,25 @@ class MemoryTable {
 
   insert(row: Row): Row {
     this.mutate();
-    if (this.rows.some(existing => existing[this.primary] === row[this.primary])) {
+    const inserted = clone(row);
+    if (this.autoInc && inserted[this.primary] === 0n) {
+      inserted[this.primary] = this.rows.reduce(
+        (maximum, existing) => existing[this.primary] > maximum
+          ? existing[this.primary] as bigint
+          : maximum,
+        0n,
+      ) + 1n;
+    }
+    if (this.rows.some(existing => existing[this.primary] === inserted[this.primary])) {
       throw new Error(`duplicate ${this.primary}`);
     }
-    for (const field of new Set(Object.values(this.indexFields))) {
+    for (const field of this.uniqueFields) {
       if (
         field !== this.primary
-        && this.rows.some(existing => existing[field] === row[field])
-        && row[field] !== undefined
+        && this.rows.some(existing => existing[field] === inserted[field])
+        && inserted[field] !== undefined
       ) throw new Error(`duplicate ${field}`);
     }
-    const inserted = clone(row);
     this.rows.push(inserted);
     return inserted;
   }
@@ -239,7 +262,12 @@ function tableSet(): Record<string, MemoryTable> {
     allowedFid: empty('fid'),
     worldTile: empty('key'),
     player: empty('fid'),
-    castle: empty('castleId', { ownerFid: 'ownerFid', tileKey: 'tileKey' }),
+    castle: new MemoryTable(
+      'castleId',
+      { ownerFid: 'ownerFid', tileKey: 'tileKey' },
+      [],
+      true,
+    ),
     adminAudit: empty('id'),
     playerV2: empty('fid'),
     playerOwnershipV2: empty('fid', { identity: 'identity' }),
@@ -563,6 +591,7 @@ class Fixture {
           atlasR: -5_000 - releaseOrdinal,
           tier: 1,
           passable: true,
+          yieldClass: releaseOrdinal % 2 === 0 ? 2 : 1,
         });
         db.greaterRealmCastleSlotV1.rows.push({
           slotId,
@@ -695,6 +724,44 @@ function advanceToPlanned(fixture: Fixture): void {
   assert.equal(planGreaterRealmRelocationAuthorizedTransactionV1(fixture.ctx), 'planned');
 }
 
+function advanceToActive(fixture: Fixture): void {
+  advanceToPlanned(fixture);
+  assert.equal(
+    fixture.transaction(() => relocateGreaterRealmCanaryAuthorizedTransactionV1(fixture.ctx)),
+    'canary',
+  );
+  assert.equal(commitGreaterRealmActiveAuthorizedTransactionV1(fixture.ctx), 'active');
+}
+
+function enableCanonicalInnerKeep(fixture: Fixture): void {
+  fixture.tables.innerKeepLayoutV1.rows = [{
+    ...CANONICAL_INNER_KEEP_LAYOUT,
+    active: true,
+    createdAt: CREATED,
+    activatedAt: ACTIVATED,
+  }];
+}
+
+function insertIntendedAdmission(fixture: Fixture, fid: bigint): void {
+  fixture.tables.allowedFid.insert({
+    fid,
+    enabled: true,
+    authEpoch: 1,
+    invitedAt: fixture.ctx.timestamp,
+    invitedBy: 'admin:fixture',
+    note: 'profiled admission fixture',
+  });
+}
+
+function admissionProfileFor(fid: bigint) {
+  return Object.freeze({
+    canonicalUsername: `futurefounder${fid.toString()}`,
+    displayName: `Future Founder ${fid.toString()}`,
+    pfpUrl: `https://example.com/founder-${fid.toString()}.png`,
+    publicBio: undefined,
+  });
+}
+
 function makeFirstWorkerOutbound(fixture: Fixture): Row {
   const worker = fixture.tables.castleWorkerV1.rows[0]!;
   const timeline = planCastleWorkerTimeline(1n, 1);
@@ -769,7 +836,10 @@ function clearFirstWorkerJourney(fixture: Fixture): void {
   fixture.tables.workerAssignmentScheduleV1.rows = [];
 }
 
-function addOnePostCommitFounder(fixture: Fixture): Readonly<{
+function addOnePostCommitFounder(
+  fixture: Fixture,
+  fid = 5_001n,
+): Readonly<{
   fid: bigint;
   castleId: bigint;
   claim: Row;
@@ -778,8 +848,7 @@ function addOnePostCommitFounder(fixture: Fixture): Readonly<{
   const activation = db.greaterRealmActivationV1.rows[0]!;
   assert.equal(activation.mode, 'active');
   const topology = captureGreaterRealmFrozenTopologyV1(fixture.ctx);
-  const castleId = 101n;
-  const fid = 5_001n;
+  const castleId = BigInt(db.castle.rows.length + 1);
   const selected = selectGreaterRealmCastleAllocationV1(
     topology.slots,
     db.greaterRealmCastleClaimV1.rows.map(claim => ({
@@ -793,7 +862,7 @@ function addOnePostCommitFounder(fixture: Fixture): Readonly<{
   assert.equal(selected.result, 'allocated');
   const slot = db.greaterRealmCastleSlotV1.slotId.find(selected.allocation.slotId)!;
   const cell = db.greaterRealmCellV1.cellKey.find(slot.cellKey)!;
-  const foundedAt = timestamp(20_000n);
+  const foundedAt = timestamp(20_000n + castleId);
   const castle = {
     castleId,
     ownerFid: fid,
@@ -801,7 +870,7 @@ function addOnePostCommitFounder(fixture: Fixture): Readonly<{
     q: cell.atlasQ,
     r: cell.atlasR,
     level: 1,
-    name: 'Greater Realm Keep 101',
+    name: `Greater Realm Keep ${castleId.toString().padStart(3, '0')}`,
     createdAt: foundedAt,
   };
   const claim = {
@@ -827,8 +896,8 @@ function addOnePostCommitFounder(fixture: Fixture): Readonly<{
   db.realmProfileV1.rows.push({
     ...db.realmProfileV1.rows[0]!,
     fid,
-    canonicalUsername: 'postcommitfounder',
-    displayName: 'Post-commit Founder',
+    canonicalUsername: `postcommitfounder${fid.toString()}`,
+    displayName: `Post-commit Founder ${fid.toString()}`,
     admittedAt: foundedAt,
     profileUpdatedAt: foundedAt,
   });
@@ -1184,6 +1253,14 @@ test('closed-phase founding replay is byte-identical while repair and fresh foun
   );
   const postCanaryBefore = stateText(postCanary);
   assert.equal(ensureGenesisFounder(postCanary.ctx, 1_001n, admission), 'preserved');
+  assert.equal(stateText(postCanary), postCanaryBefore);
+  assert.equal(errorCode(() => postCanary.transaction(() => {
+    insertIntendedAdmission(postCanary, 9_998n);
+    ensureGenesisFounder(postCanary.ctx, 9_998n, {
+      ...admission,
+      canonicalUsername: 'canary-founder',
+    });
+  })), 'GREATER_REALM_CURRENT_WORLD_UNAVAILABLE');
   assert.equal(stateText(postCanary), postCanaryBefore);
 
   const staleProfile = postCanary.tables.realmProfileV1.fid.find(1_001n)!;
@@ -1642,6 +1719,177 @@ test('post-commit founded suffix stays balanced, exact, and live across retry an
     assertGreaterRealmCurrentFounderForFidV1(fixture.ctx, founded.fid).source,
     'v17',
   );
+});
+
+test('active v17 founding derives the next balanced slot and commits one complete graph', () => {
+  const fixture = new Fixture();
+  advanceToActive(fixture);
+  enableCanonicalInnerKeep(fixture);
+  fixture.ctx.timestamp = timestamp(30_000n);
+  const fid = 8_001n;
+  const admission = admissionProfileFor(fid);
+  assert.equal(fixture.transaction(() => {
+    insertIntendedAdmission(fixture, fid);
+    return ensureGenesisFounder(fixture.ctx, fid, admission);
+  }), 'created');
+
+  const founder = assertGreaterRealmCurrentFounderForFidV1(fixture.ctx, fid);
+  assert.equal(founder.source, 'v17');
+  assert.equal(founder.greaterRealmClaim?.claimKind, 'founded');
+  assert.equal(founder.greaterRealmClaim?.allocationSequence, 100n);
+  const cell = fixture.tables.greaterRealmCellV1.cellKey.find(founder.castle.tileKey)!;
+  assert.equal(
+    greaterRealmCurrentPassiveTerrainV1(fixture.ctx, founder),
+    cell.yieldClass === 2 ? 'meadow' : 'lowland',
+  );
+  assert.equal(GREATER_REALM_FOUNDED_PASSIVE_YIELD_POLICY_VERSION, 'greater-realm-founded-passive-yield-v1');
+  assert.equal(fixture.tables.castleWorkerV1.byOriginCastle.filter(founder.castle.castleId).length, 4);
+  assert.equal(
+    fixture.tables.castleInnerBuilderV1.fid.find(fid)?.policyVersion,
+    INNER_KEEP_POLICY_VERSION,
+  );
+  const activation = fixture.tables.greaterRealmActivationV1.rows[0]!;
+  assert.equal(activation.mode, 'active');
+  assert.equal(activation.postCanaryFoundingCount, 1);
+  assert.equal(activation.nextAllocationSequence, 101n);
+  const workerV1 = fixture.tables.realmWorkerSystemV1.rows[0]!;
+  const workerV2 = fixture.tables.realmWorkerSystemV2.rows[0]!;
+  assert.equal(workerV1.expectedCastleCount, 101);
+  assert.equal(workerV1.expectedWorkerCount, 404);
+  assert.equal(workerV2.currentCastleCount, 101);
+  assert.equal(workerV2.currentWorkerCount, 404);
+  assert.equal(workerV2.rosterDigest, workerV1.rosterDigest);
+  assert.equal(fixture.tables.resourceAccountV1.fid.find(fid)?.food, 0n);
+  assert.equal(fixture.tables.resourceAccountV1.fid.find(fid)?.wood, 0n);
+  assert.equal(fixture.tables.resourceAccountV1.fid.find(fid)?.stone, 0n);
+  assert.equal(fixture.tables.resourceAccountV1.fid.find(fid)?.gold, 0n);
+
+  const replayBefore = stateText(fixture);
+  assert.equal(ensureGenesisFounder(fixture.ctx, fid, admission), 'preserved');
+  assert.equal(stateText(fixture), replayBefore);
+  const staleProfile = fixture.tables.realmProfileV1.fid.find(fid)!;
+  staleProfile.marksBalanceMicros = 1n;
+  assert.equal(
+    errorCode(() => assertGreaterRealmCurrentFounderForFidV1(fixture.ctx, fid)),
+    'STATE_INTEGRITY',
+  );
+  assert.doesNotThrow(() => assertGenesisFounderForProfileRepair(fixture.ctx, fid));
+});
+
+test('serialized active founders consume distinct contiguous balanced allocations', () => {
+  const fixture = new Fixture();
+  advanceToActive(fixture);
+  enableCanonicalInnerKeep(fixture);
+  fixture.ctx.timestamp = timestamp(31_000n);
+  for (const fid of [8_101n, 8_102n]) {
+    assert.equal(fixture.transaction(() => {
+      insertIntendedAdmission(fixture, fid);
+      return ensureGenesisFounder(fixture.ctx, fid, admissionProfileFor(fid));
+    }), 'created');
+  }
+  const first = fixture.tables.greaterRealmCastleClaimV1.ownerFid.find(8_101n)!;
+  const second = fixture.tables.greaterRealmCastleClaimV1.ownerFid.find(8_102n)!;
+  assert.equal(first.allocationSequence, 100n);
+  assert.equal(second.allocationSequence, 101n);
+  assert.notEqual(first.slotId, second.slotId);
+  const regionCounts = new Map<string, number>();
+  for (const claim of fixture.tables.greaterRealmCastleClaimV1.rows) {
+    const slot = fixture.tables.greaterRealmCastleSlotV1.slotId.find(claim.slotId)!;
+    regionCounts.set(slot.regionId, (regionCounts.get(slot.regionId) ?? 0) + 1);
+  }
+  const counts = [...regionCounts.values()];
+  assert.ok(Math.max(...counts) - Math.min(...counts) <= 1);
+});
+
+test('fresh v17 founding rejects partial profile or Marks state and rolls it back exactly', () => {
+  for (const preexisting of ['profile', 'marks'] as const) {
+    const fixture = new Fixture();
+    advanceToActive(fixture);
+    enableCanonicalInnerKeep(fixture);
+    fixture.ctx.timestamp = timestamp(32_000n);
+    const fid = preexisting === 'profile' ? 8_201n : 8_202n;
+    if (preexisting === 'profile') {
+      fixture.tables.realmProfileV1.insert({
+        ...fixture.tables.realmProfileV1.rows[0]!,
+        fid,
+        canonicalUsername: `partial${fid.toString()}`,
+      });
+    } else {
+      fixture.tables.markAccountV1.insert({
+        ...fixture.tables.markAccountV1.rows[0]!,
+        fid,
+      });
+    }
+    const before = stateText(fixture);
+    assert.equal(errorCode(() => fixture.transaction(() => {
+      insertIntendedAdmission(fixture, fid);
+      ensureGenesisFounder(fixture.ctx, fid, admissionProfileFor(fid));
+    })), 'GREATER_REALM_FOUNDER_NAMESPACE_CONFLICT', preexisting);
+    assert.equal(stateText(fixture), before, preexisting);
+  }
+});
+
+test('active v17 founding rolls every early, middle, and late write back atomically', () => {
+  const fixture = new Fixture();
+  advanceToActive(fixture);
+  enableCanonicalInnerKeep(fixture);
+  fixture.ctx.timestamp = timestamp(33_000n);
+  const fid = 8_301n;
+  const before = stateText(fixture);
+  for (const faultAt of [2, 5, 9, 13, 15]) {
+    assert.equal(
+      errorCode(() => fixture.transaction(() => {
+        insertIntendedAdmission(fixture, fid);
+        ensureGenesisFounder(fixture.ctx, fid, admissionProfileFor(fid));
+      }, faultAt)),
+      'INJECTED_TRANSACTION_FAULT',
+      `fault ${faultAt}`,
+    );
+    assert.equal(stateText(fixture), before, `fault ${faultAt}`);
+  }
+});
+
+test('the 600th v17 castle succeeds, the 601st fails, and capacity never blocks replay', () => {
+  const fixture = new Fixture();
+  advanceToActive(fixture);
+  for (let index = 0; index < 499; index += 1) {
+    addOnePostCommitFounder(fixture, BigInt(20_000 + index));
+  }
+  enableCanonicalInnerKeep(fixture);
+  fixture.ctx.timestamp = timestamp(50_000n);
+  const fid600 = 30_600n;
+  const admission600 = admissionProfileFor(fid600);
+  assert.equal(fixture.transaction(() => {
+    insertIntendedAdmission(fixture, fid600);
+    return ensureGenesisFounder(fixture.ctx, fid600, admission600);
+  }), 'created');
+  assert.equal(fixture.tables.castle.count(), 600n);
+  assert.equal(fixture.tables.castleWorkerV1.count(), 2_400n);
+  assert.equal(fixture.tables.greaterRealmActivationV1.rows[0]!.postCanaryFoundingCount, 500);
+  assert.equal(fixture.tables.greaterRealmActivationV1.rows[0]!.nextAllocationSequence, 600n);
+  assert.equal(fixture.tables.realmWorkerSystemV2.rows[0]!.currentCastleCount, 600);
+  assert.equal(fixture.tables.realmWorkerSystemV2.rows[0]!.currentWorkerCount, 2_400);
+
+  const replayBefore = stateText(fixture);
+  assert.equal(ensureGenesisFounder(fixture.ctx, fid600, admission600), 'preserved');
+  assert.equal(stateText(fixture), replayBefore);
+
+  const fid601 = 30_601n;
+  assert.equal(errorCode(() => fixture.transaction(() => {
+    insertIntendedAdmission(fixture, fid601);
+    ensureGenesisFounder(fixture.ctx, fid601, admissionProfileFor(fid601));
+  })), 'GREATER_REALM_CASTLE_CAPACITY_EXHAUSTED');
+  assert.equal(stateText(fixture), replayBefore);
+
+  assert.equal(haltGreaterRealmActivationAuthorizedTransactionV1(fixture.ctx), 'halted');
+  const haltedReplay = stateText(fixture);
+  assert.equal(ensureGenesisFounder(fixture.ctx, fid600, admission600), 'preserved');
+  assert.equal(stateText(fixture), haltedReplay);
+  assert.equal(errorCode(() => fixture.transaction(() => {
+    insertIntendedAdmission(fixture, 30_602n);
+    ensureGenesisFounder(fixture.ctx, 30_602n, admissionProfileFor(30_602n));
+  })), 'GREATER_REALM_CURRENT_WORLD_UNAVAILABLE');
+  assert.equal(stateText(fixture), haltedReplay);
 });
 
 test('fault injection demonstrates transaction rollback at early, middle, and late writes', () => {
