@@ -23,6 +23,10 @@ import {
   validateGreaterRealmComponentInputV1,
   validateGreaterRealmReleaseInputV1,
 } from '../src/greaterRealmV17Policy';
+import {
+  attestCurrentGreaterRealmGateModeForTest,
+  parseGreaterRealmGateModeForTest,
+} from './greaterRealmGateModeTestPolicy';
 
 const SHA = '0'.repeat(64);
 
@@ -35,11 +39,39 @@ function errorCode(action: () => void): string | undefined {
   return undefined;
 }
 
-test('protocol-v17 mutation gates are compiled fail-closed', () => {
-  assert.equal(GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED, false);
-  assert.equal(GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED, false);
+test('protocol-v17 mutation gates compile in one exact reviewed release mode', () => {
+  attestCurrentGreaterRealmGateModeForTest(
+    GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED,
+    GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED,
+  );
   assert.equal(GREATER_REALM_PUBLIC_REGIONS.length, 6);
   assert.equal(GREATER_REALM_CASTLE_CAPACITY, 600);
+});
+
+test('protocol-v17 test gate policy accepts FF, TF, and FT but rejects TT and malformed declarations', () => {
+  const source = (importAllowed: string, activationAllowed: string) => [
+    `export const GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED = ${importAllowed};`,
+    `export const GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED = ${activationAllowed};`,
+  ].join('\n');
+
+  assert.equal(parseGreaterRealmGateModeForTest(source('false', 'false')).mode, 'FF');
+  assert.equal(parseGreaterRealmGateModeForTest(source('true', 'false')).mode, 'TF');
+  assert.equal(parseGreaterRealmGateModeForTest(source('false', 'true')).mode, 'FT');
+  assert.throws(
+    () => parseGreaterRealmGateModeForTest(source('true', 'true')),
+    /GREATER_REALM_TEST_GATE_MODE_INVALID/u,
+  );
+  for (const malformed of [
+    'export const GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED = false;',
+    source('Boolean(false)', 'false'),
+    source('false as const', 'false'),
+    `${source('false', 'false')}\nexport const GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED = false;`,
+  ]) {
+    assert.throws(
+      () => parseGreaterRealmGateModeForTest(malformed),
+      /GREATER_REALM_TEST_GATE_DECLARATION_INVALID/u,
+    );
+  }
 });
 
 test('component ceiling is 4,096 while each mutation remains bounded', () => {

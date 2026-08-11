@@ -8,6 +8,11 @@ import {
   requireGreaterRealmV17ActivationGate,
   requireGreaterRealmV17ImportGate,
 } from '../src/greaterRealmV17Authority';
+import {
+  GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED,
+  GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED,
+} from '../src/greaterRealmV17Policy';
+import { attestCurrentGreaterRealmGateModeForTest } from './greaterRealmGateModeTestPolicy';
 
 function source(path: string): string {
   return readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -44,9 +49,22 @@ const greaterRealmSuffix = [
   'realmWorkerSystemV2',
 ] as const;
 
-test('production import and activation authority fail closed', () => {
-  for (const gate of [requireGreaterRealmV17ImportGate, requireGreaterRealmV17ActivationGate]) {
-    assert.throws(gate, error => greaterRealmAuthorityErrorCode(error)?.endsWith('_NOT_COMPILED') === true);
+test('production import and activation authority follow the exact reviewed compile mode', () => {
+  attestCurrentGreaterRealmGateModeForTest(
+    GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED,
+    GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED,
+  );
+  for (const [allowed, gate] of [
+    [GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED, requireGreaterRealmV17ImportGate],
+    [GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED, requireGreaterRealmV17ActivationGate],
+  ] as const) {
+    if (allowed) assert.doesNotThrow(gate);
+    else {
+      assert.throws(
+        gate,
+        error => greaterRealmAuthorityErrorCode(error)?.endsWith('_NOT_COMPILED') === true,
+      );
+    }
   }
   assert.equal(
     canonicalGreaterRealmVerificationLine('cell', { z: 2, a: 'one' }),

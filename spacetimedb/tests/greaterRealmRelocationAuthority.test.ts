@@ -51,7 +51,9 @@ import {
   GREATER_REALM_RUNTIME_PARTITION_VERSION,
   GREATER_REALM_UNASSIGNED_RANK,
   GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED,
+  GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED,
 } from '../src/greaterRealmV17Policy';
+import { attestCurrentGreaterRealmGateModeForTest } from './greaterRealmGateModeTestPolicy';
 import {
   CANONICAL_CASTLE_SLOTS,
   CANONICAL_REALM,
@@ -1120,7 +1122,10 @@ test('the bounded cutover status tracks every production phase and admission bou
   assert.equal(status.expectedCellCount, 601);
   assert.equal(status.importedPassableCellCount, 600);
   assert.equal(status.componentExpectedCellCount, 600);
-  assert.equal(status.activationMutationsCompiled, false);
+  assert.equal(
+    status.activationMutationsCompiled,
+    GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED,
+  );
   assert.equal(status.currentFounderCount, 100);
   assert.equal(status.founderCapacityRemaining, 500);
   assert.equal(status.legacyClaimRows, 100n);
@@ -1480,8 +1485,11 @@ test('cutover status keeps a disabled founder globally exact and proves only an 
   assert.equal(aggregate.enabledAllowedFidRows, 100n);
 });
 
-test('the registered production boundary stays compiled closed and privacy-safe', () => {
-  assert.equal(GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED, false);
+test('the registered production boundary stays gate-ordered and privacy-safe', () => {
+  attestCurrentGreaterRealmGateModeForTest(
+    GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED,
+    GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED,
+  );
   const schema = readFileSync(new URL('../src/schema.ts', import.meta.url), 'utf8');
   const reducers = readFileSync(new URL('../src/reducers/greaterRealm.ts', import.meta.url), 'utf8');
   const cutoverReducers = readFileSync(

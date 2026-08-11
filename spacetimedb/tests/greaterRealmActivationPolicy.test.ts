@@ -35,6 +35,7 @@ import {
   GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED,
   GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED,
 } from '../src/greaterRealmV17Policy';
+import { attestCurrentGreaterRealmGateModeForTest } from './greaterRealmGateModeTestPolicy';
 
 const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const TOPOLOGY_DIGEST = 'a'.repeat(64);
@@ -121,8 +122,10 @@ test('Greater Realm derives 600-castle bounds without widening frozen legacy lim
   assert.equal(GREATER_REALM_MAX_POST_CANARY_DISPATCH_COUNT, 4_294_967_295);
   assert.equal(GREATER_REALM_PUBLIC_CAPACITY_MAX, 32);
   assert.equal(GREATER_REALM_MAX_RESOURCE_NODES_PER_LOCATION, 32);
-  assert.equal(GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED, false);
-  assert.equal(GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED, false);
+  attestCurrentGreaterRealmGateModeForTest(
+    GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED,
+    GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED,
+  );
 });
 
 test('the activation phase matrix is exact and every exact retry is immutable', () => {

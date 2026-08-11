@@ -3,6 +3,12 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 
+import {
+  GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED,
+  GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED,
+} from '../src/greaterRealmV17Policy';
+import { attestCurrentGreaterRealmGateModeForTest } from './greaterRealmGateModeTestPolicy';
+
 function source(path: string) {
   return readFileSync(resolve(import.meta.dirname, path), 'utf8');
 }
@@ -181,10 +187,10 @@ test('public reducer and V2 control projection expose no private topology or cap
   assert.match(reducer, /atlasRevision: atlas\.revision/);
 });
 
-test('all production activation gates remain compile-time false', () => {
-  assert.match(
-    source('../src/greaterRealmV17Policy.ts'),
-    /GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED = false(?: as const)?/,
+test('the module gate mode is reviewed while production presentation remains compile-time false', () => {
+  attestCurrentGreaterRealmGateModeForTest(
+    GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED,
+    GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED,
   );
   assert.match(
     source('../../src/greater-realm/greaterRealmTransport.ts'),

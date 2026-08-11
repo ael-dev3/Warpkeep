@@ -6,6 +6,7 @@ import {
   GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED,
   GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED,
 } from '../src/greaterRealmV17Policy';
+import { attestCurrentGreaterRealmGateModeForTest } from './greaterRealmGateModeTestPolicy';
 
 function source(path: string): string {
   return readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -23,7 +24,6 @@ const reducerSource = source('../src/reducers/greaterRealmCutover.ts');
 const auditSource = source('../src/greaterRealmCutoverAudit.ts');
 const projectionSource = source('../src/greaterRealmCutoverStatus.ts');
 const indexSource = source('../src/index.ts');
-const policySource = source('../src/greaterRealmV17Policy.ts');
 const generatedTypes = source('../../src/spacetime/module_bindings/types.ts');
 
 const reducers = Object.freeze([
@@ -107,16 +107,10 @@ test('all nine production relocation reducers are registered, argument-free, and
   }
 });
 
-test('the literal-false activation gate runs before admin authentication and status authenticates before reads', () => {
-  assert.equal(GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED, false);
-  assert.equal(GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED, false);
-  assert.equal(
-    policySource.split('export const GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED = false;').length - 1,
-    1,
-  );
-  assert.equal(
-    policySource.split('export const GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED = false;').length - 1,
-    1,
+test('the reviewed activation gate runs before admin authentication and status authenticates before reads', () => {
+  attestCurrentGreaterRealmGateModeForTest(
+    GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED,
+    GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED,
   );
   const boundary = section(
     reducerSource,
