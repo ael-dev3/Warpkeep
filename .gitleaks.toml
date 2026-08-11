@@ -20,6 +20,14 @@ regexes = ['''^inner-keep-slot-m01$''']
 paths = ['''^spacetimedb/tests/innerKeepProjectLifecycleStateful\.test\.ts$''']
 
 [[allowlists]]
+description = "One non-secret UUID used only as a Realm Chat client idempotency fixture"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^018f7b44-5f2f-4c54-8c0d-3f521d46b193$''']
+paths = ['''^tests/realmChatSendIdempotency\.test\.ts$''']
+
+[[allowlists]]
 description = "Public Farcaster custody address inside the signed domain-association header"
 targetRules = ["generic-api-key"]
 condition = "AND"

@@ -16,6 +16,8 @@ contributors. This page routes deeper work without duplicating it.
   presentation, and performance principles
 - [Living Realm V1](design/living-realm-v1.md) — coherent environmental motion,
   bounded surface response, ecology budgets, and fail-closed design
+- [Realm Chat V1 contract](design/realm-chat-v1-contract.md) — dormant authority,
+  legal-review, privacy, moderation, and activation boundaries
 - [Genesis water](design/genesis-water.md) — canonical coast, river, and fog
   layout
 - [Lowlands audio](design/lowlands-audio.md) — scene transitions and runtime

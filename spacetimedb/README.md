@@ -12,12 +12,13 @@ balance, advance a timer, or decide an expedition outcome.
 | Browser/backend wire protocol | 3 |
 | Player authentication contract | 2 |
 | Genesis world generation | 3 |
-| Append-only schema generation | 15 (inactive Inner Keep suffix) |
+| Append-only schema generation | 16 (review-only Realm Chat suffix) |
 | Alpha 0.3.12 suffix | Water refs 37–40; Stone refs 41–45 |
 | Generic worker suffix | refs 47–52; active |
 | Access-request suffix | ref 53; active |
 | Daily Marks suffix | private refs 54–55; activation is separate |
 | Inner Keep suffix | refs 56–63; inactive until separate seed, backfill, client, asset, and activation gates |
+| Realm Chat suffix | refs 64–70; review-only and not publishable or activatable by this build |
 
 Deployed tables retain their original declaration order and shape. Later
 features append new tables; they do not rename or delete existing data. The
@@ -64,6 +65,7 @@ Public subscriptions contain only shared-world presentation:
 - the inactive Inner Keep layout, an empty public compatibility-slot table,
   six-building policy, thirty target-level recipes, and identity-minimized
   castle building rows with authoritative placement transforms;
+- the dormant Realm Chat readiness row and bounded recent-message projection;
 - public Community Marks projection only when its policy permits it.
 
 Private tables contain admission, ownership, unclaimed-slot decisions, resource
@@ -76,6 +78,11 @@ Inner Keep Builder rows, exact cost receipts, idempotency keys, and construction
 schedules are private. Player clients obtain only their own Builder/resources
 projection and accepted-request status through caller-authenticated procedures;
 browser bindings contain none of those private tables.
+
+Realm Chat channel authority, permanent archive, rolling rate ledger,
+idempotency receipts, reports, and moderation evidence remain private. The
+public recent projection is bounded and cannot reveal reports or operator
+state. Chat is disabled and collects no production data in this build.
 
 The pinned SDK requires scheduled expedition rows to be public. Those rows are
 therefore deliberately minimal: schedule/stage identifiers, site, origin
@@ -175,6 +182,27 @@ dormant client. Module publication, catalog seed, Builder backfill,
 exact static-and-population runtime-registry verification, and activation
 remain distinct owner-reviewed operations.
 
+## Review-only Realm Chat authority
+
+Schema generation 16 appends seven tables without changing refs 0–63:
+
+| Ref | Table | Visibility and purpose |
+| ---: | --- | --- |
+| 64 | `realm_chat_status_v1` | public dormant readiness projection |
+| 65 | `realm_chat_channel_v1` | private channel policy and sequence cursor |
+| 66 | `realm_chat_message_v1` | private permanent message archive |
+| 67 | `realm_chat_recent_v1` | public bounded recent-message projection |
+| 68 | `realm_chat_rate_event_v1` | private rolling rate ledger |
+| 69 | `realm_chat_send_receipt_v1` | private exactly-once send receipt |
+| 70 | `realm_chat_report_v1` | private moderation report and evidence bounds |
+
+The additive proof independently freezes v15, publishes the auth-neutral v16
+fixture, seeds one typed row in every Chat table, rejects a v16-to-v15
+downgrade, and verifies the real candidate preserves those rows. The receipt
+binds separate v15 and v16 schema digests to one compiled artifact. This is
+migration evidence only: staging, activation, client entry, and production
+publication remain unauthorized.
+
 ## Entry agreement and Marks
 
 Entry and gameplay require the exact current Alpha Terms and Hegemony Social
@@ -250,10 +278,11 @@ blocked before credentials or network unless both owner-authorized static and
 population selections and their complete installed runtime registries verify.
 See the
 [Inner Keep activation runbook](../docs/operations/inner-keep-activation.md)
-for the complete future owner-reviewed sequence. The publisher has one
-explicit active-v14-to-inactive-v15 lane whose dry run performs only bounded
-network reads and whose publish path uses `--delete-data=never`; it performs no
-seed, Builder backfill, client deployment, or activation. No command is
+for the complete future owner-reviewed sequence. The publisher retains the
+active-v14-to-inactive-v15 contract as a read-only rehearsal, but the current
+v16 artifact has no production lane: every non-dry-run path fails before the
+publish dependency. A later change must add an exact inactive-v15 predecessor,
+protected Chat aggregates, and inactive-v16 postflight evidence. No command is
 authorized by this source PR.
 
 Component setup is separate from module publication and must be reviewed one

@@ -47,6 +47,7 @@ import {
   readFoundedPublishExpectations,
   requireCanonicalPublishCoordinates,
   requireEntryAgreementProductionRelease,
+  requireRealmChatV16ProductionPublishReady,
   requireReviewedAdditivePublicationLane,
   runCurrentAdditiveMigrationProof,
   validateIssuerDeployment,
@@ -1608,6 +1609,7 @@ async function withTestProvenArtifact<T>(callback: (receipt: {
   v13TableSchemaDigest: string;
   v14TableSchemaDigest: string;
   v15TableSchemaDigest: string;
+  v16TableSchemaDigest: string;
   artifactDigest: string;
 }) => Promise<T> | T): Promise<T> {
   let previous: Buffer | undefined;
@@ -1626,6 +1628,7 @@ async function withTestProvenArtifact<T>(callback: (receipt: {
     v13TableSchemaDigest: 'c'.repeat(64),
     v14TableSchemaDigest: 'd'.repeat(64),
     v15TableSchemaDigest: 'e'.repeat(64),
+    v16TableSchemaDigest: 'f'.repeat(64),
     artifactDigest: createHash('sha256').update(content).digest('hex'),
   });
   try {
@@ -3364,6 +3367,7 @@ describe('activation publish safety', () => {
         v13TableSchemaDigest: receipt.v13TableSchemaDigest,
         v14TableSchemaDigest: receipt.v14TableSchemaDigest,
         v15TableSchemaDigest: receipt.v15TableSchemaDigest,
+        v16TableSchemaDigest: receipt.v16TableSchemaDigest,
         artifactDigest: receipt.artifactDigest,
       })}\n`;
       const parsed = parseMigrationProofReceipt(success);
@@ -3416,6 +3420,10 @@ describe('activation publish safety', () => {
         '',
       ))).toThrow(/exact success receipt/i);
       expect(() => parseMigrationProofReceipt(success.replace(
+        ` v16_table_schema_sha256=${receipt.v16TableSchemaDigest}`,
+        '',
+      ))).toThrow(/exact success receipt/i);
+      expect(() => parseMigrationProofReceipt(success.replace(
         ` v11_table_schema_sha256=${receipt.v11TableSchemaDigest}`
           + ` v12_table_schema_sha256=${receipt.v12TableSchemaDigest}`,
         ` v12_table_schema_sha256=${receipt.v12TableSchemaDigest}`
@@ -3459,6 +3467,10 @@ describe('activation publish safety', () => {
         ...receipt,
         v15TableSchemaDigest: receipt.v15TableSchemaDigest.toUpperCase(),
       })).toThrow(/receipt was invalid/i);
+      expect(() => verifyMigrationArtifactReceipt({
+        ...receipt,
+        v16TableSchemaDigest: receipt.v16TableSchemaDigest.toUpperCase(),
+      })).toThrow(/receipt was invalid/i);
       expect(() => verifyMigrationArtifactReceipt({ ...receipt, extra: true }))
         .toThrow(/receipt was invalid/i);
       await expect(publishModule(
@@ -3481,7 +3493,7 @@ describe('activation publish safety', () => {
     });
   });
 
-  it('allows the current v15 artifact only through the explicit inactive publication lane', () => {
+  it('retains the v15 rehearsal but hard-closes the review-only v16 artifact', () => {
     const publisher = readFileSync(
       resolve(repositoryRoot, 'scripts/publish-spacetime-dev.mjs'),
       'utf8',
@@ -3496,20 +3508,30 @@ describe('activation publish safety', () => {
       'executeProtocolV15InactivePublicationLane({',
       gate,
     );
+    const laneDefinition = publisher.indexOf(
+      'export async function executeProtocolV15InactivePublicationLane(',
+    );
+    const hardClose = publisher.indexOf(
+      'requireRealmChatV16ProductionPublishReady();',
+      laneDefinition,
+    );
     const publish = publisher.indexOf(
-      'await publishModule(executable, CANONICAL_DATABASE_IDENTITY, artifactReceipt);',
-      gate,
+      'await (dependencies.publishModule ?? publishModule)(',
+      laneDefinition,
     );
 
     expect(proof).toBeGreaterThan(-1);
     expect(gate).toBeGreaterThan(-1);
     expect(gate).toBeLessThan(proof);
     expect(lane).toBeGreaterThan(proof);
-    expect(publish).toBeGreaterThan(gate);
-    expect(lane).toBeLessThan(publish);
+    expect(laneDefinition).toBeGreaterThan(-1);
+    expect(hardClose).toBeGreaterThan(laneDefinition);
+    expect(publish).toBeGreaterThan(hardClose);
     expect(publisher).toContain('INNER_KEEP_MODULE_PREDECESSOR.EXACT_V14_ACTIVE');
     expect(publisher).toContain('INNER_KEEP_PUBLICATION_STAGE.APPEND_INACTIVE');
     expect(publisher).toContain("'--delete-data=never'");
+    expect(() => requireRealmChatV16ProductionPublishReady())
+      .toThrow(/protocol v16 is review-only/i);
   });
 
   it('runs the inactive-v15 dry run as reads only and keeps publish behind all preflights', async () => {
@@ -3520,7 +3542,8 @@ describe('activation publish safety', () => {
       v13TableSchemaDigest: '3'.repeat(64),
       v14TableSchemaDigest: '4'.repeat(64),
       v15TableSchemaDigest: '5'.repeat(64),
-      artifactDigest: '6'.repeat(64),
+      v16TableSchemaDigest: '6'.repeat(64),
+      artifactDigest: '7'.repeat(64),
     });
     const expectations = Object.freeze({
       expectedEnabledAllowedFidCount: 3,
@@ -3604,46 +3627,16 @@ describe('activation publish safety', () => {
     expect(postInnerKeep).not.toHaveBeenCalled();
     expect(postAccessRequests).not.toHaveBeenCalled();
 
-    publish.mockResolvedValue(undefined);
-    postSchema.mockReturnValue({ appendedInnerKeepTableCount: 8 });
-    postAggregate.mockReturnValue(historical);
-    postDaily.mockReturnValue(daily);
-    postInnerKeep.mockReturnValue(emptyInactiveInnerKeepV15Status());
-    postAccessRequests.mockReturnValue(accessRequests);
     await expect(executeProtocolV15InactivePublicationLane(
       { ...baseOptions, dryRun: false },
       dependencies,
-    )).resolves.toEqual({
-      publication: 'verified',
-      protocol: 'v15',
-      stage: INNER_KEEP_PUBLICATION_STAGE.APPEND_INACTIVE,
-      predecessor: INNER_KEEP_MODULE_PREDECESSOR.EXACT_V14_ACTIVE,
-      deletion: 'disabled',
-      historicalAggregateExact: true,
-      appendedTableCount: 8,
-      innerKeepActive: false,
-    });
-    expect(publish).toHaveBeenCalledTimes(1);
-    expect(publish).toHaveBeenCalledWith(
-      baseOptions.executable,
-      CANONICAL_DATABASE_IDENTITY,
-      receipt,
-    );
-    expect(postSchema).toHaveBeenCalledTimes(1);
-    expect(postInnerKeep).toHaveBeenCalledWith(
-      baseOptions.adminTokenSecret,
-      expectations.expectedFounderCount,
-      expect.any(Function),
-    );
-    expect(postAccessRequests).toHaveBeenCalledTimes(1);
-
-    postAggregate.mockReturnValueOnce({ protocolV3: { castles: '5' } });
-    await expect(executeProtocolV15InactivePublicationLane(
-      { ...baseOptions, dryRun: false },
-      dependencies,
-    )).rejects.toThrow(/historical aggregate state changed/i);
-    expect(publish).toHaveBeenCalledTimes(2);
-    expect(postInnerKeep).toHaveBeenCalledTimes(1);
+    )).rejects.toThrow(/protocol v16 is review-only/i);
+    expect(publish).not.toHaveBeenCalled();
+    expect(postSchema).not.toHaveBeenCalled();
+    expect(postAggregate).not.toHaveBeenCalled();
+    expect(postDaily).not.toHaveBeenCalled();
+    expect(postInnerKeep).not.toHaveBeenCalled();
+    expect(postAccessRequests).not.toHaveBeenCalled();
   });
 
   it('gives the real scheduler migration proof a dedicated bounded process deadline', async () => {
@@ -3656,6 +3649,7 @@ describe('activation publish safety', () => {
         v13TableSchemaDigest: receipt.v13TableSchemaDigest,
         v14TableSchemaDigest: receipt.v14TableSchemaDigest,
         v15TableSchemaDigest: receipt.v15TableSchemaDigest,
+        v16TableSchemaDigest: receipt.v16TableSchemaDigest,
         artifactDigest: receipt.artifactDigest,
       })}\n`;
       const fakeSpawnSync = (...args: unknown[]) => {

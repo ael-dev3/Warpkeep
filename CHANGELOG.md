@@ -21,6 +21,11 @@ full engineering record.
   both Pages and SpacetimeDB, pinned the proposed Privacy Notice text digest,
   and removed duplicated agreement-version literals from migration and local
   full-stack QA so rollout drift fails closed.
+- Restacked the dormant Realm Chat authority as additive schema protocol v16,
+  preserving the complete inactive Inner Keep v15 boundary at refs 56–63 and
+  reserving Chat refs 64–70. The loopback migration receipt now proves both
+  boundaries and populated Chat rollback safety; real v16 publication remains
+  hard-closed pending exact predecessor, aggregate, and postflight evidence.
 - Prepared the inactive Inner Keep V1 foundation as one server-authoritative
   construction loop: continuous half-meter-snapped player placement with
   quarter turns, six five-level buildings, one internal Builder, exact resource

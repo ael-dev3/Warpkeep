@@ -3347,13 +3347,14 @@ function validateMigrationArtifactReceiptShape(receipt) {
     receipt === null
     || typeof receipt !== 'object'
     || Object.keys(receipt).sort().join(',')
-      !== 'artifactDigest,artifactPath,v11TableSchemaDigest,v12TableSchemaDigest,v13TableSchemaDigest,v14TableSchemaDigest,v15TableSchemaDigest'
+      !== 'artifactDigest,artifactPath,v11TableSchemaDigest,v12TableSchemaDigest,v13TableSchemaDigest,v14TableSchemaDigest,v15TableSchemaDigest,v16TableSchemaDigest'
     || receipt.artifactPath !== PROVEN_ARTIFACT_PATH
     || !SHA256_DIGEST.test(receipt.v11TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.v12TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.v13TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.v14TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.v15TableSchemaDigest ?? '')
+    || !SHA256_DIGEST.test(receipt.v16TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.artifactDigest ?? '')
   ) {
     fail('The additive migration proof artifact receipt was invalid.');
@@ -3365,6 +3366,7 @@ function validateMigrationArtifactReceiptShape(receipt) {
     v13TableSchemaDigest: receipt.v13TableSchemaDigest,
     v14TableSchemaDigest: receipt.v14TableSchemaDigest,
     v15TableSchemaDigest: receipt.v15TableSchemaDigest,
+    v16TableSchemaDigest: receipt.v16TableSchemaDigest,
     artifactDigest: receipt.artifactDigest,
   });
 }
@@ -3379,9 +3381,9 @@ export function verifyMigrationArtifactReceipt(receipt) {
 }
 
 /**
- * The current artifact contains protocol v15. Keep every historical publisher
- * lane closed unless the operator explicitly selects the one reviewed
- * active-v14 -> inactive-v15 predecessor/stage pair.
+ * The current artifact contains review-only protocol v16. Preserve the
+ * inherited v15 argument contract for read-only rehearsal while all real v16
+ * publication remains fail closed below.
  */
 export function requireReviewedAdditivePublicationLane(
   receipt,
@@ -3395,7 +3397,7 @@ export function requireReviewedAdditivePublicationLane(
     || innerKeepPublicationStage
       !== INNER_KEEP_PUBLICATION_STAGE.APPEND_INACTIVE
   ) {
-    fail('Protocol-v15 publication requires the explicit exact-v14-active predecessor and append-inactive stage; no publish was attempted.');
+    fail('Protocol-v16 review requires the explicit exact-v14-active predecessor and append-inactive stage inherited from v15; no publish was attempted.');
   }
   return validated;
 }
@@ -3414,6 +3416,7 @@ export function parseMigrationProofReceipt(output) {
     v13TableSchemaDigest: proofReceipt.v13TableSchemaDigest,
     v14TableSchemaDigest: proofReceipt.v14TableSchemaDigest,
     v15TableSchemaDigest: proofReceipt.v15TableSchemaDigest,
+    v16TableSchemaDigest: proofReceipt.v16TableSchemaDigest,
     artifactDigest: proofReceipt.artifactDigest,
   });
 }
@@ -4781,7 +4784,7 @@ export async function publishModule(
   if (targetDatabase !== CANONICAL_DATABASE_IDENTITY) {
     fail('The production publish target was not the pinned canonical database identity.');
   }
-  const artifact = validateMigrationArtifactReceiptShape(artifactReceipt);
+  const artifact = verifyMigrationArtifactReceipt(artifactReceipt);
   const artifactSnapshot = createPrivatePublishSnapshot(
     artifact.artifactPath,
     artifact.artifactDigest,
@@ -4871,10 +4874,19 @@ export async function publishModule(
 }
 
 /**
- * Execute only the reviewed active-v14 -> inactive-v15 lane. Dependencies are
- * injectable for pure safety tests; production uses the closed functions in
- * this module. Dry-run deliberately performs every network read preflight and
- * returns before the sole publish dependency can be reached.
+ * Protocol v16 is a review-only Chat append. A later evidence-backed change
+ * must add an exact inactive-v15 predecessor ABI, protected Chat aggregates,
+ * and post-publication inactive-v16 checkpoints before production mutation is
+ * reachable.
+ */
+export function requireRealmChatV16ProductionPublishReady() {
+  fail('Realm Chat protocol v16 is review-only and cannot be published by this build.');
+}
+
+/**
+ * Retain the reviewed active-v14 -> inactive-v15 lane as a read-only rehearsal.
+ * The v16 artifact cannot use this predecessor contract for a real publish;
+ * the explicit fail-closed guard below runs before the publish dependency.
  */
 export async function executeProtocolV15InactivePublicationLane(
   options,
@@ -4966,6 +4978,8 @@ export async function executeProtocolV15InactivePublicationLane(
       networkMode: 'read-only',
     });
   }
+
+  requireRealmChatV16ProductionPublishReady();
 
   await (dependencies.publishModule ?? publishModule)(
     options.executable,

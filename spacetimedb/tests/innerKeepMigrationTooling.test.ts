@@ -114,7 +114,7 @@ test('v15 fixture pins public projection, private authority, and an empty compat
   assert.match(lock, /migration-fixtures\/additive-v15-schema:/);
 });
 
-test('general rehearsal proves populated v14 to v15 preservation and downgrade refusal', () => {
+test('general rehearsal preserves the populated v14 to v15 boundary inside v16', () => {
   const verifier = source('../../scripts/verify-spacetime-additive-migration.mjs');
   const receipt = source('../../scripts/spacetime-additive-migration-proof.mjs');
 
@@ -125,10 +125,12 @@ test('general rehearsal proves populated v14 to v15 preservation and downgrade r
   assert.match(verifier, /fixture_seed_inner_keep_sentinel_v15/);
   assert.match(verifier, /dailyMarksPopulatedV15Rows/);
   assert.match(verifier, /additiveV14SchemaFixture,[\s\S]{0,120}dailyMarksMigrationDatabase,[\s\S]{0,40}false/);
-  assert.match(verifier, /The v15 boundary must refuse its immediate predecessor/);
+  assert.match(verifier, /The v15 boundary must refuse its own predecessor/);
   assert.match(verifier, /inner_keep_layout_v1: 56/);
   assert.match(verifier, /castle_inner_construction_schedule_v_1: 63/);
-  assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 15/);
+  assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 16/);
   assert.match(receipt, /const V15_TABLE_SCHEMA_RECEIPT_FIELD = 'v15_table_schema_sha256'/);
   assert.match(receipt, /v15TableSchemaDigest/);
+  assert.match(receipt, /const V16_TABLE_SCHEMA_RECEIPT_FIELD = 'v16_table_schema_sha256'/);
+  assert.match(receipt, /v16TableSchemaDigest/);
 });
