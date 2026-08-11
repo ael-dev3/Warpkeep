@@ -6359,234 +6359,363 @@ function strategicShapeMetrics(
   });
 }
 
-function waterAndBiomes(
-  grid: IndexedAxialGrid,
-  candidateSeed: GreaterRealmTerrainSeed,
-  elevation: Int32Array,
-  filledElevation: Int32Array,
-  flowReceiver: Int32Array,
-  accumulation: BigUint64Array,
-  tierId: Uint8Array,
-  legacyProtectedCell: Uint8Array,
-  temperatureField: Int32Array,
-  moistureField: Int32Array,
-): Readonly<{
+type GreaterRealmGeneratedWaterSurface = Readonly<{
   waterRegime: Uint8Array;
-  biomeId: Uint8Array;
-  landformId: Uint8Array;
   majorRiverCount: number;
   minorStreamCount: number;
   lakeCount: number;
   lakeBasinCandidates: number;
   riverMouthCandidates: number;
   streamHeadCandidates: number;
-}> {
-  const lakeCandidate = new Uint8Array(grid.cellCount);
-  const belowSea = new Uint8Array(grid.cellCount);
-  const majorRiverNetwork = new Uint8Array(grid.cellCount);
-  const minorStreamNetwork = new Uint8Array(grid.cellCount);
-  for (let cell = 0; cell < grid.cellCount; cell += 1) {
-    if (elevation[cell]! <= SEA_LEVEL) belowSea[cell] = 1;
-    if (
-      legacyProtectedCell[cell] !== 1
-      && elevation[cell]! > SEA_LEVEL
-      && filledElevation[cell]! - elevation[cell]! >= 80
-    ) {
-      lakeCandidate[cell] = 1;
-    }
-    if (legacyProtectedCell[cell] === 1 || elevation[cell]! <= SEA_LEVEL) continue;
-    const discharge = Number(accumulation[cell]!);
-    if (discharge >= MAJOR_RIVER_DISCHARGE) majorRiverNetwork[cell] = 1;
-    else if (discharge >= 96) minorStreamNetwork[cell] = 1;
-  }
-  const allLakeComponents = [...connectedComponentsAtEqualSurface(
-    grid,
-    lakeCandidate,
-    filledElevation,
-  )]
-    .sort((first, second) => second.length - first.length || first[0]! - second[0]!);
-  const majorRiverCount = connectedComponents(grid, majorRiverNetwork).length;
-  let minorStreamCount = 0;
-  for (let cell = 0; cell < grid.cellCount; cell += 1) {
-    if (minorStreamNetwork[cell] !== 1) continue;
-    let hasUpstreamStream = false;
-    for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
-      const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
+}>;
+
+type GreaterRealmGeneratedSurfaceVisuals = Readonly<{
+  biomeId: Uint8Array;
+  landformId: Uint8Array;
+}>;
+
+type GreaterRealmGeneratedSurface = Readonly<
+  GreaterRealmGeneratedWaterSurface & GreaterRealmGeneratedSurfaceVisuals
+>;
+
+type GreaterRealmLegacySurfacePlacement = Readonly<Pick<
+  GreaterRealmLegacyPlacement,
+  'transform' | 'protectedCell' | 'castleSlot'
+>>;
+
+/**
+ * Materialize generated water independently from strategic tier labels.
+ * Moving this call is intentionally deferred: this prerequisite preserves the
+ * historical generation order while giving a later water-first revision one
+ * exact, tier-free authority boundary.
+ */
+function deriveGreaterRealmGeneratedWaterSurface(
+  grid: IndexedAxialGrid,
+  candidateSeed: GreaterRealmTerrainSeed,
+  elevation: Int32Array,
+  filledElevation: Int32Array,
+  flowReceiver: Int32Array,
+  accumulation: BigUint64Array,
+  legacyProtectedCell: Uint8Array,
+): GreaterRealmGeneratedWaterSurface {
+  let lakeCandidate: Uint8Array | undefined;
+  let belowSea: Uint8Array | undefined;
+  let majorRiverNetwork: Uint8Array | undefined;
+  let minorStreamNetwork: Uint8Array | undefined;
+  let waterRegime: Uint8Array | undefined;
+  let inlandSeaCells: Set<number> | undefined;
+  let allLakeComponents: (readonly number[])[] | undefined;
+  let selectedLakes: Array<readonly number[]> | undefined;
+  let completed = false;
+  try {
+    lakeCandidate = new Uint8Array(grid.cellCount);
+    belowSea = new Uint8Array(grid.cellCount);
+    majorRiverNetwork = new Uint8Array(grid.cellCount);
+    minorStreamNetwork = new Uint8Array(grid.cellCount);
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      if (elevation[cell]! <= SEA_LEVEL) belowSea[cell] = 1;
       if (
-        neighbor >= 0
-        && minorStreamNetwork[neighbor] === 1
-        && flowReceiver[neighbor] === cell
+        legacyProtectedCell[cell] !== 1 &&
+        elevation[cell]! > SEA_LEVEL &&
+        filledElevation[cell]! - elevation[cell]! >= 80
       ) {
-        hasUpstreamStream = true;
-        break;
+        lakeCandidate[cell] = 1;
       }
+      if (legacyProtectedCell[cell] === 1 || elevation[cell]! <= SEA_LEVEL)
+        continue;
+      const discharge = Number(accumulation[cell]!);
+      if (discharge >= MAJOR_RIVER_DISCHARGE) majorRiverNetwork[cell] = 1;
+      else if (discharge >= 96) minorStreamNetwork[cell] = 1;
     }
-    if (!hasUpstreamStream) minorStreamCount += 1;
-  }
-  const waterRegime = new Uint8Array(grid.cellCount);
-  let existingMajorBodies = 0;
-  for (const component of connectedComponents(grid, belowSea)) {
-    const touchesActiveBoundary = component.some(cell => {
-      for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
-        if (grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction] === -1) return true;
-      }
-      return false;
-    });
-    const regime = touchesActiveBoundary
-      ? WATER_OCEAN
-      : component.length >= 48 ? WATER_SEA : WATER_LAKE;
-    if (regime === WATER_OCEAN || regime === WATER_SEA) existingMajorBodies += 1;
-    for (const cell of component) waterRegime[cell] = regime;
-  }
-  const targetMajorBodies = 4 + (
-    greaterRealmCounterRandomU32(
-      candidateSeed,
-      greaterRealmTerrainChannelId('inland-sea-body-count'),
-      0,
-      0,
-    ) % 3
-  );
-  const inlandSeaComponents = selectGreaterRealmCompatibleStandingWaterComponents({
-    grid,
-    rankedComponents: allLakeComponents,
-    elevation,
-    filledElevation,
-    waterRegime,
-    maximumCount: Math.max(0, targetMajorBodies - existingMajorBodies),
-    minimumCellCount: 48,
-  });
-  const inlandSeaCells = new Set(inlandSeaComponents.flat());
-  const selectedLakes: Array<readonly number[]> = [];
-  for (const component of allLakeComponents) {
-    if (
-      selectedLakes.length >= 72
-      || component.length < 2
-      || component.length > 64
-      || inlandSeaCells.has(component[0]!)
-    ) continue;
-    const level = filledElevation[component[0]!]!;
-    const conflicts = component.some(cell => {
+    allLakeComponents = [
+      ...connectedComponentsAtEqualSurface(
+        grid,
+        lakeCandidate,
+        filledElevation,
+      ),
+    ].sort(
+      (first, second) => second.length - first.length || first[0]! - second[0]!,
+    );
+    const majorRiverCount = connectedComponents(grid, majorRiverNetwork).length;
+    let minorStreamCount = 0;
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      if (minorStreamNetwork[cell] !== 1) continue;
+      let hasUpstreamStream = false;
       for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
         const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
         if (
-          neighbor >= 0
-          && waterRegime[neighbor] === WATER_LAKE
-          && (elevation[neighbor]! <= SEA_LEVEL ? SEA_LEVEL : filledElevation[neighbor]!) !== level
-        ) return true;
+          neighbor >= 0 &&
+          minorStreamNetwork[neighbor] === 1 &&
+          flowReceiver[neighbor] === cell
+        ) {
+          hasUpstreamStream = true;
+          break;
+        }
       }
-      return false;
+      if (!hasUpstreamStream) minorStreamCount += 1;
+    }
+    const generatedWaterRegime = new Uint8Array(grid.cellCount);
+    waterRegime = generatedWaterRegime;
+    let existingMajorBodies = 0;
+    for (const component of connectedComponents(grid, belowSea)) {
+      const touchesActiveBoundary = component.some((cell) => {
+        for (
+          let direction = 0;
+          direction < HEX_NEIGHBOR_COUNT;
+          direction += 1
+        ) {
+          if (grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction] === -1)
+            return true;
+        }
+        return false;
+      });
+      const regime = touchesActiveBoundary
+        ? WATER_OCEAN
+        : component.length >= 48
+          ? WATER_SEA
+          : WATER_LAKE;
+      if (regime === WATER_OCEAN || regime === WATER_SEA)
+        existingMajorBodies += 1;
+      for (const cell of component) generatedWaterRegime[cell] = regime;
+    }
+    const targetMajorBodies =
+      4 +
+      (greaterRealmCounterRandomU32(
+        candidateSeed,
+        greaterRealmTerrainChannelId('inland-sea-body-count'),
+        0,
+        0,
+      ) %
+        3);
+    const inlandSeaComponents =
+      selectGreaterRealmCompatibleStandingWaterComponents({
+        grid,
+        rankedComponents: allLakeComponents,
+        elevation,
+        filledElevation,
+        waterRegime: generatedWaterRegime,
+        maximumCount: Math.max(0, targetMajorBodies - existingMajorBodies),
+        minimumCellCount: 48,
+      });
+    inlandSeaCells = new Set(inlandSeaComponents.flat());
+    selectedLakes = [];
+    for (const component of allLakeComponents) {
+      if (
+        selectedLakes.length >= 72 ||
+        component.length < 2 ||
+        component.length > 64 ||
+        inlandSeaCells.has(component[0]!)
+      )
+        continue;
+      const level = filledElevation[component[0]!]!;
+      const conflicts = component.some((cell) => {
+        for (
+          let direction = 0;
+          direction < HEX_NEIGHBOR_COUNT;
+          direction += 1
+        ) {
+          const neighbor =
+            grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
+          if (
+            neighbor >= 0 &&
+            generatedWaterRegime[neighbor] === WATER_LAKE &&
+            (elevation[neighbor]! <= SEA_LEVEL
+              ? SEA_LEVEL
+              : filledElevation[neighbor]!) !== level
+          )
+            return true;
+        }
+        return false;
+      });
+      if (conflicts) continue;
+      selectedLakes.push(component);
+      for (const cell of component) generatedWaterRegime[cell] = WATER_LAKE;
+    }
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      if (
+        generatedWaterRegime[cell] === WATER_DRY &&
+        majorRiverNetwork[cell] === 1
+      ) {
+        generatedWaterRegime[cell] = WATER_RIVER;
+      } else if (
+        generatedWaterRegime[cell] === WATER_DRY &&
+        minorStreamNetwork[cell] === 1
+      ) {
+        generatedWaterRegime[cell] = WATER_STREAM;
+      }
+    }
+    const lakeCount = selectedLakes.length;
+    const lakeBasinCandidates = allLakeComponents.length;
+    completed = true;
+    return Object.freeze({
+      waterRegime: generatedWaterRegime,
+      majorRiverCount,
+      minorStreamCount,
+      lakeCount,
+      lakeBasinCandidates,
+      riverMouthCandidates: majorRiverCount,
+      streamHeadCandidates: minorStreamCount,
     });
-    if (conflicts) continue;
-    selectedLakes.push(component);
-    for (const cell of component) waterRegime[cell] = WATER_LAKE;
+  } finally {
+    lakeCandidate?.fill(0);
+    belowSea?.fill(0);
+    majorRiverNetwork?.fill(0);
+    minorStreamNetwork?.fill(0);
+    inlandSeaCells?.clear();
+    if (allLakeComponents) allLakeComponents.length = 0;
+    if (selectedLakes) selectedLakes.length = 0;
+    if (!completed) waterRegime?.fill(0);
   }
-  for (let cell = 0; cell < grid.cellCount; cell += 1) {
-    if (waterRegime[cell] === WATER_DRY && majorRiverNetwork[cell] === 1) {
-      waterRegime[cell] = WATER_RIVER;
-    } else if (waterRegime[cell] === WATER_DRY && minorStreamNetwork[cell] === 1) {
-      waterRegime[cell] = WATER_STREAM;
-    }
-  }
+}
 
-  const biomeId = new Uint8Array(grid.cellCount);
-  const landformId = new Uint8Array(grid.cellCount);
-  for (let cell = 0; cell < grid.cellCount; cell += 1) {
-    if (waterRegime[cell] !== WATER_DRY) {
-      const saltwater = waterRegime[cell] === WATER_OCEAN || waterRegime[cell] === WATER_SEA;
-      biomeId[cell] = saltwater
-        ? GREATER_REALM_BIOME_ID.SALTWATER
-        : waterRegime[cell] === WATER_LAKE
-          ? GREATER_REALM_BIOME_ID.LAKE
-          : GREATER_REALM_BIOME_ID.RIVER_STREAM;
-      landformId[cell] = saltwater
-        ? GREATER_REALM_LANDFORM_ID.ISLAND_SHELF
-        : waterRegime[cell] === WATER_LAKE
-          ? GREATER_REALM_LANDFORM_ID.LAKE_BASIN
-          : GREATER_REALM_LANDFORM_ID.WATERCOURSE;
-      continue;
+/** Derive the historical generated biome/landform envelope from fixed water. */
+function deriveGreaterRealmGeneratedSurfaceVisuals(
+  grid: IndexedAxialGrid,
+  elevation: Int32Array,
+  waterRegime: Uint8Array,
+  tierId: Uint8Array,
+  temperatureField: Int32Array,
+  moistureField: Int32Array,
+): GreaterRealmGeneratedSurfaceVisuals {
+  let biomeId: Uint8Array | undefined;
+  let landformId: Uint8Array | undefined;
+  let completed = false;
+  try {
+    biomeId = new Uint8Array(grid.cellCount);
+    landformId = new Uint8Array(grid.cellCount);
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      if (waterRegime[cell] !== WATER_DRY) {
+        const saltwater =
+          waterRegime[cell] === WATER_OCEAN || waterRegime[cell] === WATER_SEA;
+        biomeId[cell] = saltwater
+          ? GREATER_REALM_BIOME_ID.SALTWATER
+          : waterRegime[cell] === WATER_LAKE
+            ? GREATER_REALM_BIOME_ID.LAKE
+            : GREATER_REALM_BIOME_ID.RIVER_STREAM;
+        landformId[cell] = saltwater
+          ? GREATER_REALM_LANDFORM_ID.ISLAND_SHELF
+          : waterRegime[cell] === WATER_LAKE
+            ? GREATER_REALM_LANDFORM_ID.LAKE_BASIN
+            : GREATER_REALM_LANDFORM_ID.WATERCOURSE;
+        continue;
+      }
+      let maximumDrop = 0;
+      for (
+        let directionIndex = 0;
+        directionIndex < HEX_NEIGHBOR_COUNT;
+        directionIndex += 1
+      ) {
+        const neighbor =
+          grid.neighbors[cell * HEX_NEIGHBOR_COUNT + directionIndex]!;
+        if (neighbor < 0) continue;
+        maximumDrop = Math.max(
+          maximumDrop,
+          Math.abs(elevation[cell]! - elevation[neighbor]!),
+        );
+      }
+      const temperature = temperatureField[cell]!;
+      const moisture = moistureField[cell]!;
+      if (maximumDrop > 2_500 || elevation[cell]! > 16_000) {
+        biomeId[cell] =
+          temperature < 2_500
+            ? GREATER_REALM_BIOME_ID.TUNDRA
+            : GREATER_REALM_BIOME_ID.ROCKY_HIGHLAND;
+        landformId[cell] =
+          elevation[cell]! > 20_000
+            ? GREATER_REALM_LANDFORM_ID.MOUNTAIN
+            : GREATER_REALM_LANDFORM_ID.HIGHLAND;
+      } else if (temperature < 1_800) {
+        biomeId[cell] =
+          moisture > 0
+            ? GREATER_REALM_BIOME_ID.ALPINE_SNOW
+            : GREATER_REALM_BIOME_ID.HEATHLAND;
+        landformId[cell] = GREATER_REALM_LANDFORM_ID.ALPINE_PLATEAU;
+      } else if (moisture < -1_800) {
+        biomeId[cell] =
+          temperature > 6_000
+            ? GREATER_REALM_BIOME_ID.ROCKY_DESERT
+            : GREATER_REALM_BIOME_ID.DUNE_DESERT;
+        landformId[cell] =
+          maximumDrop > 900
+            ? GREATER_REALM_LANDFORM_ID.BADLANDS
+            : GREATER_REALM_LANDFORM_ID.DUNE;
+      } else if (moisture > 2_000) {
+        biomeId[cell] =
+          tierId[cell] === 1
+            ? GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST
+            : GREATER_REALM_BIOME_ID.PINE_FOREST;
+        landformId[cell] =
+          maximumDrop > 1_200
+            ? GREATER_REALM_LANDFORM_ID.HILL
+            : GREATER_REALM_LANDFORM_ID.LOWLAND;
+      } else {
+        biomeId[cell] =
+          tierId[cell] === 3
+            ? GREATER_REALM_BIOME_ID.ASH_MEADOW
+            : GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND;
+        landformId[cell] =
+          maximumDrop > 1_000
+            ? GREATER_REALM_LANDFORM_ID.ROLLING_LOWLAND
+            : GREATER_REALM_LANDFORM_ID.LOWLAND;
+      }
     }
-    let maximumDrop = 0;
-    for (let directionIndex = 0; directionIndex < HEX_NEIGHBOR_COUNT; directionIndex += 1) {
-      const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + directionIndex]!;
-      if (neighbor < 0) continue;
-      maximumDrop = Math.max(maximumDrop, Math.abs(elevation[cell]! - elevation[neighbor]!));
-    }
-    const temperature = temperatureField[cell]!;
-    const moisture = moistureField[cell]!;
-    if (maximumDrop > 2_500 || elevation[cell]! > 16_000) {
-      biomeId[cell] =
-        temperature < 2_500
-          ? GREATER_REALM_BIOME_ID.TUNDRA
-          : GREATER_REALM_BIOME_ID.ROCKY_HIGHLAND;
-      landformId[cell] =
-        elevation[cell]! > 20_000
-          ? GREATER_REALM_LANDFORM_ID.MOUNTAIN
-          : GREATER_REALM_LANDFORM_ID.HIGHLAND;
-    } else if (temperature < 1_800) {
-      biomeId[cell] =
-        moisture > 0
-          ? GREATER_REALM_BIOME_ID.ALPINE_SNOW
-          : GREATER_REALM_BIOME_ID.HEATHLAND;
-      landformId[cell] = GREATER_REALM_LANDFORM_ID.ALPINE_PLATEAU;
-    } else if (moisture < -1_800) {
-      biomeId[cell] =
-        temperature > 6_000
-          ? GREATER_REALM_BIOME_ID.ROCKY_DESERT
-          : GREATER_REALM_BIOME_ID.DUNE_DESERT;
-      landformId[cell] =
-        maximumDrop > 900
-          ? GREATER_REALM_LANDFORM_ID.BADLANDS
-          : GREATER_REALM_LANDFORM_ID.DUNE;
-    } else if (moisture > 2_000) {
-      biomeId[cell] =
-        tierId[cell] === 1
-          ? GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST
-          : GREATER_REALM_BIOME_ID.PINE_FOREST;
-      landformId[cell] =
-        maximumDrop > 1_200
-          ? GREATER_REALM_LANDFORM_ID.HILL
-          : GREATER_REALM_LANDFORM_ID.LOWLAND;
-    } else {
-      biomeId[cell] =
-        tierId[cell] === 3
-          ? GREATER_REALM_BIOME_ID.ASH_MEADOW
-          : GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND;
-      landformId[cell] =
-        maximumDrop > 1_000
-          ? GREATER_REALM_LANDFORM_ID.ROLLING_LOWLAND
-          : GREATER_REALM_LANDFORM_ID.LOWLAND;
+    completed = true;
+    return Object.freeze({
+      biomeId,
+      landformId,
+    });
+  } finally {
+    if (!completed) {
+      biomeId?.fill(0);
+      landformId?.fill(0);
     }
   }
-  return Object.freeze({
-    waterRegime,
-    biomeId,
-    landformId,
-    majorRiverCount,
-    minorStreamCount,
-    lakeCount: selectedLakes.length,
-    lakeBasinCandidates: allLakeComponents.length,
-    riverMouthCandidates: majorRiverCount,
-    streamHeadCandidates: minorStreamCount,
-  });
 }
 
 /**
- * The generated surface is never allowed to reinterpret the deployed patch.
- * Clear all generated water inside its protected footprint, then project the
- * exact active Water revision and the seven frozen gameplay terrain classes.
- * Detailed legacy hydrology remains in the pinned private patch descriptor.
+ * The generated water surface is never allowed to reinterpret the deployed
+ * patch. Clear generated water inside its protected footprint, then project
+ * the exact active Water revision. Detailed legacy hydrology remains in the
+ * pinned private patch descriptor.
  */
-function overlayLegacyLowlandsSurface(
+function overlayLegacyLowlandsWaterAuthority(
   grid: IndexedAxialGrid,
-  legacy: GreaterRealmLegacyPlacement,
+  legacy: GreaterRealmLegacySurfacePlacement,
   waterRegime: Uint8Array,
-  biomeId: Uint8Array,
-  landformId: Uint8Array,
 ): boolean {
   const patch = GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1;
   for (let cell = 0; cell < grid.cellCount; cell += 1) {
     if (legacy.protectedCell[cell] === 1) waterRegime[cell] = 0;
   }
+  let enabledWaterCount = 0;
+  for (const waterCell of patch.water.enabledCells) {
+    const cell = grid.indexOf(transformLegacyLowlandsToGlobal(waterCell, legacy.transform));
+    if (cell < 0 || legacy.protectedCell[cell] !== 1) return false;
+    waterRegime[cell] =
+      waterCell.regime === 'ocean'
+        ? WATER_OCEAN
+        : waterCell.regime === 'river'
+          ? WATER_RIVER
+          : WATER_LAKE;
+    enabledWaterCount += 1;
+  }
+  if (enabledWaterCount !== GREATER_REALM_LEGACY_LOWLANDS_LOCK_PINS_V1.waterEnabledCellCount) {
+    return false;
+  }
+  for (let cell = 0; cell < grid.cellCount; cell += 1) {
+    if (legacy.castleSlot[cell] === 1 && waterRegime[cell] !== 0) return false;
+  }
+  return true;
+}
+
+/** Project the seven frozen gameplay terrain classes and water visuals. */
+function overlayLegacyLowlandsVisualAuthority(
+  grid: IndexedAxialGrid,
+  legacy: GreaterRealmLegacySurfacePlacement,
+  biomeId: Uint8Array,
+  landformId: Uint8Array,
+): boolean {
+  const patch = GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1;
   const tileByKey = new Map(patch.world.tiles.map(tile => [tile.key, tile] as const));
   const visualClass = Object.freeze({
     lowland: Object.freeze([
@@ -6618,47 +6747,45 @@ function overlayLegacyLowlandsSurface(
       GREATER_REALM_LANDFORM_ID.HILL,
     ] as const),
   });
-  for (const metadata of patch.world.metadata) {
-    const tile = tileByKey.get(metadata.tileKey);
-    if (!tile) return false;
-    const cell = grid.indexOf(transformLegacyLowlandsToGlobal(tile, legacy.transform));
-    const classification = visualClass[metadata.terrainKind];
-    if (cell < 0 || !classification) return false;
-    biomeId[cell] = classification[0];
-    landformId[cell] = classification[1];
+  try {
+    for (const metadata of patch.world.metadata) {
+      const tile = tileByKey.get(metadata.tileKey);
+      if (!tile) return false;
+      const cell = grid.indexOf(transformLegacyLowlandsToGlobal(tile, legacy.transform));
+      const classification = visualClass[metadata.terrainKind];
+      if (cell < 0 || !classification) return false;
+      biomeId[cell] = classification[0];
+      landformId[cell] = classification[1];
+    }
+    for (const waterCell of patch.water.enabledCells) {
+      const cell = grid.indexOf(transformLegacyLowlandsToGlobal(waterCell, legacy.transform));
+      if (cell < 0 || legacy.protectedCell[cell] !== 1) return false;
+      biomeId[cell] =
+        waterCell.regime === 'ocean'
+          ? GREATER_REALM_BIOME_ID.SALTWATER
+          : waterCell.regime === 'river'
+            ? GREATER_REALM_BIOME_ID.RIVER_STREAM
+            : GREATER_REALM_BIOME_ID.LAKE;
+      landformId[cell] =
+        waterCell.regime === 'ocean'
+          ? GREATER_REALM_LANDFORM_ID.ISLAND_SHELF
+          : waterCell.regime === 'river'
+            ? GREATER_REALM_LANDFORM_ID.WATERCOURSE
+            : GREATER_REALM_LANDFORM_ID.LAKE_BASIN;
+    }
+    return true;
+  } finally {
+    tileByKey.clear();
   }
-  let enabledWaterCount = 0;
-  for (const waterCell of patch.water.enabledCells) {
-    const cell = grid.indexOf(transformLegacyLowlandsToGlobal(waterCell, legacy.transform));
-    if (cell < 0 || legacy.protectedCell[cell] !== 1) return false;
-    waterRegime[cell] =
-      waterCell.regime === 'ocean'
-        ? WATER_OCEAN
-        : waterCell.regime === 'river'
-          ? WATER_RIVER
-          : WATER_LAKE;
-    biomeId[cell] =
-      waterCell.regime === 'ocean'
-        ? GREATER_REALM_BIOME_ID.SALTWATER
-        : waterCell.regime === 'river'
-          ? GREATER_REALM_BIOME_ID.RIVER_STREAM
-          : GREATER_REALM_BIOME_ID.LAKE;
-    landformId[cell] =
-      waterCell.regime === 'ocean'
-        ? GREATER_REALM_LANDFORM_ID.ISLAND_SHELF
-        : waterCell.regime === 'river'
-          ? GREATER_REALM_LANDFORM_ID.WATERCOURSE
-          : GREATER_REALM_LANDFORM_ID.LAKE_BASIN;
-    enabledWaterCount += 1;
-  }
-  if (enabledWaterCount !== GREATER_REALM_LEGACY_LOWLANDS_LOCK_PINS_V1.waterEnabledCellCount) {
-    return false;
-  }
-  for (let cell = 0; cell < grid.cellCount; cell += 1) {
-    if (legacy.castleSlot[cell] === 1 && waterRegime[cell] !== 0) return false;
-  }
-  return true;
 }
+
+/** Focused, non-production seams for the surface-split characterization tests. */
+export const greaterRealmSurfaceSplitTestSeams = Object.freeze({
+  deriveGeneratedWaterSurface: deriveGreaterRealmGeneratedWaterSurface,
+  deriveGeneratedSurfaceVisuals: deriveGreaterRealmGeneratedSurfaceVisuals,
+  overlayLegacyLowlandsWaterAuthority,
+  overlayLegacyLowlandsVisualAuthority,
+});
 
 function finalHydrologyMetrics(
   grid: IndexedAxialGrid,
@@ -9449,6 +9576,9 @@ export function generateGreaterRealmCandidate(input: Readonly<{
   let engineeredWaterClearanceMaskOnFailure: Uint8Array | undefined;
   let geomorphologyProcessMoistureOnFailure: Int32Array | undefined;
   let activeMaskOnFailure: Uint8Array | undefined;
+  let preliminaryWaterRegimeOnFailure: Uint8Array | undefined;
+  let preliminaryBiomeIdOnFailure: Uint8Array | undefined;
+  let preliminaryLandformIdOnFailure: Uint8Array | undefined;
   try {
     const canvas = greaterRealmPrivateCanvasAuthority();
     const domainSeeds = separatedDomains(candidateSeed);
@@ -9600,18 +9730,49 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       reconciled.flowAccumulation,
       legacy.reserveCell,
     );
-    const surface = waterAndBiomes(
-      grid,
-      candidateSeed,
-      reconciled.elevation,
-      reconciled.filledElevation,
-      reconciled.flowReceiver,
-      reconciled.flowAccumulation,
-      provisionalStrategy.tierId,
-      legacy.protectedCell,
-      geomorphology.temperature,
-      geomorphology.moisture,
-    );
+    let generatedWaterSurface: GreaterRealmGeneratedWaterSurface | undefined =
+      deriveGreaterRealmGeneratedWaterSurface(
+        grid,
+        candidateSeed,
+        reconciled.elevation,
+        reconciled.filledElevation,
+        reconciled.flowReceiver,
+        reconciled.flowAccumulation,
+        legacy.protectedCell,
+      );
+    preliminaryWaterRegimeOnFailure = generatedWaterSurface.waterRegime;
+    let generatedSurfaceVisuals: GreaterRealmGeneratedSurfaceVisuals | undefined =
+      deriveGreaterRealmGeneratedSurfaceVisuals(
+        grid,
+        reconciled.elevation,
+        generatedWaterSurface.waterRegime,
+        provisionalStrategy.tierId,
+        geomorphology.temperature,
+        geomorphology.moisture,
+      );
+    preliminaryBiomeIdOnFailure = generatedSurfaceVisuals.biomeId;
+    preliminaryLandformIdOnFailure = generatedSurfaceVisuals.landformId;
+    let surface: GreaterRealmGeneratedSurface | undefined = Object.freeze({
+      waterRegime: generatedWaterSurface.waterRegime,
+      biomeId: generatedSurfaceVisuals.biomeId,
+      landformId: generatedSurfaceVisuals.landformId,
+      majorRiverCount: generatedWaterSurface.majorRiverCount,
+      minorStreamCount: generatedWaterSurface.minorStreamCount,
+      lakeCount: generatedWaterSurface.lakeCount,
+      lakeBasinCandidates: generatedWaterSurface.lakeBasinCandidates,
+      riverMouthCandidates: generatedWaterSurface.riverMouthCandidates,
+      streamHeadCandidates: generatedWaterSurface.streamHeadCandidates,
+    });
+    const generatedSurfaceMetrics = Object.freeze({
+      majorRiverCount: generatedWaterSurface.majorRiverCount,
+      minorStreamCount: generatedWaterSurface.minorStreamCount,
+      lakeCount: generatedWaterSurface.lakeCount,
+      lakeBasinCandidates: generatedWaterSurface.lakeBasinCandidates,
+      riverMouthCandidates: generatedWaterSurface.riverMouthCandidates,
+      streamHeadCandidates: generatedWaterSurface.streamHeadCandidates,
+    });
+    generatedWaterSurface = undefined;
+    generatedSurfaceVisuals = undefined;
     // Reconcile the ecological climate against the now-materialized drainage
     // network. Naturally process-dry banks retain their lee-side moisture so
     // freshwater can create real oasis margins instead of the broad ecological
@@ -9653,13 +9814,18 @@ export function generateGreaterRealmCandidate(input: Readonly<{
         filledElevation: reconciled.filledElevation,
       }),
     });
-    const legacySurfaceProof = overlayLegacyLowlandsSurface(
+    const legacyWaterProof = overlayLegacyLowlandsWaterAuthority(
       grid,
       legacy,
       surface.waterRegime,
+    );
+    const legacyVisualProof = overlayLegacyLowlandsVisualAuthority(
+      grid,
+      legacy,
       surface.biomeId,
       surface.landformId,
     );
+    const legacySurfaceProof = legacyWaterProof && legacyVisualProof;
     enforceGreaterRealmStandingWaterBodySurfaceProof({
       phase: 'legacy-overlay',
       proof: hasGreaterRealmStandingWaterBodySurfaceProof({
@@ -9727,6 +9893,12 @@ export function generateGreaterRealmCandidate(input: Readonly<{
         geomorphicCoastalClass: geomorphology.coastalClass,
       });
     } finally {
+      // Only the pinned Lowlands projection consumes this preliminary visual
+      // envelope. Final topography owns fresh authoritative visual arrays.
+      surface.biomeId.fill(0);
+      surface.landformId.fill(0);
+      preliminaryBiomeIdOnFailure = undefined;
+      preliminaryLandformIdOnFailure = undefined;
       // Process climate is private role/saturation scratch. The candidate
       // retains only the ecological climate authority used by final visuals.
       geomorphology.processMoisture.fill(0);
@@ -9786,6 +9958,11 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       hydrologyOnFailure = hydrology;
     } finally {
       marshMask.fill(0);
+      // Hydrology has copied the exact preliminary regime into its retained
+      // authority. Retire this earlier surface on success and failure.
+      surface.waterRegime.fill(0);
+      preliminaryWaterRegimeOnFailure = undefined;
+      surface = undefined;
     }
     const finalHydrology = finalHydrologyMetrics(
       grid,
@@ -10502,9 +10679,9 @@ export function generateGreaterRealmCandidate(input: Readonly<{
         measuredMinimumBarrierWidth: strategicBarrier.measuredMinimumBarrierWidth,
         measuredMaximumBarrierWidth: strategicBarrier.measuredMaximumBarrierWidth,
         gateRouteRedundancyProof: strategicBarrier.gateRouteRedundancyProof,
-        lakeBasinCandidates: surface.lakeBasinCandidates,
-        riverMouthCandidates: surface.riverMouthCandidates,
-        streamHeadCandidates: surface.streamHeadCandidates,
+        lakeBasinCandidates: generatedSurfaceMetrics.lakeBasinCandidates,
+        riverMouthCandidates: generatedSurfaceMetrics.riverMouthCandidates,
+        streamHeadCandidates: generatedSurfaceMetrics.streamHeadCandidates,
         resourcePotentialSites: sites.resourcePotentialCount,
         corePotentialSites: sites.corePotentialCount,
         chunkCount: chunks.count,
@@ -10582,6 +10759,12 @@ export function generateGreaterRealmCandidate(input: Readonly<{
     engineeredWaterClearanceMaskOnFailure = undefined;
     geomorphologyProcessMoistureOnFailure?.fill(0);
     geomorphologyProcessMoistureOnFailure = undefined;
+    preliminaryWaterRegimeOnFailure?.fill(0);
+    preliminaryWaterRegimeOnFailure = undefined;
+    preliminaryBiomeIdOnFailure?.fill(0);
+    preliminaryBiomeIdOnFailure = undefined;
+    preliminaryLandformIdOnFailure?.fill(0);
+    preliminaryLandformIdOnFailure = undefined;
     reconciledFlowAccumulationOnFailure?.fill(0n);
     reconciledFlowAccumulationOnFailure = undefined;
     activeMaskOnFailure?.fill(0);
