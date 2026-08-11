@@ -980,24 +980,48 @@ function activeMask(
 function activeGridFromCanvas(
   canvas: IndexedAxialGrid,
   mask: Uint8Array,
+  activeCellCount: number,
 ): Readonly<{ grid: IndexedAxialGrid; sourceIndexes: Uint32Array }> {
-  const coordinates: AxialCoordinate[] = [];
-  const source: number[] = [];
-  for (let index = 0; index < canvas.cellCount; index += 1) {
-    if (mask[index] !== 1) continue;
-    coordinates.push({ q: canvas.q[index]!, r: canvas.r[index]! });
-    source.push(index);
+  if (
+    mask.length !== canvas.cellCount
+    || !Number.isSafeInteger(activeCellCount)
+    || activeCellCount < 1
+    || activeCellCount > canvas.cellCount
+  ) fail('GREATER_REALM_ACTIVE_GRID_MAPPING_FAILED');
+  const coordinates = new Array<AxialCoordinate>(activeCellCount);
+  const sourceIndexes = new Uint32Array(activeCellCount);
+  let completed = false;
+  try {
+    let activeIndex = 0;
+    for (let sourceIndex = 0; sourceIndex < canvas.cellCount; sourceIndex += 1) {
+      if (mask[sourceIndex] !== 1) continue;
+      if (activeIndex >= activeCellCount) fail('GREATER_REALM_ACTIVE_GRID_MAPPING_FAILED');
+      coordinates[activeIndex] = {
+        q: canvas.q[sourceIndex]!,
+        r: canvas.r[sourceIndex]!,
+      };
+      sourceIndexes[activeIndex] = sourceIndex;
+      activeIndex += 1;
+    }
+    if (activeIndex !== activeCellCount) fail('GREATER_REALM_ACTIVE_GRID_MAPPING_FAILED');
+    // Filtering the already-canonical canvas preserves q/r order, so the
+    // source indexes align directly with the canonical active grid. Avoid a
+    // second N-entry string-key map and verify the ordering assumption before
+    // any projected private authority is allocated.
+    const grid = indexGreaterRealmAxialGrid(coordinates);
+    for (let index = 0; index < grid.cellCount; index += 1) {
+      const sourceIndex = sourceIndexes[index]!;
+      if (
+        grid.q[index] !== canvas.q[sourceIndex]
+        || grid.r[index] !== canvas.r[sourceIndex]
+      ) fail('GREATER_REALM_ACTIVE_GRID_MAPPING_FAILED');
+    }
+    completed = true;
+    return Object.freeze({ grid, sourceIndexes });
+  } finally {
+    coordinates.fill(undefined as never);
+    if (!completed) sourceIndexes.fill(0);
   }
-  const grid = indexGreaterRealmAxialGrid(coordinates);
-  const sourceByKey = new Map<string, number>();
-  for (const index of source) sourceByKey.set(`${canvas.q[index]},${canvas.r[index]}`, index);
-  const sourceIndexes = new Uint32Array(grid.cellCount);
-  for (let index = 0; index < grid.cellCount; index += 1) {
-    const sourceIndex = sourceByKey.get(`${grid.q[index]},${grid.r[index]}`);
-    if (sourceIndex === undefined) fail('GREATER_REALM_ACTIVE_GRID_MAPPING_FAILED');
-    sourceIndexes[index] = sourceIndex;
-  }
-  return Object.freeze({ grid, sourceIndexes });
 }
 
 function projectInt32(source: Int32Array, indexes: Uint32Array): Int32Array {
@@ -9488,7 +9512,11 @@ export function generateGreaterRealmCandidate(input: Readonly<{
         ) {
           rejectGreaterRealmCandidate('GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE');
         }
-        const active = activeGridFromCanvas(canvas, privateActiveMask);
+        const active = activeGridFromCanvas(
+          canvas,
+          privateActiveMask,
+          activeCellCount,
+        );
         const grid = active.grid;
         sourceIndexes = active.sourceIndexes;
         if (grid.cellCount !== activeCellCount) {
