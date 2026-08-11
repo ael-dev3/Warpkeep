@@ -6,6 +6,8 @@ import {
   ADMISSION_NOTIFICATION_STATUS_PATH,
   FARCASTER_VERIFICATION_TIMEOUT_MILLISECONDS,
   QUICK_AUTH_MAX_ISSUER_LIFETIME_SECONDS,
+  RELEASE_ATTESTATION_PATH,
+  RELEASE_ATTESTATION_PROFILE,
   REQUEST_BODY_TIMEOUT_MILLISECONDS,
   createAuthBridge,
   farcasterRpcEndpointFingerprint,
@@ -13,7 +15,11 @@ import {
 } from '../src/app'
 import { MemoryChallengeStore } from '../src/challengeStore'
 import { AdmissionNotificationRecoveryConflictError } from '../src/admissionNotifications'
-import { PLAYER_TOKEN_TTL_SECONDS, PRODUCTION_SPACETIMEDB_DATABASE } from '../src/config'
+import {
+  PLAYER_TOKEN_TTL_SECONDS,
+  PRODUCTION_SPACETIMEDB_DATABASE,
+  readBridgeConfig,
+} from '../src/config'
 import { FarcasterVerifierUnavailableError } from '../src/farcaster'
 import { qaObserverKeyThumbprint } from '../src/qaObserver'
 import {
@@ -32,6 +38,7 @@ import type {
   AuthEpochResolver,
   ChallengeRecord,
   ChallengeStore,
+  DurableObjectNamespace,
   FarcasterVerifier,
   MiniAppWebhookVerifier,
   QuickAuthVerifier,
@@ -65,6 +72,9 @@ const SESSION_COOKIE_KEY = 'TEST_ONLY_SESSION_COOKIE_KEY_'.repeat(2)
 const NOTIFICATION_OPERATOR_SECRET = 'TEST_ONLY_NOTIFICATION_OPERATOR_SECRET_'.repeat(2)
 const MINIAPP_WEBHOOK_PATH = '/v1/farcaster/miniapp/webhook'
 const ADMISSION_NOTIFICATION_PATH = '/v1/admin/admission-notification'
+const BRIDGE_SOURCE_COMMIT = 'a'.repeat(40)
+const DELIVERY_CONTRACT_DIGEST =
+  '13429727ea5257946e3b659e07f912cf8cd81985fadecb03c63311994a01f7d9'
 const SERVER_ONLY_ADMIN_PATHS = [
   '/v1/admin/token',
   '/v1/admin/auth-epoch-probe',
@@ -115,6 +125,25 @@ function notificationEnv(overrides: Partial<WorkerEnv> = {}): WorkerEnv {
     NOTIFICATION_OPERATOR_SECRET,
     ...overrides,
   })
+}
+
+function releaseAttestationEnv(overrides: Partial<WorkerEnv> = {}): {
+  bridgeEnv: WorkerEnv
+  idFromName: ReturnType<typeof vi.fn>
+  get: ReturnType<typeof vi.fn>
+} {
+  const idFromName = vi.fn(() => ({}))
+  const get = vi.fn(() => ({ fetch: vi.fn() }))
+  const namespace = { idFromName, get } satisfies DurableObjectNamespace
+  return {
+    bridgeEnv: notificationEnv({
+      WARPKEEP_BRIDGE_SOURCE_COMMIT: BRIDGE_SOURCE_COMMIT,
+      ADMISSION_NOTIFICATIONS: namespace,
+      ...overrides,
+    }),
+    idFromName,
+    get,
+  }
 }
 
 function request(path: string, body?: unknown, init: RequestInit = {}): Request {
@@ -340,6 +369,229 @@ describe('Warpkeep auth bridge', () => {
     expect(response.headers.get('x-frame-options')).toBe('DENY')
     expect(response.headers.get('referrer-policy')).toBe('no-referrer')
     expect(response.headers.get('content-security-policy')).toContain("default-src 'none'")
+  })
+
+  describe('public release attestation', () => {
+    it('returns the exact prepared-only privacy-safe deployment contract without side effects', async () => {
+      const resolve = vi.fn(async () => ({ state: 'enabled', authEpoch: 7 } as const))
+      const getStatus = vi.fn(async () => ({ status: 'not-requested' } as const))
+      const submit = vi.fn(async () => ({
+        status: 'requested',
+        requestedAtMicros: 1_785_414_896_000_000,
+      } as const))
+      const check = vi.fn(async () => ({ allowed: true as const }))
+      const queueAdmission = vi.fn(async () => 'already-sent' as const)
+      const applyEvent = vi.fn(async () => undefined)
+      const recoverAdmission = vi.fn(async () => 'already-sent' as const)
+      const h = harness({
+        resolver: { resolve },
+        accessRequestResolver: { getStatus, submit },
+        rateLimiter: { check },
+        admissionNotificationStore: {
+          queueAdmission,
+          applyEvent,
+          recoverAdmission,
+        },
+      })
+      const prepared = releaseAttestationEnv({
+        PUBLIC_AUTH_ENABLED: 'false',
+        ACCESS_EXPECTED_FID_REQUIRED: 'true',
+      })
+      const response = await h.app.fetch(
+        new Request(`https://auth.warpkeep.example${RELEASE_ATTESTATION_PATH}`),
+        prepared.bridgeEnv,
+      )
+
+      expect(response.status).toBe(200)
+      const responseText = await response.text()
+      expect(responseText).toBe(JSON.stringify({
+        schemaVersion: 1,
+        profile: RELEASE_ATTESTATION_PROFILE,
+        bridgeSourceCommit: BRIDGE_SOURCE_COMMIT,
+        notificationDeliveryEnabled: true,
+        notificationTransportConfigured: true,
+        admissionNotificationStoreConfigured: true,
+        notificationClientCount: 1,
+        notificationDeliveryContractDigest: DELIVERY_CONTRACT_DIGEST,
+        publicAuthEnabled: false,
+        accessExpectedFidRequired: true,
+      }))
+      expect(Object.keys(JSON.parse(responseText))).toEqual([
+        'schemaVersion',
+        'profile',
+        'bridgeSourceCommit',
+        'notificationDeliveryEnabled',
+        'notificationTransportConfigured',
+        'admissionNotificationStoreConfigured',
+        'notificationClientCount',
+        'notificationDeliveryContractDigest',
+        'publicAuthEnabled',
+        'accessExpectedFidRequired',
+      ])
+      expect(response.headers.get('content-type')).toBe('application/json; charset=utf-8')
+      expect(response.headers.get('cache-control')).toBe('no-store')
+      expect(response.headers.get('content-security-policy'))
+        .toBe("default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
+      expect(response.headers.get('permissions-policy'))
+        .toBe('camera=(), microphone=(), geolocation=(), payment=(), usb=()')
+      expect(response.headers.get('referrer-policy')).toBe('no-referrer')
+      expect(response.headers.get('strict-transport-security'))
+        .toBe('max-age=31536000; includeSubDomains')
+      expect(response.headers.get('cross-origin-opener-policy')).toBe('same-origin')
+      expect(response.headers.get('cross-origin-resource-policy')).toBe('same-site')
+      expect(response.headers.get('x-content-type-options')).toBe('nosniff')
+      expect(response.headers.get('x-frame-options')).toBe('DENY')
+      expect(response.headers.get('x-permitted-cross-domain-policies')).toBe('none')
+      expect(response.headers.has('access-control-allow-origin')).toBe(false)
+      expect(response.headers.has('location')).toBe(false)
+      for (const privateValue of [
+        FID,
+        NOTIFICATION_OPERATOR_SECRET,
+        'https://rho.farcaster.xyz:3381/',
+        'https://hub.pinata.cloud/',
+        'https://api.farcaster.xyz/v1/frame-notifications',
+      ]) expect(responseText).not.toContain(privateValue)
+      expect(prepared.idFromName).not.toHaveBeenCalled()
+      expect(prepared.get).not.toHaveBeenCalled()
+      expect(resolve).not.toHaveBeenCalled()
+      expect(getStatus).not.toHaveBeenCalled()
+      expect(submit).not.toHaveBeenCalled()
+      expect(check).not.toHaveBeenCalled()
+      expect(queueAdmission).not.toHaveBeenCalled()
+      expect(applyEvent).not.toHaveBeenCalled()
+      expect(recoverAdmission).not.toHaveBeenCalled()
+      expect(h.verifier.verify).not.toHaveBeenCalled()
+      expect(h.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+      expect(h.events).toEqual([])
+    })
+
+    it('fails every incomplete preparation state with one generic private-detail-free 503', async () => {
+      const h = harness()
+      const malformedNamespace = {} as DurableObjectNamespace
+      const incomplete: readonly Partial<WorkerEnv>[] = [
+        { WARPKEEP_BRIDGE_SOURCE_COMMIT: undefined },
+        { WARPKEEP_BRIDGE_SOURCE_COMMIT: 'A'.repeat(40) },
+        { WARPKEEP_BRIDGE_SOURCE_COMMIT: ` ${BRIDGE_SOURCE_COMMIT}` },
+        { APPROVAL_NOTIFICATIONS_ENABLED: 'false' },
+        { MINIAPP_NOTIFICATION_HUB_URLS: undefined },
+        { MINIAPP_NOTIFICATION_CLIENTS: undefined },
+        { NOTIFICATION_OPERATOR_SECRET: undefined },
+        {
+          MINIAPP_NOTIFICATION_CLIENTS: [
+            '9152=https://api.farcaster.xyz/v1/frame-notifications',
+            '9153=https://api.farcaster.xyz/v1/frame-notifications',
+          ].join(','),
+        },
+        { ADMISSION_NOTIFICATIONS: undefined },
+        { ADMISSION_NOTIFICATIONS: malformedNamespace },
+      ]
+
+      for (const overrides of incomplete) {
+        const prepared = releaseAttestationEnv(overrides)
+        const response = await h.app.fetch(
+          new Request(`https://auth.warpkeep.example${RELEASE_ATTESTATION_PATH}`),
+          prepared.bridgeEnv,
+        )
+        expect(response.status).toBe(503)
+        expect(await response.text()).toBe('{"error":"release_not_prepared"}')
+        expect(response.headers.get('cache-control')).toBe('no-store')
+        expect(response.headers.has('access-control-allow-origin')).toBe(false)
+        expect(response.headers.has('location')).toBe(false)
+        expect(prepared.idFromName).not.toHaveBeenCalled()
+        expect(prepared.get).not.toHaveBeenCalled()
+      }
+    })
+
+    it('rejects queries, credentials, browser origins, and every non-GET method before preparation work', async () => {
+      const h = harness()
+      const prepared = releaseAttestationEnv()
+      const queried = await h.app.fetch(new Request(
+        `https://auth.warpkeep.example${RELEASE_ATTESTATION_PATH}?detail=true`,
+        { headers: { origin: ORIGIN } },
+      ), prepared.bridgeEnv)
+      expect(queried.status).toBe(400)
+      await expect(queried.json()).resolves.toEqual({
+        error: 'release_attestation_query_not_allowed',
+      })
+      const emptyQuery = await h.app.fetch(new Request(
+        `https://auth.warpkeep.example${RELEASE_ATTESTATION_PATH}?`,
+      ), prepared.bridgeEnv)
+      expect(emptyQuery.status).toBe(400)
+      await expect(emptyQuery.json()).resolves.toEqual({
+        error: 'release_attestation_query_not_allowed',
+      })
+
+      const browser = await h.app.fetch(new Request(
+        `https://auth.warpkeep.example${RELEASE_ATTESTATION_PATH}`,
+        { headers: { origin: ORIGIN } },
+      ), prepared.bridgeEnv)
+      expect(browser.status).toBe(403)
+      await expect(browser.json()).resolves.toEqual({
+        error: 'release_attestation_browser_forbidden',
+      })
+
+      for (const header of ['authorization', 'cookie', 'proxy-authorization']) {
+        const credential = `${header}-private-value`
+        const response = await h.app.fetch(new Request(
+          `https://auth.warpkeep.example${RELEASE_ATTESTATION_PATH}`,
+          { headers: { [header]: credential } },
+        ), prepared.bridgeEnv)
+        expect(response.status).toBe(400)
+        const responseText = await response.text()
+        expect(responseText).toBe(
+          '{"error":"release_attestation_credentials_not_allowed"}',
+        )
+        expect(responseText).not.toContain(credential)
+      }
+
+      for (const method of ['HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']) {
+        const response = await h.app.fetch(new Request(
+          `https://auth.warpkeep.example${RELEASE_ATTESTATION_PATH}`,
+          { method },
+        ), prepared.bridgeEnv)
+        expect(response.status).toBe(405)
+        if (method !== 'HEAD') {
+          await expect(response.json()).resolves.toEqual({
+            error: 'release_attestation_method_not_allowed',
+          })
+        }
+      }
+      expect(prepared.idFromName).not.toHaveBeenCalled()
+      expect(prepared.get).not.toHaveBeenCalled()
+      expect(h.events).toEqual([])
+    })
+
+    it('does not make source-commit attestation a bridge health dependency', async () => {
+      const h = harness()
+      for (const sourceCommit of [
+        undefined,
+        'A'.repeat(40),
+        'a'.repeat(39),
+        `${BRIDGE_SOURCE_COMMIT} `,
+      ]) {
+        const health = await h.app.fetch(request('/healthz'), env({
+          WARPKEEP_BRIDGE_SOURCE_COMMIT: sourceCommit,
+        }))
+        expect(health.status).toBe(200)
+      }
+      const healthy = await h.app.fetch(request('/healthz'), env({
+        WARPKEEP_BRIDGE_SOURCE_COMMIT: BRIDGE_SOURCE_COMMIT,
+      }))
+      expect(healthy.status).toBe(200)
+
+      const prepared = releaseAttestationEnv()
+      const malformedInjectedConfig = createAuthBridge({
+        configReader: bridgeEnv => ({
+          ...readBridgeConfig(bridgeEnv),
+          bridgeSourceCommit: 'A'.repeat(40),
+        }),
+      })
+      const malformed = await malformedInjectedConfig.fetch(new Request(
+        `https://auth.warpkeep.example${RELEASE_ATTESTATION_PATH}`,
+      ), prepared.bridgeEnv)
+      expect(malformed.status).toBe(503)
+      expect(await malformed.text()).toBe('{"error":"release_not_prepared"}')
+    })
   })
 
   it('rejects alternate request hosts and cross-site production cookie origins', async () => {

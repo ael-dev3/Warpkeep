@@ -1,9 +1,18 @@
 import { createAuthBridge } from './app'
 
-export { createAuthBridge } from './app'
 export {
+  RELEASE_ATTESTATION_PATH,
+  RELEASE_ATTESTATION_PROFILE,
+  createAuthBridge,
+} from './app'
+export type { BridgeReleaseAttestation } from './app'
+export {
+  ADMISSION_NOTIFICATION_DELIVERY_CONTRACT_PROFILE,
   AdmissionNotification,
   DurableObjectAdmissionNotificationStore,
+  admissionNotificationDeliveryContractDigest,
+  admissionNotificationDeliveryContractVector,
+  serializeAdmissionNotificationDeliveryContract,
 } from './admissionNotifications'
 export { ChallengeReplayGuard, DurableObjectChallengeStore, MemoryChallengeStore } from './challengeStore'
 export {

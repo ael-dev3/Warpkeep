@@ -54,6 +54,7 @@ import {
 import {
   AdmissionNotificationRecoveryConflictError,
   DurableObjectAdmissionNotificationStore,
+  admissionNotificationDeliveryContractDigest,
 } from './admissionNotifications'
 import {
   MiniAppWebhookInvalidError,
@@ -126,6 +127,9 @@ export const REQUEST_BODY_TIMEOUT_MILLISECONDS = 8_000
 export const FARCASTER_VERIFICATION_TIMEOUT_MILLISECONDS = 8_000
 const AUTH_EPOCH_PROBE_PATH = '/v1/admin/auth-epoch-probe'
 const CONFIG_ATTESTATION_PATH = '/v1/admin/config-attestation'
+export const RELEASE_ATTESTATION_PATH = '/v1/release-attestation'
+export const RELEASE_ATTESTATION_PROFILE =
+  'warpkeep-admission-notification-bridge-v1' as const
 const AUTH_EPOCH_PROBE_FID = '9007199254740991'
 const V2_CHALLENGE_PATH = '/v2/farcaster/challenge'
 const V2_EXCHANGE_PATH = '/v2/farcaster/exchange'
@@ -248,6 +252,86 @@ function emptyResponseHeaders(headers: HeadersInit = {}): Headers {
   merged.delete('content-type')
   new Headers(headers).forEach((value, name) => merged.set(name, value))
   return merged
+}
+
+export type BridgeReleaseAttestation = Readonly<{
+  schemaVersion: 1
+  profile: typeof RELEASE_ATTESTATION_PROFILE
+  bridgeSourceCommit: string
+  notificationDeliveryEnabled: true
+  notificationTransportConfigured: true
+  admissionNotificationStoreConfigured: true
+  notificationClientCount: 1
+  notificationDeliveryContractDigest: string
+  publicAuthEnabled: boolean
+  accessExpectedFidRequired: boolean
+}>
+
+function releaseAttestationError(status: number, error: string): Response {
+  return json(Object.freeze({ error }), status)
+}
+
+function hasFunctionProperty(value: object, property: string): boolean {
+  let cursor: object | null = value
+  while (cursor !== null) {
+    const descriptor = Object.getOwnPropertyDescriptor(cursor, property)
+    if (descriptor) {
+      return 'value' in descriptor && typeof descriptor.value === 'function'
+    }
+    cursor = Object.getPrototypeOf(cursor)
+  }
+  return false
+}
+
+function admissionNotificationStoreIsConfigured(value: unknown): boolean {
+  if ((typeof value !== 'object' || value === null) && typeof value !== 'function') {
+    return false
+  }
+  try {
+    return hasFunctionProperty(value, 'idFromName')
+      && hasFunctionProperty(value, 'get')
+  } catch {
+    return false
+  }
+}
+
+async function bridgeReleaseAttestation(
+  config: BridgeConfig,
+  env: WorkerEnv,
+): Promise<BridgeReleaseAttestation | null> {
+  const notificationConfig = config.miniAppNotifications
+  if (
+    typeof config.bridgeSourceCommit !== 'string'
+    || !/^[a-f0-9]{40}$/.test(config.bridgeSourceCommit)
+    || !config.approvalNotificationsEnabled
+    || notificationConfig === undefined
+    || notificationConfig.hubUrls.length !== 2
+    || notificationConfig.clients.length !== 1
+    || !admissionNotificationStoreIsConfigured(env.ADMISSION_NOTIFICATIONS)
+  ) return null
+
+  let notificationDeliveryContractDigest: string
+  try {
+    notificationDeliveryContractDigest = await admissionNotificationDeliveryContractDigest(
+      notificationConfig,
+    )
+  } catch {
+    return null
+  }
+  if (!/^[a-f0-9]{64}$/.test(notificationDeliveryContractDigest)) return null
+
+  return Object.freeze({
+    schemaVersion: 1,
+    profile: RELEASE_ATTESTATION_PROFILE,
+    bridgeSourceCommit: config.bridgeSourceCommit,
+    notificationDeliveryEnabled: true,
+    notificationTransportConfigured: true,
+    admissionNotificationStoreConfigured: true,
+    notificationClientCount: 1,
+    notificationDeliveryContractDigest,
+    publicAuthEnabled: config.publicAuthEnabled,
+    accessExpectedFidRequired: config.accessExpectedFidRequired,
+  })
 }
 
 function errorResponse(error: HttpError, headers: HeadersInit = {}): Response {
@@ -1545,12 +1629,36 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
         logger.event('plaintext_request_rejected')
         return errorResponse(new HttpError(426, 'https_required', 'HTTPS is required.'))
       }
+      if (url.pathname === RELEASE_ATTESTATION_PATH) {
+        if (request.method !== 'GET') {
+          return releaseAttestationError(405, 'release_attestation_method_not_allowed')
+        }
+        if (url.search || request.url.includes('?')) {
+          return releaseAttestationError(400, 'release_attestation_query_not_allowed')
+        }
+        if (
+          request.headers.has('authorization')
+          || request.headers.has('cookie')
+          || request.headers.has('proxy-authorization')
+        ) {
+          return releaseAttestationError(400, 'release_attestation_credentials_not_allowed')
+        }
+        if (request.headers.has('origin')) {
+          return releaseAttestationError(403, 'release_attestation_browser_forbidden')
+        }
+        if (request.body !== null) {
+          return releaseAttestationError(400, 'release_attestation_body_not_allowed')
+        }
+      }
 
       let config: BridgeConfig
       try {
         config = configReader(env)
       } catch {
         logger.event('configuration_error')
+        if (url.pathname === RELEASE_ATTESTATION_PATH) {
+          return releaseAttestationError(503, 'release_not_prepared')
+        }
         return errorResponse(new HttpError(503, 'service_misconfigured', 'Authentication service is not configured.'))
       }
       if (url.origin !== config.issuer) {
@@ -1559,6 +1667,12 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
       }
 
       try {
+        if (url.pathname === RELEASE_ATTESTATION_PATH) {
+          const attestation = await bridgeReleaseAttestation(config, env)
+          return attestation === null
+            ? releaseAttestationError(503, 'release_not_prepared')
+            : json(attestation)
+        }
         if (isLegacyAuthPath(url.pathname)) {
           logger.event('legacy_auth_rejected')
           throw new HttpError(410, 'legacy_auth_retired', 'This authentication protocol has been retired.')

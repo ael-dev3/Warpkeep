@@ -28,6 +28,7 @@ future rollout step requires exact-head verification and recorded authority.
 | `GET` | `/.well-known/openid-configuration` | Exact issuer, claims, and public JWKS URI. |
 | `GET` | `/.well-known/jwks.json` | Public ES256/P-256 JWK; never serializes private `d`. |
 | `GET` | `/healthz` | Basic health response. |
+| `GET` | `/v1/release-attestation` | Prepared-only, privacy-safe source and admission-notification delivery contract for protected deploy verification. |
 | `POST` | `/v2/farcaster/challenge` | Creates a five-minute, S256-bound SIWF challenge. |
 | `POST` | `/v2/farcaster/exchange` | Verifies SIWF and creates a rotating server-side session family. |
 | `POST` | `/v2/farcaster/quick-auth/exchange` | Verifies an exact-domain Mini App bearer and returns tokenless-pending or short-lived authorized access without a cookie. |
@@ -414,6 +415,32 @@ response. Delivery parsing accepts Farcaster's optional additive
 `failedTokens` field, ignores harmless provider metadata, and still rejects
 invalid reasons, contradictory known outcome categories, and token mismatches.
 
+The no-auth `GET /v1/release-attestation` route returns success only for the
+protected bridge-prepared phase. It requires an exact lowercase 40-hex
+`WARPKEEP_BRIDGE_SOURCE_COMMIT` injected by the trusted deployer, notification
+delivery enabled, the complete two-Hub/one-client/independent-secret transport,
+and the `ADMISSION_NOTIFICATIONS` binding. The source binding is intentionally
+absent from checked-in defaults and is not required for ordinary bridge health.
+An incomplete preparation returns only
+`{"error":"release_not_prepared"}` with status `503`; it never reveals which
+requirement is missing. The exact successful response contains only schema and
+profile literals, the public source commit, three readiness booleans, client
+count `1`, the delivery-contract digest, and the current public-auth and
+expected-FID modes. It has no CORS, redirects, credentials, FID, URL, token,
+configuration fingerprint, Durable Object read/write, notification, upstream
+request, or user-state effect.
+Requests carrying `Authorization`, `Cookie`, or `Proxy-Authorization` are
+rejected by header presence alone before configuration or preparation work;
+their values are never read or logged.
+
+The delivery digest is lowercase SHA-256 of the exact UTF-8 bytes from the
+exported canonical JSON serializer. Its ordered array binds the sorted Hub
+URLs, clients sorted by numeric app FID then delivery URL, fixed target, title,
+body, deterministic notification-ID profile, six-attempt ceiling, retry
+delays, and 24-hour lifetime. Secret values are neither serialized nor hashed.
+The current reviewed vector is 622 bytes and has digest
+`13429727ea5257946e3b659e07f912cf8cd81985fadecb03c63311994a01f7d9`.
+
 The production browser and Pages activation gate separately pin the exact bridge
 and issuer `https://auth.warpkeep.com`, audience `warpkeep-spacetimedb`, and the
 same Maincloud/database pair. Development remains explicitly configurable and is
@@ -436,6 +463,14 @@ observer coordinates, environment, binding and bounded lifetimes, both gates,
 and exact cookie attributes. Operators must compare it with the reviewed
 expected configuration; it is not a deployment action and reveals no secret
 material.
+The local verifier strictly decodes the complete private response instead of
+discarding notification and auth modes. The prepared verifier requires an
+explicit expected ten-field public attestation before any request, binds its
+delivery-enabled, transport, client-count, public-auth, and expected-FID modes
+to the private response, and compares the public response as exact canonical
+JSON with all security headers. This is deploy evidence input only; it does not
+deploy, flip a gate, issue a notification, or prove Cloudflare control-plane
+version activation by itself.
 
 After a reviewed Worker deployment, run `npm run verify:alpha-production:operator`
 from the repository root with `WARPKEEP_ADMIN_TOKEN_SECRET` supplied through the

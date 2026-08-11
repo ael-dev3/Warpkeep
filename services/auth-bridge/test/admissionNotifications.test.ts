@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { AdmissionNotification } from '../src/admissionNotifications'
-import type { BridgeConfig } from '../src/config'
+import {
+  AdmissionNotification,
+  admissionNotificationDeliveryContractDigest,
+  admissionNotificationDeliveryContractVector,
+  serializeAdmissionNotificationDeliveryContract,
+} from '../src/admissionNotifications'
+import type { BridgeConfig, MiniAppNotificationConfig } from '../src/config'
 import type {
   AccessRequestResolver,
   AuthEpochResolver,
@@ -98,6 +103,65 @@ function config(enabled = true): BridgeConfig {
     environment: 'production',
   }
 }
+
+describe('admission notification delivery contract attestation', () => {
+  it('pins the exact cross-runtime production vector and digest', async () => {
+    const notificationConfig = config().miniAppNotifications!
+    const serialized = serializeAdmissionNotificationDeliveryContract(
+      notificationConfig,
+    )
+
+    expect(new TextEncoder().encode(serialized)).toHaveLength(622)
+    expect(serialized).toBe(
+      '["warpkeep.admission-notification.delivery-contract.v1",["hubUrls",["https://hub.pinata.cloud/","https://rho.farcaster.xyz:3381/"]],["clients",[["9152","https://api.farcaster.xyz/v1/frame-notifications"]]],["targetUrl","https://warpkeep.com/?miniApp=true"],["title","Welcome to the Hegemony Empire"],["body","The gates have answered your name. Cross the threshold, Founder—your legacy awaits."],["notificationIdProfile","warpkeep-access-approved-v2-r<requestedAtMicros>"],["maximumDeliveryAttempts",6],["retryDelaysMilliseconds",[30000,120000,600000,3600000,14400000,43200000]],["deliveryLifetimeMilliseconds",86400000]]',
+    )
+    await expect(admissionNotificationDeliveryContractDigest(notificationConfig))
+      .resolves.toBe('13429727ea5257946e3b659e07f912cf8cd81985fadecb03c63311994a01f7d9')
+    expect(serialized).not.toContain(notificationConfig.operatorSecret)
+  })
+
+  it('canonicalizes hostile reordering by Hub URL and numeric FID then delivery URL', async () => {
+    const left: MiniAppNotificationConfig = {
+      hubUrls: Object.freeze([
+        'https://z-hub.example/',
+        'https://a-hub.example/',
+      ] as const),
+      clients: Object.freeze([
+        Object.freeze({ appFid: 7, deliveryUrl: 'https://z-client.example/deliver' }),
+        Object.freeze({ appFid: 2, deliveryUrl: 'https://m-client.example/deliver' }),
+        Object.freeze({ appFid: 7, deliveryUrl: 'https://a-client.example/deliver' }),
+      ]),
+      operatorSecret: 'first-independent-secret-that-is-never-attested',
+    }
+    const right: MiniAppNotificationConfig = {
+      hubUrls: Object.freeze([
+        left.hubUrls[1],
+        left.hubUrls[0],
+      ] as const),
+      clients: Object.freeze([...left.clients].reverse()),
+      operatorSecret: 'different-independent-secret-that-is-never-attested',
+    }
+
+    const leftSerialized = serializeAdmissionNotificationDeliveryContract(left)
+    expect(leftSerialized).toBe(serializeAdmissionNotificationDeliveryContract(right))
+    expect(admissionNotificationDeliveryContractVector(left)[2]).toEqual([
+      'clients',
+      [
+        ['2', 'https://m-client.example/deliver'],
+        ['7', 'https://a-client.example/deliver'],
+        ['7', 'https://z-client.example/deliver'],
+      ],
+    ])
+    await expect(admissionNotificationDeliveryContractDigest(left))
+      .resolves.toBe(await admissionNotificationDeliveryContractDigest(right))
+    expect(leftSerialized).not.toContain('independent-secret')
+    expect(left.clients.map(client => client.deliveryUrl)).toEqual([
+      'https://z-client.example/deliver',
+      'https://m-client.example/deliver',
+      'https://a-client.example/deliver',
+    ])
+  })
+})
 
 function enabledEvent(
   eventId = 'a'.repeat(64),

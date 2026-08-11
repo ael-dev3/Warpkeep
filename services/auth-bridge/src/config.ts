@@ -23,6 +23,7 @@ const PRODUCTION_DOMAIN = 'warpkeep.com'
 const PRODUCTION_ORIGIN = 'https://warpkeep.com'
 const SPACETIMEDB_DATABASE_IDENTITY_PATTERN = /^[a-f0-9]{64}$/
 const SPACETIMEDB_DATABASE_ALIAS_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/
+const BRIDGE_SOURCE_COMMIT_PATTERN = /^[a-f0-9]{40}$/
 
 export type QaObserverSpacetimeDbConfig = Readonly<{
   uri: string
@@ -66,6 +67,7 @@ export interface BridgeConfig {
   qaObserverKeyExpiresAt?: number
   approvalNotificationsEnabled: boolean
   miniAppNotifications?: MiniAppNotificationConfig
+  bridgeSourceCommit?: string
   environment: 'development' | 'production'
 }
 
@@ -292,6 +294,12 @@ function parsePublicAuthEnabled(value: string): boolean {
     throw new ConfigurationError()
   }
   return value === 'true'
+}
+
+function parseOptionalBridgeSourceCommit(value: string | undefined): string | undefined {
+  return typeof value === 'string' && BRIDGE_SOURCE_COMMIT_PATTERN.test(value)
+    ? value
+    : undefined
 }
 
 function parseMiniAppHubUrls(value: string, production: boolean): readonly [string, string] {
@@ -576,6 +584,9 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
   const qaObserverKeyRegisteredAt = qaRegisteredAtValue
     ? parseQaObserverExpiry(qaRegisteredAtValue)
     : undefined
+  const bridgeSourceCommit = parseOptionalBridgeSourceCommit(
+    env.WARPKEEP_BRIDGE_SOURCE_COMMIT,
+  )
 
   return {
     issuer,
@@ -598,6 +609,7 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
     qaObserverEnabled,
     approvalNotificationsEnabled,
     ...(miniAppNotifications ? { miniAppNotifications } : {}),
+    ...(bridgeSourceCommit === undefined ? {} : { bridgeSourceCommit }),
     ...(qaObserverSpacetimeDb ? { qaObserverSpacetimeDb } : {}),
     ...(qaObserverPublicJwk ? { qaObserverPublicJwk } : {}),
     ...(qaObserverKeyRegisteredAt === undefined ? {} : { qaObserverKeyRegisteredAt }),

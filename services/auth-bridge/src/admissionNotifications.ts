@@ -1,4 +1,8 @@
-import { readBridgeConfig, type BridgeConfig } from './config'
+import {
+  readBridgeConfig,
+  type BridgeConfig,
+  type MiniAppNotificationConfig,
+} from './config'
 import { signEs256Jwt } from './jwt'
 import {
   AUTH_EPOCH_RESOLVER_TIMEOUT_MILLISECONDS,
@@ -51,6 +55,70 @@ const RETRY_DELAYS_MILLISECONDS = Object.freeze([
   4 * 60 * 60_000,
   12 * 60 * 60_000,
 ])
+
+export const ADMISSION_NOTIFICATION_DELIVERY_CONTRACT_PROFILE =
+  'warpkeep.admission-notification.delivery-contract.v1' as const
+
+/**
+ * Canonical, non-secret delivery contract used by the public release
+ * attestation and protected deployment tooling. Runtime coordinates are
+ * normalized by readBridgeConfig before reaching this boundary. The operator
+ * secret is deliberately neither serialized nor hashed.
+ */
+export function admissionNotificationDeliveryContractVector(
+  config: MiniAppNotificationConfig,
+): readonly unknown[] {
+  const hubUrls = Object.freeze([...config.hubUrls].sort())
+  const clients = Object.freeze([...config.clients]
+    .sort((left, right) => (
+      left.appFid - right.appFid
+      || (left.deliveryUrl < right.deliveryUrl
+        ? -1
+        : left.deliveryUrl > right.deliveryUrl ? 1 : 0)
+    ))
+    .map(client => Object.freeze([
+      String(client.appFid),
+      client.deliveryUrl,
+    ])))
+  return Object.freeze([
+    ADMISSION_NOTIFICATION_DELIVERY_CONTRACT_PROFILE,
+    Object.freeze(['hubUrls', hubUrls]),
+    Object.freeze(['clients', clients]),
+    Object.freeze(['targetUrl', TARGET_URL]),
+    Object.freeze(['title', ADMISSION_NOTIFICATION_TITLE]),
+    Object.freeze(['body', ADMISSION_NOTIFICATION_BODY]),
+    Object.freeze([
+      'notificationIdProfile',
+      'warpkeep-access-approved-v2-r<requestedAtMicros>',
+    ]),
+    Object.freeze(['maximumDeliveryAttempts', MAX_DELIVERY_ATTEMPTS]),
+    Object.freeze(['retryDelaysMilliseconds', RETRY_DELAYS_MILLISECONDS]),
+    Object.freeze(['deliveryLifetimeMilliseconds', DELIVERY_LIFETIME_MILLISECONDS]),
+  ])
+}
+
+export function serializeAdmissionNotificationDeliveryContract(
+  config: MiniAppNotificationConfig,
+): string {
+  return JSON.stringify(admissionNotificationDeliveryContractVector(config))
+}
+
+export async function admissionNotificationDeliveryContractDigest(
+  config: MiniAppNotificationConfig,
+): Promise<string> {
+  const bytes = new TextEncoder().encode(
+    serializeAdmissionNotificationDeliveryContract(config),
+  )
+  try {
+    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))
+    return Array.from(
+      digest,
+      byte => byte.toString(16).padStart(2, '0'),
+    ).join('')
+  } finally {
+    bytes.fill(0)
+  }
+}
 
 type DeliveryAttemptStatus = 'pending' | 'retrying' | 'sent' | 'exhausted'
 

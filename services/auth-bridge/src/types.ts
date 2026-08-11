@@ -73,6 +73,8 @@ export interface WorkerEnv {
   QA_OBSERVER_ENABLED?: string
   /** Fail-closed gate for Farcaster admission notification consent and delivery. */
   APPROVAL_NOTIFICATIONS_ENABLED?: string
+  /** Protected-deployer injected source commit for public bridge release attestation. */
+  WARPKEEP_BRIDGE_SOURCE_COMMIT?: string
   /** Two exact, independently operated Hub HTTP origins used to verify app keys. */
   MINIAPP_NOTIFICATION_HUB_URLS?: string
   /** Exact `clientFid=deliveryUrl` allowlist; prevents webhook-driven SSRF. */
