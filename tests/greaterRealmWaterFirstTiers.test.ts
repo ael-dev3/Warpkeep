@@ -74,7 +74,54 @@ function fixture(
   });
 }
 
-function clearFixture(value: ReturnType<typeof fixture>): void {
+function ringFixture(
+  ringCost: number,
+  options: Readonly<{
+    cheapDecoys?: boolean;
+    gap?: boolean;
+    gridRadius?: number;
+    ringRadius?: number;
+    tierThreeCount?: number;
+  }> = {},
+) {
+  const gridRadius = options.gridRadius ?? 42;
+  const ringRadius = options.ringRadius ?? 4;
+  const tierThreeCount = options.tierThreeCount ?? 37;
+  const tierTwoPassableCount = (tierThreeCount + 512) * 3;
+  const grid = indexGreaterRealmAxialGrid(hexDisc(gridRadius));
+  const waterRegime = new Uint8Array(grid.cellCount);
+  const terrainCost = new Int32Array(grid.cellCount);
+  const legacyProtectedCell = new Uint8Array(grid.cellCount);
+  const legacyReserveCell = new Uint8Array(grid.cellCount);
+  for (let cell = 0; cell < grid.cellCount; cell += 1) {
+    const q = grid.q[cell]!;
+    const r = grid.r[cell]!;
+    if (hexDistance(q, r) === ringRadius) {
+      terrainCost[cell] = options.gap && q === -ringRadius && r === 0
+        ? 20_000
+        : ringCost;
+    } else if (options.cheapDecoys && q >= ringRadius + 8) {
+      terrainCost[cell] = -10_000;
+    }
+  }
+  return Object.freeze({
+    grid,
+    candidateSeed: 73,
+    waterRegime,
+    terrainCost,
+    legacyProtectedCell,
+    legacyReserveCell,
+    tierThreeSeed: grid.indexOf({ q: ringRadius, r: 0 }),
+    tierThreeCount,
+    tierTwoCount: tierTwoPassableCount,
+    tierTwoPassableCount,
+  });
+}
+
+function clearFixture(value: Pick<
+  ReturnType<typeof fixture>,
+  'grid' | 'waterRegime' | 'terrainCost' | 'legacyProtectedCell' | 'legacyReserveCell'
+>): void {
   value.waterRegime.fill(0);
   value.terrainCost.fill(0);
   value.legacyProtectedCell.fill(0);
@@ -143,6 +190,8 @@ describe('Greater Realm water-first tier constructor', () => {
 
       expect(Object.isFrozen(greaterRealmWaterFirstTierTestSeams)).toBe(true);
       expect(first.tierId).toEqual(replay.tierId);
+      expect(first.selectedVariant).toBe(0);
+      expect(replay.selectedVariant).toBe(0);
       expect(first.tierCounts).toEqual([
         input.grid.cellCount - TIER_TWO_COUNT - TIER_THREE_COUNT,
         TIER_TWO_COUNT,
@@ -261,10 +310,77 @@ describe('Greater Realm water-first tier constructor', () => {
       }
       expect(failure).toBeInstanceOf(Error);
       expect((failure as Error).message).toBe(
-        'GREATER_REALM_WATER_FIRST_TIER_NON_PASSABLE_PADDING_FRONTIER_EXHAUSTED',
+        'GREATER_REALM_WATER_FIRST_TIER_VARIANTS_EXHAUSTED_'
+          + 'NON_PASSABLE_PADDING_FRONTIER_EXHAUSTED',
       );
       expect(greaterRealmWaterFirstTierTestSeams.classifyFailure(failure)).toBe('geography');
     } finally {
+      clearFixture(input);
+    }
+  });
+
+  it('uses a later compact variant when depth-94 closes the passable complement', () => {
+    const input = ringFixture(-3_000, {
+      gridRadius: 50,
+      ringRadius: 8,
+      tierThreeCount: 91,
+    });
+    let first: ReturnType<typeof greaterRealmWaterFirstTierTestSeams.construct> | undefined;
+    let replay: typeof first;
+    try {
+      first = greaterRealmWaterFirstTierTestSeams.construct(input);
+      replay = greaterRealmWaterFirstTierTestSeams.construct(input);
+      expect(first.selectedVariant).toBeGreaterThan(0);
+      expect(first.selectedVariant).toBeLessThan(4);
+      expect(replay.selectedVariant).toBe(first.selectedVariant);
+      expect(replay.tierId).toEqual(first.tierId);
+      expect(first.tierCounts).toEqual([
+        input.grid.cellCount - input.tierTwoCount - input.tierThreeCount,
+        input.tierTwoCount,
+        input.tierThreeCount,
+      ]);
+      expect(componentSize(
+        input.grid,
+        cell => first!.tierId[cell] === 3,
+      )).toBe(input.tierThreeCount);
+      expect(componentSize(
+        input.grid,
+        cell => first!.tierId[cell] === 2 && passable(input.waterRegime[cell]!),
+      )).toBe(input.tierTwoPassableCount);
+    } finally {
+      first?.tierId.fill(0);
+      replay?.tierId.fill(0);
+      clearFixture(input);
+    }
+  });
+
+  it('keeps exact connected quotas with terrain-cheap connector search decoys', () => {
+    const input = ringFixture(-20_000, { gap: true, cheapDecoys: true });
+    let result: ReturnType<typeof greaterRealmWaterFirstTierTestSeams.construct> | undefined;
+    try {
+      result = greaterRealmWaterFirstTierTestSeams.construct(input);
+      expect(result.tierCounts).toEqual([
+        input.grid.cellCount - input.tierTwoCount - input.tierThreeCount,
+        input.tierTwoCount,
+        input.tierThreeCount,
+      ]);
+      expect(result.tierTwoPassableCarrierCount).toBe(input.tierTwoPassableCount);
+      expect(result.tierTwoNonPassablePaddingCount).toBe(0);
+      expect(componentSize(
+        input.grid,
+        cell => result!.tierId[cell] === 2,
+      )).toBe(input.tierTwoCount);
+      for (let cell = 0; cell < input.grid.cellCount; cell += 1) {
+        if (result.tierId[cell] !== 3) continue;
+        for (let direction = 0; direction < 6; direction += 1) {
+          const neighbor = input.grid.neighbors[cell * 6 + direction]!;
+          if (neighbor >= 0 && passable(input.waterRegime[neighbor]!)) {
+            expect(result.tierId[neighbor]).not.toBe(1);
+          }
+        }
+      }
+    } finally {
+      result?.tierId.fill(0);
       clearFixture(input);
     }
   });
@@ -310,35 +426,24 @@ describe('Greater Realm water-first tier constructor', () => {
     }
   });
 
-  it('zeroizes failed output and reusable typed scratch', () => {
-    const input = fixture();
-    const baseline = greaterRealmWaterFirstTierTestSeams.construct(input);
-    let lockedFrontier = -1;
-    for (let cell = 0; cell < input.grid.cellCount && lockedFrontier < 0; cell += 1) {
-      if (baseline.tierId[cell] !== 3) continue;
-      for (let direction = 0; direction < 6; direction += 1) {
-        const neighbor = input.grid.neighbors[cell * 6 + direction]!;
-        if (
-          neighbor >= 0
-          && baseline.tierId[neighbor] === 2
-          && passable(input.waterRegime[neighbor]!)
-        ) {
-          lockedFrontier = neighbor;
-          break;
-        }
-      }
-    }
-    baseline.tierId.fill(0);
-    expect(lockedFrontier).toBeGreaterThanOrEqual(0);
-    input.legacyProtectedCell[lockedFrontier] = 1;
-    input.legacyReserveCell[lockedFrontier] = 1;
+  it('zeroizes failed output and dirty connector scratch after all variants exhaust', () => {
+    const input = ringFixture(-20_000);
     const uint8Fill = vi.spyOn(Uint8Array.prototype, 'fill');
     const uint32Fill = vi.spyOn(Uint32Array.prototype, 'fill');
     const int32Fill = vi.spyOn(Int32Array.prototype, 'fill');
     try {
-      expect(() => greaterRealmWaterFirstTierTestSeams.construct(input)).toThrow(
-        'GREATER_REALM_WATER_FIRST_TIER_PASSABLE_FRONTIER_LOCKED',
+      let failure: unknown;
+      try {
+        greaterRealmWaterFirstTierTestSeams.construct(input);
+      } catch (error) {
+        failure = error;
+      }
+      expect(failure).toBeInstanceOf(Error);
+      expect((failure as Error).message).toContain(
+        'GREATER_REALM_WATER_FIRST_TIER_VARIANTS_EXHAUSTED_',
       );
+      expect((failure as Error).message).toContain('PASSABLE_COMPLEMENT_DISCONNECTED');
+      expect(greaterRealmWaterFirstTierTestSeams.classifyFailure(failure)).toBe('geography');
       const clearedBytes = (
         uint8Fill.mock.instances as unknown as Uint8Array[]
       ).filter(values => values.length === input.grid.cellCount);
@@ -352,7 +457,7 @@ describe('Greater Realm water-first tier constructor', () => {
       const clearedPositions = (
         int32Fill.mock.instances as unknown as Int32Array[]
       ).filter(values => values.length === input.grid.cellCount);
-      expect(clearedPositions.length).toBeGreaterThanOrEqual(1);
+      expect(clearedPositions.length).toBeGreaterThanOrEqual(2);
       expect(clearedPositions.every(
         values => values.every(value => value === 0),
       )).toBe(true);
