@@ -37,6 +37,10 @@ import {
 } from '../src/greaterRealmV17Policy';
 
 const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+const TOPOLOGY_DIGEST = 'a'.repeat(64);
+const ALTERNATE_TOPOLOGY_DIGEST = 'b'.repeat(64);
+const CAPACITY_DIGEST = 'c'.repeat(64);
+const ALTERNATE_CAPACITY_DIGEST = 'd'.repeat(64);
 
 function opaqueSuffix(value: number): string {
   let remaining = value;
@@ -56,6 +60,7 @@ function slots(): GreaterRealmAllocationSlotV1[] {
       tier: 1,
       regionOrderRank,
       allocationRank: regionIndex * GREATER_REALM_CASTLES_PER_REGION + regionOrderRank,
+      topologyDigest: TOPOLOGY_DIGEST,
     }))
   ));
 }
@@ -95,12 +100,14 @@ function claimRows(
     castleId: bigint;
     slotId: string;
     allocationSequence: bigint;
+    topologyDigest: string;
   }>[],
 ): GreaterRealmCastleAllocationClaimV1[] {
   return allocations.map(row => ({
     castleId: row.castleId,
     slotId: row.slotId,
     allocationSequence: row.allocationSequence,
+    topologyDigest: row.topologyDigest,
   }));
 }
 
@@ -193,13 +200,15 @@ test('post-canary counters are monotone, phase-bound, bounded, and close rollbac
     code(() => advanceGreaterRealmPostCanaryCounterV1(checkpoint('planned'), 'founding')),
     'GREATER_REALM_POST_CANARY_COUNTER_PHASE_INVALID',
   );
-  assert.equal(
-    code(() => advanceGreaterRealmPostCanaryCounterV1(
-      checkpoint('canary'),
-      'unknown' as 'dispatch',
-    )),
-    'GREATER_REALM_POST_CANARY_COUNTER_KIND_INVALID',
-  );
+  for (const kind of ['unknown', 'Dispatch', 0, null, undefined]) {
+    assert.equal(
+      code(() => advanceGreaterRealmPostCanaryCounterV1(
+        checkpoint('canary'),
+        kind as unknown as 'dispatch',
+      )),
+      'GREATER_REALM_POST_CANARY_COUNTER_KIND_INVALID',
+    );
+  }
   assert.equal(
     code(() => advanceGreaterRealmPostCanaryCounterV1(
       checkpoint('active', GREATER_REALM_CASTLE_CAPACITY, 0),
@@ -259,6 +268,35 @@ test('entering active is an irreversible commit even before founding or dispatch
     code(() => planGreaterRealmActivationTransitionV1(
       { ...checkpoint('canary'), activatedAt: 1n },
       checkpoint('active'),
+    )),
+    'GREATER_REALM_ACTIVATION_CHECKPOINT_INVALID',
+  );
+});
+
+test('activation checkpoints reject accessors before any transition field can change', () => {
+  const hostile = Object.defineProperties({}, {
+    phase: { enumerable: true, get: () => 'draining' },
+    everActive: { enumerable: true, value: false },
+    postCanaryFoundingCount: { enumerable: true, value: 0 },
+    postCanaryDispatchCount: { enumerable: true, value: 0 },
+  }) as GreaterRealmActivationCheckpointV1;
+  assert.equal(
+    code(() => planGreaterRealmActivationTransitionV1(checkpoint('prepared'), hostile)),
+    'GREATER_REALM_ACTIVATION_CHECKPOINT_INVALID',
+  );
+  const hidden = { ...checkpoint('draining') };
+  Object.defineProperty(hidden, 'phase', { enumerable: false, value: 'draining' });
+  assert.equal(
+    code(() => planGreaterRealmActivationTransitionV1(
+      checkpoint('prepared'),
+      hidden as GreaterRealmActivationCheckpointV1,
+    )),
+    'GREATER_REALM_ACTIVATION_CHECKPOINT_INVALID',
+  );
+  assert.equal(
+    code(() => planGreaterRealmActivationTransitionV1(
+      checkpoint('prepared'),
+      { ...checkpoint('draining'), [Symbol('private')]: 'PRIVATE' },
     )),
     'GREATER_REALM_ACTIVATION_CHECKPOINT_INVALID',
   );
@@ -337,6 +375,38 @@ test('slot topology is exactly 600 unique ranked Tier-I slots, 100 per allowlist
     )),
     'GREATER_REALM_SLOT_REGION_RANK_SET_INVALID',
   );
+  assert.equal(
+    code(() => validateGreaterRealmAllocationSlotsV1(
+      valid.map((row, index) => index === 0
+        ? { ...row, topologyDigest: TOPOLOGY_DIGEST.toUpperCase() }
+        : row),
+    )),
+    'GREATER_REALM_TOPOLOGY_DIGEST_INVALID',
+  );
+  assert.equal(
+    code(() => validateGreaterRealmAllocationSlotsV1(
+      valid.map((row, index) => index === 0
+        ? { ...row, topologyDigest: ALTERNATE_TOPOLOGY_DIGEST }
+        : row),
+    )),
+    'GREATER_REALM_TOPOLOGY_DIGEST_MISMATCH',
+  );
+  const accessorRow = { ...valid[0]! };
+  Object.defineProperty(accessorRow, 'slotId', {
+    enumerable: true,
+    get: () => valid[0]!.slotId,
+  });
+  for (const changedRow of [
+    { ...valid[0]!, nodeId: 'PRIVATE' },
+    accessorRow,
+  ]) {
+    assert.equal(
+      code(() => validateGreaterRealmAllocationSlotsV1(
+        valid.map((row, index) => index === 0 ? changedRow : row),
+      )),
+      'GREATER_REALM_SLOT_TOPOLOGY_ROW_INVALID',
+    );
+  }
 });
 
 test('existing population plans are deterministic and balanced at every prefix', () => {
@@ -391,6 +461,7 @@ test('frozen private ranks break balanced region ties and bind exact replay', ()
     castleId: first.allocation.castleId,
     slotId: first.allocation.slotId,
     allocationSequence: first.allocation.allocationSequence,
+    topologyDigest: first.allocation.topologyDigest,
   }];
   const retry = selectGreaterRealmCastleAllocationV1(
     [...topology].reverse(),
@@ -409,6 +480,27 @@ test('frozen private ranks break balanced region ties and bind exact replay', ()
   );
 });
 
+test('allocation replay rejects an authority-bound topology swap', () => {
+  const topology = slots();
+  const first = selectGreaterRealmCastleAllocationV1(topology, [], 1n);
+  const claim = claimRows([first.allocation]);
+  const swapped = topology.map(row => ({ ...row, topologyDigest: ALTERNATE_TOPOLOGY_DIGEST }));
+  [swapped[0]!.regionId, swapped[100]!.regionId] = [
+    swapped[100]!.regionId,
+    swapped[0]!.regionId,
+  ];
+  const regionRanks = new Map<string, number>();
+  for (const row of swapped) {
+    row.regionOrderRank = regionRanks.get(row.regionId) ?? 0;
+    regionRanks.set(row.regionId, row.regionOrderRank + 1);
+  }
+  validateGreaterRealmAllocationSlotsV1(swapped);
+  assert.equal(
+    code(() => selectGreaterRealmCastleAllocationV1(swapped, claim, 1n)),
+    'GREATER_REALM_ALLOCATION_TOPOLOGY_DIGEST_MISMATCH',
+  );
+});
+
 test('allocation is retry-safe through the 600th castle and rejects the 601st', () => {
   const topology = slots();
   const first599 = planGreaterRealmExistingPopulationV1(
@@ -423,6 +515,7 @@ test('allocation is retry-safe through the 600th castle and rejects the 601st', 
     castleId: final.allocation.castleId,
     slotId: final.allocation.slotId,
     allocationSequence: final.allocation.allocationSequence,
+    topologyDigest: final.allocation.topologyDigest,
   }];
   const retry = selectGreaterRealmCastleAllocationV1([...topology].reverse(), fullClaims, 600n);
   assert.equal(retry.result, 'unchanged');
@@ -472,6 +565,25 @@ test('allocation rejects duplicate castles, slots, sequences, and noncanonical p
     assert.equal(
       code(() => selectGreaterRealmCastleAllocationV1(topology, row.rows, 3n)),
       row.expected,
+    );
+  }
+  const accessorClaim = { ...firstTwo[0]! };
+  Object.defineProperty(accessorClaim, 'slotId', {
+    enumerable: true,
+    get: () => firstTwo[0]!.slotId,
+  });
+  for (const malformed of [
+    null,
+    { ...firstTwo[0]!, nodeId: 'PRIVATE' },
+    accessorClaim,
+  ]) {
+    assert.equal(
+      code(() => selectGreaterRealmCastleAllocationV1(
+        topology,
+        [malformed] as unknown as GreaterRealmCastleAllocationClaimV1[],
+        3n,
+      )),
+      'GREATER_REALM_ALLOCATION_CLAIM_ROW_INVALID',
     );
   }
 });
@@ -533,15 +645,24 @@ test('public capacity leases use only exact GRL location capacity and never expo
       'GREATER_REALM_PUBLIC_CAPACITY_LEASE_INVALID',
     );
   }
+  const accessorLease = Object.defineProperties({}, {
+    leaseId: { enumerable: true, get: () => `${locationId}:1` },
+    nodeCount: { enumerable: true, value: 1 },
+  });
+  assert.equal(
+    code(() => parseGreaterRealmPublicCapacityLeaseV1(accessorLease)),
+    'GREATER_REALM_PUBLIC_CAPACITY_LEASE_INVALID',
+  );
 });
 
-test('public capacity selection is first-free, deterministic, and exact-retry safe', () => {
+test('public capacity selection is first-free, deterministic, and terminal-retry safe', () => {
   const locationId = `GRL-${'A'.repeat(26)}`;
   const selection = {
     locationId,
     nodeCount: 4,
+    capacityDigest: CAPACITY_DIGEST,
     occupiedCapacityOrdinals: [3, 1],
-    priorLeaseId: null,
+    priorReceipt: null,
   };
   const allocated = selectGreaterRealmPublicCapacityLeaseV1(selection);
   assert.deepEqual(allocated, {
@@ -550,6 +671,7 @@ test('public capacity selection is first-free, deterministic, and exact-retry sa
     locationId,
     capacityOrdinal: 2,
     nodeCount: 4,
+    capacityDigest: CAPACITY_DIGEST,
   });
   assert.deepEqual(
     selectGreaterRealmPublicCapacityLeaseV1({
@@ -562,8 +684,9 @@ test('public capacity selection is first-free, deterministic, and exact-retry sa
     selectGreaterRealmPublicCapacityLeaseV1({
       locationId,
       nodeCount: 32,
+      capacityDigest: CAPACITY_DIGEST,
       occupiedCapacityOrdinals: Array.from({ length: 31 }, (_unused, index) => index + 1),
-      priorLeaseId: null,
+      priorReceipt: null,
     }),
     {
       result: 'allocated',
@@ -571,11 +694,17 @@ test('public capacity selection is first-free, deterministic, and exact-retry sa
       locationId,
       capacityOrdinal: 32,
       nodeCount: 32,
+      capacityDigest: CAPACITY_DIGEST,
     },
   );
+  const priorReceipt = {
+    leaseId: `${locationId}:3`,
+    nodeCount: 4,
+    capacityDigest: CAPACITY_DIGEST,
+  };
   const replayed = selectGreaterRealmPublicCapacityLeaseV1({
     ...selection,
-    priorLeaseId: `${locationId}:3`,
+    priorReceipt,
   });
   assert.deepEqual(replayed, {
     result: 'unchanged',
@@ -583,45 +712,51 @@ test('public capacity selection is first-free, deterministic, and exact-retry sa
     locationId,
     capacityOrdinal: 3,
     nodeCount: 4,
+    capacityDigest: CAPACITY_DIGEST,
   });
   assert.deepEqual(Object.keys(replayed), [
-    'result', 'leaseId', 'locationId', 'capacityOrdinal', 'nodeCount',
+    'result', 'leaseId', 'locationId', 'capacityOrdinal', 'nodeCount', 'capacityDigest',
   ]);
   assert.equal(Object.isFrozen(replayed), true);
+  for (const occupiedCapacityOrdinals of [[], [3], [1, 1]]) {
+    assert.deepEqual(
+      selectGreaterRealmPublicCapacityLeaseV1({
+        ...selection,
+        occupiedCapacityOrdinals,
+        priorReceipt,
+      }),
+      replayed,
+    );
+  }
+  let occupancyReads = 0;
+  const hostileLiveOccupancy = new Array<unknown>(1);
+  Object.defineProperty(hostileLiveOccupancy, '0', {
+    enumerable: true,
+    get: () => {
+      occupancyReads += 1;
+      return 1;
+    },
+  });
   assert.deepEqual(
     selectGreaterRealmPublicCapacityLeaseV1({
       ...selection,
-      occupiedCapacityOrdinals: [],
-      priorLeaseId: `${locationId}:3`,
+      occupiedCapacityOrdinals: hostileLiveOccupancy,
+      priorReceipt,
     }),
     replayed,
   );
-  assert.deepEqual(
-    selectGreaterRealmPublicCapacityLeaseV1({
-      ...selection,
-      occupiedCapacityOrdinals: [3],
-      priorLeaseId: `${locationId}:3`,
-    }),
-    replayed,
-  );
-  assert.deepEqual(
-    selectGreaterRealmPublicCapacityLeaseV1({
-      ...selection,
-      occupiedCapacityOrdinals: [1, 1],
-      priorLeaseId: `${locationId}:3`,
-    }),
-    replayed,
-  );
+  assert.equal(occupancyReads, 0);
 });
 
-test('public capacity selection rejects duplicate, invalid, full, and hostile replay state', () => {
+test('public capacity selection rejects invalid occupancy, stale receipts, and private fields', () => {
   const locationId = `GRL-${'A'.repeat(26)}`;
   const alternateLocationId = `GRL-${'B'.repeat(26)}`;
   const base = {
     locationId,
     nodeCount: 2,
+    capacityDigest: CAPACITY_DIGEST,
     occupiedCapacityOrdinals: [1],
-    priorLeaseId: null,
+    priorReceipt: null,
   };
   assert.equal(
     code(() => selectGreaterRealmPublicCapacityLeaseV1({
@@ -646,19 +781,68 @@ test('public capacity selection rejects duplicate, invalid, full, and hostile re
     })),
     'GREATER_REALM_PUBLIC_CAPACITY_EXHAUSTED',
   );
-  for (const priorLeaseId of [
-    `${alternateLocationId}:1`,
-    `${locationId}:3`,
-    `${locationId}:01`,
+  for (const priorReceipt of [
+    { leaseId: `${alternateLocationId}:1`, nodeCount: 2, capacityDigest: CAPACITY_DIGEST },
+    { leaseId: `${locationId}:3`, nodeCount: 2, capacityDigest: CAPACITY_DIGEST },
+    { leaseId: `${locationId}:01`, nodeCount: 2, capacityDigest: CAPACITY_DIGEST },
+    { leaseId: `${locationId}:1`, nodeCount: 1, capacityDigest: CAPACITY_DIGEST },
+    { leaseId: `${locationId}:1`, nodeCount: 2, capacityDigest: ALTERNATE_CAPACITY_DIGEST },
   ]) {
     assert.equal(
-      code(() => selectGreaterRealmPublicCapacityLeaseV1({ ...base, priorLeaseId })),
+      code(() => selectGreaterRealmPublicCapacityLeaseV1({ ...base, priorReceipt })),
       'GREATER_REALM_PUBLIC_CAPACITY_REPLAY_INVALID',
-      priorLeaseId,
+      JSON.stringify(priorReceipt),
+    );
+  }
+  for (const privateField of ['nodeId', 'legacyCatalogId', 'candidateHandle']) {
+    assert.equal(
+      code(() => selectGreaterRealmPublicCapacityLeaseV1({
+        ...base,
+        [privateField]: 'PRIVATE',
+      })),
+      'GREATER_REALM_PUBLIC_CAPACITY_SELECTION_INVALID',
+    );
+    assert.equal(
+      code(() => selectGreaterRealmPublicCapacityLeaseV1({
+        ...base,
+        priorReceipt: {
+          leaseId: `${locationId}:1`,
+          nodeCount: 2,
+          capacityDigest: CAPACITY_DIGEST,
+          [privateField]: 'PRIVATE',
+        },
+      })),
+      'GREATER_REALM_PUBLIC_CAPACITY_REPLAY_INVALID',
     );
   }
   assert.equal(
-    code(() => selectGreaterRealmPublicCapacityLeaseV1({ ...base, nodeId: 99n })),
+    code(() => selectGreaterRealmPublicCapacityLeaseV1({
+      ...base,
+      capacityDigest: CAPACITY_DIGEST.toUpperCase(),
+    })),
+    'GREATER_REALM_PUBLIC_CAPACITY_DIGEST_INVALID',
+  );
+  const accessorSelection = Object.defineProperties({}, {
+    locationId: { enumerable: true, value: locationId },
+    nodeCount: { enumerable: true, value: 2 },
+    capacityDigest: { enumerable: true, get: () => CAPACITY_DIGEST },
+    occupiedCapacityOrdinals: { enumerable: true, value: [1] },
+    priorReceipt: { enumerable: true, value: null },
+  });
+  assert.equal(
+    code(() => selectGreaterRealmPublicCapacityLeaseV1(accessorSelection)),
     'GREATER_REALM_PUBLIC_CAPACITY_SELECTION_INVALID',
+  );
+  const accessorReceipt = Object.defineProperties({}, {
+    leaseId: { enumerable: true, get: () => `${locationId}:1` },
+    nodeCount: { enumerable: true, value: 2 },
+    capacityDigest: { enumerable: true, value: CAPACITY_DIGEST },
+  });
+  assert.equal(
+    code(() => selectGreaterRealmPublicCapacityLeaseV1({
+      ...base,
+      priorReceipt: accessorReceipt,
+    })),
+    'GREATER_REALM_PUBLIC_CAPACITY_REPLAY_INVALID',
   );
 });

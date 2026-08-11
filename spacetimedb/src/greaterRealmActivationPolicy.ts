@@ -6,6 +6,7 @@ import {
 
 const U64_MAX = 0xffff_ffff_ffff_ffffn;
 const U32_MAX = 0xffff_ffff;
+const SHA256_PATTERN = /^[0-9a-f]{64}$/u;
 const SLOT_ID_PATTERN = /^GRS-[A-Z2-7]{26}$/u;
 const CAPACITY_LOCATION_PATTERN = /^GRL-[A-Z2-7]{26}$/u;
 const CAPACITY_LEASE_PATTERN = /^(GRL-[A-Z2-7]{26}):((?:[1-9]|[12][0-9]|3[0-2]))$/u;
@@ -101,16 +102,70 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && !Array.isArray(value) && typeof value === 'object';
 }
 
-function requireExactKeys(
-  value: Record<string, unknown>,
+function snapshotExactDataRecord(
+  value: unknown,
   expected: readonly string[],
   code: string,
-): void {
+): Readonly<Record<string, unknown>> {
+  if (!isRecord(value)) fail(code);
   const keys = Reflect.ownKeys(value);
   if (
     keys.length !== expected.length
     || keys.some(key => typeof key !== 'string' || !expected.includes(key))
   ) fail(code);
+  const snapshot: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+  for (const key of expected) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (
+      descriptor === undefined
+      || !descriptor.enumerable
+      || !Object.prototype.hasOwnProperty.call(descriptor, 'value')
+    ) fail(code);
+    snapshot[key] = descriptor.value;
+  }
+  return Object.freeze(snapshot);
+}
+
+function snapshotExactArray(
+  value: unknown,
+  minimum: number,
+  maximum: number,
+  code: string,
+): readonly unknown[] {
+  if (!Array.isArray(value)) fail(code);
+  const lengthDescriptor = Object.getOwnPropertyDescriptor(value, 'length');
+  if (
+    lengthDescriptor === undefined
+    || !Object.prototype.hasOwnProperty.call(lengthDescriptor, 'value')
+    || !Number.isSafeInteger(lengthDescriptor.value)
+    || lengthDescriptor.value < minimum
+    || lengthDescriptor.value > maximum
+  ) fail(code);
+  const length = lengthDescriptor.value as number;
+  const keys = Reflect.ownKeys(value);
+  if (
+    keys.length !== length + 1
+    || keys.some((key) => {
+      if (key === 'length') return false;
+      if (typeof key !== 'string') return true;
+      const index = Number(key);
+      return !Number.isSafeInteger(index)
+        || index < 0
+        || index >= length
+        || String(index) !== key;
+    })
+  ) fail(code);
+  const snapshot: unknown[] = [];
+  for (let index = 0; index < length; index += 1) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+    if (
+      descriptor === undefined
+      || !descriptor.enumerable
+      || !Object.prototype.hasOwnProperty.call(descriptor, 'value')
+    ) fail(code);
+    snapshot.push(descriptor.value);
+  }
+  return Object.freeze(snapshot);
 }
 
 function requireInteger(value: number, minimum: number, maximum: number, code: string): number {
@@ -123,7 +178,12 @@ function requireU64(value: bigint, code: string, allowZero = true): bigint {
   return value;
 }
 
-function requireActivationPhase(value: string): GreaterRealmActivationPhase {
+function requireSha256(value: unknown, code: string): string {
+  if (typeof value !== 'string' || !SHA256_PATTERN.test(value)) fail(code);
+  return value;
+}
+
+function requireActivationPhase(value: unknown): GreaterRealmActivationPhase {
   if (!GREATER_REALM_ACTIVATION_PHASES.includes(value as GreaterRealmActivationPhase)) {
     fail('GREATER_REALM_ACTIVATION_PHASE_INVALID');
   }
@@ -141,62 +201,67 @@ export type GreaterRealmActivationCheckpointV1 = Readonly<{
 export function validateGreaterRealmActivationCheckpointV1(
   checkpoint: GreaterRealmActivationCheckpointV1,
 ): void {
-  const candidate: unknown = checkpoint;
-  if (!isRecord(candidate)) fail('GREATER_REALM_ACTIVATION_CHECKPOINT_INVALID');
-  requireExactKeys(
-    candidate,
+  snapshotActivationCheckpoint(checkpoint);
+}
+
+function snapshotActivationCheckpoint(
+  checkpoint: unknown,
+): GreaterRealmActivationCheckpointV1 {
+  const candidate = snapshotExactDataRecord(
+    checkpoint,
     ['phase', 'everActive', 'postCanaryFoundingCount', 'postCanaryDispatchCount'],
     'GREATER_REALM_ACTIVATION_CHECKPOINT_INVALID',
   );
-  requireActivationPhase(checkpoint.phase);
-  if (typeof checkpoint.everActive !== 'boolean') {
+  const phase = requireActivationPhase(candidate.phase);
+  if (typeof candidate.everActive !== 'boolean') {
     fail('GREATER_REALM_EVER_ACTIVE_INVALID');
   }
-  requireInteger(
-    checkpoint.postCanaryFoundingCount,
+  if (typeof candidate.postCanaryFoundingCount !== 'number') {
+    fail('GREATER_REALM_POST_CANARY_FOUNDING_COUNT_INVALID');
+  }
+  const postCanaryFoundingCount = requireInteger(
+    candidate.postCanaryFoundingCount,
     0,
     GREATER_REALM_CASTLE_CAPACITY,
     'GREATER_REALM_POST_CANARY_FOUNDING_COUNT_INVALID',
   );
-  requireInteger(
-    checkpoint.postCanaryDispatchCount,
+  if (typeof candidate.postCanaryDispatchCount !== 'number') {
+    fail('GREATER_REALM_POST_CANARY_DISPATCH_COUNT_INVALID');
+  }
+  const postCanaryDispatchCount = requireInteger(
+    candidate.postCanaryDispatchCount,
     0,
     GREATER_REALM_MAX_POST_CANARY_DISPATCH_COUNT,
     'GREATER_REALM_POST_CANARY_DISPATCH_COUNT_INVALID',
   );
   if (
-    (checkpoint.phase === 'prepared'
-      || checkpoint.phase === 'draining'
-      || checkpoint.phase === 'frozen'
-      || checkpoint.phase === 'planned'
-      || checkpoint.phase === 'rolled-back')
-    && (checkpoint.postCanaryFoundingCount !== 0 || checkpoint.postCanaryDispatchCount !== 0)
+    (phase === 'prepared'
+      || phase === 'draining'
+      || phase === 'frozen'
+      || phase === 'planned'
+      || phase === 'rolled-back')
+    && (postCanaryFoundingCount !== 0 || postCanaryDispatchCount !== 0)
   ) fail('GREATER_REALM_PRE_CANARY_COUNTER_INVALID');
   if (
-    checkpoint.phase !== 'active'
-    && checkpoint.phase !== 'halted'
-    && checkpoint.everActive
+    phase !== 'active'
+    && phase !== 'halted'
+    && candidate.everActive
   ) fail('GREATER_REALM_EVER_ACTIVE_PHASE_INVALID');
-  if (checkpoint.phase === 'active' && !checkpoint.everActive) {
+  if (phase === 'active' && !candidate.everActive) {
     fail('GREATER_REALM_ACTIVE_COMMIT_MISSING');
   }
+  return Object.freeze({
+    phase,
+    everActive: candidate.everActive,
+    postCanaryFoundingCount,
+    postCanaryDispatchCount,
+  });
 }
 
 export type GreaterRealmActivationTransitionPlanV1 = Readonly<{
   result: 'unchanged' | 'counter-advance' | 'phase-transition';
   checkpoint: GreaterRealmActivationCheckpointV1;
 }>;
-
-function freezeActivationCheckpoint(
-  checkpoint: GreaterRealmActivationCheckpointV1,
-): GreaterRealmActivationCheckpointV1 {
-  return Object.freeze({
-    phase: checkpoint.phase,
-    everActive: checkpoint.everActive,
-    postCanaryFoundingCount: checkpoint.postCanaryFoundingCount,
-    postCanaryDispatchCount: checkpoint.postCanaryDispatchCount,
-  });
-}
 
 /**
  * Plans one exact state change. Phase changes never smuggle counter changes;
@@ -207,125 +272,150 @@ export function planGreaterRealmActivationTransitionV1(
   current: GreaterRealmActivationCheckpointV1,
   next: GreaterRealmActivationCheckpointV1,
 ): GreaterRealmActivationTransitionPlanV1 {
-  validateGreaterRealmActivationCheckpointV1(current);
-  validateGreaterRealmActivationCheckpointV1(next);
+  const currentSnapshot = snapshotActivationCheckpoint(current);
+  const nextSnapshot = snapshotActivationCheckpoint(next);
   if (
-    next.phase === 'rolled-back'
+    nextSnapshot.phase === 'rolled-back'
     && (
-      current.everActive
-      || current.postCanaryFoundingCount !== 0
-      || current.postCanaryDispatchCount !== 0
+      currentSnapshot.everActive
+      || currentSnapshot.postCanaryFoundingCount !== 0
+      || currentSnapshot.postCanaryDispatchCount !== 0
     )
   ) fail('GREATER_REALM_ROLLBACK_WINDOW_CLOSED');
-  if (current.everActive && !next.everActive) fail('GREATER_REALM_EVER_ACTIVE_ROLLBACK');
+  if (currentSnapshot.everActive && !nextSnapshot.everActive) {
+    fail('GREATER_REALM_EVER_ACTIVE_ROLLBACK');
+  }
   if (
-    next.postCanaryFoundingCount < current.postCanaryFoundingCount
-    || next.postCanaryDispatchCount < current.postCanaryDispatchCount
+    nextSnapshot.postCanaryFoundingCount < currentSnapshot.postCanaryFoundingCount
+    || nextSnapshot.postCanaryDispatchCount < currentSnapshot.postCanaryDispatchCount
   ) fail('GREATER_REALM_POST_CANARY_COUNTER_ROLLBACK');
 
-  const countersChanged = next.postCanaryFoundingCount !== current.postCanaryFoundingCount
-    || next.postCanaryDispatchCount !== current.postCanaryDispatchCount;
-  const activeCommitChanged = current.everActive !== next.everActive;
-  if (current.phase === next.phase) {
+  const countersChanged = nextSnapshot.postCanaryFoundingCount
+      !== currentSnapshot.postCanaryFoundingCount
+    || nextSnapshot.postCanaryDispatchCount !== currentSnapshot.postCanaryDispatchCount;
+  const activeCommitChanged = currentSnapshot.everActive !== nextSnapshot.everActive;
+  if (currentSnapshot.phase === nextSnapshot.phase) {
     if (activeCommitChanged) fail('GREATER_REALM_EVER_ACTIVE_TRANSITION_INVALID');
     if (!countersChanged) {
-      return Object.freeze({ result: 'unchanged', checkpoint: freezeActivationCheckpoint(next) });
+      return Object.freeze({ result: 'unchanged', checkpoint: nextSnapshot });
     }
-    if (current.phase !== 'canary' && current.phase !== 'active') {
+    if (currentSnapshot.phase !== 'canary' && currentSnapshot.phase !== 'active') {
       fail('GREATER_REALM_POST_CANARY_COUNTER_PHASE_INVALID');
     }
-    const foundingDelta = next.postCanaryFoundingCount - current.postCanaryFoundingCount;
-    const dispatchDelta = next.postCanaryDispatchCount - current.postCanaryDispatchCount;
+    const foundingDelta = nextSnapshot.postCanaryFoundingCount
+      - currentSnapshot.postCanaryFoundingCount;
+    const dispatchDelta = nextSnapshot.postCanaryDispatchCount
+      - currentSnapshot.postCanaryDispatchCount;
     if (
       !((foundingDelta === 1 && dispatchDelta === 0)
         || (foundingDelta === 0 && dispatchDelta === 1))
     ) fail('GREATER_REALM_POST_CANARY_COUNTER_ADVANCE_INVALID');
-    return Object.freeze({ result: 'counter-advance', checkpoint: freezeActivationCheckpoint(next) });
+    return Object.freeze({ result: 'counter-advance', checkpoint: nextSnapshot });
   }
   if (countersChanged) fail('GREATER_REALM_ACTIVATION_TRANSITION_COUNTER_CHANGED');
-  if (!GREATER_REALM_ACTIVATION_TRANSITIONS[current.phase].includes(next.phase)) {
+  if (!GREATER_REALM_ACTIVATION_TRANSITIONS[currentSnapshot.phase].includes(nextSnapshot.phase)) {
     fail('GREATER_REALM_ACTIVATION_TRANSITION_INVALID');
   }
-  const commitsActivation = current.phase === 'canary'
-    && next.phase === 'active'
-    && !current.everActive
-    && next.everActive;
+  const commitsActivation = currentSnapshot.phase === 'canary'
+    && nextSnapshot.phase === 'active'
+    && !currentSnapshot.everActive
+    && nextSnapshot.everActive;
   if (activeCommitChanged && !commitsActivation) {
     fail('GREATER_REALM_EVER_ACTIVE_TRANSITION_INVALID');
   }
-  return Object.freeze({ result: 'phase-transition', checkpoint: freezeActivationCheckpoint(next) });
+  return Object.freeze({ result: 'phase-transition', checkpoint: nextSnapshot });
 }
 
 export function advanceGreaterRealmPostCanaryCounterV1(
   current: GreaterRealmActivationCheckpointV1,
   kind: 'founding' | 'dispatch',
 ): GreaterRealmActivationCheckpointV1 {
-  validateGreaterRealmActivationCheckpointV1(current);
+  const currentSnapshot = snapshotActivationCheckpoint(current);
   if (kind !== 'founding' && kind !== 'dispatch') {
     fail('GREATER_REALM_POST_CANARY_COUNTER_KIND_INVALID');
   }
-  if (current.phase !== 'canary' && current.phase !== 'active') {
+  if (currentSnapshot.phase !== 'canary' && currentSnapshot.phase !== 'active') {
     fail('GREATER_REALM_POST_CANARY_COUNTER_PHASE_INVALID');
   }
-  const next = kind === 'founding'
-    ? {
-        ...current,
-        postCanaryFoundingCount: requireInteger(
-          current.postCanaryFoundingCount + 1,
-          1,
-          GREATER_REALM_CASTLE_CAPACITY,
-          'GREATER_REALM_POST_CANARY_FOUNDING_COUNT_INVALID',
-        ),
-      }
-    : {
-        ...current,
-        postCanaryDispatchCount: requireInteger(
-          current.postCanaryDispatchCount + 1,
-          1,
-          GREATER_REALM_MAX_POST_CANARY_DISPATCH_COUNT,
-          'GREATER_REALM_POST_CANARY_DISPATCH_COUNT_INVALID',
-        ),
-      };
-  planGreaterRealmActivationTransitionV1(current, next);
-  return freezeActivationCheckpoint(next);
+  let next: GreaterRealmActivationCheckpointV1;
+  if (kind === 'founding') {
+    next = Object.freeze({
+      ...currentSnapshot,
+      postCanaryFoundingCount: requireInteger(
+        currentSnapshot.postCanaryFoundingCount + 1,
+        1,
+        GREATER_REALM_CASTLE_CAPACITY,
+        'GREATER_REALM_POST_CANARY_FOUNDING_COUNT_INVALID',
+      ),
+    });
+  } else if (kind === 'dispatch') {
+    next = Object.freeze({
+      ...currentSnapshot,
+      postCanaryDispatchCount: requireInteger(
+        currentSnapshot.postCanaryDispatchCount + 1,
+        1,
+        GREATER_REALM_MAX_POST_CANARY_DISPATCH_COUNT,
+        'GREATER_REALM_POST_CANARY_DISPATCH_COUNT_INVALID',
+      ),
+    });
+  } else {
+    fail('GREATER_REALM_POST_CANARY_COUNTER_KIND_INVALID');
+  }
+  return planGreaterRealmActivationTransitionV1(currentSnapshot, next).checkpoint;
 }
 
 export function requireGreaterRealmJourneyTablesEmptyV1(value: unknown): void {
-  if (!isRecord(value)) fail('GREATER_REALM_JOURNEY_GATE_INVALID');
-  requireExactKeys(value, GREATER_REALM_JOURNEY_TABLES, 'GREATER_REALM_JOURNEY_GATE_INVALID');
+  const snapshot = snapshotExactDataRecord(
+    value,
+    GREATER_REALM_JOURNEY_TABLES,
+    'GREATER_REALM_JOURNEY_GATE_INVALID',
+  );
   for (const table of GREATER_REALM_JOURNEY_TABLES) {
-    if (value[table] !== 0n) fail('GREATER_REALM_JOURNEY_GATE_NOT_EMPTY');
+    if (snapshot[table] !== 0n) fail('GREATER_REALM_JOURNEY_GATE_NOT_EMPTY');
   }
 }
 
+/**
+ * Pure projection of one frozen slot. A later authority must derive
+ * `topologyDigest` from the activation row's exact relocation/topology digest
+ * bound to the authoritative atlas; it is never a player-supplied value.
+ */
 export type GreaterRealmAllocationSlotV1 = Readonly<{
   slotId: string;
   regionId: string;
   tier: number;
   regionOrderRank: number;
   allocationRank: number;
+  /** Authority-supplied digest of the frozen activation/atlas topology binding. */
+  topologyDigest: string;
 }>;
 
 type ValidatedSlotTopology = Readonly<{
+  topologyDigest: string;
   ordered: readonly GreaterRealmAllocationSlotV1[];
   byId: ReadonlyMap<string, GreaterRealmAllocationSlotV1>;
 }>;
 
 function validateSlotTopology(rows: readonly GreaterRealmAllocationSlotV1[]): ValidatedSlotTopology {
-  if (!Array.isArray(rows) || rows.length !== GREATER_REALM_CASTLE_CAPACITY) {
-    fail('GREATER_REALM_SLOT_TOPOLOGY_COUNT_INVALID');
-  }
+  const rowValues = snapshotExactArray(
+    rows,
+    GREATER_REALM_CASTLE_CAPACITY,
+    GREATER_REALM_CASTLE_CAPACITY,
+    'GREATER_REALM_SLOT_TOPOLOGY_COUNT_INVALID',
+  );
   const byId = new Map<string, GreaterRealmAllocationSlotV1>();
   const allocationRanks = new Set<number>();
   const byRegion = new Map<string, GreaterRealmAllocationSlotV1[]>(
     GREATER_REALM_TIER_ONE_REGION_IDS.map(regionId => [regionId, []]),
   );
-  for (const row of rows) {
-    const candidate: unknown = row;
-    if (!isRecord(candidate)) fail('GREATER_REALM_SLOT_TOPOLOGY_ROW_INVALID');
-    requireExactKeys(
-      candidate,
-      ['slotId', 'regionId', 'tier', 'regionOrderRank', 'allocationRank'],
+  let topologyDigest: string | undefined;
+  for (const row of rowValues) {
+    const candidate = snapshotExactDataRecord(
+      row,
+      [
+        'slotId', 'regionId', 'tier', 'regionOrderRank', 'allocationRank',
+        'topologyDigest',
+      ],
       'GREATER_REALM_SLOT_TOPOLOGY_ROW_INVALID',
     );
     if (
@@ -339,13 +429,22 @@ function validateSlotTopology(rows: readonly GreaterRealmAllocationSlotV1[]): Va
       || typeof candidate.regionOrderRank !== 'number'
       || typeof candidate.allocationRank !== 'number'
     ) fail('GREATER_REALM_SLOT_TOPOLOGY_ROW_INVALID');
-    const validatedRow: GreaterRealmAllocationSlotV1 = {
+    const rowTopologyDigest = requireSha256(
+      candidate.topologyDigest,
+      'GREATER_REALM_TOPOLOGY_DIGEST_INVALID',
+    );
+    if (topologyDigest !== undefined && rowTopologyDigest !== topologyDigest) {
+      fail('GREATER_REALM_TOPOLOGY_DIGEST_MISMATCH');
+    }
+    topologyDigest = rowTopologyDigest;
+    const validatedRow: GreaterRealmAllocationSlotV1 = Object.freeze({
       slotId: candidate.slotId,
       regionId: candidate.regionId,
       tier: candidate.tier,
       regionOrderRank: candidate.regionOrderRank,
       allocationRank: candidate.allocationRank,
-    };
+      topologyDigest: rowTopologyDigest,
+    });
     requireInteger(
       validatedRow.regionOrderRank,
       0,
@@ -381,8 +480,10 @@ function validateSlotTopology(rows: readonly GreaterRealmAllocationSlotV1[]): Va
       }
     }
   }
+  if (topologyDigest === undefined) fail('GREATER_REALM_TOPOLOGY_DIGEST_INVALID');
   return Object.freeze({
-    ordered: Object.freeze([...rows].sort(
+    topologyDigest,
+    ordered: Object.freeze([...byId.values()].sort(
       (left, right) => left.allocationRank - right.allocationRank,
     )),
     byId,
@@ -399,6 +500,7 @@ export type GreaterRealmCastleAllocationClaimV1 = Readonly<{
   castleId: bigint;
   slotId: string;
   allocationSequence: bigint;
+  topologyDigest: string;
 }>;
 
 export type GreaterRealmCastleAllocationV1 = Readonly<{
@@ -408,6 +510,7 @@ export type GreaterRealmCastleAllocationV1 = Readonly<{
   regionOrderRank: number;
   allocationRank: number;
   allocationSequence: bigint;
+  topologyDigest: string;
 }>;
 
 export type GreaterRealmAllocationSelectionV1 = Readonly<{
@@ -442,14 +545,44 @@ function validateClaims(
   topology: ValidatedSlotTopology,
   claims: readonly GreaterRealmCastleAllocationClaimV1[],
 ): ValidatedClaims {
-  if (!Array.isArray(claims) || claims.length > GREATER_REALM_CASTLE_CAPACITY) {
-    fail('GREATER_REALM_ALLOCATION_CLAIM_COUNT_INVALID');
-  }
-  const ordered = [...claims].sort((left, right) => (
+  const claimValues = snapshotExactArray(
+    claims,
+    0,
+    GREATER_REALM_CASTLE_CAPACITY,
+    'GREATER_REALM_ALLOCATION_CLAIM_COUNT_INVALID',
+  );
+  const validatedClaims = claimValues.map((claim) => {
+    const candidate = snapshotExactDataRecord(
+      claim,
+      ['castleId', 'slotId', 'allocationSequence', 'topologyDigest'],
+      'GREATER_REALM_ALLOCATION_CLAIM_ROW_INVALID',
+    );
+    const castleId = requireU64(
+      candidate.castleId as bigint,
+      'GREATER_REALM_CASTLE_ID_INVALID',
+      false,
+    );
+    const allocationSequence = requireU64(
+      candidate.allocationSequence as bigint,
+      'GREATER_REALM_ALLOCATION_SEQUENCE_INVALID',
+    );
+    if (typeof candidate.slotId !== 'string' || !SLOT_ID_PATTERN.test(candidate.slotId)) {
+      fail('GREATER_REALM_ALLOCATION_SLOT_INVALID');
+    }
+    const topologyDigest = requireSha256(
+      candidate.topologyDigest,
+      'GREATER_REALM_TOPOLOGY_DIGEST_INVALID',
+    );
+    if (topologyDigest !== topology.topologyDigest) {
+      fail('GREATER_REALM_ALLOCATION_TOPOLOGY_DIGEST_MISMATCH');
+    }
+    return Object.freeze({ castleId, slotId: candidate.slotId, allocationSequence, topologyDigest });
+  });
+  const ordered = Object.freeze([...validatedClaims].sort((left, right) => (
     left.allocationSequence < right.allocationSequence ? -1
       : left.allocationSequence > right.allocationSequence ? 1
         : 0
-  ));
+  )));
   const byCastle = new Map<bigint, GreaterRealmCastleAllocationClaimV1>();
   const claimedSlotIds = new Set<string>();
   const regionCounts = new Map<string, number>(
@@ -457,14 +590,10 @@ function validateClaims(
   );
   for (let index = 0; index < ordered.length; index += 1) {
     const claim = ordered[index]!;
-    requireU64(claim.castleId, 'GREATER_REALM_CASTLE_ID_INVALID', false);
-    requireU64(claim.allocationSequence, 'GREATER_REALM_ALLOCATION_SEQUENCE_INVALID');
     if (claim.allocationSequence !== BigInt(index)) {
       fail('GREATER_REALM_ALLOCATION_SEQUENCE_INVALID');
     }
-    if (typeof claim.slotId !== 'string' || byCastle.has(claim.castleId)) {
-      fail('GREATER_REALM_ALLOCATION_CASTLE_DUPLICATE');
-    }
+    if (byCastle.has(claim.castleId)) fail('GREATER_REALM_ALLOCATION_CASTLE_DUPLICATE');
     if (claimedSlotIds.has(claim.slotId)) fail('GREATER_REALM_ALLOCATION_SLOT_DUPLICATE');
     const slot = topology.byId.get(claim.slotId);
     if (slot === undefined) fail('GREATER_REALM_ALLOCATION_SLOT_INVALID');
@@ -490,6 +619,7 @@ function allocationFor(
     regionOrderRank: slot.regionOrderRank,
     allocationRank: slot.allocationRank,
     allocationSequence: claim.allocationSequence,
+    topologyDigest: topology.topologyDigest,
   });
 }
 
@@ -518,6 +648,7 @@ export function selectGreaterRealmCastleAllocationV1(
     castleId,
     slotId: slot.slotId,
     allocationSequence: BigInt(state.ordered.length),
+    topologyDigest: topology.topologyDigest,
   });
   return Object.freeze({ result: 'allocated', allocation: allocationFor(topology, claim) });
 }
@@ -527,11 +658,16 @@ export function planGreaterRealmExistingPopulationV1(
   slots: readonly GreaterRealmAllocationSlotV1[],
   castleIds: readonly bigint[],
 ): readonly GreaterRealmCastleAllocationV1[] {
-  if (!Array.isArray(castleIds) || castleIds.length > GREATER_REALM_CASTLE_CAPACITY) {
-    fail('GREATER_REALM_EXISTING_POPULATION_COUNT_INVALID');
-  }
+  const castleIdValues = snapshotExactArray(
+    castleIds,
+    0,
+    GREATER_REALM_CASTLE_CAPACITY,
+    'GREATER_REALM_EXISTING_POPULATION_COUNT_INVALID',
+  );
   const topology = validateSlotTopology(slots);
-  const orderedCastleIds = [...castleIds].sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
+  const orderedCastleIds = castleIdValues.map(value => (
+    requireU64(value as bigint, 'GREATER_REALM_CASTLE_ID_INVALID', false)
+  )).sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
   const unique = new Set<bigint>();
   const claims: GreaterRealmCastleAllocationClaimV1[] = [];
   const claimedSlotIds = new Set<string>();
@@ -539,15 +675,16 @@ export function planGreaterRealmExistingPopulationV1(
     GREATER_REALM_TIER_ONE_REGION_IDS.map(regionId => [regionId, 0]),
   );
   for (let index = 0; index < orderedCastleIds.length; index += 1) {
-    const castleId = requireU64(
-      orderedCastleIds[index]!,
-      'GREATER_REALM_CASTLE_ID_INVALID',
-      false,
-    );
+    const castleId = orderedCastleIds[index]!;
     if (unique.has(castleId)) fail('GREATER_REALM_ALLOCATION_CASTLE_DUPLICATE');
     unique.add(castleId);
     const slot = chooseNextSlot(topology, claimedSlotIds, regionCounts);
-    claims.push(Object.freeze({ castleId, slotId: slot.slotId, allocationSequence: BigInt(index) }));
+    claims.push(Object.freeze({
+      castleId,
+      slotId: slot.slotId,
+      allocationSequence: BigInt(index),
+      topologyDigest: topology.topologyDigest,
+    }));
     claimedSlotIds.add(slot.slotId);
     regionCounts.set(slot.regionId, regionCounts.get(slot.regionId)! + 1);
   }
@@ -583,8 +720,20 @@ export type GreaterRealmPublicCapacityLeaseSelectionV1 = Readonly<
   GreaterRealmPublicCapacityLeaseV1 & {
     result: 'allocated' | 'unchanged';
     leaseId: string;
+    capacityDigest: string;
   }
 >;
+
+/**
+ * Exact private projection of a terminal dispatch-v2 receipt. The later authority
+ * must persist this binding in versioned receipt metadata (for example,
+ * `commandKind`) and must never accept it from the caller.
+ */
+export type GreaterRealmPublicCapacityReceiptV1 = Readonly<{
+  leaseId: string;
+  nodeCount: number;
+  capacityDigest: string;
+}>;
 
 function requireCapacityLocationId(value: unknown): string {
   if (typeof value !== 'string' || !CAPACITY_LOCATION_PATTERN.test(value)) {
@@ -620,15 +769,18 @@ export function formatGreaterRealmPublicCapacityLeaseIdV1(
  * identity is neither accepted nor returned by this boundary.
  */
 export function parseGreaterRealmPublicCapacityLeaseV1(value: unknown): GreaterRealmPublicCapacityLeaseV1 {
-  if (!isRecord(value)) fail('GREATER_REALM_PUBLIC_CAPACITY_LEASE_INVALID');
-  requireExactKeys(value, ['leaseId', 'nodeCount'], 'GREATER_REALM_PUBLIC_CAPACITY_LEASE_INVALID');
-  if (typeof value.leaseId !== 'string' || typeof value.nodeCount !== 'number') {
+  const candidate = snapshotExactDataRecord(
+    value,
+    ['leaseId', 'nodeCount'],
+    'GREATER_REALM_PUBLIC_CAPACITY_LEASE_INVALID',
+  );
+  if (typeof candidate.leaseId !== 'string' || typeof candidate.nodeCount !== 'number') {
     fail('GREATER_REALM_PUBLIC_CAPACITY_LEASE_INVALID');
   }
-  const match = CAPACITY_LEASE_PATTERN.exec(value.leaseId);
+  const match = CAPACITY_LEASE_PATTERN.exec(candidate.leaseId);
   if (match === null) fail('GREATER_REALM_PUBLIC_CAPACITY_LEASE_INVALID');
   const nodeCount = requireInteger(
-    value.nodeCount,
+    candidate.nodeCount,
     1,
     GREATER_REALM_PUBLIC_CAPACITY_MAX,
     'GREATER_REALM_PUBLIC_CAPACITY_NODE_COUNT_INVALID',
@@ -640,57 +792,93 @@ export function parseGreaterRealmPublicCapacityLeaseV1(value: unknown): GreaterR
 
 /**
  * Selects the first free ordinal for an exact public location capacity. A prior
- * dispatch-v2 lease is returned before live occupancy selection, even after its
- * journey completed and freed (or another journey reused) that ordinal.
+ * terminal dispatch-v2 receipt is returned before live occupancy selection, even
+ * after its journey completed and freed (or another journey reused) that ordinal.
  */
 export function selectGreaterRealmPublicCapacityLeaseV1(
   value: unknown,
 ): GreaterRealmPublicCapacityLeaseSelectionV1 {
-  if (!isRecord(value)) fail('GREATER_REALM_PUBLIC_CAPACITY_SELECTION_INVALID');
-  requireExactKeys(
+  const candidate = snapshotExactDataRecord(
     value,
-    ['locationId', 'nodeCount', 'occupiedCapacityOrdinals', 'priorLeaseId'],
+    [
+      'locationId', 'nodeCount', 'capacityDigest', 'occupiedCapacityOrdinals',
+      'priorReceipt',
+    ],
     'GREATER_REALM_PUBLIC_CAPACITY_SELECTION_INVALID',
   );
-  const locationId = requireCapacityLocationId(value.locationId);
-  if (typeof value.nodeCount !== 'number') {
+  const locationId = requireCapacityLocationId(candidate.locationId);
+  if (typeof candidate.nodeCount !== 'number') {
     fail('GREATER_REALM_PUBLIC_CAPACITY_NODE_COUNT_INVALID');
   }
   const nodeCount = requireInteger(
-    value.nodeCount,
+    candidate.nodeCount,
     1,
     GREATER_REALM_PUBLIC_CAPACITY_MAX,
     'GREATER_REALM_PUBLIC_CAPACITY_NODE_COUNT_INVALID',
   );
-  if (value.priorLeaseId !== null) {
-    if (typeof value.priorLeaseId !== 'string') {
-      fail('GREATER_REALM_PUBLIC_CAPACITY_REPLAY_INVALID');
-    }
+  const capacityDigest = requireSha256(
+    candidate.capacityDigest,
+    'GREATER_REALM_PUBLIC_CAPACITY_DIGEST_INVALID',
+  );
+  if (candidate.priorReceipt !== null) {
+    let receipt: GreaterRealmPublicCapacityReceiptV1;
     let prior: GreaterRealmPublicCapacityLeaseV1;
     try {
+      const receiptCandidate = snapshotExactDataRecord(
+        candidate.priorReceipt,
+        ['leaseId', 'nodeCount', 'capacityDigest'],
+        'GREATER_REALM_PUBLIC_CAPACITY_REPLAY_INVALID',
+      );
+      if (typeof receiptCandidate.leaseId !== 'string') {
+        fail('GREATER_REALM_PUBLIC_CAPACITY_REPLAY_INVALID');
+      }
+      if (typeof receiptCandidate.nodeCount !== 'number') {
+        fail('GREATER_REALM_PUBLIC_CAPACITY_REPLAY_INVALID');
+      }
+      receipt = Object.freeze({
+        leaseId: receiptCandidate.leaseId,
+        nodeCount: requireInteger(
+          receiptCandidate.nodeCount,
+          1,
+          GREATER_REALM_PUBLIC_CAPACITY_MAX,
+          'GREATER_REALM_PUBLIC_CAPACITY_REPLAY_INVALID',
+        ),
+        capacityDigest: requireSha256(
+          receiptCandidate.capacityDigest,
+          'GREATER_REALM_PUBLIC_CAPACITY_REPLAY_INVALID',
+        ),
+      });
       prior = parseGreaterRealmPublicCapacityLeaseV1({
-        leaseId: value.priorLeaseId,
-        nodeCount,
+        leaseId: receipt.leaseId,
+        nodeCount: receipt.nodeCount,
       });
     } catch {
       fail('GREATER_REALM_PUBLIC_CAPACITY_REPLAY_INVALID');
     }
-    if (prior.locationId !== locationId) {
+    if (
+      prior.locationId !== locationId
+      || receipt.nodeCount !== nodeCount
+      || receipt.capacityDigest !== capacityDigest
+    ) {
       fail('GREATER_REALM_PUBLIC_CAPACITY_REPLAY_INVALID');
     }
     return Object.freeze({
       result: 'unchanged',
-      leaseId: value.priorLeaseId,
+      leaseId: receipt.leaseId,
       locationId,
       capacityOrdinal: prior.capacityOrdinal,
       nodeCount,
+      capacityDigest,
     });
   }
-  if (!Array.isArray(value.occupiedCapacityOrdinals)) {
-    fail('GREATER_REALM_PUBLIC_CAPACITY_OCCUPANCY_INVALID');
-  }
+  const occupiedCapacityOrdinals = snapshotExactArray(
+    candidate.occupiedCapacityOrdinals,
+    0,
+    nodeCount,
+    'GREATER_REALM_PUBLIC_CAPACITY_OCCUPANCY_INVALID',
+  );
   const occupied = new Set<number>();
-  for (const ordinal of value.occupiedCapacityOrdinals) {
+  for (const ordinal of occupiedCapacityOrdinals) {
     if (typeof ordinal !== 'number') fail('GREATER_REALM_PUBLIC_CAPACITY_OCCUPANCY_INVALID');
     requireInteger(
       ordinal,
@@ -713,6 +901,7 @@ export function selectGreaterRealmPublicCapacityLeaseV1(
         locationId,
         capacityOrdinal,
         nodeCount,
+        capacityDigest,
       });
     }
   }
