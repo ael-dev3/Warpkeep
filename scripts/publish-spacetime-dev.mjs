@@ -4633,6 +4633,53 @@ export function verifyPostPublishCombinedV12Aggregate(
 }
 
 /**
+ * Verify an already-fetched aggregate envelope. Production cutover tooling
+ * uses this boundary to share one rate-limited administrator session instead
+ * of spawning another token-minting Hermes process.
+ */
+export function verifyExactPublishV12AggregateValue(
+  value,
+  expectations,
+  resourceRolloutStage,
+  workerRolloutStage,
+  genesisWorldRolloutStage = GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
+  workerForwardRepair = WORKER_FORWARD_REPAIR.NONE,
+  workerForwardRepairCheckpoint = WORKER_FORWARD_REPAIR_CHECKPOINT.HEALTHY,
+) {
+  const exactExpectations = validateFoundedPublishExpectations(expectations);
+  validateCombinedPublishStages(resourceRolloutStage, genesisWorldRolloutStage);
+  if (
+    workerRolloutStage !== WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY
+    && workerRolloutStage !== WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE
+  ) fail('The exact Worker rollout stage was invalid.');
+  let output;
+  try {
+    output = JSON.stringify(value, (_key, child) => (
+      typeof child === 'bigint' ? child.toString() : child
+    ));
+  } catch {
+    fail('The exact publication aggregate was not serializable.');
+  }
+  const envelope = verifyPrivacySafePublishPostV12Output(output);
+  verifyCombinedProtocolV3AndResourceV4(
+    envelope,
+    exactExpectations,
+    resourceRolloutStage,
+    genesisWorldRolloutStage,
+  );
+  verifyPrivacySafeAlphaStatusV8Output(JSON.stringify(envelope.alphaV8));
+  verifyPrivacySafeAlphaStatusV10Output(JSON.stringify(envelope.alphaV10));
+  verifyAlphaStatusV12ForStage(
+    verifyPrivacySafeAlphaStatusV12Output(JSON.stringify(envelope.workerV12)),
+    exactExpectations.expectedFounderCount,
+    workerRolloutStage,
+    workerForwardRepair,
+    workerForwardRepairCheckpoint,
+  );
+  return envelope;
+}
+
+/**
  * The already-v12 exception uses the same closed aggregate envelope before
  * publication. Its distinct error makes clear that no mutation was attempted.
  */

@@ -99,6 +99,7 @@ export function verifyFreshPublishExactV12Aggregate(
   expectations: FoundedPublishExpectations,
   ...args: any[]
 ): any;
+export function verifyExactPublishV12AggregateValue(...args: any[]): any;
 export function verifyFreshPublishPreV12Aggregate(
   secret: string,
   expectations: FoundedPublishExpectations,

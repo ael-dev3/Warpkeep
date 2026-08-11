@@ -84,10 +84,16 @@ export function validatePagesDeploymentConfiguration(
     environment.VITE_WARPKEEP_SHARED_ALPHA_ENABLED,
     'VITE_WARPKEEP_SHARED_ALPHA_ENABLED'
   );
-  exactBoolean(
+  const admissionNotificationsEnabled = exactBoolean(
     environment.VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED,
     'VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED'
   );
+  if (admissionNotificationsEnabled) {
+    fail(
+      'VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED must remain false until '
+      + 'the separately approved notification release.'
+    );
+  }
   if (environment.VITE_WARPKEEP_OIDC_AUDIENCE !== EXPECTED_AUDIENCE) {
     fail(`VITE_WARPKEEP_OIDC_AUDIENCE must be ${EXPECTED_AUDIENCE}.`);
   }

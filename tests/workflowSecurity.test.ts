@@ -83,14 +83,19 @@ describe('GitHub workflow security policy', () => {
       'VITE_WARPKEEP_SHARED_ALPHA_ENABLED: ${{ vars.WARPKEEP_SHARED_ALPHA_ENABLED }}',
     );
     expect(build).toContain(
-      "VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: ${{ vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED || 'false' }}",
+      "VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'false'",
     );
+    expect(build).not.toContain('vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED');
     expect(build).toContain('true | false) ;;');
     expect(build).toContain(
       'WARPKEEP_SHARED_ALPHA_ENABLED must be exactly true or false.',
     );
     expect(build).toContain('npm run validate:pages-config');
+    expect(build).toContain('npm run verify:greater-realm-release-gates');
     expect(build.indexOf('npm run validate:pages-config')).toBeLessThan(
+      build.indexOf('npm run build'),
+    );
+    expect(build.indexOf('npm run verify:greater-realm-release-gates')).toBeLessThan(
       build.indexOf('npm run build'),
     );
     expect(source).toContain('group: pages-main');

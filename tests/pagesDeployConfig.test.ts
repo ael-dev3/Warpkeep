@@ -4,6 +4,10 @@ import { describe, expect, it } from 'vitest';
 
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { validatePagesDeploymentConfiguration } from '../scripts/validate-pages-deploy-config.mjs';
+import {
+  verifyGreaterRealmReleaseGateEnvelope,
+  verifyGreaterRealmReleaseGateState,
+} from '../scripts/verify-greater-realm-release-gates.mjs';
 
 const FULL_SHA = 'abcdef0123456789abcdef0123456789abcdef01';
 
@@ -74,7 +78,9 @@ describe('Pages deployment configuration validation', () => {
 
   it('requires an exact fail-closed admission-notification presentation gate', () => {
     expect(validate({ VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'false' }).status).toBe(0);
-    expect(validate({ VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'true' }).status).toBe(0);
+    const premature = validate({ VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'true' });
+    expect(premature.status).not.toBe(0);
+    expect(premature.stderr).toContain('must remain false');
 
     const ambiguous = validate({
       VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'TRUE'
@@ -83,6 +89,71 @@ describe('Pages deployment configuration validation', () => {
     expect(ambiguous.stderr).toContain(
       'VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED must be exactly true or false.'
     );
+  });
+
+  it('attests that the current tree is one exact safe phase with distinct verifiers', () => {
+    expect(verifyGreaterRealmReleaseGateState()).toMatch(
+      /^Greater Realm release phase=(?:closed-review|pre-generation|candidate-approved-inert-append|import-only|activation-only|activation-client|activation-client-and-notifications); legacy=100 and v17=600 verifiers are distinct\.$/u,
+    );
+  });
+
+  it('accepts only the exact safe release phase state machine', () => {
+    const fields = [
+      'importMutationsCompiled',
+      'activationMutationsCompiled',
+      'clientPresentationAllowed',
+      'serverPresentationAllowed',
+      'entryAgreementApproved',
+      'additivePublishApproved',
+      'importForwardFixApproved',
+      'activationForwardFixApproved',
+      'clientActivationApproved',
+      'admissionNotificationsApproved',
+      'pagesNotificationsEnabled',
+    ] as const;
+    const accepted = new Set<string>();
+    let rejected = 0;
+    for (const entryAgreementReleaseStatus of [
+      'review-only-rollout-blocked', 'production-approved',
+    ] as const) {
+      for (let mask = 0; mask < 2 ** fields.length; mask += 1) {
+        const envelope = Object.fromEntries([
+          ['entryAgreementReleaseStatus', entryAgreementReleaseStatus],
+          ...fields.map((field, index) => [field, (mask & (1 << index)) !== 0]),
+        ]);
+        try {
+          accepted.add(verifyGreaterRealmReleaseGateEnvelope(envelope));
+        } catch {
+          rejected += 1;
+        }
+      }
+    }
+    expect([...accepted].sort()).toEqual([
+      'activation-client',
+      'activation-client-and-notifications',
+      'activation-only',
+      'candidate-approved-inert-append',
+      'closed-review',
+      'import-only',
+      'pre-generation',
+    ]);
+    expect(rejected).toBe(2 ** (fields.length + 1) - accepted.size);
+    expect(() => verifyGreaterRealmReleaseGateEnvelope({
+      entryAgreementReleaseStatus: 'production-approved',
+      ...Object.fromEntries(fields.map(field => [field, false])),
+      activationMutationsCompiled: true,
+      entryAgreementApproved: true,
+      additivePublishApproved: true,
+      activationForwardFixApproved: true,
+      admissionNotificationsApproved: true,
+      pagesNotificationsEnabled: true,
+    })).toThrow(/PHASE_INVALID/);
+    expect(() => verifyGreaterRealmReleaseGateEnvelope({
+      entryAgreementReleaseStatus: 'production-approved',
+      ...Object.fromEntries(fields.map(field => [field, false])),
+      importMutationsCompiled: true,
+      activationMutationsCompiled: true,
+    })).toThrow(/ENVELOPE_INVALID/);
   });
 
   it('requires exact active bridge/issuer configuration and rejects unsafe activation', () => {
