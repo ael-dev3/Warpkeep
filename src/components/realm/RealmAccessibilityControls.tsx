@@ -6,6 +6,7 @@ import {
   useState,
   type FormEvent,
   type KeyboardEvent,
+  type ReactNode,
   type RefObject
 } from 'react';
 
@@ -108,6 +109,17 @@ type RealmNavigatorReturnState = Readonly<{
   scrollTop: number;
 }>;
 
+type RealmNavigatorSectionKey = 'castles' | 'workers' | 'resources' | 'water';
+
+type RealmNavigatorSectionExpansion = Readonly<Record<RealmNavigatorSectionKey, boolean>>;
+
+const EXPANDED_SECTIONS: RealmNavigatorSectionExpansion = Object.freeze({
+  castles: true,
+  workers: true,
+  resources: true,
+  water: true
+});
+
 const RESOURCE_SITE_KIND_LABELS: Readonly<Record<RealmResourceKind, string>> =
   Object.freeze({
     gold: 'Gold Mine',
@@ -139,6 +151,64 @@ function searchCopy(castle: RealmNavigatorCastle, showDiagnostics: boolean) {
   return `${castle.label} ${castle.name}${spatialCopy}`.toLocaleLowerCase();
 }
 
+function countedItems(count: number, singular: string, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+function RealmNavigatorDisclosure({
+  children,
+  className,
+  contentId,
+  count,
+  expanded,
+  label,
+  onToggle,
+  section,
+  totalCount
+}: Readonly<{
+  children: ReactNode;
+  className?: string;
+  contentId: string;
+  count: number;
+  expanded: boolean;
+  label: string;
+  onToggle: () => void;
+  section: RealmNavigatorSectionKey;
+  totalCount: number;
+}>) {
+  const countCopy = count === totalCount ? String(totalCount) : `${count}/${totalCount}`;
+  const accessibleCountCopy = count === totalCount
+    ? `${totalCount} ${totalCount === 1 ? 'item' : 'items'}`
+    : `${count} of ${totalCount} matches`;
+  return (
+    <section className={[
+      'realm-cell-navigator__section',
+      className
+    ].filter(Boolean).join(' ')}>
+      <button
+        aria-controls={contentId}
+        aria-expanded={expanded}
+        aria-label={`${label}, ${accessibleCountCopy}`}
+        className="realm-cell-navigator__section-toggle"
+        data-realm-explore-section={section}
+        onClick={onToggle}
+        type="button"
+      >
+        <strong>{label}</strong>
+        <span className="realm-cell-navigator__section-count">{countCopy}</span>
+        <span aria-hidden="true" className="realm-cell-navigator__section-chevron">⌄</span>
+      </button>
+      <div
+        className="realm-cell-navigator__section-content"
+        hidden={!expanded}
+        id={contentId}
+      >
+        {children}
+      </div>
+    </section>
+  );
+}
+
 export function RealmAccessibilityControls({
   id,
   open,
@@ -168,6 +238,9 @@ export function RealmAccessibilityControls({
   const [qValue, setQValue] = useState('');
   const [rValue, setRValue] = useState('');
   const [jumpError, setJumpError] = useState<string>();
+  const [expandedSections, setExpandedSections] = useState<RealmNavigatorSectionExpansion>(
+    EXPANDED_SECTIONS
+  );
   const internalTriggerRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const providedTriggerRef = useRef(triggerRef);
@@ -180,6 +253,13 @@ export function RealmAccessibilityControls({
   const qId = `${id}-q`;
   const rId = `${id}-r`;
   const jumpErrorId = `${id}-jump-error`;
+
+  const toggleSection = useCallback((section: RealmNavigatorSectionKey) => {
+    setExpandedSections((current) => Object.freeze({
+      ...current,
+      [section]: !current[section]
+    }));
+  }, []);
 
   providedTriggerRef.current = triggerRef;
   if (hostedNavigationResetKeyRef.current !== hostedNavigationResetKey) {
@@ -207,6 +287,7 @@ export function RealmAccessibilityControls({
         (target ?? searchRef.current)?.focus({ preventScroll: true });
       } else {
         nestedReturnRef.current = undefined;
+        setExpandedSections(EXPANDED_SECTIONS);
         setSearch('');
         setQValue('');
         setRValue('');
@@ -282,6 +363,39 @@ export function RealmAccessibilityControls({
       ))
       : resourceSites;
   }, [resourceSites, search]);
+  const searchStatusCopy = `Explore search results: ${
+    countedItems(visibleCastles.length, 'castle')
+  }, ${countedItems(visibleWorkers.length, 'worker')}, ${
+    countedItems(visibleResourceSites.length, 'resource site')
+  }, and ${countedItems(visibleWaterBodies.length, 'water record')}.`;
+
+  useEffect(() => {
+    if (!open || search.trim().length === 0) return;
+    const matchingSections: RealmNavigatorSectionExpansion = Object.freeze({
+      castles: visibleCastles.length > 0,
+      workers: visibleWorkers.length > 0,
+      resources: visibleResourceSites.length > 0,
+      water: visibleWaterBodies.length > 0
+    });
+    setExpandedSections((current) => {
+      let changed = false;
+      const next = { ...current };
+      for (const section of Object.keys(matchingSections) as RealmNavigatorSectionKey[]) {
+        if (matchingSections[section] && !current[section]) {
+          next[section] = true;
+          changed = true;
+        }
+      }
+      return changed ? Object.freeze(next) : current;
+    });
+  }, [
+    open,
+    search,
+    visibleCastles.length,
+    visibleResourceSites.length,
+    visibleWaterBodies.length,
+    visibleWorkers.length
+  ]);
 
   const handleDialogKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Escape') return;
@@ -414,169 +528,219 @@ export function RealmAccessibilityControls({
               ? 'Player, castle, worker, resource, water, or coordinates'
               : 'Player, castle, worker, resource, or water'}
           />
-
-          {visibleCastles.length > 0 ? (
-            <ul className="realm-cell-navigator__castles" aria-label="Founded castles">
-              {visibleCastles.map((castle) => {
-                const own = castle.castleId === ownCastleId;
-                const selected = castle.castleId === selectedCastleId;
-                const status = [own ? 'your castle' : '', selected ? 'selected' : '']
-                  .filter(Boolean)
-                  .join(', ');
-                return (
-                  <li key={castle.castleId}>
-                    <button
-                      type="button"
-                      aria-label={`Inspect ${castle.label}, ${castle.name}${showDiagnostics
-                        ? `, q ${castle.q}, r ${castle.r}`
-                        : ''}${status ? `, ${status}` : ''}`}
-                      aria-pressed={selected}
-                      data-realm-explore-focus-key={`castle:${castle.castleId}`}
-                      data-own={own ? 'true' : 'false'}
-                      onClick={() => activateNestedDestination(
-                        `castle:${castle.castleId}`,
-                        () => onActivateCastle(castle)
-                      )}
-                    >
-                      <strong>{castle.label}</strong>
-                      <span>{castle.name}</span>
-                      {showDiagnostics ? <small>q {castle.q} · r {castle.r}</small> : null}
-                      {own ? <em>YOUR CASTLE</em> : null}
-                      {selected ? <em>SELECTED</em> : null}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p role="status">
-              {castles.length > 0
-                ? 'No founded castles match this search.'
-                : 'No founded castles are available.'}
+          {search.trim().length > 0 ? (
+            <p className="warpkeep-visually-hidden" role="status">
+              {searchStatusCopy}
             </p>
-          )}
+          ) : null}
 
-          {visibleWorkers.length > 0 && onActivateWorker ? (
-            <section className="realm-cell-navigator__workers" aria-label="Public workers">
-              <span>WORKERS</span>
-              <ul className="realm-cell-navigator__castles" aria-label="Public workers">
-                {visibleWorkers.map((worker) => {
-                  const selected = worker.workerId === selectedWorkerId;
-                  const locationLabel = showDiagnostics && worker.coord
-                    ? `q ${worker.coord.q}, r ${worker.coord.r}`
-                    : worker.coord
-                      ? 'at origin keep'
-                    : 'current route position';
+          <RealmNavigatorDisclosure
+            contentId={`${id}-castles`}
+            count={visibleCastles.length}
+            expanded={expandedSections.castles}
+            label="CASTLES"
+            onToggle={() => toggleSection('castles')}
+            section="castles"
+            totalCount={castles.length}
+          >
+            {visibleCastles.length > 0 ? (
+              <ul className="realm-cell-navigator__castles" aria-label="Founded castles">
+                {visibleCastles.map((castle) => {
+                  const own = castle.castleId === ownCastleId;
+                  const selected = castle.castleId === selectedCastleId;
+                  const status = [own ? 'your castle' : '', selected ? 'selected' : '']
+                    .filter(Boolean)
+                    .join(', ');
                   return (
-                    <li key={worker.workerId}>
+                    <li key={castle.castleId}>
                       <button
                         type="button"
-                        aria-label={`Inspect worker ${worker.ordinal}, ${worker.originCastleName}, ${worker.status}, ${locationLabel}${worker.ownedByViewer ? ', your worker' : ''}${selected ? ', selected' : ''}`}
+                        aria-label={`Inspect ${castle.label}, ${castle.name}${showDiagnostics
+                          ? `, q ${castle.q}, r ${castle.r}`
+                          : ''}${status ? `, ${status}` : ''}`}
                         aria-pressed={selected}
-                        data-realm-explore-focus-key={`worker:${worker.workerId}`}
-                        data-own={worker.ownedByViewer ? 'true' : 'false'}
+                        data-realm-explore-focus-key={`castle:${castle.castleId}`}
+                        data-own={own ? 'true' : 'false'}
                         onClick={() => activateNestedDestination(
-                          `worker:${worker.workerId}`,
-                          () => onActivateWorker(worker)
+                          `castle:${castle.castleId}`,
+                          () => onActivateCastle(castle)
                         )}
                       >
-                        <strong>Worker {worker.ordinal}</strong>
-                        <span>{worker.originCastleName}</span>
-                        <small>
-                          {worker.status.toLocaleUpperCase()} · {
-                            showDiagnostics && worker.coord
-                              ? `q ${worker.coord.q} · r ${worker.coord.r}`
-                              : worker.coord ? 'ORIGIN KEEP' : 'CURRENT ROUTE POSITION'
-                          }
-                        </small>
-                        {worker.ownedByViewer ? <em>YOUR WORKER</em> : null}
+                        <strong>{castle.label}</strong>
+                        <span>{castle.name}</span>
+                        {showDiagnostics ? <small>q {castle.q} · r {castle.r}</small> : null}
+                        {own ? <em>YOUR CASTLE</em> : null}
                         {selected ? <em>SELECTED</em> : null}
                       </button>
                     </li>
                   );
                 })}
               </ul>
-            </section>
-          ) : null}
+            ) : (
+              <p className="realm-cell-navigator__empty">
+                {castles.length > 0
+                  ? 'No founded castles match this search.'
+                  : 'No founded castles are available.'}
+              </p>
+            )}
+          </RealmNavigatorDisclosure>
 
-          {visibleResourceSites.length > 0 && onActivateResourceSite ? (
-            <section
-              className="realm-cell-navigator__workers realm-cell-navigator__resources"
-              aria-label="Public resource sites"
+          {workers.length > 0 && onActivateWorker ? (
+            <RealmNavigatorDisclosure
+              className="realm-cell-navigator__workers"
+              contentId={`${id}-workers`}
+              count={visibleWorkers.length}
+              expanded={expandedSections.workers}
+              label="WORKERS"
+              onToggle={() => toggleSection('workers')}
+              section="workers"
+              totalCount={workers.length}
             >
-              <span>RESOURCE SITES</span>
-              <ul className="realm-cell-navigator__castles" aria-label="Public resource sites">
-                {visibleResourceSites.map((site) => {
-                  const selected = site.key === selectedResourceKey;
-                  const availabilityLabel =
-                    RESOURCE_SITE_AVAILABILITY_LABELS[site.availability];
-                  return (
-                    <li key={site.key}>
-                      <button
-                        aria-label={`Inspect ${site.label}, tier ${site.tier}, ${availabilityLabel}${selected ? ', selected' : ''}`}
-                        aria-pressed={selected}
-                        className="realm-cell-navigator__resource-site"
-                        data-realm-explore-focus-key={`resource:${site.key}`}
-                        data-resource-kind={site.resource}
-                        data-resource-state={site.availability}
-                        onClick={() => activateNestedDestination(
-                          `resource:${site.key}`,
-                          () => onActivateResourceSite(site)
-                        )}
-                        type="button"
-                      >
-                        <strong>{site.label}</strong>
-                        <span>Tier {site.tier}</span>
-                        <small>{availabilityLabel.toLocaleUpperCase()}</small>
-                        {selected ? <em>SELECTED</em> : null}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
+              {visibleWorkers.length > 0 ? (
+                <ul className="realm-cell-navigator__castles" aria-label="Public workers">
+                  {visibleWorkers.map((worker) => {
+                    const selected = worker.workerId === selectedWorkerId;
+                    const locationLabel = showDiagnostics && worker.coord
+                      ? `q ${worker.coord.q}, r ${worker.coord.r}`
+                      : worker.coord
+                        ? 'at origin keep'
+                        : 'current route position';
+                    return (
+                      <li key={worker.workerId}>
+                        <button
+                          type="button"
+                          aria-label={`Inspect worker ${worker.ordinal}, ${worker.originCastleName}, ${worker.status}, ${locationLabel}${worker.ownedByViewer ? ', your worker' : ''}${selected ? ', selected' : ''}`}
+                          aria-pressed={selected}
+                          data-realm-explore-focus-key={`worker:${worker.workerId}`}
+                          data-own={worker.ownedByViewer ? 'true' : 'false'}
+                          onClick={() => activateNestedDestination(
+                            `worker:${worker.workerId}`,
+                            () => onActivateWorker(worker)
+                          )}
+                        >
+                          <strong>Worker {worker.ordinal}</strong>
+                          <span>{worker.originCastleName}</span>
+                          <small>
+                            {worker.status.toLocaleUpperCase()} · {
+                              showDiagnostics && worker.coord
+                                ? `q ${worker.coord.q} · r ${worker.coord.r}`
+                                : worker.coord ? 'ORIGIN KEEP' : 'CURRENT ROUTE POSITION'
+                            }
+                          </small>
+                          {worker.ownedByViewer ? <em>YOUR WORKER</em> : null}
+                          {selected ? <em>SELECTED</em> : null}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : <p className="realm-cell-navigator__empty">No public workers match this search.</p>}
+            </RealmNavigatorDisclosure>
           ) : null}
 
-          {visibleWaterBodies.length > 0 && onActivateWaterCell ? (
-            <section className="realm-cell-navigator__water" aria-label="Public rivers">
-              <span>PUBLIC WATER</span>
-              <ul className="realm-cell-navigator__castles">
-                {visibleWaterBodies.map((body) => (
-                  <li key={body.bodyId}>
-                    <div className="realm-cell-navigator__water-row">
-                      <strong>{body.label}</strong>
-                      <small>
-                        {showDiagnostics
-                          ? `source ${body.sourceCoord.q},${body.sourceCoord.r} · mouth ${body.mouthCoord.q},${body.mouthCoord.r}`
-                          : 'Source and mouth records'}
-                      </small>
-                      <div>
+          {resourceSites.length > 0 && onActivateResourceSite ? (
+            <RealmNavigatorDisclosure
+              className="realm-cell-navigator__resources"
+              contentId={`${id}-resources`}
+              count={visibleResourceSites.length}
+              expanded={expandedSections.resources}
+              label="RESOURCE SITES"
+              onToggle={() => toggleSection('resources')}
+              section="resources"
+              totalCount={resourceSites.length}
+            >
+              {visibleResourceSites.length > 0 ? (
+                <ul className="realm-cell-navigator__castles" aria-label="Public resource sites">
+                  {visibleResourceSites.map((site) => {
+                    const selected = site.key === selectedResourceKey;
+                    const availabilityLabel =
+                      RESOURCE_SITE_AVAILABILITY_LABELS[site.availability];
+                    return (
+                      <li key={site.key}>
                         <button
-                          data-realm-explore-focus-key={`water:${body.sourceCellKey}`}
-                          type="button"
+                          aria-label={`Inspect ${site.label}, tier ${site.tier}, ${availabilityLabel}${selected ? ', selected' : ''}`}
+                          aria-pressed={selected}
+                          className="realm-cell-navigator__resource-site"
+                          data-realm-explore-focus-key={`resource:${site.key}`}
+                          data-resource-kind={site.resource}
+                          data-resource-state={site.availability}
                           onClick={() => activateNestedDestination(
-                            `water:${body.sourceCellKey}`,
-                            () => onActivateWaterCell(body.sourceCellKey)
+                            `resource:${site.key}`,
+                            () => onActivateResourceSite(site)
                           )}
-                        >
-                          SOURCE
-                        </button>
-                        <button
-                          data-realm-explore-focus-key={`water:${body.mouthCellKey}`}
                           type="button"
-                          onClick={() => activateNestedDestination(
-                            `water:${body.mouthCellKey}`,
-                            () => onActivateWaterCell(body.mouthCellKey)
-                          )}
                         >
-                          MOUTH
+                          <strong>{site.label}</strong>
+                          <span>Tier {site.tier}</span>
+                          <small>{availabilityLabel.toLocaleUpperCase()}</small>
+                          {selected ? <em>SELECTED</em> : null}
                         </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="realm-cell-navigator__empty">
+                  No public resource sites match this search.
+                </p>
+              )}
+            </RealmNavigatorDisclosure>
+          ) : null}
+
+          {waterBodies.length > 0 && onActivateWaterCell ? (
+            <RealmNavigatorDisclosure
+              className="realm-cell-navigator__water"
+              contentId={`${id}-water`}
+              count={visibleWaterBodies.length}
+              expanded={expandedSections.water}
+              label="PUBLIC WATER"
+              onToggle={() => toggleSection('water')}
+              section="water"
+              totalCount={waterBodies.length}
+            >
+              {visibleWaterBodies.length > 0 ? (
+                <ul className="realm-cell-navigator__castles" aria-label="Public rivers">
+                  {visibleWaterBodies.map((body) => (
+                    <li key={body.bodyId}>
+                      <div className="realm-cell-navigator__water-row">
+                        <strong>{body.label}</strong>
+                        <small>
+                          {showDiagnostics
+                            ? `source ${body.sourceCoord.q},${body.sourceCoord.r} · mouth ${body.mouthCoord.q},${body.mouthCoord.r}`
+                            : 'Source and mouth records'}
+                        </small>
+                        <div>
+                          <button
+                            data-realm-explore-focus-key={`water:${body.sourceCellKey}`}
+                            type="button"
+                            onClick={() => activateNestedDestination(
+                              `water:${body.sourceCellKey}`,
+                              () => onActivateWaterCell(body.sourceCellKey)
+                            )}
+                          >
+                            SOURCE
+                          </button>
+                          <button
+                            data-realm-explore-focus-key={`water:${body.mouthCellKey}`}
+                            type="button"
+                            onClick={() => activateNestedDestination(
+                              `water:${body.mouthCellKey}`,
+                              () => onActivateWaterCell(body.mouthCellKey)
+                            )}
+                          >
+                            MOUTH
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </section>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="realm-cell-navigator__empty">
+                  No public water records match this search.
+                </p>
+              )}
+            </RealmNavigatorDisclosure>
           ) : null}
 
           {showDiagnostics && coordinateJump ? (

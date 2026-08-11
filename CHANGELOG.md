@@ -6,6 +6,9 @@ full engineering record.
 
 ## [Unreleased]
 
+- Made the long Castles, Workers, Resource Sites, and Public Water lists in
+  **Explore** independently collapsible, with live result counts and sticky
+  section controls that keep compact Realm navigation manageable.
 - Built the review-only Realm Chat V1 foundation as an isolated SpacetimeDB
   protocol: server-authored identity/order/time, a private archive, bounded live
   projection and history, exactly-once sends, rolling abuse limits, private
