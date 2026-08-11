@@ -2934,21 +2934,56 @@ export function observeWarpkeepRealmChat(
       onError();
     }
   };
-  const observed = [connection.db.realmChatStatusV1, connection.db.realmChatRecentV1];
-  for (const table of observed) {
-    table.onInsert(sync);
-    table.onDelete(sync);
-    table.onUpdate(sync);
-  }
-  return () => {
-    if (!active) return;
+  type ObserverTable = Readonly<{
+    onInsert?: (callback: typeof sync) => void;
+    onDelete?: (callback: typeof sync) => void;
+    onUpdate?: (callback: typeof sync) => void;
+    removeOnInsert?: (callback: typeof sync) => void;
+    removeOnDelete?: (callback: typeof sync) => void;
+    removeOnUpdate?: (callback: typeof sync) => void;
+  }>;
+  const listenerCleanups: Array<() => void> = [];
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
     active = false;
-    for (const table of observed) {
-      table.removeOnInsert(sync);
-      table.removeOnDelete(sync);
-      table.removeOnUpdate(sync);
+    for (let index = listenerCleanups.length - 1; index >= 0; index -= 1) {
+      try {
+        listenerCleanups[index]?.();
+      } catch {
+        // One generated listener must not strand the paired Chat listeners.
+      }
+    }
+    listenerCleanups.length = 0;
+  };
+  const registerTable = (candidate: unknown) => {
+    const table = candidate as ObserverTable;
+    const pairs = [
+      ['onInsert', 'removeOnInsert'],
+      ['onDelete', 'removeOnDelete'],
+      ['onUpdate', 'removeOnUpdate']
+    ] as const;
+    for (const [addName, removeName] of pairs) {
+      const add = table?.[addName];
+      const remove = table?.[removeName];
+      if (add === undefined && remove === undefined) continue;
+      if (typeof add !== 'function' || typeof remove !== 'function') {
+        throw new Error('Warpkeep Realm Chat observer surface is incomplete.');
+      }
+      listenerCleanups.push(() => remove.call(table, sync));
+      add.call(table, sync);
+      if (!active) throw new Error('Warpkeep Realm Chat observer became inactive during setup.');
     }
   };
+  try {
+    registerTable(connection.db.realmChatStatusV1);
+    registerTable(connection.db.realmChatRecentV1);
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
+  return cleanup;
 }
 
 export async function sendWarpkeepRealmChatMessage(

@@ -23,6 +23,7 @@ import {
   dispatchWarpkeepStoneExpedition,
   dispatchWarpkeepWoodExpedition,
   observeWarpkeepRealm,
+  observeWarpkeepRealmChat,
   readWarpkeepBackendInfo,
   readWarpkeepAdmissionStatus,
   readWarpkeepEntryAgreementStatus,
@@ -383,6 +384,21 @@ function observableConnectionForCandidate(candidate: WarpkeepRealmSnapshotCandid
     castle,
     realmV1,
     realmProfileV1
+  };
+}
+
+function observableRealmChatConnection() {
+  const status = observableTableDouble([]);
+  const recent = observableTableDouble([]);
+  return {
+    connection: {
+      db: {
+        realmChatStatusV1: status.table,
+        realmChatRecentV1: recent.table
+      }
+    } as unknown as WarpkeepConnection,
+    status,
+    recent
   };
 }
 
@@ -1933,6 +1949,55 @@ describe('Warpkeep authenticated connection boundary', () => {
     expect(observed.worldTile.table.removeOnInsert).toHaveBeenCalledOnce();
     expect(observed.worldTile.table.removeOnDelete).toHaveBeenCalledOnce();
     expect(observed.worldTile.table.removeOnUpdate).toHaveBeenCalledOnce();
+  });
+
+  it('releases every Chat listener after a projection callback fails', () => {
+    const observed = observableRealmChatConnection();
+    const onError = vi.fn();
+    const cleanupObserver = observeWarpkeepRealmChat(
+      observed.connection,
+      () => { throw new Error('synthetic Chat presentation failure'); },
+      onError
+    );
+
+    observed.status.listeners.insert?.({
+      event: { id: 'chat-transaction-invalid', tag: 'Transaction' }
+    } as unknown as EventContext);
+    expect(onError).toHaveBeenCalledOnce();
+
+    cleanupObserver();
+    cleanupObserver();
+    for (const source of [observed.status.table, observed.recent.table]) {
+      expect(source.removeOnInsert).toHaveBeenCalledOnce();
+      expect(source.removeOnDelete).toHaveBeenCalledOnce();
+      expect(source.removeOnUpdate).toHaveBeenCalledOnce();
+    }
+  });
+
+  it('rolls back partial Chat listener registration before exposing cleanup', () => {
+    const observed = observableRealmChatConnection();
+    observed.recent.table.onInsert.mockImplementationOnce((listener) => {
+      observed.recent.listeners.insert = listener;
+      throw new Error('synthetic Chat observer registration failure');
+    });
+    observed.recent.table.removeOnInsert.mockImplementationOnce((listener) => {
+      if (observed.recent.listeners.insert === listener) {
+        observed.recent.listeners.insert = undefined;
+      }
+    });
+
+    expect(() => observeWarpkeepRealmChat(
+      observed.connection,
+      vi.fn(),
+      vi.fn()
+    )).toThrow('synthetic Chat observer registration failure');
+    expect(observed.status.table.removeOnInsert).toHaveBeenCalledOnce();
+    expect(observed.status.table.removeOnDelete).toHaveBeenCalledOnce();
+    expect(observed.status.table.removeOnUpdate).toHaveBeenCalledOnce();
+    expect(observed.recent.table.removeOnInsert).toHaveBeenCalledOnce();
+    expect(observed.recent.listeners.insert).toBeUndefined();
+    expect(observed.recent.table.onDelete).not.toHaveBeenCalled();
+    expect(observed.recent.table.onUpdate).not.toHaveBeenCalled();
   });
 
   it('observes and releases both public forest tables with the Realm lifecycle', () => {
