@@ -13,18 +13,27 @@
     "url": "https://github.com/ael-dev3/Warpkeep/issues"
   },
   "engines": {
-    "node": ">=22.11 <23",
+    "node": ">=22.13 <23",
     "npm": ">=10.9.8 <11"
   },
   "packageManager": "npm@10.9.8",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && node scripts/generate-inner-keep-browser-asset-catalog.mjs --check && node scripts/verify-runtime-assets.mjs && node scripts/verify-inner-keep-runtime-assets.mjs && node scripts/verify-inner-keep-population-assets.mjs && node scripts/verify-inner-keep-rabbit-assets.mjs && node scripts/verify-hegemony-gold-mine-candidates.mjs && node scripts/verify-hegemony-gold-mine-runtime.mjs && node scripts/verify-hegemony-wheat-farm-runtime-assets.mjs && node scripts/verify-hegemony-logging-camp-runtime-assets.mjs && node scripts/verify-hegemony-stone-quarry-runtime-assets.mjs && node scripts/verify-hegemony-supply-wagon-assets.mjs && node scripts/verify-hegemony-tree-runtime-assets.mjs && vite build && node scripts/verify-inner-keep-runtime-assets.mjs --production-dist && node scripts/verify-inner-keep-population-assets.mjs --production-dist && node scripts/verify-inner-keep-rabbit-assets.mjs --production-dist && node scripts/verify-production-dist-exclusions.mjs && node scripts/verify-farcaster-miniapp.mjs",
+    "build": "tsc -b && node scripts/generate-inner-keep-browser-asset-catalog.mjs --check && node scripts/verify-runtime-assets.mjs && node scripts/verify-inner-keep-runtime-assets.mjs && node scripts/verify-inner-keep-population-assets.mjs && node scripts/verify-inner-keep-rabbit-assets.mjs && node scripts/verify-hegemony-gold-mine-candidates.mjs && node scripts/verify-hegemony-gold-mine-runtime.mjs && node scripts/verify-hegemony-wheat-farm-runtime-assets.mjs && node scripts/verify-hegemony-logging-camp-runtime-assets.mjs && node scripts/verify-hegemony-stone-quarry-runtime-assets.mjs && node scripts/verify-hegemony-supply-wagon-assets.mjs && node scripts/verify-hegemony-tree-runtime-assets.mjs && vite build && node scripts/verify-inner-keep-runtime-assets.mjs --production-dist && node scripts/verify-inner-keep-population-assets.mjs --production-dist && node scripts/verify-inner-keep-rabbit-assets.mjs --production-dist && node scripts/verify-production-dist-exclusions.mjs && node scripts/atlas/verify-public-boundary.mjs && node scripts/verify-farcaster-miniapp.mjs",
     "preview": "vite preview",
-    "check": "npm run verify:licenses && npm run verify:runtime-assets && npm run verify:file-sizes && npm test && npm run typecheck && npm run build",
+    "check": "npm run verify:licenses && npm run verify:atlas-public-boundary && npm run verify:runtime-assets && npm run verify:file-sizes && npm test && npm run typecheck && npm run build",
     "validate:pages-config": "node scripts/validate-pages-deploy-config.mjs",
     "verify:licenses": "node scripts/verify-license-policy.mjs",
+    "verify:atlas-public-boundary": "node scripts/atlas/verify-public-boundary.mjs",
+    "atlas:toolchain-preflight": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs --verify-only",
+    "atlas:generate-candidates": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs generate-candidates",
+    "atlas:compare-candidates": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs compare-candidates",
+    "atlas:inspect-package": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs inspect-package",
+    "atlas:verify-private-package": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs verify-private-package",
+    "atlas:export-sanitized-review": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs export-sanitized-review",
+    "atlas:verify-sanitized-review": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs verify-sanitized-review",
+    "atlas:select-candidate": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs select-candidate",
     "verify:alpha-production": "node scripts/verify-alpha-production.mjs --require-auth-v2-enabled",
     "verify:alpha-production:operator": "node scripts/verify-alpha-production.mjs --require-auth-v2-enabled --require-rpc-role-attestation",
     "verify:alpha-production:contained": "node scripts/verify-alpha-production.mjs --require-auth-v2",
@@ -149,6 +158,7 @@
     "viem": "2.55.0"
   },
   "overrides": {
+    "nanoid": "3.3.17",
     "uuid": "11.1.1"
   },
   "devDependencies": {

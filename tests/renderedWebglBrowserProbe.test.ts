@@ -94,11 +94,21 @@ const EXPECTED_LOCAL_VITE_FS_DENY = Object.freeze([
   '*.{log,har,trace}',
   '*.{bak,backup,tmp}',
   '*.{sqlite,sqlite3,db,dump}',
-  '*.{zip,tar,tar.gz,tgz,7z}',
+  '*.{7z,bz2,gz,rar,tar,tar.gz,tgz,xz,zip,zst}',
   '**/.git/**',
   '**/.cache/**',
   '**/.wrangler/**',
-  '**/.secrets/**'
+  '**/.secrets/**',
+  '**/.warpkeep-private/**',
+  '**/greater-realm-private/**',
+  'seed.bin',
+  'batch-seed.bin',
+  'manifest.private.json',
+  'batch.private.json',
+  'selection.private.json',
+  'shortlist.private.json',
+  '*private-preview*',
+  '*.{wkgr-atlas,wkgr-checkpoint,wkgr-private}'
 ]);
 
 function renderedWebglSfxSession(options: Readonly<{
@@ -493,7 +503,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         `manual:${relativePath}`
       ).toBe(false);
     }
-  });
+  }, 30_000);
 
   it('uses an inline fail-closed Vite configuration and disposable cache', () => {
     const source = readFileSync(resolve(

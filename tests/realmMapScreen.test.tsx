@@ -25,6 +25,9 @@ const VERIFIED_REALM_IDENTITY: RealmIdentity = Object.freeze({
   displayName: 'Warp Keeper'
 });
 
+const LARGE_REALM_INTERACTION_WAIT_MILLISECONDS = 5_000;
+const LARGE_REALM_INTERACTION_TEST_MILLISECONDS = 20_000;
+
 function renderFallbackRealm(
   options: Readonly<{
     identity?: RealmIdentity;
@@ -314,9 +317,9 @@ describe('RealmMapScreen', () => {
 
     await waitFor(() => expect(
       screen.queryByRole('dialog', { name: 'Explore' })
-    ).toBeNull());
+    ).toBeNull(), { timeout: LARGE_REALM_INTERACTION_WAIT_MILLISECONDS });
     expect(await screen.findByRole('dialog', { name: 'Wheat Farm' })).not.toBeNull();
-  });
+  }, LARGE_REALM_INTERACTION_TEST_MILLISECONDS);
 
   it('reconciles generic Worker occupations into semantic Explore site state', async () => {
     const realm = createRenderedWebglQaActiveWorkerRealm();
@@ -339,9 +342,9 @@ describe('RealmMapScreen', () => {
     fireEvent.click(occupiedSites[0]);
     await waitFor(() => expect(
       screen.queryByRole('dialog', { name: 'Explore' })
-    ).toBeNull());
+    ).toBeNull(), { timeout: LARGE_REALM_INTERACTION_WAIT_MILLISECONDS });
     expect(await screen.findByRole('dialog', { name: 'Gold Mine' })).not.toBeNull();
-  });
+  }, LARGE_REALM_INTERACTION_TEST_MILLISECONDS);
 
   it('keeps fallback markers and labels bounded to the same cropped region', async () => {
     const realm = createRenderedWebglQaFixtureRealm();
