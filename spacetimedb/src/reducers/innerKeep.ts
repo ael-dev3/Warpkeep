@@ -1,6 +1,6 @@
 import { SenderError, t } from 'spacetimedb/server';
 
-import { requireAdmin, requireGameplayPlayerV1 } from '../auth';
+import { requireAdmin, requireGameplayPlayerV1, requireGameplayReadPlayerV1 } from '../auth';
 import {
   activateInnerKeep,
   backfillInnerKeepBuilders,
@@ -11,7 +11,7 @@ import {
   inspectInnerKeep,
   planInnerKeepBuilderBackfill,
   planInnerKeepCatalogSeed,
-  projectMyInnerKeepState,
+  projectMyInnerKeepStateForIndexedReadV1,
   seedInnerKeepCatalog,
   startInnerKeepProject,
   synchronizeMyInnerKeepEntry,
@@ -157,14 +157,68 @@ function requireStaticAttestation(input: Readonly<{
   ) throw new SenderError('INNER_KEEP_ADMIN_ATTESTATION_INVALID');
 }
 
+type InnerKeepReadAuthority = ReturnType<typeof requireGameplayReadPlayerV1>;
+type InnerKeepMutationAuthority = ReturnType<typeof requireGameplayPlayerV1>;
+
+function sameTimestamp(
+  left: Readonly<{ microsSinceUnixEpoch: bigint }>,
+  right: Readonly<{ microsSinceUnixEpoch: bigint }>,
+): boolean {
+  return left.microsSinceUnixEpoch === right.microsSinceUnixEpoch;
+}
+
+/**
+ * The overdue poll is the sole read procedure allowed to upgrade into a
+ * mutation. Rebind every caller/castle/resource field so the complete gameplay
+ * checkpoint cannot authorize a graph different from the indexed read that
+ * selected the project.
+ */
+function requireSameInnerKeepMutationAuthority(
+  read: InnerKeepReadAuthority,
+  mutation: InnerKeepMutationAuthority,
+): void {
+  const readCastle = read.castle;
+  const mutationCastle = mutation.castle;
+  const readAccount = read.account;
+  const mutationAccount = mutation.account;
+  if (
+    mutation.claims.fid !== read.claims.fid
+    || mutationCastle.castleId !== readCastle.castleId
+    || mutationCastle.ownerFid !== readCastle.ownerFid
+    || mutationCastle.tileKey !== readCastle.tileKey
+    || mutationCastle.q !== readCastle.q
+    || mutationCastle.r !== readCastle.r
+    || mutationCastle.level !== readCastle.level
+    || mutationCastle.name !== readCastle.name
+    || !sameTimestamp(mutationCastle.createdAt, readCastle.createdAt)
+    || mutationAccount.fid !== readAccount.fid
+    || mutationAccount.castleId !== readAccount.castleId
+    || mutationAccount.realmId !== readAccount.realmId
+    || mutationAccount.food !== readAccount.food
+    || mutationAccount.wood !== readAccount.wood
+    || mutationAccount.stone !== readAccount.stone
+    || mutationAccount.gold !== readAccount.gold
+    || mutationAccount.settledThroughMicros !== readAccount.settledThroughMicros
+    || mutationAccount.revision !== readAccount.revision
+    || mutationAccount.policyVersion !== readAccount.policyVersion
+    || !sameTimestamp(mutationAccount.createdAt, readAccount.createdAt)
+    || !sameTimestamp(mutationAccount.updatedAt, readAccount.updatedAt)
+    || mutation.terrainKind !== read.terrainKind
+    || mutation.founderSource !== read.founderSource
+  ) throw new SenderError('STATE_INTEGRITY');
+}
+
 export const getMyInnerKeepStateV1 = warpkeep.procedure(
   { name: 'get_my_inner_keep_state_v1' },
   myInnerKeepStateV1,
   ctx => ctx.withTx(tx => {
     try {
-      const { claims, castle } = requireGameplayPlayerV1(tx);
-      synchronizeMyInnerKeepEntry(tx, castle);
-      return { ...projectMyInnerKeepState(tx, claims.fid, castle) };
+      const read = requireGameplayReadPlayerV1(tx);
+      const { castle } = read;
+      synchronizeMyInnerKeepEntry(tx, castle, () => {
+        requireSameInnerKeepMutationAuthority(read, requireGameplayPlayerV1(tx));
+      });
+      return { ...projectMyInnerKeepStateForIndexedReadV1(tx, read) };
     } catch (error) {
       return senderInnerKeepEntryError(error);
     }
@@ -177,7 +231,7 @@ export const getMyInnerKeepRequestStatusV1 = warpkeep.procedure(
   myInnerKeepRequestStatusV1,
   (ctx, { requestKey }) => ctx.withTx(tx => {
     try {
-      const { claims } = requireGameplayPlayerV1(tx);
+      const { claims } = requireGameplayReadPlayerV1(tx);
       const receipt = getMyInnerKeepRequestStatus(tx, claims.fid, requestKey);
       if (receipt === undefined) {
         return {

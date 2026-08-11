@@ -255,7 +255,7 @@ export function assertGreaterRealmCurrentWorldV1(
   return Object.freeze({ activation, release, atlas });
 }
 
-function profileMatchesMarks(
+export function profileMatchesMarks(
   profile: ProfileRow,
   account: NonNullable<ReturnType<WarpkeepReducerContext['db']['markAccountV1']['fid']['find']>>,
 ): boolean {

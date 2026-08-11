@@ -147,9 +147,13 @@ test('scheduled completion validates exact revision and target before clearing B
   assert.match(completion, /activeBuildingKey: undefined/);
   assert.match(completion, /busyUntilMicros: undefined/);
   assert.match(completion, /deleteSchedulesForBuilding/);
+  assert.ok(
+    completion.indexOf('beforeWrite?.()')
+      < completion.indexOf('deleteSchedulesForBuilding(ctx, building.buildingKey)'),
+  );
 });
 
-test('zero-input entry synchronizes before projection and closes private graph errors', () => {
+test('zero-input entry upgrades to the full gate only immediately before an overdue write', () => {
   const reducers = source('../src/reducers/innerKeep.ts');
   const authority = source('../src/innerKeepAuthority.ts');
   const entry = section(
@@ -169,15 +173,60 @@ test('zero-input entry synchronizes before projection and closes private graph e
 
   assert.match(entry, /warpkeep\.procedure\([\s\S]*ctx => ctx\.withTx\(tx =>/);
   assert.doesNotMatch(entry, /\{\s*(?:fid|castleId|scheduleId|requestKey)\s*:/);
-  assert.ok(
-    entry.indexOf('synchronizeMyInnerKeepEntry(tx, castle)')
-      < entry.indexOf('projectMyInnerKeepState(tx, claims.fid, castle)'),
+  assert.match(entry, /const read = requireGameplayReadPlayerV1\(tx\)/);
+  assert.match(
+    entry,
+    /requireSameInnerKeepMutationAuthority\(read, requireGameplayPlayerV1\(tx\)\)/,
   );
+  const readGateIndex = entry.indexOf('const read = requireGameplayReadPlayerV1(tx)');
+  const synchronizationIndex = entry.indexOf('synchronizeMyInnerKeepEntry(tx, castle, () =>');
+  const fullGateIndex = entry.indexOf('requireGameplayPlayerV1(tx)', synchronizationIndex);
+  const guardCloseIndex = entry.indexOf('});', fullGateIndex);
+  const projectionIndex = entry.indexOf('projectMyInnerKeepStateForIndexedReadV1(tx, read)');
+  assert.ok(readGateIndex >= 0);
+  assert.ok(synchronizationIndex > readGateIndex);
+  assert.ok(fullGateIndex > synchronizationIndex);
+  assert.ok(guardCloseIndex > fullGateIndex);
+  assert.ok(projectionIndex > guardCloseIndex);
+  assert.equal(entry.indexOf('requireGameplayPlayerV1(tx)'), fullGateIndex);
   assert.match(entry, /senderInnerKeepEntryError\(error\)/);
   assert.match(synchronization, /if \(!catalog\.exact \|\| catalog\.layout\?\.active !== true\) return/);
   assert.match(synchronization, /assertInnerKeepComponentActive\(ctx\)/);
-  assert.match(synchronization, /reconcileOverdueProject\(ctx, castle, builder, ctx\.timestamp\.microsSinceUnixEpoch\)/);
+  assert.match(
+    synchronization,
+    /reconcileOverdueProject\([\s\S]*ctx\.timestamp\.microsSinceUnixEpoch,[\s\S]*beforeOverdueWrite/,
+  );
   assert.match(errorMapping, /'INNER_KEEP_STATE_INTEGRITY'/);
+});
+
+test('overdue mutation rebinds the exact indexed caller, castle, and resource authority', () => {
+  const reducers = source('../src/reducers/innerKeep.ts');
+  const rebind = section(
+    reducers,
+    'function requireSameInnerKeepMutationAuthority',
+    'export const getMyInnerKeepStateV1',
+  );
+  assert.match(rebind, /mutation\.claims\.fid !== read\.claims\.fid/);
+  for (const field of ['castleId', 'ownerFid', 'tileKey', 'q', 'r', 'level', 'name']) {
+    assert.match(rebind, new RegExp(`mutationCastle\\.${field} !== readCastle\\.${field}`));
+  }
+  for (const field of [
+    'fid',
+    'castleId',
+    'realmId',
+    'food',
+    'wood',
+    'stone',
+    'gold',
+    'settledThroughMicros',
+    'revision',
+    'policyVersion',
+  ]) {
+    assert.match(rebind, new RegExp(`mutationAccount\\.${field} !== readAccount\\.${field}`));
+  }
+  assert.match(rebind, /mutation\.terrainKind !== read\.terrainKind/);
+  assert.match(rebind, /mutation\.founderSource !== read\.founderSource/);
+  assert.match(rebind, /throw new SenderError\('STATE_INTEGRITY'\)/);
 });
 
 test('aggregate inspection validates schedule time and both Builder-project directions', () => {

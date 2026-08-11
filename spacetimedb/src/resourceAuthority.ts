@@ -10,7 +10,12 @@ import { greaterRealmCutoverIsCurrentV1 } from './greaterRealmActivationState';
 import {
   greaterRealmCurrentAuthorityErrorCode,
   greaterRealmCurrentPassiveTerrainV1,
+  profileMatchesMarks,
 } from './greaterRealmCurrentAuthority';
+import type {
+  GreaterRealmIndexedPublicReadAuthorityV1,
+} from './greaterRealmPublicReadAuthority';
+import { markAccountIsConsistent } from './marksAuthorityPolicy';
 import {
   GENESIS_RESOURCE_POLICY_VERSION,
   GENESIS_STARTING_RESOURCE_BALANCES,
@@ -135,6 +140,50 @@ export function assertGenesisResourceForFid(
     castle,
     terrainKind: terrainForFounder(ctx, founder),
     founderSource: founder.source,
+  });
+}
+
+/**
+ * Resource half of the read-only v17 fast path. The caller placement has
+ * already been proven through indexed current authority, so this must never
+ * recurse into founder or whole-world validation.
+ */
+export function assertGreaterRealmResourceForIndexedReadV1(
+  ctx: WarpkeepReducerContext,
+  authority: GreaterRealmIndexedPublicReadAuthorityV1,
+): GenesisResourceAuthority {
+  const { castle, claim, occupancy } = authority;
+  const fid = castle.ownerFid;
+  const account = ctx.db.resourceAccountV1.fid.find(fid);
+  const accountByCastle = ctx.db.resourceAccountV1.castleId.find(castle.castleId);
+  const profile = ctx.db.realmProfileV1.fid.find(fid);
+  const marks = ctx.db.markAccountV1.fid.find(fid);
+  if (
+    account === null
+    || accountByCastle === null
+    || accountByCastle.fid !== fid
+    || profile === null
+    || marks === null
+    || ctx.db.allowedFid.fid.find(fid) === null
+    || account.fid !== fid
+    || account.castleId !== castle.castleId
+    || account.realmId !== HEGEMONY_REALM_ID
+    || !rowStateIsConsistent(account, ctx.timestamp.microsSinceUnixEpoch)
+    || !markAccountIsConsistent(marks)
+    || !profileMatchesMarks(profile, marks)
+  ) fail('RESOURCE_ACCOUNT_MISSING_OR_INVALID');
+  const founder = Object.freeze({
+    source: 'v17' as const,
+    castle,
+    profile,
+    greaterRealmClaim: claim,
+    greaterRealmOccupancy: occupancy,
+  });
+  return Object.freeze({
+    account,
+    castle,
+    terrainKind: terrainForFounder(ctx, founder),
+    founderSource: 'v17' as const,
   });
 }
 

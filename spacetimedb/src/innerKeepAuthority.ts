@@ -2,7 +2,7 @@ import { ScheduleAt } from 'spacetimedb';
 import type { InferSchema, ReducerCtx } from 'spacetimedb/server';
 
 import {
-  projectMyWorkerStateForCurrentGameplayV1,
+  projectMyWorkerStateForCurrentGameplayIndexedReadV1,
   settleAllWorkerAssignmentsForFid,
 } from './castleWorkerAuthority';
 import { CASTLE_WORKERS_PER_CASTLE } from './castleWorkerPolicy';
@@ -40,7 +40,10 @@ import {
   type InnerKeepBuildingKind,
   type InnerKeepCompletedLevels,
 } from './innerKeepPolicy';
-import { assertGenesisResourceForFid } from './resourceAuthority';
+import {
+  assertGenesisResourceForFid,
+  type GenesisResourceAuthority,
+} from './resourceAuthority';
 import { GENESIS_RESOURCE_POLICY_VERSION } from './resourceAuthorityPolicy';
 import type warpkeep from './schema';
 
@@ -334,6 +337,7 @@ function completeProject(
   builder: BuilderRow,
   building: BuildingRow,
   now: bigint,
+  beforeWrite?: () => void,
 ): BuildingRow {
   if (
     building.phase !== 'constructing'
@@ -342,6 +346,7 @@ function completeProject(
   ) fail('INNER_KEEP_COMPLETION_INTEGRITY');
   if (now < building.completesAtMicros) fail('INNER_KEEP_COMPLETION_EARLY');
   if (!buildingRowIsConsistent(ctx, building)) fail('INNER_KEEP_BUILDING_INTEGRITY');
+  beforeWrite?.();
   deleteSchedulesForBuilding(ctx, building.buildingKey);
   const completed = {
     ...building,
@@ -373,6 +378,7 @@ function reconcileOverdueProject(
   castle: CastleRow,
   builder: BuilderRow,
   now: bigint,
+  beforeOverdueWrite?: () => void,
 ): BuilderRow {
   const buildings = assertBuilderProjectGraph(ctx, castle, builder);
   if (builder.activeBuildingKey === undefined) return builder;
@@ -389,7 +395,7 @@ function reconcileOverdueProject(
     if (schedules.length !== 1) fail('INNER_KEEP_SCHEDULE_INTEGRITY');
     return builder;
   }
-  completeProject(ctx, castle, builder, building, now);
+  completeProject(ctx, castle, builder, building, now, beforeOverdueWrite);
   const idle = ctx.db.castleInnerBuilderV1.castleId.find(castle.castleId);
   if (idle === null) fail('INNER_KEEP_BUILDER_INTEGRITY');
   return idle;
@@ -398,17 +404,27 @@ function reconcileOverdueProject(
 /**
  * Caller-owned entry synchronization. Inactive state is projection-only;
  * active, Worker-ready state may finish one exact overdue project before the
- * surrounding procedure projects it from the same transaction.
+ * surrounding procedure projects it from the same transaction. The required
+ * guard runs after all completion validation and immediately before the first
+ * write, so the procedure can upgrade its fast read authority to the complete
+ * mutation checkpoint without penalizing ordinary polling.
  */
 export function synchronizeMyInnerKeepEntry(
   ctx: WarpkeepReducerContext,
   castle: CastleRow,
+  beforeOverdueWrite: () => void,
 ): void {
   const catalog = staticCatalogState(ctx);
   if (!catalog.exact || catalog.layout?.active !== true) return;
   assertInnerKeepComponentActive(ctx);
   const builder = builderForCastle(ctx, castle);
-  reconcileOverdueProject(ctx, castle, builder, ctx.timestamp.microsSinceUnixEpoch);
+  reconcileOverdueProject(
+    ctx,
+    castle,
+    builder,
+    ctx.timestamp.microsSinceUnixEpoch,
+    beforeOverdueWrite,
+  );
 }
 
 function completedLevels(buildings: readonly BuildingRow[]): InnerKeepCompletedLevels {
@@ -751,14 +767,14 @@ export type MyInnerKeepState = Readonly<{
   assetCatalogDigest: string;
 }>;
 
-export function projectMyInnerKeepState(
+function projectMyInnerKeepStateWithResource(
   ctx: WarpkeepReducerContext,
-  fid: bigint,
-  castle: CastleRow,
+  resourceAuthority: GenesisResourceAuthority,
 ): MyInnerKeepState {
+  const { castle, account: resource } = resourceAuthority;
+  const fid = resource.fid;
   const catalog = staticCatalogState(ctx);
   const componentActive = catalog.exact && catalog.layout?.active === true;
-  const resource = assertGenesisResourceForFid(ctx, fid).account;
   const builder = ctx.db.castleInnerBuilderV1.castleId.find(castle.castleId);
   if (builder !== null && !innerKeepBuilderRowMatchesCastle(builder, castle)) {
     fail('INNER_KEEP_BUILDER_INTEGRITY');
@@ -769,9 +785,9 @@ export function projectMyInnerKeepState(
   if (builderRequired && builder === null) fail('INNER_KEEP_BUILDER_INTEGRITY');
   const componentReady = componentActive && builder !== null && workerSystemIsReady(ctx);
   const projected = componentReady
-    ? projectMyWorkerStateForCurrentGameplayV1(
+    ? projectMyWorkerStateForCurrentGameplayIndexedReadV1(
       ctx,
-      fid,
+      resourceAuthority,
       ctx.timestamp.microsSinceUnixEpoch,
     ).balances
     : resource;
@@ -798,6 +814,26 @@ export function projectMyInnerKeepState(
     layoutDigest: INNER_KEEP_LAYOUT_DIGEST,
     assetCatalogDigest: INNER_KEEP_ASSET_CATALOG_DIGEST,
   });
+}
+
+export function projectMyInnerKeepState(
+  ctx: WarpkeepReducerContext,
+  fid: bigint,
+  castle: CastleRow,
+): MyInnerKeepState {
+  const resource = assertGenesisResourceForFid(ctx, fid);
+  if (resource.castle.castleId !== castle.castleId) {
+    fail('INNER_KEEP_RESOURCE_INTEGRITY');
+  }
+  return projectMyInnerKeepStateWithResource(ctx, resource);
+}
+
+/** Read-only projection using the caller-local resource authority from auth. */
+export function projectMyInnerKeepStateForIndexedReadV1(
+  ctx: WarpkeepReducerContext,
+  resource: GenesisResourceAuthority,
+): MyInnerKeepState {
+  return projectMyInnerKeepStateWithResource(ctx, resource);
 }
 
 export function getMyInnerKeepRequestStatus(

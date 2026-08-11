@@ -44,8 +44,9 @@ type CellSpec = Readonly<{
   presentationVariant?: number;
 }>;
 
-function cellKey(atlasQ: number, atlasR: number) {
-  return `T1_LOWLANDS:${atlasQ}:${atlasR}`;
+export function greaterRealmSyntheticCellKey(atlasQ: number, atlasR: number) {
+  // Region-local key coordinates intentionally differ from public atlas q/r.
+  return `T1_LOWLANDS:${atlasQ + 41}:${atlasR - 37}`;
 }
 
 function createCell(spec: CellSpec): GreaterRealmPublicCellDto {
@@ -59,7 +60,7 @@ function createCell(spec: CellSpec): GreaterRealmPublicCellDto {
         ? GREATER_REALM_HYDRO_REGIME.OCEAN
         : GREATER_REALM_HYDRO_REGIME.DRY;
   return Object.freeze({
-    cellKey: cellKey(spec.atlasQ, spec.atlasR),
+    cellKey: greaterRealmSyntheticCellKey(spec.atlasQ, spec.atlasR),
     chunkHandle: spec.owner,
     regionId: 'T1_LOWLANDS',
     atlasQ: spec.atlasQ,
@@ -127,7 +128,7 @@ const westCore = Object.freeze([
   }),
   createCell({ atlasQ: -1, atlasR: 2, owner: CHUNK_WEST, passable: false, sealedBoundaryMask: 0b00_0011 }),
   createCell({
-    atlasQ: 0, atlasR: 1, owner: CHUNK_WEST, passable: true,
+    atlasQ: -3, atlasR: 1, owner: CHUNK_WEST, passable: true,
     water: 'river', depth: 1, flowDirection: 2, flow: 512n,
     travel: GREATER_REALM_TRAVEL_CLASS.FORD,
     ambience: GREATER_REALM_AMBIENCE_CLASS.COURIER_ROUTE
@@ -142,8 +143,10 @@ const eastCore = Object.freeze([
     ambience: GREATER_REALM_AMBIENCE_CLASS.EXOTIC_COURIER_ROUTE
   }),
   createCell({
-    atlasQ: 1, atlasR: -1, owner: CHUNK_EAST, passable: false,
-    water: 'stream', depth: 2, flowDirection: 2, flow: 1_024n
+    atlasQ: 0, atlasR: 1, owner: CHUNK_EAST, passable: true,
+    water: 'river', depth: 1, flowDirection: 2, flow: 512n,
+    travel: GREATER_REALM_TRAVEL_CLASS.FORD,
+    ambience: GREATER_REALM_AMBIENCE_CLASS.COURIER_ROUTE
   }),
   createCell({
     atlasQ: 1, atlasR: 0, owner: CHUNK_EAST,
@@ -152,7 +155,7 @@ const eastCore = Object.freeze([
   }),
   createCell({ atlasQ: 1, atlasR: 1, owner: CHUNK_EAST }),
   createCell({
-    atlasQ: 2, atlasR: -1, owner: CHUNK_EAST, passable: false,
+    atlasQ: 2, atlasR: 2, owner: CHUNK_EAST, passable: false,
     water: 'ocean', depth: 3, sealedBoundaryMask: 0b00_0011
   }),
   createCell({
@@ -170,7 +173,7 @@ type SyntheticChunkSource = Readonly<{
   handle: string;
   core: readonly GreaterRealmPublicCellDto[];
   apron: readonly GreaterRealmPublicCellDto[];
-  location: Readonly<Record<string, unknown>>;
+  locations: readonly Readonly<Record<string, unknown>>[];
 }>;
 
 const sources: readonly SyntheticChunkSource[] = Object.freeze([
@@ -178,31 +181,55 @@ const sources: readonly SyntheticChunkSource[] = Object.freeze([
     handle: CHUNK_WEST,
     core: westCore,
     apron: westApron,
-    location: Object.freeze({
-      locationId: 'GRL-AAAAAAAAAAAAAAAAAAAAAAAAAA',
-      cellKey: westCore[3]!.cellKey,
-      regionId: 'T1_LOWLANDS',
-      atlasQ: westCore[3]!.atlasQ,
-      atlasR: westCore[3]!.atlasR,
-      resourceKind: 'wood',
-      nodeCount: 5,
-      policyVersion: 'synthetic-v1'
-    })
+    locations: Object.freeze([
+      Object.freeze({
+        locationId: 'GRL-AAAAAAAAAAAAAAAAAAAAAAAAAA',
+        cellKey: westCore[3]!.cellKey,
+        regionId: 'T1_LOWLANDS',
+        atlasQ: westCore[3]!.atlasQ,
+        atlasR: westCore[3]!.atlasR,
+        resourceKind: 'wood',
+        nodeCount: 5,
+        policyVersion: 'synthetic-v1'
+      }),
+      Object.freeze({
+        locationId: 'GRL-CCCCCCCCCCCCCCCCCCCCCCCCCC',
+        cellKey: westCore[0]!.cellKey,
+        regionId: 'T1_LOWLANDS',
+        atlasQ: westCore[0]!.atlasQ,
+        atlasR: westCore[0]!.atlasR,
+        resourceKind: 'food',
+        nodeCount: 6,
+        policyVersion: 'synthetic-v1'
+      })
+    ])
   }),
   Object.freeze({
     handle: CHUNK_EAST,
     core: eastCore,
     apron: eastApron,
-    location: Object.freeze({
-      locationId: 'GRL-BBBBBBBBBBBBBBBBBBBBBBBBBB',
-      cellKey: eastCore[6]!.cellKey,
-      regionId: 'T1_LOWLANDS',
-      atlasQ: eastCore[6]!.atlasQ,
-      atlasR: eastCore[6]!.atlasR,
-      resourceKind: 'stone',
-      nodeCount: 4,
-      policyVersion: 'synthetic-v1'
-    })
+    locations: Object.freeze([
+      Object.freeze({
+        locationId: 'GRL-BBBBBBBBBBBBBBBBBBBBBBBBBB',
+        cellKey: eastCore[6]!.cellKey,
+        regionId: 'T1_LOWLANDS',
+        atlasQ: eastCore[6]!.atlasQ,
+        atlasR: eastCore[6]!.atlasR,
+        resourceKind: 'stone',
+        nodeCount: 4,
+        policyVersion: 'synthetic-v1'
+      }),
+      Object.freeze({
+        locationId: 'GRL-DDDDDDDDDDDDDDDDDDDDDDDDDD',
+        cellKey: eastCore[5]!.cellKey,
+        regionId: 'T1_LOWLANDS',
+        atlasQ: eastCore[5]!.atlasQ,
+        atlasR: eastCore[5]!.atlasR,
+        resourceKind: 'gold',
+        nodeCount: 3,
+        policyVersion: 'synthetic-v1'
+      })
+    ])
   })
 ]);
 
@@ -225,17 +252,32 @@ function createChunk(source: SyntheticChunkSource, lod: GreaterRealmLod): Greate
     sourceCellCount: source.core.length,
     coreCells: source.core.filter((cell) => selected.has(cell.cellKey)),
     apronCells: source.apron.filter((cell) => selected.has(cell.cellKey)),
-    resourceLocations: lod === 0 ? [source.location] : []
+    resourceLocations: []
   });
 }
 
 const lodZeroChunks = Object.freeze(sources.map((source) => createChunk(source, 0)));
+const syntheticResourceLocations = decodeGreaterRealmResourceLocationBatchDto({
+  atlasId: ATLAS_ID,
+  revision: GREATER_REALM_SYNTHETIC_REVISION,
+  chunkHandles: [CHUNK_WEST, CHUNK_EAST],
+  truncated: false,
+  resourceLocations: sources.flatMap((source) => source.locations.map((location) => ({
+    chunkHandle: source.handle,
+    locationId: location.locationId,
+    atlasQ: location.atlasQ,
+    atlasR: location.atlasR,
+    resourceKind: location.resourceKind,
+    nodeCount: location.nodeCount
+  })))
+}).resourceLocations;
 const allCells = new Map(
   [...westCore, ...eastCore].map((cell) => [cell.cellKey, cell] as const)
 );
 const routeCellKeys = Object.freeze([
-  cellKey(-2, 1), cellKey(-1, 1), cellKey(0, 1),
-  cellKey(0, 0), cellKey(1, 0), cellKey(2, 0)
+  greaterRealmSyntheticCellKey(-2, 1), greaterRealmSyntheticCellKey(-1, 1),
+  greaterRealmSyntheticCellKey(0, 1), greaterRealmSyntheticCellKey(0, 0),
+  greaterRealmSyntheticCellKey(1, 0), greaterRealmSyntheticCellKey(2, 0)
 ]);
 
 const regionSpecs = Object.freeze([
@@ -282,7 +324,10 @@ export const GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE = Object.freeze({
       goldNodeCount: 500
     })),
     myCastleId: 1n,
-    myCellKey: routeCellKeys[0]
+    myCellKey: routeCellKeys[0],
+    myAtlasQ: -2,
+    myAtlasR: 1,
+    myElevation: allCells.get(routeCellKeys[0]!)!.elevation
   }),
   window: decodeGreaterRealmWindowDto({
     atlasId: ATLAS_ID,
@@ -313,9 +358,28 @@ export const GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE = Object.freeze({
         lod2CellCount: 3,
         lod3CellCount: 2
       }
+    ],
+    castles: [
+      {
+        castleId: 1n,
+        chunkHandle: allCells.get(routeCellKeys[0]!)!.chunkHandle,
+        atlasQ: -2,
+        atlasR: 1,
+        level: 2,
+        elevation: allCells.get(routeCellKeys[0]!)!.elevation
+      },
+      {
+        castleId: 2n,
+        chunkHandle: allCells.get(routeCellKeys[1]!)!.chunkHandle,
+        atlasQ: -1,
+        atlasR: 1,
+        level: 1,
+        elevation: allCells.get(routeCellKeys[1]!)!.elevation
+      }
     ]
   }),
   chunks: lodZeroChunks,
+  resourceLocations: syntheticResourceLocations,
   routeCellKeys
 });
 
@@ -356,20 +420,10 @@ export function createGreaterRealmSyntheticTransport(): GreaterRealmPublicTransp
       if (request.expectedRevision !== GREATER_REALM_SYNTHETIC_REVISION) {
         throw new Error('GREATER_REALM_SYNTHETIC_RESOURCE_LOCATIONS_UNAVAILABLE');
       }
-      const resourceLocations = request.chunkHandles.flatMap((chunkHandle) => {
-        const source = sources.find((entry) => entry.handle === chunkHandle);
-        if (source === undefined) {
-          throw new Error('GREATER_REALM_SYNTHETIC_RESOURCE_LOCATIONS_UNAVAILABLE');
-        }
-        return createChunk(source, 0).resourceLocations.map((location) => ({
-          chunkHandle,
-          locationId: location.locationId,
-          atlasQ: location.atlasQ,
-          atlasR: location.atlasR,
-          resourceKind: location.resourceKind,
-          nodeCount: location.nodeCount
-        }));
-      });
+      const handles = new Set(request.chunkHandles);
+      const resourceLocations = syntheticResourceLocations.filter(
+        (location) => handles.has(location.chunkHandle)
+      );
       return decodeGreaterRealmResourceLocationBatchDto({
         atlasId: ATLAS_ID,
         revision: GREATER_REALM_SYNTHETIC_REVISION,

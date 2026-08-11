@@ -291,6 +291,7 @@ import {
   RealmChatDock,
   type RealmChatSenderProfile
 } from './RealmChatDock';
+import { GreaterRealmWorldScene } from './GreaterRealmWorldScene';
 
 const InnerKeepScreen = lazy(async () => {
   const module = await import('../inner-keep/InnerKeepScreen');
@@ -558,7 +559,32 @@ function RetiredRealmWorldHost({
   strategy: Exclude<RealmWorldSceneStrategy, { kind: 'legacy-lowlands' }>;
   props: RealmMapScreenProps;
 }>) {
-  const [greaterPhase, setGreaterPhase] = useState<GreaterRealmClientPhase>('idle');
+  const greaterSceneKey = strategy.kind === 'greater-realm'
+    && props.realmContinuity !== undefined
+      ? [
+          strategy.bridge.sessionGeneration,
+          props.identity.fid,
+          props.realmContinuity.ownCastle.castleId,
+          props.realmContinuity.ownCastle.q,
+          props.realmContinuity.ownCastle.r
+        ].join(':')
+      : undefined;
+  const [greaterPhaseState, setGreaterPhaseState] = useState<Readonly<{
+    sceneKey: string | undefined;
+    phase: GreaterRealmClientPhase;
+  }>>(() => Object.freeze({ sceneKey: undefined, phase: 'idle' }));
+  const greaterPhase = greaterPhaseState.sceneKey === greaterSceneKey
+    ? greaterPhaseState.phase
+    : 'idle';
+  const handleGreaterPhaseChange = useCallback((phase: GreaterRealmClientPhase) => {
+    if (greaterSceneKey === undefined) return;
+    setGreaterPhaseState(Object.freeze({ sceneKey: greaterSceneKey, phase }));
+  }, [greaterSceneKey]);
+  useEffect(() => {
+    if (greaterSceneKey === undefined) {
+      setGreaterPhaseState(Object.freeze({ sceneKey: undefined, phase: 'idle' }));
+    }
+  }, [greaterSceneKey]);
   const [innerKeepOpen, setInnerKeepOpen] = useState(false);
   const [catalogueOpen, setCatalogueOpen] = useState(false);
   const [placementBuildingKind, setPlacementBuildingKind] =
@@ -573,32 +599,6 @@ function RetiredRealmWorldHost({
     )
       ? 'mobile' as const
       : 'desktop' as const;
-  const graphicsProfile = props.resolvedGraphicsQuality === 'cinematic'
-    ? 'high' as const
-    : props.resolvedGraphicsQuality === 'performance'
-      ? 'reduced' as const
-      : 'balanced' as const;
-
-  useEffect(() => {
-    if (strategy.kind !== 'greater-realm') {
-      setGreaterPhase('idle');
-      return;
-    }
-    let runtime: ReturnType<typeof strategy.bridge.createRuntime> | undefined;
-    let unsubscribe: (() => void) | undefined;
-    try {
-      runtime = strategy.bridge.createRuntime({ deviceClass, graphicsProfile });
-      unsubscribe = runtime.subscribe((snapshot) => setGreaterPhase(snapshot.phase));
-      void runtime.bootstrap();
-    } catch {
-      setGreaterPhase('failed');
-    }
-    return () => {
-      unsubscribe?.();
-      runtime?.dispose();
-    };
-  }, [deviceClass, graphicsProfile, strategy]);
-
   const senderProfiles = useMemo(() => {
     const profiles = new Map<number, RealmChatSenderProfile>();
     for (const profile of props.realmContinuity?.profiles ?? []) {
@@ -675,26 +675,55 @@ function RetiredRealmWorldHost({
 
   return (
     <main
-      className="realm-map-screen realm-map-screen--unavailable"
-      role="status"
-      aria-busy={strategy.kind === 'greater-realm' && greaterPhase !== 'bootstrap-ready'}
-      aria-live="polite"
+      className={`realm-map-screen ${strategy.kind === 'greater-realm'
+        ? 'realm-map-screen--greater-realm'
+        : 'realm-map-screen--unavailable'}`}
+      aria-label={strategy.kind === 'greater-realm' ? 'Greater Realm' : 'Realm connection'}
+      aria-busy={strategy.kind === 'greater-realm'
+        && greaterPhase !== 'ready'
+        && greaterPhase !== 'failed'
+        && greaterPhase !== 'disposed'}
       data-realm-world-scene-strategy={strategy.kind}
       data-realm-world-scene-strategy-reason={
-        strategy.kind === 'connection-hold' ? strategy.reason : 'scene-host-pending'
+        strategy.kind === 'connection-hold' ? strategy.reason : 'scene-host-active'
       }
       data-greater-realm-client-phase={strategy.kind === 'greater-realm' ? greaterPhase : undefined}
     >
-      <div className="realm-map-screen__loading">
+      {strategy.kind === 'greater-realm' && props.realmContinuity !== undefined ? (
+        <GreaterRealmWorldScene
+          bridge={strategy.bridge}
+          identityFid={props.identity.fid}
+          identityKey={`${props.identity.fid}:${props.realmContinuity.ownCastle.castleId}:${props.realmContinuity.ownCastle.q}:${props.realmContinuity.ownCastle.r}`}
+          ownCastle={props.realmContinuity.ownCastle}
+          resolvedGraphicsQuality={props.resolvedGraphicsQuality}
+          onPhaseChange={handleGreaterPhaseChange}
+        />
+      ) : null}
+      <div className={strategy.kind === 'greater-realm'
+        ? 'greater-realm-world__continuity'
+        : 'realm-map-screen__loading'}>
         <strong>{strategy.kind === 'greater-realm'
-          ? 'Opening the Greater Realm'
+          ? greaterPhase === 'ready' ? 'Greater Realm' : 'Opening the Greater Realm'
           : 'Reconnecting to the Realm'}</strong>
-        <span>{strategy.kind === 'greater-realm' && greaterPhase === 'bootstrap-ready'
-          ? 'The current public atlas release is verified. World-scene presentation remains sealed.'
-          : 'The retired Lowlands surface stays hidden while current authority is prepared.'}</span>
+        <span
+          role={strategy.kind === 'connection-hold' || greaterPhase !== 'ready'
+            ? 'status'
+            : undefined}
+          aria-live={strategy.kind === 'connection-hold' || greaterPhase !== 'ready'
+            ? 'polite'
+            : undefined}
+        >{strategy.kind === 'greater-realm' && greaterPhase === 'ready'
+          ? 'The bounded public atlas around your keep is current.'
+          : strategy.kind === 'greater-realm' && greaterPhase === 'failed'
+            ? 'The public atlas could not be loaded. The retired Lowlands remains hidden.'
+            : 'The retired Lowlands surface stays hidden while current authority is prepared.'}</span>
         {props.resources === undefined ? null : (
           <span data-testid="retired-realm-resources">
-            Resources current · Marks {props.resources.marksBalanceMicros.toString()}
+            Food {props.resources.balances.food.toString()}
+            {' · '}Wood {props.resources.balances.wood.toString()}
+            {' · '}Stone {props.resources.balances.stone.toString()}
+            {' · '}Gold {props.resources.balances.gold.toString()}
+            {' · '}Marks {props.resources.marksBalanceMicros.toString()}
           </span>
         )}
         {props.workerRoster === undefined ? null : (

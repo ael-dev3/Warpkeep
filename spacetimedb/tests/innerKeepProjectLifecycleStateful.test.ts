@@ -69,8 +69,8 @@ const productionDependencyHarness: Plugin = {
               export function settleAllWorkerAssignmentsForFid(ctx, fid, now) {
                 ctx.__innerKeepTestSettle(fid, now);
               }
-              export function projectMyWorkerStateForCurrentGameplayV1(ctx, fid, now) {
-                return ctx.__innerKeepTestProject(fid, now);
+              export function projectMyWorkerStateForCurrentGameplayIndexedReadV1(ctx, resource, now) {
+                return ctx.__innerKeepTestProject(resource.account.fid, now);
               }
             `
           : `

@@ -1,6 +1,6 @@
 import { SenderError, t } from 'spacetimedb/server';
 
-import { requireAdmin, requireGameplayPlayerV1 } from '../auth';
+import { requireAdmin, requireGreaterRealmPublicReadAuthorityV1 } from '../auth';
 import {
   beginGreaterRealmVerificationV1,
   finalizeGreaterRealmReleaseV1,
@@ -18,14 +18,18 @@ import {
   projectGreaterRealmResourceLocationBatchV1,
 } from '../greaterRealmResourceLocationAuthority';
 import {
+  GREATER_REALM_CHUNK_BIN_SIZE,
   GREATER_REALM_MAX_ROUTE_DEPTH,
   GREATER_REALM_MAX_ROUTE_PAGE,
-  GREATER_REALM_MAX_RESOURCE_NODES_PER_LOCATION,
   GREATER_REALM_MAX_WINDOW_RADIUS,
   GREATER_REALM_PUBLIC_REGIONS,
   requireGreaterRealmOpaqueId,
   requireGreaterRealmSafeInteger,
 } from '../greaterRealmV17Policy';
+import {
+  assertGreaterRealmCurrentPlacementV1,
+  type GreaterRealmPublicReadRootsV1,
+} from '../greaterRealmPublicReadAuthority';
 import warpkeep from '../schema';
 import { sha256Hex } from '../sha256';
 
@@ -145,7 +149,10 @@ const greaterRealmAtlasBootstrapV1 = t.object('GreaterRealmAtlasBootstrapV1', {
   mode: t.string(),
   regions: t.array(greaterRealmRegionProjectionV1),
   myCastleId: t.u64(),
-  myCellKey: t.option(t.string()),
+  myCellKey: t.string(),
+  myAtlasQ: t.i32(),
+  myAtlasR: t.i32(),
+  myElevation: t.i32(),
 });
 
 const greaterRealmChunkDescriptorV1 = t.object('GreaterRealmChunkDescriptorV1', {
@@ -160,6 +167,15 @@ const greaterRealmChunkDescriptorV1 = t.object('GreaterRealmChunkDescriptorV1', 
   lod3CellCount: t.u32(),
 });
 
+const greaterRealmCastleProjectionV1 = t.object('GreaterRealmCastleProjectionV1', {
+  castleId: t.u64(),
+  chunkHandle: t.string(),
+  atlasQ: t.i32(),
+  atlasR: t.i32(),
+  level: t.i32(),
+  elevation: t.i32(),
+});
+
 const greaterRealmWindowV1 = t.object('GreaterRealmWindowV1', {
   atlasId: t.string(),
   revision: t.u64(),
@@ -167,6 +183,7 @@ const greaterRealmWindowV1 = t.object('GreaterRealmWindowV1', {
   centerR: t.i32(),
   radius: t.u32(),
   chunks: t.array(greaterRealmChunkDescriptorV1),
+  castles: t.array(greaterRealmCastleProjectionV1),
 });
 
 const greaterRealmCellProjectionV1 = t.object('GreaterRealmCellProjectionV1', {
@@ -269,7 +286,7 @@ const greaterRealmRoutePageV1 = t.object('GreaterRealmRoutePageV1', {
   complete: t.bool(),
 });
 
-type GreaterRealmReadContext = Parameters<typeof requireGameplayPlayerV1>[0];
+type GreaterRealmReadContext = Parameters<typeof requireGreaterRealmPublicReadAuthorityV1>[0];
 
 function senderGreaterRealmError(error: unknown): never {
   const code = greaterRealmAuthorityErrorCode(error);
@@ -296,19 +313,6 @@ function audit(
     createdAt: ctx.timestamp,
     note,
   });
-}
-
-function requireReadableAtlas(ctx: GreaterRealmReadContext, expectedRevision?: bigint) {
-  let selected: NonNullable<ReturnType<typeof ctx.db.realmAtlasV1.atlasId.find>> | undefined;
-  for (const row of ctx.db.realmAtlasV1.iter()) {
-    if (row.mode !== 'canary' && row.mode !== 'active' && row.mode !== 'halted') continue;
-    if (selected !== undefined) unavailable();
-    selected = row;
-  }
-  if (selected === undefined || (expectedRevision !== undefined && selected.revision !== expectedRevision)) {
-    unavailable();
-  }
-  return selected;
 }
 
 function projectRegion(row: NonNullable<ReturnType<GreaterRealmReadContext['db']['realmAtlasVisibleRegionV1']['regionId']['find']>>) {
@@ -373,6 +377,39 @@ function projectCell(row: NonNullable<ReturnType<GreaterRealmReadContext['db']['
     ambienceClass: row.ambienceClass,
     presentationVariant: row.presentationVariant,
   };
+}
+
+type GreaterRealmOccupancyRow = NonNullable<
+  ReturnType<GreaterRealmReadContext['db']['greaterRealmCellOccupancyV1']['castleId']['find']>
+>;
+
+function currentCastleProjection(
+  ctx: GreaterRealmReadContext,
+  roots: GreaterRealmPublicReadRootsV1,
+  occupancy: GreaterRealmOccupancyRow,
+) {
+  const placement = assertGreaterRealmCurrentPlacementV1(
+    ctx,
+    roots,
+    occupancy.castleId,
+  );
+  const { castle, cell } = placement;
+  if (
+    placement.occupancy.cellKey !== occupancy.cellKey
+    || placement.occupancy.atlasId !== occupancy.atlasId
+    || placement.occupancy.castleId !== occupancy.castleId
+    || placement.occupancy.occupiedAt.microsSinceUnixEpoch
+      !== occupancy.occupiedAt.microsSinceUnixEpoch
+  ) unavailable();
+  return Object.freeze({
+    castleId: castle.castleId,
+    cellKey: cell.cellKey,
+    chunkHandle: cell.chunkHandle,
+    atlasQ: cell.atlasQ,
+    atlasR: cell.atlasR,
+    level: castle.level,
+    elevation: cell.elevation,
+  });
 }
 
 function chunkDescriptor(row: NonNullable<ReturnType<GreaterRealmReadContext['db']['greaterRealmChunkV1']['chunkHandle']['find']>>) {
@@ -634,14 +671,11 @@ export const getRealmAtlasBootstrapV1 = warpkeep.procedure(
   greaterRealmAtlasBootstrapV1,
   ctx => ctx.withTx(tx => {
     try {
-      const { castle } = requireGameplayPlayerV1(tx);
-      const atlas = requireReadableAtlas(tx);
-      const regions = GREATER_REALM_PUBLIC_REGIONS.map(expected => {
-        const row = tx.db.realmAtlasVisibleRegionV1.regionId.find(expected.id);
-        if (row === null || !row.active || row.atlasId !== atlas.atlasId) unavailable();
-        return projectRegion(row);
-      });
-      const occupancy = tx.db.greaterRealmCellOccupancyV1.castleId.find(castle.castleId);
+      const authority = requireGreaterRealmPublicReadAuthorityV1(tx);
+      const { atlas, castle } = authority;
+      const regions = authority.regions.map(projectRegion);
+      const placement = currentCastleProjection(tx, authority, authority.occupancy);
+      if (placement.castleId !== castle.castleId) unavailable();
       return {
         atlasId: atlas.atlasId,
         publicReleaseId: atlas.publicReleaseId,
@@ -661,7 +695,10 @@ export const getRealmAtlasBootstrapV1 = warpkeep.procedure(
         mode: atlas.mode,
         regions,
         myCastleId: castle.castleId,
-        myCellKey: occupancy?.cellKey,
+        myCellKey: placement.cellKey,
+        myAtlasQ: placement.atlasQ,
+        myAtlasR: placement.atlasR,
+        myElevation: placement.elevation,
       };
     } catch {
       return unavailable();
@@ -675,9 +712,10 @@ export const getRealmAtlasWindowV1 = warpkeep.procedure(
   greaterRealmWindowV1,
   (ctx, { centerQ, centerR, radius, expectedRevision }) => ctx.withTx(tx => {
     try {
-      requireGameplayPlayerV1(tx);
+      const authority = requireGreaterRealmPublicReadAuthorityV1(tx);
       requireGreaterRealmSafeInteger(radius, 0, GREATER_REALM_MAX_WINDOW_RADIUS, 'GREATER_REALM_WINDOW_INVALID');
-      const atlas = requireReadableAtlas(tx, expectedRevision);
+      const { atlas } = authority;
+      if (atlas.revision !== expectedRevision) unavailable();
       const handles = new Set<string>();
       for (let dq = -radius; dq <= radius; dq += 1) {
         for (let dr = -radius; dr <= radius; dr += 1) {
@@ -693,7 +731,47 @@ export const getRealmAtlasWindowV1 = warpkeep.procedure(
         if (chunk === null || chunk.atlasId !== atlas.atlasId) return unavailable();
         return chunkDescriptor(chunk);
       }).sort((left, right) => left.binQ - right.binQ || left.binR - right.binR);
-      return { atlasId: atlas.atlasId, revision: atlas.revision, centerQ, centerR, radius, chunks };
+      const occupancies: GreaterRealmOccupancyRow[] = [];
+      for (const occupancy of tx.db.greaterRealmCellOccupancyV1.atlasId.filter(atlas.atlasId)) {
+        if (occupancies.length >= atlas.castleCapacity) unavailable();
+        occupancies.push(occupancy);
+      }
+      if (
+        tx.db.greaterRealmCellOccupancyV1.count() !== BigInt(occupancies.length)
+        || tx.db.castle.count() !== BigInt(occupancies.length)
+      ) unavailable();
+      const seenCastleIds = new Set<bigint>();
+      const seenCoordinates = new Set<string>();
+      const castles = occupancies.flatMap(occupancy => {
+        const placement = currentCastleProjection(tx, authority, occupancy);
+        const coordinate = `${placement.atlasQ}:${placement.atlasR}`;
+        if (seenCastleIds.has(placement.castleId) || seenCoordinates.has(coordinate)) unavailable();
+        seenCastleIds.add(placement.castleId);
+        seenCoordinates.add(coordinate);
+        const binQ = Math.floor(placement.atlasQ / GREATER_REALM_CHUNK_BIN_SIZE);
+        const binR = Math.floor(placement.atlasR / GREATER_REALM_CHUNK_BIN_SIZE);
+        if (Math.abs(binQ - centerQ) > radius || Math.abs(binR - centerR) > radius) return [];
+        if (!handles.has(placement.chunkHandle)) unavailable();
+        return [{
+          castleId: placement.castleId,
+          chunkHandle: placement.chunkHandle,
+          atlasQ: placement.atlasQ,
+          atlasR: placement.atlasR,
+          level: placement.level,
+          elevation: placement.elevation,
+        }];
+      }).sort((left, right) => (
+        left.castleId < right.castleId ? -1 : left.castleId > right.castleId ? 1 : 0
+      ));
+      return {
+        atlasId: atlas.atlasId,
+        revision: atlas.revision,
+        centerQ,
+        centerR,
+        radius,
+        chunks,
+        castles,
+      };
     } catch {
       return unavailable();
     }
@@ -706,10 +784,11 @@ export const getRealmAtlasChunkV1 = warpkeep.procedure(
   greaterRealmChunkProjectionV1,
   (ctx, { chunkHandle, lod, expectedRevision }) => ctx.withTx(tx => {
     try {
-      requireGameplayPlayerV1(tx);
+      const authority = requireGreaterRealmPublicReadAuthorityV1(tx);
       requireGreaterRealmOpaqueId(chunkHandle, 'GREATER_REALM_CHUNK_HANDLE_INVALID');
       requireGreaterRealmSafeInteger(lod, 0, 3, 'GREATER_REALM_LOD_INVALID');
-      const atlas = requireReadableAtlas(tx, expectedRevision);
+      const { atlas } = authority;
+      if (atlas.revision !== expectedRevision) unavailable();
       const chunk = tx.db.greaterRealmChunkV1.chunkHandle.find(chunkHandle);
       if (chunk === null || chunk.atlasId !== atlas.atlasId) unavailable();
       const payload = parseStoredChunk(chunk);
@@ -733,61 +812,6 @@ export const getRealmAtlasChunkV1 = warpkeep.procedure(
         else unavailable();
       }
       if (coreCells.length + apronCells.length > 384) unavailable();
-      let resourceLocations: Array<{
-        locationId: string;
-        cellKey: string;
-        regionId: string;
-        atlasQ: number;
-        atlasR: number;
-        resourceKind: string;
-        nodeCount: number;
-        policyVersion: string;
-      }> = [];
-      if (lod === 0) {
-        const locationMap = new Map<string, typeof resourceLocations[number]>();
-        for (const value of payload.resourceNodes) {
-          const locationId = value.locationId;
-          const cellKey = value.cellKey;
-          const regionId = value.regionId;
-          const resourceKind = value.resourceKind;
-          const policyVersion = value.policyVersion;
-          if (
-            typeof locationId !== 'string'
-            || typeof cellKey !== 'string'
-            || typeof regionId !== 'string'
-            || typeof resourceKind !== 'string'
-            || typeof policyVersion !== 'string'
-          ) unavailable();
-          const locationCell = tx.db.greaterRealmCellV1.cellKey.find(cellKey);
-          if (locationCell === null || locationCell.atlasId !== atlas.atlasId) unavailable();
-          const current = locationMap.get(locationId);
-          if (current === undefined) {
-            locationMap.set(locationId, {
-              locationId,
-              cellKey,
-              regionId,
-              atlasQ: locationCell.atlasQ,
-              atlasR: locationCell.atlasR,
-              resourceKind,
-              nodeCount: 1,
-              policyVersion,
-            });
-          } else if (
-            current.cellKey !== cellKey
-            || current.regionId !== regionId
-            || current.atlasQ !== locationCell.atlasQ
-            || current.atlasR !== locationCell.atlasR
-            || current.resourceKind !== resourceKind
-            || current.policyVersion !== policyVersion
-          ) unavailable();
-          else {
-            if (current.nodeCount >= GREATER_REALM_MAX_RESOURCE_NODES_PER_LOCATION) unavailable();
-            current.nodeCount += 1;
-          }
-          if (locationMap.size > 128) unavailable();
-        }
-        resourceLocations = [...locationMap.values()];
-      }
       return {
         atlasId: atlas.atlasId,
         revision: atlas.revision,
@@ -796,7 +820,7 @@ export const getRealmAtlasChunkV1 = warpkeep.procedure(
         sourceCellCount: coreKeys.length,
         coreCells,
         apronCells,
-        resourceLocations,
+        resourceLocations: [],
       };
     } catch {
       return unavailable();
@@ -810,14 +834,15 @@ export const getRealmAtlasResourceLocationsV1 = warpkeep.procedure(
   greaterRealmResourceLocationBatchV1,
   (ctx, { expectedRevision, chunkHandles }) => ctx.withTx(tx => {
     try {
-      const { castle } = requireGameplayPlayerV1(tx);
+      const authority = requireGreaterRealmPublicReadAuthorityV1(tx);
+      const { atlas, castle } = authority;
       requireGreaterRealmSafeInteger(
         chunkHandles.length,
         1,
         GREATER_REALM_RESOURCE_LOCATION_MAX_CHUNK_HANDLES,
         'GREATER_REALM_RESOURCE_LOCATION_BATCH_INVALID',
       );
-      const atlas = requireReadableAtlas(tx, expectedRevision);
+      if (atlas.revision !== expectedRevision) unavailable();
       const result = projectGreaterRealmResourceLocationBatchV1(
         tx,
         atlas,
@@ -849,12 +874,13 @@ export const planRealmRouteV1 = warpkeep.procedure(
   greaterRealmRoutePageV1,
   (ctx, { originCellKey, destinationCellKey, offset, limit, expectedRevision }) => ctx.withTx(tx => {
     try {
-      requireGameplayPlayerV1(tx);
+      const authority = requireGreaterRealmPublicReadAuthorityV1(tx);
       requireGreaterRealmOpaqueId(originCellKey, 'GREATER_REALM_CELL_KEY_INVALID');
       requireGreaterRealmOpaqueId(destinationCellKey, 'GREATER_REALM_CELL_KEY_INVALID');
       requireGreaterRealmSafeInteger(offset, 0, 0xffff_ffff, 'GREATER_REALM_ROUTE_OFFSET_INVALID');
       requireGreaterRealmSafeInteger(limit, 1, GREATER_REALM_MAX_ROUTE_PAGE, 'GREATER_REALM_ROUTE_PAGE_INVALID');
-      const atlas = requireReadableAtlas(tx, expectedRevision);
+      const { atlas } = authority;
+      if (atlas.revision !== expectedRevision) unavailable();
       const origin = tx.db.greaterRealmCellV1.cellKey.find(originCellKey);
       const destination = tx.db.greaterRealmCellV1.cellKey.find(destinationCellKey);
       if (

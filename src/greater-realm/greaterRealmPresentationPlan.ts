@@ -433,25 +433,9 @@ export function createGreaterRealmChunkPresentationPlan(input: Readonly<{
       boatCount += 1;
     }
   }
-  const elevationByCoordinate = new Map(
-    cells.map((cell) => [greaterRealmCoordinateKey(cell), cell.elevation])
-  );
-  const resources = Object.freeze(input.chunk.resourceLocations.flatMap((location) => {
-    const elevation = elevationByCoordinate.get(greaterRealmCoordinateKey(location));
-    if (elevation === undefined) return [];
-    return [Object.freeze({
-      id: location.locationId,
-      kind: location.resourceKind,
-      nodeCount: location.nodeCount,
-      position: coordinatePosition(
-        location.atlasQ,
-        location.atlasR,
-        cellSize,
-        elevation,
-        0.12
-      )
-    })];
-  }));
+  // Interaction resources are caller-filtered snapshot affordances. Chunk
+  // presentation never reconstructs or renders a second location authority.
+  const resources: readonly GreaterRealmResourcePresentation[] = Object.freeze([]);
   const cellAccess = Object.freeze(cells.map((cell) => Object.freeze({
     cellKey: cell.cellKey,
     coordinateKey: greaterRealmCoordinateKey(cell),

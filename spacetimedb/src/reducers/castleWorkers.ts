@@ -4,6 +4,7 @@ import {
   requireAdmin,
   requireAuthenticatedCastleOwnerActionV1,
   requireGameplayPlayerV1,
+  requireGameplayReadPlayerV1,
 } from '../auth';
 import {
   castleWorkerErrorCode,
@@ -11,9 +12,9 @@ import {
   dispatchGreaterRealmCastleWorkerV2,
   inspectCastleWorkerGraph,
   inspectCastleWorkerGraphForCurrentGameplayV1,
-  projectMyGreaterRealmWorkerStateV2,
-  projectMyWorkerState,
-  projectMyWorkerStateForCurrentGameplayV1,
+  projectMyGreaterRealmWorkerStateV2ForIndexedReadV1,
+  projectMyWorkerStateForCurrentGameplayIndexedReadV1,
+  projectMyWorkerStateForIndexedReadV1,
   recallAllCastleWorkers,
   recallCastleWorker,
   repairMissingWorkerReturnSchedule,
@@ -27,7 +28,9 @@ import {
   inspectWorkerRollout,
   stageWorkerSystem,
 } from '../castleWorkerRolloutAuthority';
-import type { WorkerResourceKind } from '../castleWorkerPolicy';
+import {
+  type WorkerResourceKind,
+} from '../castleWorkerPolicy';
 import type {
   WorkerClientAttestation,
 } from '../castleWorkerRolloutPolicy';
@@ -36,7 +39,10 @@ import {
   returnActiveLegacyExpedition,
 } from '../legacyExpeditionReturnAuthority';
 import warpkeep from '../schema';
-import { currentGreaterRealmActivationRowV1 } from '../greaterRealmActivationState';
+import type {
+  GreaterRealmIndexedPublicReadAuthorityV1,
+} from '../greaterRealmPublicReadAuthority';
+import { assertGreaterRealmWorkerReadRootsV2 } from '../greaterRealmWorkerReadAuthority';
 
 const workerPrivate = t.object('WorkerPrivateV1', {
   workerId: t.string(),
@@ -266,37 +272,21 @@ function auditWorkerRollout(
   });
 }
 
-function workerSystemMode(ctx: Parameters<typeof projectMyWorkerState>[0]): string {
+function workerSystemMode(
+  ctx: Parameters<typeof projectMyWorkerStateForIndexedReadV1>[0],
+): string {
   return ctx.db.realmWorkerSystemV1.realmId.find('GENESIS_001')?.mode ?? 'absent';
 }
 
 function currentGreaterRealmWorkerRoot(
-  ctx: Parameters<typeof projectMyWorkerState>[0],
+  ctx: Parameters<typeof projectMyWorkerStateForIndexedReadV1>[0],
+  authority: GreaterRealmIndexedPublicReadAuthorityV1 | undefined,
 ) {
-  const activation = currentGreaterRealmActivationRowV1(ctx);
-  const atlas = activation === undefined
-    ? null
-    : ctx.db.realmAtlasV1.atlasId.find(activation.atlasId);
-  const worker = activation === undefined
-    ? null
-    : ctx.db.realmWorkerSystemV2.atlasId.find(activation.atlasId);
-  if (
-    activation === undefined
-    || activation.canaryAt === undefined
-    || activation.rolledBackAt !== undefined
-    || atlas === null
-    || worker === null
-    || ctx.db.realmAtlasV1.count() !== 1n
-    || ctx.db.realmWorkerSystemV2.count() !== 1n
-    || atlas.atlasId !== activation.atlasId
-    || worker.atlasId !== activation.atlasId
-    || atlas.mode !== activation.mode
-    || worker.mode !== activation.mode
-    || (activation.mode !== 'canary'
-      && activation.mode !== 'active'
-      && activation.mode !== 'halted')
-  ) throw new SenderError('GREATER_REALM_WORKER_CONTROL_UNAVAILABLE');
-  return Object.freeze({ atlas, worker });
+  try {
+    return assertGreaterRealmWorkerReadRootsV2(ctx, authority);
+  } catch {
+    throw new SenderError('GREATER_REALM_WORKER_CONTROL_UNAVAILABLE');
+  }
 }
 
 function aggregateResult(aggregate: ReturnType<typeof inspectCastleWorkerGraph>) {
@@ -308,9 +298,14 @@ export const getMyWorkerRosterV1 = warpkeep.procedure(
   myWorkerRoster,
   ctx => ctx.withTx(tx => {
     try {
-      const { claims, castle } = requireGameplayPlayerV1(tx);
+      const read = requireGameplayReadPlayerV1(tx);
+      const { claims, castle } = read;
       const observedAtMicros = tx.timestamp.microsSinceUnixEpoch;
-      const projection = projectMyWorkerState(tx, claims.fid, observedAtMicros);
+      const projection = projectMyWorkerStateForIndexedReadV1(
+        tx,
+        read,
+        observedAtMicros,
+      );
       return {
         fid: claims.fid,
         castleId: castle.castleId,
@@ -339,11 +334,12 @@ export const getMyResourceStateV2 = warpkeep.procedure(
   myResourceStateV2,
   ctx => ctx.withTx(tx => {
     try {
-      const { claims } = requireGameplayPlayerV1(tx);
+      const read = requireGameplayReadPlayerV1(tx);
+      const { claims } = read;
       const observedAtMicros = tx.timestamp.microsSinceUnixEpoch;
-      const projection = projectMyWorkerStateForCurrentGameplayV1(
+      const projection = projectMyWorkerStateForCurrentGameplayIndexedReadV1(
         tx,
-        claims.fid,
+        read,
         observedAtMicros,
       );
       const pending = { food: 0n, wood: 0n, stone: 0n, gold: 0n };
@@ -388,9 +384,14 @@ export const getMyWorkerControlStateV1 = warpkeep.procedure(
   myWorkerControlStateV1,
   ctx => ctx.withTx(tx => {
     try {
-      const { claims, castle } = requireGameplayPlayerV1(tx);
+      const read = requireGameplayReadPlayerV1(tx);
+      const { claims, castle } = read;
       const observedAtMicros = tx.timestamp.microsSinceUnixEpoch;
-      const projection = projectMyWorkerState(tx, claims.fid, observedAtMicros);
+      const projection = projectMyWorkerStateForIndexedReadV1(
+        tx,
+        read,
+        observedAtMicros,
+      );
       const pending = { food: 0n, wood: 0n, stone: 0n, gold: 0n };
       for (const worker of projection.workers) {
         if (worker.resourceKind === 'food') pending.food += worker.availableAmount;
@@ -440,12 +441,18 @@ export const getMyWorkerControlStateV2 = warpkeep.procedure(
   myWorkerControlStateV2,
   ctx => ctx.withTx(tx => {
     try {
-      const { claims, castle } = requireGameplayPlayerV1(tx);
-      const { atlas, worker: workerRoot } = currentGreaterRealmWorkerRoot(tx);
-      const observedAtMicros = tx.timestamp.microsSinceUnixEpoch;
-      const projection = projectMyGreaterRealmWorkerStateV2(
+      const read = requireGameplayReadPlayerV1(tx);
+      const { claims, castle } = read;
+      const { atlas, worker: workerRoot } = currentGreaterRealmWorkerRoot(
         tx,
-        claims.fid,
+        'greaterRealm' in read
+          ? read.greaterRealm as GreaterRealmIndexedPublicReadAuthorityV1
+          : undefined,
+      );
+      const observedAtMicros = tx.timestamp.microsSinceUnixEpoch;
+      const projection = projectMyGreaterRealmWorkerStateV2ForIndexedReadV1(
+        tx,
+        read,
         observedAtMicros,
       );
       const pending = { food: 0n, wood: 0n, stone: 0n, gold: 0n };

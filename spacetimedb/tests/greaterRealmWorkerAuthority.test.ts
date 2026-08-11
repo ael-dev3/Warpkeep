@@ -121,7 +121,7 @@ test('v17 active inspection widens to 600 while legacy repair remains capped at 
   assert.match(authority, /export function projectMyGreaterRealmWorkerStateV2/);
   assert.match(
     source('../src/reducers/castleWorkers.ts'),
-    /getMyWorkerControlStateV2[\s\S]*?projectMyGreaterRealmWorkerStateV2\(/,
+    /getMyWorkerControlStateV2[\s\S]*?requireGameplayReadPlayerV1\(tx\)[\s\S]*?projectMyGreaterRealmWorkerStateV2ForIndexedReadV1\(/,
   );
   assert.match(
     authority,
@@ -141,7 +141,7 @@ test('v17 active inspection widens to 600 while legacy repair remains capped at 
   );
   assert.match(
     source('../src/innerKeepAuthority.ts'),
-    /projectMyWorkerStateForCurrentGameplayV1\(/,
+    /projectMyWorkerStateForCurrentGameplayIndexedReadV1\(/,
   );
   assert.doesNotMatch(
     source('../src/innerKeepAuthority.ts'),
@@ -150,7 +150,7 @@ test('v17 active inspection widens to 600 while legacy repair remains capped at 
   const reducers = source('../src/reducers/castleWorkers.ts');
   assert.match(
     reducers,
-    /getMyResourceStateV2[\s\S]*?projectMyWorkerStateForCurrentGameplayV1\(/,
+    /getMyResourceStateV2[\s\S]*?requireGameplayReadPlayerV1\(tx\)[\s\S]*?projectMyWorkerStateForCurrentGameplayIndexedReadV1\(/,
   );
   assert.match(
     reducers,

@@ -169,9 +169,9 @@ test('atomic worker control state uses one caller-bound transaction and one proj
 
   assert.match(controlState, /\{ name: 'get_my_worker_control_state_v1' \}/);
   assert.equal(controlState.match(/ctx => ctx\.withTx\(tx =>/g)?.length, 1);
-  assert.equal(controlState.match(/requireGameplayPlayerV1\(tx\)/g)?.length, 1);
+  assert.equal(controlState.match(/requireGameplayReadPlayerV1\(tx\)/g)?.length, 1);
   assert.equal(
-    controlState.match(/projectMyWorkerState\(tx, claims\.fid, observedAtMicros\)/g)?.length,
+    controlState.match(/projectMyWorkerStateForIndexedReadV1\([\s\S]*?observedAtMicros,[\s\S]*?\)/g)?.length,
     1,
   );
   assert.match(

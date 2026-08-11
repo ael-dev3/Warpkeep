@@ -3,6 +3,7 @@ import * as THREE from 'three';
 
 import { GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE } from '../src/dev/greaterRealmSyntheticTierOneFixture';
 import { createGreaterRealmSceneRuntime } from '../src/greater-realm/createGreaterRealmSceneRuntime';
+import { GREATER_REALM_CASTLE_UPLOAD_RESERVE_BYTES } from '../src/components/realm/createGreaterRealmWorldCanvasHost';
 import { createGreaterRealmChunkPresentationPlan } from '../src/greater-realm/greaterRealmPresentationPlan';
 import {
   GREATER_REALM_AMBIENCE_CLASS,
@@ -45,10 +46,10 @@ function shiftedChunk(ordinal: number) {
     cellKeys.set(previous, cell.cellKey);
   }
   raw.coreCells.forEach((cell: any) => { cell.chunkHandle = nextHandle; });
-  raw.resourceLocations.forEach((location: any) => {
+  raw.resourceLocations.forEach((location: any, index: number) => {
     location.atlasQ += shift;
     location.cellKey = cellKeys.get(location.cellKey) ?? location.cellKey;
-    location.locationId = `GRL-${BASE32[ordinal % 32]!.repeat(26)}`;
+    location.locationId = `GRL-${BASE32[(ordinal * 2 + index) % 32]!.repeat(26)}`;
   });
   return decodeGreaterRealmChunkDto(raw);
 }
@@ -138,8 +139,8 @@ describe('Greater Realm scene runtime', () => {
       telemetry.uploadBytesThisFrame
     );
     expect(runtime.isCoordinatePassable({ atlasQ: 0, atlasR: 0 })).toBe(true);
-    expect(runtime.isCoordinatePassable({ atlasQ: 2, atlasR: -1 })).toBe(false);
-    expect(runtime.getCellAccess({ atlasQ: 2, atlasR: -1 })?.passable).toBe(false);
+    expect(runtime.isCoordinatePassable({ atlasQ: 2, atlasR: 2 })).toBe(false);
+    expect(runtime.getCellAccess({ atlasQ: 2, atlasR: 2 })?.passable).toBe(false);
     expect(runtime.update(1.5)).toBe(true);
     expect(invalidate).toHaveBeenCalled();
     runtime.dispose();
@@ -273,6 +274,30 @@ describe('Greater Realm scene runtime', () => {
     expect(runtime.getTelemetry().pendingUploadCount).toBe(1);
     expect(runtime.flushUploads()).toBe(1);
     expect(runtime.getTelemetry().uploadBytesThisFrame).toBeLessThanOrEqual(524_288);
+    runtime.dispose();
+  });
+
+  it('reserves total-scene castle draw, instances, and upload bytes on Reduced', () => {
+    const budget = GREATER_REALM_GRAPHICS_BUDGETS.reduced;
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'mobile',
+      graphicsProfile: 'reduced',
+      reservedDrawCalls: 1,
+      reservedSceneInstances: 600,
+      reservedUploadBytesPerFrame: GREATER_REALM_CASTLE_UPLOAD_RESERVE_BYTES
+    });
+    runtime.setView({ revision: 1n, cellSize: 1, chunks: viewChunks() });
+    for (let frame = 0; frame < 10 && runtime.getTelemetry().pendingUploadCount > 0; frame += 1) {
+      runtime.flushUploads();
+    }
+    const telemetry = runtime.getTelemetry();
+    expect(telemetry.pendingUploadCount).toBe(0);
+    expect(telemetry.drawCallCount + 1).toBeLessThanOrEqual(budget.maximumDrawCalls);
+    expect(telemetry.instanceCount + 600).toBeLessThanOrEqual(
+      budget.maximumSceneInstances
+    );
+    expect(telemetry.uploadBytesThisFrame + GREATER_REALM_CASTLE_UPLOAD_RESERVE_BYTES)
+      .toBeLessThanOrEqual(budget.maximumUploadBytesPerFrame);
     runtime.dispose();
   });
 });

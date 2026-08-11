@@ -243,22 +243,27 @@ test('public read ABI is exact, revision-bound, and topology-minimized', () => {
 
 test('halted is read-only-readable across every atlas read while fresh dispatch stays active-only', () => {
   const reducer = source('../src/reducers/greaterRealm.ts');
-  const readable = section(
-    reducer,
-    'function requireReadableAtlas',
-    'function projectRegion',
+  const readAuthority = source('../src/greaterRealmPublicReadAuthority.ts');
+  assert.match(
+    readAuthority,
+    /!\['canary', 'active', 'halted'\]\.includes\(checkpoint\.phase\)/,
   );
-  assert.match(readable, /row\.mode !== 'canary'/);
-  assert.match(readable, /row\.mode !== 'active'/);
-  assert.match(readable, /row\.mode !== 'halted'/);
   for (const [start, end] of [
     ['export const getRealmAtlasBootstrapV1', 'export const getRealmAtlasWindowV1'],
     ['export const getRealmAtlasWindowV1', 'export const getRealmAtlasChunkV1'],
     ['export const getRealmAtlasChunkV1', 'export const getRealmAtlasResourceLocationsV1'],
     ['export const getRealmAtlasResourceLocationsV1', 'export const planRealmRouteV1'],
   ] as const) {
-    assert.match(section(reducer, start, end), /requireReadableAtlas\(/, start);
+    assert.match(
+      section(reducer, start, end),
+      /requireGreaterRealmPublicReadAuthorityV1\(tx\)/,
+      start,
+    );
   }
+  assert.match(
+    section(reducer, 'export const planRealmRouteV1'),
+    /requireGreaterRealmPublicReadAuthorityV1\(tx\)/,
+  );
 
   const worker = source('../src/greaterRealmWorkerAuthority.ts');
   const activeRoots = section(
@@ -272,20 +277,15 @@ test('halted is read-only-readable across every atlas read while fresh dispatch 
   assert.doesNotMatch(activeRoots, /'halted'/);
 });
 
-test('reduced chunk LODs omit resource aggregates without constructing their map', () => {
+test('every chunk LOD omits resource aggregates without constructing their map', () => {
   const reducer = source('../src/reducers/greaterRealm.ts');
   const chunk = section(
     reducer,
     'export const getRealmAtlasChunkV1',
     'export const getRealmAtlasResourceLocationsV1',
   );
-  assert.match(chunk, /let resourceLocations:[\s\S]*= \[\];/);
-  assert.match(chunk, /if \(lod === 0\) \{[\s\S]*const locationMap = new Map/);
-  assert.match(chunk, /resourceLocations = \[\.\.\.locationMap\.values\(\)\]/);
-  assert.doesNotMatch(
-    section(chunk, 'let resourceLocations:', 'if (lod === 0)'),
-    /payload\.resourceNodes|new Map/,
-  );
+  assert.match(chunk, /resourceLocations: \[\]/);
+  assert.doesNotMatch(chunk, /payload\.resourceNodes|locationMap|nodeCount/);
 });
 
 test('generated bindings include projections and exclude every private v17 table', () => {

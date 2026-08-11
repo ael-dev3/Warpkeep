@@ -12,6 +12,7 @@ import {
   createRenderedWebglQaActiveWorkerRealm,
   createRenderedWebglQaFixtureRealm
 } from '../src/dev/renderedWebglQaFixture';
+import { GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE } from '../src/dev/greaterRealmSyntheticTierOneFixture';
 import type { CanonicalWarpkeepRealmSnapshot } from '../src/spacetime/warpkeepBackendTypes';
 import type { AvailableGreaterRealmProviderBridge } from '../src/spacetime/greaterRealmProviderBridge';
 import {
@@ -71,29 +72,51 @@ function continuityFromSnapshot(snapshot: CanonicalWarpkeepRealmSnapshot) {
   });
 }
 
+function continuityWithOwnAtlasCoordinate(
+  snapshot: CanonicalWarpkeepRealmSnapshot,
+  q: number,
+  r: number
+) {
+  const ownCastle = Object.freeze({ ...snapshot.ownCastle, q, r });
+  return Object.freeze({
+    ...continuityFromSnapshot(snapshot),
+    ownCastle,
+    castles: Object.freeze(snapshot.castles.map((castle) => (
+      castle.castleId === ownCastle.castleId ? ownCastle : castle
+    )))
+  });
+}
+
 function availableGreaterRealmBridge(
-  bootstrap: () => void,
-  dispose: () => void
+  loadView: (view: unknown) => void,
+  dispose: () => void,
+  sessionGeneration = 17,
+  readySnapshot: unknown = { phase: 'ready' }
 ): AvailableGreaterRealmProviderBridge {
   return Object.freeze({
     phase: 'available',
     presentationAllowed: true,
-    sessionGeneration: 17,
+    sessionGeneration,
     createRuntime: () => {
       let listener: ((snapshot: never) => void) | undefined;
+      const idle = { phase: 'idle', sessionGeneration } as never;
+      const bootstrapReady = { phase: 'bootstrap-ready', sessionGeneration } as never;
       return Object.freeze({
-        getSnapshot: () => ({ phase: 'idle' }) as never,
+        getSnapshot: () => idle,
         subscribe: (next: (snapshot: never) => void) => {
           listener = next;
-          next({ phase: 'idle' } as never);
+          next(idle);
           return () => { listener = undefined; };
         },
         bootstrap: async () => {
-          bootstrap();
-          listener?.({ phase: 'bootstrap-ready' } as never);
-          return { phase: 'bootstrap-ready' } as never;
+          listener?.(bootstrapReady);
+          return bootstrapReady;
         },
-        loadView: vi.fn(),
+        loadView: async (view: unknown) => {
+          loadView(view);
+          listener?.(readySnapshot as never);
+          return readySnapshot as never;
+        },
         refreshRelease: vi.fn(),
         retryFailedChunks: vi.fn(),
         planRoute: vi.fn(),
@@ -639,9 +662,9 @@ describe('RealmMapScreen', () => {
   it('disposes Lowlands, bootstraps the future public bridge, and never restores it on reconnect', async () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
     const canonical = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
-    const bootstrap = vi.fn();
+    const loadView = vi.fn();
     const dispose = vi.fn();
-    const bridge = availableGreaterRealmBridge(bootstrap, dispose);
+    const bridge = availableGreaterRealmBridge(loadView, dispose);
     const view = render(
       <RealmMapScreen
         identity={VERIFIED_REALM_IDENTITY}
@@ -662,11 +685,17 @@ describe('RealmMapScreen', () => {
         onRequestReturn={vi.fn()}
       />
     );
-    await waitFor(() => expect(bootstrap).toHaveBeenCalledOnce());
+    await waitFor(() => expect(loadView).toHaveBeenCalledOnce());
+    expect(loadView).toHaveBeenCalledWith({
+      centerQ: Math.floor(canonical.ownCastle.q / 15),
+      centerR: Math.floor(canonical.ownCastle.r / 15),
+      radius: 3,
+      lod: 1
+    });
     expect(document.querySelector('[data-realm-world-scene-strategy="greater-realm"]'))
       .not.toBeNull();
     expect(document.querySelector('.realm-map-screen__fallback-map')).toBeNull();
-    expect(document.querySelector('canvas')).toBeNull();
+    expect(screen.getByTestId('greater-realm-world-canvas')).not.toBeNull();
 
     view.rerender(
       <RealmMapScreen
@@ -680,6 +709,232 @@ describe('RealmMapScreen', () => {
     expect(document.querySelector('[data-realm-world-scene-strategy="connection-hold"]'))
       .not.toBeNull();
     expect(document.querySelector('.realm-map-screen__fallback-map')).toBeNull();
+
+    const reconnectLoadView = vi.fn();
+    const reconnectDispose = vi.fn();
+    view.rerender(
+      <RealmMapScreen
+        identity={VERIFIED_REALM_IDENTITY}
+        realmContinuity={continuityFromSnapshot(canonical)}
+        resources={createReadyResourceState(CANONICAL_TEST_FID)}
+        greaterRealm={availableGreaterRealmBridge(
+          reconnectLoadView,
+          reconnectDispose,
+          18
+        )}
+        localQaGreaterRealmPresentationAllowed
+        onRequestReturn={vi.fn()}
+      />
+    );
+    await waitFor(() => expect(reconnectLoadView).toHaveBeenCalledOnce());
+    expect(document.querySelector('.realm-map-screen__fallback-map')).toBeNull();
+    expect(screen.getByTestId('greater-realm-world-canvas')).not.toBeNull();
+    view.unmount();
+    expect(reconnectDispose).toHaveBeenCalledOnce();
+  });
+
+  it('clears the Greater Realm phase across continuity loss and a same-identity remount', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const canonical = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
+    const continuity = continuityWithOwnAtlasCoordinate(canonical, -2, 1);
+    const loadView = vi.fn();
+    const dispose = vi.fn();
+    const centerQ = Math.floor(continuity.ownCastle.q / 15);
+    const centerR = Math.floor(continuity.ownCastle.r / 15);
+    const chunks = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks.map(
+      (chunk, index) => ({ chunk: { ...chunk, lod: 1 }, distanceChunks: index })
+    );
+    const readySnapshot = {
+      phase: 'ready',
+      sessionGeneration: 17,
+      bootstrap: {
+        ...GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.bootstrap,
+        myCastleId: BigInt(continuity.ownCastle.castleId)
+      },
+      window: {
+        ...GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.window,
+        centerQ,
+        centerR,
+        radius: 3
+      },
+      view: { centerQ, centerR, radius: 3, lod: 1 },
+      chunks,
+      selectedChunkCount: chunks.length,
+      resourceLocationPhase: 'ready',
+      resourceLocations: [],
+      resourceLocationsTruncated: false
+    };
+    const bridge = availableGreaterRealmBridge(loadView, dispose, 17, readySnapshot);
+    const props = {
+      identity: VERIFIED_REALM_IDENTITY,
+      resources: createReadyResourceState(CANONICAL_TEST_FID),
+      greaterRealm: bridge,
+      localQaGreaterRealmPresentationAllowed: true,
+      onRequestReturn: vi.fn()
+    } as const;
+    const view = render(<RealmMapScreen {...props} realmContinuity={continuity} />);
+    await waitFor(() => expect(
+      screen.getByRole('main', { name: 'Greater Realm' })
+        .getAttribute('data-greater-realm-client-phase')
+    ).toBe('ready'));
+
+    view.rerender(<RealmMapScreen {...props} />);
+    const withoutContinuity = screen.getByRole('main', { name: 'Greater Realm' });
+    expect(withoutContinuity.getAttribute('data-greater-realm-client-phase')).toBe('idle');
+    expect(screen.queryByTestId('greater-realm-world-canvas')).toBeNull();
+
+    view.rerender(<RealmMapScreen {...props} realmContinuity={continuity} />);
+    expect(screen.getByRole('main', { name: 'Greater Realm' })
+      .getAttribute('data-greater-realm-client-phase')).toBe('idle');
+    await waitFor(() => expect(loadView).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(
+      screen.getByRole('main', { name: 'Greater Realm' })
+        .getAttribute('data-greater-realm-client-phase')
+    ).toBe('ready'));
+    expect(dispose).toHaveBeenCalledOnce();
+  });
+
+  it('dispatches and recalls only through public Greater Realm location authority', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const canonical = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
+    const continuity = continuityWithOwnAtlasCoordinate(canonical, -2, 1);
+    const centerQ = Math.floor(continuity.ownCastle.q / 15);
+    const centerR = Math.floor(continuity.ownCastle.r / 15);
+    const bootstrap = {
+      ...GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.bootstrap,
+      mode: 'active',
+      myCastleId: BigInt(continuity.ownCastle.castleId)
+    };
+    const viewChunks = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks.map(
+      (chunk, index) => ({
+        chunk: { ...chunk, lod: 1, resourceLocations: [] },
+        distanceChunks: index
+      })
+    );
+    const resourceLocations = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.resourceLocations;
+    const readySnapshot = {
+      phase: 'ready',
+      sessionGeneration: 17,
+      deviceClass: 'desktop',
+      graphicsProfile: 'balanced',
+      cellSize: 1,
+      bootstrap,
+      window: {
+        ...GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.window,
+        centerQ,
+        centerR,
+        radius: 3
+      },
+      view: { centerQ, centerR, radius: 3, lod: 1 },
+      chunks: viewChunks,
+      selectedChunkCount: viewChunks.length,
+      resourceLocationPhase: 'ready',
+      resourceLocations,
+      resourceLocationsTruncated: false,
+      stream: {}
+    };
+    const workers = [1, 2, 3, 4].map((ordinal) => ({
+      workerId: `GRW-${ordinal}`,
+      ordinal,
+      status: ordinal === 2 ? 'outbound' : ordinal === 3 ? 'returning' : 'idle'
+    }));
+    const dispatchWorker = vi.fn(async (_input: unknown) => undefined);
+    const recallWorker = vi.fn(async (_workerId: string) => undefined);
+    const baseBridge = availableGreaterRealmBridge(
+      vi.fn(),
+      vi.fn(),
+      17,
+      readySnapshot
+    );
+    const bridge = Object.freeze({
+      ...baseBridge,
+      getWorkerControl: () => ({
+        status: 'ready' as const,
+        atlasId: GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.bootstrap.atlasId,
+        atlasRevision: GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.bootstrap.revision,
+        value: {
+          roster: {
+            castleId: continuity.ownCastle.castleId,
+            workers
+          },
+          resourceState: {
+            fid: BigInt(CANONICAL_TEST_FID),
+            workerSystemMode: 'active'
+          }
+        }
+      }),
+      dispatchWorker,
+      recallWorker
+    }) as unknown as AvailableGreaterRealmProviderBridge;
+
+    render(
+      <RealmMapScreen
+        identity={VERIFIED_REALM_IDENTITY}
+        realmContinuity={continuity}
+        resources={createReadyResourceState(CANONICAL_TEST_FID)}
+        greaterRealm={bridge}
+        localQaGreaterRealmPresentationAllowed
+        onRequestReturn={vi.fn()}
+      />
+    );
+
+    const location = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.resourceLocations[0]!;
+    const locationButton = (await screen.findAllByRole('button', {
+      name: `${location.resourceKind} at ${location.atlasQ}, ${location.atlasR} · ${location.nodeCount} nodes`
+    }))[0]!;
+    const realm = screen.getByRole('main', { name: 'Greater Realm' });
+    expect(realm.getAttribute('aria-live')).toBeNull();
+    expect(realm.getAttribute('aria-busy')).toBe('false');
+    expect(screen.queryByRole('status')).toBeNull();
+    fireEvent.click(locationButton);
+    fireEvent.click(screen.getByRole('button', { name: 'SEND WORKER 1' }));
+    await waitFor(() => expect(dispatchWorker).toHaveBeenCalledWith({
+      workerId: 'GRW-1',
+      resourceKind: location.resourceKind,
+      locationId: location.locationId,
+      expectedRevision: GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.bootstrap.revision
+    }));
+    expect(dispatchWorker.mock.calls[0]?.[0]).not.toHaveProperty('nodeId');
+    expect(dispatchWorker.mock.calls[0]?.[0]).not.toHaveProperty('componentKey');
+
+    fireEvent.click(screen.getByRole('button', {
+      name: 'RECALL WORKER 2 · outbound'
+    }));
+    await waitFor(() => expect(recallWorker).toHaveBeenCalledWith('GRW-2'));
+    expect((screen.getByRole('button', {
+      name: 'WORKER 3 · returning'
+    }) as HTMLButtonElement).disabled).toBe(true);
+    expect(recallWorker).toHaveBeenCalledTimes(1);
+  });
+
+  it('announces terminal Greater Realm failure without leaving interactive content busy', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const canonical = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
+    render(
+      <RealmMapScreen
+        identity={VERIFIED_REALM_IDENTITY}
+        realmContinuity={continuityFromSnapshot(canonical)}
+        resources={createReadyResourceState(CANONICAL_TEST_FID)}
+        greaterRealm={availableGreaterRealmBridge(
+          vi.fn(),
+          vi.fn(),
+          17,
+          { phase: 'failed', sessionGeneration: 17 }
+        )}
+        localQaGreaterRealmPresentationAllowed
+        onRequestReturn={vi.fn()}
+      />
+    );
+
+    await waitFor(() => expect(
+      screen.getByRole('main', { name: 'Greater Realm' })
+        .getAttribute('data-greater-realm-client-phase')
+    ).toBe('failed'));
+    const realm = screen.getByRole('main', { name: 'Greater Realm' });
+    expect(realm.getAttribute('aria-busy')).toBe('false');
+    expect(screen.getByRole('status').textContent)
+      .toContain('The public atlas could not be loaded');
+    expect(screen.getByRole('button', { name: 'Return to Menu' })).not.toBeNull();
   });
 
   it('keeps current resources, workers, and Inner Keep navigable after world retirement', async () => {

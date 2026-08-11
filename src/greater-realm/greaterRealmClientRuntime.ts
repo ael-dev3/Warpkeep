@@ -208,6 +208,10 @@ export function createGreaterRealmClientRuntime(
   let windowController: AbortController | undefined;
   let resourceLocationController: AbortController | undefined;
   let routeController: AbortController | undefined;
+  let retainedStreamAuthority: Readonly<{
+    atlasId: string;
+    revision: bigint;
+  }> | undefined;
   const loaded = new Map<string, GreaterRealmChunkDto>();
   const listeners = new Set<(value: GreaterRealmClientSnapshot) => void>();
 
@@ -312,6 +316,7 @@ export function createGreaterRealmClientRuntime(
       resourceLocations = Object.freeze([]);
       resourceLocationsTruncated = false;
       stream.setDesired(bootstrap?.revision ?? 0n, []);
+      retainedStreamAuthority = undefined;
     }
     publish();
     return snapshot;
@@ -404,6 +409,13 @@ export function createGreaterRealmClientRuntime(
       const release = await ensureBootstrap();
       if (disposed || sequence !== requestSequence) return snapshot;
       assertSessionCurrent();
+      if (retainedStreamAuthority !== undefined) {
+        if (
+          retainedStreamAuthority.atlasId !== release.atlasId
+          || retainedStreamAuthority.revision !== release.revision
+        ) stream.setDesired(0n, []);
+        retainedStreamAuthority = undefined;
+      }
       const controller = new AbortController();
       windowController = controller;
       phase = 'loading-window';
@@ -499,7 +511,10 @@ export function createGreaterRealmClientRuntime(
       })));
       for (const descriptor of selected) {
         const resident = stream.getChunk(descriptor.chunkHandle);
-        if (resident !== undefined) loaded.set(descriptor.chunkHandle, resident);
+        if (resident !== undefined) {
+          assertGreaterRealmChunkMatchesDescriptor(resident, descriptor);
+          loaded.set(descriptor.chunkHandle, resident);
+        }
       }
       publish();
       return await finishChunkLoad(sequence);
@@ -526,6 +541,9 @@ export function createGreaterRealmClientRuntime(
     windowController = undefined;
     resourceLocationController = undefined;
     routeController = undefined;
+    retainedStreamAuthority = bootstrap === undefined
+      ? undefined
+      : Object.freeze({ atlasId: bootstrap.atlasId, revision: bootstrap.revision });
     bootstrap = undefined;
     windowDto = undefined;
     selectedDescriptors = Object.freeze([]);
@@ -533,7 +551,6 @@ export function createGreaterRealmClientRuntime(
     resourceLocationPhase = 'idle';
     resourceLocations = Object.freeze([]);
     resourceLocationsTruncated = false;
-    stream.setDesired(0n, []);
     phase = 'idle';
     failureReason = undefined;
     publish();
@@ -605,6 +622,7 @@ export function createGreaterRealmClientRuntime(
     resourceLocationController = undefined;
     routeController = undefined;
     bootstrapPromise = undefined;
+    retainedStreamAuthority = undefined;
     stream.dispose();
     loaded.clear();
     selectedDescriptors = Object.freeze([]);

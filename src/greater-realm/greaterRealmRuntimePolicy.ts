@@ -121,15 +121,15 @@ export function resolveGreaterRealmGraphicsProfile(input: Readonly<{
 }
 
 export function greaterRealmLodAllowsCanopy(lod: GreaterRealmLod) {
-  return lod <= 1;
+  return lod <= 2;
 }
 
 export function greaterRealmLodAllowsGroundcover(lod: GreaterRealmLod) {
-  return lod === 0;
+  return lod <= 2;
 }
 
 export function greaterRealmLodAllowsActors(lod: GreaterRealmLod) {
-  return lod === 0;
+  return lod <= 2;
 }
 
 export function greaterRealmAnimationEnabled(

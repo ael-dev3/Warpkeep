@@ -86,6 +86,8 @@ type AnyRow = Record<string, any>;
 type SynchronizationContext = Parameters<typeof synchronizeMyInnerKeepEntry>[0];
 type SynchronizationCastle = Parameters<typeof synchronizeMyInnerKeepEntry>[1];
 
+const permitOverdueWrite = () => undefined;
+
 function timestamp(microsSinceUnixEpoch: bigint) {
   return { microsSinceUnixEpoch };
 }
@@ -307,13 +309,24 @@ function makeFixture(options: FixtureOptions = {}) {
 test('on-time entry validates the exact schedule without mutation', () => {
   const fixture = makeFixture({ now: 'on-time', schedule: 'exact' });
   const before = fixture.state();
-  synchronizeMyInnerKeepEntry(fixture.ctx, fixture.castle);
+  let guardCalls = 0;
+  synchronizeMyInnerKeepEntry(fixture.ctx, fixture.castle, () => {
+    guardCalls += 1;
+    throw new Error('on-time polling must not enter the mutation checkpoint');
+  });
+  assert.equal(guardCalls, 0);
   assert.deepEqual(fixture.state(), before);
 });
 
 test('overdue entry completes one exact scheduled project', () => {
   const fixture = makeFixture({ now: 'overdue', schedule: 'exact' });
-  synchronizeMyInnerKeepEntry(fixture.ctx, fixture.castle);
+  const before = fixture.state();
+  let guardCalls = 0;
+  synchronizeMyInnerKeepEntry(fixture.ctx, fixture.castle, () => {
+    guardCalls += 1;
+    assert.deepEqual(fixture.state(), before);
+  });
+  assert.equal(guardCalls, 1);
   assert.equal(fixture.getBuilding().phase, 'complete');
   assert.equal(fixture.getBuilding().completedLevel, 1);
   assert.equal(fixture.getBuilding().revision, 1n);
@@ -326,21 +339,37 @@ test('overdue entry completes one exact scheduled project', () => {
 test('overdue entry recovers a lost schedule once and never refunds or re-receipts', () => {
   const fixture = makeFixture({ now: 'overdue', schedule: 'missing' });
   const before = fixture.state();
-  synchronizeMyInnerKeepEntry(fixture.ctx, fixture.castle);
+  synchronizeMyInnerKeepEntry(fixture.ctx, fixture.castle, permitOverdueWrite);
   const afterFirst = fixture.state();
   assert.equal(fixture.getBuilding().phase, 'complete');
   assert.deepEqual(afterFirst.receipts, before.receipts);
   assert.deepEqual(afterFirst.resources, before.resources);
 
-  synchronizeMyInnerKeepEntry(fixture.ctx, fixture.castle);
+  synchronizeMyInnerKeepEntry(fixture.ctx, fixture.castle, permitOverdueWrite);
   assert.deepEqual(fixture.state(), afterFirst);
+});
+
+test('a rejected overdue mutation checkpoint preserves every row byte-for-byte', () => {
+  const fixture = makeFixture({ now: 'overdue', schedule: 'exact' });
+  const before = fixture.state();
+  let guardCalls = 0;
+  assert.throws(
+    () => synchronizeMyInnerKeepEntry(fixture.ctx, fixture.castle, () => {
+      guardCalls += 1;
+      assert.deepEqual(fixture.state(), before);
+      throw new Error('FULL_GAMEPLAY_CHECKPOINT_REJECTED');
+    }),
+    /FULL_GAMEPLAY_CHECKPOINT_REJECTED/,
+  );
+  assert.equal(guardCalls, 1);
+  assert.deepEqual(fixture.state(), before);
 });
 
 test('a missing on-time schedule fails without partial mutation', () => {
   const fixture = makeFixture({ now: 'on-time', schedule: 'missing' });
   const before = fixture.state();
   assert.throws(
-    () => synchronizeMyInnerKeepEntry(fixture.ctx, fixture.castle),
+    () => synchronizeMyInnerKeepEntry(fixture.ctx, fixture.castle, permitOverdueWrite),
     /INNER_KEEP_SCHEDULE_INTEGRITY/,
   );
   assert.deepEqual(fixture.state(), before);
@@ -350,7 +379,7 @@ test('a corrupt overdue schedule fails without being erased or completing', () =
   const fixture = makeFixture({ now: 'overdue', schedule: 'corrupt' });
   const before = fixture.state();
   assert.throws(
-    () => synchronizeMyInnerKeepEntry(fixture.ctx, fixture.castle),
+    () => synchronizeMyInnerKeepEntry(fixture.ctx, fixture.castle, permitOverdueWrite),
     /INNER_KEEP_SCHEDULE_INTEGRITY/,
   );
   assert.deepEqual(fixture.state(), before);
@@ -360,7 +389,7 @@ test('a schedule at the wrong server time fails the shared exact predicate', () 
   const fixture = makeFixture({ now: 'overdue', schedule: 'wrong-time' });
   const before = fixture.state();
   assert.throws(
-    () => synchronizeMyInnerKeepEntry(fixture.ctx, fixture.castle),
+    () => synchronizeMyInnerKeepEntry(fixture.ctx, fixture.castle, permitOverdueWrite),
     /INNER_KEEP_SCHEDULE_INTEGRITY/,
   );
   assert.deepEqual(fixture.state(), before);
@@ -374,7 +403,7 @@ test('a corrupt Builder/project edge fails without partial mutation', () => {
   });
   const before = fixture.state();
   assert.throws(
-    () => synchronizeMyInnerKeepEntry(fixture.ctx, fixture.castle),
+    () => synchronizeMyInnerKeepEntry(fixture.ctx, fixture.castle, permitOverdueWrite),
     /INNER_KEEP_BUILDER_INTEGRITY/,
   );
   assert.deepEqual(fixture.state(), before);
@@ -383,7 +412,11 @@ test('a corrupt Builder/project edge fails without partial mutation', () => {
 test('inactive entry is explicitly projection-only even when a project is overdue', () => {
   const fixture = makeFixture({ active: false, now: 'overdue', schedule: 'missing' });
   const before = fixture.state();
-  synchronizeMyInnerKeepEntry(fixture.ctx, fixture.castle);
+  let guardCalls = 0;
+  synchronizeMyInnerKeepEntry(fixture.ctx, fixture.castle, () => {
+    guardCalls += 1;
+  });
+  assert.equal(guardCalls, 0);
   assert.deepEqual(fixture.state(), before);
   assert.equal(fixture.getBuilding().phase, 'constructing');
 });

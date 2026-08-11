@@ -1,6 +1,6 @@
 import { SenderError, t } from 'spacetimedb/server';
 
-import { requireAdmin, requireGameplayPlayerV1 } from '../auth';
+import { requireAdmin, requireGameplayPlayerV1, requireGameplayReadPlayerV1 } from '../auth';
 import {
   REALM_CHAT_HISTORY_PAGE_LIMIT,
   REALM_CHAT_HOUR_WINDOW_MICROS,
@@ -423,7 +423,7 @@ export const getRealmChatRecentV1 = warpkeep.procedure(
   realmChatRecentPageV1,
   (ctx, { afterSequence, limit }) => ctx.withTx(tx => {
     try {
-      requireGameplayPlayerV1(tx);
+      requireGameplayReadPlayerV1(tx);
       const channel = requireChannel(tx, true);
       if (!Number.isInteger(limit) || limit < 1 || limit > REALM_CHAT_RECENT_LIMIT) {
         throw new SenderError('REALM_CHAT_RECENT_LIMIT');
@@ -464,7 +464,7 @@ export const getRealmChatHistoryV1 = warpkeep.procedure(
   realmChatHistoryPageV1,
   (ctx, { beforeSequence, limit }) => ctx.withTx(tx => {
     try {
-      requireGameplayPlayerV1(tx);
+      requireGameplayReadPlayerV1(tx);
       const channel = requireChannel(tx, true);
       if (!Number.isInteger(limit) || limit < 1 || limit > REALM_CHAT_HISTORY_PAGE_LIMIT) {
         throw new SenderError('REALM_CHAT_HISTORY_LIMIT');

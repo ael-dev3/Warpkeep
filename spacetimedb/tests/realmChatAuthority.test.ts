@@ -122,13 +122,13 @@ test('send, recent, history, and reporting derive identity, time, order, and con
   assert.match(reducer, /function recentProjectionMatchesArchive/);
   assert.match(reducer, /recentProjectionMatchesArchive\(ctx, channel\)/);
 
-  assert.match(recent, /requireGameplayPlayerV1\(tx\)/);
+  assert.match(recent, /requireGameplayReadPlayerV1\(tx\)/);
   assert.match(recent, /requireChannel\(tx, true\)/);
   assert.match(recent, /limit < 1 \|\| limit > REALM_CHAT_RECENT_LIMIT/);
   assert.match(recent, /realmChatRecentV1\.iter\(\)/);
   assert.match(recent, /boundedFidRows\([\s\S]*REALM_CHAT_RECENT_LIMIT/);
 
-  assert.match(history, /requireGameplayPlayerV1\(tx\)/);
+  assert.match(history, /requireGameplayReadPlayerV1\(tx\)/);
   assert.match(history, /limit < 1 \|\| limit > REALM_CHAT_HISTORY_PAGE_LIMIT/);
   assert.match(history, /while \(cursor > 1n && messages\.length < limit\)/);
   assert.match(history, /realmChatMessageV1\.sequence\.find\(cursor\)/);

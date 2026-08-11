@@ -84,6 +84,10 @@ export type CreateGreaterRealmSceneRuntimeOptions = Readonly<{
   graphicsProfile: GreaterRealmGraphicsProfile;
   reducedMotion?: boolean;
   onInvalidate?: () => void;
+  /** Host-owned layers reserve from the reviewed total scene ceilings. */
+  reservedDrawCalls?: number;
+  reservedSceneInstances?: number;
+  reservedUploadBytesPerFrame?: number;
 }>;
 
 type ActorRenderRef = Readonly<{
@@ -442,6 +446,25 @@ export function createGreaterRealmSceneRuntime(
   options: CreateGreaterRealmSceneRuntimeOptions
 ): GreaterRealmSceneRuntime {
   const budget = GREATER_REALM_GRAPHICS_BUDGETS[options.graphicsProfile];
+  const reservedDrawCalls = Number.isSafeInteger(options.reservedDrawCalls)
+    ? Math.min(budget.maximumDrawCalls, Math.max(0, options.reservedDrawCalls!))
+    : 0;
+  const reservedSceneInstances = Number.isSafeInteger(options.reservedSceneInstances)
+    ? Math.min(budget.maximumSceneInstances, Math.max(0, options.reservedSceneInstances!))
+    : 0;
+  const reservedUploadBytesPerFrame = Number.isSafeInteger(
+    options.reservedUploadBytesPerFrame
+  )
+    ? Math.min(
+        budget.maximumUploadBytesPerFrame,
+        Math.max(0, options.reservedUploadBytesPerFrame!)
+      )
+    : 0;
+  const maximumRuntimeDrawCalls = budget.maximumDrawCalls - reservedDrawCalls;
+  const maximumRuntimeSceneInstances = budget.maximumSceneInstances
+    - reservedSceneInstances;
+  const maximumRuntimeUploadBytesPerFrame = budget.maximumUploadBytesPerFrame
+    - reservedUploadBytesPerFrame;
   const group = new THREE.Group();
   group.name = 'greater-realm-runtime';
   let disposed = false;
@@ -691,9 +714,9 @@ export function createGreaterRealmSceneRuntime(
             }
           });
           if (
-            drawCalls + plan.drawCallCount > budget.maximumDrawCalls
-            || instances + plan.instanceCount > budget.maximumSceneInstances
-            || plan.estimatedUploadBytes > budget.maximumUploadBytesPerFrame
+            drawCalls + plan.drawCallCount > maximumRuntimeDrawCalls
+            || instances + plan.instanceCount > maximumRuntimeSceneInstances
+            || plan.estimatedUploadBytes > maximumRuntimeUploadBytesPerFrame
           ) continue;
           visibleApron.forEach((cell) => claimedAprons.add(greaterRealmCoordinateKey(cell)));
           const actorCounts = {
@@ -750,7 +773,10 @@ export function createGreaterRealmSceneRuntime(
       ));
       for (const row of rows) {
         if (uploadedThisFrame >= budget.maximumUploadsPerFrame) break;
-        if (uploadBytesThisFrame + row.plan.estimatedUploadBytes > budget.maximumUploadBytesPerFrame) {
+        if (
+          uploadBytesThisFrame + row.plan.estimatedUploadBytes
+            > maximumRuntimeUploadBytesPerFrame
+        ) {
           break;
         }
         const current = selected.get(row.plan.chunkHandle);

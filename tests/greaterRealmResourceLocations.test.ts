@@ -172,7 +172,7 @@ describe('Greater Realm resource-location runtime seam', () => {
     });
     const snapshot = runtime.getSnapshot();
     expect(getResourceLocations).toHaveBeenCalledOnce();
-    expect(snapshot.chunks.some(({ chunk }) => chunk.resourceLocations.length > 0)).toBe(true);
+    expect(snapshot.chunks.every(({ chunk }) => chunk.resourceLocations.length === 0)).toBe(true);
     expect(snapshot.resourceLocations).toEqual([]);
     runtime.dispose();
   });

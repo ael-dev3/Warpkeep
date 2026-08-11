@@ -37,4 +37,34 @@ describe('Greater Realm browser QA contract', () => {
       'greaterRealmQaUploadBytes'
     ]) expect(main).toContain(marker);
   });
+
+  it('keeps the integrated retired-host fixture local, synthetic, and gate-sealed', () => {
+    const html = readFileSync(resolve('dev/greater-realm-host-qa.html'), 'utf8');
+    const main = readFileSync(resolve('src/dev/greaterRealmHostQaMain.tsx'), 'utf8');
+    const scene = readFileSync(
+      resolve('src/components/realm/GreaterRealmWorldScene.tsx'),
+      'utf8'
+    );
+    const providerBridge = readFileSync(
+      resolve('src/spacetime/greaterRealmProviderBridge.ts'),
+      'utf8'
+    );
+    const transport = readFileSync(resolve('src/greater-realm/greaterRealmTransport.ts'), 'utf8');
+    expect(html).toContain('noindex,nofollow,noarchive');
+    expect(html).toContain('/src/dev/greaterRealmHostQaMain.tsx');
+    expect(main).toContain('assertLocalQaRuntime()');
+    expect(main).toContain('<RealmMapScreen');
+    expect(main).toContain('localQaGreaterRealmPresentationAllowed');
+    expect(main).toContain('createGreaterRealmSyntheticTransport');
+    expect(main).toContain('getResourceLocations: source.getResourceLocations');
+    expect(main).not.toMatch(/scripts\/atlas|greater-realm-private|nodeId|componentKey/u);
+    expect(scene).toContain('snapshotCurrent.resourceLocations');
+    expect(scene).not.toContain('chunk.resourceLocations');
+    expect(providerBridge).toMatch(
+      /GREATER_REALM_CLIENT_PRESENTATION_ALLOWED\s*=\s*false\s+as\s+const/u
+    );
+    expect(transport).toMatch(
+      /GREATER_REALM_SERVER_PRESENTATION_ALLOWED\s*=\s*false\s+as\s+const/u
+    );
+  });
 });

@@ -30,8 +30,8 @@ describe('Greater Realm presentation plan', () => {
     expect(first.actors.some((actor) => actor.kind === 'boat')).toBe(true);
     expect(first.actors.some((actor) => actor.kind === 'canopy')).toBe(true);
     expect(first.actors.some((actor) => actor.kind === 'grass')).toBe(true);
-    expect(first.resources).toHaveLength(1);
-    expect(first.resources[0]?.kind).toBe('wood');
+    expect(chunk.resourceLocations).toEqual([]);
+    expect(first.resources).toEqual([]);
     expect(first.instanceCount).toBeLessThanOrEqual(
       GREATER_REALM_GRAPHICS_BUDGETS.high.maximumSceneInstances
     );
@@ -96,6 +96,42 @@ describe('Greater Realm presentation plan', () => {
     expect(plan.sealedEdges).toHaveLength(explicitEdges);
     expect(plan.actors).toEqual([]);
     expect(plan.resources).toEqual([]);
+  });
+
+  it('keeps a budgeted living world at Balanced LOD1 and Reduced LOD2', async () => {
+    const transport = createGreaterRealmSyntheticTransport();
+    const descriptor = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.window.chunks[0]!;
+    for (const [lod, graphicsProfile] of [
+      [1, 'balanced'],
+      [2, 'reduced']
+    ] as const) {
+      const chunk = await transport.getChunk({
+        chunkHandle: descriptor.chunkHandle,
+        lod,
+        expectedRevision: GREATER_REALM_SYNTHETIC_REVISION
+      }, new AbortController().signal);
+      const plan = createGreaterRealmChunkPresentationPlan({
+        chunk,
+        graphicsProfile,
+        cellSize: 1
+      });
+      const budget = GREATER_REALM_GRAPHICS_BUDGETS[graphicsProfile];
+      expect(plan.actors.some((actor) => actor.kind === 'grass')).toBe(true);
+      expect(plan.actors.some((actor) => actor.kind === 'canopy')).toBe(true);
+      expect(plan.actors.some((actor) => actor.kind === 'npc')).toBe(true);
+      expect(plan.actors.some((actor) => actor.kind === 'wildlife')).toBe(true);
+      expect(plan.actors.some((actor) => actor.kind === 'boat')).toBe(true);
+      expect(plan.grassPatchCount).toBeLessThanOrEqual(budget.grassPatchCount);
+      expect(plan.grassBladeCount).toBeLessThanOrEqual(budget.grassBladeCount);
+      expect(plan.grassTriangleCount).toBeLessThanOrEqual(budget.grassTriangleCount);
+      expect(plan.actors.filter((actor) => actor.kind === 'npc').length)
+        .toBeLessThanOrEqual(budget.npcCount);
+      expect(plan.actors.filter((actor) => actor.kind === 'wildlife').length)
+        .toBeLessThanOrEqual(budget.wildlifeCount);
+      expect(plan.actors.filter((actor) => actor.kind === 'boat').length)
+        .toBeLessThanOrEqual(budget.boatCount);
+      expect(plan.instanceCount).toBeLessThanOrEqual(budget.maximumSceneInstances);
+    }
   });
 
   it('maps each sealed-mask bit to the matching pointy-top neighbor side', () => {

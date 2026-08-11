@@ -902,7 +902,10 @@ export const GreaterRealmAtlasBootstrapV1 = __t.object("GreaterRealmAtlasBootstr
     return __t.array(GreaterRealmRegionProjectionV1);
   },
   myCastleId: __t.u64(),
-  myCellKey: __t.option(__t.string()),
+  myCellKey: __t.string(),
+  myAtlasQ: __t.i32(),
+  myAtlasR: __t.i32(),
+  myElevation: __t.i32(),
 });
 export type GreaterRealmAtlasBootstrapV1 = __Infer<typeof GreaterRealmAtlasBootstrapV1>;
 
@@ -925,6 +928,16 @@ export const GreaterRealmCastleClaimV1 = __t.object("GreaterRealmCastleClaimV1",
   legacyR: __t.option(__t.i32()),
 });
 export type GreaterRealmCastleClaimV1 = __Infer<typeof GreaterRealmCastleClaimV1>;
+
+export const GreaterRealmCastleProjectionV1 = __t.object("GreaterRealmCastleProjectionV1", {
+  castleId: __t.u64(),
+  chunkHandle: __t.string(),
+  atlasQ: __t.i32(),
+  atlasR: __t.i32(),
+  level: __t.i32(),
+  elevation: __t.i32(),
+});
+export type GreaterRealmCastleProjectionV1 = __Infer<typeof GreaterRealmCastleProjectionV1>;
 
 export const GreaterRealmCastleSlotV1 = __t.object("GreaterRealmCastleSlotV1", {
   slotId: __t.string(),
@@ -1308,6 +1321,9 @@ export const GreaterRealmWindowV1 = __t.object("GreaterRealmWindowV1", {
   radius: __t.u32(),
   get chunks() {
     return __t.array(GreaterRealmChunkDescriptorV1);
+  },
+  get castles() {
+    return __t.array(GreaterRealmCastleProjectionV1);
   },
 });
 export type GreaterRealmWindowV1 = __Infer<typeof GreaterRealmWindowV1>;

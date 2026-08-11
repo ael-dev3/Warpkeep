@@ -20,7 +20,10 @@ import {
   validateGreaterRealmWorkerDispatchInputV2,
 } from './greaterRealmWorkerAuthority';
 import { greaterRealmWorkerPolicyErrorCode } from './greaterRealmWorkerPolicy';
-import { assertGenesisResourceForFid } from './resourceAuthority';
+import {
+  assertGenesisResourceForFid,
+  type GenesisResourceAuthority,
+} from './resourceAuthority';
 import { RESOURCE_BALANCE_CAP } from './resourceAuthorityPolicy';
 import {
   activeExpeditionResourceReservations,
@@ -628,11 +631,16 @@ export type WorkerPrivateStateProjection = Readonly<{
 function projectWorkerState(
   ctx: WarpkeepReducerContext,
   fid: bigint,
+  resource: GenesisResourceAuthority,
   observedAtMicros: bigint,
   assertActiveSystem: () => void,
 ): WorkerPrivateStateProjection {
   assertActiveSystem();
-  const resource = assertGenesisResourceForFid(ctx, fid);
+  if (
+    resource.account.fid !== fid
+    || resource.castle.ownerFid !== fid
+    || resource.account.castleId !== resource.castle.castleId
+  ) fail('WORKER_OWNER_INTEGRITY');
   const callerGraph = assertCallerWorkerGraph(ctx, fid, resource.castle.castleId);
   const passive = planResourceSettlementForActiveExpeditionReservations(
     ctx,
@@ -696,7 +704,28 @@ export function projectMyWorkerState(
   fid: bigint,
   observedAtMicros = ctx.timestamp.microsSinceUnixEpoch,
 ): WorkerPrivateStateProjection {
-  return projectWorkerState(ctx, fid, observedAtMicros, () => workerSystemActive(ctx));
+  return projectWorkerState(
+    ctx,
+    fid,
+    assertGenesisResourceForFid(ctx, fid),
+    observedAtMicros,
+    () => workerSystemActive(ctx),
+  );
+}
+
+/** Caller-local read projection using resource authority already proven by auth. */
+export function projectMyWorkerStateForIndexedReadV1(
+  ctx: WarpkeepReducerContext,
+  resource: GenesisResourceAuthority,
+  observedAtMicros = ctx.timestamp.microsSinceUnixEpoch,
+): WorkerPrivateStateProjection {
+  return projectWorkerState(
+    ctx,
+    resource.account.fid,
+    resource,
+    observedAtMicros,
+    () => workerSystemActive(ctx),
+  );
 }
 
 /** Current-v17 projection uses the separately bounded 600-castle root. */
@@ -708,6 +737,22 @@ export function projectMyGreaterRealmWorkerStateV2(
   return projectWorkerState(
     ctx,
     fid,
+    assertGenesisResourceForFid(ctx, fid),
+    observedAtMicros,
+    () => greaterRealmWorkerSystemActiveV1(ctx),
+  );
+}
+
+/** Caller-local v17 Worker projection using the authenticated read resource. */
+export function projectMyGreaterRealmWorkerStateV2ForIndexedReadV1(
+  ctx: WarpkeepReducerContext,
+  resource: GenesisResourceAuthority,
+  observedAtMicros = ctx.timestamp.microsSinceUnixEpoch,
+): WorkerPrivateStateProjection {
+  return projectWorkerState(
+    ctx,
+    resource.account.fid,
+    resource,
     observedAtMicros,
     () => greaterRealmWorkerSystemActiveV1(ctx),
   );
@@ -726,6 +771,22 @@ export function projectMyWorkerStateForCurrentGameplayV1(
   return projectWorkerState(
     ctx,
     fid,
+    assertGenesisResourceForFid(ctx, fid),
+    observedAtMicros,
+    () => workerSystemActiveForCurrentGameplayV1(ctx),
+  );
+}
+
+/** Current-gameplay Worker projection without a second founder/resource audit. */
+export function projectMyWorkerStateForCurrentGameplayIndexedReadV1(
+  ctx: WarpkeepReducerContext,
+  resource: GenesisResourceAuthority,
+  observedAtMicros = ctx.timestamp.microsSinceUnixEpoch,
+): WorkerPrivateStateProjection {
+  return projectWorkerState(
+    ctx,
+    resource.account.fid,
+    resource,
     observedAtMicros,
     () => workerSystemActiveForCurrentGameplayV1(ctx),
   );

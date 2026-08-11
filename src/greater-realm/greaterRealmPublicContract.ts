@@ -1,9 +1,11 @@
 export const GREATER_REALM_PROTOCOL_VERSION = 17 as const;
 export const GREATER_REALM_RENDERER_CONTRACT_VERSION = 'greater-realm-renderer-v1' as const;
+export const GREATER_REALM_CHUNK_BIN_SIZE = 15 as const;
 
 export const GREATER_REALM_PUBLIC_LIMITS = Object.freeze({
   maximumWindowRadius: 4,
   maximumChunksPerWindow: 81,
+  maximumCastlesPerWindow: 600,
   maximumChunkSourceCells: 225,
   maximumChunkVisibleCells: 384,
   maximumResourceLocations: 128,
@@ -108,7 +110,10 @@ export type GreaterRealmBootstrapDto = Readonly<{
   mode: string;
   regions: readonly GreaterRealmRegionDto[];
   myCastleId: bigint;
-  myCellKey?: string;
+  myCellKey: string;
+  myAtlasQ: number;
+  myAtlasR: number;
+  myElevation: number;
 }>;
 
 export type GreaterRealmWindowChunkDto = Readonly<{
@@ -123,6 +128,15 @@ export type GreaterRealmWindowChunkDto = Readonly<{
   lod3CellCount: number;
 }>;
 
+export type GreaterRealmWindowCastleDto = Readonly<{
+  castleId: bigint;
+  chunkHandle: string;
+  atlasQ: number;
+  atlasR: number;
+  level: number;
+  elevation: number;
+}>;
+
 export type GreaterRealmWindowDto = Readonly<{
   atlasId: string;
   revision: bigint;
@@ -130,6 +144,7 @@ export type GreaterRealmWindowDto = Readonly<{
   centerR: number;
   radius: number;
   chunks: readonly GreaterRealmWindowChunkDto[];
+  castles: readonly GreaterRealmWindowCastleDto[];
 }>;
 
 /**
@@ -412,8 +427,9 @@ export function decodeGreaterRealmBootstrapDto(value: unknown): GreaterRealmBoot
     'atlasId', 'publicReleaseId', 'name', 'protocolVersion', 'generatorVersion',
     'runtimePartitionVersion', 'rendererContractVersion', 'revision', 'visibleTierMax',
     'navigationTierMax', 'foundingTierMax', 'visibleRegionCount', 'visibleCellCount',
-    'visibleChunkCount', 'castleCapacity', 'mode', 'regions', 'myCastleId'
-  ], ['myCellKey'], code);
+    'visibleChunkCount', 'castleCapacity', 'mode', 'regions', 'myCastleId',
+    'myCellKey', 'myAtlasQ', 'myAtlasR', 'myElevation'
+  ], [], code);
   if (!Array.isArray(row.regions)) fail(code);
   const regions = Object.freeze(row.regions.map(decodeRegion));
   const visibleRegionCount = u32(row.visibleRegionCount, code, 128);
@@ -443,7 +459,8 @@ export function decodeGreaterRealmBootstrapDto(value: unknown): GreaterRealmBoot
   ) fail(code);
   const mode = safeString(row.mode, 32, code);
   if (mode !== 'canary' && mode !== 'active' && mode !== 'halted') fail(code);
-  const myCellKey = optionalIdentifier(row.myCellKey, PUBLIC_ID, code);
+  const myCastleId = u64(row.myCastleId, code);
+  if (myCastleId === 0n) fail(code);
   return Object.freeze({
     atlasId: identifier(row.atlasId, PUBLIC_ID, code),
     publicReleaseId: identifier(row.publicReleaseId, PUBLIC_RELEASE_ID, code),
@@ -471,8 +488,11 @@ export function decodeGreaterRealmBootstrapDto(value: unknown): GreaterRealmBoot
     castleCapacity,
     mode,
     regions,
-    myCastleId: u64(row.myCastleId, code),
-    ...(myCellKey === undefined ? {} : { myCellKey })
+    myCastleId,
+    myCellKey: identifier(row.myCellKey, PUBLIC_ID, code),
+    myAtlasQ: i32(row.myAtlasQ, code),
+    myAtlasR: i32(row.myAtlasR, code),
+    myElevation: i32(row.myElevation, code)
   });
 }
 
@@ -523,22 +543,64 @@ function decodeWindowChunk(value: unknown): GreaterRealmWindowChunkDto {
   });
 }
 
+function decodeWindowCastle(value: unknown): GreaterRealmWindowCastleDto {
+  const code = 'GREATER_REALM_WINDOW_INVALID';
+  const row = record(value, code);
+  exactKeys(row, [
+    'castleId', 'chunkHandle', 'atlasQ', 'atlasR', 'level', 'elevation'
+  ], [], code);
+  const castleId = u64(row.castleId, code);
+  const level = i32(row.level, code);
+  if (castleId === 0n || level <= 0) fail(code);
+  return Object.freeze({
+    castleId,
+    chunkHandle: identifier(row.chunkHandle, CHUNK_HANDLE, code),
+    atlasQ: i32(row.atlasQ, code),
+    atlasR: i32(row.atlasR, code),
+    level,
+    elevation: i32(row.elevation, code)
+  });
+}
+
 export function decodeGreaterRealmWindowDto(value: unknown): GreaterRealmWindowDto {
   const code = 'GREATER_REALM_WINDOW_INVALID';
   const row = record(value, code);
-  exactKeys(row, ['atlasId', 'revision', 'centerQ', 'centerR', 'radius', 'chunks'], [], code);
-  if (!Array.isArray(row.chunks) || row.chunks.length > GREATER_REALM_PUBLIC_LIMITS.maximumChunksPerWindow) {
+  exactKeys(row, [
+    'atlasId', 'revision', 'centerQ', 'centerR', 'radius', 'chunks', 'castles'
+  ], [], code);
+  if (
+    !Array.isArray(row.chunks)
+    || row.chunks.length > GREATER_REALM_PUBLIC_LIMITS.maximumChunksPerWindow
+    || !Array.isArray(row.castles)
+    || row.castles.length > GREATER_REALM_PUBLIC_LIMITS.maximumCastlesPerWindow
+  ) {
     fail(code);
   }
+  denseArray(row.chunks, code);
+  denseArray(row.castles, code);
   const radius = u32(row.radius, code, GREATER_REALM_PUBLIC_LIMITS.maximumWindowRadius);
   const centerQ = i32(row.centerQ, code);
   const centerR = i32(row.centerR, code);
   const chunks = Object.freeze(row.chunks.map(decodeWindowChunk));
+  const castles = Object.freeze(row.castles.map(decodeWindowCastle));
+  const chunkByHandle = new Map(chunks.map(chunk => [chunk.chunkHandle, chunk] as const));
   if (
     new Set(chunks.map((chunk) => chunk.chunkHandle)).size !== chunks.length
     || new Set(chunks.map((chunk) => `${chunk.binQ},${chunk.binR}`)).size !== chunks.length
     || chunks.some((chunk) => (
       Math.abs(chunk.binQ - centerQ) > radius || Math.abs(chunk.binR - centerR) > radius
+    ))
+    || new Set(castles.map(castle => castle.castleId)).size !== castles.length
+    || new Set(castles.map(castle => `${castle.atlasQ}:${castle.atlasR}`)).size
+      !== castles.length
+    || castles.some((castle, index) => (
+      (index > 0 && castles[index - 1]!.castleId >= castle.castleId)
+      || (() => {
+        const descriptor = chunkByHandle.get(castle.chunkHandle);
+        return descriptor === undefined
+          || Math.floor(castle.atlasQ / GREATER_REALM_CHUNK_BIN_SIZE) !== descriptor.binQ
+          || Math.floor(castle.atlasR / GREATER_REALM_CHUNK_BIN_SIZE) !== descriptor.binR;
+      })()
     ))
   ) fail(code);
   return Object.freeze({
@@ -547,7 +609,8 @@ export function decodeGreaterRealmWindowDto(value: unknown): GreaterRealmWindowD
     centerQ,
     centerR,
     radius,
-    chunks
+    chunks,
+    castles
   });
 }
 
@@ -695,7 +758,7 @@ export function decodeGreaterRealmChunkDto(value: unknown): GreaterRealmChunkDto
     || (selectedLod === 0 && coreRows.length !== sourceCellCount)
     || coreRows.length + apronRows.length
       > GREATER_REALM_PUBLIC_LIMITS.maximumChunkVisibleCells
-    || resourceRows.length > GREATER_REALM_PUBLIC_LIMITS.maximumResourceLocations
+    || resourceRows.length !== 0
   ) fail(code);
   // Lengths are deliberately sealed before any element decode. A hostile
   // sparse array must not make the decoder traverse attacker-sized input.
@@ -712,26 +775,6 @@ export function decodeGreaterRealmChunkDto(value: unknown): GreaterRealmChunkDto
     new Set(coordinates).size !== coordinates.length
     || new Set(cellKeys).size !== cellKeys.length
   ) fail(code);
-  const resourceLocations = Object.freeze(resourceRows.map(decodeResourceLocation));
-  const returnedCells = new Map(
-    [...coreCells, ...apronCells].map((cell) => [cell.cellKey, cell] as const)
-  );
-  if (
-    new Set(resourceLocations.map((resource) => resource.locationId)).size
-      !== resourceLocations.length
-    || new Set(resourceLocations.map((resource) => (
-      `${resource.cellKey}:${resource.resourceKind}`
-    ))).size !== resourceLocations.length
-    || resourceLocations.some((resource) => {
-      const cell = returnedCells.get(resource.cellKey);
-      if (!cell) return selectedLod === 0;
-      return resource.regionId !== cell.regionId
-        || resource.atlasQ !== cell.atlasQ
-        || resource.atlasR !== cell.atlasR;
-    })
-  ) {
-    fail(code);
-  }
   return Object.freeze({
     atlasId: identifier(row.atlasId, PUBLIC_ID, code),
     revision: u64(row.revision, code),
@@ -740,7 +783,7 @@ export function decodeGreaterRealmChunkDto(value: unknown): GreaterRealmChunkDto
     sourceCellCount,
     coreCells,
     apronCells,
-    resourceLocations
+    resourceLocations: Object.freeze([])
   });
 }
 
@@ -1022,5 +1065,9 @@ export function assertGreaterRealmChunkMatchesDescriptor(
     || chunk.sourceCellCount !== descriptor.coreCellCount
     || visibleCount !== expectedVisibleCount
     || (chunk.lod === 0 && chunk.apronCells.length !== descriptor.apronCellCount)
+    || chunk.coreCells.some(cell => (
+      Math.floor(cell.atlasQ / GREATER_REALM_CHUNK_BIN_SIZE) !== descriptor.binQ
+      || Math.floor(cell.atlasR / GREATER_REALM_CHUNK_BIN_SIZE) !== descriptor.binR
+    ))
   ) fail('GREATER_REALM_CHUNK_DESCRIPTOR_MISMATCH');
 }

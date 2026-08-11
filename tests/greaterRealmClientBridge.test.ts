@@ -115,9 +115,17 @@ function productionShapedWindowTransport(input: Readonly<{
           GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[0]
         ) as unknown as {
           chunkHandle: string;
-          coreCells: Array<{ chunkHandle: string }>;
+          coreCells: Array<{ chunkHandle: string; atlasQ: number; atlasR: number }>;
+          apronCells: Array<{ atlasQ: number; atlasR: number }>;
         };
+        const descriptor = descriptors.find(row => row.chunkHandle === request.chunkHandle)!;
+        const deltaQ = (descriptor.binQ - baseDescriptor.binQ) * 15;
+        const deltaR = (descriptor.binR - baseDescriptor.binR) * 15;
         raw.chunkHandle = request.chunkHandle;
+        [...raw.coreCells, ...raw.apronCells].forEach((cell) => {
+          cell.atlasQ += deltaQ;
+          cell.atlasR += deltaR;
+        });
         raw.coreCells.forEach((cell) => { cell.chunkHandle = request.chunkHandle; });
         return raw as unknown as GreaterRealmChunkDto;
       } finally {
@@ -427,6 +435,10 @@ describe('Greater Realm client/provider bridge', () => {
   it('reloads an atlas revision without retaining an older chunk', async () => {
     const synthetic = createGreaterRealmSyntheticTransport();
     let revision = 1n;
+    const getChunk = vi.fn(async (request, signal) => Object.freeze({
+      ...await synthetic.getChunk({ ...request, expectedRevision: 1n }, signal),
+      revision
+    }));
     const versionedTransport: GreaterRealmPublicTransport = Object.freeze({
       getBootstrap: async (signal) => Object.freeze({
         ...await synthetic.getBootstrap(signal),
@@ -436,10 +448,7 @@ describe('Greater Realm client/provider bridge', () => {
         ...await synthetic.getWindow({ ...request, expectedRevision: 1n }, signal),
         revision
       }),
-      getChunk: async (request, signal) => Object.freeze({
-        ...await synthetic.getChunk({ ...request, expectedRevision: 1n }, signal),
-        revision
-      }),
+      getChunk,
       getResourceLocations: async (request, signal) => Object.freeze({
         ...await synthetic.getResourceLocations({
           ...request,
@@ -461,6 +470,7 @@ describe('Greater Realm client/provider bridge', () => {
     });
     expect((await runtime.loadView({ centerQ: 0, centerR: 0, radius: 1, lod: 0 }))
       .chunks.every(({ chunk }) => chunk.revision === 1n)).toBe(true);
+    expect(getChunk).toHaveBeenCalledTimes(2);
 
     revision = 2n;
     const refreshed = await runtime.refreshRelease();
@@ -469,6 +479,178 @@ describe('Greater Realm client/provider bridge', () => {
     expect(refreshed.window?.revision).toBe(2n);
     expect(refreshed.chunks.every(({ chunk }) => chunk.revision === 2n)).toBe(true);
     expect(refreshed.stream.residentChunkCount).toBe(2);
+    expect(getChunk).toHaveBeenCalledTimes(4);
+    runtime.dispose();
+  });
+
+  it('refreshes same-revision castle placements without refetching resident chunks', async () => {
+    const synthetic = createGreaterRealmSyntheticTransport();
+    let includeNewCastle = false;
+    const getChunk = vi.fn(synthetic.getChunk);
+    const transport: GreaterRealmPublicTransport = Object.freeze({
+      ...synthetic,
+      getChunk,
+      getWindow: async (request, signal) => {
+        const current = await synthetic.getWindow(request, signal);
+        return includeNewCastle
+          ? Object.freeze({
+            ...current,
+            castles: Object.freeze([
+              ...current.castles,
+              Object.freeze({
+                castleId: 3n,
+                chunkHandle: current.chunks[1]!.chunkHandle,
+                atlasQ: 0,
+                atlasR: 0,
+                level: 1,
+                elevation: 120
+              })
+            ])
+          })
+          : current;
+      }
+    });
+    const runtime = createGreaterRealmClientRuntime({
+      sessionGeneration: 32,
+      isSessionCurrent: () => true,
+      transport,
+      deviceClass: 'desktop',
+      graphicsProfile: 'high'
+    });
+    const first = await runtime.loadView({ centerQ: 0, centerR: 0, radius: 1, lod: 1 });
+    expect(first.window?.castles).toHaveLength(2);
+    expect(getChunk).toHaveBeenCalledTimes(2);
+
+    includeNewCastle = true;
+    const refreshed = await runtime.refreshRelease();
+    expect(refreshed.window?.castles.map(castle => castle.castleId)).toEqual([1n, 2n, 3n]);
+    expect(refreshed.chunks).toHaveLength(2);
+    expect(getChunk).toHaveBeenCalledTimes(2);
+    runtime.dispose();
+  });
+
+  it('fails closed on same-revision descriptor drift before reusing a resident', async () => {
+    const synthetic = createGreaterRealmSyntheticTransport();
+    let driftDescriptor = false;
+    const getChunk = vi.fn(synthetic.getChunk);
+    const transport: GreaterRealmPublicTransport = Object.freeze({
+      ...synthetic,
+      getChunk,
+      getWindow: async (request, signal) => {
+        const current = await synthetic.getWindow(request, signal);
+        if (!driftDescriptor) return current;
+        return Object.freeze({
+          ...current,
+          chunks: Object.freeze(current.chunks.map((descriptor, index) => (
+            index === 0
+              ? Object.freeze({ ...descriptor, coreCellCount: descriptor.coreCellCount + 1 })
+              : descriptor
+          )))
+        });
+      }
+    });
+    const runtime = createGreaterRealmClientRuntime({
+      sessionGeneration: 34,
+      isSessionCurrent: () => true,
+      transport,
+      deviceClass: 'desktop',
+      graphicsProfile: 'high'
+    });
+    await runtime.loadView({ centerQ: 0, centerR: 0, radius: 1, lod: 1 });
+    expect(getChunk).toHaveBeenCalledTimes(2);
+
+    driftDescriptor = true;
+    const refreshed = await runtime.refreshRelease();
+    expect(refreshed).toMatchObject({
+      phase: 'failed',
+      failureReason: 'window-failed',
+      selectedChunkCount: 0,
+      chunks: []
+    });
+    expect(getChunk).toHaveBeenCalledTimes(2);
+    runtime.dispose();
+  });
+
+  it('fails closed on same-revision descriptor bin drift before resident reuse', async () => {
+    const synthetic = createGreaterRealmSyntheticTransport();
+    let driftDescriptor = false;
+    const getChunk = vi.fn(synthetic.getChunk);
+    const transport: GreaterRealmPublicTransport = Object.freeze({
+      ...synthetic,
+      getChunk,
+      getWindow: async (request, signal) => {
+        const current = await synthetic.getWindow(request, signal);
+        if (!driftDescriptor) return current;
+        return Object.freeze({
+          ...current,
+          chunks: Object.freeze(current.chunks.map((descriptor, index) => (
+            index === 1
+              ? Object.freeze({ ...descriptor, binQ: descriptor.binQ + 1 })
+              : descriptor
+          )))
+        });
+      }
+    });
+    const runtime = createGreaterRealmClientRuntime({
+      sessionGeneration: 35,
+      isSessionCurrent: () => true,
+      transport,
+      deviceClass: 'desktop',
+      graphicsProfile: 'high'
+    });
+    await runtime.loadView({ centerQ: 0, centerR: 0, radius: 1, lod: 1 });
+    expect(getChunk).toHaveBeenCalledTimes(2);
+
+    driftDescriptor = true;
+    const refreshed = await runtime.refreshRelease();
+    expect(refreshed).toMatchObject({
+      phase: 'failed',
+      failureReason: 'window-failed',
+      selectedChunkCount: 0,
+      chunks: []
+    });
+    expect(getChunk).toHaveBeenCalledTimes(2);
+    runtime.dispose();
+  });
+
+  it('evicts same-revision residents when the refreshed atlas identity changes', async () => {
+    const synthetic = createGreaterRealmSyntheticTransport();
+    let atlasId = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.bootstrap.atlasId;
+    const getChunk = vi.fn(async (request, signal) => Object.freeze({
+      ...await synthetic.getChunk(request, signal),
+      atlasId
+    }));
+    const transport: GreaterRealmPublicTransport = Object.freeze({
+      getBootstrap: async (signal) => Object.freeze({
+        ...await synthetic.getBootstrap(signal),
+        atlasId
+      }),
+      getWindow: async (request, signal) => Object.freeze({
+        ...await synthetic.getWindow(request, signal),
+        atlasId
+      }),
+      getChunk,
+      getResourceLocations: async (request, signal) => Object.freeze({
+        ...await synthetic.getResourceLocations(request, signal),
+        atlasId
+      }),
+      planRoute: synthetic.planRoute
+    });
+    const runtime = createGreaterRealmClientRuntime({
+      sessionGeneration: 33,
+      isSessionCurrent: () => true,
+      transport,
+      deviceClass: 'desktop',
+      graphicsProfile: 'high'
+    });
+    await runtime.loadView({ centerQ: 0, centerR: 0, radius: 1, lod: 1 });
+    expect(getChunk).toHaveBeenCalledTimes(2);
+
+    atlasId = 'ATLAS-SYNTHETIC-TIER-ONE-ROLLOVER';
+    const refreshed = await runtime.refreshRelease();
+    expect(refreshed.bootstrap?.atlasId).toBe(atlasId);
+    expect(refreshed.chunks.every(({ chunk }) => chunk.atlasId === atlasId)).toBe(true);
+    expect(getChunk).toHaveBeenCalledTimes(4);
     runtime.dispose();
   });
 });

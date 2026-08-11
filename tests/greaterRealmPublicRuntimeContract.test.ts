@@ -48,9 +48,11 @@ describe('Greater Realm public runtime contract', () => {
   });
 
   it('seals bootstrap region identity, capacity, resources, and readable modes', () => {
-    const halted = mutable(GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.bootstrap) as any;
-    halted.mode = 'halted';
-    expect(decodeGreaterRealmBootstrapDto(halted).mode).toBe('halted');
+    for (const mode of ['canary', 'active', 'halted']) {
+      const readable = mutable(GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.bootstrap) as any;
+      readable.mode = mode;
+      expect(decodeGreaterRealmBootstrapDto(readable).mode).toBe(mode);
+    }
     for (const mutate of [
       (row: any) => { row.regions[0].publicName = 'Lookalike'; },
       (row: any) => { row.regions[0].castleCapacity = 99; row.castleCapacity = 599; },
@@ -79,6 +81,7 @@ describe('Greater Realm public runtime contract', () => {
       lod2CellCount: 2,
       lod3CellCount: 1
     }];
+    border.castles = [];
     expect(decodeGreaterRealmWindowDto(border).chunks[0]).toMatchObject({
       coreCellCount: 2,
       apronCellCount: 6,
@@ -108,7 +111,17 @@ describe('Greater Realm public runtime contract', () => {
     }
 
     const nodeLeak = mutable(GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[0]) as any;
-    nodeLeak.resourceLocations[0].nodeId = 'GRN-CONCRETE';
+    nodeLeak.resourceLocations.push({
+      locationId: 'GRL-AAAAAAAAAAAAAAAAAAAAAAAAAA',
+      cellKey: nodeLeak.coreCells[0].cellKey,
+      regionId: nodeLeak.coreCells[0].regionId,
+      atlasQ: nodeLeak.coreCells[0].atlasQ,
+      atlasR: nodeLeak.coreCells[0].atlasR,
+      resourceKind: 'wood',
+      nodeCount: 1,
+      policyVersion: 'synthetic-v1',
+      nodeId: 'GRN-CONCRETE'
+    });
     expect(() => decodeGreaterRealmChunkDto(nodeLeak)).toThrow(
       'GREATER_REALM_CHUNK_INVALID'
     );
@@ -121,13 +134,6 @@ describe('Greater Realm public runtime contract', () => {
       'GREATER_REALM_CHUNK_INVALID'
     );
 
-    const unknownResourceRegion = mutable(
-      GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[0]
-    ) as any;
-    unknownResourceRegion.resourceLocations[0].regionId = 'T1_UNREVIEWED';
-    expect(() => decodeGreaterRealmChunkDto(unknownResourceRegion)).toThrow(
-      'GREATER_REALM_CHUNK_INVALID'
-    );
   });
 
   it('rejects hostile raw array cardinality before decoding any element', () => {
@@ -167,7 +173,7 @@ describe('Greater Realm public runtime contract', () => {
       request,
       new AbortController().signal
     );
-    expect(batch.resourceLocations).toHaveLength(1);
+    expect(batch.resourceLocations).toHaveLength(2);
     expect(Object.keys(batch.resourceLocations[0]!).sort()).toEqual([
       'atlasQ', 'atlasR', 'chunkHandle', 'locationId', 'nodeCount', 'resourceKind'
     ]);
@@ -230,7 +236,7 @@ describe('Greater Realm public runtime contract', () => {
       }, signal)
     )));
     expect(() => assertGreaterRealmMonotonicLodChunks(chunks)).not.toThrow();
-    expect(chunks.slice(1).every(chunk => chunk.resourceLocations.length === 0)).toBe(true);
+    expect(chunks.every(chunk => chunk.resourceLocations.length === 0)).toBe(true);
     chunks.forEach((chunk) => {
       expect(() => assertGreaterRealmChunkMatchesDescriptor(chunk, descriptor)).not.toThrow();
     });
