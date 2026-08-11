@@ -1,8 +1,23 @@
 import type { Random } from 'spacetimedb/server';
 
 import { requireAdmin } from './auth';
-import { canonicalFoodSiteV1ForId } from './foodSitePolicy';
-import { canonicalGoldSiteV1ForId } from './goldSitePolicy';
+import {
+  deriveGreaterRealmLegacyRotation,
+  emptyGreaterRealmLegacyResourceVerificationV1,
+  emptyGreaterRealmLegacyWaterBodyVerificationV1,
+  greaterRealmHydrologyRequiresDownstream,
+  isGreaterRealmLegacyAuthorityCoordinateV1,
+  isGreaterRealmLegacyTerminalOutletNeighborV1,
+  recordGreaterRealmLegacyResourceVerificationV1,
+  recordGreaterRealmLegacyWaterBodyVerificationV1,
+  requireGreaterRealmHydrologyLinkV1,
+  requireGreaterRealmHydrologyTerminalOutletV1,
+  requireGreaterRealmLegacyCellAuthorityV1,
+  requireGreaterRealmLegacyCoverageCompleteV1,
+  requireGreaterRealmLegacyResourceCatalogV1,
+  requireGreaterRealmLegacyResourceVerificationCompleteV1,
+  requireGreaterRealmLegacyWaterVerificationCompleteV1,
+} from './greaterRealmV17LegacyAuthority';
 import {
   GREATER_REALM_CASTLE_CAPACITY,
   GREATER_REALM_CASTLES_PER_REGION,
@@ -14,6 +29,7 @@ import {
   GREATER_REALM_MAX_CHUNK_VISIBLE_CELLS,
   GREATER_REALM_MAX_COMPONENT_IMPORT_ROWS,
   GREATER_REALM_MAX_RESOURCE_IMPORT_ROWS,
+  GREATER_REALM_MAX_RESOURCE_NODES_PER_LOCATION,
   GREATER_REALM_MAX_SLOT_IMPORT_ROWS,
   GREATER_REALM_MAX_VERIFY_ROWS,
   GREATER_REALM_PUBLIC_REGIONS,
@@ -34,9 +50,11 @@ import {
   fisherYatesGreaterRealmRanks,
   greaterRealmV17ErrorCode,
   requireBoundedGreaterRealmBatch,
+  requireGreaterRealmChunkPayloadBytesV1,
   requireGreaterRealmOpaqueId,
   requireGreaterRealmPresentationString,
   requireGreaterRealmPublicRegion,
+  requireGreaterRealmResourceKind,
   requireGreaterRealmSafeInteger,
   requireGreaterRealmSha256,
   validateGreaterRealmCellInputV1,
@@ -47,8 +65,6 @@ import {
   validateGreaterRealmSlotInputV1,
 } from './greaterRealmV17Policy';
 import { canonicalCastleSlotForId } from './world';
-import { canonicalStoneSiteV1ForId } from './stoneSitePolicy';
-import { canonicalWoodSiteV1ForId } from './woodSitePolicy';
 import { Sha256, sha256Hex, updateLengthFramedSha256 } from './sha256';
 
 type GreaterRealmContext = Parameters<typeof requireAdmin>[0];
@@ -424,6 +440,7 @@ export function stageGreaterRealmReleaseV1(
 ): 'inserted' | 'unchanged' {
   validateGreaterRealmReleaseInputV1(input);
   requireCanonicalReleaseHeader(releaseHeaderJson, input);
+  const releaseHeaderSha256 = sha256Hex(new TextEncoder().encode(releaseHeaderJson));
   if (ctx.db.greaterRealmReleaseV1.count() > 1n) fail('GREATER_REALM_RELEASE_CARDINALITY_INVALID');
   const existing = ctx.db.greaterRealmReleaseV1.atlasId.find(input.atlasId);
   if (existing !== null) {
@@ -434,13 +451,7 @@ export function stageGreaterRealmReleaseV1(
     if (existing.state !== 'importing' || !existing.verificationDigest.startsWith('sha256-v1:')) {
       fail('GREATER_REALM_RELEASE_RETRY_STATE_INVALID');
     }
-    const replay = Sha256.deserialize(initializeReleaseDigest(releaseHeaderJson));
-    for (let ordinal = 0; ordinal < existing.nextChunkOrdinal; ordinal += 1) {
-      const chunk = ctx.db.greaterRealmChunkV1.importOrdinal.find(ordinal);
-      if (chunk === null) fail('GREATER_REALM_RELEASE_RETRY_STATE_INVALID');
-      updateLengthFramedSha256(replay, new TextEncoder().encode(chunk.payloadJson));
-    }
-    if (replay.serialize() !== existing.verificationDigest) {
+    if (existing.releaseHeaderSha256 !== releaseHeaderSha256) {
       fail('GREATER_REALM_RELEASE_HEADER_RETRY_MISMATCH');
     }
     return 'unchanged';
@@ -452,10 +463,18 @@ export function stageGreaterRealmReleaseV1(
     componentExpectedSlotCount: 0,
     componentExpectedResourceNodeCount: 0,
     importedPassableCellCount: 0,
+    releaseHeaderSha256,
     publicName: undefined,
     componentManifestJson: '[]\n',
     regionManifestJson: undefined,
     regionVerificationJson: '[]\n',
+    legacyTransformRotation: undefined,
+    legacyTransformOffsetQ: undefined,
+    legacyTransformOffsetR: undefined,
+    verifiedLegacyCellCount: 0,
+    verifiedLegacyWaterCellCount: 0,
+    legacyWaterBodyVerificationJson: emptyGreaterRealmLegacyWaterBodyVerificationV1(),
+    legacyResourceVerificationJson: emptyGreaterRealmLegacyResourceVerificationV1(),
     nextChunkOrdinal: 0,
     verificationPhase: 'components',
     verificationCursor: 0n,
@@ -1019,8 +1038,8 @@ export function importGreaterRealmChunkPayloadV1(
 ): 'inserted' | 'unchanged' {
   let release = requireRelease(ctx, atlasId, importEpoch, ['importing']);
   requireGreaterRealmSha256(payloadSha256, 'GREATER_REALM_CHUNK_SHA_INVALID');
-  if (payloadJson.length < 2 || payloadJson.length > 8_000_000) fail('GREATER_REALM_CHUNK_PAYLOAD_SIZE_INVALID');
-  if (sha256Hex(new TextEncoder().encode(payloadJson)) !== payloadSha256) {
+  const payloadBytes = requireGreaterRealmChunkPayloadBytesV1(payloadJson);
+  if (sha256Hex(payloadBytes) !== payloadSha256) {
     fail('GREATER_REALM_CHUNK_PAYLOAD_SHA_MISMATCH');
   }
   const payload = parseCanonicalJsonObject(payloadJson, 'GREATER_REALM_CHUNK_PAYLOAD_INVALID');
@@ -1103,7 +1122,15 @@ export function importGreaterRealmChunkPayloadV1(
     slots.some(row => !coreKeys.has(row.cellKey) || row.atlasId !== atlasId)
     || resources.some(row => !coreKeys.has(row.cellKey) || row.atlasId !== atlasId)
   ) fail('GREATER_REALM_CHUNK_CHILD_BINDING_INVALID');
-  if (new Set(resources.map(row => row.locationId)).size > 128) {
+  const resourceLocationCounts = new Map<string, number>();
+  for (const resource of resources) {
+    const nextCount = (resourceLocationCounts.get(resource.locationId) ?? 0) + 1;
+    if (nextCount > GREATER_REALM_MAX_RESOURCE_NODES_PER_LOCATION) {
+      fail('GREATER_REALM_CHUNK_RESOURCE_LOCATION_CAPACITY_INVALID');
+    }
+    resourceLocationCounts.set(resource.locationId, nextCount);
+  }
+  if (resourceLocationCounts.size > 128) {
     fail('GREATER_REALM_CHUNK_RESOURCE_LOCATION_COUNT_INVALID');
   }
   const digests = record(payload.sectionDigests, 'GREATER_REALM_CHUNK_SECTION_DIGEST_INVALID');
@@ -1315,6 +1342,31 @@ const RESOURCE_IMPORT_KEYS = Object.freeze([
   'legacyCatalogId', 'policyVersion', 'active',
 ] as const);
 
+function requireLegacyResourceMapping(
+  ctx: GreaterRealmContext,
+  row: GreaterRealmResourceInputV1,
+): Readonly<{ ordinal: number; q: number; r: number; policyVersion: string }> | undefined {
+  if (row.regionId !== 'T1_LOWLANDS') {
+    if (row.legacyCatalogId !== undefined) fail('GREATER_REALM_LEGACY_RESOURCE_REGION_INVALID');
+    return undefined;
+  }
+  if (row.legacyCatalogId === undefined) fail('GREATER_REALM_LOWLANDS_LEGACY_RESOURCE_MISSING');
+  const resourceKind = requireGreaterRealmResourceKind(row.resourceKind);
+  const legacySite = requireGreaterRealmLegacyResourceCatalogV1(
+    resourceKind,
+    row.legacyCatalogId,
+  );
+  const cell = ctx.db.greaterRealmCellV1.cellKey.find(row.cellKey);
+  if (
+    cell === null
+    || cell.regionId !== 'T1_LOWLANDS'
+    || cell.localQ !== legacySite.q
+    || cell.localR !== legacySite.r
+    || row.policyVersion !== legacySite.policyVersion
+  ) fail('GREATER_REALM_LEGACY_RESOURCE_MAPPING_INVALID');
+  return legacySite;
+}
+
 export function importGreaterRealmResourcesV1(
   ctx: GreaterRealmContext,
   atlasId: string,
@@ -1356,21 +1408,7 @@ export function importGreaterRealmResourcesV1(
       || cell.regionId !== row.regionId
       || component.atlasId !== atlasId
     ) fail('GREATER_REALM_RESOURCE_REACHABILITY_INVALID');
-    if (row.legacyCatalogId !== undefined) {
-      if (row.regionId !== 'T1_LOWLANDS') fail('GREATER_REALM_LEGACY_RESOURCE_REGION_INVALID');
-      const legacySite = row.resourceKind === 'food'
-        ? canonicalFoodSiteV1ForId(row.legacyCatalogId)
-        : row.resourceKind === 'wood'
-          ? canonicalWoodSiteV1ForId(row.legacyCatalogId)
-          : row.resourceKind === 'stone'
-            ? canonicalStoneSiteV1ForId(row.legacyCatalogId)
-            : canonicalGoldSiteV1ForId(row.legacyCatalogId);
-      if (
-        legacySite === undefined
-        || cell.localQ !== legacySite.q
-        || cell.localR !== legacySite.r
-      ) fail('GREATER_REALM_LEGACY_RESOURCE_MAPPING_INVALID');
-    }
+    requireLegacyResourceMapping(ctx, row);
     const field = row.resourceKind === 'food' ? 'importedFoodNodeCount'
       : row.resourceKind === 'wood' ? 'importedWoodNodeCount'
         : row.resourceKind === 'stone' ? 'importedStoneNodeCount'
@@ -1610,6 +1648,13 @@ export function beginGreaterRealmVerificationV1(
     || ctx.db.greaterRealmCastleClaimV1.count() !== 0n
     || ctx.db.greaterRealmCellOccupancyV1.count() !== 0n
   ) fail('GREATER_REALM_ACTIVATION_STATE_NOT_EMPTY');
+  const legacyOrigin = ctx.db.greaterRealmCellV1.cellKey.find('T1_LOWLANDS:0:0');
+  if (
+    legacyOrigin === null
+    || legacyOrigin.regionId !== 'T1_LOWLANDS'
+    || legacyOrigin.localQ !== 0
+    || legacyOrigin.localR !== 0
+  ) fail('GREATER_REALM_LEGACY_ORIGIN_MISSING');
   const releaseHash = Sha256.deserialize(release.verificationDigest);
   updateLengthFramedSha256(releaseHash, canonicalJsonBytes(runtimeComponentManifest(release)));
   updateLengthFramedSha256(releaseHash, canonicalJsonBytes(runtimeRegionManifest(release)));
@@ -1623,6 +1668,8 @@ export function beginGreaterRealmVerificationV1(
     verificationPhase: 'components',
     verificationCursor: 0n,
     verificationDigest: initializeVerificationDigest(),
+    legacyTransformOffsetQ: legacyOrigin.atlasQ,
+    legacyTransformOffsetR: legacyOrigin.atlasR,
   });
 }
 
@@ -1981,6 +2028,99 @@ function isFirstRegionCellInChunk(ctx: GreaterRealmContext, row: {
   return true;
 }
 
+function verifyLegacyLowlandsCell(
+  ctx: GreaterRealmContext,
+  row: GreaterRealmCellImportV1,
+): boolean {
+  if (
+    row.regionId !== 'T1_LOWLANDS'
+    || !isGreaterRealmLegacyAuthorityCoordinateV1(row.localQ, row.localR)
+  ) return false;
+  const release = ctx.db.greaterRealmReleaseV1.atlasId.find(row.atlasId);
+  if (
+    release === null
+    || release.state !== 'verifying'
+    || release.legacyTransformOffsetQ === undefined
+    || release.legacyTransformOffsetR === undefined
+  ) fail('GREATER_REALM_LEGACY_VERIFICATION_STATE_INVALID');
+  const derivedRotation = deriveGreaterRealmLegacyRotation(
+    row.localQ,
+    row.localR,
+    row.atlasQ,
+    row.atlasR,
+    release.legacyTransformOffsetQ,
+    release.legacyTransformOffsetR,
+  );
+  const rotation = release.legacyTransformRotation ?? derivedRotation ?? 0;
+  if (
+    release.legacyTransformRotation !== undefined
+    && derivedRotation !== undefined
+    && release.legacyTransformRotation !== derivedRotation
+  ) fail('GREATER_REALM_LEGACY_TRANSFORM_MISMATCH');
+  const result = requireGreaterRealmLegacyCellAuthorityV1(
+    row,
+    rotation,
+    release.legacyTransformOffsetQ,
+    release.legacyTransformOffsetR,
+  );
+  if (!result.canonicalWorld && !result.legacyWater) {
+    fail('GREATER_REALM_LEGACY_CELL_MISSING');
+  }
+  if (
+    (result.canonicalWorld
+      && release.verifiedLegacyCellCount
+        >= GREATER_REALM_LEGACY_LOWLANDS_BRIDGE_V1.mappedCellCount)
+    || (result.legacyWater
+      && release.verifiedLegacyWaterCellCount
+        >= GREATER_REALM_LEGACY_LOWLANDS_BRIDGE_V1.mappedWaterCellCount)
+  ) fail('GREATER_REALM_LEGACY_VERIFICATION_STATE_INVALID');
+  let waterState = release.legacyWaterBodyVerificationJson;
+  if (result.waterBodyOrdinal !== undefined) {
+    if (row.hydroBodyId === undefined) fail('GREATER_REALM_LEGACY_WATER_BODY_INVALID');
+    waterState = recordGreaterRealmLegacyWaterBodyVerificationV1(
+      waterState,
+      result.waterBodyOrdinal,
+      row.hydroBodyId,
+    );
+  }
+  ctx.db.greaterRealmReleaseV1.atlasId.update({
+    ...release,
+    legacyTransformRotation: release.legacyTransformRotation ?? derivedRotation,
+    verifiedLegacyCellCount: release.verifiedLegacyCellCount + (result.canonicalWorld ? 1 : 0),
+    verifiedLegacyWaterCellCount:
+      release.verifiedLegacyWaterCellCount + (result.legacyWater ? 1 : 0),
+    legacyWaterBodyVerificationJson: waterState,
+  });
+  return result.terminalFlow;
+}
+
+function requireGreaterRealmHydrologyOutlet(
+  ctx: GreaterRealmContext,
+  row: GreaterRealmCellImportV1,
+  lockAuthorizedTerminal: boolean,
+): void {
+  const neighbors = [];
+  for (const delta of AXIAL_DIRECTIONS) {
+    const neighbor = ctx.db.greaterRealmCellV1.atlasCoordKey.find(
+      `A:${row.atlasQ + delta[0]}:${row.atlasR + delta[1]}`,
+    );
+    if (
+      neighbor !== null
+      && neighbor.tier === GREATER_REALM_VISIBLE_TIER_MAX
+      && neighbor.regionId === 'T1_LOWLANDS'
+      && isGreaterRealmLegacyTerminalOutletNeighborV1(
+        row.localQ,
+        row.localR,
+        neighbor.localQ,
+        neighbor.localR,
+      )
+    ) {
+      neighbors.push(neighbor);
+    }
+  }
+  requireGreaterRealmHydrologyTerminalOutletV1(lockAuthorizedTerminal, row, neighbors);
+}
+
 function verifyCell(ctx: GreaterRealmContext, ordinal: number) {
   const row = ctx.db.greaterRealmCellV1.releaseOrdinal.find(ordinal);
   if (row === null) fail('GREATER_REALM_VERIFY_CELL_MISSING');
@@ -2001,6 +2141,7 @@ function verifyCell(ctx: GreaterRealmContext, ordinal: number) {
   if (row.sealedBoundaryMask !== expectedSealedBoundaryMask) {
     fail('GREATER_REALM_SEALED_BOUNDARY_CLOSURE_INVALID');
   }
+  const legacyFlowTerminal = verifyLegacyLowlandsCell(ctx, row);
   if (row.componentKey !== undefined) {
     const component = ctx.db.greaterRealmNavigationComponentV1.componentKey.find(row.componentKey);
     if (component === null) fail('GREATER_REALM_VERIFY_CELL_COMPONENT_MISSING');
@@ -2044,6 +2185,11 @@ function verifyCell(ctx: GreaterRealmContext, ordinal: number) {
     if (downstream === null || downstream.tier !== GREATER_REALM_VISIBLE_TIER_MAX) {
       fail('GREATER_REALM_HYDROLOGY_PUBLIC_CLOSURE_INVALID');
     }
+    requireGreaterRealmHydrologyLinkV1(row, downstream);
+  } else if (
+    greaterRealmHydrologyRequiresDownstream(row.hydroRegime)
+  ) {
+    requireGreaterRealmHydrologyOutlet(ctx, row, legacyFlowTerminal);
   }
   incrementRegionVerification(ctx, row.atlasId, row.regionId, {
     verifiedCellCount: 1,
@@ -2086,26 +2232,69 @@ function verifySlot(ctx: GreaterRealmContext, ordinal: number) {
   return row;
 }
 
-function isFirstResourceLocation(ctx: GreaterRealmContext, row: {
-  locationId: string;
-  releaseOrdinal: number;
-}): boolean {
+function requireGreaterRealmResourceLocationBlock(
+  ctx: GreaterRealmContext,
+  row: GreaterRealmResourceInputV1,
+): void {
+  let locationCount = 0;
+  let firstOrdinal = 0xffff_ffff;
+  let lastOrdinal = 0;
   for (const candidate of ctx.db.greaterRealmResourceNodeV1.locationId.filter(row.locationId)) {
-    if (candidate.releaseOrdinal < row.releaseOrdinal) return false;
+    locationCount += 1;
+    if (locationCount > GREATER_REALM_MAX_RESOURCE_NODES_PER_LOCATION) {
+      fail('GREATER_REALM_RESOURCE_LOCATION_CAPACITY_INVALID');
+    }
+    if (
+      candidate.atlasId !== row.atlasId
+      || candidate.componentKey !== row.componentKey
+      || candidate.regionId !== row.regionId
+      || candidate.resourceKind !== row.resourceKind
+      || candidate.cellKey !== row.cellKey
+      || candidate.legacyCatalogId !== row.legacyCatalogId
+      || candidate.policyVersion !== row.policyVersion
+    ) fail('GREATER_REALM_RESOURCE_LOCATION_IDENTITY_INVALID');
+    firstOrdinal = Math.min(firstOrdinal, candidate.releaseOrdinal);
+    lastOrdinal = Math.max(lastOrdinal, candidate.releaseOrdinal);
   }
-  return true;
+  if (
+    locationCount < 1
+    || firstOrdinal !== row.releaseOrdinal
+    || lastOrdinal - firstOrdinal + 1 !== locationCount
+  ) fail('GREATER_REALM_RESOURCE_LOCATION_BLOCK_INVALID');
+
+  let cellNodeCount = 0;
+  for (const candidate of ctx.db.greaterRealmResourceNodeV1.cellKey.filter(row.cellKey)) {
+    cellNodeCount += 1;
+    if (
+      cellNodeCount
+        > GREATER_REALM_RESOURCE_KINDS.length * GREATER_REALM_MAX_RESOURCE_NODES_PER_LOCATION
+    ) fail('GREATER_REALM_RESOURCE_CELL_CAPACITY_INVALID');
+    if (
+      candidate.resourceKind === row.resourceKind
+      && candidate.locationId !== row.locationId
+    ) fail('GREATER_REALM_RESOURCE_CELL_LOCATION_INVALID');
+  }
 }
 
 function verifyResource(ctx: GreaterRealmContext, ordinal: number) {
   const row = ctx.db.greaterRealmResourceNodeV1.releaseOrdinal.find(ordinal);
   if (row === null) fail('GREATER_REALM_VERIFY_RESOURCE_MISSING');
   validateGreaterRealmResourceInputV1(row);
+  const legacySite = requireLegacyResourceMapping(ctx, row);
+  const cell = ctx.db.greaterRealmCellV1.cellKey.find(row.cellKey);
+  if (
+    cell === null
+    || cell.componentKey !== row.componentKey
+    || !cell.passable
+    || cell.regionId !== row.regionId
+  ) fail('GREATER_REALM_VERIFY_RESOURCE_REACHABILITY_INVALID');
   const componentForOrder = ctx.db.greaterRealmNavigationComponentV1.componentKey.find(row.componentKey);
   const regionForOrder = requireGreaterRealmPublicRegion(row.regionId);
   const kindForOrder = GREATER_REALM_RESOURCE_KINDS.indexOf(
     row.resourceKind as typeof GREATER_REALM_RESOURCE_KINDS[number],
   );
   if (componentForOrder === null || kindForOrder < 0) fail('GREATER_REALM_RESOURCE_ORDER_INVALID');
+  let firstResourceLocation = true;
   if (ordinal === 0) {
     if (row.nodeOrdinal !== 0) fail('GREATER_REALM_RESOURCE_NODE_ORDINAL_INVALID');
   } else {
@@ -2127,14 +2316,21 @@ function verifyResource(ctx: GreaterRealmContext, ordinal: number) {
       (sameGroup && row.nodeOrdinal !== previous.nodeOrdinal + 1)
       || (!sameGroup && (row.nodeOrdinal !== 0 || orderDelta <= 0))
     ) fail('GREATER_REALM_RESOURCE_NODE_ORDINAL_INVALID');
+    if (sameGroup && previous.locationId === row.locationId) {
+      if (
+        previous.cellKey !== row.cellKey
+        || previous.legacyCatalogId !== row.legacyCatalogId
+        || previous.policyVersion !== row.policyVersion
+      ) fail('GREATER_REALM_RESOURCE_LOCATION_BLOCK_INVALID');
+      firstResourceLocation = false;
+    } else if (sameGroup) {
+      if (
+        previous.locationId.localeCompare(row.locationId) >= 0
+        || previous.cellKey === row.cellKey
+      ) fail('GREATER_REALM_RESOURCE_LOCATION_BLOCK_INVALID');
+    }
   }
-  const cell = ctx.db.greaterRealmCellV1.cellKey.find(row.cellKey);
-  if (
-    cell === null
-    || cell.componentKey !== row.componentKey
-    || !cell.passable
-    || cell.regionId !== row.regionId
-  ) fail('GREATER_REALM_VERIFY_RESOURCE_REACHABILITY_INVALID');
+  if (firstResourceLocation) requireGreaterRealmResourceLocationBlock(ctx, row);
   const component = ctx.db.greaterRealmNavigationComponentV1.componentKey.find(row.componentKey);
   if (component === null || component.verificationPhase !== 'resource-nodes') {
     fail('GREATER_REALM_COMPONENT_VERIFY_PHASE_INVALID');
@@ -2163,12 +2359,28 @@ function verifyResource(ctx: GreaterRealmContext, ordinal: number) {
             : 'goldNodeCount',
     ),
   });
+  if (legacySite !== undefined) {
+    if (row.legacyCatalogId === undefined) fail('GREATER_REALM_LOWLANDS_LEGACY_RESOURCE_MISSING');
+    const release = ctx.db.greaterRealmReleaseV1.atlasId.find(row.atlasId);
+    if (release === null || release.state !== 'verifying') {
+      fail('GREATER_REALM_RELEASE_STATE_INVALID');
+    }
+    ctx.db.greaterRealmReleaseV1.atlasId.update({
+      ...release,
+      legacyResourceVerificationJson: recordGreaterRealmLegacyResourceVerificationV1(
+        release.legacyResourceVerificationJson,
+        requireGreaterRealmResourceKind(row.resourceKind),
+        row.legacyCatalogId,
+        row.locationId,
+      ),
+    });
+  }
   const regionKindField = row.resourceKind === 'food' ? 'verifiedFoodNodeCount'
     : row.resourceKind === 'wood' ? 'verifiedWoodNodeCount'
       : row.resourceKind === 'stone' ? 'verifiedStoneNodeCount'
         : 'verifiedGoldNodeCount';
   incrementRegionVerification(ctx, row.atlasId, row.regionId, {
-    verifiedResourceLocationCount: isFirstResourceLocation(ctx, row) ? 1 : 0,
+    verifiedResourceLocationCount: firstResourceLocation ? 1 : 0,
     verifiedResourceNodeCount: 1,
     [regionKindField]: 1,
   });
@@ -2331,6 +2543,21 @@ function requireFinalizeClosure(ctx: GreaterRealmContext, release: ReturnType<ty
     || regionSlots !== release.expectedSlotCount
     || regionResources !== release.expectedResourceNodeCount
   ) fail('GREATER_REALM_REGION_TOTALS_INVALID');
+  requireGreaterRealmLegacyCoverageCompleteV1(
+    release.verifiedLegacyCellCount,
+    release.verifiedLegacyWaterCellCount,
+    release.legacyTransformRotation,
+  );
+  if (
+    release.legacyTransformOffsetQ === undefined
+    || release.legacyTransformOffsetR === undefined
+  ) fail('GREATER_REALM_LEGACY_CELL_SET_INVALID');
+  requireGreaterRealmLegacyWaterVerificationCompleteV1(
+    release.legacyWaterBodyVerificationJson,
+  );
+  requireGreaterRealmLegacyResourceVerificationCompleteV1(
+    release.legacyResourceVerificationJson,
+  );
   assertLegacySlotSetExact(ctx);
 }
 

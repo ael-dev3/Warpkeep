@@ -16,6 +16,7 @@ import {
 import {
   GREATER_REALM_MAX_ROUTE_DEPTH,
   GREATER_REALM_MAX_ROUTE_PAGE,
+  GREATER_REALM_MAX_RESOURCE_NODES_PER_LOCATION,
   GREATER_REALM_MAX_WINDOW_RADIUS,
   GREATER_REALM_PUBLIC_REGIONS,
   requireGreaterRealmOpaqueId,
@@ -705,7 +706,7 @@ export const getRealmAtlasChunkV1 = warpkeep.procedure(
         else unavailable();
       }
       if (coreCells.length + apronCells.length > 384) unavailable();
-      const locationMap = new Map<string, {
+      let resourceLocations: Array<{
         locationId: string;
         cellKey: string;
         regionId: string;
@@ -714,44 +715,51 @@ export const getRealmAtlasChunkV1 = warpkeep.procedure(
         resourceKind: string;
         nodeCount: number;
         policyVersion: string;
-      }>();
-      for (const value of payload.resourceNodes) {
-        const locationId = value.locationId;
-        const cellKey = value.cellKey;
-        const regionId = value.regionId;
-        const resourceKind = value.resourceKind;
-        const policyVersion = value.policyVersion;
-        if (
-          typeof locationId !== 'string'
-          || typeof cellKey !== 'string'
-          || typeof regionId !== 'string'
-          || typeof resourceKind !== 'string'
-          || typeof policyVersion !== 'string'
-        ) unavailable();
-        const locationCell = tx.db.greaterRealmCellV1.cellKey.find(cellKey);
-        if (locationCell === null || locationCell.atlasId !== atlas.atlasId) unavailable();
-        const current = locationMap.get(locationId);
-        if (current === undefined) {
-          locationMap.set(locationId, {
-            locationId,
-            cellKey,
-            regionId,
-            atlasQ: locationCell.atlasQ,
-            atlasR: locationCell.atlasR,
-            resourceKind,
-            nodeCount: 1,
-            policyVersion,
-          });
-        } else if (
-          current.cellKey !== cellKey
-          || current.regionId !== regionId
-          || current.atlasQ !== locationCell.atlasQ
-          || current.atlasR !== locationCell.atlasR
-          || current.resourceKind !== resourceKind
-          || current.policyVersion !== policyVersion
-        ) unavailable();
-        else current.nodeCount += 1;
-        if (locationMap.size > 128) unavailable();
+      }> = [];
+      if (lod === 0) {
+        const locationMap = new Map<string, typeof resourceLocations[number]>();
+        for (const value of payload.resourceNodes) {
+          const locationId = value.locationId;
+          const cellKey = value.cellKey;
+          const regionId = value.regionId;
+          const resourceKind = value.resourceKind;
+          const policyVersion = value.policyVersion;
+          if (
+            typeof locationId !== 'string'
+            || typeof cellKey !== 'string'
+            || typeof regionId !== 'string'
+            || typeof resourceKind !== 'string'
+            || typeof policyVersion !== 'string'
+          ) unavailable();
+          const locationCell = tx.db.greaterRealmCellV1.cellKey.find(cellKey);
+          if (locationCell === null || locationCell.atlasId !== atlas.atlasId) unavailable();
+          const current = locationMap.get(locationId);
+          if (current === undefined) {
+            locationMap.set(locationId, {
+              locationId,
+              cellKey,
+              regionId,
+              atlasQ: locationCell.atlasQ,
+              atlasR: locationCell.atlasR,
+              resourceKind,
+              nodeCount: 1,
+              policyVersion,
+            });
+          } else if (
+            current.cellKey !== cellKey
+            || current.regionId !== regionId
+            || current.atlasQ !== locationCell.atlasQ
+            || current.atlasR !== locationCell.atlasR
+            || current.resourceKind !== resourceKind
+            || current.policyVersion !== policyVersion
+          ) unavailable();
+          else {
+            if (current.nodeCount >= GREATER_REALM_MAX_RESOURCE_NODES_PER_LOCATION) unavailable();
+            current.nodeCount += 1;
+          }
+          if (locationMap.size > 128) unavailable();
+        }
+        resourceLocations = [...locationMap.values()];
       }
       return {
         atlasId: atlas.atlasId,
@@ -761,7 +769,7 @@ export const getRealmAtlasChunkV1 = warpkeep.procedure(
         sourceCellCount: coreKeys.length,
         coreCells,
         apronCells,
-        resourceLocations: [...locationMap.values()],
+        resourceLocations,
       };
     } catch {
       return unavailable();

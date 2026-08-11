@@ -114,7 +114,8 @@ test('release, chunk, and component tamper boundaries use canonical SHA-256', ()
     'export function importGreaterRealmChunkPayloadV1',
     'const CELL_IMPORT_KEYS',
   );
-  assert.match(chunk, /sha256Hex\(new TextEncoder\(\)\.encode\(payloadJson\)\)/);
+  assert.match(chunk, /const payloadBytes = requireGreaterRealmChunkPayloadBytesV1\(payloadJson\)/);
+  assert.match(chunk, /sha256Hex\(payloadBytes\)/);
   assert.match(chunk, /validateImportBatches/);
   assert.match(chunk, /cellsSha256/);
   assert.match(chunk, /resourceNodesSha256/);
@@ -133,6 +134,19 @@ test('release, chunk, and component tamper boundaries use canonical SHA-256', ()
   assert.match(authority, /componentSha256/);
   assert.match(authority, /GREATER_REALM_COMPONENT_SHA_MISMATCH/);
   assert.match(authority, /GREATER_REALM_COMPONENT_REGION_RESOURCE_MARGIN_INVALID/);
+});
+
+test('stage retry is constant-time over a stored canonical header checkpoint', () => {
+  const authority = source('../src/greaterRealmV17Authority.ts');
+  const stage = section(
+    authority,
+    'export function stageGreaterRealmReleaseV1',
+    'const COMPONENT_IMPORT_KEYS',
+  );
+  assert.match(stage, /const releaseHeaderSha256 = sha256Hex/);
+  assert.match(stage, /existing\.releaseHeaderSha256 !== releaseHeaderSha256/);
+  assert.match(stage, /releaseHeaderSha256,/);
+  assert.doesNotMatch(stage, /greaterRealmChunkV1|for\s*\(/);
 });
 
 test('verification transitions and component completion remain cursor-bounded', () => {
@@ -156,6 +170,31 @@ test('verification transitions and component completion remain cursor-bounded', 
   assert.doesNotMatch(finalize, /greaterRealmNavigationComponentV1\.iter/);
   assert.doesNotMatch(finalize, /realmAtlasV1\.insert|realmAtlasVisibleRegionV1\.insert|realmWorkerSystemV2\.insert/);
   assert.doesNotMatch(finalize, /workerPolicyVersion|rosterDigest/);
+});
+
+test('resource-location verification is O(1) and rejects split location blocks', () => {
+  const authority = source('../src/greaterRealmV17Authority.ts');
+  const block = section(
+    authority,
+    'function requireGreaterRealmResourceLocationBlock',
+    'function verifyResource',
+  );
+  const verify = section(
+    authority,
+    'function verifyResource',
+    'const VERIFY_PHASE_ORDER',
+  );
+  assert.match(verify, /releaseOrdinal\.find\(ordinal - 1\)/);
+  assert.match(verify, /previous\.locationId\.localeCompare\(row\.locationId\) >= 0/);
+  assert.match(verify, /previous\.cellKey === row\.cellKey/);
+  assert.match(verify, /if \(firstResourceLocation\) requireGreaterRealmResourceLocationBlock/);
+  assert.match(verify, /GREATER_REALM_RESOURCE_LOCATION_BLOCK_INVALID/);
+  assert.match(block, /locationId\.filter\(row\.locationId\)/);
+  assert.match(block, /locationCount > GREATER_REALM_MAX_RESOURCE_NODES_PER_LOCATION/);
+  assert.match(block, /lastOrdinal - firstOrdinal \+ 1 !== locationCount/);
+  assert.match(block, /cellKey\.filter\(row\.cellKey\)/);
+  assert.match(block, /GREATER_REALM_RESOURCE_KINDS\.length \* GREATER_REALM_MAX_RESOURCE_NODES_PER_LOCATION/);
+  assert.doesNotMatch(verify, /locationId\.filter\(/);
 });
 
 test('public read ABI is exact, revision-bound, and topology-minimized', () => {
@@ -198,6 +237,22 @@ test('public read ABI is exact, revision-bound, and topology-minimized', () => {
   assert.doesNotMatch(
     section(reducer, 'const greaterRealmRoutePageV1', 'type GreaterRealmReadContext'),
     /componentKey/,
+  );
+});
+
+test('reduced chunk LODs omit resource aggregates without constructing their map', () => {
+  const reducer = source('../src/reducers/greaterRealm.ts');
+  const chunk = section(
+    reducer,
+    'export const getRealmAtlasChunkV1',
+    'export const planRealmRouteV1',
+  );
+  assert.match(chunk, /let resourceLocations:[\s\S]*= \[\];/);
+  assert.match(chunk, /if \(lod === 0\) \{[\s\S]*const locationMap = new Map/);
+  assert.match(chunk, /resourceLocations = \[\.\.\.locationMap\.values\(\)\]/);
+  assert.doesNotMatch(
+    section(chunk, 'let resourceLocations:', 'if (lod === 0)'),
+    /payload\.resourceNodes|new Map/,
   );
 });
 

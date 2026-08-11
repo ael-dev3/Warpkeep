@@ -6,6 +6,8 @@ import {
   GREATER_REALM_HYDRO_REGIME,
   GREATER_REALM_MAX_COMPONENT_IMPORT_ROWS,
   GREATER_REALM_MAX_COMPONENTS,
+  GREATER_REALM_MAX_CHUNK_PAYLOAD_BYTES,
+  GREATER_REALM_MAX_RESOURCE_NODES_PER_LOCATION,
   GREATER_REALM_MAX_VERIFY_ROWS,
   GREATER_REALM_PUBLIC_REGIONS,
   GREATER_REALM_RUNTIME_PARTITION_VERSION,
@@ -14,6 +16,7 @@ import {
   GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED,
   greaterRealmV17ErrorCode,
   requireGreaterRealmOpaqueId,
+  requireGreaterRealmChunkPayloadBytesV1,
   requireGreaterRealmSafeInteger,
   validateGreaterRealmCellInputV1,
   validateGreaterRealmChunkInputV1,
@@ -187,4 +190,21 @@ test('chunk counts use the full core-plus-apron visibility set for reduced LODs'
     })),
     'GREATER_REALM_CHUNK_LOD_COUNTS_INVALID',
   );
+});
+
+test('canonical chunk payload ceiling counts UTF-8 bytes rather than UTF-16 code units', () => {
+  assert.equal(
+    requireGreaterRealmChunkPayloadBytesV1('a'.repeat(GREATER_REALM_MAX_CHUNK_PAYLOAD_BYTES)).length,
+    GREATER_REALM_MAX_CHUNK_PAYLOAD_BYTES,
+  );
+  assert.equal(
+    errorCode(() => requireGreaterRealmChunkPayloadBytesV1(
+      'é'.repeat(Math.floor(GREATER_REALM_MAX_CHUNK_PAYLOAD_BYTES / 2) + 1),
+    )),
+    'GREATER_REALM_CHUNK_PAYLOAD_SIZE_INVALID',
+  );
+});
+
+test('a public resource location has at most 32 private capacity nodes', () => {
+  assert.equal(GREATER_REALM_MAX_RESOURCE_NODES_PER_LOCATION, 32);
 });

@@ -9,6 +9,8 @@ export const GREATER_REALM_RUNTIME_PARTITION_VERSION =
   'axial-bin-15-tier-one-filter-v1';
 export const GREATER_REALM_LEGACY_LOWLANDS_BRIDGE_V1 = Object.freeze({
   mappedCellCount: 10_000,
+  mappedWaterCellCount: 3_271,
+  mappedWaterBodyCount: 13,
   mappedCastleSlotCount: 100,
   mappedResourceCatalogCounts: Object.freeze({ food: 96, wood: 96, stone: 96, gold: 24 }),
   worldGenerationDigest: '4c111ec1f5e127c7cfd8f42f87c4085f94a4bc46bdacbdc9779866dfdb3edab6',
@@ -19,15 +21,19 @@ export const GREATER_REALM_LEGACY_LOWLANDS_BRIDGE_V1 = Object.freeze({
   stoneSiteDigest: '22c902d5bfb033e7faf3eaa303e89228d9aad0cff712853618dc34b994d28467',
 } as const);
 export const GREATER_REALM_MAX_COMPONENTS = 4096;
+export const GREATER_REALM_MAX_CHUNKS = 2048;
+export const GREATER_REALM_MAX_CELLS = 150_000;
 export const GREATER_REALM_MAX_COMPONENT_IMPORT_ROWS = 128;
 export const GREATER_REALM_MAX_CHUNK_IMPORT_ROWS = 256;
 export const GREATER_REALM_MAX_CELL_IMPORT_ROWS = 256;
 export const GREATER_REALM_MAX_SLOT_IMPORT_ROWS = 128;
 export const GREATER_REALM_MAX_RESOURCE_IMPORT_ROWS = 256;
+export const GREATER_REALM_MAX_RESOURCE_NODES_PER_LOCATION = 32;
 export const GREATER_REALM_MAX_VERIFY_ROWS = 256;
 export const GREATER_REALM_MAX_CHUNK_CORE_CELLS = 225;
 export const GREATER_REALM_MAX_CHUNK_APRON_CELLS = 384;
 export const GREATER_REALM_MAX_CHUNK_VISIBLE_CELLS = 384;
+export const GREATER_REALM_MAX_CHUNK_PAYLOAD_BYTES = 4 * 1024 * 1024;
 export const GREATER_REALM_MAX_ROUTE_DEPTH = 4096;
 export const GREATER_REALM_MAX_ROUTE_PAGE = 128;
 export const GREATER_REALM_MAX_WINDOW_RADIUS = 4;
@@ -158,6 +164,14 @@ export function requireGreaterRealmPresentationString(value: string, code: strin
   return requireSafeString(value, 128, code);
 }
 
+export function requireGreaterRealmChunkPayloadBytesV1(value: string): Uint8Array {
+  const bytes = new TextEncoder().encode(value);
+  if (bytes.length < 2 || bytes.length > GREATER_REALM_MAX_CHUNK_PAYLOAD_BYTES) {
+    fail('GREATER_REALM_CHUNK_PAYLOAD_SIZE_INVALID');
+  }
+  return bytes;
+}
+
 export function requireGreaterRealmPublicRegion(regionId: string): typeof GREATER_REALM_PUBLIC_REGIONS[number] {
   const region = GREATER_REALM_PUBLIC_REGIONS.find(row => row.id === regionId);
   if (region === undefined) fail('GREATER_REALM_REGION_INVALID');
@@ -211,8 +225,8 @@ export function validateGreaterRealmReleaseInputV1(input: GreaterRealmReleaseInp
   for (const [value, maximum, code] of [
     [input.expectedRegionCount, GREATER_REALM_VISIBLE_REGION_COUNT, 'GREATER_REALM_REGION_COUNT_INVALID'],
     [input.expectedComponentCount, GREATER_REALM_MAX_COMPONENTS, 'GREATER_REALM_COMPONENT_COUNT_INVALID'],
-    [input.expectedChunkCount, 1_000_000, 'GREATER_REALM_CHUNK_COUNT_INVALID'],
-    [input.expectedCellCount, 1_000_000, 'GREATER_REALM_CELL_COUNT_INVALID'],
+    [input.expectedChunkCount, GREATER_REALM_MAX_CHUNKS, 'GREATER_REALM_CHUNK_COUNT_INVALID'],
+    [input.expectedCellCount, GREATER_REALM_MAX_CELLS, 'GREATER_REALM_CELL_COUNT_INVALID'],
     [input.expectedSlotCount, GREATER_REALM_CASTLE_CAPACITY, 'GREATER_REALM_SLOT_COUNT_INVALID'],
     [input.expectedResourceNodeCount, 1_000_000, 'GREATER_REALM_RESOURCE_COUNT_INVALID'],
   ] as const) requireGreaterRealmSafeInteger(value, 1, maximum, code);
@@ -268,7 +282,12 @@ export function validateGreaterRealmComponentInputV1(input: GreaterRealmComponen
   if (input.regionMask <= 0 || input.regionMask >= (1 << GREATER_REALM_VISIBLE_REGION_COUNT)) {
     fail('GREATER_REALM_COMPONENT_REGION_MASK_INVALID');
   }
-  requireGreaterRealmSafeInteger(input.expectedCellCount, 1, 1_000_000, 'GREATER_REALM_COMPONENT_ROUTE_INVALID');
+  requireGreaterRealmSafeInteger(
+    input.expectedCellCount,
+    1,
+    GREATER_REALM_MAX_CELLS,
+    'GREATER_REALM_COMPONENT_ROUTE_INVALID',
+  );
   requireGreaterRealmSafeInteger(input.maxRouteDepth, 0, GREATER_REALM_MAX_ROUTE_DEPTH, 'GREATER_REALM_COMPONENT_ROUTE_INVALID');
   requireGreaterRealmSafeInteger(input.expectedSlotCount, 0, GREATER_REALM_CASTLE_CAPACITY, 'GREATER_REALM_COMPONENT_SLOT_COUNT_INVALID');
   for (const count of [
