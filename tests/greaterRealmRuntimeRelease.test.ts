@@ -349,6 +349,125 @@ function fullyRehashArtifacts(
   });
 }
 
+describe('Greater Realm runtime canonical JSON', () => {
+  const invalidCode = 'GREATER_REALM_RUNTIME_RELEASE_CANONICAL_JSON_INVALID';
+
+  function expectInvalidAtRootAndNested(value: unknown): void {
+    expect(() => greaterRealmRuntimeReleaseTestSeams.canonicalBytes(value))
+      .toThrow(invalidCode);
+    expect(() => greaterRealmRuntimeReleaseTestSeams.canonicalBytes({ nested: value }))
+      .toThrow(invalidCode);
+  }
+
+  it('encodes root and nested plain records with wire-format optional-field omission', () => {
+    const nested = Object.assign(Object.create(null) as Record<string, unknown>, {
+      present: 'nested',
+      optional: undefined,
+    });
+    expect(greaterRealmRuntimeReleaseTestSeams.canonicalBytes({
+      schema: 'plain-record-v1',
+      optional: undefined,
+      nested,
+      rows: [{ present: true, optional: undefined }, null],
+      ratio: 1.5,
+    }).toString('utf8')).toBe(
+      '{"schema":"plain-record-v1","nested":{"present":"nested"},'
+      + '"rows":[{"present":true},null],"ratio":1.5}\n',
+    );
+  });
+
+  it('does not invoke an inherited Array.prototype toJSON hook', () => {
+    const inheritedToJSON = vi.fn(() => ['substituted']);
+    const previous = Object.getOwnPropertyDescriptor(Array.prototype, 'toJSON');
+    Object.defineProperty(Array.prototype, 'toJSON', {
+      configurable: true,
+      value: inheritedToJSON,
+      writable: true,
+    });
+    try {
+      expect(greaterRealmRuntimeReleaseTestSeams.canonicalBytes([
+        { present: true, optional: undefined },
+      ]).toString('utf8')).toBe('[{"present":true}]\n');
+      expect(inheritedToJSON).not.toHaveBeenCalled();
+    } finally {
+      if (previous === undefined) {
+        Reflect.deleteProperty(Array.prototype, 'toJSON');
+      } else {
+        Object.defineProperty(Array.prototype, 'toJSON', previous);
+      }
+    }
+  });
+
+  it('rejects custom serialization, accessors, symbols, and hidden record fields', () => {
+    const toJSON = vi.fn(() => ({ substituted: true }));
+    const customSerialization = { present: true, toJSON };
+    let getterCalls = 0;
+    const getterRecord = Object.defineProperty({}, 'value', {
+      enumerable: true,
+      get: () => {
+        getterCalls += 1;
+        return 'must-not-run';
+      },
+    });
+    const setterRecord = Object.defineProperty({}, 'value', {
+      enumerable: true,
+      set: () => undefined,
+    });
+    const symbolRecord: Record<PropertyKey, unknown> = { present: true };
+    symbolRecord[Symbol('hidden-channel')] = 'must-not-serialize';
+    const hiddenRecord = Object.defineProperty({ present: true }, 'hidden', {
+      value: 'must-not-serialize',
+    });
+
+    for (const value of [
+      customSerialization,
+      getterRecord,
+      setterRecord,
+      symbolRecord,
+      hiddenRecord,
+    ]) expectInvalidAtRootAndNested(value);
+    expect(toJSON).not.toHaveBeenCalled();
+    expect(getterCalls).toBe(0);
+  });
+
+  it('rejects sparse, decorated, and custom-prototype arrays and records', () => {
+    const sparse = new Array<unknown>(2);
+    sparse[1] = 'present';
+    const decorated = Object.defineProperty(['dense'], 'hidden', { value: true });
+    const customArray = ['dense'];
+    Object.setPrototypeOf(customArray, Object.create(Array.prototype));
+    const customRecord = Object.assign(Object.create({ inherited: true }), {
+      present: true,
+    });
+
+    for (const value of [sparse, decorated, customArray, customRecord, new Date(0)]) {
+      expectInvalidAtRootAndNested(value);
+    }
+  });
+
+  it('rejects unsupported values, cycles, and non-finite or unsafe numbers', () => {
+    for (const value of [
+      () => undefined,
+      1n,
+      Symbol('unsupported'),
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+      Number.MAX_SAFE_INTEGER + 1,
+      Number.MIN_SAFE_INTEGER - 1,
+    ]) expectInvalidAtRootAndNested(value);
+
+    expect(() => greaterRealmRuntimeReleaseTestSeams.canonicalBytes(undefined))
+      .toThrow(invalidCode);
+    expect(() => greaterRealmRuntimeReleaseTestSeams.canonicalBytes([undefined]))
+      .toThrow(invalidCode);
+
+    const cycle: Record<string, unknown> = {};
+    cycle.self = cycle;
+    expectInvalidAtRootAndNested(cycle);
+  });
+});
+
 describe('Greater Realm declassified runtime release', () => {
   let source: GreaterRealmRuntimeReleaseSource;
   let artifacts: GreaterRealmRuntimeReleaseArtifacts;
@@ -685,6 +804,62 @@ describe('Greater Realm declassified runtime release', () => {
         [generatorOnlyKey]: 1,
       })).toThrow('GREATER_REALM_RUNTIME_RELEASE_PRIVACY_BOUNDARY_INVALID');
     }
+  });
+
+  it('rejects an artifact payload whose hidden root toJSON substitutes the hashed wire', () => {
+    const first = artifacts.chunks[0]!;
+    const substitutedWire = Object.freeze({ substituted: true });
+    const toJSON = vi.fn(() => substitutedWire);
+    const payload = Object.defineProperty({}, 'toJSON', {
+      configurable: true,
+      value: toJSON,
+    }) as Record<string, unknown>;
+    Object.assign(payload, first.payload);
+    const bytes = Buffer.from(`${JSON.stringify(payload)}\n`, 'utf8');
+    expect(bytes.toString('utf8')).toBe('{"substituted":true}\n');
+
+    const manifest = JSON.parse(artifacts.manifestBytes.toString('utf8')) as Record<string, unknown>;
+    const status = JSON.parse(artifacts.statusBytes.toString('utf8')) as Record<string, unknown>;
+    const descriptors = manifest.chunks as Array<Record<string, unknown>>;
+    descriptors[0]!.payloadSha256 = greaterRealmRuntimeReleaseTestSeams.sha256(bytes);
+    const chunks = [
+      { ...first, bytes, payload: payload as GreaterRealmRuntimeChunkPayload },
+      ...artifacts.chunks.slice(1),
+    ];
+    const header = greaterRealmRuntimeReleaseTestSeams.releaseHeader({
+      publicReleaseId: String(manifest.publicReleaseId),
+      publicApprovalReceiptId: String(manifest.publicApprovalReceiptId),
+      sourceCommit: String(manifest.sourceCommit),
+      totals: manifest.totals as Readonly<Record<string, number>>,
+      legacyLowlandsBridge: manifest.legacyLowlandsBridge as Readonly<Record<string, unknown>>,
+    });
+    const releaseSha256 = greaterRealmRuntimeReleaseTestSeams.framedSha256(
+      'warpkeep.greater-realm.release.v1',
+      [
+        greaterRealmRuntimeReleaseTestSeams.canonicalBytes(header),
+        ...chunks.map(chunk => chunk.bytes),
+        greaterRealmRuntimeReleaseTestSeams.canonicalBytes(
+          manifest.components as readonly unknown[],
+        ),
+        greaterRealmRuntimeReleaseTestSeams.canonicalBytes(
+          manifest.regions as readonly unknown[],
+        ),
+      ],
+    );
+    manifest.releaseSha256 = releaseSha256;
+    status.releaseSha256 = releaseSha256;
+    const mismatchedArtifacts: GreaterRealmRuntimeReleaseArtifacts = {
+      manifest: manifest as GreaterRealmRuntimeReleaseArtifacts['manifest'],
+      manifestBytes: greaterRealmRuntimeReleaseTestSeams.canonicalBytes(manifest),
+      status: status as GreaterRealmRuntimeReleaseArtifacts['status'],
+      statusBytes: greaterRealmRuntimeReleaseTestSeams.canonicalBytes(status),
+      chunks,
+    };
+
+    toJSON.mockClear();
+    expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(mismatchedArtifacts))
+      .toThrow('GREATER_REALM_RUNTIME_RELEASE_CANONICAL_JSON_INVALID');
+    expect(toJSON).not.toHaveBeenCalled();
   });
 
   it('rejects fully rehashed chunk payloads with non-canonical ABI object-key order', () => {

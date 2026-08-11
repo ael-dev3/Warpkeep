@@ -351,8 +351,101 @@ function parseReleaseSeedControlEnvelope(envelope: Buffer): Buffer {
   }
 }
 
+type CanonicalJsonValue =
+  | null
+  | boolean
+  | number
+  | string
+  | readonly CanonicalJsonValue[]
+  | Readonly<{ [key: string]: CanonicalJsonValue }>;
+
+function canonicalJsonValue(
+  value: unknown,
+  ancestors = new Set<object>(),
+): CanonicalJsonValue {
+  if (
+    value === null
+    || typeof value === 'boolean'
+    || typeof value === 'string'
+  ) return value;
+  if (typeof value === 'number') {
+    if (
+      !Number.isFinite(value)
+      || (Number.isInteger(value) && !Number.isSafeInteger(value))
+    ) fail('GREATER_REALM_RUNTIME_RELEASE_CANONICAL_JSON_INVALID');
+    return value;
+  }
+  if (typeof value !== 'object') {
+    fail('GREATER_REALM_RUNTIME_RELEASE_CANONICAL_JSON_INVALID');
+  }
+  if (ancestors.has(value)) {
+    fail('GREATER_REALM_RUNTIME_RELEASE_CANONICAL_JSON_INVALID');
+  }
+  ancestors.add(value);
+  try {
+    if (Array.isArray(value)) {
+      if (Object.getPrototypeOf(value) !== Array.prototype) {
+        fail('GREATER_REALM_RUNTIME_RELEASE_CANONICAL_JSON_INVALID');
+      }
+      const ownKeys = Reflect.ownKeys(value);
+      const lengthDescriptor = Object.getOwnPropertyDescriptor(value, 'length');
+      if (
+        ownKeys.some(key => typeof key !== 'string')
+        || lengthDescriptor === undefined
+        || !('value' in lengthDescriptor)
+        || lengthDescriptor.enumerable
+        || !Number.isSafeInteger(lengthDescriptor.value)
+        || lengthDescriptor.value < 0
+        || ownKeys.length !== lengthDescriptor.value + 1
+      ) fail('GREATER_REALM_RUNTIME_RELEASE_CANONICAL_JSON_INVALID');
+      const normalized: CanonicalJsonValue[] = [];
+      for (let index = 0; index < lengthDescriptor.value; index += 1) {
+        const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+        if (
+          descriptor === undefined
+          || !descriptor.enumerable
+          || !('value' in descriptor)
+        ) fail('GREATER_REALM_RUNTIME_RELEASE_CANONICAL_JSON_INVALID');
+        normalized.push(canonicalJsonValue(descriptor.value, ancestors));
+      }
+      // JSON.stringify consults inherited toJSON hooks before visiting array
+      // elements. The validated clone must not inherit ambient serialization.
+      Object.setPrototypeOf(normalized, null);
+      return normalized;
+    }
+    if (![Object.prototype, null].includes(Object.getPrototypeOf(value))) {
+      fail('GREATER_REALM_RUNTIME_RELEASE_CANONICAL_JSON_INVALID');
+    }
+    const ownKeys = Reflect.ownKeys(value);
+    if (ownKeys.some(key => typeof key !== 'string')) {
+      fail('GREATER_REALM_RUNTIME_RELEASE_CANONICAL_JSON_INVALID');
+    }
+    const normalized = Object.create(null) as Record<string, CanonicalJsonValue>;
+    for (const key of ownKeys as string[]) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (
+        descriptor === undefined
+        || !descriptor.enumerable
+        || !('value' in descriptor)
+      ) fail('GREATER_REALM_RUNTIME_RELEASE_CANONICAL_JSON_INVALID');
+      // JSON.stringify omits undefined record fields. Normalize that one
+      // intentional optional-field case before recursively checking values.
+      if (descriptor.value === undefined) continue;
+      Object.defineProperty(normalized, key, {
+        configurable: true,
+        enumerable: true,
+        value: canonicalJsonValue(descriptor.value, ancestors),
+        writable: true,
+      });
+    }
+    return normalized;
+  } finally {
+    ancestors.delete(value);
+  }
+}
+
 function canonicalBytes(value: unknown): Buffer {
-  return Buffer.from(`${JSON.stringify(value)}\n`, 'utf8');
+  return Buffer.from(`${JSON.stringify(canonicalJsonValue(value))}\n`, 'utf8');
 }
 
 function framedSha256(domain: string, frames: Iterable<Uint8Array>): string {
@@ -372,9 +465,11 @@ function framedSha256(domain: string, frames: Iterable<Uint8Array>): string {
 
 /**
  * Cross-language framing authority. Canonical objects are constructed in the
- * listed insertion order, encoded as UTF-8 `JSON.stringify(value) + "\n"`
- * without a BOM, and are never key-sorted. Every frame is prefixed by its
- * unsigned 64-bit byte length in network (big-endian) order.
+ * listed insertion order, normalized to recursive plain JSON data (with
+ * undefined record fields omitted), and encoded as UTF-8
+ * `JSON.stringify(value) + "\n"` without a BOM. Keys are never sorted. Every
+ * frame is prefixed by its unsigned 64-bit byte length in network (big-endian)
+ * order.
  */
 export const GREATER_REALM_RUNTIME_FRAMING_SPEC_V1 = Object.freeze({
   algorithm: 'sha256-domain-lf-u64be-frames-v1',
