@@ -2605,6 +2605,527 @@ function assignTiersAndRegions(
   return Object.freeze({ tierId, regionId, tierCounts, regionCounts: Object.freeze(regionCounts) });
 }
 
+type GreaterRealmTierTwoCapacityComponent = Readonly<{
+  id: number;
+  cells: readonly number[];
+  innerBoundary: readonly number[];
+  outerBoundary: readonly number[];
+  originalParentCounts: readonly number[];
+}>;
+
+type GreaterRealmTierTwoGateApronCorridor = readonly number[];
+
+type GreaterRealmTierTwoGateApronEdge = Readonly<{
+  child: number;
+  componentId: number;
+  tierOneEndpoint: number;
+  tierTwoEndpoint: number;
+  tierOneCorridors: readonly [
+    GreaterRealmTierTwoGateApronCorridor,
+    GreaterRealmTierTwoGateApronCorridor,
+  ];
+  tierTwoCorridors: readonly [
+    GreaterRealmTierTwoGateApronCorridor,
+    GreaterRealmTierTwoGateApronCorridor,
+  ];
+  score: number;
+}>;
+
+type GreaterRealmTierTwoGateApronBundle = Readonly<{
+  child: number;
+  componentId: number;
+  edges: readonly [GreaterRealmTierTwoGateApronEdge, GreaterRealmTierTwoGateApronEdge];
+  tierOneCells: readonly number[];
+  tierTwoCells: readonly number[];
+  score: number;
+}>;
+
+type GreaterRealmTierTwoGateApronSiblingPair = Readonly<{
+  children: readonly [number, number];
+  bundles: readonly [
+    GreaterRealmTierTwoGateApronBundle,
+    GreaterRealmTierTwoGateApronBundle,
+  ];
+  tierOneCells: readonly number[];
+  tierTwoCells: readonly number[];
+  score: number;
+}>;
+
+type GreaterRealmTierTwoDryGateApronAuthority = Readonly<{
+  parentByChild: () => readonly number[];
+  siblingPairsFor: (
+    componentId: number,
+    parent: number,
+  ) => readonly GreaterRealmTierTwoGateApronSiblingPair[];
+  clear: () => void;
+}>;
+
+/**
+ * Discover the allocator's bounded dry-apron evidence without committing any
+ * political ownership. The authority deliberately retains the historical
+ * ranking and slice order; callers must clear its private coordinate paths on
+ * every success and failure path.
+ */
+function deriveTierTwoDryGateApronAuthority(input: Readonly<{
+  grid: IndexedAxialGrid;
+  candidateSeed: GreaterRealmTerrainSeed;
+  tierId: Uint8Array;
+  originalRegionId: Uint8Array;
+  waterRegime: Uint8Array;
+  legacyProtectedCell: Uint8Array;
+  legacyReserveCell: Uint8Array;
+  components: readonly GreaterRealmTierTwoCapacityComponent[];
+  reject: (suffix: string) => never;
+}>): GreaterRealmTierTwoDryGateApronAuthority {
+  type ScratchArray = Uint8Array | Uint16Array | Uint32Array | Int8Array | Int32Array;
+  const scratchArrays = new Set<ScratchArray>();
+  const privateIndexArrays = new Set<number[]>();
+  const own = <ArrayType extends ScratchArray>(array: ArrayType): ArrayType => {
+    scratchArrays.add(array);
+    return array;
+  };
+  const release = (array: ScratchArray): void => {
+    array.fill(0);
+    scratchArrays.delete(array);
+  };
+  const wipePaths = (paths: readonly (readonly number[])[] | undefined): void => {
+    if (!paths) return;
+    for (const path of paths) (path as number[]).fill(0);
+  };
+  const retainSelectedPaths = (
+    paths: readonly (readonly number[])[],
+    selectedPaths: ReadonlySet<readonly number[]>,
+  ): void => {
+    for (const path of paths) {
+      if (selectedPaths.has(path)) privateIndexArrays.add(path as number[]);
+      else (path as number[]).fill(0);
+    }
+  };
+  const gateApronEdgesByKey = new Map<string, GreaterRealmTierTwoGateApronEdge[]>();
+  const gateApronBundlesByKey = new Map<
+    string,
+    readonly GreaterRealmTierTwoGateApronBundle[]
+  >();
+  const bundleOptionsCache = new Map<
+    string,
+    readonly GreaterRealmTierTwoGateApronBundle[]
+  >();
+  const siblingPairCache = new Map<
+    string,
+    readonly GreaterRealmTierTwoGateApronSiblingPair[]
+  >();
+  let cleared = false;
+  const clear = (): void => {
+    if (cleared) return;
+    cleared = true;
+    for (const array of scratchArrays) array.fill(0);
+    scratchArrays.clear();
+    for (const indexes of privateIndexArrays) indexes.fill(0);
+    privateIndexArrays.clear();
+    gateApronEdgesByKey.clear();
+    gateApronBundlesByKey.clear();
+    bundleOptionsCache.clear();
+    siblingPairCache.clear();
+  };
+  try {
+    const {
+      grid,
+      candidateSeed,
+      tierId,
+      originalRegionId,
+      waterRegime,
+      legacyProtectedCell,
+      legacyReserveCell,
+      components,
+      reject,
+    } = input;
+    const componentByCell = own(new Int32Array(grid.cellCount));
+    componentByCell.fill(-1);
+    for (const component of components) {
+      for (const cell of component.cells) componentByCell[cell] = component.id;
+    }
+    const outerTierBoundary = own(new Uint8Array(grid.cellCount));
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
+        const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
+        if (neighbor <= cell) continue;
+        const firstTier = tierId[cell]!;
+        const secondTier = tierId[neighbor]!;
+        if (
+          (firstTier === 1 && secondTier === 2)
+          || (firstTier === 2 && secondTier === 1)
+        ) {
+          outerTierBoundary[cell] = 1;
+          outerTierBoundary[neighbor] = 1;
+        }
+      }
+    }
+    const distanceToOuterTierBoundary = own(new Uint16Array(grid.cellCount));
+    distanceToOuterTierBoundary.fill(0xffff);
+    const outerTierQueue = own(new Uint32Array(grid.cellCount));
+    let outerTierHead = 0;
+    let outerTierTail = 0;
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      if (outerTierBoundary[cell] !== 1) continue;
+      distanceToOuterTierBoundary[cell] = 0;
+      outerTierQueue[outerTierTail++] = cell;
+    }
+    while (outerTierHead < outerTierTail) {
+      const cell = outerTierQueue[outerTierHead++]!;
+      for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
+        const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
+        if (
+          neighbor < 0
+          || tierId[neighbor] !== tierId[cell]
+          || distanceToOuterTierBoundary[neighbor] !== 0xffff
+        ) continue;
+        distanceToOuterTierBoundary[neighbor] = distanceToOuterTierBoundary[cell]! + 1;
+        outerTierQueue[outerTierTail++] = neighbor;
+      }
+    }
+    const strictDryWaterRegime = own(new Uint8Array(grid.cellCount));
+    const apronRegionId = own(new Uint8Array(grid.cellCount));
+    const outerGateApronBarrier = own(new Uint8Array(grid.cellCount));
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      strictDryWaterRegime[cell] = waterRegime[cell] === WATER_DRY
+        ? WATER_DRY
+        : WATER_OCEAN;
+      apronRegionId[cell] = tierId[cell] === 1
+        ? originalRegionId[cell]!
+        : tierId[cell] === 2 ? TIER_I_REGION_COUNT : TIER_III_REGION_INDEX;
+      if (
+        distanceToOuterTierBoundary[cell]! < 2
+        && legacyProtectedCell[cell] === 0
+        && legacyReserveCell[cell] === 0
+      ) outerGateApronBarrier[cell] = 1;
+    }
+    const apronRobustTopology = robustRegionTopology(
+      grid,
+      apronRegionId,
+      strictDryWaterRegime,
+      outerGateApronBarrier,
+    );
+    own(apronRobustTopology.articulation);
+    own(apronRobustTopology.componentId);
+    const apronChannel = greaterRealmTerrainChannelId('tier-two-dry-gate-aprons');
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
+        const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
+        if (neighbor <= cell || tierId[cell] === tierId[neighbor]) continue;
+        const tierOneEndpoint = tierId[cell] === 1 ? cell : neighbor;
+        const tierTwoEndpoint = tierOneEndpoint === cell ? neighbor : cell;
+        if (
+          tierId[tierOneEndpoint] !== 1
+          || tierId[tierTwoEndpoint] !== 2
+          || waterRegime[tierOneEndpoint] !== WATER_DRY
+          || waterRegime[tierTwoEndpoint] !== WATER_DRY
+          || legacyProtectedCell[tierOneEndpoint] === 1
+          || legacyProtectedCell[tierTwoEndpoint] === 1
+          || legacyReserveCell[tierOneEndpoint] === 1
+          || legacyReserveCell[tierTwoEndpoint] === 1
+        ) continue;
+        const child = originalRegionId[tierOneEndpoint]!;
+        const componentId = componentByCell[tierTwoEndpoint]!;
+        if (child >= TIER_I_REGION_COUNT || componentId < 0) continue;
+        const tierOnePaths = barrierApproachPaths(
+          grid,
+          tierOneEndpoint,
+          child,
+          apronRegionId,
+          strictDryWaterRegime,
+          outerGateApronBarrier,
+          apronRobustTopology.componentId,
+          apronRobustTopology.componentSizes,
+        );
+        let tierTwoPaths: ReturnType<typeof barrierApproachPaths>;
+        try {
+          tierTwoPaths = barrierApproachPaths(
+            grid,
+            tierTwoEndpoint,
+            TIER_I_REGION_COUNT,
+            apronRegionId,
+            strictDryWaterRegime,
+            outerGateApronBarrier,
+            apronRobustTopology.componentId,
+            apronRobustTopology.componentSizes,
+          );
+        } catch (error) {
+          wipePaths(tierOnePaths);
+          throw error;
+        }
+        if (!tierOnePaths || !tierTwoPaths) {
+          wipePaths(tierOnePaths);
+          wipePaths(tierTwoPaths);
+          continue;
+        }
+        let compatible: ReturnType<typeof compatibleGateApproaches>;
+        try {
+          compatible = compatibleGateApproaches(
+            grid,
+            tierId,
+            strictDryWaterRegime,
+            outerGateApronBarrier,
+            apronRobustTopology.componentId,
+            apronRobustTopology.componentSizes,
+            tierOnePaths,
+            tierTwoPaths,
+          );
+        } catch (error) {
+          wipePaths(tierOnePaths);
+          wipePaths(tierTwoPaths);
+          throw error;
+        }
+        if (!compatible) {
+          wipePaths(tierOnePaths);
+          wipePaths(tierTwoPaths);
+          continue;
+        }
+        const selectedPaths: ReadonlySet<readonly number[]> = new Set([
+          compatible.first,
+          compatible.firstAlternate,
+          compatible.second,
+          compatible.secondAlternate,
+        ]);
+        retainSelectedPaths(tierOnePaths, selectedPaths);
+        retainSelectedPaths(tierTwoPaths, selectedPaths);
+        const edge = Object.freeze({
+          child,
+          componentId,
+          tierOneEndpoint,
+          tierTwoEndpoint,
+          tierOneCorridors: Object.freeze([
+            compatible.first,
+            compatible.firstAlternate,
+          ] as const),
+          tierTwoCorridors: Object.freeze([
+            compatible.second,
+            compatible.secondAlternate,
+          ] as const),
+          score: greaterRealmCounterRandomU32(
+            candidateSeed,
+            apronChannel,
+            grid.q[tierTwoEndpoint]!,
+            grid.r[tierTwoEndpoint]!,
+          ),
+        });
+        const key = `${componentId}:${child}`;
+        const edges = gateApronEdgesByKey.get(key) ?? [];
+        edges.push(edge);
+        gateApronEdgesByKey.set(key, edges);
+      }
+    }
+    // These full-grid arrays are construction-only. Retire them before the
+    // bounded bundle/pair search so they do not inflate the allocator's peak
+    // retained set while private coordinate alternatives are ranked.
+    release(componentByCell);
+    release(outerTierBoundary);
+    release(distanceToOuterTierBoundary);
+    release(outerTierQueue);
+    release(strictDryWaterRegime);
+    release(apronRegionId);
+    release(outerGateApronBarrier);
+    release(apronRobustTopology.articulation);
+    release(apronRobustTopology.componentId);
+    for (const [key, rawEdges] of gateApronEdgesByKey) {
+      const edges = [...rawEdges]
+        .sort((first, second) => first.score - second.score
+          || first.tierTwoEndpoint - second.tierTwoEndpoint)
+        .slice(0, 64);
+      const bundles: GreaterRealmTierTwoGateApronBundle[] = [];
+      for (let first = 0; first < edges.length; first += 1) {
+        for (let second = first + 1; second < edges.length; second += 1) {
+          const left = edges[first]!;
+          const right = edges[second]!;
+          if (
+            left.tierOneEndpoint === right.tierOneEndpoint
+            || left.tierTwoEndpoint === right.tierTwoEndpoint
+          ) continue;
+          const separation = axialDistance(
+            grid.q[left.tierTwoEndpoint]!,
+            grid.r[left.tierTwoEndpoint]!,
+            grid.q[right.tierTwoEndpoint]!,
+            grid.r[right.tierTwoEndpoint]!,
+          );
+          if (separation < 4 || separation > 48) continue;
+          const tierOneCells = [
+            left.tierOneEndpoint,
+            ...left.tierOneCorridors.flat(),
+            right.tierOneEndpoint,
+            ...right.tierOneCorridors.flat(),
+          ];
+          const tierTwoCells = [
+            left.tierTwoEndpoint,
+            ...left.tierTwoCorridors.flat(),
+            right.tierTwoEndpoint,
+            ...right.tierTwoCorridors.flat(),
+          ];
+          const corridorsConflict = (
+            left.tierOneCorridors.flat().includes(right.tierOneEndpoint)
+            || right.tierOneCorridors.flat().includes(left.tierOneEndpoint)
+            || left.tierTwoCorridors.flat().includes(right.tierTwoEndpoint)
+            || right.tierTwoCorridors.flat().includes(left.tierTwoEndpoint)
+          );
+          if (corridorsConflict) {
+            tierOneCells.fill(0);
+            tierTwoCells.fill(0);
+            continue;
+          }
+          const uniqueTierOneCells = [...new Set(tierOneCells)];
+          const uniqueTierTwoCells = [...new Set(tierTwoCells)];
+          tierOneCells.fill(0);
+          tierTwoCells.fill(0);
+          privateIndexArrays.add(uniqueTierOneCells);
+          privateIndexArrays.add(uniqueTierTwoCells);
+          bundles.push(Object.freeze({
+            child: left.child,
+            componentId: left.componentId,
+            edges: Object.freeze([left, right] as const),
+            tierOneCells: uniqueTierOneCells,
+            tierTwoCells: uniqueTierTwoCells,
+            score: left.score + right.score,
+          }));
+          if (bundles.length >= 32) break;
+        }
+        if (bundles.length >= 32) break;
+      }
+      gateApronBundlesByKey.set(key, Object.freeze(bundles));
+    }
+
+    const parentByChild = own(new Int8Array(TIER_I_REGION_COUNT));
+    parentByChild.fill(-1);
+    for (const [child, parentRegion] of GREATER_REALM_PROVISIONAL_GATE_GRAPH) {
+      if (
+        child < TIER_I_REGION_COUNT
+        && parentRegion >= TIER_I_REGION_COUNT
+        && parentRegion < TIER_III_REGION_INDEX
+      ) parentByChild[child] = parentRegion - TIER_I_REGION_COUNT;
+    }
+    if ([...parentByChild].some(parent => parent < 0)) reject('GATE_PARENT_SLOT_MISSING');
+    const childrenByParent = Array.from(
+      { length: TIER_II_REGION_COUNT },
+      () => [] as number[],
+    );
+    for (let child = 0; child < TIER_I_REGION_COUNT; child += 1) {
+      childrenByParent[parentByChild[child]!]!.push(child);
+    }
+    if (childrenByParent.some(children => children.length !== 2)) {
+      reject('GATE_PARENT_SLOT_MISSING');
+    }
+
+    const bundleOptionsFor = (
+      componentId: number,
+      child: number,
+    ): readonly GreaterRealmTierTwoGateApronBundle[] => {
+      const key = `${componentId}:${child}`;
+      const cached = bundleOptionsCache.get(key);
+      if (cached) return cached;
+      const options = [...gateApronBundlesByKey]
+        .filter(([bundleKey]) => Number.parseInt(bundleKey.split(':')[0]!, 10) === componentId)
+        .flatMap(([, bundles]) => bundles)
+        // Lowlands is immutable authority, both as a gate slot and as a donor.
+        // Every other slot may borrow physical dry terrain only through the
+        // explicit, count-balanced repartition staged below.
+        .filter(bundle => child === 0 ? bundle.child === 0 : bundle.child !== 0)
+        .sort((first, second) => (
+          Number(first.child !== child) - Number(second.child !== child)
+          || first.score - second.score
+          || first.child - second.child
+          || first.edges[0].tierTwoEndpoint - second.edges[0].tierTwoEndpoint
+        ))
+        .slice(0, 64);
+      const frozen = Object.freeze(options);
+      bundleOptionsCache.set(key, frozen);
+      return frozen;
+    };
+    const bundlesOverlap = (
+      first: readonly number[],
+      second: readonly number[],
+    ): boolean => first.some(cell => second.includes(cell));
+    const siblingPairsFor = (
+      componentId: number,
+      parent: number,
+    ): readonly GreaterRealmTierTwoGateApronSiblingPair[] => {
+      if (cleared) fail('GREATER_REALM_TIER_TWO_APRON_AUTHORITY_CLEARED');
+      if (
+        !Number.isSafeInteger(componentId)
+        || componentId < 0
+        || componentId >= components.length
+        || !Number.isSafeInteger(parent)
+        || parent < 0
+        || parent >= TIER_II_REGION_COUNT
+      ) fail('GREATER_REALM_TIER_TWO_APRON_AUTHORITY_QUERY_INVALID');
+      const cacheKey = `${componentId}:${parent}`;
+      const cached = siblingPairCache.get(cacheKey);
+      if (cached) return cached;
+      const [firstChild, secondChild] = childrenByParent[parent]!;
+      const pairs: GreaterRealmTierTwoGateApronSiblingPair[] = [];
+      for (const first of bundleOptionsFor(componentId, firstChild!)) {
+        for (const second of bundleOptionsFor(componentId, secondChild!)) {
+          if (
+            first === second
+            || bundlesOverlap(first.tierOneCells, second.tierOneCells)
+            || bundlesOverlap(first.tierTwoCells, second.tierTwoCells)
+          ) continue;
+          const separation = Math.min(...first.edges.flatMap(edge => (
+            second.edges.map(siblingEdge => axialDistance(
+              grid.q[edge.tierTwoEndpoint]!,
+              grid.r[edge.tierTwoEndpoint]!,
+              grid.q[siblingEdge.tierTwoEndpoint]!,
+              grid.r[siblingEdge.tierTwoEndpoint]!,
+            ))
+          )));
+          if (separation < 8) continue;
+          const tierOneCells = [...new Set([
+            ...first.tierOneCells,
+            ...second.tierOneCells,
+          ])];
+          const tierTwoCells = [...new Set([
+            ...first.tierTwoCells,
+            ...second.tierTwoCells,
+          ])];
+          privateIndexArrays.add(tierOneCells);
+          privateIndexArrays.add(tierTwoCells);
+          pairs.push(Object.freeze({
+            children: Object.freeze([firstChild!, secondChild!] as const),
+            bundles: Object.freeze([first, second] as const),
+            tierOneCells,
+            tierTwoCells,
+            score: first.score + second.score,
+          }));
+        }
+      }
+      pairs.sort((first, second) => (
+        Number(first.bundles[0].child !== first.children[0])
+        + Number(first.bundles[1].child !== first.children[1])
+        - Number(second.bundles[0].child !== second.children[0])
+        - Number(second.bundles[1].child !== second.children[1])
+        || first.score - second.score
+        || first.bundles[0].child - second.bundles[0].child
+        || first.bundles[1].child - second.bundles[1].child
+        || first.bundles[0].edges[0].tierTwoEndpoint
+          - second.bundles[0].edges[0].tierTwoEndpoint
+        || first.bundles[1].edges[0].tierTwoEndpoint
+          - second.bundles[1].edges[0].tierTwoEndpoint
+      ));
+      const frozen = Object.freeze(pairs);
+      siblingPairCache.set(cacheKey, frozen);
+      return frozen;
+    };
+    const readParentByChild = (): readonly number[] => {
+      if (cleared) fail('GREATER_REALM_TIER_TWO_APRON_AUTHORITY_CLEARED');
+      return Object.freeze([...parentByChild]);
+    };
+    return Object.freeze({
+      parentByChild: readParentByChild,
+      siblingPairsFor,
+      clear,
+    });
+  } catch (error) {
+    clear();
+    throw error;
+  }
+}
+
 /**
  * Reconcile the provisional middle ring against the authoritative water
  * surface before semantic region naming. The provisional partition is built
@@ -2651,6 +3172,7 @@ function allocateTierTwoPassableCapacity(
     ownedAllocatorArrays.delete(array);
   };
   let retainedAuthorityArrays: ReadonlySet<OwnedAllocatorArray> = new Set();
+  let gateApronAuthority: GreaterRealmTierTwoDryGateApronAuthority | undefined;
   const reject = (_suffix: string): never => rejectGreaterRealmCandidate(
     'GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT',
   );
@@ -2675,14 +3197,7 @@ function allocateTierTwoPassableCapacity(
     .sort((first, second) => second.length - first.length || first[0]! - second[0]!);
   if (passableComponents.length === 0) reject('PASSABLE_COMPONENTS_EMPTY');
 
-  type CapacityComponent = Readonly<{
-    id: number;
-    cells: readonly number[];
-    innerBoundary: readonly number[];
-    outerBoundary: readonly number[];
-    originalParentCounts: readonly number[];
-  }>;
-  const components: CapacityComponent[] = passableComponents.map((cells, id) => {
+  const components: GreaterRealmTierTwoCapacityComponent[] = passableComponents.map((cells, id) => {
     const innerBoundary: number[] = [];
     const outerBoundary: number[] = [];
     const originalParentCounts = Array<number>(TIER_II_REGION_COUNT).fill(0);
@@ -2736,343 +3251,25 @@ function allocateTierTwoPassableCapacity(
   // corridors into a durable interior. These are transactional capacity hints:
   // the later semantic repair may rename or replace them, and barriersAndGates
   // must independently re-prove the final eighteen dry gate routes.
-  const componentByCell = own(new Int32Array(grid.cellCount));
-  componentByCell.fill(-1);
-  for (const component of components) {
-    for (const cell of component.cells) componentByCell[cell] = component.id;
-  }
-  const outerTierBoundary = own(new Uint8Array(grid.cellCount));
-  for (let cell = 0; cell < grid.cellCount; cell += 1) {
-    for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
-      const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
-      if (neighbor <= cell) continue;
-      const firstTier = tierId[cell]!;
-      const secondTier = tierId[neighbor]!;
-      if (
-        (firstTier === 1 && secondTier === 2)
-        || (firstTier === 2 && secondTier === 1)
-      ) {
-        outerTierBoundary[cell] = 1;
-        outerTierBoundary[neighbor] = 1;
-      }
-    }
-  }
-  const distanceToOuterTierBoundary = own(new Uint16Array(grid.cellCount));
-  distanceToOuterTierBoundary.fill(0xffff);
-  const outerTierQueue = own(new Uint32Array(grid.cellCount));
-  let outerTierHead = 0;
-  let outerTierTail = 0;
-  for (let cell = 0; cell < grid.cellCount; cell += 1) {
-    if (outerTierBoundary[cell] !== 1) continue;
-    distanceToOuterTierBoundary[cell] = 0;
-    outerTierQueue[outerTierTail++] = cell;
-  }
-  while (outerTierHead < outerTierTail) {
-    const cell = outerTierQueue[outerTierHead++]!;
-    for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
-      const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
-      if (
-        neighbor < 0
-        || tierId[neighbor] !== tierId[cell]
-        || distanceToOuterTierBoundary[neighbor] !== 0xffff
-      ) continue;
-      distanceToOuterTierBoundary[neighbor] = distanceToOuterTierBoundary[cell]! + 1;
-      outerTierQueue[outerTierTail++] = neighbor;
-    }
-  }
-  const strictDryWaterRegime = own(new Uint8Array(grid.cellCount));
-  const apronRegionId = own(new Uint8Array(grid.cellCount));
-  const outerGateApronBarrier = own(new Uint8Array(grid.cellCount));
-  for (let cell = 0; cell < grid.cellCount; cell += 1) {
-    strictDryWaterRegime[cell] = waterRegime[cell] === WATER_DRY
-      ? WATER_DRY
-      : WATER_OCEAN;
-    apronRegionId[cell] = tierId[cell] === 1
-      ? originalRegionId[cell]!
-      : tierId[cell] === 2 ? TIER_I_REGION_COUNT : TIER_III_REGION_INDEX;
-    if (
-      distanceToOuterTierBoundary[cell]! < 2
-      && legacyProtectedCell[cell] === 0
-      && legacyReserveCell[cell] === 0
-    ) outerGateApronBarrier[cell] = 1;
-  }
-  const apronRobustTopology = robustRegionTopology(
+  gateApronAuthority = deriveTierTwoDryGateApronAuthority({
     grid,
-    apronRegionId,
-    strictDryWaterRegime,
-    outerGateApronBarrier,
-  );
-  own(apronRobustTopology.articulation);
-  own(apronRobustTopology.componentId);
-  type GateApronCorridor = readonly number[];
-  type GateApronEdge = Readonly<{
-    child: number;
-    componentId: number;
-    tierOneEndpoint: number;
-    tierTwoEndpoint: number;
-    tierOneCorridors: readonly [GateApronCorridor, GateApronCorridor];
-    tierTwoCorridors: readonly [GateApronCorridor, GateApronCorridor];
-    score: number;
-  }>;
-  const gateApronEdgesByKey = new Map<string, GateApronEdge[]>();
-  const apronChannel = greaterRealmTerrainChannelId('tier-two-dry-gate-aprons');
-  for (let cell = 0; cell < grid.cellCount; cell += 1) {
-    for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
-      const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
-      if (neighbor <= cell || tierId[cell] === tierId[neighbor]) continue;
-      const tierOneEndpoint = tierId[cell] === 1 ? cell : neighbor;
-      const tierTwoEndpoint = tierOneEndpoint === cell ? neighbor : cell;
-      if (
-        tierId[tierOneEndpoint] !== 1
-        || tierId[tierTwoEndpoint] !== 2
-        || waterRegime[tierOneEndpoint] !== WATER_DRY
-        || waterRegime[tierTwoEndpoint] !== WATER_DRY
-        || legacyProtectedCell[tierOneEndpoint] === 1
-        || legacyProtectedCell[tierTwoEndpoint] === 1
-        || legacyReserveCell[tierOneEndpoint] === 1
-        || legacyReserveCell[tierTwoEndpoint] === 1
-      ) continue;
-      const child = originalRegionId[tierOneEndpoint]!;
-      const componentId = componentByCell[tierTwoEndpoint]!;
-      if (child >= TIER_I_REGION_COUNT || componentId < 0) continue;
-      const tierOnePaths = barrierApproachPaths(
-        grid,
-        tierOneEndpoint,
-        child,
-        apronRegionId,
-        strictDryWaterRegime,
-        outerGateApronBarrier,
-        apronRobustTopology.componentId,
-        apronRobustTopology.componentSizes,
-      );
-      const tierTwoPaths = barrierApproachPaths(
-        grid,
-        tierTwoEndpoint,
-        TIER_I_REGION_COUNT,
-        apronRegionId,
-        strictDryWaterRegime,
-        outerGateApronBarrier,
-        apronRobustTopology.componentId,
-        apronRobustTopology.componentSizes,
-      );
-      if (!tierOnePaths || !tierTwoPaths) continue;
-      const compatible = compatibleGateApproaches(
-        grid,
-        tierId,
-        strictDryWaterRegime,
-        outerGateApronBarrier,
-        apronRobustTopology.componentId,
-        apronRobustTopology.componentSizes,
-        tierOnePaths,
-        tierTwoPaths,
-      );
-      if (!compatible) continue;
-      const edge = Object.freeze({
-        child,
-        componentId,
-        tierOneEndpoint,
-        tierTwoEndpoint,
-        tierOneCorridors: Object.freeze([
-          compatible.first,
-          compatible.firstAlternate,
-        ] as const),
-        tierTwoCorridors: Object.freeze([
-          compatible.second,
-          compatible.secondAlternate,
-        ] as const),
-        score: greaterRealmCounterRandomU32(
-          candidateSeed,
-          apronChannel,
-          grid.q[tierTwoEndpoint]!,
-          grid.r[tierTwoEndpoint]!,
-        ),
-      });
-      const key = `${componentId}:${child}`;
-      const edges = gateApronEdgesByKey.get(key) ?? [];
-      edges.push(edge);
-      gateApronEdgesByKey.set(key, edges);
-    }
-  }
-  type GateApronBundle = Readonly<{
-    child: number;
-    componentId: number;
-    edges: readonly [GateApronEdge, GateApronEdge];
-    tierOneCells: readonly number[];
-    tierTwoCells: readonly number[];
-    score: number;
-  }>;
-  const gateApronBundlesByKey = new Map<string, readonly GateApronBundle[]>();
-  for (const [key, rawEdges] of gateApronEdgesByKey) {
-    const edges = [...rawEdges]
-      .sort((first, second) => first.score - second.score
-        || first.tierTwoEndpoint - second.tierTwoEndpoint)
-      .slice(0, 64);
-    const bundles: GateApronBundle[] = [];
-    for (let first = 0; first < edges.length; first += 1) {
-      for (let second = first + 1; second < edges.length; second += 1) {
-        const left = edges[first]!;
-        const right = edges[second]!;
-        if (
-          left.tierOneEndpoint === right.tierOneEndpoint
-          || left.tierTwoEndpoint === right.tierTwoEndpoint
-        ) continue;
-        const separation = axialDistance(
-          grid.q[left.tierTwoEndpoint]!,
-          grid.r[left.tierTwoEndpoint]!,
-          grid.q[right.tierTwoEndpoint]!,
-          grid.r[right.tierTwoEndpoint]!,
-        );
-        if (separation < 4 || separation > 48) continue;
-        const tierOneCells = [
-          left.tierOneEndpoint,
-          ...left.tierOneCorridors.flat(),
-          right.tierOneEndpoint,
-          ...right.tierOneCorridors.flat(),
-        ];
-        const tierTwoCells = [
-          left.tierTwoEndpoint,
-          ...left.tierTwoCorridors.flat(),
-          right.tierTwoEndpoint,
-          ...right.tierTwoCorridors.flat(),
-        ];
-        if (
-          left.tierOneCorridors.flat().includes(right.tierOneEndpoint)
-          || right.tierOneCorridors.flat().includes(left.tierOneEndpoint)
-          || left.tierTwoCorridors.flat().includes(right.tierTwoEndpoint)
-          || right.tierTwoCorridors.flat().includes(left.tierTwoEndpoint)
-        ) continue;
-        bundles.push(Object.freeze({
-          child: left.child,
-          componentId: left.componentId,
-          edges: Object.freeze([left, right] as const),
-          tierOneCells: Object.freeze([...new Set(tierOneCells)]),
-          tierTwoCells: Object.freeze([...new Set(tierTwoCells)]),
-          score: left.score + right.score,
-        }));
-        if (bundles.length >= 32) break;
-      }
-      if (bundles.length >= 32) break;
-    }
-    gateApronBundlesByKey.set(key, Object.freeze(bundles));
-  }
-
-  const parentByChild = own(new Int8Array(TIER_I_REGION_COUNT));
-  parentByChild.fill(-1);
-  for (const [child, parentRegion] of GREATER_REALM_PROVISIONAL_GATE_GRAPH) {
-    if (
-      child < TIER_I_REGION_COUNT
-      && parentRegion >= TIER_I_REGION_COUNT
-      && parentRegion < TIER_III_REGION_INDEX
-    ) parentByChild[child] = parentRegion - TIER_I_REGION_COUNT;
-  }
-  if ([...parentByChild].some(parent => parent < 0)) reject('GATE_PARENT_SLOT_MISSING');
-  const childrenByParent = Array.from(
+    candidateSeed,
+    tierId,
+    originalRegionId,
+    waterRegime,
+    legacyProtectedCell,
+    legacyReserveCell,
+    components,
+    reject,
+  });
+  const parentByChild = gateApronAuthority.parentByChild();
+  const { siblingPairsFor } = gateApronAuthority;
+  const eligibleComponentsByParent = Array.from(
     { length: TIER_II_REGION_COUNT },
-    () => [] as number[],
+    (_, parent) => eligibleComponents.filter(
+      component => siblingPairsFor(component.id, parent).length > 0,
+    ),
   );
-  for (let child = 0; child < TIER_I_REGION_COUNT; child += 1) {
-    childrenByParent[parentByChild[child]!]!.push(child);
-  }
-  if (childrenByParent.some(children => children.length !== 2)) {
-    reject('GATE_PARENT_SLOT_MISSING');
-  }
-
-  const bundleOptionsCache = new Map<string, readonly GateApronBundle[]>();
-  const bundleOptionsFor = (
-    componentId: number,
-    child: number,
-  ): readonly GateApronBundle[] => {
-    const key = `${componentId}:${child}`;
-    const cached = bundleOptionsCache.get(key);
-    if (cached) return cached;
-    const options = [...gateApronBundlesByKey]
-      .filter(([bundleKey]) => Number.parseInt(bundleKey.split(':')[0]!, 10) === componentId)
-      .flatMap(([, bundles]) => bundles)
-      // Lowlands is immutable authority, both as a gate slot and as a donor.
-      // Every other slot may borrow physical dry terrain only through the
-      // explicit, count-balanced repartition staged below.
-      .filter(bundle => child === 0 ? bundle.child === 0 : bundle.child !== 0)
-      .sort((first, second) => (
-        Number(first.child !== child) - Number(second.child !== child)
-        || first.score - second.score
-        || first.child - second.child
-        || first.edges[0].tierTwoEndpoint - second.edges[0].tierTwoEndpoint
-      ))
-      .slice(0, 64);
-    const frozen = Object.freeze(options);
-    bundleOptionsCache.set(key, frozen);
-    return frozen;
-  };
-  const bundlesOverlap = (
-    first: readonly number[],
-    second: readonly number[],
-  ): boolean => first.some(cell => second.includes(cell));
-  type GateApronSiblingPair = Readonly<{
-    children: readonly [number, number];
-    bundles: readonly [GateApronBundle, GateApronBundle];
-    tierOneCells: readonly number[];
-    tierTwoCells: readonly number[];
-    score: number;
-  }>;
-  const siblingPairCache = new Map<string, readonly GateApronSiblingPair[]>();
-  const siblingPairsFor = (
-    componentId: number,
-    parent: number,
-  ): readonly GateApronSiblingPair[] => {
-    const cacheKey = `${componentId}:${parent}`;
-    const cached = siblingPairCache.get(cacheKey);
-    if (cached) return cached;
-    const [firstChild, secondChild] = childrenByParent[parent]!;
-    const pairs: GateApronSiblingPair[] = [];
-    for (const first of bundleOptionsFor(componentId, firstChild!)) {
-      for (const second of bundleOptionsFor(componentId, secondChild!)) {
-        if (
-          first === second
-          || bundlesOverlap(first.tierOneCells, second.tierOneCells)
-          || bundlesOverlap(first.tierTwoCells, second.tierTwoCells)
-        ) continue;
-        const separation = Math.min(...first.edges.flatMap(edge => (
-          second.edges.map(siblingEdge => axialDistance(
-            grid.q[edge.tierTwoEndpoint]!,
-            grid.r[edge.tierTwoEndpoint]!,
-            grid.q[siblingEdge.tierTwoEndpoint]!,
-            grid.r[siblingEdge.tierTwoEndpoint]!,
-          ))
-        )));
-        if (separation < 8) continue;
-        pairs.push(Object.freeze({
-          children: Object.freeze([firstChild!, secondChild!] as const),
-          bundles: Object.freeze([first, second] as const),
-          tierOneCells: Object.freeze([
-            ...new Set([...first.tierOneCells, ...second.tierOneCells]),
-          ]),
-          tierTwoCells: Object.freeze([
-            ...new Set([...first.tierTwoCells, ...second.tierTwoCells]),
-          ]),
-          score: first.score + second.score,
-        }));
-      }
-    }
-    pairs.sort((first, second) => (
-      Number(first.bundles[0].child !== first.children[0])
-      + Number(first.bundles[1].child !== first.children[1])
-      - Number(second.bundles[0].child !== second.children[0])
-      - Number(second.bundles[1].child !== second.children[1])
-      || first.score - second.score
-      || first.bundles[0].child - second.bundles[0].child
-      || first.bundles[1].child - second.bundles[1].child
-      || first.bundles[0].edges[0].tierTwoEndpoint
-        - second.bundles[0].edges[0].tierTwoEndpoint
-      || first.bundles[1].edges[0].tierTwoEndpoint
-        - second.bundles[1].edges[0].tierTwoEndpoint
-    ));
-    const frozen = Object.freeze(pairs);
-    siblingPairCache.set(cacheKey, frozen);
-    return frozen;
-  };
-  const eligibleComponentsByParent = childrenByParent.map((_, parent) => (
-    eligibleComponents.filter(component => siblingPairsFor(component.id, parent).length > 0)
-  ));
 
   type CapacityAssignment = Readonly<{
     componentByParent: readonly number[];
@@ -3141,7 +3338,7 @@ function allocateTierTwoPassableCapacity(
 
   type GateApronPlan = Readonly<{
     parentByChild: readonly number[];
-    bundleByChild: readonly GateApronBundle[];
+    bundleByChild: readonly GreaterRealmTierTwoGateApronBundle[];
     tierTwoOwnershipForestByParent: readonly (readonly number[])[];
   }>;
   const parentOrders = (parents: readonly number[]): readonly (readonly number[])[] => {
@@ -3162,7 +3359,7 @@ function allocateTierTwoPassableCapacity(
     ]);
   };
   const buildTierOneApronRepartition = (
-    bundleByChild: readonly GateApronBundle[],
+    bundleByChild: readonly GreaterRealmTierTwoGateApronBundle[],
   ): Readonly<{
     tierOneRegionId: Uint8Array;
   }> | undefined => {
@@ -3333,7 +3530,7 @@ function allocateTierTwoPassableCapacity(
   };
   const buildTierTwoOwnershipForests = (
     capacityAssignment: CapacityAssignment,
-    bundleByChild: readonly GateApronBundle[],
+    bundleByChild: readonly GreaterRealmTierTwoGateApronBundle[],
   ): readonly (readonly number[])[] | undefined => {
     const scopedArrays: OwnedAllocatorArray[] = [];
     const scopedOwn = <ArrayType extends OwnedAllocatorArray>(array: ArrayType): ArrayType => {
@@ -3459,7 +3656,7 @@ function allocateTierTwoPassableCapacity(
   };
   let selectedRepartition: ReturnType<typeof buildTierOneApronRepartition>;
   let selectedOwnershipForests: readonly (readonly number[])[] | undefined;
-  let selectedBundleByChild: readonly GateApronBundle[] | undefined;
+  let selectedBundleByChild: readonly GreaterRealmTierTwoGateApronBundle[] | undefined;
   const MAX_GATE_APRON_SEARCH_NODES = 20_000;
   const MAX_GATE_APRON_COMPLETE_PLANS = 128;
   const gateApronSearch = searchGreaterRealmRankedSiblingAlternatives(
@@ -3481,14 +3678,16 @@ function allocateTierTwoPassableCapacity(
       )).map(parent => siblingPairsByParent[parent]!);
     },
     (capacityAssignment, siblingPairs) => {
-      const bundleByChild = new Array<GateApronBundle | undefined>(TIER_I_REGION_COUNT);
+      const bundleByChild = new Array<
+        GreaterRealmTierTwoGateApronBundle | undefined
+      >(TIER_I_REGION_COUNT);
       for (const pair of siblingPairs) {
         const [firstChild, secondChild] = pair.children;
         bundleByChild[firstChild] = pair.bundles[0];
         bundleByChild[secondChild] = pair.bundles[1];
       }
       if (bundleByChild.includes(undefined)) return false;
-      const completeBundles = bundleByChild as GateApronBundle[];
+      const completeBundles = bundleByChild as GreaterRealmTierTwoGateApronBundle[];
       const ownershipForests = buildTierTwoOwnershipForests(
         capacityAssignment,
         completeBundles,
@@ -3513,7 +3712,7 @@ function allocateTierTwoPassableCapacity(
   if (!selectedRepartition || !selectedOwnershipForests || !selectedBundleByChild) {
     reject('DRY_GATE_APRON_PLAN_MISSING');
   }
-  const bundleByChild = selectedBundleByChild as readonly GateApronBundle[];
+  const bundleByChild = selectedBundleByChild as readonly GreaterRealmTierTwoGateApronBundle[];
   const committedRepartition = selectedRepartition as Readonly<{
     tierOneRegionId: Uint8Array;
   }>;
@@ -4019,6 +4218,7 @@ function allocateTierTwoPassableCapacity(
   ]);
   return authority;
   } finally {
+    gateApronAuthority?.clear();
     for (const array of ownedAllocatorArrays) {
       if (!retainedAuthorityArrays.has(array)) array.fill(0);
     }
