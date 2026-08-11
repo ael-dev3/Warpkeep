@@ -7,6 +7,7 @@ import { build, type Plugin } from 'esbuild';
 
 import type * as FoundingAuthority from '../src/foundingAuthority';
 import type * as RelocationAuthority from '../src/greaterRealmRelocationAuthority';
+import type * as CastleWorkerAuthority from '../src/castleWorkerAuthority';
 
 import {
   assertGreaterRealmCurrentFounderForFidV1,
@@ -31,6 +32,7 @@ import {
   CASTLE_WORKER_POLICY_VERSION,
   planCastleWorkerTimeline,
   rosterDigestForCastleIds,
+  workerResourcePolicy,
 } from '../src/castleWorkerPolicy';
 import { expectedWorkerRowsForCastle } from '../src/castleWorkerRoster';
 import { ADMITTED_DAILY_MARK_POLICY_VERSION } from '../src/marksAuthorityPolicy';
@@ -45,6 +47,7 @@ import {
   GREATER_REALM_CASTLE_CAPACITY,
   GREATER_REALM_PUBLIC_REGIONS,
   GREATER_REALM_RUNTIME_PARTITION_VERSION,
+  GREATER_REALM_UNASSIGNED_RANK,
   GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED,
 } from '../src/greaterRealmV17Policy';
 import {
@@ -67,7 +70,12 @@ const sdkRuntimeStub: Plugin = {
       args => ({
         loader: 'js',
         contents: args.path === 'spacetimedb'
-          ? 'export const ScheduleAt = Object.freeze({});'
+          ? `export const ScheduleAt = Object.freeze({
+              time: (microsSinceUnixEpoch) => Object.freeze({
+                tag: 'Time',
+                value: Object.freeze({ microsSinceUnixEpoch })
+              })
+            });`
           : `
               export class SenderError extends Error {
                 constructor(message) {
@@ -122,6 +130,17 @@ const {
   rollbackGreaterRealmBeforeCommitAuthorizedTransactionV1,
 } = await loadExactProductionModule<typeof RelocationAuthority>(
   new URL('../src/greaterRealmRelocationAuthority.ts', import.meta.url),
+);
+const {
+  dispatchGreaterRealmCastleWorkerV2,
+  inspectCastleWorkerGraph,
+  inspectCastleWorkerGraphForCurrentGameplayV1,
+  projectMyGreaterRealmWorkerStateV2,
+  projectMyWorkerStateForCurrentGameplayV1,
+  recallCastleWorker,
+  runCastleWorkerSchedule,
+} = await loadExactProductionModule<typeof CastleWorkerAuthority>(
+  new URL('../src/castleWorkerAuthority.ts', import.meta.url),
 );
 
 type Row = Record<string, any>;
@@ -212,8 +231,12 @@ class MemoryTable {
   }
 }
 
-function empty(primary = 'id', indexes: Readonly<Record<string, string>> = {}): MemoryTable {
-  return new MemoryTable(primary, indexes);
+function empty(
+  primary = 'id',
+  indexes: Readonly<Record<string, string>> = {},
+  autoInc = false,
+): MemoryTable {
+  return new MemoryTable(primary, indexes, [], autoInc);
 }
 
 function timestamp(microsSinceUnixEpoch: bigint) {
@@ -286,19 +309,19 @@ function tableSet(): Record<string, MemoryTable> {
     resourceAccountV1: empty('fid', { castleId: 'castleId' }),
     goldSiteV1: empty('siteId'),
     goldNodeOccupationV1: empty('siteId'),
-    goldExpeditionV1: empty('expeditionId'),
+    goldExpeditionV1: empty('expeditionId', { fid: 'fid' }),
     goldExpeditionIdempotencyV1: empty('requestKey'),
     goldExpeditionScheduleV1: empty('scheduleId'),
     realmForestLayoutV1: empty('realmId'),
     realmForestInstanceV1: empty('tileKey'),
     foodSiteV1: empty('siteId'),
     foodNodeOccupationV1: empty('siteId'),
-    foodExpeditionV1: empty('expeditionId'),
+    foodExpeditionV1: empty('expeditionId', { fid: 'fid' }),
     foodExpeditionIdempotencyV1: empty('requestKey'),
     foodExpeditionScheduleV1: empty('scheduleId'),
     woodSiteV1: empty('siteId'),
     woodNodeOccupationV1: empty('siteId'),
-    woodExpeditionV1: empty('expeditionId'),
+    woodExpeditionV1: empty('expeditionId', { fid: 'fid' }),
     woodExpeditionIdempotencyV1: empty('requestKey'),
     woodExpeditionScheduleV1: empty('scheduleId'),
     realmWaterLayoutV1: empty('realmId'),
@@ -307,16 +330,26 @@ function tableSet(): Record<string, MemoryTable> {
     realmEnvironmentV1: empty('realmId'),
     stoneSiteV1: empty('siteId'),
     stoneNodeOccupationV1: empty('siteId'),
-    stoneExpeditionV1: empty('expeditionId'),
+    stoneExpeditionV1: empty('expeditionId', { fid: 'fid' }),
     stoneExpeditionIdempotencyV1: empty('requestKey'),
     stoneExpeditionScheduleV1: empty('scheduleId'),
     realmWaterRevisionV1: empty('realmId'),
     realmWorkerSystemV1: empty('realmId'),
     castleWorkerV1: empty('workerId', { byOriginCastle: 'originCastleId' }),
-    workerAssignmentV1: empty('assignmentId', { workerId: 'workerId' }),
+    workerAssignmentV1: empty(
+      'assignmentId',
+      { workerId: 'workerId', byFid: 'fid' },
+    ),
     workerNodeOccupationV1: empty('nodeKey', { byWorker: 'workerId' }),
-    workerCommandIdempotencyV1: empty('requestKey'),
-    workerAssignmentScheduleV1: empty('scheduleId', { byAssignment: 'assignmentId' }),
+    workerCommandIdempotencyV1: empty(
+      'requestKey',
+      { byFid: 'fid' },
+    ),
+    workerAssignmentScheduleV1: empty(
+      'scheduleId',
+      { byAssignment: 'assignmentId', byWorker: 'workerId' },
+      true,
+    ),
     accessRequestV1: empty('fid'),
     dailyMarkGrantV1: empty('grantKey'),
     dailyMarkScheduleV1: empty('scheduleId'),
@@ -339,11 +372,18 @@ function tableSet(): Record<string, MemoryTable> {
     greaterRealmReleaseV1: empty('atlasId'),
     greaterRealmChunkV1: empty('chunkHandle', { importOrdinal: 'importOrdinal' }),
     greaterRealmNavigationComponentV1: empty('componentKey', { componentOrdinal: 'componentOrdinal' }),
-    greaterRealmCellV1: empty('cellKey', { releaseOrdinal: 'releaseOrdinal' }),
+    greaterRealmCellV1: empty(
+      'cellKey',
+      { releaseOrdinal: 'releaseOrdinal', atlasCoordKey: 'atlasCoordKey' },
+    ),
     greaterRealmCastleSlotV1: empty('slotId', { releaseOrdinal: 'releaseOrdinal' }),
     greaterRealmCastleClaimV1: empty('slotId', { ownerFid: 'ownerFid', castleId: 'castleId' }),
     greaterRealmCellOccupancyV1: empty('cellKey', { castleId: 'castleId' }),
-    greaterRealmResourceNodeV1: empty('nodeId', { releaseOrdinal: 'releaseOrdinal' }),
+    greaterRealmResourceNodeV1: empty(
+      'nodeId',
+      { releaseOrdinal: 'releaseOrdinal', locationId: 'locationId' },
+      ['locationId'],
+    ),
     greaterRealmActivationV1: empty('activationId'),
     realmAtlasV1: empty('atlasId'),
     realmAtlasVisibleRegionV1: empty('regionId'),
@@ -356,9 +396,16 @@ class Fixture {
   readonly ctx: any;
   mutationCount = 0;
   faultAt: number | undefined;
+  uuidSequence = 0;
 
   constructor() {
-    this.ctx = { db: this.tables, timestamp: NOW };
+    this.ctx = {
+      db: this.tables,
+      timestamp: NOW,
+      newUuidV7: () => ({
+        toString: () => `00000000-0000-7000-8000-${String(++this.uuidSequence).padStart(12, '0')}`,
+      }),
+    };
     for (const table of Object.values(this.tables)) {
       table.mutate = () => {
         this.mutationCount += 1;
@@ -566,6 +613,10 @@ class Fixture {
       const componentKey = `GRC-${opaqueSuffix(regionIndex)}`;
       db.greaterRealmNavigationComponentV1.rows.push({
         componentKey, atlasId, componentOrdinal: regionIndex,
+        regionId: region.id,
+        tier: 1,
+        rootCellKey: `${region.id}:0:0`,
+        cellCount: 100,
         active: true,
       });
       db.greaterRealmChunkV1.rows.push({
@@ -592,6 +643,9 @@ class Fixture {
           tier: 1,
           passable: true,
           yieldClass: releaseOrdinal % 2 === 0 ? 2 : 1,
+          routeDepth: rank,
+          routeParentDirection: rank === 0 ? undefined : 4,
+          sealedBoundaryMask: 0,
         });
         db.greaterRealmCastleSlotV1.rows.push({
           slotId,
@@ -759,6 +813,79 @@ function admissionProfileFor(fid: bigint) {
     displayName: `Future Founder ${fid.toString()}`,
     pfpUrl: `https://example.com/founder-${fid.toString()}.png`,
     publicBio: undefined,
+  });
+}
+
+function prepareGreaterRealmWorkerLocation(
+  fixture: Fixture,
+  resourceKind: 'food' | 'wood' | 'stone' | 'gold',
+  nodeCount = 2,
+  fid = 1_001n,
+  nodeOrdinalStart = 0,
+): Readonly<{ locationId: string; destinationCellKey: string }> {
+  assert.ok(nodeCount >= 1 && nodeCount <= 32);
+  assert.ok(nodeOrdinalStart >= 0);
+  const founder = assertGreaterRealmCurrentFounderForFidV1(fixture.ctx, fid);
+  assert.equal(founder.source, 'v17');
+  const origin = fixture.tables.greaterRealmCellV1.cellKey.find(founder.castle.tileKey)!;
+  const destination = fixture.tables.greaterRealmCellV1.rows.find(row => (
+    row.componentKey === origin.componentKey && row.cellKey !== origin.cellKey
+  ))!;
+  const groupCandidates = fixture.tables.greaterRealmResourceNodeV1.rows
+    .filter(row => (
+      row.regionId === destination.regionId
+      && row.componentKey === destination.componentKey
+      && row.resourceKind === resourceKind
+    ))
+    .sort((left, right) => left.releaseOrdinal - right.releaseOrdinal);
+  const candidates = groupCandidates.slice(nodeOrdinalStart, nodeOrdinalStart + nodeCount);
+  assert.equal(candidates.length, nodeCount);
+  let locationId = `GRL-${opaqueSuffix(50_000 + candidates[0]!.releaseOrdinal)}`;
+  if (nodeOrdinalStart > 0) {
+    const previous = groupCandidates[nodeOrdinalStart - 1]!;
+    const previousCell = fixture.tables.greaterRealmCellV1.rows.find(row => (
+      row.componentKey === origin.componentKey && row.cellKey !== destination.cellKey
+    ))!;
+    const precedingLocationId = `GRL-${'A'.repeat(25)}A`;
+    locationId = `GRL-${'A'.repeat(25)}B`;
+    assert.ok(precedingLocationId.localeCompare(locationId) < 0);
+    Object.assign(previous, {
+      locationId: precedingLocationId,
+      cellKey: previousCell.cellKey,
+      nodeOrdinal: nodeOrdinalStart - 1,
+      allocationRank: GREATER_REALM_UNASSIGNED_RANK,
+    });
+  }
+  for (let index = 0; index < candidates.length; index += 1) {
+    Object.assign(candidates[index]!, {
+      locationId,
+      cellKey: destination.cellKey,
+      nodeOrdinal: nodeOrdinalStart + index,
+      allocationRank: GREATER_REALM_UNASSIGNED_RANK,
+      legacyCatalogId: `${resourceKind}-shared-fixture`,
+    });
+  }
+  return Object.freeze({ locationId, destinationCellKey: destination.cellKey });
+}
+
+function greaterRealmDispatchInput(
+  fixture: Fixture,
+  workerOrdinal: number,
+  resourceKind: 'food' | 'wood' | 'stone' | 'gold',
+  locationId: string,
+  idempotencyKey: string,
+  fid = 1_001n,
+) {
+  const castle = fixture.tables.castle.ownerFid.find(fid)!;
+  const atlas = fixture.tables.realmAtlasV1.rows[0]!;
+  return Object.freeze({
+    fid,
+    castle,
+    workerId: `genesis-001-castle-${castle.castleId.toString()}-worker-0${workerOrdinal}`,
+    resourceKind,
+    locationId,
+    expectedRevision: atlas.revision as bigint,
+    idempotencyKey,
   });
 }
 
@@ -1721,7 +1848,7 @@ test('post-commit founded suffix stays balanced, exact, and live across retry an
   );
 });
 
-test('active v17 founding derives the next balanced slot and commits one complete graph', () => {
+test('active v17 founding commits one graph and keeps the exact 101-castle Worker lifecycle live', () => {
   const fixture = new Fixture();
   advanceToActive(fixture);
   enableCanonicalInnerKeep(fixture);
@@ -1759,10 +1886,85 @@ test('active v17 founding derives the next balanced slot and commits one complet
   assert.equal(workerV2.currentCastleCount, 101);
   assert.equal(workerV2.currentWorkerCount, 404);
   assert.equal(workerV2.rosterDigest, workerV1.rosterDigest);
+  assert.equal(
+    inspectCastleWorkerGraph(fixture.ctx).systemConfigValid,
+    false,
+    'the frozen rollout classifier remains capped at 100',
+  );
+  const currentWorkerHealth = inspectCastleWorkerGraphForCurrentGameplayV1(fixture.ctx);
+  assert.equal(currentWorkerHealth.systemConfigValid, true);
+  assert.equal(currentWorkerHealth.expectedCastleCount, 101n);
+  assert.equal(currentWorkerHealth.expectedWorkerCount, 404n);
+  assert.equal(currentWorkerHealth.rosterDigestMatches, true);
   assert.equal(fixture.tables.resourceAccountV1.fid.find(fid)?.food, 0n);
   assert.equal(fixture.tables.resourceAccountV1.fid.find(fid)?.wood, 0n);
   assert.equal(fixture.tables.resourceAccountV1.fid.find(fid)?.stone, 0n);
   assert.equal(fixture.tables.resourceAccountV1.fid.find(fid)?.gold, 0n);
+
+  const workerControl = projectMyGreaterRealmWorkerStateV2(fixture.ctx, fid);
+  assert.equal(workerControl.workers.length, 4);
+  assert.ok(workerControl.workers.every(worker => worker.status === 'idle'));
+  const sharedGameplayControl = projectMyWorkerStateForCurrentGameplayV1(
+    fixture.ctx,
+    fid,
+  );
+  assert.deepEqual(sharedGameplayControl.balances, workerControl.balances);
+  assert.equal(sharedGameplayControl.workers.length, 4);
+  const workerTarget = prepareGreaterRealmWorkerLocation(fixture, 'food', 1, fid);
+  const naturalInput = greaterRealmDispatchInput(
+    fixture,
+    1,
+    'food',
+    workerTarget.locationId,
+    'greater-worker-101-natural',
+    fid,
+  );
+  fixture.transaction(() => dispatchGreaterRealmCastleWorkerV2(fixture.ctx, naturalInput));
+  const arrival = fixture.tables.workerAssignmentScheduleV1.byWorker.find(
+    naturalInput.workerId,
+  )!;
+  fixture.ctx.timestamp = timestamp(arrival.scheduledAt.value.microsSinceUnixEpoch);
+  fixture.transaction(() => runCastleWorkerSchedule(fixture.ctx, arrival));
+  assert.equal(fixture.tables.castleWorkerV1.workerId.find(naturalInput.workerId)!.status, 'gathering');
+  const expiry = fixture.tables.workerAssignmentScheduleV1.byWorker.find(
+    naturalInput.workerId,
+  )!;
+  fixture.ctx.timestamp = timestamp(expiry.scheduledAt.value.microsSinceUnixEpoch);
+  fixture.transaction(() => runCastleWorkerSchedule(fixture.ctx, expiry));
+  assert.equal(fixture.tables.castleWorkerV1.workerId.find(naturalInput.workerId)!.status, 'returning');
+  assert.equal(
+    fixture.tables.workerAssignmentV1.workerId.find(naturalInput.workerId)!.materializedAmount,
+    workerResourcePolicy('food').gatheringTotal,
+  );
+  const naturalReturn = fixture.tables.workerAssignmentScheduleV1.byWorker.find(
+    naturalInput.workerId,
+  )!;
+  fixture.ctx.timestamp = timestamp(naturalReturn.scheduledAt.value.microsSinceUnixEpoch);
+  fixture.transaction(() => runCastleWorkerSchedule(fixture.ctx, naturalReturn));
+  assert.equal(fixture.tables.castleWorkerV1.workerId.find(naturalInput.workerId)!.status, 'idle');
+
+  const recalledInput = greaterRealmDispatchInput(
+    fixture,
+    2,
+    'food',
+    workerTarget.locationId,
+    'greater-worker-101-recalled',
+    fid,
+  );
+  fixture.transaction(() => dispatchGreaterRealmCastleWorkerV2(fixture.ctx, recalledInput));
+  fixture.transaction(() => recallCastleWorker(fixture.ctx, {
+    fid,
+    castle: recalledInput.castle,
+    workerId: recalledInput.workerId,
+    idempotencyKey: 'greater-worker-101-recall',
+  }));
+  const recalledReturn = fixture.tables.workerAssignmentScheduleV1.byWorker.find(
+    recalledInput.workerId,
+  )!;
+  fixture.ctx.timestamp = timestamp(recalledReturn.scheduledAt.value.microsSinceUnixEpoch);
+  fixture.transaction(() => runCastleWorkerSchedule(fixture.ctx, recalledReturn));
+  assert.equal(fixture.tables.castleWorkerV1.workerId.find(recalledInput.workerId)!.status, 'idle');
+  assert.equal(fixture.tables.greaterRealmActivationV1.rows[0]!.postCanaryDispatchCount, 2);
 
   const replayBefore = stateText(fixture);
   assert.equal(ensureGenesisFounder(fixture.ctx, fid, admission), 'preserved');
@@ -1869,6 +2071,41 @@ test('the 600th v17 castle succeeds, the 601st fails, and capacity never blocks 
   assert.equal(fixture.tables.greaterRealmActivationV1.rows[0]!.nextAllocationSequence, 600n);
   assert.equal(fixture.tables.realmWorkerSystemV2.rows[0]!.currentCastleCount, 600);
   assert.equal(fixture.tables.realmWorkerSystemV2.rows[0]!.currentWorkerCount, 2_400);
+
+  const control = projectMyGreaterRealmWorkerStateV2(fixture.ctx, fid600);
+  assert.equal(control.resource.castleId, 600n);
+  assert.equal(control.workers.length, 4);
+  assert.ok(control.workers.every(worker => worker.status === 'idle'));
+  const workerTarget = prepareGreaterRealmWorkerLocation(
+    fixture,
+    'wood',
+    1,
+    fid600,
+  );
+  const workerInput = greaterRealmDispatchInput(
+    fixture,
+    1,
+    'wood',
+    workerTarget.locationId,
+    'greater-worker-capacity-0600',
+    fid600,
+  );
+  const workerDispatch = fixture.transaction(() => (
+    dispatchGreaterRealmCastleWorkerV2(fixture.ctx, workerInput)
+  ));
+  assert.equal(workerDispatch.leaseId, `${workerTarget.locationId}:1`);
+  assert.equal(fixture.tables.greaterRealmActivationV1.rows[0]!.postCanaryDispatchCount, 1);
+  fixture.transaction(() => recallCastleWorker(fixture.ctx, {
+    fid: fid600,
+    castle: workerInput.castle,
+    workerId: workerInput.workerId,
+    idempotencyKey: 'greater-worker-capacity-recall-0600',
+  }));
+  const capacityReturn = fixture.tables.workerAssignmentScheduleV1.byWorker.find(
+    workerInput.workerId,
+  )!;
+  fixture.transaction(() => runCastleWorkerSchedule(fixture.ctx, capacityReturn));
+  assert.equal(fixture.tables.castleWorkerV1.workerId.find(workerInput.workerId)!.status, 'idle');
 
   const replayBefore = stateText(fixture);
   assert.equal(ensureGenesisFounder(fixture.ctx, fid600, admission600), 'preserved');
@@ -2009,5 +2246,286 @@ test('post-canary counters and active commit irreversibly close rollback; halt p
   assert.equal(
     errorCode(() => resumeGreaterRealmActiveAuthorizedTransactionV1(preactive.ctx)),
     'GREATER_REALM_RESUME_PHASE_INVALID',
+  );
+});
+
+test('active v17 Worker dispatch accepts an exporter-shaped second lexical location block', () => {
+  const fixture = new Fixture();
+  advanceToActive(fixture);
+  const target = prepareGreaterRealmWorkerLocation(fixture, 'wood', 2, 1_001n, 1);
+  const rows = fixture.tables.greaterRealmResourceNodeV1.locationId.filter(target.locationId)
+    .sort((left, right) => left.releaseOrdinal - right.releaseOrdinal);
+  assert.deepEqual(rows.map(row => row.nodeOrdinal), [1, 2]);
+  assert.equal(rows[1]!.releaseOrdinal, rows[0]!.releaseOrdinal + 1);
+  const preceding = fixture.tables.greaterRealmResourceNodeV1.releaseOrdinal.find(
+    rows[0]!.releaseOrdinal - 1,
+  )!;
+  assert.equal(preceding.nodeOrdinal, 0);
+  assert.ok(preceding.locationId.localeCompare(target.locationId) < 0);
+  assert.notEqual(preceding.cellKey, rows[0]!.cellKey);
+
+  const input = greaterRealmDispatchInput(
+    fixture,
+    1,
+    'wood',
+    target.locationId,
+    'greater-worker-second-location-0001',
+  );
+  const result = fixture.transaction(() => (
+    dispatchGreaterRealmCastleWorkerV2(fixture.ctx, input)
+  ));
+  assert.equal(result.idempotent, false);
+  assert.equal(result.leaseId, `${target.locationId}:1`);
+});
+
+test('active v17 Worker dispatch allocates first-free public leases, replays exactly, and survives recall/return', () => {
+  const fixture = new Fixture();
+  advanceToActive(fixture);
+  const target = prepareGreaterRealmWorkerLocation(fixture, 'food', 2);
+  const activation = fixture.tables.greaterRealmActivationV1.rows[0]!;
+  const workerRootBefore = clone(fixture.tables.realmWorkerSystemV2.rows[0]!);
+  const foundingCount = activation.postCanaryFoundingCount;
+  const allocationSequence = activation.nextAllocationSequence;
+  const firstInput = greaterRealmDispatchInput(
+    fixture,
+    1,
+    'food',
+    target.locationId,
+    'greater-worker-dispatch-0001',
+  );
+  const first = fixture.transaction(() => (
+    dispatchGreaterRealmCastleWorkerV2(fixture.ctx, firstInput)
+  ));
+  assert.equal(first.idempotent, false);
+  assert.equal(first.leaseId, `${target.locationId}:1`);
+  assert.equal(fixture.tables.greaterRealmActivationV1.rows[0]!.postCanaryDispatchCount, 1);
+  assert.equal(fixture.tables.greaterRealmActivationV1.rows[0]!.postCanaryFoundingCount, foundingCount);
+  assert.equal(fixture.tables.greaterRealmActivationV1.rows[0]!.nextAllocationSequence, allocationSequence);
+  assert.deepEqual(fixture.tables.realmWorkerSystemV2.rows[0], workerRootBefore);
+  assert.equal(fixture.tables.workerAssignmentV1.rows[0]!.siteId, first.leaseId);
+  assert.equal(fixture.tables.castleWorkerV1.workerId.find(firstInput.workerId)!.siteId, first.leaseId);
+  assert.equal(fixture.tables.workerNodeOccupationV1.rows[0]!.siteId, first.leaseId);
+  assert.match(fixture.tables.workerCommandIdempotencyV1.rows[0]!.commandKind, /^dispatch-v2:/);
+
+  const beforeReplay = stateText(fixture);
+  const replay = dispatchGreaterRealmCastleWorkerV2(fixture.ctx, firstInput);
+  assert.equal(replay.idempotent, true);
+  assert.equal(replay.leaseId, first.leaseId);
+  assert.equal(stateText(fixture), beforeReplay);
+
+  const secondInput = greaterRealmDispatchInput(
+    fixture,
+    2,
+    'food',
+    target.locationId,
+    'greater-worker-dispatch-0002',
+  );
+  const second = fixture.transaction(() => (
+    dispatchGreaterRealmCastleWorkerV2(fixture.ctx, secondInput)
+  ));
+  assert.equal(second.leaseId, `${target.locationId}:2`);
+  assert.equal(fixture.tables.greaterRealmActivationV1.rows[0]!.postCanaryDispatchCount, 2);
+
+  const fullBefore = stateText(fixture);
+  const thirdInput = greaterRealmDispatchInput(
+    fixture,
+    3,
+    'food',
+    target.locationId,
+    'greater-worker-dispatch-0003',
+  );
+  assert.match(
+    errorCode(() => fixture.transaction(() => (
+      dispatchGreaterRealmCastleWorkerV2(fixture.ctx, thirdInput)
+    ))) ?? '',
+    /CAPACITY|EXHAUSTED/,
+  );
+  assert.equal(stateText(fixture), fullBefore);
+
+  fixture.transaction(() => recallCastleWorker(fixture.ctx, {
+    fid: firstInput.fid,
+    castle: firstInput.castle,
+    workerId: firstInput.workerId,
+    idempotencyKey: 'greater-worker-recall-0001',
+  }));
+  assert.equal(
+    fixture.tables.workerNodeOccupationV1.nodeKey.find(`food:${first.leaseId}`),
+    null,
+  );
+  const returnSchedule = fixture.tables.workerAssignmentScheduleV1.byWorker.find(
+    firstInput.workerId,
+  )!;
+  assert.equal(returnSchedule.stage, 'return-complete');
+  fixture.transaction(() => runCastleWorkerSchedule(fixture.ctx, returnSchedule));
+  assert.equal(fixture.tables.castleWorkerV1.workerId.find(firstInput.workerId)!.status, 'idle');
+  assert.equal(fixture.tables.workerAssignmentV1.workerId.find(firstInput.workerId), null);
+
+  const reused = fixture.transaction(() => (
+    dispatchGreaterRealmCastleWorkerV2(fixture.ctx, thirdInput)
+  ));
+  assert.equal(reused.leaseId, `${target.locationId}:1`);
+  assert.equal(fixture.tables.greaterRealmActivationV1.rows[0]!.postCanaryDispatchCount, 3);
+
+  assert.equal(haltGreaterRealmActivationAuthorizedTransactionV1(fixture.ctx), 'halted');
+  const haltedBeforeReplay = stateText(fixture);
+  const terminalReplay = dispatchGreaterRealmCastleWorkerV2(fixture.ctx, firstInput);
+  assert.equal(terminalReplay.idempotent, true);
+  assert.equal(terminalReplay.leaseId, `${target.locationId}:1`);
+  assert.equal(stateText(fixture), haltedBeforeReplay);
+  const haltedFresh = greaterRealmDispatchInput(
+    fixture,
+    4,
+    'food',
+    target.locationId,
+    'greater-worker-dispatch-0004',
+  );
+  assert.match(
+    errorCode(() => fixture.transaction(() => (
+      dispatchGreaterRealmCastleWorkerV2(fixture.ctx, haltedFresh)
+    ))) ?? '',
+    /NOT_ACTIVE|MODE|PHASE|CURRENT_WORLD_UNAVAILABLE/,
+  );
+  assert.equal(stateText(fixture), haltedBeforeReplay);
+
+  fixture.transaction(() => recallCastleWorker(fixture.ctx, {
+    fid: thirdInput.fid,
+    castle: thirdInput.castle,
+    workerId: thirdInput.workerId,
+    idempotencyKey: 'greater-worker-recall-halted-0003',
+  }));
+  const haltedReturn = fixture.tables.workerAssignmentScheduleV1.byWorker.find(
+    thirdInput.workerId,
+  )!;
+  assert.equal(haltedReturn.stage, 'return-complete');
+  fixture.transaction(() => runCastleWorkerSchedule(fixture.ctx, haltedReturn));
+  assert.equal(fixture.tables.castleWorkerV1.workerId.find(thirdInput.workerId)!.status, 'idle');
+  assert.equal(fixture.tables.workerAssignmentV1.workerId.find(thirdInput.workerId), null);
+});
+
+test('active v17 Worker dispatch resolves every resource in all six immutable components', () => {
+  const fixture = new Fixture();
+  advanceToActive(fixture);
+  const resourceKinds = ['food', 'wood', 'stone', 'gold'] as const;
+  let dispatches = 0;
+  for (const region of GREATER_REALM_PUBLIC_REGIONS) {
+    const slot = fixture.tables.greaterRealmCastleSlotV1.rows.find(row => (
+      row.regionId === region.id && row.active
+    ))!;
+    const claim = fixture.tables.greaterRealmCastleClaimV1.rows.find(row => (
+      row.slotId === slot.slotId
+    ))!;
+    const fid = claim.ownerFid as bigint;
+    for (const resourceKind of resourceKinds) {
+      const target = prepareGreaterRealmWorkerLocation(fixture, resourceKind, 1, fid);
+      const input = greaterRealmDispatchInput(
+        fixture,
+        1,
+        resourceKind,
+        target.locationId,
+        `greater-worker-${region.ordinal}-${resourceKind}-dispatch`,
+        fid,
+      );
+      const result = fixture.transaction(() => (
+        dispatchGreaterRealmCastleWorkerV2(fixture.ctx, input)
+      ));
+      assert.equal(result.leaseId, `${target.locationId}:1`);
+      fixture.transaction(() => recallCastleWorker(fixture.ctx, {
+        fid,
+        castle: input.castle,
+        workerId: input.workerId,
+        idempotencyKey: `greater-worker-${region.ordinal}-${resourceKind}-recall`,
+      }));
+      const returnSchedule = fixture.tables.workerAssignmentScheduleV1.byWorker.find(
+        input.workerId,
+      )!;
+      fixture.ctx.timestamp = timestamp(returnSchedule.scheduledAt.value.microsSinceUnixEpoch);
+      fixture.transaction(() => runCastleWorkerSchedule(fixture.ctx, returnSchedule));
+      assert.equal(fixture.tables.castleWorkerV1.workerId.find(input.workerId)!.status, 'idle');
+      dispatches += 1;
+    }
+  }
+  assert.equal(dispatches, 24);
+  assert.equal(fixture.tables.greaterRealmActivationV1.rows[0]!.postCanaryDispatchCount, 24);
+});
+
+test('fresh v17 Worker dispatch rejects wrong public authority and rolls back atomically at the counter write', () => {
+  const probe = new Fixture();
+  advanceToActive(probe);
+  const probeTarget = prepareGreaterRealmWorkerLocation(probe, 'gold', 1);
+  const probeInput = greaterRealmDispatchInput(
+    probe,
+    1,
+    'gold',
+    probeTarget.locationId,
+    'greater-worker-fault-0001',
+  );
+  probe.transaction(() => dispatchGreaterRealmCastleWorkerV2(probe.ctx, probeInput));
+  const finalWrite = probe.mutationCount;
+  assert.ok(finalWrite >= 6);
+
+  const rollback = new Fixture();
+  advanceToActive(rollback);
+  const rollbackTarget = prepareGreaterRealmWorkerLocation(rollback, 'gold', 1);
+  const rollbackInput = greaterRealmDispatchInput(
+    rollback,
+    1,
+    'gold',
+    rollbackTarget.locationId,
+    'greater-worker-fault-0001',
+  );
+  const beforeFault = stateText(rollback);
+  assert.equal(
+    errorCode(() => rollback.transaction(
+      () => dispatchGreaterRealmCastleWorkerV2(rollback.ctx, rollbackInput),
+      finalWrite,
+    )),
+    'INJECTED_TRANSACTION_FAULT',
+  );
+  assert.equal(stateText(rollback), beforeFault);
+  assert.equal(rollback.tables.greaterRealmActivationV1.rows[0]!.postCanaryDispatchCount, 0);
+
+  const invalidCases: readonly [string, (input: Row) => void][] = [
+    ['revision', input => { input.expectedRevision += 1n; }],
+    ['location', input => { input.locationId = `GRL-${opaqueSuffix(99_999)}`; }],
+    ['resource', input => { input.resourceKind = 'stone'; }],
+    ['castle', input => { input.castle = rollback.tables.castle.castleId.find(2n)!; }],
+    ['fid', input => { input.fid = 1_002n; }],
+  ];
+  for (const [label, change] of invalidCases) {
+    const input = clone(rollbackInput);
+    input.idempotencyKey = `greater-worker-invalid-${label}-0001`;
+    change(input);
+    const before = stateText(rollback);
+    assert.notEqual(
+      errorCode(() => rollback.transaction(() => (
+        dispatchGreaterRealmCastleWorkerV2(rollback.ctx, input as typeof rollbackInput)
+      ))),
+      undefined,
+      label,
+    );
+    assert.equal(stateText(rollback), before, label);
+  }
+
+  const destination = rollback.tables.greaterRealmCellV1.cellKey.find(
+    rollbackTarget.destinationCellKey,
+  )!;
+  const priorDepth = destination.routeDepth;
+  destination.routeDepth = 4_097;
+  assert.match(
+    errorCode(() => rollback.transaction(() => (
+      dispatchGreaterRealmCastleWorkerV2(rollback.ctx, rollbackInput)
+    ))) ?? '',
+    /ROUTE/,
+  );
+  destination.routeDepth = priorDepth;
+  const node = rollback.tables.greaterRealmResourceNodeV1.locationId.filter(
+    rollbackTarget.locationId,
+  )[0]!;
+  node.tier = 2;
+  assert.match(
+    errorCode(() => rollback.transaction(() => (
+      dispatchGreaterRealmCastleWorkerV2(rollback.ctx, rollbackInput)
+    ))) ?? '',
+    /LOCATION|TIER/,
   );
 });

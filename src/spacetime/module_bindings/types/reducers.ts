@@ -60,6 +60,7 @@ import CollectStoneExpeditionV1Reducer from "../collect_stone_expedition_v_1_red
 import CollectWoodExpeditionV1Reducer from "../collect_wood_expedition_v_1_reducer";
 import DispatchFoodExpeditionV1Reducer from "../dispatch_food_expedition_v_1_reducer";
 import DispatchGoldExpeditionV1Reducer from "../dispatch_gold_expedition_v_1_reducer";
+import DispatchGreaterRealmWorkerV1Reducer from "../dispatch_greater_realm_worker_v_1_reducer";
 import DispatchStoneExpeditionV1Reducer from "../dispatch_stone_expedition_v_1_reducer";
 import DispatchWoodExpeditionV1Reducer from "../dispatch_wood_expedition_v_1_reducer";
 import DispatchWorkerV1Reducer from "../dispatch_worker_v_1_reducer";
@@ -124,6 +125,7 @@ export type CollectStoneExpeditionV1Params = __Infer<typeof CollectStoneExpediti
 export type CollectWoodExpeditionV1Params = __Infer<typeof CollectWoodExpeditionV1Reducer>;
 export type DispatchFoodExpeditionV1Params = __Infer<typeof DispatchFoodExpeditionV1Reducer>;
 export type DispatchGoldExpeditionV1Params = __Infer<typeof DispatchGoldExpeditionV1Reducer>;
+export type DispatchGreaterRealmWorkerV1Params = __Infer<typeof DispatchGreaterRealmWorkerV1Reducer>;
 export type DispatchStoneExpeditionV1Params = __Infer<typeof DispatchStoneExpeditionV1Reducer>;
 export type DispatchWoodExpeditionV1Params = __Infer<typeof DispatchWoodExpeditionV1Reducer>;
 export type DispatchWorkerV1Params = __Infer<typeof DispatchWorkerV1Reducer>;

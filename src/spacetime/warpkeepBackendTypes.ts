@@ -13,6 +13,7 @@ import type {
   ReadyWorkerProjection
 } from '../components/realm/realmWorkerPresentation';
 import type { InnerKeepPresentation } from '../components/inner-keep/innerKeepPresentation';
+import type { ReadyGreaterRealmWorkerControlState } from '../greater-realm/greaterRealmWorkerControl';
 
 export type WarpkeepAdmissionStatus =
   | 'not_admitted'
@@ -506,6 +507,8 @@ export type WarpkeepBackendState = Readonly<{
   /** v2 resource balances used by the active worker HUD. */
   workerResourceState?: ReadyWorkerResourceState;
   workerProjection?: ReadyWorkerProjection;
+  /** Atlas-bound own-worker view; never joined to retired Lowlands site rows. */
+  greaterRealmWorkerControl?: ReadyGreaterRealmWorkerControlState;
   /** Caller-bound construction state; absent on inactive or pre-v15 modules. */
   innerKeep?: InnerKeepPresentation;
 }>;

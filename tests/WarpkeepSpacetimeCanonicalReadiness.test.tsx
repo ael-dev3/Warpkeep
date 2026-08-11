@@ -11,6 +11,7 @@ vi.mock('../src/farcaster/FarcasterAuthProviderCore', () => ({
 import {
   BACKEND_STAGE_OPERATION_TIMEOUT_MILLISECONDS,
   CANONICAL_REALM_READINESS_TIMEOUT_MILLISECONDS,
+  GREATER_REALM_WORKER_CONTROL_POLL_INTERVAL_MILLISECONDS,
   RESOURCE_OPERATION_TIMEOUT_MILLISECONDS,
   WarpkeepSpacetimeProvider,
   useWarpkeepBackend,
@@ -641,6 +642,80 @@ describe('Warpkeep canonical realm readiness lifecycle', () => {
       expect(screen.getByTestId('legacy-authority').textContent).toBe('retired');
     });
     expect(screen.getByTestId('fingerprint').textContent).toBe('');
+  });
+
+  it('cancels the retired Worker fallback across reconnect and legacy restoration', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 1);
+    const harness = createRuntimeHarness();
+    const readGreaterRealmWorkerControlState = vi.fn(async () => undefined);
+    Object.assign(harness.runtime, { readGreaterRealmWorkerControlState });
+    const rendered = renderProvider(harness);
+
+    await act(settleMicrotasks);
+    expect(screen.getByTestId('phase').textContent).toBe('awaiting-terms');
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await act(settleMicrotasks);
+    expect(harness.runtime.subscribeRealm).toHaveBeenCalledTimes(1);
+    act(() => harness.applied()?.());
+    await act(settleMicrotasks);
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+
+    act(() => harness.observerError()?.('legacy-retired'));
+    await act(settleMicrotasks);
+    expect(screen.getByTestId('legacy-authority').textContent).toBe('retired');
+    expect(readGreaterRealmWorkerControlState).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(
+        GREATER_REALM_WORKER_CONTROL_POLL_INTERVAL_MILLISECONDS - 1,
+      );
+      await settleMicrotasks();
+    });
+    expect(readGreaterRealmWorkerControlState).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+      await settleMicrotasks();
+    });
+    expect(readGreaterRealmWorkerControlState).toHaveBeenCalledTimes(2);
+
+    const reconnect = deferred<typeof harness.connection>();
+    vi.mocked(harness.runtime.connect).mockReturnValueOnce(reconnect.promise as never);
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 2);
+    rendered.rerender(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={harness.runtime}>
+        <Probe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await act(settleMicrotasks);
+    expect(screen.getByTestId('phase').textContent).toBe('reconnecting');
+    const callsBeforeReconnect = readGreaterRealmWorkerControlState.mock.calls.length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(
+        GREATER_REALM_WORKER_CONTROL_POLL_INTERVAL_MILLISECONDS * 2,
+      );
+      fireEvent(document, new Event('visibilitychange'));
+      await settleMicrotasks();
+    });
+    expect(readGreaterRealmWorkerControlState).toHaveBeenCalledTimes(callsBeforeReconnect);
+
+    await act(async () => {
+      reconnect.resolve(harness.connection);
+      await reconnect.promise;
+      await settleMicrotasks();
+    });
+    expect(harness.runtime.subscribeRealm).toHaveBeenCalledTimes(2);
+    act(() => harness.applied()?.());
+    await act(settleMicrotasks);
+    expect(screen.getByTestId('legacy-authority').textContent).toBe('active');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(
+        GREATER_REALM_WORKER_CONTROL_POLL_INTERVAL_MILLISECONDS * 2,
+      );
+      fireEvent(document, new Event('visibilitychange'));
+      await settleMicrotasks();
+    });
+    expect(readGreaterRealmWorkerControlState).toHaveBeenCalledTimes(callsBeforeReconnect);
   });
 
   it('fails closed when onApplied exposes an incomplete projection', async () => {

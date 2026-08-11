@@ -8,6 +8,13 @@ export type WorkerCommandFingerprint =
       resourceKind: RealmEconomicResourceKey;
       siteId: string;
     }>
+  | Readonly<{
+      kind: 'dispatch-v2';
+      workerId: string;
+      resourceKind: RealmEconomicResourceKey;
+      locationId: string;
+      expectedRevision: bigint;
+    }>
   | Readonly<{ kind: 'recall'; workerId: string }>
   | Readonly<{ kind: 'recall-all'; castleId: number }>;
 
@@ -32,6 +39,15 @@ export type WorkerCommandLifecycleState = Readonly<{
 export function serializeWorkerCommandFingerprint(command: WorkerCommandFingerprint) {
   if (command.kind === 'dispatch') {
     return `dispatch\u0000${command.workerId}\u0000${command.resourceKind}\u0000${command.siteId}`;
+  }
+  if (command.kind === 'dispatch-v2') {
+    return [
+      'dispatch-v2',
+      command.workerId,
+      command.resourceKind,
+      command.locationId,
+      command.expectedRevision.toString()
+    ].join('\u0000');
   }
   if (command.kind === 'recall') return `recall\u0000${command.workerId}`;
   return `recall-all\u0000${command.castleId}`;
@@ -92,6 +108,19 @@ function deserializeWorkerCommandFingerprint(fingerprint: string): WorkerCommand
       workerId: fields[1]!,
       resourceKind: fields[2] as RealmEconomicResourceKey,
       siteId: fields[3]!
+    };
+  }
+  if (
+    fields[0] === 'dispatch-v2'
+    && fields.length === 5
+    && /^(?:0|[1-9][0-9]*)$/.test(fields[4]!)
+  ) {
+    return {
+      kind: 'dispatch-v2',
+      workerId: fields[1]!,
+      resourceKind: fields[2] as RealmEconomicResourceKey,
+      locationId: fields[3]!,
+      expectedRevision: BigInt(fields[4]!)
     };
   }
   if (fields[0] === 'recall' && fields.length === 2) {

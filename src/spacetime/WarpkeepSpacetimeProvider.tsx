@@ -38,11 +38,13 @@ import {
   readWarpkeepResourceState,
   readWarpkeepResourceStateV2,
   readWarpkeepWorkerControlState,
+  readWarpkeepGreaterRealmWorkerControlState,
   readWarpkeepWorkerRoster,
   readWarpkeepInnerKeepProjection,
   readWarpkeepInnerKeepRequestStatus,
   startWarpkeepInnerKeepProject,
   dispatchWarpkeepWorker,
+  dispatchWarpkeepGreaterRealmWorker,
   recallWarpkeepWorker,
   recallAllWarpkeepWorkers,
   returnWarpkeepLegacyExpedition,
@@ -107,6 +109,7 @@ import type {
   WorkerProjectionCoherenceFailure,
   WorkerRosterPresentation
 } from '../components/realm/realmWorkerPresentation';
+import type { ReadyGreaterRealmWorkerControlState } from '../greater-realm/greaterRealmWorkerControl';
 import {
   resolveReadyPublicWorkerProjection,
   resolveReadyWorkerProjection,
@@ -156,6 +159,7 @@ export const CANONICAL_REALM_READINESS_TIMEOUT_MILLISECONDS = 60_000;
 export const BACKEND_STAGE_OPERATION_TIMEOUT_MILLISECONDS = 30_000;
 export const RESOURCE_OPERATION_TIMEOUT_MILLISECONDS = 15_000;
 export const RESOURCE_REFRESH_INTERVAL_MILLISECONDS = 60_000;
+export const GREATER_REALM_WORKER_CONTROL_POLL_INTERVAL_MILLISECONDS = 60_000;
 const MAX_RETAINED_WORKER_COMMAND_ATTEMPTS = 64;
 const MAX_WORKER_PROJECTION_PAIR_READ_ATTEMPTS = 2;
 const TRANSPORT_RECONNECT_RETRY_DELAYS_MILLISECONDS =
@@ -298,6 +302,13 @@ export type WarpkeepBackendControllerValue = Readonly<{
     resourceKind: RealmEconomicResourceKey,
     siteId: string
   ) => Promise<void>;
+  /** Dispatch to one selected public v17 resource location. */
+  dispatchGreaterRealmWorker: (
+    workerId: string,
+    resourceKind: RealmEconomicResourceKey,
+    locationId: string,
+    expectedRevision: bigint
+  ) => Promise<void>;
   recallWorker: (workerId: string) => Promise<void>;
   recallAllWorkers: () => Promise<void>;
   /** Start a new bounded read-only Worker sync burst for the active Realm. */
@@ -339,9 +350,11 @@ export type WarpkeepBackendRuntime = Readonly<{
     connection: WarpkeepConnection,
     ownFid: number
   ) => Promise<WarpkeepWorkerControlStateReadResult | undefined>;
+  readGreaterRealmWorkerControlState?: typeof readWarpkeepGreaterRealmWorkerControlState;
   readWorkerRoster?: typeof readWarpkeepWorkerRoster;
   readResourceStateV2?: typeof readWarpkeepResourceStateV2;
   dispatchWorker?: typeof dispatchWarpkeepWorker;
+  dispatchGreaterRealmWorker?: typeof dispatchWarpkeepGreaterRealmWorker;
   recallWorker?: typeof recallWarpkeepWorker;
   recallAllWorkers?: typeof recallAllWarpkeepWorkers;
   returnLegacyExpedition?: typeof returnWarpkeepLegacyExpedition;
@@ -394,9 +407,11 @@ export const DEFAULT_WARPKEEP_BACKEND_RUNTIME: WarpkeepBackendRuntime = Object.f
   readResourceState: readWarpkeepResourceState,
   collectResources: collectWarpkeepResources,
   readWorkerControlState: readWarpkeepWorkerControlState,
+  readGreaterRealmWorkerControlState: readWarpkeepGreaterRealmWorkerControlState,
   readWorkerRoster: readWarpkeepWorkerRoster,
   readResourceStateV2: readWarpkeepResourceStateV2,
   dispatchWorker: dispatchWarpkeepWorker,
+  dispatchGreaterRealmWorker: dispatchWarpkeepGreaterRealmWorker,
   recallWorker: recallWarpkeepWorker,
   recallAllWorkers: recallAllWarpkeepWorkers,
   returnLegacyExpedition: returnWarpkeepLegacyExpedition,
@@ -1114,6 +1129,8 @@ export function WarpkeepSpacetimeProvider({
     useRef<GenerationBoundWorkerValue<ReadyWorkerResourceState> | undefined>(undefined);
   const workerPrivateSyncStateRef =
     useRef<GenerationBoundWorkerValue<WarpkeepWorkerPrivateSyncStatus> | undefined>(undefined);
+  const greaterRealmWorkerControlStateRef =
+    useRef<GenerationBoundWorkerValue<ReadyGreaterRealmWorkerControlState> | undefined>(undefined);
   const workerCommandGenerationRef = useRef<number | undefined>(undefined);
   const workerCommandAttemptsRef = useRef(new Map<string, WorkerCommandAttempt>());
   const innerKeepProjectionRef =
@@ -1124,6 +1141,7 @@ export function WarpkeepSpacetimeProvider({
   const innerKeepOperationGenerationRef = useRef<number | undefined>(undefined);
   const transportReconnectAttemptRef = useRef(0);
   const requestWorkerPrivateSyncRef = useRef<() => void>(() => undefined);
+  const requestGreaterRealmWorkerControlRef = useRef<() => void>(() => undefined);
   const requestInnerKeepSyncRef = useRef<() => void>(() => undefined);
   const processTermsAttemptRef = useRef<() => void>(() => undefined);
   const realmChatSendAttemptRef = useRef<RealmChatSendAttempt | undefined>(undefined);
@@ -1169,6 +1187,7 @@ export function WarpkeepSpacetimeProvider({
     workerRosterStateRef.current = undefined;
     workerResourceStateRef.current = undefined;
     workerPrivateSyncStateRef.current = undefined;
+    greaterRealmWorkerControlStateRef.current = undefined;
     workerCommandGenerationRef.current = undefined;
     workerCommandAttemptsRef.current.clear();
     innerKeepProjectionRef.current = undefined;
@@ -1180,6 +1199,7 @@ export function WarpkeepSpacetimeProvider({
     canonicalRealmSourceRef.current = undefined;
     canonicalRealmSnapshotRef.current = undefined;
     requestWorkerPrivateSyncRef.current = () => undefined;
+    requestGreaterRealmWorkerControlRef.current = () => undefined;
     requestInnerKeepSyncRef.current = () => undefined;
     processTermsAttemptRef.current = () => undefined;
     realmChatSendAttemptRef.current = undefined;
@@ -1202,7 +1222,11 @@ export function WarpkeepSpacetimeProvider({
   }, [runActiveTeardown, runtime]);
 
   const retryWorkerPrivateSync = useCallback(() => {
-    requestWorkerPrivateSyncRef.current();
+    if (stateRef.current.legacyRealmAuthority === 'retired') {
+      requestGreaterRealmWorkerControlRef.current();
+    } else {
+      requestWorkerPrivateSyncRef.current();
+    }
   }, []);
 
   const retryInnerKeepSync = useCallback(() => {
@@ -1842,6 +1866,70 @@ export function WarpkeepSpacetimeProvider({
     }
   }, []);
 
+  const runGreaterRealmWorkerCommand = useCallback(async (
+    fingerprint: Extract<WorkerCommandFingerprint, {
+      kind: 'dispatch-v2' | 'recall' | 'recall-all';
+    }>,
+    command: (
+      connection: WarpkeepConnection,
+      idempotencyKey: string
+    ) => Promise<unknown>
+  ) => {
+    const generation = generationRef.current;
+    const currentState = stateRef.current;
+    const connection = connectionRef.current;
+    const fid = currentState.identity?.fid;
+    const control = greaterRealmWorkerControlStateRef.current;
+    const currentBridgeAuthority = currentBridgeCommandAuthorityRef.current;
+    const connectionBridgeAuthority = connectionBridgeCommandAuthorityRef.current;
+    if (
+      currentState.phase !== 'ready'
+      || currentState.admission !== 'ready'
+      || currentState.legacyRealmAuthority !== 'retired'
+      || connection === undefined
+      || fid === undefined
+      || control?.generation !== generation
+      || control.fid !== fid
+      || currentState.greaterRealmWorkerControl !== control.value
+      || currentState.realmContinuity?.ownCastle.ownerFid !== fid
+      || currentState.realmContinuity.ownCastle.castleId !== control.value.value.roster.castleId
+      || document.hidden
+      || currentBridgeAuthority?.fid !== fid
+      || currentBridgeAuthority.expiresAt <= Date.now()
+      || connectionBridgeAuthority?.generation !== generation
+      || connectionBridgeAuthority.fid !== fid
+      || connectionBridgeAuthority.jwt !== currentBridgeAuthority.jwt
+      || workerCommandGenerationRef.current === generation
+    ) throw new Error('Greater Realm Worker command is unavailable.');
+
+    const serializedFingerprint = serializeWorkerCommandFingerprint(fingerprint);
+    if (
+      !workerCommandAttemptsRef.current.has(serializedFingerprint)
+      && workerCommandAttemptsRef.current.size >= MAX_RETAINED_WORKER_COMMAND_ATTEMPTS
+    ) throw new Error('Greater Realm Worker command is unavailable.');
+    const attempt = workerCommandAttemptFor(
+      workerCommandAttemptsRef.current.get(serializedFingerprint),
+      generation,
+      fingerprint,
+      workerCommandLifecycleState(control.value.value.roster)
+    );
+    if (attempt === undefined) throw new Error('Greater Realm Worker command is unavailable.');
+    workerCommandGenerationRef.current = generation;
+    workerCommandAttemptsRef.current.set(serializedFingerprint, attempt);
+    try {
+      await withResourceOperationDeadline(command(connection, attempt.idempotencyKey));
+      requestGreaterRealmWorkerControlRef.current();
+    } catch {
+      // A manual retry against the unchanged own-worker lifecycle reuses the key.
+      requestGreaterRealmWorkerControlRef.current();
+      throw new Error('Greater Realm Worker command is unavailable.');
+    } finally {
+      if (workerCommandGenerationRef.current === generation) {
+        workerCommandGenerationRef.current = undefined;
+      }
+    }
+  }, []);
+
   const dispatchWorker = useCallback((
     workerId: string,
     resourceKind: RealmEconomicResourceKey,
@@ -1861,7 +1949,60 @@ export function WarpkeepSpacetimeProvider({
     });
   }, [runWorkerCommand, runtime]);
 
+  const dispatchGreaterRealmWorker = useCallback((
+    workerId: string,
+    resourceKind: RealmEconomicResourceKey,
+    locationId: string,
+    expectedRevision: bigint
+  ) => {
+    const control = stateRef.current.greaterRealmWorkerControl;
+    const worker = control?.value.roster.workers.find(
+      candidate => candidate.workerId === workerId
+    );
+    if (
+      control?.value.resourceState.workerSystemMode !== 'active'
+      || control.atlasRevision !== expectedRevision
+      || worker?.status !== 'idle'
+    ) return Promise.reject(new Error('Greater Realm Worker command is unavailable.'));
+    return runGreaterRealmWorkerCommand({
+      kind: 'dispatch-v2',
+      workerId,
+      resourceKind,
+      locationId,
+      expectedRevision
+    }, (connection, idempotencyKey) => {
+      if (runtime.dispatchGreaterRealmWorker === undefined) {
+        return Promise.reject(new Error('Greater Realm Worker command is unavailable.'));
+      }
+      return runtime.dispatchGreaterRealmWorker(
+        connection,
+        workerId,
+        resourceKind,
+        locationId,
+        expectedRevision,
+        idempotencyKey
+      );
+    });
+  }, [runGreaterRealmWorkerCommand, runtime]);
+
   const recallWorker = useCallback((workerId: string) => {
+    if (stateRef.current.legacyRealmAuthority === 'retired') {
+      const worker = stateRef.current.greaterRealmWorkerControl?.value.roster.workers.find(
+        candidate => candidate.workerId === workerId
+      );
+      if (worker?.status !== 'outbound' && worker?.status !== 'gathering') {
+        return Promise.reject(new Error('Worker command is unavailable.'));
+      }
+      return runGreaterRealmWorkerCommand(
+        { kind: 'recall', workerId },
+        (connection, idempotencyKey) => {
+          if (runtime.recallWorker === undefined) {
+            return Promise.reject(new Error('Worker command is unavailable.'));
+          }
+          return runtime.recallWorker(connection, workerId, idempotencyKey);
+        }
+      );
+    }
     const realm = stateRef.current.realm;
     const worker = realm === undefined
       ? undefined
@@ -1878,9 +2019,27 @@ export function WarpkeepSpacetimeProvider({
       if (runtime.recallWorker === undefined) return Promise.reject(new Error('Worker command is unavailable.'));
       return runtime.recallWorker(connection, workerId, idempotencyKey);
     });
-  }, [runWorkerRecallCommand, runtime]);
+  }, [runGreaterRealmWorkerCommand, runWorkerRecallCommand, runtime]);
 
   const recallAllWorkers = useCallback(() => {
+    if (stateRef.current.legacyRealmAuthority === 'retired') {
+      const roster = stateRef.current.greaterRealmWorkerControl?.value.roster;
+      const recallable = roster?.workers.some(
+        worker => worker.status === 'outbound' || worker.status === 'gathering'
+      );
+      if (roster === undefined || !recallable) {
+        return Promise.reject(new Error('Worker command is unavailable.'));
+      }
+      return runGreaterRealmWorkerCommand(
+        { kind: 'recall-all', castleId: roster.castleId },
+        (connection, idempotencyKey) => {
+          if (runtime.recallAllWorkers === undefined) {
+            return Promise.reject(new Error('Worker command is unavailable.'));
+          }
+          return runtime.recallAllWorkers(connection, idempotencyKey);
+        }
+      );
+    }
     const realm = stateRef.current.realm;
     const castleId = realm?.ownCastle.castleId;
     const recallable = realm !== undefined && activePublicWorkerProjection(realm)?.workers.some(
@@ -1894,7 +2053,7 @@ export function WarpkeepSpacetimeProvider({
       if (runtime.recallAllWorkers === undefined) return Promise.reject(new Error('Worker command is unavailable.'));
       return runtime.recallAllWorkers(connection, idempotencyKey);
     });
-  }, [runWorkerRecallCommand, runtime]);
+  }, [runGreaterRealmWorkerCommand, runWorkerRecallCommand, runtime]);
 
   const dispatchGoldExpedition = useCallback(async (siteId: string) => {
     const generation = generationRef.current;
@@ -2815,6 +2974,10 @@ export function WarpkeepSpacetimeProvider({
     let workerPrivateSyncRequiredAt: number | undefined;
     let workerPrivateSyncRetryTimeout: ReturnType<typeof setTimeout> | undefined;
     let workerPrivateSyncLastRealm: WarpkeepWorkerRealmAuthority | undefined;
+    let greaterRealmWorkerRefreshInFlight = false;
+    let greaterRealmWorkerRefreshInterval: ReturnType<typeof setInterval> | undefined;
+    let removeGreaterRealmWorkerLifecycleListeners: (() => void) | undefined;
+    let requestGreaterRealmWorkerControl = () => undefined;
     let retiredRealmContinuity: WarpkeepRealmContinuityProjection | undefined;
     let lastRequestedWorkerPublicRevision: string | undefined;
     let removeWorkerPrivateSyncLifecycleListeners: (() => void) | undefined;
@@ -2868,6 +3031,13 @@ export function WarpkeepSpacetimeProvider({
       }
       removeWorkerPrivateSyncLifecycleListeners?.();
       removeWorkerPrivateSyncLifecycleListeners = undefined;
+      if (greaterRealmWorkerRefreshInterval !== undefined) {
+        clearInterval(greaterRealmWorkerRefreshInterval);
+        greaterRealmWorkerRefreshInterval = undefined;
+      }
+      greaterRealmWorkerRefreshInFlight = false;
+      removeGreaterRealmWorkerLifecycleListeners?.();
+      removeGreaterRealmWorkerLifecycleListeners = undefined;
       if (innerKeepReconciliationTimeout !== undefined) {
         clearTimeout(innerKeepReconciliationTimeout);
         innerKeepReconciliationTimeout = undefined;
@@ -2933,6 +3103,9 @@ export function WarpkeepSpacetimeProvider({
       if (workerPrivateSyncStateRef.current?.generation === generation) {
         workerPrivateSyncStateRef.current = undefined;
       }
+      if (greaterRealmWorkerControlStateRef.current?.generation === generation) {
+        greaterRealmWorkerControlStateRef.current = undefined;
+      }
       if (workerCommandGenerationRef.current === generation) {
         workerCommandGenerationRef.current = undefined;
       }
@@ -2961,6 +3134,9 @@ export function WarpkeepSpacetimeProvider({
       }
       if (requestWorkerPrivateSyncRef.current === requestWorkerPrivateSync) {
         requestWorkerPrivateSyncRef.current = () => undefined;
+      }
+      if (requestGreaterRealmWorkerControlRef.current === requestGreaterRealmWorkerControl) {
+        requestGreaterRealmWorkerControlRef.current = () => undefined;
       }
       if (requestInnerKeepSyncRef.current === requestInnerKeepSync) {
         requestInnerKeepSyncRef.current = () => undefined;
@@ -4012,6 +4188,90 @@ export function WarpkeepSpacetimeProvider({
         };
         requestInnerKeepSyncRef.current = requestInnerKeepSync;
 
+        const refreshGreaterRealmWorkerControl = async () => {
+          if (
+            !current()
+            || !legacyRealmRetired
+            || document.hidden
+            || greaterRealmWorkerRefreshInFlight
+            || runtime.readGreaterRealmWorkerControlState === undefined
+          ) return;
+          greaterRealmWorkerRefreshInFlight = true;
+          try {
+            const decoded = await withResourceOperationDeadline(
+              runtime.readGreaterRealmWorkerControlState(activeConnection, bridgeFid!)
+            );
+            if (
+              !current()
+              || !legacyRealmRetired
+              || document.hidden
+              || decoded?.status !== 'ready'
+            ) return;
+            const retained = greaterRealmWorkerControlStateRef.current?.generation === generation
+              && greaterRealmWorkerControlStateRef.current.fid === bridgeFid
+              ? greaterRealmWorkerControlStateRef.current.value
+              : undefined;
+            if (
+              retained !== undefined
+              && (
+                decoded.atlasId !== retained.atlasId
+                || decoded.atlasRevision !== retained.atlasRevision
+                || !workerProjectionPairIsAtLeastAsNew(
+                  decoded.value.roster,
+                  decoded.value.resourceState,
+                  retained.value.roster,
+                  retained.value.resourceState
+                )
+              )
+            ) return;
+            greaterRealmWorkerControlStateRef.current = Object.freeze({
+              generation,
+              fid: bridgeFid!,
+              value: decoded
+            });
+            workerRosterStateRef.current = Object.freeze({
+              generation,
+              fid: bridgeFid!,
+              value: decoded.value.roster
+            });
+            workerResourceStateRef.current = Object.freeze({
+              generation,
+              fid: bridgeFid!,
+              value: decoded.value.resourceState
+            });
+            const lifecycle = workerCommandLifecycleState(decoded.value.roster);
+            for (const [fingerprint, attempt] of workerCommandAttemptsRef.current) {
+              if (!workerCommandAttemptMatchesLifecycle(attempt, generation, lifecycle)) {
+                workerCommandAttemptsRef.current.delete(fingerprint);
+              }
+            }
+            setState((latest) => (
+              current()
+              && latest.phase === 'ready'
+              && latest.admission === 'ready'
+              && latest.legacyRealmAuthority === 'retired'
+              && latest.identity?.fid === bridgeFid
+                ? {
+                    ...latest,
+                    workerRoster: decoded.value.roster,
+                    workerResourceState: decoded.value.resourceState,
+                    greaterRealmWorkerControl: decoded
+                  }
+                : latest
+            ));
+          } catch {
+            // Retain the last validated own-worker view as read-only continuity.
+          } finally {
+            greaterRealmWorkerRefreshInFlight = false;
+          }
+        };
+        requestGreaterRealmWorkerControl = () => {
+          if (current() && legacyRealmRetired) {
+            void refreshGreaterRealmWorkerControl();
+          }
+        };
+        requestGreaterRealmWorkerControlRef.current = requestGreaterRealmWorkerControl;
+
         const refreshRetiredContinuity = () => {
           if (!current() || !legacyRealmRetired) return;
           const previous = retiredRealmContinuity;
@@ -4034,11 +4294,6 @@ export function WarpkeepSpacetimeProvider({
               && workerResourceStateRef.current.fid === bridgeFid
                 ? workerResourceStateRef.current.value
                 : undefined;
-            const workerProjection = activeWorkerProjection(
-              next,
-              roster,
-              workerResourceState
-            );
             setState((latest) => {
               if (
                 !current()
@@ -4051,12 +4306,11 @@ export function WarpkeepSpacetimeProvider({
                 ...latest,
                 realmContinuity: next,
                 ...(roster === undefined ? {} : { workerRoster: roster }),
-                ...(workerResourceState === undefined ? {} : { workerResourceState }),
-                ...(workerProjection === undefined ? {} : { workerProjection })
+                ...(workerResourceState === undefined ? {} : { workerResourceState })
               };
             });
             if (workerPublicSyncRevision(next) !== workerPublicSyncRevision(previous ?? next)) {
-              requestWorkerPrivateSync();
+              requestGreaterRealmWorkerControl();
             }
             requestInnerKeepSync();
           } catch {
@@ -4112,18 +4366,7 @@ export function WarpkeepSpacetimeProvider({
             && workerResourceStateRef.current.fid === bridgeFid
             ? workerResourceStateRef.current.value
             : currentState.workerResourceState;
-          const workerProjection = retiredRealmContinuity === undefined
-            ? currentState.workerProjection
-            : activeWorkerProjection(retiredRealmContinuity, roster, workerResourceState)
-              ?? currentState.workerProjection;
-          const retiredWorkerPrivateSync = workerProjection === undefined
-            ? NOT_REQUIRED_WORKER_PRIVATE_SYNC_STATUS
-            : workerPrivateSyncStatus({
-                ...currentWorkerPrivateSync(),
-                phase: 'stale-read-only',
-                retainedStale: true,
-                commandsEnabled: false
-              });
+          const retiredWorkerPrivateSync = NOT_REQUIRED_WORKER_PRIVATE_SYNC_STATUS;
           workerPrivateSyncStateRef.current = Object.freeze({
             generation,
             fid: bridgeFid!,
@@ -4141,12 +4384,27 @@ export function WarpkeepSpacetimeProvider({
             ...(resources === undefined ? {} : { resources }),
             ...(roster === undefined ? {} : { workerRoster: roster }),
             ...(workerResourceState === undefined ? {} : { workerResourceState }),
-            ...(workerProjection === undefined ? {} : { workerProjection }),
             ...(currentState.innerKeep === undefined ? {} : {
               innerKeep: currentState.innerKeep
             })
           });
-          requestWorkerPrivateSync();
+          if (
+            runtime.readGreaterRealmWorkerControlState !== undefined
+            && greaterRealmWorkerRefreshInterval === undefined
+          ) {
+            greaterRealmWorkerRefreshInterval = setInterval(
+              requestGreaterRealmWorkerControl,
+              GREATER_REALM_WORKER_CONTROL_POLL_INTERVAL_MILLISECONDS
+            );
+            const onVisibilityChange = () => {
+              if (!document.hidden) requestGreaterRealmWorkerControl();
+            };
+            document.addEventListener('visibilitychange', onVisibilityChange);
+            removeGreaterRealmWorkerLifecycleListeners = () => {
+              document.removeEventListener('visibilitychange', onVisibilityChange);
+            };
+          }
+          requestGreaterRealmWorkerControl();
           requestInnerKeepSync();
         };
 
@@ -4958,13 +5216,32 @@ export function WarpkeepSpacetimeProvider({
         && stateRef.current.identity?.fid === fid
       )
     });
-    return createWarpkeepGreaterRealmProviderBridge({ connection, authority });
+    return createWarpkeepGreaterRealmProviderBridge({
+      connection,
+      authority,
+      workerControls: Object.freeze({
+        get: () => stateRef.current.greaterRealmWorkerControl,
+        dispatch: ({ workerId, resourceKind, locationId, expectedRevision }) => (
+          dispatchGreaterRealmWorker(
+            workerId,
+            resourceKind,
+            locationId,
+            expectedRevision
+          )
+        ),
+        recall: recallWorker,
+        recallAll: recallAllWorkers
+      })
+    });
   }, [
     bridgeAuthenticationContinuityKey,
     farcaster.oidcSession?.jwt,
     state.admission,
     state.identity?.fid,
-    state.phase
+    state.phase,
+    dispatchGreaterRealmWorker,
+    recallAllWorkers,
+    recallWorker
   ]);
 
   const value = useMemo<WarpkeepBackendControllerValue>(() => ({
@@ -4990,6 +5267,7 @@ export function WarpkeepSpacetimeProvider({
     claimStoneExpedition,
     returnLegacyExpedition,
     dispatchWorker,
+    dispatchGreaterRealmWorker,
     recallWorker,
     recallAllWorkers,
     retryWorkerPrivateSync,
@@ -5016,6 +5294,7 @@ export function WarpkeepSpacetimeProvider({
     dispatchStoneExpedition,
     returnLegacyExpedition,
     dispatchWorker,
+    dispatchGreaterRealmWorker,
     recallWorker,
     recallAllWorkers,
     retryWorkerPrivateSync,

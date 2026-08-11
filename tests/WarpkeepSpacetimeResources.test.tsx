@@ -862,7 +862,7 @@ describe('Warpkeep private resource lifecycle', () => {
     expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('true');
   });
 
-  it('keeps retired-world worker schedules live and read-only across public/private refreshes', async () => {
+  it('keeps retired-world worker schedules live through atlas-bound V2 refreshes', async () => {
     mockedFarcaster.current = authenticatedFarcaster();
     const { runtime } = createRuntimeHarness();
     let publicAuthority = workerRealmSnapshot();
@@ -874,6 +874,12 @@ describe('Warpkeep private resource lifecycle', () => {
     let refreshRetiredProjection: (() => void) | undefined;
     const readWorkerControlState = vi.fn(async () => Object.freeze({
       status: 'ready' as const,
+      value: workerPair
+    }));
+    const readGreaterRealmWorkerControlState = vi.fn(async () => Object.freeze({
+      status: 'ready' as const,
+      atlasId: 'GRA-FIXTURE',
+      atlasRevision: 1n,
       value: workerPair
     }));
     Object.assign(runtime, {
@@ -892,7 +898,9 @@ describe('Warpkeep private resource lifecycle', () => {
         return vi.fn();
       }),
       readWorkerControlState,
+      readGreaterRealmWorkerControlState,
       dispatchWorker: vi.fn(async () => undefined),
+      dispatchGreaterRealmWorker: vi.fn(async () => undefined),
       recallWorker: vi.fn(async () => undefined),
       recallAllWorkers: vi.fn(async () => undefined)
     });
@@ -903,10 +911,13 @@ describe('Warpkeep private resource lifecycle', () => {
 
     act(() => retireLegacyRealm?.('legacy-retired'));
     await waitFor(() => expect(screen.getByTestId('legacy-authority').textContent).toBe('retired'));
+    await waitFor(() => expect(readGreaterRealmWorkerControlState).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId('realm-own-fid').textContent).toBe('');
-    expect(screen.getByTestId('worker-active').textContent).toBe('active');
+    expect(screen.getByTestId('worker-active').textContent).toBe('');
     expect(screen.getByTestId('worker-first-status').textContent).toBe('idle');
-    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('stale-read-only');
+    expect(capturedBackend?.state.greaterRealmWorkerControl?.value.resourceState.workerSystemMode)
+      .toBe('active');
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('not-required');
     expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('false');
 
     publicAuthority = outboundWorkerRealmSnapshot();
@@ -914,9 +925,11 @@ describe('Warpkeep private resource lifecycle', () => {
       roster: outboundWorkerRoster(),
       resourceState: newerWorkerResourceState()
     });
-    const previousReads = readWorkerControlState.mock.calls.length;
+    const previousReads = readGreaterRealmWorkerControlState.mock.calls.length;
     act(() => refreshRetiredProjection?.());
-    await waitFor(() => expect(readWorkerControlState.mock.calls.length).toBeGreaterThan(previousReads));
+    await waitFor(() => expect(
+      readGreaterRealmWorkerControlState.mock.calls.length
+    ).toBeGreaterThan(previousReads));
     await waitFor(() => expect(screen.getByTestId('worker-first-status').textContent).toBe('outbound'));
     expect(screen.getByTestId('worker-first-revision').textContent).toBe('1');
     expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('false');

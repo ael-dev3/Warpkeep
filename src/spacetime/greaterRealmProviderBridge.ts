@@ -15,6 +15,8 @@ import {
   type WarpkeepConnection,
   type WarpkeepGreaterRealmConnectionAuthority
 } from './warpkeepConnection';
+import type { ReadyGreaterRealmWorkerControlState } from '../greater-realm/greaterRealmWorkerControl';
+import type { RealmEconomicResourceKey } from '../components/realm/realmResourcePresentation';
 
 /**
  * Independent browser presentation gate. It remains a literal so production
@@ -37,6 +39,23 @@ export type AvailableGreaterRealmProviderBridge = Readonly<{
     deviceClass: GreaterRealmDeviceClass;
     graphicsProfile: GreaterRealmGraphicsProfile;
   }>) => GreaterRealmClientRuntime;
+  /** Own-worker-only control seam; public capacity leases are never site-catalog joins. */
+  getWorkerControl?: () => ReadyGreaterRealmWorkerControlState | undefined;
+  dispatchWorker?: (input: Readonly<{
+    workerId: string;
+    resourceKind: RealmEconomicResourceKey;
+    locationId: string;
+    expectedRevision: bigint;
+  }>) => Promise<void>;
+  recallWorker?: (workerId: string) => Promise<void>;
+  recallAllWorkers?: () => Promise<void>;
+}>;
+
+type GreaterRealmWorkerControls = Readonly<{
+  get: () => ReadyGreaterRealmWorkerControlState | undefined;
+  dispatch: NonNullable<AvailableGreaterRealmProviderBridge['dispatchWorker']>;
+  recall: NonNullable<AvailableGreaterRealmProviderBridge['recallWorker']>;
+  recallAll: NonNullable<AvailableGreaterRealmProviderBridge['recallAllWorkers']>;
 }>;
 
 export type GreaterRealmProviderBridge =
@@ -53,6 +72,7 @@ export const DORMANT_GREATER_REALM_PROVIDER_BRIDGE: DormantGreaterRealmProviderB
 export function createWarpkeepGreaterRealmProviderBridge(input: Readonly<{
   connection?: WarpkeepConnection;
   authority?: WarpkeepGreaterRealmConnectionAuthority;
+  workerControls?: GreaterRealmWorkerControls;
 }>): GreaterRealmProviderBridge {
   if (!GREATER_REALM_CLIENT_PRESENTATION_ALLOWED) {
     return DORMANT_GREATER_REALM_PROVIDER_BRIDGE;
@@ -72,6 +92,9 @@ export function createWarpkeepGreaterRealmProviderBridge(input: Readonly<{
     });
   }
   const { connection, authority } = input;
+  const unavailableWorkerCommand = () => Promise.reject(
+    new Error('GREATER_REALM_WORKER_CONTROL_UNAVAILABLE')
+  );
   return Object.freeze({
     phase: 'available',
     presentationAllowed: true,
@@ -92,6 +115,10 @@ export function createWarpkeepGreaterRealmProviderBridge(input: Readonly<{
         deviceClass,
         graphicsProfile
       });
-    }
+    },
+    getWorkerControl: () => input.workerControls?.get(),
+    dispatchWorker: input.workerControls?.dispatch ?? unavailableWorkerCommand,
+    recallWorker: input.workerControls?.recall ?? unavailableWorkerCommand,
+    recallAllWorkers: input.workerControls?.recallAll ?? unavailableWorkerCommand
   });
 }

@@ -104,6 +104,10 @@ import {
   type WorkerRosterPresentation
 } from '../components/realm/realmWorkerPresentation';
 import {
+  decodeGreaterRealmWorkerControlState,
+  type GreaterRealmWorkerControlDecodeResult
+} from '../greater-realm/greaterRealmWorkerControl';
+import {
   REALM_FOOD_SITE_COUNT,
   REALM_GOLD_SITE_COUNT,
   REALM_WOOD_SITE_COUNT,
@@ -272,6 +276,8 @@ const STONE_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
 const STONE_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
 const WORKER_ID_PATTERN = /^genesis-001-castle-[1-9][0-9]*-worker-0[1-4]$/;
 const WORKER_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
+const GREATER_REALM_LOCATION_ID_PATTERN = /^GRL-[A-Z2-7]{26}$/;
+const U64_MAXIMUM = (1n << 64n) - 1n;
 const LEGACY_EXPEDITION_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
 const REALM_CHAT_REQUEST_KEY_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -689,6 +695,26 @@ export async function readWarpkeepWorkerControlState(
   }
 }
 
+/** Read the current v17 atlas-bound Worker view without private topology. */
+export async function readWarpkeepGreaterRealmWorkerControlState(
+  connection: WarpkeepConnection,
+  ownFid: number
+): Promise<GreaterRealmWorkerControlDecodeResult | undefined> {
+  if (!Number.isSafeInteger(ownFid) || ownFid <= 0) {
+    return Object.freeze({ status: 'invalid', reason: 'wrong-caller' });
+  }
+  const procedure = (connection.procedures as unknown as {
+    getMyWorkerControlStateV2?: (
+      input: Readonly<Record<string, never>>
+    ) => Promise<unknown>;
+  }).getMyWorkerControlStateV2;
+  if (typeof procedure !== 'function') return undefined;
+  return decodeGreaterRealmWorkerControlState(
+    await procedure({}),
+    BigInt(ownFid)
+  );
+}
+
 /** Read the generic worker's caller-private roster; public rows never carry cargo. */
 export async function readWarpkeepWorkerRoster(
   connection: WarpkeepConnection,
@@ -1013,6 +1039,13 @@ export async function startWarpkeepInnerKeepProject(
 function workerReducerSurface(connection: WarpkeepConnection) {
   return connection.reducers as unknown as {
     dispatchWorkerV1?: (input: Readonly<{ workerId: string; resourceKind: string; siteId: string; idempotencyKey: string }>) => Promise<unknown> | unknown;
+    dispatchGreaterRealmWorkerV1?: (input: Readonly<{
+      workerId: string;
+      resourceKind: string;
+      locationId: string;
+      expectedRevision: bigint;
+      idempotencyKey: string;
+    }>) => Promise<unknown> | unknown;
     recallWorkerV1?: (input: Readonly<{ workerId: string; idempotencyKey: string }>) => Promise<unknown> | unknown;
     recallAllWorkersV1?: (input: Readonly<{ idempotencyKey: string }>) => Promise<unknown> | unknown;
   };
@@ -1038,6 +1071,36 @@ export async function dispatchWarpkeepWorker(
   const reducer = workerReducerSurface(connection).dispatchWorkerV1;
   if (typeof reducer !== 'function') throw new Error('Worker command is unavailable.');
   await reducer({ workerId, resourceKind, siteId, idempotencyKey });
+}
+
+/** Dispatch by public location; capacity ordinal and route stay server-owned. */
+export async function dispatchWarpkeepGreaterRealmWorker(
+  connection: WarpkeepConnection,
+  workerId: string,
+  resourceKind: string,
+  locationId: string,
+  expectedRevision: bigint,
+  idempotencyKey: string
+) {
+  assertWorkerIdempotency(workerId, idempotencyKey);
+  if (
+    !/^(food|wood|stone|gold)$/.test(resourceKind)
+    || !GREATER_REALM_LOCATION_ID_PATTERN.test(locationId)
+    || typeof expectedRevision !== 'bigint'
+    || expectedRevision < 0n
+    || expectedRevision > U64_MAXIMUM
+  ) throw new Error('Greater Realm Worker command is unavailable.');
+  const reducer = workerReducerSurface(connection).dispatchGreaterRealmWorkerV1;
+  if (typeof reducer !== 'function') {
+    throw new Error('Greater Realm Worker command is unavailable.');
+  }
+  await reducer({
+    workerId,
+    resourceKind,
+    locationId,
+    expectedRevision,
+    idempotencyKey
+  });
 }
 
 export async function recallWarpkeepWorker(connection: WarpkeepConnection, workerId: string, idempotencyKey: string) {

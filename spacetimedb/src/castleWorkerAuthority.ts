@@ -1,7 +1,25 @@
 import type { InferSchema, ReducerCtx } from 'spacetimedb/server';
 import { ScheduleAt } from 'spacetimedb';
 
-import { greaterRealmLegacyJourneyDispatchIsOpenV1 } from './greaterRealmActivationState';
+import {
+  greaterRealmCutoverIsCurrentV1,
+  greaterRealmLegacyJourneyDispatchIsOpenV1,
+} from './greaterRealmActivationState';
+import {
+  GREATER_REALM_CASTLE_CAPACITY,
+} from './greaterRealmV17Policy';
+import {
+  GREATER_REALM_MAX_WORKER_RECEIPT_ROWS,
+  GREATER_REALM_MAX_WORKER_ROWS,
+} from './greaterRealmActivationPolicy';
+import {
+  advanceGreaterRealmWorkerDispatchCounterV1,
+  greaterRealmWorkerAuthorityErrorCode,
+  replayGreaterRealmWorkerDispatchV2,
+  resolveGreaterRealmWorkerDispatchTargetV2,
+  validateGreaterRealmWorkerDispatchInputV2,
+} from './greaterRealmWorkerAuthority';
+import { greaterRealmWorkerPolicyErrorCode } from './greaterRealmWorkerPolicy';
 import { assertGenesisResourceForFid } from './resourceAuthority';
 import { RESOURCE_BALANCE_CAP } from './resourceAuthorityPolicy';
 import {
@@ -154,6 +172,68 @@ function workerSystemActive(ctx: WarpkeepReducerContext) {
     || !/^[0-9a-f]{16}$/.test(row.rosterDigest)
   ) fail('WORKER_ROSTER_NOT_READY');
   return row;
+}
+
+/**
+ * Current-v17 gameplay accepts the expanded 600-castle root. Keep the frozen
+ * rollout/operator validator above on its original 100-castle bound so old
+ * repair and cutover paths cannot silently widen their inspection surface.
+ */
+function greaterRealmWorkerSystemActiveV1(ctx: WarpkeepReducerContext) {
+  if (ctx.db.realmWorkerSystemV1.count() !== 1n) {
+    fail('WORKER_SYSTEM_NOT_READY');
+  }
+  const row = ctx.db.realmWorkerSystemV1.realmId.find(WORKER_SYSTEM_REALM_ID);
+  const now = ctx.timestamp.microsSinceUnixEpoch;
+  const createdAt = row?.createdAt?.microsSinceUnixEpoch;
+  const activatedAt = row?.activatedAt?.microsSinceUnixEpoch;
+  if (
+    row === null
+    || row.realmId !== WORKER_SYSTEM_REALM_ID
+    || row.policyVersion !== CASTLE_WORKER_POLICY_VERSION
+    || row.workersPerCastle !== CASTLE_WORKERS_PER_CASTLE
+    || !Number.isSafeInteger(row.expectedCastleCount)
+    || row.expectedCastleCount < 0
+    || row.expectedCastleCount > GREATER_REALM_CASTLE_CAPACITY
+    || row.expectedWorkerCount
+      !== row.expectedCastleCount * CASTLE_WORKERS_PER_CASTLE
+    || !/^[0-9a-f]{16}$/.test(row.rosterDigest)
+    || row.mode !== 'active'
+    || row.legacyDrainRequired
+    || typeof createdAt !== 'bigint'
+    || typeof activatedAt !== 'bigint'
+    || createdAt < 0n
+    || activatedAt < createdAt
+    || createdAt > now
+    || activatedAt > now
+  ) fail('WORKER_SYSTEM_NOT_READY');
+  const expectedCastleCount = BigInt(row.expectedCastleCount);
+  const expectedWorkerCount = BigInt(row.expectedWorkerCount);
+  if (
+    ctx.db.castle.count() !== expectedCastleCount
+    || ctx.db.castleWorkerV1.count() !== expectedWorkerCount
+  ) fail('WORKER_ROSTER_NOT_READY');
+  const legacy = legacyActiveCounts(ctx);
+  if (legacy.expeditions !== 0n || legacy.occupations !== 0n || legacy.schedules !== 0n) {
+    fail('WORKER_LEGACY_DRAIN_REQUIRED');
+  }
+  return row;
+}
+
+function workerSettlementActiveForCurrentGameplayV1(
+  ctx: WarpkeepReducerContext,
+) {
+  return greaterRealmCutoverIsCurrentV1(ctx)
+    ? greaterRealmWorkerSystemActiveV1(ctx)
+    : workerSettlementActive(ctx);
+}
+
+function workerSystemActiveForCurrentGameplayV1(
+  ctx: WarpkeepReducerContext,
+) {
+  return greaterRealmCutoverIsCurrentV1(ctx)
+    ? greaterRealmWorkerSystemActiveV1(ctx)
+    : workerSystemActive(ctx);
 }
 
 function canonicalSiteFor(
@@ -480,7 +560,7 @@ export function settleAllWorkerAssignmentsForFid(
     CASTLE_WORKERS_PER_CASTLE,
     'WORKER_ASSIGNMENT_LIMIT',
   );
-  if (assignments.length > 0) workerSettlementActive(ctx);
+  if (assignments.length > 0) workerSettlementActiveForCurrentGameplayV1(ctx);
   const passive = planResourceSettlementForActiveExpeditionReservations(
     ctx,
     fid,
@@ -539,12 +619,19 @@ export type WorkerPrivateProjection = Readonly<{
   revision: bigint;
 }>;
 
-export function projectMyWorkerState(
+export type WorkerPrivateStateProjection = Readonly<{
+  resource: ResourceAccountRow;
+  balances: Readonly<Record<'food' | 'wood' | 'stone' | 'gold', bigint>>;
+  workers: readonly WorkerPrivateProjection[];
+}>;
+
+function projectWorkerState(
   ctx: WarpkeepReducerContext,
   fid: bigint,
-  observedAtMicros = ctx.timestamp.microsSinceUnixEpoch,
-): Readonly<{ resource: ResourceAccountRow; balances: Readonly<Record<'food' | 'wood' | 'stone' | 'gold', bigint>>; workers: readonly WorkerPrivateProjection[] }> {
-  workerSystemActive(ctx);
+  observedAtMicros: bigint,
+  assertActiveSystem: () => void,
+): WorkerPrivateStateProjection {
+  assertActiveSystem();
   const resource = assertGenesisResourceForFid(ctx, fid);
   const callerGraph = assertCallerWorkerGraph(ctx, fid, resource.castle.castleId);
   const passive = planResourceSettlementForActiveExpeditionReservations(
@@ -603,6 +690,47 @@ export function projectMyWorkerState(
   return Object.freeze({ resource: resource.account, balances: Object.freeze(balances), workers: Object.freeze(workers) });
 }
 
+/** Frozen v1 projection retains the original 100-castle rollout authority. */
+export function projectMyWorkerState(
+  ctx: WarpkeepReducerContext,
+  fid: bigint,
+  observedAtMicros = ctx.timestamp.microsSinceUnixEpoch,
+): WorkerPrivateStateProjection {
+  return projectWorkerState(ctx, fid, observedAtMicros, () => workerSystemActive(ctx));
+}
+
+/** Current-v17 projection uses the separately bounded 600-castle root. */
+export function projectMyGreaterRealmWorkerStateV2(
+  ctx: WarpkeepReducerContext,
+  fid: bigint,
+  observedAtMicros = ctx.timestamp.microsSinceUnixEpoch,
+): WorkerPrivateStateProjection {
+  return projectWorkerState(
+    ctx,
+    fid,
+    observedAtMicros,
+    () => greaterRealmWorkerSystemActiveV1(ctx),
+  );
+}
+
+/**
+ * Shared gameplay consumers such as Inner Keep survive the v17 cutover while
+ * the explicitly versioned v1 Worker procedures retain their frozen rollout
+ * classifier. This selector never widens legacy pre-cutover authority.
+ */
+export function projectMyWorkerStateForCurrentGameplayV1(
+  ctx: WarpkeepReducerContext,
+  fid: bigint,
+  observedAtMicros = ctx.timestamp.microsSinceUnixEpoch,
+): WorkerPrivateStateProjection {
+  return projectWorkerState(
+    ctx,
+    fid,
+    observedAtMicros,
+    () => workerSystemActiveForCurrentGameplayV1(ctx),
+  );
+}
+
 function assertDispatchReservations(
   ctx: WarpkeepReducerContext,
   fid: bigint,
@@ -622,6 +750,12 @@ function assertDispatchReservations(
 export type WorkerDispatchResult = Readonly<{
   assignment: AssignmentRow | undefined;
   idempotent: boolean;
+}>;
+
+export type GreaterRealmWorkerDispatchResultV2 = Readonly<{
+  assignment: AssignmentRow | undefined;
+  idempotent: boolean;
+  leaseId: string;
 }>;
 
 export function dispatchCastleWorker(
@@ -766,6 +900,185 @@ export function dispatchCastleWorker(
     createdAt: ctx.timestamp,
   });
   return Object.freeze({ assignment, idempotent: false });
+}
+
+/**
+ * Dispatch one current-v17 Worker against a public location capacity. The
+ * private resource catalogue is resolved server-side; only the declassified
+ * location-and-capacity lease enters the shared Worker graph.
+ */
+export function dispatchGreaterRealmCastleWorkerV2(
+  ctx: WarpkeepReducerContext,
+  input: Readonly<{
+    fid: bigint;
+    castle: CastleRow;
+    workerId: string;
+    resourceKind: string;
+    locationId: string;
+    expectedRevision: bigint;
+    idempotencyKey: string;
+  }>,
+): GreaterRealmWorkerDispatchResultV2 {
+  const requestKey = assignmentRequestKey(input.fid, input.idempotencyKey);
+  // Validate every public command input, including the revision-bound
+  // fingerprint, before a prior receipt can influence replay behavior.
+  const fingerprint = validateGreaterRealmWorkerDispatchInputV2(input);
+  const prior = ctx.db.workerCommandIdempotencyV1.requestKey.find(requestKey);
+  if (prior !== null) {
+    if (
+      !canonicalCastleOwnershipMatches(ctx, input.fid, input.castle.castleId)
+      || !receiptOwnerIsCanonical(ctx, prior, input.castle.castleId)
+    ) fail('WORKER_IDEMPOTENCY_OWNER_INVALID');
+    const replay = replayGreaterRealmWorkerDispatchV2(prior, input, fingerprint);
+    if (!workerReceiptShapeIsValid(prior)) fail('WORKER_IDEMPOTENCY_STALE');
+    const assignment = ctx.db.workerAssignmentV1.assignmentId.find(prior.assignmentId!);
+    const worker = ctx.db.castleWorkerV1.workerId.find(input.workerId);
+    if (worker === null || worker.originCastleId !== input.castle.castleId) {
+      fail('WORKER_IDEMPOTENCY_STALE');
+    }
+    if (assignment === null) {
+      const currentAssignment = ctx.db.workerAssignmentV1.workerId.find(worker.workerId);
+      const currentStateIsCanonical = worker.status === 'idle'
+        ? currentAssignment === null
+        : currentAssignment !== null
+          && currentAssignment.assignmentId !== prior.assignmentId
+          && assignmentOwnerIsCanonical(ctx, currentAssignment)
+          && publicWorkerMatchesAssignment(worker, currentAssignment);
+      if (
+        worker.revision <= prior.resultRevision
+        || !castleWorkerPublicStateIsConsistent(worker)
+        || !currentStateIsCanonical
+      ) fail('WORKER_IDEMPOTENCY_STALE');
+      return Object.freeze({
+        assignment: undefined,
+        idempotent: true,
+        leaseId: replay.leaseId,
+      });
+    }
+    if (
+      assignment.fid !== input.fid
+      || assignment.workerId !== input.workerId
+      || assignment.resourceKind !== input.resourceKind
+      || assignment.siteId !== replay.leaseId
+      || assignment.originCastleId !== input.castle.castleId
+      || !assignmentOwnerIsCanonical(ctx, assignment)
+    ) fail('WORKER_IDEMPOTENCY_STALE');
+    assertAssignmentState(assignment);
+    if (!publicWorkerMatchesAssignment(worker, assignment)) {
+      fail('WORKER_IDEMPOTENCY_STALE');
+    }
+    return Object.freeze({ assignment, idempotent: true, leaseId: replay.leaseId });
+  }
+
+  greaterRealmWorkerSystemActiveV1(ctx);
+  if (!canonicalCastleOwnershipMatches(ctx, input.fid, input.castle.castleId)) {
+    fail('WORKER_NOT_OWNED');
+  }
+  const callerGraph = assertCallerWorkerGraph(ctx, input.fid, input.castle.castleId);
+  settleAllWorkerAssignmentsForFid(ctx, input.fid);
+  const worker = ctx.db.castleWorkerV1.workerId.find(input.workerId);
+  if (
+    worker === null
+    || worker.originCastleId !== input.castle.castleId
+    || !callerGraph.roster.some(row => row.workerId === worker.workerId)
+  ) fail('WORKER_NOT_OWNED');
+  assertCastleWorkerId(worker.workerId);
+  if (
+    worker.status !== 'idle'
+    || ctx.db.workerAssignmentV1.workerId.find(worker.workerId) !== null
+  ) fail('WORKER_NOT_IDLE');
+  const target = resolveGreaterRealmWorkerDispatchTargetV2(ctx, input, fingerprint);
+  const nodeKey = workerNodeKey(input.resourceKind, target.leaseId);
+  if (ctx.db.workerNodeOccupationV1.nodeKey.find(nodeKey) !== null) {
+    fail('WORKER_SITE_OCCUPIED');
+  }
+  const resource = assertGenesisResourceForFid(ctx, input.fid);
+  assertDispatchReservations(ctx, input.fid, resource.account, input.resourceKind);
+  const timeline = planCastleWorkerTimeline(
+    ctx.timestamp.microsSinceUnixEpoch,
+    target.routeSteps,
+  );
+  const timelineRevision = safeNextU32(
+    worker.timelineRevision,
+    'WORKER_TIMELINE_REVISION',
+  );
+  const assignment = ctx.db.workerAssignmentV1.insert({
+    assignmentId: ctx.newUuidV7().toString(),
+    workerId: worker.workerId,
+    fid: input.fid,
+    originCastleId: input.castle.castleId,
+    resourceKind: input.resourceKind,
+    siteId: target.leaseId,
+    phase: 'outbound',
+    ...timeline,
+    returnStartedAtMicros: undefined,
+    routeSteps: target.routeSteps,
+    returnStartProgressBasisPoints: 0,
+    settledThroughMicros: timeline.arrivesAtMicros,
+    accruedAmount: 0n,
+    materializedAmount: 0n,
+    timelineRevision,
+    policyVersion: CASTLE_WORKER_POLICY_VERSION,
+    createdAt: ctx.timestamp,
+    updatedAt: ctx.timestamp,
+  });
+  ctx.db.castleWorkerV1.workerId.update({
+    ...worker,
+    status: 'outbound',
+    resourceKind: input.resourceKind,
+    siteId: target.leaseId,
+    startedAtMicros: assignment.startedAtMicros,
+    arrivesAtMicros: assignment.arrivesAtMicros,
+    gatheringEndsAtMicros: assignment.gatheringEndsAtMicros,
+    returnStartedAtMicros: undefined,
+    returnsAtMicros: assignment.returnsAtMicros,
+    routeSteps: assignment.routeSteps,
+    returnStartProgressBasisPoints: undefined,
+    timelineRevision,
+    revision: safeNextU64(worker.revision, 'WORKER_REVISION'),
+  });
+  ctx.db.workerNodeOccupationV1.insert({
+    nodeKey,
+    resourceKind: input.resourceKind,
+    siteId: target.leaseId,
+    workerId: worker.workerId,
+    workerOrdinal: worker.ordinal,
+    originCastleId: input.castle.castleId,
+    phase: 'outbound',
+    startedAtMicros: assignment.startedAtMicros,
+    arrivesAtMicros: assignment.arrivesAtMicros,
+    gatheringEndsAtMicros: assignment.gatheringEndsAtMicros,
+    timelineRevision: assignment.timelineRevision,
+  });
+  insertSchedule(
+    ctx,
+    assignment,
+    WORKER_SCHEDULE_STAGE_ARRIVAL,
+    assignment.arrivesAtMicros,
+  );
+  const updatedWorker = ctx.db.castleWorkerV1.workerId.find(worker.workerId);
+  if (
+    updatedWorker === null
+    || !publicWorkerMatchesAssignment(updatedWorker, assignment)
+  ) fail('WORKER_PUBLIC_PRIVATE_MISMATCH');
+  pruneWorkerIdempotencyReceipts(ctx, input.fid);
+  ctx.db.workerCommandIdempotencyV1.insert({
+    requestKey,
+    fid: input.fid,
+    workerId: worker.workerId,
+    commandKind: target.receiptKind,
+    resourceKind: input.resourceKind,
+    siteId: target.leaseId,
+    assignmentId: assignment.assignmentId,
+    resultRevision: updatedWorker.revision,
+    createdAt: ctx.timestamp,
+  });
+  advanceGreaterRealmWorkerDispatchCounterV1(ctx, target);
+  return Object.freeze({
+    assignment,
+    idempotent: false,
+    leaseId: target.leaseId,
+  });
 }
 
 function progressBasisPoints(assignment: AssignmentRow, now: bigint): number {
@@ -948,7 +1261,7 @@ export function recallCastleWorker(
     ) fail('WORKER_IDEMPOTENCY_OWNER_INVALID');
     return;
   }
-  workerSystemActive(ctx);
+  workerSystemActiveForCurrentGameplayV1(ctx);
   if (!canonicalCastleOwnershipMatches(ctx, input.fid, input.castle.castleId)) fail('WORKER_NOT_OWNED');
   const callerGraph = assertCallerWorkerGraph(ctx, input.fid, input.castle.castleId);
   const worker = callerGraph.roster.find(row => row.workerId === input.workerId);
@@ -1007,7 +1320,7 @@ export function recallAllCastleWorkers(
     ) fail('WORKER_IDEMPOTENCY_OWNER_INVALID');
     return;
   }
-  workerSystemActive(ctx);
+  workerSystemActiveForCurrentGameplayV1(ctx);
   if (!canonicalCastleOwnershipMatches(ctx, input.fid, input.castle.castleId)) fail('WORKER_NOT_OWNED');
   const callerGraph = assertCallerWorkerGraph(ctx, input.fid, input.castle.castleId);
   const roster = [...callerGraph.roster].sort((left, right) => left.ordinal - right.ordinal);
@@ -1274,6 +1587,26 @@ export function inspectCastleWorkerGraph(ctx: WarpkeepReducerContext): WorkerGra
   });
 }
 
+/**
+ * Read-only operational aggregate whose system classifier follows the current
+ * gameplay authority. The legacy roster plan and every repair mutation keep
+ * using inspectCastleWorkerGraph and their frozen 100-castle limits.
+ */
+export function inspectCastleWorkerGraphForCurrentGameplayV1(
+  ctx: WarpkeepReducerContext,
+): WorkerGraphAggregate {
+  if (!greaterRealmCutoverIsCurrentV1(ctx)) return inspectCastleWorkerGraph(ctx);
+  assertGreaterRealmActiveWorkerInspectionCapacityV1(ctx);
+  const aggregate = inspectCastleWorkerGraph(ctx);
+  let systemConfigValid = true;
+  try {
+    greaterRealmWorkerSystemActiveV1(ctx);
+  } catch {
+    systemConfigValid = false;
+  }
+  return Object.freeze({ ...aggregate, systemConfigValid });
+}
+
 export type WorkerReturnScheduleRepairAttestation = Readonly<{
   capability: string;
   sourceCommit: string;
@@ -1321,13 +1654,16 @@ function workerGraphIntegrityViolations(
     + graph.idempotencyOverflowFids;
 }
 
-function activeWorkerGraphBaseIsValid(graph: WorkerGraphAggregate): boolean {
+function activeWorkerGraphBaseIsValid(
+  graph: WorkerGraphAggregate,
+  systemConfigValid = graph.systemConfigValid,
+): boolean {
   const activeWorkers = graph.outboundWorkers
     + graph.gatheringWorkers
     + graph.returningWorkers;
   return graph.systemRows === 1n
     && graph.mode === 'active'
-    && graph.systemConfigValid
+    && systemConfigValid
     && !graph.legacyDrainRequired
     && graph.expectedCountsMatch
     && graph.rosterDigestMatches
@@ -1341,8 +1677,11 @@ function activeWorkerGraphBaseIsValid(graph: WorkerGraphAggregate): boolean {
     && graph.legacySchedules === 0n;
 }
 
-function activeWorkerGraphIsHealthy(graph: WorkerGraphAggregate): boolean {
-  return activeWorkerGraphBaseIsValid(graph)
+function activeWorkerGraphIsHealthy(
+  graph: WorkerGraphAggregate,
+  systemConfigValid = graph.systemConfigValid,
+): boolean {
+  return activeWorkerGraphBaseIsValid(graph, systemConfigValid)
     && graph.schedules === graph.assignments
     && workerGraphIntegrityViolations(graph) === 0n;
 }
@@ -1356,9 +1695,45 @@ function activeWorkerGraphIsHealthy(graph: WorkerGraphAggregate): boolean {
 export function assertCastleWorkerActiveGraphHealthyV1(
   ctx: WarpkeepReducerContext,
 ): void {
-  assertWorkerReturnRepairInspectionCapacity(ctx);
-  if (!activeWorkerGraphIsHealthy(inspectCastleWorkerGraph(ctx))) {
+  const currentGreaterRealm = greaterRealmCutoverIsCurrentV1(ctx);
+  if (currentGreaterRealm) {
+    assertGreaterRealmActiveWorkerInspectionCapacityV1(ctx);
+  } else {
+    assertWorkerReturnRepairInspectionCapacity(ctx);
+  }
+  const graph = inspectCastleWorkerGraph(ctx);
+  let systemConfigValid = graph.systemConfigValid;
+  if (currentGreaterRealm) {
+    systemConfigValid = true;
+    try {
+      greaterRealmWorkerSystemActiveV1(ctx);
+    } catch {
+      systemConfigValid = false;
+    }
+  }
+  if (!activeWorkerGraphIsHealthy(graph, systemConfigValid)) {
     fail('WORKER_GRAPH_INTEGRITY');
+  }
+}
+
+/** Current-v17 gameplay bound; legacy operator/repair remains capped at 100. */
+function assertGreaterRealmActiveWorkerInspectionCapacityV1(
+  ctx: WarpkeepReducerContext,
+): void {
+  const counts = [
+    [ctx.db.realmWorkerSystemV1.count(), 1],
+    [ctx.db.castle.count(), GREATER_REALM_CASTLE_CAPACITY],
+    [ctx.db.castleWorkerV1.count(), GREATER_REALM_MAX_WORKER_ROWS],
+    [ctx.db.workerAssignmentV1.count(), GREATER_REALM_MAX_WORKER_ROWS],
+    [ctx.db.workerNodeOccupationV1.count(), GREATER_REALM_MAX_WORKER_ROWS],
+    [ctx.db.workerAssignmentScheduleV1.count(), GREATER_REALM_MAX_WORKER_ROWS],
+    [
+      ctx.db.workerCommandIdempotencyV1.count(),
+      GREATER_REALM_MAX_WORKER_RECEIPT_ROWS,
+    ],
+  ] as const;
+  if (counts.some(([count, maximum]) => count > BigInt(maximum))) {
+    fail('GREATER_REALM_WORKER_INSPECTION_CAPACITY');
   }
 }
 
@@ -1534,6 +1909,11 @@ export function repairMissingWorkerReturnSchedule(
 }
 
 export function castleWorkerErrorCode(error: unknown): string | undefined {
+  const greaterRealmCode = greaterRealmWorkerAuthorityErrorCode(error)
+    ?? greaterRealmWorkerPolicyErrorCode(error);
+  if (greaterRealmCode !== undefined && BOUNDED_WORKER_ERROR_CODE.test(greaterRealmCode)) {
+    return greaterRealmCode;
+  }
   if (
     (error instanceof CastleWorkerAuthorityError || error instanceof CastleWorkerPolicyError)
     && BOUNDED_WORKER_ERROR_CODE.test(error.code)

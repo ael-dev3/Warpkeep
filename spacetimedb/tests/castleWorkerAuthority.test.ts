@@ -15,7 +15,11 @@ function section(text: string, startNeedle: string, endNeedle: string): string {
 
 test('worker lifecycle advances one synchronized revision and one schedule at a time', () => {
   const authority = source('../src/castleWorkerAuthority.ts');
-  const dispatch = section(authority, 'export function dispatchCastleWorker', 'function progressBasisPoints');
+  const dispatch = section(
+    authority,
+    'export function dispatchCastleWorker',
+    'export function dispatchGreaterRealmCastleWorkerV2',
+  );
   const arrival = section(authority, 'function transitionWorkerArrival', 'function settleAndBeginReturnAt');
   const returning = section(authority, 'function beginWorkerReturn', 'function completeWorkerReturn');
   const complete = section(authority, 'function completeWorkerReturn', 'function transitionWorkerArrival');
@@ -52,7 +56,11 @@ test('worker lifecycle advances one synchronized revision and one schedule at a 
 test('worker leases allow repeated resource kinds but enforce one worker per node', () => {
   const authority = source('../src/castleWorkerAuthority.ts');
   const schema = source('../src/schema.ts');
-  const dispatch = section(authority, 'export function dispatchCastleWorker', 'function progressBasisPoints');
+  const dispatch = section(
+    authority,
+    'export function dispatchCastleWorker',
+    'export function dispatchGreaterRealmCastleWorkerV2',
+  );
   const occupation = section(schema, 'export const workerNodeOccupationV1', 'export const workerCommandIdempotencyV1');
 
   assert.match(dispatch, /const nodeKey = workerNodeKey\(input\.resourceKind, input\.siteId\)/);
@@ -156,7 +164,7 @@ test('atomic worker control state uses one caller-bound transaction and one proj
   const controlState = section(
     reducers,
     'export const getMyWorkerControlStateV1',
-    'export const dispatchWorkerV1',
+    '/** Current-v17 control projection',
   );
 
   assert.match(controlState, /\{ name: 'get_my_worker_control_state_v1' \}/);
@@ -191,7 +199,11 @@ test('atomic worker control state uses one caller-bound transaction and one proj
 test('worker assignments and replay receipts remain bound to canonical castle ownership', () => {
   const authority = source('../src/castleWorkerAuthority.ts');
   const graph = section(authority, 'export function inspectCastleWorkerGraph', 'export function castleWorkerErrorCode');
-  const dispatch = section(authority, 'export function dispatchCastleWorker', 'function progressBasisPoints');
+  const dispatch = section(
+    authority,
+    'export function dispatchCastleWorker',
+    'export function dispatchGreaterRealmCastleWorkerV2',
+  );
   const recall = section(authority, 'export function recallCastleWorker', 'export function recallAllCastleWorkers');
   const recallAll = section(authority, 'export function recallAllCastleWorkers', 'export type WorkerGraphAggregate');
 

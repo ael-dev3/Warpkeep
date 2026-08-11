@@ -33,6 +33,7 @@ import {
 import AcceptAlphaTermsV1Reducer from './module_bindings/accept_alpha_terms_v_1_reducer'
 import BootstrapPlayerV2Reducer from './module_bindings/bootstrap_player_v_2_reducer'
 import DispatchWorkerV1Reducer from './module_bindings/dispatch_worker_v_1_reducer'
+import DispatchGreaterRealmWorkerV1Reducer from './module_bindings/dispatch_greater_realm_worker_v_1_reducer'
 import CollectFoodExpeditionV1Reducer from './module_bindings/collect_food_expedition_v_1_reducer'
 import CollectGoldExpeditionV1Reducer from './module_bindings/collect_gold_expedition_v_1_reducer'
 import CollectWoodExpeditionV1Reducer from './module_bindings/collect_wood_expedition_v_1_reducer'
@@ -53,6 +54,7 @@ import * as GetMyStoneExpeditionStateV1Procedure from './module_bindings/get_my_
 import * as GetMyResourceStateV1Procedure from './module_bindings/get_my_resource_state_v_1_procedure'
 import * as GetMyResourceStateV2Procedure from './module_bindings/get_my_resource_state_v_2_procedure'
 import * as GetMyWorkerControlStateV1Procedure from './module_bindings/get_my_worker_control_state_v_1_procedure'
+import * as GetMyWorkerControlStateV2Procedure from './module_bindings/get_my_worker_control_state_v_2_procedure'
 import * as GetMyWorkerRosterV1Procedure from './module_bindings/get_my_worker_roster_v_1_procedure'
 import * as GetRealmAtlasBootstrapV1Procedure from './module_bindings/get_realm_atlas_bootstrap_v_1_procedure'
 import * as GetRealmAtlasChunkV1Procedure from './module_bindings/get_realm_atlas_chunk_v_1_procedure'
@@ -477,6 +479,7 @@ const reducersSchema = __reducers(
   __reducerSchema('dispatch_wood_expedition_v1', DispatchWoodExpeditionV1Reducer),
   __reducerSchema('dispatch_stone_expedition_v1', DispatchStoneExpeditionV1Reducer),
   __reducerSchema('dispatch_worker_v1', DispatchWorkerV1Reducer),
+  __reducerSchema('dispatch_greater_realm_worker_v1', DispatchGreaterRealmWorkerV1Reducer),
   __reducerSchema('inner_keep_start_project_v1', InnerKeepStartProjectV1Reducer),
   __reducerSchema('recall_worker_v1', RecallWorkerV1Reducer),
   __reducerSchema('recall_all_workers_v1', RecallAllWorkersV1Reducer),
@@ -545,6 +548,11 @@ const proceduresSchema = __procedures(
     'get_my_worker_control_state_v1',
     GetMyWorkerControlStateV1Procedure.params,
     GetMyWorkerControlStateV1Procedure.returnType,
+  ),
+  __procedureSchema(
+    'get_my_worker_control_state_v2',
+    GetMyWorkerControlStateV2Procedure.params,
+    GetMyWorkerControlStateV2Procedure.returnType,
   ),
   __procedureSchema(
     'get_my_worker_roster_v1',

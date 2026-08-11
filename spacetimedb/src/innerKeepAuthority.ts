@@ -1,7 +1,10 @@
 import { ScheduleAt } from 'spacetimedb';
 import type { InferSchema, ReducerCtx } from 'spacetimedb/server';
 
-import { settleAllWorkerAssignmentsForFid, projectMyWorkerState } from './castleWorkerAuthority';
+import {
+  projectMyWorkerStateForCurrentGameplayV1,
+  settleAllWorkerAssignmentsForFid,
+} from './castleWorkerAuthority';
 import { CASTLE_WORKERS_PER_CASTLE } from './castleWorkerPolicy';
 import { CASTLE_WORKER_MAX_CASTLES } from './castleWorkerRolloutPolicy';
 import {
@@ -766,7 +769,11 @@ export function projectMyInnerKeepState(
   if (builderRequired && builder === null) fail('INNER_KEEP_BUILDER_INTEGRITY');
   const componentReady = componentActive && builder !== null && workerSystemIsReady(ctx);
   const projected = componentReady
-    ? projectMyWorkerState(ctx, fid, ctx.timestamp.microsSinceUnixEpoch).balances
+    ? projectMyWorkerStateForCurrentGameplayV1(
+      ctx,
+      fid,
+      ctx.timestamp.microsSinceUnixEpoch,
+    ).balances
     : resource;
   return Object.freeze({
     castleId: castle.castleId,

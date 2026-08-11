@@ -261,7 +261,10 @@ test('own-castle action authority is selector-free and rechecks the caller-deriv
   const source = readFileSync(new URL('../src/auth.ts', import.meta.url), 'utf8');
   const start = source.indexOf('export function requireOwnedCastleActionV1');
   const bodyStart = source.indexOf('{', start);
-  const end = source.indexOf('/**\n * Require the complete current gameplay graph', start);
+  const end = source.indexOf(
+    '/**\n * Authenticate an exact admitted player/castle owner',
+    start,
+  );
   assert.notEqual(start, -1);
   assert.notEqual(bodyStart, -1);
   assert.notEqual(end, -1);

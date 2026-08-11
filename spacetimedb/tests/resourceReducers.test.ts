@@ -188,7 +188,7 @@ test('gameplay resource authority requires the current entry agreement and the c
   const ownedCastle = section(
     auth,
     'export function requireOwnedCastleActionV1',
-    '/**\n * Require the complete current gameplay graph',
+    '/**\n * Authenticate an exact admitted player/castle owner',
   );
   assert.match(ownedCastle, /requireAdmittedPlayer\(ctx\)/);
   assert.match(ownedCastle, /admitted\.castle\.ownerFid !== admitted\.claims\.fid/);

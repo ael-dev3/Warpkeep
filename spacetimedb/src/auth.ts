@@ -260,6 +260,42 @@ export function requireOwnedCastleActionV1(
 }
 
 /**
+ * Authenticate an exact admitted player/castle owner without reading the
+ * mutable Greater Realm activation roots. Receipt-first commands use this
+ * boundary so a valid terminal retry survives halt or later capacity drift;
+ * fresh commands must separately require the complete current founder graph.
+ */
+export function requireAuthenticatedCastleOwnerActionV1(
+  ctx: WarpkeepReducerContext,
+): ReturnType<typeof requireAllowedFid> & {
+  player: NonNullable<ReturnType<typeof ctx.db.playerV2.fid.find>>;
+  castle: NonNullable<ReturnType<typeof ctx.db.castle.ownerFid.find>>;
+} {
+  const admitted = requireAllowedFid(ctx);
+  const player = ctx.db.playerV2.fid.find(admitted.claims.fid);
+  const ownership = ctx.db.playerOwnershipV2.fid.find(admitted.claims.fid);
+  const castle = ctx.db.castle.ownerFid.find(admitted.claims.fid);
+  const acceptance = ctx.db.alphaTermsAcceptanceV1.acceptanceKey.find(
+    `${admitted.claims.fid}:${WARPKEEP_ALPHA_TERMS_VERSION}`,
+  );
+  const ownershipState = evaluatePlayerOwnership(
+    player !== null,
+    ownership !== null,
+    ownership?.identity.equals(ctx.sender) ?? false,
+  );
+  if (ownershipState === 'unbound') throw new SenderError('PLAYER_NOT_BOOTSTRAPPED');
+  if (ownershipState === 'partial' || castle === null) throw new SenderError('STATE_INTEGRITY');
+  if (ownershipState === 'identity_mismatch') throw new SenderError('IDENTITY_MISMATCH');
+  if (castle.ownerFid !== admitted.claims.fid) throw new SenderError('STATE_INTEGRITY');
+  if (
+    acceptance === null
+    || acceptance.fid !== admitted.claims.fid
+    || acceptance.termsVersion !== WARPKEEP_ALPHA_TERMS_VERSION
+  ) throw new SenderError('ALPHA_TERMS_REQUIRED');
+  return Object.freeze({ ...admitted, player: player!, castle });
+}
+
+/**
  * Require the complete current gameplay graph. Resource entry points never
  * infer current entry-agreement acceptance from public presentation fields or
  * historical evidence alone.

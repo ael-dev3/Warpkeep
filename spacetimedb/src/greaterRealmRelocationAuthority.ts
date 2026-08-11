@@ -609,7 +609,8 @@ function requirePublicRoots(
   const expectedCastleCount = row.snapshotCastleCount + row.postCanaryFoundingCount;
   const expectedWorkerCount = expectedCastleCount * CASTLE_WORKERS_PER_CASTLE;
   const castles = sortedCastles(ctx);
-  assertGreaterRealmCanonicalIdleWorkersV1(ctx, castles, false);
+  assertGreaterRealmCanonicalIdleWorkersV1(ctx, castles, mode === 'canary');
+  if (mode !== 'canary') assertCastleWorkerActiveGraphHealthyV1(ctx);
   if (
     atlas === null
     || worker === null
