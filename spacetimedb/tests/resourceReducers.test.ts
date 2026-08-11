@@ -49,7 +49,7 @@ test('resource and Gold prefixes remain intact through later additive suffixes',
   const registrations = schemaRegistrations(schema);
 
   assert.deepEqual(registrations.slice(0, deployedRegistrations.length), deployedRegistrations);
-  assert.deepEqual(registrations.slice(deployedRegistrations.length), [
+  const frozenSuffix = [
     'resourceAccountV1',
     'goldSiteV1',
     'goldNodeOccupationV1',
@@ -103,7 +103,14 @@ test('resource and Gold prefixes remain intact through later additive suffixes',
     'realmChatSendReceiptV1',
     'realmChatReportV1',
     'realmChatReportRateEventV1',
-  ]);
+  ];
+  assert.deepEqual(
+    registrations.slice(
+      deployedRegistrations.length,
+      deployedRegistrations.length + frozenSuffix.length,
+    ),
+    frozenSuffix,
+  );
 
   const account = tableDefinition(schema, 'resourceAccountV1');
   assert.match(account, /name: 'resource_account_v1'/);

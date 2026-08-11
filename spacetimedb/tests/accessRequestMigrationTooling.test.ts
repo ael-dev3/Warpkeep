@@ -58,11 +58,7 @@ test('v13 through v15 remain frozen prefixes before the v16 Realm Chat append', 
     'realmChatReportV1',
     'realmChatReportRateEventV1',
   ]);
-  assert.ok(
-    [v15Tables, v16Tables].some(boundary => (
-      JSON.stringify(candidateTables) === JSON.stringify(boundary)
-    )),
-  );
+  assert.deepEqual(candidateTables.slice(0, v16Tables.length), v16Tables);
   assert.match(v13, /const accessRequestV1 = table\(\{ name: 'access_request_v1' \}, \{/);
   assert.match(
     v13,

@@ -55,7 +55,7 @@ test('v15 remains the exact v14 prefix plus Inner Keep refs 56-63 before v16', (
   assert.deepEqual(v15Tables.slice(56), innerKeepRegistrations);
   assert.deepEqual(v16Tables.slice(0, 64), v15Tables);
   assert.deepEqual(v16Tables.slice(64), realmChatRegistrations);
-  assert.deepEqual(candidateTables, v16Tables);
+  assert.deepEqual(candidateTables.slice(0, v16Tables.length), v16Tables);
 });
 
 test('v15 fixture pins public projection, private authority, and an empty compatibility slot table', () => {

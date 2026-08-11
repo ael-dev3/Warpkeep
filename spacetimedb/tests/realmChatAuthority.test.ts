@@ -45,10 +45,10 @@ test('v16 appends exactly eight privacy-separated Realm Chat tables after frozen
   ];
 
   assert.equal(predecessor.length, 64);
-  assert.equal(current.length, 72);
-  assert.deepEqual(current, fixture);
+  assert.ok(current.length >= fixture.length);
+  assert.deepEqual(current.slice(0, fixture.length), fixture);
   assert.deepEqual(current.slice(0, predecessor.length), predecessor);
-  assert.deepEqual(current.slice(predecessor.length), chatTables);
+  assert.deepEqual(current.slice(predecessor.length, fixture.length), chatTables);
 
   for (const publicName of ['realmChatStatusV1']) {
     assert.match(section(schema, `export const ${publicName} = table(`, '\n);'), /public: true/);

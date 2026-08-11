@@ -249,6 +249,55 @@ export const AdminDailyMarksStatusV1 = __t.object("AdminDailyMarksStatusV1", {
 });
 export type AdminDailyMarksStatusV1 = __Infer<typeof AdminDailyMarksStatusV1>;
 
+export const AdminGreaterRealmImportPlanV1 = __t.object("AdminGreaterRealmImportPlanV1", {
+  state: __t.string(),
+  verificationPhase: __t.string(),
+  verificationCursor: __t.u64(),
+  remainingComponents: __t.u64(),
+  remainingRegions: __t.u64(),
+  remainingChunks: __t.u64(),
+  remainingCells: __t.u64(),
+  remainingSlots: __t.u64(),
+  remainingResources: __t.u64(),
+  canBeginVerification: __t.bool(),
+  canFinalize: __t.bool(),
+  importMutationsCompiled: __t.bool(),
+});
+export type AdminGreaterRealmImportPlanV1 = __Infer<typeof AdminGreaterRealmImportPlanV1>;
+
+export const AdminGreaterRealmStatusV1 = __t.object("AdminGreaterRealmStatusV1", {
+  present: __t.bool(),
+  atlasId: __t.option(__t.string()),
+  publicReleaseId: __t.option(__t.string()),
+  state: __t.string(),
+  importEpoch: __t.option(__t.u64()),
+  verificationPhase: __t.string(),
+  verificationCursor: __t.u64(),
+  verificationDigest: __t.string(),
+  expectedComponentCount: __t.u32(),
+  expectedChunkCount: __t.u32(),
+  expectedCellCount: __t.u32(),
+  expectedSlotCount: __t.u32(),
+  expectedResourceNodeCount: __t.u32(),
+  regionManifestRows: __t.u32(),
+  componentRows: __t.u64(),
+  chunkRows: __t.u64(),
+  cellRows: __t.u64(),
+  slotRows: __t.u64(),
+  resourceRows: __t.u64(),
+  claimRows: __t.u64(),
+  occupancyRows: __t.u64(),
+  activationRows: __t.u64(),
+  publicAtlasRows: __t.u64(),
+  publicRegionRows: __t.u64(),
+  workerSystemRows: __t.u64(),
+  importsExact: __t.bool(),
+  ready: __t.bool(),
+  importMutationsCompiled: __t.bool(),
+  activationMutationsCompiled: __t.bool(),
+});
+export type AdminGreaterRealmStatusV1 = __Infer<typeof AdminGreaterRealmStatusV1>;
+
 export const AdminInnerKeepBuilderPlanV1 = __t.object("AdminInnerKeepBuilderPlanV1", {
   expectedCastles: __t.u32(),
   existingBuilders: __t.u32(),
@@ -797,6 +846,443 @@ export const GoldSiteV1 = __t.object("GoldSiteV1", {
 });
 export type GoldSiteV1 = __Infer<typeof GoldSiteV1>;
 
+export const GreaterRealmActivationV1 = __t.object("GreaterRealmActivationV1", {
+  activationId: __t.string(),
+  atlasId: __t.string(),
+  quietEpoch: __t.u64(),
+  mode: __t.string(),
+  snapshotCastleCount: __t.u32(),
+  snapshotWorkerCount: __t.u32(),
+  snapshotResourceAccountCount: __t.u32(),
+  snapshotMarkAccountCount: __t.u32(),
+  snapshotInnerKeepBuildingCount: __t.u32(),
+  snapshotClaimCount: __t.u32(),
+  snapshotOccupancyCount: __t.u32(),
+  snapshotCastleDigest: __t.string(),
+  snapshotWorkerDigest: __t.string(),
+  snapshotResourceDigest: __t.string(),
+  snapshotMarksDigest: __t.string(),
+  snapshotInnerKeepDigest: __t.string(),
+  snapshotScheduleDigest: __t.string(),
+  topologySnapshotDigest: __t.string(),
+  relocationPlanDigest: __t.string(),
+  nextAllocationSequence: __t.u64(),
+  postCanaryFoundingCount: __t.u32(),
+  postCanaryDispatchCount: __t.u32(),
+  actorSubject: __t.string(),
+  preparedAt: __t.timestamp(),
+  drainingAt: __t.option(__t.timestamp()),
+  frozenAt: __t.option(__t.timestamp()),
+  plannedAt: __t.option(__t.timestamp()),
+  canaryAt: __t.option(__t.timestamp()),
+  activatedAt: __t.option(__t.timestamp()),
+  haltedAt: __t.option(__t.timestamp()),
+  rolledBackAt: __t.option(__t.timestamp()),
+});
+export type GreaterRealmActivationV1 = __Infer<typeof GreaterRealmActivationV1>;
+
+export const GreaterRealmAtlasBootstrapV1 = __t.object("GreaterRealmAtlasBootstrapV1", {
+  atlasId: __t.string(),
+  publicReleaseId: __t.string(),
+  name: __t.string(),
+  protocolVersion: __t.u32(),
+  generatorVersion: __t.string(),
+  runtimePartitionVersion: __t.string(),
+  rendererContractVersion: __t.string(),
+  revision: __t.u64(),
+  visibleTierMax: __t.u32(),
+  navigationTierMax: __t.u32(),
+  foundingTierMax: __t.u32(),
+  visibleRegionCount: __t.u32(),
+  visibleCellCount: __t.u32(),
+  visibleChunkCount: __t.u32(),
+  castleCapacity: __t.u32(),
+  mode: __t.string(),
+  get regions() {
+    return __t.array(GreaterRealmRegionProjectionV1);
+  },
+  myCastleId: __t.u64(),
+  myCellKey: __t.option(__t.string()),
+});
+export type GreaterRealmAtlasBootstrapV1 = __Infer<typeof GreaterRealmAtlasBootstrapV1>;
+
+export const GreaterRealmCastleClaimV1 = __t.object("GreaterRealmCastleClaimV1", {
+  slotId: __t.string(),
+  ownerFid: __t.u64(),
+  castleId: __t.u64(),
+  atlasId: __t.string(),
+  activationId: __t.string(),
+  state: __t.string(),
+  claimKind: __t.string(),
+  allocationSequence: __t.u64(),
+  plannedAt: __t.timestamp(),
+  activatedAt: __t.option(__t.timestamp()),
+  legacySlotId: __t.option(__t.u32()),
+  legacyClaimedAt: __t.option(__t.timestamp()),
+  legacyGenerationVersion: __t.option(__t.u32()),
+  legacyTileKey: __t.option(__t.string()),
+  legacyQ: __t.option(__t.i32()),
+  legacyR: __t.option(__t.i32()),
+});
+export type GreaterRealmCastleClaimV1 = __Infer<typeof GreaterRealmCastleClaimV1>;
+
+export const GreaterRealmCastleSlotV1 = __t.object("GreaterRealmCastleSlotV1", {
+  slotId: __t.string(),
+  releaseOrdinal: __t.u32(),
+  atlasId: __t.string(),
+  cellKey: __t.string(),
+  regionId: __t.string(),
+  componentKey: __t.string(),
+  legacySlotId: __t.option(__t.u32()),
+  tier: __t.u32(),
+  regionOrderRank: __t.u32(),
+  allocationRank: __t.u32(),
+  active: __t.bool(),
+});
+export type GreaterRealmCastleSlotV1 = __Infer<typeof GreaterRealmCastleSlotV1>;
+
+export const GreaterRealmCellOccupancyV1 = __t.object("GreaterRealmCellOccupancyV1", {
+  cellKey: __t.string(),
+  atlasId: __t.string(),
+  regionId: __t.string(),
+  castleId: __t.u64(),
+  atlasRevision: __t.u64(),
+  occupiedAt: __t.timestamp(),
+});
+export type GreaterRealmCellOccupancyV1 = __Infer<typeof GreaterRealmCellOccupancyV1>;
+
+export const GreaterRealmCellProjectionV1 = __t.object("GreaterRealmCellProjectionV1", {
+  cellKey: __t.string(),
+  chunkHandle: __t.string(),
+  regionId: __t.string(),
+  atlasQ: __t.i32(),
+  atlasR: __t.i32(),
+  tier: __t.u32(),
+  passable: __t.bool(),
+  elevation: __t.i32(),
+  slope: __t.u32(),
+  aspect: __t.u32(),
+  profileCurvature: __t.i32(),
+  planCurvature: __t.i32(),
+  geologicalBarrierBand: __t.u32(),
+  biomeClass: __t.u32(),
+  landformClass: __t.u32(),
+  yieldClass: __t.u32(),
+  movementCost: __t.u32(),
+  sealedBoundaryMask: __t.u32(),
+  hydroRegime: __t.u32(),
+  hydroBodyId: __t.option(__t.string()),
+  hydroDepthClass: __t.u32(),
+  hydroSurfaceMilli: __t.i32(),
+  hydroFlowDirection: __t.option(__t.u32()),
+  flowAccumulation: __t.u64(),
+  bankVariant: __t.u32(),
+  hydrologyRevision: __t.u32(),
+  travelClass: __t.u32(),
+  wetness: __t.u32(),
+  exposure: __t.i32(),
+  coastDistance: __t.u32(),
+  freshwaterDistance: __t.u32(),
+  temperature: __t.i32(),
+  moisture: __t.i32(),
+  habitatClass: __t.u32(),
+  canopyBasisPoints: __t.u32(),
+  groundcoverBasisPoints: __t.u32(),
+  wildflowerBasisPoints: __t.u32(),
+  featureClass: __t.u32(),
+  ambienceClass: __t.u32(),
+  presentationVariant: __t.u32(),
+});
+export type GreaterRealmCellProjectionV1 = __Infer<typeof GreaterRealmCellProjectionV1>;
+
+export const GreaterRealmCellV1 = __t.object("GreaterRealmCellV1", {
+  cellKey: __t.string(),
+  atlasCoordKey: __t.string(),
+  releaseOrdinal: __t.u32(),
+  atlasId: __t.string(),
+  chunkHandle: __t.string(),
+  regionId: __t.string(),
+  componentKey: __t.option(__t.string()),
+  localQ: __t.i32(),
+  localR: __t.i32(),
+  atlasQ: __t.i32(),
+  atlasR: __t.i32(),
+  tier: __t.u32(),
+  passable: __t.bool(),
+  elevation: __t.i32(),
+  slope: __t.u32(),
+  aspect: __t.u32(),
+  profileCurvature: __t.i32(),
+  planCurvature: __t.i32(),
+  ridgeId: __t.option(__t.string()),
+  geologicalBarrierBand: __t.u32(),
+  biomeClass: __t.u32(),
+  landformClass: __t.u32(),
+  yieldClass: __t.u32(),
+  movementCost: __t.u32(),
+  sealedBoundaryMask: __t.u32(),
+  hydroRegime: __t.u32(),
+  hydroBodyId: __t.option(__t.string()),
+  hydroDepthClass: __t.u32(),
+  hydroSurfaceMilli: __t.i32(),
+  hydroFlowDirection: __t.option(__t.u32()),
+  flowAccumulation: __t.u64(),
+  bankVariant: __t.u32(),
+  hydrologyRevision: __t.u32(),
+  routeParentDirection: __t.option(__t.u32()),
+  routeDepth: __t.option(__t.u32()),
+  travelClass: __t.u32(),
+  wetness: __t.u32(),
+  exposure: __t.i32(),
+  coastDistance: __t.u32(),
+  freshwaterDistance: __t.u32(),
+  temperature: __t.i32(),
+  moisture: __t.i32(),
+  habitatClass: __t.u32(),
+  canopyBasisPoints: __t.u32(),
+  groundcoverBasisPoints: __t.u32(),
+  wildflowerBasisPoints: __t.u32(),
+  featureClass: __t.u32(),
+  ambienceClass: __t.u32(),
+  presentationVariant: __t.u32(),
+});
+export type GreaterRealmCellV1 = __Infer<typeof GreaterRealmCellV1>;
+
+export const GreaterRealmChunkDescriptorV1 = __t.object("GreaterRealmChunkDescriptorV1", {
+  chunkHandle: __t.string(),
+  binQ: __t.i32(),
+  binR: __t.i32(),
+  coreCellCount: __t.u32(),
+  apronCellCount: __t.u32(),
+  lod0CellCount: __t.u32(),
+  lod1CellCount: __t.u32(),
+  lod2CellCount: __t.u32(),
+  lod3CellCount: __t.u32(),
+});
+export type GreaterRealmChunkDescriptorV1 = __Infer<typeof GreaterRealmChunkDescriptorV1>;
+
+export const GreaterRealmChunkProjectionV1 = __t.object("GreaterRealmChunkProjectionV1", {
+  atlasId: __t.string(),
+  revision: __t.u64(),
+  chunkHandle: __t.string(),
+  lod: __t.u32(),
+  sourceCellCount: __t.u32(),
+  get coreCells() {
+    return __t.array(GreaterRealmCellProjectionV1);
+  },
+  get apronCells() {
+    return __t.array(GreaterRealmCellProjectionV1);
+  },
+  get resourceLocations() {
+    return __t.array(GreaterRealmResourceLocationProjectionV1);
+  },
+});
+export type GreaterRealmChunkProjectionV1 = __Infer<typeof GreaterRealmChunkProjectionV1>;
+
+export const GreaterRealmChunkV1 = __t.object("GreaterRealmChunkV1", {
+  chunkHandle: __t.string(),
+  atlasId: __t.string(),
+  chunkCoordKey: __t.string(),
+  importOrdinal: __t.u32(),
+  binQ: __t.i32(),
+  binR: __t.i32(),
+  firstCellOrdinal: __t.u32(),
+  coreCellCount: __t.u32(),
+  apronCellCount: __t.u32(),
+  lod0CellCount: __t.u32(),
+  lod1CellCount: __t.u32(),
+  lod2CellCount: __t.u32(),
+  lod3CellCount: __t.u32(),
+  payloadSha256: __t.string(),
+  payloadJson: __t.string(),
+  importedAt: __t.timestamp(),
+});
+export type GreaterRealmChunkV1 = __Infer<typeof GreaterRealmChunkV1>;
+
+export const GreaterRealmComponentImportV1 = __t.object("GreaterRealmComponentImportV1", {
+  componentKey: __t.string(),
+  componentOrdinal: __t.u32(),
+  regionMask: __t.u32(),
+  rootCellKey: __t.string(),
+  expectedCellCount: __t.u32(),
+  maxRouteDepth: __t.u32(),
+  expectedSlotCount: __t.u32(),
+  expectedFoodNodeCount: __t.u32(),
+  expectedWoodNodeCount: __t.u32(),
+  expectedStoneNodeCount: __t.u32(),
+  expectedGoldNodeCount: __t.u32(),
+  componentSha256: __t.string(),
+});
+export type GreaterRealmComponentImportV1 = __Infer<typeof GreaterRealmComponentImportV1>;
+
+export const GreaterRealmNavigationComponentV1 = __t.object("GreaterRealmNavigationComponentV1", {
+  componentKey: __t.string(),
+  atlasId: __t.string(),
+  componentOrdinal: __t.u32(),
+  regionMask: __t.u32(),
+  rootCellKey: __t.string(),
+  expectedCellCount: __t.u32(),
+  importedCellCount: __t.u32(),
+  verifiedCellCount: __t.u32(),
+  verifiedRegionMask: __t.u32(),
+  verifiedMaxRouteDepth: __t.u32(),
+  maxRouteDepth: __t.u32(),
+  expectedSlotCount: __t.u32(),
+  importedSlotCount: __t.u32(),
+  expectedFoodNodeCount: __t.u32(),
+  importedFoodNodeCount: __t.u32(),
+  expectedWoodNodeCount: __t.u32(),
+  importedWoodNodeCount: __t.u32(),
+  expectedStoneNodeCount: __t.u32(),
+  importedStoneNodeCount: __t.u32(),
+  expectedGoldNodeCount: __t.u32(),
+  importedGoldNodeCount: __t.u32(),
+  verifiedSlotCount: __t.u32(),
+  verifiedFoodNodeCount: __t.u32(),
+  verifiedWoodNodeCount: __t.u32(),
+  verifiedStoneNodeCount: __t.u32(),
+  verifiedGoldNodeCount: __t.u32(),
+  componentSha256: __t.string(),
+  verificationPhase: __t.string(),
+  verificationDigest: __t.string(),
+  regionVerificationJson: __t.string(),
+  active: __t.bool(),
+});
+export type GreaterRealmNavigationComponentV1 = __Infer<typeof GreaterRealmNavigationComponentV1>;
+
+export const GreaterRealmRegionImportV1 = __t.object("GreaterRealmRegionImportV1", {
+  regionId: __t.string(),
+  publicName: __t.string(),
+  ordinal: __t.u32(),
+  tier: __t.u32(),
+  cellCount: __t.u32(),
+  passableCellCount: __t.u32(),
+  chunkCount: __t.u32(),
+  castleCapacity: __t.u32(),
+  resourceLocationCount: __t.u32(),
+  resourceNodeCount: __t.u32(),
+  foodNodeCount: __t.u32(),
+  woodNodeCount: __t.u32(),
+  stoneNodeCount: __t.u32(),
+  goldNodeCount: __t.u32(),
+  active: __t.bool(),
+});
+export type GreaterRealmRegionImportV1 = __Infer<typeof GreaterRealmRegionImportV1>;
+
+export const GreaterRealmRegionProjectionV1 = __t.object("GreaterRealmRegionProjectionV1", {
+  regionId: __t.string(),
+  ordinal: __t.u32(),
+  publicName: __t.string(),
+  tier: __t.u32(),
+  cellCount: __t.u32(),
+  passableCellCount: __t.u32(),
+  chunkCount: __t.u32(),
+  castleCapacity: __t.u32(),
+  resourceLocationCount: __t.u32(),
+  resourceNodeCount: __t.u32(),
+  foodNodeCount: __t.u32(),
+  woodNodeCount: __t.u32(),
+  stoneNodeCount: __t.u32(),
+  goldNodeCount: __t.u32(),
+});
+export type GreaterRealmRegionProjectionV1 = __Infer<typeof GreaterRealmRegionProjectionV1>;
+
+export const GreaterRealmReleaseV1 = __t.object("GreaterRealmReleaseV1", {
+  atlasId: __t.string(),
+  publicReleaseId: __t.string(),
+  publicApprovalReceiptId: __t.string(),
+  sourceCommit: __t.string(),
+  generatorVersion: __t.string(),
+  sourceFormatVersion: __t.string(),
+  livingWorldVersion: __t.string(),
+  runtimePartitionVersion: __t.string(),
+  rendererContractVersion: __t.string(),
+  expectedRegionCount: __t.u32(),
+  expectedComponentCount: __t.u32(),
+  expectedChunkCount: __t.u32(),
+  expectedCellCount: __t.u32(),
+  expectedSlotCount: __t.u32(),
+  expectedResourceNodeCount: __t.u32(),
+  componentExpectedCellCount: __t.u32(),
+  componentExpectedSlotCount: __t.u32(),
+  componentExpectedResourceNodeCount: __t.u32(),
+  importedPassableCellCount: __t.u32(),
+  expectedReleaseSha256: __t.string(),
+  importEpoch: __t.u64(),
+  publicName: __t.option(__t.string()),
+  componentManifestJson: __t.string(),
+  regionManifestJson: __t.option(__t.string()),
+  regionVerificationJson: __t.string(),
+  nextChunkOrdinal: __t.u32(),
+  verificationPhase: __t.string(),
+  verificationCursor: __t.u64(),
+  verificationDigest: __t.string(),
+  verifiedComponentCount: __t.u32(),
+  verifiedChunkCount: __t.u32(),
+  verifiedCellCount: __t.u32(),
+  verifiedSlotCount: __t.u32(),
+  verifiedResourceNodeCount: __t.u32(),
+  state: __t.string(),
+  approvedAt: __t.timestamp(),
+  stagedAt: __t.timestamp(),
+  readyAt: __t.option(__t.timestamp()),
+});
+export type GreaterRealmReleaseV1 = __Infer<typeof GreaterRealmReleaseV1>;
+
+export const GreaterRealmResourceLocationProjectionV1 = __t.object("GreaterRealmResourceLocationProjectionV1", {
+  locationId: __t.string(),
+  cellKey: __t.string(),
+  regionId: __t.string(),
+  atlasQ: __t.i32(),
+  atlasR: __t.i32(),
+  resourceKind: __t.string(),
+  nodeCount: __t.u32(),
+  policyVersion: __t.string(),
+});
+export type GreaterRealmResourceLocationProjectionV1 = __Infer<typeof GreaterRealmResourceLocationProjectionV1>;
+
+export const GreaterRealmResourceNodeV1 = __t.object("GreaterRealmResourceNodeV1", {
+  nodeId: __t.string(),
+  releaseOrdinal: __t.u32(),
+  atlasId: __t.string(),
+  locationId: __t.string(),
+  cellKey: __t.string(),
+  regionId: __t.string(),
+  componentKey: __t.string(),
+  resourceKind: __t.string(),
+  tier: __t.u32(),
+  nodeOrdinal: __t.u32(),
+  allocationRank: __t.u32(),
+  legacyCatalogId: __t.option(__t.string()),
+  policyVersion: __t.string(),
+  active: __t.bool(),
+});
+export type GreaterRealmResourceNodeV1 = __Infer<typeof GreaterRealmResourceNodeV1>;
+
+export const GreaterRealmRoutePageV1 = __t.object("GreaterRealmRoutePageV1", {
+  atlasId: __t.string(),
+  revision: __t.u64(),
+  get cells() {
+    return __t.array(GreaterRealmCellProjectionV1);
+  },
+  totalLength: __t.u32(),
+  nextOffset: __t.option(__t.u32()),
+  complete: __t.bool(),
+});
+export type GreaterRealmRoutePageV1 = __Infer<typeof GreaterRealmRoutePageV1>;
+
+export const GreaterRealmWindowV1 = __t.object("GreaterRealmWindowV1", {
+  atlasId: __t.string(),
+  revision: __t.u64(),
+  centerQ: __t.i32(),
+  centerR: __t.i32(),
+  radius: __t.u32(),
+  get chunks() {
+    return __t.array(GreaterRealmChunkDescriptorV1);
+  },
+});
+export type GreaterRealmWindowV1 = __Infer<typeof GreaterRealmWindowV1>;
+
 export const InnerKeepBuildLevelV1 = __t.object("InnerKeepBuildLevelV1", {
   levelKey: __t.string(),
   buildingKind: __t.string(),
@@ -1166,6 +1652,48 @@ export const QaObserverRealmV2 = __t.object("QaObserverRealmV2", {
 });
 export type QaObserverRealmV2 = __Infer<typeof QaObserverRealmV2>;
 
+export const RealmAtlasV1 = __t.object("RealmAtlasV1", {
+  atlasId: __t.string(),
+  publicReleaseId: __t.string(),
+  name: __t.string(),
+  protocolVersion: __t.u32(),
+  generatorVersion: __t.string(),
+  runtimePartitionVersion: __t.string(),
+  rendererContractVersion: __t.string(),
+  revision: __t.u64(),
+  visibleTierMax: __t.u32(),
+  navigationTierMax: __t.u32(),
+  foundingTierMax: __t.u32(),
+  visibleRegionCount: __t.u32(),
+  visibleCellCount: __t.u32(),
+  visibleChunkCount: __t.u32(),
+  castleCapacity: __t.u32(),
+  mode: __t.string(),
+  createdAt: __t.timestamp(),
+  activatedAt: __t.option(__t.timestamp()),
+});
+export type RealmAtlasV1 = __Infer<typeof RealmAtlasV1>;
+
+export const RealmAtlasVisibleRegionV1 = __t.object("RealmAtlasVisibleRegionV1", {
+  regionId: __t.string(),
+  atlasId: __t.string(),
+  ordinal: __t.u32(),
+  publicName: __t.string(),
+  tier: __t.u32(),
+  cellCount: __t.u32(),
+  passableCellCount: __t.u32(),
+  chunkCount: __t.u32(),
+  castleCapacity: __t.u32(),
+  resourceLocationCount: __t.u32(),
+  resourceNodeCount: __t.u32(),
+  foodNodeCount: __t.u32(),
+  woodNodeCount: __t.u32(),
+  stoneNodeCount: __t.u32(),
+  goldNodeCount: __t.u32(),
+  active: __t.bool(),
+});
+export type RealmAtlasVisibleRegionV1 = __Infer<typeof RealmAtlasVisibleRegionV1>;
+
 export const RealmChatChannelV1 = __t.object("RealmChatChannelV1", {
   channelKey: __t.string(),
   realmId: __t.string(),
@@ -1469,6 +1997,20 @@ export const RealmWorkerSystemV1 = __t.object("RealmWorkerSystemV1", {
   activatedAt: __t.option(__t.timestamp()),
 });
 export type RealmWorkerSystemV1 = __Infer<typeof RealmWorkerSystemV1>;
+
+export const RealmWorkerSystemV2 = __t.object("RealmWorkerSystemV2", {
+  atlasId: __t.string(),
+  policyVersion: __t.string(),
+  workersPerCastle: __t.u32(),
+  castleCapacity: __t.u32(),
+  currentCastleCount: __t.u32(),
+  currentWorkerCount: __t.u32(),
+  rosterDigest: __t.string(),
+  mode: __t.string(),
+  createdAt: __t.timestamp(),
+  activatedAt: __t.option(__t.timestamp()),
+});
+export type RealmWorkerSystemV2 = __Infer<typeof RealmWorkerSystemV2>;
 
 export const ResourceAccountV1 = __t.object("ResourceAccountV1", {
   fid: __t.u64(),

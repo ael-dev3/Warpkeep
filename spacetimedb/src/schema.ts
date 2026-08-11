@@ -1507,6 +1507,386 @@ export const realmChatReportRateEventV1 = table(
   },
 );
 
+/**
+ * Private protocol-v17 import cursor for one declassified Tier-I release.
+ *
+ * The row deliberately contains no generation-package handle, seed, private
+ * package digest, inaccessible-region count, gate topology, or hidden-neighbour
+ * material. `publicApprovalReceiptId` is an opaque public-release approval
+ * identifier, not a reference to any private generation package.
+ */
+export const greaterRealmReleaseV1 = table(
+  { name: 'greater_realm_release_v1' },
+  {
+    atlasId: t.string().primaryKey(),
+    publicReleaseId: t.string().unique(),
+    publicApprovalReceiptId: t.string().unique(),
+    sourceCommit: t.string(),
+    generatorVersion: t.string(),
+    sourceFormatVersion: t.string(),
+    livingWorldVersion: t.string(),
+    runtimePartitionVersion: t.string(),
+    rendererContractVersion: t.string(),
+    expectedRegionCount: t.u32(),
+    expectedComponentCount: t.u32(),
+    expectedChunkCount: t.u32(),
+    expectedCellCount: t.u32(),
+    expectedSlotCount: t.u32(),
+    expectedResourceNodeCount: t.u32(),
+    componentExpectedCellCount: t.u32(),
+    componentExpectedSlotCount: t.u32(),
+    componentExpectedResourceNodeCount: t.u32(),
+    importedPassableCellCount: t.u32(),
+    expectedReleaseSha256: t.string(),
+    importEpoch: t.u64(),
+    publicName: t.option(t.string()),
+    componentManifestJson: t.string(),
+    regionManifestJson: t.option(t.string()),
+    regionVerificationJson: t.string(),
+    nextChunkOrdinal: t.u32(),
+    verificationPhase: t.string(),
+    verificationCursor: t.u64(),
+    verificationDigest: t.string(),
+    verifiedComponentCount: t.u32(),
+    verifiedChunkCount: t.u32(),
+    verifiedCellCount: t.u32(),
+    verifiedSlotCount: t.u32(),
+    verifiedResourceNodeCount: t.u32(),
+    state: t.string(),
+    approvedAt: t.timestamp(),
+    stagedAt: t.timestamp(),
+    readyAt: t.option(t.timestamp()),
+  },
+);
+
+/** Private bounded streaming manifest plus its canonical authenticated payload. */
+export const greaterRealmChunkV1 = table(
+  {
+    name: 'greater_realm_chunk_v1',
+    indexes: [{
+      accessor: 'byAtlasAndImportOrdinal',
+      algorithm: 'btree',
+      columns: ['atlasId', 'importOrdinal'] as const,
+    }] as const,
+  },
+  {
+    chunkHandle: t.string().primaryKey(),
+    atlasId: t.string().index(),
+    chunkCoordKey: t.string().unique(),
+    importOrdinal: t.u32().unique(),
+    binQ: t.i32(),
+    binR: t.i32(),
+    firstCellOrdinal: t.u32(),
+    coreCellCount: t.u32(),
+    apronCellCount: t.u32(),
+    lod0CellCount: t.u32(),
+    lod1CellCount: t.u32(),
+    lod2CellCount: t.u32(),
+    lod3CellCount: t.u32(),
+    payloadSha256: t.string(),
+    payloadJson: t.string(),
+    importedAt: t.timestamp(),
+  },
+);
+
+/** Private connected-component manifest for Tier-I reachability closure. */
+export const greaterRealmNavigationComponentV1 = table(
+  { name: 'greater_realm_navigation_component_v1' },
+  {
+    componentKey: t.string().primaryKey(),
+    atlasId: t.string().index(),
+    componentOrdinal: t.u32().unique(),
+    regionMask: t.u32(),
+    rootCellKey: t.string().unique(),
+    expectedCellCount: t.u32(),
+    importedCellCount: t.u32(),
+    verifiedCellCount: t.u32(),
+    verifiedRegionMask: t.u32(),
+    verifiedMaxRouteDepth: t.u32(),
+    maxRouteDepth: t.u32(),
+    expectedSlotCount: t.u32(),
+    importedSlotCount: t.u32(),
+    expectedFoodNodeCount: t.u32(),
+    importedFoodNodeCount: t.u32(),
+    expectedWoodNodeCount: t.u32(),
+    importedWoodNodeCount: t.u32(),
+    expectedStoneNodeCount: t.u32(),
+    importedStoneNodeCount: t.u32(),
+    expectedGoldNodeCount: t.u32(),
+    importedGoldNodeCount: t.u32(),
+    verifiedSlotCount: t.u32(),
+    verifiedFoodNodeCount: t.u32(),
+    verifiedWoodNodeCount: t.u32(),
+    verifiedStoneNodeCount: t.u32(),
+    verifiedGoldNodeCount: t.u32(),
+    componentSha256: t.string(),
+    verificationPhase: t.string(),
+    verificationDigest: t.string(),
+    regionVerificationJson: t.string(),
+    active: t.bool(),
+  },
+);
+
+/**
+ * Private declassified Tier-I cell authority. It retains only a route parent
+ * direction and depth: no private neighbour, gate, hidden-region, or
+ * downstream-water identifier may cross this boundary.
+ */
+export const greaterRealmCellV1 = table(
+  {
+    name: 'greater_realm_cell_v1',
+    indexes: [{
+      accessor: 'byAtlasAndReleaseOrdinal',
+      algorithm: 'btree',
+      columns: ['atlasId', 'releaseOrdinal'] as const,
+    }, {
+      accessor: 'byChunkAndReleaseOrdinal',
+      algorithm: 'btree',
+      columns: ['chunkHandle', 'releaseOrdinal'] as const,
+    }, {
+      accessor: 'byComponentAndRouteDepth',
+      algorithm: 'btree',
+      columns: ['componentKey', 'routeDepth'] as const,
+    }] as const,
+  },
+  {
+    cellKey: t.string().primaryKey(),
+    atlasCoordKey: t.string().unique(),
+    releaseOrdinal: t.u32().unique(),
+    atlasId: t.string().index(),
+    chunkHandle: t.string().index(),
+    regionId: t.string().index(),
+    componentKey: t.option(t.string()),
+    localQ: t.i32(),
+    localR: t.i32(),
+    atlasQ: t.i32(),
+    atlasR: t.i32(),
+    tier: t.u32(),
+    passable: t.bool(),
+    elevation: t.i32(),
+    slope: t.u32(),
+    aspect: t.u32(),
+    profileCurvature: t.i32(),
+    planCurvature: t.i32(),
+    ridgeId: t.option(t.string()),
+    geologicalBarrierBand: t.u32(),
+    biomeClass: t.u32(),
+    landformClass: t.u32(),
+    yieldClass: t.u32(),
+    movementCost: t.u32(),
+    sealedBoundaryMask: t.u32(),
+    hydroRegime: t.u32(),
+    hydroBodyId: t.option(t.string()),
+    hydroDepthClass: t.u32(),
+    hydroSurfaceMilli: t.i32(),
+    hydroFlowDirection: t.option(t.u32()),
+    flowAccumulation: t.u64(),
+    bankVariant: t.u32(),
+    hydrologyRevision: t.u32(),
+    routeParentDirection: t.option(t.u32()),
+    routeDepth: t.option(t.u32()),
+    travelClass: t.u32(),
+    wetness: t.u32(),
+    exposure: t.i32(),
+    coastDistance: t.u32(),
+    freshwaterDistance: t.u32(),
+    temperature: t.i32(),
+    moisture: t.i32(),
+    habitatClass: t.u32(),
+    canopyBasisPoints: t.u32(),
+    groundcoverBasisPoints: t.u32(),
+    wildflowerBasisPoints: t.u32(),
+    featureClass: t.u32(),
+    ambienceClass: t.u32(),
+    presentationVariant: t.u32(),
+  },
+);
+
+/** Private Tier-I founding capacity. Allocation ranks are assigned at finalize. */
+export const greaterRealmCastleSlotV1 = table(
+  { name: 'greater_realm_castle_slot_v1' },
+  {
+    slotId: t.string().primaryKey(),
+    releaseOrdinal: t.u32().unique(),
+    atlasId: t.string().index(),
+    cellKey: t.string().unique(),
+    regionId: t.string().index(),
+    componentKey: t.string().index(),
+    legacySlotId: t.option(t.u32()),
+    tier: t.u32(),
+    regionOrderRank: t.u32(),
+    allocationRank: t.u32(),
+    active: t.bool(),
+  },
+);
+
+/** Private relocation/founding plan. This subtask intentionally has no writer. */
+export const greaterRealmCastleClaimV1 = table(
+  { name: 'greater_realm_castle_claim_v1' },
+  {
+    slotId: t.string().primaryKey(),
+    ownerFid: t.u64().unique(),
+    castleId: t.u64().unique(),
+    atlasId: t.string().index(),
+    activationId: t.string().index(),
+    state: t.string(),
+    claimKind: t.string(),
+    allocationSequence: t.u64().unique(),
+    plannedAt: t.timestamp(),
+    activatedAt: t.option(t.timestamp()),
+    legacySlotId: t.option(t.u32()),
+    legacyClaimedAt: t.option(t.timestamp()),
+    legacyGenerationVersion: t.option(t.u32()),
+    legacyTileKey: t.option(t.string()),
+    legacyQ: t.option(t.i32()),
+    legacyR: t.option(t.i32()),
+  },
+);
+
+/** Public identity-minimized occupied-cell projection. */
+export const greaterRealmCellOccupancyV1 = table(
+  { name: 'greater_realm_cell_occupancy_v1', public: true },
+  {
+    cellKey: t.string().primaryKey(),
+    atlasId: t.string().index(),
+    regionId: t.string().index(),
+    castleId: t.u64().unique(),
+    atlasRevision: t.u64(),
+    occupiedAt: t.timestamp(),
+  },
+);
+
+/** Private Tier-I resource catalogue. Balances and assignments remain elsewhere. */
+export const greaterRealmResourceNodeV1 = table(
+  {
+    name: 'greater_realm_resource_node_v1',
+    indexes: [{
+      accessor: 'byComponentAndResourceKind',
+      algorithm: 'btree',
+      columns: ['componentKey', 'resourceKind'] as const,
+    }] as const,
+  },
+  {
+    nodeId: t.string().primaryKey(),
+    releaseOrdinal: t.u32().unique(),
+    atlasId: t.string().index(),
+    locationId: t.string().index(),
+    cellKey: t.string().index(),
+    regionId: t.string().index(),
+    componentKey: t.string().index(),
+    resourceKind: t.string().index(),
+    tier: t.u32(),
+    nodeOrdinal: t.u32(),
+    allocationRank: t.u32(),
+    legacyCatalogId: t.option(t.string()),
+    policyVersion: t.string(),
+    active: t.bool(),
+  },
+);
+
+/** Private quiet-window and rollback envelope. No activation writer exists yet. */
+export const greaterRealmActivationV1 = table(
+  { name: 'greater_realm_activation_v1' },
+  {
+    activationId: t.string().primaryKey(),
+    atlasId: t.string().unique(),
+    quietEpoch: t.u64(),
+    mode: t.string(),
+    snapshotCastleCount: t.u32(),
+    snapshotWorkerCount: t.u32(),
+    snapshotResourceAccountCount: t.u32(),
+    snapshotMarkAccountCount: t.u32(),
+    snapshotInnerKeepBuildingCount: t.u32(),
+    snapshotClaimCount: t.u32(),
+    snapshotOccupancyCount: t.u32(),
+    snapshotCastleDigest: t.string(),
+    snapshotWorkerDigest: t.string(),
+    snapshotResourceDigest: t.string(),
+    snapshotMarksDigest: t.string(),
+    snapshotInnerKeepDigest: t.string(),
+    snapshotScheduleDigest: t.string(),
+    topologySnapshotDigest: t.string(),
+    relocationPlanDigest: t.string(),
+    nextAllocationSequence: t.u64(),
+    postCanaryFoundingCount: t.u32(),
+    postCanaryDispatchCount: t.u32(),
+    actorSubject: t.string(),
+    preparedAt: t.timestamp(),
+    drainingAt: t.option(t.timestamp()),
+    frozenAt: t.option(t.timestamp()),
+    plannedAt: t.option(t.timestamp()),
+    canaryAt: t.option(t.timestamp()),
+    activatedAt: t.option(t.timestamp()),
+    haltedAt: t.option(t.timestamp()),
+    rolledBackAt: t.option(t.timestamp()),
+  },
+);
+
+/** Public protocol-v17 atlas header; only six accessible Tier-I regions exist. */
+export const realmAtlasV1 = table(
+  { name: 'realm_atlas_v1', public: true },
+  {
+    atlasId: t.string().primaryKey(),
+    publicReleaseId: t.string().unique(),
+    name: t.string(),
+    protocolVersion: t.u32(),
+    generatorVersion: t.string(),
+    runtimePartitionVersion: t.string(),
+    rendererContractVersion: t.string(),
+    revision: t.u64(),
+    visibleTierMax: t.u32(),
+    navigationTierMax: t.u32(),
+    foundingTierMax: t.u32(),
+    visibleRegionCount: t.u32(),
+    visibleCellCount: t.u32(),
+    visibleChunkCount: t.u32(),
+    castleCapacity: t.u32(),
+    mode: t.string(),
+    createdAt: t.timestamp(),
+    activatedAt: t.option(t.timestamp()),
+  },
+);
+
+/** Public aggregate for one of the exact six approved Tier-I region names. */
+export const realmAtlasVisibleRegionV1 = table(
+  { name: 'realm_atlas_visible_region_v1', public: true },
+  {
+    regionId: t.string().primaryKey(),
+    atlasId: t.string().index(),
+    ordinal: t.u32().unique(),
+    publicName: t.string(),
+    tier: t.u32(),
+    cellCount: t.u32(),
+    passableCellCount: t.u32(),
+    chunkCount: t.u32(),
+    castleCapacity: t.u32(),
+    resourceLocationCount: t.u32(),
+    resourceNodeCount: t.u32(),
+    foodNodeCount: t.u32(),
+    woodNodeCount: t.u32(),
+    stoneNodeCount: t.u32(),
+    goldNodeCount: t.u32(),
+    active: t.bool(),
+  },
+);
+
+/** Public v17 worker-system readiness projection; v1 remains byte-exact. */
+export const realmWorkerSystemV2 = table(
+  { name: 'realm_worker_system_v2', public: true },
+  {
+    atlasId: t.string().primaryKey(),
+    policyVersion: t.string(),
+    workersPerCastle: t.u32(),
+    castleCapacity: t.u32(),
+    currentCastleCount: t.u32(),
+    currentWorkerCount: t.u32(),
+    rosterDigest: t.string(),
+    mode: t.string(),
+    createdAt: t.timestamp(),
+    activatedAt: t.option(t.timestamp()),
+  },
+);
+
 const warpkeep = schema({
   // Preserve the original production schema prefix exactly. New tables are
   // append-only so SpacetimeDB can apply this migration without rewriting it.
@@ -1584,6 +1964,19 @@ const warpkeep = schema({
   realmChatSendReceiptV1,
   realmChatReportV1,
   realmChatReportRateEventV1,
+  // Additive v17 Greater Realm suffix. Refs 0-71 above remain frozen verbatim.
+  greaterRealmReleaseV1,
+  greaterRealmChunkV1,
+  greaterRealmNavigationComponentV1,
+  greaterRealmCellV1,
+  greaterRealmCastleSlotV1,
+  greaterRealmCastleClaimV1,
+  greaterRealmCellOccupancyV1,
+  greaterRealmResourceNodeV1,
+  greaterRealmActivationV1,
+  realmAtlasV1,
+  realmAtlasVisibleRegionV1,
+  realmWorkerSystemV2,
 });
 
 /**
@@ -1776,6 +2169,19 @@ for (const name of [
   'admin_backfill_inner_keep_builders_v1',
   'admin_activate_inner_keep_v1',
   'admin_deactivate_inner_keep_v1',
+  'admin_get_greater_realm_status_v1',
+  'admin_get_greater_realm_import_plan_v1',
+  'admin_stage_greater_realm_release_v1',
+  'admin_import_greater_realm_components_v1',
+  'admin_import_greater_realm_regions_v1',
+  'admin_import_greater_realm_chunk_v1',
+  'admin_begin_greater_realm_verification_v1',
+  'admin_verify_greater_realm_batch_v1',
+  'admin_finalize_greater_realm_release_v1',
+  'get_realm_atlas_bootstrap_v1',
+  'get_realm_atlas_window_v1',
+  'get_realm_atlas_chunk_v1',
+  'plan_realm_route_v1',
 ]) {
   warpkeep.moduleDef.explicitNames.entries.push({
     tag: 'Function',

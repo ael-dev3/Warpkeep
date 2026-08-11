@@ -21,6 +21,7 @@ import AdminBackfillDailyMarkAccountsV1Reducer from "../admin_backfill_daily_mar
 import AdminBackfillInnerKeepBuildersV1Reducer from "../admin_backfill_inner_keep_builders_v_1_reducer";
 import AdminBackfillResourceAccountsV1Reducer from "../admin_backfill_resource_accounts_v_1_reducer";
 import AdminBackfillWorkerRosterV1Reducer from "../admin_backfill_worker_roster_v_1_reducer";
+import AdminBeginGreaterRealmVerificationV1Reducer from "../admin_begin_greater_realm_verification_v_1_reducer";
 import AdminBeginWorkerLegacyDrainV1Reducer from "../admin_begin_worker_legacy_drain_v_1_reducer";
 import AdminBumpAuthEpochReducer from "../admin_bump_auth_epoch_reducer";
 import AdminCompleteWorkerLegacyDrainV1Reducer from "../admin_complete_worker_legacy_drain_v_1_reducer";
@@ -28,6 +29,10 @@ import AdminDeactivateInnerKeepV1Reducer from "../admin_deactivate_inner_keep_v_
 import AdminDisableFidReducer from "../admin_disable_fid_reducer";
 import AdminDisableRealmChatV1Reducer from "../admin_disable_realm_chat_v_1_reducer";
 import AdminExpandGenesisWorldV3Reducer from "../admin_expand_genesis_world_v_3_reducer";
+import AdminFinalizeGreaterRealmReleaseV1Reducer from "../admin_finalize_greater_realm_release_v_1_reducer";
+import AdminImportGreaterRealmChunkV1Reducer from "../admin_import_greater_realm_chunk_v_1_reducer";
+import AdminImportGreaterRealmComponentsV1Reducer from "../admin_import_greater_realm_components_v_1_reducer";
+import AdminImportGreaterRealmRegionsV1Reducer from "../admin_import_greater_realm_regions_v_1_reducer";
 import AdminRepairMissingWorkerReturnScheduleV1Reducer from "../admin_repair_missing_worker_return_schedule_v_1_reducer";
 import AdminResetAccessRequestV1Reducer from "../admin_reset_access_request_v_1_reducer";
 import AdminResolveRealmChatReportV1Reducer from "../admin_resolve_realm_chat_report_v_1_reducer";
@@ -40,10 +45,12 @@ import AdminSeedGenesisWaterLayoutV1Reducer from "../admin_seed_genesis_water_la
 import AdminSeedGenesisWaterRevisionV1Reducer from "../admin_seed_genesis_water_revision_v_1_reducer";
 import AdminSeedInnerKeepCatalogV1Reducer from "../admin_seed_inner_keep_catalog_v_1_reducer";
 import AdminSeedWorldReducer from "../admin_seed_world_reducer";
+import AdminStageGreaterRealmReleaseV1Reducer from "../admin_stage_greater_realm_release_v_1_reducer";
 import AdminStageRealmChatV1Reducer from "../admin_stage_realm_chat_v_1_reducer";
 import AdminStageWorkerSystemV1Reducer from "../admin_stage_worker_system_v_1_reducer";
 import AdminTombstoneRealmChatMessageV1Reducer from "../admin_tombstone_realm_chat_message_v_1_reducer";
 import AdminUpsertRealmProfileV1Reducer from "../admin_upsert_realm_profile_v_1_reducer";
+import AdminVerifyGreaterRealmBatchV1Reducer from "../admin_verify_greater_realm_batch_v_1_reducer";
 import BootstrapPlayerReducer from "../bootstrap_player_reducer";
 import BootstrapPlayerV2Reducer from "../bootstrap_player_v_2_reducer";
 import CollectFoodExpeditionV1Reducer from "../collect_food_expedition_v_1_reducer";
@@ -78,6 +85,7 @@ export type AdminBackfillDailyMarkAccountsV1Params = __Infer<typeof AdminBackfil
 export type AdminBackfillInnerKeepBuildersV1Params = __Infer<typeof AdminBackfillInnerKeepBuildersV1Reducer>;
 export type AdminBackfillResourceAccountsV1Params = __Infer<typeof AdminBackfillResourceAccountsV1Reducer>;
 export type AdminBackfillWorkerRosterV1Params = __Infer<typeof AdminBackfillWorkerRosterV1Reducer>;
+export type AdminBeginGreaterRealmVerificationV1Params = __Infer<typeof AdminBeginGreaterRealmVerificationV1Reducer>;
 export type AdminBeginWorkerLegacyDrainV1Params = __Infer<typeof AdminBeginWorkerLegacyDrainV1Reducer>;
 export type AdminBumpAuthEpochParams = __Infer<typeof AdminBumpAuthEpochReducer>;
 export type AdminCompleteWorkerLegacyDrainV1Params = __Infer<typeof AdminCompleteWorkerLegacyDrainV1Reducer>;
@@ -85,6 +93,10 @@ export type AdminDeactivateInnerKeepV1Params = __Infer<typeof AdminDeactivateInn
 export type AdminDisableFidParams = __Infer<typeof AdminDisableFidReducer>;
 export type AdminDisableRealmChatV1Params = __Infer<typeof AdminDisableRealmChatV1Reducer>;
 export type AdminExpandGenesisWorldV3Params = __Infer<typeof AdminExpandGenesisWorldV3Reducer>;
+export type AdminFinalizeGreaterRealmReleaseV1Params = __Infer<typeof AdminFinalizeGreaterRealmReleaseV1Reducer>;
+export type AdminImportGreaterRealmChunkV1Params = __Infer<typeof AdminImportGreaterRealmChunkV1Reducer>;
+export type AdminImportGreaterRealmComponentsV1Params = __Infer<typeof AdminImportGreaterRealmComponentsV1Reducer>;
+export type AdminImportGreaterRealmRegionsV1Params = __Infer<typeof AdminImportGreaterRealmRegionsV1Reducer>;
 export type AdminRepairMissingWorkerReturnScheduleV1Params = __Infer<typeof AdminRepairMissingWorkerReturnScheduleV1Reducer>;
 export type AdminResetAccessRequestV1Params = __Infer<typeof AdminResetAccessRequestV1Reducer>;
 export type AdminResolveRealmChatReportV1Params = __Infer<typeof AdminResolveRealmChatReportV1Reducer>;
@@ -97,10 +109,12 @@ export type AdminSeedGenesisWaterLayoutV1Params = __Infer<typeof AdminSeedGenesi
 export type AdminSeedGenesisWaterRevisionV1Params = __Infer<typeof AdminSeedGenesisWaterRevisionV1Reducer>;
 export type AdminSeedInnerKeepCatalogV1Params = __Infer<typeof AdminSeedInnerKeepCatalogV1Reducer>;
 export type AdminSeedWorldParams = __Infer<typeof AdminSeedWorldReducer>;
+export type AdminStageGreaterRealmReleaseV1Params = __Infer<typeof AdminStageGreaterRealmReleaseV1Reducer>;
 export type AdminStageRealmChatV1Params = __Infer<typeof AdminStageRealmChatV1Reducer>;
 export type AdminStageWorkerSystemV1Params = __Infer<typeof AdminStageWorkerSystemV1Reducer>;
 export type AdminTombstoneRealmChatMessageV1Params = __Infer<typeof AdminTombstoneRealmChatMessageV1Reducer>;
 export type AdminUpsertRealmProfileV1Params = __Infer<typeof AdminUpsertRealmProfileV1Reducer>;
+export type AdminVerifyGreaterRealmBatchV1Params = __Infer<typeof AdminVerifyGreaterRealmBatchV1Reducer>;
 export type BootstrapPlayerParams = __Infer<typeof BootstrapPlayerReducer>;
 export type BootstrapPlayerV2Params = __Infer<typeof BootstrapPlayerV2Reducer>;
 export type CollectFoodExpeditionV1Params = __Infer<typeof CollectFoodExpeditionV1Reducer>;
