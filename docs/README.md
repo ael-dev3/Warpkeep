@@ -8,6 +8,8 @@ contributors. This page routes deeper work without duplicating it.
 - [Product direction](design/warpkeep-direction.md) — the game's premise and
   design principles
 - [Roadmap](design/roadmap.md) — what is live, under development, and later
+- [Realm Chat V1 implementation](design/realm-chat-v1-implementation.md) —
+  review-only research, SpacetimeDB authority, abuse controls, and rollout gates
 - [Technical architecture](technical-architecture.md) — browser, identity
   bridge, SpacetimeDB, rendering, and delivery
 - [Lowlands renderer](design/hegemony-lowlands-terrain.md) — terrain,

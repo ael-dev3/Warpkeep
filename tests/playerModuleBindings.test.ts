@@ -19,6 +19,8 @@ const PLAYER_TABLE_KEYS = [
   'innerKeepLayoutV1',
   'innerKeepSlotV1',
   'playerV2',
+  'realmChatRecentV1',
+  'realmChatStatusV1',
   'realmEnvironmentV1',
   'realmForestInstanceV1',
   'realmForestLayoutV1',
@@ -109,6 +111,7 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).toContain("'get_my_resource_state_v2'")
     expect(playerBindings).toContain("'get_my_worker_control_state_v1'")
     expect(playerBindings).toContain("'get_my_worker_roster_v1'")
+    expect(playerBindings).toContain("'get_realm_chat_history_v1'")
     expect(playerBindings).toContain("'dispatch_worker_v1'")
     expect(playerBindings).toContain("'inner_keep_start_project_v1'")
     expect(playerBindings).toContain("'get_my_inner_keep_request_status_v1'")
@@ -121,6 +124,8 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).toContain("'recall_worker_v1'")
     expect(playerBindings).toContain("'recall_all_workers_v1'")
     expect(playerBindings).toContain("'return_legacy_expedition_v1'")
+    expect(playerBindings).toContain("'send_realm_chat_message_v1'")
+    expect(playerBindings).toContain("'report_realm_chat_message_v1'")
     expect(playerBindings).toContain("'realm_forest_layout_v1'")
     expect(playerBindings).toContain("'realm_forest_instance_v1'")
     expect(playerBindings).toContain("'realm_water_revision_v1'")
@@ -188,7 +193,9 @@ describe('player SpacetimeDB bindings', () => {
       'innerKeepStartProjectV1',
       'recallAllWorkersV1',
       'recallWorkerV1',
+      'reportRealmChatMessageV1',
       'returnLegacyExpeditionV1',
+      'sendRealmChatMessageV1',
     ])
     expect(Object.keys(connection.procedures).sort()).toEqual([
       'getAlphaBackendInfo',
@@ -204,6 +211,7 @@ describe('player SpacetimeDB bindings', () => {
       'getMyWoodExpeditionStateV1',
       'getMyWorkerControlStateV1',
       'getMyWorkerRosterV1',
+      'getRealmChatHistoryV1',
     ])
 
     connection.disconnect()

@@ -136,6 +136,12 @@ import {
 } from '../components/inner-keep/innerKeepPresentation';
 import { INNER_KEEP_POLICY_DIGEST } from '../../spacetimedb/src/innerKeepPolicy';
 import { INNER_KEEP_LAYOUT_V1_DIGEST } from '../components/inner-keep/innerKeepLayoutV1';
+import {
+  decodeRealmChatHistoryPage,
+  decodeRealmChatProjection,
+  type RealmChatHistoryPagePresentation,
+  type RealmChatPresentation
+} from './realmChatPresentation';
 
 export type WarpkeepConnectionFailureReason =
   | 'handshake_timeout'
@@ -160,6 +166,11 @@ export type WarpkeepConnection = DbConnection;
  * released as one lifecycle unit.
  */
 export type WarpkeepRealmSubscription = Readonly<{
+  unsubscribe: () => void;
+}>;
+
+/** Chat remains a separate small subscription so messages never rebuild the world snapshot. */
+export type WarpkeepRealmChatSubscription = Readonly<{
   unsubscribe: () => void;
 }>;
 
@@ -242,6 +253,20 @@ const STONE_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
 const WORKER_ID_PATTERN = /^genesis-001-castle-[1-9][0-9]*-worker-0[1-4]$/;
 const WORKER_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
 const LEGACY_EXPEDITION_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
+const REALM_CHAT_REQUEST_KEY_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const REALM_CHAT_MESSAGE_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const REALM_CHAT_REPORT_CATEGORIES = new Set([
+  'threat_or_harm',
+  'harassment_or_hate',
+  'personal_information',
+  'sexual_exploitation',
+  'fraud_or_malware',
+  'illegal_trade',
+  'spam_or_disruption',
+  'other'
+]);
 export { WARPKEEP_ALPHA_TERMS_VERSION } from '../legal/alphaTermsPolicy';
 
 const admissionStatuses = new Set<WarpkeepAdmissionStatus>([
@@ -2860,6 +2885,119 @@ export function observeWarpkeepRealm(
     throw error;
   }
   return cleanup;
+}
+
+export function readWarpkeepRealmChat(
+  connection: WarpkeepConnection
+): RealmChatPresentation {
+  return decodeRealmChatProjection({
+    statusRows: connection.db.realmChatStatusV1.iter(),
+    messageRows: connection.db.realmChatRecentV1.iter()
+  });
+}
+
+/** Subscribe only to the bounded Chat pair; no world table participates. */
+export function subscribeToWarpkeepRealmChat(
+  connection: WarpkeepConnection,
+  onApplied: () => void,
+  onError: () => void
+): WarpkeepRealmChatSubscription {
+  const subscription = connection
+    .subscriptionBuilder()
+    .onApplied(onApplied)
+    .onError(onError)
+    .subscribe([
+      tables.realmChatStatusV1,
+      tables.realmChatRecentV1
+    ]);
+  return Object.freeze({ unsubscribe: () => subscription.unsubscribe() });
+}
+
+export function observeWarpkeepRealmChat(
+  connection: WarpkeepConnection,
+  onChange: (chat: RealmChatPresentation) => void,
+  onError: () => void
+) {
+  let active = true;
+  let latestTransactionEventId: string | undefined;
+  const sync = (context: EventContext) => {
+    if (
+      !active
+      || context.event.tag === 'SubscribeApplied'
+      || context.event.id === latestTransactionEventId
+    ) return;
+    latestTransactionEventId = context.event.id;
+    try {
+      onChange(readWarpkeepRealmChat(connection));
+    } catch {
+      active = false;
+      onError();
+    }
+  };
+  const observed = [connection.db.realmChatStatusV1, connection.db.realmChatRecentV1];
+  for (const table of observed) {
+    table.onInsert(sync);
+    table.onDelete(sync);
+    table.onUpdate(sync);
+  }
+  return () => {
+    if (!active) return;
+    active = false;
+    for (const table of observed) {
+      table.removeOnInsert(sync);
+      table.removeOnDelete(sync);
+      table.removeOnUpdate(sync);
+    }
+  };
+}
+
+export async function sendWarpkeepRealmChatMessage(
+  connection: WarpkeepConnection,
+  requestKey: string,
+  body: string
+): Promise<void> {
+  if (
+    !REALM_CHAT_REQUEST_KEY_PATTERN.test(requestKey)
+    || typeof body !== 'string'
+    || body.length === 0
+    || body.length > 2_048
+    || [...body].length > 500
+    || body.split(/\r?\n/).length > 8
+    || new TextEncoder().encode(body).byteLength > 2_048
+  ) throw new Error('Realm Chat command is unavailable.');
+  await connection.reducers.sendRealmChatMessageV1({ requestKey, body });
+}
+
+export async function reportWarpkeepRealmChatMessage(
+  connection: WarpkeepConnection,
+  messageId: string,
+  category: string,
+  details: string
+): Promise<void> {
+  if (
+    !REALM_CHAT_MESSAGE_ID_PATTERN.test(messageId)
+    || !REALM_CHAT_REPORT_CATEGORIES.has(category)
+    || typeof details !== 'string'
+    || details.length > 2_048
+    || [...details].length > 500
+    || new TextEncoder().encode(details).byteLength > 2_048
+  ) throw new Error('Realm Chat command is unavailable.');
+  await connection.reducers.reportRealmChatMessageV1({ messageId, category, details });
+}
+
+export async function readWarpkeepRealmChatHistory(
+  connection: WarpkeepConnection,
+  beforeSequence: bigint,
+  limit: number
+): Promise<RealmChatHistoryPagePresentation> {
+  if (beforeSequence <= 0n || !Number.isInteger(limit) || limit < 1 || limit > 50) {
+    throw new Error('Realm Chat history is unavailable.');
+  }
+  const page = await connection.procedures.getRealmChatHistoryV1({
+    beforeSequence,
+    limit
+  });
+  return decodeRealmChatHistoryPage(page);
 }
 
 export function disconnectWarpkeep(connection: WarpkeepConnection | undefined) {

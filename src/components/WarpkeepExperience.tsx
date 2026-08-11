@@ -1645,6 +1645,10 @@ export function WarpkeepExperience() {
                     ? backend.returnLegacyExpedition
                     : undefined
                 }
+                realmChat={backend.realmChat}
+                onSendRealmChatMessage={backend.sendRealmChatMessage}
+                onReportRealmChatMessage={backend.reportRealmChatMessage}
+                onLoadEarlierRealmChat={backend.loadEarlierRealmChat}
                 graphicsPreference={graphicsPreference}
                 resolvedGraphicsQuality={resolvedGraphicsQuality}
                 audioMuted={audioMuted}

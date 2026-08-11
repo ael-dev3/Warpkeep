@@ -60,6 +60,7 @@ operation. Anonymous visitors do not connect to the game database.
 | Inner Keep projects and Builder state | Server-derived costs and timers, atomic resource deduction, private receipts, and one Builder per castle. |
 | Deployment authority | Least privilege, reviewed changes, protected branches, and reproducible artifacts. |
 | Player privacy | Minimum collection, bounded presentation fields, redacted diagnostics, and private operational records. |
+| Realm Chat and moderation evidence | Server-authored identity/order/time, bounded public history, private archive/reports/rate state, audited moderation, and no activation before approved retention and minor-participation policy. |
 
 ## Trust boundaries
 
@@ -162,6 +163,10 @@ operation. Anonymous visitors do not connect to the game database.
 - Public Farcaster presentation is sanitized and optional. A tab cache may hold
   only public display fields, may merge only after a successful same-FID
   refresh, and never restores authority.
+- Review-only Realm Chat keeps its permanent archive, rate events, idempotency
+  receipts, reports, and moderator evidence private. Only one status row and an
+  exact newest 128-message projection can become public after separate
+  activation. The ordinary Realm snapshot never absorbs chat history.
 
 ### Input, transport, and abuse controls
 
@@ -181,6 +186,10 @@ operation. Anonymous visitors do not connect to the game database.
   re-enter the same reviewed-host, byte, decode, and static-format checks.
 - Public error messages and logs omit proof material, tokens, cookies, QR
   payloads, relay secrets, identities, private rows, and credentialed URLs.
+- Realm Chat normalizes Unicode and line endings, rejects evidence-spoofing
+  controls, applies exact rolling per-FID limits, and records reports against a
+  frozen context range. Report submission does not automatically hide content
+  or punish another player.
 
 ### Operations and software supply chain
 
@@ -229,6 +238,8 @@ operation. Anonymous visitors do not connect to the game database.
 | Dependency or CI compromise | Lockfiles, audits, checksum and action pinning, job separation, and branch protection reduce exposure; provider compromise remains possible. |
 | Operator compromise | Destination allowlists, short-lived tokens, private secret storage, and approvals reduce blast radius; a compromised operator account or workstation remains a critical incident. |
 | Misleading Marks or Alpha expectations | Product copy states that Marks are non-transferable and have no cash value or guaranteed reward; formal legal and privacy review remains necessary as use expands. |
+| Chat spam, harassment, or forged moderation context | Server-derived identity/order/time, bounded rate ledgers, exact-message reporting, frozen surrounding context, local mute, private review, and audited tombstones reduce abuse; human moderation quality and response time remain operational risks. |
+| Chat archive or report exposure | Private tables, narrow generated player bindings, bounded procedures, body-free public tombstones, and isolated subscriptions reduce exposure; operator compromise and approved retention/erasure handling remain residual risks. |
 
 ## Residual risks and current limitations
 
@@ -242,6 +253,10 @@ operation. Anonymous visitors do not connect to the game database.
 - Public Realm projections are observable to admitted clients by design.
   Privacy classification and retention must be revisited before adding new
   player-linked data.
+- Realm Chat is disabled and unpublishable in the review branch. Activation is
+  blocked until qualified review approves retention/erasure, data-subject
+  handling, age/minor participation, moderation access, incident response, and
+  exact production migration checkpoints.
 - Hosting-layer security headers, including HSTS, require ongoing deployment
   verification. The production CSP keeps exact source and egress allowlists,
   but SpacetimeDB 2.6.1 requires a narrowly scoped `script-src 'unsafe-eval'`

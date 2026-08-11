@@ -266,6 +266,10 @@ import {
   type WorkerRosterPresentation
 } from './realmWorkerPresentation';
 import type { WarpkeepWorkerPrivateSyncStatus } from '../../spacetime/warpkeepBackendTypes';
+import type {
+  RealmChatHistoryPagePresentation,
+  RealmChatPresentation
+} from '../../spacetime/realmChatPresentation';
 import { resolveRealmWorldPortraitLayout } from './realmWorldPortraitLayout';
 import { useRealmWorkerRecallLifecycle } from './useRealmWorkerRecallLifecycle';
 import {
@@ -273,6 +277,10 @@ import {
   realmWorkerSfxSnapshot,
   type RealmWorkerSfxSnapshot
 } from './realmWorkerSfxPresentation';
+import {
+  RealmChatDock,
+  type RealmChatSenderProfile
+} from './RealmChatDock';
 
 const InnerKeepScreen = lazy(async () => {
   const module = await import('../inner-keep/InnerKeepScreen');
@@ -329,6 +337,17 @@ type RealmMapScreenProps = Readonly<{
   /** Guarded controller boundary. The UI never supplies costs, FID, or coordinates. */
   onStartInnerKeepProject?: StartInnerKeepProject;
   onRequestInnerKeepSync?: () => void;
+  realmChat?: RealmChatPresentation;
+  onSendRealmChatMessage?: (body: string) => Promise<void>;
+  onReportRealmChatMessage?: (
+    messageId: string,
+    category: string,
+    details: string
+  ) => Promise<void>;
+  onLoadEarlierRealmChat?: (
+    beforeSequence: bigint,
+    limit?: number
+  ) => Promise<RealmChatHistoryPagePresentation>;
   graphicsPreference?: GraphicsPreference;
   resolvedGraphicsQuality?: GraphicsQualityTier;
   audioMuted?: boolean;
@@ -556,6 +575,10 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     innerKeep,
     onStartInnerKeepProject,
     onRequestInnerKeepSync,
+    realmChat,
+    onSendRealmChatMessage,
+    onReportRealmChatMessage,
+    onLoadEarlierRealmChat,
     graphicsPreference,
     resolvedGraphicsQuality,
     audioMuted,
@@ -637,6 +660,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     && isRealmWorldSurfaceRoute(currentSurfaceRoute)
     && !workerRouteHostedByHud;
   const surfaceOpen = surfaceNavigation.depth > 0;
+  const realmChatCompactBackRef = useRef<(() => void) | undefined>(undefined);
   const surfaceOpenRef = useRef(surfaceOpen);
   surfaceOpenRef.current = surfaceOpen;
   const previousSurfaceStackRef = useRef(surfaceNavigation.stack);
@@ -760,12 +784,20 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     if (fullscreenDestinations) pushSurface(route);
   }, [fullscreenDestinations, pushSurface]);
   const handleMiniAppBack = useCallback(() => {
+    const chatBack = realmChatCompactBackRef.current;
+    if (chatBack !== undefined) {
+      chatBack();
+      return;
+    }
     if (surfaceNavigation.depth > 0) {
       backSurface();
       return;
     }
     onRequestReturn();
   }, [backSurface, onRequestReturn, surfaceNavigation.depth]);
+  const setRealmChatCompactBack = useCallback((handler: (() => void) | undefined) => {
+    realmChatCompactBackRef.current = handler;
+  }, []);
   // Direct-entry Mini Apps skip Warpkeep's menu, so keep the native host Back
   // control available at the Realm root as their explicit route to it. Nested
   // destinations still consume one navigation step before the root can leave.
@@ -1121,6 +1153,21 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       }
     ]));
   }, [allCastles, identity, observerMode, sharedPlayers, sharedProfiles]);
+  const realmChatSenderProfiles = useMemo(() => {
+    const profiles = new Map<number, RealmChatSenderProfile>();
+    for (const castle of allCastles) {
+      const profile = profileRecords.get(castle.castleId)?.profile;
+      if (!profile) continue;
+      profiles.set(castle.ownerFid, Object.freeze({
+        fid: castle.ownerFid,
+        label: castleProfileLabel(profile),
+        ...(profile.pfpUrl === undefined ? {} : { pfpUrl: profile.pfpUrl }),
+        castleId: castle.castleId,
+        castleName: castle.name
+      }));
+    }
+    return profiles;
+  }, [allCastles, profileRecords]);
   const workerSceneRecords = useMemo<readonly RealmWorkerSceneRecord[]>(() => {
     if (observerMode || publicWorkerProjection?.mode !== 'active') return Object.freeze([]);
     const castlesById = new Map(allCastles.map((castle) => [castle.castleId, castle] as const));
@@ -2582,6 +2629,23 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       (candidate) => candidate.castleId === marker.castle.castleId
     );
     if (!castle) return;
+    dispatchInteraction({
+      type: 'set-camera-target',
+      target: {
+        kind: 'castle-location',
+        castleId: castle.castleId,
+        coord: { q: castle.q, r: castle.r }
+      }
+    });
+    sceneRef.current?.locateCastle(castle.castleId);
+  }, []);
+
+  const locateRealmChatCastle = useCallback((castleId: number) => {
+    const castle = allCastlesRef.current.find(
+      (candidate) => candidate.castleId === castleId
+    );
+    if (!castle) return;
+    selectedCoordRef.current = { q: castle.q, r: castle.r };
     dispatchInteraction({
       type: 'set-camera-target',
       target: {
@@ -6487,6 +6551,24 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
               surfaceNavigation={surfaceNavigation}
             />
           )}
+
+          {!observerMode
+          && realmChat !== undefined
+          && onSendRealmChatMessage !== undefined
+          && onReportRealmChatMessage !== undefined
+          && onLoadEarlierRealmChat !== undefined ? (
+            <RealmChatDock
+              chat={realmChat}
+              chromeMode={chromeMode}
+              identityFid={identity.fid}
+              onLoadEarlier={onLoadEarlierRealmChat}
+              onLocateCastle={locateRealmChatCastle}
+              onCompactBackChange={setRealmChatCompactBack}
+              onReport={onReportRealmChatMessage}
+              onSend={onSendRealmChatMessage}
+              senderProfiles={realmChatSenderProfiles}
+            />
+          ) : null}
 
           {inspectorCastle && profileRecords.get(inspectorCastle.castleId) ? (
             <CastleInspectionPanel
