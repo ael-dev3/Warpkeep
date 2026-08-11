@@ -1,12 +1,11 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash, generateKeyPairSync } from 'node:crypto';
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import {
   chmod,
   cp,
   lstat,
   mkdir,
-  mkdtemp,
   readFile,
   readdir,
   realpath,
@@ -107,18 +106,160 @@ const safeChildEnvironmentKeys = Object.freeze([
   'COMSPEC',
   'PATHEXT',
 ]);
-const activationReducerNames = Object.freeze({
-  prepare: 'rehearsal_prepare_greater_realm_activation_v1',
-  beginDrain: 'rehearsal_begin_greater_realm_drain_v1',
-  freeze: 'rehearsal_freeze_greater_realm_activation_v1',
-  plan: 'rehearsal_plan_greater_realm_relocation_v1',
-  hostileCanary: 'rehearsal_hostile_greater_realm_canary_v1',
-  canary: 'rehearsal_relocate_greater_realm_canary_v1',
-  commit: 'rehearsal_commit_greater_realm_active_v1',
-  halt: 'rehearsal_halt_greater_realm_activation_v1',
-  resume: 'rehearsal_resume_greater_realm_active_v1',
-  rollback: 'rehearsal_rollback_greater_realm_before_commit_v1',
+export const GREATER_REALM_CONNECTED_PRODUCTION_REDUCERS = Object.freeze({
+  prepare: 'admin_prepare_greater_realm_activation_v1',
+  beginDrain: 'admin_begin_greater_realm_drain_v1',
+  freeze: 'admin_freeze_greater_realm_activation_v1',
+  plan: 'admin_plan_greater_realm_relocation_v1',
+  canary: 'admin_relocate_greater_realm_canary_v1',
+  commit: 'admin_commit_greater_realm_active_v1',
+  halt: 'admin_halt_greater_realm_activation_v1',
+  resume: 'admin_resume_greater_realm_active_v1',
+  rollback: 'admin_rollback_greater_realm_before_commit_v1',
 });
+export const GREATER_REALM_CONNECTED_CUTOVER_STATUS_PROCEDURE =
+  'admin_get_greater_realm_cutover_status_v_1';
+export const GREATER_REALM_CONNECTED_HOSTILE_CANARY_REDUCER =
+  'rehearsal_hostile_greater_realm_canary_v1';
+export const GREATER_REALM_CONNECTED_CUTOVER_STATUS_FIELDS = Object.freeze([
+  'importMutationsCompiled',
+  'activationMutationsCompiled',
+  'releaseRows',
+  'releasePresent',
+  'atlasId',
+  'publicReleaseId',
+  'sourceCommit',
+  'importEpoch',
+  'releaseState',
+  'verificationPhase',
+  'verificationCursor',
+  'expectedReleaseSha256',
+  'releaseHeaderSha256',
+  'verificationDigest',
+  'expectedRegionCount',
+  'expectedComponentCount',
+  'expectedChunkCount',
+  'expectedCellCount',
+  'expectedSlotCount',
+  'expectedResourceNodeCount',
+  'componentExpectedCellCount',
+  'componentExpectedSlotCount',
+  'componentExpectedResourceNodeCount',
+  'importedPassableCellCount',
+  'verifiedComponentCount',
+  'verifiedChunkCount',
+  'verifiedCellCount',
+  'verifiedSlotCount',
+  'verifiedResourceNodeCount',
+  'regionManifestRows',
+  'componentRows',
+  'chunkRows',
+  'cellRows',
+  'slotRows',
+  'activeSlotRows',
+  'resourceNodeRows',
+  'activeResourceNodeRows',
+  'releaseImportsExact',
+  'releaseVerificationExact',
+  'releaseReady',
+  'activationRows',
+  'activationPresent',
+  'activationMode',
+  'everActive',
+  'topologySnapshotDigest',
+  'relocationPlanDigest',
+  'snapshotCastleDigest',
+  'snapshotWorkerDigest',
+  'snapshotResourceDigest',
+  'snapshotMarksDigest',
+  'snapshotInnerKeepDigest',
+  'snapshotScheduleDigest',
+  'snapshotCastleCount',
+  'snapshotWorkerCount',
+  'snapshotResourceAccountCount',
+  'snapshotMarkAccountCount',
+  'snapshotInnerKeepBuildingCount',
+  'snapshotClaimCount',
+  'snapshotOccupancyCount',
+  'nextAllocationSequence',
+  'postCanaryFoundingCount',
+  'postCanaryDispatchCount',
+  'rollbackEligible',
+  'resumeEligible',
+  'legacyFoundingOpen',
+  'legacyJourneyDispatchOpen',
+  'castleCapacity',
+  'currentFounderCount',
+  'founderCapacityRemaining',
+  'castleRows',
+  'greaterRealmClaimRows',
+  'greaterRealmOccupancyRows',
+  'plannedClaimRows',
+  'activeClaimRows',
+  'unknownClaimStateRows',
+  'relocatedClaimRows',
+  'foundedClaimRows',
+  'unknownClaimKindRows',
+  'legacyClaimRows',
+  'legacyOccupiedWorldTileRows',
+  'lowlandsFounderCount',
+  'frostmereFounderCount',
+  'sunscarFounderCount',
+  'mirefenFounderCount',
+  'stonewakeFounderCount',
+  'emberwoodFounderCount',
+  'unassignedRegionFounderCount',
+  'profileRows',
+  'markAccountRows',
+  'resourceAccountRows',
+  'allowedFidRows',
+  'enabledAllowedFidRows',
+  'castleWorkerRows',
+  'idleCastleWorkerRows',
+  'nonIdleCastleWorkerRows',
+  'auditRows',
+  'legacyRealmRows',
+  'legacyRealmActive',
+  'atlasRows',
+  'atlasMode',
+  'atlasRevision',
+  'atlasCastleCapacity',
+  'atlasVisibleRegionCount',
+  'atlasVisibleCellCount',
+  'atlasVisibleChunkCount',
+  'visibleRegionRows',
+  'activeVisibleRegionRows',
+  'workerSystemV2Rows',
+  'workerSystemV2Mode',
+  'workerSystemV2RosterDigest',
+  'workerSystemV2CurrentCastleCount',
+  'workerSystemV2CurrentWorkerCount',
+  'workerSystemV1Rows',
+  'workerSystemV1Mode',
+  'workerSystemV1RosterDigest',
+  'workerSystemV1ExpectedCastleCount',
+  'workerSystemV1ExpectedWorkerCount',
+  'workerSystemV1LegacyDrainRequired',
+  'goldNodeOccupationRows',
+  'goldExpeditionRows',
+  'goldExpeditionScheduleRows',
+  'foodNodeOccupationRows',
+  'foodExpeditionRows',
+  'foodExpeditionScheduleRows',
+  'woodNodeOccupationRows',
+  'woodExpeditionRows',
+  'woodExpeditionScheduleRows',
+  'stoneNodeOccupationRows',
+  'stoneExpeditionRows',
+  'stoneExpeditionScheduleRows',
+  'workerAssignmentRows',
+  'workerNodeOccupationRows',
+  'workerAssignmentScheduleRows',
+  'currentWorldGraphApplicable',
+  'currentWorldGraphExact',
+  'currentWorldIntegrityViolationCount',
+  'activeAdmissionEligible',
+] as const);
 
 class GreaterRealmConnectedRelocationError extends Error {
   constructor(message: string) {
@@ -160,16 +301,7 @@ export function enableDisposableGreaterRealmRelocationGates(source: string): str
 const reducerExportAppend = `
 // warpkeep-disposable-connected-relocation-rehearsal-v1
 export {
-  rehearsalPrepareGreaterRealmActivationV1,
-  rehearsalBeginGreaterRealmDrainV1,
-  rehearsalFreezeGreaterRealmActivationV1,
-  rehearsalPlanGreaterRealmRelocationV1,
   rehearsalHostileGreaterRealmCanaryV1,
-  rehearsalRelocateGreaterRealmCanaryV1,
-  rehearsalCommitGreaterRealmActiveV1,
-  rehearsalHaltGreaterRealmActivationV1,
-  rehearsalResumeGreaterRealmActiveV1,
-  rehearsalRollbackGreaterRealmBeforeCommitV1,
 } from '${DISPOSABLE_RELOCATION_REDUCER_MODULE}';
 `;
 
@@ -179,20 +311,14 @@ export function disposableGreaterRealmRelocationReducerSource(): string {
 
 import { requireAdmin } from '../auth';
 import {
-  beginGreaterRealmDrainAuthorizedTransactionV1,
-  commitGreaterRealmActiveAuthorizedTransactionV1,
-  freezeGreaterRealmActivationAuthorizedTransactionV1,
   greaterRealmRelocationAuthorityErrorCode,
-  haltGreaterRealmActivationAuthorizedTransactionV1,
-  planGreaterRealmRelocationAuthorizedTransactionV1,
-  prepareGreaterRealmActivationAuthorizedTransactionV1,
   relocateGreaterRealmCanaryAuthorizedTransactionV1,
-  resumeGreaterRealmActiveAuthorizedTransactionV1,
-  rollbackGreaterRealmBeforeCommitAuthorizedTransactionV1,
 } from '../greaterRealmRelocationAuthority';
+import { runGreaterRealmCutoverTransitionWithAuditV1 } from '../greaterRealmCutoverAudit';
 import { greaterRealmActivationPolicyErrorCode } from '../greaterRealmActivationPolicy';
 import { greaterRealmActivationStateErrorCode } from '../greaterRealmActivationState';
 import { greaterRealmRelocationSnapshotErrorCode } from '../greaterRealmRelocationSnapshot';
+import { castleWorkerErrorCode } from '../castleWorkerAuthority';
 import {
   greaterRealmAuthorityErrorCode,
   requireGreaterRealmV17ActivationGate,
@@ -204,57 +330,21 @@ function senderError(error: unknown): never {
     ?? greaterRealmRelocationSnapshotErrorCode(error)
     ?? greaterRealmActivationPolicyErrorCode(error)
     ?? greaterRealmActivationStateErrorCode(error)
-    ?? greaterRealmAuthorityErrorCode(error);
+    ?? greaterRealmAuthorityErrorCode(error)
+    ?? castleWorkerErrorCode(error);
   if (code !== undefined) throw new SenderError(code);
   throw error;
 }
 
-function authorized<Result>(ctx: Parameters<typeof requireAdmin>[0], run: (actor: string) => Result): Result {
+function authorized(ctx: Parameters<typeof requireAdmin>[0]): void {
   requireGreaterRealmV17ActivationGate();
   const admin = requireAdmin(ctx);
-  try { return run(admin.subject); } catch (error) { return senderError(error); }
-}
-
-export const rehearsalPrepareGreaterRealmActivationV1 = warpkeep.reducer(
-  { name: '${activationReducerNames.prepare}' },
-  ctx => authorized(ctx, actor => prepareGreaterRealmActivationAuthorizedTransactionV1(ctx, actor)),
-);
-export const rehearsalBeginGreaterRealmDrainV1 = warpkeep.reducer(
-  { name: '${activationReducerNames.beginDrain}' },
-  ctx => authorized(ctx, () => beginGreaterRealmDrainAuthorizedTransactionV1(ctx)),
-);
-export const rehearsalFreezeGreaterRealmActivationV1 = warpkeep.reducer(
-  { name: '${activationReducerNames.freeze}' },
-  ctx => authorized(ctx, () => freezeGreaterRealmActivationAuthorizedTransactionV1(ctx)),
-);
-export const rehearsalPlanGreaterRealmRelocationV1 = warpkeep.reducer(
-  { name: '${activationReducerNames.plan}' },
-  ctx => authorized(ctx, () => planGreaterRealmRelocationAuthorizedTransactionV1(ctx)),
-);
-export const rehearsalRelocateGreaterRealmCanaryV1 = warpkeep.reducer(
-  { name: '${activationReducerNames.canary}' },
-  ctx => authorized(ctx, () => relocateGreaterRealmCanaryAuthorizedTransactionV1(ctx)),
-);
-export const rehearsalCommitGreaterRealmActiveV1 = warpkeep.reducer(
-  { name: '${activationReducerNames.commit}' },
-  ctx => authorized(ctx, () => commitGreaterRealmActiveAuthorizedTransactionV1(ctx)),
-);
-export const rehearsalHaltGreaterRealmActivationV1 = warpkeep.reducer(
-  { name: '${activationReducerNames.halt}' },
-  ctx => authorized(ctx, () => haltGreaterRealmActivationAuthorizedTransactionV1(ctx)),
-);
-export const rehearsalResumeGreaterRealmActiveV1 = warpkeep.reducer(
-  { name: '${activationReducerNames.resume}' },
-  ctx => authorized(ctx, () => resumeGreaterRealmActiveAuthorizedTransactionV1(ctx)),
-);
-export const rehearsalRollbackGreaterRealmBeforeCommitV1 = warpkeep.reducer(
-  { name: '${activationReducerNames.rollback}' },
-  ctx => authorized(ctx, () => rollbackGreaterRealmBeforeCommitAuthorizedTransactionV1(ctx)),
-);
-
-export const rehearsalHostileGreaterRealmCanaryV1 = warpkeep.reducer(
-  { name: '${activationReducerNames.hostileCanary}' },
-  ctx => authorized(ctx, () => {
+  try {
+    runGreaterRealmCutoverTransitionWithAuditV1(
+      ctx,
+      admin.subject,
+      'relocate_greater_realm_canary_v1',
+      () => {
     let target: NonNullable<
       ReturnType<typeof ctx.db.greaterRealmResourceNodeV1.nodeId.find>
     > | undefined;
@@ -267,7 +357,14 @@ export const rehearsalHostileGreaterRealmCanaryV1 = warpkeep.reducer(
     }
     ctx.db.greaterRealmResourceNodeV1.nodeId.update({ ...target, active: true });
     return relocateGreaterRealmCanaryAuthorizedTransactionV1(ctx);
-  }),
+      },
+    );
+  } catch (error) { return senderError(error); }
+}
+
+export const rehearsalHostileGreaterRealmCanaryV1 = warpkeep.reducer(
+  { name: '${GREATER_REALM_CONNECTED_HOSTILE_CANARY_REDUCER}' },
+  ctx => authorized(ctx),
 );
 `;
 }
@@ -314,6 +411,7 @@ export type DisposableModule = Readonly<{
   productionPolicyBytes: Buffer;
   productionIndexBytes: Buffer;
   productionSourceDigest: string;
+  disposableSourceDigest: string;
 }>;
 
 export async function createDisposableGreaterRealmRelocationModule(
@@ -325,11 +423,17 @@ export async function createDisposableGreaterRealmRelocationModule(
   const productionIndex = productionIndexBytes.toString('utf8');
   if (
     productionIndex.includes(DISPOSABLE_RELOCATION_REDUCER_MODULE)
-    || productionIndex.includes('rehearsal_prepare_greater_realm_activation_v1')
+    || /\brehearsal(?:_|[A-Z])/u.test(productionIndex)
   ) fail('Production entrypoint unexpectedly registered rehearsal reducers.');
   const productionSourceDigest = await directoryDigest(join(sourceModule, 'src'));
   const moduleDirectory = join(runtimeDirectory, 'module');
   await mkdir(moduleDirectory, { mode: 0o700 });
+  const moduleMetadata = await lstat(moduleDirectory);
+  if (
+    !moduleMetadata.isDirectory()
+    || moduleMetadata.isSymbolicLink()
+    || (moduleMetadata.mode & 0o777) !== 0o700
+  ) fail('Disposable module source root was not mode 0700.');
   await cp(join(sourceModule, 'src'), join(moduleDirectory, 'src'), {
     recursive: true,
     errorOnExist: true,
@@ -372,7 +476,8 @@ export async function createDisposableGreaterRealmRelocationModule(
   await writeFile(copiedIndexPath, `${copiedIndex}${reducerExportAppend}`, {
     encoding: 'utf8', mode: 0o600, flag: 'w',
   });
-  await writeFile(reducerPath, disposableGreaterRealmRelocationReducerSource(), {
+  const hostileReducerSource = disposableGreaterRealmRelocationReducerSource();
+  await writeFile(reducerPath, hostileReducerSource, {
     encoding: 'utf8', mode: 0o600, flag: 'wx',
   });
   if (
@@ -381,13 +486,20 @@ export async function createDisposableGreaterRealmRelocationModule(
     || countOccurrences(enabledPolicy, DISPOSABLE_IMPORT_GATE_DECLARATION) !== 1
     || countOccurrences(enabledPolicy, DISPOSABLE_ACTIVATION_GATE_DECLARATION) !== 1
     || countOccurrences(await readFile(copiedIndexPath, 'utf8'), DISPOSABLE_RELOCATION_REDUCER_MODULE) !== 1
+    || countOccurrences(hostileReducerSource, 'warpkeep.reducer(') !== 1
+    || countOccurrences(
+      hostileReducerSource,
+      GREATER_REALM_CONNECTED_HOSTILE_CANARY_REDUCER,
+    ) !== 1
   ) fail('Disposable relocation mutation escaped its private copy.');
+  const disposableSourceDigest = await directoryDigest(join(moduleDirectory, 'src'));
   return Object.freeze({
     moduleDirectory,
     artifactPath: join(moduleDirectory, 'dist', 'bundle.js'),
     productionPolicyBytes,
     productionIndexBytes,
     productionSourceDigest,
+    disposableSourceDigest,
   });
 }
 
@@ -732,6 +844,115 @@ export function readBoolean(value: unknown, label: string): boolean {
   fail(`${label} was not boolean.`);
 }
 
+function readU32(value: unknown, label: string): number {
+  const parsed = readUnsigned(value, label);
+  if (parsed > 0xffff_ffffn) fail(`${label} exceeded u32.`);
+  return Number(parsed);
+}
+
+function readStatusString(value: unknown, label: string): string {
+  if (
+    typeof value !== 'string'
+    || value.length < 1
+    || value.length > 512
+    || /[\u0000-\u001f\u007f]/u.test(value)
+  ) fail(`${label} was not a bounded string.`);
+  return value;
+}
+
+export type ConnectedCutoverStatus = Readonly<{
+  importMutationsCompiled: boolean;
+  activationMutationsCompiled: boolean;
+  releaseRows: bigint;
+  releasePresent: boolean;
+  releaseState: string;
+  releaseImportsExact: boolean;
+  releaseVerificationExact: boolean;
+  releaseReady: boolean;
+  activationRows: bigint;
+  activationPresent: boolean;
+  activationMode: string;
+  rollbackEligible: boolean;
+  resumeEligible: boolean;
+  legacyFoundingOpen: boolean;
+  legacyJourneyDispatchOpen: boolean;
+  currentFounderCount: number;
+  greaterRealmClaimRows: bigint;
+  greaterRealmOccupancyRows: bigint;
+  activeClaimRows: bigint;
+  legacyClaimRows: bigint;
+  auditRows: bigint;
+  legacyRealmActive: boolean;
+  atlasRows: bigint;
+  atlasMode: string;
+  activeVisibleRegionRows: bigint;
+  workerSystemV2Rows: bigint;
+  workerSystemV2Mode: string;
+  currentWorldGraphApplicable: boolean;
+  currentWorldGraphExact: boolean;
+  currentWorldIntegrityViolationCount: number;
+  activeAdmissionEligible: boolean;
+}>;
+
+/** Strict positional decoder for the generated 137-field procedure wire. */
+export function parseConnectedCutoverStatus(text: string): ConnectedCutoverStatus {
+  let value: unknown;
+  try { value = JSON.parse(text); } catch { fail('Cutover status response was invalid JSON.'); }
+  if (
+    !Array.isArray(value)
+    || value.length !== GREATER_REALM_CONNECTED_CUTOVER_STATUS_FIELDS.length
+    || GREATER_REALM_CONNECTED_CUTOVER_STATUS_FIELDS.length !== 137
+    || GREATER_REALM_CONNECTED_CUTOVER_STATUS_FIELDS[95] !== 'auditRows'
+  ) fail('Cutover status wire shape changed.');
+  const at = (field: typeof GREATER_REALM_CONNECTED_CUTOVER_STATUS_FIELDS[number]) => {
+    const index = GREATER_REALM_CONNECTED_CUTOVER_STATUS_FIELDS.indexOf(field);
+    if (index < 0) fail('Cutover status field was not indexed.');
+    return value[index];
+  };
+  const status = Object.freeze({
+    importMutationsCompiled: readBoolean(at('importMutationsCompiled'), 'Import compile mode'),
+    activationMutationsCompiled: readBoolean(at('activationMutationsCompiled'), 'Activation compile mode'),
+    releaseRows: readUnsigned(at('releaseRows'), 'Release rows'),
+    releasePresent: readBoolean(at('releasePresent'), 'Release presence'),
+    releaseState: readStatusString(at('releaseState'), 'Release state'),
+    releaseImportsExact: readBoolean(at('releaseImportsExact'), 'Release import exactness'),
+    releaseVerificationExact: readBoolean(at('releaseVerificationExact'), 'Release verification exactness'),
+    releaseReady: readBoolean(at('releaseReady'), 'Release readiness'),
+    activationRows: readUnsigned(at('activationRows'), 'Activation rows'),
+    activationPresent: readBoolean(at('activationPresent'), 'Activation presence'),
+    activationMode: readStatusString(at('activationMode'), 'Activation mode'),
+    rollbackEligible: readBoolean(at('rollbackEligible'), 'Rollback eligibility'),
+    resumeEligible: readBoolean(at('resumeEligible'), 'Resume eligibility'),
+    legacyFoundingOpen: readBoolean(at('legacyFoundingOpen'), 'Legacy founding policy'),
+    legacyJourneyDispatchOpen: readBoolean(at('legacyJourneyDispatchOpen'), 'Legacy journey policy'),
+    currentFounderCount: readU32(at('currentFounderCount'), 'Current founder count'),
+    greaterRealmClaimRows: readUnsigned(at('greaterRealmClaimRows'), 'Greater Realm claim rows'),
+    greaterRealmOccupancyRows: readUnsigned(at('greaterRealmOccupancyRows'), 'Greater Realm occupancy rows'),
+    activeClaimRows: readUnsigned(at('activeClaimRows'), 'Active claim rows'),
+    legacyClaimRows: readUnsigned(at('legacyClaimRows'), 'Legacy claim rows'),
+    auditRows: readUnsigned(at('auditRows'), 'Audit rows'),
+    legacyRealmActive: readBoolean(at('legacyRealmActive'), 'Legacy realm mode'),
+    atlasRows: readUnsigned(at('atlasRows'), 'Atlas rows'),
+    atlasMode: readStatusString(at('atlasMode'), 'Atlas mode'),
+    activeVisibleRegionRows: readUnsigned(at('activeVisibleRegionRows'), 'Active region rows'),
+    workerSystemV2Rows: readUnsigned(at('workerSystemV2Rows'), 'Worker V2 rows'),
+    workerSystemV2Mode: readStatusString(at('workerSystemV2Mode'), 'Worker V2 mode'),
+    currentWorldGraphApplicable: readBoolean(at('currentWorldGraphApplicable'), 'Current graph applicability'),
+    currentWorldGraphExact: readBoolean(at('currentWorldGraphExact'), 'Current graph exactness'),
+    currentWorldIntegrityViolationCount: readU32(at('currentWorldIntegrityViolationCount'), 'Current graph violations'),
+    activeAdmissionEligible: readBoolean(at('activeAdmissionEligible'), 'Active admission eligibility'),
+  });
+  if (
+    !['absent', 'importing', 'verifying', 'ready', 'canary', 'active', 'halted', 'rolled-back']
+      .includes(status.releaseState)
+    || !['absent', 'prepared', 'draining', 'frozen', 'planned', 'canary', 'active', 'halted', 'rolled-back']
+      .includes(status.activationMode)
+    || !['absent', 'canary', 'active', 'halted'].includes(status.atlasMode)
+    || !['absent', 'canary', 'active', 'halted'].includes(status.workerSystemV2Mode)
+  ) fail('Cutover status mode was invalid.');
+  return status;
+}
+
 export async function countWhere(
   control: RuntimeControl,
   server: string,
@@ -834,7 +1055,6 @@ const unrelatedStateQueries = Object.freeze([
   'SELECT * FROM inner_keep_building_catalog_v1',
   'SELECT * FROM inner_keep_build_level_v1',
   'SELECT * FROM castle_inner_builder_v1',
-  'SELECT * FROM admin_audit',
 ]);
 const transactionAtomicityQueries = Object.freeze([
   ...legacyTopologyQueries,
@@ -849,6 +1069,7 @@ const transactionAtomicityQueries = Object.freeze([
   'SELECT * FROM realm_atlas_v1',
   'SELECT * FROM realm_atlas_visible_region_v1',
   'SELECT * FROM realm_worker_system_v2',
+  'SELECT * FROM admin_audit',
 ]);
 
 async function canonicalTableValueDigests(
@@ -966,6 +1187,124 @@ export type AdminCaller = (
   expectedStatus?: number,
   timeout?: number,
 ) => Promise<string>;
+
+type ProductionCutoverTransition = keyof typeof GREATER_REALM_CONNECTED_PRODUCTION_REDUCERS;
+
+const productionTransitionTargets = Object.freeze({
+  prepare: Object.freeze({ activationMode: 'prepared', releaseState: 'ready' }),
+  beginDrain: Object.freeze({ activationMode: 'draining', releaseState: 'ready' }),
+  freeze: Object.freeze({ activationMode: 'frozen', releaseState: 'ready' }),
+  plan: Object.freeze({ activationMode: 'planned', releaseState: 'ready' }),
+  canary: Object.freeze({ activationMode: 'canary', releaseState: 'canary' }),
+  commit: Object.freeze({ activationMode: 'active', releaseState: 'active' }),
+  halt: Object.freeze({ activationMode: 'halted', releaseState: 'halted' }),
+  resume: Object.freeze({ activationMode: 'active', releaseState: 'active' }),
+  rollback: Object.freeze({ activationMode: 'rolled-back', releaseState: 'ready' }),
+} satisfies Readonly<Record<ProductionCutoverTransition, Readonly<{
+  activationMode: string;
+  releaseState: string;
+}>>>);
+
+type ConnectedCutoverStatusRead = Readonly<{
+  canonicalWire: string;
+  status: ConnectedCutoverStatus;
+}>;
+
+async function readConnectedCutoverStatus(
+  callAdmin: AdminCaller,
+): Promise<ConnectedCutoverStatusRead> {
+  const response = await callAdmin(GREATER_REALM_CONNECTED_CUTOVER_STATUS_PROCEDURE);
+  const status = parseConnectedCutoverStatus(response);
+  let canonicalWire: string;
+  try { canonicalWire = JSON.stringify(JSON.parse(response)); } catch {
+    fail('Cutover status response could not be canonicalized.');
+  }
+  if (
+    !status.importMutationsCompiled
+    || !status.activationMutationsCompiled
+    || !status.releasePresent
+    || !status.releaseImportsExact
+    || !status.releaseVerificationExact
+    || status.releaseRows !== 1n
+    || status.currentFounderCount !== GREATER_REALM_CONNECTED_FOUNDER_COUNT
+  ) fail('Production cutover status was not ready for connected relocation.');
+  return Object.freeze({ canonicalWire, status });
+}
+
+function assertConnectedTransitionStatus(
+  transition: ProductionCutoverTransition,
+  status: ConnectedCutoverStatus,
+): void {
+  const current = ['canary', 'commit', 'halt', 'resume'].includes(transition);
+  const planned = transition === 'plan';
+  const rolledBack = transition === 'rollback';
+  const currentMode = transition === 'canary'
+    ? 'canary'
+    : transition === 'halt'
+      ? 'halted'
+      : current
+        ? 'active'
+        : 'absent';
+  if (
+    status.activationRows !== 1n
+    || !status.activationPresent
+    || status.currentFounderCount !== GREATER_REALM_CONNECTED_FOUNDER_COUNT
+    || status.currentWorldGraphApplicable !== current
+    || status.currentWorldGraphExact !== current
+    || status.currentWorldIntegrityViolationCount !== 0
+    || status.greaterRealmClaimRows !== (current || planned ? 100n : 0n)
+    || status.greaterRealmOccupancyRows !== (current ? 100n : 0n)
+    || status.activeClaimRows !== (current ? 100n : 0n)
+    || status.legacyClaimRows !== (current ? 0n : 100n)
+    || status.legacyRealmActive !== !current
+    || status.atlasRows !== (current ? 1n : 0n)
+    || status.atlasMode !== currentMode
+    || status.activeVisibleRegionRows !== (current ? 6n : 0n)
+    || status.workerSystemV2Rows !== (current ? 1n : 0n)
+    || status.workerSystemV2Mode !== currentMode
+    || status.releaseReady !== (!current)
+    || status.legacyFoundingOpen !== (transition === 'prepare' || rolledBack)
+    || status.legacyJourneyDispatchOpen !== (transition === 'prepare' || rolledBack)
+    || status.rollbackEligible !== (
+      transition === 'prepare'
+      || transition === 'beginDrain'
+      || transition === 'freeze'
+      || transition === 'plan'
+      || transition === 'canary'
+    )
+    || status.resumeEligible !== (transition === 'halt')
+    || status.activeAdmissionEligible !== (
+      transition === 'commit' || transition === 'resume'
+    )
+  ) fail(`Production ${transition} aggregate status was invalid.`);
+}
+
+/** Call one actual production reducer, prove +1 audit, then prove retry +0. */
+async function callProductionCutoverTransition(
+  callAdmin: AdminCaller,
+  transition: ProductionCutoverTransition,
+  timeout = 120_000,
+): Promise<ConnectedCutoverStatus> {
+  const reducer = GREATER_REALM_CONNECTED_PRODUCTION_REDUCERS[transition];
+  const target = productionTransitionTargets[transition];
+  const before = await readConnectedCutoverStatus(callAdmin);
+  await callAdmin(reducer, [], 200, timeout);
+  const after = await readConnectedCutoverStatus(callAdmin);
+  if (
+    after.status.auditRows !== before.status.auditRows + 1n
+    || after.status.activationMode !== target.activationMode
+    || after.status.releaseState !== target.releaseState
+  ) fail(`Production ${transition} postcondition or audit delta was invalid.`);
+  assertConnectedTransitionStatus(transition, after.status);
+
+  await callAdmin(reducer, [], 200, timeout);
+  const retry = await readConnectedCutoverStatus(callAdmin);
+  if (
+    retry.status.auditRows !== after.status.auditRows
+    || retry.canonicalWire !== after.canonicalWire
+  ) fail(`Production ${transition} exact retry was not a status/audit no-op.`);
+  return retry.status;
+}
 
 type WorkerRolloutStatus = Readonly<{
   phase: string;
@@ -1331,6 +1670,23 @@ export async function importReadyGreaterRealmV17(
     || ready.publicRegionRows !== 0n
     || ready.workerSystemRows !== 0n
   ) fail('Final ready-but-inactive v17 release was invalid.');
+  const cutoverReady = await readConnectedCutoverStatus(callAdmin);
+  if (
+    cutoverReady.status.releaseState !== 'ready'
+    || cutoverReady.status.activationPresent
+    || cutoverReady.status.activationMode !== 'absent'
+    || cutoverReady.status.activationRows !== 0n
+    || cutoverReady.status.legacyClaimRows
+      !== BigInt(GREATER_REALM_CONNECTED_FOUNDER_COUNT)
+    || cutoverReady.status.greaterRealmClaimRows !== 0n
+    || cutoverReady.status.greaterRealmOccupancyRows !== 0n
+    || !cutoverReady.status.legacyRealmActive
+    || cutoverReady.status.atlasRows !== 0n
+    || cutoverReady.status.workerSystemV2Rows !== 0n
+    || cutoverReady.status.currentWorldGraphApplicable
+    || cutoverReady.status.currentWorldGraphExact
+    || cutoverReady.status.activeAdmissionEligible
+  ) fail('Actual production cutover status was not exactly ready and inactive.');
   console.log(
     `Connected relocation ${database}: v17 ready; verification_calls=${verificationCalls}.`,
   );
@@ -1602,10 +1958,10 @@ export async function assertCanaryOrActiveState(
 }
 
 export async function runActivationPrefix(callAdmin: AdminCaller): Promise<void> {
-  await callAdmin(activationReducerNames.prepare);
-  await callAdmin(activationReducerNames.beginDrain);
-  await callAdmin(activationReducerNames.freeze, [], 200, 120_000);
-  await callAdmin(activationReducerNames.plan, [], 200, 120_000);
+  await callProductionCutoverTransition(callAdmin, 'prepare');
+  await callProductionCutoverTransition(callAdmin, 'beginDrain');
+  await callProductionCutoverTransition(callAdmin, 'freeze');
+  await callProductionCutoverTransition(callAdmin, 'plan');
 }
 
 export type ScenarioCoordinates = Readonly<{
@@ -1643,8 +1999,9 @@ async function runRollbackScenario(
   const atomicBefore = await tableDigest(
     control, server, database, ownerToken, 'hostile-atomicity', transactionAtomicityQueries,
   );
+  const hostileStatusBefore = await readConnectedCutoverStatus(callAdmin);
   const hostileResponse = await callAdmin(
-    activationReducerNames.hostileCanary,
+    GREATER_REALM_CONNECTED_HOSTILE_CANARY_REDUCER,
     [],
     530,
     GREATER_REALM_CONNECTED_CANARY_TIMEOUT_MILLISECONDS,
@@ -1659,15 +2016,19 @@ async function runRollbackScenario(
   const atomicAfter = await tableDigest(
     control, server, database, ownerToken, 'hostile-atomicity', transactionAtomicityQueries,
   );
-  if (atomicAfter !== atomicBefore) {
+  const hostileStatusAfter = await readConnectedCutoverStatus(callAdmin);
+  if (
+    atomicAfter !== atomicBefore
+    || hostileStatusAfter.status.auditRows !== hostileStatusBefore.status.auditRows
+    || hostileStatusAfter.canonicalWire !== hostileStatusBefore.canonicalWire
+  ) {
     fail('Injected hostile drift rejection was not transaction-atomic.');
   }
   console.log(`Connected relocation ${database}: hostile drift rolled back atomically.`);
   const canaryStartedAt = Date.now();
-  await callAdmin(
-    activationReducerNames.canary,
-    [],
-    200,
+  await callProductionCutoverTransition(
+    callAdmin,
+    'canary',
     GREATER_REALM_CONNECTED_CANARY_TIMEOUT_MILLISECONDS,
   );
   const canaryElapsed = Date.now() - canaryStartedAt;
@@ -1678,10 +2039,9 @@ async function runRollbackScenario(
     `Connected relocation ${database}: canary static flip completed in ${canaryElapsed}ms.`,
   );
   await assertCanaryOrActiveState(control, server, database, ownerToken, 'canary');
-  await callAdmin(
-    activationReducerNames.rollback,
-    [],
-    200,
+  await callProductionCutoverTransition(
+    callAdmin,
+    'rollback',
     GREATER_REALM_CONNECTED_CANARY_TIMEOUT_MILLISECONDS,
   );
   const legacyAfter = await canonicalTableValueDigests(
@@ -1740,10 +2100,9 @@ export async function runActiveResumeScenario(
   const { control, server, database, ownerToken, callAdmin } = coordinates;
   await runActivationPrefix(callAdmin);
   const canaryStartedAt = Date.now();
-  await callAdmin(
-    activationReducerNames.canary,
-    [],
-    200,
+  await callProductionCutoverTransition(
+    callAdmin,
+    'canary',
     GREATER_REALM_CONNECTED_CANARY_TIMEOUT_MILLISECONDS,
   );
   const canaryElapsed = Date.now() - canaryStartedAt;
@@ -1751,7 +2110,7 @@ export async function runActiveResumeScenario(
     `Connected relocation ${database}: canary static flip completed in ${canaryElapsed}ms.`,
   );
   await assertCanaryOrActiveState(control, server, database, ownerToken, 'canary');
-  await callAdmin(activationReducerNames.commit, [], 200, 120_000);
+  await callProductionCutoverTransition(callAdmin, 'commit');
   await assertCanaryOrActiveState(control, server, database, ownerToken, 'active');
   const committed = await readActivationAudit(control, server, database, ownerToken);
   if (
@@ -1759,7 +2118,7 @@ export async function runActiveResumeScenario(
     || committed.canaryAt.length === 0
     || committed.haltedAt === committed.activatedAt
   ) fail('Committed activation timestamps were invalid.');
-  await callAdmin(activationReducerNames.halt, [], 200, 120_000);
+  await callProductionCutoverTransition(callAdmin, 'halt');
   await assertCanaryOrActiveState(control, server, database, ownerToken, 'halted');
   const halted = await readActivationAudit(control, server, database, ownerToken);
   if (
@@ -1768,7 +2127,7 @@ export async function runActiveResumeScenario(
     || halted.preparedAt !== committed.preparedAt
     || halted.canaryAt !== committed.canaryAt
   ) fail('Halt did not preserve immutable activation timestamps.');
-  await callAdmin(activationReducerNames.resume, [], 200, 120_000);
+  await callProductionCutoverTransition(callAdmin, 'resume');
   await assertCanaryOrActiveState(control, server, database, ownerToken, 'active');
   const resumed = await readActivationAudit(control, server, database, ownerToken);
   if (
@@ -1777,24 +2136,6 @@ export async function runActiveResumeScenario(
     || resumed.preparedAt !== committed.preparedAt
     || resumed.canaryAt !== committed.canaryAt
   ) fail('Resume rewrote immutable activation history.');
-  const exactResumeBeforeRetry = await sqlRaw(
-    control,
-    server,
-    database,
-    ownerToken,
-    'SELECT * FROM greater_realm_activation_v1',
-  );
-  await callAdmin(activationReducerNames.resume, [], 200, 120_000);
-  const exactResumeAfterRetry = await sqlRaw(
-    control,
-    server,
-    database,
-    ownerToken,
-    'SELECT * FROM greater_realm_activation_v1',
-  );
-  if (exactResumeAfterRetry !== exactResumeBeforeRetry) {
-    fail('Exact active resume retry changed activation authority.');
-  }
   return Object.freeze({
     canaryElapsed,
     activatedAt: resumed.activatedAt,
@@ -1833,6 +2174,73 @@ export async function publishDisposableDatabase(
   }
 }
 
+async function attestPublishedProductionCutoverAbi(
+  control: RuntimeControl,
+  server: string,
+  database: string,
+): Promise<void> {
+  const described = await runCommand(control, [
+    `--config-path=${control.cliConfigPath!}`,
+    'describe',
+    '--json',
+    '--anonymous',
+    '--server', server,
+    '--no-config',
+    database,
+  ]);
+  if (described.code !== 0) {
+    fail('Disposable published cutover ABI could not be described.');
+  }
+  let schema: unknown;
+  try {
+    schema = JSON.parse(described.stdout);
+  } catch {
+    fail('Disposable published cutover ABI was not machine-readable.');
+  }
+  if (schema === null || typeof schema !== 'object' || Array.isArray(schema)) {
+    fail('Disposable published cutover ABI description was invalid.');
+  }
+  const description = schema as {
+    reducers?: ReadonlyArray<{ name?: unknown }>;
+    misc_exports?: ReadonlyArray<{ Procedure?: { name?: unknown } }>;
+  };
+  const reducerNames = (description.reducers ?? []).map(entry => entry?.name);
+  const procedureNames = (description.misc_exports ?? [])
+    .map(entry => entry?.Procedure?.name)
+    .filter(name => typeof name === 'string');
+  const expectedReducers = [
+    ...Object.values(GREATER_REALM_CONNECTED_PRODUCTION_REDUCERS),
+    GREATER_REALM_CONNECTED_HOSTILE_CANARY_REDUCER,
+  ];
+  const missingReducers = expectedReducers.filter(
+    name => reducerNames.filter(value => value === name).length !== 1,
+  );
+  const statusProcedureCount = procedureNames.filter(
+    name => name === GREATER_REALM_CONNECTED_CUTOVER_STATUS_PROCEDURE,
+  ).length;
+  const sourceSpellingProcedureCount = procedureNames.filter(
+    name => name === 'admin_get_greater_realm_cutover_status_v1',
+  ).length;
+  const rehearsalReducers = reducerNames.filter(
+    name => typeof name === 'string' && name.startsWith('rehearsal_'),
+  );
+  if (
+    missingReducers.length !== 0
+    || statusProcedureCount !== 1
+    || sourceSpellingProcedureCount !== 0
+    || rehearsalReducers.length !== 1
+    || rehearsalReducers[0] !== GREATER_REALM_CONNECTED_HOSTILE_CANARY_REDUCER
+  ) {
+    fail(
+      'Disposable published schema omitted the exact production cutover ABI '
+      + `(missing_reducers=${missingReducers.join(',') || 'none'} `
+      + `status_procedures=${statusProcedureCount} `
+      + `source_spelling_procedures=${sourceSpellingProcedureCount} `
+      + `rehearsal_reducers=${rehearsalReducers.length}).`,
+    );
+  }
+}
+
 async function main(): Promise<void> {
   if (process.argv.length !== 2) {
     fail('Connected relocation rehearsal accepts no operator coordinates.');
@@ -1858,30 +2266,23 @@ async function main(): Promise<void> {
     || /(?:T2_|T3_)/.test(artifacts.manifestBytes.toString('utf8'))
   ) fail('Tracked synthetic release crossed its exact Tier-I boundary.');
 
-  proofStage = 'private-runtime-allocation';
-  const runtimeDirectory = await mkdtemp(join(tmpdir(), 'warpkeep-greater-realm-relocation-'));
-  await chmod(runtimeDirectory, 0o700);
-  const runtimeMetadata = await lstat(runtimeDirectory);
-  if (
-    !runtimeMetadata.isDirectory()
-    || runtimeMetadata.isSymbolicLink()
-    || (runtimeMetadata.mode & 0o777) !== 0o700
-  ) fail('Connected relocation runtime root was unsafe.');
   const environment = childEnvironment();
   const control: RuntimeControl = {
     deadline: Date.now() + GREATER_REALM_CONNECTED_RELOCATION_TIMEOUT_MILLISECONDS,
     environment,
     deadlineExpired: false,
   };
+  let runtimeDirectory: string | undefined;
   let serverProcess: ChildProcess | undefined;
   let disposable: DisposableModule | undefined;
   let ownerToken: string | undefined;
   let receipt: string | undefined;
+  let cleanupFailed = false;
   const forceCleanup = () => {
     terminateProcess(control.activeCliProcess);
     terminateProcess(serverProcess);
-    try { rmSync(runtimeDirectory, { recursive: true, force: true }); } catch {
-      fail('Interrupted connected relocation cleanup failed.');
+    if (runtimeDirectory !== undefined) {
+      rmSync(runtimeDirectory, { recursive: true, force: true });
     }
   };
   const removeSignalCleanup = installMigrationProofSignalCleanup(forceCleanup);
@@ -1891,6 +2292,19 @@ async function main(): Promise<void> {
     terminateProcess(serverProcess);
   }, GREATER_REALM_CONNECTED_RELOCATION_TIMEOUT_MILLISECONDS);
   try {
+    proofStage = 'private-runtime-allocation';
+    runtimeDirectory = mkdtempSync(join(
+      tmpdir(), 'warpkeep-greater-realm-relocation-',
+    ));
+    const runtimeRoot = runtimeDirectory;
+    await chmod(runtimeRoot, 0o700);
+    const runtimeMetadata = await lstat(runtimeRoot);
+    if (
+      !runtimeMetadata.isDirectory()
+      || runtimeMetadata.isSymbolicLink()
+      || (runtimeMetadata.mode & 0o777) !== 0o700
+    ) fail('Connected relocation runtime root was unsafe.');
+
     proofStage = 'cli-attestation';
     const version = await runCommand(control, ['--version'], { timeout: 10_000 });
     if (
@@ -1900,7 +2314,7 @@ async function main(): Promise<void> {
     ) fail('Pinned SpacetimeDB CLI 2.6.1 was not active.');
 
     proofStage = 'exact-source-copy';
-    disposable = await createDisposableGreaterRealmRelocationModule(runtimeDirectory);
+    disposable = await createDisposableGreaterRealmRelocationModule(runtimeRoot);
     proofStage = 'disposable-module-build';
     const built = await runCommand(control, [
       'build', '--module-path', disposable.moduleDirectory,
@@ -1921,8 +2335,8 @@ async function main(): Promise<void> {
       publicKeyEncoding: { type: 'spki', format: 'pem' },
       privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
     });
-    const publicKeyPath = join(runtimeDirectory, 'jwt-public.pem');
-    const privateKeyPath = join(runtimeDirectory, 'jwt-private.pem');
+    const publicKeyPath = join(runtimeRoot, 'jwt-public.pem');
+    const privateKeyPath = join(runtimeRoot, 'jwt-private.pem');
     await writeFile(publicKeyPath, generated.publicKey, {
       encoding: 'utf8', mode: 0o600, flag: 'wx',
     });
@@ -1946,7 +2360,7 @@ async function main(): Promise<void> {
       'start',
       '--listen-addr', `127.0.0.1:${port}`,
       '--in-memory',
-      '--data-dir', join(runtimeDirectory, 'database'),
+      '--data-dir', join(runtimeRoot, 'database'),
       '--jwt-pub-key-path', publicKeyPath,
       '--jwt-priv-key-path', privateKeyPath,
       '--non-interactive',
@@ -1963,7 +2377,7 @@ async function main(): Promise<void> {
       adminServiceClaims(),
     );
     ownerToken = connectedOwnerToken;
-    const cliConfigPath = join(runtimeDirectory, 'spacetime-cli.toml');
+    const cliConfigPath = join(runtimeRoot, 'spacetime-cli.toml');
     await writeFile(
       cliConfigPath,
       `spacetimedb_token = ${JSON.stringify(connectedOwnerToken)}\n`,
@@ -1992,6 +2406,7 @@ async function main(): Promise<void> {
         disposable.artifactPath,
         connectedOwnerToken,
       );
+      await attestPublishedProductionCutoverAbi(control, server, database);
       const adminCredential = () => createEphemeralJwt(
         generated.privateKey,
         adminServiceClaims(),
@@ -2023,6 +2438,21 @@ async function main(): Promise<void> {
         || emptyStatus.publicAtlasRows !== 0n
         || emptyStatus.publicRegionRows !== 0n
       ) fail('Disposable module gates or empty activation state were invalid.');
+      const emptyCutover = parseConnectedCutoverStatus(
+        await callAdmin(GREATER_REALM_CONNECTED_CUTOVER_STATUS_PROCEDURE),
+      );
+      if (
+        !emptyCutover.importMutationsCompiled
+        || !emptyCutover.activationMutationsCompiled
+        || emptyCutover.releasePresent
+        || emptyCutover.releaseRows !== 0n
+        || emptyCutover.releaseState !== 'absent'
+        || emptyCutover.activationPresent
+        || emptyCutover.activationRows !== 0n
+        || emptyCutover.activationMode !== 'absent'
+        || emptyCutover.currentFounderCount !== 0
+        || emptyCutover.auditRows !== 0n
+      ) fail('Actual production cutover status was not exactly empty and gate-enabled.');
 
       proofStage = `${lifecycle}-legacy-seed`;
       await seedCanonicalLegacyV16(callAdmin, artifactDigest, database);
@@ -2054,6 +2484,8 @@ async function main(): Promise<void> {
       (await readFile(productionPolicyPath)).compare(disposable.productionPolicyBytes) !== 0
       || (await readFile(productionIndexPath)).compare(disposable.productionIndexBytes) !== 0
       || await directoryDigest(join(sourceModule, 'src')) !== disposable.productionSourceDigest
+      || await directoryDigest(join(disposable.moduleDirectory, 'src'))
+        !== disposable.disposableSourceDigest
     ) fail('Production module source changed during the disposable rehearsal.');
     const productionPolicy = await readFile(productionPolicyPath, 'utf8');
     const productionIndex = await readFile(productionIndexPath, 'utf8');
@@ -2063,7 +2495,7 @@ async function main(): Promise<void> {
       || countOccurrences(productionPolicy, DISPOSABLE_IMPORT_GATE_DECLARATION) !== 0
       || countOccurrences(productionPolicy, DISPOSABLE_ACTIVATION_GATE_DECLARATION) !== 0
       || countOccurrences(productionIndex, DISPOSABLE_RELOCATION_REDUCER_MODULE) !== 0
-      || Object.values(activationReducerNames).some(name => productionIndex.includes(name))
+      || /\brehearsal(?:_|[A-Z])/u.test(productionIndex)
     ) fail('Checked-in relocation gates or reducer registration escaped closed state.');
     const totalVerificationCalls = results.reduce(
       (total, result) => total + result.verificationCalls,
@@ -2085,18 +2517,30 @@ async function main(): Promise<void> {
       `Greater Realm connected relocation failed closed at ${proofStage}.`,
     );
   } finally {
-    clearTimeout(totalDeadline);
     ownerToken = undefined;
-    removeSignalCleanup();
-    // Active CLI processes are always killed before server/temp cleanup.
     terminateProcess(control.activeCliProcess);
-    if (serverProcess !== undefined) {
-      await cleanupMigrationProofResources(serverProcess, runtimeDirectory);
-    } else {
-      await rm(runtimeDirectory, { recursive: true, force: true });
+    terminateProcess(serverProcess);
+    try {
+      if (serverProcess !== undefined && runtimeDirectory !== undefined) {
+        await cleanupMigrationProofResources(serverProcess, runtimeDirectory);
+      } else if (runtimeDirectory !== undefined) {
+        await rm(runtimeDirectory, { recursive: true, force: true });
+      }
+    } catch {
+      cleanupFailed = true;
+    } finally {
+      clearTimeout(totalDeadline);
+      removeSignalCleanup();
+    }
+    if (cleanupFailed) {
+      throw new GreaterRealmConnectedRelocationError(
+        'Connected relocation cleanup failed safely.',
+      );
     }
   }
-  if (existsSync(runtimeDirectory)) fail('Connected relocation runtime cleanup was incomplete.');
+  if (runtimeDirectory !== undefined && existsSync(runtimeDirectory)) {
+    fail('Connected relocation runtime cleanup was incomplete.');
+  }
   if (receipt === undefined) fail('Connected relocation rehearsal produced no receipt.');
   console.log(receipt);
 }
