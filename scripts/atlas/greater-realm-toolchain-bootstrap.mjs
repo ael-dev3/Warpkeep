@@ -37,6 +37,11 @@ const POSSIBLE_SECRET_VALUE = /^(?:[0-9a-f]{64}|[A-Za-z0-9+/_-]{43}=?)$/iu;
 const ALLOWED_PUBLIC_DIGEST_ENVIRONMENT_KEYS = new Set([
   'NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S',
 ]);
+const ALLOWED_PUBLIC_REPOSITORY_ENVIRONMENT_KEYS = new Set([
+  'PWD',
+  'INIT_CWD',
+  'NPM_CONFIG_LOCAL_PREFIX',
+]);
 const POSSIBLE_HEX_SECRET_VALUE = /^[0-9a-f]{64}$/iu;
 const ALLOWED_COMMANDS = Object.freeze([
   'compare-candidates',
@@ -786,16 +791,33 @@ export function reverifyGreaterRealmTrustedToolchain(receipt, input = {}) {
   return finalReceipt;
 }
 
-function possibleSecretEnvironmentEntry(key, value) {
+function exactCanonicalPublicRepositoryEnvironmentEntry(key, value, repositoryRoot) {
+  if (
+    typeof value !== 'string'
+    || !ALLOWED_PUBLIC_REPOSITORY_ENVIRONMENT_KEYS.has(key.toUpperCase())
+    || !isAbsolute(value)
+    || value !== repositoryRoot
+  ) return false;
+  try {
+    const canonicalRepositoryRoot = realpathSync(repositoryRoot);
+    return canonicalRepositoryRoot === repositoryRoot
+      && realpathSync(value) === canonicalRepositoryRoot;
+  } catch {
+    return false;
+  }
+}
+
+function possibleSecretEnvironmentEntry(key, value, repositoryRoot) {
   return typeof value === 'string'
     && POSSIBLE_SECRET_VALUE.test(value)
     && !(
       POSSIBLE_HEX_SECRET_VALUE.test(value)
       && ALLOWED_PUBLIC_DIGEST_ENVIRONMENT_KEYS.has(key.toUpperCase())
-    );
+    )
+    && !exactCanonicalPublicRepositoryEnvironmentEntry(key, value, repositoryRoot);
 }
 
-function assertBootstrapInvocation(arguments_, environment) {
+function assertBootstrapInvocation(arguments_, environment, repositoryRoot = ROOT) {
   if (
     !Array.isArray(arguments_)
     || arguments_.some(argument => (
@@ -805,13 +827,20 @@ function assertBootstrapInvocation(arguments_, environment) {
     ))
     || Object.entries(environment).some(([key, value]) => (
       RESERVED_ENVIRONMENT_KEY.test(key)
-      || possibleSecretEnvironmentEntry(key, value)
+      || possibleSecretEnvironmentEntry(key, value, repositoryRoot)
     ))
   ) fail('GREATER_REALM_PRIVATE_INVOCATION_REJECTED');
   if (Object.keys(environment).some(dangerousChildEnvironmentKey)) {
     fail('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_ENVIRONMENT_INVALID');
   }
 }
+
+/** Executable-only seam for non-vacuous invocation-boundary regressions. */
+export const greaterRealmToolchainBootstrapTestSeams = Object.freeze({
+  assertInvocation(arguments_, environment, repositoryRoot) {
+    assertBootstrapInvocation(arguments_, environment, repositoryRoot);
+  },
+});
 
 function main() {
   const arguments_ = process.argv.slice(2);

@@ -306,6 +306,20 @@ export const greaterRealmCliArgumentTestSeams = Object.freeze({
   runtimeReleaseExport(arguments_: readonly string[]): ParsedArguments {
     return parseArguments(['export-runtime-release', ...arguments_]);
   },
+  assertGeneratorSourceProvenance(commit: string, repositoryRoot: string): void {
+    assertGeneratorSourceProvenance(commit, repositoryRoot);
+  },
+  privateBatchInventory(
+    candidateCount: number,
+    hasSelectionReceipt = false,
+    hasShortlist = false,
+  ) {
+    return privateBatchInventoryCounts(
+      candidateCount,
+      hasSelectionReceipt,
+      hasShortlist,
+    );
+  },
 });
 
 function inspectPackagePublicStatus(
@@ -389,43 +403,38 @@ const GENERATOR_PROVENANCE_PATHS = Object.freeze([
   'tsconfig.app.json',
   'tsconfig.node.json',
   'scripts/atlas',
-  'spacetimedb/src/world.ts',
-  'spacetimedb/src/goldSitePolicy.ts',
-  'spacetimedb/src/foodSitePolicy.ts',
-  'spacetimedb/src/woodSitePolicy.ts',
-  'spacetimedb/src/stoneSitePolicy.ts',
-  'spacetimedb/src/forestLayoutPolicy.ts',
-  'spacetimedb/src/forestLayoutContract.ts',
-  'spacetimedb/src/waterWorld.ts',
-  'spacetimedb/src/waterRevision.ts',
+  'spacetimedb/src',
 ]);
 
-function assertGeneratorSourceProvenance(commit: string): void {
+function assertGeneratorSourceProvenance(
+  commit: string,
+  repositoryRoot = ROOT,
+): void {
   if (!/^[0-9a-f]{40}$/u.test(commit)) fail('GREATER_REALM_PRIVATE_SOURCE_INVALID');
   const ancestor = runGreaterRealmTrustedGit(
     ['merge-base', '--is-ancestor', commit, 'HEAD'],
-    ROOT,
+    repositoryRoot,
   );
   const unchanged = runGreaterRealmTrustedGit(
     [
       'diff', '--quiet', '--no-ext-diff', '--no-textconv', commit,
       '--', ...GENERATOR_PROVENANCE_PATHS,
     ],
-    ROOT,
+    repositoryRoot,
   );
   const untracked = runGreaterRealmTrustedGit(
     [
       'ls-files', '--others', '--exclude-standard', '-z',
       '--', ...GENERATOR_PROVENANCE_PATHS,
     ],
-    ROOT,
+    repositoryRoot,
   );
   const ignored = runGreaterRealmTrustedGit(
     [
       'ls-files', '--others', '--ignored', '--exclude-standard', '-z',
       '--', ...GENERATOR_PROVENANCE_PATHS,
     ],
-    ROOT,
+    repositoryRoot,
   );
   if (
     ancestor.error
@@ -1687,6 +1696,28 @@ function readPrivateBatch(
   }
 }
 
+function privateBatchInventoryCounts(
+  candidateCount: number,
+  hasSelectionReceipt: boolean,
+  hasShortlist: boolean,
+) {
+  if (
+    !Number.isSafeInteger(candidateCount)
+    || candidateCount < GREATER_REALM_MINIMUM_CANDIDATE_COUNT
+    || candidateCount > GREATER_REALM_MAXIMUM_CANDIDATE_COUNT
+  ) fail('GREATER_REALM_PRIVATE_PACKAGE_INVENTORY_INVALID');
+  const fileCount = 3
+    + candidateCount * (3 + GREATER_REALM_PRIVATE_PREVIEW_COUNT)
+    + (hasSelectionReceipt ? 1 : 0)
+    + (hasShortlist ? 1 : 0);
+  const directoryCount = 2 + candidateCount * 2;
+  return Object.freeze({
+    directoryCount,
+    entryCount: fileCount + directoryCount,
+    fileCount,
+  });
+}
+
 function assertPrivateBatchInventory(
   workspace: ReturnType<typeof openGreaterRealmPrivateWorkspace>,
   batchHandle: string,
@@ -1695,15 +1726,15 @@ function assertPrivateBatchInventory(
   const hasSelectionReceipt = workspace.hasFile(selectionRelativePath(batchHandle));
   const hasShortlist = workspace.hasFile(shortlistRelativePath(batchHandle));
   const attestation = workspace.attestTree(`batches/${batchHandle}`);
-  const expectedFileCount = 3
-    + candidateCount * 9
-    + (hasSelectionReceipt ? 1 : 0)
-    + (hasShortlist ? 1 : 0);
-  const expectedDirectoryCount = 2 + candidateCount * 2;
+  const expected = privateBatchInventoryCounts(
+    candidateCount,
+    hasSelectionReceipt,
+    hasShortlist,
+  );
   if (
-    attestation.fileCount !== expectedFileCount
-    || attestation.directoryCount !== expectedDirectoryCount
-    || attestation.entryCount !== expectedFileCount + expectedDirectoryCount
+    attestation.fileCount !== expected.fileCount
+    || attestation.directoryCount !== expected.directoryCount
+    || attestation.entryCount !== expected.entryCount
     || attestation.byteCount < GREATER_REALM_PRIVATE_SEED_ENVELOPE_BYTES
     || attestation.byteCount > PRIVATE_BATCH_MAXIMUM_BYTES
   ) fail('GREATER_REALM_PRIVATE_PACKAGE_INVENTORY_INVALID');

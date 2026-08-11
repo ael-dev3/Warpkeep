@@ -30,3 +30,11 @@ export function computeGreaterRealmPackageTree(
   fileCount: number;
   treeSha256: string;
 }>;
+
+export const greaterRealmToolchainBootstrapTestSeams: Readonly<{
+  assertInvocation(
+    arguments_: readonly string[],
+    environment: Readonly<Record<string, string | undefined>>,
+    repositoryRoot: string,
+  ): void;
+}>;

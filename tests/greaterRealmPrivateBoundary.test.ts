@@ -5,6 +5,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   readdirSync,
   renameSync,
   rmSync,
@@ -13,6 +14,7 @@ import {
   truncateSync,
   writeFileSync,
 } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join, win32 as win32Path } from 'node:path';
@@ -20,6 +22,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   assertGreaterRealmPrivateInvocation,
+  greaterRealmPrivateWorkspaceTestSeams,
   openGreaterRealmPrivateWorkspace,
 } from '../scripts/atlas/greater-realm-private-workspace';
 import { encodeGreaterRealmPrivateSeed } from '../scripts/atlas/greater-realm-private-seed';
@@ -49,6 +52,31 @@ function isolatedPaths() {
   const workspaceRoot = join(root, 'private-workspace');
   mkdirSync(repositoryRoot, { mode: 0o700 });
   return { repositoryRoot, root, workspaceRoot };
+}
+
+function secretShapedCanonicalDirectory(): string {
+  const canonicalTemporaryRoot = realpathSync(
+    process.platform === 'win32' ? tmpdir() : '/tmp',
+  );
+  const suffixLength = 43 - canonicalTemporaryRoot.length - 1;
+  if (
+    suffixLength < 1
+    || !/^[A-Za-z0-9+/_-]+$/u.test(canonicalTemporaryRoot)
+  ) throw new Error('GREATER_REALM_TEST_SECRET_SHAPED_PATH_UNAVAILABLE');
+  for (let attempt = 0; attempt < 16; attempt += 1) {
+    const suffix = `${randomUUID().replaceAll('-', '')}${'A'.repeat(43)}`
+      .slice(0, suffixLength);
+    const path = join(canonicalTemporaryRoot, suffix);
+    if (existsSync(path)) continue;
+    mkdirSync(path, { mode: 0o700 });
+    if (!/^[A-Za-z0-9+/_-]{43}$/u.test(path) || realpathSync(path) !== path) {
+      rmSync(path, { force: true, recursive: true });
+      break;
+    }
+    temporaryRoots.push(path);
+    return path;
+  }
+  throw new Error('GREATER_REALM_TEST_SECRET_SHAPED_PATH_UNAVAILABLE');
 }
 
 function scannerRepository() {
@@ -560,6 +588,38 @@ describe('Greater Realm private generation workspace', () => {
       ['generate-candidates', '--candidate-count', '12'],
       { HOME: '/controlled/home' },
     )).not.toThrow();
+  });
+
+  it('allows only npm\'s exact canonical public-root metadata through the private scanner', () => {
+    const canonicalRepositoryRoot = secretShapedCanonicalDirectory();
+    const differentCanonicalPath = secretShapedCanonicalDirectory();
+    expect(canonicalRepositoryRoot).toMatch(/^[A-Za-z0-9+/_-]{43}$/u);
+    expect(differentCanonicalPath).toMatch(/^[A-Za-z0-9+/_-]{43}$/u);
+
+    expect(() => greaterRealmPrivateWorkspaceTestSeams.assertInvocation(
+      ['generate-candidates'],
+      {
+        PWD: canonicalRepositoryRoot,
+        INIT_CWD: canonicalRepositoryRoot,
+        npm_config_local_prefix: canonicalRepositoryRoot,
+      },
+      canonicalRepositoryRoot,
+    )).not.toThrow();
+    expect(() => greaterRealmPrivateWorkspaceTestSeams.assertInvocation(
+      ['generate-candidates'],
+      { GENERIC_PATH: canonicalRepositoryRoot },
+      canonicalRepositoryRoot,
+    )).toThrow('GREATER_REALM_PRIVATE_INVOCATION_REJECTED');
+    expect(() => greaterRealmPrivateWorkspaceTestSeams.assertInvocation(
+      ['generate-candidates'],
+      { PWD: differentCanonicalPath },
+      canonicalRepositoryRoot,
+    )).toThrow('GREATER_REALM_PRIVATE_INVOCATION_REJECTED');
+    expect(() => greaterRealmPrivateWorkspaceTestSeams.assertInvocation(
+      ['generate-candidates', canonicalRepositoryRoot],
+      {},
+      canonicalRepositoryRoot,
+    )).toThrow('GREATER_REALM_PRIVATE_INVOCATION_REJECTED');
   });
 
   it.each([

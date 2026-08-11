@@ -16,7 +16,7 @@ offline Tier-I runtime-release export boundary.
 | Aggregate allowlisted candidate metrics                                                                                                                                                           | Public sanitized evidence | `docs/evidence/greater-realm/` after strict validation |
 | Declassified Tier-I runtime cells, chunks, component proofs, inactive slots, and inactive resource nodes                                                                                          | Public runtime authority  | Mode-`0700` owner workspace import directory only       |
 | Independent public-release seed control envelope                                                                                                                                                  | Private operational data  | Mode-`0600` control file outside the import directory   |
-| Generator source and synthetic fixtures                                                                                                                                                           | Public source             | `scripts/atlas/` and `tests/`                          |
+| Generator/importer source and synthetic fixtures                                                                                                                                                  | Public source             | `scripts/atlas/`, `spacetimedb/src/`, and `tests/`     |
 
 The browser, Vite `public/` tree, production `dist/`, source maps, Git history,
 pull-request comments, CI artifacts, logs, and public SpacetimeDB tables are not
@@ -36,9 +36,14 @@ reserved/loader environment keys are matched case-insensitively for portable
 Windows semantics. The exact host metadata key
 `NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S` may carry its public hexadecimal
 browser-client digest; similarly named or spoofed digest keys receive no
-exception. The tool creates a 256-bit candidate root internally. Secrets are
-never included in an error, path, log, metric, preview watermark, or public
-handle.
+exception. npm may also repeat the exact canonical public repository root in
+`PWD`, `INIT_CWD`, and `npm_config_local_prefix`. Those three environment keys
+receive a case-folded exception only when the value is absolute, byte-for-byte
+equal to the configured repository root, and both paths resolve canonically to
+that same spelling. A symlink alias, subpath, different canonical path, generic
+key carrying the same value, or any argument receives no exception. The tool
+creates a 256-bit candidate root internally. Secrets are never included in an
+error, path, log, metric, preview watermark, or public handle.
 
 The private workspace must:
 
@@ -273,12 +278,14 @@ toolchain binding, canonical manifest, atlas, chunks, topography patches, and
 all previews. It then replays the selected package once more and invokes a
 synchronous transformation callback inside the verifier's zeroizing lifetime.
 
-The provenance check is unchanged: the package source commit must still match
-the reviewed `package.json`, `package-lock.json`, `scripts/atlas/`, and world
-policy sources. Therefore candidate generation must occur only after this
-exporter, the v17 importer/schema, package metadata, and world-policy changes
-are fully integrated on one clean commit. A candidate created from an earlier
-commit is not exportable merely because its geometry appears compatible.
+The provenance check binds the package source commit to the reviewed
+`package.json`, `package-lock.json`, TypeScript configuration, `scripts/atlas/`,
+and the complete `spacetimedb/src/` importer/schema/world-policy tree. Tracked,
+untracked, and ignored drift in that scope is rejected. Therefore candidate
+generation must occur only after this exporter, the v17 importer/schema,
+package metadata, and world-policy changes are fully integrated on one clean
+commit. A candidate created from an earlier commit is not exportable merely
+because its geometry appears compatible.
 
 The exporter creates a fresh 32-byte public-release seed with operating-system
 randomness. It never derives that seed from a candidate or batch seed. Before

@@ -31,6 +31,7 @@ import {
   sep,
 } from 'node:path';
 
+const ROOT = resolve(import.meta.dirname, '..', '..');
 const PRIVATE_DIRECTORY_MODE = 0o700;
 const PRIVATE_FILE_MODE = 0o600;
 const PRIVATE_PUBLICATION_RESERVED_PREFIX = '.wk-publish-';
@@ -55,6 +56,11 @@ const RESERVED_ENVIRONMENT_KEY = /^WARPKEEP_GREATER_REALM_/iu;
 const POSSIBLE_SECRET_VALUE = /^(?:[0-9a-f]{64}|[A-Za-z0-9+/_-]{43}=?)$/iu;
 const ALLOWED_PUBLIC_DIGEST_ENVIRONMENT_KEYS = new Set([
   'NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S',
+]);
+const ALLOWED_PUBLIC_REPOSITORY_ENVIRONMENT_KEYS = new Set([
+  'PWD',
+  'INIT_CWD',
+  'NPM_CONFIG_LOCAL_PREFIX',
 ]);
 const POSSIBLE_HEX_SECRET_VALUE = /^[0-9a-f]{64}$/iu;
 const WINDOWS_FORBIDDEN_COMPONENT_CHARACTER = /[\u0000-\u001f\u007f<>:"|?*]/u;
@@ -467,13 +473,56 @@ export function defaultGreaterRealmPrivateWorkspaceRoot(): string {
   return join(homedir(), '.warpkeep', 'private', 'greater-realm');
 }
 
-function possibleSecretEnvironmentEntry(key: string, value: string | undefined): boolean {
+function exactCanonicalPublicRepositoryEnvironmentEntry(
+  key: string,
+  value: string | undefined,
+  repositoryRoot: string,
+): boolean {
+  if (
+    typeof value !== 'string'
+    || !ALLOWED_PUBLIC_REPOSITORY_ENVIRONMENT_KEYS.has(key.toUpperCase())
+    || !isAbsolute(value)
+    || value !== repositoryRoot
+  ) return false;
+  try {
+    const canonicalRepositoryRoot = realpathSync(repositoryRoot);
+    return canonicalRepositoryRoot === repositoryRoot
+      && realpathSync(value) === canonicalRepositoryRoot;
+  } catch {
+    return false;
+  }
+}
+
+function possibleSecretEnvironmentEntry(
+  key: string,
+  value: string | undefined,
+  repositoryRoot: string,
+): boolean {
   return typeof value === 'string'
     && POSSIBLE_SECRET_VALUE.test(value)
     && !(
       POSSIBLE_HEX_SECRET_VALUE.test(value)
       && ALLOWED_PUBLIC_DIGEST_ENVIRONMENT_KEYS.has(key.toUpperCase())
-    );
+    )
+    && !exactCanonicalPublicRepositoryEnvironmentEntry(key, value, repositoryRoot);
+}
+
+function assertGreaterRealmPrivateInvocationForRepository(
+  arguments_: readonly string[],
+  environment: Readonly<Record<string, string | undefined>>,
+  repositoryRoot: string,
+): void {
+  if (!Array.isArray(arguments_) || arguments_.some(argument => (
+    typeof argument !== 'string'
+    || FORBIDDEN_SECRET_ARGUMENT.test(argument)
+    || POSSIBLE_SECRET_VALUE.test(argument)
+  ))) fail('GREATER_REALM_PRIVATE_INVOCATION_REJECTED');
+  if (Object.entries(environment).some(([key, value]) => (
+    RESERVED_ENVIRONMENT_KEY.test(key)
+    || possibleSecretEnvironmentEntry(key, value, repositoryRoot)
+  ))) {
+    fail('GREATER_REALM_PRIVATE_INVOCATION_REJECTED');
+  }
 }
 
 /**
@@ -484,17 +533,7 @@ export function assertGreaterRealmPrivateInvocation(
   arguments_: readonly string[] = process.argv.slice(2),
   environment: Readonly<Record<string, string | undefined>> = process.env,
 ): void {
-  if (!Array.isArray(arguments_) || arguments_.some(argument => (
-    typeof argument !== 'string'
-    || FORBIDDEN_SECRET_ARGUMENT.test(argument)
-    || POSSIBLE_SECRET_VALUE.test(argument)
-  ))) fail('GREATER_REALM_PRIVATE_INVOCATION_REJECTED');
-  if (Object.entries(environment).some(([key, value]) => (
-    RESERVED_ENVIRONMENT_KEY.test(key)
-    || possibleSecretEnvironmentEntry(key, value)
-  ))) {
-    fail('GREATER_REALM_PRIVATE_INVOCATION_REJECTED');
-  }
+  assertGreaterRealmPrivateInvocationForRepository(arguments_, environment, ROOT);
 }
 
 export type GreaterRealmPrivateTreeAttestation = Readonly<{
@@ -2079,8 +2118,19 @@ export function openGreaterRealmPrivateWorkspace(input: Readonly<{
   });
 }
 
-/** Executable-only seams for crash-state construction in focused tests. */
+/** Executable-only seams for focused invocation and crash-state tests. */
 export const greaterRealmPrivateWorkspaceTestSeams = Object.freeze({
+  assertInvocation(
+    arguments_: readonly string[],
+    environment: Readonly<Record<string, string | undefined>>,
+    repositoryRoot: string,
+  ): void {
+    assertGreaterRealmPrivateInvocationForRepository(
+      arguments_,
+      environment,
+      repositoryRoot,
+    );
+  },
   lockRecord(pid: number): string {
     if (!Number.isSafeInteger(pid) || pid < 1 || pid > 2_147_483_647) {
       fail('GREATER_REALM_PRIVATE_FILE_INVALID');

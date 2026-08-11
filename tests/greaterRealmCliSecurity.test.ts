@@ -28,7 +28,11 @@ import {
   verifyGreaterRealmPrivateRejectedAttempt,
 } from '../scripts/atlas/greater-realm-cli';
 import { generateGreaterRealmCandidate } from '../scripts/atlas/greater-realm-candidate-generator';
-import { clearGreaterRealmPrivateCandidateBuffers } from '../scripts/atlas/greater-realm-candidate-package';
+import {
+  clearGreaterRealmPrivateCandidateBuffers,
+  GREATER_REALM_PRIVATE_PREVIEW_COUNT,
+} from '../scripts/atlas/greater-realm-candidate-package';
+import { runGreaterRealmTrustedGit } from '../scripts/atlas/greater-realm-git';
 import type {
   GreaterRealmVerifiedPrivateShortlistMetrics,
 } from '../scripts/atlas/greater-realm-candidate-package';
@@ -47,6 +51,38 @@ function publicEvidenceFixture() {
   const evidenceRoot = join(fixtureRepositoryRoot, 'docs', 'evidence', 'greater-realm');
   mkdirSync(evidenceRoot, { recursive: true, mode: 0o755 });
   return Object.freeze({ evidenceRoot, repositoryRoot: fixtureRepositoryRoot, root });
+}
+
+function runFixtureGit(repository: string, arguments_: readonly string[]): string {
+  const result = runGreaterRealmTrustedGit(arguments_, repository);
+  if (result.error || result.signal !== null || result.status !== 0) {
+    throw new Error('GREATER_REALM_TEST_GIT_SETUP_FAILED');
+  }
+  return result.stdout.trim();
+}
+
+function provenanceFixture() {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'warpkeep-provenance-')));
+  publicEvidenceRoots.push(root);
+  mkdirSync(join(root, 'spacetimedb', 'src'), { recursive: true, mode: 0o700 });
+  mkdirSync(join(root, 'client'), { mode: 0o700 });
+  writeFileSync(
+    join(root, '.gitignore'),
+    'spacetimedb/src/ignored-drift.ts\n',
+  );
+  writeFileSync(join(root, 'spacetimedb', 'src', 'world.ts'), 'export const world = 1;\n');
+  writeFileSync(join(root, 'client', 'renderer.ts'), 'export const renderer = 1;\n');
+  runFixtureGit(root, ['init', '--quiet']);
+  runFixtureGit(root, ['add', '.gitignore', 'spacetimedb/src/world.ts', 'client/renderer.ts']);
+  runFixtureGit(root, [
+    '-c', 'user.name=Warpkeep Test',
+    '-c', 'user.email=warpkeep-test@example.invalid',
+    'commit', '--quiet', '-m', 'fixture',
+  ]);
+  return Object.freeze({
+    commit: runFixtureGit(root, ['rev-parse', '--verify', 'HEAD^{commit}']),
+    root,
+  });
 }
 
 function runAtlasCli(
@@ -268,6 +304,76 @@ describe('Greater Realm atlas CLI security boundary', () => {
       expect(() => greaterRealmCliArgumentTestSeams.generatedWorldCount(rejected))
         .toThrow('GREATER_REALM_CLI_INTEGER_INVALID');
     }
+  });
+
+  it('derives complete batch inventory from the private preview contract', () => {
+    const expectedCandidateFiles = 3 + GREATER_REALM_PRIVATE_PREVIEW_COUNT;
+    expect(greaterRealmCliArgumentTestSeams.privateBatchInventory(1)).toEqual({
+      directoryCount: 4,
+      entryCount: 3 + expectedCandidateFiles + 4,
+      fileCount: 3 + expectedCandidateFiles,
+    });
+    expect(greaterRealmCliArgumentTestSeams.privateBatchInventory(1, true, true)).toEqual({
+      directoryCount: 4,
+      entryCount: 3 + expectedCandidateFiles + 2 + 4,
+      fileCount: 3 + expectedCandidateFiles + 2,
+    });
+  });
+
+  it('rejects tracked, untracked, and ignored importer drift but allows outside-scope drift', () => {
+    const fixture = provenanceFixture();
+    const world = join(fixture.root, 'spacetimedb', 'src', 'world.ts');
+    const untracked = join(fixture.root, 'spacetimedb', 'src', 'untracked-drift.ts');
+    const ignored = join(fixture.root, 'spacetimedb', 'src', 'ignored-drift.ts');
+
+    expect(() => greaterRealmCliArgumentTestSeams.assertGeneratorSourceProvenance(
+      fixture.commit,
+      fixture.root,
+    )).not.toThrow();
+
+    writeFileSync(world, 'export const world = 2;\n');
+    expect(() => greaterRealmCliArgumentTestSeams.assertGeneratorSourceProvenance(
+      fixture.commit,
+      fixture.root,
+    )).toThrow('GREATER_REALM_PRIVATE_SOURCE_MISMATCH');
+    writeFileSync(world, 'export const world = 1;\n');
+
+    writeFileSync(untracked, 'export const untracked = true;\n');
+    expect(() => greaterRealmCliArgumentTestSeams.assertGeneratorSourceProvenance(
+      fixture.commit,
+      fixture.root,
+    )).toThrow('GREATER_REALM_PRIVATE_SOURCE_MISMATCH');
+    rmSync(untracked);
+
+    writeFileSync(ignored, 'export const ignored = true;\n');
+    expect(() => greaterRealmCliArgumentTestSeams.assertGeneratorSourceProvenance(
+      fixture.commit,
+      fixture.root,
+    )).toThrow('GREATER_REALM_PRIVATE_SOURCE_MISMATCH');
+    rmSync(ignored);
+
+    writeFileSync(join(fixture.root, 'client', 'renderer.ts'), 'export const renderer = 2;\n');
+    writeFileSync(join(fixture.root, 'outside-scope.txt'), 'outside scope\n');
+    expect(() => greaterRealmCliArgumentTestSeams.assertGeneratorSourceProvenance(
+      fixture.commit,
+      fixture.root,
+    )).not.toThrow();
+  });
+
+  it('advances past npm canonical-root metadata to CLI argument validation', () => {
+    const result = runAtlasCli(
+      ['generate-candidates', '--count', 'not-an-integer'],
+      {
+        PWD: repositoryRoot,
+        INIT_CWD: repositoryRoot,
+        npm_config_local_prefix: repositoryRoot,
+      },
+    );
+
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toBe('GREATER_REALM_CLI_INTEGER_INVALID\n');
   });
 
   it('accepts only one verified batch handle for a runtime release export', () => {

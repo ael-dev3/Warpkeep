@@ -1,12 +1,14 @@
 // @vitest-environment node
 
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import {
   chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -18,6 +20,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   computeGreaterRealmPackageTree,
+  greaterRealmToolchainBootstrapTestSeams,
   reverifyGreaterRealmTrustedToolchain,
   verifyGreaterRealmTrustedToolchain,
 } from '../scripts/atlas/greater-realm-toolchain-bootstrap.mjs';
@@ -35,6 +38,31 @@ function temporaryRoot(): string {
   const root = mkdtempSync(join(tmpdir(), 'warpkeep-toolchain-security-'));
   temporaryRoots.push(root);
   return root;
+}
+
+function secretShapedCanonicalDirectory(): string {
+  const canonicalTemporaryRoot = realpathSync(
+    process.platform === 'win32' ? tmpdir() : '/tmp',
+  );
+  const suffixLength = 43 - canonicalTemporaryRoot.length - 1;
+  if (
+    suffixLength < 1
+    || !/^[A-Za-z0-9+/_-]+$/u.test(canonicalTemporaryRoot)
+  ) throw new Error('GREATER_REALM_TEST_SECRET_SHAPED_PATH_UNAVAILABLE');
+  for (let attempt = 0; attempt < 16; attempt += 1) {
+    const suffix = `${randomUUID().replaceAll('-', '')}${'A'.repeat(43)}`
+      .slice(0, suffixLength);
+    const path = join(canonicalTemporaryRoot, suffix);
+    if (existsSync(path)) continue;
+    mkdirSync(path, { mode: 0o700 });
+    if (!/^[A-Za-z0-9+/_-]{43}$/u.test(path) || realpathSync(path) !== path) {
+      rmSync(path, { force: true, recursive: true });
+      break;
+    }
+    temporaryRoots.push(path);
+    return path;
+  }
+  throw new Error('GREATER_REALM_TEST_SECRET_SHAPED_PATH_UNAVAILABLE');
 }
 
 const FIXTURE_COMMON_PACKAGES = Object.freeze([
@@ -349,6 +377,60 @@ describe('Greater Realm toolchain provenance', () => {
       expect(rejected.stdout).toBe('');
       expect(rejected.stderr).toBe('GREATER_REALM_PRIVATE_INVOCATION_REJECTED\n');
     }
+  });
+
+  it('allows only npm\'s exact canonical public-root metadata through the bootstrap scanner', () => {
+    const canonicalRepositoryRoot = secretShapedCanonicalDirectory();
+    const differentCanonicalPath = secretShapedCanonicalDirectory();
+    expect(canonicalRepositoryRoot).toMatch(/^[A-Za-z0-9+/_-]{43}$/u);
+    expect(differentCanonicalPath).toMatch(/^[A-Za-z0-9+/_-]{43}$/u);
+
+    expect(() => greaterRealmToolchainBootstrapTestSeams.assertInvocation(
+      ['--verify-only'],
+      {
+        PWD: canonicalRepositoryRoot,
+        INIT_CWD: canonicalRepositoryRoot,
+        npm_config_local_prefix: canonicalRepositoryRoot,
+      },
+      canonicalRepositoryRoot,
+    )).not.toThrow();
+    expect(() => greaterRealmToolchainBootstrapTestSeams.assertInvocation(
+      ['--verify-only'],
+      { GENERIC_PATH: canonicalRepositoryRoot },
+      canonicalRepositoryRoot,
+    )).toThrow('GREATER_REALM_PRIVATE_INVOCATION_REJECTED');
+    expect(() => greaterRealmToolchainBootstrapTestSeams.assertInvocation(
+      ['--verify-only'],
+      { INIT_CWD: differentCanonicalPath },
+      canonicalRepositoryRoot,
+    )).toThrow('GREATER_REALM_PRIVATE_INVOCATION_REJECTED');
+    expect(() => greaterRealmToolchainBootstrapTestSeams.assertInvocation(
+      [canonicalRepositoryRoot],
+      {},
+      canonicalRepositoryRoot,
+    )).toThrow('GREATER_REALM_PRIVATE_INVOCATION_REJECTED');
+  });
+
+  it('advances past npm canonical-root metadata to bootstrap argument validation', () => {
+    const bootstrap = join(
+      repositoryRoot,
+      'scripts',
+      'atlas',
+      'greater-realm-toolchain-bootstrap.mjs',
+    );
+    const result = spawnSync(process.execPath, [bootstrap, 'not-an-atlas-command'], {
+      cwd: repositoryRoot,
+      encoding: 'utf8',
+      env: {
+        PWD: repositoryRoot,
+        INIT_CWD: repositoryRoot,
+        npm_config_local_prefix: repositoryRoot,
+      },
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toBe('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_ARGUMENTS_INVALID\n');
   });
 
   it('uses an attested absolute Git binary and disables inherited executable config', () => {
