@@ -431,6 +431,8 @@ export type RuntimeControl = {
   environment: Readonly<Record<string, string>>;
   activeCliProcess?: ChildProcess;
   cliConfigPath?: string;
+  refreshPrivateSqlCredential?: () => Promise<string>;
+  privateSqlOperationTail?: Promise<void>;
   deadlineExpired: boolean;
 };
 
@@ -617,23 +619,47 @@ export async function sqlRaw(
   if (typeof control.cliConfigPath !== 'string') {
     fail('Disposable CLI credential was unavailable for owner-private SQL.');
   }
-  const result = await runCommand(control, [
-    `--config-path=${control.cliConfigPath}`,
-    'sql',
-    '--server', server,
-    '--confirmed', 'true',
-    '--no-config',
-    database,
-    query,
-  ], { secrets: [ownerToken], timeout: requestTimeoutMilliseconds });
-  if (result.code !== 0) {
-    const diagnostic = result.stderr.replace(/[\r\n]+/g, ' ').slice(0, 500);
-    fail(
-      'Loopback owner-private SQL failed safely'
-      + `${diagnostic.length > 0 ? ` (${diagnostic})` : ''}.`,
-    );
+  const prior = control.privateSqlOperationTail ?? Promise.resolve();
+  let releaseCurrent: () => void = () => undefined;
+  const current = new Promise<void>(resolveCurrent => { releaseCurrent = resolveCurrent; });
+  const tail = prior.then(() => current);
+  control.privateSqlOperationTail = tail;
+  await prior;
+  try {
+    const sqlCredential = control.refreshPrivateSqlCredential === undefined
+      ? ownerToken
+      : await control.refreshPrivateSqlCredential();
+    if (typeof sqlCredential !== 'string' || sqlCredential.length < 32) {
+      fail('Fresh disposable CLI credential was invalid for owner-private SQL.');
+    }
+    const result = await runCommand(control, [
+      `--config-path=${control.cliConfigPath}`,
+      'sql',
+      '--server', server,
+      '--confirmed', 'true',
+      '--no-config',
+      database,
+      query,
+    ], {
+      secrets: sqlCredential === ownerToken
+        ? [ownerToken]
+        : [ownerToken, sqlCredential],
+      timeout: requestTimeoutMilliseconds,
+    });
+    if (result.code !== 0) {
+      const diagnostic = result.stderr.replace(/[\r\n]+/g, ' ').slice(0, 500);
+      fail(
+        'Loopback owner-private SQL failed safely'
+        + `${diagnostic.length > 0 ? ` (${diagnostic})` : ''}.`,
+      );
+    }
+    return result.stdout;
+  } finally {
+    releaseCurrent();
+    if (control.privateSqlOperationTail === tail) {
+      control.privateSqlOperationTail = undefined;
+    }
   }
-  return result.stdout;
 }
 
 export function sqlRows(

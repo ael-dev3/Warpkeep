@@ -112,7 +112,7 @@ function makePublicReadFixture(
     publicName: region.name,
     ordinal: region.ordinal,
     tier: GREATER_REALM_VISIBLE_TIER_MAX,
-    cellCount: index === 0 ? 1 : 0,
+    cellCount: index === 0 ? 2 : 0,
     passableCellCount: index === 0 ? 1 : 0,
     chunkCount: index === 0 ? 1 : 0,
     castleCapacity: GREATER_REALM_CASTLES_PER_REGION,
@@ -133,14 +133,15 @@ function makePublicReadFixture(
     expectedRegionCount: GREATER_REALM_PUBLIC_REGIONS.length,
     expectedComponentCount: 1,
     expectedChunkCount: 1,
-    expectedCellCount: 1,
+    expectedCellCount: 2,
     expectedSlotCount: GREATER_REALM_CASTLE_CAPACITY,
     expectedResourceNodeCount: 0,
     verifiedComponentCount: 1,
     verifiedChunkCount: 1,
-    verifiedCellCount: 1,
+    verifiedCellCount: 2,
     verifiedSlotCount: GREATER_REALM_CASTLE_CAPACITY,
     verifiedResourceNodeCount: 0,
+    importedPassableCellCount: 1,
     componentExpectedCellCount: 1,
     componentExpectedSlotCount: GREATER_REALM_CASTLE_CAPACITY,
     componentExpectedResourceNodeCount: 0,
@@ -163,7 +164,7 @@ function makePublicReadFixture(
     navigationTierMax: GREATER_REALM_VISIBLE_TIER_MAX,
     foundingTierMax: GREATER_REALM_VISIBLE_TIER_MAX,
     visibleRegionCount: GREATER_REALM_PUBLIC_REGIONS.length,
-    visibleCellCount: 1,
+    visibleCellCount: 2,
     visibleChunkCount: 1,
     castleCapacity: GREATER_REALM_CASTLE_CAPACITY,
     mode,
@@ -316,7 +317,7 @@ function makePublicReadFixture(
     realmV1: indexedTable([{ ...CANONICAL_REALM, active: false }], ['realmId']),
     greaterRealmNavigationComponentV1: indexedTable([component], ['componentKey']),
     greaterRealmChunkV1: indexedTable([chunk], ['chunkHandle']),
-    greaterRealmCellV1: indexedTable([cell], ['cellKey']),
+    greaterRealmCellV1: indexedTable([cell], ['cellKey'], 2n),
     greaterRealmCastleSlotV1: indexedTable(
       [slot],
       ['slotId'],
@@ -419,6 +420,14 @@ function section(text: string, start: string, end?: string): string {
 test('indexed public reads accept exact relocated callers in every readable mode', () => {
   for (const mode of ['canary', 'active', 'halted'] as const) {
     const fixture = makePublicReadFixture(mode, 'relocated');
+    assert.ok(
+      Number(fixture.rows.release.expectedCellCount)
+        > Number(fixture.rows.release.importedPassableCellCount),
+    );
+    assert.equal(
+      fixture.rows.release.componentExpectedCellCount,
+      fixture.rows.release.importedPassableCellCount,
+    );
     assert.equal('castleWorkerV1' in fixture.ctx.db, false);
     assert.equal('realmWorkerSystemV1' in fixture.ctx.db, false);
     assert.equal('realmWorkerSystemV2' in fixture.ctx.db, false);
@@ -455,6 +464,14 @@ test('indexed public reads reject hostile root drift', () => {
       mutate: fixture => { fixture.rows.release.publicReleaseId = 'hostile-release'; },
     },
     {
+      name: 'component/passable census divergence',
+      mutate: fixture => { fixture.rows.release.componentExpectedCellCount = 2; },
+    },
+    {
+      name: 'imported passable census divergence',
+      mutate: fixture => { fixture.rows.release.importedPassableCellCount = 2; },
+    },
+    {
       name: 'atlas mode',
       mutate: fixture => { fixture.rows.atlas.mode = 'canary'; },
     },
@@ -468,7 +485,7 @@ test('indexed public reads reject hostile root drift', () => {
     },
     {
       name: 'region manifest correlation',
-      mutate: fixture => { fixture.rows.regions[0]!.cellCount = 2; },
+      mutate: fixture => { fixture.rows.regions[0]!.cellCount = 3; },
     },
   ];
   for (const hostile of cases) {
@@ -657,6 +674,14 @@ test('indexed public authority retains roots and caller preimages without popula
     /castleInnerBuilderV1/,
   ]) assert.doesNotMatch(authority, forbidden);
   assert.match(authority, /castleSlotClaimV1\.count\(\) !== 0n/);
+  assert.match(
+    authority,
+    /release\.componentExpectedCellCount !== release\.importedPassableCellCount/,
+  );
+  assert.doesNotMatch(
+    authority,
+    /release\.componentExpectedCellCount !== release\.expectedCellCount/,
+  );
   assert.match(authority, /matchesCanonicalRealm\(\{ \.\.\.legacyRealm, active: true \}\)/);
   assert.match(authority, /matchesGenerationV2Realm\(\{ \.\.\.legacyRealm, active: true \}\)/);
   assert.match(authority, /slot\.regionOrderRank >= GREATER_REALM_CASTLES_PER_REGION/);

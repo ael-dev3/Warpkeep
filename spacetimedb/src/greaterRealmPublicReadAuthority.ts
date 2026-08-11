@@ -223,7 +223,7 @@ function assertPublicReadRoots(
     || release.verifiedCellCount !== release.expectedCellCount
     || release.verifiedSlotCount !== release.expectedSlotCount
     || release.verifiedResourceNodeCount !== release.expectedResourceNodeCount
-    || release.componentExpectedCellCount !== release.expectedCellCount
+    || release.componentExpectedCellCount !== release.importedPassableCellCount
     || release.componentExpectedSlotCount !== release.expectedSlotCount
     || release.componentExpectedResourceNodeCount !== release.expectedResourceNodeCount
     || ctx.db.greaterRealmNavigationComponentV1.count()
