@@ -458,11 +458,39 @@ export type CanonicalWarpkeepRealmSnapshot = WarpkeepRealmSnapshotCandidate & Re
 /** Backward-compatible public name for the only snapshot allowed in ready state. */
 export type WarpkeepRealmSnapshot = CanonicalWarpkeepRealmSnapshot;
 
+/**
+ * Public, castle-scoped projections that survive retirement of the v1 world
+ * geometry. This carries no tile/atlas material and no caller-private rows;
+ * private resources and roster values remain separate backend fields.
+ */
+export type WarpkeepRealmContinuityProjection = Readonly<{
+  realmId: string;
+  players: readonly WarpkeepPlayer[];
+  profiles: readonly WarpkeepRealmProfile[];
+  castles: readonly WarpkeepCastle[];
+  ownCastle: WarpkeepCastle;
+  goldSites?: readonly WarpkeepGoldSite[];
+  foodSites?: readonly WarpkeepFoodSite[];
+  woodSites?: readonly WarpkeepWoodSite[];
+  stoneSites?: readonly WarpkeepStoneSite[];
+  workerSystem?: WarpkeepRealmWorkerSystem;
+  workerWorkers?: readonly WarpkeepCastleWorker[];
+  workerOccupations?: readonly WarpkeepWorkerNodeOccupation[];
+}>;
+
 export type WarpkeepBackendState = Readonly<{
   phase: WarpkeepBackendPhase;
   workerPrivateSync: WarpkeepWorkerPrivateSyncStatus;
   identity?: VerifiedFarcasterIdentity;
   admission?: WarpkeepAdmissionStatus;
+  /**
+   * Public v1 world authority only. `retired` is a valid atomic-cutover state:
+   * it removes Lowlands render authority without revoking the authenticated
+   * socket that owns the public v17 procedure bridge.
+   */
+  legacyRealmAuthority?: 'active' | 'retired';
+  /** Shared public castle/profile/worker authority retained after world cutover. */
+  realmContinuity?: WarpkeepRealmContinuityProjection;
   realm?: CanonicalWarpkeepRealmSnapshot;
   resources?: ReadyRealmResourcePresentation;
   /** Caller-only, exact procedure projection for the active Gold expedition. */

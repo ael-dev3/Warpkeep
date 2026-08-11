@@ -6,6 +6,14 @@ full engineering record.
 
 ## [Unreleased]
 
+- Added a dormant, generation-bound Greater Realm browser bridge for the four
+  public v17 atlas procedures. Desktop and mobile clients now have a tested
+  bounded bootstrap/window/chunk/route controller and an explicit Realm scene
+  selection seam. Retiring Lowlands now preserves castle-scoped resources,
+  Marks, read-only Worker reconciliation, Inner Keep, and Chat without ever
+  remounting cached legacy geometry, while independent literal server and
+  client gates keep Greater Realm presentation sealed.
+
 - Extended the deletion-disabled local additive migration rehearsal through
   protocol v17 refs 72–83. It now proves all frozen v16 rows survive the real
   Greater Realm artifact, binds typed suffix sentinels and exact schema

@@ -114,6 +114,10 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).toContain("'get_my_worker_roster_v1'")
     expect(playerBindings).toContain("'get_realm_chat_history_v1'")
     expect(playerBindings).toContain("'get_realm_chat_recent_v1'")
+    expect(playerBindings).toContain("'get_realm_atlas_bootstrap_v1'")
+    expect(playerBindings).toContain("'get_realm_atlas_chunk_v1'")
+    expect(playerBindings).toContain("'get_realm_atlas_window_v1'")
+    expect(playerBindings).toContain("'plan_realm_route_v1'")
     expect(playerBindings).toContain("'dispatch_worker_v1'")
     expect(playerBindings).toContain("'inner_keep_start_project_v1'")
     expect(playerBindings).toContain("'get_my_inner_keep_request_status_v1'")
@@ -161,6 +165,11 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).not.toContain('admin_plan_inner_keep_catalog_v_1')
     expect(playerBindings).not.toContain('admin_seed_inner_keep_catalog_v_1')
     expect(playerBindings).not.toContain('admin_activate_inner_keep_v_1')
+    expect(playerBindings).not.toContain("name: 'realm_atlas_v1'")
+    expect(playerBindings).not.toContain("name: 'realm_atlas_visible_region_v1'")
+    expect(playerBindings).not.toContain("name: 'greater_realm_cell_occupancy_v1'")
+    expect(playerBindings).not.toContain('admin_import_greater_realm')
+    expect(playerBindings).not.toContain('admin_finalize_greater_realm')
   })
 
   it('exposes only the player reducer and procedure accessors at runtime', () => {
@@ -214,8 +223,12 @@ describe('player SpacetimeDB bindings', () => {
       'getMyWoodExpeditionStateV1',
       'getMyWorkerControlStateV1',
       'getMyWorkerRosterV1',
+      'getRealmAtlasBootstrapV1',
+      'getRealmAtlasChunkV1',
+      'getRealmAtlasWindowV1',
       'getRealmChatHistoryV1',
       'getRealmChatRecentV1',
+      'planRealmRouteV1',
     ])
 
     connection.disconnect()

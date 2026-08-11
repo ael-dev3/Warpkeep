@@ -129,6 +129,9 @@ function Probe() {
       <output data-testid="inner-status">
         {captured.state.innerKeep?.statusMessage ?? ''}
       </output>
+      <output data-testid="legacy-authority">
+        {captured.state.legacyRealmAuthority ?? ''}
+      </output>
     </>
   );
 }
@@ -202,6 +205,7 @@ function readyRuntimeForStart(
   startInnerKeepProject: NonNullable<WarpkeepBackendRuntime['startInnerKeepProject']>
 ) {
   const snapshot = createCanonicalGenesisSnapshot(12_345);
+  let retireLegacyRealm: ((reason?: 'legacy-retired' | 'invalid') => void) | undefined;
   const readInnerKeepProjection = vi.fn(async (
     _connection,
     input: Parameters<NonNullable<WarpkeepBackendRuntime['readInnerKeepProjection']>>[1]
@@ -223,8 +227,27 @@ function readyRuntimeForStart(
     acceptAlphaTerms: vi.fn(async () => undefined),
     readResourceState: vi.fn(async () => createReadyResourceState(12_345)),
     collectResources: vi.fn(async () => createReadyResourceState(12_345)),
-    observeRealm: vi.fn(() => vi.fn()),
+    observeRealm: vi.fn((_connection, _fid, _onChange, onError) => {
+      retireLegacyRealm = onError;
+      return vi.fn();
+    }),
     readRealmSnapshot: vi.fn(() => snapshot),
+    readRealmContinuity: vi.fn(() => Object.freeze({
+      realmId: snapshot.realm.realmId,
+      players: snapshot.players,
+      profiles: snapshot.profiles,
+      castles: snapshot.castles,
+      ownCastle: snapshot.ownCastle,
+      ...(snapshot.goldSites === undefined ? {} : { goldSites: snapshot.goldSites }),
+      ...(snapshot.foodSites === undefined ? {} : { foodSites: snapshot.foodSites }),
+      ...(snapshot.woodSites === undefined ? {} : { woodSites: snapshot.woodSites }),
+      ...(snapshot.stoneSites === undefined ? {} : { stoneSites: snapshot.stoneSites }),
+      ...(snapshot.workerSystem === undefined ? {} : { workerSystem: snapshot.workerSystem }),
+      ...(snapshot.workerWorkers === undefined ? {} : { workerWorkers: snapshot.workerWorkers }),
+      ...(snapshot.workerOccupations === undefined ? {} : {
+        workerOccupations: snapshot.workerOccupations
+      })
+    })),
     subscribeRealm: vi.fn((_connection, onApplied: () => void) => {
       onApplied();
       return { unsubscribe: vi.fn() };
@@ -237,7 +260,8 @@ function readyRuntimeForStart(
     runtime,
     snapshot,
     readInnerKeepProjection,
-    readInnerKeepRequestStatus
+    readInnerKeepRequestStatus,
+    retireLegacyRealm: () => retireLegacyRealm
   });
 }
 
@@ -249,6 +273,31 @@ afterEach(() => {
 });
 
 describe('Inner Keep provider command lifecycle', () => {
+  it('keeps exact castle-scoped Inner Keep reads and project submission after world retirement', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const startInnerKeepProject = vi.fn(async () => undefined);
+    const harness = readyRuntimeForStart(startInnerKeepProject);
+    render(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={harness.runtime}>
+        <Probe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('inner-phase').textContent).toBe('ready'));
+
+    act(() => harness.retireLegacyRealm()?.('legacy-retired'));
+    await waitFor(() => {
+      expect(screen.getByTestId('legacy-authority').textContent).toBe('retired');
+      expect(screen.getByTestId('inner-phase').textContent).toBe('ready');
+    });
+    expect(screen.getByTestId('inner-castle').textContent)
+      .toBe(harness.snapshot.ownCastle.castleId.toString());
+
+    await act(async () => {
+      await captured!.startInnerKeepProject(CONSTRUCT_MILL);
+    });
+    expect(startInnerKeepProject).toHaveBeenCalledOnce();
+  });
+
   it('single-flights one command and unseals only after receipt plus public project agree', async () => {
     mockedFarcaster.current = authenticatedFarcaster();
     const reducer = deferred<void>();

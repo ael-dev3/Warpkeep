@@ -18,6 +18,7 @@ import type {
   WarpkeepPlayer,
   WarpkeepRealm,
   WarpkeepRealmProfile,
+  WarpkeepRealmContinuityProjection,
   WarpkeepRealmSnapshot,
   WarpkeepRealmSnapshotCandidate,
   WarpkeepWaterBody,
@@ -39,6 +40,10 @@ import {
   isCanonicalGenesisSnapshot,
   validateCanonicalGenesisSnapshot
 } from './canonicalGenesisSnapshot';
+import {
+  matchesCanonicalRealm,
+  matchesGenerationV2Realm
+} from '../../spacetimedb/src/world';
 import {
   REALM_CASTLE_NAME_MAXIMUM_LENGTH,
   REALM_DISPLAY_NAME_MAXIMUM_LENGTH,
@@ -144,6 +149,10 @@ import {
   type RealmChatRecentPagePresentation,
   type RealmChatPresentation
 } from './realmChatPresentation';
+import {
+  GREATER_REALM_PUBLIC_PROCEDURES,
+  type GreaterRealmProcedureInvoker
+} from '../greater-realm/greaterRealmTransport';
 
 export type WarpkeepConnectionFailureReason =
   | 'handshake_timeout'
@@ -161,6 +170,15 @@ export type WarpkeepConnectionCallbacks = Readonly<{
 }>;
 
 export type WarpkeepConnection = DbConnection;
+
+export type WarpkeepGreaterRealmConnectionAuthority = Readonly<{
+  /** Monotonic provider-owned socket generation; never sourced from the server. */
+  generation: number;
+  /** The verified caller on the exact authenticated socket generation. */
+  fid: number;
+  /** Rechecked before invocation and after every procedure result. */
+  isCurrent: () => boolean;
+}>;
 
 /**
  * Core Realm data remains available while additive feature projections are
@@ -426,6 +444,102 @@ export function connectWarpkeep(
       else if (!settled) pendingConnection = builtConnection;
     } catch {
       rejectUnavailable('setup_failed');
+    }
+  });
+}
+
+function greaterRealmConnectionAbortReason(signal: AbortSignal) {
+  if (signal.reason instanceof Error) return signal.reason;
+  const error = new Error('GREATER_REALM_CONNECTION_REQUEST_CANCELLED');
+  error.name = 'AbortError';
+  return error;
+}
+
+function awaitGreaterRealmConnectionOperation<T>(
+  operation: Promise<T>,
+  signal: AbortSignal
+): Promise<T> {
+  if (signal.aborted) return Promise.reject(greaterRealmConnectionAbortReason(signal));
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener('abort', abort);
+      callback();
+    };
+    const abort = () => finish(() => reject(greaterRealmConnectionAbortReason(signal)));
+    signal.addEventListener('abort', abort, { once: true });
+    void operation.then(
+      (value) => finish(() => resolve(value)),
+      (error: unknown) => finish(() => reject(error))
+    );
+  });
+}
+
+function assertGreaterRealmConnectionAuthority(
+  authority: WarpkeepGreaterRealmConnectionAuthority,
+  signal: AbortSignal
+) {
+  if (signal.aborted) throw greaterRealmConnectionAbortReason(signal);
+  if (
+    !Number.isSafeInteger(authority.generation)
+    || authority.generation < 1
+    || !Number.isSafeInteger(authority.fid)
+    || authority.fid < 1
+    || !authority.isCurrent()
+  ) {
+    throw new Error('GREATER_REALM_CONNECTION_GENERATION_STALE');
+  }
+}
+
+/**
+ * Exact authenticated v17 player seam. It intentionally has no generic SDK
+ * escape hatch: only the four reviewed public atlas procedures are callable,
+ * and a stale provider generation can neither start nor publish a result.
+ */
+export function createWarpkeepGreaterRealmProcedureInvoker(
+  connection: WarpkeepConnection,
+  authority: WarpkeepGreaterRealmConnectionAuthority
+): GreaterRealmProcedureInvoker {
+  return Object.freeze({
+    call: async (procedure, input, signal) => {
+      assertGreaterRealmConnectionAuthority(authority, signal);
+      let operation: Promise<unknown>;
+      switch (procedure) {
+        case GREATER_REALM_PUBLIC_PROCEDURES.bootstrap:
+          operation = connection.procedures.getRealmAtlasBootstrapV1({});
+          break;
+        case GREATER_REALM_PUBLIC_PROCEDURES.window:
+          operation = connection.procedures.getRealmAtlasWindowV1({
+            centerQ: input.centerQ as number,
+            centerR: input.centerR as number,
+            radius: input.radius as number,
+            expectedRevision: input.expectedRevision as bigint
+          });
+          break;
+        case GREATER_REALM_PUBLIC_PROCEDURES.chunk:
+          operation = connection.procedures.getRealmAtlasChunkV1({
+            chunkHandle: input.chunkHandle as string,
+            lod: input.lod as number,
+            expectedRevision: input.expectedRevision as bigint
+          });
+          break;
+        case GREATER_REALM_PUBLIC_PROCEDURES.planRoute:
+          operation = connection.procedures.planRealmRouteV1({
+            originCellKey: input.originCellKey as string,
+            destinationCellKey: input.destinationCellKey as string,
+            offset: input.offset as number,
+            limit: input.limit as number,
+            expectedRevision: input.expectedRevision as bigint
+          });
+          break;
+        default:
+          throw new Error('GREATER_REALM_PUBLIC_PROCEDURE_NOT_ALLOWED');
+      }
+      const result = await awaitGreaterRealmConnectionOperation(operation, signal);
+      assertGreaterRealmConnectionAuthority(authority, signal);
+      return result;
     }
   });
 }
@@ -1695,21 +1809,65 @@ function readRealmProfiles(connection: WarpkeepConnection): WarpkeepRealmProfile
   return rows.sort((left, right) => left.fid - right.fid);
 }
 
+function publicRealmRow(row: ReturnType<WarpkeepConnection['db']['realmV1']['iter']> extends IterableIterator<infer Row>
+  ? Row
+  : never): WarpkeepRealm {
+  return {
+    realmId: row.realmId,
+    publicName: row.publicName,
+    seedName: row.seedName,
+    numericSeed: row.numericSeed,
+    generationVersion: row.generationVersion,
+    authoritativeRadius: row.authoritativeRadius,
+    renderRadius: row.renderRadius,
+    playerCapacity: row.playerCapacity,
+    active: row.active
+  };
+}
+
+function readPublicRealmRows(connection: WarpkeepConnection): WarpkeepRealm[] {
+  const rows: WarpkeepRealm[] = [];
+  for (const row of connection.db.realmV1.iter()) {
+    // The legacy authority is a singleton. Bound malformed projections before
+    // copying or sorting any attacker-influenced table contents in the browser.
+    if (rows.length === 2) break;
+    rows.push(publicRealmRow(row));
+  }
+  return rows.sort((left, right) => left.realmId.localeCompare(right.realmId));
+}
+
+export type WarpkeepLegacyRealmAuthorityStatus = 'active' | 'retired' | 'invalid';
+
+/**
+ * Classify only the exact public v1 singleton. An inactive but otherwise
+ * canonical generation is the reviewed v17 cutover signal; absence,
+ * duplicates, or altered immutable fields remain corruption/incompleteness.
+ */
+export function readWarpkeepLegacyRealmAuthorityStatus(
+  connection: WarpkeepConnection
+): WarpkeepLegacyRealmAuthorityStatus {
+  const rows = readPublicRealmRows(connection);
+  if (rows.length !== 1) return 'invalid';
+  const row = rows[0]!;
+  const activeShape = { ...row, active: true };
+  if (
+    !matchesCanonicalRealm(activeShape)
+    && !matchesGenerationV2Realm(activeShape)
+  ) return 'invalid';
+  return row.active ? 'active' : 'retired';
+}
+
+export class WarpkeepLegacyRealmRetiredError extends Error {
+  readonly code = 'WARPKEEP_LEGACY_REALM_RETIRED';
+
+  constructor() {
+    super('WARPKEEP_LEGACY_REALM_RETIRED');
+    this.name = 'WarpkeepLegacyRealmRetiredError';
+  }
+}
+
 function readActiveRealms(connection: WarpkeepConnection): WarpkeepRealm[] {
-  return [...connection.db.realmV1.iter()]
-    .filter((row) => row.active)
-    .map((row) => ({
-      realmId: row.realmId,
-      publicName: row.publicName,
-      seedName: row.seedName,
-      numericSeed: row.numericSeed,
-      generationVersion: row.generationVersion,
-      authoritativeRadius: row.authoritativeRadius,
-      renderRadius: row.renderRadius,
-      playerCapacity: row.playerCapacity,
-      active: row.active
-    }))
-    .sort((left, right) => left.realmId.localeCompare(right.realmId));
+  return readPublicRealmRows(connection).filter((row) => row.active);
 }
 
 function readCastles(connection: WarpkeepConnection): WarpkeepCastle[] {
@@ -2588,6 +2746,57 @@ function sameCanonicalCoreForRetainedProjection(
     && realm.active === previousRealm.active;
 }
 
+function freezePublicRows<Row extends object>(rows: readonly Row[]): readonly Readonly<Row>[] {
+  return Object.freeze(rows.map((row) => Object.freeze({ ...row })));
+}
+
+/**
+ * Read only the shared castle/profile/worker projections whose authority is
+ * independent of legacy world geometry. This is the fresh-login and
+ * post-cutover scope for resources, Marks, generic Workers, and Inner Keep.
+ */
+export function readWarpkeepRealmContinuityProjection(
+  connection: WarpkeepConnection,
+  ownFid: number
+): WarpkeepRealmContinuityProjection {
+  const status = readWarpkeepLegacyRealmAuthorityStatus(connection);
+  if (status === 'invalid') {
+    throw new Error('Warpkeep Realm continuity records are unavailable.');
+  }
+  const realm = readPublicRealmRows(connection)[0]!;
+  const castles = readCastles(connection);
+  const ownCastles = castles.filter((castle) => castle.ownerFid === ownFid);
+  if (ownCastles.length !== 1) {
+    throw new Error('Warpkeep Realm continuity records are unavailable.');
+  }
+  const ownCastle = ownCastles[0]!;
+  const publicGold = readPublicGoldProjection(connection);
+  const publicFood = readPublicFoodProjection(connection);
+  const publicWood = readPublicWoodProjection(connection);
+  const publicStone = readPublicStoneProjection(connection);
+  const publicWorkers = readPublicWorkerProjection(connection, castles, ownCastle.castleId);
+  return Object.freeze({
+    realmId: realm.realmId,
+    players: freezePublicRows(readPlayers(connection)),
+    profiles: freezePublicRows(readRealmProfiles(connection)),
+    castles: freezePublicRows(castles),
+    ownCastle: Object.freeze({ ...ownCastle }),
+    ...(publicGold === undefined ? {} : { goldSites: publicGold.sites }),
+    ...(publicFood === undefined ? {} : { foodSites: publicFood.sites }),
+    ...(publicWood === undefined ? {} : { woodSites: publicWood.sites }),
+    ...(publicStone === undefined ? {} : { stoneSites: publicStone.sites }),
+    ...(publicWorkers === undefined ? {} : {
+      workerSystem: publicWorkers.system,
+      ...(publicWorkers.workers === undefined ? {} : {
+        workerWorkers: publicWorkers.workers
+      }),
+      ...(publicWorkers.occupations === undefined ? {} : {
+        workerOccupations: publicWorkers.occupations
+      })
+    })
+  });
+}
+
 /**
  * During a same-source reconnect, the core subscription applies before each
  * additive public projection. Preserve only the last validated projection
@@ -2600,6 +2809,9 @@ export function readWarpkeepRealmSnapshot(
   ownFid: number,
   retainedSnapshot?: WarpkeepRealmSnapshot
 ): WarpkeepRealmSnapshot {
+  if (readWarpkeepLegacyRealmAuthorityStatus(connection) === 'retired') {
+    throw new WarpkeepLegacyRealmRetiredError();
+  }
   const castles = readCastles(connection);
   const ownCastle = castles.find((castle) => castle.ownerFid === ownFid);
   const tiles = readWorldTiles(connection);
@@ -2763,10 +2975,12 @@ export function observeWarpkeepRealm(
   connection: WarpkeepConnection,
   ownFid: number,
   onChange: (snapshot: WarpkeepRealmSnapshot) => void,
-  onError: () => void,
-  retainedSnapshot?: WarpkeepRealmSnapshot
+  onError: (reason?: 'legacy-retired' | 'invalid') => void,
+  retainedSnapshot?: WarpkeepRealmSnapshot,
+  onRetiredProjectionChange?: () => void
 ) {
   let active = true;
+  let legacyRetired = false;
   let latestTransactionEventId: string | undefined;
   let continuitySnapshot = retainedSnapshot;
   const sync = (context: EventContext) => {
@@ -2779,6 +2993,10 @@ export function observeWarpkeepRealm(
       || context.event.id === latestTransactionEventId
     ) return;
     latestTransactionEventId = context.event.id;
+    if (legacyRetired) {
+      onRetiredProjectionChange?.();
+      return;
+    }
     try {
       const snapshot = readWarpkeepRealmSnapshot(
         connection,
@@ -2787,11 +3005,16 @@ export function observeWarpkeepRealm(
       );
       continuitySnapshot = snapshot;
       onChange(snapshot);
-    } catch {
+    } catch (error) {
       // A post-ready canonical violation must revoke the browser's renderer
       // authority instead of escaping the SDK callback with stale ready state.
+      if (error instanceof WarpkeepLegacyRealmRetiredError) {
+        legacyRetired = true;
+        onError('legacy-retired');
+        return;
+      }
       active = false;
-      onError();
+      onError('invalid');
     }
   };
   const goldTables = publicGoldTables(connection);

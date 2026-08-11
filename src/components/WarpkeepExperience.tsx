@@ -506,7 +506,14 @@ export function WarpkeepExperience() {
   )
     && verifiedIdentityRef.current
     && backend.state.identity?.fid === verifiedIdentityRef.current.fid
-    && backend.state.realm?.ownCastle.ownerFid === verifiedIdentityRef.current.fid
+    && (
+      backend.state.realm?.ownCastle.ownerFid === verifiedIdentityRef.current.fid
+      || (
+        backend.state.legacyRealmAuthority === 'retired'
+        && backend.state.realmContinuity?.ownCastle.ownerFid
+          === verifiedIdentityRef.current.fid
+      )
+    )
     ? {
         fid: verifiedIdentityRef.current.fid,
         username: verifiedIdentityRef.current.username,
@@ -728,7 +735,14 @@ export function WarpkeepExperience() {
       || backend.state.phase !== 'ready'
       || !backend.entryAgreementSatisfied
       || backend.state.identity?.fid !== farcasterAuthState.identity.fid
-      || backend.state.realm?.ownCastle.ownerFid !== farcasterAuthState.identity.fid
+      || (
+        backend.state.realm?.ownCastle.ownerFid !== farcasterAuthState.identity.fid
+        && !(
+          backend.state.legacyRealmAuthority === 'retired'
+          && backend.state.realmContinuity?.ownCastle.ownerFid
+            === farcasterAuthState.identity.fid
+        )
+      )
       || !verifiedIdentityRef.current
     ) {
       if (notificationRealmEntryTimerRef.current !== null) {
@@ -1563,10 +1577,12 @@ export function WarpkeepExperience() {
           inert={experience.phase !== 'realm' ? true : undefined}
         >
           <Suspense fallback={<SceneModuleFallback label="OPENING GENESIS 001" />}>
-            {backend.state.realm ? (
+            {backend.state.realm || backend.state.legacyRealmAuthority === 'retired' ? (
               <RealmMapScreen
                 identity={realmIdentity}
                 snapshot={backend.state.realm}
+                realmContinuity={backend.state.realmContinuity}
+                greaterRealm={backend.greaterRealm}
                 resources={backend.state.resources}
                 goldExpedition={backend.state.goldExpedition}
                 onDispatchGoldExpedition={
@@ -1617,6 +1633,7 @@ export function WarpkeepExperience() {
                   backend.state.phase === 'ready'
                   && backend.state.admission === 'ready'
                   && backendMutationAuthorityCurrent
+                  && backend.state.legacyRealmAuthority !== 'retired'
                   && backend.workerPrivateSync.phase === 'ready'
                   && backend.workerPrivateSync.commandsEnabled
                   && backend.state.workerProjection?.mode === 'active'
@@ -1626,22 +1643,21 @@ export function WarpkeepExperience() {
                   backend.state.phase === 'ready'
                   && backend.state.admission === 'ready'
                   && backendMutationAuthorityCurrent
-                  && backend.state.realm?.workerSystem?.mode === 'active'
-                  && backend.state.realm.workerWorkers !== undefined
-                  && backend.state.realm.workerOccupations !== undefined
+                  && backend.state.legacyRealmAuthority !== 'retired'
+                  && backend.state.workerProjection?.mode === 'active'
                   ? backend.recallWorker
                   : undefined}
                 onRecallAllWorkers={
                   backend.state.phase === 'ready'
                   && backend.state.admission === 'ready'
                   && backendMutationAuthorityCurrent
-                  && backend.state.realm?.workerSystem?.mode === 'active'
-                  && backend.state.realm.workerWorkers !== undefined
-                  && backend.state.realm.workerOccupations !== undefined
+                  && backend.state.legacyRealmAuthority !== 'retired'
+                  && backend.state.workerProjection?.mode === 'active'
                   ? backend.recallAllWorkers
                   : undefined}
                 onReturnLegacyExpedition={
                   backendMutationAuthorityCurrent
+                  && backend.state.legacyRealmAuthority !== 'retired'
                     ? backend.returnLegacyExpedition
                     : undefined
                 }

@@ -54,6 +54,10 @@ import * as GetMyResourceStateV1Procedure from './module_bindings/get_my_resourc
 import * as GetMyResourceStateV2Procedure from './module_bindings/get_my_resource_state_v_2_procedure'
 import * as GetMyWorkerControlStateV1Procedure from './module_bindings/get_my_worker_control_state_v_1_procedure'
 import * as GetMyWorkerRosterV1Procedure from './module_bindings/get_my_worker_roster_v_1_procedure'
+import * as GetRealmAtlasBootstrapV1Procedure from './module_bindings/get_realm_atlas_bootstrap_v_1_procedure'
+import * as GetRealmAtlasChunkV1Procedure from './module_bindings/get_realm_atlas_chunk_v_1_procedure'
+import * as GetRealmAtlasWindowV1Procedure from './module_bindings/get_realm_atlas_window_v_1_procedure'
+import * as PlanRealmRouteV1Procedure from './module_bindings/plan_realm_route_v_1_procedure'
 import DispatchFoodExpeditionV1Reducer from './module_bindings/dispatch_food_expedition_v_1_reducer'
 import DispatchGoldExpeditionV1Reducer from './module_bindings/dispatch_gold_expedition_v_1_reducer'
 import DispatchWoodExpeditionV1Reducer from './module_bindings/dispatch_wood_expedition_v_1_reducer'
@@ -546,6 +550,28 @@ const proceduresSchema = __procedures(
     'get_my_worker_roster_v1',
     GetMyWorkerRosterV1Procedure.params,
     GetMyWorkerRosterV1Procedure.returnType,
+  ),
+  // Greater Realm v17 is procedure-only in the browser. Its atlas, chunk,
+  // occupancy, import, and verification tables stay out of this projection.
+  __procedureSchema(
+    'get_realm_atlas_bootstrap_v1',
+    GetRealmAtlasBootstrapV1Procedure.params,
+    GetRealmAtlasBootstrapV1Procedure.returnType,
+  ),
+  __procedureSchema(
+    'get_realm_atlas_chunk_v1',
+    GetRealmAtlasChunkV1Procedure.params,
+    GetRealmAtlasChunkV1Procedure.returnType,
+  ),
+  __procedureSchema(
+    'get_realm_atlas_window_v1',
+    GetRealmAtlasWindowV1Procedure.params,
+    GetRealmAtlasWindowV1Procedure.returnType,
+  ),
+  __procedureSchema(
+    'plan_realm_route_v1',
+    PlanRealmRouteV1Procedure.params,
+    PlanRealmRouteV1Procedure.returnType,
   ),
   __procedureSchema(
     'get_realm_chat_history_v1',

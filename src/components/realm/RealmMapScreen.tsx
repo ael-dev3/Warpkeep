@@ -45,7 +45,12 @@ import type {
   GraphicsPreference,
   GraphicsQualityTier
 } from '../../settings/graphicsPreference';
-import type { CanonicalWarpkeepRealmSnapshot } from '../../spacetime/warpkeepBackendTypes';
+import type {
+  CanonicalWarpkeepRealmSnapshot,
+  WarpkeepRealmContinuityProjection
+} from '../../spacetime/warpkeepBackendTypes';
+import type { GreaterRealmProviderBridge } from '../../spacetime/greaterRealmProviderBridge';
+import type { GreaterRealmClientPhase } from '../../greater-realm/greaterRealmClientRuntime';
 import {
   emitWarpkeepSfx,
   emitWarpkeepSfxBatch,
@@ -166,6 +171,11 @@ import {
   REALM_QUALITY_SPECS,
   type RealmQuality
 } from './realmQuality';
+import {
+  resolveRealmWorldSceneStrategy,
+  resolveRealmWorldSceneStrategyForPolicy,
+  type RealmWorldSceneStrategy
+} from './greaterRealmSceneStrategy';
 import type { RealmIdentity } from './realmTypes';
 import type {
   RealmCastleProjectionFrame,
@@ -295,8 +305,12 @@ export type { RealmCastleProjection } from './realmMapProjectionStability';
 
 type RealmMapScreenProps = Readonly<{
   identity: RealmIdentity;
-  /** Privately branded, exact Genesis 001 renderer authority. */
-  snapshot: CanonicalWarpkeepRealmSnapshot;
+  /** Privately branded, exact Genesis 001 renderer authority; absent after cutover. */
+  snapshot?: CanonicalWarpkeepRealmSnapshot;
+  /** Shared public castle/profile/worker rows that outlive legacy geometry. */
+  realmContinuity?: WarpkeepRealmContinuityProjection;
+  /** Generation-bound v17 bridge; literal gates currently force legacy presentation. */
+  greaterRealm?: GreaterRealmProviderBridge;
   /** Authenticated caller-only inventory, separate from the public snapshot. */
   resources?: ReadyRealmResourcePresentation;
   /** Exact caller-only Gold expedition procedure projection. */
@@ -361,6 +375,8 @@ type RealmMapScreenProps = Readonly<{
   localQaWorkerProjectionTelemetry?: boolean;
   /** DEV-only frozen Living Realm clock; ignored outside observer fixtures. */
   localQaLivingVisualTimeSeconds?: number;
+  /** DEV/test-only future-branch seam; production still calls literal gates. */
+  localQaGreaterRealmPresentationAllowed?: boolean;
 }>;
 
 type RendererMode = 'loading' | 'webgl' | 'fallback';
@@ -535,6 +551,180 @@ function CanonicalRealmUnavailable({
   );
 }
 
+function RetiredRealmWorldHost({
+  strategy,
+  props
+}: Readonly<{
+  strategy: Exclude<RealmWorldSceneStrategy, { kind: 'legacy-lowlands' }>;
+  props: RealmMapScreenProps;
+}>) {
+  const [greaterPhase, setGreaterPhase] = useState<GreaterRealmClientPhase>('idle');
+  const [innerKeepOpen, setInnerKeepOpen] = useState(false);
+  const [catalogueOpen, setCatalogueOpen] = useState(false);
+  const [placementBuildingKind, setPlacementBuildingKind] =
+    useState<InnerKeepBuildingKind | undefined>();
+  const [selectedBuildingKind, setSelectedBuildingKind] =
+    useState<InnerKeepBuildingKind | undefined>();
+  const [placementDraft, setPlacementDraft] = useState<InnerKeepPlacementDraft | null>(null);
+  const deviceClass = typeof window !== 'undefined'
+    && (
+      window.innerWidth < 760
+      || window.matchMedia?.('(pointer: coarse)').matches === true
+    )
+      ? 'mobile' as const
+      : 'desktop' as const;
+  const graphicsProfile = props.resolvedGraphicsQuality === 'cinematic'
+    ? 'high' as const
+    : props.resolvedGraphicsQuality === 'performance'
+      ? 'reduced' as const
+      : 'balanced' as const;
+
+  useEffect(() => {
+    if (strategy.kind !== 'greater-realm') {
+      setGreaterPhase('idle');
+      return;
+    }
+    let runtime: ReturnType<typeof strategy.bridge.createRuntime> | undefined;
+    let unsubscribe: (() => void) | undefined;
+    try {
+      runtime = strategy.bridge.createRuntime({ deviceClass, graphicsProfile });
+      unsubscribe = runtime.subscribe((snapshot) => setGreaterPhase(snapshot.phase));
+      void runtime.bootstrap();
+    } catch {
+      setGreaterPhase('failed');
+    }
+    return () => {
+      unsubscribe?.();
+      runtime?.dispose();
+    };
+  }, [deviceClass, graphicsProfile, strategy]);
+
+  const senderProfiles = useMemo(() => {
+    const profiles = new Map<number, RealmChatSenderProfile>();
+    for (const profile of props.realmContinuity?.profiles ?? []) {
+      const castle = props.realmContinuity?.castles.find(
+        (candidate) => candidate.ownerFid === profile.fid
+      );
+      profiles.set(profile.fid, Object.freeze({
+        fid: profile.fid,
+        label: profile.displayName
+          ?? (profile.canonicalUsername ? `@${profile.canonicalUsername}` : `Keeper #${profile.fid}`),
+        ...(profile.pfpUrl === undefined ? {} : { pfpUrl: profile.pfpUrl }),
+        ...(castle === undefined ? {} : {
+          castleId: castle.castleId,
+          castleName: castle.name
+        })
+      }));
+    }
+    if (!profiles.has(props.identity.fid)) {
+      profiles.set(props.identity.fid, Object.freeze({
+        fid: props.identity.fid,
+        label: props.identity.displayName
+          ?? (props.identity.username ? `@${props.identity.username}` : `Keeper #${props.identity.fid}`),
+        ...(props.identity.pfpUrl === undefined ? {} : { pfpUrl: props.identity.pfpUrl })
+      }));
+    }
+    return profiles;
+  }, [props.identity, props.realmContinuity]);
+
+  const closeInnerKeep = () => {
+    setInnerKeepOpen(false);
+    setCatalogueOpen(false);
+    setPlacementBuildingKind(undefined);
+    setSelectedBuildingKind(undefined);
+    setPlacementDraft(null);
+  };
+  if (innerKeepOpen && props.innerKeep !== undefined) {
+    return (
+      <Suspense fallback={<div role="status">Opening Inner Keep…</div>}>
+        <InnerKeepScreen
+          presentation={props.innerKeep}
+          catalogueOpen={catalogueOpen}
+          placementBuildingKind={placementBuildingKind}
+          placementDraft={placementDraft}
+          selectedBuildingKind={selectedBuildingKind}
+          renderMode="fallback"
+          onBack={() => {
+            if (placementBuildingKind !== undefined || selectedBuildingKind !== undefined) {
+              setPlacementBuildingKind(undefined);
+              setSelectedBuildingKind(undefined);
+              setPlacementDraft(null);
+            } else if (catalogueOpen) {
+              setCatalogueOpen(false);
+            } else {
+              closeInnerKeep();
+            }
+          }}
+          onCloseToRealm={closeInnerKeep}
+          onOpenCatalogue={() => setCatalogueOpen(true)}
+          onBeginPlacement={(buildingKind) => {
+            setPlacementBuildingKind(buildingKind);
+            setSelectedBuildingKind(undefined);
+          }}
+          onOpenBuilding={(buildingKind) => {
+            setSelectedBuildingKind(buildingKind);
+            setPlacementBuildingKind(undefined);
+          }}
+          onPlacementDraftChange={setPlacementDraft}
+          onStartProject={props.onStartInnerKeepProject}
+          onRequestSync={props.onRequestInnerKeepSync}
+        />
+      </Suspense>
+    );
+  }
+
+  return (
+    <main
+      className="realm-map-screen realm-map-screen--unavailable"
+      role="status"
+      aria-busy={strategy.kind === 'greater-realm' && greaterPhase !== 'bootstrap-ready'}
+      aria-live="polite"
+      data-realm-world-scene-strategy={strategy.kind}
+      data-realm-world-scene-strategy-reason={
+        strategy.kind === 'connection-hold' ? strategy.reason : 'scene-host-pending'
+      }
+      data-greater-realm-client-phase={strategy.kind === 'greater-realm' ? greaterPhase : undefined}
+    >
+      <div className="realm-map-screen__loading">
+        <strong>{strategy.kind === 'greater-realm'
+          ? 'Opening the Greater Realm'
+          : 'Reconnecting to the Realm'}</strong>
+        <span>{strategy.kind === 'greater-realm' && greaterPhase === 'bootstrap-ready'
+          ? 'The current public atlas release is verified. World-scene presentation remains sealed.'
+          : 'The retired Lowlands surface stays hidden while current authority is prepared.'}</span>
+        {props.resources === undefined ? null : (
+          <span data-testid="retired-realm-resources">
+            Resources current · Marks {props.resources.marksBalanceMicros.toString()}
+          </span>
+        )}
+        {props.workerRoster === undefined ? null : (
+          <span data-testid="retired-realm-workers">
+            Workers current · {props.workerRoster.workers.length}
+          </span>
+        )}
+        {props.innerKeep === undefined ? null : (
+          <button type="button" onClick={() => setInnerKeepOpen(true)}>OPEN INNER KEEP</button>
+        )}
+        <button type="button" onClick={props.onRequestReturn}>Return to Menu</button>
+      </div>
+      {props.realmChat !== undefined
+      && props.onSendRealmChatMessage !== undefined
+      && props.onReportRealmChatMessage !== undefined
+      && props.onLoadEarlierRealmChat !== undefined ? (
+        <RealmChatDock
+          chat={props.realmChat}
+          chromeMode={deviceClass === 'mobile' ? 'compact-web' : 'desktop-web'}
+          identityFid={props.identity.fid}
+          senderProfiles={senderProfiles}
+          onSend={props.onSendRealmChatMessage}
+          onReport={props.onReportRealmChatMessage}
+          onLoadEarlier={props.onLoadEarlierRealmChat}
+        />
+      ) : null}
+    </main>
+  );
+}
+
 /**
  * Keep the private canonical brand check outside the hook-heavy renderer.
  * Invalid or malformed runtime input must not be dereferenced, generate a
@@ -542,18 +732,53 @@ function CanonicalRealmUnavailable({
  */
 export function RealmMapScreen(props: RealmMapScreenProps) {
   if (
-    !isCanonicalGenesisSnapshot(props.snapshot, props.identity.fid)
+    (props.snapshot !== undefined
+      && !isCanonicalGenesisSnapshot(props.snapshot, props.identity.fid))
     || (props.resources !== undefined && props.resources.fid !== BigInt(props.identity.fid))
   ) {
     return <CanonicalRealmUnavailable onRequestReturn={props.onRequestReturn} />;
   }
-  return <CanonicalRealmMapScreen {...props} />;
+  const strategyInput = {
+    bridge: props.greaterRealm,
+    legacyAuthorityActive: props.snapshot?.realm.active === true
+  };
+  const worldSceneStrategy = import.meta.env.DEV
+    && props.localQaGreaterRealmPresentationAllowed === true
+    ? resolveRealmWorldSceneStrategyForPolicy(strategyInput, {
+        clientPresentationAllowed: true,
+        serverPresentationAllowed: true
+      })
+    : resolveRealmWorldSceneStrategy(strategyInput);
+  if (worldSceneStrategy.kind !== 'legacy-lowlands') {
+    return (
+      <RetiredRealmWorldHost
+        strategy={worldSceneStrategy}
+        props={props}
+      />
+    );
+  }
+  if (props.snapshot === undefined) {
+    return <CanonicalRealmUnavailable onRequestReturn={props.onRequestReturn} />;
+  }
+  return (
+    <CanonicalRealmMapScreen
+      {...props}
+      snapshot={props.snapshot}
+      worldSceneStrategy={worldSceneStrategy}
+    />
+  );
 }
 
-function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
+function CanonicalRealmMapScreen(
+  props: RealmMapScreenProps & Readonly<{
+    snapshot: CanonicalWarpkeepRealmSnapshot;
+    worldSceneStrategy: Extract<RealmWorldSceneStrategy, { kind: 'legacy-lowlands' }>;
+  }>
+) {
   const {
     identity,
     snapshot,
+    worldSceneStrategy,
     resources,
     goldExpedition,
     onDispatchGoldExpedition,
@@ -6000,6 +6225,10 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       data-realm-surface-depth={String(surfaceNavigation.depth)}
       data-realm-surface-motion={surfaceNavigation.motion ?? 'idle'}
       data-realm-scene-mode={innerKeepActive ? 'INNER_KEEP' : 'WORLD'}
+      data-realm-world-scene-strategy={worldSceneStrategy.kind}
+      data-realm-world-scene-strategy-reason={
+        worldSceneStrategy.kind === 'legacy-lowlands' ? worldSceneStrategy.reason : 'ready'
+      }
       data-inner-keep-scene-status={innerKeepSceneStatus}
       data-realm-camera-mode={cameraMode}
       data-realm-camera-presentation-band={realmCameraPresentationBand(cameraMode)}

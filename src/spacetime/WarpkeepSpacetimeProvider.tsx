@@ -47,6 +47,7 @@ import {
   recallAllWarpkeepWorkers,
   returnWarpkeepLegacyExpedition,
   readWarpkeepRealmSnapshot,
+  readWarpkeepRealmContinuityProjection,
   readWarpkeepRealmChat,
   readWarpkeepRealmChatHistory,
   readWarpkeepRealmChatRecent,
@@ -54,8 +55,14 @@ import {
   sendWarpkeepRealmChatMessage,
   subscribeToWarpkeepRealmChat,
   subscribeToWarpkeepRealm,
-  type WarpkeepConnection
+  WarpkeepLegacyRealmRetiredError,
+  type WarpkeepConnection,
+  type WarpkeepGreaterRealmConnectionAuthority
 } from './warpkeepConnection';
+import {
+  createWarpkeepGreaterRealmProviderBridge,
+  type GreaterRealmProviderBridge
+} from './greaterRealmProviderBridge';
 import {
   mergeRealmChatRecentPage,
   UNAVAILABLE_REALM_CHAT_PRESENTATION,
@@ -68,6 +75,7 @@ import {
   IDLE_WARPKEEP_BACKEND_STATE,
   NOT_REQUIRED_WORKER_PRIVATE_SYNC_STATUS,
   type WarpkeepBackendState,
+  type WarpkeepRealmContinuityProjection,
   type WarpkeepRealmSnapshot,
   type WarpkeepWorkerPrivateSyncFailureReason,
   type WarpkeepWorkerPrivateSyncStatus
@@ -237,6 +245,8 @@ function withResourceOperationDeadline<T>(operation: Promise<T>): Promise<T> {
 
 export type WarpkeepBackendControllerValue = Readonly<{
   state: WarpkeepBackendState;
+  /** Dormant v17 procedure bridge; it never contains a connection or private row. */
+  greaterRealm: GreaterRealmProviderBridge;
   /** Separate bounded stream; never participates in canonical world readiness. */
   realmChat: RealmChatPresentation;
   /** Privacy-safe status for the current caller-private Worker read pair. */
@@ -362,6 +372,7 @@ export type WarpkeepBackendRuntime = Readonly<{
   startInnerKeepProject?: typeof startWarpkeepInnerKeepProject;
   observeRealm: typeof observeWarpkeepRealm;
   readRealmSnapshot: typeof readWarpkeepRealmSnapshot;
+  readRealmContinuity?: typeof readWarpkeepRealmContinuityProjection;
   subscribeRealm: typeof subscribeToWarpkeepRealm;
   observeRealmChat?: typeof observeWarpkeepRealmChat;
   readRealmChat?: typeof readWarpkeepRealmChat;
@@ -406,6 +417,7 @@ export const DEFAULT_WARPKEEP_BACKEND_RUNTIME: WarpkeepBackendRuntime = Object.f
   startInnerKeepProject: startWarpkeepInnerKeepProject,
   observeRealm: observeWarpkeepRealm,
   readRealmSnapshot: readWarpkeepRealmSnapshot,
+  readRealmContinuity: readWarpkeepRealmContinuityProjection,
   subscribeRealm: subscribeToWarpkeepRealm,
   observeRealmChat: observeWarpkeepRealmChat,
   readRealmChat: readWarpkeepRealmChat,
@@ -656,15 +668,46 @@ function workerProjectionPairIsAtLeastAsNew(
     && workerResourceStateIsAtLeastAsNew(candidateResourceState, currentResourceState);
 }
 
+type WarpkeepWorkerRealmAuthority = WarpkeepRealmSnapshot | WarpkeepRealmContinuityProjection;
+
+function workerAuthorityRealmId(authority: WarpkeepWorkerRealmAuthority) {
+  return 'realm' in authority ? authority.realm.realmId : authority.realmId;
+}
+
+function continuityProjectionFromCanonicalRealm(
+  snapshot: WarpkeepRealmSnapshot
+): WarpkeepRealmContinuityProjection {
+  return Object.freeze({
+    realmId: snapshot.realm.realmId,
+    players: snapshot.players,
+    profiles: snapshot.profiles,
+    castles: snapshot.castles,
+    ownCastle: snapshot.ownCastle,
+    ...(snapshot.goldSites === undefined ? {} : { goldSites: snapshot.goldSites }),
+    ...(snapshot.foodSites === undefined ? {} : { foodSites: snapshot.foodSites }),
+    ...(snapshot.woodSites === undefined ? {} : { woodSites: snapshot.woodSites }),
+    ...(snapshot.stoneSites === undefined ? {} : { stoneSites: snapshot.stoneSites }),
+    ...(snapshot.workerSystem === undefined ? {} : {
+      workerSystem: snapshot.workerSystem
+    }),
+    ...(snapshot.workerWorkers === undefined ? {} : {
+      workerWorkers: snapshot.workerWorkers
+    }),
+    ...(snapshot.workerOccupations === undefined ? {} : {
+      workerOccupations: snapshot.workerOccupations
+    })
+  });
+}
+
 function activeWorkerProjection(
-  snapshot: WarpkeepRealmSnapshot,
+  snapshot: WarpkeepWorkerRealmAuthority,
   roster: WorkerRosterPresentation | undefined,
   resourceState: ReadyWorkerResourceState | undefined
 ): ReadyWorkerProjection | undefined {
   const resourceSites = workerResourceSites(snapshot);
   if (resourceSites === undefined) return undefined;
   return resolveReadyWorkerProjection({
-    realmId: snapshot.realm.realmId,
+    realmId: workerAuthorityRealmId(snapshot),
     castleIds: snapshot.castles.map((castle) => castle.castleId),
     ownCastleId: snapshot.ownCastle.castleId,
     expectedFid: BigInt(snapshot.ownCastle.ownerFid),
@@ -678,12 +721,12 @@ function activeWorkerProjection(
 }
 
 function activePublicWorkerProjection(
-  snapshot: WarpkeepRealmSnapshot
+  snapshot: WarpkeepWorkerRealmAuthority
 ): ReadyPublicWorkerProjection | undefined {
   const resourceSites = workerResourceSites(snapshot);
   if (resourceSites === undefined) return undefined;
   return resolveReadyPublicWorkerProjection({
-    realmId: snapshot.realm.realmId,
+    realmId: workerAuthorityRealmId(snapshot),
     castleIds: snapshot.castles.map((castle) => castle.castleId),
     ownCastleId: snapshot.ownCastle.castleId,
     system: snapshot.workerSystem,
@@ -694,7 +737,7 @@ function activePublicWorkerProjection(
 }
 
 function activeWorkerProjectionResolution(
-  snapshot: WarpkeepRealmSnapshot,
+  snapshot: WarpkeepWorkerRealmAuthority,
   roster: WorkerRosterPresentation | undefined,
   resourceState: ReadyWorkerResourceState | undefined
 ) {
@@ -706,7 +749,7 @@ function activeWorkerProjectionResolution(
     });
   }
   return resolveReadyWorkerProjectionWithReason({
-    realmId: snapshot.realm.realmId,
+    realmId: workerAuthorityRealmId(snapshot),
     castleIds: snapshot.castles.map((castle) => castle.castleId),
     ownCastleId: snapshot.ownCastle.castleId,
     expectedFid: BigInt(snapshot.ownCastle.ownerFid),
@@ -720,7 +763,7 @@ function activeWorkerProjectionResolution(
 }
 
 function workerResourceSites(
-  snapshot: WarpkeepRealmSnapshot
+  snapshot: WarpkeepWorkerRealmAuthority
 ): readonly RealmWorkerResourceSite[] | undefined {
   const buckets = Object.freeze([
     Object.freeze(['food', snapshot.foodSites] as const),
@@ -750,7 +793,7 @@ function workerResourceSites(
  * logged or exposed through backend state; it only prevents unrelated public
  * Realm notifications from resetting the bounded private-read backoff.
  */
-function workerPublicSyncRevision(snapshot: WarpkeepRealmSnapshot) {
+function workerPublicSyncRevision(snapshot: WarpkeepWorkerRealmAuthority) {
   if (
     snapshot.workerSystem?.mode !== 'active'
     || snapshot.workerWorkers === undefined
@@ -837,7 +880,7 @@ async function readCoherentWorkerProjectionPair(input: Readonly<{
   readControlState?: () => Promise<WarpkeepWorkerControlStateReadResult | undefined>;
   readRoster?: () => Promise<WorkerRosterPresentation | undefined>;
   readResourceState?: () => Promise<ReadyWorkerResourceState | undefined>;
-  readRealm: () => WarpkeepRealmSnapshot | undefined;
+  readRealm: () => WarpkeepWorkerRealmAuthority | undefined;
   retainedPair: () => Readonly<{
     roster: WorkerRosterPresentation | undefined;
     resourceState: ReadyWorkerResourceState | undefined;
@@ -961,7 +1004,7 @@ function workerCommandLifecycleState(
 }
 
 function publicWorkerCommandLifecycleState(
-  realm: WarpkeepRealmSnapshot
+  realm: WarpkeepWorkerRealmAuthority
 ): WorkerCommandLifecycleState | undefined {
   const projection = activePublicWorkerProjection(realm);
   if (projection === undefined) return undefined;
@@ -1174,7 +1217,7 @@ export function WarpkeepSpacetimeProvider({
     const currentState = stateRef.current;
     const connection = connectionRef.current;
     const fid = currentState.identity?.fid;
-    const realm = currentState.realm;
+    const realm = currentState.realm ?? currentState.realmContinuity;
     const retainedProjection = innerKeepProjectionRef.current;
     const currentBridgeAuthority = currentBridgeCommandAuthorityRef.current;
     const connectionBridgeAuthority = connectionBridgeCommandAuthorityRef.current;
@@ -1357,7 +1400,8 @@ export function WarpkeepSpacetimeProvider({
           generationRef.current === generation
           && latest.phase === 'ready'
           && latest.identity?.fid === fid
-          && latest.realm?.ownCastle.castleId === realm.ownCastle.castleId
+          && (latest.realm ?? latest.realmContinuity)?.ownCastle.castleId
+            === realm.ownCastle.castleId
             ? { ...latest, innerKeep: failedPresentation }
             : latest
         ));
@@ -1491,7 +1535,7 @@ export function WarpkeepSpacetimeProvider({
           || latest.phase !== 'ready'
           || latest.admission !== 'ready'
           || latest.identity?.fid !== fid
-          || latest.realm === undefined
+          || (latest.realm ?? latest.realmContinuity) === undefined
           || latest.resources === undefined
           || latest.resources.fid !== resources.fid
           || !resourceProjectionIsAtLeastAsNew(resources, latestRetained)
@@ -1501,9 +1545,14 @@ export function WarpkeepSpacetimeProvider({
       });
     } catch {
       if (generationRef.current === generation) {
-        canonicalRealmSourceRef.current = undefined;
-        runActiveTeardown();
-        setState(backendError(currentState.identity));
+        // Retirement may land while an already-authorized collection is in
+        // flight. Recheck current world authority so that late transport
+        // failure cannot tear down the surviving castle-scoped subscriptions.
+        if (stateRef.current.legacyRealmAuthority !== 'retired') {
+          canonicalRealmSourceRef.current = undefined;
+          runActiveTeardown();
+          setState(backendError(currentState.identity));
+        }
       }
     } finally {
       if (collectingGenerationRef.current === generation) {
@@ -1527,6 +1576,7 @@ export function WarpkeepSpacetimeProvider({
     const connectionBridgeAuthority = connectionBridgeCommandAuthorityRef.current;
     if (
       currentState.phase !== 'ready' || currentState.admission !== 'ready'
+      || currentState.legacyRealmAuthority === 'retired'
       || currentState.workerProjection?.mode !== 'active' || connection === undefined || fid === undefined
       || currentState.workerRoster === undefined || currentState.workerResourceState === undefined
       || currentState.workerPrivateSync.phase !== 'ready'
@@ -2652,6 +2702,18 @@ export function WarpkeepSpacetimeProvider({
       && canonicalRealmSourceRef.current === canonicalRealmSource
       ? previousState
       : undefined;
+    const retainedRetiredState = (
+      previousState.phase === 'ready'
+      || previousState.phase === 'reconnecting'
+    )
+      && previousState.identity?.fid === continuityIdentity?.fid
+      && previousState.admission === 'ready'
+      && previousState.legacyRealmAuthority === 'retired'
+      && previousState.realm === undefined
+      && canonicalRealmSourceRef.current === canonicalRealmSource
+      ? previousState
+      : undefined;
+    const retainedContinuityState = retainedReadyState ?? retainedRetiredState;
     const retainedProjection = !accessTokenRefreshPending
       && identity !== undefined
       && retainedReadyState?.workerRoster
@@ -2675,7 +2737,7 @@ export function WarpkeepSpacetimeProvider({
           projection: retainedProjection
         })
       : undefined;
-    if (!retainedReadyState) canonicalRealmSourceRef.current = undefined;
+    if (!retainedContinuityState) canonicalRealmSourceRef.current = undefined;
     runActiveTeardown();
     const previous = connectionRef.current;
     connectionRef.current = undefined;
@@ -2697,7 +2759,7 @@ export function WarpkeepSpacetimeProvider({
         sharedAlphaAvailable
         && accessTokenRefreshPending
         && continuityIdentity
-        && retainedReadyState
+        && retainedContinuityState
       ) {
         // The Farcaster machine still proves the exact bridge-authenticated
         // FID while its short-lived access token rotates. Retain only the
@@ -2709,7 +2771,15 @@ export function WarpkeepSpacetimeProvider({
           workerPrivateSync: NOT_REQUIRED_WORKER_PRIVATE_SYNC_STATUS,
           identity: continuityIdentity,
           admission: 'ready',
-          realm: retainedReadyState.realm
+          ...(retainedReadyState === undefined ? {
+            legacyRealmAuthority: 'retired' as const,
+            ...(retainedRetiredState?.realmContinuity === undefined ? {} : {
+              realmContinuity: retainedRetiredState.realmContinuity
+            })
+          } : {
+            legacyRealmAuthority: 'active' as const,
+            realm: retainedReadyState.realm
+          })
         });
       } else {
         transportReconnectAttemptRef.current = 0;
@@ -2740,11 +2810,12 @@ export function WarpkeepSpacetimeProvider({
     let resourceRefreshInFlight = false;
     let resourceRefreshQueuedAfterResume = false;
     let workerRefreshInFlight = false;
-    let queuedWorkerCapabilityRealm: WarpkeepRealmSnapshot | undefined;
+    let queuedWorkerCapabilityRealm: WarpkeepWorkerRealmAuthority | undefined;
     let workerPrivateSyncBurstAttempt = 0;
     let workerPrivateSyncRequiredAt: number | undefined;
     let workerPrivateSyncRetryTimeout: ReturnType<typeof setTimeout> | undefined;
-    let workerPrivateSyncLastRealm: WarpkeepRealmSnapshot | undefined;
+    let workerPrivateSyncLastRealm: WarpkeepWorkerRealmAuthority | undefined;
+    let retiredRealmContinuity: WarpkeepRealmContinuityProjection | undefined;
     let lastRequestedWorkerPublicRevision: string | undefined;
     let removeWorkerPrivateSyncLifecycleListeners: (() => void) | undefined;
     let requestWorkerPrivateSync = () => undefined;
@@ -2763,6 +2834,7 @@ export function WarpkeepSpacetimeProvider({
     let transportReconnectRetryTimeout: ReturnType<typeof setTimeout> | undefined;
     let termsAcceptancePromise: Promise<boolean> | undefined;
     let terminated = false;
+    let legacyRealmRetired = false;
     const current = () => active && generationRef.current === generation;
     const terminateConnection = () => {
       // A retained transport retry may be scheduled after this generation has
@@ -2923,6 +2995,11 @@ export function WarpkeepSpacetimeProvider({
     teardownRef.current = terminateConnection;
     const scheduleRetainedTransportReconnect = () => {
       const latest = stateRef.current;
+      const activeLegacyContinuity = latest.legacyRealmAuthority !== 'retired'
+        && latest.realm !== undefined
+        && isCanonicalGenesisSnapshot(latest.realm, identity?.fid);
+      const retiredLegacyContinuity = latest.legacyRealmAuthority === 'retired'
+        && latest.realm === undefined;
       const retryDelay = TRANSPORT_RECONNECT_RETRY_DELAYS_MILLISECONDS[
         transportReconnectAttemptRef.current
       ];
@@ -2937,8 +3014,7 @@ export function WarpkeepSpacetimeProvider({
         || (latest.phase !== 'ready' && latest.phase !== 'reconnecting')
         || latest.identity?.fid !== identity.fid
         || latest.admission !== 'ready'
-        || latest.realm === undefined
-        || !isCanonicalGenesisSnapshot(latest.realm, identity.fid)
+        || (!activeLegacyContinuity && !retiredLegacyContinuity)
         || canonicalRealmSourceRef.current !== canonicalRealmSource
       ) {
         return false;
@@ -2949,7 +3025,15 @@ export function WarpkeepSpacetimeProvider({
         workerPrivateSync: NOT_REQUIRED_WORKER_PRIVATE_SYNC_STATUS,
         identity,
         admission: 'ready',
-        realm: latest.realm
+        ...(retiredLegacyContinuity ? {
+          legacyRealmAuthority: 'retired' as const,
+          ...(latest.realmContinuity === undefined ? {} : {
+            realmContinuity: latest.realmContinuity
+          })
+        } : {
+          legacyRealmAuthority: 'active' as const,
+          realm: latest.realm
+        })
       };
       terminateConnection();
       canonicalRealmSourceRef.current = canonicalRealmSource;
@@ -2981,12 +3065,12 @@ export function WarpkeepSpacetimeProvider({
       }
     };
     const failRealmActivation = (reason: WarpkeepRealmActivationFailureReason) => {
-      if (!current()) return;
+      if (!current() || legacyRealmRetired) return;
       reportFailure(`warpkeep_backend_activation_failed:${reason}`);
       fail();
     };
 
-    const reconnectingState: WarpkeepBackendState | undefined = retainedReadyState
+    const reconnectingState: WarpkeepBackendState | undefined = retainedContinuityState
       ? {
           phase: 'reconnecting',
           workerPrivateSync: retainedWorkerProjectionPair
@@ -2994,18 +3078,26 @@ export function WarpkeepSpacetimeProvider({
                 phase: 'stale-read-only',
                 retainedStale: true,
                 localizedFailureCount:
-                  retainedReadyState.workerPrivateSync.localizedFailureCount,
+                  retainedReadyState!.workerPrivateSync.localizedFailureCount,
                 lastSuccessGeneration:
-                  retainedReadyState.workerPrivateSync.lastSuccessGeneration,
+                  retainedReadyState!.workerPrivateSync.lastSuccessGeneration,
                 lastSuccessRevision:
-                  retainedReadyState.workerPrivateSync.lastSuccessRevision,
+                  retainedReadyState!.workerPrivateSync.lastSuccessRevision,
                 readyLatencyMilliseconds:
-                  retainedReadyState.workerPrivateSync.readyLatencyMilliseconds
+                  retainedReadyState!.workerPrivateSync.readyLatencyMilliseconds
               })
             : NOT_REQUIRED_WORKER_PRIVATE_SYNC_STATUS,
           identity,
           admission: 'ready',
-          realm: retainedReadyState.realm,
+          ...(retainedReadyState === undefined ? {
+            legacyRealmAuthority: 'retired' as const,
+            ...(retainedRetiredState?.realmContinuity === undefined ? {} : {
+              realmContinuity: retainedRetiredState.realmContinuity
+            })
+          } : {
+            legacyRealmAuthority: 'active' as const,
+            realm: retainedReadyState.realm
+          }),
           ...(retainedWorkerProjectionPair === undefined ? {} : {
             workerRoster: retainedWorkerProjectionPair.roster,
             workerResourceState: retainedWorkerProjectionPair.resourceState,
@@ -3174,7 +3266,7 @@ export function WarpkeepSpacetimeProvider({
           return;
         }
 
-        const workerCapabilityIsActive = (realm: WarpkeepRealmSnapshot | undefined) => (
+        const workerCapabilityIsActive = (realm: WarpkeepWorkerRealmAuthority | undefined) => (
           realm?.workerSystem?.mode === 'active'
           && realm.workerWorkers !== undefined
           && realm.workerOccupations !== undefined
@@ -3278,7 +3370,7 @@ export function WarpkeepSpacetimeProvider({
           } as const;
         };
         const scheduleWorkerPrivateSyncRetry = (
-          realm: WarpkeepRealmSnapshot,
+          realm: WarpkeepWorkerRealmAuthority,
           delayMilliseconds: number,
           startNewBurst = false
         ) => {
@@ -3294,13 +3386,13 @@ export function WarpkeepSpacetimeProvider({
           }, delayMilliseconds);
         };
         const markWorkerPrivateSyncFailure = (
-          realm: WarpkeepRealmSnapshot,
+          realm: WarpkeepWorkerRealmAuthority,
           failureReason: WarpkeepWorkerPrivateSyncFailureReason
         ) => {
           if (!current()) return;
           const latestRealm = canonicalRealmSnapshotRef.current?.generation === generation
             ? canonicalRealmSnapshotRef.current.value
-            : undefined;
+            : retiredRealmContinuity;
           if (!workerCapabilityIsActive(latestRealm)) {
             resetWorkerPrivateSyncLifecycle();
             publishWorkerPrivateSync(NOT_REQUIRED_WORKER_PRIVATE_SYNC_STATUS);
@@ -3342,12 +3434,12 @@ export function WarpkeepSpacetimeProvider({
             );
           }
         };
-        const refreshWorkerProjection = async (capabilityRealm: WarpkeepRealmSnapshot) => {
+        const refreshWorkerProjection = async (capabilityRealm: WarpkeepWorkerRealmAuthority) => {
           const latestCanonicalRealm =
             canonicalRealmSnapshotRef.current?.generation === generation
               ? canonicalRealmSnapshotRef.current.value
               : undefined;
-          const syncRealm = latestCanonicalRealm ?? capabilityRealm;
+          const syncRealm = latestCanonicalRealm ?? retiredRealmContinuity ?? capabilityRealm;
           if (!current()) return;
           if (!workerCapabilityIsActive(syncRealm)) {
             resetWorkerPrivateSyncLifecycle();
@@ -3446,7 +3538,7 @@ export function WarpkeepSpacetimeProvider({
             const retained = monotonicWorkerPair();
             const latestRealm = canonicalRealmSnapshotRef.current?.generation === generation
               ? canonicalRealmSnapshotRef.current.value
-              : undefined;
+              : retiredRealmContinuity;
             const latestProjection = latestRealm === undefined
               ? undefined
               : activeWorkerProjection(latestRealm, roster, resourceState);
@@ -3481,11 +3573,19 @@ export function WarpkeepSpacetimeProvider({
               readyLatencyMilliseconds,
               commandsEnabled: workerCommandsAreAvailable
             });
+            const publishedPrivateSync = legacyRealmRetired
+              ? workerPrivateSyncStatus({
+                  ...readyPrivateSync,
+                  phase: 'stale-read-only',
+                  retainedStale: true,
+                  commandsEnabled: false
+                })
+              : readyPrivateSync;
             workerPrivateSyncRequiredAt = undefined;
             workerPrivateSyncStateRef.current = Object.freeze({
               generation,
               fid: bridgeFid!,
-              value: readyPrivateSync
+              value: publishedPrivateSync
             });
             const refreshedLifecycle = workerCommandLifecycleState(roster);
             for (const [retainedFingerprint, retainedAttempt] of workerCommandAttemptsRef.current) {
@@ -3502,8 +3602,13 @@ export function WarpkeepSpacetimeProvider({
                 !current()
                 || latest.phase !== 'ready'
                 || latest.identity?.fid !== bridgeFid
-                || latest.realm === undefined
-                || latest.realm.ownCastle.ownerFid !== bridgeFid
+                || (
+                  latest.realm?.ownCastle.ownerFid !== bridgeFid
+                  && !(
+                    latest.legacyRealmAuthority === 'retired'
+                    && retiredRealmContinuity?.ownCastle.ownerFid === bridgeFid
+                  )
+                )
                 || !workerProjectionPairIsAtLeastAsNew(
                   roster,
                   resourceState,
@@ -3511,14 +3616,16 @@ export function WarpkeepSpacetimeProvider({
                   latest.workerResourceState
                 )
               ) return latest;
-              const projection = activeWorkerProjection(latest.realm, roster, resourceState);
+              const authority = latest.realm ?? retiredRealmContinuity;
+              if (authority === undefined) return latest;
+              const projection = activeWorkerProjection(authority, roster, resourceState);
               if (projection === undefined) return latest;
               return {
                 ...latest,
                 workerRoster: roster,
                 workerResourceState: resourceState,
                 workerProjection: projection,
-                workerPrivateSync: readyPrivateSync
+                workerPrivateSync: publishedPrivateSync
               };
             });
             succeeded = true;
@@ -3543,7 +3650,7 @@ export function WarpkeepSpacetimeProvider({
           if (!current()) return;
           const realm = canonicalRealmSnapshotRef.current?.generation === generation
             ? canonicalRealmSnapshotRef.current.value
-            : workerPrivateSyncLastRealm;
+            : retiredRealmContinuity ?? workerPrivateSyncLastRealm;
           if (!workerCapabilityIsActive(realm)) return;
           cancelWorkerPrivateSyncRetry();
           if (
@@ -3634,7 +3741,7 @@ export function WarpkeepSpacetimeProvider({
           const castleId = projection.scope.castleId;
           const canonicalRealm = canonicalRealmSnapshotRef.current?.generation === generation
             ? canonicalRealmSnapshotRef.current.value
-            : undefined;
+            : retiredRealmContinuity;
           if (
             projection.scope.generation !== generation
             || projection.scope.fid !== bridgeFid
@@ -3654,7 +3761,14 @@ export function WarpkeepSpacetimeProvider({
             && latest.phase === 'ready'
             && latest.admission === 'ready'
             && latest.identity?.fid === bridgeFid
-            && latest.realm?.ownCastle.castleId === canonicalRealm.ownCastle.castleId
+            && (
+              latest.realm?.ownCastle.castleId === canonicalRealm.ownCastle.castleId
+              || (
+                latest.legacyRealmAuthority === 'retired'
+                && retiredRealmContinuity?.ownCastle.castleId
+                  === canonicalRealm.ownCastle.castleId
+              )
+            )
               ? { ...latest, innerKeep: projection.presentation }
               : latest
           ));
@@ -3676,7 +3790,7 @@ export function WarpkeepSpacetimeProvider({
           }, delay);
         };
         const refreshInnerKeepProjection = async (
-          capabilityRealm: WarpkeepRealmSnapshot
+          capabilityRealm: WarpkeepWorkerRealmAuthority
         ) => {
           if (!current()) return;
           if (runtime.readInnerKeepProjection === undefined) {
@@ -3690,7 +3804,7 @@ export function WarpkeepSpacetimeProvider({
           }
           const latestRealm = canonicalRealmSnapshotRef.current?.generation === generation
             ? canonicalRealmSnapshotRef.current.value
-            : capabilityRealm;
+            : retiredRealmContinuity ?? capabilityRealm;
           if (
             latestRealm.ownCastle.ownerFid !== bridgeFid
             || !Number.isSafeInteger(latestRealm.ownCastle.castleId)
@@ -3731,9 +3845,13 @@ export function WarpkeepSpacetimeProvider({
             );
             if (
               !current()
-              || canonicalRealmSnapshotRef.current?.generation !== generation
-              || canonicalRealmSnapshotRef.current.value.ownCastle.castleId
-                !== latestRealm.ownCastle.castleId
+              || (
+                canonicalRealmSnapshotRef.current?.generation === generation
+                  ? canonicalRealmSnapshotRef.current.value.ownCastle.castleId
+                    !== latestRealm.ownCastle.castleId
+                  : retiredRealmContinuity?.ownCastle.castleId
+                    !== latestRealm.ownCastle.castleId
+              )
             ) return;
             if (projection === undefined) {
               clearInnerKeepProjection();
@@ -3880,7 +3998,7 @@ export function WarpkeepSpacetimeProvider({
               innerKeepRefreshQueued = false;
               const queuedRealm = canonicalRealmSnapshotRef.current?.generation === generation
                 ? canonicalRealmSnapshotRef.current.value
-                : undefined;
+                : retiredRealmContinuity;
               if (queuedRealm !== undefined) void refreshInnerKeepProjection(queuedRealm);
             }
           }
@@ -3889,10 +4007,148 @@ export function WarpkeepSpacetimeProvider({
           if (!current()) return;
           const realm = canonicalRealmSnapshotRef.current?.generation === generation
             ? canonicalRealmSnapshotRef.current.value
-            : undefined;
+            : retiredRealmContinuity;
           if (realm !== undefined) void refreshInnerKeepProjection(realm);
         };
         requestInnerKeepSyncRef.current = requestInnerKeepSync;
+
+        const refreshRetiredContinuity = () => {
+          if (!current() || !legacyRealmRetired) return;
+          const previous = retiredRealmContinuity;
+          try {
+            const next = runtime.readRealmContinuity?.(activeConnection, bridgeFid!)
+              ?? previous;
+            if (
+              next === undefined
+              || next.ownCastle.ownerFid !== bridgeFid
+              || !Number.isSafeInteger(next.ownCastle.castleId)
+              || next.ownCastle.castleId <= 0
+            ) return;
+            retiredRealmContinuity = next;
+            const roster = workerRosterStateRef.current?.generation === generation
+              && workerRosterStateRef.current.fid === bridgeFid
+              ? workerRosterStateRef.current.value
+              : undefined;
+            const workerResourceState =
+              workerResourceStateRef.current?.generation === generation
+              && workerResourceStateRef.current.fid === bridgeFid
+                ? workerResourceStateRef.current.value
+                : undefined;
+            const workerProjection = activeWorkerProjection(
+              next,
+              roster,
+              workerResourceState
+            );
+            setState((latest) => {
+              if (
+                !current()
+                || latest.phase !== 'ready'
+                || latest.admission !== 'ready'
+                || latest.legacyRealmAuthority !== 'retired'
+                || latest.identity?.fid !== bridgeFid
+              ) return latest;
+              return {
+                ...latest,
+                realmContinuity: next,
+                ...(roster === undefined ? {} : { workerRoster: roster }),
+                ...(workerResourceState === undefined ? {} : { workerResourceState }),
+                ...(workerProjection === undefined ? {} : { workerProjection })
+              };
+            });
+            if (workerPublicSyncRevision(next) !== workerPublicSyncRevision(previous ?? next)) {
+              requestWorkerPrivateSync();
+            }
+            requestInnerKeepSync();
+          } catch {
+            // Shared projections retain their last validated castle-scoped view.
+          }
+        };
+
+        const retireLegacyRealmAuthority = () => {
+          if (!current() || legacyRealmRetired) return;
+          const lastCanonicalRealm = canonicalRealmSnapshotRef.current?.generation === generation
+            ? canonicalRealmSnapshotRef.current.value
+            : retainedReadyState?.realm;
+          legacyRealmRetired = true;
+          if (readinessTimeout !== undefined) {
+            clearTimeout(readinessTimeout);
+            readinessTimeout = undefined;
+          }
+          retiredRealmContinuity = lastCanonicalRealm === undefined
+            ? undefined
+            : continuityProjectionFromCanonicalRealm(lastCanonicalRealm);
+          try {
+            retiredRealmContinuity = runtime.readRealmContinuity?.(
+              activeConnection,
+              bridgeFid!
+            ) ?? retiredRealmContinuity;
+          } catch {
+            // A previously validated castle-scoped projection remains safe to retain.
+          }
+          canonicalRealmSnapshotRef.current = undefined;
+          // Only legacy expedition commands retire with Lowlands. Shared
+          // account/resources, generic Workers, Marks, Chat, and Inner Keep
+          // keep their current generation and castle-ID scope.
+          goldExpeditionOperationGenerationRef.current = undefined;
+          foodExpeditionOperationGenerationRef.current = undefined;
+          woodExpeditionOperationGenerationRef.current = undefined;
+          stoneExpeditionOperationGenerationRef.current = undefined;
+          legacyReturnOperationGenerationRef.current = undefined;
+          goldDispatchAttemptRef.current = undefined;
+          foodDispatchAttemptRef.current = undefined;
+          woodDispatchAttemptRef.current = undefined;
+          stoneDispatchAttemptRef.current = undefined;
+          canonicalRealmSourceRef.current = canonicalRealmSource;
+          transportReconnectAttemptRef.current = 0;
+          const currentState = stateRef.current;
+          const resources = resourceStateRef.current?.generation === generation
+            ? resourceStateRef.current.value
+            : currentState.resources;
+          const roster = workerRosterStateRef.current?.generation === generation
+            && workerRosterStateRef.current.fid === bridgeFid
+            ? workerRosterStateRef.current.value
+            : currentState.workerRoster;
+          const workerResourceState = workerResourceStateRef.current?.generation === generation
+            && workerResourceStateRef.current.fid === bridgeFid
+            ? workerResourceStateRef.current.value
+            : currentState.workerResourceState;
+          const workerProjection = retiredRealmContinuity === undefined
+            ? currentState.workerProjection
+            : activeWorkerProjection(retiredRealmContinuity, roster, workerResourceState)
+              ?? currentState.workerProjection;
+          const retiredWorkerPrivateSync = workerProjection === undefined
+            ? NOT_REQUIRED_WORKER_PRIVATE_SYNC_STATUS
+            : workerPrivateSyncStatus({
+                ...currentWorkerPrivateSync(),
+                phase: 'stale-read-only',
+                retainedStale: true,
+                commandsEnabled: false
+              });
+          workerPrivateSyncStateRef.current = Object.freeze({
+            generation,
+            fid: bridgeFid!,
+            value: retiredWorkerPrivateSync
+          });
+          setState({
+            phase: 'ready',
+            workerPrivateSync: retiredWorkerPrivateSync,
+            identity,
+            admission: 'ready',
+            legacyRealmAuthority: 'retired',
+            ...(retiredRealmContinuity === undefined ? {} : {
+              realmContinuity: retiredRealmContinuity
+            }),
+            ...(resources === undefined ? {} : { resources }),
+            ...(roster === undefined ? {} : { workerRoster: roster }),
+            ...(workerResourceState === undefined ? {} : { workerResourceState }),
+            ...(workerProjection === undefined ? {} : { workerProjection }),
+            ...(currentState.innerKeep === undefined ? {} : {
+              innerKeep: currentState.innerKeep
+            })
+          });
+          requestWorkerPrivateSync();
+          requestInnerKeepSync();
+        };
 
         const publishCanonicalRealm = (observedSnapshot?: WarpkeepRealmSnapshot) => {
           const resources = resourceStateRef.current?.generation === generation
@@ -3921,6 +4177,7 @@ export function WarpkeepSpacetimeProvider({
             : undefined;
           if (
             !current()
+            || legacyRealmRetired
             || !subscriptionApplied
             || backendProtocolVersion === undefined
             || resources === undefined
@@ -4035,6 +4292,7 @@ export function WarpkeepSpacetimeProvider({
               workerPrivateSync,
               identity,
               admission: 'ready',
+              legacyRealmAuthority: 'active',
               realm,
               resources,
               ...(goldExpedition === undefined ? {} : { goldExpedition }),
@@ -4049,7 +4307,11 @@ export function WarpkeepSpacetimeProvider({
             transportReconnectAttemptRef.current = 0;
             if (workerPublicRevisionChanged) requestWorkerPrivateSync();
             requestInnerKeepSync();
-          } catch {
+          } catch (error) {
+            if (error instanceof WarpkeepLegacyRealmRetiredError) {
+              retireLegacyRealmAuthority();
+              return;
+            }
             failRealmActivation('canonical_snapshot_invalid');
           }
         };
@@ -4062,6 +4324,10 @@ export function WarpkeepSpacetimeProvider({
         const applySubscribedRealm = () => {
           if (!current()) return;
           subscriptionApplied = true;
+          if (legacyRealmRetired) {
+            refreshRetiredContinuity();
+            return;
+          }
           publishCanonicalRealm();
         };
         publishReadySnapshot = () => publishCanonicalRealm();
@@ -4109,25 +4375,36 @@ export function WarpkeepSpacetimeProvider({
             // concurrently. The core resource projection and public snapshot
             // remain mandatory; additive expedition projections fail closed
             // to unavailable controls without delaying Realm entry in series.
-            let initialResourceRead: ReturnType<WarpkeepBackendRuntime['readResourceState']>;
+            type InitialResourceRead =
+              | Readonly<{
+                  status: 'ready';
+                  value: Awaited<ReturnType<WarpkeepBackendRuntime['readResourceState']>>;
+                }>
+              | Readonly<{
+                  status: 'failed';
+                  reason: 'resource_projection_deadline' | 'resource_projection_failed';
+                }>;
+            let initialResourcePromise: Promise<InitialResourceRead>;
             try {
               // Realm entry remains a read-only projection so authentication
               // and subscription readiness never depend on an incidental
               // settlement attempt. The first bounded refresh below performs
               // automatic settlement within at most one minute.
-              initialResourceRead = runtime.readResourceState(activeConnection, bridgeFid!);
+              initialResourcePromise = withResourceOperationDeadline(
+                runtime.readResourceState(activeConnection, bridgeFid!)
+              ).then((value) => Object.freeze({ status: 'ready' as const, value }))
+                .catch((error: unknown) => Object.freeze({
+                  status: 'failed' as const,
+                  reason: error instanceof ResourceOperationDeadlineError
+                    ? 'resource_projection_deadline' as const
+                    : 'resource_projection_failed' as const
+                }));
             } catch {
-              failRealmActivation('resource_projection_failed');
-              return;
+              initialResourcePromise = Promise.resolve(Object.freeze({
+                status: 'failed' as const,
+                reason: 'resource_projection_failed' as const
+              }));
             }
-            const initialResourcePromise = withResourceOperationDeadline(
-              initialResourceRead
-            ).catch((error: unknown) => {
-              failRealmActivation(error instanceof ResourceOperationDeadlineError
-                ? 'resource_projection_deadline'
-                : 'resource_projection_failed');
-              throw error;
-            });
             const initialGoldExpeditionPromise = runtime.readGoldExpeditionState === undefined
               ? Promise.resolve<ReadyGoldExpeditionPresentation | undefined>(undefined)
               : withResourceOperationDeadline(
@@ -4148,19 +4425,21 @@ export function WarpkeepSpacetimeProvider({
               : withResourceOperationDeadline(
                 runtime.readStoneExpeditionState(activeConnection)
               ).catch(() => undefined);
-            // A synchronous observer/subscription exception can terminate this
-            // generation before the await below. Pre-handle the same promise so
-            // its eventual rejection cannot escape as an unhandled rejection;
-            // awaiting it still preserves the normal fail-closed path.
-            void initialResourcePromise.catch(() => undefined);
             let startedObserver: () => void;
             try {
               startedObserver = runtime.observeRealm(
                 activeConnection,
                 bridgeFid!,
                 updateObservedRealm,
-                () => failRealmActivation('canonical_snapshot_invalid'),
-                retainedReadyState?.realm
+                (reason) => {
+                  if (reason === 'legacy-retired') {
+                    retireLegacyRealmAuthority();
+                    return;
+                  }
+                  failRealmActivation('canonical_snapshot_invalid');
+                },
+                retainedReadyState?.realm,
+                refreshRetiredContinuity
               );
             } catch {
               failRealmActivation('observer_setup_failed');
@@ -4200,7 +4479,7 @@ export function WarpkeepSpacetimeProvider({
             subscription = startedSubscription;
 
             const [
-              initialResources,
+              initialResourceResult,
               initialGoldExpedition,
               initialFoodExpedition,
               initialWoodExpedition,
@@ -4213,26 +4492,44 @@ export function WarpkeepSpacetimeProvider({
               initialStoneExpeditionPromise
             ]);
             if (!current()) return;
+            if (initialResourceResult.status === 'failed') {
+              if (legacyRealmRetired) return;
+              failRealmActivation(initialResourceResult.reason);
+              return;
+            }
+            const initialResources = initialResourceResult.value;
             resourceStateRef.current = Object.freeze({
               generation,
               value: initialResources
             });
-            goldExpeditionStateRef.current = Object.freeze({
-              generation,
-              value: initialGoldExpedition
-            });
-            foodExpeditionStateRef.current = Object.freeze({
-              generation,
-              value: initialFoodExpedition
-            });
-            woodExpeditionStateRef.current = Object.freeze({
-              generation,
-              value: initialWoodExpedition
-            });
-            stoneExpeditionStateRef.current = Object.freeze({
-              generation,
-              value: initialStoneExpedition
-            });
+            if (!legacyRealmRetired) {
+              goldExpeditionStateRef.current = Object.freeze({
+                generation,
+                value: initialGoldExpedition
+              });
+              foodExpeditionStateRef.current = Object.freeze({
+                generation,
+                value: initialFoodExpedition
+              });
+              woodExpeditionStateRef.current = Object.freeze({
+                generation,
+                value: initialWoodExpedition
+              });
+              stoneExpeditionStateRef.current = Object.freeze({
+                generation,
+                value: initialStoneExpedition
+              });
+            }
+            if (legacyRealmRetired) {
+              setState((latest) => (
+                current()
+                && latest.phase === 'ready'
+                && latest.legacyRealmAuthority === 'retired'
+                && latest.identity?.fid === bridgeFid
+                  ? { ...latest, resources: initialResources }
+                  : latest
+              ));
+            }
             realmActivated = true;
             const refreshResources = async (
               queueAfterInFlight = false
@@ -4245,7 +4542,7 @@ export function WarpkeepSpacetimeProvider({
               resourceRefreshInFlight = true;
               try {
                 const readyRealm = stateRef.current.phase === 'ready'
-                  ? stateRef.current.realm
+                  ? stateRef.current.realm ?? retiredRealmContinuity
                   : undefined;
                 // One no-input reducer atomically settles passive yield, all
                 // active legacy expeditions, and generic worker accrual. Read
@@ -4253,22 +4550,26 @@ export function WarpkeepSpacetimeProvider({
                 // every surface observes the same or a newer server state.
                 const refreshed = await settleAndReadResources();
                 if (readyRealm !== undefined) void refreshWorkerProjection(readyRealm);
-                const goldRefresh = runtime.readGoldExpeditionState === undefined
+                const goldRefresh = legacyRealmRetired
+                  || runtime.readGoldExpeditionState === undefined
                   ? Promise.resolve<ReadyGoldExpeditionPresentation | undefined>(undefined)
                   : withResourceOperationDeadline(
                     runtime.readGoldExpeditionState(activeConnection)
                   ).catch(() => undefined);
-                const foodRefresh = runtime.readFoodExpeditionState === undefined
+                const foodRefresh = legacyRealmRetired
+                  || runtime.readFoodExpeditionState === undefined
                   ? Promise.resolve<ReadyFoodExpeditionPresentation | undefined>(undefined)
                   : withResourceOperationDeadline(
                     runtime.readFoodExpeditionState(activeConnection)
                   ).catch(() => undefined);
-                const woodRefresh = runtime.readWoodExpeditionState === undefined
+                const woodRefresh = legacyRealmRetired
+                  || runtime.readWoodExpeditionState === undefined
                   ? Promise.resolve<ReadyWoodExpeditionPresentation | undefined>(undefined)
                   : withResourceOperationDeadline(
                     runtime.readWoodExpeditionState(activeConnection)
                   ).catch(() => undefined);
-                const stoneRefresh = runtime.readStoneExpeditionState === undefined
+                const stoneRefresh = legacyRealmRetired
+                  || runtime.readStoneExpeditionState === undefined
                   ? Promise.resolve<ReadyStoneExpeditionPresentation | undefined>(undefined)
                   : withResourceOperationDeadline(
                     runtime.readStoneExpeditionState(activeConnection)
@@ -4293,22 +4594,24 @@ export function WarpkeepSpacetimeProvider({
                   : undefined;
                 if (!resourceProjectionIsAtLeastAsNew(refreshed, retained)) return;
                 resourceStateRef.current = Object.freeze({ generation, value: refreshed });
-                goldExpeditionStateRef.current = Object.freeze({
-                  generation,
-                  value: refreshedGoldExpedition
-                });
-                foodExpeditionStateRef.current = Object.freeze({
-                  generation,
-                  value: refreshedFoodExpedition
-                });
-                woodExpeditionStateRef.current = Object.freeze({
-                  generation,
-                  value: refreshedWoodExpedition
-                });
-                stoneExpeditionStateRef.current = Object.freeze({
-                  generation,
-                  value: refreshedStoneExpedition
-                });
+                if (!legacyRealmRetired) {
+                  goldExpeditionStateRef.current = Object.freeze({
+                    generation,
+                    value: refreshedGoldExpedition
+                  });
+                  foodExpeditionStateRef.current = Object.freeze({
+                    generation,
+                    value: refreshedFoodExpedition
+                  });
+                  woodExpeditionStateRef.current = Object.freeze({
+                    generation,
+                    value: refreshedWoodExpedition
+                  });
+                  stoneExpeditionStateRef.current = Object.freeze({
+                    generation,
+                    value: refreshedStoneExpedition
+                  });
+                }
                 setState((latest) => {
                   const latestRetained = resourceStateRef.current?.generation === generation
                     ? resourceStateRef.current.value
@@ -4318,13 +4621,19 @@ export function WarpkeepSpacetimeProvider({
                     || refreshed.fid !== BigInt(bridgeFid!)
                     || latest.phase !== 'ready'
                     || latest.identity?.fid !== bridgeFid
-                    || latest.realm === undefined
+                    || (
+                      latest.realm === undefined
+                      && latest.legacyRealmAuthority !== 'retired'
+                    )
                     || latest.resources === undefined
                     || latest.resources.fid !== refreshed.fid
                     || !resourceProjectionIsAtLeastAsNew(refreshed, latestRetained)
                     || !resourceProjectionIsAtLeastAsNew(refreshed, latest.resources)
                   ) return latest;
-                  return {
+                  return latest.legacyRealmAuthority === 'retired' ? {
+                    ...latest,
+                    resources: refreshed
+                  } : {
                     ...latest,
                     resources: refreshed,
                     goldExpedition: refreshedGoldExpedition,
@@ -4336,7 +4645,7 @@ export function WarpkeepSpacetimeProvider({
                 requestInnerKeepSync();
               } catch {
                 reportFailure('warpkeep_resource_refresh_failed');
-                fail();
+                if (!legacyRealmRetired) fail();
               } finally {
                 resourceRefreshInFlight = false;
                 if (resourceRefreshQueuedAfterResume) {
@@ -4607,8 +4916,60 @@ export function WarpkeepSpacetimeProvider({
     };
   }, [runtime, state.admission, state.identity?.fid, state.phase]);
 
+  const greaterRealm = useMemo<GreaterRealmProviderBridge>(() => {
+    const connection = connectionRef.current;
+    const connectionAuthority = connectionBridgeCommandAuthorityRef.current;
+    const currentAuthority = currentBridgeCommandAuthorityRef.current;
+    const authenticatedConnectionPhase = state.phase === 'opening-realm'
+      || state.phase === 'ready';
+    if (
+      !authenticatedConnectionPhase
+      || state.admission !== 'ready'
+      || state.identity === undefined
+      || connection === undefined
+      || connectionAuthority === undefined
+      || currentAuthority === undefined
+      || connectionAuthority.fid !== state.identity.fid
+      || currentAuthority.fid !== connectionAuthority.fid
+      || currentAuthority.jwt !== connectionAuthority.jwt
+    ) {
+      return createWarpkeepGreaterRealmProviderBridge({});
+    }
+    const generation = connectionAuthority.generation;
+    const fid = connectionAuthority.fid;
+    const jwt = connectionAuthority.jwt;
+    const authority: WarpkeepGreaterRealmConnectionAuthority = Object.freeze({
+      generation,
+      fid,
+      isCurrent: () => (
+        generationRef.current === generation
+        && connectionRef.current === connection
+        && connectionBridgeCommandAuthorityRef.current?.generation === generation
+        && connectionBridgeCommandAuthorityRef.current.fid === fid
+        && connectionBridgeCommandAuthorityRef.current.jwt === jwt
+        && currentBridgeCommandAuthorityRef.current?.fid === fid
+        && currentBridgeCommandAuthorityRef.current.jwt === jwt
+        && currentBridgeCommandAuthorityRef.current.expiresAt > Date.now()
+        && (
+          stateRef.current.phase === 'opening-realm'
+          || stateRef.current.phase === 'ready'
+        )
+        && stateRef.current.admission === 'ready'
+        && stateRef.current.identity?.fid === fid
+      )
+    });
+    return createWarpkeepGreaterRealmProviderBridge({ connection, authority });
+  }, [
+    bridgeAuthenticationContinuityKey,
+    farcaster.oidcSession?.jwt,
+    state.admission,
+    state.identity?.fid,
+    state.phase
+  ]);
+
   const value = useMemo<WarpkeepBackendControllerValue>(() => ({
     state,
+    greaterRealm,
     realmChat,
     workerPrivateSync: state.workerPrivateSync,
     sharedAlphaAvailable,
@@ -4664,6 +5025,7 @@ export function WarpkeepSpacetimeProvider({
     sendRealmChatMessage,
     reportRealmChatMessage,
     loadEarlierRealmChat,
+    greaterRealm,
     identity,
     sharedAlphaAvailable,
     state

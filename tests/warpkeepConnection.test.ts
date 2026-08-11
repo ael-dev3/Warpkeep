@@ -29,6 +29,7 @@ import {
   readWarpkeepBackendInfo,
   readWarpkeepAdmissionStatus,
   readWarpkeepEntryAgreementStatus,
+  readWarpkeepLegacyRealmAuthorityStatus,
   readWarpkeepGoldExpeditionState,
   readWarpkeepStoneExpeditionState,
   readWarpkeepWoodExpeditionState,
@@ -36,6 +37,7 @@ import {
   readWarpkeepWorkerControlState,
   returnWarpkeepLegacyExpedition,
   readWarpkeepRealmSnapshot,
+  WarpkeepLegacyRealmRetiredError,
   subscribeToWarpkeepRealm,
   WARPKEEP_ALPHA_TERMS_VERSION as BROWSER_ALPHA_TERMS_VERSION,
   type WarpkeepConnection
@@ -662,6 +664,29 @@ describe('Warpkeep authenticated connection boundary', () => {
     composite.unsubscribe();
     expect(coreSubscription.unsubscribe).toHaveBeenCalledTimes(1);
     expect(woodSubscription.unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('distinguishes an exact retired legacy singleton from malformed authority', () => {
+    const canonical = createCanonicalGenesisCandidate();
+    const retired = connectionForCandidate({
+      ...canonical,
+      activeRealms: canonical.activeRealms.map((realm) => ({ ...realm, active: false }))
+    });
+    expect(readWarpkeepLegacyRealmAuthorityStatus(retired)).toBe('retired');
+    expect(() => readWarpkeepRealmSnapshot(retired, CANONICAL_TEST_FID))
+      .toThrow(WarpkeepLegacyRealmRetiredError);
+
+    const malformed = connectionForCandidate({
+      ...canonical,
+      activeRealms: canonical.activeRealms.map((realm) => ({
+        ...realm,
+        publicName: 'Altered Realm',
+        active: false
+      }))
+    });
+    expect(readWarpkeepLegacyRealmAuthorityStatus(malformed)).toBe('invalid');
+    expect(() => readWarpkeepRealmSnapshot(malformed, CANONICAL_TEST_FID))
+      .not.toThrow(WarpkeepLegacyRealmRetiredError);
   });
 
   it('reveals Stone only after its paired public subscription applies and releases both handles', () => {
@@ -1902,6 +1927,39 @@ describe('Warpkeep authenticated connection boundary', () => {
       expect(source.removeOnDelete).toHaveBeenCalledOnce();
       expect(source.removeOnUpdate).toHaveBeenCalledOnce();
     }
+  });
+
+  it('retires only world snapshots while shared projection listeners stay active', () => {
+    const observed = observableConnectionForCandidate(createCanonicalGenesisCandidate());
+    const onChange = vi.fn();
+    const onError = vi.fn();
+    const onRetiredProjectionChange = vi.fn();
+    const cleanupObserver = observeWarpkeepRealm(
+      observed.connection,
+      CANONICAL_TEST_FID,
+      onChange,
+      onError,
+      undefined,
+      onRetiredProjectionChange
+    );
+    const context = (id: string) => ({
+      event: { id, tag: 'Transaction' }
+    }) as unknown as EventContext;
+
+    observed.realmV1.values[0]!.active = false;
+    observed.realmV1.listeners.update?.(context('legacy-retired'));
+    expect(onError).toHaveBeenCalledWith('legacy-retired');
+    expect(onChange).not.toHaveBeenCalled();
+
+    observed.realmProfileV1.listeners.update?.(context('marks-updated'));
+    observed.castle.listeners.update?.(context('castle-updated'));
+    expect(onRetiredProjectionChange).toHaveBeenCalledTimes(2);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onChange).not.toHaveBeenCalled();
+
+    cleanupObserver();
+    observed.realmProfileV1.listeners.update?.(context('after-cleanup'));
+    expect(onRetiredProjectionChange).toHaveBeenCalledTimes(2);
   });
 
   it('rolls back every earlier listener when observer registration throws', () => {
