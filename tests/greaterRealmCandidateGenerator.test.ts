@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   GREATER_REALM_REGION_SPECS,
   clearGreaterRealmCandidateSecret,
+  deriveGreaterRealmBoundaryConnectedInitialSeaMask,
   deriveGreaterRealmCandidateSeedMaterial,
   enforceGreaterRealmStandingWaterBodySurfaceProof,
   generateGreaterRealmCandidate,
@@ -424,6 +425,65 @@ describe('Greater Realm private candidate generator', () => {
       rootSeed.fill(0);
     }
   }, 180_000);
+
+  it('isolates the placement-time sea component which reaches the active boundary', () => {
+    const coordinates = [];
+    for (let q = -3; q <= 3; q += 1) {
+      const minimumR = Math.max(-3, -q - 3);
+      const maximumR = Math.min(3, -q + 3);
+      for (let r = minimumR; r <= maximumR; r += 1) coordinates.push({ q, r });
+    }
+    const grid = indexGreaterRealmAxialGrid(coordinates);
+    const elevation = new Int32Array(grid.cellCount);
+    elevation.fill(100);
+    const boundarySea = grid.indexOf({ q: 3, r: 0 });
+    const connectedSea = grid.indexOf({ q: 2, r: 0 });
+    const seaLevelContact = grid.indexOf({ q: 1, r: 0 });
+    const inlandDepression = grid.indexOf({ q: -1, r: 0 });
+    elevation[boundarySea] = -100;
+    elevation[connectedSea] = -50;
+    elevation[seaLevelContact] = 0;
+    elevation[inlandDepression] = -100;
+    const originalElevation = new Int32Array(elevation);
+    const uint32Fill = vi.spyOn(Uint32Array.prototype, 'fill');
+    let connected: Uint8Array | undefined;
+    try {
+      connected = deriveGreaterRealmBoundaryConnectedInitialSeaMask({
+        grid,
+        elevation,
+      });
+      expect(connected[boundarySea]).toBe(1);
+      expect(connected[connectedSea]).toBe(1);
+      expect(connected[seaLevelContact]).toBe(1);
+      expect(connected[inlandDepression]).toBe(0);
+      expect(elevation).toEqual(originalElevation);
+      expect((uint32Fill.mock.instances as unknown as Uint32Array[]).some(
+        values => values.length === grid.cellCount && values.every(value => value === 0),
+      )).toBe(true);
+
+      const noBoundarySea = deriveGreaterRealmBoundaryConnectedInitialSeaMask({
+        grid,
+        elevation: new Int32Array(grid.cellCount).fill(100),
+      });
+      try {
+        expect(noBoundarySea).toEqual(new Uint8Array(grid.cellCount));
+      } finally {
+        noBoundarySea.fill(0);
+      }
+    } finally {
+      connected?.fill(0);
+      uint32Fill.mockRestore();
+      elevation.fill(0);
+      originalElevation.fill(0);
+    }
+    expect(() => deriveGreaterRealmBoundaryConnectedInitialSeaMask({
+      grid,
+      elevation: new Int32Array(grid.cellCount - 1),
+    })).toThrow('GREATER_REALM_BOUNDARY_CONNECTED_INITIAL_SEA_INPUT_INVALID');
+    expect(() => deriveGreaterRealmBoundaryConnectedInitialSeaMask(
+      null as never,
+    )).toThrow('GREATER_REALM_BOUNDARY_CONNECTED_INITIAL_SEA_INPUT_INVALID');
+  });
 
   it('distinguishes a valid generated standing body from an invalid overlay result', () => {
     const grid = indexGreaterRealmAxialGrid([

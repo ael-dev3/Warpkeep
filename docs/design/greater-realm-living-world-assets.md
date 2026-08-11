@@ -103,7 +103,7 @@ and must never be committed or published.
 
 The added channels and marsh-aware dressing rules advance the living-world
 authority to `greater-realm-private-living-world-v4`, the generator algorithm
-to `greater-realm-v2-natural-continent-pr-a.16`, and the private atlas format
+to `greater-realm-v2-natural-continent-pr-a.17`, and the private atlas format
 to 8. The terrain-seed namespace remains `.3`, so this package revision does not
 silently reroll the candidate.
 

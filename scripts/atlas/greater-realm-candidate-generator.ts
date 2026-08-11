@@ -1,6 +1,8 @@
 import { createHash, createHmac } from 'node:crypto';
 
 import {
+  GREATER_REALM_MAXIMUM_ACTIVE_CELL_COUNT,
+  GREATER_REALM_MINIMUM_ACTIVE_CELL_COUNT,
   GREATER_REALM_REQUIRED_CASTLE_SLOT_COUNT,
   GREATER_REALM_REQUIRED_GATE_COUNT,
   type GreaterRealmSanitizedCandidateSource,
@@ -98,7 +100,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.16' as const;
+  'greater-realm-v2-natural-continent-pr-a.17' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -972,6 +974,88 @@ function projectUint8(source: Uint8Array, indexes: Uint32Array): Uint8Array {
   return output;
 }
 
+/**
+ * Materialize the placement-time sea component which already reaches the
+ * active-grid boundary. The immutable Lowlands ocean may join only this
+ * component; an inland depression is not a legal OCEAN contact. The returned
+ * private mask is caller-owned, while the traversal queue is always retired.
+ */
+export function deriveGreaterRealmBoundaryConnectedInitialSeaMask(
+  input: Readonly<{
+    grid: IndexedAxialGrid;
+    elevation: Int32Array;
+  }>,
+): Uint8Array {
+  if (
+    typeof input !== 'object'
+    || input === null
+    || typeof input.grid !== 'object'
+    || input.grid === null
+    || !isCanonicalGreaterRealmAxialGrid(input.grid)
+    || !(input.elevation instanceof Int32Array)
+    || input.elevation.length !== input.grid.cellCount
+  ) fail('GREATER_REALM_BOUNDARY_CONNECTED_INITIAL_SEA_INPUT_INVALID');
+  const connected = new Uint8Array(input.grid.cellCount);
+  const queue = new Uint32Array(input.grid.cellCount);
+  let completed = false;
+  try {
+    let head = 0;
+    let tail = 0;
+    for (let cell = 0; cell < input.grid.cellCount; cell += 1) {
+      if (input.elevation[cell]! > SEA_LEVEL) continue;
+      for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
+        if (input.grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction] !== -1) {
+          continue;
+        }
+        connected[cell] = 1;
+        queue[tail++] = cell;
+        break;
+      }
+    }
+    while (head < tail) {
+      const cell = queue[head++]!;
+      for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
+        const neighbor = input.grid.neighbors[
+          cell * HEX_NEIGHBOR_COUNT + direction
+        ]!;
+        if (
+          neighbor < 0
+          || connected[neighbor] === 1
+          || input.elevation[neighbor]! > SEA_LEVEL
+        ) continue;
+        connected[neighbor] = 1;
+        queue[tail++] = neighbor;
+      }
+    }
+    completed = true;
+    return connected;
+  } finally {
+    queue.fill(0);
+    if (!completed) connected.fill(0);
+  }
+}
+
+function legacyLowlandsOceanExteriorContacts(
+  protectedByKey: ReadonlyMap<string, AxialCoordinate>,
+): readonly AxialCoordinate[] {
+  const exteriorByKey = new Map<string, AxialCoordinate>();
+  for (const waterCell of GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.water.enabledCells) {
+    if (waterCell.regime !== 'ocean') continue;
+    for (const direction of GREATER_REALM_AXIAL_DIRECTIONS) {
+      const exterior = Object.freeze({
+        q: waterCell.q + direction.q,
+        r: waterCell.r + direction.r,
+      });
+      const key = `${exterior.q},${exterior.r}`;
+      if (!protectedByKey.has(key)) exteriorByKey.set(key, exterior);
+    }
+  }
+  if (exteriorByKey.size === 0) {
+    fail('GREATER_REALM_LEGACY_LOWLANDS_OCEAN_EXTERIOR_MISSING');
+  }
+  return Object.freeze([...exteriorByKey.values()]);
+}
+
 type GreaterRealmLegacyPlacement = Readonly<{
   transform: LegacyLowlandsAtlasTransform;
   worldCell: Uint8Array;
@@ -1000,26 +1084,46 @@ function placeLegacyLowlands(
     protectedByKey.set(waterCell.cellKey, waterCell);
   }
   const protectedCoordinates = [...protectedByKey.values()];
-  const boundary = new Uint8Array(grid.cellCount);
-  for (let cell = 0; cell < grid.cellCount; cell += 1) {
-    for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
-      if (grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction] === -1) {
-        boundary[cell] = 1;
-        break;
+  const legacyOceanExteriorContacts = legacyLowlandsOceanExteriorContacts(
+    protectedByKey,
+  );
+  let centers: number[] | undefined;
+  let boundaryOnFailure: Uint8Array | undefined;
+  let clearanceOnFailure: Uint16Array | undefined;
+  let boundaryConnectedInitialSeaOnFailure: Uint8Array | undefined;
+  try {
+    const boundary = new Uint8Array(grid.cellCount);
+    boundaryOnFailure = boundary;
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
+        if (grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction] === -1) {
+          boundary[cell] = 1;
+          break;
+        }
       }
     }
-  }
-  const clearance = distanceFromMask(grid, boundary);
-  const targetChannel = greaterRealmTerrainChannelId('legacy-lowlands-placement-target');
-  const targetQ = 148 + (
-    greaterRealmCounterRandomU32(candidateSeed, targetChannel, 0, 0, 0) % 17
-  ) - 8;
-  const targetR = (
-    greaterRealmCounterRandomU32(candidateSeed, targetChannel, 0, 0, 1) % 25
-  ) - 12;
-  const centers = Array.from({ length: grid.cellCount }, (_, cell) => cell)
-    .filter(cell => clearance[cell]! >= 70 && existingElevation[cell]! > SEA_LEVEL)
-    .sort((first, second) => {
+    const clearance = distanceFromMask(grid, boundary);
+    clearanceOnFailure = clearance;
+    const boundaryConnectedInitialSea = deriveGreaterRealmBoundaryConnectedInitialSeaMask({
+      grid,
+      elevation: existingElevation,
+    });
+    boundaryConnectedInitialSeaOnFailure = boundaryConnectedInitialSea;
+    const targetChannel = greaterRealmTerrainChannelId('legacy-lowlands-placement-target');
+    const targetQ = 148 + (
+      greaterRealmCounterRandomU32(candidateSeed, targetChannel, 0, 0, 0) % 17
+    ) - 8;
+    const targetR = (
+      greaterRealmCounterRandomU32(candidateSeed, targetChannel, 0, 0, 1) % 25
+    ) - 12;
+    const placementCenters: number[] = [];
+    centers = placementCenters;
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      if (clearance[cell]! >= 70 && existingElevation[cell]! > SEA_LEVEL) {
+        placementCenters.push(cell);
+      }
+    }
+    placementCenters.sort((first, second) => {
       const firstScore = axialDistance(grid.q[first]!, grid.r[first]!, targetQ, targetR) * 1_000
         - clamp(existingElevation[first]!, -12_000, 12_000) * 20
         + (greaterRealmCounterRandomU32(
@@ -1040,101 +1144,143 @@ function placeLegacyLowlands(
         ) % 1_000);
       return firstScore - secondScore || first - second;
     });
-  if (centers.length === 0) {
-    rejectGreaterRealmCandidate('GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_MISSING');
-  }
-  const firstRotation = greaterRealmCounterRandomU32(
-    candidateSeed,
-    targetChannel,
-    0,
-    0,
-    3,
-  ) % 6;
-  for (const center of centers.slice(0, 1_024)) {
-    for (let rotationOffset = 0; rotationOffset < 6; rotationOffset += 1) {
-      const transform: LegacyLowlandsAtlasTransform = Object.freeze({
-        rotationSteps: ((firstRotation + rotationOffset) % 6) as 0 | 1 | 2 | 3 | 4 | 5,
-        globalOffsetQ: grid.q[center]!,
-        globalOffsetR: grid.r[center]!,
-      });
-      const protectedCell = new Uint8Array(grid.cellCount);
-      let placementValid = true;
-      for (const localCoordinate of protectedCoordinates) {
-        const globalCoordinate = transformLegacyLowlandsToGlobal(localCoordinate, transform);
-        const globalIndex = grid.indexOf(globalCoordinate);
-        if (globalIndex < 0 || protectedCell[globalIndex] === 1) {
-          placementValid = false;
-          break;
-        }
-        protectedCell[globalIndex] = 1;
-      }
-      if (!placementValid) continue;
+    if (placementCenters.length === 0) {
+      rejectGreaterRealmCandidate('GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_MISSING');
+    }
+    const firstRotation = greaterRealmCounterRandomU32(
+      candidateSeed,
+      targetChannel,
+      0,
+      0,
+      3,
+    ) % 6;
+    const maximumCenterCount = Math.min(placementCenters.length, 1_024);
+    for (let centerOrdinal = 0; centerOrdinal < maximumCenterCount; centerOrdinal += 1) {
+      const center = placementCenters[centerOrdinal]!;
+      for (let rotationOffset = 0; rotationOffset < 6; rotationOffset += 1) {
+        const transform: LegacyLowlandsAtlasTransform = Object.freeze({
+          rotationSteps: ((firstRotation + rotationOffset) % 6) as 0 | 1 | 2 | 3 | 4 | 5,
+          globalOffsetQ: grid.q[center]!,
+          globalOffsetR: grid.r[center]!,
+        });
+        const preservesGlobalOceanContact = legacyOceanExteriorContacts.some(
+          localCoordinate => {
+            const globalIndex = grid.indexOf(
+              transformLegacyLowlandsToGlobal(localCoordinate, transform),
+            );
+            return globalIndex >= 0 && boundaryConnectedInitialSea[globalIndex] === 1;
+          },
+        );
+        if (!preservesGlobalOceanContact) continue;
+        const protectedCell = new Uint8Array(grid.cellCount);
+        let worldCell: Uint8Array | undefined;
+        let castleSlot: Uint8Array | undefined;
+        let reserveCell: Uint8Array | undefined;
+        let placementAccepted = false;
+        try {
+          let placementValid = true;
+          for (const localCoordinate of protectedCoordinates) {
+            const globalCoordinate = transformLegacyLowlandsToGlobal(localCoordinate, transform);
+            const globalIndex = grid.indexOf(globalCoordinate);
+            if (globalIndex < 0 || protectedCell[globalIndex] === 1) {
+              placementValid = false;
+              break;
+            }
+            protectedCell[globalIndex] = 1;
+          }
+          if (!placementValid) continue;
 
-      const worldCell = new Uint8Array(grid.cellCount);
-      let mappedWorldCells = 0;
-      let underlyingLandCells = 0;
-      for (const tile of patch.world.tiles) {
-        const globalCoordinate = transformLegacyLowlandsToGlobal(tile, transform);
-        const globalIndex = grid.indexOf(globalCoordinate);
-        if (globalIndex < 0 || worldCell[globalIndex] === 1) {
-          placementValid = false;
-          break;
-        }
-        const roundTrip = inverseGlobalToLegacyLowlands(globalCoordinate, transform);
-        if (roundTrip.q !== tile.q || roundTrip.r !== tile.r) {
-          placementValid = false;
-          break;
-        }
-        worldCell[globalIndex] = 1;
-        mappedWorldCells += 1;
-        if (existingElevation[globalIndex]! > SEA_LEVEL) underlyingLandCells += 1;
-      }
-      if (
-        !placementValid
-        || mappedWorldCells !== GREATER_REALM_LEGACY_LOWLANDS_LOCK_PINS_V1.worldCellCount
-        || underlyingLandCells * 100 < mappedWorldCells * 70
-      ) {
-        continue;
-      }
+          worldCell = new Uint8Array(grid.cellCount);
+          let mappedWorldCells = 0;
+          let underlyingLandCells = 0;
+          for (const tile of patch.world.tiles) {
+            const globalCoordinate = transformLegacyLowlandsToGlobal(tile, transform);
+            const globalIndex = grid.indexOf(globalCoordinate);
+            if (globalIndex < 0 || worldCell[globalIndex] === 1) {
+              placementValid = false;
+              break;
+            }
+            const roundTrip = inverseGlobalToLegacyLowlands(globalCoordinate, transform);
+            if (roundTrip.q !== tile.q || roundTrip.r !== tile.r) {
+              placementValid = false;
+              break;
+            }
+            worldCell[globalIndex] = 1;
+            mappedWorldCells += 1;
+            if (existingElevation[globalIndex]! > SEA_LEVEL) underlyingLandCells += 1;
+          }
+          if (
+            !placementValid
+            || mappedWorldCells !== GREATER_REALM_LEGACY_LOWLANDS_LOCK_PINS_V1.worldCellCount
+            || underlyingLandCells * 100 < mappedWorldCells * 70
+          ) {
+            continue;
+          }
 
-      const castleSlot = new Uint8Array(grid.cellCount);
-      let mappedCastleSlots = 0;
-      for (const slot of patch.castleSlots.rows) {
-        const globalIndex = grid.indexOf(transformLegacyLowlandsToGlobal(slot, transform));
-        if (globalIndex < 0 || worldCell[globalIndex] !== 1 || castleSlot[globalIndex] === 1) {
-          placementValid = false;
-          break;
-        }
-        castleSlot[globalIndex] = 1;
-        mappedCastleSlots += 1;
-      }
-      if (!placementValid || mappedCastleSlots !== GREATER_REALM_LEGACY_LOWLANDS_LOCK_PINS_V1.castleSlotCount) {
-        continue;
-      }
+          castleSlot = new Uint8Array(grid.cellCount);
+          let mappedCastleSlots = 0;
+          for (const slot of patch.castleSlots.rows) {
+            const globalIndex = grid.indexOf(transformLegacyLowlandsToGlobal(slot, transform));
+            if (globalIndex < 0 || worldCell[globalIndex] !== 1 || castleSlot[globalIndex] === 1) {
+              placementValid = false;
+              break;
+            }
+            castleSlot[globalIndex] = 1;
+            mappedCastleSlots += 1;
+          }
+          if (!placementValid || mappedCastleSlots !== GREATER_REALM_LEGACY_LOWLANDS_LOCK_PINS_V1.castleSlotCount) {
+            continue;
+          }
 
-      let reserveCell = new Uint8Array(protectedCell);
-      for (let pass = 0; pass < 4; pass += 1) {
-        const expanded = new Uint8Array(reserveCell);
-        for (let cell = 0; cell < grid.cellCount; cell += 1) {
-          if (reserveCell[cell] !== 1) continue;
-          for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
-            const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
-            if (neighbor >= 0) expanded[neighbor] = 1;
+          let currentReserveCell = new Uint8Array(protectedCell);
+          reserveCell = currentReserveCell;
+          for (let pass = 0; pass < 4; pass += 1) {
+            const expanded = new Uint8Array(currentReserveCell);
+            let expandedAdopted = false;
+            try {
+              for (let cell = 0; cell < grid.cellCount; cell += 1) {
+                if (currentReserveCell[cell] !== 1) continue;
+                for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
+                  const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
+                  if (neighbor >= 0) expanded[neighbor] = 1;
+                }
+              }
+              currentReserveCell.fill(0);
+              currentReserveCell = expanded;
+              reserveCell = currentReserveCell;
+              expandedAdopted = true;
+            } finally {
+              if (!expandedAdopted) expanded.fill(0);
+            }
+          }
+          const placement = Object.freeze({
+            transform,
+            worldCell,
+            protectedCell,
+            reserveCell: currentReserveCell,
+            castleSlot,
+            proof: true,
+          });
+          placementAccepted = true;
+          return placement;
+        } finally {
+          if (!placementAccepted) {
+            reserveCell?.fill(0);
+            castleSlot?.fill(0);
+            worldCell?.fill(0);
+            protectedCell.fill(0);
           }
         }
-        reserveCell = expanded;
       }
-      return Object.freeze({
-        transform,
-        worldCell,
-        protectedCell,
-        reserveCell,
-        castleSlot,
-        proof: true,
-      });
     }
+    rejectGreaterRealmCandidate('GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED');
+  } finally {
+    centers?.fill(0);
+    boundaryConnectedInitialSeaOnFailure?.fill(0);
+    clearanceOnFailure?.fill(0);
+    boundaryOnFailure?.fill(0);
   }
-  rejectGreaterRealmCandidate('GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED');
+  fail('GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_UNREACHABLE');
 }
 
 function fluvialPass(
@@ -8964,6 +9110,7 @@ export function generateGreaterRealmCandidate(input: Readonly<{
   let reconciledFlowAccumulationOnFailure: BigUint64Array | undefined;
   let engineeredWaterClearanceMaskOnFailure: Uint8Array | undefined;
   let geomorphologyProcessMoistureOnFailure: Int32Array | undefined;
+  let activeMaskOnFailure: Uint8Array | undefined;
   try {
     const canvas = greaterRealmPrivateCanvasAuthority();
     const domainSeeds = separatedDomains(candidateSeed);
@@ -8984,21 +9131,95 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       }
     })();
     const geology = macroGeology(canvas, candidateSeed, domains);
-    const thermallyShaped = erodeGreaterRealmThermally(canvas, geology.bedrock, {
-      iterations: 3,
-      talus: geology.resistance.map(value => 700 + Math.floor(value / 8)),
-      transferNumerator: 1,
-      transferDenominator: 24,
-    }).elevation;
-    const maskResult = activeMask(canvas, candidateSeed, thermallyShaped);
-    const active = activeGridFromCanvas(canvas, maskResult.mask);
-    const grid = active.grid;
-    const projectedBedrock = projectInt32(geology.bedrock, active.sourceIndexes);
-    const initialElevation = projectInt32(thermallyShaped, active.sourceIndexes);
-    const resistance = projectInt32(geology.resistance, active.sourceIndexes);
-    const uplift = projectInt32(geology.uplift, active.sourceIndexes);
-    const domainId = projectUint8(geology.domainId, active.sourceIndexes);
-    const geologyId = projectUint8(geology.geologyId, active.sourceIndexes);
+    const thermalTalus = geology.resistance.map(value => 700 + Math.floor(value / 8));
+    const thermallyShaped = (() => {
+      try {
+        return erodeGreaterRealmThermally(canvas, geology.bedrock, {
+          iterations: 3,
+          talus: thermalTalus,
+          transferNumerator: 1,
+          transferDenominator: 24,
+        }).elevation;
+      } finally {
+        thermalTalus.fill(0);
+      }
+    })();
+    const {
+      grid,
+      projectedBedrock,
+      initialElevation,
+      resistance,
+      uplift,
+      domainId,
+      geologyId,
+      privateActiveMask,
+    } = (() => {
+      const projectedScratch: Array<Int32Array | Uint8Array> = [];
+      let privateActiveMask: Uint8Array | undefined;
+      let fullCanvasDistanceToLand: Uint16Array | undefined;
+      let sourceIndexes: Uint32Array | undefined;
+      let completed = false;
+      try {
+        const maskResult = activeMask(canvas, candidateSeed, thermallyShaped);
+        privateActiveMask = maskResult.mask;
+        fullCanvasDistanceToLand = maskResult.distanceToLand;
+        activeMaskOnFailure = privateActiveMask;
+        let activeCellCount = 0;
+        for (const value of privateActiveMask) {
+          if (value === 1) activeCellCount += 1;
+        }
+        if (
+          activeCellCount < GREATER_REALM_MINIMUM_ACTIVE_CELL_COUNT
+          || activeCellCount > GREATER_REALM_MAXIMUM_ACTIVE_CELL_COUNT
+        ) {
+          rejectGreaterRealmCandidate('GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE');
+        }
+        const active = activeGridFromCanvas(canvas, privateActiveMask);
+        const grid = active.grid;
+        sourceIndexes = active.sourceIndexes;
+        if (grid.cellCount !== activeCellCount) {
+          fail('GREATER_REALM_ACTIVE_GRID_CELL_COUNT_MISMATCH');
+        }
+        const projectedBedrock = projectInt32(geology.bedrock, sourceIndexes);
+        projectedScratch.push(projectedBedrock);
+        const initialElevation = projectInt32(thermallyShaped, sourceIndexes);
+        projectedScratch.push(initialElevation);
+        const resistance = projectInt32(geology.resistance, sourceIndexes);
+        projectedScratch.push(resistance);
+        const uplift = projectInt32(geology.uplift, sourceIndexes);
+        projectedScratch.push(uplift);
+        const domainId = projectUint8(geology.domainId, sourceIndexes);
+        projectedScratch.push(domainId);
+        const geologyId = projectUint8(geology.geologyId, sourceIndexes);
+        projectedScratch.push(geologyId);
+        const projection = Object.freeze({
+          grid,
+          projectedBedrock,
+          initialElevation,
+          resistance,
+          uplift,
+          domainId,
+          geologyId,
+          privateActiveMask,
+        });
+        completed = true;
+        return projection;
+      } finally {
+        fullCanvasDistanceToLand?.fill(0);
+        sourceIndexes?.fill(0);
+        geology.bedrock.fill(0);
+        geology.uplift.fill(0);
+        geology.resistance.fill(0);
+        geology.domainId.fill(0);
+        geology.geologyId.fill(0);
+        thermallyShaped.fill(0);
+        if (!completed) {
+          for (const scratch of projectedScratch) scratch.fill(0);
+          privateActiveMask?.fill(0);
+          activeMaskOnFailure = undefined;
+        }
+      }
+    })();
     const legacy = placeLegacyLowlands(grid, candidateSeed, initialElevation);
     const volcanicPotential = Int32Array.from(
       domainId,
@@ -9356,7 +9577,8 @@ export function generateGreaterRealmCandidate(input: Readonly<{
     );
     const tierICounts = strategy.regionCounts.slice(0, 6);
     const tierIICounts = strategy.regionCounts.slice(6, 9);
-    const approvedRange = grid.cellCount >= 100_000 && grid.cellCount <= 150_000;
+    const approvedRange = grid.cellCount >= GREATER_REALM_MINIMUM_ACTIVE_CELL_COUNT
+      && grid.cellCount <= GREATER_REALM_MAXIMUM_ACTIVE_CELL_COUNT;
     const tierIBasisPoints = Math.round((strategy.tierCounts[0] * 10_000) / grid.cellCount);
     const tierIIBasisPoints = Math.round((strategy.tierCounts[1] * 10_000) / grid.cellCount);
     const tierIIIBasisPoints = 10_000 - tierIBasisPoints - tierIIBasisPoints;
@@ -9512,9 +9734,17 @@ export function generateGreaterRealmCandidate(input: Readonly<{
         strategicallyPassableSurface(hydrology.waterRegime[cell]!)
       )))
     ));
+    const activeMaskConnectedProof = (() => {
+      try {
+        return allActiveConnected(grid)
+          && activeMaskHasNoEnclosedVoids(canvas, privateActiveMask);
+      } finally {
+        privateActiveMask.fill(0);
+        activeMaskOnFailure = undefined;
+      }
+    })();
     const proofs = Object.freeze({
-      activeMaskConnected: allActiveConnected(grid)
-        && activeMaskHasNoEnclosedVoids(canvas, maskResult.mask),
+      activeMaskConnected: activeMaskConnectedProof,
       approvedCellRange: approvedRange,
       barriersHaveNoBypass: strategicBarrier.barrierProof,
       biomeCoherence:
@@ -10012,6 +10242,8 @@ export function generateGreaterRealmCandidate(input: Readonly<{
     geomorphologyProcessMoistureOnFailure = undefined;
     reconciledFlowAccumulationOnFailure?.fill(0n);
     reconciledFlowAccumulationOnFailure = undefined;
+    activeMaskOnFailure?.fill(0);
+    activeMaskOnFailure = undefined;
     seedMaterial.fill(0);
     candidateSeed.fill(0);
     throw error;
