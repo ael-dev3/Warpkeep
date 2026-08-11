@@ -288,6 +288,59 @@ export const AdminInnerKeepStatusV1 = __t.object("AdminInnerKeepStatusV1", {
 });
 export type AdminInnerKeepStatusV1 = __Infer<typeof AdminInnerKeepStatusV1>;
 
+export const AdminRealmChatReportContextV1 = __t.object("AdminRealmChatReportContextV1", {
+  get report() {
+    return AdminRealmChatReportEntryV1;
+  },
+  get messages() {
+    return __t.array(RealmChatMessageProjectionV1);
+  },
+});
+export type AdminRealmChatReportContextV1 = __Infer<typeof AdminRealmChatReportContextV1>;
+
+export const AdminRealmChatReportEntryV1 = __t.object("AdminRealmChatReportEntryV1", {
+  reportOrdinal: __t.u64(),
+  reportId: __t.string(),
+  reporterFid: __t.u64(),
+  messageId: __t.string(),
+  reportedSenderFid: __t.u64(),
+  messageSequence: __t.u64(),
+  category: __t.string(),
+  details: __t.string(),
+  contextFirstSequence: __t.u64(),
+  contextLastSequence: __t.u64(),
+  createdAtMicros: __t.u64(),
+  status: __t.string(),
+  reviewedAtMicros: __t.option(__t.u64()),
+  resolutionCode: __t.option(__t.string()),
+});
+export type AdminRealmChatReportEntryV1 = __Infer<typeof AdminRealmChatReportEntryV1>;
+
+export const AdminRealmChatReportPageV1 = __t.object("AdminRealmChatReportPageV1", {
+  get reports() {
+    return __t.array(AdminRealmChatReportEntryV1);
+  },
+  nextBeforeOrdinal: __t.option(__t.u64()),
+  hasMore: __t.bool(),
+  totalReports: __t.u64(),
+});
+export type AdminRealmChatReportPageV1 = __Infer<typeof AdminRealmChatReportPageV1>;
+
+export const AdminRealmChatStatusV1 = __t.object("AdminRealmChatStatusV1", {
+  channelKey: __t.string(),
+  policyVersion: __t.string(),
+  mode: __t.string(),
+  nextSequence: __t.u64(),
+  archivedMessages: __t.u64(),
+  recentMessages: __t.u64(),
+  reports: __t.u64(),
+  rateEvents: __t.u64(),
+  sendReceipts: __t.u64(),
+  graphValid: __t.bool(),
+  activationCompiled: __t.bool(),
+});
+export type AdminRealmChatStatusV1 = __Infer<typeof AdminRealmChatStatusV1>;
+
 export const AdminWaterLayoutStatusV1 = __t.object("AdminWaterLayoutStatusV1", {
   ready: __t.bool(),
   activated: __t.bool(),
@@ -1101,6 +1154,110 @@ export const QaObserverRealmV2 = __t.object("QaObserverRealmV2", {
   playerCapacity: __t.u32(),
 });
 export type QaObserverRealmV2 = __Infer<typeof QaObserverRealmV2>;
+
+export const RealmChatChannelV1 = __t.object("RealmChatChannelV1", {
+  channelKey: __t.string(),
+  realmId: __t.string(),
+  policyVersion: __t.string(),
+  mode: __t.string(),
+  nextSequence: __t.u64(),
+  updatedAt: __t.timestamp(),
+});
+export type RealmChatChannelV1 = __Infer<typeof RealmChatChannelV1>;
+
+export const RealmChatHistoryPageV1 = __t.object("RealmChatHistoryPageV1", {
+  channelKey: __t.string(),
+  policyVersion: __t.string(),
+  get messages() {
+    return __t.array(RealmChatMessageProjectionV1);
+  },
+  nextBeforeSequence: __t.option(__t.u64()),
+  hasMore: __t.bool(),
+});
+export type RealmChatHistoryPageV1 = __Infer<typeof RealmChatHistoryPageV1>;
+
+export const RealmChatMessageProjectionV1 = __t.object("RealmChatMessageProjectionV1", {
+  messageId: __t.string(),
+  sequence: __t.u64(),
+  senderFid: __t.u64(),
+  body: __t.string(),
+  sentAtMicros: __t.u64(),
+  visibility: __t.string(),
+});
+export type RealmChatMessageProjectionV1 = __Infer<typeof RealmChatMessageProjectionV1>;
+
+export const RealmChatMessageV1 = __t.object("RealmChatMessageV1", {
+  messageId: __t.string(),
+  sequence: __t.u64(),
+  channelKey: __t.string(),
+  senderFid: __t.u64(),
+  body: __t.string(),
+  sentAt: __t.timestamp(),
+  visibility: __t.string(),
+  moderatedAt: __t.option(__t.timestamp()),
+  moderationCode: __t.option(__t.string()),
+});
+export type RealmChatMessageV1 = __Infer<typeof RealmChatMessageV1>;
+
+export const RealmChatRateEventV1 = __t.object("RealmChatRateEventV1", {
+  eventId: __t.string(),
+  fid: __t.u64(),
+  acceptedAtMicros: __t.u64(),
+  bodyDigest: __t.string(),
+});
+export type RealmChatRateEventV1 = __Infer<typeof RealmChatRateEventV1>;
+
+export const RealmChatRecentV1 = __t.object("RealmChatRecentV1", {
+  sequence: __t.u64(),
+  messageId: __t.string(),
+  channelKey: __t.string(),
+  senderFid: __t.u64(),
+  body: __t.string(),
+  sentAt: __t.timestamp(),
+  visibility: __t.string(),
+});
+export type RealmChatRecentV1 = __Infer<typeof RealmChatRecentV1>;
+
+export const RealmChatReportV1 = __t.object("RealmChatReportV1", {
+  reportOrdinal: __t.u64(),
+  reportKey: __t.string(),
+  reportId: __t.string(),
+  reporterFid: __t.u64(),
+  messageId: __t.string(),
+  reportedSenderFid: __t.u64(),
+  messageSequence: __t.u64(),
+  category: __t.string(),
+  details: __t.string(),
+  contextFirstSequence: __t.u64(),
+  contextLastSequence: __t.u64(),
+  createdAt: __t.timestamp(),
+  status: __t.string(),
+  reviewedAt: __t.option(__t.timestamp()),
+  resolutionCode: __t.option(__t.string()),
+});
+export type RealmChatReportV1 = __Infer<typeof RealmChatReportV1>;
+
+export const RealmChatSendReceiptV1 = __t.object("RealmChatSendReceiptV1", {
+  operationKey: __t.string(),
+  fid: __t.u64(),
+  requestKey: __t.string(),
+  bodyDigest: __t.string(),
+  messageId: __t.string(),
+  sequence: __t.u64(),
+  createdAt: __t.timestamp(),
+});
+export type RealmChatSendReceiptV1 = __Infer<typeof RealmChatSendReceiptV1>;
+
+export const RealmChatStatusV1 = __t.object("RealmChatStatusV1", {
+  channelKey: __t.string(),
+  realmId: __t.string(),
+  policyVersion: __t.string(),
+  mode: __t.string(),
+  recentLimit: __t.u32(),
+  historyPageLimit: __t.u32(),
+  updatedAt: __t.timestamp(),
+});
+export type RealmChatStatusV1 = __Infer<typeof RealmChatStatusV1>;
 
 export const RealmEnvironmentV1 = __t.object("RealmEnvironmentV1", {
   realmId: __t.string(),

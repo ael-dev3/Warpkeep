@@ -18,11 +18,14 @@ import * as AdminGetAlphaStatusV10Procedure from "../admin_get_alpha_status_v_10
 import * as AdminGetDailyMarksStatusV1Procedure from "../admin_get_daily_marks_status_v_1_procedure";
 import * as AdminGetFidAuthEpochProcedure from "../admin_get_fid_auth_epoch_procedure";
 import * as AdminGetInnerKeepStatusV1Procedure from "../admin_get_inner_keep_status_v_1_procedure";
+import * as AdminGetRealmChatReportContextV1Procedure from "../admin_get_realm_chat_report_context_v_1_procedure";
+import * as AdminGetRealmChatStatusV1Procedure from "../admin_get_realm_chat_status_v_1_procedure";
 import * as AdminGetWorkerRolloutStatusV2Procedure from "../admin_get_worker_rollout_status_v_2_procedure";
 import * as AdminGetWorkerSystemStatusV1Procedure from "../admin_get_worker_system_status_v_1_procedure";
 import * as AdminInspectGenesisWaterLayoutV1Procedure from "../admin_inspect_genesis_water_layout_v_1_procedure";
 import * as AdminInspectGenesisWaterRevisionV1Procedure from "../admin_inspect_genesis_water_revision_v_1_procedure";
 import * as AdminListAccessRequestsV1Procedure from "../admin_list_access_requests_v_1_procedure";
+import * as AdminListRealmChatReportsV1Procedure from "../admin_list_realm_chat_reports_v_1_procedure";
 import * as AdminPlanInnerKeepBuildersV1Procedure from "../admin_plan_inner_keep_builders_v_1_procedure";
 import * as AdminPlanInnerKeepCatalogV1Procedure from "../admin_plan_inner_keep_catalog_v_1_procedure";
 import * as AdminPlanWorkerRosterV1Procedure from "../admin_plan_worker_roster_v_1_procedure";
@@ -41,6 +44,7 @@ import * as GetMyStoneExpeditionStateV1Procedure from "../get_my_stone_expeditio
 import * as GetMyWoodExpeditionStateV1Procedure from "../get_my_wood_expedition_state_v_1_procedure";
 import * as GetMyWorkerControlStateV1Procedure from "../get_my_worker_control_state_v_1_procedure";
 import * as GetMyWorkerRosterV1Procedure from "../get_my_worker_roster_v_1_procedure";
+import * as GetRealmChatHistoryV1Procedure from "../get_realm_chat_history_v_1_procedure";
 import * as QaObserverGetRealmAttestationV2Procedure from "../qa_observer_get_realm_attestation_v_2_procedure";
 import * as QaObserverGetRealmSnapshotV1Procedure from "../qa_observer_get_realm_snapshot_v_1_procedure";
 
@@ -68,6 +72,10 @@ export type AdminGetFidAuthEpochArgs = __Infer<typeof AdminGetFidAuthEpochProced
 export type AdminGetFidAuthEpochResult = __Infer<typeof AdminGetFidAuthEpochProcedure.returnType>;
 export type AdminGetInnerKeepStatusV1Args = __Infer<typeof AdminGetInnerKeepStatusV1Procedure.params>;
 export type AdminGetInnerKeepStatusV1Result = __Infer<typeof AdminGetInnerKeepStatusV1Procedure.returnType>;
+export type AdminGetRealmChatReportContextV1Args = __Infer<typeof AdminGetRealmChatReportContextV1Procedure.params>;
+export type AdminGetRealmChatReportContextV1Result = __Infer<typeof AdminGetRealmChatReportContextV1Procedure.returnType>;
+export type AdminGetRealmChatStatusV1Args = __Infer<typeof AdminGetRealmChatStatusV1Procedure.params>;
+export type AdminGetRealmChatStatusV1Result = __Infer<typeof AdminGetRealmChatStatusV1Procedure.returnType>;
 export type AdminGetWorkerRolloutStatusV2Args = __Infer<typeof AdminGetWorkerRolloutStatusV2Procedure.params>;
 export type AdminGetWorkerRolloutStatusV2Result = __Infer<typeof AdminGetWorkerRolloutStatusV2Procedure.returnType>;
 export type AdminGetWorkerSystemStatusV1Args = __Infer<typeof AdminGetWorkerSystemStatusV1Procedure.params>;
@@ -78,6 +86,8 @@ export type AdminInspectGenesisWaterRevisionV1Args = __Infer<typeof AdminInspect
 export type AdminInspectGenesisWaterRevisionV1Result = __Infer<typeof AdminInspectGenesisWaterRevisionV1Procedure.returnType>;
 export type AdminListAccessRequestsV1Args = __Infer<typeof AdminListAccessRequestsV1Procedure.params>;
 export type AdminListAccessRequestsV1Result = __Infer<typeof AdminListAccessRequestsV1Procedure.returnType>;
+export type AdminListRealmChatReportsV1Args = __Infer<typeof AdminListRealmChatReportsV1Procedure.params>;
+export type AdminListRealmChatReportsV1Result = __Infer<typeof AdminListRealmChatReportsV1Procedure.returnType>;
 export type AdminPlanInnerKeepBuildersV1Args = __Infer<typeof AdminPlanInnerKeepBuildersV1Procedure.params>;
 export type AdminPlanInnerKeepBuildersV1Result = __Infer<typeof AdminPlanInnerKeepBuildersV1Procedure.returnType>;
 export type AdminPlanInnerKeepCatalogV1Args = __Infer<typeof AdminPlanInnerKeepCatalogV1Procedure.params>;
@@ -114,6 +124,8 @@ export type GetMyWorkerControlStateV1Args = __Infer<typeof GetMyWorkerControlSta
 export type GetMyWorkerControlStateV1Result = __Infer<typeof GetMyWorkerControlStateV1Procedure.returnType>;
 export type GetMyWorkerRosterV1Args = __Infer<typeof GetMyWorkerRosterV1Procedure.params>;
 export type GetMyWorkerRosterV1Result = __Infer<typeof GetMyWorkerRosterV1Procedure.returnType>;
+export type GetRealmChatHistoryV1Args = __Infer<typeof GetRealmChatHistoryV1Procedure.params>;
+export type GetRealmChatHistoryV1Result = __Infer<typeof GetRealmChatHistoryV1Procedure.returnType>;
 export type QaObserverGetRealmAttestationV2Args = __Infer<typeof QaObserverGetRealmAttestationV2Procedure.params>;
 export type QaObserverGetRealmAttestationV2Result = __Infer<typeof QaObserverGetRealmAttestationV2Procedure.returnType>;
 export type QaObserverGetRealmSnapshotV1Args = __Infer<typeof QaObserverGetRealmSnapshotV1Procedure.params>;
