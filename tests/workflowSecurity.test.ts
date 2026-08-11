@@ -97,6 +97,36 @@ describe('GitHub workflow security policy', () => {
     expect(source).not.toMatch(/^\s+group:\s*pages\s*$/m);
   });
 
+  it('serializes deployment and its postflight in one non-cancelling workflow scope', () => {
+    const source = workflow('deploy-pages.yml');
+    const concurrencyStart = source.indexOf('concurrency:');
+    const jobsStart = source.indexOf('jobs:');
+    const deployStart = source.indexOf('  deploy:');
+    const postflightStart = source.indexOf('  verify-live:');
+    const concurrency = source.slice(concurrencyStart, jobsStart);
+    const deploy = source.slice(deployStart, postflightStart);
+    const postflight = source.slice(postflightStart);
+
+    expect(concurrencyStart).toBeGreaterThan(-1);
+    expect(concurrencyStart).toBeLessThan(jobsStart);
+    expect(source.match(/^concurrency:\s*$/gm)).toHaveLength(1);
+    expect(source).not.toMatch(/^[ \t]+concurrency:\s*$/gm);
+    expect(source.match(/^[ \t]+cancel-in-progress:\s*/gm)).toHaveLength(1);
+    expect(concurrency).toMatch(/^\s+group:\s*pages-main\s*$/m);
+    expect(concurrency).toMatch(/^\s+cancel-in-progress:\s*false\s*$/m);
+    expect(concurrency).not.toMatch(/^\s+cancel-in-progress:\s*true\s*$/m);
+
+    expect(deployStart).toBeGreaterThan(jobsStart);
+    expect(postflightStart).toBeGreaterThan(deployStart);
+    expect(deploy.match(/^      - /gm)).toHaveLength(2);
+    expect(deploy).toMatch(/^      - name: Confirm artifact SHA remains current main$/m);
+    expect(deploy).toMatch(/^      - name: Deploy to GitHub Pages$/m);
+    expect(deploy).toContain('Confirm artifact SHA remains current main');
+    expect(deploy).toContain('actions/deploy-pages@');
+    expect(postflight).toContain('needs: deploy');
+    expect(postflight).toContain('Verify exact live release');
+  });
+
   it('builds and verifies the exact successful Verify head SHA', () => {
     const source = workflow('deploy-pages.yml');
     const checkoutCount = (source.match(/actions\/checkout@/g) ?? []).length;

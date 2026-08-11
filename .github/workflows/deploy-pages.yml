@@ -10,8 +10,11 @@ permissions:
   contents: read
 
 concurrency:
+  # This workflow-scoped lock is retained through build, deployment, and the
+  # matching live postflight. A newer verified-main run may replace another
+  # pending run, but it must not cancel the run that owns this critical section.
   group: pages-main
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
