@@ -1528,6 +1528,7 @@
 .realm-cell-navigator__heading button,
 .realm-cell-navigator__dialog input,
 .realm-cell-navigator__section-toggle,
+.realm-cell-navigator__section-more,
 .realm-cell-navigator__castles button,
 .realm-cell-navigator__jump button,
 .realm-cell-navigator__presets button {
@@ -1635,6 +1636,19 @@
 
 .realm-cell-navigator__section-content[hidden] {
   display: none;
+}
+
+.realm-cell-navigator__section-more {
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.48rem 0.62rem;
+  border-color: rgb(201 167 234 / 28%);
+  color: var(--realm-lavender);
+  background: rgb(24 18 31 / 84%);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  cursor: pointer;
 }
 
 .realm-cell-navigator__castles {

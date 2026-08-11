@@ -290,6 +290,11 @@ describe('RealmMapScreen', () => {
     expect(within(explore).queryByText('GO TO CELL')).toBeNull();
     expect(within(explore).queryByLabelText('Q coordinate')).toBeNull();
     expect(within(explore).queryByLabelText('R coordinate')).toBeNull();
+    const resourceSection = within(explore).getByRole('button', {
+      name: /^RESOURCE SITES,/
+    });
+    expect(resourceSection.getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(resourceSection);
 
     const resourceSites = [
       ...explore.querySelectorAll<HTMLButtonElement>(
@@ -326,6 +331,13 @@ describe('RealmMapScreen', () => {
     renderFallbackRealm({ identity: realm.identity, snapshot: realm.snapshot });
 
     const { explore } = openPlayerExplore();
+    fireEvent.change(within(explore).getByRole('searchbox'), {
+      target: { value: 'occupied' }
+    });
+    const resourceSection = within(explore).getByRole('button', {
+      name: /^RESOURCE SITES,/
+    });
+    expect(resourceSection.getAttribute('aria-expanded')).toBe('true');
     const occupiedSites = [
       ...explore.querySelectorAll<HTMLButtonElement>(
         '.realm-cell-navigator__resource-site[data-resource-state="occupied"]'
