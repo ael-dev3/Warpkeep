@@ -40,6 +40,7 @@ const ALLOWED_PUBLIC_DIGEST_ENVIRONMENT_KEYS = new Set([
 const POSSIBLE_HEX_SECRET_VALUE = /^[0-9a-f]{64}$/iu;
 const ALLOWED_COMMANDS = Object.freeze([
   'compare-candidates',
+  'export-runtime-release',
   'export-sanitized-review',
   'generate-candidates',
   'inspect-package',

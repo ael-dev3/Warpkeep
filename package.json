@@ -34,6 +34,7 @@
     "atlas:export-sanitized-review": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs export-sanitized-review",
     "atlas:verify-sanitized-review": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs verify-sanitized-review",
     "atlas:select-candidate": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs select-candidate",
+    "atlas:export-runtime-release": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs export-runtime-release",
     "verify:alpha-production": "node scripts/verify-alpha-production.mjs --require-auth-v2-enabled",
     "verify:alpha-production:operator": "node scripts/verify-alpha-production.mjs --require-auth-v2-enabled --require-rpc-role-attestation",
     "verify:alpha-production:contained": "node scripts/verify-alpha-production.mjs --require-auth-v2",

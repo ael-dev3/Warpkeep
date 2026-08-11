@@ -270,6 +270,25 @@ describe('Greater Realm atlas CLI security boundary', () => {
     }
   });
 
+  it('accepts only one verified batch handle for a runtime release export', () => {
+    expect(greaterRealmCliArgumentTestSeams.runtimeReleaseExport([
+      '--batch',
+      'GR-B-AAAAAAAAAAAAAAAA',
+    ])).toEqual(expect.objectContaining({
+      command: 'export-runtime-release',
+      batchHandle: 'GR-B-AAAAAAAAAAAAAAAA',
+    }));
+    for (const rejected of [
+      [],
+      ['--batch', 'GR-B-AAAAAAAAAAAAAAAA', '--candidate', 'GR-A-AAAAAAAAAAAAAAAA'],
+      ['--batch', 'GR-B-AAAAAAAAAAAAAAAA', '--output', '/tmp/release'],
+      ['--batch', 'GR-B-AAAAAAAAAAAAAAAA', '--resume'],
+    ]) {
+      expect(() => greaterRealmCliArgumentTestSeams.runtimeReleaseExport(rejected))
+        .toThrow('GREATER_REALM_CLI_ARGUMENTS_INVALID');
+    }
+  });
+
   it('binds accepted replay to atlas and manifest authority together', () => {
     const atlasDigest = 'a'.repeat(64);
     const manifestDigest = 'b'.repeat(64);

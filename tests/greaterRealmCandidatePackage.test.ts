@@ -40,6 +40,7 @@ import {
   openGreaterRealmPrivateWorkspace,
   type GreaterRealmPrivateWorkspace,
 } from '../scripts/atlas/greater-realm-private-workspace';
+import type { GreaterRealmRuntimeReleaseSource } from '../scripts/atlas/greater-realm-runtime-release';
 import {
   GREATER_REALM_PRIVATE_SEED_ENVELOPE_BYTES,
   encodeGreaterRealmPrivateSeed,
@@ -252,6 +253,9 @@ function verifyFixture(overrides: Readonly<{
   onVerifiedPrivateShortlistMetrics?: (
     metrics: GreaterRealmVerifiedPrivateShortlistMetrics,
   ) => void;
+  onVerifiedPrivateCandidate?: (
+    candidate: GreaterRealmRuntimeReleaseSource,
+  ) => void;
 }> = {}) {
   const fixture = requireFixture();
   return verifyGreaterRealmPrivateCandidatePackage({
@@ -267,6 +271,7 @@ function verifyFixture(overrides: Readonly<{
     expectedAtlasDigest: overrides.expectedAtlasDigest ?? atlasDigest,
     expectedManifestDigest: overrides.expectedManifestDigest ?? manifestDigest,
     onVerifiedPrivateShortlistMetrics: overrides.onVerifiedPrivateShortlistMetrics,
+    onVerifiedPrivateCandidate: overrides.onVerifiedPrivateCandidate,
   });
 }
 
@@ -496,6 +501,21 @@ describe('Greater Realm owner-only candidate package', () => {
       manifestBytes.fill(0);
     }
   });
+
+  it('invokes the private-candidate callback only inside the verified zeroizing lifetime', async () => {
+    let callbackInvoked = false;
+    let retainedElevation: Int32Array | undefined;
+    await expect(verifyFixture({
+      onVerifiedPrivateCandidate: verifiedCandidate => {
+        callbackInvoked = true;
+        expect(verifiedCandidate.grid.cellCount).toBe(requireFixture().candidate.grid.cellCount);
+        retainedElevation = verifiedCandidate.elevation;
+      },
+    })).resolves.toEqual({ atlasDigest, manifestDigest });
+    expect(callbackInvoked).toBe(true);
+    expect(retainedElevation).toBeDefined();
+    expect(retainedElevation?.every(value => value === 0)).toBe(true);
+  }, PRIVATE_REPLAY_TEST_TIMEOUT_MS);
 
   it('renders an opaque outer-fog topology proxy and keeps rivers inside the land silhouette', async () => {
     const fixture = requireFixture();

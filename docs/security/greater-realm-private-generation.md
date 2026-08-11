@@ -2,7 +2,8 @@
 
 The Greater Realm generator handles unrevealed world geometry. Its exact
 outputs are security-sensitive game authority even before a production schema
-exists. This document applies to the candidate-generation pull request only.
+exists. This document applies to candidate generation, owner selection, and the
+offline Tier-I runtime-release export boundary.
 
 ## Assets and trust boundaries
 
@@ -13,6 +14,8 @@ exists. This document applies to the candidate-generation pull request only.
 | Chunk/topography-patch manifests, package/layout/stage digests, toolchain records, and inventories                                                                                                | Private operational data  | Owner-only workspace outside the repository            |
 | Candidate maps and contact sheets                                                                                                                                                                 | Private owner-review data | Owner-only workspace outside the repository            |
 | Aggregate allowlisted candidate metrics                                                                                                                                                           | Public sanitized evidence | `docs/evidence/greater-realm/` after strict validation |
+| Declassified Tier-I runtime cells, chunks, component proofs, inactive slots, and inactive resource nodes                                                                                          | Public runtime authority  | Mode-`0700` owner workspace import directory only       |
+| Independent public-release seed control envelope                                                                                                                                                  | Private operational data  | Mode-`0600` control file outside the import directory   |
 | Generator source and synthetic fixtures                                                                                                                                                           | Public source             | `scripts/atlas/` and `tests/`                          |
 
 The browser, Vite `public/` tree, production `dist/`, source maps, Git history,
@@ -258,6 +261,75 @@ pinned public-evidence writer installs it at
 `docs/evidence/greater-realm/pending-owner-review-v1.json`. No real public owner
 report exists or is published until the final verified generation workflow
 runs.
+
+## Post-selection Tier-I runtime release
+
+`atlas:export-runtime-release` is an owner-only, offline declassification step.
+It accepts exactly one private batch handle and refuses to run until the private
+selection receipt is canonical and selected. Before the selected candidate is
+made available to the exporter, the CLI verifies source provenance, every batch
+package, the private shortlist, selection receipt, complete batch inventory,
+toolchain binding, canonical manifest, atlas, chunks, topography patches, and
+all previews. It then replays the selected package once more and invokes a
+synchronous transformation callback inside the verifier's zeroizing lifetime.
+
+The provenance check is unchanged: the package source commit must still match
+the reviewed `package.json`, `package-lock.json`, `scripts/atlas/`, and world
+policy sources. Therefore candidate generation must occur only after this
+exporter, the v17 importer/schema, package metadata, and world-policy changes
+are fully integrated on one clean commit. A candidate created from an earlier
+commit is not exportable merely because its geometry appears compatible.
+
+The exporter creates a fresh 32-byte public-release seed with operating-system
+randomness. It never derives that seed from a candidate or batch seed. Before
+any release directory is published, the seed is atomically installed in the
+separate mode-`0600`
+`controls/runtime-release-public-seed-v1.wkgr-control` envelope. The seed never
+enters the import directory, manifest, status, stdout, database payload, or Git.
+Retries recover the same envelope, regenerate every byte, and return
+`unchanged` only when the installed release matches exactly. A published
+release with a missing, invalid, mismatched, or non-reproducible control
+envelope fails closed.
+
+The declassified import tree is `runtime-release-v1/` in the mode-`0700`
+private workspace. It contains only `import-manifest.json`, `status.json`, and
+canonical chunk JSON. Those artifacts carry exactly the six approved Tier-I
+region names and no private candidate/batch handle, owner reference, seed,
+transform, atlas/package/stage digest, preview, gate endpoint, Tier-II/Tier-III
+geometry, or hidden topology identity. Water and ridge identities, release,
+chunk, component, slot, location, and node handles are independently remapped
+under the public-release seed. Lowlands retains reversible region-local cell
+keys and the exact legacy slot and resource-catalog identities; its private
+placement transform is never exported.
+
+The audited partition is `axial-bin-15-tier-one-filter-v1`: each chunk contains
+one canonical 15-by-15 axial-bin core of at most 225 cells and a Tier-I-only
+one-ring apron, with core plus apron bounded to 384 visible cells. Every payload
+hash authenticates its exact canonical JSON. Separate bounded slot and resource
+batch hashes, full-section hashes, component hash chains, six region aggregates,
+and the length-framed release hash bind material imported outside the atomic
+core-cell call. Navigation components include only released passable cells,
+including reviewed river/stream fords; non-routable cells remain renderable but
+have no component or parent. Every component/region pair receives at least five
+nodes of each resource kind per castle slot, while slotless components receive
+none. The capacity release contains 600 inactive slots and 12,000 inactive
+nodes; no allocation privilege or production mutation is part of export.
+
+Run the flow only from the final clean integrated commit, using one absolute
+owner-workspace path throughout:
+
+```sh
+npm run atlas:toolchain-preflight
+npm run atlas:generate-candidates -- --workspace /absolute/owner/workspace --count 1 --maximum-attempts 256
+npm run atlas:compare-candidates -- --workspace /absolute/owner/workspace --batch '<private-batch-handle>'
+npm run atlas:select-candidate -- --workspace /absolute/owner/workspace --batch '<private-batch-handle>' --candidate '<private-candidate-handle>' --approval-reference '<private-owner-reference>' --confirm-selection
+npm run atlas:export-runtime-release -- --workspace /absolute/owner/workspace --batch '<private-batch-handle>'
+```
+
+The export command prints only its installed/unchanged state and public counts.
+Do not add the release directory or seed control to Git, attach either to a pull
+request, or treat the offline release as activation. The v17 importer and any
+later activation remain separately reviewed operations.
 
 ## Determinism and integrity
 

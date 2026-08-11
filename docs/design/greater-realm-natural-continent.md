@@ -460,13 +460,20 @@ package values have no alternative input path. No real owner report exists or
 is published until the final verified generation workflow runs.
 
 Only an explicit owner approval may be recorded as a private selection receipt.
-After that approval, a separate pull request may bind the selected private
-package to an additive, inactive SpacetimeDB schema. Later pull requests
-separately cover the Lowlands bridge, fog-safe atlas renderer, caller-bounded
-streaming, visible-region assets, guarded seeding, and an explicitly authorized
-production release. Selection does not authorize any of those steps. PR A
-changes no schema, runtime, renderer, public generated asset, deployment, or
-production record; the current Lowlands remains the only active world.
+After that approval, the owner-only runtime exporter may replay the selected
+package and create a declassified Tier-I import tree outside Git. The export is
+partitioned by `axial-bin-15-tier-one-filter-v1`, retains reversible Lowlands
+catalog identity, remaps topology and runtime handles under an independent
+public-release seed, and binds canonical cells plus bounded slot/resource
+batches into component, region, and release hashes. It contains no Tier-II or
+Tier-III geometry and is not activation.
+
+A separate pull request may bind that release to an additive, inactive
+SpacetimeDB schema. Later pull requests separately cover the fog-safe atlas
+renderer, caller-bounded streaming, visible-region assets, guarded seeding, and
+an explicitly authorized production release. Selection and offline export do
+not authorize any of those steps. The exporter changes no production record;
+the current Lowlands remains the only active world.
 The workflow-only delta stages GitHub-hosted Node in a runner-private path so
 the existing fail-closed toolchain attestation can run. It changes no deploy
 input, target, artifact, custom domain, or release behavior.

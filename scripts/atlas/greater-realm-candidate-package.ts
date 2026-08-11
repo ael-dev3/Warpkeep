@@ -18,6 +18,7 @@ import {
   type GreaterRealmPrivateCandidate,
 } from './greater-realm-candidate-generator';
 import type { GreaterRealmPrivateWorkspace } from './greater-realm-private-workspace';
+import type { GreaterRealmRuntimeReleaseSource } from './greater-realm-runtime-release';
 import {
   isCanonicalGreaterRealmAxialGrid,
   type IntegerTerrainArray,
@@ -88,6 +89,66 @@ const PRIVATE_CANDIDATE_MAXIMUM_BYTES = PRIVATE_ATLAS_MAXIMUM_BYTES
   + PRIVATE_MANIFEST_MAXIMUM_BYTES
   + PRIVATE_PREVIEW_MAXIMUM_BYTES * GREATER_REALM_PRIVATE_PREVIEW_COUNT
   + GREATER_REALM_PRIVATE_SEED_ENVELOPE_BYTES;
+
+function withVerifiedRuntimeReleaseSource(
+  candidate: GreaterRealmPrivateCandidate,
+  consume: (source: GreaterRealmRuntimeReleaseSource) => void,
+): void {
+  const transform = {
+    rotationSteps: candidate.legacyLowlandsTransform.rotationSteps,
+    globalOffsetQ: candidate.legacyLowlandsTransform.globalOffsetQ,
+    globalOffsetR: candidate.legacyLowlandsTransform.globalOffsetR,
+  };
+  const source = Object.freeze({
+    grid: candidate.grid,
+    legacyLowlandsTransform: transform,
+    legacyLowlandsCell: candidate.legacyLowlandsCell,
+    legacyLowlandsCastleSlot: candidate.legacyLowlandsCastleSlot,
+    elevation: candidate.elevation,
+    regionId: candidate.regionId,
+    tierId: candidate.tierId,
+    waterRegime: candidate.waterRegime,
+    waterBodyId: candidate.waterBodyId,
+    waterDepthClass: candidate.waterDepthClass,
+    waterSurfaceLevel: candidate.waterSurfaceLevel,
+    waterDownstream: candidate.waterDownstream,
+    flowAccumulation: candidate.flowAccumulation,
+    waterBankSeed: candidate.waterBankSeed,
+    waterGenerationVersion: candidate.waterGenerationVersion,
+    biomeId: candidate.biomeId,
+    landformId: candidate.landformId,
+    slope: candidate.slope,
+    aspect: candidate.aspect,
+    profileCurvature: candidate.profileCurvature,
+    planCurvature: candidate.planCurvature,
+    ridgeId: candidate.ridgeId,
+    geologicalBarrierBand: candidate.geologicalBarrierBand,
+    wetnessIndex: candidate.wetnessIndex,
+    exposure: candidate.exposure,
+    distanceToCoast: candidate.distanceToCoast,
+    distanceToFreshwater: candidate.distanceToFreshwater,
+    temperature: candidate.temperature,
+    moisture: candidate.moisture,
+    barrier: candidate.barrier,
+    castleSlot: candidate.castleSlot,
+    resourcePotential: candidate.resourcePotential,
+    corePotential: candidate.corePotential,
+    ecologyClass: candidate.ecologyClass,
+    vegetationDensity: candidate.vegetationDensity,
+    groundcoverDensity: candidate.groundcoverDensity,
+    wildflowerDensity: candidate.wildflowerDensity,
+    routeClass: candidate.routeClass,
+    landmarkClass: candidate.landmarkClass,
+    ambientLifeClass: candidate.ambientLifeClass,
+  } satisfies GreaterRealmRuntimeReleaseSource);
+  try {
+    consume(source);
+  } finally {
+    transform.rotationSteps = 0;
+    transform.globalOffsetQ = 0;
+    transform.globalOffsetR = 0;
+  }
+}
 const PRIVATE_PREVIEW_SEA_LEVEL = 0;
 const PRIVATE_PREVIEW_WATER_DRY = 0;
 const PRIVATE_PREVIEW_WATER_OCEAN = 1;
@@ -2677,6 +2738,9 @@ export async function verifyGreaterRealmPrivateCandidatePackage(input: Readonly<
   onVerifiedPrivateShortlistMetrics?: (
     metrics: GreaterRealmVerifiedPrivateShortlistMetrics,
   ) => void;
+  onVerifiedPrivateCandidate?: (
+    candidate: GreaterRealmRuntimeReleaseSource,
+  ) => void;
 }>): Promise<Readonly<{ atlasDigest: string; manifestDigest: string }>> {
   if (
     !BATCH_HANDLE_PATTERN.test(input.batchHandle)
@@ -2694,6 +2758,10 @@ export async function verifyGreaterRealmPrivateCandidatePackage(input: Readonly<
     || (
       input.onVerifiedPrivateShortlistMetrics !== undefined
       && typeof input.onVerifiedPrivateShortlistMetrics !== 'function'
+    )
+    || (
+      input.onVerifiedPrivateCandidate !== undefined
+      && typeof input.onVerifiedPrivateCandidate !== 'function'
     )
   ) fail('GREATER_REALM_PRIVATE_PACKAGE_EXPECTATION_INVALID');
   const base = `batches/${input.batchHandle}/candidates/${input.candidateHandle}`;
@@ -2894,6 +2962,13 @@ export async function verifyGreaterRealmPrivateCandidatePackage(input: Readonly<
     input.onVerifiedPrivateShortlistMetrics?.(
       verifiedPrivateShortlistMetrics(input.candidateHandle, expectedCandidate),
     );
+    // This callback runs only after the private atlas, canonical manifest,
+    // provenance, toolchain, chunks, and every preview have replayed exactly.
+    // It is intentionally synchronous so the candidate cannot outlive this
+    // verifier's zeroizing finally block.
+    if (input.onVerifiedPrivateCandidate !== undefined) {
+      withVerifiedRuntimeReleaseSource(expectedCandidate, input.onVerifiedPrivateCandidate);
+    }
     return Object.freeze({ atlasDigest, manifestDigest });
   } finally {
     batchSeedEnvelope?.fill(0);
