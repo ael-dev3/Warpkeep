@@ -6695,96 +6695,139 @@ function barrierApproachPaths(
   targetComponentSizes: readonly number[],
 ): readonly (readonly number[])[] | undefined {
   const starts: number[] = [];
-  for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
-    const neighbor = grid.neighbors[endpoint * HEX_NEIGHBOR_COUNT + direction]!;
-    if (
-      neighbor >= 0
-      && regionId[neighbor] === region
-      && waterRegime[neighbor] === WATER_DRY
-    ) starts.push(neighbor);
-  }
-  starts.sort((first, second) => first - second);
-  const findPath = (
-    start: number,
-    forbidden: ReadonlySet<number> = new Set<number>(),
-  ): number[] | undefined => {
-    if (forbidden.has(start)) return undefined;
-    const previous = new Int32Array(grid.cellCount);
-    const depth = new Uint8Array(grid.cellCount);
-    previous.fill(-2);
-    previous[start] = -1;
-    const queue = new Uint32Array(grid.cellCount);
-    let head = 0;
-    let tail = 0;
-    queue[tail++] = start;
-    let target = -1;
-    while (head < tail) {
-      const cell = queue[head++]!;
-      if (
-        barrier[cell] === 0
-        && targetComponentId[cell]! >= 0
-        && targetComponentSizes[targetComponentId[cell]!]! >= 64
-      ) {
-        target = cell;
-        break;
-      }
-      // Natural coastlines and highland shoulders can separate a valid dry
-      // saddle from its region's durable interior by more than twenty cells.
-      // This is still a bounded offline search; the path is accepted only if
-      // both sides remain sealed from every unintended cross-tier contact.
-      if (depth[cell]! >= 64) continue;
-      for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
-        const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
-        if (
-          neighbor < 0
-          || neighbor === endpoint
-          || forbidden.has(neighbor)
-          || previous[neighbor] !== -2
-          || regionId[neighbor] !== region
-          || waterRegime[neighbor] !== WATER_DRY
-        ) continue;
-        previous[neighbor] = cell;
-        depth[neighbor] = depth[cell]! + 1;
-        queue[tail++] = neighbor;
-      }
-    }
-    if (target < 0) return undefined;
-    const path: number[] = [];
-    for (let cell = target; cell >= 0; cell = previous[cell]!) path.push(cell);
-    path.reverse();
-    return path;
-  };
+  let previous: Int32Array | undefined;
+  let depth: Uint8Array | undefined;
+  let queue: Uint32Array | undefined;
   const paths: number[][] = [];
+  const constructedPaths = new Set<number[]>();
   const signatures = new Set<string>();
-  for (const start of starts) {
-    const path = findPath(start);
-    if (!path) continue;
-    signatures.add(path.join(','));
-    paths.push(path);
-  }
-  // A fixed neighbour order can make two otherwise independent approaches
-  // converge on the same short crest route. Deterministically search an
-  // alternative for each second start while excluding the first route's
-  // non-terminal cells. This proves two real corridors instead of counting
-  // two labels on one bridge cell.
-  const primaryPaths = [...paths];
-  for (const first of primaryPaths) {
-    const forbidden = new Set(first);
-    for (const start of starts) {
-      if (start === first[0]) continue;
-      const alternative = findPath(start, forbidden);
-      if (!alternative) continue;
-      const signature = alternative.join(',');
-      if (signatures.has(signature)) continue;
-      signatures.add(signature);
-      paths.push(alternative);
+  const primaryPaths: number[][] = [];
+  let retainedPaths = new Set<number[]>();
+  let pathsFrozen = false;
+  try {
+    for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
+      const neighbor = grid.neighbors[endpoint * HEX_NEIGHBOR_COUNT + direction]!;
+      if (
+        neighbor >= 0
+        && regionId[neighbor] === region
+        && waterRegime[neighbor] === WATER_DRY
+      ) starts.push(neighbor);
     }
+    starts.sort((first, second) => first - second);
+    if (starts.length === 0) return undefined;
+    previous = new Int32Array(grid.cellCount);
+    depth = new Uint8Array(grid.cellCount);
+    queue = new Uint32Array(grid.cellCount);
+    const reusablePrevious = previous;
+    const reusableDepth = depth;
+    const reusableQueue = queue;
+    const findPath = (
+      start: number,
+      forbidden?: ReadonlySet<number>,
+    ): number[] | undefined => {
+      // Reuse one bounded O(N) scratch triplet. A full deterministic reset
+      // preserves the historical fresh-allocation state for every search.
+      reusablePrevious.fill(-2);
+      reusableDepth.fill(0);
+      reusableQueue.fill(0);
+      if (forbidden?.has(start)) return undefined;
+      reusablePrevious[start] = -1;
+      let head = 0;
+      let tail = 0;
+      reusableQueue[tail++] = start;
+      let target = -1;
+      while (head < tail) {
+        const cell = reusableQueue[head++]!;
+        if (
+          barrier[cell] === 0
+          && targetComponentId[cell]! >= 0
+          && targetComponentSizes[targetComponentId[cell]!]! >= 64
+        ) {
+          target = cell;
+          break;
+        }
+        // Natural coastlines and highland shoulders can separate a valid dry
+        // saddle from its region's durable interior by more than twenty cells.
+        // This is still a bounded offline search; the path is accepted only if
+        // both sides remain sealed from every unintended cross-tier contact.
+        if (reusableDepth[cell]! >= 64) continue;
+        for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
+          const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
+          if (
+            neighbor < 0
+            || neighbor === endpoint
+            || forbidden?.has(neighbor)
+            || reusablePrevious[neighbor] !== -2
+            || regionId[neighbor] !== region
+            || waterRegime[neighbor] !== WATER_DRY
+          ) continue;
+          reusablePrevious[neighbor] = cell;
+          reusableDepth[neighbor] = reusableDepth[cell]! + 1;
+          reusableQueue[tail++] = neighbor;
+        }
+      }
+      if (target < 0) return undefined;
+      const path: number[] = [];
+      constructedPaths.add(path);
+      for (
+        let cell = target;
+        cell >= 0;
+        cell = reusablePrevious[cell]!
+      ) path.push(cell);
+      path.reverse();
+      return path;
+    };
+    for (const start of starts) {
+      const path = findPath(start);
+      if (!path) continue;
+      signatures.add(path.join(','));
+      paths.push(path);
+    }
+    // A fixed neighbour order can make two otherwise independent approaches
+    // converge on the same short crest route. Deterministically search an
+    // alternative for each second start while excluding the first route's
+    // non-terminal cells. This proves two real corridors instead of counting
+    // two labels on one bridge cell.
+    primaryPaths.push(...paths);
+    for (const first of primaryPaths) {
+      const forbidden = new Set(first);
+      try {
+        for (const start of starts) {
+          if (start === first[0]) continue;
+          const alternative = findPath(start, forbidden);
+          if (!alternative) continue;
+          const signature = alternative.join(',');
+          if (signatures.has(signature)) continue;
+          signatures.add(signature);
+          paths.push(alternative);
+        }
+      } finally {
+        forbidden.clear();
+      }
+    }
+    paths.sort((first, second) => first.length - second.length || first[0]! - second[0]!);
+    if (paths.length < 1) return undefined;
+    // Keep the owned coordinate arrays mutable so private-candidate retirement
+    // can overwrite their contents; only the collection shape is immutable.
+    const result = Object.freeze(paths);
+    pathsFrozen = true;
+    retainedPaths = new Set(paths);
+    return result;
+  } finally {
+    previous?.fill(0);
+    depth?.fill(0);
+    queue?.fill(0);
+    starts.fill(0);
+    starts.length = 0;
+    signatures.clear();
+    primaryPaths.length = 0;
+    for (const path of constructedPaths) {
+      if (!retainedPaths.has(path)) path.fill(0);
+    }
+    constructedPaths.clear();
+    if (!pathsFrozen) paths.length = 0;
+    retainedPaths.clear();
   }
-  paths.sort((first, second) => first.length - second.length || first[0]! - second[0]!);
-  if (paths.length < 1) return undefined;
-  // Keep the owned coordinate arrays mutable so private-candidate retirement
-  // can overwrite their contents; only the collection shape is immutable.
-  return Object.freeze(paths);
 }
 
 function gateApproachCorridorsDisjoint(
