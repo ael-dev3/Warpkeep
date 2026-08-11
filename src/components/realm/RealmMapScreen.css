@@ -1449,6 +1449,7 @@
   padding: 0.75rem;
   overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior-y: contain;
   border: 1px solid rgb(225 190 105 / 38%);
   border-radius: var(--warpkeep-surface-radius, 0.65rem);
   background: var(--realm-panel);
@@ -1493,6 +1494,7 @@
 
 .realm-cell-navigator__heading button,
 .realm-cell-navigator__dialog input,
+.realm-cell-navigator__section-toggle,
 .realm-cell-navigator__castles button,
 .realm-cell-navigator__jump button,
 .realm-cell-navigator__presets button {
@@ -1529,6 +1531,77 @@
   width: 100%;
   box-sizing: border-box;
   padding: 0 0.7rem;
+}
+
+.realm-cell-navigator__section {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  margin-top: 0.18rem;
+}
+
+.realm-cell-navigator__section-toggle {
+  position: sticky;
+  z-index: 1;
+  top: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.48rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.48rem 0.62rem;
+  border-color: rgb(201 167 234 / 28%);
+  background: rgb(24 18 31 / 96%);
+  box-shadow: 0 0.32rem 0.8rem rgb(0 0 0 / 18%);
+  text-align: left;
+  cursor: pointer;
+}
+
+.realm-cell-navigator__section-toggle[aria-expanded="true"] {
+  border-color: rgb(225 190 105 / 46%);
+  background: rgb(73 39 89 / 94%);
+}
+
+.realm-cell-navigator__section-toggle > strong {
+  overflow: hidden;
+  color: var(--realm-muted);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.realm-cell-navigator__section-count {
+  min-width: 2rem;
+  padding: 0.16rem 0.38rem;
+  border: 1px solid rgb(225 190 105 / 22%);
+  border-radius: 999px;
+  color: var(--realm-electrum);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.realm-cell-navigator__section-chevron {
+  color: var(--realm-lavender);
+  font-size: 1rem;
+  line-height: 1;
+  transform: rotate(-90deg);
+  transition: transform 160ms ease;
+}
+
+.realm-cell-navigator__section-toggle[aria-expanded="true"]
+  .realm-cell-navigator__section-chevron {
+  transform: rotate(0deg);
+}
+
+.realm-cell-navigator__section-content {
+  min-width: 0;
+}
+
+.realm-cell-navigator__section-content[hidden] {
+  display: none;
 }
 
 .realm-cell-navigator__castles {
@@ -1571,21 +1644,6 @@
   font-size: 0.6875rem;
   font-style: normal;
   font-weight: 800;
-}
-
-.realm-cell-navigator__water,
-.realm-cell-navigator__workers {
-  display: grid;
-  gap: 0.35rem;
-  margin-top: 0.8rem;
-}
-
-.realm-cell-navigator__water > span,
-.realm-cell-navigator__workers > span {
-  color: var(--realm-muted);
-  font-size: 0.6875rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
 }
 
 .realm-cell-navigator__water-row {
@@ -1689,7 +1747,8 @@
 }
 
 .realm-cell-navigator__dialog [role="alert"],
-.realm-cell-navigator__dialog [role="status"] {
+.realm-cell-navigator__dialog [role="status"],
+.realm-cell-navigator__empty {
   margin: 0;
   color: var(--realm-muted);
   font-size: 0.8125rem;
@@ -1841,6 +1900,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .realm-cell-navigator__section-chevron {
+    transition: none;
+  }
+
   .realm-map-screen[data-realm-surface-presentation="fullscreen-destination"]
     :is(
       .realm-profile-menu__panel,

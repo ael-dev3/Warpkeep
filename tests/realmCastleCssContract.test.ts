@@ -392,6 +392,8 @@ describe('compact Realm CSS contract', () => {
     );
     const presets = block(MAP, '.realm-cell-navigator__presets > div {');
     const jump = block(MAP, '.realm-cell-navigator__jump fieldset {');
+    const sectionToggle = block(MAP, '.realm-cell-navigator__section-toggle {');
+    const sectionContent = block(MAP, '.realm-cell-navigator__section-content[hidden] {');
     const narrowest = block(MAP, '@media (max-width: 360px) {');
     const narrowestCommunityActions = block(
       narrowest,
@@ -404,6 +406,7 @@ describe('compact Realm CSS contract', () => {
 
     expect(dialog).toContain('overflow-x: hidden;');
     expect(dialog).toContain('overflow-y: auto;');
+    expect(dialog).toContain('overscroll-behavior-y: contain;');
     expect(dialog).toContain('max-height: min(58svh, 35rem);');
     expect(fullScreenDialog).toContain('height: 100%;');
     expect(fullScreenDialog).toContain('max-height: none;');
@@ -413,6 +416,10 @@ describe('compact Realm CSS contract', () => {
     expect(presets).toContain('grid-template-columns: repeat(3, minmax(0, 1fr));');
     expect(jump).toContain('min-width: 0;');
     expect(jump).toContain('box-sizing: border-box;');
+    expect(sectionToggle).toContain('position: sticky;');
+    expect(sectionToggle).toContain('top: 0;');
+    expect(sectionToggle).toContain('grid-template-columns: minmax(0, 1fr) auto auto;');
+    expect(sectionContent).toContain('display: none;');
     expect(castleSecondaryCopy).toContain('font-size: 0.8125rem;');
     expect(narrowestCommunityActions).toContain('grid-template-columns: minmax(0, 1fr);');
 

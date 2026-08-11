@@ -6,6 +6,9 @@ full engineering record.
 
 ## [Unreleased]
 
+- Made the long Castles, Workers, Resource Sites, and Public Water lists in
+  **Explore** independently collapsible, with live result counts and sticky
+  section controls that keep compact Realm navigation manageable.
 - Prepared an optional **Enable Admission Alerts** step after a confirmed access
   request. It remains fail-closed behind a default-off release gate until the
   owner-controlled signed notification canary is complete, and never affects
