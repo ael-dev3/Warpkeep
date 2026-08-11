@@ -505,6 +505,10 @@ async function runCommand(
   arguments_: readonly string[],
   options: Readonly<{ secrets?: readonly string[]; timeout?: number }> = {},
 ): Promise<Readonly<{ code: number; stdout: string; stderr: string }>> {
+  const boundedTimeout = remainingTimeout(
+    control,
+    options.timeout ?? commandTimeoutMilliseconds,
+  );
   return new Promise((resolveRun, rejectRun) => {
     let settled = false;
     let timedOut = false;
@@ -564,7 +568,7 @@ async function runCommand(
       forcedDeadline = setTimeout(() => settle(() => rejectRun(
         new GreaterRealmConnectedImportError('SpacetimeDB CLI command did not terminate.'),
       )), 5_000);
-    }, remainingTimeout(control, options.timeout ?? commandTimeoutMilliseconds));
+    }, boundedTimeout);
   });
 }
 
@@ -1523,6 +1527,7 @@ async function main(): Promise<void> {
     clearTimeout(totalDeadline);
     authorityToken = undefined;
     removeSignalCleanup();
+    terminateProcess(control.activeCliProcess);
     if (serverProcess !== undefined) {
       await cleanupMigrationProofResources(serverProcess, runtimeDirectory);
     } else {

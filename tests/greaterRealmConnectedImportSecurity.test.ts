@@ -83,6 +83,11 @@ describe('disposable Greater Realm connected import security boundary', () => {
     expect(runner).toContain("'--delete-data=never'");
     expect(runner).toContain('process.argv.length !== 2');
     expect(runner).toContain('installMigrationProofSignalCleanup(forceCleanup)');
+    expect(runner.indexOf('const boundedTimeout = remainingTimeout(')).toBeLessThan(
+      runner.indexOf('const child = spawn(command, arguments_'),
+    );
+    expect(occurrences(runner, 'terminateProcess(control.activeCliProcess);'))
+      .toBeGreaterThanOrEqual(2);
     expect(runner).toContain('await cleanupMigrationProofResources(serverProcess, runtimeDirectory)');
     expect(runner).toContain('clearTimeout(totalDeadline)');
     expect(runner).toContain("writeFile(copiedPolicyPath, enabledPolicy");
