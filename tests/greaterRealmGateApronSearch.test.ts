@@ -9,6 +9,11 @@ type SyntheticOption = GreaterRealmRankedSiblingSearchOption & Readonly<{
   id: string;
 }>;
 
+type SyntheticDescriptor = Readonly<{
+  id: string;
+  footprints: readonly SyntheticOption[];
+}>;
+
 const option = (
   id: string,
   tierOneCells: readonly number[],
@@ -17,6 +22,14 @@ const option = (
   id,
   tierOneCells: Object.freeze([...tierOneCells]),
   tierTwoCells: Object.freeze([...tierTwoCells]),
+});
+
+const descriptor = (
+  id: string,
+  ...footprints: readonly SyntheticOption[]
+): SyntheticDescriptor => Object.freeze({
+  id,
+  footprints: Object.freeze([...footprints]),
 });
 
 describe('Greater Realm ranked gate-apron search', () => {
@@ -69,5 +82,43 @@ describe('Greater Realm ranked gate-apron search', () => {
     );
     expect(exhausted).toBeUndefined();
     expect(completePlans).toBe(1);
+  });
+
+  it('searches sibling descriptors through their existing bundle footprints', () => {
+    const overlapping = descriptor(
+      'overlapping',
+      option('overlapping-first', [1], [11]),
+      option('overlapping-second', [2], [12]),
+    );
+    const fallback = descriptor(
+      'fallback',
+      option('fallback-first', [3], [13]),
+      option('fallback-second', [4], [14]),
+    );
+    const sibling = descriptor(
+      'sibling',
+      option('sibling-first', [2], [15]),
+      option('sibling-second', [5], [16]),
+    );
+    const visited: string[] = [];
+
+    const result = searchGreaterRealmRankedSiblingAlternatives(
+      Object.freeze(['only'] as const),
+      () => Object.freeze([
+        Object.freeze([overlapping, fallback]),
+        Object.freeze([sibling]),
+      ]),
+      (_alternative, selected) => {
+        visited.push(selected.map(value => value.id).join('+'));
+        return true;
+      },
+      Object.freeze({ maximumSearchNodes: 16, maximumCompletePlans: 4 }),
+      value => value.footprints,
+    );
+
+    expect(result?.options.map(value => value.id)).toEqual(['fallback', 'sibling']);
+    expect(visited).toEqual(['fallback+sibling']);
+    expect('tierOneCells' in fallback).toBe(false);
+    expect('tierTwoCells' in fallback).toBe(false);
   });
 });

@@ -169,6 +169,11 @@ export type GreaterRealmRankedSiblingSearchLimits = Readonly<{
   maximumCompletePlans: number;
 }>;
 
+type GreaterRealmRankedSiblingSearchResult<Alternative, Option> = Readonly<{
+  alternative: Alternative;
+  options: readonly Option[];
+}>;
+
 /**
  * Explore ranked component assignments and their ranked sibling-pair options
  * on one deterministic diagonal. Adding the assignment rank to the local
@@ -183,10 +188,25 @@ export function searchGreaterRealmRankedSiblingAlternatives<
   optionGroupsFor: (alternative: Alternative) => readonly (readonly Option[])[],
   accept: (alternative: Alternative, options: readonly Option[]) => boolean,
   limits: GreaterRealmRankedSiblingSearchLimits,
-): Readonly<{
-  alternative: Alternative;
-  options: readonly Option[];
-}> | undefined {
+): GreaterRealmRankedSiblingSearchResult<Alternative, Option> | undefined;
+export function searchGreaterRealmRankedSiblingAlternatives<Alternative, Option>(
+  alternatives: readonly Alternative[],
+  optionGroupsFor: (alternative: Alternative) => readonly (readonly Option[])[],
+  accept: (alternative: Alternative, options: readonly Option[]) => boolean,
+  limits: GreaterRealmRankedSiblingSearchLimits,
+  footprintsFor: (
+    option: Option,
+  ) => readonly GreaterRealmRankedSiblingSearchOption[],
+): GreaterRealmRankedSiblingSearchResult<Alternative, Option> | undefined;
+export function searchGreaterRealmRankedSiblingAlternatives<Alternative, Option>(
+  alternatives: readonly Alternative[],
+  optionGroupsFor: (alternative: Alternative) => readonly (readonly Option[])[],
+  accept: (alternative: Alternative, options: readonly Option[]) => boolean,
+  limits: GreaterRealmRankedSiblingSearchLimits,
+  footprintsFor?: (
+    option: Option,
+  ) => readonly GreaterRealmRankedSiblingSearchOption[],
+): GreaterRealmRankedSiblingSearchResult<Alternative, Option> | undefined {
   if (
     !Number.isSafeInteger(limits.maximumSearchNodes)
     || limits.maximumSearchNodes < 1
@@ -206,10 +226,23 @@ export function searchGreaterRealmRankedSiblingAlternatives<
   const occupiedTierTwo = new Set<number>();
   let searchNodes = 0;
   let completePlans = 0;
-  let result: Readonly<{
-    alternative: Alternative;
-    options: readonly Option[];
-  }> | undefined;
+  let result: GreaterRealmRankedSiblingSearchResult<Alternative, Option> | undefined;
+  const footprintConflicts = (
+    footprint: GreaterRealmRankedSiblingSearchOption,
+  ): boolean => footprint.tierOneCells.some(cell => occupiedTierOne.has(cell))
+    || footprint.tierTwoCells.some(cell => occupiedTierTwo.has(cell));
+  const occupyFootprint = (
+    footprint: GreaterRealmRankedSiblingSearchOption,
+  ): void => {
+    for (const cell of footprint.tierOneCells) occupiedTierOne.add(cell);
+    for (const cell of footprint.tierTwoCells) occupiedTierTwo.add(cell);
+  };
+  const releaseFootprint = (
+    footprint: GreaterRealmRankedSiblingSearchOption,
+  ): void => {
+    for (const cell of footprint.tierOneCells) occupiedTierOne.delete(cell);
+    for (const cell of footprint.tierTwoCells) occupiedTierTwo.delete(cell);
+  };
 
   for (let totalRank = 0; totalRank <= maximumTotalRank && !result; totalRank += 1) {
     const maximumAlternativeRank = Math.min(totalRank, alternatives.length - 1);
@@ -239,20 +272,25 @@ export function searchGreaterRealmRankedSiblingAlternatives<
           if (searchNodes >= limits.maximumSearchNodes) return false;
           searchNodes += 1;
           const option = options[optionIndex]!;
+          const directFootprint = footprintsFor === undefined
+            ? option as unknown as GreaterRealmRankedSiblingSearchOption
+            : undefined;
+          const footprints = footprintsFor?.(option);
           if (
-            option.tierOneCells.some(cell => occupiedTierOne.has(cell))
-            || option.tierTwoCells.some(cell => occupiedTierTwo.has(cell))
+            directFootprint
+              ? footprintConflicts(directFootprint)
+              : footprints!.some(footprintConflicts)
           ) continue;
           selected[depth] = option;
-          for (const cell of option.tierOneCells) occupiedTierOne.add(cell);
-          for (const cell of option.tierTwoCells) occupiedTierTwo.add(cell);
+          if (directFootprint) occupyFootprint(directFootprint);
+          else for (const footprint of footprints!) occupyFootprint(footprint);
           let matched = false;
           try {
             matched = chooseAtRank(depth + 1, remainingRank - optionIndex);
           } finally {
             selected[depth] = undefined;
-            for (const cell of option.tierOneCells) occupiedTierOne.delete(cell);
-            for (const cell of option.tierTwoCells) occupiedTierTwo.delete(cell);
+            if (directFootprint) releaseFootprint(directFootprint);
+            else for (const footprint of footprints!) releaseFootprint(footprint);
           }
           if (matched) return true;
         }
@@ -2646,8 +2684,6 @@ type GreaterRealmTierTwoGateApronSiblingPair = Readonly<{
     GreaterRealmTierTwoGateApronBundle,
     GreaterRealmTierTwoGateApronBundle,
   ];
-  tierOneCells: readonly number[];
-  tierTwoCells: readonly number[];
   score: number;
 }>;
 
@@ -3075,21 +3111,9 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
             ))
           )));
           if (separation < 8) continue;
-          const tierOneCells = [...new Set([
-            ...first.tierOneCells,
-            ...second.tierOneCells,
-          ])];
-          const tierTwoCells = [...new Set([
-            ...first.tierTwoCells,
-            ...second.tierTwoCells,
-          ])];
-          privateIndexArrays.add(tierOneCells);
-          privateIndexArrays.add(tierTwoCells);
           pairs.push(Object.freeze({
             children: Object.freeze([firstChild!, secondChild!] as const),
             bundles: Object.freeze([first, second] as const),
-            tierOneCells,
-            tierTwoCells,
             score: first.score + second.score,
           }));
         }
@@ -3170,6 +3194,22 @@ function allocateTierTwoPassableCapacity(
   const release = (array: OwnedAllocatorArray): void => {
     array.fill(0);
     ownedAllocatorArrays.delete(array);
+  };
+  const ownedAllocatorIndexArrays = new Set<number[]>();
+  const ownIndexArray = (array: number[]): number[] => {
+    ownedAllocatorIndexArrays.add(array);
+    return array;
+  };
+  const releaseIndexArray = (array: readonly number[]): void => {
+    const mutableArray = array as number[];
+    mutableArray.fill(0);
+    mutableArray.length = 0;
+    ownedAllocatorIndexArrays.delete(mutableArray);
+  };
+  const releaseOwnershipForests = (
+    forests: Iterable<readonly number[]>,
+  ): void => {
+    for (const forest of forests) releaseIndexArray(forest);
   };
   let retainedAuthorityArrays: ReadonlySet<OwnedAllocatorArray> = new Set();
   let gateApronAuthority: GreaterRealmTierTwoDryGateApronAuthority | undefined;
@@ -3533,14 +3573,24 @@ function allocateTierTwoPassableCapacity(
     bundleByChild: readonly GreaterRealmTierTwoGateApronBundle[],
   ): readonly (readonly number[])[] | undefined => {
     const scopedArrays: OwnedAllocatorArray[] = [];
+    const ownedForests = new Set<number[]>();
     const scopedOwn = <ArrayType extends OwnedAllocatorArray>(array: ArrayType): ArrayType => {
       scopedArrays.push(own(array));
       return array;
     };
+    const ownForest = (forest: number[]): number[] => {
+      ownedForests.add(ownIndexArray(forest));
+      return forest;
+    };
+    const releaseForest = (forest: readonly number[]): void => {
+      releaseIndexArray(forest);
+      ownedForests.delete(forest as number[]);
+    };
+    const forestByParent: Array<readonly number[] | undefined> = Array(
+      TIER_II_REGION_COUNT,
+    ).fill(undefined);
+    let completed = false;
     try {
-      const forestByParent: Array<readonly number[] | undefined> = Array(
-        TIER_II_REGION_COUNT,
-      ).fill(undefined);
       const reservedApronOwner = scopedOwn(new Int8Array(grid.cellCount));
       reservedApronOwner.fill(-1);
       for (let child = 0; child < TIER_I_REGION_COUNT; child += 1) {
@@ -3565,6 +3615,7 @@ function allocateTierTwoPassableCapacity(
           const claimedOwner = scopedOwn(new Int8Array(grid.cellCount));
           claimedOwner.fill(-1);
           const trialForests = new Map<number, readonly number[]>();
+          const trialForestArrays: number[][] = [];
           let complete = true;
           for (const parent of order) {
             const tree = scopedOwn(new Uint8Array(grid.cellCount));
@@ -3627,7 +3678,8 @@ function allocateTierTwoPassableCapacity(
               break;
             }
             for (let cell = target; cell >= 0; cell = previous[cell]!) tree[cell] = 1;
-            const forest: number[] = [];
+            const forest = ownForest([]);
+            trialForestArrays.push(forest);
             for (let cell = 0; cell < grid.cellCount; cell += 1) {
               if (tree[cell] !== 1) continue;
               if (claimedOwner[cell] >= 0) {
@@ -3638,20 +3690,30 @@ function allocateTierTwoPassableCapacity(
               forest.push(cell);
             }
             if (!complete) break;
-            trialForests.set(parent, Object.freeze(forest));
+            trialForests.set(parent, forest);
           }
           if (complete && trialForests.size === parents.length) {
             componentForests = trialForests;
             break;
           }
+          for (const forest of trialForestArrays) releaseForest(forest);
+          trialForests.clear();
         }
         if (!componentForests) return undefined;
         for (const [parent, forest] of componentForests) forestByParent[parent] = forest;
+        componentForests.clear();
       }
       if (forestByParent.some(forest => forest === undefined)) return undefined;
-      return Object.freeze(forestByParent as readonly (readonly number[])[]);
+      const forests = Object.freeze(forestByParent as readonly (readonly number[])[]);
+      completed = true;
+      return forests;
     } finally {
       for (const array of scopedArrays) release(array);
+      if (!completed) {
+        forestByParent.fill(undefined);
+        releaseOwnershipForests(ownedForests);
+      }
+      ownedForests.clear();
     }
   };
   let selectedRepartition: ReturnType<typeof buildTierOneApronRepartition>;
@@ -3693,17 +3755,24 @@ function allocateTierTwoPassableCapacity(
         completeBundles,
       );
       if (!ownershipForests) return false;
-      const repartition = buildTierOneApronRepartition(completeBundles);
-      if (!repartition) return false;
-      selectedRepartition = repartition;
-      selectedOwnershipForests = ownershipForests;
-      selectedBundleByChild = Object.freeze([...completeBundles]);
-      return true;
+      let retainOwnershipForests = false;
+      try {
+        const repartition = buildTierOneApronRepartition(completeBundles);
+        if (!repartition) return false;
+        selectedRepartition = repartition;
+        selectedOwnershipForests = ownershipForests;
+        selectedBundleByChild = Object.freeze([...completeBundles]);
+        retainOwnershipForests = true;
+        return true;
+      } finally {
+        if (!retainOwnershipForests) releaseOwnershipForests(ownershipForests);
+      }
     },
     Object.freeze({
       maximumSearchNodes: MAX_GATE_APRON_SEARCH_NODES,
       maximumCompletePlans: MAX_GATE_APRON_COMPLETE_PLANS,
     }),
+    pair => pair.bundles,
   );
   if (!gateApronSearch) {
     reject('DRY_GATE_APRON_SEARCH_EXHAUSTED');
@@ -4219,6 +4288,8 @@ function allocateTierTwoPassableCapacity(
   return authority;
   } finally {
     gateApronAuthority?.clear();
+    releaseOwnershipForests(ownedAllocatorIndexArrays);
+    ownedAllocatorIndexArrays.clear();
     for (const array of ownedAllocatorArrays) {
       if (!retainedAuthorityArrays.has(array)) array.fill(0);
     }
