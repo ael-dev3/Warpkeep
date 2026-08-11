@@ -63,6 +63,11 @@ describe('Inner Keep client placement evaluator', () => {
 
   it('nudges exactly 0.5m and rotates through quarter turns', () => {
     const initial = initialInnerKeepPlacementDraft('city-mill', [])!;
+    expect(Array.isArray(initial.evaluation.halfExtentsMicrounits)).toBe(false);
+    expect(initial.evaluation.halfExtentsMicrounits).toEqual({
+      0: 5_650_000n,
+      1: 4_750_000n
+    });
     const moved = nudgeInnerKeepPlacementDraft(initial, -1, 1, []);
     expect(moved.transform).toEqual({
       localXMicrounits: 13_500_000n,

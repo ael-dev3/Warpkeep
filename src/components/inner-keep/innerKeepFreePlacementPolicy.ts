@@ -143,8 +143,24 @@ export type InnerKeepPlacementEvaluation = Readonly<{
   valid: boolean;
   reason: InnerKeepPlacementInvalidReason | null;
   conflictingId: string | null;
-  halfExtentsMicrounits: readonly [bigint, bigint];
+  halfExtentsMicrounits: Readonly<{
+    0: bigint;
+    1: bigint;
+  }>;
 }>;
+
+function keyedHalfExtents(
+  halfExtentsMicrounits: readonly [bigint, bigint],
+): InnerKeepPlacementEvaluation['halfExtentsMicrounits'] {
+  // React's development diagnostics stringify primitive arrays while
+  // describing changed props. JSON cannot encode bigint tuple entries, so a
+  // placement interaction could abort before the next render. Preserve the
+  // established numeric indexing without exposing a bigint Array to React.
+  return Object.freeze({
+    0: halfExtentsMicrounits[0],
+    1: halfExtentsMicrounits[1],
+  });
+}
 
 function rotatedHalfExtents(
   envelopePolicy: InnerKeepPlacementEnvelope,
@@ -183,7 +199,7 @@ function invalidEvaluation(
     valid: false,
     reason,
     conflictingId,
-    halfExtentsMicrounits,
+    halfExtentsMicrounits: keyedHalfExtents(halfExtentsMicrounits),
   });
 }
 
@@ -240,7 +256,7 @@ export function evaluateInnerKeepPlacement(
     valid: true,
     reason: null,
     conflictingId: null,
-    halfExtentsMicrounits: halfExtents,
+    halfExtentsMicrounits: keyedHalfExtents(halfExtents),
   });
 }
 
