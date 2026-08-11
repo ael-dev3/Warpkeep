@@ -1,8 +1,10 @@
 import warpkeep from './schema';
+import { GREATER_REALM_RELOCATION_DORMANT_COMPILE_ANCHOR_V1 } from './greaterRealmRelocationDormant';
 
 // Compile the dormant, gate-false relocation core through the production
-// Spacetime bundler without registering reducers or generating client bindings.
-export { GREATER_REALM_RELOCATION_DORMANT_COMPILE_ANCHOR_V1 } from './greaterRealmRelocationDormant';
+// Spacetime bundler without exporting/registering reducers or generating
+// client bindings. SpacetimeDB rejects ordinary values from the module root.
+void GREATER_REALM_RELOCATION_DORMANT_COMPILE_ANCHOR_V1;
 
 export default warpkeep;
 

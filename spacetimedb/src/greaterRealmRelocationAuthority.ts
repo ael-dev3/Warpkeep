@@ -245,7 +245,10 @@ function requireStaticActivationState(
   let components = 0;
   for (const row of ctx.db.greaterRealmNavigationComponentV1.iter()) {
     components += 1;
-    if (components > release.expectedComponentCount || row.active !== expectedActive) {
+    // Component `active` is the immutable importer/finalizer verification bit,
+    // not a presentation switch. A ready release has every component true and
+    // relocation must preserve those finalized rows byte-for-byte.
+    if (components > release.expectedComponentCount || !row.active) {
       fail('GREATER_REALM_COMPONENT_ACTIVATION_INVALID');
     }
   }
@@ -306,12 +309,8 @@ function setStaticActivationState(
   active: boolean,
 ): void {
   requireStaticActivationState(ctx, !active);
-  const components = [...ctx.db.greaterRealmNavigationComponentV1.iter()];
   const slots = [...ctx.db.greaterRealmCastleSlotV1.iter()];
   const resources = [...ctx.db.greaterRealmResourceNodeV1.iter()];
-  for (const row of components) {
-    ctx.db.greaterRealmNavigationComponentV1.componentKey.update({ ...row, active });
-  }
   for (const row of slots) {
     ctx.db.greaterRealmCastleSlotV1.slotId.update({ ...row, active });
   }

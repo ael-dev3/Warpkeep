@@ -538,7 +538,7 @@ class Fixture {
       const componentKey = `GRC-${opaqueSuffix(regionIndex)}`;
       db.greaterRealmNavigationComponentV1.rows.push({
         componentKey, atlasId, componentOrdinal: regionIndex,
-        active: false,
+        active: true,
       });
       db.greaterRealmChunkV1.rows.push({
         chunkHandle: `GRK-${opaqueSuffix(regionIndex)}`,
@@ -655,7 +655,6 @@ function stateOutsideRelocationWrites(
   for (const row of result.realmV1!) delete row.active;
   for (const row of result.greaterRealmReleaseV1!) delete row.state;
   for (const tableName of [
-    'greaterRealmNavigationComponentV1',
     'greaterRealmCastleSlotV1',
     'greaterRealmResourceNodeV1',
   ]) {
@@ -1250,6 +1249,18 @@ test('v17 topology and frozen founder/worker identity drift reject canary before
   );
   assert.equal(stateText(finalizedReceipt), finalizedReceiptBefore);
 
+  const unverifiedComponent = new Fixture();
+  advanceToPlanned(unverifiedComponent);
+  unverifiedComponent.tables.greaterRealmNavigationComponentV1.rows[0]!.active = false;
+  const unverifiedComponentBefore = stateText(unverifiedComponent);
+  assert.equal(
+    errorCode(() => unverifiedComponent.transaction(
+      () => relocateGreaterRealmCanaryAuthorizedTransactionV1(unverifiedComponent.ctx),
+    )),
+    'GREATER_REALM_COMPONENT_ACTIVATION_INVALID',
+  );
+  assert.equal(stateText(unverifiedComponent), unverifiedComponentBefore);
+
   const planDrift = new Fixture();
   advanceToPlanned(planDrift);
   planDrift.tables.greaterRealmCastleClaimV1.rows[0]!.plannedAt = timestamp(10_001n);
@@ -1400,7 +1411,7 @@ test('full static row scans occur only at actual activation flips, never phase r
     fixture.transaction(() => relocateGreaterRealmCanaryAuthorizedTransactionV1(fixture.ctx)),
     'canary',
   );
-  assert.equal(componentIterations, 3);
+  assert.equal(componentIterations, 2);
   assert.equal(resourceIterations, 3);
   assert.equal(relocateGreaterRealmCanaryAuthorizedTransactionV1(fixture.ctx), 'unchanged');
   assert.equal(commitGreaterRealmActiveAuthorizedTransactionV1(fixture.ctx), 'active');
@@ -1409,7 +1420,7 @@ test('full static row scans occur only at actual activation flips, never phase r
   assert.equal(haltGreaterRealmActivationAuthorizedTransactionV1(fixture.ctx), 'unchanged');
   assert.equal(resumeGreaterRealmActiveAuthorizedTransactionV1(fixture.ctx), 'active');
   assert.equal(resumeGreaterRealmActiveAuthorizedTransactionV1(fixture.ctx), 'unchanged');
-  assert.equal(componentIterations, 3);
+  assert.equal(componentIterations, 2);
   assert.equal(resourceIterations, 3);
 
   const rollback = new Fixture();
@@ -1435,10 +1446,10 @@ test('full static row scans occur only at actual activation flips, never phase r
     rollback.transaction(() => rollbackGreaterRealmBeforeCommitAuthorizedTransactionV1(rollback.ctx)),
     'rolled-back',
   );
-  assert.equal(rollbackComponentIterations, 3);
+  assert.equal(rollbackComponentIterations, 2);
   assert.equal(rollbackResourceIterations, 3);
   assert.equal(rollbackGreaterRealmBeforeCommitAuthorizedTransactionV1(rollback.ctx), 'unchanged');
-  assert.equal(rollbackComponentIterations, 3);
+  assert.equal(rollbackComponentIterations, 2);
   assert.equal(rollbackResourceIterations, 3);
 });
 
