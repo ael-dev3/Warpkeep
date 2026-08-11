@@ -151,6 +151,7 @@ jobs:
           npm run stdb:build-v14-migration-fixture
           npm run stdb:verify-worker-migration
           npm run stdb:verify-access-request-migration
+          npm run stdb:verify-admission-cas-rehearsal
           npm run stdb:verify-additive-migration
 
       - name: Audit module dependencies
