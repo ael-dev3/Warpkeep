@@ -47,6 +47,8 @@ import {
   readFoundedPublishExpectations,
   requireCanonicalPublishCoordinates,
   requireEntryAgreementProductionRelease,
+  requireCurrentReviewOnlyProductionPublishReady,
+  requireGreaterRealmV17ProductionPublishReady,
   requireRealmChatV16ProductionPublishReady,
   requireReviewedAdditivePublicationLane,
   runCurrentAdditiveMigrationProof,
@@ -1610,6 +1612,7 @@ async function withTestProvenArtifact<T>(callback: (receipt: {
   v14TableSchemaDigest: string;
   v15TableSchemaDigest: string;
   v16TableSchemaDigest: string;
+  v17TableSchemaDigest: string;
   artifactDigest: string;
 }) => Promise<T> | T): Promise<T> {
   let previous: Buffer | undefined;
@@ -1629,6 +1632,7 @@ async function withTestProvenArtifact<T>(callback: (receipt: {
     v14TableSchemaDigest: 'd'.repeat(64),
     v15TableSchemaDigest: 'e'.repeat(64),
     v16TableSchemaDigest: 'f'.repeat(64),
+    v17TableSchemaDigest: '0'.repeat(64),
     artifactDigest: createHash('sha256').update(content).digest('hex'),
   });
   try {
@@ -3368,6 +3372,7 @@ describe('activation publish safety', () => {
         v14TableSchemaDigest: receipt.v14TableSchemaDigest,
         v15TableSchemaDigest: receipt.v15TableSchemaDigest,
         v16TableSchemaDigest: receipt.v16TableSchemaDigest,
+        v17TableSchemaDigest: receipt.v17TableSchemaDigest,
         artifactDigest: receipt.artifactDigest,
       })}\n`;
       const parsed = parseMigrationProofReceipt(success);
@@ -3424,6 +3429,10 @@ describe('activation publish safety', () => {
         '',
       ))).toThrow(/exact success receipt/i);
       expect(() => parseMigrationProofReceipt(success.replace(
+        ` v17_table_schema_sha256=${receipt.v17TableSchemaDigest}`,
+        '',
+      ))).toThrow(/exact success receipt/i);
+      expect(() => parseMigrationProofReceipt(success.replace(
         ` v11_table_schema_sha256=${receipt.v11TableSchemaDigest}`
           + ` v12_table_schema_sha256=${receipt.v12TableSchemaDigest}`,
         ` v12_table_schema_sha256=${receipt.v12TableSchemaDigest}`
@@ -3471,6 +3480,10 @@ describe('activation publish safety', () => {
         ...receipt,
         v16TableSchemaDigest: receipt.v16TableSchemaDigest.toUpperCase(),
       })).toThrow(/receipt was invalid/i);
+      expect(() => verifyMigrationArtifactReceipt({
+        ...receipt,
+        v17TableSchemaDigest: 'A'.repeat(64),
+      })).toThrow(/receipt was invalid/i);
       expect(() => verifyMigrationArtifactReceipt({ ...receipt, extra: true }))
         .toThrow(/receipt was invalid/i);
       await expect(publishModule(
@@ -3493,7 +3506,7 @@ describe('activation publish safety', () => {
     });
   });
 
-  it('retains the v15 rehearsal but hard-closes the review-only v16 artifact', () => {
+  it('retains earlier rehearsal guards and hard-closes the review-only v17 artifact', () => {
     const publisher = readFileSync(
       resolve(repositoryRoot, 'scripts/publish-spacetime-dev.mjs'),
       'utf8',
@@ -3512,7 +3525,7 @@ describe('activation publish safety', () => {
       'export async function executeProtocolV15InactivePublicationLane(',
     );
     const hardClose = publisher.indexOf(
-      'requireRealmChatV16ProductionPublishReady();',
+      'requireCurrentReviewOnlyProductionPublishReady();',
       laneDefinition,
     );
     const publish = publisher.indexOf(
@@ -3532,6 +3545,18 @@ describe('activation publish safety', () => {
     expect(publisher).toContain("'--delete-data=never'");
     expect(() => requireRealmChatV16ProductionPublishReady())
       .toThrow(/protocol v16 is review-only/i);
+    expect(() => requireGreaterRealmV17ProductionPublishReady())
+      .toThrow(/protocol v17 is review-only/i);
+    expect(() => requireCurrentReviewOnlyProductionPublishReady())
+      .toThrow(/protocol v17 is review-only/i);
+    const composite = publisher.slice(
+      publisher.indexOf('export function requireCurrentReviewOnlyProductionPublishReady()'),
+      publisher.indexOf('/**\n * Retain the reviewed active-v14', publisher.indexOf(
+        'export function requireCurrentReviewOnlyProductionPublishReady()',
+      )),
+    );
+    expect(composite).toContain('requireGreaterRealmV17ProductionPublishReady();');
+    expect(composite).toContain('requireRealmChatV16ProductionPublishReady();');
   });
 
   it('runs the inactive-v15 dry run as reads only and keeps publish behind all preflights', async () => {
@@ -3543,7 +3568,8 @@ describe('activation publish safety', () => {
       v14TableSchemaDigest: '4'.repeat(64),
       v15TableSchemaDigest: '5'.repeat(64),
       v16TableSchemaDigest: '6'.repeat(64),
-      artifactDigest: '7'.repeat(64),
+      v17TableSchemaDigest: '7'.repeat(64),
+      artifactDigest: '8'.repeat(64),
     });
     const expectations = Object.freeze({
       expectedEnabledAllowedFidCount: 3,
@@ -3630,7 +3656,7 @@ describe('activation publish safety', () => {
     await expect(executeProtocolV15InactivePublicationLane(
       { ...baseOptions, dryRun: false },
       dependencies,
-    )).rejects.toThrow(/protocol v16 is review-only/i);
+    )).rejects.toThrow(/protocol v17 is review-only/i);
     expect(publish).not.toHaveBeenCalled();
     expect(postSchema).not.toHaveBeenCalled();
     expect(postAggregate).not.toHaveBeenCalled();
@@ -3650,6 +3676,7 @@ describe('activation publish safety', () => {
         v14TableSchemaDigest: receipt.v14TableSchemaDigest,
         v15TableSchemaDigest: receipt.v15TableSchemaDigest,
         v16TableSchemaDigest: receipt.v16TableSchemaDigest,
+        v17TableSchemaDigest: receipt.v17TableSchemaDigest,
         artifactDigest: receipt.artifactDigest,
       })}\n`;
       const fakeSpawnSync = (...args: unknown[]) => {

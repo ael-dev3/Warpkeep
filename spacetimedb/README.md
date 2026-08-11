@@ -12,13 +12,14 @@ balance, advance a timer, or decide an expedition outcome.
 | Browser/backend wire protocol | 3 |
 | Player authentication contract | 2 |
 | Genesis world generation | 3 |
-| Append-only schema generation | 16 (review-only Realm Chat suffix) |
+| Append-only schema generation | 17 (review-only Greater Realm suffix) |
 | Alpha 0.3.12 suffix | Water refs 37–40; Stone refs 41–45 |
 | Generic worker suffix | refs 47–52; active |
 | Access-request suffix | ref 53; active |
 | Daily Marks suffix | private refs 54–55; activation is separate |
 | Inner Keep suffix | refs 56–63; inactive until separate seed, backfill, client, asset, and activation gates |
 | Realm Chat suffix | refs 64–71; review-only and not publishable or activatable by this build |
+| Greater Realm suffix | refs 72–83; migration rehearsal only, with import, activation, and publication hard-closed |
 
 Deployed tables retain their original declaration order and shape. Later
 features append new tables; they do not rename or delete existing data. The
@@ -85,6 +86,11 @@ remain private. A caller-authenticated procedure rechecks gameplay authority
 and active-channel state on every bounded recent read; generated browser
 bindings contain no recent table. Chat is disabled and collects no production
 data in this build.
+
+Greater Realm release, chunk, navigation, cell, slot, claim, resource, and
+activation rows are private. Only identity-minimized occupancy and inactive
+atlas, six-region aggregate, and worker-readiness projections are public. The
+schema adds no production release import, activation, or publication authority.
 
 The pinned SDK requires scheduled expedition rows to be public. Those rows are
 therefore deliberately minimal: schedule/stage identifiers, site, origin
@@ -213,6 +219,32 @@ new sends stop at 4,000 pending reports and new reports stop at 5,000. A
 proposed 90-day erasure/anonymization workflow remains unapproved and
 unimplemented release work; this schema adds no deletion scheduler.
 
+## Review-only Greater Realm migration boundary
+
+Schema generation 17 appends exactly twelve tables without changing refs 0–71:
+
+| Refs | Tables | Visibility and purpose |
+| ---: | --- | --- |
+| 72–77 | `greater_realm_release_v1` through `greater_realm_castle_claim_v1` | private release, chunk, navigation, cell, slot, and claim authority |
+| 78 | `greater_realm_cell_occupancy_v1` | public identity-minimized occupancy |
+| 79–80 | `greater_realm_resource_node_v1`, `greater_realm_activation_v1` | private resource and activation authority |
+| 81–83 | `realm_atlas_v1`, `realm_atlas_visible_region_v1`, `realm_worker_system_v2` | public inactive atlas, six-region aggregates, and worker readiness |
+
+`npm run stdb:verify-additive-migration` starts a disposable loopback server,
+builds and publishes the frozen v16 predecessor, seeds representative legacy
+Water, Inner Keep, and Chat rows, and records every predecessor-table row
+digest. It then installs the real v17 artifact, compares all 84 table
+signatures with the auth-neutral fixture, seeds one typed sentinel in each v17
+table, proves exact row preservation across an idempotent artifact republish,
+and rejects v17-to-v16 and older rollback attempts with deletion disabled. Its
+single success receipt binds the v11 through v17 schema digests and compiled
+artifact digest.
+
+This is local migration evidence only. The static publisher invokes an
+unconditional v17 fail-closed guard before its publish dependency; no Greater
+Realm import, finalization, activation, production publish, external database,
+or candidate-generation action is authorized by this flow.
+
 ## Entry agreement and Marks
 
 Entry and gameplay require the exact current Alpha Terms and Hegemony Social
@@ -290,9 +322,9 @@ See the
 [Inner Keep activation runbook](../docs/operations/inner-keep-activation.md)
 for the complete future owner-reviewed sequence. The publisher retains the
 active-v14-to-inactive-v15 contract as a read-only rehearsal, but the current
-v16 artifact has no production lane: every non-dry-run path fails before the
-publish dependency. A later change must add an exact inactive-v15 predecessor,
-protected Chat aggregates, and inactive-v16 postflight evidence. No command is
+v17 artifact has no production lane: every non-dry-run path fails before the
+publish dependency. A later change must add independently reviewed Greater
+Realm predecessor, aggregate, and postflight evidence. No command is
 authorized by this source PR.
 
 Component setup is separate from module publication and must be reviewed one

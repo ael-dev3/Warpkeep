@@ -6,6 +6,12 @@ full engineering record.
 
 ## [Unreleased]
 
+- Extended the deletion-disabled local additive migration rehearsal through
+  protocol v17 refs 72–83. It now proves all frozen v16 rows survive the real
+  Greater Realm artifact, binds typed suffix sentinels and exact schema
+  signatures into the receipt, rejects v17 rollback, and keeps production
+  import, activation, and publication authority hard-closed.
+
 - Made the long Castles, Workers, Resource Sites, and Public Water lists in
   **Explore** independently collapsible, with live result counts and sticky
   section controls that keep compact Realm navigation manageable.

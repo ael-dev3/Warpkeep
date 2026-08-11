@@ -3347,7 +3347,7 @@ function validateMigrationArtifactReceiptShape(receipt) {
     receipt === null
     || typeof receipt !== 'object'
     || Object.keys(receipt).sort().join(',')
-      !== 'artifactDigest,artifactPath,v11TableSchemaDigest,v12TableSchemaDigest,v13TableSchemaDigest,v14TableSchemaDigest,v15TableSchemaDigest,v16TableSchemaDigest'
+      !== 'artifactDigest,artifactPath,v11TableSchemaDigest,v12TableSchemaDigest,v13TableSchemaDigest,v14TableSchemaDigest,v15TableSchemaDigest,v16TableSchemaDigest,v17TableSchemaDigest'
     || receipt.artifactPath !== PROVEN_ARTIFACT_PATH
     || !SHA256_DIGEST.test(receipt.v11TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.v12TableSchemaDigest ?? '')
@@ -3355,6 +3355,7 @@ function validateMigrationArtifactReceiptShape(receipt) {
     || !SHA256_DIGEST.test(receipt.v14TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.v15TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.v16TableSchemaDigest ?? '')
+    || !SHA256_DIGEST.test(receipt.v17TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.artifactDigest ?? '')
   ) {
     fail('The additive migration proof artifact receipt was invalid.');
@@ -3367,6 +3368,7 @@ function validateMigrationArtifactReceiptShape(receipt) {
     v14TableSchemaDigest: receipt.v14TableSchemaDigest,
     v15TableSchemaDigest: receipt.v15TableSchemaDigest,
     v16TableSchemaDigest: receipt.v16TableSchemaDigest,
+    v17TableSchemaDigest: receipt.v17TableSchemaDigest,
     artifactDigest: receipt.artifactDigest,
   });
 }
@@ -3381,8 +3383,8 @@ export function verifyMigrationArtifactReceipt(receipt) {
 }
 
 /**
- * The current artifact contains review-only protocol v16. Preserve the
- * inherited v15 argument contract for read-only rehearsal while all real v16
+ * The current artifact contains review-only protocol v17. Preserve the
+ * inherited v15 argument contract for read-only rehearsal while all real v17
  * publication remains fail closed below.
  */
 export function requireReviewedAdditivePublicationLane(
@@ -3397,7 +3399,7 @@ export function requireReviewedAdditivePublicationLane(
     || innerKeepPublicationStage
       !== INNER_KEEP_PUBLICATION_STAGE.APPEND_INACTIVE
   ) {
-    fail('Protocol-v16 review requires the explicit exact-v14-active predecessor and append-inactive stage inherited from v15; no publish was attempted.');
+    fail('Protocol-v17 review requires the explicit exact-v14-active predecessor and append-inactive stage inherited from v15; no publish was attempted.');
   }
   return validated;
 }
@@ -3417,6 +3419,7 @@ export function parseMigrationProofReceipt(output) {
     v14TableSchemaDigest: proofReceipt.v14TableSchemaDigest,
     v15TableSchemaDigest: proofReceipt.v15TableSchemaDigest,
     v16TableSchemaDigest: proofReceipt.v16TableSchemaDigest,
+    v17TableSchemaDigest: proofReceipt.v17TableSchemaDigest,
     artifactDigest: proofReceipt.artifactDigest,
   });
 }
@@ -4884,8 +4887,27 @@ export function requireRealmChatV16ProductionPublishReady() {
 }
 
 /**
+ * Protocol v17 is a review-only Greater Realm append. Migration rehearsal may
+ * inspect the compiled artifact on an isolated loopback database, but this
+ * publisher has no authority to import, activate, or publish it in production.
+ */
+export function requireGreaterRealmV17ProductionPublishReady() {
+  fail('Greater Realm protocol v17 is review-only and cannot be published by this build.');
+}
+
+/**
+ * Both appended review boundaries remain independently unresolved. Keep them
+ * composed so approving or removing either one can never authorize a publish
+ * while the other still fails closed.
+ */
+export function requireCurrentReviewOnlyProductionPublishReady() {
+  requireGreaterRealmV17ProductionPublishReady();
+  requireRealmChatV16ProductionPublishReady();
+}
+
+/**
  * Retain the reviewed active-v14 -> inactive-v15 lane as a read-only rehearsal.
- * The v16 artifact cannot use this predecessor contract for a real publish;
+ * The v17 artifact cannot use this predecessor contract for a real publish;
  * the explicit fail-closed guard below runs before the publish dependency.
  */
 export async function executeProtocolV15InactivePublicationLane(
@@ -4979,7 +5001,7 @@ export async function executeProtocolV15InactivePublicationLane(
     });
   }
 
-  requireRealmChatV16ProductionPublishReady();
+  requireCurrentReviewOnlyProductionPublishReady();
 
   await (dependencies.publishModule ?? publishModule)(
     options.executable,

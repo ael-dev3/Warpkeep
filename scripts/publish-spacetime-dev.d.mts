@@ -43,6 +43,7 @@ export interface MigrationArtifactReceipt {
   readonly v14TableSchemaDigest: string;
   readonly v15TableSchemaDigest: string;
   readonly v16TableSchemaDigest: string;
+  readonly v17TableSchemaDigest: string;
   readonly artifactDigest: string;
 }
 
@@ -79,6 +80,8 @@ export function requireEntryAgreementProductionRelease(
   dryRun?: boolean,
 ): void;
 export function requireRealmChatV16ProductionPublishReady(): never;
+export function requireGreaterRealmV17ProductionPublishReady(): never;
+export function requireCurrentReviewOnlyProductionPublishReady(): never;
 export function requireReviewedAdditivePublicationLane(
   receipt: MigrationArtifactReceipt,
   innerKeepModulePredecessor?: string,

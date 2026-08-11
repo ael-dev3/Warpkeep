@@ -204,6 +204,9 @@ jobs:
           pnpm --dir spacetimedb run verify
           npm run stdb:verify-bindings
           npm run stdb:build-v14-migration-fixture
+          npm run stdb:build-v15-migration-fixture
+          npm run stdb:build-v16-migration-fixture
+          npm run stdb:build-v17-migration-fixture
           npm run stdb:verify-worker-migration
           npm run stdb:verify-access-request-migration
           npm run stdb:verify-admission-cas-rehearsal

@@ -70,7 +70,7 @@ test('v13 through v15 remain frozen prefixes before the v16 Realm Chat append', 
   );
 });
 
-test('general rehearsal retains v15 schema and row preservation inside v16', () => {
+test('general rehearsal retains v15 schema and row preservation inside v17', () => {
   const proof = source('../../scripts/verify-spacetime-additive-migration.mjs');
   const receipt = source('../../scripts/spacetime-additive-migration-proof.mjs');
 
@@ -92,7 +92,7 @@ test('general rehearsal retains v15 schema and row preservation inside v16', () 
   assert.match(proof, /value\.startsWith\('--delete-data='/);
   assert.doesNotMatch(proof, /--delete-data=(?:always|on-conflict|if-required)/);
 
-  assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 16/);
+  assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 17/);
   assert.match(receipt, /const V13_TABLE_SCHEMA_RECEIPT_FIELD = 'v13_table_schema_sha256'/);
   assert.match(receipt, /v13TableSchemaDigest/);
   assert.match(receipt, /const V14_TABLE_SCHEMA_RECEIPT_FIELD = 'v14_table_schema_sha256'/);
@@ -101,6 +101,8 @@ test('general rehearsal retains v15 schema and row preservation inside v16', () 
   assert.match(receipt, /v15TableSchemaDigest/);
   assert.match(receipt, /const V16_TABLE_SCHEMA_RECEIPT_FIELD = 'v16_table_schema_sha256'/);
   assert.match(receipt, /v16TableSchemaDigest/);
+  assert.match(receipt, /const V17_TABLE_SCHEMA_RECEIPT_FIELD = 'v17_table_schema_sha256'/);
+  assert.match(receipt, /v17TableSchemaDigest/);
 });
 
 test('connected rehearsal contains the bounded private request lifecycle', () => {
@@ -164,7 +166,7 @@ test('connected rehearsal contains the bounded private request lifecycle', () =>
   assert.match(proof, /final fresh founder access request/);
 
   assert.ok(invocation >= 0);
-  assert.match(finalOwnerRead, /additiveV16SchemaFixture/);
+  assert.match(finalOwnerRead, /additiveV17SchemaFixture/);
   assert.match(finalOwnerRead, /tableRowDigests\([\s\S]*deployedV12Tables/);
   assert.match(finalOwnerRead, /access_request_v1 WHERE fid = \$\{syntheticMissingAccessRequestFid\}/);
   assert.match(finalOwnerRead, /access_request_v1 WHERE fid = \$\{syntheticSecondAccessRequestFid\}/);
@@ -182,7 +184,7 @@ test('dedicated Worker v11-to-v12 proof remains a separate frozen boundary', () 
   assert.doesNotMatch(verifier, /additive-v13-schema|accessRequestV1/);
 });
 
-test('workspace metadata includes frozen v13 through v15 and current v16 fixtures', () => {
+test('workspace metadata includes frozen v13 through v16 and current v17 fixtures', () => {
   assert.match(
     source('../migration-fixtures/additive-v13-schema/package.json'),
     /warpkeep-additive-v13-schema-migration-fixture/,
@@ -214,5 +216,13 @@ test('workspace metadata includes frozen v13 through v15 and current v16 fixture
   assert.match(
     source('../pnpm-lock.yaml'),
     /migration-fixtures\/additive-v16-schema:/,
+  );
+  assert.match(
+    source('../migration-fixtures/additive-v17-schema/package.json'),
+    /warpkeep-additive-v17-schema-migration-fixture/,
+  );
+  assert.match(
+    source('../pnpm-lock.yaml'),
+    /migration-fixtures\/additive-v17-schema:/,
   );
 });
