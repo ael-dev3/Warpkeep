@@ -637,14 +637,18 @@ function assertIntegerRange(value: number, minimum: number, maximum: number, cod
 
 function hasExactKeys(
   value: unknown,
-  required: readonly string[],
+  ordered: readonly string[],
   optional: readonly string[] = [],
 ): value is Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
-  const actual = Object.keys(value).sort();
-  const allowed = new Set([...required, ...optional]);
-  return required.every(key => Object.hasOwn(value, key))
-    && actual.every(key => allowed.has(key));
+  const optionalKeys = new Set(optional);
+  const actual = Object.keys(value);
+  const expected = ordered.filter(key => (
+    !optionalKeys.has(key) || Object.hasOwn(value, key)
+  ));
+  return ordered.every(key => optionalKeys.has(key) || Object.hasOwn(value, key))
+    && actual.length === expected.length
+    && actual.every((key, index) => key === expected[index]);
 }
 
 function integerInRange(value: unknown, minimum: number, maximum: number): value is number {
@@ -2474,6 +2478,7 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
   const cells: GreaterRealmRuntimeCell[] = [];
   const slots: GreaterRealmRuntimeSlot[] = [];
   const nodes: GreaterRealmRuntimeResourceNode[] = [];
+  let expectedRawCellOrdinal = 0;
   for (let index = 0; index < descriptors.length; index += 1) {
     const descriptor = descriptors[index]!;
     const path = String(descriptor.path);
@@ -2627,6 +2632,17 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
         256,
       )
     ) fail('GREATER_REALM_RUNTIME_RELEASE_CHUNK_INVALID');
+    const coreCellKeys = new Set(chunk.payload.cells.map(cell => cell?.cellKey));
+    for (const cell of chunk.payload.cells) {
+      if (cell?.releaseOrdinal !== expectedRawCellOrdinal) {
+        fail('GREATER_REALM_RUNTIME_RELEASE_CHUNK_INVALID');
+      }
+      expectedRawCellOrdinal += 1;
+    }
+    if (
+      chunk.payload.castleSlots.some(slot => !coreCellKeys.has(slot?.cellKey))
+      || chunk.payload.resourceNodes.some(node => !coreCellKeys.has(node?.cellKey))
+    ) fail('GREATER_REALM_RUNTIME_RELEASE_CHUNK_INVALID');
     const parsed = parsedJson(chunk.bytes, 'GREATER_REALM_RUNTIME_RELEASE_CHUNK_INVALID');
     assertNoPrivateReleaseMaterial(parsed);
     if (JSON.stringify(parsed) !== JSON.stringify(chunk.payload)) {
@@ -2670,6 +2686,7 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
         'atlasId',
         'chunkHandle',
         'regionId',
+        'componentKey',
         'localQ',
         'localR',
         'atlasQ',
@@ -2681,6 +2698,7 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
         'aspect',
         'profileCurvature',
         'planCurvature',
+        'ridgeId',
         'geologicalBarrierBand',
         'biomeClass',
         'landformClass',
@@ -2688,11 +2706,15 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
         'movementCost',
         'sealedBoundaryMask',
         'hydroRegime',
+        'hydroBodyId',
         'hydroDepthClass',
         'hydroSurfaceMilli',
+        'hydroFlowDirection',
         'flowAccumulation',
         'bankVariant',
         'hydrologyRevision',
+        'routeParentDirection',
+        'routeDepth',
         'travelClass',
         'wetness',
         'exposure',
@@ -2994,6 +3016,7 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
         'regionOrderRank',
         'allocationRank',
         'active',
+        'legacySlotId',
       ], ['legacySlotId'])
       || !/^GRS-[A-Z2-7]{26}$/u.test(slot.slotId)
       || publicSlotIds.has(slot.slotId)
@@ -3058,6 +3081,7 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
         'tier',
         'nodeOrdinal',
         'allocationRank',
+        'legacyCatalogId',
         'policyVersion',
         'active',
       ], ['legacyCatalogId'])
