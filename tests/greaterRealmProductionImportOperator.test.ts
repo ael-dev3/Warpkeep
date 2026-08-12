@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { createHash } from 'node:crypto';
+import { chmodSync, mkdtempSync, rmSync } from 'node:fs';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -14,7 +15,11 @@ import type {
   GreaterRealmRuntimeReleaseArtifacts,
 } from '../scripts/atlas/greater-realm-runtime-release';
 import type { GreaterRealmProductionCutoverStatus } from '../scripts/greater-realm-production-relocation-core';
-import { parseGreaterRealmProductionImportArguments } from '../scripts/greater-realm-production-import-operator';
+import {
+  greaterRealmProductionImportOperatorTestSeams,
+  parseGreaterRealmProductionImportArguments,
+} from '../scripts/greater-realm-production-import-operator';
+import { withGreaterRealmCutoverOperatorLock } from '../scripts/greater-realm-cutover-receipts';
 
 const DIGEST = 'a'.repeat(64);
 const VERIFY_DIGEST = 'b'.repeat(64);
@@ -216,6 +221,7 @@ function fakeTransport(options: Readonly<{
   throwAfterReducer?: string;
   throwBeforeReducer?: string;
   initialStatus?: GreaterRealmProductionImportStatus;
+  afterReducer?: (reducer: string, submissionCount: number) => void;
 }> = {}) {
   let status = { ...(options.initialStatus ?? absentStatus()) };
   let digestSequence = 0;
@@ -353,6 +359,7 @@ function fakeTransport(options: Readonly<{
     submissions.push(reducer);
     if (options.throwBeforeReducer === reducer) throw new Error('transport rejected');
     apply(reducer);
+    options.afterReducer?.(reducer, submissions.length);
     if (options.throwAfterReducer === reducer) throw new Error('response lost');
   });
   return {
@@ -371,6 +378,7 @@ async function execute(transport = fakeTransport()) {
     importEpoch: IMPORT_EPOCH,
     publicName: 'The Greater Realm',
     transport,
+    assertCanStartWrite: () => undefined,
     testOnlyDependencies: testDependencies(),
   });
   return { receipt, transport };
@@ -437,6 +445,45 @@ describe('Greater Realm production runtime-release importer', () => {
     expect(result.receipt.operationsSubmitted).toBe(19);
   });
 
+  it('reconciles an in-flight write after SIGTERM but refuses to start the next write', async () => {
+    const directory = mkdtempSync('/private/tmp/warpkeep-gr-import-signal-');
+    chmodSync(directory, 0o700);
+    const transport = fakeTransport({
+      afterReducer: (_reducer, submissionCount) => {
+        if (submissionCount === 1) process.emit('SIGTERM');
+      },
+    });
+    try {
+      await expect(withGreaterRealmCutoverOperatorLock({
+        directory,
+        repositoryRoot: process.cwd(),
+        operation: control => executeGreaterRealmProductionImport({
+          artifacts: artifacts(),
+          moduleSourceCommit: MODULE_SOURCE_COMMIT,
+          importEpoch: IMPORT_EPOCH,
+          publicName: 'The Greater Realm',
+          transport,
+          assertCanStartWrite: control.assertCanStartWrite,
+          testOnlyDependencies: testDependencies(),
+        }),
+      })).rejects.toThrow(/GREATER_REALM_CUTOVER_OPERATOR_INTERRUPTED_SIGTERM/);
+      expect(transport.submit).toHaveBeenCalledTimes(1);
+      expect(transport.submissions).toEqual([
+        GREATER_REALM_PRODUCTION_IMPORT_REDUCERS.stage,
+      ]);
+      // Initial + first prewrite + first postflight + second prewrite. The
+      // reconciled first mutation is observed before the second permit fails.
+      expect(transport.inspect).toHaveBeenCalledTimes(4);
+      expect(transport.inspectAuthority).toHaveBeenCalledTimes(4);
+      expect(transport.readStatus()).toMatchObject({
+        present: true,
+        state: 'importing',
+      });
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it('accepts repeated same-command verification progress and reconciles lost responses', async () => {
     const transport = fakeTransport({
       throwAfterReducer: GREATER_REALM_PRODUCTION_IMPORT_REDUCERS.verifyBatch,
@@ -485,6 +532,7 @@ describe('Greater Realm production runtime-release importer', () => {
         importEpoch: IMPORT_EPOCH,
         publicName: 'The Greater Realm',
         transport: { inspect, inspectAuthority, submit },
+        assertCanStartWrite: () => undefined,
         testOnlyDependencies: testDependencies(),
       })).rejects.toBeInstanceOf(Error);
       expect(submit).not.toHaveBeenCalled();
@@ -499,6 +547,7 @@ describe('Greater Realm production runtime-release importer', () => {
       importEpoch: IMPORT_EPOCH,
       publicName: 'The Greater Realm',
       transport,
+      assertCanStartWrite: () => undefined,
       testOnlyDependencies: {
         verifyArtifacts: vi.fn(),
         projectAuthorityStatus: value => ({
@@ -521,6 +570,7 @@ describe('Greater Realm production runtime-release importer', () => {
       importEpoch: IMPORT_EPOCH,
       publicName: 'The Greater Realm',
       transport,
+      assertCanStartWrite: () => undefined,
       testOnlyDependencies: testDependencies(),
     })).rejects.toMatchObject({ code: 'GREATER_REALM_PRODUCTION_IMPORT_INPUT_INVALID' });
     expect(transport.inspect).not.toHaveBeenCalled();
@@ -540,5 +590,59 @@ describe('Greater Realm production runtime-release importer', () => {
       ...absentStatus(),
       componentRows: 1n,
     })).toThrow(/STATUS_INCONSISTENT/);
+  });
+
+  it('reconstructs a truthful recovery receipt from the terminal snapshot and full operation chain without executing a driver', () => {
+    const reconstruct = greaterRealmProductionImportOperatorTestSeams
+      .reconstructRecoveredImportReceipt;
+    const sourceRelease = Object.freeze({
+      atlasSourceCommit: ATLAS_SOURCE_COMMIT,
+      moduleSourceCommit: MODULE_SOURCE_COMMIT,
+      atlasId: 'GREATER_REALM_V1',
+      publicReleaseId: 'GRR-AAAAAAAAAAAAAAAAAAAAAAAAAA',
+      expectedReleaseSha256: DIGEST,
+    });
+    const terminal = Object.freeze({
+      state: 'ready', verificationPhase: 'complete', verificationCursor: '0',
+      verificationDigest: VERIFY_DIGEST, importsExact: true, ready: true,
+    });
+    const audit = Object.freeze({
+      releaseState: 'ready', verificationPhase: 'complete', verificationCursor: '0',
+      verificationDigest: VERIFY_DIGEST, releaseImportsExact: true, releaseReady: true,
+      auditRows: '9',
+    });
+    const result = reconstruct({
+      command: Object.freeze({ kind: 'import', name: 'apply' }),
+      sourceRelease,
+      beforeStatus: Object.freeze({ ...terminal, state: 'verifying', ready: false }),
+      beforeAudit: Object.freeze({ ...audit, releaseState: 'verifying', releaseReady: false }),
+      afterStatus: terminal,
+      afterAudit: audit,
+      operations: Object.freeze([Object.freeze({
+        operationOrdinal: 1,
+        planDigest: '1'.repeat(64),
+        operation: Object.freeze({
+          kind: 'reducer', name: GREATER_REALM_PRODUCTION_IMPORT_REDUCERS.finalize,
+          argumentsDigest: '2'.repeat(64), argumentsByteLength: 2, argumentsRedacted: true,
+          identity: Object.freeze({
+            reducer: GREATER_REALM_PRODUCTION_IMPORT_REDUCERS.finalize,
+            importEpoch: '1',
+          }),
+        }),
+        beforeStatus: Object.freeze({}), beforeAudit: Object.freeze({}),
+        afterStatus: Object.freeze({}), afterAudit: Object.freeze({}),
+        outcome: 'recovered-after-owner-death',
+        completionReceiptDigest: '3'.repeat(64),
+      })]),
+      operationReceiptChainDigest: '3'.repeat(64),
+      operationReceiptCount: 1,
+      outcome: 'recovered-after-owner-death',
+    });
+    expect(result.record).toMatchObject({
+      outcome: 'verified-after-submission-error',
+      verificationDigest: VERIFY_DIGEST,
+      operationsSubmitted: 1,
+      operationReceiptCount: 1,
+    });
   });
 });

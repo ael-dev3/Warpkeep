@@ -19,7 +19,7 @@ import {
   writeSync,
 } from 'node:fs';
 import type { Stats } from 'node:fs';
-import { homedir } from 'node:os';
+import { userInfo } from 'node:os';
 import {
   basename,
   dirname,
@@ -470,7 +470,7 @@ function writeAll(
 }
 
 export function defaultGreaterRealmPrivateWorkspaceRoot(): string {
-  return join(homedir(), '.warpkeep', 'private', 'greater-realm');
+  return join(userInfo().homedir, '.warpkeep', 'private', 'greater-realm');
 }
 
 function exactCanonicalPublicRepositoryEnvironmentEntry(

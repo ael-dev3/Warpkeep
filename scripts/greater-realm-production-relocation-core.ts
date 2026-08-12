@@ -1,5 +1,14 @@
 import { createHash } from 'node:crypto';
 
+import { isGreaterRealmCutoverWriteNotStartedError } from './greater-realm-cutover-write-control';
+import {
+  createGreaterRealmCutoverExpectedAfterPredicate,
+  emptyGreaterRealmCutoverOperationReceiptChain,
+  type GreaterRealmCutoverExpectedAfterRule,
+  type GreaterRealmCutoverOperationJournalChain,
+} from './greater-realm-cutover-operation-journal';
+import { GREATER_REALM_CUTOVER_RECEIPT_TARGET } from './greater-realm-cutover-receipts';
+
 export const GREATER_REALM_PRODUCTION_CUTOVER_STATUS_PROCEDURE =
   'admin_get_greater_realm_cutover_status_v_1' as const;
 
@@ -163,6 +172,8 @@ export type GreaterRealmProductionRelocationReceipt = Readonly<{
   topologySnapshotDigest?: string;
   relocationPlanDigest?: string;
   statusDigest: string;
+  operationReceiptChainDigest: string;
+  operationReceiptCount: number;
 }>;
 
 export type GreaterRealmProductionRelocationTransport = Readonly<{
@@ -170,6 +181,7 @@ export type GreaterRealmProductionRelocationTransport = Readonly<{
   submit: (
     reducer: GreaterRealmProductionRelocationReducer,
     arguments_: Readonly<Record<never, never>>,
+    assertCanStartWrite: () => void,
   ) => Promise<void>;
 }>;
 
@@ -537,6 +549,63 @@ function assertPostcondition(
   }
 }
 
+export function projectGreaterRealmProductionRelocationJournalStatus(
+  command: MutationCommand,
+  status: GreaterRealmProductionCutoverStatus,
+): Readonly<Record<string, unknown>> {
+  return Object.freeze({
+    activationMode: status.activationMode,
+    releaseState: status.releaseState,
+    ...(command === 'commit' || command === 'resume' || command === 'rollback'
+      ? {
+          everActive: status.everActive,
+          rollbackEligible: status.rollbackEligible,
+          resumeEligible: status.resumeEligible,
+        }
+      : {}),
+  });
+}
+
+function relocationExpectedAfterPredicate(input: Readonly<{
+  command: MutationCommand;
+  before: GreaterRealmProductionCutoverStatus;
+  moduleSourceCommit: string;
+}>) {
+  const statusRules: Record<string, GreaterRealmCutoverExpectedAfterRule> = {
+    activationMode: Object.freeze({
+      rule: 'equals', value: targetMode(input.command, input.before),
+    }),
+    releaseState: Object.freeze({
+      rule: 'equals',
+      value: input.command === 'canary' ? 'canary'
+        : input.command === 'commit' || input.command === 'resume' ? 'active'
+          : input.command === 'halt' ? 'halted'
+            : input.command === 'rollback' ? 'ready'
+              : input.before.releaseState,
+    }),
+  };
+  if (input.command === 'commit') {
+    statusRules.everActive = Object.freeze({ rule: 'equals', value: true });
+    statusRules.rollbackEligible = Object.freeze({ rule: 'equals', value: false });
+    statusRules.resumeEligible = Object.freeze({ rule: 'equals', value: false });
+  } else if (input.command === 'resume') {
+    statusRules.everActive = Object.freeze({ rule: 'equals', value: true });
+    statusRules.resumeEligible = Object.freeze({ rule: 'equals', value: false });
+  } else if (input.command === 'rollback') {
+    statusRules.everActive = Object.freeze({ rule: 'equals', value: false });
+    statusRules.rollbackEligible = Object.freeze({ rule: 'equals', value: false });
+    statusRules.resumeEligible = Object.freeze({ rule: 'equals', value: false });
+  }
+  return createGreaterRealmCutoverExpectedAfterPredicate({
+    moduleSourceCommit: input.moduleSourceCommit,
+    contract: `relocation-${input.command}-v1`,
+    statusRules,
+    auditRules: Object.freeze({
+      auditRows: Object.freeze({ rule: 'integer-delta', delta: '1' }),
+    }),
+  });
+}
+
 function canonicalStatus(status: GreaterRealmProductionCutoverStatus): string {
   return JSON.stringify(Object.fromEntries(Object.entries(status)
     .sort(([left], [right]) => left.localeCompare(right))
@@ -588,6 +657,10 @@ function receipt(input: Readonly<{
   moduleSourceCommit: string;
   before: GreaterRealmProductionCutoverStatus;
   after: GreaterRealmProductionCutoverStatus;
+  operationReceiptChain: Readonly<{
+    operationReceiptChainDigest: string;
+    operationReceiptCount: number;
+  }>;
 }>): GreaterRealmProductionRelocationReceipt {
   return Object.freeze({
     schemaVersion: 1,
@@ -616,6 +689,7 @@ function receipt(input: Readonly<{
     topologySnapshotDigest: input.after.topologySnapshotDigest,
     relocationPlanDigest: input.after.relocationPlanDigest,
     statusDigest: statusDigest(input.after),
+    ...input.operationReceiptChain,
   });
 }
 
@@ -629,6 +703,8 @@ export async function executeGreaterRealmProductionRelocation(input: Readonly<{
   expectedReleaseSha256: string;
   moduleSourceCommit: string;
   transport: GreaterRealmProductionRelocationTransport;
+  assertCanStartWrite: () => void;
+  operationJournal?: GreaterRealmCutoverOperationJournalChain;
 }>): Promise<GreaterRealmProductionRelocationReceipt> {
   if (!Object.values(GREATER_REALM_PRODUCTION_RELOCATION_COMMAND).includes(input.command)) {
     fail('GREATER_REALM_PRODUCTION_RELOCATION_COMMAND_INVALID');
@@ -651,6 +727,18 @@ export async function executeGreaterRealmProductionRelocation(input: Readonly<{
     publicReleaseId: input.expectedPublicReleaseId,
     expectedReleaseSha256: input.expectedReleaseSha256,
   });
+  const operationReceiptChain = () => input.operationJournal?.summary()
+    ?? emptyGreaterRealmCutoverOperationReceiptChain({
+      command: Object.freeze({ kind: 'relocation', name: input.command }),
+      target: GREATER_REALM_CUTOVER_RECEIPT_TARGET,
+      sourceRelease: Object.freeze({
+        atlasSourceCommit: input.expectedAtlasSourceCommit,
+        moduleSourceCommit: input.moduleSourceCommit,
+        atlasId: input.expectedAtlasId,
+        publicReleaseId: input.expectedPublicReleaseId,
+        expectedReleaseSha256: input.expectedReleaseSha256,
+      }),
+    });
   let before: GreaterRealmProductionCutoverStatus;
   try {
     before = projectGreaterRealmProductionCutoverStatus(await input.transport.inspect());
@@ -671,11 +759,38 @@ export async function executeGreaterRealmProductionRelocation(input: Readonly<{
       moduleSourceCommit: input.moduleSourceCommit,
       before,
       after: before,
+      operationReceiptChain: operationReceiptChain(),
     });
   }
   assertCommandPrecondition(input.command, before);
   const reducer = GREATER_REALM_PRODUCTION_RELOCATION_REDUCERS[input.command];
-  if (commandIsAlreadySatisfied(input.command, before)) {
+  const alreadySatisfied = commandIsAlreadySatisfied(input.command, before);
+  const terminalExpectedAfterPredicate = alreadySatisfied
+    ? createGreaterRealmCutoverExpectedAfterPredicate({
+        moduleSourceCommit: input.moduleSourceCommit,
+        contract: `relocation-${input.command}-already-satisfied-v1`,
+        statusRules: Object.freeze(Object.fromEntries(Object.entries(
+          projectGreaterRealmProductionRelocationJournalStatus(input.command, before),
+        ).map(([field, value]) => [field, Object.freeze({ rule: 'equals' as const, value })]))),
+        auditRules: Object.freeze({
+          auditRows: Object.freeze({ rule: 'integer-delta', delta: '0' }),
+        }),
+      })
+    : relocationExpectedAfterPredicate({
+        command: input.command,
+        before,
+        moduleSourceCommit: input.moduleSourceCommit,
+      });
+  input.operationJournal?.bindCommandPlan({
+    beforeStatus: projectGreaterRealmProductionRelocationJournalStatus(input.command, before),
+    beforeAudit: Object.freeze({ auditRows: before.auditRows }),
+    terminalExpectedAfterPredicate,
+  });
+  if (alreadySatisfied) {
+    input.operationJournal?.reconcileCommand({
+      afterStatus: projectGreaterRealmProductionRelocationJournalStatus(input.command, before),
+      afterAudit: Object.freeze({ auditRows: before.auditRows }),
+    });
     return receipt({
       command: input.command,
       reducer,
@@ -688,6 +803,7 @@ export async function executeGreaterRealmProductionRelocation(input: Readonly<{
       publicReleaseId: input.expectedPublicReleaseId,
       expectedReleaseSha256: input.expectedReleaseSha256,
       moduleSourceCommit: input.moduleSourceCommit,
+      operationReceiptChain: operationReceiptChain(),
     });
   }
 
@@ -704,10 +820,42 @@ export async function executeGreaterRealmProductionRelocation(input: Readonly<{
   }
   assertCommandPrecondition(input.command, fresh);
 
+  const journalOperation = await input.operationJournal?.prepare({
+    operationKind: 'reducer',
+    operationName: reducer,
+    arguments: Object.freeze({}),
+    identity: Object.freeze({ reducer, command: input.command }),
+    beforeStatus: projectGreaterRealmProductionRelocationJournalStatus(input.command, fresh),
+    beforeAudit: Object.freeze({ auditRows: fresh.auditRows }),
+    expectedAfterPredicate: relocationExpectedAfterPredicate({
+      command: input.command,
+      before: fresh,
+      moduleSourceCommit: input.moduleSourceCommit,
+    }),
+  });
+
   let submissionFailed = false;
+  input.assertCanStartWrite();
   try {
-    await input.transport.submit(reducer, Object.freeze({}));
-  } catch {
+    await input.transport.submit(
+      reducer,
+      Object.freeze({}),
+      journalOperation?.writePermit ?? input.assertCanStartWrite,
+    );
+  } catch (error) {
+    if (isGreaterRealmCutoverWriteNotStartedError(error)) {
+      await journalOperation?.abandonAfterRejectedPermit(error, async () => {
+        const observed = projectGreaterRealmProductionCutoverStatus(
+          await input.transport.inspect(),
+        );
+        assertExpectedAtlasRelease(observed, expectedAtlasRelease);
+        return Object.freeze({
+          status: projectGreaterRealmProductionRelocationJournalStatus(input.command as MutationCommand, observed),
+          audit: Object.freeze({ auditRows: observed.auditRows }),
+        });
+      });
+      throw error;
+    }
     submissionFailed = true;
   }
   let after: GreaterRealmProductionCutoverStatus;
@@ -724,6 +872,15 @@ export async function executeGreaterRealmProductionRelocation(input: Readonly<{
     if (error instanceof GreaterRealmProductionRelocationError) throw error;
     fail('GREATER_REALM_PRODUCTION_RELOCATION_POSTCONDITION_FAILED', true);
   }
+  await journalOperation?.reconcile({
+    afterStatus: projectGreaterRealmProductionRelocationJournalStatus(input.command, after),
+    afterAudit: Object.freeze({ auditRows: after.auditRows }),
+    outcome: submissionFailed ? 'verified-after-submission-error' : 'verified',
+  });
+  input.operationJournal?.reconcileCommand({
+    afterStatus: projectGreaterRealmProductionRelocationJournalStatus(input.command, after),
+    afterAudit: Object.freeze({ auditRows: after.auditRows }),
+  });
   return receipt({
     command: input.command,
     reducer,
@@ -736,6 +893,7 @@ export async function executeGreaterRealmProductionRelocation(input: Readonly<{
     moduleSourceCommit: input.moduleSourceCommit,
     before: fresh,
     after,
+    operationReceiptChain: operationReceiptChain(),
   });
 }
 

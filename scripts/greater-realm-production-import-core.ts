@@ -8,6 +8,14 @@ import {
   projectGreaterRealmProductionCutoverStatusShape,
   type GreaterRealmProductionCutoverStatus,
 } from './greater-realm-production-relocation-core';
+import { isGreaterRealmCutoverWriteNotStartedError } from './greater-realm-cutover-write-control';
+import {
+  createGreaterRealmCutoverExpectedAfterPredicate,
+  emptyGreaterRealmCutoverOperationReceiptChain,
+  type GreaterRealmCutoverExpectedAfterRule,
+  type GreaterRealmCutoverOperationJournalChain,
+} from './greater-realm-cutover-operation-journal';
+import { GREATER_REALM_CUTOVER_RECEIPT_TARGET } from './greater-realm-cutover-receipts';
 
 export const GREATER_REALM_PRODUCTION_IMPORT_REDUCERS = Object.freeze({
   stage: 'admin_stage_greater_realm_release_v1',
@@ -71,10 +79,13 @@ export type GreaterRealmProductionImportTransport = Readonly<{
   inspect: () => Promise<unknown>;
   /** Independent exact release-identity/status projection transaction. */
   inspectAuthority: () => Promise<unknown>;
+  /** May bounded-wait for credentials only before an operation WAL is prepared. */
+  prepareSubmission?: () => Promise<void>;
   /** One reducer transaction; transport failures are never retried here. */
   submit: (
     reducer: GreaterRealmProductionImportReducer,
     arguments_: Readonly<Record<string, unknown>>,
+    assertCanStartWrite: () => void,
   ) => Promise<void>;
 }>;
 
@@ -95,6 +106,8 @@ export type GreaterRealmProductionImportReceipt = Readonly<{
   expectedReleaseSha256: string;
   verificationDigest: string;
   operationsSubmitted: number;
+  operationReceiptChainDigest: string;
+  operationReceiptCount: number;
   postcondition: 'ready-import-only';
 }>;
 
@@ -579,6 +592,63 @@ function readyPostcondition(
     && status.workerSystemRows === 0n;
 }
 
+export function projectGreaterRealmProductionImportCommandJournalStatus(
+  status: GreaterRealmProductionImportStatus,
+): Readonly<Record<string, unknown>> {
+  return Object.freeze({
+    state: status.state,
+    verificationPhase: status.verificationPhase,
+    verificationCursor: status.verificationCursor,
+    verificationDigest: status.verificationDigest,
+    importsExact: status.importsExact,
+    ready: status.ready,
+  });
+}
+
+export function projectGreaterRealmProductionImportCommandJournalAudit(
+  status: GreaterRealmProductionCutoverStatus,
+): Readonly<Record<string, unknown>> {
+  return Object.freeze({
+    releaseState: status.releaseState,
+    verificationPhase: status.verificationPhase,
+    verificationCursor: status.verificationCursor,
+    verificationDigest: status.verificationDigest,
+    releaseImportsExact: status.releaseImportsExact,
+    releaseReady: status.releaseReady,
+    auditRows: status.auditRows,
+  });
+}
+
+function importCommandExpectedAfterPredicate(moduleSourceCommit: string) {
+  return createGreaterRealmCutoverExpectedAfterPredicate({
+    moduleSourceCommit,
+    contract: 'import-apply-command-terminal-v1',
+    statusRules: Object.freeze({
+      state: equalsRule('ready'),
+      verificationPhase: equalsRule('complete'),
+      verificationCursor: equalsRule(0n),
+      verificationDigest: Object.freeze({
+        rule: 'matches' as const, pattern: 'verify-digest' as const, mustChange: false,
+      }),
+      importsExact: equalsRule(true),
+      ready: equalsRule(true),
+    }),
+    auditRules: Object.freeze({
+      releaseState: equalsRule('ready'),
+      verificationPhase: equalsRule('complete'),
+      verificationCursor: equalsRule(0n),
+      verificationDigest: Object.freeze({
+        rule: 'matches' as const, pattern: 'verify-digest' as const, mustChange: false,
+      }),
+      releaseImportsExact: equalsRule(true),
+      releaseReady: equalsRule(true),
+      auditRows: Object.freeze({
+        rule: 'matches' as const, pattern: 'u64-decimal' as const, mustChange: false,
+      }),
+    }),
+  });
+}
+
 type PlannedImportOperation = Readonly<{
   reducer: GreaterRealmProductionImportReducer;
   arguments: Readonly<Record<string, unknown>>;
@@ -898,6 +968,141 @@ function planNextOperation(
   fail('GREATER_REALM_PRODUCTION_IMPORT_STATE_NOT_RESUMABLE');
 }
 
+const equalsRule = (value: unknown): GreaterRealmCutoverExpectedAfterRule => (
+  Object.freeze({ rule: 'equals', value })
+);
+const deltaRule = (delta: bigint | number): GreaterRealmCutoverExpectedAfterRule => (
+  Object.freeze({ rule: 'integer-delta', delta: delta.toString() })
+);
+const changedDigestRule = (pattern: 'sha256' | 'verify-digest'): GreaterRealmCutoverExpectedAfterRule => (
+  Object.freeze({ rule: 'matches', pattern, mustChange: true })
+);
+
+function importExpectedAfterPredicate(input: Readonly<{
+  operation: PlannedImportOperation;
+  before: GreaterRealmProductionImportStatus;
+  beforeAuthority: GreaterRealmProductionCutoverStatus;
+  authority: ImportAuthority;
+  artifacts: GreaterRealmRuntimeReleaseArtifacts;
+  importEpoch: bigint;
+  moduleSourceCommit: string;
+}>) {
+  const statusRules: Record<string, GreaterRealmCutoverExpectedAfterRule> = {};
+  const auditRules: Record<string, GreaterRealmCutoverExpectedAfterRule> = {};
+  const statusEquals = (field: string, value: unknown) => { statusRules[field] = equalsRule(value); };
+  const auditEquals = (field: string, value: unknown) => { auditRules[field] = equalsRule(value); };
+  const statusDelta = (field: string, value: bigint | number) => { statusRules[field] = deltaRule(value); };
+  const auditDelta = (field: string, value: bigint | number) => { auditRules[field] = deltaRule(value); };
+  const mirrorEquals = (statusField: string, auditField: string, value: unknown) => {
+    statusEquals(statusField, value);
+    auditEquals(auditField, value);
+  };
+  const mirrorDelta = (statusField: string, auditField: string, value: bigint | number) => {
+    statusDelta(statusField, value);
+    auditDelta(auditField, value);
+  };
+  const { operation, before, beforeAuthority, authority } = input;
+  if (operation.reducer === GREATER_REALM_PRODUCTION_IMPORT_REDUCERS.stage) {
+    mirrorEquals('present', 'releasePresent', true);
+    auditDelta('releaseRows', 1);
+    mirrorEquals('state', 'releaseState', 'importing');
+    mirrorEquals('atlasId', 'atlasId', authority.atlasId);
+    mirrorEquals('publicReleaseId', 'publicReleaseId', authority.publicReleaseId);
+    mirrorEquals('importEpoch', 'importEpoch', input.importEpoch);
+    statusRules.verificationDigest = changedDigestRule('verify-digest');
+    auditRules.verificationDigest = changedDigestRule('verify-digest');
+    for (const [statusField, auditField, value] of [
+      ['expectedComponentCount', 'expectedComponentCount', authority.totals.componentCount],
+      ['expectedChunkCount', 'expectedChunkCount', authority.totals.chunkCount],
+      ['expectedCellCount', 'expectedCellCount', authority.totals.cellCount],
+      ['expectedSlotCount', 'expectedSlotCount', authority.totals.castleSlotCount],
+      ['expectedResourceNodeCount', 'expectedResourceNodeCount', authority.totals.resourceNodeCount],
+    ] as const) mirrorEquals(statusField, auditField, value);
+    auditEquals('sourceCommit', authority.sourceCommit);
+    auditEquals('expectedReleaseSha256', authority.releaseSha256);
+    auditEquals('releaseHeaderSha256', sha256(authority.headerJson));
+  } else if (operation.reducer === GREATER_REALM_PRODUCTION_IMPORT_REDUCERS.components) {
+    const rows = operation.arguments.rows as readonly Readonly<Record<string, unknown>>[];
+    const sum = (field: string) => rows.reduce((total, row) => (
+      total + Number(row[field])
+    ), 0);
+    mirrorDelta('componentRows', 'componentRows', rows.length);
+    auditDelta('componentExpectedCellCount', sum('expectedCellCount'));
+    auditDelta('componentExpectedSlotCount', sum('expectedSlotCount'));
+    auditDelta('componentExpectedResourceNodeCount',
+      sum('expectedFoodNodeCount') + sum('expectedWoodNodeCount')
+        + sum('expectedStoneNodeCount') + sum('expectedGoldNodeCount'));
+  } else if (operation.reducer === GREATER_REALM_PRODUCTION_IMPORT_REDUCERS.regions) {
+    const rows = operation.arguments.rows as readonly unknown[];
+    mirrorDelta('regionManifestRows', 'regionManifestRows', rows.length);
+  } else if (operation.reducer === GREATER_REALM_PRODUCTION_IMPORT_REDUCERS.chunk) {
+    const chunk = input.artifacts.chunks[Number(before.chunkRows)]!;
+    const { cells, castleSlots, resourceNodes } = chunk.payload;
+    mirrorDelta('chunkRows', 'chunkRows', 1);
+    mirrorDelta('cellRows', 'cellRows', cells.length);
+    mirrorDelta('slotRows', 'slotRows', castleSlots.length);
+    mirrorDelta('resourceRows', 'resourceNodeRows', resourceNodes.length);
+    const exactAfter = before.chunkRows + 1n === BigInt(authority.totals.chunkCount)
+      && before.cellRows + BigInt(cells.length) === BigInt(authority.totals.cellCount)
+      && before.slotRows + BigInt(castleSlots.length) === BigInt(authority.totals.castleSlotCount)
+      && before.resourceRows + BigInt(resourceNodes.length)
+        === BigInt(authority.totals.resourceNodeCount)
+      && before.componentRows === BigInt(authority.totals.componentCount)
+      && before.regionManifestRows === authority.totals.regionCount;
+    mirrorEquals('importsExact', 'releaseImportsExact', exactAfter);
+    auditDelta('importedPassableCellCount', cells.filter(cell => cell.passable).length);
+  } else if (operation.reducer === GREATER_REALM_PRODUCTION_IMPORT_REDUCERS.beginVerification) {
+    mirrorEquals('state', 'releaseState', 'verifying');
+    mirrorEquals('verificationPhase', 'verificationPhase', 'components');
+    mirrorEquals('verificationCursor', 'verificationCursor', 0n);
+    statusRules.verificationDigest = changedDigestRule('verify-digest');
+    auditRules.verificationDigest = changedDigestRule('verify-digest');
+  } else if (operation.reducer === GREATER_REALM_PRODUCTION_IMPORT_REDUCERS.verifyBatch) {
+    const requestedRows = Number(operation.arguments.requestedRows);
+    const phase = before.verificationPhase;
+    const total = phase === 'components' || phase === 'component-slots'
+      || phase === 'component-resources' || phase === 'component-finalize'
+      ? before.expectedComponentCount
+      : phase === 'chunks' ? before.expectedChunkCount
+        : phase === 'cells' ? before.expectedCellCount
+          : phase === 'slots' ? before.expectedSlotCount
+            : before.expectedResourceNodeCount;
+    const start = Number(before.verificationCursor);
+    const end = Math.min(total, start + requestedRows);
+    const reachedEnd = end === total;
+    const nextPhase = reachedEnd
+      ? VERIFICATION_PHASE_ORDER[VERIFICATION_PHASE_ORDER.indexOf(phase) + 1]!
+      : phase;
+    mirrorEquals('verificationPhase', 'verificationPhase', nextPhase);
+    mirrorEquals('verificationCursor', 'verificationCursor', BigInt(reachedEnd ? 0 : end));
+    statusRules.verificationDigest = Object.freeze({
+      rule: 'matches', pattern: 'verify-digest', mustChange: end !== start,
+    });
+    auditRules.verificationDigest = Object.freeze({
+      rule: 'matches', pattern: 'verify-digest', mustChange: end !== start,
+    });
+    const verifiedField = phase === 'components' ? 'verifiedComponentCount'
+      : phase === 'chunks' ? 'verifiedChunkCount'
+        : phase === 'cells' ? 'verifiedCellCount'
+          : phase === 'slots' ? 'verifiedSlotCount'
+            : phase === 'resources' ? 'verifiedResourceNodeCount'
+              : undefined;
+    if (verifiedField !== undefined) auditEquals(verifiedField, end);
+  } else {
+    mirrorEquals('state', 'releaseState', 'ready');
+    mirrorEquals('ready', 'releaseReady', true);
+  }
+  // Bind fields that the semantic postcondition requires to stay unchanged
+  // explicitly through the evaluator's every-unruled-field rule.
+  void beforeAuthority;
+  return createGreaterRealmCutoverExpectedAfterPredicate({
+    moduleSourceCommit: input.moduleSourceCommit,
+    contract: `import-${operation.reducer}-v1`,
+    statusRules,
+    auditRules,
+  });
+}
+
 function receipt(
   outcome: GreaterRealmProductionImportOutcome,
   authority: ImportAuthority,
@@ -905,6 +1110,10 @@ function receipt(
   status: GreaterRealmProductionImportStatus,
   operationsSubmitted: number,
   moduleSourceCommit: string,
+  operationReceiptChain: Readonly<{
+    operationReceiptChainDigest: string;
+    operationReceiptCount: number;
+  }>,
 ): GreaterRealmProductionImportReceipt {
   return Object.freeze({
     schemaVersion: 1,
@@ -918,6 +1127,7 @@ function receipt(
     expectedReleaseSha256: authority.releaseSha256,
     verificationDigest: status.verificationDigest,
     operationsSubmitted,
+    ...operationReceiptChain,
     postcondition: 'ready-import-only',
   });
 }
@@ -933,6 +1143,8 @@ export async function executeGreaterRealmProductionImport(input: Readonly<{
   importEpoch: bigint;
   publicName: string;
   transport: GreaterRealmProductionImportTransport;
+  assertCanStartWrite: () => void;
+  operationJournal?: GreaterRealmCutoverOperationJournalChain;
   maximumOperations?: number;
   testOnlyDependencies?: Readonly<{
     verifyArtifacts?: (artifacts: GreaterRealmRuntimeReleaseArtifacts) => void;
@@ -959,6 +1171,18 @@ export async function executeGreaterRealmProductionImport(input: Readonly<{
   );
   const projectAuthorityStatus = input.testOnlyDependencies?.projectAuthorityStatus
     ?? projectGreaterRealmProductionCutoverStatusShape;
+  const operationReceiptChain = () => input.operationJournal?.summary()
+    ?? emptyGreaterRealmCutoverOperationReceiptChain({
+      command: Object.freeze({ kind: 'import', name: 'apply' }),
+      target: GREATER_REALM_CUTOVER_RECEIPT_TARGET,
+      sourceRelease: Object.freeze({
+        atlasSourceCommit: authority.sourceCommit,
+        moduleSourceCommit: input.moduleSourceCommit,
+        atlasId: authority.atlasId,
+        publicReleaseId: authority.publicReleaseId,
+        expectedReleaseSha256: authority.releaseSha256,
+      }),
+    });
   let checkpoint = await inspectBoundImportStatus({
     transport: input.transport,
     authority,
@@ -968,9 +1192,19 @@ export async function executeGreaterRealmProductionImport(input: Readonly<{
     projectAuthorityStatus,
   });
   let status = checkpoint.status;
+  input.operationJournal?.bindCommandPlan({
+    beforeStatus: projectGreaterRealmProductionImportCommandJournalStatus(status),
+    beforeAudit: projectGreaterRealmProductionImportCommandJournalAudit(checkpoint.authorityStatus),
+    terminalExpectedAfterPredicate: importCommandExpectedAfterPredicate(input.moduleSourceCommit),
+  });
   if (readyPostcondition(status, authority, input.importEpoch)) {
+    input.operationJournal?.reconcileCommand({
+      afterStatus: projectGreaterRealmProductionImportCommandJournalStatus(status),
+      afterAudit: projectGreaterRealmProductionImportCommandJournalAudit(checkpoint.authorityStatus),
+    });
     return receipt(
       'already-ready', authority, input.importEpoch, status, 0, input.moduleSourceCommit,
+      operationReceiptChain(),
     );
   }
 
@@ -988,6 +1222,10 @@ export async function executeGreaterRealmProductionImport(input: Readonly<{
       if (!readyPostcondition(status, authority, input.importEpoch)) {
         fail('GREATER_REALM_PRODUCTION_IMPORT_READY_POSTCONDITION_FAILED', operationsSubmitted > 0);
       }
+      input.operationJournal?.reconcileCommand({
+        afterStatus: projectGreaterRealmProductionImportCommandJournalStatus(status),
+        afterAudit: projectGreaterRealmProductionImportCommandJournalAudit(checkpoint.authorityStatus),
+      });
       return receipt(
         recoveredSubmissionError ? 'verified-after-submission-error' : 'ready',
         authority,
@@ -995,6 +1233,7 @@ export async function executeGreaterRealmProductionImport(input: Readonly<{
         status,
         operationsSubmitted,
         input.moduleSourceCommit,
+        operationReceiptChain(),
       );
     }
 
@@ -1022,13 +1261,61 @@ export async function executeGreaterRealmProductionImport(input: Readonly<{
       || canonicalJsonText(freshOperation.arguments) !== canonicalJsonText(operation.arguments)
     ) {
       status = freshBefore;
+      checkpoint = freshBeforeCheckpoint;
       continue;
     }
 
+    // Credential/budget waiting is permitted only at the durable command
+    // checkpoint, before an operation journal exists or a write is in flight.
+    await input.transport.prepareSubmission?.();
+
+    const journalOperation = await input.operationJournal?.prepare({
+      operationKind: 'reducer',
+      operationName: operation.reducer,
+      arguments: operation.arguments,
+      identity: Object.freeze({
+        reducer: operation.reducer,
+        importEpoch: input.importEpoch.toString(),
+      }),
+      beforeStatus: freshBefore,
+      beforeAudit: freshBeforeCheckpoint.authorityStatus,
+      expectedAfterPredicate: importExpectedAfterPredicate({
+        operation,
+        before: freshBefore,
+        beforeAuthority: freshBeforeCheckpoint.authorityStatus,
+        authority,
+        artifacts: input.artifacts,
+        importEpoch: input.importEpoch,
+        moduleSourceCommit: input.moduleSourceCommit,
+      }),
+    });
+
     let submissionFailed = false;
+    input.assertCanStartWrite();
     try {
-      await input.transport.submit(operation.reducer, operation.arguments);
-    } catch {
+      await input.transport.submit(
+        operation.reducer,
+        operation.arguments,
+        journalOperation?.writePermit ?? input.assertCanStartWrite,
+      );
+    } catch (error) {
+      if (isGreaterRealmCutoverWriteNotStartedError(error)) {
+        await journalOperation?.abandonAfterRejectedPermit(error, async () => {
+          const observed = await inspectBoundImportStatus({
+            transport: input.transport,
+            authority,
+            importEpoch: input.importEpoch,
+            unavailableCode: 'GREATER_REALM_PRODUCTION_IMPORT_REJECTED_PERMIT_RECHECK_UNAVAILABLE',
+            submitted: operationsSubmitted > 0,
+            projectAuthorityStatus,
+          });
+          return Object.freeze({
+            status: observed.status,
+            audit: observed.authorityStatus,
+          });
+        });
+        throw error;
+      }
       submissionFailed = true;
     }
     operationsSubmitted += 1;
@@ -1042,6 +1329,7 @@ export async function executeGreaterRealmProductionImport(input: Readonly<{
       projectAuthorityStatus,
     });
     status = afterCheckpoint.status;
+    checkpoint = afterCheckpoint;
     const advanced = importOperationPostcondition({
       operation,
       before: freshBefore,
@@ -1059,8 +1347,17 @@ export async function executeGreaterRealmProductionImport(input: Readonly<{
         true,
       );
     }
+    await journalOperation?.reconcile({
+      afterStatus: status,
+      afterAudit: afterCheckpoint.authorityStatus,
+      outcome: submissionFailed ? 'verified-after-submission-error' : 'verified',
+    });
     if (submissionFailed) recoveredSubmissionError = true;
     if (readyPostcondition(status, authority, input.importEpoch)) {
+      input.operationJournal?.reconcileCommand({
+        afterStatus: projectGreaterRealmProductionImportCommandJournalStatus(status),
+        afterAudit: projectGreaterRealmProductionImportCommandJournalAudit(afterCheckpoint.authorityStatus),
+      });
       return receipt(
         recoveredSubmissionError ? 'verified-after-submission-error' : 'ready',
         authority,
@@ -1068,6 +1365,7 @@ export async function executeGreaterRealmProductionImport(input: Readonly<{
         status,
         operationsSubmitted,
         input.moduleSourceCommit,
+        operationReceiptChain(),
       );
     }
   }

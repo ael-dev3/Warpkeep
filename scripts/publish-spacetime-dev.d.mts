@@ -47,6 +47,14 @@ export interface MigrationArtifactReceipt {
   readonly artifactDigest: string;
 }
 
+export class SpacetimePublishContainmentError extends Error {
+  readonly code: string;
+  readonly nonReconcilable: true;
+}
+export function isSpacetimePublishContainmentError(
+  error: unknown,
+): error is SpacetimePublishContainmentError;
+
 export function alphaV8AggregateChildArguments(...args: any[]): any;
 export function alphaV10AggregateChildArguments(...args: any[]): any;
 export function alphaV12AggregateChildArguments(...args: any[]): any;
@@ -65,12 +73,72 @@ export function executeProtocolV15InactivePublicationLane(...args: any[]): Promi
 export function innerKeepV15InspectChildArguments(...args: any[]): any;
 export function parseCanonicalSchemaDescription(...args: any[]): any;
 export function parseMigrationProofReceipt(...args: any[]): any;
+export function parseMigrationProofReceiptAtExactPath(
+  output: string,
+  artifactPath: string,
+): Readonly<MigrationArtifactReceipt>;
 export function parsePublishArguments(...args: any[]): any;
+export type GreaterRealmPublishSupervisorIdentity = Readonly<{
+  schemaVersion: 1;
+  profile: 'warpkeep-greater-realm-publish-supervisor-v1';
+  supervisorId: string;
+  supervisorDirectory: string;
+}>;
+export type GreaterRealmPublishSupervisorPlan = Readonly<{
+  identity: GreaterRealmPublishSupervisorIdentity;
+  allocate: () => void;
+  start: (...args: any[]) => Promise<any>;
+  release: () => Promise<void>;
+  cleanup: () => Promise<void>;
+  executionState: () => Readonly<{ error?: unknown; closed?: unknown }>;
+}>;
+export function planGreaterRealmPublishSupervisor(
+  supervisorRoot: string,
+  cliConfigSourcePath: string,
+  testOnlyCrash?: Readonly<{
+    state: string;
+    boundary: 'final-installed' | 'temporary-created' | 'linked' | 'post-unlink';
+  }>,
+): GreaterRealmPublishSupervisorPlan;
+export function inspectGreaterRealmPublishSupervisor(
+  identity: GreaterRealmPublishSupervisorIdentity,
+): Readonly<{
+  identity: GreaterRealmPublishSupervisorIdentity;
+  status: Readonly<Record<string, unknown>>;
+  processGroupExists: boolean;
+  incompleteInstallZeroWrite: boolean;
+  temporaries: readonly Readonly<Record<string, unknown>>[];
+  phases: readonly Readonly<Record<string, unknown>>[];
+  cliAuthority: Readonly<{
+    cliConfigPath: string;
+    cliRootDirectory: string;
+    cliConfigDigest?: string;
+    staged: boolean;
+  }>;
+}>;
+export function authorizeGreaterRealmPublishExactBeforeClear(
+  identity: GreaterRealmPublishSupervisorIdentity,
+): boolean;
+export function cleanupGreaterRealmPublishSupervisor(
+  identity: GreaterRealmPublishSupervisorIdentity,
+  testOnlyStopAfter?: 'config-removed' | 'root-removed' | 'prior-phases-removed',
+): void;
 export function planWorkerV12CodePublication(...args: any[]): any;
 export function publishPostV12AggregateChildArguments(...args: any[]): any;
 export function publishPreV12AggregateChildArguments(...args: any[]): any;
 export function publishChildEnvironment(...args: any[]): any;
-export function publishModule(...args: any[]): any;
+export function publishModule(
+  spacetimeCommand: string,
+  targetDatabase: string,
+  artifactReceipt: MigrationArtifactReceipt,
+  spawnProcess?: (...args: any[]) => any,
+  assertCanStartWrite?: (() => void) & Readonly<{
+    markSubmissionUncertain?: () => Promise<void>;
+  }>,
+  expectedPrivateArtifactPath?: string,
+  prepareWrite?: () => Promise<void>,
+  publishSupervisor?: GreaterRealmPublishSupervisorPlan,
+): Promise<void>;
 export function readFoundedPublishExpectations(
   source?: Record<string, string | undefined>,
 ): Readonly<FoundedPublishExpectations>;

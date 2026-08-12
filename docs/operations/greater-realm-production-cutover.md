@@ -11,7 +11,7 @@ This runbook describes the guarded tooling for the additive v14-to-v17 cutover. 
 - Candidate: exact additive v17, 84 tables; all 56 predecessor signatures unchanged
 - Runtime capacity: 600 castles, six regions, 600 active slots, and 12,000 active resource nodes
 
-No alias, target override, environment-carried administrator secret, destructive publish, or unknown status field is accepted. Administrator credentials are read only from a bounded private stdin pipe when `WARPKEEP_ADMIN_TOKEN_SECRET_STDIN=1`.
+No alias, target override, environment-carried administrator secret, destructive publish, or unknown status field is accepted. The reviewed launch envelope receives only the canonical absolute path of an owner-private administrator-secret file. The commit-bound operator opens that file with the exact no-follow, owner, mode, link-count, size, and descriptor/path identity checks only after local provenance, artifact, plan, and operator-lock checks. Git, dependency, proof, and publish-preparation children never inherit the secret bytes or descriptor.
 
 The local repository must be the exact clean protected `main` commit and equal the canonical origin's current `refs/heads/main`. That branch, HEAD, configured and resolved origin, remote ref, and clean-tree proof all use the pinned trusted Git runner with inherited path, configuration, hook, fsmonitor, and replace-object controls removed. The pinned SpacetimeDB CLI and current additive migration proof are re-attested before publication. Runtime-release provenance has two deliberately separate identities:
 
@@ -44,24 +44,24 @@ The generic publisher still marks protocol v17 review-only. This cutover tooling
 
 Every publisher lane attempts `publishModule` exactly once. Success and submission error both invalidate the pre-publish websocket before postflight, so reconciliation uses one newly authenticated session connection and never races a delayed disconnect signal. Historical preflight and postflight inspections share those sessions; the complete lane needs two bridge-token requests, below the six-per-five-minute limit.
 
-Invocation shape after a future approval change:
-
-```sh
-WARPKEEP_ADMIN_TOKEN_SECRET_STDIN=1 \
-  npm run stdb:greater-realm:publish -- <lane> --confirm < /secure/admin-secret
-```
+Publication is available only through the exact `publish` row of the reviewed
+[production launch envelope](./greater-realm-production-launch-envelope.sh.txt).
+That row binds the protected commit/tree/bootstrap approvals, pinned Node and
+SpacetimeDB CLI identities, owner-private administrator and Maincloud CLI
+credential paths, four reviewed aggregate counts, and the selected lane before
+the commit-bound operator may run. The `stdb:greater-realm:publish` npm alias is
+an intentional refusal stub during the cutover and must never be used as a
+fallback.
 
 ## Runtime-release import
 
-Inspection is read-only; apply is resumable:
-
-```sh
-WARPKEEP_ADMIN_TOKEN_SECRET_STDIN=1 \
-  npm run stdb:greater-realm:import:inspect < /secure/admin-secret
-
-WARPKEEP_ADMIN_TOKEN_SECRET_STDIN=1 \
-  npm run stdb:greater-realm:import:apply < /secure/admin-secret
-```
+Inspection, confirmed apply, recovery inspection, and confirmed recovery are
+available only through their exact import rows in the reviewed
+[production launch envelope](./greater-realm-production-launch-envelope.sh.txt).
+The import npm aliases are intentional refusal stubs. Recovery inspection is a
+local authority read and opens no credential; confirmed recovery opens an
+administrator secret only if the freshly re-inspected recovery mode actually
+requires an authenticated journal resume.
 
 Every operation reads both the bounded import status and the full cutover status as independent procedure transactions on one owner-scoped, serialized administrator session. The frozen generated cutover procedure wire name is `admin_get_greater_realm_cutover_status_v_1`; the nine reducer wires retain their `_v1` spelling. The session reuses one bridge token/connection, rotates before 180 seconds, enforces the bridge's six-token-per-five-minute budget locally, and disconnects and clears its references in `finally`. The two projections must agree, and the latter must bind the exact selected artifact tuple, canonical header SHA-256, epoch, totals, cursors, and counts. Import receipts label both `atlasSourceCommit` and `moduleSourceCommit`; they are never equated after the inert append. Batches are manifest-derived and bounded to 128 components, six regions, one immutable chunk payload, or 256 verification rows. The driver is capped at 4,096 submitted operations.
 
@@ -71,15 +71,13 @@ Ready means import enabled, activation disabled, full verification complete, exa
 
 ## Relocation phases
 
-Run one explicit phase at a time. Inspect and archive the receipt before proceeding:
-
-```sh
-WARPKEEP_ADMIN_TOKEN_SECRET_STDIN=1 \
-  npm run stdb:greater-realm:relocation -- inspect < /secure/admin-secret
-
-WARPKEEP_ADMIN_TOKEN_SECRET_STDIN=1 \
-  npm run stdb:greater-realm:relocation -- prepare --confirm < /secure/admin-secret
-```
+Run one explicit phase at a time through the exact relocation row in the
+reviewed
+[production launch envelope](./greater-realm-production-launch-envelope.sh.txt),
+then inspect and archive the receipt before proceeding. The relocation npm
+alias is an intentional refusal stub. The same envelope provides local recovery
+inspection and digest-confirmed recovery; it never falls back to direct `tsx`
+or a mutable worktree.
 
 The forward sequence is `prepare → begin-drain → freeze → plan → canary → commit`. `halt` is available from a nonterminal phase, `resume` only from halted-after-active, and `rollback` only before the first active commit while rollback remains eligible. Repeat the command form above for the selected phase.
 
@@ -89,13 +87,12 @@ After canary, require zero legacy claims/occupied tiles; v17 claims and occupanc
 
 ## Production verification and Pages
 
-The legacy production verifier remains capped at 100 founders. The additive v17 verifier uses the administrator cutover projection and independently accepts an explicit expected count from 1 through 600:
-
-```sh
-WARPKEEP_ADMIN_TOKEN_SECRET_STDIN=1 \
-  npm run verify:greater-realm-production -- --expected-founder-count=600 \
-  < /secure/admin-secret
-```
+The legacy production verifier remains capped at 100 founders. The additive
+v17 verifier uses the administrator cutover projection and independently
+accepts an explicit expected count from 1 through 600. It is available only
+through the exact verifier row in the reviewed
+[production launch envelope](./greater-realm-production-launch-envelope.sh.txt);
+the `verify:greater-realm-production` npm alias is an intentional refusal stub.
 
 It requires the exact active release/activation/atlas/v2-Worker graph, full selected artifact tuple, independently attested module commit, imported static counts, legacy evacuation, population/account/worker aggregates, relocation-versus-founded split, region distribution, and matching v1/v2 roster digests. Admission must be open below 600 and closed at 600.
 

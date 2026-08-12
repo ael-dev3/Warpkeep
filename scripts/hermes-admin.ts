@@ -1,6 +1,14 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import {
+  closeSync,
+  constants,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readFileSync,
+  realpathSync,
+} from 'node:fs';
+import { dirname, isAbsolute, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import type {
@@ -41,6 +49,10 @@ import {
   verifyAlphaComponentSeedPrecondition,
 } from './alpha-activation-controls';
 import { configureHermesMachineOutput } from './hermes-machine-output';
+import {
+  assertProductionAdminTrustedAncestors,
+  recordProductionAdminTokenAttempt,
+} from './production-admin-token-budget.mjs';
 import {
   AlphaV10ActivationControlError,
   alphaV10ComponentIsReady,
@@ -134,6 +146,24 @@ type Command =
   | 'seed-alpha-component'
   | 'activate-alpha-water'
   | 'backfill-resources';
+
+type HermesTrustedReleaseRow =
+  | 'admit-dry'
+  | 'admit-confirm'
+  | 'allow-dry'
+  | 'allow-confirm'
+  | 'notification-inspect'
+  | 'notification-recover-dry'
+  | 'notification-recover-confirm';
+
+type TrustedHermesLaunch = Readonly<{
+  row: HermesTrustedReleaseRow;
+  adminSecretPath?: string;
+  notificationSecretPath?: string;
+  privateInputPath?: string;
+  founderPlanDirectory?: string;
+  notificationRecoveryPlanDirectory?: string;
+}>;
 
 type AlphaStatusVersion = 'v1' | 'v2' | 'v3' | 'v4' | 'v8' | 'v10' | 'v12';
 type SeedableAlphaComponent = AlphaActivationComponent | AlphaV10ActivationComponent;
@@ -452,13 +482,18 @@ function sanitizeNote(value: string | undefined, fallback?: string) {
 }
 
 export function readAdminSecret(value: string | undefined, fromStdin: string | undefined) {
+  const descriptorText = process.env.WARPKEEP_ADMIN_TOKEN_SECRET_FD;
+  const descriptor = descriptorText === undefined ? 0 : descriptorText === '3' ? 3 : -1;
+  if (descriptor < 0 || (descriptorText !== undefined && fromStdin !== undefined)) {
+    fail('The Hermes credential source was ambiguous.');
+  }
   if (fromStdin !== undefined && fromStdin !== '1') {
     fail('WARPKEEP_ADMIN_TOKEN_SECRET_STDIN must be exactly 1 when configured.');
   }
-  if (fromStdin === '1') {
+  if (fromStdin === '1' || descriptorText !== undefined) {
     if (value !== undefined) fail('The Hermes credential source was ambiguous.');
     try {
-      value = readFileSync(0, 'utf8');
+      value = readFileSync(descriptor, 'utf8');
     } catch {
       fail('The Hermes credential pipe was unavailable.');
     }
@@ -468,6 +503,238 @@ export function readAdminSecret(value: string | undefined, fromStdin: string | u
     fail('WARPKEEP_ADMIN_TOKEN_SECRET must contain 32 to 512 bytes.');
   }
   return value as string;
+}
+
+type CapturedTrustedHermesLaunch = Readonly<{
+  row: HermesTrustedReleaseRow;
+  adminSecretPath?: string;
+  notificationSecretPath?: string;
+  privateInputPath?: string;
+  founderPlanDirectory?: string;
+  notificationRecoveryPlanDirectory?: string;
+}>;
+
+function trustedHermesReleaseRow(input: Readonly<{
+  command: Command;
+  dryRun: boolean;
+}>): HermesTrustedReleaseRow | undefined {
+  if (input.command === 'admit-founder') return input.dryRun ? 'admit-dry' : 'admit-confirm';
+  if (input.command === 'allow-fid') return input.dryRun ? 'allow-dry' : 'allow-confirm';
+  if (input.command === 'inspect-admission-notification') return 'notification-inspect';
+  if (input.command === 'recover-admission-notification') {
+    return input.dryRun ? 'notification-recover-dry' : 'notification-recover-confirm';
+  }
+  return undefined;
+}
+
+function captureTrustedHermesLaunch(
+  expectedRow: HermesTrustedReleaseRow | undefined,
+): CapturedTrustedHermesLaunch | undefined {
+  const profile = process.env.WKGR_PRODUCTION_BOOTSTRAP_PROFILE;
+  const row = process.env.WKGR_HERMES_RELEASE_COMMAND;
+  const adminSecretPath = process.env.WKGR_PRODUCTION_ADMIN_SECRET_PATH;
+  const notificationSecretPath = process.env.WKGR_PRODUCTION_NOTIFICATION_SECRET_PATH;
+  const privateInputPath = process.env.WKGR_PRODUCTION_PRIVATE_INPUT_PATH;
+  const founderPlanDirectory = process.env.WKGR_HERMES_FOUNDER_PLAN_DIRECTORY;
+  const notificationRecoveryPlanDirectory =
+    process.env.WKGR_HERMES_NOTIFICATION_RECOVERY_PLAN_DIRECTORY;
+  delete process.env.WKGR_PRODUCTION_BOOTSTRAP_PROFILE;
+  delete process.env.WKGR_HERMES_RELEASE_COMMAND;
+  delete process.env.WKGR_PRODUCTION_ADMIN_SECRET_PATH;
+  delete process.env.WKGR_PRODUCTION_NOTIFICATION_SECRET_PATH;
+  delete process.env.WKGR_PRODUCTION_PRIVATE_INPUT_PATH;
+  delete process.env.WKGR_HERMES_FOUNDER_PLAN_DIRECTORY;
+  delete process.env.WKGR_HERMES_NOTIFICATION_RECOVERY_PLAN_DIRECTORY;
+  if (expectedRow === undefined) {
+    if ([profile, row, adminSecretPath, notificationSecretPath, privateInputPath,
+      founderPlanDirectory, notificationRecoveryPlanDirectory].some(value => value !== undefined)) {
+      fail('Hermes trusted-bootstrap authority is invalid for this command.');
+    }
+    return undefined;
+  }
+  if (
+    profile !== 'warpkeep-greater-realm-production-bootstrap-v1'
+    || row !== expectedRow
+  ) fail('Hermes production release commands require the exact trusted bootstrap.');
+  return Object.freeze({
+    row: expectedRow,
+    ...(adminSecretPath === undefined ? {} : { adminSecretPath }),
+    ...(notificationSecretPath === undefined ? {} : { notificationSecretPath }),
+    ...(privateInputPath === undefined ? {} : { privateInputPath }),
+    ...(founderPlanDirectory === undefined ? {} : { founderPlanDirectory }),
+    ...(notificationRecoveryPlanDirectory === undefined
+      ? {}
+      : { notificationRecoveryPlanDirectory }),
+  });
+}
+
+function exactTrustedPrivatePath(value: string | undefined, required: boolean): string | undefined {
+  if (value === undefined) {
+    if (required) fail('Hermes trusted-bootstrap private path is required.');
+    return undefined;
+  }
+  if (!required || !isAbsolute(value) || resolve(value) !== value || /[\u0000\r\n]/u.test(value)) {
+    fail('Hermes trusted-bootstrap private path is invalid.');
+  }
+  return value;
+}
+
+function exactTrustedPlanDirectory(value: string | undefined): string {
+  const path = exactTrustedPrivatePath(value, true)!;
+  try {
+    assertProductionAdminTrustedAncestors(path);
+    const status = lstatSync(path);
+    if (
+      status.isSymbolicLink() || !status.isDirectory()
+      || (status.mode & 0o7777) !== 0o700
+      || (process.getuid !== undefined && status.uid !== process.getuid())
+      || realpathSync(path) !== path
+    ) fail('Hermes trusted-bootstrap plan directory is invalid.');
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Hermes trusted-bootstrap')) throw error;
+    fail('Hermes trusted-bootstrap plan directory is invalid.');
+  }
+  return path;
+}
+
+function validateTrustedHermesLaunch(
+  captured: CapturedTrustedHermesLaunch | undefined,
+): TrustedHermesLaunch | undefined {
+  if (captured === undefined) return undefined;
+  const requiresAdmin = new Set<HermesTrustedReleaseRow>([
+    'admit-confirm', 'allow-confirm', 'notification-recover-dry',
+    'notification-recover-confirm',
+  ]).has(captured.row);
+  const requiresNotification = new Set<HermesTrustedReleaseRow>([
+    'admit-confirm', 'allow-confirm', 'notification-inspect',
+    'notification-recover-dry', 'notification-recover-confirm',
+  ]).has(captured.row);
+  const requiresPrivateInput = captured.row === 'admit-dry' || captured.row === 'admit-confirm';
+  const requiresFounderPlan = captured.row === 'admit-dry' || captured.row === 'admit-confirm';
+  const requiresRecoveryPlan = captured.row === 'notification-recover-dry'
+    || captured.row === 'notification-recover-confirm';
+  if (requiresAdmin && captured.adminSecretPath === undefined) {
+    fail('WKGR_PRODUCTION_ADMIN_SECRET_PATH is required for this Hermes release command.');
+  }
+  if (requiresNotification && captured.notificationSecretPath === undefined) {
+    fail('WKGR_PRODUCTION_NOTIFICATION_SECRET_PATH is required for this Hermes release command.');
+  }
+  if (requiresPrivateInput && captured.privateInputPath === undefined) {
+    fail('WKGR_PRODUCTION_PRIVATE_INPUT_PATH is required for this Hermes release command.');
+  }
+  const adminSecretPath = exactTrustedPrivatePath(captured.adminSecretPath, requiresAdmin);
+  const notificationSecretPath = exactTrustedPrivatePath(
+    captured.notificationSecretPath,
+    requiresNotification,
+  );
+  const privateInputPath = exactTrustedPrivatePath(captured.privateInputPath, requiresPrivateInput);
+  if (requiresFounderPlan !== (captured.founderPlanDirectory !== undefined)) {
+    fail('WKGR_HERMES_FOUNDER_PLAN_DIRECTORY has an invalid command role.');
+  }
+  if (requiresRecoveryPlan !== (captured.notificationRecoveryPlanDirectory !== undefined)) {
+    fail('WKGR_HERMES_NOTIFICATION_RECOVERY_PLAN_DIRECTORY has an invalid command role.');
+  }
+  if (
+    process.env.WARPKEEP_ADMIN_TOKEN_SECRET !== undefined
+    || process.env.WARPKEEP_ADMIN_TOKEN_SECRET_FD !== undefined
+    || process.env.WARPKEEP_ADMIN_TOKEN_SECRET_STDIN !== undefined
+    || process.env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET !== undefined
+    || process.env.WARPKEEP_HERMES_NONINTERACTIVE !== undefined
+  ) fail('Hermes trusted-bootstrap credential authority is ambiguous.');
+  return Object.freeze({
+    row: captured.row,
+    ...(adminSecretPath === undefined ? {} : { adminSecretPath }),
+    ...(notificationSecretPath === undefined ? {} : { notificationSecretPath }),
+    ...(privateInputPath === undefined ? {} : { privateInputPath }),
+    ...(captured.founderPlanDirectory === undefined
+      ? {}
+      : { founderPlanDirectory: exactTrustedPlanDirectory(captured.founderPlanDirectory) }),
+    ...(captured.notificationRecoveryPlanDirectory === undefined
+      ? {}
+      : {
+          notificationRecoveryPlanDirectory:
+            exactTrustedPlanDirectory(captured.notificationRecoveryPlanDirectory),
+        }),
+  });
+}
+
+function readTrustedHermesPrivateFile(path: string, maximumBytes: number): Buffer {
+  let descriptor: number | undefined;
+  try {
+    assertProductionAdminTrustedAncestors(dirname(path));
+    const parent = lstatSync(resolve(path, '..'), { bigint: true });
+    const pathStatus = lstatSync(path, { bigint: true });
+    if (
+      parent.isSymbolicLink() || !parent.isDirectory()
+      || (parent.mode & 0o7777n) !== 0o700n
+      || (process.getuid !== undefined && parent.uid !== BigInt(process.getuid()))
+      || pathStatus.isSymbolicLink() || !pathStatus.isFile() || pathStatus.nlink !== 1n
+      || (pathStatus.mode & 0o7777n) !== 0o600n
+      || (process.getuid !== undefined && pathStatus.uid !== BigInt(process.getuid()))
+      || pathStatus.size < 1n || pathStatus.size > BigInt(maximumBytes)
+      || realpathSync(path) !== path
+    ) fail('Hermes trusted-bootstrap private file is invalid.');
+    descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const before = fstatSync(descriptor, { bigint: true });
+    if (
+      before.dev !== pathStatus.dev || before.ino !== pathStatus.ino
+      || before.mode !== pathStatus.mode || before.uid !== pathStatus.uid
+      || before.nlink !== pathStatus.nlink || before.size !== pathStatus.size
+    ) fail('Hermes trusted-bootstrap private file is invalid.');
+    const bytes = readFileSync(descriptor);
+    const after = fstatSync(descriptor, { bigint: true });
+    const current = lstatSync(path, { bigint: true });
+    if (
+      after.dev !== before.dev || after.ino !== before.ino || after.mode !== before.mode
+      || after.uid !== before.uid || after.nlink !== before.nlink || after.size !== before.size
+      || after.mtimeNs !== before.mtimeNs || after.ctimeNs !== before.ctimeNs
+      || current.dev !== before.dev || current.ino !== before.ino || current.mode !== before.mode
+      || current.uid !== before.uid || current.nlink !== before.nlink
+      || current.size !== before.size || current.mtimeNs !== before.mtimeNs
+      || current.ctimeNs !== before.ctimeNs || bytes.byteLength !== Number(before.size)
+    ) {
+      bytes.fill(0);
+      fail('Hermes trusted-bootstrap private file changed while being read.');
+    }
+    return bytes;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Hermes trusted-bootstrap')) throw error;
+    return fail('Hermes trusted-bootstrap private file is invalid.');
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+function readTrustedHermesSecret(path: string): string {
+  const bytes = readTrustedHermesPrivateFile(path, 512);
+  try {
+    const value = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    if (bytes.byteLength < 32 || /[\u0000\r\n]/u.test(value)) {
+      fail('Hermes trusted-bootstrap secret is invalid.');
+    }
+    return value;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Hermes trusted-bootstrap')) throw error;
+    return fail('Hermes trusted-bootstrap secret is invalid.');
+  } finally {
+    bytes.fill(0);
+  }
+}
+
+function readTrustedFounderAdmissionInput(path: string): Record<string, unknown> {
+  const bytes = readTrustedHermesPrivateFile(path, 32 * 1_024);
+  try {
+    const parsed: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      fail('Hermes trusted-bootstrap founder input is invalid.');
+    }
+    return parsed as Record<string, unknown>;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Hermes trusted-bootstrap')) throw error;
+    return fail('Hermes trusted-bootstrap founder input is invalid.');
+  } finally {
+    bytes.fill(0);
+  }
 }
 
 function commandFrom(value: string | undefined): Command {
@@ -1855,7 +2122,32 @@ export async function requestAdminToken(
   bridgeUrl: string,
   secret: string,
   fetchImpl: typeof fetch = fetch,
+  budget: Readonly<{
+    reservationId?: string;
+    recordAttempt?: typeof recordProductionAdminTokenAttempt;
+    trustedNowMs?: number;
+  }> = {},
 ) {
+  const recordAttempt = budget.recordAttempt ?? recordProductionAdminTokenAttempt;
+  if (
+    budget.recordAttempt === undefined
+    && bridgeUrl !== 'https://auth.warpkeep.com'
+  ) fail('The Warpkeep admin token budget requires the canonical production bridge.');
+  const trustedNowMs = budget.recordAttempt === undefined
+    ? budget.trustedNowMs ?? await readProductionAdminBridgeTrustedTime(bridgeUrl, fetchImpl)
+    : budget.trustedNowMs;
+  try {
+    await recordAttempt(
+      {
+        ...(budget.reservationId === undefined
+          ? {}
+          : { reservationId: budget.reservationId }),
+        ...(trustedNowMs === undefined ? {} : { now: () => trustedNowMs }),
+      },
+    );
+  } catch {
+    fail('The Warpkeep admin token request budget is unavailable.');
+  }
   let response: Response;
   try {
     response = await fetchImpl(new URL('v1/admin/token', `${bridgeUrl}/`), {
@@ -1893,6 +2185,48 @@ export async function requestAdminToken(
     fail('The Warpkeep admin bridge returned an invalid session.');
   }
   return token;
+}
+
+const PRODUCTION_ADMIN_BRIDGE_CLOCK_SKEW_MS = 60_000;
+
+/**
+ * The bridge's authenticated HTTPS origin supplies the cross-process quota
+ * clock. A local forward/backward jump cannot prune the owner ledger early.
+ */
+export async function readProductionAdminBridgeTrustedTime(
+  bridgeUrl: string,
+  fetchImpl: typeof fetch = fetch,
+  localNow: () => number = Date.now,
+): Promise<number> {
+  if (bridgeUrl !== 'https://auth.warpkeep.com') {
+    fail('The Warpkeep admin token clock requires the canonical production bridge.');
+  }
+  let response: Response;
+  try {
+    response = await fetchImpl(new URL('healthz', `${bridgeUrl}/`), {
+      method: 'GET',
+      headers: { accept: 'application/json', 'cache-control': 'no-store' },
+      cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch {
+    fail('Could not establish the Warpkeep admin token clock.');
+  }
+  const date = response.headers.get('date');
+  const localTime = localNow();
+  const trustedTime = date === null ? Number.NaN : Date.parse(date);
+  if (
+    !response.ok
+    || date === null
+    || !/^[A-Z][a-z]{2}, [0-9]{2} [A-Z][a-z]{2} [0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2} GMT$/u.test(date)
+    || !Number.isSafeInteger(trustedTime)
+    || new Date(trustedTime).toUTCString() !== date
+    || !Number.isSafeInteger(localTime)
+    || Math.abs(localTime - trustedTime) > PRODUCTION_ADMIN_BRIDGE_CLOCK_SKEW_MS
+  ) fail('Could not establish the Warpkeep admin token clock.');
+  try { await response.body?.cancel(); } catch { /* The trusted header is already bounded. */ }
+  return trustedTime;
 }
 
 export type AdmissionNotificationStatus =
@@ -2764,6 +3098,10 @@ async function main() {
     privateInputStdin,
     accessRequestList,
   } = parseHermesArguments();
+  const capturedTrustedLaunch = captureTrustedHermesLaunch(trustedHermesReleaseRow({
+    command,
+    dryRun,
+  }));
   // This checked-in literal is the activation-client side of the coordinated
   // notification release envelope. False is a complete mutation blackout: it
   // is checked before credentials, bridge delivery, administrator-token
@@ -2772,8 +3110,14 @@ async function main() {
   if ((command === 'admit-founder' || command === 'allow-fid') && !dryRun) {
     requireFounderAdmissionNotificationDeliveryApproval(command);
   }
-  const notificationOperatorSecret = process.env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET;
+  const trustedLaunch = validateTrustedHermesLaunch(capturedTrustedLaunch);
+  const legacyNotificationOperatorSecret = process.env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET;
   delete process.env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET;
+  const readCommandNotificationSecret = () => readNotificationOperatorSecret(
+    trustedLaunch?.notificationSecretPath === undefined
+      ? legacyNotificationOperatorSecret
+      : readTrustedHermesSecret(trustedLaunch.notificationSecretPath),
+  );
   configureHermesMachineOutput(
     machineReadableInspection || command === 'inspect-admission-notification',
   );
@@ -2786,7 +3130,7 @@ async function main() {
     const diagnostics = await inspectAdmissionNotification(
       bridgeUrl,
       readFid(positional[1]),
-      readNotificationOperatorSecret(notificationOperatorSecret),
+      readCommandNotificationSecret(),
     );
     console.log(JSON.stringify(diagnostics));
     return;
@@ -2851,7 +3195,9 @@ async function main() {
     // created for a configurable lookalike and later consumed in production.
     requireCredentialedProductionTarget(uri, database, DEFAULT_BRIDGE);
     requireFounderAdmissionProductionTarget(database);
-    const privateInput = await readPrivateFounderAdmissionInput();
+    const privateInput = trustedLaunch?.privateInputPath === undefined
+      ? await readPrivateFounderAdmissionInput()
+      : readTrustedFounderAdmissionInput(trustedLaunch.privateInputPath);
     if (dryRun) {
       const request = parsePrivateFounderAdmissionRequest(privateInput);
       const profile = await resolveAdmissionReadyFounderProfile(request.fid);
@@ -2864,7 +3210,12 @@ async function main() {
         note: request.note,
         profile,
       });
-      const reference = writeReviewedFounderAdmissionPlan({ plan });
+      const reference = writeReviewedFounderAdmissionPlan({
+        plan,
+        ...(trustedLaunch === undefined
+          ? {}
+          : { directory: trustedLaunch.founderPlanDirectory }),
+      });
       console.log(JSON.stringify(Object.freeze({
         ...admissionReadinessSummary(profile),
         reviewedAdmissionPlan: Object.freeze({
@@ -2880,6 +3231,9 @@ async function main() {
     admissionPlanReference = parseReviewedFounderAdmissionPlanReference(privateInput);
     admissionPlan = readReviewedFounderAdmissionPlan({
       reference: admissionPlanReference,
+      ...(trustedLaunch === undefined
+        ? {}
+        : { directory: trustedLaunch.founderPlanDirectory }),
       expectedSourceConfigurationDigest: FOUNDER_ADMISSION_SOURCE_CONFIGURATION_DIGEST,
       expectedTargetConfigurationDigest: FOUNDER_ADMISSION_TARGET_CONFIGURATION_DIGEST,
       expectedProfilePolicyVersion: FARCASTER_PROFILE_POLICY_VERSION,
@@ -2914,6 +3268,9 @@ async function main() {
       });
     notificationRecoveryPlan = readReviewedAdmissionNotificationRecoveryPlan({
       reference: notificationRecoveryPlanReference,
+      ...(trustedLaunch === undefined
+        ? {}
+        : { directory: trustedLaunch.notificationRecoveryPlanDirectory }),
       expectedTargetConfigurationDigest:
         ADMISSION_NOTIFICATION_RECOVERY_TARGET_CONFIGURATION_DIGEST,
     });
@@ -3046,15 +3403,20 @@ async function main() {
         : 'Admission notification recovery refuses an administrator secret from the environment.',
     );
   }
-  const secret = readAdminSecret(
-    command === 'reset-access-request' || command === 'recover-admission-notification'
-      ? undefined
-      : process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
-    (command === 'reset-access-request' || command === 'recover-admission-notification')
-      && privateInputStdin
-      ? '1'
-      : process.env.WARPKEEP_ADMIN_TOKEN_SECRET_STDIN,
-  );
+  const secret = trustedLaunch?.adminSecretPath === undefined
+    ? readAdminSecret(
+        command === 'reset-access-request' || command === 'recover-admission-notification'
+          ? undefined
+          : process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
+        (command === 'reset-access-request' || command === 'recover-admission-notification')
+          && privateInputStdin
+          && process.env.WARPKEEP_ADMIN_TOKEN_SECRET_FD === undefined
+          ? '1'
+          : process.env.WARPKEEP_ADMIN_TOKEN_SECRET_STDIN,
+      )
+    : readTrustedHermesSecret(trustedLaunch.adminSecretPath);
+  delete process.env.WARPKEEP_ADMIN_TOKEN_SECRET_FD;
+  delete process.env.WARPKEEP_ADMIN_TOKEN_SECRET_STDIN;
   let token = await requestAdminToken(bridgeUrl, secret);
   let connection: DbConnection;
   try {
@@ -3089,9 +3451,7 @@ async function main() {
         ),
         'missing',
       );
-      const operatorSecret = readNotificationOperatorSecret(
-        notificationOperatorSecret,
-      );
+      const operatorSecret = readCommandNotificationSecret();
       const diagnosticsBefore = requireAdmissionNotificationRecoveryPrecondition(
         await inspectAdmissionNotification(
           bridgeUrl,
@@ -3112,7 +3472,12 @@ async function main() {
           expectedRequestedAtMicros: targetBefore.requestedAtMicros,
           expectedNotificationStateDigest: notificationStateDigest,
         });
-        const reference = writeReviewedAdmissionNotificationRecoveryPlan({ plan });
+        const reference = writeReviewedAdmissionNotificationRecoveryPlan({
+          plan,
+          ...(trustedLaunch === undefined
+            ? {}
+            : { directory: trustedLaunch.notificationRecoveryPlanDirectory }),
+        });
         console.log(JSON.stringify({
           admissionNotificationRecoveryPlan: {
             status: diagnosticsBefore.status,
@@ -3152,6 +3517,9 @@ async function main() {
         claimReviewedAdmissionNotificationRecoveryPlan({
           plan: notificationRecoveryPlan,
           sha256: notificationRecoveryPlanReference.sha256,
+          ...(trustedLaunch === undefined
+            ? {}
+            : { directory: trustedLaunch.notificationRecoveryPlanDirectory }),
         });
         notificationRecoveryClaimed = true;
         const recoveryStatus = await requestAdmissionNotificationRecovery(
@@ -3454,7 +3822,7 @@ async function main() {
         connection,
         bridgeUrl,
         fid,
-        notificationOperatorSecret,
+        notificationOperatorSecret: readCommandNotificationSecret(),
         adminSecret: secret,
         uri,
         database,
@@ -3474,6 +3842,9 @@ async function main() {
       claimReviewedFounderAdmissionPlan({
         plan: admissionPlan,
         sha256: admissionPlanReference.sha256,
+        ...(trustedLaunch === undefined
+          ? {}
+          : { directory: trustedLaunch.founderPlanDirectory }),
       });
       founderAdmissionClaimed = true;
       await withOperationTimeout(connection.reducers.adminAdmitFounderForAccessRequestV2({
@@ -3513,7 +3884,7 @@ async function main() {
         connection,
         bridgeUrl,
         fid,
-        notificationOperatorSecret,
+        notificationOperatorSecret: readCommandNotificationSecret(),
         adminSecret: secret,
         uri,
         database,

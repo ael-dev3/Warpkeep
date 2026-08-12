@@ -13,7 +13,7 @@ import {
 } from './greater-realm-production-verifier-core';
 import {
   createGreaterRealmFreshAdminTransport,
-  readGreaterRealmProductionAdminSecret,
+  readGreaterRealmProductionAdminSecretFile,
   requireGreaterRealmProductionTransportTarget,
 } from './greater-realm-production-transport';
 
@@ -52,7 +52,8 @@ export function parseGreaterRealmProductionVerifierArguments(
 
 export async function executeGreaterRealmProductionVerifier(input: Readonly<{
   expectedFounderCount: number;
-  adminSecret: string;
+  adminSecret?: string;
+  adminSecretPath?: string;
   environment: Readonly<Record<string, string | undefined>>;
   workspaceRoot?: string;
   attestProtectedMain?: () => string;
@@ -66,9 +67,14 @@ export async function executeGreaterRealmProductionVerifier(input: Readonly<{
       attestGreaterRealmProductionProtectedMain(REPOSITORY_ROOT)
     )),
   });
+  const adminSecret = input.inspect === undefined
+    ? input.adminSecret ?? (input.adminSecretPath === undefined
+      ? fail('GREATER_REALM_PRODUCTION_ADMIN_SECRET_PATH_REQUIRED')
+      : readGreaterRealmProductionAdminSecretFile(input.adminSecretPath))
+    : undefined;
   const ownedTransport = input.inspect === undefined
     ? createGreaterRealmFreshAdminTransport({
-        adminSecret: input.adminSecret,
+        adminSecret: adminSecret!,
         statusProcedure: GREATER_REALM_PRODUCTION_CUTOVER_STATUS_PROCEDURE,
       })
     : undefined;
@@ -91,11 +97,18 @@ export async function executeGreaterRealmProductionVerifier(input: Readonly<{
 async function main(): Promise<void> {
   assertGreaterRealmPrivateInvocation();
   const parsed = parseGreaterRealmProductionVerifierArguments(process.argv.slice(2));
-  const adminSecret = readGreaterRealmProductionAdminSecret(process.env);
-  delete process.env.WARPKEEP_ADMIN_TOKEN_SECRET;
+  if (process.env.WKGR_PRODUCTION_BOOTSTRAP_PROFILE
+    !== 'warpkeep-greater-realm-production-bootstrap-v1') {
+    fail('GREATER_REALM_PRODUCTION_TRUSTED_BOOTSTRAP_REQUIRED');
+  }
+  const adminSecretPath = process.env.WKGR_PRODUCTION_ADMIN_SECRET_PATH;
+  delete process.env.WKGR_PRODUCTION_ADMIN_SECRET_PATH;
+  delete process.env.WKGR_PRODUCTION_BOOTSTRAP_PROFILE;
+  delete process.env.WKGR_PRODUCTION_PROTECTED_COMMIT;
+  delete process.env.WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT;
   console.log(JSON.stringify(await executeGreaterRealmProductionVerifier({
     ...parsed,
-    adminSecret,
+    adminSecretPath,
     environment: process.env,
   })));
 }

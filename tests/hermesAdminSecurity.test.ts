@@ -1,5 +1,12 @@
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setGlobalLogLevel, stdbLogger } from 'spacetimedb';
@@ -63,6 +70,13 @@ import {
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
 const TEST_SECRET = 'TEST_ONLY_HERMES_SECRET_'.repeat(2);
+const TEST_ADMIN_TOKEN_BUDGET = Object.freeze({
+  recordAttempt: async () => Object.freeze({
+    attemptId: '0'.repeat(32),
+    attemptedAtMs: 0,
+    reservationId: null,
+  }),
+});
 const NOTIFICATION_SECRET = 'TEST_ONLY_NOTIFICATION_SECRET_'.repeat(2);
 
 function admissionNotificationDiagnostics(overrides: Record<string, unknown> = {}) {
@@ -103,13 +117,68 @@ function runHermes(
   for (const [key, value] of Object.entries(env)) {
     if (value === undefined) delete env[key];
   }
-  return spawnSync(process.execPath, [tsxCli, 'scripts/hermes-admin.ts', ...args], {
-    cwd: repositoryRoot,
-    encoding: 'utf8',
-    env,
-    input,
-    timeout
-  });
+  const row = args[0] === 'admit-founder'
+    ? args.includes('--dry-run') ? 'admit-dry' : 'admit-confirm'
+    : args[0] === 'allow-fid'
+      ? args.includes('--dry-run') ? 'allow-dry' : 'allow-confirm'
+      : args[0] === 'inspect-admission-notification'
+        ? 'notification-inspect'
+        : args[0] === 'recover-admission-notification'
+          ? args.includes('--dry-run') ? 'notification-recover-dry' : 'notification-recover-confirm'
+          : undefined;
+  let trustedRoot: string | undefined;
+  let childInput = input;
+  if (row !== undefined) {
+    trustedRoot = mkdtempSync('/private/tmp/warpkeep-hermes-trusted-');
+    chmodSync(trustedRoot, 0o700);
+    const founderPlans = resolve(trustedRoot, 'founder-plans');
+    const recoveryPlans = resolve(trustedRoot, 'recovery-plans');
+    env.WKGR_PRODUCTION_BOOTSTRAP_PROFILE =
+      'warpkeep-greater-realm-production-bootstrap-v1';
+    env.WKGR_HERMES_RELEASE_COMMAND = row;
+    if (row === 'admit-dry' || row === 'admit-confirm') {
+      mkdirSync(founderPlans, { mode: 0o700 });
+      env.WKGR_HERMES_FOUNDER_PLAN_DIRECTORY = founderPlans;
+    }
+    if (row === 'notification-recover-dry' || row === 'notification-recover-confirm') {
+      mkdirSync(recoveryPlans, { mode: 0o700 });
+      env.WKGR_HERMES_NOTIFICATION_RECOVERY_PLAN_DIRECTORY = recoveryPlans;
+    }
+    const needsAdmin = ['admit-confirm', 'allow-confirm', 'notification-recover-dry',
+      'notification-recover-confirm'].includes(row);
+    const needsNotification = ['admit-confirm', 'allow-confirm', 'notification-inspect',
+      'notification-recover-dry', 'notification-recover-confirm'].includes(row);
+    const needsInput = row === 'admit-dry' || row === 'admit-confirm';
+    if (needsAdmin && env.WARPKEEP_ADMIN_TOKEN_SECRET !== undefined) {
+      const path = resolve(trustedRoot, 'admin-secret');
+      writeFileSync(path, env.WARPKEEP_ADMIN_TOKEN_SECRET, { mode: 0o600 });
+      env.WKGR_PRODUCTION_ADMIN_SECRET_PATH = path;
+    }
+    if (needsNotification && env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET !== undefined) {
+      const path = resolve(trustedRoot, 'notification-secret');
+      writeFileSync(path, env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET, { mode: 0o600 });
+      env.WKGR_PRODUCTION_NOTIFICATION_SECRET_PATH = path;
+    }
+    if (needsInput && input !== undefined) {
+      const path = resolve(trustedRoot, 'private-input.json');
+      writeFileSync(path, input, { mode: 0o600 });
+      env.WKGR_PRODUCTION_PRIVATE_INPUT_PATH = path;
+      childInput = undefined;
+    }
+    delete env.WARPKEEP_ADMIN_TOKEN_SECRET;
+    delete env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET;
+  }
+  try {
+    return spawnSync(process.execPath, [tsxCli, 'scripts/hermes-admin.ts', ...args], {
+      cwd: repositoryRoot,
+      encoding: 'utf8',
+      env,
+      input: childInput,
+      timeout
+    });
+  } finally {
+    if (trustedRoot !== undefined) rmSync(trustedRoot, { recursive: true, force: true });
+  }
 }
 
 function foundedGenerationV2Status(overrides: Record<string, bigint | number | string> = {}) {
@@ -830,9 +899,9 @@ describe('Hermes command-line boundary', () => {
       'requireFounderAdmissionNotificationDeliveryApproval(command);',
     );
     const notificationCredential = mainSource.indexOf(
-      'const notificationOperatorSecret = process.env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET;',
+      'const trustedLaunch = validateTrustedHermesLaunch(capturedTrustedLaunch);',
     );
-    const credential = mainSource.indexOf('const secret = readAdminSecret(');
+    const credential = mainSource.indexOf('const secret = trustedLaunch?.adminSecretPath');
     const token = mainSource.indexOf('let token = await requestAdminToken(');
     const connection = mainSource.indexOf('connection = await connect(');
     const claim = mainSource.indexOf('claimReviewedFounderAdmissionPlan({');
@@ -1223,7 +1292,7 @@ describe('Hermes private access request review boundary', () => {
     expect(rendered).not.toContain('note');
   });
 
-  it('keeps listing separate from every admission mutation surface', () => {
+  it('keeps listing separate from admission and unavailable during the cutover', () => {
     const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
     const listing = source.slice(
       source.indexOf('export async function listAccessRequests('),
@@ -1237,8 +1306,9 @@ describe('Hermes private access request review boundary', () => {
       resolve(repositoryRoot, 'docs/operations/access-requests.md'),
       'utf8',
     );
-    expect(documentation).toContain('npm run stdb:list-access-requests');
-    expect(documentation).toMatch(/read-only/i);
+    expect(documentation).toContain('Pending-request listing is unavailable');
+    expect(documentation).not.toContain('npm run stdb:list-access-requests');
+    expect(documentation).toMatch(/refusal stub/i);
     expect(documentation).toMatch(/listing never.*admits/is);
   });
 
@@ -1491,9 +1561,9 @@ describe('Hermes atomic profiled admission boundary', () => {
     const resolveForPlan = mainSource.indexOf(
       'await resolveAdmissionReadyFounderProfile(request.fid)',
     );
-    const writePlan = mainSource.indexOf('writeReviewedFounderAdmissionPlan({ plan })');
+    const writePlan = mainSource.indexOf('writeReviewedFounderAdmissionPlan({');
     const readPlan = mainSource.indexOf('readReviewedFounderAdmissionPlan({');
-    const readCredential = mainSource.indexOf('readAdminSecret(');
+    const readCredential = mainSource.indexOf('const secret = trustedLaunch?.adminSecretPath');
     const branch = mainSource.slice(
       mainSource.indexOf("command === 'admit-founder'", readCredential),
       mainSource.indexOf("command === 'allow-fid'", readCredential),
@@ -1531,11 +1601,11 @@ describe('Hermes atomic profiled admission boundary', () => {
       readFileSync(resolve(repositoryRoot, 'package.json'), 'utf8'),
     ) as { scripts: Record<string, string> };
     expect(packageManifest.scripts['stdb:admit-founder'])
-      .toBe('tsx scripts/hermes-admin.ts admit-founder');
+      .toContain('PRODUCTION_COMMAND_REQUIRES_TRUSTED_ENV_I_LAUNCH');
     expect(packageManifest.scripts['stdb:inspect-admission-notification'])
-      .toBe('tsx scripts/hermes-admin.ts inspect-admission-notification');
+      .toContain('PRODUCTION_COMMAND_REQUIRES_TRUSTED_ENV_I_LAUNCH');
     expect(packageManifest.scripts['stdb:recover-admission-notification'])
-      .toBe('tsx scripts/hermes-admin.ts recover-admission-notification');
+      .toContain('PRODUCTION_COMMAND_REQUIRES_TRUSTED_ENV_I_LAUNCH');
     expect(packageManifest.scripts['stdb:notify-admitted']).toBeUndefined();
     expect(mainSource).not.toContain("| 'notify-admitted'");
   });
@@ -1642,7 +1712,7 @@ describe('Hermes atomic profiled admission boundary', () => {
     const inspectBefore = branch.indexOf('await inspectAdmissionNotification(');
     const digestBefore = branch.indexOf('admissionNotificationRecoveryStateDigest(');
     const createPlan = branch.indexOf('createReviewedAdmissionNotificationRecoveryPlan({');
-    const writePlan = branch.indexOf('writeReviewedAdmissionNotificationRecoveryPlan({ plan })');
+    const writePlan = branch.indexOf('writeReviewedAdmissionNotificationRecoveryPlan({');
     const claimPlan = branch.indexOf('claimReviewedAdmissionNotificationRecoveryPlan({');
     const submitRecovery = branch.indexOf('await requestAdmissionNotificationRecovery(');
     const targetAfter = branch.indexOf(
@@ -1920,7 +1990,8 @@ describe('Hermes credential destination policy', () => {
     const request = requestAdminToken(
       'https://auth.warpkeep.com',
       TEST_SECRET,
-      fetchImpl as typeof fetch
+      fetchImpl as typeof fetch,
+      TEST_ADMIN_TOKEN_BUDGET,
     ).then(token => {
       resolved = true;
       return token;
@@ -2120,7 +2191,7 @@ describe('Hermes credential destination policy', () => {
     });
     expect(result.status).toBe(1);
     expect(result.stdout).toBe('');
-    expect(result.stderr).toContain('WARPKEEP_NOTIFICATION_OPERATOR_SECRET');
+    expect(result.stderr).toContain('WKGR_PRODUCTION_NOTIFICATION_SECRET_PATH');
     expect(result.stderr).not.toContain('WARPKEEP_ADMIN_TOKEN_SECRET');
     expect(result.stderr).not.toContain('WARPKEEP_SPACETIMEDB');
   });
@@ -2201,7 +2272,8 @@ describe('Hermes credential destination policy', () => {
       tokenType: 'spacetime-access'
     }), { headers: { 'content-type': 'text/plain' } });
     await expect(requestAdminToken(
-      'https://auth.warpkeep.com', TEST_SECRET, wrongMedia as typeof fetch
+      'https://auth.warpkeep.com', TEST_SECRET, wrongMedia as typeof fetch,
+      TEST_ADMIN_TOKEN_BUDGET,
     )).rejects.toThrow('invalid response');
 
     const oversized = async () => new Response(new ReadableStream<Uint8Array>({
@@ -2211,7 +2283,8 @@ describe('Hermes credential destination policy', () => {
       }
     }), { headers: { 'content-type': 'application/json' } });
     await expect(requestAdminToken(
-      'https://auth.warpkeep.com', TEST_SECRET, oversized as typeof fetch
+      'https://auth.warpkeep.com', TEST_SECRET, oversized as typeof fetch,
+      TEST_ADMIN_TOKEN_BUDGET,
     )).rejects.toThrow('invalid response');
 
     const cancelFailure = async () => new Response(new ReadableStream<Uint8Array>({
@@ -2223,7 +2296,8 @@ describe('Hermes credential destination policy', () => {
       },
     }), { headers: { 'content-type': 'application/json' } });
     await expect(requestAdminToken(
-      'https://auth.warpkeep.com', TEST_SECRET, cancelFailure as typeof fetch
+      'https://auth.warpkeep.com', TEST_SECRET, cancelFailure as typeof fetch,
+      TEST_ADMIN_TOKEN_BUDGET,
     )).rejects.toThrow('invalid response');
 
     const readFailure = async () => new Response(new ReadableStream<Uint8Array>({
@@ -2232,7 +2306,8 @@ describe('Hermes credential destination policy', () => {
       },
     }), { headers: { 'content-type': 'application/json' } });
     await expect(requestAdminToken(
-      'https://auth.warpkeep.com', TEST_SECRET, readFailure as typeof fetch
+      'https://auth.warpkeep.com', TEST_SECRET, readFailure as typeof fetch,
+      TEST_ADMIN_TOKEN_BUDGET,
     )).rejects.toThrow('invalid response');
   });
 

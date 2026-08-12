@@ -476,13 +476,14 @@ JSON with all security headers. This is deploy evidence input only; it does not
 deploy, flip a gate, issue a notification, or prove Cloudflare control-plane
 version activation by itself.
 
-After a reviewed Worker deployment, run `npm run verify:alpha-production:operator`
-from the repository root with `WARPKEEP_ADMIN_TOKEN_SECRET` supplied through the
-private operator environment. Unlike the public CI verifier, this command fails
-closed when the credential is absent and pins dRPC as primary plus PublicNode as
-secondary in reviewed source; runtime environment overrides cannot redefine
-those roles. `npm run verify:auth-bridge-config` performs the same narrow role
-check when a full frontend verification is unnecessary.
+The former `verify:alpha-production:operator` alias is unavailable during the
+Greater Realm cutover, and environment-carried administrator secrets are
+prohibited. Production verification uses only the exact `verify` row in the
+reviewed
+[production launch envelope](../../docs/operations/greater-realm-production-launch-envelope.sh.txt),
+which receives an owner-private secret-file path and opens it only after local
+source, proof, and authority checks. `npm run verify:auth-bridge-config`
+remains a separate narrow, non-admin local configuration-role check.
 
 Copy `.dev.vars.example` to untracked `.dev.vars` only for local work and use
 separate development keys. Set real secrets only through approved Cloudflare
@@ -503,6 +504,19 @@ historical approval or counts cannot be reused. Follow the current
 reconstructing a rollout from this implementation guide.
 
 ## Checks, logs, and admin boundary
+
+The reviewed production launcher shares one durable bridge-token issuance
+ledger across publisher, import, relocation, verifier, and Hermes commands.
+It exposes exactly seven Hermes rows: `hermes-admit-dry`,
+`hermes-admit-confirm`, `hermes-allow-dry`, `hermes-allow-confirm`,
+`hermes-notification-inspect`, `hermes-notification-recover-dry`, and
+`hermes-notification-recover-confirm`. Admit dry-run uses only its private
+request input; allow dry-run uses no secret; confirmed admit/allow use separate
+administrator and notification secrets; notification inspection uses only the
+notification secret; and notification recovery uses both independent secrets.
+Each required value is supplied as an owner-private file path and opened late.
+No row accepts secret bytes through an environment variable, inherited file
+descriptor, or shell pipe.
 
 Run `cd services/auth-bridge && pnpm install --frozen-lockfile && pnpm run check`
 locally. Run the separate repository-root

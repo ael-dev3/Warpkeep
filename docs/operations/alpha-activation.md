@@ -5,6 +5,11 @@ authorization record. A merge or green test run does not approve a Worker
 publish, SpacetimeDB publication, data migration, resource seed, admission
 change, or public-auth change.
 
+> Greater Realm cutover freeze: every legacy production-capable npm operator
+> named below is deliberately disabled. These historical steps may be restored
+> only by a separately reviewed post-cutover trusted-launch packet; they are not
+> executable instructions for the current release.
+
 ## Safety rules
 
 - Use only the recorded Warpkeep production origins and immutable database
@@ -48,38 +53,19 @@ mutate Maincloud.
 
 ## 2. Inspect production before mutation
 
-Obtain one short-lived Hermes credential through the private local path and run
-the bounded aggregate checks:
+The former v3/v4 Hermes aggregate-inspection aliases are unavailable during
+the Greater Realm cutover freeze. Do not run them from npm or invoke their
+TypeScript entrypoint directly; a separately reviewed trusted-launch packet is
+required before production inspection can resume.
 
-```sh
-npm run stdb:inspect-alpha-v3 -- --json
-npm run stdb:inspect-alpha-v4 -- --json
-```
+The same refusal applies to the former v8 aggregate-inspection alias.
 
-If the currently deployed module already exposes procedure v8, also run:
+The same refusal applies to the former v10 aggregate-inspection alias.
 
-```sh
-npm run stdb:inspect-alpha-v8 -- --json
-```
+The same refusal applies to the former v12 aggregate-inspection alias.
 
-For releases after the Water/Stone suffix has been published, also run:
-
-```sh
-npm run stdb:inspect-alpha-v10 -- --json
-```
-
-After the Worker v12 suffix exists, its separate aggregate inspection is:
-
-```sh
-npm run stdb:inspect-alpha-v12 -- --json
-```
-
-After the Daily Marks v14 suffix is active, also run its closed aggregate
-inspection. It reports counts and invariant flags only:
-
-```sh
-npm run stdb:daily-marks:inspect
-```
+The historical Daily Marks aggregate-inspection alias is likewise unavailable
+during the Greater Realm cutover freeze.
 
 The first v12 publication cannot run that procedure beforehand. Its guarded
 publisher instead requires an anonymous schema description of the immutable
@@ -92,37 +78,12 @@ aggregate table counts. A partial or drifted catalog is a hard stop.
 
 ## 3. Publish an additive module
 
-Use the guarded root publisher only after its local proof receipt matches the
-frozen release commit. The publisher pins the reviewed CLI and canonical
-database identity, verifies the issuer and current aggregates, and invokes
-SpacetimeDB with deletion disabled.
-
-```sh
-npm run stdb:publish:dev -- --dry-run \
-  --resource-rollout-stage=ready \
-  --genesis-world-stage=expanded \
-  --worker-rollout-stage=active \
-  --worker-module-predecessor=exact-v14-active \
-  --worker-forward-repair=none
-```
-
-Those stage values describe the current production predecessor; do not copy
-them if a fresh read-only inspection disagrees. This dry run checks the local
-artifact, pinned CLI, issuer, expectation format, and selected stage contract;
-it does not inspect Maincloud or publish. Review the result, then use the same
-explicit stage arguments without `--dry-run` and with the publisher's exact
-confirmation variable set through the private operator environment.
-
-The private operator environment must also supply all four founded-state
-counts: `WARPKEEP_EXPECTED_FOUNDER_COUNT`,
-`WARPKEEP_EXPECTED_ENABLED_ALLOWED_FID_COUNT`,
-`WARPKEEP_EXPECTED_PLAYER_COUNT`, and
-`WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT`. Founder rows remain the durable
-castle-state count; the enabled allowlist count may be lower after an admission
-is revoked. Both are checked independently before and after publication.
-The standalone production verifier accepts the corresponding
-`--expected-enabled-allowed-fid-count=<count>` founded-stage flag; omitting it
-keeps the compatibility assertion that every founder remains enabled.
+The historical `stdb:publish:dev` lane is unavailable during the Greater Realm
+cutover freeze. The current release has a dedicated commit-bound v17 publisher
+only through the exact rows of the reviewed
+[Greater Realm production launch envelope](greater-realm-production-launch-envelope.sh.txt).
+Its approvals remain false; this historical runbook neither supplies its
+reviewed arguments nor authorizes its use.
 
 Do not substitute raw `spacetime publish` commands. If publication times out or
 returns an ambiguous result, do not republish. A fresh read-only inspection must
@@ -132,15 +93,9 @@ establish the live schema and counts before any further release decision.
 forward-repair value is release-specific and may be used only when its exact
 counts-only checkpoint, reviewed module ABI, private operator, and explicit
 production authorization all match; it is never a general repair mode.
-The guarded repair publication writes an owner-only success receipt after its
-post-publication checkpoint. The matching one-shot operator requires that
-recent receipt, a clean protected `main`, and a fresh artifact proof before it
-can submit:
-
-```sh
-npm run stdb:worker-return-repair:inspect
-npm run stdb:worker-return-repair:apply -- --confirm
-```
+The historical `stdb:worker-return-repair:inspect` and
+`stdb:worker-return-repair:apply` aliases are unavailable during the Greater
+Realm cutover freeze. No substitute repair command is approved.
 
 The apply path records an aggregate-only intent before submission and a second
 terminal receipt after the fresh post-inspection.
@@ -180,35 +135,19 @@ approval and is not performed by publication.
 
 ## 4. Activate reviewed components
 
-Module publication and component setup are separate decisions. Review each
-component's local dry run:
+Module publication and component setup are separate decisions. The former
+component seed dry-run aliases are deliberately unavailable during the Greater
+Realm cutover freeze; neither npm nor direct TypeScript invocation is an
+approved substitute.
 
-```sh
-npm run stdb:seed-alpha-component -- gold --dry-run
-npm run stdb:seed-alpha-component -- forest --dry-run
-npm run stdb:seed-alpha-component -- food --dry-run
-npm run stdb:seed-alpha-component -- wood --dry-run
-npm run stdb:seed-alpha-component -- water --dry-run
-npm run stdb:seed-alpha-component -- stone --dry-run
-```
+The historical dry-run and confirmed component flows are retained only as
+design context. There is no production inspection or mutation row for them in
+the current launch packet, so this document supplies no executable activation
+sequence.
 
-The dry run reads no credential or production state and submits no mutation;
-it presents only the compiled policy and intended component. Use the real v8
-inspection above to decide whether activation is safe.
-
-Use `--confirm` only for the component currently approved. Gold, forest, Food,
-and Wood use the v8 checkpoint; Water and Stone use v10. Each command seeds only
-an empty or already-complete component and checks that unrelated counts did not
-change. It will not repair partial or altered data.
-
-Water remains invisible after seeding. Inspect v10 again, review the local
-activation plan, then activate it separately:
-
-```sh
-npm run stdb:activate-alpha-water -- --dry-run
-npm run stdb:activate-alpha-water -- --confirm
-npm run stdb:inspect-alpha-v10 -- --json
-```
+Water remains invisible after seeding. Its former activation and v10
+inspection aliases are likewise unavailable until a separately reviewed
+post-cutover trusted-launch packet restores them.
 
 See [Alpha component activation](alpha-component-activation.md) for the compact
 component-specific contract.

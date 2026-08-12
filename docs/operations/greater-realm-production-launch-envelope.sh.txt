@@ -1,0 +1,1154 @@
+# This file is a review copy, not an executable. The supported production
+# invocation supplies these exact bytes from the protected release packet to:
+#   /usr/bin/env -i /bin/sh -c '<EXACT_REVIEWED_TEXT>' warpkeep-production \
+#     PROTECTED_MAIN_40 TREE_40 BOOTSTRAP_BLOB_40 BOOTSTRAP_SHA256_64 \
+#     ABSOLUTE_SIGNED_NODE ABSOLUTE_SPACETIME_OR_DASH \
+#     ABSOLUTE_SPACETIME_CLI_CONFIG_OR_DASH ABSOLUTE_ADMIN_SECRET \
+#     ABSOLUTE_NOTIFICATION_SECRET_OR_DASH ABSOLUTE_PRIVATE_INPUT_OR_DASH \
+#     COMMAND [COMMAND_ARGUMENTS...]
+# The publish row's exact command arguments are:
+#     LANE FOUNDER_COUNT ENABLED_ALLOWED_FID_COUNT PLAYER_COUNT TERMS_ACCEPTANCE_COUNT
+# The confirmed publish-recovery row's exact command arguments are:
+#     CONFIRMATION_DIGEST FOUNDER_COUNT ENABLED_ALLOWED_FID_COUNT PLAYER_COUNT TERMS_ACCEPTANCE_COUNT
+# The local launch lifecycle rows use no runtime or credential paths:
+#     launch-run-inspect [RUN_ID]
+#     launch-run-cleanup RUN_ID CONFIRMATION_DIGEST
+# Never execute this file by pathname from a mutable checkout.
+set -eu
+umask 077
+
+fail() {
+  /usr/bin/printf '%s\n' "$1" >&2
+  exit 1
+}
+
+[ "$#" -ge 11 ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID
+protected_main=$1
+module_tree=$2
+bootstrap_blob=$3
+bootstrap_sha256=$4
+bundle_node=$5
+spacetime_executable=$6
+spacetime_cli_config=$7
+admin_secret=$8
+notification_secret=$9
+private_input=${10}
+production_command=${11}
+shift 11
+
+/usr/bin/python3 -I -S -B -c '
+import re,sys
+if any(re.fullmatch(r"[0-9a-f]{40}", value) is None for value in sys.argv[1:4]): raise SystemExit(1)
+if re.fullmatch(r"[0-9a-f]{64}", sys.argv[4]) is None: raise SystemExit(1)
+' "$protected_main" "$module_tree" "$bootstrap_blob" "$bootstrap_sha256" \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID
+case "$bundle_node:$spacetime_executable:$spacetime_cli_config:$admin_secret:$notification_secret:$private_input" in
+  *"
+"*|*""*|*"\000"*) fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
+esac
+case "$bundle_node" in -|/*) ;; *) fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;; esac
+case "$spacetime_executable" in -|/*) ;; *) fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;; esac
+case "$spacetime_cli_config" in -|/*) ;; *) fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;; esac
+case "$admin_secret" in -|/*) ;; *) fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;; esac
+case "$notification_secret" in -|/*) ;; *) fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;; esac
+case "$private_input" in -|/*) ;; *) fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;; esac
+case "$production_command" in
+  import-inspect|import-apply|import-recover-inspect|import-recover|publish|publish-recover-inspect|publish-recover|relocation|relocation-recover-inspect|relocation-recover|verify|hermes-admit-dry|hermes-admit-confirm|hermes-allow-dry|hermes-allow-confirm|hermes-notification-inspect|hermes-notification-recover-dry|hermes-notification-recover-confirm|launch-run-inspect|launch-run-cleanup) ;;
+  *) fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
+esac
+case "$production_command" in
+  publish) [ "$spacetime_executable" != - ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
+  publish-recover|launch-run-inspect|launch-run-cleanup) ;;
+  *) [ "$spacetime_executable" = - ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
+esac
+case "$production_command" in
+  publish) [ "$spacetime_cli_config" != - ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
+  publish-recover|launch-run-inspect|launch-run-cleanup) ;;
+  *) [ "$spacetime_cli_config" = - ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
+esac
+case "$production_command" in
+  import-inspect|import-apply|publish|relocation|verify|hermes-admit-confirm|hermes-allow-confirm|hermes-notification-recover-dry|hermes-notification-recover-confirm)
+    [ "$admin_secret" != - ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
+  import-recover|publish-recover|relocation-recover|launch-run-inspect|launch-run-cleanup) ;;
+  *) [ "$admin_secret" = - ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
+esac
+case "$production_command" in
+  hermes-admit-confirm|hermes-allow-confirm|hermes-notification-inspect|hermes-notification-recover-dry|hermes-notification-recover-confirm)
+    [ "$notification_secret" != - ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
+  *) [ "$notification_secret" = - ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
+esac
+case "$production_command" in
+  hermes-admit-dry|hermes-admit-confirm)
+    [ "$private_input" != - ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
+  *) [ "$private_input" = - ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
+esac
+if [ "$production_command" = publish-recover ]; then
+  case "$spacetime_executable:$spacetime_cli_config:$admin_secret" in
+    -:-:-|/*:/*:/*) ;;
+    *) fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
+  esac
+fi
+case "$production_command" in
+  launch-run-inspect|launch-run-cleanup)
+    [ "$bundle_node:$spacetime_executable:$spacetime_cli_config:$admin_secret:$notification_secret:$private_input" = -:-:-:-:-:- ] \
+      || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID
+    ;;
+  *) [ "$bundle_node" != - ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
+esac
+case "$production_command" in
+  publish)
+    # This trusted envelope cannot import checkout code. The pinned value 6 is
+    # WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM for this
+    # protected release packet.
+    /usr/bin/python3 -I -S -B -c '
+import re,sys
+args=sys.argv[1:]
+canonical=re.compile(r"(?:0|[1-9][0-9]*)")
+if len(args) != 5 or re.fullmatch(r"[a-z0-9][a-z0-9-]{2,79}",args[0]) is None: raise SystemExit(1)
+if any(canonical.fullmatch(value) is None for value in args[1:]): raise SystemExit(1)
+founder,enabled,players,terms=map(int,args[1:])
+if not (1 <= founder <= 100): raise SystemExit(1)
+if not (0 <= enabled <= founder and 0 <= players <= founder): raise SystemExit(1)
+if not (0 <= terms <= players * 6): raise SystemExit(1)
+    ' "$@" || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID
+    ;;
+  publish-recover)
+    /usr/bin/python3 -I -S -B -c '
+import re,sys
+args=sys.argv[1:]
+canonical=re.compile(r"(?:0|[1-9][0-9]*)")
+if len(args) != 5 or re.fullmatch(r"[0-9a-f]{64}",args[0]) is None: raise SystemExit(1)
+if any(canonical.fullmatch(value) is None for value in args[1:]): raise SystemExit(1)
+founder,enabled,players,terms=map(int,args[1:])
+if not (1 <= founder <= 100): raise SystemExit(1)
+if not (0 <= enabled <= founder and 0 <= players <= founder): raise SystemExit(1)
+if not (0 <= terms <= players * 6): raise SystemExit(1)
+' "$@" || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID
+    ;;
+esac
+
+account_home=$(/usr/bin/python3 -I -S -B -c '
+import os,pwd,stat,sys
+entry=pwd.getpwuid(os.getuid())
+path=os.path.realpath(entry.pw_dir)
+if path != entry.pw_dir or not os.path.isabs(path): raise SystemExit(1)
+st=os.lstat(path)
+if not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode) or st.st_uid != os.getuid() or st.st_mode & 0o022: raise SystemExit(1)
+print(path,end="")
+') || fail GREATER_REALM_PRODUCTION_LAUNCH_ACCOUNT_HOME_INVALID
+
+run_launch_lifecycle() {
+  /usr/bin/python3 -I -S -B - "$@" <<'WKGR_LAUNCH_LIFECYCLE_PY'
+import fcntl,hashlib,json,os,re,secrets,signal,stat,subprocess,sys,time
+
+PROFILE="warpkeep-greater-realm-production-launch-lifecycle-v1"
+TERMINAL_PROFILE="warpkeep-greater-realm-production-launch-terminal-v1"
+LAUNCH_PROFILE="warpkeep-greater-realm-production-launch-v1"
+RUN_ID=re.compile(r"run-[0-9a-f]{32}")
+COMMAND=re.compile(r"[a-z][a-z0-9-]{0,79}")
+SHA256=re.compile(r"[0-9a-f]{64}")
+COMMIT=re.compile(r"[0-9a-f]{40}")
+DECIMAL=re.compile(r"(?:0|[1-9][0-9]*)")
+PHASES=("allocated","launch-installing","launch-installed","containment-prepared","operator-contained","cleanup-prepared","tree-removing","run-removed","complete")
+FINAL=re.compile(r"(run-[0-9a-f]{32})-([0-9]{8})-("+"|".join(PHASES)+r")\.json")
+TEMP=re.compile(r"\.(run-[0-9a-f]{32})-([0-9]{8})-("+"|".join(PHASES)+r")\.json-([1-9][0-9]*)-([0-9a-f]{64})-([0-9a-f]{64})\.tmp")
+TERMINAL_FINAL=re.compile(r"(run-[0-9a-f]{32})-terminal\.json")
+TERMINAL_TEMP=re.compile(r"\.(run-[0-9a-f]{32})-terminal\.json-([0-9a-f]{64})\.tmp")
+LIFECYCLE_LOCK=re.compile(r"(run-[0-9a-f]{32})-lifecycle\.lock")
+LAUNCH_PHASES=("launch-prepared","bootstrap-validating","operator-starting","operator-gated","operator-running","operator-terminal","complete")
+LAUNCH_TEMP=re.compile(r"\.launch-record-("+"|".join(LAUNCH_PHASES)+r")-([0-9a-f]{64})\.json\.tmp")
+MAX_AUTHORITY_ENTRIES=4096
+MAX_RUNS=1024
+MAX_RECORD_BYTES=32768
+MAX_TREE_ENTRIES=500000
+MAX_TREE_DEPTH=128
+MAX_TREE_BYTES=68719476736
+MAX_TERMINAL_TOMBSTONES=512
+RETENTION_KEYS=("schemaVersion","profile","materializationRoot","artifactPath","artifactDigest","moduleSourceCommit","moduleTreeId","dependencyClosureDigest","materializationDev","materializationIno","artifactDev","artifactIno","artifactMode","artifactUid","artifactNlink","artifactSize","artifactMtimeNs","artifactCtimeNs")
+
+def fail(code):
+    raise RuntimeError(code)
+
+def canonical(value):
+    return (json.dumps(value,sort_keys=True,separators=(",",":"),ensure_ascii=False)+"\n").encode()
+
+def sha256(value):
+    return hashlib.sha256(value).hexdigest()
+
+def fsync_dir(path):
+    fd=os.open(path,os.O_RDONLY|getattr(os,"O_DIRECTORY",0)|getattr(os,"O_NOFOLLOW",0))
+    try:
+        st=os.fstat(fd)
+        if not stat.S_ISDIR(st.st_mode): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_DIRECTORY_INVALID")
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+def exact_private_dir(path):
+    st=os.lstat(path)
+    if not stat.S_ISDIR(st.st_mode) or stat.S_ISLNK(st.st_mode) or st.st_uid != os.getuid() or stat.S_IMODE(st.st_mode) != 0o700 or os.path.realpath(path) != path:
+        fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_DIRECTORY_INVALID")
+    return st
+
+def ensure_private_child(parent,name):
+    path=os.path.join(parent,name)
+    try:
+        os.mkdir(path,0o700)
+        fsync_dir(parent)
+    except FileExistsError:
+        pass
+    exact_private_dir(path)
+    if os.path.dirname(os.path.realpath(path)) != parent:
+        fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_DIRECTORY_INVALID")
+    return path
+
+def roots(home,create):
+    home=os.path.realpath(home)
+    parent=home
+    for name in (".warpkeep","private","production-admin-v1"):
+        path=os.path.join(parent,name)
+        if not os.path.lexists(path):
+            if not create: return None
+            path=ensure_private_child(parent,name)
+        else:
+            exact_private_dir(path)
+        parent=path
+    runs=os.path.join(parent,"bootstrap-runs-v1")
+    authority=os.path.join(parent,"bootstrap-run-lifecycle-v1")
+    if create:
+        runs=ensure_private_child(parent,"bootstrap-runs-v1")
+        authority=ensure_private_child(parent,"bootstrap-run-lifecycle-v1")
+    else:
+        if os.path.lexists(runs): exact_private_dir(runs)
+        if os.path.lexists(authority): exact_private_dir(authority)
+    return (parent,runs,authority)
+
+def acquire_lifecycle_lock(home,run_id):
+    located=roots(home,True)
+    admin,runs,authority=located
+    path=os.path.join(authority,f"{run_id}-lifecycle.lock")
+    fd=os.open(path,os.O_RDWR|os.O_CREAT|getattr(os,"O_NOFOLLOW",0),0o600)
+    st=os.fstat(fd)
+    if not stat.S_ISREG(st.st_mode) or st.st_uid != os.getuid() or stat.S_IMODE(st.st_mode) != 0o600 or st.st_nlink != 1: os.close(fd); fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_LOCK_INVALID")
+    try: fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    except BlockingIOError: os.close(fd); fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_BUSY")
+    current=os.lstat(path)
+    if (current.st_dev,current.st_ino,current.st_nlink) != (st.st_dev,st.st_ino,1): fcntl.flock(fd,fcntl.LOCK_UN); os.close(fd); fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_LOCK_REPLACED")
+    os.ftruncate(fd,0)
+    body=canonical({"schemaVersion":1,"profile":"warpkeep-greater-realm-production-launch-lock-v1","runId":run_id,"pid":os.getpid()})
+    offset=0
+    while offset < len(body): offset+=os.write(fd,body[offset:])
+    os.fsync(fd); fsync_dir(authority)
+    return located,path,fd,st.st_dev,st.st_ino
+
+def try_acquire_lifecycle_lock(located,run_id):
+    _,_,authority=located
+    path=os.path.join(authority,f"{run_id}-lifecycle.lock")
+    fd=os.open(path,os.O_RDWR|os.O_CREAT|getattr(os,"O_NOFOLLOW",0),0o600)
+    st=os.fstat(fd)
+    if not stat.S_ISREG(st.st_mode) or st.st_uid != os.getuid() or stat.S_IMODE(st.st_mode) != 0o600 or st.st_nlink != 1: os.close(fd); fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_LOCK_INVALID")
+    try: fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(fd); return None
+    current=os.lstat(path)
+    if (current.st_dev,current.st_ino,current.st_nlink) != (st.st_dev,st.st_ino,1): fcntl.flock(fd,fcntl.LOCK_UN); os.close(fd); return None
+    os.ftruncate(fd,0)
+    body=canonical({"schemaVersion":1,"profile":"warpkeep-greater-realm-production-launch-lock-v1","runId":run_id,"pid":os.getpid()})
+    offset=0
+    while offset < len(body): offset+=os.write(fd,body[offset:])
+    os.fsync(fd); fsync_dir(authority)
+    return path,fd,st.st_dev,st.st_ino
+
+def release_lifecycle_lock(authority,path,fd,expected_dev,expected_ino):
+    try:
+        current=os.lstat(path)
+        if (current.st_dev,current.st_ino,current.st_uid,stat.S_IMODE(current.st_mode),current.st_nlink) != (expected_dev,expected_ino,os.getuid(),0o600,1): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_LOCK_INVALID")
+        os.unlink(path); fsync_dir(authority)
+    finally:
+        fcntl.flock(fd,fcntl.LOCK_UN); os.close(fd)
+
+def exact_file(path,maximum=MAX_RECORD_BYTES,allow_links=(1,)):
+    before=os.lstat(path)
+    if not stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode) or before.st_uid != os.getuid() or stat.S_IMODE(before.st_mode) != 0o600 or before.st_nlink not in allow_links or before.st_size < 1 or before.st_size > maximum:
+        fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_FILE_INVALID")
+    fd=os.open(path,os.O_RDONLY|getattr(os,"O_NOFOLLOW",0))
+    try:
+        opened=os.fstat(fd)
+        if (opened.st_dev,opened.st_ino,opened.st_mode,opened.st_nlink,opened.st_size) != (before.st_dev,before.st_ino,before.st_mode,before.st_nlink,before.st_size):
+            fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_FILE_INVALID")
+        value=b""
+        while len(value) < opened.st_size:
+            part=os.read(fd,opened.st_size-len(value))
+            if not part: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_FILE_INVALID")
+            value+=part
+        after=os.fstat(fd); path_after=os.lstat(path)
+        fields=lambda item:(item.st_dev,item.st_ino,item.st_mode,item.st_nlink,item.st_size,item.st_mtime_ns,item.st_ctime_ns)
+        if fields(after) != fields(opened) or fields(path_after) != fields(opened):
+            fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_FILE_INVALID")
+        return value,opened
+    finally:
+        os.close(fd)
+
+def exact_keys(value,keys):
+    if not isinstance(value,dict) or sorted(value) != sorted(keys): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+    return value
+
+RECORD_KEYS=("schemaVersion","profile","runId","ordinal","phase","previousRecordSha256","pid","processStartIdentity","protectedMain","moduleTree","bootstrapBlob","bootstrapSha256","command","commandArgumentsSha256","runDev","runIno","launchRecordSha256","containedChildPid","containedChildProcessStartIdentity","containedChildPgid","containmentConfirmationSha256","cleanupConfirmationSha256","cleanupTreeInventorySha256","cleanupReason")
+LAUNCH_KEYS=("schemaVersion","profile","phase","pid","processStartIdentity","runDev","runIno","protectedMain","moduleTree","bootstrapBlob","bootstrapSha256","command","commandArgumentsSha256","childPid","childProcessStartIdentity","childPgid","terminal")
+
+def parse_record_bytes(value,expected_name):
+    try: raw=exact_keys(json.loads(value.decode("utf-8")),RECORD_KEYS)
+    except Exception: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+    if raw["schemaVersion"] != 1 or raw["profile"] != PROFILE or RUN_ID.fullmatch(raw["runId"] or "") is None or not isinstance(raw["ordinal"],int) or isinstance(raw["ordinal"],bool) or not 1 <= raw["ordinal"] <= 99999999 or raw["phase"] not in PHASES:
+        fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+    if expected_name != f'{raw["runId"]}-{raw["ordinal"]:08d}-{raw["phase"]}.json': fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+    if (raw["ordinal"] == 1) != (raw["previousRecordSha256"] is None) or (raw["previousRecordSha256"] is not None and SHA256.fullmatch(raw["previousRecordSha256"]) is None): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+    if not isinstance(raw["pid"],int) or isinstance(raw["pid"],bool) or raw["pid"] < 1 or not isinstance(raw["processStartIdentity"],str) or not 8 <= len(raw["processStartIdentity"]) <= 160 or any(ord(c) < 32 or ord(c) > 126 for c in raw["processStartIdentity"]): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+    if any(COMMIT.fullmatch(raw[key] or "") is None for key in ("protectedMain","moduleTree","bootstrapBlob")) or SHA256.fullmatch(raw["bootstrapSha256"] or "") is None or COMMAND.fullmatch(raw["command"] or "") is None or SHA256.fullmatch(raw["commandArgumentsSha256"] or "") is None: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+    root_absent=raw["runDev"] is None and raw["runIno"] is None
+    root_present=isinstance(raw["runDev"],str) and DECIMAL.fullmatch(raw["runDev"]) and isinstance(raw["runIno"],str) and DECIMAL.fullmatch(raw["runIno"])
+    if not (root_absent or root_present) or (raw["phase"] == "allocated" and not root_absent) or (raw["phase"] in ("launch-installing","launch-installed") and not root_present): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+    if raw["launchRecordSha256"] is not None and SHA256.fullmatch(raw["launchRecordSha256"]) is None: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+    if raw["phase"] == "launch-installed" and raw["launchRecordSha256"] is None: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+    containment_absent=raw["containedChildPid"] is None and raw["containedChildProcessStartIdentity"] is None and raw["containedChildPgid"] is None and raw["containmentConfirmationSha256"] is None
+    containment_present=isinstance(raw["containedChildPid"],int) and not isinstance(raw["containedChildPid"],bool) and raw["containedChildPid"] > 1 and isinstance(raw["containedChildProcessStartIdentity"],str) and 1 <= len(raw["containedChildProcessStartIdentity"]) <= 160 and raw["containedChildPgid"] == raw["containedChildPid"] and isinstance(raw["containmentConfirmationSha256"],str) and SHA256.fullmatch(raw["containmentConfirmationSha256"]) is not None
+    if not (containment_absent or containment_present) or (raw["phase"] in ("containment-prepared","operator-contained") and not containment_present): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+    cleanup=raw["phase"] in ("cleanup-prepared","tree-removing","run-removed","complete")
+    if cleanup != (isinstance(raw["cleanupConfirmationSha256"],str) and SHA256.fullmatch(raw["cleanupConfirmationSha256"]) is not None): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+    if cleanup != (isinstance(raw["cleanupTreeInventorySha256"],str) and SHA256.fullmatch(raw["cleanupTreeInventorySha256"]) is not None): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+    if cleanup != (raw["cleanupReason"] in ("confirmed-dead-owner","completed-current-owner")): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+    return raw
+
+def publish_record(authority,record):
+    chain=read_authority(authority,record["runId"])
+    latest=chain["records"][-1] if chain["records"] else None
+    if record["ordinal"] != (1 if latest is None else latest["record"]["ordinal"]+1) or record["previousRecordSha256"] != (None if latest is None else latest["digest"]): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_PREDECESSOR_CAS_FAILED")
+    value=canonical(record); digest=sha256(value)
+    name=f'{record["runId"]}-{record["ordinal"]:08d}-{record["phase"]}.json'
+    start_digest=sha256(record["processStartIdentity"].encode())
+    temporary=os.path.join(authority,f'.{name}-{record["pid"]}-{start_digest}-{digest}.tmp')
+    final=os.path.join(authority,name)
+    fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_EXCL|getattr(os,"O_NOFOLLOW",0),0o600)
+    try:
+        offset=0
+        while offset < len(value): offset+=os.write(fd,value[offset:])
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    try:
+        os.link(temporary,final,follow_symlinks=False)
+    except FileExistsError:
+        installed,_=exact_file(final)
+        if installed != value: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_PREDECESSOR_CAS_FAILED")
+        os.unlink(temporary); fsync_dir(authority)
+        return digest
+    fsync_dir(authority)
+    os.unlink(temporary); fsync_dir(authority)
+    return digest
+
+def parse_terminal_bytes(value,run_id):
+    try: raw=exact_keys(json.loads(value.decode("utf-8")),("schemaVersion","profile","runId","finalLifecycleRecordSha256","finalLifecycleRecord"))
+    except Exception: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TERMINAL_INVALID")
+    if raw["schemaVersion"] != 1 or raw["profile"] != TERMINAL_PROFILE or raw["runId"] != run_id or SHA256.fullmatch(raw["finalLifecycleRecordSha256"] or "") is None: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TERMINAL_INVALID")
+    final_record=raw["finalLifecycleRecord"]
+    expected=f'{run_id}-{final_record.get("ordinal",0):08d}-complete.json' if isinstance(final_record,dict) else ""
+    parsed=parse_record_bytes(canonical(final_record),expected)
+    if parsed["phase"] != "complete" or sha256(canonical(parsed)) != raw["finalLifecycleRecordSha256"]: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TERMINAL_INVALID")
+    return raw
+
+def publish_terminal(authority,complete):
+    chain=read_authority(authority,complete["record"]["runId"])
+    if not chain["records"] or chain["records"][-1]["digest"] != complete["digest"] or chain["records"][-1]["record"] != complete["record"]: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_PREDECESSOR_CAS_FAILED")
+    value=canonical({"schemaVersion":1,"profile":TERMINAL_PROFILE,"runId":complete["record"]["runId"],"finalLifecycleRecordSha256":complete["digest"],"finalLifecycleRecord":complete["record"]})
+    digest=sha256(value); run_id=complete["record"]["runId"]
+    temporary=os.path.join(authority,f".{run_id}-terminal.json-{digest}.tmp"); final=os.path.join(authority,f"{run_id}-terminal.json")
+    fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_EXCL|getattr(os,"O_NOFOLLOW",0),0o600)
+    try:
+        offset=0
+        while offset < len(value): offset+=os.write(fd,value[offset:])
+        os.fsync(fd)
+    finally: os.close(fd)
+    try:
+        os.link(temporary,final,follow_symlinks=False)
+    except FileExistsError:
+        installed,_=exact_file(final)
+        if installed != value: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_PREDECESSOR_CAS_FAILED")
+        os.unlink(temporary); fsync_dir(authority)
+        return
+    fsync_dir(authority)
+    os.unlink(temporary); fsync_dir(authority)
+
+def read_terminal(authority,run_id):
+    final_path=os.path.join(authority,f"{run_id}-terminal.json")
+    candidates=[]
+    for name in os.listdir(authority):
+        match=TERMINAL_TEMP.fullmatch(name)
+        if match and match.group(1) == run_id: candidates.append((os.path.join(authority,name),match.group(2)))
+    if len(candidates) > 1: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TERMINAL_INVALID")
+    final=None; temporary=None
+    if os.path.lexists(final_path):
+        value,st=exact_file(final_path,allow_links=(1,2)); final={"path":final_path,"value":value,"stat":st,"digest":sha256(value),"terminal":parse_terminal_bytes(value,run_id)}
+    if candidates:
+        try:
+            value,st=exact_file(candidates[0][0],allow_links=(1,2)); temporary={"path":candidates[0][0],"value":value,"stat":st,"digest":sha256(value),"terminal":parse_terminal_bytes(value,run_id),"partial":False}
+            if temporary["digest"] != candidates[0][1]: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TERMINAL_INVALID")
+        except Exception:
+            st=os.lstat(candidates[0][0])
+            if not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or st.st_uid != os.getuid() or stat.S_IMODE(st.st_mode) != 0o600 or st.st_nlink not in (1,2) or st.st_size > MAX_RECORD_BYTES: raise
+            temporary={"path":candidates[0][0],"stat":st,"digest":candidates[0][1],"terminal":None,"partial":True}
+    if final and temporary:
+        if temporary.get("partial"):
+            return {**final,"publication":"installed-with-partial","temporaryPath":temporary["path"],"partialTemporary":True}
+        if final["digest"] != temporary["digest"] or (final["stat"].st_dev,final["stat"].st_ino,final["stat"].st_nlink) != (temporary["stat"].st_dev,temporary["stat"].st_ino,2): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TERMINAL_INVALID")
+        return {**final,"publication":"linked","temporaryPath":temporary["path"]}
+    if final:
+        if final["stat"].st_nlink != 1: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TERMINAL_INVALID")
+        return {**final,"publication":"installed","temporaryPath":None}
+    if temporary:
+        if temporary.get("partial"):
+            return {**temporary,"publication":"partial","finalPath":final_path,"temporaryPath":temporary["path"],"partialTemporary":True}
+        if temporary["stat"].st_nlink != 1: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TERMINAL_INVALID")
+        return {**temporary,"publication":"prelink","finalPath":final_path,"temporaryPath":temporary["path"]}
+    return None
+
+def repair_terminal(authority,run_id):
+    terminal=read_terminal(authority,run_id)
+    if terminal is None: return None
+    if terminal["publication"] == "installed-with-partial":
+        os.unlink(terminal["temporaryPath"]); fsync_dir(authority)
+    elif terminal["publication"] == "partial": return terminal
+    else:
+        if terminal["publication"] == "prelink": os.link(terminal["temporaryPath"],terminal["finalPath"],follow_symlinks=False); fsync_dir(authority)
+        if terminal["publication"] != "installed": os.unlink(terminal["temporaryPath"]); fsync_dir(authority)
+    terminal=read_terminal(authority,run_id)
+    if terminal is None or terminal["publication"] not in ("installed","partial"): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TERMINAL_INVALID")
+    return terminal
+
+def base_record(run_id,ordinal,phase,previous,pid,start,commit,tree,blob,bootstrap_digest,command,argument_digest,run_st=None,launch_digest=None,confirmation=None,reason=None,inventory_digest=None):
+    return {"schemaVersion":1,"profile":PROFILE,"runId":run_id,"ordinal":ordinal,"phase":phase,"previousRecordSha256":previous,"pid":pid,"processStartIdentity":start,"protectedMain":commit,"moduleTree":tree,"bootstrapBlob":blob,"bootstrapSha256":bootstrap_digest,"command":command,"commandArgumentsSha256":argument_digest,"runDev":None if run_st is None else str(run_st.st_dev),"runIno":None if run_st is None else str(run_st.st_ino),"launchRecordSha256":launch_digest,"containedChildPid":None,"containedChildProcessStartIdentity":None,"containedChildPgid":None,"containmentConfirmationSha256":None,"cleanupConfirmationSha256":confirmation,"cleanupTreeInventorySha256":inventory_digest,"cleanupReason":reason}
+
+def parse_launch(value):
+    try: raw=exact_keys(json.loads(value.decode("utf-8")),LAUNCH_KEYS)
+    except Exception: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_LAUNCH_RECORD_INVALID")
+    if raw["schemaVersion"] != 1 or raw["profile"] != LAUNCH_PROFILE or raw["phase"] not in LAUNCH_PHASES or not isinstance(raw["pid"],int) or isinstance(raw["pid"],bool) or raw["pid"] < 1 or not isinstance(raw["processStartIdentity"],str) or not 8 <= len(raw["processStartIdentity"]) <= 160 or any(ord(c) < 32 or ord(c) > 126 for c in raw["processStartIdentity"]): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_LAUNCH_RECORD_INVALID")
+    if DECIMAL.fullmatch(raw["runDev"] or "") is None or DECIMAL.fullmatch(raw["runIno"] or "") is None or any(COMMIT.fullmatch(raw[key] or "") is None for key in ("protectedMain","moduleTree","bootstrapBlob")) or SHA256.fullmatch(raw["bootstrapSha256"] or "") is None or COMMAND.fullmatch(raw["command"] or "") is None or SHA256.fullmatch(raw["commandArgumentsSha256"] or "") is None: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_LAUNCH_RECORD_INVALID")
+    absent=raw["childPid"] is None and raw["childProcessStartIdentity"] is None and raw["childPgid"] is None
+    present=isinstance(raw["childPid"],int) and not isinstance(raw["childPid"],bool) and raw["childPid"] > 1 and isinstance(raw["childProcessStartIdentity"],str) and 1 <= len(raw["childProcessStartIdentity"]) <= 160 and raw["childPgid"] == raw["childPid"]
+    if not (absent or present): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_LAUNCH_RECORD_INVALID")
+    if (raw["phase"] in ("launch-prepared","bootstrap-validating","operator-starting")) != absent: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_LAUNCH_RECORD_INVALID")
+    if raw["terminal"] is None:
+        if raw["phase"] in ("operator-terminal","complete"): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_LAUNCH_RECORD_INVALID")
+    else:
+        terminal=exact_keys(raw["terminal"],("code","signal","interruptedBy","reason"))
+        if raw["phase"] not in ("operator-terminal","complete") or not (terminal["code"] is None or (isinstance(terminal["code"],int) and not isinstance(terminal["code"],bool))) or terminal["signal"] not in (None,"SIGINT","SIGTERM","SIGKILL") or terminal["interruptedBy"] not in (None,"SIGINT","SIGTERM") or terminal["reason"] not in ("operator-exit","bootstrap-interrupt","timeout") or (terminal["reason"] == "bootstrap-interrupt") != (terminal["interruptedBy"] is not None and terminal["reason"] != "timeout"): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_LAUNCH_RECORD_INVALID")
+        if raw["phase"] == "complete" and terminal != {"code":0,"signal":None,"interruptedBy":None,"reason":"operator-exit"}: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_LAUNCH_RECORD_INVALID")
+    return raw
+
+def process_state(pid,start=None,start_digest=None):
+    try: os.kill(pid,0)
+    except ProcessLookupError: return "dead"
+    except PermissionError: return "live-uninspectable"
+    result=subprocess.run(["/bin/ps","-o","lstart=","-p",str(pid)],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,env={"PATH":"/usr/bin:/bin"},check=False,text=True)
+    actual=result.stdout.strip()
+    if result.returncode != 0 or not actual: return "live-uninspectable"
+    if start is not None and actual == start: return "live-exact"
+    if start_digest is not None and sha256(actual.encode()) == start_digest: return "live-exact"
+    return "live-reused"
+
+def group_state(pgid):
+    if pgid is None: return "absent"
+    try: os.killpg(pgid,0); return "live"
+    except ProcessLookupError: return "absent"
+    except PermissionError: return "live-uninspectable"
+
+def read_authority(authority,run_id):
+    if not os.path.lexists(authority): return {"records":[],"partials":[]}
+    names=os.listdir(authority)
+    if len(names) > MAX_AUTHORITY_ENTRIES: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_INVENTORY_BOUNDED")
+    finals={}; temps={}; partials=[]
+    for name in names:
+        fm=FINAL.fullmatch(name); tm=TEMP.fullmatch(name)
+        terminal_match=TERMINAL_FINAL.fullmatch(name) or TERMINAL_TEMP.fullmatch(name)
+        if terminal_match is not None:
+            continue
+        lock_match=LIFECYCLE_LOCK.fullmatch(name)
+        if lock_match is not None:
+            path=os.path.join(authority,name); st=os.lstat(path)
+            if not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or st.st_uid != os.getuid() or stat.S_IMODE(st.st_mode) != 0o600 or st.st_nlink != 1 or st.st_size > 4096: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_LOCK_INVALID")
+            continue
+        if fm is None and tm is None: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_AUTHORITY_INVENTORY_INVALID")
+        match=fm or tm
+        if match.group(1) != run_id: continue
+        key=(int(match.group(2)),match.group(3)); path=os.path.join(authority,name)
+        expected=f'{match.group(1)}-{match.group(2)}-{match.group(3)}.json'
+        try:
+            value,st=exact_file(path,allow_links=(1,2)); record=parse_record_bytes(value,expected); digest=sha256(value)
+        except Exception:
+            if tm is None: raise
+            st=os.lstat(path)
+            if not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or st.st_uid != os.getuid() or stat.S_IMODE(st.st_mode) != 0o600 or st.st_nlink not in (1,2) or st.st_size > MAX_RECORD_BYTES: raise
+            partials.append({"path":path,"ordinal":int(tm.group(2)),"phase":tm.group(3),"pid":int(tm.group(4)),"processStartIdentitySha256":tm.group(5),"expectedRecordSha256":tm.group(6),"dev":str(st.st_dev),"ino":str(st.st_ino),"nlink":st.st_nlink,"size":st.st_size})
+            continue
+        if tm is not None:
+            if record["pid"] != int(tm.group(4)) or sha256(record["processStartIdentity"].encode()) != tm.group(5) or digest != tm.group(6): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+            target=temps
+        else: target=finals
+        if key in target: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+        target[key]={"path":path,"record":record,"digest":digest,"stat":st}
+    records=[]
+    for key in sorted(set(finals)|set(temps)):
+        final=finals.get(key); temp=temps.get(key)
+        if final and temp:
+            if final["digest"] != temp["digest"] or (final["stat"].st_dev,final["stat"].st_ino,final["stat"].st_nlink) != (temp["stat"].st_dev,temp["stat"].st_ino,2): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+            entry=dict(final); entry.update({"publication":"linked","finalPath":final["path"],"temporaryPath":temp["path"]})
+        elif final:
+            if final["stat"].st_nlink != 1: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+            entry=dict(final); entry.update({"publication":"installed","finalPath":final["path"],"temporaryPath":None})
+        else:
+            if temp["stat"].st_nlink != 1: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+            entry=dict(temp); entry.update({"publication":"prelink","finalPath":os.path.join(authority,f'{run_id}-{key[0]:08d}-{key[1]}.json'),"temporaryPath":temp["path"]})
+        records.append(entry)
+    terminal=read_terminal(authority,run_id)
+    terminal_record=None if terminal is None or terminal.get("terminal") is None else terminal["terminal"]["finalLifecycleRecord"]
+    terminal_digest=None if terminal is None or terminal.get("terminal") is None else terminal["terminal"]["finalLifecycleRecordSha256"]
+    previous=None
+    allowed={"allocated":("launch-installing","cleanup-prepared"),"launch-installing":("launch-installed","cleanup-prepared"),"launch-installed":("containment-prepared","cleanup-prepared"),"containment-prepared":("operator-contained",),"operator-contained":("cleanup-prepared",),"cleanup-prepared":("tree-removing","run-removed"),"tree-removing":("run-removed",),"run-removed":("complete",),"complete":()}
+    stable=("runId","pid","processStartIdentity","protectedMain","moduleTree","bootstrapBlob","bootstrapSha256","command","commandArgumentsSha256")
+    for entry in records:
+        record=entry["record"]
+        if previous is None:
+            compacting=terminal_record is not None and records[-1]["record"] == terminal_record and records[-1]["digest"] == terminal_digest
+            if not compacting and (record["ordinal"] != 1 or record["previousRecordSha256"] is not None or record["phase"] not in ("allocated","cleanup-prepared")): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+        elif record["ordinal"] != previous["record"]["ordinal"]+1 or record["previousRecordSha256"] != previous["digest"]: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+        if previous is not None:
+            old=previous["record"]
+            if record["phase"] not in allowed[old["phase"]] or any(record[key] != old[key] for key in stable): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+            if old["runDev"] is not None and (record["runDev"],record["runIno"]) != (old["runDev"],old["runIno"]): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+            if old["launchRecordSha256"] is not None and not (old["phase"] == "launch-installed" and record["phase"] in ("containment-prepared","cleanup-prepared")) and record["launchRecordSha256"] != old["launchRecordSha256"]: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+            if old["containedChildPid"] is not None and any(record[key] != old[key] for key in ("containedChildPid","containedChildProcessStartIdentity","containedChildPgid","containmentConfirmationSha256")): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+            if old["cleanupConfirmationSha256"] is not None and (record["cleanupConfirmationSha256"],record["cleanupTreeInventorySha256"],record["cleanupReason"]) != (old["cleanupConfirmationSha256"],old["cleanupTreeInventorySha256"],old["cleanupReason"]): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+        previous=entry
+    if terminal_record is not None:
+        if records and (records[-1]["record"] != terminal_record or records[-1]["digest"] != terminal_digest): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TERMINAL_INVALID")
+        if not records:
+            records=[{"path":terminal["path"],"record":terminal_record,"digest":terminal_digest,"stat":terminal["stat"],"publication":terminal["publication"],"finalPath":terminal.get("finalPath",terminal["path"]),"temporaryPath":terminal["temporaryPath"],"terminal":True}]
+    return {"records":records,"partials":partials,"terminal":terminal}
+
+def launch_publication(run_root):
+    if not os.path.lexists(run_root): return {"state":"absent","record":None,"digest":None,"path":None}
+    exact_private_dir(run_root)
+    final_path=os.path.join(run_root,"launch-record.json")
+    temps=[]
+    for name in os.listdir(run_root):
+        match=LAUNCH_TEMP.fullmatch(name)
+        if match: temps.append((name,match.group(1),match.group(2)))
+    if len(temps) > len(LAUNCH_PHASES): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_LAUNCH_RECORD_INVALID")
+    final=None; parsed_temps=[]; partial_temps=[]
+    if os.path.lexists(final_path):
+        try:
+            value,st=exact_file(final_path,allow_links=(1,2)); final={"value":value,"stat":st,"record":parse_launch(value),"digest":sha256(value),"path":final_path}
+        except Exception:
+            st=os.lstat(final_path)
+            return {"state":"partial-final","record":None,"digest":None,"path":final_path,"partial":{"dev":str(st.st_dev),"ino":str(st.st_ino),"nlink":st.st_nlink,"size":st.st_size},"temporaries":[]}
+    for name,phase,expected_digest in temps:
+        path=os.path.join(run_root,name)
+        try:
+            value,st=exact_file(path,allow_links=(1,2)); temp={"value":value,"stat":st,"record":parse_launch(value),"digest":sha256(value),"path":path,"phase":phase}
+            if temp["digest"] != expected_digest or temp["record"]["phase"] != phase: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_LAUNCH_RECORD_INVALID")
+            parsed_temps.append(temp)
+        except Exception:
+            st=os.lstat(path)
+            if not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or st.st_uid != os.getuid() or stat.S_IMODE(st.st_mode) != 0o600 or st.st_nlink not in (1,2) or st.st_size > MAX_RECORD_BYTES: raise
+            partial_temps.append({"path":path,"phase":phase,"expectedDigest":expected_digest,"dev":str(st.st_dev),"ino":str(st.st_ino),"nlink":st.st_nlink,"size":st.st_size})
+    if final:
+        linked=[temp for temp in parsed_temps if (temp["stat"].st_dev,temp["stat"].st_ino) == (final["stat"].st_dev,final["stat"].st_ino)]
+        if len(linked) > 1: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_LAUNCH_RECORD_INVALID")
+        if linked:
+            temp=linked[0]
+            if final["digest"] != temp["digest"] or final["stat"].st_nlink != 2 or temp["stat"].st_nlink != 2: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_LAUNCH_RECORD_INVALID")
+            updates=[item for item in parsed_temps if item is not temp]
+            return {"state":"linked","record":final["record"],"digest":final["digest"],"path":final_path,"temporaryPath":temp["path"],"updateTemporaries":[{"path":item["path"],"phase":item["phase"],"digest":item["digest"]} for item in updates],"partialTemporaries":partial_temps}
+        if final["stat"].st_nlink != 1: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_LAUNCH_RECORD_INVALID")
+        return {"state":"installed" if not parsed_temps and not partial_temps else "installed-with-update-temporaries","record":final["record"],"digest":final["digest"],"path":final_path,"updateTemporaries":[{"path":item["path"],"phase":item["phase"],"digest":item["digest"]} for item in parsed_temps],"partialTemporaries":partial_temps}
+    if len(parsed_temps) == 1 and not partial_temps:
+        temp=parsed_temps[0]
+        if temp["phase"] != "launch-prepared" or temp["stat"].st_nlink != 1: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_LAUNCH_RECORD_INVALID")
+        return {"state":"prelink","record":temp["record"],"digest":temp["digest"],"path":temp["path"],"finalPath":final_path,"updateTemporaries":[],"partialTemporaries":[]}
+    if not parsed_temps and len(partial_temps) == 1:
+        return {"state":"partial","record":None,"digest":partial_temps[0]["expectedDigest"],"path":partial_temps[0]["path"],"partial":partial_temps[0],"updateTemporaries":[],"partialTemporaries":partial_temps}
+    if parsed_temps or partial_temps: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_LAUNCH_RECORD_INVALID")
+    return {"state":"missing","record":None,"digest":None,"path":None,"updateTemporaries":[],"partialTemporaries":[]}
+
+def tree_inventory(run_root):
+    if not os.path.lexists(run_root):
+        value={"state":"absent","entryCount":0,"byteCount":0,"entries":[]}
+        return {"state":"absent","entryCount":0,"byteCount":0,"digest":sha256(canonical(value))}
+    root_st=exact_private_dir(run_root)
+    entries=[]; byte_count=0
+    root_fd=os.open(run_root,os.O_RDONLY|getattr(os,"O_DIRECTORY",0)|getattr(os,"O_NOFOLLOW",0))
+    opened_root=os.fstat(root_fd)
+    if (opened_root.st_dev,opened_root.st_ino,opened_root.st_mode,opened_root.st_uid) != (root_st.st_dev,root_st.st_ino,root_st.st_mode,root_st.st_uid): os.close(root_fd); fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_CHANGED")
+    def walk(directory_fd,relative,depth):
+        nonlocal byte_count
+        if depth > MAX_TREE_DEPTH: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_INVENTORY_BOUNDED")
+        names=sorted(os.listdir(directory_fd))
+        for name in names:
+            if name in (".","..") or "/" in name or "\x00" in name: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_INVALID")
+            item_relative=name if not relative else relative+"/"+name
+            st=os.stat(name,dir_fd=directory_fd,follow_symlinks=False)
+            if st.st_uid != os.getuid(): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_INVALID")
+            common={"path":item_relative,"mode":stat.S_IMODE(st.st_mode),"dev":str(st.st_dev),"ino":str(st.st_ino),"nlink":st.st_nlink,"size":st.st_size,"mtimeNs":st.st_mtime_ns,"ctimeNs":st.st_ctime_ns}
+            if stat.S_ISDIR(st.st_mode) and not stat.S_ISLNK(st.st_mode):
+                if stat.S_IMODE(st.st_mode) != 0o700: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_INVALID")
+                child_fd=os.open(name,os.O_RDONLY|getattr(os,"O_DIRECTORY",0)|getattr(os,"O_NOFOLLOW",0),dir_fd=directory_fd)
+                try:
+                    child=os.fstat(child_fd)
+                    if (child.st_dev,child.st_ino,child.st_mode,child.st_uid) != (st.st_dev,st.st_ino,st.st_mode,st.st_uid): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_CHANGED")
+                    entries.append({**common,"kind":"directory"}); walk(child_fd,item_relative,depth+1)
+                    after=os.fstat(child_fd); named=os.stat(name,dir_fd=directory_fd,follow_symlinks=False)
+                    fields=lambda value:(value.st_dev,value.st_ino,value.st_mode,value.st_uid,value.st_nlink,value.st_size,value.st_mtime_ns,value.st_ctime_ns)
+                    if fields(after) != fields(child) or (named.st_dev,named.st_ino) != (child.st_dev,child.st_ino): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_CHANGED")
+                finally: os.close(child_fd)
+            elif stat.S_ISREG(st.st_mode) and not stat.S_ISLNK(st.st_mode):
+                if stat.S_IMODE(st.st_mode) not in (0o400,0o500,0o600,0o644,0o700) or st.st_nlink not in (1,2): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_INVALID")
+                if st.st_nlink == 2 and not (item_relative == "launch-record.json" or LAUNCH_TEMP.fullmatch(name)): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_INVALID")
+                byte_count+=st.st_size; entries.append({**common,"kind":"file"})
+            elif stat.S_ISLNK(st.st_mode):
+                if st.st_nlink != 1: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_INVALID")
+                entries.append({**common,"kind":"symlink","target":os.readlink(name,dir_fd=directory_fd)})
+            else: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_INVALID")
+            if len(entries) > MAX_TREE_ENTRIES or byte_count > MAX_TREE_BYTES: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_INVENTORY_BOUNDED")
+    try:
+        walk(root_fd,"",0); after_root=os.fstat(root_fd)
+        fields=lambda value:(value.st_dev,value.st_ino,value.st_mode,value.st_uid,value.st_nlink,value.st_size,value.st_mtime_ns,value.st_ctime_ns)
+        if fields(after_root) != fields(opened_root): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_CHANGED")
+    finally: os.close(root_fd)
+    current=os.lstat(run_root)
+    if (current.st_dev,current.st_ino) != (root_st.st_dev,root_st.st_ino): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_CHANGED")
+    value={"state":"present","rootDev":str(root_st.st_dev),"rootIno":str(root_st.st_ino),"entryCount":len(entries),"byteCount":byte_count,"entries":entries}
+    return {"state":"present","rootDev":str(root_st.st_dev),"rootIno":str(root_st.st_ino),"entryCount":len(entries),"byteCount":byte_count,"digest":sha256(canonical(value))}
+
+def global_blockers(admin):
+    blockers=[]
+    receipts=os.path.join(admin,"greater-realm-cutover-receipts")
+    if os.path.lexists(receipts):
+        exact_private_dir(receipts)
+        if any(name.startswith(".greater-realm-cutover-") for name in os.listdir(receipts)): blockers.append("active-cutover-wal-or-lock")
+    materializations=os.path.join(admin,"immutable-publish-materializations")
+    if os.path.lexists(materializations):
+        exact_private_dir(materializations)
+        names=os.listdir(materializations); complete={}; linked_complete=set(); invalid=False
+        for name in names:
+            match=re.fullmatch(r"\.greater-realm-immutable-cleanup-([0-9a-f]{64})\.json",name)
+            if match is None: continue
+            path=os.path.join(materializations,name)
+            try:
+                value,final_st=exact_file(path,allow_links=(1,2))
+                raw=json.loads(value.decode("utf-8"))
+                record=raw.get("record") if isinstance(raw,dict) else None
+                if list(raw) != ["schemaVersion","profile","retentionDigest","phase","record"] or raw["schemaVersion"] != 1 or raw["profile"] != "warpkeep-greater-realm-immutable-artifact-cleanup-v1" or raw["retentionDigest"] != match.group(1) or raw["phase"] != "complete" or not isinstance(record,dict) or list(record) != list(RETENTION_KEYS): raise ValueError()
+                root=record["materializationRoot"]
+                digest=hashlib.sha256(b"warpkeep-greater-realm-immutable-artifact-retention-v1\0"+json.dumps(record,separators=(",",":"),ensure_ascii=False).encode()).hexdigest()
+                decimal=lambda value:isinstance(value,str) and DECIMAL.fullmatch(value) is not None
+                if digest != match.group(1) or record["schemaVersion"] != 1 or record["profile"] != "warpkeep-greater-realm-immutable-artifact-v1" or not isinstance(root,str) or os.path.realpath(root) != root or os.path.dirname(root) != materializations or re.fullmatch(r"[0-9a-f]{32}",os.path.basename(root)) is None or os.path.lexists(root) or record["artifactPath"] != os.path.join(root,"spacetimedb","dist","bundle.js") or SHA256.fullmatch(record["artifactDigest"] or "") is None or COMMIT.fullmatch(record["moduleSourceCommit"] or "") is None or COMMIT.fullmatch(record["moduleTreeId"] or "") is None or SHA256.fullmatch(record["dependencyClosureDigest"] or "") is None or not all(decimal(record[key]) for key in ("materializationDev","materializationIno","artifactDev","artifactIno","artifactUid","artifactSize","artifactMtimeNs","artifactCtimeNs")) or record["artifactMode"] != "600" or record["artifactNlink"] != "1": raise ValueError()
+                complete[match.group(1)]=(root,final_st)
+            except Exception:
+                invalid=True; break
+        if not invalid:
+            for name in names:
+                final=re.fullmatch(r"\.greater-realm-immutable-cleanup-([0-9a-f]{64})\.json",name)
+                temporary=re.fullmatch(r"\.greater-realm-immutable-cleanup-([0-9a-f]{64})-[0-9a-f]{32}\.tmp",name)
+                if final: continue
+                if temporary and temporary.group(1) in complete:
+                    st=os.lstat(os.path.join(materializations,name))
+                    final_st=complete[temporary.group(1)][1]
+                    exact=stat.S_ISREG(st.st_mode) and not stat.S_ISLNK(st.st_mode) and st.st_uid == os.getuid() and stat.S_IMODE(st.st_mode) == 0o600 and st.st_nlink in (1,2) and st.st_size <= MAX_RECORD_BYTES
+                    linked=st.st_nlink == 2 and final_st.st_nlink == 2 and (st.st_dev,st.st_ino) == (final_st.st_dev,final_st.st_ino)
+                    if exact and (st.st_nlink == 1 or linked):
+                        if linked: linked_complete.add(temporary.group(1))
+                        continue
+                invalid=True; break
+        if not invalid and any(st.st_nlink == 2 and digest not in linked_complete for digest,(_,st) in complete.items()): invalid=True
+        if invalid: blockers.append("active-immutable-materialization")
+    supervisors=os.path.join(admin,"greater-realm-publish-supervisors-v1")
+    if os.path.lexists(supervisors):
+        exact_private_dir(supervisors)
+        if os.listdir(supervisors): blockers.append("active-publish-supervisor")
+    return blockers
+
+def inspect_one(admin,runs,authority,run_id,detailed):
+    if RUN_ID.fullmatch(run_id) is None: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RUN_ID_INVALID")
+    run_root=os.path.join(runs,run_id)
+    chain=read_authority(authority,run_id)
+    latest=chain["records"][-1] if chain["records"] else None
+    launch=launch_publication(run_root)
+    evidence=None
+    if latest is not None: evidence=latest["record"]
+    elif launch["record"] is not None: evidence=launch["record"]
+    lifecycle_phase=None if latest is None else latest["record"]["phase"]
+    terminal_lifecycle=lifecycle_phase == "complete"
+    cleanup_in_progress=lifecycle_phase in ("cleanup-prepared","tree-removing","run-removed")
+    containment_in_progress=lifecycle_phase == "containment-prepared"
+    owner="terminal" if terminal_lifecycle else "unknown"
+    if evidence is not None and not terminal_lifecycle: owner=process_state(evidence["pid"],evidence.get("processStartIdentity"))
+    elif chain["partials"]:
+        partial=chain["partials"][0]; owner=process_state(partial["pid"],start_digest=partial["processStartIdentitySha256"])
+    child="absent"; group="absent"
+    if launch["record"] is not None and launch["record"]["childPid"] is not None:
+        child=process_state(launch["record"]["childPid"],launch["record"]["childProcessStartIdentity"])
+        group=group_state(launch["record"]["childPgid"])
+    mismatches=[]
+    run_st=None
+    if os.path.lexists(run_root):
+        run_st=exact_private_dir(run_root)
+        for source,name in ((evidence,"authority"),(launch["record"],"launch")):
+            if source is not None and source.get("runDev") is not None and (source["runDev"],source["runIno"]) != (str(run_st.st_dev),str(run_st.st_ino)): mismatches.append(name+"-run-identity-mismatch")
+    if latest is not None and launch["record"] is not None:
+        stable=("pid","processStartIdentity","protectedMain","moduleTree","bootstrapBlob","bootstrapSha256","command","commandArgumentsSha256","runDev","runIno")
+        if any(latest["record"][key] != launch["record"][key] for key in stable): mismatches.append("authority-launch-record-mismatch")
+        if latest["record"]["phase"] in ("containment-prepared","operator-contained","cleanup-prepared","tree-removing") and latest["record"]["launchRecordSha256"] != launch["digest"]: mismatches.append("authority-launch-digest-mismatch")
+        if latest["record"]["phase"] == "launch-installed" and launch["record"]["phase"] == "launch-prepared" and latest["record"]["launchRecordSha256"] != launch["digest"]: mismatches.append("initial-launch-digest-mismatch")
+    blockers=list(mismatches)
+    if not cleanup_in_progress:
+        blockers+=global_blockers(admin)
+        if owner in ("live-exact","live-uninspectable"): blockers.append("live-launch-owner")
+        if child in ("live-exact","live-uninspectable"): blockers.append("live-operator")
+        if group in ("live","live-uninspectable"): blockers.append("live-operator-process-group")
+    elif latest is not None and latest["record"]["cleanupReason"] == "completed-current-owner" and owner in ("live-exact","live-uninspectable"):
+        blockers.append("live-current-owner-cleanup")
+    run_state="present" if os.path.lexists(run_root) else "absent"
+    if latest is None and launch["record"] is None and run_state == "present": blockers.append("unowned-run")
+    if chain["partials"] and latest is None and run_state == "present": blockers.append("partial-authority-with-run")
+    containment_eligible=(not mismatches and owner not in ("live-exact","live-uninspectable") and group == "live" and ((not containment_in_progress and child in ("live-exact","dead") and latest is not None and latest["record"]["phase"] == "launch-installed") or (containment_in_progress and child in ("live-exact","dead"))))
+    summary={"runId":run_id,"runState":run_state,"authorityPhase":lifecycle_phase,"authorityPublication":None if latest is None else latest["publication"],"launchPhase":None if launch["record"] is None else launch["record"]["phase"],"launchPublication":launch["state"],"ownerState":owner,"childState":child,"processGroupState":group,"repairablePartialAuthorityCount":len(chain["partials"]),"repairableLaunchTemporaryCount":len(launch.get("updateTemporaries",[]))+len(launch.get("partialTemporaries",[])),"blockers":sorted(set(blockers)),"containmentEligible":containment_eligible}
+    if detailed:
+        inventory=tree_inventory(run_root)
+        binding={"domain":"warpkeep-production-launch-cleanup-confirmation-v1","summary":summary,"authorityDigest":None if latest is None else latest["digest"],"authorityPartials":chain["partials"],"launchDigest":launch["digest"],"launchUpdateTemporaries":launch.get("updateTemporaries",[]),"launchPartialTemporaries":launch.get("partialTemporaries",[]),"treeInventory":inventory}
+        cleanup_confirmation=latest["record"]["cleanupConfirmationSha256"] if latest is not None else None
+        containment_confirmation=latest["record"]["containmentConfirmationSha256"] if containment_in_progress else None
+        summary["confirmationDigest"]=cleanup_confirmation or containment_confirmation or sha256(canonical(binding))
+        summary["treeInventory"]=inventory
+        summary["deletionEligible"]=not summary["blockers"] and not containment_in_progress and not terminal_lifecycle and (latest is not None or launch["record"] is not None or (chain["partials"] and run_state == "absent"))
+        summary["cleanupEligible"]=summary["deletionEligible"] or containment_eligible
+    return summary
+
+def allocate(args):
+    if len(args) < 8: fail("GREATER_REALM_PRODUCTION_LAUNCH_STATE_INVALID")
+    home,commit,tree,blob,bootstrap_digest,pid_raw,start,command,*command_args=args
+    if any(COMMIT.fullmatch(value) is None for value in (commit,tree,blob)) or SHA256.fullmatch(bootstrap_digest) is None or not pid_raw.isdigit() or int(pid_raw) < 1 or not 8 <= len(start) <= 160 or COMMAND.fullmatch(command) is None: fail("GREATER_REALM_PRODUCTION_LAUNCH_STATE_INVALID")
+    admin,runs,authority=roots(home,True)
+    prune_terminal_tombstones((admin,runs,authority))
+    run_id="run-"+secrets.token_hex(16); run_root=os.path.join(runs,run_id)
+    argument_hash=hashlib.sha256()
+    def framed(label,value):
+        left=label.encode(); right=value.encode(); return len(left).to_bytes(8,"big")+left+len(right).to_bytes(8,"big")+right
+    argument_hash.update(framed("domain","warpkeep-production-launch-arguments-v1")); argument_hash.update(framed("command",command))
+    for argument in command_args: argument_hash.update(framed("argument",argument))
+    pid=int(pid_raw)
+    first=base_record(run_id,1,"allocated",None,pid,start,commit,tree,blob,bootstrap_digest,command,argument_hash.hexdigest())
+    previous=publish_record(authority,first)
+    os.mkdir(run_root,0o700); fsync_dir(runs); run_st=exact_private_dir(run_root)
+    installing=base_record(run_id,2,"launch-installing",previous,pid,start,commit,tree,blob,bootstrap_digest,command,argument_hash.hexdigest(),run_st)
+    previous=publish_record(authority,installing)
+    launch={"schemaVersion":1,"profile":LAUNCH_PROFILE,"phase":"launch-prepared","pid":pid,"processStartIdentity":start,"runDev":str(run_st.st_dev),"runIno":str(run_st.st_ino),"protectedMain":commit,"moduleTree":tree,"bootstrapBlob":blob,"bootstrapSha256":bootstrap_digest,"command":command,"commandArgumentsSha256":argument_hash.hexdigest(),"childPid":None,"childProcessStartIdentity":None,"childPgid":None,"terminal":None}
+    launch_value=canonical(launch); launch_digest=sha256(launch_value)
+    temporary=os.path.join(run_root,f".launch-record-launch-prepared-{launch_digest}.json.tmp"); final=os.path.join(run_root,"launch-record.json")
+    fd=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_EXCL|getattr(os,"O_NOFOLLOW",0),0o600)
+    try:
+        offset=0
+        while offset < len(launch_value): offset+=os.write(fd,launch_value[offset:])
+        os.fsync(fd)
+    finally: os.close(fd)
+    os.link(temporary,final,follow_symlinks=False); fsync_dir(run_root)
+    os.unlink(temporary); fsync_dir(run_root)
+    installed=base_record(run_id,3,"launch-installed",previous,pid,start,commit,tree,blob,bootstrap_digest,command,argument_hash.hexdigest(),run_st,launch_digest)
+    publish_record(authority,installed)
+    print(run_root,end="")
+
+def inspect_command(args):
+    if len(args) not in (1,2): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_ARGUMENTS_INVALID")
+    located=roots(args[0],False)
+    if located is None:
+        print(json.dumps({"profile":PROFILE,"runs":[]},sort_keys=True,separators=(",",":"))); return
+    admin,runs,authority=located
+    requested=args[1] if len(args) == 2 else None
+    if requested is not None:
+        print(json.dumps({"profile":PROFILE,**inspect_one(admin,runs,authority,requested,True)},sort_keys=True,separators=(",",":"))); return
+    ids=set()
+    if os.path.lexists(runs):
+        names=os.listdir(runs)
+        if len(names) > MAX_RUNS: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_INVENTORY_BOUNDED")
+        for name in names:
+            if RUN_ID.fullmatch(name) is None: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RUN_INVENTORY_INVALID")
+            ids.add(name)
+    if os.path.lexists(authority):
+        names=os.listdir(authority)
+        if len(names) > MAX_AUTHORITY_ENTRIES: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_INVENTORY_BOUNDED")
+        for name in names:
+            match=FINAL.fullmatch(name) or TEMP.fullmatch(name) or TERMINAL_FINAL.fullmatch(name) or TERMINAL_TEMP.fullmatch(name) or LIFECYCLE_LOCK.fullmatch(name)
+            if match is None: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_AUTHORITY_INVENTORY_INVALID")
+            ids.add(match.group(1))
+    if len(ids) > MAX_RUNS: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_INVENTORY_BOUNDED")
+    print(json.dumps({"profile":PROFILE,"runs":[inspect_one(admin,runs,authority,run_id,False) for run_id in sorted(ids)]},sort_keys=True,separators=(",",":")))
+
+def repair_authority(authority,run_id):
+    chain=read_authority(authority,run_id)
+    if chain["partials"]: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_PARTIAL_AUTHORITY_REQUIRES_CONFIRMATION")
+    for entry in chain["records"]:
+        if entry.get("terminal"): continue
+        if entry["publication"] == "prelink":
+            os.link(entry["temporaryPath"],entry["finalPath"],follow_symlinks=False); fsync_dir(authority)
+        if entry["publication"] != "installed":
+            os.unlink(entry["temporaryPath"]); fsync_dir(authority)
+    repair_terminal(authority,run_id)
+    repaired=read_authority(authority,run_id)
+    if repaired["partials"] or any(entry["publication"] != "installed" for entry in repaired["records"]): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RECORD_INVALID")
+    return repaired
+
+def repair_launch_publication(run_root):
+    launch=launch_publication(run_root)
+    if launch["state"] == "prelink":
+        os.link(launch["path"],launch["finalPath"],follow_symlinks=False); fsync_dir(run_root)
+        os.unlink(launch["path"]); fsync_dir(run_root)
+    elif launch["state"] == "linked":
+        os.unlink(launch["temporaryPath"]); fsync_dir(run_root)
+    return launch_publication(run_root)
+
+def append_phase(authority,previous,phase,confirmation,reason,run_st=None,launch_digest_marker="preserve",inventory_digest_marker="preserve"):
+    old=previous["record"]
+    record=dict(old)
+    record.update({"ordinal":old["ordinal"]+1,"phase":phase,"previousRecordSha256":previous["digest"],"cleanupConfirmationSha256":confirmation,"cleanupReason":reason})
+    if run_st is not None: record.update({"runDev":str(run_st.st_dev),"runIno":str(run_st.st_ino)})
+    if launch_digest_marker != "preserve": record["launchRecordSha256"]=launch_digest_marker
+    if inventory_digest_marker != "preserve": record["cleanupTreeInventorySha256"]=inventory_digest_marker
+    digest=publish_record(authority,record)
+    return {"record":record,"digest":digest,"publication":"installed","finalPath":os.path.join(authority,f'{record["runId"]}-{record["ordinal"]:08d}-{record["phase"]}.json'),"temporaryPath":None}
+
+def prepare_containment(authority,previous,launch,confirmation):
+    child=launch["record"]
+    record=dict(previous["record"])
+    record.update({"ordinal":record["ordinal"]+1,"phase":"containment-prepared","previousRecordSha256":previous["digest"],"launchRecordSha256":launch["digest"],"containedChildPid":child["childPid"],"containedChildProcessStartIdentity":child["childProcessStartIdentity"],"containedChildPgid":child["childPgid"],"containmentConfirmationSha256":confirmation,"cleanupConfirmationSha256":None,"cleanupTreeInventorySha256":None,"cleanupReason":None})
+    digest=publish_record(authority,record)
+    return {"record":record,"digest":digest,"publication":"installed","finalPath":os.path.join(authority,f'{record["runId"]}-{record["ordinal"]:08d}-containment-prepared.json'),"temporaryPath":None}
+
+def attest_containment_launch(run_root,record):
+    launch=launch_publication(run_root)
+    child=launch["record"]
+    if child is None or launch["digest"] != record["launchRecordSha256"] or (child["childPid"],child["childProcessStartIdentity"],child["childPgid"]) != (record["containedChildPid"],record["containedChildProcessStartIdentity"],record["containedChildPgid"]): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_CONTAINMENT_AMBIGUOUS")
+    return launch
+
+def finish_containment(authority,run_root,prepared):
+    record=prepared["record"]; pid=record["containedChildPid"]; start=record["containedChildProcessStartIdentity"]; pgid=record["containedChildPgid"]
+    attest_containment_launch(run_root,record)
+    child_state=process_state(pid,start)
+    group=group_state(pgid)
+    if child_state in ("live-reused","live-uninspectable") and group != "absent": fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_CONTAINMENT_AMBIGUOUS")
+    if group != "absent":
+        attest_containment_launch(run_root,record)
+        child_state=process_state(pid,start); group=group_state(pgid)
+        if child_state in ("live-reused","live-uninspectable") and group != "absent": fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_CONTAINMENT_AMBIGUOUS")
+        if group != "absent":
+            try: os.killpg(pgid,signal.SIGTERM)
+            except ProcessLookupError: pass
+            deadline=time.monotonic()+5.0
+            while group_state(pgid) != "absent" and time.monotonic() < deadline: time.sleep(0.05)
+    if group_state(pgid) != "absent":
+        attest_containment_launch(run_root,record)
+        if process_state(pid,start) in ("live-reused","live-uninspectable"): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_CONTAINMENT_AMBIGUOUS")
+        try: os.killpg(pgid,signal.SIGKILL)
+        except ProcessLookupError: pass
+        deadline=time.monotonic()+5.0
+        while group_state(pgid) != "absent" and time.monotonic() < deadline: time.sleep(0.05)
+    if group_state(pgid) != "absent": fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_CONTAINMENT_FAILED")
+    return append_phase(authority,prepared,"operator-contained",None,None)
+
+def delete_run_tree(runs,run_id,expected_dev,expected_ino):
+    run_root=os.path.join(runs,run_id)
+    if not os.path.lexists(run_root): return {"entryCount":0,"byteCount":0}
+    root_st=exact_private_dir(run_root)
+    if (str(root_st.st_dev),str(root_st.st_ino)) != (expected_dev,expected_ino): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RUN_IDENTITY_MISMATCH")
+    parent_fd=os.open(runs,os.O_RDONLY|getattr(os,"O_DIRECTORY",0)|getattr(os,"O_NOFOLLOW",0))
+    root_fd=None; counts={"entryCount":0,"byteCount":0}
+    try:
+        root_fd=os.open(run_id,os.O_RDONLY|getattr(os,"O_DIRECTORY",0)|getattr(os,"O_NOFOLLOW",0),dir_fd=parent_fd)
+        opened=os.fstat(root_fd)
+        if (str(opened.st_dev),str(opened.st_ino)) != (expected_dev,expected_ino) or opened.st_uid != os.getuid() or stat.S_IMODE(opened.st_mode) != 0o700: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RUN_IDENTITY_MISMATCH")
+        def remove_children(directory_fd,depth,top):
+            if depth > MAX_TREE_DEPTH: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_INVENTORY_BOUNDED")
+            names=sorted(os.listdir(directory_fd),key=lambda name:(top and name == "launch-record.json",name))
+            for name in names:
+                if name in (".","..") or "/" in name or "\x00" in name: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_INVALID")
+                item=os.stat(name,dir_fd=directory_fd,follow_symlinks=False)
+                if item.st_uid != os.getuid(): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_INVALID")
+                counts["entryCount"]+=1
+                if counts["entryCount"] > MAX_TREE_ENTRIES: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_INVENTORY_BOUNDED")
+                if stat.S_ISDIR(item.st_mode) and not stat.S_ISLNK(item.st_mode):
+                    if stat.S_IMODE(item.st_mode) != 0o700: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_INVALID")
+                    child_fd=os.open(name,os.O_RDONLY|getattr(os,"O_DIRECTORY",0)|getattr(os,"O_NOFOLLOW",0),dir_fd=directory_fd)
+                    try:
+                        child=os.fstat(child_fd)
+                        if (child.st_dev,child.st_ino,child.st_mode,child.st_uid) != (item.st_dev,item.st_ino,item.st_mode,item.st_uid): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_CHANGED")
+                        remove_children(child_fd,depth+1,False)
+                    finally: os.close(child_fd)
+                    after=os.stat(name,dir_fd=directory_fd,follow_symlinks=False)
+                    if (after.st_dev,after.st_ino) != (item.st_dev,item.st_ino): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_CHANGED")
+                    os.rmdir(name,dir_fd=directory_fd); os.fsync(directory_fd)
+                elif stat.S_ISREG(item.st_mode) and not stat.S_ISLNK(item.st_mode):
+                    if stat.S_IMODE(item.st_mode) not in (0o400,0o500,0o600,0o644,0o700) or item.st_nlink != 1: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_INVALID")
+                    counts["byteCount"]+=item.st_size
+                    if counts["byteCount"] > MAX_TREE_BYTES: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_INVENTORY_BOUNDED")
+                    os.unlink(name,dir_fd=directory_fd); os.fsync(directory_fd)
+                elif stat.S_ISLNK(item.st_mode):
+                    if item.st_nlink != 1: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_INVALID")
+                    os.unlink(name,dir_fd=directory_fd); os.fsync(directory_fd)
+                else: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_INVALID")
+        remove_children(root_fd,0,True)
+        os.close(root_fd); root_fd=None
+        current=os.stat(run_id,dir_fd=parent_fd,follow_symlinks=False)
+        if (str(current.st_dev),str(current.st_ino)) != (expected_dev,expected_ino): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_RUN_IDENTITY_MISMATCH")
+        os.rmdir(run_id,dir_fd=parent_fd); os.fsync(parent_fd)
+        return counts
+    finally:
+        if root_fd is not None: os.close(root_fd)
+        os.close(parent_fd)
+
+def compact_complete_authority(authority,runs,run_id):
+    chain=repair_authority(authority,run_id)
+    if not chain["records"] or chain["records"][-1]["record"]["phase"] != "complete" or os.path.lexists(os.path.join(runs,run_id)): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_COMPACTION_INVALID")
+    complete=chain["records"][-1]
+    terminal=repair_terminal(authority,run_id)
+    if terminal is not None and terminal["publication"] == "partial":
+        os.unlink(terminal["temporaryPath"]); fsync_dir(authority); terminal=None
+    if terminal is None: publish_terminal(authority,complete)
+    repair_terminal(authority,run_id)
+    chain=read_authority(authority,run_id)
+    for entry in chain["records"]:
+        if entry.get("terminal"): continue
+        if os.path.lexists(entry["finalPath"]): os.unlink(entry["finalPath"]); fsync_dir(authority)
+    terminal=repair_terminal(authority,run_id)
+    if terminal is None: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_COMPACTION_INVALID")
+    return terminal
+
+def prune_terminal_tombstones(located,protected_run_id=None):
+    _,runs,authority=located
+    names=os.listdir(authority)
+    finals=[]
+    for name in names:
+        match=TERMINAL_FINAL.fullmatch(name)
+        if match and match.group(1) != protected_run_id:
+            run_id=match.group(1)
+            if os.path.lexists(os.path.join(runs,run_id)): continue
+            st=os.lstat(os.path.join(authority,name))
+            finals.append((st.st_mtime_ns,run_id))
+    excess=max(0,len(finals)-MAX_TERMINAL_TOMBSTONES)
+    removed=0
+    for _,run_id in sorted(finals):
+        if removed >= excess: break
+        lock=try_acquire_lifecycle_lock(located,run_id)
+        if lock is None: continue
+        lock_path,lock_fd,lock_dev,lock_ino=lock
+        try:
+            terminal=repair_terminal(authority,run_id)
+            chain=read_authority(authority,run_id)
+            if os.path.lexists(os.path.join(runs,run_id)) or terminal is None or terminal["publication"] != "installed" or len(chain["records"]) != 1 or not chain["records"][0].get("terminal"): continue
+            os.unlink(terminal["path"]); fsync_dir(authority); removed+=1
+        finally: release_lifecycle_lock(authority,lock_path,lock_fd,lock_dev,lock_ino)
+
+def cleanup_command(args):
+    if len(args) != 3 or RUN_ID.fullmatch(args[1]) is None or SHA256.fullmatch(args[2]) is None: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_ARGUMENTS_INVALID")
+    home,run_id,confirmation=args
+    located=roots(home,False)
+    if located is None: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_CONFIRMATION_REQUIRED")
+    admin,runs,authority=located
+    if not os.path.lexists(authority): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_CONFIRMATION_REQUIRED")
+    inspected=inspect_one(admin,runs,authority,run_id,True)
+    if inspected["confirmationDigest"] != confirmation: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_CONFIRMATION_REQUIRED")
+    run_root=os.path.join(runs,run_id)
+    if tree_inventory(run_root)["digest"] != inspected["treeInventory"]["digest"]: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_CHANGED")
+    chain=read_authority(authority,run_id); latest=chain["records"][-1] if chain["records"] else None
+    if latest is not None and latest["record"]["phase"] == "complete":
+        compact_complete_authority(authority,runs,run_id)
+        prune_terminal_tombstones(located,run_id)
+        print(json.dumps({"profile":PROFILE,"runId":run_id,"outcome":"already-complete","confirmationDigest":confirmation},sort_keys=True,separators=(",",":"))); return
+    # Invalid prelink bytes have no authority until published. Once the exact
+    # recorded owner is dead, they may be removed only under this confirmation.
+    for partial in chain["partials"]:
+        if process_state(partial["pid"],start_digest=partial["processStartIdentitySha256"]) in ("live-exact","live-uninspectable"): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_CLEANUP_BLOCKED")
+        os.unlink(partial["path"]); fsync_dir(authority)
+    if latest is None and not os.path.lexists(run_root):
+        print(json.dumps({"profile":PROFILE,"runId":run_id,"outcome":"cleared-partial-authority","confirmationDigest":confirmation},sort_keys=True,separators=(",",":"))); return
+    chain=repair_authority(authority,run_id); latest=chain["records"][-1] if chain["records"] else None
+    launch=repair_launch_publication(run_root) if os.path.lexists(run_root) else launch_publication(run_root)
+    prepared_inventory=tree_inventory(run_root)
+    if inspected["containmentEligible"] or (latest is not None and latest["record"]["phase"] == "containment-prepared"):
+        if latest is None: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_CONTAINMENT_AMBIGUOUS")
+        if latest["record"]["phase"] == "launch-installed":
+            if launch["record"] is None or launch["record"]["childPid"] is None or process_state(launch["record"]["childPid"],launch["record"]["childProcessStartIdentity"]) not in ("live-exact","dead") or group_state(launch["record"]["childPgid"]) != "live": fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_CONTAINMENT_AMBIGUOUS")
+            latest=prepare_containment(authority,latest,launch,confirmation)
+        if latest["record"]["phase"] != "containment-prepared": fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_CONTAINMENT_AMBIGUOUS")
+        latest=finish_containment(authority,run_root,latest)
+        print(json.dumps({"profile":PROFILE,"runId":run_id,"outcome":"operator-contained","containmentConfirmationDigest":latest["record"]["containmentConfirmationSha256"],"deletion":"blocked-pending-fresh-inspect-and-cutover-recovery"},sort_keys=True,separators=(",",":"))); return
+    if not inspected["deletionEligible"]: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_CLEANUP_BLOCKED")
+    source=latest["record"] if latest is not None else launch["record"]
+    if source is None: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_CLEANUP_BLOCKED")
+    deletion_in_progress=latest is not None and latest["record"]["phase"] in ("cleanup-prepared","tree-removing","run-removed")
+    if not deletion_in_progress:
+        if process_state(source["pid"],source["processStartIdentity"]) in ("live-exact","live-uninspectable"): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_CLEANUP_BLOCKED")
+        if launch["record"] is not None and launch["record"]["childPid"] is not None:
+            child_state=process_state(launch["record"]["childPid"],launch["record"]["childProcessStartIdentity"])
+            if child_state in ("live-exact","live-uninspectable") or group_state(launch["record"]["childPgid"]) != "absent": fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_CLEANUP_BLOCKED")
+        if global_blockers(admin): fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_CLEANUP_BLOCKED")
+    newly_prepared=False
+    if latest is None or latest["record"]["phase"] not in ("cleanup-prepared","tree-removing","run-removed"):
+        run_st=exact_private_dir(run_root) if os.path.lexists(run_root) else None
+        current_launch_digest=launch["digest"] if launch["record"] is not None else None
+        if latest is None:
+            record=base_record(run_id,1,"cleanup-prepared",None,source["pid"],source["processStartIdentity"],source["protectedMain"],source["moduleTree"],source["bootstrapBlob"],source["bootstrapSha256"],source["command"],source["commandArgumentsSha256"],run_st,current_launch_digest,confirmation,"confirmed-dead-owner",prepared_inventory["digest"])
+            digest=publish_record(authority,record); latest={"record":record,"digest":digest,"publication":"installed","finalPath":os.path.join(authority,f'{run_id}-00000001-cleanup-prepared.json'),"temporaryPath":None}
+        else:
+            latest=append_phase(authority,latest,"cleanup-prepared",confirmation,"confirmed-dead-owner",run_st,current_launch_digest,prepared_inventory["digest"])
+        newly_prepared=True
+    if latest["record"]["phase"] == "cleanup-prepared":
+        if tree_inventory(run_root)["digest"] != latest["record"]["cleanupTreeInventorySha256"]: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_TREE_CHANGED")
+        latest=append_phase(authority,latest,"tree-removing",confirmation,"confirmed-dead-owner")
+    if latest["record"]["phase"] == "tree-removing":
+        if os.path.lexists(run_root): delete_run_tree(runs,run_id,latest["record"]["runDev"],latest["record"]["runIno"])
+        latest=append_phase(authority,latest,"run-removed",confirmation,"confirmed-dead-owner")
+    if latest["record"]["phase"] == "run-removed": latest=append_phase(authority,latest,"complete",confirmation,"confirmed-dead-owner")
+    compact_complete_authority(authority,runs,run_id)
+    prune_terminal_tombstones(located,run_id)
+    print(json.dumps({"profile":PROFILE,"runId":run_id,"outcome":"cleaned","confirmationDigest":confirmation,"runState":"absent"},sort_keys=True,separators=(",",":")))
+
+try:
+    mode,*arguments=sys.argv[1:]
+    if mode == "allocate": allocate(arguments)
+    elif mode == "inspect": inspect_command(arguments)
+    elif mode == "cleanup":
+        if len(arguments) != 3 or RUN_ID.fullmatch(arguments[1]) is None: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_ARGUMENTS_INVALID")
+        located,lock_path,lock_fd,lock_dev,lock_ino=acquire_lifecycle_lock(arguments[0],arguments[1])
+        try: cleanup_command(arguments)
+        finally: release_lifecycle_lock(located[2],lock_path,lock_fd,lock_dev,lock_ino)
+    else: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_ARGUMENTS_INVALID")
+except Exception as error:
+    message=str(error)
+    if not message.startswith("GREATER_REALM_"): message="GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_FAILED"
+    print(message,file=sys.stderr)
+    raise SystemExit(1)
+WKGR_LAUNCH_LIFECYCLE_PY
+}
+
+case "$production_command" in
+  launch-run-inspect)
+    [ "$#" -le 1 ] || fail GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_ARGUMENTS_INVALID
+    run_launch_lifecycle inspect "$account_home" "$@"
+    exit $?
+    ;;
+  launch-run-cleanup)
+    [ "$#" -eq 2 ] || fail GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_ARGUMENTS_INVALID
+    run_launch_lifecycle cleanup "$account_home" "$@"
+    exit $?
+    ;;
+esac
+
+launch_process_start=$(/bin/ps -o lstart= -p "$$") \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_STATE_INVALID
+case "$launch_process_start" in
+  ?????????*) ;;
+  *) fail GREATER_REALM_PRODUCTION_LAUNCH_STATE_INVALID ;;
+esac
+
+state_root=$(run_launch_lifecycle allocate "$account_home" "$protected_main" "$module_tree" \
+  "$bootstrap_blob" "$bootstrap_sha256" "$$" "$launch_process_start" "$production_command" "$@") \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_STATE_INVALID
+
+clone_root=$state_root/repository
+bootstrap_path=$state_root/greater-realm-production-bootstrap.mjs
+staged_node=$state_root/node
+git_home=$state_root/git-home
+tmp_root=$state_root/tmp
+/bin/mkdir -m 700 "$git_home" "$tmp_root" || fail GREATER_REALM_PRODUCTION_LAUNCH_STATE_INVALID
+
+git_env() {
+  /usr/bin/env -i \
+    HOME="$git_home" PATH=/usr/bin:/bin TMPDIR="$tmp_root" \
+    GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null \
+    GIT_OPTIONAL_LOCKS=0 GIT_TERMINAL_PROMPT=0 GIT_PROTOCOL_FROM_USER=0 \
+    "$@"
+}
+git_safe() {
+  git_env /usr/bin/git --no-pager --no-replace-objects \
+    -c credential.helper= -c core.askPass= -c core.autocrlf=false -c core.eol=lf \
+    -c core.fsmonitor=false -c core.hooksPath=/dev/null -c core.symlinks=true \
+    -c http.followRedirects=false -c http.proxy= -c https.proxy= \
+    -c protocol.file.allow=never -c remote.origin.proxy= \
+    -c url.https://github.com/.insteadOf= "$@"
+}
+
+origin=https://github.com/ael-dev3/Warpkeep.git
+first_main=$(git_safe ls-remote --exit-code "$origin" refs/heads/main) \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_REMOTE_INVALID
+[ "$first_main" = "$protected_main	refs/heads/main" ] \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_REMOTE_INVALID
+git_safe clone --no-local --no-checkout --origin origin "$origin" "$clone_root" \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_CLONE_FAILED
+git_safe --git-dir="$clone_root/.git" --work-tree="$clone_root" fetch --no-tags origin "$protected_main" \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_CLONE_FAILED
+second_main=$(git_safe ls-remote --exit-code "$origin" refs/heads/main) \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_REMOTE_INVALID
+[ "$second_main" = "$first_main" ] || fail GREATER_REALM_PRODUCTION_LAUNCH_REMOTE_CHANGED
+[ "$(git_safe --git-dir="$clone_root/.git" rev-parse FETCH_HEAD)" = "$protected_main" ] \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_COMMIT_INVALID
+[ "$(git_safe --git-dir="$clone_root/.git" rev-parse "$protected_main^{tree}")" = "$module_tree" ] \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_TREE_INVALID
+
+# Extract the bootstrap directly from the fetched object database before any
+# checkout, attribute parsing, or repository-owned executable can run.
+bootstrap_entry=$(git_safe --git-dir="$clone_root/.git" ls-tree "$protected_main" -- scripts/greater-realm-production-bootstrap.mjs) \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_BOOTSTRAP_INVALID
+[ "$bootstrap_entry" = "100644 blob $bootstrap_blob	scripts/greater-realm-production-bootstrap.mjs" ] \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_BOOTSTRAP_INVALID
+( umask 077; git_safe --git-dir="$clone_root/.git" cat-file blob "$protected_main:scripts/greater-realm-production-bootstrap.mjs" >"$bootstrap_path" ) \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_BOOTSTRAP_INVALID
+/bin/chmod 600 "$bootstrap_path" || fail GREATER_REALM_PRODUCTION_LAUNCH_BOOTSTRAP_INVALID
+[ "$(/usr/bin/shasum -a 256 "$bootstrap_path" | /usr/bin/awk '{print $1}')" = "$bootstrap_sha256" ] \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_BOOTSTRAP_INVALID
+[ "$(git_safe hash-object --no-filters "$bootstrap_path")" = "$bootstrap_blob" ] \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_BOOTSTRAP_INVALID
+
+/usr/bin/python3 -I -S -B -c '
+import os,stat,sys
+path=sys.argv[1]
+if not os.path.isabs(path) or os.path.realpath(path) != path: raise SystemExit(1)
+st=os.lstat(path)
+if not stat.S_ISREG(st.st_mode) or stat.S_ISLNK(st.st_mode) or st.st_nlink != 1 or st.st_uid not in (0,os.getuid()) or stat.S_IMODE(st.st_mode) != 0o755: raise SystemExit(1)
+' "$bundle_node" || fail GREATER_REALM_PRODUCTION_LAUNCH_RUNTIME_INVALID
+[ "$(/usr/bin/shasum -a 256 "$bundle_node" | /usr/bin/awk '{print $1}')" = 90e41658177a192c8c23940e58d8252544e5b40cbaef7bd52a3c3c54caf9dd91 ] \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_RUNTIME_INVALID
+app_root=$(/usr/bin/python3 -I -S -B -c 'import os,sys; print(os.path.realpath(os.path.join(os.path.dirname(sys.argv[1]),"../../../..")),end="")' "$bundle_node") \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_RUNTIME_INVALID
+/usr/bin/codesign --verify --deep --strict "$app_root" \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_RUNTIME_INVALID
+( umask 077; /bin/cp "$bundle_node" "$staged_node" ) \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_RUNTIME_INVALID
+/bin/chmod 500 "$staged_node" || fail GREATER_REALM_PRODUCTION_LAUNCH_RUNTIME_INVALID
+[ "$(/usr/bin/shasum -a 256 "$staged_node" | /usr/bin/awk '{print $1}')" = 90e41658177a192c8c23940e58d8252544e5b40cbaef7bd52a3c3c54caf9dd91 ] \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_RUNTIME_INVALID
+node_authority=$(/usr/bin/codesign -dvv "$staged_node" 2>&1) \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_RUNTIME_INVALID
+case "$node_authority" in *"TeamIdentifier=2DC432GLL2"*) ;; *) fail GREATER_REALM_PRODUCTION_LAUNCH_RUNTIME_INVALID ;; esac
+/usr/bin/codesign --verify --strict "$staged_node" \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_RUNTIME_INVALID
+otool_output=$(/usr/bin/otool -L "$staged_node") || fail GREATER_REALM_PRODUCTION_LAUNCH_RUNTIME_INVALID
+/usr/bin/printf '%s\n' "$otool_output" | /usr/bin/awk '
+NR == 1 { next }
+{ path=$1; if (path !~ /^\/System\/Library\/Frameworks\/(CoreFoundation|Security)\.framework\// && path !~ /^\/usr\/lib\/(libc\+\+\.1|libSystem\.B)\.dylib$/) exit 1 }
+END { if (NR != 5) exit 1 }
+' || fail GREATER_REALM_PRODUCTION_LAUNCH_RUNTIME_INVALID
+[ "$("$staged_node" --version)" = v24.14.0 ] \
+  || fail GREATER_REALM_PRODUCTION_LAUNCH_RUNTIME_INVALID
+
+exec /usr/bin/env -i PATH=/usr/bin:/bin TMPDIR="$tmp_root" \
+  "$staged_node" "$bootstrap_path" \
+  "$state_root" "$clone_root" "$protected_main" "$module_tree" \
+  "$bootstrap_blob" "$bootstrap_sha256" "$bundle_node" "$spacetime_executable" "$spacetime_cli_config" "$admin_secret" \
+  "$notification_secret" "$private_input" "$production_command" "$@"

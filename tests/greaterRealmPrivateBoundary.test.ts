@@ -16,12 +16,13 @@ import {
 } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { tmpdir } from 'node:os';
+import { tmpdir, userInfo } from 'node:os';
 import { dirname, join, win32 as win32Path } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   assertGreaterRealmPrivateInvocation,
+  defaultGreaterRealmPrivateWorkspaceRoot,
   greaterRealmPrivateWorkspaceTestSeams,
   openGreaterRealmPrivateWorkspace,
 } from '../scripts/atlas/greater-realm-private-workspace';
@@ -275,6 +276,25 @@ afterEach(() => {
 });
 
 describe('Greater Realm private generation workspace', () => {
+  it('derives the canonical private root from the OS account, not hostile HOME', () => {
+    const priorHome = process.env.HOME;
+    process.env.HOME = '/tmp/hostile-greater-realm-home';
+    try {
+      expect(defaultGreaterRealmPrivateWorkspaceRoot()).toBe(join(
+        userInfo().homedir,
+        '.warpkeep',
+        'private',
+        'greater-realm',
+      ));
+      expect(defaultGreaterRealmPrivateWorkspaceRoot()).not.toContain(
+        '/tmp/hostile-greater-realm-home',
+      );
+    } finally {
+      if (priorHome === undefined) delete process.env.HOME;
+      else process.env.HOME = priorHome;
+    }
+  });
+
   it('keeps every owner-only package basename ignored by Git', () => {
     const ignore = readFileSync(join(import.meta.dirname, '..', '.gitignore'), 'utf8')
       .split(/\r?\n/u);

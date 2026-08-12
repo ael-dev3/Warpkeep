@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { readFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -17,7 +17,11 @@ import {
 } from '../scripts/greater-realm-production-relocation-core';
 import { parseGreaterRealmProductionVerifierArguments } from '../scripts/greater-realm-production-verifier';
 import { verifyGreaterRealmActiveProductionStatus } from '../scripts/greater-realm-production-verifier-core';
-import { parseGreaterRealmProductionRelocationArguments } from '../scripts/greater-realm-production-relocation-operator';
+import {
+  greaterRealmProductionRelocationOperatorTestSeams,
+  parseGreaterRealmProductionRelocationArguments,
+} from '../scripts/greater-realm-production-relocation-operator';
+import { withGreaterRealmCutoverOperatorLock } from '../scripts/greater-realm-cutover-receipts';
 
 const ATLAS_SOURCE_COMMIT = 'a'.repeat(40);
 const MODULE_SOURCE_COMMIT = 'c'.repeat(40);
@@ -30,6 +34,7 @@ const EXPECTED_PROVENANCE = Object.freeze({
   expectedPublicReleaseId: PUBLIC_RELEASE_ID,
   expectedReleaseSha256: DIGEST,
   moduleSourceCommit: MODULE_SOURCE_COMMIT,
+  assertCanStartWrite: () => undefined,
 });
 
 function readyStatus(founders = 100): GreaterRealmProductionCutoverStatus {
@@ -431,6 +436,7 @@ describe('production relocation phase operator', () => {
     expect(transport.submit).toHaveBeenCalledWith(
       GREATER_REALM_PRODUCTION_RELOCATION_REDUCERS[command],
       {},
+      expect.any(Function),
     );
   });
 
@@ -445,6 +451,71 @@ describe('production relocation phase operator', () => {
     expect(result.outcome).toBe('verified-after-submission-error');
     expect(result.submitted).toBe(true);
     expect(transport.submit).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a relocation write when the lock permit closes after final preflight', async () => {
+    const transport = fakeTransport(activationStatus('prepared'), activationStatus('draining'));
+    const assertCanStartWrite = vi.fn(() => {
+      throw new Error('GREATER_REALM_CUTOVER_OPERATOR_INTERRUPTED_SIGINT');
+    });
+    await expect(executeGreaterRealmProductionRelocation({
+      command: 'begin-drain',
+      confirmed: true,
+      ...EXPECTED_PROVENANCE,
+      assertCanStartWrite,
+      transport,
+    })).rejects.toThrow(/GREATER_REALM_CUTOVER_OPERATOR_INTERRUPTED_SIGINT/);
+    expect(assertCanStartWrite).toHaveBeenCalledTimes(1);
+    expect(transport.inspect).toHaveBeenCalledTimes(2);
+    expect(transport.submit).not.toHaveBeenCalled();
+  });
+
+  it('never attributes a hostile concurrent advance after a rejected write permit', async () => {
+    const directory = mkdtempSync('/private/tmp/warpkeep-gr-relocation-signal-');
+    chmodSync(directory, 0o700);
+    let remote = activationStatus('prepared');
+    const hostileAdvance = activationStatus('draining');
+    const reducer = vi.fn(async () => undefined);
+    const inspect = vi.fn(async () => ({ ...remote }));
+    const submit = vi.fn(async (
+      _reducer: string,
+      _arguments: Readonly<Record<never, never>>,
+      assertCanStartWrite: () => void,
+    ) => {
+      process.emit('SIGTERM');
+      try {
+        assertCanStartWrite();
+      } catch (error) {
+        // Model an unrelated actor advancing remote state after this operator's
+        // permit rejection. The local driver must not reconcile it as its own.
+        remote = hostileAdvance;
+        throw error;
+      }
+      await reducer();
+    });
+    let receiptWritten = false;
+    try {
+      await expect(withGreaterRealmCutoverOperatorLock({
+        directory,
+        repositoryRoot: process.cwd(),
+        operation: async control => {
+          await executeGreaterRealmProductionRelocation({
+            command: 'begin-drain',
+            confirmed: true,
+            ...EXPECTED_PROVENANCE,
+            assertCanStartWrite: control.assertCanStartWrite,
+            transport: { inspect, submit },
+          });
+          receiptWritten = true;
+        },
+      })).rejects.toThrow(/GREATER_REALM_CUTOVER_OPERATOR_INTERRUPTED_SIGTERM/);
+      expect(reducer).not.toHaveBeenCalled();
+      expect(receiptWritten).toBe(false);
+      expect(inspect).toHaveBeenCalledTimes(2);
+      expect(remote.activationMode).toBe('draining');
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it('does not submit or append an audit row for an already-satisfied retry', async () => {
@@ -636,5 +707,76 @@ describe('production relocation phase operator', () => {
         `--expected-founder-count=${value}`,
       ])).toThrowError('GREATER_REALM_PRODUCTION_VERIFIER_FOUNDER_COUNT_INVALID');
     }
+  });
+
+  it('reconstructs the exact relocation receipt from durable before/after context and retains a resume driver', () => {
+    const before = readyStatus();
+    const after = { ...activationStatus('prepared'), auditRows: before.auditRows + 1n };
+    const receiptStatus = (status: GreaterRealmProductionCutoverStatus) => Object.freeze({
+      activationMode: status.activationMode,
+      releaseState: status.releaseState,
+      currentFounderCount: status.currentFounderCount,
+      founderCapacityRemaining: status.founderCapacityRemaining,
+      activeClaimRows: status.activeClaimRows.toString(),
+      greaterRealmOccupancyRows: status.greaterRealmOccupancyRows.toString(),
+      legacyClaimRows: status.legacyClaimRows.toString(),
+      auditRows: status.auditRows.toString(),
+      activeAdmissionEligible: status.activeAdmissionEligible,
+      topologySnapshotDigest: status.topologySnapshotDigest ?? null,
+      relocationPlanDigest: status.relocationPlanDigest ?? null,
+      statusDigest: digestGreaterRealmProductionCutoverStatus(status),
+    });
+    const result = greaterRealmProductionRelocationOperatorTestSeams
+      .reconstructRecoveredRelocationReceipt({
+        command: Object.freeze({ kind: 'relocation', name: 'prepare' }),
+        sourceRelease: Object.freeze({
+          atlasSourceCommit: ATLAS_SOURCE_COMMIT,
+          moduleSourceCommit: MODULE_SOURCE_COMMIT,
+          atlasId: ATLAS_ID,
+          publicReleaseId: PUBLIC_RELEASE_ID,
+          expectedReleaseSha256: DIGEST,
+        }),
+        beforeStatus: receiptStatus(before),
+        beforeAudit: Object.freeze({ auditRows: before.auditRows.toString() }),
+        afterStatus: receiptStatus(after),
+        afterAudit: Object.freeze({ auditRows: after.auditRows.toString() }),
+        operations: Object.freeze([Object.freeze({
+          operationOrdinal: 1,
+          planDigest: '1'.repeat(64),
+          operation: Object.freeze({
+            kind: 'reducer',
+            name: GREATER_REALM_PRODUCTION_RELOCATION_REDUCERS.prepare,
+            argumentsDigest: '2'.repeat(64),
+            argumentsByteLength: 2,
+            argumentsRedacted: true,
+            identity: Object.freeze({
+              reducer: GREATER_REALM_PRODUCTION_RELOCATION_REDUCERS.prepare,
+              command: 'prepare',
+            }),
+          }),
+          beforeStatus: Object.freeze({}), beforeAudit: Object.freeze({}),
+          afterStatus: Object.freeze({}), afterAudit: Object.freeze({}),
+          outcome: 'recovered-after-owner-death',
+          completionReceiptDigest: '3'.repeat(64),
+        })]),
+        operationReceiptChainDigest: '3'.repeat(64),
+        operationReceiptCount: 1,
+        outcome: 'recovered-after-owner-death',
+      });
+    expect(result.record).toMatchObject({
+      command: 'prepare',
+      reducer: GREATER_REALM_PRODUCTION_RELOCATION_REDUCERS.prepare,
+      outcome: 'verified-after-submission-error',
+      submitted: true,
+      beforeMode: before.activationMode,
+      afterMode: after.activationMode,
+      auditRowsDelta: '1',
+      statusDigest: digestGreaterRealmProductionCutoverStatus(after),
+    });
+    const source = readFileSync(new URL(
+      '../scripts/greater-realm-production-relocation-operator.ts',
+      import.meta.url,
+    ), 'utf8');
+    expect(source).toMatch(/resumeCommand:\s*async resumed[\s\S]*operationJournal:/u);
   });
 });

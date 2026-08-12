@@ -19,7 +19,7 @@ balance, advance a timer, or decide an expedition outcome.
 | Daily Marks suffix | private refs 54–55; activation is separate |
 | Inner Keep suffix | refs 56–63; inactive until separate seed, backfill, client, asset, and activation gates |
 | Realm Chat suffix | refs 64–71; review-only and not publishable or activatable by this build |
-| Greater Realm suffix | refs 72–83; migration rehearsal only, with import, activation, and publication hard-closed |
+| Greater Realm suffix | refs 72–83; guarded cutover tooling exists, while checked-in publication, import, activation, and presentation approvals remain false |
 
 Deployed tables retain their original declaration order and shape. Later
 features append new tables; they do not rename or delete existing data. The
@@ -89,8 +89,11 @@ data in this build.
 
 Greater Realm release, chunk, navigation, cell, slot, claim, resource, and
 activation rows are private. Only identity-minimized occupancy and inactive
-atlas, six-region aggregate, and worker-readiness projections are public. The
-schema adds no production release import, activation, or publication authority.
+atlas, six-region aggregate, and worker-readiness projections are public. A
+commit-bound launcher, immutable artifact proof, shared operator/token
+authority, and crash-resumable journal now guard the dedicated v17 cutover
+lane, but every checked-in production approval remains false. Schema presence
+or tooling availability grants no release authority.
 
 The pinned SDK requires scheduled expedition rows to be public. Those rows are
 therefore deliberately minimal: schedule/stage identifiers, site, origin
@@ -240,10 +243,13 @@ and rejects v17-to-v16 and older rollback attempts with deletion disabled. Its
 single success receipt binds the v11 through v17 schema digests and compiled
 artifact digest.
 
-This is local migration evidence only. The static publisher invokes an
-unconditional v17 fail-closed guard before its publish dependency; no Greater
-Realm import, finalization, activation, production publish, external database,
-or candidate-generation action is authorized by this flow.
+This command is local migration evidence only. Production v17 work is
+available solely through exact rows of the reviewed
+[Greater Realm production launch envelope](../docs/operations/greater-realm-production-launch-envelope.sh.txt),
+which binds protected source, immutable artifact evidence, shared authority,
+late private credentials, and crash recovery. Its publication, import,
+activation, presentation, and notification approvals remain false; neither
+this proof nor the existence of guarded tooling authorizes an operation.
 
 ## Entry agreement and Marks
 
@@ -289,65 +295,32 @@ data preservation, scheduled lifecycle behavior, and `--delete-data=never`.
 
 ## Production operations
 
-Source code, a green build, or a merge does not authorize publication or
-seeding. Production operations use the local Hermes tool with short-lived
-credentials and an immutable database identity.
+Source code, a green build, a merge, or the presence of an operator does not
+authorize a production read or mutation. During the Greater Realm cutover,
+legacy production npm aliases are deliberate refusal stubs and direct
+TypeScript invocation is prohibited.
 
-Read-only aggregate inspection:
+The only supported production boundary is an exact command row in the reviewed
+[Greater Realm production launch envelope](../docs/operations/greater-realm-production-launch-envelope.sh.txt),
+as described by the
+[cutover runbook](../docs/operations/greater-realm-production-cutover.md).
+That boundary covers the dedicated v17 publisher, import, relocation,
+verification, recovery, and seven narrowly enumerated Hermes admission and
+notification rows. It accepts canonical owner-private credential paths and
+opens required secrets only after protected source, local proof, and authority
+checks. It never accepts an environment-carried secret or a shell pipe.
 
-```sh
-npm run stdb:inspect-alpha-v3 -- --json
-npm run stdb:inspect-alpha-v4 -- --json
-npm run stdb:inspect-alpha-v8 -- --json
-npm run stdb:inspect-alpha-v10 -- --json
-npm run stdb:inspect-alpha-v12 -- --json
-npm run stdb:daily-marks:inspect
-```
+Legacy aggregate inspection, Daily Marks, Inner Keep, component seed, Water
+activation, and repair operators remain unavailable until separately reviewed
+post-cutover launch rows are added. The generic legacy/v15 publisher is also
+unavailable. The dedicated v17 lane exists, but all relevant checked-in
+approvals remain false and its source alone authorizes nothing.
 
-Inner Keep v15 stays independently inactive. Its counts-only inspection and
-deterministic plans use the guarded source-only operator:
-
-```sh
-npm run stdb:inner-keep:inspect
-npm run stdb:inner-keep:plan-catalog
-npm run stdb:inner-keep:plan-builders
-```
-
-Catalog seed, Builder backfill, activation, and deactivation are separate
-commands. They require exact plan counts and default to a local dry-run record;
-`--confirm` is mandatory for any reducer call. Activation is additionally
-blocked before credentials or network unless both owner-authorized static and
-population selections and their complete installed runtime registries verify.
-See the
-[Inner Keep activation runbook](../docs/operations/inner-keep-activation.md)
-for the complete future owner-reviewed sequence. The publisher retains the
-active-v14-to-inactive-v15 contract as a read-only rehearsal, but the current
-v17 artifact has no production lane: every non-dry-run path fails before the
-publish dependency. A later change must add independently reviewed Greater
-Realm predecessor, aggregate, and postflight evidence. No command is
-authorized by this source PR.
-
-Component setup is separate from module publication and must be reviewed one
-component at a time:
-
-```sh
-npm run stdb:seed-alpha-component -- gold --dry-run
-npm run stdb:seed-alpha-component -- forest --dry-run
-npm run stdb:seed-alpha-component -- food --dry-run
-npm run stdb:seed-alpha-component -- wood --dry-run
-npm run stdb:seed-alpha-component -- water --dry-run
-npm run stdb:seed-alpha-component -- stone --dry-run
-```
-
-Confirmed commands require `--confirm`, the canonical production coordinates,
-and fresh pre/post aggregate checks. Partial or drifted catalogs fail closed;
-the tool does not repair or delete them.
-
-Water visibility is activated separately after a canonical seed and clean v10
-inspection with `npm run stdb:activate-alpha-water -- --dry-run`, followed by
-the same command with `--confirm` when approved.
-
-See the concise [component activation runbook](../docs/operations/alpha-component-activation.md),
+Local-only `npm run stdb:verify-bindings` and
+`npm run stdb:verify-additive-migration` remain valid development evidence;
+they do not contact production. See the
+[component activation runbook](../docs/operations/alpha-component-activation.md),
+[Inner Keep activation runbook](../docs/operations/inner-keep-activation.md),
 [deployment recovery guide](../docs/operations/reconstruction/deployment-recovery.md),
 and [security threat model](../docs/security/threat-model.md). Never place
 tokens, QR payloads, proofs, player identities, private rows, or production

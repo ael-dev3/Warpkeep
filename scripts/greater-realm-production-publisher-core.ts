@@ -1,5 +1,14 @@
 import { createHash } from 'node:crypto';
 
+import { isGreaterRealmCutoverWriteNotStartedError } from './greater-realm-cutover-write-control';
+import {
+  createGreaterRealmCutoverExpectedAfterPredicate,
+  emptyGreaterRealmCutoverOperationReceiptChain,
+  type GreaterRealmCutoverOperationJournalChain,
+  type GreaterRealmCutoverWritePermit,
+} from './greater-realm-cutover-operation-journal';
+import { GREATER_REALM_CUTOVER_RECEIPT_TARGET } from './greater-realm-cutover-receipts';
+
 import {
   ACCESS_REQUEST_V13_TABLE_CONTRACTS,
   DAILY_MARK_V14_TABLE_CONTRACTS,
@@ -7,6 +16,8 @@ import {
   PRODUCTION_V11_TABLE_PRODUCT_TYPE_REFS,
   WORKER_V12_TABLE_CONTRACTS,
   verifyExactProductionV14ModuleSchema,
+  isSpacetimePublishContainmentError,
+  type GreaterRealmPublishSupervisorIdentity,
   type MigrationArtifactReceipt,
 } from './publish-spacetime-dev.mjs';
 // @ts-expect-error This repository-owned ESM helper is covered by direct tests.
@@ -99,6 +110,8 @@ export type GreaterRealmProductionPublishReceipt = Readonly<{
   releaseState: string;
   activationMode?: string;
   historicalAggregateDigest: string;
+  operationReceiptChainDigest: string;
+  operationReceiptCount: number;
 }>;
 
 export class GreaterRealmProductionPublisherError extends Error {
@@ -587,6 +600,169 @@ function digestHistoricalAggregate(value: unknown): string {
     .digest('hex');
 }
 
+function publisherJournalStatus(input: Readonly<{
+  append: boolean;
+  schemaDigest: string;
+  status?: PublisherStatus;
+}>): Readonly<Record<string, unknown>> {
+  return Object.freeze({
+    schemaDigest: input.schemaDigest,
+    ...(input.append
+      ? {}
+      : {
+          stateDigest: createHash('sha256')
+            .update('warpkeep-greater-realm-publisher-state-without-compile-v1\0', 'utf8')
+            .update(statusWithoutCompileMode(input.status!), 'utf8')
+            .digest('hex'),
+        }),
+    importMutationsCompiled: input.status?.importMutationsCompiled ?? false,
+    activationMutationsCompiled: input.status?.activationMutationsCompiled ?? false,
+  });
+}
+
+function publisherArtifactAudit(
+  artifactReceipt: MigrationArtifactReceipt,
+): Readonly<Record<string, string>> {
+  return Object.freeze({
+    artifactDigest: artifactReceipt.artifactDigest,
+    v11TableSchemaDigest: artifactReceipt.v11TableSchemaDigest,
+    v12TableSchemaDigest: artifactReceipt.v12TableSchemaDigest,
+    v13TableSchemaDigest: artifactReceipt.v13TableSchemaDigest,
+    v14TableSchemaDigest: artifactReceipt.v14TableSchemaDigest,
+    v15TableSchemaDigest: artifactReceipt.v15TableSchemaDigest,
+    v16TableSchemaDigest: artifactReceipt.v16TableSchemaDigest,
+    v17TableSchemaDigest: artifactReceipt.v17TableSchemaDigest,
+  });
+}
+
+function publisherReceiptStatus(input: Readonly<{
+  lane: GreaterRealmProductionPublishLane;
+  moduleDeltaPolicy: GreaterRealmProductionModuleDeltaPolicy;
+  schemaDigest: string;
+  status?: PublisherStatus;
+  historicalAggregateDigest: string;
+}>): Readonly<Record<string, unknown>> {
+  return Object.freeze({
+    lane: input.lane,
+    moduleDeltaPolicy: input.moduleDeltaPolicy,
+    schemaDigest: input.schemaDigest,
+    importMutationsCompiled: input.status?.importMutationsCompiled ?? false,
+    activationMutationsCompiled: input.status?.activationMutationsCompiled ?? false,
+    releaseState: input.status === undefined ? 'absent' : releaseState(input.status),
+    activationMode: input.status === undefined ? null : activationMode(input.status) ?? null,
+    historicalAggregateDigest: input.historicalAggregateDigest,
+  });
+}
+
+export async function inspectGreaterRealmProductionPublisherRecoverySnapshot(input: Readonly<{
+  lane: GreaterRealmProductionPublishLane;
+  moduleDeltaPolicy: GreaterRealmProductionModuleDeltaPolicy;
+  expectedAtlasSourceCommit: string;
+  expectedAtlasId: string;
+  expectedPublicReleaseId: string;
+  expectedReleaseSha256: string;
+  artifactReceipt: MigrationArtifactReceipt;
+  readSchema: () => Promise<unknown>;
+  readImportStatus?: () => Promise<unknown>;
+  readCutoverStatus?: () => Promise<unknown>;
+  readHistoricalAggregate: () => Promise<unknown>;
+}>): Promise<Readonly<{
+  status: Readonly<Record<string, unknown>>;
+  audit: Readonly<Record<string, unknown>>;
+  receiptStatus: Readonly<Record<string, unknown>>;
+  receiptAudit: Readonly<Record<string, unknown>>;
+}>> {
+  if (input.moduleDeltaPolicy !== greaterRealmProductionModuleDeltaPolicy(input.lane)) {
+    fail('GREATER_REALM_PRODUCTION_MODULE_DELTA_POLICY_INVALID');
+  }
+  const append = input.lane === GREATER_REALM_PRODUCTION_PUBLISH_LANE.APPEND_INERT_V17;
+  const description = await input.readSchema();
+  let schemaDigest: string;
+  if (append) {
+    try {
+      verifyGreaterRealmV14ProductionPredecessor(description, input.artifactReceipt);
+      schemaDigest = input.artifactReceipt.v14TableSchemaDigest;
+    } catch {
+      verifyGreaterRealmV17ProductionSchema({
+        description,
+        artifactReceipt: input.artifactReceipt,
+      });
+      schemaDigest = input.artifactReceipt.v17TableSchemaDigest;
+    }
+  } else {
+    verifyGreaterRealmV17ProductionSchema({
+      description,
+      artifactReceipt: input.artifactReceipt,
+    });
+    schemaDigest = input.artifactReceipt.v17TableSchemaDigest;
+  }
+  const plan = expectedCompileMode(input.lane);
+  const expectedAtlasRelease = Object.freeze({
+    atlasSourceCommit: input.expectedAtlasSourceCommit,
+    atlasId: input.expectedAtlasId,
+    publicReleaseId: input.expectedPublicReleaseId,
+    expectedReleaseSha256: input.expectedReleaseSha256,
+  });
+  let status: PublisherStatus | undefined;
+  if (!append) {
+    const reader = plan.statusKind === 'import'
+      ? input.readImportStatus
+      : input.readCutoverStatus;
+    if (reader === undefined) fail('GREATER_REALM_PRODUCTION_PUBLISH_STATUS_READER_REQUIRED');
+    const raw = await reader();
+    const shape = plan.statusKind === 'import'
+      ? projectGreaterRealmProductionImportStatus(raw)
+      : projectGreaterRealmProductionCutoverStatusShape(raw);
+    const observedMode = Object.freeze([
+      shape.importMutationsCompiled,
+      shape.activationMutationsCompiled,
+    ] as const);
+    const allowed = [plan.before, plan.after].some(mode => (
+      mode !== undefined && mode[0] === observedMode[0] && mode[1] === observedMode[1]
+    ));
+    if (!allowed) fail('GREATER_REALM_PRODUCTION_PUBLISH_COMPILE_MODE_MISMATCH');
+    status = projectPublisherStatus({
+      value: raw,
+      plan,
+      mode: observedMode,
+      expectedAtlasRelease,
+    });
+    if ('present' in status && status.present) {
+      if (input.readCutoverStatus === undefined) {
+        fail('GREATER_REALM_PRODUCTION_PUBLISH_RELEASE_AUTHORITY_READER_REQUIRED');
+      }
+      const authority = projectGreaterRealmProductionCutoverStatusShape(
+        await input.readCutoverStatus(),
+      );
+      assertImportReleaseAuthority({
+        status,
+        authority,
+        expectedAtlasRelease,
+        mode: observedMode,
+      });
+    }
+  }
+  const historicalAggregateDigest = digestHistoricalAggregate(
+    await input.readHistoricalAggregate(),
+  );
+  const audit = Object.freeze({
+    historicalAggregateDigest,
+    ...publisherArtifactAudit(input.artifactReceipt),
+  });
+  return Object.freeze({
+    status: publisherJournalStatus({ append, schemaDigest, status }),
+    audit,
+    receiptStatus: publisherReceiptStatus({
+      lane: input.lane,
+      moduleDeltaPolicy: input.moduleDeltaPolicy,
+      schemaDigest,
+      status,
+      historicalAggregateDigest,
+    }),
+    receiptAudit: audit,
+  });
+}
+
 /**
  * Exact publisher state machine. All reads and the publish call are injected
  * so static and fake-transport tests exercise every guard without network I/O.
@@ -605,7 +781,15 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
   readImportStatus?: () => Promise<unknown>;
   readCutoverStatus?: () => Promise<unknown>;
   readHistoricalAggregate: () => Promise<unknown>;
-  publish: () => Promise<void>;
+  assertCanStartWrite: () => void;
+  publish: (writePermit?: GreaterRealmCutoverWritePermit) => Promise<void>;
+  publishExecutableIdentity?: Readonly<{ path: string; digest: string }>;
+  publishSupervisorIdentity?: GreaterRealmPublishSupervisorIdentity;
+  operationJournal?: GreaterRealmCutoverOperationJournalChain;
+  operationJournalLifecycle?: Readonly<{
+    prepared: () => void;
+    settled: () => void;
+  }>;
   testOnlyDependencies?: Readonly<{
     verifyV14Predecessor?: typeof verifyGreaterRealmV14ProductionPredecessor;
     verifyV17Schema?: typeof verifyGreaterRealmV17ProductionSchema;
@@ -644,6 +828,18 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
     publicReleaseId: input.expectedPublicReleaseId,
     expectedReleaseSha256: input.expectedReleaseSha256,
   });
+  const operationReceiptChain = () => input.operationJournal?.summary()
+    ?? emptyGreaterRealmCutoverOperationReceiptChain({
+      command: Object.freeze({ kind: 'publish', name: input.lane }),
+      target: GREATER_REALM_CUTOVER_RECEIPT_TARGET,
+      sourceRelease: Object.freeze({
+        atlasSourceCommit: input.expectedAtlasSourceCommit,
+        moduleSourceCommit: input.moduleSourceCommit,
+        atlasId: input.expectedAtlasId,
+        publicReleaseId: input.expectedPublicReleaseId,
+        expectedReleaseSha256: input.expectedReleaseSha256,
+      }),
+    });
   const verifyV14Predecessor = input.testOnlyDependencies?.verifyV14Predecessor
     ?? verifyGreaterRealmV14ProductionPredecessor;
   const verifyV17Schema = input.testOnlyDependencies?.verifyV17Schema
@@ -700,6 +896,17 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
     fail('GREATER_REALM_PRODUCTION_PREPUBLICATION_AGGREGATE_FAILED')
   ));
   const historicalAggregateDigest = digestHistoricalAggregate(beforeHistorical);
+  const beforeJournalStatus = publisherJournalStatus({
+    append,
+    schemaDigest: append
+      ? input.artifactReceipt.v14TableSchemaDigest
+      : input.artifactReceipt.v17TableSchemaDigest,
+    status: beforeStatus,
+  });
+  const beforeJournalAudit = Object.freeze({
+    historicalAggregateDigest,
+    ...publisherArtifactAudit(input.artifactReceipt),
+  });
 
   // A final read prevents a code-forward write derived from stale status.
   if (!append) {
@@ -733,10 +940,133 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
     }
   }
 
+  const terminalExpectedAfterPredicate = createGreaterRealmCutoverExpectedAfterPredicate({
+    moduleSourceCommit: input.moduleSourceCommit,
+    contract: `publish-${input.lane}-v1`,
+    statusRules: Object.freeze({
+      schemaDigest: Object.freeze({
+        rule: 'equals', value: input.artifactReceipt.v17TableSchemaDigest,
+      }),
+      ...(!append && 'stateDigest' in beforeJournalStatus
+        ? {
+            stateDigest: Object.freeze({
+              rule: 'equals' as const,
+              value: beforeJournalStatus.stateDigest,
+            }),
+          }
+        : {}),
+      importMutationsCompiled: Object.freeze({ rule: 'equals', value: plan.after[0] }),
+      activationMutationsCompiled: Object.freeze({ rule: 'equals', value: plan.after[1] }),
+    }),
+    auditRules: Object.freeze({
+      historicalAggregateDigest: Object.freeze({
+        rule: 'equals', value: historicalAggregateDigest,
+      }),
+      ...Object.fromEntries(Object.entries(publisherArtifactAudit(input.artifactReceipt))
+        .map(([key, value]) => [key, Object.freeze({ rule: 'equals' as const, value })])),
+    }),
+  });
+  input.operationJournal?.bindCommandPlan({
+    beforeStatus: beforeJournalStatus,
+    beforeAudit: beforeJournalAudit,
+    receiptBeforeStatus: publisherReceiptStatus({
+      lane: input.lane,
+      moduleDeltaPolicy: input.moduleDeltaPolicy,
+      schemaDigest: beforeJournalStatus.schemaDigest as string,
+      status: beforeStatus,
+      historicalAggregateDigest,
+    }),
+    receiptBeforeAudit: beforeJournalAudit,
+    terminalExpectedAfterPredicate,
+  });
+  const journalOperation = await input.operationJournal?.prepare({
+    operationKind: 'publish',
+    operationName: input.lane,
+    arguments: Object.freeze({
+      artifactDigest: input.artifactReceipt.artifactDigest,
+      v17TableSchemaDigest: input.artifactReceipt.v17TableSchemaDigest,
+      artifactReceipt: input.artifactReceipt,
+    }),
+    identity: Object.freeze({
+      lane: input.lane,
+      moduleDeltaPolicy: input.moduleDeltaPolicy,
+      artifactDigest: input.artifactReceipt.artifactDigest,
+      v14TableSchemaDigest: input.artifactReceipt.v14TableSchemaDigest,
+      v17TableSchemaDigest: input.artifactReceipt.v17TableSchemaDigest,
+      artifactReceipt: input.artifactReceipt,
+      ...(input.publishExecutableIdentity === undefined
+        ? {}
+        : { publishExecutableIdentity: input.publishExecutableIdentity }),
+      ...(input.publishSupervisorIdentity === undefined
+        ? {}
+        : { publishSupervisorIdentity: input.publishSupervisorIdentity }),
+    }),
+    beforeStatus: beforeJournalStatus,
+    beforeAudit: beforeJournalAudit,
+    expectedAfterPredicate: terminalExpectedAfterPredicate,
+  });
+  if (journalOperation !== undefined) input.operationJournalLifecycle?.prepared();
+
   let publishFailed = false;
+  input.assertCanStartWrite();
   try {
-    await input.publish();
-  } catch {
+    await input.publish(journalOperation?.writePermit);
+  } catch (error) {
+    if (isGreaterRealmCutoverWriteNotStartedError(error)) {
+      const abandoned = await journalOperation?.abandonAfterRejectedPermit(error, async () => {
+        const schemaDescription = await input.readSchema();
+        let status: PublisherStatus | undefined;
+        if (append) {
+          verifyV14Predecessor(schemaDescription, input.artifactReceipt);
+        } else {
+          verifyV17Schema({
+            description: schemaDescription,
+            artifactReceipt: input.artifactReceipt,
+          });
+          status = projectPublisherStatus({
+            value: await statusReader!(),
+            plan,
+            mode: plan.before!,
+            expectedAtlasRelease,
+            projectCutoverStatus: input.testOnlyDependencies?.projectCutoverStatus,
+          });
+        }
+        return Object.freeze({
+          status: publisherJournalStatus({
+            append,
+            schemaDigest: append
+              ? input.artifactReceipt.v14TableSchemaDigest
+              : input.artifactReceipt.v17TableSchemaDigest,
+            status,
+          }),
+          audit: Object.freeze({
+            historicalAggregateDigest: digestHistoricalAggregate(
+              await input.readHistoricalAggregate(),
+            ),
+            ...publisherArtifactAudit(input.artifactReceipt),
+          }),
+        });
+      });
+      if (abandoned === true) input.operationJournalLifecycle?.settled();
+      throw error;
+    }
+    if (isSpacetimePublishContainmentError(error)) {
+      await journalOperation?.markManualAmbiguity({
+        reason: 'containment-unproven',
+        identity: Object.freeze({
+          lane: input.lane,
+          moduleDeltaPolicy: input.moduleDeltaPolicy,
+          artifactDigest: input.artifactReceipt.artifactDigest,
+          ...(input.publishExecutableIdentity === undefined
+            ? {}
+            : { publishExecutableIdentity: input.publishExecutableIdentity }),
+          ...(input.publishSupervisorIdentity === undefined
+            ? {}
+            : { publishSupervisorIdentity: input.publishSupervisorIdentity }),
+        }),
+      });
+      throw error;
+    }
     publishFailed = true;
   }
   if (publishFailed && input.moduleDeltaPolicy === 'reviewed-same-schema') {
@@ -747,6 +1077,7 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
   }
 
   let postStatus: PublisherStatus;
+  let postHistoricalAggregateDigest: string;
   try {
     verifyV17Schema({
       description: await input.readSchema(),
@@ -782,12 +1113,49 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
       fail('GREATER_REALM_PRODUCTION_FORWARD_FIX_CHANGED_STATE', true);
     }
     const afterHistorical = await input.readHistoricalAggregate();
-    if (digestHistoricalAggregate(afterHistorical) !== historicalAggregateDigest) {
+    postHistoricalAggregateDigest = digestHistoricalAggregate(afterHistorical);
+    if (postHistoricalAggregateDigest !== historicalAggregateDigest) {
       fail('GREATER_REALM_PRODUCTION_HISTORICAL_AGGREGATE_CHANGED', true);
     }
   } catch (error) {
     fail('GREATER_REALM_PRODUCTION_PUBLISH_OUTCOME_AMBIGUOUS', true);
   }
+
+  await journalOperation?.reconcile({
+    afterStatus: publisherJournalStatus({
+      append,
+      schemaDigest: input.artifactReceipt.v17TableSchemaDigest,
+      status: postStatus,
+    }),
+    afterAudit: Object.freeze({
+      historicalAggregateDigest: postHistoricalAggregateDigest!,
+      ...publisherArtifactAudit(input.artifactReceipt),
+    }),
+    outcome: publishFailed ? 'verified-after-submission-error' : 'verified',
+  });
+  input.operationJournal?.reconcileCommand({
+    afterStatus: publisherJournalStatus({
+      append,
+      schemaDigest: input.artifactReceipt.v17TableSchemaDigest,
+      status: postStatus,
+    }),
+    afterAudit: Object.freeze({
+      historicalAggregateDigest: postHistoricalAggregateDigest!,
+      ...publisherArtifactAudit(input.artifactReceipt),
+    }),
+    receiptAfterStatus: publisherReceiptStatus({
+      lane: input.lane,
+      moduleDeltaPolicy: input.moduleDeltaPolicy,
+      schemaDigest: input.artifactReceipt.v17TableSchemaDigest,
+      status: postStatus,
+      historicalAggregateDigest: postHistoricalAggregateDigest!,
+    }),
+    receiptAfterAudit: Object.freeze({
+      historicalAggregateDigest: postHistoricalAggregateDigest!,
+      ...publisherArtifactAudit(input.artifactReceipt),
+    }),
+  });
+  if (journalOperation !== undefined) input.operationJournalLifecycle?.settled();
 
   return Object.freeze({
     schemaVersion: 1,
@@ -814,6 +1182,7 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
       ? {}
       : { activationMode: activationMode(postStatus) }),
     historicalAggregateDigest,
+    ...operationReceiptChain(),
   });
 }
 

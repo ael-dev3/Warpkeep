@@ -1779,8 +1779,7 @@ describe('activation publish safety', () => {
       '--server', 'https://maincloud.spacetimedb.com',
       '--js-path', snapshotPath,
       '--delete-data=never',
-      '--yes=remote',
-      '--no-config',
+      '--yes=remote,skip-login',
       databaseIdentity,
     ]);
     expect(calls[0]?.[1]).not.toContain('--module-path');
@@ -3740,9 +3739,10 @@ describe('activation publish safety', () => {
           return child;
         }) as never,
       );
+      await vi.waitFor(() => expect(snapshotPath).not.toBe(''));
       child.stdout.emit('data', Buffer.alloc(1_000_001));
       child.emit('close', 1, 'SIGKILL');
-      await expect(publish).rejects.toThrow(/did not complete successfully/i);
+      await expect(publish).rejects.toThrow(/output exceeded its fixed bound/i);
       expect(child.kill).toHaveBeenCalledWith('SIGKILL');
       expect(snapshotPath).not.toBe('');
       expect(() => statSync(snapshotPath)).toThrow();
@@ -5224,7 +5224,7 @@ describe('activation publish safety', () => {
       .toThrow(/expected founder count/i);
   });
 
-  it('enforces a hard deadline with graceful then forced termination', async () => {
+  it('escalates a hard deadline and reports unproven containment when close never arrives', async () => {
     vi.useFakeTimers();
     const child = new EventEmitter() as EventEmitter & { kill: ReturnType<typeof vi.fn> };
     child.kill = vi.fn();
@@ -5235,15 +5235,23 @@ describe('activation publish safety', () => {
         receipt,
         (() => child) as never,
       );
-      const rejection = expect(publish).rejects.toThrow(/hard deadline/i);
+      const rejection = publish.then(
+        () => undefined,
+        error => error,
+      );
 
+      await vi.advanceTimersByTimeAsync(0);
       await vi.advanceTimersByTimeAsync(120_000);
       expect(child.kill).toHaveBeenCalledWith('SIGTERM');
       child.emit('error', new Error('test-only signal delivery failure'));
       await vi.advanceTimersByTimeAsync(5_000);
       expect(child.kill).toHaveBeenCalledWith('SIGKILL');
       child.emit('error', new Error('test-only forced-kill delivery failure'));
-      await rejection;
+      await vi.advanceTimersByTimeAsync(5_000);
+      await expect(rejection).resolves.toMatchObject({
+        code: 'SPACETIMEDB_PUBLISH_PROCESS_GROUP_UNCONTAINED',
+        nonReconcilable: true,
+      });
     });
   });
 

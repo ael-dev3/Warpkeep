@@ -5,6 +5,11 @@ publication, seeding, backfill, deployment, activation, production gameplay,
 or asset use. Every mutating command is a dry run unless `--confirm` is supplied
 after reviewing the exact preflight.
 
+> Greater Realm cutover freeze: the legacy publisher and Inner Keep npm
+> operators described historically in this document are deliberately disabled.
+> They require a separately reviewed post-cutover trusted-launch packet before
+> any re-enable; they are not executable instructions for the current release.
+
 The repository's guarded publisher exposes one protocol-v15 lane: the exact
 active-v14 predecessor to an inactive v15 append. Selecting that source lane
 does not authorize its use. It still requires owner review, the exact
@@ -99,19 +104,9 @@ and reconcile the previous result first.
 
 ## Guarded schema publication lane
 
-The only accepted v15 selection is explicit on both boundaries:
-
-```sh
-npm run stdb:publish:dev -- \
-  --dry-run \
-  --resource-rollout-stage=ready \
-  --genesis-world-stage=expanded \
-  --worker-rollout-stage=active \
-  --worker-module-predecessor=exact-v14-active \
-  --worker-forward-repair=none \
-  --inner-keep-module-predecessor=exact-v14-active \
-  --inner-keep-publication-stage=append-inactive
-```
+The historical `stdb:publish:dev` v15 lane is unavailable during the Greater Realm
+cutover freeze; use no substitute command without a separately reviewed
+trusted-launch packet.
 
 The dry run verifies the pinned CLI and migration artifact, canonical issuer
 and database identity, exact v14 schema and ABI, and the protected historical
@@ -132,28 +127,12 @@ catalog, backfills Builders, deploys a client, or activates Inner Keep.
 
 ## Source-only operator
 
-The checked-in operator exposes the review sequence as separate commands:
+The historical `stdb:inner-keep:*` inspection, planning, seeding, backfill, and
+activation aliases are unavailable during the Greater Realm cutover freeze.
 
-```sh
-npm run stdb:inner-keep:inspect
-npm run stdb:inner-keep:plan-catalog
-npm run stdb:inner-keep:seed-catalog -- \
-  --expected-missing-layout 1 \
-  --expected-missing-slots 0 \
-  --expected-missing-buildings 6 \
-  --expected-missing-levels 30
-npm run stdb:inner-keep:plan-builders
-npm run stdb:inner-keep:backfill-builders -- \
-  --expected-castles <count> \
-  --expected-existing-builders <count> \
-  --expected-missing-builders <count>
-```
-
-The mutation commands above only print a counts-and-digests dry-run record.
-They do not request a credential or contact SpacetimeDB until `--confirm` is
-added. Copy expected counts from a fresh plan. Supply the short-lived Hermes
-secret only through the existing private stdin contract. Never place it in an
-argument, log, shell history, or public evidence.
+Historically, those mutation commands printed a counts-and-digests dry-run
+record before confirmation. That description is retained only for future
+review; it does not re-enable the frozen aliases.
 
 ### Exact protected-state evidence
 

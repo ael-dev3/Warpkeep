@@ -1,5 +1,18 @@
 // @vitest-environment node
 
+import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -13,13 +26,28 @@ import {
   type GreaterRealmProductionPublishLane,
   type GreaterRealmProductionReleaseFlags,
 } from '../scripts/greater-realm-production-publisher-core';
-import type { MigrationArtifactReceipt } from '../scripts/publish-spacetime-dev.mjs';
+import {
+  authorizeGreaterRealmPublishExactBeforeClear,
+  cleanupGreaterRealmPublishSupervisor,
+  inspectGreaterRealmPublishSupervisor,
+  planGreaterRealmPublishSupervisor,
+  publishModule,
+  type GreaterRealmPublishSupervisorIdentity,
+  type MigrationArtifactReceipt,
+} from '../scripts/publish-spacetime-dev.mjs';
 import type { GreaterRealmProductionImportStatus } from '../scripts/greater-realm-production-import-core';
+import type { GreaterRealmCutoverOperationJournalChain } from '../scripts/greater-realm-cutover-operation-journal';
+import { GreaterRealmCutoverWriteNotStartedError } from '../scripts/greater-realm-cutover-write-control';
 import { inspectGreaterRealmLegacyProductionAggregate } from '../scripts/greater-realm-production-legacy-aggregate';
 import {
+  executeGreaterRealmProductionPublisherRecovery,
+  greaterRealmProductionPublisherTestSeams,
   parseGreaterRealmProductionPublisherArguments,
   publishGreaterRealmModuleWithFreshPostflight,
 } from '../scripts/greater-realm-production-publisher';
+import type {
+  GreaterRealmImmutableArtifactRetentionRecord,
+} from '../scripts/greater-realm-production-immutable-artifact';
 import type {
   GreaterRealmProductionCompileMode,
   GreaterRealmProductionCutoverStatus,
@@ -28,6 +56,7 @@ import {
   bindGreaterRealmProductionStatusTransport,
   createGreaterRealmAdminTransportSession,
 } from '../scripts/greater-realm-production-transport';
+import { withGreaterRealmCutoverOperatorLock } from '../scripts/greater-realm-cutover-receipts';
 
 const artifactReceipt = Object.freeze({
   artifactPath: '/test/spacetimedb/dist/bundle.js',
@@ -60,6 +89,11 @@ const MODULE_SOURCE_COMMIT = 'c'.repeat(40);
 const ATLAS_ID = 'GREATER_REALM_V1';
 const PUBLIC_RELEASE_ID = 'GRR-AAAAAAAAAAAAAAAAAAAAAAAAAA';
 const EXPECTED_RELEASE_SHA256 = 'd'.repeat(64);
+const canonicalTemporaryDirectory = realpathSync(tmpdir());
+const publishSupervisorCrashFixture = resolve(
+  import.meta.dirname,
+  'fixtures/greaterRealmPublishSupervisorCrashFixture.mjs',
+);
 const CLOSED_RELEASE_FLAGS = Object.freeze({
   entryAgreementApproved: false,
   additivePublishApproved: false,
@@ -68,6 +102,278 @@ const CLOSED_RELEASE_FLAGS = Object.freeze({
   clientActivationApproved: false,
   admissionNotificationsApproved: false,
 }) satisfies GreaterRealmProductionReleaseFlags;
+
+const RECOVERY_CONFIRMATION_DIGEST = 'f'.repeat(64);
+const RECOVERY_GROUP_DIGEST = 'e'.repeat(64);
+const RECOVERY_LANE = GREATER_REALM_PRODUCTION_PUBLISH_LANE.APPEND_INERT_V17;
+const recoverySourceRelease = Object.freeze({
+  atlasSourceCommit: ATLAS_SOURCE_COMMIT,
+  moduleSourceCommit: MODULE_SOURCE_COMMIT,
+  atlasId: ATLAS_ID,
+  publicReleaseId: PUBLIC_RELEASE_ID,
+  expectedReleaseSha256: EXPECTED_RELEASE_SHA256,
+});
+const recoveryRetention = Object.freeze({
+  schemaVersion: 1,
+  profile: 'warpkeep-greater-realm-immutable-artifact-v1',
+  materializationRoot: '/test/materialization',
+  artifactPath: artifactReceipt.artifactPath,
+  artifactDigest: artifactReceipt.artifactDigest,
+  moduleSourceCommit: MODULE_SOURCE_COMMIT,
+  moduleTreeId: '9'.repeat(40),
+  dependencyClosureDigest: 'a'.repeat(64),
+  materializationDev: '1',
+  materializationIno: '2',
+  artifactDev: '1',
+  artifactIno: '3',
+  artifactMode: '600',
+  artifactUid: '501',
+  artifactNlink: '1',
+  artifactSize: '4096',
+  artifactMtimeNs: '100',
+  artifactCtimeNs: '101',
+}) satisfies GreaterRealmImmutableArtifactRetentionRecord;
+const recoveryBeforeAudit = Object.freeze({
+  historicalAggregateDigest: 'b'.repeat(64),
+  artifactDigest: artifactReceipt.artifactDigest,
+  v11TableSchemaDigest: artifactReceipt.v11TableSchemaDigest,
+  v12TableSchemaDigest: artifactReceipt.v12TableSchemaDigest,
+  v13TableSchemaDigest: artifactReceipt.v13TableSchemaDigest,
+  v14TableSchemaDigest: artifactReceipt.v14TableSchemaDigest,
+  v15TableSchemaDigest: artifactReceipt.v15TableSchemaDigest,
+  v16TableSchemaDigest: artifactReceipt.v16TableSchemaDigest,
+  v17TableSchemaDigest: artifactReceipt.v17TableSchemaDigest,
+});
+const recoveryBeforeStatus = Object.freeze({ phase: 'before' });
+
+function recoverySupervisorIdentity(ordinal = 1): GreaterRealmPublishSupervisorIdentity {
+  return Object.freeze({
+    schemaVersion: 1,
+    profile: 'warpkeep-greater-realm-publish-supervisor-v1',
+    supervisorId: String(ordinal).padStart(32, '0'),
+    supervisorDirectory: `/test/supervisor-${ordinal}`,
+  });
+}
+
+function recoveryOperation(
+  supervisorIdentity = recoverySupervisorIdentity(),
+  receipt: MigrationArtifactReceipt = artifactReceipt,
+) {
+  return Object.freeze({
+    kind: 'publish',
+    name: RECOVERY_LANE,
+    identity: Object.freeze({
+      lane: RECOVERY_LANE,
+      moduleDeltaPolicy: greaterRealmProductionModuleDeltaPolicy(RECOVERY_LANE),
+      artifactDigest: receipt.artifactDigest,
+      v14TableSchemaDigest: receipt.v14TableSchemaDigest,
+      v17TableSchemaDigest: receipt.v17TableSchemaDigest,
+      artifactReceipt: receipt,
+      publishExecutableIdentity: Object.freeze({
+        path: '/test/spacetime-snapshot',
+        digest: 'c'.repeat(64),
+      }),
+      publishSupervisorIdentity: supervisorIdentity,
+    }),
+  });
+}
+
+function recoveryRecord(
+  operation = recoveryOperation(),
+  beforeAudit: Readonly<Record<string, unknown>> = recoveryBeforeAudit,
+) {
+  return Object.freeze({
+    command: Object.freeze({ kind: 'publish', name: RECOVERY_LANE }),
+    operation,
+    sourceRelease: recoverySourceRelease,
+    beforeStatus: recoveryBeforeStatus,
+    beforeAudit,
+  });
+}
+
+function recoveryInspection(
+  recoveryMode: 'journal' | 'command-receipt' | 'lock-only' = 'journal',
+) {
+  return Object.freeze({
+    recoveryMode,
+    recoveryEligible: true,
+    recoveryOwnerState: 'none',
+    recoveryOwnerExpiresAtMs: null,
+    confirmationDigest: RECOVERY_CONFIRMATION_DIGEST,
+    plan: recoveryMode === 'lock-only' ? null : Object.freeze({
+      groupDigest: RECOVERY_GROUP_DIGEST,
+      command: Object.freeze({ kind: 'publish', name: RECOVERY_LANE }),
+      operationReceiptChainDigest: 'd'.repeat(64),
+      operationReceiptCount: 1,
+    }),
+  });
+}
+
+function recoveryResult(outcome = 'recovered') {
+  return Object.freeze({
+    lock: Object.freeze({ lockId: 'test-lock' }),
+    recovery: Object.freeze({
+      outcome,
+      groupDigest: RECOVERY_GROUP_DIGEST,
+      operationReceiptChainDigest: 'd'.repeat(64),
+      operationReceiptCount: 1,
+      commandReceiptDigest: 'a'.repeat(64),
+    }),
+  });
+}
+
+function recoveryHarness(overrides: Readonly<Record<string, unknown>> = {}) {
+  const executableCleanup = vi.fn();
+  const session = Object.freeze({
+    close: vi.fn(async () => undefined),
+    invalidate: vi.fn(async () => undefined),
+    prepareSubmission: vi.fn(async () => undefined),
+  });
+  const inspectRecovery = vi.fn(() => recoveryInspection());
+  const inspectProvenance = vi.fn(() => ({
+    workspace: {},
+    artifacts: {},
+    ...recoverySourceRelease,
+  }));
+  const readExpectations = vi.fn(() => Object.freeze({
+    expectedFounderCount: 1,
+    expectedEnabledAllowedFidCount: 1,
+    expectedPlayerCount: 1,
+    expectedTermsAcceptanceCount: 1,
+  }));
+  const attestCli = vi.fn(() => Object.freeze({
+    path: '/test/spacetime-snapshot',
+    digest: 'c'.repeat(64),
+    cleanup: executableCleanup,
+  }));
+  const createSession = vi.fn(() => session);
+  const inspectSnapshot = vi.fn(async () => Object.freeze({
+    status: recoveryBeforeStatus,
+    audit: recoveryBeforeAudit,
+  }));
+  const inspectSupervisor = vi.fn((identity: GreaterRealmPublishSupervisorIdentity) => ({
+    identity,
+    status: Object.freeze({ state: 'pre-gate-zero-write' }),
+    processGroupExists: false,
+    incompleteInstallZeroWrite: false,
+    temporaries: Object.freeze([]),
+    phases: Object.freeze([]),
+    cliAuthority: Object.freeze({
+      cliConfigPath: '/test/cli.toml',
+      cliRootDirectory: '/test/cli-root',
+      staged: true,
+    }),
+  }));
+  const cleanupSupervisor = vi.fn();
+  const cleanupArtifact = vi.fn();
+  const attestArtifact = vi.fn();
+  const planSupervisor = vi.fn(() => Object.freeze({
+    identity: recoverySupervisorIdentity(99),
+    allocate: vi.fn(),
+    start: vi.fn(),
+    release: vi.fn(),
+    cleanup: vi.fn(),
+    executionState: vi.fn(() => Object.freeze({})),
+  }));
+  const dependencies = {
+    inspectRecovery,
+    inspectProvenance,
+    readExpectations,
+    attestCli,
+    createSession,
+    inspectSnapshot,
+    inspectSupervisor,
+    cleanupSupervisor,
+    cleanupArtifact,
+    attestArtifact,
+    planSupervisor,
+    ...overrides,
+  };
+  return Object.freeze({
+    dependencies,
+    executableCleanup,
+    session,
+    inspectRecovery,
+    inspectProvenance,
+    readExpectations,
+    attestCli,
+    createSession,
+    inspectSnapshot,
+    inspectSupervisor,
+    cleanupSupervisor,
+    cleanupArtifact,
+    attestArtifact,
+    planSupervisor,
+  });
+}
+
+function executeRecoveryWithHarness(
+  harness: ReturnType<typeof recoveryHarness>,
+  input: Readonly<Record<string, unknown>> = {},
+) {
+  return executeGreaterRealmProductionPublisherRecovery({
+    command: 'recover',
+    confirmed: true,
+    recoveryConfirmationDigest: RECOVERY_CONFIRMATION_DIGEST,
+    adminSecret: 's'.repeat(32),
+    spacetimeCliConfigPath: '/test/source-cli.toml',
+    executable: '/test/spacetime',
+    environment: {},
+    attestProtectedMain: () => MODULE_SOURCE_COMMIT,
+    ...input,
+    testOnlyDependencies: harness.dependencies as never,
+  });
+}
+
+async function startPublishSupervisorCrashFixture(
+  mode: string,
+  supervisorRoot: string,
+) {
+  const child = spawn(process.execPath, [
+    publishSupervisorCrashFixture,
+    mode,
+    supervisorRoot,
+  ], { stdio: ['ignore', 'pipe', 'inherit'] });
+  const identity = await new Promise<GreaterRealmPublishSupervisorIdentity>(
+    (resolvePromise, rejectPromise) => {
+      let output = '';
+      const timeout = setTimeout(() => {
+        rejectPromise(new Error('publish supervisor fixture timed out'));
+      }, 10_000);
+      child.once('error', error => {
+        clearTimeout(timeout);
+        rejectPromise(error);
+      });
+      child.stdout!.on('data', chunk => {
+        output += chunk.toString('utf8');
+        const newline = output.indexOf('\n');
+        if (newline < 0) return;
+        clearTimeout(timeout);
+        try {
+          resolvePromise(JSON.parse(output.slice(0, newline)));
+        } catch (error) {
+          rejectPromise(error);
+        }
+      });
+    },
+  );
+  return Object.freeze({ child, identity });
+}
+
+async function waitForPublishSupervisor(
+  identity: GreaterRealmPublishSupervisorIdentity,
+  predicate: (inspection: ReturnType<typeof inspectGreaterRealmPublishSupervisor>) => boolean,
+) {
+  const deadline = Date.now() + 10_000;
+  for (;;) {
+    try {
+      const inspection = inspectGreaterRealmPublishSupervisor(identity);
+      if (predicate(inspection)) return inspection;
+    } catch { /* An append-only phase may be between temp and final links. */ }
+    if (Date.now() >= deadline) throw new Error('publish supervisor state timed out');
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 20));
+  }
+}
 
 function status(input: Readonly<{
   state?: GreaterRealmProductionImportStatus['state'];
@@ -204,6 +510,11 @@ async function executeLane(
     moduleSourceCommit?: string;
     moduleDeltaPolicy?: 'append-approval-only' | 'import-gate-only'
       | 'activation-gate-only' | 'reviewed-same-schema';
+    assertCanStartWrite?: () => void;
+    onPublish?: () => void;
+    publishError?: unknown;
+    operationJournal?: GreaterRealmCutoverOperationJournalChain;
+    operationJournalLifecycle?: Readonly<{ prepared: () => void; settled: () => void }>;
   }> = {},
 ) {
   let published = false;
@@ -257,6 +568,8 @@ async function executeLane(
     published ? (options.afterHistorical ?? historical) : historical
   ));
   const publish = vi.fn(async () => {
+    options.onPublish?.();
+    if (options.publishError !== undefined) throw options.publishError;
     if (options.publishThrowsBefore) throw new Error('publisher did not reach server');
     published = true;
     if (options.publishThrows) throw new Error('response lost');
@@ -276,7 +589,10 @@ async function executeLane(
     readImportStatus,
     readCutoverStatus,
     readHistoricalAggregate,
+    assertCanStartWrite: options.assertCanStartWrite ?? (() => undefined),
     publish,
+    operationJournal: options.operationJournal,
+    operationJournalLifecycle: options.operationJournalLifecycle,
     testOnlyDependencies: fakeDependencies(),
   });
   return {
@@ -306,6 +622,700 @@ describe('Greater Realm production publisher lanes', () => {
       ['append-inert-v17', '--confirm', '--confirm'],
       ['unknown', '--confirm'],
     ]) expect(() => parseGreaterRealmProductionPublisherArguments(arguments_)).toThrow(/USAGE/);
+    expect(parseGreaterRealmProductionPublisherArguments(['recover-inspect'])).toEqual({
+      command: 'recover-inspect',
+      confirmed: false,
+    });
+    expect(parseGreaterRealmProductionPublisherArguments([
+      'recover',
+      `--confirm-recovery=${'a'.repeat(64)}`,
+    ])).toEqual({
+      command: 'recover',
+      confirmed: true,
+      recoveryConfirmationDigest: 'a'.repeat(64),
+    });
+    for (const arguments_ of [
+      ['recover'],
+      ['recover-inspect', '--confirm'],
+      ['recover', `--confirm-recovery=${'A'.repeat(64)}`],
+      ['recover', `--confirm-recovery=${'a'.repeat(63)}`],
+    ]) expect(() => parseGreaterRealmProductionPublisherArguments(arguments_)).toThrow(/USAGE/);
+  });
+
+  it('validates the normal publish CLI authority before opening the administrator secret', () => {
+    const events: string[] = [];
+    const supervisor = Object.freeze({ identity: recoverySupervisorIdentity(77) });
+    const planSupervisor = vi.fn(() => {
+      events.push('config-validated');
+      return supervisor as never;
+    });
+    const readAdminSecretFile = vi.fn(() => {
+      events.push('secret-opened');
+      return 's'.repeat(32);
+    });
+    expect(greaterRealmProductionPublisherTestSeams
+      .prepareGreaterRealmPublisherLocalAuthorities({
+        supervisorRoot: '/test/supervisors',
+        spacetimeCliConfigPath: '/test/cli.toml',
+        adminSecretPath: '/test/admin-secret',
+        planSupervisor,
+        readAdminSecretFile,
+      })).toMatchObject({ supervisor, adminSecret: 's'.repeat(32) });
+    expect(events).toEqual(['config-validated', 'secret-opened']);
+
+    const rejectConfig = vi.fn(() => { throw new Error('invalid cli config'); });
+    expect(() => greaterRealmProductionPublisherTestSeams
+      .prepareGreaterRealmPublisherLocalAuthorities({
+        supervisorRoot: '/test/supervisors',
+        spacetimeCliConfigPath: '/test/invalid-cli.toml',
+        adminSecretPath: '/test/admin-secret',
+        planSupervisor: rejectConfig,
+        readAdminSecretFile,
+      })).toThrow(/invalid cli config/);
+    expect(readAdminSecretFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('validates and later retires the reusable recovery plan before opening a session', async () => {
+    const events: string[] = [];
+    const plannedIdentity = recoverySupervisorIdentity(99);
+    const planSupervisor = vi.fn(() => {
+      events.push('config-validated');
+      return Object.freeze({ identity: plannedIdentity });
+    });
+    const createSession = vi.fn(() => {
+      events.push('secret-session-opened');
+      return Object.freeze({
+        close: vi.fn(async () => undefined),
+        invalidate: vi.fn(async () => undefined),
+        prepareSubmission: vi.fn(async () => undefined),
+      });
+    });
+    const cleanupSupervisor = vi.fn((identity: GreaterRealmPublishSupervisorIdentity) => {
+      events.push(`cleaned-${identity.supervisorId}`);
+    });
+    const recoverJournal = vi.fn(async callbacks => {
+      await callbacks.prepareRecovery?.();
+      return recoveryResult('reconciled-without-resume');
+    });
+    const harness = recoveryHarness({
+      planSupervisor,
+      createSession,
+      cleanupSupervisor,
+      recoverJournal,
+    });
+    await executeRecoveryWithHarness(harness);
+    expect(events).toEqual([
+      'config-validated',
+      'secret-session-opened',
+      `cleaned-${plannedIdentity.supervisorId}`,
+    ]);
+  });
+
+  it('keeps recovery inspection and terminal local cleanup credential- and network-free', async () => {
+    const localRecoverJournal = vi.fn(async () => recoveryResult('cleaned-command-receipt'));
+    const inspectOnly = recoveryHarness({
+      inspectRecovery: vi.fn(() => recoveryInspection('journal')),
+      recoverJournal: localRecoverJournal,
+    });
+    await expect(executeGreaterRealmProductionPublisherRecovery({
+      command: 'recover-inspect',
+      confirmed: false,
+      environment: {},
+      testOnlyDependencies: inspectOnly.dependencies as never,
+    })).resolves.toMatchObject({
+      command: 'recover-inspect',
+      recoveryMode: 'journal',
+      networkMode: 'read-only-local',
+    });
+    expect(inspectOnly.inspectProvenance).not.toHaveBeenCalled();
+    expect(inspectOnly.attestCli).not.toHaveBeenCalled();
+    expect(inspectOnly.createSession).not.toHaveBeenCalled();
+    expect(localRecoverJournal).not.toHaveBeenCalled();
+
+    const localCleanup = recoveryHarness({
+      inspectRecovery: vi.fn(() => recoveryInspection('command-receipt')),
+      recoverJournal: localRecoverJournal,
+    });
+    await expect(executeGreaterRealmProductionPublisherRecovery({
+      command: 'recover',
+      confirmed: true,
+      recoveryConfirmationDigest: RECOVERY_CONFIRMATION_DIGEST,
+      environment: {},
+      testOnlyDependencies: localCleanup.dependencies as never,
+    })).resolves.toMatchObject({
+      command: 'recover',
+      recoveryMode: 'command-receipt',
+      networkMode: 'none',
+    });
+    expect(localCleanup.inspectProvenance).not.toHaveBeenCalled();
+    expect(localCleanup.attestCli).not.toHaveBeenCalled();
+    expect(localCleanup.createSession).not.toHaveBeenCalled();
+    expect(localRecoverJournal).toHaveBeenCalledTimes(1);
+  });
+
+  it('cleans definitive-zero supervisor authority before recovery can remove its WAL', async () => {
+    const events: string[] = [];
+    const inspectSnapshot = vi.fn(async () => {
+      events.push('remote-inspect');
+      return Object.freeze({ status: recoveryBeforeStatus, audit: recoveryBeforeAudit });
+    });
+    const inspectSupervisor = vi.fn((identity: GreaterRealmPublishSupervisorIdentity) => {
+      events.push('supervisor-inspect');
+      return {
+        identity,
+        status: Object.freeze({ state: 'pre-gate-waiting' }),
+        processGroupExists: false,
+        incompleteInstallZeroWrite: false,
+        temporaries: Object.freeze([]),
+        phases: Object.freeze([]),
+        cliAuthority: Object.freeze({
+          cliConfigPath: '/test/cli.toml',
+          cliRootDirectory: '/test/cli-root',
+          staged: true,
+        }),
+      };
+    });
+    const cleanupSupervisor = vi.fn((identity: GreaterRealmPublishSupervisorIdentity) => {
+      events.push(identity.supervisorId === recoverySupervisorIdentity().supervisorId
+        ? 'operation-supervisor-cleanup'
+        : 'unused-plan-cleanup');
+    });
+    const recoverJournal = vi.fn(async callbacks => {
+      await callbacks.prepareRecovery?.();
+      callbacks.revalidateArtifact?.(recoveryRetention);
+      const record = recoveryRecord();
+      await callbacks.inspect(record);
+      const classification = await callbacks.classifyPublishRecovery?.({
+        record,
+        inspectAfter: {},
+        directory: '/test/receipts',
+      });
+      expect(classification).toBe('definitive-zero');
+      events.push('wal-remove');
+      return recoveryResult('resumed');
+    });
+    const harness = recoveryHarness({
+      inspectSnapshot,
+      inspectSupervisor,
+      cleanupSupervisor,
+      recoverJournal,
+    });
+    await executeRecoveryWithHarness(harness);
+    expect(events).toEqual([
+      'remote-inspect',
+      'supervisor-inspect',
+      'operation-supervisor-cleanup',
+      'wal-remove',
+      'unused-plan-cleanup',
+    ]);
+  });
+
+  it('classifies consumed gates for exact-after reconciliation but retains exact-before', async () => {
+    for (const observed of ['after', 'before'] as const) {
+      const inspectSnapshot = vi.fn(async () => Object.freeze({
+        status: observed === 'after' ? Object.freeze({ phase: 'after' }) : recoveryBeforeStatus,
+        audit: recoveryBeforeAudit,
+      }));
+      const cleanupSupervisor = vi.fn();
+      const inspectSupervisor = vi.fn((identity: GreaterRealmPublishSupervisorIdentity) => ({
+        identity,
+        status: Object.freeze({ state: 'gate-consumed' }),
+        processGroupExists: false,
+        incompleteInstallZeroWrite: false,
+        temporaries: Object.freeze([{ linked: true }]),
+        phases: Object.freeze([]),
+        cliAuthority: Object.freeze({
+          cliConfigPath: '/test/cli.toml',
+          cliRootDirectory: '/test/cli-root',
+          staged: true,
+        }),
+      }));
+      const recoverJournal = vi.fn(async callbacks => {
+        callbacks.revalidateArtifact?.(recoveryRetention);
+        const record = recoveryRecord();
+        const snapshot = await callbacks.inspect(record);
+        const classification = await callbacks.classifyPublishRecovery?.({
+          record,
+          inspectAfter: snapshot,
+          directory: '/test/receipts',
+        });
+        expect(classification).toBe('gate-consumed');
+        if (snapshot.status === recoveryBeforeStatus) {
+          throw new Error('GREATER_REALM_CUTOVER_PUBLISH_SURVIVOR_PROOF_REQUIRED');
+        }
+        return recoveryResult('reconciled');
+      });
+      const harness = recoveryHarness({
+        inspectSnapshot,
+        inspectSupervisor,
+        cleanupSupervisor,
+        recoverJournal,
+      });
+      const result = executeRecoveryWithHarness(harness);
+      if (observed === 'after') {
+        await expect(result).resolves.toMatchObject({ outcome: 'reconciled' });
+      } else {
+        await expect(result).rejects.toThrow(/PUBLISH_SURVIVOR_PROOF_REQUIRED/);
+      }
+      expect(cleanupSupervisor).toHaveBeenCalledTimes(1);
+      expect(cleanupSupervisor).toHaveBeenCalledWith(recoverySupervisorIdentity(99));
+      expect(cleanupSupervisor).not.toHaveBeenCalledWith(recoverySupervisorIdentity());
+    }
+  });
+
+  it('uses the durable cleanup-tail context to remove every completed supervisor first', async () => {
+    const first = recoverySupervisorIdentity(1);
+    const second = recoverySupervisorIdentity(2);
+    const events: string[] = [];
+    const cleanupSupervisor = vi.fn((identity: GreaterRealmPublishSupervisorIdentity) => {
+      events.push(`supervisor-${identity.supervisorId}`);
+    });
+    const cleanupArtifact = vi.fn(() => { events.push('artifact'); });
+    const recoverJournal = vi.fn(async callbacks => {
+      callbacks.revalidateArtifact?.(recoveryRetention);
+      callbacks.cleanupArtifact?.(recoveryRetention, Object.freeze({
+        groupDigest: RECOVERY_GROUP_DIGEST,
+        command: Object.freeze({ kind: 'publish', name: RECOVERY_LANE }),
+        sourceRelease: recoverySourceRelease,
+        operations: Object.freeze([
+          Object.freeze({
+            operationOrdinal: 1,
+            planDigest: '1'.repeat(64),
+            operation: recoveryOperation(first),
+          }),
+          Object.freeze({
+            operationOrdinal: 2,
+            planDigest: '2'.repeat(64),
+            operation: recoveryOperation(second),
+          }),
+        ]),
+      }));
+      return recoveryResult('cleaned-tail');
+    });
+    const harness = recoveryHarness({ cleanupSupervisor, cleanupArtifact, recoverJournal });
+    await executeRecoveryWithHarness(harness);
+    expect(events).toEqual([
+      `supervisor-${first.supervisorId}`,
+      `supervisor-${second.supervisorId}`,
+      'artifact',
+      `supervisor-${recoverySupervisorIdentity(99).supervisorId}`,
+    ]);
+  });
+
+  it('rejects artifact identity, audit, and retention disagreement before remote inspection', async () => {
+    const badReceipt = Object.freeze({
+      ...artifactReceipt,
+      artifactDigest: '0'.repeat(64),
+    });
+    const cases = [
+      Object.freeze({
+        retention: recoveryRetention,
+        record: recoveryRecord(recoveryOperation(recoverySupervisorIdentity(), badReceipt)),
+      }),
+      Object.freeze({
+        retention: recoveryRetention,
+        record: recoveryRecord(recoveryOperation(), Object.freeze({
+          ...recoveryBeforeAudit,
+          v17TableSchemaDigest: '0'.repeat(64),
+        })),
+      }),
+      Object.freeze({
+        retention: Object.freeze({ ...recoveryRetention, artifactDigest: '0'.repeat(64) }),
+        record: recoveryRecord(),
+      }),
+    ];
+    for (const testCase of cases) {
+      const recoverJournal = vi.fn(async callbacks => {
+        callbacks.revalidateArtifact?.(testCase.retention);
+        await callbacks.inspect(testCase.record);
+        return recoveryResult();
+      });
+      const harness = recoveryHarness({ recoverJournal });
+      await expect(executeRecoveryWithHarness(harness)).rejects.toThrow(
+        /GREATER_REALM_PRODUCTION_PUBLISH_RECOVERY_ARTIFACT_INVALID/,
+      );
+      expect(harness.inspectSnapshot).not.toHaveBeenCalled();
+      expect(harness.executableCleanup).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('reattests protected main immediately before a resumed gate and publishes zero bytes on advance', async () => {
+    const release = vi.fn();
+    const publishModuleForRecovery = vi.fn(async (...arguments_: unknown[]) => {
+      await (arguments_[6] as () => Promise<void>)();
+      release();
+    });
+    const executePublishLane = vi.fn(async (options: Readonly<Record<string, unknown>>) => {
+      await (options.publish as (permit: () => void) => Promise<void>)(() => undefined);
+      return Object.freeze({ kind: 'greater-realm-production-publish-v1' });
+    });
+    const recoverJournal = vi.fn(async callbacks => {
+      callbacks.revalidateArtifact?.(recoveryRetention);
+      const commandRecord = Object.freeze({
+        command: Object.freeze({ kind: 'publish', name: RECOVERY_LANE }),
+        sourceRelease: recoverySourceRelease,
+        beforeStatus: recoveryBeforeStatus,
+        beforeAudit: recoveryBeforeAudit,
+        operationReceiptCount: 0,
+      });
+      await callbacks.inspectCommand?.(commandRecord);
+      await callbacks.resumeCommand?.(Object.freeze({
+        command: commandRecord.command,
+        sourceRelease: recoverySourceRelease,
+        assertCanStartWrite: () => undefined,
+        operationJournal: {},
+      }));
+      return recoveryResult();
+    });
+    const harness = recoveryHarness({
+      recoverJournal,
+      executePublishLane,
+      publishModule: publishModuleForRecovery,
+    });
+    await expect(executeRecoveryWithHarness(harness, {
+      attestProtectedMain: () => '0'.repeat(40),
+    })).rejects.toThrow(/GREATER_REALM_PRODUCTION_MODULE_SOURCE_ADVANCED/);
+    expect(release).not.toHaveBeenCalled();
+    expect(harness.session.prepareSubmission).not.toHaveBeenCalled();
+    expect(harness.executableCleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it('cleans an unbound recovery executable but retains one bound by an incomplete operation', async () => {
+    const prebind = recoveryHarness({
+      recoverJournal: vi.fn(async () => { throw new Error('pre-bind inspection failed'); }),
+    });
+    await expect(executeRecoveryWithHarness(prebind)).rejects.toThrow(/pre-bind/);
+    expect(prebind.executableCleanup).toHaveBeenCalledTimes(1);
+
+    const executePublishLane = vi.fn(async (options: Readonly<Record<string, unknown>>) => {
+      const lifecycle = options.operationJournalLifecycle as Readonly<{ prepared: () => void }>;
+      lifecycle.prepared();
+      throw new Error('after durable operation prepare');
+    });
+    const recoverJournal = vi.fn(async callbacks => {
+      callbacks.revalidateArtifact?.(recoveryRetention);
+      const commandRecord = Object.freeze({
+        command: Object.freeze({ kind: 'publish', name: RECOVERY_LANE }),
+        sourceRelease: recoverySourceRelease,
+        beforeStatus: recoveryBeforeStatus,
+        beforeAudit: recoveryBeforeAudit,
+        operationReceiptCount: 0,
+      });
+      await callbacks.inspectCommand?.(commandRecord);
+      await callbacks.resumeCommand?.(Object.freeze({
+        command: commandRecord.command,
+        sourceRelease: recoverySourceRelease,
+        assertCanStartWrite: () => undefined,
+        operationJournal: {},
+      }));
+      return recoveryResult();
+    });
+    const bound = recoveryHarness({ recoverJournal, executePublishLane });
+    await expect(executeRecoveryWithHarness(bound)).rejects.toThrow(/durable operation prepare/);
+    expect(bound.executableCleanup).not.toHaveBeenCalled();
+  });
+
+  it('retains a recovery executable identity when rejected-permit abandonment is incomplete', async () => {
+    const rejected = new GreaterRealmCutoverWriteNotStartedError('TEST_WRITE_NOT_STARTED');
+    const prepared = vi.fn();
+    const settled = vi.fn();
+    const abandonAfterRejectedPermit = vi.fn(async () => false);
+    const operationJournal = {
+      bindCommandPlan: vi.fn(),
+      prepare: vi.fn(async () => Object.freeze({
+        planDigest: 'a'.repeat(64),
+        writePermit: (() => undefined),
+        markManualAmbiguity: vi.fn(),
+        reconcile: vi.fn(),
+        abandonAfterRejectedPermit,
+      })),
+      reconcileCommand: vi.fn(),
+      prepareCommandReceipt: vi.fn(),
+      completeCommandReceipt: vi.fn(),
+      summary: vi.fn(() => Object.freeze({
+        operationReceiptChainDigest: 'b'.repeat(64),
+        operationReceiptCount: 0,
+      })),
+      authority: vi.fn(),
+      retainsArtifact: vi.fn(() => true),
+    } as unknown as GreaterRealmCutoverOperationJournalChain;
+    await expect(executeLane(
+      GREATER_REALM_PRODUCTION_PUBLISH_LANE.APPEND_INERT_V17,
+      undefined,
+      status({ importCompiled: false, activationCompiled: false }),
+      {
+        publishError: rejected,
+        operationJournal,
+        operationJournalLifecycle: { prepared, settled },
+      },
+    )).rejects.toBe(rejected);
+    expect(abandonAfterRejectedPermit).toHaveBeenCalledTimes(1);
+    expect(prepared).toHaveBeenCalledTimes(1);
+    expect(settled).not.toHaveBeenCalled();
+    expect(operationJournal.prepare).toHaveBeenCalledWith(expect.objectContaining({
+      identity: expect.objectContaining({ artifactReceipt }),
+    }));
+  });
+
+  it('records parent SIGKILL before the publish gate as exact zero-write authority', async () => {
+    const parent = mkdtempSync(join(canonicalTemporaryDirectory, 'wkgr-publish-supervisor-pre-'));
+    const supervisorRoot = join(parent, 'supervisors');
+    mkdirSync(supervisorRoot, { mode: 0o700 });
+    let fixture: Awaited<ReturnType<typeof startPublishSupervisorCrashFixture>> | undefined;
+    try {
+      fixture = await startPublishSupervisorCrashFixture('pre-gate', supervisorRoot);
+      fixture.child.kill('SIGKILL');
+      await new Promise<void>(resolvePromise => fixture!.child.once('close', () => resolvePromise()));
+      const inspection = await waitForPublishSupervisor(
+        fixture.identity,
+        value => value.status.state === 'pre-gate-zero-write'
+          && value.processGroupExists === false,
+      );
+      expect(inspection.status).toMatchObject({
+        state: 'pre-gate-zero-write',
+        pid: expect.any(Number),
+        processStartIdentity: expect.any(String),
+      });
+      expect(authorizeGreaterRealmPublishExactBeforeClear(fixture.identity)).toBe(true);
+      cleanupGreaterRealmPublishSupervisor(fixture.identity);
+    } finally {
+      if (fixture?.child.exitCode === null && fixture.child.signalCode === null) {
+        fixture.child.kill('SIGKILL');
+      }
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it('cleans a waiting supervisor before propagating a write-not-started rejection', async () => {
+    const parent = mkdtempSync(join(canonicalTemporaryDirectory, 'wkgr-publish-rejected-'));
+    const supervisorRoot = join(parent, 'supervisors');
+    const artifactPath = join(parent, 'bundle.js');
+    const cliConfigPath = join(parent, 'cli.toml');
+    mkdirSync(supervisorRoot, { mode: 0o700 });
+    const artifact = Buffer.from('test-only-greater-realm-bundle', 'utf8');
+    writeFileSync(artifactPath, artifact, { mode: 0o600 });
+    writeFileSync(cliConfigPath, 'spacetimedb_token = "test-only-token"\n', { mode: 0o600 });
+    const plan = planGreaterRealmPublishSupervisor(supervisorRoot, cliConfigPath);
+    const rejected = new GreaterRealmCutoverWriteNotStartedError('TEST_MARKER_REJECTED');
+    const permit = Object.assign(() => undefined, {
+      markSubmissionUncertain: async () => { throw rejected; },
+    });
+    try {
+      await expect(publishModule(
+        '/usr/bin/false',
+        'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+        Object.freeze({
+          ...artifactReceipt,
+          artifactPath,
+          artifactDigest: createHash('sha256').update(artifact).digest('hex'),
+        }),
+        undefined,
+        permit,
+        artifactPath,
+        async () => undefined,
+        plan,
+      )).rejects.toBe(rejected);
+      expect(inspectGreaterRealmPublishSupervisor(plan.identity)).toMatchObject({
+        status: { state: 'not-allocated' },
+        processGroupExists: false,
+      });
+    } finally {
+      await plan.cleanup();
+      artifact.fill(0);
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it('retains post-gate SIGKILL as manual ambiguity even after its group exits', async () => {
+    const parent = mkdtempSync(join(canonicalTemporaryDirectory, 'wkgr-publish-supervisor-post-'));
+    const supervisorRoot = join(parent, 'supervisors');
+    mkdirSync(supervisorRoot, { mode: 0o700 });
+    let fixture: Awaited<ReturnType<typeof startPublishSupervisorCrashFixture>> | undefined;
+    let pgid: number | undefined;
+    try {
+      fixture = await startPublishSupervisorCrashFixture('post-gate', supervisorRoot);
+      fixture.child.kill('SIGKILL');
+      await new Promise<void>(resolvePromise => fixture!.child.once('close', () => resolvePromise()));
+      const live = await waitForPublishSupervisor(
+        fixture.identity,
+        value => value.status.state === 'gate-consumed' && value.processGroupExists,
+      );
+      pgid = live.status.pgid as number;
+      expect(authorizeGreaterRealmPublishExactBeforeClear(fixture.identity)).toBe(false);
+      process.kill(-pgid, 'SIGKILL');
+      await waitForPublishSupervisor(fixture.identity, value => !value.processGroupExists);
+      expect(authorizeGreaterRealmPublishExactBeforeClear(fixture.identity)).toBe(false);
+      cleanupGreaterRealmPublishSupervisor(fixture.identity);
+      pgid = undefined;
+    } finally {
+      if (pgid !== undefined) {
+        try { process.kill(-pgid, 'SIGKILL'); } catch { /* Already contained. */ }
+      }
+      if (fixture?.child.exitCode === null && fixture.child.signalCode === null) {
+        fixture.child.kill('SIGKILL');
+      }
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it('classifies direct supervisor death while waiting as exact zero-write authority', async () => {
+    const parent = mkdtempSync(join(canonicalTemporaryDirectory, 'wkgr-publish-supervisor-waiting-'));
+    const supervisorRoot = join(parent, 'supervisors');
+    mkdirSync(supervisorRoot, { mode: 0o700 });
+    let fixture: Awaited<ReturnType<typeof startPublishSupervisorCrashFixture>> | undefined;
+    let pgid: number | undefined;
+    try {
+      fixture = await startPublishSupervisorCrashFixture('direct-waiting', supervisorRoot);
+      const waiting = await waitForPublishSupervisor(
+        fixture.identity,
+        value => value.status.state === 'pre-gate-waiting' && value.processGroupExists,
+      );
+      pgid = waiting.status.pgid as number;
+      process.kill(-pgid, 'SIGKILL');
+      await waitForPublishSupervisor(fixture.identity, value => !value.processGroupExists);
+      expect(authorizeGreaterRealmPublishExactBeforeClear(fixture.identity)).toBe(true);
+      cleanupGreaterRealmPublishSupervisor(fixture.identity);
+      pgid = undefined;
+    } finally {
+      if (pgid !== undefined) {
+        try { process.kill(-pgid, 'SIGKILL'); } catch { /* Already contained. */ }
+      }
+      if (fixture?.child.exitCode === null && fixture.child.signalCode === null) {
+        fixture.child.kill('SIGKILL');
+      }
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it('classifies a crash after durable spawn authorization but before spawn as zero-write', async () => {
+    const parent = mkdtempSync(join(
+      canonicalTemporaryDirectory,
+      'wkgr-publish-supervisor-authorized-',
+    ));
+    const supervisorRoot = join(parent, 'supervisors');
+    mkdirSync(supervisorRoot, { mode: 0o700 });
+    let fixture: Awaited<ReturnType<typeof startPublishSupervisorCrashFixture>> | undefined;
+    try {
+      fixture = await startPublishSupervisorCrashFixture('spawn-authorized', supervisorRoot);
+      if (fixture.child.exitCode === null && fixture.child.signalCode === null) {
+        await new Promise<void>(resolvePromise => fixture!.child.once('close', () => resolvePromise()));
+      }
+      expect(inspectGreaterRealmPublishSupervisor(fixture.identity)).toMatchObject({
+        status: { state: 'spawn-authorized' },
+        processGroupExists: false,
+      });
+      expect(authorizeGreaterRealmPublishExactBeforeClear(fixture.identity)).toBe(true);
+      cleanupGreaterRealmPublishSupervisor(fixture.identity);
+    } finally {
+      if (fixture?.child.exitCode === null && fixture.child.signalCode === null) {
+        fixture.child.kill('SIGKILL');
+      }
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it('recovers every atomic gate-consumed phase publication crash boundary exactly', async () => {
+    for (const boundary of ['temporary-created', 'linked', 'post-unlink'] as const) {
+      const parent = mkdtempSync(join(
+        canonicalTemporaryDirectory,
+        `wkgr-publish-supervisor-${boundary}-`,
+      ));
+      const supervisorRoot = join(parent, 'supervisors');
+      mkdirSync(supervisorRoot, { mode: 0o700 });
+      let fixture: Awaited<ReturnType<typeof startPublishSupervisorCrashFixture>> | undefined;
+      try {
+        fixture = await startPublishSupervisorCrashFixture(
+          `gate-consumed-${boundary}`,
+          supervisorRoot,
+        );
+        await new Promise<void>(resolvePromise => fixture!.child.once('close', () => resolvePromise()));
+        const inspection = await waitForPublishSupervisor(
+          fixture.identity,
+          value => value.processGroupExists === false,
+        );
+        if (boundary === 'post-unlink' || boundary === 'linked') {
+          expect(inspection.status.state).toBe('gate-consumed');
+          expect(inspection.temporaries).toHaveLength(boundary === 'linked' ? 1 : 0);
+          expect(inspection.incompleteInstallZeroWrite).toBe(false);
+          expect(authorizeGreaterRealmPublishExactBeforeClear(fixture.identity)).toBe(false);
+        } else {
+          expect(inspection.temporaries).toHaveLength(1);
+          expect(inspection.incompleteInstallZeroWrite).toBe(true);
+          expect(authorizeGreaterRealmPublishExactBeforeClear(fixture.identity)).toBe(true);
+        }
+        cleanupGreaterRealmPublishSupervisor(fixture.identity);
+      } finally {
+        if (fixture?.child.exitCode === null && fixture.child.signalCode === null) {
+          fixture.child.kill('SIGKILL');
+        }
+        rmSync(parent, { recursive: true, force: true });
+      }
+    }
+  });
+
+  it('classifies an empty allocated supervisor directory as zero-before-spawn', () => {
+    const parent = mkdtempSync(join(canonicalTemporaryDirectory, 'wkgr-publish-supervisor-empty-'));
+    const supervisorRoot = join(parent, 'supervisors');
+    const cliConfigPath = join(parent, 'cli.toml');
+    mkdirSync(supervisorRoot, { mode: 0o700 });
+    writeFileSync(cliConfigPath, 'spacetimedb_token = "test-only-token"\n', { mode: 0o600 });
+    const plan = planGreaterRealmPublishSupervisor(supervisorRoot, cliConfigPath);
+    try {
+      mkdirSync(plan.identity.supervisorDirectory, { mode: 0o700 });
+      expect(inspectGreaterRealmPublishSupervisor(plan.identity)).toMatchObject({
+        status: { state: 'phase-install-incomplete' },
+        processGroupExists: false,
+        incompleteInstallZeroWrite: true,
+      });
+      expect(authorizeGreaterRealmPublishExactBeforeClear(plan.identity)).toBe(true);
+      cleanupGreaterRealmPublishSupervisor(plan.identity);
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it('resumes cleanup after each durable Maincloud config deletion suffix', async () => {
+    for (const suffix of [
+      'config-removed',
+      'root-removed',
+      'prior-phases-removed',
+    ] as const) {
+      const parent = mkdtempSync(join(
+        canonicalTemporaryDirectory,
+        `wkgr-publish-supervisor-cleanup-${suffix}-`,
+      ));
+      const supervisorRoot = join(parent, 'supervisors');
+      mkdirSync(supervisorRoot, { mode: 0o700 });
+      let fixture: Awaited<ReturnType<typeof startPublishSupervisorCrashFixture>> | undefined;
+      let pgid: number | undefined;
+      try {
+        fixture = await startPublishSupervisorCrashFixture('direct-waiting', supervisorRoot);
+        const waiting = await waitForPublishSupervisor(
+          fixture.identity,
+          value => value.status.state === 'pre-gate-waiting' && value.processGroupExists,
+        );
+        pgid = waiting.status.pgid as number;
+        process.kill(-pgid, 'SIGKILL');
+        const contained = await waitForPublishSupervisor(
+          fixture.identity,
+          value => !value.processGroupExists,
+        );
+        expect(() => cleanupGreaterRealmPublishSupervisor(fixture!.identity, suffix))
+          .toThrow(/TEST_CLEANUP_INTERRUPTED/);
+        expect(inspectGreaterRealmPublishSupervisor(fixture.identity).cliAuthority)
+          .toMatchObject({ staged: false });
+        cleanupGreaterRealmPublishSupervisor(fixture.identity);
+        pgid = undefined;
+      } finally {
+        if (pgid !== undefined) {
+          try { process.kill(-pgid, 'SIGKILL'); } catch { /* Already contained. */ }
+        }
+        if (fixture?.child.exitCode === null && fixture.child.signalCode === null) {
+          fixture.child.kill('SIGKILL');
+        }
+        rmSync(parent, { recursive: true, force: true });
+      }
+    }
   });
 
   it('binds exactly 56 v14 and 84 v17 table identities', () => {
@@ -539,6 +1549,53 @@ describe('Greater Realm production publisher lanes', () => {
     expect(result.receipt.outcome).toBe('verified-after-submission-error');
   });
 
+  it('does not publish when the write permit closes after final preflight', async () => {
+    const onPublish = vi.fn();
+    await expect(executeLane(
+      GREATER_REALM_PRODUCTION_PUBLISH_LANE.ENABLE_IMPORT_ONLY_V17,
+      status({ importCompiled: false, activationCompiled: false }),
+      status({ importCompiled: true, activationCompiled: false }),
+      {
+        assertCanStartWrite: () => {
+          throw new Error('GREATER_REALM_CUTOVER_OPERATOR_INTERRUPTED_SIGTERM');
+        },
+        onPublish,
+      },
+    )).rejects.toThrow(/GREATER_REALM_CUTOVER_OPERATOR_INTERRUPTED_SIGTERM/);
+    expect(onPublish).not.toHaveBeenCalled();
+  });
+
+  it('contains a signal during publisher credential preparation before child spawn', async () => {
+    const directory = mkdtempSync('/private/tmp/warpkeep-gr-publisher-signal-');
+    chmodSync(directory, 0o700);
+    const publish = vi.fn(async () => undefined);
+    const invalidate = vi.fn(async () => undefined);
+    const prepareSubmission = vi.fn(async () => { process.emit('SIGINT'); });
+    const session = {
+      prepareSubmission,
+      invalidate,
+    } as never;
+    try {
+      await expect(withGreaterRealmCutoverOperatorLock({
+        directory,
+        repositoryRoot: process.cwd(),
+        operation: control => publishGreaterRealmModuleWithFreshPostflight({
+          session,
+          publish: async () => {
+            await prepareSubmission();
+            await new Promise<void>(resolveTick => setImmediate(resolveTick));
+            control.assertCanStartWrite();
+            await publish();
+          },
+        }),
+      })).rejects.toThrow(/GREATER_REALM_CUTOVER_OPERATOR_INTERRUPTED_SIGINT/);
+      expect(publish).not.toHaveBeenCalled();
+      expect(invalidate).toHaveBeenCalledTimes(1);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it.each([
     [
       'append',
@@ -637,6 +1694,21 @@ describe('Greater Realm production publisher lanes', () => {
         adminSecret: 's'.repeat(32),
         requestToken: requestToken as never,
         connectDatabase: connectDatabase as never,
+        tokenBudget: Object.freeze({
+          reserve: async (slots: number) => Object.freeze({
+            reservationId: 'a'.repeat(32),
+            remaining: slots,
+          }),
+          ensure: async (reservationId: string, minimumRemaining: number) => Object.freeze({
+            reservationId,
+            remaining: minimumRemaining,
+          }),
+          release: async (reservationId: string) => Object.freeze({
+            reservationId,
+            released: 0,
+          }),
+        }),
+        readTrustedTime: async () => Date.now(),
       });
       const transport = bindGreaterRealmProductionStatusTransport(
         session,
@@ -681,7 +1753,11 @@ describe('Greater Realm production publisher lanes', () => {
           readSchema: async () => ({ generation: 'v17' }),
           readImportStatus: transport.inspect,
           readHistoricalAggregate,
-          publish: () => publishGreaterRealmModuleWithFreshPostflight({ session, publish }),
+          assertCanStartWrite: () => undefined,
+          publish: () => publishGreaterRealmModuleWithFreshPostflight({
+            session,
+            publish,
+          }),
           testOnlyDependencies: fakeDependencies(),
         });
         expect(receipt.outcome).toBe(outcome);
@@ -738,6 +1814,7 @@ describe('Greater Realm production publisher lanes', () => {
       artifactReceipt,
       readSchema,
       readHistoricalAggregate: vi.fn(),
+      assertCanStartWrite: () => undefined,
       publish,
     })).rejects.toThrow(/COMPOSITE_APPROVAL_REQUIRED/);
     expect(readSchema).not.toHaveBeenCalled();

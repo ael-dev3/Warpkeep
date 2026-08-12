@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   constants,
   chmodSync,
@@ -7,11 +7,18 @@ import {
   fchmodSync,
   fstatSync,
   fsyncSync,
+  linkSync,
+  lstatSync,
+  mkdirSync,
   mkdtempSync,
   openSync,
   readFileSync,
+  readdirSync,
+  realpathSync,
+  rmdirSync,
   rmSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { readFile } from 'node:fs/promises';
@@ -46,6 +53,9 @@ import {
   defaultSpacetimePublishReceiptDirectory,
   writePrivateSpacetimePublishSuccessReceipt,
 } from './spacetime-publish-receipt.mjs';
+import {
+  assertProductionAdminTrustedAncestors,
+} from './production-admin-token-budget.mjs';
 
 export {
   attestPinnedSpacetimeCli,
@@ -82,6 +92,16 @@ const MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER =
 const MAX_ENTRY_AGREEMENT_ACCEPTANCE_COUNT =
   100 * MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER;
 const SHA256_DIGEST = /^[0-9a-f]{64}$/;
+const PUBLISH_SUPERVISOR_ID = /^[0-9a-f]{32}$/;
+const PUBLISH_SUPERVISOR_PROFILE = 'warpkeep-greater-realm-publish-supervisor-v1';
+const PUBLISH_SUPERVISOR_STATUS_PROFILE =
+  'warpkeep-greater-realm-publish-supervisor-status-v1';
+const PUBLISH_SUPERVISOR_GATE_PREFIX = 'WKGR_PUBLISH_GATE_V1:';
+const PUBLISH_SUPERVISOR_STATUS_MAX_BYTES = 4 * 1_024;
+const PUBLISH_SUPERVISOR_CLI_CONFIG_MAX_BYTES = 64 * 1_024;
+const PUBLISH_SUPERVISOR_CLI_CONFIG_FILE = 'cli.toml';
+const PUBLISH_SUPERVISOR_CLI_ROOT_DIRECTORY = 'spacetime-root';
+const activeGreaterRealmPublishSupervisors = new WeakSet();
 
 export const RESOURCE_PUBLISH_ROLLOUT_STAGE = Object.freeze({
   PREBACKFILL: 'prebackfill',
@@ -1094,6 +1114,44 @@ const U64_MAXIMUM = (1n << 64n) - 1n;
 
 class SafePublishError extends Error {}
 
+export class SpacetimePublishContainmentError extends Error {
+  constructor(code) {
+    super(code);
+    this.name = 'SpacetimePublishContainmentError';
+    this.code = code;
+    this.nonReconcilable = true;
+  }
+}
+
+class GreaterRealmPublishWriteNotStartedError extends Error {
+  constructor(code, cause) {
+    super(code);
+    this.name = 'GreaterRealmCutoverWriteNotStartedError';
+    this.code = code;
+    this.writeStarted = false;
+    if (cause !== undefined) {
+      Object.defineProperty(this, 'cause', {
+        value: cause,
+        configurable: false,
+        enumerable: false,
+        writable: false,
+      });
+    }
+  }
+}
+
+function isWriteNotStartedError(error) {
+  return error !== null && typeof error === 'object'
+    && error.name === 'GreaterRealmCutoverWriteNotStartedError'
+    && error.writeStarted === false
+    && typeof error.code === 'string';
+}
+
+export function isSpacetimePublishContainmentError(error) {
+  return error instanceof SpacetimePublishContainmentError
+    && error.nonReconcilable === true;
+}
+
 function fail(message) {
   throw new SafePublishError(message);
 }
@@ -1101,7 +1159,7 @@ function fail(message) {
 const PRIVATE_SNAPSHOT_DIRECTORY_MODE = 0o700;
 const PRIVATE_SNAPSHOT_ARTIFACT_MODE = 0o400;
 const PRIVATE_SNAPSHOT_EXECUTABLE_MODE = 0o500;
-const MAX_PRIVATE_SNAPSHOT_BYTES = 128 * 1_024 * 1_024;
+const MAX_PRIVATE_SNAPSHOT_BYTES = 256 * 1_024 * 1_024;
 const PRIVATE_SNAPSHOT_KINDS = Object.freeze({
   ARTIFACT: 'artifact',
   EXECUTABLE: 'executable',
@@ -3342,13 +3400,13 @@ function digestArtifact(artifactPath) {
   }
 }
 
-function validateMigrationArtifactReceiptShape(receipt) {
+function validateMigrationArtifactReceiptShape(receipt, expectedArtifactPath = PROVEN_ARTIFACT_PATH) {
   if (
     receipt === null
     || typeof receipt !== 'object'
     || Object.keys(receipt).sort().join(',')
       !== 'artifactDigest,artifactPath,v11TableSchemaDigest,v12TableSchemaDigest,v13TableSchemaDigest,v14TableSchemaDigest,v15TableSchemaDigest,v16TableSchemaDigest,v17TableSchemaDigest'
-    || receipt.artifactPath !== PROVEN_ARTIFACT_PATH
+    || receipt.artifactPath !== expectedArtifactPath
     || !SHA256_DIGEST.test(receipt.v11TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.v12TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.v13TableSchemaDigest ?? '')
@@ -3378,6 +3436,23 @@ export function verifyMigrationArtifactReceipt(receipt) {
   const currentDigest = digestArtifact(validated.artifactPath);
   if (currentDigest !== validated.artifactDigest) {
     fail('The proven SpacetimeDB artifact changed after migration verification.');
+  }
+  return validated;
+}
+
+/** Verify one exact owner-private artifact without widening legacy publication. */
+export function verifyMigrationArtifactReceiptAtExactPath(receipt, expectedArtifactPath) {
+  if (
+    typeof expectedArtifactPath !== 'string'
+    || !isAbsolute(expectedArtifactPath)
+    || resolve(expectedArtifactPath) !== expectedArtifactPath
+    || expectedArtifactPath === PROVEN_ARTIFACT_PATH
+  ) {
+    fail('The private additive migration proof artifact path was invalid.');
+  }
+  const validated = validateMigrationArtifactReceiptShape(receipt, expectedArtifactPath);
+  if (digestArtifact(validated.artifactPath) !== validated.artifactDigest) {
+    fail('The private proven SpacetimeDB artifact changed after migration verification.');
   }
   return validated;
 }
@@ -3422,6 +3497,26 @@ export function parseMigrationProofReceipt(output) {
     v17TableSchemaDigest: proofReceipt.v17TableSchemaDigest,
     artifactDigest: proofReceipt.artifactDigest,
   });
+}
+
+export function parseMigrationProofReceiptAtExactPath(output, artifactPath) {
+  let proofReceipt;
+  try {
+    proofReceipt = parseAdditiveMigrationProofReceipt(output);
+  } catch {
+    fail('The current additive migration proof did not produce its exact success receipt.');
+  }
+  return verifyMigrationArtifactReceiptAtExactPath({
+    artifactPath,
+    v11TableSchemaDigest: proofReceipt.v11TableSchemaDigest,
+    v12TableSchemaDigest: proofReceipt.v12TableSchemaDigest,
+    v13TableSchemaDigest: proofReceipt.v13TableSchemaDigest,
+    v14TableSchemaDigest: proofReceipt.v14TableSchemaDigest,
+    v15TableSchemaDigest: proofReceipt.v15TableSchemaDigest,
+    v16TableSchemaDigest: proofReceipt.v16TableSchemaDigest,
+    v17TableSchemaDigest: proofReceipt.v17TableSchemaDigest,
+    artifactDigest: proofReceipt.artifactDigest,
+  }, artifactPath);
 }
 
 export function runCurrentAdditiveMigrationProof(executable, spawnSyncProcess = spawnSync) {
@@ -4825,101 +4920,1386 @@ export function verifyPostPublishResourcePublicationCheckpoints(
   );
 }
 
+const GREATER_REALM_PUBLISH_SUPERVISOR_SCRIPT = String.raw`
+import hashlib, json, os, signal, subprocess, sys
+
+supervisor_id = sys.argv[1]
+previous_digest = sys.argv[2]
+cli_config_digest = sys.argv[3]
+crash_state = sys.argv[4]
+crash_boundary = sys.argv[5]
+executable = sys.argv[6]
+arguments = sys.argv[7:]
+
+def maybe_crash(state, boundary):
+    if crash_state == state and crash_boundary == boundary:
+        os.kill(os.getpid(), signal.SIGKILL)
+
+def phase_file(ordinal, state):
+    return (str(ordinal).zfill(8) + "-" + state + ".json")
+
+def status(ordinal, previous, state, pid=None, process_start_identity=None, pgid=None):
+    value = {
+        "schemaVersion": 1,
+        "profile": "warpkeep-greater-realm-publish-supervisor-status-v1",
+        "supervisorId": supervisor_id,
+        "phaseOrdinal": ordinal,
+        "previousPhaseDigest": previous,
+        "state": state,
+        "cliConfigDigest": cli_config_digest,
+        "pid": pid,
+        "processStartIdentity": process_start_identity,
+        "pgid": pgid,
+    }
+    body = (json.dumps(value, separators=(",", ":")) + "\n").encode("utf-8")
+    final_name = phase_file(ordinal, state)
+    temporary_name = "." + final_name[:-5] + "-" + os.urandom(16).hex() + ".tmp"
+    descriptor = os.open(
+        temporary_name,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+        0o600,
+        dir_fd=4,
+    )
+    maybe_crash(state, "temporary-created")
+    try:
+        os.fchmod(descriptor, 0o600)
+        written = 0
+        while written < len(body):
+            count = os.write(descriptor, body[written:])
+            if count <= 0:
+                raise RuntimeError("status write failed")
+            written += count
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    os.link(
+        temporary_name,
+        final_name,
+        src_dir_fd=4,
+        dst_dir_fd=4,
+        follow_symlinks=False,
+    )
+    os.fsync(4)
+    maybe_crash(state, "linked")
+    os.unlink(temporary_name, dir_fd=4)
+    maybe_crash(state, "post-unlink")
+    os.fsync(4)
+    return hashlib.sha256(body).hexdigest()
+
+pid = os.getpid()
+pgid = os.getpgrp()
+identity = subprocess.check_output(
+    ["/bin/ps", "-o", "lstart=", "-p", str(pid)],
+    env={"PATH": "/usr/bin:/bin"},
+    timeout=5,
+).decode("ascii", "strict").strip()
+if len(identity) < 8 or len(identity) > 160 or any(ord(c) < 32 or ord(c) > 126 for c in identity):
+    raise RuntimeError("process identity invalid")
+
+def read_bound():
+    descriptor = os.open(
+        phase_file(3, "supervisor-bound"),
+        os.O_RDONLY | os.O_NOFOLLOW,
+        dir_fd=4,
+    )
+    try:
+        body = os.read(descriptor, 4097)
+        if len(body) < 1 or len(body) > 4096 or os.read(descriptor, 1):
+            raise RuntimeError("bound status invalid")
+    finally:
+        os.close(descriptor)
+    value = json.loads(body.decode("utf-8", "strict"))
+    expected_keys = {
+        "schemaVersion", "profile", "supervisorId", "phaseOrdinal",
+        "previousPhaseDigest", "state", "cliConfigDigest", "pid",
+        "processStartIdentity", "pgid",
+    }
+    if (
+        set(value.keys()) != expected_keys
+        or value["schemaVersion"] != 1
+        or value["profile"] != "warpkeep-greater-realm-publish-supervisor-status-v1"
+        or value["supervisorId"] != supervisor_id
+        or value["phaseOrdinal"] != 3
+        or value["previousPhaseDigest"] != previous_digest
+        or value["state"] != "supervisor-bound"
+        or value["cliConfigDigest"] != cli_config_digest
+        or value["pid"] != pid
+        or value["processStartIdentity"] != identity
+        or value["pgid"] != pgid
+        or (json.dumps(value, separators=(",", ":")) + "\n").encode("utf-8") != body
+    ):
+        raise RuntimeError("bound status invalid")
+    return hashlib.sha256(body).hexdigest()
+
+start_gate = b""
+while b"\n" not in start_gate and len(start_gate) <= 160:
+    chunk = os.read(5, 161 - len(start_gate))
+    if not chunk:
+        try:
+            bound_digest = read_bound()
+        except Exception:
+            status(3, previous_digest, "prestart-zero-write", pid, identity, pgid)
+        else:
+            status(4, bound_digest, "bound-zero-write", pid, identity, pgid)
+        raise SystemExit(0)
+    start_gate += chunk
+bound_digest = read_bound()
+expected_start = ("WKGR_PUBLISH_SUPERVISOR_START_V1:" + bound_digest + "\n").encode("ascii")
+if start_gate != expected_start:
+    status(4, bound_digest, "bound-zero-write", pid, identity, pgid)
+    raise SystemExit(64)
+os.close(5)
+waiting_digest = status(4, bound_digest, "pre-gate-waiting", pid, identity, pgid)
+
+gate = b""
+while b"\n" not in gate and len(gate) <= 128:
+    chunk = os.read(3, 129 - len(gate))
+    if not chunk:
+        status(5, waiting_digest, "pre-gate-zero-write", pid, identity, pgid)
+        raise SystemExit(0)
+    gate += chunk
+expected = ("WKGR_PUBLISH_GATE_V1:" + supervisor_id + "\n").encode("ascii")
+if gate != expected:
+    status(5, waiting_digest, "pre-gate-zero-write", pid, identity, pgid)
+    raise SystemExit(64)
+status(5, waiting_digest, "gate-consumed", pid, identity, pgid)
+os.close(3)
+os.close(4)
+os.execve(executable, [executable, *arguments], dict(os.environ))
+`;
+
+function exactMode(status, expected) {
+  return (status.mode & 0o7777) === expected;
+}
+
+function assertPrivatePublishSupervisorDirectory(path, create = false) {
+  if (typeof path !== 'string' || !isAbsolute(path) || resolve(path) !== path) {
+    fail('The Greater Realm publish supervisor directory was invalid.');
+  }
+  if (create) {
+    try { mkdirSync(path, { mode: 0o700 }); } catch (error) {
+      if (error?.code !== 'EEXIST') throw error;
+    }
+  }
+  const status = lstatSync(path);
+  if (
+    !status.isDirectory()
+    || status.isSymbolicLink()
+    || !exactMode(status, 0o700)
+    || (process.getuid !== undefined && status.uid !== process.getuid())
+  ) fail('The Greater Realm publish supervisor directory was not private.');
+  return status;
+}
+
+function publishSupervisorLstatIfPresent(path, options) {
+  try {
+    return lstatSync(path, options);
+  } catch (error) {
+    if (error?.code === 'ENOENT') return undefined;
+    throw error;
+  }
+}
+
+function validateGreaterRealmPublishCliConfigPath(path) {
+  if (typeof path !== 'string' || !isAbsolute(path) || resolve(path) !== path) {
+    fail('The Greater Realm Maincloud CLI config path was invalid.');
+  }
+  assertProductionAdminTrustedAncestors(dirname(path));
+  let canonical;
+  try { canonical = realpathSync(path); } catch {
+    fail('The Greater Realm Maincloud CLI config path was invalid.');
+  }
+  const status = lstatSync(path, { bigint: true });
+  if (
+    canonical !== path || !status.isFile() || status.isSymbolicLink()
+    || status.nlink !== 1n || (status.mode & 0o7777n) !== 0o600n
+    || status.size < 1n || status.size > BigInt(PUBLISH_SUPERVISOR_CLI_CONFIG_MAX_BYTES)
+    || (process.getuid !== undefined && status.uid !== BigInt(process.getuid()))
+  ) fail('The Greater Realm Maincloud CLI config path was invalid.');
+  return path;
+}
+
+function readExactGreaterRealmPublishCliConfig(path, expectedDigest) {
+  validateGreaterRealmPublishCliConfigPath(path);
+  let descriptor;
+  let bytes;
+  try {
+    const pathStatus = lstatSync(path, { bigint: true });
+    descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const before = fstatSync(descriptor, { bigint: true });
+    if (
+      before.dev !== pathStatus.dev || before.ino !== pathStatus.ino
+      || before.mode !== pathStatus.mode || before.uid !== pathStatus.uid
+      || before.nlink !== pathStatus.nlink || before.size !== pathStatus.size
+      || before.mtimeNs !== pathStatus.mtimeNs || before.ctimeNs !== pathStatus.ctimeNs
+    ) fail('The Greater Realm Maincloud CLI config changed while opened.');
+    bytes = readFileSync(descriptor);
+    const after = fstatSync(descriptor, { bigint: true });
+    const afterPath = lstatSync(path, { bigint: true });
+    if (
+      bytes.byteLength !== Number(before.size)
+      || after.dev !== before.dev || after.ino !== before.ino
+      || after.mode !== before.mode || after.uid !== before.uid
+      || after.nlink !== before.nlink || after.size !== before.size
+      || after.mtimeNs !== before.mtimeNs || after.ctimeNs !== before.ctimeNs
+      || afterPath.dev !== before.dev || afterPath.ino !== before.ino
+      || afterPath.mode !== before.mode || afterPath.uid !== before.uid
+      || afterPath.nlink !== before.nlink || afterPath.size !== before.size
+      || afterPath.mtimeNs !== before.mtimeNs || afterPath.ctimeNs !== before.ctimeNs
+    ) fail('The Greater Realm Maincloud CLI config changed while read.');
+    const digest = createHash('sha256').update(bytes).digest('hex');
+    if (expectedDigest !== undefined && digest !== expectedDigest) {
+      fail('The Greater Realm Maincloud CLI config digest changed.');
+    }
+    return Object.freeze({ bytes, digest });
+  } catch (error) {
+    bytes?.fill(0);
+    throw error;
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+function stageGreaterRealmPublishCliConfig(identity, sourcePath) {
+  const cliRootDirectory = join(
+    identity.supervisorDirectory,
+    PUBLISH_SUPERVISOR_CLI_ROOT_DIRECTORY,
+  );
+  const cliConfigPath = join(
+    identity.supervisorDirectory,
+    PUBLISH_SUPERVISOR_CLI_CONFIG_FILE,
+  );
+  mkdirSync(cliRootDirectory, { mode: 0o700 });
+  fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+  assertPrivatePublishSupervisorDirectory(cliRootDirectory);
+  const source = readExactGreaterRealmPublishCliConfig(sourcePath);
+  let descriptor;
+  try {
+    descriptor = openSync(
+      cliConfigPath,
+      constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+      0o600,
+    );
+    fchmodSync(descriptor, 0o600);
+    writeFileSync(descriptor, source.bytes);
+    fsyncSync(descriptor);
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+    source.bytes.fill(0);
+  }
+  fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+  readExactGreaterRealmPublishCliConfig(cliConfigPath, source.digest).bytes.fill(0);
+  return Object.freeze({ cliRootDirectory, cliConfigPath, cliConfigDigest: source.digest });
+}
+
+const PUBLISH_SUPERVISOR_PHASE_FILE = Object.freeze({
+  'allocated-no-spawn': '00000001-allocated-no-spawn.json',
+  'spawn-authorized': '00000002-spawn-authorized.json',
+  'supervisor-bound': '00000003-supervisor-bound.json',
+  'prestart-zero-write': '00000003-prestart-zero-write.json',
+  'bound-zero-write': '00000004-bound-zero-write.json',
+  'pre-gate-waiting': '00000004-pre-gate-waiting.json',
+  'pre-gate-zero-write': '00000005-pre-gate-zero-write.json',
+  'gate-consumed': '00000005-gate-consumed.json',
+  'cleanup-authorized': '00000006-cleanup-authorized.json',
+});
+
+const PUBLISH_SUPERVISOR_PHASE_ORDINAL = Object.freeze({
+  'allocated-no-spawn': 1,
+  'spawn-authorized': 2,
+  'supervisor-bound': 3,
+  'prestart-zero-write': 3,
+  'bound-zero-write': 4,
+  'pre-gate-waiting': 4,
+  'pre-gate-zero-write': 5,
+  'gate-consumed': 5,
+  'cleanup-authorized': 6,
+});
+
+const PUBLISH_SUPERVISOR_TEMPORARY_FILE = /^\.(0000000[1-6]-(?:allocated-no-spawn|spawn-authorized|supervisor-bound|prestart-zero-write|bound-zero-write|pre-gate-waiting|pre-gate-zero-write|gate-consumed|cleanup-authorized))-[0-9a-f]{32}\.tmp$/u;
+const PUBLISH_SUPERVISOR_STATE_BY_FILE = new Map(
+  Object.entries(PUBLISH_SUPERVISOR_PHASE_FILE).map(([state, filename]) => [filename, state]),
+);
+const PUBLISH_SUPERVISOR_NEXT_STATES = Object.freeze({
+  'allocated-no-spawn': Object.freeze(['spawn-authorized']),
+  'spawn-authorized': Object.freeze(['supervisor-bound', 'prestart-zero-write']),
+  'supervisor-bound': Object.freeze(['bound-zero-write', 'pre-gate-waiting']),
+  'pre-gate-waiting': Object.freeze(['pre-gate-zero-write', 'gate-consumed']),
+});
+
+function fsyncPublishSupervisorDirectory(path) {
+  const descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const status = fstatSync(descriptor);
+    if (!status.isDirectory()) {
+      fail('The Greater Realm publish supervisor directory was invalid.');
+    }
+    fsyncSync(descriptor);
+  } finally {
+    closeSync(descriptor);
+  }
+}
+
+function publishSupervisorStatusBody(input) {
+  return Buffer.from(`${JSON.stringify(Object.freeze({
+    schemaVersion: 1,
+    profile: PUBLISH_SUPERVISOR_STATUS_PROFILE,
+    supervisorId: input.supervisorId,
+    phaseOrdinal: input.phaseOrdinal,
+    previousPhaseDigest: input.previousPhaseDigest,
+    state: input.state,
+    cliConfigDigest: input.cliConfigDigest,
+    pid: input.pid,
+    processStartIdentity: input.processStartIdentity,
+    pgid: input.pgid,
+  }))}\n`, 'utf8');
+}
+
+function parsePublishSupervisorIdentity(value) {
+  if (
+    value === null || typeof value !== 'object' || Array.isArray(value)
+    || Object.keys(value).sort().join(',')
+      !== 'profile,schemaVersion,supervisorDirectory,supervisorId'
+  ) fail('The Greater Realm publish supervisor identity was invalid.');
+  const raw = value;
+  if (
+    raw.schemaVersion !== 1
+    || raw.profile !== PUBLISH_SUPERVISOR_PROFILE
+    || typeof raw.supervisorId !== 'string'
+    || !PUBLISH_SUPERVISOR_ID.test(raw.supervisorId)
+    || typeof raw.supervisorDirectory !== 'string'
+    || !isAbsolute(raw.supervisorDirectory)
+    || resolve(raw.supervisorDirectory) !== raw.supervisorDirectory
+    || raw.supervisorDirectory
+      !== join(dirname(raw.supervisorDirectory), `publish-${raw.supervisorId}`)
+  ) fail('The Greater Realm publish supervisor identity was invalid.');
+  return Object.freeze({
+    schemaVersion: 1,
+    profile: PUBLISH_SUPERVISOR_PROFILE,
+    supervisorId: raw.supervisorId,
+    supervisorDirectory: raw.supervisorDirectory,
+  });
+}
+
+function parsePublishSupervisorStatus(value, identity, filename, body) {
+  if (
+    value === null || typeof value !== 'object' || Array.isArray(value)
+    || Object.keys(value).sort().join(',')
+      !== 'cliConfigDigest,pgid,phaseOrdinal,pid,previousPhaseDigest,processStartIdentity,profile,schemaVersion,state,supervisorId'
+  ) fail('The Greater Realm publish supervisor status was invalid.');
+  const raw = value;
+  const allocated = raw.state === 'allocated-no-spawn';
+  const cleanupAuthorized = raw.state === 'cleanup-authorized';
+  const processBound = raw.state === 'spawn-authorized'
+    || raw.state === 'supervisor-bound'
+    || raw.state === 'prestart-zero-write'
+    || raw.state === 'bound-zero-write'
+    || raw.state === 'pre-gate-waiting'
+    || raw.state === 'pre-gate-zero-write'
+    || raw.state === 'gate-consumed'
+    || raw.state === 'cleanup-authorized';
+  if (
+    raw.schemaVersion !== 1
+    || raw.profile !== PUBLISH_SUPERVISOR_STATUS_PROFILE
+    || raw.supervisorId !== identity.supervisorId
+    || !(raw.state in PUBLISH_SUPERVISOR_PHASE_FILE)
+    || raw.phaseOrdinal !== PUBLISH_SUPERVISOR_PHASE_ORDINAL[raw.state]
+    || filename !== PUBLISH_SUPERVISOR_PHASE_FILE[raw.state]
+    || !(raw.previousPhaseDigest === null
+      || (typeof raw.previousPhaseDigest === 'string'
+        && SHA256_DIGEST.test(raw.previousPhaseDigest)))
+    || (allocated
+      ? raw.cliConfigDigest !== null
+      : cleanupAuthorized
+        ? !(raw.cliConfigDigest === null || (
+            typeof raw.cliConfigDigest === 'string'
+            && SHA256_DIGEST.test(raw.cliConfigDigest)
+          ))
+        : (typeof raw.cliConfigDigest !== 'string'
+          || !SHA256_DIGEST.test(raw.cliConfigDigest)))
+    || (!allocated && !processBound)
+    || (allocated && (
+      raw.pid !== null || raw.processStartIdentity !== null || raw.pgid !== null
+    ))
+    || (raw.state === 'spawn-authorized' && (
+      raw.pid !== null || raw.processStartIdentity !== null || raw.pgid !== null
+    ))
+    || (cleanupAuthorized && !(
+      (raw.pid === null && raw.processStartIdentity === null && raw.pgid === null)
+      || (
+        Number.isSafeInteger(raw.pid) && raw.pid >= 2
+        && raw.pgid === raw.pid
+        && typeof raw.processStartIdentity === 'string'
+        && /^[\u0020-\u007e]{8,160}$/u.test(raw.processStartIdentity)
+      )
+    ))
+    || ((raw.state === 'supervisor-bound'
+      || raw.state === 'prestart-zero-write'
+      || raw.state === 'bound-zero-write'
+      || raw.state === 'pre-gate-waiting'
+      || raw.state === 'pre-gate-zero-write'
+      || raw.state === 'gate-consumed') && (
+      !Number.isSafeInteger(raw.pid) || raw.pid < 2
+      || raw.pgid !== raw.pid
+      || typeof raw.processStartIdentity !== 'string'
+      || !/^[\u0020-\u007e]{8,160}$/u.test(raw.processStartIdentity)
+    ))
+  ) fail('The Greater Realm publish supervisor status was invalid.');
+  const canonical = publishSupervisorStatusBody(raw);
+  try {
+    if (!canonical.equals(body)) {
+      fail('The Greater Realm publish supervisor status was not canonical.');
+    }
+  } finally {
+    canonical.fill(0);
+  }
+  return Object.freeze({
+    ...raw,
+    digest: createHash('sha256').update(body).digest('hex'),
+    filename,
+  });
+}
+
+function readPublishSupervisorPhase(identity, filename, expectedNlink = 1) {
+  const path = join(identity.supervisorDirectory, filename);
+  let descriptor;
+  try {
+    descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const before = fstatSync(descriptor);
+    if (
+      !before.isFile()
+      || !exactMode(before, 0o600)
+      || before.nlink !== expectedNlink
+      || (process.getuid !== undefined && before.uid !== process.getuid())
+      || before.size < 1
+      || before.size > PUBLISH_SUPERVISOR_STATUS_MAX_BYTES
+    ) fail('The Greater Realm publish supervisor status was invalid.');
+    const bytes = readFileSync(descriptor);
+    const after = fstatSync(descriptor);
+    if (
+      before.dev !== after.dev || before.ino !== after.ino
+      || before.mode !== after.mode || before.uid !== after.uid
+      || before.nlink !== after.nlink || before.size !== after.size
+      || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs
+      || bytes.byteLength !== after.size
+    ) fail('The Greater Realm publish supervisor status changed while read.');
+    let parsed;
+    try {
+      parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    } catch {
+      fail('The Greater Realm publish supervisor status was invalid.');
+    }
+    try {
+      return parsePublishSupervisorStatus(parsed, identity, filename, bytes);
+    } finally {
+      bytes.fill(0);
+    }
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+function readPublishSupervisorPhases(identity) {
+  const names = readdirSync(identity.supervisorDirectory).toSorted();
+  const allowed = new Set(Object.values(PUBLISH_SUPERVISOR_PHASE_FILE));
+  const auxiliary = new Set([
+    PUBLISH_SUPERVISOR_CLI_CONFIG_FILE,
+    PUBLISH_SUPERVISOR_CLI_ROOT_DIRECTORY,
+  ]);
+  const phaseNames = names.filter(name => !auxiliary.has(name));
+  const finalNames = phaseNames.filter(name => allowed.has(name));
+  const temporaryEntries = phaseNames.filter(name => !allowed.has(name)).map(name => {
+    const match = PUBLISH_SUPERVISOR_TEMPORARY_FILE.exec(name);
+    if (match === null) {
+      fail('The Greater Realm publish supervisor phase inventory was invalid.');
+    }
+    const finalName = `${match[1]}.json`;
+    const path = join(identity.supervisorDirectory, name);
+    const status = lstatSync(path);
+    if (
+      !status.isFile() || status.isSymbolicLink()
+      || !exactMode(status, 0o600)
+      || (process.getuid !== undefined && status.uid !== process.getuid())
+      || (status.nlink !== 1 && status.nlink !== 2)
+      || status.size > PUBLISH_SUPERVISOR_STATUS_MAX_BYTES
+    ) fail('The Greater Realm publish supervisor phase temporary was invalid.');
+    return Object.freeze({ name, finalName, path, status });
+  });
+  if (phaseNames.length < 1) {
+    return Object.freeze({
+      phases: Object.freeze([]),
+      temporaries: Object.freeze([]),
+      latest: Object.freeze({ state: 'phase-install-incomplete' }),
+      incompleteInstallZeroWrite: true,
+      cleanupAuthorized: false,
+    });
+  }
+  const temporariesByFinal = new Map();
+  for (const temporary of temporaryEntries) {
+    if (temporariesByFinal.has(temporary.finalName)) {
+      fail('The Greater Realm publish supervisor phase inventory was invalid.');
+    }
+    temporariesByFinal.set(temporary.finalName, temporary);
+  }
+  const phases = finalNames.map(name => {
+    const finalPath = join(identity.supervisorDirectory, name);
+    const finalStatus = lstatSync(finalPath);
+    const temporary = temporariesByFinal.get(name);
+    if (temporary === undefined) {
+      if (finalStatus.nlink !== 1) {
+        fail('The Greater Realm publish supervisor phase link count was invalid.');
+      }
+      return readPublishSupervisorPhase(identity, name, 1);
+    }
+    if (
+      finalStatus.dev !== temporary.status.dev
+      || finalStatus.ino !== temporary.status.ino
+      || finalStatus.nlink !== 2 || temporary.status.nlink !== 2
+    ) fail('The Greater Realm publish supervisor phase link pair was invalid.');
+    return readPublishSupervisorPhase(identity, name, 2);
+  });
+  for (const temporary of temporaryEntries) {
+    if (!finalNames.includes(temporary.finalName) && temporary.status.nlink !== 1) {
+      fail('The Greater Realm publish supervisor phase temporary was invalid.');
+    }
+  }
+  if (phases.length === 0) {
+    const incompleteInstallZeroWrite = temporaryEntries.length === 1
+      && temporaryEntries[0].status.nlink === 1
+      && temporaryEntries[0].finalName
+        === PUBLISH_SUPERVISOR_PHASE_FILE['allocated-no-spawn'];
+    return Object.freeze({
+      phases: Object.freeze([]),
+      temporaries: Object.freeze(temporaryEntries),
+      latest: Object.freeze({ state: 'phase-install-incomplete' }),
+      incompleteInstallZeroWrite,
+      cleanupAuthorized: false,
+    });
+  }
+  const byState = new Map(phases.map(phase => [phase.state, phase]));
+  const allocated = byState.get('allocated-no-spawn');
+  const authorized = byState.get('spawn-authorized');
+  const bound = byState.get('supervisor-bound');
+  const prestartZero = byState.get('prestart-zero-write');
+  const boundZero = byState.get('bound-zero-write');
+  const waiting = byState.get('pre-gate-waiting');
+  const zero = byState.get('pre-gate-zero-write');
+  const consumed = byState.get('gate-consumed');
+  const cleanupAuthorized = byState.get('cleanup-authorized');
+  if (cleanupAuthorized !== undefined) {
+    const priorPhases = phases.filter(phase => phase.state !== 'cleanup-authorized');
+    if (
+      new Set(phases.map(phase => phase.phaseOrdinal)).size !== phases.length
+      || cleanupAuthorized.phaseOrdinal !== 6
+      || (priorPhases.length > 0
+        && !priorPhases.some(phase => (
+            phase.digest === cleanupAuthorized.previousPhaseDigest
+          )))
+    ) fail('The Greater Realm publish supervisor cleanup authority was invalid.');
+    return Object.freeze({
+      phases: Object.freeze(phases),
+      temporaries: Object.freeze(temporaryEntries),
+      latest: cleanupAuthorized,
+      incompleteInstallZeroWrite: false,
+      cleanupAuthorized: true,
+    });
+  }
+  const boundCliConfigDigest = authorized?.cliConfigDigest;
+  if (
+    allocated === undefined
+    || allocated.previousPhaseDigest !== null
+    || (authorized !== undefined
+      && authorized.previousPhaseDigest !== allocated.digest)
+    || (bound !== undefined && (
+      authorized === undefined || bound.previousPhaseDigest !== authorized.digest
+    ))
+    || (prestartZero !== undefined && (
+      authorized === undefined || prestartZero.previousPhaseDigest !== authorized.digest
+    ))
+    || (bound !== undefined && prestartZero !== undefined)
+    || (boundZero !== undefined && (
+      bound === undefined || boundZero.previousPhaseDigest !== bound.digest
+    ))
+    || (waiting !== undefined && (
+      bound === undefined || waiting.previousPhaseDigest !== bound.digest
+    ))
+    || (boundZero !== undefined && waiting !== undefined)
+    || (zero !== undefined && (
+      waiting === undefined || zero.previousPhaseDigest !== waiting.digest
+    ))
+    || (consumed !== undefined && (
+      waiting === undefined || consumed.previousPhaseDigest !== waiting.digest
+    ))
+    || (zero !== undefined && consumed !== undefined)
+    || (authorized === undefined && phases.length !== 1)
+    || (bound === undefined && (boundZero !== undefined || waiting !== undefined))
+    || (waiting === undefined && (zero !== undefined || consumed !== undefined))
+    || [bound, prestartZero, boundZero, waiting, zero, consumed].some(phase => (
+      phase !== undefined && phase.cliConfigDigest !== boundCliConfigDigest
+    ))
+  ) fail('The Greater Realm publish supervisor phase chain was invalid.');
+  const latest = consumed ?? zero ?? waiting ?? boundZero ?? prestartZero
+    ?? bound ?? authorized ?? allocated;
+  let incompleteInstallZeroWrite = false;
+  if (temporaryEntries.length === 1) {
+    const temporary = temporaryEntries[0];
+    const temporaryState = PUBLISH_SUPERVISOR_STATE_BY_FILE.get(temporary.finalName);
+    if (finalNames.includes(temporary.finalName)) {
+      incompleteInstallZeroWrite = temporary.status.nlink === 2
+        && latest.filename === temporary.finalName
+        && temporaryState !== 'gate-consumed';
+    } else {
+      incompleteInstallZeroWrite = temporary.status.nlink === 1
+        && PUBLISH_SUPERVISOR_NEXT_STATES[latest.state]?.includes(temporaryState) === true;
+    }
+  }
+  return Object.freeze({
+    phases: Object.freeze(phases),
+    temporaries: Object.freeze(temporaryEntries),
+    latest,
+    incompleteInstallZeroWrite,
+    cleanupAuthorized: false,
+  });
+}
+
+function publishSupervisorGroupExists(status) {
+  if (!Number.isSafeInteger(status.pgid) || status.pgid < 2) return false;
+  try {
+    process.kill(-status.pgid, 0);
+    return true;
+  } catch (error) {
+    if (error?.code === 'ESRCH') return false;
+    if (error?.code === 'EPERM') return true;
+    throw error;
+  }
+}
+
+function inspectGreaterRealmPublishSupervisorCliAuthority(identity, chain) {
+  const cliConfigPath = join(
+    identity.supervisorDirectory,
+    PUBLISH_SUPERVISOR_CLI_CONFIG_FILE,
+  );
+  const cliRootDirectory = join(
+    identity.supervisorDirectory,
+    PUBLISH_SUPERVISOR_CLI_ROOT_DIRECTORY,
+  );
+  const configStatus = publishSupervisorLstatIfPresent(cliConfigPath, { bigint: true });
+  const rootStatus = publishSupervisorLstatIfPresent(cliRootDirectory, { bigint: true });
+  if (rootStatus !== undefined && (
+    !rootStatus.isDirectory() || rootStatus.isSymbolicLink()
+    || (rootStatus.mode & 0o7777n) !== 0o700n
+    || (process.getuid !== undefined && rootStatus.uid !== BigInt(process.getuid()))
+  )) fail('The Greater Realm publish supervisor CLI root was invalid.');
+  if (configStatus !== undefined && (
+    rootStatus === undefined || !configStatus.isFile() || configStatus.isSymbolicLink()
+    || configStatus.nlink !== 1n || (configStatus.mode & 0o7777n) !== 0o600n
+    || configStatus.size > BigInt(PUBLISH_SUPERVISOR_CLI_CONFIG_MAX_BYTES)
+    || (process.getuid !== undefined && configStatus.uid !== BigInt(process.getuid()))
+  )) fail('The Greater Realm publish supervisor CLI config was invalid.');
+  const expectedDigest = typeof chain.latest.cliConfigDigest === 'string'
+    ? chain.latest.cliConfigDigest
+    : undefined;
+  if (expectedDigest !== undefined) {
+    if (
+      !chain.cleanupAuthorized
+      && (configStatus === undefined || rootStatus === undefined)
+    ) {
+      fail('The Greater Realm publish supervisor CLI authority was missing.');
+    }
+    if (configStatus !== undefined) {
+      readExactGreaterRealmPublishCliConfig(cliConfigPath, expectedDigest).bytes.fill(0);
+    }
+  }
+  return Object.freeze({
+    cliConfigPath,
+    cliRootDirectory,
+    cliConfigDigest: expectedDigest,
+    staged: configStatus !== undefined && rootStatus !== undefined,
+  });
+}
+
+export function inspectGreaterRealmPublishSupervisor(identityValue) {
+  const identity = parsePublishSupervisorIdentity(identityValue);
+  const supervisorRoot = dirname(identity.supervisorDirectory);
+  assertPrivatePublishSupervisorDirectory(supervisorRoot);
+  let directoryStatus;
+  try {
+    directoryStatus = lstatSync(identity.supervisorDirectory);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+    return Object.freeze({
+      identity,
+      phases: Object.freeze([]),
+      temporaries: Object.freeze([]),
+      status: Object.freeze({ state: 'not-allocated' }),
+      processGroupExists: false,
+      incompleteInstallZeroWrite: true,
+    });
+  }
+  if (!directoryStatus.isDirectory() || directoryStatus.isSymbolicLink()) {
+    fail('The Greater Realm publish supervisor directory was invalid.');
+  }
+  assertPrivatePublishSupervisorDirectory(identity.supervisorDirectory);
+  const chain = readPublishSupervisorPhases(identity);
+  const cliAuthority = inspectGreaterRealmPublishSupervisorCliAuthority(identity, chain);
+  return Object.freeze({
+    identity,
+    phases: chain.phases,
+    temporaries: chain.temporaries,
+    status: chain.latest,
+    processGroupExists: publishSupervisorGroupExists(chain.latest),
+    incompleteInstallZeroWrite: chain.incompleteInstallZeroWrite,
+    cliAuthority,
+  });
+}
+
+export function authorizeGreaterRealmPublishExactBeforeClear(identityValue) {
+  const inspection = inspectGreaterRealmPublishSupervisor(identityValue);
+  return inspection.processGroupExists === false && (
+    inspection.incompleteInstallZeroWrite
+    || inspection.status.state === 'not-allocated'
+    || inspection.status.state === 'allocated-no-spawn'
+    || inspection.status.state === 'spawn-authorized'
+    || inspection.status.state === 'supervisor-bound'
+    || inspection.status.state === 'prestart-zero-write'
+    || inspection.status.state === 'bound-zero-write'
+    || inspection.status.state === 'pre-gate-waiting'
+    || inspection.status.state === 'pre-gate-zero-write'
+  );
+}
+
+export function cleanupGreaterRealmPublishSupervisor(identityValue, testOnlyStopAfter) {
+  if (
+    testOnlyStopAfter !== undefined
+    && testOnlyStopAfter !== 'config-removed'
+    && testOnlyStopAfter !== 'root-removed'
+    && testOnlyStopAfter !== 'prior-phases-removed'
+  ) fail('The Greater Realm publish supervisor cleanup fixture was invalid.');
+  const identity = parsePublishSupervisorIdentity(identityValue);
+  let inspection = inspectGreaterRealmPublishSupervisor(identity);
+  if (inspection.status.state === 'not-allocated') {
+    fsyncPublishSupervisorDirectory(dirname(identity.supervisorDirectory));
+    return;
+  }
+  if (inspection.processGroupExists) {
+    throw new SpacetimePublishContainmentError(
+      'SPACETIMEDB_PUBLISH_SUPERVISOR_PROCESS_GROUP_UNCONTAINED',
+    );
+  }
+  for (const temporary of inspection.temporaries) {
+    unlinkSync(temporary.path);
+    fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+  }
+  if (inspection.temporaries.length > 0) {
+    inspection = inspectGreaterRealmPublishSupervisor(identity);
+  }
+  if (inspection.status.state !== 'cleanup-authorized') {
+    installPublishSupervisorPhase(identity, {
+      supervisorId: identity.supervisorId,
+      phaseOrdinal: 6,
+      previousPhaseDigest: typeof inspection.status.digest === 'string'
+        ? inspection.status.digest
+        : null,
+      state: 'cleanup-authorized',
+      cliConfigDigest: inspection.cliAuthority.cliConfigDigest ?? null,
+      pid: Number.isSafeInteger(inspection.status.pid) ? inspection.status.pid : null,
+      processStartIdentity:
+        typeof inspection.status.processStartIdentity === 'string'
+          ? inspection.status.processStartIdentity
+          : null,
+      pgid: Number.isSafeInteger(inspection.status.pgid) ? inspection.status.pgid : null,
+    });
+    inspection = inspectGreaterRealmPublishSupervisor(identity);
+  }
+  if (inspection.cliAuthority.staged) {
+    unlinkSync(inspection.cliAuthority.cliConfigPath);
+    fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+    if (testOnlyStopAfter === 'config-removed') {
+      fail('GREATER_REALM_PUBLISH_SUPERVISOR_TEST_CLEANUP_INTERRUPTED');
+    }
+    rmSync(inspection.cliAuthority.cliRootDirectory, { recursive: true, force: false });
+    fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+    if (testOnlyStopAfter === 'root-removed') {
+      fail('GREATER_REALM_PUBLISH_SUPERVISOR_TEST_CLEANUP_INTERRUPTED');
+    }
+  } else {
+    const cliRootStatus = publishSupervisorLstatIfPresent(
+      inspection.cliAuthority.cliRootDirectory,
+    );
+    const cliConfigStatus = publishSupervisorLstatIfPresent(
+      inspection.cliAuthority.cliConfigPath,
+    );
+    if (cliConfigStatus !== undefined) unlinkSync(inspection.cliAuthority.cliConfigPath);
+    if (cliConfigStatus !== undefined) {
+      fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+      if (testOnlyStopAfter === 'config-removed') {
+        fail('GREATER_REALM_PUBLISH_SUPERVISOR_TEST_CLEANUP_INTERRUPTED');
+      }
+    }
+    if (cliRootStatus !== undefined) {
+      rmSync(inspection.cliAuthority.cliRootDirectory, { recursive: true, force: false });
+      fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+      if (testOnlyStopAfter === 'root-removed') {
+        fail('GREATER_REALM_PUBLISH_SUPERVISOR_TEST_CLEANUP_INTERRUPTED');
+      }
+    }
+  }
+  const cleanupPhase = inspection.phases.find(phase => phase.state === 'cleanup-authorized');
+  if (cleanupPhase === undefined) {
+    fail('The Greater Realm publish supervisor cleanup authority was missing.');
+  }
+  for (const phase of inspection.phases
+    .filter(phase => phase.state !== 'cleanup-authorized')
+    .sort((left, right) => left.phaseOrdinal - right.phaseOrdinal)) {
+    unlinkSync(join(identity.supervisorDirectory, phase.filename));
+    fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+  }
+  if (testOnlyStopAfter === 'prior-phases-removed') {
+    fail('GREATER_REALM_PUBLISH_SUPERVISOR_TEST_CLEANUP_INTERRUPTED');
+  }
+  unlinkSync(join(identity.supervisorDirectory, cleanupPhase.filename));
+  fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+  rmdirSync(identity.supervisorDirectory);
+  fsyncPublishSupervisorDirectory(dirname(identity.supervisorDirectory));
+}
+
+function installPublishSupervisorPhase(identity, status) {
+  const body = publishSupervisorStatusBody(status);
+  const finalName = PUBLISH_SUPERVISOR_PHASE_FILE[status.state];
+  const path = join(identity.supervisorDirectory, finalName);
+  const temporary = join(
+    identity.supervisorDirectory,
+    `.${finalName.slice(0, -5)}-${randomBytes(16).toString('hex')}.tmp`,
+  );
+  let descriptor;
+  try {
+    descriptor = openSync(
+      temporary,
+      constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+      0o600,
+    );
+    writeFileSync(descriptor, body);
+    fsyncSync(descriptor);
+    closeSync(descriptor);
+    descriptor = undefined;
+    linkSync(temporary, path);
+    fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+    unlinkSync(temporary);
+    fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+    return createHash('sha256').update(body).digest('hex');
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+    body.fill(0);
+  }
+}
+
+function writeGate(stream, value) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const onError = error => rejectPromise(error);
+    stream.once('error', onError);
+    stream.end(value, 'utf8', () => {
+      stream.off('error', onError);
+      resolvePromise();
+    });
+  });
+}
+
+function waitForSupervisorStatus(identity, expected, childState) {
+  const deadline = Date.now() + 5_000;
+  return new Promise((resolvePromise, rejectPromise) => {
+    const poll = () => {
+      if (childState.error !== undefined) {
+        rejectPromise(childState.error);
+        return;
+      }
+      try {
+        const status = inspectGreaterRealmPublishSupervisor(identity).status;
+        if (status.state === expected) {
+          resolvePromise(status);
+          return;
+        }
+        if (status.state !== 'spawn-authorized' && status.state !== 'supervisor-bound') {
+          rejectPromise(new Error('GREATER_REALM_PUBLISH_SUPERVISOR_STATE_INVALID'));
+          return;
+        }
+      } catch (error) {
+        if (Date.now() >= deadline) {
+          rejectPromise(error);
+          return;
+        }
+      }
+      if (childState.closed !== undefined || Date.now() >= deadline) {
+        rejectPromise(new Error('GREATER_REALM_PUBLISH_SUPERVISOR_DID_NOT_START'));
+        return;
+      }
+      setTimeout(poll, 10);
+    };
+    poll();
+  });
+}
+
+function publishSupervisorProcessStartIdentity(pid) {
+  const result = spawnSync('/bin/ps', ['-o', 'lstart=', '-p', String(pid)], {
+    encoding: 'utf8',
+    env: { PATH: '/usr/bin:/bin' },
+    timeout: 5_000,
+    maxBuffer: 4 * 1_024,
+  });
+  const identity = result.status === 0 && result.signal === null
+    ? result.stdout.trim()
+    : '';
+  if (!/^[\u0020-\u007e]{8,160}$/u.test(identity)) {
+    fail('The Greater Realm publish supervisor identity was invalid.');
+  }
+  return identity;
+}
+
+export function planGreaterRealmPublishSupervisor(
+  supervisorRoot,
+  cliConfigSourcePath,
+  testOnlyCrash,
+) {
+  assertPrivatePublishSupervisorDirectory(dirname(supervisorRoot));
+  assertPrivatePublishSupervisorDirectory(supervisorRoot, true);
+  fsyncPublishSupervisorDirectory(dirname(supervisorRoot));
+  const validatedCliConfigSourcePath = validateGreaterRealmPublishCliConfigPath(
+    cliConfigSourcePath,
+  );
+  if (testOnlyCrash !== undefined && (
+    testOnlyCrash === null || typeof testOnlyCrash !== 'object'
+    || !['spawn-authorized', 'prestart-zero-write', 'bound-zero-write', 'pre-gate-waiting',
+      'pre-gate-zero-write', 'gate-consumed'].includes(testOnlyCrash.state)
+    || !['final-installed', 'temporary-created', 'linked', 'post-unlink']
+      .includes(testOnlyCrash.boundary)
+    || (testOnlyCrash.state === 'spawn-authorized')
+      !== (testOnlyCrash.boundary === 'final-installed')
+  )) fail('The Greater Realm publish supervisor crash fixture was invalid.');
+  const supervisorId = randomBytes(16).toString('hex');
+  const supervisorDirectory = join(supervisorRoot, `publish-${supervisorId}`);
+  const identity = parsePublishSupervisorIdentity(Object.freeze({
+    schemaVersion: 1,
+    profile: PUBLISH_SUPERVISOR_PROFILE,
+    supervisorId,
+    supervisorDirectory,
+  }));
+  let directoryDescriptor;
+  let latestPhaseDigest;
+  let child;
+  let childState;
+  let cliAuthority;
+  let allocated = false;
+  let released = false;
+  let cleaned = false;
+  const allocate = () => {
+    if (allocated || cleaned) fail('The Greater Realm publish supervisor lifecycle was invalid.');
+    mkdirSync(identity.supervisorDirectory, { mode: 0o700 });
+    fsyncPublishSupervisorDirectory(supervisorRoot);
+    assertPrivatePublishSupervisorDirectory(identity.supervisorDirectory);
+    directoryDescriptor = openSync(
+      identity.supervisorDirectory,
+      constants.O_RDONLY | constants.O_NOFOLLOW,
+    );
+    const status = fstatSync(directoryDescriptor);
+    if (!status.isDirectory() || !exactMode(status, 0o700)) {
+      fail('The Greater Realm publish supervisor directory was not private.');
+    }
+    latestPhaseDigest = installPublishSupervisorPhase(identity, {
+      supervisorId,
+      phaseOrdinal: 1,
+      previousPhaseDigest: null,
+      state: 'allocated-no-spawn',
+      cliConfigDigest: null,
+      pid: null,
+      processStartIdentity: null,
+      pgid: null,
+    });
+    allocated = true;
+  };
+  const start = async (executable, arguments_, spawnProcess = spawn) => {
+    if (!allocated) allocate();
+    if (
+      child !== undefined || directoryDescriptor === undefined
+      || latestPhaseDigest === undefined || released || cleaned
+    ) {
+      fail('The Greater Realm publish supervisor lifecycle was invalid.');
+    }
+    cliAuthority = stageGreaterRealmPublishCliConfig(
+      identity,
+      validatedCliConfigSourcePath,
+    );
+    latestPhaseDigest = installPublishSupervisorPhase(identity, {
+      supervisorId,
+      phaseOrdinal: 2,
+      previousPhaseDigest: latestPhaseDigest,
+      state: 'spawn-authorized',
+      cliConfigDigest: cliAuthority.cliConfigDigest,
+      pid: null,
+      processStartIdentity: null,
+      pgid: null,
+    });
+    if (
+      testOnlyCrash?.state === 'spawn-authorized'
+      && testOnlyCrash.boundary === 'final-installed'
+    ) process.kill(process.pid, 'SIGKILL');
+    child = spawnProcess('/usr/bin/python3', [
+      '-I', '-S', '-B', '-c', GREATER_REALM_PUBLISH_SUPERVISOR_SCRIPT,
+      supervisorId,
+      latestPhaseDigest,
+      cliAuthority.cliConfigDigest,
+      testOnlyCrash?.state ?? '-',
+      testOnlyCrash?.boundary ?? '-',
+      executable,
+      '--root-dir', cliAuthority.cliRootDirectory,
+      '--config-path', cliAuthority.cliConfigPath,
+      ...arguments_,
+    ], {
+      cwd: repositoryRoot,
+      detached: process.platform !== 'win32',
+      // Output is deliberately detached from the parent. If the operator is
+      // SIGKILLed, the irreversible CLI must not receive EPIPE/SIGPIPE merely
+      // because parent-owned read ends disappeared.
+      stdio: ['ignore', 'ignore', 'ignore', 'pipe', directoryDescriptor, 'pipe'],
+      env: publishChildEnvironment(),
+    });
+    if (
+      process.platform === 'win32'
+      || !Number.isSafeInteger(child.pid) || child.pid < 2
+      || child.stdio?.[3] === undefined
+      || child.stdio?.[5] === undefined
+    ) fail('The Greater Realm publish supervisor did not start exactly.');
+    childState = { error: undefined, closed: undefined };
+    child.on('error', error => { childState.error ??= error; });
+    child.once('close', (code, signal) => { childState.closed = { code, signal }; });
+    const processStartIdentity = publishSupervisorProcessStartIdentity(child.pid);
+    latestPhaseDigest = installPublishSupervisorPhase(identity, {
+      supervisorId,
+      phaseOrdinal: 3,
+      previousPhaseDigest: latestPhaseDigest,
+      state: 'supervisor-bound',
+      cliConfigDigest: cliAuthority.cliConfigDigest,
+      pid: child.pid,
+      processStartIdentity,
+      pgid: child.pid,
+    });
+    await writeGate(
+      child.stdio[5],
+      `WKGR_PUBLISH_SUPERVISOR_START_V1:${latestPhaseDigest}\n`,
+    );
+    const ready = await waitForSupervisorStatus(identity, 'pre-gate-waiting', childState);
+    if (
+      ready.pid !== child.pid || ready.pgid !== child.pid
+      || ready.processStartIdentity !== processStartIdentity
+    ) {
+      fail('The Greater Realm publish supervisor identity was invalid.');
+    }
+    return child;
+  };
+  const release = async () => {
+    if (child === undefined || childState === undefined || released || cleaned) {
+      fail('The Greater Realm publish supervisor lifecycle was invalid.');
+    }
+    released = true;
+    await writeGate(
+      child.stdio[3],
+      `${PUBLISH_SUPERVISOR_GATE_PREFIX}${supervisorId}\n`,
+    );
+  };
+  const cleanup = async () => {
+    if (cleaned) return;
+    if (child !== undefined && !released && child.stdio?.[3] !== undefined) {
+      if (child.stdio?.[5] !== undefined && !child.stdio[5].destroyed) {
+        child.stdio[5].end();
+      }
+      child.stdio[3].end();
+      const deadline = Date.now() + 5_000;
+      while (childState.closed === undefined && childState.error === undefined) {
+        if (Date.now() >= deadline) {
+          throw new SpacetimePublishContainmentError(
+            'SPACETIMEDB_PUBLISH_SUPERVISOR_PRE_GATE_UNCONTAINED',
+          );
+        }
+        await new Promise(resolvePromise => setTimeout(resolvePromise, 10));
+      }
+    }
+    if (directoryDescriptor !== undefined) {
+      closeSync(directoryDescriptor);
+      directoryDescriptor = undefined;
+    }
+    if (allocated) {
+      cleanupGreaterRealmPublishSupervisor(identity);
+    }
+    cleaned = true;
+    activeGreaterRealmPublishSupervisors.delete(planned);
+  };
+  const executionState = () => Object.freeze({
+    error: childState?.error,
+    closed: childState?.closed,
+  });
+  const planned = Object.freeze({
+    identity, allocate, start, release, cleanup, executionState,
+  });
+  activeGreaterRealmPublishSupervisors.add(planned);
+  return planned;
+}
+
+function monitorSpacetimePublishChild(child) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    let settled = false;
+    let timedOut = false;
+    let outputExceeded = false;
+    let outputBytes = 0;
+    let forcedKill;
+    let groupPoll;
+    let groupCleanupDeadline;
+    let leaderClosed = false;
+    let leaderCode;
+    let terminalError;
+    const deadline = setTimeout(() => {
+      timedOut = true;
+      try { signalProcessGroup('SIGTERM'); } catch (error) { terminalError ??= error; }
+      forcedKill = setTimeout(() => {
+        forceAndAwaitProcessGroup(new Error(
+          'SpacetimeDB publish exceeded its hard deadline.',
+        ));
+      }, PUBLISH_KILL_GRACE_MILLISECONDS);
+    }, PUBLISH_TIMEOUT_MILLISECONDS);
+    const settle = callback => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadline);
+      if (forcedKill !== undefined) clearTimeout(forcedKill);
+      if (groupPoll !== undefined) clearTimeout(groupPoll);
+      if (groupCleanupDeadline !== undefined) clearTimeout(groupCleanupDeadline);
+      callback();
+    };
+    const hasProcessGroup = process.platform !== 'win32'
+      && Number.isSafeInteger(child.pid) && child.pid > 0;
+    const signalProcessGroup = signal => {
+      if (hasProcessGroup) process.kill(-child.pid, signal);
+      else child.kill(signal);
+    };
+    const processGroupExists = () => {
+      if (!hasProcessGroup) return false;
+      try {
+        process.kill(-child.pid, 0);
+        return true;
+      } catch (error) {
+        if (error?.code === 'ESRCH') return false;
+        throw error;
+      }
+    };
+    const completeAfterGroupExit = () => {
+      if (groupPoll !== undefined) {
+        clearTimeout(groupPoll);
+        groupPoll = undefined;
+      }
+      let exists;
+      try { exists = processGroupExists(); } catch (error) {
+        settle(() => rejectPromise(error));
+        return;
+      }
+      if (!exists) {
+        settle(() => {
+          if (
+            terminalError === undefined && leaderClosed
+            && !timedOut && !outputExceeded && leaderCode === 0
+          ) resolvePromise();
+          else rejectPromise(terminalError ?? new Error(
+            'SpacetimeDB publish did not complete successfully.',
+          ));
+        });
+        return;
+      }
+      groupPoll = setTimeout(completeAfterGroupExit, 25);
+    };
+    const forceAndAwaitProcessGroup = error => {
+      terminalError ??= error;
+      try { signalProcessGroup('SIGKILL'); } catch (signalError) { terminalError = signalError; }
+      if (groupCleanupDeadline === undefined) {
+        groupCleanupDeadline = setTimeout(() => settle(() => rejectPromise(
+          new SpacetimePublishContainmentError(
+            'SPACETIMEDB_PUBLISH_PROCESS_GROUP_UNCONTAINED',
+          ),
+        )), PUBLISH_KILL_GRACE_MILLISECONDS);
+      }
+      if (!hasProcessGroup) {
+        if (leaderClosed) completeAfterGroupExit();
+        return;
+      }
+      completeAfterGroupExit();
+    };
+    const observeOutput = stream => {
+      if (!stream || typeof stream.on !== 'function') return;
+      stream.on('data', chunk => {
+        outputBytes += chunk.byteLength;
+        if (outputBytes <= MAX_CHILD_OUTPUT_BYTES || outputExceeded) return;
+        outputExceeded = true;
+        forceAndAwaitProcessGroup(new Error(
+          'SpacetimeDB publish output exceeded its fixed bound.',
+        ));
+      });
+    };
+    observeOutput(child.stdout);
+    observeOutput(child.stderr);
+    child.on('error', error => {
+      if (!timedOut && !outputExceeded) {
+        terminalError ??= error;
+        if (!hasProcessGroup) settle(() => rejectPromise(error));
+        else forceAndAwaitProcessGroup(error);
+      }
+    });
+    child.once('close', code => {
+      leaderClosed = true;
+      leaderCode = code;
+      let groupRemains = false;
+      try { groupRemains = processGroupExists(); } catch (error) { terminalError ??= error; }
+      if (groupRemains && !timedOut && !outputExceeded) {
+        forceAndAwaitProcessGroup(new Error(
+          'SpacetimeDB publish left a descendant process running.',
+        ));
+        return;
+      }
+      completeAfterGroupExit();
+    });
+  });
+}
+
 export async function publishModule(
   spacetimeCommand,
   targetDatabase,
   artifactReceipt,
   spawnProcess = spawn,
+  assertCanStartWrite = () => undefined,
+  expectedPrivateArtifactPath,
+  prepareWrite = async () => undefined,
+  publishSupervisor,
 ) {
   if (targetDatabase !== CANONICAL_DATABASE_IDENTITY) {
     fail('The production publish target was not the pinned canonical database identity.');
   }
-  const artifact = verifyMigrationArtifactReceipt(artifactReceipt);
-  const artifactSnapshot = createPrivatePublishSnapshot(
-    artifact.artifactPath,
-    artifact.artifactDigest,
-    PRIVATE_SNAPSHOT_KINDS.ARTIFACT,
-  );
+  const artifact = expectedPrivateArtifactPath === undefined
+    ? verifyMigrationArtifactReceipt(artifactReceipt)
+    : verifyMigrationArtifactReceiptAtExactPath(
+        artifactReceipt,
+        expectedPrivateArtifactPath,
+      );
+  const directRetainedArtifact = expectedPrivateArtifactPath !== undefined;
+  const attestDirectRetainedArtifact = () => {
+    if (!directRetainedArtifact) return;
+    const verified = readExactVerifiedSourceBytes(
+      artifact.artifactPath,
+      artifact.artifactDigest,
+      PRIVATE_SNAPSHOT_KINDS.ARTIFACT,
+    );
+    verified.bytes.fill(0);
+  };
+  const artifactSnapshot = directRetainedArtifact
+    ? Object.freeze({
+        path: artifact.artifactPath,
+        digest: artifact.artifactDigest,
+        cleanup: () => undefined,
+      })
+    : createPrivatePublishSnapshot(
+        artifact.artifactPath,
+        artifact.artifactDigest,
+        PRIVATE_SNAPSHOT_KINDS.ARTIFACT,
+      );
   const arguments_ = [
     'publish',
     '--server', CANONICAL_MAINCLOUD_URI,
     '--js-path', artifactSnapshot.path,
     '--delete-data=never',
-    '--yes=remote',
-    '--no-config',
+    '--yes=remote,skip-login',
     targetDatabase,
   ];
+  let primaryError;
   try {
-    await new Promise((resolvePromise, rejectPromise) => {
-      let settled = false;
-      let timedOut = false;
-      let outputExceeded = false;
-      let outputBytes = 0;
-      let deadline;
-      let forcedKill;
-      const settle = (callback) => {
-        if (settled) return;
-        settled = true;
-        if (deadline !== undefined) clearTimeout(deadline);
-        if (forcedKill !== undefined) clearTimeout(forcedKill);
-        callback();
-      };
-
-      let child;
-      try {
-        child = spawnProcess(spacetimeCommand, arguments_, {
-          cwd: repositoryRoot,
-          // A compatibility or break-clients prompt must see EOF and abort. The
-          // bounded output is consumed without mirroring private process detail.
-          stdio: ['ignore', 'pipe', 'pipe'],
-          // The CLI uses local config/Home and standard network settings. It
-          // never receives ambient Warpkeep signing, admin, RPC, or review data.
-          env: publishChildEnvironment(),
-        });
-      } catch (error) {
-        settle(() => rejectPromise(error));
-        return;
+    let supervisedChild;
+    let supervisedCompletion;
+    try {
+      await prepareWrite();
+      if (publishSupervisor !== undefined) {
+        if (
+          !directRetainedArtifact
+          || !activeGreaterRealmPublishSupervisors.has(publishSupervisor)
+        ) fail('The Greater Realm publish supervisor was invalid.');
+        supervisedChild = await publishSupervisor.start(
+          spacetimeCommand,
+          arguments_,
+          spawnProcess,
+        );
+        attestDirectRetainedArtifact();
+        supervisedCompletion = monitorSpacetimePublishChild(supervisedChild);
       }
-      const observeOutput = (stream) => {
-        if (!stream || typeof stream.on !== 'function') return;
-        stream.on('data', chunk => {
-          outputBytes += chunk.byteLength;
-          if (outputBytes <= MAX_CHILD_OUTPUT_BYTES || outputExceeded) return;
-          outputExceeded = true;
-          try { child.kill('SIGKILL'); } catch { /* The bounded failure remains generic. */ }
-          forcedKill = setTimeout(() => {
-            settle(() => rejectPromise(new Error('SpacetimeDB publish output exceeded its fixed bound.')));
-          }, PUBLISH_KILL_GRACE_MILLISECONDS);
-        });
-      };
-      observeOutput(child.stdout);
-      observeOutput(child.stderr);
-      child.on('error', (error) => {
-        // A signal-delivery error can arrive after the deadline. Keep the forced
-        // SIGKILL timer alive in that case instead of abandoning the child. Keep
-        // this listener installed so a second kill-delivery error is not emitted
-        // as an unhandled EventEmitter error after forced settlement.
-        if (!timedOut) settle(() => rejectPromise(error));
+    } catch (cause) {
+      const error = isWriteNotStartedError(cause)
+        ? cause
+        : new GreaterRealmPublishWriteNotStartedError(
+            'GREATER_REALM_PUBLISH_PREPARATION_WRITE_NOT_STARTED',
+            cause,
+          );
+      assertCanStartWrite.bindWriteNotStartedError?.(error);
+      throw error;
+    }
+    if (publishSupervisor === undefined) attestDirectRetainedArtifact();
+    await assertCanStartWrite.markSubmissionUncertain?.();
+    // Snapshotting, Git reattestation, and credential minting can all defer
+    // signal delivery. Yield exactly once, then check the permit immediately
+    // before spawn with no intervening synchronous or network work.
+    await new Promise(resolveTick => setImmediate(resolveTick));
+    assertCanStartWrite();
+    if (publishSupervisor !== undefined) {
+      // The completion monitor and all durable status work are already active.
+      // The permit and one-shot gate write are adjacent in this turn.
+      await publishSupervisor.release();
+      await supervisedCompletion;
+    } else {
+      const child = spawnProcess(spacetimeCommand, arguments_, {
+        cwd: repositoryRoot,
+        detached: process.platform !== 'win32',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: publishChildEnvironment(),
       });
-      child.once('close', (code) => settle(() => {
-        if (!timedOut && !outputExceeded && code === 0) resolvePromise();
-        else rejectPromise(new Error('SpacetimeDB publish did not complete successfully.'));
-      }));
-
-      deadline = setTimeout(() => {
-        timedOut = true;
-        try { child.kill('SIGTERM'); } catch { /* Fall through to the forced deadline. */ }
-        forcedKill = setTimeout(() => {
-          try { child.kill('SIGKILL'); } catch { /* The outcome remains indeterminate. */ }
-          // Do not wait indefinitely for a child that ignores termination or
-          // withholds its close event. Treat the publication outcome as
-          // indeterminate and require a fresh read-only inspection.
-          settle(() => rejectPromise(new Error('SpacetimeDB publish exceeded its hard deadline.')));
-        }, PUBLISH_KILL_GRACE_MILLISECONDS);
-      }, PUBLISH_TIMEOUT_MILLISECONDS);
-    });
-  } finally {
+      await monitorSpacetimePublishChild(child);
+    }
+    attestDirectRetainedArtifact();
+  } catch (error) {
+    primaryError = error;
+  }
+  const cleanupErrors = [];
+  if (
+    primaryError !== undefined
+    && isWriteNotStartedError(primaryError)
+    && publishSupervisor !== undefined
+  ) {
+    try {
+      // A rejected pre-gate write loses its operation identity when the journal
+      // abandonment succeeds. Remove the exact waiting supervisor while that
+      // identity is still durably bound; a cleanup failure converts the result
+      // to retained ambiguity instead of letting the journal discard authority.
+      await publishSupervisor.cleanup();
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+  }
+  try {
     artifactSnapshot.cleanup();
+  } catch (error) {
+    cleanupErrors.push(error);
+  }
+  if (primaryError !== undefined && cleanupErrors.length > 0) {
+    throw new AggregateError(
+      [primaryError, ...cleanupErrors],
+      'SPACETIMEDB_PUBLISH_AND_SNAPSHOT_CLEANUP_FAILED',
+    );
+  }
+  if (primaryError !== undefined) throw primaryError;
+  if (cleanupErrors.length === 1) throw cleanupErrors[0];
+  if (cleanupErrors.length > 1) {
+    throw new AggregateError(
+      cleanupErrors,
+      'SPACETIMEDB_PUBLISH_SNAPSHOT_CLEANUP_FAILED',
+    );
   }
 }
 
