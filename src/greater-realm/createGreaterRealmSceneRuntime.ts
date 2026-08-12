@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 import { axialToWorld } from '../game/map/hexCoordinates';
 import { createRealmAmbientScheduler, type RealmAmbientScheduler } from '../components/realm/realmAmbientScheduler';
@@ -11,8 +12,12 @@ import {
 } from './greaterRealmPublicContract';
 import {
   createGreaterRealmChunkPresentationPlan,
+  greaterRealmRegionPresentation,
+  type GreaterRealmBoatCellPresentation,
+  type GreaterRealmBoatLanePresentation,
   type GreaterRealmCellAccessPresentation,
   type GreaterRealmChunkPresentationPlan,
+  type GreaterRealmFeaturePresentation,
   type GreaterRealmPresentationActor
 } from './greaterRealmPresentationPlan';
 import {
@@ -57,6 +62,17 @@ export type GreaterRealmSceneTelemetry = Readonly<{
   skippedByBudgetCount: number;
 }>;
 
+export type GreaterRealmLocalVesselState = Readonly<{
+  status: 'unavailable' | 'available' | 'selected' | 'blocked';
+  persisted: false;
+  message: string;
+  cellKey?: string;
+  atlasQ?: number;
+  atlasR?: number;
+}>;
+
+export type GreaterRealmLocalVesselMove = 'forward' | 'backward';
+
 export type GreaterRealmSceneRuntime = Readonly<{
   group: THREE.Group;
   setView: (input: Readonly<{
@@ -75,6 +91,10 @@ export type GreaterRealmSceneRuntime = Readonly<{
     coordinate: GreaterRealmAtlasCoordinate
   ) => GreaterRealmCellAccessPresentation | undefined;
   isCoordinatePassable: (coordinate: GreaterRealmAtlasCoordinate) => boolean;
+  selectLocalVessel: () => GreaterRealmLocalVesselState;
+  moveLocalVessel: (move: GreaterRealmLocalVesselMove) => GreaterRealmLocalVesselState;
+  releaseLocalVessel: () => GreaterRealmLocalVesselState;
+  getLocalVesselState: () => GreaterRealmLocalVesselState;
   getTelemetry: () => GreaterRealmSceneTelemetry;
   dispose: () => void;
 }>;
@@ -83,6 +103,7 @@ export type CreateGreaterRealmSceneRuntimeOptions = Readonly<{
   deviceClass: GreaterRealmDeviceClass;
   graphicsProfile: GreaterRealmGraphicsProfile;
   reducedMotion?: boolean;
+  localVesselOrigin?: GreaterRealmAtlasCoordinate;
   onInvalidate?: () => void;
   /** Host-owned layers reserve from the reviewed total scene ceilings. */
   reservedDrawCalls?: number;
@@ -105,6 +126,12 @@ type ChunkRenderResource = Readonly<{
   dispose: () => void;
 }>;
 
+type LocalVesselResource = Readonly<{
+  mesh: THREE.Mesh;
+  geometry: THREE.BoxGeometry;
+  material: THREE.MeshStandardMaterial;
+}>;
+
 type SelectedChunk = Readonly<{
   signature: string;
   plan: GreaterRealmChunkPresentationPlan;
@@ -114,6 +141,8 @@ type SelectedChunk = Readonly<{
 function finiteDistance(value: number) {
   return Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : Number.MAX_SAFE_INTEGER;
 }
+
+const GREATER_REALM_LOCAL_VESSEL_UPLOAD_BYTES = 840;
 
 function biomeColor(biomeClass: number) {
   if ([6, 7].includes(biomeClass)) return new THREE.Color('#c7d1cf');
@@ -125,6 +154,15 @@ function biomeColor(biomeClass: number) {
   if ([20, 21, 22].includes(biomeClass)) return new THREE.Color('#567d88');
   if (biomeClass === 8) return new THREE.Color('#776c55');
   return new THREE.Color('#647e49');
+}
+
+function terrainColor(cell: GreaterRealmPublicCellDto) {
+  const color = biomeColor(cell.biomeClass);
+  color.lerp(new THREE.Color(greaterRealmRegionPresentation(cell.regionId).color), 0.34);
+  if (cell.coastDistance === 0) color.lerp(new THREE.Color('#b8c6ad'), 0.42);
+  else if (cell.coastDistance <= 2) color.lerp(new THREE.Color('#97ad91'), 0.22);
+  if (cell.wetness >= 8_000) color.lerp(new THREE.Color('#517c70'), 0.18);
+  return color;
 }
 
 function hexTriangles(
@@ -157,7 +195,7 @@ function terrainMesh(plan: GreaterRealmChunkPresentationPlan, cellSize: number) 
   const positions: number[] = [];
   const colors: number[] = [];
   for (const cell of plan.terrainCells) {
-    const color = biomeColor(cell.biomeClass);
+    const color = terrainColor(cell);
     if (plan.apronCoordinateKeys.includes(greaterRealmCoordinateKey(cell))) {
       color.multiplyScalar(0.76);
     }
@@ -272,6 +310,69 @@ function crossingMesh(plan: GreaterRealmChunkPresentationPlan, cellSize: number)
   return mesh;
 }
 
+function featureGeometry(kind: GreaterRealmFeaturePresentation['kind']) {
+  if (kind === 'waystone') return new THREE.ConeGeometry(0.09, 0.34, 5);
+  if (kind === 'lamp-post') {
+    const post = new THREE.CylinderGeometry(0.025, 0.04, 0.42, 6).toNonIndexed();
+    const lamp = new THREE.OctahedronGeometry(0.07, 0).translate(0, 0.22, 0);
+    const merged = mergeGeometries([post, lamp], false);
+    post.dispose();
+    lamp.dispose();
+    if (merged === null) throw new Error('GREATER_REALM_LAMP_GEOMETRY_INVALID');
+    return merged;
+  }
+  if (kind === 'ruin') return new THREE.BoxGeometry(0.24, 0.2, 0.12);
+  const post = new THREE.BoxGeometry(0.055, 0.38, 0.055).toNonIndexed();
+  const board = new THREE.BoxGeometry(0.28, 0.12, 0.06)
+    .translate(0, 0.11, 0)
+    .toNonIndexed();
+  const merged = mergeGeometries([post, board], false);
+  post.dispose();
+  board.dispose();
+  if (merged === null) throw new Error('GREATER_REALM_SIGNPOST_GEOMETRY_INVALID');
+  return merged;
+}
+
+function featureColor(kind: GreaterRealmFeaturePresentation['kind']) {
+  if (kind === 'waystone') return '#91a5a3';
+  if (kind === 'lamp-post') return '#d7b85e';
+  if (kind === 'ruin') return '#746d64';
+  return '#aa8253';
+}
+
+function featureMeshes(plan: GreaterRealmChunkPresentationPlan) {
+  const meshes: THREE.InstancedMesh[] = [];
+  const matrix = new THREE.Matrix4();
+  const quaternion = new THREE.Quaternion();
+  const position = new THREE.Vector3();
+  const scale = new THREE.Vector3(1, 1, 1);
+  const up = new THREE.Vector3(0, 1, 0);
+  for (const kind of ['signpost', 'waystone', 'lamp-post', 'ruin'] as const) {
+    const features = plan.features.filter((feature) => feature.kind === kind);
+    if (features.length === 0) continue;
+    const geometry = featureGeometry(kind);
+    const material = new THREE.MeshStandardMaterial({
+      color: featureColor(kind),
+      emissive: kind === 'lamp-post' ? '#5f4217' : '#000000',
+      emissiveIntensity: kind === 'lamp-post' ? 0.9 : 0,
+      roughness: kind === 'lamp-post' ? 0.55 : 0.9,
+      fog: true
+    });
+    const mesh = new THREE.InstancedMesh(geometry, material, features.length);
+    features.forEach((feature, index) => {
+      position.set(feature.position.x, feature.position.y, feature.position.z);
+      quaternion.setFromAxisAngle(up, feature.headingRadians);
+      matrix.compose(position, quaternion, scale);
+      mesh.setMatrixAt(index, matrix);
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.name = `greater-realm-feature-${kind}:${plan.chunkHandle}`;
+    mesh.raycast = () => {};
+    meshes.push(mesh);
+  }
+  return Object.freeze(meshes);
+}
+
 function resourceColor(kind: GreaterRealmChunkPresentationPlan['resources'][number]['kind']) {
   if (kind === 'food') return '#d6b85c';
   if (kind === 'wood') return '#6d8a50';
@@ -357,33 +458,56 @@ function actorMeshes(plan: GreaterRealmChunkPresentationPlan) {
 function boundaryMesh(plan: GreaterRealmChunkPresentationPlan) {
   if (plan.sealedEdges.length === 0) return undefined;
   const positions: number[] = [];
-  for (const edge of plan.sealedEdges) {
+  const colors: number[] = [];
+  const addFencePanel = (
+    edge: GreaterRealmChunkPresentationPlan['sealedEdges'][number],
+    start: number,
+    end: number,
+    bottom: number,
+    top: number
+  ) => {
+    const fromX = edge.from.x + (edge.to.x - edge.from.x) * start;
+    const fromZ = edge.from.z + (edge.to.z - edge.from.z) * start;
+    const toX = edge.from.x + (edge.to.x - edge.from.x) * end;
+    const toZ = edge.from.z + (edge.to.z - edge.from.z) * end;
+    const baseY = (edge.from.y + edge.to.y) / 2;
     positions.push(
-      edge.from.x, edge.from.y - 0.7, edge.from.z,
-      edge.to.x, edge.to.y - 0.7, edge.to.z,
-      edge.to.x, edge.to.y + 0.48, edge.to.z,
-      edge.from.x, edge.from.y - 0.7, edge.from.z,
-      edge.to.x, edge.to.y + 0.48, edge.to.z,
-      edge.from.x, edge.from.y + 0.48, edge.from.z
+      fromX, baseY + bottom, fromZ,
+      toX, baseY + bottom, toZ,
+      toX, baseY + top, toZ,
+      fromX, baseY + bottom, fromZ,
+      toX, baseY + top, toZ,
+      fromX, baseY + top, fromZ
     );
+    const color = new THREE.Color(edge.kind === 'shoreline' ? '#6fb3bd' : '#b49357');
+    for (let vertex = 0; vertex < 6; vertex += 1) {
+      colors.push(color.r, color.g, color.b);
+    }
+  };
+  for (const edge of plan.sealedEdges) {
+    addFencePanel(edge, 0, 1, 0.12, 0.18);
+    addFencePanel(edge, 0, 1, 0.36, 0.43);
+    addFencePanel(edge, 0, 0.07, 0.02, 0.5);
+    addFencePanel(edge, 0.93, 1, 0.02, 0.5);
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
   const material = new THREE.MeshStandardMaterial({
-    color: '#28343c',
+    vertexColors: true,
     emissive: '#18242c',
-    emissiveIntensity: 0.18,
-    roughness: 1,
+    emissiveIntensity: 0.32,
+    roughness: 0.78,
     transparent: true,
-    opacity: 0.38,
+    opacity: 0.82,
     side: THREE.DoubleSide,
     depthWrite: false,
     fog: true
   });
   const mesh = new THREE.Mesh(geometry, material);
-  mesh.name = `greater-realm-fog-skirt:${plan.chunkHandle}`;
+  mesh.name = `greater-realm-shoreline-fence:${plan.chunkHandle}`;
   mesh.raycast = () => {};
   return mesh;
 }
@@ -414,6 +538,7 @@ function buildChunkResource(selected: SelectedChunk, cellSize: number): ChunkRen
   if (routes) group.add(routes);
   const crossings = crossingMesh(selected.plan, cellSize);
   if (crossings) group.add(crossings);
+  featureMeshes(selected.plan).forEach((mesh) => group.add(mesh));
   const actors = actorMeshes(selected.plan);
   actors.meshes.forEach((mesh) => group.add(mesh));
   resourceMeshes(selected.plan).forEach((mesh) => group.add(mesh));
@@ -438,7 +563,9 @@ function planSignature(plan: GreaterRealmChunkPresentationPlan) {
   return [
     plan.revision, plan.lod, plan.cellSize, plan.drawCallCount, plan.instanceCount,
     plan.terrainCells.length, plan.sealedEdges.length,
-    plan.actors.map((actor) => actor.id).join(',')
+    plan.actors.map((actor) => actor.id).join(','),
+    plan.features.map((feature) => feature.id).join(','),
+    plan.boatLanes.map((lane) => `${lane.fromCoordinateKey}>${lane.toCoordinateKey}`).join(',')
   ].join('|');
 }
 
@@ -460,11 +587,20 @@ export function createGreaterRealmSceneRuntime(
         Math.max(0, options.reservedUploadBytesPerFrame!)
       )
     : 0;
-  const maximumRuntimeDrawCalls = budget.maximumDrawCalls - reservedDrawCalls;
-  const maximumRuntimeSceneInstances = budget.maximumSceneInstances
-    - reservedSceneInstances;
-  const maximumRuntimeUploadBytesPerFrame = budget.maximumUploadBytesPerFrame
-    - reservedUploadBytesPerFrame;
+  const maximumRuntimeDrawCalls = Math.max(
+    0,
+    budget.maximumDrawCalls - reservedDrawCalls - 1
+  );
+  const maximumRuntimeSceneInstances = Math.max(
+    0,
+    budget.maximumSceneInstances - reservedSceneInstances - 1
+  );
+  const maximumRuntimeUploadBytesPerFrame = Math.max(
+    0,
+    budget.maximumUploadBytesPerFrame
+      - reservedUploadBytesPerFrame
+      - GREATER_REALM_LOCAL_VESSEL_UPLOAD_BYTES
+  );
   const group = new THREE.Group();
   group.name = 'greater-realm-runtime';
   let disposed = false;
@@ -476,6 +612,14 @@ export function createGreaterRealmSceneRuntime(
   let pending = new Map<string, SelectedChunk>();
   const uploaded = new Map<string, ChunkRenderResource>();
   const access = new Map<string, GreaterRealmCellAccessPresentation>();
+  let boatCells = new Map<string, GreaterRealmBoatCellPresentation>();
+  let boatLanes: readonly GreaterRealmBoatLanePresentation[] = Object.freeze([]);
+  let localVesselCellKey: string | undefined;
+  let localVesselBlocked = false;
+  let localVesselMessage = 'No returned deep-water lane is available in this view.';
+  let localVesselResource: LocalVesselResource | undefined;
+  let pendingLocalVesselUploadBytes = 0;
+  let viewRevision: bigint | undefined;
   let scheduler: RealmAmbientScheduler | undefined;
   let uploadedThisFrame = 0;
   let uploadBytesThisFrame = 0;
@@ -508,11 +652,92 @@ export function createGreaterRealmSceneRuntime(
     )));
   };
 
+  const localVesselStarts = () => boatLanes.filter((lane) => (
+    boatCells.has(lane.fromCoordinateKey)
+  ));
+  const disposeLocalVesselResource = () => {
+    const resource = localVesselResource;
+    if (resource === undefined) return;
+    localVesselResource = undefined;
+    group.remove(resource.mesh);
+    resource.geometry.dispose();
+    resource.material.dispose();
+  };
+  const localVesselState = (): GreaterRealmLocalVesselState => {
+    const cell = localVesselCellKey === undefined
+      ? undefined
+      : boatCells.get(localVesselCellKey);
+    if (cell !== undefined) return Object.freeze({
+      status: localVesselBlocked ? 'blocked' : 'selected',
+      persisted: false,
+      message: localVesselMessage,
+      cellKey: cell.cellKey,
+      atlasQ: cell.atlasQ,
+      atlasR: cell.atlasR
+    });
+    if (localVesselStarts().length > 0) return Object.freeze({
+      status: 'available',
+      persisted: false,
+      message: 'A local vessel is available. Take the helm to begin a presentation-only preview.'
+    });
+    return Object.freeze({
+      status: 'unavailable',
+      persisted: false,
+      message: 'No returned deep-water lane is available in this view.'
+    });
+  };
+  const syncLocalVesselMesh = () => {
+    const cell = localVesselCellKey === undefined
+      ? undefined
+      : boatCells.get(localVesselCellKey);
+    if (cell === undefined || contextLost || disposed) {
+      disposeLocalVesselResource();
+      return;
+    }
+    if (localVesselResource === undefined) {
+      const geometry = new THREE.BoxGeometry(0.34, 0.09, 0.14);
+      const material = new THREE.MeshStandardMaterial({
+        color: '#c08a4e',
+        emissive: '#422815',
+        emissiveIntensity: 0.2,
+        roughness: 0.72,
+        fog: true
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.name = 'greater-realm-local-player-vessel';
+      mesh.userData.greaterRealmPresentationOnly = true;
+      mesh.raycast = () => {};
+      localVesselResource = Object.freeze({ mesh, geometry, material });
+      group.add(mesh);
+      pendingLocalVesselUploadBytes = GREATER_REALM_LOCAL_VESSEL_UPLOAD_BYTES;
+    }
+    const lane = boatLanes.find((entry) => entry.fromCoordinateKey === cell.coordinateKey)
+      ?? boatLanes.find((entry) => entry.toCoordinateKey === cell.coordinateKey);
+    localVesselResource.mesh.position.set(
+      cell.position.x,
+      cell.position.y,
+      cell.position.z
+    );
+    localVesselResource.mesh.rotation.set(0, lane?.headingRadians ?? 0, 0);
+    localVesselResource.mesh.updateMatrix();
+  };
+  const releaseLocalVessel = () => {
+    localVesselCellKey = undefined;
+    localVesselBlocked = false;
+    localVesselMessage = 'Local helm released. No movement was sent to the server.';
+    pendingLocalVesselUploadBytes = 0;
+    disposeLocalVesselResource();
+    options.onInvalidate?.();
+    return localVesselState();
+  };
+
   const handleContextLost = (event: Event) => {
     event.preventDefault();
     if (disposed || contextLost) return;
     contextLost = true;
     for (const handle of [...uploaded.keys()]) removeUploaded(handle);
+    disposeLocalVesselResource();
+    pendingLocalVesselUploadBytes = 0;
     queueAllSelected();
     syncScheduler();
     options.onInvalidate?.();
@@ -521,6 +746,7 @@ export function createGreaterRealmSceneRuntime(
     if (disposed || !contextLost) return;
     contextLost = false;
     queueAllSelected();
+    syncLocalVesselMesh();
     syncScheduler();
     options.onInvalidate?.();
   };
@@ -537,6 +763,7 @@ export function createGreaterRealmSceneRuntime(
     if (!disposed && contextLost && boundCanvas !== null) {
       contextLost = false;
       queueAllSelected();
+      syncLocalVesselMesh();
       syncScheduler();
       options.onInvalidate?.();
     }
@@ -554,8 +781,10 @@ export function createGreaterRealmSceneRuntime(
       selectedChunkCount: selected.size,
       uploadedChunkCount: uploaded.size,
       pendingUploadCount: pending.size,
-      drawCallCount: plans.reduce((total, plan) => total + plan.drawCallCount, 0),
-      instanceCount: plans.reduce((total, plan) => total + plan.instanceCount, 0),
+      drawCallCount: plans.reduce((total, plan) => total + plan.drawCallCount, 0)
+        + Number(localVesselResource !== undefined),
+      instanceCount: plans.reduce((total, plan) => total + plan.instanceCount, 0)
+        + Number(localVesselResource !== undefined),
       accessCellCount: access.size,
       blockedCellCount: plans.reduce((total, plan) => total + plan.blockedCoordinateKeys.length, 0),
       canopyCount: actors.filter((actor) => actor.kind === 'canopy').length,
@@ -566,7 +795,7 @@ export function createGreaterRealmSceneRuntime(
       flowerGeometryBytes: plans.reduce((total, plan) => total + plan.flowerGeometryBytes, 0),
       npcCount: actors.filter((actor) => actor.kind === 'npc').length,
       wildlifeCount: actors.filter((actor) => actor.kind === 'wildlife').length,
-      boatCount: actors.filter((actor) => actor.kind === 'boat').length,
+      boatCount: Number(localVesselResource !== undefined),
       resourceCount: plans.reduce((total, plan) => total + plan.resources.length, 0),
       uploadedThisFrame,
       uploadBytesThisFrame,
@@ -643,6 +872,9 @@ export function createGreaterRealmSceneRuntime(
       if (typeof input.revision !== 'bigint' || input.revision <= 0n) {
         throw new Error('GREATER_REALM_SCENE_REVISION_INVALID');
       }
+      const revisionChanged = viewRevision !== undefined
+        && viewRevision !== input.revision;
+      viewRevision = input.revision;
       cellSize = Number.isFinite(input.cellSize) && input.cellSize > 0 ? input.cellSize : 1;
       const ordered = [...input.chunks].sort((left, right) => (
         finiteDistance(left.distanceChunks) - finiteDistance(right.distanceChunks)
@@ -761,20 +993,43 @@ export function createGreaterRealmSceneRuntime(
       for (const row of selected.values()) {
         for (const cell of row.plan.cellAccess) access.set(cell.coordinateKey, cell);
       }
+      boatCells = new Map();
+      boatLanes = Object.freeze([...selected.values()].flatMap((row) => {
+        for (const cell of row.plan.boatCells) {
+          if (!boatCells.has(cell.coordinateKey)) boatCells.set(cell.coordinateKey, cell);
+        }
+        return row.plan.boatLanes;
+      }));
+      if (
+        revisionChanged
+        || (localVesselCellKey !== undefined && !boatCells.has(localVesselCellKey))
+      ) {
+        localVesselCellKey = undefined;
+        localVesselBlocked = false;
+        localVesselMessage = revisionChanged
+          ? 'The atlas revision changed; the local helm preview was cleared.'
+          : 'The local vessel left the returned view; the helm preview was cleared.';
+        pendingLocalVesselUploadBytes = 0;
+        disposeLocalVesselResource();
+      } else {
+        syncLocalVesselMesh();
+      }
       queueAllSelected();
       options.onInvalidate?.();
     },
     flushUploads: () => {
       uploadedThisFrame = 0;
-      uploadBytesThisFrame = 0;
+      uploadBytesThisFrame = pendingLocalVesselUploadBytes;
+      pendingLocalVesselUploadBytes = 0;
       if (disposed || contextLost) return 0;
+      let chunkUploadBytesThisFrame = 0;
       const rows = [...pending.values()].sort((left, right) => (
         left.priority - right.priority || left.plan.chunkHandle.localeCompare(right.plan.chunkHandle)
       ));
       for (const row of rows) {
         if (uploadedThisFrame >= budget.maximumUploadsPerFrame) break;
         if (
-          uploadBytesThisFrame + row.plan.estimatedUploadBytes
+          chunkUploadBytesThisFrame + row.plan.estimatedUploadBytes
             > maximumRuntimeUploadBytesPerFrame
         ) {
           break;
@@ -789,6 +1044,7 @@ export function createGreaterRealmSceneRuntime(
         group.add(resource.group);
         pending.delete(row.plan.chunkHandle);
         uploadedThisFrame += 1;
+        chunkUploadBytesThisFrame += row.plan.estimatedUploadBytes;
         uploadBytesThisFrame += row.plan.estimatedUploadBytes;
       }
       if (pending.size > 0) options.onInvalidate?.();
@@ -830,6 +1086,72 @@ export function createGreaterRealmSceneRuntime(
     isCoordinatePassable: (coordinate) => (
       access.get(greaterRealmCoordinateKey(coordinate))?.passable === true
     ),
+    selectLocalVessel: () => {
+      if (disposed || localVesselCellKey !== undefined) return localVesselState();
+      const origin = options.localVesselOrigin;
+      const starts = localVesselStarts().sort((left, right) => {
+        if (origin === undefined) {
+          return left.fromCoordinateKey.localeCompare(right.fromCoordinateKey);
+        }
+        const leftCell = boatCells.get(left.fromCoordinateKey)!;
+        const rightCell = boatCells.get(right.fromCoordinateKey)!;
+        const leftDistance = Math.abs(leftCell.atlasQ - origin.atlasQ)
+          + Math.abs(leftCell.atlasR - origin.atlasR);
+        const rightDistance = Math.abs(rightCell.atlasQ - origin.atlasQ)
+          + Math.abs(rightCell.atlasR - origin.atlasR);
+        return leftDistance - rightDistance
+          || left.fromCoordinateKey.localeCompare(right.fromCoordinateKey);
+      });
+      const start = starts[0];
+      if (start === undefined) return localVesselState();
+      localVesselCellKey = start.fromCoordinateKey;
+      localVesselBlocked = false;
+      localVesselMessage = 'Local helm engaged. This vessel preview is not saved to the server.';
+      syncLocalVesselMesh();
+      options.onInvalidate?.();
+      return localVesselState();
+    },
+    moveLocalVessel: (move) => {
+      if (disposed || localVesselCellKey === undefined) return localVesselState();
+      const currentKey = localVesselCellKey;
+      const candidates = boatLanes.filter((lane) => (
+        move === 'forward'
+          ? lane.fromCoordinateKey === currentKey
+          : lane.toCoordinateKey === currentKey
+      )).sort((left, right) => (
+        left.fromCoordinateKey.localeCompare(right.fromCoordinateKey)
+        || left.toCoordinateKey.localeCompare(right.toCoordinateKey)
+      ));
+      const lane = candidates.find((candidate) => {
+        const from = boatCells.get(candidate.fromCoordinateKey);
+        const to = boatCells.get(candidate.toCoordinateKey);
+        return from !== undefined
+          && to !== undefined
+          && (
+            from.hydroBodyId === undefined
+            || to.hydroBodyId === undefined
+            || from.hydroBodyId === to.hydroBodyId
+          );
+      });
+      if (lane === undefined) {
+        localVesselBlocked = true;
+        localVesselMessage = move === 'forward'
+          ? 'Blocked: the next public deep-water lane cell is not returned in this view.'
+          : 'Blocked: no returned public deep-water lane leads back from this cell.';
+        options.onInvalidate?.();
+        return localVesselState();
+      }
+      localVesselCellKey = move === 'forward'
+        ? lane.toCoordinateKey
+        : lane.fromCoordinateKey;
+      localVesselBlocked = false;
+      localVesselMessage = 'Local vessel preview moved on returned public water data; no server state changed.';
+      syncLocalVesselMesh();
+      options.onInvalidate?.();
+      return localVesselState();
+    },
+    releaseLocalVessel,
+    getLocalVesselState: localVesselState,
     getTelemetry: telemetry,
     dispose: () => {
       if (disposed) return;
@@ -841,6 +1163,10 @@ export function createGreaterRealmSceneRuntime(
       selected.clear();
       pending.clear();
       access.clear();
+      boatCells.clear();
+      boatLanes = Object.freeze([]);
+      pendingLocalVesselUploadBytes = 0;
+      disposeLocalVesselResource();
       group.clear();
     }
   });

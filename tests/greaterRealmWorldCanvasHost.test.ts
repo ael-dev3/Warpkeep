@@ -3,13 +3,18 @@ import * as THREE from 'three';
 
 import {
   createGreaterRealmWorldCanvasHost,
-  GREATER_REALM_CASTLE_UPLOAD_RESERVE_BYTES
+  GREATER_REALM_CASTLE_UPLOAD_RESERVE_BYTES,
+  GREATER_REALM_HOST_DRAW_CALL_RESERVE,
+  GREATER_REALM_HOST_INSTANCE_RESERVE,
+  GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES
 } from '../src/components/realm/createGreaterRealmWorldCanvasHost';
 import { resolveGreaterRealmWorldViewPolicy } from '../src/components/realm/greaterRealmWorldViewPolicy';
 import { GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE } from '../src/dev/greaterRealmSyntheticTierOneFixture';
 import type { GreaterRealmSceneTelemetry } from '../src/greater-realm/createGreaterRealmSceneRuntime';
 import type { GreaterRealmClientSnapshot } from '../src/greater-realm/greaterRealmClientRuntime';
 import { GREATER_REALM_GRAPHICS_BUDGETS } from '../src/greater-realm/greaterRealmRuntimePolicy';
+
+const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
 const EMPTY_TELEMETRY: GreaterRealmSceneTelemetry = Object.freeze({
   disposed: false,
@@ -41,6 +46,21 @@ const EMPTY_TELEMETRY: GreaterRealmSceneTelemetry = Object.freeze({
   skippedByBudgetCount: 0
 });
 
+const UNAVAILABLE_VESSEL = Object.freeze({
+  status: 'unavailable' as const,
+  persisted: false as const,
+  message: 'No returned deep-water lane is available in this view.'
+});
+
+function vesselRuntimeMethods() {
+  return {
+    selectLocalVessel: vi.fn(() => UNAVAILABLE_VESSEL),
+    moveLocalVessel: vi.fn(() => UNAVAILABLE_VESSEL),
+    releaseLocalVessel: vi.fn(() => UNAVAILABLE_VESSEL),
+    getLocalVesselState: vi.fn(() => UNAVAILABLE_VESSEL)
+  };
+}
+
 function readySnapshot() {
   return {
     phase: 'ready',
@@ -56,6 +76,9 @@ function readySnapshot() {
       distanceChunks: index
     })),
     selectedChunkCount: GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks.length,
+    resourceLocationPhase: 'ready',
+    resourceLocations: GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.resourceLocations,
+    resourceLocationsTruncated: false,
     stream: {}
   } as unknown as GreaterRealmClientSnapshot;
 }
@@ -164,6 +187,7 @@ describe('Greater Realm world canvas host', () => {
         bindCanvas: vi.fn(),
         getCellAccess: vi.fn(),
         isCoordinatePassable: vi.fn(() => false),
+        ...vesselRuntimeMethods(),
         getTelemetry: vi.fn(() => EMPTY_TELEMETRY),
         dispose: vi.fn()
       };
@@ -236,6 +260,7 @@ describe('Greater Realm world canvas host', () => {
       bindCanvas: vi.fn(),
       getCellAccess: vi.fn(),
       isCoordinatePassable: vi.fn(() => false),
+      ...vesselRuntimeMethods(),
       getTelemetry: vi.fn(() => EMPTY_TELEMETRY),
       dispose: vi.fn()
     };
@@ -329,6 +354,7 @@ describe('Greater Realm world canvas host', () => {
       bindCanvas,
       getCellAccess: vi.fn(),
       isCoordinatePassable: vi.fn(() => false),
+      ...vesselRuntimeMethods(),
       getTelemetry: vi.fn(() => currentTelemetry),
       dispose: disposeRuntime
     };
@@ -367,6 +393,10 @@ describe('Greater Realm world canvas host', () => {
     host!.applySnapshot(readySnapshot());
     host!.applySnapshot(readySnapshot());
     expect(host!.getTelemetry().publicCastleCount).toBe(2);
+    expect(host!.getTelemetry()).toMatchObject({
+      publicResourceCount: 4,
+      visibleRegionCount: 1
+    });
     expect(setView).toHaveBeenCalledOnce();
     expect(setView).toHaveBeenCalledWith(expect.objectContaining({
       revision: GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.bootstrap.revision,
@@ -382,6 +412,11 @@ describe('Greater Realm world canvas host', () => {
       'greater-realm-public-castle-instances'
     ) as THREE.InstancedMesh;
     expect(castleInstances.count).toBe(2);
+    expect(renderedScene.getObjectByName(
+      'greater-realm-visible-region-landmark-instances'
+    )).toBeDefined();
+    expect(renderedScene.getObjectByName('greater-realm-public-resource-gold'))
+      .toBeDefined();
     const ownMatrix = new THREE.Matrix4();
     const ownPosition = new THREE.Vector3();
     castleInstances.getMatrixAt(0, ownMatrix);
@@ -488,6 +523,7 @@ describe('Greater Realm world canvas host', () => {
       bindCanvas: vi.fn(),
       getCellAccess: vi.fn(),
       isCoordinatePassable: vi.fn(() => false),
+      ...vesselRuntimeMethods(),
       getTelemetry: vi.fn(() => EMPTY_TELEMETRY),
       dispose: vi.fn()
     };
@@ -558,9 +594,10 @@ describe('Greater Realm world canvas host', () => {
     expect(rendererFactory).toHaveBeenCalledOnce();
     expect(runtimeFactory).toHaveBeenCalledOnce();
     expect(runtimeFactory).toHaveBeenCalledWith(expect.objectContaining({
-      reservedDrawCalls: 1,
-      reservedSceneInstances: 600,
-      reservedUploadBytesPerFrame: GREATER_REALM_CASTLE_UPLOAD_RESERVE_BYTES
+      reservedDrawCalls: GREATER_REALM_HOST_DRAW_CALL_RESERVE,
+      reservedSceneInstances: GREATER_REALM_HOST_INSTANCE_RESERVE,
+      reservedUploadBytesPerFrame: GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES,
+      localVesselOrigin: { atlasQ: -2, atlasR: 1 }
     }));
     flushFrames(32);
     const secondMesh = scene.getObjectByName(
@@ -595,13 +632,27 @@ describe('Greater Realm world canvas host', () => {
       level: 1,
       elevation: index
     }));
+    capacity.resourceLocationPhase = 'ready';
+    capacity.resourceLocations = Array.from({ length: 128 }, (_, index) => ({
+      chunkHandle: selectedHandle,
+      locationId: `GRL-${BASE32[index % BASE32.length]!.repeat(25)}${
+        BASE32[Math.trunc(index / BASE32.length)]!
+      }`,
+      atlasQ: index,
+      atlasR: 1,
+      resourceKind: (['food', 'wood', 'stone', 'gold'] as const)[index % 4],
+      nodeCount: index % 7 + 1
+    }));
     host.applySnapshot(capacity);
     flushFrames(64);
     const capacityTelemetry = onTelemetry.mock.calls.at(-1)![0];
     const budget = GREATER_REALM_GRAPHICS_BUDGETS.balanced;
     expect(capacityTelemetry.publicCastleCount).toBe(600);
+    expect(capacityTelemetry.publicResourceCount).toBe(128);
     expect(capacityTelemetry.publicCastleUploadBytesThisFrame)
       .toBeLessThanOrEqual(GREATER_REALM_CASTLE_UPLOAD_RESERVE_BYTES);
+    expect(capacityTelemetry.hostUploadBytesThisFrame)
+      .toBeLessThanOrEqual(GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES);
     expect(capacityTelemetry.scene.drawCallCount).toBeLessThanOrEqual(
       budget.maximumDrawCalls
     );
@@ -612,5 +663,129 @@ describe('Greater Realm world canvas host', () => {
       budget.maximumUploadBytesPerFrame
     );
     host.dispose();
+  });
+
+  it('provides keyboard/button controls, selection, local helm feedback, and listener cleanup', () => {
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600,
+      x: 0, y: 0, toJSON: () => ({})
+    } as DOMRect);
+    const frames = new Map<number, FrameRequestCallback>();
+    let frameId = 0;
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frameId += 1;
+      frames.set(frameId, callback);
+      return frameId;
+    });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+      frames.delete(id);
+    });
+    const selectedVessel = Object.freeze({
+      status: 'selected' as const,
+      persisted: false as const,
+      message: 'Local helm engaged. This vessel preview is not saved to the server.',
+      cellKey: 'public-water-cell',
+      atlasQ: 0,
+      atlasR: 0
+    });
+    const blockedVessel = Object.freeze({
+      ...selectedVessel,
+      status: 'blocked' as const,
+      message: 'Blocked: the next public deep-water lane cell is not returned in this view.'
+    });
+    const selectLocalVessel = vi.fn(() => selectedVessel);
+    const moveLocalVessel = vi.fn(() => blockedVessel);
+    const runtime = {
+      group: new THREE.Group(),
+      setView: vi.fn(),
+      flushUploads: vi.fn(() => 0),
+      update: vi.fn(() => false),
+      startAnimation: vi.fn(),
+      stopAnimation: vi.fn(),
+      setReducedMotion: vi.fn(),
+      setDocumentVisible: vi.fn(),
+      bindCanvas: vi.fn(),
+      getCellAccess: vi.fn(),
+      isCoordinatePassable: vi.fn(() => false),
+      selectLocalVessel,
+      moveLocalVessel,
+      releaseLocalVessel: vi.fn(() => UNAVAILABLE_VESSEL),
+      getLocalVesselState: vi.fn(() => UNAVAILABLE_VESSEL),
+      getTelemetry: vi.fn(() => EMPTY_TELEMETRY),
+      dispose: vi.fn()
+    };
+    const renderer = {
+      setPixelRatio: vi.fn(),
+      setSize: vi.fn(),
+      render: vi.fn(),
+      dispose: vi.fn()
+    };
+    const onSelectionChange = vi.fn();
+    const onLocalVesselStateChange = vi.fn();
+    const removeCanvasListener = vi.spyOn(canvas, 'removeEventListener');
+    const removeWindowListener = vi.spyOn(window, 'removeEventListener');
+    const host = createGreaterRealmWorldCanvasHost({
+      canvas,
+      atlasQ: -2,
+      atlasR: 1,
+      ownCastleId: 1,
+      policy: resolveGreaterRealmWorldViewPolicy({
+        atlasQ: -2,
+        atlasR: 1,
+        viewportWidth: 1_440,
+        coarsePointer: false,
+        farcasterMiniApp: false,
+        resolvedGraphicsQuality: 'balanced',
+        reducedMotion: true
+      }),
+      rendererFactory: () => renderer,
+      sceneRuntimeFactory: () => runtime,
+      onSelectionChange,
+      onLocalVesselStateChange
+    })!;
+    const flush = (time: number) => {
+      for (const [id, callback] of [...frames]) {
+        frames.delete(id);
+        callback(time);
+      }
+    };
+    flush(1);
+    host.applySnapshot(readySnapshot());
+    flush(2);
+    const scene = renderer.render.mock.calls.at(-1)![0] as THREE.Scene;
+    const camera = renderer.render.mock.calls.at(-1)![1] as THREE.PerspectiveCamera;
+    expect(camera.userData.greaterRealmReducedMotion).toBe(true);
+    const before = camera.position.clone();
+
+    const keyEvent = new KeyboardEvent('keydown', {
+      key: 'ArrowUp', bubbles: true, cancelable: true
+    });
+    canvas.dispatchEvent(keyEvent);
+    expect(keyEvent.defaultPrevented).toBe(true);
+    flush(3);
+    expect(camera.position.equals(before)).toBe(false);
+    host.control({ kind: 'select-next' });
+    expect(onSelectionChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      kind: 'region',
+      label: 'The Hegemony Lowlands'
+    }));
+    host.control({ kind: 'take-helm' });
+    expect(selectLocalVessel).toHaveBeenCalledOnce();
+    expect(onLocalVesselStateChange).toHaveBeenLastCalledWith(selectedVessel);
+    host.control({ kind: 'move-vessel', direction: 'forward' });
+    expect(moveLocalVessel).toHaveBeenCalledWith('forward');
+    expect(onLocalVesselStateChange).toHaveBeenLastCalledWith(blockedVessel);
+    expect(scene.getObjectByName('greater-realm-public-resource-wood')).toBeDefined();
+
+    host.dispose();
+    expect(removeCanvasListener).toHaveBeenCalledWith('pointerdown', expect.any(Function));
+    expect(removeCanvasListener).toHaveBeenCalledWith('wheel', expect.any(Function));
+    expect(removeCanvasListener).toHaveBeenCalledWith('keydown', expect.any(Function));
+    expect(removeWindowListener).toHaveBeenCalledWith('pointermove', expect.any(Function));
+    expect(removeWindowListener).toHaveBeenCalledWith('pointerup', expect.any(Function));
+    expect(removeWindowListener).toHaveBeenCalledWith('pointercancel', expect.any(Function));
+    expect(frames.size).toBe(0);
   });
 });

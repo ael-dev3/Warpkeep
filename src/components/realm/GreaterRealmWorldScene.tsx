@@ -11,16 +11,19 @@ import {
   type GreaterRealmClientPhase,
   type GreaterRealmClientSnapshot
 } from '../../greater-realm/greaterRealmClientRuntime';
+import type { GreaterRealmLocalVesselState } from '../../greater-realm/createGreaterRealmSceneRuntime';
 import type {
   GreaterRealmResourceLocationSummaryDto
 } from '../../greater-realm/greaterRealmPublicContract';
+import { greaterRealmRegionPresentation } from '../../greater-realm/greaterRealmPresentationPlan';
 import { useMiniAppHost } from '../../farcaster/miniapp';
 import type { GraphicsQualityTier } from '../../settings/graphicsPreference';
 import type { AvailableGreaterRealmProviderBridge } from '../../spacetime/greaterRealmProviderBridge';
 import { useReducedMotionPreference } from './realmMapPresentationHelpers';
 import {
   createGreaterRealmWorldCanvasHost,
-  type GreaterRealmWorldCanvasHost
+  type GreaterRealmWorldCanvasHost,
+  type GreaterRealmWorldSelection
 } from './createGreaterRealmWorldCanvasHost';
 import {
   isCurrentGreaterRealmSceneSnapshot
@@ -57,6 +60,12 @@ type GreaterRealmResourceSelection = Readonly<{
   revision: bigint;
   source: readonly GreaterRealmResourceLocationSummaryDto[];
 }>;
+
+const INITIAL_LOCAL_VESSEL_STATE: GreaterRealmLocalVesselState = Object.freeze({
+  status: 'unavailable',
+  persisted: false,
+  message: 'No returned deep-water lane is available in this view.'
+});
 
 function readBrowserPresentation(): BrowserPresentation {
   if (typeof window === 'undefined') {
@@ -114,6 +123,10 @@ export function GreaterRealmWorldScene({
   const [snapshot, setSnapshot] = useState<GreaterRealmClientSnapshot>();
   const [commandSnapshot, setCommandSnapshot] = useState<GreaterRealmClientSnapshot>();
   const [renderer, setRenderer] = useState<'loading' | 'webgl' | 'unavailable'>('loading');
+  const [worldSelection, setWorldSelection] = useState<GreaterRealmWorldSelection>();
+  const [localVesselState, setLocalVesselState] = useState<GreaterRealmLocalVesselState>(
+    INITIAL_LOCAL_VESSEL_STATE
+  );
   const [resourceSelection, setResourceSelection] =
     useState<GreaterRealmResourceSelection>();
   const [pendingWorkerId, setPendingWorkerId] = useState<string>();
@@ -193,6 +206,12 @@ export function GreaterRealmWorldScene({
     () => boundedPublicResources(publicResourceSource),
     [publicResourceSource]
   );
+  const visibleRegionIds = useMemo(() => new Set(
+    snapshotCurrent?.chunks.flatMap(({ chunk }) => (
+      [...chunk.coreCells, ...chunk.apronCells].map((cell) => cell.regionId)
+    )) ?? []
+  ), [snapshotCurrent?.chunks]);
+  const tierOneRegions = snapshotCurrent?.bootstrap?.regions ?? Object.freeze([]);
   const resourceAtlasId = snapshotCurrent?.bootstrap?.atlasId;
   const resourceRevision = snapshotCurrent?.bootstrap?.revision;
   const selectedLocation = publicResources.find(
@@ -273,6 +292,8 @@ export function GreaterRealmWorldScene({
     const canvas = canvasRef.current;
     if (canvas === null) return undefined;
     setRenderer('loading');
+    setWorldSelection(undefined);
+    setLocalVesselState(INITIAL_LOCAL_VESSEL_STATE);
     const host = createGreaterRealmWorldCanvasHost({
       canvas,
       atlasQ: ownCastle.q,
@@ -293,7 +314,11 @@ export function GreaterRealmWorldScene({
         canvas.dataset.greaterRealmNpcs = String(telemetry.scene.npcCount);
         canvas.dataset.greaterRealmWildlife = String(telemetry.scene.wildlifeCount);
         canvas.dataset.greaterRealmBoats = String(telemetry.scene.boatCount);
+        canvas.dataset.greaterRealmPublicResources = String(telemetry.publicResourceCount);
+        canvas.dataset.greaterRealmVisibleRegions = String(telemetry.visibleRegionCount);
       },
+      onSelectionChange: setWorldSelection,
+      onLocalVesselStateChange: setLocalVesselState,
       onFailure: () => setRenderer('unavailable')
     });
     canvasHostRef.current = host;
@@ -469,10 +494,150 @@ export function GreaterRealmWorldScene({
       <canvas
         ref={canvasRef}
         className="greater-realm-world__canvas"
-        role="img"
-        aria-label="Greater Realm public atlas"
+        role="application"
+        tabIndex={0}
+        aria-label="Interactive Greater Realm public atlas"
+        aria-describedby="greater-realm-world-help greater-realm-world-status"
         data-testid="greater-realm-world-canvas"
       />
+      <div className="greater-realm-world__controls" aria-label="Greater Realm view controls">
+        <span id="greater-realm-world-help" className="greater-realm-world__control-help">
+          Drag to pan, Shift-drag or right-drag to orbit, and pinch or scroll to zoom.
+          Keyboard: arrows or WASD, Q/E, plus/minus, Enter to select.
+        </span>
+        <div className="greater-realm-world__control-row" role="group" aria-label="Pan map">
+          {([
+            ['north', 'PAN NORTH', '↑'],
+            ['west', 'PAN WEST', '←'],
+            ['south', 'PAN SOUTH', '↓'],
+            ['east', 'PAN EAST', '→']
+          ] as const).map(([direction, label, glyph]) => (
+            <button
+              key={direction}
+              type="button"
+              aria-label={label}
+              disabled={renderer !== 'webgl'}
+              onClick={() => canvasHostRef.current?.control({ kind: 'pan', direction })}
+            >
+              {glyph}
+            </button>
+          ))}
+        </div>
+        <div className="greater-realm-world__control-row" role="group" aria-label="Orbit and zoom map">
+          <button
+            type="button"
+            aria-label="ORBIT COUNTERCLOCKWISE"
+            disabled={renderer !== 'webgl'}
+            onClick={() => canvasHostRef.current?.control({
+              kind: 'orbit', direction: 'counterclockwise'
+            })}
+          >↶</button>
+          <button
+            type="button"
+            aria-label="ZOOM OUT"
+            disabled={renderer !== 'webgl'}
+            onClick={() => canvasHostRef.current?.control({ kind: 'zoom', direction: 'out' })}
+          >−</button>
+          <button
+            type="button"
+            aria-label="ZOOM IN"
+            disabled={renderer !== 'webgl'}
+            onClick={() => canvasHostRef.current?.control({ kind: 'zoom', direction: 'in' })}
+          >+</button>
+          <button
+            type="button"
+            aria-label="ORBIT CLOCKWISE"
+            disabled={renderer !== 'webgl'}
+            onClick={() => canvasHostRef.current?.control({
+              kind: 'orbit', direction: 'clockwise'
+            })}
+          >↷</button>
+          <button
+            type="button"
+            disabled={renderer !== 'webgl'}
+            onClick={() => canvasHostRef.current?.control({ kind: 'reset' })}
+          >RESET VIEW</button>
+          <button
+            type="button"
+            disabled={renderer !== 'webgl'}
+            onClick={() => canvasHostRef.current?.control({ kind: 'select-next' })}
+          >SELECT NEXT</button>
+        </div>
+        <div className="greater-realm-world__helm" aria-label="Local vessel controls">
+          <strong>Local vessel preview</strong>
+          <span>Presentation only · movement is not saved to the server.</span>
+          <div className="greater-realm-world__control-row">
+            <button
+              type="button"
+              disabled={renderer !== 'webgl' || localVesselState.status !== 'available'}
+              onClick={() => canvasHostRef.current?.control({ kind: 'take-helm' })}
+            >TAKE HELM</button>
+            <button
+              type="button"
+              disabled={
+                renderer !== 'webgl'
+                || (localVesselState.status !== 'selected'
+                  && localVesselState.status !== 'blocked')
+              }
+              onClick={() => canvasHostRef.current?.control({
+                kind: 'move-vessel', direction: 'backward'
+              })}
+            >AGAINST FLOW</button>
+            <button
+              type="button"
+              disabled={
+                renderer !== 'webgl'
+                || (localVesselState.status !== 'selected'
+                  && localVesselState.status !== 'blocked')
+              }
+              onClick={() => canvasHostRef.current?.control({
+                kind: 'move-vessel', direction: 'forward'
+              })}
+            >WITH FLOW</button>
+            <button
+              type="button"
+              disabled={
+                localVesselState.status !== 'selected'
+                && localVesselState.status !== 'blocked'
+              }
+              onClick={() => canvasHostRef.current?.control({ kind: 'release-helm' })}
+            >RELEASE HELM</button>
+          </div>
+        </div>
+        <span
+          id="greater-realm-world-status"
+          className="greater-realm-world__control-status"
+          role="status"
+          aria-live="polite"
+        >
+          {localVesselState.status === 'blocked'
+            ? localVesselState.message
+            : worldSelection === undefined
+              ? localVesselState.message
+              : `${worldSelection.label} at ${worldSelection.atlasQ}, ${worldSelection.atlasR}`}
+        </span>
+      </div>
+      {tierOneRegions.length === 0 ? null : (
+        <aside className="greater-realm-world__zone-legend" aria-label="Tier I zones">
+          <strong>Tier I zones</strong>
+          <ol>
+            {tierOneRegions.map((region) => {
+              const palette = greaterRealmRegionPresentation(region.regionId);
+              const visible = visibleRegionIds.has(region.regionId);
+              return (
+                <li
+                  key={region.regionId}
+                  data-visible={visible}
+                  style={{ borderInlineStartColor: palette.color }}
+                >
+                  <span>{region.publicName}</span>
+                  <small>{visible ? 'IN VIEW' : 'BEYOND VIEW'}</small>
+                </li>
+              );
+            })}
+          </ol>
+        </aside>
+      )}
       {publicResources.length === 0 && activeWorkers.length === 0 ? null : (
         <aside
           className="greater-realm-world__resources"

@@ -11,10 +11,20 @@ import {
   decodeGreaterRealmChunkDto,
   greaterRealmCoordinateKey
 } from '../src/greater-realm/greaterRealmPublicContract';
-import { createGreaterRealmChunkPresentationPlan } from '../src/greater-realm/greaterRealmPresentationPlan';
+import {
+  GREATER_REALM_TIER_ONE_REGION_PRESENTATION,
+  createGreaterRealmChunkPresentationPlan
+} from '../src/greater-realm/greaterRealmPresentationPlan';
 import { GREATER_REALM_GRAPHICS_BUDGETS } from '../src/greater-realm/greaterRealmRuntimePolicy';
 
 describe('Greater Realm presentation plan', () => {
+  it('assigns a distinct public presentation palette to every Tier-I zone', () => {
+    const rows = Object.values(GREATER_REALM_TIER_ONE_REGION_PRESENTATION);
+    expect(rows).toHaveLength(6);
+    expect(new Set(rows.map((row) => row.color)).size).toBe(6);
+    expect(new Set(rows.map((row) => row.accent)).size).toBe(6);
+  });
+
   it('derives deterministic living-world visuals only from returned public rows', () => {
     const chunk = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[0];
     const input = { chunk, graphicsProfile: 'high' as const, cellSize: 1 };
@@ -26,10 +36,14 @@ describe('Greater Realm presentation plan', () => {
     expect(first.routeSegments.some((segment) => segment.kind === 'road')).toBe(true);
     expect(first.routeSegments.some((segment) => segment.kind === 'river')).toBe(true);
     expect(first.routeSegments.some((segment) => segment.kind === 'boat-lane')).toBe(true);
+    expect(first.boatLanes.length).toBeGreaterThan(0);
+    expect(first.boatCells.length).toBeGreaterThan(0);
     expect(first.crossings.some((crossing) => crossing.kind === 'bridge')).toBe(true);
-    expect(first.actors.some((actor) => actor.kind === 'boat')).toBe(true);
+    expect(first.actors.some((actor) => actor.kind === 'boat')).toBe(false);
     expect(first.actors.some((actor) => actor.kind === 'canopy')).toBe(true);
     expect(first.actors.some((actor) => actor.kind === 'grass')).toBe(true);
+    expect(first.features.some((feature) => feature.kind === 'waystone')).toBe(true);
+    expect(first.features.some((feature) => feature.kind === 'signpost')).toBe(true);
     expect(chunk.resourceLocations).toEqual([]);
     expect(first.resources).toEqual([]);
     expect(first.instanceCount).toBeLessThanOrEqual(
@@ -94,6 +108,9 @@ describe('Greater Realm presentation plan', () => {
     expect(plan.terrainCells).toHaveLength(2);
     expect(plan.terrainCells).toEqual(explicitCells);
     expect(plan.sealedEdges).toHaveLength(explicitEdges);
+    expect(plan.sealedEdges.every((edge) => (
+      edge.kind === 'shoreline' || edge.kind === 'realm-seal'
+    ))).toBe(true);
     expect(plan.actors).toEqual([]);
     expect(plan.resources).toEqual([]);
   });
@@ -120,7 +137,8 @@ describe('Greater Realm presentation plan', () => {
       expect(plan.actors.some((actor) => actor.kind === 'canopy')).toBe(true);
       expect(plan.actors.some((actor) => actor.kind === 'npc')).toBe(true);
       expect(plan.actors.some((actor) => actor.kind === 'wildlife')).toBe(true);
-      expect(plan.actors.some((actor) => actor.kind === 'boat')).toBe(true);
+      expect(plan.boatLanes.length).toBeGreaterThan(0);
+      expect(plan.actors.some((actor) => actor.kind === 'boat')).toBe(false);
       expect(plan.grassPatchCount).toBeLessThanOrEqual(budget.grassPatchCount);
       expect(plan.grassBladeCount).toBeLessThanOrEqual(budget.grassBladeCount);
       expect(plan.grassTriangleCount).toBeLessThanOrEqual(budget.grassTriangleCount);

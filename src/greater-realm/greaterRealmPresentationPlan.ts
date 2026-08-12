@@ -1,6 +1,7 @@
 import { POINTY_TOP_AXIAL_DIRECTIONS, axialToWorld } from '../game/map/hexCoordinates';
 import {
   GREATER_REALM_AMBIENCE_CLASS,
+  GREATER_REALM_FEATURE_CLASS,
   GREATER_REALM_HYDRO_REGIME,
   GREATER_REALM_TRAVEL_CLASS,
   greaterRealmCoordinateKey,
@@ -44,6 +45,32 @@ export type GreaterRealmCrossingPresentation = Readonly<{
 export type GreaterRealmSealedEdgePresentation = Readonly<{
   from: GreaterRealmPresentationPosition;
   to: GreaterRealmPresentationPosition;
+  kind: 'shoreline' | 'realm-seal';
+}>;
+
+export type GreaterRealmFeaturePresentation = Readonly<{
+  id: string;
+  kind: 'signpost' | 'waystone' | 'lamp-post' | 'ruin';
+  position: GreaterRealmPresentationPosition;
+  headingRadians: number;
+}>;
+
+export type GreaterRealmBoatLanePresentation = Readonly<{
+  fromCellKey: string;
+  fromCoordinateKey: string;
+  toCoordinateKey: string;
+  from: GreaterRealmPresentationPosition;
+  to: GreaterRealmPresentationPosition;
+  headingRadians: number;
+}>;
+
+export type GreaterRealmBoatCellPresentation = Readonly<{
+  cellKey: string;
+  coordinateKey: string;
+  atlasQ: number;
+  atlasR: number;
+  hydroBodyId?: string;
+  position: GreaterRealmPresentationPosition;
 }>;
 
 export type GreaterRealmCellAccessPresentation = Readonly<{
@@ -68,8 +95,11 @@ export type GreaterRealmChunkPresentationPlan = Readonly<{
   apronCoordinateKeys: readonly string[];
   waterCells: readonly GreaterRealmPublicCellDto[];
   routeSegments: readonly GreaterRealmPresentationSegment[];
+  boatLanes: readonly GreaterRealmBoatLanePresentation[];
+  boatCells: readonly GreaterRealmBoatCellPresentation[];
   crossings: readonly GreaterRealmCrossingPresentation[];
   sealedEdges: readonly GreaterRealmSealedEdgePresentation[];
+  features: readonly GreaterRealmFeaturePresentation[];
   actors: readonly GreaterRealmPresentationActor[];
   resources: readonly GreaterRealmResourcePresentation[];
   cellAccess: readonly GreaterRealmCellAccessPresentation[];
@@ -113,8 +143,27 @@ const STATIC_GEOMETRY_BYTES = Object.freeze({
   npc: 1_208,
   wildlife: 840,
   boat: 840,
+  signpost: 2_304,
+  waystone: 796,
+  lampPost: 3_072,
+  ruin: 840,
   resource: 768
 });
+
+export const GREATER_REALM_TIER_ONE_REGION_PRESENTATION = Object.freeze({
+  T1_LOWLANDS: Object.freeze({ color: '#75935c', accent: '#d6c27a' }),
+  T1_FROSTMERE: Object.freeze({ color: '#9db7bb', accent: '#e4f2ef' }),
+  T1_SUNSCAR: Object.freeze({ color: '#b57b4d', accent: '#f3c76e' }),
+  T1_MIREFEN: Object.freeze({ color: '#4f8171', accent: '#9cc8a6' }),
+  T1_STONEWAKE: Object.freeze({ color: '#657a8d', accent: '#b8c6d2' }),
+  T1_EMBERWOOD: Object.freeze({ color: '#8b5547', accent: '#e49c67' })
+} as const);
+
+export function greaterRealmRegionPresentation(regionId: string) {
+  return GREATER_REALM_TIER_ONE_REGION_PRESENTATION[
+    regionId as keyof typeof GREATER_REALM_TIER_ONE_REGION_PRESENTATION
+  ] ?? Object.freeze({ color: '#647e49', accent: '#d8d3a2' });
+}
 
 const POINTY_TOP_SIDE_CORNER_INDICES = Object.freeze([
   Object.freeze([1, 2] as const),
@@ -244,6 +293,7 @@ function presentationSegments(
 ) {
   const output: GreaterRealmPresentationSegment[] = [];
   const crossings: GreaterRealmCrossingPresentation[] = [];
+  const boatLanes: GreaterRealmBoatLanePresentation[] = [];
   const byCoordinate = new Map(cells.map((cell) => [greaterRealmCoordinateKey(cell), cell]));
   for (const cell of cells) {
     const from = cellPosition(cell, cellSize, 0.05);
@@ -280,6 +330,18 @@ function presentationSegments(
       }));
       if (cell.hydroDepthClass >= 2) {
         output.push(Object.freeze({ from, to, kind: 'boat-lane' }));
+        boatLanes.push(Object.freeze({
+          fromCellKey: cell.cellKey,
+          fromCoordinateKey: greaterRealmCoordinateKey(cell),
+          toCoordinateKey: `${
+            cell.atlasQ + POINTY_TOP_AXIAL_DIRECTIONS[cell.hydroFlowDirection]!.q
+          },${
+            cell.atlasR + POINTY_TOP_AXIAL_DIRECTIONS[cell.hydroFlowDirection]!.r
+          }`,
+          from,
+          to,
+          headingRadians: heading(from, to)
+        }));
       }
     }
     if (cell.travelClass === GREATER_REALM_TRAVEL_CLASS.FORD) {
@@ -295,8 +357,39 @@ function presentationSegments(
   }
   return Object.freeze({
     segments: Object.freeze(output),
-    crossings: Object.freeze(crossings)
+    crossings: Object.freeze(crossings),
+    boatLanes: Object.freeze(boatLanes)
   });
+}
+
+function presentationFeatures(
+  cells: readonly GreaterRealmPublicCellDto[],
+  cellSize: number
+) {
+  const output: GreaterRealmFeaturePresentation[] = [];
+  for (const cell of cells) {
+    let kind: GreaterRealmFeaturePresentation['kind'] | undefined;
+    if (
+      cell.featureClass === GREATER_REALM_FEATURE_CLASS.ABANDONED_RUIN
+      || cell.featureClass === GREATER_REALM_FEATURE_CLASS.RUINED_WALL
+    ) kind = 'ruin';
+    else if (cell.featureClass === GREATER_REALM_FEATURE_CLASS.WAYSTONE) kind = 'waystone';
+    else if (cell.featureClass === GREATER_REALM_FEATURE_CLASS.LAMP_POST) kind = 'lamp-post';
+    else if (
+      cell.travelClass === GREATER_REALM_TRAVEL_CLASS.CARRIAGEWAY
+      || cell.ambienceClass === GREATER_REALM_AMBIENCE_CLASS.EXOTIC_COURIER_ROUTE
+    ) kind = 'signpost';
+    if (kind === undefined) continue;
+    const center = cellPosition(cell, cellSize, kind === 'waystone' ? 0.15 : 0.18);
+    const facing = directionPosition(cell, cell.aspect % 6, cellSize, 0.18);
+    output.push(Object.freeze({
+      id: `${cell.cellKey}/${kind}`,
+      kind,
+      position: center,
+      headingRadians: heading(center, facing)
+    }));
+  }
+  return Object.freeze(output);
 }
 
 function sealedEdges(cells: readonly GreaterRealmPublicCellDto[], cellSize: number) {
@@ -317,7 +410,12 @@ function sealedEdges(cells: readonly GreaterRealmPublicCellDto[], cellSize: numb
       };
       output.push(Object.freeze({
         from: point(corners[0]),
-        to: point(corners[1])
+        to: point(corners[1]),
+        kind: (
+          cell.coastDistance <= 1
+          || cell.hydroRegime === GREATER_REALM_HYDRO_REGIME.OCEAN
+          || cell.hydroRegime === GREATER_REALM_HYDRO_REGIME.SEA
+        ) ? 'shoreline' : 'realm-seal'
       }));
     }
   }
@@ -347,6 +445,19 @@ export function createGreaterRealmChunkPresentationPlan(input: Readonly<{
   )));
   const routes = presentationSegments(cells, cellSize);
   const boundaries = sealedEdges(cells, cellSize);
+  const features = presentationFeatures(cells, cellSize);
+  const boatCells = Object.freeze(cells.filter((cell) => (
+    (cell.hydroRegime === GREATER_REALM_HYDRO_REGIME.RIVER
+      || cell.hydroRegime === GREATER_REALM_HYDRO_REGIME.STREAM)
+    && cell.hydroDepthClass >= 2
+  )).map((cell) => Object.freeze({
+    cellKey: cell.cellKey,
+    coordinateKey: greaterRealmCoordinateKey(cell),
+    atlasQ: cell.atlasQ,
+    atlasR: cell.atlasR,
+    ...(cell.hydroBodyId === undefined ? {} : { hydroBodyId: cell.hydroBodyId }),
+    position: cellPosition(cell, cellSize, 0.075)
+  })));
   const limits = allowance(input.graphicsProfile, input.actorAllowance);
   const actors: GreaterRealmPresentationActor[] = [];
   let canopyCount = 0;
@@ -357,7 +468,8 @@ export function createGreaterRealmChunkPresentationPlan(input: Readonly<{
   let flowerGeometryBytes = 0;
   let npcCount = 0;
   let wildlifeCount = 0;
-  let boatCount = 0;
+  // Deep-water rows expose helm candidates, not ambient traffic. The scene
+  // runtime creates at most one boat only after an explicit player choice.
   for (const cell of cells) {
     if (
       greaterRealmLodAllowsCanopy(input.chunk.lod)
@@ -412,26 +524,6 @@ export function createGreaterRealmChunkPresentationPlan(input: Readonly<{
       addActor(actors, cell, 'wildlife', cellSize, wildlifeCount);
       wildlifeCount += 1;
     }
-    if (
-      (cell.hydroRegime === GREATER_REALM_HYDRO_REGIME.RIVER
-        || cell.hydroRegime === GREATER_REALM_HYDRO_REGIME.STREAM)
-      && cell.hydroDepthClass >= 2
-      && cell.hydroFlowDirection !== undefined
-      && boatCount < limits.boat
-    ) {
-      addActor(
-        actors,
-        cell,
-        'boat',
-        cellSize,
-        boatCount,
-        0,
-        0,
-        0,
-        cell.hydroFlowDirection
-      );
-      boatCount += 1;
-    }
   }
   // Interaction resources are caller-filtered snapshot affordances. Chunk
   // presentation never reconstructs or renders a second location authority.
@@ -445,6 +537,7 @@ export function createGreaterRealmChunkPresentationPlan(input: Readonly<{
     cell.passable ? [] : [cell.coordinateKey]
   )));
   const actorKinds = new Set(actors.map((actor) => actor.kind));
+  const featureKinds = new Set(features.map((feature) => feature.kind));
   const resourceKinds = new Set(resources.map((resource) => resource.kind));
   const drawCallCount = 1
     + Number(waterCells.length > 0)
@@ -452,8 +545,10 @@ export function createGreaterRealmChunkPresentationPlan(input: Readonly<{
     + Number(routes.crossings.length > 0)
     + Number(boundaries.length > 0)
     + actorKinds.size
+    + featureKinds.size
     + resourceKinds.size;
-  const instanceCount = actors.length + routes.crossings.length + resources.length;
+  const instanceCount = actors.length + routes.crossings.length
+    + features.length + resources.length;
   // Exact-or-conservative GPU buffer accounting for the current Three scene:
   // custom geometry attributes, static primitive attributes/indices, instance
   // matrices/colors, and the separately reviewed flower geometry allowance.
@@ -462,9 +557,15 @@ export function createGreaterRealmChunkPresentationPlan(input: Readonly<{
     + routes.segments.length * 48
     + routes.crossings.length * 76
     + (routes.crossings.length > 0 ? STATIC_GEOMETRY_BYTES.crossing : 0)
-    + boundaries.length * 144
+    + boundaries.length * 864
     + actors.length * 64
     + [...actorKinds].reduce((total, kind) => total + STATIC_GEOMETRY_BYTES[kind], 0)
+    + features.length * 64
+    + [...featureKinds].reduce((total, kind) => total + (
+      kind === 'lamp-post'
+        ? STATIC_GEOMETRY_BYTES.lampPost
+        : STATIC_GEOMETRY_BYTES[kind]
+    ), 0)
     + resources.length * 64
     + resourceKinds.size * STATIC_GEOMETRY_BYTES.resource
     + flowerGeometryBytes;
@@ -477,8 +578,11 @@ export function createGreaterRealmChunkPresentationPlan(input: Readonly<{
     apronCoordinateKeys,
     waterCells,
     routeSegments: routes.segments,
+    boatLanes: routes.boatLanes,
+    boatCells,
     crossings: routes.crossings,
     sealedEdges: boundaries,
+    features,
     actors: Object.freeze(actors),
     resources,
     cellAccess,

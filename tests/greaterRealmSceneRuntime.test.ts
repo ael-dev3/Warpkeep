@@ -7,6 +7,8 @@ import { GREATER_REALM_CASTLE_UPLOAD_RESERVE_BYTES } from '../src/components/rea
 import { createGreaterRealmChunkPresentationPlan } from '../src/greater-realm/greaterRealmPresentationPlan';
 import {
   GREATER_REALM_AMBIENCE_CLASS,
+  GREATER_REALM_FEATURE_CLASS,
+  GREATER_REALM_HYDRO_REGIME,
   GREATER_REALM_TRAVEL_CLASS,
   decodeGreaterRealmChunkDto
 } from '../src/greater-realm/greaterRealmPublicContract';
@@ -88,6 +90,28 @@ function oceanChunk(ordinal: number) {
   });
 }
 
+function navigableLocalVesselChunk() {
+  const raw = structuredClone(
+    GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[1]
+  ) as any;
+  const source = raw.coreCells.find((cell: any) => cell.atlasQ === 0 && cell.atlasR === 0);
+  const destination = raw.coreCells.find((cell: any) => cell.atlasQ === 1 && cell.atlasR === 0);
+  source.hydroFlowDirection = 0;
+  Object.assign(destination, {
+    passable: true,
+    geologicalBarrierBand: 0,
+    hydroRegime: GREATER_REALM_HYDRO_REGIME.RIVER,
+    hydroBodyId: source.hydroBodyId,
+    hydroDepthClass: 2,
+    hydroSurfaceMilli: source.hydroSurfaceMilli,
+    hydroFlowDirection: 0,
+    flowAccumulation: 2_048n,
+    wetness: 10_000,
+    featureClass: GREATER_REALM_FEATURE_CLASS.LAMP_POST
+  });
+  return decodeGreaterRealmChunkDto(raw);
+}
+
 function geometryUploadBytes(root: THREE.Object3D) {
   const geometries = new Set<THREE.BufferGeometry>();
   let bytes = 0;
@@ -141,6 +165,15 @@ describe('Greater Realm scene runtime', () => {
     expect(runtime.isCoordinatePassable({ atlasQ: 0, atlasR: 0 })).toBe(true);
     expect(runtime.isCoordinatePassable({ atlasQ: 2, atlasR: 2 })).toBe(false);
     expect(runtime.getCellAccess({ atlasQ: 2, atlasR: 2 })?.passable).toBe(false);
+    expect(runtime.group.children.some((chunk) => (
+      chunk.children.some((child) => child.name.startsWith('greater-realm-feature-waystone:'))
+    ))).toBe(true);
+    expect(runtime.group.children.some((chunk) => (
+      chunk.children.some((child) => child.name.startsWith('greater-realm-feature-signpost:'))
+    ))).toBe(true);
+    expect(runtime.group.children.some((chunk) => (
+      chunk.children.some((child) => child.name.startsWith('greater-realm-shoreline-fence:'))
+    ))).toBe(true);
     expect(runtime.update(1.5)).toBe(true);
     expect(invalidate).toHaveBeenCalled();
     runtime.dispose();
@@ -215,6 +248,51 @@ describe('Greater Realm scene runtime', () => {
     expect(runtime.getTelemetry().reducedMotion).toBe(true);
     runtime.setReducedMotion(false);
     expect(runtime.update(42)).toBe(true);
+    runtime.dispose();
+  });
+
+  it('creates a boat only after the player takes the local helm and blocks unknown water', () => {
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'desktop',
+      graphicsProfile: 'balanced',
+      localVesselOrigin: { atlasQ: 0, atlasR: 0 }
+    });
+    runtime.setView({
+      revision: 1n,
+      cellSize: 1,
+      chunks: [{ chunk: navigableLocalVesselChunk(), distanceChunks: 0 }]
+    });
+    runtime.flushUploads();
+    expect(runtime.group.children.some((chunk) => (
+      chunk.children.some((child) => child.name.startsWith('greater-realm-feature-lamp-post:'))
+    ))).toBe(true);
+    expect(runtime.getTelemetry().boatCount).toBe(0);
+    expect(runtime.getLocalVesselState()).toMatchObject({
+      status: 'available',
+      persisted: false
+    });
+    expect(runtime.selectLocalVessel()).toMatchObject({
+      status: 'selected',
+      atlasQ: 0,
+      atlasR: 0,
+      persisted: false
+    });
+    expect(runtime.group.getObjectByName('greater-realm-local-player-vessel')).toBeDefined();
+    expect(runtime.getTelemetry().boatCount).toBe(1);
+    expect(runtime.moveLocalVessel('forward')).toMatchObject({
+      status: 'selected',
+      atlasQ: 1,
+      atlasR: 0
+    });
+    expect(runtime.moveLocalVessel('forward')).toMatchObject({
+      status: 'blocked',
+      atlasQ: 1,
+      atlasR: 0,
+      message: expect.stringContaining('not returned')
+    });
+    runtime.releaseLocalVessel();
+    expect(runtime.getTelemetry().boatCount).toBe(0);
+    expect(runtime.group.getObjectByName('greater-realm-local-player-vessel')).toBeUndefined();
     runtime.dispose();
   });
 

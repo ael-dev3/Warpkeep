@@ -170,6 +170,8 @@ beforeEach(() => {
   canvasHostHarness.create.mockReset();
   canvasHostHarness.create.mockImplementation(() => ({
     applySnapshot: vi.fn(),
+    control: vi.fn(),
+    getLocalVesselState: vi.fn(),
     schedule: vi.fn(),
     getTelemetry: vi.fn(),
     dispose: vi.fn()
@@ -198,6 +200,57 @@ describe('Greater Realm world scene lifecycle', () => {
     expect(source.split(layoutReset)).toHaveLength(2);
     expect(source).not.toContain(passiveReset);
     expect(source.indexOf(layoutReset)).toBeLessThan(source.indexOf(commandReset));
+  });
+
+  it('exposes all six zones and accessible view/local-vessel controls', async () => {
+    renderScene(bridge());
+    await screen.findByRole('complementary', { name: 'Tier I zones' });
+    for (const region of GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.bootstrap.regions) {
+      expect(screen.getByText(region.publicName)).not.toBeNull();
+    }
+    const canvas = screen.getByRole('application', {
+      name: 'Interactive Greater Realm public atlas'
+    });
+    expect(canvas.getAttribute('tabindex')).toBe('0');
+    const host = canvasHostHarness.create.mock.results[0]!.value;
+    fireEvent.click(screen.getByRole('button', { name: 'PAN NORTH' }));
+    fireEvent.click(screen.getByRole('button', { name: 'SELECT NEXT' }));
+    expect(host.control).toHaveBeenNthCalledWith(1, {
+      kind: 'pan', direction: 'north'
+    });
+    expect(host.control).toHaveBeenNthCalledWith(2, { kind: 'select-next' });
+
+    const options = canvasHostHarness.create.mock.calls[0]![0];
+    act(() => options.onSelectionChange({
+      kind: 'region',
+      label: 'The Hegemony Lowlands',
+      atlasQ: 0,
+      atlasR: 0
+    }));
+    expect(screen.getByRole('status').textContent).toContain('The Hegemony Lowlands at 0, 0');
+    act(() => options.onLocalVesselStateChange({
+      status: 'available',
+      persisted: false,
+      message: 'A local vessel is available.'
+    }));
+    fireEvent.click(screen.getByRole('button', { name: 'TAKE HELM' }));
+    expect(host.control).toHaveBeenLastCalledWith({ kind: 'take-helm' });
+    act(() => options.onLocalVesselStateChange({
+      status: 'blocked',
+      persisted: false,
+      message: 'Blocked: the next public deep-water lane cell is not returned in this view.',
+      cellKey: 'public-water-cell',
+      atlasQ: 0,
+      atlasR: 0
+    }));
+    expect(screen.getByRole('status').textContent).toContain(
+      'Blocked: the next public deep-water lane cell is not returned in this view.'
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'WITH FLOW' }));
+    expect(host.control).toHaveBeenLastCalledWith({
+      kind: 'move-vessel', direction: 'forward'
+    });
+    expect(screen.getByText(/movement is not saved to the server/i)).not.toBeNull();
   });
 
   it('renders canary and halted atlas reads while dispatch remains active-only', async () => {
