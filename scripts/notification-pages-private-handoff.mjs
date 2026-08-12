@@ -558,6 +558,21 @@ function assertNotificationPagesGitProvenance(header, sourceRelease, moduleTreeI
   if (moduleDelta.status !== 0 || moduleDelta.stdout !== '') {
     fail('NOTIFICATION_PAGES_HANDOFF_MODULE_SOURCE_DRIFT');
   }
+  const bridgeDelta = gitResult([
+    'diff',
+    '--quiet',
+    '--no-ext-diff',
+    '--no-textconv',
+    header.bridgeSourceCommit,
+    header.pagesSourceCommit,
+    '--',
+    'services/auth-bridge',
+    'scripts/auth-bridge-config-attestation.mjs',
+    'scripts/auth-bridge-notification-prepared-receipt.mjs',
+  ]);
+  if (bridgeDelta.status !== 0 || bridgeDelta.stdout !== '') {
+    fail('NOTIFICATION_PAGES_HANDOFF_BRIDGE_SOURCE_DRIFT');
+  }
 }
 
 function stablePrivateFile(path, repositoryRoot, maximum, code) {

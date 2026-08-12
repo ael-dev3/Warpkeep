@@ -43,6 +43,8 @@ const HEAD_TREE = execFileSync(
   { cwd: process.cwd(), encoding: 'utf8' },
 ).trim();
 const BRIDGE_COMMIT = HEAD_COMMIT;
+const DRIFTED_BRIDGE_COMMIT =
+  'b218a1b3533faa74c159c7a06c3311717906ba05';
 const ATLAS_COMMIT = HEAD_COMMIT;
 const MODULE_COMMIT = HEAD_COMMIT;
 const PAGES_COMMIT = HEAD_COMMIT;
@@ -139,12 +141,12 @@ function releaseResponse(): Response {
   return response;
 }
 
-function preparedReceipt(): Buffer {
+function preparedReceipt(bridgeSourceCommit = BRIDGE_COMMIT): Buffer {
   return Buffer.from(`${JSON.stringify({
     schemaVersion: 1,
     kind: 'warpkeep-auth-bridge-notification-prepared-v1',
     bridgeOrigin: 'https://auth.warpkeep.com',
-    bridgeSourceCommit: BRIDGE_COMMIT,
+    bridgeSourceCommit,
     notificationDeliveryContractDigest:
       AUTH_BRIDGE_NOTIFICATION_DELIVERY_CONTRACT_DIGEST,
     notificationClientCount: 1,
@@ -260,7 +262,10 @@ function evidence(overrides: Readonly<{
   };
 }
 
-function createHandoff(receipts = evidence()) {
+function createHandoff(
+  receipts = evidence(),
+  bridgeSourceCommit = BRIDGE_COMMIT,
+) {
   return createNotificationPagesPrivateHandoff({
     key: Buffer.from(KEY),
     workflowRunId: '123456789',
@@ -269,7 +274,7 @@ function createHandoff(receipts = evidence()) {
     expectedFounderCount: FOUNDER_COUNT,
     activeEvidenceMaximumAgeMilliseconds:
       ACTIVE_EVIDENCE_MAXIMUM_AGE_MILLISECONDS,
-    bridgeSourceCommit: BRIDGE_COMMIT,
+    bridgeSourceCommit,
     preparedReceiptBytes: receipts.prepared,
     activeV17EvidenceBytes: receipts.active,
     deployedModuleReceiptBytes: receipts.deployed,
@@ -544,6 +549,38 @@ describe('notification-to-Pages private evidence handoff', () => {
       fetchImpl,
       now: NOW,
     })).rejects.toThrow('NOTIFICATION_PAGES_HANDOFF_MODULE_TREE_INVALID');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('requires the prepared bridge source to match the exact Pages bridge bytes', async () => {
+    const receipts = { ...evidence(), prepared: preparedReceipt(DRIFTED_BRIDGE_COMMIT) };
+    const created = createHandoff(receipts, DRIFTED_BRIDGE_COMMIT);
+    const { repositoryRoot, privateRoot } = privateWorkspace();
+    const handoffPath = join(privateRoot, 'handoff.json');
+    const keyPath = join(privateRoot, 'key.txt');
+    writePrivate(handoffPath, created.bytes);
+    writePrivate(keyPath, Buffer.from(`${KEY.toString('base64url')}\n`, 'utf8'));
+    const fetchImpl = vi.fn() as typeof fetch;
+
+    await expect(inspectNotificationPagesPrivateHandoff({
+      handoffPath,
+      keyPath,
+      repositoryRoot,
+      expectedHandoffDigest: created.digest,
+      expectedKeyId: created.keyId,
+      expectedWorkflowRunId: '123456789',
+      expectedWorkflowRunAttempt: '1',
+      expectedPagesSourceCommit: PAGES_COMMIT,
+      expectedFounderCount: FOUNDER_COUNT,
+      expectedActiveEvidenceMaximumAgeMilliseconds:
+        ACTIVE_EVIDENCE_MAXIMUM_AGE_MILLISECONDS,
+      expectedPreparedReceiptDigest: digest(receipts.prepared),
+      expectedActiveV17EvidenceDigest: digest(receipts.active),
+      expectedDeployedModuleReceiptDigest: digest(receipts.deployed),
+      expectedBridgeSourceCommit: DRIFTED_BRIDGE_COMMIT,
+      fetchImpl,
+      now: NOW,
+    })).rejects.toThrow('NOTIFICATION_PAGES_HANDOFF_BRIDGE_SOURCE_DRIFT');
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
