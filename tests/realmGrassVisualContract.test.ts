@@ -76,12 +76,23 @@ describe('natural broad grass visual contract', () => {
     const fragment = injectRealmGrassFragmentShader([
       '#include <color_fragment>',
       '#include <alphahash_fragment>',
+      '#include <normal_fragment_maps>',
+      '#include <lights_fragment_end>',
       '#include <opaque_fragment>'
     ].join('\n'));
     expect(fragment).toContain('realmGrassCoverage()');
-    expect(fragment).toContain('diffuseColor.rgb *= mix(0.96, 1.04, grassVerticalLift);');
+    expect(fragment).toContain('vec3 grassRootGrade = vec3(0.91, 0.955, 0.89);');
+    expect(fragment).toContain('vec3 grassTipGrade = vec3(1.025, 1.01, 0.94);');
+    expect(fragment).toContain('diffuseColor.rgb *= mix(grassRootGrade, grassTipGrade, grassVerticalGrade);');
+    expect(fragment).toContain('normal - grassBendView * faceDirection');
+    expect(fragment).toContain('uniform vec3 uGrassSunDirection;');
+    expect(fragment).toContain('float grassSunBehindBlade = pow(');
+    expect(fragment).toContain('float grassSunBehindView = pow(');
+    expect(fragment).toContain('float grassViewGrazing = pow(');
+    expect(fragment).toContain('float grassThinBladeTransmission = grassSunBehindBlade');
+    expect(fragment).toContain('* mix(0.025, 0.105, max(grassViewGrazing, grassSunBehindView))');
+    expect(fragment).toContain('reflectedLight.directDiffuse += grassTransmissionTint');
     expect(fragment).not.toContain('diffuseColor.rgb +=');
-    expect(fragment).toContain('vGrassSunTransmission');
     expect(fragment).toContain('diffuseColor.a *= realmGrassCoverage();');
     const material = createRealmGrassMaterial(1, true, false).material;
     expect(material.transparent).toBe(false);

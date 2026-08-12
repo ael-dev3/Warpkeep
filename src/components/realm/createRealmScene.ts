@@ -754,14 +754,34 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   grassCandidateCellCount: number;
   grassActiveCellCount: number;
   grassInstanceCount: number;
+  grassNearInstanceCount: number;
+  grassMidInstanceCount: number;
   grassTriangleCount: number;
+  grassNearTriangleCount: number;
+  grassMidTriangleCount: number;
   grassDrawCalls: number;
+  grassNearDrawCalls: number;
+  grassMidDrawCalls: number;
+  grassLodTransitionInstanceCount: number;
+  wildflowerInstanceCount: number;
+  wildflowerTriangleCount: number;
+  wildflowerDrawCalls: number;
+  wildflowerInstanceBudget: number;
+  wildflowerAnimated: boolean;
+  wildflowerAlphaHashActive: boolean;
+  wildflowerAlphaToCoverageActive: boolean;
+  wildflowerShaderFallbackActive: boolean;
+  wildflowerShaderFallbackCount: number;
+  wildflowerShaderFallbackReason: string | null;
+  wildflowerOverviewHidden: boolean;
   grassCacheEntries: number;
   grassCacheLimit: number;
   grassCacheHighWaterMark: number;
   grassRepackCount: number;
   grassAnimated: boolean;
   grassTargetAnimationCadence: number;
+  grassAlphaHashActive: boolean;
+  grassAlphaToCoverageActive: boolean;
   grassCandidateCellsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
   grassActiveCellsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
   grassCountsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
@@ -1552,6 +1572,10 @@ function initializeRealmScene(
   );
   scene.fog = fog;
 
+  let vegetationShaderErrorHandler:
+    | ((kind: 'grass' | 'wildflower', reason: string) => void)
+    | null = null;
+  let vegetationFallbackRenderPending = false;
   const renderer = new THREE.WebGLRenderer({
     canvas: options.canvas,
     antialias: options.quality.id !== 'reduced',
@@ -1571,6 +1595,47 @@ function initializeRealmScene(
     );
   }
   cleanup.add(() => renderer.dispose());
+  const priorShaderErrorHandler = renderer.debug?.onShaderError ?? null;
+  const handleShaderError: NonNullable<typeof renderer.debug.onShaderError> = (
+    gl,
+    program,
+    vertexShader,
+    fragmentShader
+  ) => {
+    const source = `${gl.getShaderSource(vertexShader) ?? ''}\n${
+      gl.getShaderSource(fragmentShader) ?? ''
+    }`;
+    const grassFailed = source.includes('uGrassTime') || source.includes('grassBladeData');
+    const wildflowerFailed = source.includes('uFlowerTime') || source.includes('flowerCardData');
+    if (grassFailed) {
+      vegetationShaderErrorHandler?.('grass', 'REALM_GRASS_SHADER_COMPILE_OR_LINK_FAILED');
+    }
+    if (wildflowerFailed) {
+      vegetationShaderErrorHandler?.(
+        'wildflower',
+        'REALM_WILDFLOWER_SHADER_COMPILE_OR_LINK_FAILED'
+      );
+    }
+    if (grassFailed || wildflowerFailed) return;
+    if (priorShaderErrorHandler) {
+      priorShaderErrorHandler(gl, program, vertexShader, fragmentShader);
+      return;
+    }
+    // Installing a callback suppresses Three's default diagnostic. Preserve a
+    // bounded non-source log for unrelated material failures.
+    console.error(
+      'THREE.WebGLProgram: Shader Error',
+      gl.getProgramInfoLog(program) || 'PROGRAM_LINK_FAILED'
+    );
+  };
+  if (renderer.debug) renderer.debug.onShaderError = handleShaderError;
+  cleanup.add(() => {
+    vegetationShaderErrorHandler = null;
+    vegetationFallbackRenderPending = false;
+    if (renderer.debug?.onShaderError === handleShaderError) {
+      renderer.debug.onShaderError = priorShaderErrorHandler;
+    }
+  });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   const lighting = REALM_LIGHTING_SPECS[options.quality.id];
@@ -2162,6 +2227,16 @@ function initializeRealmScene(
       suppressCastleSlots: false
     });
     cleanup.add(grassLayer.dispose);
+    vegetationShaderErrorHandler = (kind, reason) => {
+      grassLayer?.activateShaderFallback(kind, reason);
+      emitTerrainPresentationTelemetry();
+      if (vegetationFallbackRenderPending) return;
+      vegetationFallbackRenderPending = true;
+      queueMicrotask(() => {
+        vegetationFallbackRenderPending = false;
+        if (!cleanup.isDisposed()) render();
+      });
+    };
     scene.add(grassLayer.group);
     options.canvas.dataset.grassPresentation = 'ready';
   } catch {
@@ -2239,9 +2314,31 @@ function initializeRealmScene(
     candidateCellCount: 0,
     activeCellCount: 0,
     instanceCount: 0,
+    nearInstanceCount: 0,
+    midInstanceCount: 0,
     bladeCount: 0,
     triangleCount: 0,
+    nearTriangleCount: 0,
+    midTriangleCount: 0,
     drawCalls: 0,
+    nearDrawCalls: 0,
+    midDrawCalls: 0,
+    lodTransitionInstanceCount: 0,
+    wildflowers: Object.freeze({
+      candidateCount: 0,
+      instanceCount: 0,
+      triangleCount: 0,
+      drawCalls: 0,
+      budget: renderPlan.grass.geometryProfile === 'high' ? 512
+        : renderPlan.grass.geometryProfile === 'balanced' ? 256 : 0,
+      animated: false,
+      alphaHashActive: !grassAlphaToCoverage,
+      alphaToCoverageActive: grassAlphaToCoverage,
+      shaderFallbackActive: false,
+      shaderFallbackCount: 0,
+      shaderFallbackReason: null,
+      overviewHidden: true
+    }),
     variantCounts: Object.freeze([]),
     cacheEntries: 0,
     cacheLimit: renderPlan.grass.cacheLimit,
@@ -2258,7 +2355,7 @@ function initializeRealmScene(
     paletteDisplaySrgbSaturationMax: 0,
     paletteGreenMin: 0,
     paletteGreenMax: 0,
-    alphaHashActive: true,
+    alphaHashActive: !grassAlphaToCoverage,
     alphaToCoverageActive: grassAlphaToCoverage,
     shaderFallbackActive: false,
     shaderFallbackCount: 0,
@@ -2484,14 +2581,34 @@ function initializeRealmScene(
       grassCandidateCellCount: grass.candidateCellCount,
       grassActiveCellCount: grass.activeCellCount,
       grassInstanceCount: grass.instanceCount,
+      grassNearInstanceCount: grass.nearInstanceCount,
+      grassMidInstanceCount: grass.midInstanceCount,
       grassTriangleCount: grass.triangleCount,
+      grassNearTriangleCount: grass.nearTriangleCount,
+      grassMidTriangleCount: grass.midTriangleCount,
       grassDrawCalls: grass.drawCalls,
+      grassNearDrawCalls: grass.nearDrawCalls,
+      grassMidDrawCalls: grass.midDrawCalls,
+      grassLodTransitionInstanceCount: grass.lodTransitionInstanceCount,
+      wildflowerInstanceCount: grass.wildflowers.instanceCount,
+      wildflowerTriangleCount: grass.wildflowers.triangleCount,
+      wildflowerDrawCalls: grass.wildflowers.drawCalls,
+      wildflowerInstanceBudget: grass.wildflowers.budget,
+      wildflowerAnimated: grass.wildflowers.animated,
+      wildflowerAlphaHashActive: grass.wildflowers.alphaHashActive,
+      wildflowerAlphaToCoverageActive: grass.wildflowers.alphaToCoverageActive,
+      wildflowerShaderFallbackActive: grass.wildflowers.shaderFallbackActive,
+      wildflowerShaderFallbackCount: grass.wildflowers.shaderFallbackCount,
+      wildflowerShaderFallbackReason: grass.wildflowers.shaderFallbackReason,
+      wildflowerOverviewHidden: grass.wildflowers.overviewHidden,
       grassCacheEntries: grass.cacheEntries,
       grassCacheLimit: grass.cacheLimit ?? renderPlan.grass.cacheLimit,
       grassCacheHighWaterMark: grass.cacheHighWaterMark ?? 0,
       grassRepackCount: grass.repackCount ?? 0,
       grassAnimated: grass.animated,
       grassTargetAnimationCadence: grass.targetAnimationCadence,
+      grassAlphaHashActive: grass.alphaHashActive,
+      grassAlphaToCoverageActive: grass.alphaToCoverageActive,
       grassCandidateCellsByTerrain: grass.candidateCellsByTerrain,
       grassActiveCellsByTerrain: grass.activeCellsByTerrain,
       grassCountsByTerrain: grass.countsByTerrain,
@@ -2614,12 +2731,34 @@ function initializeRealmScene(
       telemetry.forestDecorativeOverviewHidden,
       telemetry.grassActiveCellCount,
       telemetry.grassInstanceCount,
+      telemetry.grassNearInstanceCount,
+      telemetry.grassMidInstanceCount,
       telemetry.grassTriangleCount,
+      telemetry.grassNearTriangleCount,
+      telemetry.grassMidTriangleCount,
+      telemetry.grassDrawCalls,
+      telemetry.grassNearDrawCalls,
+      telemetry.grassMidDrawCalls,
+      telemetry.grassLodTransitionInstanceCount,
+      telemetry.wildflowerInstanceCount,
+      telemetry.wildflowerTriangleCount,
+      telemetry.wildflowerDrawCalls,
+      telemetry.wildflowerInstanceBudget,
+      telemetry.wildflowerAnimated,
+      telemetry.wildflowerAlphaHashActive,
+      telemetry.wildflowerAlphaToCoverageActive,
+      telemetry.wildflowerShaderFallbackActive,
+      telemetry.wildflowerShaderFallbackCount,
+      telemetry.wildflowerShaderFallbackReason,
+      telemetry.wildflowerOverviewHidden,
       telemetry.grassCacheEntries,
       telemetry.grassCacheLimit,
       telemetry.grassCacheHighWaterMark,
       telemetry.grassRepackCount,
       telemetry.grassAnimated,
+      telemetry.grassTargetAnimationCadence,
+      telemetry.grassAlphaHashActive,
+      telemetry.grassAlphaToCoverageActive,
       Object.values(telemetry.grassCandidateCellsByTerrain).join(','),
       Object.values(telemetry.grassActiveCellsByTerrain).join(','),
       Object.values(telemetry.grassCountsByTerrain).join(','),

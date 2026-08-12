@@ -129,11 +129,25 @@ describe('canonical Genesis 001 grass bounds', () => {
     expect(first.triangleCount).toBeLessThanOrEqual(
       REALM_GRASS_RENDER_PLANS.high.maximumActiveTriangles
     );
-    expect(first.drawCalls).toBeLessThanOrEqual(3);
-    expect(first.variantCounts).toHaveLength(3);
-    expect(digestPackedGrass(layer)).toBe(
-      '578fae82c257ce0bc9f80dee7d0901c70c6663e64748a4ef08a510a836d9b04d'
+    expect(first.nearInstanceCount).toBeLessThanOrEqual(
+      REALM_GRASS_RENDER_PLANS.high.maximumNearInstances
     );
+    expect(first.midInstanceCount).toBeLessThanOrEqual(
+      REALM_GRASS_RENDER_PLANS.high.maximumMidInstances
+    );
+    expect(first.nearTriangleCount).toBeLessThanOrEqual(
+      REALM_GRASS_RENDER_PLANS.high.maximumNearTriangles
+    );
+    expect(first.midTriangleCount).toBeLessThanOrEqual(
+      REALM_GRASS_RENDER_PLANS.high.maximumMidTriangles
+    );
+    expect(first.drawCalls).toBeLessThanOrEqual(
+      REALM_GRASS_RENDER_PLANS.high.maximumActiveDrawCalls
+    );
+     expect(first.variantCounts).toHaveLength(6);
+     expect(digestPackedGrass(layer)).toBe(
+       '3c25abe6f1e1a22e4c8bec3be982975a0aaebda4dc1b7b5e0e97e3f403215bf0'
+     );
 
     layer.updateView(axialToWorld({ q: 30, r: -10 }, 1), 'keep');
     const traversed = layer.getTelemetry();

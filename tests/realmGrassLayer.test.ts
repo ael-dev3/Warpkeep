@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it, vi } from 'vitest';
 
 import { createRealmGrassLayer } from '../src/components/realm/createRealmGrassLayer';
+import { REALM_GRASS_MAX_WORLD_DEFORMATION_RADIUS } from '../src/components/realm/createRealmGrassMaterial';
 import type { RealmGrassRenderPlan } from '../src/components/realm/realmGrassActiveWindow';
 import {
   REALM_GRASS_RENDER_PLANS,
@@ -18,8 +19,15 @@ function plan(): RealmGrassRenderPlan {
   return Object.freeze({
     ...REALM_GRASS_RENDER_PLANS.balanced,
     activeRadius: 2,
+    nearRadius: 0.75,
+    lodTransitionCells: 1,
+    midDensityMultiplier: 1,
     hysteresisRadius: 2,
     cacheLimit: 8,
+    maximumNearInstances: 64,
+    maximumMidInstances: 32,
+    maximumNearTriangles: 1_728,
+    maximumMidTriangles: 128,
     maximumActiveInstances: 96,
     maximumActiveTriangles: 2_592
   });
@@ -55,7 +63,22 @@ describe('camera-local procedural grass layer', () => {
     expect(telemetry.instanceCount).toBeGreaterThan(0);
     expect(telemetry.instanceCount).toBeLessThanOrEqual(96);
     expect(telemetry.triangleCount).toBeLessThanOrEqual(2_592);
-    expect(telemetry.drawCalls).toBeLessThanOrEqual(2);
+    expect(telemetry.nearInstanceCount).toBeGreaterThan(0);
+    expect(telemetry.midInstanceCount).toBeGreaterThan(0);
+    expect(telemetry.nearInstanceCount).toBeLessThanOrEqual(64);
+    expect(telemetry.midInstanceCount).toBeLessThanOrEqual(32);
+    expect(telemetry.nearTriangleCount).toBeLessThanOrEqual(1_728);
+    expect(telemetry.midTriangleCount).toBeLessThanOrEqual(128);
+    expect(telemetry.drawCalls).toBeLessThanOrEqual(4);
+    expect(telemetry.nearDrawCalls).toBeLessThanOrEqual(2);
+    expect(telemetry.midDrawCalls).toBeLessThanOrEqual(2);
+    expect(telemetry.lodTransitionInstanceCount).toBeGreaterThan(0);
+    expect(telemetry.wildflowers.instanceCount).toBeLessThanOrEqual(256);
+    expect(telemetry.wildflowers.triangleCount)
+      .toBe(telemetry.wildflowers.instanceCount * 4);
+    expect(telemetry.wildflowers.drawCalls).toBeLessThanOrEqual(1);
+    expect(layer.wildflowers.mesh.parent).toBe(layer.group);
+    expect(layer.wildflowers.mesh.raycast).toBeDefined();
     expect(telemetry.cacheEntries).toBeLessThanOrEqual(8);
     expect(telemetry.cacheLimit).toBe(8);
     expect(telemetry.cacheHighWaterMark).toBe(telemetry.cacheEntries);
@@ -90,12 +113,51 @@ describe('camera-local procedural grass layer', () => {
       .toBeLessThanOrEqual(REALM_GRASS_COLOR_BOUNDS.linearLuminanceMax);
     expect(layer.meshes.reduce((sum, currentMesh) => sum + currentMesh.count, 0))
       .toBe(telemetry.instanceCount);
+    expect(layer.nearMeshes.reduce((sum, currentMesh) => sum + currentMesh.count, 0))
+      .toBe(telemetry.nearInstanceCount);
+    expect(layer.midMeshes.reduce((sum, currentMesh) => sum + currentMesh.count, 0))
+      .toBe(telemetry.midInstanceCount);
+    expect(layer.nearMeshes.every((currentMesh) => currentMesh.frustumCulled)).toBe(true);
+    expect(layer.midMeshes.every((currentMesh) => currentMesh.frustumCulled)).toBe(true);
+    expect(layer.meshes.every((currentMesh) => (
+      currentMesh.instanceMatrix.usage === THREE.DynamicDrawUsage
+    ))).toBe(true);
+    expect(layer.meshes.filter((currentMesh) => currentMesh.count > 0).every((currentMesh) => (
+      currentMesh.boundingBox !== null && currentMesh.boundingSphere !== null
+    ))).toBe(true);
     expect(layer.mesh.geometry.getAttribute('grassPhase')).toBeDefined();
     expect(layer.mesh.geometry.getAttribute('grassEdgeFade')).toBeDefined();
+    expect((layer.mesh.geometry.getAttribute('grassPhase') as THREE.BufferAttribute).usage)
+      .toBe(THREE.DynamicDrawUsage);
+    expect((layer.mesh.geometry.getAttribute('grassEdgeFade') as THREE.BufferAttribute).usage)
+      .toBe(THREE.DynamicDrawUsage);
     expect(layer.mesh.geometry.getAttribute('grassBladeData')).toBeDefined();
+    expect(layer.midMeshes[0]?.geometry.userData.realmGrassLod).toBe('mid');
+    expect(layer.midMeshes[0]?.geometry.userData.realmGrassTriangleCount)
+      .toBeLessThan(layer.nearMeshes[0]?.geometry.userData.realmGrassTriangleCount);
     expect(layer.isAnimationActive()).toBe(true);
 
     const populatedMesh = layer.meshes.find((currentMesh) => currentMesh.count > 0)!;
+    const expandedBoundingBox = populatedMesh.boundingBox!.clone();
+    const expandedBoundingSphere = populatedMesh.boundingSphere!.clone();
+    populatedMesh.computeBoundingBox();
+    const undeformedBoundingBox = populatedMesh.boundingBox!.clone();
+    populatedMesh.computeBoundingSphere();
+    const undeformedBoundingSphere = populatedMesh.boundingSphere!.clone();
+    expect(expandedBoundingBox.min.x).toBeCloseTo(
+      undeformedBoundingBox.min.x - REALM_GRASS_MAX_WORLD_DEFORMATION_RADIUS,
+      10
+    );
+    expect(expandedBoundingBox.max.y).toBeCloseTo(
+      undeformedBoundingBox.max.y + REALM_GRASS_MAX_WORLD_DEFORMATION_RADIUS,
+      10
+    );
+    expect(expandedBoundingSphere.radius).toBeCloseTo(
+      undeformedBoundingSphere.radius + REALM_GRASS_MAX_WORLD_DEFORMATION_RADIUS,
+      10
+    );
+    populatedMesh.boundingBox!.copy(expandedBoundingBox);
+    populatedMesh.boundingSphere!.copy(expandedBoundingSphere);
     const material = populatedMesh.material as THREE.MeshStandardMaterial;
     const geometryAttributeSlots = Object.values(populatedMesh.geometry.attributes)
       .reduce((sum, attribute) => sum + Math.ceil(attribute.itemSize / 4), 0);
@@ -181,6 +243,7 @@ describe('camera-local procedural grass layer', () => {
 
     layer.updateView({ x: 0, z: 0 }, 'keep');
     expect(layer.getTelemetry().animated).toBe(false);
+    expect(layer.getTelemetry().wildflowers.animated).toBe(false);
     expect(layer.updateWind(1)).toBe(false);
     const material = layer.mesh.material as THREE.MeshStandardMaterial;
     const uniforms = material.userData.realmGrassUniforms as {
@@ -227,9 +290,9 @@ describe('camera-local procedural grass layer', () => {
     expect(fallback.instanceCount).toBe(before.instanceCount);
     expect(fallback.instanceCount).toBeGreaterThan(0);
     expect(layer.group.visible).toBe(true);
-    expect(fallback.animated).toBe(false);
-    expect(layer.isAnimationActive()).toBe(false);
-    expect(layer.updateWind(1)).toBe(false);
+    expect(fallback.animated).toBe(fallback.wildflowers.animated);
+    expect(layer.isAnimationActive()).toBe(fallback.wildflowers.animated);
+    expect(layer.updateWind(1)).toBe(fallback.wildflowers.animated);
 
     layer.dispose();
   });
