@@ -23,7 +23,17 @@ import {
 const TARGET_DIGEST = 'a'.repeat(64);
 const STATE_DIGEST = 'b'.repeat(64);
 const NOTIFICATION_RECEIPT_DIGEST = 'c'.repeat(64);
-const NOTIFICATION_BRIDGE_COMMIT = 'd'.repeat(40);
+const NOTIFICATION_PAGES_COMMIT = 'd'.repeat(40);
+const NOTIFICATION_BRIDGE_COMMIT = 'e'.repeat(40);
+const NOTIFICATION_ROOT_DIGEST = 'f'.repeat(64);
+const NOTIFICATION_ROOT_COMMIT = '1'.repeat(40);
+const NOTIFICATION_LIVE_AUTHORITY = Object.freeze({
+  notificationPagesLiveReceiptDigest: NOTIFICATION_RECEIPT_DIGEST,
+  notificationPagesLivePagesSourceCommit: NOTIFICATION_PAGES_COMMIT,
+  notificationPagesLiveBridgeSourceCommit: NOTIFICATION_BRIDGE_COMMIT,
+  notificationPagesLiveRootReceiptDigest: NOTIFICATION_ROOT_DIGEST,
+  notificationPagesLiveRootPagesSourceCommit: NOTIFICATION_ROOT_COMMIT,
+});
 const NOW = new Date('2026-08-11T13:00:00.000Z');
 const FID = 123_456n;
 const REQUESTED_AT_MICROS = 1_800_000_000_000_000n;
@@ -46,10 +56,7 @@ describe('private reviewed admission notification recovery plan', () => {
     const directory = privateDirectory();
     const plan = createReviewedAdmissionNotificationRecoveryPlan({
       targetConfigurationDigest: TARGET_DIGEST,
-      notificationPreparedReleaseBinding: {
-        notificationPreparedReceiptDigest: NOTIFICATION_RECEIPT_DIGEST,
-        notificationPreparedBridgeSourceCommit: NOTIFICATION_BRIDGE_COMMIT,
-      },
+      notificationPagesLiveAuthority: NOTIFICATION_LIVE_AUTHORITY,
       fid: FID,
       note: 'reviewed first-time founder delivery recovery',
       expectedRequestedAtMicros: REQUESTED_AT_MICROS,
@@ -64,9 +71,8 @@ describe('private reviewed admission notification recovery plan', () => {
     expect(reference.filename).not.toContain(FID.toString());
     expect(readFileSync(path, 'utf8')).toContain(REQUESTED_AT_MICROS.toString());
     expect(plan).toMatchObject({
-      schemaVersion: 2,
-      notificationPreparedReceiptDigest: NOTIFICATION_RECEIPT_DIGEST,
-      notificationPreparedBridgeSourceCommit: NOTIFICATION_BRIDGE_COMMIT,
+      schemaVersion: 3,
+      ...NOTIFICATION_LIVE_AUTHORITY,
     });
     expect(readReviewedAdmissionNotificationRecoveryPlan({
       directory,
@@ -153,12 +159,12 @@ describe('private reviewed admission notification recovery plan', () => {
     })).not.toBe(digest);
   });
 
-  it('rejects a partial prepared-notification receipt binding', () => {
+  it('rejects a partial live notification Pages authority', () => {
     expect(() => createReviewedAdmissionNotificationRecoveryPlan({
       targetConfigurationDigest: TARGET_DIGEST,
-      notificationPreparedReleaseBinding: {
-        notificationPreparedReceiptDigest: NOTIFICATION_RECEIPT_DIGEST,
-        notificationPreparedBridgeSourceCommit: null,
+      notificationPagesLiveAuthority: {
+        ...NOTIFICATION_LIVE_AUTHORITY,
+        notificationPagesLiveBridgeSourceCommit: null,
       },
       fid: FID,
       note: 'reviewed first-time founder delivery recovery',

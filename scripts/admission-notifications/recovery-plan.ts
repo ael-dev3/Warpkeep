@@ -18,6 +18,10 @@ import {
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 
+import type {
+  NotificationPagesLiveHermesAuthority,
+} from '../notification-pages-live-hermes-authority.mjs';
+
 const DIGEST_PATTERN = /^[0-9a-f]{64}$/;
 const PLAN_FILENAME_PATTERN =
   /^admission-notification-recovery-plan-([0-9]{8}T[0-9]{9}Z)-([0-9a-f]{32})\.json$/;
@@ -43,14 +47,17 @@ export type ReviewedAdmissionNotificationRecoveryPlanReference = Readonly<{
 }>;
 
 export type ReviewedAdmissionNotificationRecoveryPlan = Readonly<{
-  schemaVersion: 2;
+  schemaVersion: 3;
   kind: 'warpkeep-reviewed-admission-notification-recovery-plan';
   planId: string;
   createdAt: string;
   expiresAt: string;
   targetConfigurationDigest: string;
-  notificationPreparedReceiptDigest: string | null;
-  notificationPreparedBridgeSourceCommit: string | null;
+  notificationPagesLiveReceiptDigest: string | null;
+  notificationPagesLivePagesSourceCommit: string | null;
+  notificationPagesLiveBridgeSourceCommit: string | null;
+  notificationPagesLiveRootReceiptDigest: string | null;
+  notificationPagesLiveRootPagesSourceCommit: string | null;
   fid: string;
   note: string;
   expectedRequestedAtMicros: string;
@@ -113,15 +120,18 @@ function parsePlan(value: unknown): ReviewedAdmissionNotificationRecoveryPlan {
     'createdAt',
     'expiresAt',
     'targetConfigurationDigest',
-    'notificationPreparedReceiptDigest',
-    'notificationPreparedBridgeSourceCommit',
+    'notificationPagesLiveReceiptDigest',
+    'notificationPagesLivePagesSourceCommit',
+    'notificationPagesLiveBridgeSourceCommit',
+    'notificationPagesLiveRootReceiptDigest',
+    'notificationPagesLiveRootPagesSourceCommit',
     'fid',
     'note',
     'expectedRequestedAtMicros',
     'expectedNotificationStateDigest',
   ], 'ADMISSION_NOTIFICATION_RECOVERY_PLAN_INVALID');
   if (
-    plan.schemaVersion !== 2
+    plan.schemaVersion !== 3
     || plan.kind !== 'warpkeep-reviewed-admission-notification-recovery-plan'
     || typeof plan.planId !== 'string'
     || !/^[0-9a-f]{32}$/.test(plan.planId)
@@ -132,13 +142,22 @@ function parsePlan(value: unknown): ReviewedAdmissionNotificationRecoveryPlan {
     || typeof plan.expectedNotificationStateDigest !== 'string'
     || !DIGEST_PATTERN.test(plan.expectedNotificationStateDigest)
     || !(
-      (plan.notificationPreparedReceiptDigest === null
-        && plan.notificationPreparedBridgeSourceCommit === null)
+      (plan.notificationPagesLiveReceiptDigest === null
+        && plan.notificationPagesLivePagesSourceCommit === null
+        && plan.notificationPagesLiveBridgeSourceCommit === null
+        && plan.notificationPagesLiveRootReceiptDigest === null
+        && plan.notificationPagesLiveRootPagesSourceCommit === null)
       || (
-        typeof plan.notificationPreparedReceiptDigest === 'string'
-        && DIGEST_PATTERN.test(plan.notificationPreparedReceiptDigest)
-        && typeof plan.notificationPreparedBridgeSourceCommit === 'string'
-        && /^[0-9a-f]{40}$/.test(plan.notificationPreparedBridgeSourceCommit)
+        typeof plan.notificationPagesLiveReceiptDigest === 'string'
+        && DIGEST_PATTERN.test(plan.notificationPagesLiveReceiptDigest)
+        && typeof plan.notificationPagesLivePagesSourceCommit === 'string'
+        && /^[0-9a-f]{40}$/.test(plan.notificationPagesLivePagesSourceCommit)
+        && typeof plan.notificationPagesLiveBridgeSourceCommit === 'string'
+        && /^[0-9a-f]{40}$/.test(plan.notificationPagesLiveBridgeSourceCommit)
+        && typeof plan.notificationPagesLiveRootReceiptDigest === 'string'
+        && DIGEST_PATTERN.test(plan.notificationPagesLiveRootReceiptDigest)
+        && typeof plan.notificationPagesLiveRootPagesSourceCommit === 'string'
+        && /^[0-9a-f]{40}$/.test(plan.notificationPagesLiveRootPagesSourceCommit)
       )
     )
   ) {
@@ -161,15 +180,21 @@ function parsePlan(value: unknown): ReviewedAdmissionNotificationRecoveryPlan {
     );
   }
   return Object.freeze({
-    schemaVersion: 2,
+    schemaVersion: 3,
     kind: 'warpkeep-reviewed-admission-notification-recovery-plan',
     planId: plan.planId,
     createdAt: plan.createdAt,
     expiresAt: plan.expiresAt,
     targetConfigurationDigest: plan.targetConfigurationDigest,
-    notificationPreparedReceiptDigest: plan.notificationPreparedReceiptDigest,
-    notificationPreparedBridgeSourceCommit:
-      plan.notificationPreparedBridgeSourceCommit,
+    notificationPagesLiveReceiptDigest: plan.notificationPagesLiveReceiptDigest,
+    notificationPagesLivePagesSourceCommit:
+      plan.notificationPagesLivePagesSourceCommit,
+    notificationPagesLiveBridgeSourceCommit:
+      plan.notificationPagesLiveBridgeSourceCommit,
+    notificationPagesLiveRootReceiptDigest:
+      plan.notificationPagesLiveRootReceiptDigest,
+    notificationPagesLiveRootPagesSourceCommit:
+      plan.notificationPagesLiveRootPagesSourceCommit,
     fid,
     note,
     expectedRequestedAtMicros,
@@ -267,10 +292,7 @@ export function admissionNotificationRecoveryStateDigest(value: Readonly<{
 
 export function createReviewedAdmissionNotificationRecoveryPlan(input: Readonly<{
   targetConfigurationDigest: string;
-  notificationPreparedReleaseBinding?: Readonly<{
-    notificationPreparedReceiptDigest: string | null;
-    notificationPreparedBridgeSourceCommit: string | null;
-  }>;
+  notificationPagesLiveAuthority?: NotificationPagesLiveHermesAuthority;
   fid: bigint;
   note: string;
   expectedRequestedAtMicros: bigint;
@@ -279,7 +301,7 @@ export function createReviewedAdmissionNotificationRecoveryPlan(input: Readonly<
 }>): ReviewedAdmissionNotificationRecoveryPlan {
   const now = input.now ?? new Date();
   return parsePlan({
-    schemaVersion: 2,
+    schemaVersion: 3,
     kind: 'warpkeep-reviewed-admission-notification-recovery-plan',
     planId: randomBytes(16).toString('hex'),
     createdAt: now.toISOString(),
@@ -287,10 +309,16 @@ export function createReviewedAdmissionNotificationRecoveryPlan(input: Readonly<
       now.getTime() + REVIEWED_ADMISSION_NOTIFICATION_RECOVERY_PLAN_LIFETIME_MS,
     ).toISOString(),
     targetConfigurationDigest: input.targetConfigurationDigest,
-    notificationPreparedReceiptDigest:
-      input.notificationPreparedReleaseBinding?.notificationPreparedReceiptDigest ?? null,
-    notificationPreparedBridgeSourceCommit:
-      input.notificationPreparedReleaseBinding?.notificationPreparedBridgeSourceCommit ?? null,
+    notificationPagesLiveReceiptDigest:
+      input.notificationPagesLiveAuthority?.notificationPagesLiveReceiptDigest ?? null,
+    notificationPagesLivePagesSourceCommit:
+      input.notificationPagesLiveAuthority?.notificationPagesLivePagesSourceCommit ?? null,
+    notificationPagesLiveBridgeSourceCommit:
+      input.notificationPagesLiveAuthority?.notificationPagesLiveBridgeSourceCommit ?? null,
+    notificationPagesLiveRootReceiptDigest:
+      input.notificationPagesLiveAuthority?.notificationPagesLiveRootReceiptDigest ?? null,
+    notificationPagesLiveRootPagesSourceCommit:
+      input.notificationPagesLiveAuthority?.notificationPagesLiveRootPagesSourceCommit ?? null,
     fid: input.fid.toString(),
     note: input.note,
     expectedRequestedAtMicros: input.expectedRequestedAtMicros.toString(),

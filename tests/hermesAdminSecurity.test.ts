@@ -27,7 +27,7 @@ import {
   FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED,
   FOUNDER_ADMISSION_SOURCE_CONFIGURATION_DIGEST,
   inspectAdmissionNotification,
-  inspectHermesNotificationPreparedReleaseAuthority,
+  inspectHermesNotificationPagesLiveAuthority,
   listAccessRequests,
   PENDING_ACCESS_REQUEST_CENSUS_TARGET_CONFIGURATION_DIGEST,
   parseHermesArguments,
@@ -147,6 +147,7 @@ function runHermes(
     env.WKGR_PRODUCTION_BOOTSTRAP_PROFILE =
       'warpkeep-greater-realm-production-bootstrap-v1';
     env.WKGR_HERMES_RELEASE_COMMAND = row;
+    env.WKGR_PRODUCTION_PROTECTED_COMMIT = 'a'.repeat(40);
     if (row === 'admit-dry' || row === 'admit-confirm') {
       mkdirSync(founderPlans, { mode: 0o700 });
       env.WKGR_HERMES_FOUNDER_PLAN_DIRECTORY = founderPlans;
@@ -158,7 +159,6 @@ function runHermes(
     if (row === 'list-pending') {
       mkdirSync(pendingCensus, { mode: 0o700 });
       env.WKGR_HERMES_PENDING_CENSUS_DIRECTORY = pendingCensus;
-      env.WKGR_PRODUCTION_PROTECTED_COMMIT = 'a'.repeat(40);
     }
     const needsAdmin = ['list-pending', 'admit-confirm', 'allow-confirm', 'notification-recover-dry',
       'notification-recover-confirm'].includes(row);
@@ -874,56 +874,99 @@ describe('Hermes machine-readable output', () => {
 });
 
 describe('Hermes command-line boundary', () => {
-  it('requires one exact live prepared-notification receipt before confirmed authority', async () => {
-    const emptyBinding = Object.freeze({
-      notificationPreparedReceiptDigest: null,
-      notificationPreparedBridgeSourceCommit: null,
+  it('requires one exact current-source live Pages receipt before confirmed authority', async () => {
+    const emptyRoot = Object.freeze({
+      notificationPagesLiveRootReceiptDigest: null,
+      notificationPagesLiveRootPagesSourceCommit: null,
     });
-    const inspectByDigest = vi.fn();
-    await expect(inspectHermesNotificationPreparedReleaseAuthority({
-      binding: emptyBinding,
+    const inspectByPagesSourceCommit = vi.fn();
+    await expect(inspectHermesNotificationPagesLiveAuthority({
+      rootBinding: emptyRoot,
       required: false,
       repositoryRoot,
-    }, { inspectByDigest: inspectByDigest as never })).resolves.toEqual(emptyBinding);
-    expect(inspectByDigest).not.toHaveBeenCalled();
-    await expect(inspectHermesNotificationPreparedReleaseAuthority({
-      binding: emptyBinding,
+    }, {
+      inspectByPagesSourceCommit: inspectByPagesSourceCommit as never,
+    })).resolves.toEqual({
+      notificationPagesLiveReceiptDigest: null,
+      notificationPagesLivePagesSourceCommit: null,
+      notificationPagesLiveBridgeSourceCommit: null,
+      notificationPagesLiveRootReceiptDigest: null,
+      notificationPagesLiveRootPagesSourceCommit: null,
+    });
+    expect(inspectByPagesSourceCommit).not.toHaveBeenCalled();
+    await expect(inspectHermesNotificationPagesLiveAuthority({
+      rootBinding: emptyRoot,
       required: true,
       repositoryRoot,
-    }, { inspectByDigest: inspectByDigest as never })).rejects.toThrow(
-      'Founder admission notification prepared-release authority is required.',
+    }, {
+      inspectByPagesSourceCommit: inspectByPagesSourceCommit as never,
+    })).rejects.toThrow(
+      'NOTIFICATION_PAGES_LIVE_RELEASE_BINDING_REQUIRED',
     );
 
-    const binding = Object.freeze({
-      notificationPreparedReceiptDigest: 'a'.repeat(64),
-      notificationPreparedBridgeSourceCommit: 'b'.repeat(40),
+    const rootBinding = Object.freeze({
+      notificationPagesLiveRootReceiptDigest: 'a'.repeat(64),
+      notificationPagesLiveRootPagesSourceCommit: 'b'.repeat(40),
     });
+    const pagesSourceCommit = 'c'.repeat(40);
+    const bridgeSourceCommit = 'd'.repeat(40);
+    const receiptDigest = 'e'.repeat(64);
     const exactInspect = vi.fn(async () => ({
-      receiptDigest: binding.notificationPreparedReceiptDigest,
-      receipt: { bridgeSourceCommit: binding.notificationPreparedBridgeSourceCommit },
-      liveAttestation: { bridgeSourceCommit: binding.notificationPreparedBridgeSourceCommit },
+      receiptDigest,
+      chainRootReceiptDigest: rootBinding.notificationPagesLiveRootReceiptDigest,
+      chainRootPagesSourceCommit: rootBinding.notificationPagesLiveRootPagesSourceCommit,
+      receipt: {
+        pages: {
+          sourceCommit: pagesSourceCommit,
+          notificationsPresentationEnabled: true,
+          hermesExecutionApprovedAtActivation: false,
+        },
+        bridge: { sourceCommit: bridgeSourceCommit },
+      },
     }));
-    await expect(inspectHermesNotificationPreparedReleaseAuthority({
-      binding,
+    await expect(inspectHermesNotificationPagesLiveAuthority({
+      rootBinding,
       required: true,
+      pagesSourceCommit,
       repositoryRoot,
-    }, { inspectByDigest: exactInspect as never })).resolves.toEqual(binding);
+    }, {
+      inspectByPagesSourceCommit: exactInspect as never,
+    })).resolves.toEqual({
+      notificationPagesLiveReceiptDigest: receiptDigest,
+      notificationPagesLivePagesSourceCommit: pagesSourceCommit,
+      notificationPagesLiveBridgeSourceCommit: bridgeSourceCommit,
+      notificationPagesLiveRootReceiptDigest:
+        rootBinding.notificationPagesLiveRootReceiptDigest,
+      notificationPagesLiveRootPagesSourceCommit:
+        rootBinding.notificationPagesLiveRootPagesSourceCommit,
+    });
     expect(exactInspect).toHaveBeenCalledWith(expect.objectContaining({
-      receiptDigest: binding.notificationPreparedReceiptDigest,
+      pagesSourceCommit,
       repositoryRoot,
     }));
 
     const driftedInspect = vi.fn(async () => ({
-      receiptDigest: binding.notificationPreparedReceiptDigest,
-      receipt: { bridgeSourceCommit: 'c'.repeat(40) },
-      liveAttestation: { bridgeSourceCommit: binding.notificationPreparedBridgeSourceCommit },
+      receiptDigest,
+      chainRootReceiptDigest: 'f'.repeat(64),
+      chainRootPagesSourceCommit: rootBinding.notificationPagesLiveRootPagesSourceCommit,
+      receipt: {
+        pages: {
+          sourceCommit: pagesSourceCommit,
+          notificationsPresentationEnabled: true,
+          hermesExecutionApprovedAtActivation: false,
+        },
+        bridge: { sourceCommit: bridgeSourceCommit },
+      },
     }));
-    await expect(inspectHermesNotificationPreparedReleaseAuthority({
-      binding,
+    await expect(inspectHermesNotificationPagesLiveAuthority({
+      rootBinding,
       required: true,
+      pagesSourceCommit,
       repositoryRoot,
-    }, { inspectByDigest: driftedInspect as never })).rejects.toThrow(
-      'Founder admission notification prepared-release authority does not match.',
+    }, {
+      inspectByPagesSourceCommit: driftedInspect as never,
+    })).rejects.toThrow(
+      'NOTIFICATION_PAGES_LIVE_HERMES_AUTHORITY_MISMATCH',
     );
   });
 
@@ -970,8 +1013,8 @@ describe('Hermes command-line boundary', () => {
     const notificationCredential = mainSource.indexOf(
       'const trustedLaunch = validateTrustedHermesLaunch(capturedTrustedLaunch);',
     );
-    const preparedNotificationAuthority = mainSource.indexOf(
-      'await inspectHermesNotificationPreparedReleaseAuthority({ required });',
+    const liveNotificationAuthority = mainSource.indexOf(
+      'await inspectHermesNotificationPagesLiveAuthority({',
     );
     const credential = mainSource.indexOf('const secret = trustedLaunch?.adminSecretPath');
     const token = mainSource.indexOf('let token = await requestAdminToken(');
@@ -985,9 +1028,9 @@ describe('Hermes command-line boundary', () => {
     );
     expect(releaseGate).toBeGreaterThan(-1);
     expect(notificationCredential).toBeGreaterThan(releaseGate);
-    expect(preparedNotificationAuthority).toBeGreaterThan(notificationCredential);
+    expect(liveNotificationAuthority).toBeGreaterThan(notificationCredential);
     expect(credential).toBeGreaterThan(releaseGate);
-    expect(credential).toBeGreaterThan(preparedNotificationAuthority);
+    expect(credential).toBeGreaterThan(liveNotificationAuthority);
     expect(token).toBeGreaterThan(releaseGate);
     expect(connection).toBeGreaterThan(releaseGate);
     expect(claim).toBeGreaterThan(releaseGate);
@@ -1852,7 +1895,7 @@ describe('Hermes atomic profiled admission boundary', () => {
     const unchanged = branch.indexOf('requireUnchangedPendingAdmissionRequest(');
     const claimPlan = branch.indexOf('claimReviewedFounderAdmissionPlan({');
     const finalNotificationAuthority = branch.lastIndexOf(
-      'await readNotificationPreparedAuthority(true, true);',
+      'await readNotificationPagesLiveAuthority(true, true);',
       claimPlan,
     );
     const submitAdmission = branch.indexOf(
@@ -1908,7 +1951,7 @@ describe('Hermes atomic profiled admission boundary', () => {
       'connection.reducers.adminAllowFidForAccessRequestV1(',
     );
     const finalNotificationAuthority = branch.lastIndexOf(
-      'await readNotificationPreparedAuthority(true, true);',
+      'await readNotificationPagesLiveAuthority(true, true);',
       submit,
     );
     const resolvedTarget = branch.indexOf(
@@ -2002,7 +2045,7 @@ describe('Hermes atomic profiled admission boundary', () => {
     const writePlan = branch.indexOf('writeReviewedAdmissionNotificationRecoveryPlan({');
     const claimPlan = branch.indexOf('claimReviewedAdmissionNotificationRecoveryPlan({');
     const finalNotificationAuthority = branch.lastIndexOf(
-      'await readNotificationPreparedAuthority(true, true);',
+      'await readNotificationPagesLiveAuthority(true, true);',
       claimPlan,
     );
     const submitRecovery = branch.indexOf('await requestAdmissionNotificationRecovery(');

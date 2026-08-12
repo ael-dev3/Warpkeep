@@ -71,11 +71,10 @@ import {
   type AlphaStatusV10,
 } from './alpha-v10-activation-controls';
 import {
-  AUTH_BRIDGE_NOTIFICATION_PREPARED_RELEASE_BINDING,
-} from './auth-bridge-notification-prepared-release-binding.mjs';
-import {
-  inspectPrivateAuthBridgeNotificationPreparedReceiptByDigest,
-} from './auth-bridge-notification-prepared-receipt.mjs';
+  inspectHermesNotificationPagesLiveAuthority as inspectNotificationPagesLiveAuthority,
+  sameNotificationPagesLiveHermesAuthority,
+  type NotificationPagesLiveHermesAuthority,
+} from './notification-pages-live-hermes-authority.mjs';
 import {
   buildTrustedPublicFarcasterProfile,
   FarcasterPublicProfileError,
@@ -422,88 +421,32 @@ export function requireFounderAdmissionNotificationDeliveryApproval(
   }
 }
 
-export type HermesNotificationPreparedReleaseBinding = Readonly<{
-  notificationPreparedReceiptDigest: string | null;
-  notificationPreparedBridgeSourceCommit: string | null;
-}>;
+export type HermesNotificationPagesLiveAuthority =
+  NotificationPagesLiveHermesAuthority;
 
-function exactHermesNotificationPreparedReleaseBinding(
-  value: HermesNotificationPreparedReleaseBinding,
-): HermesNotificationPreparedReleaseBinding {
-  if (
-    value === null
-    || typeof value !== 'object'
-    || Array.isArray(value)
-    || Object.keys(value).sort().join(',')
-      !== [
-        'notificationPreparedBridgeSourceCommit',
-        'notificationPreparedReceiptDigest',
-      ].join(',')
-    || !(
-      (value.notificationPreparedReceiptDigest === null
-        && value.notificationPreparedBridgeSourceCommit === null)
-      || (
-        typeof value.notificationPreparedReceiptDigest === 'string'
-        && /^[0-9a-f]{64}$/u.test(value.notificationPreparedReceiptDigest)
-        && typeof value.notificationPreparedBridgeSourceCommit === 'string'
-        && /^[0-9a-f]{40}$/u.test(value.notificationPreparedBridgeSourceCommit)
-      )
-    )
-  ) fail('Founder admission notification prepared-release binding is invalid.');
-  return Object.freeze({ ...value });
-}
-
-export async function inspectHermesNotificationPreparedReleaseAuthority(
+export async function inspectHermesNotificationPagesLiveAuthority(
   input: Readonly<{
-    binding?: HermesNotificationPreparedReleaseBinding;
     required: boolean;
+    pagesSourceCommit?: string;
+    rootBinding?: Readonly<{
+      notificationPagesLiveRootReceiptDigest: string | null;
+      notificationPagesLiveRootPagesSourceCommit: string | null;
+    }>;
+    directory?: string;
     repositoryRoot?: string;
     fetchImpl?: typeof fetch;
     now?: Date;
   }>,
-  dependencies: Readonly<{
-    inspectByDigest?: typeof inspectPrivateAuthBridgeNotificationPreparedReceiptByDigest;
-  }> = {},
-): Promise<HermesNotificationPreparedReleaseBinding> {
-  const binding = exactHermesNotificationPreparedReleaseBinding(
-    input.binding ?? AUTH_BRIDGE_NOTIFICATION_PREPARED_RELEASE_BINDING,
-  );
-  if (binding.notificationPreparedReceiptDigest === null) {
-    if (input.required) {
-      fail('Founder admission notification prepared-release authority is required.');
-    }
-    return binding;
-  }
-  const inspected = await (
-    dependencies.inspectByDigest
-    ?? inspectPrivateAuthBridgeNotificationPreparedReceiptByDigest
-  )({
-    receiptDigest: binding.notificationPreparedReceiptDigest,
-    repositoryRoot: input.repositoryRoot ?? resolve(import.meta.dirname, '..'),
-    ...(input.fetchImpl === undefined ? {} : { fetchImpl: input.fetchImpl }),
-    ...(input.now === undefined ? {} : { now: input.now }),
-  });
-  if (
-    inspected.receiptDigest !== binding.notificationPreparedReceiptDigest
-    || inspected.receipt.bridgeSourceCommit
-      !== binding.notificationPreparedBridgeSourceCommit
-    || inspected.liveAttestation.bridgeSourceCommit
-      !== binding.notificationPreparedBridgeSourceCommit
-  ) fail('Founder admission notification prepared-release authority does not match.');
-  return binding;
+  dependencies: Parameters<typeof inspectNotificationPagesLiveAuthority>[1] = {},
+): Promise<HermesNotificationPagesLiveAuthority> {
+  return inspectNotificationPagesLiveAuthority(input, dependencies);
 }
 
-function sameHermesNotificationPreparedReleaseBinding(
-  value: Readonly<{
-    notificationPreparedReceiptDigest: string | null;
-    notificationPreparedBridgeSourceCommit: string | null;
-  }>,
-  binding: HermesNotificationPreparedReleaseBinding,
+function sameHermesNotificationPagesLiveAuthority(
+  value: HermesNotificationPagesLiveAuthority,
+  authority: HermesNotificationPagesLiveAuthority,
 ): boolean {
-  return value.notificationPreparedReceiptDigest
-      === binding.notificationPreparedReceiptDigest
-    && value.notificationPreparedBridgeSourceCommit
-      === binding.notificationPreparedBridgeSourceCommit;
+  return sameNotificationPagesLiveHermesAuthority(value, authority);
 }
 
 export function privacySafeHermesErrorMessage(error: unknown): string {
@@ -764,9 +707,8 @@ function validateTrustedHermesLaunch(
     fail('WKGR_HERMES_PENDING_CENSUS_DIRECTORY has an invalid command role.');
   }
   if (
-    requiresPendingCensus
-      ? captured.protectedCommit === undefined || !COMMIT_SHA.test(captured.protectedCommit)
-      : captured.protectedCommit !== undefined && !COMMIT_SHA.test(captured.protectedCommit)
+    captured.protectedCommit === undefined
+    || !COMMIT_SHA.test(captured.protectedCommit)
   ) fail('WKGR_PRODUCTION_PROTECTED_COMMIT is invalid for this Hermes release command.');
   if (
     process.env.WARPKEEP_ADMIN_TOKEN_SECRET !== undefined
@@ -3710,24 +3652,29 @@ async function main() {
     requireFounderAdmissionNotificationDeliveryApproval(command);
   }
   const trustedLaunch = validateTrustedHermesLaunch(capturedTrustedLaunch);
-  let notificationPreparedAuthority:
-    HermesNotificationPreparedReleaseBinding | undefined;
-  const readNotificationPreparedAuthority = async (
+  let notificationPagesLiveAuthority:
+    HermesNotificationPagesLiveAuthority | undefined;
+  const readNotificationPagesLiveAuthority = async (
     required: boolean,
     refresh = false,
-  ): Promise<HermesNotificationPreparedReleaseBinding> => {
+  ): Promise<HermesNotificationPagesLiveAuthority> => {
     if (
       !refresh
       &&
-      notificationPreparedAuthority !== undefined
+      notificationPagesLiveAuthority !== undefined
       && (
         !required
-        || notificationPreparedAuthority.notificationPreparedReceiptDigest !== null
+        || notificationPagesLiveAuthority.notificationPagesLiveReceiptDigest !== null
       )
-    ) return notificationPreparedAuthority;
-    notificationPreparedAuthority =
-      await inspectHermesNotificationPreparedReleaseAuthority({ required });
-    return notificationPreparedAuthority;
+    ) return notificationPagesLiveAuthority;
+    notificationPagesLiveAuthority =
+      await inspectHermesNotificationPagesLiveAuthority({
+        required,
+        ...(trustedLaunch?.protectedCommit === undefined
+          ? {}
+          : { pagesSourceCommit: trustedLaunch.protectedCommit }),
+      });
+    return notificationPagesLiveAuthority;
   };
   const legacyNotificationOperatorSecret = process.env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET;
   delete process.env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET;
@@ -3747,7 +3694,7 @@ async function main() {
       'WARPKEEP_AUTH_BRIDGE_URL',
     );
     requireAdmissionNotificationInspectionProductionTarget(bridgeUrl);
-    await readNotificationPreparedAuthority(false);
+    await readNotificationPagesLiveAuthority(false);
     const diagnostics = await inspectAdmissionNotification(
       bridgeUrl,
       readFid(positional[1]),
@@ -3816,7 +3763,7 @@ async function main() {
     // created for a configurable lookalike and later consumed in production.
     requireCredentialedProductionTarget(uri, database, DEFAULT_BRIDGE);
     requireFounderAdmissionProductionTarget(database);
-    const preparedAuthority = await readNotificationPreparedAuthority(!dryRun);
+    const liveAuthority = await readNotificationPagesLiveAuthority(!dryRun);
     const privateInput = trustedLaunch?.privateInputPath === undefined
       ? await readPrivateFounderAdmissionInput()
       : readTrustedFounderAdmissionInput(trustedLaunch.privateInputPath);
@@ -3828,7 +3775,7 @@ async function main() {
         targetConfigurationDigest: FOUNDER_ADMISSION_TARGET_CONFIGURATION_DIGEST,
         profilePolicyVersion: FARCASTER_PROFILE_POLICY_VERSION,
         profileSourceUseApproval: request.profileSourceUseApproval,
-        notificationPreparedReleaseBinding: preparedAuthority,
+        notificationPagesLiveAuthority: liveAuthority,
         fid: request.fid,
         note: request.note,
         profile,
@@ -3861,9 +3808,9 @@ async function main() {
       expectedTargetConfigurationDigest: FOUNDER_ADMISSION_TARGET_CONFIGURATION_DIGEST,
       expectedProfilePolicyVersion: FARCASTER_PROFILE_POLICY_VERSION,
     });
-    if (!sameHermesNotificationPreparedReleaseBinding(
+    if (!sameHermesNotificationPagesLiveAuthority(
       admissionPlan,
-      preparedAuthority,
+      liveAuthority,
     )) {
       fail('Reviewed founder admission plan uses a different notification release.');
     }
@@ -3966,7 +3913,7 @@ async function main() {
     && command !== 'recover-admission-notification'
   ) {
     if (command === 'allow-fid') {
-      await readNotificationPreparedAuthority(false);
+      await readNotificationPagesLiveAuthority(false);
     }
     console.log(JSON.stringify(printable({
       command,
@@ -4032,14 +3979,14 @@ async function main() {
     command === 'allow-fid'
     || command === 'recover-admission-notification'
   ) {
-    const preparedAuthority = await readNotificationPreparedAuthority(!dryRun);
+    const liveAuthority = await readNotificationPagesLiveAuthority(!dryRun);
     if (
       command === 'recover-admission-notification'
       && !dryRun
       && notificationRecoveryPlan !== undefined
-      && !sameHermesNotificationPreparedReleaseBinding(
+      && !sameHermesNotificationPagesLiveAuthority(
         notificationRecoveryPlan,
-        preparedAuthority,
+        liveAuthority,
       )
     ) {
       fail('Reviewed notification recovery plan uses a different notification release.');
@@ -4139,9 +4086,9 @@ async function main() {
         const plan = createReviewedAdmissionNotificationRecoveryPlan({
           targetConfigurationDigest:
             ADMISSION_NOTIFICATION_RECOVERY_TARGET_CONFIGURATION_DIGEST,
-          notificationPreparedReleaseBinding:
-            notificationPreparedAuthority
-            ?? await readNotificationPreparedAuthority(false),
+          notificationPagesLiveAuthority:
+            notificationPagesLiveAuthority
+            ?? await readNotificationPagesLiveAuthority(false),
           fid,
           note,
           expectedRequestedAtMicros: targetBefore.requestedAtMicros,
@@ -4189,7 +4136,7 @@ async function main() {
             + 'No recovery request or admission mutation was submitted.',
           );
         }
-        await readNotificationPreparedAuthority(true, true);
+        await readNotificationPagesLiveAuthority(true, true);
         claimReviewedAdmissionNotificationRecoveryPlan({
           plan: notificationRecoveryPlan,
           sha256: notificationRecoveryPlanReference.sha256,
@@ -4504,7 +4451,7 @@ async function main() {
         database,
       }, {
         refreshNotificationAuthority: async () => {
-          await readNotificationPreparedAuthority(true, true);
+          await readNotificationPagesLiveAuthority(true, true);
         },
       });
       const freshTarget = requireUnchangedPendingAdmissionRequest(
@@ -4519,7 +4466,7 @@ async function main() {
       const beforeAuthority = await readFounderAdmissionAuthorityPrecondition(connection);
       requireUnchangedFounderAuthorityMode(initialAuthority.mode, beforeAuthority.mode);
       const freshAdmissionProfile = normalizeAdmissionReadyTrustedProfile(admissionProfile);
-      await readNotificationPreparedAuthority(true, true);
+      await readNotificationPagesLiveAuthority(true, true);
       claimReviewedFounderAdmissionPlan({
         plan: admissionPlan,
         sha256: admissionPlanReference.sha256,
@@ -4571,7 +4518,7 @@ async function main() {
         database,
       }, {
         refreshNotificationAuthority: async () => {
-          await readNotificationPreparedAuthority(true, true);
+          await readNotificationPagesLiveAuthority(true, true);
         },
       });
       const freshTarget = requireUnchangedPendingAdmissionRequest(
@@ -4589,7 +4536,7 @@ async function main() {
         freshTarget,
       );
       requireUnchangedFounderAuthorityMode(initialAuthority.mode, beforeAuthority.mode);
-      await readNotificationPreparedAuthority(true, true);
+      await readNotificationPagesLiveAuthority(true, true);
       await withOperationTimeout(connection.reducers.adminAllowFidForAccessRequestV1({
         fid,
         note,

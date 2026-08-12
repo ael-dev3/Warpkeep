@@ -25,7 +25,17 @@ const SOURCE_DIGEST = 'a'.repeat(64);
 const TARGET_DIGEST = 'b'.repeat(64);
 const POLICY_VERSION = 'trusted-snapchain-profile-v3';
 const NOTIFICATION_RECEIPT_DIGEST = 'c'.repeat(64);
-const NOTIFICATION_BRIDGE_COMMIT = 'd'.repeat(40);
+const NOTIFICATION_PAGES_COMMIT = 'd'.repeat(40);
+const NOTIFICATION_BRIDGE_COMMIT = 'e'.repeat(40);
+const NOTIFICATION_ROOT_DIGEST = 'f'.repeat(64);
+const NOTIFICATION_ROOT_COMMIT = '1'.repeat(40);
+const NOTIFICATION_LIVE_AUTHORITY = Object.freeze({
+  notificationPagesLiveReceiptDigest: NOTIFICATION_RECEIPT_DIGEST,
+  notificationPagesLivePagesSourceCommit: NOTIFICATION_PAGES_COMMIT,
+  notificationPagesLiveBridgeSourceCommit: NOTIFICATION_BRIDGE_COMMIT,
+  notificationPagesLiveRootReceiptDigest: NOTIFICATION_ROOT_DIGEST,
+  notificationPagesLiveRootPagesSourceCommit: NOTIFICATION_ROOT_COMMIT,
+});
 const NOW = new Date('2026-07-18T18:00:00.000Z');
 const PRIVATE_FID = 1_234_567n;
 const PRIVATE_NOTE = 'approved founder fixture';
@@ -101,10 +111,7 @@ describe('private reviewed founder admission plan', () => {
       targetConfigurationDigest: TARGET_DIGEST,
       profilePolicyVersion: POLICY_VERSION,
       profileSourceUseApproval: FOUNDER_ADMISSION_PROFILE_SOURCE_USE_APPROVAL,
-      notificationPreparedReleaseBinding: {
-        notificationPreparedReceiptDigest: NOTIFICATION_RECEIPT_DIGEST,
-        notificationPreparedBridgeSourceCommit: NOTIFICATION_BRIDGE_COMMIT,
-      },
+      notificationPagesLiveAuthority: NOTIFICATION_LIVE_AUTHORITY,
       fid: PRIVATE_FID,
       note: PRIVATE_NOTE,
       profile: PROFILE,
@@ -124,9 +131,8 @@ describe('private reviewed founder admission plan', () => {
     expect(privateArtifact).toContain(PROFILE.canonicalUsername);
     expect(privateArtifact).toContain(PRIVATE_NOTE);
     expect(plan).toMatchObject({
-      schemaVersion: 3,
-      notificationPreparedReceiptDigest: NOTIFICATION_RECEIPT_DIGEST,
-      notificationPreparedBridgeSourceCommit: NOTIFICATION_BRIDGE_COMMIT,
+      schemaVersion: 4,
+      ...NOTIFICATION_LIVE_AUTHORITY,
     });
 
     expect(readReviewedFounderAdmissionPlan({
@@ -194,15 +200,15 @@ describe('private reviewed founder admission plan', () => {
     })).toThrow('FOUNDER_ADMISSION_PLAN_FILE_PERMISSIONS');
   });
 
-  it('rejects a partial prepared-notification receipt binding', () => {
+  it('rejects a partial live notification Pages authority', () => {
     expect(() => createReviewedFounderAdmissionPlan({
       sourceConfigurationDigest: SOURCE_DIGEST,
       targetConfigurationDigest: TARGET_DIGEST,
       profilePolicyVersion: POLICY_VERSION,
       profileSourceUseApproval: FOUNDER_ADMISSION_PROFILE_SOURCE_USE_APPROVAL,
-      notificationPreparedReleaseBinding: {
-        notificationPreparedReceiptDigest: NOTIFICATION_RECEIPT_DIGEST,
-        notificationPreparedBridgeSourceCommit: null,
+      notificationPagesLiveAuthority: {
+        ...NOTIFICATION_LIVE_AUTHORITY,
+        notificationPagesLiveBridgeSourceCommit: null,
       },
       fid: PRIVATE_FID,
       note: PRIVATE_NOTE,

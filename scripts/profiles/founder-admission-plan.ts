@@ -23,6 +23,9 @@ import {
   trustedProfilesEqual,
   type AdmissionReadyTrustedProfile,
 } from '../../spacetimedb/src/profileAuthorityPolicy';
+import type {
+  NotificationPagesLiveHermesAuthority,
+} from '../notification-pages-live-hermes-authority.mjs';
 
 const DIGEST_PATTERN = /^[0-9a-f]{64}$/;
 const PLAN_FILENAME_PATTERN = /^founder-admission-plan-([0-9]{8}T[0-9]{9}Z)-([0-9a-f]{32})\.json$/;
@@ -57,7 +60,7 @@ export type ReviewedFounderAdmissionPlanReference = Readonly<{
 }>;
 
 export type ReviewedFounderAdmissionPlan = Readonly<{
-  schemaVersion: 3;
+  schemaVersion: 4;
   kind: 'warpkeep-reviewed-founder-admission-plan';
   planId: string;
   createdAt: string;
@@ -66,8 +69,11 @@ export type ReviewedFounderAdmissionPlan = Readonly<{
   targetConfigurationDigest: string;
   profilePolicyVersion: string;
   profileSourceUseApproval: typeof FOUNDER_ADMISSION_PROFILE_SOURCE_USE_APPROVAL;
-  notificationPreparedReceiptDigest: string | null;
-  notificationPreparedBridgeSourceCommit: string | null;
+  notificationPagesLiveReceiptDigest: string | null;
+  notificationPagesLivePagesSourceCommit: string | null;
+  notificationPagesLiveBridgeSourceCommit: string | null;
+  notificationPagesLiveRootReceiptDigest: string | null;
+  notificationPagesLiveRootPagesSourceCommit: string | null;
   fid: string;
   note: string;
   profile: AdmissionReadyTrustedProfile;
@@ -254,14 +260,17 @@ function parsePlan(value: unknown): ReviewedFounderAdmissionPlan {
     'targetConfigurationDigest',
     'profilePolicyVersion',
     'profileSourceUseApproval',
-    'notificationPreparedReceiptDigest',
-    'notificationPreparedBridgeSourceCommit',
+    'notificationPagesLiveReceiptDigest',
+    'notificationPagesLivePagesSourceCommit',
+    'notificationPagesLiveBridgeSourceCommit',
+    'notificationPagesLiveRootReceiptDigest',
+    'notificationPagesLiveRootPagesSourceCommit',
     'fid',
     'note',
     'profile',
   ], 'FOUNDER_ADMISSION_PLAN_INVALID');
   if (
-    plan.schemaVersion !== 3
+    plan.schemaVersion !== 4
     || plan.kind !== 'warpkeep-reviewed-founder-admission-plan'
     || typeof plan.planId !== 'string'
     || !/^[0-9a-f]{32}$/.test(plan.planId)
@@ -276,13 +285,22 @@ function parsePlan(value: unknown): ReviewedFounderAdmissionPlan {
     || plan.profilePolicyVersion.length > 128
     || plan.profileSourceUseApproval !== FOUNDER_ADMISSION_PROFILE_SOURCE_USE_APPROVAL
     || !(
-      (plan.notificationPreparedReceiptDigest === null
-        && plan.notificationPreparedBridgeSourceCommit === null)
+      (plan.notificationPagesLiveReceiptDigest === null
+        && plan.notificationPagesLivePagesSourceCommit === null
+        && plan.notificationPagesLiveBridgeSourceCommit === null
+        && plan.notificationPagesLiveRootReceiptDigest === null
+        && plan.notificationPagesLiveRootPagesSourceCommit === null)
       || (
-        typeof plan.notificationPreparedReceiptDigest === 'string'
-        && DIGEST_PATTERN.test(plan.notificationPreparedReceiptDigest)
-        && typeof plan.notificationPreparedBridgeSourceCommit === 'string'
-        && /^[0-9a-f]{40}$/.test(plan.notificationPreparedBridgeSourceCommit)
+        typeof plan.notificationPagesLiveReceiptDigest === 'string'
+        && DIGEST_PATTERN.test(plan.notificationPagesLiveReceiptDigest)
+        && typeof plan.notificationPagesLivePagesSourceCommit === 'string'
+        && /^[0-9a-f]{40}$/.test(plan.notificationPagesLivePagesSourceCommit)
+        && typeof plan.notificationPagesLiveBridgeSourceCommit === 'string'
+        && /^[0-9a-f]{40}$/.test(plan.notificationPagesLiveBridgeSourceCommit)
+        && typeof plan.notificationPagesLiveRootReceiptDigest === 'string'
+        && DIGEST_PATTERN.test(plan.notificationPagesLiveRootReceiptDigest)
+        && typeof plan.notificationPagesLiveRootPagesSourceCommit === 'string'
+        && /^[0-9a-f]{40}$/.test(plan.notificationPagesLiveRootPagesSourceCommit)
       )
     )
   ) throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_INVALID');
@@ -290,7 +308,7 @@ function parsePlan(value: unknown): ReviewedFounderAdmissionPlan {
   const note = cleanPrivateNote(plan.note);
   if (note !== plan.note) throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_INVALID');
   return Object.freeze({
-    schemaVersion: 3,
+    schemaVersion: 4,
     kind: 'warpkeep-reviewed-founder-admission-plan',
     planId: plan.planId,
     createdAt: plan.createdAt,
@@ -299,9 +317,15 @@ function parsePlan(value: unknown): ReviewedFounderAdmissionPlan {
     targetConfigurationDigest: plan.targetConfigurationDigest,
     profilePolicyVersion: plan.profilePolicyVersion,
     profileSourceUseApproval: FOUNDER_ADMISSION_PROFILE_SOURCE_USE_APPROVAL,
-    notificationPreparedReceiptDigest: plan.notificationPreparedReceiptDigest,
-    notificationPreparedBridgeSourceCommit:
-      plan.notificationPreparedBridgeSourceCommit,
+    notificationPagesLiveReceiptDigest: plan.notificationPagesLiveReceiptDigest,
+    notificationPagesLivePagesSourceCommit:
+      plan.notificationPagesLivePagesSourceCommit,
+    notificationPagesLiveBridgeSourceCommit:
+      plan.notificationPagesLiveBridgeSourceCommit,
+    notificationPagesLiveRootReceiptDigest:
+      plan.notificationPagesLiveRootReceiptDigest,
+    notificationPagesLiveRootPagesSourceCommit:
+      plan.notificationPagesLiveRootPagesSourceCommit,
     fid,
     note,
     profile: normalizedAdmissionProfile(plan.profile),
@@ -330,10 +354,7 @@ export function createReviewedFounderAdmissionPlan(input: Readonly<{
   targetConfigurationDigest: string;
   profilePolicyVersion: string;
   profileSourceUseApproval: typeof FOUNDER_ADMISSION_PROFILE_SOURCE_USE_APPROVAL;
-  notificationPreparedReleaseBinding?: Readonly<{
-    notificationPreparedReceiptDigest: string | null;
-    notificationPreparedBridgeSourceCommit: string | null;
-  }>;
+  notificationPagesLiveAuthority?: NotificationPagesLiveHermesAuthority;
   fid: bigint;
   note: string;
   profile: AdmissionReadyTrustedProfile;
@@ -341,7 +362,7 @@ export function createReviewedFounderAdmissionPlan(input: Readonly<{
 }>): ReviewedFounderAdmissionPlan {
   const now = input.now ?? new Date();
   return parsePlan({
-    schemaVersion: 3,
+    schemaVersion: 4,
     kind: 'warpkeep-reviewed-founder-admission-plan',
     planId: randomUUID().replace(/-/g, ''),
     createdAt: now.toISOString(),
@@ -352,10 +373,16 @@ export function createReviewedFounderAdmissionPlan(input: Readonly<{
     targetConfigurationDigest: input.targetConfigurationDigest,
     profilePolicyVersion: input.profilePolicyVersion,
     profileSourceUseApproval: input.profileSourceUseApproval,
-    notificationPreparedReceiptDigest:
-      input.notificationPreparedReleaseBinding?.notificationPreparedReceiptDigest ?? null,
-    notificationPreparedBridgeSourceCommit:
-      input.notificationPreparedReleaseBinding?.notificationPreparedBridgeSourceCommit ?? null,
+    notificationPagesLiveReceiptDigest:
+      input.notificationPagesLiveAuthority?.notificationPagesLiveReceiptDigest ?? null,
+    notificationPagesLivePagesSourceCommit:
+      input.notificationPagesLiveAuthority?.notificationPagesLivePagesSourceCommit ?? null,
+    notificationPagesLiveBridgeSourceCommit:
+      input.notificationPagesLiveAuthority?.notificationPagesLiveBridgeSourceCommit ?? null,
+    notificationPagesLiveRootReceiptDigest:
+      input.notificationPagesLiveAuthority?.notificationPagesLiveRootReceiptDigest ?? null,
+    notificationPagesLiveRootPagesSourceCommit:
+      input.notificationPagesLiveAuthority?.notificationPagesLiveRootPagesSourceCommit ?? null,
     fid: input.fid.toString(),
     note: input.note,
     profile: input.profile,
