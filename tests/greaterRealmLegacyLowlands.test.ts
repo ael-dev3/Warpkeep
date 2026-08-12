@@ -16,6 +16,7 @@ import {
   transformLegacyLowlandsToGlobal,
   type LegacyLowlandsAtlasTransform,
 } from '../scripts/atlas/greater-realm-legacy-lowlands';
+import { GREATER_REALM_AXIAL_DIRECTIONS } from '../scripts/atlas/greater-realm-terrain';
 import { canonicalTierIFoodSiteDigestInput } from '../spacetimedb/src/foodSitePolicy';
 import { canonicalTierIGoldSiteDigestInput } from '../spacetimedb/src/goldSitePolicy';
 import { canonicalTierIStoneSiteDigestInput } from '../spacetimedb/src/stoneSitePolicy';
@@ -102,6 +103,37 @@ describe('Greater Realm private legacy Lowlands bridge input', () => {
     expect(sha256(canonicalGenesisForestAssetCatalogV1DigestInput())).toBe(
       pins.forestAssetCatalogDigest,
     );
+  });
+
+  it('locks a complete enabled-ocean frontier and exterior contact ring', () => {
+    const patch = GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1;
+    const protectedByKey = new Map<string, Readonly<{ q: number; r: number }>>();
+    for (const tile of patch.world.tiles) protectedByKey.set(tile.key, tile);
+    for (const cell of patch.water.cells) protectedByKey.set(cell.cellKey, cell);
+    const enabledOceanKeys = new Set(
+      patch.water.enabledCells
+        .filter(cell => cell.regime === 'ocean')
+        .map(cell => cell.cellKey),
+    );
+    const protectedFrontierKeys = new Set<string>();
+    const exteriorContactKeys = new Set<string>();
+    for (const [key, coordinate] of protectedByKey) {
+      for (const direction of GREATER_REALM_AXIAL_DIRECTIONS) {
+        const exteriorKey = privateAxialCoordinateKey({
+          q: coordinate.q + direction.q,
+          r: coordinate.r + direction.r,
+        });
+        if (protectedByKey.has(exteriorKey)) continue;
+        protectedFrontierKeys.add(key);
+        if (enabledOceanKeys.has(key)) exteriorContactKeys.add(exteriorKey);
+      }
+    }
+
+    expect(protectedByKey.size).toBe(12_871);
+    expect(protectedFrontierKeys.size).toBe(390);
+    expect(exteriorContactKeys.size).toBe(396);
+    expect([...protectedFrontierKeys].every(key => enabledOceanKeys.has(key))).toBe(true);
+    expect([...exteriorContactKeys].every(key => !protectedByKey.has(key))).toBe(true);
   });
 
   it('round-trips every Lowlands tile through all six exact rotations', () => {

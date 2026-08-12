@@ -9,6 +9,9 @@ import {
   rejectGreaterRealmCandidate,
   type GreaterRealmCandidateRejectionCode,
 } from '../scripts/atlas/greater-realm-candidate-rejection';
+import {
+  measureGreaterRealmRegionBoundaryAlignment,
+} from '../scripts/atlas/greater-realm-strategic-audits';
 
 describe('Greater Realm expected candidate rejection boundary', () => {
   it('keeps one exact frozen allowlist of geography-search exhaustion codes', () => {
@@ -16,6 +19,7 @@ describe('Greater Realm expected candidate rejection boundary', () => {
       'GREATER_REALM_TECTONIC_DOMAIN_PLACEMENT_FAILED',
       'GREATER_REALM_ISLAND_ARC_PLACEMENT_FAILED',
       'GREATER_REALM_ACTIVE_MASK_EMPTY',
+      'GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE',
       'GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_MISSING',
       'GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED',
       'GREATER_REALM_OCEAN_OUTLETS_MISSING',
@@ -42,6 +46,36 @@ describe('Greater Realm expected candidate rejection boundary', () => {
     expect(greaterRealmCandidateRejectionCode(typed)).toBe(code);
     expect(greaterRealmCandidateRejectionCode(new Error(code))).toBeUndefined();
     expect(greaterRealmCandidateRejectionCode({ name: typed.name, code })).toBeUndefined();
+  });
+
+  it('keeps direct audit range failures fatal while branding only generator geography', () => {
+    const geographyCode = 'GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE';
+    const branded = new GreaterRealmCandidateRejectionError(geographyCode);
+    let directAuditFailure: unknown;
+    try {
+      measureGreaterRealmRegionBoundaryAlignment({
+        grid: { cellCount: 150_001 } as Parameters<
+          typeof measureGreaterRealmRegionBoundaryAlignment
+        >[0]['grid'],
+        regionId: new Uint8Array(),
+        waterRegime: new Uint8Array(),
+        barrier: new Uint8Array(),
+        geologicalBarrierBand: new Uint8Array(),
+        watershedId: new Int32Array(),
+        ridgeId: new Int32Array(),
+        landformId: new Uint8Array(),
+        biomeId: new Uint8Array(),
+      });
+    } catch (error) {
+      directAuditFailure = error;
+    }
+
+    expect(directAuditFailure).toBeInstanceOf(Error);
+    expect((directAuditFailure as Error).message)
+      .toBe('GREATER_REALM_AUDIT_GRID_SIZE_INVALID');
+    expect(greaterRealmCandidateRejectionCode(directAuditFailure)).toBeUndefined();
+    expect(greaterRealmCandidateRejectionCode(new Error(geographyCode))).toBeUndefined();
+    expect(greaterRealmCandidateRejectionCode(branded)).toBe(geographyCode);
   });
 
   it('rejects a runtime-forged code outside the audited union', () => {

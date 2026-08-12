@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
 export type RealmGrassGeometryProfile = 'high' | 'balanced' | 'reduced';
+export type RealmGrassGeometryLod = 'near' | 'mid';
 
 /**
  * A patch is deliberately made from individual, planted blades instead of
@@ -23,6 +24,21 @@ export const REALM_GRASS_TRIANGLES_PER_PATCH: Readonly<Record<RealmGrassGeometry
   balanced: REALM_GRASS_BLADES_PER_PATCH.balanced * REALM_GRASS_TRIANGLES_PER_BLADE,
   reduced: REALM_GRASS_BLADES_PER_PATCH.reduced * REALM_GRASS_TRIANGLES_PER_BLADE
 });
+
+/**
+ * Mid-field patches retain a stable prefix of the near roots, but collapse
+ * each segmented blade to one camera-distant triangle. This is a real
+ * topology LOD rather than merely scaling or hiding the full-detail mesh.
+ */
+export const REALM_GRASS_MID_BLADES_PER_PATCH: Readonly<Record<RealmGrassGeometryProfile, number>> =
+  Object.freeze({ high: 5, balanced: 4, reduced: 3 });
+export const REALM_GRASS_MID_TRIANGLES_PER_BLADE = 1;
+export const REALM_GRASS_MID_TRIANGLES_PER_PATCH: Readonly<Record<RealmGrassGeometryProfile, number>> =
+  Object.freeze({
+    high: REALM_GRASS_MID_BLADES_PER_PATCH.high * REALM_GRASS_MID_TRIANGLES_PER_BLADE,
+    balanced: REALM_GRASS_MID_BLADES_PER_PATCH.balanced * REALM_GRASS_MID_TRIANGLES_PER_BLADE,
+    reduced: REALM_GRASS_MID_BLADES_PER_PATCH.reduced * REALM_GRASS_MID_TRIANGLES_PER_BLADE
+  });
 
 // Kept as aliases for callers that used the original vocabulary. New code
 // should use blades/patches above so geometry budgets are explicit.
@@ -115,8 +131,14 @@ function seededUnit(value: number) {
  * Build one deterministic low-poly patch variant. The root coordinates stay
  * in a broad 0.08–0.46 local disk and never collapse to the origin.
  */
-export function createLowPolyGrassGeometry(profile: RealmGrassGeometryProfile, variant = 0) {
-  const bladeCount = REALM_GRASS_BLADES_PER_PATCH[profile];
+export function createLowPolyGrassGeometry(
+  profile: RealmGrassGeometryProfile,
+  variant = 0,
+  lod: RealmGrassGeometryLod = 'near'
+) {
+  const bladeCount = lod === 'mid'
+    ? REALM_GRASS_MID_BLADES_PER_PATCH[profile]
+    : REALM_GRASS_BLADES_PER_PATCH[profile];
   const variantCount = REALM_GRASS_VARIANT_COUNTS[profile];
   const safeVariant = Math.max(0, Math.trunc(variant)) % variantCount;
   const shape = PATCH_SHAPES[safeVariant]!;
@@ -151,6 +173,35 @@ export function createLowPolyGrassGeometry(profile: RealmGrassGeometryProfile, v
     const midZ = rootZ + forwardZ * lean * shape.middleLean;
     const tipX = rootX + forwardX * lean;
     const tipZ = rootZ + forwardZ * lean;
+    const phase = seededUnit(blade * 9.17 + safeVariant * 3.31) * Math.PI * 2;
+    const stiffness = 0.78 + seededUnit(blade * 4.91 + safeVariant * 1.73) * 0.34;
+    const normalX = forwardX * 0.28;
+    const normalY = 0.86;
+    const normalZ = forwardZ * 0.28;
+    const length = Math.hypot(normalX, normalY, normalZ);
+    if (lod === 'mid') {
+      positions.push(
+        rootX - acrossX * rootHalfWidth,
+        0,
+        rootZ - acrossZ * rootHalfWidth,
+        rootX + acrossX * rootHalfWidth,
+        0,
+        rootZ + acrossZ * rootHalfWidth,
+        tipX,
+        tipHeight,
+        tipZ
+      );
+      bladeData.push(
+        -1, 0, phase, stiffness,
+        1, 0, phase, stiffness,
+        0, 1, phase, stiffness
+      );
+      for (let vertex = 0; vertex < 3; vertex += 1) {
+        normals.push(normalX / length, normalY / length, normalZ / length);
+      }
+      indices.push(base, base + 1, base + 2);
+      continue;
+    }
     positions.push(
       rootX - acrossX * rootHalfWidth,
       0,
@@ -168,8 +219,6 @@ export function createLowPolyGrassGeometry(profile: RealmGrassGeometryProfile, v
       tipHeight,
       tipZ
     );
-    const phase = seededUnit(blade * 9.17 + safeVariant * 3.31) * Math.PI * 2;
-    const stiffness = 0.78 + seededUnit(blade * 4.91 + safeVariant * 1.73) * 0.34;
     // One vec4 keeps the immutable blade inputs in a single WebGL attribute:
     // across, normalized height (used by flex and colour), phase, stiffness.
     bladeData.push(
@@ -179,10 +228,6 @@ export function createLowPolyGrassGeometry(profile: RealmGrassGeometryProfile, v
       1, shape.middleProgress, phase, stiffness,
       0, 1, phase, stiffness
     );
-    const normalX = forwardX * 0.28;
-    const normalY = 0.86;
-    const normalZ = forwardZ * 0.28;
-    const length = Math.hypot(normalX, normalY, normalZ);
     for (let vertex = 0; vertex < 5; vertex += 1) {
       normals.push(normalX / length, normalY / length, normalZ / length);
     }
@@ -190,19 +235,29 @@ export function createLowPolyGrassGeometry(profile: RealmGrassGeometryProfile, v
   }
 
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-  geometry.setAttribute('grassBladeData', new THREE.Float32BufferAttribute(bladeData, 4));
-  geometry.setIndex(indices);
-  geometry.computeBoundingBox();
-  geometry.computeBoundingSphere();
-  geometry.userData.realmGrassGeometryProfile = profile;
-  geometry.userData.realmGrassVariant = safeVariant;
-  geometry.userData.realmGrassShape = shape.id;
-  geometry.userData.realmGrassBladeCount = bladeCount;
-  geometry.userData.realmGrassTriangleCount = REALM_GRASS_TRIANGLES_PER_PATCH[profile];
-  geometry.userData.realmGrassRootPositions = Object.freeze(
-    ROOTS[profile].map((root, blade) => Object.freeze(variantRoot(root, safeVariant, blade)))
-  );
-  return geometry;
+  try {
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+    geometry.setAttribute('grassBladeData', new THREE.Float32BufferAttribute(bladeData, 4));
+    geometry.setIndex(indices);
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
+    geometry.userData.realmGrassGeometryProfile = profile;
+    geometry.userData.realmGrassLod = lod;
+    geometry.userData.realmGrassVariant = safeVariant;
+    geometry.userData.realmGrassShape = shape.id;
+    geometry.userData.realmGrassBladeCount = bladeCount;
+    geometry.userData.realmGrassTriangleCount = lod === 'mid'
+      ? REALM_GRASS_MID_TRIANGLES_PER_PATCH[profile]
+      : REALM_GRASS_TRIANGLES_PER_PATCH[profile];
+    geometry.userData.realmGrassRootPositions = Object.freeze(
+      ROOTS[profile]
+        .slice(0, bladeCount)
+        .map((root, blade) => Object.freeze(variantRoot(root, safeVariant, blade)))
+    );
+    return geometry;
+  } catch (error) {
+    geometry.dispose();
+    throw error;
+  }
 }

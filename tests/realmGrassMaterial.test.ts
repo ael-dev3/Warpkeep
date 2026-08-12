@@ -7,11 +7,15 @@ import {
   injectRealmGrassVertexShader,
   REALM_GRASS_CROSS_WIND_RATIO,
   REALM_GRASS_INTERACTION_TRANSITION_SECONDS,
+  REALM_GRASS_MAX_DISTURBANCE_SWAY,
   REALM_GRASS_MAX_PRIMARY_BEND,
   REALM_GRASS_MAX_WIND_SWAY,
+  REALM_GRASS_MAX_WORLD_DEFORMATION_RADIUS,
+  REALM_GRASS_NORMAL_BEND_RESPONSE,
   REALM_GRASS_SHADER_CACHE_KEY,
   REALM_GRASS_THREE_SHADER_CONTRACT
 } from '../src/components/realm/createRealmGrassMaterial';
+import { REALM_SUN_DIRECTION } from '../src/components/realm/createRealmEnvironment';
 import { REALM_PREVAILING_WIND } from '../src/game/map/realmPrevailingWind';
 
 function projectWorldDirectionIntoLocalXZ(
@@ -58,12 +62,15 @@ describe('procedural grass material contract', () => {
     expect(injected).toContain('inverse(grassLocalToWorldXZ)');
     expect(injected).toContain('grassWorldToLocalXZ * grassWorldDirection');
     expect(injected).toContain('grassWorldToLocalXZ * grassWorldCrossDirection');
-    expect(injected).toContain('transformed.xz += grassLocalDirection');
-    expect(injected).toContain('transformed.xz += grassLocalCrossDirection');
+    expect(injected).toContain('grassLocalDirection\n  + grassLocalCrossDirection');
+    expect(injected).toContain('transformed.xz += grassLocalBend;');
+    expect(injected).toContain('varying vec3 vGrassBendSlopeWorld;');
+    expect(injected).toContain('vec2 grassLocalBend = (');
+    expect(injected).toContain('float grassFlexDerivative = 1.85');
+    expect(injected).toContain('vGrassBendSlopeWorld = grassWorldBendSlope');
+    expect(injected).toContain('mat3(modelMatrix * instanceMatrix)');
     expect(injected).toContain('dot(grassWorldPosition.xz, grassWorldDirection)');
     expect(injected).toContain('float realmLivingGust');
-    expect(injected).toContain('float grassNormalLean');
-    expect(injected).toContain('objectNormal.xz -= grassNormalLocalDirection');
     expect(injected).toContain('float grassGust = mix(0.66, 1.0, realmLivingGust(');
     expect(injected).toContain('grassPhase * 0.18');
     expect(injected).not.toContain('transformed.xz += grassWorldDirection');
@@ -71,10 +78,17 @@ describe('procedural grass material contract', () => {
     expect(injected).toContain('float grassBladeVertical = grassBladeData.y;');
     expect(injected).toContain('pow(max(grassFlex, 0.0), 1.85)');
     expect(injected).not.toContain('transformed *= grassVisibleScale;');
-    expect(injected).toContain('vGrassEdgeFade = clamp(grassEdgeFade, 0.0, 1.0);');
+    expect(injected).toContain(
+      'vGrassEdgeFade = clamp(grassEdgeFade * uGrassGlobalVisibility, 0.0, 1.0);'
+    );
     expect(injected).toContain('clamp((grassPrimary + grassSecondary * 0.28)');
     expect(() => injectRealmGrassVertexShader('void main() {}'))
       .toThrow('REALM_GRASS_SHADER_BEGIN_VERTEX_CONTRACT_CHANGED');
+    expect(() => injectRealmGrassFragmentShader([
+      '#include <color_fragment>',
+      '#include <alphahash_fragment>',
+      '#include <normal_fragment_maps>'
+    ].join('\n'))).toThrow('REALM_GRASS_SHADER_FRAGMENT_CONTRACT_CHANGED');
     expect(() => injectRealmGrassVertexShader(THREE.ShaderLib.standard.vertexShader)).not.toThrow();
     expect(() => injectRealmGrassFragmentShader(THREE.ShaderLib.standard.fragmentShader)).not.toThrow();
   });
@@ -88,13 +102,21 @@ describe('procedural grass material contract', () => {
     expect((layer.material as THREE.MeshStandardMaterial & { alphaToCoverage?: boolean }).alphaToCoverage).toBe(false);
     expect(layer.material.customProgramCacheKey()).toBe(REALM_GRASS_SHADER_CACHE_KEY);
     expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('procedural-grass-v3');
-    expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('bent-normals');
+    expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('living-gust');
+    expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('bounded-tips');
+    expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('analytic-bend-normal-v2');
     expect(REALM_GRASS_SHADER_CACHE_KEY).toContain(REALM_GRASS_THREE_SHADER_CONTRACT);
     expect(layer.uniforms.uGrassWindStrength.value).toBeCloseTo(0.78);
     expect(layer.uniforms.uGrassWindDirection.value.toArray()).toEqual([
       REALM_PREVAILING_WIND.x,
       REALM_PREVAILING_WIND.z
     ]);
+    expect(layer.uniforms.uGrassSunDirection.value.toArray()).toEqual([
+      REALM_SUN_DIRECTION.x,
+      REALM_SUN_DIRECTION.y,
+      REALM_SUN_DIRECTION.z
+    ]);
+    expect(layer.uniforms.uGrassSunDirection.value.length()).toBeCloseTo(1, 12);
     expect(layer.getShaderTelemetry()).toEqual({
       fallbackActive: false,
       fallbackCount: 0,
@@ -151,9 +173,62 @@ describe('procedural grass material contract', () => {
     layer.dispose();
   });
 
+  it('uses exactly one stochastic coverage mode so MSAA does not square blade coverage', () => {
+    const hashed = createRealmGrassMaterial(1, true, false);
+    const multisampled = createRealmGrassMaterial(1, true, true);
+    const hashedMaterial = hashed.material as THREE.MeshStandardMaterial & {
+      alphaHash?: boolean;
+      alphaToCoverage?: boolean;
+    };
+    const multisampledMaterial = multisampled.material as THREE.MeshStandardMaterial & {
+      alphaHash?: boolean;
+      alphaToCoverage?: boolean;
+    };
+
+    expect([hashedMaterial.alphaHash, hashedMaterial.alphaToCoverage]).toEqual([true, false]);
+    expect([multisampledMaterial.alphaHash, multisampledMaterial.alphaToCoverage])
+      .toEqual([false, true]);
+    expect(hashed.material.userData.realmGrassAlphaHash).toBe(true);
+    expect(hashed.material.userData.realmGrassAlphaToCoverage).toBe(false);
+    expect(multisampled.material.userData.realmGrassAlphaHash).toBe(false);
+    expect(multisampled.material.userData.realmGrassAlphaToCoverage).toBe(true);
+
+    hashed.dispose();
+    multisampled.dispose();
+  });
+
+  it('switches to the standard fallback after a renderer-level link failure', () => {
+    const layer = createRealmGrassMaterial(1);
+    const priorVersion = layer.material.version;
+
+    layer.activateShaderFallback('REALM_GRASS_SHADER_COMPILE_OR_LINK_FAILED');
+
+    expect(layer.getShaderTelemetry()).toEqual({
+      fallbackActive: true,
+      fallbackCount: 1,
+      fallbackReason: 'REALM_GRASS_SHADER_COMPILE_OR_LINK_FAILED',
+      disturbanceSlotCount: 0,
+      activeDisturbanceCount: 0
+    });
+    expect(layer.material.version).toBeGreaterThan(priorVersion);
+    expect(layer.material.customProgramCacheKey()).toContain('static-fallback');
+    expect(layer.setTime(1)).toBe(false);
+    layer.dispose();
+  });
+
   it('clamps shader motion to the same maximum displacement used by active-layer bounds', () => {
     expect(REALM_GRASS_MAX_PRIMARY_BEND * Math.hypot(1, REALM_GRASS_CROSS_WIND_RATIO))
       .toBeCloseTo(REALM_GRASS_MAX_WIND_SWAY, 12);
+    expect(REALM_GRASS_MAX_WORLD_DEFORMATION_RADIUS).toBeGreaterThanOrEqual(0.1);
+    expect(REALM_GRASS_MAX_WORLD_DEFORMATION_RADIUS).toBeGreaterThan(
+      (REALM_GRASS_MAX_WIND_SWAY + REALM_GRASS_MAX_DISTURBANCE_SWAY)
+        * Math.hypot(1, 0.78)
+    );
+  });
+
+  it('keeps normal bending restrained relative to the bounded blade displacement', () => {
+    expect(REALM_GRASS_MAX_WIND_SWAY * REALM_GRASS_NORMAL_BEND_RESPONSE)
+      .toBeLessThan(0.18);
   });
 
   it('unrolls only the configured disturbance slots and updates uniforms in place', () => {

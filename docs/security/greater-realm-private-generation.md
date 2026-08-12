@@ -23,7 +23,7 @@ pull-request comments, CI artifacts, logs, and public SpacetimeDB tables are not
 private storage.
 
 The two additional density channels and marsh-aware dressing rules are bound by
-living-world authority v4, generator algorithm `.16`, and private atlas format
+living-world authority v4, generator algorithm `.17`, and private atlas format
 8. The terrain-seed
 namespace remains `.3`; a package-layout revision is not permission to reroll
 private world authority.
@@ -122,7 +122,9 @@ Owned `Buffer` and typed-array copies are overwritten in `finally` blocks when
 their lifetime ends, including temporary seed digests and failed atlas
 serialization or persistence. Private candidate retirement also clears the
 coordinate lookup captured by its indexed grid before clearing canonical field
-arrays.
+arrays. Generated-water component traversal always clears its typed `seen` and
+queue scratch, and its owning stage overwrites temporary component coordinate
+lists on both success and failure.
 
 Single-world checkpoints, their owner key, and the seed-free completion receipt
 use no-clobber atomic files whose inode and parent directory are both synced
@@ -389,7 +391,10 @@ allowlisted, typed bounded-search exhaustion may record a
 `geography-exhaustion` with its exact rejection code. Ordinary errors --
 including invariant, malformed-input, filesystem, package, and toolchain
 failures -- abort the atomic batch instead of being converted into candidate
-rejections. Both rejection forms must reproduce exactly. Accepted attempts must
+rejections. An active mask outside the published 100,000--150,000-cell contract
+is branded as geography exhaustion at the immediate pre-materialization
+generator boundary; the same range error raised by a directly invoked audit
+remains fatal. Both rejection forms must reproduce exactly. Accepted attempts must
 reproduce the complete candidate binary, private manifest, chunk and
 topography-patch manifests, marked seed envelopes, and preview set.
 Verification requires exact bytes, bounded sizes, complete inventories,

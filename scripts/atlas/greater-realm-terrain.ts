@@ -193,6 +193,28 @@ export function indexGreaterRealmAxialGrid(
         indexByKey.get(`${neighborQ},${neighborR}`) ?? -1;
     }
   }
+  // The canonical q/r arrays are already a compact sorted index. The string
+  // map is construction-only; retaining one entry per canvas and active cell
+  // materially increases the private generator's live heap for no semantic
+  // benefit after neighbors have been resolved.
+  indexByKey.clear();
+  let indexCleared = false;
+  const findCanonicalIndex = (coordinateQ: number, coordinateR: number): number => {
+    let low = 0;
+    let high = q.length - 1;
+    while (low <= high) {
+      const middle = low + Math.floor((high - low) / 2);
+      const middleQ = q[middle]!;
+      const middleR = r[middle]!;
+      if (middleQ === coordinateQ && middleR === coordinateR) return middle;
+      if (middleQ < coordinateQ || (middleQ === coordinateQ && middleR < coordinateR)) {
+        low = middle + 1;
+      } else {
+        high = middle - 1;
+      }
+    }
+    return -1;
+  };
 
   return Object.freeze({
     cellCount: canonical.length,
@@ -202,10 +224,10 @@ export function indexGreaterRealmAxialGrid(
     indexOf(coordinate: AxialCoordinate) {
       assertInt32(coordinate.q, 'GREATER_REALM_AXIAL_Q_INVALID');
       assertInt32(coordinate.r, 'GREATER_REALM_AXIAL_R_INVALID');
-      return indexByKey.get(`${coordinate.q},${coordinate.r}`) ?? -1;
+      return indexCleared ? -1 : findCanonicalIndex(coordinate.q, coordinate.r);
     },
     clearIndex() {
-      indexByKey.clear();
+      indexCleared = true;
     },
   });
 }

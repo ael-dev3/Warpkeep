@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   GREATER_REALM_REGION_SPECS,
   clearGreaterRealmCandidateSecret,
+  deriveGreaterRealmBoundaryConnectedInitialSeaMask,
   deriveGreaterRealmCandidateSeedMaterial,
   enforceGreaterRealmStandingWaterBodySurfaceProof,
   generateGreaterRealmCandidate,
@@ -41,6 +42,8 @@ const PINNED_ROOT_LABEL = 'greater-realm-ordinary-parent-a';
 const SAME_FIRST_WORD_BASELINE_ROOT_INDEX = 23_248;
 const SAME_FIRST_WORD_ROOT_INDEX = 41_769;
 const PINNED_ORDINAL = 9;
+const EXPECTED_PINNED_FINAL_DIGEST =
+  'e706f79b8fbe46a814f8ff4d40a6e4dee5cfb47424509656bdf4cdc43f407608';
 const SAME_FIRST_WORD_ORDINAL = 0;
 const SECONDARY_ORDINAL = 10;
 const REJECTED_ROOT_LABEL = 'greater-realm-secondary-fixture';
@@ -50,8 +53,20 @@ const EXPECTED_ACTIVE_CELL_MAXIMUM = 150_000;
 const EXPECTED_CASTLES_PER_FRONTIER_REGION = 100;
 
 let pinned: GreaterRealmPrivateCandidate | undefined;
-let replay: GreaterRealmPrivateCandidate | undefined;
-let secondary: GreaterRealmPrivateCandidate | undefined;
+let replayFingerprint: string | undefined;
+let secondaryEvidence: Readonly<{
+  candidateOrdinal: number;
+  candidateSeedDigest: string;
+  finalDigest: string;
+  gridDigest: string;
+  reliefMatches: boolean;
+  forestProof: boolean;
+}> | undefined;
+let rejectedFixtureEvidence: Readonly<{
+  code: ReturnType<typeof greaterRealmCandidateRejectionCode>;
+  retiredLargeAuthorityCount: number;
+  allRetiredAuthoritiesCleared: boolean;
+}> | undefined;
 let sameFirstWordBaseline: Uint32Array | undefined;
 let sameFirstWordVariant: Uint32Array | undefined;
 let mathRandomCallCount = 0;
@@ -88,15 +103,66 @@ function deriveTestCandidateSeed(rootSeed: Uint8Array): Uint32Array {
   }
 }
 
-function requireCandidates(): readonly [
-  GreaterRealmPrivateCandidate,
-  GreaterRealmPrivateCandidate,
-  GreaterRealmPrivateCandidate,
-] {
-  if (!pinned || !replay || !secondary) {
+function requirePinnedCandidate(): GreaterRealmPrivateCandidate {
+  if (!pinned) {
     throw new Error('GREATER_REALM_CANDIDATE_FIXTURE_MISSING');
   }
-  return [pinned, replay, secondary];
+  return pinned;
+}
+
+function updateFingerprintArray(
+  hash: ReturnType<typeof createHash>,
+  label: string,
+  value: ArrayBufferView,
+): void {
+  hash.update(label, 'utf8');
+  hash.update('\0', 'utf8');
+  hash.update(new Uint8Array(value.buffer, value.byteOffset, value.byteLength));
+  hash.update('\0', 'utf8');
+}
+
+function candidateReplayFingerprint(candidate: GreaterRealmPrivateCandidate): string {
+  const hash = createHash('sha256').update(
+    'warpkeep-greater-realm-test-replay-fingerprint-v1\0',
+    'utf8',
+  );
+  updateFingerprintArray(hash, 'seedMaterial', candidate.seedMaterial);
+  updateFingerprintArray(hash, 'candidateSeed', candidate.candidateSeed);
+  updateFingerprintArray(hash, 'grid.q', candidate.grid.q);
+  updateFingerprintArray(hash, 'grid.r', candidate.grid.r);
+  for (const [label, value] of [
+    ['domains', candidate.domains],
+    ['gates', candidate.gates],
+    ['barrierCrossSections', candidate.barrierCrossSections],
+    ['stageDigests', candidate.stageDigests],
+    ['aggregate', candidate.aggregate],
+    ['privateMetrics', candidate.privateMetrics],
+  ] as const) {
+    hash.update(label, 'utf8');
+    hash.update('\0', 'utf8');
+    hash.update(JSON.stringify(value), 'utf8');
+    hash.update('\0', 'utf8');
+  }
+  return hash.digest('hex');
+}
+
+function candidateSeedDigest(value: Uint32Array): string {
+  const hash = createHash('sha256').update(
+    'warpkeep-greater-realm-test-candidate-seed-v1\0',
+    'utf8',
+  );
+  updateFingerprintArray(hash, 'candidateSeed', value);
+  return hash.digest('hex');
+}
+
+function gridDigest(candidate: GreaterRealmPrivateCandidate): string {
+  const hash = createHash('sha256').update(
+    'warpkeep-greater-realm-test-grid-v1\0',
+    'utf8',
+  );
+  updateFingerprintArray(hash, 'q', candidate.grid.q);
+  updateFingerprintArray(hash, 'r', candidate.grid.r);
+  return hash.digest('hex');
 }
 
 function candidateFields(
@@ -233,6 +299,9 @@ function crossTierGraphAudit(
 
 beforeAll(() => {
   const firstRoot = pinnedRoot();
+  const rejectedRoot = Uint8Array.from(createHash('sha256')
+    .update(`${REJECTED_ROOT_LABEL}\0`, 'utf8')
+    .digest());
   const collisionRoot = programmaticRoot(SAME_FIRST_WORD_BASELINE_ROOT_INDEX);
   const secondRoot = programmaticRoot(SAME_FIRST_WORD_ROOT_INDEX);
   const randomSpy = vi.spyOn(Math, 'random').mockImplementation(() => {
@@ -240,23 +309,86 @@ beforeAll(() => {
     throw new Error('MATH_RANDOM_MUST_NOT_BE_USED');
   });
   try {
+    sameFirstWordBaseline = deriveTestCandidateSeed(collisionRoot);
+    sameFirstWordVariant = deriveTestCandidateSeed(secondRoot);
+
+    const uint64Fill = vi.spyOn(BigUint64Array.prototype, 'fill');
+    let unexpectedlyGenerated: GreaterRealmPrivateCandidate | undefined;
+    let rejectionCode: ReturnType<typeof greaterRealmCandidateRejectionCode>;
+    try {
+      try {
+        unexpectedlyGenerated = generateGreaterRealmCandidate({
+          rootSeed: rejectedRoot,
+          candidateOrdinal: REJECTED_ORDINAL,
+        });
+      } catch (error) {
+        rejectionCode = greaterRealmCandidateRejectionCode(error);
+        if (rejectionCode === undefined) throw error;
+      }
+      const retiredLargeAuthorities = (
+        uint64Fill.mock.instances as unknown as BigUint64Array[]
+      ).filter(values => values.length >= EXPECTED_ACTIVE_CELL_MINIMUM);
+      rejectedFixtureEvidence = Object.freeze({
+        code: rejectionCode,
+        retiredLargeAuthorityCount: retiredLargeAuthorities.length,
+        allRetiredAuthoritiesCleared: retiredLargeAuthorities.every(values => (
+          values.every(value => value === 0n)
+        )),
+      });
+    } finally {
+      uint64Fill.mockRestore();
+      if (unexpectedlyGenerated) clearGreaterRealmCandidateSecret(unexpectedlyGenerated);
+      unexpectedlyGenerated = undefined;
+    }
+
+    let generatedSecondary: GreaterRealmPrivateCandidate | undefined;
+    try {
+      generatedSecondary = generateGreaterRealmCandidate({
+        rootSeed: firstRoot,
+        candidateOrdinal: SECONDARY_ORDINAL,
+      });
+      const measured = measureGreaterRealmReliefStructure({
+        grid: generatedSecondary.grid,
+        elevation: generatedSecondary.elevation,
+        waterRegime: generatedSecondary.waterRegime,
+        legacyProtectedCell: generatedSecondary.legacyLowlandsProtectedCell,
+      });
+      secondaryEvidence = Object.freeze({
+        candidateOrdinal: generatedSecondary.candidateOrdinal,
+        candidateSeedDigest: candidateSeedDigest(generatedSecondary.candidateSeed),
+        finalDigest: generatedSecondary.stageDigests.final,
+        gridDigest: gridDigest(generatedSecondary),
+        reliefMatches: measured.proof
+          && JSON.stringify(generatedSecondary.privateMetrics.reliefStructure)
+            === JSON.stringify(measured),
+        forestProof: generatedSecondary.privateMetrics.naturalComposition
+          .forestPatches.proof,
+      });
+    } finally {
+      if (generatedSecondary) clearGreaterRealmCandidateSecret(generatedSecondary);
+      generatedSecondary = undefined;
+    }
+
+    let generatedReplay: GreaterRealmPrivateCandidate | undefined;
+    try {
+      generatedReplay = generateGreaterRealmCandidate({
+        rootSeed: firstRoot,
+        candidateOrdinal: PINNED_ORDINAL,
+      });
+      replayFingerprint = candidateReplayFingerprint(generatedReplay);
+    } finally {
+      if (generatedReplay) clearGreaterRealmCandidateSecret(generatedReplay);
+      generatedReplay = undefined;
+    }
+
     pinned = generateGreaterRealmCandidate({
       rootSeed: firstRoot,
       candidateOrdinal: PINNED_ORDINAL,
     });
-    replay = generateGreaterRealmCandidate({
-      rootSeed: firstRoot,
-      candidateOrdinal: PINNED_ORDINAL,
-    });
-    secondary = generateGreaterRealmCandidate({
-      rootSeed: firstRoot,
-      candidateOrdinal: SECONDARY_ORDINAL,
-    });
-    sameFirstWordBaseline = deriveTestCandidateSeed(collisionRoot);
-    sameFirstWordVariant = deriveTestCandidateSeed(secondRoot);
   } finally {
     randomSpy.mockRestore();
     firstRoot.fill(0);
+    rejectedRoot.fill(0);
     collisionRoot.fill(0);
     secondRoot.fill(0);
   }
@@ -264,33 +396,29 @@ beforeAll(() => {
 
 afterAll(() => {
   if (pinned) clearGreaterRealmCandidateSecret(pinned);
-  if (replay) clearGreaterRealmCandidateSecret(replay);
-  if (secondary) clearGreaterRealmCandidateSecret(secondary);
+  pinned = undefined;
+  replayFingerprint = undefined;
+  secondaryEvidence = undefined;
+  rejectedFixtureEvidence = undefined;
   sameFirstWordBaseline?.fill(0);
   sameFirstWordVariant?.fill(0);
+  sameFirstWordBaseline = undefined;
+  sameFirstWordVariant = undefined;
 });
 
 describe('Greater Realm private candidate generator', () => {
   it('replays the pinned eligible candidate without mutable random state', () => {
-    const [candidate, repeated] = requireCandidates();
+    const candidate = requirePinnedCandidate();
 
     expect(mathRandomCallCount).toBe(0);
     expect(candidate.candidateOrdinal).toBe(PINNED_ORDINAL);
     expect(candidate.aggregate.eligible).toBe(true);
-    expect(candidate.seedMaterial).toEqual(repeated.seedMaterial);
-    expect(candidate.candidateSeed).toEqual(repeated.candidateSeed);
-    expect(candidate.domains).toEqual(repeated.domains);
-    expect(candidate.gates).toEqual(repeated.gates);
-    expect(candidate.barrierCrossSections).toEqual(repeated.barrierCrossSections);
-    expect(candidate.stageDigests).toEqual(repeated.stageDigests);
-    expect(candidate.aggregate).toEqual(repeated.aggregate);
-    expect(candidate.privateMetrics).toEqual(repeated.privateMetrics);
-    expect(candidate.grid.q).toEqual(repeated.grid.q);
-    expect(candidate.grid.r).toEqual(repeated.grid.r);
+    expect(candidate.stageDigests.final).toBe(EXPECTED_PINNED_FINAL_DIGEST);
+    expect(candidateReplayFingerprint(candidate)).toBe(replayFingerprint);
   });
 
   it('binds domain materials, exact water descriptors, strategic audits, QA, chunks and LOD support', () => {
-    const [candidate] = requireCandidates();
+    const candidate = requirePinnedCandidate();
 
     expect(candidate.domains).toHaveLength(
       candidate.privateMetrics.geologyAuthority.metrics.domainCount,
@@ -385,45 +513,88 @@ describe('Greater Realm private candidate generator', () => {
   });
 
   it('carries seed diversity through a second complete deterministic terrain', () => {
-    const [candidate, , variant] = requireCandidates();
+    const candidate = requirePinnedCandidate();
+    if (!secondaryEvidence) {
+      throw new Error('GREATER_REALM_SECONDARY_EVIDENCE_MISSING');
+    }
 
-    expect(variant.candidateOrdinal).toBe(SECONDARY_ORDINAL);
-    expect(variant.candidateSeed).not.toEqual(candidate.candidateSeed);
-    expect(variant.stageDigests.final).not.toBe(candidate.stageDigests.final);
-    expect(variant.grid.q).not.toEqual(candidate.grid.q);
+    expect(secondaryEvidence.candidateOrdinal).toBe(SECONDARY_ORDINAL);
+    expect(secondaryEvidence.candidateSeedDigest).not.toBe(
+      candidateSeedDigest(candidate.candidateSeed),
+    );
+    expect(secondaryEvidence.finalDigest).not.toBe(candidate.stageDigests.final);
+    expect(secondaryEvidence.gridDigest).not.toBe(gridDigest(candidate));
   });
 
   it('classifies bounded dry-gate-apron exhaustion as a typed candidate rejection', () => {
-    const rootSeed = Uint8Array.from(createHash('sha256')
-      .update(`${REJECTED_ROOT_LABEL}\0`, 'utf8')
-      .digest());
-    const uint64Fill = vi.spyOn(BigUint64Array.prototype, 'fill');
-    let unexpectedlyGenerated: GreaterRealmPrivateCandidate | undefined;
-    let rejectionCode: ReturnType<typeof greaterRealmCandidateRejectionCode>;
-    try {
-      try {
-        unexpectedlyGenerated = generateGreaterRealmCandidate({
-          rootSeed,
-          candidateOrdinal: REJECTED_ORDINAL,
-        });
-      } catch (error) {
-        rejectionCode = greaterRealmCandidateRejectionCode(error);
-        if (rejectionCode === undefined) throw error;
-      }
-      expect(rejectionCode).toBe('GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT');
-      const retiredLargeAuthorities = (
-        uint64Fill.mock.instances as unknown as BigUint64Array[]
-      ).filter(values => values.length >= EXPECTED_ACTIVE_CELL_MINIMUM);
-      expect(retiredLargeAuthorities.length).toBeGreaterThan(0);
-      expect(retiredLargeAuthorities.some(values => (
-        values.every(value => value === 0n)
-      ))).toBe(true);
-    } finally {
-      uint64Fill.mockRestore();
-      if (unexpectedlyGenerated) clearGreaterRealmCandidateSecret(unexpectedlyGenerated);
-      rootSeed.fill(0);
+    if (!rejectedFixtureEvidence) {
+      throw new Error('GREATER_REALM_REJECTION_EVIDENCE_MISSING');
     }
+    expect(rejectedFixtureEvidence.code).toBe(
+      'GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT',
+    );
+    expect(rejectedFixtureEvidence.retiredLargeAuthorityCount).toBeGreaterThan(0);
+    expect(rejectedFixtureEvidence.allRetiredAuthoritiesCleared).toBe(true);
   }, 180_000);
+
+  it('isolates the placement-time sea component which reaches the active boundary', () => {
+    const coordinates = [];
+    for (let q = -3; q <= 3; q += 1) {
+      const minimumR = Math.max(-3, -q - 3);
+      const maximumR = Math.min(3, -q + 3);
+      for (let r = minimumR; r <= maximumR; r += 1) coordinates.push({ q, r });
+    }
+    const grid = indexGreaterRealmAxialGrid(coordinates);
+    const elevation = new Int32Array(grid.cellCount);
+    elevation.fill(100);
+    const boundarySea = grid.indexOf({ q: 3, r: 0 });
+    const connectedSea = grid.indexOf({ q: 2, r: 0 });
+    const seaLevelContact = grid.indexOf({ q: 1, r: 0 });
+    const inlandDepression = grid.indexOf({ q: -1, r: 0 });
+    elevation[boundarySea] = -100;
+    elevation[connectedSea] = -50;
+    elevation[seaLevelContact] = 0;
+    elevation[inlandDepression] = -100;
+    const originalElevation = new Int32Array(elevation);
+    const uint32Fill = vi.spyOn(Uint32Array.prototype, 'fill');
+    let connected: Uint8Array | undefined;
+    try {
+      connected = deriveGreaterRealmBoundaryConnectedInitialSeaMask({
+        grid,
+        elevation,
+      });
+      expect(connected[boundarySea]).toBe(1);
+      expect(connected[connectedSea]).toBe(1);
+      expect(connected[seaLevelContact]).toBe(1);
+      expect(connected[inlandDepression]).toBe(0);
+      expect(elevation).toEqual(originalElevation);
+      expect((uint32Fill.mock.instances as unknown as Uint32Array[]).some(
+        values => values.length === grid.cellCount && values.every(value => value === 0),
+      )).toBe(true);
+
+      const noBoundarySea = deriveGreaterRealmBoundaryConnectedInitialSeaMask({
+        grid,
+        elevation: new Int32Array(grid.cellCount).fill(100),
+      });
+      try {
+        expect(noBoundarySea).toEqual(new Uint8Array(grid.cellCount));
+      } finally {
+        noBoundarySea.fill(0);
+      }
+    } finally {
+      connected?.fill(0);
+      uint32Fill.mockRestore();
+      elevation.fill(0);
+      originalElevation.fill(0);
+    }
+    expect(() => deriveGreaterRealmBoundaryConnectedInitialSeaMask({
+      grid,
+      elevation: new Int32Array(grid.cellCount - 1),
+    })).toThrow('GREATER_REALM_BOUNDARY_CONNECTED_INITIAL_SEA_INPUT_INVALID');
+    expect(() => deriveGreaterRealmBoundaryConnectedInitialSeaMask(
+      null as never,
+    )).toThrow('GREATER_REALM_BOUNDARY_CONNECTED_INITIAL_SEA_INPUT_INVALID');
+  });
 
   it('distinguishes a valid generated standing body from an invalid overlay result', () => {
     const grid = indexGreaterRealmAxialGrid([
@@ -595,25 +766,27 @@ describe('Greater Realm private candidate generator', () => {
   });
 
   it('binds multiscale final relief and genuine forest patches across independent worlds', () => {
-    const [candidate, , variant] = requireCandidates();
-    for (const world of [candidate, variant]) {
-      const measured = measureGreaterRealmReliefStructure({
-        grid: world.grid,
-        elevation: world.elevation,
-        waterRegime: world.waterRegime,
-        legacyProtectedCell: world.legacyLowlandsProtectedCell,
-      });
-      expect(measured.proof).toBe(true);
-      expect(world.privateMetrics.reliefStructure).toEqual(measured);
-      expect(world.privateMetrics.naturalComposition.forestPatches.proof).toBe(true);
+    const candidate = requirePinnedCandidate();
+    if (!secondaryEvidence) {
+      throw new Error('GREATER_REALM_SECONDARY_EVIDENCE_MISSING');
     }
+    const measured = measureGreaterRealmReliefStructure({
+      grid: candidate.grid,
+      elevation: candidate.elevation,
+      waterRegime: candidate.waterRegime,
+      legacyProtectedCell: candidate.legacyLowlandsProtectedCell,
+    });
+    expect(measured.proof).toBe(true);
+    expect(candidate.privateMetrics.reliefStructure).toEqual(measured);
+    expect(candidate.privateMetrics.naturalComposition.forestPatches.proof).toBe(true);
+    expect(secondaryEvidence.reliefMatches).toBe(true);
+    expect(secondaryEvidence.forestProof).toBe(true);
   });
 
   it('binds every returned authoritative integer field into stable stage evidence', () => {
-    const [candidate, repeated] = requireCandidates();
+    const candidate = requirePinnedCandidate();
     const fields = candidateFields(candidate);
 
-    expect(candidate.stageDigests).toEqual(repeated.stageDigests);
     expect(candidate.stageDigests).toEqual({
       geology: digestGreaterRealmTerrainStage('geology', candidate.grid, {
         bedrockElevation: candidate.bedrockElevation,
@@ -691,7 +864,7 @@ describe('Greater Realm private candidate generator', () => {
   });
 
   it('produces one connected approved mask with coherent tiers and authoritative arrays', () => {
-    const [candidate] = requireCandidates();
+    const candidate = requirePinnedCandidate();
     const { grid } = candidate;
     const fields = candidateFields(candidate);
 
@@ -760,7 +933,7 @@ describe('Greater Realm private candidate generator', () => {
   });
 
   it('binds a natural dormant living-world layer without leaking it into public evidence', () => {
-    const [candidate] = requireCandidates();
+    const candidate = requirePinnedCandidate();
     const gateCell = new Uint8Array(candidate.grid.cellCount);
     const gateApproachCell = new Uint8Array(candidate.grid.cellCount);
     for (const gate of candidate.gates) {
@@ -852,7 +1025,7 @@ describe('Greater Realm private candidate generator', () => {
   });
 
   it('maps every locked Lowlands cell and castle through one reversible protected transform', () => {
-    const [candidate] = requireCandidates();
+    const candidate = requirePinnedCandidate();
     const patch = GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1;
     const mappedWorldIndexes = new Set<number>();
     const mappedProtectedIndexes = new Set<number>();
@@ -951,7 +1124,7 @@ describe('Greater Realm private candidate generator', () => {
   });
 
   it('derives the declared traversable graph while sealing every unexpected raw contact', () => {
-    const [candidate] = requireCandidates();
+    const candidate = requirePinnedCandidate();
     const expectedPairs = candidate.gateGraph
       .map(([first, second]) => regionPair(first, second))
       .sort();
@@ -969,7 +1142,7 @@ describe('Greater Realm private candidate generator', () => {
   });
 
   it('keeps the abstract 6-to-3-to-1 graph while semantic T1 IDs vary by candidate', () => {
-    const [candidate] = requireCandidates();
+    const candidate = requirePinnedCandidate();
     const outerEdges = candidate.gateGraph.filter(([first, second]) => first < 6 && second < 9);
     const innerEdges = candidate.gateGraph.filter(([first, second]) => first >= 6 && second === 9);
     expect(candidate.gateGraph).toHaveLength(9);
@@ -984,7 +1157,7 @@ describe('Greater Realm private candidate generator', () => {
   });
 
   it('stores two correctly oriented gates per declared graph edge', () => {
-    const [candidate] = requireCandidates();
+    const candidate = requirePinnedCandidate();
     const expectedPairs = candidate.gateGraph
       .map(([first, second]) => regionPair(first, second))
       .sort();
@@ -1024,7 +1197,7 @@ describe('Greater Realm private candidate generator', () => {
   });
 
   it('attests sealed tier boundaries and the measured natural deep-ocean edge', () => {
-    const [candidate] = requireCandidates();
+    const candidate = requirePinnedCandidate();
     const radiusCounts = new Map<number, number>();
     const coordinateKeys = new Set<string>();
     let boundaryCells = 0;
@@ -1089,7 +1262,7 @@ describe('Greater Realm private candidate generator', () => {
   });
 
   it('preserves 100 Lowlands slots and allocates separated slots to every new frontier', () => {
-    const [candidate] = requireCandidates();
+    const candidate = requirePinnedCandidate();
     const castlesByRegion = Array.from({ length: 6 }, () => [] as number[]);
     let invalidCastle = 0;
     let underConnectedCastle = 0;
@@ -1155,7 +1328,7 @@ describe('Greater Realm private candidate generator', () => {
   });
 
   it('admits every new pinned castle through the strategic suitability audit', () => {
-    const [candidate] = requireCandidates();
+    const candidate = requirePinnedCandidate();
     const metrics = measureGreaterRealmCastleSuitability({
       grid: candidate.grid,
       regionId: candidate.regionId,
@@ -1200,7 +1373,7 @@ describe('Greater Realm private candidate generator', () => {
   });
 
   it('returns adjacent downhill acyclic flow whose outlets conserve all local runoff', () => {
-    const [candidate] = requireCandidates();
+    const candidate = requirePinnedCandidate();
     const state = new Uint8Array(candidate.grid.cellCount);
     let invalidReceiver = 0;
     let uphillReceiver = 0;
@@ -1260,7 +1433,7 @@ describe('Greater Realm private candidate generator', () => {
   });
 
   it('zeroizes both candidate seed material and all derived seed words', () => {
-    const [candidate] = requireCandidates();
+    const candidate = requirePinnedCandidate();
     const disposable = Object.freeze({
       ...candidate,
       seedMaterial: Buffer.from(candidate.seedMaterial),

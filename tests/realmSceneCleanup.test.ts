@@ -5,10 +5,20 @@ const webglState = vi.hoisted(() => ({
   failGrassShaderContractOnce: false,
   failAfterGrassShaderFallbackOnce: false,
   failGenericRenderOnce: false,
+  maxAttributes: 16,
   instances: [] as Array<{
     dispose: ReturnType<typeof vi.fn>;
     render: ReturnType<typeof vi.fn>;
     setSize: ReturnType<typeof vi.fn>;
+    debug: {
+      checkShaderErrors: boolean;
+      onShaderError: ((
+        gl: WebGLRenderingContext,
+        program: WebGLProgram,
+        vertexShader: WebGLShader,
+        fragmentShader: WebGLShader
+      ) => void) | null;
+    };
   }>
 }));
 
@@ -34,7 +44,10 @@ vi.mock('three', async (importOriginal) => {
   const actual = await importOriginal<typeof import('three')>();
 
   class WebGLRenderer {
-    capabilities = { getMaxAnisotropy: () => 1 };
+    capabilities = {
+      getMaxAnisotropy: () => 1,
+      maxAttributes: webglState.maxAttributes
+    };
     dispose = vi.fn();
     outputColorSpace = '';
     render = vi.fn(() => {
@@ -54,6 +67,15 @@ vi.mock('three', async (importOriginal) => {
     setPixelRatio = vi.fn();
     setSize = vi.fn();
     shadowMap = { enabled: false, type: 0 };
+    debug = {
+      checkShaderErrors: true,
+      onShaderError: null as ((
+        gl: WebGLRenderingContext,
+        program: WebGLProgram,
+        vertexShader: WebGLShader,
+        fragmentShader: WebGLShader
+      ) => void) | null
+    };
     toneMapping = 0;
     toneMappingExposure = 1;
 
@@ -390,6 +412,7 @@ describe('realm scene setup cleanup', () => {
     webglState.failGrassShaderContractOnce = false;
     webglState.failAfterGrassShaderFallbackOnce = false;
     webglState.failGenericRenderOnce = false;
+    webglState.maxAttributes = 16;
     webglState.instances.length = 0;
     keepLoadState.load.mockReset();
     keepLoadState.load.mockImplementation(() => new Promise<unknown>(() => undefined));
@@ -631,12 +654,32 @@ describe('realm scene setup cleanup', () => {
       grassInstanceCount: 0,
       grassTriangleCount: 0,
       grassDrawCalls: 0,
+      grassNearInstanceCount: 0,
+      grassMidInstanceCount: 0,
+      grassNearTriangleCount: 0,
+      grassMidTriangleCount: 0,
+      grassNearDrawCalls: 0,
+      grassMidDrawCalls: 0,
+      grassLodTransitionInstanceCount: 0,
+      wildflowerInstanceCount: 0,
+      wildflowerTriangleCount: 0,
+      wildflowerDrawCalls: 0,
+      wildflowerInstanceBudget: 0,
+      wildflowerAnimated: false,
+      wildflowerAlphaHashActive: true,
+      wildflowerAlphaToCoverageActive: false,
+      wildflowerShaderFallbackActive: false,
+      wildflowerShaderFallbackCount: 0,
+      wildflowerShaderFallbackReason: null,
+      wildflowerOverviewHidden: true,
       grassCacheEntries: 0,
       grassCacheLimit: 512,
       grassCacheHighWaterMark: 0,
       grassRepackCount: 0,
       grassAnimated: false,
       grassTargetAnimationCadence: 0,
+      grassAlphaHashActive: true,
+      grassAlphaToCoverageActive: false,
       grassCandidateCellsByTerrain: {
         meadow: 0, lowland: 0, forest: 0, heath: 0, ridge: 0, lake: 0,
         'ancient-stone': 0, apron: 0
@@ -922,6 +965,24 @@ describe('realm scene setup cleanup', () => {
     sceneHandle.dispose();
   });
 
+  it('fails closed before vegetation allocation when linked attributes cannot fit', () => {
+    const canvas = document.createElement('canvas');
+    webglState.maxAttributes = 12;
+
+    const sceneHandle = createRealmScene(createOptions(canvas, { reducedMotion: true }));
+    const renderedScene = webglState.instances[0].render.mock.calls.at(-1)?.[0] as THREE.Scene;
+
+    expect(canvas.dataset.realmVegetationCapability).toBe('terrain-only');
+    expect(canvas.dataset.realmVegetationCapabilityReason)
+      .toBe('insufficient-attribute-slots');
+    expect(canvas.dataset.realmVegetationSelectedProfile).toBe('none');
+    expect(canvas.dataset.realmVegetationMaxAttributes).toBe('12');
+    expect(canvas.dataset.grassPresentation).toBe('unavailable');
+    expect(renderedScene.getObjectByName('realm-procedural-biome-grass')).toBeUndefined();
+
+    sceneHandle.dispose();
+  });
+
   it('fails closed to terrain-only presentation when the grass shader contract changes during render', () => {
     const canvas = document.createElement('canvas');
     webglState.failGrassShaderContractOnce = true;
@@ -930,6 +991,43 @@ describe('realm scene setup cleanup', () => {
 
     expect(canvas.dataset.grassPresentation).toBe('unavailable');
     expect(webglState.instances[0].render).toHaveBeenCalledTimes(3);
+    sceneHandle.dispose();
+  });
+
+  it('captures renderer-level vegetation link failures and schedules the standard fallback', async () => {
+    const canvas = document.createElement('canvas');
+    const onTerrainPresentationTelemetry = vi.fn();
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      reducedMotion: true,
+      onTerrainPresentationTelemetry
+    }));
+    const renderer = webglState.instances.at(-1)!;
+    const vertexShader = {} as WebGLShader;
+    const fragmentShader = {} as WebGLShader;
+    const renderCountBeforeFailure = renderer.render.mock.calls.length;
+    const gl = {
+      getShaderSource: (shader: WebGLShader) => shader === vertexShader
+        ? 'uniform float uGrassTime; attribute vec4 grassBladeData;'
+        : 'void main() {}',
+      getProgramInfoLog: () => ''
+    } as unknown as WebGLRenderingContext;
+
+    renderer.debug.onShaderError?.(
+      gl,
+      {} as WebGLProgram,
+      vertexShader,
+      fragmentShader
+    );
+    await Promise.resolve();
+
+    expect(onTerrainPresentationTelemetry).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        grassShaderFallbackActive: true,
+        grassShaderFallbackCount: 1,
+        grassShaderFallbackReason: 'REALM_GRASS_SHADER_COMPILE_OR_LINK_FAILED'
+      })
+    );
+    expect(renderer.render.mock.calls.length).toBeGreaterThan(renderCountBeforeFailure);
     sceneHandle.dispose();
   });
 
