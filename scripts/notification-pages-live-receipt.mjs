@@ -27,6 +27,12 @@ import {
   resolve,
   sep,
 } from 'node:path';
+import { parseDocument } from 'yaml';
+import {
+  createScanner,
+  LanguageVariant,
+  SyntaxKind,
+} from 'typescript/unstable/ast';
 
 import {
   DEFAULT_AUTH_BRIDGE_URL,
@@ -1621,54 +1627,117 @@ function currentHead() {
   return value;
 }
 
-function exactBooleanLiteralAtCommit(
-  commit,
-  path,
-  prefix,
-  suffix,
-  code,
-  language,
-) {
+function sourceAtCommit(commit, path, code) {
   const result = gitResult(['show', `${commit}:${path}`]);
   if (result.status !== 0 || result.stdout.length > 512 * 1024) fail(code);
-  let source = result.stdout;
-  if (language === 'typescript') {
-    source = source
-      .replace(/\/\*[\s\S]*?\*\//gu, '')
-      .replace(/^[ \t]*\/\/.*$/gmu, '');
-    if (source.includes('/*') || source.includes('*/')) fail(code);
-  } else if (language === 'yaml') {
-    source = source.replace(/^[ \t]*#.*$/gmu, '');
-  } else {
+  return result.stdout;
+}
+
+function exactHermesApprovalAtCommit(commit) {
+  const code = 'NOTIFICATION_PAGES_LIVE_HERMES_PHASE_INVALID';
+  const source = sourceAtCommit(commit, 'scripts/hermes-admin.ts', code);
+  const scanner = createScanner(true, LanguageVariant.Standard, source);
+  const skipTemplateLiteral = () => {
+    let expressionBraceDepth = 0;
+    while (true) {
+      const nested = scanner.scan();
+      if (scanner.isUnterminated() || nested === SyntaxKind.EndOfFile) fail(code);
+      if (nested === SyntaxKind.TemplateHead) {
+        skipTemplateLiteral();
+        continue;
+      }
+      if (nested === SyntaxKind.OpenBraceToken) {
+        expressionBraceDepth += 1;
+        continue;
+      }
+      if (nested !== SyntaxKind.CloseBraceToken) continue;
+      if (expressionBraceDepth > 0) {
+        expressionBraceDepth -= 1;
+        continue;
+      }
+      const template = scanner.reScanTemplateToken(false);
+      if (scanner.isUnterminated()) fail(code);
+      if (template === SyntaxKind.TemplateTail) return;
+      if (template !== SyntaxKind.TemplateMiddle) fail(code);
+    }
+  };
+  const topLevelTokens = [];
+  let braceDepth = 0;
+  let parenthesisDepth = 0;
+  let bracketDepth = 0;
+  while (true) {
+    const token = scanner.scan();
+    if (scanner.isUnterminated()) fail(code);
+    if (token === SyntaxKind.EndOfFile) break;
+    if (token === SyntaxKind.TemplateHead) {
+      skipTemplateLiteral();
+      continue;
+    }
+    const topLevel = braceDepth === 0
+      && parenthesisDepth === 0
+      && bracketDepth === 0;
+    if (topLevel) topLevelTokens.push(scanner.getTokenText());
+    if (token === SyntaxKind.OpenBraceToken) braceDepth += 1;
+    if (token === SyntaxKind.CloseBraceToken) braceDepth -= 1;
+    if (token === SyntaxKind.OpenParenToken) parenthesisDepth += 1;
+    if (token === SyntaxKind.CloseParenToken) parenthesisDepth -= 1;
+    if (token === SyntaxKind.OpenBracketToken) bracketDepth += 1;
+    if (token === SyntaxKind.CloseBracketToken) bracketDepth -= 1;
+    if (braceDepth < 0 || parenthesisDepth < 0 || bracketDepth < 0) fail(code);
+  }
+  if (
+    braceDepth !== 0
+    || parenthesisDepth !== 0
+    || bracketDepth !== 0
+  ) fail(code);
+  const prefix = [
+    'export',
+    'const',
+    'FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED',
+    '=',
+  ];
+  const suffix = ['as', 'const', ';'];
+  const matches = [];
+  for (let index = 0; index <= topLevelTokens.length - 8; index += 1) {
+    if (
+      prefix.every((value, offset) => topLevelTokens[index + offset] === value)
+      && (topLevelTokens[index + 4] === 'true'
+        || topLevelTokens[index + 4] === 'false')
+      && suffix.every(
+        (value, offset) => topLevelTokens[index + 5 + offset] === value,
+      )
+    ) matches.push(topLevelTokens[index + 4] === 'true');
+  }
+  if (matches.length !== 1) fail(code);
+  return matches[0];
+}
+
+function exactPagesPresentationAtCommit(commit) {
+  const code = 'NOTIFICATION_PAGES_LIVE_PAGES_PHASE_INVALID';
+  let document;
+  try {
+    document = parseDocument(sourceAtCommit(
+      commit,
+      '.github/workflows/deploy-pages.yml',
+      code,
+    ), { prettyErrors: false, strict: true, uniqueKeys: true });
+  } catch {
     fail(code);
   }
-  const pattern = new RegExp(
-    `^${prefix.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(true|false)`
-      + `${suffix.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}$`,
-    'gmu',
-  );
-  const matches = [...source.matchAll(pattern)];
-  if (matches.length !== 1) fail(code);
-  return matches[0][1] === 'true';
+  if (document.errors.length !== 0 || document.warnings.length !== 0) fail(code);
+  const value = document.getIn([
+    'jobs',
+    'build',
+    'env',
+    'VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED',
+  ]);
+  if (value !== 'true' && value !== 'false') fail(code);
+  return value === 'true';
 }
 
 function assertActivationPresentationPhase(sourceCommit) {
-  const pagesEnabled = exactBooleanLiteralAtCommit(
-    sourceCommit,
-    '.github/workflows/deploy-pages.yml',
-    "      VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: '",
-    "'",
-    'NOTIFICATION_PAGES_LIVE_PAGES_PHASE_INVALID',
-    'yaml',
-  );
-  const hermesApproved = exactBooleanLiteralAtCommit(
-    sourceCommit,
-    'scripts/hermes-admin.ts',
-    'export const FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = ',
-    ' as const;',
-    'NOTIFICATION_PAGES_LIVE_HERMES_PHASE_INVALID',
-    'typescript',
-  );
+  const pagesEnabled = exactPagesPresentationAtCommit(sourceCommit);
+  const hermesApproved = exactHermesApprovalAtCommit(sourceCommit);
   if (!pagesEnabled || hermesApproved) {
     fail('NOTIFICATION_PAGES_LIVE_ACTIVATION_PHASE_INVALID');
   }
