@@ -1621,15 +1621,33 @@ function currentHead() {
   return value;
 }
 
-function exactBooleanLiteralAtCommit(commit, path, prefix, suffix, code) {
+function exactBooleanLiteralAtCommit(
+  commit,
+  path,
+  prefix,
+  suffix,
+  code,
+  language,
+) {
   const result = gitResult(['show', `${commit}:${path}`]);
   if (result.status !== 0 || result.stdout.length > 512 * 1024) fail(code);
+  let source = result.stdout;
+  if (language === 'typescript') {
+    source = source
+      .replace(/\/\*[\s\S]*?\*\//gu, '')
+      .replace(/^[ \t]*\/\/.*$/gmu, '');
+    if (source.includes('/*') || source.includes('*/')) fail(code);
+  } else if (language === 'yaml') {
+    source = source.replace(/^[ \t]*#.*$/gmu, '');
+  } else {
+    fail(code);
+  }
   const pattern = new RegExp(
     `^${prefix.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(true|false)`
       + `${suffix.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}$`,
     'gmu',
   );
-  const matches = [...result.stdout.matchAll(pattern)];
+  const matches = [...source.matchAll(pattern)];
   if (matches.length !== 1) fail(code);
   return matches[0][1] === 'true';
 }
@@ -1641,6 +1659,7 @@ function assertActivationPresentationPhase(sourceCommit) {
     "      VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: '",
     "'",
     'NOTIFICATION_PAGES_LIVE_PAGES_PHASE_INVALID',
+    'yaml',
   );
   const hermesApproved = exactBooleanLiteralAtCommit(
     sourceCommit,
@@ -1648,6 +1667,7 @@ function assertActivationPresentationPhase(sourceCommit) {
     'export const FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = ',
     ' as const;',
     'NOTIFICATION_PAGES_LIVE_HERMES_PHASE_INVALID',
+    'typescript',
   );
   if (!pagesEnabled || hermesApproved) {
     fail('NOTIFICATION_PAGES_LIVE_ACTIVATION_PHASE_INVALID');
