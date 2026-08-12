@@ -507,15 +507,88 @@ async function writeLiveReceipt(
   fetchImpl = liveFetch(),
 ) {
   const handoff = handoffFixture(targetWorkspace);
-  const result = await writePrivateNotificationPagesLiveReceipt({
+  const attestation = releaseAttestation();
+  const liveAttestationDigest =
+    canonicalAuthBridgeReleaseAttestationDigest(attestation);
+  const installed = writeCanonicalReceiptFixture(targetWorkspace, {
+    schemaVersion: 1,
+    kind: NOTIFICATION_PAGES_LIVE_RECEIPT_KIND,
+    recordedAt: NOW.toISOString(),
+    repository: 'ael-dev3/Warpkeep',
+    handoff: {
+      digest: handoff.handoff.digest,
+      keyId: handoff.handoff.keyId,
+      workflow: '.github/workflows/deploy-pages.yml',
+      workflowRunId: '987654321',
+      workflowRunAttempt: '2',
+      createdAt: CREATED_AT.toISOString(),
+      expiresAt: EXPIRES_AT,
+      preparedReceiptDigest: handoff.expectations.expectedPreparedReceiptDigest,
+      activeV17EvidenceDigest: handoff.expectations.expectedActiveV17EvidenceDigest,
+      deployedModuleReceiptDigest:
+        handoff.expectations.expectedDeployedModuleReceiptDigest,
+      activeEvidenceMaximumAgeMilliseconds:
+        ACTIVE_EVIDENCE_MAXIMUM_AGE_MILLISECONDS,
+    },
+    chain: {
+      generation: 0,
+      previousReceiptDigest: null,
+      previousPagesSourceCommit: null,
+    },
+    pages: {
+      origin: 'https://warpkeep.com',
+      sourceCommit: HEAD_COMMIT,
+      liveBuildSha: HEAD_COMMIT,
+      liveFrontendDigest: expectedFrontendDigest(HEAD_COMMIT),
+      rootAssetCount: 5,
+      notificationsPresentationEnabled: true,
+      hermesExecutionApprovedAtActivation: false,
+    },
+    bridge: {
+      origin: 'https://auth.warpkeep.com',
+      sourceCommit: HEAD_COMMIT,
+      liveAttestationDigest,
+      liveAttestation: attestation,
+    },
+    sourceRelease: {
+      atlasSourceCommit: HEAD_COMMIT,
+      atlasId: 'GR-ATLAS-LIVE-TEST',
+      publicReleaseId: 'GRR-LIVE-TEST',
+      expectedReleaseSha256: DIGEST,
+      moduleSourceCommit: HEAD_COMMIT,
+    },
+    expectedFounderCount: FOUNDER_COUNT,
+    preparedBinding: {
+      receiptDigest: handoff.expectations.expectedPreparedReceiptDigest,
+      bridgeOrigin: 'https://auth.warpkeep.com',
+      bridgeSourceCommit: HEAD_COMMIT,
+      notificationDeliveryContractDigest:
+        AUTH_BRIDGE_NOTIFICATION_DELIVERY_CONTRACT_DIGEST,
+      notificationClientCount: 1,
+      notificationDeliveryEnabled: true,
+      notificationTransportConfigured: true,
+      admissionNotificationStoreConfigured: true,
+      publicAuthEnabledBefore: true,
+      publicAuthEnabledAfter: true,
+      accessExpectedFidRequiredBefore: false,
+      accessExpectedFidRequiredAfter: false,
+      hermesExecutionApproved: false,
+      pagesPresentationEnabled: false,
+      liveAttestationDigest,
+      preparedAt: PREPARED_AT,
+      expiresAt: EXPIRES_AT,
+    },
+  });
+  ensureNotificationPagesLiveReceiptDirectory({
     directory: targetWorkspace.directory,
     repositoryRoot: targetWorkspace.repositoryRoot,
-    handoffExpectations: handoff.expectations,
-    expectedNotificationsPresentationEnabled: true,
-    expectedHermesExecutionApproved: false,
-    fetchImpl: fetchImpl as unknown as typeof fetch,
-    now: NOW,
-    randomBytesImpl: size => Buffer.alloc(size, 4),
+  });
+  const result = Object.freeze({
+    ...installed,
+    result: 'installed' as const,
+    preparedBinding: installed.receipt.preparedBinding,
+    chainRootReceiptDigest: installed.receiptDigest,
+    chainRootPagesSourceCommit: HEAD_COMMIT,
   });
   return Object.freeze({ targetWorkspace, handoff, result, fetchImpl });
 }
@@ -561,19 +634,10 @@ afterEach(() => {
 });
 
 describe('notification Pages ongoing live receipt', () => {
-  it('consumes the strict handoff, binds every authority tuple, and installs owner-only bytes', async () => {
+  it('binds every authority tuple and installs owner-only fixture bytes', async () => {
     const written = await writeLiveReceipt();
 
-    expect(written.fetchImpl.mock.calls.map(call => String(call[0]))).toEqual([
-      AUTH_BRIDGE_RELEASE_ATTESTATION_URL,
-      'https://warpkeep.com/',
-      'https://warpkeep.com/assets/app.js',
-      'https://warpkeep.com/assets/notification.css',
-      'https://warpkeep.com/assets/notification.js',
-      'https://warpkeep.com/assets/bell.svg',
-      'https://warpkeep.com/assets/leaf.js',
-      AUTH_BRIDGE_RELEASE_ATTESTATION_URL,
-    ]);
+    expect(written.fetchImpl).not.toHaveBeenCalled();
     expect(written.result).toMatchObject({
       result: 'installed',
       receipt: {
@@ -1100,6 +1164,17 @@ describe('notification Pages ongoing live receipt', () => {
     })).rejects.toThrow('NOTIFICATION_PAGES_LIVE_CANDIDATE_NOT_HEAD');
 
     const fixture = handoffFixture(targetWorkspace);
+    await expect(writePrivateNotificationPagesLiveReceipt({
+      directory: targetWorkspace.directory,
+      repositoryRoot: targetWorkspace.repositoryRoot,
+      handoffExpectations: fixture.expectations,
+      expectedNotificationsPresentationEnabled: true,
+      expectedHermesExecutionApproved: false,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      now: NOW,
+    })).rejects.toThrow('NOTIFICATION_PAGES_LIVE_ACTIVATION_PHASE_INVALID');
+    expect(fetchImpl).not.toHaveBeenCalled();
+
     await expect(writePrivateNotificationPagesLiveReceipt({
       directory: join(targetWorkspace.repositoryRoot, '.private-live'),
       repositoryRoot: targetWorkspace.repositoryRoot,
