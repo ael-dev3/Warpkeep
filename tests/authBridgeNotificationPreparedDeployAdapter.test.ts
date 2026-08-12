@@ -95,8 +95,10 @@ function harness({
   let inspectDeploymentCall = 0;
   const journal = {
     prepared: vi.fn(async () => { events.push('prepared'); }),
+    uploadInvoked: vi.fn(async () => { events.push('upload-invoked'); }),
     uploaded: vi.fn(async () => { events.push('uploaded'); }),
     releaseUncertain: vi.fn(async () => { events.push('release-uncertain'); }),
+    releaseInvoked: vi.fn(async () => { events.push('release-invoked'); }),
     completed: vi.fn(async () => { events.push('completed'); }),
   };
   return {
@@ -108,7 +110,7 @@ function harness({
     }),
     reconcileVersion: vi.fn(async (): Promise<readonly string[]> => {
       events.push('reconcile-version');
-      return [];
+      return events.includes('upload') ? [VERSION_ID] : [];
     }),
     inspectVersion: vi.fn(async () => {
       events.push('inspect-version');
@@ -297,12 +299,15 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
       'prepared',
       'reconcile-version',
       'permit-upload',
+      'upload-invoked',
       'upload',
+      'reconcile-version',
       'inspect-version',
       'uploaded',
       'inspect-deployment',
       'release-uncertain',
       'permit-release',
+      'release-invoked',
       'release',
       'inspect-deployment',
       'completed',
@@ -358,6 +363,20 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
       ...duplicate,
     })).rejects.toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_VERSION_RECONCILIATION_INVALID');
     expect(duplicate.uploadVersion).not.toHaveBeenCalled();
+
+    const duplicateAfterUpload = harness();
+    duplicateAfterUpload.reconcileVersion
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([VERSION_ID, NON_TARGET_VERSION_ID]);
+    await expect(executeAuthBridgeNotificationPreparedDeployAdapter({
+      contract: contract(),
+      ...duplicateAfterUpload,
+    })).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OUTCOME_AMBIGUOUS',
+      deploymentMayHaveChanged: true,
+    });
+    expect(duplicateAfterUpload.uploadVersion).toHaveBeenCalledOnce();
+    expect(duplicateAfterUpload.releaseVersion).not.toHaveBeenCalled();
   });
 
   it('retains typed ambiguity when both release and postflight fail', async () => {
@@ -509,6 +528,21 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
       deploymentMayHaveChanged: true,
     });
     expect(completion.releaseVersion).not.toHaveBeenCalled();
+
+    const infrastructureDrift = harness({
+      inspectedDeployments: [{
+        ...nonTargetDeployment(),
+        route: { pattern: 'wrong.warpkeep.com', customDomain: true },
+      }],
+    });
+    await expect(executeAuthBridgeNotificationPreparedDeployAdapter({
+      contract: contract(),
+      ...infrastructureDrift,
+    })).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_DEPLOY_PRE_RELEASE_RECONCILIATION_AMBIGUOUS',
+      deploymentMayHaveChanged: true,
+    });
+    expect(infrastructureDrift.releaseVersion).not.toHaveBeenCalled();
   });
 
   it('keeps the administrator token out of deploy and installs the authenticated receipt', async () => {

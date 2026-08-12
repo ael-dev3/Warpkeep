@@ -49,8 +49,10 @@ export function executeAuthBridgeNotificationPreparedDeployAdapter(
     inspectDeployment: () => Promise<unknown>;
     journal: Readonly<{
       prepared: (contract: Readonly<Record<string, unknown>>) => Promise<void>;
+      uploadInvoked: (input: Readonly<Record<string, unknown>>) => Promise<void>;
       uploaded: (version: Readonly<Record<string, unknown>>) => Promise<void>;
       releaseUncertain: (input: Readonly<Record<string, unknown>>) => Promise<void>;
+      releaseInvoked: (input: Readonly<Record<string, unknown>>) => Promise<void>;
       completed: (deployment: Readonly<Record<string, unknown>>) => Promise<void>;
     }>;
     assertCanStartWrite: (phase: 'upload' | 'release') => true | Promise<true>;

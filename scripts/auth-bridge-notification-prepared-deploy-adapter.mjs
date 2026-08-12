@@ -319,6 +319,64 @@ function ambiguous(primary, code = 'AUTH_BRIDGE_PREPARED_DEPLOY_OUTCOME_AMBIGUOU
   return error;
 }
 
+function attestReleaseCandidateDeployment({
+  value,
+  contract,
+  versionId,
+  versionCreatedAt,
+  now,
+}) {
+  const canonicalContract = canonicalVersionContract(contract);
+  if (!exactPattern(versionId, VERSION_ID)) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_PRE_RELEASE_INVALID', true);
+  }
+  const createdAt = strictUtc(
+    versionCreatedAt,
+    'AUTH_BRIDGE_PREPARED_DEPLOY_PRE_RELEASE_INVALID',
+  );
+  if (
+    !(now instanceof Date)
+    || Number.isNaN(now.getTime())
+    || !exactKeys(value, DEPLOYMENT_KEYS)
+    || !exactPattern(value.versionId, VERSION_ID)
+  ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_PRE_RELEASE_INVALID', true);
+  strictUtc(value.observedAt, 'AUTH_BRIDGE_PREPARED_DEPLOY_PRE_RELEASE_INVALID');
+  if (
+    Date.parse(value.observedAt) < Date.parse(createdAt)
+    || Date.parse(value.observedAt) > now.getTime()
+    || now.getTime() - Date.parse(value.observedAt) > 5 * 60 * 1_000
+  ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_PRE_RELEASE_STALE', true);
+  const infrastructure = {
+    schemaVersion: value.schemaVersion,
+    profile: value.profile,
+    accountId: value.accountId,
+    zoneId: value.zoneId,
+    workerName: value.workerName,
+    route: value.route,
+    trafficPercentage: value.trafficPercentage,
+  };
+  const expectedInfrastructure = {
+    schemaVersion: 1,
+    profile: AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_PROFILE,
+    accountId: canonicalContract.accountId,
+    zoneId: canonicalContract.zoneId,
+    workerName: canonicalContract.workerName,
+    route: canonicalContract.route,
+    trafficPercentage: 100,
+  };
+  if (!exactJson(infrastructure, expectedInfrastructure)) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_PRE_RELEASE_INFRASTRUCTURE_MISMATCH', true);
+  }
+  if (value.versionId !== versionId) return undefined;
+  return attestAuthBridgeNotificationPreparedDeployment({
+    value,
+    contract: canonicalContract,
+    versionId,
+    versionCreatedAt,
+    now,
+  });
+}
+
 /**
  * One upload and one irreversible 100% release. Every effect boundary is
  * journaled by the caller. Once release is authorized this function always
@@ -345,7 +403,14 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
   ]) functionValue(value, code);
   if (
     !isRecord(journal)
-    || !['prepared', 'uploaded', 'releaseUncertain', 'completed']
+    || ![
+      'prepared',
+      'uploadInvoked',
+      'uploaded',
+      'releaseUncertain',
+      'releaseInvoked',
+      'completed',
+    ]
       .every(name => typeof journal[name] === 'function')
   ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_REQUIRED');
   const canonicalContract = canonicalVersionContract(contract);
@@ -365,42 +430,46 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
     if (await assertCanStartWrite('upload') !== true) {
       fail('AUTH_BRIDGE_PREPARED_DEPLOY_WRITE_PERMIT_REJECTED');
     }
+    await journal.uploadInvoked(Object.freeze({
+      versionTag: canonicalContract.versionTag,
+      sourceCommit: canonicalContract.sourceCommit,
+      sourceDigest: canonicalContract.sourceDigest,
+    }));
     let upload;
+    let uploadError;
     try {
       upload = await uploadVersion(canonicalContract);
     } catch (error) {
-      let reconciled;
-      try {
-        reconciled = await reconcileVersion(canonicalContract);
-      } catch (reconcileError) {
-        throw ambiguous(new AggregateError([error, reconcileError]));
-      }
-      if (!Array.isArray(reconciled) || reconciled.length !== 1
-        || !exactPattern(reconciled[0], VERSION_ID)) {
-        throw ambiguous(error, 'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OUTCOME_AMBIGUOUS');
-      }
-      versionId = reconciled[0];
+      uploadError = error;
     }
     if (upload !== undefined) {
       if (!isRecord(upload) || !exactPattern(upload.versionId, VERSION_ID)) {
-        let reconciled;
-        try {
-          reconciled = await reconcileVersion(canonicalContract);
-        } catch (reconcileError) {
-          throw ambiguous(new AggregateError([upload, reconcileError]));
-        }
-        if (!Array.isArray(reconciled) || reconciled.length !== 1
-          || !exactPattern(reconciled[0], VERSION_ID)) {
-          throw ambiguous(
-            upload,
-            'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OUTCOME_AMBIGUOUS',
-          );
-        }
-        versionId = reconciled[0];
-      } else {
-        versionId = upload.versionId;
+        uploadError = upload;
       }
     }
+    let reconciled;
+    try {
+      reconciled = await reconcileVersion(canonicalContract);
+    } catch (reconcileError) {
+      throw ambiguous(
+        uploadError === undefined
+          ? reconcileError
+          : new AggregateError([uploadError, reconcileError]),
+        'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OUTCOME_AMBIGUOUS',
+      );
+    }
+    if (
+      !Array.isArray(reconciled)
+      || reconciled.length !== 1
+      || !exactPattern(reconciled[0], VERSION_ID)
+      || (uploadError === undefined && upload?.versionId !== reconciled[0])
+    ) {
+      throw ambiguous(
+        uploadError ?? upload,
+        'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OUTCOME_AMBIGUOUS',
+      );
+    }
+    versionId = reconciled[0];
   }
   const version = attestAuthBridgeNotificationPreparedVersion({
     value: await inspectVersion(versionId),
@@ -412,7 +481,7 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
   await journal.uploaded(version);
   let preReleaseDeployment;
   try {
-    preReleaseDeployment = attestAuthBridgeNotificationPreparedDeployment({
+    preReleaseDeployment = attestReleaseCandidateDeployment({
       value: await inspectDeployment(),
       contract: canonicalContract,
       versionId: version.versionId,
@@ -420,17 +489,10 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
       now: clock(),
     });
   } catch (error) {
-    if (
-      error instanceof AuthBridgeNotificationPreparedDeployError
-      && error.code === 'AUTH_BRIDGE_PREPARED_DEPLOY_POSTFLIGHT_MISMATCH'
-    ) {
-      preReleaseDeployment = undefined;
-    } else {
-      throw ambiguous(
-        error,
-        'AUTH_BRIDGE_PREPARED_DEPLOY_PRE_RELEASE_RECONCILIATION_AMBIGUOUS',
-      );
-    }
+    throw ambiguous(
+      error,
+      'AUTH_BRIDGE_PREPARED_DEPLOY_PRE_RELEASE_RECONCILIATION_AMBIGUOUS',
+    );
   }
   if (preReleaseDeployment !== undefined) {
     try {
@@ -459,6 +521,11 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
   let releaseError;
   let releaseInvoked = false;
   try {
+    await journal.releaseInvoked(Object.freeze({
+      versionId: version.versionId,
+      versionTag: version.versionTag,
+      sourceCommit: version.sourceCommit,
+    }));
     releaseInvoked = true;
     await releaseVersion(Object.freeze({
       versionId: version.versionId,
