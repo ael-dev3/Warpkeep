@@ -2364,10 +2364,10 @@ function installReceipt({
         chainRootPagesSourceCommit: existingSource.chainRootPagesSourceCommit,
       });
     }
-    const requiredPermanentEntries = receipt.chain.generation === 0 ? 3 : 3;
+    const requiredPermanentEntries = 3;
     if (
       boundedEntries(canonicalDirectory).length
-        > MAX_DIRECTORY_ENTRIES - requiredPermanentEntries
+        > MAX_DIRECTORY_ENTRIES - requiredPermanentEntries - 1
     ) fail('NOTIFICATION_PAGES_LIVE_DIRECTORY_INVENTORY_EXCEEDED');
     const successorReserved = reserveReceiptSuccessor({
       directory: canonicalDirectory,
@@ -2491,15 +2491,10 @@ export async function writePrivateNotificationPagesLiveReceipt({
   handoffExpectations,
   expectedNotificationsPresentationEnabled,
   expectedHermesExecutionApproved,
-  testOnlyAssertActivationPresentationPhase,
   fetchImpl = fetch,
   now = new Date(),
   randomBytesImpl = randomBytes,
 } = {}) {
-  if (
-    testOnlyAssertActivationPresentationPhase !== undefined
-    && process.env.NODE_ENV !== 'test'
-  ) fail('NOTIFICATION_PAGES_LIVE_TEST_ONLY_DEPENDENCY_FORBIDDEN');
   exactDate(now, 'NOTIFICATION_PAGES_LIVE_RECEIPT_TIME_INVALID');
   if (
     expectedNotificationsPresentationEnabled !== true
@@ -2515,8 +2510,7 @@ export async function writePrivateNotificationPagesLiveReceipt({
   if (expectations.expectedPagesSourceCommit !== head) {
     fail('NOTIFICATION_PAGES_LIVE_PAGES_SOURCE_NOT_HEAD');
   }
-  (testOnlyAssertActivationPresentationPhase
-    ?? assertActivationPresentationPhase)(head);
+  assertActivationPresentationPhase(head);
   const preflightInventory = staticInventory({ directory, repositoryRoot, now });
   if (
     preflightInventory.length > 0
@@ -2811,7 +2805,7 @@ export async function inspectLatestPrivateNotificationPagesLiveReceiptForCandida
       preparedBinding: latest.receipt.preparedBinding,
       chainRootReceiptDigest: latest.chainRootReceiptDigest,
       chainRootPagesSourceCommit: latest.chainRootPagesSourceCommit,
-      liveAttestation: stagedHandoff.liveAttestation,
+      liveAttestation: latest.receipt.bridge.liveAttestation,
       frontendAttestation: frontend,
     });
   }
@@ -2846,10 +2840,11 @@ export async function inspectLatestPrivateNotificationPagesLiveReceiptForCandida
       directory,
       repositoryRoot,
     });
-    if (boundedEntries(candidateDirectory).length > MAX_DIRECTORY_ENTRIES - 5) {
+    if (boundedEntries(candidateDirectory).length > MAX_DIRECTORY_ENTRIES - 6) {
       fail('NOTIFICATION_PAGES_LIVE_DIRECTORY_INVENTORY_EXCEEDED');
     }
-    installCanonicalPrivateBytes({
+    try {
+      installCanonicalPrivateBytes({
       directory: candidateDirectory,
       basename:
         `notification-pages-candidate-claim-${latest.receiptDigest}.json`,
@@ -2857,7 +2852,14 @@ export async function inspectLatestPrivateNotificationPagesLiveReceiptForCandida
         `notification-pages-candidate-claim-${latest.receiptDigest}`,
       bytes,
       randomBytesImpl,
-    });
+      });
+    } catch (error) {
+      if (
+        !(error instanceof NotificationPagesLiveReceiptError)
+        || error.code !== 'NOTIFICATION_PAGES_LIVE_EXISTING_RECEIPT_MISMATCH'
+      ) throw error;
+      fail('NOTIFICATION_PAGES_LIVE_PREDECESSOR_ALREADY_AUTHORIZED');
+    }
     installed = installCanonicalPrivateBytes({
       directory: candidateDirectory,
       basename: `notification-pages-candidate-${candidateAuthorityDigest}.json`,

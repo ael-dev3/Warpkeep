@@ -148,7 +148,6 @@ export function writePrivateNotificationPagesLiveReceipt(options: Readonly<{
   handoffExpectations: NotificationPagesPrivateHandoffExpectations;
   expectedNotificationsPresentationEnabled: true;
   expectedHermesExecutionApproved: false;
-  testOnlyAssertActivationPresentationPhase?: (sourceCommit: string) => void;
   fetchImpl?: typeof fetch;
   now?: Date;
   randomBytesImpl?: (size: number) => Buffer;

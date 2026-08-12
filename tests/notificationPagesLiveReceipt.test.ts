@@ -513,9 +513,6 @@ async function writeLiveReceipt(
     handoffExpectations: handoff.expectations,
     expectedNotificationsPresentationEnabled: true,
     expectedHermesExecutionApproved: false,
-    testOnlyAssertActivationPresentationPhase: (sourceCommit: string) => {
-      expect(sourceCommit).toBe(HEAD_COMMIT);
-    },
     fetchImpl: fetchImpl as unknown as typeof fetch,
     now: NOW,
     randomBytesImpl: size => Buffer.alloc(size, 4),
@@ -793,6 +790,18 @@ describe('notification Pages ongoing live receipt', () => {
       receiptDigest: written.result.receiptDigest,
       candidateAlreadyLive: true,
     });
+
+    const wrongRootFetch = liveFetch({ now: AFTER_PREPARED_EXPIRY });
+    await expect(inspectLatestPrivateNotificationPagesLiveReceiptForCandidate({
+      directory: written.targetWorkspace.directory,
+      repositoryRoot: written.targetWorkspace.repositoryRoot,
+      candidatePagesSourceCommit: HEAD_COMMIT,
+      expectedChainRootReceiptDigest: EXPECTED_ROOT_DIGEST,
+      expectedChainRootPagesSourceCommit: HEAD_COMMIT,
+      fetchImpl: wrongRootFetch as unknown as typeof fetch,
+      now: AFTER_PREPARED_EXPIRY,
+    })).rejects.toThrow('NOTIFICATION_PAGES_LIVE_CHAIN_ROOT_MISMATCH');
+    expect(wrongRootFetch).not.toHaveBeenCalled();
 
     const driftWorkspace = workspace('warpkeep-pages-live-drift-');
     const old = deepMutableReceipt(written.result.receipt);
