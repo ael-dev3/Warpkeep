@@ -100,8 +100,12 @@ const SOURCE_FILE = /^notification-pages-live-source-([0-9a-f]{40})\.json$/u;
 const SOURCE_TEMPORARY_FILE = /^\.notification-pages-live-source-([0-9a-f]{40})-([0-9a-f]{24})\.json\.tmp$/u;
 const SUCCESSOR_FILE = /^notification-pages-live-successor-([0-9a-f]{64})\.json$/u;
 const SUCCESSOR_TEMPORARY_FILE = /^\.notification-pages-live-successor-([0-9a-f]{64})-([0-9a-f]{24})\.json\.tmp$/u;
+const ROOT_FILE = 'notification-pages-live-root.json';
+const ROOT_TEMPORARY_FILE = /^\.notification-pages-live-root-([0-9a-f]{24})\.json\.tmp$/u;
 const CANDIDATE_FILE = /^notification-pages-candidate-([0-9a-f]{64})\.json$/u;
 const CANDIDATE_TEMPORARY_FILE = /^\.notification-pages-candidate-([0-9a-f]{64})-([0-9a-f]{24})\.json\.tmp$/u;
+const CANDIDATE_CLAIM_FILE = /^notification-pages-candidate-claim-([0-9a-f]{64})\.json$/u;
+const CANDIDATE_CLAIM_TEMPORARY_FILE = /^\.notification-pages-candidate-claim-([0-9a-f]{64})-([0-9a-f]{24})\.json\.tmp$/u;
 const CANDIDATE_KIND = 'warpkeep-notification-pages-candidate-authority-v1';
 const RECEIPT_KEYS = Object.freeze([
   'schemaVersion',
@@ -928,15 +932,20 @@ function repairLinkedTemporaries(directory) {
   for (const entry of boundedEntries(directory)) {
     const receiptMatch = TEMPORARY_FILE.exec(entry.name);
     const candidateMatch = CANDIDATE_TEMPORARY_FILE.exec(entry.name);
+    const candidateClaimMatch = CANDIDATE_CLAIM_TEMPORARY_FILE.exec(entry.name);
     const sourceMatch = SOURCE_TEMPORARY_FILE.exec(entry.name);
     const successorMatch = SUCCESSOR_TEMPORARY_FILE.exec(entry.name);
+    const rootMatch = ROOT_TEMPORARY_FILE.exec(entry.name);
     if (
       receiptMatch === null
       && candidateMatch === null
+      && candidateClaimMatch === null
       && sourceMatch === null
       && successorMatch === null
+      && rootMatch === null
     ) continue;
-    const match = receiptMatch ?? candidateMatch ?? sourceMatch ?? successorMatch;
+    const match = receiptMatch ?? candidateMatch ?? candidateClaimMatch
+      ?? sourceMatch ?? successorMatch ?? rootMatch;
     const temporary = join(directory, entry.name);
     let metadata;
     try {
@@ -955,7 +964,11 @@ function repairLinkedTemporaries(directory) {
       || (metadata.nlink === 1 ? (mode & ~FILE_MODE) !== 0 : mode !== FILE_MODE)
       || metadata.size > MAX_RECEIPT_BYTES
     ) fail('NOTIFICATION_PAGES_LIVE_TEMPORARY_INVALID');
-    if (metadata.nlink === 1) continue;
+    if (metadata.nlink === 1) {
+      unlinkExact(temporary, metadata);
+      fsyncDirectory(directory);
+      continue;
+    }
     const address = match[1];
     const destination = join(
       directory,
@@ -963,16 +976,20 @@ function repairLinkedTemporaries(directory) {
         ? `notification-pages-live-${address}.json`
         : candidateMatch !== null
           ? `notification-pages-candidate-${address}.json`
+          : candidateClaimMatch !== null
+            ? `notification-pages-candidate-claim-${address}.json`
           : sourceMatch !== null
             ? `notification-pages-live-source-${address}.json`
-            : `notification-pages-live-successor-${address}.json`,
+            : successorMatch !== null
+              ? `notification-pages-live-successor-${address}.json`
+              : ROOT_FILE,
     );
     const opened = receiptMatch !== null
       ? readContentAddressedFile(destination, address, 2)
       : stableFile(
         destination,
         2,
-        candidateMatch !== null
+        candidateMatch !== null || candidateClaimMatch !== null
           ? 'NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_FILE_INVALID'
           : 'NOTIFICATION_PAGES_LIVE_SOURCE_RESERVATION_INVALID',
       );
@@ -980,13 +997,29 @@ function repairLinkedTemporaries(directory) {
       opened.bytes.fill(0);
       fail('NOTIFICATION_PAGES_LIVE_CONTENT_ADDRESS_INVALID');
     }
-    if (sourceMatch !== null || successorMatch !== null) {
+    if (candidateClaimMatch !== null) {
+      let claim;
+      try {
+        claim = parseCandidateAuthority(JSON.parse(
+          new TextDecoder('utf-8', { fatal: true }).decode(opened.bytes),
+        ));
+      } catch {
+        opened.bytes.fill(0);
+        fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_INVALID');
+      }
+      if (claim.predecessorReceiptDigest !== address) {
+        opened.bytes.fill(0);
+        fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_INVALID');
+      }
+    }
+    if (sourceMatch !== null || successorMatch !== null || rootMatch !== null) {
       const reservedReceipt = parseCanonicalReceiptBytes(opened.bytes);
       if (
         (sourceMatch !== null
           && reservedReceipt.pages.sourceCommit !== address)
         || (successorMatch !== null
           && reservedReceipt.chain.previousReceiptDigest !== address)
+        || (rootMatch !== null && reservedReceipt.chain.generation !== 0)
       ) {
         opened.bytes.fill(0);
         fail('NOTIFICATION_PAGES_LIVE_SUCCESSOR_RESERVATION_INVALID');
@@ -1008,6 +1041,7 @@ function repairLinkedTemporaries(directory) {
 
 function readInventory(directory, options) {
   const receipts = [];
+  let rootReservation;
   const sourceReservations = new Map();
   const successorReservations = new Map();
   const sourceCommits = new Set();
@@ -1019,8 +1053,13 @@ function readInventory(directory, options) {
     const sourceTemporaryMatch = SOURCE_TEMPORARY_FILE.exec(entry.name);
     const successorMatch = SUCCESSOR_FILE.exec(entry.name);
     const successorTemporaryMatch = SUCCESSOR_TEMPORARY_FILE.exec(entry.name);
+    const rootMatch = entry.name === ROOT_FILE;
+    const rootTemporaryMatch = ROOT_TEMPORARY_FILE.exec(entry.name);
     const candidateMatch = CANDIDATE_FILE.exec(entry.name);
     const candidateTemporaryMatch = CANDIDATE_TEMPORARY_FILE.exec(entry.name);
+    const candidateClaimMatch = CANDIDATE_CLAIM_FILE.exec(entry.name);
+    const candidateClaimTemporaryMatch =
+      CANDIDATE_CLAIM_TEMPORARY_FILE.exec(entry.name);
     if (
       receiptMatch === null
       && temporaryMatch === null
@@ -1028,8 +1067,12 @@ function readInventory(directory, options) {
       && sourceTemporaryMatch === null
       && successorMatch === null
       && successorTemporaryMatch === null
+      && !rootMatch
+      && rootTemporaryMatch === null
       && candidateMatch === null
       && candidateTemporaryMatch === null
+      && candidateClaimMatch === null
+      && candidateClaimTemporaryMatch === null
     ) {
       fail('NOTIFICATION_PAGES_LIVE_DIRECTORY_NOT_DEDICATED');
     }
@@ -1049,14 +1092,33 @@ function readInventory(directory, options) {
       || (process.getuid !== undefined && metadata.uid !== process.getuid())
       || metadata.nlink !== 1
       || (
-        receiptMatch !== null || sourceMatch !== null
+        receiptMatch !== null || sourceMatch !== null || rootMatch
           || successorMatch !== null || candidateMatch !== null
+          || candidateClaimMatch !== null
           ? mode !== FILE_MODE
           : (mode & ~FILE_MODE) !== 0
       )
       || metadata.size > MAX_RECEIPT_BYTES
     ) fail('NOTIFICATION_PAGES_LIVE_DIRECTORY_NOT_DEDICATED');
-    if (receiptMatch !== null) {
+    if (rootMatch) {
+      const opened = stableFile(
+        path,
+        1,
+        'NOTIFICATION_PAGES_LIVE_ROOT_RESERVATION_INVALID',
+      );
+      try {
+        const receipt = parseCanonicalReceiptBytes(opened.bytes, options);
+        if (receipt.chain.generation !== 0 || rootReservation !== undefined) {
+          fail('NOTIFICATION_PAGES_LIVE_ROOT_RESERVATION_INVALID');
+        }
+        rootReservation = Object.freeze({
+          receipt,
+          bytes: Buffer.from(opened.bytes),
+        });
+      } finally {
+        opened.bytes.fill(0);
+      }
+    } else if (receiptMatch !== null) {
       const opened = readContentAddressedFile(
         path,
         receiptMatch[1],
@@ -1112,14 +1174,17 @@ function readInventory(directory, options) {
       } finally {
         opened.bytes.fill(0);
       }
-    } else if (candidateMatch !== null) {
+    } else if (candidateMatch !== null || candidateClaimMatch !== null) {
       const opened = stableFile(
         path,
         1,
         'NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_FILE_INVALID',
       );
       try {
-        if (digest(opened.bytes) !== candidateMatch[1]) {
+        if (
+          candidateMatch !== null
+          && digest(opened.bytes) !== candidateMatch[1]
+        ) {
           fail('NOTIFICATION_PAGES_LIVE_CONTENT_ADDRESS_INVALID');
         }
         let value;
@@ -1131,6 +1196,10 @@ function readInventory(directory, options) {
           fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_BYTES_INVALID');
         }
         const authority = parseCandidateAuthority(value, options);
+        if (
+          candidateClaimMatch !== null
+          && authority.predecessorReceiptDigest !== candidateClaimMatch[1]
+        ) fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_INVALID');
         const canonical = canonicalCandidateAuthorityBytes(authority);
         try {
           if (!opened.bytes.equals(canonical)) {
@@ -1167,6 +1236,23 @@ function readInventory(directory, options) {
     if (!sourceReservations.has(receipt.receipt.pages.sourceCommit)) {
       fail('NOTIFICATION_PAGES_LIVE_SOURCE_RESERVATION_MISSING');
     }
+  }
+  if (receipts.length > 0) {
+    const rootReceipt = receipts.find(
+      entry => entry.receipt.chain.generation === 0,
+    );
+    try {
+      if (
+        rootReservation === undefined
+        || rootReceipt === undefined
+        || digest(rootReservation.bytes) !== rootReceipt.receiptDigest
+      ) fail('NOTIFICATION_PAGES_LIVE_ROOT_RESERVATION_INVALID');
+    } finally {
+      rootReservation?.bytes.fill(0);
+    }
+  } else if (rootReservation !== undefined) {
+    rootReservation.bytes.fill(0);
+    fail('NOTIFICATION_PAGES_LIVE_ROOT_RESERVATION_INCOMPLETE');
   }
   for (const [previousDigest, reservation] of successorReservations) {
     const receiptDigest = digest(reservation.bytes);
@@ -1243,10 +1329,12 @@ function repairPublicationReservations(directory) {
     const receiptMatch = RECEIPT_FILE.exec(entry.name);
     const sourceMatch = SOURCE_FILE.exec(entry.name);
     const successorMatch = SUCCESSOR_FILE.exec(entry.name);
+    const rootMatch = entry.name === ROOT_FILE;
     if (
       receiptMatch === null
       && sourceMatch === null
       && successorMatch === null
+      && !rootMatch
     ) continue;
     const path = join(directory, entry.name);
     const opened = stableFile(
@@ -1254,7 +1342,9 @@ function repairPublicationReservations(directory) {
       1,
       receiptMatch !== null
         ? 'NOTIFICATION_PAGES_LIVE_RECEIPT_FILE_INVALID'
-        : sourceMatch !== null
+        : rootMatch
+          ? 'NOTIFICATION_PAGES_LIVE_ROOT_RESERVATION_INVALID'
+          : sourceMatch !== null
           ? 'NOTIFICATION_PAGES_LIVE_SOURCE_RESERVATION_INVALID'
           : 'NOTIFICATION_PAGES_LIVE_SUCCESSOR_RESERVATION_INVALID',
     );
@@ -1263,6 +1353,7 @@ function repairPublicationReservations(directory) {
       const receiptDigest = digest(opened.bytes);
       if (
         (receiptMatch !== null && receiptDigest !== receiptMatch[1])
+        || (rootMatch && receipt.chain.generation !== 0)
         || (sourceMatch !== null
           && receipt.pages.sourceCommit !== sourceMatch[1])
         || (successorMatch !== null
@@ -1302,6 +1393,15 @@ function repairPublicationReservations(directory) {
         bytes: record.bytes,
         randomBytesImpl: randomBytes,
       });
+      if (record.receipt.chain.generation === 0) {
+        installCanonicalPrivateBytes({
+          directory,
+          basename: ROOT_FILE,
+          temporaryPrefix: 'notification-pages-live-root',
+          bytes: record.bytes,
+          randomBytesImpl: randomBytes,
+        });
+      }
       if (record.receipt.chain.generation > 0) {
         installCanonicalPrivateBytes({
           directory,
@@ -1467,6 +1567,13 @@ function assertCleanProtectedCheckout(paths = NOTIFICATION_PAGES_LIVE_PROTECTED_
   ) fail('NOTIFICATION_PAGES_LIVE_PROTECTED_CHECKOUT_DIRTY');
 }
 
+function assertExactCleanHead(expectedHead) {
+  if (currentHead() !== expectedHead) {
+    fail('NOTIFICATION_PAGES_LIVE_HEAD_CHANGED');
+  }
+  assertCleanProtectedCheckout();
+}
+
 function assertReceiptGitProvenance(receipt) {
   for (const commit of [
     receipt.pages.sourceCommit,
@@ -1518,9 +1625,9 @@ function exactBooleanLiteralAtCommit(commit, path, prefix, suffix, code) {
   const result = gitResult(['show', `${commit}:${path}`]);
   if (result.status !== 0 || result.stdout.length > 512 * 1024) fail(code);
   const pattern = new RegExp(
-    `${prefix.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(true|false)`
-      + `${suffix.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}`,
-    'gu',
+    `^${prefix.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(true|false)`
+      + `${suffix.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}$`,
+    'gmu',
   );
   const matches = [...result.stdout.matchAll(pattern)];
   if (matches.length !== 1) fail(code);
@@ -1978,6 +2085,9 @@ function installCanonicalPrivateBytes({
     readExactExpectedFile(destination, bytes);
     return Object.freeze({ path: destination, result: 'unchanged' });
   }
+  if (boundedEntries(directory).length > MAX_DIRECTORY_ENTRIES - 2) {
+    fail('NOTIFICATION_PAGES_LIVE_DIRECTORY_INVENTORY_EXCEEDED');
+  }
   const suffix = temporarySuffix(randomBytesImpl ?? randomBytes);
   const temporary = join(
     directory,
@@ -2125,11 +2235,41 @@ function reserveReceiptSuccessor({
   randomBytesImpl,
 }) {
   if (receipt.chain.generation === 0) {
-    return Object.freeze({
-      receipt,
-      receiptDigest: digest(bytes),
-      bytes: Buffer.from(bytes),
-    });
+    try {
+      installCanonicalPrivateBytes({
+        directory,
+        basename: ROOT_FILE,
+        temporaryPrefix: 'notification-pages-live-root',
+        bytes,
+        randomBytesImpl,
+      });
+    } catch (error) {
+      if (
+        !(error instanceof NotificationPagesLiveReceiptError)
+        || error.code !== 'NOTIFICATION_PAGES_LIVE_EXISTING_RECEIPT_MISMATCH'
+      ) throw error;
+    }
+    const opened = stableFile(
+      join(directory, ROOT_FILE),
+      1,
+      'NOTIFICATION_PAGES_LIVE_ROOT_RESERVATION_INVALID',
+    );
+    try {
+      const reservedReceipt = parseCanonicalReceiptBytes(opened.bytes, {
+        now: new Date(receipt.recordedAt),
+      });
+      if (
+        reservedReceipt.chain.generation !== 0
+        || !sameReceiptBinding(reservedReceipt, receipt)
+      ) fail('NOTIFICATION_PAGES_LIVE_ROOT_ALREADY_BOUND');
+      return Object.freeze({
+        receipt: reservedReceipt,
+        receiptDigest: digest(opened.bytes),
+        bytes: Buffer.from(opened.bytes),
+      });
+    } finally {
+      opened.bytes.fill(0);
+    }
   }
   const previousDigest = receipt.chain.previousReceiptDigest;
   const basename = `notification-pages-live-successor-${previousDigest}.json`;
@@ -2414,6 +2554,7 @@ export async function writePrivateNotificationPagesLiveReceipt({
     refreshedBridge.attestation,
   );
   assertReceiptGitProvenance(receipt);
+  assertExactCleanHead(head);
   return installReceipt({
     directory,
     repositoryRoot,
@@ -2511,7 +2652,9 @@ export async function inspectPrivateNotificationPagesLiveReceiptByPagesSourceCom
     expectedChainRootReceiptDigest,
     expectedChainRootPagesSourceCommit,
   );
-  return inspectEntry(entry, fetchImpl, now);
+  const inspected = await inspectEntry(entry, fetchImpl, now);
+  assertExactCleanHead(pagesSourceCommit);
+  return inspected;
 }
 
 function commitDistance(ancestor, descendant) {
@@ -2561,6 +2704,7 @@ export async function inspectLatestPrivateNotificationPagesLiveReceiptForCandida
       expectedChainRootPagesSourceCommit,
     );
     const inspected = await inspectEntry(exactLive, fetchImpl, now);
+    assertExactCleanHead(candidate);
     return Object.freeze({
       ...inspected,
       candidatePagesSourceCommit: candidate,
@@ -2687,6 +2831,19 @@ export async function inspectLatestPrivateNotificationPagesLiveReceiptForCandida
   let installed;
   try {
     const candidateAuthorityDigest = digest(bytes);
+    assertExactCleanHead(candidate);
+    installCanonicalPrivateBytes({
+      directory: ensureNotificationPagesLiveReceiptDirectory({
+        directory,
+        repositoryRoot,
+      }),
+      basename:
+        `notification-pages-candidate-claim-${latest.receiptDigest}.json`,
+      temporaryPrefix:
+        `notification-pages-candidate-claim-${latest.receiptDigest}`,
+      bytes,
+      randomBytesImpl,
+    });
     installed = installCanonicalPrivateBytes({
       directory: ensureNotificationPagesLiveReceiptDirectory({
         directory,
@@ -2697,6 +2854,22 @@ export async function inspectLatestPrivateNotificationPagesLiveReceiptForCandida
       bytes,
       randomBytesImpl,
     });
+    const claimPath = join(
+      directory,
+      `notification-pages-candidate-claim-${latest.receiptDigest}.json`,
+    );
+    const claim = stableFile(
+      claimPath,
+      1,
+      'NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_FILE_INVALID',
+    );
+    try {
+      if (!claim.bytes.equals(bytes)) {
+        fail('NOTIFICATION_PAGES_LIVE_PREDECESSOR_ALREADY_AUTHORIZED');
+      }
+    } finally {
+      claim.bytes.fill(0);
+    }
     return Object.freeze({
       ...inspected,
       candidatePagesSourceCommit: candidate,
@@ -2705,6 +2878,8 @@ export async function inspectLatestPrivateNotificationPagesLiveReceiptForCandida
       candidateAuthorityPath: installed.path,
       candidateAuthorityDigest,
       candidateAuthority,
+      candidatePreparedBinding: stagedBinding?.preparedBinding ?? null,
+      candidateLiveAttestation: stagedBinding?.liveAttestation ?? null,
     });
   } finally {
     bytes.fill(0);
@@ -2799,6 +2974,21 @@ export async function promoteNotificationPagesLiveReceipt({
   if (
     durableAuthority.candidatePagesSourceCommit !== candidate
   ) fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_INVALID');
+  const candidateClaim = stableFile(
+    join(
+      ensureNotificationPagesLiveReceiptDirectory({ directory, repositoryRoot }),
+      `notification-pages-candidate-claim-${durableAuthority.predecessorReceiptDigest}.json`,
+    ),
+    1,
+    'NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_FILE_INVALID',
+  );
+  try {
+    if (digest(candidateClaim.bytes) !== candidateAuthorityDigest) {
+      fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_INVALID');
+    }
+  } finally {
+    candidateClaim.bytes.fill(0);
+  }
   const inventory = staticInventory({ directory, repositoryRoot, now });
   const previousEntry = inventory.find(entry =>
     entry.receipt.pages.sourceCommit
@@ -2838,6 +3028,7 @@ export async function promoteNotificationPagesLiveReceipt({
         !== durableAuthority.chainRootReceiptDigest
     ) fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_INVALID');
     const inspected = await inspectEntry(exactSuccessor, fetchImpl, now);
+    assertExactCleanHead(candidate);
     return Object.freeze({ ...inspected, result: 'unchanged' });
   }
   if (inventory.some(entry =>
@@ -2904,6 +3095,7 @@ export async function promoteNotificationPagesLiveReceipt({
     stagedHandoffBinding,
   });
   assertReceiptGitProvenance(receipt);
+  assertExactCleanHead(candidate);
   return installReceipt({
     directory,
     repositoryRoot,
