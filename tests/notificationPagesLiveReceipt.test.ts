@@ -34,6 +34,7 @@ import {
   ensureNotificationPagesLiveReceiptDirectory,
   inspectLatestPrivateNotificationPagesLiveReceiptForCandidate,
   inspectPrivateNotificationPagesLiveReceiptByPagesSourceCommit,
+  NOTIFICATION_PAGES_LIVE_PROTECTED_PATHS,
   NOTIFICATION_PAGES_LIVE_RECEIPT_KIND,
   parseNotificationPagesActivationPhaseSources,
   parseNotificationPagesLiveReceipt,
@@ -52,12 +53,31 @@ const HEAD_TREE = execFileSync(
   ['rev-parse', '--verify', 'HEAD^{tree}'],
   { cwd: process.cwd(), encoding: 'utf8' },
 ).trim();
-const PREDECESSOR_COMMIT = execFileSync(
-  '/usr/bin/git',
-  // The final test-only commit gives promotion a protected-path-identical parent.
-  ['rev-parse', '--verify', 'HEAD^^{commit}'],
-  { cwd: process.cwd(), encoding: 'utf8' },
-).trim();
+function protectedIdenticalAncestor(): string {
+  const ancestors = execFileSync(
+    '/usr/bin/git',
+    ['rev-list', '--first-parent', 'HEAD^'],
+    { cwd: process.cwd(), encoding: 'utf8' },
+  ).trim().split('\n');
+  for (const ancestor of ancestors) {
+    try {
+      execFileSync(
+        '/usr/bin/git',
+        [
+          'diff', '--quiet', '--no-ext-diff', '--no-textconv', ancestor,
+          HEAD_COMMIT, '--', ...NOTIFICATION_PAGES_LIVE_PROTECTED_PATHS,
+        ],
+        { cwd: process.cwd(), stdio: 'ignore' },
+      );
+      return ancestor;
+    } catch {
+      // Continue to the next first-parent ancestor.
+    }
+  }
+  throw new Error('missing protected-path-identical promotion ancestor');
+}
+
+const PREDECESSOR_COMMIT = protectedIdenticalAncestor();
 const DRIFT_SOURCE_COMMIT = '5018d49747ffdddcc6037f5035503e1fe754675e';
 const EXPECTED_ROOT_DIGEST = 'd'.repeat(64);
 const DIGEST = 'e'.repeat(64);
