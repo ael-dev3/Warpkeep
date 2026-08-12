@@ -9,7 +9,7 @@ import {
 import type { RealmSurfaceDisturbanceSnapshot } from './realmSurfaceDisturbanceField';
 
 export const REALM_GRASS_THREE_SHADER_CONTRACT = 'three-r185';
-export const REALM_GRASS_SHADER_CACHE_KEY = `warpkeep-procedural-grass-v3-living-gust-v6-bounded-tips-disturbance-analytic-bend-normal-v2-${REALM_LIVING_ENVIRONMENT_REVISION}-${REALM_GRASS_THREE_SHADER_CONTRACT}`;
+export const REALM_GRASS_SHADER_CACHE_KEY = `warpkeep-procedural-grass-v3-living-gust-v6-bounded-tips-bounded-total-disturbance-analytic-bend-normal-v3-${REALM_LIVING_ENVIRONMENT_REVISION}-${REALM_GRASS_THREE_SHADER_CONTRACT}`;
 export const REALM_GRASS_MAX_WIND_SWAY = 0.075;
 export const REALM_GRASS_MAX_DISTURBANCE_SWAY = 0.055;
 export const REALM_GRASS_CROSS_WIND_RATIO = 0.16;
@@ -117,7 +117,7 @@ uniform vec4 uGrassDisturbanceParams[${slotCount}];
 
 function grassDisturbanceBend(slotCount: number) {
   if (slotCount <= 0) return '';
-  return Array.from({ length: slotCount }, (_, slot) => `
+  const slots = Array.from({ length: slotCount }, (_, slot) => `
 if (uGrassDisturbanceCount > ${slot}) {
   vec2 grassDisturbanceDelta${slot} = grassWorldPosition.xz - uGrassDisturbanceCenters[${slot}];
   float grassDisturbanceDistance${slot} = length(grassDisturbanceDelta${slot});
@@ -130,18 +130,28 @@ if (uGrassDisturbanceCount > ${slot}) {
   vec2 grassDisturbanceWorldDirection${slot} = grassDisturbanceDistance${slot} > 0.0001
     ? grassDisturbanceDelta${slot} / grassDisturbanceDistance${slot}
     : grassWorldDirection;
-  vec2 grassDisturbanceLocalDirection${slot} = grassWorldToLocalXZ * grassDisturbanceWorldDirection${slot};
   float grassDisturbancePulse${slot} = sin(clamp(uGrassDisturbanceParams[${slot}].z, 0.0, 1.0) * 3.14159265);
   float grassDisturbanceBend${slot} = grassDisturbanceFalloff${slot}
     * uGrassDisturbanceParams[${slot}].y
     * mix(0.55, 1.0, grassDisturbancePulse${slot})
     * grassFlexAmount * ${REALM_GRASS_MAX_DISTURBANCE_SWAY.toFixed(3)};
-  vec2 grassDisturbanceOffset${slot} = grassDisturbanceLocalDirection${slot}
+  vec2 grassDisturbanceWorldOffset${slot} = grassDisturbanceWorldDirection${slot}
     * grassDisturbanceBend${slot};
-  transformed.xz += grassDisturbanceOffset${slot};
-  grassLocalBend += grassDisturbanceOffset${slot};
+  grassDisturbanceWorldBendTotal += grassDisturbanceWorldOffset${slot};
 }
 `).join('');
+  return `
+vec2 grassDisturbanceWorldBendTotal = vec2(0.0);
+${slots}
+float grassDisturbanceBendMagnitude = length(grassDisturbanceWorldBendTotal);
+if (grassDisturbanceBendMagnitude > ${REALM_GRASS_MAX_DISTURBANCE_SWAY.toFixed(3)}) {
+  grassDisturbanceWorldBendTotal *= ${REALM_GRASS_MAX_DISTURBANCE_SWAY.toFixed(3)}
+    / grassDisturbanceBendMagnitude;
+}
+vec2 grassDisturbanceBendTotal = grassWorldToLocalXZ * grassDisturbanceWorldBendTotal;
+transformed.xz += grassDisturbanceBendTotal;
+grassLocalBend += grassDisturbanceBendTotal;
+`;
 }
 
 export function injectRealmGrassVertexShader(vertexShader: string, disturbanceSlotCount = 0) {

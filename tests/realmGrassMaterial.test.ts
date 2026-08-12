@@ -104,7 +104,8 @@ describe('procedural grass material contract', () => {
     expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('procedural-grass-v3');
     expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('living-gust');
     expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('bounded-tips');
-    expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('analytic-bend-normal-v2');
+    expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('bounded-total-disturbance');
+    expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('analytic-bend-normal-v3');
     expect(REALM_GRASS_SHADER_CACHE_KEY).toContain(REALM_GRASS_THREE_SHADER_CONTRACT);
     expect(layer.uniforms.uGrassWindStrength.value).toBeCloseTo(0.78);
     expect(layer.uniforms.uGrassWindDirection.value.toArray()).toEqual([
@@ -241,6 +242,20 @@ describe('procedural grass material contract', () => {
     expect(injected).toContain('uGrassDisturbanceCenters[4]');
     expect(injected).toContain('uGrassDisturbanceCount > 3');
     expect(injected).not.toContain('uGrassDisturbanceCount > 4');
+    expect(injected).toContain('vec2 grassDisturbanceWorldBendTotal = vec2(0.0);');
+    expect(injected).toContain(
+      'grassDisturbanceWorldBendTotal += grassDisturbanceWorldOffset3;'
+    );
+    expect(injected).toContain(
+      `grassDisturbanceBendMagnitude > ${REALM_GRASS_MAX_DISTURBANCE_SWAY.toFixed(3)}`
+    );
+    expect(injected).toContain(
+      `grassDisturbanceWorldBendTotal *= ${REALM_GRASS_MAX_DISTURBANCE_SWAY.toFixed(3)}`
+    );
+    expect(injected).toContain(
+      'grassDisturbanceBendTotal = grassWorldToLocalXZ * grassDisturbanceWorldBendTotal;'
+    );
+    expect(injected).toContain('transformed.xz += grassDisturbanceBendTotal;');
     expect(layer.material.customProgramCacheKey()).toContain('disturbances-4');
     expect(layer.setDisturbances({ count: 2, centers, params })).toBe(true);
     expect(layer.uniforms.uGrassDisturbanceCount.value).toBe(2);
