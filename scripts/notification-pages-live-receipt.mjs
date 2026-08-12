@@ -1334,22 +1334,27 @@ function readInventory(directory, options) {
 
 function repairPublicationReservations(directory) {
   const recordsBySource = new Map();
+  const candidateAuthorities = [];
   for (const entry of boundedEntries(directory)) {
     const receiptMatch = RECEIPT_FILE.exec(entry.name);
     const sourceMatch = SOURCE_FILE.exec(entry.name);
     const successorMatch = SUCCESSOR_FILE.exec(entry.name);
     const rootMatch = entry.name === ROOT_FILE;
+    const candidateClaimMatch = CANDIDATE_CLAIM_FILE.exec(entry.name);
     if (
       receiptMatch === null
       && sourceMatch === null
       && successorMatch === null
       && !rootMatch
+      && candidateClaimMatch === null
     ) continue;
     const path = join(directory, entry.name);
     const opened = stableFile(
       path,
       1,
-      receiptMatch !== null
+      candidateClaimMatch !== null
+        ? 'NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_FILE_INVALID'
+        : receiptMatch !== null
         ? 'NOTIFICATION_PAGES_LIVE_RECEIPT_FILE_INVALID'
         : rootMatch
           ? 'NOTIFICATION_PAGES_LIVE_ROOT_RESERVATION_INVALID'
@@ -1358,6 +1363,31 @@ function repairPublicationReservations(directory) {
           : 'NOTIFICATION_PAGES_LIVE_SUCCESSOR_RESERVATION_INVALID',
     );
     try {
+      if (candidateClaimMatch !== null) {
+        let value;
+        try {
+          value = JSON.parse(
+            new TextDecoder('utf-8', { fatal: true }).decode(opened.bytes),
+          );
+        } catch {
+          fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_BYTES_INVALID');
+        }
+        const authority = parseCandidateAuthority(value);
+        const canonical = canonicalCandidateAuthorityBytes(authority);
+        try {
+          if (
+            authority.predecessorReceiptDigest !== candidateClaimMatch[1]
+            || !opened.bytes.equals(canonical)
+          ) fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_INVALID');
+          candidateAuthorities.push(Object.freeze({
+            authorityDigest: digest(opened.bytes),
+            bytes: Buffer.from(opened.bytes),
+          }));
+        } finally {
+          canonical.fill(0);
+        }
+        continue;
+      }
       const receipt = parseCanonicalReceiptBytes(opened.bytes);
       const receiptDigest = digest(opened.bytes);
       if (
@@ -1430,8 +1460,20 @@ function repairPublicationReservations(directory) {
         randomBytesImpl: randomBytes,
       });
     }
+    for (const candidate of candidateAuthorities) {
+      installCanonicalPrivateBytes({
+        directory,
+        basename:
+          `notification-pages-candidate-${candidate.authorityDigest}.json`,
+        temporaryPrefix:
+          `notification-pages-candidate-${candidate.authorityDigest}`,
+        bytes: candidate.bytes,
+        randomBytesImpl: randomBytes,
+      });
+    }
   } finally {
     for (const record of records) record.bytes.fill(0);
+    for (const candidate of candidateAuthorities) candidate.bytes.fill(0);
   }
 }
 

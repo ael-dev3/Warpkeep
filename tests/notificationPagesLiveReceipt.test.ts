@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import {
   chmodSync,
+  existsSync,
   linkSync,
   lstatSync,
   mkdirSync,
@@ -1108,6 +1109,19 @@ describe('notification Pages ongoing live receipt', () => {
     expect(authority.candidateLiveAttestation).toMatchObject({
       bridgeSourceCommit: HEAD_COMMIT,
     });
+
+    const candidateAuthorityBytes = readFileSync(
+      authority.candidateAuthorityPath,
+    );
+    rmSync(authority.candidateAuthorityPath);
+    expect(existsSync(authority.candidateAuthorityPath)).toBe(false);
+    expect(ensureNotificationPagesLiveReceiptDirectory({
+      directory: targetWorkspace.directory,
+      repositoryRoot: targetWorkspace.repositoryRoot,
+    })).toBe(targetWorkspace.directory);
+    expect(readFileSync(authority.candidateAuthorityPath)).toEqual(
+      candidateAuthorityBytes,
+    );
 
     const candidateTemporary = join(
       targetWorkspace.directory,
