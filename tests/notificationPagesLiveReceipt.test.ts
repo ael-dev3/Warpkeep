@@ -13,6 +13,7 @@ import {
   realpathSync,
   rmSync,
   statSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -944,6 +945,18 @@ describe('notification Pages ongoing live receipt', () => {
       'notification-pages-live-root.json',
       `notification-pages-live-source-${HEAD_COMMIT}.json`,
     ]);
+    const orphan = join(
+      written.targetWorkspace.directory,
+      `.notification-pages-live-${'a'.repeat(64)}-${'3'.repeat(24)}.json.tmp`,
+    );
+    writeFileSync(orphan, '', { mode: 0o600, flag: 'wx' });
+    const staleAt = new Date(Date.now() - 11 * 60 * 1_000);
+    utimesSync(orphan, staleAt, staleAt);
+    ensureNotificationPagesLiveReceiptDirectory({
+      directory: written.targetWorkspace.directory,
+      repositoryRoot: written.targetWorkspace.repositoryRoot,
+    });
+    expect(() => lstatSync(orphan)).toThrow();
 
     const hardLink = join(
       written.targetWorkspace.directory,
@@ -1048,20 +1061,37 @@ describe('notification Pages ongoing live receipt', () => {
       buildSha: previous.pages.sourceCommit,
       attestation: stagedBridge,
     });
-    const authority = await inspectLatestPrivateNotificationPagesLiveReceiptForCandidate({
+    const replayAuthorityFetch = liveFetch({
+      buildSha: previous.pages.sourceCommit,
+      attestation: stagedBridge,
+    });
+    const authorityOptions = {
       directory: targetWorkspace.directory,
       repositoryRoot: targetWorkspace.repositoryRoot,
       candidatePagesSourceCommit: HEAD_COMMIT,
       expectedChainRootReceiptDigest: installedPrevious.receiptDigest,
       expectedChainRootPagesSourceCommit: PREDECESSOR_COMMIT,
       stagedHandoffExpectations: staged.expectations,
-      fetchImpl: authorityFetch as unknown as typeof fetch,
       now: NOW,
-      randomBytesImpl: size => Buffer.alloc(size, 8),
-    });
+    } as const;
+    const [authority, replayAuthority] = await Promise.all([
+      inspectLatestPrivateNotificationPagesLiveReceiptForCandidate({
+        ...authorityOptions,
+        fetchImpl: authorityFetch as unknown as typeof fetch,
+        randomBytesImpl: size => Buffer.alloc(size, 8),
+      }),
+      inspectLatestPrivateNotificationPagesLiveReceiptForCandidate({
+        ...authorityOptions,
+        fetchImpl: replayAuthorityFetch as unknown as typeof fetch,
+        randomBytesImpl: size => Buffer.alloc(size, 7),
+      }),
+    ]);
     if (authority.candidateAlreadyLive) {
       throw new Error('expected a future-candidate authority');
     }
+    expect(replayAuthority.candidateAuthorityDigest).toBe(
+      authority.candidateAuthorityDigest,
+    );
     expect(authority.candidateAuthorityPath).toBe(join(
       targetWorkspace.directory,
       `notification-pages-candidate-${authority.candidateAuthorityDigest}.json`,
