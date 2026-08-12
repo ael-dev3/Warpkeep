@@ -263,7 +263,7 @@ function baseArguments(command: string, ...arguments_: string[]): string[] {
   const root = '/private/tmp/warpkeep-production-admin/run-' + 'a'.repeat(32);
   const adminCommands = new Set([
     'import-inspect', 'import-apply', 'import-recover', 'publish', 'publish-recover', 'relocation',
-    'relocation-recover', 'verify', 'hermes-admit-confirm', 'hermes-allow-confirm',
+    'relocation-recover', 'verify', 'hermes-list-pending', 'hermes-admit-confirm', 'hermes-allow-confirm',
     'hermes-notification-recover-dry', 'hermes-notification-recover-confirm',
   ]);
   const notificationCommands = new Set([
@@ -304,6 +304,17 @@ describe('Greater Realm production bootstrap', () => {
     expect(parseGreaterRealmProductionBootstrapArguments(
       baseArguments('publish-recover-inspect'),
     ).commandArguments).toEqual(['recover-inspect']);
+    expect(parseGreaterRealmProductionBootstrapArguments(
+      baseArguments('hermes-list-pending'),
+    )).toMatchObject({
+      commandArguments: ['list-pending-access-requests'],
+      adminSecretPath: '/private/credentials/admin-secret',
+      notificationSecretPath: undefined,
+      privateInputPath: undefined,
+    });
+    expect(() => parseGreaterRealmProductionBootstrapArguments(
+      baseArguments('hermes-list-pending', 'unexpected'),
+    )).toThrow(/COMMAND_ARGUMENTS_INVALID/);
     expect(parseGreaterRealmProductionBootstrapArguments(baseArguments(
       'publish-recover',
       'b'.repeat(64),
@@ -472,6 +483,7 @@ describe('Greater Realm production bootstrap', () => {
     const recoveryPlan =
       `admission-notification-recovery-plan-20260811T130000000Z-${'a'.repeat(32)}.json`;
     const rows = [
+      ['hermes-list-pending', [], ['list-pending-access-requests']],
       ['hermes-admit-dry', [], ['admit-founder', '--input-stdin', '--dry-run']],
       ['hermes-admit-confirm', [], ['admit-founder', '--input-stdin', '--confirm']],
       ['hermes-allow-dry', ['123', 'reviewed note'],
@@ -497,6 +509,51 @@ describe('Greater Realm production bootstrap', () => {
           .toThrow(/COMMAND_ARGUMENTS_INVALID/);
       }
     }
+  });
+
+  it('gives the no-argument pending census only an admin secret and private report directory', () => {
+    const parsed = parseGreaterRealmProductionBootstrapArguments(
+      baseArguments('hermes-list-pending'),
+    );
+    const environment = greaterRealmProductionBootstrapTestSeams.finalOperatorEnvironment(
+      parsed,
+      { nodePath: '/private/runtime/node' },
+      {
+        environment: {
+          HOME: '/private/run/npm-home',
+          PATH: '/private/run:/usr/bin:/bin',
+          TMPDIR: '/private/run/tmp',
+        },
+        moduleCache: '/private/run/module-cache',
+      },
+      { pendingCensus: '/private/reports/pending-access-requests' },
+    );
+    expect(environment).toMatchObject({
+      WKGR_HERMES_RELEASE_COMMAND: 'list-pending',
+      WKGR_PRODUCTION_PROTECTED_COMMIT: '1'.repeat(40),
+      WKGR_PRODUCTION_ADMIN_SECRET_PATH: '/private/credentials/admin-secret',
+      WKGR_HERMES_PENDING_CENSUS_DIRECTORY:
+        '/private/reports/pending-access-requests',
+      WARPKEEP_SPACETIMEDB_DATABASE:
+        'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+    });
+    expect(environment).not.toHaveProperty('WKGR_PRODUCTION_NOTIFICATION_SECRET_PATH');
+    expect(environment).not.toHaveProperty('WKGR_PRODUCTION_PRIVATE_INPUT_PATH');
+    expect(environment).not.toHaveProperty('WKGR_HERMES_FOUNDER_PLAN_DIRECTORY');
+    expect(environment).not.toHaveProperty(
+      'WKGR_HERMES_NOTIFICATION_RECOVERY_PLAN_DIRECTORY',
+    );
+
+    const envelope = readFileSync(
+      'docs/operations/greater-realm-production-launch-envelope.sh.txt',
+      'utf8',
+    );
+    expect(envelope).toContain(
+      'hermes-list-pending|hermes-admit-dry',
+    );
+    expect(envelope).toMatch(
+      /hermes-list-pending\)\n    \[ "\$#" -eq 0 \]/u,
+    );
   });
 
   it('requires the Maincloud CLI authority for publish and couples optional recovery roles', () => {

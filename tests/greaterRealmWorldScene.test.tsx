@@ -211,6 +211,7 @@ describe('Greater Realm world scene lifecycle', () => {
     const canvas = screen.getByRole('application', {
       name: 'Interactive Greater Realm public atlas'
     });
+    expect(screen.queryByRole('status')).toBeNull();
     expect(canvas.getAttribute('tabindex')).toBe('0');
     const host = canvasHostHarness.create.mock.results[0]!.value;
     fireEvent.click(screen.getByRole('button', { name: 'PAN NORTH' }));

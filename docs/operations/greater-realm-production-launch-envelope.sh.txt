@@ -13,6 +13,10 @@
 # The local launch lifecycle rows use no runtime or credential paths:
 #     launch-run-inspect [RUN_ID]
 #     launch-run-cleanup RUN_ID CONFIRMATION_DIGEST
+# `hermes-list-pending` takes no command arguments. It uses only the
+# owner-private administrator-secret path and installs its FID/timestamp census
+# as a no-clobber 0600 report below the owner-private production-admin root;
+# terminal output contains only the report filename and SHA-256 reference.
 # Never execute this file by pathname from a mutable checkout.
 set -eu
 umask 077
@@ -53,7 +57,7 @@ case "$admin_secret" in -|/*) ;; *) fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMEN
 case "$notification_secret" in -|/*) ;; *) fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;; esac
 case "$private_input" in -|/*) ;; *) fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;; esac
 case "$production_command" in
-  import-inspect|import-apply|import-recover-inspect|import-recover|publish|publish-recover-inspect|publish-recover|relocation|relocation-recover-inspect|relocation-recover|verify|hermes-admit-dry|hermes-admit-confirm|hermes-allow-dry|hermes-allow-confirm|hermes-notification-inspect|hermes-notification-recover-dry|hermes-notification-recover-confirm|launch-run-inspect|launch-run-cleanup) ;;
+  import-inspect|import-apply|import-recover-inspect|import-recover|publish|publish-recover-inspect|publish-recover|relocation|relocation-recover-inspect|relocation-recover|verify|hermes-list-pending|hermes-admit-dry|hermes-admit-confirm|hermes-allow-dry|hermes-allow-confirm|hermes-notification-inspect|hermes-notification-recover-dry|hermes-notification-recover-confirm|launch-run-inspect|launch-run-cleanup) ;;
   *) fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
 esac
 case "$production_command" in
@@ -67,7 +71,7 @@ case "$production_command" in
   *) [ "$spacetime_cli_config" = - ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
 esac
 case "$production_command" in
-  import-inspect|import-apply|publish|relocation|verify|hermes-admit-confirm|hermes-allow-confirm|hermes-notification-recover-dry|hermes-notification-recover-confirm)
+  import-inspect|import-apply|publish|relocation|verify|hermes-list-pending|hermes-admit-confirm|hermes-allow-confirm|hermes-notification-recover-dry|hermes-notification-recover-confirm)
     [ "$admin_secret" != - ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
   import-recover|publish-recover|relocation-recover|launch-run-inspect|launch-run-cleanup) ;;
   *) [ "$admin_secret" = - ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
@@ -96,6 +100,9 @@ case "$production_command" in
   *) [ "$bundle_node" != - ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
 esac
 case "$production_command" in
+  hermes-list-pending)
+    [ "$#" -eq 0 ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID
+    ;;
   publish)
     # This trusted envelope cannot import checkout code. The pinned value 6 is
     # WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM for this

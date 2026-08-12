@@ -59,8 +59,11 @@ Receipts are content-addressed below the OS account home returned by
 
 Every managed directory is owner-only `0700`; every receipt is a regular,
 single-link, owner-only `0600` file. Repository overlap, symbolic aliases,
-group/world-writable state, extra directory entries, noncanonical bytes, and
-filename/digest disagreement fail closed. Installation uses an exclusive
+group/world-writable state, unrecognized directory entries, noncanonical bytes,
+and filename/digest disagreement fail closed. The only non-receipt entries
+admitted are bounded, canonical owner-only single-link publication temporaries;
+they carry no receipt authority. Exact two-link crash pairs are revalidated by
+inode, bytes, and digest, then repaired. Installation uses an exclusive
 temporary file, `fsync`, and an atomic no-replace hard link.
 
 Parsing an object does not authorize it for installation. The writer accepts

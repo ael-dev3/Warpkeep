@@ -57,7 +57,7 @@ export type ReviewedFounderAdmissionPlanReference = Readonly<{
 }>;
 
 export type ReviewedFounderAdmissionPlan = Readonly<{
-  schemaVersion: 2;
+  schemaVersion: 3;
   kind: 'warpkeep-reviewed-founder-admission-plan';
   planId: string;
   createdAt: string;
@@ -66,6 +66,8 @@ export type ReviewedFounderAdmissionPlan = Readonly<{
   targetConfigurationDigest: string;
   profilePolicyVersion: string;
   profileSourceUseApproval: typeof FOUNDER_ADMISSION_PROFILE_SOURCE_USE_APPROVAL;
+  notificationPreparedReceiptDigest: string | null;
+  notificationPreparedBridgeSourceCommit: string | null;
   fid: string;
   note: string;
   profile: AdmissionReadyTrustedProfile;
@@ -252,12 +254,14 @@ function parsePlan(value: unknown): ReviewedFounderAdmissionPlan {
     'targetConfigurationDigest',
     'profilePolicyVersion',
     'profileSourceUseApproval',
+    'notificationPreparedReceiptDigest',
+    'notificationPreparedBridgeSourceCommit',
     'fid',
     'note',
     'profile',
   ], 'FOUNDER_ADMISSION_PLAN_INVALID');
   if (
-    plan.schemaVersion !== 2
+    plan.schemaVersion !== 3
     || plan.kind !== 'warpkeep-reviewed-founder-admission-plan'
     || typeof plan.planId !== 'string'
     || !/^[0-9a-f]{32}$/.test(plan.planId)
@@ -271,12 +275,22 @@ function parsePlan(value: unknown): ReviewedFounderAdmissionPlan {
     || plan.profilePolicyVersion.length < 1
     || plan.profilePolicyVersion.length > 128
     || plan.profileSourceUseApproval !== FOUNDER_ADMISSION_PROFILE_SOURCE_USE_APPROVAL
+    || !(
+      (plan.notificationPreparedReceiptDigest === null
+        && plan.notificationPreparedBridgeSourceCommit === null)
+      || (
+        typeof plan.notificationPreparedReceiptDigest === 'string'
+        && DIGEST_PATTERN.test(plan.notificationPreparedReceiptDigest)
+        && typeof plan.notificationPreparedBridgeSourceCommit === 'string'
+        && /^[0-9a-f]{40}$/.test(plan.notificationPreparedBridgeSourceCommit)
+      )
+    )
   ) throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_INVALID');
   const fid = positiveSafeFid(plan.fid).toString();
   const note = cleanPrivateNote(plan.note);
   if (note !== plan.note) throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_INVALID');
   return Object.freeze({
-    schemaVersion: 2,
+    schemaVersion: 3,
     kind: 'warpkeep-reviewed-founder-admission-plan',
     planId: plan.planId,
     createdAt: plan.createdAt,
@@ -285,6 +299,9 @@ function parsePlan(value: unknown): ReviewedFounderAdmissionPlan {
     targetConfigurationDigest: plan.targetConfigurationDigest,
     profilePolicyVersion: plan.profilePolicyVersion,
     profileSourceUseApproval: FOUNDER_ADMISSION_PROFILE_SOURCE_USE_APPROVAL,
+    notificationPreparedReceiptDigest: plan.notificationPreparedReceiptDigest,
+    notificationPreparedBridgeSourceCommit:
+      plan.notificationPreparedBridgeSourceCommit,
     fid,
     note,
     profile: normalizedAdmissionProfile(plan.profile),
@@ -313,6 +330,10 @@ export function createReviewedFounderAdmissionPlan(input: Readonly<{
   targetConfigurationDigest: string;
   profilePolicyVersion: string;
   profileSourceUseApproval: typeof FOUNDER_ADMISSION_PROFILE_SOURCE_USE_APPROVAL;
+  notificationPreparedReleaseBinding?: Readonly<{
+    notificationPreparedReceiptDigest: string | null;
+    notificationPreparedBridgeSourceCommit: string | null;
+  }>;
   fid: bigint;
   note: string;
   profile: AdmissionReadyTrustedProfile;
@@ -320,7 +341,7 @@ export function createReviewedFounderAdmissionPlan(input: Readonly<{
 }>): ReviewedFounderAdmissionPlan {
   const now = input.now ?? new Date();
   return parsePlan({
-    schemaVersion: 2,
+    schemaVersion: 3,
     kind: 'warpkeep-reviewed-founder-admission-plan',
     planId: randomUUID().replace(/-/g, ''),
     createdAt: now.toISOString(),
@@ -331,6 +352,10 @@ export function createReviewedFounderAdmissionPlan(input: Readonly<{
     targetConfigurationDigest: input.targetConfigurationDigest,
     profilePolicyVersion: input.profilePolicyVersion,
     profileSourceUseApproval: input.profileSourceUseApproval,
+    notificationPreparedReceiptDigest:
+      input.notificationPreparedReleaseBinding?.notificationPreparedReceiptDigest ?? null,
+    notificationPreparedBridgeSourceCommit:
+      input.notificationPreparedReleaseBinding?.notificationPreparedBridgeSourceCommit ?? null,
     fid: input.fid.toString(),
     note: input.note,
     profile: input.profile,

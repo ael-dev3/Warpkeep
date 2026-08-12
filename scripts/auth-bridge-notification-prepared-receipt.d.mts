@@ -74,6 +74,8 @@ export function ensureAuthBridgeNotificationPreparedReceiptDirectory(
     repositoryRoot: string;
     /** Test-only substitute for the OS account home. */
     reportedHome?: string;
+    /** Test-only seam for a directory-entry disappearance race. */
+    testOnlyBeforeDedicatedEntryMetadata?: (path: string) => void;
   }>,
 ): string;
 
@@ -153,4 +155,19 @@ export function inspectPrivateAuthBridgeNotificationPreparedReceipt(
 ): Promise<Readonly<{
   receipt: AuthBridgeNotificationPreparedReceipt;
   liveAttestation: AuthBridgeReleaseAttestation;
+}>>;
+
+export function inspectPrivateAuthBridgeNotificationPreparedReceiptByDigest(
+  options: Readonly<{
+    receiptDigest: string;
+    repositoryRoot: string;
+    /** Test-only substitute for the OS account home. */
+    reportedHome?: string;
+    fetchImpl?: typeof fetch;
+    now?: Date;
+  }>,
+): Promise<Readonly<{
+  receipt: AuthBridgeNotificationPreparedReceipt;
+  liveAttestation: AuthBridgeReleaseAttestation;
+  receiptDigest: string;
 }>>;

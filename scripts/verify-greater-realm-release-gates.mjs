@@ -1,7 +1,15 @@
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import {
+  AUTH_BRIDGE_NOTIFICATION_DELIVERY_CONTRACT_DIGEST,
+  inspectPrivateAuthBridgeNotificationPreparedReceiptByDigest,
+} from './auth-bridge-notification-prepared-receipt.mjs';
+import {
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_RELEASE_BINDING,
+} from './auth-bridge-notification-prepared-release-binding.mjs';
 import { WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS } from './entry-agreement-policy.mjs';
 
 const REPOSITORY_ROOT = resolve(import.meta.dirname, '..');
@@ -32,6 +40,12 @@ const BOOLEAN_FIELDS = Object.freeze([
   'admissionNotificationsApproved',
   'pagesNotificationsEnabled',
 ]);
+const RELEASE_BINDING_FIELDS = Object.freeze([
+  'notificationPreparedReceiptDigest',
+  'notificationPreparedBridgeSourceCommit',
+]);
+const SHA256_HEX = /^[a-f0-9]{64}$/u;
+const COMMIT_SHA = /^[a-f0-9]{40}$/u;
 
 const base = Object.freeze(Object.fromEntries(BOOLEAN_FIELDS.map(field => [field, false])));
 
@@ -82,13 +96,80 @@ function envelopeKey(value) {
 
 const SAFE_PHASE_BY_ENVELOPE = new Map(SAFE_PHASES.map(value => [envelopeKey(value), value.phase]));
 
-export function verifyGreaterRealmReleaseGateEnvelope(value) {
+function hasValidNotificationPreparedBinding(value) {
+  const digest = value.notificationPreparedReceiptDigest;
+  const sourceCommit = value.notificationPreparedBridgeSourceCommit;
+  if (digest === null && sourceCommit === null) return false;
+  if (
+    typeof digest !== 'string'
+    || !SHA256_HEX.test(digest)
+    || typeof sourceCommit !== 'string'
+    || !COMMIT_SHA.test(sourceCommit)
+  ) fail('GREATER_REALM_NOTIFICATION_PREPARED_BINDING_INVALID');
+  return true;
+}
+
+function assertPreparedBridgeSourceIsAncestor(
+  bridgeSourceCommit,
+  repositoryRoot = REPOSITORY_ROOT,
+) {
+  const environment = {
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_SYSTEM: '/dev/null',
+    HOME: '/nonexistent',
+    PATH: '/usr/bin:/bin',
+  };
+  const head = spawnSync(
+    '/usr/bin/git',
+    ['rev-parse', '--verify', 'HEAD^{commit}'],
+    {
+      cwd: repositoryRoot,
+      encoding: 'utf8',
+      env: environment,
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 10_000,
+    },
+  );
+  const headCommit = head.status === 0 ? head.stdout.trim() : '';
+  if (!COMMIT_SHA.test(headCommit)) {
+    fail('GREATER_REALM_NOTIFICATION_PREPARED_PAGES_SOURCE_INVALID');
+  }
+  const ancestry = spawnSync(
+    '/usr/bin/git',
+    ['merge-base', '--is-ancestor', bridgeSourceCommit, headCommit],
+    {
+      cwd: repositoryRoot,
+      encoding: 'utf8',
+      env: environment,
+      stdio: ['ignore', 'ignore', 'ignore'],
+      timeout: 10_000,
+    },
+  );
+  if (ancestry.status !== 0) {
+    fail('GREATER_REALM_NOTIFICATION_PREPARED_BRIDGE_SOURCE_NOT_ANCESTOR');
+  }
+}
+
+export async function verifyGreaterRealmReleaseGateEnvelope(
+  value,
+  { fetchImpl = fetch, now = new Date() } = {},
+  {
+    inspectPreparedReceiptByDigest =
+      inspectPrivateAuthBridgeNotificationPreparedReceiptByDigest,
+    assertBridgeSourceAncestor = assertPreparedBridgeSourceIsAncestor,
+  } = {},
+) {
   if (
     value === null
     || typeof value !== 'object'
     || Array.isArray(value)
     || Object.keys(value).sort().join(',')
-      !== ['entryAgreementReleaseStatus', ...BOOLEAN_FIELDS].sort().join(',')
+      !== [
+        'entryAgreementReleaseStatus',
+        ...BOOLEAN_FIELDS,
+        ...RELEASE_BINDING_FIELDS,
+      ].sort().join(',')
     || (
       value.entryAgreementReleaseStatus !== 'review-only-rollout-blocked'
       && value.entryAgreementReleaseStatus !== 'production-approved'
@@ -98,6 +179,36 @@ export function verifyGreaterRealmReleaseGateEnvelope(value) {
   ) fail('GREATER_REALM_RELEASE_GATE_ENVELOPE_INVALID');
   const phaseName = SAFE_PHASE_BY_ENVELOPE.get(envelopeKey(value));
   if (phaseName === undefined) fail('GREATER_REALM_RELEASE_GATE_PHASE_INVALID');
+  const hasBinding = hasValidNotificationPreparedBinding(value);
+  if (phaseName !== 'activation-client-and-notifications') {
+    if (hasBinding) fail('GREATER_REALM_NOTIFICATION_PREPARED_BINDING_UNEXPECTED');
+    return phaseName;
+  }
+  if (!hasBinding) fail('GREATER_REALM_NOTIFICATION_PREPARED_BINDING_REQUIRED');
+
+  await assertBridgeSourceAncestor(
+    value.notificationPreparedBridgeSourceCommit,
+    REPOSITORY_ROOT,
+  );
+  const inspected = await inspectPreparedReceiptByDigest({
+    receiptDigest: value.notificationPreparedReceiptDigest,
+    repositoryRoot: REPOSITORY_ROOT,
+    fetchImpl,
+    now,
+  });
+  if (
+    inspected.receiptDigest !== value.notificationPreparedReceiptDigest
+    || inspected.receipt.bridgeSourceCommit
+      !== value.notificationPreparedBridgeSourceCommit
+    || inspected.liveAttestation.bridgeSourceCommit
+      !== value.notificationPreparedBridgeSourceCommit
+    || inspected.liveAttestation.notificationDeliveryContractDigest
+      !== AUTH_BRIDGE_NOTIFICATION_DELIVERY_CONTRACT_DIGEST
+    || inspected.liveAttestation.notificationDeliveryEnabled !== true
+    || inspected.liveAttestation.notificationTransportConfigured !== true
+    || inspected.liveAttestation.admissionNotificationStoreConfigured !== true
+    || inspected.liveAttestation.notificationClientCount !== 1
+  ) fail('GREATER_REALM_NOTIFICATION_PREPARED_LIVE_ATTESTATION_MISMATCH');
   return phaseName;
 }
 
@@ -110,8 +221,11 @@ function exactBooleanLiteral(value, prefix, suffix, code) {
   return trueCount === 1;
 }
 
-/** Static, no-network release-envelope attestation used by Pages and CI. */
-export function verifyGreaterRealmReleaseGateState() {
+/** Release-envelope attestation used before and after the Pages deployment. */
+export async function verifyGreaterRealmReleaseGateState(
+  options = {},
+  dependencies = {},
+) {
   const serverPolicy = source('spacetimedb/src/greaterRealmV17Policy.ts');
   const importMutationsCompiled = exactBooleanLiteral(
     serverPolicy,
@@ -185,7 +299,7 @@ export function verifyGreaterRealmReleaseGateState() {
     'GREATER_REALM_V17_VERIFIER_CAPACITY_INVALID',
   );
 
-  const phaseName = verifyGreaterRealmReleaseGateEnvelope({
+  const phaseName = await verifyGreaterRealmReleaseGateEnvelope({
     entryAgreementReleaseStatus: WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS,
     importMutationsCompiled,
     activationMutationsCompiled,
@@ -193,7 +307,8 @@ export function verifyGreaterRealmReleaseGateState() {
     serverPresentationAllowed,
     ...publisherFlags,
     pagesNotificationsEnabled,
-  });
+    ...AUTH_BRIDGE_NOTIFICATION_PREPARED_RELEASE_BINDING,
+  }, options, dependencies);
   return `Greater Realm release phase=${phaseName}; legacy=100 and v17=600 verifiers are distinct.`;
 }
 
@@ -202,7 +317,7 @@ if (
   && import.meta.url === pathToFileURL(resolve(process.argv[1])).href
 ) {
   try {
-    console.log(verifyGreaterRealmReleaseGateState());
+    console.log(await verifyGreaterRealmReleaseGateState());
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'GREATER_REALM_RELEASE_GATE_CHECK_FAILED');
     process.exitCode = 1;

@@ -22,6 +22,8 @@ import {
 
 const TARGET_DIGEST = 'a'.repeat(64);
 const STATE_DIGEST = 'b'.repeat(64);
+const NOTIFICATION_RECEIPT_DIGEST = 'c'.repeat(64);
+const NOTIFICATION_BRIDGE_COMMIT = 'd'.repeat(40);
 const NOW = new Date('2026-08-11T13:00:00.000Z');
 const FID = 123_456n;
 const REQUESTED_AT_MICROS = 1_800_000_000_000_000n;
@@ -44,6 +46,10 @@ describe('private reviewed admission notification recovery plan', () => {
     const directory = privateDirectory();
     const plan = createReviewedAdmissionNotificationRecoveryPlan({
       targetConfigurationDigest: TARGET_DIGEST,
+      notificationPreparedReleaseBinding: {
+        notificationPreparedReceiptDigest: NOTIFICATION_RECEIPT_DIGEST,
+        notificationPreparedBridgeSourceCommit: NOTIFICATION_BRIDGE_COMMIT,
+      },
       fid: FID,
       note: 'reviewed first-time founder delivery recovery',
       expectedRequestedAtMicros: REQUESTED_AT_MICROS,
@@ -57,6 +63,11 @@ describe('private reviewed admission notification recovery plan', () => {
     expect(statSync(path).mode & 0o777).toBe(0o600);
     expect(reference.filename).not.toContain(FID.toString());
     expect(readFileSync(path, 'utf8')).toContain(REQUESTED_AT_MICROS.toString());
+    expect(plan).toMatchObject({
+      schemaVersion: 2,
+      notificationPreparedReceiptDigest: NOTIFICATION_RECEIPT_DIGEST,
+      notificationPreparedBridgeSourceCommit: NOTIFICATION_BRIDGE_COMMIT,
+    });
     expect(readReviewedAdmissionNotificationRecoveryPlan({
       directory,
       reference,
@@ -140,5 +151,20 @@ describe('private reviewed admission notification recovery plan', () => {
       ...diagnostics,
       deliveryAttemptCount: 5,
     })).not.toBe(digest);
+  });
+
+  it('rejects a partial prepared-notification receipt binding', () => {
+    expect(() => createReviewedAdmissionNotificationRecoveryPlan({
+      targetConfigurationDigest: TARGET_DIGEST,
+      notificationPreparedReleaseBinding: {
+        notificationPreparedReceiptDigest: NOTIFICATION_RECEIPT_DIGEST,
+        notificationPreparedBridgeSourceCommit: null,
+      },
+      fid: FID,
+      note: 'reviewed first-time founder delivery recovery',
+      expectedRequestedAtMicros: REQUESTED_AT_MICROS,
+      expectedNotificationStateDigest: STATE_DIGEST,
+      now: NOW,
+    })).toThrow('ADMISSION_NOTIFICATION_RECOVERY_PLAN_INVALID');
   });
 });

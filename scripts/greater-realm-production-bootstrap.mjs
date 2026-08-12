@@ -430,6 +430,14 @@ const COMMANDS = Object.freeze({
     privateInput: false,
     requiresAdminSecret: true,
   }),
+  'hermes-list-pending': Object.freeze({
+    entrypoint: 'scripts/hermes-admin.ts',
+    exactArguments: Object.freeze(['list-pending-access-requests']),
+    privateInput: false,
+    requiresAdminSecret: true,
+    requiresNotificationSecret: false,
+    hermesReleaseRow: 'list-pending',
+  }),
   'hermes-admit-dry': Object.freeze({
     entrypoint: 'scripts/hermes-admin.ts',
     exactArguments: Object.freeze(['admit-founder', '--input-stdin', '--dry-run']),
@@ -1423,15 +1431,21 @@ function hermesPlanDirectories(runRoot, row) {
   const needsFounder = row === 'admit-dry' || row === 'admit-confirm';
   const needsNotificationRecovery = row === 'notification-recover-dry'
     || row === 'notification-recover-confirm';
-  if (!needsFounder && !needsNotificationRecovery) return Object.freeze({});
+  const needsPendingCensus = row === 'list-pending';
+  if (!needsFounder && !needsNotificationRecovery && !needsPendingCensus) {
+    return Object.freeze({});
+  }
   const productionAdminRoot = dirname(dirname(runRoot));
   const planRoot = join(productionAdminRoot, 'hermes-release-plans-v1');
   const founder = join(planRoot, 'founder-admission');
   const notificationRecovery = join(planRoot, 'admission-notification-recovery');
+  const reportRoot = join(productionAdminRoot, 'hermes-release-reports-v1');
+  const pendingCensus = join(reportRoot, 'pending-access-requests');
   for (const path of [
-    planRoot,
+    ...(needsFounder || needsNotificationRecovery ? [planRoot] : []),
     ...(needsFounder ? [founder] : []),
     ...(needsNotificationRecovery ? [notificationRecovery] : []),
+    ...(needsPendingCensus ? [reportRoot, pendingCensus] : []),
   ]) {
     try {
       mkdirSync(path, { mode: 0o700 });
@@ -1445,6 +1459,7 @@ function hermesPlanDirectories(runRoot, row) {
   return Object.freeze({
     ...(needsFounder ? { founder } : {}),
     ...(needsNotificationRecovery ? { notificationRecovery } : {}),
+    ...(needsPendingCensus ? { pendingCensus } : {}),
   });
 }
 
@@ -2345,6 +2360,12 @@ function finalOperatorEnvironment(input, runtime, npm, planDirectories) {
             : {
                 WKGR_HERMES_NOTIFICATION_RECOVERY_PLAN_DIRECTORY:
                   planDirectories.notificationRecovery,
+              }),
+          ...(planDirectories.pendingCensus === undefined
+            ? {}
+            : {
+                WKGR_HERMES_PENDING_CENSUS_DIRECTORY:
+                  planDirectories.pendingCensus,
               }),
           WARPKEEP_SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
           WARPKEEP_SPACETIMEDB_DATABASE:

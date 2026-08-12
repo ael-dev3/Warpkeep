@@ -75,6 +75,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Setup Node
@@ -160,7 +161,7 @@ jobs:
       - name: Validate public deployment configuration
         run: npm run validate:pages-config
 
-      - name: Verify Greater Realm release gates remain closed
+      - name: Verify Greater Realm release gates and notification authority
         run: npm run verify:greater-realm-release-gates
 
       - name: Build
@@ -186,6 +187,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      deployment-attempted: ${{ steps.deployment-attempt.outputs.attempted }}
     permissions:
       contents: read
       pages: write
@@ -209,12 +212,79 @@ jobs:
             exit 1
           fi
 
+      - name: Checkout exact deployment source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node for the deployment-boundary verifier
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Stage deployment-boundary Node in a runner-private path
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_command="$(command -v node)"
+          if [[ -L "$source_command" ]]; then
+            echo 'setup-node resolved through a symbolic link.' >&2
+            exit 1
+          fi
+          source_node="$(realpath -- "$source_command")"
+          case "$source_node" in
+            "$RUNNER_TOOL_CACHE"/*) ;;
+            *)
+              echo 'setup-node resolved outside the hosted tool cache.' >&2
+              exit 1
+              ;;
+          esac
+          if [[ ! -f "$source_node" || ! -x "$source_node" ]]; then
+            echo 'setup-node did not resolve to a regular executable.' >&2
+            exit 1
+          fi
+          private_root="$(mktemp -d "$RUNNER_TEMP/warpkeep-deploy-node.XXXXXX")"
+          chmod 0700 "$private_root"
+          source_sha_before="$(sha256sum "$source_node" | cut -d ' ' -f 1)"
+          install -m 0700 "$source_node" "$private_root/node"
+          source_sha_after="$(sha256sum "$source_node" | cut -d ' ' -f 1)"
+          staged_sha="$(sha256sum "$private_root/node" | cut -d ' ' -f 1)"
+          if [[ "$source_sha_before" != "$source_sha_after" || "$source_sha_before" != "$staged_sha" ]]; then
+            echo 'The deployment-boundary Node copy failed its integrity check.' >&2
+            exit 1
+          fi
+          echo "WARPKEEP_DEPLOY_PRIVATE_NODE=$private_root/node" >> "$GITHUB_ENV"
+          echo "WARPKEEP_DEPLOY_PRIVATE_NODE_SHA256=$staged_sha" >> "$GITHUB_ENV"
+
+      - name: Re-attest release authority immediately before deployment
+        id: deployment-attempt
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WARPKEEP_VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          current_main="$(
+            gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha'
+          )"
+          if [[ ! "$current_main" =~ ^[0-9a-f]{40}$ ]] || [[ "$current_main" != "$WARPKEEP_VERIFIED_SHA" ]]; then
+            echo 'Deployment source is no longer the current protected main commit.' >&2
+            exit 1
+          fi
+          echo "$WARPKEEP_DEPLOY_PRIVATE_NODE_SHA256  $WARPKEEP_DEPLOY_PRIVATE_NODE" \
+            | sha256sum --check --strict -
+          "$WARPKEEP_DEPLOY_PRIVATE_NODE" scripts/verify-greater-realm-release-gates.mjs
+          echo 'attempted=true' >> "$GITHUB_OUTPUT"
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
 
   verify-live:
     needs: deploy
+    if: ${{ always() && needs.deploy.outputs.deployment-attempted == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -227,12 +297,16 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
+
+      - name: Re-verify Greater Realm release gates and notification authority
+        run: npm run verify:greater-realm-release-gates
 
       - name: Verify exact live release
         shell: bash

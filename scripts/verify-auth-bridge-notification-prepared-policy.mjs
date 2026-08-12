@@ -38,9 +38,12 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
   const pages = read('.github/workflows/deploy-pages.yml');
   exactOccurrence(
     pages,
-    "VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: ${{ vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED || 'false' }}",
+    "VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'false'",
     'AUTH_BRIDGE_PREPARED_PAGES_GATE_INVALID',
   );
+  if (pages.includes('vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED')) {
+    fail('AUTH_BRIDGE_PREPARED_PAGES_GATE_MUTABLE');
+  }
 
   const packageDocument = JSON.parse(read('services/auth-bridge/package.json'));
   if (

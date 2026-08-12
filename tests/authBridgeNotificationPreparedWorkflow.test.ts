@@ -53,6 +53,10 @@ describe('notification-bridge-prepared protected workflow', () => {
 
   it('expresses only bridge preparation while Hermes, Pages, and checked flags stay inert', () => {
     const source = workflow();
+    const pages = readFileSync(
+      resolve(repositoryRoot, '.github/workflows/deploy-pages.yml'),
+      'utf8',
+    );
     expect(source).toContain(
       "WARPKEEP_BRIDGE_NOTIFICATION_DELIVERY_ENABLED: 'true'",
     );
@@ -68,6 +72,10 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(source).toContain(
       'select(.name == "WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED")',
     );
+    expect(pages).toContain(
+      "VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'false'",
+    );
+    expect(pages).not.toContain('vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED');
     expect(verifyAuthBridgeNotificationPreparedStaticPolicy({ repositoryRoot }))
       .toEqual({
         bridgeNotificationDeliveryEnabled: true,

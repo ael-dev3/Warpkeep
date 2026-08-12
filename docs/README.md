@@ -35,6 +35,12 @@ contributors. This page routes deeper work without duplicating it.
 - [Farcaster integration](farcaster-integration.md)
 - [Auth bridge](../services/auth-bridge/README.md)
 - [SpacetimeDB module](../spacetimedb/README.md)
+- [Greater Realm production cutover](operations/greater-realm-production-cutover.md)
+  — guarded commit-bound tooling and closed release-gate sequence
+- [Reviewed Greater Realm launch envelope](operations/greater-realm-production-launch-envelope.sh.txt)
+  — exact non-executable command-boundary review copy
+- [Greater Realm private-generation boundary](security/greater-realm-private-generation.md)
+  — private atlas generation, public declassification, and threat boundaries
 - [Community Marks policy](gameplay/marks-policy-v1.md)
 - [Daily Marks operations](operations/daily-marks.md)
 - [Local visual QA](operations/qa-observatory.md)

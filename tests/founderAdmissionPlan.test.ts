@@ -24,6 +24,8 @@ import {
 const SOURCE_DIGEST = 'a'.repeat(64);
 const TARGET_DIGEST = 'b'.repeat(64);
 const POLICY_VERSION = 'trusted-snapchain-profile-v3';
+const NOTIFICATION_RECEIPT_DIGEST = 'c'.repeat(64);
+const NOTIFICATION_BRIDGE_COMMIT = 'd'.repeat(40);
 const NOW = new Date('2026-07-18T18:00:00.000Z');
 const PRIVATE_FID = 1_234_567n;
 const PRIVATE_NOTE = 'approved founder fixture';
@@ -99,6 +101,10 @@ describe('private reviewed founder admission plan', () => {
       targetConfigurationDigest: TARGET_DIGEST,
       profilePolicyVersion: POLICY_VERSION,
       profileSourceUseApproval: FOUNDER_ADMISSION_PROFILE_SOURCE_USE_APPROVAL,
+      notificationPreparedReleaseBinding: {
+        notificationPreparedReceiptDigest: NOTIFICATION_RECEIPT_DIGEST,
+        notificationPreparedBridgeSourceCommit: NOTIFICATION_BRIDGE_COMMIT,
+      },
       fid: PRIVATE_FID,
       note: PRIVATE_NOTE,
       profile: PROFILE,
@@ -117,6 +123,11 @@ describe('private reviewed founder admission plan', () => {
     expect(privateArtifact).toContain(PRIVATE_FID.toString());
     expect(privateArtifact).toContain(PROFILE.canonicalUsername);
     expect(privateArtifact).toContain(PRIVATE_NOTE);
+    expect(plan).toMatchObject({
+      schemaVersion: 3,
+      notificationPreparedReceiptDigest: NOTIFICATION_RECEIPT_DIGEST,
+      notificationPreparedBridgeSourceCommit: NOTIFICATION_BRIDGE_COMMIT,
+    });
 
     expect(readReviewedFounderAdmissionPlan({
       directory,
@@ -181,5 +192,22 @@ describe('private reviewed founder admission plan', () => {
       expectedProfilePolicyVersion: POLICY_VERSION,
       now: NOW,
     })).toThrow('FOUNDER_ADMISSION_PLAN_FILE_PERMISSIONS');
+  });
+
+  it('rejects a partial prepared-notification receipt binding', () => {
+    expect(() => createReviewedFounderAdmissionPlan({
+      sourceConfigurationDigest: SOURCE_DIGEST,
+      targetConfigurationDigest: TARGET_DIGEST,
+      profilePolicyVersion: POLICY_VERSION,
+      profileSourceUseApproval: FOUNDER_ADMISSION_PROFILE_SOURCE_USE_APPROVAL,
+      notificationPreparedReleaseBinding: {
+        notificationPreparedReceiptDigest: NOTIFICATION_RECEIPT_DIGEST,
+        notificationPreparedBridgeSourceCommit: null,
+      },
+      fid: PRIVATE_FID,
+      note: PRIVATE_NOTE,
+      profile: PROFILE,
+      now: NOW,
+    })).toThrow('FOUNDER_ADMISSION_PLAN_INVALID');
   });
 });

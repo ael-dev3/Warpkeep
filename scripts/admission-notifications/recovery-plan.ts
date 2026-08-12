@@ -43,12 +43,14 @@ export type ReviewedAdmissionNotificationRecoveryPlanReference = Readonly<{
 }>;
 
 export type ReviewedAdmissionNotificationRecoveryPlan = Readonly<{
-  schemaVersion: 1;
+  schemaVersion: 2;
   kind: 'warpkeep-reviewed-admission-notification-recovery-plan';
   planId: string;
   createdAt: string;
   expiresAt: string;
   targetConfigurationDigest: string;
+  notificationPreparedReceiptDigest: string | null;
+  notificationPreparedBridgeSourceCommit: string | null;
   fid: string;
   note: string;
   expectedRequestedAtMicros: string;
@@ -111,13 +113,15 @@ function parsePlan(value: unknown): ReviewedAdmissionNotificationRecoveryPlan {
     'createdAt',
     'expiresAt',
     'targetConfigurationDigest',
+    'notificationPreparedReceiptDigest',
+    'notificationPreparedBridgeSourceCommit',
     'fid',
     'note',
     'expectedRequestedAtMicros',
     'expectedNotificationStateDigest',
   ], 'ADMISSION_NOTIFICATION_RECOVERY_PLAN_INVALID');
   if (
-    plan.schemaVersion !== 1
+    plan.schemaVersion !== 2
     || plan.kind !== 'warpkeep-reviewed-admission-notification-recovery-plan'
     || typeof plan.planId !== 'string'
     || !/^[0-9a-f]{32}$/.test(plan.planId)
@@ -127,6 +131,16 @@ function parsePlan(value: unknown): ReviewedAdmissionNotificationRecoveryPlan {
     || !DIGEST_PATTERN.test(plan.targetConfigurationDigest)
     || typeof plan.expectedNotificationStateDigest !== 'string'
     || !DIGEST_PATTERN.test(plan.expectedNotificationStateDigest)
+    || !(
+      (plan.notificationPreparedReceiptDigest === null
+        && plan.notificationPreparedBridgeSourceCommit === null)
+      || (
+        typeof plan.notificationPreparedReceiptDigest === 'string'
+        && DIGEST_PATTERN.test(plan.notificationPreparedReceiptDigest)
+        && typeof plan.notificationPreparedBridgeSourceCommit === 'string'
+        && /^[0-9a-f]{40}$/.test(plan.notificationPreparedBridgeSourceCommit)
+      )
+    )
   ) {
     throw new AdmissionNotificationRecoveryPlanError(
       'ADMISSION_NOTIFICATION_RECOVERY_PLAN_INVALID',
@@ -147,12 +161,15 @@ function parsePlan(value: unknown): ReviewedAdmissionNotificationRecoveryPlan {
     );
   }
   return Object.freeze({
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: 'warpkeep-reviewed-admission-notification-recovery-plan',
     planId: plan.planId,
     createdAt: plan.createdAt,
     expiresAt: plan.expiresAt,
     targetConfigurationDigest: plan.targetConfigurationDigest,
+    notificationPreparedReceiptDigest: plan.notificationPreparedReceiptDigest,
+    notificationPreparedBridgeSourceCommit:
+      plan.notificationPreparedBridgeSourceCommit,
     fid,
     note,
     expectedRequestedAtMicros,
@@ -250,6 +267,10 @@ export function admissionNotificationRecoveryStateDigest(value: Readonly<{
 
 export function createReviewedAdmissionNotificationRecoveryPlan(input: Readonly<{
   targetConfigurationDigest: string;
+  notificationPreparedReleaseBinding?: Readonly<{
+    notificationPreparedReceiptDigest: string | null;
+    notificationPreparedBridgeSourceCommit: string | null;
+  }>;
   fid: bigint;
   note: string;
   expectedRequestedAtMicros: bigint;
@@ -258,7 +279,7 @@ export function createReviewedAdmissionNotificationRecoveryPlan(input: Readonly<
 }>): ReviewedAdmissionNotificationRecoveryPlan {
   const now = input.now ?? new Date();
   return parsePlan({
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: 'warpkeep-reviewed-admission-notification-recovery-plan',
     planId: randomBytes(16).toString('hex'),
     createdAt: now.toISOString(),
@@ -266,6 +287,10 @@ export function createReviewedAdmissionNotificationRecoveryPlan(input: Readonly<
       now.getTime() + REVIEWED_ADMISSION_NOTIFICATION_RECOVERY_PLAN_LIFETIME_MS,
     ).toISOString(),
     targetConfigurationDigest: input.targetConfigurationDigest,
+    notificationPreparedReceiptDigest:
+      input.notificationPreparedReleaseBinding?.notificationPreparedReceiptDigest ?? null,
+    notificationPreparedBridgeSourceCommit:
+      input.notificationPreparedReleaseBinding?.notificationPreparedBridgeSourceCommit ?? null,
     fid: input.fid.toString(),
     note: input.note,
     expectedRequestedAtMicros: input.expectedRequestedAtMicros.toString(),

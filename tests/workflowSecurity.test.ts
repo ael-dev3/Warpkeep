@@ -92,6 +92,7 @@ describe('GitHub workflow security policy', () => {
     );
     expect(build).toContain('npm run validate:pages-config');
     expect(build).toContain('npm run verify:greater-realm-release-gates');
+    expect(source.match(/npm run verify:greater-realm-release-gates/g)).toHaveLength(2);
     expect(build.indexOf('npm run validate:pages-config')).toBeLessThan(
       build.indexOf('npm run build'),
     );
@@ -123,12 +124,34 @@ describe('GitHub workflow security policy', () => {
 
     expect(deployStart).toBeGreaterThan(jobsStart);
     expect(postflightStart).toBeGreaterThan(deployStart);
-    expect(deploy.match(/^      - /gm)).toHaveLength(2);
+    expect(deploy.match(/^      - /gm)).toHaveLength(6);
     expect(deploy).toMatch(/^      - name: Confirm artifact SHA remains current main$/m);
+    expect(deploy).toMatch(/^      - name: Checkout exact deployment source$/m);
+    expect(deploy).toMatch(
+      /^      - name: Re-attest release authority immediately before deployment$/m,
+    );
     expect(deploy).toMatch(/^      - name: Deploy to GitHub Pages$/m);
     expect(deploy).toContain('Confirm artifact SHA remains current main');
     expect(deploy).toContain('actions/deploy-pages@');
+    expect(deploy).toContain('deployment-attempted: ${{ steps.deployment-attempt.outputs.attempted }}');
+    expect(deploy.indexOf('scripts/verify-greater-realm-release-gates.mjs')).toBeLessThan(
+      deploy.indexOf('actions/deploy-pages@'),
+    );
+    expect(deploy.slice(
+      deploy.indexOf('scripts/verify-greater-realm-release-gates.mjs'),
+      deploy.indexOf('actions/deploy-pages@'),
+    ).match(/^      - name:/gm)).toHaveLength(1);
     expect(postflight).toContain('needs: deploy');
+    expect(postflight).toContain(
+      "if: ${{ always() && needs.deploy.outputs.deployment-attempted == 'true' }}",
+    );
+    expect(postflight).toContain(
+      'Re-verify Greater Realm release gates and notification authority',
+    );
+    expect(postflight).toContain('npm run verify:greater-realm-release-gates');
+    expect(postflight.indexOf('npm run verify:greater-realm-release-gates')).toBeLessThan(
+      postflight.indexOf('Verify exact live release'),
+    );
     expect(postflight).toContain('Verify exact live release');
   });
 
@@ -139,8 +162,9 @@ describe('GitHub workflow security policy', () => {
       source.match(/ref:\s*\$\{\{ github\.event\.workflow_run\.head_sha \}\}/g) ?? []
     ).length;
 
-    expect(checkoutCount).toBe(2);
+    expect(checkoutCount).toBe(3);
     expect(exactRefCount).toBe(checkoutCount);
+    expect(source.match(/fetch-depth:\s*0/g)).toHaveLength(checkoutCount);
     expect(source).toContain(
       'VITE_WARPKEEP_BUILD_SHA: ${{ github.event.workflow_run.head_sha }}',
     );
@@ -155,6 +179,9 @@ describe('GitHub workflow security policy', () => {
     const liveVerification = source.slice(source.indexOf('  verify-live:'));
 
     expect(liveVerification).toContain('needs: deploy');
+    expect(liveVerification).toContain(
+      "if: ${{ always() && needs.deploy.outputs.deployment-attempted == 'true' }}",
+    );
     expect(liveVerification).toMatch(/^\s+contents:\s*read\s*$/m);
     expect(liveVerification).not.toMatch(/^\s+pages:\s*write\s*$/m);
     expect(liveVerification).not.toMatch(/^\s+id-token:\s*write\s*$/m);
@@ -171,6 +198,10 @@ describe('GitHub workflow security policy', () => {
       'WARPKEEP_SHARED_ALPHA_ENABLED must be exactly true or false.',
     );
     expect(liveVerification).toContain('maximum_attempts=4');
+    expect(liveVerification).toContain('npm run verify:greater-realm-release-gates');
+    expect(liveVerification.indexOf('npm run verify:greater-realm-release-gates')).toBeLessThan(
+      liveVerification.indexOf('node scripts/verify-alpha-production.mjs'),
+    );
     expect(liveVerification).toContain(
       'node scripts/verify-alpha-production.mjs "$verification_mode"',
     );

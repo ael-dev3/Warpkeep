@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto';
 import {
   chmodSync,
+  existsSync,
   linkSync,
   lstatSync,
   mkdirSync,
@@ -29,7 +30,9 @@ import {
   AUTH_BRIDGE_RELEASE_ATTESTATION_URL,
   canonicalAuthBridgeReleaseAttestationDigest,
   fetchFreshAuthBridgeReleaseAttestation,
+  ensureAuthBridgeNotificationPreparedReceiptDirectory,
   inspectPrivateAuthBridgeNotificationPreparedReceipt,
+  inspectPrivateAuthBridgeNotificationPreparedReceiptByDigest,
   parseAuthBridgeNotificationPreparedReceipt,
   prepareAuthBridgeNotificationPreparedReceipt,
   readPrivateAuthBridgeNotificationPreparedReceipt,
@@ -471,6 +474,12 @@ describe('fresh public release-attestation binding', () => {
       })).rejects.toThrow('AUTH_BRIDGE_PREPARED_RECEIPT_LIVE_MISMATCH');
     }
 
+    await expect(verifyAuthBridgeNotificationPreparedReceipt({
+      receipt: receipt({ liveAttestationDigest: 'b'.repeat(64) }),
+      fetchImpl: vi.fn(async () => releaseResponse()) as typeof fetch,
+      now: NOW,
+    })).rejects.toThrow('AUTH_BRIDGE_PREPARED_RECEIPT_LIVE_MISMATCH');
+
     const fetchImpl = vi.fn(async () => releaseResponse()) as typeof fetch;
     await expect(verifyAuthBridgeNotificationPreparedReceipt({
       receipt: receipt(),
@@ -570,6 +579,123 @@ describe('private production-admin prepared receipt storage', () => {
       fetchImpl: vi.fn(async () => releaseResponse()) as typeof fetch,
       now: NOW,
     })).resolves.toMatchObject({ receipt: receipt() });
+
+    const fetchMock = vi.fn(async () => releaseResponse()) as typeof fetch;
+    await expect(inspectPrivateAuthBridgeNotificationPreparedReceiptByDigest({
+      receiptDigest: written.receiptDigest,
+      repositoryRoot: process.cwd(),
+      reportedHome: home,
+      fetchImpl: fetchMock,
+      now: NOW,
+    })).resolves.toEqual({
+      receipt: receipt(),
+      liveAttestation: releaseAttestation(),
+      receiptDigest: written.receiptDigest,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const mismatchedFetch = vi.fn(async () => releaseResponse()) as typeof fetch;
+    await expect(inspectPrivateAuthBridgeNotificationPreparedReceiptByDigest({
+      receiptDigest: 'f'.repeat(64),
+      repositoryRoot: process.cwd(),
+      reportedHome: home,
+      fetchImpl: mismatchedFetch,
+      now: NOW,
+    })).rejects.toThrow('AUTH_BRIDGE_PREPARED_RECEIPT_FILE_INVALID');
+    expect(mismatchedFetch).not.toHaveBeenCalled();
+  });
+
+  it('repairs exact linked pairs without deleting live or crashed prelink temporaries', async () => {
+    const home = temporaryHome('warpkeep-bridge-publication-repair-');
+    const { prepared } = await authenticatedReceipt();
+    const installed = writePrivateAuthBridgeNotificationPreparedReceipt({
+      receipt: prepared,
+      repositoryRoot: process.cwd(),
+      reportedHome: home,
+      now: NOW,
+    });
+    const directory = dirname(installed.path);
+    const linkedTemporary = join(
+      directory,
+      `.auth-bridge-notification-prepared-${installed.receiptDigest}-${'1'.repeat(24)}.json.tmp`,
+    );
+    linkSync(installed.path, linkedTemporary);
+    expect(lstatSync(installed.path).nlink).toBe(2);
+
+    expect(readPrivateAuthBridgeNotificationPreparedReceipt({
+      receiptPath: installed.path,
+      repositoryRoot: process.cwd(),
+      reportedHome: home,
+    })).toEqual(receipt());
+    expect(existsSync(linkedTemporary)).toBe(false);
+    expect(lstatSync(installed.path).nlink).toBe(1);
+
+    const partialTemporary = join(
+      directory,
+      `.auth-bridge-notification-prepared-${installed.receiptDigest}-${'2'.repeat(24)}.json.tmp`,
+    );
+    writeFileSync(partialTemporary, '{', { mode: 0o600 });
+    expect(readPrivateAuthBridgeNotificationPreparedReceipt({
+      receiptPath: installed.path,
+      repositoryRoot: process.cwd(),
+      reportedHome: home,
+    })).toEqual(receipt());
+    expect(existsSync(partialTemporary)).toBe(true);
+  });
+
+  it('normalizes a disappearing temporary during dedicated-directory validation', async () => {
+    const home = temporaryHome('warpkeep-bridge-disappearing-temp-');
+    const { prepared } = await authenticatedReceipt();
+    const installed = writePrivateAuthBridgeNotificationPreparedReceipt({
+      receipt: prepared,
+      repositoryRoot: process.cwd(),
+      reportedHome: home,
+      now: NOW,
+    });
+    const temporary = join(
+      dirname(installed.path),
+      `.auth-bridge-notification-prepared-${installed.receiptDigest}-${'3'.repeat(24)}.json.tmp`,
+    );
+    writeFileSync(temporary, '{', { mode: 0o600 });
+    let removed = false;
+
+    expect(() => ensureAuthBridgeNotificationPreparedReceiptDirectory({
+      repositoryRoot: process.cwd(),
+      reportedHome: home,
+      testOnlyBeforeDedicatedEntryMetadata(path) {
+        if (path === temporary && !removed) {
+          removed = true;
+          rmSync(path);
+        }
+      },
+    })).not.toThrow();
+    expect(removed).toBe(true);
+    expect(existsSync(temporary)).toBe(false);
+  });
+
+  it('repairs exact owner-only umask subsets without accepting broader permissions', async () => {
+    const home = temporaryHome('warpkeep-bridge-umask-repair-');
+    const warpkeep = join(home, '.warpkeep');
+    mkdirSync(warpkeep, { mode: 0o700 });
+    chmodSync(warpkeep, 0o000);
+
+    const directory = ensureAuthBridgeNotificationPreparedReceiptDirectory({
+      repositoryRoot: process.cwd(),
+      reportedHome: home,
+    });
+    expect(lstatSync(warpkeep).mode & 0o7777).toBe(0o700);
+
+    const unpublished = join(
+      directory,
+      `.auth-bridge-notification-prepared-${'4'.repeat(64)}-${'5'.repeat(24)}.json.tmp`,
+    );
+    writeFileSync(unpublished, '{', { mode: 0o600 });
+    chmodSync(unpublished, 0o000);
+    expect(() => ensureAuthBridgeNotificationPreparedReceiptDirectory({
+      repositoryRoot: process.cwd(),
+      reportedHome: home,
+    })).not.toThrow();
+    expect(lstatSync(unpublished).mode & 0o7777).toBe(0o000);
   });
 
   it('rejects repository overlap, symlinks, non-owner-write modes, and extra files', async () => {
@@ -652,15 +778,18 @@ describe('private production-admin prepared receipt storage', () => {
       } else if (mutation === 'mode') {
         chmodSync(installed.path, 0o640);
       } else if (mutation === 'special') {
-        chmodSync(installed.path, 0o4600);
+        chmodSync(installed.path, 0o700);
       } else {
         linkSync(installed.path, join(home, 'second-link'));
       }
-      expect(() => readPrivateAuthBridgeNotificationPreparedReceipt({
-        receiptPath: installed.path,
-        repositoryRoot: process.cwd(),
-        reportedHome: home,
-      })).toThrow(/AUTH_BRIDGE_PREPARED_/u);
+      expect(
+        () => readPrivateAuthBridgeNotificationPreparedReceipt({
+          receiptPath: installed.path,
+          repositoryRoot: process.cwd(),
+          reportedHome: home,
+        }),
+        `receipt mutation ${mutation} must be rejected`,
+      ).toThrow(/AUTH_BRIDGE_PREPARED_/u);
     }
 
     const home = temporaryHome('warpkeep-bridge-path-');

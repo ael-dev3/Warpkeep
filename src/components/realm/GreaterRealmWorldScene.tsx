@@ -131,6 +131,9 @@ export function GreaterRealmWorldScene({
     useState<GreaterRealmResourceSelection>();
   const [pendingWorkerId, setPendingWorkerId] = useState<string>();
   const [commandError, setCommandError] = useState(false);
+  const controlStatusIsAnnouncement = worldSelection !== undefined
+    || localVesselState.status === 'selected'
+    || localVesselState.status === 'blocked';
   const policy = useMemo(() => resolveGreaterRealmWorldViewPolicy({
     atlasQ: ownCastle.q,
     atlasR: ownCastle.r,
@@ -607,8 +610,8 @@ export function GreaterRealmWorldScene({
         <span
           id="greater-realm-world-status"
           className="greater-realm-world__control-status"
-          role="status"
-          aria-live="polite"
+          role={controlStatusIsAnnouncement ? 'status' : undefined}
+          aria-live={controlStatusIsAnnouncement ? 'polite' : undefined}
         >
           {localVesselState.status === 'blocked'
             ? localVesselState.message

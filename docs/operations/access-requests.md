@@ -4,7 +4,8 @@
 > TypeScript entrypoints are deliberately unavailable. Use only an exact row
 > in the reviewed
 > [production launch envelope](./greater-realm-production-launch-envelope.sh.txt).
-> There is currently no trusted row for listing or owner-canary reset.
+> The only supported listing surface is the bounded, private
+> `hermes-list-pending` census row. Owner-canary reset remains unavailable.
 
 An access request is a private expression of interest from a server-verified
 Farcaster account. It stores only the FID, a server-derived admission cycle,
@@ -17,10 +18,19 @@ request; a later revocation requires a new submission and database timestamp.
 Disabling or re-enabling a founder does not remove or rebuild their castle,
 ownership, profile, resources, workers, schedules, or other persistent state.
 
-Pending-request listing is unavailable during this cutover freeze. The former
-list operator remains a refusal stub and must not be invoked through npm or a
-direct TypeScript fallback. A future release may restore bounded private
-listing only through a separately reviewed trusted-launch row.
+To enumerate candidates, run only the no-argument `hermes-list-pending` row in
+the reviewed launch envelope. It pages the immutable production inspection
+procedure at a fixed 100 rows, accepts at most 41 pages/4,096 rows, and rejects
+changing totals, broken cursors, duplicates, non-pending rows, or non-canonical
+ordering. The result is a content-addressed 0600 JSON census under the
+owner-private production-admin report directory; terminal output contains only
+its filename and SHA-256. It is advisory, not admission authority: every
+`hermes-admit-*` or `hermes-allow-*` command must still reread and CAS-bind the
+individual request immediately before mutation.
+
+The former general list operator remains a refusal stub and must not be invoked
+through npm or a direct TypeScript fallback. Do not copy the private census into
+the repository, CI artifacts, issue comments, or public operator logs.
 
 Admission is deliberately separate. For a missing FID, use only the reviewed
 `hermes-admit-dry` and `hermes-admit-confirm` envelope rows. For a disabled

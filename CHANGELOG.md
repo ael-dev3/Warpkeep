@@ -6,6 +6,22 @@ full engineering record.
 
 ## [Unreleased]
 
+- Prepared the review-only Greater Realm client candidate as a genuinely
+  explorable six-region atlas: accessible pointer, touch, keyboard, and button
+  navigation; distinct terrain, coasts, castles, landmarks, public resource
+  markers, and feature signs; and an explicit local helm preview that follows
+  only returned deep-water lanes. The helm is presentation-only and is not
+  saved as player travel. Production import, activation, presentation,
+  notification, legal-review, and owner-approval gates remain closed, so this
+  entry does not claim the Greater Realm is live.
+
+- Hardened the reviewed Greater Realm cutover tooling with a fail-closed,
+  protected-commit-bound launcher, an owner-private operation WAL with
+  digest-confirmed recovery, late credential-file opens, and refusal-only
+  legacy npm aliases. This is tooling only: import, activation, notification,
+  presentation, deployment, legal-review, and owner-approval gates remain
+  closed, and no live production operation or deployment is claimed.
+
 - Made reviewed founder admission verification follow the exact current world:
   the unchanged legacy 100-slot path remains strict, while active Greater Realm
   founding and existing-founder re-enable use bounded 600-slot aggregate and

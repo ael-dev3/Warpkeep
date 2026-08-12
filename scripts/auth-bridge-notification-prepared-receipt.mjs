@@ -76,7 +76,7 @@ const SOURCE_COMMIT = /^[a-f0-9]{40}$/u;
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
 const STRICT_UTC = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}Z$/u;
 const RECEIPT_FILE = /^auth-bridge-notification-prepared-[a-f0-9]{64}\.json$/u;
-const TEMPORARY_FILE = /^\.auth-bridge-notification-prepared-[a-f0-9]{64}-[a-f0-9]{24}\.json\.tmp$/u;
+const TEMPORARY_FILE = /^\.auth-bridge-notification-prepared-([a-f0-9]{64})-[a-f0-9]{24}\.json\.tmp$/u;
 const authenticatedPreparedReceipts = new WeakSet();
 
 const RELEASE_SECURITY_HEADERS = Object.freeze({
@@ -175,11 +175,44 @@ function assertPrivateDirectory(path, uid, expectedParent, code) {
 
 function ensurePrivateChild(parent, name, uid) {
   const path = join(parent, name);
-  if (!existsSync(path)) {
+  let metadata;
+  try {
+    metadata = lstatSync(path);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      fail('AUTH_BRIDGE_PREPARED_STATE_CREATE_FAILED');
+    }
     try {
       mkdirSync(path, { mode: DIRECTORY_MODE });
       chmodSync(path, DIRECTORY_MODE);
+      fsyncReceiptDirectory(path);
+      fsyncReceiptDirectory(parent);
+      metadata = lstatSync(path);
     } catch {
+      fail('AUTH_BRIDGE_PREPARED_STATE_CREATE_FAILED');
+    }
+  }
+  const permissionMode = metadata.mode & 0o7777;
+  if (
+    permissionMode !== DIRECTORY_MODE
+    && metadata.isDirectory()
+    && !metadata.isSymbolicLink()
+    && metadata.uid === uid
+    && (permissionMode & ~DIRECTORY_MODE) === 0
+  ) {
+    // mkdir(2)'s requested mode is filtered by umask. If the process dies
+    // before the following chmod, the exact fixed child may be an owner-only
+    // subset of 0700. Repair only that no-follow/canonical private child;
+    // group, other, and special bits remain a hard failure below.
+    try {
+      if (realpathSync(path) !== path || dirname(path) !== parent) {
+        fail('AUTH_BRIDGE_PREPARED_STATE_DIRECTORY_INVALID');
+      }
+      chmodSync(path, DIRECTORY_MODE);
+      fsyncReceiptDirectory(path);
+      fsyncReceiptDirectory(parent);
+    } catch (error) {
+      if (error instanceof AuthBridgeNotificationPreparedReceiptError) throw error;
       fail('AUTH_BRIDGE_PREPARED_STATE_CREATE_FAILED');
     }
   }
@@ -203,7 +236,11 @@ function assertNoRepositoryOverlap(stateRoot, repositoryRoot) {
   }
 }
 
-function validateDedicatedReceiptDirectory(directory, uid) {
+function validateDedicatedReceiptDirectory(
+  directory,
+  uid,
+  testOnlyBeforeEntryMetadata,
+) {
   let entries;
   try {
     entries = readdirSync(directory, { withFileTypes: true });
@@ -211,20 +248,192 @@ function validateDedicatedReceiptDirectory(directory, uid) {
     fail('AUTH_BRIDGE_PREPARED_STATE_DIRECTORY_INVALID');
   }
   for (const entry of entries) {
-    if (!entry.isFile() || !RECEIPT_FILE.test(entry.name)) {
-      fail(TEMPORARY_FILE.test(entry.name)
-        ? 'AUTH_BRIDGE_PREPARED_INCOMPLETE_INSTALL'
-        : 'AUTH_BRIDGE_PREPARED_STATE_NOT_DEDICATED');
-    }
     const path = join(directory, entry.name);
-    const metadata = lstatSync(path);
+    let metadata;
+    try {
+      testOnlyBeforeEntryMetadata?.(path);
+      metadata = lstatSync(path);
+    } catch (error) {
+      // A live writer or linked-pair repair may remove an entry returned by
+      // readdir before this metadata read. The vanished name has no remaining
+      // authority to validate, and raw filesystem errors must never disclose
+      // the owner-private receipt path to a caller or CI log.
+      if (error?.code === 'ENOENT') continue;
+      fail('AUTH_BRIDGE_PREPARED_STATE_NOT_DEDICATED');
+    }
+    const receipt = RECEIPT_FILE.test(entry.name);
+    const unpublishedTemporary = TEMPORARY_FILE.test(entry.name);
+    const permissionMode = metadata.mode & 0o7777;
+    const safeUnpublishedMode = unpublishedTemporary
+      && metadata.nlink === 1
+      && (permissionMode & ~FILE_MODE) === 0;
     if (
-      metadata.isSymbolicLink()
+      (!receipt && !unpublishedTemporary)
+      || !entry.isFile()
+      || metadata.isSymbolicLink()
       || !metadata.isFile()
       || metadata.uid !== uid
-      || (metadata.mode & 0o7777) !== FILE_MODE
+      || (receipt ? permissionMode !== FILE_MODE : !safeUnpublishedMode)
       || metadata.nlink !== 1
+      || (unpublishedTemporary && metadata.size > MAX_RECEIPT_BYTES)
     ) fail('AUTH_BRIDGE_PREPARED_STATE_NOT_DEDICATED');
+  }
+}
+
+function fsyncReceiptDirectory(directory) {
+  const descriptor = openSync(
+    directory,
+    constants.O_RDONLY | (constants.O_DIRECTORY ?? 0),
+  );
+  try {
+    fsyncSync(descriptor);
+  } finally {
+    closeSync(descriptor);
+  }
+}
+
+function digestCanonicalReceiptFile(path, uid, expectedIdentity) {
+  let descriptor;
+  let bytes;
+  try {
+    descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const before = fstatSync(descriptor);
+    if (
+      !before.isFile()
+      || before.uid !== uid
+      || (before.mode & 0o7777) !== FILE_MODE
+      || (before.nlink !== 1 && before.nlink !== 2)
+      || before.dev !== expectedIdentity.dev
+      || before.ino !== expectedIdentity.ino
+      || before.size < 1
+      || before.size > MAX_RECEIPT_BYTES
+    ) fail('AUTH_BRIDGE_PREPARED_INCOMPLETE_INSTALL');
+    bytes = readFileSync(descriptor);
+    const after = fstatSync(descriptor);
+    if (
+      before.dev !== after.dev
+      || before.ino !== after.ino
+      || before.size !== after.size
+      || before.mtimeMs !== after.mtimeMs
+      || before.ctimeMs !== after.ctimeMs
+    ) fail('AUTH_BRIDGE_PREPARED_INCOMPLETE_INSTALL');
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    const receipt = parseAuthBridgeNotificationPreparedReceipt(JSON.parse(source));
+    const canonical = receiptBytes(receipt);
+    try {
+      if (!bytes.equals(canonical)) {
+        fail('AUTH_BRIDGE_PREPARED_INCOMPLETE_INSTALL');
+      }
+    } finally {
+      canonical.fill(0);
+    }
+    return Object.freeze({
+      digest: createHash('sha256').update(bytes).digest('hex'),
+      dev: before.dev,
+      ino: before.ino,
+      nlink: before.nlink,
+    });
+  } catch (error) {
+    if (error instanceof AuthBridgeNotificationPreparedReceiptError) throw error;
+    fail('AUTH_BRIDGE_PREPARED_INCOMPLETE_INSTALL');
+  } finally {
+    if (bytes !== undefined) bytes.fill(0);
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+function repairIncompleteReceiptPublications(directory, uid) {
+  let entries;
+  try {
+    entries = readdirSync(directory, { withFileTypes: true });
+  } catch {
+    fail('AUTH_BRIDGE_PREPARED_STATE_DIRECTORY_INVALID');
+  }
+  for (const entry of entries) {
+    const match = TEMPORARY_FILE.exec(entry.name);
+    if (match === null) continue;
+    const temporary = join(directory, entry.name);
+    let temporaryMetadata;
+    try {
+      temporaryMetadata = lstatSync(temporary);
+    } catch (error) {
+      if (error?.code === 'ENOENT') continue;
+      fail('AUTH_BRIDGE_PREPARED_INCOMPLETE_INSTALL');
+    }
+    const permissionMode = temporaryMetadata.mode & 0o7777;
+    const safePermissionMode = temporaryMetadata.nlink === 1
+      ? (permissionMode & ~FILE_MODE) === 0
+      : permissionMode === FILE_MODE;
+    if (
+      !entry.isFile()
+      || !temporaryMetadata.isFile()
+      || temporaryMetadata.isSymbolicLink()
+      || temporaryMetadata.uid !== uid
+      || !safePermissionMode
+      || (temporaryMetadata.nlink !== 1 && temporaryMetadata.nlink !== 2)
+    ) fail('AUTH_BRIDGE_PREPARED_INCOMPLETE_INSTALL');
+
+    if (temporaryMetadata.nlink === 2) {
+      const digest = match[1];
+      const destination = join(
+        directory,
+        `auth-bridge-notification-prepared-${digest}.json`,
+      );
+      let destinationMetadata;
+      try {
+        destinationMetadata = lstatSync(destination);
+      } catch {
+        fail('AUTH_BRIDGE_PREPARED_INCOMPLETE_INSTALL');
+      }
+      const opened = digestCanonicalReceiptFile(
+        destination,
+        uid,
+        temporaryMetadata,
+      );
+      if (
+        !destinationMetadata.isFile()
+        || destinationMetadata.isSymbolicLink()
+        || destinationMetadata.uid !== uid
+        || (destinationMetadata.mode & 0o7777) !== FILE_MODE
+        || (destinationMetadata.nlink !== 1 && destinationMetadata.nlink !== 2)
+        || destinationMetadata.dev !== temporaryMetadata.dev
+        || destinationMetadata.ino !== temporaryMetadata.ino
+        || opened.digest !== digest
+      ) fail('AUTH_BRIDGE_PREPARED_INCOMPLETE_INSTALL');
+      let repaired;
+      try {
+        if (opened.nlink === 2) {
+          try {
+            unlinkSync(temporary);
+          } catch (error) {
+            if (error?.code !== 'ENOENT') throw error;
+          }
+        } else {
+          try {
+            lstatSync(temporary);
+            fail('AUTH_BRIDGE_PREPARED_INCOMPLETE_INSTALL');
+          } catch (error) {
+            if (
+              error instanceof AuthBridgeNotificationPreparedReceiptError
+              || error?.code !== 'ENOENT'
+            ) throw error;
+          }
+        }
+        fsyncReceiptDirectory(directory);
+        repaired = lstatSync(destination);
+      } catch {
+        fail('AUTH_BRIDGE_PREPARED_INCOMPLETE_INSTALL');
+      }
+      if (
+        repaired.dev !== destinationMetadata.dev
+        || repaired.ino !== destinationMetadata.ino
+        || repaired.nlink !== 1
+      ) fail('AUTH_BRIDGE_PREPARED_INCOMPLETE_INSTALL');
+      continue;
+    }
+
+    // A one-link temporary has no published receipt authority. It may belong
+    // to a live writer, so readers leave it inert rather than racing its write.
   }
 }
 
@@ -235,6 +444,7 @@ function validateDedicatedReceiptDirectory(directory, uid) {
 export function ensureAuthBridgeNotificationPreparedReceiptDirectory({
   repositoryRoot,
   reportedHome,
+  testOnlyBeforeDedicatedEntryMetadata,
 } = {}) {
   if (typeof repositoryRoot !== 'string' || !isAbsolute(repositoryRoot)) {
     fail('AUTH_BRIDGE_PREPARED_REPOSITORY_INVALID');
@@ -276,7 +486,12 @@ export function ensureAuthBridgeNotificationPreparedReceiptDirectory({
     account.uid,
   );
   assertNoRepositoryOverlap(receipts, repositoryRoot);
-  validateDedicatedReceiptDirectory(receipts, account.uid);
+  repairIncompleteReceiptPublications(receipts, account.uid);
+  validateDedicatedReceiptDirectory(
+    receipts,
+    account.uid,
+    testOnlyBeforeDedicatedEntryMetadata,
+  );
   return receipts;
 }
 
@@ -466,16 +681,12 @@ export function writePrivateAuthBridgeNotificationPreparedReceipt({
         if (error?.code !== 'EEXIST') throw error;
         readExactReceipt(destination, bytes, uid);
       }
-      unlinkSync(temporary);
-      const directoryDescriptor = openSync(
-        directory,
-        constants.O_RDONLY | (constants.O_DIRECTORY ?? 0),
-      );
       try {
-        fsyncSync(directoryDescriptor);
-      } finally {
-        closeSync(directoryDescriptor);
+        unlinkSync(temporary);
+      } catch (error) {
+        if (error?.code !== 'ENOENT') throw error;
       }
+      fsyncReceiptDirectory(directory);
       readExactReceipt(destination, bytes, uid);
       return Object.freeze({
         path: destination,
@@ -504,6 +715,13 @@ function exactReceiptPath(directory, receiptPath) {
     fail('AUTH_BRIDGE_PREPARED_RECEIPT_PATH_INVALID');
   }
   return requested;
+}
+
+function exactReceiptDigest(value) {
+  if (typeof value !== 'string' || !SHA256_HEX.test(value)) {
+    fail('AUTH_BRIDGE_PREPARED_RECEIPT_DIGEST_INVALID');
+  }
+  return value;
 }
 
 /** Strictly reads canonical bytes from the dedicated private state directory. */
@@ -883,4 +1101,38 @@ export async function inspectPrivateAuthBridgeNotificationPreparedReceipt({
     reportedHome,
   });
   return verifyAuthBridgeNotificationPreparedReceipt({ receipt, fetchImpl, now });
+}
+
+/**
+ * Resolves only the exact content-addressed receipt named by `receiptDigest`,
+ * then performs the same strict private-file and fresh public-attestation
+ * checks as the path-based inspector.
+ */
+export async function inspectPrivateAuthBridgeNotificationPreparedReceiptByDigest({
+  receiptDigest,
+  repositoryRoot,
+  reportedHome,
+  fetchImpl = fetch,
+  now = new Date(),
+} = {}) {
+  const digest = exactReceiptDigest(receiptDigest);
+  const directory = ensureAuthBridgeNotificationPreparedReceiptDirectory({
+    repositoryRoot,
+    reportedHome,
+  });
+  const inspected = await inspectPrivateAuthBridgeNotificationPreparedReceipt({
+    receiptPath: join(
+      directory,
+      `auth-bridge-notification-prepared-${digest}.json`,
+    ),
+    repositoryRoot,
+    reportedHome,
+    fetchImpl,
+    now,
+  });
+  return Object.freeze({
+    receipt: inspected.receipt,
+    liveAttestation: inspected.liveAttestation,
+    receiptDigest: digest,
+  });
 }
