@@ -11,7 +11,9 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The complete 4,485-test root security suite takes about 9 minutes on the
+    # pinned local runner and can exceed 20 minutes on a cold hosted runner.
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0

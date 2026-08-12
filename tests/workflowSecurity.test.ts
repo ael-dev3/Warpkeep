@@ -269,6 +269,18 @@ describe('GitHub workflow security policy', () => {
     expect(timeoutCount).toBe(jobCount);
   });
 
+  it('gives the complete root suite a bounded hosted-runner allowance', () => {
+    const verifySource = workflow('verify.yml');
+    const pagesSource = workflow('deploy-pages.yml');
+    for (const job of [
+      verifySource.slice(verifySource.indexOf('  verify:'), verifySource.indexOf('  auth-bridge:')),
+      pagesSource.slice(pagesSource.indexOf('  build:'), pagesSource.indexOf('  deploy:')),
+    ]) {
+      expect(job).toMatch(/\n    timeout-minutes: 45\n/u);
+      expect(job).toContain('npm test -- --maxWorkers=2');
+    }
+  });
+
   it('uses a checksum-verified CLI archive and never pipes a remote installer to a shell', () => {
     const source = workflow('verify.yml');
     expect(source).not.toContain('install.spacetimedb.com');
