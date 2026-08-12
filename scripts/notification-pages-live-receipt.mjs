@@ -64,8 +64,10 @@ export const NOTIFICATION_PAGES_LIVE_PROTECTED_PATHS = Object.freeze([
   'scripts/auth-bridge-config-attestation.mjs',
   'scripts/auth-bridge-notification-prepared-receipt.mjs',
   'scripts/auth-bridge-notification-prepared-release-binding.mjs',
+  'scripts/entry-agreement-policy.mjs',
   'scripts/farcaster-miniapp-contract.mjs',
   'scripts/hermes-admin.ts',
+  'scripts/notification-pages-private-handoff.mjs',
   'scripts/notification-pages-live-receipt.mjs',
   'scripts/production-admin-token-budget.mjs',
   'scripts/qa-observer/local-vite-fs-deny.mjs',
@@ -2093,12 +2095,6 @@ function installReceipt({
         chainRootPagesSourceCommit: existingSource.chainRootPagesSourceCommit,
       });
     }
-    const proposedDigest = digest(proposedBytes);
-    const chainRoot = chainRootForNewReceipt(
-      receipt,
-      proposedDigest,
-      inventory,
-    );
     const reserved = reserveReceiptSource({
       directory: canonicalDirectory,
       receipt,
@@ -2108,6 +2104,11 @@ function installReceipt({
     installedBytes = reserved.bytes;
     const installedReceipt = reserved.receipt;
     const receiptDigest = reserved.receiptDigest;
+    const chainRoot = chainRootForNewReceipt(
+      installedReceipt,
+      receiptDigest,
+      inventory,
+    );
     const basename = `notification-pages-live-${receiptDigest}.json`;
     const installed = installCanonicalPrivateBytes({
       directory: canonicalDirectory,

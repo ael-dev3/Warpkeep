@@ -49,7 +49,13 @@ const HEAD_TREE = execFileSync(
   ['rev-parse', '--verify', 'HEAD^{tree}'],
   { cwd: process.cwd(), encoding: 'utf8' },
 ).trim();
+const PREDECESSOR_COMMIT = execFileSync(
+  '/usr/bin/git',
+  ['rev-parse', '--verify', 'HEAD^^{commit}'],
+  { cwd: process.cwd(), encoding: 'utf8' },
+).trim();
 const DRIFT_SOURCE_COMMIT = '5018d49747ffdddcc6037f5035503e1fe754675e';
+const EXPECTED_ROOT_DIGEST = 'd'.repeat(64);
 const DIGEST = 'e'.repeat(64);
 const DEPLOYED_RECORDED_AT = '2026-08-13T11:40:00.000Z';
 const ACTIVE_RECORDED_AT = '2026-08-13T11:50:00.000Z';
@@ -74,7 +80,8 @@ const FRONTEND_HTML = '<!doctype html><html><head>'
   + '</head><body><div id="root"></div>'
   + '<script type="module" src="/assets/app.js"></script>'
   + '</body></html>';
-const DYNAMIC_ASSET_REFERENCE = 'import(`./notification.js`);\n';
+const DYNAMIC_ASSET_REFERENCE = 'const deps=["assets/notification.css"];'
+  + 'import(`./notification.js`);\n';
 
 function sha256(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex');
@@ -187,11 +194,21 @@ function frontendLeafSource(): string {
   return 'export const a=1;\n';
 }
 
+function frontendNotificationCssSource(suffix = ''): string {
+  return '.notification{background-image:url(/assets/bell.svg)}\n' + suffix;
+}
+
+function frontendBellSource(): string {
+  return '<svg xmlns="http://www.w3.org/2000/svg"><path d="M1 1"/></svg>\n';
+}
+
 function expectedFrontendDigest(buildSha: string, suffix = ''): string {
   const document = Buffer.from(FRONTEND_HTML, 'utf8');
   const asset = Buffer.from(frontendAssetSource(buildSha, suffix), 'utf8');
   const notification = Buffer.from(frontendNotificationSource(), 'utf8');
   const leaf = Buffer.from(frontendLeafSource(), 'utf8');
+  const notificationCss = Buffer.from(frontendNotificationCssSource(), 'utf8');
+  const bell = Buffer.from(frontendBellSource(), 'utf8');
   const manifest = {
     schemaVersion: 1,
     kind: 'warpkeep-notification-pages-live-frontend-manifest-v1',
@@ -214,11 +231,25 @@ function expectedFrontendDigest(buildSha: string, suffix = ''): string {
         sha256: sha256(asset),
       },
       {
+        url: 'https://warpkeep.com/assets/bell.svg',
+        status: 200,
+        contentType: 'image/svg+xml',
+        byteLength: bell.byteLength,
+        sha256: sha256(bell),
+      },
+      {
         url: 'https://warpkeep.com/assets/leaf.js',
         status: 200,
         contentType: 'application/javascript; charset=utf-8',
         byteLength: leaf.byteLength,
         sha256: sha256(leaf),
+      },
+      {
+        url: 'https://warpkeep.com/assets/notification.css',
+        status: 200,
+        contentType: 'text/css; charset=utf-8',
+        byteLength: notificationCss.byteLength,
+        sha256: sha256(notificationCss),
       },
       {
         url: 'https://warpkeep.com/assets/notification.js',
@@ -242,6 +273,7 @@ function liveFetch(options: Readonly<{
   responseDate?: Date;
   assetSuffix?: string;
   notificationSuffix?: string;
+  notificationCssSuffix?: string;
   presentationEnabled?: boolean;
 }> = {}): ReturnType<typeof vi.fn> {
   const now = options.now ?? NOW;
@@ -286,6 +318,21 @@ function liveFetch(options: Readonly<{
         headers: {
           'content-type': 'application/javascript; charset=utf-8',
         },
+      });
+    }
+    if (url === 'https://warpkeep.com/assets/notification.css') {
+      return new Response(
+        frontendNotificationCssSource(options.notificationCssSuffix),
+        {
+          status: 200,
+          headers: { 'content-type': 'text/css; charset=utf-8' },
+        },
+      );
+    }
+    if (url === 'https://warpkeep.com/assets/bell.svg') {
+      return new Response(frontendBellSource(), {
+        status: 200,
+        headers: { 'content-type': 'image/svg+xml' },
       });
     }
     throw new Error(`Unexpected URL: ${url}`);
@@ -475,6 +522,16 @@ async function writeLiveReceipt(
   return Object.freeze({ targetWorkspace, handoff, result, fetchImpl });
 }
 
+function rootExpectation(result: Readonly<{
+  chainRootReceiptDigest: string;
+  chainRootPagesSourceCommit: string;
+}>) {
+  return {
+    expectedChainRootReceiptDigest: result.chainRootReceiptDigest,
+    expectedChainRootPagesSourceCommit: result.chainRootPagesSourceCommit,
+  };
+}
+
 function deepMutableReceipt(receipt: NotificationPagesLiveReceipt) {
   return JSON.parse(JSON.stringify(receipt)) as Record<string, any>;
 }
@@ -513,7 +570,9 @@ describe('notification Pages ongoing live receipt', () => {
       AUTH_BRIDGE_RELEASE_ATTESTATION_URL,
       'https://warpkeep.com/',
       'https://warpkeep.com/assets/app.js',
+      'https://warpkeep.com/assets/notification.css',
       'https://warpkeep.com/assets/notification.js',
+      'https://warpkeep.com/assets/bell.svg',
       'https://warpkeep.com/assets/leaf.js',
       AUTH_BRIDGE_RELEASE_ATTESTATION_URL,
     ]);
@@ -534,7 +593,7 @@ describe('notification Pages ongoing live receipt', () => {
           sourceCommit: HEAD_COMMIT,
           liveBuildSha: HEAD_COMMIT,
           liveFrontendDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
-          rootAssetCount: 3,
+          rootAssetCount: 5,
           notificationsPresentationEnabled: true,
           hermesExecutionApprovedAtActivation: false,
         },
@@ -566,6 +625,19 @@ describe('notification Pages ongoing live receipt', () => {
     expect(sha256(readFileSync(written.result.path))).toBe(
       written.result.receiptDigest,
     );
+    expect(written.result.chainRootReceiptDigest).toBe(
+      written.result.receiptDigest,
+    );
+    expect(written.result.chainRootPagesSourceCommit).toBe(HEAD_COMMIT);
+    const sourceReservation = join(
+      written.targetWorkspace.directory,
+      `notification-pages-live-source-${HEAD_COMMIT}.json`,
+    );
+    expect(statSync(sourceReservation).mode & 0o7777).toBe(0o600);
+    expect(statSync(sourceReservation).nlink).toBe(1);
+    expect(statSync(sourceReservation).ino).not.toBe(
+      statSync(written.result.path).ino,
+    );
   });
 
   it('does not expire with preparation and re-fetches exact Pages and bridge state on every exact read', async () => {
@@ -575,6 +647,7 @@ describe('notification Pages ongoing live receipt', () => {
       directory: written.targetWorkspace.directory,
       repositoryRoot: written.targetWorkspace.repositoryRoot,
       pagesSourceCommit: HEAD_COMMIT,
+      ...rootExpectation(written.result),
       fetchImpl: firstFetch as unknown as typeof fetch,
       now: AFTER_PREPARED_EXPIRY,
     });
@@ -583,6 +656,7 @@ describe('notification Pages ongoing live receipt', () => {
       directory: written.targetWorkspace.directory,
       repositoryRoot: written.targetWorkspace.repositoryRoot,
       pagesSourceCommit: HEAD_COMMIT,
+      ...rootExpectation(written.result),
       fetchImpl: secondFetch as unknown as typeof fetch,
       now: AFTER_PREPARED_EXPIRY,
     });
@@ -592,11 +666,13 @@ describe('notification Pages ongoing live receipt', () => {
     expect(firstFetch.mock.calls.map(call => String(call[0]))).toEqual([
       'https://warpkeep.com/',
       'https://warpkeep.com/assets/app.js',
+      'https://warpkeep.com/assets/notification.css',
       'https://warpkeep.com/assets/notification.js',
+      'https://warpkeep.com/assets/bell.svg',
       'https://warpkeep.com/assets/leaf.js',
       AUTH_BRIDGE_RELEASE_ATTESTATION_URL,
     ]);
-    expect(secondFetch).toHaveBeenCalledTimes(5);
+    expect(secondFetch).toHaveBeenCalledTimes(7);
   });
 
   it('fails closed for missing sources, wrong live builds, bridge mismatches, and stale bridge evidence', async () => {
@@ -610,12 +686,25 @@ describe('notification Pages ongoing live receipt', () => {
       directory: missingWorkspace.directory,
       repositoryRoot: missingWorkspace.repositoryRoot,
       pagesSourceCommit: HEAD_COMMIT,
+      expectedChainRootReceiptDigest: EXPECTED_ROOT_DIGEST,
+      expectedChainRootPagesSourceCommit: HEAD_COMMIT,
       fetchImpl: missingFetch as unknown as typeof fetch,
       now: NOW,
     })).rejects.toThrow('NOTIFICATION_PAGES_LIVE_RECEIPT_NOT_FOUND');
     expect(missingFetch).not.toHaveBeenCalled();
 
     const written = await writeLiveReceipt();
+    const wrongRootFetch = liveFetch();
+    await expect(inspectPrivateNotificationPagesLiveReceiptByPagesSourceCommit({
+      directory: written.targetWorkspace.directory,
+      repositoryRoot: written.targetWorkspace.repositoryRoot,
+      pagesSourceCommit: HEAD_COMMIT,
+      expectedChainRootReceiptDigest: EXPECTED_ROOT_DIGEST,
+      expectedChainRootPagesSourceCommit: HEAD_COMMIT,
+      fetchImpl: wrongRootFetch as unknown as typeof fetch,
+      now: NOW,
+    })).rejects.toThrow('NOTIFICATION_PAGES_LIVE_CHAIN_ROOT_MISMATCH');
+    expect(wrongRootFetch).not.toHaveBeenCalled();
     const dynamicMutationFetch = liveFetch({
       notificationSuffix: '// mutated notification chunk\n',
     });
@@ -623,16 +712,29 @@ describe('notification Pages ongoing live receipt', () => {
       directory: written.targetWorkspace.directory,
       repositoryRoot: written.targetWorkspace.repositoryRoot,
       pagesSourceCommit: HEAD_COMMIT,
+      ...rootExpectation(written.result),
       fetchImpl: dynamicMutationFetch as unknown as typeof fetch,
       now: NOW,
     })).rejects.toThrow('NOTIFICATION_PAGES_LIVE_FRONTEND_CONTENT_MISMATCH');
     expect(dynamicMutationFetch.mock.calls.map(call => String(call[0])))
       .toContain('https://warpkeep.com/assets/notification.js');
+    const cssMutationFetch = liveFetch({
+      notificationCssSuffix: '/* hide opt-in */\n',
+    });
+    await expect(inspectPrivateNotificationPagesLiveReceiptByPagesSourceCommit({
+      directory: written.targetWorkspace.directory,
+      repositoryRoot: written.targetWorkspace.repositoryRoot,
+      pagesSourceCommit: HEAD_COMMIT,
+      ...rootExpectation(written.result),
+      fetchImpl: cssMutationFetch as unknown as typeof fetch,
+      now: NOW,
+    })).rejects.toThrow('NOTIFICATION_PAGES_LIVE_FRONTEND_CONTENT_MISMATCH');
     const offPresentationFetch = liveFetch({ presentationEnabled: false });
     await expect(inspectPrivateNotificationPagesLiveReceiptByPagesSourceCommit({
       directory: written.targetWorkspace.directory,
       repositoryRoot: written.targetWorkspace.repositoryRoot,
       pagesSourceCommit: HEAD_COMMIT,
+      ...rootExpectation(written.result),
       fetchImpl: offPresentationFetch as unknown as typeof fetch,
       now: NOW,
     })).rejects.toThrow('NOTIFICATION_PAGES_LIVE_PRESENTATION_MARKER_INVALID');
@@ -641,6 +743,7 @@ describe('notification Pages ongoing live receipt', () => {
       directory: written.targetWorkspace.directory,
       repositoryRoot: written.targetWorkspace.repositoryRoot,
       pagesSourceCommit: HEAD_COMMIT,
+      ...rootExpectation(written.result),
       fetchImpl: wrongBuildFetch as unknown as typeof fetch,
       now: NOW,
     })).rejects.toThrow('NOTIFICATION_PAGES_LIVE_FRONTEND_MISMATCH');
@@ -653,6 +756,7 @@ describe('notification Pages ongoing live receipt', () => {
       directory: written.targetWorkspace.directory,
       repositoryRoot: written.targetWorkspace.repositoryRoot,
       pagesSourceCommit: HEAD_COMMIT,
+      ...rootExpectation(written.result),
       fetchImpl: mismatchFetch as unknown as typeof fetch,
       now: NOW,
     })).rejects.toThrow('NOTIFICATION_PAGES_LIVE_BRIDGE_ATTESTATION_MISMATCH');
@@ -665,6 +769,7 @@ describe('notification Pages ongoing live receipt', () => {
       directory: written.targetWorkspace.directory,
       repositoryRoot: written.targetWorkspace.repositoryRoot,
       pagesSourceCommit: HEAD_COMMIT,
+      ...rootExpectation(written.result),
       fetchImpl: staleFetch as unknown as typeof fetch,
       now: AFTER_PREPARED_EXPIRY,
     })).rejects.toThrow('NOTIFICATION_PAGES_LIVE_BRIDGE_ATTESTATION_INVALID');
@@ -677,6 +782,7 @@ describe('notification Pages ongoing live receipt', () => {
       directory: written.targetWorkspace.directory,
       repositoryRoot: written.targetWorkspace.repositoryRoot,
       candidatePagesSourceCommit: HEAD_COMMIT,
+      ...rootExpectation(written.result),
       fetchImpl: noDriftFetch as unknown as typeof fetch,
       now: AFTER_PREPARED_EXPIRY,
     });
@@ -684,6 +790,7 @@ describe('notification Pages ongoing live receipt', () => {
       candidatePagesSourceCommit: HEAD_COMMIT,
       livePagesSourceCommit: HEAD_COMMIT,
       receiptDigest: written.result.receiptDigest,
+      candidateAlreadyLive: true,
     });
 
     const driftWorkspace = workspace('warpkeep-pages-live-drift-');
@@ -698,7 +805,7 @@ describe('notification Pages ongoing live receipt', () => {
     old.sourceRelease.moduleSourceCommit = DRIFT_SOURCE_COMMIT;
     old.preparedBinding.bridgeSourceCommit = DRIFT_SOURCE_COMMIT;
     old.preparedBinding.liveAttestationDigest = old.bridge.liveAttestationDigest;
-    writeCanonicalReceiptFixture(driftWorkspace, old);
+    const installedOld = writeCanonicalReceiptFixture(driftWorkspace, old);
     const driftFetch = liveFetch({
       buildSha: DRIFT_SOURCE_COMMIT,
       attestation: releaseAttestation(DRIFT_SOURCE_COMMIT),
@@ -708,10 +815,12 @@ describe('notification Pages ongoing live receipt', () => {
       directory: driftWorkspace.directory,
       repositoryRoot: driftWorkspace.repositoryRoot,
       candidatePagesSourceCommit: HEAD_COMMIT,
+      expectedChainRootReceiptDigest: installedOld.receiptDigest,
+      expectedChainRootPagesSourceCommit: DRIFT_SOURCE_COMMIT,
       fetchImpl: driftFetch as unknown as typeof fetch,
       now: NOW,
-    })).rejects.toThrow('NOTIFICATION_PAGES_LIVE_FRONTEND_CONTENT_MISMATCH');
-    expect(driftFetch).toHaveBeenCalled();
+    })).rejects.toThrow('NOTIFICATION_PAGES_LIVE_CANDIDATE_NOTIFICATION_DRIFT');
+    expect(driftFetch).not.toHaveBeenCalled();
   });
 
   it('repairs the exact nlink=2 publication suffix and rejects hard-link or inventory pollution', async () => {
@@ -730,6 +839,7 @@ describe('notification Pages ongoing live receipt', () => {
     expect(lstatSync(written.result.path).nlink).toBe(1);
     expect(readdirSync(written.targetWorkspace.directory)).toEqual([
       `notification-pages-live-${written.result.receiptDigest}.json`,
+      `notification-pages-live-source-${HEAD_COMMIT}.json`,
     ]);
 
     const hardLink = join(
@@ -740,7 +850,53 @@ describe('notification Pages ongoing live receipt', () => {
     expect(() => ensureNotificationPagesLiveReceiptDirectory({
       directory: written.targetWorkspace.directory,
       repositoryRoot: written.targetWorkspace.repositoryRoot,
-    })).toThrow('NOTIFICATION_PAGES_LIVE_DIRECTORY_NOT_DEDICATED');
+    })).toThrow('NOTIFICATION_PAGES_LIVE_RECEIPT_FILE_INVALID');
+
+    const sourceCrashWorkspace = workspace('warpkeep-pages-live-source-crash-');
+    ensureNotificationPagesLiveReceiptDirectory({
+      directory: sourceCrashWorkspace.directory,
+      repositoryRoot: sourceCrashWorkspace.repositoryRoot,
+    });
+    const sourceOnlyPath = join(
+      sourceCrashWorkspace.directory,
+      `notification-pages-live-source-${HEAD_COMMIT}.json`,
+    );
+    writePrivate(sourceOnlyPath, readFileSync(written.result.path));
+    expect(ensureNotificationPagesLiveReceiptDirectory({
+      directory: sourceCrashWorkspace.directory,
+      repositoryRoot: sourceCrashWorkspace.repositoryRoot,
+    })).toBe(sourceCrashWorkspace.directory);
+    const repairedContentPath = join(
+      sourceCrashWorkspace.directory,
+      `notification-pages-live-${written.result.receiptDigest}.json`,
+    );
+    expect(sha256(readFileSync(repairedContentPath))).toBe(
+      written.result.receiptDigest,
+    );
+    expect(statSync(sourceOnlyPath).nlink).toBe(1);
+    expect(statSync(repairedContentPath).nlink).toBe(1);
+    expect(statSync(sourceOnlyPath).ino).not.toBe(
+      statSync(repairedContentPath).ino,
+    );
+
+    const contentCrashWorkspace = workspace('warpkeep-pages-live-content-crash-');
+    ensureNotificationPagesLiveReceiptDirectory({
+      directory: contentCrashWorkspace.directory,
+      repositoryRoot: contentCrashWorkspace.repositoryRoot,
+    });
+    const contentOnlyPath = join(
+      contentCrashWorkspace.directory,
+      `notification-pages-live-${written.result.receiptDigest}.json`,
+    );
+    writePrivate(contentOnlyPath, readFileSync(written.result.path));
+    expect(ensureNotificationPagesLiveReceiptDirectory({
+      directory: contentCrashWorkspace.directory,
+      repositoryRoot: contentCrashWorkspace.repositoryRoot,
+    })).toBe(contentCrashWorkspace.directory);
+    expect(readFileSync(join(
+      contentCrashWorkspace.directory,
+      `notification-pages-live-source-${HEAD_COMMIT}.json`,
+    ))).toEqual(readFileSync(contentOnlyPath));
 
     const boundedWorkspace = workspace('warpkeep-pages-live-bounded-');
     ensureNotificationPagesLiveReceiptDirectory({
@@ -763,27 +919,27 @@ describe('notification Pages ongoing live receipt', () => {
   it('promotes a verified candidate into a replay-safe successor chain', async () => {
     const targetWorkspace = workspace('warpkeep-pages-live-promote-');
     const previous = deepMutableReceipt((await writeLiveReceipt()).result.receipt);
-    previous.pages.sourceCommit = '5018d49747ffdddcc6037f5035503e1fe754675e';
+    previous.pages.sourceCommit = PREDECESSOR_COMMIT;
     previous.pages.liveBuildSha = previous.pages.sourceCommit;
     previous.pages.liveFrontendDigest = expectedFrontendDigest(
       previous.pages.sourceCommit,
     );
-    previous.bridge.sourceCommit = DRIFT_SOURCE_COMMIT;
-    previous.bridge.liveAttestation.bridgeSourceCommit = DRIFT_SOURCE_COMMIT;
+    previous.bridge.sourceCommit = PREDECESSOR_COMMIT;
+    previous.bridge.liveAttestation.bridgeSourceCommit = PREDECESSOR_COMMIT;
     previous.bridge.liveAttestationDigest =
       canonicalAuthBridgeReleaseAttestationDigest(
         previous.bridge.liveAttestation,
       );
-    previous.sourceRelease.atlasSourceCommit = DRIFT_SOURCE_COMMIT;
-    previous.sourceRelease.moduleSourceCommit = DRIFT_SOURCE_COMMIT;
-    previous.preparedBinding.bridgeSourceCommit = DRIFT_SOURCE_COMMIT;
+    previous.sourceRelease.atlasSourceCommit = PREDECESSOR_COMMIT;
+    previous.sourceRelease.moduleSourceCommit = PREDECESSOR_COMMIT;
+    previous.preparedBinding.bridgeSourceCommit = PREDECESSOR_COMMIT;
     previous.preparedBinding.liveAttestationDigest =
       previous.bridge.liveAttestationDigest;
     const installedPrevious = writeCanonicalReceiptFixture(
       targetWorkspace,
       previous,
     );
-    const oldBridge = releaseAttestation(DRIFT_SOURCE_COMMIT);
+    const oldBridge = releaseAttestation(PREDECESSOR_COMMIT);
     const authorityFetch = liveFetch({
       buildSha: previous.pages.sourceCommit,
       attestation: oldBridge,
@@ -792,10 +948,15 @@ describe('notification Pages ongoing live receipt', () => {
       directory: targetWorkspace.directory,
       repositoryRoot: targetWorkspace.repositoryRoot,
       candidatePagesSourceCommit: HEAD_COMMIT,
+      expectedChainRootReceiptDigest: installedPrevious.receiptDigest,
+      expectedChainRootPagesSourceCommit: PREDECESSOR_COMMIT,
       fetchImpl: authorityFetch as unknown as typeof fetch,
       now: NOW,
       randomBytesImpl: size => Buffer.alloc(size, 8),
     });
+    if (authority.candidateAlreadyLive) {
+      throw new Error('expected a future-candidate authority');
+    }
     expect(authority.candidateAuthorityPath).toBe(join(
       targetWorkspace.directory,
       `notification-pages-candidate-${authority.candidateAuthorityDigest}.json`,
@@ -806,7 +967,6 @@ describe('notification Pages ongoing live receipt', () => {
     expect(statSync(authority.candidateAuthorityPath).mode & 0o7777).toBe(0o600);
     expect(statSync(authority.candidateAuthorityPath).nlink).toBe(1);
 
-    const persistedAuthority = JSON.parse(JSON.stringify(authority));
     const candidateTemporary = join(
       targetWorkspace.directory,
       `.notification-pages-candidate-${authority.candidateAuthorityDigest}`
@@ -827,8 +987,10 @@ describe('notification Pages ongoing live receipt', () => {
     const promoted = await promoteNotificationPagesLiveReceipt({
       directory: targetWorkspace.directory,
       repositoryRoot: targetWorkspace.repositoryRoot,
-      candidateAuthority: persistedAuthority,
+      candidateAuthorityDigest: authority.candidateAuthorityDigest,
       candidatePagesSourceCommit: HEAD_COMMIT,
+      expectedChainRootReceiptDigest: installedPrevious.receiptDigest,
+      expectedChainRootPagesSourceCommit: PREDECESSOR_COMMIT,
       fetchImpl: promotedFetch as unknown as typeof fetch,
       now: new Date(NOW.getTime() + 1),
       randomBytesImpl: size => Buffer.alloc(size, 5),
@@ -844,7 +1006,7 @@ describe('notification Pages ongoing live receipt', () => {
         pages: {
           sourceCommit: HEAD_COMMIT,
           liveBuildSha: HEAD_COMMIT,
-          rootAssetCount: 3,
+          rootAssetCount: 5,
         },
       },
     });
@@ -859,8 +1021,10 @@ describe('notification Pages ongoing live receipt', () => {
     const replay = await promoteNotificationPagesLiveReceipt({
       directory: targetWorkspace.directory,
       repositoryRoot: targetWorkspace.repositoryRoot,
-      candidateAuthority: persistedAuthority,
+      candidateAuthorityDigest: authority.candidateAuthorityDigest,
       candidatePagesSourceCommit: HEAD_COMMIT,
+      expectedChainRootReceiptDigest: installedPrevious.receiptDigest,
+      expectedChainRootPagesSourceCommit: PREDECESSOR_COMMIT,
       fetchImpl: replayFetch as unknown as typeof fetch,
       now: new Date(NOW.getTime() + 2),
       randomBytesImpl: size => Buffer.alloc(size, 6),
@@ -879,6 +1043,8 @@ describe('notification Pages ongoing live receipt', () => {
       directory: targetWorkspace.directory,
       repositoryRoot: targetWorkspace.repositoryRoot,
       pagesSourceCommit: previous.pages.sourceCommit,
+      expectedChainRootReceiptDigest: installedPrevious.receiptDigest,
+      expectedChainRootPagesSourceCommit: PREDECESSOR_COMMIT,
       fetchImpl: afterPromotionFetch as unknown as typeof fetch,
       now: new Date(NOW.getTime() + 3),
     })).rejects.toThrow('NOTIFICATION_PAGES_LIVE_EXPECTED_PAGES_SOURCE_NOT_HEAD');
@@ -892,6 +1058,8 @@ describe('notification Pages ongoing live receipt', () => {
       directory: targetWorkspace.directory,
       repositoryRoot: targetWorkspace.repositoryRoot,
       pagesSourceCommit: HEAD_COMMIT,
+      expectedChainRootReceiptDigest: installedPrevious.receiptDigest,
+      expectedChainRootPagesSourceCommit: PREDECESSOR_COMMIT,
       fetchImpl: exactSuccessorFetch as unknown as typeof fetch,
       now: new Date(NOW.getTime() + 3),
     })).resolves.toMatchObject({ receiptDigest: promoted.receiptDigest });
@@ -904,6 +1072,8 @@ describe('notification Pages ongoing live receipt', () => {
       directory: targetWorkspace.directory,
       repositoryRoot: targetWorkspace.repositoryRoot,
       pagesSourceCommit: 'not-a-commit',
+      expectedChainRootReceiptDigest: EXPECTED_ROOT_DIGEST,
+      expectedChainRootPagesSourceCommit: HEAD_COMMIT,
       fetchImpl: fetchImpl as unknown as typeof fetch,
       now: NOW,
     })).rejects.toThrow('NOTIFICATION_PAGES_LIVE_EXPECTED_PAGES_SOURCE_INVALID');
@@ -912,6 +1082,8 @@ describe('notification Pages ongoing live receipt', () => {
       directory: targetWorkspace.directory,
       repositoryRoot: targetWorkspace.repositoryRoot,
       candidatePagesSourceCommit: DRIFT_SOURCE_COMMIT,
+      expectedChainRootReceiptDigest: EXPECTED_ROOT_DIGEST,
+      expectedChainRootPagesSourceCommit: HEAD_COMMIT,
       fetchImpl: fetchImpl as unknown as typeof fetch,
       now: NOW,
     })).rejects.toThrow('NOTIFICATION_PAGES_LIVE_CANDIDATE_NOT_HEAD');

@@ -104,18 +104,29 @@ export type NotificationPagesLiveInspection = Readonly<{
   receiptDigest: string;
   receipt: NotificationPagesLiveReceipt;
   preparedBinding: NotificationPagesLivePreparedBinding;
+  chainRootReceiptDigest: string;
+  chainRootPagesSourceCommit: string;
   liveAttestation: Readonly<Record<string, unknown>>;
 }>;
 
-export type NotificationPagesLiveCandidateAuthority = Readonly<
-  NotificationPagesLiveInspection & {
+export type NotificationPagesLiveCandidateAuthority =
+  NotificationPagesLiveInspection & Readonly<{
     candidatePagesSourceCommit: string;
     livePagesSourceCommit: string;
-    candidateAuthorityPath: string;
-    candidateAuthorityDigest: string;
-    candidateAuthority: Readonly<Record<string, unknown>>;
-  }
->;
+  }> & (
+    Readonly<{
+      candidateAlreadyLive: true;
+      candidateAuthorityPath: null;
+      candidateAuthorityDigest: null;
+      candidateAuthority: null;
+    }>
+    | Readonly<{
+      candidateAlreadyLive: false;
+      candidateAuthorityPath: string;
+      candidateAuthorityDigest: string;
+      candidateAuthority: Readonly<Record<string, unknown>>;
+    }>
+  );
 
 export function parseNotificationPagesLiveReceipt(
   value: unknown,
@@ -145,6 +156,8 @@ export function writePrivateNotificationPagesLiveReceipt(options: Readonly<{
   result: 'installed' | 'unchanged';
   receipt: NotificationPagesLiveReceipt;
   preparedBinding: NotificationPagesLivePreparedBinding;
+  chainRootReceiptDigest: string;
+  chainRootPagesSourceCommit: string;
 }>>;
 
 export function inspectPrivateNotificationPagesLiveReceiptByPagesSourceCommit(
@@ -152,6 +165,8 @@ export function inspectPrivateNotificationPagesLiveReceiptByPagesSourceCommit(
     directory: string;
     repositoryRoot: string;
     pagesSourceCommit: string;
+    expectedChainRootReceiptDigest: string;
+    expectedChainRootPagesSourceCommit: string;
     fetchImpl?: typeof fetch;
     now?: Date;
   }>,
@@ -162,6 +177,9 @@ export function inspectLatestPrivateNotificationPagesLiveReceiptForCandidate(
     directory: string;
     repositoryRoot: string;
     candidatePagesSourceCommit: string;
+    expectedChainRootReceiptDigest: string;
+    expectedChainRootPagesSourceCommit: string;
+    stagedHandoffExpectations?: NotificationPagesPrivateHandoffExpectations;
     fetchImpl?: typeof fetch;
     now?: Date;
     randomBytesImpl?: (size: number) => Buffer;
@@ -171,9 +189,10 @@ export function inspectLatestPrivateNotificationPagesLiveReceiptForCandidate(
 export function promoteNotificationPagesLiveReceipt(options: Readonly<{
   directory: string;
   repositoryRoot: string;
-  candidateAuthority: NotificationPagesLiveCandidateAuthority;
+  candidateAuthorityDigest: string;
   candidatePagesSourceCommit: string;
-  stagedHandoffExpectations?: NotificationPagesPrivateHandoffExpectations;
+  expectedChainRootReceiptDigest: string;
+  expectedChainRootPagesSourceCommit: string;
   fetchImpl?: typeof fetch;
   now?: Date;
   randomBytesImpl?: (size: number) => Buffer;
@@ -183,4 +202,7 @@ export function promoteNotificationPagesLiveReceipt(options: Readonly<{
   result: 'installed' | 'unchanged';
   receipt: NotificationPagesLiveReceipt;
   preparedBinding: NotificationPagesLivePreparedBinding;
+  chainRootReceiptDigest: string;
+  chainRootPagesSourceCommit: string;
+  liveAttestation?: Readonly<Record<string, unknown>>;
 }>>;
