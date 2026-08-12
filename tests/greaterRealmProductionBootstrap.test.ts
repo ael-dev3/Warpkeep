@@ -12,6 +12,7 @@ import {
   readFileSync,
   realpathSync,
   readdirSync,
+  renameSync,
   rmSync,
   symlinkSync,
   unlinkSync,
@@ -1024,10 +1025,21 @@ describe('Greater Realm production bootstrap', () => {
       'cleanup', home, mismatchId, String(mismatch.confirmationDigest),
     )).toMatchObject({ status: 1 });
 
+    const missingRecordRoot = allocateLifecycle(home);
+    const missingRecordId = basename(missingRecordRoot);
+    unlinkSync(join(missingRecordRoot, 'launch-record.json'));
+    const missingRecord = inspectLifecycle(home, missingRecordId);
+    expect(missingRecord.blockers).toEqual(expect.arrayContaining([
+      'authority-launch-record-missing',
+    ]));
+    expect(missingRecord.deletionEligible).toBe(false);
+
     const replacedRoot = allocateLifecycle(home);
     const replacedId = basename(replacedRoot);
+    const replacementRoot = `${replacedRoot}-replacement`;
+    mkdirSync(replacementRoot, { mode: 0o700 });
     rmSync(replacedRoot, { recursive: true });
-    mkdirSync(replacedRoot, { mode: 0o700 });
+    renameSync(replacementRoot, replacedRoot);
     const replaced = inspectLifecycle(home, replacedId);
     expect(replaced.blockers).toEqual(expect.arrayContaining([
       'authority-run-identity-mismatch',

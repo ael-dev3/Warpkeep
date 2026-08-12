@@ -214,7 +214,7 @@ describe('connected active Greater Realm population proof boundary', () => {
     expect(runner).toContain('void promise.catch(() => {');
     expect(runner).not.toContain('waitForWorkersIdle');
     expect(runner.indexOf('startObservation(cancelled => observeWorkersReturn('))
-      .toBeLessThan(runner.indexOf("await callers.callAdmin('rehearsal_halt_greater_realm_activation_v1')"));
+      .toBeLessThan(runner.indexOf('await callers.callAdmin(GREATER_REALM_CONNECTED_PRODUCTION_REDUCERS.halt)'));
     expect(haltedProof.indexOf('startObservation(cancelled => observeWorkersReturn('))
       .toBeLessThan(haltedProof.indexOf('const halted = await readActivationCounters('));
     expect(haltedProof.indexOf('outputs.push(...await returnObservation.promise);'))
@@ -245,7 +245,8 @@ describe('connected active Greater Realm population proof boundary', () => {
       "test('skewed truncation reserves the nearest six of every available kind'",
     );
     expect(resourceLocationAuthorityTest).toContain('assert.equal(batch.truncated, true)');
-    expect(runner).toContain("'rehearsal_halt_greater_realm_activation_v1'");
+    expect(runner).toContain('GREATER_REALM_CONNECTED_PRODUCTION_REDUCERS.halt');
+    expect(runner).not.toContain("'rehearsal_halt_greater_realm_activation_v1'");
     expect(runner).toContain("'recall_worker_v1'");
     expect(runner).toContain("'recall_all_workers_v1'");
     expect(runner).toContain('GREATER_REALM_CURRENT_WORLD_UNAVAILABLE');

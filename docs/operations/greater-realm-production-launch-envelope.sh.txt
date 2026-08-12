@@ -710,6 +710,7 @@ def inspect_one(admin,runs,authority,run_id,detailed):
         run_st=exact_private_dir(run_root)
         for source,name in ((evidence,"authority"),(launch["record"],"launch")):
             if source is not None and source.get("runDev") is not None and (source["runDev"],source["runIno"]) != (str(run_st.st_dev),str(run_st.st_ino)): mismatches.append(name+"-run-identity-mismatch")
+        if latest is not None and launch["record"] is None and (latest["record"]["phase"] in ("launch-installed","containment-prepared","operator-contained") or (latest["record"]["phase"] == "cleanup-prepared" and latest["record"]["launchRecordSha256"] is not None)): mismatches.append("authority-launch-record-missing")
     if latest is not None and launch["record"] is not None:
         stable=("pid","processStartIdentity","protectedMain","moduleTree","bootstrapBlob","bootstrapSha256","command","commandArgumentsSha256","runDev","runIno")
         if any(latest["record"][key] != launch["record"][key] for key in stable): mismatches.append("authority-launch-record-mismatch")

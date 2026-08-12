@@ -29,6 +29,7 @@ import {
   countWhere,
   createDisposableGreaterRealmRelocationModule,
   directoryDigest,
+  GREATER_REALM_CONNECTED_PRODUCTION_REDUCERS,
   importReadyGreaterRealmV17,
   manifestParts,
   publishDisposableDatabase,
@@ -2228,7 +2229,7 @@ async function runHaltedCapacityAndReturnProof(
       workers[0], target.resourceKind, target.locationId,
       safeWireUnsigned(atlasRevision, 'Atlas revision'), dispatchKeys[0],
     ]);
-    await callers.callAdmin('rehearsal_halt_greater_realm_activation_v1');
+    await callers.callAdmin(GREATER_REALM_CONNECTED_PRODUCTION_REDUCERS.halt);
     await callers.callPlayer(fid, 'recall_worker_v1', [
       workers[0], 'connected-halted-recall-0001',
     ]);

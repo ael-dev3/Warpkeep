@@ -19,7 +19,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -77,7 +77,53 @@ function trustedGit(repositoryRoot: string, arguments_: readonly string[]): stri
   if (result.error !== undefined || result.status !== 0) {
     throw new Error('GREATER_REALM_TEST_COMMIT_UNAVAILABLE');
   }
+  normalizeTrustedGitFixture(repositoryRoot);
+  if (arguments_[0] === 'worktree' && arguments_[1] === 'add') {
+    const linkedRoot = arguments_.at(-2);
+    if (linkedRoot === undefined) throw new Error('GREATER_REALM_TEST_WORKTREE_UNAVAILABLE');
+    normalizeTrustedGitFixture(linkedRoot);
+  }
   return result.stdout.trim();
+}
+
+function normalizeTrustedGitFixture(repositoryRoot: string): void {
+  const root = realpathSync(repositoryRoot);
+  chmodSync(root, 0o700);
+  const dotGit = join(root, '.git');
+  if (!existsSync(dotGit)) return;
+  const dotGitStatus = lstatSync(dotGit);
+  let gitDirectory: string;
+  if (dotGitStatus.isDirectory()) {
+    gitDirectory = realpathSync(dotGit);
+  } else if (dotGitStatus.isFile()) {
+    chmodSync(dotGit, 0o600);
+    const match = readFileSync(dotGit, 'utf8').match(/^gitdir: (\/[^\0\r\n]+)\n?$/u);
+    if (match?.[1] === undefined) throw new Error('GREATER_REALM_TEST_GITDIR_UNAVAILABLE');
+    gitDirectory = realpathSync(match[1]);
+  } else {
+    throw new Error('GREATER_REALM_TEST_GITDIR_UNAVAILABLE');
+  }
+  const commonPointer = join(gitDirectory, 'commondir');
+  let commonDirectory = gitDirectory;
+  if (existsSync(commonPointer)) {
+    chmodSync(commonPointer, 0o600);
+    commonDirectory = realpathSync(resolve(gitDirectory, readFileSync(commonPointer, 'utf8').trim()));
+  }
+  for (const directory of [
+    gitDirectory,
+    commonDirectory,
+    join(commonDirectory, 'info'),
+    join(commonDirectory, 'objects', 'info'),
+  ]) {
+    if (existsSync(directory)) chmodSync(directory, 0o700);
+  }
+  for (const contextFile of [
+    join(commonDirectory, 'config'),
+    join(gitDirectory, 'config.worktree'),
+    join(commonDirectory, 'info', 'exclude'),
+  ]) {
+    if (existsSync(contextFile)) chmodSync(contextFile, 0o600);
+  }
 }
 
 function trustedCommit(reference: string, repositoryRoot = process.cwd()): string {
@@ -526,6 +572,17 @@ describe('Greater Realm atlas/module source ancestry', () => {
       moduleSourceCommit: sourceCommit,
     })).toThrowError('GREATER_REALM_PRODUCTION_GIT_CONTEXT_INVALID');
     writeFileSync(gitFile, original, { mode: 0o600 });
+
+    const commonConfig = join(primary, '.git', 'config');
+    for (const mode of [0o640, 0o660]) {
+      chmodSync(commonConfig, mode);
+      expect(() => attestGreaterRealmProductionSourceAncestry({
+        repositoryRoot: linked,
+        atlasSourceCommit: sourceCommit,
+        moduleSourceCommit: sourceCommit,
+      })).toThrowError('GREATER_REALM_PRODUCTION_GIT_CONTEXT_INVALID');
+    }
+    chmodSync(commonConfig, 0o600);
 
     trustedGit(primary, ['config', '--local', 'url.https://attacker.invalid/.insteadOf',
       'https://github.com/']);
