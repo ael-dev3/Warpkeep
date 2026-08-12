@@ -42,6 +42,8 @@ const PINNED_ROOT_LABEL = 'greater-realm-ordinary-parent-a';
 const SAME_FIRST_WORD_BASELINE_ROOT_INDEX = 23_248;
 const SAME_FIRST_WORD_ROOT_INDEX = 41_769;
 const PINNED_ORDINAL = 9;
+const EXPECTED_PINNED_FINAL_DIGEST =
+  'e706f79b8fbe46a814f8ff4d40a6e4dee5cfb47424509656bdf4cdc43f407608';
 const SAME_FIRST_WORD_ORDINAL = 0;
 const SECONDARY_ORDINAL = 10;
 const REJECTED_ROOT_LABEL = 'greater-realm-secondary-fixture';
@@ -411,6 +413,7 @@ describe('Greater Realm private candidate generator', () => {
     expect(mathRandomCallCount).toBe(0);
     expect(candidate.candidateOrdinal).toBe(PINNED_ORDINAL);
     expect(candidate.aggregate.eligible).toBe(true);
+    expect(candidate.stageDigests.final).toBe(EXPECTED_PINNED_FINAL_DIGEST);
     expect(candidateReplayFingerprint(candidate)).toBe(replayFingerprint);
   });
 
