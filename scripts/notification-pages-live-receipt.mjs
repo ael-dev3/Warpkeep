@@ -2675,12 +2675,14 @@ export async function writePrivateNotificationPagesLiveReceipt({
   if (expectations.expectedPagesSourceCommit !== head) {
     fail('NOTIFICATION_PAGES_LIVE_PAGES_SOURCE_NOT_HEAD');
   }
-  assertActivationPresentationPhase(head);
   const preflightInventory = staticInventory({ directory, repositoryRoot, now });
-  if (
-    preflightInventory.length > 0
-    || boundedEntries(directory).length > MAX_DIRECTORY_ENTRIES - 3
-  ) fail('NOTIFICATION_PAGES_LIVE_ROOT_ALREADY_BOUND');
+  if (preflightInventory.length > 0) {
+    fail('NOTIFICATION_PAGES_LIVE_ROOT_ALREADY_BOUND');
+  }
+  if (boundedEntries(directory).length > MAX_DIRECTORY_ENTRIES - 4) {
+    fail('NOTIFICATION_PAGES_LIVE_DIRECTORY_INVENTORY_EXCEEDED');
+  }
+  assertActivationPresentationPhase(head);
   let handoff;
   try {
     handoff = await inspectNotificationPagesPrivateHandoff({

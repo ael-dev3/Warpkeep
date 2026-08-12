@@ -1283,6 +1283,37 @@ describe('notification Pages ongoing live receipt', () => {
     })).rejects.toThrow('NOTIFICATION_PAGES_LIVE_ACTIVATION_PHASE_INVALID');
     expect(fetchImpl).not.toHaveBeenCalled();
 
+    const capacityWorkspace = workspace('warpkeep-pages-live-capacity-');
+    const capacityHandoff = handoffFixture(capacityWorkspace);
+    ensureNotificationPagesLiveReceiptDirectory({
+      directory: capacityWorkspace.directory,
+      repositoryRoot: capacityWorkspace.repositoryRoot,
+    });
+    for (let index = 0; index < 253; index += 1) {
+      const address = index.toString(16).padStart(64, '0');
+      const suffix = index.toString(16).padStart(24, '0');
+      writePrivate(
+        join(
+          capacityWorkspace.directory,
+          `.notification-pages-live-${address}-${suffix}.json.tmp`,
+        ),
+        Buffer.alloc(0),
+      );
+    }
+    const capacityFetch = vi.fn();
+    await expect(writePrivateNotificationPagesLiveReceipt({
+      directory: capacityWorkspace.directory,
+      repositoryRoot: capacityWorkspace.repositoryRoot,
+      handoffExpectations: capacityHandoff.expectations,
+      expectedNotificationsPresentationEnabled: true,
+      expectedHermesExecutionApproved: false,
+      fetchImpl: capacityFetch as unknown as typeof fetch,
+      now: NOW,
+    })).rejects.toThrow(
+      'NOTIFICATION_PAGES_LIVE_DIRECTORY_INVENTORY_EXCEEDED',
+    );
+    expect(capacityFetch).not.toHaveBeenCalled();
+
     await expect(writePrivateNotificationPagesLiveReceipt({
       directory: join(targetWorkspace.repositoryRoot, '.private-live'),
       repositoryRoot: targetWorkspace.repositoryRoot,
