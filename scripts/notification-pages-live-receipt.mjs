@@ -93,6 +93,7 @@ const MAX_FOUNDERS = 600;
 const MAX_FRONTEND_DOCUMENT_BYTES = 1_000_000;
 const MAX_FRONTEND_ASSET_BYTES = 16_000_000;
 const MAX_FRONTEND_ASSET_COUNT = 64;
+const TEMPORARY_STALE_MILLISECONDS = 10 * 60 * 1_000;
 const NOTIFICATIONS_PRESENTATION_MARKER =
   'warpkeep-admission-notifications-presentation-enabled-v1';
 const REPOSITORY_ROOT = realpathSync(resolve(import.meta.dirname, '..'));
@@ -971,8 +972,10 @@ function repairLinkedTemporaries(directory) {
       || metadata.size > MAX_RECEIPT_BYTES
     ) fail('NOTIFICATION_PAGES_LIVE_TEMPORARY_INVALID');
     if (metadata.nlink === 1) {
-      unlinkExact(temporary, metadata);
-      fsyncDirectory(directory);
+      if (metadata.mtimeMs <= Date.now() - TEMPORARY_STALE_MILLISECONDS) {
+        unlinkExact(temporary, metadata);
+        fsyncDirectory(directory);
+      }
       continue;
     }
     const address = match[1];
