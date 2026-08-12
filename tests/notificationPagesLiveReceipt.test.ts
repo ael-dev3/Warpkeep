@@ -51,6 +51,7 @@ const HEAD_TREE = execFileSync(
 ).trim();
 const PREDECESSOR_COMMIT = execFileSync(
   '/usr/bin/git',
+  // The final test-only commit gives promotion a protected-path-identical parent.
   ['rev-parse', '--verify', 'HEAD^^{commit}'],
   { cwd: process.cwd(), encoding: 'utf8' },
 ).trim();

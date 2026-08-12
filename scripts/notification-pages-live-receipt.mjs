@@ -98,6 +98,8 @@ const RECEIPT_FILE = /^notification-pages-live-([0-9a-f]{64})\.json$/u;
 const TEMPORARY_FILE = /^\.notification-pages-live-([0-9a-f]{64})-([0-9a-f]{24})\.json\.tmp$/u;
 const SOURCE_FILE = /^notification-pages-live-source-([0-9a-f]{40})\.json$/u;
 const SOURCE_TEMPORARY_FILE = /^\.notification-pages-live-source-([0-9a-f]{40})-([0-9a-f]{24})\.json\.tmp$/u;
+const SUCCESSOR_FILE = /^notification-pages-live-successor-([0-9a-f]{64})\.json$/u;
+const SUCCESSOR_TEMPORARY_FILE = /^\.notification-pages-live-successor-([0-9a-f]{64})-([0-9a-f]{24})\.json\.tmp$/u;
 const CANDIDATE_FILE = /^notification-pages-candidate-([0-9a-f]{64})\.json$/u;
 const CANDIDATE_TEMPORARY_FILE = /^\.notification-pages-candidate-([0-9a-f]{64})-([0-9a-f]{24})\.json\.tmp$/u;
 const CANDIDATE_KIND = 'warpkeep-notification-pages-candidate-authority-v1';
@@ -927,12 +929,14 @@ function repairLinkedTemporaries(directory) {
     const receiptMatch = TEMPORARY_FILE.exec(entry.name);
     const candidateMatch = CANDIDATE_TEMPORARY_FILE.exec(entry.name);
     const sourceMatch = SOURCE_TEMPORARY_FILE.exec(entry.name);
+    const successorMatch = SUCCESSOR_TEMPORARY_FILE.exec(entry.name);
     if (
       receiptMatch === null
       && candidateMatch === null
       && sourceMatch === null
+      && successorMatch === null
     ) continue;
-    const match = receiptMatch ?? candidateMatch ?? sourceMatch;
+    const match = receiptMatch ?? candidateMatch ?? sourceMatch ?? successorMatch;
     const temporary = join(directory, entry.name);
     let metadata;
     try {
@@ -959,7 +963,9 @@ function repairLinkedTemporaries(directory) {
         ? `notification-pages-live-${address}.json`
         : candidateMatch !== null
           ? `notification-pages-candidate-${address}.json`
-          : `notification-pages-live-source-${address}.json`,
+          : sourceMatch !== null
+            ? `notification-pages-live-source-${address}.json`
+            : `notification-pages-live-successor-${address}.json`,
     );
     const opened = receiptMatch !== null
       ? readContentAddressedFile(destination, address, 2)
@@ -974,11 +980,16 @@ function repairLinkedTemporaries(directory) {
       opened.bytes.fill(0);
       fail('NOTIFICATION_PAGES_LIVE_CONTENT_ADDRESS_INVALID');
     }
-    if (sourceMatch !== null) {
-      const sourceReceipt = parseCanonicalReceiptBytes(opened.bytes);
-      if (sourceReceipt.pages.sourceCommit !== address) {
+    if (sourceMatch !== null || successorMatch !== null) {
+      const reservedReceipt = parseCanonicalReceiptBytes(opened.bytes);
+      if (
+        (sourceMatch !== null
+          && reservedReceipt.pages.sourceCommit !== address)
+        || (successorMatch !== null
+          && reservedReceipt.chain.previousReceiptDigest !== address)
+      ) {
         opened.bytes.fill(0);
-        fail('NOTIFICATION_PAGES_LIVE_SOURCE_RESERVATION_INVALID');
+        fail('NOTIFICATION_PAGES_LIVE_SUCCESSOR_RESERVATION_INVALID');
       }
     }
     if (opened.dev !== metadata.dev || opened.ino !== metadata.ino) {
@@ -998,6 +1009,7 @@ function repairLinkedTemporaries(directory) {
 function readInventory(directory, options) {
   const receipts = [];
   const sourceReservations = new Map();
+  const successorReservations = new Map();
   const sourceCommits = new Set();
   const receiptDigests = new Set();
   for (const entry of boundedEntries(directory)) {
@@ -1005,6 +1017,8 @@ function readInventory(directory, options) {
     const temporaryMatch = TEMPORARY_FILE.exec(entry.name);
     const sourceMatch = SOURCE_FILE.exec(entry.name);
     const sourceTemporaryMatch = SOURCE_TEMPORARY_FILE.exec(entry.name);
+    const successorMatch = SUCCESSOR_FILE.exec(entry.name);
+    const successorTemporaryMatch = SUCCESSOR_TEMPORARY_FILE.exec(entry.name);
     const candidateMatch = CANDIDATE_FILE.exec(entry.name);
     const candidateTemporaryMatch = CANDIDATE_TEMPORARY_FILE.exec(entry.name);
     if (
@@ -1012,6 +1026,8 @@ function readInventory(directory, options) {
       && temporaryMatch === null
       && sourceMatch === null
       && sourceTemporaryMatch === null
+      && successorMatch === null
+      && successorTemporaryMatch === null
       && candidateMatch === null
       && candidateTemporaryMatch === null
     ) {
@@ -1033,7 +1049,8 @@ function readInventory(directory, options) {
       || (process.getuid !== undefined && metadata.uid !== process.getuid())
       || metadata.nlink !== 1
       || (
-        receiptMatch !== null || sourceMatch !== null || candidateMatch !== null
+        receiptMatch !== null || sourceMatch !== null
+          || successorMatch !== null || candidateMatch !== null
           ? mode !== FILE_MODE
           : (mode & ~FILE_MODE) !== 0
       )
@@ -1069,6 +1086,26 @@ function readInventory(directory, options) {
           || sourceReservations.has(sourceMatch[1])
         ) fail('NOTIFICATION_PAGES_LIVE_SOURCE_RESERVATION_INVALID');
         sourceReservations.set(sourceMatch[1], Object.freeze({
+          receipt,
+          bytes: Buffer.from(opened.bytes),
+        }));
+      } finally {
+        opened.bytes.fill(0);
+      }
+    } else if (successorMatch !== null) {
+      const opened = stableFile(
+        path,
+        1,
+        'NOTIFICATION_PAGES_LIVE_SUCCESSOR_RESERVATION_INVALID',
+      );
+      try {
+        const receipt = parseCanonicalReceiptBytes(opened.bytes, options);
+        if (
+          receipt.chain.generation < 1
+          || receipt.chain.previousReceiptDigest !== successorMatch[1]
+          || successorReservations.has(successorMatch[1])
+        ) fail('NOTIFICATION_PAGES_LIVE_SUCCESSOR_RESERVATION_INVALID');
+        successorReservations.set(successorMatch[1], Object.freeze({
           receipt,
           bytes: Buffer.from(opened.bytes),
         }));
@@ -1131,6 +1168,26 @@ function readInventory(directory, options) {
       fail('NOTIFICATION_PAGES_LIVE_SOURCE_RESERVATION_MISSING');
     }
   }
+  for (const [previousDigest, reservation] of successorReservations) {
+    const receiptDigest = digest(reservation.bytes);
+    const receipt = receipts.find(entry => entry.receiptDigest === receiptDigest);
+    try {
+      if (
+        receipt === undefined
+        || receipt.receipt.chain.previousReceiptDigest !== previousDigest
+      ) fail('NOTIFICATION_PAGES_LIVE_SUCCESSOR_RESERVATION_INCOMPLETE');
+    } finally {
+      reservation.bytes.fill(0);
+    }
+  }
+  for (const receipt of receipts) {
+    if (
+      receipt.receipt.chain.generation > 0
+      && !successorReservations.has(
+        receipt.receipt.chain.previousReceiptDigest,
+      )
+    ) fail('NOTIFICATION_PAGES_LIVE_SUCCESSOR_RESERVATION_MISSING');
+  }
   const receiptsByDigest = new Map(
     receipts.map(entry => [entry.receiptDigest, entry]),
   );
@@ -1180,19 +1237,26 @@ function readInventory(directory, options) {
   })));
 }
 
-function repairSourceReservations(directory) {
+function repairPublicationReservations(directory) {
   const recordsBySource = new Map();
   for (const entry of boundedEntries(directory)) {
     const receiptMatch = RECEIPT_FILE.exec(entry.name);
     const sourceMatch = SOURCE_FILE.exec(entry.name);
-    if (receiptMatch === null && sourceMatch === null) continue;
+    const successorMatch = SUCCESSOR_FILE.exec(entry.name);
+    if (
+      receiptMatch === null
+      && sourceMatch === null
+      && successorMatch === null
+    ) continue;
     const path = join(directory, entry.name);
     const opened = stableFile(
       path,
       1,
       receiptMatch !== null
         ? 'NOTIFICATION_PAGES_LIVE_RECEIPT_FILE_INVALID'
-        : 'NOTIFICATION_PAGES_LIVE_SOURCE_RESERVATION_INVALID',
+        : sourceMatch !== null
+          ? 'NOTIFICATION_PAGES_LIVE_SOURCE_RESERVATION_INVALID'
+          : 'NOTIFICATION_PAGES_LIVE_SUCCESSOR_RESERVATION_INVALID',
     );
     try {
       const receipt = parseCanonicalReceiptBytes(opened.bytes);
@@ -1201,6 +1265,8 @@ function repairSourceReservations(directory) {
         (receiptMatch !== null && receiptDigest !== receiptMatch[1])
         || (sourceMatch !== null
           && receipt.pages.sourceCommit !== sourceMatch[1])
+        || (successorMatch !== null
+          && receipt.chain.previousReceiptDigest !== successorMatch[1])
       ) fail('NOTIFICATION_PAGES_LIVE_SOURCE_RESERVATION_INVALID');
       const record = Object.freeze({
         receipt,
@@ -1236,6 +1302,17 @@ function repairSourceReservations(directory) {
         bytes: record.bytes,
         randomBytesImpl: randomBytes,
       });
+      if (record.receipt.chain.generation > 0) {
+        installCanonicalPrivateBytes({
+          directory,
+          basename: 'notification-pages-live-successor-'
+            + `${record.receipt.chain.previousReceiptDigest}.json`,
+          temporaryPrefix: 'notification-pages-live-successor-'
+            + record.receipt.chain.previousReceiptDigest,
+          bytes: record.bytes,
+          randomBytesImpl: randomBytes,
+        });
+      }
       installCanonicalPrivateBytes({
         directory,
         basename: `notification-pages-live-${record.receiptDigest}.json`,
@@ -1296,7 +1373,7 @@ export function ensureNotificationPagesLiveReceiptDirectory({
   const canonical = assertPrivateDirectory(directory, validated.parent);
   try {
     repairLinkedTemporaries(canonical);
-    repairSourceReservations(canonical);
+    repairPublicationReservations(canonical);
     readInventory(canonical);
   } catch (error) {
     if (error instanceof NotificationPagesLiveReceiptError) throw error;
@@ -2041,6 +2118,58 @@ function reserveReceiptSource({
   return reserved;
 }
 
+function reserveReceiptSuccessor({
+  directory,
+  receipt,
+  bytes,
+  randomBytesImpl,
+}) {
+  if (receipt.chain.generation === 0) {
+    return Object.freeze({
+      receipt,
+      receiptDigest: digest(bytes),
+      bytes: Buffer.from(bytes),
+    });
+  }
+  const previousDigest = receipt.chain.previousReceiptDigest;
+  const basename = `notification-pages-live-successor-${previousDigest}.json`;
+  try {
+    installCanonicalPrivateBytes({
+      directory,
+      basename,
+      temporaryPrefix: `notification-pages-live-successor-${previousDigest}`,
+      bytes,
+      randomBytesImpl,
+    });
+  } catch (error) {
+    if (
+      !(error instanceof NotificationPagesLiveReceiptError)
+      || error.code !== 'NOTIFICATION_PAGES_LIVE_EXISTING_RECEIPT_MISMATCH'
+    ) throw error;
+  }
+  const opened = stableFile(
+    join(directory, basename),
+    1,
+    'NOTIFICATION_PAGES_LIVE_SUCCESSOR_RESERVATION_INVALID',
+  );
+  try {
+    const reservedReceipt = parseCanonicalReceiptBytes(opened.bytes, {
+      now: new Date(receipt.recordedAt),
+    });
+    if (
+      reservedReceipt.chain.previousReceiptDigest !== previousDigest
+      || !sameReceiptBinding(reservedReceipt, receipt)
+    ) fail('NOTIFICATION_PAGES_LIVE_PREDECESSOR_ALREADY_BOUND');
+    return Object.freeze({
+      receipt: reservedReceipt,
+      receiptDigest: digest(opened.bytes),
+      bytes: Buffer.from(opened.bytes),
+    });
+  } finally {
+    opened.bytes.fill(0);
+  }
+}
+
 function chainRootForNewReceipt(receipt, receiptDigest, inventory) {
   if (receipt.chain.generation === 0) {
     return Object.freeze({
@@ -2095,12 +2224,19 @@ function installReceipt({
         chainRootPagesSourceCommit: existingSource.chainRootPagesSourceCommit,
       });
     }
-    const reserved = reserveReceiptSource({
+    const successorReserved = reserveReceiptSuccessor({
       directory: canonicalDirectory,
       receipt,
       bytes: proposedBytes,
       randomBytesImpl: randomBytesImpl ?? randomBytes,
     });
+    const reserved = reserveReceiptSource({
+      directory: canonicalDirectory,
+      receipt: successorReserved.receipt,
+      bytes: successorReserved.bytes,
+      randomBytesImpl: randomBytesImpl ?? randomBytes,
+    });
+    successorReserved.bytes.fill(0);
     installedBytes = reserved.bytes;
     const installedReceipt = reserved.receipt;
     const receiptDigest = reserved.receiptDigest;
