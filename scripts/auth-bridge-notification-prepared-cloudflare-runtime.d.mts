@@ -92,10 +92,20 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime(
     }>>;
     clock?: () => Date;
     requestTimeoutMilliseconds?: number;
-    journal: Readonly<{ inspect: () => Readonly<{ phase: string | null }> }>;
+    settleDelayImpl?: (milliseconds: number) => Promise<void>;
+    journal: Readonly<{
+      inspect: () => Readonly<{
+        phase: string | null;
+        uploadMode?: 'migration' | 'version' | null;
+      }>;
+    }>;
   }>,
 ): Readonly<{
-  uploadVersion: (contract: Readonly<Record<string, unknown>>) => Promise<Readonly<{ versionId: string }>>;
+  prepareUpload: (contract: Readonly<Record<string, unknown>>) => Promise<Readonly<{ mode: 'migration' | 'version' }>>;
+  uploadVersion: (
+    contract: Readonly<Record<string, unknown>>,
+    plan: Readonly<{ mode: 'migration' | 'version' }>,
+  ) => Promise<Readonly<{ versionId?: string }>>;
   reconcileVersion: (contract: Readonly<Record<string, unknown>>) => Promise<readonly string[]>;
   inspectVersion: (versionId: string) => Promise<unknown>;
   releaseVersion: (input: Readonly<{ versionId: string; percentage: 100; message: string }>) => Promise<void>;

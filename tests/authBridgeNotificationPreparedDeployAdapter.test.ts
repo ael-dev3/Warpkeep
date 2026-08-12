@@ -38,6 +38,15 @@ const OBSERVED_AT = '2026-08-12T11:59:00.000Z';
 const ADMIN_TOKEN = 'owner-private-test-admin-token-value';
 const temporaryDirectories: string[] = [];
 
+type JournalPhase =
+  | 'prepared'
+  | 'upload-invoked'
+  | 'uploaded'
+  | 'release-uncertain'
+  | 'release-invoked'
+  | 'completed'
+  | null;
+
 const BEFORE_MODES = Object.freeze({
   bridgeSourceCommit: SOURCE_COMMIT,
   publicAuthEnabled: true,
@@ -86,24 +95,56 @@ function harness({
   releaseError,
   inspectedVersion = version(),
   inspectedDeployments = [nonTargetDeployment(), deployment()],
+  initialPhase = null,
+  initialUploadMode = null,
 }: {
   releaseError?: Error;
   inspectedVersion?: unknown;
   inspectedDeployments?: readonly unknown[];
+  initialPhase?: JournalPhase;
+  initialUploadMode?: 'migration' | 'version' | null;
 } = {}) {
   const events: string[] = [];
   let inspectDeploymentCall = 0;
+  let phase: JournalPhase = initialPhase;
+  let uploadMode = initialUploadMode;
   const journal = {
-    prepared: vi.fn(async () => { events.push('prepared'); }),
-    uploadInvoked: vi.fn(async () => { events.push('upload-invoked'); }),
-    uploaded: vi.fn(async () => { events.push('uploaded'); }),
-    releaseUncertain: vi.fn(async () => { events.push('release-uncertain'); }),
-    releaseInvoked: vi.fn(async () => { events.push('release-invoked'); }),
-    completed: vi.fn(async () => { events.push('completed'); }),
+    inspect: vi.fn(() => ({ phase, uploadMode })),
+    prepared: vi.fn(async () => {
+      events.push('prepared');
+      phase ??= 'prepared';
+    }),
+    uploadInvoked: vi.fn(async (input: Readonly<Record<string, unknown>>) => {
+      events.push('upload-invoked');
+      if (input.uploadMode !== 'migration' && input.uploadMode !== 'version') {
+        throw new Error('test harness requires an exact upload mode');
+      }
+      phase = 'upload-invoked';
+      uploadMode = input.uploadMode;
+    }),
+    uploaded: vi.fn(async () => {
+      events.push('uploaded');
+      if (!['release-uncertain', 'release-invoked', 'completed'].includes(phase ?? '')) {
+        phase = 'uploaded';
+      }
+    }),
+    releaseUncertain: vi.fn(async () => {
+      events.push('release-uncertain');
+      if (phase !== 'release-invoked') phase = 'release-uncertain';
+    }),
+    releaseInvoked: vi.fn(async () => {
+      events.push('release-invoked');
+      phase = 'release-invoked';
+    }),
+    completed: vi.fn(async () => { events.push('completed'); phase = 'completed'; }),
   };
   return {
     events,
     journal,
+    prepareUpload: vi.fn(async (): Promise<{ mode: 'migration' | 'version' }> => {
+      events.push('prepare-upload');
+      return { mode: 'version' as const };
+    }),
     uploadVersion: vi.fn(async () => {
       events.push('upload');
       return { versionId: VERSION_ID };
@@ -298,6 +339,7 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
     expect(values.events).toEqual([
       'prepared',
       'reconcile-version',
+      'prepare-upload',
       'permit-upload',
       'upload-invoked',
       'upload',
@@ -489,6 +531,7 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
       contract: contract(),
       ...falsePermit,
     })).rejects.toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_WRITE_PERMIT_REJECTED');
+    expect(falsePermit.prepareUpload).toHaveBeenCalledOnce();
     expect(falsePermit.uploadVersion).not.toHaveBeenCalled();
   });
 
@@ -504,6 +547,107 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
     expect(values.journal.completed).toHaveBeenCalledOnce();
     expect(values.journal.releaseUncertain).not.toHaveBeenCalled();
     expect(values.releaseVersion).not.toHaveBeenCalled();
+  });
+
+  it('accepts remote reconciliation as authority after an immediately deployed migration', async () => {
+    const values = harness({ inspectedDeployments: [deployment()] });
+    values.prepareUpload.mockImplementationOnce(async () => {
+      values.events.push('prepare-upload');
+      return { mode: 'migration' as const };
+    });
+    (values.uploadVersion as unknown as {
+      mockImplementationOnce: (implementation: () => Promise<{}>) => void;
+    }).mockImplementationOnce(async () => {
+      values.events.push('upload');
+      return {};
+    });
+
+    await expect(executeAuthBridgeNotificationPreparedDeployAdapter({
+      contract: contract(),
+      ...values,
+    })).resolves.toMatchObject({ outcome: 'already-verified' });
+
+    expect(values.uploadVersion).toHaveBeenCalledOnce();
+    expect(values.reconcileVersion).toHaveBeenCalledTimes(2);
+    expect(values.releaseVersion).not.toHaveBeenCalled();
+    expect(values.journal.completed).toHaveBeenCalledOnce();
+  });
+
+  it('never repeats a marked upload or release without remote proof', async () => {
+    const uploadRestart = harness({
+      initialPhase: 'upload-invoked',
+      initialUploadMode: 'version',
+    });
+    uploadRestart.reconcileVersion.mockResolvedValue([]);
+    await expect(executeAuthBridgeNotificationPreparedDeployAdapter({
+      contract: contract(),
+      ...uploadRestart,
+    })).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',
+      deploymentMayHaveChanged: true,
+    });
+    expect(uploadRestart.prepareUpload).not.toHaveBeenCalled();
+    expect(uploadRestart.uploadVersion).not.toHaveBeenCalled();
+
+    const releaseRestart = harness({
+      initialPhase: 'release-invoked',
+      initialUploadMode: 'version',
+      inspectedDeployments: [nonTargetDeployment()],
+    });
+    releaseRestart.reconcileVersion.mockResolvedValue([VERSION_ID]);
+    await expect(executeAuthBridgeNotificationPreparedDeployAdapter({
+      contract: contract(),
+      ...releaseRestart,
+    })).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_DEPLOY_RELEASE_OPERATOR_ADJUDICATION_REQUIRED',
+      deploymentMayHaveChanged: true,
+    });
+    expect(releaseRestart.assertCanStartWrite).not.toHaveBeenCalledWith('release');
+    expect(releaseRestart.releaseVersion).not.toHaveBeenCalled();
+
+    const releaseConverged = harness({
+      initialPhase: 'release-invoked',
+      initialUploadMode: 'version',
+      inspectedDeployments: [deployment()],
+    });
+    releaseConverged.reconcileVersion.mockResolvedValue([VERSION_ID]);
+    await expect(executeAuthBridgeNotificationPreparedDeployAdapter({
+      contract: contract(),
+      ...releaseConverged,
+    })).resolves.toMatchObject({ outcome: 'already-verified' });
+    expect(releaseConverged.releaseVersion).not.toHaveBeenCalled();
+  });
+
+  it('preserves typed runtime adjudication errors for the operator', async () => {
+    const uploadRestart = harness({
+      initialPhase: 'upload-invoked',
+      initialUploadMode: 'version',
+    });
+    const uploadAdjudication = Object.assign(new Error('settle window expired'), {
+      code: 'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',
+      deploymentMayHaveChanged: true,
+    });
+    uploadRestart.reconcileVersion.mockRejectedValueOnce(uploadAdjudication);
+    await expect(executeAuthBridgeNotificationPreparedDeployAdapter({
+      contract: contract(),
+      ...uploadRestart,
+    })).rejects.toBe(uploadAdjudication);
+
+    const migrationRestart = harness({
+      initialPhase: 'uploaded',
+      initialUploadMode: 'migration',
+    });
+    migrationRestart.reconcileVersion.mockResolvedValue([VERSION_ID]);
+    const migrationAdjudication = Object.assign(new Error('deployment not visible'), {
+      code: 'AUTH_BRIDGE_PREPARED_DEPLOY_MIGRATION_OPERATOR_ADJUDICATION_REQUIRED',
+      deploymentMayHaveChanged: true,
+    });
+    migrationRestart.inspectDeployment.mockRejectedValueOnce(migrationAdjudication);
+    await expect(executeAuthBridgeNotificationPreparedDeployAdapter({
+      contract: contract(),
+      ...migrationRestart,
+    })).rejects.toBe(migrationAdjudication);
+    expect(migrationRestart.releaseVersion).not.toHaveBeenCalled();
   });
 
   it('retains typed ambiguity while reconciling an uploaded or already-live version', async () => {

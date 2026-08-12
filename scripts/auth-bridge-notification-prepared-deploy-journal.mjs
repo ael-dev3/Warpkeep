@@ -621,7 +621,7 @@ function phasePayload(phase, value) {
   const payload = canonicalValue(value);
   const expectedKeys = {
     prepared: ['contract'],
-    'upload-invoked': ['sourceCommit', 'sourceDigest', 'versionTag'],
+    'upload-invoked': ['sourceCommit', 'sourceDigest', 'uploadMode', 'versionTag'],
     'release-uncertain': ['sourceCommit', 'versionId', 'versionTag'],
     'release-invoked': ['sourceCommit', 'versionId', 'versionTag'],
   }[phase];
@@ -632,6 +632,7 @@ function phasePayload(phase, value) {
     phase === 'upload-invoked'
     && (!SOURCE_COMMIT.test(payload.sourceCommit)
       || !SHA256_HEX.test(payload.sourceDigest)
+      || !['migration', 'version'].includes(payload.uploadMode)
       || typeof payload.versionTag !== 'string')
   ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_PAYLOAD_INVALID');
   if (
@@ -864,6 +865,11 @@ function createJournal({
         && !['uploaded', 'release-uncertain', 'release-invoked']
           .includes(previous?.value.phase))
     ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_TRANSITION_INVALID');
+    const sampledAt = dateNow(clock);
+    const recordedAt = previous !== undefined
+      && Date.parse(sampledAt) < Date.parse(previous.value.recordedAt)
+      ? previous.value.recordedAt
+      : sampledAt;
     const record = Object.freeze(canonicalValue({
       schemaVersion: 1,
       profile: AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_PROFILE,
@@ -874,7 +880,7 @@ function createJournal({
       payload,
       runId,
       runAttempt,
-      recordedAt: dateNow(clock),
+      recordedAt,
     }));
     const name = recordName(operationId, phase);
     const id = randomId(randomBytesImpl);
@@ -899,6 +905,9 @@ function createJournal({
         contractDigest,
         phase: current?.value.phase ?? null,
         phases: Object.freeze(records.map(record => record.value.phase)),
+        uploadMode: records.find(
+          record => record.value.phase === 'upload-invoked',
+        )?.value.payload.uploadMode ?? null,
       });
     },
     prepared(value) {

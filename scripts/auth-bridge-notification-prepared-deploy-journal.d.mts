@@ -17,6 +17,7 @@ export type AuthBridgeNotificationPreparedDeployJournal = Readonly<{
     contractDigest: string;
     phase: 'prepared' | 'upload-invoked' | 'uploaded' | 'release-uncertain' | 'release-invoked' | 'completed' | null;
     phases: readonly string[];
+    uploadMode: 'migration' | 'version' | null;
   }>;
   prepared: (contract: Readonly<Record<string, unknown>>) => Promise<void>;
   uploadInvoked: (input: Readonly<Record<string, unknown>>) => Promise<void>;

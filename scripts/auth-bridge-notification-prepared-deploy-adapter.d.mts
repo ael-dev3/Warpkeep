@@ -42,12 +42,19 @@ export function attestAuthBridgeNotificationPreparedDeployment(
 export function executeAuthBridgeNotificationPreparedDeployAdapter(
   options: Readonly<{
     contract: Readonly<Record<string, unknown>>;
-    uploadVersion: (contract: Readonly<Record<string, unknown>>) => Promise<Readonly<{ versionId: string }>>;
+    prepareUpload: (contract: Readonly<Record<string, unknown>>) => Promise<Readonly<{ mode: 'migration' | 'version' }>>;
+    uploadVersion: (
+      contract: Readonly<Record<string, unknown>>,
+      plan: Readonly<{ mode: 'migration' | 'version' }>,
+    ) => Promise<Readonly<{ versionId?: string }>>;
     reconcileVersion: (contract: Readonly<Record<string, unknown>>) => Promise<readonly string[]>;
     inspectVersion: (versionId: string) => Promise<unknown>;
     releaseVersion: (input: Readonly<{ versionId: string; percentage: 100; message: string }>) => Promise<void>;
     inspectDeployment: () => Promise<unknown>;
     journal: Readonly<{
+      inspect: () => Readonly<{
+        phase: 'prepared' | 'upload-invoked' | 'uploaded' | 'release-uncertain' | 'release-invoked' | 'completed' | null;
+      }>;
       prepared: (contract: Readonly<Record<string, unknown>>) => Promise<void>;
       uploadInvoked: (input: Readonly<Record<string, unknown>>) => Promise<void>;
       uploaded: (version: Readonly<Record<string, unknown>>) => Promise<void>;

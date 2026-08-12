@@ -47,6 +47,15 @@ const OLD_VERSION_ID = '987e6543-e21b-42d3-a456-426614174000';
 const NOW = new Date('2026-08-13T00:00:00.000Z');
 const temporaryDirectories: string[] = [];
 
+type JournalPhase =
+  | 'prepared'
+  | 'upload-invoked'
+  | 'uploaded'
+  | 'release-uncertain'
+  | 'release-invoked'
+  | 'completed'
+  | null;
+
 const BEFORE_MODES = Object.freeze({
   bridgeSourceCommit: SOURCE_COMMIT,
   publicAuthEnabled: true,
@@ -187,12 +196,13 @@ function journalOptions(home: string, value: Readonly<Record<string, unknown>>) 
   } as const;
 }
 
-function response(body: unknown, url: string) {
+function response(body: unknown, url: string, resultInfo?: unknown) {
   const value = new Response(JSON.stringify({
     success: true,
     errors: [],
     messages: [],
     result: body,
+    ...(resultInfo === undefined ? {} : { result_info: resultInfo }),
   }), {
     status: 200,
     headers: { 'content-type': 'application/json' },
@@ -240,6 +250,7 @@ describe('auth-bridge prepared durable deployment journal', () => {
     const uploadMarker = {
       sourceCommit: SOURCE_COMMIT,
       sourceDigest: 'd'.repeat(64),
+      uploadMode: 'version',
       versionTag: `notification-prepared-${SOURCE_COMMIT}`,
     };
     const releaseMarker = {
@@ -254,6 +265,7 @@ describe('auth-bridge prepared durable deployment journal', () => {
         await journal.prepared(value);
         await journal.uploadInvoked(uploadMarker);
         expect(journal.inspect().phases).toEqual(['prepared', 'upload-invoked']);
+        expect(journal.inspect().uploadMode).toBe('version');
       },
     });
 
@@ -304,6 +316,41 @@ describe('auth-bridge prepared durable deployment journal', () => {
       expect(status.nlink).toBe(1);
       expect(readFileSync(join(directory, name), 'utf8').endsWith('\n')).toBe(true);
     }
+  });
+
+  it('clamps a backward clock without publishing an unreadable history', async () => {
+    const home = temporaryHome();
+    const value = contract('d'.repeat(64));
+    const uploadMarker = {
+      sourceCommit: SOURCE_COMMIT,
+      sourceDigest: 'd'.repeat(64),
+      uploadMode: 'version',
+      versionTag: `notification-prepared-${SOURCE_COMMIT}`,
+    };
+
+    await withAuthBridgeNotificationPreparedDeployJournal({
+      ...journalOptions(home, value),
+      clock: () => new Date('2026-08-13T00:00:00.000Z'),
+      operation: journal => journal.prepared(value),
+    });
+    await withAuthBridgeNotificationPreparedDeployJournal({
+      ...journalOptions(home, value),
+      runAttempt: 2,
+      clock: () => new Date('2026-08-12T23:59:59.999Z'),
+      operation: async journal => {
+        await journal.prepared(value);
+        await journal.uploadInvoked(uploadMarker);
+        expect(journal.inspect().phase).toBe('upload-invoked');
+      },
+    });
+    await withAuthBridgeNotificationPreparedDeployJournal({
+      ...journalOptions(home, value),
+      runAttempt: 3,
+      clock: () => new Date('2026-08-13T00:00:01.000Z'),
+      operation: journal => {
+        expect(journal.inspect().phases).toEqual(['prepared', 'upload-invoked']);
+      },
+    });
   });
 
   it('repairs an exact two-link crash pair and rejects foreign state entries', async () => {
@@ -469,9 +516,11 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
         script_runtime: {
           compatibility_date: value.compatibilityDate,
           compatibility_flags: value.compatibilityFlags,
+          limits: {},
           migration_tag: 'v5',
+          usage_model: 'standard',
           exports: {
-            default: { type: 'worker' },
+            default: { type: 'worker', cache: { enabled: false }, state: 'created' },
             ...Object.fromEntries(value.durableObjectBindings.map(binding => [
               binding.className,
               { type: 'durable-object', storage: 'sqlite', state: 'created' },
@@ -493,6 +542,26 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       contract: value,
       sourceDigest: digest,
     })).toThrow('AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_BINDING_MISMATCH');
+    for (const scriptRuntime of [
+      {
+        ...raw.resources.script_runtime,
+        exports: {
+          ...raw.resources.script_runtime.exports,
+          default: { type: 'worker', cache: { enabled: true }, state: 'created' },
+        },
+      },
+      { ...raw.resources.script_runtime, limits: { cpu_ms: 1 } },
+      { ...raw.resources.script_runtime, usage_model: 'unbound' },
+    ]) {
+      expect(() => projectAuthBridgeNotificationPreparedCloudflareVersion({
+        value: {
+          ...raw,
+          resources: { ...raw.resources, script_runtime: scriptRuntime },
+        },
+        contract: value,
+        sourceDigest: digest,
+      })).toThrow(/AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_(?:EXPORT|RUNTIME)_MISMATCH/u);
+    }
   });
 
   it('derives the immutable uploaded-source proof from version-specific modules', async () => {
@@ -642,9 +711,17 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     };
     let uploaded = false;
     let targetLive = false;
-    let phase: string | null = null;
+    let phase: JournalPhase = null;
+    let uploadMode: 'migration' | 'version' | null = null;
     let uploadPosts = 0;
     let releasePosts = 0;
+    let previewsEnabled = false;
+    let extraDomain = false;
+    let extraRoute = false;
+    let tailConsumer = false;
+    let cacheEnabled = false;
+    let targetMessage: string | null = value.versionMessage;
+    let targetTrigger: string | null = 'warpkeep-notification-prepared';
     const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       const method = init?.method ?? 'GET';
@@ -658,7 +735,11 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
         }] : [],
       }, url);
       if (url.endsWith('/workers/scripts')) {
-        return response([{ id: value.workerName, migration_tag: 'v5' }], url);
+        return response([{
+          id: value.workerName,
+          migration_tag: 'v5',
+          cache_options: { enabled: cacheEnabled, cross_version_cache: true },
+        }], url);
       }
       if (url.endsWith('/secrets')) {
         return response(value.secretBindingNames.map(name => ({
@@ -700,12 +781,15 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
             percentage: 100,
           }],
           annotations: target ? {
-            'workers/message': value.versionMessage,
-            'workers/triggered_by': 'warpkeep-notification-prepared',
+            ...(targetMessage === null ? {} : { 'workers/message': targetMessage }),
+            ...(targetTrigger === null
+              ? {}
+              : { 'workers/triggered_by': targetTrigger }),
           } : {},
         }], url);
       }
-      if (url.includes('/workers/domains?')) return response([{
+      if (url.includes('/workers/domains?service=')) {
+        const domains = [{
         id: 'domain-id',
         zone_id: ZONE_ID,
         zone_name: 'warpkeep.com',
@@ -713,16 +797,53 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
         service: 'warpkeep-auth-bridge',
         environment: 'production',
         cert_id: 'certificate-id',
-      }], url);
+        }, ...(extraDomain ? [{
+          id: 'extra-domain-id',
+          zone_id: ZONE_ID,
+          zone_name: 'warpkeep.com',
+          hostname: 'extra.warpkeep.com',
+          service: 'warpkeep-auth-bridge',
+          environment: 'production',
+          cert_id: 'extra-certificate-id',
+        }] : [])];
+        return response(domains, url, {
+        count: domains.length,
+        page: 1,
+        per_page: 100,
+        total_count: domains.length + 1,
+        total_pages: 1,
+        });
+      }
+      if (url.endsWith('/environments/production/routes?show_zonename=true')) {
+        return response(extraRoute ? [{
+          id: 'route-id',
+          pattern: 'extra.warpkeep.com/*',
+          script: 'warpkeep-auth-bridge',
+        }] : [], url);
+      }
+      if (url.endsWith('/script-settings')) {
+        return response({
+          logpush: false,
+          observability: { enabled: false },
+          tags: [],
+          tail_consumers: tailConsumer ? [{ service: 'log-exporter' }] : [],
+        }, url);
+      }
       if (url.endsWith('/subdomain')) {
-        return response({ enabled: false, previews_enabled: false }, url);
+        return response({ enabled: false, previews_enabled: previewsEnabled }, url);
       }
       throw new Error(`unexpected request: ${method} ${url}`);
     });
     const journal = {
-      inspect: () => ({ phase }),
+      inspect: () => ({ phase, uploadMode }),
       prepared: vi.fn(async () => { phase = 'prepared'; }),
-      uploadInvoked: vi.fn(async () => { phase = 'upload-invoked'; }),
+      uploadInvoked: vi.fn(async (input: Readonly<Record<string, unknown>>) => {
+        if (input.uploadMode !== 'migration' && input.uploadMode !== 'version') {
+          throw new Error('test harness requires an exact upload mode');
+        }
+        phase = 'upload-invoked';
+        uploadMode = input.uploadMode;
+      }),
       uploaded: vi.fn(async () => { phase = 'uploaded'; }),
       releaseUncertain: vi.fn(async () => { phase = 'release-uncertain'; }),
       releaseInvoked: vi.fn(async () => { phase = 'release-invoked'; }),
@@ -741,6 +862,31 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       clock: () => new Date(NOW),
       journal,
     });
+    previewsEnabled = true;
+    await expect(runtime.inspectDeployment()).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_SUBDOMAIN_MISMATCH',
+    });
+    previewsEnabled = false;
+    extraDomain = true;
+    await expect(runtime.inspectDeployment()).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_DOMAIN_MISMATCH',
+    });
+    extraDomain = false;
+    extraRoute = true;
+    await expect(runtime.inspectDeployment()).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_ROUTE_MISMATCH',
+    });
+    extraRoute = false;
+    tailConsumer = true;
+    await expect(runtime.inspectDeployment()).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_SCRIPT_SETTINGS_MISMATCH',
+    });
+    tailConsumer = false;
+    cacheEnabled = true;
+    await expect(runtime.inspectDeployment()).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_CACHE_MISMATCH',
+    });
+    cacheEnabled = false;
     await expect(runtime.inspectDeployment()).resolves.toMatchObject({
       versionId: OLD_VERSION_ID,
       versionTag: null,
@@ -757,10 +903,35 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     expect(releasePosts).toBe(1);
     expect(targetLive).toBe(true);
     expect(phase).toBe('completed');
+
+    for (const [message, trigger] of [
+      [null, 'warpkeep-notification-prepared'],
+      ['wrong message', 'warpkeep-notification-prepared'],
+      [value.versionMessage, null],
+      [value.versionMessage, 'wrong-trigger'],
+    ] as const) {
+      targetMessage = message;
+      targetTrigger = trigger;
+      await expect(runtime.inspectDeployment()).rejects.toMatchObject({
+        code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_DEPLOYMENT_INVALID',
+      });
+    }
+    uploadMode = 'migration';
+    targetMessage = value.versionMessage;
+    targetTrigger = 'upload';
+    await expect(runtime.inspectDeployment()).resolves.toMatchObject({
+      versionId: VERSION_ID,
+    });
+    for (const trigger of [null, 'wrong-trigger'] as const) {
+      targetTrigger = trigger;
+      await expect(runtime.inspectDeployment()).rejects.toMatchObject({
+        code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_DEPLOYMENT_INVALID',
+      });
+    }
     runtime.dispose();
   });
 
-  it('performs each Cloudflare mutation with exactly one direct POST attempt', async () => {
+  it('performs one direct mutation and applies only the reviewed v4-to-v5 migration', async () => {
     const template = multipart();
     const contentType = 'multipart/form-data; boundary=warpkeep-boundary-v1';
     const digest = inspectAuthBridgeNotificationPreparedMultipart(template, contentType)
@@ -768,9 +939,50 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     const value = contract(digest);
     const body = uploadMultipart(value);
     const urls: string[] = [];
+    const prerequisiteResponse = (url: string, migrationTag = 'v5') => {
+      if (url.endsWith('/workers/scripts')) {
+        return response([{ id: value.workerName, migration_tag: migrationTag }], url);
+      }
+      if (url.endsWith('/secrets')) {
+        return response(value.secretBindingNames.map(name => ({
+          name,
+          type: 'secret_text',
+        })), url);
+      }
+      if (url.includes('/workers/domains?service=')) return response([{
+        id: 'domain-id',
+        zone_id: ZONE_ID,
+        zone_name: 'warpkeep.com',
+        hostname: 'auth.warpkeep.com',
+        service: 'warpkeep-auth-bridge',
+        environment: 'production',
+        cert_id: 'certificate-id',
+      }], url, {
+        count: 1,
+        page: 1,
+        per_page: 100,
+        total_count: 1,
+        total_pages: 1,
+      });
+      if (url.endsWith('/environments/production/routes?show_zonename=true')) {
+        return response([], url);
+      }
+      if (url.endsWith('/script-settings')) return response({
+        logpush: false,
+        observability: { enabled: false },
+        tags: [],
+        tail_consumers: [],
+      }, url);
+      if (url.endsWith('/subdomain')) {
+        return response({ enabled: false, previews_enabled: false }, url);
+      }
+      return undefined;
+    };
     const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       urls.push(`${init?.method}:${url}`);
+      const prerequisite = prerequisiteResponse(url);
+      if (prerequisite !== undefined) return prerequisite;
       if (url.endsWith('/versions?bindings_inherit=strict')) {
         return response({ id: VERSION_ID }, url);
       }
@@ -789,17 +1001,24 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       fetchImpl,
       journal: { inspect: () => ({ phase: 'prepared' }) },
     });
-    await expect(runtime.uploadVersion(value)).resolves.toEqual({ versionId: VERSION_ID });
+    const uploadPlan = await runtime.prepareUpload(value);
+    await expect(runtime.uploadVersion(value, uploadPlan)).resolves.toEqual({
+      versionId: VERSION_ID,
+    });
     await runtime.releaseVersion({
       versionId: VERSION_ID,
       percentage: 100,
       message: value.versionMessage,
     });
-    expect(urls).toHaveLength(2);
-    expect(urls.every(item => item.startsWith('POST:https://api.cloudflare.com/')))
-      .toBe(true);
+    expect(urls.filter(item => item.startsWith('POST:'))).toHaveLength(2);
 
-    const failedFetch = vi.fn(async () => { throw new Error('connection lost'); });
+    const failedFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const prerequisite = prerequisiteResponse(url);
+      if (prerequisite !== undefined) return prerequisite;
+      if (init?.method === 'POST') throw new Error('connection lost');
+      throw new Error('unexpected request');
+    });
     const failed = createAuthBridgeNotificationPreparedCloudflareRuntime({
       contract: value,
       apiToken: 'cloudflare-test-token-value-1234567890',
@@ -812,13 +1031,109 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       fetchImpl: failedFetch,
       journal: { inspect: () => ({ phase: 'upload-invoked' }) },
     });
-    await expect(failed.uploadVersion(value)).rejects.toMatchObject({
+    const failedPlan = await failed.prepareUpload(value);
+    await expect(failed.uploadVersion(value, failedPlan)).rejects.toMatchObject({
       code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_MUTATION_OUTCOME_AMBIGUOUS',
       deploymentMayHaveChanged: true,
     });
-    expect(failedFetch).toHaveBeenCalledOnce();
+    expect(failedFetch.mock.calls.filter(([, init]) => init?.method === 'POST'))
+      .toHaveLength(1);
+
+    let migrationUpload: RequestInit | undefined;
+    let migrationUploadBody: Buffer | undefined;
+    const migrationFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/versions?deployable=true')) {
+        return response({ items: [] }, url);
+      }
+      const prerequisite = prerequisiteResponse(url, 'v4');
+      if (prerequisite !== undefined) return prerequisite;
+      if (url.endsWith('/warpkeep-auth-bridge?excludeScript=true&bindings_inherit=strict')) {
+        migrationUpload = init;
+        migrationUploadBody = Buffer.from(init?.body as Buffer);
+        return response({ id: value.workerName, migration_tag: 'v5' }, url);
+      }
+      throw new Error(`unexpected request: ${init?.method ?? 'GET'} ${url}`);
+    });
+    const migrating = createAuthBridgeNotificationPreparedCloudflareRuntime({
+      contract: value,
+      apiToken: 'cloudflare-test-token-value-1234567890',
+      repositoryRoot: realpathSync(process.cwd()),
+      serviceRoot: realpathSync(join(process.cwd(), 'services/auth-bridge')),
+      nodeExecutable: process.execPath,
+      wranglerEntrypoint: process.execPath,
+      multipartBody: body,
+      multipartContentType: contentType,
+      fetchImpl: migrationFetch,
+      journal: {
+        inspect: () => ({ phase: 'prepared', uploadMode: 'migration' as const }),
+      },
+    });
+    await expect(migrating.reconcileVersion(value)).resolves.toEqual([]);
+    await expect(migrating.prepareUpload(value)).resolves.toEqual({ mode: 'migration' });
+    await expect(migrating.uploadVersion(value, { mode: 'migration' })).resolves.toEqual({});
+    expect(migrationUpload?.method).toBe('PUT');
+    expect(migrationUploadBody).toBeInstanceOf(Buffer);
+    expect(inspectAuthBridgeNotificationPreparedMultipart(
+      migrationUploadBody as Buffer,
+      String((migrationUpload?.headers as Record<string, string>)['content-type']),
+    ).metadata.migrations).toEqual({
+      old_tag: 'v4',
+      new_tag: 'v5',
+      steps: [{ new_sqlite_classes: ['AdmissionNotification'] }],
+    });
+    expect(migrationFetch.mock.calls.filter(([, init]) => init?.method === 'PUT'))
+      .toHaveLength(1);
     runtime.dispose();
     failed.dispose();
+    migrating.dispose();
+  });
+
+  it('settles a prior upload marker and requires adjudication without another write', async () => {
+    const template = multipart();
+    const contentType = 'multipart/form-data; boundary=warpkeep-boundary-v1';
+    const digest = inspectAuthBridgeNotificationPreparedMultipart(template, contentType)
+      .sourceDigest;
+    const value = contract(digest);
+    const body = uploadMultipart(value);
+    let listReads = 0;
+    let writes = 0;
+    const fetchImpl = vi.fn(async (
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ) => {
+      const url = String(input);
+      if (init?.method !== undefined && init.method !== 'GET') writes += 1;
+      if (url.includes('/versions?deployable=true')) {
+        listReads += 1;
+        return response({ items: [] }, url);
+      }
+      throw new Error(`unexpected request: ${init?.method ?? 'GET'} ${url}`);
+    });
+    const settleDelayImpl = vi.fn(async () => undefined);
+    const runtime = createAuthBridgeNotificationPreparedCloudflareRuntime({
+      contract: value,
+      apiToken: 'cloudflare-test-token-value-1234567890',
+      repositoryRoot: realpathSync(process.cwd()),
+      serviceRoot: realpathSync(join(process.cwd(), 'services/auth-bridge')),
+      nodeExecutable: process.execPath,
+      wranglerEntrypoint: process.execPath,
+      multipartBody: body,
+      multipartContentType: contentType,
+      fetchImpl,
+      settleDelayImpl,
+      journal: {
+        inspect: () => ({ phase: 'upload-invoked', uploadMode: 'version' as const }),
+      },
+    });
+    await expect(runtime.reconcileVersion(value)).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',
+      deploymentMayHaveChanged: true,
+    });
+    expect(listReads).toBe(5);
+    expect(settleDelayImpl).toHaveBeenCalledTimes(4);
+    expect(writes).toBe(0);
+    runtime.dispose();
   });
 });
 
