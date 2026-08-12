@@ -840,6 +840,7 @@ describe('notification Pages ongoing live receipt', () => {
     expect(lstatSync(written.result.path).nlink).toBe(1);
     expect(readdirSync(written.targetWorkspace.directory)).toEqual([
       `notification-pages-live-${written.result.receiptDigest}.json`,
+      'notification-pages-live-root.json',
       `notification-pages-live-source-${HEAD_COMMIT}.json`,
     ]);
 
