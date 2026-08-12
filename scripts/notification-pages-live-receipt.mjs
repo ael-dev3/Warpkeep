@@ -2364,6 +2364,11 @@ function installReceipt({
         chainRootPagesSourceCommit: existingSource.chainRootPagesSourceCommit,
       });
     }
+    const requiredPermanentEntries = receipt.chain.generation === 0 ? 3 : 3;
+    if (
+      boundedEntries(canonicalDirectory).length
+        > MAX_DIRECTORY_ENTRIES - requiredPermanentEntries
+    ) fail('NOTIFICATION_PAGES_LIVE_DIRECTORY_INVENTORY_EXCEEDED');
     const successorReserved = reserveReceiptSuccessor({
       directory: canonicalDirectory,
       receipt,
@@ -2512,6 +2517,11 @@ export async function writePrivateNotificationPagesLiveReceipt({
   }
   (testOnlyAssertActivationPresentationPhase
     ?? assertActivationPresentationPhase)(head);
+  const preflightInventory = staticInventory({ directory, repositoryRoot, now });
+  if (
+    preflightInventory.length > 0
+    || boundedEntries(directory).length > MAX_DIRECTORY_ENTRIES - 3
+  ) fail('NOTIFICATION_PAGES_LIVE_ROOT_ALREADY_BOUND');
   let handoff;
   try {
     handoff = await inspectNotificationPagesPrivateHandoff({
@@ -2832,11 +2842,15 @@ export async function inspectLatestPrivateNotificationPagesLiveReceiptForCandida
   try {
     const candidateAuthorityDigest = digest(bytes);
     assertExactCleanHead(candidate);
+    const candidateDirectory = ensureNotificationPagesLiveReceiptDirectory({
+      directory,
+      repositoryRoot,
+    });
+    if (boundedEntries(candidateDirectory).length > MAX_DIRECTORY_ENTRIES - 5) {
+      fail('NOTIFICATION_PAGES_LIVE_DIRECTORY_INVENTORY_EXCEEDED');
+    }
     installCanonicalPrivateBytes({
-      directory: ensureNotificationPagesLiveReceiptDirectory({
-        directory,
-        repositoryRoot,
-      }),
+      directory: candidateDirectory,
       basename:
         `notification-pages-candidate-claim-${latest.receiptDigest}.json`,
       temporaryPrefix:
@@ -2845,10 +2859,7 @@ export async function inspectLatestPrivateNotificationPagesLiveReceiptForCandida
       randomBytesImpl,
     });
     installed = installCanonicalPrivateBytes({
-      directory: ensureNotificationPagesLiveReceiptDirectory({
-        directory,
-        repositoryRoot,
-      }),
+      directory: candidateDirectory,
       basename: `notification-pages-candidate-${candidateAuthorityDigest}.json`,
       temporaryPrefix: `notification-pages-candidate-${candidateAuthorityDigest}`,
       bytes,

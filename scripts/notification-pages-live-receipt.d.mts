@@ -125,6 +125,8 @@ export type NotificationPagesLiveCandidateAuthority =
       candidateAuthorityPath: string;
       candidateAuthorityDigest: string;
       candidateAuthority: Readonly<Record<string, unknown>>;
+      candidatePreparedBinding: NotificationPagesLivePreparedBinding | null;
+      candidateLiveAttestation: Readonly<Record<string, unknown>> | null;
     }>
   );
 
