@@ -1509,7 +1509,7 @@ function gitResult(arguments_) {
       },
       stdio: ['ignore', 'pipe', 'ignore'],
       timeout: 10_000,
-      maxBuffer: 64 * 1024,
+      maxBuffer: 1024 * 1024,
     },
   );
 }
