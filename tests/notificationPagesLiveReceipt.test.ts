@@ -1014,10 +1014,11 @@ describe('notification Pages ongoing live receipt', () => {
       targetWorkspace,
       previous,
     );
-    const oldBridge = releaseAttestation(PREDECESSOR_COMMIT);
+    const staged = handoffFixture(targetWorkspace);
+    const stagedBridge = releaseAttestation(HEAD_COMMIT);
     const authorityFetch = liveFetch({
       buildSha: previous.pages.sourceCommit,
-      attestation: oldBridge,
+      attestation: stagedBridge,
     });
     const authority = await inspectLatestPrivateNotificationPagesLiveReceiptForCandidate({
       directory: targetWorkspace.directory,
@@ -1025,6 +1026,7 @@ describe('notification Pages ongoing live receipt', () => {
       candidatePagesSourceCommit: HEAD_COMMIT,
       expectedChainRootReceiptDigest: installedPrevious.receiptDigest,
       expectedChainRootPagesSourceCommit: PREDECESSOR_COMMIT,
+      stagedHandoffExpectations: staged.expectations,
       fetchImpl: authorityFetch as unknown as typeof fetch,
       now: NOW,
       randomBytesImpl: size => Buffer.alloc(size, 8),
@@ -1041,6 +1043,13 @@ describe('notification Pages ongoing live receipt', () => {
     );
     expect(statSync(authority.candidateAuthorityPath).mode & 0o7777).toBe(0o600);
     expect(statSync(authority.candidateAuthorityPath).nlink).toBe(1);
+    expect(authority.candidatePreparedBinding).toMatchObject({
+      bridgeSourceCommit: HEAD_COMMIT,
+      receiptDigest: staged.expectations.expectedPreparedReceiptDigest,
+    });
+    expect(authority.candidateLiveAttestation).toMatchObject({
+      bridgeSourceCommit: HEAD_COMMIT,
+    });
 
     const candidateTemporary = join(
       targetWorkspace.directory,
@@ -1054,10 +1063,13 @@ describe('notification Pages ongoing live receipt', () => {
       repositoryRoot: targetWorkspace.repositoryRoot,
     })).toBe(targetWorkspace.directory);
     expect(lstatSync(authority.candidateAuthorityPath).nlink).toBe(1);
+    rmSync(targetWorkspace.handoffPath);
+    rmSync(targetWorkspace.keyPath);
 
     const promotedFetch = liveFetch({
+      now: AFTER_PREPARED_EXPIRY,
       assetSuffix: '// successor\n',
-      attestation: oldBridge,
+      attestation: stagedBridge,
     });
     const promoted = await promoteNotificationPagesLiveReceipt({
       directory: targetWorkspace.directory,
@@ -1067,7 +1079,7 @@ describe('notification Pages ongoing live receipt', () => {
       expectedChainRootReceiptDigest: installedPrevious.receiptDigest,
       expectedChainRootPagesSourceCommit: PREDECESSOR_COMMIT,
       fetchImpl: promotedFetch as unknown as typeof fetch,
-      now: new Date(NOW.getTime() + 1),
+      now: AFTER_PREPARED_EXPIRY,
       randomBytesImpl: size => Buffer.alloc(size, 5),
     });
     expect(promoted).toMatchObject({
@@ -1083,6 +1095,7 @@ describe('notification Pages ongoing live receipt', () => {
           liveBuildSha: HEAD_COMMIT,
           rootAssetCount: 5,
         },
+        bridge: { sourceCommit: HEAD_COMMIT },
       },
     });
     expect(promoted.receipt.pages.liveFrontendDigest).not.toBe(
@@ -1090,8 +1103,9 @@ describe('notification Pages ongoing live receipt', () => {
     );
 
     const replayFetch = liveFetch({
+      now: new Date(AFTER_PREPARED_EXPIRY.getTime() + 1),
       assetSuffix: '// successor\n',
-      attestation: oldBridge,
+      attestation: stagedBridge,
     });
     const replay = await promoteNotificationPagesLiveReceipt({
       directory: targetWorkspace.directory,
@@ -1101,7 +1115,7 @@ describe('notification Pages ongoing live receipt', () => {
       expectedChainRootReceiptDigest: installedPrevious.receiptDigest,
       expectedChainRootPagesSourceCommit: PREDECESSOR_COMMIT,
       fetchImpl: replayFetch as unknown as typeof fetch,
-      now: new Date(NOW.getTime() + 2),
+      now: new Date(AFTER_PREPARED_EXPIRY.getTime() + 1),
       randomBytesImpl: size => Buffer.alloc(size, 6),
     });
     expect(replay).toMatchObject({
@@ -1111,8 +1125,9 @@ describe('notification Pages ongoing live receipt', () => {
     });
 
     const afterPromotionFetch = liveFetch({
+      now: new Date(AFTER_PREPARED_EXPIRY.getTime() + 2),
       assetSuffix: '// successor\n',
-      attestation: oldBridge,
+      attestation: stagedBridge,
     });
     await expect(inspectPrivateNotificationPagesLiveReceiptByPagesSourceCommit({
       directory: targetWorkspace.directory,
@@ -1126,8 +1141,9 @@ describe('notification Pages ongoing live receipt', () => {
     expect(afterPromotionFetch).not.toHaveBeenCalled();
 
     const exactSuccessorFetch = liveFetch({
+      now: new Date(AFTER_PREPARED_EXPIRY.getTime() + 3),
       assetSuffix: '// successor\n',
-      attestation: oldBridge,
+      attestation: stagedBridge,
     });
     await expect(inspectPrivateNotificationPagesLiveReceiptByPagesSourceCommit({
       directory: targetWorkspace.directory,
@@ -1136,7 +1152,7 @@ describe('notification Pages ongoing live receipt', () => {
       expectedChainRootReceiptDigest: installedPrevious.receiptDigest,
       expectedChainRootPagesSourceCommit: PREDECESSOR_COMMIT,
       fetchImpl: exactSuccessorFetch as unknown as typeof fetch,
-      now: new Date(NOW.getTime() + 3),
+      now: new Date(AFTER_PREPARED_EXPIRY.getTime() + 3),
     })).resolves.toMatchObject({ receiptDigest: promoted.receiptDigest });
   });
 
