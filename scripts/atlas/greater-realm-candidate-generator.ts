@@ -4516,66 +4516,135 @@ function remapTierOneNaturalBasinsByCharacter(
 function connectedComponents(
   grid: IndexedAxialGrid,
   included: Uint8Array,
-): readonly (readonly number[])[] {
-  const seen = new Uint8Array(grid.cellCount);
+): readonly (readonly number[])[];
+function connectedComponents(
+  grid: IndexedAxialGrid,
+  included: Uint8Array,
+  retainMutableCoordinates: true,
+): number[][];
+function connectedComponents(
+  grid: IndexedAxialGrid,
+  included: Uint8Array,
+  retainMutableCoordinates = false,
+): readonly (readonly number[])[] | number[][] {
+  let seen: Uint8Array | undefined;
   const components: number[][] = [];
-  const queue = new Uint32Array(grid.cellCount);
-  for (let start = 0; start < grid.cellCount; start += 1) {
-    if (included[start] !== 1 || seen[start] === 1) continue;
-    let head = 0;
-    let tail = 0;
-    queue[tail++] = start;
-    seen[start] = 1;
-    const component: number[] = [];
-    while (head < tail) {
-      const cell = queue[head++]!;
-      component.push(cell);
-      for (let directionIndex = 0; directionIndex < HEX_NEIGHBOR_COUNT; directionIndex += 1) {
-        const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + directionIndex]!;
-        if (neighbor < 0 || included[neighbor] !== 1 || seen[neighbor] === 1) continue;
-        seen[neighbor] = 1;
-        queue[tail++] = neighbor;
+  let queue: Uint32Array | undefined;
+  let completed = false;
+  try {
+    seen = new Uint8Array(grid.cellCount);
+    queue = new Uint32Array(grid.cellCount);
+    for (let start = 0; start < grid.cellCount; start += 1) {
+      if (included[start] !== 1 || seen[start] === 1) continue;
+      let head = 0;
+      let tail = 0;
+      queue[tail++] = start;
+      seen[start] = 1;
+      const component: number[] = [];
+      components.push(component);
+      while (head < tail) {
+        const cell: number = queue[head++]!;
+        component.push(cell);
+        for (
+          let directionIndex = 0;
+          directionIndex < HEX_NEIGHBOR_COUNT;
+          directionIndex += 1
+        ) {
+          const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + directionIndex]!;
+          if (neighbor < 0 || included[neighbor] !== 1 || seen[neighbor] === 1) continue;
+          seen[neighbor] = 1;
+          queue[tail++] = neighbor;
+        }
       }
     }
-    components.push(component);
+    if (retainMutableCoordinates) {
+      completed = true;
+      return components;
+    }
+    const result = Object.freeze(components.map(component => Object.freeze(component)));
+    completed = true;
+    return result;
+  } finally {
+    seen?.fill(0);
+    queue?.fill(0);
+    if (!completed) {
+      for (const component of components) component.fill(0);
+      components.length = 0;
+    }
   }
-  return Object.freeze(components.map(component => Object.freeze(component)));
 }
 
 function connectedComponentsAtEqualSurface(
   grid: IndexedAxialGrid,
   included: Uint8Array,
   surface: Int32Array,
-): readonly (readonly number[])[] {
-  const seen = new Uint8Array(grid.cellCount);
+): readonly (readonly number[])[];
+function connectedComponentsAtEqualSurface(
+  grid: IndexedAxialGrid,
+  included: Uint8Array,
+  surface: Int32Array,
+  retainMutableCoordinates: true,
+): number[][];
+function connectedComponentsAtEqualSurface(
+  grid: IndexedAxialGrid,
+  included: Uint8Array,
+  surface: Int32Array,
+  retainMutableCoordinates = false,
+): readonly (readonly number[])[] | number[][] {
+  let seen: Uint8Array | undefined;
   const components: number[][] = [];
-  const queue = new Uint32Array(grid.cellCount);
-  for (let start = 0; start < grid.cellCount; start += 1) {
-    if (included[start] !== 1 || seen[start] === 1) continue;
-    const level = surface[start]!;
-    let head = 0;
-    let tail = 0;
-    queue[tail++] = start;
-    seen[start] = 1;
-    const component: number[] = [];
-    while (head < tail) {
-      const cell = queue[head++]!;
-      component.push(cell);
-      for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
-        const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
-        if (
-          neighbor < 0
-          || included[neighbor] !== 1
-          || seen[neighbor] === 1
-          || surface[neighbor] !== level
-        ) continue;
-        seen[neighbor] = 1;
-        queue[tail++] = neighbor;
+  let queue: Uint32Array | undefined;
+  let completed = false;
+  try {
+    seen = new Uint8Array(grid.cellCount);
+    queue = new Uint32Array(grid.cellCount);
+    for (let start = 0; start < grid.cellCount; start += 1) {
+      if (included[start] !== 1 || seen[start] === 1) continue;
+      const level = surface[start]!;
+      let head = 0;
+      let tail = 0;
+      queue[tail++] = start;
+      seen[start] = 1;
+      const component: number[] = [];
+      components.push(component);
+      while (head < tail) {
+        const cell: number = queue[head++]!;
+        component.push(cell);
+        for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
+          const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
+          if (
+            neighbor < 0
+            || included[neighbor] !== 1
+            || seen[neighbor] === 1
+            || surface[neighbor] !== level
+          ) continue;
+          seen[neighbor] = 1;
+          queue[tail++] = neighbor;
+        }
       }
     }
-    components.push(component);
+    if (retainMutableCoordinates) {
+      completed = true;
+      return components;
+    }
+    const result = Object.freeze(components.map(component => Object.freeze(component)));
+    completed = true;
+    return result;
+  } finally {
+    seen?.fill(0);
+    queue?.fill(0);
+    if (!completed) {
+      for (const component of components) component.fill(0);
+      components.length = 0;
+    }
   }
-  return Object.freeze(components.map(component => Object.freeze(component)));
+}
+
+function clearConnectedComponentCoordinates(
+  components: readonly number[][] | undefined,
+): void {
+  if (!components) return;
+  for (const component of components) component.fill(0);
 }
 
 function standingWaterSurfaceLevel(
@@ -6404,7 +6473,9 @@ function deriveGreaterRealmGeneratedWaterSurface(
   let minorStreamNetwork: Uint8Array | undefined;
   let waterRegime: Uint8Array | undefined;
   let inlandSeaCells: Set<number> | undefined;
-  let allLakeComponents: (readonly number[])[] | undefined;
+  let allLakeComponents: number[][] | undefined;
+  let majorRiverComponents: number[][] | undefined;
+  let belowSeaComponents: number[][] | undefined;
   let selectedLakes: Array<readonly number[]> | undefined;
   let completed = false;
   try {
@@ -6427,16 +6498,17 @@ function deriveGreaterRealmGeneratedWaterSurface(
       if (discharge >= MAJOR_RIVER_DISCHARGE) majorRiverNetwork[cell] = 1;
       else if (discharge >= 96) minorStreamNetwork[cell] = 1;
     }
-    allLakeComponents = [
-      ...connectedComponentsAtEqualSurface(
-        grid,
-        lakeCandidate,
-        filledElevation,
-      ),
-    ].sort(
+    allLakeComponents = connectedComponentsAtEqualSurface(
+      grid,
+      lakeCandidate,
+      filledElevation,
+      true,
+    );
+    allLakeComponents.sort(
       (first, second) => second.length - first.length || first[0]! - second[0]!,
     );
-    const majorRiverCount = connectedComponents(grid, majorRiverNetwork).length;
+    majorRiverComponents = connectedComponents(grid, majorRiverNetwork, true);
+    const majorRiverCount = majorRiverComponents.length;
     let minorStreamCount = 0;
     for (let cell = 0; cell < grid.cellCount; cell += 1) {
       if (minorStreamNetwork[cell] !== 1) continue;
@@ -6457,7 +6529,8 @@ function deriveGreaterRealmGeneratedWaterSurface(
     const generatedWaterRegime = new Uint8Array(grid.cellCount);
     waterRegime = generatedWaterRegime;
     let existingMajorBodies = 0;
-    for (const component of connectedComponents(grid, belowSea)) {
+    belowSeaComponents = connectedComponents(grid, belowSea, true);
+    for (const component of belowSeaComponents) {
       const touchesActiveBoundary = component.some((cell) => {
         for (
           let direction = 0;
@@ -6562,6 +6635,11 @@ function deriveGreaterRealmGeneratedWaterSurface(
     majorRiverNetwork?.fill(0);
     minorStreamNetwork?.fill(0);
     inlandSeaCells?.clear();
+    clearConnectedComponentCoordinates(majorRiverComponents);
+    clearConnectedComponentCoordinates(belowSeaComponents);
+    clearConnectedComponentCoordinates(allLakeComponents);
+    if (majorRiverComponents) majorRiverComponents.length = 0;
+    if (belowSeaComponents) belowSeaComponents.length = 0;
     if (allLakeComponents) allLakeComponents.length = 0;
     if (selectedLakes) selectedLakes.length = 0;
     if (!completed) waterRegime?.fill(0);

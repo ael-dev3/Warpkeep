@@ -122,7 +122,9 @@ Owned `Buffer` and typed-array copies are overwritten in `finally` blocks when
 their lifetime ends, including temporary seed digests and failed atlas
 serialization or persistence. Private candidate retirement also clears the
 coordinate lookup captured by its indexed grid before clearing canonical field
-arrays.
+arrays. Generated-water component traversal always clears its typed `seen` and
+queue scratch, and its owning stage overwrites temporary component coordinate
+lists on both success and failure.
 
 Single-world checkpoints, their owner key, and the seed-free completion receipt
 use no-clobber atomic files whose inode and parent directory are both synced
