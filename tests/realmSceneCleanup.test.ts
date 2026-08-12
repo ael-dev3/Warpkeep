@@ -5,6 +5,7 @@ const webglState = vi.hoisted(() => ({
   failGrassShaderContractOnce: false,
   failAfterGrassShaderFallbackOnce: false,
   failGenericRenderOnce: false,
+  maxAttributes: 16,
   instances: [] as Array<{
     dispose: ReturnType<typeof vi.fn>;
     render: ReturnType<typeof vi.fn>;
@@ -43,7 +44,10 @@ vi.mock('three', async (importOriginal) => {
   const actual = await importOriginal<typeof import('three')>();
 
   class WebGLRenderer {
-    capabilities = { getMaxAnisotropy: () => 1 };
+    capabilities = {
+      getMaxAnisotropy: () => 1,
+      maxAttributes: webglState.maxAttributes
+    };
     dispose = vi.fn();
     outputColorSpace = '';
     render = vi.fn(() => {
@@ -408,6 +412,7 @@ describe('realm scene setup cleanup', () => {
     webglState.failGrassShaderContractOnce = false;
     webglState.failAfterGrassShaderFallbackOnce = false;
     webglState.failGenericRenderOnce = false;
+    webglState.maxAttributes = 16;
     webglState.instances.length = 0;
     keepLoadState.load.mockReset();
     keepLoadState.load.mockImplementation(() => new Promise<unknown>(() => undefined));
@@ -956,6 +961,24 @@ describe('realm scene setup cleanup', () => {
     expect(renderedScene.getObjectByName('realm-environment-depth')).toBeUndefined();
     expect(renderedScene.children.some((child) => child instanceof THREE.DirectionalLight))
       .toBe(true);
+
+    sceneHandle.dispose();
+  });
+
+  it('fails closed before vegetation allocation when linked attributes cannot fit', () => {
+    const canvas = document.createElement('canvas');
+    webglState.maxAttributes = 12;
+
+    const sceneHandle = createRealmScene(createOptions(canvas, { reducedMotion: true }));
+    const renderedScene = webglState.instances[0].render.mock.calls.at(-1)?.[0] as THREE.Scene;
+
+    expect(canvas.dataset.realmVegetationCapability).toBe('terrain-only');
+    expect(canvas.dataset.realmVegetationCapabilityReason)
+      .toBe('insufficient-attribute-slots');
+    expect(canvas.dataset.realmVegetationSelectedProfile).toBe('none');
+    expect(canvas.dataset.realmVegetationMaxAttributes).toBe('12');
+    expect(canvas.dataset.grassPresentation).toBe('unavailable');
+    expect(renderedScene.getObjectByName('realm-procedural-biome-grass')).toBeUndefined();
 
     sceneHandle.dispose();
   });

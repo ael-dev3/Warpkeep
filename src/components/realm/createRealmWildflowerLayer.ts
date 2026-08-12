@@ -106,8 +106,12 @@ export function createRealmWildflowerLayer(options: Readonly<{
   alphaToCoverage?: boolean;
 }>): RealmWildflowerLayer {
   const budget = REALM_WILDFLOWER_BUDGETS[options.plan.geometryProfile];
-  const geometry = createRealmWildflowerGeometry();
-  const materialLayer = createRealmWildflowerMaterial(
+  let constructionGeometry: THREE.BufferGeometry | undefined;
+  let constructionMaterial: ReturnType<typeof createRealmWildflowerMaterial> | undefined;
+  let constructionMesh: THREE.InstancedMesh | undefined;
+  try {
+  const geometry = constructionGeometry = createRealmWildflowerGeometry();
+  const materialLayer = constructionMaterial = createRealmWildflowerMaterial(
     options.reducedMotion ? 0 : options.plan.windStrengthMultiplier,
     options.alphaToCoverage ?? false
   );
@@ -120,7 +124,11 @@ export function createRealmWildflowerLayer(options: Readonly<{
   geometry.setAttribute('flowerPhase', phase);
   geometry.setAttribute('flowerWindScale', windScale);
   geometry.setAttribute('flowerCoverage', coverage);
-  const mesh = new THREE.InstancedMesh(geometry, materialLayer.material, Math.max(1, budget));
+  const mesh = constructionMesh = new THREE.InstancedMesh(
+    geometry,
+    materialLayer.material,
+    Math.max(1, budget)
+  );
   mesh.name = 'realm-procedural-wildflower-accents';
   mesh.count = 0;
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -152,7 +160,7 @@ export function createRealmWildflowerLayer(options: Readonly<{
     collector = createDeterministicBudgetCollector<SelectedFlower>(budget);
   };
 
-  return Object.freeze({
+  const layer: RealmWildflowerLayer = Object.freeze({
     mesh,
     beginRepack,
     addCandidate: (candidate) => {
@@ -284,4 +292,14 @@ export function createRealmWildflowerLayer(options: Readonly<{
       materialLayer.dispose();
     }
   });
+  constructionMesh = undefined;
+  constructionGeometry = undefined;
+  constructionMaterial = undefined;
+  return layer;
+  } catch (error) {
+    constructionMesh?.dispose();
+    constructionGeometry?.dispose();
+    constructionMaterial?.dispose();
+    throw error;
+  }
 }

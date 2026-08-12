@@ -33,7 +33,7 @@ export function realmTerrainFineReliefMode(
 
 export function realmTerrainShaderCacheKey(quality: RealmQuality) {
   return [
-    'warpkeep-living-realm-terrain-v3',
+    'warpkeep-living-realm-terrain-v4',
     REALM_TERRAIN_THREE_SHADER_CONTRACT,
     realmTerrainFineReliefMode(quality)
   ].join('-');
@@ -94,7 +94,45 @@ vTerrainWorldXZ = (modelMatrix * vec4(transformed, 1.0)).xz;`
 }
 
 function climateReliefShader(mode: RealmTerrainFineReliefMode) {
-  if (mode === 'none') return '#include <normal_fragment_maps>';
+  const vegetationRelief = `
+float warpkeepVegetationPhase =
+  dot(vTerrainWorldXZ, vec2(0.73, -0.41)) * 2.35
+  + dot(vTerrainWorldXZ, vec2(0.19, 0.98)) * 1.17;
+float warpkeepVegetationFootprint = fwidth(warpkeepVegetationPhase);
+float warpkeepVegetationFilter =
+  1.0 - smoothstep(0.28, 1.15, warpkeepVegetationFootprint);
+vec2 warpkeepVegetationGradient = vec2(0.73, -0.41)
+  * cos(warpkeepVegetationPhase)
+  * 0.012
+  * warpkeepVegetationFilter
+  * smoothstep(0.12, 0.88, terrainVegetation);
+`;
+  if (mode === 'none') return `
+#include <normal_fragment_maps>
+${vegetationRelief}
+mat3 warpkeepVegetationViewRotation = mat3(viewMatrix);
+vec3 warpkeepVegetationMacroNormalWorld = normalize(vec3(
+  dot(warpkeepVegetationViewRotation[0], normal),
+  dot(warpkeepVegetationViewRotation[1], normal),
+  dot(warpkeepVegetationViewRotation[2], normal)
+));
+float warpkeepVegetationMacroNormalY =
+  max(warpkeepVegetationMacroNormalWorld.y, 0.08);
+vec2 warpkeepVegetationMacroSlope = vec2(
+  -warpkeepVegetationMacroNormalWorld.x / warpkeepVegetationMacroNormalY,
+  -warpkeepVegetationMacroNormalWorld.z / warpkeepVegetationMacroNormalY
+);
+vec2 warpkeepVegetationCombinedSlope =
+  warpkeepVegetationMacroSlope + warpkeepVegetationGradient;
+normal = normalize(
+  warpkeepVegetationViewRotation
+    * normalize(vec3(
+      -warpkeepVegetationCombinedSlope.x,
+      1.0,
+      -warpkeepVegetationCombinedSlope.y
+    ))
+);
+`;
   const secondBand = mode === 'two-band'
     ? `
 float warpkeepSnowCrossPhase =
@@ -161,6 +199,8 @@ vec2 warpkeepCombinedSlope =
   warpkeepMacroSlope
   + warpkeepSnowGradient * warpkeepSnowReliefCoverage
   + warpkeepSandGradient * warpkeepSandReliefCoverage;
+${vegetationRelief}
+warpkeepCombinedSlope += warpkeepVegetationGradient;
 normal = normalize(
   warpkeepViewRotation
     * normalize(vec3(-warpkeepCombinedSlope.x, 1.0, -warpkeepCombinedSlope.y))
@@ -224,7 +264,8 @@ ${roughnessMarker}
 roughnessFactor = clamp(
   roughnessFactor
     - clamp(vTerrainSurfaceCue.w, 0.0, 1.0) * 0.12
-    + clamp(vTerrainSurfaceCue.x, 0.0, 1.0) * 0.025,
+    + clamp(vTerrainSurfaceCue.x, 0.0, 1.0) * 0.025
+    + terrainVegetation * 0.035,
   0.72,
   1.0
 );

@@ -513,21 +513,48 @@ const RENDERED_WEBGL_QA_FOREST_DECORATIVE_BUDGETS = Object.freeze({
 const RENDERED_WEBGL_QA_GRASS_BUDGETS = Object.freeze({
   high: Object.freeze({
     instances: 7_000,
-    triangles: 189_000,
-    drawCalls: 3,
+    nearInstances: 4_800,
+    midInstances: 2_200,
+    triangles: 252_000,
+    nearTriangles: 172_800,
+    midTriangles: 11_000,
+    nearTrianglesPerInstance: 36,
+    midTrianglesPerInstance: 5,
+    drawCalls: 6,
+    nearDrawCalls: 3,
+    midDrawCalls: 3,
     cacheEntries: 2_048,
+    wildflowerInstances: 512,
   }),
   balanced: Object.freeze({
     instances: 4_000,
-    triangles: 84_000,
-    drawCalls: 3,
+    nearInstances: 2_700,
+    midInstances: 1_300,
+    triangles: 108_000,
+    nearTriangles: 72_900,
+    midTriangles: 5_200,
+    nearTrianglesPerInstance: 27,
+    midTrianglesPerInstance: 4,
+    drawCalls: 4,
+    nearDrawCalls: 2,
+    midDrawCalls: 2,
     cacheEntries: 1_024,
+    wildflowerInstances: 256,
   }),
   reduced: Object.freeze({
     instances: 1_200,
+    nearInstances: 800,
+    midInstances: 400,
     triangles: 18_000,
-    drawCalls: 3,
+    nearTriangles: 12_000,
+    midTriangles: 1_200,
+    nearTrianglesPerInstance: 15,
+    midTrianglesPerInstance: 3,
+    drawCalls: 2,
+    nearDrawCalls: 1,
+    midDrawCalls: 1,
     cacheEntries: 512,
+    wildflowerInstances: 0,
   }),
 });
 const TERRAIN_PRESENTATION_BUDGETS = Object.freeze({
@@ -2041,15 +2068,27 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     'forestDecorativeTriangleCount',
     'forestDecorativeTreeCount',
     'forestDecorativeUsingFallback',
+    'grassAlphaHashActive',
+    'grassAlphaToCoverageActive',
     'grassCacheEntries',
     'grassCacheHighWaterMark',
     'grassCacheLimit',
     'grassDrawCalls',
     'grassInstanceCount',
+    'grassLodTransitionInstanceCount',
+    'grassMidDrawCalls',
+    'grassMidInstanceCount',
+    'grassMidTriangleCount',
+    'grassNearDrawCalls',
+    'grassNearInstanceCount',
+    'grassNearTriangleCount',
+    'grassOverviewHidden',
     'grassPaletteDisplaySrgbSaturationMax',
     'grassPaletteDisplaySrgbSaturationMin',
     'grassRepackCount',
     'grassShaderFallbackActive',
+    'grassShaderFallbackCount',
+    'grassShaderFallbackReason',
     'grassTriangleCount',
     'href',
     'hiddenFocusedLabelCount',
@@ -2090,6 +2129,10 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     'raycastTargetCount',
     'readyAfterMilliseconds',
     'readyOverlayVisible',
+    'realmVegetationCapability',
+    'realmVegetationCapabilityReason',
+    'realmVegetationMaxAttributes',
+    'realmVegetationSelectedProfile',
     'renderer',
     'presentedLandscapeBaseCount',
     'presentedModelCount',
@@ -2114,6 +2157,17 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     'undersizedPrimaryControlKinds',
     'viewportHeight',
     'viewportWidth',
+    'wildflowerAlphaHashActive',
+    'wildflowerAlphaToCoverageActive',
+    'wildflowerAnimated',
+    'wildflowerDrawCalls',
+    'wildflowerInstanceBudget',
+    'wildflowerInstanceCount',
+    'wildflowerOverviewHidden',
+    'wildflowerShaderFallbackActive',
+    'wildflowerShaderFallbackCount',
+    'wildflowerShaderFallbackReason',
+    'wildflowerTriangleCount',
   ].sort();
   if (
     keys.length !== expectedKeys.length
@@ -2296,21 +2350,64 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     );
   const grassNumericValues = [
     candidate.grassInstanceCount,
+    candidate.grassNearInstanceCount,
+    candidate.grassMidInstanceCount,
     candidate.grassTriangleCount,
+    candidate.grassNearTriangleCount,
+    candidate.grassMidTriangleCount,
     candidate.grassDrawCalls,
+    candidate.grassNearDrawCalls,
+    candidate.grassMidDrawCalls,
+    candidate.grassLodTransitionInstanceCount,
     candidate.grassCacheEntries,
     candidate.grassCacheLimit,
     candidate.grassCacheHighWaterMark,
     candidate.grassRepackCount,
+    candidate.grassShaderFallbackCount,
   ];
   const grassNumericShapeValid = grassNumericValues.every((value) => (
     Number.isSafeInteger(value) && value >= 0
   ));
+  const grassBooleanShapeValid = [
+    candidate.grassAlphaHashActive,
+    candidate.grassAlphaToCoverageActive,
+    candidate.grassShaderFallbackActive,
+    candidate.grassOverviewHidden,
+  ].every((value) => typeof value === 'boolean');
+  const grassAggregateTelemetryValid = grassNumericShapeValid
+    && candidate.grassInstanceCount
+      === candidate.grassNearInstanceCount + candidate.grassMidInstanceCount
+    && candidate.grassTriangleCount
+      === candidate.grassNearTriangleCount + candidate.grassMidTriangleCount
+    && candidate.grassDrawCalls
+      === candidate.grassNearDrawCalls + candidate.grassMidDrawCalls
+    && candidate.grassLodTransitionInstanceCount
+      <= candidate.grassInstanceCount;
+  const grassLodTopologyValid = grassNumericShapeValid
+    && grassBudgets
+    && candidate.grassNearTriangleCount
+      === candidate.grassNearInstanceCount
+        * grassBudgets.nearTrianglesPerInstance
+    && candidate.grassMidTriangleCount
+      === candidate.grassMidInstanceCount
+        * grassBudgets.midTrianglesPerInstance
+    && (candidate.grassNearInstanceCount === 0
+      ? candidate.grassNearDrawCalls === 0
+      : candidate.grassNearDrawCalls > 0)
+    && (candidate.grassMidInstanceCount === 0
+      ? candidate.grassMidDrawCalls === 0
+      : candidate.grassMidDrawCalls > 0);
   const grassBudgetValid = grassNumericShapeValid
     && grassBudgets
     && candidate.grassInstanceCount <= grassBudgets.instances
+    && candidate.grassNearInstanceCount <= grassBudgets.nearInstances
+    && candidate.grassMidInstanceCount <= grassBudgets.midInstances
     && candidate.grassTriangleCount <= grassBudgets.triangles
+    && candidate.grassNearTriangleCount <= grassBudgets.nearTriangles
+    && candidate.grassMidTriangleCount <= grassBudgets.midTriangles
     && candidate.grassDrawCalls <= grassBudgets.drawCalls
+    && candidate.grassNearDrawCalls <= grassBudgets.nearDrawCalls
+    && candidate.grassMidDrawCalls <= grassBudgets.midDrawCalls
     && candidate.grassCacheLimit === grassBudgets.cacheEntries
     && candidate.grassCacheEntries <= candidate.grassCacheHighWaterMark
     && candidate.grassCacheHighWaterMark <= candidate.grassCacheLimit;
@@ -2325,9 +2422,92 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     && candidate.grassPaletteDisplaySrgbSaturationMax <= 0.58
     && candidate.grassPaletteDisplaySrgbSaturationMin
       <= candidate.grassPaletteDisplaySrgbSaturationMax;
+  const grassCoverageModeValid = grassBooleanShapeValid
+    && candidate.grassAlphaHashActive
+      !== candidate.grassAlphaToCoverageActive;
+  const grassFallbackTelemetryValid = grassBooleanShapeValid
+    && candidate.grassShaderFallbackActive === false
+    && candidate.grassShaderFallbackCount === 0
+    && candidate.grassShaderFallbackReason === 'none';
+  const grassOverviewZero = candidate.grassInstanceCount === 0
+    && candidate.grassNearInstanceCount === 0
+    && candidate.grassMidInstanceCount === 0
+    && candidate.grassTriangleCount === 0
+    && candidate.grassNearTriangleCount === 0
+    && candidate.grassMidTriangleCount === 0
+    && candidate.grassDrawCalls === 0
+    && candidate.grassNearDrawCalls === 0
+    && candidate.grassMidDrawCalls === 0
+    && candidate.grassLodTransitionInstanceCount === 0;
+  const grassPresentationTelemetryValid = grassBooleanShapeValid
+    && (candidate.rootRealmCameraPresentationBand === 'overview'
+      ? candidate.grassOverviewHidden === true && grassOverviewZero
+      : candidate.grassOverviewHidden === false);
   const grassCraftedTelemetryValid = grassBudgetValid
+    && grassAggregateTelemetryValid
+    && grassLodTopologyValid
     && (grassPaletteEmpty || grassPaletteNatural)
-    && candidate.grassShaderFallbackActive === false;
+    && grassCoverageModeValid
+    && grassFallbackTelemetryValid
+    && grassPresentationTelemetryValid;
+  const wildflowerNumericValues = [
+    candidate.wildflowerInstanceCount,
+    candidate.wildflowerTriangleCount,
+    candidate.wildflowerDrawCalls,
+    candidate.wildflowerInstanceBudget,
+    candidate.wildflowerShaderFallbackCount,
+  ];
+  const wildflowerNumericShapeValid = wildflowerNumericValues.every((value) => (
+    Number.isSafeInteger(value) && value >= 0
+  ));
+  const wildflowerBooleanShapeValid = [
+    candidate.wildflowerAnimated,
+    candidate.wildflowerAlphaHashActive,
+    candidate.wildflowerAlphaToCoverageActive,
+    candidate.wildflowerShaderFallbackActive,
+    candidate.wildflowerOverviewHidden,
+  ].every((value) => typeof value === 'boolean');
+  const wildflowerBudgetValid = wildflowerNumericShapeValid
+    && grassBudgets
+    && candidate.wildflowerInstanceBudget
+      === grassBudgets.wildflowerInstances
+    && candidate.wildflowerInstanceCount
+      <= candidate.wildflowerInstanceBudget
+    && candidate.wildflowerTriangleCount
+      === candidate.wildflowerInstanceCount * 4
+    && candidate.wildflowerDrawCalls <= 1
+    && (candidate.wildflowerInstanceCount === 0
+      ? candidate.wildflowerDrawCalls === 0
+        && candidate.wildflowerAnimated === false
+      : candidate.wildflowerDrawCalls === 1);
+  const wildflowerCoverageModeValid = wildflowerBooleanShapeValid
+    && candidate.wildflowerAlphaHashActive
+      !== candidate.wildflowerAlphaToCoverageActive
+    && candidate.wildflowerAlphaHashActive
+      === candidate.grassAlphaHashActive
+    && candidate.wildflowerAlphaToCoverageActive
+      === candidate.grassAlphaToCoverageActive;
+  const wildflowerFallbackTelemetryValid = wildflowerBooleanShapeValid
+    && candidate.wildflowerShaderFallbackActive === false
+    && candidate.wildflowerShaderFallbackCount === 0
+    && candidate.wildflowerShaderFallbackReason === 'none';
+  const wildflowerOverviewZero = candidate.wildflowerInstanceCount === 0
+    && candidate.wildflowerTriangleCount === 0
+    && candidate.wildflowerDrawCalls === 0
+    && candidate.wildflowerAnimated === false;
+  const wildflowerPresentationTelemetryValid = wildflowerBooleanShapeValid
+    && grassBudgets
+    && candidate.wildflowerOverviewHidden === (
+      candidate.rootRealmCameraPresentationBand === 'overview'
+      || grassBudgets.wildflowerInstances === 0
+    )
+    && (!candidate.wildflowerOverviewHidden || wildflowerOverviewZero);
+  const vegetationCapabilityTelemetryValid =
+    candidate.realmVegetationCapability === 'preferred'
+    && candidate.realmVegetationCapabilityReason === 'none'
+    && candidate.realmVegetationSelectedProfile === expected.expectedQuality
+    && Number.isSafeInteger(candidate.realmVegetationMaxAttributes)
+    && candidate.realmVegetationMaxAttributes >= 13;
   const terrainMaterialTelemetryValid =
     expected.expectedTerrainShaderFallback === true
       ? candidate.terrainShaderEnhanced === false
@@ -2370,8 +2550,22 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     !forestDecorativeStateValid ? 'forest-decorative-state' : '',
     !forestDecorativeCraftedTelemetryValid
       ? 'forest-decorative-crafted-telemetry' : '',
-    !grassNumericShapeValid ? 'grass-crafted-shape' : '',
+    !grassNumericShapeValid || !grassBooleanShapeValid
+      ? 'grass-crafted-shape' : '',
+    !grassAggregateTelemetryValid ? 'grass-aggregate-telemetry' : '',
+    !grassLodTopologyValid ? 'grass-lod-topology' : '',
+    !grassCoverageModeValid ? 'grass-coverage-mode' : '',
+    !grassFallbackTelemetryValid ? 'grass-fallback-telemetry' : '',
+    !grassPresentationTelemetryValid ? 'grass-overview-telemetry' : '',
     !grassCraftedTelemetryValid ? 'grass-crafted-telemetry' : '',
+    !wildflowerNumericShapeValid || !wildflowerBooleanShapeValid
+      ? 'wildflower-shape' : '',
+    !wildflowerBudgetValid ? 'wildflower-budget' : '',
+    !wildflowerCoverageModeValid ? 'wildflower-coverage-mode' : '',
+    !wildflowerFallbackTelemetryValid ? 'wildflower-fallback-telemetry' : '',
+    !wildflowerPresentationTelemetryValid
+      ? 'wildflower-overview-telemetry' : '',
+    !vegetationCapabilityTelemetryValid ? 'vegetation-capability' : '',
     !terrainMaterialTelemetryValid ? 'terrain-material-telemetry' : '',
     !terrainBudgets
       || !Number.isSafeInteger(candidate.semanticTerrainFeatureCount)
@@ -2633,8 +2827,31 @@ export function parseRenderedWebglBrowserDom(value, expected) {
       candidate.forestDecorativeCanonicalTriangleCount,
     forestDecorativeOverviewHidden: candidate.forestDecorativeOverviewHidden,
     grassInstanceCount: candidate.grassInstanceCount,
+    grassNearInstanceCount: candidate.grassNearInstanceCount,
+    grassMidInstanceCount: candidate.grassMidInstanceCount,
     grassTriangleCount: candidate.grassTriangleCount,
+    grassNearTriangleCount: candidate.grassNearTriangleCount,
+    grassMidTriangleCount: candidate.grassMidTriangleCount,
     grassDrawCalls: candidate.grassDrawCalls,
+    grassNearDrawCalls: candidate.grassNearDrawCalls,
+    grassMidDrawCalls: candidate.grassMidDrawCalls,
+    grassLodTransitionInstanceCount:
+      candidate.grassLodTransitionInstanceCount,
+    wildflowerInstanceCount: candidate.wildflowerInstanceCount,
+    wildflowerTriangleCount: candidate.wildflowerTriangleCount,
+    wildflowerDrawCalls: candidate.wildflowerDrawCalls,
+    wildflowerInstanceBudget: candidate.wildflowerInstanceBudget,
+    wildflowerAnimated: candidate.wildflowerAnimated,
+    wildflowerAlphaHashActive: candidate.wildflowerAlphaHashActive,
+    wildflowerAlphaToCoverageActive:
+      candidate.wildflowerAlphaToCoverageActive,
+    wildflowerShaderFallbackActive:
+      candidate.wildflowerShaderFallbackActive,
+    wildflowerShaderFallbackCount:
+      candidate.wildflowerShaderFallbackCount,
+    wildflowerShaderFallbackReason:
+      candidate.wildflowerShaderFallbackReason,
+    wildflowerOverviewHidden: candidate.wildflowerOverviewHidden,
     grassCacheEntries: candidate.grassCacheEntries,
     grassCacheLimit: candidate.grassCacheLimit,
     grassCacheHighWaterMark: candidate.grassCacheHighWaterMark,
@@ -2643,7 +2860,18 @@ export function parseRenderedWebglBrowserDom(value, expected) {
       candidate.grassPaletteDisplaySrgbSaturationMin,
     grassPaletteDisplaySrgbSaturationMax:
       candidate.grassPaletteDisplaySrgbSaturationMax,
+    grassAlphaHashActive: candidate.grassAlphaHashActive,
+    grassAlphaToCoverageActive: candidate.grassAlphaToCoverageActive,
     grassShaderFallbackActive: candidate.grassShaderFallbackActive,
+    grassShaderFallbackCount: candidate.grassShaderFallbackCount,
+    grassShaderFallbackReason: candidate.grassShaderFallbackReason,
+    grassOverviewHidden: candidate.grassOverviewHidden,
+    realmVegetationCapability: candidate.realmVegetationCapability,
+    realmVegetationCapabilityReason:
+      candidate.realmVegetationCapabilityReason,
+    realmVegetationSelectedProfile:
+      candidate.realmVegetationSelectedProfile,
+    realmVegetationMaxAttributes: candidate.realmVegetationMaxAttributes,
     terrainShaderEnhanced: candidate.terrainShaderEnhanced,
     terrainShaderFallbackActive: candidate.terrainShaderFallbackActive,
     semanticTerrainCellCount: candidate.semanticTerrainCellCount,
@@ -2681,6 +2909,7 @@ export function parseRenderedWebglBrowserDom(value, expected) {
  */
 export function parseRenderedWebglActiveForestDom(value, expected) {
   const observation = parseRenderedWebglBrowserDom(value, expected);
+  const expectsWildflowers = observation.quality !== 'reduced';
   if (
     observation.rootRealmCameraMode !== 'keep'
     || observation.canvasRealmCameraMode !== 'keep'
@@ -2692,8 +2921,23 @@ export function parseRenderedWebglActiveForestDom(value, expected) {
     || observation.forestDecorativeCacheEntries < 1
     || observation.forestDecorativeModelReady !== true
     || observation.forestDecorativeUsingFallback !== false
+    || observation.grassOverviewHidden !== false
+    || observation.grassInstanceCount < 1
+    || observation.grassTriangleCount < 1
+    || observation.grassDrawCalls < 1
+    || (expectsWildflowers
+      ? observation.wildflowerOverviewHidden !== false
+        || observation.wildflowerInstanceCount < 1
+        || observation.wildflowerTriangleCount < 1
+        || observation.wildflowerDrawCalls !== 1
+      : observation.wildflowerOverviewHidden !== true
+        || observation.wildflowerInstanceCount !== 0
+        || observation.wildflowerTriangleCount !== 0
+        || observation.wildflowerDrawCalls !== 0)
   ) {
-    throw new TypeError('Invalid rendered WebGL active decorative forest DOM.');
+    throw new TypeError(
+      'Invalid rendered WebGL active decorative forest and groundcover DOM.'
+    );
   }
   return observation;
 }
@@ -3989,6 +4233,15 @@ const READ_DOM_EXPRESSION = `(() => {
     castleCount: integer(overlay?.getAttribute('data-castle-count')),
     readyAfterMilliseconds: integer(overlay?.getAttribute('data-ready-after-ms')),
     environmentLighting: canvas?.getAttribute('data-environment-lighting') ?? null,
+    realmVegetationCapability:
+      canvas?.getAttribute('data-realm-vegetation-capability') ?? null,
+    realmVegetationCapabilityReason:
+      canvas?.getAttribute('data-realm-vegetation-capability-reason') ?? null,
+    realmVegetationSelectedProfile:
+      canvas?.getAttribute('data-realm-vegetation-selected-profile') ?? null,
+    realmVegetationMaxAttributes: integer(
+      canvas?.getAttribute('data-realm-vegetation-max-attributes')
+    ),
     forestDecorativeTreeCount: integer(
       map?.getAttribute('data-forest-decorative-tree-count')
     ),
@@ -4049,11 +4302,64 @@ const READ_DOM_EXPRESSION = `(() => {
     grassInstanceCount: integer(
       map?.getAttribute('data-grass-instance-count')
     ),
+    grassNearInstanceCount: integer(
+      map?.getAttribute('data-grass-near-instance-count')
+    ),
+    grassMidInstanceCount: integer(
+      map?.getAttribute('data-grass-mid-instance-count')
+    ),
     grassTriangleCount: integer(
       map?.getAttribute('data-grass-triangle-count')
     ),
+    grassNearTriangleCount: integer(
+      map?.getAttribute('data-grass-near-triangle-count')
+    ),
+    grassMidTriangleCount: integer(
+      map?.getAttribute('data-grass-mid-triangle-count')
+    ),
     grassDrawCalls: integer(
       map?.getAttribute('data-grass-draw-calls')
+    ),
+    grassNearDrawCalls: integer(
+      map?.getAttribute('data-grass-near-draw-calls')
+    ),
+    grassMidDrawCalls: integer(
+      map?.getAttribute('data-grass-mid-draw-calls')
+    ),
+    grassLodTransitionInstanceCount: integer(
+      map?.getAttribute('data-grass-lod-transition-instance-count')
+    ),
+    wildflowerInstanceCount: integer(
+      map?.getAttribute('data-wildflower-instance-count')
+    ),
+    wildflowerTriangleCount: integer(
+      map?.getAttribute('data-wildflower-triangle-count')
+    ),
+    wildflowerDrawCalls: integer(
+      map?.getAttribute('data-wildflower-draw-calls')
+    ),
+    wildflowerInstanceBudget: integer(
+      map?.getAttribute('data-wildflower-instance-budget')
+    ),
+    wildflowerAnimated: exactBoolean(
+      map?.getAttribute('data-wildflower-animated')
+    ),
+    wildflowerAlphaHashActive: exactBoolean(
+      map?.getAttribute('data-wildflower-alpha-hash-active')
+    ),
+    wildflowerAlphaToCoverageActive: exactBoolean(
+      map?.getAttribute('data-wildflower-alpha-to-coverage-active')
+    ),
+    wildflowerShaderFallbackActive: exactBoolean(
+      map?.getAttribute('data-wildflower-shader-fallback-active')
+    ),
+    wildflowerShaderFallbackCount: integer(
+      map?.getAttribute('data-wildflower-shader-fallback-count')
+    ),
+    wildflowerShaderFallbackReason:
+      map?.getAttribute('data-wildflower-shader-fallback-reason') ?? null,
+    wildflowerOverviewHidden: exactBoolean(
+      map?.getAttribute('data-wildflower-overview-hidden')
     ),
     grassCacheEntries: integer(
       map?.getAttribute('data-grass-cache-entries')
@@ -4073,8 +4379,22 @@ const READ_DOM_EXPRESSION = `(() => {
     grassPaletteDisplaySrgbSaturationMax: finiteNumber(
       map?.getAttribute('data-grass-palette-display-srgb-saturation-max')
     ),
+    grassAlphaHashActive: exactBoolean(
+      map?.getAttribute('data-grass-alpha-hash-active')
+    ),
+    grassAlphaToCoverageActive: exactBoolean(
+      map?.getAttribute('data-grass-alpha-to-coverage-active')
+    ),
     grassShaderFallbackActive: exactBoolean(
       map?.getAttribute('data-grass-shader-fallback-active')
+    ),
+    grassShaderFallbackCount: integer(
+      map?.getAttribute('data-grass-shader-fallback-count')
+    ),
+    grassShaderFallbackReason:
+      map?.getAttribute('data-grass-shader-fallback-reason') ?? null,
+    grassOverviewHidden: exactBoolean(
+      map?.getAttribute('data-grass-overview-hidden')
     ),
     terrainShaderEnhanced: exactBoolean(
       map?.getAttribute('data-terrain-shader-enhanced')

@@ -235,24 +235,29 @@ export function createLowPolyGrassGeometry(
   }
 
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-  geometry.setAttribute('grassBladeData', new THREE.Float32BufferAttribute(bladeData, 4));
-  geometry.setIndex(indices);
-  geometry.computeBoundingBox();
-  geometry.computeBoundingSphere();
-  geometry.userData.realmGrassGeometryProfile = profile;
-  geometry.userData.realmGrassLod = lod;
-  geometry.userData.realmGrassVariant = safeVariant;
-  geometry.userData.realmGrassShape = shape.id;
-  geometry.userData.realmGrassBladeCount = bladeCount;
-  geometry.userData.realmGrassTriangleCount = lod === 'mid'
-    ? REALM_GRASS_MID_TRIANGLES_PER_PATCH[profile]
-    : REALM_GRASS_TRIANGLES_PER_PATCH[profile];
-  geometry.userData.realmGrassRootPositions = Object.freeze(
-    ROOTS[profile]
-      .slice(0, bladeCount)
-      .map((root, blade) => Object.freeze(variantRoot(root, safeVariant, blade)))
-  );
-  return geometry;
+  try {
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+    geometry.setAttribute('grassBladeData', new THREE.Float32BufferAttribute(bladeData, 4));
+    geometry.setIndex(indices);
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
+    geometry.userData.realmGrassGeometryProfile = profile;
+    geometry.userData.realmGrassLod = lod;
+    geometry.userData.realmGrassVariant = safeVariant;
+    geometry.userData.realmGrassShape = shape.id;
+    geometry.userData.realmGrassBladeCount = bladeCount;
+    geometry.userData.realmGrassTriangleCount = lod === 'mid'
+      ? REALM_GRASS_MID_TRIANGLES_PER_PATCH[profile]
+      : REALM_GRASS_TRIANGLES_PER_PATCH[profile];
+    geometry.userData.realmGrassRootPositions = Object.freeze(
+      ROOTS[profile]
+        .slice(0, bladeCount)
+        .map((root, blade) => Object.freeze(variantRoot(root, safeVariant, blade)))
+    );
+    return geometry;
+  } catch (error) {
+    geometry.dispose();
+    throw error;
+  }
 }

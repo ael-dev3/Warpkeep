@@ -144,10 +144,10 @@ describe('canonical Genesis 001 grass bounds', () => {
     expect(first.drawCalls).toBeLessThanOrEqual(
       REALM_GRASS_RENDER_PLANS.high.maximumActiveDrawCalls
     );
-     expect(first.variantCounts).toHaveLength(6);
-     expect(digestPackedGrass(layer)).toBe(
-       '3c25abe6f1e1a22e4c8bec3be982975a0aaebda4dc1b7b5e0e97e3f403215bf0'
-     );
+    expect(first.variantCounts).toHaveLength(6);
+    expect(digestPackedGrass(layer)).toBe(
+      '3e0273e4d1229fa871f1369c86aeca15fee4a25a50006491b0ca955c1dc43403'
+    );
 
     layer.updateView(axialToWorld({ q: 30, r: -10 }, 1), 'keep');
     const traversed = layer.getTelemetry();

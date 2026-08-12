@@ -9,7 +9,7 @@ import {
 import type { RealmSurfaceDisturbanceSnapshot } from './realmSurfaceDisturbanceField';
 
 export const REALM_GRASS_THREE_SHADER_CONTRACT = 'three-r185';
-export const REALM_GRASS_SHADER_CACHE_KEY = `warpkeep-procedural-grass-v3-living-gust-bounded-tips-thin-blade-lighting-v1-${REALM_LIVING_ENVIRONMENT_REVISION}-${REALM_GRASS_THREE_SHADER_CONTRACT}`;
+export const REALM_GRASS_SHADER_CACHE_KEY = `warpkeep-procedural-grass-v3-living-gust-v6-bounded-tips-disturbance-analytic-bend-normal-v2-${REALM_LIVING_ENVIRONMENT_REVISION}-${REALM_GRASS_THREE_SHADER_CONTRACT}`;
 export const REALM_GRASS_MAX_WIND_SWAY = 0.075;
 export const REALM_GRASS_MAX_DISTURBANCE_SWAY = 0.055;
 export const REALM_GRASS_CROSS_WIND_RATIO = 0.16;
@@ -86,7 +86,7 @@ uniform float uGrassInteractionFlattening;
 varying float vGrassEdgeFade;
 varying float vGrassBladeAcross;
 varying float vGrassBladeVertical;
-varying vec3 vGrassBendWorld;
+varying vec3 vGrassBendSlopeWorld;
 `;
 
 const FRAGMENT_DECLARATIONS = `
@@ -94,7 +94,7 @@ uniform vec3 uGrassSunDirection;
 varying float vGrassEdgeFade;
 varying float vGrassBladeAcross;
 varying float vGrassBladeVertical;
-varying vec3 vGrassBendWorld;
+varying vec3 vGrassBendSlopeWorld;
 float realmGrassCoverage() {
   float edgeCoverage = 1.0 - smoothstep(0.92, 1.0, abs(vGrassBladeAcross));
   float tipCoverage = mix(0.96, 0.48, smoothstep(0.68, 1.0, vGrassBladeVertical));
@@ -165,7 +165,7 @@ float grassSelected = mix(grassPreviousSelected, grassTargetSelected, uGrassInte
 float grassHovered = mix(grassPreviousHovered, grassTargetHovered, uGrassInteractionProgress);
 float grassSelectionScale = mix(1.0, 0.42, grassSelected * uGrassInteractionFlattening);
 grassSelectionScale = min(grassSelectionScale, mix(1.0, 0.70, grassHovered * uGrassInteractionFlattening));
-vGrassEdgeFade = clamp(grassEdgeFade, 0.0, 1.0);
+vGrassEdgeFade = clamp(grassEdgeFade * uGrassGlobalVisibility, 0.0, 1.0);
 vGrassBladeAcross = grassBladeAcross;
 vGrassBladeVertical = grassBladeVertical;
 transformed.y *= grassSelectionScale;
@@ -205,7 +205,18 @@ vec2 grassLocalBend = (
 ) * grassBend * grassFlexAmount;
 transformed.xz += grassLocalBend;
 ${grassDisturbanceBend(safeSlotCount)}
-vGrassBendWorld = mat3(modelMatrix * instanceMatrix) * vec3(grassLocalBend.x, 0.0, grassLocalBend.y);
+float grassFlexDerivative = 1.85 * pow(max(grassFlex, 0.0), 0.85);
+float grassBendDerivativeScale = grassFlexAmount > 0.0001
+  ? grassFlexDerivative / grassFlexAmount
+  : 0.0;
+vec2 grassLocalBendSlope = grassLocalBend * grassBendDerivativeScale;
+vec3 grassWorldBendSlope = mat3(modelMatrix * instanceMatrix)
+  * vec3(grassLocalBendSlope.x, 0.0, grassLocalBendSlope.y);
+float grassWorldHeightScale = max(
+  length(mat3(modelMatrix * instanceMatrix) * vec3(0.0, 1.0, 0.0)),
+  0.0001
+);
+vGrassBendSlopeWorld = grassWorldBendSlope / grassWorldHeightScale;
 `;
   return `${VERTEX_DECLARATIONS}\n${REALM_LIVING_GUST_GLSL}\n${grassDisturbanceDeclarations(safeSlotCount)}\n${vertexShader
     .replace(marker, wind)}`;
@@ -239,7 +250,7 @@ diffuseColor.a *= realmGrassCoverage();
   const normal = `
 ${normalMarker}
 float grassNormalBendWeight = smoothstep(0.08, 1.0, vGrassBladeVertical);
-vec3 grassBendView = (viewMatrix * vec4(vGrassBendWorld, 0.0)).xyz;
+vec3 grassBendView = (viewMatrix * vec4(vGrassBendSlopeWorld, 0.0)).xyz;
 normal = normalize(
   normal - grassBendView * faceDirection * grassNormalBendWeight * ${REALM_GRASS_NORMAL_BEND_RESPONSE.toFixed(2)}
 );

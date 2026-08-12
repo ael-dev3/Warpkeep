@@ -45,6 +45,7 @@ import {
   createRealmGrassCellCache,
   isRealmGrassMidRankAccepted,
   resolveRealmGrassActiveWindow,
+  resolveRealmGrassExclusiveLodWeights,
   resolveRealmGrassLodWeights,
   shouldRepackRealmGrassWindow,
   type RealmGrassActiveWindow,
@@ -149,6 +150,7 @@ export type RealmGrassLayer = Readonly<{
 type PackedPoint = Readonly<{
   point: RealmGrassPoint;
   coverage: number;
+  lodTransition: boolean;
 }>;
 
 const REALM_GRASS_TERRAIN_KINDS: readonly RealmGrassTerrainKind[] = Object.freeze([
@@ -295,13 +297,18 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
   const group = new THREE.Group();
   group.name = 'realm-procedural-biome-grass';
   const variantCount = REALM_GRASS_VARIANT_COUNTS[plan.geometryProfile];
-  const materialLayer = createRealmGrassMaterial(
+  let constructionMaterial: ReturnType<typeof createRealmGrassMaterial> | undefined;
+  let constructionWildflowers: RealmWildflowerLayer | undefined;
+  const constructionGeometries = new Set<THREE.BufferGeometry>();
+  const constructionMeshes = new Set<THREE.InstancedMesh>();
+  try {
+  const materialLayer = constructionMaterial = createRealmGrassMaterial(
     options.reducedMotion ? 0 : plan.windStrengthMultiplier,
     !options.reducedMotion && plan.animationFrameCap > 0,
     options.alphaToCoverage ?? false,
     options.livingBudget?.grassDisturbanceSlots ?? 0
   );
-  const wildflowers = createRealmWildflowerLayer({
+  const wildflowers = constructionWildflowers = createRealmWildflowerLayer({
     plan,
     reducedMotion: options.reducedMotion,
     alphaToCoverage: options.alphaToCoverage
@@ -313,9 +320,11 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       1,
       Math.floor(Math.max(1, poolCapacity) / variantCount)
     );
-    const geometries = Array.from({ length: variantCount }, (_, variant) =>
-      createLowPolyGrassGeometry(plan.geometryProfile, variant, lod)
-    );
+    const geometries = Array.from({ length: variantCount }, (_, variant) => {
+      const geometry = createLowPolyGrassGeometry(plan.geometryProfile, variant, lod);
+      constructionGeometries.add(geometry);
+      return geometry;
+    });
     const attributes = geometries.map((geometry) => {
       const set = createAttributeSet(variantCapacity);
       geometry.setAttribute('grassPhase', set.phase);
@@ -331,6 +340,7 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
         materialLayer.material,
         variantCapacity
       );
+      constructionMeshes.add(currentMesh);
       currentMesh.name = `realm-procedural-biome-grass-${lod}-variant-${variant}`;
       currentMesh.userData.realmGrassLod = lod;
       currentMesh.count = 0;
@@ -370,6 +380,7 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
   let exclusionsDirty = false;
   let cacheHighWaterMark = 0;
   let repackCount = 0;
+  let lastWindUpdateSeconds = Number.NEGATIVE_INFINITY;
 
   const cellDataFor = (cell: RealmGrassActiveWindow['cells'][number]['cell']) => {
     const key = `${cell.coord.q},${cell.coord.r}`;
@@ -487,27 +498,53 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       activeCellSandCoverageTotal += data.sandCoverage;
       if (data.sandCoverage >= 0.15) activeSandCellCount += 1;
       const distance = window.anchor ? hexDistance(window.anchor, data.coord) : 0;
-      const lodWeights = resolveRealmGrassLodWeights(plan, distance, activeCell.edgeFade);
+      const blendedLodWeights = resolveRealmGrassLodWeights(
+        plan,
+        distance,
+        activeCell.edgeFade
+      );
+      const lodTransition = blendedLodWeights.nearCoverage > 0
+        && blendedLodWeights.midCoverage > 0;
       data.points.forEach((point) => {
         const variant = point.variant % variantCount;
-        if (lodWeights.nearCoverage > 0) {
+        const midAccepted = blendedLodWeights.midCoverage > 0
+          && isRealmGrassMidRankAccepted(point.rank, plan.midDensityMultiplier);
+        const lodWeights = resolveRealmGrassExclusiveLodWeights(
+          plan,
+          distance,
+          activeCell.edgeFade,
+          midAccepted,
+          point.rank
+        );
+        if (blendedLodWeights.nearCoverage > 0) {
           wildflowers.addCandidate({
             point,
-            nearCoverage: lodWeights.nearCoverage,
+            // Flowers belong to the visual near band, not to the grass
+            // topology lottery. Preserve the smooth near-band fade even when
+            // this root has already handed its grass patch to the mid mesh.
+            nearCoverage: blendedLodWeights.nearCoverage,
             distance
           });
+        }
+        if (lodWeights.nearCoverage > 0) {
           nearCollectors[variant]!.add({
-            value: Object.freeze({ point, coverage: lodWeights.nearCoverage }),
+            value: Object.freeze({
+              point,
+              coverage: lodWeights.nearCoverage,
+              lodTransition
+            }),
             group: distance,
             rank: point.rank,
             order: nearOrder++
           });
         }
-        const midAccepted = lodWeights.midCoverage > 0
-          && isRealmGrassMidRankAccepted(point.rank, plan.midDensityMultiplier);
-        if (midAccepted) {
+        if (lodWeights.midCoverage > 0) {
           midCollectors[variant]!.add({
-            value: Object.freeze({ point, coverage: lodWeights.midCoverage }),
+            value: Object.freeze({
+              point,
+              coverage: lodWeights.midCoverage,
+              lodTransition
+            }),
             // The rank, rather than camera distance, selects a stable sparse
             // field across the complete mid disc. Capacity remains a strict
             // emergency ceiling for adversarial/custom generation inputs.
@@ -523,15 +560,10 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
     const nearPacked = nearPackedByVariant.flat();
     const midPacked = midPackedByVariant.flat();
     const packed = [...nearPacked, ...midPacked];
-    const nearTransitionKeys = new Set(nearPacked
-      .filter(({ coverage }) => coverage > 0 && coverage < 1)
-      .map(({ point }) => `${point.coord.q},${point.coord.r}:${point.candidateIndex}`));
-    const lodTransitionInstanceCount = midPacked.reduce((total, { point, coverage }) => (
-      coverage > 0
-      && coverage < 1
-      && nearTransitionKeys.has(`${point.coord.q},${point.coord.r}:${point.candidateIndex}`)
-        ? total + 1
-        : total
+    // A transition root now occupies exactly one topology. Count those retained
+    // one-of-two instances directly rather than looking for duplicate roots.
+    const lodTransitionInstanceCount = packed.reduce((total, point) => (
+      point.lodTransition ? total + 1 : total
     ), 0);
     const activeCellCount = Object.values(activeCellsByTerrain)
       .reduce((total, count) => total + count, 0);
@@ -751,7 +783,7 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
     });
   };
 
-  return Object.freeze({
+  const layer: RealmGrassLayer = Object.freeze({
     group,
     mesh,
     meshes: Object.freeze(meshes),
@@ -776,12 +808,25 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       return true;
     },
     updateWind: (seconds, disturbances = null) => {
-      if (disposed || !getCurrentTelemetry().animated) return false;
+      if (
+        disposed
+        || !getCurrentTelemetry().animated
+        || !Number.isFinite(seconds)
+        || plan.animationFrameCap <= 0
+      ) return false;
+      const safeSeconds = Math.max(0, seconds);
       const disturbancesChanged = materialLayer.setDisturbances(disturbances);
+      const minimumInterval = 1 / plan.animationFrameCap;
+      if (
+        Number.isFinite(lastWindUpdateSeconds)
+        && safeSeconds >= lastWindUpdateSeconds
+        && safeSeconds - lastWindUpdateSeconds + Number.EPSILON < minimumInterval
+      ) return disturbancesChanged;
+      lastWindUpdateSeconds = safeSeconds;
       const grassChanged = materialLayer.getShaderTelemetry().fallbackActive
         ? false
-        : materialLayer.setTime(seconds);
-      const flowersChanged = wildflowers.updateWind(seconds);
+        : materialLayer.setTime(safeSeconds);
+      const flowersChanged = wildflowers.updateWind(safeSeconds);
       return disturbancesChanged || grassChanged || flowersChanged;
     },
     activateShaderFallback: (kind, reason) => {
@@ -809,4 +854,22 @@ export function createRealmGrassLayer(options: CreateRealmGrassLayerOptions): Re
       materialLayer.dispose();
     }
   });
+  constructionMeshes.clear();
+  constructionGeometries.clear();
+  constructionWildflowers = undefined;
+  constructionMaterial = undefined;
+  return layer;
+  } catch (error) {
+    constructionMeshes.forEach((currentMesh) => {
+      group.remove(currentMesh);
+      currentMesh.dispose();
+    });
+    constructionGeometries.forEach((geometry) => geometry.dispose());
+    if (constructionWildflowers) {
+      group.remove(constructionWildflowers.mesh);
+      constructionWildflowers.dispose();
+    }
+    constructionMaterial?.dispose();
+    throw error;
+  }
 }

@@ -215,12 +215,14 @@ import {
   type RealmWaterPickHit
 } from './realmPickArbitration';
 import {
+  REALM_GRASS_RENDER_PLANS,
   REALM_LIGHTING_SPECS,
   resolveRealmLivingRealmBudget,
   resolveRealmPixelRatio,
   resolveRealmRenderPlan,
   type RealmQualitySpec
 } from './realmQuality';
+import { resolveRealmVegetationCapability } from './realmVegetationCapability';
 import type {
   KeepLoadStatus,
   RealmCastleProjectionFrame,
@@ -1586,6 +1588,25 @@ function initializeRealmScene(
     // devices.
     powerPreference: options.quality.id === 'high' ? 'high-performance' : 'default'
   });
+  const vegetationCapability = resolveRealmVegetationCapability({
+    preferredProfile: options.quality.id,
+    maxAttributes: renderer.capabilities.maxAttributes,
+    // Preserve the exact preferred plan resolved for this scene while making
+    // only the already-proven lower profiles available for atomic downshift.
+    plans: {
+      ...REALM_GRASS_RENDER_PLANS,
+      [options.quality.id]: renderPlan.grass
+    }
+  });
+  const vegetationGrassPlan = vegetationCapability.grassPlan;
+  options.canvas.dataset.realmVegetationCapability = vegetationCapability.mode;
+  options.canvas.dataset.realmVegetationCapabilityReason =
+    vegetationCapability.reason ?? 'none';
+  options.canvas.dataset.realmVegetationSelectedProfile =
+    vegetationCapability.selectedProfile ?? 'none';
+  options.canvas.dataset.realmVegetationMaxAttributes = String(
+    vegetationCapability.maxAttributes
+  );
   if (
     Number.isFinite(renderer.capabilities.maxTextureSize)
     && renderer.capabilities.maxTextureSize > 0
@@ -2203,44 +2224,48 @@ function initializeRealmScene(
   );
   cleanup.add(semanticFeatures.dispose);
   scene.add(semanticFeatures.group);
-  try {
-    grassLayer = createRealmGrassLayer({
-      surface: presentationSurface,
-      terrainKindsByKey: terrainSemantics.terrainKindsByKey,
-      castleSlotKeys: terrainSemantics.castleSlotKeys,
-      placements: terrainPlacements,
-      exclusions: Object.freeze([
-        ...grassExclusionsForTerrainFeatures(semanticFeatureData.points),
-        ...grassExclusionsForForestTrees(forestBiomeData.points)
-      ]),
-      plan: renderPlan.grass,
-      reducedMotion: options.reducedMotion,
-      livingBudget,
-      hexSize: HEX_SIZE,
-      alphaToCoverage: grassAlphaToCoverage,
-      vegetationField,
-      northernSnow,
-      southernDesert,
-      isWorldExcluded: (world) => vegetationMask.isGrassExcluded(world)
-        || activeForestGrassMask.isGrassExcluded(world),
-      visualizeLegacyLakes: noLakeRevisionActive,
-      suppressCastleSlots: false
-    });
-    cleanup.add(grassLayer.dispose);
-    vegetationShaderErrorHandler = (kind, reason) => {
-      grassLayer?.activateShaderFallback(kind, reason);
-      emitTerrainPresentationTelemetry();
-      if (vegetationFallbackRenderPending) return;
-      vegetationFallbackRenderPending = true;
-      queueMicrotask(() => {
-        vegetationFallbackRenderPending = false;
-        if (!cleanup.isDisposed()) render();
+  if (vegetationGrassPlan.enabled) {
+    try {
+      grassLayer = createRealmGrassLayer({
+        surface: presentationSurface,
+        terrainKindsByKey: terrainSemantics.terrainKindsByKey,
+        castleSlotKeys: terrainSemantics.castleSlotKeys,
+        placements: terrainPlacements,
+        exclusions: Object.freeze([
+          ...grassExclusionsForTerrainFeatures(semanticFeatureData.points),
+          ...grassExclusionsForForestTrees(forestBiomeData.points)
+        ]),
+        plan: vegetationGrassPlan,
+        reducedMotion: options.reducedMotion,
+        livingBudget,
+        hexSize: HEX_SIZE,
+        alphaToCoverage: grassAlphaToCoverage,
+        vegetationField,
+        northernSnow,
+        southernDesert,
+        isWorldExcluded: (world) => vegetationMask.isGrassExcluded(world)
+          || activeForestGrassMask.isGrassExcluded(world),
+        visualizeLegacyLakes: noLakeRevisionActive,
+        suppressCastleSlots: false
       });
-    };
-    scene.add(grassLayer.group);
-    options.canvas.dataset.grassPresentation = 'ready';
-  } catch {
-    // Decorative failure must not take the terrain, input, or castle layer down.
+      cleanup.add(grassLayer.dispose);
+      vegetationShaderErrorHandler = (kind, reason) => {
+        grassLayer?.activateShaderFallback(kind, reason);
+        emitTerrainPresentationTelemetry();
+        if (vegetationFallbackRenderPending) return;
+        vegetationFallbackRenderPending = true;
+        queueMicrotask(() => {
+          vegetationFallbackRenderPending = false;
+          if (!cleanup.isDisposed()) render();
+        });
+      };
+      scene.add(grassLayer.group);
+      options.canvas.dataset.grassPresentation = 'ready';
+    } catch {
+      // Decorative failure must not take the terrain, input, or castle layer down.
+      options.canvas.dataset.grassPresentation = 'unavailable';
+    }
+  } else {
     options.canvas.dataset.grassPresentation = 'unavailable';
   }
   const surfaceDisturbances = createRealmSurfaceDisturbanceField({
@@ -2329,8 +2354,10 @@ function initializeRealmScene(
       instanceCount: 0,
       triangleCount: 0,
       drawCalls: 0,
-      budget: renderPlan.grass.geometryProfile === 'high' ? 512
-        : renderPlan.grass.geometryProfile === 'balanced' ? 256 : 0,
+      budget: vegetationGrassPlan.enabled
+        ? vegetationGrassPlan.geometryProfile === 'high' ? 512
+          : vegetationGrassPlan.geometryProfile === 'balanced' ? 256 : 0
+        : 0,
       animated: false,
       alphaHashActive: !grassAlphaToCoverage,
       alphaToCoverageActive: grassAlphaToCoverage,
@@ -2341,11 +2368,11 @@ function initializeRealmScene(
     }),
     variantCounts: Object.freeze([]),
     cacheEntries: 0,
-    cacheLimit: renderPlan.grass.cacheLimit,
+    cacheLimit: vegetationGrassPlan.cacheLimit,
     cacheHighWaterMark: 0,
     repackCount: 0,
     animated: false,
-    targetAnimationCadence: renderPlan.grass.animationFrameCap,
+    targetAnimationCadence: vegetationGrassPlan.animationFrameCap,
     averageRetainedPatchesPerActiveCell: 0,
     averagePatchFootprint: 0,
     averageBladeHeight: 0,
@@ -2602,7 +2629,7 @@ function initializeRealmScene(
       wildflowerShaderFallbackReason: grass.wildflowers.shaderFallbackReason,
       wildflowerOverviewHidden: grass.wildflowers.overviewHidden,
       grassCacheEntries: grass.cacheEntries,
-      grassCacheLimit: grass.cacheLimit ?? renderPlan.grass.cacheLimit,
+      grassCacheLimit: grass.cacheLimit ?? vegetationGrassPlan.cacheLimit,
       grassCacheHighWaterMark: grass.cacheHighWaterMark ?? 0,
       grassRepackCount: grass.repackCount ?? 0,
       grassAnimated: grass.animated,
@@ -3139,7 +3166,7 @@ function initializeRealmScene(
         || (
           !options.reducedMotion
           && Math.max(
-            renderPlan.grass.animationFrameCap,
+            vegetationGrassPlan.animationFrameCap,
             REALM_WATER_ANIMATION_FRAME_CAPS[runtimeQuality.id]
           ) > 0
           && (
@@ -4123,7 +4150,7 @@ function initializeRealmScene(
   const ambientBaseFrameCap = options.reducedMotion
     ? 0
     : Math.max(
-        renderPlan.grass.animationFrameCap,
+        vegetationGrassPlan.animationFrameCap,
         REALM_WATER_ANIMATION_FRAME_CAPS[runtimeQuality.id]
       );
   const resolveAmbientFrameCap = () => {

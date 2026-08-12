@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   createRealmGrassCellCache,
   isRealmGrassMidRankAccepted,
+  realmGrassLodHandoffUnit,
   realmGrassWindowKey,
   resolveRealmGrassActiveWindow,
+  resolveRealmGrassExclusiveLodWeights,
   resolveRealmGrassLodWeights,
   shouldRepackRealmGrassWindow
 } from '../src/components/realm/realmGrassActiveWindow';
@@ -76,6 +78,53 @@ describe('procedural grass active window', () => {
     expect(sparse.every((rank) => dense.includes(rank))).toBe(true);
     expect(isRealmGrassMidRankAccepted(0, 0)).toBe(false);
     expect(isRealmGrassMidRankAccepted(0xffffffff, 1)).toBe(true);
+  });
+
+  it('assigns every shared transition root to exactly one deterministic topology', () => {
+    const plan = REALM_GRASS_RENDER_PLANS.high;
+    const ranks = [0, 1, 0x1fffffff, 0x7fffffff, 0xffffffff];
+
+    for (const rank of ranks) {
+      const first = resolveRealmGrassExclusiveLodWeights(plan, plan.nearRadius, 1, true, rank);
+      const second = resolveRealmGrassExclusiveLodWeights(plan, plan.nearRadius, 1, true, rank);
+      expect(second).toEqual(first);
+      expect(first.nearCoverage + first.midCoverage).toBe(1);
+      expect(Number(first.nearCoverage > 0) + Number(first.midCoverage > 0)).toBe(1);
+      expect(realmGrassLodHandoffUnit(rank)).toBeGreaterThanOrEqual(0);
+      expect(realmGrassLodHandoffUnit(rank)).toBeLessThan(1);
+    }
+
+    expect(resolveRealmGrassExclusiveLodWeights(plan, 0, 1, true, 0)).toEqual({
+      nearCoverage: 1,
+      midCoverage: 0
+    });
+    expect(resolveRealmGrassExclusiveLodWeights(
+      plan,
+      plan.activeRadius - 1,
+      1,
+      true,
+      0xffffffff
+    )).toEqual({ nearCoverage: 0, midCoverage: 1 });
+  });
+
+  it('fades a root with no mid representation instead of duplicating it', () => {
+    const plan = REALM_GRASS_RENDER_PLANS.high;
+    const transition = resolveRealmGrassExclusiveLodWeights(
+      plan,
+      plan.nearRadius,
+      1,
+      false,
+      0
+    );
+    expect(transition.nearCoverage).toBeCloseTo(0.5, 10);
+    expect(transition.midCoverage).toBe(0);
+    expect(resolveRealmGrassExclusiveLodWeights(
+      plan,
+      plan.activeRadius - 1,
+      1,
+      false,
+      0
+    )).toEqual({ nearCoverage: 0, midCoverage: 0 });
   });
 
   it('suppresses all grass in the full realm overview', () => {
