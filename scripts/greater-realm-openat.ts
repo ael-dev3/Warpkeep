@@ -14,7 +14,8 @@ import { fileURLToPath } from 'node:url';
 
 const HELPER_SOURCE = join(dirname(fileURLToPath(import.meta.url)), 'greater-realm-openat-helper.py');
 const HELPER_SOURCE_SHA256 = 'a39c531b97b32648bded65ef6262b95bfe016e4d6fae687376f69867df220b67';
-const APPLE_PYTHON = '/usr/bin/python3';
+const SYSTEM_PYTHON_ENTRY = '/usr/bin/python3';
+const LINUX_SYSTEM_PYTHON_PATH = /^\/usr\/bin\/python3\.[0-9]+$/u;
 const MAX_HELPER_SOURCE_BYTES = 64 * 1024;
 const MAX_HELPER_INPUT_BYTES = 512 * 1024 * 1024;
 
@@ -49,6 +50,44 @@ function exactPrivateDirectory(path: string): Readonly<{
     dev: status.dev,
     ino: status.ino,
     uid: status.uid,
+  });
+}
+
+function exactSystemPython(): Readonly<{ path: string; identity: string }> {
+  const directoryPath = '/usr/bin';
+  const directory = lstatSync(directoryPath, { bigint: true });
+  const entry = lstatSync(SYSTEM_PYTHON_ENTRY, { bigint: true });
+  const path = realpathSync(SYSTEM_PYTHON_ENTRY);
+  const target = lstatSync(path, { bigint: true });
+  const platformEntryValid = process.platform === 'darwin'
+    ? entry.isFile() && !entry.isSymbolicLink() && path === SYSTEM_PYTHON_ENTRY
+    : process.platform === 'linux'
+      && (entry.isFile() || entry.isSymbolicLink())
+      && (path === SYSTEM_PYTHON_ENTRY || LINUX_SYSTEM_PYTHON_PATH.test(path));
+  if (
+    !platformEntryValid
+    || realpathSync(directoryPath) !== directoryPath
+    || directory.isSymbolicLink()
+    || !directory.isDirectory()
+    || directory.uid !== 0n
+    || (directory.mode & 0o7777n) !== 0o755n
+    || entry.uid !== 0n
+    || dirname(path) !== directoryPath
+    || target.isSymbolicLink()
+    || !target.isFile()
+    || target.uid !== 0n
+    || (target.mode & 0o7777n) !== 0o755n
+  ) fail();
+  return Object.freeze({
+    path,
+    identity: [
+      directory.dev, directory.ino, directory.mode, directory.uid, directory.nlink,
+      directory.mtimeNs, directory.ctimeNs,
+      entry.dev, entry.ino, entry.mode, entry.uid, entry.nlink, entry.size,
+      entry.mtimeNs, entry.ctimeNs,
+      target.dev, target.ino, target.mode, target.uid, target.nlink,
+      target.size, target.mtimeNs, target.ctimeNs, path,
+    ].join(':'),
   });
 }
 
@@ -122,7 +161,7 @@ export type GreaterRealmOpenAtHelper = Readonly<{
 }>;
 
 /**
- * Runs exact commit-bound Python source via the root-owned Apple interpreter.
+ * Runs exact commit-bound Python source via a root-owned system interpreter.
  * No compiled user-writable executable path exists. The protected outer
  * bootstrap independently pins both this source digest and the Apple runtime.
  */
@@ -130,13 +169,7 @@ export function stageGreaterRealmOpenAtHelper(input: Readonly<{
   root: string;
 }>): GreaterRealmOpenAtHelper {
   const root = exactPrivateDirectory(input.root);
-  const python = lstatSync(APPLE_PYTHON, { bigint: true });
-  if (
-    python.isSymbolicLink()
-    || !python.isFile()
-    || python.uid !== 0n
-    || (python.mode & 0o7777n) !== 0o755n
-  ) fail();
+  const python = exactSystemPython();
   let sourceDescriptor: number | undefined = openSync(
     HELPER_SOURCE,
     constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0),
@@ -166,10 +199,11 @@ export function stageGreaterRealmOpenAtHelper(input: Readonly<{
   };
   const invoke = (arguments_: readonly string[], body?: Buffer) => {
     attestRoot();
+    if (exactSystemPython().identity !== python.identity) fail();
     const sourceBefore = exactSource(sourceDescriptor!);
     sourceBefore.body.fill(0);
     if (sourceBefore.identity !== source.identity) fail();
-    const result = spawnSync(APPLE_PYTHON, [
+    const result = spawnSync(python.path, [
       '-I', '-S', '-B', '-c', sourceText, ...arguments_,
     ], {
       cwd: root.path,
@@ -192,6 +226,7 @@ export function stageGreaterRealmOpenAtHelper(input: Readonly<{
     const sourceAfter = exactSource(sourceDescriptor!);
     sourceAfter.body.fill(0);
     if (sourceAfter.identity !== source.identity) fail();
+    if (exactSystemPython().identity !== python.identity) fail();
     attestRoot();
   };
   let finished = false;
