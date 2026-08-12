@@ -36,13 +36,18 @@ export function createRealmWildflowerGeometry() {
   appendCard(Math.PI * 0.5);
 
   const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
-  geometry.setAttribute('flowerCardData', new THREE.Float32BufferAttribute(cardData, 2));
-  geometry.setIndex(indices);
-  geometry.computeBoundingBox();
-  geometry.computeBoundingSphere();
-  geometry.userData.realmWildflowerTriangles = REALM_WILDFLOWER_TRIANGLES_PER_INSTANCE;
-  geometry.userData.realmWildflowerTopology = 'opaque-alpha-cutout-cross-billboard';
-  return geometry;
+  try {
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+    geometry.setAttribute('flowerCardData', new THREE.Float32BufferAttribute(cardData, 2));
+    geometry.setIndex(indices);
+    geometry.computeBoundingBox();
+    geometry.computeBoundingSphere();
+    geometry.userData.realmWildflowerTriangles = REALM_WILDFLOWER_TRIANGLES_PER_INSTANCE;
+    geometry.userData.realmWildflowerTopology = 'opaque-alpha-cutout-cross-billboard';
+    return geometry;
+  } catch (error) {
+    geometry.dispose();
+    throw error;
+  }
 }

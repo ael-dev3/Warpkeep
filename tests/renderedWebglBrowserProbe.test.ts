@@ -2831,6 +2831,10 @@ describe('rendered WebGL headless browser probe contract', () => {
       castleCount: 100,
       readyAfterMilliseconds: 2_412,
       environmentLighting: 'procedural',
+      realmVegetationCapability: 'preferred',
+      realmVegetationCapabilityReason: 'none',
+      realmVegetationSelectedProfile: 'balanced',
+      realmVegetationMaxAttributes: 16,
       forestDecorativeTreeCount: 0,
       forestDecorativeTriangleCount: 0,
       forestDecorativeDrawCalls: 0,
@@ -2852,15 +2856,38 @@ describe('rendered WebGL headless browser probe contract', () => {
       forestDecorativeCanonicalTriangleCount: 0,
       forestDecorativeOverviewHidden: true,
       grassInstanceCount: 0,
+      grassNearInstanceCount: 0,
+      grassMidInstanceCount: 0,
       grassTriangleCount: 0,
+      grassNearTriangleCount: 0,
+      grassMidTriangleCount: 0,
       grassDrawCalls: 0,
+      grassNearDrawCalls: 0,
+      grassMidDrawCalls: 0,
+      grassLodTransitionInstanceCount: 0,
+      wildflowerInstanceCount: 0,
+      wildflowerTriangleCount: 0,
+      wildflowerDrawCalls: 0,
+      wildflowerInstanceBudget: 256,
+      wildflowerAnimated: false,
+      wildflowerAlphaHashActive: true,
+      wildflowerAlphaToCoverageActive: false,
+      wildflowerShaderFallbackActive: false,
+      wildflowerShaderFallbackCount: 0,
+      wildflowerShaderFallbackReason: 'none',
+      wildflowerOverviewHidden: true,
       grassCacheEntries: 0,
       grassCacheLimit: 1_024,
       grassCacheHighWaterMark: 0,
       grassRepackCount: 0,
       grassPaletteDisplaySrgbSaturationMin: 0,
       grassPaletteDisplaySrgbSaturationMax: 0,
+      grassAlphaHashActive: true,
+      grassAlphaToCoverageActive: false,
       grassShaderFallbackActive: false,
+      grassShaderFallbackCount: 0,
+      grassShaderFallbackReason: 'none',
+      grassOverviewHidden: true,
       terrainShaderEnhanced: true,
       terrainShaderFallbackActive: false,
       semanticTerrainCellCount: RENDERED_WEBGL_QA_SEMANTIC_TERRAIN_CELL_COUNT,
@@ -2951,6 +2978,10 @@ describe('rendered WebGL headless browser probe contract', () => {
       castleCount: 100,
       readyAfterMilliseconds: 2_412,
       environmentLighting: 'procedural',
+      realmVegetationCapability: 'preferred',
+      realmVegetationCapabilityReason: 'none',
+      realmVegetationSelectedProfile: 'balanced',
+      realmVegetationMaxAttributes: 16,
       forestDecorativeTreeCount: 0,
       forestDecorativeTriangleCount: 0,
       forestDecorativeDrawCalls: 0,
@@ -2999,6 +3030,23 @@ describe('rendered WebGL headless browser probe contract', () => {
       mapRenderer: 'fallback'
     }, expected)).toThrow(/DOM/i);
     expect(() => parseRenderedWebglBrowserDom({ ...ready, quality: 'high' }, expected)).toThrow(/DOM/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      realmVegetationMaxAttributes: '16'
+    }, expected)).toThrow(/vegetation-capability/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      realmVegetationCapability: 'terrain-only',
+      realmVegetationCapabilityReason: 'insufficient-attribute-slots',
+      realmVegetationSelectedProfile: 'none',
+      realmVegetationMaxAttributes: 12
+    }, expected)).toThrow(/vegetation-capability/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...ready,
+      realmVegetationCapability: 'downshifted',
+      realmVegetationCapabilityReason: 'repack-upload-ceiling-exceeded',
+      realmVegetationSelectedProfile: 'reduced'
+    }, expected)).toThrow(/vegetation-capability/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       environmentLighting: 'direct-light-fallback'
@@ -3091,13 +3139,46 @@ describe('rendered WebGL headless browser probe contract', () => {
       forestDecorativeUsingFallback: false,
       forestDecorativeFallbackType: 'none',
       forestDecorativeGroundingMode: 'terrain-canopy-baked-base',
+      grassInstanceCount: 4_000,
+      grassNearInstanceCount: 2_700,
+      grassMidInstanceCount: 1_300,
+      grassTriangleCount: 61_900,
+      grassNearTriangleCount: 56_700,
+      grassMidTriangleCount: 5_200,
+      grassDrawCalls: 4,
+      grassNearDrawCalls: 2,
+      grassMidDrawCalls: 2,
+      grassLodTransitionInstanceCount: 400,
+      grassCacheEntries: 1_024,
+      grassCacheHighWaterMark: 1_024,
+      grassRepackCount: 1,
+      grassPaletteDisplaySrgbSaturationMin: 0.1,
+      grassPaletteDisplaySrgbSaturationMax: 0.5,
+      grassOverviewHidden: false,
+      wildflowerInstanceCount: 256,
+      wildflowerTriangleCount: 1_024,
+      wildflowerDrawCalls: 1,
+      wildflowerAnimated: true,
+      wildflowerOverviewHidden: false,
       semanticTerrainFeatureDrawCalls: 10,
       totalTerrainDetailDrawCalls: 13
     }, expected)).toMatchObject({
       forestDecorativeTreeCount: 600,
       forestDecorativeModelReady: true,
       forestDecorativeUsingFallback: false,
-      forestDecorativeOverviewHidden: false
+      forestDecorativeOverviewHidden: false,
+      grassInstanceCount: 4_000,
+      grassNearInstanceCount: 2_700,
+      grassMidInstanceCount: 1_300,
+      grassTriangleCount: 61_900,
+      grassNearTriangleCount: 56_700,
+      grassMidTriangleCount: 5_200,
+      grassDrawCalls: 4,
+      grassNearDrawCalls: 2,
+      grassMidDrawCalls: 2,
+      wildflowerInstanceCount: 256,
+      wildflowerTriangleCount: 1_024,
+      wildflowerDrawCalls: 1
     });
     expect(() => parseRenderedWebglActiveForestDom(
       ready,
@@ -3356,25 +3437,82 @@ describe('rendered WebGL headless browser probe contract', () => {
       readyAfterMilliseconds: 120_001
     }, expected)).toThrow(/observation/i);
 
-    for (const [
+    for (const {
       caseId,
       quality,
       semanticFeatureCount,
       totalDetailInstanceCount,
       forestTreeCount,
       forestTriangleCount,
-      forestCacheLimit
-    ] of [
-      ['desktop-high', 'high', 2_510, 8_410, 1_200, 320_000, 2_048],
-      ['desktop-balanced', 'balanced', 1_610, 6_310, 600, 160_000, 1_024],
-      ['desktop-reduced', 'reduced', 790, 3_390, 180, 45_000, 512]
+      forestCacheLimit,
+      grassNearInstanceCount,
+      grassMidInstanceCount,
+      grassNearTriangleCount,
+      grassMidTriangleCount,
+      grassNearDrawCalls,
+      grassMidDrawCalls,
+      wildflowerInstanceCount
+    } of [
+      {
+        caseId: 'desktop-high',
+        quality: 'high',
+        semanticFeatureCount: 2_510,
+        totalDetailInstanceCount: 8_410,
+        forestTreeCount: 1_200,
+        forestTriangleCount: 320_000,
+        forestCacheLimit: 2_048,
+        grassNearInstanceCount: 4_800,
+        grassMidInstanceCount: 2_200,
+        grassNearTriangleCount: 129_600,
+        grassMidTriangleCount: 11_000,
+        grassNearDrawCalls: 3,
+        grassMidDrawCalls: 3,
+        wildflowerInstanceCount: 512
+      },
+      {
+        caseId: 'desktop-balanced',
+        quality: 'balanced',
+        semanticFeatureCount: 1_610,
+        totalDetailInstanceCount: 6_310,
+        forestTreeCount: 600,
+        forestTriangleCount: 160_000,
+        forestCacheLimit: 1_024,
+        grassNearInstanceCount: 2_700,
+        grassMidInstanceCount: 1_300,
+        grassNearTriangleCount: 56_700,
+        grassMidTriangleCount: 5_200,
+        grassNearDrawCalls: 2,
+        grassMidDrawCalls: 2,
+        wildflowerInstanceCount: 256
+      },
+      {
+        caseId: 'desktop-reduced',
+        quality: 'reduced',
+        semanticFeatureCount: 790,
+        totalDetailInstanceCount: 3_390,
+        forestTreeCount: 180,
+        forestTriangleCount: 45_000,
+        forestCacheLimit: 512,
+        grassNearInstanceCount: 800,
+        grassMidInstanceCount: 400,
+        grassNearTriangleCount: 12_000,
+        grassMidTriangleCount: 1_200,
+        grassNearDrawCalls: 1,
+        grassMidDrawCalls: 1,
+        wildflowerInstanceCount: 0
+      }
     ] as const) {
+      const grassInstanceCount = grassNearInstanceCount + grassMidInstanceCount;
+      const grassTriangleCount = grassNearTriangleCount + grassMidTriangleCount;
+      const grassDrawCalls = grassNearDrawCalls + grassMidDrawCalls;
+      const wildflowerTriangleCount = wildflowerInstanceCount * 4;
       const qualityCase = renderedWebglBrowserProbeCases(41_733)
         .find((probeCase) => probeCase.id === caseId)!;
       const qualityReady = {
         ...ready,
         href: qualityCase.url,
         quality,
+        realmVegetationSelectedProfile: quality,
         rootRealmCameraMode: 'keep',
         canvasRealmCameraMode: 'keep',
         rootRealmCameraPresentationBand: 'close',
@@ -3396,7 +3534,29 @@ describe('rendered WebGL headless browser probe contract', () => {
         forestDecorativeClearingCellCount: 2,
         forestDecorativeSilhouetteCoverageRatio: 0.42,
         forestDecorativeOverviewHidden: false,
+        grassInstanceCount,
+        grassNearInstanceCount,
+        grassMidInstanceCount,
+        grassTriangleCount,
+        grassNearTriangleCount,
+        grassMidTriangleCount,
+        grassDrawCalls,
+        grassNearDrawCalls,
+        grassMidDrawCalls,
+        grassLodTransitionInstanceCount: Math.min(400, grassInstanceCount),
+        grassCacheEntries: forestCacheLimit,
         grassCacheLimit: forestCacheLimit,
+        grassCacheHighWaterMark: forestCacheLimit,
+        grassRepackCount: 1,
+        grassPaletteDisplaySrgbSaturationMin: 0.1,
+        grassPaletteDisplaySrgbSaturationMax: 0.5,
+        grassOverviewHidden: false,
+        wildflowerInstanceCount,
+        wildflowerTriangleCount,
+        wildflowerDrawCalls: wildflowerInstanceCount > 0 ? 1 : 0,
+        wildflowerInstanceBudget: wildflowerInstanceCount,
+        wildflowerAnimated: wildflowerInstanceCount > 0,
+        wildflowerOverviewHidden: wildflowerInstanceCount === 0,
         semanticTerrainFeatureCount: semanticFeatureCount,
         semanticTerrainFeatureDrawCalls: 10,
         totalTerrainDetailInstanceCount: totalDetailInstanceCount,
@@ -3412,9 +3572,46 @@ describe('rendered WebGL headless browser probe contract', () => {
         forestDecorativeModelReady: true,
         forestDecorativeUsingFallback: false,
         forestDecorativeOverviewHidden: false,
+        grassInstanceCount,
+        grassNearInstanceCount,
+        grassMidInstanceCount,
+        grassTriangleCount,
+        grassNearTriangleCount,
+        grassMidTriangleCount,
+        grassDrawCalls,
+        grassNearDrawCalls,
+        grassMidDrawCalls,
+        wildflowerInstanceCount,
+        wildflowerTriangleCount,
+        wildflowerDrawCalls: wildflowerInstanceCount > 0 ? 1 : 0,
+        wildflowerInstanceBudget: wildflowerInstanceCount,
         semanticTerrainFeatureCount: semanticFeatureCount,
         totalTerrainDetailInstanceCount: totalDetailInstanceCount
       });
+      expect(() => parseRenderedWebglActiveForestDom({
+        ...qualityReady,
+        grassInstanceCount: 0,
+        grassNearInstanceCount: 0,
+        grassMidInstanceCount: 0,
+        grassTriangleCount: 0,
+        grassNearTriangleCount: 0,
+        grassMidTriangleCount: 0,
+        grassDrawCalls: 0,
+        grassNearDrawCalls: 0,
+        grassMidDrawCalls: 0,
+        grassLodTransitionInstanceCount: 0,
+        grassPaletteDisplaySrgbSaturationMin: 0,
+        grassPaletteDisplaySrgbSaturationMax: 0
+      }, qualityCase)).toThrow(/active decorative forest/i);
+      if (wildflowerInstanceCount > 0) {
+        expect(() => parseRenderedWebglActiveForestDom({
+          ...qualityReady,
+          wildflowerInstanceCount: 0,
+          wildflowerTriangleCount: 0,
+          wildflowerDrawCalls: 0,
+          wildflowerAnimated: false
+        }, qualityCase)).toThrow(/active decorative forest/i);
+      }
       expect(() => parseRenderedWebglActiveForestDom({
         ...qualityReady,
         semanticTerrainFeatureCount: semanticFeatureCount + 1,
@@ -3438,6 +3635,35 @@ describe('rendered WebGL headless browser probe contract', () => {
         ...qualityReady,
         forestDecorativeCacheHighWaterMark: forestCacheLimit + 1
       }, qualityCase)).toThrow(/forest-decorative-cache/i);
+      const nearTriangleIncrement = grassNearTriangleCount / grassNearInstanceCount;
+      expect(() => parseRenderedWebglActiveForestDom({
+        ...qualityReady,
+        grassInstanceCount: grassInstanceCount + 1,
+        grassNearInstanceCount: grassNearInstanceCount + 1,
+        grassTriangleCount: grassTriangleCount + nearTriangleIncrement,
+        grassNearTriangleCount: grassNearTriangleCount + nearTriangleIncrement
+      }, qualityCase)).toThrow(/grass-crafted-telemetry/i);
+      const midTriangleIncrement = grassMidTriangleCount / grassMidInstanceCount;
+      expect(() => parseRenderedWebglActiveForestDom({
+        ...qualityReady,
+        grassInstanceCount: grassInstanceCount + 1,
+        grassMidInstanceCount: grassMidInstanceCount + 1,
+        grassTriangleCount: grassTriangleCount + midTriangleIncrement,
+        grassMidTriangleCount: grassMidTriangleCount + midTriangleIncrement
+      }, qualityCase)).toThrow(/grass-crafted-telemetry/i);
+      expect(() => parseRenderedWebglActiveForestDom({
+        ...qualityReady,
+        grassDrawCalls: grassDrawCalls + 1,
+        grassNearDrawCalls: grassNearDrawCalls + 1
+      }, qualityCase)).toThrow(/grass-crafted-telemetry/i);
+      expect(() => parseRenderedWebglActiveForestDom({
+        ...qualityReady,
+        wildflowerInstanceCount: wildflowerInstanceCount + 1,
+        wildflowerTriangleCount: wildflowerTriangleCount + 4,
+        wildflowerDrawCalls: 1,
+        wildflowerAnimated: quality !== 'reduced',
+        wildflowerOverviewHidden: false
+      }, qualityCase)).toThrow(/wildflower-budget/i);
     }
 
     const playerCase = renderedWebglBrowserProbeCases(41_733)
@@ -3615,6 +3841,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       ...ready,
       href: inspectorCase.url,
       quality: inspectorCase.expectedQuality,
+      realmVegetationSelectedProfile: inspectorCase.expectedQuality,
       viewportWidth: inspectorCase.viewport.width,
       viewportHeight: inspectorCase.viewport.height,
       documentWidth: inspectorCase.viewport.width,
@@ -3622,6 +3849,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       inspectorProfileImageState: 'ready',
       forestDecorativeCacheLimit: 512,
       grassCacheLimit: 512,
+      wildflowerInstanceBudget: 0,
       semanticTerrainFeatureCount: 610,
       totalTerrainDetailInstanceCount: 3_000,
       labelCount: 0,

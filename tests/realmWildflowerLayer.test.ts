@@ -1,8 +1,13 @@
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createRealmWildflowerLayer, REALM_WILDFLOWER_BUDGETS } from '../src/components/realm/createRealmWildflowerLayer';
-import { createRealmWildflowerMaterial } from '../src/components/realm/createRealmWildflowerMaterial';
+import {
+  createRealmWildflowerMaterial,
+  injectRealmWildflowerFragmentShader,
+  injectRealmWildflowerVertexShader,
+  REALM_WILDFLOWER_SHADER_CACHE_KEY
+} from '../src/components/realm/createRealmWildflowerMaterial';
 import { REALM_GRASS_RENDER_PLANS } from '../src/components/realm/realmQuality';
 import {
   REALM_WILDFLOWER_MAX_WIND_SWAY,
@@ -24,6 +29,54 @@ function point(index: number): RealmGrassPoint {
 }
 
 describe('realm wildflower accent layer', () => {
+  it('derives the moving-card normal from the analytic bend tangent', () => {
+    const vertex = injectRealmWildflowerVertexShader(
+      THREE.ShaderLib.standard.vertexShader
+    );
+    const fragment = injectRealmWildflowerFragmentShader(
+      THREE.ShaderLib.standard.fragmentShader
+    );
+
+    expect(vertex).toContain('float flowerBendDerivative = 1.85');
+    expect(vertex).toContain('vFlowerBendSlopeWorld = flowerWorldBendSlope');
+    expect(fragment).toContain('varying vec3 vFlowerBendSlopeWorld;');
+    expect(fragment).toContain('normal - flowerBendSlopeView * faceDirection');
+    expect(REALM_WILDFLOWER_SHADER_CACHE_KEY)
+      .toContain('analytic-bend-normal');
+  });
+
+  it('disposes partial geometry and material when GPU setup fails', () => {
+    const materialDispose = vi.spyOn(THREE.Material.prototype, 'dispose');
+    const geometryDispose = vi.spyOn(THREE.BufferGeometry.prototype, 'dispose');
+    const realSetAttribute = THREE.BufferGeometry.prototype.setAttribute;
+    const setAttribute = vi.spyOn(
+      THREE.BufferGeometry.prototype,
+      'setAttribute'
+    ).mockImplementation(function (
+      this: THREE.BufferGeometry,
+      name: string | number | symbol,
+      attribute: Parameters<THREE.BufferGeometry['setAttribute']>[1]
+    ) {
+      if (name === 'flowerPhase') {
+        throw new Error('SYNTHETIC_REALM_FLOWER_GPU_ALLOCATION_FAILURE');
+      }
+      return realSetAttribute.call(this, String(name), attribute);
+    });
+
+    try {
+      expect(() => createRealmWildflowerLayer({
+        plan: REALM_GRASS_RENDER_PLANS.high,
+        reducedMotion: false
+      })).toThrow('SYNTHETIC_REALM_FLOWER_GPU_ALLOCATION_FAILURE');
+      expect(materialDispose).toHaveBeenCalledOnce();
+      expect(geometryDispose).toHaveBeenCalledOnce();
+    } finally {
+      setAttribute.mockRestore();
+      materialDispose.mockRestore();
+      geometryDispose.mockRestore();
+    }
+  });
+
   it('is one deterministic bounded near-detail draw with no raycast path', () => {
     const layer = createRealmWildflowerLayer({
       plan: REALM_GRASS_RENDER_PLANS.high,

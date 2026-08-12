@@ -24,7 +24,7 @@ export type RealmGrassRenderPlan = Readonly<{
   geometryProfile: 'high' | 'balanced' | 'reduced';
   /** Full segmented patches live inside this camera-local radius. */
   nearRadius: number;
-  /** Width of the complementary alpha-hashed near/mid transition. */
+  /** Width of the stable stochastic near/mid topology handoff. */
   lodTransitionCells: number;
   /** Stable unsigned-rank subset retained by the lower-detail mid field. */
   midDensityMultiplier: number;
@@ -79,9 +79,8 @@ function smoothstep(minimum: number, maximum: number, value: number) {
 }
 
 /**
- * Resolve complementary, deterministic LOD coverage for one canonical root.
- * The same point transform can therefore exist in both pools during the
- * transition while alpha hashing exchanges coverage without a root shuffle.
+ * Resolve the deterministic blend weights used to drive the exclusive
+ * near/mid topology handoff for one canonical root.
  */
 export function resolveRealmGrassLodWeights(
   plan: Pick<RealmGrassRenderPlan, 'activeRadius' | 'nearRadius' | 'lodTransitionCells'>,
@@ -106,6 +105,57 @@ export function resolveRealmGrassLodWeights(
   return Object.freeze({
     nearCoverage: edgeFade * (1 - midMix),
     midCoverage: edgeFade * midMix
+  });
+}
+
+/**
+ * Scramble the canonical point rank into an independent, stable LOD handoff
+ * stream. Reusing the rank directly would correlate the handoff with the
+ * lower-density mid subset, causing most retained roots to switch together.
+ */
+export function realmGrassLodHandoffUnit(rankInput: number) {
+  let value = (Number.isFinite(rankInput) ? Math.trunc(rankInput) : 0xffffffff) >>> 0;
+  value = (value ^ 0xa511e9b3) >>> 0;
+  value = Math.imul(value ^ (value >>> 16), 0x7feb352d) >>> 0;
+  value = Math.imul(value ^ (value >>> 15), 0x846ca68b) >>> 0;
+  value = (value ^ (value >>> 16)) >>> 0;
+  return value / 0x1_0000_0000;
+}
+
+/**
+ * Resolve an exclusive topology assignment for one canonical grass root.
+ *
+ * A shared root must never feed ordinary alpha coverage to both the near and
+ * mid meshes: alpha hash and alpha-to-coverage use monotonic masks, so two
+ * half-covered copies overlap rather than form complementary halves. Instead,
+ * a stable root rank selects exactly one topology as the transition advances.
+ * Roots rejected from the sparse mid subset retain the ordinary near fade so
+ * the field can thin without inventing a mid representation.
+ */
+export function resolveRealmGrassExclusiveLodWeights(
+  plan: Pick<RealmGrassRenderPlan, 'activeRadius' | 'nearRadius' | 'lodTransitionCells'>,
+  distanceInput: number,
+  edgeFadeInput: number,
+  midAccepted: boolean,
+  handoffRankInput: number
+): RealmGrassLodWeights {
+  const blended = resolveRealmGrassLodWeights(plan, distanceInput, edgeFadeInput);
+  if (!midAccepted) {
+    return Object.freeze({
+      nearCoverage: blended.nearCoverage,
+      midCoverage: 0
+    });
+  }
+  const totalCoverage = blended.nearCoverage + blended.midCoverage;
+  if (totalCoverage <= 0) {
+    return Object.freeze({ nearCoverage: 0, midCoverage: 0 });
+  }
+  const midMix = clamp(blended.midCoverage / totalCoverage, 0, 1);
+  const useMid = midMix >= 1
+    || (midMix > 0 && realmGrassLodHandoffUnit(handoffRankInput) < midMix);
+  return Object.freeze({
+    nearCoverage: useMid ? 0 : totalCoverage,
+    midCoverage: useMid ? totalCoverage : 0
   });
 }
 

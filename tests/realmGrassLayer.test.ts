@@ -31,6 +31,51 @@ function plan(): RealmGrassRenderPlan {
 }
 
 describe('camera-local procedural grass layer', () => {
+  it('disposes already-created GPU resources when construction fails', () => {
+    const surface = createRealmTerrainSurface('grass-layer-construction-failure', 3, 4);
+    const terrainKinds = new Map<string, RealmTerrainKind>(
+      surface.playableMap.cells.map((cell) => [hexKey(cell.coord), 'meadow'])
+    );
+    const materialDispose = vi.spyOn(THREE.Material.prototype, 'dispose');
+    const meshDispose = vi.spyOn(THREE.InstancedMesh.prototype, 'dispose');
+    const geometryDispose = vi.spyOn(THREE.BufferGeometry.prototype, 'dispose');
+    const realSetAttribute = THREE.BufferGeometry.prototype.setAttribute;
+    const setAttribute = vi.spyOn(
+      THREE.BufferGeometry.prototype,
+      'setAttribute'
+    ).mockImplementation(function (
+      this: THREE.BufferGeometry,
+      name: string | number | symbol,
+      attribute: Parameters<THREE.BufferGeometry['setAttribute']>[1]
+    ) {
+      // Fail on the first grass instance attribute, after both flower GPU
+      // resources and the first grass geometry have been constructed.
+      if (name === 'grassPhase') {
+        throw new Error('SYNTHETIC_REALM_GRASS_GPU_ALLOCATION_FAILURE');
+      }
+      return realSetAttribute.call(this, String(name), attribute);
+    });
+
+    try {
+      expect(() => createRealmGrassLayer({
+        surface,
+        terrainKindsByKey: terrainKinds,
+        castleSlotKeys: new Set(),
+        placements: [],
+        plan: plan(),
+        reducedMotion: false
+      })).toThrow('SYNTHETIC_REALM_GRASS_GPU_ALLOCATION_FAILURE');
+      expect(materialDispose.mock.calls.length).toBeGreaterThanOrEqual(2);
+      expect(meshDispose).toHaveBeenCalledOnce();
+      expect(geometryDispose.mock.calls.length).toBeGreaterThanOrEqual(2);
+    } finally {
+      setAttribute.mockRestore();
+      meshDispose.mockRestore();
+      materialDispose.mockRestore();
+      geometryDispose.mockRestore();
+    }
+  });
+
   it('hides at overview, packs one bounded non-raycast layer near the camera, and animates by uniform', () => {
     const surface = createRealmTerrainSurface('grass-layer', 4, 5);
     const terrainKinds = new Map<string, RealmTerrainKind>(
@@ -69,6 +114,21 @@ describe('camera-local procedural grass layer', () => {
     expect(telemetry.nearDrawCalls).toBeLessThanOrEqual(2);
     expect(telemetry.midDrawCalls).toBeLessThanOrEqual(2);
     expect(telemetry.lodTransitionInstanceCount).toBeGreaterThan(0);
+    const transformKeys = (meshes: readonly THREE.InstancedMesh[]) => {
+      const current = new THREE.Matrix4();
+      const keys = new Set<string>();
+      meshes.forEach((currentMesh) => {
+        for (let index = 0; index < currentMesh.count; index += 1) {
+          currentMesh.getMatrixAt(index, current);
+          const values = current.elements;
+          keys.add(`${values[12]!.toFixed(7)},${values[13]!.toFixed(7)},${values[14]!.toFixed(7)}`);
+        }
+      });
+      return keys;
+    };
+    const nearTransformKeys = transformKeys(layer.nearMeshes);
+    const midTransformKeys = transformKeys(layer.midMeshes);
+    expect([...nearTransformKeys].filter((key) => midTransformKeys.has(key))).toEqual([]);
     expect(telemetry.wildflowers.instanceCount).toBeLessThanOrEqual(256);
     expect(telemetry.wildflowers.triangleCount)
       .toBe(telemetry.wildflowers.instanceCount * 4);
@@ -186,6 +246,8 @@ describe('camera-local procedural grass layer', () => {
     const matrixWrites = layer.meshes.map((currentMesh) => vi.spyOn(currentMesh, 'setMatrixAt'));
     const matrixVersions = layer.meshes.map((currentMesh) => currentMesh.instanceMatrix.version);
     expect(layer.updateWind(0.5)).toBe(true);
+    expect(layer.updateWind(0.51)).toBe(false);
+    expect(layer.updateWind(0.57)).toBe(true);
     layer.setInteraction({ q: 0, r: 0 }, { q: 1, r: 0 });
     matrixWrites.forEach((spy) => expect(spy).not.toHaveBeenCalled());
     layer.meshes.forEach((currentMesh, index) => expect(currentMesh.instanceMatrix.version)

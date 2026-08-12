@@ -63,8 +63,10 @@ describe('procedural grass material contract', () => {
     expect(injected).toContain('grassWorldToLocalXZ * grassWorldCrossDirection');
     expect(injected).toContain('grassLocalDirection\n  + grassLocalCrossDirection');
     expect(injected).toContain('transformed.xz += grassLocalBend;');
-    expect(injected).toContain('varying vec3 vGrassBendWorld;');
+    expect(injected).toContain('varying vec3 vGrassBendSlopeWorld;');
     expect(injected).toContain('vec2 grassLocalBend = (');
+    expect(injected).toContain('float grassFlexDerivative = 1.85');
+    expect(injected).toContain('vGrassBendSlopeWorld = grassWorldBendSlope');
     expect(injected).toContain('mat3(modelMatrix * instanceMatrix)');
     expect(injected).toContain('dot(grassWorldPosition.xz, grassWorldDirection)');
     expect(injected).toContain('float grassGustFront = sin(');
@@ -76,7 +78,9 @@ describe('procedural grass material contract', () => {
     expect(injected).toContain('float grassBladeVertical = grassBladeData.y;');
     expect(injected).toContain('pow(max(grassFlex, 0.0), 1.85)');
     expect(injected).not.toContain('transformed *= grassVisibleScale;');
-    expect(injected).toContain('vGrassEdgeFade = clamp(grassEdgeFade, 0.0, 1.0);');
+    expect(injected).toContain(
+      'vGrassEdgeFade = clamp(grassEdgeFade * uGrassGlobalVisibility, 0.0, 1.0);'
+    );
     expect(injected).toContain('clamp((grassPrimary + grassSecondary * 0.28)');
     expect(() => injectRealmGrassVertexShader('void main() {}'))
       .toThrow('REALM_GRASS_SHADER_BEGIN_VERTEX_CONTRACT_CHANGED');
@@ -99,7 +103,7 @@ describe('procedural grass material contract', () => {
     expect(layer.material.customProgramCacheKey()).toBe(REALM_GRASS_SHADER_CACHE_KEY);
     expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('procedural-grass-v3');
     expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('bounded-tips');
-    expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('thin-blade-lighting-v1');
+    expect(REALM_GRASS_SHADER_CACHE_KEY).toContain('analytic-bend-normal-v2');
     expect(REALM_GRASS_SHADER_CACHE_KEY).toContain(REALM_GRASS_THREE_SHADER_CONTRACT);
     expect(layer.uniforms.uGrassWindStrength.value).toBeCloseTo(0.78);
     expect(layer.uniforms.uGrassWindDirection.value.toArray()).toEqual([

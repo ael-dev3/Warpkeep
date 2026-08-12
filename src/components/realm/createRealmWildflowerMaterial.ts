@@ -2,7 +2,8 @@ import * as THREE from 'three';
 
 import { REALM_PREVAILING_WIND } from '../../game/map/realmPrevailingWind';
 
-export const REALM_WILDFLOWER_SHADER_CACHE_KEY = 'warpkeep-wildflower-v1-alpha-cutout-three-r185';
+export const REALM_WILDFLOWER_SHADER_CACHE_KEY =
+  'warpkeep-wildflower-v2-alpha-cutout-analytic-bend-normal-three-r185';
 export const REALM_WILDFLOWER_MAX_WIND_SWAY = 0.035;
 /** Conservative 3D radius after slope-aligned local wind is restored to world space. */
 export const REALM_WILDFLOWER_MAX_WORLD_DEFORMATION_RADIUS = 0.05;
@@ -29,6 +30,7 @@ attribute float flowerWindScale;
 attribute float flowerCoverage;
 varying vec2 vFlowerCardData;
 varying float vFlowerCoverage;
+varying vec3 vFlowerBendSlopeWorld;
 uniform float uFlowerTime;
 uniform vec2 uFlowerWindDirection;
 uniform float uFlowerWindStrength;
@@ -38,6 +40,7 @@ uniform float uFlowerGlobalVisibility;
 const FRAGMENT_DECLARATIONS = `
 varying vec2 vFlowerCardData;
 varying float vFlowerCoverage;
+varying vec3 vFlowerBendSlopeWorld;
 float realmWildflowerCoverage() {
   float vertical = clamp(vFlowerCardData.y, 0.0, 1.0);
   float stem = (1.0 - smoothstep(0.15, 0.28, abs(vFlowerCardData.x)))
@@ -72,18 +75,36 @@ float flowerBend = sin(
   + flowerPhase * 0.18
 ) * flowerWindScale * uFlowerWindStrength * ${REALM_WILDFLOWER_MAX_WIND_SWAY.toFixed(3)};
 transformed.xz += flowerLocalDirection * flowerBend * pow(max(flowerCardData.y, 0.0), 1.85);
+float flowerBendDerivative = 1.85 * pow(max(flowerCardData.y, 0.0), 0.85);
+vec3 flowerLocalBendSlope = vec3(
+  flowerLocalDirection.x,
+  0.0,
+  flowerLocalDirection.y
+) * flowerBend * flowerBendDerivative;
+vec3 flowerWorldBendSlope = mat3(modelMatrix * instanceMatrix)
+  * flowerLocalBendSlope;
+float flowerWorldHeightScale = max(
+  length(mat3(modelMatrix * instanceMatrix) * vec3(0.0, 1.0, 0.0)),
+  0.0001
+);
+vFlowerBendSlopeWorld = flowerWorldBendSlope / flowerWorldHeightScale;
 `;
   return `${VERTEX_DECLARATIONS}\n${vertexShader.replace(marker, transform)}`;
 }
 
 export function injectRealmWildflowerFragmentShader(fragmentShader: string) {
   const colourMarker = '#include <color_fragment>';
+  const normalMarker = '#include <normal_fragment_maps>';
   const alphaMarker = fragmentShader.includes('#include <alphahash_fragment>')
     ? '#include <alphahash_fragment>'
     : fragmentShader.includes('#include <alphatest_fragment>')
       ? '#include <alphatest_fragment>'
       : '#include <opaque_fragment>';
-  if (!fragmentShader.includes(colourMarker) || !fragmentShader.includes(alphaMarker)) {
+  if (
+    !fragmentShader.includes(colourMarker)
+    || !fragmentShader.includes(normalMarker)
+    || !fragmentShader.includes(alphaMarker)
+  ) {
     throw new Error('REALM_WILDFLOWER_SHADER_FRAGMENT_CONTRACT_CHANGED');
   }
   const colour = `
@@ -93,7 +114,20 @@ vec3 flowerStem = vec3(0.19, 0.34, 0.105);
 diffuseColor.rgb *= mix(flowerStem, vec3(1.0), smoothstep(0.70, 0.88, flowerVertical));
 diffuseColor.a *= realmWildflowerCoverage();
 `;
-  return `${FRAGMENT_DECLARATIONS}\n${fragmentShader.replace(colourMarker, colour)}`;
+  const normal = `
+${normalMarker}
+float flowerNormalBendWeight = smoothstep(0.08, 1.0, vFlowerCardData.y);
+vec3 flowerBendSlopeView = (
+  viewMatrix * vec4(vFlowerBendSlopeWorld, 0.0)
+).xyz;
+normal = normalize(
+  normal - flowerBendSlopeView * faceDirection * flowerNormalBendWeight
+);
+nonPerturbedNormal = normal;
+`;
+  return `${FRAGMENT_DECLARATIONS}\n${fragmentShader
+    .replace(colourMarker, colour)
+    .replace(normalMarker, normal)}`;
 }
 
 export function createRealmWildflowerMaterial(
