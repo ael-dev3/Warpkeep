@@ -1300,6 +1300,7 @@ describe('notification Pages ongoing live receipt', () => {
         Buffer.alloc(0),
       );
     }
+    expect(readdirSync(capacityWorkspace.directory)).toHaveLength(253);
     const capacityFetch = vi.fn();
     await expect(writePrivateNotificationPagesLiveReceipt({
       directory: capacityWorkspace.directory,
