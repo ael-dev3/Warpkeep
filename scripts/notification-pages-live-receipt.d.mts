@@ -142,6 +142,16 @@ export function ensureNotificationPagesLiveReceiptDirectory(options: Readonly<{
 
 export function defaultNotificationPagesLiveReceiptDirectory(): string;
 
+export function parseNotificationPagesActivationPhaseSources(
+  sources: Readonly<{
+    pagesWorkflowSource: string;
+    hermesSource: string;
+  }>,
+): Readonly<{
+  pagesPresentationEnabled: boolean;
+  hermesExecutionApproved: boolean;
+}>;
+
 export function writePrivateNotificationPagesLiveReceipt(options: Readonly<{
   directory: string;
   repositoryRoot: string;

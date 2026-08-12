@@ -33,6 +33,7 @@ import {
   inspectLatestPrivateNotificationPagesLiveReceiptForCandidate,
   inspectPrivateNotificationPagesLiveReceiptByPagesSourceCommit,
   NOTIFICATION_PAGES_LIVE_RECEIPT_KIND,
+  parseNotificationPagesActivationPhaseSources,
   parseNotificationPagesLiveReceipt,
   promoteNotificationPagesLiveReceipt,
   writePrivateNotificationPagesLiveReceipt,
@@ -634,6 +635,33 @@ afterEach(() => {
 });
 
 describe('notification Pages ongoing live receipt', () => {
+  it('structurally rejects commented and scalar activation-phase decoys', () => {
+    const pages = "jobs:\n  build:\n    env:\n      VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'true'\n";
+    const hermes = 'export const '
+      + 'FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = false as const;\n';
+    expect(parseNotificationPagesActivationPhaseSources({
+      pagesWorkflowSource: pages,
+      hermesSource: hermes,
+    })).toEqual({
+      pagesPresentationEnabled: true,
+      hermesExecutionApproved: false,
+    });
+    for (const decoy of [
+      `/*\n${hermes}*/\n`,
+      `const decoy = \`${hermes}\`;\n`,
+    ]) {
+      expect(() => parseNotificationPagesActivationPhaseSources({
+        pagesWorkflowSource: pages,
+        hermesSource: decoy,
+      })).toThrow('NOTIFICATION_PAGES_LIVE_HERMES_PHASE_INVALID');
+    }
+    expect(() => parseNotificationPagesActivationPhaseSources({
+      pagesWorkflowSource: 'decoy: |\n  jobs:\n    build:\n      env:\n'
+        + "        VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'true'\n",
+      hermesSource: hermes,
+    })).toThrow('NOTIFICATION_PAGES_LIVE_PAGES_PHASE_INVALID');
+  });
+
   it('binds every authority tuple and installs owner-only fixture bytes', async () => {
     const written = await writeLiveReceipt();
 

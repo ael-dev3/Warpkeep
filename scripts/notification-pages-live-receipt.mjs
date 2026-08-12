@@ -1633,9 +1633,8 @@ function sourceAtCommit(commit, path, code) {
   return result.stdout;
 }
 
-function exactHermesApprovalAtCommit(commit) {
+function exactHermesApprovalSource(source) {
   const code = 'NOTIFICATION_PAGES_LIVE_HERMES_PHASE_INVALID';
-  const source = sourceAtCommit(commit, 'scripts/hermes-admin.ts', code);
   const scanner = createScanner(true, LanguageVariant.Standard, source);
   const skipTemplateLiteral = () => {
     let expressionBraceDepth = 0;
@@ -1712,15 +1711,15 @@ function exactHermesApprovalAtCommit(commit) {
   return matches[0];
 }
 
-function exactPagesPresentationAtCommit(commit) {
+function exactPagesPresentationSource(source) {
   const code = 'NOTIFICATION_PAGES_LIVE_PAGES_PHASE_INVALID';
   let document;
   try {
-    document = parseDocument(sourceAtCommit(
-      commit,
-      '.github/workflows/deploy-pages.yml',
-      code,
-    ), { prettyErrors: false, strict: true, uniqueKeys: true });
+    document = parseDocument(source, {
+      prettyErrors: false,
+      strict: true,
+      uniqueKeys: true,
+    });
   } catch {
     fail(code);
   }
@@ -1735,10 +1734,42 @@ function exactPagesPresentationAtCommit(commit) {
   return value === 'true';
 }
 
+export function parseNotificationPagesActivationPhaseSources({
+  pagesWorkflowSource,
+  hermesSource,
+} = {}) {
+  if (
+    typeof pagesWorkflowSource !== 'string'
+    || pagesWorkflowSource.length < 1
+    || pagesWorkflowSource.length > 512 * 1024
+    || typeof hermesSource !== 'string'
+    || hermesSource.length < 1
+    || hermesSource.length > 512 * 1024
+  ) fail('NOTIFICATION_PAGES_LIVE_ACTIVATION_PHASE_SOURCE_INVALID');
+  return Object.freeze({
+    pagesPresentationEnabled:
+      exactPagesPresentationSource(pagesWorkflowSource),
+    hermesExecutionApproved: exactHermesApprovalSource(hermesSource),
+  });
+}
+
 function assertActivationPresentationPhase(sourceCommit) {
-  const pagesEnabled = exactPagesPresentationAtCommit(sourceCommit);
-  const hermesApproved = exactHermesApprovalAtCommit(sourceCommit);
-  if (!pagesEnabled || hermesApproved) {
+  const phase = parseNotificationPagesActivationPhaseSources({
+    pagesWorkflowSource: sourceAtCommit(
+      sourceCommit,
+      '.github/workflows/deploy-pages.yml',
+      'NOTIFICATION_PAGES_LIVE_PAGES_PHASE_INVALID',
+    ),
+    hermesSource: sourceAtCommit(
+      sourceCommit,
+      'scripts/hermes-admin.ts',
+      'NOTIFICATION_PAGES_LIVE_HERMES_PHASE_INVALID',
+    ),
+  });
+  if (
+    !phase.pagesPresentationEnabled
+    || phase.hermesExecutionApproved
+  ) {
     fail('NOTIFICATION_PAGES_LIVE_ACTIVATION_PHASE_INVALID');
   }
 }
