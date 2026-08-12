@@ -31,6 +31,7 @@ import {
   assertProductionAdminTrustedAncestors,
   canonicalProductionAdminAccountHome,
 } from './production-admin-token-budget.mjs';
+import { executeGreaterRealmProductionVerifier } from './greater-realm-production-verifier';
 import type {
   GreaterRealmProductionVerificationReceipt,
 } from './greater-realm-production-verifier-core';
@@ -94,6 +95,7 @@ export class GreaterRealmProductionPagesEvidenceError extends Error {
 
 const DIRECTORY_MODE = 0o700;
 const FILE_MODE = 0o600;
+const REPOSITORY_ROOT = realpathSync(resolve(import.meta.dirname, '..'));
 const MAX_EVIDENCE_BYTES = 16 * 1024;
 const MAX_FOUNDERS = 600;
 const SOURCE_COMMIT = /^[0-9a-f]{40}$/u;
@@ -481,6 +483,7 @@ function canonicalRepositoryRoot(repositoryRoot: string): string {
       !metadata.isDirectory()
       || metadata.isSymbolicLink()
       || canonical !== repositoryRoot
+      || canonical !== REPOSITORY_ROOT
     ) fail('GREATER_REALM_PAGES_EVIDENCE_REPOSITORY_INVALID');
     return canonical;
   } catch (error) {
@@ -619,7 +622,13 @@ function validateDedicatedDirectory(directory: string): void {
       fail('GREATER_REALM_PAGES_EVIDENCE_DIRECTORY_NOT_DEDICATED');
     }
     const path = join(directory, entry.name);
-    const metadata = lstatSync(path);
+    let metadata;
+    try {
+      metadata = lstatSync(path);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      fail('GREATER_REALM_PAGES_EVIDENCE_DIRECTORY_NOT_DEDICATED');
+    }
     const mode = metadata.mode & 0o7777;
     if (
       !entry.isFile()
@@ -657,30 +666,48 @@ export function ensureGreaterRealmProductionPagesEvidenceDirectory(input: Readon
   if (inside(repository, requested) || inside(requested, repository)) {
     fail('GREATER_REALM_PAGES_EVIDENCE_REPOSITORY_OVERLAP');
   }
-  const missing: string[] = [];
-  let existing = requested;
-  while (!existsSync(existing)) {
-    missing.unshift(existing);
-    const parent = dirname(existing);
-    if (parent === existing) fail('GREATER_REALM_PAGES_EVIDENCE_DIRECTORY_INVALID');
-    existing = parent;
-  }
+  const parent = dirname(requested);
   let canonicalParent: string;
   try {
-    canonicalParent = realpathSync(existing);
+    canonicalParent = assertPrivateDirectory(parent);
   } catch {
     fail('GREATER_REALM_PAGES_EVIDENCE_DIRECTORY_INVALID');
   }
   if (inside(repository, canonicalParent) || inside(canonicalParent, repository)) {
     fail('GREATER_REALM_PAGES_EVIDENCE_REPOSITORY_OVERLAP');
   }
-  for (const path of missing) {
+  if (!existsSync(requested)) {
     try {
-      mkdirSync(path, { mode: DIRECTORY_MODE });
-      chmodSync(path, DIRECTORY_MODE);
-      canonicalParent = assertPrivateDirectory(path, canonicalParent);
-      fsyncDirectory(path);
-      fsyncDirectory(dirname(path));
+      mkdirSync(requested, { mode: DIRECTORY_MODE });
+      chmodSync(requested, DIRECTORY_MODE);
+      fsyncDirectory(requested);
+      fsyncDirectory(parent);
+    } catch (error) {
+      if (error instanceof GreaterRealmProductionPagesEvidenceError) throw error;
+      fail('GREATER_REALM_PAGES_EVIDENCE_DIRECTORY_CREATE_FAILED');
+    }
+  }
+  let metadata;
+  try {
+    metadata = lstatSync(requested);
+  } catch {
+    fail('GREATER_REALM_PAGES_EVIDENCE_DIRECTORY_INVALID');
+  }
+  const permissionMode = metadata.mode & 0o7777;
+  if (
+    permissionMode !== DIRECTORY_MODE
+    && metadata.isDirectory()
+    && !metadata.isSymbolicLink()
+    && (process.getuid === undefined || metadata.uid === process.getuid())
+    && (permissionMode & ~DIRECTORY_MODE) === 0
+  ) {
+    try {
+      if (realpathSync(requested) !== requested || dirname(requested) !== canonicalParent) {
+        fail('GREATER_REALM_PAGES_EVIDENCE_DIRECTORY_INVALID');
+      }
+      chmodSync(requested, DIRECTORY_MODE);
+      fsyncDirectory(requested);
+      fsyncDirectory(parent);
     } catch (error) {
       if (error instanceof GreaterRealmProductionPagesEvidenceError) throw error;
       fail('GREATER_REALM_PAGES_EVIDENCE_DIRECTORY_CREATE_FAILED');
@@ -797,11 +824,11 @@ function temporarySuffix(randomBytesImpl: (size: number) => Buffer): string {
 /**
  * Durably publish a content-addressed 0600 evidence file without replacement.
  * A hard-link commit leaves either no destination or the complete fsynced body.
- * `verifiedAt` is the caller-attested instant immediately after the active
- * production verification resolved; downstream handoff verification orders it
- * after the active-v17 module receipt and before bridge preparation.
+ * The production entry point supplies `verifiedAt` immediately after its
+ * authenticated active-production verification resolves; downstream handoff
+ * verification orders it after module deployment and before bridge preparation.
  */
-export function writePrivateGreaterRealmProductionPagesEvidence(input: Readonly<{
+function writePrivateGreaterRealmProductionPagesEvidence(input: Readonly<{
   directory: string;
   repositoryRoot: string;
   activeVerification: GreaterRealmProductionVerificationReceipt;
@@ -829,6 +856,7 @@ export function writePrivateGreaterRealmProductionPagesEvidence(input: Readonly<
     const basename = `greater-realm-pages-active-v17-${evidenceDigest}.json`;
     const destination = join(directory, basename);
     if (existsSync(destination)) {
+      repairLinkedTemporaries(directory);
       readExactExpectedFile(destination, bytes);
       return Object.freeze({
         path: destination,
@@ -879,6 +907,7 @@ export function writePrivateGreaterRealmProductionPagesEvidence(input: Readonly<
         installed = true;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+        repairLinkedTemporaries(directory);
         readExactExpectedFile(destination, bytes);
       }
       unlinkExact(temporary, identity);
@@ -906,6 +935,74 @@ export function writePrivateGreaterRealmProductionPagesEvidence(input: Readonly<
   } finally {
     bytes.fill(0);
   }
+}
+
+/**
+ * Perform the authenticated Maincloud verification and timestamp its result
+ * in the same trusted process before publishing private Pages evidence.
+ */
+export async function verifyAndWritePrivateGreaterRealmProductionPagesEvidence(
+  input: Readonly<{
+    directory: string;
+    repositoryRoot: string;
+    adminSecretPath: string;
+    environment: Readonly<Record<string, string | undefined>>;
+    workspaceRoot?: string;
+    expectedSourceRelease: GreaterRealmProductionPagesEvidenceSourceRelease;
+    expectedFounderCount: number;
+    maximumAgeMilliseconds: number;
+    testOnlyExecuteVerifier?: typeof executeGreaterRealmProductionVerifier;
+    testOnlyInspect?: () => Promise<unknown>;
+    testOnlyNow?: Date;
+    randomBytesImpl?: (size: number) => Buffer;
+  }>,
+): Promise<GreaterRealmProductionPagesEvidenceWriteResult> {
+  if (
+    (
+      input.testOnlyExecuteVerifier !== undefined
+      || input.testOnlyInspect !== undefined
+      || input.testOnlyNow !== undefined
+    )
+    && process.env.NODE_ENV !== 'test'
+  ) fail('GREATER_REALM_PAGES_EVIDENCE_TEST_ONLY_DEPENDENCY_FORBIDDEN');
+  const startedAt = input.testOnlyNow ?? new Date();
+  exactDate(startedAt, 'GREATER_REALM_PAGES_EVIDENCE_TIME_INVALID');
+  const executeVerifier = input.testOnlyExecuteVerifier
+    ?? executeGreaterRealmProductionVerifier;
+  const activeVerification = await executeVerifier({
+    expectedFounderCount: input.expectedFounderCount,
+    adminSecretPath: input.adminSecretPath,
+    environment: input.environment,
+    workspaceRoot: input.workspaceRoot,
+    ...(input.testOnlyInspect === undefined
+      ? {}
+      : { inspect: input.testOnlyInspect }),
+  });
+  const verifiedAt = input.testOnlyNow ?? new Date();
+  if (
+    exactDate(verifiedAt, 'GREATER_REALM_PAGES_EVIDENCE_TIME_INVALID')
+      < startedAt.getTime()
+  ) fail('GREATER_REALM_PAGES_EVIDENCE_CLOCK_NOT_MONOTONIC');
+  return writePrivateGreaterRealmProductionPagesEvidence({
+    directory: input.directory,
+    repositoryRoot: input.repositoryRoot,
+    activeVerification,
+    expectedSourceRelease: input.expectedSourceRelease,
+    expectedFounderCount: input.expectedFounderCount,
+    maximumAgeMilliseconds: input.maximumAgeMilliseconds,
+    verifiedAt,
+    randomBytesImpl: input.randomBytesImpl,
+  });
+}
+
+/** Test-only canonical writer used to exercise filesystem crash boundaries. */
+export function testOnlyWritePrivateGreaterRealmProductionPagesEvidence(
+  input: Parameters<typeof writePrivateGreaterRealmProductionPagesEvidence>[0],
+): GreaterRealmProductionPagesEvidenceWriteResult {
+  if (process.env.NODE_ENV !== 'test') {
+    fail('GREATER_REALM_PAGES_EVIDENCE_TEST_ONLY_WRITER_FORBIDDEN');
+  }
+  return writePrivateGreaterRealmProductionPagesEvidence(input);
 }
 
 /** Strictly read a caller-bound content-addressed evidence file. */

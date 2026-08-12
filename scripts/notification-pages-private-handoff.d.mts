@@ -23,7 +23,7 @@ export function createNotificationPagesPrivateHandoff(options: Readonly<{
   activeEvidenceMaximumAgeMilliseconds: number;
   bridgeSourceCommit: string;
   preparedReceiptBytes: Uint8Array;
-  activeV17ReceiptBytes: Uint8Array;
+  activeV17EvidenceBytes: Uint8Array;
   deployedModuleReceiptBytes: Uint8Array;
   createdAt?: Date;
   expiresAt?: Date;
@@ -47,7 +47,7 @@ export function inspectNotificationPagesPrivateHandoff(options: Readonly<{
   expectedFounderCount: number;
   expectedActiveEvidenceMaximumAgeMilliseconds: number;
   expectedPreparedReceiptDigest: string;
-  expectedActiveV17ReceiptDigest: string;
+  expectedActiveV17EvidenceDigest: string;
   expectedDeployedModuleReceiptDigest: string;
   expectedBridgeSourceCommit: string;
   fetchImpl?: typeof fetch;
@@ -63,12 +63,12 @@ export function inspectNotificationPagesPrivateHandoff(options: Readonly<{
   createdAt: string;
   expiresAt: string;
   preparedReceiptDigest: string;
-  activeV17ReceiptDigest: string;
+  activeV17EvidenceDigest: string;
   deployedModuleReceiptDigest: string;
   bridgeSourceCommit: string;
   preparedReceipt: Readonly<Record<string, unknown>>;
   liveAttestation: Readonly<Record<string, unknown>>;
-  activeV17Receipt: Readonly<Record<string, unknown>>;
+  activeV17Evidence: Readonly<Record<string, unknown>>;
   deployedModuleReceipt: Readonly<Record<string, unknown>>;
   sourceRelease: Readonly<{
     atlasSourceCommit: string;

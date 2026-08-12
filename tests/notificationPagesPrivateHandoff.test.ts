@@ -25,6 +25,12 @@ import {
   createNotificationPagesPrivateHandoff,
   inspectNotificationPagesPrivateHandoff,
 } from '../scripts/notification-pages-private-handoff.mjs';
+import {
+  testOnlyWritePrivateGreaterRealmProductionPagesEvidence,
+} from '../scripts/greater-realm-production-pages-evidence';
+import type {
+  GreaterRealmProductionVerificationReceipt,
+} from '../scripts/greater-realm-production-verifier-core';
 
 const HEAD_COMMIT = execFileSync(
   '/usr/bin/git',
@@ -41,12 +47,13 @@ const ATLAS_COMMIT = HEAD_COMMIT;
 const MODULE_COMMIT = HEAD_COMMIT;
 const PAGES_COMMIT = HEAD_COMMIT;
 const DIGEST = 'e'.repeat(64);
-const ACTIVE_RECORDED_AT = '2026-08-11T11:40:00.000Z';
-const DEPLOYED_RECORDED_AT = '2026-08-11T11:50:00.000Z';
+const DEPLOYED_RECORDED_AT = '2026-08-11T11:40:00.000Z';
+const ACTIVE_RECORDED_AT = '2026-08-11T11:50:00.000Z';
 const PREPARED_AT = '2026-08-11T12:00:00.000Z';
 const CREATED_AT = new Date('2026-08-11T12:05:00.000Z');
 const NOW = new Date('2026-08-11T12:06:00.000Z');
-const EXPIRES_AT = '2026-08-11T13:00:00.000Z';
+const ACTIVE_EXPIRES_AT = '2026-08-11T12:50:00.000Z';
+const EXPIRES_AT = '2026-08-11T12:45:00.000Z';
 const FOUNDER_COUNT = 100;
 const ACTIVE_EVIDENCE_MAXIMUM_AGE_MILLISECONDS = 60 * 60 * 1_000;
 const KEY = Buffer.alloc(32, 7);
@@ -157,38 +164,52 @@ function preparedReceipt(): Buffer {
   })}\n`, 'utf8');
 }
 
-function activeRecord(overrides: Readonly<Record<string, unknown>> = {}) {
+function activeVerification(
+  overrides: Readonly<Record<string, unknown>> = {},
+): GreaterRealmProductionVerificationReceipt {
   return {
     schemaVersion: 1,
-    kind: 'warpkeep-greater-realm-production-relocation-v1',
-    command: 'commit',
-    reducer: 'admin_commit_greater_realm_active_v1',
-    outcome: 'verified',
-    submitted: true,
+    kind: 'warpkeep-greater-realm-production-active-verification-v1',
     atlasSourceCommit: ATLAS_COMMIT,
     atlasId: 'GR-ATLAS-TEST',
     publicReleaseId: 'GRR-TEST',
     expectedReleaseSha256: DIGEST,
     moduleSourceCommit: MODULE_COMMIT,
-    beforeMode: 'canary',
-    afterMode: 'active',
-    releaseState: 'active',
-    currentFounderCount: FOUNDER_COUNT,
+    expectedFounderCount: FOUNDER_COUNT,
     founderCapacityRemaining: 600 - FOUNDER_COUNT,
+    admissionState: 'open',
     activeClaimRows: FOUNDER_COUNT.toString(),
     occupancyRows: FOUNDER_COUNT.toString(),
-    legacyClaimRows: '0',
-    auditRowsBefore: '50',
-    auditRowsAfter: '51',
-    auditRowsDelta: '1',
-    activeAdmissionEligible: true,
-    topologySnapshotDigest: '1'.repeat(64),
-    relocationPlanDigest: '2'.repeat(64),
+    auditRows: '51',
     statusDigest: '3'.repeat(64),
-    operationReceiptChainDigest: '4'.repeat(64),
-    operationReceiptCount: 1,
     ...overrides,
-  };
+  } as GreaterRealmProductionVerificationReceipt;
+}
+
+function activeEvidence(
+  overrides: Readonly<Record<string, unknown>> = {},
+  verificationOverrides: Readonly<Record<string, unknown>> = {},
+): Buffer {
+  return Buffer.from(`${JSON.stringify({
+    schemaVersion: 1,
+    kind: 'warpkeep-greater-realm-production-pages-active-v17-v1',
+    recordedAt: ACTIVE_RECORDED_AT,
+    expiresAt: ACTIVE_EXPIRES_AT,
+    maximumAgeMilliseconds: ACTIVE_EVIDENCE_MAXIMUM_AGE_MILLISECONDS,
+    target: TARGET,
+    sourceRelease: {
+      atlasSourceCommit: ATLAS_COMMIT,
+      atlasId: 'GR-ATLAS-TEST',
+      publicReleaseId: 'GRR-TEST',
+      expectedReleaseSha256: DIGEST,
+      moduleSourceCommit: MODULE_COMMIT,
+    },
+    expectedFounderCount: FOUNDER_COUNT,
+    founderCapacityRemaining: 600 - FOUNDER_COUNT,
+    activeAdmissionEligible: true,
+    activeVerification: activeVerification(verificationOverrides),
+    ...overrides,
+  }, null, 2)}\n`, 'utf8');
 }
 
 function deployedRecord(overrides: Readonly<Record<string, unknown>> = {}) {
@@ -224,18 +245,13 @@ function deployedRecord(overrides: Readonly<Record<string, unknown>> = {}) {
 }
 
 function evidence(overrides: Readonly<{
-  activeRecordedAt?: string;
   deployedRecordedAt?: string;
-  activeRecord?: Readonly<Record<string, unknown>>;
+  activeEvidence?: Buffer;
   deployedRecord?: Readonly<Record<string, unknown>>;
 }> = {}) {
   return {
     prepared: preparedReceipt(),
-    active: privateReceipt(
-      'warpkeep-greater-realm-production-relocation-v1',
-      overrides.activeRecordedAt ?? ACTIVE_RECORDED_AT,
-      overrides.activeRecord ?? activeRecord(),
-    ),
+    active: overrides.activeEvidence ?? activeEvidence(),
     deployed: privateReceipt(
       'warpkeep-greater-realm-production-publish-v1',
       overrides.deployedRecordedAt ?? DEPLOYED_RECORDED_AT,
@@ -255,7 +271,7 @@ function createHandoff(receipts = evidence()) {
       ACTIVE_EVIDENCE_MAXIMUM_AGE_MILLISECONDS,
     bridgeSourceCommit: BRIDGE_COMMIT,
     preparedReceiptBytes: receipts.prepared,
-    activeV17ReceiptBytes: receipts.active,
+    activeV17EvidenceBytes: receipts.active,
     deployedModuleReceiptBytes: receipts.deployed,
     createdAt: CREATED_AT,
     expiresAt: new Date(EXPIRES_AT),
@@ -286,6 +302,62 @@ afterEach(() => {
 });
 
 describe('notification-to-Pages private evidence handoff', () => {
+  it('consumes the canonical fresh active-verification evidence writer ABI', async () => {
+    const { repositoryRoot, privateRoot, parent } = privateWorkspace();
+    const written = testOnlyWritePrivateGreaterRealmProductionPagesEvidence({
+      directory: join(parent, 'active-evidence'),
+      repositoryRoot,
+      activeVerification: activeVerification(),
+      expectedSourceRelease: {
+        atlasSourceCommit: ATLAS_COMMIT,
+        atlasId: 'GR-ATLAS-TEST',
+        publicReleaseId: 'GRR-TEST',
+        expectedReleaseSha256: DIGEST,
+        moduleSourceCommit: MODULE_COMMIT,
+      },
+      expectedFounderCount: FOUNDER_COUNT,
+      maximumAgeMilliseconds: ACTIVE_EVIDENCE_MAXIMUM_AGE_MILLISECONDS,
+      verifiedAt: new Date(ACTIVE_RECORDED_AT),
+      randomBytesImpl: size => Buffer.alloc(size, 4),
+    });
+    const receipts = {
+      prepared: preparedReceipt(),
+      active: readFileSync(written.path),
+      deployed: privateReceipt(
+        'warpkeep-greater-realm-production-publish-v1',
+        DEPLOYED_RECORDED_AT,
+        deployedRecord(),
+      ),
+    };
+    const created = createHandoff(receipts);
+    const handoffPath = join(privateRoot, 'handoff.json');
+    const keyPath = join(privateRoot, 'key.txt');
+    writePrivate(handoffPath, created.bytes);
+    writePrivate(keyPath, Buffer.from(`${KEY.toString('base64url')}\n`, 'utf8'));
+
+    await expect(inspectNotificationPagesPrivateHandoff({
+      handoffPath,
+      keyPath,
+      repositoryRoot,
+      expectedHandoffDigest: created.digest,
+      expectedKeyId: created.keyId,
+      expectedWorkflowRunId: '123456789',
+      expectedWorkflowRunAttempt: '1',
+      expectedPagesSourceCommit: PAGES_COMMIT,
+      expectedFounderCount: FOUNDER_COUNT,
+      expectedActiveEvidenceMaximumAgeMilliseconds:
+        ACTIVE_EVIDENCE_MAXIMUM_AGE_MILLISECONDS,
+      expectedPreparedReceiptDigest: digest(receipts.prepared),
+      expectedActiveV17EvidenceDigest: digest(receipts.active),
+      expectedDeployedModuleReceiptDigest: digest(receipts.deployed),
+      expectedBridgeSourceCommit: BRIDGE_COMMIT,
+      fetchImpl: vi.fn(async () => releaseResponse()) as typeof fetch,
+      now: NOW,
+    })).resolves.toMatchObject({
+      activeV17Evidence: { activeVerification: { auditRows: '51' } },
+    });
+  });
+
   it('decrypts only the exact run-bound evidence and refreshes the bridge attestation', async () => {
     const receipts = evidence();
     const created = createHandoff(receipts);
@@ -309,7 +381,7 @@ describe('notification-to-Pages private evidence handoff', () => {
       expectedActiveEvidenceMaximumAgeMilliseconds:
         ACTIVE_EVIDENCE_MAXIMUM_AGE_MILLISECONDS,
       expectedPreparedReceiptDigest: digest(receipts.prepared),
-      expectedActiveV17ReceiptDigest: digest(receipts.active),
+      expectedActiveV17EvidenceDigest: digest(receipts.active),
       expectedDeployedModuleReceiptDigest: digest(receipts.deployed),
       expectedBridgeSourceCommit: BRIDGE_COMMIT,
       fetchImpl,
@@ -330,9 +402,9 @@ describe('notification-to-Pages private evidence handoff', () => {
         atlasSourceCommit: ATLAS_COMMIT,
         moduleSourceCommit: MODULE_COMMIT,
       },
-      activeV17Receipt: {
-        afterMode: 'active',
-        currentFounderCount: FOUNDER_COUNT,
+      activeV17Evidence: {
+        kind: 'warpkeep-greater-realm-production-pages-active-v17-v1',
+        expectedFounderCount: FOUNDER_COUNT,
       },
       deployedModuleReceipt: { lane: 'forward-activation-active-v17' },
     });
@@ -371,7 +443,7 @@ describe('notification-to-Pages private evidence handoff', () => {
       expectedActiveEvidenceMaximumAgeMilliseconds:
         ACTIVE_EVIDENCE_MAXIMUM_AGE_MILLISECONDS,
       expectedPreparedReceiptDigest: digest(receipts.prepared),
-      expectedActiveV17ReceiptDigest: digest(receipts.active),
+      expectedActiveV17EvidenceDigest: digest(receipts.active),
       expectedDeployedModuleReceiptDigest: digest(receipts.deployed),
       expectedBridgeSourceCommit: BRIDGE_COMMIT,
       fetchImpl: vi.fn() as typeof fetch,
@@ -392,7 +464,7 @@ describe('notification-to-Pages private evidence handoff', () => {
       expectedActiveEvidenceMaximumAgeMilliseconds:
         ACTIVE_EVIDENCE_MAXIMUM_AGE_MILLISECONDS,
       expectedPreparedReceiptDigest: digest(receipts.prepared),
-      expectedActiveV17ReceiptDigest: digest(receipts.active),
+      expectedActiveV17EvidenceDigest: digest(receipts.active),
       expectedDeployedModuleReceiptDigest: digest(receipts.deployed),
       expectedBridgeSourceCommit: BRIDGE_COMMIT,
       fetchImpl: vi.fn() as typeof fetch,
@@ -405,36 +477,40 @@ describe('notification-to-Pages private evidence handoff', () => {
       deployedRecord: deployedRecord({ moduleSourceCommit: '1'.repeat(40) }),
     });
     expect(() => createHandoff(mismatched)).toThrow(
-      'NOTIFICATION_PAGES_HANDOFF_SOURCE_RELEASE_MISMATCH',
+      'NOTIFICATION_PAGES_HANDOFF_ACTIVE_EVIDENCE_INVALID',
     );
 
     const outOfOrder = evidence({
-      activeRecordedAt: '2026-08-11T11:55:00.000Z',
       deployedRecordedAt: '2026-08-11T11:50:00.000Z',
+      activeEvidence: activeEvidence({
+        recordedAt: '2026-08-11T11:45:00.000Z',
+        expiresAt: '2026-08-11T12:45:00.000Z',
+      }),
     });
     expect(() => createHandoff(outOfOrder)).toThrow(
       'NOTIFICATION_PAGES_HANDOFF_EVIDENCE_ORDER_INVALID',
     );
 
     expect(() => createHandoff(evidence({
-      activeRecord: activeRecord({ auditRowsAfter: '999' }),
-    }))).toThrow('NOTIFICATION_PAGES_HANDOFF_ACTIVE_RECEIPT_INVALID');
+      activeEvidence: activeEvidence({}, { auditRows: ['51'] }),
+    }))).toThrow('NOTIFICATION_PAGES_HANDOFF_ACTIVE_EVIDENCE_INVALID');
     expect(() => createHandoff(evidence({
       deployedRecord: deployedRecord({ artifactDigest: ['5'.repeat(64)] }),
     }))).toThrow('NOTIFICATION_PAGES_HANDOFF_MODULE_RECEIPT_INVALID');
 
     expect(() => createHandoff(evidence({
-      activeRecord: activeRecord({
-        currentFounderCount: 101,
+      activeEvidence: activeEvidence({
+        expectedFounderCount: 101,
         founderCapacityRemaining: 499,
-        activeClaimRows: '101',
-        occupancyRows: '101',
       }),
-    }))).toThrow('NOTIFICATION_PAGES_HANDOFF_FOUNDER_COUNT_MISMATCH');
+    }))).toThrow('NOTIFICATION_PAGES_HANDOFF_ACTIVE_EVIDENCE_INVALID');
 
     expect(() => createHandoff(evidence({
-      activeRecordedAt: '2026-08-11T10:00:00.000Z',
-    }))).toThrow('NOTIFICATION_PAGES_HANDOFF_EVIDENCE_ORDER_INVALID');
+      activeEvidence: activeEvidence({
+        recordedAt: '2026-08-11T10:00:00.000Z',
+        expiresAt: '2026-08-11T11:00:00.000Z',
+      }),
+    }))).toThrow('NOTIFICATION_PAGES_HANDOFF_ACTIVE_EVIDENCE_INVALID');
   });
 
   it('proves the receipt module tree against the exact checked-out Pages source', async () => {
@@ -462,7 +538,7 @@ describe('notification-to-Pages private evidence handoff', () => {
       expectedActiveEvidenceMaximumAgeMilliseconds:
         ACTIVE_EVIDENCE_MAXIMUM_AGE_MILLISECONDS,
       expectedPreparedReceiptDigest: digest(receipts.prepared),
-      expectedActiveV17ReceiptDigest: digest(receipts.active),
+      expectedActiveV17EvidenceDigest: digest(receipts.active),
       expectedDeployedModuleReceiptDigest: digest(receipts.deployed),
       expectedBridgeSourceCommit: BRIDGE_COMMIT,
       fetchImpl,
@@ -492,7 +568,7 @@ describe('notification-to-Pages private evidence handoff', () => {
       expectedActiveEvidenceMaximumAgeMilliseconds:
         ACTIVE_EVIDENCE_MAXIMUM_AGE_MILLISECONDS,
       expectedPreparedReceiptDigest: digest(receipts.prepared),
-      expectedActiveV17ReceiptDigest: digest(receipts.active),
+      expectedActiveV17EvidenceDigest: digest(receipts.active),
       expectedDeployedModuleReceiptDigest: digest(receipts.deployed),
       expectedBridgeSourceCommit: BRIDGE_COMMIT,
       fetchImpl: vi.fn() as typeof fetch,
@@ -512,7 +588,7 @@ describe('notification-to-Pages private evidence handoff', () => {
       expectedActiveEvidenceMaximumAgeMilliseconds:
         ACTIVE_EVIDENCE_MAXIMUM_AGE_MILLISECONDS,
       expectedPreparedReceiptDigest: digest(receipts.prepared),
-      expectedActiveV17ReceiptDigest: digest(receipts.active),
+      expectedActiveV17EvidenceDigest: digest(receipts.active),
       expectedDeployedModuleReceiptDigest: digest(receipts.deployed),
       expectedBridgeSourceCommit: BRIDGE_COMMIT,
       fetchImpl: vi.fn() as typeof fetch,

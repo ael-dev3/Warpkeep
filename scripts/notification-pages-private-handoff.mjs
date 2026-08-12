@@ -38,6 +38,7 @@ const KEY_BYTES = 32;
 const NONCE_BYTES = 12;
 const TAG_BYTES = 16;
 const MAX_PREPARED_RECEIPT_BYTES = 8 * 1024;
+const MAX_ACTIVE_EVIDENCE_BYTES = 16 * 1024;
 const MAX_CUTOVER_RECEIPT_BYTES = 64 * 1024;
 const MAX_HANDOFF_BYTES = 256 * 1024;
 const SOURCE_COMMIT = /^[a-f0-9]{40}$/u;
@@ -64,14 +65,14 @@ const HEADER_KEYS = Object.freeze([
   'activeEvidenceMaximumAgeMilliseconds',
   'bridgeSourceCommit',
   'preparedReceiptDigest',
-  'activeV17ReceiptDigest',
+  'activeV17EvidenceDigest',
   'deployedModuleReceiptDigest',
   'createdAt',
   'expiresAt',
 ]);
 const PAYLOAD_KEYS = Object.freeze([
   'preparedReceipt',
-  'activeV17Receipt',
+  'activeV17Evidence',
   'deployedModuleReceipt',
 ]);
 const ENVELOPE_KEYS = Object.freeze([
@@ -87,16 +88,25 @@ const ENVELOPE_KEYS = Object.freeze([
 const PRIVATE_RECEIPT_KEYS = Object.freeze([
   'schemaVersion', 'kind', 'recordedAt', 'target', 'record',
 ].sort());
-const ACTIVE_RECORD_KEYS = Object.freeze([
-  'schemaVersion', 'kind', 'command', 'reducer', 'outcome', 'submitted',
-  'atlasSourceCommit', 'atlasId', 'publicReleaseId', 'expectedReleaseSha256',
-  'moduleSourceCommit', 'beforeMode', 'afterMode', 'releaseState',
-  'currentFounderCount', 'founderCapacityRemaining', 'activeClaimRows',
-  'occupancyRows', 'legacyClaimRows', 'auditRowsBefore', 'auditRowsAfter',
-  'auditRowsDelta', 'activeAdmissionEligible', 'topologySnapshotDigest',
-  'relocationPlanDigest', 'statusDigest', 'operationReceiptChainDigest',
-  'operationReceiptCount',
-].sort());
+const ACTIVE_EVIDENCE_KEYS = Object.freeze([
+  'schemaVersion', 'kind', 'recordedAt', 'expiresAt',
+  'maximumAgeMilliseconds', 'target', 'sourceRelease',
+  'expectedFounderCount', 'founderCapacityRemaining',
+  'activeAdmissionEligible', 'activeVerification',
+]);
+const ACTIVE_EVIDENCE_TARGET_KEYS = Object.freeze([
+  'uri', 'database', 'deleteData',
+]);
+const SOURCE_RELEASE_KEYS = Object.freeze([
+  'atlasSourceCommit', 'atlasId', 'publicReleaseId',
+  'expectedReleaseSha256', 'moduleSourceCommit',
+]);
+const ACTIVE_VERIFICATION_KEYS = Object.freeze([
+  'schemaVersion', 'kind', 'atlasSourceCommit', 'atlasId',
+  'publicReleaseId', 'expectedReleaseSha256', 'moduleSourceCommit',
+  'expectedFounderCount', 'founderCapacityRemaining', 'admissionState',
+  'activeClaimRows', 'occupancyRows', 'auditRows', 'statusDigest',
+]);
 const PUBLISH_RECORD_KEYS = Object.freeze([
   'schemaVersion', 'kind', 'lane', 'outcome', 'target', 'atlasSourceCommit',
   'atlasId', 'publicReleaseId', 'expectedReleaseSha256', 'moduleSourceCommit',
@@ -279,38 +289,74 @@ function parsePrivateCutoverReceipt(bytes, kind, recordKeys, recordValidator, co
   return Object.freeze({ wrapper: value, record: value.record, sourceRelease });
 }
 
-function validateActiveRecord(record, code) {
-  const sourceRelease = commonSourceRelease(record, code);
-  const population = Number.isSafeInteger(record.currentFounderCount)
-    ? record.currentFounderCount
-    : -1;
+function exactIdentifier(value) {
+  return typeof value === 'string'
+    && value.length >= 1
+    && value.length <= 512
+    && !/[\u0000-\u001f\u007f]/u.test(value);
+}
+
+function parseActiveEvidence(
+  bytes,
+  expectedSourceRelease,
+  expectedFounderCount,
+  maximumAgeMilliseconds,
+  now,
+  code,
+) {
+  const value = parseCanonicalJson(bytes, true, code);
   if (
-    record.schemaVersion !== 1
-    || record.kind !== 'warpkeep-greater-realm-production-relocation-v1'
-    || record.command !== 'commit'
-    || record.reducer !== 'admin_commit_greater_realm_active_v1'
-    || (record.outcome !== 'verified' && record.outcome !== 'verified-after-submission-error')
-    || record.submitted !== true
-    || record.beforeMode !== 'canary'
-    || record.afterMode !== 'active'
-    || record.releaseState !== 'active'
-    || population < 1
-    || population > MAXIMUM_FOUNDER_COUNT
-    || record.founderCapacityRemaining !== MAXIMUM_FOUNDER_COUNT - population
-    || record.activeClaimRows !== population.toString()
-    || record.occupancyRows !== population.toString()
-    || record.legacyClaimRows !== '0'
-    || !exactU64(record.auditRowsBefore)
-    || !exactU64(record.auditRowsAfter)
-    || record.auditRowsDelta !== '1'
-    || record.activeAdmissionEligible !== (population < MAXIMUM_FOUNDER_COUNT)
-    || BigInt(record.auditRowsAfter) - BigInt(record.auditRowsBefore) !== 1n
-    || !exactPattern(record.topologySnapshotDigest, SHA256_HEX)
-    || !exactPattern(record.relocationPlanDigest, SHA256_HEX)
-    || !exactPattern(record.statusDigest, SHA256_HEX)
-    || record.operationReceiptCount !== 1
+    !exactOrderedKeys(value, ACTIVE_EVIDENCE_KEYS)
+    || value.schemaVersion !== 1
+    || value.kind !== 'warpkeep-greater-realm-production-pages-active-v17-v1'
+    || value.maximumAgeMilliseconds !== maximumAgeMilliseconds
+    || value.expectedFounderCount !== expectedFounderCount
+    || !exactOrderedKeys(value.target, ACTIVE_EVIDENCE_TARGET_KEYS)
+    || value.target.uri !== TARGET.uri
+    || value.target.database !== TARGET.database
+    || value.target.deleteData !== TARGET.deleteData
+    || !exactOrderedKeys(value.sourceRelease, SOURCE_RELEASE_KEYS)
+    || !exactPattern(value.sourceRelease.atlasSourceCommit, SOURCE_COMMIT)
+    || !exactIdentifier(value.sourceRelease.atlasId)
+    || !exactIdentifier(value.sourceRelease.publicReleaseId)
+    || !exactPattern(value.sourceRelease.expectedReleaseSha256, SHA256_HEX)
+    || !exactPattern(value.sourceRelease.moduleSourceCommit, SOURCE_COMMIT)
+    || JSON.stringify(value.sourceRelease) !== JSON.stringify(expectedSourceRelease)
   ) fail(code);
-  return sourceRelease;
+  const recordedAt = canonicalUtc(value.recordedAt, code);
+  const expiresAt = canonicalUtc(value.expiresAt, code);
+  const current = exactDate(now, code);
+  if (
+    Date.parse(expiresAt) - Date.parse(recordedAt) !== maximumAgeMilliseconds
+    || Date.parse(recordedAt) > current
+    || Date.parse(expiresAt) <= current
+  ) fail(code);
+  const founderCapacityRemaining = MAXIMUM_FOUNDER_COUNT - expectedFounderCount;
+  const activeAdmissionEligible = expectedFounderCount < MAXIMUM_FOUNDER_COUNT;
+  const verification = value.activeVerification;
+  if (
+    value.founderCapacityRemaining !== founderCapacityRemaining
+    || value.activeAdmissionEligible !== activeAdmissionEligible
+    || !exactOrderedKeys(verification, ACTIVE_VERIFICATION_KEYS)
+    || verification.schemaVersion !== 1
+    || verification.kind
+      !== 'warpkeep-greater-realm-production-active-verification-v1'
+    || verification.atlasSourceCommit !== expectedSourceRelease.atlasSourceCommit
+    || verification.atlasId !== expectedSourceRelease.atlasId
+    || verification.publicReleaseId !== expectedSourceRelease.publicReleaseId
+    || verification.expectedReleaseSha256
+      !== expectedSourceRelease.expectedReleaseSha256
+    || verification.moduleSourceCommit !== expectedSourceRelease.moduleSourceCommit
+    || verification.expectedFounderCount !== expectedFounderCount
+    || verification.founderCapacityRemaining !== founderCapacityRemaining
+    || verification.admissionState
+      !== (activeAdmissionEligible ? 'open' : 'at-capacity')
+    || verification.activeClaimRows !== expectedFounderCount.toString()
+    || verification.occupancyRows !== expectedFounderCount.toString()
+    || !exactU64(verification.auditRows)
+    || !exactPattern(verification.statusDigest, SHA256_HEX)
+  ) fail(code);
+  return Object.freeze({ evidence: value, sourceRelease: value.sourceRelease });
 }
 
 function validatePublishRecord(record, code) {
@@ -357,7 +403,7 @@ function validateHeader(value, now) {
       > AUTH_BRIDGE_NOTIFICATION_PREPARED_RECEIPT_LIFETIME_MILLISECONDS
     || !exactPattern(value.bridgeSourceCommit, SOURCE_COMMIT)
     || !exactPattern(value.preparedReceiptDigest, SHA256_HEX)
-    || !exactPattern(value.activeV17ReceiptDigest, SHA256_HEX)
+    || !exactPattern(value.activeV17EvidenceDigest, SHA256_HEX)
     || !exactPattern(value.deployedModuleReceiptDigest, SHA256_HEX)
   ) fail('NOTIFICATION_PAGES_HANDOFF_HEADER_INVALID');
   const createdAt = canonicalUtc(value.createdAt, 'NOTIFICATION_PAGES_HANDOFF_TIME_INVALID');
@@ -588,7 +634,7 @@ export function createNotificationPagesPrivateHandoff({
   activeEvidenceMaximumAgeMilliseconds,
   bridgeSourceCommit,
   preparedReceiptBytes,
-  activeV17ReceiptBytes,
+  activeV17EvidenceBytes,
   deployedModuleReceiptBytes,
   createdAt,
   expiresAt,
@@ -601,15 +647,15 @@ export function createNotificationPagesPrivateHandoff({
     !(preparedReceiptBytes instanceof Uint8Array)
     || preparedReceiptBytes.byteLength < 1
     || preparedReceiptBytes.byteLength > MAX_PREPARED_RECEIPT_BYTES
-    || !(activeV17ReceiptBytes instanceof Uint8Array)
-    || activeV17ReceiptBytes.byteLength < 1
-    || activeV17ReceiptBytes.byteLength > MAX_CUTOVER_RECEIPT_BYTES
+    || !(activeV17EvidenceBytes instanceof Uint8Array)
+    || activeV17EvidenceBytes.byteLength < 1
+    || activeV17EvidenceBytes.byteLength > MAX_ACTIVE_EVIDENCE_BYTES
     || !(deployedModuleReceiptBytes instanceof Uint8Array)
     || deployedModuleReceiptBytes.byteLength < 1
     || deployedModuleReceiptBytes.byteLength > MAX_CUTOVER_RECEIPT_BYTES
   ) fail('NOTIFICATION_PAGES_HANDOFF_RECEIPT_SIZE_INVALID');
   const prepared = Buffer.from(preparedReceiptBytes ?? []);
-  const active = Buffer.from(activeV17ReceiptBytes ?? []);
+  const active = Buffer.from(activeV17EvidenceBytes ?? []);
   const deployed = Buffer.from(deployedModuleReceiptBytes ?? []);
   let nonce;
   let plaintext;
@@ -619,7 +665,35 @@ export function createNotificationPagesPrivateHandoff({
     );
     const creation = createdAt ?? new Date();
     const createdAtMs = exactDate(creation, 'NOTIFICATION_PAGES_HANDOFF_TIME_INVALID');
-    const expiry = expiresAt ?? new Date(preparedValue.expiresAt);
+    if (
+      !Number.isSafeInteger(expectedFounderCount)
+      || expectedFounderCount < 1
+      || expectedFounderCount > MAXIMUM_FOUNDER_COUNT
+      || !Number.isSafeInteger(activeEvidenceMaximumAgeMilliseconds)
+      || activeEvidenceMaximumAgeMilliseconds < 1
+      || activeEvidenceMaximumAgeMilliseconds
+        > AUTH_BRIDGE_NOTIFICATION_PREPARED_RECEIPT_LIFETIME_MILLISECONDS
+    ) fail('NOTIFICATION_PAGES_HANDOFF_EXPECTATION_INVALID');
+    const deployedReceipt = parsePrivateCutoverReceipt(
+      deployed,
+      'warpkeep-greater-realm-production-publish-v1',
+      PUBLISH_RECORD_KEYS,
+      validatePublishRecord,
+      'NOTIFICATION_PAGES_HANDOFF_MODULE_RECEIPT_INVALID',
+    );
+    const activeEvidence = parseActiveEvidence(
+      active,
+      deployedReceipt.sourceRelease,
+      expectedFounderCount,
+      activeEvidenceMaximumAgeMilliseconds,
+      creation,
+      'NOTIFICATION_PAGES_HANDOFF_ACTIVE_EVIDENCE_INVALID',
+    );
+    const expiry = expiresAt ?? new Date(Math.min(
+      Date.parse(preparedValue.expiresAt),
+      Date.parse(activeEvidence.evidence.expiresAt),
+    ));
+    exactDate(expiry, 'NOTIFICATION_PAGES_HANDOFF_TIME_INVALID');
     const header = validateHeader({
       repository: NOTIFICATION_PAGES_PRIVATE_HANDOFF_REPOSITORY,
       workflow: NOTIFICATION_PAGES_PRIVATE_HANDOFF_WORKFLOW,
@@ -630,7 +704,7 @@ export function createNotificationPagesPrivateHandoff({
       activeEvidenceMaximumAgeMilliseconds,
       bridgeSourceCommit,
       preparedReceiptDigest: digest(prepared),
-      activeV17ReceiptDigest: digest(active),
+      activeV17EvidenceDigest: digest(active),
       deployedModuleReceiptDigest: digest(deployed),
       createdAt: creation.toISOString(),
       expiresAt: expiry.toISOString(),
@@ -639,40 +713,24 @@ export function createNotificationPagesPrivateHandoff({
       prepared.byteLength > MAX_PREPARED_RECEIPT_BYTES
       || `${JSON.stringify(preparedValue)}\n` !== prepared.toString('utf8')
       || preparedValue.bridgeSourceCommit !== bridgeSourceCommit
-      || preparedValue.expiresAt !== header.expiresAt
     ) fail('NOTIFICATION_PAGES_HANDOFF_PREPARED_RECEIPT_INVALID');
-    const activeReceipt = parsePrivateCutoverReceipt(
-      active,
-      'warpkeep-greater-realm-production-relocation-v1',
-      ACTIVE_RECORD_KEYS,
-      validateActiveRecord,
-      'NOTIFICATION_PAGES_HANDOFF_ACTIVE_RECEIPT_INVALID',
-    );
-    const deployedReceipt = parsePrivateCutoverReceipt(
-      deployed,
-      'warpkeep-greater-realm-production-publish-v1',
-      PUBLISH_RECORD_KEYS,
-      validatePublishRecord,
-      'NOTIFICATION_PAGES_HANDOFF_MODULE_RECEIPT_INVALID',
-    );
-    if (JSON.stringify(activeReceipt.sourceRelease) !== JSON.stringify(deployedReceipt.sourceRelease)) {
-      fail('NOTIFICATION_PAGES_HANDOFF_SOURCE_RELEASE_MISMATCH');
-    }
-    if (activeReceipt.record.currentFounderCount !== header.expectedFounderCount) {
-      fail('NOTIFICATION_PAGES_HANDOFF_FOUNDER_COUNT_MISMATCH');
-    }
-    const activeRecordedAt = Date.parse(activeReceipt.wrapper.recordedAt);
+    if (
+      Date.parse(header.expiresAt) > Date.parse(preparedValue.expiresAt)
+      || Date.parse(header.expiresAt)
+        > Date.parse(activeEvidence.evidence.expiresAt)
+    ) fail('NOTIFICATION_PAGES_HANDOFF_EVIDENCE_ORDER_INVALID');
+    const activeRecordedAt = Date.parse(activeEvidence.evidence.recordedAt);
     const deployedRecordedAt = Date.parse(deployedReceipt.wrapper.recordedAt);
     const preparedAt = Date.parse(preparedValue.preparedAt);
     if (
-      activeRecordedAt > deployedRecordedAt
-      || deployedRecordedAt > preparedAt
+      deployedRecordedAt > activeRecordedAt
+      || activeRecordedAt > preparedAt
       || preparedAt > createdAtMs
       || createdAtMs - activeRecordedAt > header.activeEvidenceMaximumAgeMilliseconds
     ) fail('NOTIFICATION_PAGES_HANDOFF_EVIDENCE_ORDER_INVALID');
     const payload = Object.freeze({
       preparedReceipt: prepared.toString('base64url'),
-      activeV17Receipt: active.toString('base64url'),
+      activeV17Evidence: active.toString('base64url'),
       deployedModuleReceipt: deployed.toString('base64url'),
     });
     plaintext = Buffer.from(JSON.stringify(payload), 'utf8');
@@ -731,7 +789,7 @@ export async function inspectNotificationPagesPrivateHandoff({
   expectedFounderCount,
   expectedActiveEvidenceMaximumAgeMilliseconds,
   expectedPreparedReceiptDigest,
-  expectedActiveV17ReceiptDigest,
+  expectedActiveV17EvidenceDigest,
   expectedDeployedModuleReceiptDigest,
   expectedBridgeSourceCommit,
   fetchImpl = fetch,
@@ -744,7 +802,7 @@ export async function inspectNotificationPagesPrivateHandoff({
     [expectedWorkflowRunAttempt, RUN_ID],
     [expectedPagesSourceCommit, SOURCE_COMMIT],
     [expectedPreparedReceiptDigest, SHA256_HEX],
-    [expectedActiveV17ReceiptDigest, SHA256_HEX],
+    [expectedActiveV17EvidenceDigest, SHA256_HEX],
     [expectedDeployedModuleReceiptDigest, SHA256_HEX],
     [expectedBridgeSourceCommit, SOURCE_COMMIT],
   ]) {
@@ -791,7 +849,7 @@ export async function inspectNotificationPagesPrivateHandoff({
       || header.activeEvidenceMaximumAgeMilliseconds
         !== expectedActiveEvidenceMaximumAgeMilliseconds
       || header.preparedReceiptDigest !== expectedPreparedReceiptDigest
-      || header.activeV17ReceiptDigest !== expectedActiveV17ReceiptDigest
+      || header.activeV17EvidenceDigest !== expectedActiveV17EvidenceDigest
       || header.deployedModuleReceiptDigest !== expectedDeployedModuleReceiptDigest
       || header.bridgeSourceCommit !== expectedBridgeSourceCommit
     ) fail('NOTIFICATION_PAGES_HANDOFF_BINDING_MISMATCH');
@@ -840,9 +898,9 @@ export async function inspectNotificationPagesPrivateHandoff({
       'NOTIFICATION_PAGES_HANDOFF_PREPARED_RECEIPT_INVALID',
     );
     activeBytes = decodeBoundedReceipt(
-      payload.activeV17Receipt,
-      MAX_CUTOVER_RECEIPT_BYTES,
-      'NOTIFICATION_PAGES_HANDOFF_ACTIVE_RECEIPT_INVALID',
+      payload.activeV17Evidence,
+      MAX_ACTIVE_EVIDENCE_BYTES,
+      'NOTIFICATION_PAGES_HANDOFF_ACTIVE_EVIDENCE_INVALID',
     );
     deployedBytes = decodeBoundedReceipt(
       payload.deployedModuleReceipt,
@@ -851,7 +909,7 @@ export async function inspectNotificationPagesPrivateHandoff({
     );
     if (
       digest(preparedBytes) !== header.preparedReceiptDigest
-      || digest(activeBytes) !== header.activeV17ReceiptDigest
+      || digest(activeBytes) !== header.activeV17EvidenceDigest
       || digest(deployedBytes) !== header.deployedModuleReceiptDigest
     ) fail('NOTIFICATION_PAGES_HANDOFF_RECEIPT_DIGEST_MISMATCH');
     const preparedReceipt = parseAuthBridgeNotificationPreparedReceipt(
@@ -864,15 +922,7 @@ export async function inspectNotificationPagesPrivateHandoff({
     if (
       `${JSON.stringify(preparedReceipt)}\n` !== preparedBytes.toString('utf8')
       || preparedReceipt.bridgeSourceCommit !== header.bridgeSourceCommit
-      || preparedReceipt.expiresAt !== header.expiresAt
     ) fail('NOTIFICATION_PAGES_HANDOFF_PREPARED_RECEIPT_INVALID');
-    const activeReceipt = parsePrivateCutoverReceipt(
-      activeBytes,
-      'warpkeep-greater-realm-production-relocation-v1',
-      ACTIVE_RECORD_KEYS,
-      validateActiveRecord,
-      'NOTIFICATION_PAGES_HANDOFF_ACTIVE_RECEIPT_INVALID',
-    );
     const deployedReceipt = parsePrivateCutoverReceipt(
       deployedBytes,
       'warpkeep-greater-realm-production-publish-v1',
@@ -880,25 +930,32 @@ export async function inspectNotificationPagesPrivateHandoff({
       validatePublishRecord,
       'NOTIFICATION_PAGES_HANDOFF_MODULE_RECEIPT_INVALID',
     );
-    if (JSON.stringify(activeReceipt.sourceRelease) !== JSON.stringify(deployedReceipt.sourceRelease)) {
-      fail('NOTIFICATION_PAGES_HANDOFF_SOURCE_RELEASE_MISMATCH');
-    }
-    if (activeReceipt.record.currentFounderCount !== header.expectedFounderCount) {
-      fail('NOTIFICATION_PAGES_HANDOFF_FOUNDER_COUNT_MISMATCH');
-    }
-    const activeRecordedAt = Date.parse(activeReceipt.wrapper.recordedAt);
+    const activeEvidence = parseActiveEvidence(
+      activeBytes,
+      deployedReceipt.sourceRelease,
+      header.expectedFounderCount,
+      header.activeEvidenceMaximumAgeMilliseconds,
+      now,
+      'NOTIFICATION_PAGES_HANDOFF_ACTIVE_EVIDENCE_INVALID',
+    );
+    if (
+      Date.parse(header.expiresAt) > Date.parse(preparedReceipt.expiresAt)
+      || Date.parse(header.expiresAt)
+        > Date.parse(activeEvidence.evidence.expiresAt)
+    ) fail('NOTIFICATION_PAGES_HANDOFF_EVIDENCE_ORDER_INVALID');
+    const activeRecordedAt = Date.parse(activeEvidence.evidence.recordedAt);
     const deployedRecordedAt = Date.parse(deployedReceipt.wrapper.recordedAt);
     const preparedAt = Date.parse(preparedReceipt.preparedAt);
     if (
-      activeRecordedAt > deployedRecordedAt
-      || deployedRecordedAt > preparedAt
+      deployedRecordedAt > activeRecordedAt
+      || activeRecordedAt > preparedAt
       || preparedAt > Date.parse(header.createdAt)
       || Date.parse(header.createdAt) - activeRecordedAt
         > header.activeEvidenceMaximumAgeMilliseconds
     ) fail('NOTIFICATION_PAGES_HANDOFF_EVIDENCE_ORDER_INVALID');
     assertNotificationPagesGitProvenance(
       header,
-      activeReceipt.sourceRelease,
+      activeEvidence.sourceRelease,
       deployedReceipt.record.moduleTreeId,
     );
     const verifiedPrepared = await verifyAuthBridgeNotificationPreparedReceipt({
@@ -918,14 +975,14 @@ export async function inspectNotificationPagesPrivateHandoff({
       createdAt: header.createdAt,
       expiresAt: header.expiresAt,
       preparedReceiptDigest: header.preparedReceiptDigest,
-      activeV17ReceiptDigest: header.activeV17ReceiptDigest,
+      activeV17EvidenceDigest: header.activeV17EvidenceDigest,
       deployedModuleReceiptDigest: header.deployedModuleReceiptDigest,
       bridgeSourceCommit: header.bridgeSourceCommit,
       preparedReceipt: verifiedPrepared.receipt,
       liveAttestation: verifiedPrepared.liveAttestation,
-      activeV17Receipt: activeReceipt.record,
+      activeV17Evidence: activeEvidence.evidence,
       deployedModuleReceipt: deployedReceipt.record,
-      sourceRelease: activeReceipt.sourceRelease,
+      sourceRelease: activeEvidence.sourceRelease,
     });
   } catch (error) {
     if (error instanceof NotificationPagesPrivateHandoffError) throw error;

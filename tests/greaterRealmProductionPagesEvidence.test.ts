@@ -18,7 +18,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   ensureGreaterRealmProductionPagesEvidenceDirectory,
@@ -26,7 +26,8 @@ import {
   GREATER_REALM_PRODUCTION_PAGES_EVIDENCE_TARGET,
   parseGreaterRealmProductionPagesEvidence,
   readPrivateGreaterRealmProductionPagesEvidence,
-  writePrivateGreaterRealmProductionPagesEvidence,
+  testOnlyWritePrivateGreaterRealmProductionPagesEvidence,
+  verifyAndWritePrivateGreaterRealmProductionPagesEvidence,
   type GreaterRealmProductionPagesEvidence,
   type GreaterRealmProductionPagesEvidenceSourceRelease,
 } from '../scripts/greater-realm-production-pages-evidence';
@@ -101,7 +102,7 @@ function writeEvidence(
   const targetWorkspace = overrides.workspace ?? workspace();
   return {
     workspace: targetWorkspace,
-    result: writePrivateGreaterRealmProductionPagesEvidence({
+    result: testOnlyWritePrivateGreaterRealmProductionPagesEvidence({
       directory: targetWorkspace.directory,
       repositoryRoot: targetWorkspace.repositoryRoot,
       activeVerification:
@@ -145,6 +146,27 @@ afterEach(() => {
 });
 
 describe('Greater Realm active-v17 Pages evidence', () => {
+  it('timestamps only an in-process authenticated production verification result', async () => {
+    const targetWorkspace = workspace();
+    const executeVerifier = vi.fn(async () => activeVerification(100));
+    const result = await verifyAndWritePrivateGreaterRealmProductionPagesEvidence({
+      directory: targetWorkspace.directory,
+      repositoryRoot: targetWorkspace.repositoryRoot,
+      adminSecretPath: '/owner/private/admin-secret',
+      environment: {},
+      expectedSourceRelease: SOURCE_RELEASE,
+      expectedFounderCount: 100,
+      maximumAgeMilliseconds: MAXIMUM_AGE_MILLISECONDS,
+      testOnlyExecuteVerifier: executeVerifier,
+      testOnlyNow: NOW,
+      randomBytesImpl: size => Buffer.alloc(size, 6),
+    });
+
+    expect(executeVerifier).toHaveBeenCalledOnce();
+    expect(result.evidence.recordedAt).toBe(NOW.toISOString());
+    expect(result.evidence.activeVerification).toEqual(activeVerification(100));
+  });
+
   it('publishes canonical content-addressed 0700/0600 evidence without clobbering', () => {
     const targetWorkspace = workspace();
     const first = writeEvidence(100, { workspace: targetWorkspace }).result;
@@ -345,6 +367,10 @@ describe('Greater Realm active-v17 Pages evidence', () => {
       directory: join(targetWorkspace.repositoryRoot, '.pages-evidence'),
       repositoryRoot: targetWorkspace.repositoryRoot,
     })).toThrow(/GREATER_REALM_PAGES_EVIDENCE_REPOSITORY_OVERLAP/);
+    expect(() => ensureGreaterRealmProductionPagesEvidenceDirectory({
+      directory: join(targetWorkspace.repositoryRoot, '.pages-evidence'),
+      repositoryRoot: targetWorkspace.parent,
+    })).toThrow(/GREATER_REALM_PAGES_EVIDENCE_REPOSITORY_INVALID/);
 
     const real = join(targetWorkspace.parent, 'real');
     const linked = join(targetWorkspace.parent, 'linked');
@@ -380,6 +406,18 @@ describe('Greater Realm active-v17 Pages evidence', () => {
       directory: modeWorkspace.directory,
       repositoryRoot: modeWorkspace.repositoryRoot,
     })).toThrow(/GREATER_REALM_PAGES_EVIDENCE_DIRECTORY_NOT_DEDICATED/);
+  });
+
+  it('repairs an owner-only under-mode leaf left by mkdir before chmod', () => {
+    const targetWorkspace = workspace('warpkeep-pages-evidence-umask-');
+    mkdirSync(targetWorkspace.directory, { mode: 0o700 });
+    chmodSync(targetWorkspace.directory, 0o000);
+
+    expect(ensureGreaterRealmProductionPagesEvidenceDirectory({
+      directory: targetWorkspace.directory,
+      repositoryRoot: targetWorkspace.repositoryRoot,
+    })).toBe(targetWorkspace.directory);
+    expect(statSync(targetWorkspace.directory).mode & 0o7777).toBe(0o700);
   });
 
   it('repairs the hard-link publication suffix left by a crash', () => {
