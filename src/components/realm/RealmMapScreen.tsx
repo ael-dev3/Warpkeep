@@ -3848,14 +3848,45 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     root.dataset.grassCandidateCellCount = String(telemetry.grassCandidateCellCount);
     root.dataset.grassActiveCellCount = String(telemetry.grassActiveCellCount);
     root.dataset.grassInstanceCount = String(telemetry.grassInstanceCount);
+    root.dataset.grassNearInstanceCount = String(telemetry.grassNearInstanceCount);
+    root.dataset.grassMidInstanceCount = String(telemetry.grassMidInstanceCount);
     root.dataset.grassTriangleCount = String(telemetry.grassTriangleCount);
+    root.dataset.grassNearTriangleCount = String(telemetry.grassNearTriangleCount);
+    root.dataset.grassMidTriangleCount = String(telemetry.grassMidTriangleCount);
     root.dataset.grassDrawCalls = String(telemetry.grassDrawCalls);
+    root.dataset.grassNearDrawCalls = String(telemetry.grassNearDrawCalls);
+    root.dataset.grassMidDrawCalls = String(telemetry.grassMidDrawCalls);
+    root.dataset.grassLodTransitionInstanceCount = String(
+      telemetry.grassLodTransitionInstanceCount
+    );
+    root.dataset.wildflowerInstanceCount = String(telemetry.wildflowerInstanceCount);
+    root.dataset.wildflowerTriangleCount = String(telemetry.wildflowerTriangleCount);
+    root.dataset.wildflowerDrawCalls = String(telemetry.wildflowerDrawCalls);
+    root.dataset.wildflowerInstanceBudget = String(telemetry.wildflowerInstanceBudget);
+    root.dataset.wildflowerAnimated = String(telemetry.wildflowerAnimated);
+    root.dataset.wildflowerAlphaHashActive = String(telemetry.wildflowerAlphaHashActive);
+    root.dataset.wildflowerAlphaToCoverageActive = String(
+      telemetry.wildflowerAlphaToCoverageActive
+    );
+    root.dataset.wildflowerShaderFallbackActive = String(
+      telemetry.wildflowerShaderFallbackActive
+    );
+    root.dataset.wildflowerShaderFallbackCount = String(
+      telemetry.wildflowerShaderFallbackCount
+    );
+    root.dataset.wildflowerShaderFallbackReason =
+      telemetry.wildflowerShaderFallbackReason ?? 'none';
+    root.dataset.wildflowerOverviewHidden = String(telemetry.wildflowerOverviewHidden);
     root.dataset.grassCacheEntries = String(telemetry.grassCacheEntries);
     root.dataset.grassCacheLimit = String(telemetry.grassCacheLimit);
     root.dataset.grassCacheHighWaterMark = String(telemetry.grassCacheHighWaterMark);
     root.dataset.grassRepackCount = String(telemetry.grassRepackCount);
     root.dataset.grassAnimated = String(telemetry.grassAnimated);
     root.dataset.grassTargetAnimationCadence = String(telemetry.grassTargetAnimationCadence);
+    root.dataset.grassAlphaHashActive = String(telemetry.grassAlphaHashActive);
+    root.dataset.grassAlphaToCoverageActive = String(
+      telemetry.grassAlphaToCoverageActive
+    );
     root.dataset.grassCandidateCellsByTerrain = JSON.stringify(
       telemetry.grassCandidateCellsByTerrain
     );
@@ -4710,14 +4741,34 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         rootRef.current.dataset.grassCandidateCellCount = '0';
         rootRef.current.dataset.grassActiveCellCount = '0';
         rootRef.current.dataset.grassInstanceCount = '0';
+        rootRef.current.dataset.grassNearInstanceCount = '0';
+        rootRef.current.dataset.grassMidInstanceCount = '0';
         rootRef.current.dataset.grassTriangleCount = '0';
+        rootRef.current.dataset.grassNearTriangleCount = '0';
+        rootRef.current.dataset.grassMidTriangleCount = '0';
         rootRef.current.dataset.grassDrawCalls = '0';
+        rootRef.current.dataset.grassNearDrawCalls = '0';
+        rootRef.current.dataset.grassMidDrawCalls = '0';
+        rootRef.current.dataset.grassLodTransitionInstanceCount = '0';
+        rootRef.current.dataset.wildflowerInstanceCount = '0';
+        rootRef.current.dataset.wildflowerTriangleCount = '0';
+        rootRef.current.dataset.wildflowerDrawCalls = '0';
+        rootRef.current.dataset.wildflowerInstanceBudget = '0';
+        rootRef.current.dataset.wildflowerAnimated = 'false';
+        rootRef.current.dataset.wildflowerAlphaHashActive = 'true';
+        rootRef.current.dataset.wildflowerAlphaToCoverageActive = 'false';
+        rootRef.current.dataset.wildflowerShaderFallbackActive = 'false';
+        rootRef.current.dataset.wildflowerShaderFallbackCount = '0';
+        rootRef.current.dataset.wildflowerShaderFallbackReason = 'none';
+        rootRef.current.dataset.wildflowerOverviewHidden = 'true';
         rootRef.current.dataset.grassCacheEntries = '0';
         rootRef.current.dataset.grassCacheLimit = '0';
         rootRef.current.dataset.grassCacheHighWaterMark = '0';
         rootRef.current.dataset.grassRepackCount = '0';
         rootRef.current.dataset.grassAnimated = 'false';
         rootRef.current.dataset.grassTargetAnimationCadence = '0';
+        rootRef.current.dataset.grassAlphaHashActive = 'true';
+        rootRef.current.dataset.grassAlphaToCoverageActive = 'false';
         rootRef.current.dataset.grassCandidateCellsByTerrain = '{}';
         rootRef.current.dataset.grassActiveCellsByTerrain = '{}';
         rootRef.current.dataset.grassCountsByTerrain = '{}';

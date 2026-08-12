@@ -129,10 +129,24 @@ describe('canonical Genesis 001 grass bounds', () => {
     expect(first.triangleCount).toBeLessThanOrEqual(
       REALM_GRASS_RENDER_PLANS.high.maximumActiveTriangles
     );
-    expect(first.drawCalls).toBeLessThanOrEqual(3);
-    expect(first.variantCounts).toHaveLength(3);
+    expect(first.nearInstanceCount).toBeLessThanOrEqual(
+      REALM_GRASS_RENDER_PLANS.high.maximumNearInstances
+    );
+    expect(first.midInstanceCount).toBeLessThanOrEqual(
+      REALM_GRASS_RENDER_PLANS.high.maximumMidInstances
+    );
+    expect(first.nearTriangleCount).toBeLessThanOrEqual(
+      REALM_GRASS_RENDER_PLANS.high.maximumNearTriangles
+    );
+    expect(first.midTriangleCount).toBeLessThanOrEqual(
+      REALM_GRASS_RENDER_PLANS.high.maximumMidTriangles
+    );
+    expect(first.drawCalls).toBeLessThanOrEqual(
+      REALM_GRASS_RENDER_PLANS.high.maximumActiveDrawCalls
+    );
+    expect(first.variantCounts).toHaveLength(6);
     expect(digestPackedGrass(layer)).toBe(
-      '561a371101ae10c6b2a8bf28b89285254913e40e87177c341babb683aeeebec5'
+      '314d133d46c7718875db7a49c9ada47222f1ffe4e92cc1e9b979345372d8df87'
     );
 
     layer.updateView(axialToWorld({ q: 30, r: -10 }, 1), 'keep');

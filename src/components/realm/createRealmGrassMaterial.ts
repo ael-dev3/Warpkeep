@@ -1,18 +1,28 @@
 import * as THREE from 'three';
 
 import { REALM_PREVAILING_WIND } from '../../game/map/realmPrevailingWind';
+import { REALM_SUN_DIRECTION } from './createRealmEnvironment';
 
 export const REALM_GRASS_THREE_SHADER_CONTRACT = 'three-r185';
-export const REALM_GRASS_SHADER_CACHE_KEY = `warpkeep-procedural-grass-v2-natural-gust-v6-bounded-tips-${REALM_GRASS_THREE_SHADER_CONTRACT}`;
+export const REALM_GRASS_SHADER_CACHE_KEY = `warpkeep-procedural-grass-v3-natural-gust-v6-bounded-tips-thin-blade-lighting-v1-${REALM_GRASS_THREE_SHADER_CONTRACT}`;
 export const REALM_GRASS_MAX_WIND_SWAY = 0.075;
 export const REALM_GRASS_CROSS_WIND_RATIO = 0.16;
 export const REALM_GRASS_MAX_PRIMARY_BEND = REALM_GRASS_MAX_WIND_SWAY / Math.hypot(1, REALM_GRASS_CROSS_WIND_RATIO);
+/**
+ * Conservative world-space culling allowance for wind-deformed blades.
+ * The shader caps horizontal sway at 0.075, but slope-aligned instances can
+ * add a vertical tangent component. The accepted grass slope ceiling is 0.78,
+ * so 0.10 safely covers 0.075 * hypot(1, 0.78) (about 0.095).
+ */
+export const REALM_GRASS_MAX_WORLD_DEFORMATION_RADIUS = 0.1;
 export const REALM_GRASS_INTERACTION_TRANSITION_SECONDS = 0.14;
+export const REALM_GRASS_NORMAL_BEND_RESPONSE = 2.35;
 
 export type RealmGrassUniforms = Readonly<{
   uGrassTime: THREE.IUniform<number>;
   uGrassWindDirection: THREE.IUniform<THREE.Vector2>;
   uGrassWindStrength: THREE.IUniform<number>;
+  uGrassSunDirection: THREE.IUniform<THREE.Vector3>;
   uGrassGlobalVisibility: THREE.IUniform<number>;
   uGrassPreviousSelectedCell: THREE.IUniform<THREE.Vector2>;
   uGrassPreviousHoveredCell: THREE.IUniform<THREE.Vector2>;
@@ -31,6 +41,7 @@ export type RealmGrassMaterial = Readonly<{
   ) => void;
   setTime: (seconds: number) => boolean;
   setVisible: (visible: boolean) => void;
+  activateShaderFallback: (reason: string) => void;
   getShaderTelemetry: () => RealmGrassShaderTelemetry;
   dispose: () => void;
 }>;
@@ -63,12 +74,15 @@ uniform float uGrassInteractionFlattening;
 varying float vGrassEdgeFade;
 varying float vGrassBladeAcross;
 varying float vGrassBladeVertical;
+varying vec3 vGrassBendWorld;
 `;
 
 const FRAGMENT_DECLARATIONS = `
+uniform vec3 uGrassSunDirection;
 varying float vGrassEdgeFade;
 varying float vGrassBladeAcross;
 varying float vGrassBladeVertical;
+varying vec3 vGrassBendWorld;
 float realmGrassCoverage() {
   float edgeCoverage = 1.0 - smoothstep(0.92, 1.0, abs(vGrassBladeAcross));
   float tipCoverage = mix(0.96, 0.48, smoothstep(0.68, 1.0, vGrassBladeVertical));
@@ -140,29 +154,67 @@ float grassFlexAmount = pow(max(grassFlex, 0.0), 1.85);
 float grassBend = clamp((grassPrimary + grassSecondary * 0.28) * grassGust
   * grassWindScale * grassStiffness * grassBladeStiffness * uGrassWindStrength * ${REALM_GRASS_MAX_WIND_SWAY.toFixed(3)},
   -${REALM_GRASS_MAX_PRIMARY_BEND.toFixed(6)}, ${REALM_GRASS_MAX_PRIMARY_BEND.toFixed(6)});
-transformed.xz += grassLocalDirection * grassBend * grassFlexAmount;
-transformed.xz += grassLocalCrossDirection * grassBend * grassFlexAmount * ${REALM_GRASS_CROSS_WIND_RATIO.toFixed(2)};
+vec2 grassLocalBend = (
+  grassLocalDirection
+  + grassLocalCrossDirection * ${REALM_GRASS_CROSS_WIND_RATIO.toFixed(2)}
+) * grassBend * grassFlexAmount;
+transformed.xz += grassLocalBend;
+vGrassBendWorld = mat3(modelMatrix * instanceMatrix) * vec3(grassLocalBend.x, 0.0, grassLocalBend.y);
 `;
   return `${VERTEX_DECLARATIONS}\n${vertexShader.replace(marker, wind)}`;
 }
 
 export function injectRealmGrassFragmentShader(fragmentShader: string) {
   const colorMarker = '#include <color_fragment>';
+  const normalMarker = '#include <normal_fragment_maps>';
+  const lightingMarker = '#include <lights_fragment_end>';
   const alphaMarker = fragmentShader.includes('#include <alphahash_fragment>')
     ? '#include <alphahash_fragment>'
     : fragmentShader.includes('#include <alphatest_fragment>')
       ? '#include <alphatest_fragment>'
       : '#include <opaque_fragment>';
-  if (!fragmentShader.includes(colorMarker) || !fragmentShader.includes(alphaMarker)) {
+  if (
+    !fragmentShader.includes(colorMarker) ||
+    !fragmentShader.includes(normalMarker) ||
+    !fragmentShader.includes(lightingMarker) ||
+    !fragmentShader.includes(alphaMarker)
+  ) {
     throw new Error('REALM_GRASS_SHADER_FRAGMENT_CONTRACT_CHANGED');
   }
   const colour = `
 ${colorMarker}
-float grassVerticalLift = smoothstep(0.0, 1.0, vGrassBladeVertical);
-diffuseColor.rgb *= mix(0.94, 1.015, grassVerticalLift);
+float grassVerticalGrade = smoothstep(0.04, 0.96, vGrassBladeVertical);
+vec3 grassRootGrade = vec3(0.91, 0.955, 0.89);
+vec3 grassTipGrade = vec3(1.025, 1.01, 0.94);
+diffuseColor.rgb *= mix(grassRootGrade, grassTipGrade, grassVerticalGrade);
 diffuseColor.a *= realmGrassCoverage();
 `;
-  return `${FRAGMENT_DECLARATIONS}\n${fragmentShader.replace(colorMarker, colour)}`;
+  const normal = `
+${normalMarker}
+float grassNormalBendWeight = smoothstep(0.08, 1.0, vGrassBladeVertical);
+vec3 grassBendView = (viewMatrix * vec4(vGrassBendWorld, 0.0)).xyz;
+normal = normalize(
+  normal - grassBendView * faceDirection * grassNormalBendWeight * ${REALM_GRASS_NORMAL_BEND_RESPONSE.toFixed(2)}
+);
+nonPerturbedNormal = normal;
+`;
+  const lighting = `
+${lightingMarker}
+vec3 grassSunDirectionView = normalize((viewMatrix * vec4(uGrassSunDirection, 0.0)).xyz);
+float grassSunBehindBlade = pow(saturate(dot(-geometryNormal, grassSunDirectionView)), 1.35);
+float grassSunBehindView = pow(saturate(dot(-grassSunDirectionView, geometryViewDir)), 3.0);
+float grassViewGrazing = pow(1.0 - saturate(abs(dot(geometryNormal, geometryViewDir))), 1.5);
+float grassThinBladeTransmission = grassSunBehindBlade
+  * mix(0.025, 0.105, max(grassViewGrazing, grassSunBehindView))
+  * mix(0.68, 1.0, grassVerticalGrade)
+  * clamp(vGrassEdgeFade, 0.0, 1.0);
+vec3 grassTransmissionTint = diffuseColor.rgb * vec3(1.035, 1.09, 0.72);
+reflectedLight.directDiffuse += grassTransmissionTint * grassThinBladeTransmission;
+`;
+  return `${FRAGMENT_DECLARATIONS}\n${fragmentShader
+    .replace(colorMarker, colour)
+    .replace(normalMarker, normal)
+    .replace(lightingMarker, lighting)}`;
 }
 
 export function createRealmGrassMaterial(
@@ -170,6 +222,8 @@ export function createRealmGrassMaterial(
   animateInteractions = true,
   alphaToCoverage = false
 ): RealmGrassMaterial {
+  const useAlphaToCoverage = alphaToCoverage === true;
+  const useAlphaHash = !useAlphaToCoverage;
   const uniforms: RealmGrassUniforms = Object.freeze({
     uGrassTime: { value: 0 },
     uGrassWindDirection: {
@@ -180,6 +234,13 @@ export function createRealmGrassMaterial(
     },
     uGrassWindStrength: {
       value: Math.max(0, Number.isFinite(windStrength) ? windStrength : 1)
+    },
+    uGrassSunDirection: {
+      value: new THREE.Vector3(
+        REALM_SUN_DIRECTION.x,
+        REALM_SUN_DIRECTION.y,
+        REALM_SUN_DIRECTION.z
+      )
     },
     uGrassGlobalVisibility: { value: 1 },
     uGrassPreviousSelectedCell: {
@@ -212,11 +273,15 @@ export function createRealmGrassMaterial(
   });
   // These flags are available in Three r185. Keep the assignment explicit so
   // renderers that support MSAA can use alpha-to-coverage without blending.
-  (material as THREE.MeshStandardMaterial & { alphaHash?: boolean }).alphaHash = true;
-  (material as THREE.MeshStandardMaterial & { alphaToCoverage?: boolean }).alphaToCoverage = alphaToCoverage;
+  // Both mechanisms consume diffuse alpha. Enabling them together applies
+  // stochastic coverage twice (approximately coverage squared), so MSAA uses
+  // alpha-to-coverage while non-MSAA renderers retain alpha hashing.
+  (material as THREE.MeshStandardMaterial & { alphaHash?: boolean }).alphaHash = useAlphaHash;
+  (material as THREE.MeshStandardMaterial & { alphaToCoverage?: boolean }).alphaToCoverage =
+    useAlphaToCoverage;
   material.userData.realmGrassUniforms = uniforms;
-  material.userData.realmGrassAlphaHash = true;
-  material.userData.realmGrassAlphaToCoverage = alphaToCoverage;
+  material.userData.realmGrassAlphaHash = useAlphaHash;
+  material.userData.realmGrassAlphaToCoverage = useAlphaToCoverage;
   let disposed = false;
   let shaderFallbackActive = false;
   let shaderFallbackCount = 0;
@@ -230,10 +295,15 @@ export function createRealmGrassMaterial(
     shaderFallbackCount += 1;
     shaderFallbackReason = error instanceof Error
       ? error.message
-      : 'REALM_GRASS_SHADER_INJECTION_FAILED';
+      : typeof error === 'string' && error.length > 0
+        ? error
+        : 'REALM_GRASS_SHADER_INJECTION_FAILED';
     material.userData.realmGrassShaderFallbackActive = true;
     material.userData.realmGrassShaderFallbackCount = shaderFallbackCount;
     material.userData.realmGrassShaderFallbackReason = shaderFallbackReason;
+    // A renderer-level link error arrives after program construction. Force a
+    // new cache key so the next frame compiles the plain standard fallback.
+    material.needsUpdate = true;
   };
 
   material.userData.realmGrassShaderFallbackActive = false;
@@ -316,6 +386,10 @@ export function createRealmGrassMaterial(
     setVisible: (visible) => {
       if (disposed) return;
       uniforms.uGrassGlobalVisibility.value = visible ? 1 : 0;
+    },
+    activateShaderFallback: (reason) => {
+      if (disposed) return;
+      activateShaderFallback(reason);
     },
     getShaderTelemetry: () => Object.freeze({
       fallbackActive: shaderFallbackActive,

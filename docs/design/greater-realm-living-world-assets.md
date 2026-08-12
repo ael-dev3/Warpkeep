@@ -4,7 +4,7 @@ Status: private candidate-generation contract only
 
 Atlas: `GENESIS_001_GREATER_REALM`
 
-Production state: unchanged
+Greater Realm activation state: unchanged
 
 This document defines how the single private Greater Realm candidate may
 reserve coherent space for a future living-world presentation. It does not
@@ -196,9 +196,9 @@ the existing quality-plan ceilings across the combined near and mid bands:
 
 | Quality  | Grass patch instances | Blade equivalents | Grass triangles | Grass draws | Flower instances | Flower draws | Repack upload ceiling |
 | -------- | --------------------: | ----------------: | --------------: | ----------: | ---------------: | -----------: | --------------------: |
-| High     |                 7,000 |            63,000 |         189,000 |           3 |              512 |            2 |                 1 MiB |
-| Balanced |                 4,000 |            28,000 |          84,000 |           2 |              256 |            1 |               512 KiB |
-| Reduced  |                 1,200 |             6,000 |          18,000 |           1 |       0 geometry |            0 |               192 KiB |
+| High     |                 7,000 |            63,000 |         189,000 |           6 |              512 |            1 |                 1 MiB |
+| Balanced |                 4,000 |            28,000 |          84,000 |           4 |              256 |            1 |               512 KiB |
+| Reduced  |                 1,200 |             6,000 |          18,000 |           2 |       0 geometry |            0 |               192 KiB |
 
 The grass instance/triangle/draw rows preserve the current production plans;
 the separate flower and upload values are conservative starting ceilings to be
@@ -226,12 +226,11 @@ until representative desktop and mobile GPU traces prove frame time, memory,
 overdraw, and shader-variant budgets in a separate pull request.
 
 The implementation must not use one continent-wide mesh with
-`frustumCulled = false`. Visible and bounded prefetch chunks own expanded
-wind-safe bounds, participate in frustum and distance culling, and recycle
-fixed-capacity pools. Rebuilds are incremental, cancellable, and double-buffered
-where necessary; stale worker results are discarded by revision. Buffers that
-are repacked during a transition must use an appropriate dynamic/orphaned
-upload path or bounded update ranges rather than being advertised as static.
+`frustumCulled = false`. The camera-local active window owns fixed-capacity
+near/mid variant pools with recomputed, wind-safe bounds that participate in
+frustum culling. Repacking happens only on meaningful active-window changes.
+Matrices, colors, and custom instance fields that are rewritten by a repack use
+dynamic upload usage rather than being advertised as static.
 
 Grass and flowers share the same world-space wind clock and direction, while
 retaining independent deterministic placement streams. Hero blades require a
@@ -240,17 +239,18 @@ backscatter term. The shaded normal must follow the bend closely enough to
 avoid static highlights on moving grass. Cutouts stay opaque, depth-writing,
 and early-Z friendly; transparent sorting is not an acceptable substitute for
 alpha hashing, alpha-to-coverage, or an equivalent proven cutout path.
-Configured wind cadence is not sufficient telemetry: the layer records its
-actual animation-update cadence independently from the shared scene-render
-cadence, since water or moving actors may still cause the grass geometry to be
-drawn between wind-uniform updates.
+The runtime reports whether vegetation animation is active and its configured
+wind-update ceiling. Actual observed update cadence remains a rendered-QA and
+device-profile measurement, since water or moving actors may still cause the
+grass geometry to be drawn between wind-uniform updates.
 
-Shadow policy is explicit rather than accidental. Receiving shadows and
-bounded ground/contact occlusion are the default. If near grass or flowers cast
-shadows, the color, depth, and distance passes must use the same wind bend,
-LOD cross-fade, and alpha threshold, and casting must remain inside a separately
-profiled near ring. A static or differently clipped shadow for a moving blade
-is a release blocker.
+Shadow policy is explicit rather than accidental. The current decorative grass
+and flower pools neither cast nor receive shadow maps; ambient and direct
+lighting provide their grounding without a mismatched animated shadow pass. If
+shadow casting or receiving is enabled later, the color, depth, and distance
+passes must use the same wind bend, LOD cross-fade, and alpha threshold, and
+casting must remain inside a separately profiled near ring. A static or
+differently clipped shadow for a moving blade is a release blocker.
 
 The existing `WebGLRenderer`/GLSL path remains the production baseline. An
 optional modern path may use Three's `WebGPURenderer` and TSL/NodeMaterial only
@@ -295,13 +295,27 @@ task of 50 ms or more. Missing or failed device evidence blocks activation.
 Private candidate pixels are never CI fixtures.
 
 This handoff does not claim that visible Greater Realm grass is implemented by
-PR A. The current client already supplies bounded WebGL2 patch instancing,
-deterministic sampling, terrain-normal alignment, world-space wind, alpha-hash
-cutouts, reduced-motion fallback, and lifecycle telemetry for the existing
-Lowlands renderer. Greater Realm field streaming, a distinct flower renderer,
-true distance LOD, chunk frustum culling, root-to-tip/backscatter lighting,
-shadow-pass parity, and an optional TSL backend remain follow-on acceptance
-work after candidate approval.
+PR A. The current client's general Realm renderer, used by the already-public
+Lowlands terrain, now supplies bounded WebGL2 patch instancing; deterministic,
+terrain-aware sampling; stable alpha-hash/alpha-to-coverage near/mid
+transitions with genuinely lower-topology mid patches; camera-local active
+windows and frustum-cullable
+pools whose repack bounds include maximum wind sway; world-space wind,
+reduced-motion fallback, and LOD/lifecycle telemetry; and root-to-tip grading,
+bend-responsive normals, and bounded view/sun thin-blade backscatter. It also
+owns a separate deterministic near-detail wildflower layer derived from
+accepted grass roots, limited to one opaque alpha-hash/alpha-to-coverage draw
+and hard instance ceilings of 512 on High, 256 on Balanced, and zero geometry
+on Reduced. Grass
+and flowers share the scene wind clock and direction while retaining distinct
+placement streams. These are general runtime capabilities, not evidence that
+any private candidate cell or density channel has been published.
+
+Greater Realm package field streaming and activation remain deferred. The
+private package is still dormant, and neither the new grass LODs nor the
+wildflower layer consumes it. Shadow-pass parity, if grass or flowers are later
+allowed to cast, and an optional TSL/WebGPU backend also remain follow-on
+acceptance work after candidate approval.
 
 ## Follow-on ownership
 

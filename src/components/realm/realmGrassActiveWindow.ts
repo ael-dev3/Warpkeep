@@ -22,8 +22,21 @@ export type RealmGrassActiveWindowPlan = Readonly<{
 export type RealmGrassRenderPlan = Readonly<{
   enabled: boolean;
   geometryProfile: 'high' | 'balanced' | 'reduced';
+  /** Full segmented patches live inside this camera-local radius. */
+  nearRadius: number;
+  /** Width of the complementary alpha-hashed near/mid transition. */
+  lodTransitionCells: number;
+  /** Stable unsigned-rank subset retained by the lower-detail mid field. */
+  midDensityMultiplier: number;
+  maximumNearInstances: number;
+  maximumMidInstances: number;
+  maximumNearTriangles: number;
+  maximumMidTriangles: number;
+  maximumNearDrawCalls: number;
+  maximumMidDrawCalls: number;
   maximumActiveInstances: number;
   maximumActiveTriangles: number;
+  maximumActiveDrawCalls: number;
   activeRadius: number;
   hysteresisRadius: number;
   edgeFadeCells: number;
@@ -32,6 +45,11 @@ export type RealmGrassRenderPlan = Readonly<{
   densityMultiplier: number;
   windStrengthMultiplier: number;
   overviewSuppressed: true;
+}>;
+
+export type RealmGrassLodWeights = Readonly<{
+  nearCoverage: number;
+  midCoverage: number;
 }>;
 
 export type RealmGrassActiveCell = Readonly<{
@@ -52,6 +70,56 @@ function clamp(value: number, minimum: number, maximum: number) {
 
 function safeInteger(value: number, fallback: number) {
   return Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : fallback;
+}
+
+function smoothstep(minimum: number, maximum: number, value: number) {
+  if (maximum <= minimum) return value >= maximum ? 1 : 0;
+  const progress = clamp((value - minimum) / (maximum - minimum), 0, 1);
+  return progress * progress * (3 - 2 * progress);
+}
+
+/**
+ * Resolve complementary, deterministic LOD coverage for one canonical root.
+ * The same point transform can therefore exist in both pools during the
+ * transition while alpha hashing exchanges coverage without a root shuffle.
+ */
+export function resolveRealmGrassLodWeights(
+  plan: Pick<RealmGrassRenderPlan, 'activeRadius' | 'nearRadius' | 'lodTransitionCells'>,
+  distanceInput: number,
+  edgeFadeInput = 1
+): RealmGrassLodWeights {
+  const activeRadius = Math.max(0, Number.isFinite(plan.activeRadius) ? plan.activeRadius : 0);
+  const nearRadius = clamp(
+    Number.isFinite(plan.nearRadius) ? plan.nearRadius : activeRadius,
+    0,
+    activeRadius
+  );
+  const transitionCells = Math.max(
+    0.5,
+    Number.isFinite(plan.lodTransitionCells) ? plan.lodTransitionCells : 1
+  );
+  const transitionStart = Math.max(0, nearRadius - transitionCells * 0.5);
+  const transitionEnd = Math.min(activeRadius, nearRadius + transitionCells * 0.5);
+  const distance = Math.max(0, Number.isFinite(distanceInput) ? distanceInput : activeRadius);
+  const edgeFade = clamp(Number.isFinite(edgeFadeInput) ? edgeFadeInput : 0, 0, 1);
+  const midMix = smoothstep(transitionStart, transitionEnd, distance);
+  return Object.freeze({
+    nearCoverage: edgeFade * (1 - midMix),
+    midCoverage: edgeFade * midMix
+  });
+}
+
+/** Stable nested subset: lowering the multiplier can only remove roots. */
+export function isRealmGrassMidRankAccepted(rankInput: number, multiplierInput: number) {
+  const multiplier = clamp(
+    Number.isFinite(multiplierInput) ? multiplierInput : 0,
+    0,
+    1
+  );
+  if (multiplier <= 0) return false;
+  if (multiplier >= 1) return true;
+  const rank = Number.isFinite(rankInput) ? Math.trunc(rankInput) >>> 0 : 0xffffffff;
+  return rank / 0x1_0000_0000 < multiplier;
 }
 
 /**
