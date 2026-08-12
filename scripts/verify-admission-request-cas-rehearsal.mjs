@@ -20,9 +20,12 @@ import {
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const actualModule = resolve(repositoryRoot, 'spacetimedb');
+// SQL inspection must stay table-identical to the current candidate. A
+// predecessor fixture would make the safe publisher refuse a destructive
+// downgrade before the rehearsal reaches its request-CAS checks.
 const inspectionModule = resolve(
   repositoryRoot,
-  'spacetimedb/migration-fixtures/additive-v16-schema',
+  'spacetimedb/migration-fixtures/additive-v17-schema',
 );
 const actualArtifactPath = join(actualModule, 'dist', 'bundle.js');
 const inspectionArtifactPath = join(inspectionModule, 'dist', 'bundle.js');

@@ -31,6 +31,8 @@ test('request-CAS rehearsal is loopback-only, disposable, pinned, and deletion-d
   assert.match(proof, /rehearsalTimeoutMilliseconds = 300_000/);
   assert.match(proof, /127\.0\.0\.1/);
   assert.match(proof, /'--in-memory'/);
+  assert.match(proof, /spacetimedb\/migration-fixtures\/additive-v17-schema/);
+  assert.doesNotMatch(proof, /spacetimedb\/migration-fixtures\/additive-v16-schema/);
   assert.match(proof, /mkdtempSync\(join\(tmpdir\(\), 'warpkeep-admission-cas-'/);
   assert.match(proof, /mode: 0o600/);
   assert.match(proof, /'--delete-data=never'/);

@@ -1566,7 +1566,9 @@ describe('Greater Realm production publisher lanes', () => {
   });
 
   it('contains a signal during publisher credential preparation before child spawn', async () => {
-    const directory = mkdtempSync('/private/tmp/warpkeep-gr-publisher-signal-');
+    const directory = mkdtempSync(
+      join(realpathSync(tmpdir()), 'warpkeep-gr-publisher-signal-'),
+    );
     chmodSync(directory, 0o700);
     const publish = vi.fn(async () => undefined);
     const invalidate = vi.fn(async () => undefined);

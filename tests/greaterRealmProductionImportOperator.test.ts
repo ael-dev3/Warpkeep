@@ -1,7 +1,9 @@
 // @vitest-environment node
 
 import { createHash } from 'node:crypto';
-import { chmodSync, mkdtempSync, rmSync } from 'node:fs';
+import { chmodSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -446,7 +448,9 @@ describe('Greater Realm production runtime-release importer', () => {
   });
 
   it('reconciles an in-flight write after SIGTERM but refuses to start the next write', async () => {
-    const directory = mkdtempSync('/private/tmp/warpkeep-gr-import-signal-');
+    const directory = mkdtempSync(
+      join(realpathSync(tmpdir()), 'warpkeep-gr-import-signal-'),
+    );
     chmodSync(directory, 0o700);
     const transport = fakeTransport({
       afterReducer: (_reducer, submissionCount) => {

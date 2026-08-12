@@ -10,6 +10,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   readdirSync,
   rmSync,
   symlinkSync,
@@ -17,6 +18,7 @@ import {
   utimesSync,
   writeFileSync,
 } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
@@ -40,7 +42,7 @@ afterEach(() => {
 });
 
 function privateDirectory(): string {
-  const path = mkdtempSync('/private/tmp/warpkeep-production-bootstrap-');
+  const path = mkdtempSync(join(realpathSync(tmpdir()), 'warpkeep-production-bootstrap-'));
   chmodSync(path, 0o700);
   temporaryDirectories.push(path);
   return path;

@@ -11,12 +11,14 @@ import {
   mkdtempSync,
   openSync,
   readFileSync,
+  realpathSync,
   readdirSync,
   rmSync,
   symlinkSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -54,7 +56,7 @@ import {
 const temporaryDirectories: string[] = [];
 
 function temporaryDirectory(prefix: string): string {
-  const directory = mkdtempSync(`/private/tmp/${prefix}`);
+  const directory = mkdtempSync(join(realpathSync(tmpdir()), prefix));
   chmodSync(directory, 0o700);
   temporaryDirectories.push(directory);
   return directory;

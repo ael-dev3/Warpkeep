@@ -6,9 +6,11 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setGlobalLogLevel, stdbLogger } from 'spacetimedb';
@@ -137,7 +139,7 @@ function runHermes(
   let trustedRoot: string | undefined;
   let childInput = input;
   if (row !== undefined) {
-    trustedRoot = mkdtempSync('/private/tmp/warpkeep-hermes-trusted-');
+    trustedRoot = mkdtempSync(join(realpathSync(tmpdir()), 'warpkeep-hermes-trusted-'));
     chmodSync(trustedRoot, 0o700);
     const founderPlans = resolve(trustedRoot, 'founder-plans');
     const recoveryPlans = resolve(trustedRoot, 'recovery-plans');
@@ -1441,7 +1443,9 @@ describe('Hermes private access request review boundary', () => {
       admissionMustRecheckRequestCas: true,
     });
 
-    const directory = mkdtempSync('/private/tmp/warpkeep-pending-census-');
+    const directory = mkdtempSync(
+      join(realpathSync(tmpdir()), 'warpkeep-pending-census-'),
+    );
     chmodSync(directory, 0o700);
     try {
       const reference = (() => {

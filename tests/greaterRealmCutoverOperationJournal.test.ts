@@ -6,10 +6,12 @@ import {
   existsSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   readdirSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -42,7 +44,7 @@ const TSX = join(process.cwd(), 'node_modules', 'tsx', 'dist', 'cli.mjs');
 const temporaryDirectories: string[] = [];
 
 function temporaryDirectory(prefix: string): string {
-  const directory = mkdtempSync(`/private/tmp/${prefix}`);
+  const directory = mkdtempSync(join(realpathSync(tmpdir()), prefix));
   chmodSync(directory, 0o700);
   temporaryDirectories.push(directory);
   return directory;

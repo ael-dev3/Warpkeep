@@ -9,11 +9,13 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -73,7 +75,7 @@ const RELEASE_HEADERS = Object.freeze({
 });
 
 function temporaryHome(prefix = 'warpkeep-bridge-prepared-'): string {
-  const home = mkdtempSync(`/private/tmp/${prefix}`);
+  const home = mkdtempSync(join(realpathSync(tmpdir()), prefix));
   chmodSync(home, 0o700);
   temporaryDirectories.push(home);
   return home;

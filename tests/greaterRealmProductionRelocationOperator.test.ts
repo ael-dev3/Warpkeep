@@ -1,6 +1,8 @@
 // @vitest-environment node
 
-import { chmodSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -471,7 +473,9 @@ describe('production relocation phase operator', () => {
   });
 
   it('never attributes a hostile concurrent advance after a rejected write permit', async () => {
-    const directory = mkdtempSync('/private/tmp/warpkeep-gr-relocation-signal-');
+    const directory = mkdtempSync(
+      join(realpathSync(tmpdir()), 'warpkeep-gr-relocation-signal-'),
+    );
     chmodSync(directory, 0o700);
     let remote = activationStatus('prepared');
     const hostileAdvance = activationStatus('draining');

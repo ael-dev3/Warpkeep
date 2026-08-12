@@ -7,9 +7,11 @@ import {
   lstatSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   readdirSync,
   rmSync,
 } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -31,7 +33,7 @@ const temporaryDirectories: string[] = [];
 const NOW = Date.parse('2026-08-11T17:45:00.000Z');
 
 function temporaryDirectory(prefix: string): string {
-  const directory = mkdtempSync(`/private/tmp/${prefix}`);
+  const directory = mkdtempSync(join(realpathSync(tmpdir()), prefix));
   chmodSync(directory, 0o700);
   temporaryDirectories.push(directory);
   return directory;
