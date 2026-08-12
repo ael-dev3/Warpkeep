@@ -204,6 +204,7 @@ describe('Pages deployment configuration validation', () => {
       'activationForwardFixApproved',
       'clientActivationApproved',
       'admissionNotificationsApproved',
+      'hermesNotificationDeliveryApproved',
       'pagesNotificationsEnabled',
     ] as const;
     const accepted = new Set<string>();
@@ -217,13 +218,17 @@ describe('Pages deployment configuration validation', () => {
           ...fields.map((field, index) => [field, (mask & (1 << index)) !== 0]),
           [
             'notificationPreparedReceiptDigest',
-            (mask & (1 << 9)) !== 0 && (mask & (1 << 10)) !== 0
+            (mask & (1 << 9)) !== 0
+              && (mask & (1 << 10)) !== 0
+              && (mask & (1 << 11)) !== 0
               ? PREPARED_RECEIPT_DIGEST
               : null,
           ],
           [
             'notificationPreparedBridgeSourceCommit',
-            (mask & (1 << 9)) !== 0 && (mask & (1 << 10)) !== 0
+            (mask & (1 << 9)) !== 0
+              && (mask & (1 << 10)) !== 0
+              && (mask & (1 << 11)) !== 0
               ? PREPARED_BRIDGE_SOURCE_COMMIT
               : null,
           ],
@@ -283,11 +288,23 @@ describe('Pages deployment configuration validation', () => {
       activationForwardFixApproved: true,
       clientActivationApproved: true,
       admissionNotificationsApproved: true,
+      hermesNotificationDeliveryApproved: true,
       pagesNotificationsEnabled: true,
       notificationPreparedReceiptDigest: PREPARED_RECEIPT_DIGEST,
       notificationPreparedBridgeSourceCommit: PREPARED_BRIDGE_SOURCE_COMMIT,
     };
     const noFetch = vi.fn(async () => releaseResponse()) as typeof fetch;
+    const noHermes = preparedGateDependencies();
+    await expect(verifyGreaterRealmReleaseGateEnvelope({
+      ...finalEnvelope,
+      hermesNotificationDeliveryApproved: false,
+    }, { fetchImpl: noFetch, now: NOW }, noHermes)).rejects.toThrow(
+      'GREATER_REALM_RELEASE_GATE_PHASE_INVALID',
+    );
+    expect(noHermes.assertBridgeSourceAncestor).not.toHaveBeenCalled();
+    expect(noHermes.inspectPreparedReceiptByDigest).not.toHaveBeenCalled();
+    expect(noFetch).not.toHaveBeenCalled();
+
     await expect(verifyGreaterRealmReleaseGateEnvelope({
       ...finalEnvelope,
       notificationPreparedReceiptDigest: null,

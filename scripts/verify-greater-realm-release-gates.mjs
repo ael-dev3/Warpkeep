@@ -38,6 +38,7 @@ const BOOLEAN_FIELDS = Object.freeze([
   'activationForwardFixApproved',
   'clientActivationApproved',
   'admissionNotificationsApproved',
+  'hermesNotificationDeliveryApproved',
   'pagesNotificationsEnabled',
 ]);
 const RELEASE_BINDING_FIELDS = Object.freeze([
@@ -81,6 +82,7 @@ const SAFE_PHASES = Object.freeze([
       serverPresentationAllowed: client,
       clientActivationApproved: client,
       admissionNotificationsApproved: notifications,
+      hermesNotificationDeliveryApproved: notifications,
       pagesNotificationsEnabled: notifications,
     },
     name,
@@ -283,6 +285,13 @@ export async function verifyGreaterRealmReleaseGateState(
   if (pages.includes('vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED')) {
     fail('GREATER_REALM_PAGES_NOTIFICATION_GATE_MUTABLE');
   }
+  const hermes = source('scripts/hermes-admin.ts');
+  const hermesNotificationDeliveryApproved = exactBooleanLiteral(
+    hermes,
+    'export const FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = ',
+    ' as const;',
+    'GREATER_REALM_HERMES_NOTIFICATION_GATE_INVALID',
+  );
 
   // The v17 verifier is additive. The legacy Genesis preflight must retain its
   // exact 100-founder ceiling and is never broadened to make a v17 check pass.
@@ -306,6 +315,7 @@ export async function verifyGreaterRealmReleaseGateState(
     clientPresentationAllowed,
     serverPresentationAllowed,
     ...publisherFlags,
+    hermesNotificationDeliveryApproved,
     pagesNotificationsEnabled,
     ...AUTH_BRIDGE_NOTIFICATION_PREPARED_RELEASE_BINDING,
   }, options, dependencies);

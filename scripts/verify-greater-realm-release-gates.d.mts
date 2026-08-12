@@ -41,6 +41,7 @@ export type GreaterRealmReleaseGateEnvelope = Readonly<{
   activationForwardFixApproved: boolean;
   clientActivationApproved: boolean;
   admissionNotificationsApproved: boolean;
+  hermesNotificationDeliveryApproved: boolean;
   pagesNotificationsEnabled: boolean;
   notificationPreparedReceiptDigest: string | null;
   notificationPreparedBridgeSourceCommit: string | null;
