@@ -558,6 +558,73 @@ function readSecret(path, code) {
   }
 }
 
+function trustedCurrentDate() {
+  return new Date();
+}
+
+/**
+ * The evidence acquisition includes the live admin DB round trip, so its
+ * recordedAt may legitimately be later than the operation's entry timestamp.
+ * Reacquire one trusted time only after that round trip and use that identical
+ * boundary for both activation inspection and the immediate freshness check.
+ */
+async function inspectActivationAfterEvidence({
+  acquireEvidenceAuthority,
+  activationInput,
+  candidatePagesSourceCommit,
+  predecessorPagesSourceCommit,
+}, dependencies = {}) {
+  if (
+    typeof acquireEvidenceAuthority !== 'function'
+    || activationInput === null || typeof activationInput !== 'object'
+    || Array.isArray(activationInput)
+    || !COMMIT.test(candidatePagesSourceCommit ?? '')
+    || !COMMIT.test(predecessorPagesSourceCommit ?? '')
+  ) fail('PRODUCTION_PLAYER_CANARY_DEPLOY_AUTHORITY_INPUT_INVALID');
+  const evidenceAuthority = await acquireEvidenceAuthority();
+  if (
+    evidenceAuthority === null
+    || typeof evidenceAuthority !== 'object'
+    || Array.isArray(evidenceAuthority)
+  ) fail('PRODUCTION_PLAYER_CANARY_DEPLOY_AUTHORITY_EVIDENCE_INVALID');
+  const activationNow = (dependencies.trustedClock ?? trustedCurrentDate)();
+  if (
+    !(activationNow instanceof Date)
+    || !Number.isSafeInteger(activationNow.getTime())
+  ) fail('PRODUCTION_PLAYER_CANARY_DEPLOY_AUTHORITY_CLOCK_INVALID');
+  const authority = (
+    dependencies.inspectActivationAuthority
+      ?? inspectProductionPlayerCanaryActivationAuthority
+  )({
+    ...activationInput,
+    expectedLiveReceiptDigest:
+      evidenceAuthority.notificationPagesLiveReceiptDigest,
+    expectedLivePagesSourceCommit:
+      evidenceAuthority.notificationPagesLivePagesSourceCommit,
+    expectedLiveRootReceiptDigest:
+      evidenceAuthority.notificationPagesLiveRootReceiptDigest,
+    expectedLiveRootPagesSourceCommit:
+      evidenceAuthority.notificationPagesLiveRootPagesSourceCommit,
+    expectedEvidenceAuthority: evidenceAuthority,
+    now: activationNow,
+  });
+  (
+    dependencies.requireFreshActivationAuthority
+      ?? requireFreshProductionPlayerCanaryActivationAuthority
+  )(authority, {
+    candidatePagesSourceCommit,
+    predecessorPagesSourceCommit,
+    now: activationNow.getTime(),
+  });
+  return Object.freeze({
+    authority,
+    authorityDigest: (
+      dependencies.activationAuthorityDigest
+        ?? productionPlayerCanaryActivationAuthorityDigest
+    )(authority),
+  });
+}
+
 /** Acquire fresh private authority from fixed owner-only state. */
 export async function inspectProductionPlayerCanaryDeployAuthority({
   contract,
@@ -620,61 +687,46 @@ export async function inspectProductionPlayerCanaryDeployAuthority({
     import('./hermes-admin.ts'),
     import('./profiles/farcaster-profile-policy.ts'),
   ]);
-  const evidenceAuthority =
-    await inspectProductionPlayerCanaryExpectedEvidenceAuthority({
-      founderPlanDirectory: request.founderPlanDirectory,
-      reviewedAdmissionPlanReference: request.reviewedAdmissionPlanReference,
-      ownerApprovalDirectory: request.ownerApprovalDirectory,
-      ownerApprovalReference: request.ownerApprovalReference,
-      expectedSourceConfigurationDigest:
-        FOUNDER_ADMISSION_SOURCE_CONFIGURATION_DIGEST,
-      expectedTargetConfigurationDigest:
-        FOUNDER_ADMISSION_TARGET_CONFIGURATION_DIGEST,
-      expectedProfilePolicyVersion: FARCASTER_PROFILE_POLICY_VERSION,
-      pagesSourceCommit: request.predecessorPagesSourceCommit,
-      candidatePagesSourceCommit: request.candidatePagesSourceCommit,
-      rootBinding: {
-        notificationPagesLiveRootReceiptDigest:
-          contract.chainRootReceiptDigest,
-        notificationPagesLiveRootPagesSourceCommit:
-          contract.chainRootPagesSourceCommit,
+  return inspectActivationAfterEvidence({
+    acquireEvidenceAuthority: () =>
+      inspectProductionPlayerCanaryExpectedEvidenceAuthority({
+        founderPlanDirectory: request.founderPlanDirectory,
+        reviewedAdmissionPlanReference: request.reviewedAdmissionPlanReference,
+        ownerApprovalDirectory: request.ownerApprovalDirectory,
+        ownerApprovalReference: request.ownerApprovalReference,
+        expectedSourceConfigurationDigest:
+          FOUNDER_ADMISSION_SOURCE_CONFIGURATION_DIGEST,
+        expectedTargetConfigurationDigest:
+          FOUNDER_ADMISSION_TARGET_CONFIGURATION_DIGEST,
+        expectedProfilePolicyVersion: FARCASTER_PROFILE_POLICY_VERSION,
+        pagesSourceCommit: request.predecessorPagesSourceCommit,
+        candidatePagesSourceCommit: request.candidatePagesSourceCommit,
+        rootBinding: {
+          notificationPagesLiveRootReceiptDigest:
+            contract.chainRootReceiptDigest,
+          notificationPagesLiveRootPagesSourceCommit:
+            contract.chainRootPagesSourceCommit,
+        },
+        repositoryRoot,
+        notificationBridgeUrl: DEFAULT_AUTH_BRIDGE_URL,
+        notificationOperatorSecret,
+        adminSecret,
+        now,
+      }),
+    activationInput: {
+      binding: {
+        productionPlayerCanaryReceiptDigest:
+          contract.productionPlayerCanaryReceiptDigest,
+        productionPlayerCanarySourceCommit:
+          contract.productionPlayerCanarySourceCommit,
       },
-      repositoryRoot,
-      notificationBridgeUrl: DEFAULT_AUTH_BRIDGE_URL,
-      notificationOperatorSecret,
-      adminSecret,
-      now,
-    });
-  const authority = inspectProductionPlayerCanaryActivationAuthority({
-    binding: {
-      productionPlayerCanaryReceiptDigest:
-        contract.productionPlayerCanaryReceiptDigest,
-      productionPlayerCanarySourceCommit:
+      expectedCandidatePagesSourceCommit: contract.candidatePagesSourceCommit,
+      expectedPredecessorPagesSourceCommit:
         contract.productionPlayerCanarySourceCommit,
+      expectedProtectedTree: request.predecessorProtectedTree,
     },
-    expectedCandidatePagesSourceCommit: contract.candidatePagesSourceCommit,
-    expectedPredecessorPagesSourceCommit:
-      contract.productionPlayerCanarySourceCommit,
-    expectedProtectedTree: request.predecessorProtectedTree,
-    expectedLiveReceiptDigest:
-      evidenceAuthority.notificationPagesLiveReceiptDigest,
-    expectedLivePagesSourceCommit:
-      evidenceAuthority.notificationPagesLivePagesSourceCommit,
-    expectedLiveRootReceiptDigest:
-      evidenceAuthority.notificationPagesLiveRootReceiptDigest,
-    expectedLiveRootPagesSourceCommit:
-      evidenceAuthority.notificationPagesLiveRootPagesSourceCommit,
-    expectedEvidenceAuthority: evidenceAuthority,
-    now,
-  });
-  requireFreshProductionPlayerCanaryActivationAuthority(authority, {
     candidatePagesSourceCommit: contract.candidatePagesSourceCommit,
     predecessorPagesSourceCommit: contract.productionPlayerCanarySourceCommit,
-    now: now.getTime(),
-  });
-  return Object.freeze({
-    authority,
-    authorityDigest: productionPlayerCanaryActivationAuthorityDigest(authority),
   });
 }
 
@@ -682,6 +734,7 @@ export const productionPlayerCanaryDeployAuthorityTestSeams =
   process.env.NODE_ENV === 'test' && process.env.VITEST === 'true'
     ? Object.freeze({
       fixedPrivateFile,
+      inspectActivationAfterEvidence,
       publishCanonicalRequest,
       readCanonicalRequest,
       requireInspectedActivationRequestReferences,

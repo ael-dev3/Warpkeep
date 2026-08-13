@@ -39,6 +39,28 @@ export declare const productionPlayerCanaryDeployAuthorityTestSeams: Readonly<{
     maximumBytes: number,
     code: string,
   ) => Buffer;
+  inspectActivationAfterEvidence: (
+    input: Readonly<{
+      acquireEvidenceAuthority: () => Promise<Readonly<Record<string, unknown>>>;
+      activationInput: Readonly<Record<string, unknown>>;
+      candidatePagesSourceCommit: string;
+      predecessorPagesSourceCommit: string;
+    }>,
+    dependencies?: Readonly<{
+      trustedClock?: () => Date;
+      inspectActivationAuthority?: (
+        input: Readonly<Record<string, unknown>>,
+      ) => Readonly<Record<string, string | number | boolean>>;
+      requireFreshActivationAuthority?: (
+        authority: unknown,
+        input: Readonly<Record<string, unknown>>,
+      ) => unknown;
+      activationAuthorityDigest?: (authority: unknown) => string;
+    }>,
+  ) => Promise<Readonly<{
+    authority: Readonly<Record<string, string | number | boolean>>;
+    authorityDigest: string;
+  }>>;
   readCanonicalRequest: (path: string) => Readonly<Record<string, unknown>>;
   publishCanonicalRequest: (
     stateDirectory: string,

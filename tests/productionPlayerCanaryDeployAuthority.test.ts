@@ -121,6 +121,50 @@ describe('production player canary deploy authority', () => {
     )).toThrow('PRODUCTION_PLAYER_CANARY_ACTIVATION_REQUEST_REFERENCE_MISMATCH');
   });
 
+  it('uses one post-evidence clock boundary for inspection and freshness', async () => {
+    const boundary = new Date('2026-08-13T12:06:00.000Z');
+    const authority = Object.freeze({ branded: true });
+    const calls: string[] = [];
+    await expect(seams.inspectActivationAfterEvidence({
+      acquireEvidenceAuthority: async () => {
+        calls.push('evidence');
+        return {
+          notificationPagesLiveReceiptDigest: '1'.repeat(64),
+          notificationPagesLivePagesSourceCommit: '2'.repeat(40),
+          notificationPagesLiveRootReceiptDigest: '3'.repeat(64),
+          notificationPagesLiveRootPagesSourceCommit: '4'.repeat(40),
+        };
+      },
+      activationInput: {},
+      candidatePagesSourceCommit: '5'.repeat(40),
+      predecessorPagesSourceCommit: '6'.repeat(40),
+    }, {
+      trustedClock: () => {
+        calls.push('clock');
+        return boundary;
+      },
+      inspectActivationAuthority: input => {
+        calls.push('inspect');
+        expect(input.now).toBe(boundary);
+        return authority;
+      },
+      requireFreshActivationAuthority: (value, input) => {
+        calls.push('fresh');
+        expect(value).toBe(authority);
+        expect(input.now).toBe(boundary.getTime());
+      },
+      activationAuthorityDigest: value => {
+        calls.push('digest');
+        expect(value).toBe(authority);
+        return '7'.repeat(64);
+      },
+    })).resolves.toEqual({
+      authority,
+      authorityDigest: '7'.repeat(64),
+    });
+    expect(calls).toEqual(['evidence', 'clock', 'inspect', 'fresh', 'digest']);
+  });
+
   it('publishes canonically without clobber and recovers exact hard-link crashes', () => {
     const stateDirectory = mkdtempSync(join(tmpdir(), 'warpkeep-canary-deploy-'));
     chmodSync(stateDirectory, 0o700);

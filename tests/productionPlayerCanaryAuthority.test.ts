@@ -33,6 +33,9 @@ import {
   validateProductionPlayerCanaryAdminEvidenceV1,
 } from '../scripts/production-player-canary-evidence-authority.mjs';
 import {
+  productionPlayerCanaryDeployAuthorityTestSeams,
+} from '../scripts/production-player-canary-deploy-authority.mjs';
+import {
   productionPlayerCanaryRouteSetCommitment,
 } from '../scripts/production-player-canary-owner-approval.mjs';
 import {
@@ -68,6 +71,7 @@ const EVIDENCE_NONCE = 'e'.repeat(64);
 const BRIDGE_COMMIT = 'd'.repeat(40);
 const evidenceAuthorityTestSeams = productionPlayerCanaryEvidenceAuthorityTestSeams!;
 const receiptTestSeams = productionPlayerCanaryReceiptTestSeams!;
+const deployAuthorityTestSeams = productionPlayerCanaryDeployAuthorityTestSeams!;
 const CANARY_PROTECTED_RUNTIME_PATHS = Object.freeze([
   'scripts/notification-pages-private-deploy-operator.mjs',
   'scripts/production-player-canary-admin-transport.ts',
@@ -426,7 +430,19 @@ function inspect(
   expectedEvidenceAuthority = value.evidenceAuthority,
   now = NOW,
 ) {
-  return receiptTestSeams.inspectActivationAuthority({
+  return receiptTestSeams.inspectActivationAuthority(activationInput(
+    directory,
+    value,
+    expectedEvidenceAuthority,
+  ), now);
+}
+
+function activationInput(
+  directory: string,
+  value = receipt(),
+  expectedEvidenceAuthority = value.evidenceAuthority,
+) {
+  return {
     binding: bindingFor(value),
     directory,
     expectedPredecessorPagesSourceCommit: COMMIT,
@@ -436,7 +452,7 @@ function inspect(
     expectedLiveRootReceiptDigest: ROOT,
     expectedLiveRootPagesSourceCommit: ROOT_COMMIT,
     expectedEvidenceAuthority,
-  }, now);
+  };
 }
 
 describe('production player canary authority', () => {
@@ -809,6 +825,68 @@ describe('production player canary authority', () => {
     )).toThrow(
       'PRODUCTION_PLAYER_CANARY_ACTIVATION_AUTHORITY_MISMATCH',
     );
+  });
+
+  it('reacquires one activation clock after DB evidence recorded later than entry', async () => {
+    const historicalAuthority = evidenceAuthority();
+    const value = receipt(historicalAuthority);
+    const directory = privateDirectory();
+    installProductionPlayerCanaryReceipt({
+      directory,
+      evidenceAuthority: historicalAuthority,
+      randomId: () => '8'.repeat(32),
+    });
+    const dbEvidence = evidenceAuthority(EVIDENCE_NONCE, {
+      observedAtMicros: OBSERVED_AT_MICROS + 60_000_000n,
+      evidenceDigest: '8'.repeat(64),
+    });
+    const entryNow = Date.parse('2026-08-13T12:05:59.999Z');
+    const activationNow = new Date('2026-08-13T12:06:00.000Z');
+    expect(Date.parse(dbEvidence.recordedAt)).toBeGreaterThan(entryNow);
+    expect(() => receiptTestSeams.inspectActivationAuthority(
+      activationInput(directory, value, dbEvidence),
+      entryNow,
+    )).toThrow('PRODUCTION_PLAYER_CANARY_ACTIVATION_AUTHORITY_MISMATCH');
+
+    let evidenceAcquired = false;
+    let clockReads = 0;
+    const acquire = (trustedNow: Date) =>
+      deployAuthorityTestSeams.inspectActivationAfterEvidence({
+        acquireEvidenceAuthority: async () => {
+          evidenceAcquired = true;
+          return dbEvidence;
+        },
+        activationInput: activationInput(directory, value, dbEvidence),
+        candidatePagesSourceCommit: COMMIT,
+        predecessorPagesSourceCommit: COMMIT,
+      }, {
+        trustedClock: () => {
+          expect(evidenceAcquired).toBe(true);
+          clockReads += 1;
+          return trustedNow;
+        },
+      });
+
+    await expect(acquire(activationNow)).resolves.toMatchObject({
+      authority: {
+        candidatePagesSourceCommit: COMMIT,
+        productionPlayerCanarySourceCommit: COMMIT,
+      },
+      authorityDigest: expect.stringMatching(/^[0-9a-f]{64}$/u),
+    });
+    expect(clockReads).toBe(1);
+
+    evidenceAcquired = false;
+    await expect(acquire(new Date('2026-08-13T12:05:59.999Z')))
+      .rejects.toThrow(
+        'PRODUCTION_PLAYER_CANARY_ACTIVATION_AUTHORITY_MISMATCH',
+      );
+    evidenceAcquired = false;
+    await expect(acquire(new Date('2026-08-13T12:11:00.001Z')))
+      .rejects.toThrow(
+        'PRODUCTION_PLAYER_CANARY_ACTIVATION_AUTHORITY_MISMATCH',
+      );
+    expect(clockReads).toBe(3);
   });
 
   it('binds freshness to one trusted observation and rejects future or stale reuse', () => {
