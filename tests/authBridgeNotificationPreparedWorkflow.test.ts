@@ -781,7 +781,7 @@ describe('notification-bridge-prepared protected workflow', () => {
         guardedRecoveryRequired: true,
         privateReceiptSinkRequired: true,
         installedToolchainByteAttestationRequired: true,
-        executableSecurityClosureMemberCount: 305,
+        executableSecurityClosureMemberCount: 307,
       });
   }, 60_000);
 
@@ -799,7 +799,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     });
     expect(paths).toEqual(manifest.members.map(member => member.path));
     expect(manifest.schemaVersion).toBe(2);
-    expect(paths).toHaveLength(305);
+    expect(paths).toHaveLength(307);
     expect(paths).toEqual(expect.arrayContaining([
       'scripts/auth-bridge-notification-prepared-deploy.mjs',
       'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
@@ -830,6 +830,8 @@ describe('notification-bridge-prepared protected workflow', () => {
       'public/.well-known/farcaster.json',
       'scripts/greater-realm-production-bootstrap.mjs',
       'scripts/greater-realm-production-publisher-core.ts',
+      'scripts/greater-realm-release-gate-deploy-boundary.d.mts',
+      'scripts/greater-realm-release-gate-deploy-boundary.mjs',
       'scripts/greater-realm-downstream-release-policy.ts',
       'scripts/hermes-admin.ts',
       'scripts/notification-pages-private-deploy-launcher.mjs',
@@ -856,7 +858,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       repositoryRoot: root,
     })).toMatchObject({
         profile: 'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1',
-        memberCount: 305,
+        memberCount: 307,
         manifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
       });
   }, 90_000);

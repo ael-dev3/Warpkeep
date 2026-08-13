@@ -179,6 +179,8 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/greater-realm-downstream-release-policy.ts',
     'scripts/greater-realm-production-bootstrap.mjs',
     'scripts/greater-realm-production-publisher-core.ts',
+    'scripts/greater-realm-release-gate-deploy-boundary.d.mts',
+    'scripts/greater-realm-release-gate-deploy-boundary.mjs',
     'scripts/hermes-admin.ts',
     'scripts/hermes-machine-output.ts',
     'scripts/notification-pages-build-release-validator.d.mts',
