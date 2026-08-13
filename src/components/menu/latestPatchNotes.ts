@@ -6,20 +6,6 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
-const ALPHA_0_4_0_PATCH_NOTES: LatestPatchNotes = Object.freeze({
-  releasedOn: '13 AUG 2026',
-  title: 'THE GREATER REALM OPENS',
-  summary:
-    'Warpkeep’s founding world has widened into six distinct regions, carrying permanent keeps and server-owned progress into a living Greater Realm.',
-  highlights: Object.freeze([
-    'Explore six Tier-I regions through accessible pan, zoom, orbit, and selection controls, with distinct terrain and coasts, animated inland water, roads and tracks, bridges and fords, castles, landmarks, public resource markers, NPCs, and wildlife. Tier-II and Tier-III land remains sealed and unexposed.',
-    'Existing keeps and state carry forward. Each newly admitted founder is assigned server-side to a least-populated Tier-I region and its lowest-ranked available castle slot, within the 600-castle capacity, with four permanent Workers and authoritative Food, Wood, Stone, and Gold gathering.',
-    'Rivers carry bounded ambient boats that follow returned deep-water lanes and float on their water surfaces; the local helm remains presentation-only and never saves player travel. Admission waits for a provider-accepted Farcaster approval handoff, while retries reuse the same stable request-generation notification identity.'
-  ]),
-  alphaNotice:
-    'Alpha 0.4.0 remains invite-only and unfinished. The Greater Realm is live for admitted players; admission remains manual and notification-gated. Tier-II and Tier-III realms, persistent player travel, construction, units, combat, alliances, and Realm Chat remain unavailable, and participation promises no token, reward, or financial value.'
-});
-
 const ALPHA_0_3_43_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '2 AUG 2026',
   title: 'THE REALM STANDS READY',
@@ -387,7 +373,6 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
-    '0.4.0': ALPHA_0_4_0_PATCH_NOTES,
     '0.3.43': ALPHA_0_3_43_PATCH_NOTES,
     '0.3.42': ALPHA_0_3_42_PATCH_NOTES,
     '0.3.41': ALPHA_0_3_41_PATCH_NOTES,

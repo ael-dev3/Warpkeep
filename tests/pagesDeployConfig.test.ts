@@ -199,11 +199,20 @@ function durableFinalAuthority() {
 }
 
 describe('Pages deployment configuration validation', () => {
-  it('blocks the review-only agreement from the real deployment entry point', () => {
+  it('accepts the selected approved agreement at the real deployment entry point', () => {
     const result = validateCli();
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('shared alpha disabled');
+    expect(result.stderr).toBe('');
+  });
+
+  it('preserves a generic fail-closed guard for an unapproved agreement status', () => {
+    const result = validate(undefined, {
+      entryAgreementReleaseStatus: 'review-only-rollout-blocked',
+    });
     expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain('entry agreement is review-only');
-    expect(result.stderr).toContain('coordinated Pages and SpacetimeDB rollout approval');
+    expect(result.stderr).toContain('not production-approved');
+    expect(result.stderr).toContain('Pages deployment is unavailable');
   });
 
   it('accepts the root-base canonical build with shared alpha deliberately disabled', () => {

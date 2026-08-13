@@ -1,6 +1,6 @@
 # Greater Realm production cutover
 
-This runbook describes the guarded tooling for the additive v14-to-v17 cutover. It does not authorize a release. The checked-in entry agreement is review-only and the publisher, import, activation, browser, server-presentation, and notification gates remain false. The commands therefore fail before a production read or write until separate reviewed release changes approve the relevant lane.
+This runbook describes the guarded tooling for the additive v14-to-v17 cutover. It does not authorize a release. The checked-in V4 entry agreement is the exact production-approved bundle, while the publisher, import, activation, browser, server-presentation, and notification feature gates remain false. The commands therefore fail before a production read or write until separate reviewed release changes approve the relevant lane; agreement selection alone approves none of those lanes.
 
 ## Immutable boundary
 

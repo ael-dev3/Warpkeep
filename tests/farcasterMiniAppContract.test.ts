@@ -90,7 +90,7 @@ describe('Farcaster Mini App release contract', () => {
     expect(FARCASTER_MINI_APP_CONFIG.subtitle)
       .toBe('Persistent Farcaster strategy');
     expect(FARCASTER_MINI_APP_CONFIG.description).toBe(
-      'Explore six regions, command four Workers, gather resources, and return to a permanent keep. Invite-only Alpha.',
+      'Command four Workers, gather resources and return to a permanent keep in Genesis 001. Invite-only Alpha.',
     );
     expect(FARCASTER_MINI_APP_CONFIG.tagline).toBe('Every FID has a castle');
     expect(FARCASTER_MINI_APP_CONFIG.webhookUrl).toBe(

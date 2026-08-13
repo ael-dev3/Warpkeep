@@ -30,14 +30,19 @@ Merging this contract alone must not make a chat control visible or callable.
 The client-side `false` constant is documentary defense in depth, not an
 activation mechanism. Server channel state remains authoritative.
 
-The proposed V5 agreement is also marked `review-only-rollout-blocked`.
-Warpkeep's production Pages validator and canonical SpacetimeDB publisher must
-reject deployment/publication under that status. Read-only publisher dry runs
-remain available for compatibility evidence. A later reviewed rollout may change it to
-`production-approved` only when the exact legal approval and a coordinated
-browser/module compatibility proof are recorded. This prevents an automatic
-V5 Pages deployment from meeting a still-V4 production module and failing every
-player's entry-agreement handshake.
+Warpkeep's selected production agreement remains the approved
+`2026-07-31-hegemony-entry-agreement-v4` bundle. Its `production-approved`
+status authorizes only those exact public Terms and Social Contract bytes; it
+does not approve Realm Chat, its proposed conduct terms, or either Chat
+activation gate. No V5 Chat agreement is selected by this source tree.
+
+The generic Pages and SpacetimeDB agreement-status guards must continue to
+reject any selected bundle whose status is not `production-approved`. A future
+Chat release must introduce an independently reviewed agreement revision,
+update browser, tooling, and module mirrors atomically, and preserve exact
+browser/module compatibility. Read-only publisher dry runs remain available
+for compatibility evidence, but neither they nor the selected V4 status can
+make a Chat control visible or callable.
 
 ## V1 product boundary
 

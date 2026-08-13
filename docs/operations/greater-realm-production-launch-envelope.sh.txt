@@ -126,7 +126,7 @@ if any(canonical.fullmatch(value) is None for value in args[1:]): raise SystemEx
 founder,enabled,players,terms=map(int,args[1:])
 if not (1 <= founder <= 100): raise SystemExit(1)
 if not (0 <= enabled <= founder and 0 <= players <= founder): raise SystemExit(1)
-if not (0 <= terms <= players * 6): raise SystemExit(1)
+if not (0 <= terms <= players * 5): raise SystemExit(1)
     ' "$@" || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID
     ;;
   publish-recover)
@@ -139,7 +139,7 @@ if any(canonical.fullmatch(value) is None for value in args[1:]): raise SystemEx
 founder,enabled,players,terms=map(int,args[1:])
 if not (1 <= founder <= 100): raise SystemExit(1)
 if not (0 <= enabled <= founder and 0 <= players <= founder): raise SystemExit(1)
-if not (0 <= terms <= players * 6): raise SystemExit(1)
+if not (0 <= terms <= players * 5): raise SystemExit(1)
 ' "$@" || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID
     ;;
 esac

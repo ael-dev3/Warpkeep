@@ -69,7 +69,7 @@ const HERMES_SOURCE_PARSER_PRODUCTION_NATIVE_PACKAGE =
 // This pre-checkout bootstrap cannot import repository TypeScript. Keep this
 // release-packet bound in lockstep with
 // WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM.
-const MAXIMUM_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER = 6;
+const MAXIMUM_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER = 5;
 const POSITIVE_FID = /^[1-9][0-9]{0,15}$/u;
 const CANONICAL_NONNEGATIVE_INTEGER = /^(?:0|[1-9][0-9]*)$/u;
 const HERMES_NOTE = /^[^\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]{1,512}$/u;

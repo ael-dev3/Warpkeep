@@ -17,30 +17,26 @@ describe('latest in-menu patch notes', () => {
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
     expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: '13 AUG 2026',
-      title: 'THE GREATER REALM OPENS'
-    });
-    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /six Tier-I regions.*animated inland water.*roads and tracks.*bridges and fords.*NPCs.*wildlife.*Tier-II.*Tier-III.*sealed/i
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Existing keeps and state carry forward.*least-populated Tier-I region.*lowest-ranked available castle slot.*600-castle.*four permanent Workers.*Food, Wood, Stone, and Gold/i
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /ambient boats.*returned deep-water lanes.*presentation-only.*provider-accepted Farcaster approval handoff.*stable request-generation notification identity/i
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
-      /device display|guaranteed delivery|public balances|guaranteed rewards/i
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('six distinct regions');
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'admission remains manual and notification-gated'
-    );
-
-    expect(getLatestPatchNotes('0.3.43')).toMatchObject({
+      releasedOn: '2 AUG 2026',
       title: 'THE REALM STANDS READY'
     });
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /mobile graphics session falters.*Performance mode.*privacy-safe diagnostics/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /Request Access.*first accepted gesture.*Request Received.*never retries/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+      /Mini App.*available resource order.*four permanent Workers/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
+      /released to players|deployed to players|public balances|guaranteed rewards/i
+    );
+    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('one clear account');
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
+    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
+      'requests manual review only'
+    );
 
     expect(getLatestPatchNotes('0.3.42')).toMatchObject({
       title: 'THE GATE FALLS QUIET'

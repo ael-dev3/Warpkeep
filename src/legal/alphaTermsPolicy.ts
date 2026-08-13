@@ -1,6 +1,6 @@
 /** Exact version of the Social Contract incorporated by the current Terms. */
 export const WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_VERSION =
-  '2026-08-03-HEGEMONY-SOCIAL-CONTRACT-V4';
+  '2026-07-19-HEGEMONY-SOCIAL-CONTRACT-V3';
 
 /**
  * Exact server-side identifier for the complete current entry-agreement bundle.
@@ -8,15 +8,14 @@ export const WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_VERSION =
  * acceptance records bind the complete bundle rather than only one document.
  */
 export const WARPKEEP_ENTRY_AGREEMENT_VERSION =
-  '2026-08-03-hegemony-entry-agreement-v5';
+  '2026-07-31-hegemony-entry-agreement-v4';
 
 /**
- * Review-only bundles must never reach either production surface independently.
- * The later coordinated rollout PR must change this exact value only after the
- * owner/legal gate and browser/module compatibility proof are complete.
+ * Release tooling may publish only an exact selected bundle carrying this
+ * status. Feature-specific approvals remain independent and fail closed.
  */
 export const WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS =
-  'review-only-rollout-blocked';
+  'production-approved';
 
 /**
  * Retained deployed reducer/input name. It identifies the complete linked
@@ -30,15 +29,15 @@ export const WARPKEEP_ALPHA_TERMS_VERSION = WARPKEEP_ENTRY_AGREEMENT_VERSION;
  * allowing the accepted document to drift behind an unchanged reducer value.
  */
 export const WARPKEEP_ALPHA_TERMS_TEXT_SHA256 =
-  'dede7757c3be767b7a87e89e2c68817e9390cde91fabcf38246756afacdf51bd';
+  'b78bacc360df53f57bed668a68c311acf14e957156ecd8256e388a6ef38496bf';
 
 /** SHA-256 of the canonical Social Contract's normalized visible <main> text. */
 export const WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_TEXT_SHA256 =
-  '85941d066dd39f5be069d640f1419491e6fc0f691d01c292bfc3ed995c249110';
+  'a052a4f53aee749b702037f7a6eeb1e9dbd6fab0cbcd60aed81dacade8cbb66d';
 
-/** Factual notice version published alongside the proposed entry agreement. */
-export const WARPKEEP_ALPHA_PRIVACY_NOTICE_VERSION = '2026-08-03-v6';
+/** Factual notice version published alongside the selected entry agreement. */
+export const WARPKEEP_ALPHA_PRIVACY_NOTICE_VERSION = '2026-08-02-v5';
 
 /** SHA-256 of the canonical Privacy Notice's normalized visible <main> text. */
 export const WARPKEEP_ALPHA_PRIVACY_NOTICE_TEXT_SHA256 =
-  '79bd17b795b399391ed0f6f84f2c7ff35fdb3ae64bf4ca17e3df0ad67d7b361f';
+  '864341ee744e7adce4b5f8ee4be99785d96eb03a3916f798b85f3b0949e978c6';

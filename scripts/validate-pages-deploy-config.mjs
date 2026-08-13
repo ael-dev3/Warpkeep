@@ -66,8 +66,8 @@ export function validatePagesDeploymentConfiguration(
     ?? WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS;
   if (entryAgreementReleaseStatus !== 'production-approved') {
     fail(
-      'the current entry agreement is review-only; coordinated Pages and '
-      + 'SpacetimeDB rollout approval is required.',
+      'the selected entry-agreement release status is not production-approved; '
+      + 'Pages deployment is unavailable.',
     );
   }
   if (environment.DEPLOY_BASE !== '/') {

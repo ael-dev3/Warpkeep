@@ -426,7 +426,7 @@ describe('Greater Realm production bootstrap', () => {
       '8',
       '7',
       '4',
-      '24',
+      '20',
     )).commandArguments).toEqual(['recover', `--confirm-recovery=${'b'.repeat(64)}`]);
     const localImportRecovery = baseArguments('import-recover', 'a'.repeat(64));
     localImportRecovery[9] = '-';
@@ -455,8 +455,8 @@ describe('Greater Realm production bootstrap', () => {
   it('accepts only canonical semantically bounded publish aggregate counts', () => {
     const validRows = [
       ['append-inert-v17', '1', '0', '0', '0'],
-      ['append-inert-v17', '7', '5', '3', '18'],
-      ['append-inert-v17', '100', '100', '100', '600'],
+      ['append-inert-v17', '7', '5', '3', '15'],
+      ['append-inert-v17', '100', '100', '100', '500'],
     ] as const;
     for (const arguments_ of validRows) {
       const parsed = parseGreaterRealmProductionBootstrapArguments(
@@ -481,7 +481,7 @@ describe('Greater Realm production bootstrap', () => {
       ['founder above range', ['append-inert-v17', '101', '0', '0', '0']],
       ['enabled exceeds founder', ['append-inert-v17', '2', '3', '0', '0']],
       ['players exceed founder', ['append-inert-v17', '2', '0', '3', '0']],
-      ['terms exceed six per player', ['append-inert-v17', '2', '0', '1', '7']],
+      ['terms exceed five per player', ['append-inert-v17', '2', '0', '1', '6']],
       ['negative count', ['append-inert-v17', '2', '0', '-1', '0']],
     ] as const;
     for (const [, arguments_] of invalidRows) {
@@ -510,7 +510,7 @@ describe('Greater Realm production bootstrap', () => {
       '8',
       '7',
       '4',
-      '24',
+      '20',
     ));
     const publishEnvironment = greaterRealmProductionBootstrapTestSeams
       .finalOperatorEnvironment(publish, runtime, npm, undefined);
@@ -520,7 +520,7 @@ describe('Greater Realm production bootstrap', () => {
       WARPKEEP_EXPECTED_FOUNDER_COUNT: '8',
       WARPKEEP_EXPECTED_ENABLED_ALLOWED_FID_COUNT: '7',
       WARPKEEP_EXPECTED_PLAYER_COUNT: '4',
-      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '24',
+      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '20',
     });
 
     const nonPublish = parseGreaterRealmProductionBootstrapArguments(
@@ -538,7 +538,7 @@ describe('Greater Realm production bootstrap', () => {
       '8',
       '7',
       '4',
-      '24',
+      '20',
     ));
     const recoveryEnvironment = greaterRealmProductionBootstrapTestSeams
       .finalOperatorEnvironment(recovery, runtime, npm, undefined);
@@ -548,7 +548,7 @@ describe('Greater Realm production bootstrap', () => {
       WARPKEEP_EXPECTED_FOUNDER_COUNT: '8',
       WARPKEEP_EXPECTED_ENABLED_ALLOWED_FID_COUNT: '7',
       WARPKEEP_EXPECTED_PLAYER_COUNT: '4',
-      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '24',
+      WARPKEEP_EXPECTED_TERMS_ACCEPTANCE_COUNT: '20',
     });
   });
 
@@ -567,26 +567,29 @@ describe('Greater Realm production bootstrap', () => {
     );
     expect(envelope).toContain('if len(args) != 5');
     expect(envelope).toContain('founder,enabled,players,terms=map(int,args[1:])');
-    expect(envelope).toContain('terms <= players * 6');
+    expect(envelope).toContain('terms <= players * 5');
     expect(bootstrap).toContain(
-      'const MAXIMUM_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER = 6;',
+      'const MAXIMUM_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER = 5;',
     );
     const historicalVersions = policy.match(
       /WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS = Object\.freeze\(\[([\s\S]*?)\]\);/u,
     )?.[1] ?? '';
-    expect(1 + [...historicalVersions.matchAll(/'[^']+'/gu)].length).toBe(6);
+    expect(1 + [...historicalVersions.matchAll(/'[^']+'/gu)].length).toBe(5);
     expect(policy).toContain(
       'WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS.length;',
     );
     expect(envelope).toContain(
       'for argument in command_args: argument_hash.update(framed("argument",argument))',
     );
-    const base = ['append-inert-v17', '8', '7', '4', '24'];
+    const base = ['append-inert-v17', '8', '7', '4', '20'];
     expect(greaterRealmProductionBootstrapTestSeams.launchArgumentsDigest('publish', base))
       .not.toBe(greaterRealmProductionBootstrapTestSeams.launchArgumentsDigest(
         'publish',
-        ['append-inert-v17', '8', '7', '4', '23'],
+        ['append-inert-v17', '8', '7', '4', '19'],
       ));
+    expect(() => parseGreaterRealmProductionBootstrapArguments(baseArguments(
+      'publish', 'append-inert-v17', '8', '7', '4', '21',
+    ))).toThrow(/COMMAND_ARGUMENTS_INVALID/);
   });
 
   it('maps each exact Hermes release row and enforces credential roles', () => {

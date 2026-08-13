@@ -1617,8 +1617,8 @@ export function requireEntryAgreementProductionRelease(
   if (dryRun === true) return;
   if (releaseStatus !== 'production-approved') {
     fail(
-      'The current entry agreement is review-only; coordinated Pages and '
-      + 'SpacetimeDB rollout approval is required before production publication.',
+      'The selected entry-agreement release status is not production-approved; '
+      + 'production publication is unavailable.',
     );
   }
 }

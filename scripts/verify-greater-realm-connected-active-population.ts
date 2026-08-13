@@ -20,6 +20,7 @@ import {
   GREATER_REALM_RUNTIME_RELEASE_FIXTURE_SOURCE_COMMIT,
 } from './atlas/greater-realm-runtime-release-test-fixture';
 import { createGreaterRealmRuntimeRelease } from './atlas/greater-realm-runtime-release';
+import { WARPKEEP_ENTRY_AGREEMENT_VERSION } from '../spacetimedb/src/entryAgreementPolicy';
 import { parseGreaterRealmConnectedProductionGateMode } from './greater-realm-connected-gate-mode';
 import {
   DISPOSABLE_RELOCATION_REDUCER_MODULE,
@@ -67,7 +68,7 @@ export const GREATER_REALM_CONNECTED_POST_CANARY_FOUNDERS = 500;
 export const GREATER_REALM_CONNECTED_PROFILE_POLICY_VERSION =
   'trusted-snapchain-profile-v3';
 export const GREATER_REALM_CONNECTED_ENTRY_AGREEMENT_VERSION =
-  '2026-08-03-hegemony-entry-agreement-v5';
+  WARPKEEP_ENTRY_AGREEMENT_VERSION;
 export const GREATER_REALM_CONNECTED_EXPECTED_CLI_VERSION = '2.6.1';
 export const GREATER_REALM_CONNECTED_EXPECTED_CLI_COMMIT =
   '052c83fe984a4c4eb7bb4f9afa5c6b1903891d87';

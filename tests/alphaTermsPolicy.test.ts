@@ -58,27 +58,27 @@ describe('versioned Alpha entry-agreement binding', () => {
     expect(WARPKEEP_ENTRY_AGREEMENT_VERSION).toBe(MODULE_ENTRY_AGREEMENT_VERSION);
     expect(WARPKEEP_ALPHA_TERMS_VERSION).toBe(WARPKEEP_ENTRY_AGREEMENT_VERSION);
     expect(WARPKEEP_ENTRY_AGREEMENT_VERSION).toBe(
-      '2026-08-03-hegemony-entry-agreement-v5',
+      '2026-07-31-hegemony-entry-agreement-v4',
     );
     expect(WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_VERSION).toBe(
-      '2026-08-03-HEGEMONY-SOCIAL-CONTRACT-V4',
+      '2026-07-19-HEGEMONY-SOCIAL-CONTRACT-V3',
     );
     expect(WARPKEEP_ENTRY_AGREEMENT_VERSION).toBe(
-      '2026-08-03-hegemony-entry-agreement-v5',
+      '2026-07-31-hegemony-entry-agreement-v4',
     );
     expect(WARPKEEP_ENTRY_AGREEMENT_VERSION).not.toBe('2026-07-14');
     expect(WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS)
-      .toBe('review-only-rollout-blocked');
+      .toBe('production-approved');
     expect(MODULE_ENTRY_AGREEMENT_RELEASE_STATUS)
       .toBe(WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS);
     expect(TOOLING_ENTRY_AGREEMENT_RELEASE_STATUS)
       .toBe(WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS);
-    expect(WARPKEEP_ALPHA_PRIVACY_NOTICE_VERSION).toBe('2026-08-03-v6');
+    expect(WARPKEEP_ALPHA_PRIVACY_NOTICE_VERSION).toBe('2026-08-02-v5');
   });
 
   it('keeps historical evidence distinct from the current entry/gameplay version', () => {
     expect(WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS)
-      .toContain('2026-07-31-hegemony-entry-agreement-v4');
+      .not.toContain('2026-07-31-hegemony-entry-agreement-v4');
     expect(WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS)
       .toContain('2026-07-19-hegemony-entry-agreement-v3');
     expect(WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS).toContain('2026-07-14');
@@ -95,6 +95,7 @@ describe('versioned Alpha entry-agreement binding', () => {
     ]);
     expect(WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM)
       .toBe(WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS.length);
+    expect(WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM).toBe(5);
     expect(TOOLING_ENTRY_AGREEMENT_VERSION).toBe(WARPKEEP_ENTRY_AGREEMENT_VERSION);
     expect(TOOLING_HISTORICAL_ENTRY_AGREEMENT_VERSIONS)
       .toEqual(WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS);

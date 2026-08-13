@@ -9,10 +9,9 @@ full engineering record.
 - Prepared the review-only Greater Realm client candidate as a genuinely
   explorable six-region atlas: accessible pointer, touch, keyboard, and button
   navigation; distinct terrain, coasts, castles, landmarks, public resource
-  markers, feature signs, and bounded ambient river boats that follow returned
-  deep-water lanes and float on their water surfaces; and an explicit local
-  helm preview that uses the same presentation-only route authority. Neither
-  ambient boats nor the helm save player travel. Production import, activation, presentation,
+  markers, and feature signs; and an explicit local helm preview that follows
+  only returned deep-water lanes. The helm is presentation-only and is not
+  saved as player travel. Production import, activation, presentation,
   notification, legal-review, and owner-approval gates remain closed, so this
   entry does not claim the Greater Realm is live.
 
@@ -31,14 +30,6 @@ full engineering record.
   receipts, notification consent, or admission state. Notification and
   presentation gates remain off, including an explicit Hermes mutation-blackout
   literal bound to both founder admission paths.
-
-- Prepared fail-closed Farcaster admission notifications with one stable
-  logical notification ID per pending-request timestamp, durable terminal sent
-  receipts, and admission only after the provider reports at least one
-  successful token. Provider acceptance is not presented as proof that any
-  device displayed the notification; notification delivery and admission stay
-  disabled until the reviewed bridge, Pages presentation, private receipt, and
-  owner-approval sequence completes.
 
 - Added the active-only Greater Realm founding authority behind the existing
   profiled admission paths. Future founders receive a server-selected balanced
@@ -70,15 +61,11 @@ full engineering record.
   context-preserving reports, audited tombstones, and responsive desktop/Mini
   App chat surfaces. The feature remains unseeded, unpublishable, and hidden
   behind independent server and client gates pending legal and activation review.
-- Drafted the next Alpha Terms, Hegemony Social Contract, and Privacy Notice
-  for a future persistent Realm Chat, including explicit conduct, reporting,
-  moderation, history, and privacy boundaries. Chat remains disabled pending
-  owner and qualified legal review, server authority, release gates, and a
-  separate activation record; this draft collects no chat data.
-- Blocked independent production deployment of the review-only agreement on
-  both Pages and SpacetimeDB, pinned the proposed Privacy Notice text digest,
-  and removed duplicated agreement-version literals from migration and local
-  full-stack QA so rollout drift fails closed.
+- Kept the approved 31 July V4 entry agreement as the exact selected production
+  bundle and removed the unapproved Realm Chat legal revision from the current
+  public document set. Generic Pages and SpacetimeDB agreement-status guards
+  remain fail closed, while Realm Chat stays unavailable behind independent
+  hard-false client and server gates pending a future approved legal revision.
 - Restacked the dormant Realm Chat authority as additive schema protocol v16,
   preserving the complete inactive Inner Keep v15 boundary at refs 56–63 and
   reserving Chat refs 64–71. The loopback migration receipt now proves both

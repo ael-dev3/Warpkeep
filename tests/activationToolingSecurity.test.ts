@@ -4066,17 +4066,20 @@ describe('activation publish safety', () => {
     })).not.toThrow();
   });
 
-  it('blocks production publication while the entry agreement remains review-only', () => {
+  it('allows the selected approved agreement while preserving the generic status guard', () => {
     expect(() => requireEntryAgreementProductionRelease())
-      .toThrow(/entry agreement is review-only/i);
+      .not.toThrow();
     expect(() => requireEntryAgreementProductionRelease('production-approved'))
       .not.toThrow();
     expect(() => requireEntryAgreementProductionRelease(
       'review-only-rollout-blocked',
       true,
     )).not.toThrow();
+    expect(() => requireEntryAgreementProductionRelease(
+      'review-only-rollout-blocked',
+    )).toThrow(/not production-approved/i);
     expect(() => requireEntryAgreementProductionRelease(''))
-      .toThrow(/coordinated Pages and SpacetimeDB rollout approval/i);
+      .toThrow(/production publication is unavailable/i);
   });
 
   it('binds the repair operator to one recent private successful publication receipt', async () => {
@@ -5866,7 +5869,7 @@ describe('protected aggregate child isolation', () => {
   });
   const completeEntryAgreementHistoryAggregate = Object.freeze({
     ...authenticatedGenesisV3FoundedAggregate,
-    alphaTermsAcceptances: '6',
+    alphaTermsAcceptances: '5',
   });
   const genesisGenerationV3FoundedAggregate = Object.freeze({
     ...genesisV3FoundedAggregate,
@@ -6122,14 +6125,14 @@ describe('protected aggregate child isolation', () => {
       PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
       3,
       1,
-      6,
+      5,
     )).not.toThrow();
     expect(() => verifyExpectedAlphaV3Aggregate(
       JSON.stringify(authenticatedGenesisV3FoundedAggregate),
       PROTECTED_AGGREGATE_STAGE.GENESIS_V3_FOUNDED,
       3,
       1,
-      7,
+      6,
     )).toThrow(/entry-agreement row count was invalid/i);
   });
 
@@ -6156,7 +6159,7 @@ describe('protected aggregate child isolation', () => {
 
   it.each([
     ['player count', genesisV3FoundedAggregate, 4, 0],
-    ['entry-agreement row count', authenticatedGenesisV3FoundedAggregate, 1, 7],
+    ['entry-agreement row count', authenticatedGenesisV3FoundedAggregate, 1, 6],
   ])('rejects an expected %s above its bounded aggregate limit', (_label, aggregate, players, terms) => {
     expect(() => verifyExpectedAlphaV3Aggregate(
       JSON.stringify(aggregate),
@@ -6796,28 +6799,28 @@ describe('protected aggregate child isolation', () => {
       '--require-genesis-v3-founded-aggregate',
       '--expected-founder-count=3',
       '--expected-player-count=1',
-      '--expected-terms-acceptance-count=6',
+      '--expected-terms-acceptance-count=5',
     ])).toMatchObject({
       expectedFounderCount: 3,
       expectedPlayerCount: 1,
-      expectedTermsAcceptanceCount: 6,
+      expectedTermsAcceptanceCount: 5,
       expectedEnabledAllowedFidCount: 3,
     });
     expect(() => parseProductionVerifierArguments([
       '--require-genesis-v3-founded-aggregate',
       '--expected-founder-count=3',
       '--expected-player-count=1',
-      '--expected-terms-acceptance-count=7',
+      '--expected-terms-acceptance-count=6',
     ])).toThrow(/supported immutable row history/i);
     expect(parseProductionVerifierArguments([
       '--require-genesis-v3-founded-aggregate',
       '--expected-founder-count=100',
       '--expected-player-count=100',
-      '--expected-terms-acceptance-count=600',
+      '--expected-terms-acceptance-count=500',
     ])).toMatchObject({
       expectedFounderCount: 100,
       expectedPlayerCount: 100,
-      expectedTermsAcceptanceCount: 600,
+      expectedTermsAcceptanceCount: 500,
       expectedEnabledAllowedFidCount: 100,
     });
   });
