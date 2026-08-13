@@ -239,7 +239,7 @@ describe('Greater Realm release-gate deployment boundary', () => {
       'scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs',
       'utf8',
     );
-    expect(manifest.members).toHaveLength(307);
+    expect(manifest.members).toHaveLength(361);
     const checkedMembers = manifest.members.map(member => member.path);
     for (const member of boundaryMembers) {
       expect(checkedMembers).toContain(member);

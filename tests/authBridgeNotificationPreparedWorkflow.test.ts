@@ -936,7 +936,9 @@ describe('notification-bridge-prepared protected workflow', () => {
         .update(readFileSync(resolve(extra, extraPath)))
         .digest('hex'),
     });
-    extraManifest.members.sort((left, right) => left.path.localeCompare(right.path, 'en'));
+    extraManifest.members.sort((left, right) => (
+      left.path < right.path ? -1 : left.path > right.path ? 1 : 0
+    ));
     writeFileSync(extraManifestPath, `${JSON.stringify(extraManifest, null, 2)}\n`);
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: extra,

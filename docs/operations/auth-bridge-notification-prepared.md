@@ -182,7 +182,7 @@ four profiles: `raw-file-sha256-v1`,
 `reviewed-release-transition-projection-sha256-v1`, or the single composed
 `reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1` used by
 the Pages workflow. A projected digest is therefore never represented as an
-ordinary file SHA-256. Its 307 sorted path/profile/digest records cover both
+ordinary file SHA-256. Its 361 sorted path/profile/digest records cover both
 protected production workflows, the
 Pages and Hermes policy inputs, the policy verifier, and the complete
 AST-derived local import graphs rooted at the guarded bridge entrypoint, full
