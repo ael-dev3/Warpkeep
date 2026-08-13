@@ -1,7 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import {
-  appendFileSync,
   chmodSync,
   closeSync,
   constants,
@@ -14,6 +13,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  readSync,
   readdirSync,
   realpathSync,
   unlinkSync,
@@ -26,26 +26,20 @@ import {
   ensureAuthBridgeNotificationPreparedReceiptDirectory,
   readPrivateAuthBridgeNotificationPreparedReceipt,
 } from './auth-bridge-notification-prepared-receipt.mjs';
-import {
-  AUTH_BRIDGE_NOTIFICATION_PREPARED_RELEASE_BINDING,
-} from './auth-bridge-notification-prepared-release-binding.mjs';
 import * as liveReceipt from './notification-pages-live-receipt.mjs';
-import {
-  NOTIFICATION_PAGES_LIVE_RELEASE_BINDING,
-  parseNotificationPagesLiveReleaseBinding,
-} from './notification-pages-live-release-binding.mjs';
 import {
   createNotificationPagesPrivateHandoff,
   inspectNotificationPagesPrivateHandoff,
   readNotificationPagesPrivateHandoffKey,
 } from './notification-pages-private-handoff.mjs';
 import {
+  NOTIFICATION_PAGES_PRIVATE_DEPLOY_ABANDONMENT_PROOF_PROFILE,
+  recoverNotificationPagesPrivateDeploySkippedInvocation,
   withNotificationPagesPrivateDeployJournal,
 } from './notification-pages-private-deploy-journal.mjs';
 import {
-  NOTIFICATION_PAGES_PRIVATE_RELEASE_BINDING,
-  parseNotificationPagesPrivateReleaseBinding,
-} from './notification-pages-private-release-binding.mjs';
+  readNotificationPagesReleaseSources,
+} from './notification-pages-release-source-parser.mjs';
 import {
   ensureCanonicalProductionAdminStateDirectory,
 } from './production-admin-token-budget.mjs';
@@ -65,10 +59,12 @@ const REPOSITORY_ROOT = realpathSync(resolve(import.meta.dirname, '..'));
 const SHA256 = /^[0-9a-f]{64}$/u;
 const COMMIT = /^[0-9a-f]{40}$/u;
 const RUN_ID = /^[1-9][0-9]{0,19}$/u;
+const FOUNDER_COUNT = /^(?:[1-9]|[1-9][0-9]|[1-5][0-9]{2}|600)$/u;
 const DIRECTORY_MODE = 0o700;
 const FILE_MODE = 0o600;
 const MAX_PRIVATE_INPUT_BYTES = 64 * 1024;
 const MAX_HANDOFF_BYTES = 256 * 1024;
+const MAX_GITHUB_API_BYTES = 1024 * 1024;
 const HANDOFF_FILE = /^notification-pages-private-handoff-([0-9a-f]{64})\.json$/u;
 const HANDOFF_TEMPORARY = /^\.notification-pages-private-handoff-([0-9a-f]{64})-([0-9a-f]{24})\.json\.tmp$/u;
 const HANDOFF_SUMMARY_KEYS = Object.freeze([
@@ -148,6 +144,62 @@ function parsePreparedBinding(value) {
   return Object.freeze({ receiptDigest, bridgeSourceCommit });
 }
 
+function parsePrivateBinding(value) {
+  if (!exactKeys(value, [
+    'notificationPagesActiveV17EvidenceDigest',
+    'notificationPagesDeployedModuleReceiptDigest',
+    'notificationPagesExpectedFounderCount',
+  ])) fail('NOTIFICATION_PAGES_DEPLOY_PRIVATE_BINDING_INVALID');
+  const active = value.notificationPagesActiveV17EvidenceDigest;
+  const deployed = value.notificationPagesDeployedModuleReceiptDigest;
+  const count = value.notificationPagesExpectedFounderCount;
+  if (active === null && deployed === null && count === null) {
+    return Object.freeze({
+      notificationPagesActiveV17EvidenceDigest: null,
+      notificationPagesDeployedModuleReceiptDigest: null,
+      notificationPagesExpectedFounderCount: null,
+    });
+  }
+  if (
+    typeof active !== 'string'
+    || !SHA256.test(active)
+    || typeof deployed !== 'string'
+    || !SHA256.test(deployed)
+    || !Number.isSafeInteger(count)
+    || !FOUNDER_COUNT.test(String(count))
+  ) fail('NOTIFICATION_PAGES_DEPLOY_PRIVATE_BINDING_INVALID');
+  return Object.freeze({
+    notificationPagesActiveV17EvidenceDigest: active,
+    notificationPagesDeployedModuleReceiptDigest: deployed,
+    notificationPagesExpectedFounderCount: count,
+  });
+}
+
+function parseLiveRootBinding(value) {
+  if (!exactKeys(value, [
+    'notificationPagesLiveRootReceiptDigest',
+    'notificationPagesLiveRootPagesSourceCommit',
+  ])) fail('NOTIFICATION_PAGES_DEPLOY_ROOT_BINDING_INVALID');
+  const digest = value.notificationPagesLiveRootReceiptDigest;
+  const sourceCommit = value.notificationPagesLiveRootPagesSourceCommit;
+  if (digest === null && sourceCommit === null) {
+    return Object.freeze({
+      notificationPagesLiveRootReceiptDigest: null,
+      notificationPagesLiveRootPagesSourceCommit: null,
+    });
+  }
+  if (
+    typeof digest !== 'string'
+    || !SHA256.test(digest)
+    || typeof sourceCommit !== 'string'
+    || !COMMIT.test(sourceCommit)
+  ) fail('NOTIFICATION_PAGES_DEPLOY_ROOT_BINDING_INVALID');
+  return Object.freeze({
+    notificationPagesLiveRootReceiptDigest: digest,
+    notificationPagesLiveRootPagesSourceCommit: sourceCommit,
+  });
+}
+
 /**
  * Classify only exact source-controlled release states. A hosted runner may
  * evaluate this function because it reads no private state and grants no
@@ -170,12 +222,8 @@ export function classifyNotificationPagesPrivateDeployment({
   const prepared = parsePreparedBinding(preparedBinding);
   let privateInputs;
   let root;
-  try {
-    privateInputs = parseNotificationPagesPrivateReleaseBinding(privateBinding);
-    root = parseNotificationPagesLiveReleaseBinding(liveRootBinding);
-  } catch {
-    fail('NOTIFICATION_PAGES_DEPLOY_SOURCE_BINDING_INVALID');
-  }
+  privateInputs = parsePrivateBinding(privateBinding);
+  root = parseLiveRootBinding(liveRootBinding);
   const hasPrepared = prepared.receiptDigest !== null;
   const hasPrivate = privateInputs.notificationPagesActiveV17EvidenceDigest !== null;
   const hasRoot = root.notificationPagesLiveRootReceiptDigest !== null;
@@ -265,27 +313,17 @@ export function loadNotificationPagesPrivateDeployContract(
   candidatePagesSourceCommit,
 ) {
   assertRepositorySource(candidatePagesSourceCommit);
-  let phase;
+  let sources;
   try {
-    phase = liveReceipt.parseNotificationPagesActivationPhaseSources({
-      pagesWorkflowSource: readFileSync(
-        join(REPOSITORY_ROOT, '.github/workflows/deploy-pages.yml'),
-        'utf8',
-      ),
-      hermesSource: readFileSync(
-        join(REPOSITORY_ROOT, 'scripts/hermes-admin.ts'),
-        'utf8',
-      ),
+    sources = readNotificationPagesReleaseSources({
+      repositoryRoot: REPOSITORY_ROOT,
     });
   } catch {
     fail('NOTIFICATION_PAGES_DEPLOY_SOURCE_PHASE_INVALID');
   }
   return classifyNotificationPagesPrivateDeployment({
     candidatePagesSourceCommit,
-    phase,
-    preparedBinding: AUTH_BRIDGE_NOTIFICATION_PREPARED_RELEASE_BINDING,
-    privateBinding: NOTIFICATION_PAGES_PRIVATE_RELEASE_BINDING,
-    liveRootBinding: NOTIFICATION_PAGES_LIVE_RELEASE_BINDING,
+    ...sources,
   });
 }
 
@@ -775,6 +813,203 @@ function receiptResult(value) {
   return value;
 }
 
+function readPrivateGitHubToken(descriptor = 8) {
+  if (!Number.isSafeInteger(descriptor) || descriptor < 3) {
+    fail('NOTIFICATION_PAGES_DEPLOY_GITHUB_TOKEN_INVALID');
+  }
+  const chunks = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const chunk = Buffer.alloc(256);
+      const count = readSync(descriptor, chunk, 0, chunk.byteLength, null);
+      if (count === 0) {
+        chunk.fill(0);
+        break;
+      }
+      total += count;
+      if (total > 512) {
+        chunk.fill(0);
+        fail('NOTIFICATION_PAGES_DEPLOY_GITHUB_TOKEN_INVALID');
+      }
+      chunks.push(chunk.subarray(0, count));
+    }
+    const bytes = Buffer.concat(chunks, total);
+    let token;
+    try {
+      if (bytes.at(-1) === 0x0a) {
+        token = bytes.subarray(0, bytes.byteLength - 1).toString('utf8');
+      } else token = bytes.toString('utf8');
+      if (!/^[A-Za-z0-9_]{20,255}$/u.test(token)) {
+        fail('NOTIFICATION_PAGES_DEPLOY_GITHUB_TOKEN_INVALID');
+      }
+      return token;
+    } finally {
+      bytes.fill(0);
+    }
+  } catch (error) {
+    if (error instanceof NotificationPagesPrivateDeployOperatorError) throw error;
+    fail('NOTIFICATION_PAGES_DEPLOY_GITHUB_TOKEN_INVALID');
+  } finally {
+    for (const chunk of chunks) chunk.fill(0);
+  }
+}
+
+async function fetchExactGitHubJson(path, token, fetchImpl = fetch) {
+  const url = `https://api.github.com${path}`;
+  let response;
+  try {
+    response = await fetchImpl(url, {
+      headers: {
+        accept: 'application/vnd.github+json',
+        authorization: `Bearer ${token}`,
+        'x-github-api-version': '2022-11-28',
+      },
+      redirect: 'error',
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch {
+    fail('NOTIFICATION_PAGES_DEPLOY_GITHUB_ADJUDICATION_AMBIGUOUS', true);
+  }
+  const contentType = response.headers.get('content-type') ?? '';
+  const declaredLength = response.headers.get('content-length');
+  if (
+    response.status !== 200
+    || response.url !== url
+    || !/^application\/json(?:;|$)/iu.test(contentType)
+    || (declaredLength !== null
+      && (!/^[0-9]+$/u.test(declaredLength)
+        || Number(declaredLength) > MAX_GITHUB_API_BYTES))
+  ) fail('NOTIFICATION_PAGES_DEPLOY_GITHUB_ADJUDICATION_AMBIGUOUS', true);
+  let bytes;
+  try { bytes = Buffer.from(await response.arrayBuffer()); } catch {
+    fail('NOTIFICATION_PAGES_DEPLOY_GITHUB_ADJUDICATION_AMBIGUOUS', true);
+  }
+  try {
+    if (bytes.byteLength < 2 || bytes.byteLength > MAX_GITHUB_API_BYTES) {
+      fail('NOTIFICATION_PAGES_DEPLOY_GITHUB_ADJUDICATION_AMBIGUOUS', true);
+    }
+    return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+  } catch (error) {
+    if (error instanceof NotificationPagesPrivateDeployOperatorError) throw error;
+    fail('NOTIFICATION_PAGES_DEPLOY_GITHUB_ADJUDICATION_AMBIGUOUS', true);
+  } finally {
+    bytes.fill(0);
+  }
+}
+
+async function adjudicateSkippedGitHubDeployment(
+  request,
+  { tokenDescriptor = 8, fetchImpl = fetch } = {},
+) {
+  if (
+    !isRecord(request)
+    || !RUN_ID.test(request.runId ?? '')
+    || !Number.isSafeInteger(request.runAttempt)
+    || request.runAttempt < 1
+    || request.runAttempt > 1_000
+    || !COMMIT.test(request.candidatePagesSourceCommit ?? '')
+  ) fail('NOTIFICATION_PAGES_DEPLOY_GITHUB_ADJUDICATION_AMBIGUOUS', true);
+  const token = readPrivateGitHubToken(tokenDescriptor);
+  const prefix = `/repos/${REPOSITORY}/actions/runs/${request.runId}`;
+  const [run, jobs] = await Promise.all([
+    fetchExactGitHubJson(
+      `${prefix}/attempts/${request.runAttempt}`,
+      token,
+      fetchImpl,
+    ),
+    fetchExactGitHubJson(
+      `${prefix}/attempts/${request.runAttempt}/jobs?per_page=100`,
+      token,
+      fetchImpl,
+    ),
+  ]);
+  if (
+    !isRecord(run)
+    || String(run.id) !== request.runId
+    || run.run_attempt !== request.runAttempt
+    || run.status !== 'completed'
+    || !['cancelled', 'failure', 'timed_out'].includes(run.conclusion)
+    || run.event !== 'workflow_run'
+    || run.path !== `${WORKFLOW}@main`
+    || run.head_branch !== 'main'
+    || run.head_sha !== request.candidatePagesSourceCommit
+    || run.repository?.full_name !== REPOSITORY
+    || run.head_repository?.full_name !== REPOSITORY
+    || !isRecord(jobs)
+    || !Number.isSafeInteger(jobs.total_count)
+    || !Array.isArray(jobs.jobs)
+    || jobs.jobs.length !== jobs.total_count
+    || jobs.total_count < 1
+    || jobs.total_count > 100
+  ) fail('NOTIFICATION_PAGES_DEPLOY_GITHUB_ADJUDICATION_AMBIGUOUS', true);
+  const matchingJobs = jobs.jobs.filter(job => (
+    isRecord(job)
+    && job.name === 'Notification Pages private deploy v1'
+  ));
+  if (matchingJobs.length !== 1) {
+    fail('NOTIFICATION_PAGES_DEPLOY_GITHUB_ADJUDICATION_AMBIGUOUS', true);
+  }
+  const job = matchingJobs[0];
+  if (
+    !Number.isSafeInteger(job.id)
+    || job.id < 1
+    || String(job.run_id) !== request.runId
+    || job.head_sha !== request.candidatePagesSourceCommit
+    || job.workflow_name !== 'Deploy GitHub Pages'
+    || job.status !== 'completed'
+    || job.conclusion !== run.conclusion
+    || !Array.isArray(job.labels)
+    || [
+      'self-hosted',
+      'macOS',
+      'ARM64',
+      'warpkeep-production-admin',
+      'warpkeep-repository-exclusive',
+    ].some(label => !job.labels.includes(label))
+    || !Array.isArray(job.steps)
+  ) fail('NOTIFICATION_PAGES_DEPLOY_GITHUB_ADJUDICATION_AMBIGUOUS', true);
+  const markerSteps = job.steps.filter(step => (
+    isRecord(step)
+    && step.name
+      === 'Recheck protected source and durably mark deployment invocation'
+  ));
+  const deploySteps = job.steps.filter(step => (
+    isRecord(step)
+    && step.name === 'Deploy private-authorized release to GitHub Pages'
+  ));
+  if (markerSteps.length !== 1 || deploySteps.length !== 1) {
+    fail('NOTIFICATION_PAGES_DEPLOY_GITHUB_ADJUDICATION_AMBIGUOUS', true);
+  }
+  const marker = markerSteps[0];
+  const deployment = deploySteps[0];
+  if (
+    marker.status !== 'completed'
+    || marker.conclusion !== 'success'
+    || deployment.status !== 'completed'
+    || deployment.conclusion !== 'skipped'
+    || !Number.isSafeInteger(marker.number)
+    || deployment.number !== marker.number + 1
+  ) fail('NOTIFICATION_PAGES_DEPLOY_GITHUB_ADJUDICATION_AMBIGUOUS', true);
+  return Object.freeze({
+    candidatePagesSourceCommit: request.candidatePagesSourceCommit,
+    deployStepConclusion: deployment.conclusion,
+    deployStepName: deployment.name,
+    jobConclusion: job.conclusion,
+    jobId: String(job.id),
+    jobName: job.name,
+    jobStatus: job.status,
+    markerStepConclusion: marker.conclusion,
+    markerStepName: marker.name,
+    profile: NOTIFICATION_PAGES_PRIVATE_DEPLOY_ABANDONMENT_PROOF_PROFILE,
+    repository: REPOSITORY,
+    runAttempt: request.runAttempt,
+    runId: request.runId,
+    schemaVersion: 1,
+    workflow: WORKFLOW,
+  });
+}
+
 function defaultDependencies() {
   for (const name of [
     'reconcileNotificationPagesLiveCandidate',
@@ -798,6 +1033,11 @@ function defaultDependencies() {
       repositoryRoot: REPOSITORY_ROOT,
     }),
     reconcile: liveReceipt.reconcileNotificationPagesLiveCandidate,
+    recoverSkippedInvocation: options =>
+      recoverNotificationPagesPrivateDeploySkippedInvocation({
+        ...options,
+        adjudicate: adjudicateSkippedGitHubDeployment,
+      }),
     withJournal: withNotificationPagesPrivateDeployJournal,
     writeGen0: expectations => liveReceipt.writePrivateNotificationPagesLiveReceipt({
       directory: receiptDirectory,
@@ -865,7 +1105,13 @@ export async function executeNotificationPagesPrivateDeployPhase({
   reportedHome,
 } = {}, injectedDependencies) {
   if (
-    !['classify', 'predeploy', 'mark-deploy-invoked', 'postflight'].includes(command)
+    ![
+      'classify',
+      'recover-skipped-invocation',
+      'predeploy',
+      'mark-deploy-invoked',
+      'postflight',
+    ].includes(command)
     || !isRecord(contract)
   ) fail('NOTIFICATION_PAGES_DEPLOY_INPUT_INVALID');
   if (command === 'classify') {
@@ -881,6 +1127,15 @@ export async function executeNotificationPagesPrivateDeployPhase({
   ) fail('NOTIFICATION_PAGES_DEPLOY_INPUT_INVALID');
   const dependencies = injectedDependencies ?? defaultDependencies();
   dependencies.assertSource(contract.candidatePagesSourceCommit);
+  if (command === 'recover-skipped-invocation') {
+    if (typeof dependencies.recoverSkippedInvocation !== 'function') {
+      fail('NOTIFICATION_PAGES_DEPLOY_RECOVERY_API_UNAVAILABLE');
+    }
+    return dependencies.recoverSkippedInvocation({
+      repositoryRoot: REPOSITORY_ROOT,
+      reportedHome,
+    });
+  }
   return dependencies.withJournal({
     contract,
     repositoryRoot: REPOSITORY_ROOT,
@@ -1025,7 +1280,15 @@ function exactWorkflowEnvironment(command, environment) {
 }
 
 function writeWorkflowOutputs(command, result, environment) {
-  if (typeof environment.GITHUB_OUTPUT !== 'string' || !isAbsolute(environment.GITHUB_OUTPUT)) {
+  const descriptor = Number(environment.GITHUB_OUTPUT_FD);
+  if (!Number.isSafeInteger(descriptor) || descriptor < 3) {
+    fail('NOTIFICATION_PAGES_DEPLOY_OUTPUT_INVALID');
+  }
+  let status;
+  try { status = fstatSync(descriptor); } catch {
+    fail('NOTIFICATION_PAGES_DEPLOY_OUTPUT_INVALID');
+  }
+  if (!status.isFile() || status.nlink !== 1 || (status.mode & 0o022) !== 0) {
     fail('NOTIFICATION_PAGES_DEPLOY_OUTPUT_INVALID');
   }
   let lines;
@@ -1034,6 +1297,8 @@ function writeWorkflowOutputs(command, result, environment) {
       fail('NOTIFICATION_PAGES_DEPLOY_OUTPUT_INVALID');
     }
     lines = `deployment-lane=${result.deploymentLane}\n`;
+  } else if (command === 'recover-skipped-invocation') {
+    lines = `recovered=${result.recovered === true ? 'true' : 'false'}\n`;
   } else if (command === 'predeploy') {
     lines = `deploy-required=${result.deployRequired === true ? 'true' : 'false'}\n`;
   } else if (command === 'mark-deploy-invoked') {
@@ -1041,13 +1306,31 @@ function writeWorkflowOutputs(command, result, environment) {
   } else {
     lines = `completed=${result.completed === true ? 'true' : 'false'}\n`;
   }
-  appendFileSync(environment.GITHUB_OUTPUT, lines, { encoding: 'utf8' });
+  try { writeSync(descriptor, lines, null, 'utf8'); } catch {
+    fail('NOTIFICATION_PAGES_DEPLOY_OUTPUT_INVALID');
+  }
 }
 
-async function main(arguments_, environment) {
+export async function runNotificationPagesPrivateDeployOperatorCli(
+  arguments_,
+  environment,
+  toolchainAuthority,
+) {
+  if (
+    !isRecord(toolchainAuthority)
+    || !Object.isFrozen(toolchainAuthority)
+    || !SHA256.test(toolchainAuthority.runnerIdentityDigest ?? '')
+    || !SHA256.test(toolchainAuthority.sourceClosureManifestSha256 ?? '')
+  ) fail('NOTIFICATION_PAGES_DEPLOY_TOOLCHAIN_AUTHORITY_INVALID');
   if (arguments_.length !== 1) fail('NOTIFICATION_PAGES_DEPLOY_ARGUMENT_INVALID');
   const command = arguments_[0];
-  if (!['classify', 'predeploy', 'mark-deploy-invoked', 'postflight'].includes(command)) {
+  if (![
+    'classify',
+    'recover-skipped-invocation',
+    'predeploy',
+    'mark-deploy-invoked',
+    'postflight',
+  ].includes(command)) {
     fail('NOTIFICATION_PAGES_DEPLOY_ARGUMENT_INVALID');
   }
   const input = exactWorkflowEnvironment(command, environment);
@@ -1064,6 +1347,12 @@ async function main(arguments_, environment) {
 }
 
 export const notificationPagesPrivateDeployOperatorTestSeams = Object.freeze({
+  adjudicateSkippedGitHubDeployment(request, options) {
+    if (process.env.NODE_ENV !== 'test') {
+      fail('NOTIFICATION_PAGES_DEPLOY_TEST_SEAM_FORBIDDEN');
+    }
+    return adjudicateSkippedGitHubDeployment(request, options);
+  },
   repairHandoffTemporaries(directory) {
     if (process.env.NODE_ENV !== 'test') {
       fail('NOTIFICATION_PAGES_DEPLOY_TEST_SEAM_FORBIDDEN');
@@ -1074,12 +1363,6 @@ export const notificationPagesPrivateDeployOperatorTestSeams = Object.freeze({
 
 if (process.argv[1] !== undefined
   && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  main(process.argv.slice(2), process.env).catch(error => {
-    const code = typeof error?.code === 'string'
-      && /^[A-Z0-9_]{3,128}$/u.test(error.code)
-      ? error.code
-      : 'NOTIFICATION_PAGES_DEPLOY_FAILED';
-    process.stderr.write(`${code}\n`);
-    process.exitCode = 1;
-  });
+  process.stderr.write('NOTIFICATION_PAGES_DEPLOY_ATTESTED_LAUNCHER_REQUIRED\n');
+  process.exitCode = 1;
 }

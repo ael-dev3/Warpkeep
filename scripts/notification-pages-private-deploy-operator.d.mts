@@ -47,7 +47,12 @@ export function loadNotificationPagesPrivateDeployContract(
 
 export function executeNotificationPagesPrivateDeployPhase(
   input: Readonly<{
-    command: 'classify' | 'predeploy' | 'mark-deploy-invoked' | 'postflight';
+    command:
+      | 'classify'
+      | 'recover-skipped-invocation'
+      | 'predeploy'
+      | 'mark-deploy-invoked'
+      | 'postflight';
     contract: NotificationPagesPrivateDeployContract;
     runId?: string;
     runAttempt?: number;
@@ -56,6 +61,23 @@ export function executeNotificationPagesPrivateDeployPhase(
   dependencies?: Readonly<Record<string, unknown>>,
 ): Promise<Readonly<Record<string, unknown>>>;
 
+export function runNotificationPagesPrivateDeployOperatorCli(
+  arguments_: readonly string[],
+  environment: NodeJS.ProcessEnv,
+  toolchainAuthority: Readonly<{
+    runnerIdentityDigest: string;
+    sourceClosureManifestSha256: string;
+    readonly [field: string]: unknown;
+  }>,
+): Promise<void>;
+
 export const notificationPagesPrivateDeployOperatorTestSeams: Readonly<{
+  adjudicateSkippedGitHubDeployment: (
+    request: Readonly<Record<string, unknown>>,
+    options: Readonly<{
+      tokenDescriptor: number;
+      fetchImpl: typeof fetch;
+    }>,
+  ) => Promise<Readonly<Record<string, unknown>>>;
   repairHandoffTemporaries: (directory: string) => void;
-}>;
+}>; 

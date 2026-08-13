@@ -24,6 +24,7 @@
     "preview": "vite preview",
     "check": "npm run verify:licenses && npm run verify:atlas-public-boundary && npm run verify:runtime-assets && npm run verify:file-sizes && npm test && npm run typecheck && npm run build",
     "validate:pages-config": "node scripts/validate-pages-deploy-config.mjs",
+    "validate:pages-release-build": "node scripts/notification-pages-build-release-validator.mjs",
     "verify:licenses": "node scripts/verify-license-policy.mjs",
     "verify:atlas-public-boundary": "node scripts/atlas/verify-public-boundary.mjs",
     "atlas:toolchain-preflight": "node scripts/atlas/greater-realm-toolchain-bootstrap.mjs --verify-only",

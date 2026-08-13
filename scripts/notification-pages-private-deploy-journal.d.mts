@@ -2,6 +2,8 @@ export const NOTIFICATION_PAGES_PRIVATE_DEPLOY_JOURNAL_PROFILE:
   'warpkeep-notification-pages-private-deploy-journal-v1';
 export const NOTIFICATION_PAGES_PRIVATE_DEPLOY_JOURNAL_STATE_CHILD:
   'notification-pages-private-deploy-journal-v1';
+export const NOTIFICATION_PAGES_PRIVATE_DEPLOY_ABANDONMENT_PROOF_PROFILE:
+  'warpkeep-notification-pages-deploy-skipped-adjudication-v1';
 
 export class NotificationPagesPrivateDeployJournalError extends Error {
   readonly code: string;
@@ -53,3 +55,32 @@ export function withNotificationPagesPrivateDeployJournal<T>(
     ) => T | Promise<T>;
   }>,
 ): Promise<T>;
+
+export function recoverNotificationPagesPrivateDeploySkippedInvocation(
+  options: Readonly<{
+    repositoryRoot: string;
+    reportedHome?: string;
+    clock?: () => Date;
+    randomBytesImpl?: (size: number) => Buffer;
+    processIdentity?: string;
+    processIdentityProbe?: (pid: number) => Readonly<{
+      state: 'present' | 'absent' | 'ambiguous';
+      identity?: string;
+    }>;
+    adjudicate: (request: Readonly<{
+      candidatePagesSourceCommit: string;
+      contractDigest: string;
+      deployRecordDigest: string;
+      deploySequence: number;
+      operationId: string;
+      runAttempt: number;
+      runId: string;
+    }>) => Readonly<Record<string, unknown>>
+      | Promise<Readonly<Record<string, unknown>>>;
+  }>,
+): Promise<Readonly<{
+  recovered: boolean;
+  operationId?: string;
+  candidatePagesSourceCommit?: string;
+  adjudicationDigest?: string;
+}>>;

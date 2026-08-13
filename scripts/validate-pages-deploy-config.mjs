@@ -5,11 +5,8 @@ import {
   WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS,
 } from './entry-agreement-policy.mjs';
 import {
-  AUTH_BRIDGE_NOTIFICATION_PREPARED_RELEASE_BINDING,
-} from './auth-bridge-notification-prepared-release-binding.mjs';
-import {
-  NOTIFICATION_PAGES_LIVE_RELEASE_BINDING,
-} from './notification-pages-live-release-binding.mjs';
+  readNotificationPagesReleaseSources,
+} from './notification-pages-release-source-parser.mjs';
 import {
   parseGreaterRealmNotificationReleaseAuthority,
 } from './verify-greater-realm-release-gates.mjs';
@@ -119,9 +116,12 @@ export function validatePagesDeploymentConfiguration(
         + (error instanceof Error ? error.message : 'unknown authority error'),
       );
     }
+    const parsedSources = readNotificationPagesReleaseSources({
+      repositoryRoot: resolve(import.meta.dirname, '..'),
+    });
     const checkedInBindings = {
-      ...AUTH_BRIDGE_NOTIFICATION_PREPARED_RELEASE_BINDING,
-      ...NOTIFICATION_PAGES_LIVE_RELEASE_BINDING,
+      ...parsedSources.preparedBinding,
+      ...parsedSources.liveRootBinding,
     };
     if (Object.entries(checkedInBindings).some(
       ([field, expected]) => notificationReleaseAuthority[field] !== expected,

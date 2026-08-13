@@ -108,24 +108,36 @@ Pages continues to run the unchanged read-only legacy live verifier while its
 notification presentation literal is false. The deploy workflow classifies
 only the exact checked-in closed-review, generation-zero, or durable state; a
 repository variable or secret never selects that lane. Closed review retains
-the hosted build/deploy/postflight. Notification-enabled candidates build and
-deploy only on the persistent repository-exclusive production-admin runner
+the hosted build/deploy/postflight. Notification-enabled candidates build on
+the hosted runner but deploy only on the persistent repository-exclusive production-admin runner
 carrying the fixed labels `self-hosted`, `macOS`, `ARM64`,
 `warpkeep-production-admin`, and `warpkeep-repository-exclusive`. CI runs
-`verify:greater-realm-release-gates` before build to accept only an explicitly
-enumerated safe release phase. The current tree must be the closed-review
+the source-only Pages build validator before build to accept only an explicitly
+enumerated safe release phase. Hosted build performs no owner-private receipt
+read or live bridge fetch. The current tree must be the closed-review
 phase. Later envelopes permit production-approved pre-generation,
 candidate-approved inert append, exact import-only `TF`, exact activation-only
-`FT`, client presentation, and then a two-step notification release. The first
+`FT`, client presentation, and then a three-step notification release. The first
 notification step is Pages-only (`Pages=true`, `Hermes=false`) and requires the
 short-lived prepared bridge receipt. Only after its live postflight installs a
-durable chain root may a later source release enable Hermes; that durable-final
-phase forbids the prepared binding and requires the checked-in live root.
+durable chain root may a second, Hermes-inert source clear prepared/private
+bindings and populate that root. This `notification-pages-rooted-inert` phase
+retains `Pages=true`, `Hermes=false`. A third projection-only source may then
+change Hermes `false` to `true` without changing the root; that durable-final
+phase forbids prepared authority and requires the checked-in live root.
 `TT`, partial approval pairs, Hermes-before-live-Pages, notification-before-
 client, and every unenumerated combination fail. Client activation remains a
 separate release and must not be coupled to server publication.
 
 ### Private Pages authority and recovery
+
+Before installed packages or private files can load, a low-privilege job on
+that runner installs the frozen, script-disabled auth-bridge resolver tree.
+The privileged job must land on the same runner identity and performs the
+builtins-only source-closure attestation, complete resolver/toolchain
+attestation, then source-closure attestation again before dynamically importing
+the operator. A runner mismatch, source change, resolver extra/missing byte, or
+dangerous Node/shell override stops before private input or network access.
 
 The one-time activation source names three exact owner-private inputs: the
 active-v17 evidence digest, the forward-activation publish-receipt digest, and
@@ -137,10 +149,10 @@ bounded size, and exact content digests. It compares the publish lane, verified
 outcome, same-schema 84-to-84 policy, mutation flags, active state, canonical
 target, source-release tuple, founder count, and evidence target before the
 handoff module performs full canonical, freshness, ordering, Git-provenance,
-and live-bridge validation. The exported active-evidence strict reader is in a
-TypeScript-only import closure that dependency-free Node cannot load; a
-dependency-free `.mjs` reader/adapter is the minimal API improvement if direct
-reuse becomes mandatory.
+and live-bridge validation. The operator's dependency-bearing, source-attested
+phase parses the active evidence and deployed-module receipt as inert canonical
+JSON and rechecks their complete release tuple before handing bytes to the
+cryptographic handoff module.
 
 Provision the 32-byte base64url handoff key once as mode `0600` at this fixed
 path. Never put it or its path in argv, environment, output, logs, or artifacts:
@@ -172,9 +184,18 @@ Exact-current skips deployment and replays the idempotent receipt operation.
 Generation-zero recovery retains the original run-bound expectations and can
 return an installed root even after handoff/key deletion or expiry. A stale or
 ambiguous response after `deploy-invoked` is an adjudication stop, never
-permission for a second deploy. Preserve the journal at
+permission for a second deploy. If the process dies after the marker but before
+the Pages action begins, a later private run may retire that marker only when
+the attempt-specific GitHub Actions API authenticates the exact repository,
+workflow, source, job, successful marker step, and immediately following deploy
+step as `completed/skipped`. A missing step or a `cancelled`, `failure`,
+`timed_out`, running, or otherwise uncertain deploy conclusion stays blocked.
+
+Completed histories compact crash-safely to one immutable terminal. Proven
+skips compact to one superseding abandonment checkpoint per operation, so
+repeated recovery and receipt generation 255 remain reachable. Preserve the journal at
 `~/.warpkeep/private/production-admin-v1/notification-pages-private-deploy-journal-v1`;
-do not edit or delete its hash-chained `0600` records.
+do not edit or delete its owner-only `0600` records, checkpoints, or terminals.
 
 ## Receipts and recovery
 

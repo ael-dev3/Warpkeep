@@ -30,11 +30,19 @@ export const NOTIFICATION_PAGES_PRIVATE_DEPLOY_JOURNAL_PROFILE =
   'warpkeep-notification-pages-private-deploy-journal-v1';
 export const NOTIFICATION_PAGES_PRIVATE_DEPLOY_JOURNAL_STATE_CHILD =
   'notification-pages-private-deploy-journal-v1';
+export const NOTIFICATION_PAGES_PRIVATE_DEPLOY_ABANDONMENT_PROOF_PROFILE =
+  'warpkeep-notification-pages-deploy-skipped-adjudication-v1';
 
 const DIRECTORY_MODE = 0o700;
 const FILE_MODE = 0o600;
 const MAX_FILE_BYTES = 64 * 1024;
 const MAX_DIRECTORY_ENTRIES = 1_024;
+// The receipt chain supports generations 0..255. One compact terminal per
+// completed generation plus one bounded active history and all recognized
+// repair temporaries stays well below the hard directory bound:
+// 512 + 128 + 64 + 32 + 1 = 737 entries.
+const MAX_TERMINAL_OPERATIONS = 512;
+const MAX_ACTIVE_RECORDS = 128;
 const SHA256 = /^[0-9a-f]{64}$/u;
 const RUN_ID = /^[1-9][0-9]{0,19}$/u;
 const STRICT_UTC = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}Z$/u;
@@ -49,6 +57,10 @@ const PHASES = Object.freeze([
 ]);
 const RECORD_FILE = /^notification-pages-private-deploy-([0-9a-f]{64})-([0-9]{8})-([a-z-]+)\.json$/u;
 const TEMPORARY_FILE = /^\.notification-pages-private-deploy-([0-9a-f]{64})-([0-9]{8})-([a-z-]+)-([0-9a-f]{24})\.json\.tmp$/u;
+const TERMINAL_FILE = /^notification-pages-private-deploy-([0-9a-f]{64})-terminal\.json$/u;
+const TERMINAL_TEMPORARY_FILE = /^\.notification-pages-private-deploy-([0-9a-f]{64})-terminal-([0-9a-f]{24})\.json\.tmp$/u;
+const ABANDONMENT_FILE = /^notification-pages-private-deploy-([0-9a-f]{64})-abandonment-([0-9]{8})\.json$/u;
+const ABANDONMENT_TEMPORARY_FILE = /^\.notification-pages-private-deploy-([0-9a-f]{64})-abandonment-([0-9]{8})-([0-9a-f]{24})\.json\.tmp$/u;
 const LOCK_FILE = '.notification-pages-private-deploy.lock';
 const LOCK_TEMPORARY_FILE = /^\.notification-pages-private-deploy-lock-([1-9][0-9]{0,19})-([0-9a-f]{16})-([0-9a-f]{24})\.tmp$/u;
 const RECORD_KEYS = Object.freeze([
@@ -63,6 +75,38 @@ const RECORD_KEYS = Object.freeze([
   'runId',
   'schemaVersion',
   'sequence',
+]);
+const TERMINAL_KEYS = Object.freeze([
+  'candidateAuthorityDigest',
+  'completedAt',
+  'contractDigest',
+  'deploymentInvoked',
+  'finalRecordDigest',
+  'finalSequence',
+  'operationId',
+  'profile',
+  'receiptDigest',
+  'receiptResult',
+  'runAttempt',
+  'runId',
+  'schemaVersion',
+]);
+const ABANDONMENT_KEYS = Object.freeze([
+  'adjudicationDigest',
+  'candidatePagesSourceCommit',
+  'checkpointSequence',
+  'contractDigest',
+  'deployRecordDigest',
+  'deploySequence',
+  'operationId',
+  'profile',
+  'reason',
+  'retiredAt',
+  'retiredRecordDigest',
+  'retiredSequence',
+  'runAttempt',
+  'runId',
+  'schemaVersion',
 ]);
 
 export class NotificationPagesPrivateDeployJournalError extends Error {
@@ -434,9 +478,11 @@ function validatePayload(phase, payload) {
   ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_PAYLOAD_INVALID');
   if (
     phase === 'deploy-invoked'
-    && (Object.keys(value).join(',') !== 'candidateAuthorityDigest'
+    && (Object.keys(value).join(',')
+      !== 'candidateAuthorityDigest,candidatePagesSourceCommit'
       || (value.candidateAuthorityDigest !== null
-        && !SHA256.test(value.candidateAuthorityDigest)))
+        && !SHA256.test(value.candidateAuthorityDigest))
+      || !/^[0-9a-f]{40}$/u.test(value.candidatePagesSourceCommit))
   ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_PAYLOAD_INVALID');
   if (phase === 'prepared' && Object.keys(value).join(',') !== 'handoff') {
     fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_PAYLOAD_INVALID');
@@ -467,6 +513,90 @@ function parseRecord(name, bytes) {
     || new Date(value.recordedAt).toISOString() !== value.recordedAt
   ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_RECORD_INVALID');
   value.payload = validatePayload(value.phase, value.payload);
+  return Object.freeze({
+    value: Object.freeze(value),
+    digest: digestBytes(bytes),
+    name,
+  });
+}
+
+function parseTerminal(name, bytes) {
+  const match = TERMINAL_FILE.exec(name);
+  const value = parseCanonical(bytes);
+  if (
+    match === null
+    || !isRecord(value)
+    || JSON.stringify(Object.keys(value)) !== JSON.stringify(TERMINAL_KEYS)
+    || value.schemaVersion !== 1
+    || value.profile !== NOTIFICATION_PAGES_PRIVATE_DEPLOY_JOURNAL_PROFILE
+    || value.operationId !== match[1]
+    || !SHA256.test(value.contractDigest)
+    || createHash('sha256')
+      .update(
+        `${NOTIFICATION_PAGES_PRIVATE_DEPLOY_JOURNAL_PROFILE}\n`
+          + `${value.contractDigest}\n`,
+      )
+      .digest('hex') !== value.operationId
+    || (value.candidateAuthorityDigest !== null
+      && !SHA256.test(value.candidateAuthorityDigest))
+    || typeof value.deploymentInvoked !== 'boolean'
+    || !SHA256.test(value.finalRecordDigest)
+    || !Number.isSafeInteger(value.finalSequence)
+    || value.finalSequence < 3
+    || value.finalSequence > 99_999_999
+    || !SHA256.test(value.receiptDigest)
+    || !['installed', 'unchanged'].includes(value.receiptResult)
+    || !RUN_ID.test(value.runId)
+    || !Number.isSafeInteger(value.runAttempt)
+    || value.runAttempt < 1
+    || value.runAttempt > 1_000
+    || !STRICT_UTC.test(value.completedAt)
+    || new Date(value.completedAt).toISOString() !== value.completedAt
+  ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_TERMINAL_INVALID');
+  return Object.freeze({
+    value: Object.freeze(value),
+    digest: digestBytes(bytes),
+    name,
+  });
+}
+
+function parseAbandonment(name, bytes) {
+  const match = ABANDONMENT_FILE.exec(name);
+  const value = parseCanonical(bytes);
+  if (
+    match === null
+    || !isRecord(value)
+    || JSON.stringify(Object.keys(value)) !== JSON.stringify(ABANDONMENT_KEYS)
+    || value.schemaVersion !== 1
+    || value.profile !== NOTIFICATION_PAGES_PRIVATE_DEPLOY_JOURNAL_PROFILE
+    || value.operationId !== match[1]
+    || value.checkpointSequence !== Number(match[2])
+    || !SHA256.test(value.contractDigest)
+    || createHash('sha256')
+      .update(
+        `${NOTIFICATION_PAGES_PRIVATE_DEPLOY_JOURNAL_PROFILE}\n`
+          + `${value.contractDigest}\n`,
+      )
+      .digest('hex') !== value.operationId
+    || !SHA256.test(value.adjudicationDigest)
+    || !/^[0-9a-f]{40}$/u.test(value.candidatePagesSourceCommit)
+    || !SHA256.test(value.deployRecordDigest)
+    || !Number.isSafeInteger(value.deploySequence)
+    || value.deploySequence < 1
+    || value.deploySequence > 99_999_999
+    || !Number.isSafeInteger(value.retiredSequence)
+    || value.retiredSequence < value.deploySequence
+    || value.retiredSequence > 99_999_998
+    || value.checkpointSequence !== value.retiredSequence + 1
+    || !SHA256.test(value.retiredRecordDigest)
+    || value.reason !== 'github-actions-deploy-step-skipped'
+    || !RUN_ID.test(value.runId)
+    || !Number.isSafeInteger(value.runAttempt)
+    || value.runAttempt < 1
+    || value.runAttempt > 1_000
+    || !STRICT_UTC.test(value.retiredAt)
+    || new Date(value.retiredAt).toISOString() !== value.retiredAt
+  ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_ABANDONMENT_INVALID');
   return Object.freeze({
     value: Object.freeze(value),
     digest: digestBytes(bytes),
@@ -515,6 +645,139 @@ function repairTemporaries(directory, uid) {
       }
       unlinkTemporaryExact(temporaryPath, {
         dev: temporary.dev, ino: temporary.ino, nlink: 1, mode: FILE_MODE,
+      }, uid);
+      fsyncDirectory(directory);
+    } else fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
+  }
+}
+
+function repairTerminalTemporaries(directory, uid) {
+  const names = readdirSync(directory)
+    .filter(name => TERMINAL_TEMPORARY_FILE.test(name));
+  if (names.length > 64) {
+    fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
+  }
+  for (const name of names.sort()) {
+    const match = TERMINAL_TEMPORARY_FILE.exec(name);
+    if (match === null) {
+      fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
+    }
+    const temporaryPath = join(directory, name);
+    const temporary = lstatSync(temporaryPath);
+    if (
+      !temporary.isFile()
+      || temporary.isSymbolicLink()
+      || (uid !== undefined && temporary.uid !== uid)
+      || ![1, 2].includes(temporary.nlink)
+      || (temporary.nlink === 1
+        ? ((temporary.mode & 0o7777) & ~FILE_MODE) !== 0
+        : (temporary.mode & 0o7777) !== FILE_MODE)
+    ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
+    const destination = join(
+      directory,
+      `notification-pages-private-deploy-${match[1]}-terminal.json`,
+    );
+    let final;
+    try { final = lstatSync(destination); } catch (error) {
+      if (error?.code !== 'ENOENT') {
+        fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
+      }
+    }
+    if (
+      final !== undefined
+      && final.dev === temporary.dev
+      && final.ino === temporary.ino
+    ) {
+      if (temporary.nlink !== 2 || final.nlink !== 2) {
+        fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
+      }
+      const opened = readStable(destination, uid, 2);
+      try { parseTerminal(destination.split('/').at(-1), opened.bytes); } finally {
+        opened.bytes.fill(0);
+      }
+      unlinkExact(temporaryPath, {
+        dev: temporary.dev,
+        ino: temporary.ino,
+        nlink: 2,
+        mode: FILE_MODE,
+      }, uid);
+      fsyncDirectory(directory);
+    } else if (temporary.nlink === 1) {
+      if ((temporary.mode & 0o7777) !== FILE_MODE) {
+        chmodSync(temporaryPath, FILE_MODE);
+      }
+      unlinkTemporaryExact(temporaryPath, {
+        dev: temporary.dev,
+        ino: temporary.ino,
+        nlink: 1,
+        mode: FILE_MODE,
+      }, uid);
+      fsyncDirectory(directory);
+    } else fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
+  }
+}
+
+function repairAbandonmentTemporaries(directory, uid) {
+  const names = readdirSync(directory)
+    .filter(name => ABANDONMENT_TEMPORARY_FILE.test(name));
+  if (names.length > 64) {
+    fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
+  }
+  for (const name of names.sort()) {
+    const match = ABANDONMENT_TEMPORARY_FILE.exec(name);
+    if (match === null) {
+      fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
+    }
+    const temporaryPath = join(directory, name);
+    const temporary = lstatSync(temporaryPath);
+    if (
+      !temporary.isFile()
+      || temporary.isSymbolicLink()
+      || (uid !== undefined && temporary.uid !== uid)
+      || ![1, 2].includes(temporary.nlink)
+      || (temporary.nlink === 1
+        ? ((temporary.mode & 0o7777) & ~FILE_MODE) !== 0
+        : (temporary.mode & 0o7777) !== FILE_MODE)
+    ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
+    const destination = join(
+      directory,
+      `notification-pages-private-deploy-${match[1]}`
+        + `-abandonment-${match[2]}.json`,
+    );
+    let final;
+    try { final = lstatSync(destination); } catch (error) {
+      if (error?.code !== 'ENOENT') {
+        fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
+      }
+    }
+    if (
+      final !== undefined
+      && final.dev === temporary.dev
+      && final.ino === temporary.ino
+    ) {
+      if (temporary.nlink !== 2 || final.nlink !== 2) {
+        fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
+      }
+      const opened = readStable(destination, uid, 2);
+      try { parseAbandonment(destination.split('/').at(-1), opened.bytes); } finally {
+        opened.bytes.fill(0);
+      }
+      unlinkExact(temporaryPath, {
+        dev: temporary.dev,
+        ino: temporary.ino,
+        nlink: 2,
+        mode: FILE_MODE,
+      }, uid);
+      fsyncDirectory(directory);
+    } else if (temporary.nlink === 1) {
+      if ((temporary.mode & 0o7777) !== FILE_MODE) {
+        chmodSync(temporaryPath, FILE_MODE);
+      }
+      unlinkTemporaryExact(temporaryPath, {
+        dev: temporary.dev,
+        ino: temporary.ino,
+        nlink: 1,
+        mode: FILE_MODE,
       }, uid);
       fsyncDirectory(directory);
     } else fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
@@ -583,12 +846,14 @@ function repairLockTemporaries(directory, uid, processIdentityProbe) {
   if (final !== undefined) assertFile(final, uid);
 }
 
-function loadHistories(directory, uid) {
+function loadJournalState(directory, uid) {
   const names = readdirSync(directory).sort();
   if (names.length > MAX_DIRECTORY_ENTRIES) {
     fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
   }
   const histories = new Map();
+  const terminals = new Map();
+  const abandonmentVersions = new Map();
   for (const name of names) {
     if (name === LOCK_FILE) continue;
     if (LOCK_TEMPORARY_FILE.test(name)) {
@@ -603,8 +868,41 @@ function loadHistories(directory, uid) {
       ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
       continue;
     }
-    if (TEMPORARY_FILE.test(name)) {
+    if (
+      TEMPORARY_FILE.test(name)
+      || TERMINAL_TEMPORARY_FILE.test(name)
+      || ABANDONMENT_TEMPORARY_FILE.test(name)
+    ) {
       fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
+    }
+    if (TERMINAL_FILE.test(name)) {
+      const opened = readStable(join(directory, name), uid);
+      let terminal;
+      try { terminal = parseTerminal(name, opened.bytes); } finally {
+        opened.bytes.fill(0);
+      }
+      if (terminals.has(terminal.value.operationId)) {
+        fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_TERMINAL_INVALID');
+      }
+      terminals.set(terminal.value.operationId, Object.freeze({
+        ...terminal,
+        identity: opened.identity,
+      }));
+      continue;
+    }
+    if (ABANDONMENT_FILE.test(name)) {
+      const opened = readStable(join(directory, name), uid);
+      let abandonment;
+      try { abandonment = parseAbandonment(name, opened.bytes); } finally {
+        opened.bytes.fill(0);
+      }
+      const versions = abandonmentVersions.get(abandonment.value.operationId) ?? [];
+      versions.push(Object.freeze({
+        ...abandonment,
+        identity: opened.identity,
+      }));
+      abandonmentVersions.set(abandonment.value.operationId, versions);
+      continue;
     }
     if (!RECORD_FILE.test(name)) {
       fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
@@ -612,25 +910,103 @@ function loadHistories(directory, uid) {
     const opened = readStable(join(directory, name), uid);
     let record;
     try { record = parseRecord(name, opened.bytes); } finally { opened.bytes.fill(0); }
+    record = Object.freeze({ ...record, identity: opened.identity });
     const records = histories.get(record.value.operationId) ?? [];
     records.push(record);
     histories.set(record.value.operationId, records);
   }
-  for (const records of histories.values()) {
-    records.sort((left, right) => left.value.sequence - right.value.sequence);
-    let previous;
+  const abandonments = new Map();
+  const obsoleteAbandonments = [];
+  for (const [operationId, versions] of abandonmentVersions) {
+    versions.sort(
+      (left, right) => left.value.checkpointSequence
+        - right.value.checkpointSequence,
+    );
+    if (versions.length > 2) {
+      fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_ABANDONMENT_INVALID');
+    }
+    const latest = versions.at(-1);
+    for (const prior of versions.slice(0, -1)) {
+      if (
+        prior.value.contractDigest !== latest.value.contractDigest
+        || prior.value.checkpointSequence >= latest.value.checkpointSequence
+        || prior.value.candidatePagesSourceCommit
+          !== latest.value.candidatePagesSourceCommit
+      ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_ABANDONMENT_INVALID');
+      obsoleteAbandonments.push(prior);
+    }
+    abandonments.set(operationId, latest);
+  }
+  if (terminals.size + abandonments.size > MAX_TERMINAL_OPERATIONS) {
+    fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED');
+  }
+  let activeRecordCount = 0;
+  const compactedRecords = [];
+  for (const [operationId, allRecords] of histories) {
+    allRecords.sort((left, right) => left.value.sequence - right.value.sequence);
+    const abandonment = abandonments.get(operationId);
+    const terminal = terminals.get(operationId);
+    if (terminal !== undefined) {
+      if (
+        abandonment !== undefined
+        && (abandonment.value.contractDigest !== terminal.value.contractDigest
+          || abandonment.value.checkpointSequence >= terminal.value.finalSequence)
+      ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_COMPACTION_INVALID');
+      for (const record of allRecords) {
+        if (
+          record.value.contractDigest !== terminal.value.contractDigest
+          || record.value.sequence > terminal.value.finalSequence
+          || (record.value.sequence === terminal.value.finalSequence
+            && (record.digest !== terminal.value.finalRecordDigest
+              || record.value.phase !== 'postflight-completed'
+              || record.value.payload.receiptDigest !== terminal.value.receiptDigest
+              || record.value.payload.receiptResult !== terminal.value.receiptResult))
+        ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_COMPACTION_INVALID');
+        compactedRecords.push(record);
+      }
+      continue;
+    }
+    let records = allRecords;
+    if (abandonment !== undefined) {
+      if (allRecords.some(
+        record => record.value.contractDigest !== abandonment.value.contractDigest,
+      )) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_ABANDONMENT_INVALID');
+      const retired = allRecords.filter(
+        record => record.value.sequence < abandonment.value.checkpointSequence,
+      );
+      const exactRetired = retired.find(
+        record => record.value.sequence === abandonment.value.retiredSequence,
+      );
+      if (
+        exactRetired !== undefined
+        && exactRetired.digest !== abandonment.value.retiredRecordDigest
+      ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_ABANDONMENT_INVALID');
+      compactedRecords.push(...retired);
+      records = allRecords.filter(
+        record => record.value.sequence > abandonment.value.checkpointSequence,
+      );
+      histories.set(operationId, records);
+    }
+    activeRecordCount += records.length;
+    let previous = abandonment;
     for (const record of records) {
       if (
-        record.value.sequence !== (previous?.value.sequence ?? 0) + 1
+        record.value.sequence !== (
+          previous?.value.checkpointSequence
+          ?? previous?.value.sequence
+          ?? 0
+        ) + 1
         || record.value.previousRecordDigest !== (previous?.digest ?? null)
         || (previous !== undefined
           && record.value.contractDigest !== previous.value.contractDigest)
         || (previous !== undefined
-          && Date.parse(record.value.recordedAt) < Date.parse(previous.value.recordedAt))
+          && Date.parse(record.value.recordedAt) < Date.parse(
+            previous.value.retiredAt ?? previous.value.recordedAt,
+          ))
       ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_HISTORY_INVALID');
       previous = record;
     }
-    const first = records[0];
+    const first = records[0] ?? abandonment;
     const expectedOperationId = createHash('sha256')
       .update(`${NOTIFICATION_PAGES_PRIVATE_DEPLOY_JOURNAL_PROFILE}\n${first.value.contractDigest}\n`)
       .digest('hex');
@@ -638,7 +1014,113 @@ function loadHistories(directory, uid) {
       fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_HISTORY_INVALID');
     }
   }
-  return histories;
+  if (activeRecordCount > MAX_ACTIVE_RECORDS) {
+    fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED');
+  }
+  return Object.freeze({
+    abandonments,
+    compactedRecords: Object.freeze(compactedRecords),
+    histories,
+    obsoleteAbandonments: Object.freeze(obsoleteAbandonments),
+    terminals,
+  });
+}
+
+function pruneCompactedRecords(state, journalState) {
+  let changed = false;
+  for (const record of journalState.compactedRecords) {
+    unlinkExact(join(state.directory, record.name), record.identity, state.uid);
+    changed = true;
+  }
+  for (const abandonment of journalState.obsoleteAbandonments) {
+    unlinkExact(
+      join(state.directory, abandonment.name),
+      abandonment.identity,
+      state.uid,
+    );
+    changed = true;
+  }
+  for (const [operationId, abandonment] of journalState.abandonments) {
+    if (!journalState.terminals.has(operationId)) continue;
+    unlinkExact(
+      join(state.directory, abandonment.name),
+      abandonment.identity,
+      state.uid,
+    );
+    changed = true;
+  }
+  if (changed) fsyncDirectory(state.directory);
+}
+
+function installCompletedTerminal(state, records, randomBytesImpl) {
+  const final = records.at(-1);
+  if (final?.value.phase !== 'postflight-completed') {
+    fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_COMPACTION_INVALID');
+  }
+  validateHistory(records, final.value.contractDigest);
+  const candidate = [...records].reverse().find(
+    record => record.value.phase === 'candidate-authorized',
+  );
+  const terminal = Object.freeze(canonicalValue({
+    candidateAuthorityDigest:
+      candidate?.value.payload.candidateAuthorityDigest ?? null,
+    completedAt: final.value.recordedAt,
+    contractDigest: final.value.contractDigest,
+    deploymentInvoked: records.some(
+      record => record.value.phase === 'deploy-invoked',
+    ),
+    finalRecordDigest: final.digest,
+    finalSequence: final.value.sequence,
+    operationId: final.value.operationId,
+    profile: NOTIFICATION_PAGES_PRIVATE_DEPLOY_JOURNAL_PROFILE,
+    receiptDigest: final.value.payload.receiptDigest,
+    receiptResult: final.value.payload.receiptResult,
+    runAttempt: final.value.runAttempt,
+    runId: final.value.runId,
+    schemaVersion: 1,
+  }));
+  const name = `notification-pages-private-deploy-${final.value.operationId}-terminal.json`;
+  publish({
+    directory: state.directory,
+    name,
+    temporaryName:
+      `.notification-pages-private-deploy-${final.value.operationId}`
+        + `-terminal-${randomId(randomBytesImpl)}.json.tmp`,
+    value: terminal,
+    uid: state.uid,
+  });
+  // Re-read before unlinking any source record. The durable terminal is the
+  // sole authority after the first unlink, and loadJournalState explicitly
+  // validates every possible crash-left record against it.
+  const installed = loadJournalState(state.directory, state.uid);
+  const parsed = installed.terminals.get(final.value.operationId);
+  if (
+    parsed === undefined
+    || parsed.value.finalRecordDigest !== final.digest
+    || parsed.value.finalSequence !== final.value.sequence
+  ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_COMPACTION_INVALID');
+  pruneCompactedRecords(state, installed);
+}
+
+function repairAndCompactCompletedHistories(state, randomBytesImpl) {
+  let journalState = loadJournalState(state.directory, state.uid);
+  pruneCompactedRecords(state, journalState);
+  journalState = loadJournalState(state.directory, state.uid);
+  for (const [operationId, records] of journalState.histories) {
+    if (
+      !journalState.terminals.has(operationId)
+      && records.at(-1)?.value.phase === 'postflight-completed'
+    ) {
+      installCompletedTerminal(state, records, randomBytesImpl);
+    }
+  }
+  // A final read proves that every completed operation has exactly one compact
+  // terminal and no record remnants before ordinary state-machine use.
+  journalState = loadJournalState(state.directory, state.uid);
+  if ([...journalState.histories.values()].some(
+    records => records.at(-1)?.value.phase === 'postflight-completed',
+  )) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_COMPACTION_INVALID');
+  return journalState;
 }
 
 function lockValue(operationId, lockId, processStartIdentity) {
@@ -730,7 +1212,10 @@ function validateHistory(records, contractDigest) {
     byRun.set(key, phases);
   }
   for (const phases of byRun.values()) {
-    if (phases[0] !== 'prepared' || phases.filter(value => value === 'prepared').length !== 1) {
+    if (
+      phases[0] !== 'prepared'
+      || phases.filter(value => value === 'prepared').length !== 1
+    ) {
       fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_HISTORY_INVALID');
     }
     const reconciliations = phases.filter(value => value.startsWith('reconciled-'));
@@ -762,21 +1247,38 @@ function createJournal({
   randomBytesImpl,
 }) {
   const runKey = `${runId}/${runAttempt}`;
-  const readRecords = () => {
-    const histories = loadHistories(state.directory, state.uid);
-    for (const [otherId, records] of histories) {
+  const readOperation = () => {
+    const journalState = loadJournalState(state.directory, state.uid);
+    for (const [otherId, records] of journalState.histories) {
       if (
         otherId !== operationId
-        && records.at(-1)?.value.phase !== 'postflight-completed'
+        && records.length !== 0
       ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_OTHER_OPERATION_UNFINISHED');
     }
-    const records = histories.get(operationId) ?? [];
+    const terminal = journalState.terminals.get(operationId) ?? null;
+    if (
+      terminal !== null
+      && terminal.value.contractDigest !== contractDigest
+    ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_CONTRACT_MISMATCH');
+    const abandonment = journalState.abandonments.get(operationId) ?? null;
+    if (
+      abandonment !== null
+      && abandonment.value.contractDigest !== contractDigest
+    ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_CONTRACT_MISMATCH');
+    const records = journalState.histories.get(operationId) ?? [];
     validateHistory(records, contractDigest);
-    return records;
+    return Object.freeze({ abandonment, records, terminal });
   };
   const append = (phase, payload, { effectBoundary = false } = {}) => {
     const validatedPayload = validatePayload(phase, payload);
-    const records = readRecords();
+    const operationState = readOperation();
+    if (operationState.terminal !== null) {
+      fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_ALREADY_COMPLETED');
+    }
+    const { records } = operationState;
+    if (records.length >= MAX_ACTIVE_RECORDS) {
+      fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED');
+    }
     const sameRun = records.filter(
       record => `${record.value.runId}/${record.value.runAttempt}` === runKey,
     );
@@ -814,16 +1316,22 @@ function createJournal({
       phase === 'deploy-invoked'
       && records.some(record => record.value.phase === 'deploy-invoked')
     ) fail('NOTIFICATION_PAGES_DEPLOY_ALREADY_INVOKED', true);
-    const previous = records.at(-1);
+    const previous = records.at(-1) ?? operationState.abandonment ?? undefined;
     const sampled = clock();
     if (!(sampled instanceof Date) || Number.isNaN(sampled.getTime())) {
       fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_CLOCK_INVALID');
     }
     const recordedAt = previous !== undefined
-      && sampled.getTime() < Date.parse(previous.value.recordedAt)
-      ? previous.value.recordedAt
+      && sampled.getTime() < Date.parse(
+        previous.value.retiredAt ?? previous.value.recordedAt,
+      )
+      ? (previous.value.retiredAt ?? previous.value.recordedAt)
       : sampled.toISOString();
-    const sequence = (previous?.value.sequence ?? 0) + 1;
+    const sequence = (
+      previous?.value.checkpointSequence
+      ?? previous?.value.sequence
+      ?? 0
+    ) + 1;
     if (sequence > 99_999_999) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED');
     const record = Object.freeze(canonicalValue({
       contractDigest,
@@ -847,13 +1355,34 @@ function createJournal({
       value: record,
       uid: state.uid,
     });
-    readRecords();
+    const installed = readOperation();
+    if (phase === 'postflight-completed') {
+      installCompletedTerminal(state, installed.records, randomBytesImpl);
+      const compacted = readOperation();
+      if (compacted.terminal === null || compacted.records.length !== 0) {
+        fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_COMPACTION_INVALID');
+      }
+    }
   };
   return Object.freeze({
     operationId,
     directory: state.directory,
     inspect() {
-      const records = readRecords();
+      const operationState = readOperation();
+      if (operationState.terminal !== null) {
+        const { value } = operationState.terminal;
+        return Object.freeze({
+          operationId,
+          contractDigest,
+          phase: 'postflight-completed',
+          completed: true,
+          candidateAuthorityDigest: value.candidateAuthorityDigest,
+          deploymentInvoked: value.deploymentInvoked,
+          latestHandoff: null,
+          phases: Object.freeze(['postflight-completed']),
+        });
+      }
+      const { records } = operationState;
       const candidate = [...records].reverse().find(
         record => record.value.phase === 'candidate-authorized',
       );
@@ -886,7 +1415,10 @@ function createJournal({
       return append('candidate-authorized', { candidateAuthorityDigest });
     },
     deployInvoked(candidateAuthorityDigest) {
-      return append('deploy-invoked', { candidateAuthorityDigest }, {
+      return append('deploy-invoked', {
+        candidateAuthorityDigest,
+        candidatePagesSourceCommit: contract.candidatePagesSourceCommit,
+      }, {
         effectBoundary: true,
       });
     },
@@ -950,6 +1482,9 @@ export async function withNotificationPagesPrivateDeployJournal({
     // Record temporaries are repaired only after the global lock is ours. A
     // contender can therefore never unlink the first writer's pre-link file.
     repairTemporaries(state.directory, state.uid);
+    repairTerminalTemporaries(state.directory, state.uid);
+    repairAbandonmentTemporaries(state.directory, state.uid);
+    repairAndCompactCompletedHistories(state, randomBytesImpl);
     const journal = createJournal({
       state,
       operationId,
@@ -962,6 +1497,210 @@ export async function withNotificationPagesPrivateDeployJournal({
     });
     journal.inspect();
     return await operation(journal);
+  } catch (error) {
+    primary = error;
+    throw error;
+  } finally {
+    try { releaseLock(state, lock); } catch (error) {
+      if (primary === undefined) throw error;
+    }
+  }
+}
+
+/**
+ * Retire exactly one deployment marker only after an authenticated GitHub
+ * Actions adjudicator proves that the following deploy action was skipped.
+ * Any missing, running, cancelled, failed, timed-out, or otherwise uncertain
+ * deploy step remains a typed may-have-changed stop.
+ */
+export async function recoverNotificationPagesPrivateDeploySkippedInvocation({
+  repositoryRoot,
+  reportedHome,
+  clock = () => new Date(),
+  randomBytesImpl = randomBytes,
+  processIdentity,
+  processIdentityProbe = probeProductionAdminProcessIdentity,
+  adjudicate,
+} = {}) {
+  if (
+    !isAbsolute(repositoryRoot ?? '')
+    || typeof clock !== 'function'
+    || typeof randomBytesImpl !== 'function'
+    || typeof processIdentityProbe !== 'function'
+    || typeof adjudicate !== 'function'
+  ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_INPUT_INVALID');
+  const state = ensureDirectory({ repositoryRoot, reportedHome });
+  const identity = processIdentity
+    ?? requireCurrentProductionAdminProcessIdentity(processIdentityProbe);
+  if (typeof identity !== 'string' || identity.length < 8 || identity.length > 128) {
+    fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_PROCESS_INVALID');
+  }
+  const recoveryLockOperationId = createHash('sha256')
+    .update(
+      `${NOTIFICATION_PAGES_PRIVATE_DEPLOY_JOURNAL_PROFILE}\n`
+        + 'skipped-deployment-recovery\n',
+    )
+    .digest('hex');
+  const lock = acquireLock(
+    state,
+    recoveryLockOperationId,
+    randomBytesImpl,
+    identity,
+    processIdentityProbe,
+  );
+  let primary;
+  try {
+    repairTemporaries(state.directory, state.uid);
+    repairTerminalTemporaries(state.directory, state.uid);
+    repairAbandonmentTemporaries(state.directory, state.uid);
+    let journalState = repairAndCompactCompletedHistories(
+      state,
+      randomBytesImpl,
+    );
+    const unfinished = [...journalState.histories.entries()].filter(
+      ([, records]) => records.length !== 0,
+    );
+    const invoked = unfinished.filter(([, records]) => records.some(
+      record => record.value.phase === 'deploy-invoked',
+    ));
+    if (invoked.length === 0) {
+      return Object.freeze({ recovered: false });
+    }
+    if (unfinished.length !== 1 || invoked.length !== 1) {
+      fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_ABANDONMENT_AMBIGUOUS', true);
+    }
+    const [operationId, records] = invoked[0];
+    const deploy = [...records].reverse().find(
+      record => record.value.phase === 'deploy-invoked',
+    );
+    if (deploy === undefined) {
+      fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_ABANDONMENT_AMBIGUOUS', true);
+    }
+    const afterDeploy = records.filter(
+      record => record.value.sequence > deploy.value.sequence,
+    );
+    if (afterDeploy.some(
+      record => record.value.phase === 'reconciled-exact-current',
+    )) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_ABANDONMENT_AMBIGUOUS', true);
+    const request = Object.freeze({
+      candidatePagesSourceCommit:
+        deploy.value.payload.candidatePagesSourceCommit,
+      contractDigest: deploy.value.contractDigest,
+      deployRecordDigest: deploy.digest,
+      deploySequence: deploy.value.sequence,
+      operationId,
+      runAttempt: deploy.value.runAttempt,
+      runId: deploy.value.runId,
+    });
+    let rawProof;
+    try { rawProof = await adjudicate(request); } catch {
+      fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_ABANDONMENT_AMBIGUOUS', true);
+    }
+    const proof = canonicalValue(rawProof);
+    const proofKeys = [
+      'candidatePagesSourceCommit',
+      'deployStepConclusion',
+      'deployStepName',
+      'jobConclusion',
+      'jobId',
+      'jobName',
+      'jobStatus',
+      'markerStepConclusion',
+      'markerStepName',
+      'profile',
+      'repository',
+      'runAttempt',
+      'runId',
+      'schemaVersion',
+      'workflow',
+    ];
+    if (
+      !isRecord(proof)
+      || Object.keys(proof).join(',') !== proofKeys.join(',')
+      || proof.schemaVersion !== 1
+      || proof.profile
+        !== NOTIFICATION_PAGES_PRIVATE_DEPLOY_ABANDONMENT_PROOF_PROFILE
+      || proof.repository !== 'ael-dev3/Warpkeep'
+      || proof.workflow !== '.github/workflows/deploy-pages.yml'
+      || proof.jobName !== 'Notification Pages private deploy v1'
+      || !/^[1-9][0-9]{0,19}$/u.test(proof.jobId ?? '')
+      || proof.jobStatus !== 'completed'
+      || !['cancelled', 'failure', 'timed_out'].includes(proof.jobConclusion)
+      || proof.markerStepName
+        !== 'Recheck protected source and durably mark deployment invocation'
+      || proof.markerStepConclusion !== 'success'
+      || proof.deployStepName
+        !== 'Deploy private-authorized release to GitHub Pages'
+      || proof.deployStepConclusion !== 'skipped'
+      || proof.runId !== deploy.value.runId
+      || proof.runAttempt !== deploy.value.runAttempt
+      || proof.candidatePagesSourceCommit
+        !== deploy.value.payload.candidatePagesSourceCommit
+    ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_ABANDONMENT_AMBIGUOUS', true);
+    const previous = records.at(-1);
+    const sampled = clock();
+    if (!(sampled instanceof Date) || Number.isNaN(sampled.getTime())) {
+      fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_CLOCK_INVALID');
+    }
+    const recordedAt = sampled.getTime() < Date.parse(previous.value.recordedAt)
+      ? previous.value.recordedAt
+      : sampled.toISOString();
+    const checkpointSequence = previous.value.sequence + 1;
+    if (checkpointSequence > 99_999_999 || records.length >= MAX_ACTIVE_RECORDS) {
+      fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED');
+    }
+    const checkpoint = Object.freeze(canonicalValue({
+      adjudicationDigest: digestValue(proof),
+      candidatePagesSourceCommit:
+        deploy.value.payload.candidatePagesSourceCommit,
+      checkpointSequence,
+      contractDigest: deploy.value.contractDigest,
+      operationId,
+      deployRecordDigest: deploy.digest,
+      deploySequence: deploy.value.sequence,
+      profile: NOTIFICATION_PAGES_PRIVATE_DEPLOY_JOURNAL_PROFILE,
+      reason: 'github-actions-deploy-step-skipped',
+      retiredAt: recordedAt,
+      retiredRecordDigest: previous.digest,
+      retiredSequence: previous.value.sequence,
+      runAttempt: deploy.value.runAttempt,
+      runId: deploy.value.runId,
+      schemaVersion: 1,
+    }));
+    const ordinal = String(checkpointSequence).padStart(8, '0');
+    const name = `notification-pages-private-deploy-${operationId}`
+      + `-abandonment-${ordinal}.json`;
+    publish({
+      directory: state.directory,
+      name,
+      temporaryName:
+        `.notification-pages-private-deploy-${operationId}`
+          + `-abandonment-${ordinal}-${randomId(randomBytesImpl)}.json.tmp`,
+      value: checkpoint,
+      uid: state.uid,
+    });
+    journalState = loadJournalState(state.directory, state.uid);
+    const installed = journalState.abandonments.get(operationId);
+    if (
+      installed?.value.checkpointSequence !== checkpointSequence
+      || installed.value.adjudicationDigest !== checkpoint.adjudicationDigest
+    ) {
+      fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_ABANDONMENT_INVALID');
+    }
+    pruneCompactedRecords(state, journalState);
+    journalState = loadJournalState(state.directory, state.uid);
+    const retained = journalState.abandonments.get(operationId);
+    if (
+      retained?.value.checkpointSequence !== checkpointSequence
+      || (journalState.histories.get(operationId)?.length ?? 0) !== 0
+    ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_ABANDONMENT_INVALID');
+    return Object.freeze({
+      recovered: true,
+      operationId,
+      candidatePagesSourceCommit:
+        deploy.value.payload.candidatePagesSourceCommit,
+      adjudicationDigest: checkpoint.adjudicationDigest,
+    });
   } catch (error) {
     primary = error;
     throw error;

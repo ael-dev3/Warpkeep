@@ -90,13 +90,11 @@ describe('GitHub workflow security policy', () => {
     expect(build).toContain(
       'WARPKEEP_SHARED_ALPHA_ENABLED must be exactly true or false.',
     );
-    expect(build).toContain('npm run validate:pages-config');
-    expect(build).toContain('npm run verify:greater-realm-release-gates');
+    expect(build).toContain('npm run validate:pages-release-build');
+    expect(build).not.toContain('npm run validate:pages-config');
+    expect(build).not.toContain('npm run verify:greater-realm-release-gates');
     expect(source.match(/npm run verify:greater-realm-release-gates/g)).toHaveLength(2);
-    expect(build.indexOf('npm run validate:pages-config')).toBeLessThan(
-      build.indexOf('npm run build'),
-    );
-    expect(build.indexOf('npm run verify:greater-realm-release-gates')).toBeLessThan(
+    expect(build.indexOf('npm run validate:pages-release-build')).toBeLessThan(
       build.indexOf('npm run build'),
     );
     expect(source).toContain('group: pages-main');
@@ -162,9 +160,10 @@ describe('GitHub workflow security policy', () => {
       source.match(/ref:\s*\$\{\{ github\.event\.workflow_run\.head_sha \}\}/g) ?? []
     ).length;
 
-    expect(checkoutCount).toBe(5);
+    expect(checkoutCount).toBe(6);
     expect(exactRefCount).toBe(checkoutCount);
-    expect(source.match(/fetch-depth:\s*0/g)).toHaveLength(checkoutCount);
+    expect(source.match(/fetch-depth:\s*0/g)).toHaveLength(checkoutCount - 1);
+    expect(source.match(/fetch-depth:\s*1/g)).toHaveLength(1);
     expect(source).toContain(
       'VITE_WARPKEEP_BUILD_SHA: ${{ github.event.workflow_run.head_sha }}',
     );

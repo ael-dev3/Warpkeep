@@ -2,8 +2,10 @@
 
 import {
   chmodSync,
+  closeSync,
   existsSync,
   mkdtempSync,
+  openSync,
   realpathSync,
   writeFileSync,
 } from 'node:fs';
@@ -135,6 +137,7 @@ function dependencies(options: {
     })),
     inspectHandoff: vi.fn(async () => ({ pagesSourceCommit: CANDIDATE })),
     reconcile,
+    recoverSkippedInvocation: vi.fn(async () => ({ recovered: true })),
     withJournal: withNotificationPagesPrivateDeployJournal,
     writeGen0: vi.fn(async () => ({
       receiptDigest: RECEIPT_DIGEST,
@@ -150,7 +153,11 @@ function dependencies(options: {
 
 function execute(input: {
   mode: 'gen0' | 'durable';
-  command: 'predeploy' | 'mark-deploy-invoked' | 'postflight';
+  command:
+    | 'recover-skipped-invocation'
+    | 'predeploy'
+    | 'mark-deploy-invoked'
+    | 'postflight';
   runId?: string;
   runAttempt?: number;
   home: string;
@@ -163,6 +170,88 @@ function execute(input: {
     runAttempt: input.runAttempt ?? 1,
     reportedHome: input.home,
   }, input.dependencies);
+}
+
+function githubResponse(url: string, body: Record<string, unknown>) {
+  const response = new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { 'content-type': 'application/json; charset=utf-8' },
+  });
+  Object.defineProperty(response, 'url', { value: url });
+  return response;
+}
+
+function githubAdjudicationFetch(overrides: {
+  run?: Record<string, unknown>;
+  job?: Record<string, unknown>;
+} = {}) {
+  return vi.fn(async (input: string | URL | Request) => {
+    const url = String(input);
+    const run = {
+      id: 41,
+      run_attempt: 1,
+      status: 'completed',
+      conclusion: 'cancelled',
+      event: 'workflow_run',
+      path: '.github/workflows/deploy-pages.yml@main',
+      head_branch: 'main',
+      head_sha: CANDIDATE,
+      repository: { full_name: 'ael-dev3/Warpkeep' },
+      head_repository: { full_name: 'ael-dev3/Warpkeep' },
+      ...overrides.run,
+    };
+    const job = {
+      id: 987654321,
+      run_id: 41,
+      head_sha: CANDIDATE,
+      name: 'Notification Pages private deploy v1',
+      workflow_name: 'Deploy GitHub Pages',
+      labels: [
+        'self-hosted',
+        'macOS',
+        'ARM64',
+        'warpkeep-production-admin',
+        'warpkeep-repository-exclusive',
+      ],
+      status: 'completed',
+      conclusion: 'cancelled',
+      steps: [
+        {
+          name: 'Recheck protected source and durably mark deployment invocation',
+          number: 7,
+          status: 'completed',
+          conclusion: 'success',
+        },
+        {
+          name: 'Deploy private-authorized release to GitHub Pages',
+          number: 8,
+          status: 'completed',
+          conclusion: 'skipped',
+        },
+      ],
+      ...overrides.job,
+    };
+    return githubResponse(url, url.includes('/jobs?')
+      ? { total_count: 1, jobs: [job] }
+      : run);
+  }) as unknown as typeof fetch;
+}
+
+async function adjudicateWithToken(fetchImpl: typeof fetch) {
+  const directory = home();
+  const tokenPath = join(directory, 'github-token');
+  writeFileSync(tokenPath, `${'g'.repeat(40)}\n`, { mode: 0o600 });
+  const tokenDescriptor = openSync(tokenPath, 'r');
+  try {
+    return await notificationPagesPrivateDeployOperatorTestSeams
+      .adjudicateSkippedGitHubDeployment({
+        candidatePagesSourceCommit: CANDIDATE,
+        runAttempt: 1,
+        runId: '41',
+      }, { fetchImpl, tokenDescriptor });
+  } finally {
+    closeSync(tokenDescriptor);
+  }
 }
 
 describe('notification Pages private deployment operator', () => {
@@ -274,6 +363,69 @@ describe('notification Pages private deployment operator', () => {
       mode: 'durable', command: 'mark-deploy-invoked', runId: '42',
       home: reportedHome, dependencies: recovery,
     })).rejects.toMatchObject({ deploymentMayHaveChanged: true });
+  });
+
+  it('runs skipped-action recovery before opening the current operation', async () => {
+    const reportedHome = home();
+    const mocked = dependencies({ reconciliations: [] });
+    await expect(execute({
+      mode: 'durable',
+      command: 'recover-skipped-invocation',
+      home: reportedHome,
+      dependencies: mocked,
+    })).resolves.toEqual({ recovered: true });
+    expect(mocked.recoverSkippedInvocation).toHaveBeenCalledWith({
+      repositoryRoot: expect.any(String),
+      reportedHome,
+    });
+    expect(mocked.reconcile).not.toHaveBeenCalled();
+  });
+
+  it('derives abandonment proof only from the exact completed skipped action', async () => {
+    await expect(adjudicateWithToken(githubAdjudicationFetch()))
+      .resolves.toMatchObject({
+        candidatePagesSourceCommit: CANDIDATE,
+        deployStepConclusion: 'skipped',
+        markerStepConclusion: 'success',
+        runAttempt: 1,
+        runId: '41',
+      });
+  });
+
+  it.each([
+    {
+      name: 'action may have started',
+      job: {
+        steps: [
+          {
+            name: 'Recheck protected source and durably mark deployment invocation',
+            number: 7,
+            status: 'completed',
+            conclusion: 'success',
+          },
+          {
+            name: 'Deploy private-authorized release to GitHub Pages',
+            number: 8,
+            status: 'completed',
+            conclusion: 'cancelled',
+          },
+        ],
+      },
+    },
+    {
+      name: 'wrong workflow',
+      run: { path: '.github/workflows/decoy.yml' },
+    },
+    {
+      name: 'wrong source',
+      run: { head_sha: '9'.repeat(40) },
+    },
+  ])('rejects ambiguous GitHub adjudication: $name', async mutation => {
+    await expect(adjudicateWithToken(githubAdjudicationFetch(mutation)))
+      .rejects.toMatchObject({
+        code: 'NOTIFICATION_PAGES_DEPLOY_GITHUB_ADJUDICATION_AMBIGUOUS',
+        deploymentMayHaveChanged: true,
+      });
   });
 
   it('recovers exact-current after a failed postflight without another deploy', async () => {

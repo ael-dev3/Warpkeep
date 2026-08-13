@@ -344,7 +344,7 @@ describe('Pages deployment configuration validation', () => {
       fetchImpl: fetchMock,
       now: NOW,
     })).resolves.toMatch(
-      /^Greater Realm release phase=(?:closed-review|pre-generation|candidate-approved-inert-append|import-only|activation-only|activation-client|notification-pages-presentation-activation|notification-durable-final); legacy=100 and v17=600 verifiers are distinct\.$/u,
+      /^Greater Realm release phase=(?:closed-review|pre-generation|candidate-approved-inert-append|import-only|activation-only|activation-client|notification-pages-presentation-activation|notification-pages-rooted-inert|notification-durable-final); legacy=100 and v17=600 verifiers are distinct\.$/u,
     );
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -640,6 +640,60 @@ describe('Pages deployment configuration validation', () => {
     expect(dependencies.assertBridgeSourceAncestor).not.toHaveBeenCalled();
   });
 
+  it('accepts the durable root while Hermes stays inert without private hosted access', async () => {
+    const rootedEnvelope = {
+      ...ACTIVATED_CLIENT_ENVELOPE,
+      hermesNotificationDeliveryApproved: false,
+      ...DURABLE_RELEASE_BINDINGS,
+    };
+    const fetchMock = vi.fn(async () => {
+      throw new Error('rooted-inert static authority must not fetch');
+    }) as typeof fetch;
+    const dependencies = {
+      inspectPreparedReceiptByDigest: vi.fn(async () => {
+        throw new Error('rooted-inert must not read prepared authority');
+      }),
+      assertBridgeSourceAncestor: vi.fn(),
+      assertPagesLiveRootSourceAncestor: vi.fn(),
+    };
+    await expect(verifyGreaterRealmReleaseGateEnvelope(rootedEnvelope, {
+      fetchImpl: fetchMock,
+      now: NOW,
+      notificationAuthorityMode: 'static',
+    }, dependencies)).resolves.toBe(
+      GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ROOTED_INERT,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(dependencies.inspectPreparedReceiptByDigest).not.toHaveBeenCalled();
+    expect(dependencies.assertBridgeSourceAncestor).not.toHaveBeenCalled();
+    expect(dependencies.assertPagesLiveRootSourceAncestor).toHaveBeenCalledWith(
+      LIVE_ROOT_PAGES_SOURCE_COMMIT,
+      process.cwd(),
+    );
+  });
+
+  it('keeps hosted staged validation static while private predeploy owns inspection', async () => {
+    const pagesEnvelope = {
+      ...ACTIVATED_CLIENT_ENVELOPE,
+      hermesNotificationDeliveryApproved: false,
+      ...PREPARED_RELEASE_BINDINGS,
+    };
+    const fetchMock = vi.fn(async () => {
+      throw new Error('static staged validation must not fetch');
+    }) as typeof fetch;
+    const dependencies = preparedGateDependencies();
+    await expect(verifyGreaterRealmReleaseGateEnvelope(pagesEnvelope, {
+      fetchImpl: fetchMock,
+      now: NOW,
+      notificationAuthorityMode: 'static',
+    }, dependencies)).resolves.toBe(
+      GREATER_REALM_NOTIFICATION_RELEASE_PHASE.PAGES_PRESENTATION_ACTIVATION,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(dependencies.inspectPreparedReceiptByDigest).not.toHaveBeenCalled();
+    expect(dependencies.assertBridgeSourceAncestor).toHaveBeenCalledTimes(1);
+  });
+
   it('proves durable root source ancestry locally before final acceptance', async () => {
     const head = spawnSync('/usr/bin/git', ['rev-parse', '--verify', 'HEAD^{commit}'], {
       cwd: process.cwd(),
@@ -702,6 +756,11 @@ describe('Pages deployment configuration validation', () => {
         hermesNotificationDeliveryApproved: true,
         ...DURABLE_RELEASE_BINDINGS,
       },
+      {
+        ...ACTIVATED_CLIENT_ENVELOPE,
+        hermesNotificationDeliveryApproved: false,
+        ...DURABLE_RELEASE_BINDINGS,
+      },
     ];
     const fetchMock = vi.fn(async () => {
       throw new Error('boolean near miss must not fetch');
@@ -713,10 +772,26 @@ describe('Pages deployment configuration validation', () => {
     };
     for (const exact of exactEnvelopes) {
       for (const field of fields) {
-        await expect(verifyGreaterRealmReleaseGateEnvelope({
+        const candidate = {
           ...exact,
           [field]: !exact[field],
-        }, { fetchImpl: fetchMock, now: NOW }, dependencies)).rejects.toThrow();
+        };
+        const projectionOnly = exact.notificationPagesLiveRootReceiptDigest
+          === LIVE_ROOT_RECEIPT_DIGEST
+          && field === 'hermesNotificationDeliveryApproved';
+        if (projectionOnly) {
+          await expect(verifyGreaterRealmReleaseGateEnvelope(
+            candidate,
+            { fetchImpl: fetchMock, now: NOW },
+            dependencies,
+          )).resolves.toMatch(/notification-(?:pages-rooted-inert|durable-final)/u);
+        } else {
+          await expect(verifyGreaterRealmReleaseGateEnvelope(
+            candidate,
+            { fetchImpl: fetchMock, now: NOW },
+            dependencies,
+          )).rejects.toThrow();
+        }
       }
       await expect(verifyGreaterRealmReleaseGateEnvelope({
         ...exact,
@@ -728,7 +803,7 @@ describe('Pages deployment configuration validation', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(dependencies.inspectPreparedReceiptByDigest).not.toHaveBeenCalled();
     expect(dependencies.assertBridgeSourceAncestor).not.toHaveBeenCalled();
-    expect(dependencies.assertPagesLiveRootSourceAncestor).not.toHaveBeenCalled();
+    expect(dependencies.assertPagesLiveRootSourceAncestor).toHaveBeenCalledTimes(2);
   });
 
   it('rejects authorities on every non-notification phase without side effects', async () => {

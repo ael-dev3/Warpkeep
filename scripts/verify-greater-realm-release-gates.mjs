@@ -7,14 +7,10 @@ import {
   AUTH_BRIDGE_NOTIFICATION_DELIVERY_CONTRACT_DIGEST,
   inspectPrivateAuthBridgeNotificationPreparedReceiptByDigest,
 } from './auth-bridge-notification-prepared-receipt.mjs';
-import {
-  AUTH_BRIDGE_NOTIFICATION_PREPARED_RELEASE_BINDING,
-} from './auth-bridge-notification-prepared-release-binding.mjs';
 import { WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS } from './entry-agreement-policy.mjs';
 import {
-  NOTIFICATION_PAGES_LIVE_RELEASE_BINDING,
-  parseNotificationPagesLiveReleaseBinding,
-} from './notification-pages-live-release-binding.mjs';
+  readNotificationPagesReleaseSources,
+} from './notification-pages-release-source-parser.mjs';
 
 const REPOSITORY_ROOT = resolve(import.meta.dirname, '..');
 
@@ -62,6 +58,7 @@ const COMMIT_SHA = /^[a-f0-9]{40}$/u;
  */
 export const GREATER_REALM_NOTIFICATION_RELEASE_PHASE = Object.freeze({
   PAGES_PRESENTATION_ACTIVATION: 'notification-pages-presentation-activation',
+  ROOTED_INERT: 'notification-pages-rooted-inert',
   DURABLE_FINAL: 'notification-durable-final',
 });
 
@@ -144,15 +141,18 @@ function parseNotificationReleaseBindings(value) {
       || typeof sourceCommit !== 'string'
       || !COMMIT_SHA.test(sourceCommit)
   )) fail('GREATER_REALM_NOTIFICATION_PREPARED_BINDING_INVALID');
-  const liveRoot = parseNotificationPagesLiveReleaseBinding({
-    notificationPagesLiveRootReceiptDigest:
-      value.notificationPagesLiveRootReceiptDigest,
-    notificationPagesLiveRootPagesSourceCommit:
-      value.notificationPagesLiveRootPagesSourceCommit,
-  });
+  const rootDigest = value.notificationPagesLiveRootReceiptDigest;
+  const rootSource = value.notificationPagesLiveRootPagesSourceCommit;
+  const hasLiveRoot = rootDigest !== null || rootSource !== null;
+  if (hasLiveRoot && (
+    typeof rootDigest !== 'string'
+    || !SHA256_HEX.test(rootDigest)
+    || typeof rootSource !== 'string'
+    || !COMMIT_SHA.test(rootSource)
+  )) fail('GREATER_REALM_NOTIFICATION_PAGES_LIVE_ROOT_BINDING_INVALID');
   return Object.freeze({
     hasPreparedBinding,
-    hasLiveRoot: liveRoot.notificationPagesLiveRootReceiptDigest !== null,
+    hasLiveRoot,
   });
 }
 
@@ -168,7 +168,8 @@ export function parseGreaterRealmNotificationReleaseAuthority(value) {
     || Object.keys(value).sort().join(',')
       !== ['phase', ...RELEASE_BINDING_FIELDS].sort().join(',')
     || (
-      value.phase !== GREATER_REALM_NOTIFICATION_RELEASE_PHASE.PAGES_PRESENTATION_ACTIVATION
+    value.phase !== GREATER_REALM_NOTIFICATION_RELEASE_PHASE.PAGES_PRESENTATION_ACTIVATION
+      && value.phase !== GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ROOTED_INERT
       && value.phase !== GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL
     )
   ) fail('GREATER_REALM_NOTIFICATION_RELEASE_AUTHORITY_INVALID');
@@ -270,7 +271,11 @@ function assertPagesLiveRootSourceIsAncestor(
 
 export async function verifyGreaterRealmReleaseGateEnvelope(
   value,
-  { fetchImpl = fetch, now = new Date() } = {},
+  {
+    fetchImpl = fetch,
+    now = new Date(),
+    notificationAuthorityMode = 'full',
+  } = {},
   {
     inspectPreparedReceiptByDigest =
       inspectPrivateAuthBridgeNotificationPreparedReceiptByDigest,
@@ -278,6 +283,10 @@ export async function verifyGreaterRealmReleaseGateEnvelope(
     assertPagesLiveRootSourceAncestor = assertPagesLiveRootSourceIsAncestor,
   } = {},
 ) {
+  if (
+    notificationAuthorityMode !== 'full'
+    && notificationAuthorityMode !== 'static'
+  ) fail('GREATER_REALM_NOTIFICATION_AUTHORITY_MODE_INVALID');
   if (
     value === null
     || typeof value !== 'object'
@@ -295,13 +304,20 @@ export async function verifyGreaterRealmReleaseGateEnvelope(
     || BOOLEAN_FIELDS.some(field => typeof value[field] !== 'boolean')
     || (value.importMutationsCompiled && value.activationMutationsCompiled)
   ) fail('GREATER_REALM_RELEASE_GATE_ENVELOPE_INVALID');
-  const phaseName = SAFE_PHASE_BY_ENVELOPE.get(envelopeKey(value));
+  let phaseName = SAFE_PHASE_BY_ENVELOPE.get(envelopeKey(value));
   if (phaseName === undefined) fail('GREATER_REALM_RELEASE_GATE_PHASE_INVALID');
+  const bindings = parseNotificationReleaseBindings(value);
+  if (
+    phaseName
+      === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.PAGES_PRESENTATION_ACTIVATION
+    && !bindings.hasPreparedBinding
+    && bindings.hasLiveRoot
+  ) phaseName = GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ROOTED_INERT;
   const notificationPhase = phaseName
       === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.PAGES_PRESENTATION_ACTIVATION
+    || phaseName === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ROOTED_INERT
     || phaseName === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL;
   if (!notificationPhase) {
-    const bindings = parseNotificationReleaseBindings(value);
     if (bindings.hasPreparedBinding) {
       fail('GREATER_REALM_NOTIFICATION_PREPARED_BINDING_UNEXPECTED');
     }
@@ -314,7 +330,10 @@ export async function verifyGreaterRealmReleaseGateEnvelope(
     phase: phaseName,
     ...Object.fromEntries(RELEASE_BINDING_FIELDS.map(field => [field, value[field]])),
   });
-  if (phaseName === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL) {
+  if (
+    phaseName === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ROOTED_INERT
+    || phaseName === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL
+  ) {
     // This public/static gate proves source lineage only. The separate private
     // predeploy and Hermes boundaries must authenticate the current-source
     // durable receipt against this immutable root before any side effect.
@@ -329,6 +348,7 @@ export async function verifyGreaterRealmReleaseGateEnvelope(
     authority.notificationPreparedBridgeSourceCommit,
     REPOSITORY_ROOT,
   );
+  if (notificationAuthorityMode === 'static') return phaseName;
   const inspected = await inspectPreparedReceiptByDigest({
     receiptDigest: authority.notificationPreparedReceiptDigest,
     repositoryRoot: REPOSITORY_ROOT,
@@ -360,11 +380,14 @@ function exactBooleanLiteral(value, prefix, suffix, code) {
   return trueCount === 1;
 }
 
-/** Release-envelope attestation used before and after the Pages deployment. */
-export async function verifyGreaterRealmReleaseGateState(
+/** Inspect the exact checked-in gate envelope and its source-bound authority. */
+export async function inspectGreaterRealmReleaseGateState(
   options = {},
   dependencies = {},
 ) {
+  const notificationSources = readNotificationPagesReleaseSources({
+    repositoryRoot: REPOSITORY_ROOT,
+  });
   const serverPolicy = source('spacetimedb/src/greaterRealmV17Policy.ts');
   const importMutationsCompiled = exactBooleanLiteral(
     serverPolicy,
@@ -413,22 +436,13 @@ export async function verifyGreaterRealmReleaseGateState(
   }
 
   const pages = source('.github/workflows/deploy-pages.yml');
-  const pagesNotificationsEnabled = exactBooleanLiteral(
-    pages,
-    "      VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: '",
-    "'",
-    'GREATER_REALM_PAGES_NOTIFICATION_GATE_INVALID',
-  );
   if (pages.includes('vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED')) {
     fail('GREATER_REALM_PAGES_NOTIFICATION_GATE_MUTABLE');
   }
-  const hermes = source('scripts/hermes-admin.ts');
-  const hermesNotificationDeliveryApproved = exactBooleanLiteral(
-    hermes,
-    'export const FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = ',
-    ' as const;',
-    'GREATER_REALM_HERMES_NOTIFICATION_GATE_INVALID',
-  );
+  const pagesNotificationsEnabled =
+    notificationSources.phase.pagesPresentationEnabled;
+  const hermesNotificationDeliveryApproved =
+    notificationSources.phase.hermesExecutionApproved;
 
   // The v17 verifier is additive. The legacy Genesis preflight must retain its
   // exact 100-founder ceiling and is never broadened to make a v17 check pass.
@@ -454,10 +468,33 @@ export async function verifyGreaterRealmReleaseGateState(
     ...publisherFlags,
     hermesNotificationDeliveryApproved,
     pagesNotificationsEnabled,
-    ...AUTH_BRIDGE_NOTIFICATION_PREPARED_RELEASE_BINDING,
-    ...NOTIFICATION_PAGES_LIVE_RELEASE_BINDING,
+    ...notificationSources.preparedBinding,
+    ...notificationSources.liveRootBinding,
   }, options, dependencies);
-  return `Greater Realm release phase=${phaseName}; legacy=100 and v17=600 verifiers are distinct.`;
+  const notificationReleaseAuthority = [
+    GREATER_REALM_NOTIFICATION_RELEASE_PHASE.PAGES_PRESENTATION_ACTIVATION,
+    GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ROOTED_INERT,
+    GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL,
+  ].includes(phaseName)
+    ? parseGreaterRealmNotificationReleaseAuthority({
+      phase: phaseName,
+      ...notificationSources.preparedBinding,
+      ...notificationSources.liveRootBinding,
+    })
+    : null;
+  return Object.freeze({ phase: phaseName, notificationReleaseAuthority });
+}
+
+/** Release-envelope attestation used before and after the Pages deployment. */
+export async function verifyGreaterRealmReleaseGateState(
+  options = {},
+  dependencies = {},
+) {
+  const inspected = await inspectGreaterRealmReleaseGateState(
+    options,
+    dependencies,
+  );
+  return `Greater Realm release phase=${inspected.phase}; legacy=100 and v17=600 verifiers are distinct.`;
 }
 
 if (
