@@ -12,12 +12,14 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  readlinkSync,
   readdirSync,
   readSync,
   realpathSync,
   renameSync,
   rmdirSync,
   statSync,
+  symlinkSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -47,6 +49,23 @@ const EXPECTED_NODE_TEAM = '2DC432GLL2';
 const EXPECTED_PLATFORM = 'darwin';
 const EXPECTED_ARCH = 'arm64';
 const EXPECTED_MODULE_PACKAGE_COUNT = 16;
+const HERMES_SOURCE_PARSER_RESOLVER = Object.freeze({
+  typescript: Object.freeze({
+    relativeTarget: '../../../node_modules/typescript',
+    version: '7.0.2',
+  }),
+  yaml: Object.freeze({
+    relativeTarget: '../../../node_modules/yaml',
+    version: '2.9.0',
+  }),
+});
+const HERMES_SOURCE_PARSER_IGNORED_PATHS = Object.freeze(
+  ['node_modules/', 'services/auth-bridge/node_modules/'],
+);
+const HERMES_SOURCE_PARSER_TREE_MAXIMUM_ENTRIES = 2_048;
+const HERMES_SOURCE_PARSER_TREE_MAXIMUM_BYTES = 32 * 1024 * 1024;
+const HERMES_SOURCE_PARSER_PRODUCTION_NATIVE_PACKAGE =
+  '@typescript/typescript-darwin-arm64';
 // This pre-checkout bootstrap cannot import repository TypeScript. Keep this
 // release-packet bound in lockstep with
 // WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM.
@@ -1786,7 +1805,7 @@ function trackedTree(input, spawnSyncImpl) {
   return Object.freeze(entries);
 }
 
-function attestClone(input, spawnSyncImpl, allowInstalledDependencies = false) {
+function attestClone(input, spawnSyncImpl, allowedIgnoredPaths = Object.freeze([])) {
   const root = realpathSync(input.cloneRoot);
   if (root !== input.cloneRoot || !inside(input.runRoot, root)) {
     fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_CLONE_INVALID');
@@ -1823,18 +1842,20 @@ function attestClone(input, spawnSyncImpl, allowInstalledDependencies = false) {
   const ordinary = git(input, ['ls-files', '--others', '--exclude-standard', '-z'], {
     spawnSync: spawnSyncImpl,
   });
-  const ignored = git(input, ['ls-files', '--others', '--ignored', '--exclude-standard', '-z'], {
+  const ignored = git(input, [
+    'ls-files', '--others', '--ignored', '--exclude-standard', '--directory', '-z',
+  ], {
     spawnSync: spawnSyncImpl,
   });
   const ordinaryEntries = ordinary.split('\0').filter(Boolean);
-  const ignoredEntries = ignored.split('\0').filter(Boolean);
+  const ignoredEntries = ignored.split('\0').filter(Boolean).toSorted();
+  const expectedIgnoredEntries = [...allowedIgnoredPaths].toSorted();
   if (
     ordinaryEntries.length !== 0
-    || (!allowInstalledDependencies && ignoredEntries.length !== 0)
-    || (allowInstalledDependencies && ignoredEntries.some(path => (
-      path !== 'node_modules/' && path !== 'node_modules'
-      && !path.startsWith('node_modules/')
-    )))
+    || ignoredEntries.length !== expectedIgnoredEntries.length
+    || ignoredEntries.some(
+      (path, index) => path !== expectedIgnoredEntries[index],
+    )
   ) fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_TREE_INVALID');
   const bootstrapPath = fileURLToPath(import.meta.url);
   const bootstrapBytes = readFileSync(bootstrapPath);
@@ -1951,6 +1972,312 @@ function installRootDependencies(input, runtime, npm, spawnSyncImpl) {
   if (tsxManifest.name !== 'tsx' || tsxManifest.version !== '4.23.0') {
     fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_NPM_CLOSURE_INVALID');
   }
+}
+
+function readExactJson(path, maximumBytes) {
+  const mode = Number(lstatSync(path, { bigint: true }).mode & 0o7777n);
+  if (![0o600, 0o644].includes(mode)) {
+    fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_HERMES_RESOLVER_INVALID');
+  }
+  const opened = readExactFile(path, maximumBytes, mode);
+  try {
+    return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(
+      opened.bytes,
+    ));
+  } finally {
+    opened.bytes.fill(0);
+    closeSync(opened.descriptor);
+  }
+}
+
+function fsyncExactDirectory(path) {
+  if (
+    typeof constants.O_DIRECTORY !== 'number'
+    || typeof constants.O_NOFOLLOW !== 'number'
+  ) fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_HERMES_RESOLVER_INVALID');
+  const descriptor = openSync(
+    path,
+    constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+  );
+  try {
+    const status = fstatSync(descriptor);
+    if (
+      !status.isDirectory()
+      || (process.getuid !== undefined && status.uid !== process.getuid())
+      || ![0o700, 0o755].includes(status.mode & 0o7777)
+    ) fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_HERMES_RESOLVER_INVALID');
+    fsyncSync(descriptor);
+  } finally {
+    closeSync(descriptor);
+  }
+}
+
+function exactHermesSourceParserPackageTree(root, expectedName) {
+  const code = 'GREATER_REALM_PRODUCTION_BOOTSTRAP_HERMES_RESOLVER_INVALID';
+  const hash = createHash('sha256');
+  let entryCount = 0;
+  let aggregateBytes = 0;
+  const pending = [Object.freeze({ absolute: root, relative: '' })];
+  while (pending.length > 0) {
+    const current = pending.pop();
+    const names = readdirSync(current.absolute).toSorted();
+    for (const name of names) {
+      const absolute = join(current.absolute, name);
+      const relativePath = current.relative === ''
+        ? name
+        : `${current.relative}/${name}`;
+      const before = lstatSync(absolute, { bigint: true });
+      entryCount += 1;
+      if (
+        entryCount > HERMES_SOURCE_PARSER_TREE_MAXIMUM_ENTRIES
+        || before.isSymbolicLink()
+        || (process.getuid !== undefined && before.uid !== BigInt(process.getuid()))
+      ) fail(code);
+      const mode = Number(before.mode & 0o7777n);
+      if (before.isDirectory()) {
+        if (![0o700, 0o755].includes(mode)) fail(code);
+        updateLengthFramed(hash, 'directory-path', relativePath);
+        updateLengthFramed(hash, 'directory-mode', String(mode));
+        pending.push(Object.freeze({ absolute, relative: relativePath }));
+        continue;
+      }
+      if (
+        !before.isFile()
+        || before.nlink !== 1n
+        || ![0o600, 0o644, 0o700, 0o755].includes(mode)
+        || before.size < 0n
+        || before.size > BigInt(HERMES_SOURCE_PARSER_TREE_MAXIMUM_BYTES)
+        || aggregateBytes > HERMES_SOURCE_PARSER_TREE_MAXIMUM_BYTES
+          - Number(before.size)
+      ) fail(code);
+      const opened = readExactFile(
+        absolute,
+        HERMES_SOURCE_PARSER_TREE_MAXIMUM_BYTES,
+        mode,
+      );
+      try {
+        aggregateBytes += opened.bytes.byteLength;
+        updateLengthFramed(hash, 'file-path', relativePath);
+        updateLengthFramed(hash, 'file-mode', String(mode));
+        updateLengthFramed(hash, 'file-size', String(opened.bytes.byteLength));
+        updateLengthFramed(
+          hash,
+          'file-sha256',
+          createHash('sha256').update(opened.bytes).digest('hex'),
+        );
+      } finally {
+        opened.bytes.fill(0);
+        closeSync(opened.descriptor);
+      }
+    }
+  }
+  if (entryCount < 1 || aggregateBytes < 1) fail(code);
+  updateLengthFramed(hash, 'package-name', expectedName);
+  updateLengthFramed(hash, 'entry-count', String(entryCount));
+  updateLengthFramed(hash, 'aggregate-bytes', String(aggregateBytes));
+  return Object.freeze({
+    aggregateBytes,
+    digest: hash.digest('hex'),
+    entryCount,
+  });
+}
+
+function exactInstalledHermesSourceParserPackage({
+  cloneRoot,
+  installedLock,
+  name,
+  rootLock,
+  version,
+}) {
+  const code = 'GREATER_REALM_PRODUCTION_BOOTSTRAP_HERMES_RESOLVER_INVALID';
+  const lockPath = `node_modules/${name}`;
+  const targetPath = join(cloneRoot, ...lockPath.split('/'));
+  const targetStatus = lstatSync(targetPath);
+  const rootPackage = rootLock.packages?.[lockPath];
+  const installedPackage = installedLock.packages?.[lockPath];
+  if (
+    !targetStatus.isDirectory()
+    || targetStatus.isSymbolicLink()
+    || realpathSync(targetPath) !== targetPath
+    || (process.getuid !== undefined && targetStatus.uid !== process.getuid())
+    || ![0o700, 0o755].includes(targetStatus.mode & 0o7777)
+    || rootLock.lockfileVersion !== 3
+    || installedLock.lockfileVersion !== 3
+    || rootPackage?.version !== version
+    || installedPackage?.version !== version
+    || installedPackage.integrity !== rootPackage.integrity
+    || installedPackage.resolved !== rootPackage.resolved
+  ) fail(code);
+  const manifest = readExactJson(join(targetPath, 'package.json'), 64 * 1024);
+  if (manifest.name !== name || manifest.version !== version) fail(code);
+  return Object.freeze({
+    path: targetPath,
+    tree: exactHermesSourceParserPackageTree(targetPath, name),
+  });
+}
+
+function attestHermesSourceParserResolver(cloneRoot, expectedIdentity) {
+  const code = 'GREATER_REALM_PRODUCTION_BOOTSTRAP_HERMES_RESOLVER_INVALID';
+  try {
+    if (realpathSync(cloneRoot) !== cloneRoot) fail(code);
+    const authBridgeRoot = join(cloneRoot, 'services', 'auth-bridge');
+    const resolverRoot = join(authBridgeRoot, 'node_modules');
+    const rootNodeModules = join(cloneRoot, 'node_modules');
+    for (const path of [authBridgeRoot, resolverRoot, rootNodeModules]) {
+      const status = lstatSync(path);
+      if (
+        !status.isDirectory()
+        || status.isSymbolicLink()
+        || realpathSync(path) !== path
+        || (process.getuid !== undefined && status.uid !== process.getuid())
+        || ![0o700, 0o755].includes(status.mode & 0o7777)
+        || (path === resolverRoot && (status.mode & 0o7777) !== 0o700)
+      ) fail(code);
+    }
+    const expectedNames = Object.keys(HERMES_SOURCE_PARSER_RESOLVER).toSorted();
+    const entries = readdirSync(resolverRoot, { withFileTypes: true });
+    const names = entries.map(entry => entry.name).toSorted();
+    if (
+      names.length !== expectedNames.length
+      || names.some((name, index) => name !== expectedNames[index])
+      || entries.some(entry => !entry.isSymbolicLink())
+    ) fail(code);
+
+    const rootLock = readExactJson(join(cloneRoot, 'package-lock.json'), 4 * 1024 * 1024);
+    const installedLock = readExactJson(
+      join(rootNodeModules, '.package-lock.json'),
+      4 * 1024 * 1024,
+    );
+    const packageIdentities = {};
+    for (const name of expectedNames) {
+      const expected = HERMES_SOURCE_PARSER_RESOLVER[name];
+      const linkPath = join(resolverRoot, name);
+      const linkStatus = lstatSync(linkPath);
+      const installed = exactInstalledHermesSourceParserPackage({
+        cloneRoot,
+        installedLock,
+        name,
+        rootLock,
+        version: expected.version,
+      });
+      if (
+        !linkStatus.isSymbolicLink()
+        || linkStatus.nlink !== 1
+        || (process.getuid !== undefined && linkStatus.uid !== process.getuid())
+        || readlinkSync(linkPath) !== expected.relativeTarget
+        || realpathSync(linkPath) !== installed.path
+      ) fail(code);
+      packageIdentities[name] = installed.tree;
+    }
+    const nativePackageName = expectedIdentity?.nativePackageName
+      ?? HERMES_SOURCE_PARSER_PRODUCTION_NATIVE_PACKAGE;
+    if (
+      nativePackageName !== HERMES_SOURCE_PARSER_PRODUCTION_NATIVE_PACKAGE
+      && nativePackageName
+        !== `@typescript/typescript-${process.platform}-${process.arch}`
+    ) fail(code);
+    packageIdentities[nativePackageName] =
+      exactInstalledHermesSourceParserPackage({
+        cloneRoot,
+        installedLock,
+        name: nativePackageName,
+        rootLock,
+        version: '7.0.2',
+      }).tree;
+    const identity = Object.freeze({
+      nativePackageName,
+      resolverRoot,
+      packages: Object.freeze(expectedNames),
+      packageIdentities: Object.freeze(packageIdentities),
+    });
+    if (
+      expectedIdentity?.packageIdentities !== undefined
+      && JSON.stringify(identity.packageIdentities)
+        !== JSON.stringify(expectedIdentity.packageIdentities)
+    ) fail(code);
+    return identity;
+  } catch (error) {
+    if (
+      error instanceof GreaterRealmProductionBootstrapError
+      && error.code === code
+    ) throw error;
+    fail(code, error);
+  }
+}
+
+function installHermesSourceParserResolver(
+  cloneRoot,
+  nativePackageName = HERMES_SOURCE_PARSER_PRODUCTION_NATIVE_PACKAGE,
+) {
+  const code = 'GREATER_REALM_PRODUCTION_BOOTSTRAP_HERMES_RESOLVER_INVALID';
+  const authBridgeRoot = join(cloneRoot, 'services', 'auth-bridge');
+  const resolverRoot = join(authBridgeRoot, 'node_modules');
+  try {
+    const parentStatus = lstatSync(authBridgeRoot, { bigint: true });
+    if (
+      !parentStatus.isDirectory()
+      || parentStatus.isSymbolicLink()
+      || realpathSync(authBridgeRoot) !== authBridgeRoot
+      || (process.getuid !== undefined && parentStatus.uid !== BigInt(process.getuid()))
+      || (parentStatus.mode & 0o022n) !== 0n
+    ) fail(code);
+    chmodSync(authBridgeRoot, 0o700);
+    const normalizedParent = lstatSync(authBridgeRoot, { bigint: true });
+    if (
+      normalizedParent.dev !== parentStatus.dev
+      || normalizedParent.ino !== parentStatus.ino
+      || !normalizedParent.isDirectory()
+      || normalizedParent.isSymbolicLink()
+      || (normalizedParent.mode & 0o7777n) !== 0o700n
+      || (process.getuid !== undefined
+        && normalizedParent.uid !== BigInt(process.getuid()))
+    ) fail(code);
+    mkdirSync(resolverRoot, { mode: 0o700 });
+    chmodSync(resolverRoot, 0o700);
+    for (const name of Object.keys(HERMES_SOURCE_PARSER_RESOLVER).toSorted()) {
+      symlinkSync(
+        HERMES_SOURCE_PARSER_RESOLVER[name].relativeTarget,
+        join(resolverRoot, name),
+        'dir',
+      );
+    }
+    fsyncExactDirectory(resolverRoot);
+    fsyncExactDirectory(authBridgeRoot);
+    return attestHermesSourceParserResolver(cloneRoot, Object.freeze({
+      nativePackageName,
+    }));
+  } catch (error) {
+    if (
+      error instanceof GreaterRealmProductionBootstrapError
+      && error.code === code
+    ) throw error;
+    fail(code, error);
+  }
+}
+
+async function runOperatorWithPostflightAttestation(operator, postflight) {
+  let result;
+  let operatorError;
+  try {
+    result = await operator();
+  } catch (error) {
+    operatorError = error;
+  }
+  let postflightError;
+  try {
+    await postflight();
+  } catch (error) {
+    postflightError = error;
+  }
+  if (operatorError !== undefined && postflightError !== undefined) {
+    throw new AggregateError(
+      [operatorError, postflightError],
+      'GREATER_REALM_PRODUCTION_BOOTSTRAP_OPERATOR_AND_POSTFLIGHT_FAILED',
+    );
+  }
+  if (postflightError !== undefined) throw postflightError;
+  if (operatorError !== undefined) throw operatorError;
+  return result;
 }
 
 function packageNameAndVersion(key) {
@@ -2711,7 +3038,17 @@ export async function runGreaterRealmProductionBootstrap(inputArguments, depende
       cacheRoot: npm.moduleCache,
       fetchArchive: dependencies.fetchArchive,
     });
-    const treeAfter = attestClone(context, dependencies.spawnSync, true);
+    const parserResolver = input.command.hermesReleaseRow === undefined
+      ? undefined
+      : installHermesSourceParserResolver(input.cloneRoot);
+    const allowedIgnoredPaths = parserResolver === undefined
+      ? Object.freeze(['node_modules/'])
+      : HERMES_SOURCE_PARSER_IGNORED_PATHS;
+    const treeAfter = attestClone(
+      context,
+      dependencies.spawnSync,
+      allowedIgnoredPaths,
+    );
     if (JSON.stringify(treeAfter) !== JSON.stringify(treeBefore)) {
       fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_TREE_CHANGED');
     }
@@ -2719,15 +3056,25 @@ export async function runGreaterRealmProductionBootstrap(inputArguments, depende
       ...launchRecord,
       phase: 'operator-starting',
     }));
-    launchRecord = await runFinalOperator(
-      context,
-      runtime,
-      npm,
-      signalController,
-      dependencies.spawn,
-      dependencies.operatorTimeouts,
+    if (parserResolver !== undefined) {
+      attestHermesSourceParserResolver(input.cloneRoot, parserResolver);
+    }
+    launchRecord = await runOperatorWithPostflightAttestation(
+      () => runFinalOperator(
+        context,
+        runtime,
+        npm,
+        signalController,
+        dependencies.spawn,
+        dependencies.operatorTimeouts,
+      ),
+      () => {
+        if (parserResolver !== undefined) {
+          attestHermesSourceParserResolver(input.cloneRoot, parserResolver);
+        }
+        attestClone(context, dependencies.spawnSync, allowedIgnoredPaths);
+      },
     );
-    attestClone(context, dependencies.spawnSync, true);
     runExact('/usr/bin/codesign', ['--verify', '--deep', '--strict', runtime.appRoot], {
       env: { PATH: '/usr/bin:/bin' }, spawnSync: dependencies.spawnSync,
       code: 'GREATER_REALM_PRODUCTION_BOOTSTRAP_RUNTIME_CHANGED',
@@ -2753,12 +3100,14 @@ export async function runGreaterRealmProductionBootstrap(inputArguments, depende
 
 export const greaterRealmProductionBootstrapTestSeams = Object.freeze({
   assertEnvironment: assertBootstrapEnvironment,
+  attestHermesSourceParserResolver,
   cacheArchivePath,
   cleanupCompletedRun: cleanupCompletedBootstrapRun,
   containProcessGroup: containBootstrapProcessGroup,
   createSignalController: createBootstrapSignalController,
   finalOperatorEnvironment,
   gitBlobOid,
+  installHermesSourceParserResolver,
   launchArgumentsDigest,
   parseLaunchRecord,
   parseLaunchLifecycleRecord,
@@ -2766,6 +3115,7 @@ export const greaterRealmProductionBootstrapTestSeams = Object.freeze({
   readLaunchLifecycleChain,
   repairLaunchLifecyclePublications,
   runFinalOperator,
+  runOperatorWithPostflightAttestation,
   runTreeHelper: runBootstrapTreeHelper,
   selectPackages: selectGreaterRealmDarwinArm64ModulePackages,
   withLifecycleLock: withBootstrapLifecycleLock,

@@ -4,12 +4,15 @@ import { createHash } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import {
   chmodSync,
+  copyFileSync,
+  cpSync,
   existsSync,
   linkSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readlinkSync,
   realpathSync,
   readdirSync,
   renameSync,
@@ -21,6 +24,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
@@ -47,6 +51,93 @@ function privateDirectory(): string {
   chmodSync(path, 0o700);
   temporaryDirectories.push(path);
   return path;
+}
+
+function materializeHermesParserRootDependencies(
+  root: string,
+  options: Readonly<{ includeProductionNative?: boolean }> = {},
+): void {
+  mkdirSync(join(root, 'node_modules', '@typescript'), { recursive: true });
+  const rootLockPath = join(root, 'package-lock.json');
+  if (!existsSync(rootLockPath)) copyFileSync('package-lock.json', rootLockPath);
+  const rootLock = JSON.parse(readFileSync(rootLockPath, 'utf8')) as {
+    name?: unknown;
+    version?: unknown;
+    packages?: Record<string, unknown>;
+  };
+  const installedLock = JSON.parse(
+    readFileSync('node_modules/.package-lock.json', 'utf8'),
+  ) as {
+    name?: unknown;
+    version?: unknown;
+    lockfileVersion?: unknown;
+    packages?: Record<string, unknown>;
+  };
+  installedLock.name = rootLock.name;
+  installedLock.version = rootLock.version;
+  installedLock.packages ??= {};
+  for (const name of ['typescript', 'yaml']) {
+    cpSync(
+      join('node_modules', name),
+      join(root, 'node_modules', name),
+      { recursive: true },
+    );
+  }
+  const platformNative =
+    `@typescript/typescript-${process.platform}-${process.arch}`;
+  cpSync(
+    join('node_modules', ...platformNative.split('/')),
+    join(root, 'node_modules', ...platformNative.split('/')),
+    { recursive: true },
+  );
+  const platformLockPath = `node_modules/${platformNative}`;
+  installedLock.packages[platformLockPath] = rootLock.packages?.[platformLockPath];
+
+  const productionNative = '@typescript/typescript-darwin-arm64';
+  if (options.includeProductionNative === true && productionNative !== platformNative) {
+    const productionLockPath = `node_modules/${productionNative}`;
+    expect(rootLock.packages?.[productionLockPath]).toBeDefined();
+    installedLock.packages[productionLockPath] = rootLock.packages?.[productionLockPath];
+    const productionRoot = join(root, 'node_modules', ...productionNative.split('/'));
+    mkdirSync(productionRoot, { recursive: true });
+    writeFileSync(join(productionRoot, 'package.json'), `${JSON.stringify({
+      name: productionNative,
+      version: '7.0.2',
+    }, null, 2)}\n`);
+    writeFileSync(join(productionRoot, 'runtime.bin'), 'synthetic-darwin-arm64-fixture\n');
+  }
+  writeFileSync(
+    join(root, 'node_modules', '.package-lock.json'),
+    `${JSON.stringify(installedLock, null, 2)}\n`,
+  );
+}
+
+function hermesParserResolverFixture(
+  options: Readonly<{ includeProductionNative?: boolean }> = {},
+): string {
+  const root = privateDirectory();
+  mkdirSync(join(root, 'services', 'auth-bridge'), { recursive: true });
+  materializeHermesParserRootDependencies(root, options);
+  return root;
+}
+
+function applyOwnerPrivateInstallModes(root: string): void {
+  const pending = [join(root, 'node_modules')];
+  while (pending.length > 0) {
+    const directory = pending.pop();
+    if (directory === undefined) throw new Error('missing fixture directory');
+    chmodSync(directory, 0o700);
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        pending.push(path);
+        continue;
+      }
+      if (!entry.isFile()) throw new Error(`unexpected fixture entry: ${path}`);
+      const executable = (lstatSync(path).mode & 0o111) !== 0;
+      chmodSync(path, executable ? 0o700 : 0o600);
+    }
+  }
 }
 
 function lifecycleProgram(): string {
@@ -298,6 +389,8 @@ function baseArguments(command: string, ...arguments_: string[]): string[] {
 }
 
 describe('Greater Realm production bootstrap', () => {
+  const testNativeTypeScriptPackage =
+    `@typescript/typescript-${process.platform}-${process.arch}`;
   it('parses only the exact command envelope and rejects option injection', () => {
     expect(parseGreaterRealmProductionBootstrapArguments(
       baseArguments('import-apply'),
@@ -655,6 +748,208 @@ describe('Greater Realm production bootstrap', () => {
     expect(packages.map((value: { key: string }) => value.key)).toContain(
       '@esbuild/darwin-arm64@0.25.12',
     );
+  });
+
+  it('stages and reattests only the exact Hermes parser resolver', () => {
+    const root = hermesParserResolverFixture();
+    const installed = greaterRealmProductionBootstrapTestSeams
+      .installHermesSourceParserResolver(root, testNativeTypeScriptPackage);
+    const resolverRoot = join(root, 'services', 'auth-bridge', 'node_modules');
+    expect(lstatSync(resolverRoot).mode & 0o7777).toBe(0o700);
+    expect(readdirSync(resolverRoot).sort()).toEqual(['typescript', 'yaml']);
+    expect(readlinkSync(join(resolverRoot, 'typescript')))
+      .toBe('../../../node_modules/typescript');
+    expect(readlinkSync(join(resolverRoot, 'yaml')))
+      .toBe('../../../node_modules/yaml');
+    expect(installed.packageIdentities).toMatchObject({
+      [testNativeTypeScriptPackage]: {
+        digest: expect.stringMatching(/^[0-9a-f]{64}$/u),
+      },
+      typescript: { digest: expect.stringMatching(/^[0-9a-f]{64}$/u) },
+      yaml: { digest: expect.stringMatching(/^[0-9a-f]{64}$/u) },
+    });
+    expect(greaterRealmProductionBootstrapTestSeams
+      .attestHermesSourceParserResolver(root, installed))
+      .toEqual(installed);
+  });
+
+  it('attests the owner-private modes produced by the production umask', () => {
+    const root = hermesParserResolverFixture();
+    applyOwnerPrivateInstallModes(root);
+    chmodSync(join(root, 'services', 'auth-bridge'), 0o750);
+    const installed = greaterRealmProductionBootstrapTestSeams
+      .installHermesSourceParserResolver(root, testNativeTypeScriptPackage);
+    expect(lstatSync(join(root, 'services', 'auth-bridge')).mode & 0o7777)
+      .toBe(0o700);
+    expect(installed.nativePackageName).toBe(testNativeTypeScriptPackage);
+    expect(greaterRealmProductionBootstrapTestSeams
+      .attestHermesSourceParserResolver(root, installed))
+      .toEqual(installed);
+  });
+
+  it('binds the fixed Darwin ARM64 native parser package in production', () => {
+    const root = hermesParserResolverFixture({ includeProductionNative: true });
+    const installed = greaterRealmProductionBootstrapTestSeams
+      .installHermesSourceParserResolver(root);
+    expect(installed.nativePackageName)
+      .toBe('@typescript/typescript-darwin-arm64');
+    expect(installed.packageIdentities)
+      .toHaveProperty('@typescript/typescript-darwin-arm64');
+  });
+
+  it('rejects preexisting, redirected, polluted, or mutated Hermes resolvers', () => {
+    const preexisting = hermesParserResolverFixture();
+    mkdirSync(join(preexisting, 'services', 'auth-bridge', 'node_modules'));
+    expect(() => greaterRealmProductionBootstrapTestSeams
+      .installHermesSourceParserResolver(
+        preexisting,
+        testNativeTypeScriptPackage,
+      ))
+      .toThrow(/HERMES_RESOLVER_INVALID/u);
+
+    const redirected = hermesParserResolverFixture();
+    const identity = greaterRealmProductionBootstrapTestSeams
+      .installHermesSourceParserResolver(
+        redirected,
+        testNativeTypeScriptPackage,
+      );
+    const resolverRoot = join(
+      redirected,
+      'services',
+      'auth-bridge',
+      'node_modules',
+    );
+    unlinkSync(join(resolverRoot, 'yaml'));
+    symlinkSync('../../../node_modules/typescript', join(resolverRoot, 'yaml'));
+    expect(() => greaterRealmProductionBootstrapTestSeams
+      .attestHermesSourceParserResolver(redirected, identity))
+      .toThrow(/HERMES_RESOLVER_INVALID/u);
+
+    const polluted = hermesParserResolverFixture();
+    const pollutedIdentity = greaterRealmProductionBootstrapTestSeams
+      .installHermesSourceParserResolver(
+        polluted,
+        testNativeTypeScriptPackage,
+      );
+    writeFileSync(
+      join(polluted, 'services', 'auth-bridge', 'node_modules', 'extra'),
+      'unreviewed\n',
+    );
+    expect(() => greaterRealmProductionBootstrapTestSeams
+      .attestHermesSourceParserResolver(polluted, pollutedIdentity))
+      .toThrow(/HERMES_RESOLVER_INVALID/u);
+
+    const mutated = hermesParserResolverFixture();
+    const mutatedIdentity = greaterRealmProductionBootstrapTestSeams
+      .installHermesSourceParserResolver(
+        mutated,
+        testNativeTypeScriptPackage,
+      );
+    const yamlManifest = join(mutated, 'node_modules', 'yaml', 'package.json');
+    const original = readFileSync(yamlManifest, 'utf8');
+    writeFileSync(yamlManifest, `${original}\n`);
+    expect(() => greaterRealmProductionBootstrapTestSeams
+      .attestHermesSourceParserResolver(mutated, mutatedIdentity))
+      .toThrow(/HERMES_RESOLVER_INVALID/u);
+
+    const nativeMutated = hermesParserResolverFixture();
+    const nativeIdentity = greaterRealmProductionBootstrapTestSeams
+      .installHermesSourceParserResolver(
+        nativeMutated,
+        testNativeTypeScriptPackage,
+      );
+    const nativeNotice = join(
+      nativeMutated,
+      'node_modules',
+      '@typescript',
+      `typescript-${process.platform}-${process.arch}`,
+      'NOTICE.txt',
+    );
+    writeFileSync(nativeNotice, `${readFileSync(nativeNotice, 'utf8')}\n`);
+    expect(() => greaterRealmProductionBootstrapTestSeams
+      .attestHermesSourceParserResolver(nativeMutated, nativeIdentity))
+      .toThrow(/HERMES_RESOLVER_INVALID/u);
+  });
+
+  it('makes a clean root-npm clone able to load durable Hermes authority', () => {
+    const root = privateDirectory();
+    const archive = spawnSync('git', [
+      'archive', 'HEAD',
+      'scripts',
+      'package.json',
+      'package-lock.json',
+      'services/auth-bridge/package.json',
+    ], {
+      encoding: null,
+      maxBuffer: 16 * 1024 * 1024,
+    });
+    expect(archive.status).toBe(0);
+    const extracted = spawnSync('tar', ['-x', '-C', root], {
+      encoding: null,
+      input: archive.stdout,
+      maxBuffer: 4 * 1024 * 1024,
+    });
+    expect(extracted.status).toBe(0);
+    materializeHermesParserRootDependencies(root);
+    const authorityUrl = pathToFileURL(join(
+      root,
+      'scripts',
+      'notification-pages-live-hermes-authority.mjs',
+    )).href;
+    const program = [
+      `const authority = await import(${JSON.stringify(authorityUrl)});`,
+      'const result = await authority.inspectHermesNotificationPagesLiveAuthority({ required: false });',
+      'process.stdout.write(`${JSON.stringify(result)}\\n`);',
+    ].join('\n');
+    const before = spawnSync(process.execPath, ['--input-type=module', '-e', program], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { PATH: '/usr/bin:/bin' },
+    });
+    expect(before.status).not.toBe(0);
+    expect(before.stderr).toMatch(/ERR_MODULE_NOT_FOUND/u);
+
+    greaterRealmProductionBootstrapTestSeams
+      .installHermesSourceParserResolver(root, testNativeTypeScriptPackage);
+    const after = spawnSync(process.execPath, ['--input-type=module', '-e', program], {
+      cwd: root,
+      encoding: 'utf8',
+      env: { PATH: '/usr/bin:/bin' },
+    });
+    expect(after.status).toBe(0);
+    expect(JSON.parse(after.stdout)).toEqual({
+      notificationPagesLiveBridgeSourceCommit: null,
+      notificationPagesLivePagesSourceCommit: null,
+      notificationPagesLiveReceiptDigest: null,
+      notificationPagesLiveRootPagesSourceCommit: null,
+      notificationPagesLiveRootReceiptDigest: null,
+    });
+  });
+
+  it('always reattests after the operator and preserves both failures', async () => {
+    const events: string[] = [];
+    await expect(greaterRealmProductionBootstrapTestSeams
+      .runOperatorWithPostflightAttestation(
+        async () => {
+          events.push('operator');
+          throw new Error('operator-failed');
+        },
+        async () => {
+          events.push('postflight');
+          throw new Error('resolver-changed');
+        },
+      )).rejects.toMatchObject({
+        errors: [
+          expect.objectContaining({ message: 'operator-failed' }),
+          expect.objectContaining({ message: 'resolver-changed' }),
+        ],
+      });
+    expect(events).toEqual(['operator', 'postflight']);
+    await expect(greaterRealmProductionBootstrapTestSeams
+      .runOperatorWithPostflightAttestation(
+        async () => 'operator-result',
+        async () => undefined,
+      )).resolves.toBe('operator-result');
   });
 
   it('fills an empty isolated module cache with all exact SHA-512 archives', async () => {
