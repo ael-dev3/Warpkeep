@@ -162,7 +162,7 @@ describe('GitHub workflow security policy', () => {
       source.match(/ref:\s*\$\{\{ github\.event\.workflow_run\.head_sha \}\}/g) ?? []
     ).length;
 
-    expect(checkoutCount).toBe(3);
+    expect(checkoutCount).toBe(5);
     expect(exactRefCount).toBe(checkoutCount);
     expect(source.match(/fetch-depth:\s*0/g)).toHaveLength(checkoutCount);
     expect(source).toContain(
@@ -176,7 +176,10 @@ describe('GitHub workflow security policy', () => {
 
   it('runs bounded read-only live verification and fails closed on auth mode ambiguity', () => {
     const source = workflow('deploy-pages.yml');
-    const liveVerification = source.slice(source.indexOf('  verify-live:'));
+    const liveVerification = source.slice(
+      source.indexOf('  verify-live:'),
+      source.indexOf('  private-deploy:'),
+    );
 
     expect(liveVerification).toContain('needs: deploy');
     expect(liveVerification).toContain(

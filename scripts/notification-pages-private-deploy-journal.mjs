@@ -800,12 +800,13 @@ function createJournal({
       (phase === 'prepared' && sameRun.length !== 0)
       || (phase !== 'prepared' && phases[0] !== 'prepared')
       || (phase.startsWith('reconciled-')
-        && !['prepared', 'deploy-invoked'].includes(latest))
+        && !['prepared', 'deploy-invoked', 'postflight-not-current'].includes(latest))
       || (phase === 'candidate-authorized'
         && latest !== 'reconciled-not-current')
       || (phase === 'deploy-invoked'
         && !['reconciled-not-current', 'candidate-authorized'].includes(latest))
-      || (phase === 'postflight-not-current' && latest !== 'deploy-invoked')
+      || (phase === 'postflight-not-current'
+        && !['deploy-invoked', 'postflight-not-current'].includes(latest))
       || (phase === 'postflight-completed'
         && latest !== 'reconciled-exact-current')
     ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_TRANSITION_INVALID');

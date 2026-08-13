@@ -104,8 +104,14 @@ hours, and terminal output contains only the record filename, SHA-256, bounded
 timestamps, and capacity state. It accepts no notification credential, private
 input, SpacetimeDB CLI path, mutable target, or direct npm/`tsx` fallback.
 
-Pages continues to run the unchanged read-only legacy live verifier. Its
-notification presentation variable is currently hardcoded false, and CI runs
+Pages continues to run the unchanged read-only legacy live verifier while its
+notification presentation literal is false. The deploy workflow classifies
+only the exact checked-in closed-review, generation-zero, or durable state; a
+repository variable or secret never selects that lane. Closed review retains
+the hosted build/deploy/postflight. Notification-enabled candidates build and
+deploy only on the persistent repository-exclusive production-admin runner
+carrying the fixed labels `self-hosted`, `macOS`, `ARM64`,
+`warpkeep-production-admin`, and `warpkeep-repository-exclusive`. CI runs
 `verify:greater-realm-release-gates` before build to accept only an explicitly
 enumerated safe release phase. The current tree must be the closed-review
 phase. Later envelopes permit production-approved pre-generation,
@@ -118,6 +124,57 @@ phase forbids the prepared binding and requires the checked-in live root.
 `TT`, partial approval pairs, Hermes-before-live-Pages, notification-before-
 client, and every unenumerated combination fail. Client activation remains a
 separate release and must not be coupled to server publication.
+
+### Private Pages authority and recovery
+
+The one-time activation source names three exact owner-private inputs: the
+active-v17 evidence digest, the forward-activation publish-receipt digest, and
+the reviewed founder count. The prepared binding separately names the exact
+bridge-prepared receipt and bridge source commit. The operator derives every
+filename from these checked-in digests under fixed owner-private directories.
+It requires no-follow stable descriptors, owner-only `0600` files, one link,
+bounded size, and exact content digests. It compares the publish lane, verified
+outcome, same-schema 84-to-84 policy, mutation flags, active state, canonical
+target, source-release tuple, founder count, and evidence target before the
+handoff module performs full canonical, freshness, ordering, Git-provenance,
+and live-bridge validation. The exported active-evidence strict reader is in a
+TypeScript-only import closure that dependency-free Node cannot load; a
+dependency-free `.mjs` reader/adapter is the minimal API improvement if direct
+reuse becomes mandatory.
+
+Provision the 32-byte base64url handoff key once as mode `0600` at this fixed
+path. Never put it or its path in argv, environment, output, logs, or artifacts:
+
+`~/.warpkeep/private/production-admin-v1/notification-pages-private-handoffs-v1/notification-pages-private-handoff-key-v1.txt`
+
+For generation zero, the operator encrypts a handoff in process for the exact
+workflow run, attempt, Pages source, founder count, and input digests. It
+durably journals only non-secret expectations. Ordinary later Pages releases
+use only the checked-in permanent root: the receipt module writes a durable
+predecessor claim and candidate authority, and the journal retains its digest
+before deployment.
+
+Immediately before deployment, the workflow proves via GitHub API that `main`
+is protected and still names the candidate, the exact Verify run/attempt
+completed successfully for a main push, and the exact deploy workflow
+run/attempt is in progress in the canonical repository. It reattests the
+private handoff or durable candidate authority, repeats the protected-main/run
+check, and writes the append-only `deploy-invoked` marker immediately before
+the Pages action. After that marker, a different live build can be CDN lag or
+an ambiguous successful deployment, so no retry may invoke Pages again. The
+`always()` postflight polls the receipt module's exact semantic source
+reconciler and installs generation zero or promotes the retained successor
+digest. A final step refuses workflow success unless an attempted deployment
+completed its durable postflight.
+
+If a process dies after deployment, rerun the same verified source.
+Exact-current skips deployment and replays the idempotent receipt operation.
+Generation-zero recovery retains the original run-bound expectations and can
+return an installed root even after handoff/key deletion or expiry. A stale or
+ambiguous response after `deploy-invoked` is an adjudication stop, never
+permission for a second deploy. Preserve the journal at
+`~/.warpkeep/private/production-admin-v1/notification-pages-private-deploy-journal-v1`;
+do not edit or delete its hash-chained `0600` records.
 
 ## Receipts and recovery
 
