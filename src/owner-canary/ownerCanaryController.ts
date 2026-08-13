@@ -31,6 +31,7 @@ export type OwnerCanaryEvidenceApi<Authority> = Readonly<{
   run(input: Readonly<{
     evidenceNonce: string;
     reviewedAdmissionPlanDigest: string;
+    routeSetCommitment: string;
     signal: AbortSignal;
     runStage: OwnerCanaryRunStage<Authority>;
   }>): Promise<unknown>;
@@ -117,11 +118,43 @@ export type OwnerCanaryController = Readonly<{
 export type OwnerCanaryRunInput = Readonly<{
   evidenceNonce: string;
   reviewedAdmissionPlanDigest: string;
+  routeSetCommitment: string;
 }>;
 
 const PRIVATE_DIGEST_PATTERN = /^[0-9a-f]{64}$/;
 const HEX_DIGEST_PATTERN = /^[0-9a-f]{64}$/;
 const brandedPlayerEvidence = new WeakSet<object>();
+
+function exactPrivateRunInput(value: unknown): OwnerCanaryRunInput | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return undefined;
+  const ownKeys = Reflect.ownKeys(value);
+  if (ownKeys.some((key) => typeof key !== 'string')) return undefined;
+  const keys = (ownKeys as string[]).sort();
+  if (keys.join('\0') !== [
+    'evidenceNonce',
+    'reviewedAdmissionPlanDigest',
+    'routeSetCommitment',
+  ].sort().join('\0')) return undefined;
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const evidenceNonce = descriptors.evidenceNonce?.value;
+  const reviewedAdmissionPlanDigest = descriptors.reviewedAdmissionPlanDigest?.value;
+  const routeSetCommitment = descriptors.routeSetCommitment?.value;
+  if (
+    typeof evidenceNonce !== 'string'
+    || typeof reviewedAdmissionPlanDigest !== 'string'
+    || typeof routeSetCommitment !== 'string'
+    || !PRIVATE_DIGEST_PATTERN.test(evidenceNonce)
+    || !PRIVATE_DIGEST_PATTERN.test(reviewedAdmissionPlanDigest)
+    || !PRIVATE_DIGEST_PATTERN.test(routeSetCommitment)
+  ) return undefined;
+  return Object.freeze({
+    evidenceNonce,
+    reviewedAdmissionPlanDigest,
+    routeSetCommitment,
+  });
+}
 
 function framedTextBytes(frames: readonly string[]): Uint8Array {
   const encoder = new TextEncoder();
@@ -204,19 +237,8 @@ export function createOwnerCanaryController<Authority>(
     async run(input: OwnerCanaryRunInput, externalSignal?: AbortSignal): Promise<OwnerCanarySanitizedEvidence> {
       if (authorityCloseUnconfirmed) throw failure('authority-close-unconfirmed');
       if (activeAbort) throw failure('already-running');
-      const inputKeys = input && typeof input === 'object' && !Array.isArray(input)
-        ? Object.keys(input)
-        : [];
-      if (
-        !input
-        || typeof input !== 'object'
-        || Array.isArray(input)
-        || !PRIVATE_DIGEST_PATTERN.test(input.evidenceNonce)
-        || !PRIVATE_DIGEST_PATTERN.test(input.reviewedAdmissionPlanDigest)
-        || inputKeys.length !== 2
-        || !inputKeys.includes('evidenceNonce')
-        || !inputKeys.includes('reviewedAdmissionPlanDigest')
-      ) throw failure('invalid-private-input');
+      const privateInput = exactPrivateRunInput(input);
+      if (!privateInput) throw failure('invalid-private-input');
       const abort = new AbortController();
       activeAbort = abort;
       const forwardAbort = () => abort.abort();
@@ -289,7 +311,7 @@ export function createOwnerCanaryController<Authority>(
             try {
               approvedSubject = await dependencies.verifyPrivateSubject({
                 subjectFid: privateSession.subjectFid,
-                reviewedAdmissionPlanDigest: input.reviewedAdmissionPlanDigest,
+                reviewedAdmissionPlanDigest: privateInput.reviewedAdmissionPlanDigest,
                 signal: abort.signal,
               });
             } catch {
@@ -352,8 +374,9 @@ export function createOwnerCanaryController<Authority>(
 
       try {
         const candidate = await dependencies.evidenceApi.run(Object.freeze({
-          evidenceNonce: input.evidenceNonce,
-          reviewedAdmissionPlanDigest: input.reviewedAdmissionPlanDigest,
+          evidenceNonce: privateInput.evidenceNonce,
+          reviewedAdmissionPlanDigest: privateInput.reviewedAdmissionPlanDigest,
+          routeSetCommitment: privateInput.routeSetCommitment,
           signal: abort.signal,
           runStage,
         }));
@@ -364,7 +387,7 @@ export function createOwnerCanaryController<Authority>(
         const journey = sanitizeOwnerCanaryJourneyEvidence(candidate);
         if (!journey || firstSubjectFid === undefined) throw failure('evidence-contract');
         const sameSubjectCommitment = await defaultSameSubjectDigest({
-          evidenceNonce: input.evidenceNonce,
+          evidenceNonce: privateInput.evidenceNonce,
           subjectFid: firstSubjectFid,
         });
         if (!HEX_DIGEST_PATTERN.test(sameSubjectCommitment)) {

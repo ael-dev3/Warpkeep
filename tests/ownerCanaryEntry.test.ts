@@ -189,5 +189,19 @@ describe('isolated owner canary production entry', () => {
       'utf8',
     );
     expect(ownerApp).not.toMatch(/host\.context|context\.user|\.user\.fid/);
+    const publicBrowserBoundary = [
+      ownerApp,
+      readFileSync(
+        resolve(process.cwd(), 'src/owner-canary/ownerCanaryController.ts'),
+        'utf8',
+      ),
+      readFileSync(
+        resolve(process.cwd(), 'src/owner-canary/ownerCanaryEvidence.ts'),
+        'utf8',
+      ),
+    ].join('\n');
+    expect(publicBrowserBoundary).not.toMatch(
+      /(?:serverBaselineCommitment|commandSetCommitment|pc1-[dr][0-9]{2}-|idempotencyKey)/,
+    );
   });
 });

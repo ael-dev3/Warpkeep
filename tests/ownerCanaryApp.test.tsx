@@ -30,6 +30,7 @@ import type { OwnerCanaryRuntime } from '../src/owner-canary/ownerCanaryRuntime'
 
 const PRIVATE_NONCE = 'a'.repeat(64);
 const PLAN_DIGEST = 'b'.repeat(64);
+const ROUTE_SET_COMMITMENT = 'c'.repeat(64);
 const FID = 12_345;
 
 function segment(value: unknown): string {
@@ -225,11 +226,32 @@ describe('owner canary run-level consent', () => {
     expect(getQuickAuthToken).not.toHaveBeenCalled();
   });
 
+  it('requires the exact third private commitment and states single-use urgent-recall semantics', async () => {
+    render(<OwnerCanaryApp loadRuntime={async () => failingRuntime()} />);
+    const nonce = await screen.findByLabelText('Private evidence nonce');
+    const plan = screen.getByLabelText('Reviewed admission-plan digest');
+    const routes = screen.getByLabelText('Private route-set commitment');
+    const confirmation = screen.getByRole('checkbox', {
+      name: 'I approve this run to create and mutate live production player state.',
+    });
+    const begin = screen.getByRole('button', { name: 'Begin reviewed canary' });
+    expect(screen.getByText(/page realm is single-use/i).textContent).toContain('Never retry');
+    expect(screen.getByText(/page realm is single-use/i).textContent).toContain('recalled urgently');
+
+    fireEvent.change(nonce, { target: { value: PRIVATE_NONCE } });
+    fireEvent.change(plan, { target: { value: PLAN_DIGEST } });
+    fireEvent.change(routes, { target: { value: ROUTE_SET_COMMITMENT.slice(1) } });
+    fireEvent.click(confirmation);
+    expect((begin as HTMLButtonElement).disabled).toBe(true);
+    expect(getQuickAuthToken).not.toHaveBeenCalled();
+  });
+
   it('permanently consumes the page session after a failed run attempt', async () => {
     render(<OwnerCanaryApp loadRuntime={async () => failingRuntime()} />);
 
     const nonce = await screen.findByLabelText('Private evidence nonce');
     const plan = screen.getByLabelText('Reviewed admission-plan digest');
+    const routes = screen.getByLabelText('Private route-set commitment');
     const confirmation = screen.getByRole('checkbox', {
       name: 'I approve this run to create and mutate live production player state.',
     });
@@ -237,9 +259,13 @@ describe('owner canary run-level consent', () => {
 
     fireEvent.change(nonce, { target: { value: PRIVATE_NONCE } });
     fireEvent.change(plan, { target: { value: PLAN_DIGEST } });
+    fireEvent.change(routes, { target: { value: ROUTE_SET_COMMITMENT } });
     fireEvent.click(confirmation);
     expect((begin as HTMLButtonElement).disabled).toBe(false);
     fireEvent.click(begin);
+    expect((nonce as HTMLInputElement).value).toBe('');
+    expect((plan as HTMLInputElement).value).toBe('');
+    expect((routes as HTMLInputElement).value).toBe('');
 
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain(
       'production outcome may be ambiguous',
@@ -247,6 +273,7 @@ describe('owner canary run-level consent', () => {
     expect((confirmation as HTMLInputElement).checked).toBe(false);
     fireEvent.change(nonce, { target: { value: PRIVATE_NONCE } });
     fireEvent.change(plan, { target: { value: PLAN_DIGEST } });
+    fireEvent.change(routes, { target: { value: ROUTE_SET_COMMITMENT } });
     expect((begin as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(confirmation);
     expect((begin as HTMLButtonElement).disabled).toBe(true);
@@ -259,12 +286,14 @@ describe('owner canary run-level consent', () => {
 
     const nonce = await screen.findByLabelText('Private evidence nonce');
     const plan = screen.getByLabelText('Reviewed admission-plan digest');
+    const routes = screen.getByLabelText('Private route-set commitment');
     const confirmation = screen.getByRole('checkbox', {
       name: 'I approve this run to create and mutate live production player state.',
     });
     const begin = screen.getByRole('button', { name: 'Begin reviewed canary' });
     fireEvent.change(nonce, { target: { value: PRIVATE_NONCE } });
     fireEvent.change(plan, { target: { value: PLAN_DIGEST } });
+    fireEvent.change(routes, { target: { value: ROUTE_SET_COMMITMENT } });
     fireEvent.click(confirmation);
     fireEvent.click(begin);
 
@@ -278,6 +307,7 @@ describe('owner canary run-level consent', () => {
 
     fireEvent.change(nonce, { target: { value: PRIVATE_NONCE } });
     fireEvent.change(plan, { target: { value: PLAN_DIGEST } });
+    fireEvent.change(routes, { target: { value: ROUTE_SET_COMMITMENT } });
     fireEvent.click(confirmation);
     expect((begin as HTMLButtonElement).disabled).toBe(true);
   });
@@ -289,12 +319,14 @@ describe('owner canary run-level consent', () => {
 
     const nonce = await screen.findByLabelText('Private evidence nonce');
     const plan = screen.getByLabelText('Reviewed admission-plan digest');
+    const routes = screen.getByLabelText('Private route-set commitment');
     const confirmation = screen.getByRole('checkbox', {
       name: 'I approve this run to create and mutate live production player state.',
     });
     const begin = screen.getByRole('button', { name: 'Begin reviewed canary' });
     fireEvent.change(nonce, { target: { value: PRIVATE_NONCE } });
     fireEvent.change(plan, { target: { value: PLAN_DIGEST } });
+    fireEvent.change(routes, { target: { value: ROUTE_SET_COMMITMENT } });
     fireEvent.click(confirmation);
     fireEvent.click(begin);
 
@@ -309,6 +341,7 @@ describe('owner canary run-level consent', () => {
     ));
     fireEvent.change(nonce, { target: { value: PRIVATE_NONCE } });
     fireEvent.change(plan, { target: { value: PLAN_DIGEST } });
+    fireEvent.change(routes, { target: { value: ROUTE_SET_COMMITMENT } });
     fireEvent.click(confirmation);
     expect((begin as HTMLButtonElement).disabled).toBe(true);
   });
@@ -320,6 +353,7 @@ describe('owner canary run-level consent', () => {
     render(<OwnerCanaryApp loadRuntime={async () => handoffFailingRuntime(handoffAttempted)} />);
     const nonce = await screen.findByLabelText('Private evidence nonce');
     const plan = screen.getByLabelText('Reviewed admission-plan digest');
+    const routes = screen.getByLabelText('Private route-set commitment');
     const confirmation = screen.getByRole('checkbox', {
       name: 'I approve this run to create and mutate live production player state.',
     });
@@ -327,11 +361,16 @@ describe('owner canary run-level consent', () => {
 
     fireEvent.change(nonce, { target: { value: PRIVATE_NONCE } });
     fireEvent.change(plan, { target: { value: PLAN_DIGEST } });
+    fireEvent.change(routes, { target: { value: ROUTE_SET_COMMITMENT } });
     fireEvent.click(confirmation);
     fireEvent.click(begin);
 
     for (let stageNumber = 1; stageNumber <= OWNER_CANARY_STAGES.length; stageNumber += 1) {
       await screen.findByText(`STAGE ${stageNumber} OF 10`);
+      if (stageNumber === 7) {
+        expect(screen.getByText(/urgent recall/i).textContent)
+          .toContain('every dispatched worker');
+      }
       fireEvent.click(screen.getByRole('button', {
         name: 'Authenticate and run this stage',
       }));
@@ -346,6 +385,7 @@ describe('owner canary run-level consent', () => {
 
     fireEvent.change(nonce, { target: { value: PRIVATE_NONCE } });
     fireEvent.change(plan, { target: { value: PLAN_DIGEST } });
+    fireEvent.change(routes, { target: { value: ROUTE_SET_COMMITMENT } });
     fireEvent.click(confirmation);
     expect((begin as HTMLButtonElement).disabled).toBe(true);
   });

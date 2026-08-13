@@ -5,9 +5,9 @@ import type {
 import type { OwnerCanarySanitizedEvidence } from './ownerCanaryEvidence';
 
 /**
- * Production integration seam. The adapter may keep private worker, location,
- * cell, and idempotency-key correlations inside its `run` closure. None of
- * those values may appear in the sanitized return value.
+ * Production integration seam. The adapter may keep its branded runtime-plan
+ * handle plus private worker, location, cell, and idempotency-key correlations
+ * inside one `run` closure. None may enter React or the sanitized return value.
  */
 export type OwnerCanaryRuntime<Authority = unknown> = Readonly<{
   evidenceApi: OwnerCanaryEvidenceApi<Authority>;

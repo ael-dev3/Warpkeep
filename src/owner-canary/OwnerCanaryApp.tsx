@@ -51,6 +51,7 @@ function OwnerCanaryPanel({
   const [runtime, setRuntime] = useState<OwnerCanaryRuntime | null>();
   const [evidenceNonce, setEvidenceNonce] = useState('');
   const [reviewedAdmissionPlanDigest, setReviewedAdmissionPlanDigest] = useState('');
+  const [routeSetCommitment, setRouteSetCommitment] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [controllerState, setControllerState] = useState<OwnerCanaryControllerState>(IDLE_STATE);
   const [pendingConsent, setPendingConsent] = useState<PendingConsent | null>(null);
@@ -131,6 +132,7 @@ function OwnerCanaryPanel({
     && confirmed
     && /^[0-9a-f]{64}$/.test(evidenceNonce)
     && /^[0-9a-f]{64}$/.test(reviewedAdmissionPlanDigest)
+    && /^[0-9a-f]{64}$/.test(routeSetCommitment)
     && controllerState.phase !== 'authority-close-unconfirmed'
     && handoffState !== 'failed'
     && !runAttempted
@@ -140,6 +142,15 @@ function OwnerCanaryPanel({
     if (!canStart || !runtime) return;
     setRunAttempted(true);
     setHandoffState('idle');
+    const runInput = Object.freeze({
+      evidenceNonce,
+      reviewedAdmissionPlanDigest,
+      routeSetCommitment,
+    });
+    setConfirmed(false);
+    setEvidenceNonce('');
+    setReviewedAdmissionPlanDigest('');
+    setRouteSetCommitment('');
     const controller = createOwnerCanaryController({
       evidenceApi: runtime.evidenceApi,
       requestStageConsent,
@@ -151,10 +162,6 @@ function OwnerCanaryPanel({
       onState: setControllerState,
     });
     controllerRef.current = controller;
-    const runInput = Object.freeze({ evidenceNonce, reviewedAdmissionPlanDigest });
-    setConfirmed(false);
-    setEvidenceNonce('');
-    setReviewedAdmissionPlanDigest('');
     void runOwnerCanaryPlayerEvidence(controller, runInput)
       .then(async (evidence) => {
         setHandoffState('pending');
@@ -176,6 +183,7 @@ function OwnerCanaryPanel({
     host.quickAuth.getToken,
     requestStageConsent,
     reviewedAdmissionPlanDigest,
+    routeSetCommitment,
     runtime,
   ]);
 
@@ -201,6 +209,11 @@ function OwnerCanaryPanel({
         <h1 id="owner-canary-title">Owner player canary</h1>
         <p className="owner-canary__copy">
           This isolated path changes live player state. It does not open or preview the Greater Realm.
+        </p>
+        <p className="owner-canary__copy">
+          This page realm is single-use. Never retry here after a run starts: close the Mini App and
+          require independent operator reconciliation. Any dispatched workers must be recalled
+          urgently during the reviewed recall stage.
         </p>
 
         {unavailableMessage ? (
@@ -238,6 +251,21 @@ function OwnerCanaryPanel({
                 value={reviewedAdmissionPlanDigest}
               />
             </label>
+            <label className="owner-canary__field">
+              <span>Private route-set commitment</span>
+              <input
+                autoCapitalize="none"
+                autoComplete="off"
+                disabled={busy}
+                inputMode="text"
+                maxLength={64}
+                onChange={(event) => setRouteSetCommitment(event.currentTarget.value)}
+                placeholder="64 lowercase hexadecimal characters"
+                spellCheck={false}
+                type="password"
+                value={routeSetCommitment}
+              />
+            </label>
             <label className="owner-canary__confirmation">
               <input
                 checked={confirmed}
@@ -265,7 +293,9 @@ function OwnerCanaryPanel({
             </p>
             <h2 id="owner-canary-stage-title">{pendingConsent.stage}</h2>
             <p>
-              Continue only when you are ready for a new forced Farcaster authentication prompt.
+              {pendingConsent.stage === 'recall'
+                ? 'Urgent recall: authenticate now so every dispatched worker can be recalled without delay.'
+                : 'Continue only when you are ready for a new forced Farcaster authentication prompt.'}
             </p>
             <button
               className="owner-canary__primary"

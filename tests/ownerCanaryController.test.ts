@@ -16,6 +16,7 @@ import type { OwnerCanaryJourneyEvidence } from '../src/owner-canary/ownerCanary
 const FID = 12_345;
 const EVIDENCE_NONCE = 'a'.repeat(64);
 const ADMISSION_PLAN_DIGEST = 'b'.repeat(64);
+const ROUTE_SET_COMMITMENT = 'c'.repeat(64);
 
 function state(tier: number): OwnerCanaryJourneyEvidence['baseline'] {
   return Object.freeze({
@@ -142,10 +143,20 @@ function fixture(overrides: Partial<Parameters<typeof createOwnerCanaryControlle
 
 describe('owner canary browser-memory controller', () => {
   it('requires explicit consent and fresh auth for each exact stage, then brands sanitized evidence', async () => {
-    const h = fixture();
+    let runtimeInput: Readonly<Record<string, unknown>> | undefined;
+    const evidenceApi = sequentialEvidenceApi();
+    const h = fixture({
+      evidenceApi: Object.freeze({
+        async run(input) {
+          runtimeInput = input;
+          return evidenceApi.run(input);
+        },
+      }),
+    });
     const evidence = await runOwnerCanaryPlayerEvidence(h.controller, {
       evidenceNonce: EVIDENCE_NONCE,
       reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+      routeSetCommitment: ROUTE_SET_COMMITMENT,
     });
 
     expect(h.requestStageConsent).toHaveBeenCalledTimes(10);
@@ -160,6 +171,11 @@ describe('owner canary browser-memory controller', () => {
       subjectFid: FID,
       reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
     }));
+    expect(runtimeInput).toMatchObject({
+      evidenceNonce: EVIDENCE_NONCE,
+      reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+      routeSetCommitment: ROUTE_SET_COMMITMENT,
+    });
     expect(evidence).toMatchObject({
       sameSubjectCommitment: commitment(),
       freshAuthenticationStageCount: 10,
@@ -170,6 +186,7 @@ describe('owner canary browser-memory controller', () => {
     expect(JSON.stringify(evidence)).not.toContain(String(FID));
     expect(JSON.stringify(evidence)).not.toContain(EVIDENCE_NONCE);
     expect(JSON.stringify(evidence)).not.toContain(ADMISSION_PLAN_DIGEST);
+    expect(JSON.stringify(evidence)).not.toContain(ROUTE_SET_COMMITMENT);
     expect(requireOwnerCanaryPlayerEvidence(evidence)).toBe(evidence);
     expect(() => requireOwnerCanaryPlayerEvidence({ ...evidence })).toThrow();
   });
@@ -179,6 +196,7 @@ describe('owner canary browser-memory controller', () => {
     const error = await h.controller.run({
       evidenceNonce: EVIDENCE_NONCE,
       reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+      routeSetCommitment: ROUTE_SET_COMMITMENT,
     }).catch((caught: unknown) => caught);
     expect(ownerCanaryControllerFailureCode(error)).toBe('consent-denied');
     expect(h.getQuickAuthToken).not.toHaveBeenCalled();
@@ -199,6 +217,7 @@ describe('owner canary browser-memory controller', () => {
     const error = await h.controller.run({
       evidenceNonce: EVIDENCE_NONCE,
       reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+      routeSetCommitment: ROUTE_SET_COMMITMENT,
     }).catch((caught: unknown) => caught);
     expect(ownerCanaryControllerFailureCode(error)).toBe('subject-changed');
     expect(h.openAuthority).toHaveBeenCalledOnce();
@@ -210,6 +229,7 @@ describe('owner canary browser-memory controller', () => {
     const error = await h.controller.run({
       evidenceNonce: EVIDENCE_NONCE,
       reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+      routeSetCommitment: ROUTE_SET_COMMITMENT,
     }).catch((caught: unknown) => caught);
     expect(ownerCanaryControllerFailureCode(error)).toBe('subject-not-approved');
     expect(h.openAuthority).not.toHaveBeenCalled();
@@ -222,6 +242,7 @@ describe('owner canary browser-memory controller', () => {
     const error = await h.controller.run({
       evidenceNonce: EVIDENCE_NONCE,
       reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+      routeSetCommitment: ROUTE_SET_COMMITMENT,
     }).catch((caught: unknown) => caught);
     expect(ownerCanaryControllerFailureCode(error)).toBe('subject-not-approved');
     expect(h.openAuthority).not.toHaveBeenCalled();
@@ -250,6 +271,7 @@ describe('owner canary browser-memory controller', () => {
       const first = await controller.run({
         evidenceNonce: EVIDENCE_NONCE,
         reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+        routeSetCommitment: ROUTE_SET_COMMITMENT,
       }).catch((caught: unknown) => caught);
       expect(ownerCanaryControllerFailureCode(first)).toBe('authority-close-unconfirmed');
       expect(controller.state().phase).toBe('authority-close-unconfirmed');
@@ -258,6 +280,7 @@ describe('owner canary browser-memory controller', () => {
       const retry = await controller.run({
         evidenceNonce: EVIDENCE_NONCE,
         reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+        routeSetCommitment: ROUTE_SET_COMMITMENT,
       }).catch((caught: unknown) => caught);
       expect(ownerCanaryControllerFailureCode(retry)).toBe('authority-close-unconfirmed');
       expect(h.getQuickAuthToken).toHaveBeenCalledOnce();
@@ -285,6 +308,7 @@ describe('owner canary browser-memory controller', () => {
     const error = await controller.run({
       evidenceNonce: EVIDENCE_NONCE,
       reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+      routeSetCommitment: ROUTE_SET_COMMITMENT,
     }).catch((caught: unknown) => caught);
     expect(ownerCanaryControllerFailureCode(error)).toBe('stage-failed');
     expect(closeAuthority).toHaveBeenCalledOnce();
@@ -303,6 +327,7 @@ describe('owner canary browser-memory controller', () => {
     const orderingError = await outOfOrder.controller.run({
       evidenceNonce: EVIDENCE_NONCE,
       reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+      routeSetCommitment: ROUTE_SET_COMMITMENT,
     }).catch((caught: unknown) => caught);
     expect(ownerCanaryControllerFailureCode(orderingError)).toBe('evidence-contract');
     expect(outOfOrder.getQuickAuthToken).not.toHaveBeenCalled();
@@ -311,16 +336,44 @@ describe('owner canary browser-memory controller', () => {
     const inputError = await malformed.controller.run({
       evidenceNonce: 'a'.repeat(32),
       reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+      routeSetCommitment: ROUTE_SET_COMMITMENT,
     }).catch((caught: unknown) => caught);
     expect(ownerCanaryControllerFailureCode(inputError)).toBe('invalid-private-input');
+
+    const malformedRoute = fixture();
+    const routeError = await malformedRoute.controller.run({
+      evidenceNonce: EVIDENCE_NONCE,
+      reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+      routeSetCommitment: 'c'.repeat(63),
+    }).catch((caught: unknown) => caught);
+    expect(ownerCanaryControllerFailureCode(routeError)).toBe('invalid-private-input');
+    expect(malformedRoute.getQuickAuthToken).not.toHaveBeenCalled();
+
+    let routeGetterRead = false;
+    const accessorInput = {
+      evidenceNonce: EVIDENCE_NONCE,
+      reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+      get routeSetCommitment() {
+        routeGetterRead = true;
+        return ROUTE_SET_COMMITMENT;
+      },
+    };
+    const accessor = fixture();
+    const accessorError = await accessor.controller.run(accessorInput)
+      .catch((caught: unknown) => caught);
+    expect(ownerCanaryControllerFailureCode(accessorError)).toBe('invalid-private-input');
+    expect(routeGetterRead).toBe(false);
+    expect(accessor.getQuickAuthToken).not.toHaveBeenCalled();
 
     const inherited = fixture();
     const inheritedInput = Object.create({
       evidenceNonce: EVIDENCE_NONCE,
       reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+      routeSetCommitment: ROUTE_SET_COMMITMENT,
     }) as {
       evidenceNonce: string;
       reviewedAdmissionPlanDigest: string;
+      routeSetCommitment: string;
       unexpected: string;
     };
     inheritedInput.unexpected = 'not-an-owned-private-input';
