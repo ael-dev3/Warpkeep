@@ -114,7 +114,7 @@ if len(sys.argv) != 2 or re.fullmatch(r"(?:[1-9]|[1-9][0-9]|[1-5][0-9]{2}|600)",
     [ "$#" -eq 0 ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID
     ;;
   publish)
-    # This trusted envelope cannot import checkout code. The pinned value 6 is
+    # This trusted envelope cannot import checkout code. The pinned value 5 is
     # WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM for this
     # protected release packet.
     /usr/bin/python3 -I -S -B -c '
