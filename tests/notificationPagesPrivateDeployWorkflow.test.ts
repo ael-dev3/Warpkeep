@@ -8,6 +8,10 @@ import { parse } from 'yaml';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
 const workflowPath = resolve(repositoryRoot, '.github/workflows/deploy-pages.yml');
+const operatorPath = resolve(
+  repositoryRoot,
+  'scripts/notification-pages-private-deploy-operator.mjs',
+);
 
 function workflow(): string {
   return readFileSync(workflowPath, 'utf8');
@@ -105,7 +109,7 @@ describe('notification Pages private deployment workflow', () => {
     expect(privateDeploy).toContain('clean: false');
     expect(privateDeploy.match(
       /WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="\$\{\{ needs\.private-toolchain\.outputs\.runner-identity-digest \}\}"/g,
-    )).toHaveLength(4);
+    )).toHaveLength(5);
     expect(privateDeploy).not.toMatch(/(?:npm|pnpm) (?:ci|install)/u);
   });
 
@@ -124,10 +128,11 @@ describe('notification Pages private deployment workflow', () => {
     expect(privateDeploy).toMatch(
       /scripts\/notification-pages-private-deploy-launcher\.mjs \\\n+\s+recover-skipped-invocation/u,
     );
+    expect(privateDeploy).toContain('attest-deployment-source');
     expect(source).not.toMatch(
       /node scripts\/notification-pages-private-deploy-operator\.mjs/u,
     );
-    expect(privateDeploy.match(/\/usr\/bin\/env -i/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(privateDeploy.match(/\/usr\/bin\/env -i/g)?.length).toBeGreaterThanOrEqual(5);
     for (const override of [
       'NODE_OPTIONS',
       'NODE_PATH',
@@ -158,8 +163,9 @@ describe('notification Pages private deployment workflow', () => {
     expect(privateDeploy).not.toContain('WARPKEEP_GITHUB_TOKEN');
   });
 
-  it('proves protected main and both exact workflow runs before the effect', () => {
+  it('proves protected main and both exact workflow runs in the attested process', () => {
     const privateDeploy = job(workflow(), 'private-deploy');
+    const operator = readFileSync(operatorPath, 'utf8');
     const mark = privateDeploy.indexOf(
       'scripts/notification-pages-private-deploy-launcher.mjs mark-deploy-invoked',
     );
@@ -174,31 +180,23 @@ describe('notification Pages private deployment workflow', () => {
       mark,
       privateDeploy.lastIndexOf('- name:', deploy),
     )).not.toMatch(/^      - name:/m);
-    expect(privateDeploy.match(/repos\/\$\{GITHUB_REPOSITORY\}\/branches\/main/g))
-      .toHaveLength(2);
-    expect(privateDeploy.match(/\.protected == true and \.commit\.sha == \$source/g))
-      .toHaveLength(2);
-    expect(privateDeploy).toContain(
-      'repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}',
-    );
-    expect(privateDeploy).toContain(
-      'repos/${GITHUB_REPOSITORY}/actions/runs/${WARPKEEP_SOURCE_VERIFY_RUN_ID}',
-    );
+    expect(privateDeploy).not.toMatch(/(?:gh api|jq -e)/u);
+    expect(privateDeploy.match(/8<<<"\$GH_TOKEN"/g)).toHaveLength(3);
+    expect(privateDeploy.match(/WARPKEEP_SOURCE_VERIFY_RUN_ID=/g)).toHaveLength(5);
+    expect(privateDeploy.match(/WARPKEEP_SOURCE_VERIFY_RUN_ATTEMPT=/g))
+      .toHaveLength(5);
     for (const requirement of [
-      '(.id | tostring) == $runId',
-      '(.run_attempt | tostring) == $runAttempt',
-      '.status == "in_progress"',
-      '.event == "workflow_run"',
-      '.path == ".github/workflows/deploy-pages.yml"',
-      '.repository.full_name == $repository',
-      '.head_repository.full_name == $repository',
-    ]) expect(privateDeploy).toContain(requirement);
-    for (const requirement of [
-      '.status == "completed"',
-      '.conclusion == "success"',
-      '.event == "push"',
-      '.path == ".github/workflows/verify.yml"',
-    ]) expect(privateDeploy).toContain(requirement);
+      '`/repos/${REPOSITORY}/branches/main`',
+      '`/repos/${REPOSITORY}/actions/runs/${request.runId}`',
+      '`/repos/${REPOSITORY}/actions/runs/${request.sourceRunId}`',
+      "status: 'in_progress'",
+      "conclusion: 'success'",
+      "event: 'workflow_run'",
+      "event: 'push'",
+      'workflow: WORKFLOW',
+      'workflow: SOURCE_WORKFLOW',
+    ]) expect(operator).toContain(requirement);
+    expect(operator.match(/assertDeploymentAuthority\(/g)).toHaveLength(2);
   });
 
   it('runs always-postflight after every durable invocation marker outcome', () => {

@@ -592,6 +592,8 @@ jobs:
             WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="${{ needs.private-toolchain.outputs.runner-identity-digest }}" \
             WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
             WARPKEEP_PRIVATE_NODE="$WARPKEEP_PRIVATE_NODE" \
+            WARPKEEP_SOURCE_VERIFY_RUN_ATTEMPT="${{ github.event.workflow_run.run_attempt }}" \
+            WARPKEEP_SOURCE_VERIFY_RUN_ID="${{ github.event.workflow_run.id }}" \
             "$WARPKEEP_PRIVATE_NODE" \
             scripts/notification-pages-private-deploy-launcher.mjs \
             recover-skipped-invocation \
@@ -619,103 +621,20 @@ jobs:
             WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="${{ needs.private-toolchain.outputs.runner-identity-digest }}" \
             WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
             WARPKEEP_PRIVATE_NODE="$WARPKEEP_PRIVATE_NODE" \
+            WARPKEEP_SOURCE_VERIFY_RUN_ATTEMPT="${{ github.event.workflow_run.run_attempt }}" \
+            WARPKEEP_SOURCE_VERIFY_RUN_ID="${{ github.event.workflow_run.id }}" \
             "$WARPKEEP_PRIVATE_NODE" \
             scripts/notification-pages-private-deploy-launcher.mjs predeploy \
             9>>"$GITHUB_OUTPUT"
 
-      - name: Re-attest protected main and exact workflow runs
+      - name: Re-attest protected main and exact workflow runs in process
         if: ${{ steps.private-predeploy.outputs.deploy-required == 'true' }}
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
-          WARPKEEP_SOURCE_VERIFY_RUN_ID: ${{ github.event.workflow_run.id }}
-          WARPKEEP_SOURCE_VERIFY_RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
-        run: |
-          set -euo pipefail
-          protected_main="$(
-            gh api "repos/${GITHUB_REPOSITORY}/branches/main"
-          )"
-          current_run="$(
-            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          )"
-          source_run="$(
-            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${WARPKEEP_SOURCE_VERIFY_RUN_ID}"
-          )"
-          if ! jq -e --arg source "$WARPKEEP_PAGES_SOURCE_COMMIT" '
-              .protected == true and .commit.sha == $source
-            ' <<<"$protected_main" >/dev/null \
-            || ! jq -e \
-              --arg repository "$GITHUB_REPOSITORY" \
-              --arg runId "$GITHUB_RUN_ID" \
-              --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
-              --arg source "$WARPKEEP_PAGES_SOURCE_COMMIT" '
-                (.id | tostring) == $runId and
-                (.run_attempt | tostring) == $runAttempt and
-                .status == "in_progress" and
-                .event == "workflow_run" and
-                .path == ".github/workflows/deploy-pages.yml" and
-                .head_branch == "main" and
-                .head_sha == $source and
-                .repository.full_name == $repository and
-                .head_repository.full_name == $repository
-              ' <<<"$current_run" >/dev/null \
-            || ! jq -e \
-              --arg repository "$GITHUB_REPOSITORY" \
-              --arg runId "$WARPKEEP_SOURCE_VERIFY_RUN_ID" \
-              --arg runAttempt "$WARPKEEP_SOURCE_VERIFY_RUN_ATTEMPT" \
-              --arg source "$WARPKEEP_PAGES_SOURCE_COMMIT" '
-                (.id | tostring) == $runId and
-                (.run_attempt | tostring) == $runAttempt and
-                .status == "completed" and
-                .conclusion == "success" and
-                .event == "push" and
-                .path == ".github/workflows/verify.yml" and
-                .head_branch == "main" and
-                .head_sha == $source and
-                .repository.full_name == $repository and
-                .head_repository.full_name == $repository
-              ' <<<"$source_run" >/dev/null; then
-            echo 'Private Pages deployment authority is no longer current.' >&2
-            exit 1
-          fi
-
-      - name: Recheck protected source and durably mark deployment invocation
-        if: ${{ steps.private-predeploy.outputs.deploy-required == 'true' }}
-        id: deployment-attempt
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          protected_main="$(
-            gh api "repos/${GITHUB_REPOSITORY}/branches/main"
-          )"
-          current_run="$(
-            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          )"
-          if ! jq -e --arg source "$WARPKEEP_PAGES_SOURCE_COMMIT" '
-              .protected == true and .commit.sha == $source
-            ' <<<"$protected_main" >/dev/null \
-            || ! jq -e \
-              --arg repository "$GITHUB_REPOSITORY" \
-              --arg runId "$GITHUB_RUN_ID" \
-              --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
-              --arg source "$WARPKEEP_PAGES_SOURCE_COMMIT" '
-                (.id | tostring) == $runId and
-                (.run_attempt | tostring) == $runAttempt and
-                .status == "in_progress" and
-                .event == "workflow_run" and
-                .path == ".github/workflows/deploy-pages.yml" and
-                .head_branch == "main" and
-                .head_sha == $source and
-                .repository.full_name == $repository and
-                .head_repository.full_name == $repository
-              ' <<<"$current_run" >/dev/null; then
-            echo 'Private Pages deployment boundary lost protected authority.' >&2
-            exit 1
-          fi
           /usr/bin/env -i \
             CI=true \
             GITHUB_ACTIONS=true \
@@ -730,8 +649,42 @@ jobs:
             WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="${{ needs.private-toolchain.outputs.runner-identity-digest }}" \
             WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
             WARPKEEP_PRIVATE_NODE="$WARPKEEP_PRIVATE_NODE" \
+            WARPKEEP_SOURCE_VERIFY_RUN_ATTEMPT="${{ github.event.workflow_run.run_attempt }}" \
+            WARPKEEP_SOURCE_VERIFY_RUN_ID="${{ github.event.workflow_run.id }}" \
+            "$WARPKEEP_PRIVATE_NODE" \
+            scripts/notification-pages-private-deploy-launcher.mjs \
+            attest-deployment-source \
+            8<<<"$GH_TOKEN" \
+            9>>"$GITHUB_OUTPUT"
+
+      - name: Recheck protected source and durably mark deployment invocation
+        if: ${{ steps.private-predeploy.outputs.deploy-required == 'true' }}
+        id: deployment-attempt
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          /usr/bin/env -i \
+            CI=true \
+            GITHUB_ACTIONS=true \
+            GITHUB_EVENT_NAME=workflow_run \
+            GITHUB_OUTPUT_FD=9 \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+            GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" \
+            RUNNER_ARCH="$RUNNER_ARCH" \
+            RUNNER_OS="$RUNNER_OS" \
+            WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="${{ needs.private-toolchain.outputs.runner-identity-digest }}" \
+            WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
+            WARPKEEP_PRIVATE_NODE="$WARPKEEP_PRIVATE_NODE" \
+            WARPKEEP_SOURCE_VERIFY_RUN_ATTEMPT="${{ github.event.workflow_run.run_attempt }}" \
+            WARPKEEP_SOURCE_VERIFY_RUN_ID="${{ github.event.workflow_run.id }}" \
             "$WARPKEEP_PRIVATE_NODE" \
             scripts/notification-pages-private-deploy-launcher.mjs mark-deploy-invoked \
+            8<<<"$GH_TOKEN" \
             9>>"$GITHUB_OUTPUT"
 
       - name: Deploy private-authorized release to GitHub Pages
@@ -761,6 +714,8 @@ jobs:
             WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="${{ needs.private-toolchain.outputs.runner-identity-digest }}" \
             WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
             WARPKEEP_PRIVATE_NODE="$WARPKEEP_PRIVATE_NODE" \
+            WARPKEEP_SOURCE_VERIFY_RUN_ATTEMPT="${{ github.event.workflow_run.run_attempt }}" \
+            WARPKEEP_SOURCE_VERIFY_RUN_ID="${{ github.event.workflow_run.id }}" \
             "$WARPKEEP_PRIVATE_NODE" \
             scripts/notification-pages-private-deploy-launcher.mjs postflight \
             9>>"$GITHUB_OUTPUT"

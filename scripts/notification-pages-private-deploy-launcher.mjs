@@ -30,6 +30,8 @@ const BASE_ENVIRONMENT_KEYS = Object.freeze([
 const OPERATOR_ENVIRONMENT_KEYS = Object.freeze([
   ...BASE_ENVIRONMENT_KEYS,
   'WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST',
+  'WARPKEEP_SOURCE_VERIFY_RUN_ATTEMPT',
+  'WARPKEEP_SOURCE_VERIFY_RUN_ID',
 ].sort());
 const DANGEROUS_KEYS = Object.freeze([
   'BASH_ENV',
@@ -93,8 +95,16 @@ function exactEnvironment(command, environment) {
     || !/^[1-9][0-9]{0,2}$/u.test(environment.GITHUB_OUTPUT_FD ?? '')
     || typeof environment.WARPKEEP_PRIVATE_NODE !== 'string'
     || (command !== 'attest-toolchain'
-      && !/^[0-9a-f]{64}$/u.test(
-        environment.WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST ?? '',
+      && (
+        !/^[0-9a-f]{64}$/u.test(
+          environment.WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST ?? '',
+        )
+        || !/^[1-9][0-9]{0,19}$/u.test(
+          environment.WARPKEEP_SOURCE_VERIFY_RUN_ID ?? '',
+        )
+        || !/^[1-9][0-9]{0,3}$/u.test(
+          environment.WARPKEEP_SOURCE_VERIFY_RUN_ATTEMPT ?? '',
+        )
       ))
   ) fail('NOTIFICATION_PAGES_DEPLOY_LAUNCHER_ENVIRONMENT_INVALID');
   let executable;
@@ -130,6 +140,7 @@ export async function runNotificationPagesPrivateDeployLauncher(
     || ![
       'attest-toolchain',
       'recover-skipped-invocation',
+      'attest-deployment-source',
       'predeploy',
       'mark-deploy-invoked',
       'postflight',

@@ -52,6 +52,10 @@ function environment(
     ...(includeRunner
       ? { WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST: RUNNER }
       : {}),
+    ...(includeRunner ? {
+      WARPKEEP_SOURCE_VERIFY_RUN_ATTEMPT: '2',
+      WARPKEEP_SOURCE_VERIFY_RUN_ID: '51',
+    } : {}),
   };
 }
 

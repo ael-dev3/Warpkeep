@@ -55,6 +55,7 @@ export const NOTIFICATION_PAGES_ACTIVE_EVIDENCE_MAXIMUM_AGE_MILLISECONDS =
 
 const REPOSITORY = 'ael-dev3/Warpkeep';
 const WORKFLOW = '.github/workflows/deploy-pages.yml';
+const SOURCE_WORKFLOW = '.github/workflows/verify.yml';
 const REPOSITORY_ROOT = realpathSync(resolve(import.meta.dirname, '..'));
 const SHA256 = /^[0-9a-f]{64}$/u;
 const COMMIT = /^[0-9a-f]{40}$/u;
@@ -1010,6 +1011,100 @@ async function adjudicateSkippedGitHubDeployment(
   });
 }
 
+async function attestCurrentGitHubDeploymentAuthority(
+  request,
+  { tokenDescriptor = 8, fetchImpl = fetch } = {},
+) {
+  if (
+    !isRecord(request)
+    || !RUN_ID.test(request.runId ?? '')
+    || !Number.isSafeInteger(request.runAttempt)
+    || request.runAttempt < 1
+    || request.runAttempt > 1_000
+    || !RUN_ID.test(request.sourceRunId ?? '')
+    || !Number.isSafeInteger(request.sourceRunAttempt)
+    || request.sourceRunAttempt < 1
+    || request.sourceRunAttempt > 1_000
+    || !COMMIT.test(request.candidatePagesSourceCommit ?? '')
+  ) fail('NOTIFICATION_PAGES_DEPLOY_GITHUB_AUTHORITY_INVALID');
+  const token = readPrivateGitHubToken(tokenDescriptor);
+  let branch;
+  let currentRun;
+  let sourceRun;
+  try {
+    [branch, currentRun, sourceRun] = await Promise.all([
+      fetchExactGitHubJson(
+        `/repos/${REPOSITORY}/branches/main`,
+        token,
+        fetchImpl,
+      ),
+      fetchExactGitHubJson(
+        `/repos/${REPOSITORY}/actions/runs/${request.runId}`
+          + `/attempts/${request.runAttempt}`,
+        token,
+        fetchImpl,
+      ),
+      fetchExactGitHubJson(
+        `/repos/${REPOSITORY}/actions/runs/${request.sourceRunId}`
+          + `/attempts/${request.sourceRunAttempt}`,
+        token,
+        fetchImpl,
+      ),
+    ]);
+  } catch {
+    fail('NOTIFICATION_PAGES_DEPLOY_GITHUB_AUTHORITY_INVALID');
+  }
+  const exactRun = (run, {
+    id,
+    attempt,
+    status,
+    conclusion,
+    event,
+    workflow,
+  }) => (
+    isRecord(run)
+    && String(run.id) === id
+    && run.run_attempt === attempt
+    && run.status === status
+    && run.conclusion === conclusion
+    && run.event === event
+    && run.path === workflow
+    && run.head_branch === 'main'
+    && run.head_sha === request.candidatePagesSourceCommit
+    && run.repository?.full_name === REPOSITORY
+    && run.head_repository?.full_name === REPOSITORY
+  );
+  if (
+    !isRecord(branch)
+    || branch.name !== 'main'
+    || branch.protected !== true
+    || branch.commit?.sha !== request.candidatePagesSourceCommit
+    || !exactRun(currentRun, {
+      id: request.runId,
+      attempt: request.runAttempt,
+      status: 'in_progress',
+      conclusion: null,
+      event: 'workflow_run',
+      workflow: WORKFLOW,
+    })
+    || !exactRun(sourceRun, {
+      id: request.sourceRunId,
+      attempt: request.sourceRunAttempt,
+      status: 'completed',
+      conclusion: 'success',
+      event: 'push',
+      workflow: SOURCE_WORKFLOW,
+    })
+  ) fail('NOTIFICATION_PAGES_DEPLOY_GITHUB_AUTHORITY_INVALID');
+  return Object.freeze({
+    candidatePagesSourceCommit: request.candidatePagesSourceCommit,
+    runAttempt: request.runAttempt,
+    runId: request.runId,
+    sourceRunAttempt: request.sourceRunAttempt,
+    sourceRunId: request.sourceRunId,
+  });
+}
+
 function defaultDependencies() {
   for (const name of [
     'reconcileNotificationPagesLiveCandidate',
@@ -1033,6 +1128,8 @@ function defaultDependencies() {
       repositoryRoot: REPOSITORY_ROOT,
     }),
     reconcile: liveReceipt.reconcileNotificationPagesLiveCandidate,
+    assertDeploymentAuthority: request =>
+      attestCurrentGitHubDeploymentAuthority(request),
     recoverSkippedInvocation: options =>
       recoverNotificationPagesPrivateDeploySkippedInvocation({
         ...options,
@@ -1102,12 +1199,15 @@ export async function executeNotificationPagesPrivateDeployPhase({
   contract,
   runId,
   runAttempt,
+  sourceRunId,
+  sourceRunAttempt,
   reportedHome,
 } = {}, injectedDependencies) {
   if (
     ![
       'classify',
       'recover-skipped-invocation',
+      'attest-deployment-source',
       'predeploy',
       'mark-deploy-invoked',
       'postflight',
@@ -1124,9 +1224,25 @@ export async function executeNotificationPagesPrivateDeployPhase({
     || !Number.isSafeInteger(runAttempt)
     || runAttempt < 1
     || runAttempt > 1_000
+    || typeof sourceRunId !== 'string'
+    || !RUN_ID.test(sourceRunId)
+    || !Number.isSafeInteger(sourceRunAttempt)
+    || sourceRunAttempt < 1
+    || sourceRunAttempt > 1_000
   ) fail('NOTIFICATION_PAGES_DEPLOY_INPUT_INVALID');
   const dependencies = injectedDependencies ?? defaultDependencies();
   dependencies.assertSource(contract.candidatePagesSourceCommit);
+  const deploymentAuthorityRequest = Object.freeze({
+    candidatePagesSourceCommit: contract.candidatePagesSourceCommit,
+    runId,
+    runAttempt,
+    sourceRunId,
+    sourceRunAttempt,
+  });
+  if (command === 'attest-deployment-source') {
+    await dependencies.assertDeploymentAuthority(deploymentAuthorityRequest);
+    return Object.freeze({ deploymentSourceAttested: true });
+  }
   if (command === 'recover-skipped-invocation') {
     if (typeof dependencies.recoverSkippedInvocation !== 'function') {
       fail('NOTIFICATION_PAGES_DEPLOY_RECOVERY_API_UNAVAILABLE');
@@ -1220,6 +1336,7 @@ export async function executeNotificationPagesPrivateDeployPhase({
           ) fail('NOTIFICATION_PAGES_DEPLOY_CANDIDATE_AUTHORITY_MISMATCH');
         }
         dependencies.assertSource(contract.candidatePagesSourceCommit);
+        await dependencies.assertDeploymentAuthority(deploymentAuthorityRequest);
         journal.deployInvoked(state.candidateAuthorityDigest);
         return Object.freeze({ deploymentAttempted: true });
       }
@@ -1270,12 +1387,16 @@ function exactWorkflowEnvironment(command, environment) {
   if (
     privateCommand
     && (!RUN_ID.test(environment.GITHUB_RUN_ID ?? '')
-      || !RUN_ID.test(environment.GITHUB_RUN_ATTEMPT ?? ''))
+      || !RUN_ID.test(environment.GITHUB_RUN_ATTEMPT ?? '')
+      || !RUN_ID.test(environment.WARPKEEP_SOURCE_VERIFY_RUN_ID ?? '')
+      || !RUN_ID.test(environment.WARPKEEP_SOURCE_VERIFY_RUN_ATTEMPT ?? ''))
   ) fail('NOTIFICATION_PAGES_DEPLOY_WORKFLOW_ENVIRONMENT_INVALID');
   return Object.freeze({
     candidatePagesSourceCommit: environment.WARPKEEP_PAGES_SOURCE_COMMIT,
     runId: environment.GITHUB_RUN_ID,
     runAttempt: Number(environment.GITHUB_RUN_ATTEMPT),
+    sourceRunId: environment.WARPKEEP_SOURCE_VERIFY_RUN_ID,
+    sourceRunAttempt: Number(environment.WARPKEEP_SOURCE_VERIFY_RUN_ATTEMPT),
   });
 }
 
@@ -1299,6 +1420,8 @@ function writeWorkflowOutputs(command, result, environment) {
     lines = `deployment-lane=${result.deploymentLane}\n`;
   } else if (command === 'recover-skipped-invocation') {
     lines = `recovered=${result.recovered === true ? 'true' : 'false'}\n`;
+  } else if (command === 'attest-deployment-source') {
+    lines = `attested=${result.deploymentSourceAttested === true ? 'true' : 'false'}\n`;
   } else if (command === 'predeploy') {
     lines = `deploy-required=${result.deployRequired === true ? 'true' : 'false'}\n`;
   } else if (command === 'mark-deploy-invoked') {
@@ -1327,6 +1450,7 @@ export async function runNotificationPagesPrivateDeployOperatorCli(
   if (![
     'classify',
     'recover-skipped-invocation',
+    'attest-deployment-source',
     'predeploy',
     'mark-deploy-invoked',
     'postflight',
@@ -1342,11 +1466,19 @@ export async function runNotificationPagesPrivateDeployOperatorCli(
     contract,
     runId: input.runId,
     runAttempt: input.runAttempt,
+    sourceRunId: input.sourceRunId,
+    sourceRunAttempt: input.sourceRunAttempt,
   });
   writeWorkflowOutputs(command, result, environment);
 }
 
 export const notificationPagesPrivateDeployOperatorTestSeams = Object.freeze({
+  attestCurrentGitHubDeploymentAuthority(request, options) {
+    if (process.env.NODE_ENV !== 'test') {
+      fail('NOTIFICATION_PAGES_DEPLOY_TEST_SEAM_FORBIDDEN');
+    }
+    return attestCurrentGitHubDeploymentAuthority(request, options);
+  },
   adjudicateSkippedGitHubDeployment(request, options) {
     if (process.env.NODE_ENV !== 'test') {
       fail('NOTIFICATION_PAGES_DEPLOY_TEST_SEAM_FORBIDDEN');

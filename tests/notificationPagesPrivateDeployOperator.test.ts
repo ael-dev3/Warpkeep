@@ -136,6 +136,7 @@ function dependencies(options: {
       keyPath: '/fixed/private/key.txt',
     })),
     inspectHandoff: vi.fn(async () => ({ pagesSourceCommit: CANDIDATE })),
+    assertDeploymentAuthority: vi.fn(async () => ({ attested: true })),
     reconcile,
     recoverSkippedInvocation: vi.fn(async () => ({ recovered: true })),
     withJournal: withNotificationPagesPrivateDeployJournal,
@@ -155,6 +156,7 @@ function execute(input: {
   mode: 'gen0' | 'durable';
   command:
     | 'recover-skipped-invocation'
+    | 'attest-deployment-source'
     | 'predeploy'
     | 'mark-deploy-invoked'
     | 'postflight';
@@ -168,6 +170,8 @@ function execute(input: {
     contract: contract(input.mode),
     runId: input.runId ?? '41',
     runAttempt: input.runAttempt ?? 1,
+    sourceRunId: '51',
+    sourceRunAttempt: 2,
     reportedHome: input.home,
   }, input.dependencies);
 }
@@ -237,6 +241,40 @@ function githubAdjudicationFetch(overrides: {
   }) as unknown as typeof fetch;
 }
 
+function githubAuthorityFetch(overrides: {
+  branch?: Record<string, unknown>;
+  currentRun?: Record<string, unknown>;
+  sourceRun?: Record<string, unknown>;
+} = {}) {
+  return vi.fn(async (input: string | URL | Request) => {
+    const url = String(input);
+    if (url.endsWith('/branches/main')) {
+      return githubResponse(url, {
+        name: 'main',
+        protected: true,
+        commit: { sha: CANDIDATE },
+        ...overrides.branch,
+      });
+    }
+    const source = url.includes('/actions/runs/51/');
+    return githubResponse(url, {
+      id: source ? 51 : 41,
+      run_attempt: source ? 2 : 1,
+      status: source ? 'completed' : 'in_progress',
+      conclusion: source ? 'success' : null,
+      event: source ? 'push' : 'workflow_run',
+      path: source
+        ? '.github/workflows/verify.yml'
+        : '.github/workflows/deploy-pages.yml',
+      head_branch: 'main',
+      head_sha: CANDIDATE,
+      repository: { full_name: 'ael-dev3/Warpkeep' },
+      head_repository: { full_name: 'ael-dev3/Warpkeep' },
+      ...(source ? overrides.sourceRun : overrides.currentRun),
+    });
+  }) as unknown as typeof fetch;
+}
+
 async function adjudicateWithToken(fetchImpl: typeof fetch) {
   const directory = home();
   const tokenPath = join(directory, 'github-token');
@@ -248,6 +286,25 @@ async function adjudicateWithToken(fetchImpl: typeof fetch) {
         candidatePagesSourceCommit: CANDIDATE,
         runAttempt: 1,
         runId: '41',
+      }, { fetchImpl, tokenDescriptor });
+  } finally {
+    closeSync(tokenDescriptor);
+  }
+}
+
+async function attestWithToken(fetchImpl: typeof fetch) {
+  const directory = home();
+  const tokenPath = join(directory, 'github-token');
+  writeFileSync(tokenPath, `${'g'.repeat(40)}\n`, { mode: 0o600 });
+  const tokenDescriptor = openSync(tokenPath, 'r');
+  try {
+    return await notificationPagesPrivateDeployOperatorTestSeams
+      .attestCurrentGitHubDeploymentAuthority({
+        candidatePagesSourceCommit: CANDIDATE,
+        runAttempt: 1,
+        runId: '41',
+        sourceRunAttempt: 2,
+        sourceRunId: '51',
       }, { fetchImpl, tokenDescriptor });
   } finally {
     closeSync(tokenDescriptor);
@@ -305,6 +362,7 @@ describe('notification Pages private deployment operator', () => {
       dependencies: mocked,
     })).resolves.toEqual({ deploymentAttempted: true });
     expect(mocked.inspectHandoff).toHaveBeenCalledTimes(1);
+    expect(mocked.assertDeploymentAuthority).toHaveBeenCalledTimes(1);
     expect(mocked.assertSource).toHaveBeenCalledTimes(3);
     await expect(execute({
       mode: 'gen0', command: 'postflight', home: reportedHome, dependencies: mocked,
@@ -326,6 +384,7 @@ describe('notification Pages private deployment operator', () => {
       dependencies: mocked,
     });
     expect(mocked.inspectCandidate).toHaveBeenCalledTimes(2);
+    expect(mocked.assertDeploymentAuthority).toHaveBeenCalledTimes(1);
     await execute({
       mode: 'durable', command: 'postflight', home: reportedHome,
       dependencies: mocked,
@@ -381,6 +440,24 @@ describe('notification Pages private deployment operator', () => {
     expect(mocked.reconcile).not.toHaveBeenCalled();
   });
 
+  it('performs the first source/run attestation without opening the journal', async () => {
+    const mocked = dependencies({ reconciliations: [] });
+    await expect(execute({
+      mode: 'durable',
+      command: 'attest-deployment-source',
+      home: home(),
+      dependencies: mocked,
+    })).resolves.toEqual({ deploymentSourceAttested: true });
+    expect(mocked.assertDeploymentAuthority).toHaveBeenCalledWith({
+      candidatePagesSourceCommit: CANDIDATE,
+      runAttempt: 1,
+      runId: '41',
+      sourceRunAttempt: 2,
+      sourceRunId: '51',
+    });
+    expect(mocked.reconcile).not.toHaveBeenCalled();
+  });
+
   it('derives abandonment proof only from the exact completed skipped action', async () => {
     await expect(adjudicateWithToken(githubAdjudicationFetch()))
       .resolves.toMatchObject({
@@ -389,6 +466,33 @@ describe('notification Pages private deployment operator', () => {
         markerStepConclusion: 'success',
         runAttempt: 1,
         runId: '41',
+      });
+  });
+
+  it('attests protected main and both exact attempt-specific workflow runs', async () => {
+    await expect(attestWithToken(githubAuthorityFetch())).resolves.toEqual({
+      candidatePagesSourceCommit: CANDIDATE,
+      runAttempt: 1,
+      runId: '41',
+      sourceRunAttempt: 2,
+      sourceRunId: '51',
+    });
+  });
+
+  it.each([
+    { name: 'unprotected main', branch: { protected: false } },
+    { name: 'stale main', branch: { commit: { sha: '9'.repeat(40) } } },
+    { name: 'wrong deploy attempt', currentRun: { run_attempt: 2 } },
+    { name: 'deploy run already completed', currentRun: { status: 'completed' } },
+    { name: 'Verify run not successful', sourceRun: { conclusion: 'failure' } },
+    { name: 'ref-suffixed live API path', currentRun: {
+      path: '.github/workflows/deploy-pages.yml@main',
+    } },
+  ])('rejects forged deployment authority: $name', async mutation => {
+    await expect(attestWithToken(githubAuthorityFetch(mutation)))
+      .rejects.toMatchObject({
+        code: 'NOTIFICATION_PAGES_DEPLOY_GITHUB_AUTHORITY_INVALID',
+        deploymentMayHaveChanged: false,
       });
   });
 
