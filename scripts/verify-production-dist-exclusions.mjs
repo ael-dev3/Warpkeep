@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { relative, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const root = resolve(import.meta.dirname, '..');
@@ -10,6 +10,7 @@ export const allowedProductionHiddenPaths = Object.freeze([
 ]);
 export const allowedProductionHtmlPaths = Object.freeze([
   'index.html',
+  'owner-canary/index.html',
   'privacy/index.html',
   'social-contract/index.html',
   'terms/index.html',
@@ -114,13 +115,20 @@ const forbiddenContent = Object.freeze([
 ]);
 const applicationProductionCsp =
   "default-src 'none'; base-uri 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' blob: https://auth.warpkeep.com https://auth.farcaster.xyz https://relay.farcaster.xyz https://mainnet.optimism.io https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com https://imagedelivery.net https://wrpcd.net https://res.cloudinary.com https://i.imgur.com https://lh3.googleusercontent.com https://i.seadn.io; worker-src 'self' blob:; manifest-src 'none'";
+const ownerCanaryProductionCsp =
+  "default-src 'none'; base-uri 'none'; object-src 'none'; frame-src 'none'; form-action 'none'; script-src 'self' 'wasm-unsafe-eval' 'unsafe-eval'; script-src-attr 'none'; style-src 'self' 'unsafe-inline'; connect-src 'self' blob: https://auth.warpkeep.com https://auth.farcaster.xyz https://relay.farcaster.xyz https://maincloud.spacetimedb.com wss://maincloud.spacetimedb.com; worker-src 'self' blob:; manifest-src 'none'";
 const legalProductionCsp =
   "default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'none'";
 export const expectedProductionCspByPath = Object.freeze({
   'index.html': applicationProductionCsp,
+  'owner-canary/index.html': ownerCanaryProductionCsp,
   'privacy/index.html': legalProductionCsp,
   'social-contract/index.html': legalProductionCsp,
   'terms/index.html': legalProductionCsp,
+});
+const expectedProductionCspMarkerByPath = Object.freeze({
+  'index.html': 'data-warpkeep-production-csp',
+  'owner-canary/index.html': 'data-warpkeep-owner-canary-production-csp',
 });
 
 function parseMetaAttributes(tag) {
@@ -150,8 +158,13 @@ function verifyExactProductionCsp(relativePath, document) {
   if (attributes.get('content') !== expectedProductionCspByPath[relativePath]) {
     throw new Error(`Production document ${relativePath} CSP changed without review.`);
   }
-  const hasProductionMarker = attributes.has('data-warpkeep-production-csp');
-  if (hasProductionMarker !== (relativePath === 'index.html')) {
+  const markerNames = Object.values(expectedProductionCspMarkerByPath);
+  const actualMarkers = markerNames.filter((marker) => attributes.has(marker));
+  const expectedMarker = expectedProductionCspMarkerByPath[relativePath];
+  if (
+    actualMarkers.length !== (expectedMarker === undefined ? 0 : 1)
+    || (expectedMarker !== undefined && actualMarkers[0] !== expectedMarker)
+  ) {
     throw new Error(`Production document ${relativePath} CSP marker was invalid.`);
   }
 }
@@ -168,6 +181,50 @@ function filesUnder(directory, outputRoot) {
     }
     return entry.isDirectory() ? filesUnder(path, outputRoot) : [path];
   });
+}
+
+function ownerCanaryJavaScriptGraph(outputRoot, document) {
+  const scripts = [...document.matchAll(
+    /<script\b[^>]*\btype=(?:"module"|'module')[^>]*\bsrc=(?:"([^"]+)"|'([^']+)')[^>]*><\/script>/giu,
+  )].map(match => match[1] ?? match[2]);
+  if (scripts.length !== 1 || typeof scripts[0] !== 'string') {
+    throw new Error('Owner canary production document must load one exact module entry.');
+  }
+  const assetsOffset = scripts[0].indexOf('assets/');
+  if (assetsOffset < 0) {
+    throw new Error('Owner canary production module entry must be a compiled asset.');
+  }
+  const entryRelative = scripts[0].slice(assetsOffset);
+  if (!/^assets\/ownerCanary-[A-Za-z0-9_-]+\.js$/u.test(entryRelative)) {
+    throw new Error('Owner canary production module entry name changed without review.');
+  }
+
+  const pending = [resolve(outputRoot, entryRelative)];
+  const visited = new Set();
+  while (pending.length > 0) {
+    const path = pending.pop();
+    if (visited.has(path)) continue;
+    const pathRelative = relative(outputRoot, path).replaceAll('\\', '/');
+    if (
+      pathRelative.startsWith('../')
+      || !pathRelative.endsWith('.js')
+      || !statSync(path).isFile()
+    ) {
+      throw new Error('Owner canary production module graph escaped the compiled asset boundary.');
+    }
+    visited.add(path);
+    const source = readFileSync(path, 'utf8');
+    for (const match of source.matchAll(
+      /(?:\bfrom\s*|\bimport\s*(?:\(\s*)?)["']([^"']+\.js)["']/gu,
+    )) {
+      const specifier = match[1];
+      if (!specifier.startsWith('./') && !specifier.startsWith('../')) {
+        throw new Error('Owner canary production module graph contains an external JavaScript import.');
+      }
+      pending.push(resolve(dirname(path), specifier));
+    }
+  }
+  return [...visited];
 }
 
 export function verifyProductionDistExclusions(outputDirectory = dist) {
@@ -207,26 +264,56 @@ export function verifyProductionDistExclusions(outputDirectory = dist) {
     );
   }
   const productionIndex = readFileSync(resolve(outputRoot, 'index.html'), 'utf8');
-  const productionScriptSource = productionIndex.match(/(?:^|[;\s])script-src\s+([^;]+)/)?.[1];
-  const productionScriptSourceTokens = productionScriptSource?.trim().split(/\s+/);
   const requiredProductionScriptSourceTokens = Object.freeze([
     "'self'",
     "'wasm-unsafe-eval'",
     "'unsafe-eval'"
   ]);
+  const executableDocuments = [
+    productionIndex,
+    readFileSync(resolve(outputRoot, 'owner-canary/index.html'), 'utf8'),
+  ];
+  for (const document of executableDocuments) {
+    const scriptSource = document.match(/(?:^|[;\s])script-src\s+([^;]+)/)?.[1];
+    const scriptSourceTokens = scriptSource?.trim().split(/\s+/);
+    if (
+      scriptSourceTokens?.length !== requiredProductionScriptSourceTokens.length
+      || !requiredProductionScriptSourceTokens.every(
+        (token, index) => scriptSourceTokens?.[index] === token
+      )
+    ) {
+      throw new Error('Production document CSP must keep the SDK eval exception narrow.');
+    }
+    if (/(?:^|[;\s])https:(?:[;\s]|$)|(?:^|[;\s])wss?:(?:[;\s]|$)/.test(document)) {
+      throw new Error('Production document CSP permits an unrestricted network scheme.');
+    }
+    if (/localhost|127\.0\.0\.1|\[::1\]/.test(document)) {
+      throw new Error('Production document CSP contains a loopback network exception.');
+    }
+  }
+  const ownerCanaryIndex = executableDocuments[1];
   if (
-    productionScriptSourceTokens?.length !== requiredProductionScriptSourceTokens.length
-    || !requiredProductionScriptSourceTokens.every(
-      (token, index) => productionScriptSourceTokens?.[index] === token
-    )
+    !ownerCanaryIndex.includes('<link rel="canonical" href="https://warpkeep.com/owner-canary/"')
+    || !ownerCanaryIndex.includes('<meta name="referrer" content="no-referrer"')
+    || !ownerCanaryIndex.includes('<meta name="robots" content="noindex, nofollow, noarchive"')
+    || /(?:fc:miniapp|fc:frame|property="og:|rel="manifest")/i.test(ownerCanaryIndex)
   ) {
-    throw new Error('Production document CSP must keep the SDK eval exception narrow.');
+    throw new Error('Owner canary production document discovery boundary changed without review.');
   }
-  if (/(?:^|[;\s])https:(?:[;\s]|$)|(?:^|[;\s])wss?:(?:[;\s]|$)/.test(productionIndex)) {
-    throw new Error('Production document CSP permits an unrestricted network scheme.');
-  }
-  if (/localhost|127\.0\.0\.1|\[::1\]/.test(productionIndex)) {
-    throw new Error('Production document CSP contains a loopback network exception.');
+  const ownerCanaryGraph = ownerCanaryJavaScriptGraph(outputRoot, ownerCanaryIndex);
+  const forbiddenOwnerCanaryGraphPath = ownerCanaryGraph.find((path) => (
+    /(?:^|\/)(?:application|RealmMapScreen|InnerKeepScreen|WarpkeepTitleScreen3D|three\.module)-/u
+      .test(relative(outputRoot, path).replaceAll('\\', '/'))
+  ));
+  const forbiddenOwnerCanaryGraphContent = [
+    'WarpkeepSpacetimeProvider',
+    'greaterRealmProviderBridge',
+    'GreaterRealmWorldScene',
+    'GREATER_REALM_CLIENT_PRESENTATION_ALLOWED',
+    'useWarpkeepBackend must be used within WarpkeepSpacetimeProvider',
+  ].find(marker => ownerCanaryGraph.some(path => readFileSync(path, 'utf8').includes(marker)));
+  if (forbiddenOwnerCanaryGraphPath || forbiddenOwnerCanaryGraphContent) {
+    throw new Error('Owner canary production module graph imported normal application or Realm presentation code.');
   }
 
   for (const path of outputFiles) {

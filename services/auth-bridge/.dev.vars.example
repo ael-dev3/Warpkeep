@@ -19,6 +19,9 @@ SIGNING_KEY_JWK={"kty":"EC","crv":"P-256","x":"...","y":"...","d":"...","kid":"w
 ADMIN_TOKEN_SECRET=replace-me
 # Use a separate high-entropy secret; never reuse the admin or signing key.
 SESSION_COOKIE_KEY=replace-me-separately
+# Optional owner-only production player canary gate. Never put a real FID in
+# this checked-in example or in wrangler.toml; production uses a managed secret.
+# PLAYER_CANARY_OWNER_FID=<canonical-decimal-fid>
 # Independent fail-closed QA observer gate. Enabling additionally requires one
 # complete dedicated SpacetimeDB URI/database/audience tuple and one exact public
 # P-256 JWK plus canonical RFC 3339 registration and expiry times. The dedicated

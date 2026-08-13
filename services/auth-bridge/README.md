@@ -36,6 +36,7 @@ future rollout step requires exact-head verification and recorded authority.
 | `POST` | `/v2/farcaster/challenge` | Creates a five-minute, S256-bound SIWF challenge. |
 | `POST` | `/v2/farcaster/exchange` | Verifies SIWF and creates a rotating server-side session family. |
 | `POST` | `/v2/farcaster/quick-auth/exchange` | Verifies an exact-domain Mini App bearer and returns tokenless-pending or short-lived authorized access without a cookie. |
+| `POST` | `/v2/farcaster/player-canary/exchange` | Owner-only, forced-fresh Mini App exchange for the isolated production player canary; returns no identity or cookie. |
 | `POST` | `/v2/session/refresh` | Rotates the session reference and returns a fresh access token only for an authorized family. |
 | `POST` | `/v2/session/logout` | Revokes the server-side family and expires the cookie; fails closed if durable revocation cannot be confirmed. |
 | `POST` | `/v1/qa/challenge` | Server-only, zero-body 60-second challenge for the one registered read-only QA device. Disabled by default. |
@@ -232,6 +233,37 @@ pending admission. A definitively invalid bearer returns generic
 `503 verification_unavailable`. Static logs contain no bearer, claims, FID,
 upstream response, or failure detail. `PUBLIC_AUTH_ENABLED=false` pauses this
 path before verification.
+
+### Owner player-canary exchange
+
+`POST /v2/farcaster/player-canary/exchange` is a narrower sibling of the normal
+Quick Auth route. It accepts the same exact empty body, bearer bound, origin,
+verifier, exchange rate bucket, admission resolver, positive auth epoch, and
+600-second player token. In addition, it requires the verified Quick Auth
+`iat` to be no more than 120 seconds old at verification, immediately before
+signing, and after signing completes. The verified subject is compared in
+constant time with the optional managed secret `PLAYER_CANARY_OWNER_FID`.
+
+The response is exactly `{ version: 1, status: "authorized", accessToken,
+tokenType: "spacetime-access", accessExpiresAt }`: it contains no standalone
+identity/FID field, session family, or cookie. The signed bearer necessarily
+contains its private subject claim and must remain in browser memory. A
+different subject or a missing/disabled admission receives only generic
+denial. Logs use the closed
+`player_canary_exchange_succeeded` / `player_canary_exchange_rejected` labels;
+the managed FID is absent from configuration and release attestations.
+
+This source is intentionally **not deploy-ready on its own**. The protected
+Cloudflare deploy contract currently attests exactly six preserved
+`secret_text` bindings (`ADMIN_TOKEN_SECRET`, both Farcaster RPC URLs,
+`NOTIFICATION_OPERATOR_SECRET`, `SESSION_COOKIE_KEY`, and `SIGNING_KEY_JWK`).
+`keep_bindings` preserves an existing secret but cannot review or create the
+seventh binding. Production remains blocked until the protected deploy lane
+has a reviewed six-to-seven transition that stages and then attests exact
+`PLAYER_CANARY_OWNER_FID` without exposing its value. Never place that FID in
+`wrangler.toml`, a repository variable, source, logs, receipts, shell history,
+or command arguments. Owner approval is required both to stage/change/remove
+the managed secret and to deploy or invoke this production-only path.
 
 ## Verification and replay boundary
 

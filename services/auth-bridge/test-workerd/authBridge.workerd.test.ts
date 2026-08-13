@@ -6,6 +6,7 @@ import { createSiweMessage } from 'viem/siwe'
 import { describe, expect, it, vi } from 'vitest'
 import { AdmissionNotification } from '../src/admissionNotifications'
 import {
+  PLAYER_CANARY_QUICK_AUTH_EXCHANGE_PATH,
   RELEASE_ATTESTATION_PATH,
   createAuthBridge,
 } from '../src/app'
@@ -34,6 +35,7 @@ const QUICK_AUTH_ORIGIN = 'https://warpkeep.com'
 const QUICK_AUTH_DOMAIN = 'warpkeep.com'
 const QUICK_AUTH_ISSUER = 'https://auth.farcaster.xyz'
 const QUICK_AUTH_PATH = '/v2/farcaster/quick-auth/exchange'
+const PLAYER_CANARY_PATH = PLAYER_CANARY_QUICK_AUTH_EXCHANGE_PATH
 const ACCESS_STATUS_PATH = '/v2/access/status'
 const ACCESS_REQUEST_PATH = '/v2/access/request'
 const syntheticQuickAuthSegment = (value: object) => btoa(JSON.stringify(value))
@@ -145,14 +147,15 @@ function quickAuthPost(
   token: string | null = QUICK_AUTH_TOKEN,
   body: unknown = {},
   headers: HeadersInit = {},
+  path = QUICK_AUTH_PATH,
 ): Request {
   const requestHeaders = new Headers(headers)
   requestHeaders.set('content-type', 'application/json')
-  requestHeaders.set('origin', QUICK_AUTH_ORIGIN)
+  if (!requestHeaders.has('origin')) requestHeaders.set('origin', QUICK_AUTH_ORIGIN)
   if (token !== null && !requestHeaders.has('authorization')) {
     requestHeaders.set('authorization', `Bearer ${token}`)
   }
-  return new Request(`https://auth.warpkeep.test${QUICK_AUTH_PATH}`, {
+  return new Request(`https://auth.warpkeep.test${path}`, {
     method: 'POST',
     headers: requestHeaders,
     body: JSON.stringify(body),
@@ -203,6 +206,7 @@ function proofFor(challenge: IssuedChallenge, bindingVerifier = BINDING_VERIFIER
 function harness(options: {
   admission?: AdmissionResolution
   accessRequestResolver?: AccessRequestResolver
+  config?: BridgeConfig
   rateLimiter?: { check(request: Request, action: string): Promise<{ allowed: true } | { allowed: false; retryAfterSeconds: number }> }
 } = {}) {
   const verifier = { verify: vi.fn(async () => ({ fid: FID })) }
@@ -231,15 +235,16 @@ function harness(options: {
       requestedAtMicros: 1_785_414_896_000_000,
     } as const)),
   }
+  const events: SafeLogEvent[] = []
   const app = createAuthBridge({
-    configReader: () => CONFIG,
+    configReader: () => options.config ?? CONFIG,
     verifier,
     quickAuthVerifier,
     authEpochResolver: resolver,
     accessRequestResolver,
     rateLimiter: options.rateLimiter ?? { check: async () => ({ allowed: true }) },
     signer,
-    logger: { event: vi.fn() },
+    logger: { event: event => events.push(event) },
   })
   return {
     app,
@@ -247,6 +252,7 @@ function harness(options: {
     quickAuthVerifier,
     resolver,
     accessRequestResolver,
+    events,
     signer,
   }
 }
@@ -657,6 +663,160 @@ describe('auth bridge production bindings in workerd', () => {
     })
     expect(disabled.headers.has('set-cookie')).toBe(false)
     expect(h.signer).toHaveBeenCalledTimes(1)
+  })
+
+  it('runs the owner-only player canary exchange through workerd with the exact managed owner', async () => {
+    const ownerConfig: BridgeConfig = {
+      ...CONFIG,
+      playerCanaryOwnerFid: FID,
+    }
+    const h = harness({ config: ownerConfig })
+    const bridgeEnv = env as unknown as WorkerEnv
+    const cookieSentinel = '__Host-warpkeep_session=must-not-be-used'
+    const response = await h.app.fetch(quickAuthPost(
+      QUICK_AUTH_TOKEN,
+      {},
+      { cookie: cookieSentinel },
+      PLAYER_CANARY_PATH,
+    ), bridgeEnv)
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('access-control-allow-origin')).toBe(QUICK_AUTH_ORIGIN)
+    expect(response.headers.get('access-control-allow-methods')).toBe('POST, OPTIONS')
+    expect(response.headers.get('access-control-allow-headers')).toBe('authorization, content-type')
+    expect(response.headers.get('access-control-max-age')).toBe('600')
+    expect(response.headers.get('vary')).toBe('Origin')
+    expect(response.headers.has('access-control-allow-credentials')).toBe(false)
+    expect(response.headers.has('set-cookie')).toBe(false)
+    const body = await response.json() as Record<string, unknown>
+    expect(Object.keys(body)).toEqual([
+      'version',
+      'status',
+      'accessToken',
+      'tokenType',
+      'accessExpiresAt',
+    ])
+    expect(body).toMatchObject({
+      version: 1,
+      status: 'authorized',
+      accessToken: 'workerd.test.token',
+      tokenType: 'spacetime-access',
+    })
+    expect(body).not.toHaveProperty('identity')
+    expect(body).not.toHaveProperty('fid')
+    expect(h.quickAuthVerifier.verifyJwt).toHaveBeenCalledWith({
+      token: QUICK_AUTH_TOKEN,
+      domain: QUICK_AUTH_DOMAIN,
+    })
+    expect(h.resolver.resolve).toHaveBeenCalledWith(FID)
+    expect(h.signer).toHaveBeenCalledOnce()
+    expect(h.events).toEqual([
+      'auth_epoch_resolved',
+      'player_canary_exchange_succeeded',
+    ])
+    const safeEvents = JSON.stringify(h.events)
+    expect(safeEvents).not.toContain(FID)
+    expect(safeEvents).not.toContain(QUICK_AUTH_TOKEN)
+    expect(safeEvents).not.toContain(cookieSentinel)
+  })
+
+  it('fails the workerd player canary route generically before verifier work when the owner secret is absent', async () => {
+    const check = vi.fn(async () => ({ allowed: true as const }))
+    const h = harness({ rateLimiter: { check } })
+    const response = await h.app.fetch(
+      quickAuthPost(QUICK_AUTH_TOKEN, {}, {}, PLAYER_CANARY_PATH),
+      env as unknown as WorkerEnv,
+    )
+
+    expect(response.status).toBe(503)
+    expect(await response.text()).toBe(JSON.stringify({
+      error: {
+        code: 'player_canary_unavailable',
+        message: 'The production player canary is unavailable.',
+      },
+    }))
+    expect(response.headers.get('access-control-allow-origin')).toBe(QUICK_AUTH_ORIGIN)
+    expect(response.headers.has('access-control-allow-credentials')).toBe(false)
+    expect(response.headers.has('set-cookie')).toBe(false)
+    expect(check).not.toHaveBeenCalled()
+    expect(h.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+    expect(h.resolver.resolve).not.toHaveBeenCalled()
+    expect(h.signer).not.toHaveBeenCalled()
+    expect(h.events).toEqual(['player_canary_exchange_rejected'])
+    expect(JSON.stringify(h.events)).not.toContain(FID)
+    expect(JSON.stringify(h.events)).not.toContain(QUICK_AUTH_TOKEN)
+  })
+
+  it('enforces exact player canary CORS and the public-auth kill switch in workerd', async () => {
+    const ownerConfig: BridgeConfig = {
+      ...CONFIG,
+      playerCanaryOwnerFid: FID,
+    }
+    const h = harness({ config: ownerConfig })
+    const bridgeEnv = env as unknown as WorkerEnv
+    const preflight = await h.app.fetch(new Request(
+      `https://auth.warpkeep.test${PLAYER_CANARY_PATH}`,
+      {
+        method: 'OPTIONS',
+        headers: {
+          origin: QUICK_AUTH_ORIGIN,
+          'access-control-request-method': 'POST',
+          'access-control-request-headers': 'Authorization, Content-Type',
+        },
+      },
+    ), bridgeEnv)
+    expect(preflight.status).toBe(204)
+    expect(preflight.headers.get('access-control-allow-origin')).toBe(QUICK_AUTH_ORIGIN)
+    expect(preflight.headers.get('access-control-allow-methods')).toBe('POST, OPTIONS')
+    expect(preflight.headers.get('access-control-allow-headers')).toBe('authorization, content-type')
+    expect(preflight.headers.get('access-control-max-age')).toBe('600')
+    expect(preflight.headers.get('vary')).toBe('Origin')
+    expect(preflight.headers.has('access-control-allow-credentials')).toBe(false)
+    expect(preflight.headers.has('content-type')).toBe(false)
+    expect(preflight.headers.has('set-cookie')).toBe(false)
+    expect(h.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+
+    const hostile = await h.app.fetch(quickAuthPost(
+      QUICK_AUTH_TOKEN,
+      {},
+      { origin: 'https://hostile.example' },
+      PLAYER_CANARY_PATH,
+    ), bridgeEnv)
+    expect(hostile.status).toBe(403)
+    expect(hostile.headers.has('access-control-allow-origin')).toBe(false)
+    expect(hostile.headers.has('access-control-allow-credentials')).toBe(false)
+    expect(hostile.headers.has('set-cookie')).toBe(false)
+    expect(h.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+
+    const paused = harness({
+      config: {
+        ...ownerConfig,
+        publicAuthEnabled: false,
+      },
+    })
+    const pausedResponse = await paused.app.fetch(
+      quickAuthPost(QUICK_AUTH_TOKEN, {}, {}, PLAYER_CANARY_PATH),
+      bridgeEnv,
+    )
+    expect(pausedResponse.status).toBe(503)
+    expect(await pausedResponse.text()).toBe(JSON.stringify({
+      error: {
+        code: 'public_auth_paused',
+        message: 'Farcaster sign-in is temporarily paused for security hardening.',
+      },
+    }))
+    expect(pausedResponse.headers.get('access-control-allow-origin')).toBe(QUICK_AUTH_ORIGIN)
+    expect(pausedResponse.headers.has('access-control-allow-credentials')).toBe(false)
+    expect(pausedResponse.headers.has('set-cookie')).toBe(false)
+    expect(paused.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+    expect(paused.resolver.resolve).not.toHaveBeenCalled()
+    expect(paused.signer).not.toHaveBeenCalled()
+    expect(paused.events).toEqual([
+      'public_auth_paused',
+      'player_canary_exchange_rejected',
+    ])
+    expect(JSON.stringify(paused.events)).not.toContain(FID)
+    expect(JSON.stringify(paused.events)).not.toContain(QUICK_AUTH_TOKEN)
   })
 
   it('enforces Quick Auth CORS and rate limiting before verifier work in workerd', async () => {

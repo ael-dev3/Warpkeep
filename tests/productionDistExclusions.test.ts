@@ -16,6 +16,7 @@ import { allowedProductionHiddenPaths, allowedProductionHtmlPaths, expectedProdu
 
 const temporaryRoots: string[] = [];
 const productionIndex = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
+const ownerCanaryIndex = readFileSync(resolve(process.cwd(), 'owner-canary/index.html'), 'utf8');
 
 function writeOutput(path: string, content: string) {
   mkdirSync(dirname(path), { recursive: true });
@@ -28,16 +29,36 @@ function createReviewedOutput() {
   for (const htmlPath of allowedProductionHtmlPaths as readonly string[]) {
     const marker = htmlPath === 'index.html'
       ? ' data-warpkeep-production-csp'
-      : '';
+      : htmlPath === 'owner-canary/index.html'
+        ? ' data-warpkeep-owner-canary-production-csp'
+        : '';
     writeOutput(
       join(root, htmlPath),
       htmlPath === 'index.html'
         ? productionIndex
+        : htmlPath === 'owner-canary/index.html'
+          ? ownerCanaryIndex
         : `<!doctype html><meta${marker} http-equiv="Content-Security-Policy" content="${
             expectedProductionCspByPath[htmlPath]
           }"><title>Warpkeep</title>`,
     );
   }
+  const ownerCanaryPath = join(root, 'owner-canary/index.html');
+  writeOutput(
+    ownerCanaryPath,
+    readFileSync(ownerCanaryPath, 'utf8').replace(
+      '/src/owner-canary/main.tsx',
+      '/assets/ownerCanary-reviewed.js',
+    ),
+  );
+  writeOutput(
+    join(root, 'assets/ownerCanary-reviewed.js'),
+    'import "./ownerCanary-runtime.js";',
+  );
+  writeOutput(
+    join(root, 'assets/ownerCanary-runtime.js'),
+    'document.documentElement.dataset.ownerCanary = "v1";',
+  );
   writeOutput(join(root, 'assets/app.js'), 'console.info("ordinary production fixture");');
   return root;
 }
@@ -55,6 +76,7 @@ describe('production output exclusions', () => {
     ]);
     expect(allowedProductionHtmlPaths).toEqual([
       'index.html',
+      'owner-canary/index.html',
       'privacy/index.html',
       'social-contract/index.html',
       'terms/index.html',
@@ -136,6 +158,30 @@ describe('production output exclusions', () => {
       readFileSync(socialPath, 'utf8').replace('<meta ', '<meta data-warpkeep-production-csp '),
     );
     expect(() => verifyProductionDistExclusions(misplacedMarker)).toThrow(/marker was invalid/i);
+  });
+
+  it('rejects normal application or Realm presentation code from the emitted owner graph', () => {
+    const normalApplication = createReviewedOutput();
+    writeOutput(
+      join(normalApplication, 'assets/ownerCanary-reviewed.js'),
+      'import "./application-private.js";',
+    );
+    writeOutput(
+      join(normalApplication, 'assets/application-private.js'),
+      'console.info("ordinary application");',
+    );
+    expect(() => verifyProductionDistExclusions(normalApplication)).toThrow(
+      /owner canary production module graph/i,
+    );
+
+    const realmProvider = createReviewedOutput();
+    writeOutput(
+      join(realmProvider, 'assets/ownerCanary-runtime.js'),
+      'export const leaked = "WarpkeepSpacetimeProvider";',
+    );
+    expect(() => verifyProductionDistExclusions(realmProvider)).toThrow(
+      /owner canary production module graph/i,
+    );
   });
 
   it.each([
