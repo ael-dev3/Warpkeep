@@ -20,12 +20,12 @@
     {
       "path": "package-lock.json",
       "digestProfile": "reviewed-release-transition-projection-sha256-v1",
-      "sha256": "f311239002a532091732417ae80f5fc891edbe3dbf28aed4e0a7330de79b36c7"
+      "sha256": "6723ef0cad5cc37e8d7f80fa3a7cfe932628333d13f6449674efceabc4e7d1b4"
     },
     {
       "path": "package.json",
       "digestProfile": "reviewed-release-transition-projection-sha256-v1",
-      "sha256": "3070d8db94f8a84986302e63fd87977be978bbf80438137a488cc08b26bb9b6a"
+      "sha256": "b50e993de7174221ff9572f905a081221c69c60aa51097c2eabed470c871b564"
     },
     {
       "path": "public/.well-known/farcaster.json",
@@ -125,7 +125,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "745188c6fae1c54b56e809916be9b50393c68d59c4f62742f55e67f4ca0550dd"
+      "sha256": "9bb11880c6a9f4cb69b76b05f7ef5219ded2a86e3a44ee2c4d9371262213a161"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-installed-toolchain.d.mts",
@@ -355,7 +355,7 @@
     {
       "path": "scripts/verify-auth-bridge-notification-prepared-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "20665e0633b06ae3ae12115fcd2983c885f50a9e54f78d0cd431b6c4d244601f"
+      "sha256": "1965553486fc3d6284617548934775ba9e91797afcfbd626978e80d1914ae380"
     },
     {
       "path": "scripts/verify-greater-realm-release-gates.d.mts",
@@ -375,12 +375,12 @@
     {
       "path": "services/auth-bridge/pnpm-lock.yaml",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "41642a1ffb9de21d5f552133fa6dec873362f692c6a440b85c895d928052c768"
+      "sha256": "e162613375a2a5534a631d38e9cf2d2b9a66bdeb4ff05be63376afaf57f7fde9"
     },
     {
       "path": "services/auth-bridge/pnpm-workspace.yaml",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "81cd9fb2b3452391983dd40356a1edf5a767d7b8f86b6a97ec82826d9ebcda47"
+      "sha256": "6af34bc91b7a59efb1c29051b623b9b69df9c58d1f6bb370cdf6b23bc22b60ea"
     },
     {
       "path": "services/auth-bridge/src/admissionNotifications.ts",
