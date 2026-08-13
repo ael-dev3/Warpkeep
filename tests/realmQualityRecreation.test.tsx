@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Profiler } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 const mocked = vi.hoisted(() => {
   type MockSceneOptions = {
@@ -34,6 +34,19 @@ const mocked = vi.hoisted(() => {
     reducedMotion: boolean;
     onCameraModeChange?: (mode: 'realm' | 'approach' | 'keep') => void;
     onWorldSelectionFeedback?: (point: { x: number; y: number }) => void;
+    onInnerKeepSceneStatusChange?: (
+      status: 'inactive' | 'loading' | 'ready' | 'unavailable'
+    ) => void;
+    onInnerKeepBuildingSelect?: (buildingKey: string) => void;
+    onInnerKeepPlacementDraftChange?: (draft: Readonly<{
+      buildingKind: 'city-mill';
+      transform: Readonly<{
+        localXMicrounits: bigint;
+        localZMicrounits: bigint;
+        rotationMilliDegrees: number;
+      }>;
+      evaluation: Readonly<{ valid: boolean; reason: null }>;
+    }>) => void;
     onCastlesReady?: (castleCount: number) => void;
     onRendererFailure?: (failure: {
       code: string;
@@ -113,6 +126,10 @@ const mocked = vi.hoisted(() => {
   };
   const handles: Array<{
     dispose: ReturnType<typeof vi.fn>;
+    setSceneMode: ReturnType<typeof vi.fn>;
+    reconcileInnerKeepPresentation: ReturnType<typeof vi.fn>;
+    setInnerKeepPlacementDraft: ReturnType<typeof vi.fn>;
+    setSelectedInnerKeepBuildingKey: ReturnType<typeof vi.fn>;
     setPresentationActive: ReturnType<typeof vi.fn>;
     reconcileLiveGatheringState: ReturnType<typeof vi.fn>;
     getCameraAttestation: ReturnType<typeof vi.fn>;
@@ -137,9 +154,17 @@ const mocked = vi.hoisted(() => {
     setComposition: ReturnType<typeof vi.fn>;
     showRealm: ReturnType<typeof vi.fn>;
   }> = [];
-  const createRealmScene = vi.fn((_options: MockSceneOptions) => {
+  const createRealmScene = vi.fn((options: MockSceneOptions) => {
     const handle = {
       dispose: vi.fn(),
+      setSceneMode: vi.fn((mode: 'WORLD' | 'INNER_KEEP') => {
+        options.onInnerKeepSceneStatusChange?.(
+          mode === 'INNER_KEEP' ? 'ready' : 'inactive'
+        );
+      }),
+      reconcileInnerKeepPresentation: vi.fn(),
+      setInnerKeepPlacementDraft: vi.fn(),
+      setSelectedInnerKeepBuildingKey: vi.fn(),
       setPresentationActive: vi.fn(),
       reconcileLiveGatheringState: vi.fn(),
       getCameraAttestation: vi.fn(() => ({ marker: 'camera-attestation' })),
@@ -217,7 +242,9 @@ import {
   createCanonicalGenesisCandidate,
   createCanonicalGenesisSnapshot
 } from './fixtures/canonicalGenesisSnapshot';
+import { createInnerKeepPresentation } from './fixtures/innerKeepPresentation';
 import { createReadyResourceState } from './fixtures/resourceState';
+import { subscribeWarpkeepSfx } from '../src/components/audio/sfxEvents';
 
 const IDENTITY = { fid: CANONICAL_TEST_FID, username: 'warpkeeper' } as const;
 
@@ -630,6 +657,122 @@ afterEach(() => {
 });
 
 describe('live realm quality recreation', () => {
+  it('keeps Inner Keep on the active Realm canvas while world DOM is inert', async () => {
+    installWebGlProbe();
+    const innerKeepSfx: string[] = [];
+    const unsubscribeSfx = subscribeWarpkeepSfx((events) => {
+      innerKeepSfx.push(...events.map((event) => event.kind));
+    });
+    onTestFinished(() => {
+      unsubscribeSfx();
+    });
+    const snapshot = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
+    const innerKeep = {
+      ...createInnerKeepPresentation(),
+      castleId: BigInt(snapshot.ownCastle.castleId)
+    };
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        innerKeep={innerKeep}
+        onRequestReturn={vi.fn()}
+        onStartInnerKeepProject={vi.fn(async () => undefined)}
+        qualityOverride="balanced"
+        resources={createReadyResourceState(CANONICAL_TEST_FID)}
+        snapshot={snapshot}
+      />
+    );
+    const sceneOptions = mocked.createRealmScene.mock.calls[0]![0];
+    act(() => sceneOptions.onCastlesReady?.(snapshot.castles.length));
+    const handle = mocked.handles[0]!;
+    expect(document.querySelectorAll('.realm-map-screen__canvas')).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole('button', { name: /Open Realm menu/i }));
+    const menu = screen.getByRole('dialog', { name: 'REALM MENU' });
+    fireEvent.click(within(menu).getByRole('button', {
+      name: /INNER KEEP.*Develop your castle/i
+    }));
+
+    await waitFor(() => expect(
+      document.querySelector('.inner-keep')?.getAttribute('data-inner-keep-renderer')
+    ).toBe('webgl'));
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    const world = document.querySelector('.realm-map-screen__world-presentation');
+    expect(realm.dataset.realmSceneMode).toBe('INNER_KEEP');
+    expect(realm.dataset.realmMapPresentationActive).toBe('true');
+    expect(world?.getAttribute('inert')).not.toBeNull();
+    expect(world?.getAttribute('aria-hidden')).toBe('true');
+    expect(document.querySelector(
+      '.realm-map-screen__canvas[data-realm-canvas-active="true"]'
+    )).not.toBeNull();
+    expect(document.querySelectorAll('.realm-map-screen__canvas')).toHaveLength(2);
+    expect(mocked.createRealmScene).toHaveBeenCalledOnce();
+    expect(handle.setSceneMode).toHaveBeenCalledWith('INNER_KEEP');
+    expect(handle.setPresentationActive).toHaveBeenLastCalledWith(true);
+    expect(handle.reconcileInnerKeepPresentation).toHaveBeenCalledWith(
+      innerKeep,
+      expect.objectContaining({ owningTerrainKind: expect.any(String) })
+    );
+    vi.spyOn(Date, 'now').mockReturnValue(1_000);
+    innerKeepSfx.length = 0;
+    fireEvent.click(screen.getByRole('button', {
+      name: /BUILD — choose a town project/i
+    }));
+    await waitFor(() => expect(
+      screen.getByRole('heading', { name: /Choose a town building/i })
+    ).toBeDefined());
+    expect(innerKeepSfx.filter((kind) => kind === 'inner-keep-menu-opened'))
+      .toHaveLength(1);
+
+    const millCard = screen.getByRole('heading', { name: 'City Mill' }).closest('li');
+    expect(millCard).not.toBeNull();
+    fireEvent.click(within(millCard!).getByRole('button', { name: 'PLACE BUILDING' }));
+    await waitFor(() => expect(
+      screen.getByRole('heading', { name: 'City Mill' })
+    ).toBeDefined());
+    expect(innerKeepSfx.filter((kind) => kind === 'inner-keep-menu-opened'))
+      .toHaveLength(2);
+
+    const draft = Object.freeze({
+      buildingKind: 'city-mill' as const,
+      transform: Object.freeze({
+        localXMicrounits: 14_000_000n,
+        localZMicrounits: -10_000_000n,
+        rotationMilliDegrees: 0
+      }),
+      evaluation: Object.freeze({ valid: true, reason: null as null })
+    });
+    act(() => {
+      sceneOptions.onInnerKeepPlacementDraftChange?.(draft);
+    });
+    await waitFor(() => expect(
+      screen.getByText('This location is ready for construction.')
+    ).toBeDefined());
+    expect(handle.setInnerKeepPlacementDraft).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        buildingKind: draft.buildingKind,
+        transform: draft.transform,
+        evaluation: expect.objectContaining({ valid: true, reason: null })
+      })
+    );
+    const innerKeepHistory = (
+      window.history.state as Record<string, unknown>
+    )[REALM_SURFACE_HISTORY_KEY] as {
+      stack: readonly { kind: string; buildingKind?: string }[];
+    };
+    expect(innerKeepHistory.stack).toEqual([
+      { kind: 'commands' },
+      { kind: 'inner-keep' },
+      { kind: 'inner-keep-catalogue' },
+      { kind: 'inner-keep-placement', buildingKind: 'city-mill' }
+    ]);
+
+    fireEvent.click(screen.getByRole('button', { name: 'CLOSE TO REALM' }));
+    await waitFor(() => expect(realm.dataset.realmSceneMode).toBe('WORLD'));
+    expect(handle.setSceneMode).toHaveBeenLastCalledWith('WORLD');
+    expect(document.querySelectorAll('.realm-map-screen__canvas')).toHaveLength(2);
+  }, 10_000);
+
   it('keeps native Mini App Back available from the Realm root through nested destinations', async () => {
     installWebGlProbe();
     const back = {

@@ -178,12 +178,17 @@ function privateReadGate(marker: string, releaseEvent: string) {
 function createLocalFullstackBackendRuntime(): WarpkeepBackendRuntime {
   const collectResources =
     DEFAULT_WARPKEEP_BACKEND_RUNTIME.collectResources;
+  const startInnerKeepProject =
+    DEFAULT_WARPKEEP_BACKEND_RUNTIME.startInnerKeepProject;
   const readEntryAgreementStatus =
     DEFAULT_WARPKEEP_BACKEND_RUNTIME.readEntryAgreementStatus;
   const acceptAlphaTerms =
     DEFAULT_WARPKEEP_BACKEND_RUNTIME.acceptAlphaTerms;
   if (!readEntryAgreementStatus) {
     throw new Error('Disposable local entry agreement procedure is unavailable.');
+  }
+  if (!startInnerKeepProject) {
+    throw new Error('Disposable local Inner Keep reducer is unavailable.');
   }
   let resourceSettlementAttempt = 0;
   const instrumentedRuntime = Object.freeze({
@@ -225,6 +230,70 @@ function createLocalFullstackBackendRuntime(): WarpkeepBackendRuntime {
       } catch (error) {
         document.documentElement.setAttribute(
           'data-local-fullstack-resource-settlement-state',
+          'failed'
+        );
+        throw error;
+      }
+    },
+    async startInnerKeepProject(...args) {
+      const [,
+        buildingKind,
+        placement,
+        requestKey,
+        expectedTargetLevel,
+        expectedProjectRevision,
+        expectedPolicyDigest,
+        expectedLayoutDigest,
+      ] = args;
+      const attempt = Number(document.documentElement.getAttribute(
+        'data-local-fullstack-inner-keep-attempt'
+      ) ?? '0');
+      document.documentElement.setAttribute(
+        'data-local-fullstack-inner-keep-attempt',
+        String(Number.isSafeInteger(attempt) && attempt >= 0 ? attempt + 1 : 1)
+      );
+      document.documentElement.setAttribute(
+        'data-local-fullstack-inner-keep-request-key',
+        requestKey
+      );
+      document.documentElement.setAttribute(
+        'data-local-fullstack-inner-keep-placement',
+        `${placement.localXMicrounits}:${placement.localZMicrounits}:${placement.rotationMilliDegrees}`
+      );
+      document.documentElement.setAttribute(
+        'data-local-fullstack-inner-keep-building',
+        buildingKind
+      );
+      document.documentElement.setAttribute(
+        'data-local-fullstack-inner-keep-expected-target-level',
+        String(expectedTargetLevel)
+      );
+      document.documentElement.setAttribute(
+        'data-local-fullstack-inner-keep-expected-project-revision',
+        expectedProjectRevision
+      );
+      document.documentElement.setAttribute(
+        'data-local-fullstack-inner-keep-expected-policy-digest',
+        expectedPolicyDigest
+      );
+      document.documentElement.setAttribute(
+        'data-local-fullstack-inner-keep-expected-layout-digest',
+        expectedLayoutDigest
+      );
+      document.documentElement.setAttribute(
+        'data-local-fullstack-inner-keep-state',
+        'pending'
+      );
+      try {
+        const result = await startInnerKeepProject(...args);
+        document.documentElement.setAttribute(
+          'data-local-fullstack-inner-keep-state',
+          'accepted'
+        );
+        return result;
+      } catch (error) {
+        document.documentElement.setAttribute(
+          'data-local-fullstack-inner-keep-state',
           'failed'
         );
         throw error;

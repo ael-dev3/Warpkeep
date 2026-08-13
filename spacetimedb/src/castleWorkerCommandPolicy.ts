@@ -1,4 +1,6 @@
 import { assertWorkerCommandKey } from './castleWorkerPolicy';
+import { parseGreaterRealmPublicCapacityLeaseV1 } from './greaterRealmActivationPolicy';
+import { parseGreaterRealmWorkerDispatchReceiptKindV2 } from './greaterRealmWorkerPolicy';
 
 export type WorkerCommandReceiptView = Readonly<{
   requestKey: string;
@@ -67,6 +69,21 @@ export function workerCommandReceiptShapeIsValid(receipt: WorkerCommandReceiptVi
     && receipt.assignmentId.length > 0;
   if (receipt.commandKind === 'dispatch') {
     return receipt.workerId !== undefined && correlated;
+  }
+  if (receipt.commandKind.startsWith('dispatch-v2:')) {
+    if (receipt.workerId === undefined || !correlated) return false;
+    try {
+      const metadata = parseGreaterRealmWorkerDispatchReceiptKindV2(
+        receipt.commandKind,
+      );
+      parseGreaterRealmPublicCapacityLeaseV1({
+        leaseId: receipt.siteId,
+        nodeCount: metadata.nodeCount,
+      });
+      return true;
+    } catch {
+      return false;
+    }
   }
   if (receipt.commandKind === 'recall') {
     const noOp = receipt.resourceKind === undefined

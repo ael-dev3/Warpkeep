@@ -1,0 +1,1154 @@
+import {
+  deriveChannelSeed,
+  hashSeedString,
+  mixUint32,
+  seededUnitFloat
+} from '../../game/map/realmSeed';
+import {
+  INNER_KEEP_PRESENTATION_CLEARANCES,
+  INNER_KEEP_PRESENTATION_LAYOUT_DIGEST
+} from './innerKeepPresentationLayoutPolicy';
+import { INNER_KEEP_FREE_PLACEMENT_POLICY } from './innerKeepFreePlacementPolicy';
+import {
+  compileInnerKeepPath,
+  sampleInnerKeepPath,
+  type InnerKeepCompiledPath,
+  type InnerKeepPathPoint
+} from './innerKeepPathSampler';
+import { INNER_KEEP_POPULATION_RUNTIME_ACTORS } from './innerKeepRuntimeAssetCatalog.generated';
+import { INNER_KEEP_FIXED_PLACEMENT_EXCLUSIONS } from './innerKeepFixedPlacementExclusions';
+import {
+  INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS,
+  INNER_KEEP_TOWN_SCENERY_SOLID_EXCLUSIONS,
+} from './innerKeepTownAtmospherePolicy';
+import {
+  INNER_KEEP_EAST_VILLAGE_SERVICE_LANE,
+  INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT,
+  INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE,
+  INNER_KEEP_VILLAGE_COMMONS_SOCIAL_LANE,
+  INNER_KEEP_WEST_VILLAGE_DELIVERY_LANE,
+  innerKeepOuterWorldDistanceToSegment,
+  innerKeepOuterWorldDistanceToRoad,
+} from './innerKeepOuterWorldPolicy';
+
+export const INNER_KEEP_AMBIENT_POLICY_ID = 'genesis-001-inner-keep-ambient-v3';
+export const INNER_KEEP_AMBIENT_POLICY_VERSION = 3;
+
+export type InnerKeepAmbientQuality = 'high' | 'balanced' | 'reduced';
+export type InnerKeepAmbientActorFamily =
+  | 'citizen'
+  | 'infantry'
+  | 'ranged'
+  | 'cavalry';
+export type InnerKeepAmbientActorCategory =
+  | 'citizen'
+  | 'civic-mounted'
+  | 'foot-patrol'
+  | 'mounted-patrol';
+export type InnerKeepAmbientPresentationRole =
+  | 'civic-routine'
+  | 'ceremonial-patrol';
+export type InnerKeepAmbientClip = 'Greet' | 'Idle' | 'Walk' | 'Work';
+
+export type InnerKeepAmbientActorCatalogEntry = Readonly<{
+  actorId: string;
+  sourceAssetId: string;
+  displayName: string;
+  family: InnerKeepAmbientActorFamily;
+  mounted: boolean;
+  category: InnerKeepAmbientActorCategory;
+  presentationRole: InnerKeepAmbientPresentationRole;
+  allowedAmbientClips: readonly InnerKeepAmbientClip[];
+}>;
+
+function actor(
+  actorId: string,
+  sourceAssetId: string,
+  displayName: string,
+  family: InnerKeepAmbientActorFamily,
+  mounted: boolean
+): InnerKeepAmbientActorCatalogEntry {
+  const citizen = family === 'citizen';
+  return Object.freeze({
+    actorId,
+    sourceAssetId,
+    displayName,
+    family,
+    mounted,
+    category: citizen
+      ? mounted ? 'civic-mounted' : 'citizen'
+      : mounted ? 'mounted-patrol' : 'foot-patrol',
+    presentationRole: citizen ? 'civic-routine' : 'ceremonial-patrol',
+    // Combat clips are intentionally excluded from this presentation-only policy.
+    allowedAmbientClips: Object.freeze(citizen
+      ? ['Greet', 'Idle', 'Walk', 'Work'] as const
+      : ['Idle', 'Walk'] as const)
+  });
+}
+
+/** Exact runtime-selected population identities; no player identity is present. */
+export const INNER_KEEP_AMBIENT_ACTOR_CATALOG: readonly InnerKeepAmbientActorCatalogEntry[] =
+  Object.freeze([
+    actor(
+      'basilica-warden',
+      'warpkeep.units.hegemony.citizens-set2.basilica-warden',
+      'Hegemony Basilica Warden',
+      'citizen',
+      false
+    ),
+    actor(
+      'bell-herald',
+      'warpkeep.units.hegemony.citizens-set2.bell-herald',
+      'Hegemony Bell Herald',
+      'citizen',
+      false
+    ),
+    actor(
+      'chirurgeon-apothecary',
+      'warpkeep.units.hegemony.citizens-set2.chirurgeon-apothecary',
+      'Hegemony Chirurgeon-Apothecary',
+      'citizen',
+      false
+    ),
+    actor(
+      'cistern-warden',
+      'warpkeep.units.hegemony.citizens-set2.cistern-warden',
+      'Hegemony Cistern Warden',
+      'citizen',
+      false
+    ),
+    actor(
+      'ember-lamplighter',
+      'warpkeep.units.hegemony.citizens-set2.ember-lamplighter',
+      'Hegemony Ember Lamplighter',
+      'citizen',
+      false
+    ),
+    actor(
+      'emberfoot-courier',
+      'warpkeep.units.hegemony.citizens-set2.emberfoot-courier',
+      'Hegemony Emberfoot Courier',
+      'citizen',
+      true
+    ),
+    actor(
+      'shellback-shrine-tender',
+      'warpkeep.units.hegemony.citizens-set2.shellback-shrine-tender',
+      'Hegemony Shellback Shrine Tender',
+      'citizen',
+      true
+    ),
+    actor(
+      'ward-peacekeeper',
+      'warpkeep.units.hegemony.citizens-set2.ward-peacekeeper',
+      'Hegemony Ward Peacekeeper',
+      'citizen',
+      false
+    ),
+    actor(
+      'bulwark',
+      'warpkeep.units.hegemony.infantry.bulwark',
+      'Hegemony Bulwark',
+      'infantry',
+      false
+    ),
+    actor(
+      'honor-guard',
+      'warpkeep.units.hegemony.infantry.honor-guard',
+      'Hegemony Honor Guard',
+      'infantry',
+      false
+    ),
+    actor(
+      'legionary',
+      'warpkeep.units.hegemony.infantry.legionary',
+      'Hegemony Legionary',
+      'infantry',
+      false
+    ),
+    actor(
+      'vanguard',
+      'warpkeep.units.hegemony.infantry.vanguard',
+      'Hegemony Vanguard',
+      'infantry',
+      false
+    ),
+    actor(
+      'astral-magister',
+      'warpkeep.units.hegemony.ranged.astral-magister',
+      'Hegemony Astral Magister',
+      'ranged',
+      false
+    ),
+    actor(
+      'dusk-ranger',
+      'warpkeep.units.hegemony.ranged.dusk-ranger',
+      'Hegemony Dusk Ranger',
+      'ranged',
+      false
+    ),
+    actor(
+      'longbow-warden',
+      'warpkeep.units.hegemony.ranged.longbow-warden',
+      'Hegemony Longbow Warden',
+      'ranged',
+      false
+    ),
+    actor(
+      'rift-battlemage',
+      'warpkeep.units.hegemony.ranged.rift-battlemage',
+      'Hegemony Rift Battlemage',
+      'ranged',
+      false
+    ),
+    actor(
+      'astral-lancer',
+      'warpkeep.units.hegemony.cavalry.astral-lancer',
+      'Hegemony Astral Lancer',
+      'cavalry',
+      true
+    ),
+    actor(
+      'dusk-outrider',
+      'warpkeep.units.hegemony.cavalry.dusk-outrider',
+      'Hegemony Dusk Outrider',
+      'cavalry',
+      true
+    ),
+    actor(
+      'horseguard',
+      'warpkeep.units.hegemony.cavalry.horseguard',
+      'Hegemony Horseguard',
+      'cavalry',
+      true
+    ),
+    actor(
+      'imperial-cataphract',
+      'warpkeep.units.hegemony.cavalry.imperial-cataphract',
+      'Hegemony Imperial Cataphract',
+      'cavalry',
+      true
+    )
+  ]);
+
+export type InnerKeepAmbientQualityBudget = Readonly<{
+  maximumCitizens: number;
+  maximumMountedCitizens: number;
+  maximumFootPatrolUnits: number;
+  maximumMountedPatrolUnits: number;
+  maximumActors: number;
+  maximumAnimatedActors: number;
+  maximumAnimationMixers: number;
+  maximumConversationPairs: number;
+  maximumDrawCalls: number;
+  maximumTriangles: number;
+  animationFrameCap: number;
+  populationAssetProfile: 'balanced' | 'compact';
+}>;
+
+export const INNER_KEEP_AMBIENT_QUALITY_BUDGETS: Readonly<
+  Record<InnerKeepAmbientQuality, InnerKeepAmbientQualityBudget>
+> = Object.freeze({
+  high: Object.freeze({
+    maximumCitizens: 8,
+    maximumMountedCitizens: 2,
+    maximumFootPatrolUnits: 8,
+    maximumMountedPatrolUnits: 4,
+    maximumActors: 20,
+    maximumAnimatedActors: 20,
+    maximumAnimationMixers: 20,
+    maximumConversationPairs: 2,
+    maximumDrawCalls: 205,
+    maximumTriangles: 58_800,
+    animationFrameCap: 30,
+    populationAssetProfile: 'balanced'
+  }),
+  balanced: Object.freeze({
+    maximumCitizens: 6,
+    maximumMountedCitizens: 2,
+    maximumFootPatrolUnits: 4,
+    maximumMountedPatrolUnits: 2,
+    maximumActors: 12,
+    maximumAnimatedActors: 12,
+    maximumAnimationMixers: 12,
+    maximumConversationPairs: 1,
+    maximumDrawCalls: 129,
+    maximumTriangles: 35_348,
+    animationFrameCap: 24,
+    populationAssetProfile: 'balanced'
+  }),
+  reduced: Object.freeze({
+    maximumCitizens: 4,
+    maximumMountedCitizens: 1,
+    maximumFootPatrolUnits: 3,
+    maximumMountedPatrolUnits: 1,
+    maximumActors: 8,
+    maximumAnimatedActors: 0,
+    maximumAnimationMixers: 0,
+    maximumConversationPairs: 0,
+    maximumDrawCalls: 78,
+    maximumTriangles: 14_188,
+    animationFrameCap: 0,
+    populationAssetProfile: 'compact'
+  })
+});
+
+export type InnerKeepAmbientRouteKind =
+  | 'citizen-approach'
+  | 'citizen-work-shuttle'
+  | 'foot-duty-shuttle'
+  | 'civic-mounted-shuttle'
+  | 'mounted-duty-shuttle'
+  /** Retained only for consumers that explicitly reject the retired loops. */
+  | 'civic-mounted-loop'
+  | 'foot-patrol-loop'
+  | 'mounted-patrol-loop';
+
+export type InnerKeepAmbientRoutePurpose =
+  | 'social-visit'
+  | 'district-supply-run'
+  | 'cathedral-watch'
+  | 'garrison-watch'
+  | 'east-wall-watch'
+  | 'south-gate-watch'
+  | 'west-road-watch'
+  | 'north-road-watch'
+  | 'east-road-watch'
+  | 'south-road-watch'
+  | 'village-delivery'
+  | 'village-shrine-service';
+
+export type InnerKeepAmbientRoute = Readonly<{
+  routeId: string;
+  kind: InnerKeepAmbientRouteKind;
+  purpose: InnerKeepAmbientRoutePurpose;
+  actorRadiusMeters: number;
+  path: InnerKeepCompiledPath;
+}>;
+
+const INNER_KEEP_EXTERIOR_ROUTE_PURPOSES:
+ReadonlySet<InnerKeepAmbientRoutePurpose> = new Set([
+  'village-delivery',
+  'village-shrine-service',
+  'west-road-watch',
+  'north-road-watch',
+  'east-road-watch',
+  'south-road-watch'
+]);
+
+/** Stable semantic classifier shared by telemetry and QA. */
+export function innerKeepAmbientRouteIsExterior(route: InnerKeepAmbientRoute) {
+  return INNER_KEEP_EXTERIOR_ROUTE_PURPOSES.has(route.purpose);
+}
+
+/** Conservative body-to-body gap retained by the deterministic formation. */
+export const INNER_KEEP_AMBIENT_MINIMUM_BODY_CLEARANCE_METERS = 0.16;
+
+export type InnerKeepAmbientFootprintHalfExtents = readonly [number, number];
+
+export type InnerKeepAmbientOrientedFootprint = Readonly<{
+  position: InnerKeepPathPoint;
+  yawRadians: number;
+  footprintHalfExtentsMeters: InnerKeepAmbientFootprintHalfExtents;
+}>;
+
+function footprintProjectionRadiusOnAxis(
+  footprint: InnerKeepAmbientOrientedFootprint,
+  cosine: number,
+  sine: number,
+  axisX: number,
+  axisZ: number
+): number {
+  return footprint.footprintHalfExtentsMeters[0]
+      * Math.abs(cosine * axisX - sine * axisZ)
+    + footprint.footprintHalfExtentsMeters[1]
+      * Math.abs(sine * axisX + cosine * axisZ);
+}
+
+/**
+ * Separating-axis proof for two X/Z oriented model bounds. A non-negative
+ * result proves at least the requested clearance on one separating axis.
+ */
+export function innerKeepAmbientOrientedFootprintSeparation(
+  left: InnerKeepAmbientOrientedFootprint,
+  right: InnerKeepAmbientOrientedFootprint,
+  requiredClearanceMeters = 0
+): number {
+  const deltaX = right.position.x - left.position.x;
+  const deltaZ = right.position.z - left.position.z;
+  const leftCosine = Math.cos(left.yawRadians);
+  const leftSine = Math.sin(left.yawRadians);
+  const rightCosine = Math.cos(right.yawRadians);
+  const rightSine = Math.sin(right.yawRadians);
+  const requiredClearance = Math.max(0, requiredClearanceMeters);
+  const separationOnAxis = (axisX: number, axisZ: number): number => (
+    Math.abs(deltaX * axisX + deltaZ * axisZ)
+      - footprintProjectionRadiusOnAxis(
+        left,
+        leftCosine,
+        leftSine,
+        axisX,
+        axisZ
+      )
+      - footprintProjectionRadiusOnAxis(
+        right,
+        rightCosine,
+        rightSine,
+        axisX,
+        axisZ
+      )
+      - requiredClearance
+  );
+  return Math.max(
+    separationOnAxis(leftCosine, -leftSine),
+    separationOnAxis(leftSine, leftCosine),
+    separationOnAxis(rightCosine, -rightSine),
+    separationOnAxis(rightSine, rightCosine)
+  );
+}
+
+/** The same authored display heights consumed by the renderer and spacing proof. */
+export function innerKeepAmbientTargetHeightMeters(
+  category: InnerKeepAmbientActorCategory
+): number {
+  if (category === 'mounted-patrol') return 2.15;
+  if (category === 'civic-mounted') return 1.92;
+  return 1.62;
+}
+
+/** Exact selected GLB X/Z bounds after the renderer's height normalization. */
+export function innerKeepAmbientActorFootprintHalfExtents(
+  actor: Pick<InnerKeepAmbientActorCatalogEntry, 'actorId' | 'category'>,
+  quality: InnerKeepAmbientQuality
+): InnerKeepAmbientFootprintHalfExtents {
+  const profile = INNER_KEEP_AMBIENT_QUALITY_BUDGETS[quality]
+    .populationAssetProfile;
+  const runtimeActor = INNER_KEEP_POPULATION_RUNTIME_ACTORS.find(({ id }) => (
+    id === actor.actorId
+  ));
+  if (!runtimeActor) {
+    throw new Error(`Inner Keep actor ${actor.actorId} has no runtime footprint.`);
+  }
+  const bounds = runtimeActor.models[profile].boundsMeters;
+  const scale = innerKeepAmbientTargetHeightMeters(actor.category)
+    / Math.max(0.001, bounds[1]);
+  return Object.freeze([
+    bounds[0] * scale * 0.5,
+    bounds[2] * scale * 0.5
+  ] as const);
+}
+
+function ambientRoute(
+  routeId: string,
+  kind: InnerKeepAmbientRouteKind,
+  purpose: InnerKeepAmbientRoutePurpose,
+  actorRadiusMeters: number,
+  points: readonly InnerKeepPathPoint[],
+  closed: boolean
+): InnerKeepAmbientRoute {
+  return Object.freeze({
+    routeId,
+    kind,
+    purpose,
+    actorRadiusMeters,
+    path: compileInnerKeepPath(routeId, points, closed)
+  });
+}
+
+/*
+ * Residents use point-to-point errands and guards hold distinct watch beats.
+ * No ambient group circles the estate on one shared processional clock.
+ */
+export const INNER_KEEP_CITIZEN_WORK_ROUTES: readonly InnerKeepAmbientRoute[] =
+  Object.freeze([
+    ambientRoute(
+      'inner-keep-west-green-supply-run-v1',
+      'citizen-work-shuttle',
+      'district-supply-run',
+      0.28,
+      [
+        { x: -2.4, z: -1 },
+        { x: -1.9, z: -1 },
+        { x: -1.4, z: -1 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-east-green-supply-run-v1',
+      'citizen-work-shuttle',
+      'district-supply-run',
+      0.28,
+      [
+        { x: 1.4, z: -1 },
+        { x: 1.9, z: -1 },
+        { x: 2.4, z: -1 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-northwest-service-run-v1',
+      'citizen-work-shuttle',
+      'district-supply-run',
+      0.28,
+      [
+        { x: -0.55, z: 5 },
+        { x: -0.55, z: 6.25 },
+        { x: -0.55, z: 7.5 }
+      ],
+      false
+    )
+  ]);
+
+export const INNER_KEEP_FOOT_DUTY_ROUTES: readonly InnerKeepAmbientRoute[] =
+  Object.freeze([
+    ambientRoute(
+      'inner-keep-civic-spine-watch-v1',
+      'foot-duty-shuttle',
+      'south-gate-watch',
+      0.32,
+      [
+        { x: 0.55, z: 10 },
+        { x: 0.55, z: 11.25 },
+        { x: 0.55, z: 12.5 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-west-road-watch-v1',
+      'foot-duty-shuttle',
+      'west-road-watch',
+      0.32,
+      [
+        { x: -68, z: -36 },
+        { x: -68, z: -24 },
+        { x: -68, z: -12 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-gate-spine-watch-v1',
+      'foot-duty-shuttle',
+      'south-gate-watch',
+      0.32,
+      [
+        { x: -0.55, z: 15 },
+        { x: -0.55, z: 16.25 },
+        { x: -0.55, z: 17.5 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-north-road-watch-v1',
+      'foot-duty-shuttle',
+      'north-road-watch',
+      0.32,
+      [
+        { x: -52, z: -69 },
+        { x: -40, z: -69 },
+        { x: -28, z: -69 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-outer-south-gate-watch-v1',
+      'foot-duty-shuttle',
+      'south-gate-watch',
+      0.32,
+      [
+        { x: 0.55, z: 20 },
+        { x: 0.55, z: 21.25 },
+        { x: 0.55, z: 22.5 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-east-road-watch-v1',
+      'foot-duty-shuttle',
+      'east-road-watch',
+      0.32,
+      [
+        { x: 68, z: -12 },
+        { x: 68, z: -2 },
+        { x: 68, z: 8 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-south-road-foot-watch-v1',
+      'foot-duty-shuttle',
+      'south-road-watch',
+      0.32,
+      [
+        { x: 36, z: 69 },
+        { x: 28, z: 69 },
+        { x: 20, z: 69 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-south-gate-watch-v1',
+      'foot-duty-shuttle',
+      'south-gate-watch',
+      0.32,
+      [
+        { x: -0.55, z: 25 },
+        { x: -0.55, z: 26.25 },
+        { x: -0.55, z: 27.5 }
+      ],
+      false
+    )
+  ]);
+
+export const INNER_KEEP_CIVIC_MOUNTED_ROUTES: readonly InnerKeepAmbientRoute[] =
+  Object.freeze([
+    ambientRoute(
+      'inner-keep-emberfoot-village-delivery-v1',
+      'civic-mounted-shuttle',
+      'village-delivery',
+      0.42,
+      INNER_KEEP_WEST_VILLAGE_DELIVERY_LANE.points,
+      false
+    ),
+    ambientRoute(
+      'inner-keep-shellback-village-shrine-service-v1',
+      'civic-mounted-shuttle',
+      'village-shrine-service',
+      0.42,
+      INNER_KEEP_EAST_VILLAGE_SERVICE_LANE.points,
+      false
+    )
+  ]);
+
+export const INNER_KEEP_MOUNTED_DUTY_ROUTES: readonly InnerKeepAmbientRoute[] =
+  Object.freeze([
+    ambientRoute(
+      'inner-keep-mounted-west-road-watch-v1',
+      'mounted-duty-shuttle',
+      'west-road-watch',
+      0.42,
+      [
+        { x: -68, z: 12 },
+        { x: -68, z: 21 },
+        { x: -68, z: 30 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-mounted-north-road-watch-v1',
+      'mounted-duty-shuttle',
+      'north-road-watch',
+      0.42,
+      [
+        { x: 28, z: -69 },
+        { x: 40, z: -69 },
+        { x: 52, z: -69 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-mounted-east-road-watch-v1',
+      'mounted-duty-shuttle',
+      'east-road-watch',
+      0.42,
+      [
+        { x: 68, z: 16 },
+        { x: 68, z: 32 },
+        { x: 70, z: 50 }
+      ],
+      false
+    ),
+    ambientRoute(
+      'inner-keep-mounted-south-road-watch-v1',
+      'mounted-duty-shuttle',
+      'south-road-watch',
+      0.42,
+      [
+        { x: -20, z: 69 },
+        { x: -28, z: 69 },
+        { x: -36, z: 69 }
+      ],
+      false
+    )
+  ]);
+
+/** Compatibility aliases now point to open, independently timed duties. */
+export const INNER_KEEP_CIVIC_MOUNTED_ROUTE = INNER_KEEP_CIVIC_MOUNTED_ROUTES[0]!;
+export const INNER_KEEP_MOUNTED_PATROL_ROUTE = INNER_KEEP_MOUNTED_DUTY_ROUTES[0]!;
+export const INNER_KEEP_OUTER_FOOT_ESCORT_ROUTE = INNER_KEEP_FOOT_DUTY_ROUTES[1]!;
+
+export type InnerKeepConversationAnchor = Readonly<{
+  anchorId: string;
+  meetingPositions: readonly [InnerKeepPathPoint, InnerKeepPathPoint];
+  homePositions: readonly [InnerKeepPathPoint, InnerKeepPathPoint];
+  approachRoutes: readonly [InnerKeepAmbientRoute, InnerKeepAmbientRoute];
+}>;
+
+function conversationAnchor(
+  anchorId: string,
+  leftHome: InnerKeepPathPoint,
+  leftMeeting: InnerKeepPathPoint,
+  rightHome: InnerKeepPathPoint,
+  rightMeeting: InnerKeepPathPoint,
+  leftWaypoints: readonly InnerKeepPathPoint[] = [],
+  rightWaypoints: readonly InnerKeepPathPoint[] = []
+): InnerKeepConversationAnchor {
+  const left = ambientRoute(
+    `inner-keep-conversation-${anchorId}-left-v1`,
+    'citizen-approach',
+    'social-visit',
+    0.28,
+    [leftHome, ...leftWaypoints, leftMeeting],
+    false
+  );
+  const right = ambientRoute(
+    `inner-keep-conversation-${anchorId}-right-v1`,
+    'citizen-approach',
+    'social-visit',
+    0.28,
+    [rightHome, ...rightWaypoints, rightMeeting],
+    false
+  );
+  return Object.freeze({
+    anchorId,
+    meetingPositions: Object.freeze([
+      Object.freeze({ ...leftMeeting }),
+      Object.freeze({ ...rightMeeting })
+    ] as const),
+    homePositions: Object.freeze([
+      Object.freeze({ ...leftHome }),
+      Object.freeze({ ...rightHome })
+    ] as const),
+    approachRoutes: Object.freeze([left, right] as const)
+  });
+}
+
+export const INNER_KEEP_CONVERSATION_ANCHORS: readonly InnerKeepConversationAnchor[] =
+  Object.freeze([
+    conversationAnchor(
+      'east-village-commons',
+      { x: 8, z: 52 },
+      { x: 12, z: 54 },
+      { x: 20, z: 56 },
+      { x: 16, z: 55 },
+      [{ x: 10, z: 53 }],
+      [{ x: 18, z: 55.5 }]
+    ),
+    conversationAnchor(
+      'gate-approach',
+      { x: 2, z: 38.25 },
+      { x: 5, z: 38.625 },
+      { x: 10, z: 39.25 },
+      { x: 7, z: 38.875 }
+    ),
+    conversationAnchor(
+      'civic-road-watch',
+      { x: -68, z: -8 },
+      { x: -68, z: 1 },
+      { x: -68, z: 8 },
+      { x: -68, z: 3 }
+    ),
+    conversationAnchor(
+      'north-road-watch',
+      { x: -24, z: -69 },
+      { x: -1, z: -69 },
+      { x: 24, z: -69 },
+      { x: 1, z: -69 }
+    )
+  ]);
+
+export type InnerKeepAmbientExclusionKind =
+  | 'fixed-authored-placement'
+  | 'lower-ward-house'
+  | 'town-scenery';
+
+export type InnerKeepAmbientExclusion = Readonly<{
+  exclusionId: string;
+  kind: InnerKeepAmbientExclusionKind;
+  center: InnerKeepPathPoint;
+  halfExtentsMeters: readonly [number, number];
+  additionalClearanceMeters: number;
+}>;
+
+const fixedAuthoredExclusions: readonly InnerKeepAmbientExclusion[] =
+  Object.freeze(INNER_KEEP_FIXED_PLACEMENT_EXCLUSIONS.flatMap((candidate) => (
+    candidate.isRoadSurface
+      ? []
+      : [Object.freeze({
+          exclusionId: candidate.placementId,
+          kind: 'fixed-authored-placement' as const,
+          center: candidate.center,
+          halfExtentsMeters: candidate.halfExtentsMeters,
+          additionalClearanceMeters: candidate.clearanceMarginMeters
+        })]
+  )));
+
+const lowerWardHouseExclusions: readonly InnerKeepAmbientExclusion[] =
+  Object.freeze(INNER_KEEP_LOWER_WARD_SOLID_EXCLUSIONS.map((candidate) => (
+    Object.freeze({
+      exclusionId: candidate.exclusionId,
+      kind: 'lower-ward-house' as const,
+      center: candidate.center,
+      halfExtentsMeters: candidate.halfExtentsMeters,
+      additionalClearanceMeters: candidate.clearanceMarginMeters
+    })
+  )));
+
+const townSceneryExclusions: readonly InnerKeepAmbientExclusion[] =
+  Object.freeze(INNER_KEEP_TOWN_SCENERY_SOLID_EXCLUSIONS.map((candidate) => (
+    Object.freeze({
+      exclusionId: candidate.exclusionId,
+      kind: 'town-scenery' as const,
+      center: candidate.center,
+      halfExtentsMeters: candidate.halfExtentsMeters,
+      additionalClearanceMeters: candidate.clearanceMarginMeters
+    })
+  )));
+
+/**
+ * Static routes reserve only fixed scenery. Runtime building reconciliation
+ * owns dynamic project occupancy; ambient routes stay on permanent surfaces.
+ */
+export const INNER_KEEP_AMBIENT_EXCLUSIONS: readonly InnerKeepAmbientExclusion[] =
+  Object.freeze([
+    ...fixedAuthoredExclusions,
+    ...lowerWardHouseExclusions,
+    ...townSceneryExclusions
+  ]);
+
+export const INNER_KEEP_AMBIENT_CLEARANCE_POLICY = Object.freeze({
+  presentationOnly: true,
+  gameplayAuthorityClaimed: false,
+  sourcePresentationLayoutDigest: INNER_KEEP_PRESENTATION_LAYOUT_DIGEST,
+  construction: Object.freeze({
+    placementBoundsMicrounits: INNER_KEEP_FREE_PLACEMENT_POLICY.supportBoundsMicrounits,
+    snapIncrementMicrounits: INNER_KEEP_FREE_PLACEMENT_POLICY.snapIncrementMicrounits,
+    supportedRotationMilliDegrees:
+      INNER_KEEP_FREE_PLACEMENT_POLICY.rotationsMilliDegrees,
+    dynamicBuildingExclusionsRequired: true,
+    staticRoutesUsePermanentSurfacesOnly: true
+  }),
+  building: Object.freeze({
+    initialPrebuiltConstructibleCount: 0,
+    templateScalePermille: 1_000,
+    constructibleBuildingKinds: Object.freeze(
+      Object.keys(INNER_KEEP_FREE_PLACEMENT_POLICY.envelopes),
+    )
+  }),
+  road: Object.freeze({
+    northSouthCenterX: INNER_KEEP_PRESENTATION_CLEARANCES.road.northSouthCenterX,
+    northSouthHalfWidth: INNER_KEEP_PRESENTATION_CLEARANCES.road.northSouthHalfWidth,
+    requiredClearSideBuffer:
+      INNER_KEEP_PRESENTATION_CLEARANCES.road.requiredClearSideBuffer,
+    southernNavigableMinimumZ: INNER_KEEP_PRESENTATION_CLEARANCES.road.minimumZ,
+    southernNavigableMaximumZ: INNER_KEEP_PRESENTATION_CLEARANCES.road.maximumZ
+  }),
+  plaza: Object.freeze({
+    centerMeters: INNER_KEEP_PRESENTATION_CLEARANCES.road.commonsCenter,
+    radiusMeters: 4.5,
+    requiredEdgeBufferMeters: 0.25
+  }),
+  outerCourtyard: Object.freeze({
+    westX: INNER_KEEP_PRESENTATION_CLEARANCES.wall.westX,
+    eastX: INNER_KEEP_PRESENTATION_CLEARANCES.wall.eastX,
+    northZ: INNER_KEEP_PRESENTATION_CLEARANCES.wall.northZ,
+    southZ: INNER_KEEP_PRESENTATION_CLEARANCES.wall.southZ,
+    requiredWallBufferMeters: 0.45
+  })
+});
+
+export type InnerKeepAmbientRouteClearanceViolation = Readonly<{
+  routeId: string;
+  kind: 'outside-navigation-surface' | 'exclusion-overlap';
+  exclusionId?: string;
+  position: InnerKeepPathPoint;
+}>;
+
+function distanceToOpenAmbientLane(
+  point: InnerKeepPathPoint,
+  points: readonly InnerKeepPathPoint[]
+) {
+  let nearest = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const from = points[index]!;
+    const to = points[index + 1]!;
+    nearest = Math.min(nearest, innerKeepOuterWorldDistanceToSegment(
+      point.x,
+      point.z,
+      from.x,
+      from.z,
+      to.x,
+      to.z
+    ));
+  }
+  return nearest;
+}
+
+export function isInnerKeepAmbientPointNavigable(
+  point: InnerKeepPathPoint,
+  actorRadiusMeters: number
+): boolean {
+  if (
+    !Number.isFinite(point.x)
+    || !Number.isFinite(point.z)
+    || !Number.isFinite(actorRadiusMeters)
+    || actorRadiusMeters < 0
+  ) return false;
+  const road = INNER_KEEP_AMBIENT_CLEARANCE_POLICY.road;
+  const roadHalfWidth = road.northSouthHalfWidth
+    - road.requiredClearSideBuffer
+    - actorRadiusMeters;
+  const onRoad = point.z >= road.southernNavigableMinimumZ
+    && point.z <= road.southernNavigableMaximumZ
+    && Math.abs(point.x - road.northSouthCenterX) <= roadHalfWidth;
+  const plaza = INNER_KEEP_AMBIENT_CLEARANCE_POLICY.plaza;
+  const plazaRadius = plaza.radiusMeters
+    - plaza.requiredEdgeBufferMeters
+    - actorRadiusMeters;
+  const onPlaza = Math.hypot(
+    point.x - plaza.centerMeters[0],
+    point.z - plaza.centerMeters[1]
+  ) <= plazaRadius;
+  const outerRoadHalfWidth = Math.max(
+    0.08,
+    INNER_KEEP_OUTER_WORLD_ROAD_CIRCUIT.halfWidthMeters - actorRadiusMeters,
+  );
+  const onOuterEstateRoad = innerKeepOuterWorldDistanceToRoad(point.x, point.z)
+    <= outerRoadHalfWidth;
+  const onTradeDeliveryRoad = distanceToOpenAmbientLane(
+    point,
+    INNER_KEEP_WEST_VILLAGE_DELIVERY_LANE.points
+  ) <= Math.max(
+    0.08,
+    INNER_KEEP_WEST_VILLAGE_DELIVERY_LANE.halfWidthMeters - actorRadiusMeters
+  );
+  const onEastVillageLane = distanceToOpenAmbientLane(
+    point,
+    INNER_KEEP_EAST_VILLAGE_SERVICE_LANE.points
+  ) <= Math.max(
+    0.08,
+    INNER_KEEP_EAST_VILLAGE_SERVICE_LANE.halfWidthMeters - actorRadiusMeters
+  );
+  const onVillageCommonsSocialLane = distanceToOpenAmbientLane(
+    point,
+    INNER_KEEP_VILLAGE_COMMONS_SOCIAL_LANE.points
+  ) <= Math.max(
+    0.08,
+    INNER_KEEP_VILLAGE_COMMONS_SOCIAL_LANE.halfWidthMeters - actorRadiusMeters
+  );
+  const onSouthGateFerryLane = distanceToOpenAmbientLane(
+    point,
+    INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE.points
+  ) <= Math.max(
+    0.08,
+    INNER_KEEP_SOUTH_GATE_FERRY_MARKET_LANE.halfWidthMeters - actorRadiusMeters
+  );
+  return onRoad
+    || onPlaza
+    || onOuterEstateRoad
+    || onTradeDeliveryRoad
+    || onEastVillageLane
+    || onVillageCommonsSocialLane
+    || onSouthGateFerryLane;
+}
+
+function pointOverlapsExclusion(
+  point: InnerKeepPathPoint,
+  actorRadiusMeters: number,
+  candidate: InnerKeepAmbientExclusion
+): boolean {
+  const padding = actorRadiusMeters + candidate.additionalClearanceMeters;
+  return Math.abs(point.x - candidate.center.x)
+      <= candidate.halfExtentsMeters[0] + padding
+    && Math.abs(point.z - candidate.center.z)
+      <= candidate.halfExtentsMeters[1] + padding;
+}
+
+/** Dense deterministic validation used by tests and future runtime preflight. */
+export function validateInnerKeepAmbientRouteClearance(
+  route: InnerKeepAmbientRoute,
+  sampleSpacingMeters = 0.08
+): readonly InnerKeepAmbientRouteClearanceViolation[] {
+  const spacing = Number.isFinite(sampleSpacingMeters) && sampleSpacingMeters > 0
+    ? Math.max(0.02, sampleSpacingMeters)
+    : 0.08;
+  const sampleCount = Math.max(1, Math.ceil(route.path.totalLength / spacing));
+  const violations: InnerKeepAmbientRouteClearanceViolation[] = [];
+  for (let index = 0; index <= sampleCount; index += 1) {
+    const progress = index / sampleCount;
+    const position = sampleInnerKeepPath(route.path, progress).position;
+    if (!isInnerKeepAmbientPointNavigable(position, route.actorRadiusMeters)) {
+      violations.push(Object.freeze({
+        routeId: route.routeId,
+        kind: 'outside-navigation-surface' as const,
+        position
+      }));
+      continue;
+    }
+    const overlap = INNER_KEEP_AMBIENT_EXCLUSIONS.find((candidate) => (
+      pointOverlapsExclusion(position, route.actorRadiusMeters, candidate)
+    ));
+    if (overlap) {
+      violations.push(Object.freeze({
+        routeId: route.routeId,
+        kind: 'exclusion-overlap' as const,
+        exclusionId: overlap.exclusionId,
+        position
+      }));
+    }
+  }
+  return Object.freeze(violations);
+}
+
+export const INNER_KEEP_AMBIENT_ROUTES: readonly InnerKeepAmbientRoute[] = Object.freeze([
+  ...INNER_KEEP_CIVIC_MOUNTED_ROUTES,
+  ...INNER_KEEP_MOUNTED_DUTY_ROUTES,
+  ...INNER_KEEP_CITIZEN_WORK_ROUTES,
+  ...INNER_KEEP_FOOT_DUTY_ROUTES,
+  ...INNER_KEEP_CONVERSATION_ANCHORS.flatMap((anchor) => anchor.approachRoutes)
+]);
+
+export function resolveInnerKeepAmbientSeed(seed: string | number): number {
+  return typeof seed === 'string'
+    ? hashSeedString(seed)
+    : mixUint32(Number.isFinite(seed) ? Math.trunc(seed) : 0);
+}
+
+function rankedActors(
+  actors: readonly InnerKeepAmbientActorCatalogEntry[],
+  worldSeed: number,
+  channel: string
+): readonly InnerKeepAmbientActorCatalogEntry[] {
+  return Object.freeze([...actors].sort((left, right) => {
+    const leftRank = deriveChannelSeed(
+      worldSeed,
+      0,
+      0,
+      `inner-keep-ambient-selection:${channel}`,
+      hashSeedString(left.actorId)
+    );
+    const rightRank = deriveChannelSeed(
+      worldSeed,
+      0,
+      0,
+      `inner-keep-ambient-selection:${channel}`,
+      hashSeedString(right.actorId)
+    );
+    return leftRank - rightRank || left.actorId.localeCompare(right.actorId);
+  }));
+}
+
+export type InnerKeepAmbientActorSelection = Readonly<{
+  seed: number;
+  quality: InnerKeepAmbientQuality;
+  actors: readonly InnerKeepAmbientActorCatalogEntry[];
+  citizenCount: number;
+  mountedCitizenCount: number;
+  footPatrolUnitCount: number;
+  mountedPatrolUnitCount: number;
+}>;
+
+export function innerKeepAmbientSelectionRenderCost(
+  actors: readonly Pick<InnerKeepAmbientActorCatalogEntry, 'actorId'>[],
+  quality: InnerKeepAmbientQuality
+) {
+  const budget = INNER_KEEP_AMBIENT_QUALITY_BUDGETS[quality];
+  const modelByActorId = new Map(INNER_KEEP_POPULATION_RUNTIME_ACTORS.map((actor) => [
+    actor.id,
+    actor.models[budget.populationAssetProfile]
+  ] as const));
+  let actorDrawCalls = 0;
+  let actorTriangles = 0;
+  for (const actor of actors) {
+    const model = modelByActorId.get(actor.actorId);
+    if (!model) throw new Error(`Inner Keep actor ${actor.actorId} has no runtime model.`);
+    actorDrawCalls += model.drawCalls;
+    actorTriangles += model.triangles;
+  }
+  const conversationSpriteCount = budget.maximumConversationPairs * 2;
+  return Object.freeze({
+    actorDrawCalls,
+    actorTriangles,
+    conversationSpriteCount,
+    drawCalls: actorDrawCalls + conversationSpriteCount,
+    triangles: actorTriangles + conversationSpriteCount * 2
+  });
+}
+
+/**
+ * Select within each semantic category independently. Adding an unrelated
+ * catalog family cannot perturb the rank of existing citizens or patrols.
+ */
+export function selectInnerKeepAmbientActors(
+  seed: string | number,
+  quality: InnerKeepAmbientQuality
+): InnerKeepAmbientActorSelection {
+  const worldSeed = resolveInnerKeepAmbientSeed(seed);
+  const budget = INNER_KEEP_AMBIENT_QUALITY_BUDGETS[quality];
+  const mountedCitizens = rankedActors(
+    INNER_KEEP_AMBIENT_ACTOR_CATALOG.filter((entry) => entry.category === 'civic-mounted'),
+    worldSeed,
+    'civic-mounted'
+  ).slice(0, budget.maximumMountedCitizens);
+  const footCitizenLimit = budget.maximumCitizens - mountedCitizens.length;
+  const footCitizens = rankedActors(
+    INNER_KEEP_AMBIENT_ACTOR_CATALOG.filter((entry) => entry.category === 'citizen'),
+    worldSeed,
+    'citizen'
+  ).slice(0, footCitizenLimit);
+  const footPatrol = rankedActors(
+    INNER_KEEP_AMBIENT_ACTOR_CATALOG.filter((entry) => entry.category === 'foot-patrol'),
+    worldSeed,
+    'foot-patrol'
+  ).slice(0, budget.maximumFootPatrolUnits);
+  const mountedPatrol = rankedActors(
+    INNER_KEEP_AMBIENT_ACTOR_CATALOG.filter((entry) => entry.category === 'mounted-patrol'),
+    worldSeed,
+    'mounted-patrol'
+  ).slice(0, budget.maximumMountedPatrolUnits);
+  const actors = Object.freeze([
+    ...footCitizens,
+    ...mountedCitizens,
+    ...footPatrol,
+    ...mountedPatrol
+  ]);
+  if (actors.length > budget.maximumActors) {
+    throw new Error(`Inner Keep ${quality} actor selection exceeds its hard budget.`);
+  }
+  const renderCost = innerKeepAmbientSelectionRenderCost(actors, quality);
+  if (
+    renderCost.drawCalls > budget.maximumDrawCalls
+    || renderCost.triangles > budget.maximumTriangles
+  ) throw new Error(`Inner Keep ${quality} actor render selection exceeds its hard budget.`);
+  return Object.freeze({
+    seed: worldSeed,
+    quality,
+    actors,
+    citizenCount: footCitizens.length + mountedCitizens.length,
+    mountedCitizenCount: mountedCitizens.length,
+    footPatrolUnitCount: footPatrol.length,
+    mountedPatrolUnitCount: mountedPatrol.length
+  });
+}
+
+export function innerKeepAmbientDeterministicUnit(
+  seed: string | number,
+  stableId: string,
+  channel: string
+): number {
+  const worldSeed = resolveInnerKeepAmbientSeed(seed);
+  return seededUnitFloat(deriveChannelSeed(
+    worldSeed,
+    0,
+    0,
+    `inner-keep-ambient:${channel}`,
+    hashSeedString(stableId)
+  ));
+}
+
+export const INNER_KEEP_AMBIENT_AUTHORITY_BOUNDARY = Object.freeze({
+  presentationOnly: true,
+  gameplayAuthorityClaimed: false,
+  acceptsServerCoordinates: false,
+  writesGameplayState: false,
+  usesPlayerIdentityOrChat: false
+});

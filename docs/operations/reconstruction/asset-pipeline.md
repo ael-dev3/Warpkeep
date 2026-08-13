@@ -58,6 +58,51 @@ Then verify checksums, manifest entry parity, path safety, and every GLB:
 npx --yes @gltf-transform/cli@4.4.1 validate <model.glb>
 ```
 
+## Authorized Inner Keep runtime selections
+
+The [`inner-keep-3d-asset-library-2026-08-02`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/inner-keep-3d-asset-library-2026-08-02)
+release remains an archive source, not a browser CDN. Warpkeep records an exact
+owner-authorized allowlist of 38 assets: 114 High/Balanced/Compact GLBs and six
+catalog PNGs. The complete 234,962,670-byte archive, unselected media, editable
+sources, and inspection models remain outside this repository. Only the 120
+content-addressed outputs are installed under `public/`.
+
+The separately authorized population selection adds eight citizens and twelve
+army units from the 2026-08-03 Citizens and Unit Corps releases. Its 40 local,
+content-addressed GLBs provide one rigged Balanced model and one Compact static
+fallback per actor. Release archives remain outside Git history and are never
+used as browser URLs.
+
+Audit an exact trusted local copy without writing runtime files:
+
+```sh
+WARPKEEP_INNER_KEEP_ARCHIVE=/trusted/offline/inner-keep-3d-asset-library-2026-08-02-v1.zip \
+WARPKEEP_INNER_KEEP_RELEASE_MANIFEST=/trusted/offline/manifest.json \
+  npm run assets:audit:inner-keep
+npm run verify:inner-keep-assets
+
+WARPKEEP_INNER_KEEP_POPULATION_ARCHIVE_ROOT=/trusted/offline/inner-keep-population-cache \
+  npm run assets:audit:inner-keep-population
+npm run verify:inner-keep-population-assets
+```
+
+The audit pins the release and selection digests, validates all 1,347 ZIP
+members against the trusted release manifest, rejects unsafe or non-regular
+members, and verifies every selected source manifest, GLB, and PNG. It uses no
+network and extracts selected bytes only into a temporary private directory.
+
+The two bounded installers accept only the exact trusted archives and manifests
+recorded by their selection contracts. They stage a complete allowlist, verify
+every hash and GLB invariant, and replace only the expected outputs. Repository
+and production verifiers reject missing, changed, unexpected, symlinked, or
+non-content-addressed files. Ordinary builds use no asset network access.
+
+The exact authorization and license limits remain in the dated
+[environment selection](../../reference/assets/2026-08-02-inner-keep-3d-library/)
+and [population selection](../../reference/assets/2026-08-04-inner-keep-population/).
+Those records authorize only the named official runtime use. They do not
+relicense either source release or approve activation, merge, or deployment.
+
 ## Active runtime models
 
 | File | Bytes | SHA-256 |

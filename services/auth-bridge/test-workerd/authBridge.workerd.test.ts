@@ -5,7 +5,10 @@ import { privateKeyToAccount } from 'viem/accounts'
 import { createSiweMessage } from 'viem/siwe'
 import { describe, expect, it, vi } from 'vitest'
 import { AdmissionNotification } from '../src/admissionNotifications'
-import { createAuthBridge } from '../src/app'
+import {
+  RELEASE_ATTESTATION_PATH,
+  createAuthBridge,
+} from '../src/app'
 import {
   DurableObjectQaObserverChallengeStore,
   createQaObserverChallenge,
@@ -280,7 +283,7 @@ async function signedMiniAppWebhookFixture() {
       hubUrls: Object.freeze([
         'https://rho.farcaster.xyz:3381/',
         'https://hub.pinata.cloud/',
-      ]),
+      ] as const),
       clients: Object.freeze([{ appFid: 9_152, deliveryUrl }]),
       operatorSecret: 'workerd-notification-secret-at-least-32-bytes',
     },
@@ -344,6 +347,74 @@ async function signedMiniAppWebhookFixture() {
 }
 
 describe('auth bridge production bindings in workerd', () => {
+  it('serves the exact prepared release attestation without touching Durable Object state', async () => {
+    const notificationConfig = {
+      hubUrls: Object.freeze([
+        'https://rho.farcaster.xyz:3381/',
+        'https://hub.pinata.cloud/',
+      ] as const),
+      clients: Object.freeze([{
+        appFid: 9_152,
+        deliveryUrl: 'https://api.farcaster.xyz/v1/frame-notifications',
+      }]),
+      operatorSecret: 'workerd-notification-secret-at-least-32-bytes',
+    } as const
+    const config: BridgeConfig = {
+      ...CONFIG,
+      bridgeSourceCommit: 'a'.repeat(40),
+      approvalNotificationsEnabled: true,
+      miniAppNotifications: notificationConfig,
+      publicAuthEnabled: false,
+      accessExpectedFidRequired: true,
+    }
+    const app = createAuthBridge({
+      configReader: () => config,
+      logger: { event: vi.fn() },
+    })
+    const bridgeEnv = env as unknown as WorkerEnv
+    const stub = env.ADMISSION_NOTIFICATIONS.get(
+      env.ADMISSION_NOTIFICATIONS.idFromName('release-attestation-no-state'),
+    )
+    const before = await runInDurableObject(stub, async (_instance, state) => (
+      state.storage.get('admission-notification-v1')
+    ))
+
+    const response = await app.fetch(new Request(
+      `https://auth.warpkeep.test${RELEASE_ATTESTATION_PATH}`,
+    ), bridgeEnv)
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe(JSON.stringify({
+      schemaVersion: 1,
+      profile: 'warpkeep-admission-notification-bridge-v1',
+      bridgeSourceCommit: 'a'.repeat(40),
+      notificationDeliveryEnabled: true,
+      notificationTransportConfigured: true,
+      admissionNotificationStoreConfigured: true,
+      notificationClientCount: 1,
+      notificationDeliveryContractDigest:
+        '13429727ea5257946e3b659e07f912cf8cd81985fadecb03c63311994a01f7d9',
+      publicAuthEnabled: false,
+      accessExpectedFidRequired: true,
+    }))
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(response.headers.has('access-control-allow-origin')).toBe(false)
+    expect(response.headers.has('location')).toBe(false)
+    const after = await runInDurableObject(stub, async (_instance, state) => (
+      state.storage.get('admission-notification-v1')
+    ))
+    expect(before).toBeUndefined()
+    expect(after).toBeUndefined()
+
+    const disabled = await createAuthBridge({
+      configReader: () => ({ ...config, approvalNotificationsEnabled: false }),
+    }).fetch(new Request(
+      `https://auth.warpkeep.test${RELEASE_ATTESTATION_PATH}`,
+    ), bridgeEnv)
+    expect(disabled.status).toBe(503)
+    expect(await disabled.text()).toBe('{"error":"release_not_prepared"}')
+  })
+
   it('delivers through Cloudflare-compatible manual redirect handling in workerd', async () => {
     const deliveryUrl = 'https://api.farcaster.xyz/v1/frame-notifications'
     const token = 'workerd-notification-token-with-enough-entropy'

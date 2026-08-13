@@ -83,14 +83,74 @@ describe('GitHub workflow security policy', () => {
       'VITE_WARPKEEP_SHARED_ALPHA_ENABLED: ${{ vars.WARPKEEP_SHARED_ALPHA_ENABLED }}',
     );
     expect(build).toContain(
-      "VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: ${{ vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED || 'false' }}",
+      "VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'false'",
     );
+    expect(build).not.toContain('vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED');
     expect(build).toContain('true | false) ;;');
     expect(build).toContain(
       'WARPKEEP_SHARED_ALPHA_ENABLED must be exactly true or false.',
     );
+    expect(build).toContain('npm run validate:pages-release-build');
+    expect(build).not.toContain('npm run validate:pages-config');
+    expect(build).not.toContain('npm run verify:greater-realm-release-gates');
+    expect(source.match(/npm run verify:greater-realm-release-gates/g)).toHaveLength(1);
+    expect(build.indexOf('npm run validate:pages-release-build')).toBeLessThan(
+      build.indexOf('npm run build'),
+    );
     expect(source).toContain('group: pages-main');
     expect(source).not.toMatch(/^\s+group:\s*pages\s*$/m);
+  });
+
+  it('serializes deployment and its postflight in one non-cancelling workflow scope', () => {
+    const source = workflow('deploy-pages.yml');
+    const concurrencyStart = source.indexOf('concurrency:');
+    const jobsStart = source.indexOf('jobs:');
+    const deployStart = source.indexOf('  deploy:');
+    const postflightStart = source.indexOf('  verify-live:');
+    const concurrency = source.slice(concurrencyStart, jobsStart);
+    const deploy = source.slice(deployStart, postflightStart);
+    const postflight = source.slice(postflightStart);
+
+    expect(concurrencyStart).toBeGreaterThan(-1);
+    expect(concurrencyStart).toBeLessThan(jobsStart);
+    expect(source.match(/^concurrency:\s*$/gm)).toHaveLength(1);
+    expect(source).not.toMatch(/^[ \t]+concurrency:\s*$/gm);
+    expect(source.match(/^[ \t]+cancel-in-progress:\s*/gm)).toHaveLength(1);
+    expect(concurrency).toMatch(/^\s+group:\s*pages-main\s*$/m);
+    expect(concurrency).toMatch(/^\s+cancel-in-progress:\s*false\s*$/m);
+    expect(concurrency).not.toMatch(/^\s+cancel-in-progress:\s*true\s*$/m);
+
+    expect(deployStart).toBeGreaterThan(jobsStart);
+    expect(postflightStart).toBeGreaterThan(deployStart);
+    expect(deploy.match(/^      - /gm)).toHaveLength(6);
+    expect(deploy).toMatch(/^      - name: Confirm artifact SHA remains current main$/m);
+    expect(deploy).toMatch(/^      - name: Checkout exact deployment source$/m);
+    expect(deploy).toMatch(
+      /^      - name: Re-attest release authority immediately before deployment$/m,
+    );
+    expect(deploy).toMatch(/^      - name: Deploy to GitHub Pages$/m);
+    expect(deploy).toContain('Confirm artifact SHA remains current main');
+    expect(deploy).toContain('actions/deploy-pages@');
+    expect(deploy).toContain('deployment-attempted: ${{ steps.deployment-attempt.outputs.attempted }}');
+    expect(deploy.indexOf('scripts/verify-greater-realm-release-gates.mjs')).toBeLessThan(
+      deploy.indexOf('actions/deploy-pages@'),
+    );
+    expect(deploy.slice(
+      deploy.indexOf('scripts/verify-greater-realm-release-gates.mjs'),
+      deploy.indexOf('actions/deploy-pages@'),
+    ).match(/^      - name:/gm)).toHaveLength(1);
+    expect(postflight).toContain('needs: deploy');
+    expect(postflight).toContain(
+      "if: ${{ always() && needs.deploy.outputs.deployment-attempted == 'true' }}",
+    );
+    expect(postflight).toContain(
+      'Re-verify Greater Realm release gates and notification authority',
+    );
+    expect(postflight).toContain('npm run verify:greater-realm-release-gates');
+    expect(postflight.indexOf('npm run verify:greater-realm-release-gates')).toBeLessThan(
+      postflight.indexOf('Verify exact live release'),
+    );
+    expect(postflight).toContain('Verify exact live release');
   });
 
   it('builds and verifies the exact successful Verify head SHA', () => {
@@ -100,8 +160,10 @@ describe('GitHub workflow security policy', () => {
       source.match(/ref:\s*\$\{\{ github\.event\.workflow_run\.head_sha \}\}/g) ?? []
     ).length;
 
-    expect(checkoutCount).toBe(2);
+    expect(checkoutCount).toBe(6);
     expect(exactRefCount).toBe(checkoutCount);
+    expect(source.match(/fetch-depth:\s*0/g)).toHaveLength(checkoutCount - 1);
+    expect(source.match(/fetch-depth:\s*1/g)).toHaveLength(1);
     expect(source).toContain(
       'VITE_WARPKEEP_BUILD_SHA: ${{ github.event.workflow_run.head_sha }}',
     );
@@ -113,9 +175,15 @@ describe('GitHub workflow security policy', () => {
 
   it('runs bounded read-only live verification and fails closed on auth mode ambiguity', () => {
     const source = workflow('deploy-pages.yml');
-    const liveVerification = source.slice(source.indexOf('  verify-live:'));
+    const liveVerification = source.slice(
+      source.indexOf('  verify-live:'),
+      source.indexOf('  private-deploy:'),
+    );
 
     expect(liveVerification).toContain('needs: deploy');
+    expect(liveVerification).toContain(
+      "if: ${{ always() && needs.deploy.outputs.deployment-attempted == 'true' }}",
+    );
     expect(liveVerification).toMatch(/^\s+contents:\s*read\s*$/m);
     expect(liveVerification).not.toMatch(/^\s+pages:\s*write\s*$/m);
     expect(liveVerification).not.toMatch(/^\s+id-token:\s*write\s*$/m);
@@ -132,6 +200,10 @@ describe('GitHub workflow security policy', () => {
       'WARPKEEP_SHARED_ALPHA_ENABLED must be exactly true or false.',
     );
     expect(liveVerification).toContain('maximum_attempts=4');
+    expect(liveVerification).toContain('npm run verify:greater-realm-release-gates');
+    expect(liveVerification.indexOf('npm run verify:greater-realm-release-gates')).toBeLessThan(
+      liveVerification.indexOf('node scripts/verify-alpha-production.mjs'),
+    );
     expect(liveVerification).toContain(
       'node scripts/verify-alpha-production.mjs "$verification_mode"',
     );
@@ -199,6 +271,18 @@ describe('GitHub workflow security policy', () => {
     expect(timeoutCount).toBe(jobCount);
   });
 
+  it('gives the complete root suite a bounded hosted-runner allowance', () => {
+    const verifySource = workflow('verify.yml');
+    const pagesSource = workflow('deploy-pages.yml');
+    for (const job of [
+      verifySource.slice(verifySource.indexOf('  verify:'), verifySource.indexOf('  auth-bridge:')),
+      pagesSource.slice(pagesSource.indexOf('  build:'), pagesSource.indexOf('  deploy:')),
+    ]) {
+      expect(job).toMatch(/\n    timeout-minutes: 45\n/u);
+      expect(job).toContain('npm test -- --maxWorkers=2');
+    }
+  });
+
   it('uses a checksum-verified CLI archive and never pipes a remote installer to a shell', () => {
     const source = workflow('verify.yml');
     expect(source).not.toContain('install.spacetimedb.com');
@@ -217,6 +301,49 @@ describe('GitHub workflow security policy', () => {
     expect(source).toContain('pnpm --dir services/auth-bridge audit --audit-level low');
     expect(source).toContain('pnpm --dir spacetimedb audit --audit-level low');
     expect(source).toContain('npm audit signatures');
+  });
+
+  it('runs root tests from an integrity-checked private Node copy', () => {
+    const rootTestWorkflows = [
+      workflow('verify.yml'),
+      workflow('deploy-pages.yml'),
+    ];
+
+    for (const source of rootTestWorkflows) {
+      expect(source).toContain('Stage Node in a runner-private toolchain path');
+      expect(source).toContain('source_command="$(command -v node)"');
+      expect(source).toContain('[[ -L "$source_command" ]]');
+      expect(source).toContain('case "$source_node" in');
+      expect(source).toContain('"$RUNNER_TOOL_CACHE"/*) ;;');
+      expect(source).toContain('mktemp -d "$RUNNER_TEMP/warpkeep-node.XXXXXX"');
+      expect(source).toContain('chmod 0700 "$private_root"');
+      expect(source).toContain('install -d -m 0700 "$private_bin"');
+      expect(source).toContain(
+        'install -m 0700 "$source_node" "$private_bin/node"',
+      );
+      expect(source).toContain('"$source_sha_before" != "$source_sha_after"');
+      expect(source).toContain('"$source_sha_before" != "$staged_sha"');
+      expect(source).toContain('echo "$private_bin" >> "$GITHUB_PATH"');
+      expect(source).toContain(
+        'echo "WARPKEEP_PRIVATE_NODE=$private_bin/node" >> "$GITHUB_ENV"',
+      );
+      expect(source).toContain(
+        'echo "WARPKEEP_PRIVATE_NODE_SHA256=$staged_sha" >> "$GITHUB_ENV"',
+      );
+      expect(source).toMatch(/run: npm ci(?:\r?\n|$)/u);
+      expect(source).not.toContain('npm ci --ignore-scripts');
+      expect(source).toContain(
+        'Re-attest runner-private Node after dependency install',
+      );
+      expect(source.indexOf('run: npm ci')).toBeLessThan(
+        source.indexOf('Re-attest runner-private Node after dependency install'),
+      );
+      expect(source).toContain('node_mode="$(stat -c \'%a\' "$WARPKEEP_PRIVATE_NODE")"');
+      expect(source).toContain('$((8#$node_mode & 0022)) -ne 0');
+      expect(source).toContain('| sha256sum --check --strict -');
+      expect(source).toContain('npm test -- --maxWorkers=2');
+      expect(source).not.toMatch(/npm test -- --maxWorkers=[3-9]/);
+    }
   });
 
   it('runs verification for every pull-request base and ignores every Wrangler secret-file variant', () => {

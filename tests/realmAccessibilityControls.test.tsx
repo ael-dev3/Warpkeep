@@ -13,6 +13,7 @@ import {
   type RealmNavigatorCoordinateJump,
   type RealmNavigatorCastle,
   type RealmNavigatorResourceSite,
+  type RealmNavigatorWaterBody,
   type RealmNavigatorWorker
 } from '../src/components/realm/RealmAccessibilityControls';
 
@@ -281,6 +282,205 @@ describe('RealmAccessibilityControls', () => {
     await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 
+  it('collapses every long hosted list independently with live result counts', () => {
+    const workers = Object.freeze([
+      {
+        workerId: 'worker-01',
+        ordinal: 1,
+        originCastleId: 1,
+        originCastleName: 'Genesis Bastion',
+        status: 'idle' as const,
+        coord: Object.freeze({ q: 0, r: 0 }),
+        ownedByViewer: true
+      },
+      {
+        workerId: 'worker-02',
+        ordinal: 2,
+        originCastleId: 2,
+        originCastleName: 'Peer Watch',
+        status: 'outbound' as const,
+        ownedByViewer: false
+      }
+    ]) satisfies readonly RealmNavigatorWorker[];
+    const resourceSites = Object.freeze([
+      {
+        key: 'gold:site-01',
+        resource: 'gold' as const,
+        label: 'Auric Reach',
+        tier: 1,
+        availability: 'available' as const
+      }
+    ]) satisfies readonly RealmNavigatorResourceSite[];
+    const waterBodies = Object.freeze([
+      {
+        bodyId: 'river-01',
+        label: 'Founder Run',
+        sourceCellKey: 'source-01',
+        mouthCellKey: 'mouth-01',
+        sourceCoord: Object.freeze({ q: 1, r: -1 }),
+        mouthCoord: Object.freeze({ q: 2, r: -2 })
+      }
+    ]) satisfies readonly RealmNavigatorWaterBody[];
+    render(
+      <RealmAccessibilityControls
+        id="hosted-collapsible-navigator"
+        open
+        castles={CASTLES}
+        hostedDestination
+        onActivateCastle={vi.fn()}
+        onActivateResourceSite={vi.fn()}
+        onActivateWaterCell={vi.fn()}
+        onActivateWorker={vi.fn()}
+        onRequestClose={vi.fn()}
+        onRequestOpen={vi.fn()}
+        resourceSites={resourceSites}
+        waterBodies={waterBodies}
+        workers={workers}
+      />
+    );
+
+    const castles = screen.getByRole('button', { name: 'CASTLES, 3 items' });
+    const workerSection = screen.getByRole('button', { name: 'WORKERS, 2 items' });
+    const resources = screen.getByRole('button', { name: 'RESOURCE SITES, 1 item' });
+    const water = screen.getByRole('button', { name: 'PUBLIC WATER, 1 item' });
+    const searchStatus = screen.getByRole('status');
+    expect(searchStatus.textContent).toBe('');
+    expect(searchStatus.getAttribute('aria-atomic')).toBe('true');
+    for (const toggle of [castles, workerSection, resources, water]) {
+      expect(toggle.getAttribute('aria-expanded')).toBe('true');
+      const controlled = toggle.getAttribute('aria-controls');
+      expect(controlled).toBeTruthy();
+      expect(document.getElementById(controlled!)?.hidden).toBe(false);
+      fireEvent.click(toggle);
+      expect(toggle.getAttribute('aria-expanded')).toBe('false');
+      expect(document.getElementById(controlled!)?.hidden).toBe(true);
+    }
+    expect(screen.queryByRole('list', { name: 'Founded castles' })).toBeNull();
+    expect(screen.queryByRole('list', { name: 'Public workers' })).toBeNull();
+
+    fireEvent.click(castles);
+    expect(castles.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('list', { name: 'Founded castles' })).not.toBeNull();
+    expect(workerSection.getAttribute('aria-expanded')).toBe('false');
+
+    fireEvent.click(workerSection);
+    fireEvent.click(resources);
+    fireEvent.click(water);
+    expect(screen.getByRole('list', { name: 'Public workers' })).not.toBeNull();
+    expect(screen.getByRole('list', { name: 'Public resource sites' })).not.toBeNull();
+    expect(screen.getByRole('list', { name: 'Public rivers' })).not.toBeNull();
+
+    fireEvent.click(workerSection);
+    expect(screen.queryByRole('list', { name: 'Public workers' })).toBeNull();
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'outbound' } });
+    expect(screen.getByRole('button', { name: 'WORKERS, 1 of 2 matches' })
+      .getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getAllByRole('status')).toHaveLength(1);
+    expect(screen.getByRole('status')).toBe(searchStatus);
+    expect(searchStatus.textContent).toContain(
+      'Explore search results: 0 castles, 1 worker, 0 resource sites, and 0 water records.'
+    );
+    const filteredWorkers = screen.getByRole('list', { name: 'Public workers' });
+    expect(within(filteredWorkers).getAllByRole('button')).toHaveLength(1);
+    expect(within(filteredWorkers).getByText('Peer Watch')).not.toBeNull();
+  });
+
+  it('keeps Greater Realm inventories collapsed and progressively bounded', () => {
+    const castles = Object.freeze(Array.from({ length: 600 }, (_, index) => ({
+      castleId: index + 1,
+      label: `@keeper${index + 1}`,
+      name: `Keep ${index + 1}`,
+      q: index,
+      r: -index
+    })));
+    const workers = Object.freeze(Array.from({ length: 2_400 }, (_, index) => ({
+      workerId: `worker-${index + 1}`,
+      ordinal: index + 1,
+      originCastleId: (index % 600) + 1,
+      originCastleName: `Keep ${(index % 600) + 1}`,
+      status: 'idle' as const,
+      ownedByViewer: index < 4
+    }))) satisfies readonly RealmNavigatorWorker[];
+    const resourceSites = Object.freeze(Array.from({ length: 1_200 }, (_, index) => ({
+      key: `gold:site-${index + 1}`,
+      resource: 'gold' as const,
+      label: `Auric Reach ${index + 1}`,
+      tier: 1,
+      availability: 'available' as const
+    }))) satisfies readonly RealmNavigatorResourceSite[];
+    render(
+      <RealmAccessibilityControls
+        id="large-realm-navigator"
+        open
+        castles={castles}
+        hostedDestination
+        onActivateCastle={vi.fn()}
+        onActivateResourceSite={vi.fn()}
+        onActivateWorker={vi.fn()}
+        onRequestClose={vi.fn()}
+        onRequestOpen={vi.fn()}
+        resourceSites={resourceSites}
+        workers={workers}
+      />
+    );
+
+    const castleToggle = screen.getByRole('button', { name: 'CASTLES, 600 items' });
+    const workerToggle = screen.getByRole('button', { name: 'WORKERS, 2400 items' });
+    const resourceToggle = screen.getByRole('button', {
+      name: 'RESOURCE SITES, 1200 items'
+    });
+    for (const toggle of [castleToggle, workerToggle, resourceToggle]) {
+      expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    }
+    expect(screen.queryByRole('list', { name: 'Founded castles' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Inspect @keeper600/ })).toBeNull();
+
+    fireEvent.click(castleToggle);
+    let castleList = screen.getByRole('list', { name: 'Founded castles' });
+    expect(within(castleList).getAllByRole('button')).toHaveLength(96);
+    fireEvent.click(screen.getByRole('button', { name: 'Show 96 more castles' }));
+    castleList = screen.getByRole('list', { name: 'Founded castles' });
+    expect(within(castleList).getAllByRole('button')).toHaveLength(192);
+    fireEvent.click(castleToggle);
+    expect(screen.queryByRole('list', { name: 'Founded castles' })).toBeNull();
+
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'worker 2400 ' } });
+    expect(workerToggle.getAttribute('aria-expanded')).toBe('true');
+    const workerList = screen.getByRole('list', { name: 'Public workers' });
+    expect(within(workerList).getAllByRole('button')).toHaveLength(1);
+    expect(within(workerList).getByText('Keep 600')).not.toBeNull();
+    expect(screen.getByRole('status').textContent).toContain('1 worker');
+  });
+
+  it('honors a hosted reset key while Explore remains open', async () => {
+    const props = {
+      id: 'resettable-hosted-navigator',
+      open: true,
+      castles: CASTLES,
+      hostedDestination: true,
+      onActivateCastle: vi.fn(),
+      onRequestClose: vi.fn(),
+      onRequestOpen: vi.fn(),
+      triggerVisible: false
+    } as const;
+    const { rerender } = render(
+      <RealmAccessibilityControls {...props} hostedNavigationResetKey={0} />
+    );
+    const search = screen.getByRole('searchbox');
+    fireEvent.change(search, { target: { value: 'peer' } });
+    const castles = screen.getByRole('button', { name: 'CASTLES, 1 of 3 matches' });
+    fireEvent.click(castles);
+    expect(castles.getAttribute('aria-expanded')).toBe('false');
+
+    rerender(<RealmAccessibilityControls {...props} hostedNavigationResetKey={1} />);
+    await waitFor(() => {
+      expect((screen.getByRole('searchbox') as HTMLInputElement).value).toBe('');
+      expect(screen.getByRole('button', { name: 'CASTLES, 3 items' })
+        .getAttribute('aria-expanded')).toBe('true');
+      expect(document.activeElement).toBe(screen.getByRole('searchbox'));
+    });
+  });
+
   it('activates a camera preset, closes Explore, and restores trigger focus', async () => {
     const onActivateCastle = vi.fn();
     const onRequestClose = vi.fn();
@@ -372,6 +572,10 @@ describe('RealmAccessibilityControls', () => {
       expect((freshSearch as HTMLInputElement).value).toBe('');
       expect(document.activeElement).toBe(freshSearch);
     });
+    const castleDisclosure = screen.getByRole('button', {
+      name: 'CASTLES, 3 items'
+    });
+    expect(castleDisclosure.getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByRole('button', {
       name: /Inspect @warpkeeper, Genesis Bastion/
     })).not.toBeNull();

@@ -205,8 +205,8 @@ describe('realm quality profiles', () => {
       budget.terrainTriangles
     ))).toEqual([204_000, 140_000, 94_000]);
     expect(REALM_GRASS_RENDER_PLANS).toMatchObject({
-      high: { maximumActiveInstances: 7_000, maximumActiveTriangles: 189_000, animationFrameCap: 24 },
-      balanced: { maximumActiveInstances: 4_000, maximumActiveTriangles: 84_000, animationFrameCap: 16 },
+      high: { maximumActiveInstances: 7_000, maximumActiveTriangles: 252_000, animationFrameCap: 24 },
+      balanced: { maximumActiveInstances: 4_000, maximumActiveTriangles: 108_000, animationFrameCap: 16 },
       reduced: { maximumActiveInstances: 1_200, maximumActiveTriangles: 18_000, animationFrameCap: 0 }
     });
   });

@@ -110,7 +110,9 @@ function applyAllowedFidTransition(
     fid: bigint;
     note: string;
     adminSubject: string;
-    auditAction: 'allow_fid' | 'admit_founder_v1';
+    auditAction: 'allow_fid' | 'admit_founder_v1'
+      | 'allow_fid_for_access_request_v1'
+      | 'admit_founder_for_access_request_v2';
   }>,
 ): void {
   const existing = ctx.db.allowedFid.fid.find(input.fid);
@@ -158,6 +160,33 @@ function applyAllowedFidTransition(
       throw new SenderError(error.message);
     }
     throw error;
+  }
+}
+
+/**
+ * Exact access-request compare-and-swap guard shared by notification-gated
+ * admission reducers. Notification state remains bridge-owned; this module
+ * authorizes only the database-derived request tuple and admission cycle.
+ * This helper performs no writes.
+ */
+function requireExactAccessRequest(
+  ctx: Parameters<typeof requireAdmin>[0],
+  fid: bigint,
+  expectedRequestCycle: bigint,
+  expectedRequestedAtMicros: bigint,
+  requiredRequestCycle: bigint,
+): void {
+  const request = ctx.db.accessRequestV1.fid.find(fid);
+  const storedRequestedAtMicros = request?.requestedAt.microsSinceUnixEpoch;
+  if (
+    expectedRequestCycle !== requiredRequestCycle
+    || request === null
+    || request.requestCycle !== expectedRequestCycle
+    || storedRequestedAtMicros === undefined
+    || storedRequestedAtMicros <= 0n
+    || storedRequestedAtMicros !== expectedRequestedAtMicros
+  ) {
+    throw new SenderError('ACCESS_REQUEST_ADMISSION_CAS_MISMATCH');
   }
 }
 
@@ -875,6 +904,124 @@ export const adminUpsertRealmProfileV1 = warpkeep.reducer(
       admin.subject,
       FARCASTER_PROFILE_POLICY_VERSION,
     );
+  },
+);
+
+/**
+ * Owner-only request-CAS re-admission used after provider acceptance of the
+ * exact pending-request notification. Founder and resource state remain
+ * permanent; the reducer cannot observe or create notification state.
+ */
+export const adminAllowFidForAccessRequestV1 = warpkeep.reducer(
+  { name: 'admin_allow_fid_for_access_request_v1' },
+  {
+    fid: t.u64(),
+    note: t.string(),
+    expectedRequestCycle: t.u64(),
+    expectedRequestedAtMicros: t.u64(),
+  },
+  (ctx, {
+    fid,
+    note,
+    expectedRequestCycle,
+    expectedRequestedAtMicros,
+  }) => {
+    const admin = requireAdmin(ctx);
+    requireSupportedFid(fid);
+    const cleanNote = cleanAdminNote(note);
+    const existing = ctx.db.allowedFid.fid.find(fid);
+    if (
+      existing === null
+      || existing.enabled
+      || !Number.isInteger(existing.authEpoch)
+      || existing.authEpoch < 1
+      || existing.authEpoch > MAX_AUTH_EPOCH
+    ) {
+      throw new SenderError('ACCESS_REQUEST_ADMISSION_CAS_MISMATCH');
+    }
+    requireExactAccessRequest(
+      ctx,
+      fid,
+      expectedRequestCycle,
+      expectedRequestedAtMicros,
+      BigInt(existing.authEpoch) + 1n,
+    );
+
+    assertGenesisFounderForFid(ctx, fid);
+    assertGenesisResourceForFid(ctx, fid);
+    applyAllowedFidTransition(ctx, {
+      fid,
+      note: cleanNote,
+      adminSubject: admin.subject,
+      auditAction: 'allow_fid_for_access_request_v1',
+    });
+    assertGenesisFounderForFid(ctx, fid);
+    assertGenesisResourceForFid(ctx, fid);
+    grantDailyMarkIfActive(ctx, fid);
+  },
+);
+
+/**
+ * Owner-only first-founding request CAS. The absent admission row and exact
+ * cycle-zero request tuple are the authority preconditions. Trusted profile
+ * validation and the complete founder graph remain atomic with admission.
+ */
+export const adminAdmitFounderForAccessRequestV2 = warpkeep.reducer(
+  { name: 'admin_admit_founder_for_access_request_v2' },
+  {
+    fid: t.u64(),
+    note: t.string(),
+    expectedRequestCycle: t.u64(),
+    expectedRequestedAtMicros: t.u64(),
+    canonicalUsername: t.string(),
+    displayName: t.option(t.string()),
+    pfpUrl: t.string(),
+    publicBio: t.option(t.string()),
+    profilePolicyVersion: t.string(),
+  },
+  (ctx, input) => {
+    const admin = requireAdmin(ctx);
+    requireSupportedFid(input.fid);
+    const cleanNote = cleanAdminNote(input.note);
+    if (input.profilePolicyVersion !== FARCASTER_PROFILE_POLICY_VERSION) {
+      throw new SenderError('PROFILE_POLICY_MISMATCH');
+    }
+
+    let normalized;
+    try {
+      normalized = normalizeAdmissionReadyTrustedProfile(input);
+    } catch (error) {
+      if (error instanceof ProfileAuthorityPolicyError) throw new SenderError(error.code);
+      throw error;
+    }
+
+    if (ctx.db.allowedFid.fid.find(input.fid) !== null) {
+      throw new SenderError('ACCESS_REQUEST_ADMISSION_CAS_MISMATCH');
+    }
+    requireExactAccessRequest(
+      ctx,
+      input.fid,
+      input.expectedRequestCycle,
+      input.expectedRequestedAtMicros,
+      0n,
+    );
+
+    applyAllowedFidTransition(ctx, {
+      fid: input.fid,
+      note: cleanNote,
+      adminSubject: admin.subject,
+      auditAction: 'admit_founder_for_access_request_v2',
+    });
+    ensureGenesisFounder(ctx, input.fid, normalized);
+    const verifiedProfile = ctx.db.realmProfileV1.fid.find(input.fid);
+    if (
+      verifiedProfile === null
+      || !admissionProfileIsComplete(verifiedProfile)
+      || !trustedProfilesEqual(verifiedProfile, normalized)
+    ) throw new SenderError('FOUNDER_PROFILE_INCOMPLETE');
+    assertGenesisFounderForFid(ctx, input.fid);
+    assertGenesisResourceForFid(ctx, input.fid);
+    grantDailyMarkIfActive(ctx, input.fid);
   },
 );
 

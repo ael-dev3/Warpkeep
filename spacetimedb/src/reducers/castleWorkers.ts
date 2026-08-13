@@ -1,11 +1,20 @@
 import { SenderError, t } from 'spacetimedb/server';
 
-import { requireAdmin, requireGameplayPlayerV1 } from '../auth';
+import {
+  requireAdmin,
+  requireAuthenticatedCastleOwnerActionV1,
+  requireGameplayPlayerV1,
+  requireGameplayReadPlayerV1,
+} from '../auth';
 import {
   castleWorkerErrorCode,
   dispatchCastleWorker,
+  dispatchGreaterRealmCastleWorkerV2,
   inspectCastleWorkerGraph,
-  projectMyWorkerState,
+  inspectCastleWorkerGraphForCurrentGameplayV1,
+  projectMyGreaterRealmWorkerStateV2ForIndexedReadV1,
+  projectMyWorkerStateForCurrentGameplayIndexedReadV1,
+  projectMyWorkerStateForIndexedReadV1,
   recallAllCastleWorkers,
   recallCastleWorker,
   repairMissingWorkerReturnSchedule,
@@ -19,7 +28,9 @@ import {
   inspectWorkerRollout,
   stageWorkerSystem,
 } from '../castleWorkerRolloutAuthority';
-import type { WorkerResourceKind } from '../castleWorkerPolicy';
+import {
+  type WorkerResourceKind,
+} from '../castleWorkerPolicy';
 import type {
   WorkerClientAttestation,
 } from '../castleWorkerRolloutPolicy';
@@ -28,6 +39,10 @@ import {
   returnActiveLegacyExpedition,
 } from '../legacyExpeditionReturnAuthority';
 import warpkeep from '../schema';
+import type {
+  GreaterRealmIndexedPublicReadAuthorityV1,
+} from '../greaterRealmPublicReadAuthority';
+import { assertGreaterRealmWorkerReadRootsV2 } from '../greaterRealmWorkerReadAuthority';
 
 const workerPrivate = t.object('WorkerPrivateV1', {
   workerId: t.string(),
@@ -68,6 +83,28 @@ const myResourceStateV2 = t.object('MyResourceStateV2', {
 });
 
 const myWorkerControlStateV1 = t.object('MyWorkerControlStateV1', {
+  fid: t.u64(),
+  castleId: t.u64(),
+  observedAtMicros: t.u64(),
+  workers: t.array(workerPrivate),
+  food: t.u64(),
+  wood: t.u64(),
+  stone: t.u64(),
+  gold: t.u64(),
+  workerPendingFood: t.u64(),
+  workerPendingWood: t.u64(),
+  workerPendingStone: t.u64(),
+  workerPendingGold: t.u64(),
+  settledThroughMicros: t.u64(),
+  revision: t.u64(),
+  resourcePolicyVersion: t.string(),
+  workerPolicyVersion: t.string(),
+  workerSystemMode: t.string(),
+});
+
+const myWorkerControlStateV2 = t.object('MyWorkerControlStateV2', {
+  atlasId: t.string(),
+  atlasRevision: t.u64(),
   fid: t.u64(),
   castleId: t.u64(),
   observedAtMicros: t.u64(),
@@ -235,8 +272,21 @@ function auditWorkerRollout(
   });
 }
 
-function workerSystemMode(ctx: Parameters<typeof projectMyWorkerState>[0]): string {
+function workerSystemMode(
+  ctx: Parameters<typeof projectMyWorkerStateForIndexedReadV1>[0],
+): string {
   return ctx.db.realmWorkerSystemV1.realmId.find('GENESIS_001')?.mode ?? 'absent';
+}
+
+function currentGreaterRealmWorkerRoot(
+  ctx: Parameters<typeof projectMyWorkerStateForIndexedReadV1>[0],
+  authority: GreaterRealmIndexedPublicReadAuthorityV1 | undefined,
+) {
+  try {
+    return assertGreaterRealmWorkerReadRootsV2(ctx, authority);
+  } catch {
+    throw new SenderError('GREATER_REALM_WORKER_CONTROL_UNAVAILABLE');
+  }
 }
 
 function aggregateResult(aggregate: ReturnType<typeof inspectCastleWorkerGraph>) {
@@ -248,9 +298,14 @@ export const getMyWorkerRosterV1 = warpkeep.procedure(
   myWorkerRoster,
   ctx => ctx.withTx(tx => {
     try {
-      const { claims, castle } = requireGameplayPlayerV1(tx);
+      const read = requireGameplayReadPlayerV1(tx);
+      const { claims, castle } = read;
       const observedAtMicros = tx.timestamp.microsSinceUnixEpoch;
-      const projection = projectMyWorkerState(tx, claims.fid, observedAtMicros);
+      const projection = projectMyWorkerStateForIndexedReadV1(
+        tx,
+        read,
+        observedAtMicros,
+      );
       return {
         fid: claims.fid,
         castleId: castle.castleId,
@@ -279,9 +334,14 @@ export const getMyResourceStateV2 = warpkeep.procedure(
   myResourceStateV2,
   ctx => ctx.withTx(tx => {
     try {
-      const { claims } = requireGameplayPlayerV1(tx);
+      const read = requireGameplayReadPlayerV1(tx);
+      const { claims } = read;
       const observedAtMicros = tx.timestamp.microsSinceUnixEpoch;
-      const projection = projectMyWorkerState(tx, claims.fid, observedAtMicros);
+      const projection = projectMyWorkerStateForCurrentGameplayIndexedReadV1(
+        tx,
+        read,
+        observedAtMicros,
+      );
       const pending = { food: 0n, wood: 0n, stone: 0n, gold: 0n };
       for (const worker of projection.workers) {
         if (worker.resourceKind === 'food') pending.food += worker.availableAmount;
@@ -324,9 +384,14 @@ export const getMyWorkerControlStateV1 = warpkeep.procedure(
   myWorkerControlStateV1,
   ctx => ctx.withTx(tx => {
     try {
-      const { claims, castle } = requireGameplayPlayerV1(tx);
+      const read = requireGameplayReadPlayerV1(tx);
+      const { claims, castle } = read;
       const observedAtMicros = tx.timestamp.microsSinceUnixEpoch;
-      const projection = projectMyWorkerState(tx, claims.fid, observedAtMicros);
+      const projection = projectMyWorkerStateForIndexedReadV1(
+        tx,
+        read,
+        observedAtMicros,
+      );
       const pending = { food: 0n, wood: 0n, stone: 0n, gold: 0n };
       for (const worker of projection.workers) {
         if (worker.resourceKind === 'food') pending.food += worker.availableAmount;
@@ -370,6 +435,71 @@ export const getMyWorkerControlStateV1 = warpkeep.procedure(
   }),
 );
 
+/** Current-v17 control projection: public lease ids only, never private nodes. */
+export const getMyWorkerControlStateV2 = warpkeep.procedure(
+  { name: 'get_my_worker_control_state_v2' },
+  myWorkerControlStateV2,
+  ctx => ctx.withTx(tx => {
+    try {
+      const read = requireGameplayReadPlayerV1(tx);
+      const { claims, castle } = read;
+      const { atlas, worker: workerRoot } = currentGreaterRealmWorkerRoot(
+        tx,
+        'greaterRealm' in read
+          ? read.greaterRealm as GreaterRealmIndexedPublicReadAuthorityV1
+          : undefined,
+      );
+      const observedAtMicros = tx.timestamp.microsSinceUnixEpoch;
+      const projection = projectMyGreaterRealmWorkerStateV2ForIndexedReadV1(
+        tx,
+        read,
+        observedAtMicros,
+      );
+      const pending = { food: 0n, wood: 0n, stone: 0n, gold: 0n };
+      for (const worker of projection.workers) {
+        if (worker.resourceKind === 'food') pending.food += worker.availableAmount;
+        if (worker.resourceKind === 'wood') pending.wood += worker.availableAmount;
+        if (worker.resourceKind === 'stone') pending.stone += worker.availableAmount;
+        if (worker.resourceKind === 'gold') pending.gold += worker.availableAmount;
+      }
+      return {
+        atlasId: atlas.atlasId,
+        atlasRevision: atlas.revision,
+        fid: claims.fid,
+        castleId: castle.castleId,
+        observedAtMicros,
+        workers: projection.workers.map(worker => ({
+          workerId: worker.workerId,
+          ordinal: worker.ordinal,
+          status: worker.status,
+          resourceKind: worker.resourceKind,
+          siteId: worker.siteId,
+          accruedAmount: worker.accruedAmount,
+          materializedAmount: worker.materializedAmount,
+          availableAmount: worker.availableAmount,
+          observedAtMicros: worker.observedAtMicros,
+          revision: worker.revision,
+        })),
+        food: projection.balances.food,
+        wood: projection.balances.wood,
+        stone: projection.balances.stone,
+        gold: projection.balances.gold,
+        workerPendingFood: pending.food,
+        workerPendingWood: pending.wood,
+        workerPendingStone: pending.stone,
+        workerPendingGold: pending.gold,
+        settledThroughMicros: projection.resource.settledThroughMicros,
+        revision: projection.resource.revision,
+        resourcePolicyVersion: projection.resource.policyVersion,
+        workerPolicyVersion: workerRoot.policyVersion,
+        workerSystemMode: workerRoot.mode,
+      };
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  }),
+);
+
 export const dispatchWorkerV1 = warpkeep.reducer(
   { name: 'dispatch_worker_v1' },
   { workerId: t.string(), resourceKind: t.string(), siteId: t.string(), idempotencyKey: t.string() },
@@ -377,6 +507,33 @@ export const dispatchWorkerV1 = warpkeep.reducer(
     try {
       const { claims, castle } = requireGameplayPlayerV1(ctx);
       dispatchCastleWorker(ctx, { fid: claims.fid, castle, workerId, resourceKind, siteId, idempotencyKey });
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  },
+);
+
+export const dispatchGreaterRealmWorkerV1 = warpkeep.reducer(
+  { name: 'dispatch_greater_realm_worker_v1' },
+  {
+    workerId: t.string(),
+    resourceKind: t.string(),
+    locationId: t.string(),
+    expectedRevision: t.u64(),
+    idempotencyKey: t.string(),
+  },
+  (ctx, { workerId, resourceKind, locationId, expectedRevision, idempotencyKey }) => {
+    try {
+      const { claims, castle } = requireAuthenticatedCastleOwnerActionV1(ctx);
+      dispatchGreaterRealmCastleWorkerV2(ctx, {
+        fid: claims.fid,
+        castle,
+        workerId,
+        resourceKind,
+        locationId,
+        expectedRevision,
+        idempotencyKey,
+      });
     } catch (error) {
       return senderPolicyError(error);
     }
@@ -436,7 +593,7 @@ export const adminGetWorkerSystemStatusV1 = warpkeep.procedure(
   adminWorkerSystemStatus,
   ctx => ctx.withTx(tx => {
     requireAdmin(tx);
-    return aggregateResult(inspectCastleWorkerGraph(tx));
+    return aggregateResult(inspectCastleWorkerGraphForCurrentGameplayV1(tx));
   }),
 );
 

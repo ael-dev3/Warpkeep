@@ -6,6 +6,10 @@
 export const WARPKEEP_ENTRY_AGREEMENT_VERSION =
   '2026-07-31-hegemony-entry-agreement-v4';
 
+/** Exact selected-bundle status consumed by generic production guards. */
+export const WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS =
+  'production-approved';
+
 /** Compatibility alias retained by existing reducer and client imports. */
 export const WARPKEEP_ALPHA_TERMS_VERSION = WARPKEEP_ENTRY_AGREEMENT_VERSION;
 

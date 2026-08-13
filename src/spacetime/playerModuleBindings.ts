@@ -4,7 +4,7 @@
  *
  * The complete generated bindings remain the canonical schema artifact under
  * `module_bindings/` and are still used by server-side operators. The player
- * only needs the public realm tables plus eleven read procedures and fifteen
+ * only needs the public realm tables plus its exact read procedures and
  * self-service reducers. Keeping that runtime projection separate prevents
  * private/admin and machine-bound QA procedure names from becoming part of
  * the public Vite graph while preserving generated-binding parity unchanged.
@@ -33,24 +33,34 @@ import {
 import AcceptAlphaTermsV1Reducer from './module_bindings/accept_alpha_terms_v_1_reducer'
 import BootstrapPlayerV2Reducer from './module_bindings/bootstrap_player_v_2_reducer'
 import DispatchWorkerV1Reducer from './module_bindings/dispatch_worker_v_1_reducer'
+import DispatchGreaterRealmWorkerV1Reducer from './module_bindings/dispatch_greater_realm_worker_v_1_reducer'
 import CollectFoodExpeditionV1Reducer from './module_bindings/collect_food_expedition_v_1_reducer'
 import CollectGoldExpeditionV1Reducer from './module_bindings/collect_gold_expedition_v_1_reducer'
 import CollectWoodExpeditionV1Reducer from './module_bindings/collect_wood_expedition_v_1_reducer'
 import CollectStoneExpeditionV1Reducer from './module_bindings/collect_stone_expedition_v_1_reducer'
 import CollectResourcesV1Reducer from './module_bindings/collect_resources_v_1_reducer'
 import CastleRow from './module_bindings/castle_table'
+import CastleInnerKeepBuildingV1Row from './module_bindings/castle_inner_keep_building_v_1_table'
 import CastleWorkerV1Row from './module_bindings/castle_worker_v_1_table'
 import * as GetAlphaBackendInfoProcedure from './module_bindings/get_alpha_backend_info_procedure'
 import * as GetMyAdmissionStatusV2Procedure from './module_bindings/get_my_admission_status_v_2_procedure'
 import * as GetMyEntryAgreementStatusV1Procedure from './module_bindings/get_my_entry_agreement_status_v_1_procedure'
 import * as GetMyFoodExpeditionStateV1Procedure from './module_bindings/get_my_food_expedition_state_v_1_procedure'
 import * as GetMyGoldExpeditionStateV1Procedure from './module_bindings/get_my_gold_expedition_state_v_1_procedure'
+import * as GetMyInnerKeepRequestStatusV1Procedure from './module_bindings/get_my_inner_keep_request_status_v_1_procedure'
+import * as GetMyInnerKeepStateV1Procedure from './module_bindings/get_my_inner_keep_state_v_1_procedure'
 import * as GetMyWoodExpeditionStateV1Procedure from './module_bindings/get_my_wood_expedition_state_v_1_procedure'
 import * as GetMyStoneExpeditionStateV1Procedure from './module_bindings/get_my_stone_expedition_state_v_1_procedure'
 import * as GetMyResourceStateV1Procedure from './module_bindings/get_my_resource_state_v_1_procedure'
 import * as GetMyResourceStateV2Procedure from './module_bindings/get_my_resource_state_v_2_procedure'
 import * as GetMyWorkerControlStateV1Procedure from './module_bindings/get_my_worker_control_state_v_1_procedure'
+import * as GetMyWorkerControlStateV2Procedure from './module_bindings/get_my_worker_control_state_v_2_procedure'
 import * as GetMyWorkerRosterV1Procedure from './module_bindings/get_my_worker_roster_v_1_procedure'
+import * as GetRealmAtlasBootstrapV1Procedure from './module_bindings/get_realm_atlas_bootstrap_v_1_procedure'
+import * as GetRealmAtlasChunkV1Procedure from './module_bindings/get_realm_atlas_chunk_v_1_procedure'
+import * as GetRealmAtlasResourceLocationsV1Procedure from './module_bindings/get_realm_atlas_resource_locations_v_1_procedure'
+import * as GetRealmAtlasWindowV1Procedure from './module_bindings/get_realm_atlas_window_v_1_procedure'
+import * as PlanRealmRouteV1Procedure from './module_bindings/plan_realm_route_v_1_procedure'
 import DispatchFoodExpeditionV1Reducer from './module_bindings/dispatch_food_expedition_v_1_reducer'
 import DispatchGoldExpeditionV1Reducer from './module_bindings/dispatch_gold_expedition_v_1_reducer'
 import DispatchWoodExpeditionV1Reducer from './module_bindings/dispatch_wood_expedition_v_1_reducer'
@@ -58,11 +68,21 @@ import DispatchStoneExpeditionV1Reducer from './module_bindings/dispatch_stone_e
 import RecallAllWorkersV1Reducer from './module_bindings/recall_all_workers_v_1_reducer'
 import RecallWorkerV1Reducer from './module_bindings/recall_worker_v_1_reducer'
 import ReturnLegacyExpeditionV1Reducer from './module_bindings/return_legacy_expedition_v_1_reducer'
+import InnerKeepStartProjectV1Reducer from './module_bindings/inner_keep_start_project_v_1_reducer'
+import SendRealmChatMessageV1Reducer from './module_bindings/send_realm_chat_message_v_1_reducer'
+import ReportRealmChatMessageV1Reducer from './module_bindings/report_realm_chat_message_v_1_reducer'
 import FoodNodeOccupationV1Row from './module_bindings/food_node_occupation_v_1_table'
 import FoodSiteV1Row from './module_bindings/food_site_v_1_table'
 import GoldNodeOccupationV1Row from './module_bindings/gold_node_occupation_v_1_table'
 import GoldSiteV1Row from './module_bindings/gold_site_v_1_table'
+import InnerKeepBuildLevelV1Row from './module_bindings/inner_keep_build_level_v_1_table'
+import InnerKeepBuildingCatalogV1Row from './module_bindings/inner_keep_building_catalog_v_1_table'
+import InnerKeepLayoutV1Row from './module_bindings/inner_keep_layout_v_1_table'
+import InnerKeepSlotV1Row from './module_bindings/inner_keep_slot_v_1_table'
 import PlayerV2Row from './module_bindings/player_v_2_table'
+import RealmChatStatusV1Row from './module_bindings/realm_chat_status_v_1_table'
+import * as GetRealmChatHistoryV1Procedure from './module_bindings/get_realm_chat_history_v_1_procedure'
+import * as GetRealmChatRecentV1Procedure from './module_bindings/get_realm_chat_recent_v_1_procedure'
 import RealmForestInstanceV1Row from './module_bindings/realm_forest_instance_v_1_table'
 import RealmForestLayoutV1Row from './module_bindings/realm_forest_layout_v_1_table'
 import RealmProfileV1Row from './module_bindings/realm_profile_v_1_table'
@@ -101,6 +121,19 @@ const tablesSchema = __schema({
       { name: 'castle_tile_key_key', constraint: 'unique', columns: ['tileKey'] },
     ],
   }, CastleRow),
+  // Inner Keep exposes only its immutable policy/layout catalog and the
+  // identity-minimized castle project rows. Builder capacity, receipts, and
+  // scheduler rows stay private and are never part of the browser schema.
+  castleInnerKeepBuildingV1: __table({
+    name: 'castle_inner_keep_building_v1',
+    indexes: [
+      { accessor: 'buildingKey', name: 'castle_inner_keep_building_v1_building_key_idx_btree', algorithm: 'btree', columns: ['buildingKey'] },
+      { accessor: 'byCastle', name: 'castle_inner_keep_building_v1_castle_id_idx_btree', algorithm: 'btree', columns: ['castleId'] },
+    ],
+    constraints: [
+      { name: 'castle_inner_keep_building_v1_building_key_key', constraint: 'unique', columns: ['buildingKey'] },
+    ],
+  }, CastleInnerKeepBuildingV1Row),
   // Generic workers expose only stable identity, timing, and public node
   // occupation. Private assignments and cargo remain procedure-only.
   castleWorkerV1: __table({
@@ -168,6 +201,44 @@ const tablesSchema = __schema({
       { name: 'gold_site_v1_site_id_key', constraint: 'unique', columns: ['siteId'] },
     ],
   }, GoldSiteV1Row),
+  innerKeepBuildLevelV1: __table({
+    name: 'inner_keep_build_level_v1',
+    indexes: [
+      { accessor: 'buildingKind', name: 'inner_keep_build_level_v1_building_kind_idx_btree', algorithm: 'btree', columns: ['buildingKind'] },
+      { accessor: 'levelKey', name: 'inner_keep_build_level_v1_level_key_idx_btree', algorithm: 'btree', columns: ['levelKey'] },
+    ],
+    constraints: [
+      { name: 'inner_keep_build_level_v1_level_key_key', constraint: 'unique', columns: ['levelKey'] },
+    ],
+  }, InnerKeepBuildLevelV1Row),
+  innerKeepBuildingCatalogV1: __table({
+    name: 'inner_keep_building_catalog_v1',
+    indexes: [
+      { accessor: 'buildingKind', name: 'inner_keep_building_catalog_v1_building_kind_idx_btree', algorithm: 'btree', columns: ['buildingKind'] },
+    ],
+    constraints: [
+      { name: 'inner_keep_building_catalog_v1_building_kind_key', constraint: 'unique', columns: ['buildingKind'] },
+    ],
+  }, InnerKeepBuildingCatalogV1Row),
+  innerKeepLayoutV1: __table({
+    name: 'inner_keep_layout_v1',
+    indexes: [
+      { accessor: 'layoutId', name: 'inner_keep_layout_v1_layout_id_idx_btree', algorithm: 'btree', columns: ['layoutId'] },
+    ],
+    constraints: [
+      { name: 'inner_keep_layout_v1_layout_id_key', constraint: 'unique', columns: ['layoutId'] },
+    ],
+  }, InnerKeepLayoutV1Row),
+  innerKeepSlotV1: __table({
+    name: 'inner_keep_slot_v1',
+    indexes: [
+      { accessor: 'layoutId', name: 'inner_keep_slot_v1_layout_id_idx_btree', algorithm: 'btree', columns: ['layoutId'] },
+      { accessor: 'slotId', name: 'inner_keep_slot_v1_slot_id_idx_btree', algorithm: 'btree', columns: ['slotId'] },
+    ],
+    constraints: [
+      { name: 'inner_keep_slot_v1_slot_id_key', constraint: 'unique', columns: ['slotId'] },
+    ],
+  }, InnerKeepSlotV1Row),
   playerV2: __table({
     name: 'player_v2',
     indexes: [
@@ -179,6 +250,19 @@ const tablesSchema = __schema({
       { name: 'player_v2_fid_key', constraint: 'unique', columns: ['fid'] },
     ],
   }, PlayerV2Row),
+  // Chat subscriptions expose only body-free readiness. Recent bodies, the
+  // permanent archive, reports, rate events, and receipts stay private and are
+  // available only through caller-authenticated procedures.
+  realmChatStatusV1: __table({
+    name: 'realm_chat_status_v1',
+    indexes: [
+      { accessor: 'channelKey', name: 'realm_chat_status_v1_channel_key_idx_btree', algorithm: 'btree', columns: ['channelKey'] },
+      { accessor: 'realmId', name: 'realm_chat_status_v1_realm_id_idx_btree', algorithm: 'btree', columns: ['realmId'] },
+    ],
+    constraints: [
+      { name: 'realm_chat_status_v1_channel_key_key', constraint: 'unique', columns: ['channelKey'] },
+    ],
+  }, RealmChatStatusV1Row),
   // The immutable forest pair is public presentation data only. The browser
   // receives no seeding reducer or private authority table; connection code
   // publishes rows only after both subscriptions apply atomically.
@@ -396,9 +480,13 @@ const reducersSchema = __reducers(
   __reducerSchema('dispatch_wood_expedition_v1', DispatchWoodExpeditionV1Reducer),
   __reducerSchema('dispatch_stone_expedition_v1', DispatchStoneExpeditionV1Reducer),
   __reducerSchema('dispatch_worker_v1', DispatchWorkerV1Reducer),
+  __reducerSchema('dispatch_greater_realm_worker_v1', DispatchGreaterRealmWorkerV1Reducer),
+  __reducerSchema('inner_keep_start_project_v1', InnerKeepStartProjectV1Reducer),
   __reducerSchema('recall_worker_v1', RecallWorkerV1Reducer),
   __reducerSchema('recall_all_workers_v1', RecallAllWorkersV1Reducer),
   __reducerSchema('return_legacy_expedition_v1', ReturnLegacyExpeditionV1Reducer),
+  __reducerSchema('send_realm_chat_message_v1', SendRealmChatMessageV1Reducer),
+  __reducerSchema('report_realm_chat_message_v1', ReportRealmChatMessageV1Reducer),
 )
 
 const proceduresSchema = __procedures(
@@ -428,6 +516,16 @@ const proceduresSchema = __procedures(
     GetMyGoldExpeditionStateV1Procedure.returnType,
   ),
   __procedureSchema(
+    'get_my_inner_keep_request_status_v1',
+    GetMyInnerKeepRequestStatusV1Procedure.params,
+    GetMyInnerKeepRequestStatusV1Procedure.returnType,
+  ),
+  __procedureSchema(
+    'get_my_inner_keep_state_v1',
+    GetMyInnerKeepStateV1Procedure.params,
+    GetMyInnerKeepStateV1Procedure.returnType,
+  ),
+  __procedureSchema(
     'get_my_wood_expedition_state_v1',
     GetMyWoodExpeditionStateV1Procedure.params,
     GetMyWoodExpeditionStateV1Procedure.returnType,
@@ -453,9 +551,51 @@ const proceduresSchema = __procedures(
     GetMyWorkerControlStateV1Procedure.returnType,
   ),
   __procedureSchema(
+    'get_my_worker_control_state_v2',
+    GetMyWorkerControlStateV2Procedure.params,
+    GetMyWorkerControlStateV2Procedure.returnType,
+  ),
+  __procedureSchema(
     'get_my_worker_roster_v1',
     GetMyWorkerRosterV1Procedure.params,
     GetMyWorkerRosterV1Procedure.returnType,
+  ),
+  // Greater Realm v17 is procedure-only in the browser. Its atlas, chunk,
+  // occupancy, import, and verification tables stay out of this projection.
+  __procedureSchema(
+    'get_realm_atlas_bootstrap_v1',
+    GetRealmAtlasBootstrapV1Procedure.params,
+    GetRealmAtlasBootstrapV1Procedure.returnType,
+  ),
+  __procedureSchema(
+    'get_realm_atlas_chunk_v1',
+    GetRealmAtlasChunkV1Procedure.params,
+    GetRealmAtlasChunkV1Procedure.returnType,
+  ),
+  __procedureSchema(
+    'get_realm_atlas_resource_locations_v1',
+    GetRealmAtlasResourceLocationsV1Procedure.params,
+    GetRealmAtlasResourceLocationsV1Procedure.returnType,
+  ),
+  __procedureSchema(
+    'get_realm_atlas_window_v1',
+    GetRealmAtlasWindowV1Procedure.params,
+    GetRealmAtlasWindowV1Procedure.returnType,
+  ),
+  __procedureSchema(
+    'plan_realm_route_v1',
+    PlanRealmRouteV1Procedure.params,
+    PlanRealmRouteV1Procedure.returnType,
+  ),
+  __procedureSchema(
+    'get_realm_chat_history_v1',
+    GetRealmChatHistoryV1Procedure.params,
+    GetRealmChatHistoryV1Procedure.returnType,
+  ),
+  __procedureSchema(
+    'get_realm_chat_recent_v1',
+    GetRealmChatRecentV1Procedure.params,
+    GetRealmChatRecentV1Procedure.returnType,
   ),
 )
 

@@ -5,8 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import {
+  WARPKEEP_ALPHA_PRIVACY_NOTICE_TEXT_SHA256,
+  WARPKEEP_ALPHA_PRIVACY_NOTICE_VERSION,
   WARPKEEP_ALPHA_TERMS_TEXT_SHA256,
   WARPKEEP_ALPHA_TERMS_VERSION,
+  WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS,
   WARPKEEP_ENTRY_AGREEMENT_VERSION,
   WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_TEXT_SHA256,
   WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_VERSION,
@@ -18,11 +21,13 @@ import {
 import {
   WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
   WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS,
+  WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS as MODULE_ENTRY_AGREEMENT_RELEASE_STATUS,
   WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS,
 } from '../spacetimedb/src/entryAgreementPolicy';
 import {
   WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM as TOOLING_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
   WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS as TOOLING_ENTRY_AGREEMENT_EVIDENCE_VERSIONS,
+  WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS as TOOLING_ENTRY_AGREEMENT_RELEASE_STATUS,
   WARPKEEP_ENTRY_AGREEMENT_VERSION as TOOLING_ENTRY_AGREEMENT_VERSION,
   WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS as TOOLING_HISTORICAL_ENTRY_AGREEMENT_VERSIONS,
 } from '../scripts/entry-agreement-policy.mjs';
@@ -33,6 +38,10 @@ const termsHtml = readFileSync(
 );
 const socialContractHtml = readFileSync(
   resolve(dirname(fileURLToPath(import.meta.url)), '../public/social-contract/index.html'),
+  'utf8'
+);
+const privacyHtml = readFileSync(
+  resolve(dirname(fileURLToPath(import.meta.url)), '../public/privacy/index.html'),
   'utf8'
 );
 
@@ -58,9 +67,18 @@ describe('versioned Alpha entry-agreement binding', () => {
       '2026-07-31-hegemony-entry-agreement-v4',
     );
     expect(WARPKEEP_ENTRY_AGREEMENT_VERSION).not.toBe('2026-07-14');
+    expect(WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS)
+      .toBe('production-approved');
+    expect(MODULE_ENTRY_AGREEMENT_RELEASE_STATUS)
+      .toBe(WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS);
+    expect(TOOLING_ENTRY_AGREEMENT_RELEASE_STATUS)
+      .toBe(WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS);
+    expect(WARPKEEP_ALPHA_PRIVACY_NOTICE_VERSION).toBe('2026-08-02-v5');
   });
 
   it('keeps historical evidence distinct from the current entry/gameplay version', () => {
+    expect(WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS)
+      .not.toContain('2026-07-31-hegemony-entry-agreement-v4');
     expect(WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS)
       .toContain('2026-07-19-hegemony-entry-agreement-v3');
     expect(WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS).toContain('2026-07-14');
@@ -77,6 +95,7 @@ describe('versioned Alpha entry-agreement binding', () => {
     ]);
     expect(WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM)
       .toBe(WARPKEEP_ENTRY_AGREEMENT_EVIDENCE_VERSIONS.length);
+    expect(WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM).toBe(5);
     expect(TOOLING_ENTRY_AGREEMENT_VERSION).toBe(WARPKEEP_ENTRY_AGREEMENT_VERSION);
     expect(TOOLING_HISTORICAL_ENTRY_AGREEMENT_VERSIONS)
       .toEqual(WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS);
@@ -101,6 +120,16 @@ describe('versioned Alpha entry-agreement binding', () => {
       socialContractHtml,
       WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_TEXT_SHA256,
       [WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_VERSION],
+    ],
+    [
+      'Privacy Notice',
+      privacyHtml,
+      WARPKEEP_ALPHA_PRIVACY_NOTICE_TEXT_SHA256,
+      [
+        WARPKEEP_ALPHA_PRIVACY_NOTICE_VERSION,
+        WARPKEEP_ENTRY_AGREEMENT_VERSION,
+        WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_VERSION,
+      ],
     ],
   ] as const)(
     'fails when canonical visible %s wording drifts without policy review',

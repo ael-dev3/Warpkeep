@@ -1,6 +1,7 @@
 import type { InferSchema, ReducerCtx } from 'spacetimedb/server';
 import { ScheduleAt } from 'spacetimedb';
 
+import { greaterRealmLegacyJourneyDispatchIsOpenV1 } from './greaterRealmActivationState';
 import {
   STONE_EXPEDITION_POLICY_VERSION,
   STONE_EXPEDITION_U64_MAX,
@@ -437,6 +438,9 @@ export function dispatchGenesisStoneExpedition(
     return Object.freeze({ expedition, idempotent: true });
   }
 
+  if (!greaterRealmLegacyJourneyDispatchIsOpenV1(ctx)) {
+    fail('GREATER_REALM_LEGACY_DISPATCH_CLOSED');
+  }
   assertLegacyExpeditionDispatchAllowed(ctx, 'stone', input.siteId);
   const site = ctx.db.stoneSiteV1.siteId.find(input.siteId);
   if (site === null || !site.active) fail('STONE_SITE_UNAVAILABLE');

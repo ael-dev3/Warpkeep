@@ -282,7 +282,7 @@ describe('static forest presentation layer', () => {
         fallbackType: 'procedural-trunk-multi-canopy-v1',
         contactShadowCount: 0,
         groundingMode: 'terrain-canopy-procedural-root-contact',
-        canopyMotionState: 'static',
+        canopyMotionState: 'shared-gust',
         structureCellCounts: {
           core: 1,
           body: 0,
@@ -316,8 +316,13 @@ describe('static forest presentation layer', () => {
       return fakeLease(asset, release);
     });
     const layer = createLayer(points, acquirePrefab, onModelReady);
+    const fallbackMesh = layer.group.getObjectByName(
+      'realm-hegemony-tree-static-fallback'
+    ) as THREE.InstancedMesh;
+    const fallbackDispose = vi.spyOn(fallbackMesh, 'dispose');
 
     await vi.waitFor(() => expect(layer.getPresentationTelemetry().usingFallback).toBe(false));
+    expect(fallbackDispose).toHaveBeenCalledOnce();
     expect(maximumActiveLoads).toBeLessThanOrEqual(HEGEMONY_TREE_PREFAB_LOAD_CONCURRENCY);
     expect(acquirePrefab).toHaveBeenCalledTimes(assets.length);
     expect(release).toHaveBeenCalledTimes(assets.length);
@@ -328,13 +333,60 @@ describe('static forest presentation layer', () => {
       fallbackType: 'none',
       contactShadowCount: 0,
       groundingMode: 'terrain-canopy-baked-base',
-      canopyMotionState: 'static',
+      canopyMotionState: 'shared-gust',
       triangleCount: assets.length * 12
     });
     expect(layer.group.getObjectByName('realm-hegemony-tree-static-fallback')).toBeUndefined();
-    expect(layer.group.getObjectByName('realm-hegemony-tree-static-batch')).toBeTruthy();
+    const authoredBatch = layer.group.getObjectByName(
+      'realm-hegemony-tree-static-batch'
+    ) as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+    expect(authoredBatch).toBeTruthy();
+    expect(authoredBatch.geometry.getAttribute('realmForestWindWeight').array)
+      .toBeInstanceOf(Uint8Array);
+    expect(authoredBatch.geometry.getAttribute('realmForestWindWeight').normalized)
+      .toBe(true);
+    expect(authoredBatch.geometry.getAttribute('realmForestWindPhase').array)
+      .toBeInstanceOf(Uint8Array);
+    expect(layer.getPresentationTelemetry().windAttributeBytes)
+      .toBe(authoredBatch.geometry.getAttribute('position').count * 2);
+    expect(layer.isAnimationActive()).toBe(true);
+    expect(layer.updateWind(1)).toBe(true);
+    expect(layer.updateWind(1)).toBe(false);
     expect(onModelReady).toHaveBeenCalledOnce();
     layer.dispose();
+  });
+
+  it('keeps forest materials static under reduced motion', async () => {
+    const asset = HEGEMONY_TREE_RUNTIME_ASSETS[0]!;
+    const layer = createRealmForestLayer({
+      data: biomeData([pointForAsset(asset)]),
+      map: surface.renderMap,
+      terrainPlacements: [],
+      quality: REALM_QUALITY_SPECS.high,
+      baseUrl: '/',
+      reducedMotion: true,
+      acquirePrefab: async () => fakeLease(asset)
+    });
+
+    expect(layer.isAnimationActive()).toBe(false);
+    expect(layer.updateWind(1)).toBe(false);
+    expect(layer.getPresentationTelemetry().canopyMotionState).toBe('static');
+    const fallback = layer.group.getObjectByName(
+      'realm-hegemony-tree-static-fallback'
+    ) as THREE.InstancedMesh;
+    expect(fallback.geometry.getAttribute('realmForestWindWeight')).toBeUndefined();
+    expect(layer.getPresentationTelemetry().windAttributeBytes).toBe(0);
+    await vi.waitFor(() => expect(layer.getPresentationTelemetry().usingFallback).toBe(false));
+    expect(layer.isAnimationActive()).toBe(false);
+    expect(layer.getPresentationTelemetry().canopyMotionState).toBe('static');
+    const authoredBatch = layer.group.getObjectByName(
+      'realm-hegemony-tree-static-batch'
+    ) as THREE.Mesh;
+    expect(authoredBatch.geometry.getAttribute('realmForestWindWeight')).toBeUndefined();
+    expect(authoredBatch.geometry.getAttribute('realmForestWindPhase')).toBeUndefined();
+    expect(layer.getPresentationTelemetry().windAttributeBytes).toBe(0);
+    layer.dispose();
+    expect(layer.getPresentationTelemetry().canopyMotionState).toBe('static');
   });
 
   it('dusts only top-facing authored vertices without changing their static topology', async () => {

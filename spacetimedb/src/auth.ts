@@ -27,8 +27,18 @@ import { evaluateAdmissionEpoch } from './admissionPolicy';
 import { MAX_SUPPORTED_FID } from './config';
 import { assertGenesisFounderForFid } from './foundingAuthority';
 import { WARPKEEP_ALPHA_TERMS_VERSION } from './entryAgreementPolicy';
+import {
+  currentGreaterRealmActivationRowV1,
+} from './greaterRealmActivationState';
+import {
+  assertGreaterRealmIndexedPublicReadAuthorityV1,
+  GreaterRealmPublicReadAuthorityError,
+} from './greaterRealmPublicReadAuthority';
 import { evaluatePlayerOwnership } from './playerOwnershipPolicy';
-import { assertGenesisResourceForFid } from './resourceAuthority';
+import {
+  assertGenesisResourceForFid,
+  assertGreaterRealmResourceForIndexedReadV1,
+} from './resourceAuthority';
 import type warpkeep from './schema';
 
 type WarpkeepReducerContext = ReducerCtx<InferSchema<typeof warpkeep>>;
@@ -260,6 +270,42 @@ export function requireOwnedCastleActionV1(
 }
 
 /**
+ * Authenticate an exact admitted player/castle owner without reading the
+ * mutable Greater Realm activation roots. Receipt-first commands use this
+ * boundary so a valid terminal retry survives halt or later capacity drift;
+ * fresh commands must separately require the complete current founder graph.
+ */
+export function requireAuthenticatedCastleOwnerActionV1(
+  ctx: WarpkeepReducerContext,
+): ReturnType<typeof requireAllowedFid> & {
+  player: NonNullable<ReturnType<typeof ctx.db.playerV2.fid.find>>;
+  castle: NonNullable<ReturnType<typeof ctx.db.castle.ownerFid.find>>;
+} {
+  const admitted = requireAllowedFid(ctx);
+  const player = ctx.db.playerV2.fid.find(admitted.claims.fid);
+  const ownership = ctx.db.playerOwnershipV2.fid.find(admitted.claims.fid);
+  const castle = ctx.db.castle.ownerFid.find(admitted.claims.fid);
+  const acceptance = ctx.db.alphaTermsAcceptanceV1.acceptanceKey.find(
+    `${admitted.claims.fid}:${WARPKEEP_ALPHA_TERMS_VERSION}`,
+  );
+  const ownershipState = evaluatePlayerOwnership(
+    player !== null,
+    ownership !== null,
+    ownership?.identity.equals(ctx.sender) ?? false,
+  );
+  if (ownershipState === 'unbound') throw new SenderError('PLAYER_NOT_BOOTSTRAPPED');
+  if (ownershipState === 'partial' || castle === null) throw new SenderError('STATE_INTEGRITY');
+  if (ownershipState === 'identity_mismatch') throw new SenderError('IDENTITY_MISMATCH');
+  if (castle.ownerFid !== admitted.claims.fid) throw new SenderError('STATE_INTEGRITY');
+  if (
+    acceptance === null
+    || acceptance.fid !== admitted.claims.fid
+    || acceptance.termsVersion !== WARPKEEP_ALPHA_TERMS_VERSION
+  ) throw new SenderError('ALPHA_TERMS_REQUIRED');
+  return Object.freeze({ ...admitted, player: player!, castle });
+}
+
+/**
  * Require the complete current gameplay graph. Resource entry points never
  * infer current entry-agreement acceptance from public presentation fields or
  * historical evidence alone.
@@ -277,6 +323,65 @@ export function requireGameplayPlayerV1(ctx: WarpkeepReducerContext) {
   }
   const resource = assertGenesisResourceForFid(ctx, admitted.claims.fid);
   return Object.freeze({ ...admitted, ...resource });
+}
+
+/**
+ * Read-only v17 gate: authenticate once, validate bounded roots and the exact
+ * indexed caller graph once, then validate the provided caller resource row
+ * without entering any whole-population founder audit. Pre-cutover reads retain
+ * the byte-for-byte legacy gameplay boundary.
+ */
+export function requireGameplayReadPlayerV1(ctx: WarpkeepReducerContext) {
+  const admitted = requireAuthenticatedCastleOwnerActionV1(ctx);
+  let activation;
+  try {
+    activation = currentGreaterRealmActivationRowV1(ctx);
+  } catch {
+    throw new SenderError('STATE_INTEGRITY');
+  }
+  if (
+    activation === undefined
+    || activation.canaryAt === undefined
+    || activation.rolledBackAt !== undefined
+  ) return requireGameplayPlayerV1(ctx);
+  try {
+    const authority = assertGreaterRealmIndexedPublicReadAuthorityV1(
+      ctx,
+      activation,
+      { fid: admitted.claims.fid, castle: admitted.castle },
+    );
+    const resource = assertGreaterRealmResourceForIndexedReadV1(ctx, authority);
+    return Object.freeze({ ...admitted, ...resource, greaterRealm: authority });
+  } catch (error) {
+    if (error instanceof SenderError) throw error;
+    throw new SenderError(error instanceof GreaterRealmPublicReadAuthorityError
+      ? error.code
+      : 'STATE_INTEGRITY');
+  }
+}
+
+/** Exact caller-scoped v17 map authority without unrelated resource/profile reads. */
+export function requireGreaterRealmPublicReadAuthorityV1(ctx: WarpkeepReducerContext) {
+  const admitted = requireAuthenticatedCastleOwnerActionV1(ctx);
+  try {
+    const activation = currentGreaterRealmActivationRowV1(ctx);
+    if (
+      activation === undefined
+      || activation.canaryAt === undefined
+      || activation.rolledBackAt !== undefined
+    ) throw new GreaterRealmPublicReadAuthorityError();
+    const authority = assertGreaterRealmIndexedPublicReadAuthorityV1(
+      ctx,
+      activation,
+      { fid: admitted.claims.fid, castle: admitted.castle },
+    );
+    return Object.freeze({ ...admitted, ...authority });
+  } catch (error) {
+    if (error instanceof SenderError) throw error;
+    throw new SenderError(error instanceof GreaterRealmPublicReadAuthorityError
+      ? error.code
+      : 'STATE_INTEGRITY');
+  }
 }
 
 /** Admin inputs use the same safe FID envelope as bridge-issued player claims. */

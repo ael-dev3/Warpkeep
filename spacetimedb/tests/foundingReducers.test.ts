@@ -92,7 +92,7 @@ test('profiled admission validates before writes and atomically creates the comp
 test('profile maintenance accepts canonical clears without touching ownership or castle state', () => {
   const admin = source('../src/reducers/admin.ts');
   const start = admin.indexOf('export const adminUpsertRealmProfileV1');
-  const end = admin.indexOf('/** Burn and wallet-attribution mutation wires', start);
+  const end = admin.indexOf('/**\n * Owner-only request-CAS re-admission', start);
   const reducer = admin.slice(start, end);
 
   assert.match(reducer, /normalizeTrustedPublicProfile\(input\)/);

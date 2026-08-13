@@ -18,6 +18,7 @@ import type {
   WarpkeepPlayer,
   WarpkeepRealm,
   WarpkeepRealmProfile,
+  WarpkeepRealmContinuityProjection,
   WarpkeepRealmSnapshot,
   WarpkeepRealmSnapshotCandidate,
   WarpkeepWaterBody,
@@ -39,6 +40,10 @@ import {
   isCanonicalGenesisSnapshot,
   validateCanonicalGenesisSnapshot
 } from './canonicalGenesisSnapshot';
+import {
+  matchesCanonicalRealm,
+  matchesGenerationV2Realm
+} from '../../spacetimedb/src/world';
 import {
   REALM_CASTLE_NAME_MAXIMUM_LENGTH,
   REALM_DISPLAY_NAME_MAXIMUM_LENGTH,
@@ -99,6 +104,10 @@ import {
   type WorkerRosterPresentation
 } from '../components/realm/realmWorkerPresentation';
 import {
+  decodeGreaterRealmWorkerControlState,
+  type GreaterRealmWorkerControlDecodeResult
+} from '../greater-realm/greaterRealmWorkerControl';
+import {
   REALM_FOOD_SITE_COUNT,
   REALM_GOLD_SITE_COUNT,
   REALM_WOOD_SITE_COUNT,
@@ -110,6 +119,44 @@ import {
 } from '../components/realm/realmResourceSiteCatalogPolicy';
 import { GENESIS_FOREST_LAYOUT_V1_TREE_COUNT } from '../../spacetimedb/src/forestLayoutContract';
 import { GENESIS_WATER_BODIES_V1, GENESIS_WATER_CELLS_V1 } from '../../spacetimedb/src/waterWorld';
+import {
+  decodeInnerKeepPrivateState,
+  decodeInnerKeepRequestStatus,
+  resolveReadyInnerKeepProjection,
+  type InnerKeepBuildingCatalogRow,
+  type InnerKeepBuildingRow,
+  type InnerKeepBuildLevelRow,
+  type InnerKeepLayoutRow,
+  type InnerKeepPublicRows,
+  type InnerKeepReadScope,
+  type InnerKeepSlotRow,
+  type ReadyInnerKeepProjection
+} from './innerKeepProjection';
+import {
+  INNER_KEEP_REQUEST_KEY_PATTERN,
+  type InnerKeepCommandAttempt,
+  type InnerKeepRequestReceipt
+} from './innerKeepCommandIdempotency';
+import {
+  INNER_KEEP_PROJECT_REVISION_MAX,
+  innerKeepPlacementTransformIntegrity,
+  type InnerKeepPlacementTransform,
+  isInnerKeepBuildingKind
+} from '../components/inner-keep/innerKeepPresentation';
+import { INNER_KEEP_POLICY_DIGEST } from '../../spacetimedb/src/innerKeepPolicy';
+import { INNER_KEEP_LAYOUT_V1_DIGEST } from '../components/inner-keep/innerKeepLayoutV1';
+import {
+  decodeRealmChatHistoryPage,
+  decodeRealmChatRecentPage,
+  decodeRealmChatStatusProjection,
+  type RealmChatHistoryPagePresentation,
+  type RealmChatRecentPagePresentation,
+  type RealmChatPresentation
+} from './realmChatPresentation';
+import {
+  GREATER_REALM_PUBLIC_PROCEDURES,
+  type GreaterRealmProcedureInvoker
+} from '../greater-realm/greaterRealmTransport';
 
 export type WarpkeepConnectionFailureReason =
   | 'handshake_timeout'
@@ -128,12 +175,26 @@ export type WarpkeepConnectionCallbacks = Readonly<{
 
 export type WarpkeepConnection = DbConnection;
 
+export type WarpkeepGreaterRealmConnectionAuthority = Readonly<{
+  /** Monotonic provider-owned socket generation; never sourced from the server. */
+  generation: number;
+  /** The verified caller on the exact authenticated socket generation. */
+  fid: number;
+  /** Rechecked before invocation and after every procedure result. */
+  isCurrent: () => boolean;
+}>;
+
 /**
  * Core Realm data remains available while additive feature projections are
  * applying or unavailable on an older deployment. Every handle is still
  * released as one lifecycle unit.
  */
 export type WarpkeepRealmSubscription = Readonly<{
+  unsubscribe: () => void;
+}>;
+
+/** Chat remains a separate small subscription so messages never rebuild the world snapshot. */
+export type WarpkeepRealmChatSubscription = Readonly<{
   unsubscribe: () => void;
 }>;
 
@@ -196,6 +257,15 @@ const WORKER_PROJECTION_PENDING = 'pending' as const;
 const WORKER_PROJECTION_READY = 'ready' as const;
 type WorkerProjectionAvailability = typeof WORKER_PROJECTION_UNAVAILABLE | typeof WORKER_PROJECTION_PENDING | typeof WORKER_PROJECTION_READY;
 const workerProjectionAvailability = new WeakMap<WarpkeepConnection, WorkerProjectionAvailability>();
+const INNER_KEEP_PROJECTION_UNAVAILABLE = 'unavailable' as const;
+const INNER_KEEP_PROJECTION_PENDING = 'pending' as const;
+const INNER_KEEP_PROJECTION_READY = 'ready' as const;
+type InnerKeepProjectionAvailability =
+  | typeof INNER_KEEP_PROJECTION_UNAVAILABLE
+  | typeof INNER_KEEP_PROJECTION_PENDING
+  | typeof INNER_KEEP_PROJECTION_READY;
+const innerKeepProjectionAvailability =
+  new WeakMap<WarpkeepConnection, InnerKeepProjectionAvailability>();
 const GOLD_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
 const GOLD_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
 const FOOD_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
@@ -206,7 +276,23 @@ const STONE_SITE_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
 const STONE_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
 const WORKER_ID_PATTERN = /^genesis-001-castle-[1-9][0-9]*-worker-0[1-4]$/;
 const WORKER_IDEMPOTENCY_KEY_PATTERN = /^[a-z0-9][a-z0-9-]{15,79}$/;
+const GREATER_REALM_LOCATION_ID_PATTERN = /^GRL-[A-Z2-7]{26}$/;
+const U64_MAXIMUM = (1n << 64n) - 1n;
 const LEGACY_EXPEDITION_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,95}$/i;
+const REALM_CHAT_REQUEST_KEY_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[47][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const REALM_CHAT_MESSAGE_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const REALM_CHAT_REPORT_CATEGORIES = new Set([
+  'threat_or_harm',
+  'harassment_or_hate',
+  'personal_information',
+  'sexual_exploitation',
+  'fraud_or_malware',
+  'illegal_trade',
+  'spam_or_disruption',
+  'other'
+]);
 export { WARPKEEP_ALPHA_TERMS_VERSION } from '../legal/alphaTermsPolicy';
 
 const admissionStatuses = new Set<WarpkeepAdmissionStatus>([
@@ -368,6 +454,108 @@ export function connectWarpkeep(
   });
 }
 
+function greaterRealmConnectionAbortReason(signal: AbortSignal) {
+  if (signal.reason instanceof Error) return signal.reason;
+  const error = new Error('GREATER_REALM_CONNECTION_REQUEST_CANCELLED');
+  error.name = 'AbortError';
+  return error;
+}
+
+function awaitGreaterRealmConnectionOperation<T>(
+  operation: Promise<T>,
+  signal: AbortSignal
+): Promise<T> {
+  if (signal.aborted) return Promise.reject(greaterRealmConnectionAbortReason(signal));
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      signal.removeEventListener('abort', abort);
+      callback();
+    };
+    const abort = () => finish(() => reject(greaterRealmConnectionAbortReason(signal)));
+    signal.addEventListener('abort', abort, { once: true });
+    void operation.then(
+      (value) => finish(() => resolve(value)),
+      (error: unknown) => finish(() => reject(error))
+    );
+  });
+}
+
+function assertGreaterRealmConnectionAuthority(
+  authority: WarpkeepGreaterRealmConnectionAuthority,
+  signal: AbortSignal
+) {
+  if (signal.aborted) throw greaterRealmConnectionAbortReason(signal);
+  if (
+    !Number.isSafeInteger(authority.generation)
+    || authority.generation < 1
+    || !Number.isSafeInteger(authority.fid)
+    || authority.fid < 1
+    || !authority.isCurrent()
+  ) {
+    throw new Error('GREATER_REALM_CONNECTION_GENERATION_STALE');
+  }
+}
+
+/**
+ * Exact authenticated v17 player seam. It intentionally has no generic SDK
+ * escape hatch: only the five reviewed public atlas procedures are callable,
+ * and a stale provider generation can neither start nor publish a result.
+ */
+export function createWarpkeepGreaterRealmProcedureInvoker(
+  connection: WarpkeepConnection,
+  authority: WarpkeepGreaterRealmConnectionAuthority
+): GreaterRealmProcedureInvoker {
+  return Object.freeze({
+    call: async (procedure, input, signal) => {
+      assertGreaterRealmConnectionAuthority(authority, signal);
+      let operation: Promise<unknown>;
+      switch (procedure) {
+        case GREATER_REALM_PUBLIC_PROCEDURES.bootstrap:
+          operation = connection.procedures.getRealmAtlasBootstrapV1({});
+          break;
+        case GREATER_REALM_PUBLIC_PROCEDURES.window:
+          operation = connection.procedures.getRealmAtlasWindowV1({
+            centerQ: input.centerQ as number,
+            centerR: input.centerR as number,
+            radius: input.radius as number,
+            expectedRevision: input.expectedRevision as bigint
+          });
+          break;
+        case GREATER_REALM_PUBLIC_PROCEDURES.chunk:
+          operation = connection.procedures.getRealmAtlasChunkV1({
+            chunkHandle: input.chunkHandle as string,
+            lod: input.lod as number,
+            expectedRevision: input.expectedRevision as bigint
+          });
+          break;
+        case GREATER_REALM_PUBLIC_PROCEDURES.resourceLocations:
+          operation = connection.procedures.getRealmAtlasResourceLocationsV1({
+            expectedRevision: input.expectedRevision as bigint,
+            chunkHandles: input.chunkHandles as string[]
+          });
+          break;
+        case GREATER_REALM_PUBLIC_PROCEDURES.planRoute:
+          operation = connection.procedures.planRealmRouteV1({
+            originCellKey: input.originCellKey as string,
+            destinationCellKey: input.destinationCellKey as string,
+            offset: input.offset as number,
+            limit: input.limit as number,
+            expectedRevision: input.expectedRevision as bigint
+          });
+          break;
+        default:
+          throw new Error('GREATER_REALM_PUBLIC_PROCEDURE_NOT_ALLOWED');
+      }
+      const result = await awaitGreaterRealmConnectionOperation(operation, signal);
+      assertGreaterRealmConnectionAuthority(authority, signal);
+      return result;
+    }
+  });
+}
+
 export async function readWarpkeepAdmissionStatus(connection: WarpkeepConnection) {
   const status = await connection.procedures.getMyAdmissionStatusV2({});
   if (!admissionStatuses.has(status as WarpkeepAdmissionStatus)) {
@@ -513,6 +701,26 @@ export async function readWarpkeepWorkerControlState(
   }
 }
 
+/** Read the current v17 atlas-bound Worker view without private topology. */
+export async function readWarpkeepGreaterRealmWorkerControlState(
+  connection: WarpkeepConnection,
+  ownFid: number
+): Promise<GreaterRealmWorkerControlDecodeResult | undefined> {
+  if (!Number.isSafeInteger(ownFid) || ownFid <= 0) {
+    return Object.freeze({ status: 'invalid', reason: 'wrong-caller' });
+  }
+  const procedure = (connection.procedures as unknown as {
+    getMyWorkerControlStateV2?: (
+      input: Readonly<Record<string, never>>
+    ) => Promise<unknown>;
+  }).getMyWorkerControlStateV2;
+  if (typeof procedure !== 'function') return undefined;
+  return decodeGreaterRealmWorkerControlState(
+    await procedure({}),
+    BigInt(ownFid)
+  );
+}
+
 /** Read the generic worker's caller-private roster; public rows never carry cargo. */
 export async function readWarpkeepWorkerRoster(
   connection: WarpkeepConnection,
@@ -539,9 +747,311 @@ export async function readWarpkeepResourceStateV2(
   return decodeWorkerResourceState(await procedure({}), BigInt(ownFid));
 }
 
+function missingInnerKeepProcedure(error: unknown, wireName: string, accessorName: string) {
+  const message = typeof error === 'string'
+    ? error
+    : error instanceof Error
+      ? error.message
+      : '';
+  const normalized = message.trim().toLowerCase();
+  const namesProcedure = normalized.includes(wireName)
+    || normalized.includes(accessorName.toLowerCase());
+  return /\b(no such|unknown|unrecognized|not found|does not exist|not registered)\b/.test(
+    normalized
+  ) && normalized.includes('procedure') && (namesProcedure || normalized.length < 96);
+}
+
+type PublicInnerKeepTable<Row> = Readonly<{
+  iter: () => IterableIterator<Row>;
+}>;
+
+type PublicInnerKeepCastleTable<Row> = PublicInnerKeepTable<Row> & Readonly<{
+  byCastle: Readonly<{
+    filter: (castleId: bigint) => IterableIterator<Row>;
+  }>;
+}>;
+
+type PublicInnerKeepSdkBuildingRow = Readonly<{
+  buildingKey: string;
+  castleId: bigint;
+  buildingKind: string;
+  localXMicrounits: bigint;
+  localZMicrounits: bigint;
+  rotationMilliDegrees: number;
+  completedLevel: number;
+  targetLevel: number;
+  phase: string;
+  startedAtMicros: bigint;
+  completesAtMicros: bigint;
+  revision: bigint;
+  policyVersion: string;
+}>;
+
+type PublicInnerKeepTables = Readonly<{
+  innerKeepLayoutV1: PublicInnerKeepTable<InnerKeepLayoutRow>;
+  innerKeepSlotV1: PublicInnerKeepTable<InnerKeepSlotRow>;
+  innerKeepBuildingCatalogV1: PublicInnerKeepTable<InnerKeepBuildingCatalogRow>;
+  innerKeepBuildLevelV1: PublicInnerKeepTable<InnerKeepBuildLevelRow>;
+  castleInnerKeepBuildingV1: PublicInnerKeepCastleTable<PublicInnerKeepSdkBuildingRow>;
+}>;
+
+function publicInnerKeepTables(
+  connection: WarpkeepConnection
+): PublicInnerKeepTables | undefined {
+  const candidate = (connection.db ?? {}) as unknown as Partial<PublicInnerKeepTables>;
+  const values = [
+    candidate.innerKeepLayoutV1,
+    candidate.innerKeepSlotV1,
+    candidate.innerKeepBuildingCatalogV1,
+    candidate.innerKeepBuildLevelV1,
+    candidate.castleInnerKeepBuildingV1
+  ];
+  return values.every((table) => typeof table?.iter === 'function')
+    && typeof candidate.castleInnerKeepBuildingV1?.byCastle?.filter === 'function'
+    ? candidate as PublicInnerKeepTables
+    : undefined;
+}
+
+function subscribedInnerKeepCastleId(
+  connection: WarpkeepConnection,
+  ownFid: number | undefined
+): bigint | undefined {
+  if (!Number.isSafeInteger(ownFid) || ownFid === undefined || ownFid <= 0) {
+    return undefined;
+  }
+  const castleTable = connection.db?.castle as unknown as Readonly<{
+    ownerFid?: Readonly<{
+      find?: (fid: bigint) => Readonly<{
+        castleId?: unknown;
+        ownerFid?: unknown;
+      }> | null;
+    }>;
+  }> | undefined;
+  const ownerIndex = castleTable?.ownerFid;
+  if (typeof ownerIndex?.find !== 'function') return undefined;
+  const fid = BigInt(ownFid);
+  const row = ownerIndex.find(fid);
+  return row?.ownerFid === fid
+    && typeof row.castleId === 'bigint'
+    && row.castleId > 0n
+    ? row.castleId
+    : undefined;
+}
+
+function boundedTableRows<Row>(
+  table: PublicInnerKeepTable<Row>,
+  maximum: number
+): readonly Row[] | undefined {
+  const rows: Row[] = [];
+  for (const row of table.iter()) {
+    if (rows.length >= maximum) return undefined;
+    rows.push(row);
+  }
+  return Object.freeze(rows);
+}
+
+function projectPublicInnerKeepBuildingRow(
+  row: PublicInnerKeepSdkBuildingRow
+): InnerKeepBuildingRow {
+  // Generated SpacetimeDB rows are flat. Keep that ABI shape at the connection
+  // boundary and expose only the explicit browser projection consumed by the
+  // placement/idempotency policy.
+  return Object.freeze({
+    buildingKey: row.buildingKey,
+    castleId: row.castleId,
+    buildingKind: row.buildingKind as InnerKeepBuildingRow['buildingKind'],
+    placement: Object.freeze({
+      localXMicrounits: row.localXMicrounits,
+      localZMicrounits: row.localZMicrounits,
+      rotationMilliDegrees: row.rotationMilliDegrees
+    }),
+    completedLevel: row.completedLevel,
+    targetLevel: row.targetLevel,
+    phase: row.phase as InnerKeepBuildingRow['phase'],
+    startedAtMicros: row.startedAtMicros,
+    completesAtMicros: row.completesAtMicros,
+    revision: row.revision,
+    policyVersion: row.policyVersion
+  });
+}
+
+function readPublicInnerKeepRows(
+  connection: WarpkeepConnection,
+  scope: InnerKeepReadScope
+): InnerKeepPublicRows | undefined {
+  if (innerKeepProjectionAvailability.get(connection) !== INNER_KEEP_PROJECTION_READY) {
+    return undefined;
+  }
+  const publicTables = publicInnerKeepTables(connection);
+  if (publicTables === undefined) return undefined;
+  const layouts = boundedTableRows(publicTables.innerKeepLayoutV1, 2);
+  const slots = boundedTableRows(publicTables.innerKeepSlotV1, 1);
+  const catalogue = boundedTableRows(publicTables.innerKeepBuildingCatalogV1, 7);
+  const levels = boundedTableRows(publicTables.innerKeepBuildLevelV1, 31);
+  if (
+    layouts === undefined
+    || slots === undefined
+    || catalogue === undefined
+    || levels === undefined
+  ) throw new Error('Inner Keep public policy is unavailable.');
+  const buildings: InnerKeepBuildingRow[] = [];
+  for (const row of publicTables.castleInnerKeepBuildingV1.byCastle.filter(scope.castleId)) {
+    if (buildings.length >= 7) throw new Error('Inner Keep public projects are unavailable.');
+    buildings.push(projectPublicInnerKeepBuildingRow(row));
+  }
+  return Object.freeze({
+    layouts,
+    slots,
+    catalogue,
+    levels,
+    buildings: Object.freeze(buildings)
+  });
+}
+
+/**
+ * Read the caller-only Builder/resource state and combine it with the exact
+ * applied public v15 policy graph. Older/inactive modules return no feature;
+ * malformed active state fails closed without widening private table access.
+ */
+export async function readWarpkeepInnerKeepProjection(
+  connection: WarpkeepConnection,
+  input: Readonly<{
+    scope: InnerKeepReadScope;
+    commandsAvailable: boolean;
+    pendingAttempt?: InnerKeepCommandAttempt;
+    statusMessage?: string;
+  }>
+): Promise<ReadyInnerKeepProjection | undefined> {
+  const rows = readPublicInnerKeepRows(connection, input.scope);
+  if (rows === undefined) return undefined;
+  const procedure = (connection.procedures as unknown as {
+    getMyInnerKeepStateV1?: (
+      params: Readonly<Record<string, never>>
+    ) => Promise<unknown>;
+  }).getMyInnerKeepStateV1;
+  if (typeof procedure !== 'function') return undefined;
+  let raw: unknown;
+  try {
+    raw = await procedure({});
+  } catch (error) {
+    if (missingInnerKeepProcedure(
+      error,
+      'get_my_inner_keep_state_v1',
+      'getMyInnerKeepStateV1'
+    )) return undefined;
+    throw error;
+  }
+  const privateState = decodeInnerKeepPrivateState(raw, input.scope);
+  if (privateState === 'unavailable') return undefined;
+  if (privateState === undefined) throw new Error('Inner Keep private state is unavailable.');
+  const projection = resolveReadyInnerKeepProjection({
+    scope: input.scope,
+    privateState,
+    rows,
+    commandsAvailable: input.commandsAvailable,
+    ...(input.pendingAttempt === undefined ? {} : {
+      pendingAttempt: input.pendingAttempt
+    }),
+    ...(input.statusMessage === undefined ? {} : {
+      statusMessage: input.statusMessage
+    })
+  });
+  if (projection === undefined) throw new Error('Inner Keep projection is unavailable.');
+  return projection;
+}
+
+/** Read one caller-bound private receipt for commit-ambiguous reconciliation. */
+export async function readWarpkeepInnerKeepRequestStatus(
+  connection: WarpkeepConnection,
+  scope: InnerKeepReadScope,
+  requestKey: string
+): Promise<InnerKeepRequestReceipt | undefined> {
+  if (!INNER_KEEP_REQUEST_KEY_PATTERN.test(requestKey)) {
+    throw new Error('Inner Keep request status is unavailable.');
+  }
+  const procedure = (connection.procedures as unknown as {
+    getMyInnerKeepRequestStatusV1?: (
+      params: Readonly<{ requestKey: string }>
+    ) => Promise<unknown>;
+  }).getMyInnerKeepRequestStatusV1;
+  if (typeof procedure !== 'function') return undefined;
+  let raw: unknown;
+  try {
+    raw = await procedure({ requestKey });
+  } catch (error) {
+    if (missingInnerKeepProcedure(
+      error,
+      'get_my_inner_keep_request_status_v1',
+      'getMyInnerKeepRequestStatusV1'
+    )) return undefined;
+    throw error;
+  }
+  const receipt = decodeInnerKeepRequestStatus(raw, scope);
+  if (receipt === undefined) throw new Error('Inner Keep request status is unavailable.');
+  return receipt;
+}
+
+/** The browser binds its reviewed policy/target/revision; the server still derives all economics. */
+export async function startWarpkeepInnerKeepProject(
+  connection: WarpkeepConnection,
+  buildingKind: string,
+  placement: InnerKeepPlacementTransform,
+  requestKey: string,
+  expectedTargetLevel: number,
+  expectedProjectRevision: string,
+  expectedPolicyDigest: string,
+  expectedLayoutDigest: string
+) {
+  if (
+    !isInnerKeepBuildingKind(buildingKind)
+    || !innerKeepPlacementTransformIntegrity(placement)
+    || !INNER_KEEP_REQUEST_KEY_PATTERN.test(requestKey)
+    || !Number.isSafeInteger(expectedTargetLevel)
+    || expectedTargetLevel < 1
+    || expectedTargetLevel > 5
+    || expectedProjectRevision.length > INNER_KEEP_PROJECT_REVISION_MAX.toString().length
+    || !/^(?:0|[1-9][0-9]*)$/.test(expectedProjectRevision)
+    || BigInt(expectedProjectRevision) > INNER_KEEP_PROJECT_REVISION_MAX
+    || expectedPolicyDigest !== INNER_KEEP_POLICY_DIGEST
+    || expectedLayoutDigest !== INNER_KEEP_LAYOUT_V1_DIGEST
+  ) throw new Error('Inner Keep construction is unavailable.');
+  const reducer = (connection.reducers as unknown as {
+    innerKeepStartProjectV1?: (input: Readonly<{
+      buildingKind: string;
+      localXMicrounits: bigint;
+      localZMicrounits: bigint;
+      rotationMilliDegrees: number;
+      requestKey: string;
+      expectedTargetLevel: number;
+      expectedProjectRevision: string;
+      expectedPolicyDigest: string;
+      expectedLayoutDigest: string;
+    }>) => Promise<unknown> | unknown;
+  }).innerKeepStartProjectV1;
+  if (typeof reducer !== 'function') throw new Error('Inner Keep construction is unavailable.');
+  await reducer({
+    buildingKind,
+    localXMicrounits: placement.localXMicrounits,
+    localZMicrounits: placement.localZMicrounits,
+    rotationMilliDegrees: placement.rotationMilliDegrees,
+    requestKey,
+    expectedTargetLevel,
+    expectedProjectRevision,
+    expectedPolicyDigest,
+    expectedLayoutDigest
+  });
+}
+
 function workerReducerSurface(connection: WarpkeepConnection) {
   return connection.reducers as unknown as {
     dispatchWorkerV1?: (input: Readonly<{ workerId: string; resourceKind: string; siteId: string; idempotencyKey: string }>) => Promise<unknown> | unknown;
+    dispatchGreaterRealmWorkerV1?: (input: Readonly<{
+      workerId: string;
+      resourceKind: string;
+      locationId: string;
+      expectedRevision: bigint;
+      idempotencyKey: string;
+    }>) => Promise<unknown> | unknown;
     recallWorkerV1?: (input: Readonly<{ workerId: string; idempotencyKey: string }>) => Promise<unknown> | unknown;
     recallAllWorkersV1?: (input: Readonly<{ idempotencyKey: string }>) => Promise<unknown> | unknown;
   };
@@ -567,6 +1077,36 @@ export async function dispatchWarpkeepWorker(
   const reducer = workerReducerSurface(connection).dispatchWorkerV1;
   if (typeof reducer !== 'function') throw new Error('Worker command is unavailable.');
   await reducer({ workerId, resourceKind, siteId, idempotencyKey });
+}
+
+/** Dispatch by public location; capacity ordinal and route stay server-owned. */
+export async function dispatchWarpkeepGreaterRealmWorker(
+  connection: WarpkeepConnection,
+  workerId: string,
+  resourceKind: string,
+  locationId: string,
+  expectedRevision: bigint,
+  idempotencyKey: string
+) {
+  assertWorkerIdempotency(workerId, idempotencyKey);
+  if (
+    !/^(food|wood|stone|gold)$/.test(resourceKind)
+    || !GREATER_REALM_LOCATION_ID_PATTERN.test(locationId)
+    || typeof expectedRevision !== 'bigint'
+    || expectedRevision < 0n
+    || expectedRevision > U64_MAXIMUM
+  ) throw new Error('Greater Realm Worker command is unavailable.');
+  const reducer = workerReducerSurface(connection).dispatchGreaterRealmWorkerV1;
+  if (typeof reducer !== 'function') {
+    throw new Error('Greater Realm Worker command is unavailable.');
+  }
+  await reducer({
+    workerId,
+    resourceKind,
+    locationId,
+    expectedRevision,
+    idempotencyKey
+  });
 }
 
 export async function recallWarpkeepWorker(connection: WarpkeepConnection, workerId: string, idempotencyKey: string) {
@@ -901,7 +1441,8 @@ export async function returnWarpkeepLegacyExpedition(
 
 /**
  * Start the protocol-v3 core shared-state subscription and additive public
- * Gold/Food/Wood/Stone/forest subscriptions. The scheduler, forest seeding reducer, and every
+ * Gold/Food/Wood/Stone/forest/Inner Keep subscriptions. Schedulers, receipts,
+ * Builder authority, forest seeding reducers, and every
  * private economy table remain outside the player graph. If an additive
  * schema is not deployed yet, the core Realm remains live but that visual
  * layer is empty rather than locally synthesized.
@@ -909,7 +1450,8 @@ export async function returnWarpkeepLegacyExpedition(
 export function subscribeToWarpkeepRealm(
   connection: WarpkeepConnection,
   onApplied: () => void,
-  onError: () => void
+  onError: () => void,
+  ownFid?: number
 ): WarpkeepRealmSubscription {
   let coreApplied = false;
   goldProjectionAvailability.set(connection, GOLD_PROJECTION_PENDING);
@@ -919,10 +1461,46 @@ export function subscribeToWarpkeepRealm(
   workerProjectionAvailability.set(connection, WORKER_PROJECTION_PENDING);
   forestProjectionAvailability.set(connection, FOREST_PROJECTION_PENDING);
   waterProjectionAvailability.set(connection, WATER_PROJECTION_PENDING);
+  innerKeepProjectionAvailability.set(connection, INNER_KEEP_PROJECTION_PENDING);
+  let innerKeepSubscription: SubscriptionHandle | undefined;
+  let innerKeepSubscriptionStarted = false;
+  let subscriptionClosed = false;
+  const innerKeepTables = publicInnerKeepTables(connection);
+  const startInnerKeepSubscription = () => {
+    if (subscriptionClosed || innerKeepSubscriptionStarted) return;
+    innerKeepSubscriptionStarted = true;
+    const castleId = subscribedInnerKeepCastleId(connection, ownFid);
+    if (innerKeepTables === undefined || castleId === undefined) {
+      innerKeepProjectionAvailability.set(connection, INNER_KEEP_PROJECTION_UNAVAILABLE);
+      return;
+    }
+    try {
+      innerKeepSubscription = connection
+        .subscriptionBuilder()
+        .onApplied(() => {
+          innerKeepProjectionAvailability.set(connection, INNER_KEEP_PROJECTION_READY);
+          if (coreApplied) onApplied();
+        })
+        .onError(() => {
+          innerKeepProjectionAvailability.set(connection, INNER_KEEP_PROJECTION_UNAVAILABLE);
+          if (coreApplied) onApplied();
+        })
+        .subscribe([
+          tables.innerKeepLayoutV1,
+          tables.innerKeepSlotV1,
+          tables.innerKeepBuildingCatalogV1,
+          tables.innerKeepBuildLevelV1,
+          tables.castleInnerKeepBuildingV1.where((row) => row.castleId.eq(castleId))
+        ]);
+    } catch {
+      innerKeepProjectionAvailability.set(connection, INNER_KEEP_PROJECTION_UNAVAILABLE);
+    }
+  };
   const coreSubscription = connection
     .subscriptionBuilder()
     .onApplied(() => {
       coreApplied = true;
+      startInnerKeepSubscription();
       onApplied();
     })
     .onError(() => onError())
@@ -1148,6 +1726,7 @@ export function subscribeToWarpkeepRealm(
 
   return Object.freeze({
     unsubscribe: () => {
+      subscriptionClosed = true;
       goldProjectionAvailability.delete(connection);
       foodProjectionAvailability.delete(connection);
       woodProjectionAvailability.delete(connection);
@@ -1155,6 +1734,7 @@ export function subscribeToWarpkeepRealm(
       workerProjectionAvailability.delete(connection);
       forestProjectionAvailability.delete(connection);
       waterProjectionAvailability.delete(connection);
+      innerKeepProjectionAvailability.delete(connection);
       try {
         try {
           try {
@@ -1178,7 +1758,11 @@ export function subscribeToWarpkeepRealm(
           try {
             forestSubscription?.unsubscribe();
           } finally {
-            waterSubscription?.unsubscribe();
+            try {
+              waterSubscription?.unsubscribe();
+            } finally {
+              innerKeepSubscription?.unsubscribe();
+            }
           }
         }
       } finally {
@@ -1294,21 +1878,65 @@ function readRealmProfiles(connection: WarpkeepConnection): WarpkeepRealmProfile
   return rows.sort((left, right) => left.fid - right.fid);
 }
 
+function publicRealmRow(row: ReturnType<WarpkeepConnection['db']['realmV1']['iter']> extends IterableIterator<infer Row>
+  ? Row
+  : never): WarpkeepRealm {
+  return {
+    realmId: row.realmId,
+    publicName: row.publicName,
+    seedName: row.seedName,
+    numericSeed: row.numericSeed,
+    generationVersion: row.generationVersion,
+    authoritativeRadius: row.authoritativeRadius,
+    renderRadius: row.renderRadius,
+    playerCapacity: row.playerCapacity,
+    active: row.active
+  };
+}
+
+function readPublicRealmRows(connection: WarpkeepConnection): WarpkeepRealm[] {
+  const rows: WarpkeepRealm[] = [];
+  for (const row of connection.db.realmV1.iter()) {
+    // The legacy authority is a singleton. Bound malformed projections before
+    // copying or sorting any attacker-influenced table contents in the browser.
+    if (rows.length === 2) break;
+    rows.push(publicRealmRow(row));
+  }
+  return rows.sort((left, right) => left.realmId.localeCompare(right.realmId));
+}
+
+export type WarpkeepLegacyRealmAuthorityStatus = 'active' | 'retired' | 'invalid';
+
+/**
+ * Classify only the exact public v1 singleton. An inactive but otherwise
+ * canonical generation is the reviewed v17 cutover signal; absence,
+ * duplicates, or altered immutable fields remain corruption/incompleteness.
+ */
+export function readWarpkeepLegacyRealmAuthorityStatus(
+  connection: WarpkeepConnection
+): WarpkeepLegacyRealmAuthorityStatus {
+  const rows = readPublicRealmRows(connection);
+  if (rows.length !== 1) return 'invalid';
+  const row = rows[0]!;
+  const activeShape = { ...row, active: true };
+  if (
+    !matchesCanonicalRealm(activeShape)
+    && !matchesGenerationV2Realm(activeShape)
+  ) return 'invalid';
+  return row.active ? 'active' : 'retired';
+}
+
+export class WarpkeepLegacyRealmRetiredError extends Error {
+  readonly code = 'WARPKEEP_LEGACY_REALM_RETIRED';
+
+  constructor() {
+    super('WARPKEEP_LEGACY_REALM_RETIRED');
+    this.name = 'WarpkeepLegacyRealmRetiredError';
+  }
+}
+
 function readActiveRealms(connection: WarpkeepConnection): WarpkeepRealm[] {
-  return [...connection.db.realmV1.iter()]
-    .filter((row) => row.active)
-    .map((row) => ({
-      realmId: row.realmId,
-      publicName: row.publicName,
-      seedName: row.seedName,
-      numericSeed: row.numericSeed,
-      generationVersion: row.generationVersion,
-      authoritativeRadius: row.authoritativeRadius,
-      renderRadius: row.renderRadius,
-      playerCapacity: row.playerCapacity,
-      active: row.active
-    }))
-    .sort((left, right) => left.realmId.localeCompare(right.realmId));
+  return readPublicRealmRows(connection).filter((row) => row.active);
 }
 
 function readCastles(connection: WarpkeepConnection): WarpkeepCastle[] {
@@ -2187,6 +2815,57 @@ function sameCanonicalCoreForRetainedProjection(
     && realm.active === previousRealm.active;
 }
 
+function freezePublicRows<Row extends object>(rows: readonly Row[]): readonly Readonly<Row>[] {
+  return Object.freeze(rows.map((row) => Object.freeze({ ...row })));
+}
+
+/**
+ * Read only the shared castle/profile/worker projections whose authority is
+ * independent of legacy world geometry. This is the fresh-login and
+ * post-cutover scope for resources, Marks, generic Workers, and Inner Keep.
+ */
+export function readWarpkeepRealmContinuityProjection(
+  connection: WarpkeepConnection,
+  ownFid: number
+): WarpkeepRealmContinuityProjection {
+  const status = readWarpkeepLegacyRealmAuthorityStatus(connection);
+  if (status === 'invalid') {
+    throw new Error('Warpkeep Realm continuity records are unavailable.');
+  }
+  const realm = readPublicRealmRows(connection)[0]!;
+  const castles = readCastles(connection);
+  const ownCastles = castles.filter((castle) => castle.ownerFid === ownFid);
+  if (ownCastles.length !== 1) {
+    throw new Error('Warpkeep Realm continuity records are unavailable.');
+  }
+  const ownCastle = ownCastles[0]!;
+  const publicGold = readPublicGoldProjection(connection);
+  const publicFood = readPublicFoodProjection(connection);
+  const publicWood = readPublicWoodProjection(connection);
+  const publicStone = readPublicStoneProjection(connection);
+  const publicWorkers = readPublicWorkerProjection(connection, castles, ownCastle.castleId);
+  return Object.freeze({
+    realmId: realm.realmId,
+    players: freezePublicRows(readPlayers(connection)),
+    profiles: freezePublicRows(readRealmProfiles(connection)),
+    castles: freezePublicRows(castles),
+    ownCastle: Object.freeze({ ...ownCastle }),
+    ...(publicGold === undefined ? {} : { goldSites: publicGold.sites }),
+    ...(publicFood === undefined ? {} : { foodSites: publicFood.sites }),
+    ...(publicWood === undefined ? {} : { woodSites: publicWood.sites }),
+    ...(publicStone === undefined ? {} : { stoneSites: publicStone.sites }),
+    ...(publicWorkers === undefined ? {} : {
+      workerSystem: publicWorkers.system,
+      ...(publicWorkers.workers === undefined ? {} : {
+        workerWorkers: publicWorkers.workers
+      }),
+      ...(publicWorkers.occupations === undefined ? {} : {
+        workerOccupations: publicWorkers.occupations
+      })
+    })
+  });
+}
+
 /**
  * During a same-source reconnect, the core subscription applies before each
  * additive public projection. Preserve only the last validated projection
@@ -2199,6 +2878,9 @@ export function readWarpkeepRealmSnapshot(
   ownFid: number,
   retainedSnapshot?: WarpkeepRealmSnapshot
 ): WarpkeepRealmSnapshot {
+  if (readWarpkeepLegacyRealmAuthorityStatus(connection) === 'retired') {
+    throw new WarpkeepLegacyRealmRetiredError();
+  }
   const castles = readCastles(connection);
   const ownCastle = castles.find((castle) => castle.ownerFid === ownFid);
   const tiles = readWorldTiles(connection);
@@ -2362,10 +3044,12 @@ export function observeWarpkeepRealm(
   connection: WarpkeepConnection,
   ownFid: number,
   onChange: (snapshot: WarpkeepRealmSnapshot) => void,
-  onError: () => void,
-  retainedSnapshot?: WarpkeepRealmSnapshot
+  onError: (reason?: 'legacy-retired' | 'invalid') => void,
+  retainedSnapshot?: WarpkeepRealmSnapshot,
+  onRetiredProjectionChange?: () => void
 ) {
   let active = true;
+  let legacyRetired = false;
   let latestTransactionEventId: string | undefined;
   let continuitySnapshot = retainedSnapshot;
   const sync = (context: EventContext) => {
@@ -2378,6 +3062,10 @@ export function observeWarpkeepRealm(
       || context.event.id === latestTransactionEventId
     ) return;
     latestTransactionEventId = context.event.id;
+    if (legacyRetired) {
+      onRetiredProjectionChange?.();
+      return;
+    }
     try {
       const snapshot = readWarpkeepRealmSnapshot(
         connection,
@@ -2386,11 +3074,16 @@ export function observeWarpkeepRealm(
       );
       continuitySnapshot = snapshot;
       onChange(snapshot);
-    } catch {
+    } catch (error) {
       // A post-ready canonical violation must revoke the browser's renderer
       // authority instead of escaping the SDK callback with stale ready state.
+      if (error instanceof WarpkeepLegacyRealmRetiredError) {
+        legacyRetired = true;
+        onError('legacy-retired');
+        return;
+      }
       active = false;
-      onError();
+      onError('invalid');
     }
   };
   const goldTables = publicGoldTables(connection);
@@ -2400,6 +3093,7 @@ export function observeWarpkeepRealm(
   const workerTables = publicWorkerTables(connection);
   const forestTables = publicForestTables(connection);
   const waterTables = publicWaterTables(connection);
+  const innerKeepTables = publicInnerKeepTables(connection);
   type ObserverTable = Readonly<{
     onInsert?: (callback: typeof sync) => void;
     onDelete?: (callback: typeof sync) => void;
@@ -2469,7 +3163,12 @@ export function observeWarpkeepRealm(
     waterTables?.realmWaterBodyV1,
     waterTables?.realmWaterCellV1,
     waterTables?.realmEnvironmentV1,
-    waterTables?.realmWaterRevisionV1
+    waterTables?.realmWaterRevisionV1,
+    innerKeepTables?.innerKeepLayoutV1,
+    innerKeepTables?.innerKeepSlotV1,
+    innerKeepTables?.innerKeepBuildingCatalogV1,
+    innerKeepTables?.innerKeepBuildLevelV1,
+    innerKeepTables?.castleInnerKeepBuildingV1
   ];
   try {
     for (const table of observedTables) {
@@ -2480,6 +3179,177 @@ export function observeWarpkeepRealm(
     throw error;
   }
   return cleanup;
+}
+
+export function readWarpkeepRealmChat(
+  connection: WarpkeepConnection
+): RealmChatPresentation {
+  return decodeRealmChatStatusProjection({
+    statusRows: connection.db.realmChatStatusV1.iter()
+  });
+}
+
+/** Subscribe only to body-free Chat readiness; message bodies remain private. */
+export function subscribeToWarpkeepRealmChat(
+  connection: WarpkeepConnection,
+  onApplied: () => void,
+  onError: () => void
+): WarpkeepRealmChatSubscription {
+  const subscription = connection
+    .subscriptionBuilder()
+    .onApplied(onApplied)
+    .onError(onError)
+    .subscribe([tables.realmChatStatusV1]);
+  return Object.freeze({ unsubscribe: () => subscription.unsubscribe() });
+}
+
+export function observeWarpkeepRealmChat(
+  connection: WarpkeepConnection,
+  onChange: (chat: RealmChatPresentation) => void,
+  onError: () => void
+) {
+  let active = true;
+  let latestTransactionEventId: string | undefined;
+  const sync = (context: EventContext) => {
+    if (
+      !active
+      || context.event.tag === 'SubscribeApplied'
+      || context.event.id === latestTransactionEventId
+    ) return;
+    latestTransactionEventId = context.event.id;
+    try {
+      onChange(readWarpkeepRealmChat(connection));
+    } catch {
+      active = false;
+      onError();
+    }
+  };
+  type ObserverTable = Readonly<{
+    onInsert?: (callback: typeof sync) => void;
+    onDelete?: (callback: typeof sync) => void;
+    onUpdate?: (callback: typeof sync) => void;
+    removeOnInsert?: (callback: typeof sync) => void;
+    removeOnDelete?: (callback: typeof sync) => void;
+    removeOnUpdate?: (callback: typeof sync) => void;
+  }>;
+  const listenerCleanups: Array<() => void> = [];
+  let cleaned = false;
+  const cleanup = () => {
+    if (cleaned) return;
+    cleaned = true;
+    active = false;
+    for (let index = listenerCleanups.length - 1; index >= 0; index -= 1) {
+      try {
+        listenerCleanups[index]?.();
+      } catch {
+        // One generated listener must not strand the paired Chat listeners.
+      }
+    }
+    listenerCleanups.length = 0;
+  };
+  const registerTable = (candidate: unknown) => {
+    const table = candidate as ObserverTable;
+    const pairs = [
+      ['onInsert', 'removeOnInsert'],
+      ['onDelete', 'removeOnDelete'],
+      ['onUpdate', 'removeOnUpdate']
+    ] as const;
+    for (const [addName, removeName] of pairs) {
+      const add = table?.[addName];
+      const remove = table?.[removeName];
+      if (add === undefined && remove === undefined) continue;
+      if (typeof add !== 'function' || typeof remove !== 'function') {
+        throw new Error('Warpkeep Realm Chat observer surface is incomplete.');
+      }
+      listenerCleanups.push(() => remove.call(table, sync));
+      add.call(table, sync);
+      if (!active) throw new Error('Warpkeep Realm Chat observer became inactive during setup.');
+    }
+  };
+  try {
+    registerTable(connection.db.realmChatStatusV1);
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
+  return cleanup;
+}
+
+export async function readWarpkeepRealmChatRecent(
+  connection: WarpkeepConnection,
+  afterSequence: bigint,
+  limit: number
+): Promise<RealmChatRecentPagePresentation> {
+  if (
+    afterSequence < 0n
+    || afterSequence > (1n << 64n) - 1n
+    || !Number.isInteger(limit)
+    || limit < 1
+    || limit > 128
+  ) {
+    throw new Error('Realm Chat recent messages are unavailable.');
+  }
+  const page = await connection.procedures.getRealmChatRecentV1({
+    afterSequence,
+    limit
+  });
+  const decoded = decodeRealmChatRecentPage(page);
+  if (
+    decoded.messages.length > limit
+    || decoded.nextAfterSequence < afterSequence
+    || decoded.messages.some(message => message.sequence <= afterSequence)
+    || (decoded.messages.length === 0 && decoded.nextAfterSequence !== afterSequence)
+  ) throw new Error('Realm Chat recent messages are unavailable.');
+  return decoded;
+}
+
+export async function sendWarpkeepRealmChatMessage(
+  connection: WarpkeepConnection,
+  requestKey: string,
+  body: string
+): Promise<void> {
+  if (
+    !REALM_CHAT_REQUEST_KEY_PATTERN.test(requestKey)
+    || typeof body !== 'string'
+    || body.length === 0
+    || body.length > 2_048
+    || [...body].length > 500
+    || body.split(/\r?\n/).length > 8
+    || new TextEncoder().encode(body).byteLength > 2_048
+  ) throw new Error('Realm Chat command is unavailable.');
+  await connection.reducers.sendRealmChatMessageV1({ requestKey, body });
+}
+
+export async function reportWarpkeepRealmChatMessage(
+  connection: WarpkeepConnection,
+  messageId: string,
+  category: string,
+  details: string
+): Promise<void> {
+  if (
+    !REALM_CHAT_MESSAGE_ID_PATTERN.test(messageId)
+    || !REALM_CHAT_REPORT_CATEGORIES.has(category)
+    || typeof details !== 'string'
+    || details.length > 512
+    || [...details].length > 250
+    || new TextEncoder().encode(details).byteLength > 512
+  ) throw new Error('Realm Chat command is unavailable.');
+  await connection.reducers.reportRealmChatMessageV1({ messageId, category, details });
+}
+
+export async function readWarpkeepRealmChatHistory(
+  connection: WarpkeepConnection,
+  beforeSequence: bigint,
+  limit: number
+): Promise<RealmChatHistoryPagePresentation> {
+  if (beforeSequence <= 0n || !Number.isInteger(limit) || limit < 1 || limit > 50) {
+    throw new Error('Realm Chat history is unavailable.');
+  }
+  const page = await connection.procedures.getRealmChatHistoryV1({
+    beforeSequence,
+    limit
+  });
+  return decodeRealmChatHistoryPage(page);
 }
 
 export function disconnectWarpkeep(connection: WarpkeepConnection | undefined) {

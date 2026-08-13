@@ -135,7 +135,7 @@ test('dispatch and owner state wire accept no authority-shaped browser inputs', 
   assert.doesNotMatch(dispatch, /(?:q|r|fid|castleId|rate|time|duration|phase|gold)\s*:\s*t\./i);
 
   assert.match(privateState, /name: 'get_my_gold_expedition_state_v1'/);
-  assert.match(privateState, /requireGameplayPlayerV1\(tx\)/);
+  assert.match(privateState, /requireGameplayReadPlayerV1\(tx\)/);
   assert.match(privateState, /myGoldExpeditionState\(tx, claims\.fid\)/);
   assert.match(privateState, /pendingGold: state\.pendingGold/);
   assert.match(privateState, /rateGoldPerMinute: GOLD_GATHER_RATE_PER_QUANTUM/);

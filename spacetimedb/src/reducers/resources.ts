@@ -1,7 +1,7 @@
 import { SenderError, t } from 'spacetimedb/server';
 
 import { WARPKEEP_BACKEND_PROTOCOL_VERSION } from '../config';
-import { requireAdmin, requireGameplayPlayerV1 } from '../auth';
+import { requireAdmin, requireGameplayPlayerV1, requireGameplayReadPlayerV1 } from '../auth';
 import { castleWorkerErrorCode, settleAllWorkerAssignmentsForFid } from '../castleWorkerAuthority';
 import { markAccountIsConsistent } from '../marksAuthorityPolicy';
 import {
@@ -101,7 +101,7 @@ export const getMyResourceStateV1 = warpkeep.procedure(
   myResourceStateV1,
   ctx => ctx.withTx(tx => {
     try {
-      const { claims, account, terrainKind } = requireGameplayPlayerV1(tx);
+      const { claims, account, terrainKind } = requireGameplayReadPlayerV1(tx);
       const marks = tx.db.markAccountV1.fid.find(claims.fid);
       if (marks === null || !markAccountIsConsistent(marks)) {
         throw new SenderError('MARK_ACCOUNT_INVARIANT');

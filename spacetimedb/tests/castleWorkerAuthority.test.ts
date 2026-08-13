@@ -15,7 +15,11 @@ function section(text: string, startNeedle: string, endNeedle: string): string {
 
 test('worker lifecycle advances one synchronized revision and one schedule at a time', () => {
   const authority = source('../src/castleWorkerAuthority.ts');
-  const dispatch = section(authority, 'export function dispatchCastleWorker', 'function progressBasisPoints');
+  const dispatch = section(
+    authority,
+    'export function dispatchCastleWorker',
+    'export function dispatchGreaterRealmCastleWorkerV2',
+  );
   const arrival = section(authority, 'function transitionWorkerArrival', 'function settleAndBeginReturnAt');
   const returning = section(authority, 'function beginWorkerReturn', 'function completeWorkerReturn');
   const complete = section(authority, 'function completeWorkerReturn', 'function transitionWorkerArrival');
@@ -52,7 +56,11 @@ test('worker lifecycle advances one synchronized revision and one schedule at a 
 test('worker leases allow repeated resource kinds but enforce one worker per node', () => {
   const authority = source('../src/castleWorkerAuthority.ts');
   const schema = source('../src/schema.ts');
-  const dispatch = section(authority, 'export function dispatchCastleWorker', 'function progressBasisPoints');
+  const dispatch = section(
+    authority,
+    'export function dispatchCastleWorker',
+    'export function dispatchGreaterRealmCastleWorkerV2',
+  );
   const occupation = section(schema, 'export const workerNodeOccupationV1', 'export const workerCommandIdempotencyV1');
 
   assert.match(dispatch, /const nodeKey = workerNodeKey\(input\.resourceKind, input\.siteId\)/);
@@ -145,7 +153,10 @@ test('worker reads use bounded indexes and public tables omit assignment correla
   assert.match(occupationMatch, /assignment\.phase !== 'returning'/);
   assert.doesNotMatch(section(schema, 'export const castleWorkerV1', 'export const workerAssignmentV1'), /assignmentId/);
   assert.doesNotMatch(section(schema, 'export const workerNodeOccupationV1', 'export const workerCommandIdempotencyV1'), /assignmentId/);
-  assert.doesNotMatch(section(schema, 'export const workerAssignmentScheduleV1', 'const warpkeep = schema'), /public: true/);
+  assert.doesNotMatch(
+    section(schema, 'export const workerAssignmentScheduleV1', 'export const accessRequestV1'),
+    /public: true/,
+  );
 });
 
 test('atomic worker control state uses one caller-bound transaction and one projection clock', () => {
@@ -153,14 +164,14 @@ test('atomic worker control state uses one caller-bound transaction and one proj
   const controlState = section(
     reducers,
     'export const getMyWorkerControlStateV1',
-    'export const dispatchWorkerV1',
+    '/** Current-v17 control projection',
   );
 
   assert.match(controlState, /\{ name: 'get_my_worker_control_state_v1' \}/);
   assert.equal(controlState.match(/ctx => ctx\.withTx\(tx =>/g)?.length, 1);
-  assert.equal(controlState.match(/requireGameplayPlayerV1\(tx\)/g)?.length, 1);
+  assert.equal(controlState.match(/requireGameplayReadPlayerV1\(tx\)/g)?.length, 1);
   assert.equal(
-    controlState.match(/projectMyWorkerState\(tx, claims\.fid, observedAtMicros\)/g)?.length,
+    controlState.match(/projectMyWorkerStateForIndexedReadV1\([\s\S]*?observedAtMicros,[\s\S]*?\)/g)?.length,
     1,
   );
   assert.match(
@@ -188,7 +199,11 @@ test('atomic worker control state uses one caller-bound transaction and one proj
 test('worker assignments and replay receipts remain bound to canonical castle ownership', () => {
   const authority = source('../src/castleWorkerAuthority.ts');
   const graph = section(authority, 'export function inspectCastleWorkerGraph', 'export function castleWorkerErrorCode');
-  const dispatch = section(authority, 'export function dispatchCastleWorker', 'function progressBasisPoints');
+  const dispatch = section(
+    authority,
+    'export function dispatchCastleWorker',
+    'export function dispatchGreaterRealmCastleWorkerV2',
+  );
   const recall = section(authority, 'export function recallCastleWorker', 'export function recallAllCastleWorkers');
   const recallAll = section(authority, 'export function recallAllCastleWorkers', 'export type WorkerGraphAggregate');
 

@@ -1,0 +1,206 @@
+import { describe, expect, it } from 'vitest';
+
+import { GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE } from '../src/dev/greaterRealmSyntheticTierOneFixture';
+import { createGreaterRealmChunkStream } from '../src/greater-realm/greaterRealmChunkStream';
+import { decodeGreaterRealmChunkDto, type GreaterRealmLod } from '../src/greater-realm/greaterRealmPublicContract';
+import {
+  GREATER_REALM_GRAPHICS_BUDGETS,
+  GREATER_REALM_NETWORK_BUDGETS,
+  type GreaterRealmDeviceClass,
+  type GreaterRealmGraphicsProfile
+} from '../src/greater-realm/greaterRealmRuntimePolicy';
+
+function delay(milliseconds: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+}
+
+const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+function handle(ordinal: number) {
+  let value = ordinal;
+  let encoded = '';
+  do {
+    encoded = BASE32[value % 32]! + encoded;
+    value = Math.trunc(value / 32);
+  } while (value > 0);
+  return `GRK-${encoded.padStart(26, 'A')}`;
+}
+
+function rawChunk(chunkHandle: string, lod: GreaterRealmLod = 0, revision = 1n) {
+  const raw = structuredClone(GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[0]) as any;
+  raw.chunkHandle = chunkHandle;
+  raw.lod = lod;
+  raw.revision = revision;
+  raw.coreCells.forEach((cell: any) => { cell.chunkHandle = chunkHandle; });
+  return raw;
+}
+
+function demands(start: number, count: number, lod: GreaterRealmLod = 0) {
+  return Array.from({ length: count }, (_, offset) => Object.freeze({
+    chunkHandle: handle(start + offset),
+    distanceChunks: offset,
+    lod
+  }));
+}
+
+describe('Greater Realm chunk stream', () => {
+  it.each([
+    ['desktop', 'high'],
+    ['mobile', 'balanced']
+  ] as const)('bounds %s fetch and decode pools independently', async (deviceClass, graphicsProfile) => {
+    let activeFetches = 0;
+    let activeDecodes = 0;
+    let observedFetches = 0;
+    let observedDecodes = 0;
+    const stream = createGreaterRealmChunkStream({
+      deviceClass,
+      graphicsProfile,
+      fetchChunk: async (request) => {
+        activeFetches += 1;
+        observedFetches = Math.max(observedFetches, activeFetches);
+        await delay(4);
+        activeFetches -= 1;
+        return rawChunk(request.chunkHandle, request.lod);
+      },
+      decodeChunk: async (value, signal) => {
+        activeDecodes += 1;
+        observedDecodes = Math.max(observedDecodes, activeDecodes);
+        try {
+          await delay(4);
+          if (signal.aborted) throw signal.reason;
+          return decodeGreaterRealmChunkDto(value);
+        } finally {
+          activeDecodes -= 1;
+        }
+      }
+    });
+
+    stream.setDesired(1n, demands(0, 10));
+    await stream.awaitIdle();
+    const budget = GREATER_REALM_NETWORK_BUDGETS[deviceClass];
+    const snapshot = stream.getSnapshot();
+    expect(observedFetches).toBe(budget.fetchConcurrency);
+    expect(observedDecodes).toBe(budget.decodeConcurrency);
+    expect(snapshot.peakFetchConcurrency).toBeLessThanOrEqual(budget.fetchConcurrency);
+    expect(snapshot.peakDecodeConcurrency).toBeLessThanOrEqual(budget.decodeConcurrency);
+    expect(snapshot.residentChunkCount).toBe(10);
+    stream.dispose();
+  });
+
+  it('cancels a stale LOD before decode and retains only the replacement', async () => {
+    let staleSignal: AbortSignal | undefined;
+    let staleDecoded = false;
+    const target = handle(20);
+    const stream = createGreaterRealmChunkStream({
+      deviceClass: 'mobile',
+      graphicsProfile: 'balanced',
+      fetchChunk: (request, signal) => {
+        if (request.lod === 0) {
+          staleSignal = signal;
+          return new Promise((_, reject) => {
+            signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+          });
+        }
+        return Promise.resolve(rawChunk(request.chunkHandle, request.lod));
+      },
+      decodeChunk: (value) => {
+        const decoded = decodeGreaterRealmChunkDto(value);
+        if (decoded.lod === 0) staleDecoded = true;
+        return decoded;
+      }
+    });
+    stream.setDesired(1n, [{ chunkHandle: target, distanceChunks: 0, lod: 0 }]);
+    expect(staleSignal?.aborted).toBe(false);
+    stream.setDesired(1n, [{ chunkHandle: target, distanceChunks: 0, lod: 1 }]);
+    await stream.awaitIdle();
+    expect(staleSignal?.aborted).toBe(true);
+    expect(staleDecoded).toBe(false);
+    expect(stream.getChunk(target)?.lod).toBe(1);
+    stream.dispose();
+  });
+
+  it('pins High/Balanced/Reduced resident LRU ceilings at 128/72/36', async () => {
+    expect(Object.fromEntries(Object.entries(GREATER_REALM_GRAPHICS_BUDGETS).map(
+      ([profile, budget]) => [profile, budget.maximumResidentChunks]
+    ))).toEqual({ high: 128, balanced: 72, reduced: 36 });
+
+    const evicted: string[] = [];
+    const profile: GreaterRealmGraphicsProfile = 'reduced';
+    const deviceClass: GreaterRealmDeviceClass = 'desktop';
+    const stream = createGreaterRealmChunkStream({
+      deviceClass,
+      graphicsProfile: profile,
+      fetchChunk: async (request) => rawChunk(request.chunkHandle, request.lod),
+      onChunkEvicted: (chunk) => { evicted.push(chunk.chunkHandle); }
+    });
+    stream.setDesired(1n, demands(0, 40));
+    await stream.awaitIdle();
+    expect(stream.getSnapshot().desiredCount).toBe(36);
+    stream.setDesired(1n, demands(100, 36));
+    await stream.awaitIdle();
+    expect(stream.getSnapshot().residentChunkCount).toBeLessThanOrEqual(36);
+    expect(evicted.length).toBeGreaterThan(0);
+    stream.dispose();
+  });
+
+  it('treats revision zero as real state and refetches the same handle at revision one', async () => {
+    const target = handle(400);
+    const fetched: bigint[] = [];
+    const evicted: bigint[] = [];
+    const stream = createGreaterRealmChunkStream({
+      deviceClass: 'desktop',
+      graphicsProfile: 'high',
+      fetchChunk: async (request) => {
+        fetched.push(request.expectedRevision);
+        return rawChunk(request.chunkHandle, request.lod, request.expectedRevision);
+      },
+      onChunkEvicted: (chunk) => { evicted.push(chunk.revision); }
+    });
+
+    stream.setDesired(0n, [{ chunkHandle: target, distanceChunks: 0, lod: 0 }]);
+    await stream.awaitIdle();
+    expect(stream.getChunk(target)?.revision).toBe(0n);
+
+    stream.setDesired(1n, [{ chunkHandle: target, distanceChunks: 0, lod: 0 }]);
+    await stream.awaitIdle();
+    expect(fetched).toEqual([0n, 1n]);
+    expect(evicted).toContain(0n);
+    expect(stream.getChunk(target)?.revision).toBe(1n);
+    expect(stream.getSnapshot().residentChunkCount).toBe(1);
+    stream.dispose();
+  });
+
+  it('keeps a throwing ready validator out of residence and retries cleanly', async () => {
+    const target = handle(401);
+    let fetched = 0;
+    let ready = 0;
+    const errors: unknown[] = [];
+    const stream = createGreaterRealmChunkStream({
+      deviceClass: 'desktop',
+      graphicsProfile: 'high',
+      fetchChunk: async (request) => {
+        fetched += 1;
+        return rawChunk(request.chunkHandle, request.lod, request.expectedRevision);
+      },
+      onChunkReady: () => {
+        ready += 1;
+        if (ready === 1) throw new Error('GREATER_REALM_DESCRIPTOR_MISMATCH');
+      },
+      onError: (_chunkHandle, error) => { errors.push(error); }
+    });
+
+    stream.setDesired(1n, [{ chunkHandle: target, distanceChunks: 0, lod: 0 }]);
+    await stream.awaitIdle();
+    expect(stream.getChunk(target)).toBeUndefined();
+    expect(stream.getSnapshot()).toMatchObject({ residentChunkCount: 0, failedCount: 1 });
+    expect(errors).toHaveLength(1);
+
+    stream.retryFailed();
+    await stream.awaitIdle();
+    expect(fetched).toBe(2);
+    expect(ready).toBe(2);
+    expect(stream.getChunk(target)?.chunkHandle).toBe(target);
+    expect(stream.getSnapshot()).toMatchObject({ residentChunkCount: 1, failedCount: 0 });
+    stream.dispose();
+  });
+});

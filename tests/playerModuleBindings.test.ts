@@ -8,12 +8,18 @@ import { DbConnection, tables as playerTables } from '../src/spacetime/playerMod
 
 const PLAYER_TABLE_KEYS = [
   'castle',
+  'castleInnerKeepBuildingV1',
   'castleWorkerV1',
   'foodNodeOccupationV1',
   'foodSiteV1',
   'goldNodeOccupationV1',
   'goldSiteV1',
+  'innerKeepBuildLevelV1',
+  'innerKeepBuildingCatalogV1',
+  'innerKeepLayoutV1',
+  'innerKeepSlotV1',
   'playerV2',
+  'realmChatStatusV1',
   'realmEnvironmentV1',
   'realmForestInstanceV1',
   'realmForestLayoutV1',
@@ -82,6 +88,8 @@ describe('player SpacetimeDB bindings', () => {
 
     expect(connection).toContain("from './playerModuleBindings'")
     expect(connection).not.toContain("from './module_bindings'")
+    expect(connection).toContain('.subscribe([tables.realmChatStatusV1])')
+    expect(connection).not.toContain('tables.realmChatRecentV1')
     expect(playerBindings).toContain("'accept_alpha_terms_v1'")
     expect(playerBindings).toContain("'bootstrap_player_v2'")
     expect(playerBindings).toContain("'collect_food_expedition_v1'")
@@ -104,10 +112,28 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).toContain("'get_my_resource_state_v2'")
     expect(playerBindings).toContain("'get_my_worker_control_state_v1'")
     expect(playerBindings).toContain("'get_my_worker_roster_v1'")
+    expect(playerBindings).toContain("'get_realm_chat_history_v1'")
+    expect(playerBindings).toContain("'get_realm_chat_recent_v1'")
+    expect(playerBindings).toContain("'get_realm_atlas_bootstrap_v1'")
+    expect(playerBindings).toContain("'get_realm_atlas_chunk_v1'")
+    expect(playerBindings).toContain("'get_realm_atlas_resource_locations_v1'")
+    expect(playerBindings).toContain("'get_realm_atlas_window_v1'")
+    expect(playerBindings).toContain("'plan_realm_route_v1'")
     expect(playerBindings).toContain("'dispatch_worker_v1'")
+    expect(playerBindings).toContain("'inner_keep_start_project_v1'")
+    expect(playerBindings).toContain("'get_my_inner_keep_request_status_v1'")
+    expect(playerBindings).toContain("'get_my_inner_keep_state_v1'")
+    expect(playerBindings).toContain("name: 'inner_keep_layout_v1'")
+    expect(playerBindings).toContain("name: 'inner_keep_slot_v1'")
+    expect(playerBindings).toContain("name: 'inner_keep_building_catalog_v1'")
+    expect(playerBindings).toContain("name: 'inner_keep_build_level_v1'")
+    expect(playerBindings).toContain("name: 'castle_inner_keep_building_v1'")
     expect(playerBindings).toContain("'recall_worker_v1'")
     expect(playerBindings).toContain("'recall_all_workers_v1'")
     expect(playerBindings).toContain("'return_legacy_expedition_v1'")
+    expect(playerBindings).toContain("'send_realm_chat_message_v1'")
+    expect(playerBindings).toContain("'report_realm_chat_message_v1'")
+    expect(playerBindings).not.toContain("name: 'realm_chat_recent_v1'")
     expect(playerBindings).toContain("'realm_forest_layout_v1'")
     expect(playerBindings).toContain("'realm_forest_instance_v1'")
     expect(playerBindings).toContain("'realm_water_revision_v1'")
@@ -133,6 +159,18 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).not.toContain('/v1/qa/')
     expect(playerBindings).not.toContain('worker_assignment_schedule_v_1')
     expect(playerBindings).not.toContain('worker_command_idempotency_v_1')
+    expect(playerBindings).not.toContain('castle_inner_builder_v_1')
+    expect(playerBindings).not.toContain('castle_inner_build_receipt_v_1')
+    expect(playerBindings).not.toContain('castle_inner_construction_schedule_v_1')
+    expect(playerBindings).not.toContain('admin_get_inner_keep_status_v_1')
+    expect(playerBindings).not.toContain('admin_plan_inner_keep_catalog_v_1')
+    expect(playerBindings).not.toContain('admin_seed_inner_keep_catalog_v_1')
+    expect(playerBindings).not.toContain('admin_activate_inner_keep_v_1')
+    expect(playerBindings).not.toContain("name: 'realm_atlas_v1'")
+    expect(playerBindings).not.toContain("name: 'realm_atlas_visible_region_v1'")
+    expect(playerBindings).not.toContain("name: 'greater_realm_cell_occupancy_v1'")
+    expect(playerBindings).not.toContain('admin_import_greater_realm')
+    expect(playerBindings).not.toContain('admin_finalize_greater_realm')
   })
 
   it('exposes only the player reducer and procedure accessors at runtime', () => {
@@ -162,12 +200,16 @@ describe('player SpacetimeDB bindings', () => {
       'collectWoodExpeditionV1',
       'dispatchFoodExpeditionV1',
       'dispatchGoldExpeditionV1',
+      'dispatchGreaterRealmWorkerV1',
       'dispatchStoneExpeditionV1',
       'dispatchWoodExpeditionV1',
       'dispatchWorkerV1',
+      'innerKeepStartProjectV1',
       'recallAllWorkersV1',
       'recallWorkerV1',
+      'reportRealmChatMessageV1',
       'returnLegacyExpeditionV1',
+      'sendRealmChatMessageV1',
     ])
     expect(Object.keys(connection.procedures).sort()).toEqual([
       'getAlphaBackendInfo',
@@ -175,12 +217,22 @@ describe('player SpacetimeDB bindings', () => {
       'getMyEntryAgreementStatusV1',
       'getMyFoodExpeditionStateV1',
       'getMyGoldExpeditionStateV1',
+      'getMyInnerKeepRequestStatusV1',
+      'getMyInnerKeepStateV1',
       'getMyResourceStateV1',
       'getMyResourceStateV2',
       'getMyStoneExpeditionStateV1',
       'getMyWoodExpeditionStateV1',
       'getMyWorkerControlStateV1',
+      'getMyWorkerControlStateV2',
       'getMyWorkerRosterV1',
+      'getRealmAtlasBootstrapV1',
+      'getRealmAtlasChunkV1',
+      'getRealmAtlasResourceLocationsV1',
+      'getRealmAtlasWindowV1',
+      'getRealmChatHistoryV1',
+      'getRealmChatRecentV1',
+      'planRealmRouteV1',
     ])
 
     connection.disconnect()

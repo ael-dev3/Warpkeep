@@ -6,6 +6,115 @@ full engineering record.
 
 ## [Unreleased]
 
+- Prepared the review-only Greater Realm client candidate as a genuinely
+  explorable six-region atlas: accessible pointer, touch, keyboard, and button
+  navigation; distinct terrain, coasts, castles, landmarks, public resource
+  markers, feature signs, and bounded ambient river boats that follow returned
+  deep-water lanes and float on their water surfaces; and an explicit local
+  helm preview that uses the same presentation-only route authority. Neither
+  ambient boats nor the helm save player travel. Production import, activation, presentation,
+  notification, legal-review, and owner-approval gates remain closed, so this
+  entry does not claim the Greater Realm is live.
+
+- Hardened the reviewed Greater Realm cutover tooling with a fail-closed,
+  protected-commit-bound launcher, an owner-private operation WAL with
+  digest-confirmed recovery, late credential-file opens, and refusal-only
+  legacy npm aliases. This is tooling only: import, activation, notification,
+  presentation, deployment, legal-review, and owner-approval gates remain
+  closed, and no live production operation or deployment is claimed.
+
+- Made reviewed founder admission verification follow the exact current world:
+  the unchanged legacy 100-slot path remains strict, while active Greater Realm
+  founding and existing-founder re-enable use bounded 600-slot aggregate and
+  target-specific proofs. Added one auditable recovery cycle for an exhausted
+  first-time Farcaster alert without changing its notification ID, terminal
+  receipts, notification consent, or admission state. Notification and
+  presentation gates remain off, including an explicit Hermes mutation-blackout
+  literal bound to both founder admission paths.
+
+- Prepared fail-closed Farcaster admission notifications with one stable
+  logical notification ID per pending-request timestamp, durable terminal sent
+  receipts, and admission only after the provider reports at least one
+  successful token. Provider acceptance is not presented as proof that any
+  device displayed the notification; notification delivery and admission stay
+  disabled until the reviewed bridge, Pages presentation, private receipt, and
+  owner-approval sequence completes.
+
+- Added the active-only Greater Realm founding authority behind the existing
+  profiled admission paths. Future founders receive a server-selected balanced
+  Tier-I castle, four workers, Inner Keep Builder, Marks and resource state in
+  one transaction; the 600-castle cap, replay behavior, and cell-derived
+  passive yield policy are covered by fault-injected stateful tests. Greater
+  Realm import, activation, and client presentation gates remain closed.
+
+- Added a dormant, generation-bound Greater Realm browser bridge for the four
+  public v17 atlas procedures. Desktop and mobile clients now have a tested
+  bounded bootstrap/window/chunk/route controller and an explicit Realm scene
+  selection seam. Retiring Lowlands now preserves castle-scoped resources,
+  Marks, read-only Worker reconciliation, Inner Keep, and Chat without ever
+  remounting cached legacy geometry, while independent literal server and
+  client gates keep Greater Realm presentation sealed.
+
+- Extended the deletion-disabled local additive migration rehearsal through
+  protocol v17 refs 72–83. It now proves all frozen v16 rows survive the real
+  Greater Realm artifact, binds typed suffix sentinels and exact schema
+  signatures into the receipt, rejects v17 rollback, and keeps production
+  import, activation, and publication authority hard-closed.
+
+- Made the long Castles, Workers, Resource Sites, and Public Water lists in
+  **Explore** independently collapsible, with live result counts and sticky
+  section controls that keep compact Realm navigation manageable.
+- Built the review-only Realm Chat V1 foundation as an isolated SpacetimeDB
+  protocol: server-authored identity/order/time, a private archive, bounded live
+  projection and history, exactly-once sends, rolling abuse limits, private
+  context-preserving reports, audited tombstones, and responsive desktop/Mini
+  App chat surfaces. The feature remains unseeded, unpublishable, and hidden
+  behind independent server and client gates pending legal and activation review.
+- Kept the approved 31 July V4 entry agreement as the exact selected production
+  bundle and removed the unapproved Realm Chat legal revision from the current
+  public document set. Generic Pages and SpacetimeDB agreement-status guards
+  remain fail closed, while Realm Chat stays unavailable behind independent
+  hard-false client and server gates pending a future approved legal revision.
+- Restacked the dormant Realm Chat authority as additive schema protocol v16,
+  preserving the complete inactive Inner Keep v15 boundary at refs 56–63 and
+  reserving Chat refs 64–71. The loopback migration receipt now proves both
+  boundaries and populated Chat rollback safety; real v16 publication remains
+  hard-closed pending exact predecessor, aggregate, and postflight evidence.
+- Prepared the inactive Inner Keep V1 foundation as one server-authoritative
+  construction loop: continuous half-meter-snapped player placement with
+  quarter turns, six five-level buildings, one internal Builder, exact resource
+  recipes, offline completion, and a functional portrait-first fallback. The
+  retained compatibility-slot table has zero rows, while the catalog contains
+  six building policies and thirty level policies.
+- Added dormant server support for the Inner Keep. It remains inactive until a
+  separately reviewed activation. The
+  [activation runbook](docs/operations/inner-keep-activation.md) retains the
+  guarded publication, seeding, Builder backfill, verification, and deployment
+  details.
+- Installed the owner-authorized Inner Keep selection at immutable paths: 38
+  environment assets across 114 GLBs, six catalog previews, and 20 ambient
+  actors across 40 GLBs. The feature remains dormant until separately reviewed
+  activation.
+- Pinned the final Inner Keep asset, presentation, combined-layout, palisade,
+  far-countryside, and construction-policy digests in the design and activation
+  records so later review can attest the whole dormant feature coherently.
+- Built a mostly empty 96 x 80 meter walled town with continuous valid ground
+  across x `[-44, 44]` / z `[-40, 32]`, a central road and civic commons,
+  modest non-functional town dressing, dirt wall aprons, district lanes,
+  bright painted lower-town cottages, warm ruin-stone grave markers, staggered
+  authored trees, mounted patrols, civic conversations, dense wind-swept grass,
+  deterministic clearances, bounded animation, and atomic fail-safe asset
+  loading. City Barracks and Grand Covenant Cathedral now begin absent and are
+  player-built outcomes rather than fixed anchors.
+- Extended that presentation beyond the walls with nine named landforms, one
+  connected headwater-to-lake course, a rounded terrain shoulder across a
+  detailed 144 x 144 meter estate, quality-scaled fields and woodland, scenic
+  resource structures and a trade wagon, outer patrols, and rabbits. A
+  fog-softened 416 x 544 meter countryside of farm parcels, crop tufts, and
+  hedgerows now continues behind the detailed estate, while responsive camera
+  movement is tightly limited so its visual edge cannot be exposed. Exact
+  optional wildlife can fall back independently to bounded procedural animals;
+  every exterior element remains visual-only and deterministic.
 - Prepared an optional **Enable Admission Alerts** step after a confirmed access
   request. It remains fail-closed behind a default-off release gate until the
   owner-controlled signed notification canary is complete, and never affects

@@ -39,6 +39,39 @@ describe('Realm surface navigation', () => {
       workerId: 'x'.repeat(161)
     })).toBeUndefined();
     expect(readRealmSurfaceRoute({ kind: 'keep', castleId: 0 })).toBeUndefined();
+    expect(readRealmSurfaceRoute({ kind: 'inner-keep' })).toEqual({
+      kind: 'inner-keep'
+    });
+    expect(readRealmSurfaceRoute({ kind: 'inner-keep-catalogue' })).toEqual({
+      kind: 'inner-keep-catalogue'
+    });
+    expect(readRealmSurfaceRoute({
+      kind: 'inner-keep-placement',
+      buildingKind: 'city-mill'
+    })).toEqual({
+      kind: 'inner-keep-placement',
+      buildingKind: 'city-mill'
+    });
+    expect(readRealmSurfaceRoute({
+      kind: 'inner-keep-building',
+      buildingKind: 'city-mill'
+    })).toEqual({
+      kind: 'inner-keep-building',
+      buildingKind: 'city-mill'
+    });
+    expect(readRealmSurfaceRoute({
+      kind: 'inner-keep-slot',
+      slotId: 'inner-keep-slot-m01',
+    })).toBeUndefined();
+    expect(readRealmSurfaceRoute({
+      kind: 'inner-keep-placement',
+      buildingKind: 'city-mill',
+      cost: 300
+    })).toBeUndefined();
+    expect(readRealmSurfaceRoute({
+      kind: 'inner-keep-building',
+      buildingKind: '../private'
+    })).toBeUndefined();
     expect(readRealmSurfaceRoute({
       kind: 'resource-balance',
       resource: 'ether'

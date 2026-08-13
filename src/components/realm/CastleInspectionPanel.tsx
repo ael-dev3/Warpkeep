@@ -51,6 +51,9 @@ export type CastleInspectionPanelProps = Readonly<{
   onRequestBack?: () => void;
   onRequestClose: () => void;
   focusTargetRef?: Ref<HTMLButtonElement>;
+  /** Owner-only route into the caller-bound Inner Keep destination. */
+  onEnterInnerKeep?: () => void;
+  innerKeepButtonRef?: Ref<HTMLButtonElement>;
 }>;
 
 export function CastleInspectionPanel({
@@ -62,7 +65,9 @@ export function CastleInspectionPanel({
   hostedDestination = false,
   onRequestBack,
   onRequestClose,
-  focusTargetRef
+  focusTargetRef,
+  onEnterInnerKeep,
+  innerKeepButtonRef
 }: CastleInspectionPanelProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -184,6 +189,18 @@ export function CastleInspectionPanel({
 
           {profile.publicBio ? (
             <p className="castle-inspection__bio">{profile.publicBio}</p>
+          ) : null}
+
+          {own && !observer && onEnterInnerKeep ? (
+            <button
+              className="castle-inspection__inner-keep"
+              onClick={onEnterInnerKeep}
+              ref={innerKeepButtonRef}
+              type="button"
+            >
+              <strong>ENTER INNER KEEP</strong>
+              <span>Develop your castle</span>
+            </button>
           ) : null}
 
           <dl className="castle-inspection__fields" aria-label="Public castle data">

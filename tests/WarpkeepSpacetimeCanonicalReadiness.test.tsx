@@ -11,12 +11,14 @@ vi.mock('../src/farcaster/FarcasterAuthProviderCore', () => ({
 import {
   BACKEND_STAGE_OPERATION_TIMEOUT_MILLISECONDS,
   CANONICAL_REALM_READINESS_TIMEOUT_MILLISECONDS,
+  GREATER_REALM_WORKER_CONTROL_POLL_INTERVAL_MILLISECONDS,
   RESOURCE_OPERATION_TIMEOUT_MILLISECONDS,
   WarpkeepSpacetimeProvider,
   useWarpkeepBackend,
   type WarpkeepBackendRuntime
 } from '../src/spacetime/WarpkeepSpacetimeProvider';
 import type { WarpkeepRealmSnapshot } from '../src/spacetime/warpkeepBackendTypes';
+import { WarpkeepLegacyRealmRetiredError } from '../src/spacetime/warpkeepConnection';
 import {
   DEFAULT_SPACETIMEDB_DATABASE,
   type WarpkeepRuntimeConfig
@@ -98,6 +100,8 @@ function deferred<T>() {
 
 function createRuntimeHarness() {
   let observed: ((snapshot: WarpkeepRealmSnapshot) => void) | undefined;
+  let observerError: ((reason?: 'legacy-retired' | 'invalid') => void) | undefined;
+  let retiredProjectionChange: (() => void) | undefined;
   let applied: (() => void) | undefined;
   let subscriptionError: (() => void) | undefined;
   const unsubscribe = vi.fn();
@@ -116,11 +120,32 @@ function createRuntimeHarness() {
     acceptAlphaTerms: vi.fn(async () => undefined),
     readResourceState: vi.fn(async (_connection, fid: number) => createReadyResourceState(fid)),
     collectResources: vi.fn(async (_connection, fid: number) => createReadyResourceState(fid)),
-    observeRealm: vi.fn((_connection, _fid, onChange) => {
+    observeRealm: vi.fn((_connection, _fid, onChange, onError, _retained, onRetiredChange) => {
       observed = onChange;
+      observerError = onError;
+      retiredProjectionChange = onRetiredChange;
       return removeObserver;
     }),
     readRealmSnapshot: vi.fn((_connection, fid: number) => createCanonicalGenesisSnapshot(fid)),
+    readRealmContinuity: vi.fn((_connection, fid: number) => {
+      const snapshot = createCanonicalGenesisSnapshot(fid);
+      return Object.freeze({
+        realmId: snapshot.realm.realmId,
+        players: snapshot.players,
+        profiles: snapshot.profiles,
+        castles: snapshot.castles,
+        ownCastle: snapshot.ownCastle,
+        ...(snapshot.goldSites === undefined ? {} : { goldSites: snapshot.goldSites }),
+        ...(snapshot.foodSites === undefined ? {} : { foodSites: snapshot.foodSites }),
+        ...(snapshot.woodSites === undefined ? {} : { woodSites: snapshot.woodSites }),
+        ...(snapshot.stoneSites === undefined ? {} : { stoneSites: snapshot.stoneSites }),
+        ...(snapshot.workerSystem === undefined ? {} : { workerSystem: snapshot.workerSystem }),
+        ...(snapshot.workerWorkers === undefined ? {} : { workerWorkers: snapshot.workerWorkers }),
+        ...(snapshot.workerOccupations === undefined ? {} : {
+          workerOccupations: snapshot.workerOccupations
+        })
+      });
+    }),
     subscribeRealm: vi.fn((_connection, onApplied, onError) => {
       applied = onApplied;
       subscriptionError = onError;
@@ -134,6 +159,8 @@ function createRuntimeHarness() {
     removeObserver,
     applied: () => applied,
     observed: () => observed,
+    observerError: () => observerError,
+    retiredProjectionChange: () => retiredProjectionChange,
     subscriptionError: () => subscriptionError
   };
 }
@@ -146,7 +173,22 @@ function Probe() {
       <output data-testid="fingerprint">
         {backend.state.realm?.canonicalFingerprint ?? ''}
       </output>
+      <output data-testid="legacy-authority">
+        {backend.state.legacyRealmAuthority ?? ''}
+      </output>
+      <output data-testid="resource-marks">
+        {backend.state.resources?.marksBalanceMicros.toString() ?? ''}
+      </output>
+      <output data-testid="resource-revision">
+        {backend.state.resources?.revision.toString() ?? ''}
+      </output>
+      <output data-testid="continuity-castle">
+        {backend.state.realmContinuity?.ownCastle.castleId ?? ''}
+      </output>
       <button type="button" onClick={backend.beginAlphaTermsAcceptance}>ACCEPT TERMS</button>
+      <button type="button" onClick={() => { void backend.collectResources(); }}>
+        COLLECT RESOURCES
+      </button>
     </>
   );
 }
@@ -497,6 +539,183 @@ describe('Warpkeep canonical realm readiness lifecycle', () => {
     await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('ready'));
     expect(screen.getByTestId('fingerprint').textContent).toContain('genesis-001');
     expect(harness.runtime.readRealmSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it('retires only Lowlands authority while shared castle resources and subscriptions stay live', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const harness = createRuntimeHarness();
+    renderProvider(harness);
+    await beginSubscription(harness);
+    act(() => harness.applied()?.());
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('ready'));
+
+    const marksBefore = screen.getByTestId('resource-marks').textContent;
+    expect(marksBefore).not.toBe('');
+    act(() => harness.observerError()?.('legacy-retired'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('phase').textContent).toBe('ready');
+      expect(screen.getByTestId('legacy-authority').textContent).toBe('retired');
+    });
+    expect(screen.getByTestId('fingerprint').textContent).toBe('');
+    expect(screen.getByTestId('resource-marks').textContent).toBe(marksBefore);
+    expect(screen.getByTestId('continuity-castle').textContent).not.toBe('');
+    expect(harness.removeObserver).not.toHaveBeenCalled();
+    expect(harness.unsubscribe).not.toHaveBeenCalled();
+
+    vi.mocked(harness.runtime.collectResources).mockResolvedValueOnce(
+      createReadyResourceState(12_345, 2n)
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'COLLECT RESOURCES' }));
+    await waitFor(() => expect(screen.getByTestId('resource-revision').textContent).toBe('2'));
+
+    act(() => harness.retiredProjectionChange()?.());
+    expect(harness.runtime.readRealmContinuity).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('legacy-authority').textContent).toBe('retired');
+  });
+
+  it('localizes a late collection failure when Lowlands retires in flight', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const harness = createRuntimeHarness();
+    const pendingCollection = deferred<ReturnType<typeof createReadyResourceState>>();
+    vi.mocked(harness.runtime.collectResources).mockReturnValueOnce(
+      pendingCollection.promise
+    );
+    renderProvider(harness);
+    await beginSubscription(harness);
+    act(() => harness.applied()?.());
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('ready'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'COLLECT RESOURCES' }));
+    await waitFor(() => expect(harness.runtime.collectResources).toHaveBeenCalledTimes(1));
+    act(() => harness.observerError()?.('legacy-retired'));
+    await waitFor(() => expect(screen.getByTestId('legacy-authority').textContent).toBe('retired'));
+
+    await act(async () => {
+      pendingCollection.reject(new Error('synthetic retired transport failure'));
+      await pendingCollection.promise.catch(() => undefined);
+    });
+
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+    expect(screen.getByTestId('legacy-authority').textContent).toBe('retired');
+    expect(screen.getByTestId('fingerprint').textContent).toBe('');
+    expect(harness.removeObserver).not.toHaveBeenCalled();
+    expect(harness.unsubscribe).not.toHaveBeenCalled();
+    expect(harness.connection.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('reconnects a retired world without restoring a cached Lowlands snapshot', async () => {
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 1);
+    const harness = createRuntimeHarness();
+    const rendered = renderProvider(harness);
+    await beginSubscription(harness);
+    act(() => harness.applied()?.());
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('ready'));
+    act(() => harness.observerError()?.('legacy-retired'));
+    await waitFor(() => expect(screen.getByTestId('legacy-authority').textContent).toBe('retired'));
+
+    const reconnect = deferred<typeof harness.connection>();
+    vi.mocked(harness.runtime.connect).mockReturnValueOnce(reconnect.promise as never);
+    vi.mocked(harness.runtime.readRealmSnapshot).mockImplementation(() => {
+      throw new WarpkeepLegacyRealmRetiredError();
+    });
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 2);
+    rendered.rerender(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={harness.runtime}>
+        <Probe />
+      </WarpkeepSpacetimeProvider>
+    );
+
+    await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('reconnecting'));
+    expect(screen.getByTestId('legacy-authority').textContent).toBe('retired');
+    expect(screen.getByTestId('fingerprint').textContent).toBe('');
+    expect(screen.getByTestId('continuity-castle').textContent).not.toBe('');
+
+    await act(async () => {
+      reconnect.resolve(harness.connection);
+      await reconnect.promise;
+    });
+    await waitFor(() => expect(harness.runtime.subscribeRealm).toHaveBeenCalledTimes(2));
+    act(() => harness.applied()?.());
+    await waitFor(() => {
+      expect(screen.getByTestId('phase').textContent).toBe('ready');
+      expect(screen.getByTestId('legacy-authority').textContent).toBe('retired');
+    });
+    expect(screen.getByTestId('fingerprint').textContent).toBe('');
+  });
+
+  it('cancels the retired Worker fallback across reconnect and legacy restoration', async () => {
+    vi.useFakeTimers();
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 1);
+    const harness = createRuntimeHarness();
+    const readGreaterRealmWorkerControlState = vi.fn(async () => undefined);
+    Object.assign(harness.runtime, { readGreaterRealmWorkerControlState });
+    const rendered = renderProvider(harness);
+
+    await act(settleMicrotasks);
+    expect(screen.getByTestId('phase').textContent).toBe('awaiting-terms');
+    fireEvent.click(screen.getByRole('button', { name: 'ACCEPT TERMS' }));
+    await act(settleMicrotasks);
+    expect(harness.runtime.subscribeRealm).toHaveBeenCalledTimes(1);
+    act(() => harness.applied()?.());
+    await act(settleMicrotasks);
+    expect(screen.getByTestId('phase').textContent).toBe('ready');
+
+    act(() => harness.observerError()?.('legacy-retired'));
+    await act(settleMicrotasks);
+    expect(screen.getByTestId('legacy-authority').textContent).toBe('retired');
+    expect(readGreaterRealmWorkerControlState).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(
+        GREATER_REALM_WORKER_CONTROL_POLL_INTERVAL_MILLISECONDS - 1,
+      );
+      await settleMicrotasks();
+    });
+    expect(readGreaterRealmWorkerControlState).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+      await settleMicrotasks();
+    });
+    expect(readGreaterRealmWorkerControlState).toHaveBeenCalledTimes(2);
+
+    const reconnect = deferred<typeof harness.connection>();
+    vi.mocked(harness.runtime.connect).mockReturnValueOnce(reconnect.promise as never);
+    mockedFarcaster.current = authenticatedFarcaster(12_345, 2);
+    rendered.rerender(
+      <WarpkeepSpacetimeProvider config={CONFIG} runtime={harness.runtime}>
+        <Probe />
+      </WarpkeepSpacetimeProvider>
+    );
+    await act(settleMicrotasks);
+    expect(screen.getByTestId('phase').textContent).toBe('reconnecting');
+    const callsBeforeReconnect = readGreaterRealmWorkerControlState.mock.calls.length;
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(
+        GREATER_REALM_WORKER_CONTROL_POLL_INTERVAL_MILLISECONDS * 2,
+      );
+      fireEvent(document, new Event('visibilitychange'));
+      await settleMicrotasks();
+    });
+    expect(readGreaterRealmWorkerControlState).toHaveBeenCalledTimes(callsBeforeReconnect);
+
+    await act(async () => {
+      reconnect.resolve(harness.connection);
+      await reconnect.promise;
+      await settleMicrotasks();
+    });
+    expect(harness.runtime.subscribeRealm).toHaveBeenCalledTimes(2);
+    act(() => harness.applied()?.());
+    await act(settleMicrotasks);
+    expect(screen.getByTestId('legacy-authority').textContent).toBe('active');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(
+        GREATER_REALM_WORKER_CONTROL_POLL_INTERVAL_MILLISECONDS * 2,
+      );
+      fireEvent(document, new Event('visibilitychange'));
+      await settleMicrotasks();
+    });
+    expect(readGreaterRealmWorkerControlState).toHaveBeenCalledTimes(callsBeforeReconnect);
   });
 
   it('fails closed when onApplied exposes an incomplete projection', async () => {

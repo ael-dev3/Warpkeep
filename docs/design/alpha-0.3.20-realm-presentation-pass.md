@@ -77,10 +77,13 @@ The visible problems were:
 
 ## Budgets
 
-No ceiling is increased:
+All ceilings remain explicit and quality-specific. The true near/mid topology
+split raises only the grass draw ceiling from 3 / 2 / 1 to 6 / 4 / 2 for High /
+Balanced / Reduced; active instances, triangles, cache, and scheduler ceilings
+remain unchanged:
 
-- grass keeps its existing quality-specific active instance, triangle, draw,
-  cache, and scheduler caps;
+- grass remains within its quality-specific active instance, triangle, cache,
+  and scheduler caps plus the revised 6 / 4 / 2 draw ceiling;
 - decorative forest remains at most 1,200 / 600 / 180 instances,
   320k / 160k / 45k triangles, and five draws for High / Balanced / Reduced;
 - shared forest remains one static batch at the selected approved LOD;

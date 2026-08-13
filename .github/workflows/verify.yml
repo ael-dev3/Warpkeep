@@ -11,7 +11,9 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The complete 4,485-test root security suite takes about 9 minutes on the
+    # pinned local runner and can exceed 20 minutes on a cold hosted runner.
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -22,11 +24,75 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 22.22.3
           cache: npm
+
+      - name: Setup pinned pnpm for bridge runtime-contract tests
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.7.0
+          run_install: false
+
+      - name: Stage Node in a runner-private toolchain path
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_command="$(command -v node)"
+          if [[ -L "$source_command" ]]; then
+            echo 'setup-node resolved through a symbolic link.' >&2
+            exit 1
+          fi
+          source_node="$(realpath -- "$source_command")"
+          case "$source_node" in
+            "$RUNNER_TOOL_CACHE"/*) ;;
+            *)
+              echo 'setup-node resolved outside the hosted tool cache.' >&2
+              exit 1
+              ;;
+          esac
+          if [[ ! -f "$source_node" || ! -x "$source_node" ]]; then
+            echo 'setup-node did not resolve to a regular executable.' >&2
+            exit 1
+          fi
+
+          private_root="$(mktemp -d "$RUNNER_TEMP/warpkeep-node.XXXXXX")"
+          chmod 0700 "$private_root"
+          private_bin="$private_root/bin"
+          install -d -m 0700 "$private_bin"
+          source_sha_before="$(sha256sum "$source_node" | cut -d ' ' -f 1)"
+          install -m 0700 "$source_node" "$private_bin/node"
+          source_sha_after="$(sha256sum "$source_node" | cut -d ' ' -f 1)"
+          staged_sha="$(sha256sum "$private_bin/node" | cut -d ' ' -f 1)"
+          if [[ "$source_sha_before" != "$source_sha_after" || "$source_sha_before" != "$staged_sha" ]]; then
+            echo 'The staged Node executable failed its integrity check.' >&2
+            exit 1
+          fi
+          echo "$private_bin" >> "$GITHUB_PATH"
+          echo "WARPKEEP_PRIVATE_NODE=$private_bin/node" >> "$GITHUB_ENV"
+          echo "WARPKEEP_PRIVATE_NODE_SHA256=$staged_sha" >> "$GITHUB_ENV"
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Install exact bridge runtime-test toolchain
+        run: pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
+
+      - name: Re-attest runner-private Node after dependency install
+        shell: bash
+        run: |
+          set -euo pipefail
+          resolved_node="$(realpath -- "$(command -v node)")"
+          node_mode="$(stat -c '%a' "$WARPKEEP_PRIVATE_NODE")"
+          if [[ "$resolved_node" != "$WARPKEEP_PRIVATE_NODE" \
+            || ! -f "$WARPKEEP_PRIVATE_NODE" \
+            || ! -x "$WARPKEEP_PRIVATE_NODE" \
+            || -L "$WARPKEEP_PRIVATE_NODE" \
+            || $((8#$node_mode & 0022)) -ne 0 ]]; then
+            echo 'The runner-private Node executable lost its trusted file state.' >&2
+            exit 1
+          fi
+          echo "$WARPKEEP_PRIVATE_NODE_SHA256  $WARPKEEP_PRIVATE_NODE" \
+            | sha256sum --check --strict -
 
       - name: Scan repository history for secrets
         env:
@@ -54,7 +120,7 @@ jobs:
           npm run verify:file-sizes
 
       - name: Run tests
-        run: npm test
+        run: npm test -- --maxWorkers=2
 
       - name: Typecheck
         run: npm run typecheck
@@ -103,7 +169,7 @@ jobs:
 
   spacetimedb-module:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -149,9 +215,25 @@ jobs:
           pnpm --dir spacetimedb run verify
           npm run stdb:verify-bindings
           npm run stdb:build-v14-migration-fixture
+          npm run stdb:build-v15-migration-fixture
+          npm run stdb:build-v16-migration-fixture
+          npm run stdb:build-v17-migration-fixture
           npm run stdb:verify-worker-migration
           npm run stdb:verify-access-request-migration
+          npm run stdb:verify-admission-cas-rehearsal
           npm run stdb:verify-additive-migration
+
+      - name: Prove synthetic Greater Realm exporter/server compatibility
+        timeout-minutes: 10
+        run: timeout --signal=TERM --kill-after=15s 9m npm run stdb:verify-greater-realm-connected-import
+
+      - name: Rehearse connected Greater Realm relocation and rollback
+        timeout-minutes: 22
+        run: timeout --signal=TERM --kill-after=15s 21m npm run stdb:verify-greater-realm-connected-relocation
+
+      - name: Rehearse connected active Greater Realm population and gathering
+        timeout-minutes: 27
+        run: timeout --signal=TERM --kill-after=15s 26m npm run stdb:verify-greater-realm-connected-active-population
 
       - name: Audit module dependencies
         run: pnpm --dir spacetimedb audit --audit-level low

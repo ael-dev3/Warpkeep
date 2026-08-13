@@ -36,6 +36,12 @@ export type WarpkeepSfxEvent =
         | 'worker-returned';
     }>)
   | Readonly<{ kind: 'access-request-confirmed' }>
+  | Readonly<{
+      kind:
+        | 'inner-keep-menu-opened'
+        | 'inner-keep-project-confirmed'
+        | 'inner-keep-project-completed';
+    }>
   | Readonly<{ kind: 'command-failed' }>
   | (ScreenPosition & Readonly<{ kind: 'river-focus-entered' }>)
   | Readonly<{ kind: 'river-focus-left' }>;
@@ -58,6 +64,9 @@ export const WARPKEEP_SFX_EVENT_KINDS = Object.freeze([
   'worker-arrived',
   'worker-returned',
   'access-request-confirmed',
+  'inner-keep-menu-opened',
+  'inner-keep-project-confirmed',
+  'inner-keep-project-completed',
   'command-failed',
   'river-focus-entered',
   'river-focus-left'

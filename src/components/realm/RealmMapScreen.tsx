@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useId,
@@ -10,6 +12,14 @@ import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent
 } from 'react';
+
+import type {
+  InnerKeepBuildingKind,
+  InnerKeepPresentation,
+  StartInnerKeepProject
+} from '../inner-keep/innerKeepPresentation';
+import { isInnerKeepBuildingKind } from '../inner-keep/innerKeepPresentation';
+import type { InnerKeepPlacementDraft } from '../inner-keep/innerKeepPlacement';
 
 import {
   axialToWorld,
@@ -35,7 +45,12 @@ import type {
   GraphicsPreference,
   GraphicsQualityTier
 } from '../../settings/graphicsPreference';
-import type { CanonicalWarpkeepRealmSnapshot } from '../../spacetime/warpkeepBackendTypes';
+import type {
+  CanonicalWarpkeepRealmSnapshot,
+  WarpkeepRealmContinuityProjection
+} from '../../spacetime/warpkeepBackendTypes';
+import type { GreaterRealmProviderBridge } from '../../spacetime/greaterRealmProviderBridge';
+import type { GreaterRealmClientPhase } from '../../greater-realm/greaterRealmClientRuntime';
 import {
   emitWarpkeepSfx,
   emitWarpkeepSfxBatch,
@@ -74,6 +89,7 @@ import { RealmTerrainInspectionPanel } from './RealmTerrainInspectionPanel';
 import { RealmWorkerPresenceMarkers } from './RealmWorkerPresenceMarkers';
 import {
   createRealmScene,
+  type InnerKeepSceneStatus,
   type RealmInteractionTarget,
   type RealmLiveGatheringState,
   type RealmResourceOccupantSceneRecord,
@@ -155,6 +171,11 @@ import {
   REALM_QUALITY_SPECS,
   type RealmQuality
 } from './realmQuality';
+import {
+  resolveRealmWorldSceneStrategy,
+  resolveRealmWorldSceneStrategyForPolicy,
+  type RealmWorldSceneStrategy
+} from './greaterRealmSceneStrategy';
 import type { RealmIdentity } from './realmTypes';
 import type {
   RealmCastleProjectionFrame,
@@ -255,6 +276,10 @@ import {
   type WorkerRosterPresentation
 } from './realmWorkerPresentation';
 import type { WarpkeepWorkerPrivateSyncStatus } from '../../spacetime/warpkeepBackendTypes';
+import type {
+  RealmChatHistoryPagePresentation,
+  RealmChatPresentation
+} from '../../spacetime/realmChatPresentation';
 import { resolveRealmWorldPortraitLayout } from './realmWorldPortraitLayout';
 import { useRealmWorkerRecallLifecycle } from './useRealmWorkerRecallLifecycle';
 import {
@@ -262,6 +287,16 @@ import {
   realmWorkerSfxSnapshot,
   type RealmWorkerSfxSnapshot
 } from './realmWorkerSfxPresentation';
+import {
+  RealmChatDock,
+  type RealmChatSenderProfile
+} from './RealmChatDock';
+import { GreaterRealmWorldScene } from './GreaterRealmWorldScene';
+
+const InnerKeepScreen = lazy(async () => {
+  const module = await import('../inner-keep/InnerKeepScreen');
+  return { default: module.InnerKeepScreen };
+});
 
 export {
   BLOCKED_SHARED_FOREST_PROJECTION_SIGNATURE,
@@ -271,8 +306,12 @@ export type { RealmCastleProjection } from './realmMapProjectionStability';
 
 type RealmMapScreenProps = Readonly<{
   identity: RealmIdentity;
-  /** Privately branded, exact Genesis 001 renderer authority. */
-  snapshot: CanonicalWarpkeepRealmSnapshot;
+  /** Privately branded, exact Genesis 001 renderer authority; absent after cutover. */
+  snapshot?: CanonicalWarpkeepRealmSnapshot;
+  /** Shared public castle/profile/worker rows that outlive legacy geometry. */
+  realmContinuity?: WarpkeepRealmContinuityProjection;
+  /** Generation-bound v17 bridge; literal gates currently force legacy presentation. */
+  greaterRealm?: GreaterRealmProviderBridge;
   /** Authenticated caller-only inventory, separate from the public snapshot. */
   resources?: ReadyRealmResourcePresentation;
   /** Exact caller-only Gold expedition procedure projection. */
@@ -308,6 +347,22 @@ type RealmMapScreenProps = Readonly<{
     resourceKind: RealmEconomicResourceKey,
     expeditionId: string
   ) => Promise<void>;
+  /** Caller-bound compatible projection; absent keeps every entry point hidden. */
+  innerKeep?: InnerKeepPresentation;
+  /** Guarded controller boundary. The UI never supplies costs, FID, or coordinates. */
+  onStartInnerKeepProject?: StartInnerKeepProject;
+  onRequestInnerKeepSync?: () => void;
+  realmChat?: RealmChatPresentation;
+  onSendRealmChatMessage?: (body: string) => Promise<void>;
+  onReportRealmChatMessage?: (
+    messageId: string,
+    category: string,
+    details: string
+  ) => Promise<void>;
+  onLoadEarlierRealmChat?: (
+    beforeSequence: bigint,
+    limit?: number
+  ) => Promise<RealmChatHistoryPagePresentation>;
   graphicsPreference?: GraphicsPreference;
   resolvedGraphicsQuality?: GraphicsQualityTier;
   audioMuted?: boolean;
@@ -319,6 +374,10 @@ type RealmMapScreenProps = Readonly<{
   presentationMode?: 'player' | 'observer';
   /** DEV-only phase/coordinate projection evidence for the synthetic QA fixture. */
   localQaWorkerProjectionTelemetry?: boolean;
+  /** DEV-only frozen Living Realm clock; ignored outside observer fixtures. */
+  localQaLivingVisualTimeSeconds?: number;
+  /** DEV/test-only future-branch seam; production still calls literal gates. */
+  localQaGreaterRealmPresentationAllowed?: boolean;
 }>;
 
 type RendererMode = 'loading' | 'webgl' | 'fallback';
@@ -383,6 +442,23 @@ function isRealmWorldSurfaceRoute(route: RealmSurfaceRoute | undefined) {
     || route?.kind === 'resource-site'
     || route?.kind === 'water'
     || route?.kind === 'terrain';
+}
+
+type InnerKeepSurfaceRoute = Extract<RealmSurfaceRoute, {
+  kind:
+    | 'inner-keep'
+    | 'inner-keep-catalogue'
+    | 'inner-keep-placement'
+    | 'inner-keep-building';
+}>;
+
+function isInnerKeepSurfaceRoute(
+  route: RealmSurfaceRoute | undefined
+): route is InnerKeepSurfaceRoute {
+  return route?.kind === 'inner-keep'
+    || route?.kind === 'inner-keep-catalogue'
+    || route?.kind === 'inner-keep-placement'
+    || route?.kind === 'inner-keep-building';
 }
 
 function unavailableNodeCatalog<Node extends GatheringNodePresentation>(
@@ -476,6 +552,208 @@ function CanonicalRealmUnavailable({
   );
 }
 
+function RetiredRealmWorldHost({
+  strategy,
+  props
+}: Readonly<{
+  strategy: Exclude<RealmWorldSceneStrategy, { kind: 'legacy-lowlands' }>;
+  props: RealmMapScreenProps;
+}>) {
+  const greaterSceneKey = strategy.kind === 'greater-realm'
+    && props.realmContinuity !== undefined
+      ? [
+          strategy.bridge.sessionGeneration,
+          props.identity.fid,
+          props.realmContinuity.ownCastle.castleId,
+          props.realmContinuity.ownCastle.q,
+          props.realmContinuity.ownCastle.r
+        ].join(':')
+      : undefined;
+  const [greaterPhaseState, setGreaterPhaseState] = useState<Readonly<{
+    sceneKey: string | undefined;
+    phase: GreaterRealmClientPhase;
+  }>>(() => Object.freeze({ sceneKey: undefined, phase: 'idle' }));
+  const greaterPhase = greaterPhaseState.sceneKey === greaterSceneKey
+    ? greaterPhaseState.phase
+    : 'idle';
+  const handleGreaterPhaseChange = useCallback((phase: GreaterRealmClientPhase) => {
+    if (greaterSceneKey === undefined) return;
+    setGreaterPhaseState(Object.freeze({ sceneKey: greaterSceneKey, phase }));
+  }, [greaterSceneKey]);
+  useEffect(() => {
+    if (greaterSceneKey === undefined) {
+      setGreaterPhaseState(Object.freeze({ sceneKey: undefined, phase: 'idle' }));
+    }
+  }, [greaterSceneKey]);
+  const [innerKeepOpen, setInnerKeepOpen] = useState(false);
+  const [catalogueOpen, setCatalogueOpen] = useState(false);
+  const [placementBuildingKind, setPlacementBuildingKind] =
+    useState<InnerKeepBuildingKind | undefined>();
+  const [selectedBuildingKind, setSelectedBuildingKind] =
+    useState<InnerKeepBuildingKind | undefined>();
+  const [placementDraft, setPlacementDraft] = useState<InnerKeepPlacementDraft | null>(null);
+  const deviceClass = typeof window !== 'undefined'
+    && (
+      window.innerWidth < 760
+      || window.matchMedia?.('(pointer: coarse)').matches === true
+    )
+      ? 'mobile' as const
+      : 'desktop' as const;
+  const senderProfiles = useMemo(() => {
+    const profiles = new Map<number, RealmChatSenderProfile>();
+    for (const profile of props.realmContinuity?.profiles ?? []) {
+      const castle = props.realmContinuity?.castles.find(
+        (candidate) => candidate.ownerFid === profile.fid
+      );
+      profiles.set(profile.fid, Object.freeze({
+        fid: profile.fid,
+        label: profile.displayName
+          ?? (profile.canonicalUsername ? `@${profile.canonicalUsername}` : `Keeper #${profile.fid}`),
+        ...(profile.pfpUrl === undefined ? {} : { pfpUrl: profile.pfpUrl }),
+        ...(castle === undefined ? {} : {
+          castleId: castle.castleId,
+          castleName: castle.name
+        })
+      }));
+    }
+    if (!profiles.has(props.identity.fid)) {
+      profiles.set(props.identity.fid, Object.freeze({
+        fid: props.identity.fid,
+        label: props.identity.displayName
+          ?? (props.identity.username ? `@${props.identity.username}` : `Keeper #${props.identity.fid}`),
+        ...(props.identity.pfpUrl === undefined ? {} : { pfpUrl: props.identity.pfpUrl })
+      }));
+    }
+    return profiles;
+  }, [props.identity, props.realmContinuity]);
+
+  const closeInnerKeep = () => {
+    setInnerKeepOpen(false);
+    setCatalogueOpen(false);
+    setPlacementBuildingKind(undefined);
+    setSelectedBuildingKind(undefined);
+    setPlacementDraft(null);
+  };
+  if (innerKeepOpen && props.innerKeep !== undefined) {
+    return (
+      <Suspense fallback={<div role="status">Opening Inner Keep…</div>}>
+        <InnerKeepScreen
+          presentation={props.innerKeep}
+          catalogueOpen={catalogueOpen}
+          placementBuildingKind={placementBuildingKind}
+          placementDraft={placementDraft}
+          selectedBuildingKind={selectedBuildingKind}
+          renderMode="fallback"
+          onBack={() => {
+            if (placementBuildingKind !== undefined || selectedBuildingKind !== undefined) {
+              setPlacementBuildingKind(undefined);
+              setSelectedBuildingKind(undefined);
+              setPlacementDraft(null);
+            } else if (catalogueOpen) {
+              setCatalogueOpen(false);
+            } else {
+              closeInnerKeep();
+            }
+          }}
+          onCloseToRealm={closeInnerKeep}
+          onOpenCatalogue={() => setCatalogueOpen(true)}
+          onBeginPlacement={(buildingKind) => {
+            setPlacementBuildingKind(buildingKind);
+            setSelectedBuildingKind(undefined);
+          }}
+          onOpenBuilding={(buildingKind) => {
+            setSelectedBuildingKind(buildingKind);
+            setPlacementBuildingKind(undefined);
+          }}
+          onPlacementDraftChange={setPlacementDraft}
+          onStartProject={props.onStartInnerKeepProject}
+          onRequestSync={props.onRequestInnerKeepSync}
+        />
+      </Suspense>
+    );
+  }
+
+  return (
+    <main
+      className={`realm-map-screen ${strategy.kind === 'greater-realm'
+        ? 'realm-map-screen--greater-realm'
+        : 'realm-map-screen--unavailable'}`}
+      aria-label={strategy.kind === 'greater-realm' ? 'Greater Realm' : 'Realm connection'}
+      aria-busy={strategy.kind === 'greater-realm'
+        && greaterPhase !== 'ready'
+        && greaterPhase !== 'failed'
+        && greaterPhase !== 'disposed'}
+      data-realm-world-scene-strategy={strategy.kind}
+      data-realm-world-scene-strategy-reason={
+        strategy.kind === 'connection-hold' ? strategy.reason : 'scene-host-active'
+      }
+      data-greater-realm-client-phase={strategy.kind === 'greater-realm' ? greaterPhase : undefined}
+    >
+      {strategy.kind === 'greater-realm' && props.realmContinuity !== undefined ? (
+        <GreaterRealmWorldScene
+          bridge={strategy.bridge}
+          identityFid={props.identity.fid}
+          identityKey={`${props.identity.fid}:${props.realmContinuity.ownCastle.castleId}:${props.realmContinuity.ownCastle.q}:${props.realmContinuity.ownCastle.r}`}
+          ownCastle={props.realmContinuity.ownCastle}
+          resolvedGraphicsQuality={props.resolvedGraphicsQuality}
+          onPhaseChange={handleGreaterPhaseChange}
+        />
+      ) : null}
+      <div className={strategy.kind === 'greater-realm'
+        ? 'greater-realm-world__continuity'
+        : 'realm-map-screen__loading'}>
+        <strong>{strategy.kind === 'greater-realm'
+          ? greaterPhase === 'ready' ? 'Greater Realm' : 'Opening the Greater Realm'
+          : 'Reconnecting to the Realm'}</strong>
+        <span
+          role={strategy.kind === 'connection-hold' || greaterPhase !== 'ready'
+            ? 'status'
+            : undefined}
+          aria-live={strategy.kind === 'connection-hold' || greaterPhase !== 'ready'
+            ? 'polite'
+            : undefined}
+        >{strategy.kind === 'greater-realm' && greaterPhase === 'ready'
+          ? 'The bounded public atlas around your keep is current.'
+          : strategy.kind === 'greater-realm' && greaterPhase === 'failed'
+            ? 'The public atlas could not be loaded. The retired Lowlands remains hidden.'
+            : 'The retired Lowlands surface stays hidden while current authority is prepared.'}</span>
+        {props.resources === undefined ? null : (
+          <span data-testid="retired-realm-resources">
+            Food {props.resources.balances.food.toString()}
+            {' · '}Wood {props.resources.balances.wood.toString()}
+            {' · '}Stone {props.resources.balances.stone.toString()}
+            {' · '}Gold {props.resources.balances.gold.toString()}
+            {' · '}Marks {props.resources.marksBalanceMicros.toString()}
+          </span>
+        )}
+        {props.workerRoster === undefined ? null : (
+          <span data-testid="retired-realm-workers">
+            Workers current · {props.workerRoster.workers.length}
+          </span>
+        )}
+        {props.innerKeep === undefined ? null : (
+          <button type="button" onClick={() => setInnerKeepOpen(true)}>OPEN INNER KEEP</button>
+        )}
+        <button type="button" onClick={props.onRequestReturn}>Return to Menu</button>
+      </div>
+      {props.realmChat !== undefined
+      && props.onSendRealmChatMessage !== undefined
+      && props.onReportRealmChatMessage !== undefined
+      && props.onLoadEarlierRealmChat !== undefined ? (
+        <RealmChatDock
+          chat={props.realmChat}
+          chromeMode={deviceClass === 'mobile' ? 'compact-web' : 'desktop-web'}
+          identityFid={props.identity.fid}
+          senderProfiles={senderProfiles}
+          onSend={props.onSendRealmChatMessage}
+          onReport={props.onReportRealmChatMessage}
+          onLoadEarlier={props.onLoadEarlierRealmChat}
+        />
+      ) : null}
+    </main>
+  );
+}
+
 /**
  * Keep the private canonical brand check outside the hook-heavy renderer.
  * Invalid or malformed runtime input must not be dereferenced, generate a
@@ -483,18 +761,53 @@ function CanonicalRealmUnavailable({
  */
 export function RealmMapScreen(props: RealmMapScreenProps) {
   if (
-    !isCanonicalGenesisSnapshot(props.snapshot, props.identity.fid)
+    (props.snapshot !== undefined
+      && !isCanonicalGenesisSnapshot(props.snapshot, props.identity.fid))
     || (props.resources !== undefined && props.resources.fid !== BigInt(props.identity.fid))
   ) {
     return <CanonicalRealmUnavailable onRequestReturn={props.onRequestReturn} />;
   }
-  return <CanonicalRealmMapScreen {...props} />;
+  const strategyInput = {
+    bridge: props.greaterRealm,
+    legacyAuthorityActive: props.snapshot?.realm.active === true
+  };
+  const worldSceneStrategy = import.meta.env.DEV
+    && props.localQaGreaterRealmPresentationAllowed === true
+    ? resolveRealmWorldSceneStrategyForPolicy(strategyInput, {
+        clientPresentationAllowed: true,
+        serverPresentationAllowed: true
+      })
+    : resolveRealmWorldSceneStrategy(strategyInput);
+  if (worldSceneStrategy.kind !== 'legacy-lowlands') {
+    return (
+      <RetiredRealmWorldHost
+        strategy={worldSceneStrategy}
+        props={props}
+      />
+    );
+  }
+  if (props.snapshot === undefined) {
+    return <CanonicalRealmUnavailable onRequestReturn={props.onRequestReturn} />;
+  }
+  return (
+    <CanonicalRealmMapScreen
+      {...props}
+      snapshot={props.snapshot}
+      worldSceneStrategy={worldSceneStrategy}
+    />
+  );
 }
 
-function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
+function CanonicalRealmMapScreen(
+  props: RealmMapScreenProps & Readonly<{
+    snapshot: CanonicalWarpkeepRealmSnapshot;
+    worldSceneStrategy: Extract<RealmWorldSceneStrategy, { kind: 'legacy-lowlands' }>;
+  }>
+) {
   const {
     identity,
     snapshot,
+    worldSceneStrategy,
     resources,
     goldExpedition,
     onDispatchGoldExpedition,
@@ -513,6 +826,13 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     onRecallWorker,
     onRecallAllWorkers,
     onReturnLegacyExpedition,
+    innerKeep,
+    onStartInnerKeepProject,
+    onRequestInnerKeepSync,
+    realmChat,
+    onSendRealmChatMessage,
+    onReportRealmChatMessage,
+    onLoadEarlierRealmChat,
     graphicsPreference,
     resolvedGraphicsQuality,
     audioMuted,
@@ -548,6 +868,41 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
   const surfacePresentation = realmSurfacePresentation(chromeMode);
   const fullscreenDestinations = surfacePresentation === 'fullscreen-destination';
   const currentSurfaceRoute = surfaceNavigation.current;
+  const innerKeepActive = isInnerKeepSurfaceRoute(currentSurfaceRoute);
+  const innerKeepActiveRef = useRef(innerKeepActive);
+  innerKeepActiveRef.current = innerKeepActive;
+  const innerKeepPresentationRef = useRef(innerKeep);
+  innerKeepPresentationRef.current = innerKeep;
+  const innerKeepCatalogueOpen = currentSurfaceRoute?.kind === 'inner-keep-catalogue';
+  const placementInnerKeepBuildingKind =
+    currentSurfaceRoute?.kind === 'inner-keep-placement'
+    && isInnerKeepBuildingKind(currentSurfaceRoute.buildingKind)
+      ? currentSurfaceRoute.buildingKind
+      : undefined;
+  const selectedInnerKeepBuildingKind =
+    currentSurfaceRoute?.kind === 'inner-keep-building'
+    && isInnerKeepBuildingKind(currentSurfaceRoute.buildingKind)
+      ? currentSurfaceRoute.buildingKind
+      : undefined;
+  const selectedInnerKeepBuildingKey = selectedInnerKeepBuildingKind
+    ? innerKeep?.buildings.find((building) => (
+      building.buildingKind === selectedInnerKeepBuildingKind
+    ))?.buildingKey
+    : undefined;
+  const selectedInnerKeepBuildingKeyRef = useRef(selectedInnerKeepBuildingKey);
+  selectedInnerKeepBuildingKeyRef.current = selectedInnerKeepBuildingKey;
+  const [innerKeepPlacementDraft, setInnerKeepPlacementDraft] =
+    useState<InnerKeepPlacementDraft | null>(null);
+  const innerKeepPlacementDraftRef = useRef(innerKeepPlacementDraft);
+  innerKeepPlacementDraftRef.current = innerKeepPlacementDraft;
+  useEffect(() => {
+    setInnerKeepPlacementDraft((current) => (
+      placementInnerKeepBuildingKind
+      && current?.buildingKind === placementInnerKeepBuildingKind
+        ? current
+        : null
+    ));
+  }, [placementInnerKeepBuildingKind]);
   const workerRouteHostedByHud = !fullscreenDestinations
     && currentSurfaceRoute?.kind === 'worker'
     && surfaceNavigation.stack.at(-2)?.kind === 'workers';
@@ -559,6 +914,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     && isRealmWorldSurfaceRoute(currentSurfaceRoute)
     && !workerRouteHostedByHud;
   const surfaceOpen = surfaceNavigation.depth > 0;
+  const realmChatCompactBackRef = useRef<(() => void) | undefined>(undefined);
   const surfaceOpenRef = useRef(surfaceOpen);
   surfaceOpenRef.current = surfaceOpen;
   const previousSurfaceStackRef = useRef(surfaceNavigation.stack);
@@ -568,16 +924,134 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
   const replaceSurface = surfaceNavigation.replace;
   const backSurface = surfaceNavigation.back;
   const closeSurfacesToRealm = surfaceNavigation.closeToRealm;
+  const pendingInnerKeepMenuRouteRef = useRef<Readonly<{
+    fromKey: string | null;
+    targetKey: string;
+  }> | null>(null);
+  const currentInnerKeepMenuRouteKey = currentSurfaceRoute?.kind === 'inner-keep-catalogue'
+    ? 'catalogue'
+    : currentSurfaceRoute?.kind === 'inner-keep-placement'
+      ? `placement:${currentSurfaceRoute.buildingKind}`
+      : currentSurfaceRoute?.kind === 'inner-keep-building'
+      ? `building:${currentSurfaceRoute.buildingKind}`
+      : currentSurfaceRoute?.kind === 'inner-keep'
+        ? 'inner-keep'
+        : null;
+  useEffect(() => {
+    const pending = pendingInnerKeepMenuRouteRef.current;
+    if (!pending || currentInnerKeepMenuRouteKey === pending.fromKey) return;
+    pendingInnerKeepMenuRouteRef.current = null;
+    if (currentInnerKeepMenuRouteKey !== pending.targetKey) return;
+    emitWarpkeepSfx({ kind: 'inner-keep-menu-opened' });
+  }, [currentInnerKeepMenuRouteKey]);
+  const openInnerKeepCatalogue = useCallback(() => {
+    const targetKey = 'catalogue';
+    if (
+      currentInnerKeepMenuRouteKey === targetKey
+      || pendingInnerKeepMenuRouteRef.current?.targetKey === targetKey
+    ) return;
+    pendingInnerKeepMenuRouteRef.current = Object.freeze({
+      fromKey: currentInnerKeepMenuRouteKey,
+      targetKey
+    });
+    const route = { kind: 'inner-keep-catalogue' } as const;
+    if (currentSurfaceRoute?.kind === 'inner-keep') pushSurface(route);
+    else replaceSurface(route);
+  }, [
+    currentInnerKeepMenuRouteKey,
+    currentSurfaceRoute?.kind,
+    pushSurface,
+    replaceSurface
+  ]);
+  const beginInnerKeepPlacement = useCallback((buildingKind: InnerKeepBuildingKind) => {
+    const targetKey = `placement:${buildingKind}`;
+    if (
+      currentInnerKeepMenuRouteKey === targetKey
+      || pendingInnerKeepMenuRouteRef.current?.targetKey === targetKey
+    ) return;
+    pendingInnerKeepMenuRouteRef.current = Object.freeze({
+      fromKey: currentInnerKeepMenuRouteKey,
+      targetKey
+    });
+    setInnerKeepPlacementDraft(null);
+    const route = { kind: 'inner-keep-placement', buildingKind } as const;
+    if (currentSurfaceRoute?.kind === 'inner-keep-catalogue') pushSurface(route);
+    else replaceSurface(route);
+  }, [
+    currentInnerKeepMenuRouteKey,
+    currentSurfaceRoute?.kind,
+    pushSurface,
+    replaceSurface
+  ]);
+  const openInnerKeepBuilding = useCallback((buildingKind: InnerKeepBuildingKind) => {
+    const targetKey = `building:${buildingKind}`;
+    if (
+      currentInnerKeepMenuRouteKey === targetKey
+      || pendingInnerKeepMenuRouteRef.current?.targetKey === targetKey
+    ) return;
+    const route = {
+      kind: 'inner-keep-building',
+      buildingKind
+    } as const;
+    pendingInnerKeepMenuRouteRef.current = Object.freeze({
+      fromKey: currentInnerKeepMenuRouteKey,
+      targetKey
+    });
+    if (
+      currentSurfaceRoute?.kind === 'inner-keep-building'
+      || currentSurfaceRoute?.kind === 'inner-keep-placement'
+    ) {
+      replaceSurface(route);
+    } else {
+      pushSurface(route);
+    }
+  }, [
+    currentInnerKeepMenuRouteKey,
+    currentSurfaceRoute?.kind,
+    pushSurface,
+    replaceSurface
+  ]);
+  const openInnerKeepBuildingRef = useRef(openInnerKeepBuilding);
+  openInnerKeepBuildingRef.current = openInnerKeepBuilding;
+  const updateInnerKeepPlacementDraft = useCallback((
+    draft: InnerKeepPlacementDraft | null
+  ) => {
+    setInnerKeepPlacementDraft(draft);
+  }, []);
+  const updateInnerKeepPlacementDraftRef = useRef(updateInnerKeepPlacementDraft);
+  updateInnerKeepPlacementDraftRef.current = updateInnerKeepPlacementDraft;
+  useEffect(() => {
+    if (
+      placementInnerKeepBuildingKind
+      && innerKeep?.buildings.some((building) => (
+        building.buildingKind === placementInnerKeepBuildingKind
+      ))
+    ) {
+      openInnerKeepBuilding(placementInnerKeepBuildingKind);
+    }
+  }, [
+    innerKeep?.buildings,
+    openInnerKeepBuilding,
+    placementInnerKeepBuildingKind
+  ]);
   const pushWorldSurface = useCallback((route: RealmSurfaceRoute) => {
     if (fullscreenDestinations) pushSurface(route);
   }, [fullscreenDestinations, pushSurface]);
   const handleMiniAppBack = useCallback(() => {
+    const chatBack = realmChatCompactBackRef.current;
+    if (chatBack !== undefined) {
+      chatBack();
+      return;
+    }
     if (surfaceNavigation.depth > 0) {
       backSurface();
       return;
     }
     onRequestReturn();
   }, [backSurface, onRequestReturn, surfaceNavigation.depth]);
+  const setRealmChatCompactBack = useCallback((handler: (() => void) | undefined) => {
+    realmChatCompactBackRef.current = handler;
+  }, []);
   // Direct-entry Mini Apps skip Warpkeep's menu, so keep the native host Back
   // control available at the Realm root as their explicit route to it. Nested
   // destinations still consume one navigation step before the root can leave.
@@ -619,6 +1093,8 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
   ]>([null, null]);
   const activeCanvasSlotRef = useRef<0 | 1>(0);
   const [activeCanvasSlot, setActiveCanvasSlot] = useState<0 | 1>(0);
+  const [innerKeepSceneStatus, setInnerKeepSceneStatus] =
+    useState<InnerKeepSceneStatus>('inactive');
   const [canvasSlotEpochs, setCanvasSlotEpochs] = useState<readonly [number, number]>(
     [0, 0]
   );
@@ -645,11 +1121,19 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
   }> | null>(null);
   const componentLifecycleEpochRef = useRef(0);
   const inspectorFocusRef = useRef<HTMLButtonElement>(null);
+  const innerKeepCastleEntryRef = useRef<HTMLButtonElement>(null);
+  const previousInnerKeepActiveRef = useRef(innerKeepActive);
   const workerInspectorFocusRef = useRef<HTMLHeadingElement>(null);
   const navigatorTriggerRef = useRef<HTMLButtonElement>(null);
   const inspectorId = useId();
   const navigatorId = useId();
   const ownCastle = snapshot.ownCastle;
+  const innerKeepAvailable = Boolean(
+    !observerMode
+    && innerKeep
+    && innerKeep.phase !== 'unavailable'
+    && innerKeep.castleId === BigInt(ownCastle.castleId)
+  );
   const sharedPlayers = snapshot.players;
   const sharedProfiles = snapshot.profiles;
   const sharedTileMetadata = useStableRealmTerrainMetadata(
@@ -712,6 +1196,16 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     () => ({ q: ownCastleQ, r: ownCastleR }),
     [ownCastleQ, ownCastleR]
   );
+  const innerKeepOwningTerrain = tileMetadataByKey.get(
+    hexKey(keepCoord)
+  )?.terrainKind;
+  const innerKeepSceneVisualContext = useMemo(() => (
+    isRealmTerrainKind(innerKeepOwningTerrain)
+      ? Object.freeze({ owningTerrainKind: innerKeepOwningTerrain })
+      : undefined
+  ), [innerKeepOwningTerrain]);
+  const innerKeepSceneVisualContextRef = useRef(innerKeepSceneVisualContext);
+  innerKeepSceneVisualContextRef.current = innerKeepSceneVisualContext;
   const peerCastles = useStablePeerCastleMarkers(
     otherCastles,
     observerMode ? undefined : identity.fid,
@@ -913,6 +1407,21 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       }
     ]));
   }, [allCastles, identity, observerMode, sharedPlayers, sharedProfiles]);
+  const realmChatSenderProfiles = useMemo(() => {
+    const profiles = new Map<number, RealmChatSenderProfile>();
+    for (const castle of allCastles) {
+      const profile = profileRecords.get(castle.castleId)?.profile;
+      if (!profile) continue;
+      profiles.set(castle.ownerFid, Object.freeze({
+        fid: castle.ownerFid,
+        label: castleProfileLabel(profile),
+        ...(profile.pfpUrl === undefined ? {} : { pfpUrl: profile.pfpUrl }),
+        castleId: castle.castleId,
+        castleName: castle.name
+      }));
+    }
+    return profiles;
+  }, [allCastles, profileRecords]);
   const workerSceneRecords = useMemo<readonly RealmWorkerSceneRecord[]>(() => {
     if (observerMode || publicWorkerProjection?.mode !== 'active') return Object.freeze([]);
     const castlesById = new Map(allCastles.map((castle) => [castle.castleId, castle] as const));
@@ -1795,6 +2304,45 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       closeWorldRecords();
       return;
     }
+    if (isInnerKeepSurfaceRoute(route)) {
+      if (!innerKeepAvailable || !innerKeep) {
+        backSurface();
+        return;
+      }
+      const rootIndex = surfaceNavigation.stack.findIndex((candidate) => (
+        candidate.kind === 'inner-keep'
+      ));
+      const routeBuildingKind = (
+        route.kind === 'inner-keep-placement'
+        || route.kind === 'inner-keep-building'
+      ) && isInnerKeepBuildingKind(route.buildingKind)
+        ? route.buildingKind
+        : undefined;
+      const catalogueKindValid = routeBuildingKind === undefined || (
+        innerKeep.catalogue.some((entry) => (
+          entry.buildingKind === routeBuildingKind
+        ))
+      );
+      const buildingRouteValid = route.kind !== 'inner-keep-building' || (
+        routeBuildingKind !== undefined
+        && innerKeep.buildings.some((building) => (
+          building.buildingKind === routeBuildingKind
+        ))
+      );
+      const placementRouteValid = route.kind !== 'inner-keep-placement'
+        || routeBuildingKind !== undefined;
+      if (
+        rootIndex < 0
+        || !catalogueKindValid
+        || !buildingRouteValid
+        || !placementRouteValid
+      ) {
+        backSurface();
+        return;
+      }
+      closeWorldRecords();
+      return;
+    }
     if (route.kind === 'explore') {
       if (!current.navigatorOpen) {
         dispatchInteraction({ type: 'open-navigator' });
@@ -1972,6 +2520,8 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     foodNodesBySiteId,
     fullscreenDestinations,
     goldNodesBySiteId,
+    innerKeep,
+    innerKeepAvailable,
     publicWorkerProjection,
     replaceSurface,
     resourceOccupantMarkers,
@@ -2333,6 +2883,23 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       (candidate) => candidate.castleId === marker.castle.castleId
     );
     if (!castle) return;
+    dispatchInteraction({
+      type: 'set-camera-target',
+      target: {
+        kind: 'castle-location',
+        castleId: castle.castleId,
+        coord: { q: castle.q, r: castle.r }
+      }
+    });
+    sceneRef.current?.locateCastle(castle.castleId);
+  }, []);
+
+  const locateRealmChatCastle = useCallback((castleId: number) => {
+    const castle = allCastlesRef.current.find(
+      (candidate) => candidate.castleId === castleId
+    );
+    if (!castle) return;
+    selectedCoordRef.current = { q: castle.q, r: castle.r };
     dispatchInteraction({
       type: 'set-camera-target',
       target: {
@@ -3848,14 +4415,45 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     root.dataset.grassCandidateCellCount = String(telemetry.grassCandidateCellCount);
     root.dataset.grassActiveCellCount = String(telemetry.grassActiveCellCount);
     root.dataset.grassInstanceCount = String(telemetry.grassInstanceCount);
+    root.dataset.grassNearInstanceCount = String(telemetry.grassNearInstanceCount);
+    root.dataset.grassMidInstanceCount = String(telemetry.grassMidInstanceCount);
     root.dataset.grassTriangleCount = String(telemetry.grassTriangleCount);
+    root.dataset.grassNearTriangleCount = String(telemetry.grassNearTriangleCount);
+    root.dataset.grassMidTriangleCount = String(telemetry.grassMidTriangleCount);
     root.dataset.grassDrawCalls = String(telemetry.grassDrawCalls);
+    root.dataset.grassNearDrawCalls = String(telemetry.grassNearDrawCalls);
+    root.dataset.grassMidDrawCalls = String(telemetry.grassMidDrawCalls);
+    root.dataset.grassLodTransitionInstanceCount = String(
+      telemetry.grassLodTransitionInstanceCount
+    );
+    root.dataset.wildflowerInstanceCount = String(telemetry.wildflowerInstanceCount);
+    root.dataset.wildflowerTriangleCount = String(telemetry.wildflowerTriangleCount);
+    root.dataset.wildflowerDrawCalls = String(telemetry.wildflowerDrawCalls);
+    root.dataset.wildflowerInstanceBudget = String(telemetry.wildflowerInstanceBudget);
+    root.dataset.wildflowerAnimated = String(telemetry.wildflowerAnimated);
+    root.dataset.wildflowerAlphaHashActive = String(telemetry.wildflowerAlphaHashActive);
+    root.dataset.wildflowerAlphaToCoverageActive = String(
+      telemetry.wildflowerAlphaToCoverageActive
+    );
+    root.dataset.wildflowerShaderFallbackActive = String(
+      telemetry.wildflowerShaderFallbackActive
+    );
+    root.dataset.wildflowerShaderFallbackCount = String(
+      telemetry.wildflowerShaderFallbackCount
+    );
+    root.dataset.wildflowerShaderFallbackReason =
+      telemetry.wildflowerShaderFallbackReason ?? 'none';
+    root.dataset.wildflowerOverviewHidden = String(telemetry.wildflowerOverviewHidden);
     root.dataset.grassCacheEntries = String(telemetry.grassCacheEntries);
     root.dataset.grassCacheLimit = String(telemetry.grassCacheLimit);
     root.dataset.grassCacheHighWaterMark = String(telemetry.grassCacheHighWaterMark);
     root.dataset.grassRepackCount = String(telemetry.grassRepackCount);
     root.dataset.grassAnimated = String(telemetry.grassAnimated);
     root.dataset.grassTargetAnimationCadence = String(telemetry.grassTargetAnimationCadence);
+    root.dataset.grassAlphaHashActive = String(telemetry.grassAlphaHashActive);
+    root.dataset.grassAlphaToCoverageActive = String(
+      telemetry.grassAlphaToCoverageActive
+    );
     root.dataset.grassCandidateCellsByTerrain = JSON.stringify(
       telemetry.grassCandidateCellsByTerrain
     );
@@ -4710,14 +5308,34 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         rootRef.current.dataset.grassCandidateCellCount = '0';
         rootRef.current.dataset.grassActiveCellCount = '0';
         rootRef.current.dataset.grassInstanceCount = '0';
+        rootRef.current.dataset.grassNearInstanceCount = '0';
+        rootRef.current.dataset.grassMidInstanceCount = '0';
         rootRef.current.dataset.grassTriangleCount = '0';
+        rootRef.current.dataset.grassNearTriangleCount = '0';
+        rootRef.current.dataset.grassMidTriangleCount = '0';
         rootRef.current.dataset.grassDrawCalls = '0';
+        rootRef.current.dataset.grassNearDrawCalls = '0';
+        rootRef.current.dataset.grassMidDrawCalls = '0';
+        rootRef.current.dataset.grassLodTransitionInstanceCount = '0';
+        rootRef.current.dataset.wildflowerInstanceCount = '0';
+        rootRef.current.dataset.wildflowerTriangleCount = '0';
+        rootRef.current.dataset.wildflowerDrawCalls = '0';
+        rootRef.current.dataset.wildflowerInstanceBudget = '0';
+        rootRef.current.dataset.wildflowerAnimated = 'false';
+        rootRef.current.dataset.wildflowerAlphaHashActive = 'true';
+        rootRef.current.dataset.wildflowerAlphaToCoverageActive = 'false';
+        rootRef.current.dataset.wildflowerShaderFallbackActive = 'false';
+        rootRef.current.dataset.wildflowerShaderFallbackCount = '0';
+        rootRef.current.dataset.wildflowerShaderFallbackReason = 'none';
+        rootRef.current.dataset.wildflowerOverviewHidden = 'true';
         rootRef.current.dataset.grassCacheEntries = '0';
         rootRef.current.dataset.grassCacheLimit = '0';
         rootRef.current.dataset.grassCacheHighWaterMark = '0';
         rootRef.current.dataset.grassRepackCount = '0';
         rootRef.current.dataset.grassAnimated = 'false';
         rootRef.current.dataset.grassTargetAnimationCadence = '0';
+        rootRef.current.dataset.grassAlphaHashActive = 'true';
+        rootRef.current.dataset.grassAlphaToCoverageActive = 'false';
         rootRef.current.dataset.grassCandidateCellsByTerrain = '{}';
         rootRef.current.dataset.grassActiveCellsByTerrain = '{}';
         rootRef.current.dataset.grassCountsByTerrain = '{}';
@@ -4796,6 +5414,9 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         terrainMetadata: projectedTileMetadata,
         quality: qualitySpec,
         reducedMotion,
+        livingVisualTimeSeconds: observerMode
+          ? props.localQaLivingVisualTimeSeconds
+          : undefined,
         baseUrl: import.meta.env.BASE_URL || '/',
         isCoordPassable: isSceneCoordPassable,
         onCameraModeChange: (mode) => {
@@ -4905,7 +5526,26 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
           // The first scene and every replacement share one explicit
           // presentation lifecycle. Opaque destinations keep the long-lived
           // renderer mounted but idle until the Realm is visible again.
-          scene.setPresentationActive(!surfaceOpenRef.current);
+          const activationInnerKeep = innerKeepPresentationRef.current;
+          scene.reconcileInnerKeepPresentation?.(
+            activationInnerKeep
+            && activationInnerKeep.castleId === BigInt(ownCastle.castleId)
+              ? activationInnerKeep
+              : null,
+            innerKeepSceneVisualContextRef.current
+          );
+          scene.setInnerKeepPlacementDraft?.(
+            innerKeepPlacementDraftRef.current
+          );
+          scene.setSelectedInnerKeepBuildingKey?.(
+            selectedInnerKeepBuildingKeyRef.current ?? null
+          );
+          scene.setSceneMode?.(
+            innerKeepActiveRef.current ? 'INNER_KEEP' : 'WORLD'
+          );
+          scene.setPresentationActive(
+            !surfaceOpenRef.current || innerKeepActiveRef.current
+          );
           oldScene?.setPresentationActive(false);
           for (const slot of [0, 1] as const) {
             const slotCanvas = canvasSlotRefs.current[slot];
@@ -5134,7 +5774,22 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
         onRendererUnavailable: () => undefined,
         onSelect: () => undefined,
         onTargetSelect: handleSceneTargetSelect,
-        onWorldSelectionFeedback: handleWorldSelectionFeedback
+        onWorldSelectionFeedback: handleWorldSelectionFeedback,
+        onInnerKeepSceneStatusChange: (status) => {
+          if (!constructionIsCurrent()) return;
+          setInnerKeepSceneStatus(status);
+        },
+        onInnerKeepBuildingSelect: (buildingKey) => {
+          if (!constructionIsCurrent() || !innerKeepActiveRef.current) return;
+          const building = innerKeepPresentationRef.current?.buildings.find((candidate) => (
+            candidate.buildingKey === buildingKey
+          ));
+          if (building) openInnerKeepBuildingRef.current(building.buildingKind);
+        },
+        onInnerKeepPlacementDraftChange: (draft) => {
+          if (!constructionIsCurrent() || !innerKeepActiveRef.current) return;
+          updateInnerKeepPlacementDraftRef.current(draft);
+        }
       });
       if (retired) return undefined;
       sceneSlotsRef.current[candidateSlot] = scene;
@@ -5239,6 +5894,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
     keepCoord,
     markRendererFailure,
     observerMode,
+    props.localQaLivingVisualTimeSeconds,
     ownCastle.castleId,
     peerCastles,
     projectedTileMetadata,
@@ -5350,12 +6006,46 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
   }, [inspectorWater?.cellKey]);
 
   useEffect(() => {
-    sceneRef.current?.setPresentationActive(!surfaceOpen);
+    sceneRef.current?.reconcileInnerKeepPresentation?.(
+      innerKeepAvailable ? innerKeep ?? null : null,
+      innerKeepSceneVisualContext
+    );
+  }, [innerKeep, innerKeepAvailable, innerKeepSceneVisualContext]);
+
+  useEffect(() => {
+    sceneRef.current?.setInnerKeepPlacementDraft?.(innerKeepPlacementDraft);
+  }, [innerKeepPlacementDraft]);
+
+  useEffect(() => {
+    sceneRef.current?.setSelectedInnerKeepBuildingKey?.(
+      selectedInnerKeepBuildingKey ?? null
+    );
+  }, [selectedInnerKeepBuildingKey]);
+
+  useEffect(() => {
+    sceneRef.current?.setSceneMode?.(innerKeepActive ? 'INNER_KEEP' : 'WORLD');
+    const presentationActive = !surfaceOpen || innerKeepActive;
+    sceneRef.current?.setPresentationActive(presentationActive);
     const root = rootRef.current;
     if (root) {
-      root.dataset.realmMapPresentationActive = String(!surfaceOpen);
+      root.dataset.realmMapPresentationActive = String(presentationActive);
+      root.dataset.realmSceneMode = innerKeepActive ? 'INNER_KEEP' : 'WORLD';
     }
-  }, [surfaceOpen]);
+  }, [innerKeepActive, surfaceOpen]);
+
+  useEffect(() => {
+    const previous = previousInnerKeepActiveRef.current;
+    previousInnerKeepActiveRef.current = innerKeepActive;
+    if (
+      previous
+      && !innerKeepActive
+      && surfaceNavigation.current?.kind === 'keep'
+    ) {
+      window.requestAnimationFrame(() => {
+        innerKeepCastleEntryRef.current?.focus({ preventScroll: true });
+      });
+    }
+  }, [innerKeepActive, surfaceNavigation.current]);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -5614,6 +6304,12 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       data-realm-surface-presentation={surfacePresentation}
       data-realm-surface-depth={String(surfaceNavigation.depth)}
       data-realm-surface-motion={surfaceNavigation.motion ?? 'idle'}
+      data-realm-scene-mode={innerKeepActive ? 'INNER_KEEP' : 'WORLD'}
+      data-realm-world-scene-strategy={worldSceneStrategy.kind}
+      data-realm-world-scene-strategy-reason={
+        worldSceneStrategy.kind === 'legacy-lowlands' ? worldSceneStrategy.reason : 'ready'
+      }
+      data-inner-keep-scene-status={innerKeepSceneStatus}
       data-realm-camera-mode={cameraMode}
       data-realm-camera-presentation-band={realmCameraPresentationBand(cameraMode)}
       data-realm-camera-target-kind={interaction.cameraTarget.kind}
@@ -6046,7 +6742,11 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
       ) : null}
 
       {rendererMode !== 'loading' ? (
-        <>
+        <div
+          aria-hidden={innerKeepActive || undefined}
+          className="realm-map-screen__world-presentation"
+          inert={innerKeepActive || undefined}
+        >
           <div
             aria-hidden={surfaceOpen || undefined}
             className="realm-map-screen__world-markers"
@@ -6118,6 +6818,7 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
               showDiagnostics={observerMode}
               activeWagons={activeWagons}
               onOpenActiveWagon={openActiveWagon}
+              innerKeepAvailable={innerKeepAvailable}
               publicWorkerSystemActive={
                 snapshot.workerSystem?.mode === 'active'
               }
@@ -6160,6 +6861,24 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
             />
           )}
 
+          {!observerMode
+          && realmChat !== undefined
+          && onSendRealmChatMessage !== undefined
+          && onReportRealmChatMessage !== undefined
+          && onLoadEarlierRealmChat !== undefined ? (
+            <RealmChatDock
+              chat={realmChat}
+              chromeMode={chromeMode}
+              identityFid={identity.fid}
+              onLoadEarlier={onLoadEarlierRealmChat}
+              onLocateCastle={locateRealmChatCastle}
+              onCompactBackChange={setRealmChatCompactBack}
+              onReport={onReportRealmChatMessage}
+              onSend={onSendRealmChatMessage}
+              senderProfiles={realmChatSenderProfiles}
+            />
+          ) : null}
+
           {inspectorCastle && profileRecords.get(inspectorCastle.castleId) ? (
             <CastleInspectionPanel
               id={inspectorId}
@@ -6172,6 +6891,14 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
                 ? backSurface
                 : undefined}
               focusTargetRef={inspectorFocusRef}
+              innerKeepButtonRef={innerKeepCastleEntryRef}
+              onEnterInnerKeep={
+                innerKeepAvailable
+                && !observerMode
+                && inspectorCastle.castleId === ownCastle.castleId
+                  ? () => pushSurface({ kind: 'inner-keep' })
+                  : undefined
+              }
               onRequestClose={closeInspectorSurface}
             />
           ) : null}
@@ -6588,7 +7315,41 @@ function CanonicalRealmMapScreen(props: RealmMapScreenProps) {
               onActivate: selectFromNavigator
             } : undefined}
           />
-        </>
+        </div>
+      ) : null}
+
+      {innerKeepActive && innerKeepAvailable && innerKeep ? (
+        <Suspense fallback={(
+          <section
+            aria-label="Inner Keep"
+            className="inner-keep-lazy-fallback"
+            role="status"
+          >
+            <strong>OPENING INNER KEEP…</strong>
+            <span>Preparing your castle layout and Builder.</span>
+          </section>
+        )}>
+          <InnerKeepScreen
+            catalogueOpen={innerKeepCatalogueOpen}
+            onBack={backSurface}
+            onBeginPlacement={beginInnerKeepPlacement}
+            onCloseToRealm={closeSurfacesToRealm}
+            onOpenBuilding={openInnerKeepBuilding}
+            onOpenCatalogue={openInnerKeepCatalogue}
+            onPlacementDraftChange={updateInnerKeepPlacementDraft}
+            onRequestSync={onRequestInnerKeepSync}
+            onStartProject={onStartInnerKeepProject}
+            placementBuildingKind={placementInnerKeepBuildingKind}
+            placementDraft={innerKeepPlacementDraft}
+            presentation={innerKeep}
+            renderMode={
+              rendererMode === 'webgl' && innerKeepSceneStatus === 'ready'
+                ? 'webgl'
+                : 'fallback'
+            }
+            selectedBuildingKind={selectedInnerKeepBuildingKind}
+          />
+        </Suspense>
       ) : null}
     </main>
   );

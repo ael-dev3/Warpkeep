@@ -57,8 +57,10 @@ operation. Anonymous visitors do not connect to the game database.
 | Terms acceptance | Private versioned evidence; never contains proof, token, cookie, or QR material. |
 | Player resources and Marks | Private balances and accounting; only the authenticated caller may read permitted projections. |
 | World and castle state | Transactional integrity and server-enforced ownership. |
+| Inner Keep projects and Builder state | Server-derived costs and timers, atomic resource deduction, private receipts, and one Builder per castle. |
 | Deployment authority | Least privilege, reviewed changes, protected branches, and reproducible artifacts. |
 | Player privacy | Minimum collection, bounded presentation fields, redacted diagnostics, and private operational records. |
+| Realm Chat and moderation evidence | Server-authored identity/order/time, body-free public status, caller-gated bounded history/recent reads, private archive/reports/rate state, audited moderation, and no activation before approved retention and minor-participation policy. |
 
 ## Trust boundaries
 
@@ -137,12 +139,35 @@ operation. Anonymous visitors do not connect to the game database.
   closed rather than being repaired from browser data.
 - Resource reads and collection are caller-scoped. Peer balances do not enter
   the public Realm subscription, and the browser applies no optimistic credit.
+- Inner Keep commands accept the requested building kind, signed local X/Z
+  microunits, quarter-turn rotation, idempotency key, `expectedTargetLevel`,
+  canonical decimal `expectedProjectRevision`, `expectedPolicyDigest`, and
+  `expectedLayoutDigest`. The four expected values are untrusted
+  quote-and-placement-binding compare-and-set assertions. The server derives
+  ownership, the current target, the current policy digest, and the current
+  layout digest. After a prior accepted receipt has short-circuited
+  idempotently, a new request first verifies the policy and layout digests, then
+  transactionally reconciles an exact overdue project. It authoritatively
+  validates half-meter snapping, rotation, support bounds, permanent road/civic
+  exclusions, and oriented footprint collisions before checking target and
+  aggregate-revision assertions against the reconciled graph. Any mismatch
+  rolls the whole reducer back before reconciliation, settlement, or deduction
+  can commit. It then derives cost, settlement, duration, and outcome from
+  versioned policy, deducts resources atomically, and permits only one active
+  project for the castle's single Builder. Public building progress and
+  persisted transforms are projections; transform-bound receipts and Builder
+  state remain private to caller-scoped procedures.
 - Terms acceptance is recorded only after authenticated, explicit acceptance
   of the current version. The pre-authentication checkbox is local to one
   dialog attempt and is discarded on cancellation or failure.
 - Public Farcaster presentation is sanitized and optional. A tab cache may hold
   only public display fields, may merge only after a successful same-FID
   refresh, and never restores authority.
+- Review-only Realm Chat keeps its permanent archive, rate events, idempotency
+  receipts, recent cache, reports, and moderator evidence private. Only one
+  body-free status row is public. Every bounded recent/history read rechecks
+  caller gameplay authority, and the ordinary Realm snapshot never absorbs chat
+  history.
 
 ### Input, transport, and abuse controls
 
@@ -162,6 +187,14 @@ operation. Anonymous visitors do not connect to the game database.
   re-enter the same reviewed-host, byte, decode, and static-format checks.
 - Public error messages and logs omit proof material, tokens, cookies, QR
   payloads, relay secrets, identities, private rows, and credentialed URLs.
+- Realm Chat normalizes Unicode and line endings, rejects evidence-spoofing
+  controls, applies exact rolling per-FID limits, and records reports against a
+  frozen context range. Report submission does not automatically hide content
+  or punish another player.
+- Report ingress uses server time and transactional limits of 5/reporter/hour,
+  20/reporter/day, 20/message, 250/global/hour, and 1,000/global/day. Report
+  details are capped at 250 scalars/512 bytes; pending-report counters stop sends
+  at 4,000 and reports at 5,000.
 
 ### Operations and software supply chain
 
@@ -183,6 +216,13 @@ operation. Anonymous visitors do not connect to the game database.
   `main` checks. Deployment authority is isolated from ordinary verification.
 - Release verification binds the deployed site to a reviewed commit SHA.
   Passing local tests alone does not authorize a deployment or data change.
+- Inner Keep installers accept only selections covered by explicit exact
+  runtime-use authorization and enforce the reviewed release identifier,
+  attachment checksum, content allowlist, and per-file hashes. Possessing or
+  packaging an archive alone does not authorize publication. Before credentials
+  or network access, the activation operator independently fails closed unless
+  the static, population, and rabbit authorization records and all three
+  complete installed registries verify.
 
 ## Principal risks and treatment
 
@@ -193,12 +233,18 @@ operation. Anonymous visitors do not connect to the game database.
 | Access token stolen by script or extension | Memory-only storage and short lifetime limit exposure, but a compromised origin or device can use the token until expiry. |
 | Resolver token stolen while fresh | One-FID binding and least-privilege guards limit access; a fresh token may still expose that FID's admission status and public subscriptions until disconnect. |
 | Private data exposed through schema drift | Private tables, generated-binding checks, aggregate preflight, and the empty legacy table requirement block known paths; every schema change needs renewed review. |
+| Parallel construction double-spends resources | One server transaction settles balances, checks the Builder and placement, deducts resources, records the transform-bound receipt, and schedules completion; database or transaction-semantics regressions remain a review trigger. |
+| Client forges a construction cost, timer, transform, expected target, aggregate revision, policy digest, or layout digest | The server treats placement fields plus `expectedTargetLevel`, `expectedProjectRevision`, `expectedPolicyDigest`, and `expectedLayoutDigest` as untrusted input. After a prior receipt has short-circuited idempotently, a new request verifies policy/layout digests, transactionally reconciles any exact overdue project, validates snapped placement against support, exclusions, and persisted footprints, then checks target/revision assertions against the reconciled graph before resource settlement. A mismatch rolls the whole reducer back, and the server derives costs, settlement, timing, and outcome itself; catalog or policy changes still require additive-migration and economy review. |
+| Construction receipts leak player activity | Receipts and Builder state are private and returned only by caller-scoped procedures; diagnostics and future analytics must preserve that boundary. |
+| Unapproved archive material enters a release | Checksum-pinned allowlists, exact per-file checks, and owner authorization records block unknown, altered, or unauthorized files; owner authorization and license provenance remain human approval steps. |
 | Spoofed profile or wallet data | Browser fields are presentation-only; trusted updates use separate operator paths. External source data may still be stale or incorrect. |
 | External avatar tracking | No-referrer, credential-free requests reduce data sent, but the image host still observes connection metadata. |
 | Resource exhaustion | Size limits, deadlines, early challenge claim, cleanup, and rate control reduce cost; aggregate monitoring and alerting remain limited. |
 | Dependency or CI compromise | Lockfiles, audits, checksum and action pinning, job separation, and branch protection reduce exposure; provider compromise remains possible. |
 | Operator compromise | Destination allowlists, short-lived tokens, private secret storage, and approvals reduce blast radius; a compromised operator account or workstation remains a critical incident. |
 | Misleading Marks or Alpha expectations | Product copy states that Marks are non-transferable and have no cash value or guaranteed reward; formal legal and privacy review remains necessary as use expands. |
+| Chat spam, harassment, or forged moderation context | Server-derived identity/order/time, bounded rate ledgers, exact-message reporting, frozen surrounding context, local mute, private review, and audited tombstones reduce abuse; human moderation quality and response time remain operational risks. |
+| Chat archive or report exposure | Private tables, narrow generated player bindings, bounded procedures, body-free public tombstones, and isolated subscriptions reduce exposure; operator compromise and approved retention/erasure handling remain residual risks. |
 
 ## Residual risks and current limitations
 
@@ -212,6 +258,14 @@ operation. Anonymous visitors do not connect to the game database.
 - Public Realm projections are observable to admitted clients by design.
   Privacy classification and retention must be revisited before adding new
   player-linked data.
+- Realm Chat is disabled and unpublishable in the review branch. Activation is
+  blocked until qualified review approves retention/erasure, data-subject
+  handling, age/minor participation, moderation access, incident response, and
+  exact production migration checkpoints.
+- The proposed 90-day erasure/anonymization workflow is not approved or
+  implemented. Its scope, holds, anonymization semantics, backup handling, and
+  audited execution remain separate release work; the current schema adds no
+  deletion scheduler.
 - Hosting-layer security headers, including HSTS, require ongoing deployment
   verification. The production CSP keeps exact source and egress allowlists,
   but SpacetimeDB 2.6.1 requires a narrowly scoped `script-src 'unsafe-eval'`

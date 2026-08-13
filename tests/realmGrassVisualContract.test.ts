@@ -41,7 +41,7 @@ describe('natural broad grass visual contract', () => {
   it('stores restrained authored palettes in linear space within display-sRGB bounds', () => {
     const meadow = REALM_GRASS_BIOME_PROFILES.meadow.palette;
     expect(meadow).toHaveLength(4);
-    expect(meadow[0]!.r).toBeCloseTo(0.2232, 3);
+    expect(meadow[0]!.r).toBeCloseTo(0.2623, 3);
     meadow.forEach((colour) => expect(colour.g).toBeGreaterThan(colour.r));
     const heath = REALM_GRASS_BIOME_PROFILES.heath;
     expect(heath.palette).toHaveLength(3);
@@ -49,9 +49,9 @@ describe('natural broad grass visual contract', () => {
       expect(colour.g).toBeGreaterThan(colour.r);
       expect(colour.g).toBeGreaterThan(colour.b);
     });
-    expect(heath.highCandidateCount).toBe(22);
-    expect(heath.completelyBareThreshold).toBe(0.39);
-    expect(heath.retention).toBe(0.8);
+    expect(heath.highCandidateCount).toBe(27);
+    expect(heath.completelyBareThreshold).toBe(0.35);
+    expect(heath.retention).toBe(0.84);
     expect(REALM_GRASS_BIOME_PROFILES.lake.highCandidateCount).toBe(0);
     expect(REALM_GRASS_BIOME_PROFILES.lake.retention).toBe(0);
 
@@ -76,16 +76,31 @@ describe('natural broad grass visual contract', () => {
     const fragment = injectRealmGrassFragmentShader([
       '#include <color_fragment>',
       '#include <alphahash_fragment>',
+      '#include <normal_fragment_maps>',
+      '#include <lights_fragment_end>',
       '#include <opaque_fragment>'
     ].join('\n'));
     expect(fragment).toContain('realmGrassCoverage()');
-    expect(fragment).toContain('diffuseColor.rgb *= mix(0.94, 1.015, grassVerticalLift);');
+    expect(fragment).toContain('vec3 grassRootGrade = vec3(0.91, 0.955, 0.89);');
+    expect(fragment).toContain('vec3 grassTipGrade = vec3(1.025, 1.01, 0.94);');
+    expect(fragment).toContain('diffuseColor.rgb *= mix(grassRootGrade, grassTipGrade, grassVerticalGrade);');
+    expect(fragment).toContain('normal - grassBendView * faceDirection');
+    expect(fragment).toContain('uniform vec3 uGrassSunDirection;');
+    expect(fragment).toContain('float grassSunBehindBlade = pow(');
+    expect(fragment).toContain('float grassSunBehindView = pow(');
+    expect(fragment).toContain('float grassViewGrazing = pow(');
+    expect(fragment).toContain('float grassThinBladeTransmission = grassSunBehindBlade');
+    expect(fragment).toContain('* mix(0.025, 0.105, max(grassViewGrazing, grassSunBehindView))');
+    expect(fragment).toContain('reflectedLight.directDiffuse += grassTransmissionTint');
     expect(fragment).not.toContain('diffuseColor.rgb +=');
     expect(fragment).toContain('diffuseColor.a *= realmGrassCoverage();');
     const material = createRealmGrassMaterial(1, true, false).material;
     expect(material.transparent).toBe(false);
     expect(material.depthWrite).toBe(true);
     expect(material.depthTest).toBe(true);
+    expect(material.emissive.g).toBeGreaterThan(material.emissive.r);
+    expect(material.emissive.g).toBeGreaterThan(material.emissive.b);
+    expect(material.emissiveIntensity).toBe(0.14);
     expect((material as typeof material & { alphaHash?: boolean }).alphaHash).toBe(true);
     expect((material as typeof material & { alphaToCoverage?: boolean }).alphaToCoverage).toBe(false);
     material.dispose();

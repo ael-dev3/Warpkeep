@@ -1,6 +1,6 @@
 import { SenderError, t } from 'spacetimedb/server';
 
-import { requireAdmin, requireGameplayPlayerV1 } from '../auth';
+import { requireAdmin, requireGameplayPlayerV1, requireGameplayReadPlayerV1 } from '../auth';
 import {
   WOOD_GATHERING_DURATION_MICROS,
   WOOD_GATHER_RATE_PER_QUANTUM,
@@ -54,7 +54,7 @@ export const getMyWoodExpeditionStateV1 = warpkeep.procedure(
   myWoodExpeditionStateV1,
   ctx => ctx.withTx(tx => {
     try {
-      const { claims } = requireGameplayPlayerV1(tx);
+      const { claims } = requireGameplayReadPlayerV1(tx);
       const state = myWoodExpeditionState(tx, claims.fid);
       const expedition = state.expedition;
       if (expedition === undefined) {

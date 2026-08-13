@@ -1,0 +1,38 @@
+{
+  "assetId": "warpkeep.environment.wildlife.rabbit",
+  "category": "Environment/Wildlife",
+  "designation": {
+    "gameplayAuthority": false,
+    "visualOnly": true
+  },
+  "runtime": {
+    "bytes": 14808,
+    "embeddedBufferBytes": 13164,
+    "file": "Warpkeep_Rabbit_LOD2_Compact_Static_Runtime.glb",
+    "rigged": false,
+    "sha256": "2ecc7b1adf4c1d79b7ca2d5ea9a6727ed3f6d9072047466082bb912d34ea930c",
+    "triangles": 146,
+    "uploadedVertices": 384
+  },
+  "provenance": {
+    "license": "Project-owned; authored for Warpkeep",
+    "publicArchiveAuthorization": "authorized by Ael",
+    "release": "https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/rabbit-runtime-ui-bundle-2026-07-30",
+    "separateOpenLicense": "not asserted",
+    "source": "Source/Warpkeep_Rabbit_Editable.blend"
+  },
+  "runtimeContract": {
+    "collision": false,
+    "embeddedTextures": 0,
+    "externalDependencies": 0,
+    "buffers": 1,
+    "frontFacing": "+Z",
+    "materials": 1,
+    "meshes": 1,
+    "metersPerUnit": 1,
+    "pivot": "ground contact centered between hind feet",
+    "vertexColorAttribute": "COLOR_0 / WK_Color"
+  },
+  "schema": "warpkeep.rabbit-runtime-integration-record.v1",
+  "version": "1.0.0"
+}

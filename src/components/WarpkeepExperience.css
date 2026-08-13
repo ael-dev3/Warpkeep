@@ -239,7 +239,10 @@
   .realm-cell-navigator__dialog,
   .castle-inspection__drawer,
   .realm-castle-label,
-  .realm-castle-label__plate
+  .realm-castle-label__plate,
+  .inner-keep__header,
+  .inner-keep__resources,
+  .inner-keep-panel
 ) {
   -webkit-backdrop-filter: none;
   backdrop-filter: none;

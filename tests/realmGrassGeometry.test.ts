@@ -1,7 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import * as THREE from 'three';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   createLowPolyGrassGeometry,
+  REALM_GRASS_MID_BLADES_PER_PATCH,
+  REALM_GRASS_MID_TRIANGLES_PER_PATCH,
   REALM_GRASS_RIBBONS,
   REALM_GRASS_TRIANGLES_PER_RIBBON,
   REALM_GRASS_VARIANT_COUNTS,
@@ -11,6 +14,33 @@ import {
 const profiles: readonly RealmGrassGeometryProfile[] = ['high', 'balanced', 'reduced'];
 
 describe('low-poly grass geometry', () => {
+  it('disposes its partial BufferGeometry when attribute setup fails', () => {
+    const dispose = vi.spyOn(THREE.BufferGeometry.prototype, 'dispose');
+    const realSetAttribute = THREE.BufferGeometry.prototype.setAttribute;
+    const setAttribute = vi.spyOn(
+      THREE.BufferGeometry.prototype,
+      'setAttribute'
+    ).mockImplementation(function (
+      this: THREE.BufferGeometry,
+      name: string | number | symbol,
+      attribute: Parameters<THREE.BufferGeometry['setAttribute']>[1]
+    ) {
+      if (name === 'grassBladeData') {
+        throw new Error('SYNTHETIC_GRASS_GEOMETRY_ATTRIBUTE_FAILURE');
+      }
+      return realSetAttribute.call(this, String(name), attribute);
+    });
+
+    try {
+      expect(() => createLowPolyGrassGeometry('high'))
+        .toThrow('SYNTHETIC_GRASS_GEOMETRY_ATTRIBUTE_FAILURE');
+      expect(dispose).toHaveBeenCalledOnce();
+    } finally {
+      setAttribute.mockRestore();
+      dispose.mockRestore();
+    }
+  });
+
   it.each(profiles)('pins %s ribbon, triangle, and planted-root contracts', (profile) => {
     const geometry = createLowPolyGrassGeometry(profile);
     const ribbons = REALM_GRASS_RIBBONS[profile];
@@ -69,7 +99,28 @@ describe('low-poly grass geometry', () => {
       REALM_GRASS_RIBBONS[profile] * REALM_GRASS_TRIANGLES_PER_RIBBON
     ]));
 
-    expect(trianglesByQuality).toEqual({ high: 27, balanced: 21, reduced: 15 });
+    expect(trianglesByQuality).toEqual({ high: 36, balanced: 27, reduced: 15 });
+  });
+
+  it.each(profiles)('builds a true lower-topology %s mid LOD from stable near roots', (profile) => {
+    const near = createLowPolyGrassGeometry(profile, 0, 'near');
+    const mid = createLowPolyGrassGeometry(profile, 0, 'mid');
+    const nearRoots = near.userData.realmGrassRootPositions as readonly (readonly number[])[];
+    const midRoots = mid.userData.realmGrassRootPositions as readonly (readonly number[])[];
+
+    expect(mid.userData.realmGrassLod).toBe('mid');
+    expect(mid.userData.realmGrassBladeCount).toBe(REALM_GRASS_MID_BLADES_PER_PATCH[profile]);
+    expect(mid.userData.realmGrassTriangleCount).toBe(REALM_GRASS_MID_TRIANGLES_PER_PATCH[profile]);
+    expect(mid.getAttribute('position').count).toBe(REALM_GRASS_MID_BLADES_PER_PATCH[profile] * 3);
+    expect(mid.getIndex()?.count).toBe(REALM_GRASS_MID_TRIANGLES_PER_PATCH[profile] * 3);
+    expect(midRoots).toEqual(nearRoots.slice(0, midRoots.length));
+    expect(mid.userData.realmGrassTriangleCount)
+      .toBeLessThan(near.userData.realmGrassTriangleCount);
+    expect(mid.boundingBox).not.toBeNull();
+    expect(mid.boundingSphere).not.toBeNull();
+
+    near.dispose();
+    mid.dispose();
   });
 
   it('uses a small deterministic family of genuinely different patch silhouettes', () => {

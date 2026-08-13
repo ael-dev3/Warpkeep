@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   constants,
   chmodSync,
@@ -7,11 +7,18 @@ import {
   fchmodSync,
   fstatSync,
   fsyncSync,
+  linkSync,
+  lstatSync,
+  mkdirSync,
   mkdtempSync,
   openSync,
   readFileSync,
+  readdirSync,
+  realpathSync,
+  rmdirSync,
   rmSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { readFile } from 'node:fs/promises';
@@ -36,6 +43,7 @@ import {
 } from './spacetime-table-schema-attestation.mjs';
 import {
   WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
+  WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS,
 } from './entry-agreement-policy.mjs';
 import {
   attestPinnedSpacetimeCli,
@@ -45,6 +53,9 @@ import {
   defaultSpacetimePublishReceiptDirectory,
   writePrivateSpacetimePublishSuccessReceipt,
 } from './spacetime-publish-receipt.mjs';
+import {
+  assertProductionAdminTrustedAncestors,
+} from './production-admin-token-budget.mjs';
 
 export {
   attestPinnedSpacetimeCli,
@@ -81,6 +92,16 @@ const MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER =
 const MAX_ENTRY_AGREEMENT_ACCEPTANCE_COUNT =
   100 * MAX_ENTRY_AGREEMENT_ACCEPTANCE_ROWS_PER_PLAYER;
 const SHA256_DIGEST = /^[0-9a-f]{64}$/;
+const PUBLISH_SUPERVISOR_ID = /^[0-9a-f]{32}$/;
+const PUBLISH_SUPERVISOR_PROFILE = 'warpkeep-greater-realm-publish-supervisor-v1';
+const PUBLISH_SUPERVISOR_STATUS_PROFILE =
+  'warpkeep-greater-realm-publish-supervisor-status-v1';
+const PUBLISH_SUPERVISOR_GATE_PREFIX = 'WKGR_PUBLISH_GATE_V1:';
+const PUBLISH_SUPERVISOR_STATUS_MAX_BYTES = 4 * 1_024;
+const PUBLISH_SUPERVISOR_CLI_CONFIG_MAX_BYTES = 64 * 1_024;
+const PUBLISH_SUPERVISOR_CLI_CONFIG_FILE = 'cli.toml';
+const PUBLISH_SUPERVISOR_CLI_ROOT_DIRECTORY = 'spacetime-root';
+const activeGreaterRealmPublishSupervisors = new WeakSet();
 
 export const RESOURCE_PUBLISH_ROLLOUT_STAGE = Object.freeze({
   PREBACKFILL: 'prebackfill',
@@ -105,6 +126,12 @@ export const WORKER_MODULE_PREDECESSOR = Object.freeze({
 export const WORKER_FORWARD_REPAIR = Object.freeze({
   NONE: 'none',
   RETURN_NODE_REUSE_V1: 'return-node-reuse-v1',
+});
+export const INNER_KEEP_MODULE_PREDECESSOR = Object.freeze({
+  EXACT_V14_ACTIVE: 'exact-v14-active',
+});
+export const INNER_KEEP_PUBLICATION_STAGE = Object.freeze({
+  APPEND_INACTIVE: 'append-inactive',
 });
 export const WORKER_FORWARD_REPAIR_CHECKPOINT = Object.freeze({
   HEALTHY: 'healthy',
@@ -252,6 +279,81 @@ export const DAILY_MARK_V14_TABLE_CONTRACTS = Object.freeze({
       'schedule_id',
       'scheduled_at',
       'policy_version',
+    ]),
+  }),
+});
+export const INNER_KEEP_V15_TABLE_CONTRACTS = Object.freeze({
+  inner_keep_layout_v1: Object.freeze({
+    productTypeRef: 56,
+    access: 'Public',
+    fields: Object.freeze([
+      'layout_id', 'layout_version', 'policy_version', 'slot_count',
+      'medium_slot_count', 'large_slot_count', 'asset_catalog_digest',
+      'layout_digest', 'active', 'created_at', 'activated_at',
+    ]),
+  }),
+  inner_keep_slot_v1: Object.freeze({
+    productTypeRef: 57,
+    access: 'Public',
+    fields: Object.freeze([
+      'slot_id', 'layout_id', 'footprint_class', 'local_x_microunits',
+      'local_z_microunits', 'rotation_milli_degrees', 'sort_order', 'active',
+    ]),
+  }),
+  inner_keep_building_catalog_v1: Object.freeze({
+    productTypeRef: 58,
+    access: 'Public',
+    fields: Object.freeze([
+      'building_kind', 'public_label', 'category', 'footprint_class',
+      'maximum_level', 'unique_per_castle', 'matching_discount_resource',
+      'discount_basis_points_per_level', 'discount_cap_basis_points',
+      'runtime_asset_id', 'preview_asset_id', 'active', 'policy_version',
+    ]),
+  }),
+  inner_keep_build_level_v1: Object.freeze({
+    productTypeRef: 59,
+    access: 'Public',
+    fields: Object.freeze([
+      'level_key', 'building_kind', 'target_level', 'base_food_cost',
+      'base_wood_cost', 'base_stone_cost', 'base_gold_cost',
+      'level_multiplier_basis_points', 'duration_micros', 'policy_version',
+    ]),
+  }),
+  castle_inner_keep_building_v1: Object.freeze({
+    productTypeRef: 60,
+    access: 'Public',
+    fields: Object.freeze([
+      'building_key', 'castle_id', 'building_kind', 'local_x_microunits',
+      'local_z_microunits', 'rotation_milli_degrees',
+      'completed_level', 'target_level', 'phase', 'started_at_micros',
+      'completes_at_micros', 'revision', 'policy_version',
+    ]),
+  }),
+  castle_inner_builder_v1: Object.freeze({
+    productTypeRef: 61,
+    access: 'Private',
+    fields: Object.freeze([
+      'castle_id', 'fid', 'active_building_key', 'busy_until_micros',
+      'revision', 'policy_version', 'created_at', 'updated_at',
+    ]),
+  }),
+  castle_inner_build_receipt_v1: Object.freeze({
+    productTypeRef: 62,
+    access: 'Private',
+    fields: Object.freeze([
+      'receipt_key', 'fid', 'request_key', 'castle_id', 'building_key',
+      'building_kind', 'local_x_microunits', 'local_z_microunits',
+      'rotation_milli_degrees', 'target_level', 'deducted_food',
+      'deducted_wood', 'deducted_stone', 'deducted_gold', 'started_at',
+      'policy_version',
+    ]),
+  }),
+  castle_inner_construction_schedule_v_1: Object.freeze({
+    productTypeRef: 63,
+    access: 'Private',
+    fields: Object.freeze([
+      'schedule_id', 'scheduled_at', 'building_key', 'expected_revision',
+      'expected_target_level',
     ]),
   }),
 });
@@ -569,6 +671,184 @@ const WORKER_V12_ATOMIC_PROCEDURE_FIELDS = Object.freeze({
   get_my_worker_control_state_v1: WORKER_V12_CONTROL_STATE_FIELDS,
 });
 
+const INNER_KEEP_OPTION_STRING_TYPE = workerSumType([
+  ['some', 'String'],
+  ['none', workerProductType([])],
+]);
+const INNER_KEEP_OPTION_U64_TYPE = workerSumType([
+  ['some', 'U64'],
+  ['none', workerProductType([])],
+]);
+const INNER_KEEP_OPTION_I64_TYPE = workerSumType([
+  ['some', 'I64'],
+  ['none', workerProductType([])],
+]);
+const INNER_KEEP_OPTION_U32_TYPE = workerSumType([
+  ['some', 'U32'],
+  ['none', workerProductType([])],
+]);
+const INNER_KEEP_V15_SCHEDULE_ROW_FIELDS = Object.freeze([
+  ['schedule_id', 'U64'],
+  ['scheduled_at', WORKER_V12_TIMESTAMP_TYPE],
+  ['building_key', 'String'],
+  ['expected_revision', 'U64'],
+  ['expected_target_level', 'U32'],
+]);
+const INNER_KEEP_V15_REDUCER_FIELDS = Object.freeze({
+  inner_keep_start_project_v1: Object.freeze([
+    ['buildingKind', 'String'],
+    ['localXMicrounits', 'I64'],
+    ['localZMicrounits', 'I64'],
+    ['rotationMilliDegrees', 'U32'],
+    ['requestKey', 'String'],
+    ['expectedTargetLevel', 'U32'],
+    ['expectedProjectRevision', 'String'],
+    ['expectedPolicyDigest', 'String'],
+    ['expectedLayoutDigest', 'String'],
+  ]),
+  admin_seed_inner_keep_catalog_v1: Object.freeze([
+    ['capability', 'String'],
+    ['policyDigest', 'String'],
+    ['layoutDigest', 'String'],
+    ['assetCatalogDigest', 'String'],
+    ['expectedMissingLayout', 'U32'],
+    ['expectedMissingSlots', 'U32'],
+    ['expectedMissingBuildings', 'U32'],
+    ['expectedMissingLevels', 'U32'],
+  ]),
+  admin_backfill_inner_keep_builders_v1: Object.freeze([
+    ['capability', 'String'],
+    ['policyDigest', 'String'],
+    ['layoutDigest', 'String'],
+    ['assetCatalogDigest', 'String'],
+    ['expectedCastles', 'U32'],
+    ['expectedExistingBuilders', 'U32'],
+    ['expectedMissingBuilders', 'U32'],
+  ]),
+  admin_activate_inner_keep_v1: Object.freeze([
+    ['capability', 'String'],
+    ['policyDigest', 'String'],
+    ['layoutDigest', 'String'],
+    ['assetCatalogDigest', 'String'],
+    ['clientRelease', 'String'],
+    ['clientArtifactDigest', 'String'],
+    ['moduleArtifactDigest', 'String'],
+    ['sourceCommit', 'String'],
+    ['expectedCastleCount', 'U32'],
+  ]),
+  admin_deactivate_inner_keep_v1: Object.freeze([
+    ['capability', 'String'],
+    ['expectedCastleCount', 'U32'],
+    ['expectedActiveProjects', 'U32'],
+  ]),
+  run_inner_keep_construction_schedule_v_1: Object.freeze([
+    ['arg', workerRefType(INNER_KEEP_V15_SCHEDULE_ROW_FIELDS)],
+  ]),
+});
+const INNER_KEEP_V15_STATE_FIELDS = Object.freeze([
+  ['castleId', 'U64'],
+  ['componentActive', 'Bool'],
+  ['componentReady', 'Bool'],
+  ['builderPresent', 'Bool'],
+  ['builderBusy', 'Bool'],
+  ['activeBuildingKey', INNER_KEEP_OPTION_STRING_TYPE],
+  ['busyUntilMicros', INNER_KEEP_OPTION_U64_TYPE],
+  ['builderRevision', 'U64'],
+  ['storedFood', 'U64'],
+  ['storedWood', 'U64'],
+  ['storedStone', 'U64'],
+  ['storedGold', 'U64'],
+  ['projectedFood', 'U64'],
+  ['projectedWood', 'U64'],
+  ['projectedStone', 'U64'],
+  ['projectedGold', 'U64'],
+  ['resourceRevision', 'U64'],
+  ['observedAtMicros', 'U64'],
+  ['policyVersion', 'String'],
+  ['layoutDigest', 'String'],
+  ['assetCatalogDigest', 'String'],
+]);
+const INNER_KEEP_V15_REQUEST_STATUS_FIELDS = Object.freeze([
+  ['found', 'Bool'],
+  ['castleId', INNER_KEEP_OPTION_U64_TYPE],
+  ['buildingKey', INNER_KEEP_OPTION_STRING_TYPE],
+  ['buildingKind', INNER_KEEP_OPTION_STRING_TYPE],
+  ['localXMicrounits', INNER_KEEP_OPTION_I64_TYPE],
+  ['localZMicrounits', INNER_KEEP_OPTION_I64_TYPE],
+  ['rotationMilliDegrees', INNER_KEEP_OPTION_U32_TYPE],
+  ['targetLevel', INNER_KEEP_OPTION_U32_TYPE],
+  ['deductedFood', INNER_KEEP_OPTION_U64_TYPE],
+  ['deductedWood', INNER_KEEP_OPTION_U64_TYPE],
+  ['deductedStone', INNER_KEEP_OPTION_U64_TYPE],
+  ['deductedGold', INNER_KEEP_OPTION_U64_TYPE],
+  ['startedAtMicros', INNER_KEEP_OPTION_U64_TYPE],
+  ['policyVersion', INNER_KEEP_OPTION_STRING_TYPE],
+]);
+const INNER_KEEP_V15_ADMIN_STATUS_FIELDS = Object.freeze([
+  ['layoutRows', 'U64'],
+  ['slotRows', 'U64'],
+  ['buildingCatalogRows', 'U64'],
+  ['levelPolicyRows', 'U64'],
+  ['castleRows', 'U64'],
+  ['builderRows', 'U64'],
+  ['buildingRows', 'U64'],
+  ['activeProjects', 'U64'],
+  ['receiptRows', 'U64'],
+  ['scheduleRows', 'U64'],
+  ['missingBuilders', 'U64'],
+  ['orphanBuilders', 'U64'],
+  ['invalidBuilders', 'U64'],
+  ['invalidBuildings', 'U64'],
+  ['invalidSchedules', 'U64'],
+  ['builderProjectMismatches', 'U64'],
+  ['staticCatalogExact', 'Bool'],
+  ['workerSystemReady', 'Bool'],
+  ['readyForCatalogSeed', 'Bool'],
+  ['readyForBuilderBackfill', 'Bool'],
+  ['readyForActivation', 'Bool'],
+  ['active', 'Bool'],
+  ['policyVersion', 'String'],
+  ['policyDigest', 'String'],
+  ['layoutPolicyVersion', 'String'],
+  ['layoutDigest', 'String'],
+  ['assetCatalogDigest', 'String'],
+]);
+const INNER_KEEP_V15_CATALOG_PLAN_FIELDS = Object.freeze([
+  ['missingLayout', 'U32'],
+  ['missingSlots', 'U32'],
+  ['missingBuildings', 'U32'],
+  ['missingLevels', 'U32'],
+  ['ready', 'Bool'],
+]);
+const INNER_KEEP_V15_BUILDER_PLAN_FIELDS = Object.freeze([
+  ['expectedCastles', 'U32'],
+  ['existingBuilders', 'U32'],
+  ['missingBuilders', 'U32'],
+  ['ready', 'Bool'],
+]);
+const INNER_KEEP_V15_PROCEDURE_ABI = Object.freeze({
+  get_my_inner_keep_state_v1: Object.freeze({
+    params: Object.freeze([]),
+    returns: INNER_KEEP_V15_STATE_FIELDS,
+  }),
+  get_my_inner_keep_request_status_v1: Object.freeze({
+    params: Object.freeze([['requestKey', 'String']]),
+    returns: INNER_KEEP_V15_REQUEST_STATUS_FIELDS,
+  }),
+  admin_get_inner_keep_status_v1: Object.freeze({
+    params: Object.freeze([]),
+    returns: INNER_KEEP_V15_ADMIN_STATUS_FIELDS,
+  }),
+  admin_plan_inner_keep_catalog_v1: Object.freeze({
+    params: Object.freeze([]),
+    returns: INNER_KEEP_V15_CATALOG_PLAN_FIELDS,
+  }),
+  admin_plan_inner_keep_builders_v1: Object.freeze({
+    params: Object.freeze([]),
+    returns: INNER_KEEP_V15_BUILDER_PLAN_FIELDS,
+  }),
+});
+
 const ALPHA_V8_COUNT_FIELDS = Object.freeze([
   'goldSites',
   'canonicalGoldSites',
@@ -731,6 +1011,47 @@ const DAILY_MARK_V14_STATUS_KEYS = Object.freeze([
   ...DAILY_MARK_V14_COUNT_FIELDS,
   ...DAILY_MARK_V14_BOOLEAN_FIELDS,
 ].sort());
+const INNER_KEEP_V15_POLICY_VERSION = 'genesis-001-inner-keep-construction-v1';
+const INNER_KEEP_V15_LAYOUT_POLICY_VERSION =
+  'genesis-001-inner-keep-free-placement-v1';
+const INNER_KEEP_V15_STATUS_COUNT_FIELDS = Object.freeze([
+  'layoutRows',
+  'slotRows',
+  'buildingCatalogRows',
+  'levelPolicyRows',
+  'castleRows',
+  'builderRows',
+  'buildingRows',
+  'activeProjects',
+  'receiptRows',
+  'scheduleRows',
+  'missingBuilders',
+  'orphanBuilders',
+  'invalidBuilders',
+  'invalidBuildings',
+  'invalidSchedules',
+  'builderProjectMismatches',
+]);
+const INNER_KEEP_V15_STATUS_BOOLEAN_FIELDS = Object.freeze([
+  'staticCatalogExact',
+  'workerSystemReady',
+  'readyForCatalogSeed',
+  'readyForBuilderBackfill',
+  'readyForActivation',
+  'active',
+]);
+const INNER_KEEP_V15_STATUS_STRING_FIELDS = Object.freeze([
+  'policyVersion',
+  'policyDigest',
+  'layoutPolicyVersion',
+  'layoutDigest',
+  'assetCatalogDigest',
+]);
+const INNER_KEEP_V15_STATUS_KEYS = Object.freeze([
+  ...INNER_KEEP_V15_STATUS_COUNT_FIELDS,
+  ...INNER_KEEP_V15_STATUS_BOOLEAN_FIELDS,
+  ...INNER_KEEP_V15_STATUS_STRING_FIELDS,
+].sort());
 const EMPTY_WORKER_V12_ZERO_FIELDS = Object.freeze([
   'systemRows',
   'expectedCastleCount',
@@ -793,6 +1114,44 @@ const U64_MAXIMUM = (1n << 64n) - 1n;
 
 class SafePublishError extends Error {}
 
+export class SpacetimePublishContainmentError extends Error {
+  constructor(code) {
+    super(code);
+    this.name = 'SpacetimePublishContainmentError';
+    this.code = code;
+    this.nonReconcilable = true;
+  }
+}
+
+class GreaterRealmPublishWriteNotStartedError extends Error {
+  constructor(code, cause) {
+    super(code);
+    this.name = 'GreaterRealmCutoverWriteNotStartedError';
+    this.code = code;
+    this.writeStarted = false;
+    if (cause !== undefined) {
+      Object.defineProperty(this, 'cause', {
+        value: cause,
+        configurable: false,
+        enumerable: false,
+        writable: false,
+      });
+    }
+  }
+}
+
+function isWriteNotStartedError(error) {
+  return error !== null && typeof error === 'object'
+    && error.name === 'GreaterRealmCutoverWriteNotStartedError'
+    && error.writeStarted === false
+    && typeof error.code === 'string';
+}
+
+export function isSpacetimePublishContainmentError(error) {
+  return error instanceof SpacetimePublishContainmentError
+    && error.nonReconcilable === true;
+}
+
 function fail(message) {
   throw new SafePublishError(message);
 }
@@ -800,7 +1159,7 @@ function fail(message) {
 const PRIVATE_SNAPSHOT_DIRECTORY_MODE = 0o700;
 const PRIVATE_SNAPSHOT_ARTIFACT_MODE = 0o400;
 const PRIVATE_SNAPSHOT_EXECUTABLE_MODE = 0o500;
-const MAX_PRIVATE_SNAPSHOT_BYTES = 128 * 1_024 * 1_024;
+const MAX_PRIVATE_SNAPSHOT_BYTES = 256 * 1_024 * 1_024;
 const PRIVATE_SNAPSHOT_KINDS = Object.freeze({
   ARTIFACT: 'artifact',
   EXECUTABLE: 'executable',
@@ -1073,6 +1432,8 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
   let workerModulePredecessor = WORKER_MODULE_PREDECESSOR.V11;
   let workerModulePredecessorExplicit = false;
   let workerForwardRepair;
+  let innerKeepModulePredecessor;
+  let innerKeepPublicationStage;
   for (const argument of arguments_) {
     if (argument === '--dry-run' && !dryRun) {
       dryRun = true;
@@ -1129,7 +1490,27 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
         continue;
       }
     }
-    fail('Usage: publish-spacetime-dev.mjs [--dry-run] --resource-rollout-stage=<prebackfill|ready> --genesis-world-stage=<pre-expansion|expanded> --worker-rollout-stage=<empty|active> [--worker-module-predecessor=<v11|exact-v12-empty|exact-v12-active|exact-v13-active|exact-v13-active-v14-empty|exact-v14-active>] --worker-forward-repair=<none|return-node-reuse-v1>. Unknown or duplicate arguments are rejected.');
+    if (
+      argument.startsWith('--inner-keep-module-predecessor=')
+      && innerKeepModulePredecessor === undefined
+    ) {
+      const value = argument.slice('--inner-keep-module-predecessor='.length);
+      if (Object.values(INNER_KEEP_MODULE_PREDECESSOR).includes(value)) {
+        innerKeepModulePredecessor = value;
+        continue;
+      }
+    }
+    if (
+      argument.startsWith('--inner-keep-publication-stage=')
+      && innerKeepPublicationStage === undefined
+    ) {
+      const value = argument.slice('--inner-keep-publication-stage='.length);
+      if (Object.values(INNER_KEEP_PUBLICATION_STAGE).includes(value)) {
+        innerKeepPublicationStage = value;
+        continue;
+      }
+    }
+    fail('Usage: publish-spacetime-dev.mjs [--dry-run] --resource-rollout-stage=<prebackfill|ready> --genesis-world-stage=<pre-expansion|expanded> --worker-rollout-stage=<empty|active> [--worker-module-predecessor=<v11|exact-v12-empty|exact-v12-active|exact-v13-active|exact-v13-active-v14-empty|exact-v14-active>] --worker-forward-repair=<none|return-node-reuse-v1> [--inner-keep-module-predecessor=exact-v14-active --inner-keep-publication-stage=append-inactive]. Unknown or duplicate arguments are rejected.');
   }
   if (resourceRolloutStage === undefined) {
     fail('An explicit resource rollout stage is required: prebackfill for the first additive publication or ready for an already-backfilled republish.');
@@ -1187,6 +1568,25 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
   ) {
     fail('The return-node-reuse-v1 forward repair requires the exact ready, expanded, active-v12 production predecessor or exact active-v13 production predecessor.');
   }
+  if ((innerKeepModulePredecessor === undefined) !== (innerKeepPublicationStage === undefined)) {
+    fail('The Inner Keep publication lane requires both an explicit module predecessor and an explicit publication stage.');
+  }
+  if (
+    innerKeepModulePredecessor !== undefined
+    && (
+      innerKeepModulePredecessor
+        !== INNER_KEEP_MODULE_PREDECESSOR.EXACT_V14_ACTIVE
+      || innerKeepPublicationStage
+        !== INNER_KEEP_PUBLICATION_STAGE.APPEND_INACTIVE
+      || resourceRolloutStage !== RESOURCE_PUBLISH_ROLLOUT_STAGE.READY
+      || genesisWorldRolloutStage !== GENESIS_WORLD_PUBLISH_STAGE.EXPANDED
+      || workerRolloutStage !== WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE
+      || workerModulePredecessor !== WORKER_MODULE_PREDECESSOR.EXACT_V14_ACTIVE
+      || workerForwardRepair !== WORKER_FORWARD_REPAIR.NONE
+    )
+  ) {
+    fail('The Inner Keep v15 append requires the exact active-v14 predecessor, append-inactive stage, resource ready, Genesis expanded, Worker active, and worker-forward-repair=none.');
+  }
   return Object.freeze({
     dryRun,
     resourceRolloutStage,
@@ -1194,6 +1594,10 @@ export function parsePublishArguments(arguments_ = process.argv.slice(2)) {
     workerRolloutStage,
     workerModulePredecessor,
     workerForwardRepair,
+    ...(innerKeepModulePredecessor === undefined ? {} : {
+      innerKeepModulePredecessor,
+      innerKeepPublicationStage,
+    }),
   });
 }
 
@@ -1203,6 +1607,19 @@ export function requireCanonicalPublishCoordinates(source = process.env) {
     || (source.WARPKEEP_SPACETIMEDB_URI ?? CANONICAL_MAINCLOUD_URI) !== CANONICAL_MAINCLOUD_URI
   ) {
     fail('The production publisher is pinned to the canonical existing Warpkeep database.');
+  }
+}
+
+export function requireEntryAgreementProductionRelease(
+  releaseStatus = WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS,
+  dryRun = false,
+) {
+  if (dryRun === true) return;
+  if (releaseStatus !== 'production-approved') {
+    fail(
+      'The selected entry-agreement release status is not production-approved; '
+      + 'production publication is unavailable.',
+    );
   }
 }
 
@@ -1539,6 +1956,14 @@ function productionV14TableRefs() {
   });
 }
 
+function productionV15TableRefs() {
+  return Object.freeze({
+    ...productionV14TableRefs(),
+    ...Object.fromEntries(Object.entries(INNER_KEEP_V15_TABLE_CONTRACTS)
+      .map(([name, contract]) => [name, contract.productTypeRef])),
+  });
+}
+
 function requireCapturedTableSignatures(signatures, refs, boundary) {
   if (
     !signatures
@@ -1737,6 +2162,59 @@ function verifyProductionV14Contracts(
   });
 }
 
+function verifyProductionV15Contracts(
+  description,
+  expectedV12TableSchemaDigest,
+  expectedV13TableSchemaDigest,
+  expectedV14TableSchemaDigest,
+  expectedV15TableSchemaDigest,
+) {
+  const v14Names = new Set(Object.keys(productionV14TableRefs()));
+  const v14Contracts = verifyProductionV14Contracts(
+    {
+      ...description,
+      tables: Array.isArray(description?.tables)
+        ? description.tables.filter(table => v14Names.has(table?.name))
+        : description?.tables,
+    },
+    expectedV12TableSchemaDigest,
+    expectedV13TableSchemaDigest,
+    expectedV14TableSchemaDigest,
+  );
+  const v15Refs = productionV15TableRefs();
+  verifyExactTableIdentities(description, v15Refs);
+  for (const [name, contract] of Object.entries(
+    INNER_KEEP_V15_TABLE_CONTRACTS,
+  )) {
+    if (
+      schemaTableAccess(description, name) !== contract.access
+      || canonicalJson(schemaFieldNames(description, name))
+        !== canonicalJson(contract.fields)
+    ) fail('The appended Inner Keep schema did not match the exact v15 contract.');
+  }
+  try {
+    if (
+      typeof expectedV15TableSchemaDigest !== 'string'
+      || !SHA256_DIGEST.test(expectedV15TableSchemaDigest)
+      || canonicalTableSchemaBoundaryDigest(
+        description,
+        Object.keys(v15Refs),
+      ) !== expectedV15TableSchemaDigest
+    ) fail('The canonical v15 table schema did not match the proven publication boundary.');
+  } catch (error) {
+    if (
+      error instanceof SafePublishError
+      && error.message
+        === 'The canonical v15 table schema did not match the proven publication boundary.'
+    ) throw error;
+    fail('The canonical v15 table schema did not match the proven publication boundary.');
+  }
+  return Object.freeze({
+    ...v14Contracts,
+    v15Refs,
+  });
+}
+
 /**
  * Require the exact two-table v14 append over a captured active v13 module.
  * Every v13 signature and independently proven v12/v13 projection is retained;
@@ -1768,6 +2246,42 @@ export function verifyExactProductionV14Schema(
     appendedDailyMarkTableCount:
       Object.keys(DAILY_MARK_V14_TABLE_CONTRACTS).length,
     totalTableCount: Object.keys(contracts.v14Refs).length,
+  });
+}
+
+/**
+ * Require the exact eight-table v15 append over one captured production v14
+ * boundary. Every ref 0-55 signature remains byte-for-byte canonical and only
+ * the reviewed public/private Inner Keep refs 56-63 may be introduced.
+ */
+export function verifyExactProductionV15Schema(
+  predecessorSignatures,
+  description,
+  expectedV12TableSchemaDigest,
+  expectedV13TableSchemaDigest,
+  expectedV14TableSchemaDigest,
+  expectedV15TableSchemaDigest,
+) {
+  const v14Refs = productionV14TableRefs();
+  requireCapturedTableSignatures(predecessorSignatures, v14Refs, 'v14');
+  const contracts = verifyProductionV15Contracts(
+    description,
+    expectedV12TableSchemaDigest,
+    expectedV13TableSchemaDigest,
+    expectedV14TableSchemaDigest,
+    expectedV15TableSchemaDigest,
+  );
+  for (const name of Object.keys(v14Refs)) {
+    if (
+      canonicalJson(schemaTableSignature(description, name))
+        !== predecessorSignatures[name]
+    ) fail('A pre-existing production table changed during the v15 publication.');
+  }
+  return Object.freeze({
+    predecessorTableCount: Object.keys(v14Refs).length,
+    appendedInnerKeepTableCount:
+      Object.keys(INNER_KEEP_V15_TABLE_CONTRACTS).length,
+    totalTableCount: Object.keys(contracts.v15Refs).length,
   });
 }
 
@@ -2021,6 +2535,91 @@ function surfaceMatches(actual, expected) {
   const expectedNames = Object.keys(expected).sort();
   return canonicalJson(actualNames) === canonicalJson(expectedNames)
     && actualNames.every(name => fieldsMatch(actual[name], expected[name]));
+}
+
+function criticalInnerKeepAbiName(name) {
+  return typeof name === 'string' && name.includes('inner_keep');
+}
+
+function collectInnerKeepReducerAbi(description) {
+  if (!Array.isArray(description?.reducers)) {
+    fail('The canonical schema did not expose an Inner Keep reducer ABI.');
+  }
+  const reducers = Object.create(null);
+  for (const reducer of description.reducers.filter(
+    candidate => criticalInnerKeepAbiName(candidate?.name),
+  )) {
+    if (
+      Object.hasOwn(reducers, reducer.name)
+      || canonicalJson(reducer.lifecycle) !== canonicalJson({ none: [] })
+    ) fail('The canonical schema did not contain one exact required Inner Keep reducer.');
+    reducers[reducer.name] = workerProductFields(
+      description,
+      reducer?.params?.elements,
+      `${reducer.name} reducer`,
+    );
+  }
+  return reducers;
+}
+
+function collectInnerKeepProcedureAbi(description) {
+  if (!Array.isArray(description?.misc_exports)) {
+    fail('The canonical schema did not expose an Inner Keep procedure ABI.');
+  }
+  const procedures = Object.create(null);
+  const matches = description.misc_exports
+    .map(entry => entry?.Procedure)
+    .filter(procedure => criticalInnerKeepAbiName(procedure?.name));
+  for (const procedure of matches) {
+    if (Object.hasOwn(procedures, procedure.name)) {
+      fail('The canonical schema did not contain one exact required Inner Keep procedure.');
+    }
+    const returnType = procedure?.return_type;
+    if (
+      !returnType
+      || typeof returnType !== 'object'
+      || Array.isArray(returnType)
+      || Object.keys(returnType).length !== 1
+      || !Number.isSafeInteger(returnType.Ref)
+      || returnType.Ref < 0
+      || !Array.isArray(description?.typespace?.types)
+      || !description.typespace.types[returnType.Ref]?.Product
+    ) fail('The required Inner Keep procedure return type was invalid.');
+    procedures[procedure.name] = Object.freeze({
+      params: workerProductFields(
+        description,
+        procedure?.params?.elements,
+        `${procedure.name} procedure parameters`,
+      ),
+      returns: workerProductFields(
+        description,
+        description.typespace.types[returnType.Ref].Product.elements,
+        `${procedure.name} procedure`,
+        new Set([returnType.Ref]),
+      ),
+    });
+  }
+  return procedures;
+}
+
+/** v14 must contain no partial, shadow, or already-installed Inner Keep ABI. */
+export function verifyInnerKeepV14PredecessorAbi(description) {
+  if (
+    Object.keys(collectInnerKeepReducerAbi(description)).length !== 0
+    || Object.keys(collectInnerKeepProcedureAbi(description)).length !== 0
+  ) fail('The production v14 predecessor already exposed an Inner Keep ABI.');
+  return 'absent';
+}
+
+/** Require the complete reviewed v15 reducer/procedure surface and no extras. */
+export function verifyInnerKeepV15ModuleAbi(description) {
+  const reducers = collectInnerKeepReducerAbi(description);
+  const procedures = collectInnerKeepProcedureAbi(description);
+  if (
+    !surfaceMatches(reducers, INNER_KEEP_V15_REDUCER_FIELDS)
+    || canonicalJson(procedures) !== canonicalJson(INNER_KEEP_V15_PROCEDURE_ABI)
+  ) fail('The production Inner Keep v15 module ABI was partial, unknown, or changed.');
+  return 'candidate';
 }
 
 /**
@@ -2340,6 +2939,144 @@ export function verifyFreshProductionV14ModuleSchema(
     );
   } catch {
     fail('Exact production v14 schema and reviewed module-ABI checkpoint failed. No publish was attempted.');
+  }
+}
+
+/**
+ * Exact v14/current-live predecessor for the Inner Keep append. This layers an
+ * explicit absence check for every Inner Keep API over the existing frozen
+ * v14 schema and reviewed Worker-candidate ABI checkpoint.
+ */
+export function verifyExactProductionV14InnerKeepPredecessor(
+  description,
+  expectedV12TableSchemaDigest,
+  expectedV13TableSchemaDigest,
+  expectedV14TableSchemaDigest,
+) {
+  const predecessor = verifyExactProductionV14ModuleSchema(
+    description,
+    expectedV12TableSchemaDigest,
+    expectedV13TableSchemaDigest,
+    expectedV14TableSchemaDigest,
+  );
+  return Object.freeze({
+    ...predecessor,
+    innerKeepModuleState: verifyInnerKeepV14PredecessorAbi(description),
+  });
+}
+
+export function verifyFreshProductionV14InnerKeepPredecessor(
+  executable,
+  expectedV12TableSchemaDigest,
+  expectedV13TableSchemaDigest,
+  expectedV14TableSchemaDigest,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    const result = runBoundedSync(
+      executable,
+      canonicalSchemaDescribeChildArguments(),
+      { timeout: 30_000 },
+      spawnSyncProcess,
+    );
+    return verifyExactProductionV14InnerKeepPredecessor(
+      parseCanonicalSchemaDescription(result.stdout),
+      expectedV12TableSchemaDigest,
+      expectedV13TableSchemaDigest,
+      expectedV14TableSchemaDigest,
+    );
+  } catch {
+    fail('Exact active production v14 Inner Keep predecessor schema and ABI preflight failed. No publish was attempted.');
+  }
+}
+
+/** Bind the proven v15 schema to the complete reviewed Inner Keep ABI. */
+export function verifyExactProductionV15ModuleSchema(
+  description,
+  expectedV12TableSchemaDigest,
+  expectedV13TableSchemaDigest,
+  expectedV14TableSchemaDigest,
+  expectedV15TableSchemaDigest,
+) {
+  const contracts = verifyProductionV15Contracts(
+    description,
+    expectedV12TableSchemaDigest,
+    expectedV13TableSchemaDigest,
+    expectedV14TableSchemaDigest,
+    expectedV15TableSchemaDigest,
+  );
+  if (verifyWorkerV12ModuleAbi(description) !== 'candidate') {
+    fail('The exact production v15 module did not preserve the reviewed Worker candidate ABI.');
+  }
+  const tableSignatures = Object.freeze(Object.fromEntries(
+    Object.keys(contracts.v15Refs).map(name => [
+      name,
+      canonicalJson(schemaTableSignature(description, name)),
+    ]),
+  ));
+  return Object.freeze({
+    moduleState: 'candidate',
+    innerKeepModuleState: verifyInnerKeepV15ModuleAbi(description),
+    tableSignatures,
+    totalTableCount: Object.keys(contracts.v15Refs).length,
+  });
+}
+
+/**
+ * Postflight for the sole v14-active -> v15-inactive publication lane. A
+ * success response from `spacetime publish` is never enough: the fresh schema
+ * description must prove the captured refs 0-55, exact refs 56-63, and both
+ * complete Worker and Inner Keep ABIs before any later operation is allowed.
+ */
+export function verifyPostPublishProductionV15InactiveModuleSchema(
+  executable,
+  predecessor,
+  expectedV12TableSchemaDigest,
+  expectedV13TableSchemaDigest,
+  expectedV14TableSchemaDigest,
+  expectedV15TableSchemaDigest,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    if (
+      !predecessor
+      || predecessor.moduleState !== 'candidate'
+      || predecessor.innerKeepModuleState !== 'absent'
+    ) fail('The captured production v14 Inner Keep predecessor ABI was invalid.');
+    requireCapturedTableSignatures(
+      predecessor.tableSignatures,
+      productionV14TableRefs(),
+      'v14',
+    );
+    const result = runBoundedSync(
+      executable,
+      canonicalSchemaDescribeChildArguments(),
+      { timeout: 30_000 },
+      spawnSyncProcess,
+    );
+    const description = parseCanonicalSchemaDescription(result.stdout);
+    const schema = verifyExactProductionV15Schema(
+      predecessor.tableSignatures,
+      description,
+      expectedV12TableSchemaDigest,
+      expectedV13TableSchemaDigest,
+      expectedV14TableSchemaDigest,
+      expectedV15TableSchemaDigest,
+    );
+    const module = verifyExactProductionV15ModuleSchema(
+      description,
+      expectedV12TableSchemaDigest,
+      expectedV13TableSchemaDigest,
+      expectedV14TableSchemaDigest,
+      expectedV15TableSchemaDigest,
+    );
+    return Object.freeze({
+      ...schema,
+      moduleState: module.moduleState,
+      innerKeepModuleState: module.innerKeepModuleState,
+    });
+  } catch {
+    fail('Post-publication inactive-v15 module checkpoint is indeterminate; perform fresh anonymous schema/ABI and protected aggregate inspections before any catalog seed, Builder backfill, activation, client deployment, or further publication decision.');
   }
 }
 
@@ -2663,17 +3400,20 @@ function digestArtifact(artifactPath) {
   }
 }
 
-function validateMigrationArtifactReceiptShape(receipt) {
+function validateMigrationArtifactReceiptShape(receipt, expectedArtifactPath = PROVEN_ARTIFACT_PATH) {
   if (
     receipt === null
     || typeof receipt !== 'object'
     || Object.keys(receipt).sort().join(',')
-      !== 'artifactDigest,artifactPath,v11TableSchemaDigest,v12TableSchemaDigest,v13TableSchemaDigest,v14TableSchemaDigest'
-    || receipt.artifactPath !== PROVEN_ARTIFACT_PATH
+      !== 'artifactDigest,artifactPath,v11TableSchemaDigest,v12TableSchemaDigest,v13TableSchemaDigest,v14TableSchemaDigest,v15TableSchemaDigest,v16TableSchemaDigest,v17TableSchemaDigest'
+    || receipt.artifactPath !== expectedArtifactPath
     || !SHA256_DIGEST.test(receipt.v11TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.v12TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.v13TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.v14TableSchemaDigest ?? '')
+    || !SHA256_DIGEST.test(receipt.v15TableSchemaDigest ?? '')
+    || !SHA256_DIGEST.test(receipt.v16TableSchemaDigest ?? '')
+    || !SHA256_DIGEST.test(receipt.v17TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.artifactDigest ?? '')
   ) {
     fail('The additive migration proof artifact receipt was invalid.');
@@ -2684,6 +3424,9 @@ function validateMigrationArtifactReceiptShape(receipt) {
     v12TableSchemaDigest: receipt.v12TableSchemaDigest,
     v13TableSchemaDigest: receipt.v13TableSchemaDigest,
     v14TableSchemaDigest: receipt.v14TableSchemaDigest,
+    v15TableSchemaDigest: receipt.v15TableSchemaDigest,
+    v16TableSchemaDigest: receipt.v16TableSchemaDigest,
+    v17TableSchemaDigest: receipt.v17TableSchemaDigest,
     artifactDigest: receipt.artifactDigest,
   });
 }
@@ -2693,6 +3436,45 @@ export function verifyMigrationArtifactReceipt(receipt) {
   const currentDigest = digestArtifact(validated.artifactPath);
   if (currentDigest !== validated.artifactDigest) {
     fail('The proven SpacetimeDB artifact changed after migration verification.');
+  }
+  return validated;
+}
+
+/** Verify one exact owner-private artifact without widening legacy publication. */
+export function verifyMigrationArtifactReceiptAtExactPath(receipt, expectedArtifactPath) {
+  if (
+    typeof expectedArtifactPath !== 'string'
+    || !isAbsolute(expectedArtifactPath)
+    || resolve(expectedArtifactPath) !== expectedArtifactPath
+    || expectedArtifactPath === PROVEN_ARTIFACT_PATH
+  ) {
+    fail('The private additive migration proof artifact path was invalid.');
+  }
+  const validated = validateMigrationArtifactReceiptShape(receipt, expectedArtifactPath);
+  if (digestArtifact(validated.artifactPath) !== validated.artifactDigest) {
+    fail('The private proven SpacetimeDB artifact changed after migration verification.');
+  }
+  return validated;
+}
+
+/**
+ * The current artifact contains review-only protocol v17. Preserve the
+ * inherited v15 argument contract for read-only rehearsal while all real v17
+ * publication remains fail closed below.
+ */
+export function requireReviewedAdditivePublicationLane(
+  receipt,
+  innerKeepModulePredecessor,
+  innerKeepPublicationStage,
+) {
+  const validated = validateMigrationArtifactReceiptShape(receipt);
+  if (
+    innerKeepModulePredecessor
+      !== INNER_KEEP_MODULE_PREDECESSOR.EXACT_V14_ACTIVE
+    || innerKeepPublicationStage
+      !== INNER_KEEP_PUBLICATION_STAGE.APPEND_INACTIVE
+  ) {
+    fail('Protocol-v17 review requires the explicit exact-v14-active predecessor and append-inactive stage inherited from v15; no publish was attempted.');
   }
   return validated;
 }
@@ -2710,8 +3492,31 @@ export function parseMigrationProofReceipt(output) {
     v12TableSchemaDigest: proofReceipt.v12TableSchemaDigest,
     v13TableSchemaDigest: proofReceipt.v13TableSchemaDigest,
     v14TableSchemaDigest: proofReceipt.v14TableSchemaDigest,
+    v15TableSchemaDigest: proofReceipt.v15TableSchemaDigest,
+    v16TableSchemaDigest: proofReceipt.v16TableSchemaDigest,
+    v17TableSchemaDigest: proofReceipt.v17TableSchemaDigest,
     artifactDigest: proofReceipt.artifactDigest,
   });
+}
+
+export function parseMigrationProofReceiptAtExactPath(output, artifactPath) {
+  let proofReceipt;
+  try {
+    proofReceipt = parseAdditiveMigrationProofReceipt(output);
+  } catch {
+    fail('The current additive migration proof did not produce its exact success receipt.');
+  }
+  return verifyMigrationArtifactReceiptAtExactPath({
+    artifactPath,
+    v11TableSchemaDigest: proofReceipt.v11TableSchemaDigest,
+    v12TableSchemaDigest: proofReceipt.v12TableSchemaDigest,
+    v13TableSchemaDigest: proofReceipt.v13TableSchemaDigest,
+    v14TableSchemaDigest: proofReceipt.v14TableSchemaDigest,
+    v15TableSchemaDigest: proofReceipt.v15TableSchemaDigest,
+    v16TableSchemaDigest: proofReceipt.v16TableSchemaDigest,
+    v17TableSchemaDigest: proofReceipt.v17TableSchemaDigest,
+    artifactDigest: proofReceipt.artifactDigest,
+  }, artifactPath);
 }
 
 export function runCurrentAdditiveMigrationProof(executable, spawnSyncProcess = spawnSync) {
@@ -2875,12 +3680,120 @@ export function publishPostV12AggregateChildArguments(tsxCli) {
   ];
 }
 
+export function accessRequestV13InspectChildArguments(tsxCli) {
+  return [
+    tsxCli,
+    'scripts/hermes-admin.ts',
+    'list-access-requests',
+    '--limit',
+    '1',
+    '--include-resolved',
+    '--json',
+  ];
+}
+
 export function dailyMarksV14InspectChildArguments(tsxCli) {
   return [
     tsxCli,
     'scripts/daily-marks-operator.ts',
     'inspect',
   ];
+}
+
+/**
+ * Reduce the private access-request page to counts only. The bounded child may
+ * read one row to obtain authoritative totals, but no FID, cursor, timestamp,
+ * or entry leaves this parser.
+ */
+export function verifyPrivacySafeAccessRequestV13AggregateOutput(output) {
+  let page;
+  try {
+    page = JSON.parse(output);
+  } catch {
+    fail('Access-request v13 inspection did not return machine-readable JSON.');
+  }
+  if (
+    !page
+    || typeof page !== 'object'
+    || Array.isArray(page)
+    || Object.keys(page).sort().join(',')
+      !== 'entries,hasMore,nextCursor,pendingRequests,totalRequests'
+    || !Array.isArray(page.entries)
+    || page.entries.length > 1
+    || typeof page.hasMore !== 'boolean'
+    || (page.nextCursor !== null && (
+      typeof page.nextCursor !== 'object'
+      || Array.isArray(page.nextCursor)
+    ))
+  ) fail('Access-request v13 inspection returned an invalid private page envelope.');
+  for (const field of ['totalRequests', 'pendingRequests']) {
+    if (
+      typeof page[field] !== 'string'
+      || !/^(?:0|[1-9]\d*)$/.test(page[field])
+      || page[field].length > 20
+      || BigInt(page[field]) > U64_MAXIMUM
+    ) fail('Access-request v13 inspection returned an invalid aggregate count.');
+  }
+  if (
+    BigInt(page.pendingRequests) > BigInt(page.totalRequests)
+    || BigInt(page.entries.length) > BigInt(page.totalRequests)
+    || (page.hasMore !== (page.nextCursor !== null))
+  ) fail('Access-request v13 inspection returned inconsistent aggregate counts.');
+  return Object.freeze({
+    totalRequests: page.totalRequests,
+    pendingRequests: page.pendingRequests,
+  });
+}
+
+function inspectAccessRequestV13Aggregate(
+  secret,
+  spawnSyncProcess,
+) {
+  const secretBytes = typeof secret === 'string'
+    ? new TextEncoder().encode(secret).byteLength
+    : 0;
+  if (secretBytes < 32 || secretBytes > 512) {
+    fail('A local 32-to-512-byte Hermes credential is required for the access-request v13 checkpoint.');
+  }
+  const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
+  const result = runBoundedSync(
+    process.execPath,
+    accessRequestV13InspectChildArguments(tsxCli),
+    {
+      env: {
+        WARPKEEP_SPACETIMEDB_URI: CANONICAL_MAINCLOUD_URI,
+        WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
+        WARPKEEP_AUTH_BRIDGE_URL: CANONICAL_BRIDGE,
+        WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+      },
+      input: secret,
+      timeout: 30_000,
+    },
+    spawnSyncProcess,
+  );
+  return verifyPrivacySafeAccessRequestV13AggregateOutput(result.stdout);
+}
+
+export function verifyFreshAccessRequestV13Aggregate(
+  secret,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    return inspectAccessRequestV13Aggregate(secret, spawnSyncProcess);
+  } catch {
+    fail('Fresh protected access-request v13 aggregate checkpoint failed. No publish was attempted.');
+  }
+}
+
+export function verifyPostPublishAccessRequestV13Aggregate(
+  secret,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    return inspectAccessRequestV13Aggregate(secret, spawnSyncProcess);
+  } catch {
+    fail('Post-publication access-request v13 aggregate checkpoint is indeterminate; perform a fresh protected counts-only inspection before any catalog seed, Builder backfill, activation, client deployment, or further publication decision.');
+  }
 }
 
 /** Parse only the operator's closed, counts-only daily-Marks status. */
@@ -3088,6 +4001,149 @@ export function verifyPostPublishEmptyDailyMarksV14(
   } catch {
     fail('Post-publication empty daily-Marks v14 checkpoint is indeterminate; perform a fresh protected read-only inspection before any backfill, schedule seed, activation, client deployment, or further publication decision.');
   }
+}
+
+export function innerKeepV15InspectChildArguments(tsxCli) {
+  return [
+    tsxCli,
+    'scripts/inner-keep-operator.ts',
+    'inspect-inner-keep',
+  ];
+}
+
+/** Accept only the exact empty, inactive Inner Keep aggregate after append. */
+export function verifyEmptyInactiveInnerKeepV15StatusOutput(
+  output,
+  expectedCastleCount,
+) {
+  if (
+    !Number.isSafeInteger(expectedCastleCount)
+    || expectedCastleCount < 1
+    || expectedCastleCount > 100
+  ) fail('The inactive Inner Keep v15 expected castle count was invalid.');
+  let status;
+  try {
+    status = JSON.parse(output);
+  } catch {
+    fail('Inner Keep v15 inspection did not return machine-readable JSON.');
+  }
+  if (
+    !status
+    || typeof status !== 'object'
+    || Array.isArray(status)
+    || Object.keys(status).sort().join(',') !== INNER_KEEP_V15_STATUS_KEYS.join(',')
+  ) fail('Inner Keep v15 inspection returned unexpected fields.');
+  for (const field of INNER_KEEP_V15_STATUS_COUNT_FIELDS) {
+    const value = status[field];
+    if (
+      typeof value !== 'string'
+      || !/^(?:0|[1-9]\d*)$/.test(value)
+      || value.length > 20
+      || BigInt(value) > U64_MAXIMUM
+    ) fail('Inner Keep v15 inspection returned an invalid aggregate count.');
+  }
+  for (const field of INNER_KEEP_V15_STATUS_BOOLEAN_FIELDS) {
+    if (typeof status[field] !== 'boolean') {
+      fail('Inner Keep v15 inspection returned an invalid status flag.');
+    }
+  }
+  if (
+    status.policyVersion !== INNER_KEEP_V15_POLICY_VERSION
+    || status.layoutPolicyVersion !== INNER_KEEP_V15_LAYOUT_POLICY_VERSION
+    || !SHA256_DIGEST.test(status.policyDigest ?? '')
+    || !SHA256_DIGEST.test(status.layoutDigest ?? '')
+    || !SHA256_DIGEST.test(status.assetCatalogDigest ?? '')
+  ) fail('Inner Keep v15 inspection returned invalid policy attestations.');
+  const expectedCastles = String(expectedCastleCount);
+  if (
+    status.castleRows !== expectedCastles
+    || status.missingBuilders !== expectedCastles
+    || [
+      'layoutRows',
+      'slotRows',
+      'buildingCatalogRows',
+      'levelPolicyRows',
+      'builderRows',
+      'buildingRows',
+      'activeProjects',
+      'receiptRows',
+      'scheduleRows',
+      'orphanBuilders',
+      'invalidBuilders',
+      'invalidBuildings',
+      'invalidSchedules',
+      'builderProjectMismatches',
+    ].some(field => status[field] !== '0')
+    || status.staticCatalogExact !== false
+    || status.workerSystemReady !== true
+    || status.readyForCatalogSeed !== true
+    || status.readyForBuilderBackfill !== false
+    || status.readyForActivation !== false
+    || status.active !== false
+  ) fail('Inner Keep v15 did not prove the exact empty inactive post-publication state.');
+  return Object.freeze({ ...status });
+}
+
+function inspectEmptyInactiveInnerKeepV15(
+  secret,
+  expectedCastleCount,
+  spawnSyncProcess,
+) {
+  const secretBytes = typeof secret === 'string'
+    ? new TextEncoder().encode(secret).byteLength
+    : 0;
+  if (secretBytes < 32 || secretBytes > 512) {
+    fail('A local 32-to-512-byte Hermes credential is required for the inactive Inner Keep v15 checkpoint.');
+  }
+  const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
+  const result = runBoundedSync(
+    process.execPath,
+    innerKeepV15InspectChildArguments(tsxCli),
+    {
+      env: {
+        WARPKEEP_SPACETIMEDB_URI: CANONICAL_MAINCLOUD_URI,
+        WARPKEEP_SPACETIMEDB_DATABASE: CANONICAL_DATABASE_IDENTITY,
+        WARPKEEP_AUTH_BRIDGE_URL: CANONICAL_BRIDGE,
+        WARPKEEP_ADMIN_TOKEN_SECRET_STDIN: '1',
+      },
+      input: secret,
+      timeout: 30_000,
+    },
+    spawnSyncProcess,
+  );
+  return verifyEmptyInactiveInnerKeepV15StatusOutput(
+    result.stdout,
+    expectedCastleCount,
+  );
+}
+
+export function verifyPostPublishEmptyInactiveInnerKeepV15(
+  secret,
+  expectedCastleCount,
+  spawnSyncProcess = spawnSync,
+) {
+  try {
+    return inspectEmptyInactiveInnerKeepV15(
+      secret,
+      expectedCastleCount,
+      spawnSyncProcess,
+    );
+  } catch {
+    fail('Post-publication inactive Inner Keep v15 checkpoint is indeterminate; perform a fresh protected counts-only inspection before any catalog seed, Builder backfill, activation, client deployment, or further publication decision.');
+  }
+}
+
+export function verifyHistoricalPublicationAggregateUnchanged(before, after) {
+  if (
+    !before
+    || typeof before !== 'object'
+    || Array.isArray(before)
+    || !after
+    || typeof after !== 'object'
+    || Array.isArray(after)
+    || canonicalJson(before) !== canonicalJson(after)
+  ) fail('Historical aggregate state changed during the v15 publication; stop before any seed, backfill, activation, deployment, or further publication decision.');
+  return Object.freeze({ ...after });
 }
 
 function parsePublishAggregateEnvelope(output, expectedKeys, label) {
@@ -3672,6 +4728,53 @@ export function verifyPostPublishCombinedV12Aggregate(
 }
 
 /**
+ * Verify an already-fetched aggregate envelope. Production cutover tooling
+ * uses this boundary to share one rate-limited administrator session instead
+ * of spawning another token-minting Hermes process.
+ */
+export function verifyExactPublishV12AggregateValue(
+  value,
+  expectations,
+  resourceRolloutStage,
+  workerRolloutStage,
+  genesisWorldRolloutStage = GENESIS_WORLD_PUBLISH_STAGE.PRE_EXPANSION,
+  workerForwardRepair = WORKER_FORWARD_REPAIR.NONE,
+  workerForwardRepairCheckpoint = WORKER_FORWARD_REPAIR_CHECKPOINT.HEALTHY,
+) {
+  const exactExpectations = validateFoundedPublishExpectations(expectations);
+  validateCombinedPublishStages(resourceRolloutStage, genesisWorldRolloutStage);
+  if (
+    workerRolloutStage !== WORKER_PUBLISH_ROLLOUT_STAGE.EMPTY
+    && workerRolloutStage !== WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE
+  ) fail('The exact Worker rollout stage was invalid.');
+  let output;
+  try {
+    output = JSON.stringify(value, (_key, child) => (
+      typeof child === 'bigint' ? child.toString() : child
+    ));
+  } catch {
+    fail('The exact publication aggregate was not serializable.');
+  }
+  const envelope = verifyPrivacySafePublishPostV12Output(output);
+  verifyCombinedProtocolV3AndResourceV4(
+    envelope,
+    exactExpectations,
+    resourceRolloutStage,
+    genesisWorldRolloutStage,
+  );
+  verifyPrivacySafeAlphaStatusV8Output(JSON.stringify(envelope.alphaV8));
+  verifyPrivacySafeAlphaStatusV10Output(JSON.stringify(envelope.alphaV10));
+  verifyAlphaStatusV12ForStage(
+    verifyPrivacySafeAlphaStatusV12Output(JSON.stringify(envelope.workerV12)),
+    exactExpectations.expectedFounderCount,
+    workerRolloutStage,
+    workerForwardRepair,
+    workerForwardRepairCheckpoint,
+  );
+  return envelope;
+}
+
+/**
  * The already-v12 exception uses the same closed aggregate envelope before
  * publication. Its distinct error makes clear that no mutation was attempted.
  */
@@ -3817,102 +4920,1591 @@ export function verifyPostPublishResourcePublicationCheckpoints(
   );
 }
 
+const GREATER_REALM_PUBLISH_SUPERVISOR_SCRIPT = String.raw`
+import hashlib, json, os, signal, subprocess, sys
+
+supervisor_id = sys.argv[1]
+previous_digest = sys.argv[2]
+cli_config_digest = sys.argv[3]
+crash_state = sys.argv[4]
+crash_boundary = sys.argv[5]
+executable = sys.argv[6]
+arguments = sys.argv[7:]
+
+def maybe_crash(state, boundary):
+    if crash_state == state and crash_boundary == boundary:
+        os.kill(os.getpid(), signal.SIGKILL)
+
+def phase_file(ordinal, state):
+    return (str(ordinal).zfill(8) + "-" + state + ".json")
+
+def status(ordinal, previous, state, pid=None, process_start_identity=None, pgid=None):
+    value = {
+        "schemaVersion": 1,
+        "profile": "warpkeep-greater-realm-publish-supervisor-status-v1",
+        "supervisorId": supervisor_id,
+        "phaseOrdinal": ordinal,
+        "previousPhaseDigest": previous,
+        "state": state,
+        "cliConfigDigest": cli_config_digest,
+        "pid": pid,
+        "processStartIdentity": process_start_identity,
+        "pgid": pgid,
+    }
+    body = (json.dumps(value, separators=(",", ":")) + "\n").encode("utf-8")
+    final_name = phase_file(ordinal, state)
+    temporary_name = "." + final_name[:-5] + "-" + os.urandom(16).hex() + ".tmp"
+    descriptor = os.open(
+        temporary_name,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+        0o600,
+        dir_fd=4,
+    )
+    maybe_crash(state, "temporary-created")
+    try:
+        os.fchmod(descriptor, 0o600)
+        written = 0
+        while written < len(body):
+            count = os.write(descriptor, body[written:])
+            if count <= 0:
+                raise RuntimeError("status write failed")
+            written += count
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    os.link(
+        temporary_name,
+        final_name,
+        src_dir_fd=4,
+        dst_dir_fd=4,
+        follow_symlinks=False,
+    )
+    os.fsync(4)
+    maybe_crash(state, "linked")
+    os.unlink(temporary_name, dir_fd=4)
+    maybe_crash(state, "post-unlink")
+    os.fsync(4)
+    return hashlib.sha256(body).hexdigest()
+
+pid = os.getpid()
+pgid = os.getpgrp()
+identity = subprocess.check_output(
+    ["/bin/ps", "-o", "lstart=", "-p", str(pid)],
+    env={"PATH": "/usr/bin:/bin"},
+    timeout=5,
+).decode("ascii", "strict").strip()
+if len(identity) < 8 or len(identity) > 160 or any(ord(c) < 32 or ord(c) > 126 for c in identity):
+    raise RuntimeError("process identity invalid")
+
+def read_bound():
+    descriptor = os.open(
+        phase_file(3, "supervisor-bound"),
+        os.O_RDONLY | os.O_NOFOLLOW,
+        dir_fd=4,
+    )
+    try:
+        body = os.read(descriptor, 4097)
+        if len(body) < 1 or len(body) > 4096 or os.read(descriptor, 1):
+            raise RuntimeError("bound status invalid")
+    finally:
+        os.close(descriptor)
+    value = json.loads(body.decode("utf-8", "strict"))
+    expected_keys = {
+        "schemaVersion", "profile", "supervisorId", "phaseOrdinal",
+        "previousPhaseDigest", "state", "cliConfigDigest", "pid",
+        "processStartIdentity", "pgid",
+    }
+    if (
+        set(value.keys()) != expected_keys
+        or value["schemaVersion"] != 1
+        or value["profile"] != "warpkeep-greater-realm-publish-supervisor-status-v1"
+        or value["supervisorId"] != supervisor_id
+        or value["phaseOrdinal"] != 3
+        or value["previousPhaseDigest"] != previous_digest
+        or value["state"] != "supervisor-bound"
+        or value["cliConfigDigest"] != cli_config_digest
+        or value["pid"] != pid
+        or value["processStartIdentity"] != identity
+        or value["pgid"] != pgid
+        or (json.dumps(value, separators=(",", ":")) + "\n").encode("utf-8") != body
+    ):
+        raise RuntimeError("bound status invalid")
+    return hashlib.sha256(body).hexdigest()
+
+start_gate = b""
+while b"\n" not in start_gate and len(start_gate) <= 160:
+    chunk = os.read(5, 161 - len(start_gate))
+    if not chunk:
+        try:
+            bound_digest = read_bound()
+        except Exception:
+            status(3, previous_digest, "prestart-zero-write", pid, identity, pgid)
+        else:
+            status(4, bound_digest, "bound-zero-write", pid, identity, pgid)
+        raise SystemExit(0)
+    start_gate += chunk
+bound_digest = read_bound()
+expected_start = ("WKGR_PUBLISH_SUPERVISOR_START_V1:" + bound_digest + "\n").encode("ascii")
+if start_gate != expected_start:
+    status(4, bound_digest, "bound-zero-write", pid, identity, pgid)
+    raise SystemExit(64)
+os.close(5)
+waiting_digest = status(4, bound_digest, "pre-gate-waiting", pid, identity, pgid)
+
+gate = b""
+while b"\n" not in gate and len(gate) <= 128:
+    chunk = os.read(3, 129 - len(gate))
+    if not chunk:
+        status(5, waiting_digest, "pre-gate-zero-write", pid, identity, pgid)
+        raise SystemExit(0)
+    gate += chunk
+expected = ("WKGR_PUBLISH_GATE_V1:" + supervisor_id + "\n").encode("ascii")
+if gate != expected:
+    status(5, waiting_digest, "pre-gate-zero-write", pid, identity, pgid)
+    raise SystemExit(64)
+status(5, waiting_digest, "gate-consumed", pid, identity, pgid)
+os.close(3)
+os.close(4)
+os.execve(executable, [executable, *arguments], dict(os.environ))
+`;
+
+function exactMode(status, expected) {
+  return (status.mode & 0o7777) === expected;
+}
+
+function assertPrivatePublishSupervisorDirectory(path, create = false) {
+  if (typeof path !== 'string' || !isAbsolute(path) || resolve(path) !== path) {
+    fail('The Greater Realm publish supervisor directory was invalid.');
+  }
+  if (create) {
+    try { mkdirSync(path, { mode: 0o700 }); } catch (error) {
+      if (error?.code !== 'EEXIST') throw error;
+    }
+  }
+  const status = lstatSync(path);
+  if (
+    !status.isDirectory()
+    || status.isSymbolicLink()
+    || !exactMode(status, 0o700)
+    || (process.getuid !== undefined && status.uid !== process.getuid())
+  ) fail('The Greater Realm publish supervisor directory was not private.');
+  return status;
+}
+
+function publishSupervisorLstatIfPresent(path, options) {
+  try {
+    return lstatSync(path, options);
+  } catch (error) {
+    if (error?.code === 'ENOENT') return undefined;
+    throw error;
+  }
+}
+
+function validateGreaterRealmPublishCliConfigPath(path) {
+  if (typeof path !== 'string' || !isAbsolute(path) || resolve(path) !== path) {
+    fail('The Greater Realm Maincloud CLI config path was invalid.');
+  }
+  assertProductionAdminTrustedAncestors(dirname(path));
+  let canonical;
+  try { canonical = realpathSync(path); } catch {
+    fail('The Greater Realm Maincloud CLI config path was invalid.');
+  }
+  const status = lstatSync(path, { bigint: true });
+  if (
+    canonical !== path || !status.isFile() || status.isSymbolicLink()
+    || status.nlink !== 1n || (status.mode & 0o7777n) !== 0o600n
+    || status.size < 1n || status.size > BigInt(PUBLISH_SUPERVISOR_CLI_CONFIG_MAX_BYTES)
+    || (process.getuid !== undefined && status.uid !== BigInt(process.getuid()))
+  ) fail('The Greater Realm Maincloud CLI config path was invalid.');
+  return path;
+}
+
+function readExactGreaterRealmPublishCliConfig(path, expectedDigest) {
+  validateGreaterRealmPublishCliConfigPath(path);
+  let descriptor;
+  let bytes;
+  try {
+    const pathStatus = lstatSync(path, { bigint: true });
+    descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const before = fstatSync(descriptor, { bigint: true });
+    if (
+      before.dev !== pathStatus.dev || before.ino !== pathStatus.ino
+      || before.mode !== pathStatus.mode || before.uid !== pathStatus.uid
+      || before.nlink !== pathStatus.nlink || before.size !== pathStatus.size
+      || before.mtimeNs !== pathStatus.mtimeNs || before.ctimeNs !== pathStatus.ctimeNs
+    ) fail('The Greater Realm Maincloud CLI config changed while opened.');
+    bytes = readFileSync(descriptor);
+    const after = fstatSync(descriptor, { bigint: true });
+    const afterPath = lstatSync(path, { bigint: true });
+    if (
+      bytes.byteLength !== Number(before.size)
+      || after.dev !== before.dev || after.ino !== before.ino
+      || after.mode !== before.mode || after.uid !== before.uid
+      || after.nlink !== before.nlink || after.size !== before.size
+      || after.mtimeNs !== before.mtimeNs || after.ctimeNs !== before.ctimeNs
+      || afterPath.dev !== before.dev || afterPath.ino !== before.ino
+      || afterPath.mode !== before.mode || afterPath.uid !== before.uid
+      || afterPath.nlink !== before.nlink || afterPath.size !== before.size
+      || afterPath.mtimeNs !== before.mtimeNs || afterPath.ctimeNs !== before.ctimeNs
+    ) fail('The Greater Realm Maincloud CLI config changed while read.');
+    const digest = createHash('sha256').update(bytes).digest('hex');
+    if (expectedDigest !== undefined && digest !== expectedDigest) {
+      fail('The Greater Realm Maincloud CLI config digest changed.');
+    }
+    return Object.freeze({ bytes, digest });
+  } catch (error) {
+    bytes?.fill(0);
+    throw error;
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+function stageGreaterRealmPublishCliConfig(identity, sourcePath) {
+  const cliRootDirectory = join(
+    identity.supervisorDirectory,
+    PUBLISH_SUPERVISOR_CLI_ROOT_DIRECTORY,
+  );
+  const cliConfigPath = join(
+    identity.supervisorDirectory,
+    PUBLISH_SUPERVISOR_CLI_CONFIG_FILE,
+  );
+  mkdirSync(cliRootDirectory, { mode: 0o700 });
+  fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+  assertPrivatePublishSupervisorDirectory(cliRootDirectory);
+  const source = readExactGreaterRealmPublishCliConfig(sourcePath);
+  let descriptor;
+  try {
+    descriptor = openSync(
+      cliConfigPath,
+      constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+      0o600,
+    );
+    fchmodSync(descriptor, 0o600);
+    writeFileSync(descriptor, source.bytes);
+    fsyncSync(descriptor);
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+    source.bytes.fill(0);
+  }
+  fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+  readExactGreaterRealmPublishCliConfig(cliConfigPath, source.digest).bytes.fill(0);
+  return Object.freeze({ cliRootDirectory, cliConfigPath, cliConfigDigest: source.digest });
+}
+
+const PUBLISH_SUPERVISOR_PHASE_FILE = Object.freeze({
+  'allocated-no-spawn': '00000001-allocated-no-spawn.json',
+  'spawn-authorized': '00000002-spawn-authorized.json',
+  'supervisor-bound': '00000003-supervisor-bound.json',
+  'prestart-zero-write': '00000003-prestart-zero-write.json',
+  'bound-zero-write': '00000004-bound-zero-write.json',
+  'pre-gate-waiting': '00000004-pre-gate-waiting.json',
+  'pre-gate-zero-write': '00000005-pre-gate-zero-write.json',
+  'gate-consumed': '00000005-gate-consumed.json',
+  'cleanup-authorized': '00000006-cleanup-authorized.json',
+});
+
+const PUBLISH_SUPERVISOR_PHASE_ORDINAL = Object.freeze({
+  'allocated-no-spawn': 1,
+  'spawn-authorized': 2,
+  'supervisor-bound': 3,
+  'prestart-zero-write': 3,
+  'bound-zero-write': 4,
+  'pre-gate-waiting': 4,
+  'pre-gate-zero-write': 5,
+  'gate-consumed': 5,
+  'cleanup-authorized': 6,
+});
+
+const PUBLISH_SUPERVISOR_TEMPORARY_FILE = /^\.(0000000[1-6]-(?:allocated-no-spawn|spawn-authorized|supervisor-bound|prestart-zero-write|bound-zero-write|pre-gate-waiting|pre-gate-zero-write|gate-consumed|cleanup-authorized))-[0-9a-f]{32}\.tmp$/u;
+const PUBLISH_SUPERVISOR_STATE_BY_FILE = new Map(
+  Object.entries(PUBLISH_SUPERVISOR_PHASE_FILE).map(([state, filename]) => [filename, state]),
+);
+const PUBLISH_SUPERVISOR_NEXT_STATES = Object.freeze({
+  'allocated-no-spawn': Object.freeze(['spawn-authorized']),
+  'spawn-authorized': Object.freeze(['supervisor-bound', 'prestart-zero-write']),
+  'supervisor-bound': Object.freeze(['bound-zero-write', 'pre-gate-waiting']),
+  'pre-gate-waiting': Object.freeze(['pre-gate-zero-write', 'gate-consumed']),
+});
+
+function fsyncPublishSupervisorDirectory(path) {
+  const descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const status = fstatSync(descriptor);
+    if (!status.isDirectory()) {
+      fail('The Greater Realm publish supervisor directory was invalid.');
+    }
+    fsyncSync(descriptor);
+  } finally {
+    closeSync(descriptor);
+  }
+}
+
+function publishSupervisorStatusBody(input) {
+  return Buffer.from(`${JSON.stringify(Object.freeze({
+    schemaVersion: 1,
+    profile: PUBLISH_SUPERVISOR_STATUS_PROFILE,
+    supervisorId: input.supervisorId,
+    phaseOrdinal: input.phaseOrdinal,
+    previousPhaseDigest: input.previousPhaseDigest,
+    state: input.state,
+    cliConfigDigest: input.cliConfigDigest,
+    pid: input.pid,
+    processStartIdentity: input.processStartIdentity,
+    pgid: input.pgid,
+  }))}\n`, 'utf8');
+}
+
+function parsePublishSupervisorIdentity(value) {
+  if (
+    value === null || typeof value !== 'object' || Array.isArray(value)
+    || Object.keys(value).sort().join(',')
+      !== 'profile,schemaVersion,supervisorDirectory,supervisorId'
+  ) fail('The Greater Realm publish supervisor identity was invalid.');
+  const raw = value;
+  if (
+    raw.schemaVersion !== 1
+    || raw.profile !== PUBLISH_SUPERVISOR_PROFILE
+    || typeof raw.supervisorId !== 'string'
+    || !PUBLISH_SUPERVISOR_ID.test(raw.supervisorId)
+    || typeof raw.supervisorDirectory !== 'string'
+    || !isAbsolute(raw.supervisorDirectory)
+    || resolve(raw.supervisorDirectory) !== raw.supervisorDirectory
+    || raw.supervisorDirectory
+      !== join(dirname(raw.supervisorDirectory), `publish-${raw.supervisorId}`)
+  ) fail('The Greater Realm publish supervisor identity was invalid.');
+  return Object.freeze({
+    schemaVersion: 1,
+    profile: PUBLISH_SUPERVISOR_PROFILE,
+    supervisorId: raw.supervisorId,
+    supervisorDirectory: raw.supervisorDirectory,
+  });
+}
+
+function parsePublishSupervisorStatus(value, identity, filename, body) {
+  if (
+    value === null || typeof value !== 'object' || Array.isArray(value)
+    || Object.keys(value).sort().join(',')
+      !== 'cliConfigDigest,pgid,phaseOrdinal,pid,previousPhaseDigest,processStartIdentity,profile,schemaVersion,state,supervisorId'
+  ) fail('The Greater Realm publish supervisor status was invalid.');
+  const raw = value;
+  const allocated = raw.state === 'allocated-no-spawn';
+  const cleanupAuthorized = raw.state === 'cleanup-authorized';
+  const processBound = raw.state === 'spawn-authorized'
+    || raw.state === 'supervisor-bound'
+    || raw.state === 'prestart-zero-write'
+    || raw.state === 'bound-zero-write'
+    || raw.state === 'pre-gate-waiting'
+    || raw.state === 'pre-gate-zero-write'
+    || raw.state === 'gate-consumed'
+    || raw.state === 'cleanup-authorized';
+  if (
+    raw.schemaVersion !== 1
+    || raw.profile !== PUBLISH_SUPERVISOR_STATUS_PROFILE
+    || raw.supervisorId !== identity.supervisorId
+    || !(raw.state in PUBLISH_SUPERVISOR_PHASE_FILE)
+    || raw.phaseOrdinal !== PUBLISH_SUPERVISOR_PHASE_ORDINAL[raw.state]
+    || filename !== PUBLISH_SUPERVISOR_PHASE_FILE[raw.state]
+    || !(raw.previousPhaseDigest === null
+      || (typeof raw.previousPhaseDigest === 'string'
+        && SHA256_DIGEST.test(raw.previousPhaseDigest)))
+    || (allocated
+      ? raw.cliConfigDigest !== null
+      : cleanupAuthorized
+        ? !(raw.cliConfigDigest === null || (
+            typeof raw.cliConfigDigest === 'string'
+            && SHA256_DIGEST.test(raw.cliConfigDigest)
+          ))
+        : (typeof raw.cliConfigDigest !== 'string'
+          || !SHA256_DIGEST.test(raw.cliConfigDigest)))
+    || (!allocated && !processBound)
+    || (allocated && (
+      raw.pid !== null || raw.processStartIdentity !== null || raw.pgid !== null
+    ))
+    || (raw.state === 'spawn-authorized' && (
+      raw.pid !== null || raw.processStartIdentity !== null || raw.pgid !== null
+    ))
+    || (cleanupAuthorized && !(
+      (raw.pid === null && raw.processStartIdentity === null && raw.pgid === null)
+      || (
+        Number.isSafeInteger(raw.pid) && raw.pid >= 2
+        && raw.pgid === raw.pid
+        && typeof raw.processStartIdentity === 'string'
+        && /^[\u0020-\u007e]{8,160}$/u.test(raw.processStartIdentity)
+      )
+    ))
+    || ((raw.state === 'supervisor-bound'
+      || raw.state === 'prestart-zero-write'
+      || raw.state === 'bound-zero-write'
+      || raw.state === 'pre-gate-waiting'
+      || raw.state === 'pre-gate-zero-write'
+      || raw.state === 'gate-consumed') && (
+      !Number.isSafeInteger(raw.pid) || raw.pid < 2
+      || raw.pgid !== raw.pid
+      || typeof raw.processStartIdentity !== 'string'
+      || !/^[\u0020-\u007e]{8,160}$/u.test(raw.processStartIdentity)
+    ))
+  ) fail('The Greater Realm publish supervisor status was invalid.');
+  const canonical = publishSupervisorStatusBody(raw);
+  try {
+    if (!canonical.equals(body)) {
+      fail('The Greater Realm publish supervisor status was not canonical.');
+    }
+  } finally {
+    canonical.fill(0);
+  }
+  return Object.freeze({
+    ...raw,
+    digest: createHash('sha256').update(body).digest('hex'),
+    filename,
+  });
+}
+
+function readPublishSupervisorPhase(identity, filename, expectedNlink = 1) {
+  const path = join(identity.supervisorDirectory, filename);
+  let descriptor;
+  try {
+    descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const before = fstatSync(descriptor);
+    if (
+      !before.isFile()
+      || !exactMode(before, 0o600)
+      || before.nlink !== expectedNlink
+      || (process.getuid !== undefined && before.uid !== process.getuid())
+      || before.size < 1
+      || before.size > PUBLISH_SUPERVISOR_STATUS_MAX_BYTES
+    ) fail('The Greater Realm publish supervisor status was invalid.');
+    const bytes = readFileSync(descriptor);
+    const after = fstatSync(descriptor);
+    if (
+      before.dev !== after.dev || before.ino !== after.ino
+      || before.mode !== after.mode || before.uid !== after.uid
+      || before.nlink !== after.nlink || before.size !== after.size
+      || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs
+      || bytes.byteLength !== after.size
+    ) fail('The Greater Realm publish supervisor status changed while read.');
+    let parsed;
+    try {
+      parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    } catch {
+      fail('The Greater Realm publish supervisor status was invalid.');
+    }
+    try {
+      return parsePublishSupervisorStatus(parsed, identity, filename, bytes);
+    } finally {
+      bytes.fill(0);
+    }
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+function readPublishSupervisorPhases(identity) {
+  const names = readdirSync(identity.supervisorDirectory).toSorted();
+  const allowed = new Set(Object.values(PUBLISH_SUPERVISOR_PHASE_FILE));
+  const auxiliary = new Set([
+    PUBLISH_SUPERVISOR_CLI_CONFIG_FILE,
+    PUBLISH_SUPERVISOR_CLI_ROOT_DIRECTORY,
+  ]);
+  const phaseNames = names.filter(name => !auxiliary.has(name));
+  const finalNames = phaseNames.filter(name => allowed.has(name));
+  const temporaryEntries = phaseNames.filter(name => !allowed.has(name)).map(name => {
+    const match = PUBLISH_SUPERVISOR_TEMPORARY_FILE.exec(name);
+    if (match === null) {
+      fail('The Greater Realm publish supervisor phase inventory was invalid.');
+    }
+    const finalName = `${match[1]}.json`;
+    const path = join(identity.supervisorDirectory, name);
+    const status = lstatSync(path);
+    if (
+      !status.isFile() || status.isSymbolicLink()
+      || !exactMode(status, 0o600)
+      || (process.getuid !== undefined && status.uid !== process.getuid())
+      || (status.nlink !== 1 && status.nlink !== 2)
+      || status.size > PUBLISH_SUPERVISOR_STATUS_MAX_BYTES
+    ) fail('The Greater Realm publish supervisor phase temporary was invalid.');
+    return Object.freeze({ name, finalName, path, status });
+  });
+  if (phaseNames.length < 1) {
+    return Object.freeze({
+      phases: Object.freeze([]),
+      temporaries: Object.freeze([]),
+      latest: Object.freeze({ state: 'phase-install-incomplete' }),
+      incompleteInstallZeroWrite: true,
+      cleanupAuthorized: false,
+    });
+  }
+  const temporariesByFinal = new Map();
+  for (const temporary of temporaryEntries) {
+    if (temporariesByFinal.has(temporary.finalName)) {
+      fail('The Greater Realm publish supervisor phase inventory was invalid.');
+    }
+    temporariesByFinal.set(temporary.finalName, temporary);
+  }
+  const phases = finalNames.map(name => {
+    const finalPath = join(identity.supervisorDirectory, name);
+    const finalStatus = lstatSync(finalPath);
+    const temporary = temporariesByFinal.get(name);
+    if (temporary === undefined) {
+      if (finalStatus.nlink !== 1) {
+        fail('The Greater Realm publish supervisor phase link count was invalid.');
+      }
+      return readPublishSupervisorPhase(identity, name, 1);
+    }
+    if (
+      finalStatus.dev !== temporary.status.dev
+      || finalStatus.ino !== temporary.status.ino
+      || finalStatus.nlink !== 2 || temporary.status.nlink !== 2
+    ) fail('The Greater Realm publish supervisor phase link pair was invalid.');
+    return readPublishSupervisorPhase(identity, name, 2);
+  });
+  for (const temporary of temporaryEntries) {
+    if (!finalNames.includes(temporary.finalName) && temporary.status.nlink !== 1) {
+      fail('The Greater Realm publish supervisor phase temporary was invalid.');
+    }
+  }
+  if (phases.length === 0) {
+    const incompleteInstallZeroWrite = temporaryEntries.length === 1
+      && temporaryEntries[0].status.nlink === 1
+      && temporaryEntries[0].finalName
+        === PUBLISH_SUPERVISOR_PHASE_FILE['allocated-no-spawn'];
+    return Object.freeze({
+      phases: Object.freeze([]),
+      temporaries: Object.freeze(temporaryEntries),
+      latest: Object.freeze({ state: 'phase-install-incomplete' }),
+      incompleteInstallZeroWrite,
+      cleanupAuthorized: false,
+    });
+  }
+  const byState = new Map(phases.map(phase => [phase.state, phase]));
+  const allocated = byState.get('allocated-no-spawn');
+  const authorized = byState.get('spawn-authorized');
+  const bound = byState.get('supervisor-bound');
+  const prestartZero = byState.get('prestart-zero-write');
+  const boundZero = byState.get('bound-zero-write');
+  const waiting = byState.get('pre-gate-waiting');
+  const zero = byState.get('pre-gate-zero-write');
+  const consumed = byState.get('gate-consumed');
+  const cleanupAuthorized = byState.get('cleanup-authorized');
+  if (cleanupAuthorized !== undefined) {
+    const priorPhases = phases.filter(phase => phase.state !== 'cleanup-authorized');
+    if (
+      new Set(phases.map(phase => phase.phaseOrdinal)).size !== phases.length
+      || cleanupAuthorized.phaseOrdinal !== 6
+      || (priorPhases.length > 0
+        && !priorPhases.some(phase => (
+            phase.digest === cleanupAuthorized.previousPhaseDigest
+          )))
+    ) fail('The Greater Realm publish supervisor cleanup authority was invalid.');
+    return Object.freeze({
+      phases: Object.freeze(phases),
+      temporaries: Object.freeze(temporaryEntries),
+      latest: cleanupAuthorized,
+      incompleteInstallZeroWrite: false,
+      cleanupAuthorized: true,
+    });
+  }
+  const boundCliConfigDigest = authorized?.cliConfigDigest;
+  if (
+    allocated === undefined
+    || allocated.previousPhaseDigest !== null
+    || (authorized !== undefined
+      && authorized.previousPhaseDigest !== allocated.digest)
+    || (bound !== undefined && (
+      authorized === undefined || bound.previousPhaseDigest !== authorized.digest
+    ))
+    || (prestartZero !== undefined && (
+      authorized === undefined || prestartZero.previousPhaseDigest !== authorized.digest
+    ))
+    || (bound !== undefined && prestartZero !== undefined)
+    || (boundZero !== undefined && (
+      bound === undefined || boundZero.previousPhaseDigest !== bound.digest
+    ))
+    || (waiting !== undefined && (
+      bound === undefined || waiting.previousPhaseDigest !== bound.digest
+    ))
+    || (boundZero !== undefined && waiting !== undefined)
+    || (zero !== undefined && (
+      waiting === undefined || zero.previousPhaseDigest !== waiting.digest
+    ))
+    || (consumed !== undefined && (
+      waiting === undefined || consumed.previousPhaseDigest !== waiting.digest
+    ))
+    || (zero !== undefined && consumed !== undefined)
+    || (authorized === undefined && phases.length !== 1)
+    || (bound === undefined && (boundZero !== undefined || waiting !== undefined))
+    || (waiting === undefined && (zero !== undefined || consumed !== undefined))
+    || [bound, prestartZero, boundZero, waiting, zero, consumed].some(phase => (
+      phase !== undefined && phase.cliConfigDigest !== boundCliConfigDigest
+    ))
+  ) fail('The Greater Realm publish supervisor phase chain was invalid.');
+  const latest = consumed ?? zero ?? waiting ?? boundZero ?? prestartZero
+    ?? bound ?? authorized ?? allocated;
+  let incompleteInstallZeroWrite = false;
+  if (temporaryEntries.length === 1) {
+    const temporary = temporaryEntries[0];
+    const temporaryState = PUBLISH_SUPERVISOR_STATE_BY_FILE.get(temporary.finalName);
+    if (finalNames.includes(temporary.finalName)) {
+      incompleteInstallZeroWrite = temporary.status.nlink === 2
+        && latest.filename === temporary.finalName
+        && temporaryState !== 'gate-consumed';
+    } else {
+      incompleteInstallZeroWrite = temporary.status.nlink === 1
+        && PUBLISH_SUPERVISOR_NEXT_STATES[latest.state]?.includes(temporaryState) === true;
+    }
+  }
+  return Object.freeze({
+    phases: Object.freeze(phases),
+    temporaries: Object.freeze(temporaryEntries),
+    latest,
+    incompleteInstallZeroWrite,
+    cleanupAuthorized: false,
+  });
+}
+
+function publishSupervisorGroupExists(status) {
+  if (!Number.isSafeInteger(status.pgid) || status.pgid < 2) return false;
+  try {
+    process.kill(-status.pgid, 0);
+    return true;
+  } catch (error) {
+    if (error?.code === 'ESRCH') return false;
+    if (error?.code === 'EPERM') return true;
+    throw error;
+  }
+}
+
+function inspectGreaterRealmPublishSupervisorCliAuthority(identity, chain) {
+  const cliConfigPath = join(
+    identity.supervisorDirectory,
+    PUBLISH_SUPERVISOR_CLI_CONFIG_FILE,
+  );
+  const cliRootDirectory = join(
+    identity.supervisorDirectory,
+    PUBLISH_SUPERVISOR_CLI_ROOT_DIRECTORY,
+  );
+  const configStatus = publishSupervisorLstatIfPresent(cliConfigPath, { bigint: true });
+  const rootStatus = publishSupervisorLstatIfPresent(cliRootDirectory, { bigint: true });
+  if (rootStatus !== undefined && (
+    !rootStatus.isDirectory() || rootStatus.isSymbolicLink()
+    || (rootStatus.mode & 0o7777n) !== 0o700n
+    || (process.getuid !== undefined && rootStatus.uid !== BigInt(process.getuid()))
+  )) fail('The Greater Realm publish supervisor CLI root was invalid.');
+  if (configStatus !== undefined && (
+    rootStatus === undefined || !configStatus.isFile() || configStatus.isSymbolicLink()
+    || configStatus.nlink !== 1n || (configStatus.mode & 0o7777n) !== 0o600n
+    || configStatus.size > BigInt(PUBLISH_SUPERVISOR_CLI_CONFIG_MAX_BYTES)
+    || (process.getuid !== undefined && configStatus.uid !== BigInt(process.getuid()))
+  )) fail('The Greater Realm publish supervisor CLI config was invalid.');
+  const expectedDigest = typeof chain.latest.cliConfigDigest === 'string'
+    ? chain.latest.cliConfigDigest
+    : undefined;
+  if (expectedDigest !== undefined) {
+    if (
+      !chain.cleanupAuthorized
+      && (configStatus === undefined || rootStatus === undefined)
+    ) {
+      fail('The Greater Realm publish supervisor CLI authority was missing.');
+    }
+    if (configStatus !== undefined) {
+      readExactGreaterRealmPublishCliConfig(cliConfigPath, expectedDigest).bytes.fill(0);
+    }
+  }
+  return Object.freeze({
+    cliConfigPath,
+    cliRootDirectory,
+    cliConfigDigest: expectedDigest,
+    staged: configStatus !== undefined && rootStatus !== undefined,
+  });
+}
+
+export function inspectGreaterRealmPublishSupervisor(identityValue) {
+  const identity = parsePublishSupervisorIdentity(identityValue);
+  const supervisorRoot = dirname(identity.supervisorDirectory);
+  assertPrivatePublishSupervisorDirectory(supervisorRoot);
+  let directoryStatus;
+  try {
+    directoryStatus = lstatSync(identity.supervisorDirectory);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+    return Object.freeze({
+      identity,
+      phases: Object.freeze([]),
+      temporaries: Object.freeze([]),
+      status: Object.freeze({ state: 'not-allocated' }),
+      processGroupExists: false,
+      incompleteInstallZeroWrite: true,
+    });
+  }
+  if (!directoryStatus.isDirectory() || directoryStatus.isSymbolicLink()) {
+    fail('The Greater Realm publish supervisor directory was invalid.');
+  }
+  assertPrivatePublishSupervisorDirectory(identity.supervisorDirectory);
+  const chain = readPublishSupervisorPhases(identity);
+  const cliAuthority = inspectGreaterRealmPublishSupervisorCliAuthority(identity, chain);
+  return Object.freeze({
+    identity,
+    phases: chain.phases,
+    temporaries: chain.temporaries,
+    status: chain.latest,
+    processGroupExists: publishSupervisorGroupExists(chain.latest),
+    incompleteInstallZeroWrite: chain.incompleteInstallZeroWrite,
+    cliAuthority,
+  });
+}
+
+export function authorizeGreaterRealmPublishExactBeforeClear(identityValue) {
+  const inspection = inspectGreaterRealmPublishSupervisor(identityValue);
+  return inspection.processGroupExists === false && (
+    inspection.incompleteInstallZeroWrite
+    || inspection.status.state === 'not-allocated'
+    || inspection.status.state === 'allocated-no-spawn'
+    || inspection.status.state === 'spawn-authorized'
+    || inspection.status.state === 'supervisor-bound'
+    || inspection.status.state === 'prestart-zero-write'
+    || inspection.status.state === 'bound-zero-write'
+    || inspection.status.state === 'pre-gate-waiting'
+    || inspection.status.state === 'pre-gate-zero-write'
+  );
+}
+
+export function cleanupGreaterRealmPublishSupervisor(identityValue, testOnlyStopAfter) {
+  if (
+    testOnlyStopAfter !== undefined
+    && testOnlyStopAfter !== 'config-removed'
+    && testOnlyStopAfter !== 'root-removed'
+    && testOnlyStopAfter !== 'prior-phases-removed'
+  ) fail('The Greater Realm publish supervisor cleanup fixture was invalid.');
+  const identity = parsePublishSupervisorIdentity(identityValue);
+  let inspection = inspectGreaterRealmPublishSupervisor(identity);
+  if (inspection.status.state === 'not-allocated') {
+    fsyncPublishSupervisorDirectory(dirname(identity.supervisorDirectory));
+    return;
+  }
+  if (inspection.processGroupExists) {
+    throw new SpacetimePublishContainmentError(
+      'SPACETIMEDB_PUBLISH_SUPERVISOR_PROCESS_GROUP_UNCONTAINED',
+    );
+  }
+  for (const temporary of inspection.temporaries) {
+    unlinkSync(temporary.path);
+    fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+  }
+  if (inspection.temporaries.length > 0) {
+    inspection = inspectGreaterRealmPublishSupervisor(identity);
+  }
+  if (inspection.status.state !== 'cleanup-authorized') {
+    installPublishSupervisorPhase(identity, {
+      supervisorId: identity.supervisorId,
+      phaseOrdinal: 6,
+      previousPhaseDigest: typeof inspection.status.digest === 'string'
+        ? inspection.status.digest
+        : null,
+      state: 'cleanup-authorized',
+      cliConfigDigest: inspection.cliAuthority.cliConfigDigest ?? null,
+      pid: Number.isSafeInteger(inspection.status.pid) ? inspection.status.pid : null,
+      processStartIdentity:
+        typeof inspection.status.processStartIdentity === 'string'
+          ? inspection.status.processStartIdentity
+          : null,
+      pgid: Number.isSafeInteger(inspection.status.pgid) ? inspection.status.pgid : null,
+    });
+    inspection = inspectGreaterRealmPublishSupervisor(identity);
+  }
+  if (inspection.cliAuthority.staged) {
+    unlinkSync(inspection.cliAuthority.cliConfigPath);
+    fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+    if (testOnlyStopAfter === 'config-removed') {
+      fail('GREATER_REALM_PUBLISH_SUPERVISOR_TEST_CLEANUP_INTERRUPTED');
+    }
+    rmSync(inspection.cliAuthority.cliRootDirectory, { recursive: true, force: false });
+    fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+    if (testOnlyStopAfter === 'root-removed') {
+      fail('GREATER_REALM_PUBLISH_SUPERVISOR_TEST_CLEANUP_INTERRUPTED');
+    }
+  } else {
+    const cliRootStatus = publishSupervisorLstatIfPresent(
+      inspection.cliAuthority.cliRootDirectory,
+    );
+    const cliConfigStatus = publishSupervisorLstatIfPresent(
+      inspection.cliAuthority.cliConfigPath,
+    );
+    if (cliConfigStatus !== undefined) unlinkSync(inspection.cliAuthority.cliConfigPath);
+    if (cliConfigStatus !== undefined) {
+      fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+      if (testOnlyStopAfter === 'config-removed') {
+        fail('GREATER_REALM_PUBLISH_SUPERVISOR_TEST_CLEANUP_INTERRUPTED');
+      }
+    }
+    if (cliRootStatus !== undefined) {
+      rmSync(inspection.cliAuthority.cliRootDirectory, { recursive: true, force: false });
+      fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+      if (testOnlyStopAfter === 'root-removed') {
+        fail('GREATER_REALM_PUBLISH_SUPERVISOR_TEST_CLEANUP_INTERRUPTED');
+      }
+    }
+  }
+  const cleanupPhase = inspection.phases.find(phase => phase.state === 'cleanup-authorized');
+  if (cleanupPhase === undefined) {
+    fail('The Greater Realm publish supervisor cleanup authority was missing.');
+  }
+  for (const phase of inspection.phases
+    .filter(phase => phase.state !== 'cleanup-authorized')
+    .sort((left, right) => left.phaseOrdinal - right.phaseOrdinal)) {
+    unlinkSync(join(identity.supervisorDirectory, phase.filename));
+    fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+  }
+  if (testOnlyStopAfter === 'prior-phases-removed') {
+    fail('GREATER_REALM_PUBLISH_SUPERVISOR_TEST_CLEANUP_INTERRUPTED');
+  }
+  unlinkSync(join(identity.supervisorDirectory, cleanupPhase.filename));
+  fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+  rmdirSync(identity.supervisorDirectory);
+  fsyncPublishSupervisorDirectory(dirname(identity.supervisorDirectory));
+}
+
+function installPublishSupervisorPhase(identity, status) {
+  const body = publishSupervisorStatusBody(status);
+  const finalName = PUBLISH_SUPERVISOR_PHASE_FILE[status.state];
+  const path = join(identity.supervisorDirectory, finalName);
+  const temporary = join(
+    identity.supervisorDirectory,
+    `.${finalName.slice(0, -5)}-${randomBytes(16).toString('hex')}.tmp`,
+  );
+  let descriptor;
+  try {
+    descriptor = openSync(
+      temporary,
+      constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+      0o600,
+    );
+    writeFileSync(descriptor, body);
+    fsyncSync(descriptor);
+    closeSync(descriptor);
+    descriptor = undefined;
+    linkSync(temporary, path);
+    fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+    unlinkSync(temporary);
+    fsyncPublishSupervisorDirectory(identity.supervisorDirectory);
+    return createHash('sha256').update(body).digest('hex');
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+    body.fill(0);
+  }
+}
+
+function writeGate(stream, value) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const onError = error => rejectPromise(error);
+    stream.once('error', onError);
+    stream.end(value, 'utf8', () => {
+      stream.off('error', onError);
+      resolvePromise();
+    });
+  });
+}
+
+function waitForSupervisorStatus(identity, expected, childState) {
+  const deadline = Date.now() + 5_000;
+  return new Promise((resolvePromise, rejectPromise) => {
+    const poll = () => {
+      if (childState.error !== undefined) {
+        rejectPromise(childState.error);
+        return;
+      }
+      try {
+        const status = inspectGreaterRealmPublishSupervisor(identity).status;
+        if (status.state === expected) {
+          resolvePromise(status);
+          return;
+        }
+        if (status.state !== 'spawn-authorized' && status.state !== 'supervisor-bound') {
+          rejectPromise(new Error('GREATER_REALM_PUBLISH_SUPERVISOR_STATE_INVALID'));
+          return;
+        }
+      } catch (error) {
+        if (Date.now() >= deadline) {
+          rejectPromise(error);
+          return;
+        }
+      }
+      if (childState.closed !== undefined || Date.now() >= deadline) {
+        rejectPromise(new Error('GREATER_REALM_PUBLISH_SUPERVISOR_DID_NOT_START'));
+        return;
+      }
+      setTimeout(poll, 10);
+    };
+    poll();
+  });
+}
+
+function publishSupervisorProcessStartIdentity(pid) {
+  const result = spawnSync('/bin/ps', ['-o', 'lstart=', '-p', String(pid)], {
+    encoding: 'utf8',
+    env: { PATH: '/usr/bin:/bin' },
+    timeout: 5_000,
+    maxBuffer: 4 * 1_024,
+  });
+  const identity = result.status === 0 && result.signal === null
+    ? result.stdout.trim()
+    : '';
+  if (!/^[\u0020-\u007e]{8,160}$/u.test(identity)) {
+    fail('The Greater Realm publish supervisor identity was invalid.');
+  }
+  return identity;
+}
+
+export function planGreaterRealmPublishSupervisor(
+  supervisorRoot,
+  cliConfigSourcePath,
+  testOnlyCrash,
+) {
+  assertPrivatePublishSupervisorDirectory(dirname(supervisorRoot));
+  assertPrivatePublishSupervisorDirectory(supervisorRoot, true);
+  fsyncPublishSupervisorDirectory(dirname(supervisorRoot));
+  const validatedCliConfigSourcePath = validateGreaterRealmPublishCliConfigPath(
+    cliConfigSourcePath,
+  );
+  if (testOnlyCrash !== undefined && (
+    testOnlyCrash === null || typeof testOnlyCrash !== 'object'
+    || !['spawn-authorized', 'prestart-zero-write', 'bound-zero-write', 'pre-gate-waiting',
+      'pre-gate-zero-write', 'gate-consumed'].includes(testOnlyCrash.state)
+    || !['final-installed', 'temporary-created', 'linked', 'post-unlink']
+      .includes(testOnlyCrash.boundary)
+    || (testOnlyCrash.state === 'spawn-authorized')
+      !== (testOnlyCrash.boundary === 'final-installed')
+  )) fail('The Greater Realm publish supervisor crash fixture was invalid.');
+  const supervisorId = randomBytes(16).toString('hex');
+  const supervisorDirectory = join(supervisorRoot, `publish-${supervisorId}`);
+  const identity = parsePublishSupervisorIdentity(Object.freeze({
+    schemaVersion: 1,
+    profile: PUBLISH_SUPERVISOR_PROFILE,
+    supervisorId,
+    supervisorDirectory,
+  }));
+  let directoryDescriptor;
+  let latestPhaseDigest;
+  let child;
+  let childState;
+  let cliAuthority;
+  let allocated = false;
+  let released = false;
+  let cleaned = false;
+  const allocate = () => {
+    if (allocated || cleaned) fail('The Greater Realm publish supervisor lifecycle was invalid.');
+    mkdirSync(identity.supervisorDirectory, { mode: 0o700 });
+    fsyncPublishSupervisorDirectory(supervisorRoot);
+    assertPrivatePublishSupervisorDirectory(identity.supervisorDirectory);
+    directoryDescriptor = openSync(
+      identity.supervisorDirectory,
+      constants.O_RDONLY | constants.O_NOFOLLOW,
+    );
+    const status = fstatSync(directoryDescriptor);
+    if (!status.isDirectory() || !exactMode(status, 0o700)) {
+      fail('The Greater Realm publish supervisor directory was not private.');
+    }
+    latestPhaseDigest = installPublishSupervisorPhase(identity, {
+      supervisorId,
+      phaseOrdinal: 1,
+      previousPhaseDigest: null,
+      state: 'allocated-no-spawn',
+      cliConfigDigest: null,
+      pid: null,
+      processStartIdentity: null,
+      pgid: null,
+    });
+    allocated = true;
+  };
+  const start = async (executable, arguments_, spawnProcess = spawn) => {
+    if (!allocated) allocate();
+    if (
+      child !== undefined || directoryDescriptor === undefined
+      || latestPhaseDigest === undefined || released || cleaned
+    ) {
+      fail('The Greater Realm publish supervisor lifecycle was invalid.');
+    }
+    cliAuthority = stageGreaterRealmPublishCliConfig(
+      identity,
+      validatedCliConfigSourcePath,
+    );
+    latestPhaseDigest = installPublishSupervisorPhase(identity, {
+      supervisorId,
+      phaseOrdinal: 2,
+      previousPhaseDigest: latestPhaseDigest,
+      state: 'spawn-authorized',
+      cliConfigDigest: cliAuthority.cliConfigDigest,
+      pid: null,
+      processStartIdentity: null,
+      pgid: null,
+    });
+    if (
+      testOnlyCrash?.state === 'spawn-authorized'
+      && testOnlyCrash.boundary === 'final-installed'
+    ) process.kill(process.pid, 'SIGKILL');
+    child = spawnProcess('/usr/bin/python3', [
+      '-I', '-S', '-B', '-c', GREATER_REALM_PUBLISH_SUPERVISOR_SCRIPT,
+      supervisorId,
+      latestPhaseDigest,
+      cliAuthority.cliConfigDigest,
+      testOnlyCrash?.state ?? '-',
+      testOnlyCrash?.boundary ?? '-',
+      executable,
+      '--root-dir', cliAuthority.cliRootDirectory,
+      '--config-path', cliAuthority.cliConfigPath,
+      ...arguments_,
+    ], {
+      cwd: repositoryRoot,
+      detached: process.platform !== 'win32',
+      // Output is deliberately detached from the parent. If the operator is
+      // SIGKILLed, the irreversible CLI must not receive EPIPE/SIGPIPE merely
+      // because parent-owned read ends disappeared.
+      stdio: ['ignore', 'ignore', 'ignore', 'pipe', directoryDescriptor, 'pipe'],
+      env: publishChildEnvironment(),
+    });
+    if (
+      process.platform === 'win32'
+      || !Number.isSafeInteger(child.pid) || child.pid < 2
+      || child.stdio?.[3] === undefined
+      || child.stdio?.[5] === undefined
+    ) fail('The Greater Realm publish supervisor did not start exactly.');
+    childState = { error: undefined, closed: undefined };
+    child.on('error', error => { childState.error ??= error; });
+    child.once('close', (code, signal) => { childState.closed = { code, signal }; });
+    const processStartIdentity = publishSupervisorProcessStartIdentity(child.pid);
+    latestPhaseDigest = installPublishSupervisorPhase(identity, {
+      supervisorId,
+      phaseOrdinal: 3,
+      previousPhaseDigest: latestPhaseDigest,
+      state: 'supervisor-bound',
+      cliConfigDigest: cliAuthority.cliConfigDigest,
+      pid: child.pid,
+      processStartIdentity,
+      pgid: child.pid,
+    });
+    await writeGate(
+      child.stdio[5],
+      `WKGR_PUBLISH_SUPERVISOR_START_V1:${latestPhaseDigest}\n`,
+    );
+    const ready = await waitForSupervisorStatus(identity, 'pre-gate-waiting', childState);
+    if (
+      ready.pid !== child.pid || ready.pgid !== child.pid
+      || ready.processStartIdentity !== processStartIdentity
+    ) {
+      fail('The Greater Realm publish supervisor identity was invalid.');
+    }
+    return child;
+  };
+  const release = async () => {
+    if (child === undefined || childState === undefined || released || cleaned) {
+      fail('The Greater Realm publish supervisor lifecycle was invalid.');
+    }
+    released = true;
+    await writeGate(
+      child.stdio[3],
+      `${PUBLISH_SUPERVISOR_GATE_PREFIX}${supervisorId}\n`,
+    );
+  };
+  const cleanup = async () => {
+    if (cleaned) return;
+    if (child !== undefined && !released && child.stdio?.[3] !== undefined) {
+      if (child.stdio?.[5] !== undefined && !child.stdio[5].destroyed) {
+        child.stdio[5].end();
+      }
+      child.stdio[3].end();
+      const deadline = Date.now() + 5_000;
+      while (childState.closed === undefined && childState.error === undefined) {
+        if (Date.now() >= deadline) {
+          throw new SpacetimePublishContainmentError(
+            'SPACETIMEDB_PUBLISH_SUPERVISOR_PRE_GATE_UNCONTAINED',
+          );
+        }
+        await new Promise(resolvePromise => setTimeout(resolvePromise, 10));
+      }
+    }
+    if (directoryDescriptor !== undefined) {
+      closeSync(directoryDescriptor);
+      directoryDescriptor = undefined;
+    }
+    if (allocated) {
+      cleanupGreaterRealmPublishSupervisor(identity);
+    }
+    cleaned = true;
+    activeGreaterRealmPublishSupervisors.delete(planned);
+  };
+  const executionState = () => Object.freeze({
+    error: childState?.error,
+    closed: childState?.closed,
+  });
+  const planned = Object.freeze({
+    identity, allocate, start, release, cleanup, executionState,
+  });
+  activeGreaterRealmPublishSupervisors.add(planned);
+  return planned;
+}
+
+function monitorSpacetimePublishChild(child) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    let settled = false;
+    let timedOut = false;
+    let outputExceeded = false;
+    let outputBytes = 0;
+    let forcedKill;
+    let groupPoll;
+    let groupCleanupDeadline;
+    let leaderClosed = false;
+    let leaderCode;
+    let terminalError;
+    const deadline = setTimeout(() => {
+      timedOut = true;
+      try { signalProcessGroup('SIGTERM'); } catch (error) { terminalError ??= error; }
+      forcedKill = setTimeout(() => {
+        forceAndAwaitProcessGroup(new Error(
+          'SpacetimeDB publish exceeded its hard deadline.',
+        ));
+      }, PUBLISH_KILL_GRACE_MILLISECONDS);
+    }, PUBLISH_TIMEOUT_MILLISECONDS);
+    const settle = callback => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadline);
+      if (forcedKill !== undefined) clearTimeout(forcedKill);
+      if (groupPoll !== undefined) clearTimeout(groupPoll);
+      if (groupCleanupDeadline !== undefined) clearTimeout(groupCleanupDeadline);
+      callback();
+    };
+    const hasProcessGroup = process.platform !== 'win32'
+      && Number.isSafeInteger(child.pid) && child.pid > 0;
+    const signalProcessGroup = signal => {
+      if (hasProcessGroup) process.kill(-child.pid, signal);
+      else child.kill(signal);
+    };
+    const processGroupExists = () => {
+      if (!hasProcessGroup) return false;
+      try {
+        process.kill(-child.pid, 0);
+        return true;
+      } catch (error) {
+        if (error?.code === 'ESRCH') return false;
+        throw error;
+      }
+    };
+    const completeAfterGroupExit = () => {
+      if (groupPoll !== undefined) {
+        clearTimeout(groupPoll);
+        groupPoll = undefined;
+      }
+      let exists;
+      try { exists = processGroupExists(); } catch (error) {
+        settle(() => rejectPromise(error));
+        return;
+      }
+      if (!exists) {
+        settle(() => {
+          if (
+            terminalError === undefined && leaderClosed
+            && !timedOut && !outputExceeded && leaderCode === 0
+          ) resolvePromise();
+          else rejectPromise(terminalError ?? new Error(
+            'SpacetimeDB publish did not complete successfully.',
+          ));
+        });
+        return;
+      }
+      groupPoll = setTimeout(completeAfterGroupExit, 25);
+    };
+    const forceAndAwaitProcessGroup = error => {
+      terminalError ??= error;
+      try { signalProcessGroup('SIGKILL'); } catch (signalError) { terminalError = signalError; }
+      if (groupCleanupDeadline === undefined) {
+        groupCleanupDeadline = setTimeout(() => settle(() => rejectPromise(
+          new SpacetimePublishContainmentError(
+            'SPACETIMEDB_PUBLISH_PROCESS_GROUP_UNCONTAINED',
+          ),
+        )), PUBLISH_KILL_GRACE_MILLISECONDS);
+      }
+      if (!hasProcessGroup) {
+        if (leaderClosed) completeAfterGroupExit();
+        return;
+      }
+      completeAfterGroupExit();
+    };
+    const observeOutput = stream => {
+      if (!stream || typeof stream.on !== 'function') return;
+      stream.on('data', chunk => {
+        outputBytes += chunk.byteLength;
+        if (outputBytes <= MAX_CHILD_OUTPUT_BYTES || outputExceeded) return;
+        outputExceeded = true;
+        forceAndAwaitProcessGroup(new Error(
+          'SpacetimeDB publish output exceeded its fixed bound.',
+        ));
+      });
+    };
+    observeOutput(child.stdout);
+    observeOutput(child.stderr);
+    child.on('error', error => {
+      if (!timedOut && !outputExceeded) {
+        terminalError ??= error;
+        if (!hasProcessGroup) settle(() => rejectPromise(error));
+        else forceAndAwaitProcessGroup(error);
+      }
+    });
+    child.once('close', code => {
+      leaderClosed = true;
+      leaderCode = code;
+      let groupRemains = false;
+      try { groupRemains = processGroupExists(); } catch (error) { terminalError ??= error; }
+      if (groupRemains && !timedOut && !outputExceeded) {
+        forceAndAwaitProcessGroup(new Error(
+          'SpacetimeDB publish left a descendant process running.',
+        ));
+        return;
+      }
+      completeAfterGroupExit();
+    });
+  });
+}
+
 export async function publishModule(
   spacetimeCommand,
   targetDatabase,
   artifactReceipt,
   spawnProcess = spawn,
+  assertCanStartWrite = () => undefined,
+  expectedPrivateArtifactPath,
+  prepareWrite = async () => undefined,
+  publishSupervisor,
 ) {
   if (targetDatabase !== CANONICAL_DATABASE_IDENTITY) {
     fail('The production publish target was not the pinned canonical database identity.');
   }
-  const artifact = validateMigrationArtifactReceiptShape(artifactReceipt);
-  const artifactSnapshot = createPrivatePublishSnapshot(
-    artifact.artifactPath,
-    artifact.artifactDigest,
-    PRIVATE_SNAPSHOT_KINDS.ARTIFACT,
-  );
+  const artifact = expectedPrivateArtifactPath === undefined
+    ? verifyMigrationArtifactReceipt(artifactReceipt)
+    : verifyMigrationArtifactReceiptAtExactPath(
+        artifactReceipt,
+        expectedPrivateArtifactPath,
+      );
+  const directRetainedArtifact = expectedPrivateArtifactPath !== undefined;
+  const attestDirectRetainedArtifact = () => {
+    if (!directRetainedArtifact) return;
+    const verified = readExactVerifiedSourceBytes(
+      artifact.artifactPath,
+      artifact.artifactDigest,
+      PRIVATE_SNAPSHOT_KINDS.ARTIFACT,
+    );
+    verified.bytes.fill(0);
+  };
+  const artifactSnapshot = directRetainedArtifact
+    ? Object.freeze({
+        path: artifact.artifactPath,
+        digest: artifact.artifactDigest,
+        cleanup: () => undefined,
+      })
+    : createPrivatePublishSnapshot(
+        artifact.artifactPath,
+        artifact.artifactDigest,
+        PRIVATE_SNAPSHOT_KINDS.ARTIFACT,
+      );
   const arguments_ = [
     'publish',
     '--server', CANONICAL_MAINCLOUD_URI,
     '--js-path', artifactSnapshot.path,
     '--delete-data=never',
-    '--yes=remote',
-    '--no-config',
+    '--yes=remote,skip-login',
     targetDatabase,
   ];
+  let primaryError;
   try {
-    await new Promise((resolvePromise, rejectPromise) => {
-      let settled = false;
-      let timedOut = false;
-      let outputExceeded = false;
-      let outputBytes = 0;
-      let deadline;
-      let forcedKill;
-      const settle = (callback) => {
-        if (settled) return;
-        settled = true;
-        if (deadline !== undefined) clearTimeout(deadline);
-        if (forcedKill !== undefined) clearTimeout(forcedKill);
-        callback();
-      };
-
-      let child;
-      try {
-        child = spawnProcess(spacetimeCommand, arguments_, {
-          cwd: repositoryRoot,
-          // A compatibility or break-clients prompt must see EOF and abort. The
-          // bounded output is consumed without mirroring private process detail.
-          stdio: ['ignore', 'pipe', 'pipe'],
-          // The CLI uses local config/Home and standard network settings. It
-          // never receives ambient Warpkeep signing, admin, RPC, or review data.
-          env: publishChildEnvironment(),
-        });
-      } catch (error) {
-        settle(() => rejectPromise(error));
-        return;
+    let supervisedChild;
+    let supervisedCompletion;
+    try {
+      await prepareWrite();
+      if (publishSupervisor !== undefined) {
+        if (
+          !directRetainedArtifact
+          || !activeGreaterRealmPublishSupervisors.has(publishSupervisor)
+        ) fail('The Greater Realm publish supervisor was invalid.');
+        supervisedChild = await publishSupervisor.start(
+          spacetimeCommand,
+          arguments_,
+          spawnProcess,
+        );
+        attestDirectRetainedArtifact();
+        supervisedCompletion = monitorSpacetimePublishChild(supervisedChild);
       }
-      const observeOutput = (stream) => {
-        if (!stream || typeof stream.on !== 'function') return;
-        stream.on('data', chunk => {
-          outputBytes += chunk.byteLength;
-          if (outputBytes <= MAX_CHILD_OUTPUT_BYTES || outputExceeded) return;
-          outputExceeded = true;
-          try { child.kill('SIGKILL'); } catch { /* The bounded failure remains generic. */ }
-          forcedKill = setTimeout(() => {
-            settle(() => rejectPromise(new Error('SpacetimeDB publish output exceeded its fixed bound.')));
-          }, PUBLISH_KILL_GRACE_MILLISECONDS);
-        });
-      };
-      observeOutput(child.stdout);
-      observeOutput(child.stderr);
-      child.on('error', (error) => {
-        // A signal-delivery error can arrive after the deadline. Keep the forced
-        // SIGKILL timer alive in that case instead of abandoning the child. Keep
-        // this listener installed so a second kill-delivery error is not emitted
-        // as an unhandled EventEmitter error after forced settlement.
-        if (!timedOut) settle(() => rejectPromise(error));
+    } catch (cause) {
+      const error = isWriteNotStartedError(cause)
+        ? cause
+        : new GreaterRealmPublishWriteNotStartedError(
+            'GREATER_REALM_PUBLISH_PREPARATION_WRITE_NOT_STARTED',
+            cause,
+          );
+      assertCanStartWrite.bindWriteNotStartedError?.(error);
+      throw error;
+    }
+    if (publishSupervisor === undefined) attestDirectRetainedArtifact();
+    await assertCanStartWrite.markSubmissionUncertain?.();
+    // Snapshotting, Git reattestation, and credential minting can all defer
+    // signal delivery. Yield exactly once, then check the permit immediately
+    // before spawn with no intervening synchronous or network work.
+    await new Promise(resolveTick => setImmediate(resolveTick));
+    assertCanStartWrite();
+    if (publishSupervisor !== undefined) {
+      // The completion monitor and all durable status work are already active.
+      // The permit and one-shot gate write are adjacent in this turn.
+      await publishSupervisor.release();
+      await supervisedCompletion;
+    } else {
+      const child = spawnProcess(spacetimeCommand, arguments_, {
+        cwd: repositoryRoot,
+        detached: process.platform !== 'win32',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: publishChildEnvironment(),
       });
-      child.once('close', (code) => settle(() => {
-        if (!timedOut && !outputExceeded && code === 0) resolvePromise();
-        else rejectPromise(new Error('SpacetimeDB publish did not complete successfully.'));
-      }));
-
-      deadline = setTimeout(() => {
-        timedOut = true;
-        try { child.kill('SIGTERM'); } catch { /* Fall through to the forced deadline. */ }
-        forcedKill = setTimeout(() => {
-          try { child.kill('SIGKILL'); } catch { /* The outcome remains indeterminate. */ }
-          // Do not wait indefinitely for a child that ignores termination or
-          // withholds its close event. Treat the publication outcome as
-          // indeterminate and require a fresh read-only inspection.
-          settle(() => rejectPromise(new Error('SpacetimeDB publish exceeded its hard deadline.')));
-        }, PUBLISH_KILL_GRACE_MILLISECONDS);
-      }, PUBLISH_TIMEOUT_MILLISECONDS);
-    });
-  } finally {
-    artifactSnapshot.cleanup();
+      await monitorSpacetimePublishChild(child);
+    }
+    attestDirectRetainedArtifact();
+  } catch (error) {
+    primaryError = error;
   }
+  const cleanupErrors = [];
+  if (
+    primaryError !== undefined
+    && isWriteNotStartedError(primaryError)
+    && publishSupervisor !== undefined
+  ) {
+    try {
+      // A rejected pre-gate write loses its operation identity when the journal
+      // abandonment succeeds. Remove the exact waiting supervisor while that
+      // identity is still durably bound; a cleanup failure converts the result
+      // to retained ambiguity instead of letting the journal discard authority.
+      await publishSupervisor.cleanup();
+    } catch (error) {
+      cleanupErrors.push(error);
+    }
+  }
+  try {
+    artifactSnapshot.cleanup();
+  } catch (error) {
+    cleanupErrors.push(error);
+  }
+  if (primaryError !== undefined && cleanupErrors.length > 0) {
+    throw new AggregateError(
+      [primaryError, ...cleanupErrors],
+      'SPACETIMEDB_PUBLISH_AND_SNAPSHOT_CLEANUP_FAILED',
+    );
+  }
+  if (primaryError !== undefined) throw primaryError;
+  if (cleanupErrors.length === 1) throw cleanupErrors[0];
+  if (cleanupErrors.length > 1) {
+    throw new AggregateError(
+      cleanupErrors,
+      'SPACETIMEDB_PUBLISH_SNAPSHOT_CLEANUP_FAILED',
+    );
+  }
+}
+
+/**
+ * Protocol v16 is a review-only Chat append. A later evidence-backed change
+ * must add an exact inactive-v15 predecessor ABI, protected Chat aggregates,
+ * and post-publication inactive-v16 checkpoints before production mutation is
+ * reachable.
+ */
+export function requireRealmChatV16ProductionPublishReady() {
+  fail('Realm Chat protocol v16 is review-only and cannot be published by this build.');
+}
+
+/**
+ * Protocol v17 is a review-only Greater Realm append. Migration rehearsal may
+ * inspect the compiled artifact on an isolated loopback database, but this
+ * publisher has no authority to import, activate, or publish it in production.
+ */
+export function requireGreaterRealmV17ProductionPublishReady() {
+  fail('Greater Realm protocol v17 is review-only and cannot be published by this build.');
+}
+
+/**
+ * Both appended review boundaries remain independently unresolved. Keep them
+ * composed so approving or removing either one can never authorize a publish
+ * while the other still fails closed.
+ */
+export function requireCurrentReviewOnlyProductionPublishReady() {
+  requireGreaterRealmV17ProductionPublishReady();
+  requireRealmChatV16ProductionPublishReady();
+}
+
+/**
+ * Retain the reviewed active-v14 -> inactive-v15 lane as a read-only rehearsal.
+ * The v17 artifact cannot use this predecessor contract for a real publish;
+ * the explicit fail-closed guard below runs before the publish dependency.
+ */
+export async function executeProtocolV15InactivePublicationLane(
+  options,
+  dependencies = {},
+) {
+  if (
+    !options
+    || typeof options !== 'object'
+    || typeof options.dryRun !== 'boolean'
+    || options.resourceRolloutStage !== RESOURCE_PUBLISH_ROLLOUT_STAGE.READY
+    || options.genesisWorldRolloutStage !== GENESIS_WORLD_PUBLISH_STAGE.EXPANDED
+    || options.workerRolloutStage !== WORKER_PUBLISH_ROLLOUT_STAGE.ACTIVE
+    || options.workerModulePredecessor !== WORKER_MODULE_PREDECESSOR.EXACT_V14_ACTIVE
+    || options.workerForwardRepair !== WORKER_FORWARD_REPAIR.NONE
+    || options.innerKeepModulePredecessor
+      !== INNER_KEEP_MODULE_PREDECESSOR.EXACT_V14_ACTIVE
+    || options.innerKeepPublicationStage
+      !== INNER_KEEP_PUBLICATION_STAGE.APPEND_INACTIVE
+  ) fail('The protocol-v15 inactive publication plan was invalid. No publish was attempted.');
+
+  if (
+    !options.dryRun
+    && options.publishConfirmation !== CANONICAL_DATABASE
+  ) {
+    fail(`Set WARPKEEP_PUBLISH_CONFIRM=${CANONICAL_DATABASE} after reviewing the target database; publish was not attempted.`);
+  }
+
+  const artifactReceipt = (
+    dependencies.verifyMigrationArtifactReceipt
+      ?? verifyMigrationArtifactReceipt
+  )(requireReviewedAdditivePublicationLane(
+    options.artifactReceipt,
+    options.innerKeepModulePredecessor,
+    options.innerKeepPublicationStage,
+  ));
+  const verifyPredecessor = dependencies.verifyFreshProductionV14InnerKeepPredecessor
+    ?? verifyFreshProductionV14InnerKeepPredecessor;
+  const predecessor = verifyPredecessor(
+    options.executable,
+    artifactReceipt.v12TableSchemaDigest,
+    artifactReceipt.v13TableSchemaDigest,
+    artifactReceipt.v14TableSchemaDigest,
+  );
+  (dependencies.verifyWorkerV14ModulePredecessor
+    ?? verifyWorkerV14ModulePredecessor)(
+    predecessor.moduleState,
+    options.workerModulePredecessor,
+  );
+  const publicationPlan = planWorkerV12CodePublication(
+    predecessor.moduleState,
+    options.workerForwardRepair,
+  );
+  const preHistorical = (
+    dependencies.verifyFreshPublishExactV12Aggregate
+      ?? verifyFreshPublishExactV12Aggregate
+  )(
+    options.adminTokenSecret,
+    options.foundedExpectations,
+    options.resourceRolloutStage,
+    options.workerRolloutStage,
+    dependencies.spawnSyncProcess ?? spawnSync,
+    options.genesisWorldRolloutStage,
+    options.workerForwardRepair,
+    publicationPlan.prePublicationCheckpoint,
+  );
+  const preDailyMarks = (
+    dependencies.verifyFreshActiveDailyMarksV14
+      ?? verifyFreshActiveDailyMarksV14
+  )(
+    options.adminTokenSecret,
+    options.foundedExpectations,
+    dependencies.spawnSyncProcess ?? spawnSync,
+  );
+  const preAccessRequests = (
+    dependencies.verifyFreshAccessRequestV13Aggregate
+      ?? verifyFreshAccessRequestV13Aggregate
+  )(
+    options.adminTokenSecret,
+    dependencies.spawnSyncProcess ?? spawnSync,
+  );
+
+  if (options.dryRun) {
+    return Object.freeze({
+      publication: 'dry-run-verified',
+      protocol: 'v15',
+      stage: INNER_KEEP_PUBLICATION_STAGE.APPEND_INACTIVE,
+      predecessor: INNER_KEEP_MODULE_PREDECESSOR.EXACT_V14_ACTIVE,
+      deletion: 'disabled',
+      networkMode: 'read-only',
+    });
+  }
+
+  requireCurrentReviewOnlyProductionPublishReady();
+
+  await (dependencies.publishModule ?? publishModule)(
+    options.executable,
+    CANONICAL_DATABASE_IDENTITY,
+    artifactReceipt,
+  );
+  const postSchema = (
+    dependencies.verifyPostPublishProductionV15InactiveModuleSchema
+      ?? verifyPostPublishProductionV15InactiveModuleSchema
+  )(
+    options.executable,
+    predecessor,
+    artifactReceipt.v12TableSchemaDigest,
+    artifactReceipt.v13TableSchemaDigest,
+    artifactReceipt.v14TableSchemaDigest,
+    artifactReceipt.v15TableSchemaDigest,
+  );
+  const postHistorical = (
+    dependencies.verifyPostPublishResourcePublicationCheckpoints
+      ?? verifyPostPublishResourcePublicationCheckpoints
+  )(
+    options.adminTokenSecret,
+    options.foundedExpectations,
+    options.resourceRolloutStage,
+    options.workerRolloutStage,
+    dependencies.spawnSyncProcess ?? spawnSync,
+    options.genesisWorldRolloutStage,
+    options.workerForwardRepair,
+    publicationPlan.postPublicationCheckpoint,
+  );
+  const postDailyMarks = (
+    dependencies.verifyPostPublishActiveDailyMarksV14
+      ?? verifyPostPublishActiveDailyMarksV14
+  )(
+    options.adminTokenSecret,
+    options.foundedExpectations,
+    dependencies.spawnSyncProcess ?? spawnSync,
+  );
+  const postAccessRequests = (
+    dependencies.verifyPostPublishAccessRequestV13Aggregate
+      ?? verifyPostPublishAccessRequestV13Aggregate
+  )(
+    options.adminTokenSecret,
+    dependencies.spawnSyncProcess ?? spawnSync,
+  );
+  (dependencies.verifyHistoricalPublicationAggregateUnchanged
+    ?? verifyHistoricalPublicationAggregateUnchanged)(
+    preHistorical,
+    postHistorical,
+  );
+  (dependencies.verifyHistoricalPublicationAggregateUnchanged
+    ?? verifyHistoricalPublicationAggregateUnchanged)(
+    preDailyMarks,
+    postDailyMarks,
+  );
+  (dependencies.verifyHistoricalPublicationAggregateUnchanged
+    ?? verifyHistoricalPublicationAggregateUnchanged)(
+    preAccessRequests,
+    postAccessRequests,
+  );
+  (dependencies.verifyPostPublishEmptyInactiveInnerKeepV15
+    ?? verifyPostPublishEmptyInactiveInnerKeepV15)(
+    options.adminTokenSecret,
+    options.foundedExpectations.expectedFounderCount,
+    dependencies.spawnSyncProcess ?? spawnSync,
+  );
+  return Object.freeze({
+    publication: 'verified',
+    protocol: 'v15',
+    stage: INNER_KEEP_PUBLICATION_STAGE.APPEND_INACTIVE,
+    predecessor: INNER_KEEP_MODULE_PREDECESSOR.EXACT_V14_ACTIVE,
+    deletion: 'disabled',
+    historicalAggregateExact: true,
+    appendedTableCount: postSchema.appendedInnerKeepTableCount,
+    innerKeepActive: false,
+  });
 }
 
 async function main() {
@@ -3923,6 +6515,8 @@ async function main() {
     workerRolloutStage,
     workerModulePredecessor,
     workerForwardRepair,
+    innerKeepModulePredecessor,
+    innerKeepPublicationStage,
   } = parsePublishArguments();
   requireCanonicalPublishCoordinates();
   if (database !== CANONICAL_DATABASE) fail('The production publisher target was not canonical.');
@@ -3937,6 +6531,10 @@ async function main() {
     fail(`Set WARPKEEP_PUBLISH_CONFIRM=${database} after reviewing the target database; publish was not attempted.`);
   }
   const foundedExpectations = readFoundedPublishExpectations();
+  requireEntryAgreementProductionRelease(
+    WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS,
+    dryRun,
+  );
   // Remove the Hermes credential from the ambient environment before the
   // long-running proof spawns any children. The bounded aggregate helpers
   // receive it only through stdin and every child environment stays allowlisted.
@@ -3947,7 +6545,40 @@ async function main() {
     // Keep every proof, inspection, publish, and checkpoint bound to the one
     // attested CLI copy for this complete publication lifecycle.
     const executable = executableSnapshot.path;
-    const artifactReceipt = runCurrentAdditiveMigrationProof(executable);
+    const artifactReceipt = requireReviewedAdditivePublicationLane(
+      runCurrentAdditiveMigrationProof(executable),
+      innerKeepModulePredecessor,
+      innerKeepPublicationStage,
+    );
+    if (
+      innerKeepModulePredecessor
+        === INNER_KEEP_MODULE_PREDECESSOR.EXACT_V14_ACTIVE
+      && innerKeepPublicationStage
+        === INNER_KEEP_PUBLICATION_STAGE.APPEND_INACTIVE
+    ) {
+      await validateIssuerDeployment(issuer);
+      // The list/describe/aggregate dry-run path is network-read-only. It uses
+      // the same immutable identity as publication and returns before the
+      // publish dependency inside the lane can be reached.
+      attestCanonicalDatabase(executable);
+      const result = await executeProtocolV15InactivePublicationLane({
+        dryRun,
+        executable,
+        artifactReceipt,
+        adminTokenSecret,
+        foundedExpectations,
+        resourceRolloutStage,
+        genesisWorldRolloutStage,
+        workerRolloutStage,
+        workerModulePredecessor,
+        workerForwardRepair,
+        innerKeepModulePredecessor,
+        innerKeepPublicationStage,
+        publishConfirmation: process.env.WARPKEEP_PUBLISH_CONFIRM,
+      });
+      console.log(JSON.stringify(result));
+      return;
+    }
     if (dryRun) {
       await validateIssuerDeployment(issuer);
       console.log(`Dry run: verified the pinned CLI, current additive migration, founded-state expectation contract, explicit ${resourceRolloutStage} resource stage, explicit ${genesisWorldRolloutStage} Genesis world stage, explicit ${workerRolloutStage} Worker stage, explicit ${workerModulePredecessor} module predecessor, explicit ${workerForwardRepair} Worker forward-repair selection, and ${issuer}; would update the canonical existing database without deleting data.`);

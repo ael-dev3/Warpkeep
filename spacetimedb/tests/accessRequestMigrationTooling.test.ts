@@ -16,19 +16,49 @@ function registrations(text: string, marker: string): string[] {
     .filter(value => /^[A-Za-z][A-Za-z0-9]*$/.test(value));
 }
 
-test('v13 remains the exact frozen v12 prefix while v14 appends daily Marks', () => {
+test('v13 through v15 remain frozen prefixes before the v16 Realm Chat append', () => {
   const v12 = source('../migration-fixtures/additive-v12-schema/src/index.ts');
   const v13 = source('../migration-fixtures/additive-v13-schema/src/index.ts');
+  const v14 = source('../migration-fixtures/additive-v14-schema/src/index.ts');
+  const v15 = source('../migration-fixtures/additive-v15-schema/src/index.ts');
+  const v16 = source('../migration-fixtures/additive-v16-schema/src/index.ts');
   const candidate = source('../src/schema.ts');
   const v12Tables = registrations(v12, 'const db = schema({');
   const v13Tables = registrations(v13, 'const db = schema({');
+  const v14Tables = registrations(v14, 'const db = schema({');
+  const v15Tables = registrations(v15, 'const db = schema({');
+  const v16Tables = registrations(v16, 'const db = schema({');
   const candidateTables = registrations(candidate, 'const warpkeep = schema({');
 
   assert.equal(v12Tables.length, 53);
   assert.deepEqual(v13Tables.slice(0, 53), v12Tables);
   assert.deepEqual(candidateTables.slice(0, 54), v13Tables);
   assert.deepEqual(v13Tables.slice(53), ['accessRequestV1']);
-  assert.deepEqual(candidateTables.slice(54), ['dailyMarkGrantV1', 'dailyMarkScheduleV1']);
+  assert.deepEqual(v14Tables.slice(0, 54), v13Tables);
+  assert.deepEqual(v14Tables.slice(54), ['dailyMarkGrantV1', 'dailyMarkScheduleV1']);
+  assert.deepEqual(v15Tables.slice(0, 56), v14Tables);
+  assert.deepEqual(v15Tables.slice(56), [
+    'innerKeepLayoutV1',
+    'innerKeepSlotV1',
+    'innerKeepBuildingCatalogV1',
+    'innerKeepBuildLevelV1',
+    'castleInnerKeepBuildingV1',
+    'castleInnerBuilderV1',
+    'castleInnerBuildReceiptV1',
+    'castleInnerConstructionScheduleV1',
+  ]);
+  assert.deepEqual(v16Tables.slice(0, 64), v15Tables);
+  assert.deepEqual(v16Tables.slice(64), [
+    'realmChatStatusV1',
+    'realmChatChannelV1',
+    'realmChatMessageV1',
+    'realmChatRecentV1',
+    'realmChatRateEventV1',
+    'realmChatSendReceiptV1',
+    'realmChatReportV1',
+    'realmChatReportRateEventV1',
+  ]);
+  assert.deepEqual(candidateTables.slice(0, v16Tables.length), v16Tables);
   assert.match(v13, /const accessRequestV1 = table\(\{ name: 'access_request_v1' \}, \{/);
   assert.match(
     v13,
@@ -40,7 +70,7 @@ test('v13 remains the exact frozen v12 prefix while v14 appends daily Marks', ()
   );
 });
 
-test('general rehearsal binds v14 schema and row preservation with deletion disabled', () => {
+test('general rehearsal retains v15 schema and row preservation inside v17', () => {
   const proof = source('../../scripts/verify-spacetime-additive-migration.mjs');
   const receipt = source('../../scripts/spacetime-additive-migration-proof.mjs');
 
@@ -50,17 +80,29 @@ test('general rehearsal binds v14 schema and row preservation with deletion disa
   assert.match(proof, /spacetimedb\/migration-fixtures\/additive-v14-schema/);
   assert.match(proof, /function assertAdditiveV14Schema\(before, after\)/);
   assert.match(proof, /assertAdditiveV14Schema\(emptyV13, emptyV14\)/);
+  assert.match(proof, /spacetimedb\/migration-fixtures\/additive-v15-schema/);
+  assert.match(proof, /function assertAdditiveV15Schema\(before, after\)/);
+  assert.match(proof, /assertAdditiveV15Schema\(emptyV14, emptyV15\)/);
+  assert.match(proof, /spacetimedb\/migration-fixtures\/additive-v16-schema/);
+  assert.match(proof, /function assertAdditiveV16Schema\(before, after\)/);
+  assert.match(proof, /assertAdditiveV16Schema\(emptyV15, emptyV16\)/);
   assert.match(proof, /tableRowDigests\([\s\S]*deployedV12Tables[\s\S]*populatedWaterStoneV12Rows/);
   assert.match(proof, /'access_request_v1',[\s\S]*\),\s*0n/);
   assert.match(proof, /'--delete-data=never'/);
   assert.match(proof, /value\.startsWith\('--delete-data='/);
   assert.doesNotMatch(proof, /--delete-data=(?:always|on-conflict|if-required)/);
 
-  assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 14/);
+  assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 17/);
   assert.match(receipt, /const V13_TABLE_SCHEMA_RECEIPT_FIELD = 'v13_table_schema_sha256'/);
   assert.match(receipt, /v13TableSchemaDigest/);
   assert.match(receipt, /const V14_TABLE_SCHEMA_RECEIPT_FIELD = 'v14_table_schema_sha256'/);
   assert.match(receipt, /v14TableSchemaDigest/);
+  assert.match(receipt, /const V15_TABLE_SCHEMA_RECEIPT_FIELD = 'v15_table_schema_sha256'/);
+  assert.match(receipt, /v15TableSchemaDigest/);
+  assert.match(receipt, /const V16_TABLE_SCHEMA_RECEIPT_FIELD = 'v16_table_schema_sha256'/);
+  assert.match(receipt, /v16TableSchemaDigest/);
+  assert.match(receipt, /const V17_TABLE_SCHEMA_RECEIPT_FIELD = 'v17_table_schema_sha256'/);
+  assert.match(receipt, /v17TableSchemaDigest/);
 });
 
 test('connected rehearsal contains the bounded private request lifecycle', () => {
@@ -124,7 +166,7 @@ test('connected rehearsal contains the bounded private request lifecycle', () =>
   assert.match(proof, /final fresh founder access request/);
 
   assert.ok(invocation >= 0);
-  assert.match(finalOwnerRead, /additiveV14SchemaFixture/);
+  assert.match(finalOwnerRead, /additiveV17SchemaFixture/);
   assert.match(finalOwnerRead, /tableRowDigests\([\s\S]*deployedV12Tables/);
   assert.match(finalOwnerRead, /access_request_v1 WHERE fid = \$\{syntheticMissingAccessRequestFid\}/);
   assert.match(finalOwnerRead, /access_request_v1 WHERE fid = \$\{syntheticSecondAccessRequestFid\}/);
@@ -142,7 +184,7 @@ test('dedicated Worker v11-to-v12 proof remains a separate frozen boundary', () 
   assert.doesNotMatch(verifier, /additive-v13-schema|accessRequestV1/);
 });
 
-test('workspace metadata includes frozen v13 and current v14 fixtures', () => {
+test('workspace metadata includes frozen v13 through v16 and current v17 fixtures', () => {
   assert.match(
     source('../migration-fixtures/additive-v13-schema/package.json'),
     /warpkeep-additive-v13-schema-migration-fixture/,
@@ -158,5 +200,29 @@ test('workspace metadata includes frozen v13 and current v14 fixtures', () => {
   assert.match(
     source('../pnpm-lock.yaml'),
     /migration-fixtures\/additive-v14-schema:/,
+  );
+  assert.match(
+    source('../migration-fixtures/additive-v15-schema/package.json'),
+    /warpkeep-additive-v15-schema-migration-fixture/,
+  );
+  assert.match(
+    source('../pnpm-lock.yaml'),
+    /migration-fixtures\/additive-v15-schema:/,
+  );
+  assert.match(
+    source('../migration-fixtures/additive-v16-schema/package.json'),
+    /warpkeep-additive-v16-schema-migration-fixture/,
+  );
+  assert.match(
+    source('../pnpm-lock.yaml'),
+    /migration-fixtures\/additive-v16-schema:/,
+  );
+  assert.match(
+    source('../migration-fixtures/additive-v17-schema/package.json'),
+    /warpkeep-additive-v17-schema-migration-fixture/,
+  );
+  assert.match(
+    source('../pnpm-lock.yaml'),
+    /migration-fixtures\/additive-v17-schema:/,
   );
 });

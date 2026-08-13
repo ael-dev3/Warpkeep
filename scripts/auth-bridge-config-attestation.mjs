@@ -7,10 +7,63 @@ export const DEFAULT_FARCASTER_RPC_PRIMARY_URL = 'https://optimism.drpc.org/';
 export const DEFAULT_FARCASTER_RPC_SECONDARY_URL = 'https://optimism-rpc.publicnode.com/';
 
 const ATTESTATION_PATH = '/v1/admin/config-attestation';
+const RELEASE_ATTESTATION_PATH = '/v1/release-attestation';
 const ATTESTATION_PROFILE = 'warpkeep-auth-v2';
+const RELEASE_ATTESTATION_PROFILE = 'warpkeep-admission-notification-bridge-v1';
 const MAX_ATTESTATION_BYTES = 16 * 1024;
 const REQUEST_TIMEOUT_MILLISECONDS = 10_000;
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
+const SOURCE_COMMIT = /^[a-f0-9]{40}$/u;
+const PUBLIC_KEY_THUMBPRINT = /^[A-Za-z0-9_-]{43}$/u;
+const PRIVATE_ATTESTATION_KEYS = Object.freeze([
+  'profile',
+  'digest',
+  'farcasterRpcEndpointFingerprints',
+  'farcasterRpcEndpointRoleFingerprints',
+  'miniAppHubEndpointFingerprints',
+  'signingPublicKeyThumbprint',
+  'quickAuthIssuer',
+  'quickAuthDomain',
+  'quickAuthBrowserOrigin',
+  'quickAuthExchangePath',
+  'quickAuthVerifierPackage',
+  'quickAuthMaxTokenBytes',
+  'quickAuthMaxIssuerLifetimeSeconds',
+  'accessRequestStatusPath',
+  'accessRequestSubmitPath',
+  'accessRequestResolverTokenTtlSeconds',
+  'accessRequestResolverTimeoutMilliseconds',
+  'accessRequestStatusProcedure',
+  'accessRequestSubmitProcedure',
+  'approvalNotificationsEnabled',
+  'miniAppNotificationClientFids',
+  'miniAppWebhookPath',
+  'admissionNotificationPath',
+  'admissionNotificationRecoveryPath',
+  'admissionNotificationStatusPath',
+  'publicAuthEnabled',
+  'accessExpectedFidRequired',
+  'qaObserverEnabled',
+  'qaObserverSpacetimeDbUri',
+  'qaObserverSpacetimeDbDatabase',
+  'qaObserverAudience',
+  'qaObserverKeyFingerprint',
+  'qaObserverKeyRegisteredAt',
+  'qaObserverKeyExpiresAt',
+  'qaObserverMaxRegistrationLifetimeMilliseconds',
+]);
+export const AUTH_BRIDGE_RELEASE_ATTESTATION_KEYS = Object.freeze([
+  'schemaVersion',
+  'profile',
+  'bridgeSourceCommit',
+  'notificationDeliveryEnabled',
+  'notificationTransportConfigured',
+  'admissionNotificationStoreConfigured',
+  'notificationClientCount',
+  'notificationDeliveryContractDigest',
+  'publicAuthEnabled',
+  'accessExpectedFidRequired',
+]);
 
 function fail(message) {
   throw new Error(`Auth bridge configuration verification failed: ${message}`);
@@ -23,6 +76,36 @@ function isRecord(value) {
 function exactKeys(value, expected) {
   return isRecord(value)
     && JSON.stringify(Object.keys(value).sort()) === JSON.stringify([...expected].sort());
+}
+
+function exactOrderedKeys(value, expected) {
+  return isRecord(value)
+    && JSON.stringify(Object.keys(value)) === JSON.stringify(expected);
+}
+
+function exactBoolean(value, label) {
+  if (typeof value !== 'boolean') fail(`${label} was invalid.`);
+  return value;
+}
+
+function positiveSafeIntegerArray(value, label, maximumLength) {
+  if (
+    !Array.isArray(value)
+    || value.length > maximumLength
+    || value.some(entry => !Number.isSafeInteger(entry) || entry <= 0)
+    || value.some((entry, index) => index > 0 && value[index - 1] >= entry)
+  ) fail(`${label} was invalid.`);
+  return Object.freeze([...value]);
+}
+
+function sha256Array(value, label, expectedLength) {
+  if (
+    !Array.isArray(value)
+    || value.length !== expectedLength
+    || value.some(entry => typeof entry !== 'string' || !SHA256_HEX.test(entry))
+    || value.some((entry, index) => index > 0 && value[index - 1] >= entry)
+  ) fail(`${label} was invalid.`);
+  return Object.freeze([...value]);
 }
 
 function normalizeBridgeOrigin(value) {
@@ -84,19 +167,19 @@ function readAdminToken(value) {
   }
 }
 
-async function readBoundedJson(response) {
+async function readBoundedJson(response, label = 'private attestation', includeSource = false) {
   const advertisedLength = response.headers.get('content-length');
   if (
     advertisedLength
     && (!/^\d+$/u.test(advertisedLength) || Number(advertisedLength) > MAX_ATTESTATION_BYTES)
   ) {
-    fail('the private attestation response was too large.');
+    fail(`the ${label} response was too large.`);
   }
   const contentType = response.headers.get('content-type') ?? '';
   if (!contentType.toLowerCase().startsWith('application/json')) {
-    fail('the private attestation response was not JSON.');
+    fail(`the ${label} response was not JSON.`);
   }
-  if (!response.body) fail('the private attestation response had no body.');
+  if (!response.body) fail(`the ${label} response had no body.`);
 
   const reader = response.body.getReader();
   const chunks = [];
@@ -108,7 +191,7 @@ async function readBoundedJson(response) {
       totalBytes += value.byteLength;
       if (totalBytes > MAX_ATTESTATION_BYTES) {
         await reader.cancel();
-        fail('the private attestation response was too large.');
+        fail(`the ${label} response was too large.`);
       }
       chunks.push(value);
     }
@@ -123,9 +206,11 @@ async function readBoundedJson(response) {
     offset += chunk.byteLength;
   }
   try {
-    return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    const value = JSON.parse(source);
+    return includeSource ? Object.freeze({ value, source }) : value;
   } catch {
-    fail('the private attestation response contained invalid JSON.');
+    fail(`the ${label} response contained invalid JSON.`);
   } finally {
     bytes.fill(0);
   }
@@ -144,6 +229,118 @@ function readRoleFingerprints(value) {
   return Object.freeze({
     primary: value.primary,
     secondary: value.secondary,
+  });
+}
+
+function canonicalTimestampOrNull(value, label) {
+  if (value === null) return null;
+  if (
+    typeof value !== 'string'
+    || Number.isNaN(Date.parse(value))
+    || new Date(Date.parse(value)).toISOString() !== value
+  ) fail(`${label} was invalid.`);
+  return value;
+}
+
+function readPrivateAttestationModes(body) {
+  if (!exactKeys(body, PRIVATE_ATTESTATION_KEYS)) {
+    fail('the private attestation shape was invalid.');
+  }
+  if (
+    body.profile !== ATTESTATION_PROFILE
+    || typeof body.digest !== 'string'
+    || !SHA256_HEX.test(body.digest)
+    || typeof body.signingPublicKeyThumbprint !== 'string'
+    || !PUBLIC_KEY_THUMBPRINT.test(body.signingPublicKeyThumbprint)
+    || body.quickAuthIssuer !== 'https://auth.farcaster.xyz'
+    || body.quickAuthDomain !== 'warpkeep.com'
+    || body.quickAuthBrowserOrigin !== 'https://warpkeep.com'
+    || body.quickAuthExchangePath !== '/v2/farcaster/quick-auth/exchange'
+    || body.quickAuthVerifierPackage !== '@farcaster/quick-auth@0.0.8'
+    || body.quickAuthMaxTokenBytes !== 8 * 1024
+    || body.quickAuthMaxIssuerLifetimeSeconds !== 60 * 60
+    || body.accessRequestStatusPath !== '/v2/access/status'
+    || body.accessRequestSubmitPath !== '/v2/access/request'
+    || body.accessRequestResolverTokenTtlSeconds !== 15
+    || body.accessRequestResolverTimeoutMilliseconds !== 5_000
+    || body.accessRequestStatusProcedure !== 'access_request_get_status_v1'
+    || body.accessRequestSubmitProcedure !== 'access_request_submit_v1'
+    || body.miniAppWebhookPath !== '/v1/farcaster/miniapp/webhook'
+    || body.admissionNotificationPath !== '/v1/admin/admission-notification'
+    || body.admissionNotificationRecoveryPath
+      !== '/v1/admin/admission-notification-recovery'
+    || body.admissionNotificationStatusPath !== '/v1/admin/admission-notification-status'
+    || body.qaObserverMaxRegistrationLifetimeMilliseconds
+      !== 366 * 24 * 60 * 60 * 1_000
+  ) fail('the private attestation contract was invalid.');
+
+  const hubFingerprintCount = Array.isArray(body.miniAppHubEndpointFingerprints)
+    ? body.miniAppHubEndpointFingerprints.length
+    : -1;
+  if (hubFingerprintCount !== 0 && hubFingerprintCount !== 2) {
+    fail('the notification transport attestation was invalid.');
+  }
+  const hubFingerprints = sha256Array(
+    body.miniAppHubEndpointFingerprints,
+    'the notification Hub fingerprint set',
+    hubFingerprintCount,
+  );
+  const clientFids = positiveSafeIntegerArray(
+    body.miniAppNotificationClientFids,
+    'the notification client set',
+    8,
+  );
+  const notificationTransportConfigured = hubFingerprints.length === 2
+    && clientFids.length > 0;
+  if (
+    (hubFingerprints.length === 0) !== (clientFids.length === 0)
+    || (body.approvalNotificationsEnabled === true && !notificationTransportConfigured)
+  ) fail('the notification transport attestation was invalid.');
+
+  const publicAuthEnabled = exactBoolean(
+    body.publicAuthEnabled,
+    'the public-auth mode',
+  );
+  const accessExpectedFidRequired = exactBoolean(
+    body.accessExpectedFidRequired,
+    'the expected-FID mode',
+  );
+  const notificationDeliveryEnabled = exactBoolean(
+    body.approvalNotificationsEnabled,
+    'the notification delivery mode',
+  );
+  exactBoolean(body.qaObserverEnabled, 'the QA observer mode');
+  for (const [value, label] of [
+    [body.qaObserverSpacetimeDbUri, 'the QA observer URI'],
+    [body.qaObserverSpacetimeDbDatabase, 'the QA observer database'],
+    [body.qaObserverAudience, 'the QA observer audience'],
+  ]) {
+    if (value !== null && (typeof value !== 'string' || value.length === 0)) {
+      fail(`${label} was invalid.`);
+    }
+  }
+  if (
+    body.qaObserverKeyFingerprint !== null
+    && (
+      typeof body.qaObserverKeyFingerprint !== 'string'
+      || !PUBLIC_KEY_THUMBPRINT.test(body.qaObserverKeyFingerprint)
+    )
+  ) fail('the QA observer key fingerprint was invalid.');
+  canonicalTimestampOrNull(
+    body.qaObserverKeyRegisteredAt,
+    'the QA observer registration',
+  );
+  canonicalTimestampOrNull(
+    body.qaObserverKeyExpiresAt,
+    'the QA observer expiry',
+  );
+
+  return Object.freeze({
+    notificationDeliveryEnabled,
+    notificationTransportConfigured,
+    notificationClientCount: clientFids.length,
+    publicAuthEnabled,
+    accessExpectedFidRequired,
   });
 }
 
@@ -196,11 +393,12 @@ export async function verifyAuthBridgeRpcRoleAttestation({
       fail('the private attestation endpoint exposed browser CORS headers.');
     }
   }
+  if (response.headers.get('cache-control') !== 'no-store') {
+    fail('the private attestation endpoint was cacheable.');
+  }
 
   const body = await readBoundedJson(response);
-  if (!isRecord(body) || body.profile !== ATTESTATION_PROFILE) {
-    fail('the private attestation profile was invalid.');
-  }
+  const modes = readPrivateAttestationModes(body);
   const roles = readRoleFingerprints(body.farcasterRpcEndpointRoleFingerprints);
   const expectedRoles = Object.freeze({
     primary: farcasterRpcEndpointFingerprint(primaryUrl),
@@ -230,6 +428,155 @@ export async function verifyAuthBridgeRpcRoleAttestation({
     profile: ATTESTATION_PROFILE,
     digest: body.digest,
     farcasterRpcEndpointRoleFingerprints: roles,
+    ...modes,
+  });
+}
+
+const RELEASE_SECURITY_HEADERS = Object.freeze({
+  'content-type': 'application/json; charset=utf-8',
+  'cache-control': 'no-store',
+  'content-security-policy': "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+  'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+  'referrer-policy': 'no-referrer',
+  'strict-transport-security': 'max-age=31536000; includeSubDomains',
+  'cross-origin-opener-policy': 'same-origin',
+  'cross-origin-resource-policy': 'same-site',
+  'x-content-type-options': 'nosniff',
+  'x-frame-options': 'DENY',
+  'x-permitted-cross-domain-policies': 'none',
+});
+
+function rejectCorsOrRedirectHeaders(response, label) {
+  for (const name of [
+    'access-control-allow-origin',
+    'access-control-allow-methods',
+    'access-control-allow-headers',
+    'access-control-allow-credentials',
+    'location',
+  ]) {
+    if (response.headers.has(name)) fail(`${label} exposed a forbidden response header.`);
+  }
+}
+
+export function parseAuthBridgeReleaseAttestation(value) {
+  if (!exactOrderedKeys(value, AUTH_BRIDGE_RELEASE_ATTESTATION_KEYS)) {
+    fail('the public release attestation shape or field order was invalid.');
+  }
+  if (
+    value.schemaVersion !== 1
+    || value.profile !== RELEASE_ATTESTATION_PROFILE
+    || typeof value.bridgeSourceCommit !== 'string'
+    || !SOURCE_COMMIT.test(value.bridgeSourceCommit)
+    || value.notificationDeliveryEnabled !== true
+    || value.notificationTransportConfigured !== true
+    || value.admissionNotificationStoreConfigured !== true
+    || value.notificationClientCount !== 1
+    || typeof value.notificationDeliveryContractDigest !== 'string'
+    || !SHA256_HEX.test(value.notificationDeliveryContractDigest)
+    || typeof value.publicAuthEnabled !== 'boolean'
+    || typeof value.accessExpectedFidRequired !== 'boolean'
+  ) fail('the public release attestation contract was invalid.');
+  return Object.freeze({
+    schemaVersion: 1,
+    profile: RELEASE_ATTESTATION_PROFILE,
+    bridgeSourceCommit: value.bridgeSourceCommit,
+    notificationDeliveryEnabled: true,
+    notificationTransportConfigured: true,
+    admissionNotificationStoreConfigured: true,
+    notificationClientCount: 1,
+    notificationDeliveryContractDigest: value.notificationDeliveryContractDigest,
+    publicAuthEnabled: value.publicAuthEnabled,
+    accessExpectedFidRequired: value.accessExpectedFidRequired,
+  });
+}
+
+export async function verifyAuthBridgeReleaseAttestation({
+  bridgeUrl = DEFAULT_AUTH_BRIDGE_URL,
+  expected,
+  fetchImpl = fetch,
+} = {}) {
+  const expectedAttestation = parseAuthBridgeReleaseAttestation(expected);
+  const bridgeOrigin = normalizeBridgeOrigin(bridgeUrl);
+  if (bridgeOrigin !== new URL(DEFAULT_AUTH_BRIDGE_URL).origin) {
+    fail('public release attestation is pinned to the canonical Warpkeep bridge.');
+  }
+  let response;
+  try {
+    response = await fetchImpl(new URL(RELEASE_ATTESTATION_PATH, `${bridgeOrigin}/`), {
+      method: 'GET',
+      headers: {
+        accept: 'application/json',
+        'cache-control': 'no-store',
+      },
+      cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MILLISECONDS),
+    });
+  } catch {
+    fail('the public release attestation endpoint was unreachable.');
+  }
+  if (!response.ok || response.status !== 200) {
+    fail('the public release attestation endpoint was not prepared.');
+  }
+  rejectCorsOrRedirectHeaders(response, 'the public release attestation endpoint');
+  for (const [name, expectedValue] of Object.entries(RELEASE_SECURITY_HEADERS)) {
+    if (response.headers.get(name) !== expectedValue) {
+      fail('the public release attestation security headers were invalid.');
+    }
+  }
+  const document = await readBoundedJson(
+    response,
+    'public release attestation',
+    true,
+  );
+  const actual = parseAuthBridgeReleaseAttestation(document.value);
+  if (
+    document.source !== JSON.stringify(expectedAttestation)
+    || JSON.stringify(actual) !== JSON.stringify(expectedAttestation)
+  ) {
+    fail('the public release attestation did not match the reviewed deployment.');
+  }
+  return actual;
+}
+
+export async function verifyAuthBridgePreparedConfigAttestation({
+  bridgeUrl = DEFAULT_AUTH_BRIDGE_URL,
+  adminToken,
+  expectedPrimaryRpcUrl = DEFAULT_FARCASTER_RPC_PRIMARY_URL,
+  expectedSecondaryRpcUrl = DEFAULT_FARCASTER_RPC_SECONDARY_URL,
+  expectedReleaseAttestation,
+  fetchImpl = fetch,
+} = {}) {
+  // Parse every mandatory expectation before either credentialed or public I/O.
+  const expected = parseAuthBridgeReleaseAttestation(expectedReleaseAttestation);
+  const privateAttestation = await verifyAuthBridgeRpcRoleAttestation({
+    bridgeUrl,
+    adminToken,
+    expectedPrimaryRpcUrl,
+    expectedSecondaryRpcUrl,
+    fetchImpl,
+  });
+  if (
+    privateAttestation.notificationDeliveryEnabled
+      !== expected.notificationDeliveryEnabled
+    || privateAttestation.notificationTransportConfigured
+      !== expected.notificationTransportConfigured
+    || privateAttestation.notificationClientCount !== expected.notificationClientCount
+    || privateAttestation.publicAuthEnabled !== expected.publicAuthEnabled
+    || privateAttestation.accessExpectedFidRequired
+      !== expected.accessExpectedFidRequired
+  ) fail('the private and public bridge release modes did not match.');
+
+  const releaseAttestation = await verifyAuthBridgeReleaseAttestation({
+    bridgeUrl,
+    expected,
+    fetchImpl,
+  });
+  return Object.freeze({
+    releaseAttestation,
+    configurationDigest: privateAttestation.digest,
+    farcasterRpcEndpointRoleFingerprints:
+      privateAttestation.farcasterRpcEndpointRoleFingerprints,
   });
 }
 

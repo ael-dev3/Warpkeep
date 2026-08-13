@@ -461,6 +461,112 @@ placement, ownership, resources, rewards, pathing, or other game authority.
 Legacy Regular Tree variants have no authorized runtime collision; species
 records retain only their supplied trunk-only guidance.
 
+## Inner Keep 3D runtime selection
+
+The public Warpkeep-Assets release
+[`inner-keep-3d-asset-library-2026-08-02`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/inner-keep-3d-asset-library-2026-08-02)
+contains a 234,962,670-byte archive with SHA-256
+`f13bc9e7b8e32a6767b1959307a202d894123f384e11fd19550d75e0dfe5f6c9`.
+Ael authorized its public archival and GitHub Release distribution. The release
+does not grant one blanket open-content license, and runtime designation or
+archive presence does not itself authorize live-game integration.
+
+On 2026-08-04, Ael instructed the project to use Warpkeep-Assets 3D objects in
+the official Inner Keep and to make the Grand Covenant Cathedral its main
+building. Warpkeep records that owner-authorized exact subset as 114 GLBs and
+six PNG previews at
+selection digest
+`cf1fdac091e310cce3362d43403be938fe7946e46df906f2efb8cff601497c6d`.
+The exact content-addressed outputs are authorized for the public
+`ael-dev3/Warpkeep` repository and official `warpkeep.com` client. The retained
+authorization record includes the original main-building/anchor direction for
+the Grand Covenant Cathedral and Hegemony Shieldcourt Barracks. Later reviewed
+product direction uses those same authorized files as player-built outcomes,
+initially absent from the town, rather than as prebuilt anchors. That placement
+decision neither replaces nor broadens the recorded file-use authorization.
+
+This is exact runtime-use authorization only. The subset remains
+`LicenseRef-Warpkeep-Provenance-Required`; committing and serving these files
+does not establish ownership, relicense the source archive, grant a general
+derivative or redistribution right, authorize an unlisted or substitute file,
+grant trademark or canonical-identity rights, or approve activation, merge, or
+deployment. Mixed source terms and provenance continue to apply.
+
+Three separately authorized existing tree families may be reused under their
+existing dated record; that permission does not extend to the three newly
+selected archive tree families. The complete allowlist, 38 asset records, 114
+model hashes, six preview hashes, exclusions, audit procedure, and exact owner
+decision are in the dated
+[Inner Keep asset selection record](docs/reference/assets/2026-08-02-inner-keep-3d-library/).
+
+## Inner Keep citizens, mounts, and patrol units
+
+On 2026-08-04, Ael instructed the project to use characters, mounts, and army
+units from Warpkeep-Assets in the official Inner Keep runtime, including
+animated civic routines and patrols. The exact selection contains eight
+citizens and twelve army units. Six of the twenty characters are mounted. The
+runtime set contains one Balanced rigged GLB and one Compact static GLB per
+character, for 40 content-addressed files and selection digest
+`79237fbe85a4db7a0592eb0c27cc00f8e72e85e58be867bec4dd35992f0b87f7`.
+
+The files come from the public Warpkeep-Assets releases
+[`hegemony-citizens-keep-services-2026-08-03`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/hegemony-citizens-keep-services-2026-08-03)
+and
+[`hegemony-unit-corps-2026-08-03`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/hegemony-unit-corps-2026-08-03).
+The citizen archive has SHA-256
+`14a8bda3848ede5b398a7fc4ec10e56d98ae06584c42f4683cb2635c5bbb6aeb`.
+The Infantry, Ranged, and Cavalry archives have SHA-256
+`953fcca256324f2a73b3f13e2ca04911349a0f69934337e6ac7161041a2d4ba0`,
+`310b0feaf21f0619f1d10f154facd64f98ce3ad1658cf80bb4dd68f5847a0391`,
+and `9d411ee308abacfd7ca93b1e96594cc4f9e8af613f6d18aca3128b49dfb9a48b`.
+
+This is exact official-runtime use authorization, not a new public license.
+The files remain `LicenseRef-Warpkeep-Provenance-Required`. Their repository
+presence does not establish ownership, relicense either source release, grant
+general redistribution or derivative rights, authorize substitute files, or
+approve activation, merge, or deployment. The ambient actors are client-only
+presentation. Their routes, conversations, models, and animation clips never
+claim authority over units, movement, collision, chat, identity, resources,
+rewards, or combat.
+
+The complete actor list, archive and manifest pins, per-file hashes, LODs,
+triangle counts, clip sets, installation policy, and exact authorization are in
+the dated [Inner Keep population selection record](docs/reference/assets/2026-08-04-inner-keep-population/).
+
+## Lowlands Rabbit wildlife runtime
+
+The public Warpkeep-Assets release
+[`rabbit-runtime-ui-bundle-2026-07-30`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/rabbit-runtime-ui-bundle-2026-07-30)
+contains the Lowlands Rabbit runtime family. Its 2,717,585-byte outer ZIP has
+SHA-256
+`cf40e6c7149635a8cf6439e618e951219770491a7f364e7776b8af128461a3a9`.
+The nested privacy-sanitized source package is 2,710,713 bytes with SHA-256
+`1ab9a02a39e68a3ddadcec4ac1824aafaf252f9cb068511e6341d2377f256dc3`.
+The release records public archival distribution as authorized by Ael, with
+no separate open-license grant asserted. Its source status is
+`public-archive-authorized-no-separate-open-license`.
+
+On 2026-08-04, Ael instructed Warpkeep to use the official Lowlands Rabbit
+outside the Inner Keep so the surrounding world feels alive. That instruction
+authorizes the exact content-addressed High and Balanced GLBs under
+`public/models/hegemony/inner-keep/wildlife/rabbit/` and the shared Compact GLB
+at
+`public/models/hegemony/environment/wildlife/rabbit/hegemony-lowlands-rabbit-compact-2ecc7b1adf4c1d79.glb`
+for the public `ael-dev3/Warpkeep` repository and official `warpkeep.com`
+client. The shared path is an organizational runtime coordinate, not a broader
+license. This authorization does not relicense the source archive, authorize
+unrelated reuse or substitute files, or approve activation, merge, or
+deployment. The files remain `LicenseRef-Warpkeep-Provenance-Required`.
+
+Rabbit models and animations are optional client presentation only. They do
+not define animal population, collision, pathing, resources, rewards,
+ownership, or any other gameplay authority. High and Balanced scene quality
+use the Balanced rig by default; reduced quality and reduced motion use the
+Compact static LOD. The High rig is retained only as an explicit close-detail
+option. The complete release pins, source-member hashes, animation contract,
+three model digests, exclusions, and reproducible audit procedure are in the
+dated [Lowlands Rabbit runtime selection record](docs/reference/assets/2026-07-30-lowlands-rabbit/).
+
 ## Historical Hegemony Frontier Keep provenance
 
 The Hegemony Frontier Keep and its former runtime derivatives were project-provided media supplied for this repository. The 63 MB source remains byte-for-byte identifiable through its technical record but is not present in the current tree or a public release while redistribution authority is unresolved. The three former runtime derivatives are also retired and absent; their future license follows the source-rights determination, not the fact of conversion.

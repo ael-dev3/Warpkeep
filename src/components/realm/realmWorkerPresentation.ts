@@ -8,7 +8,7 @@ export const CASTLE_WORKER_POLICY_VERSION = 'genesis-001-castle-workers-v1';
 export const CASTLE_WORKER_REALM_ID = 'GENESIS_001';
 export type RealmWorkerOrdinal = typeof CASTLE_WORKER_ORDINALS[number];
 export type RealmWorkerStatus = 'idle' | 'outbound' | 'gathering' | 'returning';
-export type RealmWorkerSystemMode = 'staged' | 'active';
+export type RealmWorkerSystemMode = 'staged' | 'canary' | 'active' | 'halted';
 
 export type RealmWorkerSystemPresentation = Readonly<{
   realmId: string;
@@ -451,7 +451,10 @@ export function decodeWorkerRoster(value: unknown, expectedFid: bigint): WorkerR
 
 export function decodeWorkerResourceState(value: unknown, expectedFid: bigint): ReadyWorkerResourceState | undefined {
   if (!record(value) || value.fid !== expectedFid) return undefined;
-  const mode = value.workerSystemMode === 'active' || value.workerSystemMode === 'staged'
+  const mode = value.workerSystemMode === 'active'
+    || value.workerSystemMode === 'staged'
+    || value.workerSystemMode === 'canary'
+    || value.workerSystemMode === 'halted'
     ? value.workerSystemMode : undefined;
   const available = {} as Record<RealmEconomicResourceKey, bigint>;
   const pending = {} as Record<RealmEconomicResourceKey, bigint>;

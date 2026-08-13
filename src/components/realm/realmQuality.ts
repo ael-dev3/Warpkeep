@@ -4,6 +4,72 @@ import type { RealmGrassRenderPlan } from './realmGrassActiveWindow';
 
 export type RealmQuality = 'high' | 'balanced' | 'reduced';
 
+export type RealmLivingRealmBudget = Readonly<{
+  grassDisturbanceSlots: 0 | 4 | 8;
+  waterRippleSlots: 0 | 2 | 4;
+  forestGustEnabled: boolean;
+  birdInstances: 0 | 6 | 12;
+  rabbitInstances: 0 | 6 | 10;
+  moteCount: 0 | 18 | 36;
+  transientParticleCount: 0 | 48 | 96;
+  plannerHz: 0 | 7 | 10;
+  addedDrawCalls: 0 | 3;
+  addedTriangles: 0 | 888 | 1484;
+}>;
+
+/**
+ * Hard, reviewable ceilings for optional presentation-only ecology. These
+ * limits are independent of world cardinality and resolve to zero before any
+ * moving ambience is allocated for Reduced quality or reduced motion.
+ */
+export const REALM_LIVING_REALM_BUDGETS = Object.freeze({
+  high: Object.freeze({
+    grassDisturbanceSlots: 8,
+    waterRippleSlots: 4,
+    forestGustEnabled: true,
+    birdInstances: 12,
+    rabbitInstances: 10,
+    moteCount: 36,
+    transientParticleCount: 96,
+    plannerHz: 10,
+    addedDrawCalls: 3,
+    addedTriangles: 1484
+  }),
+  balanced: Object.freeze({
+    grassDisturbanceSlots: 4,
+    waterRippleSlots: 2,
+    forestGustEnabled: true,
+    birdInstances: 6,
+    rabbitInstances: 6,
+    moteCount: 18,
+    transientParticleCount: 48,
+    plannerHz: 7,
+    addedDrawCalls: 3,
+    addedTriangles: 888
+  }),
+  reduced: Object.freeze({
+    grassDisturbanceSlots: 0,
+    waterRippleSlots: 0,
+    forestGustEnabled: false,
+    birdInstances: 0,
+    rabbitInstances: 0,
+    moteCount: 0,
+    transientParticleCount: 0,
+    plannerHz: 0,
+    addedDrawCalls: 0,
+    addedTriangles: 0
+  })
+} satisfies Readonly<Record<RealmQuality, RealmLivingRealmBudget>>);
+
+export function resolveRealmLivingRealmBudget(
+  quality: RealmQuality,
+  reducedMotion: boolean
+): RealmLivingRealmBudget {
+  return reducedMotion
+    ? REALM_LIVING_REALM_BUDGETS.reduced
+    : REALM_LIVING_REALM_BUDGETS[quality];
+}
+
 export type RealmLightingSpec = Readonly<{
   toneMappingExposure: number;
   sunIntensity: number;
@@ -192,8 +258,18 @@ export const REALM_GRASS_RENDER_PLANS: Readonly<Record<RealmQuality, RealmGrassR
     high: Object.freeze({
       enabled: true,
       geometryProfile: 'high',
+      nearRadius: 7,
+      lodTransitionCells: 4,
+      midDensityMultiplier: 0.52,
+      maximumNearInstances: 4_800,
+      maximumMidInstances: 2_200,
+      maximumNearTriangles: 172_800,
+      maximumMidTriangles: 11_000,
+      maximumNearDrawCalls: 3,
+      maximumMidDrawCalls: 3,
       maximumActiveInstances: 7_000,
-      maximumActiveTriangles: 189_000,
+      maximumActiveTriangles: 252_000,
+      maximumActiveDrawCalls: 6,
       activeRadius: 12,
       hysteresisRadius: 2,
       edgeFadeCells: 2,
@@ -206,22 +282,42 @@ export const REALM_GRASS_RENDER_PLANS: Readonly<Record<RealmQuality, RealmGrassR
     balanced: Object.freeze({
       enabled: true,
       geometryProfile: 'balanced',
+      nearRadius: 5,
+      lodTransitionCells: 4,
+      midDensityMultiplier: 0.48,
+      maximumNearInstances: 2_700,
+      maximumMidInstances: 1_300,
+      maximumNearTriangles: 72_900,
+      maximumMidTriangles: 5_200,
+      maximumNearDrawCalls: 2,
+      maximumMidDrawCalls: 2,
       maximumActiveInstances: 4_000,
-      maximumActiveTriangles: 84_000,
+      maximumActiveTriangles: 108_000,
+      maximumActiveDrawCalls: 4,
       activeRadius: 9,
       hysteresisRadius: 2,
       edgeFadeCells: 2,
       animationFrameCap: 16,
       cacheLimit: 1_024,
-      densityMultiplier: 0.62,
+      densityMultiplier: 0.72,
       windStrengthMultiplier: 0.78,
       overviewSuppressed: true
     }),
     reduced: Object.freeze({
       enabled: true,
       geometryProfile: 'reduced',
+      nearRadius: 3,
+      lodTransitionCells: 2,
+      midDensityMultiplier: 0.4,
+      maximumNearInstances: 800,
+      maximumMidInstances: 400,
+      maximumNearTriangles: 12_000,
+      maximumMidTriangles: 1_200,
+      maximumNearDrawCalls: 1,
+      maximumMidDrawCalls: 1,
       maximumActiveInstances: 1_200,
       maximumActiveTriangles: 18_000,
+      maximumActiveDrawCalls: 2,
       activeRadius: 6,
       hysteresisRadius: 1,
       edgeFadeCells: 1.5,

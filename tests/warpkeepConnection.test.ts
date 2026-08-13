@@ -23,9 +23,13 @@ import {
   dispatchWarpkeepStoneExpedition,
   dispatchWarpkeepWoodExpedition,
   observeWarpkeepRealm,
+  observeWarpkeepRealmChat,
+  readWarpkeepRealmChatRecent,
+  reportWarpkeepRealmChatMessage,
   readWarpkeepBackendInfo,
   readWarpkeepAdmissionStatus,
   readWarpkeepEntryAgreementStatus,
+  readWarpkeepLegacyRealmAuthorityStatus,
   readWarpkeepGoldExpeditionState,
   readWarpkeepStoneExpeditionState,
   readWarpkeepWoodExpeditionState,
@@ -33,6 +37,7 @@ import {
   readWarpkeepWorkerControlState,
   returnWarpkeepLegacyExpedition,
   readWarpkeepRealmSnapshot,
+  WarpkeepLegacyRealmRetiredError,
   subscribeToWarpkeepRealm,
   WARPKEEP_ALPHA_TERMS_VERSION as BROWSER_ALPHA_TERMS_VERSION,
   type WarpkeepConnection
@@ -386,6 +391,18 @@ function observableConnectionForCandidate(candidate: WarpkeepRealmSnapshotCandid
   };
 }
 
+function observableRealmChatConnection() {
+  const status = observableTableDouble([]);
+  return {
+    connection: {
+      db: {
+        realmChatStatusV1: status.table
+      }
+    } as unknown as WarpkeepConnection,
+    status
+  };
+}
+
 function builderDouble() {
   const builder = {
     withUri: vi.fn(),
@@ -647,6 +664,29 @@ describe('Warpkeep authenticated connection boundary', () => {
     composite.unsubscribe();
     expect(coreSubscription.unsubscribe).toHaveBeenCalledTimes(1);
     expect(woodSubscription.unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('distinguishes an exact retired legacy singleton from malformed authority', () => {
+    const canonical = createCanonicalGenesisCandidate();
+    const retired = connectionForCandidate({
+      ...canonical,
+      activeRealms: canonical.activeRealms.map((realm) => ({ ...realm, active: false }))
+    });
+    expect(readWarpkeepLegacyRealmAuthorityStatus(retired)).toBe('retired');
+    expect(() => readWarpkeepRealmSnapshot(retired, CANONICAL_TEST_FID))
+      .toThrow(WarpkeepLegacyRealmRetiredError);
+
+    const malformed = connectionForCandidate({
+      ...canonical,
+      activeRealms: canonical.activeRealms.map((realm) => ({
+        ...realm,
+        publicName: 'Altered Realm',
+        active: false
+      }))
+    });
+    expect(readWarpkeepLegacyRealmAuthorityStatus(malformed)).toBe('invalid');
+    expect(() => readWarpkeepRealmSnapshot(malformed, CANONICAL_TEST_FID))
+      .not.toThrow(WarpkeepLegacyRealmRetiredError);
   });
 
   it('reveals Stone only after its paired public subscription applies and releases both handles', () => {
@@ -1214,6 +1254,10 @@ describe('Warpkeep authenticated connection boundary', () => {
     },
     {
       requiredVersion: '2026-07-19-hegemony-entry-agreement-v2',
+      acceptedCurrent: true
+    },
+    {
+      requiredVersion: '2026-07-19-hegemony-entry-agreement-v3',
       acceptedCurrent: true
     }
   ])('rejects malformed or mismatched entry-agreement status %#', async raw => {
@@ -1885,6 +1929,39 @@ describe('Warpkeep authenticated connection boundary', () => {
     }
   });
 
+  it('retires only world snapshots while shared projection listeners stay active', () => {
+    const observed = observableConnectionForCandidate(createCanonicalGenesisCandidate());
+    const onChange = vi.fn();
+    const onError = vi.fn();
+    const onRetiredProjectionChange = vi.fn();
+    const cleanupObserver = observeWarpkeepRealm(
+      observed.connection,
+      CANONICAL_TEST_FID,
+      onChange,
+      onError,
+      undefined,
+      onRetiredProjectionChange
+    );
+    const context = (id: string) => ({
+      event: { id, tag: 'Transaction' }
+    }) as unknown as EventContext;
+
+    observed.realmV1.values[0]!.active = false;
+    observed.realmV1.listeners.update?.(context('legacy-retired'));
+    expect(onError).toHaveBeenCalledWith('legacy-retired');
+    expect(onChange).not.toHaveBeenCalled();
+
+    observed.realmProfileV1.listeners.update?.(context('marks-updated'));
+    observed.castle.listeners.update?.(context('castle-updated'));
+    expect(onRetiredProjectionChange).toHaveBeenCalledTimes(2);
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onChange).not.toHaveBeenCalled();
+
+    cleanupObserver();
+    observed.realmProfileV1.listeners.update?.(context('after-cleanup'));
+    expect(onRetiredProjectionChange).toHaveBeenCalledTimes(2);
+  });
+
   it('rolls back every earlier listener when observer registration throws', () => {
     const observed = observableConnectionForCandidate(createCanonicalGenesisCandidate());
     observed.worldTileMetaV1.table.onInsert.mockImplementationOnce((listener) => {
@@ -1929,6 +2006,114 @@ describe('Warpkeep authenticated connection boundary', () => {
     expect(observed.worldTile.table.removeOnInsert).toHaveBeenCalledOnce();
     expect(observed.worldTile.table.removeOnDelete).toHaveBeenCalledOnce();
     expect(observed.worldTile.table.removeOnUpdate).toHaveBeenCalledOnce();
+  });
+
+  it('releases every Chat listener after a projection callback fails', () => {
+    const observed = observableRealmChatConnection();
+    const onError = vi.fn();
+    const cleanupObserver = observeWarpkeepRealmChat(
+      observed.connection,
+      () => { throw new Error('synthetic Chat presentation failure'); },
+      onError
+    );
+
+    observed.status.listeners.insert?.({
+      event: { id: 'chat-transaction-invalid', tag: 'Transaction' }
+    } as unknown as EventContext);
+    expect(onError).toHaveBeenCalledOnce();
+
+    cleanupObserver();
+    cleanupObserver();
+    expect(observed.status.table.removeOnInsert).toHaveBeenCalledOnce();
+    expect(observed.status.table.removeOnDelete).toHaveBeenCalledOnce();
+    expect(observed.status.table.removeOnUpdate).toHaveBeenCalledOnce();
+  });
+
+  it('rolls back partial Chat listener registration before exposing cleanup', () => {
+    const observed = observableRealmChatConnection();
+    observed.status.table.onDelete.mockImplementationOnce((listener) => {
+      observed.status.listeners.delete = listener;
+      throw new Error('synthetic Chat observer registration failure');
+    });
+    observed.status.table.removeOnDelete.mockImplementationOnce((listener) => {
+      if (observed.status.listeners.delete === listener) {
+        observed.status.listeners.delete = undefined;
+      }
+    });
+
+    expect(() => observeWarpkeepRealmChat(
+      observed.connection,
+      vi.fn(),
+      vi.fn()
+    )).toThrow('synthetic Chat observer registration failure');
+    expect(observed.status.table.removeOnInsert).toHaveBeenCalledOnce();
+    expect(observed.status.table.removeOnDelete).toHaveBeenCalledOnce();
+    expect(observed.status.listeners.delete).toBeUndefined();
+    expect(observed.status.table.onUpdate).not.toHaveBeenCalled();
+  });
+
+  it('accepts only monotonic bounded recent pages from the caller-gated procedure', async () => {
+    const page = {
+      channelKey: 'realm:genesis-001',
+      policyVersion: '2026-08-03-realm-chat-policy-v1',
+      messages: [{
+        messageId: '018f7b44-5f2f-7c54-8c0d-000000000006',
+        sequence: 6n,
+        senderFid: 2n,
+        body: 'fresh',
+        sentAtMicros: 1_000_006n,
+        visibility: 'visible'
+      }],
+      nextAfterSequence: 6n,
+      hasMore: false
+    };
+    const getRealmChatRecentV1 = vi.fn(async () => page);
+    const connection = {
+      procedures: { getRealmChatRecentV1 }
+    } as unknown as WarpkeepConnection;
+
+    await expect(readWarpkeepRealmChatRecent(connection, 5n, 128)).resolves.toMatchObject({
+      nextAfterSequence: 6n
+    });
+    expect(getRealmChatRecentV1).toHaveBeenCalledWith({ afterSequence: 5n, limit: 128 });
+
+    getRealmChatRecentV1.mockResolvedValueOnce({
+      ...page,
+      messages: [],
+      nextAfterSequence: 99n
+    });
+    await expect(readWarpkeepRealmChatRecent(connection, 6n, 128))
+      .rejects.toThrow(/recent messages are unavailable/i);
+  });
+
+  it('enforces the report-details scalar and UTF-8 bounds before the reducer', async () => {
+    const reportRealmChatMessageV1 = vi.fn(async () => undefined);
+    const connection = {
+      reducers: { reportRealmChatMessageV1 }
+    } as unknown as WarpkeepConnection;
+    const messageId = '018f7b44-5f2f-7c54-8c0d-000000000006';
+
+    await expect(reportWarpkeepRealmChatMessage(
+      connection,
+      messageId,
+      'other',
+      `${'€'.repeat(170)}ab`
+    )).resolves.toBeUndefined();
+    expect(reportRealmChatMessageV1).toHaveBeenCalledOnce();
+
+    await expect(reportWarpkeepRealmChatMessage(
+      connection,
+      messageId,
+      'other',
+      'x'.repeat(251)
+    )).rejects.toThrow(/command is unavailable/i);
+    await expect(reportWarpkeepRealmChatMessage(
+      connection,
+      messageId,
+      'other',
+      '€'.repeat(171)
+    )).rejects.toThrow(/command is unavailable/i);
+    expect(reportRealmChatMessageV1).toHaveBeenCalledOnce();
   });
 
   it('observes and releases both public forest tables with the Realm lifecycle', () => {

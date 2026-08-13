@@ -26,11 +26,14 @@ import type { RealmSouthernDesertField } from '../src/game/map/realmSouthernDese
 describe('local procedural forest fallback', () => {
   it('builds a grounded trunk and asymmetric multi-canopy silhouette', () => {
     const fallback = createRealmProceduralForestFallbackGeometry(
-      HEGEMONY_TREE_TARGET_VISUAL_HEIGHT
+      HEGEMONY_TREE_TARGET_VISUAL_HEIGHT,
+      true
     );
     const position = fallback.geometry.getAttribute('position');
     const color = fallback.geometry.getAttribute('color');
     const normal = fallback.geometry.getAttribute('normal');
+    const windWeight = fallback.geometry.getAttribute('realmForestWindWeight');
+    const windPhase = fallback.geometry.getAttribute('realmForestWindPhase');
     const index = fallback.geometry.getIndex();
     const bounds = fallback.geometry.boundingBox!;
 
@@ -41,6 +44,14 @@ describe('local procedural forest fallback', () => {
     expect(position.count).toBeGreaterThan(40);
     expect(color.count).toBe(position.count);
     expect(normal.count).toBe(position.count);
+    expect(windWeight.count).toBe(position.count);
+    expect(windPhase.count).toBe(position.count);
+    expect(windWeight.array).toBeInstanceOf(Uint8Array);
+    expect(windPhase.array).toBeInstanceOf(Uint8Array);
+    expect(windWeight.normalized).toBe(true);
+    expect(windPhase.normalized).toBe(true);
+    expect(Array.from(windWeight.array).some((value) => value === 0)).toBe(true);
+    expect(Array.from(windWeight.array).some((value) => value > 0)).toBe(true);
     expect(index?.array).toBeInstanceOf(Uint16Array);
     expect(bounds.min.y).toBeCloseTo(0, 6);
     expect(bounds.max.y).toBeCloseTo(HEGEMONY_TREE_TARGET_VISUAL_HEIGHT, 5);
@@ -53,6 +64,8 @@ describe('local procedural forest fallback', () => {
     const fallback = createRealmProceduralForestFallbackGeometry(
       HEGEMONY_TREE_TARGET_VISUAL_HEIGHT
     );
+    expect(fallback.geometry.getAttribute('realmForestWindWeight')).toBeUndefined();
+    expect(fallback.geometry.getAttribute('realmForestWindPhase')).toBeUndefined();
     Object.values(REALM_DECORATIVE_FOREST_RENDER_BUDGETS).forEach((budget) => {
       expect(fallback.triangleCount * budget.instances)
         .toBeLessThanOrEqual(budget.triangles);
@@ -66,11 +79,17 @@ describe('local procedural forest fallback', () => {
       realmForestFallbackInstanceColor('forest'),
       realmForestFallbackInstanceColor('fringe')
     ]).size).toBe(3);
-    expect(new Set([
+    const modelTints = [
       realmForestModelInstanceTint('grove'),
       realmForestModelInstanceTint('forest'),
       realmForestModelInstanceTint('fringe')
-    ]).size).toBe(3);
+    ];
+    expect(new Set(modelTints).size).toBe(3);
+    modelTints.forEach((tint) => {
+      const color = new THREE.Color(tint);
+      expect(color.g).toBeGreaterThan(color.r);
+      expect(color.g).toBeGreaterThan(color.b);
+    });
     const material = createRealmProceduralForestFallbackMaterial();
     expect(material.vertexColors).toBe(true);
     expect(material.roughness).toBeGreaterThanOrEqual(0.9);

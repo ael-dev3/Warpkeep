@@ -9,18 +9,71 @@ on:
 permissions:
   contents: read
 
+# These reviewed bytes are the authority bootstrap for both repository-
+# exclusive jobs. The source-closure manifest canonicalizes only these exact
+# values, so changing any protected executable requires an explicit refreeze.
+env:
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: '81f03855f02369bf78b99838942df7ba0268dfe16a954313ce83996f404a9b04'
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: 'a81df793b5140d9408a66fa9a32dd96d3d7253035636ae9e6f3d53585fbbe568'
+  WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256: '28b262795718a55c3651cab076fb03cddecb82521dc987b3fe7ba26df3635907'
+  WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256: '745188c6fae1c54b56e809916be9b50393c68d59c4f62742f55e67f4ca0550dd'
+  WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256: 'ac18ecc2371d8bfff17ea8abec9d989085c4992d2ebeb70e7c9947bfac62837e'
+
 concurrency:
+  # This workflow-scoped lock is retained through build, deployment, and the
+  # matching live postflight. A newer verified-main run may replace another
+  # pending run, but it must not cancel the run that owns this critical section.
   group: pages-main
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
-  build:
+  classify:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      deployment-lane: ${{ steps.release-source.outputs.deployment-lane }}
+    steps:
+      - name: Checkout exact verified source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Classify exact checked-in Pages release source
+        id: release-source
+        env:
+          WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          GITHUB_OUTPUT_FD=9 \
+            node scripts/notification-pages-deploy-lane.mjs \
+            9>>"$GITHUB_OUTPUT"
+
+  build:
+    needs: classify
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      (needs.classify.outputs.deployment-lane == 'closed-review' ||
+       needs.classify.outputs.deployment-lane == 'gen0' ||
+       needs.classify.outputs.deployment-lane == 'durable')
+    runs-on: ubuntu-latest
+    # Match Verify's bounded allowance for the complete root security suite.
+    timeout-minutes: 45
     permissions:
       contents: read
       pages: read
@@ -31,8 +84,8 @@ jobs:
       VITE_WARPKEEP_REPOSITORY_URL: https://github.com/ael-dev3/Warpkeep
       VITE_WARPKEEP_CANONICAL_ORIGIN: https://warpkeep.com
       VITE_WARPKEEP_SHARED_ALPHA_ENABLED: ${{ vars.WARPKEEP_SHARED_ALPHA_ENABLED }}
-      # Presentation remains off until a genuine signed add/disable canary is reviewed.
-      VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: ${{ vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED || 'false' }}
+      # Presentation remains immutable-off until a separately reviewed release.
+      VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'false'
       VITE_WARPKEEP_AUTH_BRIDGE_URL: ${{ vars.WARPKEEP_AUTH_BRIDGE_URL || '' }}
       VITE_WARPKEEP_OIDC_ISSUER: ${{ vars.WARPKEEP_OIDC_ISSUER || '' }}
       VITE_WARPKEEP_OIDC_AUDIENCE: ${{ vars.WARPKEEP_OIDC_AUDIENCE || 'warpkeep-spacetimedb' }}
@@ -72,19 +125,105 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 22.22.3
           cache: npm
+
+      - name: Setup pinned pnpm for bridge runtime-contract tests
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.7.0
+          run_install: false
+
+      - name: Stage Node in a runner-private toolchain path
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_command="$(command -v node)"
+          if [[ -L "$source_command" ]]; then
+            echo 'setup-node resolved through a symbolic link.' >&2
+            exit 1
+          fi
+          source_node="$(realpath -- "$source_command")"
+          case "$source_node" in
+            "$RUNNER_TOOL_CACHE"/*) ;;
+            *)
+              echo 'setup-node resolved outside the hosted tool cache.' >&2
+              exit 1
+              ;;
+          esac
+          if [[ ! -f "$source_node" || ! -x "$source_node" ]]; then
+            echo 'setup-node did not resolve to a regular executable.' >&2
+            exit 1
+          fi
+
+          private_root="$(mktemp -d "$RUNNER_TEMP/warpkeep-node.XXXXXX")"
+          chmod 0700 "$private_root"
+          private_bin="$private_root/bin"
+          install -d -m 0700 "$private_bin"
+          if [[ "$RUNNER_OS" == 'Linux' ]]; then
+            source_sha_before="$(sha256sum "$source_node" | cut -d ' ' -f 1)"
+          elif [[ "$RUNNER_OS" == 'macOS' ]]; then
+            source_sha_before="$(shasum -a 256 "$source_node" | cut -d ' ' -f 1)"
+          else
+            echo 'Unsupported Pages build runner OS.' >&2
+            exit 1
+          fi
+          install -m 0700 "$source_node" "$private_bin/node"
+          if [[ "$RUNNER_OS" == 'Linux' ]]; then
+            source_sha_after="$(sha256sum "$source_node" | cut -d ' ' -f 1)"
+            staged_sha="$(sha256sum "$private_bin/node" | cut -d ' ' -f 1)"
+          else
+            source_sha_after="$(shasum -a 256 "$source_node" | cut -d ' ' -f 1)"
+            staged_sha="$(shasum -a 256 "$private_bin/node" | cut -d ' ' -f 1)"
+          fi
+          if [[ "$source_sha_before" != "$source_sha_after" || "$source_sha_before" != "$staged_sha" ]]; then
+            echo 'The staged Node executable failed its integrity check.' >&2
+            exit 1
+          fi
+          echo "$private_bin" >> "$GITHUB_PATH"
+          echo "WARPKEEP_PRIVATE_NODE=$private_bin/node" >> "$GITHUB_ENV"
+          echo "WARPKEEP_PRIVATE_NODE_SHA256=$staged_sha" >> "$GITHUB_ENV"
 
       - name: Install
         run: npm ci
 
+      - name: Install exact bridge runtime-test toolchain
+        run: pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
+
+      - name: Re-attest runner-private Node after dependency install
+        shell: bash
+        run: |
+          set -euo pipefail
+          resolved_node="$(realpath -- "$(command -v node)")"
+          if [[ "$RUNNER_OS" == 'Linux' ]]; then
+            node_mode="$(stat -c '%a' "$WARPKEEP_PRIVATE_NODE")"
+          else
+            node_mode="$(stat -f '%Lp' "$WARPKEEP_PRIVATE_NODE")"
+          fi
+          if [[ "$resolved_node" != "$WARPKEEP_PRIVATE_NODE" \
+            || ! -f "$WARPKEEP_PRIVATE_NODE" \
+            || ! -x "$WARPKEEP_PRIVATE_NODE" \
+            || -L "$WARPKEEP_PRIVATE_NODE" \
+            || $((8#$node_mode & 0022)) -ne 0 ]]; then
+            echo 'The runner-private Node executable lost its trusted file state.' >&2
+            exit 1
+          fi
+          if [[ "$RUNNER_OS" == 'Linux' ]]; then
+            echo "$WARPKEEP_PRIVATE_NODE_SHA256  $WARPKEEP_PRIVATE_NODE" \
+              | sha256sum --check --strict -
+          else
+            actual_sha="$(shasum -a 256 "$WARPKEEP_PRIVATE_NODE" | cut -d ' ' -f 1)"
+            [[ "$actual_sha" == "$WARPKEEP_PRIVATE_NODE_SHA256" ]]
+          fi
+
       - name: Test
-        run: npm test
+        run: npm test -- --maxWorkers=2
 
       - name: Typecheck
         run: npm run typecheck
@@ -99,8 +238,8 @@ jobs:
           npm audit
           npm audit signatures
 
-      - name: Validate public deployment configuration
-        run: npm run validate:pages-config
+      - name: Validate the exact source-selected Pages build release
+        run: npm run validate:pages-release-build
 
       - name: Build
         run: npm run build
@@ -122,9 +261,12 @@ jobs:
           include-hidden-files: true
 
   deploy:
-    needs: build
+    needs: [classify, build]
+    if: ${{ needs.classify.outputs.deployment-lane == 'closed-review' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      deployment-attempted: ${{ steps.deployment-attempt.outputs.attempted }}
     permissions:
       contents: read
       pages: write
@@ -148,12 +290,79 @@ jobs:
             exit 1
           fi
 
+      - name: Checkout exact deployment source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node for the deployment-boundary verifier
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Stage deployment-boundary Node in a runner-private path
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_command="$(command -v node)"
+          if [[ -L "$source_command" ]]; then
+            echo 'setup-node resolved through a symbolic link.' >&2
+            exit 1
+          fi
+          source_node="$(realpath -- "$source_command")"
+          case "$source_node" in
+            "$RUNNER_TOOL_CACHE"/*) ;;
+            *)
+              echo 'setup-node resolved outside the hosted tool cache.' >&2
+              exit 1
+              ;;
+          esac
+          if [[ ! -f "$source_node" || ! -x "$source_node" ]]; then
+            echo 'setup-node did not resolve to a regular executable.' >&2
+            exit 1
+          fi
+          private_root="$(mktemp -d "$RUNNER_TEMP/warpkeep-deploy-node.XXXXXX")"
+          chmod 0700 "$private_root"
+          source_sha_before="$(sha256sum "$source_node" | cut -d ' ' -f 1)"
+          install -m 0700 "$source_node" "$private_root/node"
+          source_sha_after="$(sha256sum "$source_node" | cut -d ' ' -f 1)"
+          staged_sha="$(sha256sum "$private_root/node" | cut -d ' ' -f 1)"
+          if [[ "$source_sha_before" != "$source_sha_after" || "$source_sha_before" != "$staged_sha" ]]; then
+            echo 'The deployment-boundary Node copy failed its integrity check.' >&2
+            exit 1
+          fi
+          echo "WARPKEEP_DEPLOY_PRIVATE_NODE=$private_root/node" >> "$GITHUB_ENV"
+          echo "WARPKEEP_DEPLOY_PRIVATE_NODE_SHA256=$staged_sha" >> "$GITHUB_ENV"
+
+      - name: Re-attest release authority immediately before deployment
+        id: deployment-attempt
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WARPKEEP_VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          current_main="$(
+            gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha'
+          )"
+          if [[ ! "$current_main" =~ ^[0-9a-f]{40}$ ]] || [[ "$current_main" != "$WARPKEEP_VERIFIED_SHA" ]]; then
+            echo 'Deployment source is no longer the current protected main commit.' >&2
+            exit 1
+          fi
+          echo "$WARPKEEP_DEPLOY_PRIVATE_NODE_SHA256  $WARPKEEP_DEPLOY_PRIVATE_NODE" \
+            | sha256sum --check --strict -
+          "$WARPKEEP_DEPLOY_PRIVATE_NODE" scripts/verify-greater-realm-release-gates.mjs
+          echo 'attempted=true' >> "$GITHUB_OUTPUT"
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
 
   verify-live:
     needs: deploy
+    if: ${{ always() && needs.deploy.outputs.deployment-attempted == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -166,12 +375,16 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
+
+      - name: Re-verify Greater Realm release gates and notification authority
+        run: npm run verify:greater-realm-release-gates
 
       - name: Verify exact live release
         shell: bash
@@ -198,3 +411,489 @@ jobs:
             sleep "$sleep_seconds"
             attempt=$((attempt + 1))
           done
+
+  private-toolchain:
+    needs: classify
+    if: >-
+      needs.classify.outputs.deployment-lane == 'gen0' ||
+      needs.classify.outputs.deployment-lane == 'durable'
+    runs-on:
+      - self-hosted
+      - macOS
+      - ARM64
+      - warpkeep-production-admin
+      - warpkeep-repository-exclusive
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      runner-identity-digest: ${{ steps.private-toolchain-authority.outputs.runner-identity-digest }}
+    steps:
+      - name: Checkout exact source and remove prior untracked toolchain state
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          clean: true
+
+      - name: Verify exact protected private deployment bootstrap
+        shell: bash
+        env:
+          WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          git_safe=(/usr/bin/git -c core.fsmonitor=false -c core.untrackedCache=false)
+          actual_commit="$("${git_safe[@]}" rev-parse --verify HEAD^{commit})"
+          origin_url="$("${git_safe[@]}" remote get-url origin)"
+          checkout_status="$("${git_safe[@]}" status --porcelain=v1 --untracked-files=all)"
+          if [[ "$actual_commit" != "$WARPKEEP_PAGES_SOURCE_COMMIT" \
+            || "$origin_url" != 'https://github.com/ael-dev3/Warpkeep' \
+            || -n "$checkout_status" ]]; then
+            echo 'The private Pages bootstrap checkout was not exact.' >&2
+            exit 1
+          fi
+          if "${git_safe[@]}" symbolic-ref -q HEAD >/dev/null; then
+            echo 'The private Pages bootstrap checkout was not detached.' >&2
+            exit 1
+          fi
+          while IFS= read -r tracked_entry; do
+            if [[ "$tracked_entry" != 'H '* ]]; then
+              echo 'NOTIFICATION_PAGES_PRIVATE_HIDDEN_INDEX_STATE_INVALID' >&2
+              exit 1
+            fi
+          done <<< "$("${git_safe[@]}" ls-files -v)"
+          "${git_safe[@]}" diff-index --quiet --cached HEAD --
+          "${git_safe[@]}" diff-files --quiet --
+          "${git_safe[@]}" diff --no-ext-diff --no-textconv --exit-code HEAD --
+          verify_bootstrap_digest() {
+            local expected="$1"
+            local path="$2"
+            local output
+            local actual
+            if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
+              echo 'NOTIFICATION_PAGES_PRIVATE_BOOTSTRAP_DIGEST_INVALID' >&2
+              exit 1
+            fi
+            output="$(/usr/bin/shasum -a 256 -- "$path")"
+            actual="${output%% *}"
+            if [[ "$actual" != "$expected" ]]; then
+              echo 'NOTIFICATION_PAGES_PRIVATE_BOOTSTRAP_DIGEST_MISMATCH' >&2
+              exit 1
+            fi
+          }
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256" \
+            scripts/auth-bridge-notification-prepared-deploy-closure.mjs
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256" \
+            scripts/auth-bridge-notification-prepared-deploy-closure-v1.json
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256" \
+            scripts/auth-bridge-notification-prepared-installed-toolchain.mjs
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256" \
+            scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json
+          verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256" \
+            scripts/notification-pages-private-deploy-launcher.mjs
+
+      - name: Setup exact pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.7.0
+          run_install: false
+
+      - name: Setup exact Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.22.3
+          cache: pnpm
+          cache-dependency-path: services/auth-bridge/pnpm-lock.yaml
+
+      - name: Install the exact inert auth bridge resolver tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(node --version)" == 'v22.22.3' ]]
+          [[ "$(pnpm --version)" == '11.7.0' ]]
+          pnpm --dir services/auth-bridge install \
+            --offline \
+            --frozen-lockfile \
+            --ignore-scripts \
+            --package-import-method=copy
+
+      - name: Attest exact source and the complete installed resolver tree
+        id: private-toolchain-authority
+        shell: bash
+        env:
+          WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          git_safe=(/usr/bin/git -c core.fsmonitor=false -c core.untrackedCache=false)
+          actual_commit="$("${git_safe[@]}" rev-parse --verify HEAD^{commit})"
+          if [[ "$actual_commit" != "$WARPKEEP_PAGES_SOURCE_COMMIT" \
+            || -n "$("${git_safe[@]}" status --porcelain=v1 --untracked-files=all)" ]]; then
+            echo 'Private Pages toolchain source changed during installation.' >&2
+            exit 1
+          fi
+          while IFS= read -r tracked_entry; do
+            if [[ "$tracked_entry" != 'H '* ]]; then
+              echo 'NOTIFICATION_PAGES_PRIVATE_HIDDEN_INDEX_STATE_INVALID' >&2
+              exit 1
+            fi
+          done <<< "$("${git_safe[@]}" ls-files -v)"
+          "${git_safe[@]}" diff-index --quiet --cached HEAD --
+          "${git_safe[@]}" diff-files --quiet --
+          "${git_safe[@]}" diff --no-ext-diff --no-textconv --exit-code HEAD --
+          verify_bootstrap_digest() {
+            local expected="$1"
+            local path="$2"
+            local output
+            local actual
+            if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
+              echo 'NOTIFICATION_PAGES_PRIVATE_BOOTSTRAP_DIGEST_INVALID' >&2
+              exit 1
+            fi
+            output="$(/usr/bin/shasum -a 256 -- "$path")"
+            actual="${output%% *}"
+            if [[ "$actual" != "$expected" ]]; then
+              echo 'NOTIFICATION_PAGES_PRIVATE_BOOTSTRAP_DIGEST_MISMATCH' >&2
+              exit 1
+            fi
+          }
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256" \
+            scripts/auth-bridge-notification-prepared-deploy-closure.mjs
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256" \
+            scripts/auth-bridge-notification-prepared-deploy-closure-v1.json
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256" \
+            scripts/auth-bridge-notification-prepared-installed-toolchain.mjs
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256" \
+            scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json
+          verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256" \
+            scripts/notification-pages-private-deploy-launcher.mjs
+          private_node="$(realpath -- "$(command -v node)")"
+          /usr/bin/env -i \
+            CI=true \
+            GITHUB_ACTIONS=true \
+            GITHUB_EVENT_NAME=workflow_run \
+            GITHUB_OUTPUT_FD=9 \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+            GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" \
+            RUNNER_ARCH="$RUNNER_ARCH" \
+            RUNNER_OS="$RUNNER_OS" \
+            WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
+            WARPKEEP_PRIVATE_NODE="$private_node" \
+            "$private_node" \
+            scripts/notification-pages-private-deploy-launcher.mjs \
+            attest-toolchain \
+            9>>"$GITHUB_OUTPUT"
+
+  private-deploy:
+    name: Notification Pages private deploy v1
+    needs: [classify, build, private-toolchain]
+    if: >-
+      needs.classify.outputs.deployment-lane == 'gen0' ||
+      needs.classify.outputs.deployment-lane == 'durable'
+    runs-on:
+      - self-hosted
+      - macOS
+      - ARM64
+      - warpkeep-production-admin
+      - warpkeep-repository-exclusive
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout exact private deployment source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          clean: false
+
+      - name: Setup exact Node for the private deployment boundary
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.22.3
+
+      - name: Stage Node for the attested private deployment boundary
+        shell: bash
+        env:
+          WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          for forbidden in \
+            BASH_ENV ENV GIT_CONFIG GIT_CONFIG_COUNT GIT_CONFIG_GLOBAL \
+            GIT_CONFIG_SYSTEM GIT_DIR GIT_EXEC_PATH GIT_INDEX_FILE \
+            GIT_OBJECT_DIRECTORY GIT_REPLACE_REF_BASE GIT_WORK_TREE \
+            LD_LIBRARY_PATH NODE_EXTRA_CA_CERTS NODE_OPTIONS NODE_PATH \
+            NODE_REPL_EXTERNAL_MODULE NODE_TLS_REJECT_UNAUTHORIZED \
+            OPENSSL_CONF PYTHONPATH SSL_CERT_DIR SSL_CERT_FILE; do
+            if [[ -n "${!forbidden+x}" ]]; then
+              echo 'Private Pages runner has a forbidden ambient override.' >&2
+              exit 1
+            fi
+          done
+          actual_commit="$(git rev-parse --verify HEAD^{commit})"
+          if [[ "$actual_commit" != "$WARPKEEP_PAGES_SOURCE_COMMIT" \
+            || -n "$(git status --porcelain=v1 --untracked-files=no)" ]]; then
+            echo 'Private Pages checkout did not retain the exact source.' >&2
+            exit 1
+          fi
+          source_command="$(command -v node)"
+          if [[ -L "$source_command" ]]; then
+            echo 'setup-node resolved through a symbolic link.' >&2
+            exit 1
+          fi
+          source_node="$(realpath -- "$source_command")"
+          case "$source_node" in
+            "$RUNNER_TOOL_CACHE"/*) ;;
+            *)
+              echo 'setup-node resolved outside the runner tool cache.' >&2
+              exit 1
+              ;;
+          esac
+          [[ "$("$source_node" --version)" == 'v22.22.3' ]]
+          private_root="$(mktemp -d "$RUNNER_TEMP/warpkeep-pages-private-node.XXXXXX")"
+          chmod 0700 "$private_root"
+          source_sha_before="$(shasum -a 256 "$source_node" | cut -d ' ' -f 1)"
+          install -m 0700 "$source_node" "$private_root/node"
+          source_sha_after="$(shasum -a 256 "$source_node" | cut -d ' ' -f 1)"
+          staged_sha="$(shasum -a 256 "$private_root/node" | cut -d ' ' -f 1)"
+          if [[ "$source_sha_before" != "$source_sha_after" \
+            || "$source_sha_before" != "$staged_sha" ]]; then
+            echo 'Private Pages Node staging integrity failed.' >&2
+            exit 1
+          fi
+          echo "WARPKEEP_PRIVATE_NODE=$private_root/node" >> "$GITHUB_ENV"
+
+      - name: Re-verify protected bootstrap immediately before private operator
+        shell: bash
+        env:
+          WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          git_safe=(/usr/bin/git -c core.fsmonitor=false -c core.untrackedCache=false)
+          actual_commit="$("${git_safe[@]}" rev-parse --verify HEAD^{commit})"
+          origin_url="$("${git_safe[@]}" remote get-url origin)"
+          checkout_status="$("${git_safe[@]}" status --porcelain=v1 --untracked-files=all)"
+          if [[ "$actual_commit" != "$WARPKEEP_PAGES_SOURCE_COMMIT" \
+            || "$origin_url" != 'https://github.com/ael-dev3/Warpkeep' \
+            || -n "$checkout_status" ]]; then
+            echo 'The private Pages operator checkout was not exact.' >&2
+            exit 1
+          fi
+          if "${git_safe[@]}" symbolic-ref -q HEAD >/dev/null; then
+            echo 'The private Pages operator checkout was not detached.' >&2
+            exit 1
+          fi
+          while IFS= read -r tracked_entry; do
+            if [[ "$tracked_entry" != 'H '* ]]; then
+              echo 'NOTIFICATION_PAGES_PRIVATE_HIDDEN_INDEX_STATE_INVALID' >&2
+              exit 1
+            fi
+          done <<< "$("${git_safe[@]}" ls-files -v)"
+          "${git_safe[@]}" diff-index --quiet --cached HEAD --
+          "${git_safe[@]}" diff-files --quiet --
+          "${git_safe[@]}" diff --no-ext-diff --no-textconv --exit-code HEAD --
+          verify_bootstrap_digest() {
+            local expected="$1"
+            local path="$2"
+            local output
+            local actual
+            if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
+              echo 'NOTIFICATION_PAGES_PRIVATE_BOOTSTRAP_DIGEST_INVALID' >&2
+              exit 1
+            fi
+            output="$(/usr/bin/shasum -a 256 -- "$path")"
+            actual="${output%% *}"
+            if [[ "$actual" != "$expected" ]]; then
+              echo 'NOTIFICATION_PAGES_PRIVATE_BOOTSTRAP_DIGEST_MISMATCH' >&2
+              exit 1
+            fi
+          }
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256" \
+            scripts/auth-bridge-notification-prepared-deploy-closure.mjs
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256" \
+            scripts/auth-bridge-notification-prepared-deploy-closure-v1.json
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256" \
+            scripts/auth-bridge-notification-prepared-installed-toolchain.mjs
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256" \
+            scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json
+          verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256" \
+            scripts/notification-pages-private-deploy-launcher.mjs
+
+      - name: Retire only a proven-skipped prior deployment invocation
+        id: private-recovery
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          /usr/bin/env -i \
+            CI=true \
+            GITHUB_ACTIONS=true \
+            GITHUB_EVENT_NAME=workflow_run \
+            GITHUB_OUTPUT_FD=9 \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+            GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" \
+            RUNNER_ARCH="$RUNNER_ARCH" \
+            RUNNER_OS="$RUNNER_OS" \
+            WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="${{ needs.private-toolchain.outputs.runner-identity-digest }}" \
+            WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
+            WARPKEEP_PRIVATE_NODE="$WARPKEEP_PRIVATE_NODE" \
+            WARPKEEP_SOURCE_VERIFY_RUN_ATTEMPT="${{ github.event.workflow_run.run_attempt }}" \
+            WARPKEEP_SOURCE_VERIFY_RUN_ID="${{ github.event.workflow_run.id }}" \
+            "$WARPKEEP_PRIVATE_NODE" \
+            scripts/notification-pages-private-deploy-launcher.mjs \
+            recover-skipped-invocation \
+            8<<<"$GH_TOKEN" \
+            9>>"$GITHUB_OUTPUT"
+
+      - name: Prepare or recover exact private Pages authority
+        id: private-predeploy
+        env:
+          WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/env -i \
+            CI=true \
+            GITHUB_ACTIONS=true \
+            GITHUB_EVENT_NAME=workflow_run \
+            GITHUB_OUTPUT_FD=9 \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+            GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" \
+            RUNNER_ARCH="$RUNNER_ARCH" \
+            RUNNER_OS="$RUNNER_OS" \
+            WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="${{ needs.private-toolchain.outputs.runner-identity-digest }}" \
+            WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
+            WARPKEEP_PRIVATE_NODE="$WARPKEEP_PRIVATE_NODE" \
+            WARPKEEP_SOURCE_VERIFY_RUN_ATTEMPT="${{ github.event.workflow_run.run_attempt }}" \
+            WARPKEEP_SOURCE_VERIFY_RUN_ID="${{ github.event.workflow_run.id }}" \
+            "$WARPKEEP_PRIVATE_NODE" \
+            scripts/notification-pages-private-deploy-launcher.mjs predeploy \
+            9>>"$GITHUB_OUTPUT"
+
+      - name: Re-attest protected main and exact workflow runs in process
+        if: ${{ steps.private-predeploy.outputs.deploy-required == 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          /usr/bin/env -i \
+            CI=true \
+            GITHUB_ACTIONS=true \
+            GITHUB_EVENT_NAME=workflow_run \
+            GITHUB_OUTPUT_FD=9 \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+            GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" \
+            RUNNER_ARCH="$RUNNER_ARCH" \
+            RUNNER_OS="$RUNNER_OS" \
+            WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="${{ needs.private-toolchain.outputs.runner-identity-digest }}" \
+            WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
+            WARPKEEP_PRIVATE_NODE="$WARPKEEP_PRIVATE_NODE" \
+            WARPKEEP_SOURCE_VERIFY_RUN_ATTEMPT="${{ github.event.workflow_run.run_attempt }}" \
+            WARPKEEP_SOURCE_VERIFY_RUN_ID="${{ github.event.workflow_run.id }}" \
+            "$WARPKEEP_PRIVATE_NODE" \
+            scripts/notification-pages-private-deploy-launcher.mjs \
+            attest-deployment-source \
+            8<<<"$GH_TOKEN" \
+            9>>"$GITHUB_OUTPUT"
+
+      - name: Recheck protected source and durably mark deployment invocation
+        if: ${{ steps.private-predeploy.outputs.deploy-required == 'true' }}
+        id: deployment-attempt
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          /usr/bin/env -i \
+            CI=true \
+            GITHUB_ACTIONS=true \
+            GITHUB_EVENT_NAME=workflow_run \
+            GITHUB_OUTPUT_FD=9 \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+            GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" \
+            RUNNER_ARCH="$RUNNER_ARCH" \
+            RUNNER_OS="$RUNNER_OS" \
+            WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="${{ needs.private-toolchain.outputs.runner-identity-digest }}" \
+            WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
+            WARPKEEP_PRIVATE_NODE="$WARPKEEP_PRIVATE_NODE" \
+            WARPKEEP_SOURCE_VERIFY_RUN_ATTEMPT="${{ github.event.workflow_run.run_attempt }}" \
+            WARPKEEP_SOURCE_VERIFY_RUN_ID="${{ github.event.workflow_run.id }}" \
+            "$WARPKEEP_PRIVATE_NODE" \
+            scripts/notification-pages-private-deploy-launcher.mjs mark-deploy-invoked \
+            8<<<"$GH_TOKEN" \
+            9>>"$GITHUB_OUTPUT"
+
+      - name: Deploy private-authorized release to GitHub Pages
+        if: ${{ steps.private-predeploy.outputs.deploy-required == 'true' }}
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+
+      - name: Publish or promote the durable live Pages receipt
+        if: ${{ always() && steps.deployment-attempt.outcome == 'success' }}
+        id: private-postflight
+        env:
+          WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/env -i \
+            CI=true \
+            GITHUB_ACTIONS=true \
+            GITHUB_EVENT_NAME=workflow_run \
+            GITHUB_OUTPUT_FD=9 \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            GITHUB_RUN_ATTEMPT="$GITHUB_RUN_ATTEMPT" \
+            GITHUB_RUN_ID="$GITHUB_RUN_ID" \
+            GITHUB_WORKFLOW_REF="$GITHUB_WORKFLOW_REF" \
+            RUNNER_ARCH="$RUNNER_ARCH" \
+            RUNNER_OS="$RUNNER_OS" \
+            WARPKEEP_EXPECTED_RUNNER_IDENTITY_DIGEST="${{ needs.private-toolchain.outputs.runner-identity-digest }}" \
+            WARPKEEP_PAGES_SOURCE_COMMIT="$WARPKEEP_PAGES_SOURCE_COMMIT" \
+            WARPKEEP_PRIVATE_NODE="$WARPKEEP_PRIVATE_NODE" \
+            WARPKEEP_SOURCE_VERIFY_RUN_ATTEMPT="${{ github.event.workflow_run.run_attempt }}" \
+            WARPKEEP_SOURCE_VERIFY_RUN_ID="${{ github.event.workflow_run.id }}" \
+            "$WARPKEEP_PRIVATE_NODE" \
+            scripts/notification-pages-private-deploy-launcher.mjs postflight \
+            9>>"$GITHUB_OUTPUT"
+
+      - name: Require a completed durable private postflight
+        if: ${{ always() }}
+        shell: bash
+        env:
+          WARPKEEP_DEPLOY_REQUIRED: ${{ steps.private-predeploy.outputs.deploy-required }}
+          WARPKEEP_DEPLOYMENT_MARKER_OUTCOME: ${{ steps.deployment-attempt.outcome }}
+          WARPKEEP_DEPLOYMENT_OUTCOME: ${{ steps.deployment.outcome }}
+          WARPKEEP_POSTFLIGHT_OUTCOME: ${{ steps.private-postflight.outcome }}
+        run: |
+          set -euo pipefail
+          if [[ "$WARPKEEP_DEPLOY_REQUIRED" == 'false' ]]; then
+            exit 0
+          fi
+          if [[ "$WARPKEEP_DEPLOYMENT_MARKER_OUTCOME" != 'success' \
+            || "$WARPKEEP_DEPLOYMENT_OUTCOME" != 'success' \
+            || "$WARPKEEP_POSTFLIGHT_OUTCOME" != 'success' ]]; then
+            echo 'Private Pages deployment did not complete its durable postflight.' >&2
+            exit 1
+          fi

@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "profile": "warpkeep-auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1",
+  "sourceClosureProfile": "warpkeep-auth-bridge-notification-prepared-deploy-closure-v1",
+  "sourceClosureManifestPath": "scripts/auth-bridge-notification-prepared-deploy-closure-v1.json",
+  "lockfileSha256": "41642a1ffb9de21d5f552133fa6dec873362f692c6a440b85c895d928052c768",
+  "packageManager": "pnpm@11.7.0",
+  "platform": "darwin",
+  "architecture": "arm64",
+  "nodeVersion": "v22.22.3",
+  "virtualStorePath": "services/auth-bridge/node_modules/.pnpm",
+  "normalizedShimDirectoryName": ".bin",
+  "normalizedServiceRoot": "$AUTH_BRIDGE_SERVICE_ROOT",
+  "topLevelLinks": [
+    {
+      "path": "typescript",
+      "target": ".pnpm/typescript@7.0.2/node_modules/typescript"
+    },
+    {
+      "path": "wrangler",
+      "target": ".pnpm/wrangler@4.110.0_@cloudflare+workers-types@5.20260708.1_@types+node@26.1.1/node_modules/wrangler"
+    },
+    {
+      "path": "yaml",
+      "target": ".pnpm/yaml@2.9.0/node_modules/yaml"
+    }
+  ],
+  "requiredExecutablePaths": [
+    ".pnpm/@cloudflare+workerd-darwin-arm64@1.20260708.1/node_modules/@cloudflare/workerd-darwin-arm64/bin/workerd",
+    ".pnpm/@esbuild+darwin-arm64@0.28.1/node_modules/@esbuild/darwin-arm64/bin/esbuild",
+    ".pnpm/@typescript+typescript-darwin-arm64@7.0.2/node_modules/@typescript/typescript-darwin-arm64/lib/tsc",
+    ".pnpm/wrangler@4.110.0_@cloudflare+workers-types@5.20260708.1_@types+node@26.1.1/node_modules/wrangler/bin/wrangler.js"
+  ],
+  "resolverNamespaceEntryCount": 24,
+  "resolverNamespaceDirectoryCount": 6,
+  "resolverNamespaceFileCount": 8,
+  "resolverNamespaceSymbolicLinkCount": 10,
+  "resolverNamespaceSha256": "bad7198295e4f7e5eecac66b590631cbacaad4f4b86a884aadbb993b0e61c117",
+  "normalizedShimFileCount": 31,
+  "entryCount": 18153,
+  "directoryCount": 1532,
+  "fileCount": 16378,
+  "symbolicLinkCount": 243,
+  "executableFileCount": 65,
+  "totalFileBytes": 305064486,
+  "treeSha256": "8b26cad43beab2eed6e219623c8dfb03f92667e587fe8c7465dab0e1cb21b9e9"
+}

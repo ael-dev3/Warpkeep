@@ -24,6 +24,18 @@ import {
 const SOURCE_DIGEST = 'a'.repeat(64);
 const TARGET_DIGEST = 'b'.repeat(64);
 const POLICY_VERSION = 'trusted-snapchain-profile-v3';
+const NOTIFICATION_RECEIPT_DIGEST = 'c'.repeat(64);
+const NOTIFICATION_PAGES_COMMIT = 'd'.repeat(40);
+const NOTIFICATION_BRIDGE_COMMIT = 'e'.repeat(40);
+const NOTIFICATION_ROOT_DIGEST = 'f'.repeat(64);
+const NOTIFICATION_ROOT_COMMIT = '1'.repeat(40);
+const NOTIFICATION_LIVE_AUTHORITY = Object.freeze({
+  notificationPagesLiveReceiptDigest: NOTIFICATION_RECEIPT_DIGEST,
+  notificationPagesLivePagesSourceCommit: NOTIFICATION_PAGES_COMMIT,
+  notificationPagesLiveBridgeSourceCommit: NOTIFICATION_BRIDGE_COMMIT,
+  notificationPagesLiveRootReceiptDigest: NOTIFICATION_ROOT_DIGEST,
+  notificationPagesLiveRootPagesSourceCommit: NOTIFICATION_ROOT_COMMIT,
+});
 const NOW = new Date('2026-07-18T18:00:00.000Z');
 const PRIVATE_FID = 1_234_567n;
 const PRIVATE_NOTE = 'approved founder fixture';
@@ -99,6 +111,7 @@ describe('private reviewed founder admission plan', () => {
       targetConfigurationDigest: TARGET_DIGEST,
       profilePolicyVersion: POLICY_VERSION,
       profileSourceUseApproval: FOUNDER_ADMISSION_PROFILE_SOURCE_USE_APPROVAL,
+      notificationPagesLiveAuthority: NOTIFICATION_LIVE_AUTHORITY,
       fid: PRIVATE_FID,
       note: PRIVATE_NOTE,
       profile: PROFILE,
@@ -117,6 +130,10 @@ describe('private reviewed founder admission plan', () => {
     expect(privateArtifact).toContain(PRIVATE_FID.toString());
     expect(privateArtifact).toContain(PROFILE.canonicalUsername);
     expect(privateArtifact).toContain(PRIVATE_NOTE);
+    expect(plan).toMatchObject({
+      schemaVersion: 4,
+      ...NOTIFICATION_LIVE_AUTHORITY,
+    });
 
     expect(readReviewedFounderAdmissionPlan({
       directory,
@@ -181,5 +198,22 @@ describe('private reviewed founder admission plan', () => {
       expectedProfilePolicyVersion: POLICY_VERSION,
       now: NOW,
     })).toThrow('FOUNDER_ADMISSION_PLAN_FILE_PERMISSIONS');
+  });
+
+  it('rejects a partial live notification Pages authority', () => {
+    expect(() => createReviewedFounderAdmissionPlan({
+      sourceConfigurationDigest: SOURCE_DIGEST,
+      targetConfigurationDigest: TARGET_DIGEST,
+      profilePolicyVersion: POLICY_VERSION,
+      profileSourceUseApproval: FOUNDER_ADMISSION_PROFILE_SOURCE_USE_APPROVAL,
+      notificationPagesLiveAuthority: {
+        ...NOTIFICATION_LIVE_AUTHORITY,
+        notificationPagesLiveBridgeSourceCommit: null,
+      },
+      fid: PRIVATE_FID,
+      note: PRIVATE_NOTE,
+      profile: PROFILE,
+      now: NOW,
+    })).toThrow('FOUNDER_ADMISSION_PLAN_INVALID');
   });
 });

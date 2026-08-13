@@ -531,6 +531,15 @@ describe('Farcaster Mini App host provider', () => {
     expect(resolveWarpkeepHapticCue([
       { kind: 'access-request-confirmed' }
     ])).toEqual({ kind: 'notification', type: 'success' });
+    expect(resolveWarpkeepHapticCue([
+      { kind: 'inner-keep-menu-opened' }
+    ])).toEqual({ kind: 'impact', type: 'light' });
+    expect(resolveWarpkeepHapticCue([
+      { kind: 'inner-keep-project-confirmed' }
+    ])).toEqual({ kind: 'impact', type: 'soft' });
+    expect(resolveWarpkeepHapticCue([
+      { kind: 'inner-keep-project-completed' }
+    ])).toEqual({ kind: 'notification', type: 'success' });
 
     await act(async () => {
       emitWarpkeepSfxBatch([
@@ -551,6 +560,17 @@ describe('Farcaster Mini App host provider', () => {
     expect(sdk.haptics?.notificationOccurred).toHaveBeenLastCalledWith('success');
 
     await act(async () => {
+      emitWarpkeepSfxBatch([{ kind: 'inner-keep-menu-opened' }]);
+      emitWarpkeepSfxBatch([{ kind: 'inner-keep-project-confirmed' }]);
+      emitWarpkeepSfxBatch([{ kind: 'inner-keep-project-completed' }]);
+      await Promise.resolve();
+    });
+    expect(sdk.haptics?.impactOccurred).toHaveBeenNthCalledWith(1, 'light');
+    expect(sdk.haptics?.impactOccurred).toHaveBeenNthCalledWith(2, 'soft');
+    expect(sdk.haptics?.notificationOccurred).toHaveBeenCalledTimes(3);
+    expect(sdk.haptics?.notificationOccurred).toHaveBeenLastCalledWith('success');
+
+    await act(async () => {
       emitWarpkeepSfxBatch([
         { kind: 'select-gold' },
         { kind: 'select-stone' }
@@ -568,6 +588,37 @@ describe('Farcaster Mini App host provider', () => {
     });
     expect(sdk.haptics?.notificationOccurred)
       .toHaveBeenLastCalledWith('error');
+  });
+
+  it('keeps Inner Keep host haptics silent while effects are muted', async () => {
+    const { sdk } = fakeSdk({
+      getCapabilities: vi.fn(async () => [
+        'actions.ready',
+        'haptics.impactOccurred',
+        'haptics.notificationOccurred'
+      ])
+    });
+    let latest: MiniAppHostValue | undefined;
+    render(
+      <Harness
+        runtime={runtimeFor('?miniApp=true')}
+        sdkLoader={async () => sdk}
+        capture={(value) => { latest = value; }}
+      >
+        <WarpkeepHapticsDirector muted />
+      </Harness>
+    );
+    await waitFor(() => expect(latest?.state).toBe('miniapp'));
+
+    await act(async () => {
+      emitWarpkeepSfxBatch([
+        { kind: 'inner-keep-menu-opened' },
+        { kind: 'inner-keep-project-completed' }
+      ]);
+      await Promise.resolve();
+    });
+    expect(sdk.haptics?.impactOccurred).not.toHaveBeenCalled();
+    expect(sdk.haptics?.notificationOccurred).not.toHaveBeenCalled();
   });
 
   it('gives one light haptic only to the access activation that wins its lock', async () => {

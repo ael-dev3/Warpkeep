@@ -16,7 +16,10 @@ import {
   type GenesisWaterBodyV1,
   type GenesisWaterCellV1
 } from '../../../spacetimedb/src/waterWorld';
-import type { RealmQualitySpec } from './realmQuality';
+import {
+  resolveRealmLivingRealmBudget,
+  type RealmQualitySpec
+} from './realmQuality';
 import { pointyHexCorners } from './createTerrainGeometry';
 import {
   GENESIS_WATER_REVISION_ENABLED_CELLS_V1,
@@ -37,6 +40,7 @@ import {
   type RealmRiverBankPresentation,
   type RealmRiverBoundaryEdge
 } from '../../game/map/realmRiverBankPresentation';
+import type { RealmSurfaceDisturbanceSnapshot } from './realmSurfaceDisturbanceField';
 
 const WATER_Y_LIFT = 0.035;
 const RIVER_BANK_BLEND = 0.28;
@@ -110,6 +114,8 @@ export type RealmWaterLayerTelemetry = Readonly<{
   riverIncompleteCellCount: number;
   riverOverlappingPhysicalTriangleCount: number;
   shaderFallbackCount: number;
+  rippleSlotCount: number;
+  activeRippleCount: number;
   riverFallbackReasons: readonly Readonly<{
     bodyId: string;
     reason: string;
@@ -130,7 +136,10 @@ export type RealmWaterLayer = Readonly<{
   getCellPresentation: (cellKey: string) => GenesisWaterCellV1 | undefined;
   setSelectedCellKey: (cellKey: string | null) => void;
   setHoveredCellKey: (cellKey: string | null) => void;
-  updateEnvironment: (elapsedSeconds: number) => boolean;
+  updateEnvironment: (
+    elapsedSeconds: number,
+    disturbances?: RealmSurfaceDisturbanceSnapshot | null
+  ) => boolean;
   isAnimationActive: () => boolean;
   getTelemetry: () => RealmWaterLayerTelemetry;
   dispose: () => void;
@@ -188,11 +197,11 @@ function flowForCell(
 }
 
 function regimeColor(cell: GenesisWaterCellV1): THREE.Color {
-  if (cell.regime === 'river') return new THREE.Color('#315e64');
-  if (cell.regime === 'lake') return new THREE.Color('#548eac');
+  if (cell.regime === 'river') return new THREE.Color('#38676d');
+  if (cell.regime === 'lake') return new THREE.Color('#4c8198');
   const depth = GENESIS_OCEAN_DEPTH_BY_KEY.get(cell.cellKey) ?? cell.depthCells;
-  return depth >= 5 ? new THREE.Color('#315b78') : depth >= 3
-    ? new THREE.Color('#3c7691') : new THREE.Color('#4f91ab');
+  return depth >= 5 ? new THREE.Color('#294e69') : depth >= 3
+    ? new THREE.Color('#356b86') : new THREE.Color('#4b879f');
 }
 
 function waterPointKey(point: HexWorldPosition) {
@@ -970,6 +979,7 @@ function createWaterMaterial(
   quality: RealmQualitySpec,
   reducedMotion: boolean,
   river: boolean,
+  rippleSlotCount: number,
   onShaderFallback: () => void
 ) {
   const material = new THREE.MeshStandardMaterial({
@@ -977,8 +987,8 @@ function createWaterMaterial(
     // Keep the material base neutral so the authoritative per-regime vertex
     // palette is not multiplied back toward the pale Lowlands ground tint.
     color: '#ffffff',
-    roughness: river ? 0.34 : 0.27,
-    metalness: 0.04,
+    roughness: river ? 0.29 : 0.19,
+    metalness: 0.02,
     transparent: false,
     depthWrite: true,
     fog: true
@@ -992,7 +1002,21 @@ function createWaterMaterial(
           ? 1
           : 0
       : REALM_WATER_RENDER_BUDGETS[quality.id].waveComponents;
-  const uniforms = { uWaterTime: { value: 0 } };
+  const safeRippleSlotCount = Math.max(0, Math.min(4, Math.trunc(rippleSlotCount)));
+  const rippleCenters = Array.from(
+    { length: safeRippleSlotCount },
+    () => new THREE.Vector2()
+  );
+  const rippleParams = Array.from(
+    { length: safeRippleSlotCount },
+    () => new THREE.Vector4()
+  );
+  const uniforms = {
+    uWaterTime: { value: 0 },
+    uWaterRippleCount: { value: 0 },
+    uWaterRippleCenters: { value: rippleCenters },
+    uWaterRippleParams: { value: rippleParams }
+  };
   const oceanWaveTerms = Array.from({ length: activeWaveComponents }, (_, index) => {
     const ordinal = index + 1;
     const directionX = (0.54 + ((ordinal * 17) % 31) / 100).toFixed(3);
@@ -1016,18 +1040,57 @@ function createWaterMaterial(
   ].slice(0, activeWaveComponents);
   const effectiveWaveTerms = river ? riverWaveTerms : oceanWaveTerms;
   const timeUniform = activeWaveComponents > 0 ? 'uniform float uWaterTime;\n' : '';
-  const heightFunction = activeWaveComponents === 0
-    ? 'float warpkeepWaterHeight(vec2 waterWorldXZ, float waterRegime, vec2 waterFlow, float waterFlowAccumulation, float waterFeaturePhase) { return 0.0; }'
-    : `float warpkeepWaterHeight(vec2 waterWorldXZ, float waterRegime, vec2 waterFlow, float waterFlowAccumulation, float waterFeaturePhase) {
+  const baseHeightFunction = activeWaveComponents === 0
+    ? 'float warpkeepWaterBaseHeight(vec2 waterWorldXZ, float waterRegime, vec2 waterFlow, float waterFlowAccumulation, float waterFeaturePhase) { return 0.0; }'
+    : `float warpkeepWaterBaseHeight(vec2 waterWorldXZ, float waterRegime, vec2 waterFlow, float waterFlowAccumulation, float waterFeaturePhase) {
   return ${effectiveWaveTerms.join(' + ')};
 }`;
+  const rippleUniforms = safeRippleSlotCount > 0 ? `
+uniform int uWaterRippleCount;
+uniform vec2 uWaterRippleCenters[${safeRippleSlotCount}];
+uniform vec4 uWaterRippleParams[${safeRippleSlotCount}];
+` : '';
+  const rippleTerms = safeRippleSlotCount > 0
+    ? Array.from({ length: safeRippleSlotCount }, (_, slot) => `
+  if (uWaterRippleCount > ${slot}) {
+    vec2 waterRippleDelta${slot} = waterWorldXZ - uWaterRippleCenters[${slot}];
+    float waterRippleDistance${slot} = length(waterRippleDelta${slot});
+    float waterRippleRadius${slot} = max(0.08, uWaterRippleParams[${slot}].x);
+    float waterRippleAge${slot} = clamp(uWaterRippleParams[${slot}].z, 0.0, 1.0);
+    float waterRippleRing${slot} = waterRippleRadius${slot} * mix(0.12, 1.72, waterRippleAge${slot});
+    float waterRippleWidth${slot} = max(0.07, waterRippleRadius${slot} * 0.19);
+    float waterRipplePhase${slot} = (waterRippleDistance${slot} - waterRippleRing${slot}) / waterRippleWidth${slot};
+    float waterRippleEnvelope${slot} = exp(-4.0 * waterRipplePhase${slot} * waterRipplePhase${slot});
+    float waterRippleAmplitude${slot} = uWaterRippleParams[${slot}].y * 0.032;
+    rippleHeight += waterRippleEnvelope${slot} * waterRippleAmplitude${slot};
+    float waterRippleDerivative${slot} = waterRippleEnvelope${slot}
+      * waterRippleAmplitude${slot} * (-8.0 * waterRipplePhase${slot})
+      / waterRippleWidth${slot};
+    rippleGradient += (waterRippleDistance${slot} > 0.0001
+      ? waterRippleDelta${slot} / waterRippleDistance${slot}
+      : vec2(0.0)) * waterRippleDerivative${slot};
+  }
+`).join('')
+    : '';
+  const rippleFunction = `
+void warpkeepWaterRipple(vec2 waterWorldXZ, out float rippleHeight, out vec2 rippleGradient) {
+  rippleHeight = 0.0;
+  rippleGradient = vec2(0.0);
+${rippleTerms}}
+float warpkeepWaterHeight(vec2 waterWorldXZ, float waterRegime, vec2 waterFlow, float waterFlowAccumulation, float waterFeaturePhase) {
+  float rippleHeight;
+  vec2 rippleGradient;
+  warpkeepWaterRipple(waterWorldXZ, rippleHeight, rippleGradient);
+  return warpkeepWaterBaseHeight(waterWorldXZ, waterRegime, waterFlow, waterFlowAccumulation, waterFeaturePhase) + rippleHeight;
+}
+`;
   const foamQualityScale = quality.id === 'high'
     ? 1
     : quality.id === 'balanced'
       ? 0.62
       : 0;
   const waterTimeExpression = activeWaveComponents > 0 ? 'uWaterTime' : '0.0';
-  const shaderContract = `warpkeep-water-world-space-r185-${river ? 'river' : 'ocean'}-v6`;
+  const shaderContract = `warpkeep-water-world-space-r185-${river ? 'river' : 'ocean'}-v8-reflection-ripples-${safeRippleSlotCount}`;
   let shaderFallback = false;
   material.onBeforeCompile = (shader) => {
     if (
@@ -1039,6 +1102,7 @@ function createWaterMaterial(
       if (!shaderFallback) {
         shaderFallback = true;
         material.userData.waterWaveComponents = 0;
+        material.userData.waterRippleSlots = 0;
         material.userData.waterShaderFallbackReason = 'shader-contract-changed';
         material.userData.waterShaderFallbackPresentation = 'full-mesh-fog-color';
         onShaderFallback();
@@ -1064,7 +1128,12 @@ function createWaterMaterial(
       return;
     }
     if (activeWaveComponents > 0) shader.uniforms.uWaterTime = uniforms.uWaterTime;
-    shader.vertexShader = `${timeUniform}
+    if (safeRippleSlotCount > 0) {
+      shader.uniforms.uWaterRippleCount = uniforms.uWaterRippleCount;
+      shader.uniforms.uWaterRippleCenters = uniforms.uWaterRippleCenters;
+      shader.uniforms.uWaterRippleParams = uniforms.uWaterRippleParams;
+    }
+    shader.vertexShader = `${timeUniform}${rippleUniforms}
 attribute float waterDepth;
 attribute float waterBankBlend;
 attribute float waterFogMix;
@@ -1088,7 +1157,8 @@ varying float vWarpkeepWaterSourceMix;
 varying float vWarpkeepWaterMouthMix;
 varying vec2 vWarpkeepWaterWorldXZ;
 varying vec2 vWarpkeepWaterFlow;
-${heightFunction}
+${baseHeightFunction}
+${rippleFunction}
 ${shader.vertexShader}`
       .replace('#include <color_vertex>', `#include <color_vertex>
   vWarpkeepWaterDepth = waterDepth;
@@ -1118,9 +1188,14 @@ ${shader.vertexShader}`
   float warpkeepWaterEpsilon = 0.045;
   float warpkeepWaterWaveVisibility = 1.0 - clamp(waterFogMix, 0.0, 1.0);
   vec2 warpkeepWaterNormalWorldXZ = (modelMatrix * vec4(position, 1.0)).xz;
-  float warpkeepWaterNormalHeight = warpkeepWaterHeight(warpkeepWaterNormalWorldXZ, waterRegime, vec2(waterFlowX, waterFlowZ), waterFlowAccumulation, waterFeaturePhase);
-  float warpkeepWaterDx = ((warpkeepWaterHeight(warpkeepWaterNormalWorldXZ + vec2(warpkeepWaterEpsilon, 0.0), waterRegime, vec2(waterFlowX, waterFlowZ), waterFlowAccumulation, waterFeaturePhase) - warpkeepWaterNormalHeight) / warpkeepWaterEpsilon) * warpkeepWaterWaveVisibility;
-  float warpkeepWaterDz = ((warpkeepWaterHeight(warpkeepWaterNormalWorldXZ + vec2(0.0, warpkeepWaterEpsilon), waterRegime, vec2(waterFlowX, waterFlowZ), waterFlowAccumulation, waterFeaturePhase) - warpkeepWaterNormalHeight) / warpkeepWaterEpsilon) * warpkeepWaterWaveVisibility;
+  float warpkeepWaterNormalHeight = warpkeepWaterBaseHeight(warpkeepWaterNormalWorldXZ, waterRegime, vec2(waterFlowX, waterFlowZ), waterFlowAccumulation, waterFeaturePhase);
+  float warpkeepWaterDx = ((warpkeepWaterBaseHeight(warpkeepWaterNormalWorldXZ + vec2(warpkeepWaterEpsilon, 0.0), waterRegime, vec2(waterFlowX, waterFlowZ), waterFlowAccumulation, waterFeaturePhase) - warpkeepWaterNormalHeight) / warpkeepWaterEpsilon) * warpkeepWaterWaveVisibility;
+  float warpkeepWaterDz = ((warpkeepWaterBaseHeight(warpkeepWaterNormalWorldXZ + vec2(0.0, warpkeepWaterEpsilon), waterRegime, vec2(waterFlowX, waterFlowZ), waterFlowAccumulation, waterFeaturePhase) - warpkeepWaterNormalHeight) / warpkeepWaterEpsilon) * warpkeepWaterWaveVisibility;
+  float warpkeepWaterRippleHeight;
+  vec2 warpkeepWaterRippleGradient;
+  warpkeepWaterRipple(warpkeepWaterNormalWorldXZ, warpkeepWaterRippleHeight, warpkeepWaterRippleGradient);
+  warpkeepWaterDx += warpkeepWaterRippleGradient.x * warpkeepWaterWaveVisibility;
+  warpkeepWaterDz += warpkeepWaterRippleGradient.y * warpkeepWaterWaveVisibility;
   objectNormal = normalize(vec3(-warpkeepWaterDx, 1.0, -warpkeepWaterDz));`);
     shader.fragmentShader = `${timeUniform}varying float vWarpkeepWaterDepth;
 varying float vWarpkeepWaterBankBlend;
@@ -1136,15 +1211,23 @@ varying vec2 vWarpkeepWaterWorldXZ;
 varying vec2 vWarpkeepWaterFlow;
 ${shader.fragmentShader}`
       .replace('#include <opaque_fragment>', `
-        float waterViewFacing = max(dot(normalize(vNormal), normalize(-vViewPosition)), 0.0);
-        float waterFresnel = pow(1.0 - waterViewFacing, 3.0) * (vWarpkeepWaterRegime > 0.5 ? 0.045 : 0.095);
-        vec3 oceanDeepColor = vec3(0.055, 0.22, 0.34);
-        vec3 oceanShallowColor = vec3(0.16, 0.48, 0.58);
-        vec3 riverDeepColor = vec3(0.055, 0.19, 0.21);
-        vec3 riverShallowColor = vec3(0.16, 0.35, 0.36);
+        // Three r185 stores the fragment-to-camera direction in vViewPosition.
+        float waterViewFacing = max(dot(normalize(vNormal), normalize(vViewPosition)), 0.0);
+        float waterFresnel = pow(1.0 - waterViewFacing, 2.4);
+        float waterReflectionStrength = waterFresnel
+          * (vWarpkeepWaterRegime > 0.5 ? 0.085 : 0.18);
+        vec3 oceanDeepColor = vec3(0.04, 0.15, 0.24);
+        vec3 oceanShallowColor = vec3(0.12, 0.36, 0.46);
+        vec3 riverDeepColor = vec3(0.05, 0.17, 0.18);
+        vec3 riverShallowColor = vec3(0.14, 0.32, 0.33);
         vec3 waterDeepColor = mix(oceanDeepColor, riverDeepColor, step(0.5, vWarpkeepWaterRegime));
         vec3 waterShallowColor = mix(oceanShallowColor, riverShallowColor, step(0.5, vWarpkeepWaterRegime));
         vec3 waterBodyColor = mix(waterShallowColor, waterDeepColor, clamp(vWarpkeepWaterDepth, 0.0, 1.0) * 0.78);
+        vec3 waterReflectionColor = mix(
+          vec3(0.20, 0.38, 0.48),
+          vec3(0.48, 0.66, 0.78),
+          smoothstep(0.0, 0.82, waterViewFacing)
+        );
         vec2 waterFlowDirection = normalize(vWarpkeepWaterFlow + vec2(0.0001));
         vec2 waterCrossFlow = vec2(-waterFlowDirection.y, waterFlowDirection.x);
         float waterDirectionalCurrent = 0.5 + 0.5 * sin(
@@ -1179,13 +1262,18 @@ ${shader.fragmentShader}`
           max(vWarpkeepWaterSourceMix * 0.34, vWarpkeepWaterMouthMix * 0.48)
         );
         float waterFoam = waterHydrologyFoam
-          * (0.035 + waterCrest * 0.2)
+          * (0.055 + waterCrest * 0.24)
           * waterFoamPattern;
         waterFoam *= ${foamQualityScale.toFixed(2)};
         float waterBankEdge = clamp(vWarpkeepWaterBankBlend, 0.0, 1.0);
         float bankSoftness = 1.0 - waterBankEdge * 0.2;
         outgoingLight = mix(outgoingLight, outgoingLight * waterBodyColor * 1.65, 0.42);
-        outgoingLight += (waterBodyColor * waterFresnel + vec3(waterGlimmer)) * bankSoftness;
+        outgoingLight += vec3(waterGlimmer * 0.72) * bankSoftness;
+        outgoingLight = mix(
+          outgoingLight,
+          waterReflectionColor,
+          waterReflectionStrength * bankSoftness
+        );
         outgoingLight = mix(outgoingLight, vec3(0.10, 0.20, 0.18), waterBankEdge * 0.12 * step(0.5, vWarpkeepWaterRegime));
         float waterTransmission = step(0.5, vWarpkeepWaterRegime)
           * (vWarpkeepWaterSourceMix * 0.012 + vWarpkeepWaterMouthMix * 0.008);
@@ -1203,11 +1291,43 @@ ${shader.fragmentShader}`
   );
   material.userData.waterUniforms = uniforms;
   material.userData.waterWaveComponents = activeWaveComponents;
+  material.userData.waterRippleSlots = safeRippleSlotCount;
   material.userData.waterFoamQualityScale = foamQualityScale;
   material.userData.waterPhysicalRiverDisplacement = 0;
   material.userData.waterShaderContract = shaderContract;
   material.userData.waterShaderFallbackReason = null;
   material.userData.waterShaderFallbackPresentation = null;
+  material.userData.setWaterRipples = (snapshot: RealmSurfaceDisturbanceSnapshot | null) => {
+    if (shaderFallback || safeRippleSlotCount === 0) return false;
+    const nextCount = Math.min(
+      safeRippleSlotCount,
+      Math.max(0, Math.trunc(snapshot?.count ?? 0))
+    );
+    let changed = uniforms.uWaterRippleCount.value !== nextCount;
+    uniforms.uWaterRippleCount.value = nextCount;
+    for (let slot = 0; slot < safeRippleSlotCount; slot += 1) {
+      const centerOffset = slot * 2;
+      const paramOffset = slot * 4;
+      const center = rippleCenters[slot]!;
+      const params = rippleParams[slot]!;
+      const nextCenterX = slot < nextCount ? snapshot?.centers[centerOffset] ?? 0 : 0;
+      const nextCenterZ = slot < nextCount ? snapshot?.centers[centerOffset + 1] ?? 0 : 0;
+      const nextRadius = slot < nextCount ? snapshot?.params[paramOffset] ?? 0 : 0;
+      const nextStrength = slot < nextCount ? snapshot?.params[paramOffset + 1] ?? 0 : 0;
+      const nextAge = slot < nextCount ? snapshot?.params[paramOffset + 2] ?? 0 : 0;
+      const nextLifetime = slot < nextCount ? snapshot?.params[paramOffset + 3] ?? 0 : 0;
+      changed = changed
+        || center.x !== nextCenterX
+        || center.y !== nextCenterZ
+        || params.x !== nextRadius
+        || params.y !== nextStrength
+        || params.z !== nextAge
+        || params.w !== nextLifetime;
+      center.set(nextCenterX, nextCenterZ);
+      params.set(nextRadius, nextStrength, nextAge, nextLifetime);
+    }
+    return changed;
+  };
   return material;
 }
 
@@ -1253,6 +1373,10 @@ export function createRealmWaterLayer(options: WaterLayerOptions): RealmWaterLay
   const riverBankPresentation = options.riverBankPresentation
     ?? createRealmRiverBankPresentation(options.cells, options.hexSize);
   const budget = REALM_WATER_RENDER_BUDGETS[options.quality.id];
+  const livingBudget = resolveRealmLivingRealmBudget(
+    options.quality.id,
+    options.reducedMotion
+  );
   const group = new THREE.Group();
   group.name = 'genesis-canonical-water';
   let oceanGeometry: THREE.BufferGeometry | undefined;
@@ -1297,18 +1421,21 @@ export function createRealmWaterLayer(options: WaterLayerOptions): RealmWaterLay
       options.quality,
       options.reducedMotion,
       false,
+      livingBudget.waterRippleSlots,
       recordShaderFallback
     );
     lakeMaterial = createWaterMaterial(
       options.quality,
       options.reducedMotion,
       false,
+      livingBudget.waterRippleSlots,
       recordShaderFallback
     );
     riverMaterial = createWaterMaterial(
       options.quality,
       options.reducedMotion,
       true,
+      livingBudget.waterRippleSlots,
       recordShaderFallback
     );
     riverMaterial.emissive.set('#143d41');
@@ -1573,10 +1700,17 @@ export function createRealmWaterLayer(options: WaterLayerOptions): RealmWaterLay
   }
   const animatedMaterials = [waterMaterial, lakeMaterial, riverMaterial].map((material) => ({
     material,
-    uniforms: material.userData.waterUniforms as { uWaterTime: { value: number } }
+    uniforms: material.userData.waterUniforms as {
+      uWaterTime: { value: number };
+      uWaterRippleCount: { value: number };
+    },
+    setRipples: material.userData.setWaterRipples as (
+      snapshot: RealmSurfaceDisturbanceSnapshot | null
+    ) => boolean
   }));
   const animationActive = () => animatedMaterials.some(({ material }) => (
     (material.userData.waterWaveComponents as number) > 0
+    || (material.userData.waterRippleSlots as number) > 0
   ));
   const environment = waterLayerRecord(options.environment);
   const environmentEpoch = typeof environment?.environmentEpoch === 'bigint'
@@ -1624,15 +1758,18 @@ export function createRealmWaterLayer(options: WaterLayerOptions): RealmWaterLay
   let cachedTelemetry: RealmWaterLayerTelemetry | undefined;
   let cachedAnimated = false;
   let cachedShaderFallbackCount = -1;
+  let cachedActiveRippleCount = -1;
   const getTelemetry = (): RealmWaterLayerTelemetry => {
     const animated = animationActive();
     if (
       cachedTelemetry
       && cachedAnimated === animated
       && cachedShaderFallbackCount === shaderFallbackCount
+      && cachedActiveRippleCount === animatedMaterials[0]!.uniforms.uWaterRippleCount.value
     ) return cachedTelemetry;
     cachedAnimated = animated;
     cachedShaderFallbackCount = shaderFallbackCount;
+    cachedActiveRippleCount = animatedMaterials[0]!.uniforms.uWaterRippleCount.value;
     cachedTelemetry = Object.freeze({
       layoutVersion: options.cells === GENESIS_WATER_REVISION_ENABLED_CELLS_V1
         ? GENESIS_WATER_REVISION_VERSION
@@ -1666,19 +1803,28 @@ export function createRealmWaterLayer(options: WaterLayerOptions): RealmWaterLay
       ),
       riverOverlappingPhysicalTriangleCount: 0,
       shaderFallbackCount,
+      rippleSlotCount: Math.max(
+        0,
+        ...animatedMaterials.map(({ material }) => material.userData.waterRippleSlots as number)
+      ),
+      activeRippleCount: cachedActiveRippleCount,
       riverFallbackReasons: riverSurfaceData.fallbackReasons
     });
     return cachedTelemetry;
   };
   return {
     group,
-    updateEnvironment: (elapsedSeconds) => {
+    updateEnvironment: (elapsedSeconds, disturbances = null) => {
+      const ripplesChanged = !disposed && animatedMaterials.reduce(
+        (changed, material) => material.setRipples(disturbances) || changed,
+        false
+      );
       if (
         disposed
         || !animationActive()
         || !Number.isFinite(elapsedSeconds)
         || elapsedSeconds === lastElapsedSeconds
-      ) return false;
+      ) return ripplesChanged;
       lastElapsedSeconds = elapsedSeconds;
       let synchronizedServerTimeMicros: bigint | undefined;
       if (options.nowMicros) {

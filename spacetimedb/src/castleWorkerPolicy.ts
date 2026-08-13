@@ -189,11 +189,14 @@ export function workerResourceKinds(): readonly WorkerResourceKind[] {
 /** Resource kind is not a capacity bucket; only this exact node key is. */
 export function workerNodeKey(resourceKind: string, siteId: string): string {
   workerResourcePolicy(resourceKind);
+  const legacySite = /^[a-z0-9][a-z0-9:-]*$/.test(siteId);
+  const greaterRealmLease = /^GRL-[A-Z2-7]{26}:(?:[1-9]|[12][0-9]|3[0-2])$/u.test(siteId);
+  const reservedGreaterRealmPrefix = /^grl-/iu.test(siteId);
   if (
     typeof siteId !== 'string'
     || siteId.length === 0
     || siteId.length > 128
-    || !/^[a-z0-9][a-z0-9:-]*$/.test(siteId)
+    || (reservedGreaterRealmPrefix ? !greaterRealmLease : !legacySite)
   ) fail('WORKER_SITE_ID_INVALID');
   return `${resourceKind}:${siteId}`;
 }

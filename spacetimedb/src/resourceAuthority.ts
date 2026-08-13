@@ -1,6 +1,21 @@
 import type { InferSchema, ReducerCtx } from 'spacetimedb/server';
 
-import { assertGenesisFounderForFid, assertGenesisFoundingGraph } from './foundingAuthority';
+import {
+  assertCurrentFounderForFid,
+  assertGenesisFounderForFid,
+  assertGenesisFoundingGraph,
+  type CurrentFounderAuthority,
+} from './foundingAuthority';
+import { greaterRealmCutoverIsCurrentV1 } from './greaterRealmActivationState';
+import {
+  greaterRealmCurrentAuthorityErrorCode,
+  greaterRealmCurrentPassiveTerrainV1,
+  profileMatchesMarks,
+} from './greaterRealmCurrentAuthority';
+import type {
+  GreaterRealmIndexedPublicReadAuthorityV1,
+} from './greaterRealmPublicReadAuthority';
+import { markAccountIsConsistent } from './marksAuthorityPolicy';
 import {
   GENESIS_RESOURCE_POLICY_VERSION,
   GENESIS_STARTING_RESOURCE_BALANCES,
@@ -10,8 +25,6 @@ import {
 import type warpkeep from './schema';
 import {
   HEGEMONY_REALM_ID,
-  canonicalMetaForKey,
-  matchesCanonicalWorldMeta,
 } from './world';
 
 type WarpkeepReducerContext = ReducerCtx<InferSchema<typeof warpkeep>>;
@@ -37,21 +50,17 @@ function timestampMicros(value: { microsSinceUnixEpoch: bigint }): bigint {
   return value.microsSinceUnixEpoch;
 }
 
-function terrainForCastle(
+function terrainForFounder(
   ctx: WarpkeepReducerContext,
-  castle: CastleRow,
+  founder: CurrentFounderAuthority,
 ): GenesisResourceTerrainKind {
-  const storedMeta = ctx.db.worldTileMetaV1.tileKey.find(castle.tileKey);
-  const canonicalMeta = canonicalMetaForKey(castle.tileKey);
-  if (
-    storedMeta === null
-    || canonicalMeta === undefined
-    || !matchesCanonicalWorldMeta(storedMeta)
-    || storedMeta.realmId !== HEGEMONY_REALM_ID
-    || storedMeta.staticContentKind !== 'castle-slot'
-    || canonicalMeta.terrainKind !== storedMeta.terrainKind
-  ) fail();
-  return canonicalMeta.terrainKind;
+  try {
+    return greaterRealmCurrentPassiveTerrainV1(ctx, founder);
+  } catch (error) {
+    const code = greaterRealmCurrentAuthorityErrorCode(error);
+    if (code !== undefined) fail(code);
+    throw error;
+  }
 }
 
 function rowStateIsConsistent(
@@ -72,22 +81,31 @@ function accountMatchesFounder(
   row: ResourceAccountRow,
   observedAtMicros: bigint,
 ): boolean {
+  let founder: CurrentFounderAuthority;
+  try {
+    founder = assertCurrentFounderForFid(ctx, row.fid);
+  } catch {
+    return false;
+  }
   const castleByFid = ctx.db.castle.ownerFid.find(row.fid);
   const castleById = ctx.db.castle.castleId.find(row.castleId);
+  const legacyClaimMismatch = founder.source === 'v16'
+    && ctx.db.castleSlotClaimV1.ownerFid.find(row.fid)?.castleId !== row.castleId;
   if (
     castleByFid === null
     || castleById === null
+    || castleByFid.castleId !== founder.castle.castleId
     || castleByFid.castleId !== row.castleId
     || castleById.ownerFid !== row.fid
     || row.realmId !== HEGEMONY_REALM_ID
     || ctx.db.allowedFid.fid.find(row.fid) === null
     || ctx.db.realmProfileV1.fid.find(row.fid) === null
     || ctx.db.markAccountV1.fid.find(row.fid) === null
-    || ctx.db.castleSlotClaimV1.ownerFid.find(row.fid)?.castleId !== row.castleId
+    || legacyClaimMismatch
     || !rowStateIsConsistent(row, observedAtMicros)
   ) return false;
   try {
-    terrainForCastle(ctx, castleByFid);
+    terrainForFounder(ctx, founder);
     return true;
   } catch (error) {
     if (error instanceof ResourceAuthorityError) return false;
@@ -99,6 +117,7 @@ export type GenesisResourceAuthority = Readonly<{
   account: ResourceAccountRow;
   castle: CastleRow;
   terrainKind: GenesisResourceTerrainKind;
+  founderSource: CurrentFounderAuthority['source'];
 }>;
 
 /** Require the complete private resource graph for exactly one founder. */
@@ -107,14 +126,65 @@ export function assertGenesisResourceForFid(
   fid: bigint,
 ): GenesisResourceAuthority {
   assertGenesisFounderForFid(ctx, fid);
+  const founder = assertCurrentFounderForFid(ctx, fid);
   const account = ctx.db.resourceAccountV1.fid.find(fid);
   const castle = ctx.db.castle.ownerFid.find(fid);
   if (
     account === null
     || castle === null
+    || castle.castleId !== founder.castle.castleId
     || !accountMatchesFounder(ctx, account, ctx.timestamp.microsSinceUnixEpoch)
   ) fail('RESOURCE_ACCOUNT_MISSING_OR_INVALID');
-  return Object.freeze({ account, castle, terrainKind: terrainForCastle(ctx, castle) });
+  return Object.freeze({
+    account,
+    castle,
+    terrainKind: terrainForFounder(ctx, founder),
+    founderSource: founder.source,
+  });
+}
+
+/**
+ * Resource half of the read-only v17 fast path. The caller placement has
+ * already been proven through indexed current authority, so this must never
+ * recurse into founder or whole-world validation.
+ */
+export function assertGreaterRealmResourceForIndexedReadV1(
+  ctx: WarpkeepReducerContext,
+  authority: GreaterRealmIndexedPublicReadAuthorityV1,
+): GenesisResourceAuthority {
+  const { castle, claim, occupancy } = authority;
+  const fid = castle.ownerFid;
+  const account = ctx.db.resourceAccountV1.fid.find(fid);
+  const accountByCastle = ctx.db.resourceAccountV1.castleId.find(castle.castleId);
+  const profile = ctx.db.realmProfileV1.fid.find(fid);
+  const marks = ctx.db.markAccountV1.fid.find(fid);
+  if (
+    account === null
+    || accountByCastle === null
+    || accountByCastle.fid !== fid
+    || profile === null
+    || marks === null
+    || ctx.db.allowedFid.fid.find(fid) === null
+    || account.fid !== fid
+    || account.castleId !== castle.castleId
+    || account.realmId !== HEGEMONY_REALM_ID
+    || !rowStateIsConsistent(account, ctx.timestamp.microsSinceUnixEpoch)
+    || !markAccountIsConsistent(marks)
+    || !profileMatchesMarks(profile, marks)
+  ) fail('RESOURCE_ACCOUNT_MISSING_OR_INVALID');
+  const founder = Object.freeze({
+    source: 'v17' as const,
+    castle,
+    profile,
+    greaterRealmClaim: claim,
+    greaterRealmOccupancy: occupancy,
+  });
+  return Object.freeze({
+    account,
+    castle,
+    terrainKind: terrainForFounder(ctx, founder),
+    founderSource: 'v17' as const,
+  });
 }
 
 /** Insert the compiled starting state for a newly founded or backfilled castle. */
@@ -128,7 +198,11 @@ export function insertGenesisResourceAccount(
     || ctx.db.resourceAccountV1.castleId.find(castle.castleId) !== null
     || castle.ownerFid !== fid
   ) fail('RESOURCE_ACCOUNT_CONFLICT');
-  terrainForCastle(ctx, castle);
+  const founder = assertCurrentFounderForFid(ctx, fid);
+  if (founder.source !== 'v16' || founder.castle.castleId !== castle.castleId) {
+    fail('RESOURCE_ACCOUNT_CONFLICT');
+  }
+  terrainForFounder(ctx, founder);
   const settledThroughMicros = ctx.timestamp.microsSinceUnixEpoch;
   const inserted = ctx.db.resourceAccountV1.insert({
     fid,
@@ -161,6 +235,8 @@ export function planGenesisResourceBackfill(
   policyVersion: string,
 ): ResourceBackfillPlan {
   if (
+    greaterRealmCutoverIsCurrentV1(ctx)
+    ||
     expectedFounderCount < 0n
     || policyVersion !== GENESIS_RESOURCE_POLICY_VERSION
     || ctx.db.allowedFid.count() !== expectedFounderCount

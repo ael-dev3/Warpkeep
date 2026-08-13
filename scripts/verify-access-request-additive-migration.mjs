@@ -13,6 +13,22 @@ const v13FixturePath = resolve(
   repositoryRoot,
   'spacetimedb/migration-fixtures/additive-v13-schema/src/index.ts',
 );
+const v14FixturePath = resolve(
+  repositoryRoot,
+  'spacetimedb/migration-fixtures/additive-v14-schema/src/index.ts',
+);
+const v15FixturePath = resolve(
+  repositoryRoot,
+  'spacetimedb/migration-fixtures/additive-v15-schema/src/index.ts',
+);
+const v16FixturePath = resolve(
+  repositoryRoot,
+  'spacetimedb/migration-fixtures/additive-v16-schema/src/index.ts',
+);
+const v17FixturePath = resolve(
+  repositoryRoot,
+  'spacetimedb/migration-fixtures/additive-v17-schema/src/index.ts',
+);
 const proofPath = resolve(
   repositoryRoot,
   'scripts/verify-spacetime-additive-migration.mjs',
@@ -42,26 +58,85 @@ function tableDefinition(source, name) {
   return source.slice(start, end);
 }
 
-const [schema, v12Fixture, v13Fixture, proof, receipt] = await Promise.all([
+const [
+  schema,
+  v12Fixture,
+  v13Fixture,
+  v14Fixture,
+  v15Fixture,
+  v16Fixture,
+  v17Fixture,
+  proof,
+  receipt,
+] = await Promise.all([
   readFile(schemaPath, 'utf8'),
   readFile(v12FixturePath, 'utf8'),
   readFile(v13FixturePath, 'utf8'),
+  readFile(v14FixturePath, 'utf8'),
+  readFile(v15FixturePath, 'utf8'),
+  readFile(v16FixturePath, 'utf8'),
+  readFile(v17FixturePath, 'utf8'),
   readFile(proofPath, 'utf8'),
   readFile(receiptPath, 'utf8'),
 ]);
 
 const v12Registrations = registrations(v12Fixture, 'const db = schema({');
 const v13Registrations = registrations(v13Fixture, 'const db = schema({');
+const v14Registrations = registrations(v14Fixture, 'const db = schema({');
+const v15Registrations = registrations(v15Fixture, 'const db = schema({');
+const v16Registrations = registrations(v16Fixture, 'const db = schema({');
+const v17Registrations = registrations(v17Fixture, 'const db = schema({');
 const candidateRegistrations = registrations(schema, 'const warpkeep = schema({');
 assert.equal(v12Registrations.length, 53, 'v12 fixture must end at ref 52');
 assert.deepEqual(v13Registrations.slice(0, 53), v12Registrations);
-assert.deepEqual(candidateRegistrations.slice(0, 53), v12Registrations);
 assert.deepEqual(v13Registrations.slice(53), ['accessRequestV1']);
-assert.deepEqual(candidateRegistrations.slice(0, 54), v13Registrations);
-assert.deepEqual(candidateRegistrations.slice(54), [
+assert.deepEqual(v14Registrations.slice(0, 54), v13Registrations);
+assert.deepEqual(v14Registrations.slice(54), [
   'dailyMarkGrantV1',
   'dailyMarkScheduleV1',
 ]);
+assert.deepEqual(v15Registrations.slice(0, 56), v14Registrations);
+assert.deepEqual(v15Registrations.slice(56), [
+  'innerKeepLayoutV1',
+  'innerKeepSlotV1',
+  'innerKeepBuildingCatalogV1',
+  'innerKeepBuildLevelV1',
+  'castleInnerKeepBuildingV1',
+  'castleInnerBuilderV1',
+  'castleInnerBuildReceiptV1',
+  'castleInnerConstructionScheduleV1',
+]);
+assert.deepEqual(v16Registrations.slice(0, 64), v15Registrations);
+assert.deepEqual(v16Registrations.slice(64), [
+  'realmChatStatusV1',
+  'realmChatChannelV1',
+  'realmChatMessageV1',
+  'realmChatRecentV1',
+  'realmChatRateEventV1',
+  'realmChatSendReceiptV1',
+  'realmChatReportV1',
+  'realmChatReportRateEventV1',
+]);
+assert.deepEqual(v17Registrations.slice(0, 72), v16Registrations);
+assert.deepEqual(v17Registrations.slice(72), [
+  'greaterRealmReleaseV1',
+  'greaterRealmChunkV1',
+  'greaterRealmNavigationComponentV1',
+  'greaterRealmCellV1',
+  'greaterRealmCastleSlotV1',
+  'greaterRealmCastleClaimV1',
+  'greaterRealmCellOccupancyV1',
+  'greaterRealmResourceNodeV1',
+  'greaterRealmActivationV1',
+  'realmAtlasV1',
+  'realmAtlasVisibleRegionV1',
+  'realmWorkerSystemV2',
+]);
+assert.deepEqual(
+  candidateRegistrations,
+  v17Registrations,
+  'candidate must be the complete exact v17 Greater Realm append',
+);
 
 const v13TailStart = v13Fixture.indexOf(
   '/** v13 private, append-only expression of interest in manual admission. */',
@@ -111,6 +186,16 @@ for (const definition of [
 assert.match(proof, /const additiveV13Tables = Object\.freeze\(\[\s*'access_request_v1'/);
 assert.match(proof, /function assertAdditiveV13Schema\(before, after\)/);
 assert.match(proof, /assertAdditiveV13Schema\(emptyV12, emptyV13\)/);
+assert.match(proof, /function assertAdditiveV15Schema\(before, after\)/);
+assert.match(proof, /assertAdditiveV15Schema\(emptyV14, emptyV15\)/);
+assert.match(proof, /function assertAdditiveV16Schema\(before, after\)/);
+assert.match(proof, /assertAdditiveV16Schema\(emptyV15, emptyV16\)/);
+assert.match(proof, /function assertAdditiveV17Schema\(before, after\)/);
+assert.match(proof, /assertAdditiveV17Schema\(emptyV16, emptyV17\)/);
+assert.match(proof, /const additiveV17Tables = Object\.freeze\(\[\s*'greater_realm_release_v1'/);
+assert.match(proof, /fixture_seed_greater_realm_sentinel_v17/);
+assert.match(proof, /populatedGreaterRealmPredecessorV16Rows/);
+assert.match(proof, /populatedGreaterRealmV17Rows/);
 assert.match(proof, /deployedV12Tables[\s\S]*populatedWaterStoneV12Rows/);
 assert.match(proof, /'access_request_v1',[\s\S]*\),\s*0n/);
 assert.match(proof, /submitConcurrentBatch\([\s\S]*syntheticMissingAccessRequestFid,\s*2,/);
@@ -126,16 +211,22 @@ assert.match(proof, /arguments_\.filter\(value => value === '--delete-data=never
 assert.match(proof, /arguments_\.some\(value => value\.startsWith\('--delete-data='/);
 assert.doesNotMatch(proof, /--delete-data=(?:always|on-conflict|if-required)/);
 
-assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 14/);
+assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 17/);
 assert.match(receipt, /v13_table_schema_sha256/);
 assert.match(receipt, /v13TableSchemaDigest/);
 assert.match(receipt, /v14_table_schema_sha256/);
 assert.match(receipt, /v14TableSchemaDigest/);
+assert.match(receipt, /v15_table_schema_sha256/);
+assert.match(receipt, /v15TableSchemaDigest/);
+assert.match(receipt, /v16_table_schema_sha256/);
+assert.match(receipt, /v16TableSchemaDigest/);
+assert.match(receipt, /v17_table_schema_sha256/);
+assert.match(receipt, /v17TableSchemaDigest/);
 
 console.log(
   'access-request additive migration proof passed: exact v12 refs 0–52 preserved, '
   + 'private access_request_v1 remains the exact v13 ref 53 boundary, '
-  + 'the reviewed v14 daily Marks suffix is the only allowed extension, '
+  + 'the reviewed v14 daily Marks, v15 Inner Keep, and v16 Chat suffixes remain frozen before the exact v17 Greater Realm extension, '
   + 'the loopback proof exercises 2/10/50 same-cycle calls and two FIDs, '
   + 'and every rehearsal remains deletion-disabled',
 );

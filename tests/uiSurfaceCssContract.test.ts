@@ -59,7 +59,8 @@ describe('shared Warpkeep surface system', () => {
       '.water-inspection__body',
       '.worker-inspection__drawer',
       '.worker-inspection__body',
-      '.worker-command-center'
+      '.worker-command-center',
+      '.inner-keep-panel__body'
     ]) {
       expect(source).toContain(selector);
     }
@@ -233,6 +234,13 @@ describe('shared Warpkeep surface system', () => {
     expect(performance).toContain('--warpkeep-surface-bg: rgba(7, 9, 15, 0.97);');
     expect(performance).toContain('--warpkeep-surface-bg-strong: #07090f;');
     expect(source).toContain('.realm-profile-menu__panel,');
+    for (const selector of [
+      '.inner-keep__header,',
+      '.inner-keep__resources,',
+      '.inner-keep-panel'
+    ]) {
+      expect(source).toContain(selector);
+    }
     expect(source).toMatch(
       /data-graphics-quality="performance"\] :is\([\s\S]*?\.farcaster-auth-panel,[\s\S]*?\.realm-hud,[\s\S]*?\.castle-inspection__drawer,[\s\S]*?\.realm-castle-label__plate[\s\S]*?\)\s*\{[\s\S]*?backdrop-filter:\s*none;/
     );

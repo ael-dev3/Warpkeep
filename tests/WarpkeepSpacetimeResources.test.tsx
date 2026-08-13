@@ -353,6 +353,25 @@ function workerRealmSnapshot(fid = 12_345): WarpkeepRealmSnapshot {
   });
 }
 
+function continuityProjection(snapshot: WarpkeepRealmSnapshot) {
+  return Object.freeze({
+    realmId: snapshot.realm.realmId,
+    players: snapshot.players,
+    profiles: snapshot.profiles,
+    castles: snapshot.castles,
+    ownCastle: snapshot.ownCastle,
+    ...(snapshot.goldSites === undefined ? {} : { goldSites: snapshot.goldSites }),
+    ...(snapshot.foodSites === undefined ? {} : { foodSites: snapshot.foodSites }),
+    ...(snapshot.woodSites === undefined ? {} : { woodSites: snapshot.woodSites }),
+    ...(snapshot.stoneSites === undefined ? {} : { stoneSites: snapshot.stoneSites }),
+    ...(snapshot.workerSystem === undefined ? {} : { workerSystem: snapshot.workerSystem }),
+    ...(snapshot.workerWorkers === undefined ? {} : { workerWorkers: snapshot.workerWorkers }),
+    ...(snapshot.workerOccupations === undefined ? {} : {
+      workerOccupations: snapshot.workerOccupations
+    })
+  });
+}
+
 function legacyDrainRealmSnapshot(fid = 12_345): WarpkeepRealmSnapshot {
   const candidate = createCanonicalGenesisCandidate(fid);
   const castleIds = candidate.castles.map((castle) => castle.castleId);
@@ -549,6 +568,9 @@ function Probe() {
   return (
     <>
       <output data-testid="phase">{backend.state.phase}</output>
+      <output data-testid="legacy-authority">
+        {backend.state.legacyRealmAuthority ?? ''}
+      </output>
       <output data-testid="realm-own-fid">
         {backend.state.realm?.ownCastle.ownerFid.toString() ?? ''}
       </output>
@@ -838,6 +860,79 @@ describe('Warpkeep private resource lifecycle', () => {
     expect(screen.getByTestId('worker-active').textContent).toBe('active');
     expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('ready');
     expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('true');
+  });
+
+  it('keeps retired-world worker schedules live through atlas-bound V2 refreshes', async () => {
+    mockedFarcaster.current = authenticatedFarcaster();
+    const { runtime } = createRuntimeHarness();
+    let publicAuthority = workerRealmSnapshot();
+    let workerPair = Object.freeze({
+      roster: workerRoster(),
+      resourceState: workerResourceState()
+    });
+    let retireLegacyRealm: ((reason?: 'legacy-retired' | 'invalid') => void) | undefined;
+    let refreshRetiredProjection: (() => void) | undefined;
+    const readWorkerControlState = vi.fn(async () => Object.freeze({
+      status: 'ready' as const,
+      value: workerPair
+    }));
+    const readGreaterRealmWorkerControlState = vi.fn(async () => Object.freeze({
+      status: 'ready' as const,
+      atlasId: 'GRA-FIXTURE',
+      atlasRevision: 1n,
+      value: workerPair
+    }));
+    Object.assign(runtime, {
+      readRealmSnapshot: vi.fn(() => publicAuthority),
+      readRealmContinuity: vi.fn(() => continuityProjection(publicAuthority)),
+      observeRealm: vi.fn((
+        _connection,
+        _fid,
+        _onChange,
+        onError,
+        _retained,
+        onRetiredChange
+      ) => {
+        retireLegacyRealm = onError;
+        refreshRetiredProjection = onRetiredChange;
+        return vi.fn();
+      }),
+      readWorkerControlState,
+      readGreaterRealmWorkerControlState,
+      dispatchWorker: vi.fn(async () => undefined),
+      dispatchGreaterRealmWorker: vi.fn(async () => undefined),
+      recallWorker: vi.fn(async () => undefined),
+      recallAllWorkers: vi.fn(async () => undefined)
+    });
+
+    renderProvider(runtime);
+    await enterRealm();
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('true');
+
+    act(() => retireLegacyRealm?.('legacy-retired'));
+    await waitFor(() => expect(screen.getByTestId('legacy-authority').textContent).toBe('retired'));
+    await waitFor(() => expect(readGreaterRealmWorkerControlState).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId('realm-own-fid').textContent).toBe('');
+    expect(screen.getByTestId('worker-active').textContent).toBe('');
+    expect(screen.getByTestId('worker-first-status').textContent).toBe('idle');
+    expect(capturedBackend?.state.greaterRealmWorkerControl?.value.resourceState.workerSystemMode)
+      .toBe('active');
+    expect(screen.getByTestId('worker-private-sync-phase').textContent).toBe('not-required');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('false');
+
+    publicAuthority = outboundWorkerRealmSnapshot();
+    workerPair = Object.freeze({
+      roster: outboundWorkerRoster(),
+      resourceState: newerWorkerResourceState()
+    });
+    const previousReads = readGreaterRealmWorkerControlState.mock.calls.length;
+    act(() => refreshRetiredProjection?.());
+    await waitFor(() => expect(
+      readGreaterRealmWorkerControlState.mock.calls.length
+    ).toBeGreaterThan(previousReads));
+    await waitFor(() => expect(screen.getByTestId('worker-first-status').textContent).toBe('outbound'));
+    expect(screen.getByTestId('worker-first-revision').textContent).toBe('1');
+    expect(screen.getByTestId('worker-private-sync-commands').textContent).toBe('false');
   });
 
   it('uses the bounded compatibility pair only when the atomic procedure is unavailable', async () => {

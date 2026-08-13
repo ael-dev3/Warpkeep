@@ -38,19 +38,41 @@ import AcceptAlphaTermsV1Reducer from "./accept_alpha_terms_v_1_reducer";
 import AdminActivateDailyMarksV1Reducer from "./admin_activate_daily_marks_v_1_reducer";
 import AdminActivateGenesisWaterLayoutV1Reducer from "./admin_activate_genesis_water_layout_v_1_reducer";
 import AdminActivateGenesisWaterRevisionV1Reducer from "./admin_activate_genesis_water_revision_v_1_reducer";
+import AdminActivateInnerKeepV1Reducer from "./admin_activate_inner_keep_v_1_reducer";
+import AdminActivateRealmChatV1Reducer from "./admin_activate_realm_chat_v_1_reducer";
 import AdminActivateWorkerSystemV1Reducer from "./admin_activate_worker_system_v_1_reducer";
+import AdminAdmitFounderForAccessRequestV2Reducer from "./admin_admit_founder_for_access_request_v_2_reducer";
 import AdminAdmitFounderV1Reducer from "./admin_admit_founder_v_1_reducer";
 import AdminAllowFidReducer from "./admin_allow_fid_reducer";
+import AdminAllowFidForAccessRequestV1Reducer from "./admin_allow_fid_for_access_request_v_1_reducer";
 import AdminBackfillDailyMarkAccountsV1Reducer from "./admin_backfill_daily_mark_accounts_v_1_reducer";
+import AdminBackfillInnerKeepBuildersV1Reducer from "./admin_backfill_inner_keep_builders_v_1_reducer";
 import AdminBackfillResourceAccountsV1Reducer from "./admin_backfill_resource_accounts_v_1_reducer";
 import AdminBackfillWorkerRosterV1Reducer from "./admin_backfill_worker_roster_v_1_reducer";
+import AdminBeginGreaterRealmDrainV1Reducer from "./admin_begin_greater_realm_drain_v_1_reducer";
+import AdminBeginGreaterRealmVerificationV1Reducer from "./admin_begin_greater_realm_verification_v_1_reducer";
 import AdminBeginWorkerLegacyDrainV1Reducer from "./admin_begin_worker_legacy_drain_v_1_reducer";
 import AdminBumpAuthEpochReducer from "./admin_bump_auth_epoch_reducer";
+import AdminCommitGreaterRealmActiveV1Reducer from "./admin_commit_greater_realm_active_v_1_reducer";
 import AdminCompleteWorkerLegacyDrainV1Reducer from "./admin_complete_worker_legacy_drain_v_1_reducer";
+import AdminDeactivateInnerKeepV1Reducer from "./admin_deactivate_inner_keep_v_1_reducer";
 import AdminDisableFidReducer from "./admin_disable_fid_reducer";
+import AdminDisableRealmChatV1Reducer from "./admin_disable_realm_chat_v_1_reducer";
 import AdminExpandGenesisWorldV3Reducer from "./admin_expand_genesis_world_v_3_reducer";
+import AdminFinalizeGreaterRealmReleaseV1Reducer from "./admin_finalize_greater_realm_release_v_1_reducer";
+import AdminFreezeGreaterRealmActivationV1Reducer from "./admin_freeze_greater_realm_activation_v_1_reducer";
+import AdminHaltGreaterRealmActivationV1Reducer from "./admin_halt_greater_realm_activation_v_1_reducer";
+import AdminImportGreaterRealmChunkV1Reducer from "./admin_import_greater_realm_chunk_v_1_reducer";
+import AdminImportGreaterRealmComponentsV1Reducer from "./admin_import_greater_realm_components_v_1_reducer";
+import AdminImportGreaterRealmRegionsV1Reducer from "./admin_import_greater_realm_regions_v_1_reducer";
+import AdminPlanGreaterRealmRelocationV1Reducer from "./admin_plan_greater_realm_relocation_v_1_reducer";
+import AdminPrepareGreaterRealmActivationV1Reducer from "./admin_prepare_greater_realm_activation_v_1_reducer";
+import AdminRelocateGreaterRealmCanaryV1Reducer from "./admin_relocate_greater_realm_canary_v_1_reducer";
 import AdminRepairMissingWorkerReturnScheduleV1Reducer from "./admin_repair_missing_worker_return_schedule_v_1_reducer";
 import AdminResetAccessRequestV1Reducer from "./admin_reset_access_request_v_1_reducer";
+import AdminResolveRealmChatReportV1Reducer from "./admin_resolve_realm_chat_report_v_1_reducer";
+import AdminResumeGreaterRealmActiveV1Reducer from "./admin_resume_greater_realm_active_v_1_reducer";
+import AdminRollbackGreaterRealmBeforeCommitV1Reducer from "./admin_rollback_greater_realm_before_commit_v_1_reducer";
 import AdminSeedGenesisForestLayoutV1Reducer from "./admin_seed_genesis_forest_layout_v_1_reducer";
 import AdminSeedGenesisTierIFoodSitesV1Reducer from "./admin_seed_genesis_tier_i_food_sites_v_1_reducer";
 import AdminSeedGenesisTierIGoldSitesV1Reducer from "./admin_seed_genesis_tier_i_gold_sites_v_1_reducer";
@@ -58,9 +80,14 @@ import AdminSeedGenesisTierIStoneSitesV1Reducer from "./admin_seed_genesis_tier_
 import AdminSeedGenesisTierIWoodSitesV1Reducer from "./admin_seed_genesis_tier_i_wood_sites_v_1_reducer";
 import AdminSeedGenesisWaterLayoutV1Reducer from "./admin_seed_genesis_water_layout_v_1_reducer";
 import AdminSeedGenesisWaterRevisionV1Reducer from "./admin_seed_genesis_water_revision_v_1_reducer";
+import AdminSeedInnerKeepCatalogV1Reducer from "./admin_seed_inner_keep_catalog_v_1_reducer";
 import AdminSeedWorldReducer from "./admin_seed_world_reducer";
+import AdminStageGreaterRealmReleaseV1Reducer from "./admin_stage_greater_realm_release_v_1_reducer";
+import AdminStageRealmChatV1Reducer from "./admin_stage_realm_chat_v_1_reducer";
 import AdminStageWorkerSystemV1Reducer from "./admin_stage_worker_system_v_1_reducer";
+import AdminTombstoneRealmChatMessageV1Reducer from "./admin_tombstone_realm_chat_message_v_1_reducer";
 import AdminUpsertRealmProfileV1Reducer from "./admin_upsert_realm_profile_v_1_reducer";
+import AdminVerifyGreaterRealmBatchV1Reducer from "./admin_verify_greater_realm_batch_v_1_reducer";
 import BootstrapPlayerReducer from "./bootstrap_player_reducer";
 import BootstrapPlayerV2Reducer from "./bootstrap_player_v_2_reducer";
 import CollectFoodExpeditionV1Reducer from "./collect_food_expedition_v_1_reducer";
@@ -70,16 +97,21 @@ import CollectStoneExpeditionV1Reducer from "./collect_stone_expedition_v_1_redu
 import CollectWoodExpeditionV1Reducer from "./collect_wood_expedition_v_1_reducer";
 import DispatchFoodExpeditionV1Reducer from "./dispatch_food_expedition_v_1_reducer";
 import DispatchGoldExpeditionV1Reducer from "./dispatch_gold_expedition_v_1_reducer";
+import DispatchGreaterRealmWorkerV1Reducer from "./dispatch_greater_realm_worker_v_1_reducer";
 import DispatchStoneExpeditionV1Reducer from "./dispatch_stone_expedition_v_1_reducer";
 import DispatchWoodExpeditionV1Reducer from "./dispatch_wood_expedition_v_1_reducer";
 import DispatchWorkerV1Reducer from "./dispatch_worker_v_1_reducer";
+import InnerKeepStartProjectV1Reducer from "./inner_keep_start_project_v_1_reducer";
 import RecallAllWorkersV1Reducer from "./recall_all_workers_v_1_reducer";
 import RecallWorkerV1Reducer from "./recall_worker_v_1_reducer";
+import ReportRealmChatMessageV1Reducer from "./report_realm_chat_message_v_1_reducer";
 import ReturnLegacyExpeditionV1Reducer from "./return_legacy_expedition_v_1_reducer";
+import SendRealmChatMessageV1Reducer from "./send_realm_chat_message_v_1_reducer";
 
 // Import all procedure arg schemas
 import * as AccessRequestGetStatusV1Procedure from "./access_request_get_status_v_1_procedure";
 import * as AccessRequestSubmitV1Procedure from "./access_request_submit_v_1_procedure";
+import * as AdminGetAccessRequestAdmissionStatusV1Procedure from "./admin_get_access_request_admission_status_v_1_procedure";
 import * as AdminGetAccessRequestResetStatusV1Procedure from "./admin_get_access_request_reset_status_v_1_procedure";
 import * as AdminGetAlphaStatusProcedure from "./admin_get_alpha_status_procedure";
 import * as AdminGetAlphaStatusV2Procedure from "./admin_get_alpha_status_v_2_procedure";
@@ -89,11 +121,21 @@ import * as AdminGetAlphaStatusV8Procedure from "./admin_get_alpha_status_v_8_pr
 import * as AdminGetAlphaStatusV10Procedure from "./admin_get_alpha_status_v_10_procedure";
 import * as AdminGetDailyMarksStatusV1Procedure from "./admin_get_daily_marks_status_v_1_procedure";
 import * as AdminGetFidAuthEpochProcedure from "./admin_get_fid_auth_epoch_procedure";
+import * as AdminGetGreaterRealmCutoverStatusV1Procedure from "./admin_get_greater_realm_cutover_status_v_1_procedure";
+import * as AdminGetGreaterRealmImportPlanV1Procedure from "./admin_get_greater_realm_import_plan_v_1_procedure";
+import * as AdminGetGreaterRealmReenableStatusV1Procedure from "./admin_get_greater_realm_reenable_status_v_1_procedure";
+import * as AdminGetGreaterRealmStatusV1Procedure from "./admin_get_greater_realm_status_v_1_procedure";
+import * as AdminGetInnerKeepStatusV1Procedure from "./admin_get_inner_keep_status_v_1_procedure";
+import * as AdminGetRealmChatReportContextV1Procedure from "./admin_get_realm_chat_report_context_v_1_procedure";
+import * as AdminGetRealmChatStatusV1Procedure from "./admin_get_realm_chat_status_v_1_procedure";
 import * as AdminGetWorkerRolloutStatusV2Procedure from "./admin_get_worker_rollout_status_v_2_procedure";
 import * as AdminGetWorkerSystemStatusV1Procedure from "./admin_get_worker_system_status_v_1_procedure";
 import * as AdminInspectGenesisWaterLayoutV1Procedure from "./admin_inspect_genesis_water_layout_v_1_procedure";
 import * as AdminInspectGenesisWaterRevisionV1Procedure from "./admin_inspect_genesis_water_revision_v_1_procedure";
 import * as AdminListAccessRequestsV1Procedure from "./admin_list_access_requests_v_1_procedure";
+import * as AdminListRealmChatReportsV1Procedure from "./admin_list_realm_chat_reports_v_1_procedure";
+import * as AdminPlanInnerKeepBuildersV1Procedure from "./admin_plan_inner_keep_builders_v_1_procedure";
+import * as AdminPlanInnerKeepCatalogV1Procedure from "./admin_plan_inner_keep_catalog_v_1_procedure";
 import * as AdminPlanWorkerRosterV1Procedure from "./admin_plan_worker_roster_v_1_procedure";
 import * as AuthResolverGetFidAdmissionV2Procedure from "./auth_resolver_get_fid_admission_v_2_procedure";
 import * as GetAlphaBackendInfoProcedure from "./get_alpha_backend_info_procedure";
@@ -102,17 +144,28 @@ import * as GetMyAdmissionStatusV2Procedure from "./get_my_admission_status_v_2_
 import * as GetMyEntryAgreementStatusV1Procedure from "./get_my_entry_agreement_status_v_1_procedure";
 import * as GetMyFoodExpeditionStateV1Procedure from "./get_my_food_expedition_state_v_1_procedure";
 import * as GetMyGoldExpeditionStateV1Procedure from "./get_my_gold_expedition_state_v_1_procedure";
+import * as GetMyInnerKeepRequestStatusV1Procedure from "./get_my_inner_keep_request_status_v_1_procedure";
+import * as GetMyInnerKeepStateV1Procedure from "./get_my_inner_keep_state_v_1_procedure";
 import * as GetMyResourceStateV1Procedure from "./get_my_resource_state_v_1_procedure";
 import * as GetMyResourceStateV2Procedure from "./get_my_resource_state_v_2_procedure";
 import * as GetMyStoneExpeditionStateV1Procedure from "./get_my_stone_expedition_state_v_1_procedure";
 import * as GetMyWoodExpeditionStateV1Procedure from "./get_my_wood_expedition_state_v_1_procedure";
 import * as GetMyWorkerControlStateV1Procedure from "./get_my_worker_control_state_v_1_procedure";
+import * as GetMyWorkerControlStateV2Procedure from "./get_my_worker_control_state_v_2_procedure";
 import * as GetMyWorkerRosterV1Procedure from "./get_my_worker_roster_v_1_procedure";
+import * as GetRealmAtlasBootstrapV1Procedure from "./get_realm_atlas_bootstrap_v_1_procedure";
+import * as GetRealmAtlasChunkV1Procedure from "./get_realm_atlas_chunk_v_1_procedure";
+import * as GetRealmAtlasResourceLocationsV1Procedure from "./get_realm_atlas_resource_locations_v_1_procedure";
+import * as GetRealmAtlasWindowV1Procedure from "./get_realm_atlas_window_v_1_procedure";
+import * as GetRealmChatHistoryV1Procedure from "./get_realm_chat_history_v_1_procedure";
+import * as GetRealmChatRecentV1Procedure from "./get_realm_chat_recent_v_1_procedure";
+import * as PlanRealmRouteV1Procedure from "./plan_realm_route_v_1_procedure";
 import * as QaObserverGetRealmAttestationV2Procedure from "./qa_observer_get_realm_attestation_v_2_procedure";
 import * as QaObserverGetRealmSnapshotV1Procedure from "./qa_observer_get_realm_snapshot_v_1_procedure";
 
 // Import all table schema definitions
 import CastleRow from "./castle_table";
+import CastleInnerKeepBuildingV1Row from "./castle_inner_keep_building_v_1_table";
 import CastleSlotV1Row from "./castle_slot_v_1_table";
 import CastleWorkerV1Row from "./castle_worker_v_1_table";
 import FoodExpeditionScheduleV1Row from "./food_expedition_schedule_v_1_table";
@@ -121,8 +174,16 @@ import FoodSiteV1Row from "./food_site_v_1_table";
 import GoldExpeditionScheduleV1Row from "./gold_expedition_schedule_v_1_table";
 import GoldNodeOccupationV1Row from "./gold_node_occupation_v_1_table";
 import GoldSiteV1Row from "./gold_site_v_1_table";
+import GreaterRealmCellOccupancyV1Row from "./greater_realm_cell_occupancy_v_1_table";
+import InnerKeepBuildLevelV1Row from "./inner_keep_build_level_v_1_table";
+import InnerKeepBuildingCatalogV1Row from "./inner_keep_building_catalog_v_1_table";
+import InnerKeepLayoutV1Row from "./inner_keep_layout_v_1_table";
+import InnerKeepSlotV1Row from "./inner_keep_slot_v_1_table";
 import PlayerRow from "./player_table";
 import PlayerV2Row from "./player_v_2_table";
+import RealmAtlasV1Row from "./realm_atlas_v_1_table";
+import RealmAtlasVisibleRegionV1Row from "./realm_atlas_visible_region_v_1_table";
+import RealmChatStatusV1Row from "./realm_chat_status_v_1_table";
 import RealmEnvironmentV1Row from "./realm_environment_v_1_table";
 import RealmForestInstanceV1Row from "./realm_forest_instance_v_1_table";
 import RealmForestLayoutV1Row from "./realm_forest_layout_v_1_table";
@@ -133,6 +194,7 @@ import RealmWaterCellV1Row from "./realm_water_cell_v_1_table";
 import RealmWaterLayoutV1Row from "./realm_water_layout_v_1_table";
 import RealmWaterRevisionV1Row from "./realm_water_revision_v_1_table";
 import RealmWorkerSystemV1Row from "./realm_worker_system_v_1_table";
+import RealmWorkerSystemV2Row from "./realm_worker_system_v_2_table";
 import StoneExpeditionScheduleV1Row from "./stone_expedition_schedule_v_1_table";
 import StoneNodeOccupationV1Row from "./stone_node_occupation_v_1_table";
 import StoneSiteV1Row from "./stone_site_v_1_table";
@@ -166,6 +228,20 @@ const tablesSchema = __schema({
       { name: 'castle_tile_key_key', constraint: 'unique', columns: ['tileKey'] },
     ],
   }, CastleRow),
+  castleInnerKeepBuildingV1: __table({
+    name: 'castle_inner_keep_building_v1',
+    indexes: [
+      { accessor: 'buildingKey', name: 'castle_inner_keep_building_v1_building_key_idx_btree', algorithm: 'btree', columns: [
+        'buildingKey',
+      ] },
+      { accessor: 'byCastle', name: 'castle_inner_keep_building_v1_castle_id_idx_btree', algorithm: 'btree', columns: [
+        'castleId',
+      ] },
+    ],
+    constraints: [
+      { name: 'castle_inner_keep_building_v1_building_key_key', constraint: 'unique', columns: ['buildingKey'] },
+    ],
+  }, CastleInnerKeepBuildingV1Row),
   castleSlotV1: __table({
     name: 'castle_slot_v1',
     indexes: [
@@ -282,6 +358,77 @@ const tablesSchema = __schema({
       { name: 'gold_site_v1_site_id_key', constraint: 'unique', columns: ['siteId'] },
     ],
   }, GoldSiteV1Row),
+  greaterRealmCellOccupancyV1: __table({
+    name: 'greater_realm_cell_occupancy_v1',
+    indexes: [
+      { accessor: 'atlasId', name: 'greater_realm_cell_occupancy_v1_atlas_id_idx_btree', algorithm: 'btree', columns: [
+        'atlasId',
+      ] },
+      { accessor: 'castleId', name: 'greater_realm_cell_occupancy_v1_castle_id_idx_btree', algorithm: 'btree', columns: [
+        'castleId',
+      ] },
+      { accessor: 'cellKey', name: 'greater_realm_cell_occupancy_v1_cell_key_idx_btree', algorithm: 'btree', columns: [
+        'cellKey',
+      ] },
+      { accessor: 'regionId', name: 'greater_realm_cell_occupancy_v1_region_id_idx_btree', algorithm: 'btree', columns: [
+        'regionId',
+      ] },
+    ],
+    constraints: [
+      { name: 'greater_realm_cell_occupancy_v1_castle_id_key', constraint: 'unique', columns: ['castleId'] },
+      { name: 'greater_realm_cell_occupancy_v1_cell_key_key', constraint: 'unique', columns: ['cellKey'] },
+    ],
+  }, GreaterRealmCellOccupancyV1Row),
+  innerKeepBuildLevelV1: __table({
+    name: 'inner_keep_build_level_v1',
+    indexes: [
+      { accessor: 'buildingKind', name: 'inner_keep_build_level_v1_building_kind_idx_btree', algorithm: 'btree', columns: [
+        'buildingKind',
+      ] },
+      { accessor: 'levelKey', name: 'inner_keep_build_level_v1_level_key_idx_btree', algorithm: 'btree', columns: [
+        'levelKey',
+      ] },
+    ],
+    constraints: [
+      { name: 'inner_keep_build_level_v1_level_key_key', constraint: 'unique', columns: ['levelKey'] },
+    ],
+  }, InnerKeepBuildLevelV1Row),
+  innerKeepBuildingCatalogV1: __table({
+    name: 'inner_keep_building_catalog_v1',
+    indexes: [
+      { accessor: 'buildingKind', name: 'inner_keep_building_catalog_v1_building_kind_idx_btree', algorithm: 'btree', columns: [
+        'buildingKind',
+      ] },
+    ],
+    constraints: [
+      { name: 'inner_keep_building_catalog_v1_building_kind_key', constraint: 'unique', columns: ['buildingKind'] },
+    ],
+  }, InnerKeepBuildingCatalogV1Row),
+  innerKeepLayoutV1: __table({
+    name: 'inner_keep_layout_v1',
+    indexes: [
+      { accessor: 'layoutId', name: 'inner_keep_layout_v1_layout_id_idx_btree', algorithm: 'btree', columns: [
+        'layoutId',
+      ] },
+    ],
+    constraints: [
+      { name: 'inner_keep_layout_v1_layout_id_key', constraint: 'unique', columns: ['layoutId'] },
+    ],
+  }, InnerKeepLayoutV1Row),
+  innerKeepSlotV1: __table({
+    name: 'inner_keep_slot_v1',
+    indexes: [
+      { accessor: 'layoutId', name: 'inner_keep_slot_v1_layout_id_idx_btree', algorithm: 'btree', columns: [
+        'layoutId',
+      ] },
+      { accessor: 'slotId', name: 'inner_keep_slot_v1_slot_id_idx_btree', algorithm: 'btree', columns: [
+        'slotId',
+      ] },
+    ],
+    constraints: [
+      { name: 'inner_keep_slot_v1_slot_id_key', constraint: 'unique', columns: ['slotId'] },
+    ],
+  }, InnerKeepSlotV1Row),
   player: __table({
     name: 'player',
     indexes: [
@@ -308,6 +455,53 @@ const tablesSchema = __schema({
       { name: 'player_v2_fid_key', constraint: 'unique', columns: ['fid'] },
     ],
   }, PlayerV2Row),
+  realmAtlasV1: __table({
+    name: 'realm_atlas_v1',
+    indexes: [
+      { accessor: 'atlasId', name: 'realm_atlas_v1_atlas_id_idx_btree', algorithm: 'btree', columns: [
+        'atlasId',
+      ] },
+      { accessor: 'publicReleaseId', name: 'realm_atlas_v1_public_release_id_idx_btree', algorithm: 'btree', columns: [
+        'publicReleaseId',
+      ] },
+    ],
+    constraints: [
+      { name: 'realm_atlas_v1_atlas_id_key', constraint: 'unique', columns: ['atlasId'] },
+      { name: 'realm_atlas_v1_public_release_id_key', constraint: 'unique', columns: ['publicReleaseId'] },
+    ],
+  }, RealmAtlasV1Row),
+  realmAtlasVisibleRegionV1: __table({
+    name: 'realm_atlas_visible_region_v1',
+    indexes: [
+      { accessor: 'atlasId', name: 'realm_atlas_visible_region_v1_atlas_id_idx_btree', algorithm: 'btree', columns: [
+        'atlasId',
+      ] },
+      { accessor: 'ordinal', name: 'realm_atlas_visible_region_v1_ordinal_idx_btree', algorithm: 'btree', columns: [
+        'ordinal',
+      ] },
+      { accessor: 'regionId', name: 'realm_atlas_visible_region_v1_region_id_idx_btree', algorithm: 'btree', columns: [
+        'regionId',
+      ] },
+    ],
+    constraints: [
+      { name: 'realm_atlas_visible_region_v1_ordinal_key', constraint: 'unique', columns: ['ordinal'] },
+      { name: 'realm_atlas_visible_region_v1_region_id_key', constraint: 'unique', columns: ['regionId'] },
+    ],
+  }, RealmAtlasVisibleRegionV1Row),
+  realmChatStatusV1: __table({
+    name: 'realm_chat_status_v1',
+    indexes: [
+      { accessor: 'channelKey', name: 'realm_chat_status_v1_channel_key_idx_btree', algorithm: 'btree', columns: [
+        'channelKey',
+      ] },
+      { accessor: 'realmId', name: 'realm_chat_status_v1_realm_id_idx_btree', algorithm: 'btree', columns: [
+        'realmId',
+      ] },
+    ],
+    constraints: [
+      { name: 'realm_chat_status_v1_channel_key_key', constraint: 'unique', columns: ['channelKey'] },
+    ],
+  }, RealmChatStatusV1Row),
   realmEnvironmentV1: __table({
     name: 'realm_environment_v1',
     indexes: [
@@ -438,6 +632,17 @@ const tablesSchema = __schema({
       { name: 'realm_worker_system_v1_realm_id_key', constraint: 'unique', columns: ['realmId'] },
     ],
   }, RealmWorkerSystemV1Row),
+  realmWorkerSystemV2: __table({
+    name: 'realm_worker_system_v2',
+    indexes: [
+      { accessor: 'atlasId', name: 'realm_worker_system_v2_atlas_id_idx_btree', algorithm: 'btree', columns: [
+        'atlasId',
+      ] },
+    ],
+    constraints: [
+      { name: 'realm_worker_system_v2_atlas_id_key', constraint: 'unique', columns: ['atlasId'] },
+    ],
+  }, RealmWorkerSystemV2Row),
   stoneExpeditionScheduleV1: __table({
     name: 'stone_expedition_schedule_v_1',
     indexes: [
@@ -576,19 +781,41 @@ const reducersSchema = __reducers(
   __reducerSchema("admin_activate_daily_marks_v1", AdminActivateDailyMarksV1Reducer),
   __reducerSchema("admin_activate_genesis_water_layout_v1", AdminActivateGenesisWaterLayoutV1Reducer),
   __reducerSchema("admin_activate_genesis_water_revision_v1", AdminActivateGenesisWaterRevisionV1Reducer),
+  __reducerSchema("admin_activate_inner_keep_v1", AdminActivateInnerKeepV1Reducer),
+  __reducerSchema("admin_activate_realm_chat_v1", AdminActivateRealmChatV1Reducer),
   __reducerSchema("admin_activate_worker_system_v1", AdminActivateWorkerSystemV1Reducer),
+  __reducerSchema("admin_admit_founder_for_access_request_v2", AdminAdmitFounderForAccessRequestV2Reducer),
   __reducerSchema("admin_admit_founder_v1", AdminAdmitFounderV1Reducer),
   __reducerSchema("admin_allow_fid", AdminAllowFidReducer),
+  __reducerSchema("admin_allow_fid_for_access_request_v1", AdminAllowFidForAccessRequestV1Reducer),
   __reducerSchema("admin_backfill_daily_mark_accounts_v1", AdminBackfillDailyMarkAccountsV1Reducer),
+  __reducerSchema("admin_backfill_inner_keep_builders_v1", AdminBackfillInnerKeepBuildersV1Reducer),
   __reducerSchema("admin_backfill_resource_accounts_v1", AdminBackfillResourceAccountsV1Reducer),
   __reducerSchema("admin_backfill_worker_roster_v1", AdminBackfillWorkerRosterV1Reducer),
+  __reducerSchema("admin_begin_greater_realm_drain_v1", AdminBeginGreaterRealmDrainV1Reducer),
+  __reducerSchema("admin_begin_greater_realm_verification_v1", AdminBeginGreaterRealmVerificationV1Reducer),
   __reducerSchema("admin_begin_worker_legacy_drain_v1", AdminBeginWorkerLegacyDrainV1Reducer),
   __reducerSchema("admin_bump_auth_epoch", AdminBumpAuthEpochReducer),
+  __reducerSchema("admin_commit_greater_realm_active_v1", AdminCommitGreaterRealmActiveV1Reducer),
   __reducerSchema("admin_complete_worker_legacy_drain_v1", AdminCompleteWorkerLegacyDrainV1Reducer),
+  __reducerSchema("admin_deactivate_inner_keep_v1", AdminDeactivateInnerKeepV1Reducer),
   __reducerSchema("admin_disable_fid", AdminDisableFidReducer),
+  __reducerSchema("admin_disable_realm_chat_v1", AdminDisableRealmChatV1Reducer),
   __reducerSchema("admin_expand_genesis_world_v3", AdminExpandGenesisWorldV3Reducer),
+  __reducerSchema("admin_finalize_greater_realm_release_v1", AdminFinalizeGreaterRealmReleaseV1Reducer),
+  __reducerSchema("admin_freeze_greater_realm_activation_v1", AdminFreezeGreaterRealmActivationV1Reducer),
+  __reducerSchema("admin_halt_greater_realm_activation_v1", AdminHaltGreaterRealmActivationV1Reducer),
+  __reducerSchema("admin_import_greater_realm_chunk_v1", AdminImportGreaterRealmChunkV1Reducer),
+  __reducerSchema("admin_import_greater_realm_components_v1", AdminImportGreaterRealmComponentsV1Reducer),
+  __reducerSchema("admin_import_greater_realm_regions_v1", AdminImportGreaterRealmRegionsV1Reducer),
+  __reducerSchema("admin_plan_greater_realm_relocation_v1", AdminPlanGreaterRealmRelocationV1Reducer),
+  __reducerSchema("admin_prepare_greater_realm_activation_v1", AdminPrepareGreaterRealmActivationV1Reducer),
+  __reducerSchema("admin_relocate_greater_realm_canary_v1", AdminRelocateGreaterRealmCanaryV1Reducer),
   __reducerSchema("admin_repair_missing_worker_return_schedule_v1", AdminRepairMissingWorkerReturnScheduleV1Reducer),
   __reducerSchema("admin_reset_access_request_v1", AdminResetAccessRequestV1Reducer),
+  __reducerSchema("admin_resolve_realm_chat_report_v1", AdminResolveRealmChatReportV1Reducer),
+  __reducerSchema("admin_resume_greater_realm_active_v1", AdminResumeGreaterRealmActiveV1Reducer),
+  __reducerSchema("admin_rollback_greater_realm_before_commit_v1", AdminRollbackGreaterRealmBeforeCommitV1Reducer),
   __reducerSchema("admin_seed_genesis_forest_layout_v1", AdminSeedGenesisForestLayoutV1Reducer),
   __reducerSchema("admin_seed_genesis_tier_i_food_sites_v1", AdminSeedGenesisTierIFoodSitesV1Reducer),
   __reducerSchema("admin_seed_genesis_tier_i_gold_sites_v1", AdminSeedGenesisTierIGoldSitesV1Reducer),
@@ -596,9 +823,14 @@ const reducersSchema = __reducers(
   __reducerSchema("admin_seed_genesis_tier_i_wood_sites_v1", AdminSeedGenesisTierIWoodSitesV1Reducer),
   __reducerSchema("admin_seed_genesis_water_layout_v1", AdminSeedGenesisWaterLayoutV1Reducer),
   __reducerSchema("admin_seed_genesis_water_revision_v1", AdminSeedGenesisWaterRevisionV1Reducer),
+  __reducerSchema("admin_seed_inner_keep_catalog_v1", AdminSeedInnerKeepCatalogV1Reducer),
   __reducerSchema("admin_seed_world", AdminSeedWorldReducer),
+  __reducerSchema("admin_stage_greater_realm_release_v1", AdminStageGreaterRealmReleaseV1Reducer),
+  __reducerSchema("admin_stage_realm_chat_v1", AdminStageRealmChatV1Reducer),
   __reducerSchema("admin_stage_worker_system_v1", AdminStageWorkerSystemV1Reducer),
+  __reducerSchema("admin_tombstone_realm_chat_message_v1", AdminTombstoneRealmChatMessageV1Reducer),
   __reducerSchema("admin_upsert_realm_profile_v1", AdminUpsertRealmProfileV1Reducer),
+  __reducerSchema("admin_verify_greater_realm_batch_v1", AdminVerifyGreaterRealmBatchV1Reducer),
   __reducerSchema("bootstrap_player", BootstrapPlayerReducer),
   __reducerSchema("bootstrap_player_v2", BootstrapPlayerV2Reducer),
   __reducerSchema("collect_food_expedition_v1", CollectFoodExpeditionV1Reducer),
@@ -608,18 +840,23 @@ const reducersSchema = __reducers(
   __reducerSchema("collect_wood_expedition_v1", CollectWoodExpeditionV1Reducer),
   __reducerSchema("dispatch_food_expedition_v1", DispatchFoodExpeditionV1Reducer),
   __reducerSchema("dispatch_gold_expedition_v1", DispatchGoldExpeditionV1Reducer),
+  __reducerSchema("dispatch_greater_realm_worker_v1", DispatchGreaterRealmWorkerV1Reducer),
   __reducerSchema("dispatch_stone_expedition_v1", DispatchStoneExpeditionV1Reducer),
   __reducerSchema("dispatch_wood_expedition_v1", DispatchWoodExpeditionV1Reducer),
   __reducerSchema("dispatch_worker_v1", DispatchWorkerV1Reducer),
+  __reducerSchema("inner_keep_start_project_v1", InnerKeepStartProjectV1Reducer),
   __reducerSchema("recall_all_workers_v1", RecallAllWorkersV1Reducer),
   __reducerSchema("recall_worker_v1", RecallWorkerV1Reducer),
+  __reducerSchema("report_realm_chat_message_v1", ReportRealmChatMessageV1Reducer),
   __reducerSchema("return_legacy_expedition_v1", ReturnLegacyExpeditionV1Reducer),
+  __reducerSchema("send_realm_chat_message_v1", SendRealmChatMessageV1Reducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */
 const proceduresSchema = __procedures(
   __procedureSchema("access_request_get_status_v1", AccessRequestGetStatusV1Procedure.params, AccessRequestGetStatusV1Procedure.returnType),
   __procedureSchema("access_request_submit_v1", AccessRequestSubmitV1Procedure.params, AccessRequestSubmitV1Procedure.returnType),
+  __procedureSchema("admin_get_access_request_admission_status_v1", AdminGetAccessRequestAdmissionStatusV1Procedure.params, AdminGetAccessRequestAdmissionStatusV1Procedure.returnType),
   __procedureSchema("admin_get_access_request_reset_status_v1", AdminGetAccessRequestResetStatusV1Procedure.params, AdminGetAccessRequestResetStatusV1Procedure.returnType),
   __procedureSchema("admin_get_alpha_status", AdminGetAlphaStatusProcedure.params, AdminGetAlphaStatusProcedure.returnType),
   __procedureSchema("admin_get_alpha_status_v2", AdminGetAlphaStatusV2Procedure.params, AdminGetAlphaStatusV2Procedure.returnType),
@@ -629,11 +866,21 @@ const proceduresSchema = __procedures(
   __procedureSchema("admin_get_alpha_status_v_10", AdminGetAlphaStatusV10Procedure.params, AdminGetAlphaStatusV10Procedure.returnType),
   __procedureSchema("admin_get_daily_marks_status_v1", AdminGetDailyMarksStatusV1Procedure.params, AdminGetDailyMarksStatusV1Procedure.returnType),
   __procedureSchema("admin_get_fid_auth_epoch", AdminGetFidAuthEpochProcedure.params, AdminGetFidAuthEpochProcedure.returnType),
+  __procedureSchema("admin_get_greater_realm_cutover_status_v_1", AdminGetGreaterRealmCutoverStatusV1Procedure.params, AdminGetGreaterRealmCutoverStatusV1Procedure.returnType),
+  __procedureSchema("admin_get_greater_realm_import_plan_v1", AdminGetGreaterRealmImportPlanV1Procedure.params, AdminGetGreaterRealmImportPlanV1Procedure.returnType),
+  __procedureSchema("admin_get_greater_realm_reenable_status_v_1", AdminGetGreaterRealmReenableStatusV1Procedure.params, AdminGetGreaterRealmReenableStatusV1Procedure.returnType),
+  __procedureSchema("admin_get_greater_realm_status_v1", AdminGetGreaterRealmStatusV1Procedure.params, AdminGetGreaterRealmStatusV1Procedure.returnType),
+  __procedureSchema("admin_get_inner_keep_status_v1", AdminGetInnerKeepStatusV1Procedure.params, AdminGetInnerKeepStatusV1Procedure.returnType),
+  __procedureSchema("admin_get_realm_chat_report_context_v_1", AdminGetRealmChatReportContextV1Procedure.params, AdminGetRealmChatReportContextV1Procedure.returnType),
+  __procedureSchema("admin_get_realm_chat_status_v_1", AdminGetRealmChatStatusV1Procedure.params, AdminGetRealmChatStatusV1Procedure.returnType),
   __procedureSchema("admin_get_worker_rollout_status_v2", AdminGetWorkerRolloutStatusV2Procedure.params, AdminGetWorkerRolloutStatusV2Procedure.returnType),
   __procedureSchema("admin_get_worker_system_status_v1", AdminGetWorkerSystemStatusV1Procedure.params, AdminGetWorkerSystemStatusV1Procedure.returnType),
   __procedureSchema("admin_inspect_genesis_water_layout_v1", AdminInspectGenesisWaterLayoutV1Procedure.params, AdminInspectGenesisWaterLayoutV1Procedure.returnType),
   __procedureSchema("admin_inspect_genesis_water_revision_v_1", AdminInspectGenesisWaterRevisionV1Procedure.params, AdminInspectGenesisWaterRevisionV1Procedure.returnType),
   __procedureSchema("admin_list_access_requests_v1", AdminListAccessRequestsV1Procedure.params, AdminListAccessRequestsV1Procedure.returnType),
+  __procedureSchema("admin_list_realm_chat_reports_v_1", AdminListRealmChatReportsV1Procedure.params, AdminListRealmChatReportsV1Procedure.returnType),
+  __procedureSchema("admin_plan_inner_keep_builders_v1", AdminPlanInnerKeepBuildersV1Procedure.params, AdminPlanInnerKeepBuildersV1Procedure.returnType),
+  __procedureSchema("admin_plan_inner_keep_catalog_v1", AdminPlanInnerKeepCatalogV1Procedure.params, AdminPlanInnerKeepCatalogV1Procedure.returnType),
   __procedureSchema("admin_plan_worker_roster_v1", AdminPlanWorkerRosterV1Procedure.params, AdminPlanWorkerRosterV1Procedure.returnType),
   __procedureSchema("auth_resolver_get_fid_admission_v2", AuthResolverGetFidAdmissionV2Procedure.params, AuthResolverGetFidAdmissionV2Procedure.returnType),
   __procedureSchema("get_alpha_backend_info", GetAlphaBackendInfoProcedure.params, GetAlphaBackendInfoProcedure.returnType),
@@ -642,12 +889,22 @@ const proceduresSchema = __procedures(
   __procedureSchema("get_my_entry_agreement_status_v1", GetMyEntryAgreementStatusV1Procedure.params, GetMyEntryAgreementStatusV1Procedure.returnType),
   __procedureSchema("get_my_food_expedition_state_v1", GetMyFoodExpeditionStateV1Procedure.params, GetMyFoodExpeditionStateV1Procedure.returnType),
   __procedureSchema("get_my_gold_expedition_state_v1", GetMyGoldExpeditionStateV1Procedure.params, GetMyGoldExpeditionStateV1Procedure.returnType),
+  __procedureSchema("get_my_inner_keep_request_status_v1", GetMyInnerKeepRequestStatusV1Procedure.params, GetMyInnerKeepRequestStatusV1Procedure.returnType),
+  __procedureSchema("get_my_inner_keep_state_v1", GetMyInnerKeepStateV1Procedure.params, GetMyInnerKeepStateV1Procedure.returnType),
   __procedureSchema("get_my_resource_state_v1", GetMyResourceStateV1Procedure.params, GetMyResourceStateV1Procedure.returnType),
   __procedureSchema("get_my_resource_state_v2", GetMyResourceStateV2Procedure.params, GetMyResourceStateV2Procedure.returnType),
   __procedureSchema("get_my_stone_expedition_state_v1", GetMyStoneExpeditionStateV1Procedure.params, GetMyStoneExpeditionStateV1Procedure.returnType),
   __procedureSchema("get_my_wood_expedition_state_v1", GetMyWoodExpeditionStateV1Procedure.params, GetMyWoodExpeditionStateV1Procedure.returnType),
   __procedureSchema("get_my_worker_control_state_v1", GetMyWorkerControlStateV1Procedure.params, GetMyWorkerControlStateV1Procedure.returnType),
+  __procedureSchema("get_my_worker_control_state_v2", GetMyWorkerControlStateV2Procedure.params, GetMyWorkerControlStateV2Procedure.returnType),
   __procedureSchema("get_my_worker_roster_v1", GetMyWorkerRosterV1Procedure.params, GetMyWorkerRosterV1Procedure.returnType),
+  __procedureSchema("get_realm_atlas_bootstrap_v1", GetRealmAtlasBootstrapV1Procedure.params, GetRealmAtlasBootstrapV1Procedure.returnType),
+  __procedureSchema("get_realm_atlas_chunk_v1", GetRealmAtlasChunkV1Procedure.params, GetRealmAtlasChunkV1Procedure.returnType),
+  __procedureSchema("get_realm_atlas_resource_locations_v1", GetRealmAtlasResourceLocationsV1Procedure.params, GetRealmAtlasResourceLocationsV1Procedure.returnType),
+  __procedureSchema("get_realm_atlas_window_v1", GetRealmAtlasWindowV1Procedure.params, GetRealmAtlasWindowV1Procedure.returnType),
+  __procedureSchema("get_realm_chat_history_v_1", GetRealmChatHistoryV1Procedure.params, GetRealmChatHistoryV1Procedure.returnType),
+  __procedureSchema("get_realm_chat_recent_v_1", GetRealmChatRecentV1Procedure.params, GetRealmChatRecentV1Procedure.returnType),
+  __procedureSchema("plan_realm_route_v1", PlanRealmRouteV1Procedure.params, PlanRealmRouteV1Procedure.returnType),
   __procedureSchema("qa_observer_get_realm_attestation_v2", QaObserverGetRealmAttestationV2Procedure.params, QaObserverGetRealmAttestationV2Procedure.returnType),
   __procedureSchema("qa_observer_get_realm_snapshot_v1", QaObserverGetRealmSnapshotV1Procedure.params, QaObserverGetRealmSnapshotV1Procedure.returnType),
 );

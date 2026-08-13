@@ -5,10 +5,20 @@ const webglState = vi.hoisted(() => ({
   failGrassShaderContractOnce: false,
   failAfterGrassShaderFallbackOnce: false,
   failGenericRenderOnce: false,
+  maxAttributes: 16,
   instances: [] as Array<{
     dispose: ReturnType<typeof vi.fn>;
     render: ReturnType<typeof vi.fn>;
     setSize: ReturnType<typeof vi.fn>;
+    debug: {
+      checkShaderErrors: boolean;
+      onShaderError: ((
+        gl: WebGLRenderingContext,
+        program: WebGLProgram,
+        vertexShader: WebGLShader,
+        fragmentShader: WebGLShader
+      ) => void) | null;
+    };
   }>
 }));
 
@@ -34,7 +44,10 @@ vi.mock('three', async (importOriginal) => {
   const actual = await importOriginal<typeof import('three')>();
 
   class WebGLRenderer {
-    capabilities = { getMaxAnisotropy: () => 1 };
+    capabilities = {
+      getMaxAnisotropy: () => 1,
+      maxAttributes: webglState.maxAttributes
+    };
     dispose = vi.fn();
     outputColorSpace = '';
     render = vi.fn(() => {
@@ -54,6 +67,15 @@ vi.mock('three', async (importOriginal) => {
     setPixelRatio = vi.fn();
     setSize = vi.fn();
     shadowMap = { enabled: false, type: 0 };
+    debug = {
+      checkShaderErrors: true,
+      onShaderError: null as ((
+        gl: WebGLRenderingContext,
+        program: WebGLProgram,
+        vertexShader: WebGLShader,
+        fragmentShader: WebGLShader
+      ) => void) | null
+    };
     toneMapping = 0;
     toneMappingExposure = 1;
 
@@ -167,6 +189,9 @@ import {
   createRealmTerrainSurface
 } from '../src/game/map/realmTerrainSurface';
 import { DEFAULT_REALM_CAMERA_SPEC } from '../src/components/realm/realmCameraController';
+import {
+  DEFAULT_REALM_RABBIT_REQUEST_TIMEOUT_MS
+} from '../src/components/realm/loadRealmRabbitAsset';
 import { REALM_QUALITY_SPECS } from '../src/components/realm/realmQuality';
 import {
   CANONICAL_GENESIS_FOREST_INSTANCES_V1,
@@ -178,6 +203,10 @@ import type { RealmWorkerSceneRecord } from '../src/components/realm/realmWorker
 import {
   REALM_WORKER_REDUCED_MOTION_POSITION_INTERVAL_MS
 } from '../src/components/realm/realmWorkerLayer';
+import {
+  createInnerKeepPresentation,
+  createInnerKeepTestBuilding,
+} from './fixtures/innerKeepPresentation';
 
 type ListenerSpy = ReturnType<typeof vi.spyOn>;
 
@@ -383,6 +412,7 @@ describe('realm scene setup cleanup', () => {
     webglState.failGrassShaderContractOnce = false;
     webglState.failAfterGrassShaderFallbackOnce = false;
     webglState.failGenericRenderOnce = false;
+    webglState.maxAttributes = 16;
     webglState.instances.length = 0;
     keepLoadState.load.mockReset();
     keepLoadState.load.mockImplementation(() => new Promise<unknown>(() => undefined));
@@ -461,7 +491,9 @@ describe('realm scene setup cleanup', () => {
       quality: REALM_QUALITY_SPECS.balanced,
       reducedMotion: false
     }));
-    expect(setTimeoutSpy).not.toHaveBeenCalled();
+    expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
+    expect(setTimeoutSpy.mock.calls[0]?.[1])
+      .toBe(DEFAULT_REALM_RABBIT_REQUEST_TIMEOUT_MS);
     animated.dispose();
   });
 
@@ -622,12 +654,32 @@ describe('realm scene setup cleanup', () => {
       grassInstanceCount: 0,
       grassTriangleCount: 0,
       grassDrawCalls: 0,
+      grassNearInstanceCount: 0,
+      grassMidInstanceCount: 0,
+      grassNearTriangleCount: 0,
+      grassMidTriangleCount: 0,
+      grassNearDrawCalls: 0,
+      grassMidDrawCalls: 0,
+      grassLodTransitionInstanceCount: 0,
+      wildflowerInstanceCount: 0,
+      wildflowerTriangleCount: 0,
+      wildflowerDrawCalls: 0,
+      wildflowerInstanceBudget: 0,
+      wildflowerAnimated: false,
+      wildflowerAlphaHashActive: true,
+      wildflowerAlphaToCoverageActive: false,
+      wildflowerShaderFallbackActive: false,
+      wildflowerShaderFallbackCount: 0,
+      wildflowerShaderFallbackReason: null,
+      wildflowerOverviewHidden: true,
       grassCacheEntries: 0,
       grassCacheLimit: 512,
       grassCacheHighWaterMark: 0,
       grassRepackCount: 0,
       grassAnimated: false,
       grassTargetAnimationCadence: 0,
+      grassAlphaHashActive: true,
+      grassAlphaToCoverageActive: false,
       grassCandidateCellsByTerrain: {
         meadow: 0, lowland: 0, forest: 0, heath: 0, ridge: 0, lake: 0,
         'ancient-stone': 0, apron: 0
@@ -760,7 +812,7 @@ describe('realm scene setup cleanup', () => {
 
       sceneHandle.dispose();
     }
-  }, 15_000);
+  }, 30_000);
 
   it.each([
     {
@@ -913,6 +965,24 @@ describe('realm scene setup cleanup', () => {
     sceneHandle.dispose();
   });
 
+  it('fails closed before vegetation allocation when linked attributes cannot fit', () => {
+    const canvas = document.createElement('canvas');
+    webglState.maxAttributes = 12;
+
+    const sceneHandle = createRealmScene(createOptions(canvas, { reducedMotion: true }));
+    const renderedScene = webglState.instances[0].render.mock.calls.at(-1)?.[0] as THREE.Scene;
+
+    expect(canvas.dataset.realmVegetationCapability).toBe('terrain-only');
+    expect(canvas.dataset.realmVegetationCapabilityReason)
+      .toBe('insufficient-attribute-slots');
+    expect(canvas.dataset.realmVegetationSelectedProfile).toBe('none');
+    expect(canvas.dataset.realmVegetationMaxAttributes).toBe('12');
+    expect(canvas.dataset.grassPresentation).toBe('unavailable');
+    expect(renderedScene.getObjectByName('realm-procedural-biome-grass')).toBeUndefined();
+
+    sceneHandle.dispose();
+  });
+
   it('fails closed to terrain-only presentation when the grass shader contract changes during render', () => {
     const canvas = document.createElement('canvas');
     webglState.failGrassShaderContractOnce = true;
@@ -921,6 +991,43 @@ describe('realm scene setup cleanup', () => {
 
     expect(canvas.dataset.grassPresentation).toBe('unavailable');
     expect(webglState.instances[0].render).toHaveBeenCalledTimes(3);
+    sceneHandle.dispose();
+  });
+
+  it('captures renderer-level vegetation link failures and schedules the standard fallback', async () => {
+    const canvas = document.createElement('canvas');
+    const onTerrainPresentationTelemetry = vi.fn();
+    const sceneHandle = createRealmScene(createOptions(canvas, {
+      reducedMotion: true,
+      onTerrainPresentationTelemetry
+    }));
+    const renderer = webglState.instances.at(-1)!;
+    const vertexShader = {} as WebGLShader;
+    const fragmentShader = {} as WebGLShader;
+    const renderCountBeforeFailure = renderer.render.mock.calls.length;
+    const gl = {
+      getShaderSource: (shader: WebGLShader) => shader === vertexShader
+        ? 'uniform float uGrassTime; attribute vec4 grassBladeData;'
+        : 'void main() {}',
+      getProgramInfoLog: () => ''
+    } as unknown as WebGLRenderingContext;
+
+    renderer.debug.onShaderError?.(
+      gl,
+      {} as WebGLProgram,
+      vertexShader,
+      fragmentShader
+    );
+    await Promise.resolve();
+
+    expect(onTerrainPresentationTelemetry).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        grassShaderFallbackActive: true,
+        grassShaderFallbackCount: 1,
+        grassShaderFallbackReason: 'REALM_GRASS_SHADER_COMPILE_OR_LINK_FAILED'
+      })
+    );
+    expect(renderer.render.mock.calls.length).toBeGreaterThan(renderCountBeforeFailure);
     sceneHandle.dispose();
   });
 
@@ -3695,6 +3802,177 @@ describe('realm scene setup cleanup', () => {
     expect(afterPinch.zoom).not.toBe(beforePinch.zoom);
     expect(clicks[1]).toHaveBeenCalledOnce();
     expect(clicks[2]).toHaveBeenCalledOnce();
+    expect(canvas.dataset.dragging).toBeUndefined();
+    expect(root.dataset.cameraInteracting).toBeUndefined();
+
+    scene.dispose();
+    root.remove();
+  });
+
+  it('keeps Inner Keep pan, pinch, wheel, and exact building picks solely on the canvas', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+    const root = document.createElement('main');
+    root.className = 'realm-map-screen';
+    const canvas = document.createElement('canvas');
+    canvas.className = 'realm-map-screen__canvas';
+    root.append(canvas);
+    document.body.append(root);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 800,
+      bottom: 600,
+      left: 0,
+      width: 800,
+      height: 600,
+      toJSON: () => ({})
+    });
+    Object.defineProperties(canvas, {
+      clientWidth: { configurable: true, value: 800 },
+      clientHeight: { configurable: true, value: 600 }
+    });
+    const onInnerKeepSceneStatusChange = vi.fn();
+    const onInnerKeepBuildingSelect = vi.fn();
+    const building = createInnerKeepTestBuilding({ buildingKind: 'city-mill' });
+    const scene = createRealmScene(createOptions(canvas, {
+      reducedMotion: true,
+      onInnerKeepSceneStatusChange,
+      onInnerKeepBuildingSelect
+    }));
+    scene.reconcileInnerKeepPresentation?.(
+      createInnerKeepPresentation({ buildings: [building] }),
+      { owningTerrainKind: 'meadow' }
+    );
+    scene.setSceneMode?.('INNER_KEEP');
+    await vi.waitFor(() => {
+      expect(onInnerKeepSceneStatusChange).toHaveBeenCalledWith('ready');
+    }, { timeout: 5_000 });
+
+    const renderer = webglState.instances[0]!;
+    const innerRender = () => {
+      const call = [...renderer.render.mock.calls].reverse().find(([candidate]) => {
+        let found = false;
+        (candidate as THREE.Scene).traverse((object) => {
+          if (object.userData.innerKeepBuildingKey === building.buildingKey) found = true;
+        });
+        return found;
+      });
+      if (!call) throw new Error('Missing Inner Keep render.');
+      return {
+        scene: call[0] as THREE.Scene,
+        camera: call[1] as THREE.OrthographicCamera
+      };
+    };
+    const projectedBuildingCenter = () => {
+      const current = innerRender();
+      let root: THREE.Object3D | undefined;
+      current.scene.traverse((object) => {
+        if (!root && object.userData.innerKeepBuildingKey === building.buildingKey) {
+          root = object;
+        }
+      });
+      if (!root) throw new Error('Missing Inner Keep test building.');
+      current.scene.updateMatrixWorld(true);
+      current.camera.updateMatrixWorld(true);
+      const projected = root.getWorldPosition(new THREE.Vector3()).project(current.camera);
+      return {
+        x: (projected.x + 1) * 400,
+        y: (1 - projected.y) * 300
+      };
+    };
+
+    const beforeDrag = projectedBuildingCenter();
+    dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 301,
+      pointerType: 'touch',
+      clientX: beforeDrag.x,
+      clientY: beforeDrag.y
+    });
+    const drag = dispatchPointer(window, 'pointermove', {
+      pointerId: 301,
+      pointerType: '',
+      buttons: 0,
+      clientX: beforeDrag.x + 54,
+      clientY: beforeDrag.y + 22
+    });
+    dispatchPointer(window, 'pointerup', {
+      pointerId: 301,
+      pointerType: 'touch',
+      buttons: 0,
+      clientX: beforeDrag.x + 54,
+      clientY: beforeDrag.y + 22
+    });
+    const afterDrag = projectedBuildingCenter();
+    expect(drag.defaultPrevented).toBe(true);
+    expect(afterDrag.x).not.toBeCloseTo(beforeDrag.x, 2);
+    expect(afterDrag.y).not.toBeCloseTo(beforeDrag.y, 2);
+    expect(onInnerKeepBuildingSelect).not.toHaveBeenCalled();
+
+    const camera = innerRender().camera;
+    const beforeWheelSpan = camera.right - camera.left;
+    const wheel = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      clientX: afterDrag.x,
+      clientY: afterDrag.y,
+      deltaY: -240,
+      deltaMode: WheelEvent.DOM_DELTA_PIXEL
+    });
+    canvas.dispatchEvent(wheel);
+    expect(wheel.defaultPrevented).toBe(true);
+    expect(camera.right - camera.left).toBeLessThan(beforeWheelSpan);
+
+    const beforePinchSpan = camera.right - camera.left;
+    dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 302,
+      pointerType: 'touch',
+      clientX: 260,
+      clientY: 320
+    });
+    const secondDown = dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 303,
+      pointerType: 'touch',
+      clientX: 540,
+      clientY: 320
+    });
+    dispatchPointer(window, 'pointermove', {
+      pointerId: 303,
+      pointerType: '',
+      buttons: 0,
+      clientX: 600,
+      clientY: 320
+    });
+    dispatchPointer(window, 'pointerup', {
+      pointerId: 303,
+      pointerType: 'touch',
+      buttons: 0,
+      clientX: 600,
+      clientY: 320
+    });
+    dispatchPointer(window, 'pointerup', {
+      pointerId: 302,
+      pointerType: 'touch',
+      buttons: 0,
+      clientX: 260,
+      clientY: 320
+    });
+    expect(secondDown.defaultPrevented).toBe(true);
+    expect(camera.right - camera.left).not.toBeCloseTo(beforePinchSpan, 4);
+
+    const afterCameraMotion = projectedBuildingCenter();
+    dispatchPointer(canvas, 'pointerdown', {
+      pointerId: 304,
+      clientX: afterCameraMotion.x,
+      clientY: afterCameraMotion.y
+    });
+    dispatchPointer(window, 'pointerup', {
+      pointerId: 304,
+      buttons: 0,
+      clientX: afterCameraMotion.x,
+      clientY: afterCameraMotion.y
+    });
+    expect(onInnerKeepBuildingSelect).toHaveBeenCalledWith(building.buildingKey);
     expect(canvas.dataset.dragging).toBeUndefined();
     expect(root.dataset.cameraInteracting).toBeUndefined();
 

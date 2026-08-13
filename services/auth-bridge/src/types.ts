@@ -73,6 +73,8 @@ export interface WorkerEnv {
   QA_OBSERVER_ENABLED?: string
   /** Fail-closed gate for Farcaster admission notification consent and delivery. */
   APPROVAL_NOTIFICATIONS_ENABLED?: string
+  /** Protected-deployer injected source commit for public bridge release attestation. */
+  WARPKEEP_BRIDGE_SOURCE_COMMIT?: string
   /** Two exact, independently operated Hub HTTP origins used to verify app keys. */
   MINIAPP_NOTIFICATION_HUB_URLS?: string
   /** Exact `clientFid=deliveryUrl` allowlist; prevents webhook-driven SSRF. */
@@ -172,6 +174,8 @@ export type SafeLogEvent =
   | 'admission_notification_not_subscribed'
   | 'admission_notification_rejected'
   | 'admission_notification_inspected'
+  | 'admission_notification_recovery_authorized'
+  | 'admission_notification_recovery_rejected'
   | 'rate_limited'
   | 'rate_limit_failed'
   | 'configuration_error'
@@ -332,6 +336,15 @@ export type AdmissionNotificationQueueInput = Readonly<{
   requestedAtMicros: number
 }>
 
+export type AdmissionNotificationRecoveryInput = Readonly<{
+  fid: string
+  recoveredAt: number
+  kind: 'pending-request'
+  requestedAtMicros: number
+  /** One reviewed recovery plan ID. Replays of the same ID are idempotent. */
+  recoveryId: string
+}>
+
 export type AdmissionNotificationRetryReason =
   | 'admission-verification'
   | 'request-verification'
@@ -359,8 +372,13 @@ export type AdmissionNotificationDiagnostics = Readonly<{
   status: AdmissionNotificationQueueStatus
   generation?: AdmissionNotificationGeneration['kind']
   authEpoch?: number
+  requestedAtMicros?: number
   deliveryAttemptCount: number
   verificationFailureCount: number
+  subscribed: boolean
+  /** Zero or one: only one recovery is permitted for one request generation. */
+  recoveryCount: number
+  lastRecoveryAt?: number
   retryReasons: readonly AdmissionNotificationRetryReason[]
   lastAttemptAt?: number
   lastFailureReason?: AdmissionNotificationRetryReason
@@ -371,6 +389,9 @@ export type AdmissionNotificationDiagnostics = Readonly<{
 export interface AdmissionNotificationStore {
   applyEvent(event: VerifiedMiniAppWebhookEvent): Promise<void>
   queueAdmission(input: AdmissionNotificationQueueInput): Promise<AdmissionNotificationQueueStatus>
+  recoverAdmission?(
+    input: AdmissionNotificationRecoveryInput,
+  ): Promise<AdmissionNotificationQueueStatus>
   /** Operator-only, token-free delivery state used for bounded diagnosis. */
   inspect?(fid: string): Promise<AdmissionNotificationDiagnostics>
 }

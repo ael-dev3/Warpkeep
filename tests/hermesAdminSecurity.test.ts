@@ -1,6 +1,17 @@
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import {
+  chmodSync,
+  linkSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setGlobalLogLevel, stdbLogger } from 'spacetimedb';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -11,17 +22,30 @@ import { GENESIS_RESOURCE_POLICY_VERSION } from '../spacetimedb/src/resourceAuth
 import { configureHermesMachineOutput } from '../scripts/hermes-machine-output';
 import {
   admissionReadinessSummary,
+  collectPendingAccessRequestCensus,
   connect,
+  FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED,
   FOUNDER_ADMISSION_SOURCE_CONFIGURATION_DIGEST,
+  inspectAdmissionNotification,
+  inspectHermesNotificationPagesLiveAuthority,
   listAccessRequests,
+  PENDING_ACCESS_REQUEST_CENSUS_TARGET_CONFIGURATION_DIGEST,
   parseHermesArguments,
   privacySafeHermesErrorMessage,
+  projectAdmissionNotificationDiagnostics,
+  projectAccessRequestAdmissionStatus,
   projectAccessRequestListPage,
   projectAccessRequestResetStatus,
   projectWorkerSystemStatusV12,
   readNotificationOperatorSecret,
   readStatus,
+  reconnectAfterAdmissionNotification,
   requestAdmissionNotification,
+  requestAdmissionNotificationRecovery,
+  requireAdmissionNotificationRecoveryPrecondition,
+  requirePendingAdmissionRequest,
+  requireAdmissionNotificationInspectionProductionTarget,
+  requireUnchangedPendingAdmissionRequest,
   requireNotificationBeforeAdmission,
   requestAdminToken,
   requireAccessRequestInspectionProductionTarget,
@@ -29,6 +53,7 @@ import {
   requireAlphaComponentActivationProductionTarget,
   requireCredentialedProductionTarget,
   requireFounderAdmissionProductionTarget,
+  requireFounderAdmissionNotificationDeliveryApproval,
   requireGenesisExpansionProductionTarget,
   requireResourceBackfillProductionTarget,
   resolveAdmissionReadyFounderProfile,
@@ -37,6 +62,7 @@ import {
   verifyExpectedResourceAggregateV4,
   verifyFounderAdmissionPostconditionV3,
   verifyFounderAdmissionPreconditionV3,
+  verifyFounderAdmissionRequestPostcondition,
   verifyFounderAdmissionResourcePostconditionV4,
   verifyFounderAdmissionResourcePreconditionV4,
   verifyFounderReenablePostcondition,
@@ -46,12 +72,32 @@ import {
   verifyGenesisExpansionResourceCheckpointV4,
   verifyGenesisExpansionResourcePreservationV4,
   withOperationTimeout,
+  writePendingAccessRequestCensus,
 } from '../scripts/hermes-admin';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
 const TEST_SECRET = 'TEST_ONLY_HERMES_SECRET_'.repeat(2);
+const TEST_ADMIN_TOKEN_BUDGET = Object.freeze({
+  recordAttempt: async () => Object.freeze({
+    attemptId: '0'.repeat(32),
+    attemptedAtMs: 0,
+    reservationId: null,
+  }),
+});
 const NOTIFICATION_SECRET = 'TEST_ONLY_NOTIFICATION_SECRET_'.repeat(2);
+
+function admissionNotificationDiagnostics(overrides: Record<string, unknown> = {}) {
+  return {
+    status: 'not-subscribed',
+    deliveryAttemptCount: 0,
+    verificationFailureCount: 0,
+    subscribed: false,
+    recoveryCount: 0,
+    retryReasons: [],
+    ...overrides,
+  };
+}
 
 afterEach(() => {
   vi.useRealTimers();
@@ -61,6 +107,7 @@ function runHermes(
   args: string[],
   overrides: Record<string, string | undefined> = {},
   input?: string,
+  timeout = 5_000,
 ) {
   const env: NodeJS.ProcessEnv = {
     PATH: process.env.PATH,
@@ -78,13 +125,76 @@ function runHermes(
   for (const [key, value] of Object.entries(env)) {
     if (value === undefined) delete env[key];
   }
-  return spawnSync(process.execPath, [tsxCli, 'scripts/hermes-admin.ts', ...args], {
-    cwd: repositoryRoot,
-    encoding: 'utf8',
-    env,
-    input,
-    timeout: 5_000
-  });
+  const row = args[0] === 'admit-founder'
+    ? args.includes('--dry-run') ? 'admit-dry' : 'admit-confirm'
+    : args[0] === 'allow-fid'
+      ? args.includes('--dry-run') ? 'allow-dry' : 'allow-confirm'
+      : args[0] === 'inspect-admission-notification'
+        ? 'notification-inspect'
+        : args[0] === 'recover-admission-notification'
+          ? args.includes('--dry-run') ? 'notification-recover-dry' : 'notification-recover-confirm'
+          : args[0] === 'list-pending-access-requests'
+            ? 'list-pending'
+          : undefined;
+  let trustedRoot: string | undefined;
+  let childInput = input;
+  if (row !== undefined) {
+    trustedRoot = mkdtempSync(join(realpathSync(tmpdir()), 'warpkeep-hermes-trusted-'));
+    chmodSync(trustedRoot, 0o700);
+    const founderPlans = resolve(trustedRoot, 'founder-plans');
+    const recoveryPlans = resolve(trustedRoot, 'recovery-plans');
+    const pendingCensus = resolve(trustedRoot, 'pending-census');
+    env.WKGR_PRODUCTION_BOOTSTRAP_PROFILE =
+      'warpkeep-greater-realm-production-bootstrap-v1';
+    env.WKGR_HERMES_RELEASE_COMMAND = row;
+    env.WKGR_PRODUCTION_PROTECTED_COMMIT = 'a'.repeat(40);
+    if (row === 'admit-dry' || row === 'admit-confirm') {
+      mkdirSync(founderPlans, { mode: 0o700 });
+      env.WKGR_HERMES_FOUNDER_PLAN_DIRECTORY = founderPlans;
+    }
+    if (row === 'notification-recover-dry' || row === 'notification-recover-confirm') {
+      mkdirSync(recoveryPlans, { mode: 0o700 });
+      env.WKGR_HERMES_NOTIFICATION_RECOVERY_PLAN_DIRECTORY = recoveryPlans;
+    }
+    if (row === 'list-pending') {
+      mkdirSync(pendingCensus, { mode: 0o700 });
+      env.WKGR_HERMES_PENDING_CENSUS_DIRECTORY = pendingCensus;
+    }
+    const needsAdmin = ['list-pending', 'admit-confirm', 'allow-confirm', 'notification-recover-dry',
+      'notification-recover-confirm'].includes(row);
+    const needsNotification = ['admit-confirm', 'allow-confirm', 'notification-inspect',
+      'notification-recover-dry', 'notification-recover-confirm'].includes(row);
+    const needsInput = row === 'admit-dry' || row === 'admit-confirm';
+    if (needsAdmin && env.WARPKEEP_ADMIN_TOKEN_SECRET !== undefined) {
+      const path = resolve(trustedRoot, 'admin-secret');
+      writeFileSync(path, env.WARPKEEP_ADMIN_TOKEN_SECRET, { mode: 0o600 });
+      env.WKGR_PRODUCTION_ADMIN_SECRET_PATH = path;
+    }
+    if (needsNotification && env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET !== undefined) {
+      const path = resolve(trustedRoot, 'notification-secret');
+      writeFileSync(path, env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET, { mode: 0o600 });
+      env.WKGR_PRODUCTION_NOTIFICATION_SECRET_PATH = path;
+    }
+    if (needsInput && input !== undefined) {
+      const path = resolve(trustedRoot, 'private-input.json');
+      writeFileSync(path, input, { mode: 0o600 });
+      env.WKGR_PRODUCTION_PRIVATE_INPUT_PATH = path;
+      childInput = undefined;
+    }
+    delete env.WARPKEEP_ADMIN_TOKEN_SECRET;
+    delete env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET;
+  }
+  try {
+    return spawnSync(process.execPath, [tsxCli, 'scripts/hermes-admin.ts', ...args], {
+      cwd: repositoryRoot,
+      encoding: 'utf8',
+      env,
+      input: childInput,
+      timeout
+    });
+  } finally {
+    if (trustedRoot !== undefined) rmSync(trustedRoot, { recursive: true, force: true });
+  }
 }
 
 function foundedGenerationV2Status(overrides: Record<string, bigint | number | string> = {}) {
@@ -210,7 +320,9 @@ describe('Hermes machine-readable output', () => {
       caught = error;
     }
     const rendered = privacySafeHermesErrorMessage(caught);
-    expect(rendered).toMatch(/may have committed.*inspect fresh v3\/v4 aggregate state/i);
+    expect(rendered).toMatch(
+      /may have committed.*inspect the fresh mode-aware cutover and legacy\/v17 aggregate state/i,
+    );
     expect(rendered).not.toContain('private FID');
     expect(rendered).not.toContain('server response');
   });
@@ -662,7 +774,7 @@ describe('Hermes machine-readable output', () => {
       protocolVersion: 3,
       resourcePolicyVersion: GENESIS_RESOURCE_POLICY_VERSION,
     };
-    const targetBefore = projectAccessRequestResetStatus({
+    const targetBefore = projectAccessRequestAdmissionStatus({
       admissionState: 'disabled',
       authEpoch: 3,
       requestState: 'pending',
@@ -680,7 +792,7 @@ describe('Hermes machine-readable output', () => {
       { ...targetBefore, requestState: 'resolved' },
     )).toThrow(/exact pending access request/i);
 
-    const targetAfter = projectAccessRequestResetStatus({
+    const targetAfter = projectAccessRequestAdmissionStatus({
       admissionState: 'enabled',
       authEpoch: 4,
       requestState: 'resolved',
@@ -708,9 +820,246 @@ describe('Hermes machine-readable output', () => {
       before,
     )).toThrow(/resource/i);
   });
+
+  it('rejects stale, rotated, resolved, and wrong-kind admission request races', () => {
+    const before = requirePendingAdmissionRequest(
+      projectAccessRequestAdmissionStatus({
+        admissionState: 'missing',
+        authEpoch: 0,
+        requestState: 'pending',
+        requestCycle: 0n,
+        requestedAtMicros: 1_800_000_000_000_000n,
+      }),
+      'missing',
+    );
+    expect(requireUnchangedPendingAdmissionRequest(before, { ...before }, 'missing'))
+      .toEqual(before);
+    expect(() => requireUnchangedPendingAdmissionRequest(
+      before,
+      { ...before, requestedAtMicros: before.requestedAtMicros + 1n },
+      'missing',
+    )).toThrow(/exact pending access request changed/i);
+    expect(() => requireUnchangedPendingAdmissionRequest(
+      before,
+      {
+        ...before,
+        admissionState: 'disabled',
+        authEpoch: 1,
+        requestCycle: 2n,
+      },
+      'missing',
+    )).toThrow(/expected kind/i);
+    expect(() => requireUnchangedPendingAdmissionRequest(
+      before,
+      { ...before, requestState: 'resolved' },
+      'missing',
+    )).toThrow(/exact pending access request/i);
+    expect(() => projectAccessRequestAdmissionStatus({
+      ...before,
+      requestState: 'resolved',
+      requestCycle: 1n,
+    })).toThrow(/impossible future request cycle/i);
+
+    expect(() => verifyFounderAdmissionRequestPostcondition(
+      projectAccessRequestAdmissionStatus({
+        admissionState: 'enabled',
+        authEpoch: 1,
+        requestState: 'resolved',
+        requestCycle: 0n,
+        requestedAtMicros: before.requestedAtMicros,
+      }),
+      before,
+    )).not.toThrow();
+  });
 });
 
 describe('Hermes command-line boundary', () => {
+  it('requires one exact current-source live Pages receipt before confirmed authority', async () => {
+    const emptyRoot = Object.freeze({
+      notificationPagesLiveRootReceiptDigest: null,
+      notificationPagesLiveRootPagesSourceCommit: null,
+    });
+    const inspectByPagesSourceCommit = vi.fn();
+    await expect(inspectHermesNotificationPagesLiveAuthority({
+      rootBinding: emptyRoot,
+      required: false,
+      repositoryRoot,
+    }, {
+      inspectByPagesSourceCommit: inspectByPagesSourceCommit as never,
+    })).resolves.toEqual({
+      notificationPagesLiveReceiptDigest: null,
+      notificationPagesLivePagesSourceCommit: null,
+      notificationPagesLiveBridgeSourceCommit: null,
+      notificationPagesLiveRootReceiptDigest: null,
+      notificationPagesLiveRootPagesSourceCommit: null,
+    });
+    expect(inspectByPagesSourceCommit).not.toHaveBeenCalled();
+    await expect(inspectHermesNotificationPagesLiveAuthority({
+      rootBinding: emptyRoot,
+      required: true,
+      repositoryRoot,
+    }, {
+      inspectByPagesSourceCommit: inspectByPagesSourceCommit as never,
+    })).rejects.toThrow(
+      'NOTIFICATION_PAGES_LIVE_RELEASE_BINDING_REQUIRED',
+    );
+
+    const rootBinding = Object.freeze({
+      notificationPagesLiveRootReceiptDigest: 'a'.repeat(64),
+      notificationPagesLiveRootPagesSourceCommit: 'b'.repeat(40),
+    });
+    const pagesSourceCommit = 'c'.repeat(40);
+    const bridgeSourceCommit = 'd'.repeat(40);
+    const receiptDigest = 'e'.repeat(64);
+    const exactInspect = vi.fn(async () => ({
+      receiptDigest,
+      chainRootReceiptDigest: rootBinding.notificationPagesLiveRootReceiptDigest,
+      chainRootPagesSourceCommit: rootBinding.notificationPagesLiveRootPagesSourceCommit,
+      receipt: {
+        pages: {
+          sourceCommit: pagesSourceCommit,
+          notificationsPresentationEnabled: true,
+          hermesExecutionApprovedAtActivation: false,
+        },
+        bridge: { sourceCommit: bridgeSourceCommit },
+      },
+    }));
+    await expect(inspectHermesNotificationPagesLiveAuthority({
+      rootBinding,
+      required: true,
+      pagesSourceCommit,
+      repositoryRoot,
+    }, {
+      inspectByPagesSourceCommit: exactInspect as never,
+    })).resolves.toEqual({
+      notificationPagesLiveReceiptDigest: receiptDigest,
+      notificationPagesLivePagesSourceCommit: pagesSourceCommit,
+      notificationPagesLiveBridgeSourceCommit: bridgeSourceCommit,
+      notificationPagesLiveRootReceiptDigest:
+        rootBinding.notificationPagesLiveRootReceiptDigest,
+      notificationPagesLiveRootPagesSourceCommit:
+        rootBinding.notificationPagesLiveRootPagesSourceCommit,
+    });
+    expect(exactInspect).toHaveBeenCalledWith(expect.objectContaining({
+      pagesSourceCommit,
+      repositoryRoot,
+    }));
+
+    const driftedInspect = vi.fn(async () => ({
+      receiptDigest,
+      chainRootReceiptDigest: 'f'.repeat(64),
+      chainRootPagesSourceCommit: rootBinding.notificationPagesLiveRootPagesSourceCommit,
+      receipt: {
+        pages: {
+          sourceCommit: pagesSourceCommit,
+          notificationsPresentationEnabled: true,
+          hermesExecutionApprovedAtActivation: false,
+        },
+        bridge: { sourceCommit: bridgeSourceCommit },
+      },
+    }));
+    await expect(inspectHermesNotificationPagesLiveAuthority({
+      rootBinding,
+      required: true,
+      pagesSourceCommit,
+      repositoryRoot,
+    }, {
+      inspectByPagesSourceCommit: driftedInspect as never,
+    })).rejects.toThrow(
+      'NOTIFICATION_PAGES_LIVE_HERMES_AUTHORITY_MISMATCH',
+    );
+  });
+
+  it('keeps both founder mutation paths behind one literal notification release gate', () => {
+    expect(FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED).toBe(false);
+
+    for (const command of ['admit-founder', 'allow-fid'] as const) {
+      const calls = {
+        bridgeDelivery: vi.fn(),
+        token: vi.fn(),
+        connection: vi.fn(),
+        planClaim: vi.fn(),
+        reducer: vi.fn(),
+      };
+      const execute = (approved: boolean) => {
+        requireFounderAdmissionNotificationDeliveryApproval(command, approved);
+        calls.bridgeDelivery();
+        calls.token();
+        calls.connection();
+        calls.planClaim();
+        calls.reducer();
+      };
+
+      expect(() => execute(false)).toThrow(
+        `Founder admission notification delivery is not approved. ${command} remains unavailable until the coordinated notification release.`,
+      );
+      expect(Object.values(calls).every(call => call.mock.calls.length === 0)).toBe(true);
+
+      expect(() => execute(true)).not.toThrow();
+      expect(Object.values(calls).every(call => call.mock.calls.length === 1)).toBe(true);
+    }
+  });
+
+  it('checks the functional notification gate before transport, claims, or reducers', () => {
+    const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
+    expect(source.match(
+      /export const FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = false as const;/g,
+    )).toHaveLength(1);
+
+    const mainSource = source.slice(source.indexOf('async function main()'));
+    const releaseGate = mainSource.indexOf(
+      'requireFounderAdmissionNotificationDeliveryApproval(command);',
+    );
+    const notificationCredential = mainSource.indexOf(
+      'const trustedLaunch = validateTrustedHermesLaunch(capturedTrustedLaunch);',
+    );
+    const liveNotificationAuthority = mainSource.indexOf(
+      'await inspectHermesNotificationPagesLiveAuthority({',
+    );
+    const credential = mainSource.indexOf('const secret = trustedLaunch?.adminSecretPath');
+    const token = mainSource.indexOf('let token = await requestAdminToken(');
+    const connection = mainSource.indexOf('connection = await connect(');
+    const claim = mainSource.indexOf('claimReviewedFounderAdmissionPlan({');
+    const admissionReducer = mainSource.indexOf(
+      'connection.reducers.adminAdmitFounderForAccessRequestV2(',
+    );
+    const reenableReducer = mainSource.indexOf(
+      'connection.reducers.adminAllowFidForAccessRequestV1(',
+    );
+    expect(releaseGate).toBeGreaterThan(-1);
+    expect(notificationCredential).toBeGreaterThan(releaseGate);
+    expect(liveNotificationAuthority).toBeGreaterThan(notificationCredential);
+    expect(credential).toBeGreaterThan(releaseGate);
+    expect(credential).toBeGreaterThan(liveNotificationAuthority);
+    expect(token).toBeGreaterThan(releaseGate);
+    expect(connection).toBeGreaterThan(releaseGate);
+    expect(claim).toBeGreaterThan(releaseGate);
+    expect(admissionReducer).toBeGreaterThan(claim);
+    expect(reenableReducer).toBeGreaterThan(releaseGate);
+  });
+
+  it('blacks out confirmed founder execution before reading credentials or targets', () => {
+    for (const [command, arguments_] of [
+      ['admit-founder', ['admit-founder', '--input-stdin', '--confirm']],
+      ['allow-fid', ['allow-fid', '12345', 'reviewed note', '--confirm']],
+    ] as const) {
+      const result = runHermes([...arguments_], {
+        WARPKEEP_NOTIFICATION_OPERATOR_SECRET: 'MUST_NOT_BE_READ',
+        WARPKEEP_ADMIN_TOKEN_SECRET: undefined,
+        WARPKEEP_SPACETIMEDB_URI: 'http://invalid.example',
+        WARPKEEP_SPACETIMEDB_DATABASE: 'INVALID_DATABASE',
+        WARPKEEP_AUTH_BRIDGE_URL: 'http://invalid.example',
+      });
+      expect(result.status).toBe(1);
+      expect(result.stdout).toBe('');
+      expect(result.stderr.trim()).toBe(
+        `Founder admission notification delivery is not approved. ${command} remains unavailable until the coordinated notification release.`,
+      );
+      expect(result.stderr).not.toContain('MUST_NOT_BE_READ');
+      expect(result.stderr).not.toContain('WARPKEEP_');
+    }
+  });
+
   it('rejects unknown, duplicate, misplaced, and extra arguments', () => {
     expect(parseHermesArguments(['inspect-alpha', '--json'])).toMatchObject({
       command: 'inspect-alpha',
@@ -772,12 +1121,50 @@ describe('Hermes command-line boundary', () => {
       'reset-access-request', '123', 'owner canary reset', '--dry-run',
     ])).toThrow(/administrator secret.*--input-stdin/i);
     expect(parseHermesArguments([
+      'recover-admission-notification',
+      '123',
+      'reviewed exhausted delivery recovery',
+      '--input-stdin',
+      '--dry-run',
+    ])).toMatchObject({
+      command: 'recover-admission-notification',
+      inspection: false,
+      dryRun: true,
+      privateInputStdin: true,
+    });
+    expect(parseHermesArguments([
+      'recover-admission-notification',
+      'admission-notification-recovery-plan-20260811T130000000Z-0123456789abcdef0123456789abcdef.json',
+      'b'.repeat(64),
+      '--input-stdin',
+      '--confirm',
+    ])).toMatchObject({
+      command: 'recover-admission-notification',
+      confirmedByFlag: true,
+      privateInputStdin: true,
+    });
+    expect(() => parseHermesArguments([
+      'recover-admission-notification', '123', 'note', '--dry-run',
+    ])).toThrow(/administrator secret.*--input-stdin/i);
+    expect(parseHermesArguments([
       'inspect-access-request-reset', '123', '--json',
     ])).toMatchObject({
       command: 'inspect-access-request-reset',
       inspection: true,
       machineReadableInspection: true,
     });
+    expect(parseHermesArguments([
+      'inspect-admission-notification', '123', '--json',
+    ])).toMatchObject({
+      command: 'inspect-admission-notification',
+      inspection: true,
+      machineReadableInspection: true,
+    });
+    expect(() => parseHermesArguments([
+      'inspect-admission-notification', '123', '--confirm',
+    ])).toThrow(/invalid for this operation/i);
+    expect(() => parseHermesArguments(['inspect-admission-notification']))
+      .toThrow(/unexpected number/i);
     for (const retired of [
       ['notify-admitted', '123', '--confirm'],
       ['notify-admitted', '123'],
@@ -903,6 +1290,17 @@ describe('Hermes command-line boundary', () => {
         includeResolved: false,
       },
     });
+    expect(parseHermesArguments(['list-pending-access-requests'])).toMatchObject({
+      command: 'list-pending-access-requests',
+      inspection: true,
+      machineReadableInspection: false,
+    });
+    expect(() => parseHermesArguments([
+      'list-pending-access-requests', '--json',
+    ])).toThrow(/invalid for this operation/i);
+    expect(() => parseHermesArguments([
+      'list-pending-access-requests', '--limit', '1',
+    ])).toThrow(/invalid for this operation/i);
     expect(() => parseHermesArguments([
       'list-access-requests', '--after-fid', '123',
     ])).toThrow(/requires both/i);
@@ -1022,7 +1420,193 @@ describe('Hermes private access request review boundary', () => {
     expect(rendered).not.toContain('note');
   });
 
-  it('keeps listing separate from every admission mutation surface', () => {
+  it('collects one stable pending-only census and installs FIDs only in a 0600 private report', async () => {
+    const secondPage = {
+      entries: [{
+        fid: 789n,
+        requestedAtMicros: 1_720_000_002_000_000n,
+        admissionState: 'missing',
+        requestState: 'pending',
+      }],
+      nextRequestedAtMicros: undefined,
+      nextFid: undefined,
+      hasMore: false,
+      totalRequests: 4n,
+      pendingRequests: 3n,
+    } as const;
+    const procedure = vi.fn()
+      .mockResolvedValueOnce(page)
+      .mockResolvedValueOnce(secondPage);
+    const connection = {
+      procedures: { adminListAccessRequestsV1: procedure },
+    };
+    const protectedCommit = 'a'.repeat(40);
+    const census = await collectPendingAccessRequestCensus(
+      connection as never,
+      protectedCommit,
+    );
+    expect(procedure).toHaveBeenNthCalledWith(1, {
+      afterRequestedAtMicros: 0n,
+      afterFid: 0n,
+      limit: 100,
+      includeResolved: false,
+    });
+    expect(procedure).toHaveBeenNthCalledWith(2, {
+      afterRequestedAtMicros: page.nextRequestedAtMicros,
+      afterFid: page.nextFid,
+      limit: 100,
+      includeResolved: false,
+    });
+    expect(census).toEqual({
+      schemaVersion: 1,
+      kind: 'warpkeep-pending-access-request-census-v1',
+      protectedCommit,
+      targetConfigurationDigest:
+        PENDING_ACCESS_REQUEST_CENSUS_TARGET_CONFIGURATION_DIGEST,
+      totalRequests: '4',
+      pendingRequests: '3',
+      entries: [
+        {
+          fid: '123',
+          requestedAtMicros: '1720000000000000',
+          admissionState: 'missing',
+        },
+        {
+          fid: '456',
+          requestedAtMicros: '1720000001000000',
+          admissionState: 'disabled',
+        },
+        {
+          fid: '789',
+          requestedAtMicros: '1720000002000000',
+          admissionState: 'missing',
+        },
+      ],
+      advisoryOnly: true,
+      admissionMustRecheckRequestCas: true,
+    });
+
+    const directory = mkdtempSync(
+      join(realpathSync(tmpdir()), 'warpkeep-pending-census-'),
+    );
+    chmodSync(directory, 0o700);
+    try {
+      const reference = (() => {
+        const previousUmask = process.umask(0o777);
+        try {
+          return writePendingAccessRequestCensus({
+            directory,
+            census,
+            randomId: () => 'b'.repeat(32),
+          });
+        } finally {
+          process.umask(previousUmask);
+        }
+      })();
+      expect(reference.filename).toBe(
+        `pending-access-request-census-${reference.sha256}.json`,
+      );
+      expect(reference.filename).not.toMatch(/123|456|789/u);
+      const path = join(directory, reference.filename);
+      const status = lstatSync(path);
+      expect(status.isFile()).toBe(true);
+      expect(status.mode & 0o7777).toBe(0o600);
+      expect(status.nlink).toBe(1);
+      expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual(census);
+      expect(writePendingAccessRequestCensus({
+        directory,
+        census,
+        randomId: () => 'c'.repeat(32),
+      })).toEqual(reference);
+
+      const crashTemporary = join(
+        directory,
+        `.${reference.filename}-${'d'.repeat(32)}.tmp`,
+      );
+      linkSync(path, crashTemporary);
+      expect(lstatSync(path).nlink).toBe(2);
+      expect(lstatSync(crashTemporary).nlink).toBe(2);
+      expect(writePendingAccessRequestCensus({
+        directory,
+        census,
+        randomId: () => 'e'.repeat(32),
+      })).toEqual(reference);
+      expect(lstatSync(path).nlink).toBe(1);
+      expect(() => lstatSync(crashTemporary)).toThrow();
+      expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual(census);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('fails a census on total drift, duplicate FIDs, or a forty-first nonterminal page', async () => {
+    const stableSecond = {
+      entries: [{
+        fid: 789n,
+        requestedAtMicros: 1_720_000_002_000_000n,
+        admissionState: 'missing',
+        requestState: 'pending',
+      }],
+      nextRequestedAtMicros: undefined,
+      nextFid: undefined,
+      hasMore: false,
+      totalRequests: 4n,
+      pendingRequests: 3n,
+    } as const;
+    const connection = (procedure: ReturnType<typeof vi.fn>) => ({
+      procedures: { adminListAccessRequestsV1: procedure },
+    });
+    await expect(collectPendingAccessRequestCensus(connection(
+      vi.fn()
+        .mockResolvedValueOnce(page)
+        .mockResolvedValueOnce({ ...stableSecond, totalRequests: 5n }),
+    ) as never, 'a'.repeat(40))).rejects.toThrow(/totals changed/i);
+
+    await expect(collectPendingAccessRequestCensus(connection(
+      vi.fn()
+        .mockResolvedValueOnce(page)
+        .mockResolvedValueOnce({
+          ...stableSecond,
+          entries: [{
+            ...stableSecond.entries[0],
+            fid: page.entries[0].fid,
+          }],
+        }),
+    ) as never, 'a'.repeat(40))).rejects.toThrow(/continuity/i);
+
+    let call = 0;
+    const endless = vi.fn(async (_request: Readonly<{
+      afterRequestedAtMicros: bigint;
+      afterFid: bigint;
+      limit: number;
+      includeResolved: boolean;
+    }>) => {
+      call += 1;
+      return {
+        entries: [{
+          fid: BigInt(call),
+          requestedAtMicros: BigInt(call),
+          admissionState: 'missing',
+          requestState: 'pending',
+        }],
+        nextRequestedAtMicros: BigInt(call),
+        nextFid: BigInt(call),
+        hasMore: true,
+        totalRequests: 4_096n,
+        pendingRequests: 4_096n,
+      };
+    });
+    await expect(collectPendingAccessRequestCensus(
+      connection(endless) as never,
+      'a'.repeat(40),
+    )).rejects.toThrow(/pagination exceeded/i);
+    expect(endless).toHaveBeenCalledTimes(41);
+    expect(endless.mock.calls.every(([request]) => (
+      request.limit === 100 && request.includeResolved === false
+    ))).toBe(true);
+  });
+
+  it('keeps legacy listing separate from admission and exposes census only through the trusted row', () => {
     const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
     const listing = source.slice(
       source.indexOf('export async function listAccessRequests('),
@@ -1032,13 +1616,18 @@ describe('Hermes private access request review boundary', () => {
     expect(listing).not.toContain('adminAdmitFounderV1');
     expect(listing).not.toContain('adminAllowFid');
     expect(listing).not.toContain('reducers.');
-    const documentation = readFileSync(
-      resolve(repositoryRoot, 'docs/operations/access-requests.md'),
+    const manifest = JSON.parse(readFileSync(
+      resolve(repositoryRoot, 'package.json'),
+      'utf8',
+    ));
+    expect(manifest.scripts['stdb:list-access-requests'])
+      .toContain('PRODUCTION_COMMAND_REQUIRES_TRUSTED_ENV_I_LAUNCH');
+    const envelope = readFileSync(
+      resolve(repositoryRoot, 'docs/operations/greater-realm-production-launch-envelope.sh.txt'),
       'utf8',
     );
-    expect(documentation).toContain('npm run stdb:list-access-requests');
-    expect(documentation).toMatch(/read-only/i);
-    expect(documentation).toMatch(/listing never.*admits/is);
+    expect(envelope).toContain('hermes-list-pending');
+    expect(envelope).not.toContain('list-pending-access-requests');
   });
 
   it('pins private listing to the immutable production database identity', () => {
@@ -1284,38 +1873,198 @@ describe('Hermes atomic profiled admission boundary', () => {
     expect(JSON.stringify(summary)).not.toContain(fid.toString());
   });
 
-  it('binds confirmed admission to one reviewed plan without a profile refetch', () => {
+  it('binds confirmed admission to a fresh post-notification request CAS', () => {
     const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
     const mainSource = source.slice(source.indexOf('async function main()'));
     const resolveForPlan = mainSource.indexOf(
       'await resolveAdmissionReadyFounderProfile(request.fid)',
     );
-    const writePlan = mainSource.indexOf('writeReviewedFounderAdmissionPlan({ plan })');
+    const writePlan = mainSource.indexOf('writeReviewedFounderAdmissionPlan({');
     const readPlan = mainSource.indexOf('readReviewedFounderAdmissionPlan({');
-    const readCredential = mainSource.indexOf('readAdminSecret(');
-    const verifyV3Checkpoint = mainSource.indexOf('verifyFounderAdmissionPreconditionV3(');
-    const verifyV4Checkpoint = mainSource.indexOf('verifyFounderAdmissionResourcePreconditionV4(');
-    const requireNotification = mainSource.indexOf('await requireNotificationBeforeAdmission(');
-    const claimPlan = mainSource.indexOf('claimReviewedFounderAdmissionPlan({');
-    const submitAdmission = mainSource.indexOf('connection.reducers.adminAdmitFounderV1(');
+    const readCredential = mainSource.indexOf('const secret = trustedLaunch?.adminSecretPath');
+    const branch = mainSource.slice(
+      mainSource.indexOf("command === 'admit-founder'", readCredential),
+      mainSource.indexOf("command === 'allow-fid'", readCredential),
+    );
+    const initialTarget = branch.indexOf('adminGetAccessRequestAdmissionStatusV1({ fid })');
+    const reconnect = branch.indexOf('await reconnectAfterAdmissionNotification({');
+    const freshTarget = branch.indexOf(
+      'adminGetAccessRequestAdmissionStatusV1({ fid })',
+      initialTarget + 1,
+    );
+    const unchanged = branch.indexOf('requireUnchangedPendingAdmissionRequest(');
+    const claimPlan = branch.indexOf('claimReviewedFounderAdmissionPlan({');
+    const finalNotificationAuthority = branch.lastIndexOf(
+      'await readNotificationPagesLiveAuthority(true, true);',
+      claimPlan,
+    );
+    const submitAdmission = branch.indexOf(
+      'connection.reducers.adminAdmitFounderForAccessRequestV2(',
+    );
+    const resolvedPostcondition = branch.indexOf(
+      'verifyFounderAdmissionRequestPostcondition(',
+    );
     expect(resolveForPlan).toBeGreaterThan(-1);
     expect(writePlan).toBeGreaterThan(resolveForPlan);
     expect(readPlan).toBeGreaterThan(writePlan);
     expect(readCredential).toBeGreaterThan(readPlan);
-    expect(verifyV3Checkpoint).toBeGreaterThan(readCredential);
-    expect(verifyV4Checkpoint).toBeGreaterThan(verifyV3Checkpoint);
-    expect(requireNotification).toBeGreaterThan(verifyV4Checkpoint);
-    expect(claimPlan).toBeGreaterThan(requireNotification);
+    expect(initialTarget).toBeGreaterThan(-1);
+    expect(reconnect).toBeGreaterThan(initialTarget);
+    expect(freshTarget).toBeGreaterThan(reconnect);
+    expect(unchanged).toBeGreaterThan(reconnect);
+    expect(claimPlan).toBeGreaterThan(freshTarget);
+    expect(finalNotificationAuthority).toBeGreaterThan(freshTarget);
+    expect(claimPlan).toBeGreaterThan(finalNotificationAuthority);
     expect(submitAdmission).toBeGreaterThan(claimPlan);
+    expect(resolvedPostcondition).toBeGreaterThan(submitAdmission);
+    expect(branch).not.toContain('adminAdmitFounderV1');
+    expect(branch).not.toContain('adminGetFidAuthEpoch');
     expect(mainSource).not.toContain('resolveAdmissionReadyFounderProfile(fid)');
 
     const packageManifest = JSON.parse(
       readFileSync(resolve(repositoryRoot, 'package.json'), 'utf8'),
     ) as { scripts: Record<string, string> };
     expect(packageManifest.scripts['stdb:admit-founder'])
-      .toBe('tsx scripts/hermes-admin.ts admit-founder');
+      .toContain('PRODUCTION_COMMAND_REQUIRES_TRUSTED_ENV_I_LAUNCH');
+    expect(packageManifest.scripts['stdb:inspect-admission-notification'])
+      .toContain('PRODUCTION_COMMAND_REQUIRES_TRUSTED_ENV_I_LAUNCH');
+    expect(packageManifest.scripts['stdb:recover-admission-notification'])
+      .toContain('PRODUCTION_COMMAND_REQUIRES_TRUSTED_ENV_I_LAUNCH');
     expect(packageManifest.scripts['stdb:notify-admitted']).toBeUndefined();
     expect(mainSource).not.toContain("| 'notify-admitted'");
+  });
+
+  it('uses the same fresh-state request-CAS order for founder re-enable', () => {
+    const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
+    const mainSource = source.slice(source.indexOf('async function main()'));
+    const branch = mainSource.slice(
+      mainSource.indexOf("command === 'allow-fid' && fid !== undefined"),
+      mainSource.indexOf("command === 'disable-fid' && fid !== undefined"),
+    );
+    const initialTarget = branch.indexOf('adminGetAccessRequestAdmissionStatusV1({ fid })');
+    const reconnect = branch.indexOf('await reconnectAfterAdmissionNotification({');
+    const freshTarget = branch.indexOf(
+      'adminGetAccessRequestAdmissionStatusV1({ fid })',
+      initialTarget + 1,
+    );
+    const submit = branch.indexOf(
+      'connection.reducers.adminAllowFidForAccessRequestV1(',
+    );
+    const finalNotificationAuthority = branch.lastIndexOf(
+      'await readNotificationPagesLiveAuthority(true, true);',
+      submit,
+    );
+    const resolvedTarget = branch.indexOf(
+      'adminGetAccessRequestAdmissionStatusV1({ fid })',
+      freshTarget + 1,
+    );
+    expect(initialTarget).toBeGreaterThan(-1);
+    expect(reconnect).toBeGreaterThan(initialTarget);
+    expect(freshTarget).toBeGreaterThan(reconnect);
+    expect(submit).toBeGreaterThan(freshTarget);
+    expect(finalNotificationAuthority).toBeGreaterThan(freshTarget);
+    expect(submit).toBeGreaterThan(finalNotificationAuthority);
+    expect(resolvedTarget).toBeGreaterThan(submit);
+    expect(branch).not.toContain('adminAllowFid({');
+  });
+
+  it('locks both admission commands to the real mode-aware cutover procedures', () => {
+    const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
+    const helperSource = source.slice(
+      source.indexOf('async function readGreaterRealmCutoverStatus('),
+      source.indexOf('async function main()'),
+    );
+    expect(helperSource).toContain('adminGetGreaterRealmCutoverStatusV1({})');
+    expect(helperSource).toContain('adminGetGreaterRealmReenableStatusV1({ fid })');
+    expect(helperSource).toContain('selectFounderAdmissionAuthorityMode(cutover)');
+    expect(helperSource).toContain('verifyGreaterRealmAdmissionPrecondition(cutover)');
+    expect(helperSource).toContain('verifyGreaterRealmReenablePreconditionV1(');
+
+    const mainSource = source.slice(source.indexOf('async function main()'));
+    const operations = mainSource.slice(mainSource.indexOf('let mutationStatusHandled = false'));
+    const admission = operations.slice(
+      operations.indexOf("command === 'admit-founder'"),
+      operations.indexOf("command === 'allow-fid' && fid !== undefined"),
+    );
+    const admissionInitial = admission.indexOf(
+      'readFounderAdmissionAuthorityPrecondition(connection)',
+    );
+    const admissionReconnect = admission.indexOf('await reconnectAfterAdmissionNotification({');
+    const admissionFresh = admission.indexOf(
+      'readFounderAdmissionAuthorityPrecondition(connection)',
+      admissionInitial + 1,
+    );
+    const admissionLock = admission.indexOf('requireUnchangedFounderAuthorityMode(');
+    const admissionSubmit = admission.indexOf('adminAdmitFounderForAccessRequestV2(');
+    const admissionPost = admission.indexOf(
+      'verifyFounderAdmissionAuthorityPostcondition(connection, beforeAuthority)',
+    );
+    expect(admissionInitial).toBeGreaterThan(-1);
+    expect(admissionReconnect).toBeGreaterThan(admissionInitial);
+    expect(admissionFresh).toBeGreaterThan(admissionReconnect);
+    expect(admissionLock).toBeGreaterThan(admissionFresh);
+    expect(admissionSubmit).toBeGreaterThan(admissionLock);
+    expect(admissionPost).toBeGreaterThan(admissionSubmit);
+
+    const reenable = operations.slice(
+      operations.indexOf("command === 'allow-fid' && fid !== undefined"),
+      operations.indexOf("command === 'disable-fid' && fid !== undefined"),
+    );
+    const reenableInitial = reenable.indexOf('readFounderReenableAuthorityPrecondition(');
+    const reenableReconnect = reenable.indexOf('await reconnectAfterAdmissionNotification({');
+    const reenableFresh = reenable.indexOf(
+      'readFounderReenableAuthorityPrecondition(',
+      reenableInitial + 1,
+    );
+    const reenableLock = reenable.indexOf('requireUnchangedFounderAuthorityMode(');
+    const reenableSubmit = reenable.indexOf('adminAllowFidForAccessRequestV1(');
+    const reenablePost = reenable.indexOf('verifyFounderReenableAuthorityPostcondition(');
+    expect(reenableInitial).toBeGreaterThan(-1);
+    expect(reenableReconnect).toBeGreaterThan(reenableInitial);
+    expect(reenableFresh).toBeGreaterThan(reenableReconnect);
+    expect(reenableLock).toBeGreaterThan(reenableFresh);
+    expect(reenableSubmit).toBeGreaterThan(reenableLock);
+    expect(reenablePost).toBeGreaterThan(reenableSubmit);
+  });
+
+  it('keeps notification recovery as a reviewed, claim-before-send non-admission operation', () => {
+    const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
+    const mainSource = source.slice(source.indexOf('async function main()'));
+    const operations = mainSource.slice(mainSource.indexOf('let mutationStatusHandled = false'));
+    const recoveryBranchStart = operations.indexOf(
+      "command === 'recover-admission-notification'",
+    );
+    const branch = operations.slice(
+      recoveryBranchStart,
+      operations.indexOf("command === 'inspect-access-request-reset'", recoveryBranchStart),
+    );
+    const targetBefore = branch.indexOf('adminGetAccessRequestAdmissionStatusV1({ fid })');
+    const inspectBefore = branch.indexOf('await inspectAdmissionNotification(');
+    const digestBefore = branch.indexOf('admissionNotificationRecoveryStateDigest(');
+    const createPlan = branch.indexOf('createReviewedAdmissionNotificationRecoveryPlan({');
+    const writePlan = branch.indexOf('writeReviewedAdmissionNotificationRecoveryPlan({');
+    const claimPlan = branch.indexOf('claimReviewedAdmissionNotificationRecoveryPlan({');
+    const finalNotificationAuthority = branch.lastIndexOf(
+      'await readNotificationPagesLiveAuthority(true, true);',
+      claimPlan,
+    );
+    const submitRecovery = branch.indexOf('await requestAdmissionNotificationRecovery(');
+    const targetAfter = branch.indexOf(
+      'adminGetAccessRequestAdmissionStatusV1({ fid })',
+      targetBefore + 1,
+    );
+    expect(targetBefore).toBeGreaterThan(-1);
+    expect(inspectBefore).toBeGreaterThan(targetBefore);
+    expect(digestBefore).toBeGreaterThan(inspectBefore);
+    expect(createPlan).toBeGreaterThan(digestBefore);
+    expect(writePlan).toBeGreaterThan(createPlan);
+    expect(finalNotificationAuthority).toBeGreaterThan(writePlan);
+    expect(claimPlan).toBeGreaterThan(writePlan);
+    expect(claimPlan).toBeGreaterThan(finalNotificationAuthority);
+    expect(submitRecovery).toBeGreaterThan(claimPlan);
+    expect(targetAfter).toBeGreaterThan(submitRecovery);
+    expect(branch).not.toContain('connection.reducers.');
+    expect(branch).toContain('admissionMutationSubmitted: false');
   });
 
   it('does not accept a founder identity or note in argv', () => {
@@ -1421,13 +2170,15 @@ describe('Hermes credential destination policy', () => {
       const result = runHermes(
         ['expand-world-v3', '--confirm'],
         { WARPKEEP_SPACETIMEDB_DATABASE: database },
+        undefined,
+        15_000,
       );
       expect(result.status).toBe(1);
       expect(result.stderr).toContain('immutable Warpkeep production database identity');
       expect(`${result.stdout}${result.stderr}`).not.toContain(TEST_SECRET);
       expect(`${result.stdout}${result.stderr}`).not.toContain('Could not reach');
     }
-  }, 15_000);
+  }, 60_000);
 
   it('allows custom targets only for a secret-free dry run', () => {
     const result = runHermes(
@@ -1486,7 +2237,7 @@ describe('Hermes credential destination policy', () => {
     expect(water.stdout).toContain('"credentialsAccessed":false');
     expect(water.stdout).toContain('"mutationSubmitted":false');
     expect(water.stderr).toBe('');
-  }, 15_000);
+  }, 30_000);
 
   it('validates and dry-runs the resource backfill without credentials or network use', () => {
     const result = runHermes(['backfill-resources', '4', '--dry-run', '--confirm'], {
@@ -1575,7 +2326,8 @@ describe('Hermes credential destination policy', () => {
     const request = requestAdminToken(
       'https://auth.warpkeep.com',
       TEST_SECRET,
-      fetchImpl as typeof fetch
+      fetchImpl as typeof fetch,
+      TEST_ADMIN_TOKEN_BUDGET,
     ).then(token => {
       resolved = true;
       return token;
@@ -1632,6 +2384,154 @@ describe('Hermes credential destination policy', () => {
     )).rejects.toThrow(/rejected the request/i);
   });
 
+  it('submits one reviewed recovery ID for one exact pending generation', async () => {
+    const requestedAtMicros = 1_799_999_999_000_000n;
+    const recoveryId = 'c'.repeat(32);
+    const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+      expect(String(input)).toBe(
+        'https://auth.warpkeep.com/v1/admin/admission-notification-recovery',
+      );
+      expect(init?.method).toBe('POST');
+      expect(init?.redirect).toBe('error');
+      expect(init?.cache).toBe('no-store');
+      const headers = new Headers(init?.headers);
+      expect(headers.get('authorization')).toBe(`Bearer ${NOTIFICATION_SECRET}`);
+      expect(headers.has('origin')).toBe(false);
+      expect(JSON.parse(String(init?.body))).toEqual({
+        fid: '12345',
+        requestedAtMicros: Number(requestedAtMicros),
+        recoveryId,
+      });
+      return Response.json({ status: 'queued' }, { status: 202 });
+    });
+    await expect(requestAdmissionNotificationRecovery(
+      'https://auth.warpkeep.com',
+      12_345n,
+      requestedAtMicros,
+      recoveryId,
+      NOTIFICATION_SECRET,
+      fetchImpl,
+    )).resolves.toBe('queued');
+
+    await expect(requestAdmissionNotificationRecovery(
+      'https://auth.warpkeep.com',
+      12_345n,
+      requestedAtMicros,
+      'invalid',
+      NOTIFICATION_SECRET,
+      fetchImpl,
+    )).rejects.toThrow(/authorization was invalid/i);
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it('permits recovery only for an exhausted unrecovered matching request', () => {
+    const requestedAtMicros = 1_799_999_999_000_000n;
+    const recoverable = projectAdmissionNotificationDiagnostics(
+      admissionNotificationDiagnostics({
+        status: 'delivery-exhausted',
+        generation: 'pending-request',
+        requestedAtMicros: Number(requestedAtMicros),
+        subscribed: true,
+      }),
+    );
+    expect(requireAdmissionNotificationRecoveryPrecondition(
+      recoverable,
+      requestedAtMicros,
+    )).toEqual(recoverable);
+
+    for (const candidate of [
+      { ...recoverable, status: 'queued' as const },
+      { ...recoverable, requestedAtMicros: Number(requestedAtMicros + 1n) },
+      { ...recoverable, recoveryCount: 1, lastRecoveryAt: 1_800_000_000_000 },
+    ]) {
+      expect(() => requireAdmissionNotificationRecoveryPrecondition(
+        candidate,
+        requestedAtMicros,
+      )).toThrow(/exact exhausted, unrecovered/i);
+    }
+    expect(() => requireAdmissionNotificationRecoveryPrecondition(
+      projectAdmissionNotificationDiagnostics(admissionNotificationDiagnostics()),
+      requestedAtMicros,
+    )).toThrow(/not enabled.*remains blocked/i);
+  });
+
+  it('inspects only the allowlisted token-free per-FID notification state', async () => {
+    const diagnostics = admissionNotificationDiagnostics({
+      status: 'already-sent',
+      generation: 'pending-request',
+      requestedAtMicros: 1_799_999_999_000_000,
+      deliveryAttemptCount: 1,
+      retryReasons: ['transport'],
+      lastAttemptAt: 1_800_000_000_000,
+    });
+    const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+      expect(String(input)).toBe(
+        'https://auth.warpkeep.com/v1/admin/admission-notification-status',
+      );
+      expect(init?.method).toBe('POST');
+      expect(init?.redirect).toBe('error');
+      expect(init?.cache).toBe('no-store');
+      const headers = new Headers(init?.headers);
+      expect(headers.get('authorization')).toBe(`Bearer ${NOTIFICATION_SECRET}`);
+      expect(headers.has('origin')).toBe(false);
+      expect(JSON.parse(String(init?.body))).toEqual({ fid: '12345' });
+      return Response.json(diagnostics);
+    });
+
+    const result = await inspectAdmissionNotification(
+      'https://auth.warpkeep.com',
+      12_345n,
+      NOTIFICATION_SECRET,
+      fetchImpl,
+    );
+    expect(result).toEqual(diagnostics);
+    expect(Object.isFrozen(result)).toBe(true);
+    expect(Object.isFrozen(result.retryReasons)).toBe(true);
+    expect(JSON.stringify(result)).not.toContain(NOTIFICATION_SECRET);
+  });
+
+  it('rejects diagnostic secret or token fields without reflecting their values', async () => {
+    const sentinel = 'PRIVATE_NOTIFICATION_TOKEN_MUST_NOT_ESCAPE';
+    expect(() => projectAdmissionNotificationDiagnostics({
+      ...admissionNotificationDiagnostics(),
+      notificationToken: sentinel,
+    })).toThrow(/invalid diagnostics/i);
+
+    const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({
+      ...admissionNotificationDiagnostics(),
+      token: sentinel,
+    }));
+    const inspection = inspectAdmissionNotification(
+      'https://auth.warpkeep.com',
+      12_345n,
+      NOTIFICATION_SECRET,
+      fetchImpl,
+    );
+    await expect(inspection).rejects.toThrow(/invalid diagnostics/i);
+    await expect(inspection).rejects.not.toThrow(new RegExp(sentinel));
+  });
+
+  it('pins token-free inspection to the canonical bridge before admin authority', () => {
+    expect(() => requireAdmissionNotificationInspectionProductionTarget(
+      'https://auth.warpkeep.com',
+    )).not.toThrow();
+    expect(() => requireAdmissionNotificationInspectionProductionTarget(
+      'https://lookalike.example',
+    )).toThrow(/canonical Warpkeep bridge/i);
+
+    const result = runHermes(['inspect-admission-notification', '12345'], {
+      WARPKEEP_NOTIFICATION_OPERATOR_SECRET: undefined,
+      WARPKEEP_ADMIN_TOKEN_SECRET: 'weak-admin-secret',
+      WARPKEEP_SPACETIMEDB_DATABASE: 'INVALID_DATABASE',
+      WARPKEEP_SPACETIMEDB_URI: 'http://invalid.example',
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain('WKGR_PRODUCTION_NOTIFICATION_SECRET_PATH');
+    expect(result.stderr).not.toContain('WARPKEEP_ADMIN_TOKEN_SECRET');
+    expect(result.stderr).not.toContain('WARPKEEP_SPACETIMEDB');
+  });
+
   it('waits for provider acceptance before allowing an opted-in admission mutation', async () => {
     const sleep = vi.fn(async () => undefined);
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
@@ -1652,6 +2552,7 @@ describe('Hermes credential destination policy', () => {
       NOTIFICATION_SECRET,
       fetchImpl,
       sleep,
+      vi.fn(async () => undefined),
     )).resolves.toBe('already-sent');
 
     expect(sleep).toHaveBeenCalledWith(35_000);
@@ -1664,7 +2565,32 @@ describe('Hermes credential destination policy', () => {
     log.mockRestore();
   });
 
-  it('permits an explicit no-consent receipt but blocks queued or exhausted delivery', async () => {
+  it('rechecks prepared release authority before a queued notification retry', async () => {
+    const sleep = vi.fn(async () => undefined);
+    const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({
+      status: 'queued',
+    }, { status: 202 }));
+    let authorityChecks = 0;
+    const refreshNotificationAuthority = vi.fn(async () => {
+      authorityChecks += 1;
+      if (authorityChecks === 2) throw new Error('prepared receipt drifted');
+    });
+
+    await expect(requireNotificationBeforeAdmission(
+      'https://auth.warpkeep.com',
+      12_345n,
+      NOTIFICATION_SECRET,
+      fetchImpl,
+      sleep,
+      refreshNotificationAuthority,
+    )).rejects.toThrow('prepared receipt drifted');
+
+    expect(refreshNotificationAuthority).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(sleep).toHaveBeenCalledWith(35_000);
+  });
+
+  it('keeps no-consent, queued, and exhausted notification states pending', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     const notSubscribed = vi.fn<typeof fetch>(async () => Response.json({
       status: 'not-subscribed',
@@ -1675,12 +2601,20 @@ describe('Hermes credential destination policy', () => {
       NOTIFICATION_SECRET,
       notSubscribed,
       vi.fn(async () => undefined),
-    )).resolves.toBe('not-subscribed');
-    expect(log).toHaveBeenCalledWith(JSON.stringify({
-      admissionNotification: 'not-subscribed',
-      providerAcceptanceRequired: false,
-      providerAcceptedBeforeAdmission: false,
-    }));
+      vi.fn(async () => undefined),
+    )).rejects.toThrow(/notifications are not enabled.*remains pending/is);
+
+    const queued = vi.fn<typeof fetch>(async () => Response.json({
+      status: 'queued',
+    }, { status: 202 }));
+    await expect(requireNotificationBeforeAdmission(
+      'https://auth.warpkeep.com',
+      12_345n,
+      NOTIFICATION_SECRET,
+      queued,
+      vi.fn(async () => undefined),
+      vi.fn(async () => undefined),
+    )).rejects.toThrow(/has not accepted.*remains unchanged/is);
 
     const exhausted = vi.fn<typeof fetch>(async () => Response.json({
       status: 'delivery-exhausted',
@@ -1691,7 +2625,9 @@ describe('Hermes credential destination policy', () => {
       NOTIFICATION_SECRET,
       exhausted,
       vi.fn(async () => undefined),
+      vi.fn(async () => undefined),
     )).rejects.toThrow(/delivery is exhausted/i);
+    expect(log).not.toHaveBeenCalled();
     log.mockRestore();
   });
 
@@ -1701,7 +2637,8 @@ describe('Hermes credential destination policy', () => {
       tokenType: 'spacetime-access'
     }), { headers: { 'content-type': 'text/plain' } });
     await expect(requestAdminToken(
-      'https://auth.warpkeep.com', TEST_SECRET, wrongMedia as typeof fetch
+      'https://auth.warpkeep.com', TEST_SECRET, wrongMedia as typeof fetch,
+      TEST_ADMIN_TOKEN_BUDGET,
     )).rejects.toThrow('invalid response');
 
     const oversized = async () => new Response(new ReadableStream<Uint8Array>({
@@ -1711,7 +2648,8 @@ describe('Hermes credential destination policy', () => {
       }
     }), { headers: { 'content-type': 'application/json' } });
     await expect(requestAdminToken(
-      'https://auth.warpkeep.com', TEST_SECRET, oversized as typeof fetch
+      'https://auth.warpkeep.com', TEST_SECRET, oversized as typeof fetch,
+      TEST_ADMIN_TOKEN_BUDGET,
     )).rejects.toThrow('invalid response');
 
     const cancelFailure = async () => new Response(new ReadableStream<Uint8Array>({
@@ -1723,7 +2661,8 @@ describe('Hermes credential destination policy', () => {
       },
     }), { headers: { 'content-type': 'application/json' } });
     await expect(requestAdminToken(
-      'https://auth.warpkeep.com', TEST_SECRET, cancelFailure as typeof fetch
+      'https://auth.warpkeep.com', TEST_SECRET, cancelFailure as typeof fetch,
+      TEST_ADMIN_TOKEN_BUDGET,
     )).rejects.toThrow('invalid response');
 
     const readFailure = async () => new Response(new ReadableStream<Uint8Array>({
@@ -1732,7 +2671,8 @@ describe('Hermes credential destination policy', () => {
       },
     }), { headers: { 'content-type': 'application/json' } });
     await expect(requestAdminToken(
-      'https://auth.warpkeep.com', TEST_SECRET, readFailure as typeof fetch
+      'https://auth.warpkeep.com', TEST_SECRET, readFailure as typeof fetch,
+      TEST_ADMIN_TOKEN_BUDGET,
     )).rejects.toThrow('invalid response');
   });
 
@@ -1762,5 +2702,138 @@ describe('Hermes credential destination policy', () => {
     await vi.advanceTimersByTimeAsync(30_000);
     await rejection;
     expect(disconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('disconnects first and mints fresh admin authority only after provider acceptance', async () => {
+    const events: string[] = [];
+    const disconnect = vi.fn(() => events.push('initial-disconnected'));
+    const initialConnection = {
+      get isDisconnectRequested() { return disconnect.mock.calls.length > 0; },
+      disconnect,
+    };
+    let releaseNotification!: () => void;
+    const waitForNotification = vi.fn(async () => {
+      events.push('notification-wait-started');
+      await new Promise<void>(resolvePromise => {
+        releaseNotification = resolvePromise;
+      });
+      events.push('provider-accepted');
+      return 'already-sent' as const;
+    });
+    const requestToken = vi.fn(async () => {
+      events.push('fresh-token-minted');
+      return 'fresh.header.signature';
+    });
+    const freshConnection = { disconnect: vi.fn(), isDisconnectRequested: false };
+    const refreshNotificationAuthority = vi.fn(async () => {
+      events.push('notification-authority-refreshed');
+    });
+    const connectToDatabase = vi.fn(async () => {
+      events.push('fresh-connected');
+      return freshConnection as never;
+    });
+
+    const reconnect = reconnectAfterAdmissionNotification({
+      connection: initialConnection as never,
+      bridgeUrl: 'https://auth.warpkeep.com',
+      fid: 12_345n,
+      notificationOperatorSecret: NOTIFICATION_SECRET,
+      adminSecret: TEST_SECRET,
+      uri: 'https://maincloud.spacetimedb.com',
+      database: 'warpkeep-89e4u',
+    }, {
+      refreshNotificationAuthority,
+      waitForNotification: waitForNotification as never,
+      requestToken: requestToken as never,
+      connectToDatabase: connectToDatabase as never,
+    });
+
+    expect(disconnect).toHaveBeenCalledOnce();
+    expect(requestToken).not.toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(waitForNotification).toHaveBeenCalledOnce();
+    });
+    releaseNotification();
+    await expect(reconnect).resolves.toBe(freshConnection);
+    expect(events).toEqual([
+      'initial-disconnected',
+      'notification-authority-refreshed',
+      'notification-wait-started',
+      'provider-accepted',
+      'fresh-token-minted',
+      'fresh-connected',
+    ]);
+    expect(refreshNotificationAuthority).toHaveBeenCalledOnce();
+  });
+
+  it('blocks notification and fresh database authority when prepared release evidence drifts', async () => {
+    const disconnect = vi.fn();
+    const initialConnection = {
+      get isDisconnectRequested() { return disconnect.mock.calls.length > 0; },
+      disconnect,
+    };
+    const waitForNotification = vi.fn();
+    const requestToken = vi.fn();
+    const connectToDatabase = vi.fn();
+    await expect(reconnectAfterAdmissionNotification({
+      connection: initialConnection as never,
+      bridgeUrl: 'https://auth.warpkeep.com',
+      fid: 12_345n,
+      notificationOperatorSecret: NOTIFICATION_SECRET,
+      adminSecret: TEST_SECRET,
+      uri: 'https://maincloud.spacetimedb.com',
+      database: 'warpkeep-89e4u',
+    }, {
+      refreshNotificationAuthority: vi.fn(async () => {
+        throw new Error('prepared receipt expired');
+      }),
+      waitForNotification: waitForNotification as never,
+      requestToken: requestToken as never,
+      connectToDatabase: connectToDatabase as never,
+    })).rejects.toThrow('prepared receipt expired');
+    expect(disconnect).toHaveBeenCalledOnce();
+    expect(waitForNotification).not.toHaveBeenCalled();
+    expect(requestToken).not.toHaveBeenCalled();
+    expect(connectToDatabase).not.toHaveBeenCalled();
+  });
+
+  it('creates no fresh admin session when notification eligibility fails', async () => {
+    const disconnect = vi.fn();
+    const initialConnection = {
+      get isDisconnectRequested() { return disconnect.mock.calls.length > 0; },
+      disconnect,
+    };
+    const requestToken = vi.fn(async () => 'must-not-be-minted');
+    const connectToDatabase = vi.fn();
+    await expect(reconnectAfterAdmissionNotification({
+      connection: initialConnection as never,
+      bridgeUrl: 'https://auth.warpkeep.com',
+      fid: 12_345n,
+      notificationOperatorSecret: NOTIFICATION_SECRET,
+      adminSecret: TEST_SECRET,
+      uri: 'https://maincloud.spacetimedb.com',
+      database: 'warpkeep-89e4u',
+    }, {
+      waitForNotification: vi.fn(async () => {
+        throw new Error('notification not eligible');
+      }) as never,
+      refreshNotificationAuthority: vi.fn(async () => undefined),
+      requestToken: requestToken as never,
+      connectToDatabase: connectToDatabase as never,
+    })).rejects.toThrow('notification not eligible');
+    expect(disconnect).toHaveBeenCalledOnce();
+    expect(requestToken).not.toHaveBeenCalled();
+    expect(connectToDatabase).not.toHaveBeenCalled();
+  });
+
+  it('clears the initial JWT before either admission command can wait', () => {
+    const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
+    const mainSource = source.slice(source.indexOf('async function main()'));
+    const initialConnect = mainSource.indexOf('connection = await connect(uri, database, token)');
+    const clearToken = mainSource.indexOf("token = '';", initialConnect);
+    const firstReconnect = mainSource.indexOf('await reconnectAfterAdmissionNotification({');
+    expect(initialConnect).toBeGreaterThan(-1);
+    expect(clearToken).toBeGreaterThan(initialConnect);
+    expect(firstReconnect).toBeGreaterThan(clearToken);
   });
 });

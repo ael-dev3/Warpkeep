@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { AdmissionNotification } from '../src/admissionNotifications'
-import type { BridgeConfig } from '../src/config'
+import {
+  AdmissionNotification,
+  admissionNotificationDeliveryContractDigest,
+  admissionNotificationDeliveryContractVector,
+  serializeAdmissionNotificationDeliveryContract,
+} from '../src/admissionNotifications'
+import type { BridgeConfig, MiniAppNotificationConfig } from '../src/config'
 import type {
   AccessRequestResolver,
   AuthEpochResolver,
@@ -99,6 +104,65 @@ function config(enabled = true): BridgeConfig {
   }
 }
 
+describe('admission notification delivery contract attestation', () => {
+  it('pins the exact cross-runtime production vector and digest', async () => {
+    const notificationConfig = config().miniAppNotifications!
+    const serialized = serializeAdmissionNotificationDeliveryContract(
+      notificationConfig,
+    )
+
+    expect(new TextEncoder().encode(serialized)).toHaveLength(622)
+    expect(serialized).toBe(
+      '["warpkeep.admission-notification.delivery-contract.v1",["hubUrls",["https://hub.pinata.cloud/","https://rho.farcaster.xyz:3381/"]],["clients",[["9152","https://api.farcaster.xyz/v1/frame-notifications"]]],["targetUrl","https://warpkeep.com/?miniApp=true"],["title","Welcome to the Hegemony Empire"],["body","The gates have answered your name. Cross the threshold, Founder—your legacy awaits."],["notificationIdProfile","warpkeep-access-approved-v2-r<requestedAtMicros>"],["maximumDeliveryAttempts",6],["retryDelaysMilliseconds",[30000,120000,600000,3600000,14400000,43200000]],["deliveryLifetimeMilliseconds",86400000]]',
+    )
+    await expect(admissionNotificationDeliveryContractDigest(notificationConfig))
+      .resolves.toBe('13429727ea5257946e3b659e07f912cf8cd81985fadecb03c63311994a01f7d9')
+    expect(serialized).not.toContain(notificationConfig.operatorSecret)
+  })
+
+  it('canonicalizes hostile reordering by Hub URL and numeric FID then delivery URL', async () => {
+    const left: MiniAppNotificationConfig = {
+      hubUrls: Object.freeze([
+        'https://z-hub.example/',
+        'https://a-hub.example/',
+      ] as const),
+      clients: Object.freeze([
+        Object.freeze({ appFid: 7, deliveryUrl: 'https://z-client.example/deliver' }),
+        Object.freeze({ appFid: 2, deliveryUrl: 'https://m-client.example/deliver' }),
+        Object.freeze({ appFid: 7, deliveryUrl: 'https://a-client.example/deliver' }),
+      ]),
+      operatorSecret: 'first-independent-secret-that-is-never-attested',
+    }
+    const right: MiniAppNotificationConfig = {
+      hubUrls: Object.freeze([
+        left.hubUrls[1],
+        left.hubUrls[0],
+      ] as const),
+      clients: Object.freeze([...left.clients].reverse()),
+      operatorSecret: 'different-independent-secret-that-is-never-attested',
+    }
+
+    const leftSerialized = serializeAdmissionNotificationDeliveryContract(left)
+    expect(leftSerialized).toBe(serializeAdmissionNotificationDeliveryContract(right))
+    expect(admissionNotificationDeliveryContractVector(left)[2]).toEqual([
+      'clients',
+      [
+        ['2', 'https://m-client.example/deliver'],
+        ['7', 'https://a-client.example/deliver'],
+        ['7', 'https://z-client.example/deliver'],
+      ],
+    ])
+    await expect(admissionNotificationDeliveryContractDigest(left))
+      .resolves.toBe(await admissionNotificationDeliveryContractDigest(right))
+    expect(leftSerialized).not.toContain('independent-secret')
+    expect(left.clients.map(client => client.deliveryUrl)).toEqual([
+      'https://z-client.example/deliver',
+      'https://m-client.example/deliver',
+      'https://a-client.example/deliver',
+    ])
+  })
+})
+
 function enabledEvent(
   eventId = 'a'.repeat(64),
   token = TOKEN,
@@ -120,7 +184,7 @@ function disabledEvent(eventId = 'b'.repeat(64)): VerifiedMiniAppWebhookEvent {
   return { eventId, fid: FID, appFid: APP_FID, event: { type: 'disabled' } }
 }
 
-function internalRequest(path: 'event' | 'queue' | 'status', body: unknown): Request {
+function internalRequest(path: 'event' | 'queue' | 'recover' | 'status', body: unknown): Request {
   return new Request(`${INTERNAL_ORIGIN}/${path}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -223,6 +287,21 @@ async function queuePending(
 
 async function inspect(notification: AdmissionNotification): Promise<Response> {
   return notification.fetch(internalRequest('status', { fid: FID }))
+}
+
+async function recover(
+  notification: AdmissionNotification,
+  recoveryId = 'c'.repeat(32),
+  requestedAtMicros = REQUESTED_AT_MICROS,
+  recoveredAt = NOW,
+): Promise<Response> {
+  return notification.fetch(internalRequest('recover', {
+    fid: FID,
+    kind: 'pending-request',
+    requestedAtMicros,
+    recoveredAt,
+    recoveryId,
+  }))
 }
 
 describe('admission notification consent and delivery lifecycle', () => {
@@ -987,6 +1066,8 @@ describe('admission notification consent and delivery lifecycle', () => {
       status: 'not-subscribed',
       deliveryAttemptCount: 0,
       verificationFailureCount: 0,
+      subscribed: false,
+      recoveryCount: 0,
       retryReasons: [],
     })
     await applyEvent(h.notification, enabledEvent())
@@ -999,8 +1080,11 @@ describe('admission notification consent and delivery lifecycle', () => {
     expect(JSON.parse(text)).toEqual({
       status: 'queued',
       generation: 'pending-request',
+      requestedAtMicros: REQUESTED_AT_MICROS,
       deliveryAttemptCount: 0,
       verificationFailureCount: 1,
+      subscribed: true,
+      recoveryCount: 0,
       retryReasons: ['request-verification'],
       nextAttemptAt: NOW + 30_000,
     })
@@ -1028,6 +1112,189 @@ describe('admission notification consent and delivery lifecycle', () => {
     const duplicate = await queue(h.notification, REQUESTED_AT_MICROS, currentTime)
     await expect(duplicate.json()).resolves.toEqual({ status: 'delivery-exhausted' })
     expect(fetchImpl).toHaveBeenCalledTimes(6)
+  })
+
+  it('authorizes one idempotent recovery without erasing exhausted or sent receipts', async () => {
+    let deliverySucceeds = false
+    const fetchImpl = vi.fn<typeof fetch>(async () => (
+      deliverySucceeds ? successfulDelivery() : new Response(null, { status: 503 })
+    ))
+    const h = createHarness({ fetchImpl })
+    await applyEvent(h.notification, enabledEvent())
+    await queue(h.notification)
+
+    let currentTime = NOW
+    for (let attempt = 1; attempt < 6; attempt += 1) {
+      currentTime = Number(h.storage.alarm)
+      h.setNow(currentTime)
+      await h.notification.alarm()
+    }
+    expect(fetchImpl).toHaveBeenCalledTimes(6)
+    expect(pendingStored(h.storage)).toContain(
+      `"lastExhaustedRequestAtMicros":${REQUESTED_AT_MICROS}`,
+    )
+
+    deliverySucceeds = true
+    const recoveryId = 'c'.repeat(32)
+    const firstRecovery = await recover(
+      h.notification,
+      recoveryId,
+      REQUESTED_AT_MICROS,
+      currentTime,
+    )
+    await expect(firstRecovery.json()).resolves.toEqual({ status: 'already-sent' })
+    expect(fetchImpl).toHaveBeenCalledTimes(7)
+    expect(pendingStored(h.storage)).toContain(
+      `"lastExhaustedRequestAtMicros":${REQUESTED_AT_MICROS}`,
+    )
+    expect(pendingStored(h.storage)).toContain(
+      `"lastSentRequestAtMicros":${REQUESTED_AT_MICROS}`,
+    )
+    expect(pendingStored(h.storage)).toContain(`"lastRecoveryId":"${recoveryId}"`)
+
+    const replay = await recover(
+      h.notification,
+      recoveryId,
+      REQUESTED_AT_MICROS,
+      currentTime,
+    )
+    await expect(replay.json()).resolves.toEqual({ status: 'already-sent' })
+    const differentAuthorization = await recover(
+      h.notification,
+      'd'.repeat(32),
+      REQUESTED_AT_MICROS,
+      currentTime,
+    )
+    await expect(differentAuthorization.json()).resolves.toEqual({ status: 'already-sent' })
+    expect(fetchImpl).toHaveBeenCalledTimes(7)
+    const recoveryNotificationIds = fetchImpl.mock.calls.map(call => (
+      JSON.parse(String(call[1]?.body)) as { notificationId: string }
+    ).notificationId)
+    expect(new Set(recoveryNotificationIds)).toEqual(new Set([
+      `warpkeep-access-approved-v2-r${REQUESTED_AT_MICROS}`,
+    ]))
+    await expect((await inspect(h.notification)).json()).resolves.toMatchObject({
+      status: 'already-sent',
+      generation: 'pending-request',
+      requestedAtMicros: REQUESTED_AT_MICROS,
+      recoveryCount: 1,
+      lastRecoveryAt: currentTime,
+    })
+  })
+
+  it('serializes competing recovery authorizations and permits only one plan ID', async () => {
+    let call = 0
+    const fetchImpl = vi.fn<typeof fetch>(async () => {
+      call += 1
+      if (call === 1) {
+        return Response.json({
+          result: {
+            successfulTokens: [],
+            invalidTokens: [],
+            rateLimitedTokens: [],
+            failedTokens: [{ token: TOKEN, reason: 'no_webhook_url' }],
+          },
+        })
+      }
+      return new Response(null, { status: 503 })
+    })
+    const h = createHarness({ fetchImpl })
+    await applyEvent(h.notification, enabledEvent())
+    await expect((await queue(h.notification)).json()).resolves.toEqual({
+      status: 'delivery-exhausted',
+    })
+
+    const [left, right] = await Promise.all([
+      recover(h.notification, '1'.repeat(32)),
+      recover(h.notification, '2'.repeat(32)),
+    ])
+    expect([left.status, right.status].sort()).toEqual([200, 409])
+    await expect((left.status === 200 ? left : right).json()).resolves.toEqual({
+      status: 'queued',
+    })
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(pendingStored(h.storage)).toContain('"lastRecoveryId":"11111111111111111111111111111111"')
+  })
+
+  it('fails closed when persisted recovery authority is detached from its exhausted receipt', async () => {
+    let call = 0
+    const fetchImpl = vi.fn<typeof fetch>(async () => {
+      call += 1
+      return call === 1
+        ? Response.json({
+            result: {
+              successfulTokens: [],
+              invalidTokens: [],
+              rateLimitedTokens: [],
+              failedTokens: [{ token: TOKEN, reason: 'no_webhook_url' }],
+            },
+          })
+        : new Response(null, { status: 503 })
+    })
+    const h = createHarness({ fetchImpl })
+    await applyEvent(h.notification, enabledEvent())
+    await expect((await queue(h.notification)).json()).resolves.toEqual({
+      status: 'delivery-exhausted',
+    })
+    await expect((await recover(h.notification)).json()).resolves.toEqual({
+      status: 'queued',
+    })
+    const pending = structuredClone(
+      h.storage.values.get(PENDING_STATE_RECORD) as Record<string, unknown>,
+    )
+    delete pending.lastExhaustedRequestAtMicros
+    h.storage.values.set(PENDING_STATE_RECORD, pending)
+
+    await expect(inspect(h.notification)).rejects.toThrow(
+      'Invalid pending admission notification state.',
+    )
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not consume recovery while consent is absent', async () => {
+    const replacementToken = 'replacement-notification-token-with-enough-entropy'
+    let token = TOKEN
+    const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({
+      result: {
+        successfulTokens: token === TOKEN ? [] : [replacementToken],
+        invalidTokens: token === TOKEN ? [TOKEN] : [],
+        rateLimitedTokens: [],
+      },
+    }))
+    const h = createHarness({ fetchImpl })
+    await applyEvent(h.notification, enabledEvent())
+    await expect((await queue(h.notification)).json()).resolves.toEqual({
+      status: 'delivery-exhausted',
+    })
+    await expect((await recover(h.notification)).json()).resolves.toEqual({
+      status: 'not-subscribed',
+    })
+    expect(pendingStored(h.storage)).not.toContain('lastRecoveryId')
+
+    token = replacementToken
+    await applyEvent(h.notification, enabledEvent(
+      'e'.repeat(64),
+      replacementToken,
+    ))
+    await expect((await recover(h.notification)).json()).resolves.toEqual({
+      status: 'already-sent',
+    })
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects recovery before exhaustion and for a stale request generation', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => new Response(null, { status: 503 }))
+    const h = createHarness({ fetchImpl })
+    await applyEvent(h.notification, enabledEvent())
+    await queue(h.notification)
+
+    expect((await recover(h.notification)).status).toBe(409)
+    expect((await recover(
+      h.notification,
+      'c'.repeat(32),
+      REQUESTED_AT_MICROS - 1,
+    )).status).toBe(409)
+    expect(fetchImpl).toHaveBeenCalledOnce()
   })
 
   it('reports the newest terminal receipt after an older successful request', async () => {

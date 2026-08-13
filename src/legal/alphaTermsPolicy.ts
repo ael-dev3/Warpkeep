@@ -11,6 +11,13 @@ export const WARPKEEP_ENTRY_AGREEMENT_VERSION =
   '2026-07-31-hegemony-entry-agreement-v4';
 
 /**
+ * Release tooling may publish only an exact selected bundle carrying this
+ * status. Feature-specific approvals remain independent and fail closed.
+ */
+export const WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS =
+  'production-approved';
+
+/**
  * Retained deployed reducer/input name. It identifies the complete linked
  * entry agreement, not the Terms document alone.
  */
@@ -27,3 +34,10 @@ export const WARPKEEP_ALPHA_TERMS_TEXT_SHA256 =
 /** SHA-256 of the canonical Social Contract's normalized visible <main> text. */
 export const WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_TEXT_SHA256 =
   'a052a4f53aee749b702037f7a6eeb1e9dbd6fab0cbcd60aed81dacade8cbb66d';
+
+/** Factual notice version published alongside the selected entry agreement. */
+export const WARPKEEP_ALPHA_PRIVACY_NOTICE_VERSION = '2026-08-02-v5';
+
+/** SHA-256 of the canonical Privacy Notice's normalized visible <main> text. */
+export const WARPKEEP_ALPHA_PRIVACY_NOTICE_TEXT_SHA256 =
+  '864341ee744e7adce4b5f8ee4be99785d96eb03a3916f798b85f3b0949e978c6';

@@ -1,4 +1,10 @@
 import warpkeep from './schema';
+import { GREATER_REALM_RELOCATION_DORMANT_COMPILE_ANCHOR_V1 } from './greaterRealmRelocationDormant';
+
+// Compile the dormant, gate-false relocation core through the production
+// Spacetime bundler without exporting/registering reducers or generating
+// client bindings. SpacetimeDB rejects ordinary values from the module root.
+void GREATER_REALM_RELOCATION_DORMANT_COMPILE_ANCHOR_V1;
 
 export default warpkeep;
 
@@ -15,7 +21,9 @@ export {
   adminSeedWorld,
   adminExpandGenesisWorldV3,
   adminAllowFid,
+  adminAllowFidForAccessRequestV1,
   adminAdmitFounderV1,
+  adminAdmitFounderForAccessRequestV2,
   adminDisableFid,
   adminBumpAuthEpoch,
   adminGetAlphaStatus,
@@ -34,6 +42,7 @@ export {
   accessRequestGetStatusV1,
   accessRequestSubmitV1,
   adminListAccessRequestsV1,
+  adminGetAccessRequestAdmissionStatusV1,
   adminGetAccessRequestResetStatusV1,
   adminResetAccessRequestV1,
 } from './reducers/accessRequests';
@@ -42,6 +51,20 @@ export {
   adminBackfillDailyMarkAccountsV1,
   adminActivateDailyMarksV1,
 } from './reducers/dailyMarks';
+export {
+  sendRealmChatMessageV1,
+  getRealmChatRecentV1,
+  getRealmChatHistoryV1,
+  reportRealmChatMessageV1,
+  adminGetRealmChatStatusV1,
+  adminStageRealmChatV1,
+  adminActivateRealmChatV1,
+  adminDisableRealmChatV1,
+  adminTombstoneRealmChatMessageV1,
+  adminListRealmChatReportsV1,
+  adminGetRealmChatReportContextV1,
+  adminResolveRealmChatReportV1,
+} from './reducers/realmChat';
 export {
   getMyResourceStateV1,
   collectResourcesV1,
@@ -52,7 +75,9 @@ export {
   getMyWorkerRosterV1,
   getMyResourceStateV2,
   getMyWorkerControlStateV1,
+  getMyWorkerControlStateV2,
   dispatchWorkerV1,
+  dispatchGreaterRealmWorkerV1,
   recallWorkerV1,
   recallAllWorkersV1,
   returnLegacyExpeditionV1,
@@ -110,4 +135,46 @@ export {
   runStoneExpeditionScheduleV1,
   runCastleWorkerScheduleV1,
   runDailyMarkScheduleV1,
+  runInnerKeepConstructionScheduleV1,
 } from './schema';
+export {
+  getMyInnerKeepStateV1,
+  getMyInnerKeepRequestStatusV1,
+  innerKeepStartProjectV1,
+  adminGetInnerKeepStatusV1,
+  adminPlanInnerKeepCatalogV1,
+  adminSeedInnerKeepCatalogV1,
+  adminPlanInnerKeepBuildersV1,
+  adminBackfillInnerKeepBuildersV1,
+  adminActivateInnerKeepV1,
+  adminDeactivateInnerKeepV1,
+} from './reducers/innerKeep';
+export {
+  adminGetGreaterRealmStatusV1,
+  adminGetGreaterRealmImportPlanV1,
+  adminStageGreaterRealmReleaseV1,
+  adminImportGreaterRealmComponentsV1,
+  adminImportGreaterRealmRegionsV1,
+  adminImportGreaterRealmChunkV1,
+  adminBeginGreaterRealmVerificationV1,
+  adminVerifyGreaterRealmBatchV1,
+  adminFinalizeGreaterRealmReleaseV1,
+  getRealmAtlasBootstrapV1,
+  getRealmAtlasWindowV1,
+  getRealmAtlasChunkV1,
+  getRealmAtlasResourceLocationsV1,
+  planRealmRouteV1,
+} from './reducers/greaterRealm';
+export {
+  adminGetGreaterRealmCutoverStatusV1,
+  adminGetGreaterRealmReenableStatusV1,
+  adminPrepareGreaterRealmActivationV1,
+  adminBeginGreaterRealmDrainV1,
+  adminFreezeGreaterRealmActivationV1,
+  adminPlanGreaterRealmRelocationV1,
+  adminRelocateGreaterRealmCanaryV1,
+  adminCommitGreaterRealmActiveV1,
+  adminHaltGreaterRealmActivationV1,
+  adminResumeGreaterRealmActiveV1,
+  adminRollbackGreaterRealmBeforeCommitV1,
+} from './reducers/greaterRealmCutover';

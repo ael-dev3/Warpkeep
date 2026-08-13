@@ -284,7 +284,8 @@ function appendCanopyLobe(
  * is intentionally low-poly enough for every existing forest fallback budget.
  */
 export function createRealmProceduralForestFallbackGeometry(
-  targetHeightInput: number
+  targetHeightInput: number,
+  includeWindAttributes = false
 ) {
   const targetHeight = Number.isFinite(targetHeightInput) && targetHeightInput > 0
     ? Math.max(0.2, targetHeightInput)
@@ -352,6 +353,31 @@ export function createRealmProceduralForestFallbackGeometry(
     'color',
     new THREE.Float32BufferAttribute(output.colors, 3)
   );
+  if (includeWindAttributes) {
+    const windWeights = new Uint8Array(output.positions.length / 3);
+    const windPhases = new Uint8Array(output.positions.length / 3);
+    for (let index = 0; index < windWeights.length; index += 1) {
+      const x = output.positions[index * 3] ?? 0;
+      const y = output.positions[index * 3 + 1] ?? 0;
+      const z = output.positions[index * 3 + 2] ?? 0;
+      const normalizedHeight = THREE.MathUtils.clamp(
+        (y / targetHeight - 0.18) / 0.72,
+        0,
+        1
+      );
+      windWeights[index] = Math.round(normalizedHeight * 255);
+      const phase = Math.sin(x * 91.7 + z * 63.1 + y * 17.3) * 0.5 + 0.5;
+      windPhases[index] = Math.round(THREE.MathUtils.clamp(phase, 0, 1) * 255);
+    }
+    geometry.setAttribute(
+      'realmForestWindWeight',
+      new THREE.Uint8BufferAttribute(windWeights, 1, true)
+    );
+    geometry.setAttribute(
+      'realmForestWindPhase',
+      new THREE.Uint8BufferAttribute(windPhases, 1, true)
+    );
+  }
   geometry.setIndex(new THREE.Uint16BufferAttribute(output.indices, 1));
   geometry.computeVertexNormals();
   geometry.computeBoundingBox();
@@ -378,16 +404,16 @@ export function createRealmProceduralForestFallbackMaterial() {
 export function realmForestFallbackInstanceColor(
   habitat: RealmForestEcologyHabitat
 ) {
-  if (habitat === 'grove') return '#3f6a43';
-  if (habitat === 'forest') return '#497548';
-  return '#68845a';
+  if (habitat === 'grove') return '#477d47';
+  if (habitat === 'forest') return '#538653';
+  return '#73955f';
 }
 
-/** Restrained near-white tint for authored model instances. */
+/** Restrained green-white tint for authored model instances. */
 export function realmForestModelInstanceTint(
   habitat: RealmForestEcologyHabitat
 ) {
-  if (habitat === 'grove') return '#dbe7d7';
-  if (habitat === 'forest') return '#e7eee1';
-  return '#f1eddc';
+  if (habitat === 'grove') return '#cfe9c8';
+  if (habitat === 'forest') return '#d7eed1';
+  return '#e6f0d7';
 }

@@ -17,6 +17,10 @@ privately recorded operation. World generation and resource features do not
 change this bridge contract. The QA aggregate parser recognizes only supported
 world tuples and never infers economy readiness from partial counts.
 
+The bridge-only notification preparation receipt, verifier, protected manual
+workflow, and current fail-closed deployment dependency are documented in
+[`docs/operations/auth-bridge-notification-prepared.md`](../../docs/operations/auth-bridge-notification-prepared.md).
+
 `https://auth.warpkeep.com` is the canonical bridge coordinate, but its
 existence is not evidence that an arbitrary local v2 source is deployed. Every
 future rollout step requires exact-head verification and recorded authority.
@@ -28,6 +32,7 @@ future rollout step requires exact-head verification and recorded authority.
 | `GET` | `/.well-known/openid-configuration` | Exact issuer, claims, and public JWKS URI. |
 | `GET` | `/.well-known/jwks.json` | Public ES256/P-256 JWK; never serializes private `d`. |
 | `GET` | `/healthz` | Basic health response. |
+| `GET` | `/v1/release-attestation` | Prepared-only, privacy-safe source and admission-notification delivery contract for protected deploy verification. |
 | `POST` | `/v2/farcaster/challenge` | Creates a five-minute, S256-bound SIWF challenge. |
 | `POST` | `/v2/farcaster/exchange` | Verifies SIWF and creates a rotating server-side session family. |
 | `POST` | `/v2/farcaster/quick-auth/exchange` | Verifies an exact-domain Mini App bearer and returns tokenless-pending or short-lived authorized access without a cookie. |
@@ -39,7 +44,8 @@ future rollout step requires exact-head verification and recorded authority.
 | `POST` | `/v1/admin/auth-epoch-probe` | Server-only, input-free structured resolver check. |
 | `POST` | `/v1/admin/config-attestation` | Server-only digest of security-relevant runtime configuration. |
 | `POST` | `/v1/farcaster/miniapp/webhook` | Verifies signed add/remove and notification enable/disable events; returns exact `200`. |
-| `POST` | `/v1/admin/admission-notification` | Separate-secret Hermes hook; queues one alert for the exact pending request, or reconciles an already-live admission epoch. |
+| `POST` | `/v1/admin/admission-notification` | Separate-secret Hermes hook; queues one alert for the exact pending request and never delivers an already-live admission epoch. |
+| `POST` | `/v1/admin/admission-notification-recovery` | Separate-secret, reviewed one-shot recovery for one exhausted first-time pending-request generation; never mutates admission. |
 | `POST` | `/v1/admin/admission-notification-status` | Separate-secret, token-free delivery diagnostics for one exact FID. |
 
 The legacy public `/v1/farcaster/challenge` and `/v1/farcaster/exchange` routes
@@ -399,12 +405,45 @@ Once selected, a request's transport target is immutable; opt-out, token
 rotation, expiry, or client removal terminates that generation rather than
 redirecting it. Terminal request timestamps are monotonic high-water marks, so
 rollback or stale operator input cannot revive an older alert.
+One reviewed 128-bit plan ID may authorize one recovery attempt cycle only when
+that exact first-time pending generation is exhausted, still pending, unsent,
+and currently subscribed. The exhausted receipt remains durable, the
+request-scoped notification ID does not change, a matching plan replay is
+idempotent, and a competing plan conflicts. A sent receipt always wins and can
+never be reset.
 The operator-only status projection contains only queue state, generation kind,
-aggregate attempt counts, static retry categories, and bounded retry timing. It
-never returns a request timestamp, notification token, delivery URL, webhook
-payload, or provider response. Delivery parsing accepts Farcaster's optional additive
+the request timestamp already visible in the private access ledger, aggregate
+attempt/recovery counts, static retry categories, and bounded retry timing. It
+never returns a notification token, delivery URL, webhook payload, or provider
+response. Delivery parsing accepts Farcaster's optional additive
 `failedTokens` field, ignores harmless provider metadata, and still rejects
 invalid reasons, contradictory known outcome categories, and token mismatches.
+
+The no-auth `GET /v1/release-attestation` route returns success only for the
+protected bridge-prepared phase. It requires an exact lowercase 40-hex
+`WARPKEEP_BRIDGE_SOURCE_COMMIT` injected by the trusted deployer, notification
+delivery enabled, the complete two-Hub/one-client/independent-secret transport,
+and the `ADMISSION_NOTIFICATIONS` binding. The source binding is intentionally
+absent from checked-in defaults and is not required for ordinary bridge health.
+An incomplete preparation returns only
+`{"error":"release_not_prepared"}` with status `503`; it never reveals which
+requirement is missing. The exact successful response contains only schema and
+profile literals, the public source commit, three readiness booleans, client
+count `1`, the delivery-contract digest, and the current public-auth and
+expected-FID modes. It has no CORS, redirects, credentials, FID, URL, token,
+configuration fingerprint, Durable Object read/write, notification, upstream
+request, or user-state effect.
+Requests carrying `Authorization`, `Cookie`, or `Proxy-Authorization` are
+rejected by header presence alone before configuration or preparation work;
+their values are never read or logged.
+
+The delivery digest is lowercase SHA-256 of the exact UTF-8 bytes from the
+exported canonical JSON serializer. Its ordered array binds the sorted Hub
+URLs, clients sorted by numeric app FID then delivery URL, fixed target, title,
+body, deterministic notification-ID profile, six-attempt ceiling, retry
+delays, and 24-hour lifetime. Secret values are neither serialized nor hashed.
+The current reviewed vector is 622 bytes and has digest
+`13429727ea5257946e3b659e07f912cf8cd81985fadecb03c63311994a01f7d9`.
 
 The production browser and Pages activation gate separately pin the exact bridge
 and issuer `https://auth.warpkeep.com`, audience `warpkeep-spacetimedb`, and the
@@ -428,14 +467,23 @@ observer coordinates, environment, binding and bounded lifetimes, both gates,
 and exact cookie attributes. Operators must compare it with the reviewed
 expected configuration; it is not a deployment action and reveals no secret
 material.
+The local verifier strictly decodes the complete private response instead of
+discarding notification and auth modes. The prepared verifier requires an
+explicit expected ten-field public attestation before any request, binds its
+delivery-enabled, transport, client-count, public-auth, and expected-FID modes
+to the private response, and compares the public response as exact canonical
+JSON with all security headers. This is deploy evidence input only; it does not
+deploy, flip a gate, issue a notification, or prove Cloudflare control-plane
+version activation by itself.
 
-After a reviewed Worker deployment, run `npm run verify:alpha-production:operator`
-from the repository root with `WARPKEEP_ADMIN_TOKEN_SECRET` supplied through the
-private operator environment. Unlike the public CI verifier, this command fails
-closed when the credential is absent and pins dRPC as primary plus PublicNode as
-secondary in reviewed source; runtime environment overrides cannot redefine
-those roles. `npm run verify:auth-bridge-config` performs the same narrow role
-check when a full frontend verification is unnecessary.
+The former `verify:alpha-production:operator` alias is unavailable during the
+Greater Realm cutover, and environment-carried administrator secrets are
+prohibited. Production verification uses only the exact `verify` row in the
+reviewed
+[production launch envelope](../../docs/operations/greater-realm-production-launch-envelope.sh.txt),
+which receives an owner-private secret-file path and opens it only after local
+source, proof, and authority checks. `npm run verify:auth-bridge-config`
+remains a separate narrow, non-admin local configuration-role check.
 
 Copy `.dev.vars.example` to untracked `.dev.vars` only for local work and use
 separate development keys. Set real secrets only through approved Cloudflare
@@ -456,6 +504,19 @@ historical approval or counts cannot be reused. Follow the current
 reconstructing a rollout from this implementation guide.
 
 ## Checks, logs, and admin boundary
+
+The reviewed production launcher shares one durable bridge-token issuance
+ledger across publisher, import, relocation, verifier, and Hermes commands.
+It exposes exactly seven Hermes rows: `hermes-admit-dry`,
+`hermes-admit-confirm`, `hermes-allow-dry`, `hermes-allow-confirm`,
+`hermes-notification-inspect`, `hermes-notification-recover-dry`, and
+`hermes-notification-recover-confirm`. Admit dry-run uses only its private
+request input; allow dry-run uses no secret; confirmed admit/allow use separate
+administrator and notification secrets; notification inspection uses only the
+notification secret; and notification recovery uses both independent secrets.
+Each required value is supplied as an owner-private file path and opened late.
+No row accepts secret bytes through an environment variable, inherited file
+descriptor, or shell pipe.
 
 Run `cd services/auth-bridge && pnpm install --frozen-lockfile && pnpm run check`
 locally. Run the separate repository-root
@@ -484,7 +545,8 @@ request/response, or symmetric secret. `/v1/admin/token`,
 `Authorization: Bearer <ADMIN_TOKEN_SECRET>`, reject browser `Origin` headers,
 emit no admin CORS headers, and are only for a server-side operator process.
 Never expose their credential or response to frontend code.
-`/v1/admin/admission-notification` and its token-free `-status` companion have
+`/v1/admin/admission-notification`, its reviewed `-recovery` route, and its
+token-free `-status` companion have
 the same no-Origin/no-CORS boundary but use only
 `NOTIFICATION_OPERATOR_SECRET`; neither accepts the general admin secret. The
 public webhook accepts no browser Origin and trusts only a valid

@@ -49,12 +49,28 @@ import {
   type RealmVegetationRoutePath
 } from '../../game/map/realmVegetationMask';
 import { terrainHeightAtWorld } from '../../game/map/terrainHeight';
+import type { InnerKeepPresentation } from '../inner-keep/innerKeepPresentation';
+import type { InnerKeepPlacementDraft } from '../inner-keep/innerKeepPlacement';
+import type {
+  InnerKeepSceneLayer,
+  InnerKeepSceneTelemetry,
+  InnerKeepSceneVisualContext
+} from '../inner-keep/createInnerKeepSceneLayer';
 import {
   createHegemonyCastlePlacements,
   type TerrainStructurePlacement
 } from '../../game/map/terrainPlacements';
 import { createTerrainDecorationLayers } from './createTerrainDecorations';
 import { createRealmGrassLayer, type RealmGrassLayer, type RealmGrassTelemetry } from './createRealmGrassLayer';
+import {
+  createRealmAmbientEcologyLayer,
+  type RealmAmbientEcologyLayer
+} from './createRealmAmbientEcologyLayer';
+import {
+  createRealmRabbitLayer,
+  type RealmRabbitLayer
+} from './createRealmRabbitLayer';
+import { createRealmSurfaceDisturbanceField } from './realmSurfaceDisturbanceField';
 import { createRealmTerrainFeatureLayers } from './createRealmTerrainFeatures';
 import { createRealmForestLayer, type RealmForestLayer } from './realmForestLayer';
 import {
@@ -66,6 +82,7 @@ import type {
   RealmForestFallbackType,
   RealmForestGroundingMode
 } from './createRealmProceduralForestFallback';
+import type { REALM_FOREST_LIVING_CANOPY_MOTION_STATE } from './createRealmForestWindMaterial';
 import { estimateRealmForestViewportRadiusCells } from './realmForestActiveWindow';
 import {
   createTerrainGeometryData,
@@ -198,11 +215,14 @@ import {
   type RealmWaterPickHit
 } from './realmPickArbitration';
 import {
+  REALM_GRASS_RENDER_PLANS,
   REALM_LIGHTING_SPECS,
+  resolveRealmLivingRealmBudget,
   resolveRealmPixelRatio,
   resolveRealmRenderPlan,
   type RealmQualitySpec
 } from './realmQuality';
+import { resolveRealmVegetationCapability } from './realmVegetationCapability';
 import type {
   KeepLoadStatus,
   RealmCastleProjectionFrame,
@@ -708,7 +728,7 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   forestFallbackType: RealmForestFallbackType;
   forestContactShadowCount: number;
   forestGroundingMode: RealmForestGroundingMode;
-  forestCanopyMotionState: 'static';
+  forestCanopyMotionState: 'static' | typeof REALM_FOREST_LIVING_CANOPY_MOTION_STATE;
   forestStructureCellCounts: RealmForestStructureCounts;
   forestSilhouetteCoverageRatio: number;
   forestSnowTintedTreeCount: number;
@@ -736,14 +756,34 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   grassCandidateCellCount: number;
   grassActiveCellCount: number;
   grassInstanceCount: number;
+  grassNearInstanceCount: number;
+  grassMidInstanceCount: number;
   grassTriangleCount: number;
+  grassNearTriangleCount: number;
+  grassMidTriangleCount: number;
   grassDrawCalls: number;
+  grassNearDrawCalls: number;
+  grassMidDrawCalls: number;
+  grassLodTransitionInstanceCount: number;
+  wildflowerInstanceCount: number;
+  wildflowerTriangleCount: number;
+  wildflowerDrawCalls: number;
+  wildflowerInstanceBudget: number;
+  wildflowerAnimated: boolean;
+  wildflowerAlphaHashActive: boolean;
+  wildflowerAlphaToCoverageActive: boolean;
+  wildflowerShaderFallbackActive: boolean;
+  wildflowerShaderFallbackCount: number;
+  wildflowerShaderFallbackReason: string | null;
+  wildflowerOverviewHidden: boolean;
   grassCacheEntries: number;
   grassCacheLimit: number;
   grassCacheHighWaterMark: number;
   grassRepackCount: number;
   grassAnimated: boolean;
   grassTargetAnimationCadence: number;
+  grassAlphaHashActive: boolean;
+  grassAlphaToCoverageActive: boolean;
   grassCandidateCellsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
   grassActiveCellsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
   grassCountsByTerrain: Readonly<Record<RealmGrassTerrainKind, number>>;
@@ -770,8 +810,26 @@ export type RealmTerrainPresentationTelemetry = Readonly<{
   grassOverviewHidden: boolean;
 }>;
 
+export type RealmSceneMode = 'WORLD' | 'INNER_KEEP';
+export type InnerKeepSceneStatus = 'inactive' | 'loading' | 'ready' | 'unavailable';
+
 export type RealmSceneHandle = Readonly<{
   dispose: () => void;
+  /**
+   * Selects the presentation hosted by this renderer. Inner Keep uses the
+   * same canvas/context; the optional seam keeps older test doubles and
+   * recovery integrations compatible while the lazy layer is unavailable.
+   */
+  setSceneMode?: (mode: RealmSceneMode) => void;
+  /** Reconciles the caller-bound Inner Keep projection without rebuilding WebGL. */
+  reconcileInnerKeepPresentation?: (
+    presentation: InnerKeepPresentation | null,
+    context?: InnerKeepSceneVisualContext
+  ) => void;
+  /** Mirrors the accessible placement controls into the procedural ghost. */
+  setInnerKeepPlacementDraft?: (draft: InnerKeepPlacementDraft | null) => void;
+  /** Mirrors the accessible building selection into the procedural town. */
+  setSelectedInnerKeepBuildingKey?: (buildingKey: string | null) => void;
   /** Enables visible presentation work only after this scene owns the active canvas. */
   setPresentationActive: (active: boolean) => void;
   reconcileLiveGatheringState: (state: RealmLiveGatheringState) => void;
@@ -937,6 +995,8 @@ export type CreateRealmSceneOptions = Readonly<{
   terrainMetadata: readonly RealmTerrainSemanticRow[];
   quality: RealmQualitySpec;
   reducedMotion: boolean;
+  /** DEV-only frozen visual clock for deterministic rendered fixtures. */
+  livingVisualTimeSeconds?: number;
   baseUrl: string;
   /** Optional authoritative metadata boundary for camera navigation. */
   isCoordPassable?: (coord: HexCoord) => boolean;
@@ -975,6 +1035,14 @@ export type CreateRealmSceneOptions = Readonly<{
   onTargetSelect?: (target: RealmInteractionTarget) => void;
   /** Screen-local confirmation for a valid direct world click/tap. */
   onWorldSelectionFeedback?: (point: Readonly<{ x: number; y: number }>) => void;
+  /** Reports only the optional procedural layer's local presentation lifecycle. */
+  onInnerKeepSceneStatusChange?: (status: InnerKeepSceneStatus) => void;
+  /** Canvas picking feeds the same building route used by accessible controls. */
+  onInnerKeepBuildingSelect?: (buildingKey: string) => void;
+  /** Canvas ground selection feeds the same controlled placement draft as the panel. */
+  onInnerKeepPlacementDraftChange?: (draft: InnerKeepPlacementDraft) => void;
+  /** Bounded renderer diagnostics; never an authority or command input. */
+  onInnerKeepTelemetry?: (telemetry: InnerKeepSceneTelemetry) => void;
 }>;
 
 type RealmSceneCleanup = Readonly<{
@@ -1434,6 +1502,10 @@ function initializeRealmScene(
     dynamicShadows: renderPlan.dynamicShadows,
     shadowMapSize: renderPlan.shadowMapSize
   };
+  const livingBudget = resolveRealmLivingRealmBudget(
+    runtimeQuality.id,
+    options.reducedMotion
+  );
   const climatePlayableRadius = Math.max(1, options.surface.playableMap.radius);
   const northernSnow = createRealmNorthernSnowField({
     worldSeed: presentationSurface.renderMap.worldSeed,
@@ -1493,6 +1565,7 @@ function initializeRealmScene(
   options.canvas.dataset.realmSceneIdentity = scene.uuid;
   options.canvas.dataset.realmRendererGeneration = String(rendererGeneration);
   options.canvas.dataset.realmLastSuccessfulRenderedGeneration = '0';
+  options.canvas.dataset.realmSceneMode = 'WORLD';
   scene.background = new THREE.Color(REALM_SKY_FALLBACK_COLOR);
   const fog = new THREE.Fog(
     REALM_SKY_FALLBACK_COLOR,
@@ -1501,6 +1574,10 @@ function initializeRealmScene(
   );
   scene.fog = fog;
 
+  let vegetationShaderErrorHandler:
+    | ((kind: 'grass' | 'wildflower', reason: string) => void)
+    | null = null;
+  let vegetationFallbackRenderPending = false;
   const renderer = new THREE.WebGLRenderer({
     canvas: options.canvas,
     antialias: options.quality.id !== 'reduced',
@@ -1511,6 +1588,25 @@ function initializeRealmScene(
     // devices.
     powerPreference: options.quality.id === 'high' ? 'high-performance' : 'default'
   });
+  const vegetationCapability = resolveRealmVegetationCapability({
+    preferredProfile: options.quality.id,
+    maxAttributes: renderer.capabilities.maxAttributes,
+    // Preserve the exact preferred plan resolved for this scene while making
+    // only the already-proven lower profiles available for atomic downshift.
+    plans: {
+      ...REALM_GRASS_RENDER_PLANS,
+      [options.quality.id]: renderPlan.grass
+    }
+  });
+  const vegetationGrassPlan = vegetationCapability.grassPlan;
+  options.canvas.dataset.realmVegetationCapability = vegetationCapability.mode;
+  options.canvas.dataset.realmVegetationCapabilityReason =
+    vegetationCapability.reason ?? 'none';
+  options.canvas.dataset.realmVegetationSelectedProfile =
+    vegetationCapability.selectedProfile ?? 'none';
+  options.canvas.dataset.realmVegetationMaxAttributes = String(
+    vegetationCapability.maxAttributes
+  );
   if (
     Number.isFinite(renderer.capabilities.maxTextureSize)
     && renderer.capabilities.maxTextureSize > 0
@@ -1520,6 +1616,47 @@ function initializeRealmScene(
     );
   }
   cleanup.add(() => renderer.dispose());
+  const priorShaderErrorHandler = renderer.debug?.onShaderError ?? null;
+  const handleShaderError: NonNullable<typeof renderer.debug.onShaderError> = (
+    gl,
+    program,
+    vertexShader,
+    fragmentShader
+  ) => {
+    const source = `${gl.getShaderSource(vertexShader) ?? ''}\n${
+      gl.getShaderSource(fragmentShader) ?? ''
+    }`;
+    const grassFailed = source.includes('uGrassTime') || source.includes('grassBladeData');
+    const wildflowerFailed = source.includes('uFlowerTime') || source.includes('flowerCardData');
+    if (grassFailed) {
+      vegetationShaderErrorHandler?.('grass', 'REALM_GRASS_SHADER_COMPILE_OR_LINK_FAILED');
+    }
+    if (wildflowerFailed) {
+      vegetationShaderErrorHandler?.(
+        'wildflower',
+        'REALM_WILDFLOWER_SHADER_COMPILE_OR_LINK_FAILED'
+      );
+    }
+    if (grassFailed || wildflowerFailed) return;
+    if (priorShaderErrorHandler) {
+      priorShaderErrorHandler(gl, program, vertexShader, fragmentShader);
+      return;
+    }
+    // Installing a callback suppresses Three's default diagnostic. Preserve a
+    // bounded non-source log for unrelated material failures.
+    console.error(
+      'THREE.WebGLProgram: Shader Error',
+      gl.getProgramInfoLog(program) || 'PROGRAM_LINK_FAILED'
+    );
+  };
+  if (renderer.debug) renderer.debug.onShaderError = handleShaderError;
+  cleanup.add(() => {
+    vegetationShaderErrorHandler = null;
+    vegetationFallbackRenderPending = false;
+    if (renderer.debug?.onShaderError === handleShaderError) {
+      renderer.debug.onShaderError = priorShaderErrorHandler;
+    }
+  });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   const lighting = REALM_LIGHTING_SPECS[options.quality.id];
@@ -1883,6 +2020,12 @@ function initializeRealmScene(
     options.canvas.dataset.waterShaderFallbackCount = String(
       telemetry?.shaderFallbackCount ?? 0
     );
+    options.canvas.dataset.waterRippleSlotCount = String(
+      telemetry?.rippleSlotCount ?? 0
+    );
+    options.canvas.dataset.waterActiveRippleCount = String(
+      telemetry?.activeRippleCount ?? 0
+    );
     options.canvas.dataset.waterRiverFallbackReasons = JSON.stringify(
       telemetry?.riverFallbackReasons ?? []
     );
@@ -1977,6 +2120,7 @@ function initializeRealmScene(
         map: presentationSurface.renderMap,
         terrainPlacements,
         quality: runtimeQuality,
+        reducedMotion: options.reducedMotion,
         baseUrl: options.baseUrl,
         northernSnow,
         southernDesert,
@@ -2080,49 +2224,155 @@ function initializeRealmScene(
   );
   cleanup.add(semanticFeatures.dispose);
   scene.add(semanticFeatures.group);
-  try {
-    grassLayer = createRealmGrassLayer({
-      surface: presentationSurface,
-      terrainKindsByKey: terrainSemantics.terrainKindsByKey,
-      castleSlotKeys: terrainSemantics.castleSlotKeys,
-      placements: terrainPlacements,
-      exclusions: Object.freeze([
-        ...grassExclusionsForTerrainFeatures(semanticFeatureData.points),
-        ...grassExclusionsForForestTrees(forestBiomeData.points)
-      ]),
-      plan: renderPlan.grass,
-      reducedMotion: options.reducedMotion,
-      hexSize: HEX_SIZE,
-      alphaToCoverage: grassAlphaToCoverage,
-      vegetationField,
-      northernSnow,
-      southernDesert,
-      isWorldExcluded: (world) => vegetationMask.isGrassExcluded(world)
-        || activeForestGrassMask.isGrassExcluded(world),
-      visualizeLegacyLakes: noLakeRevisionActive,
-      suppressCastleSlots: false
-    });
-    cleanup.add(grassLayer.dispose);
-    scene.add(grassLayer.group);
-    options.canvas.dataset.grassPresentation = 'ready';
-  } catch {
-    // Decorative failure must not take the terrain, input, or castle layer down.
+  if (vegetationGrassPlan.enabled) {
+    try {
+      grassLayer = createRealmGrassLayer({
+        surface: presentationSurface,
+        terrainKindsByKey: terrainSemantics.terrainKindsByKey,
+        castleSlotKeys: terrainSemantics.castleSlotKeys,
+        placements: terrainPlacements,
+        exclusions: Object.freeze([
+          ...grassExclusionsForTerrainFeatures(semanticFeatureData.points),
+          ...grassExclusionsForForestTrees(forestBiomeData.points)
+        ]),
+        plan: vegetationGrassPlan,
+        reducedMotion: options.reducedMotion,
+        livingBudget,
+        hexSize: HEX_SIZE,
+        alphaToCoverage: grassAlphaToCoverage,
+        vegetationField,
+        northernSnow,
+        southernDesert,
+        isWorldExcluded: (world) => vegetationMask.isGrassExcluded(world)
+          || activeForestGrassMask.isGrassExcluded(world),
+        visualizeLegacyLakes: noLakeRevisionActive,
+        suppressCastleSlots: false
+      });
+      cleanup.add(grassLayer.dispose);
+      vegetationShaderErrorHandler = (kind, reason) => {
+        grassLayer?.activateShaderFallback(kind, reason);
+        emitTerrainPresentationTelemetry();
+        if (vegetationFallbackRenderPending) return;
+        vegetationFallbackRenderPending = true;
+        queueMicrotask(() => {
+          vegetationFallbackRenderPending = false;
+          if (!cleanup.isDisposed()) render();
+        });
+      };
+      scene.add(grassLayer.group);
+      options.canvas.dataset.grassPresentation = 'ready';
+    } catch {
+      // Decorative failure must not take the terrain, input, or castle layer down.
+      options.canvas.dataset.grassPresentation = 'unavailable';
+    }
+  } else {
     options.canvas.dataset.grassPresentation = 'unavailable';
+  }
+  const surfaceDisturbances = createRealmSurfaceDisturbanceField({
+    grassCapacity: livingBudget.grassDisturbanceSlots,
+    waterCapacity: livingBudget.waterRippleSlots
+  });
+  cleanup.add(surfaceDisturbances.dispose);
+  let ambientEcologyLayer: RealmAmbientEcologyLayer | null = null;
+  try {
+    const nextAmbientEcologyLayer = createRealmAmbientEcologyLayer({
+      budget: livingBudget,
+      frozenVisualTimeSeconds: options.livingVisualTimeSeconds
+    });
+    ambientEcologyLayer = nextAmbientEcologyLayer;
+    scene.add(nextAmbientEcologyLayer.group);
+    cleanup.add(() => {
+      scene.remove(nextAmbientEcologyLayer.group);
+      nextAmbientEcologyLayer.dispose();
+      if (ambientEcologyLayer === nextAmbientEcologyLayer) {
+        ambientEcologyLayer = null;
+      }
+    });
+  } catch {
+    // Optional ecology is independent of terrain, interaction, and authority.
+    ambientEcologyLayer = null;
+  }
+  let rabbitLayer: RealmRabbitLayer | null = null;
+  try {
+    const rabbitProtectedTileKeys = new Set([
+      ...terrainSemantics.castleSlotKeys,
+      ...fullCellWaterCoordinateKeys,
+      ...(options.goldNodes ?? []).map((node) => hexKey(node.coord)),
+      ...(options.foodNodes ?? []).map((node) => hexKey(node.coord)),
+      ...(options.woodNodes ?? []).map((node) => hexKey(node.coord)),
+      ...(options.stoneNodes ?? []).map((node) => hexKey(node.coord))
+    ]);
+    const nextRabbitLayer = createRealmRabbitLayer({
+      instanceCount: livingBudget.rabbitInstances,
+      baseUrl: options.baseUrl,
+      frozenVisualTimeSeconds: options.livingVisualTimeSeconds,
+      heightAtWorld: (world) => terrainHeightAtWorld(
+        presentationSurface.renderMap,
+        world,
+        HEX_SIZE,
+        terrainPlacements
+      ),
+      isHabitat: (world) => {
+        const coord = worldToNearestAxial(world, HEX_SIZE);
+        const key = hexKey(coord);
+        const kind = terrainSemantics.terrainKindsByKey.get(key) ?? 'lowland';
+        return presentationSurface.playableKeys.has(key)
+          && !rabbitProtectedTileKeys.has(key)
+          && (kind === 'lowland' || kind === 'meadow' || kind === 'heath');
+      },
+      onModelReady: () => {
+        if (!cleanup.isDisposed()) render();
+      }
+    });
+    rabbitLayer = nextRabbitLayer;
+    scene.add(nextRabbitLayer.group);
+    cleanup.add(() => {
+      scene.remove(nextRabbitLayer.group);
+      nextRabbitLayer.dispose();
+      if (rabbitLayer === nextRabbitLayer) rabbitLayer = null;
+    });
+  } catch {
+    // Wildlife is optional, non-pickable, and independent of Realm authority.
+    rabbitLayer = null;
   }
   const emptyGrassTelemetry: RealmGrassTelemetry = Object.freeze({
     candidateCellCount: 0,
     activeCellCount: 0,
     instanceCount: 0,
+    nearInstanceCount: 0,
+    midInstanceCount: 0,
     bladeCount: 0,
     triangleCount: 0,
+    nearTriangleCount: 0,
+    midTriangleCount: 0,
     drawCalls: 0,
+    nearDrawCalls: 0,
+    midDrawCalls: 0,
+    lodTransitionInstanceCount: 0,
+    wildflowers: Object.freeze({
+      candidateCount: 0,
+      instanceCount: 0,
+      triangleCount: 0,
+      drawCalls: 0,
+      budget: vegetationGrassPlan.enabled
+        ? vegetationGrassPlan.geometryProfile === 'high' ? 512
+          : vegetationGrassPlan.geometryProfile === 'balanced' ? 256 : 0
+        : 0,
+      animated: false,
+      alphaHashActive: !grassAlphaToCoverage,
+      alphaToCoverageActive: grassAlphaToCoverage,
+      shaderFallbackActive: false,
+      shaderFallbackCount: 0,
+      shaderFallbackReason: null,
+      overviewHidden: true
+    }),
     variantCounts: Object.freeze([]),
     cacheEntries: 0,
-    cacheLimit: renderPlan.grass.cacheLimit,
+    cacheLimit: vegetationGrassPlan.cacheLimit,
     cacheHighWaterMark: 0,
     repackCount: 0,
     animated: false,
-    targetAnimationCadence: renderPlan.grass.animationFrameCap,
+    targetAnimationCadence: vegetationGrassPlan.animationFrameCap,
     averageRetainedPatchesPerActiveCell: 0,
     averagePatchFootprint: 0,
     averageBladeHeight: 0,
@@ -2132,7 +2382,7 @@ function initializeRealmScene(
     paletteDisplaySrgbSaturationMax: 0,
     paletteGreenMin: 0,
     paletteGreenMax: 0,
-    alphaHashActive: true,
+    alphaHashActive: !grassAlphaToCoverage,
     alphaToCoverageActive: grassAlphaToCoverage,
     shaderFallbackActive: false,
     shaderFallbackCount: 0,
@@ -2164,7 +2414,9 @@ function initializeRealmScene(
     retainedInDryTransition: 0,
     activeSandCellCount: 0,
     averageSandCoverageOfActiveCells: 0,
-    overviewHidden: true
+    overviewHidden: true,
+    disturbanceSlotCount: 0,
+    activeDisturbanceCount: 0
   });
   const terrainPresentationTelemetry = () => {
     terrainTelemetryAggregationCount += 1;
@@ -2356,14 +2608,34 @@ function initializeRealmScene(
       grassCandidateCellCount: grass.candidateCellCount,
       grassActiveCellCount: grass.activeCellCount,
       grassInstanceCount: grass.instanceCount,
+      grassNearInstanceCount: grass.nearInstanceCount,
+      grassMidInstanceCount: grass.midInstanceCount,
       grassTriangleCount: grass.triangleCount,
+      grassNearTriangleCount: grass.nearTriangleCount,
+      grassMidTriangleCount: grass.midTriangleCount,
       grassDrawCalls: grass.drawCalls,
+      grassNearDrawCalls: grass.nearDrawCalls,
+      grassMidDrawCalls: grass.midDrawCalls,
+      grassLodTransitionInstanceCount: grass.lodTransitionInstanceCount,
+      wildflowerInstanceCount: grass.wildflowers.instanceCount,
+      wildflowerTriangleCount: grass.wildflowers.triangleCount,
+      wildflowerDrawCalls: grass.wildflowers.drawCalls,
+      wildflowerInstanceBudget: grass.wildflowers.budget,
+      wildflowerAnimated: grass.wildflowers.animated,
+      wildflowerAlphaHashActive: grass.wildflowers.alphaHashActive,
+      wildflowerAlphaToCoverageActive: grass.wildflowers.alphaToCoverageActive,
+      wildflowerShaderFallbackActive: grass.wildflowers.shaderFallbackActive,
+      wildflowerShaderFallbackCount: grass.wildflowers.shaderFallbackCount,
+      wildflowerShaderFallbackReason: grass.wildflowers.shaderFallbackReason,
+      wildflowerOverviewHidden: grass.wildflowers.overviewHidden,
       grassCacheEntries: grass.cacheEntries,
-      grassCacheLimit: grass.cacheLimit ?? renderPlan.grass.cacheLimit,
+      grassCacheLimit: grass.cacheLimit ?? vegetationGrassPlan.cacheLimit,
       grassCacheHighWaterMark: grass.cacheHighWaterMark ?? 0,
       grassRepackCount: grass.repackCount ?? 0,
       grassAnimated: grass.animated,
       grassTargetAnimationCadence: grass.targetAnimationCadence,
+      grassAlphaHashActive: grass.alphaHashActive,
+      grassAlphaToCoverageActive: grass.alphaToCoverageActive,
       grassCandidateCellsByTerrain: grass.candidateCellsByTerrain,
       grassActiveCellsByTerrain: grass.activeCellsByTerrain,
       grassCountsByTerrain: grass.countsByTerrain,
@@ -2486,12 +2758,34 @@ function initializeRealmScene(
       telemetry.forestDecorativeOverviewHidden,
       telemetry.grassActiveCellCount,
       telemetry.grassInstanceCount,
+      telemetry.grassNearInstanceCount,
+      telemetry.grassMidInstanceCount,
       telemetry.grassTriangleCount,
+      telemetry.grassNearTriangleCount,
+      telemetry.grassMidTriangleCount,
+      telemetry.grassDrawCalls,
+      telemetry.grassNearDrawCalls,
+      telemetry.grassMidDrawCalls,
+      telemetry.grassLodTransitionInstanceCount,
+      telemetry.wildflowerInstanceCount,
+      telemetry.wildflowerTriangleCount,
+      telemetry.wildflowerDrawCalls,
+      telemetry.wildflowerInstanceBudget,
+      telemetry.wildflowerAnimated,
+      telemetry.wildflowerAlphaHashActive,
+      telemetry.wildflowerAlphaToCoverageActive,
+      telemetry.wildflowerShaderFallbackActive,
+      telemetry.wildflowerShaderFallbackCount,
+      telemetry.wildflowerShaderFallbackReason,
+      telemetry.wildflowerOverviewHidden,
       telemetry.grassCacheEntries,
       telemetry.grassCacheLimit,
       telemetry.grassCacheHighWaterMark,
       telemetry.grassRepackCount,
       telemetry.grassAnimated,
+      telemetry.grassTargetAnimationCadence,
+      telemetry.grassAlphaHashActive,
+      telemetry.grassAlphaToCoverageActive,
       Object.values(telemetry.grassCandidateCellsByTerrain).join(','),
       Object.values(telemetry.grassActiveCellsByTerrain).join(','),
       Object.values(telemetry.grassCountsByTerrain).join(','),
@@ -2777,9 +3071,22 @@ function initializeRealmScene(
   };
   cleanup.add(cancelWorkerModelPreflightTimer);
   let contextLost = false;
+  let sceneMode: RealmSceneMode = 'WORLD';
+  let innerKeepLayer: InnerKeepSceneLayer | null = null;
+  let innerKeepPresentation: InnerKeepPresentation | null = null;
+  let innerKeepVisualContext: InnerKeepSceneVisualContext | undefined;
+  let selectedInnerKeepBuildingKey: string | null = null;
+  let innerKeepPlacementDraft: InnerKeepPlacementDraft | null = null;
+  let innerKeepLoadGeneration = 0;
   let contextLossCount = 0;
   let contextRestoreCount = 0;
   let ambientScheduler: RealmAmbientScheduler | null = null;
+  let livingElapsedSeconds = 0;
+  const workerWakeSamples = new Map<string, {
+    x: number;
+    z: number;
+    sampledAtSeconds: number;
+  }>();
   let workerMovementWakeTimer: number | null = null;
   let workerMovementWakeGeneration = 0;
   let workerMovementWakeSuspended = false;
@@ -2797,6 +3104,7 @@ function initializeRealmScene(
     if (
       cleanup.isDisposed()
       || contextLost
+      || sceneMode !== 'WORLD'
       || !presentationActive
       || options.canvas.dataset.realmCanvasActive === 'false'
       || !layer
@@ -2851,25 +3159,30 @@ function initializeRealmScene(
     presentationActive
     && !contextLost
     && options.canvas.dataset.realmCanvasActive !== 'false'
-    && (
-      workerLayer?.hasMovingWorkers() === true
-      || (
-        !options.reducedMotion
-        && Math.max(
-          renderPlan.grass.animationFrameCap,
-          REALM_WATER_ANIMATION_FRAME_CAPS[runtimeQuality.id]
-        ) > 0
-        && (
-          grassLayer?.isAnimationActive() === true
-          || decorations.animated
-          || goldNodeLayer?.hasMovingWagons() === true
-          || foodNodeLayer?.hasMovingWagons() === true
-          || woodNodeLayer?.hasMovingWagons() === true
-          || stoneNodeLayer?.hasMovingWagons() === true
-          || waterLayer?.isAnimationActive() === true
+    && (sceneMode === 'INNER_KEEP'
+      ? innerKeepLayer?.isAnimationActive() === true
+      : (
+        workerLayer?.hasMovingWorkers() === true
+        || (
+          !options.reducedMotion
+          && Math.max(
+            vegetationGrassPlan.animationFrameCap,
+            REALM_WATER_ANIMATION_FRAME_CAPS[runtimeQuality.id]
+          ) > 0
+          && (
+            grassLayer?.isAnimationActive() === true
+            || forestLayer?.isAnimationActive() === true
+            || ambientEcologyLayer?.isAnimationActive() === true
+            || rabbitLayer?.isAnimationActive() === true
+            || decorations.animated
+            || goldNodeLayer?.hasMovingWagons() === true
+            || foodNodeLayer?.hasMovingWagons() === true
+            || woodNodeLayer?.hasMovingWagons() === true
+            || stoneNodeLayer?.hasMovingWagons() === true
+            || waterLayer?.isAnimationActive() === true
+          )
         )
-      )
-    )
+      ))
   );
   const disableGrassPresentation = () => {
     const layer = grassLayer;
@@ -3080,6 +3393,84 @@ function initializeRealmScene(
     if (options.canvas.dataset[key] === value) return;
     options.canvas.dataset[key] = value;
   };
+  const sampleWorkerSurfaceWakes = (seconds: number) => {
+    if (
+      livingBudget.grassDisturbanceSlots === 0
+      && livingBudget.waterRippleSlots === 0
+    ) return;
+    if (workerWakeSamples.size > 128) workerWakeSamples.clear();
+    for (const worker of workerLayer?.getPresenceRecords() ?? []) {
+      if (worker.direction !== 'outbound' && worker.direction !== 'returning') {
+        workerWakeSamples.delete(worker.workerId);
+        continue;
+      }
+      const previous = workerWakeSamples.get(worker.workerId);
+      const next = {
+        x: worker.world.x,
+        z: worker.world.z,
+        sampledAtSeconds: seconds
+      };
+      if (!previous) {
+        workerWakeSamples.set(worker.workerId, next);
+        continue;
+      }
+      if (seconds - previous.sampledAtSeconds < 0.16) continue;
+      const distance = Math.hypot(
+        next.x - previous.x,
+        next.z - previous.z
+      );
+      // Ignore sub-pixel jitter and discontinuous catalog/reconciliation jumps.
+      if (distance < 0.12) continue;
+      workerWakeSamples.set(worker.workerId, next);
+      if (distance > 1.5) continue;
+      const water = waterCellCoordinateKeys.has(hexKey(worker.coord));
+      surfaceDisturbances.push({
+        kind: water ? 'water' : 'grass',
+        x: next.x,
+        z: next.z,
+        radius: water ? 0.82 : 0.62,
+        strength: Math.min(1, 0.34 + distance * 1.35),
+        createdAtSeconds: seconds,
+        lifetimeSeconds: water ? 2.2 : 0.92
+      });
+    }
+  };
+  const syncLivingRealmTelemetry = () => {
+    const disturbances = surfaceDisturbances.getTelemetry(livingElapsedSeconds);
+    const ecology = ambientEcologyLayer?.getTelemetry();
+    const rabbits = rabbitLayer?.getTelemetry();
+    const forest = forestLayer?.getPresentationTelemetry();
+    const values = {
+      realmLivingGrassDisturbanceSlots: livingBudget.grassDisturbanceSlots,
+      realmLivingWaterRippleSlots: livingBudget.waterRippleSlots,
+      realmLivingActiveGrassDisturbances: disturbances.activeGrassCount,
+      realmLivingActiveWaterRipples: disturbances.activeWaterCount,
+      realmLivingDisturbanceInsertions: disturbances.insertedCount,
+      realmLivingDisturbanceEvictions: disturbances.evictedCount,
+      realmLivingDisturbanceDrops: disturbances.droppedCount,
+      realmLivingForestMotion: forest?.canopyMotionState ?? 'static',
+      realmLivingForestDrawCalls: forest?.drawCalls ?? 0,
+      realmLivingForestWindAttributeBytes: forest?.windAttributeBytes ?? 0,
+      realmLivingForestShaderFallbackCount: forest?.shaderFallbackCount ?? 0,
+      realmLivingEcologyDrawCalls: (ecology?.drawCalls ?? 0) + (rabbits?.drawCalls ?? 0),
+      realmLivingEcologyTriangles: (ecology?.triangleCount ?? 0)
+        + (rabbits?.triangleCount ?? 0),
+      realmLivingBirdCount: ecology?.birdCount ?? 0,
+      realmLivingRabbitCount: rabbits?.instanceCount ?? 0,
+      realmLivingRabbitCapacity: rabbits?.instanceCapacity ?? 0,
+      realmLivingRabbitAssetReady: rabbits?.assetReady ?? false,
+      realmLivingRabbitLoadFallbackCount: rabbits?.loadFallbackCount ?? 0,
+      realmLivingMoteCount: ecology?.moteCount ?? 0,
+      realmLivingTransientParticleCount: ecology?.transientParticleCount ?? 0,
+      realmLivingPlannerHz: ecology?.plannerHz ?? 0,
+      realmLivingPlannerTickCount: ecology?.plannerTickCount ?? 0,
+      realmLivingOverviewHidden: ecology?.overviewHidden ?? true
+    } as const;
+    for (const [key, value] of Object.entries(values)) {
+      setCanvasDatasetValue(key, String(value));
+    }
+  };
+  let lastPostCompileLivingShaderSignature = '';
   const render = () => {
     if (cleanup.isDisposed()) return;
     if (contextLost) return;
@@ -3092,6 +3483,13 @@ function initializeRealmScene(
       return;
     }
     renderPendingWhileHidden = false;
+    if (sceneMode === 'INNER_KEEP') {
+      if (innerKeepLayer) {
+        renderer.render(innerKeepLayer.scene, innerKeepLayer.camera);
+        options.onInnerKeepTelemetry?.(innerKeepLayer.getTelemetry());
+      }
+      return;
+    }
     syncWaterPresentationTelemetry();
     const pose = cameraController.getPose();
     const cameraTelemetry = cameraController.getPresentationTelemetry();
@@ -3164,6 +3562,20 @@ function initializeRealmScene(
     const expeditionPresentationNowMicros = localPresentationNowMicros();
     workerLayer?.setCameraMode(pose.mode);
     workerLayer?.update(expeditionPresentationNowMicros);
+    sampleWorkerSurfaceWakes(livingElapsedSeconds);
+    const grassDisturbanceSnapshot = surfaceDisturbances.snapshot(
+      'grass',
+      livingElapsedSeconds,
+      livingBudget.grassDisturbanceSlots
+    );
+    ambientEcologyLayer?.update(
+      livingElapsedSeconds,
+      pose.focus,
+      pose.mode,
+      grassDisturbanceSnapshot
+    );
+    rabbitLayer?.update(livingElapsedSeconds, pose.focus, pose.mode);
+    syncLivingRealmTelemetry();
     const workerTelemetry = workerLayer?.getPresentationTelemetry();
     if (
       workerTelemetry
@@ -3392,10 +3804,30 @@ function initializeRealmScene(
     // Shader compilation happens inside renderer.render. Publish its result
     // once per material contract transition, without rebuilding the aggregate
     // on every ambient animation frame.
+    const grassShaderTelemetry = grassLayer?.getTelemetry();
+    const forestShaderTelemetry = forestLayer?.getPresentationTelemetry();
+    const waterShaderTelemetry = waterLayer?.getTelemetry();
+    const postCompileLivingShaderSignature = [
+      grassShaderTelemetry?.shaderFallbackActive ?? false,
+      grassShaderTelemetry?.shaderFallbackCount ?? 0,
+      grassShaderTelemetry?.shaderFallbackReason ?? '',
+      forestShaderTelemetry?.canopyMotionState ?? 'static',
+      forestShaderTelemetry?.shaderFallbackCount ?? 0,
+      waterShaderTelemetry?.shaderFallbackCount ?? 0
+    ].join(':');
+    const livingShaderTelemetryChanged = postCompileLivingShaderSignature
+      !== lastPostCompileLivingShaderSignature;
+    lastPostCompileLivingShaderSignature = postCompileLivingShaderSignature;
     if (
-      terrainMaterialLayer.getTelemetryRevision()
-      !== lastEmittedTerrainMaterialTelemetryRevision
+      livingShaderTelemetryChanged
+      || terrainMaterialLayer.getTelemetryRevision()
+        !== lastEmittedTerrainMaterialTelemetryRevision
     ) emitTerrainPresentationTelemetry();
+    // Shader hooks compile inside renderer.render(). Re-read their fail-closed
+    // state before deciding whether the demand-driven RAF loop stays alive.
+    syncWaterPresentationTelemetry();
+    syncLivingRealmTelemetry();
+    ambientScheduler?.setActive(ambientIsNeeded());
     options.canvas.dataset.realmLastSuccessfulRenderedGeneration = String(rendererGeneration);
     projectCastleLabels();
     projectResourceMarkers();
@@ -3688,6 +4120,8 @@ function initializeRealmScene(
   });
   const handleRenderVisibility = () => {
     if (document.hidden) {
+      workerWakeSamples.clear();
+      surfaceDisturbances.clear();
       workerMovementWakeSuspended = (
         presentationActive
         && options.canvas.dataset.realmCanvasActive !== 'false'
@@ -3716,10 +4150,13 @@ function initializeRealmScene(
   const ambientBaseFrameCap = options.reducedMotion
     ? 0
     : Math.max(
-        renderPlan.grass.animationFrameCap,
+        vegetationGrassPlan.animationFrameCap,
         REALM_WATER_ANIMATION_FRAME_CAPS[runtimeQuality.id]
       );
   const resolveAmbientFrameCap = () => {
+    if (sceneMode === 'INNER_KEEP') {
+      return innerKeepLayer?.getAnimationFrameCap() ?? 0;
+    }
     const workerInterval = workerLayer?.hasMovingWorkers() === true
       ? workerLayer.recommendedPositionUpdateIntervalMs()
       : 0;
@@ -3740,16 +4177,41 @@ function initializeRealmScene(
     active: ambientIsNeeded(),
     onStep: (elapsedSeconds) => {
       if (cleanup.isDisposed()) return;
-      const grassChanged = grassLayer?.updateWind(elapsedSeconds) === true;
+      if (sceneMode === 'INNER_KEEP') {
+        if (innerKeepLayer?.update(elapsedSeconds) === true) render();
+        return;
+      }
+      livingElapsedSeconds = elapsedSeconds;
+      const grassDisturbanceSnapshot = surfaceDisturbances.snapshot(
+        'grass',
+        elapsedSeconds,
+        livingBudget.grassDisturbanceSlots
+      );
+      const waterDisturbanceSnapshot = surfaceDisturbances.snapshot(
+        'water',
+        elapsedSeconds,
+        livingBudget.waterRippleSlots
+      );
+      const grassChanged = grassLayer?.updateWind(
+        elapsedSeconds,
+        grassDisturbanceSnapshot
+      ) === true;
+      const forestChanged = forestLayer?.updateWind(elapsedSeconds) === true;
       const terrainChanged = decorations.updateWind(elapsedSeconds);
       const wagonsMoving = goldNodeLayer?.hasMovingWagons() === true;
       const foodWagonsMoving = foodNodeLayer?.hasMovingWagons() === true;
       const woodWagonsMoving = woodNodeLayer?.hasMovingWagons() === true;
       const stoneWagonsMoving = stoneNodeLayer?.hasMovingWagons() === true;
       const workersMoving = workerLayer?.hasMovingWorkers() === true;
-      const waterChanged = waterLayer?.updateEnvironment(elapsedSeconds) === true;
+      const waterChanged = waterLayer?.updateEnvironment(
+        elapsedSeconds,
+        waterDisturbanceSnapshot
+      ) === true;
+      const ecologyChanged = ambientEcologyLayer?.isAnimationActive() === true;
+      const rabbitsChanged = rabbitLayer?.isAnimationActive() === true;
       if (
         grassChanged
+        || forestChanged
         || terrainChanged
         || wagonsMoving
         || foodWagonsMoving
@@ -3757,10 +4219,77 @@ function initializeRealmScene(
         || stoneWagonsMoving
         || workersMoving
         || waterChanged
+        || ecologyChanged
+        || rabbitsChanged
       ) render();
     }
   });
   cleanup.add(() => ambientScheduler?.dispose());
+
+  const publishInnerKeepLayerState = () => {
+    const layer = innerKeepLayer;
+    if (!layer) return;
+    const telemetry = layer.getTelemetry();
+    options.onInnerKeepTelemetry?.(telemetry);
+    options.onInnerKeepSceneStatusChange?.(
+      telemetry.status === 'ready' ? 'ready' : 'unavailable'
+    );
+  };
+  const ensureInnerKeepLayer = () => {
+    if (cleanup.isDisposed() || sceneMode !== 'INNER_KEEP') return;
+    if (innerKeepLayer) {
+      innerKeepLayer.reconcile(innerKeepPresentation, innerKeepVisualContext);
+      innerKeepLayer.setPlacementDraft(innerKeepPlacementDraft);
+      innerKeepLayer.setSelectedBuilding(selectedInnerKeepBuildingKey);
+      publishInnerKeepLayerState();
+      syncAmbientFrameCap();
+      ambientScheduler?.setActive(ambientIsNeeded());
+      render();
+      return;
+    }
+    const generation = ++innerKeepLoadGeneration;
+    options.onInnerKeepSceneStatusChange?.('loading');
+    void import('../inner-keep/createInnerKeepSceneLayer').then((module) => {
+      if (
+        cleanup.isDisposed()
+        || sceneMode !== 'INNER_KEEP'
+        || generation !== innerKeepLoadGeneration
+      ) return;
+      const layer = module.createInnerKeepSceneLayer({
+        canvas: options.canvas,
+        quality: runtimeQuality.id,
+        reducedMotion: options.reducedMotion,
+        requestRender: render,
+        baseUrl: import.meta.env.BASE_URL,
+        maxAnisotropy: renderer.capabilities.getMaxAnisotropy()
+      });
+      innerKeepLayer = layer;
+      layer.setViewport(
+        Math.max(1, options.canvas.clientWidth || window.innerWidth || 1),
+        Math.max(1, options.canvas.clientHeight || window.innerHeight || 1)
+      );
+      layer.reconcile(innerKeepPresentation, innerKeepVisualContext);
+      layer.setPlacementDraft(innerKeepPlacementDraft);
+      layer.setSelectedBuilding(selectedInnerKeepBuildingKey);
+      publishInnerKeepLayerState();
+      syncAmbientFrameCap();
+      ambientScheduler?.setActive(ambientIsNeeded());
+      render();
+    }).catch(() => {
+      if (
+        cleanup.isDisposed()
+        || sceneMode !== 'INNER_KEEP'
+        || generation !== innerKeepLoadGeneration
+      ) return;
+      options.onInnerKeepSceneStatusChange?.('unavailable');
+      ambientScheduler?.setActive(false);
+    });
+  };
+  cleanup.add(() => {
+    innerKeepLoadGeneration += 1;
+    innerKeepLayer?.dispose();
+    innerKeepLayer = null;
+  });
 
   const raycaster = new THREE.Raycaster();
   const normalizedPointer = new THREE.Vector2();
@@ -3820,7 +4349,7 @@ function initializeRealmScene(
   });
 
   const dispatchHover = (target: RealmInteractionTarget | null) => {
-    if (!sceneAcceptsInteraction()) return;
+    if (sceneMode !== 'WORLD' || !sceneAcceptsInteraction()) return;
     hoveredCastleId = target?.kind === 'castle' ? target.castleId : undefined;
     castleLayer?.setHoveredCastleId(hoveredCastleId ?? null);
     goldNodeLayer?.setHoveredSiteId(
@@ -3840,7 +4369,7 @@ function initializeRealmScene(
   };
 
   const dispatchSelect = (target: RealmInteractionTarget) => {
-    if (!sceneAcceptsInteraction()) return;
+    if (sceneMode !== 'WORLD' || !sceneAcceptsInteraction()) return;
     options.onTargetSelect?.(target);
     options.onSelect(target.coord);
   };
@@ -3943,6 +4472,7 @@ function initializeRealmScene(
   };
 
   const scheduleHover = (clientX: number, clientY: number) => {
+    if (sceneMode !== 'WORLD') return;
     pendingHoverPoint = { x: clientX, y: clientY };
     if (hoverAnimationFrame !== 0) return;
     hoverAnimationFrame = window.requestAnimationFrame(() => {
@@ -3967,6 +4497,7 @@ function initializeRealmScene(
 
   const laneForTarget = (target: EventTarget | null): RealmPointerStartLane | null => {
     if (target === options.canvas) return 'canvas';
+    if (sceneMode === 'INNER_KEEP') return null;
     return worldControlForTarget(target) ? 'world-control' : null;
   };
 
@@ -3986,8 +4517,10 @@ function initializeRealmScene(
       return;
     }
     if (result.pointerCount > 0) return;
-    if (result.cancelled) cameraController.cancelDirectManipulation();
-    else cameraController.endDirectManipulation();
+    if (sceneMode === 'WORLD') {
+      if (result.cancelled) cameraController.cancelDirectManipulation();
+      else cameraController.endDirectManipulation();
+    }
     delete options.canvas.dataset.dragging;
     delete interactionRoot.dataset.cameraInteracting;
   };
@@ -4002,6 +4535,16 @@ function initializeRealmScene(
       || cleanup.isDisposed()
       || !sceneAcceptsInteraction()
     ) return;
+    if (sceneMode === 'INNER_KEEP') {
+      innerKeepLayer?.panByPixels(
+        gesture.endX - gesture.startX,
+        gesture.endY - gesture.startY
+      );
+      if (gesture.kind === 'pinch' && Math.abs(gesture.zoomAmount) > 0.000001) {
+        innerKeepLayer?.zoomByWheel(-gesture.zoomAmount * 420, 0);
+      }
+      return;
+    }
     cameraController.manipulateViewport(
       gesture.startX,
       gesture.startY,
@@ -4026,7 +4569,7 @@ function initializeRealmScene(
     clientY: number
   ) => {
     if (result.panDelta) {
-      cameraController.beginDirectManipulation();
+      if (sceneMode === 'WORLD') cameraController.beginDirectManipulation();
       const current = localPoint(clientX, clientY);
       if (pendingDirectGesture?.kind === 'pinch') flushDirectGesture();
       if (pendingDirectGesture?.kind === 'pan') {
@@ -4047,7 +4590,7 @@ function initializeRealmScene(
     // A second pointer changes the gesture contract immediately, even before
     // either finger moves. Mark that reset boundary so releasing a brief
     // two-finger gesture can never inherit velocity from the preceding pan.
-    cameraController.beginDirectManipulation('pinch');
+    if (sceneMode === 'WORLD') cameraController.beginDirectManipulation('pinch');
     if (result.pinch.reset) {
       pinchZoomGesture.reset();
       flushDirectGesture();
@@ -4140,6 +4683,33 @@ function initializeRealmScene(
     syncGesturePhase(result);
   };
 
+  const projectInnerKeepPlacement = (clientX: number, clientY: number) => {
+    const layer = innerKeepLayer;
+    const current = innerKeepPlacementDraft;
+    if (!layer || !current) return false;
+    const next = layer.projectGroundPlacement(
+      clientX,
+      clientY,
+      current.buildingKind
+    );
+    if (!next) return false;
+    const unchanged = next.transform.localXMicrounits
+        === current.transform.localXMicrounits
+      && next.transform.localZMicrounits
+        === current.transform.localZMicrounits
+      && next.transform.rotationMilliDegrees
+        === current.transform.rotationMilliDegrees
+      && next.evaluation.valid === current.evaluation.valid
+      && next.evaluation.reason === current.evaluation.reason
+      && next.evaluation.conflictingId === current.evaluation.conflictingId;
+    if (unchanged) return true;
+    innerKeepPlacementDraft = next;
+    layer.setPlacementDraft(next);
+    options.onInnerKeepPlacementDraftChange?.(next);
+    if (presentationActive) render();
+    return true;
+  };
+
   const handlePointerMove = (event: PointerEvent) => {
     if (!sceneAcceptsInteraction()) return;
     if (contextLost && (
@@ -4151,7 +4721,15 @@ function initializeRealmScene(
     }
     if (contextLost) return;
     if (pointerGestures.snapshot().pointerCount === 0) {
-      if (event.target === options.canvas) scheduleHover(event.clientX, event.clientY);
+      if (sceneMode === 'WORLD' && event.target === options.canvas) {
+        scheduleHover(event.clientX, event.clientY);
+      } else if (
+        sceneMode === 'INNER_KEEP'
+        && event.target === options.canvas
+        && event.pointerType !== 'touch'
+      ) {
+        projectInnerKeepPlacement(event.clientX, event.clientY);
+      }
       return;
     }
     const coalesced = event.getCoalescedEvents?.() ?? [];
@@ -4184,6 +4762,17 @@ function initializeRealmScene(
     clientY: number,
     pointerType: string
   ) => {
+    if (sceneMode === 'INNER_KEEP') {
+      const layer = innerKeepLayer;
+      if (!layer) return;
+      if (innerKeepPlacementDraft) {
+        projectInnerKeepPlacement(clientX, clientY);
+        return;
+      }
+      const buildingKey = layer.pickBuilding(clientX, clientY);
+      if (buildingKey) options.onInnerKeepBuildingSelect?.(buildingKey);
+      return;
+    }
     const picked = pick(clientX, clientY, pointerType === 'touch');
     if (!picked) return;
     options.onWorldSelectionFeedback?.(localPoint(clientX, clientY));
@@ -4250,6 +4839,7 @@ function initializeRealmScene(
     }
     syncGesturePhase(result);
     if (result.pointerCount === 0) {
+      if (sceneMode !== 'WORLD') return;
       const hitTarget = document.elementFromPoint?.(event.clientX, event.clientY) ?? event.target;
       if (laneForTarget(hitTarget)) scheduleHover(event.clientX, event.clientY);
       else dispatchHover(null);
@@ -4330,7 +4920,7 @@ function initializeRealmScene(
   const handlePointerLeave = () => {
     if (!sceneAcceptsInteraction()) return;
     if (contextLost) return;
-    if (pointerGestures.snapshot().pointerCount === 0) {
+    if (sceneMode === 'WORLD' && pointerGestures.snapshot().pointerCount === 0) {
       cancelPendingHover();
       dispatchHover(null);
     }
@@ -4345,6 +4935,10 @@ function initializeRealmScene(
     if (contextLost) return;
     if (!lane) return;
     event.preventDefault();
+    if (sceneMode === 'INNER_KEEP') {
+      innerKeepLayer?.zoomByWheel(event.deltaY, event.deltaMode);
+      return;
+    }
     // Camera motion invalidates the last canvas hit. Clear it immediately so
     // a stationary pointer cannot leave a label highlighted after its castle
     // has moved elsewhere on screen; the next pointer move performs a fresh
@@ -4389,6 +4983,8 @@ function initializeRealmScene(
     options.canvas.dataset.realmRendererContextRestoreCount = String(contextRestoreCount);
     cancelAllPointers(pointerGestures.blur());
     cancelWorkerMovementWake();
+    workerWakeSamples.clear();
+    surfaceDisturbances.clear();
     ambientScheduler?.setActive(false);
     options.onRendererFailure?.({
       code: 'context-lost',
@@ -4485,6 +5081,8 @@ function initializeRealmScene(
     ));
     renderer.setSize(width, height, false);
     cameraController.setViewport(width, height);
+    innerKeepLayer?.setViewport(width, height);
+    if (sceneMode === 'INNER_KEEP') render();
   };
   const cancelGestureForViewportChange = () => {
     pinchZoomGesture.reset();
@@ -4503,7 +5101,7 @@ function initializeRealmScene(
     cancelPendingHover();
     dispatchHover(null);
     if (result.accepted) syncGesturePhase(result);
-    else cameraController.cancelDirectManipulation();
+    else if (sceneMode === 'WORLD') cameraController.cancelDirectManipulation();
     delete options.canvas.dataset.dragging;
     delete interactionRoot.dataset.cameraInteracting;
   };
@@ -5139,6 +5737,52 @@ function initializeRealmScene(
 
   return {
     dispose: disposeScene,
+    setSceneMode: (mode) => {
+      if (cleanup.isDisposed()) return;
+      if (mode === sceneMode) {
+        if (mode === 'INNER_KEEP') ensureInnerKeepLayer();
+        return;
+      }
+      sceneMode = mode;
+      options.canvas.dataset.realmSceneMode = mode;
+      cancelAllPointers(pointerGestures.blur());
+      cancelWorkerMovementWake();
+      if (mode === 'INNER_KEEP') {
+        waterAmbiencePublisher.publish(WARPKEEP_WATER_AMBIENCE_OFF);
+        syncAmbientFrameCap();
+        ambientScheduler?.setActive(false);
+        ensureInnerKeepLayer();
+        return;
+      }
+      innerKeepLoadGeneration += 1;
+      options.onInnerKeepSceneStatusChange?.('inactive');
+      syncAmbientFrameCap();
+      ambientScheduler?.setActive(ambientIsNeeded());
+      if (presentationActive) render();
+    },
+    reconcileInnerKeepPresentation: (presentation, context) => {
+      if (cleanup.isDisposed()) return;
+      innerKeepPresentation = presentation;
+      innerKeepVisualContext = context;
+      if (!innerKeepLayer) return;
+      innerKeepLayer.reconcile(presentation, context);
+      publishInnerKeepLayerState();
+      syncAmbientFrameCap();
+      ambientScheduler?.setActive(ambientIsNeeded());
+      if (sceneMode === 'INNER_KEEP' && presentationActive) render();
+    },
+    setInnerKeepPlacementDraft: (draft) => {
+      if (cleanup.isDisposed()) return;
+      innerKeepPlacementDraft = draft;
+      innerKeepLayer?.setPlacementDraft(draft);
+      if (sceneMode === 'INNER_KEEP' && presentationActive) render();
+    },
+    setSelectedInnerKeepBuildingKey: (buildingKey) => {
+      if (cleanup.isDisposed()) return;
+      selectedInnerKeepBuildingKey = buildingKey;
+      innerKeepLayer?.setSelectedBuilding(buildingKey);
+      if (sceneMode === 'INNER_KEEP' && presentationActive) render();
+    },
     setPresentationActive: (active) => {
       if (cleanup.isDisposed()) return;
       if (!active) {
@@ -5154,6 +5798,8 @@ function initializeRealmScene(
         workerMovementWakeSuspended = false;
         renderPendingWhileHidden = false;
         cancelWorkerMovementWake();
+        workerWakeSamples.clear();
+        surfaceDisturbances.clear();
       }
       ambientScheduler?.setActive(active && ambientIsNeeded());
       if (active) render();

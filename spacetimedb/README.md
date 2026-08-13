@@ -12,11 +12,14 @@ balance, advance a timer, or decide an expedition outcome.
 | Browser/backend wire protocol | 3 |
 | Player authentication contract | 2 |
 | Genesis world generation | 3 |
-| Append-only schema generation | 14 (daily Marks suffix) |
+| Append-only schema generation | 17 (review-only Greater Realm suffix) |
 | Alpha 0.3.12 suffix | Water refs 37–40; Stone refs 41–45 |
 | Generic worker suffix | refs 47–52; active |
 | Access-request suffix | ref 53; active |
 | Daily Marks suffix | private refs 54–55; activation is separate |
+| Inner Keep suffix | refs 56–63; inactive until separate seed, backfill, client, asset, and activation gates |
+| Realm Chat suffix | refs 64–71; review-only and not publishable or activatable by this build |
+| Greater Realm suffix | refs 72–83; guarded cutover tooling exists, while checked-in publication, import, activation, and presentation approvals remain false |
 
 Deployed tables retain their original declaration order and shape. Later
 features append new tables; they do not rename or delete existing data. The
@@ -60,6 +63,10 @@ Public subscriptions contain only shared-world presentation:
   timeline, and origin castle;
 - active four-worker roster and generic node-lease projections; the public
   rows contain no FID, cargo, accrual, balance, request, or auth data;
+- the inactive Inner Keep layout, an empty public compatibility-slot table,
+  six-building policy, thirty target-level recipes, and identity-minimized
+  castle building rows with authoritative placement transforms;
+- the dormant, body-free Realm Chat readiness row;
 - public Community Marks projection only when its policy permits it.
 
 Private tables contain admission, ownership, unclaimed-slot decisions, resource
@@ -67,6 +74,26 @@ and Marks accounts, agreement evidence, daily-grant receipts, operator audit,
 expedition state, retry receipts, and balances. Retired compatibility tables
 remain private and frozen to preserve the deployed append-only schema; current
 authority paths do not write or interpret them.
+
+Inner Keep Builder rows, exact cost receipts, idempotency keys, and construction
+schedules are private. Player clients obtain only their own Builder/resources
+projection and accepted-request status through caller-authenticated procedures;
+browser bindings contain none of those private tables.
+
+Realm Chat channel authority, permanent archive, bounded recent cache, message
+and report rate ledgers, idempotency receipts, reports, and moderation evidence
+remain private. A caller-authenticated procedure rechecks gameplay authority
+and active-channel state on every bounded recent read; generated browser
+bindings contain no recent table. Chat is disabled and collects no production
+data in this build.
+
+Greater Realm release, chunk, navigation, cell, slot, claim, resource, and
+activation rows are private. Only identity-minimized occupancy and inactive
+atlas, six-region aggregate, and worker-readiness projections are public. A
+commit-bound launcher, immutable artifact proof, shared operator/token
+authority, and crash-resumable journal now guard the dedicated v17 cutover
+lane, but every checked-in production approval remains false. Schema presence
+or tooling availability grants no release authority.
 
 The pinned SDK requires scheduled expedition rows to be public. Those rows are
 therefore deliberately minimal: schedule/stage identifiers, site, origin
@@ -118,6 +145,112 @@ Module publication never repeats those mutations. A bounded admin-only
 forward-repair path can restore one specifically attested missing return
 schedule; it cannot select a player row, alter balances, or delete data.
 
+## Inactive Inner Keep construction
+
+Schema generation 15 appends eight tables without changing refs 0–55:
+
+| Ref | Table | Visibility and purpose |
+| ---: | --- | --- |
+| 56 | `inner_keep_layout_v1` | public inactive layout root and digests |
+| 57 | `inner_keep_slot_v1` | retained public compatibility table; exactly zero rows |
+| 58 | `inner_keep_building_catalog_v1` | public six-building policy |
+| 59 | `inner_keep_build_level_v1` | public exact recipes and timers |
+| 60 | `castle_inner_keep_building_v1` | public durable building/project projection |
+| 61 | `castle_inner_builder_v1` | private one-Builder authority |
+| 62 | `castle_inner_build_receipt_v1` | private exact deduction/idempotency receipt |
+| 63 | `castle_inner_construction_schedule_v_1` | private scheduler correlation |
+
+Catalog seed creates six policy rows and thirty level rows but no castle
+buildings. City Mill, Lumber Camp, City Stoneworks, City Goldworks, City
+Barracks, and Grand Covenant Cathedral are all player construction choices;
+Barracks and Cathedral are not prebuilt anchors.
+The reviewed construction-policy digest is
+`cbffcdc223b5d99625cab7549f3a5ae211c725893574b629aa83f8260668a779`,
+and the presentation-bound combined layout digest is
+`1b3a452794c28f8d7f8814ce6064da8582725d34bb0ee0271d51f40c2fbdfad7`.
+
+One project reducer accepts a building kind, signed local X/Z microunits,
+quarter-turn rotation in milli-degrees, bounded request key,
+`expectedTargetLevel`, canonical decimal `expectedProjectRevision`, and
+`expectedPolicyDigest` plus `expectedLayoutDigest`. The four expected values are
+untrusted quote-and-placement-binding compare-and-set assertions. The server
+derives ownership, the current target, current policy digest, and current layout
+digest. After an accepted receipt has had its idempotent short-circuit, a new
+request verifies policy/layout digests and transactionally reconciles any exact
+overdue project. It validates the transform against the half-meter grid,
+quarter turns, the continuous x `[-44, 44]` / z `[-40, 32]` support, permanent
+road/civic exclusions, and every persisted building footprint, then checks the
+target and aggregate revision against the reconciled graph. A mismatch rolls
+the whole reducer back before reconciliation, settlement, or deduction can
+commit. It then derives discounts, stored-resource cost, timestamps, Builder
+capacity, and completion. It settles current Worker accrual, then commits
+deduction, project, Builder, schedule, and transform-bound receipt atomically.
+The four gathering Workers remain independent from the one internal Builder.
+
+The source tree does not make this component playable. A merge to protected
+`main` triggers the existing verified Pages deployment of the compatible,
+dormant client. Module publication, catalog seed, Builder backfill,
+exact static-and-population runtime-registry verification, and activation
+remain distinct owner-reviewed operations.
+
+## Review-only Realm Chat authority
+
+Schema generation 16 appends eight tables without changing refs 0–63:
+
+| Ref | Table | Visibility and purpose |
+| ---: | --- | --- |
+| 64 | `realm_chat_status_v1` | public dormant readiness projection |
+| 65 | `realm_chat_channel_v1` | private channel policy and sequence cursor |
+| 66 | `realm_chat_message_v1` | private permanent message archive |
+| 67 | `realm_chat_recent_v1` | private bounded recent-message cache |
+| 68 | `realm_chat_rate_event_v1` | private rolling rate ledger |
+| 69 | `realm_chat_send_receipt_v1` | private exactly-once send receipt |
+| 70 | `realm_chat_report_v1` | private moderation report and evidence bounds |
+| 71 | `realm_chat_report_rate_event_v1` | private bounded one-day report-ingress ledger |
+
+The additive proof independently freezes v15, publishes the auth-neutral v16
+fixture, seeds one typed row in every Chat table, rejects a v16-to-v15
+downgrade, and verifies the real candidate preserves those rows. The receipt
+binds separate v15 and v16 schema digests to one compiled artifact. This is
+migration evidence only: staging, activation, client entry, and production
+publication remain unauthorized.
+
+The review-only authority uses atomic server-time report ceilings of
+5/reporter/hour, 20/reporter/day, 20/message, 250/global/hour, and
+1,000/global/day. Optional details are capped at 250 scalars/512 UTF-8 bytes;
+new sends stop at 4,000 pending reports and new reports stop at 5,000. A
+proposed 90-day erasure/anonymization workflow remains unapproved and
+unimplemented release work; this schema adds no deletion scheduler.
+
+## Review-only Greater Realm migration boundary
+
+Schema generation 17 appends exactly twelve tables without changing refs 0–71:
+
+| Refs | Tables | Visibility and purpose |
+| ---: | --- | --- |
+| 72–77 | `greater_realm_release_v1` through `greater_realm_castle_claim_v1` | private release, chunk, navigation, cell, slot, and claim authority |
+| 78 | `greater_realm_cell_occupancy_v1` | public identity-minimized occupancy |
+| 79–80 | `greater_realm_resource_node_v1`, `greater_realm_activation_v1` | private resource and activation authority |
+| 81–83 | `realm_atlas_v1`, `realm_atlas_visible_region_v1`, `realm_worker_system_v2` | public inactive atlas, six-region aggregates, and worker readiness |
+
+`npm run stdb:verify-additive-migration` starts a disposable loopback server,
+builds and publishes the frozen v16 predecessor, seeds representative legacy
+Water, Inner Keep, and Chat rows, and records every predecessor-table row
+digest. It then installs the real v17 artifact, compares all 84 table
+signatures with the auth-neutral fixture, seeds one typed sentinel in each v17
+table, proves exact row preservation across an idempotent artifact republish,
+and rejects v17-to-v16 and older rollback attempts with deletion disabled. Its
+single success receipt binds the v11 through v17 schema digests and compiled
+artifact digest.
+
+This command is local migration evidence only. Production v17 work is
+available solely through exact rows of the reviewed
+[Greater Realm production launch envelope](../docs/operations/greater-realm-production-launch-envelope.sh.txt),
+which binds protected source, immutable artifact evidence, shared authority,
+late private credentials, and crash recovery. Its publication, import,
+activation, presentation, and notification approvals remain false; neither
+this proof nor the existence of guarded tooling authorizes an operation.
+
 ## Entry agreement and Marks
 
 Entry and gameplay require the exact current Alpha Terms and Hegemony Social
@@ -162,42 +295,32 @@ data preservation, scheduled lifecycle behavior, and `--delete-data=never`.
 
 ## Production operations
 
-Source code, a green build, or a merge does not authorize publication or
-seeding. Production operations use the local Hermes tool with short-lived
-credentials and an immutable database identity.
+Source code, a green build, a merge, or the presence of an operator does not
+authorize a production read or mutation. During the Greater Realm cutover,
+legacy production npm aliases are deliberate refusal stubs and direct
+TypeScript invocation is prohibited.
 
-Read-only aggregate inspection:
+The only supported production boundary is an exact command row in the reviewed
+[Greater Realm production launch envelope](../docs/operations/greater-realm-production-launch-envelope.sh.txt),
+as described by the
+[cutover runbook](../docs/operations/greater-realm-production-cutover.md).
+That boundary covers the dedicated v17 publisher, import, relocation,
+verification, recovery, and seven narrowly enumerated Hermes admission and
+notification rows. It accepts canonical owner-private credential paths and
+opens required secrets only after protected source, local proof, and authority
+checks. It never accepts an environment-carried secret or a shell pipe.
 
-```sh
-npm run stdb:inspect-alpha-v3 -- --json
-npm run stdb:inspect-alpha-v4 -- --json
-npm run stdb:inspect-alpha-v8 -- --json
-npm run stdb:inspect-alpha-v10 -- --json
-npm run stdb:inspect-alpha-v12 -- --json
-npm run stdb:daily-marks:inspect
-```
+Legacy aggregate inspection, Daily Marks, Inner Keep, component seed, Water
+activation, and repair operators remain unavailable until separately reviewed
+post-cutover launch rows are added. The generic legacy/v15 publisher is also
+unavailable. The dedicated v17 lane exists, but all relevant checked-in
+approvals remain false and its source alone authorizes nothing.
 
-Component setup is separate from module publication and must be reviewed one
-component at a time:
-
-```sh
-npm run stdb:seed-alpha-component -- gold --dry-run
-npm run stdb:seed-alpha-component -- forest --dry-run
-npm run stdb:seed-alpha-component -- food --dry-run
-npm run stdb:seed-alpha-component -- wood --dry-run
-npm run stdb:seed-alpha-component -- water --dry-run
-npm run stdb:seed-alpha-component -- stone --dry-run
-```
-
-Confirmed commands require `--confirm`, the canonical production coordinates,
-and fresh pre/post aggregate checks. Partial or drifted catalogs fail closed;
-the tool does not repair or delete them.
-
-Water visibility is activated separately after a canonical seed and clean v10
-inspection with `npm run stdb:activate-alpha-water -- --dry-run`, followed by
-the same command with `--confirm` when approved.
-
-See the concise [component activation runbook](../docs/operations/alpha-component-activation.md),
+Local-only `npm run stdb:verify-bindings` and
+`npm run stdb:verify-additive-migration` remain valid development evidence;
+they do not contact production. See the
+[component activation runbook](../docs/operations/alpha-component-activation.md),
+[Inner Keep activation runbook](../docs/operations/inner-keep-activation.md),
 [deployment recovery guide](../docs/operations/reconstruction/deployment-recovery.md),
 and [security threat model](../docs/security/threat-model.md). Never place
 tokens, QR payloads, proofs, player identities, private rows, or production

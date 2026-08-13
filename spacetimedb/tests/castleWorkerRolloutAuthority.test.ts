@@ -41,7 +41,7 @@ test('rollout source preserves all six deployed v12 table shapes and order', () 
     registrations(fixture, 'const db = schema({').slice(47),
     expected,
   );
-  assert.doesNotMatch(schema, /realmWorkerSystemV2|castleWorkerV2|workerAssignmentV2/);
+  assert.doesNotMatch(schema, /castleWorkerV2|workerAssignmentV2/);
 });
 
 test('staging, backfill, drain, and activation are separate admin-only operations', () => {

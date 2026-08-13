@@ -7,14 +7,33 @@ import {
   selectNextPermanentCastleSlot,
 } from './foundingPolicy';
 import {
+  greaterRealmCutoverIsCurrentV1,
+  greaterRealmLegacyFoundingIsOpenV1,
+} from './greaterRealmActivationState';
+import {
+  assertGreaterRealmCurrentFounderForFidV1,
+  assertGreaterRealmCurrentFounderForProfileRepairV1,
+  greaterRealmCurrentAuthorityErrorCode,
+  type GreaterRealmCurrentFounderV1,
+} from './greaterRealmCurrentAuthority';
+import {
+  ensureGreaterRealmFounderActiveV1,
+  greaterRealmFoundingAuthorityErrorCode,
+} from './greaterRealmFoundingAuthority';
+import {
   ADMITTED_DAILY_MARK_POLICY_VERSION,
   markAccountIsConsistent,
 } from './marksAuthorityPolicy';
 import {
   GENESIS_RESOURCE_POLICY_VERSION,
   GENESIS_STARTING_RESOURCE_BALANCES,
+  resourceAccountStateIsConsistent,
 } from './resourceAuthorityPolicy';
-import { ensureCastleWorkerRoster } from './castleWorkerRoster';
+import { assertCastleWorkerRoster, ensureCastleWorkerRoster } from './castleWorkerRoster';
+import {
+  assertInnerKeepBuilderForExistingFounder,
+  insertInnerKeepBuilderForNewFounderIfEverActivated,
+} from './innerKeepBuilderAuthority';
 import {
   admissionProfileIsComplete,
   trustedProfilesEqual,
@@ -179,12 +198,42 @@ function requireGenesisFounderStructureForFid(
   return profile;
 }
 
+export type CurrentFounderAuthority = GreaterRealmCurrentFounderV1;
+
+/**
+ * Resolve the current founder graph without changing the v16 boundary before
+ * canary. Planned claims are a validated shadow only; canary atomically makes
+ * the v17 claim and public occupancy authoritative.
+ */
+export function assertCurrentFounderForFid(
+  ctx: WarpkeepReducerContext,
+  fid: bigint,
+): CurrentFounderAuthority {
+  try {
+    return assertGreaterRealmCurrentFounderForFidV1(ctx, fid);
+  } catch (error) {
+    const code = greaterRealmCurrentAuthorityErrorCode(error);
+    if (code !== undefined) fail(code);
+    throw error;
+  }
+}
+
 /** Exact-admin recovery gate: structure must be sound, but profile may need repair. */
 export function assertGenesisFounderForProfileRepair(
   ctx: WarpkeepReducerContext,
   fid: bigint,
 ): void {
-  requireGenesisFounderStructureForFid(ctx, fid);
+  if (greaterRealmCutoverIsCurrentV1(ctx)) {
+    try {
+      assertGreaterRealmCurrentFounderForProfileRepairV1(ctx, fid);
+    } catch (error) {
+      const code = greaterRealmCurrentAuthorityErrorCode(error);
+      if (code !== undefined) fail(code);
+      throw error;
+    }
+  } else {
+    requireGenesisFounderStructureForFid(ctx, fid);
+  }
 }
 
 /**
@@ -196,7 +245,10 @@ export function assertGenesisFounderForFid(
   ctx: WarpkeepReducerContext,
   fid: bigint,
 ): void {
-  requireGenesisFounderStructureForFid(ctx, fid);
+  if (!greaterRealmCutoverIsCurrentV1(ctx)) {
+    requireGenesisFounderStructureForFid(ctx, fid);
+  }
+  assertCurrentFounderForFid(ctx, fid);
 }
 
 /**
@@ -217,15 +269,43 @@ export function ensureGenesisFounder(
 
   if (existingCastle !== null) {
     if (
-      existingClaim === null
-      || existingProfile === null
+      existingProfile === null
       || existingAccount === null
+      || existingResourceAccount === null
       || !admissionProfileIsComplete(existingProfile)
       || !trustedProfilesEqual(existingProfile, admissionProfile)
     ) fail();
-    assertGenesisFoundingGraph(ctx);
-    ensureCastleWorkerRoster(ctx, existingCastle);
+    if (greaterRealmCutoverIsCurrentV1(ctx)) {
+      assertCurrentFounderForFid(ctx, fid);
+      if (
+        existingResourceAccount.castleId !== existingCastle.castleId
+        || existingResourceAccount.realmId !== HEGEMONY_REALM_ID
+        || !resourceAccountStateIsConsistent(existingResourceAccount)
+      ) fail();
+      assertCastleWorkerRoster(ctx, existingCastle.castleId);
+    } else {
+      if (existingClaim === null) fail();
+      assertGenesisFoundingGraph(ctx);
+      if (greaterRealmLegacyFoundingIsOpenV1(ctx)) {
+        ensureCastleWorkerRoster(ctx, existingCastle);
+      } else {
+        assertCastleWorkerRoster(ctx, existingCastle.castleId);
+      }
+    }
+    assertInnerKeepBuilderForExistingFounder(ctx, existingCastle);
     return 'preserved';
+  }
+  if (!greaterRealmLegacyFoundingIsOpenV1(ctx)) {
+    if (greaterRealmCutoverIsCurrentV1(ctx)) {
+      try {
+        return ensureGreaterRealmFounderActiveV1(ctx, fid, admissionProfile);
+      } catch (error) {
+        const code = greaterRealmFoundingAuthorityErrorCode(error);
+        if (code !== undefined) fail(code);
+        throw error;
+      }
+    }
+    fail('GREATER_REALM_FOUNDING_REQUIRES_V17_AUTHORITY');
   }
   if (
     existingClaim !== null
@@ -324,6 +404,7 @@ export function ensureGenesisFounder(
   // workers in this same transaction. This advances roster readiness only:
   // staged/draining mode and every activation gate remain unchanged.
   ensureCastleWorkerRoster(ctx, castle);
+  insertInnerKeepBuilderForNewFounderIfEverActivated(ctx, castle);
 
   assertGenesisFoundingGraph(ctx);
   return 'created';

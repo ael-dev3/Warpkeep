@@ -4,6 +4,9 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import {
+  WARPKEEP_ENTRY_AGREEMENT_VERSION,
+} from '../entry-agreement-policy.mjs';
+import {
   DevtoolsPipeSession,
   analyzeRenderedWebglPngScreenshot,
   attestStableHeadlessChromeExecutable,
@@ -1266,6 +1269,797 @@ async function exerciseRestoredEntryAgreementContinuity(session) {
     throw new LocalFullstackBrowserError(
       `Disposable restored Terms continuity failed at ${safeStage}${
         safeAuthorityState
+      }.`
+    );
+  }
+  return Object.freeze({ ...value });
+}
+
+export async function dispatchInnerKeepTouchCompatibilityClick(session, target) {
+  await session.command('Emulation.setTouchEmulationEnabled', {
+    enabled: true,
+    maxTouchPoints: 1,
+  });
+  try {
+    await session.command('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ x: target.x, y: target.y }],
+    });
+    await session.command('Input.dispatchTouchEvent', {
+      type: 'touchEnd',
+      touchPoints: [],
+    });
+    // Keep the compatibility click in the same input train. The first native
+    // activation must synchronously seal the command before this reaches it.
+    await session.command('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      x: target.x,
+      y: target.y,
+      button: 'left',
+      buttons: 1,
+      clickCount: 1,
+      pointerType: 'mouse',
+    });
+    await session.command('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      x: target.x,
+      y: target.y,
+      button: 'left',
+      buttons: 0,
+      clickCount: 1,
+      pointerType: 'mouse',
+    });
+  } finally {
+    await session.command('Emulation.setTouchEmulationEnabled', {
+      enabled: false,
+    });
+  }
+}
+
+async function prepareLocalInnerKeepFirstStart(session) {
+  const result = await session.command('Runtime.evaluate', {
+    expression: `(async () => {
+      const deadline = performance.now() + ${PRESENTATION_TIMEOUT_MILLISECONDS};
+      const waitFor = async (predicate) => {
+        while (performance.now() <= deadline) {
+          try {
+            const value = predicate();
+            if (value) return value;
+          } catch {}
+          await new Promise((resolve) => setTimeout(resolve, 32));
+        }
+        return undefined;
+      };
+      const visible = (element) => {
+        if (!(element instanceof HTMLElement)) return false;
+        const style = getComputedStyle(element);
+        const bounds = element.getBoundingClientRect();
+        return style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && Number(style.opacity || '1') > 0
+          && bounds.width > 0
+          && bounds.height > 0;
+      };
+      const buttonWithText = (text, root = document) => [...root.querySelectorAll('button')]
+        .find((button) => visible(button) && (button.textContent ?? '').trim() === text);
+      const enterMenu = await waitFor(() => {
+        const candidate = document.querySelector('button[data-command="enter-realm"]');
+        return candidate instanceof HTMLButtonElement && !candidate.disabled
+          && candidate.closest('[inert]') === null && visible(candidate)
+          ? candidate : undefined;
+      });
+      if (!(enterMenu instanceof HTMLButtonElement)) return { stage: 'inner-keep-menu' };
+      enterMenu.click();
+      const dialog = await waitFor(() => document.querySelector('[role="dialog"][aria-modal="true"]'));
+      if (!(dialog instanceof HTMLElement)) return { stage: 'inner-keep-terms' };
+      const checkbox = dialog.querySelector('input[type="checkbox"]');
+      if (!(checkbox instanceof HTMLInputElement)) return { stage: 'inner-keep-terms-checkbox' };
+      if (!checkbox.checked) checkbox.click();
+      const continueButton = [...dialog.querySelectorAll('button')].find((button) => (
+        /^CONTINUE TO /.test((button.textContent ?? '').trim())
+      ));
+      if (!(continueButton instanceof HTMLButtonElement) || continueButton.disabled) {
+        return { stage: 'inner-keep-terms-continue' };
+      }
+      continueButton.click();
+      const readyProbe = await waitFor(() => {
+        const probe = document.querySelector('[data-local-fullstack-backend]');
+        return probe?.getAttribute('data-local-fullstack-auth') === 'authenticated'
+          && probe.getAttribute('data-local-fullstack-backend') === 'ready'
+          && probe.getAttribute('data-local-fullstack-workers') === '4'
+          && probe.getAttribute('data-local-fullstack-public-workers') === '28'
+          ? probe : undefined;
+      });
+      if (!(readyProbe instanceof HTMLOutputElement)) return { stage: 'inner-keep-authority' };
+      const enterRealm = await waitFor(() => buttonWithText('ENTER REALM'));
+      if (!(enterRealm instanceof HTMLButtonElement)) return { stage: 'inner-keep-enter-realm' };
+      enterRealm.click();
+      const realm = await waitFor(() => {
+        const candidate = document.querySelector('main.realm-map-screen');
+        return candidate instanceof HTMLElement
+          && visible(candidate)
+          && candidate.getAttribute('data-renderer') === 'webgl'
+          && candidate.getAttribute('data-renderer-state') === 'ready'
+          ? candidate : undefined;
+      });
+      if (!(realm instanceof HTMLElement)) return { stage: 'inner-keep-realm' };
+      const canvas = await waitFor(() => {
+        const candidate = realm.querySelector('canvas[data-realm-canvas-active="true"]');
+        return candidate instanceof HTMLCanvasElement
+          && candidate.getAttribute('data-realm-camera-settled') === 'true'
+          && (candidate.getAttribute('data-realm-camera-state-token') ?? '').length > 0
+          ? candidate : undefined;
+      });
+      if (!(canvas instanceof HTMLCanvasElement)) return { stage: 'inner-keep-camera' };
+      const cameraStateToken = canvas.getAttribute('data-realm-camera-state-token');
+      const sceneGeneration = realm.getAttribute('data-renderer-generation');
+      const sceneCreationCount = realm.getAttribute('data-realm-scene-creation-count');
+      const sceneDisposalCount = realm.getAttribute('data-realm-scene-disposal-count');
+      const menuTrigger = realm.querySelector('.realm-profile-trigger');
+      if (!(menuTrigger instanceof HTMLButtonElement)) return { stage: 'inner-keep-realm-menu' };
+      menuTrigger.click();
+      const realmMenu = await waitFor(() => document.querySelector('.realm-profile-menu__panel'));
+      if (!(realmMenu instanceof HTMLElement)) return { stage: 'inner-keep-realm-menu-open' };
+      const innerKeepEntry = [...realmMenu.querySelectorAll('button')].find((button) => (
+        (button.querySelector('strong')?.textContent ?? '').trim() === 'INNER KEEP'
+      ));
+      if (!(innerKeepEntry instanceof HTMLButtonElement) || innerKeepEntry.disabled) {
+        return { stage: 'inner-keep-entry' };
+      }
+      innerKeepEntry.click();
+      const innerKeep = await waitFor(() => {
+        const candidate = document.querySelector('.inner-keep');
+        return candidate instanceof HTMLElement
+          && candidate.getAttribute('data-inner-keep-phase') === 'ready'
+          && candidate.getAttribute('data-inner-keep-valid') === 'true'
+          && candidate.getAttribute('data-inner-keep-renderer') === 'webgl'
+          && realm.getAttribute('data-realm-scene-mode') === 'INNER_KEEP'
+          ? candidate : undefined;
+      });
+      if (!(innerKeep instanceof HTMLElement)) return { stage: 'inner-keep-ready' };
+      const initialBuildings = innerKeep.querySelectorAll(
+        '[data-inner-keep-building-key]'
+      );
+      const exactResources = ['Food', 'Wood', 'Stone', 'Gold'].every((resource) => (
+        innerKeep.querySelector('[aria-label="10,000 stored ' + resource + '"]') !== null
+      ));
+      if (initialBuildings.length !== 0 || !exactResources) {
+        return { stage: 'inner-keep-initial-state' };
+      }
+      const builder = innerKeep.querySelector('.inner-keep-builder');
+      if (
+        !(builder instanceof HTMLButtonElement)
+        || builder.disabled
+        || !/BUILDER AVAILABLE/.test(builder.textContent ?? '')
+        || !/BUILD/.test(builder.textContent ?? '')
+      ) return { stage: 'inner-keep-build-catalogue' };
+      builder.click();
+      const catalogue = await waitFor(() => {
+        const candidate = document.querySelector(
+          '.inner-keep-panel .inner-keep-catalogue[aria-label="Available town buildings"]'
+        );
+        return candidate instanceof HTMLUListElement ? candidate : undefined;
+      });
+      if (!(catalogue instanceof HTMLUListElement)) {
+        return { stage: 'inner-keep-catalogue-open' };
+      }
+      const millReview = catalogue.querySelector(
+        '[data-inner-keep-building-kind="city-mill"]'
+      );
+      if (!(millReview instanceof HTMLButtonElement) || millReview.disabled) {
+        return { stage: 'inner-keep-mill-review' };
+      }
+      const readCost = (root, resource) => (
+        root.querySelector('.inner-keep-project-cost [data-resource="' + resource + '"] dd')
+          ?.textContent?.replaceAll(',', '').trim() ?? ''
+      );
+      const millCard = millReview.closest('li');
+      if (
+        !(millCard instanceof HTMLLIElement)
+        || readCost(millCard, 'food') !== '300'
+        || readCost(millCard, 'wood') !== '900'
+        || readCost(millCard, 'stone') !== '600'
+        || readCost(millCard, 'gold') !== '0'
+      ) return { stage: 'inner-keep-mill-quote' };
+      millReview.click();
+      const placement = await waitFor(() => {
+        const panel = document.querySelector(
+          '.inner-keep-panel--placement[data-placement-valid="true"]'
+        );
+        const ghost = innerKeep.querySelector(
+          '.inner-keep-map-placement-ghost[data-valid="true"]'
+        );
+        const coordinates = panel?.querySelector(
+          '.inner-keep-placement__coordinates'
+        )?.textContent?.trim();
+        const confirm = panel instanceof HTMLElement
+          ? buttonWithText('CONFIRM PLACEMENT', panel)
+          : undefined;
+        return panel instanceof HTMLElement
+          && ghost instanceof HTMLElement
+          && innerKeep.getAttribute('data-inner-keep-placement') === 'city-mill'
+          && coordinates === 'X 14.0 m · Z -10.0 m · 0°'
+          && confirm instanceof HTMLButtonElement
+          && !confirm.disabled
+          ? { panel, confirm } : undefined;
+      });
+      if (!placement) return { stage: 'inner-keep-mill-placement' };
+      const start = placement.confirm;
+      if (!(start instanceof HTMLButtonElement) || start.disabled) {
+        return { stage: 'inner-keep-mill-confirm' };
+      }
+      start.scrollIntoView({ block: 'center', inline: 'center' });
+      await new Promise((resolve) => requestAnimationFrame(() => (
+        requestAnimationFrame(resolve)
+      )));
+      const bounds = start.getBoundingClientRect();
+      const activationX = bounds.left + bounds.width / 2;
+      const activationY = bounds.top + bounds.height / 2;
+      const hit = document.elementFromPoint(activationX, activationY);
+      return {
+        stage: 'inner-keep-first-start-ready',
+        activationX,
+        activationY,
+        targetHit: hit === start || (hit instanceof Node && start.contains(hit)),
+        catalogueOpened: true,
+        placementCoordinates: '14000000:-10000000:0',
+        initialAttemptCount: Number(document.documentElement.getAttribute(
+          'data-local-fullstack-inner-keep-attempt'
+        ) ?? '0'),
+        cameraStateToken,
+        sceneGeneration,
+        sceneCreationCount,
+        sceneDisposalCount,
+      };
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  const value = result?.result?.value;
+  if (
+    result?.exceptionDetails
+    || value === null
+    || typeof value !== 'object'
+    || value.stage !== 'inner-keep-first-start-ready'
+    || !Number.isFinite(value.activationX)
+    || !Number.isFinite(value.activationY)
+    || value.activationX < 0
+    || value.activationX > VIEWPORT.width
+    || value.activationY < 0
+    || value.activationY > VIEWPORT.height
+    || value.targetHit !== true
+    || value.catalogueOpened !== true
+    || value.placementCoordinates !== '14000000:-10000000:0'
+    || value.initialAttemptCount !== 0
+    || typeof value.cameraStateToken !== 'string'
+    || value.cameraStateToken.length === 0
+    || !/^\d+$/.test(value.sceneGeneration ?? '')
+    || value.sceneCreationCount !== '1'
+    || value.sceneDisposalCount !== '0'
+  ) {
+    throw new LocalFullstackBrowserError(
+      `Disposable Inner Keep first start preparation failed at ${
+        typeof value?.stage === 'string' ? value.stage : 'runtime'
+      }.`
+    );
+  }
+  return Object.freeze({ ...value });
+}
+
+async function observeLocalInnerKeepFirstStart(session) {
+  const result = await session.command('Runtime.evaluate', {
+    expression: `(async () => {
+      const deadline = performance.now() + ${PRESENTATION_TIMEOUT_MILLISECONDS};
+      const waitFor = async (predicate) => {
+        while (performance.now() <= deadline) {
+          try {
+            const value = predicate();
+            if (value) return value;
+          } catch {}
+          await new Promise((resolve) => setTimeout(resolve, 32));
+        }
+        return undefined;
+      };
+      const constructing = await waitFor(() => {
+        const candidate = document.querySelector('.inner-keep');
+        const mill = [...(candidate?.querySelectorAll(
+          '[data-inner-keep-building-key]'
+        ) ?? [])].find((building) => (
+          building.getAttribute('data-inner-keep-building-key')?.endsWith(
+            ':city-mill'
+          ) === true
+        ));
+        return candidate instanceof HTMLElement
+          && candidate.getAttribute('data-inner-keep-phase') === 'constructing'
+          && document.documentElement.getAttribute(
+            'data-local-fullstack-inner-keep-state'
+          ) === 'accepted'
+          && mill instanceof HTMLButtonElement
+          && mill.getAttribute('data-phase') === 'constructing'
+          && mill.querySelector('.inner-keep-worksite') !== null
+          ? { candidate, mill } : undefined;
+      });
+      if (!constructing) return { stage: 'inner-keep-mill-constructing' };
+      const requestKey = document.documentElement.getAttribute(
+        'data-local-fullstack-inner-keep-request-key'
+      );
+      const activationAttemptCount = Number(document.documentElement.getAttribute(
+        'data-local-fullstack-inner-keep-attempt'
+      ) ?? '0');
+      const submittedPlacement = document.documentElement.getAttribute(
+        'data-local-fullstack-inner-keep-placement'
+      );
+      const submittedBuilding = document.documentElement.getAttribute(
+        'data-local-fullstack-inner-keep-building'
+      );
+      const buildingKey = constructing.mill.getAttribute(
+        'data-inner-keep-building-key'
+      );
+      const noFinalModel = constructing.mill.querySelector(
+        '.inner-keep-building-art, .inner-keep-building-art-fallback'
+      ) === null;
+      const readyProbe = document.querySelector('[data-local-fullstack-backend]');
+      if (!(readyProbe instanceof HTMLOutputElement)) {
+        return { stage: 'inner-keep-first-start-authority-probe' };
+      }
+      return {
+        stage: 'inner-keep-first-start-complete',
+        requestKey,
+        activationAttemptCount,
+        buildingKey,
+        submittedBuilding,
+        submittedPlacement,
+        noFinalModel,
+        scaffold: constructing.mill.querySelector('.inner-keep-worksite__scaffold') !== null,
+        smoke: constructing.mill.querySelector('.inner-keep-worksite__smoke') !== null,
+        workerCount: Number(readyProbe.getAttribute('data-local-fullstack-workers')),
+        publicWorkerCount: Number(
+          readyProbe.getAttribute('data-local-fullstack-public-workers')
+        )
+      };
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  const value = result?.result?.value;
+  if (
+    result?.exceptionDetails
+    || value === null
+    || typeof value !== 'object'
+    || value.stage !== 'inner-keep-first-start-complete'
+    || typeof value.requestKey !== 'string'
+    || !/^[a-z0-9][a-z0-9-]{15,79}$/.test(value.requestKey)
+    || value.activationAttemptCount !== 1
+    || typeof value.buildingKey !== 'string'
+    || !value.buildingKey.endsWith(':city-mill')
+    || value.submittedBuilding !== 'city-mill'
+    || value.submittedPlacement !== '14000000:-10000000:0'
+    || value.noFinalModel !== true
+    || value.scaffold !== true
+    || value.smoke !== true
+    || value.workerCount !== 4
+    || value.publicWorkerCount !== 28
+  ) {
+    throw new LocalFullstackBrowserError(
+      `Disposable Inner Keep first start failed at ${
+        typeof value?.stage === 'string' ? value.stage : 'runtime'
+      }.`
+    );
+  }
+  return Object.freeze({ ...value });
+}
+
+async function exerciseLocalInnerKeepFirstStart(session) {
+  const prepared = await prepareLocalInnerKeepFirstStart(session);
+  await dispatchInnerKeepTouchCompatibilityClick(session, {
+    x: prepared.activationX,
+    y: prepared.activationY,
+  });
+  const completed = await observeLocalInnerKeepFirstStart(session);
+  return Object.freeze({ ...prepared, ...completed });
+}
+
+async function exerciseLocalInnerKeepCompletionAndSecondStart(session, firstStart) {
+  const expected = JSON.stringify({
+    cameraStateToken: firstStart.cameraStateToken,
+    firstRequestKey: firstStart.requestKey,
+    sceneCreationCount: firstStart.sceneCreationCount,
+    sceneDisposalCount: firstStart.sceneDisposalCount,
+    sceneGeneration: firstStart.sceneGeneration,
+  });
+  const result = await session.command('Runtime.evaluate', {
+    expression: `(async () => {
+      const expected = ${expected};
+      const deadline = performance.now() + ${PRESENTATION_TIMEOUT_MILLISECONDS};
+      const waitFor = async (predicate) => {
+        while (performance.now() <= deadline) {
+          try {
+            const value = predicate();
+            if (value) return value;
+          } catch {}
+          await new Promise((resolve) => setTimeout(resolve, 32));
+        }
+        return undefined;
+      };
+      const visible = (element) => {
+        if (!(element instanceof HTMLElement)) return false;
+        const style = getComputedStyle(element);
+        const bounds = element.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden'
+          && Number(style.opacity || '1') > 0 && bounds.width > 0 && bounds.height > 0;
+      };
+      const buttonWithText = (text, root = document) => [...root.querySelectorAll('button')]
+        .find((button) => visible(button) && (button.textContent ?? '').trim() === text);
+      const innerKeep = await waitFor(() => {
+        const candidate = document.querySelector('.inner-keep');
+        const mill = [...(candidate?.querySelectorAll(
+          '[data-inner-keep-building-key]'
+        ) ?? [])].find((building) => (
+          building.getAttribute('data-inner-keep-building-key')?.endsWith(
+            ':city-mill'
+          ) === true
+        ));
+        return candidate instanceof HTMLElement
+          && candidate.getAttribute('data-inner-keep-phase') === 'ready'
+          && mill instanceof HTMLButtonElement
+          && mill.getAttribute('data-phase') === 'complete'
+          && mill.querySelector('.inner-keep-worksite') === null
+          && mill.querySelector(
+            '.inner-keep-building-art, .inner-keep-building-art-fallback'
+          ) !== null
+          ? { candidate, mill } : undefined;
+      });
+      if (!innerKeep) return { stage: 'inner-keep-first-completion' };
+      const innerKeepRoot = innerKeep.candidate;
+      innerKeep.mill.click();
+      const completedDetail = await waitFor(() => {
+        const candidate = document.querySelector('.inner-keep-building-detail');
+        return candidate instanceof HTMLElement
+          && /COMPLETED BUILDING/.test(candidate.textContent ?? '')
+          && /City Mill/.test(candidate.textContent ?? '')
+          && /Level 1/.test(candidate.textContent ?? '')
+          && /Food construction costs -5%\./.test(candidate.textContent ?? '')
+          ? candidate : undefined;
+      });
+      if (!(completedDetail instanceof HTMLElement)) return { stage: 'inner-keep-discount-reveal' };
+      const builder = innerKeepRoot.querySelector('.inner-keep-builder');
+      if (
+        !(builder instanceof HTMLButtonElement)
+        || builder.disabled
+        || !/BUILDER AVAILABLE/.test(builder.textContent ?? '')
+      ) return { stage: 'inner-keep-second-build-catalogue' };
+      builder.click();
+      const catalogue = await waitFor(() => {
+        const candidate = document.querySelector(
+          '.inner-keep-panel .inner-keep-catalogue[aria-label="Available town buildings"]'
+        );
+        return candidate instanceof HTMLUListElement ? candidate : undefined;
+      });
+      if (!(catalogue instanceof HTMLUListElement)) {
+        return { stage: 'inner-keep-second-catalogue-open' };
+      }
+      const lumberReview = catalogue.querySelector(
+        '[data-inner-keep-building-kind="lumber-camp"]'
+      );
+      if (!(lumberReview instanceof HTMLButtonElement) || lumberReview.disabled) {
+        return { stage: 'inner-keep-lumber-review' };
+      }
+      const readCost = (root, resource) => (
+        root.querySelector('.inner-keep-project-cost [data-resource="' + resource + '"] dd')
+          ?.textContent?.replaceAll(',', '').trim() ?? ''
+      );
+      const lumberCard = lumberReview.closest('li');
+      if (
+        !(lumberCard instanceof HTMLLIElement)
+        || readCost(lumberCard, 'food') !== '480'
+        || readCost(lumberCard, 'wood') !== '700'
+        || readCost(lumberCard, 'stone') !== '650'
+        || readCost(lumberCard, 'gold') !== '0'
+      ) return { stage: 'inner-keep-discounted-quote' };
+      lumberReview.click();
+      const placement = await waitFor(() => {
+        const panel = document.querySelector(
+          '.inner-keep-panel--placement[data-placement-valid="true"]'
+        );
+        const ghost = innerKeepRoot.querySelector(
+          '.inner-keep-map-placement-ghost[data-valid="true"]'
+        );
+        const coordinates = panel?.querySelector(
+          '.inner-keep-placement__coordinates'
+        )?.textContent?.trim();
+        const confirm = panel instanceof HTMLElement
+          ? buttonWithText('CONFIRM PLACEMENT', panel)
+          : undefined;
+        return panel instanceof HTMLElement
+          && ghost instanceof HTMLElement
+          && innerKeepRoot.getAttribute('data-inner-keep-placement') === 'lumber-camp'
+          && coordinates === 'X 29.0 m · Z -10.0 m · 0°'
+          && confirm instanceof HTMLButtonElement
+          && !confirm.disabled
+          ? { confirm } : undefined;
+      });
+      if (!placement) return { stage: 'inner-keep-lumber-placement' };
+      const start = placement.confirm;
+      if (!(start instanceof HTMLButtonElement) || start.disabled) {
+        return { stage: 'inner-keep-lumber-confirm' };
+      }
+      start.click();
+      const secondProject = await waitFor(() => {
+        const candidate = document.querySelector('.inner-keep');
+        const buildings = [...(candidate?.querySelectorAll(
+          '[data-inner-keep-building-key]'
+        ) ?? [])];
+        const mill = buildings.find((building) => (
+          building.getAttribute('data-inner-keep-building-key')?.endsWith(
+            ':city-mill'
+          ) === true
+        ));
+        const lumber = buildings.find((building) => (
+          building.getAttribute('data-inner-keep-building-key')?.endsWith(
+            ':lumber-camp'
+          ) === true
+        ));
+        const requestKey = document.documentElement.getAttribute(
+          'data-local-fullstack-inner-keep-request-key'
+        );
+        const submittedPlacement = document.documentElement.getAttribute(
+          'data-local-fullstack-inner-keep-placement'
+        );
+        const submittedBuilding = document.documentElement.getAttribute(
+          'data-local-fullstack-inner-keep-building'
+        );
+        return candidate instanceof HTMLElement
+          && candidate.getAttribute('data-inner-keep-phase') === 'constructing'
+          && document.documentElement.getAttribute(
+            'data-local-fullstack-inner-keep-attempt'
+          ) === '2'
+          && document.documentElement.getAttribute(
+            'data-local-fullstack-inner-keep-state'
+          ) === 'accepted'
+          && requestKey !== expected.firstRequestKey
+          && typeof requestKey === 'string'
+          && submittedPlacement === '29000000:-10000000:0'
+          && submittedBuilding === 'lumber-camp'
+          && mill instanceof HTMLButtonElement
+          && mill.getAttribute('data-phase') === 'complete'
+          && mill.querySelector(
+            '.inner-keep-building-art, .inner-keep-building-art-fallback'
+          ) !== null
+          && lumber instanceof HTMLButtonElement
+          && lumber.getAttribute('data-phase') === 'constructing'
+          && lumber.querySelector('.inner-keep-worksite') !== null
+          ? { candidate, lumber, requestKey, submittedPlacement } : undefined;
+      });
+      if (!secondProject) return { stage: 'inner-keep-second-project' };
+      const worksiteCount = innerKeepRoot.querySelectorAll('.inner-keep-worksite').length;
+      const builderCopy = innerKeepRoot.querySelector('.inner-keep-builder')?.textContent ?? '';
+      const secondNoFinalModel = secondProject.lumber.querySelector(
+        '.inner-keep-building-art, .inner-keep-building-art-fallback'
+      ) === null;
+      const close = buttonWithText('CLOSE TO REALM', innerKeepRoot);
+      if (!(close instanceof HTMLButtonElement)) return { stage: 'inner-keep-close' };
+      close.click();
+      const realmContinuity = await waitFor(() => {
+        const realm = document.querySelector('main.realm-map-screen');
+        const canvas = realm?.querySelector('canvas[data-realm-canvas-active="true"]');
+        const probe = document.querySelector('[data-local-fullstack-backend]');
+        return realm instanceof HTMLElement
+          && canvas instanceof HTMLCanvasElement
+          && document.querySelector('.inner-keep') === null
+          && realm.getAttribute('data-realm-scene-mode') === 'WORLD'
+          && realm.getAttribute('data-renderer-generation') === expected.sceneGeneration
+          && realm.getAttribute('data-realm-scene-creation-count') === expected.sceneCreationCount
+          && realm.getAttribute('data-realm-scene-disposal-count') === expected.sceneDisposalCount
+          && canvas.getAttribute('data-realm-camera-state-token') === expected.cameraStateToken
+          && canvas.getAttribute('data-realm-worker-presented-count') === '28'
+          && probe?.getAttribute('data-local-fullstack-workers') === '4'
+          && probe.getAttribute('data-local-fullstack-deployed-workers') === '0'
+          ? { realm, canvas, probe } : undefined;
+      });
+      if (!realmContinuity) return { stage: 'inner-keep-realm-continuity' };
+      return {
+        stage: 'inner-keep-second-start-complete',
+        secondRequestKey: secondProject.requestKey,
+        secondBuildingKey: secondProject.lumber.getAttribute(
+          'data-inner-keep-building-key'
+        ),
+        secondPlacement: secondProject.submittedPlacement,
+        completedBuildingRevealed: true,
+        discountBasisPoints: 500,
+        discountedFoodCost: 480,
+        worksiteCount,
+        builderOccupied: /BUILDER OCCUPIED/.test(builderCopy),
+        secondNoFinalModel,
+        cameraPreserved: true,
+        scenePreserved: true,
+        workerCount: Number(
+          realmContinuity.probe.getAttribute('data-local-fullstack-workers')
+        ),
+        publicWorkerCount: Number(
+          realmContinuity.probe.getAttribute('data-local-fullstack-public-workers')
+        )
+      };
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  const value = result?.result?.value;
+  if (
+    result?.exceptionDetails
+    || value === null
+    || typeof value !== 'object'
+    || value.stage !== 'inner-keep-second-start-complete'
+    || typeof value.secondRequestKey !== 'string'
+    || !/^[a-z0-9][a-z0-9-]{15,79}$/.test(value.secondRequestKey)
+    || value.secondRequestKey === firstStart.requestKey
+    || typeof value.secondBuildingKey !== 'string'
+    || !value.secondBuildingKey.endsWith(':lumber-camp')
+    || value.secondPlacement !== '29000000:-10000000:0'
+    || value.completedBuildingRevealed !== true
+    || value.discountBasisPoints !== 500
+    || value.discountedFoodCost !== 480
+    || value.worksiteCount !== 1
+    || value.builderOccupied !== true
+    || value.secondNoFinalModel !== true
+    || value.cameraPreserved !== true
+    || value.scenePreserved !== true
+    || value.workerCount !== 4
+    || value.publicWorkerCount !== 28
+  ) {
+    throw new LocalFullstackBrowserError(
+      `Disposable Inner Keep completion failed at ${
+        typeof value?.stage === 'string' ? value.stage : 'runtime'
+      }.`
+    );
+  }
+  return Object.freeze({ ...value });
+}
+
+async function exerciseLocalInnerKeepReloadPersistence(session) {
+  const result = await session.command('Runtime.evaluate', {
+    expression: `(async () => {
+      const deadline = performance.now() + ${PRESENTATION_TIMEOUT_MILLISECONDS};
+      const waitFor = async (predicate) => {
+        while (performance.now() <= deadline) {
+          try { const value = predicate(); if (value) return value; } catch {}
+          await new Promise((resolve) => setTimeout(resolve, 32));
+        }
+        return undefined;
+      };
+      const visible = (element) => {
+        if (!(element instanceof HTMLElement)) return false;
+        const style = getComputedStyle(element);
+        const bounds = element.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden'
+          && Number(style.opacity || '1') > 0 && bounds.width > 0 && bounds.height > 0;
+      };
+      const buttonWithText = (text, root = document) => [...root.querySelectorAll('button')]
+        .find((button) => visible(button) && (button.textContent ?? '').trim() === text);
+      const enterMenu = await waitFor(() => {
+        const candidate = document.querySelector('button[data-command="enter-realm"]');
+        return candidate instanceof HTMLButtonElement && !candidate.disabled
+          && candidate.closest('[inert]') === null && visible(candidate)
+          ? candidate : undefined;
+      });
+      if (!(enterMenu instanceof HTMLButtonElement)) return { stage: 'inner-keep-reload-menu' };
+      enterMenu.click();
+      const dialog = await waitFor(() => document.querySelector('[role="dialog"][aria-modal="true"]'));
+      if (!(dialog instanceof HTMLElement)) return { stage: 'inner-keep-reload-terms' };
+      const checkbox = dialog.querySelector('input[type="checkbox"]');
+      if (!(checkbox instanceof HTMLInputElement)) return { stage: 'inner-keep-reload-checkbox' };
+      if (!checkbox.checked) checkbox.click();
+      const continueButton = [...dialog.querySelectorAll('button')].find((button) => (
+        /^CONTINUE TO /.test((button.textContent ?? '').trim())
+      ));
+      if (!(continueButton instanceof HTMLButtonElement) || continueButton.disabled) {
+        return { stage: 'inner-keep-reload-continue' };
+      }
+      continueButton.click();
+      const probe = await waitFor(() => {
+        const candidate = document.querySelector('[data-local-fullstack-backend]');
+        return candidate?.getAttribute('data-local-fullstack-auth') === 'authenticated'
+          && candidate.getAttribute('data-local-fullstack-backend') === 'ready'
+          && candidate.getAttribute('data-local-fullstack-workers') === '4'
+          ? candidate : undefined;
+      });
+      if (!(probe instanceof HTMLOutputElement)) return { stage: 'inner-keep-reload-authority' };
+      const enterRealm = await waitFor(() => buttonWithText('ENTER REALM'));
+      if (!(enterRealm instanceof HTMLButtonElement)) return { stage: 'inner-keep-reload-enter' };
+      enterRealm.click();
+      const realm = await waitFor(() => {
+        const candidate = document.querySelector('main.realm-map-screen');
+        return candidate instanceof HTMLElement
+          && candidate.getAttribute('data-renderer-state') === 'ready'
+          ? candidate : undefined;
+      });
+      if (!(realm instanceof HTMLElement)) return { stage: 'inner-keep-reload-realm' };
+      const trigger = realm.querySelector('.realm-profile-trigger');
+      if (!(trigger instanceof HTMLButtonElement)) return { stage: 'inner-keep-reload-menu-trigger' };
+      trigger.click();
+      const menu = await waitFor(() => document.querySelector('.realm-profile-menu__panel'));
+      const innerEntry = menu instanceof HTMLElement
+        ? [...menu.querySelectorAll('button')].find((button) => (
+            (button.querySelector('strong')?.textContent ?? '').trim() === 'INNER KEEP'
+          ))
+        : undefined;
+      if (!(innerEntry instanceof HTMLButtonElement) || innerEntry.disabled) {
+        return { stage: 'inner-keep-reload-entry' };
+      }
+      innerEntry.click();
+      const innerKeep = await waitFor(() => {
+        const candidate = document.querySelector('.inner-keep');
+        const buildings = [...(candidate?.querySelectorAll(
+          '[data-inner-keep-building-key]'
+        ) ?? [])];
+        const mill = buildings.find((building) => (
+          building.getAttribute('data-inner-keep-building-key')?.endsWith(
+            ':city-mill'
+          ) === true
+        ));
+        const lumber = buildings.find((building) => (
+          building.getAttribute('data-inner-keep-building-key')?.endsWith(
+            ':lumber-camp'
+          ) === true
+        ));
+        return candidate instanceof HTMLElement
+          && candidate.getAttribute('data-inner-keep-phase') === 'constructing'
+          && candidate.getAttribute('data-inner-keep-valid') === 'true'
+          && mill instanceof HTMLButtonElement
+          && mill.getAttribute('data-phase') === 'complete'
+          && mill.querySelector(
+            '.inner-keep-building-art, .inner-keep-building-art-fallback'
+          ) !== null
+          && mill.querySelector('.inner-keep-worksite') === null
+          && lumber instanceof HTMLButtonElement
+          && lumber.getAttribute('data-phase') === 'constructing'
+          && lumber.querySelector('.inner-keep-worksite') !== null
+          && candidate.querySelectorAll('.inner-keep-worksite').length === 1
+          && /BUILDER OCCUPIED/.test(
+            candidate.querySelector('.inner-keep-builder')?.textContent ?? ''
+          )
+          ? candidate : undefined;
+      });
+      if (!(innerKeep instanceof HTMLElement)) return { stage: 'inner-keep-reload-persistence' };
+      const close = buttonWithText('CLOSE TO REALM', innerKeep);
+      if (!(close instanceof HTMLButtonElement)) return { stage: 'inner-keep-reload-close' };
+      close.click();
+      const world = await waitFor(() => {
+        const canvas = realm.querySelector('canvas[data-realm-canvas-active="true"]');
+        return document.querySelector('.inner-keep') === null
+          && realm.getAttribute('data-realm-scene-mode') === 'WORLD'
+          && canvas?.getAttribute('data-realm-worker-presented-count') === '28'
+          && probe.getAttribute('data-local-fullstack-workers') === '4'
+          && probe.getAttribute('data-local-fullstack-deployed-workers') === '0'
+          ? canvas : undefined;
+      });
+      if (!(world instanceof HTMLCanvasElement)) return { stage: 'inner-keep-reload-world' };
+      return {
+        stage: 'inner-keep-reload-complete',
+        firstBuildingComplete: true,
+        secondProjectConstructing: true,
+        singleBuilderBusy: true,
+        workerCount: Number(probe.getAttribute('data-local-fullstack-workers')),
+        publicWorkerCount: Number(probe.getAttribute('data-local-fullstack-public-workers'))
+      };
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  });
+  const value = result?.result?.value;
+  if (
+    result?.exceptionDetails
+    || value === null
+    || typeof value !== 'object'
+    || value.stage !== 'inner-keep-reload-complete'
+    || value.firstBuildingComplete !== true
+    || value.secondProjectConstructing !== true
+    || value.singleBuilderBusy !== true
+    || value.workerCount !== 4
+    || value.publicWorkerCount !== 28
+  ) {
+    throw new LocalFullstackBrowserError(
+      `Disposable Inner Keep reload failed at ${
+        typeof value?.stage === 'string' ? value.stage : 'runtime'
       }.`
     );
   }
@@ -5207,9 +6001,16 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
     if (
       database.seedAttestation?.castleCount !== 7
       || database.seedAttestation.workerCount !== 28
+      || database.seedAttestation.innerKeepActive !== true
+      || database.seedAttestation.innerKeepBuilderCount !== 7
+      || database.seedAttestation.innerKeepCatalogRows !== 37
+      || database.seedAttestation.innerKeepInitialResources?.food !== '10000'
+      || database.seedAttestation.innerKeepInitialResources.wood !== '10000'
+      || database.seedAttestation.innerKeepInitialResources.stone !== '10000'
+      || database.seedAttestation.innerKeepInitialResources.gold !== '10000'
       || database.seedAttestation.entryAgreementAcceptedCurrent !== true
       || database.seedAttestation.entryAgreementRequiredVersion
-        !== '2026-07-31-hegemony-entry-agreement-v4'
+        !== WARPKEEP_ENTRY_AGREEMENT_VERSION
       || database.seedAttestation.genericAssignments !== 0
       || database.seedAttestation.genericOccupations !== 0
       || database.seedAttestation.genericSchedules !== 0
@@ -5507,6 +6308,55 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
         `Disposable restored Terms browser left its boundary: ${state.violation}.`
       );
     }
+    probeStage = 'inner-keep-journey-navigation';
+    await devtools.command('Page.navigate', { url: pageUrl });
+    await delay(500);
+    probeStage = 'inner-keep-first-project-client';
+    const innerKeepFirstStart = await exerciseLocalInnerKeepFirstStart(devtools);
+    probeStage = 'inner-keep-first-project-authority';
+    const innerKeepFirstAuthority = await database.inspectInnerKeepFirstProject(
+      innerKeepFirstStart.requestKey
+    );
+    probeStage = 'inner-keep-completion-and-second-project';
+    const innerKeepSecondStart =
+      await exerciseLocalInnerKeepCompletionAndSecondStart(
+        devtools,
+        innerKeepFirstStart
+      );
+    probeStage = 'inner-keep-final-authority';
+    const innerKeepAuthority = await database.attestInnerKeepJourney([
+      innerKeepFirstStart.requestKey,
+      innerKeepSecondStart.secondRequestKey,
+    ]);
+    probeStage = 'inner-keep-hard-reload-navigation';
+    await devtools.command('Page.reload', { ignoreCache: true });
+    await delay(500);
+    probeStage = 'inner-keep-hard-reload-persistence';
+    const innerKeepReload = await exerciseLocalInnerKeepReloadPersistence(devtools);
+    const innerKeepJourney = Object.freeze({
+      firstAuthority: innerKeepFirstAuthority,
+      firstStart: Object.freeze({
+        noFinalModel: innerKeepFirstStart.noFinalModel,
+        scaffold: innerKeepFirstStart.scaffold,
+        smoke: innerKeepFirstStart.smoke,
+      }),
+      authority: innerKeepAuthority,
+      reload: innerKeepReload,
+      secondStart: Object.freeze({
+        builderOccupied: innerKeepSecondStart.builderOccupied,
+        cameraPreserved: innerKeepSecondStart.cameraPreserved,
+        completedBuildingRevealed: innerKeepSecondStart.completedBuildingRevealed,
+        discountedFoodCost: innerKeepSecondStart.discountedFoodCost,
+        scenePreserved: innerKeepSecondStart.scenePreserved,
+        secondNoFinalModel: innerKeepSecondStart.secondNoFinalModel,
+        worksiteCount: innerKeepSecondStart.worksiteCount,
+      }),
+    });
+    if (state.violation) {
+      throw new Error(
+        `Disposable Inner Keep browser left its boundary: ${state.violation}.`
+      );
+    }
     probeStage = 'title-browser-stop';
     devtools.close();
     await terminateHeadlessChromeProcessGroup(chrome);
@@ -5694,6 +6544,7 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
       throw new Error(`Disposable browser left its boundary: ${state.violation}.`);
     }
     return Object.freeze({
+      innerKeepJourney,
       journey,
       hardReloadWorkerContinuity,
       moduleDigest: database.moduleDigest,
@@ -5748,6 +6599,9 @@ async function main() {
       + `matrix (${result.titleGatewayDepartureFocus.caseCount} cases, ${
         result.titleGatewayDepartureFocus.frameCount
       } frames), one restored exact-current server Terms continuity skip, `
+      + 'one authoritative Inner Keep City Mill start/completion and discounted '
+      + 'Lumber Camp start with one Builder, hard-reload persistence, and preserved '
+      + 'Realm camera/Worker presentation, '
       + 'one synthetic cold auth/bootstrap/Terms '
       + 'journey, one hard four-phase Worker re-entry from a fresh browser process '
       + '(two outbound, one gathering, one returning) with delayed/failing private '

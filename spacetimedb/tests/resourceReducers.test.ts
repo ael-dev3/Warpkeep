@@ -49,7 +49,7 @@ test('resource and Gold prefixes remain intact through later additive suffixes',
   const registrations = schemaRegistrations(schema);
 
   assert.deepEqual(registrations.slice(0, deployedRegistrations.length), deployedRegistrations);
-  assert.deepEqual(registrations.slice(deployedRegistrations.length), [
+  const frozenSuffix = [
     'resourceAccountV1',
     'goldSiteV1',
     'goldNodeOccupationV1',
@@ -87,7 +87,30 @@ test('resource and Gold prefixes remain intact through later additive suffixes',
     'accessRequestV1',
     'dailyMarkGrantV1',
     'dailyMarkScheduleV1',
-  ]);
+    'innerKeepLayoutV1',
+    'innerKeepSlotV1',
+    'innerKeepBuildingCatalogV1',
+    'innerKeepBuildLevelV1',
+    'castleInnerKeepBuildingV1',
+    'castleInnerBuilderV1',
+    'castleInnerBuildReceiptV1',
+    'castleInnerConstructionScheduleV1',
+    'realmChatStatusV1',
+    'realmChatChannelV1',
+    'realmChatMessageV1',
+    'realmChatRecentV1',
+    'realmChatRateEventV1',
+    'realmChatSendReceiptV1',
+    'realmChatReportV1',
+    'realmChatReportRateEventV1',
+  ];
+  assert.deepEqual(
+    registrations.slice(
+      deployedRegistrations.length,
+      deployedRegistrations.length + frozenSuffix.length,
+    ),
+    frozenSuffix,
+  );
 
   const account = tableDefinition(schema, 'resourceAccountV1');
   assert.match(account, /name: 'resource_account_v1'/);
@@ -165,7 +188,7 @@ test('gameplay resource authority requires the current entry agreement and the c
   const ownedCastle = section(
     auth,
     'export function requireOwnedCastleActionV1',
-    '/**\n * Require the complete current gameplay graph',
+    '/**\n * Authenticate an exact admitted player/castle owner',
   );
   assert.match(ownedCastle, /requireAdmittedPlayer\(ctx\)/);
   assert.match(ownedCastle, /admitted\.castle\.ownerFid !== admitted\.claims\.fid/);

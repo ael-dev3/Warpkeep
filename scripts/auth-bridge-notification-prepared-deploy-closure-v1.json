@@ -1,0 +1,1206 @@
+{
+  "schemaVersion": 1,
+  "profile": "warpkeep-auth-bridge-notification-prepared-deploy-closure-v1",
+  "members": [
+    {
+      "path": ".github/workflows/deploy-pages.yml",
+      "sha256": "17fa6c7a65095c215d94fee893083c65476c74feb738d6b7dc2f27207b9ca9c3"
+    },
+    {
+      "path": ".github/workflows/notification-bridge-prepared.yml",
+      "sha256": "f5bc06095f6be8cd68bc4b73cab7182b1e8551297fb495f2c4945cd9276a5f83"
+    },
+    {
+      "path": ".github/workflows/verify.yml",
+      "sha256": "55f9dd6569084291fed4064daaf5b6fe54a72404a0b959c96fcd388afeed5d93"
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "f311239002a532091732417ae80f5fc891edbe3dbf28aed4e0a7330de79b36c7"
+    },
+    {
+      "path": "package.json",
+      "sha256": "3070d8db94f8a84986302e63fd87977be978bbf80438137a488cc08b26bb9b6a"
+    },
+    {
+      "path": "scripts/access-requests/reset-plan.ts",
+      "sha256": "4185726bd9e7e461a79cf7c3f0b120a8a3771693f2e7b047a71171649be7f0f6"
+    },
+    {
+      "path": "scripts/admission-notifications/recovery-plan.ts",
+      "sha256": "07701aaa937e248fddd2410ddab870032ec91715b8bc9db2ac6e2ece35c581ed"
+    },
+    {
+      "path": "scripts/alpha-activation-controls.ts",
+      "sha256": "26e9e1b5d72f130fbdc5f35d6a786dbe606f6080b230974ad341db6bc1e323d3"
+    },
+    {
+      "path": "scripts/alpha-v10-activation-controls.ts",
+      "sha256": "bf254c0efa1c97b263d59e9500f40e8220f6b3dbace9d9b9dc363ef5d8f03273"
+    },
+    {
+      "path": "scripts/auth-bridge-config-attestation.d.mts",
+      "sha256": "9353a49c7e28ba560658c3840b01cc2180f9d59527b64c20cab39ffe3ea319ca"
+    },
+    {
+      "path": "scripts/auth-bridge-config-attestation.mjs",
+      "sha256": "c2bfbccc5304effad8ec8077ffc275bd756fabad5921a72924d12aa5497b9709"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-cloudflare-runtime.d.mts",
+      "sha256": "8139f501ff54d3562f7247132c1865560ea576541b34e87ecb20dbd88420c094"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs",
+      "sha256": "61ce888572e37209d78de2b5a10bf5e965daf3d9dc23f8b0464685913d5b637c"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-deploy-adapter.d.mts",
+      "sha256": "73f57db92cea9bf0770cd245a8caf87ee6cfb48130fbb94ef3adc3fe3bd11227"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-deploy-adapter.mjs",
+      "sha256": "73453de503cb3a3b8d013b2de913f8cd116f6f92a5eb3bd70cebf78de6963214"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-deploy-closure-policy.d.mts",
+      "sha256": "f896658772bb2f4a23595c539f22365d8bf4cd9de346c8e04fc0a45ea8269930"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs",
+      "sha256": "94734546cadee3a30b7c2707d48e0e51a9ad90e90f101e8e08344a5ef0256853"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-deploy-closure.d.mts",
+      "sha256": "b167217d79e7c25529cb54108119087c78cd2ea15501f2d116ae55d15578d602"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
+      "sha256": "81f03855f02369bf78b99838942df7ba0268dfe16a954313ce83996f404a9b04"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
+      "sha256": "910853af6db359814950fafb58f495739142fcc3423a827997a560f75be244ad"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-deploy-journal.mjs",
+      "sha256": "8085895e14ed4abd4ae0ebd46dbeaa1b7ef0e3fa744e0ba23071077cd946744a"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-deploy.d.mts",
+      "sha256": "7d853c727bcd4809b43b563a23190eeb57d2efc5946e2d406b07d0da239fdb35"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-deploy.mjs",
+      "sha256": "205b7e4c3c16a237267f281a5831bd991d93ddf0c2ef4b5a1f01e9a5acf7a85b"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json",
+      "sha256": "745188c6fae1c54b56e809916be9b50393c68d59c4f62742f55e67f4ca0550dd"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-installed-toolchain.d.mts",
+      "sha256": "ce1d09e34197096c9d6d82b7fc0ef2306a5036254ef78fdbecc856263342570d"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-installed-toolchain.mjs",
+      "sha256": "28b262795718a55c3651cab076fb03cddecb82521dc987b3fe7ba26df3635907"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-receipt.d.mts",
+      "sha256": "a08093a97187d741b3e36919d9c44471062ae2b085cc6dc42a6b5471c23c888e"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-receipt.mjs",
+      "sha256": "6b636aa15fe8f36878039a796a516fea1e06dd0dbd49f02fe829aee7f50a66ef"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-release-binding.d.mts",
+      "sha256": "43726251d7687b9d694b74d07e93b69b7f934db560e963d525149003b4df03c0"
+    },
+    {
+      "path": "scripts/auth-bridge-notification-prepared-release-binding.mjs",
+      "sha256": "e957b9b8653de8f2aa19d8f402b017c376c1fadc1184a02a3d810f38778e9ec1"
+    },
+    {
+      "path": "scripts/entry-agreement-policy.d.mts",
+      "sha256": "dc6d2a4f0a578981dcbd2cb7cc803e9ef157091833f4e6b7326bba4ae8bf1eb0"
+    },
+    {
+      "path": "scripts/entry-agreement-policy.mjs",
+      "sha256": "e46320d7e5c09aaf95fcc8bfd24c48792762651d53167b726647bcfced39c165"
+    },
+    {
+      "path": "scripts/farcaster-miniapp-contract.mjs",
+      "sha256": "9aa2b72c033cedba9e3328a7acd2010257df4251b4cdf649cb66bb4a634a2743"
+    },
+    {
+      "path": "scripts/founder-admission-authority.ts",
+      "sha256": "abcbf4b28a27ac6470ed37f1aebf56b94d8955050eb649010c741dd19d8f6b1d"
+    },
+    {
+      "path": "scripts/greater-realm-production-bootstrap.mjs",
+      "sha256": "8e1c55119a7544892c3d9b693dc5628366b49da715d60d4e1265beca83979d13"
+    },
+    {
+      "path": "scripts/hermes-admin.ts",
+      "sha256": "4285286327d2cc356305d9c013916b58faa11e63fc599f223e6735ea4f594782"
+    },
+    {
+      "path": "scripts/hermes-machine-output.ts",
+      "sha256": "9e092baddf7fd7bdde95eb910050f9ca07f579716227059bf3a694f5b6fe0543"
+    },
+    {
+      "path": "scripts/notification-pages-build-release-validator.d.mts",
+      "sha256": "1d9e811491a125dd3c825468f60e42c19aa8da32bd7871d48420f1f694a7a744"
+    },
+    {
+      "path": "scripts/notification-pages-build-release-validator.mjs",
+      "sha256": "f2ac29b6e831da95f1c08919b1dc39d374dd0e7df0b5ff6526948b657f0d15b3"
+    },
+    {
+      "path": "scripts/notification-pages-deploy-lane.d.mts",
+      "sha256": "aeea05cf6716786c5c130981ded19a7786c7c3b94a46d573d3fd9b777d0e6f2a"
+    },
+    {
+      "path": "scripts/notification-pages-deploy-lane.mjs",
+      "sha256": "ef079851019615b4aa2329485958a008c3bdbeb0c924844b84ead3d478ec9879"
+    },
+    {
+      "path": "scripts/notification-pages-live-hermes-authority.d.mts",
+      "sha256": "697a4120f3806a51bc29e0ac7480cde26e94f5b3bdf0fb95aacd3dccf36f424d"
+    },
+    {
+      "path": "scripts/notification-pages-live-hermes-authority.mjs",
+      "sha256": "b25eb8432941781392d4f7b892dbb50f8e501195480847fccd4e331981ef742c"
+    },
+    {
+      "path": "scripts/notification-pages-live-receipt.d.mts",
+      "sha256": "451280a6e85cbb5bbc5ef1c49905593958c86b972f9eb2626f2d0bc75e9d4106"
+    },
+    {
+      "path": "scripts/notification-pages-live-receipt.mjs",
+      "sha256": "f5fc01d86d1a2b111e44001b30bee95f2e1e723242f919b7d85e26c11349af21"
+    },
+    {
+      "path": "scripts/notification-pages-live-release-binding.d.mts",
+      "sha256": "10004bf4273b39be9546fdde38836d0c8354ba2284b3b2220d8b7d1fdc612cda"
+    },
+    {
+      "path": "scripts/notification-pages-live-release-binding.mjs",
+      "sha256": "4c8e8655f1e937c53ef4e14901301438bb540eaf04af7f82e70be6211f8c6280"
+    },
+    {
+      "path": "scripts/notification-pages-private-deploy-journal.d.mts",
+      "sha256": "e55ef24651724edf478b4cbd5a30f90935150ac23f0b1588c11a01a8f4b8dcd2"
+    },
+    {
+      "path": "scripts/notification-pages-private-deploy-journal.mjs",
+      "sha256": "6e3799023837f7aba106bfd6febcdc86ab0118ae7fe4a8a416e4f904a45c1e4e"
+    },
+    {
+      "path": "scripts/notification-pages-private-deploy-launcher.d.mts",
+      "sha256": "7b632aa9e4b5ddd0788622cf9c4ac4a1b85045ec103f5c19736fd4d5f2dc9022"
+    },
+    {
+      "path": "scripts/notification-pages-private-deploy-launcher.mjs",
+      "sha256": "ac18ecc2371d8bfff17ea8abec9d989085c4992d2ebeb70e7c9947bfac62837e"
+    },
+    {
+      "path": "scripts/notification-pages-private-deploy-operator.d.mts",
+      "sha256": "1e80dd2f697d0b61ca23e3dedcf548dca4a18bb000a5d4008b43c23968b78a0c"
+    },
+    {
+      "path": "scripts/notification-pages-private-deploy-operator.mjs",
+      "sha256": "79b978dcbb21f58c00a9c2b8b62b25a737a69f8824b741a1acb1c457a0032818"
+    },
+    {
+      "path": "scripts/notification-pages-private-handoff.d.mts",
+      "sha256": "d554c6e125965f7393b5cc6adeedabdef3652e9b6f419cbe2b4f021bc90aef2b"
+    },
+    {
+      "path": "scripts/notification-pages-private-handoff.mjs",
+      "sha256": "8ffd7a19836285cd52e8f9687c2473e702349eabb86e296346ed7b5f77fdcc40"
+    },
+    {
+      "path": "scripts/notification-pages-private-release-binding.d.mts",
+      "sha256": "e2ecadf4de8cfb33fc996bed669613a28a614a9735a9e1b89bbb64c5864d8319"
+    },
+    {
+      "path": "scripts/notification-pages-private-release-binding.mjs",
+      "sha256": "9e51533b88f391286dc20a0fa6cd3343c5ca31d4db39dfe42717414e4e7da5b4"
+    },
+    {
+      "path": "scripts/notification-pages-release-source-parser.d.mts",
+      "sha256": "6adc834ea920dff5abf8c642b337f7a762d50eddb03e11656681ed43d1d919af"
+    },
+    {
+      "path": "scripts/notification-pages-release-source-parser.mjs",
+      "sha256": "b5792fd44ddf6c54d4eb055705de36e2c837442c82184ec096dfa5c93c982de2"
+    },
+    {
+      "path": "scripts/production-admin-token-budget.d.mts",
+      "sha256": "081e381def77b755d408c6b20807bd224e0a0d26f353b6db83370ab0e03e647b"
+    },
+    {
+      "path": "scripts/production-admin-token-budget.mjs",
+      "sha256": "0ac956518ebbed5e893adcb8159c2a4c287d684850921249b18ba6bc9352648e"
+    },
+    {
+      "path": "scripts/profiles/farcaster-profile-policy.ts",
+      "sha256": "a882063f2bafbe3833a31cff18d62291b5a040163e6f6ba367295da8c92c1b81"
+    },
+    {
+      "path": "scripts/profiles/founder-admission-plan.ts",
+      "sha256": "65661e6c3e3b665a059406a2fd511cb1bde5376eabb9525942a06c456ded17da"
+    },
+    {
+      "path": "scripts/profiles/profile-transport.ts",
+      "sha256": "6349475d825419ae8dc94c2ebd00bbaca4e9ab282e13560a57906fbecfab19e9"
+    },
+    {
+      "path": "scripts/validate-pages-deploy-config.mjs",
+      "sha256": "51d35980de539e16894f5ebb66005aaaa5856bb5eea11ab67eeaa21a51ce774a"
+    },
+    {
+      "path": "scripts/verify-alpha-production.mjs",
+      "sha256": "3b3d4fbc5d168628532e99c6fcf7e51db3272071c02c01dff9ca1c7211f1eb64"
+    },
+    {
+      "path": "scripts/verify-auth-bridge-notification-prepared-policy.d.mts",
+      "sha256": "3992cca75b085715fb3db527c360464dcd10a696c036d42e487e072c731ae8dd"
+    },
+    {
+      "path": "scripts/verify-auth-bridge-notification-prepared-policy.mjs",
+      "sha256": "20665e0633b06ae3ae12115fcd2983c885f50a9e54f78d0cd431b6c4d244601f"
+    },
+    {
+      "path": "scripts/verify-greater-realm-release-gates.d.mts",
+      "sha256": "dead22abccb46f5b8a04976460fe44d39faa7b11c3ef41310c3a8a83dd7a9b1a"
+    },
+    {
+      "path": "scripts/verify-greater-realm-release-gates.mjs",
+      "sha256": "608af7e0cb749b99549d114701abda6327841f44d6edbeb865dbe3c149604e04"
+    },
+    {
+      "path": "services/auth-bridge/package.json",
+      "sha256": "99a6adee8792df6f6648321d8913916344ba1041481f5b01ca321a5cd363708b"
+    },
+    {
+      "path": "services/auth-bridge/pnpm-lock.yaml",
+      "sha256": "41642a1ffb9de21d5f552133fa6dec873362f692c6a440b85c895d928052c768"
+    },
+    {
+      "path": "services/auth-bridge/pnpm-workspace.yaml",
+      "sha256": "81cd9fb2b3452391983dd40356a1edf5a767d7b8f86b6a97ec82826d9ebcda47"
+    },
+    {
+      "path": "services/auth-bridge/src/admissionNotifications.ts",
+      "sha256": "c68118dd0309299a46efe298ceabaaa1e37a47dce116972b9e7bce192185e871"
+    },
+    {
+      "path": "services/auth-bridge/src/app.ts",
+      "sha256": "e71b5076f036c0851daee1d55a521024e490afd0bb94f7abdf8896f8f892fe75"
+    },
+    {
+      "path": "services/auth-bridge/src/browserBinding.ts",
+      "sha256": "a5378bea91028166a0e2cb6719147fe8c19feaf0523675619f89529db93bd529"
+    },
+    {
+      "path": "services/auth-bridge/src/challengeStore.ts",
+      "sha256": "3ca28312ff693df5a3662249d3a457fd72de03dfe9058417a8ec3581e713a33c"
+    },
+    {
+      "path": "services/auth-bridge/src/config.ts",
+      "sha256": "0bc8d4725114f66d948a64185ab5aef1676855f6461348b7746009d91fd5c1f6"
+    },
+    {
+      "path": "services/auth-bridge/src/farcaster.ts",
+      "sha256": "783d896fdf1345af807606e2586fa43b2f151713c13fbd006b0095bddb7321ca"
+    },
+    {
+      "path": "services/auth-bridge/src/index.ts",
+      "sha256": "775ab2568c4479a6aaa838893f52484cf5a87e44312374cd7ee846bb3c826155"
+    },
+    {
+      "path": "services/auth-bridge/src/jwt.ts",
+      "sha256": "77edff0a11784b2c27d8ad7e28130bdcbe4f646a200a08248892c120bf64718f"
+    },
+    {
+      "path": "services/auth-bridge/src/miniAppWebhook.ts",
+      "sha256": "be3f4af031a6b1e1ccd2672be5accb1b231b7ca7bf33035e7f3744c9c16463c8"
+    },
+    {
+      "path": "services/auth-bridge/src/qaObserver.ts",
+      "sha256": "c7e6e5503cdc37e2c4f755a49b3a2881764f3d883ed293fc29845d569af9dc46"
+    },
+    {
+      "path": "services/auth-bridge/src/rateLimit.ts",
+      "sha256": "e64866059e2e0e24451a2801c6934b1bafc605f28fda5222677406911d47dd4a"
+    },
+    {
+      "path": "services/auth-bridge/src/sessionCookie.ts",
+      "sha256": "d93ef2bed186e919151c4f84cfee3af836296f098ab828843925a19c20077c5a"
+    },
+    {
+      "path": "services/auth-bridge/src/sessionFamily.ts",
+      "sha256": "1cdaef20bc72273212ada120a007f40f54aeffbbf61a8e037ad11bbebde339af"
+    },
+    {
+      "path": "services/auth-bridge/src/spacetimeAccessRequestResolver.ts",
+      "sha256": "1206b515a810d8c8d328ca1996f18a3811da98aa50f0f5c672f136eb2ef7708b"
+    },
+    {
+      "path": "services/auth-bridge/src/spacetimeAuthEpochResolver.ts",
+      "sha256": "9eef06e78a2a59e6831fbc8675d80632134a868c18b02df457b59aedfaab0561"
+    },
+    {
+      "path": "services/auth-bridge/src/spacetimeQaObserverResolver.ts",
+      "sha256": "bef51b22925685025e3378d2c9a7d03739e63d552ecda9a273c4acc313e64c90"
+    },
+    {
+      "path": "services/auth-bridge/src/types.ts",
+      "sha256": "af1056713f91c1eae66f61db6aebbd2852e6f28a980020c177214a3a1ccd5eee"
+    },
+    {
+      "path": "services/auth-bridge/test-workerd/authBridge.workerd.test.ts",
+      "sha256": "94145da42b234c4f9e2ab506960d77189d8a1c073fe177fa67ea159bfdc630aa"
+    },
+    {
+      "path": "services/auth-bridge/test-workerd/tsconfig.json",
+      "sha256": "f102128941b794e44db0e522f7e9f412ae5000922def9f918abdb4a176dc2235"
+    },
+    {
+      "path": "services/auth-bridge/test-workerd/worker-configuration.d.ts",
+      "sha256": "80cba2d6042267d0a88d28b753baf176e37d563d29feabb48040ca61fae22aa7"
+    },
+    {
+      "path": "services/auth-bridge/test/admissionNotifications.test.ts",
+      "sha256": "675b70607527f9047a54def00302e5579bc73b7cf7fc45a4c4ae80a8f2413c14"
+    },
+    {
+      "path": "services/auth-bridge/test/app.test.ts",
+      "sha256": "6c812f622b173d2a94e418dff05366f02daad0dd765888d28876261f0d855e61"
+    },
+    {
+      "path": "services/auth-bridge/test/browserBinding.test.ts",
+      "sha256": "6e08f812e5ff26e3ef2fcb570da8310664b1864e0fea2fbf2da0272cf6aa13b8"
+    },
+    {
+      "path": "services/auth-bridge/test/challengeStore.test.ts",
+      "sha256": "6012a077513562dc72829a878ee028b8308b00f0658751d187cde40c9cc0d6e3"
+    },
+    {
+      "path": "services/auth-bridge/test/farcaster.test.ts",
+      "sha256": "f5be3d304c9c222eec7193be02fb3decf33b5275ef8ef554feb0e63ea24b4ddf"
+    },
+    {
+      "path": "services/auth-bridge/test/miniAppWebhook.test.ts",
+      "sha256": "7df02aaf1fdf69c549bfdeb0ffb7fbf77747585cf2627f04dfe3a2130cb826ea"
+    },
+    {
+      "path": "services/auth-bridge/test/qaObserver.test.ts",
+      "sha256": "fa9647f5ebc8ba4a53b274a967180fbbcd8a57ae4e420350d3df7c9c591c4dc8"
+    },
+    {
+      "path": "services/auth-bridge/test/rateLimit.test.ts",
+      "sha256": "3c180aed03badf1621e92a8587380720fb8646273f10a45b81c22739ede799b7"
+    },
+    {
+      "path": "services/auth-bridge/test/sessionFamily.test.ts",
+      "sha256": "daef9e22cc58f4075fd4259511b9e2e2a5df950b88003057a3a661eac92de83f"
+    },
+    {
+      "path": "services/auth-bridge/test/spacetimeAccessRequestResolver.test.ts",
+      "sha256": "790f4273390ef0ff3471345e7ba8590837738802f267161ac261d9ac05532de3"
+    },
+    {
+      "path": "services/auth-bridge/test/spacetimeAuthEpochResolver.test.ts",
+      "sha256": "c8e901feaddcf10198cb7f5e4c8eb09fbab226f8de69f00b28832959e77adb76"
+    },
+    {
+      "path": "services/auth-bridge/test/spacetimeQaObserverResolver.test.ts",
+      "sha256": "f15aebcf5832459de75dbaaaf046ddf8df171fdd240b6dc83a0935cc3e3a4fe8"
+    },
+    {
+      "path": "services/auth-bridge/tsconfig.json",
+      "sha256": "b2c9bfdc2e612f7a187f8ad625a81a0ef3e21ac8ac9b8f57d57a7366fa778bcd"
+    },
+    {
+      "path": "services/auth-bridge/vitest.config.ts",
+      "sha256": "259b2a1329066941e14df139b6898c303c9732d36d12e2d5e5898d2b24ca5e89"
+    },
+    {
+      "path": "services/auth-bridge/vitest.workerd.config.ts",
+      "sha256": "3a64b9024895f1627986aac43fe7714b2bce31bee0b7c57bbf42eb16868e0b8e"
+    },
+    {
+      "path": "services/auth-bridge/wrangler.toml",
+      "sha256": "2d47478907d360263cf88635a4fde55f9c4b5ef3a8e42aee45a68bdd1594c81b"
+    },
+    {
+      "path": "spacetimedb/src/alphaActivationPolicy.ts",
+      "sha256": "516020dd74181854fa38e639d2cdf4ba32a7884a347f9eab4df8d56e48df2a80"
+    },
+    {
+      "path": "spacetimedb/src/alphaV10ActivationPolicy.ts",
+      "sha256": "39767d277f4fe9b30adb24a4fdde358e680a0ac47b6a349157a3e9b89f5e4f6d"
+    },
+    {
+      "path": "spacetimedb/src/castleWorkerPolicy.ts",
+      "sha256": "581e18a404fdf4aae374c78b0d376a98e2aed5d8cb61826dc1918d64a944ab93"
+    },
+    {
+      "path": "spacetimedb/src/config.ts",
+      "sha256": "ea8c5cfedcd5cba5e1c709dac4994498ebf397651ee3aacccc42a48f4ad2cde4"
+    },
+    {
+      "path": "spacetimedb/src/entryAgreementPolicy.ts",
+      "sha256": "3a79f540b8ac19382078f53794bdca0a755c0be0d002f03b492bb2c58741ecc3"
+    },
+    {
+      "path": "spacetimedb/src/foodExpeditionPolicy.ts",
+      "sha256": "2d81fccfba09c7d1e2b806d718fa7183df53e9af40d6486b549859261f0c5faf"
+    },
+    {
+      "path": "spacetimedb/src/foodSitePolicy.ts",
+      "sha256": "900c466d88c7959db49c005c4db062870ca2f2773c5c6d62d4304260d4823934"
+    },
+    {
+      "path": "spacetimedb/src/forestLayoutContract.ts",
+      "sha256": "0866ea77851dd4376ebbb56df120e141bcf97a57d7614667eadfce15bc1718d3"
+    },
+    {
+      "path": "spacetimedb/src/forestLayoutPolicy.ts",
+      "sha256": "d50987532aba023b0f7622a7cdb1ef5591709424ec94c1fb62b6b90c33c0d447"
+    },
+    {
+      "path": "spacetimedb/src/goldExpeditionPolicy.ts",
+      "sha256": "6986960b922072ea31ab6cff3ac269e25c57d323e26db4dfa790e65e28a47fc1"
+    },
+    {
+      "path": "spacetimedb/src/goldSitePolicy.ts",
+      "sha256": "8e80cfc6f739d9b7fdc8be6a89bf7899f997b25fbe8cb9c8908c2e65636eb2fc"
+    },
+    {
+      "path": "spacetimedb/src/greaterRealmV17Policy.ts",
+      "sha256": "e1045a8b001ea2f3357f19ce327a1c180c394e72eb9c91349e441a6301988b6c"
+    },
+    {
+      "path": "spacetimedb/src/lowlandsSurface.ts",
+      "sha256": "ba13420dd0230b58fefc5dcae9fe9d4be89281dc74301957caa04a1a8de62ca9"
+    },
+    {
+      "path": "spacetimedb/src/profileAuthorityPolicy.ts",
+      "sha256": "906eaada00141d38838cdeb01265c7eba26ab37df9ee487beb7242b7a2977106"
+    },
+    {
+      "path": "spacetimedb/src/resourceAuthorityPolicy.ts",
+      "sha256": "3679b9632bc0ffe0e7da61ce609c96a800513c84784eb4f63d3d5e358cca8bdf"
+    },
+    {
+      "path": "spacetimedb/src/resourceSitePlacementPolicy.ts",
+      "sha256": "669d5e2c1ce4418aacd59e4e40d0a5c31f76fdc2988f3659fb54136848dfee74"
+    },
+    {
+      "path": "spacetimedb/src/stoneExpeditionPolicy.ts",
+      "sha256": "caaa88ed1fe6c6a00f2cd6681afba80f5f26c503921d9a5c496b8ed5069635bc"
+    },
+    {
+      "path": "spacetimedb/src/stoneSitePolicy.ts",
+      "sha256": "eb4efde59b68f0aa250290d1297b45cfc48458e482a531a7b5597e840a8cf39f"
+    },
+    {
+      "path": "spacetimedb/src/waterWorld.ts",
+      "sha256": "ef279b6231d582c193beb6cc2095c349184d9dc6138bf9eefb219a08d70547f5"
+    },
+    {
+      "path": "spacetimedb/src/woodExpeditionPolicy.ts",
+      "sha256": "f6740639b996c43b4564a9ee47b4da803e0617b4f26addbbd031d56f9c1ec599"
+    },
+    {
+      "path": "spacetimedb/src/woodSitePolicy.ts",
+      "sha256": "53e625a7d2651d430e9740b8d60fe94b03652d3f5ab29a912c9a2a3228e0d3a0"
+    },
+    {
+      "path": "spacetimedb/src/world.ts",
+      "sha256": "5a0c4849d2b1173e42e85bdd6eedb7e80c092db17baa96b72c0d61434ed4dc11"
+    },
+    {
+      "path": "src/security/publicImageUrl.ts",
+      "sha256": "191b103a6630133ef3c5e7d23caf44f8addbb8db2d877d4f1a89c1cf60b5de3c"
+    },
+    {
+      "path": "src/spacetime/module_bindings/accept_alpha_terms_v_1_reducer.ts",
+      "sha256": "468dff67bac580b65e7ac382b87fc312436f1435ce5e67fb2bf5a8f0dc4371ba"
+    },
+    {
+      "path": "src/spacetime/module_bindings/access_request_get_status_v_1_procedure.ts",
+      "sha256": "2f3eefc5e81274d17573f13654f01e3ba58069f0251c0a7b23f63826367e2a0d"
+    },
+    {
+      "path": "src/spacetime/module_bindings/access_request_submit_v_1_procedure.ts",
+      "sha256": "2f3eefc5e81274d17573f13654f01e3ba58069f0251c0a7b23f63826367e2a0d"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_activate_daily_marks_v_1_reducer.ts",
+      "sha256": "01ebffe13367fe5bab112eb34cf14b467ae96ce9b330b5e35b4c0197537e830a"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_activate_genesis_water_layout_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_activate_genesis_water_revision_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_activate_inner_keep_v_1_reducer.ts",
+      "sha256": "65c9070d1875b6604f3a6137bc24d60075dcc20ec143b4ae6f8190c669a64f92"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_activate_realm_chat_v_1_reducer.ts",
+      "sha256": "d075b6872f5dd136c916a7fe2fa4a890f262a13dc8f3e9e33c9967a0206b859d"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_activate_worker_system_v_1_reducer.ts",
+      "sha256": "99998bd9a4f524cb749f50d426cba09abec791eb7509967ebe4ba6d00eb12f1c"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_admit_founder_for_access_request_v_2_reducer.ts",
+      "sha256": "66b69aa4ef14129325051d437f49657bc9f0b8a0c0162d4ba2259108a889076d"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_admit_founder_v_1_reducer.ts",
+      "sha256": "6ac98d06797c8607d55a393888b1e8dda8fdb33cb6dc30c17f513dd2cc1cfc17"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_allow_fid_for_access_request_v_1_reducer.ts",
+      "sha256": "a89cb5770af63c94466e0c31956913925498dc0be769671e2aa064d39fb0c5f2"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_allow_fid_reducer.ts",
+      "sha256": "8bf48f2fbd91e1a7d9292a16531c6b6beb46c3d1ebc16478f65a1d76c1f45ef2"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_backfill_daily_mark_accounts_v_1_reducer.ts",
+      "sha256": "4f5d8d767cf34fbb85a019de8dbd6445f28b519a661f05ac9582b0fb463f0adc"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_backfill_inner_keep_builders_v_1_reducer.ts",
+      "sha256": "f57be4175196eeb0d44964c3148001f4875b712dd1fe6a9db5af07a0a42432dd"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_backfill_resource_accounts_v_1_reducer.ts",
+      "sha256": "ff716b9d3019a2663963993e835dbf08cd8b911647d76a40e2e2c948e1aa08e9"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_backfill_worker_roster_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_begin_greater_realm_drain_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_begin_greater_realm_verification_v_1_reducer.ts",
+      "sha256": "b5ad46b2c4e9f48bad605cbba8ab886a2bc9bef9db745c9b4daefb55f484208a"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_begin_worker_legacy_drain_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_bump_auth_epoch_reducer.ts",
+      "sha256": "8bf48f2fbd91e1a7d9292a16531c6b6beb46c3d1ebc16478f65a1d76c1f45ef2"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_commit_greater_realm_active_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_complete_worker_legacy_drain_v_1_reducer.ts",
+      "sha256": "25615720a2ac86b1afe4b8a516eeab3e5ecbb66af72b4bbc2aab09f5ccb416ba"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_deactivate_inner_keep_v_1_reducer.ts",
+      "sha256": "de968c59c274f2273d64b97bf555e6138115316d1b087981ac94c067e7d937a7"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_disable_fid_reducer.ts",
+      "sha256": "8bf48f2fbd91e1a7d9292a16531c6b6beb46c3d1ebc16478f65a1d76c1f45ef2"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_disable_realm_chat_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_expand_genesis_world_v_3_reducer.ts",
+      "sha256": "a23291fc9e6645ffb0e21e1ece94757b5d13de0e6927ab5509d223c125bf4a4f"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_finalize_greater_realm_release_v_1_reducer.ts",
+      "sha256": "100b7b717c5ff3925957308f12ed8256f2d984454d090c09793bd4309d19f6fd"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_freeze_greater_realm_activation_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_get_access_request_admission_status_v_1_procedure.ts",
+      "sha256": "3b52dff930916fb33a6b955de12c71b27967efde219ddc17c4664c0379a9670b"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_get_access_request_reset_status_v_1_procedure.ts",
+      "sha256": "4d5e665300eab82acc219ed2bf31c1619cc6efcbb66515b5573a88d13ce6e9f0"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_get_alpha_status_procedure.ts",
+      "sha256": "534569fcbc9bca3ca4d687d7403b1f5fb3dc17899b7f0218267016fabd8b418e"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_get_alpha_status_v_10_procedure.ts",
+      "sha256": "16708511cf7be0c6c06d49ec9b5a2b3681c19e24efedc527988e61902395f098"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_get_alpha_status_v_2_procedure.ts",
+      "sha256": "de68411a734ea0dc38b86be47bd564a853cf6f63b7d246d6376cc700a533027e"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_get_alpha_status_v_3_procedure.ts",
+      "sha256": "b9bb37fc753fc1e0b310c3c9781819b4527d2c7fbe663629f4ca385be838865e"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_get_alpha_status_v_4_procedure.ts",
+      "sha256": "dc8e0ac1c898ef41de8e46130e4678abcef7ddf9eeeffe18dbb73bda1ac11c01"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_get_alpha_status_v_8_procedure.ts",
+      "sha256": "2e125c8d87c5ff7df6da511aeef46b531862fe91654b473df11a12e284e03676"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_get_daily_marks_status_v_1_procedure.ts",
+      "sha256": "976bff6270e590c1770a44708a4447d3b9b5ab47409a9129d769c91dc8bc08f4"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_get_fid_auth_epoch_procedure.ts",
+      "sha256": "606cdd7c20222c1e42012f5e8a0a47efe67e524db214a9e9c6bc303621a414c2"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_get_greater_realm_cutover_status_v_1_procedure.ts",
+      "sha256": "26c599eca1e4903ab88417e9b380a1accddad7f97b730c543551b5dfc364c172"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_get_greater_realm_import_plan_v_1_procedure.ts",
+      "sha256": "3f5217888696b48ca60e0ec04adfd53f71706cb3cfbe2a5cd75f86685cff98e3"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_get_greater_realm_reenable_status_v_1_procedure.ts",
+      "sha256": "e4b89e6b0067e5584ed43214969161dd0ad55e611fcd824293f80a0385ed8495"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_get_greater_realm_status_v_1_procedure.ts",
+      "sha256": "bf1100d5f55c47e18ceebb9dda731dcf7f370701d4862e1fa9b0ebf427aadd98"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_get_inner_keep_status_v_1_procedure.ts",
+      "sha256": "7c214dfba615306595082efb731efada05b185881b0d1205d1bd39908f6a84c6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_get_realm_chat_report_context_v_1_procedure.ts",
+      "sha256": "fec8528a3d9c8aa3142c779df89d072d9ced01aa4ccb3cb65ad3b9e81ef7e5bc"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_get_realm_chat_status_v_1_procedure.ts",
+      "sha256": "3479da0cfc5d69ce70c1e7595a7e43d6b3ee76c1dad1115f3a8daba54c68989e"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_get_worker_rollout_status_v_2_procedure.ts",
+      "sha256": "a73d362707b79e724ed52d1ff80cbc867308e4cc872cebe11ae8ef130820dbb4"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_get_worker_system_status_v_1_procedure.ts",
+      "sha256": "6497742b7cd8ecd0f5dff95d5f5d1d8f430c56d40825eac261f8fb341ec4556f"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_halt_greater_realm_activation_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_import_greater_realm_chunk_v_1_reducer.ts",
+      "sha256": "dbdd1fe209728c543e8265e9b866828228d4a9b179f9168cd5149653429f144a"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_import_greater_realm_components_v_1_reducer.ts",
+      "sha256": "828c01789e500bdd56d61311079d2aa8d709a5715a336d08241b95eb0c6d52b7"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_import_greater_realm_regions_v_1_reducer.ts",
+      "sha256": "eb8da2069421b8cf1fb60394cf9f2a5bec6ecc84819136805403d7419ee0e965"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_inspect_genesis_water_layout_v_1_procedure.ts",
+      "sha256": "3c918cd82dbc62072445ecc59fd21782d28393be073cbb40d0e8733e4c6416e7"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_inspect_genesis_water_revision_v_1_procedure.ts",
+      "sha256": "8583d0c4019c5258baf1de3af63a371c5c203bb0a3891a61d58b7c5ab5ec738f"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_list_access_requests_v_1_procedure.ts",
+      "sha256": "1e8181ea9097f03cb9910febea6189bd957704b1e27b62a2ecf5cf807c3af76a"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_list_realm_chat_reports_v_1_procedure.ts",
+      "sha256": "78279277302eca819ca24f4eac54a5a46b9a6df07875d74e5ba7f7f4b8bad298"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_plan_greater_realm_relocation_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_plan_inner_keep_builders_v_1_procedure.ts",
+      "sha256": "505b3c89a3702a45814512aaf1e9dd3365ccbad1f268c37c4ab6ca0726b43303"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_plan_inner_keep_catalog_v_1_procedure.ts",
+      "sha256": "d6e0850101f0c58ae8ac8df9437fb21ba2fdf659144aa19deb51b1332a777847"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_plan_worker_roster_v_1_procedure.ts",
+      "sha256": "6b68656077561739fa6cdfa208ced823b4cc8432282e24c6e5d6cda839b1a016"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_prepare_greater_realm_activation_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_relocate_greater_realm_canary_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_repair_missing_worker_return_schedule_v_1_reducer.ts",
+      "sha256": "6d06eaae536bdd2c2fb28170810b88e9711056113162a8ab1390732b5e475b17"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_reset_access_request_v_1_reducer.ts",
+      "sha256": "93726c9c02e8fae5b7288b2da911bfc9626cdcd35eebc5d2b6ecbc19b155c5e0"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_resolve_realm_chat_report_v_1_reducer.ts",
+      "sha256": "af619b71fa5636a78b5f163fd8adfa1027b0a67be489d5be88029acdd9d1b74b"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_resume_greater_realm_active_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_rollback_greater_realm_before_commit_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_seed_genesis_forest_layout_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_seed_genesis_tier_i_food_sites_v_1_reducer.ts",
+      "sha256": "5ef3c8bc69f3f18ce22f208f736b461cfcf7c63aa91d5afc062eb013142cc645"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_seed_genesis_tier_i_gold_sites_v_1_reducer.ts",
+      "sha256": "5ef3c8bc69f3f18ce22f208f736b461cfcf7c63aa91d5afc062eb013142cc645"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_seed_genesis_tier_i_stone_sites_v_1_reducer.ts",
+      "sha256": "5ef3c8bc69f3f18ce22f208f736b461cfcf7c63aa91d5afc062eb013142cc645"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_seed_genesis_tier_i_wood_sites_v_1_reducer.ts",
+      "sha256": "5ef3c8bc69f3f18ce22f208f736b461cfcf7c63aa91d5afc062eb013142cc645"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_seed_genesis_water_layout_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_seed_genesis_water_revision_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_seed_inner_keep_catalog_v_1_reducer.ts",
+      "sha256": "c189fb7844b23fd259e5af11765b9df574b1e036f42f39f73aedf9f52230dd4f"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_seed_world_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_stage_greater_realm_release_v_1_reducer.ts",
+      "sha256": "ff3b2c8f24bbeaa2d98ac899c84a94b6aa976cb6ccc45ecde0c55f0046381606"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_stage_realm_chat_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_stage_worker_system_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_tombstone_realm_chat_message_v_1_reducer.ts",
+      "sha256": "ffb8e44e8dde62da3ecdf45196e86d036261a9ebc89c922c7f5653f7e6705278"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_upsert_realm_profile_v_1_reducer.ts",
+      "sha256": "804dda264c6f812e775395e2b46fc1906577a602b23ba1570f97c7ef6c4bac56"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_verify_greater_realm_batch_v_1_reducer.ts",
+      "sha256": "122bd2ac1cbbfbfde0d3c98ffa13071b74b0ea511aed80dbf57af3e97b0d430c"
+    },
+    {
+      "path": "src/spacetime/module_bindings/auth_resolver_get_fid_admission_v_2_procedure.ts",
+      "sha256": "e93388e7f0b29f908ade4ee6635070540d76e245b9930453e9bf1157164d8573"
+    },
+    {
+      "path": "src/spacetime/module_bindings/bootstrap_player_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/bootstrap_player_v_2_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/castle_inner_keep_building_v_1_table.ts",
+      "sha256": "6e977a27cf7e686be4b2827d6ede2abe27fed89fd7dd636ca45e533d5848bf4e"
+    },
+    {
+      "path": "src/spacetime/module_bindings/castle_slot_v_1_table.ts",
+      "sha256": "672d0a6c3439059e48e8473fd425216dd8c1e58b51e3c1b15ede9e1e7c4d51de"
+    },
+    {
+      "path": "src/spacetime/module_bindings/castle_table.ts",
+      "sha256": "6ce06a0a92c236fe935cc1e4222f0863a1bcbb7abee1de865d15109b216f87b2"
+    },
+    {
+      "path": "src/spacetime/module_bindings/castle_worker_v_1_table.ts",
+      "sha256": "a5db6ad90f19363ffe7544bbb72e0182810e559f1d8a20d6aad9cbc73a88ecea"
+    },
+    {
+      "path": "src/spacetime/module_bindings/collect_food_expedition_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/collect_gold_expedition_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/collect_resources_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/collect_stone_expedition_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/collect_wood_expedition_v_1_reducer.ts",
+      "sha256": "d03a53c3e6123d4b3a9a6e1ca930b65c8fdd34f0c216fb81fb9862120ca98ea6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/dispatch_food_expedition_v_1_reducer.ts",
+      "sha256": "74e1293fefc32c883e9b94a7a5263dd5d0864494604abe2b41ef49fcef62d4ae"
+    },
+    {
+      "path": "src/spacetime/module_bindings/dispatch_gold_expedition_v_1_reducer.ts",
+      "sha256": "74e1293fefc32c883e9b94a7a5263dd5d0864494604abe2b41ef49fcef62d4ae"
+    },
+    {
+      "path": "src/spacetime/module_bindings/dispatch_greater_realm_worker_v_1_reducer.ts",
+      "sha256": "753e359ab2192744b34823fb905c4edd695267265550276136683e3cad1015de"
+    },
+    {
+      "path": "src/spacetime/module_bindings/dispatch_stone_expedition_v_1_reducer.ts",
+      "sha256": "74e1293fefc32c883e9b94a7a5263dd5d0864494604abe2b41ef49fcef62d4ae"
+    },
+    {
+      "path": "src/spacetime/module_bindings/dispatch_wood_expedition_v_1_reducer.ts",
+      "sha256": "74e1293fefc32c883e9b94a7a5263dd5d0864494604abe2b41ef49fcef62d4ae"
+    },
+    {
+      "path": "src/spacetime/module_bindings/dispatch_worker_v_1_reducer.ts",
+      "sha256": "079116a9f207ec992783495886a043d2174fa21e15b81427b79894357d6ff1df"
+    },
+    {
+      "path": "src/spacetime/module_bindings/food_expedition_schedule_v_1_table.ts",
+      "sha256": "7f6caac143ac675d156159eb110ecf30b29cc694858cb98fcb8f807f09a47b7b"
+    },
+    {
+      "path": "src/spacetime/module_bindings/food_node_occupation_v_1_table.ts",
+      "sha256": "18d57cc1fce1f977012f9b8270359d809f46761866b841e928b2492182418656"
+    },
+    {
+      "path": "src/spacetime/module_bindings/food_site_v_1_table.ts",
+      "sha256": "081ede0887fc287e23cfad198658b277a19b1902134b2bd3ab54654c642ba533"
+    },
+    {
+      "path": "src/spacetime/module_bindings/get_alpha_backend_info_procedure.ts",
+      "sha256": "85dc4c31b1e670a35c2e57231f1589c3d0bf6e7b6be91cc18488c59081dfd4a3"
+    },
+    {
+      "path": "src/spacetime/module_bindings/get_my_admission_status_procedure.ts",
+      "sha256": "3a7bc4ba383c3031b4fe4258ae22b47cf8a7b22c95711ef6d2ca298972c856c5"
+    },
+    {
+      "path": "src/spacetime/module_bindings/get_my_admission_status_v_2_procedure.ts",
+      "sha256": "3a7bc4ba383c3031b4fe4258ae22b47cf8a7b22c95711ef6d2ca298972c856c5"
+    },
+    {
+      "path": "src/spacetime/module_bindings/get_my_entry_agreement_status_v_1_procedure.ts",
+      "sha256": "613a42f0ba8e761fb0c114e6a510e9c9b46ffb5ca7ef5d4cff42e64f7d309210"
+    },
+    {
+      "path": "src/spacetime/module_bindings/get_my_food_expedition_state_v_1_procedure.ts",
+      "sha256": "ab93fd2ba710d2d341d2cb30ee2dedcb986848a68c2f1b8d972db5d5a83d6922"
+    },
+    {
+      "path": "src/spacetime/module_bindings/get_my_gold_expedition_state_v_1_procedure.ts",
+      "sha256": "3477627d65fbf82bba1180e8afee609352d446bb268c8061dca6ce25936f9a40"
+    },
+    {
+      "path": "src/spacetime/module_bindings/get_my_inner_keep_request_status_v_1_procedure.ts",
+      "sha256": "20615c4ebe12b5df3528f064c235aff30c999ff511f3e0b3164f2ac3581cf3be"
+    },
+    {
+      "path": "src/spacetime/module_bindings/get_my_inner_keep_state_v_1_procedure.ts",
+      "sha256": "cf091e9e0d47182a10edc52437c4032f66db65adcfa332eaf4ec8e14d4738eb9"
+    },
+    {
+      "path": "src/spacetime/module_bindings/get_my_resource_state_v_1_procedure.ts",
+      "sha256": "75aa10b49a50dd93e409f90bdd56483b6f7369c00344033789edc29128a0b072"
+    },
+    {
+      "path": "src/spacetime/module_bindings/get_my_resource_state_v_2_procedure.ts",
+      "sha256": "ddc3bf85c481292c3fc7c9b20d1f2ffc5d6ce1e6a7a0d6371fb9c22200675e4b"
+    },
+    {
+      "path": "src/spacetime/module_bindings/get_my_stone_expedition_state_v_1_procedure.ts",
+      "sha256": "3219222a384cb1fd46d5c933bfa81b8aab126124d09a120f25d03395de884a54"
+    },
+    {
+      "path": "src/spacetime/module_bindings/get_my_wood_expedition_state_v_1_procedure.ts",
+      "sha256": "004b0ceb5b52d566bc3a38fd8aea46fff5a5d9c5389af33362018dc984ab1c27"
+    },
+    {
+      "path": "src/spacetime/module_bindings/get_my_worker_control_state_v_1_procedure.ts",
+      "sha256": "af2bd9d14b6cdb9e982336f69a01c1db2d7e7a6cdd9fc8aba8ad169185be82a8"
+    },
+    {
+      "path": "src/spacetime/module_bindings/get_my_worker_control_state_v_2_procedure.ts",
+      "sha256": "0207375f62809074e6f86272810a8ddae38fa06f0be74600ff1ee67a8a97ae6e"
+    },
+    {
+      "path": "src/spacetime/module_bindings/get_my_worker_roster_v_1_procedure.ts",
+      "sha256": "b8ffaff875cfdaec0228d6878ac020beffbada8e4190b53c2d7e70d99ad4b9f3"
+    },
+    {
+      "path": "src/spacetime/module_bindings/get_realm_atlas_bootstrap_v_1_procedure.ts",
+      "sha256": "6aa53ed58458e162607ce62ebe52e1e88c8949a928507a7a41fe4fd46c44ef40"
+    },
+    {
+      "path": "src/spacetime/module_bindings/get_realm_atlas_chunk_v_1_procedure.ts",
+      "sha256": "14b8253cd2e0012bc394227ecd329680faad07dce4faf3a6831d7ede8cbff43c"
+    },
+    {
+      "path": "src/spacetime/module_bindings/get_realm_atlas_resource_locations_v_1_procedure.ts",
+      "sha256": "b2dc26c77cc9b009a74eacf7e5050257f99f09fa04dc99e8fba9eab00380b4df"
+    },
+    {
+      "path": "src/spacetime/module_bindings/get_realm_atlas_window_v_1_procedure.ts",
+      "sha256": "d520f55242deb6acc1879592217e20c1f38729781b10eaff558e741f713d5b01"
+    },
+    {
+      "path": "src/spacetime/module_bindings/get_realm_chat_history_v_1_procedure.ts",
+      "sha256": "cb345e0d4db68e9a1d3fbba156ba0ec1665785a876f5b2b4cabeb7a42d34fbc4"
+    },
+    {
+      "path": "src/spacetime/module_bindings/get_realm_chat_recent_v_1_procedure.ts",
+      "sha256": "d1b79a260e02ff602db5c316a545d7198992a0cb2de0ddc19a9451717c139419"
+    },
+    {
+      "path": "src/spacetime/module_bindings/gold_expedition_schedule_v_1_table.ts",
+      "sha256": "7f6caac143ac675d156159eb110ecf30b29cc694858cb98fcb8f807f09a47b7b"
+    },
+    {
+      "path": "src/spacetime/module_bindings/gold_node_occupation_v_1_table.ts",
+      "sha256": "18d57cc1fce1f977012f9b8270359d809f46761866b841e928b2492182418656"
+    },
+    {
+      "path": "src/spacetime/module_bindings/gold_site_v_1_table.ts",
+      "sha256": "081ede0887fc287e23cfad198658b277a19b1902134b2bd3ab54654c642ba533"
+    },
+    {
+      "path": "src/spacetime/module_bindings/greater_realm_cell_occupancy_v_1_table.ts",
+      "sha256": "2e3bbe673cba2681c50789c3af92a6701aaee858c66102d286812a0c40702236"
+    },
+    {
+      "path": "src/spacetime/module_bindings/index.ts",
+      "sha256": "b0fc4cbb289a12f1fd47e70205c89f10b267f4f36e79fccf8d848d1ac4e33fb2"
+    },
+    {
+      "path": "src/spacetime/module_bindings/inner_keep_build_level_v_1_table.ts",
+      "sha256": "90bf4c17010c8a8ccd28092bbed1b1e4c1dc5db1af491c74da1fce25c7d60fc0"
+    },
+    {
+      "path": "src/spacetime/module_bindings/inner_keep_building_catalog_v_1_table.ts",
+      "sha256": "970fa8062f3fa08cccd6be522dd68017049028f2fada75e7b0f90fe704058f8f"
+    },
+    {
+      "path": "src/spacetime/module_bindings/inner_keep_layout_v_1_table.ts",
+      "sha256": "556aea659d50e7e5d829bc368d17e72e1db2acaa20bb0a905f12021af34057de"
+    },
+    {
+      "path": "src/spacetime/module_bindings/inner_keep_slot_v_1_table.ts",
+      "sha256": "3881944f1df0ff16c19d62249a136826c1fa53d8c2339f641bd004e6193f9eb9"
+    },
+    {
+      "path": "src/spacetime/module_bindings/inner_keep_start_project_v_1_reducer.ts",
+      "sha256": "5f98d612e71ca6c25e9aab2b6044dbd9c5679bb4bf06ba26097c1baef3cc4bb2"
+    },
+    {
+      "path": "src/spacetime/module_bindings/plan_realm_route_v_1_procedure.ts",
+      "sha256": "5b27f666f7305221f51af62315314ebf110c90e8443fa41d92cd98e520183634"
+    },
+    {
+      "path": "src/spacetime/module_bindings/player_table.ts",
+      "sha256": "b4e9ac2aa2d88ee135ee6580b3fdc3cacdfef5106595b074826a1c3e1b7766e6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/player_v_2_table.ts",
+      "sha256": "30446734ba04f18fd3a9970a965a368c0e43ac064ef4ba7b1725f3557322f95e"
+    },
+    {
+      "path": "src/spacetime/module_bindings/qa_observer_get_realm_attestation_v_2_procedure.ts",
+      "sha256": "705af3740ebbfbe529e5e7d171b1fd0eae0fc786c9b2bb11c6137972936d8e2c"
+    },
+    {
+      "path": "src/spacetime/module_bindings/qa_observer_get_realm_snapshot_v_1_procedure.ts",
+      "sha256": "8eac08b1770cf299a1bfef65cd05cea8f362175df703134f134c042dc79c698e"
+    },
+    {
+      "path": "src/spacetime/module_bindings/realm_atlas_v_1_table.ts",
+      "sha256": "ba880833c39ac7e3d9e0c0d8b64e800097f8a1f135da1086ad8fa010336857c2"
+    },
+    {
+      "path": "src/spacetime/module_bindings/realm_atlas_visible_region_v_1_table.ts",
+      "sha256": "0efaf5359b877e9f1c9a703adfd52fd1dfd74a4b91b870138e78c946c62613ef"
+    },
+    {
+      "path": "src/spacetime/module_bindings/realm_chat_status_v_1_table.ts",
+      "sha256": "5d12de98df3fdf05b8863392b778397462f10aa1510e5e7d24243581dce8f815"
+    },
+    {
+      "path": "src/spacetime/module_bindings/realm_environment_v_1_table.ts",
+      "sha256": "283f9d12c7b1bc4788cf483b5a3c3c750e5dca03491857dde37bdc2b64c6332d"
+    },
+    {
+      "path": "src/spacetime/module_bindings/realm_forest_instance_v_1_table.ts",
+      "sha256": "530184c0525bccadd784fbb45016bf7a04a60da7dcc172883cb70dc308e35778"
+    },
+    {
+      "path": "src/spacetime/module_bindings/realm_forest_layout_v_1_table.ts",
+      "sha256": "5ef81934554319874152bbec45c62b2d5e998233ceecac4622b97d7a537387c3"
+    },
+    {
+      "path": "src/spacetime/module_bindings/realm_profile_v_1_table.ts",
+      "sha256": "98d4e4a2e75e2a6ab095fabab730147e0ce80a2e1d0c1018bc0cf372fa052962"
+    },
+    {
+      "path": "src/spacetime/module_bindings/realm_v_1_table.ts",
+      "sha256": "86682f4f8db6b739ce8b3d8aada6a0d0d1226fe75a25a361f236dbe715a38ce4"
+    },
+    {
+      "path": "src/spacetime/module_bindings/realm_water_body_v_1_table.ts",
+      "sha256": "ffefc24e2a45aaa9d6e306fef7d23426ba33df2331c145b05a50dfe55b9934b8"
+    },
+    {
+      "path": "src/spacetime/module_bindings/realm_water_cell_v_1_table.ts",
+      "sha256": "b1af08d5875a65a88feb39d43f95351dc962660dac37c9b79e30f23b06dc300b"
+    },
+    {
+      "path": "src/spacetime/module_bindings/realm_water_layout_v_1_table.ts",
+      "sha256": "3dbd8fefcadb6ac93e5da5813ff59534019e0551cc749889d6f1654eed58d66f"
+    },
+    {
+      "path": "src/spacetime/module_bindings/realm_water_revision_v_1_table.ts",
+      "sha256": "22669e75af00c56ec3cb0b3487f4f47608012bed235f315c0bfb56810291b5b4"
+    },
+    {
+      "path": "src/spacetime/module_bindings/realm_worker_system_v_1_table.ts",
+      "sha256": "9046a5c9cd23414e099ea47d578512da2bc8ab2829a20b2c04599e331edaa59c"
+    },
+    {
+      "path": "src/spacetime/module_bindings/realm_worker_system_v_2_table.ts",
+      "sha256": "aafc035769380a1ffc17a0970e895c8175a71d997aaab4d2e26b22e33948edfb"
+    },
+    {
+      "path": "src/spacetime/module_bindings/recall_all_workers_v_1_reducer.ts",
+      "sha256": "04020f82bcd2f4f8e9f696162d1412dc09f551e164203b40b45d55ad4a6cad79"
+    },
+    {
+      "path": "src/spacetime/module_bindings/recall_worker_v_1_reducer.ts",
+      "sha256": "24515b6400cd869851881fb0acc4780bdc05333df2ac17aa1e8dac6aa29b1ae6"
+    },
+    {
+      "path": "src/spacetime/module_bindings/report_realm_chat_message_v_1_reducer.ts",
+      "sha256": "8a4460b6360d5f1110dfc1aa995d69007537e6c87de8ce19330d8773b17bf695"
+    },
+    {
+      "path": "src/spacetime/module_bindings/return_legacy_expedition_v_1_reducer.ts",
+      "sha256": "f1ef6330459b607a6525e0faf742a3c26a9c9750c188c558211cbc9b38663fe7"
+    },
+    {
+      "path": "src/spacetime/module_bindings/send_realm_chat_message_v_1_reducer.ts",
+      "sha256": "9a7f2051e5536688ce1397efae1b70b8d3cd9574fbe9aa555dbcd82146f40f5e"
+    },
+    {
+      "path": "src/spacetime/module_bindings/stone_expedition_schedule_v_1_table.ts",
+      "sha256": "7f6caac143ac675d156159eb110ecf30b29cc694858cb98fcb8f807f09a47b7b"
+    },
+    {
+      "path": "src/spacetime/module_bindings/stone_node_occupation_v_1_table.ts",
+      "sha256": "18d57cc1fce1f977012f9b8270359d809f46761866b841e928b2492182418656"
+    },
+    {
+      "path": "src/spacetime/module_bindings/stone_site_v_1_table.ts",
+      "sha256": "081ede0887fc287e23cfad198658b277a19b1902134b2bd3ab54654c642ba533"
+    },
+    {
+      "path": "src/spacetime/module_bindings/types.ts",
+      "sha256": "9c157957976f2a3431082dd87116ece9113c8485f92ac5dd5af2d0f30e92f3b4"
+    },
+    {
+      "path": "src/spacetime/module_bindings/wood_expedition_schedule_v_1_table.ts",
+      "sha256": "7f6caac143ac675d156159eb110ecf30b29cc694858cb98fcb8f807f09a47b7b"
+    },
+    {
+      "path": "src/spacetime/module_bindings/wood_node_occupation_v_1_table.ts",
+      "sha256": "18d57cc1fce1f977012f9b8270359d809f46761866b841e928b2492182418656"
+    },
+    {
+      "path": "src/spacetime/module_bindings/wood_site_v_1_table.ts",
+      "sha256": "081ede0887fc287e23cfad198658b277a19b1902134b2bd3ab54654c642ba533"
+    },
+    {
+      "path": "src/spacetime/module_bindings/worker_node_occupation_v_1_table.ts",
+      "sha256": "5efc08ea31cd40d4c8922369a6327f068cd6f28de5fb286f5e4d8c1198be4160"
+    },
+    {
+      "path": "src/spacetime/module_bindings/world_tile_meta_v_1_table.ts",
+      "sha256": "c89a4e57e3f0d70dc3f7156fc1557e16f4d76f66faf65d1f8a3224c4124fc973"
+    },
+    {
+      "path": "src/spacetime/module_bindings/world_tile_table.ts",
+      "sha256": "c0b1fbede63493bc33c85866001cd4b10a05ce7bd1a10efe9be42957e624e27e"
+    }
+  ]
+}

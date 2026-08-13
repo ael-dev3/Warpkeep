@@ -1,0 +1,176 @@
+{
+  "schema": "warpkeep.inner-keep-rabbit-runtime-selection.v1",
+  "selectionId": "inner-keep-lowlands-rabbit-v1",
+  "recordedAt": "2026-08-04",
+  "selectionDigestAlgorithm": "sha256-ecmascript-canonical-json-v1",
+  "selectionDigestSha256": "39ff0df2a78e475f1a8caaeac3fe48505c812905e894fe9eb282f01deb1a7eb0",
+  "authorization": {
+    "archiveDistributionAuthorized": true,
+    "officialRepositoryRuntimeUseAuthorized": true,
+    "status": "authorized-owner-runtime-use",
+    "recordedAt": "2026-08-04",
+    "instruction": "looks cool so far, make sure there is lots of topography, water, trees, animals, people, rss nodes outside inner keep so it feels well done and alive like a leaving and breathing world",
+    "integrationDecision": "Use the exact official Warpkeep-Assets Lowlands Rabbit runtime family for the requested animals outside the Inner Keep.",
+    "scopeBoundary": "Runtime use in the public ael-dev3/Warpkeep repository and official warpkeep.com client is authorized for the exact selected files. This does not relicense the source archive, authorize unrelated reuse, give decorative wildlife gameplay authority, approve activation, approve merge, or approve deployment."
+  },
+  "licenseBoundary": {
+    "sourceStatus": "public-archive-authorized-no-separate-open-license",
+    "integrationGrant": "owner-authorized-official-warpkeep-runtime-use-only",
+    "redistributionOrRelicensingGranted": false
+  },
+  "runtimePolicy": {
+    "highQualityTier": "LOD1_Balanced",
+    "balancedQualityTier": "LOD1_Balanced",
+    "reducedQualityTier": "LOD2_Compact",
+    "optionalHighDetailTier": "LOD0_High",
+    "animatedClips": [
+      "Alert",
+      "Idle",
+      "Nibble",
+      "Walk"
+    ],
+    "ordinaryBuildMayReadArchive": false,
+    "ordinaryBuildMayUseNetwork": false,
+    "clientPresentationOnly": true,
+    "gameplayAuthorityClaimed": false,
+    "renderMeshCollision": false
+  },
+  "source": {
+    "repository": "ael-dev3/Warpkeep-Assets",
+    "releaseCommit": "d8c35bb01c399ecde711274ef43880d8d304ae44",
+    "tag": "rabbit-runtime-ui-bundle-2026-07-30",
+    "trustedReleaseManifest": {
+      "repositoryPath": "releases/rabbit-runtime-ui-bundle-2026-07-30/manifest.json",
+      "bytes": 3300,
+      "sha256": "c1009554053a793da979a8a1aae7558aade09bfbefcc53fcf2dae7a98a80a705"
+    },
+    "attachment": {
+      "name": "rabbit-runtime-ui-bundle-2026-07-30-v1.zip",
+      "bytes": 2717585,
+      "sha256": "cf40e6c7149635a8cf6439e618e951219770491a7f364e7776b8af128461a3a9",
+      "entries": 4,
+      "packageRoot": "rabbit-runtime-ui-bundle-2026-07-30-v1"
+    },
+    "outerEntries": [
+      {
+        "path": "rabbit-runtime-ui-bundle-2026-07-30-v1/README.md",
+        "bytes": 2126,
+        "sha256": "3d6909181d31011dbb0b09935dee07d2e7d36147123ec30371f8b293c31643dd"
+      },
+      {
+        "path": "rabbit-runtime-ui-bundle-2026-07-30-v1/Warpkeep_Rabbit_Runtime_UI_Bundle_2026-07-30.zip",
+        "bytes": 2710713,
+        "sha256": "1ab9a02a39e68a3ddadcec4ac1824aafaf252f9cb068511e6341d2377f256dc3"
+      },
+      {
+        "path": "rabbit-runtime-ui-bundle-2026-07-30-v1/manifest.json",
+        "bytes": 3745,
+        "sha256": "2174b34ee5f0d025dc0a46e35cb981ce6074a500d7cdbe6f153753155f5b6772"
+      },
+      {
+        "path": "rabbit-runtime-ui-bundle-2026-07-30-v1/SHA256SUMS.txt",
+        "bytes": 195,
+        "sha256": "a3d5f92a30549a12c50dba3e6ba81474e2bc46dddff5a78d8ab3062a06a3d387"
+      }
+    ],
+    "nestedPackage": {
+      "path": "rabbit-runtime-ui-bundle-2026-07-30-v1/Warpkeep_Rabbit_Runtime_UI_Bundle_2026-07-30.zip",
+      "bytes": 2710713,
+      "sha256": "1ab9a02a39e68a3ddadcec4ac1824aafaf252f9cb068511e6341d2377f256dc3",
+      "entries": 13,
+      "payloadEntries": 8,
+      "packageRoot": "Warpkeep_Rabbit_Runtime_UI_Bundle",
+      "privacySanitized": true,
+      "decodedPixelsPreserved": true
+    },
+    "runtimeManifest": {
+      "path": "Warpkeep_Rabbit_Runtime_UI_Bundle/Runtime/Environment/Wildlife/Rabbit/runtime-manifest.json",
+      "bytes": 5453,
+      "sha256": "89e8ed79f1672a98d5bb6cab6c0741f66ba97ca63a7e25758f052375afb3e005"
+    },
+    "bundleManifest": {
+      "path": "Warpkeep_Rabbit_Runtime_UI_Bundle/bundle-manifest.json",
+      "bytes": 2161,
+      "sha256": "35a98b5a81a824634030635da9a57494a47543cf414d760d0884e560255fcd87"
+    },
+    "excludedUiImage": {
+      "path": "Warpkeep_Rabbit_Runtime_UI_Bundle/Warpkeep_Rabbit_UI_Transparent_2048.png",
+      "bytes": 2468019,
+      "sha256": "572e67902dd6db561bcce494ac5049463baf939494f74af3a0b1f2459f3b2c3e",
+      "reason": "The exterior wildlife scene needs only the runtime GLBs; this selection does not authorize or install unused UI media."
+    }
+  },
+  "models": [
+    {
+      "profile": "high",
+      "tier": "LOD0_High",
+      "mode": "animated",
+      "sourcePath": "Warpkeep_Rabbit_Runtime_UI_Bundle/Runtime/Environment/Wildlife/Rabbit/Warpkeep_Rabbit_LOD0_High_Rigged_Runtime.glb",
+      "destinationPath": "public/models/hegemony/inner-keep/wildlife/rabbit/inner-keep-lowlands-rabbit-high-735f7d72457acfb2.glb",
+      "bytes": 129388,
+      "sha256": "735f7d72457acfb20581cfcacbd8908eab3ef36d5640b63ecb134bbaa7a10b1d",
+      "triangles": 726,
+      "uploadedVertices": 1640,
+      "drawCalls": 1,
+      "boundsMeters": [
+        0.199311,
+        0.265033,
+        0.335667
+      ],
+      "animations": [
+        "Alert",
+        "Idle",
+        "Nibble",
+        "Walk"
+      ]
+    },
+    {
+      "profile": "balanced",
+      "tier": "LOD1_Balanced",
+      "mode": "animated",
+      "sourcePath": "Warpkeep_Rabbit_Runtime_UI_Bundle/Runtime/Environment/Wildlife/Rabbit/Warpkeep_Rabbit_LOD1_Balanced_Rigged_Runtime.glb",
+      "destinationPath": "public/models/hegemony/inner-keep/wildlife/rabbit/inner-keep-lowlands-rabbit-balanced-daeb493a827ecbd6.glb",
+      "bytes": 86340,
+      "sha256": "daeb493a827ecbd605c6ad25d83b84050e6a0ad29e96619c9d86c57c37be1f6a",
+      "triangles": 350,
+      "uploadedVertices": 856,
+      "drawCalls": 1,
+      "boundsMeters": [
+        0.192403,
+        0.265033,
+        0.342784
+      ],
+      "animations": [
+        "Alert",
+        "Idle",
+        "Nibble",
+        "Walk"
+      ]
+    },
+    {
+      "profile": "compact",
+      "tier": "LOD2_Compact",
+      "mode": "static",
+      "sourcePath": "Warpkeep_Rabbit_Runtime_UI_Bundle/Runtime/Environment/Wildlife/Rabbit/Warpkeep_Rabbit_LOD2_Compact_Static_Runtime.glb",
+      "destinationPath": "public/models/hegemony/environment/wildlife/rabbit/hegemony-lowlands-rabbit-compact-2ecc7b1adf4c1d79.glb",
+      "bytes": 14808,
+      "sha256": "2ecc7b1adf4c1d79b7ca2d5ea9a6727ed3f6d9072047466082bb912d34ea930c",
+      "triangles": 146,
+      "uploadedVertices": 384,
+      "drawCalls": 1,
+      "boundsMeters": [
+        0.162326,
+        0.265102,
+        0.338002
+      ],
+      "animations": []
+    }
+  ],
+  "counts": {
+    "selectedModels": 3,
+    "selectedBytes": 230536,
+    "selectedTriangles": 1222,
+    "animatedModels": 2,
+    "staticModels": 1
+  }
+}

@@ -1,5 +1,7 @@
 export const WARPKEEP_ENTRY_AGREEMENT_VERSION:
   '2026-07-31-hegemony-entry-agreement-v4';
+export const WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS:
+  'production-approved';
 export const WARPKEEP_HISTORICAL_ENTRY_AGREEMENT_VERSIONS: readonly [
   '2026-07-19-hegemony-entry-agreement-v3',
   '2026-07-19-hegemony-entry-agreement-v2',

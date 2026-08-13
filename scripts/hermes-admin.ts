@@ -1,9 +1,31 @@
-import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { createHash, randomUUID } from 'node:crypto';
+import {
+  closeSync,
+  constants,
+  fchmodSync,
+  fstatSync,
+  fsyncSync,
+  linkSync,
+  lstatSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  unlinkSync,
+  writeSync,
+} from 'node:fs';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import type {
+  AdmissionNotificationDiagnostics,
+  AdmissionNotificationRetryReason,
+} from '../services/auth-bridge/src/types';
 import { DbConnection } from '../src/spacetime/module_bindings';
+import type {
+  AdminGreaterRealmCutoverStatusV1,
+  AdminGreaterRealmReenableStatusV1,
+} from '../src/spacetime/module_bindings/types';
 import {
   WARPKEEP_ENTRY_AGREEMENT_ACCEPTANCE_RECORDS_PER_FID_MAXIMUM,
 } from '../spacetimedb/src/entryAgreementPolicy';
@@ -34,6 +56,10 @@ import {
 } from './alpha-activation-controls';
 import { configureHermesMachineOutput } from './hermes-machine-output';
 import {
+  assertProductionAdminTrustedAncestors,
+  recordProductionAdminTokenAttempt,
+} from './production-admin-token-budget.mjs';
+import {
   AlphaV10ActivationControlError,
   alphaV10ComponentIsReady,
   alphaV10ComponentSeedReceipt,
@@ -44,6 +70,11 @@ import {
   waterActivationReceipt,
   type AlphaStatusV10,
 } from './alpha-v10-activation-controls';
+import {
+  inspectHermesNotificationPagesLiveAuthority as inspectNotificationPagesLiveAuthority,
+  sameNotificationPagesLiveHermesAuthority,
+  type NotificationPagesLiveHermesAuthority,
+} from './notification-pages-live-hermes-authority.mjs';
 import {
   buildTrustedPublicFarcasterProfile,
   FarcasterPublicProfileError,
@@ -79,14 +110,39 @@ import {
   type ReviewedAccessRequestResetPlan,
   type ReviewedAccessRequestResetPlanReference,
 } from './access-requests/reset-plan';
+import {
+  AdmissionNotificationRecoveryPlanError,
+  REVIEWED_ADMISSION_NOTIFICATION_RECOVERY_PLAN_LIFETIME_MS,
+  admissionNotificationRecoveryStateDigest,
+  claimReviewedAdmissionNotificationRecoveryPlan,
+  createReviewedAdmissionNotificationRecoveryPlan,
+  parseReviewedAdmissionNotificationRecoveryPlanReference,
+  readReviewedAdmissionNotificationRecoveryPlan,
+  writeReviewedAdmissionNotificationRecoveryPlan,
+  type ReviewedAdmissionNotificationRecoveryPlan,
+  type ReviewedAdmissionNotificationRecoveryPlanReference,
+} from './admission-notifications/recovery-plan';
+import {
+  FounderAdmissionAuthorityError,
+  selectFounderAdmissionAuthorityMode,
+  verifyGreaterRealmAdmissionPostcondition,
+  verifyGreaterRealmAdmissionPrecondition,
+  verifyGreaterRealmReenablePostconditionV1,
+  verifyGreaterRealmReenablePreconditionV1,
+  type FounderAdmissionAuthorityMode,
+  type GreaterRealmReenableCheckpoint,
+} from './founder-admission-authority';
 
 type Command =
   | 'seed-world'
   | 'expand-world-v3'
   | 'list-access-requests'
+  | 'list-pending-access-requests'
   | 'inspect-access-request-reset'
   | 'reset-access-request'
   | 'admit-founder'
+  | 'inspect-admission-notification'
+  | 'recover-admission-notification'
   | 'allow-fid'
   | 'disable-fid'
   | 'bump-auth-epoch'
@@ -103,6 +159,27 @@ type Command =
   | 'activate-alpha-water'
   | 'backfill-resources';
 
+type HermesTrustedReleaseRow =
+  | 'list-pending'
+  | 'admit-dry'
+  | 'admit-confirm'
+  | 'allow-dry'
+  | 'allow-confirm'
+  | 'notification-inspect'
+  | 'notification-recover-dry'
+  | 'notification-recover-confirm';
+
+type TrustedHermesLaunch = Readonly<{
+  row: HermesTrustedReleaseRow;
+  protectedCommit?: string;
+  adminSecretPath?: string;
+  notificationSecretPath?: string;
+  privateInputPath?: string;
+  founderPlanDirectory?: string;
+  notificationRecoveryPlanDirectory?: string;
+  pendingCensusDirectory?: string;
+}>;
+
 type AlphaStatusVersion = 'v1' | 'v2' | 'v3' | 'v4' | 'v8' | 'v10' | 'v12';
 type SeedableAlphaComponent = AlphaActivationComponent | AlphaV10ActivationComponent;
 
@@ -114,8 +191,27 @@ const CONNECT_TIMEOUT_MS = 30_000;
 const OPERATION_TIMEOUT_MS = 15_000;
 const MAX_ADMIN_TOKEN_RESPONSE_BYTES = 32 * 1_024;
 const ADMISSION_NOTIFICATION_PATH = 'v1/admin/admission-notification';
+const ADMISSION_NOTIFICATION_RECOVERY_PATH = 'v1/admin/admission-notification-recovery';
 const ADMISSION_NOTIFICATION_STATUS_PATH = 'v1/admin/admission-notification-status';
+export const FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = false as const;
 const ADMISSION_NOTIFICATION_SETTLEMENT_WAIT_MILLISECONDS = 35_000;
+const ADMISSION_NOTIFICATION_DIAGNOSTIC_REQUIRED_KEYS = Object.freeze([
+  'deliveryAttemptCount',
+  'subscribed',
+  'recoveryCount',
+  'retryReasons',
+  'status',
+  'verificationFailureCount',
+] as const);
+const ADMISSION_NOTIFICATION_DIAGNOSTIC_OPTIONAL_KEYS = Object.freeze([
+  'authEpoch',
+  'generation',
+  'requestedAtMicros',
+  'lastRecoveryAt',
+  'lastAttemptAt',
+  'lastFailureReason',
+  'nextAttemptAt',
+] as const);
 const ADMIN_TOKEN_CLOCK_SAFETY_MILLISECONDS = 20_000;
 const MAX_RESOURCE_BACKFILL_FOUNDERS = 100n;
 const GENESIS_GENERATION_V2_WORLD_CELLS = 1_261n;
@@ -131,6 +227,10 @@ const HEGEMONY_WORLD_SEED = 3_445_214_658;
 const HEGEMONY_WORLD_SEED_NAME = 'HEGEMONY_GENESIS_001';
 const U64_MAXIMUM = (1n << 64n) - 1n;
 const MAX_ACCESS_REQUEST_PAGE_SIZE = 100;
+const MAX_ACCESS_REQUEST_CENSUS_PAGES = 41;
+const MAX_ACCESS_REQUEST_CENSUS_ROWS = 4_096;
+const MAX_ACCESS_REQUEST_CENSUS_BYTES = 1024 * 1024;
+const COMMIT_SHA = /^[0-9a-f]{40}$/u;
 const MAX_JAVASCRIPT_DATE_MICROS = 8_640_000_000_000_000_000n;
 const ACCESS_REQUEST_PAGE_KEYS = Object.freeze([
   'entries',
@@ -153,6 +253,7 @@ const ACCESS_REQUEST_RESET_STATUS_KEYS = Object.freeze([
   'requestedAtMicros',
   'requestState',
 ].sort());
+const ACCESS_REQUEST_ADMISSION_STATUS_KEYS = ACCESS_REQUEST_RESET_STATUS_KEYS;
 const WORKER_STATUS_V12_U64_FIELDS = Object.freeze([
   'systemRows',
   'expectedCastleCount',
@@ -216,7 +317,20 @@ export const FOUNDER_ADMISSION_TARGET_CONFIGURATION_DIGEST = createHash('sha256'
     databaseName: LEGACY_DATABASE_ALIAS,
     databaseIdentity: DEFAULT_DATABASE_IDENTITY,
     bridgeUrl: DEFAULT_BRIDGE,
-    reducer: 'admin_admit_founder_v1',
+    statusProcedure: 'admin_get_access_request_admission_status_v1',
+    cutoverStatusProcedure: 'admin_get_greater_realm_cutover_status_v_1',
+    reducer: 'admin_admit_founder_for_access_request_v2',
+  }), 'utf8')
+  .digest('hex');
+export const PENDING_ACCESS_REQUEST_CENSUS_TARGET_CONFIGURATION_DIGEST = createHash('sha256')
+  .update(JSON.stringify({
+    databaseUri: DEFAULT_URI,
+    databaseIdentity: DEFAULT_DATABASE_IDENTITY,
+    bridgeUrl: DEFAULT_BRIDGE,
+    procedure: 'admin_list_access_requests_v1',
+    pageSize: MAX_ACCESS_REQUEST_PAGE_SIZE,
+    maximumPages: MAX_ACCESS_REQUEST_CENSUS_PAGES,
+    maximumRows: MAX_ACCESS_REQUEST_CENSUS_ROWS,
   }), 'utf8')
   .digest('hex');
 export const ACCESS_REQUEST_RESET_TARGET_CONFIGURATION_DIGEST = createHash('sha256')
@@ -226,6 +340,16 @@ export const ACCESS_REQUEST_RESET_TARGET_CONFIGURATION_DIGEST = createHash('sha2
     bridgeUrl: DEFAULT_BRIDGE,
     statusProcedure: 'admin_get_access_request_reset_status_v1',
     reducer: 'admin_reset_access_request_v1',
+  }), 'utf8')
+  .digest('hex');
+export const ADMISSION_NOTIFICATION_RECOVERY_TARGET_CONFIGURATION_DIGEST = createHash('sha256')
+  .update(JSON.stringify({
+    databaseUri: DEFAULT_URI,
+    databaseIdentity: DEFAULT_DATABASE_IDENTITY,
+    bridgeUrl: DEFAULT_BRIDGE,
+    statusProcedure: 'admin_get_access_request_admission_status_v1',
+    notificationStatusPath: ADMISSION_NOTIFICATION_STATUS_PATH,
+    notificationRecoveryPath: ADMISSION_NOTIFICATION_RECOVERY_PATH,
   }), 'utf8')
   .digest('hex');
 
@@ -250,7 +374,8 @@ class HermesClaimedAdmissionOutcomeError extends Error {
   constructor() {
     super(
       'Founder admission may have committed after the reviewed plan was claimed. '
-      + 'Inspect fresh v3/v4 aggregate state before creating or submitting another plan.',
+      + 'Inspect the fresh mode-aware cutover and legacy/v17 aggregate state before '
+      + 'creating or submitting another plan.',
     );
     this.name = 'HermesClaimedAdmissionOutcomeError';
   }
@@ -267,8 +392,61 @@ class HermesClaimedAccessRequestResetOutcomeError extends Error {
   }
 }
 
+class HermesClaimedAdmissionNotificationRecoveryOutcomeError extends Error {
+  constructor() {
+    super(
+      'The reviewed admission-notification recovery plan was consumed and the bridge outcome '
+      + 'may be indeterminate. Inspect the token-free notification status and the unchanged '
+      + 'pending access request before any new recovery plan or admission attempt.',
+    );
+    this.name = 'HermesClaimedAdmissionNotificationRecoveryOutcomeError';
+  }
+}
+
 function fail(message: string): never {
   throw new HermesCliError(message);
+}
+
+type NotificationGatedFounderCommand = Extract<Command, 'admit-founder' | 'allow-fid'>;
+
+export function requireFounderAdmissionNotificationDeliveryApproval(
+  command: NotificationGatedFounderCommand,
+  approved: boolean = FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED,
+): void {
+  if (!approved) {
+    fail(
+      'Founder admission notification delivery is not approved. '
+      + `${command} remains unavailable until the coordinated notification release.`,
+    );
+  }
+}
+
+export type HermesNotificationPagesLiveAuthority =
+  NotificationPagesLiveHermesAuthority;
+
+export async function inspectHermesNotificationPagesLiveAuthority(
+  input: Readonly<{
+    required: boolean;
+    pagesSourceCommit?: string;
+    rootBinding?: Readonly<{
+      notificationPagesLiveRootReceiptDigest: string | null;
+      notificationPagesLiveRootPagesSourceCommit: string | null;
+    }>;
+    directory?: string;
+    repositoryRoot?: string;
+    fetchImpl?: typeof fetch;
+    now?: Date;
+  }>,
+  dependencies: Parameters<typeof inspectNotificationPagesLiveAuthority>[1] = {},
+): Promise<HermesNotificationPagesLiveAuthority> {
+  return inspectNotificationPagesLiveAuthority(input, dependencies);
+}
+
+function sameHermesNotificationPagesLiveAuthority(
+  value: HermesNotificationPagesLiveAuthority,
+  authority: HermesNotificationPagesLiveAuthority,
+): boolean {
+  return sameNotificationPagesLiveHermesAuthority(value, authority);
 }
 
 export function privacySafeHermesErrorMessage(error: unknown): string {
@@ -277,6 +455,8 @@ export function privacySafeHermesErrorMessage(error: unknown): string {
     || error instanceof HermesOperationTimeoutError
     || error instanceof HermesClaimedAdmissionOutcomeError
     || error instanceof HermesClaimedAccessRequestResetOutcomeError
+    || error instanceof HermesClaimedAdmissionNotificationRecoveryOutcomeError
+    || error instanceof FounderAdmissionAuthorityError
     || error instanceof AlphaActivationControlError
     || error instanceof AlphaV10ActivationControlError
   ) {
@@ -288,6 +468,7 @@ export function privacySafeHermesErrorMessage(error: unknown): string {
     || error instanceof ProfileTransportError
     || error instanceof ProfileAuthorityPolicyError
     || error instanceof AccessRequestResetPlanError
+    || error instanceof AdmissionNotificationRecoveryPlanError
   ) return error.code;
   return 'Hermes command failed.';
 }
@@ -296,7 +477,11 @@ export function throwHermesOperationFailure(
   error: unknown,
   founderAdmissionClaimed: boolean,
   accessRequestResetClaimed = false,
+  notificationRecoveryClaimed = false,
 ): never {
+  if (notificationRecoveryClaimed) {
+    throw new HermesClaimedAdmissionNotificationRecoveryOutcomeError();
+  }
   if (accessRequestResetClaimed) {
     throw new HermesClaimedAccessRequestResetOutcomeError();
   }
@@ -355,13 +540,18 @@ function sanitizeNote(value: string | undefined, fallback?: string) {
 }
 
 export function readAdminSecret(value: string | undefined, fromStdin: string | undefined) {
+  const descriptorText = process.env.WARPKEEP_ADMIN_TOKEN_SECRET_FD;
+  const descriptor = descriptorText === undefined ? 0 : descriptorText === '3' ? 3 : -1;
+  if (descriptor < 0 || (descriptorText !== undefined && fromStdin !== undefined)) {
+    fail('The Hermes credential source was ambiguous.');
+  }
   if (fromStdin !== undefined && fromStdin !== '1') {
     fail('WARPKEEP_ADMIN_TOKEN_SECRET_STDIN must be exactly 1 when configured.');
   }
-  if (fromStdin === '1') {
+  if (fromStdin === '1' || descriptorText !== undefined) {
     if (value !== undefined) fail('The Hermes credential source was ambiguous.');
     try {
-      value = readFileSync(0, 'utf8');
+      value = readFileSync(descriptor, 'utf8');
     } catch {
       fail('The Hermes credential pipe was unavailable.');
     }
@@ -373,14 +563,276 @@ export function readAdminSecret(value: string | undefined, fromStdin: string | u
   return value as string;
 }
 
+type CapturedTrustedHermesLaunch = Readonly<{
+  row: HermesTrustedReleaseRow;
+  protectedCommit?: string;
+  adminSecretPath?: string;
+  notificationSecretPath?: string;
+  privateInputPath?: string;
+  founderPlanDirectory?: string;
+  notificationRecoveryPlanDirectory?: string;
+  pendingCensusDirectory?: string;
+}>;
+
+function trustedHermesReleaseRow(input: Readonly<{
+  command: Command;
+  dryRun: boolean;
+}>): HermesTrustedReleaseRow | undefined {
+  if (input.command === 'list-pending-access-requests') return 'list-pending';
+  if (input.command === 'admit-founder') return input.dryRun ? 'admit-dry' : 'admit-confirm';
+  if (input.command === 'allow-fid') return input.dryRun ? 'allow-dry' : 'allow-confirm';
+  if (input.command === 'inspect-admission-notification') return 'notification-inspect';
+  if (input.command === 'recover-admission-notification') {
+    return input.dryRun ? 'notification-recover-dry' : 'notification-recover-confirm';
+  }
+  return undefined;
+}
+
+function captureTrustedHermesLaunch(
+  expectedRow: HermesTrustedReleaseRow | undefined,
+): CapturedTrustedHermesLaunch | undefined {
+  const profile = process.env.WKGR_PRODUCTION_BOOTSTRAP_PROFILE;
+  const row = process.env.WKGR_HERMES_RELEASE_COMMAND;
+  const protectedCommit = process.env.WKGR_PRODUCTION_PROTECTED_COMMIT;
+  const adminSecretPath = process.env.WKGR_PRODUCTION_ADMIN_SECRET_PATH;
+  const notificationSecretPath = process.env.WKGR_PRODUCTION_NOTIFICATION_SECRET_PATH;
+  const privateInputPath = process.env.WKGR_PRODUCTION_PRIVATE_INPUT_PATH;
+  const founderPlanDirectory = process.env.WKGR_HERMES_FOUNDER_PLAN_DIRECTORY;
+  const notificationRecoveryPlanDirectory =
+    process.env.WKGR_HERMES_NOTIFICATION_RECOVERY_PLAN_DIRECTORY;
+  const pendingCensusDirectory = process.env.WKGR_HERMES_PENDING_CENSUS_DIRECTORY;
+  delete process.env.WKGR_PRODUCTION_BOOTSTRAP_PROFILE;
+  delete process.env.WKGR_HERMES_RELEASE_COMMAND;
+  delete process.env.WKGR_PRODUCTION_PROTECTED_COMMIT;
+  delete process.env.WKGR_PRODUCTION_ADMIN_SECRET_PATH;
+  delete process.env.WKGR_PRODUCTION_NOTIFICATION_SECRET_PATH;
+  delete process.env.WKGR_PRODUCTION_PRIVATE_INPUT_PATH;
+  delete process.env.WKGR_HERMES_FOUNDER_PLAN_DIRECTORY;
+  delete process.env.WKGR_HERMES_NOTIFICATION_RECOVERY_PLAN_DIRECTORY;
+  delete process.env.WKGR_HERMES_PENDING_CENSUS_DIRECTORY;
+  if (expectedRow === undefined) {
+    if ([profile, row, protectedCommit, adminSecretPath, notificationSecretPath,
+      privateInputPath, founderPlanDirectory, notificationRecoveryPlanDirectory,
+      pendingCensusDirectory].some(value => value !== undefined)) {
+      fail('Hermes trusted-bootstrap authority is invalid for this command.');
+    }
+    return undefined;
+  }
+  if (
+    profile !== 'warpkeep-greater-realm-production-bootstrap-v1'
+    || row !== expectedRow
+  ) fail('Hermes production release commands require the exact trusted bootstrap.');
+  return Object.freeze({
+    row: expectedRow,
+    ...(protectedCommit === undefined ? {} : { protectedCommit }),
+    ...(adminSecretPath === undefined ? {} : { adminSecretPath }),
+    ...(notificationSecretPath === undefined ? {} : { notificationSecretPath }),
+    ...(privateInputPath === undefined ? {} : { privateInputPath }),
+    ...(founderPlanDirectory === undefined ? {} : { founderPlanDirectory }),
+    ...(notificationRecoveryPlanDirectory === undefined
+      ? {}
+      : { notificationRecoveryPlanDirectory }),
+    ...(pendingCensusDirectory === undefined ? {} : { pendingCensusDirectory }),
+  });
+}
+
+function exactTrustedPrivatePath(value: string | undefined, required: boolean): string | undefined {
+  if (value === undefined) {
+    if (required) fail('Hermes trusted-bootstrap private path is required.');
+    return undefined;
+  }
+  if (!required || !isAbsolute(value) || resolve(value) !== value || /[\u0000\r\n]/u.test(value)) {
+    fail('Hermes trusted-bootstrap private path is invalid.');
+  }
+  return value;
+}
+
+function exactTrustedPlanDirectory(value: string | undefined): string {
+  const path = exactTrustedPrivatePath(value, true)!;
+  try {
+    assertProductionAdminTrustedAncestors(path);
+    const status = lstatSync(path);
+    if (
+      status.isSymbolicLink() || !status.isDirectory()
+      || (status.mode & 0o7777) !== 0o700
+      || (process.getuid !== undefined && status.uid !== process.getuid())
+      || realpathSync(path) !== path
+    ) fail('Hermes trusted-bootstrap plan directory is invalid.');
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Hermes trusted-bootstrap')) throw error;
+    fail('Hermes trusted-bootstrap plan directory is invalid.');
+  }
+  return path;
+}
+
+function validateTrustedHermesLaunch(
+  captured: CapturedTrustedHermesLaunch | undefined,
+): TrustedHermesLaunch | undefined {
+  if (captured === undefined) return undefined;
+  const requiresAdmin = new Set<HermesTrustedReleaseRow>([
+    'list-pending', 'admit-confirm', 'allow-confirm', 'notification-recover-dry',
+    'notification-recover-confirm',
+  ]).has(captured.row);
+  const requiresNotification = new Set<HermesTrustedReleaseRow>([
+    'admit-confirm', 'allow-confirm', 'notification-inspect',
+    'notification-recover-dry', 'notification-recover-confirm',
+  ]).has(captured.row);
+  const requiresPrivateInput = captured.row === 'admit-dry' || captured.row === 'admit-confirm';
+  const requiresFounderPlan = captured.row === 'admit-dry' || captured.row === 'admit-confirm';
+  const requiresRecoveryPlan = captured.row === 'notification-recover-dry'
+    || captured.row === 'notification-recover-confirm';
+  const requiresPendingCensus = captured.row === 'list-pending';
+  if (requiresAdmin && captured.adminSecretPath === undefined) {
+    fail('WKGR_PRODUCTION_ADMIN_SECRET_PATH is required for this Hermes release command.');
+  }
+  if (requiresNotification && captured.notificationSecretPath === undefined) {
+    fail('WKGR_PRODUCTION_NOTIFICATION_SECRET_PATH is required for this Hermes release command.');
+  }
+  if (requiresPrivateInput && captured.privateInputPath === undefined) {
+    fail('WKGR_PRODUCTION_PRIVATE_INPUT_PATH is required for this Hermes release command.');
+  }
+  const adminSecretPath = exactTrustedPrivatePath(captured.adminSecretPath, requiresAdmin);
+  const notificationSecretPath = exactTrustedPrivatePath(
+    captured.notificationSecretPath,
+    requiresNotification,
+  );
+  const privateInputPath = exactTrustedPrivatePath(captured.privateInputPath, requiresPrivateInput);
+  if (requiresFounderPlan !== (captured.founderPlanDirectory !== undefined)) {
+    fail('WKGR_HERMES_FOUNDER_PLAN_DIRECTORY has an invalid command role.');
+  }
+  if (requiresRecoveryPlan !== (captured.notificationRecoveryPlanDirectory !== undefined)) {
+    fail('WKGR_HERMES_NOTIFICATION_RECOVERY_PLAN_DIRECTORY has an invalid command role.');
+  }
+  if (requiresPendingCensus !== (captured.pendingCensusDirectory !== undefined)) {
+    fail('WKGR_HERMES_PENDING_CENSUS_DIRECTORY has an invalid command role.');
+  }
+  if (
+    captured.protectedCommit === undefined
+    || !COMMIT_SHA.test(captured.protectedCommit)
+  ) fail('WKGR_PRODUCTION_PROTECTED_COMMIT is invalid for this Hermes release command.');
+  if (
+    process.env.WARPKEEP_ADMIN_TOKEN_SECRET !== undefined
+    || process.env.WARPKEEP_ADMIN_TOKEN_SECRET_FD !== undefined
+    || process.env.WARPKEEP_ADMIN_TOKEN_SECRET_STDIN !== undefined
+    || process.env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET !== undefined
+    || process.env.WARPKEEP_HERMES_NONINTERACTIVE !== undefined
+  ) fail('Hermes trusted-bootstrap credential authority is ambiguous.');
+  return Object.freeze({
+    row: captured.row,
+    ...(captured.protectedCommit === undefined
+      ? {}
+      : { protectedCommit: captured.protectedCommit }),
+    ...(adminSecretPath === undefined ? {} : { adminSecretPath }),
+    ...(notificationSecretPath === undefined ? {} : { notificationSecretPath }),
+    ...(privateInputPath === undefined ? {} : { privateInputPath }),
+    ...(captured.founderPlanDirectory === undefined
+      ? {}
+      : { founderPlanDirectory: exactTrustedPlanDirectory(captured.founderPlanDirectory) }),
+    ...(captured.notificationRecoveryPlanDirectory === undefined
+      ? {}
+      : {
+          notificationRecoveryPlanDirectory:
+            exactTrustedPlanDirectory(captured.notificationRecoveryPlanDirectory),
+        }),
+    ...(captured.pendingCensusDirectory === undefined
+      ? {}
+      : {
+          pendingCensusDirectory:
+            exactTrustedPlanDirectory(captured.pendingCensusDirectory),
+        }),
+  });
+}
+
+function readTrustedHermesPrivateFile(path: string, maximumBytes: number): Buffer {
+  let descriptor: number | undefined;
+  try {
+    assertProductionAdminTrustedAncestors(dirname(path));
+    const parent = lstatSync(resolve(path, '..'), { bigint: true });
+    const pathStatus = lstatSync(path, { bigint: true });
+    if (
+      parent.isSymbolicLink() || !parent.isDirectory()
+      || (parent.mode & 0o7777n) !== 0o700n
+      || (process.getuid !== undefined && parent.uid !== BigInt(process.getuid()))
+      || pathStatus.isSymbolicLink() || !pathStatus.isFile() || pathStatus.nlink !== 1n
+      || (pathStatus.mode & 0o7777n) !== 0o600n
+      || (process.getuid !== undefined && pathStatus.uid !== BigInt(process.getuid()))
+      || pathStatus.size < 1n || pathStatus.size > BigInt(maximumBytes)
+      || realpathSync(path) !== path
+    ) fail('Hermes trusted-bootstrap private file is invalid.');
+    descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const before = fstatSync(descriptor, { bigint: true });
+    if (
+      before.dev !== pathStatus.dev || before.ino !== pathStatus.ino
+      || before.mode !== pathStatus.mode || before.uid !== pathStatus.uid
+      || before.nlink !== pathStatus.nlink || before.size !== pathStatus.size
+    ) fail('Hermes trusted-bootstrap private file is invalid.');
+    const bytes = readFileSync(descriptor);
+    const after = fstatSync(descriptor, { bigint: true });
+    const current = lstatSync(path, { bigint: true });
+    if (
+      after.dev !== before.dev || after.ino !== before.ino || after.mode !== before.mode
+      || after.uid !== before.uid || after.nlink !== before.nlink || after.size !== before.size
+      || after.mtimeNs !== before.mtimeNs || after.ctimeNs !== before.ctimeNs
+      || current.dev !== before.dev || current.ino !== before.ino || current.mode !== before.mode
+      || current.uid !== before.uid || current.nlink !== before.nlink
+      || current.size !== before.size || current.mtimeNs !== before.mtimeNs
+      || current.ctimeNs !== before.ctimeNs || bytes.byteLength !== Number(before.size)
+    ) {
+      bytes.fill(0);
+      fail('Hermes trusted-bootstrap private file changed while being read.');
+    }
+    return bytes;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Hermes trusted-bootstrap')) throw error;
+    return fail('Hermes trusted-bootstrap private file is invalid.');
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+function readTrustedHermesSecret(path: string): string {
+  const bytes = readTrustedHermesPrivateFile(path, 512);
+  try {
+    const value = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    if (bytes.byteLength < 32 || /[\u0000\r\n]/u.test(value)) {
+      fail('Hermes trusted-bootstrap secret is invalid.');
+    }
+    return value;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Hermes trusted-bootstrap')) throw error;
+    return fail('Hermes trusted-bootstrap secret is invalid.');
+  } finally {
+    bytes.fill(0);
+  }
+}
+
+function readTrustedFounderAdmissionInput(path: string): Record<string, unknown> {
+  const bytes = readTrustedHermesPrivateFile(path, 32 * 1_024);
+  try {
+    const parsed: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      fail('Hermes trusted-bootstrap founder input is invalid.');
+    }
+    return parsed as Record<string, unknown>;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('Hermes trusted-bootstrap')) throw error;
+    return fail('Hermes trusted-bootstrap founder input is invalid.');
+  } finally {
+    bytes.fill(0);
+  }
+}
+
 function commandFrom(value: string | undefined): Command {
   if (
     value === 'seed-world'
     || value === 'expand-world-v3'
     || value === 'list-access-requests'
+    || value === 'list-pending-access-requests'
     || value === 'inspect-access-request-reset'
     || value === 'reset-access-request'
     || value === 'admit-founder'
+    || value === 'inspect-admission-notification'
+    || value === 'recover-admission-notification'
     || value === 'allow-fid'
     || value === 'disable-fid'
     || value === 'bump-auth-epoch'
@@ -401,13 +853,15 @@ function commandFrom(value: string | undefined): Command {
   }
   fail(
     'Usage: hermes-admin.ts '
-    + '<seed-world|expand-world-v3|list-access-requests|inspect-access-request-reset|reset-access-request|admit-founder|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
+    + '<seed-world|expand-world-v3|list-access-requests|list-pending-access-requests|inspect-access-request-reset|reset-access-request|admit-founder|inspect-admission-notification|recover-admission-notification|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
     + '[...args] [--dry-run] [--confirm]. admit-founder requires private stdin: '
     + '--input-stdin --dry-run creates a reviewed plan; --input-stdin --confirm consumes it; '
     + 'allow-fid only re-enables an existing complete founder. list-access-requests accepts '
     + '[--limit 1..100] [--after-requested-at-micros U64 --after-fid FID] '
     + '[--include-resolved] [--json]. reset-access-request dry-run requires FID and note; '
-    + 'confirmed execution accepts the reviewed plan filename and digest, while '
+    + 'confirmed execution accepts the reviewed plan filename and digest. '
+    + 'recover-admission-notification uses the same reviewed-plan shape for one '
+    + 'exhausted first-time request generation, while '
     + '--input-stdin carries the administrator secret.',
   );
 }
@@ -463,10 +917,15 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     || command === 'inspect-publish-pre-v12'
     || command === 'inspect-publish-post-v12'
     || command === 'list-access-requests'
-    || command === 'inspect-access-request-reset';
+    || command === 'list-pending-access-requests'
+    || command === 'inspect-access-request-reset'
+    || command === 'inspect-admission-notification';
   const expectedPositionals = command === 'reset-access-request'
+    || command === 'recover-admission-notification'
     ? 3
     : command === 'inspect-access-request-reset'
+      ? 2
+    : command === 'inspect-admission-notification'
       ? 2
     : command === 'allow-fid'
     || command === 'disable-fid'
@@ -497,6 +956,12 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
   )) {
     fail('Hermes command received a flag that is invalid for this operation.');
   }
+  if (
+    command === 'list-pending-access-requests'
+    && (flags.size !== 0 || options.size !== 0)
+  ) {
+    fail('Hermes command received a flag that is invalid for this operation.');
+  }
   if (command === 'admit-founder') {
     if (!flags.has('--input-stdin')) {
       fail('Profiled admission requires private input through --input-stdin.');
@@ -513,6 +978,16 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     }
     if (!flags.has('--input-stdin')) {
       fail('Access request reset requires the administrator secret through --input-stdin.');
+    }
+  } else if (command === 'recover-admission-notification') {
+    if (flags.has('--json')) {
+      fail('Hermes command received a flag that is invalid for this operation.');
+    }
+    if (flags.has('--dry-run') === flags.has('--confirm')) {
+      fail('Admission notification recovery requires exactly one of --dry-run or --confirm.');
+    }
+    if (!flags.has('--input-stdin')) {
+      fail('Admission notification recovery requires the administrator secret through --input-stdin.');
     }
   } else if (command === 'seed-alpha-component') {
     parseSeedableAlphaComponent(positional[1]);
@@ -705,6 +1180,22 @@ type AccessRequestListPage = Readonly<{
   pendingRequests: bigint;
 }>;
 
+export type PendingAccessRequestCensus = Readonly<{
+  schemaVersion: 1;
+  kind: 'warpkeep-pending-access-request-census-v1';
+  protectedCommit: string;
+  targetConfigurationDigest: string;
+  totalRequests: string;
+  pendingRequests: string;
+  entries: readonly Readonly<{
+    fid: string;
+    requestedAtMicros: string;
+    admissionState: 'missing' | 'disabled';
+  }>[];
+  advisoryOnly: true;
+  admissionMustRecheckRequestCas: true;
+}>;
+
 type AccessRequestResetStatus = Readonly<{
   admissionState: 'enabled' | 'disabled';
   authEpoch: number;
@@ -712,6 +1203,22 @@ type AccessRequestResetStatus = Readonly<{
   requestCycle: bigint | undefined;
   requestedAtMicros: bigint | undefined;
 }>;
+
+type AccessRequestAdmissionStatus = Readonly<{
+  admissionState: 'missing' | 'enabled' | 'disabled';
+  authEpoch: number;
+  requestState: 'not_requested' | 'pending' | 'resolved';
+  requestCycle: bigint | undefined;
+  requestedAtMicros: bigint | undefined;
+}>;
+
+type PendingAccessRequestAdmissionStatus<State extends 'missing' | 'disabled'> =
+  AccessRequestAdmissionStatus & Readonly<{
+    admissionState: State;
+    requestState: 'pending';
+    requestCycle: bigint;
+    requestedAtMicros: bigint;
+  }>;
 
 function exactObjectKeys(
   value: Record<string, unknown>,
@@ -978,6 +1485,122 @@ export function projectAccessRequestResetStatus(value: unknown): AccessRequestRe
   });
 }
 
+/** Strict private projection used to bind one admission to one request tuple. */
+export function projectAccessRequestAdmissionStatus(
+  value: unknown,
+): AccessRequestAdmissionStatus {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    fail('Access request admission status was invalid.');
+  }
+  const status = value as Record<string, unknown>;
+  exactObjectKeys(
+    status,
+    ACCESS_REQUEST_ADMISSION_STATUS_KEYS,
+    'Access request admission status returned unexpected fields.',
+  );
+  if (
+    status.admissionState !== 'missing'
+    && status.admissionState !== 'enabled'
+    && status.admissionState !== 'disabled'
+  ) {
+    fail('Access request admission status returned an invalid admission state.');
+  }
+  if (
+    typeof status.authEpoch !== 'number'
+    || !Number.isInteger(status.authEpoch)
+    || status.authEpoch < 0
+    || status.authEpoch > 0xffff_ffff
+    || (status.admissionState === 'missing' && status.authEpoch !== 0)
+    || (status.admissionState !== 'missing' && status.authEpoch < 1)
+  ) {
+    fail('Access request admission status returned an invalid auth epoch.');
+  }
+  const requestCycle = status.requestCycle === undefined
+    ? undefined
+    : requireU64(
+      status.requestCycle,
+      true,
+      'Access request admission status returned an invalid request cycle.',
+    );
+  const requestedAtMicros = status.requestedAtMicros === undefined
+    ? undefined
+    : requireU64(
+      status.requestedAtMicros,
+      false,
+      'Access request admission status returned an invalid timestamp.',
+    );
+  if ((requestCycle === undefined) !== (requestedAtMicros === undefined)) {
+    fail('Access request admission status returned an incomplete request tuple.');
+  }
+  const maximumStoredRequestCycle = status.admissionState === 'disabled'
+    ? BigInt(status.authEpoch) + 1n
+    : BigInt(status.authEpoch);
+  if (requestCycle !== undefined && requestCycle > maximumStoredRequestCycle) {
+    fail('Access request admission status returned an impossible future request cycle.');
+  }
+  if (
+    status.requestState !== 'not_requested'
+    && status.requestState !== 'pending'
+    && status.requestState !== 'resolved'
+  ) {
+    fail('Access request admission status returned an invalid request state.');
+  }
+  const currentCycle = status.admissionState === 'missing'
+    ? 0n
+    : status.admissionState === 'disabled'
+      ? BigInt(status.authEpoch) + 1n
+      : undefined;
+  const expectedState = requestCycle === undefined
+    ? 'not_requested'
+    : currentCycle !== undefined && requestCycle === currentCycle
+      ? 'pending'
+      : 'resolved';
+  if (status.requestState !== expectedState) {
+    fail('Access request admission status returned an inconsistent request state.');
+  }
+  return Object.freeze({
+    admissionState: status.admissionState,
+    authEpoch: status.authEpoch,
+    requestState: status.requestState,
+    requestCycle,
+    requestedAtMicros,
+  });
+}
+
+export function requirePendingAdmissionRequest<State extends 'missing' | 'disabled'>(
+  status: AccessRequestAdmissionStatus,
+  expectedAdmissionState: State,
+): PendingAccessRequestAdmissionStatus<State> {
+  if (
+    status.admissionState !== expectedAdmissionState
+    || status.requestState !== 'pending'
+    || status.requestCycle === undefined
+    || status.requestedAtMicros === undefined
+  ) {
+    fail('Admission requires one exact pending access request of the expected kind.');
+  }
+  return Object.freeze({ ...status }) as PendingAccessRequestAdmissionStatus<State>;
+}
+
+export function requireUnchangedPendingAdmissionRequest<
+  State extends 'missing' | 'disabled',
+>(
+  before: PendingAccessRequestAdmissionStatus<State> | AccessRequestAdmissionStatus,
+  after: AccessRequestAdmissionStatus,
+  expectedAdmissionState: State,
+): PendingAccessRequestAdmissionStatus<State> {
+  const exactBefore = requirePendingAdmissionRequest(before, expectedAdmissionState);
+  const exactAfter = requirePendingAdmissionRequest(after, expectedAdmissionState);
+  if (
+    exactAfter.requestCycle !== exactBefore.requestCycle
+    || exactAfter.requestedAtMicros !== exactBefore.requestedAtMicros
+    || exactAfter.authEpoch !== exactBefore.authEpoch
+  ) {
+    fail('The exact pending access request changed before admission.');
+  }
+  return exactAfter;
+}
+
 function accessRequestTimestamp(micros: bigint): string {
   if (micros > MAX_JAVASCRIPT_DATE_MICROS) {
     fail('Access request procedure returned an invalid timestamp.');
@@ -994,15 +1617,7 @@ export async function listAccessRequests(
   options: AccessRequestListOptions,
   machineReadable = false,
 ): Promise<AccessRequestListPage> {
-  const raw = await withOperationTimeout(
-    connection.procedures.adminListAccessRequestsV1({
-      afterRequestedAtMicros: options.afterRequestedAtMicros,
-      afterFid: options.afterFid,
-      limit: options.limit,
-      includeResolved: options.includeResolved,
-    }),
-  );
-  const page = projectAccessRequestListPage(raw, options);
+  const page = await readAccessRequestListPage(connection, options);
   const entries = page.entries.map(entry => Object.freeze({
     fid: entry.fid.toString(),
     requestedAt: accessRequestTimestamp(entry.requestedAtMicros),
@@ -1040,6 +1655,436 @@ export async function listAccessRequests(
     );
   }
   return page;
+}
+
+export async function readAccessRequestListPage(
+  connection: DbConnection,
+  options: AccessRequestListOptions,
+): Promise<AccessRequestListPage> {
+  const raw = await withOperationTimeout(
+    connection.procedures.adminListAccessRequestsV1({
+      afterRequestedAtMicros: options.afterRequestedAtMicros,
+      afterFid: options.afterFid,
+      limit: options.limit,
+      includeResolved: options.includeResolved,
+    }),
+  );
+  return projectAccessRequestListPage(raw, options);
+}
+
+function exactPendingAccessRequestCensus(value: PendingAccessRequestCensus) {
+  exactObjectKeys(value as unknown as Record<string, unknown>, [
+    'admissionMustRecheckRequestCas',
+    'advisoryOnly',
+    'entries',
+    'kind',
+    'pendingRequests',
+    'protectedCommit',
+    'schemaVersion',
+    'targetConfigurationDigest',
+    'totalRequests',
+  ].sort(), 'Pending access request census was invalid.');
+  if (
+    value.schemaVersion !== 1
+    || value.kind !== 'warpkeep-pending-access-request-census-v1'
+    || !COMMIT_SHA.test(value.protectedCommit)
+    || value.targetConfigurationDigest
+      !== PENDING_ACCESS_REQUEST_CENSUS_TARGET_CONFIGURATION_DIGEST
+    || value.advisoryOnly !== true
+    || value.admissionMustRecheckRequestCas !== true
+    || !/^(?:0|[1-9][0-9]{0,3})$/u.test(value.totalRequests)
+    || !/^(?:0|[1-9][0-9]{0,3})$/u.test(value.pendingRequests)
+    || BigInt(value.totalRequests) > BigInt(MAX_ACCESS_REQUEST_CENSUS_ROWS)
+    || BigInt(value.pendingRequests) > BigInt(value.totalRequests)
+    || !Array.isArray(value.entries)
+    || BigInt(value.entries.length) !== BigInt(value.pendingRequests)
+  ) fail('Pending access request census was invalid.');
+  let previous: Readonly<{ fid: bigint; requestedAtMicros: bigint }> | undefined;
+  const seen = new Set<string>();
+  const entries = value.entries.map(candidate => {
+    exactObjectKeys(candidate as unknown as Record<string, unknown>, [
+      'admissionState', 'fid', 'requestedAtMicros',
+    ], 'Pending access request census entry was invalid.');
+    if (
+      typeof candidate.fid !== 'string'
+      || !/^[1-9][0-9]{0,15}$/u.test(candidate.fid)
+      || BigInt(candidate.fid) > BigInt(Number.MAX_SAFE_INTEGER)
+      || typeof candidate.requestedAtMicros !== 'string'
+      || !/^[1-9][0-9]{0,19}$/u.test(candidate.requestedAtMicros)
+      || BigInt(candidate.requestedAtMicros) > U64_MAXIMUM
+      || (candidate.admissionState !== 'missing' && candidate.admissionState !== 'disabled')
+      || seen.has(candidate.fid)
+    ) fail('Pending access request census entry was invalid.');
+    const ordered = Object.freeze({
+      fid: BigInt(candidate.fid),
+      requestedAtMicros: BigInt(candidate.requestedAtMicros),
+    });
+    if (previous !== undefined && compareAccessRequestEntries(previous, ordered) >= 0) {
+      fail('Pending access request census order was invalid.');
+    }
+    previous = ordered;
+    seen.add(candidate.fid);
+    return Object.freeze({ ...candidate });
+  });
+  return Object.freeze({ ...value, entries: Object.freeze(entries) });
+}
+
+/**
+ * Build one advisory pending-request census over one authenticated connection.
+ * Individual admission still re-reads and CAS-binds the exact request tuple.
+ */
+export async function collectPendingAccessRequestCensus(
+  connection: DbConnection,
+  protectedCommit: string,
+): Promise<PendingAccessRequestCensus> {
+  if (!COMMIT_SHA.test(protectedCommit)) {
+    fail('Pending access request census protected commit was invalid.');
+  }
+  let afterRequestedAtMicros = 0n;
+  let afterFid = 0n;
+  let expectedTotal: bigint | undefined;
+  let expectedPending: bigint | undefined;
+  const entries: Array<{
+    fid: string;
+    requestedAtMicros: string;
+    admissionState: 'missing' | 'disabled';
+  }> = [];
+  const seenFids = new Set<string>();
+  let previous: AccessRequestListEntry | undefined;
+
+  for (let pageNumber = 1; pageNumber <= MAX_ACCESS_REQUEST_CENSUS_PAGES; pageNumber += 1) {
+    const page = await readAccessRequestListPage(connection, {
+      limit: MAX_ACCESS_REQUEST_PAGE_SIZE,
+      afterRequestedAtMicros,
+      afterFid,
+      includeResolved: false,
+    });
+    if (expectedTotal === undefined || expectedPending === undefined) {
+      expectedTotal = page.totalRequests;
+      expectedPending = page.pendingRequests;
+      if (
+        expectedTotal > BigInt(MAX_ACCESS_REQUEST_CENSUS_ROWS)
+        || expectedPending > expectedTotal
+      ) fail('Pending access request census totals exceeded the reviewed bound.');
+    } else if (
+      page.totalRequests !== expectedTotal
+      || page.pendingRequests !== expectedPending
+    ) {
+      fail('Pending access request census totals changed during inspection.');
+    }
+
+    for (const entry of page.entries) {
+      const fid = entry.fid.toString();
+      if (
+        entry.requestState !== 'pending'
+        || entry.admissionState === 'enabled'
+        || seenFids.has(fid)
+        || (previous !== undefined && compareAccessRequestEntries(previous, entry) >= 0)
+      ) fail('Pending access request census page continuity was invalid.');
+      entries.push(Object.freeze({
+        fid,
+        requestedAtMicros: entry.requestedAtMicros.toString(),
+        admissionState: entry.admissionState,
+      }));
+      if (entries.length > MAX_ACCESS_REQUEST_CENSUS_ROWS) {
+        fail('Pending access request census rows exceeded the reviewed bound.');
+      }
+      seenFids.add(fid);
+      previous = entry;
+    }
+
+    if (!page.hasMore) {
+      if (BigInt(entries.length) !== expectedPending) {
+        fail('Pending access request census did not close over the reported total.');
+      }
+      return exactPendingAccessRequestCensus(Object.freeze({
+        schemaVersion: 1,
+        kind: 'warpkeep-pending-access-request-census-v1',
+        protectedCommit,
+        targetConfigurationDigest:
+          PENDING_ACCESS_REQUEST_CENSUS_TARGET_CONFIGURATION_DIGEST,
+        totalRequests: expectedTotal.toString(),
+        pendingRequests: expectedPending.toString(),
+        entries: Object.freeze(entries),
+        advisoryOnly: true,
+        admissionMustRecheckRequestCas: true,
+      }));
+    }
+    if (
+      pageNumber === MAX_ACCESS_REQUEST_CENSUS_PAGES
+      || page.nextRequestedAtMicros === undefined
+      || page.nextFid === undefined
+    ) fail('Pending access request census pagination exceeded the reviewed bound.');
+    afterRequestedAtMicros = page.nextRequestedAtMicros;
+    afterFid = page.nextFid;
+  }
+  return fail('Pending access request census pagination exceeded the reviewed bound.');
+}
+
+function fsyncHermesPrivateDirectory(directory: string): void {
+  let descriptor: number | undefined;
+  try {
+    descriptor = openSync(
+      directory,
+      constants.O_RDONLY | (constants.O_DIRECTORY ?? 0) | (constants.O_NOFOLLOW ?? 0),
+    );
+    fsyncSync(descriptor);
+  } catch {
+    fail('Pending access request census directory sync failed.');
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+type PendingAccessRequestCensusFile = Readonly<{
+  bytes: Buffer;
+  dev: bigint;
+  ino: bigint;
+  mode: bigint;
+  uid: bigint;
+  nlink: bigint;
+  size: bigint;
+  mtimeNs: bigint;
+  ctimeNs: bigint;
+}>;
+
+function readPendingAccessRequestCensusInstallFile(
+  path: string,
+  allowedLinks: 1n | 2n,
+): PendingAccessRequestCensusFile {
+  let descriptor: number | undefined;
+  try {
+    const pathStatus = lstatSync(path, { bigint: true });
+    if (
+      pathStatus.isSymbolicLink() || !pathStatus.isFile()
+      || pathStatus.nlink !== allowedLinks
+      || (pathStatus.mode & 0o7777n) !== 0o600n
+      || (process.getuid !== undefined && pathStatus.uid !== BigInt(process.getuid()))
+      || pathStatus.size < 1n
+      || pathStatus.size > BigInt(MAX_ACCESS_REQUEST_CENSUS_BYTES)
+      || realpathSync(path) !== path
+    ) fail('Pending access request census install state was invalid.');
+    descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const before = fstatSync(descriptor, { bigint: true });
+    if (
+      before.dev !== pathStatus.dev || before.ino !== pathStatus.ino
+      || before.mode !== pathStatus.mode || before.uid !== pathStatus.uid
+      || before.nlink !== pathStatus.nlink || before.size !== pathStatus.size
+    ) fail('Pending access request census install state was invalid.');
+    const bytes = readFileSync(descriptor);
+    const after = fstatSync(descriptor, { bigint: true });
+    const current = lstatSync(path, { bigint: true });
+    if (
+      after.dev !== before.dev || after.ino !== before.ino || after.mode !== before.mode
+      || after.uid !== before.uid || after.nlink !== before.nlink || after.size !== before.size
+      || after.mtimeNs !== before.mtimeNs || after.ctimeNs !== before.ctimeNs
+      || current.dev !== before.dev || current.ino !== before.ino || current.mode !== before.mode
+      || current.uid !== before.uid || current.nlink !== before.nlink
+      || current.size !== before.size || current.mtimeNs !== before.mtimeNs
+      || current.ctimeNs !== before.ctimeNs || bytes.byteLength !== Number(before.size)
+    ) {
+      bytes.fill(0);
+      fail('Pending access request census install state changed while being read.');
+    }
+    return Object.freeze({
+      bytes,
+      dev: before.dev,
+      ino: before.ino,
+      mode: before.mode,
+      uid: before.uid,
+      nlink: before.nlink,
+      size: before.size,
+      mtimeNs: before.mtimeNs,
+      ctimeNs: before.ctimeNs,
+    });
+  } catch (error) {
+    if (error instanceof HermesCliError) throw error;
+    return fail('Pending access request census install state was invalid.');
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+function exactPendingAccessRequestCensusInstallBody(
+  installed: PendingAccessRequestCensusFile,
+  expectedBytes: Buffer,
+  expectedDigest: string,
+): void {
+  try {
+    if (
+      !installed.bytes.equals(expectedBytes)
+      || createHash('sha256').update(installed.bytes).digest('hex') !== expectedDigest
+    ) fail('Pending access request census destination conflicted.');
+  } finally {
+    installed.bytes.fill(0);
+  }
+}
+
+/**
+ * Admit an exact existing result, including the sole recoverable crash state:
+ * destination plus one same-inode temporary hard link after durable link install.
+ */
+function settlePendingAccessRequestCensusInstall(
+  directory: string,
+  destination: string,
+  filename: string,
+  expectedBytes: Buffer,
+  expectedDigest: string,
+): boolean {
+  try {
+    lstatSync(destination);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return false;
+    fail('Pending access request census install state was invalid.');
+  }
+  let destinationFile: PendingAccessRequestCensusFile;
+  try {
+    destinationFile = readPendingAccessRequestCensusInstallFile(destination, 1n);
+  } catch {
+    destinationFile = readPendingAccessRequestCensusInstallFile(destination, 2n);
+  }
+  exactPendingAccessRequestCensusInstallBody(
+    destinationFile,
+    expectedBytes,
+    expectedDigest,
+  );
+  if (destinationFile.nlink === 1n) return true;
+
+  const prefix = `.${filename}-`;
+  const linkedTemporaryNames = readdirSync(directory).filter(name => {
+    if (
+      !name.startsWith(prefix)
+      || !/^[0-9a-f]{32}\.tmp$/u.test(name.slice(prefix.length))
+    ) return false;
+    try {
+      const candidate = lstatSync(join(directory, name), { bigint: true });
+      return candidate.dev === destinationFile.dev && candidate.ino === destinationFile.ino;
+    } catch {
+      fail('Pending access request census crash recovery state was invalid.');
+    }
+  });
+  if (linkedTemporaryNames.length !== 1) {
+    fail('Pending access request census crash recovery state was invalid.');
+  }
+  const linkedTemporary = join(directory, linkedTemporaryNames[0]!);
+  const temporaryFile = readPendingAccessRequestCensusInstallFile(linkedTemporary, 2n);
+  try {
+    if (
+      temporaryFile.dev !== destinationFile.dev
+      || temporaryFile.ino !== destinationFile.ino
+      || temporaryFile.mode !== destinationFile.mode
+      || temporaryFile.uid !== destinationFile.uid
+      || temporaryFile.nlink !== destinationFile.nlink
+      || temporaryFile.size !== destinationFile.size
+      || temporaryFile.mtimeNs !== destinationFile.mtimeNs
+      || temporaryFile.ctimeNs !== destinationFile.ctimeNs
+    ) fail('Pending access request census crash recovery state was invalid.');
+    exactPendingAccessRequestCensusInstallBody(
+      temporaryFile,
+      expectedBytes,
+      expectedDigest,
+    );
+  } finally {
+    temporaryFile.bytes.fill(0);
+  }
+  unlinkSync(linkedTemporary);
+  fsyncHermesPrivateDirectory(directory);
+  const repaired = readPendingAccessRequestCensusInstallFile(destination, 1n);
+  exactPendingAccessRequestCensusInstallBody(repaired, expectedBytes, expectedDigest);
+  return true;
+}
+
+/** Install sensitive census bytes only in the bootstrap-provided 0700 directory. */
+export function writePendingAccessRequestCensus(input: Readonly<{
+  directory: string;
+  census: PendingAccessRequestCensus;
+  randomId?: () => string;
+}>): Readonly<{ filename: string; sha256: string }> {
+  const directory = exactTrustedPlanDirectory(input.directory);
+  const census = exactPendingAccessRequestCensus(input.census);
+  const bytes = Buffer.from(`${JSON.stringify(census)}\n`, 'utf8');
+  if (bytes.byteLength < 1 || bytes.byteLength > MAX_ACCESS_REQUEST_CENSUS_BYTES) {
+    bytes.fill(0);
+    fail('Pending access request census exceeded the private report size bound.');
+  }
+  const digest = createHash('sha256').update(bytes).digest('hex');
+  const filename = `pending-access-request-census-${digest}.json`;
+  if (basename(filename) !== filename) {
+    bytes.fill(0);
+    fail('Pending access request census filename was invalid.');
+  }
+  const destination = join(directory, filename);
+  const nonce = (input.randomId ?? (() => randomUUID().replaceAll('-', '')))();
+  if (!/^[0-9a-f]{32}$/u.test(nonce)) {
+    bytes.fill(0);
+    fail('Pending access request census temporary identity was invalid.');
+  }
+  const temporary = join(directory, `.${filename}-${nonce}.tmp`);
+  let descriptor: number | undefined;
+  let installed = false;
+  try {
+    if (settlePendingAccessRequestCensusInstall(
+      directory,
+      destination,
+      filename,
+      bytes,
+      digest,
+    )) return Object.freeze({ filename, sha256: digest });
+    descriptor = openSync(
+      temporary,
+      constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL
+        | (constants.O_NOFOLLOW ?? 0),
+      0o600,
+    );
+    let offset = 0;
+    while (offset < bytes.byteLength) {
+      const written = writeSync(
+        descriptor,
+        bytes,
+        offset,
+        bytes.byteLength - offset,
+      );
+      if (written <= 0) fail('Pending access request census write failed.');
+      offset += written;
+    }
+    fchmodSync(descriptor, 0o600);
+    fsyncSync(descriptor);
+    closeSync(descriptor);
+    descriptor = undefined;
+    try {
+      linkSync(temporary, destination);
+      installed = true;
+      fsyncHermesPrivateDirectory(directory);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code !== 'EEXIST') throw error;
+      if (!settlePendingAccessRequestCensusInstall(
+        directory,
+        destination,
+        filename,
+        bytes,
+        digest,
+      )) fail('Pending access request census destination conflicted.');
+    }
+    unlinkSync(temporary);
+    fsyncHermesPrivateDirectory(directory);
+    if (!settlePendingAccessRequestCensusInstall(
+      directory,
+      destination,
+      filename,
+      bytes,
+      digest,
+    )) fail('Pending access request census verification failed.');
+  } catch (error) {
+    if (descriptor !== undefined) closeSync(descriptor);
+    try { unlinkSync(temporary); } catch { /* Preserve the original failure. */ }
+    if (error instanceof HermesCliError) throw error;
+    fail(installed
+      ? 'Pending access request census verification failed.'
+      : 'Pending access request census write failed.');
+  } finally {
+    bytes.fill(0);
+  }
+  return Object.freeze({ filename, sha256: digest });
 }
 
 type ResourceAggregateV4 = Readonly<{
@@ -1345,14 +2390,17 @@ export function verifyFounderAdmissionResourcePostconditionV4(
 export function verifyFounderReenablePrecondition(
   world: GenesisExpansionStatusV3,
   resources: ResourceAggregateV4,
-  target: AccessRequestResetStatus,
+  target: AccessRequestAdmissionStatus,
 ): Readonly<{
   world: GenesisExpansionStatusV3;
   resources: ResourceAggregateV4;
-  target: AccessRequestResetStatus;
+  target: AccessRequestAdmissionStatus;
 }> {
   verifyFounderAdmissionCheckpointV3(world, false);
   verifyExpectedResourceAggregateV4(resources, world.allowedFids);
+  if (target.admissionState === 'disabled' && target.authEpoch >= 0xffff_ffff) {
+    fail('Existing founder re-enable cannot rotate an exhausted auth epoch.');
+  }
   if (
     target.admissionState !== 'disabled'
     || target.requestState !== 'pending'
@@ -1371,7 +2419,7 @@ export function verifyFounderReenablePrecondition(
 export function verifyFounderReenablePostcondition(
   world: GenesisExpansionStatusV3,
   resources: ResourceAggregateV4,
-  target: AccessRequestResetStatus,
+  target: AccessRequestAdmissionStatus,
   before: ReturnType<typeof verifyFounderReenablePrecondition>,
 ): void {
   verifyFounderAdmissionCheckpointV3(world, false);
@@ -1411,6 +2459,29 @@ export function verifyFounderReenablePostcondition(
         + 'Do not retry before a bounded read-only investigation.',
       );
     }
+  }
+}
+
+export function verifyFounderAdmissionRequestPostcondition(
+  target: AccessRequestAdmissionStatus,
+  before: AccessRequestAdmissionStatus,
+): void {
+  if (
+    before.admissionState !== 'missing'
+    || before.authEpoch !== 0
+    || before.requestState !== 'pending'
+    || before.requestCycle !== 0n
+    || before.requestedAtMicros === undefined
+    || target.admissionState !== 'enabled'
+    || target.authEpoch !== 1
+    || target.requestState !== 'resolved'
+    || target.requestCycle !== before.requestCycle
+    || target.requestedAtMicros !== before.requestedAtMicros
+  ) {
+    fail(
+      'Founder admission request postcondition failed. The mutation outcome may be '
+      + 'indeterminate; perform a fresh bounded read-only inspection before any retry.',
+    );
   }
 }
 
@@ -1582,7 +2653,32 @@ export async function requestAdminToken(
   bridgeUrl: string,
   secret: string,
   fetchImpl: typeof fetch = fetch,
+  budget: Readonly<{
+    reservationId?: string;
+    recordAttempt?: typeof recordProductionAdminTokenAttempt;
+    trustedNowMs?: number;
+  }> = {},
 ) {
+  const recordAttempt = budget.recordAttempt ?? recordProductionAdminTokenAttempt;
+  if (
+    budget.recordAttempt === undefined
+    && bridgeUrl !== 'https://auth.warpkeep.com'
+  ) fail('The Warpkeep admin token budget requires the canonical production bridge.');
+  const trustedNowMs = budget.recordAttempt === undefined
+    ? budget.trustedNowMs ?? await readProductionAdminBridgeTrustedTime(bridgeUrl, fetchImpl)
+    : budget.trustedNowMs;
+  try {
+    await recordAttempt(
+      {
+        ...(budget.reservationId === undefined
+          ? {}
+          : { reservationId: budget.reservationId }),
+        ...(trustedNowMs === undefined ? {} : { now: () => trustedNowMs }),
+      },
+    );
+  } catch {
+    fail('The Warpkeep admin token request budget is unavailable.');
+  }
   let response: Response;
   try {
     response = await fetchImpl(new URL('v1/admin/token', `${bridgeUrl}/`), {
@@ -1622,11 +2718,197 @@ export async function requestAdminToken(
   return token;
 }
 
+const PRODUCTION_ADMIN_BRIDGE_CLOCK_SKEW_MS = 60_000;
+
+/**
+ * The bridge's authenticated HTTPS origin supplies the cross-process quota
+ * clock. A local forward/backward jump cannot prune the owner ledger early.
+ */
+export async function readProductionAdminBridgeTrustedTime(
+  bridgeUrl: string,
+  fetchImpl: typeof fetch = fetch,
+  localNow: () => number = Date.now,
+): Promise<number> {
+  if (bridgeUrl !== 'https://auth.warpkeep.com') {
+    fail('The Warpkeep admin token clock requires the canonical production bridge.');
+  }
+  let response: Response;
+  try {
+    response = await fetchImpl(new URL('healthz', `${bridgeUrl}/`), {
+      method: 'GET',
+      headers: { accept: 'application/json', 'cache-control': 'no-store' },
+      cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(10_000),
+    });
+  } catch {
+    fail('Could not establish the Warpkeep admin token clock.');
+  }
+  const date = response.headers.get('date');
+  const localTime = localNow();
+  const trustedTime = date === null ? Number.NaN : Date.parse(date);
+  if (
+    !response.ok
+    || date === null
+    || !/^[A-Z][a-z]{2}, [0-9]{2} [A-Z][a-z]{2} [0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2} GMT$/u.test(date)
+    || !Number.isSafeInteger(trustedTime)
+    || new Date(trustedTime).toUTCString() !== date
+    || !Number.isSafeInteger(localTime)
+    || Math.abs(localTime - trustedTime) > PRODUCTION_ADMIN_BRIDGE_CLOCK_SKEW_MS
+  ) fail('Could not establish the Warpkeep admin token clock.');
+  try { await response.body?.cancel(); } catch { /* The trusted header is already bounded. */ }
+  return trustedTime;
+}
+
 export type AdmissionNotificationStatus =
   | 'queued'
   | 'already-sent'
   | 'delivery-exhausted'
   | 'not-subscribed';
+
+function isAdmissionNotificationRetryReason(
+  value: unknown,
+): value is AdmissionNotificationRetryReason {
+  return value === 'admission-verification'
+    || value === 'request-verification'
+    || value === 'transport'
+    || value === 'transport-timeout'
+    || value === 'transport-fetch-rejected'
+    || value === 'upstream-status'
+    || value === 'upstream-redirect'
+    || value === 'upstream-client-status'
+    || value === 'upstream-server-status'
+    || value === 'invalid-response'
+    || value === 'response-content-type'
+    || value === 'response-size'
+    || value === 'response-body'
+    || value === 'response-json'
+    || value === 'response-schema'
+    || value === 'rate-limited'
+    || value === 'provider-domain-mismatch'
+    || value === 'provider-target-url-mismatch'
+    || value === 'provider-no-webhook-url'
+    || value === 'provider-invalid-token'
+    || value === 'provider-unknown';
+}
+
+function isDiagnosticTimestamp(value: unknown): value is number {
+  return typeof value === 'number'
+    && Number.isSafeInteger(value)
+    && value >= 0;
+}
+
+/**
+ * Strict token-free projection for the bridge operator diagnostic. Unknown
+ * fields are rejected before any value can reach stdout.
+ */
+export function projectAdmissionNotificationDiagnostics(
+  value: unknown,
+): AdmissionNotificationDiagnostics {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    fail('The Warpkeep admission notification bridge returned invalid diagnostics.');
+  }
+  const diagnostic = value as Record<string, unknown>;
+  const keys = Object.keys(diagnostic);
+  if (
+    !ADMISSION_NOTIFICATION_DIAGNOSTIC_REQUIRED_KEYS.every(key => (
+      Object.prototype.hasOwnProperty.call(diagnostic, key)
+    ))
+    || !keys.every(key => (
+      ADMISSION_NOTIFICATION_DIAGNOSTIC_REQUIRED_KEYS.includes(
+        key as typeof ADMISSION_NOTIFICATION_DIAGNOSTIC_REQUIRED_KEYS[number],
+      )
+      || ADMISSION_NOTIFICATION_DIAGNOSTIC_OPTIONAL_KEYS.includes(
+        key as typeof ADMISSION_NOTIFICATION_DIAGNOSTIC_OPTIONAL_KEYS[number],
+      )
+    ))
+    || (
+      diagnostic.status !== 'queued'
+      && diagnostic.status !== 'already-sent'
+      && diagnostic.status !== 'delivery-exhausted'
+      && diagnostic.status !== 'not-subscribed'
+    )
+    || (
+      diagnostic.generation !== undefined
+      && diagnostic.generation !== 'admitted'
+      && diagnostic.generation !== 'pending-request'
+    )
+    || (
+      diagnostic.authEpoch !== undefined
+      && (
+        typeof diagnostic.authEpoch !== 'number'
+        || !Number.isInteger(diagnostic.authEpoch)
+        || diagnostic.authEpoch < 1
+        || diagnostic.authEpoch > 0xffff_ffff
+      )
+    )
+    || (diagnostic.generation === 'pending-request' && diagnostic.authEpoch !== undefined)
+    || (
+      diagnostic.generation === 'pending-request'
+      && (
+        typeof diagnostic.requestedAtMicros !== 'number'
+        || !Number.isSafeInteger(diagnostic.requestedAtMicros)
+        || diagnostic.requestedAtMicros < 1
+      )
+    )
+    || (diagnostic.generation === 'admitted' && diagnostic.authEpoch === undefined)
+    || (diagnostic.generation !== 'admitted' && diagnostic.authEpoch !== undefined)
+    || (diagnostic.generation !== 'pending-request' && diagnostic.requestedAtMicros !== undefined)
+    || typeof diagnostic.deliveryAttemptCount !== 'number'
+    || !Number.isSafeInteger(diagnostic.deliveryAttemptCount)
+    || diagnostic.deliveryAttemptCount < 0
+    || typeof diagnostic.verificationFailureCount !== 'number'
+    || !Number.isSafeInteger(diagnostic.verificationFailureCount)
+    || diagnostic.verificationFailureCount < 0
+    || typeof diagnostic.subscribed !== 'boolean'
+    || typeof diagnostic.recoveryCount !== 'number'
+    || !Number.isSafeInteger(diagnostic.recoveryCount)
+    || diagnostic.recoveryCount < 0
+    || diagnostic.recoveryCount > 1
+    || (diagnostic.lastRecoveryAt !== undefined
+      && !isDiagnosticTimestamp(diagnostic.lastRecoveryAt))
+    || (diagnostic.recoveryCount === 0) !== (diagnostic.lastRecoveryAt === undefined)
+    || (diagnostic.recoveryCount === 1 && diagnostic.generation !== 'pending-request')
+    || !Array.isArray(diagnostic.retryReasons)
+    || diagnostic.retryReasons.some(reason => !isAdmissionNotificationRetryReason(reason))
+    || new Set(diagnostic.retryReasons).size !== diagnostic.retryReasons.length
+    || (diagnostic.lastAttemptAt !== undefined
+      && !isDiagnosticTimestamp(diagnostic.lastAttemptAt))
+    || (diagnostic.lastFailureReason !== undefined
+      && !isAdmissionNotificationRetryReason(diagnostic.lastFailureReason))
+    || (diagnostic.nextAttemptAt !== undefined
+      && !isDiagnosticTimestamp(diagnostic.nextAttemptAt))
+  ) {
+    fail('The Warpkeep admission notification bridge returned invalid diagnostics.');
+  }
+  return Object.freeze({
+    status: diagnostic.status,
+    ...(diagnostic.generation === undefined ? {} : { generation: diagnostic.generation }),
+    ...(diagnostic.authEpoch === undefined ? {} : { authEpoch: diagnostic.authEpoch }),
+    ...(diagnostic.requestedAtMicros === undefined
+      ? {}
+      : { requestedAtMicros: diagnostic.requestedAtMicros }),
+    deliveryAttemptCount: diagnostic.deliveryAttemptCount,
+    verificationFailureCount: diagnostic.verificationFailureCount,
+    subscribed: diagnostic.subscribed,
+    recoveryCount: diagnostic.recoveryCount,
+    ...(diagnostic.lastRecoveryAt === undefined
+      ? {}
+      : { lastRecoveryAt: diagnostic.lastRecoveryAt }),
+    retryReasons: Object.freeze([
+      ...diagnostic.retryReasons,
+    ] as AdmissionNotificationRetryReason[]),
+    ...(diagnostic.lastAttemptAt === undefined
+      ? {}
+      : { lastAttemptAt: diagnostic.lastAttemptAt }),
+    ...(diagnostic.lastFailureReason === undefined
+      ? {}
+      : { lastFailureReason: diagnostic.lastFailureReason }),
+    ...(diagnostic.nextAttemptAt === undefined
+      ? {}
+      : { nextAttemptAt: diagnostic.nextAttemptAt }),
+  }) as AdmissionNotificationDiagnostics;
+}
 
 export function readNotificationOperatorSecret(value: string | undefined): string {
   const bytes = new TextEncoder().encode(value ?? '');
@@ -1638,6 +2920,29 @@ export function readNotificationOperatorSecret(value: string | undefined): strin
   } finally {
     bytes.fill(0);
   }
+}
+
+export function requireAdmissionNotificationRecoveryPrecondition(
+  diagnostics: AdmissionNotificationDiagnostics,
+  expectedRequestedAtMicros: bigint,
+): AdmissionNotificationDiagnostics {
+  if (
+    expectedRequestedAtMicros < 1n
+    || expectedRequestedAtMicros > BigInt(Number.MAX_SAFE_INTEGER)
+    || diagnostics.status !== 'delivery-exhausted'
+    || diagnostics.generation !== 'pending-request'
+    || diagnostics.requestedAtMicros !== Number(expectedRequestedAtMicros)
+    || diagnostics.recoveryCount !== 0
+    || diagnostics.lastRecoveryAt !== undefined
+    || !diagnostics.subscribed
+  ) {
+    fail(
+      diagnostics.status === 'not-subscribed' || !diagnostics.subscribed
+        ? 'Farcaster notifications are not enabled for this identity. Recovery remains blocked until the player enables notifications.'
+        : 'Admission notification recovery requires one exact exhausted, unrecovered pending-request generation.',
+    );
+  }
+  return Object.freeze({ ...diagnostics });
 }
 
 export async function requestAdmissionNotification(
@@ -1696,7 +3001,10 @@ export async function inspectAdmissionNotification(
   fid: bigint,
   secret: string,
   fetchImpl: typeof fetch = fetch,
-): Promise<AdmissionNotificationStatus> {
+): Promise<AdmissionNotificationDiagnostics> {
+  if (fid < 1n || fid > BigInt(Number.MAX_SAFE_INTEGER)) {
+    fail('A positive, JavaScript-safe decimal FID is required.');
+  }
   readNotificationOperatorSecret(secret);
   let response: Response;
   try {
@@ -1718,16 +3026,74 @@ export async function inspectAdmissionNotification(
   }
   if (!response.ok) fail('The Warpkeep admission notification bridge rejected inspection.');
   const body = await readBoundedAdminResponse(response);
-  const status = body && typeof body === 'object' && !Array.isArray(body)
-    ? (body as { status?: unknown }).status
-    : undefined;
+  return projectAdmissionNotificationDiagnostics(body);
+}
+
+export async function requestAdmissionNotificationRecovery(
+  bridgeUrl: string,
+  fid: bigint,
+  requestedAtMicros: bigint,
+  recoveryId: string,
+  secret: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<AdmissionNotificationStatus> {
+  if (fid < 1n || fid > BigInt(Number.MAX_SAFE_INTEGER)) {
+    fail('A positive, JavaScript-safe decimal FID is required.');
+  }
+  if (
+    requestedAtMicros < 1n
+    || requestedAtMicros > BigInt(Number.MAX_SAFE_INTEGER)
+    || !/^[0-9a-f]{32}$/.test(recoveryId)
+  ) {
+    fail('The reviewed notification recovery authorization was invalid.');
+  }
+  readNotificationOperatorSecret(secret);
+  let response: Response;
+  try {
+    response = await fetchImpl(
+      new URL(ADMISSION_NOTIFICATION_RECOVERY_PATH, `${bridgeUrl}/`),
+      {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${secret}`,
+          accept: 'application/json',
+          'content-type': 'application/json',
+          'cache-control': 'no-store',
+        },
+        body: JSON.stringify({
+          fid: fid.toString(),
+          requestedAtMicros: Number(requestedAtMicros),
+          recoveryId,
+        }),
+        cache: 'no-store',
+        redirect: 'error',
+        signal: AbortSignal.timeout(10_000),
+      },
+    );
+  } catch {
+    fail('Could not reach the Warpkeep admission notification recovery bridge.');
+  }
+  if (!response.ok) {
+    fail('The Warpkeep admission notification recovery bridge rejected the request.');
+  }
+  const body = await readBoundedAdminResponse(response);
+  if (
+    !body
+    || typeof body !== 'object'
+    || Array.isArray(body)
+    || Object.keys(body).length !== 1
+    || !Object.prototype.hasOwnProperty.call(body, 'status')
+  ) {
+    fail('The Warpkeep admission notification recovery bridge returned an invalid response.');
+  }
+  const status = (body as { status?: unknown }).status;
   if (
     status !== 'queued'
     && status !== 'already-sent'
     && status !== 'delivery-exhausted'
     && status !== 'not-subscribed'
   ) {
-    fail('The Warpkeep admission notification bridge returned invalid diagnostics.');
+    fail('The Warpkeep admission notification recovery bridge returned an invalid response.');
   }
   return status;
 }
@@ -1738,14 +3104,17 @@ export async function requireNotificationBeforeAdmission(
   secretValue: string | undefined,
   fetchImpl: typeof fetch = fetch,
   sleep: AdminTokenSleeper = sleepForAdminTokenReadiness,
+  refreshNotificationAuthority: () => Promise<void>,
 ): Promise<AdmissionNotificationStatus> {
   const secret = readNotificationOperatorSecret(secretValue);
+  await refreshNotificationAuthority();
   let status = await requestAdmissionNotification(bridgeUrl, fid, secret, fetchImpl);
   if (status === 'queued') {
     await sleep(ADMISSION_NOTIFICATION_SETTLEMENT_WAIT_MILLISECONDS);
     // Requeue through the authority-checking endpoint instead of trusting a
     // generic status snapshot. This binds the go/no-go decision to whichever
     // exact pending request is still current after the wait.
+    await refreshNotificationAuthority();
     status = await requestAdmissionNotification(bridgeUrl, fid, secret, fetchImpl);
   }
   if (status === 'queued') {
@@ -1760,10 +3129,19 @@ export async function requireNotificationBeforeAdmission(
       + 'Admission remains unchanged; reconcile notification consent before retrying.',
     );
   }
+  if (status === 'not-subscribed') {
+    fail(
+      'Farcaster notifications are not enabled for this identity. '
+      + 'Admission remains pending until the player enables notifications.',
+    );
+  }
+  if (status !== 'already-sent') {
+    fail('The pending-request notification did not reach a safe admission state.');
+  }
   console.log(JSON.stringify({
     admissionNotification: status,
-    providerAcceptanceRequired: status !== 'not-subscribed',
-    providerAcceptedBeforeAdmission: status === 'already-sent',
+    providerAcceptanceRequired: true,
+    providerAcceptedBeforeAdmission: true,
   }));
   return status;
 }
@@ -1829,6 +3207,15 @@ export function requireGenesisExpansionProductionTarget(database: string): void 
 export function requireAccessRequestInspectionProductionTarget(database: string): void {
   if (database !== DEFAULT_DATABASE_IDENTITY) {
     fail('Access request inspection requires the immutable Warpkeep production database identity.');
+  }
+}
+
+/** Notification diagnostics are a separate credential domain pinned to prod. */
+export function requireAdmissionNotificationInspectionProductionTarget(
+  bridgeUrl: string,
+): void {
+  if (bridgeUrl !== DEFAULT_BRIDGE) {
+    fail('Admission notification inspection requires the canonical Warpkeep bridge.');
   }
 }
 
@@ -1906,6 +3293,60 @@ export function connect(
       rejectUnavailable();
     }
   });
+}
+
+type NotificationGatedReconnectDependencies = Readonly<{
+  refreshNotificationAuthority: () => Promise<void>;
+  waitForNotification?: typeof requireNotificationBeforeAdmission;
+  requestToken?: typeof requestAdminToken;
+  connectToDatabase?: typeof connect;
+}>;
+
+/**
+ * Do not retain a privileged Spacetime connection or expiring admin JWT while
+ * notification delivery settles. Fresh database authority is minted only after
+ * provider acceptance and immediately before the exact request-CAS recheck.
+ */
+export async function reconnectAfterAdmissionNotification(
+  input: Readonly<{
+    connection: DbConnection;
+    bridgeUrl: string;
+    fid: bigint;
+    notificationOperatorSecret: string | undefined;
+    adminSecret: string;
+    uri: string;
+    database: string;
+  }>,
+  dependencies: NotificationGatedReconnectDependencies,
+): Promise<DbConnection> {
+  disconnectSilently(input.connection);
+  // Keep a reconnect-bound check even when tests inject a notification waiter;
+  // the production waiter additionally refreshes immediately before each POST.
+  await dependencies.refreshNotificationAuthority();
+  await (
+    dependencies.waitForNotification
+    ?? requireNotificationBeforeAdmission
+  )(
+    input.bridgeUrl,
+    input.fid,
+    input.notificationOperatorSecret,
+    undefined,
+    undefined,
+    dependencies.refreshNotificationAuthority,
+  );
+  let freshToken = '';
+  try {
+    freshToken = await (
+      dependencies.requestToken
+      ?? requestAdminToken
+    )(input.bridgeUrl, input.adminSecret);
+    return await (
+      dependencies.connectToDatabase
+      ?? connect
+    )(input.uri, input.database, freshToken);
+  } finally {
+    freshToken = '';
+  }
 }
 
 export async function readStatus(
@@ -2037,6 +3478,156 @@ export async function readStatus(
   console.log(JSON.stringify(printable(status)));
 }
 
+type LegacyFounderAdmissionAuthorityCheckpoint = Readonly<{
+  mode: 'legacy';
+  world: GenesisExpansionStatusV3;
+  resources: ResourceAggregateV4;
+}>;
+
+type GreaterRealmFounderAdmissionAuthorityCheckpoint = Readonly<{
+  mode: 'greater-realm';
+  status: Readonly<AdminGreaterRealmCutoverStatusV1>;
+}>;
+
+type FounderAdmissionAuthorityCheckpoint =
+  | LegacyFounderAdmissionAuthorityCheckpoint
+  | GreaterRealmFounderAdmissionAuthorityCheckpoint;
+
+type LegacyFounderReenableAuthorityCheckpoint = Readonly<{
+  mode: 'legacy';
+  checkpoint: ReturnType<typeof verifyFounderReenablePrecondition>;
+}>;
+
+type GreaterRealmFounderReenableAuthorityCheckpoint = Readonly<{
+  mode: 'greater-realm';
+  checkpoint: GreaterRealmReenableCheckpoint;
+}>;
+
+type FounderReenableAuthorityCheckpoint =
+  | LegacyFounderReenableAuthorityCheckpoint
+  | GreaterRealmFounderReenableAuthorityCheckpoint;
+
+async function readGreaterRealmCutoverStatus(
+  connection: DbConnection,
+): Promise<AdminGreaterRealmCutoverStatusV1> {
+  return withOperationTimeout(
+    connection.procedures.adminGetGreaterRealmCutoverStatusV1({}),
+  );
+}
+
+async function readGreaterRealmReenableStatus(
+  connection: DbConnection,
+  fid: bigint,
+): Promise<AdminGreaterRealmReenableStatusV1> {
+  return withOperationTimeout(
+    connection.procedures.adminGetGreaterRealmReenableStatusV1({ fid }),
+  );
+}
+
+function requireUnchangedFounderAuthorityMode(
+  initial: FounderAdmissionAuthorityMode,
+  current: FounderAdmissionAuthorityMode,
+): void {
+  if (initial !== current) {
+    fail('Founder admission authority mode changed; no mutation was submitted.');
+  }
+}
+
+async function readFounderAdmissionAuthorityPrecondition(
+  connection: DbConnection,
+): Promise<FounderAdmissionAuthorityCheckpoint> {
+  const cutover = await readGreaterRealmCutoverStatus(connection);
+  const mode = selectFounderAdmissionAuthorityMode(cutover);
+  if (mode === 'greater-realm') {
+    return Object.freeze({
+      mode,
+      status: verifyGreaterRealmAdmissionPrecondition(cutover),
+    });
+  }
+  const world = verifyFounderAdmissionPreconditionV3(
+    await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
+  );
+  const resources = verifyFounderAdmissionResourcePreconditionV4(
+    await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
+    world.allowedFids,
+  );
+  return Object.freeze({ mode, world, resources });
+}
+
+async function verifyFounderAdmissionAuthorityPostcondition(
+  connection: DbConnection,
+  before: FounderAdmissionAuthorityCheckpoint,
+): Promise<void> {
+  const cutover = await readGreaterRealmCutoverStatus(connection);
+  const mode = selectFounderAdmissionAuthorityMode(cutover);
+  requireUnchangedFounderAuthorityMode(before.mode, mode);
+  if (before.mode === 'greater-realm') {
+    verifyGreaterRealmAdmissionPostcondition(cutover, before.status);
+    return;
+  }
+  verifyFounderAdmissionPostconditionV3(
+    await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
+    before.world,
+  );
+  verifyFounderAdmissionResourcePostconditionV4(
+    await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
+    before.resources,
+  );
+}
+
+async function readFounderReenableAuthorityPrecondition(
+  connection: DbConnection,
+  fid: bigint,
+  target: AccessRequestAdmissionStatus,
+): Promise<FounderReenableAuthorityCheckpoint> {
+  const cutover = await readGreaterRealmCutoverStatus(connection);
+  const mode = selectFounderAdmissionAuthorityMode(cutover);
+  if (mode === 'greater-realm') {
+    return Object.freeze({
+      mode,
+      checkpoint: verifyGreaterRealmReenablePreconditionV1(
+        cutover,
+        await readGreaterRealmReenableStatus(connection, fid),
+        target,
+      ),
+    });
+  }
+  return Object.freeze({
+    mode,
+    checkpoint: verifyFounderReenablePrecondition(
+      await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
+      await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
+      target,
+    ),
+  });
+}
+
+async function verifyFounderReenableAuthorityPostcondition(
+  connection: DbConnection,
+  fid: bigint,
+  target: AccessRequestAdmissionStatus,
+  before: FounderReenableAuthorityCheckpoint,
+): Promise<void> {
+  const cutover = await readGreaterRealmCutoverStatus(connection);
+  const mode = selectFounderAdmissionAuthorityMode(cutover);
+  requireUnchangedFounderAuthorityMode(before.mode, mode);
+  if (before.mode === 'greater-realm') {
+    verifyGreaterRealmReenablePostconditionV1(
+      cutover,
+      await readGreaterRealmReenableStatus(connection, fid),
+      target,
+      before.checkpoint,
+    );
+    return;
+  }
+  verifyFounderReenablePostcondition(
+    await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
+    await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
+    target,
+    before.checkpoint,
+  );
+}
+
 async function main() {
   const {
     command,
@@ -2048,9 +3639,70 @@ async function main() {
     privateInputStdin,
     accessRequestList,
   } = parseHermesArguments();
-  const notificationOperatorSecret = process.env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET;
+  const capturedTrustedLaunch = captureTrustedHermesLaunch(trustedHermesReleaseRow({
+    command,
+    dryRun,
+  }));
+  // This checked-in literal is the activation-client side of the coordinated
+  // notification release envelope. False is a complete mutation blackout: it
+  // is checked before credentials, bridge delivery, administrator-token
+  // issuance, database connection, reviewed-plan access or claim, and either
+  // admission reducer. It must never become a skip-delivery path.
+  if ((command === 'admit-founder' || command === 'allow-fid') && !dryRun) {
+    requireFounderAdmissionNotificationDeliveryApproval(command);
+  }
+  const trustedLaunch = validateTrustedHermesLaunch(capturedTrustedLaunch);
+  let notificationPagesLiveAuthority:
+    HermesNotificationPagesLiveAuthority | undefined;
+  const readNotificationPagesLiveAuthority = async (
+    required: boolean,
+    refresh = false,
+  ): Promise<HermesNotificationPagesLiveAuthority> => {
+    if (
+      !refresh
+      &&
+      notificationPagesLiveAuthority !== undefined
+      && (
+        !required
+        || notificationPagesLiveAuthority.notificationPagesLiveReceiptDigest !== null
+      )
+    ) return notificationPagesLiveAuthority;
+    notificationPagesLiveAuthority =
+      await inspectHermesNotificationPagesLiveAuthority({
+        required,
+        ...(trustedLaunch?.protectedCommit === undefined
+          ? {}
+          : { pagesSourceCommit: trustedLaunch.protectedCommit }),
+      });
+    return notificationPagesLiveAuthority;
+  };
+  const legacyNotificationOperatorSecret = process.env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET;
   delete process.env.WARPKEEP_NOTIFICATION_OPERATOR_SECRET;
-  configureHermesMachineOutput(machineReadableInspection);
+  const readCommandNotificationSecret = () => readNotificationOperatorSecret(
+    trustedLaunch?.notificationSecretPath === undefined
+      ? legacyNotificationOperatorSecret
+      : readTrustedHermesSecret(trustedLaunch.notificationSecretPath),
+  );
+  const privateInspectionOutput = machineReadableInspection
+    || command === 'list-pending-access-requests';
+  configureHermesMachineOutput(
+    privateInspectionOutput || command === 'inspect-admission-notification',
+  );
+  if (command === 'inspect-admission-notification') {
+    const bridgeUrl = readHttpsUrl(
+      process.env.WARPKEEP_AUTH_BRIDGE_URL,
+      'WARPKEEP_AUTH_BRIDGE_URL',
+    );
+    requireAdmissionNotificationInspectionProductionTarget(bridgeUrl);
+    await readNotificationPagesLiveAuthority(false);
+    const diagnostics = await inspectAdmissionNotification(
+      bridgeUrl,
+      readFid(positional[1]),
+      readCommandNotificationSecret(),
+    );
+    console.log(JSON.stringify(diagnostics));
+    return;
+  }
   // Durable data migrations and new founder admission always require a visible
   // command-line confirmation.
   // The legacy noninteractive switch remains available to older bounded
@@ -2059,6 +3711,7 @@ async function main() {
     command !== 'backfill-resources'
     && command !== 'expand-world-v3'
     && command !== 'reset-access-request'
+    && command !== 'recover-admission-notification'
     && command !== 'admit-founder'
     && command !== 'seed-alpha-component'
     && command !== 'activate-alpha-water'
@@ -2079,6 +3732,7 @@ async function main() {
     || command === 'bump-auth-epoch'
     || command === 'inspect-access-request-reset'
     || (command === 'reset-access-request' && dryRun)
+    || (command === 'recover-admission-notification' && dryRun)
     ? readFid(positional[1])
     : undefined;
   const expectedFounderCount = command === 'backfill-resources'
@@ -2090,6 +3744,7 @@ async function main() {
   let note = command === 'allow-fid'
     || command === 'disable-fid'
     || (command === 'reset-access-request' && dryRun)
+    || (command === 'recover-admission-notification' && dryRun)
     ? sanitizeNote(positional[2])
     : command === 'bump-auth-epoch'
       ? sanitizeNote(positional[2], 'auth epoch rotation')
@@ -2099,13 +3754,19 @@ async function main() {
   let admissionPlanReference: ReviewedFounderAdmissionPlanReference | undefined;
   let accessRequestResetPlan: ReviewedAccessRequestResetPlan | undefined;
   let accessRequestResetPlanReference: ReviewedAccessRequestResetPlanReference | undefined;
+  let notificationRecoveryPlan: ReviewedAdmissionNotificationRecoveryPlan | undefined;
+  let notificationRecoveryPlanReference:
+    ReviewedAdmissionNotificationRecoveryPlanReference | undefined;
 
   if (command === 'admit-founder') {
     // The target is fixed before reading sensitive stdin. A plan can never be
     // created for a configurable lookalike and later consumed in production.
     requireCredentialedProductionTarget(uri, database, DEFAULT_BRIDGE);
     requireFounderAdmissionProductionTarget(database);
-    const privateInput = await readPrivateFounderAdmissionInput();
+    const liveAuthority = await readNotificationPagesLiveAuthority(!dryRun);
+    const privateInput = trustedLaunch?.privateInputPath === undefined
+      ? await readPrivateFounderAdmissionInput()
+      : readTrustedFounderAdmissionInput(trustedLaunch.privateInputPath);
     if (dryRun) {
       const request = parsePrivateFounderAdmissionRequest(privateInput);
       const profile = await resolveAdmissionReadyFounderProfile(request.fid);
@@ -2114,11 +3775,17 @@ async function main() {
         targetConfigurationDigest: FOUNDER_ADMISSION_TARGET_CONFIGURATION_DIGEST,
         profilePolicyVersion: FARCASTER_PROFILE_POLICY_VERSION,
         profileSourceUseApproval: request.profileSourceUseApproval,
+        notificationPagesLiveAuthority: liveAuthority,
         fid: request.fid,
         note: request.note,
         profile,
       });
-      const reference = writeReviewedFounderAdmissionPlan({ plan });
+      const reference = writeReviewedFounderAdmissionPlan({
+        plan,
+        ...(trustedLaunch === undefined
+          ? {}
+          : { directory: trustedLaunch.founderPlanDirectory }),
+      });
       console.log(JSON.stringify(Object.freeze({
         ...admissionReadinessSummary(profile),
         reviewedAdmissionPlan: Object.freeze({
@@ -2134,10 +3801,19 @@ async function main() {
     admissionPlanReference = parseReviewedFounderAdmissionPlanReference(privateInput);
     admissionPlan = readReviewedFounderAdmissionPlan({
       reference: admissionPlanReference,
+      ...(trustedLaunch === undefined
+        ? {}
+        : { directory: trustedLaunch.founderPlanDirectory }),
       expectedSourceConfigurationDigest: FOUNDER_ADMISSION_SOURCE_CONFIGURATION_DIGEST,
       expectedTargetConfigurationDigest: FOUNDER_ADMISSION_TARGET_CONFIGURATION_DIGEST,
       expectedProfilePolicyVersion: FARCASTER_PROFILE_POLICY_VERSION,
     });
+    if (!sameHermesNotificationPagesLiveAuthority(
+      admissionPlan,
+      liveAuthority,
+    )) {
+      fail('Reviewed founder admission plan uses a different notification release.');
+    }
     fid = BigInt(admissionPlan.fid);
     note = admissionPlan.note;
     admissionProfile = admissionPlan.profile;
@@ -2158,21 +3834,47 @@ async function main() {
     note = accessRequestResetPlan.note;
   }
 
+  if (command === 'recover-admission-notification' && !dryRun) {
+    notificationRecoveryPlanReference =
+      parseReviewedAdmissionNotificationRecoveryPlanReference({
+        reviewedAdmissionNotificationRecoveryPlan: {
+          filename: positional[1],
+          sha256: positional[2],
+        },
+      });
+    notificationRecoveryPlan = readReviewedAdmissionNotificationRecoveryPlan({
+      reference: notificationRecoveryPlanReference,
+      ...(trustedLaunch === undefined
+        ? {}
+        : { directory: trustedLaunch.notificationRecoveryPlanDirectory }),
+      expectedTargetConfigurationDigest:
+        ADMISSION_NOTIFICATION_RECOVERY_TARGET_CONFIGURATION_DIGEST,
+    });
+    fid = BigInt(notificationRecoveryPlan.fid);
+    note = notificationRecoveryPlan.note;
+  }
+
   if (command === 'expand-world-v3') {
     requireGenesisExpansionProductionTarget(database);
   }
   if (command === 'list-access-requests') {
     requireAccessRequestInspectionProductionTarget(database);
   }
+  if (command === 'list-pending-access-requests') {
+    requireAccessRequestInspectionProductionTarget(database);
+  }
   if (command === 'reset-access-request' || command === 'inspect-access-request-reset') {
     requireAccessRequestResetProductionTarget(database);
+  }
+  if (command === 'recover-admission-notification') {
+    requireFounderAdmissionProductionTarget(database);
   }
 
   if ((command === 'seed-alpha-component' || command === 'activate-alpha-water') && !dryRun) {
     requireAlphaComponentActivationProductionTarget(database);
   }
 
-  if (!machineReadableInspection && !(command === 'admit-founder' && dryRun)) {
+  if (!privateInspectionOutput && !(command === 'admit-founder' && dryRun)) {
     console.log(`Warpkeep Hermes target: ${database} at ${uri}`);
   }
   if (command === 'allow-fid') {
@@ -2193,6 +3895,9 @@ async function main() {
   if (command === 'reset-access-request' && !dryRun && !confirmed) {
     fail('Refusing access request reset without --confirm.');
   }
+  if (command === 'recover-admission-notification' && !dryRun && !confirmed) {
+    fail('Refusing admission notification recovery without --confirm.');
+  }
 
   let prevalidatedBridgeUrl: string | undefined;
   if (command === 'admit-founder' && !dryRun) {
@@ -2202,7 +3907,14 @@ async function main() {
     );
     requireCredentialedProductionTarget(uri, database, prevalidatedBridgeUrl);
   }
-  if (dryRun && command !== 'reset-access-request') {
+  if (
+    dryRun
+    && command !== 'reset-access-request'
+    && command !== 'recover-admission-notification'
+  ) {
+    if (command === 'allow-fid') {
+      await readNotificationPagesLiveAuthority(false);
+    }
     console.log(JSON.stringify(printable({
       command,
       fid,
@@ -2241,10 +3953,16 @@ async function main() {
     })));
     return;
   }
-  if (mutation && !confirmed && !(command === 'reset-access-request' && dryRun)) {
+  if (
+    mutation
+    && !confirmed
+    && !(command === 'reset-access-request' && dryRun)
+    && !(command === 'recover-admission-notification' && dryRun)
+  ) {
     fail(
       command === 'backfill-resources' || command === 'expand-world-v3'
         || command === 'reset-access-request'
+        || command === 'recover-admission-notification'
         || command === 'seed-alpha-component' || command === 'activate-alpha-water'
         ? 'Refusing mutation without --confirm.'
         : 'Refusing mutation without --confirm (or WARPKEEP_HERMES_NONINTERACTIVE=yes).',
@@ -2258,32 +3976,225 @@ async function main() {
     ?? readHttpsUrl(process.env.WARPKEEP_AUTH_BRIDGE_URL, 'WARPKEEP_AUTH_BRIDGE_URL');
   requireCredentialedProductionTarget(uri, database, bridgeUrl);
   if (
-    command === 'reset-access-request'
+    command === 'allow-fid'
+    || command === 'recover-admission-notification'
+  ) {
+    const liveAuthority = await readNotificationPagesLiveAuthority(!dryRun);
+    if (
+      command === 'recover-admission-notification'
+      && !dryRun
+      && notificationRecoveryPlan !== undefined
+      && !sameHermesNotificationPagesLiveAuthority(
+        notificationRecoveryPlan,
+        liveAuthority,
+      )
+    ) {
+      fail('Reviewed notification recovery plan uses a different notification release.');
+    }
+  }
+  if (
+    (command === 'reset-access-request' || command === 'recover-admission-notification')
     && process.env.WARPKEEP_ADMIN_TOKEN_SECRET !== undefined
   ) {
-    fail('Access request reset refuses an administrator secret from the environment.');
+    fail(
+      command === 'reset-access-request'
+        ? 'Access request reset refuses an administrator secret from the environment.'
+        : 'Admission notification recovery refuses an administrator secret from the environment.',
+    );
   }
-  const secret = readAdminSecret(
-    command === 'reset-access-request'
-      ? undefined
-      : process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
-    command === 'reset-access-request' && privateInputStdin
-      ? '1'
-      : process.env.WARPKEEP_ADMIN_TOKEN_SECRET_STDIN,
-  );
-  const token = await requestAdminToken(bridgeUrl, secret);
-  const connection = await connect(uri, database, token);
+  const secret = trustedLaunch?.adminSecretPath === undefined
+    ? readAdminSecret(
+        command === 'reset-access-request' || command === 'recover-admission-notification'
+          ? undefined
+          : process.env.WARPKEEP_ADMIN_TOKEN_SECRET,
+        (command === 'reset-access-request' || command === 'recover-admission-notification')
+          && privateInputStdin
+          && process.env.WARPKEEP_ADMIN_TOKEN_SECRET_FD === undefined
+          ? '1'
+          : process.env.WARPKEEP_ADMIN_TOKEN_SECRET_STDIN,
+      )
+    : readTrustedHermesSecret(trustedLaunch.adminSecretPath);
+  delete process.env.WARPKEEP_ADMIN_TOKEN_SECRET_FD;
+  delete process.env.WARPKEEP_ADMIN_TOKEN_SECRET_STDIN;
+  let token = await requestAdminToken(bridgeUrl, secret);
+  let connection: DbConnection;
+  try {
+    connection = await connect(uri, database, token);
+  } finally {
+    // The connected SDK transport owns its authenticated session. Do not keep
+    // a second immutable JWT alive while the operator performs checks.
+    token = '';
+  }
   let founderAdmissionClaimed = false;
   let accessRequestResetClaimed = false;
+  let notificationRecoveryClaimed = false;
   try {
     let mutationStatusHandled = false;
-    if (command === 'list-access-requests') {
+    if (command === 'list-pending-access-requests') {
+      if (
+        trustedLaunch?.row !== 'list-pending'
+        || trustedLaunch.protectedCommit === undefined
+        || trustedLaunch.pendingCensusDirectory === undefined
+      ) fail('Pending access request census requires the exact trusted bootstrap.');
+      const census = await collectPendingAccessRequestCensus(
+        connection,
+        trustedLaunch.protectedCommit,
+      );
+      const reference = writePendingAccessRequestCensus({
+        directory: trustedLaunch.pendingCensusDirectory,
+        census,
+      });
+      console.log(JSON.stringify(Object.freeze({
+        pendingAccessRequestCensus: reference,
+        advisoryOnly: true,
+        admissionMustRecheckRequestCas: true,
+      })));
+      mutationStatusHandled = true;
+    } else if (command === 'list-access-requests') {
       await listAccessRequests(
         connection,
         accessRequestList,
         machineReadableInspection,
       );
       mutationStatusHandled = true;
+    } else if (
+      command === 'recover-admission-notification'
+      && fid !== undefined
+      && note !== undefined
+    ) {
+      const targetBefore = requirePendingAdmissionRequest(
+        projectAccessRequestAdmissionStatus(
+          await withOperationTimeout(
+            connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
+          ),
+        ),
+        'missing',
+      );
+      const operatorSecret = readCommandNotificationSecret();
+      const diagnosticsBefore = requireAdmissionNotificationRecoveryPrecondition(
+        await inspectAdmissionNotification(
+          bridgeUrl,
+          fid,
+          operatorSecret,
+        ),
+        targetBefore.requestedAtMicros,
+      );
+      const notificationStateDigest = admissionNotificationRecoveryStateDigest(
+        diagnosticsBefore,
+      );
+      if (dryRun) {
+        const plan = createReviewedAdmissionNotificationRecoveryPlan({
+          targetConfigurationDigest:
+            ADMISSION_NOTIFICATION_RECOVERY_TARGET_CONFIGURATION_DIGEST,
+          notificationPagesLiveAuthority:
+            notificationPagesLiveAuthority
+            ?? await readNotificationPagesLiveAuthority(false),
+          fid,
+          note,
+          expectedRequestedAtMicros: targetBefore.requestedAtMicros,
+          expectedNotificationStateDigest: notificationStateDigest,
+        });
+        const reference = writeReviewedAdmissionNotificationRecoveryPlan({
+          plan,
+          ...(trustedLaunch === undefined
+            ? {}
+            : { directory: trustedLaunch.notificationRecoveryPlanDirectory }),
+        });
+        console.log(JSON.stringify({
+          admissionNotificationRecoveryPlan: {
+            status: diagnosticsBefore.status,
+            generation: diagnosticsBefore.generation,
+            requestedAtMicros: targetBefore.requestedAtMicros.toString(),
+            recoveryCount: diagnosticsBefore.recoveryCount,
+            reviewedPlan: {
+              filename: reference.filename,
+              sha256: reference.sha256,
+            },
+            expiresAt: reference.expiresAt,
+            lifetimeMinutes:
+              REVIEWED_ADMISSION_NOTIFICATION_RECOVERY_PLAN_LIFETIME_MS / 60_000,
+            admissionState: targetBefore.admissionState,
+            admissionMutationSubmitted: false,
+            notificationRecoverySubmitted: false,
+          },
+        }));
+        mutationStatusHandled = true;
+      } else {
+        if (
+          notificationRecoveryPlan === undefined
+          || notificationRecoveryPlanReference === undefined
+        ) fail('Confirmed admission notification recovery requires one reviewed plan.');
+        if (
+          notificationRecoveryPlan.fid !== fid.toString()
+          || notificationRecoveryPlan.expectedRequestedAtMicros
+            !== targetBefore.requestedAtMicros.toString()
+          || notificationRecoveryPlan.expectedNotificationStateDigest
+            !== notificationStateDigest
+        ) {
+          fail(
+            'Reviewed admission notification recovery plan no longer matches current state. '
+            + 'No recovery request or admission mutation was submitted.',
+          );
+        }
+        await readNotificationPagesLiveAuthority(true, true);
+        claimReviewedAdmissionNotificationRecoveryPlan({
+          plan: notificationRecoveryPlan,
+          sha256: notificationRecoveryPlanReference.sha256,
+          ...(trustedLaunch === undefined
+            ? {}
+            : { directory: trustedLaunch.notificationRecoveryPlanDirectory }),
+        });
+        notificationRecoveryClaimed = true;
+        const recoveryStatus = await requestAdmissionNotificationRecovery(
+          bridgeUrl,
+          fid,
+          targetBefore.requestedAtMicros,
+          notificationRecoveryPlan.planId,
+          operatorSecret,
+        );
+        const targetAfter = requireUnchangedPendingAdmissionRequest(
+          targetBefore,
+          projectAccessRequestAdmissionStatus(
+            await withOperationTimeout(
+              connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
+            ),
+          ),
+          'missing',
+        );
+        const diagnosticsAfter = await inspectAdmissionNotification(
+          bridgeUrl,
+          fid,
+          operatorSecret,
+        );
+        if (
+          targetAfter.requestedAtMicros !== targetBefore.requestedAtMicros
+          || diagnosticsAfter.generation !== 'pending-request'
+          || diagnosticsAfter.requestedAtMicros !== Number(targetBefore.requestedAtMicros)
+          || diagnosticsAfter.recoveryCount !== (
+            recoveryStatus === 'not-subscribed' ? 0 : 1
+          )
+          || (diagnosticsAfter.lastRecoveryAt === undefined)
+            !== (recoveryStatus === 'not-subscribed')
+          || (recoveryStatus === 'already-sent' && diagnosticsAfter.status !== 'already-sent')
+        ) {
+          throw new HermesClaimedAdmissionNotificationRecoveryOutcomeError();
+        }
+        notificationRecoveryClaimed = false;
+        console.log(JSON.stringify({
+          admissionNotificationRecovery: {
+            status: recoveryStatus,
+            observedStatus: diagnosticsAfter.status,
+            generation: diagnosticsAfter.generation,
+            requestedAtMicros: targetAfter.requestedAtMicros.toString(),
+            recoveryCount: diagnosticsAfter.recoveryCount,
+            admissionState: targetAfter.admissionState,
+            admissionMutationSubmitted: false,
+            pendingRequestUnchanged: true,
+            safeToRetryAdmission: diagnosticsAfter.status === 'already-sent',
+          },
+        }));
+        mutationStatusHandled = true;
+      }
     } else if (command === 'inspect-access-request-reset' && fid !== undefined) {
       const status = projectAccessRequestResetStatus(
         await withOperationTimeout(
@@ -2519,77 +4430,128 @@ async function main() {
       && admissionPlan !== undefined
       && admissionPlanReference !== undefined
     ) {
-      const before = verifyFounderAdmissionPreconditionV3(
-        await readStatus(connection, 'v3') as GenesisExpansionStatusV3,
+      const initialTarget = requirePendingAdmissionRequest(
+        projectAccessRequestAdmissionStatus(
+          await withOperationTimeout(
+            connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
+          ),
+        ),
+        'missing',
       );
-      const beforeResources = verifyFounderAdmissionResourcePreconditionV4(
-        await readStatus(connection, 'v4') as ResourceAggregateV4,
-        before.allowedFids,
-      );
-      const targetAuthEpoch = await withOperationTimeout(
-        connection.procedures.adminGetFidAuthEpoch({ fid }),
-      );
-      if (targetAuthEpoch !== 0) {
-        fail('Profiled admission requires a founder FID that has not been admitted before.');
-      }
-      // All local, credential, connection, plan, profile, capacity, and
-      // persistent graph checks have passed. Bind provider acceptance to the
-      // still-current request immediately before the one admission mutation.
-      await requireNotificationBeforeAdmission(
+      const initialAuthority = await readFounderAdmissionAuthorityPrecondition(connection);
+      normalizeAdmissionReadyTrustedProfile(admissionProfile);
+
+      connection = await reconnectAfterAdmissionNotification({
+        connection,
         bridgeUrl,
         fid,
-        notificationOperatorSecret,
+        notificationOperatorSecret: readCommandNotificationSecret(),
+        adminSecret: secret,
+        uri,
+        database,
+      }, {
+        refreshNotificationAuthority: async () => {
+          await readNotificationPagesLiveAuthority(true, true);
+        },
+      });
+      const freshTarget = requireUnchangedPendingAdmissionRequest(
+        initialTarget,
+        projectAccessRequestAdmissionStatus(
+          await withOperationTimeout(
+            connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
+          ),
+        ),
+        'missing',
       );
+      const beforeAuthority = await readFounderAdmissionAuthorityPrecondition(connection);
+      requireUnchangedFounderAuthorityMode(initialAuthority.mode, beforeAuthority.mode);
+      const freshAdmissionProfile = normalizeAdmissionReadyTrustedProfile(admissionProfile);
+      await readNotificationPagesLiveAuthority(true, true);
       claimReviewedFounderAdmissionPlan({
         plan: admissionPlan,
         sha256: admissionPlanReference.sha256,
+        ...(trustedLaunch === undefined
+          ? {}
+          : { directory: trustedLaunch.founderPlanDirectory }),
       });
       founderAdmissionClaimed = true;
-      await withOperationTimeout(connection.reducers.adminAdmitFounderV1({
+      await withOperationTimeout(connection.reducers.adminAdmitFounderForAccessRequestV2({
         fid,
         note,
-        canonicalUsername: admissionProfile.canonicalUsername,
-        displayName: admissionProfile.displayName,
-        pfpUrl: admissionProfile.pfpUrl,
-        publicBio: admissionProfile.publicBio,
+        expectedRequestCycle: freshTarget.requestCycle,
+        expectedRequestedAtMicros: freshTarget.requestedAtMicros,
+        canonicalUsername: freshAdmissionProfile.canonicalUsername,
+        displayName: freshAdmissionProfile.displayName,
+        pfpUrl: freshAdmissionProfile.pfpUrl,
+        publicBio: freshAdmissionProfile.publicBio,
         profilePolicyVersion: FARCASTER_PROFILE_POLICY_VERSION,
       }));
-      verifyFounderAdmissionPostconditionV3(
-        await readStatus(connection, 'v3') as GenesisExpansionStatusV3,
-        before,
+      verifyFounderAdmissionRequestPostcondition(
+        projectAccessRequestAdmissionStatus(
+          await withOperationTimeout(
+            connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
+          ),
+        ),
+        freshTarget,
       );
-      verifyFounderAdmissionResourcePostconditionV4(
-        await readStatus(connection, 'v4') as ResourceAggregateV4,
-        beforeResources,
-      );
+      await verifyFounderAdmissionAuthorityPostcondition(connection, beforeAuthority);
       founderAdmissionClaimed = false;
       mutationStatusHandled = true;
     } else if (command === 'allow-fid' && fid !== undefined && note !== undefined) {
-      const beforeTarget = projectAccessRequestResetStatus(
+      const initialTarget = projectAccessRequestAdmissionStatus(
         await withOperationTimeout(
-          connection.procedures.adminGetAccessRequestResetStatusV1({ fid }),
+          connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
         ),
       );
-      const before = verifyFounderReenablePrecondition(
-        await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
-        await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
-        beforeTarget,
+      const initialAuthority = await readFounderReenableAuthorityPrecondition(
+        connection,
+        fid,
+        initialTarget,
       );
-      await requireNotificationBeforeAdmission(
+      connection = await reconnectAfterAdmissionNotification({
+        connection,
         bridgeUrl,
         fid,
-        notificationOperatorSecret,
-      );
-      await withOperationTimeout(connection.reducers.adminAllowFid({ fid, note }));
-      verifyFounderReenablePostcondition(
-        await readStatus(connection, 'v3', false, undefined, false) as GenesisExpansionStatusV3,
-        await readStatus(connection, 'v4', false, undefined, false) as ResourceAggregateV4,
-        projectAccessRequestResetStatus(
+        notificationOperatorSecret: readCommandNotificationSecret(),
+        adminSecret: secret,
+        uri,
+        database,
+      }, {
+        refreshNotificationAuthority: async () => {
+          await readNotificationPagesLiveAuthority(true, true);
+        },
+      });
+      const freshTarget = requireUnchangedPendingAdmissionRequest(
+        initialTarget,
+        projectAccessRequestAdmissionStatus(
           await withOperationTimeout(
-            connection.procedures.adminGetAccessRequestResetStatusV1({ fid }),
+            connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
           ),
         ),
-        before,
+        'disabled',
+      );
+      const beforeAuthority = await readFounderReenableAuthorityPrecondition(
+        connection,
+        fid,
+        freshTarget,
+      );
+      requireUnchangedFounderAuthorityMode(initialAuthority.mode, beforeAuthority.mode);
+      await readNotificationPagesLiveAuthority(true, true);
+      await withOperationTimeout(connection.reducers.adminAllowFidForAccessRequestV1({
+        fid,
+        note,
+        expectedRequestCycle: freshTarget.requestCycle,
+        expectedRequestedAtMicros: freshTarget.requestedAtMicros,
+      }));
+      await verifyFounderReenableAuthorityPostcondition(
+        connection,
+        fid,
+        projectAccessRequestAdmissionStatus(
+          await withOperationTimeout(
+            connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid }),
+          ),
+        ),
+        beforeAuthority,
       );
       mutationStatusHandled = true;
     } else if (command === 'disable-fid' && fid !== undefined && note !== undefined) {
@@ -2719,6 +4681,7 @@ async function main() {
       error,
       founderAdmissionClaimed,
       accessRequestResetClaimed,
+      notificationRecoveryClaimed,
     );
   } finally {
     disconnectSilently(connection);
