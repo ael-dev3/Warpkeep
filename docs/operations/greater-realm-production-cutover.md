@@ -187,9 +187,11 @@ ambiguous response after `deploy-invoked` is an adjudication stop, never
 permission for a second deploy. If the process dies after the marker but before
 the Pages action begins, a later private run may retire that marker only when
 the attempt-specific GitHub Actions API authenticates the exact repository,
-workflow, source, job, successful marker step, and immediately following deploy
-step as `completed/skipped`. A missing step or a `cancelled`, `failure`,
-`timed_out`, running, or otherwise uncertain deploy conclusion stays blocked.
+workflow, source, job, locally fsynced marker step, and immediately following
+deploy step as `completed/skipped`. The marker step may itself end as success,
+failure, or cancelled after that fsync; the local marker and skipped deploy are
+both required. A missing step or a `cancelled`, `failure`, `timed_out`, running,
+or otherwise uncertain deploy conclusion stays blocked.
 
 Completed histories compact crash-safely to one immutable terminal. Proven
 skips compact to one superseding abandonment checkpoint per operation, so

@@ -1628,7 +1628,8 @@ export async function recoverNotificationPagesPrivateDeploySkippedInvocation({
       || !['cancelled', 'failure', 'timed_out'].includes(proof.jobConclusion)
       || proof.markerStepName
         !== 'Recheck protected source and durably mark deployment invocation'
-      || proof.markerStepConclusion !== 'success'
+      || !['success', 'failure', 'cancelled']
+        .includes(proof.markerStepConclusion)
       || proof.deployStepName
         !== 'Deploy private-authorized release to GitHub Pages'
       || proof.deployStepConclusion !== 'skipped'

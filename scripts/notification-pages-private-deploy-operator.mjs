@@ -986,7 +986,7 @@ async function adjudicateSkippedGitHubDeployment(
   const deployment = deploySteps[0];
   if (
     marker.status !== 'completed'
-    || marker.conclusion !== 'success'
+    || !['success', 'failure', 'cancelled'].includes(marker.conclusion)
     || deployment.status !== 'completed'
     || deployment.conclusion !== 'skipped'
     || !Number.isSafeInteger(marker.number)

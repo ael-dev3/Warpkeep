@@ -469,6 +469,34 @@ describe('notification Pages private deployment operator', () => {
       });
   });
 
+  it.each(['failure', 'cancelled']) (
+    'accepts a fsynced marker whose shell ended %s only when deploy was skipped',
+    async markerConclusion => {
+      const fetchImpl = githubAdjudicationFetch({
+        job: {
+          steps: [
+            {
+              name: 'Recheck protected source and durably mark deployment invocation',
+              number: 7,
+              status: 'completed',
+              conclusion: markerConclusion,
+            },
+            {
+              name: 'Deploy private-authorized release to GitHub Pages',
+              number: 8,
+              status: 'completed',
+              conclusion: 'skipped',
+            },
+          ],
+        },
+      });
+      await expect(adjudicateWithToken(fetchImpl)).resolves.toMatchObject({
+        deployStepConclusion: 'skipped',
+        markerStepConclusion: markerConclusion,
+      });
+    },
+  );
+
   it('attests protected main and both exact attempt-specific workflow runs', async () => {
     await expect(attestWithToken(githubAuthorityFetch())).resolves.toEqual({
       candidatePagesSourceCommit: CANDIDATE,
@@ -512,6 +540,38 @@ describe('notification Pages private deployment operator', () => {
             number: 8,
             status: 'completed',
             conclusion: 'cancelled',
+          },
+        ],
+      },
+    },
+    {
+      name: 'failed marker followed by a non-skipped deploy',
+      job: {
+        steps: [
+          {
+            name: 'Recheck protected source and durably mark deployment invocation',
+            number: 7,
+            status: 'completed',
+            conclusion: 'failure',
+          },
+          {
+            name: 'Deploy private-authorized release to GitHub Pages',
+            number: 8,
+            status: 'completed',
+            conclusion: 'failure',
+          },
+        ],
+      },
+    },
+    {
+      name: 'failed marker with a missing deploy step',
+      job: {
+        steps: [
+          {
+            name: 'Recheck protected source and durably mark deployment invocation',
+            number: 7,
+            status: 'completed',
+            conclusion: 'failure',
           },
         ],
       },

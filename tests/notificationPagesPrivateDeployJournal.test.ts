@@ -298,6 +298,27 @@ describe('notification Pages private deployment journal', () => {
     })).resolves.toBeUndefined();
   });
 
+  it.each(['failure', 'cancelled']) (
+    'recovers a fsynced marker after its workflow step ends %s',
+    async markerStepConclusion => {
+      const home = privateHome();
+      await run({
+        home,
+        operation(journal) {
+          journal.prepared(null);
+          journal.reconciledNotCurrent('durable');
+          journal.candidateAuthorized('d'.repeat(64));
+          // This append is the simulated crash-after-fsync boundary.
+          journal.deployInvoked('d'.repeat(64));
+        },
+      });
+      await expect(recover({
+        home,
+        proof: skippedProof({ markerStepConclusion }),
+      })).resolves.toMatchObject({ recovered: true });
+    },
+  );
+
   it('supersedes repeated skipped-action checkpoints for one operation', async () => {
     const home = privateHome();
     let directory = '';
@@ -422,6 +443,29 @@ describe('notification Pages private deployment journal', () => {
     })).rejects.toThrow(
       'NOTIFICATION_PAGES_DEPLOY_JOURNAL_OTHER_OPERATION_UNFINISHED',
     );
+  });
+
+  it('keeps a failed marker ambiguous unless the authenticated deploy is skipped', async () => {
+    const home = privateHome();
+    await run({
+      home,
+      operation(journal) {
+        journal.prepared(null);
+        journal.reconciledNotCurrent('durable');
+        journal.candidateAuthorized('d'.repeat(64));
+        journal.deployInvoked('d'.repeat(64));
+      },
+    });
+    await expect(recover({
+      home,
+      proof: skippedProof({
+        markerStepConclusion: 'failure',
+        deployStepConclusion: 'failure',
+      }),
+    })).rejects.toMatchObject({
+      code: 'NOTIFICATION_PAGES_DEPLOY_JOURNAL_ABANDONMENT_AMBIGUOUS',
+      deploymentMayHaveChanged: true,
+    });
   });
 
   it('fails closed on altered records and unfinished competing operations', async () => {

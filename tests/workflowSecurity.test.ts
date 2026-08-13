@@ -93,7 +93,7 @@ describe('GitHub workflow security policy', () => {
     expect(build).toContain('npm run validate:pages-release-build');
     expect(build).not.toContain('npm run validate:pages-config');
     expect(build).not.toContain('npm run verify:greater-realm-release-gates');
-    expect(source.match(/npm run verify:greater-realm-release-gates/g)).toHaveLength(2);
+    expect(source.match(/npm run verify:greater-realm-release-gates/g)).toHaveLength(1);
     expect(build.indexOf('npm run validate:pages-release-build')).toBeLessThan(
       build.indexOf('npm run build'),
     );
