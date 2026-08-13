@@ -53,6 +53,7 @@ import AdminBeginGreaterRealmDrainV1Reducer from "./admin_begin_greater_realm_dr
 import AdminBeginGreaterRealmVerificationV1Reducer from "./admin_begin_greater_realm_verification_v_1_reducer";
 import AdminBeginWorkerLegacyDrainV1Reducer from "./admin_begin_worker_legacy_drain_v_1_reducer";
 import AdminBumpAuthEpochReducer from "./admin_bump_auth_epoch_reducer";
+import AdminCaptureProductionPlayerCanaryBaselineV1Reducer from "./admin_capture_production_player_canary_baseline_v_1_reducer";
 import AdminCommitGreaterRealmActiveV1Reducer from "./admin_commit_greater_realm_active_v_1_reducer";
 import AdminCompleteWorkerLegacyDrainV1Reducer from "./admin_complete_worker_legacy_drain_v_1_reducer";
 import AdminDeactivateInnerKeepV1Reducer from "./admin_deactivate_inner_keep_v_1_reducer";
@@ -126,6 +127,8 @@ import * as AdminGetGreaterRealmImportPlanV1Procedure from "./admin_get_greater_
 import * as AdminGetGreaterRealmReenableStatusV1Procedure from "./admin_get_greater_realm_reenable_status_v_1_procedure";
 import * as AdminGetGreaterRealmStatusV1Procedure from "./admin_get_greater_realm_status_v_1_procedure";
 import * as AdminGetInnerKeepStatusV1Procedure from "./admin_get_inner_keep_status_v_1_procedure";
+import * as AdminGetProductionPlayerCanaryBaselineV1Procedure from "./admin_get_production_player_canary_baseline_v_1_procedure";
+import * as AdminGetProductionPlayerCanaryEvidenceV1Procedure from "./admin_get_production_player_canary_evidence_v_1_procedure";
 import * as AdminGetRealmChatReportContextV1Procedure from "./admin_get_realm_chat_report_context_v_1_procedure";
 import * as AdminGetRealmChatStatusV1Procedure from "./admin_get_realm_chat_status_v_1_procedure";
 import * as AdminGetWorkerRolloutStatusV2Procedure from "./admin_get_worker_rollout_status_v_2_procedure";
@@ -796,6 +799,7 @@ const reducersSchema = __reducers(
   __reducerSchema("admin_begin_greater_realm_verification_v1", AdminBeginGreaterRealmVerificationV1Reducer),
   __reducerSchema("admin_begin_worker_legacy_drain_v1", AdminBeginWorkerLegacyDrainV1Reducer),
   __reducerSchema("admin_bump_auth_epoch", AdminBumpAuthEpochReducer),
+  __reducerSchema("admin_capture_production_player_canary_baseline_v1", AdminCaptureProductionPlayerCanaryBaselineV1Reducer),
   __reducerSchema("admin_commit_greater_realm_active_v1", AdminCommitGreaterRealmActiveV1Reducer),
   __reducerSchema("admin_complete_worker_legacy_drain_v1", AdminCompleteWorkerLegacyDrainV1Reducer),
   __reducerSchema("admin_deactivate_inner_keep_v1", AdminDeactivateInnerKeepV1Reducer),
@@ -871,6 +875,8 @@ const proceduresSchema = __procedures(
   __procedureSchema("admin_get_greater_realm_reenable_status_v_1", AdminGetGreaterRealmReenableStatusV1Procedure.params, AdminGetGreaterRealmReenableStatusV1Procedure.returnType),
   __procedureSchema("admin_get_greater_realm_status_v1", AdminGetGreaterRealmStatusV1Procedure.params, AdminGetGreaterRealmStatusV1Procedure.returnType),
   __procedureSchema("admin_get_inner_keep_status_v1", AdminGetInnerKeepStatusV1Procedure.params, AdminGetInnerKeepStatusV1Procedure.returnType),
+  __procedureSchema("admin_get_production_player_canary_baseline_v1", AdminGetProductionPlayerCanaryBaselineV1Procedure.params, AdminGetProductionPlayerCanaryBaselineV1Procedure.returnType),
+  __procedureSchema("admin_get_production_player_canary_evidence_v1", AdminGetProductionPlayerCanaryEvidenceV1Procedure.params, AdminGetProductionPlayerCanaryEvidenceV1Procedure.returnType),
   __procedureSchema("admin_get_realm_chat_report_context_v_1", AdminGetRealmChatReportContextV1Procedure.params, AdminGetRealmChatReportContextV1Procedure.returnType),
   __procedureSchema("admin_get_realm_chat_status_v_1", AdminGetRealmChatStatusV1Procedure.params, AdminGetRealmChatStatusV1Procedure.returnType),
   __procedureSchema("admin_get_worker_rollout_status_v2", AdminGetWorkerRolloutStatusV2Procedure.params, AdminGetWorkerRolloutStatusV2Procedure.returnType),

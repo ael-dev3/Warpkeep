@@ -1799,6 +1799,80 @@ export const PlayerV2 = __t.object("PlayerV2", {
 });
 export type PlayerV2 = __Infer<typeof PlayerV2>;
 
+export const ProductionPlayerCanaryAdminEvidenceV1 = __t.object("ProductionPlayerCanaryAdminEvidenceV1", {
+  profile: __t.string(),
+  challengeDigest: __t.string(),
+  reviewedAdmissionPlanDigest: __t.string(),
+  serverBaselineCommitment: __t.string(),
+  admissionProfileDigest: __t.string(),
+  evidenceDigest: __t.string(),
+  routeSetCommitment: __t.string(),
+  requestCycle: __t.u64(),
+  requestedAtMicros: __t.u64(),
+  baselineCapturedAtMicros: __t.u64(),
+  observedAtMicros: __t.u64(),
+  earliestDispatchAtMicros: __t.u64(),
+  latestRecallAtMicros: __t.u64(),
+  directTierOneFounder: __t.bool(),
+  normalRequestAdmission: __t.bool(),
+  ownerBound: __t.bool(),
+  currentTermsAccepted: __t.bool(),
+  workerCount: __t.u32(),
+  dispatchReceiptCount: __t.u32(),
+  recallReceiptCount: __t.u32(),
+  distinctResourceKindCount: __t.u32(),
+  minimumGatheringElapsedMicros: __t.u64(),
+  maximumGatheringElapsedMicros: __t.u64(),
+  maximumRouteSteps: __t.u32(),
+  terminalIdleWorkerCount: __t.u32(),
+  terminalAssignmentCount: __t.u64(),
+  terminalOccupationCount: __t.u64(),
+  terminalScheduleCount: __t.u64(),
+  isolatedResourceKindCount: __t.u32(),
+  resourceQuantumCount: __t.u32(),
+  foodDelta: __t.u64(),
+  woodDelta: __t.u64(),
+  stoneDelta: __t.u64(),
+  goldDelta: __t.u64(),
+});
+export type ProductionPlayerCanaryAdminEvidenceV1 = __Infer<typeof ProductionPlayerCanaryAdminEvidenceV1>;
+
+export const ProductionPlayerCanaryBaselineStatusV1 = __t.object("ProductionPlayerCanaryBaselineStatusV1", {
+  profile: __t.string(),
+  challengeDigest: __t.string(),
+  reviewedAdmissionPlanDigest: __t.string(),
+  serverBaselineCommitment: __t.string(),
+  capturedAtMicros: __t.u64(),
+  baselineCaptured: __t.bool(),
+  directTierOneFounder: __t.bool(),
+  normalRequestAdmission: __t.bool(),
+  pristineWorkerCount: __t.u32(),
+  terminalGraphEmpty: __t.bool(),
+  pristineResourceAccount: __t.bool(),
+});
+export type ProductionPlayerCanaryBaselineStatusV1 = __Infer<typeof ProductionPlayerCanaryBaselineStatusV1>;
+
+export const ProductionPlayerCanaryBaselineV1 = __t.object("ProductionPlayerCanaryBaselineV1", {
+  challengeDigest: __t.string(),
+  fid: __t.u64(),
+  reviewedAdmissionPlanDigest: __t.string(),
+  baselineCommitment: __t.string(),
+  castleId: __t.u64(),
+  atlasId: __t.string(),
+  atlasRevision: __t.u64(),
+  capturedAt: __t.timestamp(),
+  resourceSettledThroughMicros: __t.u64(),
+  resourceRevision: __t.u64(),
+  resourceFood: __t.u64(),
+  resourceWood: __t.u64(),
+  resourceStone: __t.u64(),
+  resourceGold: __t.u64(),
+  resourcePolicyVersion: __t.string(),
+  resourceCreatedAtMicros: __t.u64(),
+  pristineRosterCommitment: __t.string(),
+});
+export type ProductionPlayerCanaryBaselineV1 = __Infer<typeof ProductionPlayerCanaryBaselineV1>;
+
 export const QaObserverCastleV1 = __t.object("QaObserverCastleV1", {
   castleId: __t.u64(),
   tileKey: __t.string(),

@@ -38,6 +38,14 @@ import {
   legacyExpeditionReturnErrorCode,
   returnActiveLegacyExpedition,
 } from '../legacyExpeditionReturnAuthority';
+import {
+  inspectProductionPlayerCanaryAdminEvidence,
+  productionPlayerCanaryEvidenceErrorCode,
+} from '../productionPlayerCanaryEvidence';
+import {
+  captureProductionPlayerCanaryBaseline,
+  inspectProductionPlayerCanaryBaseline,
+} from '../productionPlayerCanaryBaseline';
 import warpkeep from '../schema';
 import type {
   GreaterRealmIndexedPublicReadAuthorityV1,
@@ -238,7 +246,72 @@ const adminWorkerRolloutStatusV2 = t.object('AdminWorkerRolloutStatusV2', {
   genericCommandReceipts: t.u64(),
 });
 
+const productionPlayerCanaryAdminEvidenceV1 = t.object(
+  'ProductionPlayerCanaryAdminEvidenceV1',
+  {
+    profile: t.string(),
+    challengeDigest: t.string(),
+    reviewedAdmissionPlanDigest: t.string(),
+    serverBaselineCommitment: t.string(),
+    admissionProfileDigest: t.string(),
+    evidenceDigest: t.string(),
+    routeSetCommitment: t.string(),
+    requestCycle: t.u64(),
+    requestedAtMicros: t.u64(),
+    baselineCapturedAtMicros: t.u64(),
+    observedAtMicros: t.u64(),
+    earliestDispatchAtMicros: t.u64(),
+    latestRecallAtMicros: t.u64(),
+    directTierOneFounder: t.bool(),
+    normalRequestAdmission: t.bool(),
+    ownerBound: t.bool(),
+    currentTermsAccepted: t.bool(),
+    workerCount: t.u32(),
+    dispatchReceiptCount: t.u32(),
+    recallReceiptCount: t.u32(),
+    distinctResourceKindCount: t.u32(),
+    minimumGatheringElapsedMicros: t.u64(),
+    maximumGatheringElapsedMicros: t.u64(),
+    maximumRouteSteps: t.u32(),
+    terminalIdleWorkerCount: t.u32(),
+    terminalAssignmentCount: t.u64(),
+    terminalOccupationCount: t.u64(),
+    terminalScheduleCount: t.u64(),
+    isolatedResourceKindCount: t.u32(),
+    resourceQuantumCount: t.u32(),
+    foodDelta: t.u64(),
+    woodDelta: t.u64(),
+    stoneDelta: t.u64(),
+    goldDelta: t.u64(),
+  },
+);
+
+const productionPlayerCanaryBaselineStatusV1 = t.object(
+  'ProductionPlayerCanaryBaselineStatusV1',
+  {
+    profile: t.string(),
+    challengeDigest: t.string(),
+    reviewedAdmissionPlanDigest: t.string(),
+    serverBaselineCommitment: t.string(),
+    capturedAtMicros: t.u64(),
+    baselineCaptured: t.bool(),
+    directTierOneFounder: t.bool(),
+    normalRequestAdmission: t.bool(),
+    pristineWorkerCount: t.u32(),
+    terminalGraphEmpty: t.bool(),
+    pristineResourceAccount: t.bool(),
+  },
+);
+
+const productionPlayerCanaryBaselineInputV1 = {
+  fid: t.u64(),
+  reviewedAdmissionPlanDigest: t.string(),
+  evidenceNonce: t.string(),
+};
+
 function senderPolicyError(error: unknown): never {
+  const canaryCode = productionPlayerCanaryEvidenceErrorCode(error);
+  if (canaryCode !== undefined) throw new SenderError(canaryCode);
   const rolloutCode = castleWorkerRolloutErrorCode(error);
   if (rolloutCode !== undefined) throw new SenderError(rolloutCode);
   const legacyCode = legacyExpeditionReturnErrorCode(error);
@@ -957,6 +1030,63 @@ export const adminGetWorkerRolloutStatusV2 = warpkeep.procedure(
         genericSchedules: status.genericSchedules,
         genericCommandReceipts: status.genericCommandReceipts,
       };
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  }),
+);
+
+/**
+ * One-use, admin-only capture before the first player command. Exact replay is
+ * a no-op; conflicts fail and no reset/delete reducer exists.
+ */
+export const adminCaptureProductionPlayerCanaryBaselineV1 = warpkeep.reducer(
+  { name: 'admin_capture_production_player_canary_baseline_v1' },
+  productionPlayerCanaryBaselineInputV1,
+  (ctx, input) => {
+    try {
+      requireAdmin(ctx);
+      captureProductionPlayerCanaryBaseline(ctx, input);
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  },
+);
+
+/** Admin-only readback/reconciliation of the commitment; no raw snapshot. */
+export const adminGetProductionPlayerCanaryBaselineV1 = warpkeep.procedure(
+  { name: 'admin_get_production_player_canary_baseline_v1' },
+  productionPlayerCanaryBaselineInputV1,
+  productionPlayerCanaryBaselineStatusV1,
+  (ctx, input) => ctx.withTx(tx => {
+    try {
+      requireAdmin(tx);
+      return inspectProductionPlayerCanaryBaseline(tx, input);
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  }),
+);
+
+/**
+ * Read-only, Hermes-admin evidence for one player-path canary. The request
+ * carries private FID/command correlation in RAM; the raw baseline is loaded
+ * from private server authority and the result exposes only commitments.
+ */
+export const adminGetProductionPlayerCanaryEvidenceV1 = warpkeep.procedure(
+  { name: 'admin_get_production_player_canary_evidence_v1' },
+  {
+    fid: t.u64(),
+    reviewedAdmissionPlanDigest: t.string(),
+    evidenceNonce: t.string(),
+    dispatchIdempotencyKeys: t.array(t.string()),
+    recallIdempotencyKeys: t.array(t.string()),
+  },
+  productionPlayerCanaryAdminEvidenceV1,
+  (ctx, input) => ctx.withTx(tx => {
+    try {
+      requireAdmin(tx);
+      return inspectProductionPlayerCanaryAdminEvidence(tx, input);
     } catch (error) {
       return senderPolicyError(error);
     }

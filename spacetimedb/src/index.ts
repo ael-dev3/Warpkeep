@@ -90,6 +90,9 @@ export {
   adminCompleteWorkerLegacyDrainV1,
   adminActivateWorkerSystemV1,
   adminGetWorkerRolloutStatusV2,
+  adminCaptureProductionPlayerCanaryBaselineV1,
+  adminGetProductionPlayerCanaryBaselineV1,
+  adminGetProductionPlayerCanaryEvidenceV1,
 } from './reducers/castleWorkers';
 export {
   getMyGoldExpeditionStateV1,

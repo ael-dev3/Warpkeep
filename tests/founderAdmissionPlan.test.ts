@@ -2,8 +2,10 @@ import {
   chmodSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   statSync,
+  writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -17,6 +19,7 @@ import {
   createReviewedFounderAdmissionPlan,
   parsePrivateFounderAdmissionRequest,
   parseReviewedFounderAdmissionPlanReference,
+  inspectClaimedReviewedFounderAdmissionPlan,
   readReviewedFounderAdmissionPlan,
   writeReviewedFounderAdmissionPlan,
 } from '../scripts/profiles/founder-admission-plan';
@@ -182,6 +185,27 @@ describe('private reviewed founder admission plan', () => {
       sha256: reference.sha256,
       now: new Date(NOW.getTime() + 60_000),
     });
+    expect(inspectClaimedReviewedFounderAdmissionPlan({
+      directory: realpathSync(directory),
+      reference,
+      expectedSourceConfigurationDigest: SOURCE_DIGEST,
+      expectedTargetConfigurationDigest: TARGET_DIGEST,
+      expectedProfilePolicyVersion: POLICY_VERSION,
+      now: new Date(NOW.getTime() + 120_000),
+    })).toMatchObject({
+      plan,
+      planDigest: reference.sha256,
+      claimDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+      claimedAt: new Date(NOW.getTime() + 60_000).toISOString(),
+    });
+    expect(inspectClaimedReviewedFounderAdmissionPlan({
+      directory: realpathSync(directory),
+      reference,
+      expectedSourceConfigurationDigest: SOURCE_DIGEST,
+      expectedTargetConfigurationDigest: TARGET_DIGEST,
+      expectedProfilePolicyVersion: POLICY_VERSION,
+      now: new Date(NOW.getTime() + REVIEWED_FOUNDER_ADMISSION_PLAN_LIFETIME_MS + 1),
+    })).toMatchObject({ planDigest: reference.sha256 });
     expect(() => claimReviewedFounderAdmissionPlan({
       directory,
       plan,
@@ -215,5 +239,79 @@ describe('private reviewed founder admission plan', () => {
       profile: PROFILE,
       now: NOW,
     })).toThrow('FOUNDER_ADMISSION_PLAN_INVALID');
+  });
+
+  it('rejects a claimed marker created after the reviewed plan cutoff', () => {
+    const directory = privateDirectory();
+    const plan = createReviewedFounderAdmissionPlan({
+      sourceConfigurationDigest: SOURCE_DIGEST,
+      targetConfigurationDigest: TARGET_DIGEST,
+      profilePolicyVersion: POLICY_VERSION,
+      profileSourceUseApproval: FOUNDER_ADMISSION_PROFILE_SOURCE_USE_APPROVAL,
+      fid: PRIVATE_FID,
+      note: PRIVATE_NOTE,
+      profile: PROFILE,
+      now: NOW,
+    });
+    const reference = writeReviewedFounderAdmissionPlan({ directory, plan });
+    writeFileSync(
+      join(directory, `founder-admission-plan-${plan.planId}.claimed`),
+      `${JSON.stringify({
+        planId: plan.planId,
+        sha256: reference.sha256,
+        claimedAt: new Date(
+          NOW.getTime() + REVIEWED_FOUNDER_ADMISSION_PLAN_LIFETIME_MS + 1,
+        ).toISOString(),
+      })}\n`,
+      { mode: 0o600 },
+    );
+    expect(() => inspectClaimedReviewedFounderAdmissionPlan({
+      directory: realpathSync(directory),
+      reference,
+      expectedSourceConfigurationDigest: SOURCE_DIGEST,
+      expectedTargetConfigurationDigest: TARGET_DIGEST,
+      expectedProfilePolicyVersion: POLICY_VERSION,
+      now: new Date(NOW.getTime() + REVIEWED_FOUNDER_ADMISSION_PLAN_LIFETIME_MS + 2),
+    })).toThrow('FOUNDER_ADMISSION_PLAN_CLAIM_INVALID');
+  });
+
+  it.each([
+    ['noncanonical timestamp', '2026-07-18T18:00:00Z', '2026-07-18T18:30:00.000Z'],
+    ['wrong lifetime', '2026-07-18T18:00:00.000Z', '2026-07-18T18:29:59.999Z'],
+  ])('rejects a claimed plan with invalid temporal shape: %s', (
+    _label,
+    createdAt,
+    expiresAt,
+  ) => {
+    const directory = privateDirectory();
+    const plan = createReviewedFounderAdmissionPlan({
+      sourceConfigurationDigest: SOURCE_DIGEST,
+      targetConfigurationDigest: TARGET_DIGEST,
+      profilePolicyVersion: POLICY_VERSION,
+      profileSourceUseApproval: FOUNDER_ADMISSION_PROFILE_SOURCE_USE_APPROVAL,
+      fid: PRIVATE_FID,
+      note: PRIVATE_NOTE,
+      profile: PROFILE,
+      now: NOW,
+    });
+    const malformed = { ...plan, createdAt, expiresAt };
+    const reference = writeReviewedFounderAdmissionPlan({ directory, plan: malformed });
+    writeFileSync(
+      join(directory, `founder-admission-plan-${plan.planId}.claimed`),
+      `${JSON.stringify({
+        planId: plan.planId,
+        sha256: reference.sha256,
+        claimedAt: NOW.toISOString(),
+      })}\n`,
+      { mode: 0o600 },
+    );
+    expect(() => inspectClaimedReviewedFounderAdmissionPlan({
+      directory: realpathSync(directory),
+      reference,
+      expectedSourceConfigurationDigest: SOURCE_DIGEST,
+      expectedTargetConfigurationDigest: TARGET_DIGEST,
+      expectedProfilePolicyVersion: POLICY_VERSION,
+      now: new Date(NOW.getTime() + REVIEWED_FOUNDER_ADMISSION_PLAN_LIFETIME_MS + 1),
+    })).toThrow('FOUNDER_ADMISSION_PLAN_EXPIRED');
   });
 });

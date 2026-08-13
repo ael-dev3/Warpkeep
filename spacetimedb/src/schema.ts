@@ -1895,6 +1895,37 @@ export const realmWorkerSystemV2 = table(
   },
 );
 
+/**
+ * Private, append-only pre-journey snapshot for one production player canary.
+ *
+ * The owner-facing approval carries only `serverBaselineCommitment`. Raw FID,
+ * castle/atlas coordinates, resource balances, and roster material remain in
+ * this server authority row and never enter a public subscription or receipt.
+ * No reducer updates or deletes this table.
+ */
+export const productionPlayerCanaryBaselineV1 = table(
+  { name: 'production_player_canary_baseline_v1' },
+  {
+    challengeDigest: t.string().primaryKey(),
+    fid: t.u64().unique(),
+    reviewedAdmissionPlanDigest: t.string(),
+    baselineCommitment: t.string().unique(),
+    castleId: t.u64(),
+    atlasId: t.string(),
+    atlasRevision: t.u64(),
+    capturedAt: t.timestamp(),
+    resourceSettledThroughMicros: t.u64(),
+    resourceRevision: t.u64(),
+    resourceFood: t.u64(),
+    resourceWood: t.u64(),
+    resourceStone: t.u64(),
+    resourceGold: t.u64(),
+    resourcePolicyVersion: t.string(),
+    resourceCreatedAtMicros: t.u64(),
+    pristineRosterCommitment: t.string(),
+  },
+);
+
 const warpkeep = schema({
   // Preserve the original production schema prefix exactly. New tables are
   // append-only so SpacetimeDB can apply this migration without rewriting it.
@@ -1985,6 +2016,8 @@ const warpkeep = schema({
   realmAtlasV1,
   realmAtlasVisibleRegionV1,
   realmWorkerSystemV2,
+  // Additive private canary suffix. Refs 0-83 above remain frozen verbatim.
+  productionPlayerCanaryBaselineV1,
 });
 
 /**
@@ -2160,6 +2193,9 @@ for (const name of [
   'admin_begin_worker_legacy_drain_v1',
   'admin_activate_worker_system_v1',
   'admin_get_worker_rollout_status_v2',
+  'admin_capture_production_player_canary_baseline_v1',
+  'admin_get_production_player_canary_baseline_v1',
+  'admin_get_production_player_canary_evidence_v1',
   'access_request_get_status_v1',
   'access_request_submit_v1',
   'admin_list_access_requests_v1',

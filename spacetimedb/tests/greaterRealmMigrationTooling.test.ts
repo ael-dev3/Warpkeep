@@ -46,7 +46,7 @@ const suffixTables = [
   'realm_worker_system_v2',
 ] as const;
 
-test('v17 is the exact frozen v16 prefix plus Greater Realm refs 72-83', () => {
+test('v17 is the exact frozen prefix before the private canary suffix', () => {
   const v16 = source('../migration-fixtures/additive-v16-schema/src/index.ts');
   const v17 = source('../migration-fixtures/additive-v17-schema/src/index.ts');
   const candidate = source('../src/schema.ts');
@@ -58,7 +58,10 @@ test('v17 is the exact frozen v16 prefix plus Greater Realm refs 72-83', () => {
   assert.equal(v17Tables.length, 84);
   assert.deepEqual(v17Tables.slice(0, 72), v16Tables);
   assert.deepEqual(v17Tables.slice(72), suffixRegistrations);
-  assert.deepEqual(candidateTables, v17Tables);
+  assert.deepEqual(candidateTables.slice(0, v17Tables.length), v17Tables);
+  assert.deepEqual(candidateTables.slice(v17Tables.length), [
+    'productionPlayerCanaryBaselineV1',
+  ]);
 });
 
 test('v17 fixture freezes public visibility, composite indexes, and typed sentinels', () => {

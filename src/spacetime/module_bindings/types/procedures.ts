@@ -23,6 +23,8 @@ import * as AdminGetGreaterRealmImportPlanV1Procedure from "../admin_get_greater
 import * as AdminGetGreaterRealmReenableStatusV1Procedure from "../admin_get_greater_realm_reenable_status_v_1_procedure";
 import * as AdminGetGreaterRealmStatusV1Procedure from "../admin_get_greater_realm_status_v_1_procedure";
 import * as AdminGetInnerKeepStatusV1Procedure from "../admin_get_inner_keep_status_v_1_procedure";
+import * as AdminGetProductionPlayerCanaryBaselineV1Procedure from "../admin_get_production_player_canary_baseline_v_1_procedure";
+import * as AdminGetProductionPlayerCanaryEvidenceV1Procedure from "../admin_get_production_player_canary_evidence_v_1_procedure";
 import * as AdminGetRealmChatReportContextV1Procedure from "../admin_get_realm_chat_report_context_v_1_procedure";
 import * as AdminGetRealmChatStatusV1Procedure from "../admin_get_realm_chat_status_v_1_procedure";
 import * as AdminGetWorkerRolloutStatusV2Procedure from "../admin_get_worker_rollout_status_v_2_procedure";
@@ -94,6 +96,10 @@ export type AdminGetGreaterRealmStatusV1Args = __Infer<typeof AdminGetGreaterRea
 export type AdminGetGreaterRealmStatusV1Result = __Infer<typeof AdminGetGreaterRealmStatusV1Procedure.returnType>;
 export type AdminGetInnerKeepStatusV1Args = __Infer<typeof AdminGetInnerKeepStatusV1Procedure.params>;
 export type AdminGetInnerKeepStatusV1Result = __Infer<typeof AdminGetInnerKeepStatusV1Procedure.returnType>;
+export type AdminGetProductionPlayerCanaryBaselineV1Args = __Infer<typeof AdminGetProductionPlayerCanaryBaselineV1Procedure.params>;
+export type AdminGetProductionPlayerCanaryBaselineV1Result = __Infer<typeof AdminGetProductionPlayerCanaryBaselineV1Procedure.returnType>;
+export type AdminGetProductionPlayerCanaryEvidenceV1Args = __Infer<typeof AdminGetProductionPlayerCanaryEvidenceV1Procedure.params>;
+export type AdminGetProductionPlayerCanaryEvidenceV1Result = __Infer<typeof AdminGetProductionPlayerCanaryEvidenceV1Procedure.returnType>;
 export type AdminGetRealmChatReportContextV1Args = __Infer<typeof AdminGetRealmChatReportContextV1Procedure.params>;
 export type AdminGetRealmChatReportContextV1Result = __Infer<typeof AdminGetRealmChatReportContextV1Procedure.returnType>;
 export type AdminGetRealmChatStatusV1Args = __Infer<typeof AdminGetRealmChatStatusV1Procedure.params>;

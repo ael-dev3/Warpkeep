@@ -25,6 +25,7 @@ import AdminBeginGreaterRealmDrainV1Reducer from "../admin_begin_greater_realm_d
 import AdminBeginGreaterRealmVerificationV1Reducer from "../admin_begin_greater_realm_verification_v_1_reducer";
 import AdminBeginWorkerLegacyDrainV1Reducer from "../admin_begin_worker_legacy_drain_v_1_reducer";
 import AdminBumpAuthEpochReducer from "../admin_bump_auth_epoch_reducer";
+import AdminCaptureProductionPlayerCanaryBaselineV1Reducer from "../admin_capture_production_player_canary_baseline_v_1_reducer";
 import AdminCommitGreaterRealmActiveV1Reducer from "../admin_commit_greater_realm_active_v_1_reducer";
 import AdminCompleteWorkerLegacyDrainV1Reducer from "../admin_complete_worker_legacy_drain_v_1_reducer";
 import AdminDeactivateInnerKeepV1Reducer from "../admin_deactivate_inner_keep_v_1_reducer";
@@ -99,6 +100,7 @@ export type AdminBeginGreaterRealmDrainV1Params = __Infer<typeof AdminBeginGreat
 export type AdminBeginGreaterRealmVerificationV1Params = __Infer<typeof AdminBeginGreaterRealmVerificationV1Reducer>;
 export type AdminBeginWorkerLegacyDrainV1Params = __Infer<typeof AdminBeginWorkerLegacyDrainV1Reducer>;
 export type AdminBumpAuthEpochParams = __Infer<typeof AdminBumpAuthEpochReducer>;
+export type AdminCaptureProductionPlayerCanaryBaselineV1Params = __Infer<typeof AdminCaptureProductionPlayerCanaryBaselineV1Reducer>;
 export type AdminCommitGreaterRealmActiveV1Params = __Infer<typeof AdminCommitGreaterRealmActiveV1Reducer>;
 export type AdminCompleteWorkerLegacyDrainV1Params = __Infer<typeof AdminCompleteWorkerLegacyDrainV1Reducer>;
 export type AdminDeactivateInnerKeepV1Params = __Infer<typeof AdminDeactivateInnerKeepV1Reducer>;
