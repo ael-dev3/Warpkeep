@@ -97,7 +97,14 @@ describe('notification Pages build release validator', () => {
       inspectGateState: async () => ({
         phase:
           GREATER_REALM_NOTIFICATION_RELEASE_PHASE.PAGES_PRESENTATION_ACTIVATION,
-        notificationReleaseAuthority: {},
+        notificationReleaseAuthority: {
+          phase:
+            GREATER_REALM_NOTIFICATION_RELEASE_PHASE.PAGES_PRESENTATION_ACTIVATION,
+          notificationPreparedReceiptDigest: PREPARED_DIGEST,
+          notificationPreparedBridgeSourceCommit: BRIDGE_SOURCE,
+          notificationPagesLiveRootReceiptDigest: null,
+          notificationPagesLiveRootPagesSourceCommit: null,
+        },
       }),
       validateConfiguration,
     })).rejects.toThrow('NOTIFICATION_PAGES_BUILD_RELEASE_PRESENTATION_MISMATCH');
@@ -105,7 +112,13 @@ describe('notification Pages build release validator', () => {
       classifyLane: () => ({ mode: 'gen0' }),
       inspectGateState: async () => ({
         phase: GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL,
-        notificationReleaseAuthority: {},
+        notificationReleaseAuthority: {
+          phase: GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL,
+          notificationPreparedReceiptDigest: null,
+          notificationPreparedBridgeSourceCommit: null,
+          notificationPagesLiveRootReceiptDigest: ROOT_DIGEST,
+          notificationPagesLiveRootPagesSourceCommit: ROOT_SOURCE,
+        },
       }),
       validateConfiguration,
     })).rejects.toThrow('NOTIFICATION_PAGES_BUILD_RELEASE_PHASE_MISMATCH');

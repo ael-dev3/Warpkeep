@@ -393,7 +393,10 @@ describe('notification Pages private deployment journal', () => {
     ['failure', 'action returned failure'],
     ['timed_out', 'action timed out'],
     [null, 'action step absent'],
-  ])('keeps deployment ambiguous when deploy conclusion is %s (%s)', async conclusion => {
+  ])('keeps deployment ambiguous when deploy conclusion is %s (%s)', async (
+    conclusion,
+    _description,
+  ) => {
     const home = privateHome();
     await run({
       home,

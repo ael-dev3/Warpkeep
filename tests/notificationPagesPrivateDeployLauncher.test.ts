@@ -67,7 +67,11 @@ function authorities(order: string[]) {
       sourceClosureManifestSha256: MANIFEST,
     });
   });
-  const cli = vi.fn(async () => undefined);
+  const cli = vi.fn(async (
+    _arguments: readonly string[],
+    _environment: NodeJS.ProcessEnv,
+    _toolchainAuthority: Readonly<Record<string, unknown>>,
+  ) => undefined);
   const loadOperator = vi.fn(async () => {
     order.push('load');
     return { runNotificationPagesPrivateDeployOperatorCli: cli };
