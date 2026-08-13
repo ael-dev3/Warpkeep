@@ -424,14 +424,40 @@ export async function inspectGreaterRealmReleaseGateState(
     'additivePublishApproved',
     'importForwardFixApproved',
     'activationForwardFixApproved',
-    'clientActivationApproved',
-    'admissionNotificationsApproved',
   ]) {
     publisherFlags[field] = exactBooleanLiteral(
       publisher,
       `  ${field}: `,
       ',',
       `GREATER_REALM_PUBLISHER_${field.toUpperCase()}_INVALID`,
+    );
+  }
+  // The module publisher is never downstream presentation or delivery
+  // authority. Keep its legacy fields exact-false so an older caller cannot
+  // accidentally couple a server publication to either later release phase.
+  for (const field of [
+    'clientActivationApproved',
+    'admissionNotificationsApproved',
+  ]) {
+    if (exactBooleanLiteral(
+      publisher,
+      `  ${field}: `,
+      ',',
+      `GREATER_REALM_PUBLISHER_${field.toUpperCase()}_INVALID`,
+    )) fail(`GREATER_REALM_PUBLISHER_${field.toUpperCase()}_MUST_REMAIN_FALSE`);
+  }
+
+  const downstream = source('scripts/greater-realm-downstream-release-policy.ts');
+  const downstreamFlags = {};
+  for (const field of [
+    'clientActivationApproved',
+    'admissionNotificationsApproved',
+  ]) {
+    downstreamFlags[field] = exactBooleanLiteral(
+      downstream,
+      `  ${field}: `,
+      ',',
+      `GREATER_REALM_DOWNSTREAM_${field.toUpperCase()}_INVALID`,
     );
   }
 
@@ -466,6 +492,7 @@ export async function inspectGreaterRealmReleaseGateState(
     clientPresentationAllowed,
     serverPresentationAllowed,
     ...publisherFlags,
+    ...downstreamFlags,
     hermesNotificationDeliveryApproved,
     pagesNotificationsEnabled,
     ...notificationSources.preparedBinding,

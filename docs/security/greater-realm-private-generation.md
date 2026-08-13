@@ -248,26 +248,54 @@ excluded from world identity. The memory field is deliberately named
 Timestamps, machine paths, host details, preview encodings, and tool diagnostics
 are also excluded from authority digests.
 
-The versioned pending-owner-report helper is a projection over the canonical
+The versioned retention-snapshot helper is a projection over the canonical
 sanitized review, not another sanitizer and not a redaction routine. Its input
 has exactly two fields: the already-sanitized review and a literal assertion
 that the caller's private-package verification completed. The helper reparses
-the review, reconstructs and verifies its source report digest, requires exactly
-one eligible in-range candidate with all hard proofs true, and refuses selected
-or multi-candidate reviews. Its output is an exact allowlist with pending owner
-validation and selection, inactive activation, and production-untouched status.
-Accessors, unknown fields, raw arrays, coordinates, seeds, package structures,
-paths, and reconstructive material cannot enter through this API.
+the review, reconstructs and verifies its source report digest, requires
+exactly one eligible in-range candidate with all hard proofs true, and refuses
+selected or multi-candidate reviews. Its output is the exact historical schema
+`warpkeep.greater-realm.pre-selection-retention-snapshot.v1`. Present-tense
+status fields are forbidden: owner validation, selection, activation, and
+production state are named `...AtRetention` and describe only the instant
+before owner selection. Accessors, unknown fields, raw arrays, coordinates,
+seeds, package structures, paths, and reconstructive material cannot enter
+through this API.
 
 The assertion is an API precondition, not an independent proof of package
-verification. Command integration invokes the helper only after
-`verifyPrivateReviewBatch` has successfully rebound the canonical sanitized
-aggregate to the regenerated private package. It serializes and reparses the
-exact `warpkeep.greater-realm.pending-owner-report.v1` document before the
-pinned public-evidence writer installs it at
-`docs/evidence/greater-realm/pending-owner-review-v1.json`. No real public owner
-report exists or is published until the final verified generation workflow
-runs.
+verification. On the exact clean protected C0 source, the explicit
+`retain-pending-owner-report` command replays the private batch, requires the
+`pre-generation` release phase, verifies the reviewed A source closure, and
+atomically publishes two owner-only files under the fixed
+`owner-evidence/pending-owner-report-v1/<batch>/` directory: canonical snapshot
+bytes plus a binding over source commit, review/batch/candidate identities,
+package digests, report digest, byte digest, and A closure profile/manifest.
+No caller chooses either destination. Exact replays are idempotent; mismatched
+bytes or bindings fail closed. Owner selection and runtime export both require
+this retained record, so a snapshot cannot be reconstructed after selection.
+
+Generation, checkpoint recovery, package verification, comparison, retention,
+selection, and runtime export remain outside Git. After the selected runtime
+release and active-v17 canaries succeed, the owner prepares C4 by invoking
+`export-pending-owner-report` from an exactly clean protected C3 source. The
+command requires phase `activation-only`, the inert Alpha `0.3.43` package
+identity, the selected package, the matching runtime release, the retained A
+closure binding, and an exact C0-to-C3 generator-provenance transition in which
+only the reviewed v17 policy reaches activation-only. It holds the runtime
+release lock outside the batch-selection lock, proves the release exists before
+opening its existing public seed, regenerates the selected candidate's expected
+release, and byte-compares the manifest, status, paths, and every chunk. It
+cannot create a seed when the published release is absent. It accepts no output
+path and installs exactly the retained bytes at
+`docs/evidence/greater-realm/pending-owner-review-v1.json`. It then proves the
+HEAD is unchanged and the worktree contains exactly that fixed untracked file,
+or an already tracked byte-identical replay, with no temporary or unrelated
+drift. A crash retry initially admits only that destination and one canonical
+UUID writer temporary; recovery or byte validation happens only after all
+private and runtime authority checks. The file is committed only as part of the
+single atomic C4 activation-client/Alpha `0.3.44` change. Its historical fields
+do not assert
+that C3 or C4 is currently pending, inactive, or untouched.
 
 ## Post-selection Tier-I runtime release
 
@@ -350,18 +378,33 @@ bounded to 4 MiB for the manifest, 64 KiB for status, and 4 MiB per chunk, with
 a 512 MiB cumulative release ceiling. Counts and cumulative bytes are checked
 again as each canonical chunk is read.
 
-Run the flow only from the final clean integrated commit, using one absolute
-owner-workspace path throughout:
+Run the flow only from the final clean integrated C0 commit, using one absolute
+owner-workspace path throughout. Private review step names below are not source
+commit labels. C0 generation and all owner-only steps modify only the private
+workspace. The repository evidence file is prepared from clean C3 and enters
+Git only in the atomic C4 change:
 
 ```sh
 npm run atlas:toolchain-preflight
+# C0: private generation; the Git worktree remains exactly clean.
 npm run atlas:generate-candidates -- --workspace /absolute/owner/workspace --count 1 --maximum-attempts 256
+# Private review: replay and verify the private package.
+npm run atlas:verify-private-package -- --workspace /absolute/owner/workspace --batch '<private-batch-handle>'
+# Private review: create the unranked private shortlist.
 npm run atlas:compare-candidates -- --workspace /absolute/owner/workspace --batch '<private-batch-handle>'
+# Private review: inspect the package; this records no selection.
+npm run atlas:inspect-package -- --workspace /absolute/owner/workspace --batch '<private-batch-handle>'
+# Still on clean C0 and before selection: retain the historical public snapshot privately.
+node scripts/atlas/greater-realm-toolchain-bootstrap.mjs retain-pending-owner-report --workspace /absolute/owner/workspace --batch '<private-batch-handle>'
+# Explicit owner approval and post-selection runtime export, still on C0.
 npm run atlas:select-candidate -- --workspace /absolute/owner/workspace --batch '<private-batch-handle>' --candidate '<private-candidate-handle>' --approval-reference '<private-owner-reference>' --confirm-selection
 npm run atlas:export-runtime-release -- --workspace /absolute/owner/workspace --batch '<private-batch-handle>'
+# After reviewed C1-C3 and active canaries: prepare the one snapshot path for atomic C4.
+node scripts/atlas/greater-realm-toolchain-bootstrap.mjs export-pending-owner-report --workspace /absolute/owner/workspace --batch '<private-batch-handle>'
 ```
 
-The export command prints only its installed/unchanged state and public counts.
+The export command prints only the fixed preparation state, aggregate world
+count, report digest, and lifecycle booleans; it emits no private identifiers.
 Do not add the release directory or seed control to Git, attach either to a pull
 request, or treat the offline release as activation. The v17 importer and any
 later activation remain separately reviewed operations.

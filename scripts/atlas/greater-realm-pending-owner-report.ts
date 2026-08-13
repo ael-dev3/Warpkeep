@@ -10,7 +10,7 @@ import {
 } from './greater-realm-sanitized-review';
 
 export const GREATER_REALM_PENDING_OWNER_REPORT_SCHEMA =
-  'warpkeep.greater-realm.pending-owner-report.v1' as const;
+  'warpkeep.greater-realm.pre-selection-retention-snapshot.v1' as const;
 
 const PENDING_OWNER_REPORT_SOURCE_KEYS = Object.freeze([
   'sanitizedReview',
@@ -19,19 +19,20 @@ const PENDING_OWNER_REPORT_SOURCE_KEYS = Object.freeze([
 
 const PENDING_OWNER_REPORT_KEYS = Object.freeze([
   'schema',
+  'snapshotLifecycle',
   'atlasId',
   'generatorVersion',
   'sourceCommit',
   'reviewBatchHandle',
   'sourceReportDigest',
-  'worldCount',
-  'candidate',
-  'automatedValidationStatus',
-  'ownerValidationStatus',
-  'selectionStatus',
-  'selectedCandidateHandle',
-  'activationStatus',
-  'productionUntouched',
+  'worldCountAtRetention',
+  'candidateAtRetention',
+  'automatedValidationAtRetention',
+  'ownerValidationAtRetention',
+  'selectionAtRetention',
+  'selectedCandidateHandleAtRetention',
+  'activationAtRetention',
+  'productionAtRetention',
   'privacyBoundary',
 ] as const);
 
@@ -53,20 +54,21 @@ export type GreaterRealmPendingOwnerReportSource = Readonly<{
 
 export type GreaterRealmPendingOwnerReport = Readonly<{
   schema: typeof GREATER_REALM_PENDING_OWNER_REPORT_SCHEMA;
+  snapshotLifecycle: 'retained-before-owner-selection';
   atlasId: typeof GREATER_REALM_ATLAS_ID;
   generatorVersion: string;
   sourceCommit: string;
   reviewBatchHandle: string;
   /** Digest of the canonical sanitized review reconstructed by the parser. */
   sourceReportDigest: string;
-  worldCount: 1;
-  candidate: GreaterRealmSanitizedCandidate;
-  automatedValidationStatus: 'private-package-and-sanitized-aggregate-verified';
-  ownerValidationStatus: 'pending';
-  selectionStatus: 'pending';
-  selectedCandidateHandle: null;
-  activationStatus: 'inactive';
-  productionUntouched: true;
+  worldCountAtRetention: 1;
+  candidateAtRetention: GreaterRealmSanitizedCandidate;
+  automatedValidationAtRetention: 'private-package-and-sanitized-aggregate-verified';
+  ownerValidationAtRetention: 'pending';
+  selectionAtRetention: 'pending';
+  selectedCandidateHandleAtRetention: null;
+  activationAtRetention: 'inactive';
+  productionAtRetention: 'untouched';
   privacyBoundary: typeof GREATER_REALM_SANITIZED_PRIVACY_BOUNDARY;
 }>;
 
@@ -126,19 +128,21 @@ function reportFromReview(
   assertOnePendingWorld(review);
   return Object.freeze({
     schema: GREATER_REALM_PENDING_OWNER_REPORT_SCHEMA,
+    snapshotLifecycle: 'retained-before-owner-selection',
     atlasId: GREATER_REALM_ATLAS_ID,
     generatorVersion: review.generatorVersion,
     sourceCommit: review.sourceCommit,
     reviewBatchHandle: review.reviewBatchHandle,
     sourceReportDigest: review.reportDigest,
-    worldCount: 1,
-    candidate: review.candidates[0]!,
-    automatedValidationStatus: 'private-package-and-sanitized-aggregate-verified',
-    ownerValidationStatus: 'pending',
-    selectionStatus: 'pending',
-    selectedCandidateHandle: null,
-    activationStatus: 'inactive',
-    productionUntouched: true,
+    worldCountAtRetention: 1,
+    candidateAtRetention: review.candidates[0]!,
+    automatedValidationAtRetention:
+      'private-package-and-sanitized-aggregate-verified',
+    ownerValidationAtRetention: 'pending',
+    selectionAtRetention: 'pending',
+    selectedCandidateHandleAtRetention: null,
+    activationAtRetention: 'inactive',
+    productionAtRetention: 'untouched',
     privacyBoundary: GREATER_REALM_SANITIZED_PRIVACY_BOUNDARY,
   });
 }
@@ -166,15 +170,16 @@ export function parseGreaterRealmPendingOwnerReport(
   const row = exactDataRecord(value, PENDING_OWNER_REPORT_KEYS);
   if (
     row.schema !== GREATER_REALM_PENDING_OWNER_REPORT_SCHEMA
+    || row.snapshotLifecycle !== 'retained-before-owner-selection'
     || row.atlasId !== GREATER_REALM_ATLAS_ID
-    || row.worldCount !== 1
-    || row.automatedValidationStatus
+    || row.worldCountAtRetention !== 1
+    || row.automatedValidationAtRetention
       !== 'private-package-and-sanitized-aggregate-verified'
-    || row.ownerValidationStatus !== 'pending'
-    || row.selectionStatus !== 'pending'
-    || row.selectedCandidateHandle !== null
-    || row.activationStatus !== 'inactive'
-    || row.productionUntouched !== true
+    || row.ownerValidationAtRetention !== 'pending'
+    || row.selectionAtRetention !== 'pending'
+    || row.selectedCandidateHandleAtRetention !== null
+    || row.activationAtRetention !== 'inactive'
+    || row.productionAtRetention !== 'untouched'
     || row.privacyBoundary !== GREATER_REALM_SANITIZED_PRIVACY_BOUNDARY
   ) fail('GREATER_REALM_PENDING_OWNER_REPORT_INVALID');
 
@@ -183,10 +188,10 @@ export function parseGreaterRealmPendingOwnerReport(
     generatorVersion: row.generatorVersion,
     sourceCommit: row.sourceCommit,
     reviewBatchHandle: row.reviewBatchHandle,
-    selectionStatus: row.selectionStatus,
-    selectedCandidateHandle: row.selectedCandidateHandle,
-    candidateCount: row.worldCount,
-    candidates: [row.candidate],
+    selectionStatus: row.selectionAtRetention,
+    selectedCandidateHandle: row.selectedCandidateHandleAtRetention,
+    candidateCount: row.worldCountAtRetention,
+    candidates: [row.candidateAtRetention],
     privacyBoundary: row.privacyBoundary,
     reportDigest: row.sourceReportDigest,
   });

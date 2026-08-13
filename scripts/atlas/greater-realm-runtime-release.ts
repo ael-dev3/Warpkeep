@@ -2064,6 +2064,28 @@ function releaseArtifactsEqual(
     ));
 }
 
+/**
+ * Read-only exact replay assertion for an already-published runtime release.
+ * The caller retains ownership of `expected` and must clear its byte buffers
+ * when they are no longer needed. Installed bytes are cleared before return.
+ */
+export function assertGreaterRealmRuntimeReleaseMatches(
+  workspace: GreaterRealmPrivateWorkspace,
+  expected: GreaterRealmRuntimeReleaseArtifacts,
+): void {
+  verifyGreaterRealmRuntimeReleaseArtifacts(expected);
+  const installed = readGreaterRealmRuntimeRelease(workspace);
+  try {
+    if (!releaseArtifactsEqual(installed, expected)) {
+      fail('GREATER_REALM_RUNTIME_RELEASE_REPLAY_MISMATCH');
+    }
+  } finally {
+    installed.manifestBytes.fill(0);
+    installed.statusBytes.fill(0);
+    for (const chunk of installed.chunks) chunk.bytes.fill(0);
+  }
+}
+
 function assertReleaseSeedControlMatches(
   workspace: GreaterRealmPrivateWorkspace,
   artifacts: GreaterRealmRuntimeReleaseArtifacts,

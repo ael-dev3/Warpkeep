@@ -747,9 +747,9 @@ describe('Greater Realm public and release boundary', () => {
     const relativePath = 'docs/evidence/greater-realm/pending-owner-review-v1.json';
     mkdirSync(dirname(join(paths.repositoryRoot, relativePath)), { recursive: true });
     const report = JSON.parse(pendingOwnerReviewEvidence()) as {
-      candidate: { quality: { naturalnessBasisPoints: number } };
+      candidateAtRetention: { quality: { naturalnessBasisPoints: number } };
     };
-    report.candidate.quality.naturalnessBasisPoints -= 1;
+    report.candidateAtRetention.quality.naturalnessBasisPoints -= 1;
     writeFileSync(
       join(paths.repositoryRoot, relativePath),
       `${JSON.stringify(report, null, 2)}\n`,
@@ -766,9 +766,9 @@ describe('Greater Realm public and release boundary', () => {
     const relativePath = 'docs/evidence/greater-realm/pending-owner-review-v1.json';
     mkdirSync(dirname(join(paths.repositoryRoot, relativePath)), { recursive: true });
     const report = JSON.parse(pendingOwnerReviewEvidence()) as {
-      candidate: Record<string, unknown>;
+      candidateAtRetention: Record<string, unknown>;
     };
-    report.candidate.firstQ = 42;
+    report.candidateAtRetention.firstQ = 42;
     writeFileSync(
       join(paths.repositoryRoot, relativePath),
       `${JSON.stringify(report, null, 2)}\n`,
@@ -780,14 +780,14 @@ describe('Greater Realm public and release boundary', () => {
     })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_SANITIZED_REVIEW_INVALID');
   });
 
-  it('rejects activated or owner-selected state in the pending owner report', () => {
+  it('rejects falsified activation-at-retention state in the historical snapshot', () => {
     const paths = scannerRepository();
     const relativePath = 'docs/evidence/greater-realm/pending-owner-review-v1.json';
     mkdirSync(dirname(join(paths.repositoryRoot, relativePath)), { recursive: true });
     const report = JSON.parse(pendingOwnerReviewEvidence()) as {
-      activationStatus: string;
+      activationAtRetention: string;
     };
-    report.activationStatus = 'active';
+    report.activationAtRetention = 'active';
     writeFileSync(
       join(paths.repositoryRoot, relativePath),
       `${JSON.stringify(report, null, 2)}\n`,

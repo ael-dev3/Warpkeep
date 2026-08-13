@@ -475,15 +475,15 @@ const PENDING_OWNER_REVIEW_EVIDENCE_PATH =
   'docs/evidence/greater-realm/pending-owner-review-v1.json';
 const SANITIZED_REVIEW_EVIDENCE_README =
   'docs/evidence/greater-realm/README.md';
-const SANITIZED_REVIEW_EVIDENCE_README_BYTES = 1_787;
+const SANITIZED_REVIEW_EVIDENCE_README_BYTES = 3_195;
 const SANITIZED_REVIEW_EVIDENCE_README_SHA256 =
-  '3009102d39beb03a830898dec072b7f3fcdc824d5a3b8111e105506913374abb';
+  '144734627fe5c139db26a4a34061c3a10989d9d85486a091a78185050feba971';
 const SANITIZED_REVIEW_MAXIMUM_BYTES = 4 * 1024 * 1024;
 const SANITIZED_REVIEW_MINIMUM_CANDIDATE_COUNT = 1;
 const SANITIZED_REVIEW_MAXIMUM_CANDIDATE_COUNT = 16;
 const SANITIZED_REVIEW_SCHEMA = 'warpkeep.greater-realm.candidate-review.v1';
 const PENDING_OWNER_REVIEW_SCHEMA =
-  'warpkeep.greater-realm.pending-owner-report.v1';
+  'warpkeep.greater-realm.pre-selection-retention-snapshot.v1';
 const PENDING_OWNER_REVIEW_ATLAS_ID = 'GENESIS_001_GREATER_REALM';
 const SANITIZED_REVIEW_PRIVACY_BOUNDARY =
   'aggregate-only-no-private-generation-material-v1';
@@ -539,19 +539,20 @@ const SANITIZED_REVIEW_CANDIDATE_KEYS = Object.freeze([
 ]);
 const PENDING_OWNER_REVIEW_KEYS = Object.freeze([
   'schema',
+  'snapshotLifecycle',
   'atlasId',
   'generatorVersion',
   'sourceCommit',
   'reviewBatchHandle',
   'sourceReportDigest',
-  'worldCount',
-  'candidate',
-  'automatedValidationStatus',
-  'ownerValidationStatus',
-  'selectionStatus',
-  'selectedCandidateHandle',
-  'activationStatus',
-  'productionUntouched',
+  'worldCountAtRetention',
+  'candidateAtRetention',
+  'automatedValidationAtRetention',
+  'ownerValidationAtRetention',
+  'selectionAtRetention',
+  'selectedCandidateHandleAtRetention',
+  'activationAtRetention',
+  'productionAtRetention',
   'privacyBoundary',
 ]);
 const SANITIZED_REVIEW_FORBIDDEN_KEY =
@@ -2035,6 +2036,7 @@ function validatePendingOwnerReviewEvidence(text) {
   const row = exactSanitizedRecord(value, PENDING_OWNER_REVIEW_KEYS);
   if (
     row.schema !== PENDING_OWNER_REVIEW_SCHEMA
+    || row.snapshotLifecycle !== 'retained-before-owner-selection'
     || row.atlasId !== PENDING_OWNER_REVIEW_ATLAS_ID
     || typeof row.generatorVersion !== 'string'
     || !SANITIZED_REVIEW_GENERATOR_VERSION.test(row.generatorVersion)
@@ -2044,17 +2046,17 @@ function validatePendingOwnerReviewEvidence(text) {
     || !SANITIZED_REVIEW_BATCH_HANDLE.test(row.reviewBatchHandle)
     || typeof row.sourceReportDigest !== 'string'
     || !SANITIZED_REVIEW_SHA256.test(row.sourceReportDigest)
-    || row.worldCount !== 1
-    || row.automatedValidationStatus
+    || row.worldCountAtRetention !== 1
+    || row.automatedValidationAtRetention
       !== 'private-package-and-sanitized-aggregate-verified'
-    || row.ownerValidationStatus !== 'pending'
-    || row.selectionStatus !== 'pending'
-    || row.selectedCandidateHandle !== null
-    || row.activationStatus !== 'inactive'
-    || row.productionUntouched !== true
+    || row.ownerValidationAtRetention !== 'pending'
+    || row.selectionAtRetention !== 'pending'
+    || row.selectedCandidateHandleAtRetention !== null
+    || row.activationAtRetention !== 'inactive'
+    || row.productionAtRetention !== 'untouched'
     || row.privacyBoundary !== SANITIZED_REVIEW_PRIVACY_BOUNDARY
   ) invalidSanitizedReview();
-  const candidate = validateSanitizedCandidate(row.candidate);
+  const candidate = validateSanitizedCandidate(row.candidateAtRetention);
   if (!candidate.eligible || !candidate.insideApprovedRange) invalidSanitizedReview();
   const sourceReviewBody = {
     schema: SANITIZED_REVIEW_SCHEMA,
@@ -2073,19 +2075,21 @@ function validatePendingOwnerReviewEvidence(text) {
   if (sourceDigest !== row.sourceReportDigest) invalidSanitizedReview();
   const expected = {
     schema: PENDING_OWNER_REVIEW_SCHEMA,
+    snapshotLifecycle: 'retained-before-owner-selection',
     atlasId: PENDING_OWNER_REVIEW_ATLAS_ID,
     generatorVersion: row.generatorVersion,
     sourceCommit: row.sourceCommit,
     reviewBatchHandle: row.reviewBatchHandle,
     sourceReportDigest: row.sourceReportDigest,
-    worldCount: 1,
-    candidate,
-    automatedValidationStatus: 'private-package-and-sanitized-aggregate-verified',
-    ownerValidationStatus: 'pending',
-    selectionStatus: 'pending',
-    selectedCandidateHandle: null,
-    activationStatus: 'inactive',
-    productionUntouched: true,
+    worldCountAtRetention: 1,
+    candidateAtRetention: candidate,
+    automatedValidationAtRetention:
+      'private-package-and-sanitized-aggregate-verified',
+    ownerValidationAtRetention: 'pending',
+    selectionAtRetention: 'pending',
+    selectedCandidateHandleAtRetention: null,
+    activationAtRetention: 'inactive',
+    productionAtRetention: 'untouched',
     privacyBoundary: SANITIZED_REVIEW_PRIVACY_BOUNDARY,
   };
   if (text !== `${JSON.stringify(expected, null, 2)}\n`) invalidSanitizedReview();

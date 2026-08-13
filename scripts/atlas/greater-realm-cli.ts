@@ -10,6 +10,7 @@ import {
   lstatSync,
   openSync,
   readdirSync,
+  readFileSync,
   readSync,
   realpathSync,
   unlinkSync,
@@ -79,6 +80,7 @@ import {
   encodeGreaterRealmPrivateSeed,
 } from './greater-realm-private-seed';
 import {
+  assertGreaterRealmRuntimeReleaseMatches,
   createGreaterRealmRuntimeRelease,
   openOrCreateGreaterRealmRuntimeReleaseSeed,
   readGreaterRealmRuntimeRelease,
@@ -94,12 +96,19 @@ import {
 } from './greater-realm-sanitized-review';
 import { runGreaterRealmTrustedGit } from './greater-realm-git';
 import { verifyGreaterRealmTrustedToolchain } from './greater-realm-toolchain-bootstrap.mjs';
+import { inspectGreaterRealmReleaseGateState } from '../verify-greater-realm-release-gates.mjs';
+import {
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_PROFILE,
+  verifyAuthBridgeNotificationPreparedDeployClosure,
+} from '../auth-bridge-notification-prepared-deploy-closure.mjs';
 
 type Command =
   | 'generate-candidates'
   | 'compare-candidates'
   | 'inspect-package'
   | 'verify-private-package'
+  | 'retain-pending-owner-report'
+  | 'export-pending-owner-report'
   | 'export-sanitized-review'
   | 'verify-sanitized-review'
   | 'export-runtime-release'
@@ -136,6 +145,23 @@ const PRIVATE_BATCH_MAXIMUM_BYTES = GREATER_REALM_MAXIMUM_CANDIDATE_COUNT
   + GREATER_REALM_PRIVATE_SEED_ENVELOPE_BYTES;
 const PENDING_OWNER_REPORT_PATH =
   'docs/evidence/greater-realm/pending-owner-review-v1.json';
+const RETAINED_PENDING_OWNER_REPORT_ROOT =
+  'owner-evidence/pending-owner-report-v1';
+const RETAINED_PENDING_OWNER_REPORT_BINDING_KIND =
+  'warpkeep.greater-realm.retained-pre-selection-snapshot.v1';
+const RETAINED_PENDING_OWNER_REQUIRED_SOURCE_TRANSITION_PATHS = Object.freeze([
+  'spacetimedb/src/greaterRealmV17Policy.ts',
+] as const);
+const PENDING_OWNER_RETENTION_SOURCE_PHASE = 'pre-generation';
+const PENDING_OWNER_PUBLICATION_SOURCE_PHASE = 'activation-only';
+const PENDING_OWNER_PUBLICATION_SOURCE_VERSION = '0.3.43';
+const PENDING_OWNER_PUBLICATION_SOURCE_DESCRIPTION =
+  'A Farcaster-connected persistent strategy world in active Alpha development.';
+
+type RetainedSourceProjection = Readonly<{
+  canonical: string;
+  state: 'C0' | 'C3';
+}>;
 
 function fail(code: string): never {
   throw new Error(code);
@@ -181,6 +207,8 @@ function parseArguments(argv: readonly string[]): ParsedArguments {
     'compare-candidates',
     'inspect-package',
     'verify-private-package',
+    'retain-pending-owner-report',
+    'export-pending-owner-report',
     'export-sanitized-review',
     'verify-sanitized-review',
     'export-runtime-release',
@@ -306,9 +334,27 @@ export const greaterRealmCliArgumentTestSeams = Object.freeze({
   runtimeReleaseExport(arguments_: readonly string[]): ParsedArguments {
     return parseArguments(['export-runtime-release', ...arguments_]);
   },
+  pendingOwnerReportExport(arguments_: readonly string[]): ParsedArguments {
+    return parseArguments(['export-pending-owner-report', ...arguments_]);
+  },
+  pendingOwnerReportRetention(arguments_: readonly string[]): ParsedArguments {
+    return parseArguments(['retain-pending-owner-report', ...arguments_]);
+  },
+  cleanSourceCommit(repositoryRoot: string): string {
+    return sourceCommit(repositoryRoot);
+  },
   assertGeneratorSourceProvenance(commit: string, repositoryRoot: string): void {
     assertGeneratorSourceProvenance(commit, repositoryRoot);
   },
+  assertRetainedPendingOwnerSourceLineage(
+    commit: string,
+    repositoryRoot: string,
+  ): void {
+    assertRetainedPendingOwnerSourceLineage(commit, repositoryRoot);
+  },
+  assertPendingOwnerPublicationSourcePhase,
+  assertPendingOwnerRetentionSourcePhase,
+  assertPendingOwnerPublicationReleaseIdentity,
   privateBatchInventory(
     candidateCount: number,
     hasSelectionReceipt = false,
@@ -334,37 +380,21 @@ function inspectPackagePublicStatus(
   });
 }
 
-function isRecoverablePendingOwnerReportStatus(status: string): boolean {
-  const temporaryPattern = new RegExp(
-    '^\\?\\? docs/evidence/greater-realm/pending-owner-review-v1\\.json\\.'
-      + '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.tmp$',
-    'u',
-  );
-  const entries = status.split('\0');
-  if (entries.at(-1) !== '') return false;
-  entries.pop();
-  return entries.length > 0 && entries.every(entry => (
-    entry === `?? ${PENDING_OWNER_REPORT_PATH}`
-    || temporaryPattern.test(entry)
-  ));
-}
-
-function sourceCommit(options: Readonly<{
-  allowPendingOwnerReportRecovery?: boolean;
-}> = {}): string {
+function sourceCommit(repositoryRoot = ROOT): string {
+  const expectedRoot = resolve(repositoryRoot);
   const topLevel = runGreaterRealmTrustedGit(
     ['rev-parse', '--path-format=absolute', '--show-toplevel'],
-    ROOT,
+    expectedRoot,
   );
   if (
     topLevel.error
     || topLevel.status !== 0
     || topLevel.stderr.length !== 0
-    || resolve(topLevel.stdout.trim()) !== resolve(ROOT)
+    || resolve(topLevel.stdout.trim()) !== expectedRoot
   ) fail('GREATER_REALM_CLI_SOURCE_COMMIT_FAILED');
   const result = runGreaterRealmTrustedGit(
     ['rev-parse', '--verify', 'HEAD^{commit}'],
-    ROOT,
+    expectedRoot,
   );
   const value = result.stdout.trim();
   if (
@@ -377,23 +407,202 @@ function sourceCommit(options: Readonly<{
   }
   const status = runGreaterRealmTrustedGit(
     ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--no-renames'],
-    ROOT,
+    expectedRoot,
   );
   if (
     status.error
     || status.status !== 0
     || status.stderr.length !== 0
-    || (
-      status.stdout.length !== 0
-      && !(
-        options.allowPendingOwnerReportRecovery === true
-        && isRecoverablePendingOwnerReportStatus(status.stdout)
-      )
-    )
+    || status.stdout.length !== 0
   ) {
     fail('GREATER_REALM_CLI_SOURCE_TREE_DIRTY');
   }
   return value;
+}
+
+function isPendingOwnerReportRecoveryStatus(status: string): boolean {
+  if (status === '') return true;
+  const entries = status.split('\0');
+  if (entries.pop() !== '' || entries.length < 1 || entries.length > 2) return false;
+  const fixed = `?? ${PENDING_OWNER_REPORT_PATH}`;
+  const temporary = new RegExp(
+    `^\\?\\? ${PENDING_OWNER_REPORT_PATH.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}\\.`
+      + '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\\.tmp$',
+    'u',
+  );
+  const fixedCount = entries.filter(entry => entry === fixed).length;
+  const temporaryCount = entries.filter(entry => temporary.test(entry)).length;
+  return fixedCount <= 1
+    && temporaryCount <= 1
+    && fixedCount + temporaryCount === entries.length;
+}
+
+/**
+ * Capture protected C3 for a report-export retry. A completed prior install
+ * may have left the fixed report and/or its one UUID-scoped writer temporary
+ * untracked. No other worktree entry is admitted before those bytes can be
+ * recovered and rebound to retention after all private/runtime checks.
+ */
+function pendingOwnerReportStartupSourceCommit(repositoryRoot = ROOT): string {
+  const expectedRoot = resolve(repositoryRoot);
+  const topLevel = runGreaterRealmTrustedGit(
+    ['rev-parse', '--path-format=absolute', '--show-toplevel'],
+    expectedRoot,
+  );
+  if (
+    topLevel.error
+    || topLevel.status !== 0
+    || topLevel.signal !== null
+    || topLevel.stderr.length !== 0
+    || resolve(topLevel.stdout.trim()) !== expectedRoot
+  ) fail('GREATER_REALM_CLI_SOURCE_COMMIT_FAILED');
+  const head = runGreaterRealmTrustedGit(
+    ['rev-parse', '--verify', 'HEAD^{commit}'],
+    expectedRoot,
+  );
+  const value = head.stdout.trim();
+  if (
+    head.error
+    || head.status !== 0
+    || head.signal !== null
+    || head.stderr.length !== 0
+    || !/^[0-9a-f]{40}$/u.test(value)
+  ) fail('GREATER_REALM_CLI_SOURCE_COMMIT_FAILED');
+  const status = runGreaterRealmTrustedGit(
+    ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--no-renames'],
+    expectedRoot,
+  );
+  const ignored = runGreaterRealmTrustedGit(
+    [
+      'ls-files', '--others', '--ignored', '--exclude-standard', '-z',
+      '--', 'docs/evidence/greater-realm',
+    ],
+    expectedRoot,
+  );
+  const tracked = runGreaterRealmTrustedGit(
+    ['ls-files', '-z', '--', 'docs/evidence/greater-realm'],
+    expectedRoot,
+  );
+  const trackedRecoveryTemporaryPrefix = `${PENDING_OWNER_REPORT_PATH}.`;
+  const hasTrackedRecoveryTemporary = tracked.stdout.split('\0').some(path => (
+    path.startsWith(trackedRecoveryTemporaryPrefix) && path.endsWith('.tmp')
+  ));
+  if (
+    status.error
+    || status.status !== 0
+    || status.signal !== null
+    || status.stderr.length !== 0
+    || !isPendingOwnerReportRecoveryStatus(status.stdout)
+    || ignored.error
+    || ignored.status !== 0
+    || ignored.signal !== null
+    || ignored.stderr.length !== 0
+    || ignored.stdout.length !== 0
+    || tracked.error
+    || tracked.status !== 0
+    || tracked.signal !== null
+    || tracked.stderr.length !== 0
+    || hasTrackedRecoveryTemporary
+  ) fail('GREATER_REALM_CLI_SOURCE_TREE_DIRTY');
+  return value;
+}
+
+function pendingOwnerPreparedWorktreeState(
+  expectedHead: string,
+  expectedBytes: Buffer,
+  repositoryRoot = ROOT,
+): 'fixed-untracked-snapshot' | 'exact-tracked-replay' {
+  const head = runGreaterRealmTrustedGit(
+    ['rev-parse', '--verify', 'HEAD^{commit}'],
+    repositoryRoot,
+  );
+  const status = runGreaterRealmTrustedGit(
+    ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--no-renames'],
+    repositoryRoot,
+  );
+  const tracked = runGreaterRealmTrustedGit(
+    ['ls-files', '-z', '--', PENDING_OWNER_REPORT_PATH],
+    repositoryRoot,
+  );
+  const ignored = runGreaterRealmTrustedGit(
+    [
+      'ls-files', '--others', '--ignored', '--exclude-standard', '-z',
+      '--', 'docs/evidence/greater-realm',
+    ],
+    repositoryRoot,
+  );
+  const trackedPath = `${PENDING_OWNER_REPORT_PATH}\0`;
+  const untrackedStatus = `?? ${PENDING_OWNER_REPORT_PATH}\0`;
+  if (
+    head.error
+    || head.status !== 0
+    || head.signal !== null
+    || head.stderr.length !== 0
+    || head.stdout.trim() !== expectedHead
+    || status.error
+    || status.status !== 0
+    || status.signal !== null
+    || status.stderr.length !== 0
+    || tracked.error
+    || tracked.status !== 0
+    || tracked.signal !== null
+    || tracked.stderr.length !== 0
+    || ignored.error
+    || ignored.status !== 0
+    || ignored.signal !== null
+    || ignored.stderr.length !== 0
+    || ignored.stdout.length !== 0
+  ) fail('GREATER_REALM_PENDING_OWNER_REPORT_POSTCONDITION_INVALID');
+  if (tracked.stdout === '') {
+    if (status.stdout !== untrackedStatus) {
+      fail('GREATER_REALM_PENDING_OWNER_REPORT_POSTCONDITION_INVALID');
+    }
+    return 'fixed-untracked-snapshot';
+  }
+  if (tracked.stdout !== trackedPath || status.stdout !== '') {
+    fail('GREATER_REALM_PENDING_OWNER_REPORT_POSTCONDITION_INVALID');
+  }
+  const committed = runGreaterRealmTrustedGit(
+    ['show', `HEAD:${PENDING_OWNER_REPORT_PATH}`],
+    repositoryRoot,
+  );
+  if (
+    committed.error
+    || committed.status !== 0
+    || committed.signal !== null
+    || committed.stderr.length !== 0
+    || !Buffer.from(committed.stdout, 'utf8').equals(expectedBytes)
+  ) fail('GREATER_REALM_PENDING_OWNER_REPORT_POSTCONDITION_INVALID');
+  return 'exact-tracked-replay';
+}
+
+function assertPendingOwnerReportPreparedWorktree(
+  expectedHead: string,
+  expectedBytes: Buffer,
+  repositoryRoot = ROOT,
+): 'fixed-untracked-snapshot' | 'exact-tracked-replay' {
+  const before = pendingOwnerPreparedWorktreeState(
+    expectedHead,
+    expectedBytes,
+    repositoryRoot,
+  );
+  const installed = readPublicEvidence(PENDING_OWNER_REPORT_PATH, repositoryRoot);
+  try {
+    if (!installed.equals(expectedBytes)) {
+      fail('GREATER_REALM_PENDING_OWNER_REPORT_POSTCONDITION_INVALID');
+    }
+  } finally {
+    installed.fill(0);
+  }
+  const after = pendingOwnerPreparedWorktreeState(
+    expectedHead,
+    expectedBytes,
+    repositoryRoot,
+  );
+  if (after !== before) {
+    fail('GREATER_REALM_PENDING_OWNER_REPORT_POSTCONDITION_INVALID');
+  }
+  return after;
 }
 
 const GENERATOR_PROVENANCE_PATHS = Object.freeze([
@@ -454,6 +663,207 @@ function assertGeneratorSourceProvenance(
     || untracked.stderr.length !== 0
     || ignored.stderr.length !== 0
   ) fail('GREATER_REALM_PRIVATE_SOURCE_MISMATCH');
+}
+
+/**
+ * C1-C3 may advance only the reviewed v17 gate literal inside the generator's
+ * otherwise frozen provenance scope. The retained snapshot lets protected C3
+ * prepare the one C4 evidence path without pretending that the package was
+ * generated from the later source commit.
+ */
+function assertRetainedPendingOwnerSourceLineage(
+  commit: string,
+  repositoryRoot = ROOT,
+): void {
+  if (!/^[0-9a-f]{40}$/u.test(commit)) fail('GREATER_REALM_PRIVATE_SOURCE_INVALID');
+  const ancestor = runGreaterRealmTrustedGit(
+    ['merge-base', '--is-ancestor', commit, 'HEAD'],
+    repositoryRoot,
+  );
+  const changed = runGreaterRealmTrustedGit(
+    [
+      'diff', '--name-only', '-z', '--no-ext-diff', '--no-textconv', commit,
+      '--', ...GENERATOR_PROVENANCE_PATHS,
+    ],
+    repositoryRoot,
+  );
+  const untracked = runGreaterRealmTrustedGit(
+    [
+      'ls-files', '--others', '--exclude-standard', '-z',
+      '--', ...GENERATOR_PROVENANCE_PATHS,
+    ],
+    repositoryRoot,
+  );
+  const ignored = runGreaterRealmTrustedGit(
+    [
+      'ls-files', '--others', '--ignored', '--exclude-standard', '-z',
+      '--', ...GENERATOR_PROVENANCE_PATHS,
+    ],
+    repositoryRoot,
+  );
+  const changedPaths = changed.stdout.split('\0').filter(Boolean);
+  if (
+    ancestor.error
+    || ancestor.status !== 0
+    || changed.error
+    || changed.status !== 0
+    || untracked.error
+    || untracked.status !== 0
+    || ignored.error
+    || ignored.status !== 0
+    || ancestor.stdout.length !== 0
+    || ancestor.stderr.length !== 0
+    || changed.stderr.length !== 0
+    || untracked.stdout.length !== 0
+    || untracked.stderr.length !== 0
+    || ignored.stdout.length !== 0
+    || ignored.stderr.length !== 0
+    || JSON.stringify(changedPaths.sort()) !== JSON.stringify(
+      [...RETAINED_PENDING_OWNER_REQUIRED_SOURCE_TRANSITION_PATHS].sort(),
+    )
+  ) fail('GREATER_REALM_PENDING_OWNER_REPORT_SOURCE_LINEAGE_INVALID');
+  for (const path of RETAINED_PENDING_OWNER_REQUIRED_SOURCE_TRANSITION_PATHS) {
+    const sourceResult = runGreaterRealmTrustedGit(
+      ['show', `${commit}:${path}`],
+      repositoryRoot,
+    );
+    if (
+      sourceResult.error
+      || sourceResult.status !== 0
+      || sourceResult.signal !== null
+      || sourceResult.stderr.length !== 0
+      || sourceResult.stdout.length < 1
+    ) fail('GREATER_REALM_PENDING_OWNER_REPORT_SOURCE_LINEAGE_INVALID');
+    let current: string;
+    try {
+      current = readFileSync(resolve(repositoryRoot, path), 'utf8');
+    } catch {
+      fail('GREATER_REALM_PENDING_OWNER_REPORT_SOURCE_LINEAGE_INVALID');
+    }
+    const sourceProjection = projectRetainedPendingOwnerTransitionSource(
+      path,
+      sourceResult.stdout,
+    );
+    const currentProjection = projectRetainedPendingOwnerTransitionSource(
+      path,
+      current,
+    );
+    if (
+      sourceProjection.state !== 'C0'
+      || currentProjection.state !== 'C3'
+      || sourceProjection.canonical !== currentProjection.canonical
+    ) fail('GREATER_REALM_PENDING_OWNER_REPORT_SOURCE_LINEAGE_INVALID');
+  }
+}
+
+function projectRetainedPendingOwnerTransitionSource(
+  path: string,
+  source: string,
+): RetainedSourceProjection {
+  let pattern: RegExp;
+  let canonicalMatch: string;
+  if (path === 'spacetimedb/src/greaterRealmV17Policy.ts') {
+    pattern = /^export const GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED = (false|true);\nexport const GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED = (false|true);$/gmu;
+    canonicalMatch = 'export const GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED = false;\n'
+      + 'export const GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED = false;';
+  } else {
+    fail('GREATER_REALM_PENDING_OWNER_REPORT_SOURCE_LINEAGE_INVALID');
+  }
+  const matches = [...source.matchAll(pattern)];
+  if (matches.length !== 1 || matches[0]?.index === undefined) {
+    fail('GREATER_REALM_PENDING_OWNER_REPORT_SOURCE_LINEAGE_INVALID');
+  }
+  const match = matches[0];
+  const values = match.slice(1);
+  let state: 'C0' | 'C3';
+  if (values[0] === 'false' && values[1] === 'false') state = 'C0';
+  else if (values[0] === 'false' && values[1] === 'true') state = 'C3';
+  else fail('GREATER_REALM_PENDING_OWNER_REPORT_SOURCE_LINEAGE_INVALID');
+  return Object.freeze({
+    canonical: source.slice(0, match.index)
+      + canonicalMatch
+      + source.slice(match.index + match[0].length),
+    state,
+  });
+}
+
+function assertPendingOwnerPublicationReleaseIdentity(
+  repositoryRoot = ROOT,
+): void {
+  let packageJson: unknown;
+  let packageLock: unknown;
+  try {
+    packageJson = JSON.parse(readFileSync(resolve(repositoryRoot, 'package.json'), 'utf8'));
+    packageLock = JSON.parse(readFileSync(resolve(repositoryRoot, 'package-lock.json'), 'utf8'));
+  } catch {
+    fail('GREATER_REALM_PENDING_OWNER_REPORT_RELEASE_IDENTITY_INVALID');
+  }
+  if (
+    packageJson === null
+    || typeof packageJson !== 'object'
+    || Array.isArray(packageJson)
+    || packageLock === null
+    || typeof packageLock !== 'object'
+    || Array.isArray(packageLock)
+  ) fail('GREATER_REALM_PENDING_OWNER_REPORT_RELEASE_IDENTITY_INVALID');
+  const packageRow = packageJson as Record<string, unknown>;
+  const lockRow = packageLock as Record<string, unknown>;
+  const packages = lockRow.packages;
+  if (
+    packages === null
+    || typeof packages !== 'object'
+    || Array.isArray(packages)
+  ) fail('GREATER_REALM_PENDING_OWNER_REPORT_RELEASE_IDENTITY_INVALID');
+  const lockRoot = (packages as Record<string, unknown>)[''];
+  if (
+    lockRoot === null
+    || typeof lockRoot !== 'object'
+    || Array.isArray(lockRoot)
+    || packageRow.name !== 'warpkeep'
+    || packageRow.version !== PENDING_OWNER_PUBLICATION_SOURCE_VERSION
+    || packageRow.description !== PENDING_OWNER_PUBLICATION_SOURCE_DESCRIPTION
+    || lockRow.name !== packageRow.name
+    || lockRow.version !== packageRow.version
+    || (lockRoot as Record<string, unknown>).name !== packageRow.name
+    || (lockRoot as Record<string, unknown>).version !== packageRow.version
+  ) fail('GREATER_REALM_PENDING_OWNER_REPORT_RELEASE_IDENTITY_INVALID');
+}
+
+function assertPendingOwnerPublicationSourcePhase(phase: unknown): void {
+  if (phase !== PENDING_OWNER_PUBLICATION_SOURCE_PHASE) {
+    fail('GREATER_REALM_PENDING_OWNER_REPORT_SOURCE_PHASE_INVALID');
+  }
+}
+
+function assertPendingOwnerRetentionSourcePhase(phase: unknown): void {
+  if (phase !== PENDING_OWNER_RETENTION_SOURCE_PHASE) {
+    fail('GREATER_REALM_RETAINED_PENDING_OWNER_REPORT_SOURCE_PHASE_INVALID');
+  }
+}
+
+function verifiedRetainedPendingOwnerSourceClosure(
+  repositoryRoot = ROOT,
+): RetainedPendingOwnerSourceClosure {
+  const closure = verifyAuthBridgeNotificationPreparedDeployClosure({
+    repositoryRoot,
+  });
+  if (
+    closure.profile
+      !== AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_PROFILE
+    || !/^[0-9a-f]{64}$/u.test(closure.manifestSha256)
+  ) fail('GREATER_REALM_RETAINED_PENDING_OWNER_REPORT_SOURCE_CLOSURE_INVALID');
+  return Object.freeze({
+    profile: AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_PROFILE,
+    manifestSha256: closure.manifestSha256,
+  });
+}
+
+function clearRuntimeReleaseArtifactBytes(
+  artifacts: GreaterRealmRuntimeReleaseArtifacts,
+): void {
+  artifacts.manifestBytes.fill(0);
+  artifacts.statusBytes.fill(0);
+  for (const chunk of artifacts.chunks) chunk.bytes.fill(0);
 }
 
 function roundedPerformance(startedAt: bigint): GreaterRealmCandidatePerformance {
@@ -590,30 +1000,31 @@ function reattestAttemptToolchain(
   ) fail('GREATER_REALM_ATTEMPT_CHECKPOINT_REQUEST_MISMATCH');
 }
 
-function installPendingOwnerReport(
-  review: GreaterRealmSanitizedReview,
+function exportPendingOwnerReport(
+  retainedBytes: Buffer,
   repositoryRoot = ROOT,
 ): void {
-  const report = createGreaterRealmPendingOwnerReport({
-    sanitizedReview: review,
-    privatePackageVerified: true,
-  });
-  const serialized = serializeGreaterRealmPendingOwnerReport(report);
-  const reparsed = parseGreaterRealmPendingOwnerReport(
-    JSON.parse(serialized) as unknown,
-  );
-  const canonical = serializeGreaterRealmPendingOwnerReport(reparsed);
-  if (canonical !== serialized) {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(retainedBytes.toString('utf8')) as unknown;
+  } catch {
     fail('GREATER_REALM_PENDING_OWNER_REPORT_INVALID');
   }
-  const bytes = Buffer.from(canonical, 'utf8');
+  const reparsed = parseGreaterRealmPendingOwnerReport(parsed);
+  const canonical = Buffer.from(
+    serializeGreaterRealmPendingOwnerReport(reparsed),
+    'utf8',
+  );
   try {
+    if (!canonical.equals(retainedBytes)) {
+      fail('GREATER_REALM_PENDING_OWNER_REPORT_INVALID');
+    }
     const destination = resolvePublicEvidenceDestination(
       repositoryRoot,
       PENDING_OWNER_REPORT_PATH,
     );
     if (
-      recoverPublicEvidenceInstall(destination, bytes, repositoryRoot)
+      recoverPublicEvidenceInstall(destination, retainedBytes, repositoryRoot)
       === 'installed'
     ) {
       const installed = readPublicEvidence(PENDING_OWNER_REPORT_PATH, repositoryRoot);
@@ -622,17 +1033,18 @@ function installPendingOwnerReport(
           JSON.parse(installed.toString('utf8')) as unknown,
         );
         if (
-          !installed.equals(bytes)
-          || serializeGreaterRealmPendingOwnerReport(installedReport) !== canonical
+          !installed.equals(retainedBytes)
+          || serializeGreaterRealmPendingOwnerReport(installedReport)
+            !== canonical.toString('utf8')
         ) fail('GREATER_REALM_PUBLIC_EVIDENCE_DESTINATION_INVALID');
       } finally {
         installed.fill(0);
       }
       return;
     }
-    writePublicEvidence(destination, bytes, repositoryRoot);
+    writePublicEvidence(destination, retainedBytes, repositoryRoot);
   } finally {
-    bytes.fill(0);
+    canonical.fill(0);
   }
 }
 
@@ -691,9 +1103,7 @@ async function generateSingleWorldCandidate(
     repositoryRoot: ROOT,
     workspaceRoot: arguments_.workspaceRoot,
   });
-  const commit = sourceCommit({
-    allowPendingOwnerReportRecovery: arguments_.resume,
-  });
+  const commit = sourceCommit();
   const binding = attemptCheckpointBinding(commit, maximumAttempts);
   let checkpoint: GreaterRealmAttemptCheckpointState | undefined;
   let publishedBatchHandle = '';
@@ -709,8 +1119,7 @@ async function generateSingleWorldCandidate(
                 `batches/${completion.batchHandle}`,
               ) !== 'published'
             ) fail('GREATER_REALM_ATTEMPT_COMPLETION_INVALID');
-            const review = await assertPublishedBatchMatchesAttempt(workspace, completion);
-            installPendingOwnerReport(review);
+            await assertPublishedBatchMatchesAttempt(workspace, completion);
             reconcileGreaterRealmAttemptCompletion({ workspace, receipt: completion });
             return completion.batchHandle;
           }
@@ -738,8 +1147,7 @@ async function generateSingleWorldCandidate(
         const publicationStatus = workspace.recoverAtomicDirectoryPublish(batchPath);
         if (publicationStatus === 'published') {
           if (!arguments_.resume) fail('GREATER_REALM_ATTEMPT_CHECKPOINT_INVALID');
-          const review = await assertPublishedBatchMatchesAttempt(workspace, activeCheckpoint);
-          installPendingOwnerReport(review);
+          await assertPublishedBatchMatchesAttempt(workspace, activeCheckpoint);
           const completion = writeGreaterRealmAttemptCompletionReceipt({
             workspace,
             state: activeCheckpoint,
@@ -901,8 +1309,7 @@ async function generateSingleWorldCandidate(
         if (workspace.recoverAtomicDirectoryPublish(batchPath) !== 'published') {
           fail('GREATER_REALM_ATTEMPT_CHECKPOINT_INVALID');
         }
-        const review = await assertPublishedBatchMatchesAttempt(workspace, completedCheckpoint);
-        installPendingOwnerReport(review);
+        await assertPublishedBatchMatchesAttempt(workspace, completedCheckpoint);
         const completion = writeGreaterRealmAttemptCompletionReceipt({
           workspace,
           state: completedCheckpoint,
@@ -1696,6 +2103,191 @@ function readPrivateBatch(
   }
 }
 
+type GreaterRealmPrivateBatch = ReturnType<typeof readPrivateBatch>;
+type RetainedPendingOwnerSourceClosure = Readonly<{
+  profile: typeof AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_PROFILE;
+  manifestSha256: string;
+}>;
+
+function retainedPendingOwnerReportDirectory(batchHandle: string): string {
+  if (!BATCH_HANDLE.test(batchHandle)) fail('GREATER_REALM_CLI_BATCH_INVALID');
+  return `${RETAINED_PENDING_OWNER_REPORT_ROOT}/${batchHandle}`;
+}
+
+function retainedPendingOwnerReportPath(batchHandle: string): string {
+  return `${retainedPendingOwnerReportDirectory(batchHandle)}/report.json`;
+}
+
+function retainedPendingOwnerBindingPath(batchHandle: string): string {
+  return `${retainedPendingOwnerReportDirectory(batchHandle)}/binding.private.json`;
+}
+
+function retainedPendingOwnerArtifacts(
+  pendingReview: GreaterRealmSanitizedReview,
+  batch: GreaterRealmPrivateBatch,
+  sourceClosure: RetainedPendingOwnerSourceClosure,
+): Readonly<{ reportBytes: Buffer; bindingBytes: Buffer }> {
+  if (
+    pendingReview.selectionStatus !== 'pending'
+    || pendingReview.selectedCandidateHandle !== null
+    || pendingReview.candidateCount !== 1
+    || pendingReview.candidates.length !== 1
+    || batch.sourceCommit !== pendingReview.sourceCommit
+    || batch.sanitizedReviewDigest !== pendingReview.reportDigest
+    || batch.requestedCount !== 1
+    || batch.candidates.length !== 1
+    || batch.candidates[0]?.candidateHandle
+      !== pendingReview.candidates[0]?.candidateHandle
+    || sourceClosure.profile
+      !== AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_PROFILE
+    || !/^[0-9a-f]{64}$/u.test(sourceClosure.manifestSha256)
+  ) fail('GREATER_REALM_RETAINED_PENDING_OWNER_REPORT_INVALID');
+  const report = createGreaterRealmPendingOwnerReport({
+    sanitizedReview: pendingReview,
+    privatePackageVerified: true,
+  });
+  const reportBytes = Buffer.from(
+    serializeGreaterRealmPendingOwnerReport(report),
+    'utf8',
+  );
+  const binding = Object.freeze({
+    kind: RETAINED_PENDING_OWNER_REPORT_BINDING_KIND,
+    generatorVersion: pendingReview.generatorVersion,
+    sourceCommit: pendingReview.sourceCommit,
+    reviewBatchHandle: pendingReview.reviewBatchHandle,
+    sourceReportDigest: pendingReview.reportDigest,
+    selectionAtRetention: 'pending' as const,
+    selectedCandidateHandleAtRetention: null,
+    privatePackageVerified: true as const,
+    sourceClosureProfile: sourceClosure.profile,
+    sourceClosureManifestSha256: sourceClosure.manifestSha256,
+    batchSeedDigest: batch.batchSeedDigest,
+    candidateBindings: Object.freeze(batch.candidates.map(candidate => Object.freeze({
+      candidateHandle: candidate.candidateHandle,
+      candidateOrdinal: candidate.candidateOrdinal,
+      atlasDigest: candidate.atlasDigest,
+      manifestDigest: candidate.manifestDigest,
+    }))),
+    reportByteLength: reportBytes.byteLength,
+    reportSha256: createHash('sha256').update(reportBytes).digest('hex'),
+  });
+  const bindingBytes = Buffer.from(`${JSON.stringify(binding, null, 2)}\n`, 'utf8');
+  return Object.freeze({ reportBytes, bindingBytes });
+}
+
+function readRetainedPendingOwnerReport(
+  workspace: ReturnType<typeof openGreaterRealmPrivateWorkspace>,
+  pendingReview: GreaterRealmSanitizedReview,
+  batch: GreaterRealmPrivateBatch,
+  sourceClosure: RetainedPendingOwnerSourceClosure,
+): Buffer {
+  const directory = retainedPendingOwnerReportDirectory(
+    pendingReview.reviewBatchHandle,
+  );
+  if (workspace.recoverAtomicDirectoryPublish(directory) !== 'published') {
+    fail('GREATER_REALM_RETAINED_PENDING_OWNER_REPORT_MISSING');
+  }
+  const expected = retainedPendingOwnerArtifacts(
+    pendingReview,
+    batch,
+    sourceClosure,
+  );
+  let installedReport: Buffer | undefined;
+  let installedBinding: Buffer | undefined;
+  try {
+    installedReport = workspace.readFile(
+      retainedPendingOwnerReportPath(pendingReview.reviewBatchHandle),
+      PUBLIC_EVIDENCE_MAXIMUM_BYTES,
+    );
+    installedBinding = workspace.readFile(
+      retainedPendingOwnerBindingPath(pendingReview.reviewBatchHandle),
+      PRIVATE_JSON_MAXIMUM_BYTES,
+    );
+    const attestation = workspace.attestTree(directory);
+    if (
+      !installedReport.equals(expected.reportBytes)
+      || !installedBinding.equals(expected.bindingBytes)
+      || attestation.directoryCount !== 1
+      || attestation.fileCount !== 2
+      || attestation.entryCount !== 3
+      || attestation.byteCount
+        !== installedReport.byteLength + installedBinding.byteLength
+    ) fail('GREATER_REALM_RETAINED_PENDING_OWNER_REPORT_INVALID');
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(installedReport.toString('utf8')) as unknown;
+    } catch {
+      fail('GREATER_REALM_RETAINED_PENDING_OWNER_REPORT_INVALID');
+    }
+    const canonical = serializeGreaterRealmPendingOwnerReport(
+      parseGreaterRealmPendingOwnerReport(parsed),
+    );
+    if (canonical !== installedReport.toString('utf8')) {
+      fail('GREATER_REALM_RETAINED_PENDING_OWNER_REPORT_INVALID');
+    }
+    return Buffer.from(installedReport);
+  } finally {
+    installedReport?.fill(0);
+    installedBinding?.fill(0);
+    expected.reportBytes.fill(0);
+    expected.bindingBytes.fill(0);
+  }
+}
+
+async function retainPendingOwnerReport(
+  workspace: ReturnType<typeof openGreaterRealmPrivateWorkspace>,
+  pendingReview: GreaterRealmSanitizedReview,
+  batch: GreaterRealmPrivateBatch,
+  sourceClosure: RetainedPendingOwnerSourceClosure,
+): Promise<Buffer> {
+  const directory = retainedPendingOwnerReportDirectory(
+    pendingReview.reviewBatchHandle,
+  );
+  const publication = workspace.recoverAtomicDirectoryPublish(directory);
+  if (publication === 'absent') {
+    const artifacts = retainedPendingOwnerArtifacts(
+      pendingReview,
+      batch,
+      sourceClosure,
+    );
+    try {
+      if (!(artifacts.reportBytes instanceof Uint8Array)) {
+        fail('GREATER_REALM_RETAINED_PENDING_OWNER_REPORT_BYTES_INVALID');
+      }
+      if (!(artifacts.bindingBytes instanceof Uint8Array)) {
+        fail('GREATER_REALM_RETAINED_PENDING_OWNER_BINDING_BYTES_INVALID');
+      }
+      if (artifacts.reportBytes.byteLength > PUBLIC_EVIDENCE_MAXIMUM_BYTES) {
+        fail('GREATER_REALM_RETAINED_PENDING_OWNER_REPORT_SIZE_INVALID');
+      }
+      if (artifacts.bindingBytes.byteLength > PRIVATE_JSON_MAXIMUM_BYTES) {
+        fail('GREATER_REALM_RETAINED_PENDING_OWNER_BINDING_SIZE_INVALID');
+      }
+      await workspace.withAtomicDirectoryPublish(directory, async staged => {
+        staged.writeFileAtomic(
+          retainedPendingOwnerReportPath(pendingReview.reviewBatchHandle),
+          artifacts.reportBytes,
+          PUBLIC_EVIDENCE_MAXIMUM_BYTES,
+        );
+        staged.writeFileAtomic(
+          retainedPendingOwnerBindingPath(pendingReview.reviewBatchHandle),
+          artifacts.bindingBytes,
+          PRIVATE_JSON_MAXIMUM_BYTES,
+        );
+      });
+    } finally {
+      artifacts.reportBytes.fill(0);
+      artifacts.bindingBytes.fill(0);
+    }
+  }
+  return readRetainedPendingOwnerReport(
+    workspace,
+    pendingReview,
+    batch,
+    sourceClosure,
+  );
+}
+
 function privateBatchInventoryCounts(
   candidateCount: number,
   hasSelectionReceipt: boolean,
@@ -1744,6 +2336,7 @@ async function verifyPrivateReviewBatch(
   workspace: ReturnType<typeof openGreaterRealmPrivateWorkspace>,
   batchHandle: string,
   options: Readonly<{
+    sourceProvenance?: 'generation' | 'retained-release-transition';
     onVerifiedSelectedCandidate?: (
       candidate: GreaterRealmRuntimeReleaseSource,
       sourceCommit: string,
@@ -1768,7 +2361,11 @@ async function verifyPrivateReviewBatch(
       || effectiveReview.selectedCandidateHandle === null
     )
   ) fail('GREATER_REALM_RUNTIME_RELEASE_SELECTION_REQUIRED');
-  assertGeneratorSourceProvenance(batch.sourceCommit);
+  if (options.sourceProvenance === 'retained-release-transition') {
+    assertRetainedPendingOwnerSourceLineage(batch.sourceCommit);
+  } else {
+    assertGeneratorSourceProvenance(batch.sourceCommit);
+  }
   const reviewByHandle = new Map(review.candidates.map(candidate => [
     candidate.candidateHandle,
     candidate,
@@ -2378,12 +2975,59 @@ function writePublicEvidence(
 /** Executable ESM test seam for deterministic substitution regressions. */
 export const greaterRealmPublicEvidenceTestSeams = Object.freeze({
   pendingOwnerReportPath: PENDING_OWNER_REPORT_PATH,
-  isRecoverablePendingOwnerReportStatus,
-  installPendingOwnerReport(input: Readonly<{
+  pendingOwnerReportStartupSourceCommit,
+  retainedPendingOwnerReportDirectory,
+  exportPendingOwnerReport(input: Readonly<{
     repositoryRoot: string;
     review: GreaterRealmSanitizedReview;
   }>): void {
-    installPendingOwnerReport(input.review, input.repositoryRoot);
+    const bytes = Buffer.from(serializeGreaterRealmPendingOwnerReport(
+      createGreaterRealmPendingOwnerReport({
+        sanitizedReview: input.review,
+        privatePackageVerified: true,
+      }),
+    ), 'utf8');
+    try {
+      exportPendingOwnerReport(bytes, input.repositoryRoot);
+    } finally {
+      bytes.fill(0);
+    }
+  },
+  async retainPendingOwnerReport(input: Readonly<{
+    workspace: ReturnType<typeof openGreaterRealmPrivateWorkspace>;
+    pendingReview: GreaterRealmSanitizedReview;
+    batch: GreaterRealmPrivateBatch;
+    sourceClosure: RetainedPendingOwnerSourceClosure;
+  }>): Promise<string> {
+    const bytes = await retainPendingOwnerReport(
+      input.workspace,
+      input.pendingReview,
+      input.batch,
+      input.sourceClosure,
+    );
+    try {
+      return bytes.toString('utf8');
+    } finally {
+      bytes.fill(0);
+    }
+  },
+  readRetainedPendingOwnerReport(input: Readonly<{
+    workspace: ReturnType<typeof openGreaterRealmPrivateWorkspace>;
+    pendingReview: GreaterRealmSanitizedReview;
+    batch: GreaterRealmPrivateBatch;
+    sourceClosure: RetainedPendingOwnerSourceClosure;
+  }>): string {
+    const bytes = readRetainedPendingOwnerReport(
+      input.workspace,
+      input.pendingReview,
+      input.batch,
+      input.sourceClosure,
+    );
+    try {
+      return bytes.toString('utf8');
+    } finally {
+      bytes.fill(0);
+    }
   },
   write(input: Readonly<{
     repositoryRoot: string;
@@ -2396,6 +3040,17 @@ export const greaterRealmPublicEvidenceTestSeams = Object.freeze({
       input.bytes,
       input.repositoryRoot,
       input.beforeInstall,
+    );
+  },
+  assertPreparedWorktree(input: Readonly<{
+    repositoryRoot: string;
+    expectedHead: string;
+    expectedBytes: Buffer;
+  }>): 'fixed-untracked-snapshot' | 'exact-tracked-replay' {
+    return assertPendingOwnerReportPreparedWorktree(
+      input.expectedHead,
+      input.expectedBytes,
+      input.repositoryRoot,
     );
   },
 });
@@ -2423,6 +3078,16 @@ async function main(): Promise<void> {
     })}\n`);
     return;
   }
+  const lifecycleSourceCommit = [
+    'retain-pending-owner-report',
+    'select-candidate',
+    'export-runtime-release',
+    'export-pending-owner-report',
+  ].includes(arguments_.command)
+    ? arguments_.command === 'export-pending-owner-report'
+      ? pendingOwnerReportStartupSourceCommit()
+      : sourceCommit()
+    : undefined;
   const workspace = openGreaterRealmPrivateWorkspace({
     repositoryRoot: ROOT,
     workspaceRoot: arguments_.workspaceRoot,
@@ -2455,12 +3120,74 @@ async function main(): Promise<void> {
     })}\n`);
     return;
   }
+  if (arguments_.command === 'retain-pending-owner-report') {
+    const batchHandle = arguments_.batchHandle!;
+    const summary = await workspace.withExclusiveLock(
+      `locks/${batchHandle}.selection.lock`,
+      async () => {
+        const gateState = await inspectGreaterRealmReleaseGateState();
+        assertPendingOwnerRetentionSourcePhase(gateState.phase);
+        const sourceClosure = verifiedRetainedPendingOwnerSourceClosure();
+        const { review, pendingReview, batch } = await verifyPrivateReviewBatch(
+          workspace,
+          batchHandle,
+        );
+        if (
+          lifecycleSourceCommit === undefined
+          || review.selectionStatus !== 'pending'
+          || review.selectedCandidateHandle !== null
+          || pendingReview.sourceCommit !== lifecycleSourceCommit
+          || sourceCommit() !== lifecycleSourceCommit
+        ) fail('GREATER_REALM_RETAINED_PENDING_OWNER_REPORT_LIFECYCLE_INVALID');
+        const bytes = await retainPendingOwnerReport(
+          workspace,
+          pendingReview,
+          batch,
+          sourceClosure,
+        );
+        try {
+          return Object.freeze({
+            candidateCount: pendingReview.candidateCount,
+            reportSha256: createHash('sha256').update(bytes).digest('hex'),
+          });
+        } finally {
+          bytes.fill(0);
+        }
+      },
+    );
+    process.stdout.write(`${JSON.stringify({
+      ...summary,
+      selectionAtRetention: 'pending',
+      pendingOwnerReportRetained: true,
+      repositoryUntouched: true,
+      productionUntouched: true,
+    })}\n`);
+    return;
+  }
   if (arguments_.command === 'export-runtime-release') {
     const summary = await workspace.withExclusiveLock(
       'locks/runtime-release-v1.lock',
       async () => {
         let artifacts: GreaterRealmRuntimeReleaseArtifacts | undefined;
-        const { review } = await verifyPrivateReviewBatch(
+        const gateState = await inspectGreaterRealmReleaseGateState();
+        assertPendingOwnerRetentionSourcePhase(gateState.phase);
+        const sourceClosure = verifiedRetainedPendingOwnerSourceClosure();
+        const pendingReview = readPendingReview(workspace, arguments_.batchHandle!);
+        const privateBatch = readPrivateBatch(workspace, arguments_.batchHandle!);
+        const retainedBytes = readRetainedPendingOwnerReport(
+          workspace,
+          pendingReview,
+          privateBatch,
+          sourceClosure,
+        );
+        retainedBytes.fill(0);
+        if (
+          lifecycleSourceCommit === undefined
+          || pendingReview.sourceCommit !== lifecycleSourceCommit
+          || sourceCommit() !== lifecycleSourceCommit
+        ) fail('GREATER_REALM_RETAINED_PENDING_OWNER_REPORT_LIFECYCLE_INVALID');
+        const { review, pendingReview: verifiedPendingReview, batch } =
+          await verifyPrivateReviewBatch(
           workspace,
           arguments_.batchHandle!,
           {
@@ -2481,6 +3208,9 @@ async function main(): Promise<void> {
         if (
           review.selectionStatus !== 'selected'
           || review.selectedCandidateHandle === null
+          || verifiedPendingReview.reportDigest !== pendingReview.reportDigest
+          || batch.sanitizedReviewDigest !== privateBatch.sanitizedReviewDigest
+          || sourceCommit() !== lifecycleSourceCommit
           || artifacts === undefined
         ) fail('GREATER_REALM_RUNTIME_RELEASE_SELECTION_REQUIRED');
         verifyGreaterRealmRuntimeReleaseArtifacts(artifacts);
@@ -2513,6 +3243,97 @@ async function main(): Promise<void> {
     process.stdout.write(`${JSON.stringify({
       candidateCount: review.candidateCount,
       privatePackageVerified: true,
+    })}\n`);
+    return;
+  }
+  if (arguments_.command === 'export-pending-owner-report') {
+    // Protected C3 is the only point authorized to prepare the one repository
+    // evidence path for atomic C4. The bytes were sealed in the owner workspace
+    // before selection; this command can only publish that immutable snapshot.
+    const batchHandle = arguments_.batchHandle!;
+    const summary = await workspace.withExclusiveLock(
+      'locks/runtime-release-v1.lock',
+      async () => workspace.withExclusiveLock(
+        `locks/${batchHandle}.selection.lock`,
+        async () => {
+          const gateState = await inspectGreaterRealmReleaseGateState();
+          assertPendingOwnerPublicationSourcePhase(gateState.phase);
+          assertPendingOwnerPublicationReleaseIdentity();
+          const sourceClosure = verifiedRetainedPendingOwnerSourceClosure();
+          // Prove a complete published release exists before opening its control
+          // seed, so C3 can never create a seed for an absent release.
+          const installedRuntimeRelease = readGreaterRealmRuntimeRelease(workspace);
+          clearRuntimeReleaseArtifactBytes(installedRuntimeRelease);
+          const releaseSeed = openOrCreateGreaterRealmRuntimeReleaseSeed(workspace);
+          let expectedRuntimeRelease: GreaterRealmRuntimeReleaseArtifacts | undefined;
+          let verified: Awaited<ReturnType<typeof verifyPrivateReviewBatch>> | undefined;
+          try {
+            try {
+              verified = await verifyPrivateReviewBatch(
+                workspace,
+                batchHandle,
+                {
+                  sourceProvenance: 'retained-release-transition',
+                  onVerifiedSelectedCandidate: (candidate, sourceCommit) => {
+                    if (expectedRuntimeRelease !== undefined) {
+                      fail('GREATER_REALM_RETAINED_PENDING_OWNER_REPORT_LIFECYCLE_INVALID');
+                    }
+                    expectedRuntimeRelease = createGreaterRealmRuntimeRelease({
+                      source: candidate,
+                      sourceCommit,
+                      releaseSeed,
+                    });
+                  },
+                },
+              );
+            } finally {
+              releaseSeed.fill(0);
+            }
+            if (
+              verified === undefined
+              || verified.review.selectionStatus !== 'selected'
+              || verified.review.selectedCandidateHandle === null
+              || expectedRuntimeRelease === undefined
+            ) fail('GREATER_REALM_RETAINED_PENDING_OWNER_REPORT_LIFECYCLE_INVALID');
+            assertGreaterRealmRuntimeReleaseMatches(workspace, expectedRuntimeRelease);
+          } finally {
+            if (expectedRuntimeRelease !== undefined) {
+              clearRuntimeReleaseArtifactBytes(expectedRuntimeRelease);
+            }
+          }
+          const retainedBytes = readRetainedPendingOwnerReport(
+            workspace,
+            verified.pendingReview,
+            verified.batch,
+            sourceClosure,
+          );
+          try {
+            if (
+              lifecycleSourceCommit === undefined
+              || pendingOwnerReportStartupSourceCommit() !== lifecycleSourceCommit
+            ) fail('GREATER_REALM_CLI_SOURCE_COMMIT_FAILED');
+            exportPendingOwnerReport(retainedBytes);
+            const preparedWorktreeState = assertPendingOwnerReportPreparedWorktree(
+              lifecycleSourceCommit,
+              retainedBytes,
+            );
+            return Object.freeze({
+              candidateCount: verified.pendingReview.candidateCount,
+              reportSha256: createHash('sha256').update(retainedBytes).digest('hex'),
+              preparedWorktreeState,
+            });
+          } finally {
+            retainedBytes.fill(0);
+          }
+        },
+      ),
+    );
+    process.stdout.write(`${JSON.stringify({
+      ...summary,
+      selectionAtRetention: 'pending',
+      currentOwnerSelectionVerified: true,
+      pendingOwnerReportExported: true,
+      productionMutationPerformedByCommand: false,
     })}\n`);
     return;
   }
@@ -2553,13 +3374,31 @@ async function main(): Promise<void> {
           if (workspace.hasFile(selectionRelativePath(batchHandle))) {
             fail('GREATER_REALM_SELECTION_INVALID');
           }
-          const { review } = await verifyPrivateReviewBatch(workspace, batchHandle);
+          const gateState = await inspectGreaterRealmReleaseGateState();
+          assertPendingOwnerRetentionSourcePhase(gateState.phase);
+          const sourceClosure = verifiedRetainedPendingOwnerSourceClosure();
+          const { review, batch } = await verifyPrivateReviewBatch(
+            workspace,
+            batchHandle,
+          );
           const selected = review.candidates.find(candidate => (
             candidate.candidateHandle === arguments_.candidateHandle && candidate.eligible
           ));
           if (!selected || review.selectionStatus !== 'pending') {
             fail('GREATER_REALM_SELECTION_INVALID');
           }
+          if (
+            lifecycleSourceCommit === undefined
+            || review.sourceCommit !== lifecycleSourceCommit
+            || sourceCommit() !== lifecycleSourceCommit
+          ) fail('GREATER_REALM_RETAINED_PENDING_OWNER_REPORT_LIFECYCLE_INVALID');
+          const retainedBytes = readRetainedPendingOwnerReport(
+            workspace,
+            review,
+            batch,
+            sourceClosure,
+          );
+          retainedBytes.fill(0);
           const selectedReview = createGreaterRealmSanitizedReview({
             generatorVersion: review.generatorVersion,
             sourceCommit: review.sourceCommit,

@@ -45,6 +45,8 @@ const ALLOWED_PUBLIC_REPOSITORY_ENVIRONMENT_KEYS = new Set([
 const POSSIBLE_HEX_SECRET_VALUE = /^[0-9a-f]{64}$/iu;
 const ALLOWED_COMMANDS = Object.freeze([
   'compare-candidates',
+  'retain-pending-owner-report',
+  'export-pending-owner-report',
   'export-runtime-release',
   'export-sanitized-review',
   'generate-candidates',

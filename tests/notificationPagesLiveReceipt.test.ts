@@ -13,11 +13,13 @@ import {
   realpathSync,
   rmSync,
   statSync,
+  symlinkSync,
   utimesSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -167,6 +169,66 @@ function descendantCommitWithMutation(path: string): string {
       encoding: 'utf8',
       env: environment,
       input: `test mutation ${path}\n`,
+    },
+  ).trim();
+}
+
+function descendantCommitWithSources(
+  parent: string,
+  sources: Readonly<Record<string, string>>,
+): string {
+  const directory = mkdtempSync(join(tmpdir(), 'warpkeep-live-source-tree-'));
+  temporaryDirectories.push(directory);
+  const indexPath = join(directory, 'index');
+  const environment = {
+    ...process.env,
+    GIT_INDEX_FILE: indexPath,
+    GIT_AUTHOR_NAME: 'Warpkeep Receipt Test',
+    GIT_AUTHOR_EMAIL: 'receipt-test@warpkeep.invalid',
+    GIT_AUTHOR_DATE: '1700000000 +0000',
+    GIT_COMMITTER_NAME: 'Warpkeep Receipt Test',
+    GIT_COMMITTER_EMAIL: 'receipt-test@warpkeep.invalid',
+    GIT_COMMITTER_DATE: '1700000000 +0000',
+  };
+  execFileSync('/usr/bin/git', ['read-tree', parent], {
+    cwd: process.cwd(),
+    env: environment,
+    stdio: 'ignore',
+  });
+  for (const [index, [path, source]] of Object.entries(sources).entries()) {
+    const treeEntry = execFileSync(
+      '/usr/bin/git',
+      ['ls-tree', parent, '--', path],
+      { cwd: process.cwd(), encoding: 'utf8' },
+    ).trim();
+    const match = /^(100644|100755) blob [0-9a-f]{40}\t/u.exec(treeEntry);
+    const mode = match?.[1] ?? '100644';
+    const sourcePath = join(directory, `source-${index}`);
+    writeFileSync(sourcePath, source, { mode: 0o600, flag: 'wx' });
+    const objectId = execFileSync(
+      '/usr/bin/git',
+      ['hash-object', '-w', sourcePath],
+      { cwd: process.cwd(), encoding: 'utf8' },
+    ).trim();
+    execFileSync(
+      '/usr/bin/git',
+      ['update-index', '--add', '--cacheinfo', mode, objectId, path],
+      { cwd: process.cwd(), env: environment, stdio: 'ignore' },
+    );
+  }
+  const tree = execFileSync('/usr/bin/git', ['write-tree'], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    env: environment,
+  }).trim();
+  return execFileSync(
+    '/usr/bin/git',
+    ['commit-tree', tree, '-p', parent],
+    {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+      env: environment,
+      input: 'test source transition\n',
     },
   ).trim();
 }
@@ -620,7 +682,10 @@ function writePrivate(path: string, bytes: Uint8Array): void {
   chmodSync(path, 0o600);
 }
 
-function handoffFixture(targetWorkspace: ReturnType<typeof workspace>) {
+function handoffFixture(
+  targetWorkspace: ReturnType<typeof workspace>,
+  pagesSourceCommit = HEAD_COMMIT,
+) {
   const prepared = preparedReceipt();
   const active = activeEvidence();
   const deployed = deployedReceipt();
@@ -628,7 +693,7 @@ function handoffFixture(targetWorkspace: ReturnType<typeof workspace>) {
     key: Buffer.from(KEY),
     workflowRunId: '987654321',
     workflowRunAttempt: '2',
-    pagesSourceCommit: HEAD_COMMIT,
+    pagesSourceCommit,
     expectedFounderCount: FOUNDER_COUNT,
     activeEvidenceMaximumAgeMilliseconds:
       ACTIVE_EVIDENCE_MAXIMUM_AGE_MILLISECONDS,
@@ -654,7 +719,7 @@ function handoffFixture(targetWorkspace: ReturnType<typeof workspace>) {
       expectedKeyId: handoff.keyId,
       expectedWorkflowRunId: '987654321',
       expectedWorkflowRunAttempt: '2',
-      expectedPagesSourceCommit: HEAD_COMMIT,
+      expectedPagesSourceCommit: pagesSourceCommit,
       expectedFounderCount: FOUNDER_COUNT,
       expectedActiveEvidenceMaximumAgeMilliseconds:
         ACTIVE_EVIDENCE_MAXIMUM_AGE_MILLISECONDS,
@@ -1582,7 +1647,7 @@ describe('notification Pages ongoing live receipt', () => {
       fetchImpl: staleFetch as unknown as typeof fetch,
       now: AFTER_PREPARED_EXPIRY,
     })).rejects.toThrow('NOTIFICATION_PAGES_LIVE_BRIDGE_ATTESTATION_INVALID');
-  });
+  }, 60_000);
 
   it('bounds presentation traversal before a 65th asset and at aggregate bytes', async () => {
     const written = await writeLiveReceipt();
@@ -1950,6 +2015,319 @@ describe('notification Pages ongoing live receipt', () => {
     expect(readdirSync(targetWorkspace.directory).some(name =>
       name.startsWith('notification-pages-candidate-'))).toBe(false);
   });
+
+  it('promotes only the atomic nonstaged gen0-to-durable-root binding cutover', async () => {
+    const targetWorkspace = workspace('warpkeep-pages-live-root-cutover-');
+    const template = deepMutableReceipt((await writeLiveReceipt()).result.receipt);
+    const preparedDigest = template.handoff.preparedReceiptDigest as string;
+    const activeDigest = template.handoff.activeV17EvidenceDigest as string;
+    const moduleDigest = template.handoff.deployedModuleReceiptDigest as string;
+    const preparedPath =
+      'scripts/auth-bridge-notification-prepared-release-binding.mjs';
+    const privatePath = 'scripts/notification-pages-private-release-binding.mjs';
+    const rootPath = 'scripts/notification-pages-live-release-binding.mjs';
+    const workflowPath = '.github/workflows/deploy-pages.yml';
+    const preparedNull = readFileSync(join(process.cwd(), preparedPath), 'utf8');
+    const privateNull = readFileSync(join(process.cwd(), privatePath), 'utf8');
+    const rootNull = readFileSync(join(process.cwd(), rootPath), 'utf8');
+    const workflowFalse = readFileSync(join(process.cwd(), workflowPath), 'utf8');
+    const normalizedSourceCommit = descendantCommitWithSources(HEAD_COMMIT, {
+      'scripts/greater-realm-downstream-release-policy.ts': readFileSync(
+        join(
+          process.cwd(),
+          'scripts/greater-realm-downstream-release-policy.ts',
+        ),
+        'utf8',
+      ),
+      'scripts/notification-pages-live-receipt.mjs': readFileSync(
+        join(process.cwd(), 'scripts/notification-pages-live-receipt.mjs'),
+        'utf8',
+      ),
+    });
+    const preparedPopulated = preparedNull
+      .replace(
+        'notificationPreparedReceiptDigest: null',
+        `notificationPreparedReceiptDigest: '${preparedDigest}'`,
+      )
+      .replace(
+        'notificationPreparedBridgeSourceCommit: null',
+        `notificationPreparedBridgeSourceCommit: '${HEAD_COMMIT}'`,
+      );
+    const privatePopulated = privateNull
+      .replace(
+        'notificationPagesActiveV17EvidenceDigest: null',
+        `notificationPagesActiveV17EvidenceDigest: '${activeDigest}'`,
+      )
+      .replace(
+        'notificationPagesDeployedModuleReceiptDigest: null',
+        `notificationPagesDeployedModuleReceiptDigest: '${moduleDigest}'`,
+      )
+      .replace(
+        'notificationPagesExpectedFounderCount: null',
+        `notificationPagesExpectedFounderCount: ${FOUNDER_COUNT}`,
+      );
+    const workflowTrue = workflowFalse.replace(
+      "VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'false'",
+      "VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'true'",
+    );
+    expect(workflowTrue).not.toBe(workflowFalse);
+    const gen0SourceCommit = descendantCommitWithSources(normalizedSourceCommit, {
+      [preparedPath]: preparedPopulated,
+      [privatePath]: privatePopulated,
+      [workflowPath]: workflowTrue,
+    });
+
+    template.pages.sourceCommit = gen0SourceCommit;
+    template.pages.liveBuildSha = gen0SourceCommit;
+    template.pages.notificationPresentationDigest = expectedPresentationDigest(
+      gen0SourceCommit,
+    );
+    template.sourceRelease.atlasSourceCommit = normalizedSourceCommit;
+    template.sourceRelease.moduleSourceCommit = normalizedSourceCommit;
+    const installedGen0 = writeCanonicalReceiptFixture(
+      targetWorkspace,
+      template,
+    );
+    const rootPopulated = rootNull
+      .replace(
+        'notificationPagesLiveRootReceiptDigest: null',
+        `notificationPagesLiveRootReceiptDigest: '${installedGen0.receiptDigest}'`,
+      )
+      .replace(
+        'notificationPagesLiveRootPagesSourceCommit: null',
+        'notificationPagesLiveRootPagesSourceCommit: '
+          + `'${gen0SourceCommit}'`,
+      );
+    const validCandidate = descendantCommitWithSources(gen0SourceCommit, {
+      [preparedPath]: preparedNull,
+      [privatePath]: privateNull,
+      [rootPath]: rootPopulated,
+    });
+    const invalidCandidates = [
+      descendantCommitWithSources(gen0SourceCommit, {
+        [rootPath]: rootPopulated,
+      }),
+      descendantCommitWithSources(gen0SourceCommit, {
+        [preparedPath]: preparedNull,
+        [rootPath]: rootPopulated,
+      }),
+      descendantCommitWithSources(gen0SourceCommit, {
+        [preparedPath]: `${preparedNull}\n// unrelated drift\n`,
+        [privatePath]: privateNull,
+        [rootPath]: rootPopulated,
+      }),
+      descendantCommitWithSources(gen0SourceCommit, {
+        [preparedPath]: preparedNull,
+        [privatePath]: `${privateNull}\n// unrelated drift\n`,
+        [rootPath]: rootPopulated,
+      }),
+      descendantCommitWithSources(gen0SourceCommit, {
+        'scripts/notification-pages-private-release-binding.d.mts':
+          `${readFileSync(join(
+            process.cwd(),
+            'scripts/notification-pages-private-release-binding.d.mts',
+          ), 'utf8')}\n// declaration drift\n`,
+        [preparedPath]: preparedNull,
+        [privatePath]: privateNull,
+        [rootPath]: rootPopulated,
+      }),
+      descendantCommitWithSources(gen0SourceCommit, {
+        'scripts/auth-bridge-notification-prepared-release-binding.d.mts':
+          `${readFileSync(join(
+            process.cwd(),
+            'scripts/auth-bridge-notification-prepared-release-binding.d.mts',
+          ), 'utf8')}\n// declaration drift\n`,
+        [preparedPath]: preparedNull,
+        [privatePath]: privateNull,
+        [rootPath]: rootPopulated,
+      }),
+      descendantCommitWithSources(gen0SourceCommit, {
+        'scripts/notification-pages-live-release-binding.d.mts':
+          `${readFileSync(join(
+            process.cwd(),
+            'scripts/notification-pages-live-release-binding.d.mts',
+          ), 'utf8')}\n// declaration drift\n`,
+        [preparedPath]: preparedNull,
+        [privatePath]: privateNull,
+        [rootPath]: rootPopulated,
+      }),
+    ];
+
+    const cloneParent = mkdtempSync(join(tmpdir(), 'warpkeep-root-cutover-clone-'));
+    temporaryDirectories.push(cloneParent);
+    const cloneRoot = join(cloneParent, 'repository');
+    execFileSync('/usr/bin/git', [
+      'clone', '--quiet', '--no-checkout', '--shared', process.cwd(), cloneRoot,
+    ]);
+    execFileSync('/usr/bin/git', ['checkout', '--quiet', '--detach', validCandidate], {
+      cwd: cloneRoot,
+    });
+    symlinkSync(
+      realpathSync(join(process.cwd(), 'services/auth-bridge/node_modules')),
+      join(cloneRoot, 'services/auth-bridge/node_modules'),
+      'dir',
+    );
+    const isolatedReceipt = await import(
+      `${pathToFileURL(join(
+        cloneRoot,
+        'scripts/notification-pages-live-receipt.mjs',
+      )).href}?root-cutover=${Date.now()}`
+    ) as typeof import('../scripts/notification-pages-live-receipt.mjs');
+    const checkout = (commit: string) => execFileSync(
+      '/usr/bin/git',
+      ['checkout', '--quiet', '--detach', commit],
+      { cwd: cloneRoot },
+    );
+    for (const invalidCandidate of invalidCandidates) {
+      checkout(invalidCandidate);
+      const noFetch = vi.fn();
+      await expect(
+        isolatedReceipt.inspectLatestPrivateNotificationPagesLiveReceiptForCandidate({
+          directory: targetWorkspace.directory,
+          repositoryRoot: realpathSync(cloneRoot),
+          candidatePagesSourceCommit: invalidCandidate,
+          expectedChainRootReceiptDigest: installedGen0.receiptDigest,
+          expectedChainRootPagesSourceCommit: gen0SourceCommit,
+          fetchImpl: noFetch as unknown as typeof fetch,
+          now: NOW,
+          randomBytesImpl: size => Buffer.alloc(size, 4),
+        }),
+      ).rejects.toThrow(/NOTIFICATION_PAGES_LIVE_(?:RELEASE_BINDING_TRANSITION_INVALID|CANDIDATE_NOTIFICATION_DRIFT|ACTIVE_EVIDENCE_SOURCE_DRIFT)/u);
+      expect(noFetch).not.toHaveBeenCalled();
+      expect(readdirSync(targetWorkspace.directory).some(name =>
+        name.startsWith('notification-pages-candidate-'))).toBe(false);
+    }
+
+    checkout(validCandidate);
+    const authorityFetch = liveFetch({
+      buildSha: gen0SourceCommit,
+      attestation: releaseAttestation(HEAD_COMMIT),
+    });
+    const authority = await isolatedReceipt
+      .inspectLatestPrivateNotificationPagesLiveReceiptForCandidate({
+        directory: targetWorkspace.directory,
+        repositoryRoot: realpathSync(cloneRoot),
+        candidatePagesSourceCommit: validCandidate,
+        expectedChainRootReceiptDigest: installedGen0.receiptDigest,
+        expectedChainRootPagesSourceCommit: gen0SourceCommit,
+        fetchImpl: authorityFetch as unknown as typeof fetch,
+        now: NOW,
+        randomBytesImpl: size => Buffer.alloc(size, 5),
+    });
+    expect(authority).toMatchObject({
+      candidatePagesSourceCommit: validCandidate,
+      livePagesSourceCommit: gen0SourceCommit,
+      candidateAlreadyLive: false,
+    });
+    expect(authorityFetch).toHaveBeenCalled();
+    expect(authority.candidateAuthorityDigest).toMatch(/^[0-9a-f]{64}$/u);
+
+    const promotionFetch = liveFetch({
+      buildSha: validCandidate,
+      attestation: releaseAttestation(HEAD_COMMIT),
+    });
+    const promoted = await isolatedReceipt.promoteNotificationPagesLiveReceipt({
+      directory: targetWorkspace.directory,
+      repositoryRoot: realpathSync(cloneRoot),
+      candidateAuthorityDigest: authority.candidateAuthorityDigest!,
+      candidatePagesSourceCommit: validCandidate,
+      expectedChainRootReceiptDigest: installedGen0.receiptDigest,
+      expectedChainRootPagesSourceCommit: gen0SourceCommit,
+      fetchImpl: promotionFetch as unknown as typeof fetch,
+      now: NOW,
+      randomBytesImpl: size => Buffer.alloc(size, 6),
+    });
+    expect(promoted).toMatchObject({
+      result: 'installed',
+      receipt: {
+        chain: { generation: 1 },
+        pages: { sourceCommit: validCandidate },
+      },
+      chainRootReceiptDigest: installedGen0.receiptDigest,
+      chainRootPagesSourceCommit: gen0SourceCommit,
+    });
+    expect(promotionFetch).toHaveBeenCalled();
+
+    const stagedPreparedDrift = descendantCommitWithSources(validCandidate, {
+      [preparedPath]: `${preparedNull}\n// staged post-root drift\n`,
+    });
+    checkout(stagedPreparedDrift);
+    const stagedAfterRoot = handoffFixture(
+      targetWorkspace,
+      stagedPreparedDrift,
+    );
+    const stagedNoFetch = vi.fn();
+    await expect(
+      isolatedReceipt.inspectLatestPrivateNotificationPagesLiveReceiptForCandidate({
+        directory: targetWorkspace.directory,
+        repositoryRoot: realpathSync(cloneRoot),
+        candidatePagesSourceCommit: stagedPreparedDrift,
+        expectedChainRootReceiptDigest: installedGen0.receiptDigest,
+        expectedChainRootPagesSourceCommit: gen0SourceCommit,
+        stagedHandoffExpectations: stagedAfterRoot.expectations,
+        fetchImpl: stagedNoFetch as unknown as typeof fetch,
+        now: NOW,
+        randomBytesImpl: size => Buffer.alloc(size, 7),
+      }),
+    ).rejects.toThrow(
+      'NOTIFICATION_PAGES_LIVE_RELEASE_BINDING_TRANSITION_INVALID',
+    );
+    expect(stagedNoFetch).not.toHaveBeenCalled();
+    expect(readdirSync(targetWorkspace.directory).some(name =>
+      name.startsWith('notification-pages-candidate-'))).toBe(false);
+
+    const hermesPath = 'scripts/hermes-admin.ts';
+    const hermesDisabled = readFileSync(join(process.cwd(), hermesPath), 'utf8');
+    const hermesEnabled = hermesDisabled.replace(
+      'FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = false as const',
+      'FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = true as const',
+    );
+    expect(hermesEnabled).not.toBe(hermesDisabled);
+    const finalCandidate = descendantCommitWithSources(validCandidate, {
+      [hermesPath]: hermesEnabled,
+    });
+    checkout(finalCandidate);
+    const finalAuthorityFetch = liveFetch({
+      buildSha: validCandidate,
+      attestation: releaseAttestation(HEAD_COMMIT),
+    });
+    const finalAuthority = await isolatedReceipt
+      .inspectLatestPrivateNotificationPagesLiveReceiptForCandidate({
+        directory: targetWorkspace.directory,
+        repositoryRoot: realpathSync(cloneRoot),
+        candidatePagesSourceCommit: finalCandidate,
+        expectedChainRootReceiptDigest: installedGen0.receiptDigest,
+        expectedChainRootPagesSourceCommit: gen0SourceCommit,
+        fetchImpl: finalAuthorityFetch as unknown as typeof fetch,
+        now: NOW,
+        randomBytesImpl: size => Buffer.alloc(size, 7),
+      });
+    expect(finalAuthority.candidateAuthorityDigest).toMatch(/^[0-9a-f]{64}$/u);
+    const finalPromotionFetch = liveFetch({
+      buildSha: finalCandidate,
+      attestation: releaseAttestation(HEAD_COMMIT),
+    });
+    await expect(isolatedReceipt.promoteNotificationPagesLiveReceipt({
+      directory: targetWorkspace.directory,
+      repositoryRoot: realpathSync(cloneRoot),
+      candidateAuthorityDigest: finalAuthority.candidateAuthorityDigest!,
+      candidatePagesSourceCommit: finalCandidate,
+      expectedChainRootReceiptDigest: installedGen0.receiptDigest,
+      expectedChainRootPagesSourceCommit: gen0SourceCommit,
+      fetchImpl: finalPromotionFetch as unknown as typeof fetch,
+      now: NOW,
+      randomBytesImpl: size => Buffer.alloc(size, 8),
+    })).resolves.toMatchObject({
+      result: 'installed',
+      receipt: {
+        chain: { generation: 2 },
+        pages: { sourceCommit: finalCandidate },
+      },
+      chainRootReceiptDigest: installedGen0.receiptDigest,
+      chainRootPagesSourceCommit: gen0SourceCommit,
+    });
+    expect(finalPromotionFetch).toHaveBeenCalled();
+  }, 60_000);
 
   it('rejects assume-unchanged and skip-worktree protected index flags before network', async () => {
     const protectedPath = 'scripts/notification-pages-live-receipt.mjs';

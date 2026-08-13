@@ -25,6 +25,7 @@ import { parse } from 'yaml';
 
 import {
   AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH,
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS,
   verifyAuthBridgeNotificationPreparedDeployClosure,
 } from '../scripts/auth-bridge-notification-prepared-deploy-closure.mjs';
 import {
@@ -40,6 +41,10 @@ import {
 import {
   verifyAuthBridgeNotificationPreparedStaticPolicy,
 } from '../scripts/verify-auth-bridge-notification-prepared-policy.mjs';
+import {
+  AUTH_BRIDGE_RELEASE_TRANSITION_FIXTURE_PATHS,
+  canonicalAuthBridgeReleaseTransitionFixtureSource,
+} from './helpers/authBridgeReleaseTransitionFixture';
 
 const repositoryRoot = process.cwd();
 const workflowPath = resolve(
@@ -65,6 +70,12 @@ const pagesBootstrapPinFiles = Object.freeze({
   WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256:
     'scripts/notification-pages-private-deploy-launcher.mjs',
 });
+const ZERO_SHA256 = '0'.repeat(64);
+const RELEASE_TRANSITION_PATHS = AUTH_BRIDGE_RELEASE_TRANSITION_FIXTURE_PATHS;
+const BOOTSTRAP_PROJECTION_PATHS = new Set([
+  '.github/workflows/deploy-pages.yml',
+  '.github/workflows/notification-bridge-prepared.yml',
+]);
 const temporaryDirectories: string[] = [];
 
 interface WorkflowStep {
@@ -116,25 +127,62 @@ function step(id: string): WorkflowStep {
   return value;
 }
 
+function sourceClosureDigestProfile(relativePath: string): string {
+  const release = RELEASE_TRANSITION_PATHS.has(relativePath);
+  const bootstrap = BOOTSTRAP_PROJECTION_PATHS.has(relativePath);
+  if (release && bootstrap) {
+    return 'reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1';
+  }
+  if (release) return 'reviewed-release-transition-projection-sha256-v1';
+  if (bootstrap) return 'bootstrap-pin-projection-sha256-v1';
+  return 'raw-file-sha256-v1';
+}
+
+function canonicalFixtureMember(relativePath: string, source: Buffer): Buffer {
+  const original = source.toString('utf8');
+  let canonical = canonicalAuthBridgeReleaseTransitionFixtureSource(
+    relativePath,
+    original,
+  );
+  if (!BOOTSTRAP_PROJECTION_PATHS.has(relativePath)) {
+    return canonical === original ? source : Buffer.from(canonical, 'utf8');
+  }
+  const names = relativePath === '.github/workflows/deploy-pages.yml'
+    ? Object.keys(pagesBootstrapPinFiles)
+    : Object.keys(bootstrapPinFiles);
+  const indentation = relativePath === '.github/workflows/deploy-pages.yml'
+    ? '  '
+    : '      ';
+  for (const name of names) {
+    const pattern = new RegExp(
+      `^${indentation}${name}: '[a-f0-9]{64}'$`,
+      'gmu',
+    );
+    if ([...canonical.matchAll(pattern)].length !== 1) {
+      throw new Error(`fixture bootstrap pin ${name} was not exact`);
+    }
+    canonical = canonical.replace(
+      pattern,
+      `${indentation}${name}: '${ZERO_SHA256}'`,
+    );
+  }
+  return Buffer.from(canonical, 'utf8');
+}
+
 function createPolicyFixture(): string {
   const root = realpathSync(mkdtempSync(join(
     tmpdir(),
     'warpkeep-prepared-policy-',
   )));
   temporaryDirectories.push(root);
-  const manifest = JSON.parse(readFileSync(resolve(
-    repositoryRoot,
-    AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH,
-  ), 'utf8')) as { members: Array<{ path: string; sha256: string }> };
   const copyTracked = (path: string): void => {
     const destination = resolve(root, path);
     mkdirSync(dirname(destination), { recursive: true });
     cpSync(resolve(repositoryRoot, path), destination, { recursive: true });
   };
-  for (const path of [
-    AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH,
-    ...manifest.members.map(member => member.path),
-  ]) copyTracked(path);
+  for (const path of AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS) {
+    copyTracked(path);
+  }
   for (const path of [
     'scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs',
     'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
@@ -172,6 +220,77 @@ function createPolicyFixture(): string {
         } catch { /* Non-source literal or alternate suffix. */ }
       }
     }
+  }
+  for (const relativePath of RELEASE_TRANSITION_PATHS) {
+    const path = resolve(root, relativePath);
+    writeFileSync(
+      path,
+      canonicalAuthBridgeReleaseTransitionFixtureSource(
+        relativePath,
+        readFileSync(path, 'utf8'),
+      ),
+    );
+  }
+  const manifest = {
+    schemaVersion: 2,
+    profile: 'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1',
+    members: AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS.map(
+      relativePath => {
+        const body = readFileSync(resolve(root, relativePath));
+        const canonical = canonicalFixtureMember(relativePath, body);
+        try {
+          return {
+            path: relativePath,
+            digestProfile: sourceClosureDigestProfile(relativePath),
+            sha256: createHash('sha256').update(canonical).digest('hex'),
+          };
+        } finally {
+          if (canonical !== body) canonical.fill(0);
+          body.fill(0);
+        }
+      },
+    ),
+  };
+  const manifestPath = resolve(
+    root,
+    AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH,
+  );
+  mkdirSync(dirname(manifestPath), { recursive: true });
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  const allPins = new Map(Object.entries(pagesBootstrapPinFiles).map(
+    ([name, relativePath]) => [name, createHash('sha256')
+      .update(readFileSync(relativePath ===
+        AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH
+        ? manifestPath
+        : resolve(root, relativePath)))
+      .digest('hex')],
+  ));
+  for (const [relativePath, names, indentation] of [
+    [
+      '.github/workflows/notification-bridge-prepared.yml',
+      Object.keys(bootstrapPinFiles),
+      '      ',
+    ],
+    [
+      '.github/workflows/deploy-pages.yml',
+      Object.keys(pagesBootstrapPinFiles),
+      '  ',
+    ],
+  ] as const) {
+    const path = resolve(root, relativePath);
+    let source = readFileSync(path, 'utf8');
+    for (const name of names) {
+      const current = source.match(new RegExp(
+        `^${indentation}${name}: '([a-f0-9]{64})'$`,
+        'mu',
+      ))?.[1];
+      const expected = allPins.get(name);
+      if (current === undefined || expected === undefined) {
+        throw new Error(`fixture bootstrap pin ${name} was unavailable`);
+      }
+      source = source.replace(current, expected);
+    }
+    writeFileSync(path, source);
   }
   return root;
 }
@@ -275,17 +394,35 @@ function createInstalledToolchainFixture(): Readonly<{
   mkdirSync(dirname(installedManifest), { recursive: true });
   writeFileSync(installedManifest, `${JSON.stringify(candidate, null, 2)}\n`);
   const sourceManifest = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     profile: 'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1',
     members: [
       {
+        path: '.github/workflows/deploy-pages.yml',
+        digestProfile:
+          'reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1',
+        sha256: '1'.repeat(64),
+      },
+      {
+        path: '.github/workflows/notification-bridge-prepared.yml',
+        digestProfile: 'bootstrap-pin-projection-sha256-v1',
+        sha256: '2'.repeat(64),
+      },
+      {
+        path: 'package.json',
+        digestProfile: 'reviewed-release-transition-projection-sha256-v1',
+        sha256: '3'.repeat(64),
+      },
+      {
         path: AUTH_BRIDGE_NOTIFICATION_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_PATH,
+        digestProfile: 'raw-file-sha256-v1',
         sha256: createHash('sha256')
           .update(readFileSync(installedManifest))
           .digest('hex'),
       },
       {
         path: 'services/auth-bridge/pnpm-lock.yaml',
+        digestProfile: 'raw-file-sha256-v1',
         sha256: createHash('sha256').update(lockfile).digest('hex'),
       },
     ],
@@ -644,20 +781,25 @@ describe('notification-bridge-prepared protected workflow', () => {
         guardedRecoveryRequired: true,
         privateReceiptSinkRequired: true,
         installedToolchainByteAttestationRequired: true,
-        executableSecurityClosureMemberCount: 300,
+        executableSecurityClosureMemberCount: 305,
       });
   }, 60_000);
 
   it('derives the exact executable, receipt, config, ABI, Worker, and toolchain closure', () => {
+    const root = createPolicyFixture();
     const manifest = JSON.parse(readFileSync(resolve(
-      repositoryRoot,
+      root,
       AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH,
-    ), 'utf8')) as { members: Array<{ path: string; sha256: string }> };
+    ), 'utf8')) as {
+      schemaVersion: number;
+      members: Array<{ path: string; digestProfile: string; sha256: string }>;
+    };
     const paths = deriveAuthBridgeNotificationPreparedDeployClosurePaths({
-      repositoryRoot,
+      repositoryRoot: root,
     });
     expect(paths).toEqual(manifest.members.map(member => member.path));
-    expect(paths).toHaveLength(300);
+    expect(manifest.schemaVersion).toBe(2);
+    expect(paths).toHaveLength(305);
     expect(paths).toEqual(expect.arrayContaining([
       'scripts/auth-bridge-notification-prepared-deploy.mjs',
       'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
@@ -685,7 +827,10 @@ describe('notification-bridge-prepared protected workflow', () => {
       '.github/workflows/verify.yml',
       'package.json',
       'package-lock.json',
+      'public/.well-known/farcaster.json',
       'scripts/greater-realm-production-bootstrap.mjs',
+      'scripts/greater-realm-production-publisher-core.ts',
+      'scripts/greater-realm-downstream-release-policy.ts',
       'scripts/hermes-admin.ts',
       'scripts/notification-pages-private-deploy-launcher.mjs',
       'scripts/notification-pages-private-deploy-operator.mjs',
@@ -694,6 +839,8 @@ describe('notification-bridge-prepared protected workflow', () => {
       'scripts/notification-pages-live-release-binding.mjs',
       'scripts/notification-pages-private-release-binding.mjs',
       'scripts/notification-pages-release-source-parser.mjs',
+      'src/greater-realm/greaterRealmTransport.ts',
+      'src/spacetime/greaterRealmProviderBridge.ts',
     ]));
     const declarationOptional = new Set([
       'scripts/farcaster-miniapp-contract.mjs',
@@ -706,10 +853,10 @@ describe('notification-bridge-prepared protected workflow', () => {
         + declarationOptional.size,
     );
     expect(verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
-      repositoryRoot,
+      repositoryRoot: root,
     })).toMatchObject({
         profile: 'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1',
-        memberCount: 300,
+        memberCount: 305,
         manifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
       });
   }, 90_000);
@@ -719,7 +866,9 @@ describe('notification-bridge-prepared protected workflow', () => {
     const manifest = JSON.parse(readFileSync(resolve(
       root,
       AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH,
-    ), 'utf8')) as { members: Array<{ path: string; sha256: string }> };
+    ), 'utf8')) as {
+      members: Array<{ path: string; digestProfile: string; sha256: string }>;
+    };
     for (const member of manifest.members) {
       const path = resolve(root, member.path);
       const original = readFileSync(path);
@@ -750,7 +899,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     )) as {
       schemaVersion: number;
       profile: string;
-      members: Array<{ path: string; sha256: string }>;
+      members: Array<{ path: string; digestProfile: string; sha256: string }>;
     };
     missingManifest.members.splice(8, 1);
     writeFileSync(missingManifestPath, `${JSON.stringify(missingManifest, null, 2)}\n`);
@@ -766,13 +915,14 @@ describe('notification-bridge-prepared protected workflow', () => {
     const extraManifest = JSON.parse(readFileSync(extraManifestPath, 'utf8')) as {
       schemaVersion: number;
       profile: string;
-      members: Array<{ path: string; sha256: string }>;
+      members: Array<{ path: string; digestProfile: string; sha256: string }>;
     };
     const extraPath = '.github/workflows/codeql.yml';
     mkdirSync(dirname(resolve(extra, extraPath)), { recursive: true });
     cpSync(resolve(repositoryRoot, extraPath), resolve(extra, extraPath));
     extraManifest.members.push({
       path: extraPath,
+      digestProfile: 'raw-file-sha256-v1',
       sha256: createHash('sha256')
         .update(readFileSync(resolve(extra, extraPath)))
         .digest('hex'),
@@ -903,6 +1053,79 @@ describe('notification-bridge-prepared protected workflow', () => {
       { ...authority },
       { repositoryRoot: fixture.root },
     )).toThrow('AUTH_BRIDGE_PREPARED_TOOLCHAIN_AUTHORITY_INVALID');
+  });
+
+  it('requires raw source-closure digest profiles for toolchain binding inputs', () => {
+    const legacy = createInstalledToolchainFixture();
+    const legacyPath = resolve(
+      legacy.root,
+      AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH,
+    );
+    const legacyManifest = JSON.parse(readFileSync(legacyPath, 'utf8')) as {
+      schemaVersion: number;
+    };
+    legacyManifest.schemaVersion = 1;
+    writeFileSync(legacyPath, `${JSON.stringify(legacyManifest, null, 2)}\n`);
+    expect(() => verifyInstalledToolchainFixture(legacy)).toThrow(
+      'AUTH_BRIDGE_PREPARED_TOOLCHAIN_SOURCE_MANIFEST_INVALID',
+    );
+
+    for (const [relativePath, digestProfile, code] of [
+      [
+        AUTH_BRIDGE_NOTIFICATION_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_PATH,
+        'reviewed-release-transition-projection-sha256-v1',
+        'AUTH_BRIDGE_PREPARED_TOOLCHAIN_SOURCE_BINDING_INVALID',
+      ],
+      [
+        'services/auth-bridge/pnpm-lock.yaml',
+        'bootstrap-pin-projection-sha256-v1',
+        'AUTH_BRIDGE_PREPARED_TOOLCHAIN_SOURCE_BINDING_INVALID',
+      ],
+      [
+        'services/auth-bridge/pnpm-lock.yaml',
+        'unknown-sha256-v1',
+        'AUTH_BRIDGE_PREPARED_TOOLCHAIN_SOURCE_MANIFEST_INVALID',
+      ],
+    ] as const) {
+      const fixture = createInstalledToolchainFixture();
+      const path = resolve(
+        fixture.root,
+        AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH,
+      );
+      const manifest = JSON.parse(readFileSync(path, 'utf8')) as {
+        members: Array<{
+          path: string;
+          digestProfile: string;
+          sha256: string;
+        }>;
+      };
+      const member = manifest.members.find(entry => entry.path === relativePath);
+      if (member === undefined) throw new Error(`fixture member ${relativePath} missing`);
+      member.digestProfile = digestProfile;
+      writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
+      expect(() => verifyInstalledToolchainFixture(fixture)).toThrow(code);
+    }
+
+    for (const relativePath of [
+      AUTH_BRIDGE_NOTIFICATION_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_PATH,
+      'services/auth-bridge/pnpm-lock.yaml',
+    ]) {
+      const fixture = createInstalledToolchainFixture();
+      const path = resolve(
+        fixture.root,
+        AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH,
+      );
+      const manifest = JSON.parse(readFileSync(path, 'utf8')) as {
+        members: Array<{ path: string }>;
+      };
+      manifest.members = manifest.members.filter(
+        member => member.path !== relativePath,
+      );
+      writeFileSync(path, `${JSON.stringify(manifest, null, 2)}\n`);
+      expect(() => verifyInstalledToolchainFixture(fixture)).toThrow(
+        'AUTH_BRIDGE_PREPARED_TOOLCHAIN_SOURCE_BINDING_INVALID',
+      );
+    }
   });
 
   it('accepts Linux native symlink modes while retaining exact tree authority', () => {

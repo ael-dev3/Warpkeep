@@ -33,7 +33,7 @@ import {
   verifyAuthBridgeNotificationPreparedDeployClosure,
 } from './auth-bridge-notification-prepared-deploy-closure.mjs';
 
-const MEMBER_PATH = /^(?:package(?:-lock)?\.json|(?:\.github\/workflows|scripts|services\/auth-bridge|spacetimedb\/src|src)\/[A-Za-z0-9._/-]+)$/u;
+const MEMBER_PATH = /^(?:package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|(?:\.github\/workflows|scripts|services\/auth-bridge|spacetimedb\/src|src)\/[A-Za-z0-9._/-]+)$/u;
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
 const MAX_MEMBERS = 384;
 const SCRIPT_GRAPH_ROOTS = Object.freeze([
@@ -60,6 +60,7 @@ const STATIC_SECURITY_INPUTS = Object.freeze([
   '.github/workflows/verify.yml',
   'package-lock.json',
   'package.json',
+  'public/.well-known/farcaster.json',
   'scripts/admission-notifications/recovery-plan.ts',
   'scripts/auth-bridge-notification-prepared-deploy-closure-policy.d.mts',
   'scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs',
@@ -68,7 +69,9 @@ const STATIC_SECURITY_INPUTS = Object.freeze([
   'scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json',
   'scripts/auth-bridge-notification-prepared-release-binding.d.mts',
   'scripts/auth-bridge-notification-prepared-release-binding.mjs',
+  'scripts/greater-realm-downstream-release-policy.ts',
   'scripts/greater-realm-production-bootstrap.mjs',
+  'scripts/greater-realm-production-publisher-core.ts',
   'scripts/hermes-admin.ts',
   'scripts/notification-pages-live-hermes-authority.d.mts',
   'scripts/notification-pages-live-hermes-authority.mjs',
@@ -86,6 +89,8 @@ const STATIC_SECURITY_INPUTS = Object.freeze([
   'services/auth-bridge/vitest.config.ts',
   'services/auth-bridge/vitest.workerd.config.ts',
   'services/auth-bridge/wrangler.toml',
+  'src/greater-realm/greaterRealmTransport.ts',
+  'src/spacetime/greaterRealmProviderBridge.ts',
 ]);
 const ATTESTED_INSTALLED_IMPORTS = new Map([
   ['scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs', new Set([

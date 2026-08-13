@@ -1,4 +1,6 @@
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -21,6 +23,9 @@ import {
 import {
   NOTIFICATION_PAGES_LIVE_RELEASE_BINDING,
 } from '../scripts/notification-pages-live-release-binding.mjs';
+import {
+  GREATER_REALM_DOWNSTREAM_RELEASE_FLAGS,
+} from '../scripts/greater-realm-downstream-release-policy';
 
 const FULL_SHA = 'abcdef0123456789abcdef0123456789abcdef01';
 const NOW = new Date('2026-08-12T12:00:00.000Z');
@@ -349,6 +354,11 @@ describe('Pages deployment configuration validation', () => {
       notificationPagesLiveRootPagesSourceCommit: null,
     });
     expect(Object.isFrozen(NOTIFICATION_PAGES_LIVE_RELEASE_BINDING)).toBe(true);
+    expect(GREATER_REALM_DOWNSTREAM_RELEASE_FLAGS).toEqual({
+      clientActivationApproved: false,
+      admissionNotificationsApproved: false,
+    });
+    expect(Object.isFrozen(GREATER_REALM_DOWNSTREAM_RELEASE_FLAGS)).toBe(true);
     await expect(verifyGreaterRealmReleaseGateState({
       fetchImpl: fetchMock,
       now: NOW,
@@ -356,6 +366,30 @@ describe('Pages deployment configuration validation', () => {
       /^Greater Realm release phase=(?:closed-review|pre-generation|candidate-approved-inert-append|import-only|activation-only|activation-client|notification-pages-presentation-activation|notification-pages-rooted-inert|notification-durable-final); legacy=100 and v17=600 verifiers are distinct\.$/u,
     );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps downstream approval separate from the production publisher', () => {
+    const publisher = readFileSync(
+      resolve(process.cwd(), 'scripts/greater-realm-production-publisher-core.ts'),
+      'utf8',
+    );
+    const downstream = readFileSync(
+      resolve(process.cwd(), 'scripts/greater-realm-downstream-release-policy.ts'),
+      'utf8',
+    );
+    for (const field of [
+      'clientActivationApproved',
+      'admissionNotificationsApproved',
+    ]) {
+      expect(publisher.match(new RegExp(
+        `^  ${field}: false,$`,
+        'gmu',
+      ))).toHaveLength(1);
+      expect(downstream.match(new RegExp(
+        `^  ${field}: false,$`,
+        'gmu',
+      ))).toHaveLength(1);
+    }
   });
 
   it('accepts only the exact safe release phase state machine', async () => {

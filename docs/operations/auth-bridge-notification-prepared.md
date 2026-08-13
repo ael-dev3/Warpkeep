@@ -172,10 +172,17 @@ checkout before each Cloudflare write, then:
 6. verifies fresh public/private endpoints before installing the content-
    addressed `0600` receipt in the private account-home sink.
 
-The static policy verifier validates the canonical
+The static policy verifier validates the canonical schema-v2
 `auth-bridge-notification-prepared-deploy-closure-v1.json` manifest before any
-release-policy check. Its 300 sorted path/digest records cover both protected
-production workflows, the
+release-policy check. Every sorted member has the exact keys `path`,
+`digestProfile`, and `sha256`; its path determines, and cannot override, one of
+four profiles: `raw-file-sha256-v1`,
+`bootstrap-pin-projection-sha256-v1`,
+`reviewed-release-transition-projection-sha256-v1`, or the single composed
+`reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1` used by
+the Pages workflow. A projected digest is therefore never represented as an
+ordinary file SHA-256. Its 305 sorted path/profile/digest records cover both
+protected production workflows, the
 Pages and Hermes policy inputs, the policy verifier, and the complete
 AST-derived local import graphs rooted at the guarded bridge entrypoint, full
 Hermes CLI, Pages build validator, Pages lane classifier, and builtins-only
@@ -187,9 +194,9 @@ package, pnpm lock/workspace, TypeScript, Vitest, workerd, and Wrangler
 configuration bytes. The derived Worker graph must equal the complete
 `services/auth-bridge/src/*.ts` namespace. Missing files,
 unresolved or newly added local imports, unreferenced Worker modules, manifest
-omissions/additions, noncanonical manifest bytes, and any member digest change
-all fail closed. Any closure edit therefore requires explicit review and a
-deliberate manifest refreeze.
+omissions/additions, noncanonical manifest bytes, wrong or unknown digest
+profiles, and any member digest change all fail closed. Any closure edit
+therefore requires explicit review and a deliberate manifest refreeze.
 
 The protected workflows are the external bootstrap authority for the mutable
 checkout. Their reviewed server-side bytes contain four exact SHA-256 pins: the
