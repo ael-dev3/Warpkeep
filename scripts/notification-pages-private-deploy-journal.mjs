@@ -50,7 +50,7 @@ const PHASES = Object.freeze([
 const RECORD_FILE = /^notification-pages-private-deploy-([0-9a-f]{64})-([0-9]{8})-([a-z-]+)\.json$/u;
 const TEMPORARY_FILE = /^\.notification-pages-private-deploy-([0-9a-f]{64})-([0-9]{8})-([a-z-]+)-([0-9a-f]{24})\.json\.tmp$/u;
 const LOCK_FILE = '.notification-pages-private-deploy.lock';
-const LOCK_TEMPORARY_FILE = /^\.notification-pages-private-deploy-lock-([0-9a-f]{24})\.tmp$/u;
+const LOCK_TEMPORARY_FILE = /^\.notification-pages-private-deploy-lock-([1-9][0-9]{0,19})-([0-9a-f]{16})-([0-9a-f]{24})\.tmp$/u;
 const RECORD_KEYS = Object.freeze([
   'contractDigest',
   'operationId',
@@ -194,9 +194,22 @@ function ensureDirectory({ repositoryRoot, reportedHome }) {
     }
   }
   try {
-    const status = lstatSync(requested);
-    const directory = realpathSync(requested);
+    let status = lstatSync(requested);
     const uid = process.getuid?.();
+    const mode = status.mode & 0o7777;
+    if (
+      status.isDirectory()
+      && !status.isSymbolicLink()
+      && (uid === undefined || status.uid === uid)
+      && (mode & ~DIRECTORY_MODE) === 0
+      && mode !== DIRECTORY_MODE
+    ) {
+      chmodSync(requested, DIRECTORY_MODE);
+      fsyncDirectory(requested);
+      fsyncDirectory(parent);
+      status = lstatSync(requested);
+    }
+    const directory = realpathSync(requested);
     if (
       directory !== requested
       || dirname(directory) !== parent
@@ -279,6 +292,25 @@ function unlinkExact(path, identity, uid) {
   }
 }
 
+function unlinkTemporaryExact(path, identity, uid) {
+  let status;
+  try { status = lstatSync(path); } catch {
+    fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_FILE_REPLACED');
+  }
+  if (
+    !status.isFile()
+    || status.isSymbolicLink()
+    || (uid !== undefined && status.uid !== uid)
+    || status.nlink !== identity.nlink
+    || (status.mode & 0o7777) !== identity.mode
+    || status.dev !== identity.dev
+    || status.ino !== identity.ino
+  ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_FILE_REPLACED');
+  try { unlinkSync(path); } catch {
+    fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_FILE_REPLACED');
+  }
+}
+
 function publish({ directory, name, temporaryName, value, uid }) {
   const destination = join(directory, name);
   const temporary = join(directory, temporaryName);
@@ -320,11 +352,27 @@ function publish({ directory, name, temporaryName, value, uid }) {
     ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_WRITE_FAILED');
     closeSync(descriptor);
     descriptor = undefined;
-    linkSync(temporary, destination);
-    linked = true;
-    fsyncDirectory(directory);
-    unlinkExact(temporary, { ...identity, nlink: 2 }, uid);
-    fsyncDirectory(directory);
+    try {
+      linkSync(temporary, destination);
+      linked = true;
+      fsyncDirectory(directory);
+      unlinkExact(temporary, { ...identity, nlink: 2 }, uid);
+      identity = undefined;
+      fsyncDirectory(directory);
+    } catch (error) {
+      if (error?.code !== 'EEXIST') throw error;
+      const existing = readStable(destination, uid);
+      try {
+        if (!existing.bytes.equals(bytes)) {
+          fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_ALREADY_EXISTS');
+        }
+      } finally {
+        existing.bytes.fill(0);
+      }
+      unlinkExact(temporary, identity, uid);
+      identity = undefined;
+      fsyncDirectory(directory);
+    }
     const installed = readStable(destination, uid);
     try {
       if (!installed.bytes.equals(bytes)) {
@@ -342,9 +390,6 @@ function publish({ directory, name, temporaryName, value, uid }) {
       try { unlinkExact(temporary, identity, uid); } catch { /* Preserve primary error. */ }
     }
     if (error instanceof NotificationPagesPrivateDeployJournalError) throw error;
-    if (error?.code === 'EEXIST') {
-      fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_ALREADY_EXISTS');
-    }
     fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_WRITE_FAILED');
   } finally {
     bytes.fill(0);
@@ -441,7 +486,9 @@ function repairTemporaries(directory, uid) {
       || temporary.isSymbolicLink()
       || (uid !== undefined && temporary.uid !== uid)
       || ![1, 2].includes(temporary.nlink)
-      || (temporary.mode & 0o7777) !== FILE_MODE
+      || (temporary.nlink === 1
+        ? ((temporary.mode & 0o7777) & ~FILE_MODE) !== 0
+        : (temporary.mode & 0o7777) !== FILE_MODE)
     ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
     const destination = join(directory, `notification-pages-private-deploy-${match[1]}-${match[2]}-${match[3]}.json`);
     let final;
@@ -463,7 +510,10 @@ function repairTemporaries(directory, uid) {
       }, uid);
       fsyncDirectory(directory);
     } else if (temporary.nlink === 1) {
-      unlinkExact(temporaryPath, {
+      if ((temporary.mode & 0o7777) !== FILE_MODE) {
+        chmodSync(temporaryPath, FILE_MODE);
+      }
+      unlinkTemporaryExact(temporaryPath, {
         dev: temporary.dev, ino: temporary.ino, nlink: 1, mode: FILE_MODE,
       }, uid);
       fsyncDirectory(directory);
@@ -471,7 +521,11 @@ function repairTemporaries(directory, uid) {
   }
 }
 
-function repairLockTemporaries(directory, uid) {
+function processIdentityDigest(value) {
+  return createHash('sha256').update(value, 'utf8').digest('hex').slice(0, 16);
+}
+
+function repairLockTemporaries(directory, uid, processIdentityProbe) {
   const names = readdirSync(directory).filter(name => LOCK_TEMPORARY_FILE.test(name));
   if (names.length > 32) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
   let final;
@@ -480,13 +534,17 @@ function repairLockTemporaries(directory, uid) {
   }
   let paired = false;
   for (const name of names.sort()) {
+    const match = LOCK_TEMPORARY_FILE.exec(name);
+    if (match === null) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
     const path = join(directory, name);
     const temporary = lstatSync(path);
     if (
       !temporary.isFile()
       || temporary.isSymbolicLink()
       || (uid !== undefined && temporary.uid !== uid)
-      || (temporary.mode & 0o7777) !== FILE_MODE
+      || (temporary.nlink === 1
+        ? ((temporary.mode & 0o7777) & ~FILE_MODE) !== 0
+        : (temporary.mode & 0o7777) !== FILE_MODE)
       || ![1, 2].includes(temporary.nlink)
     ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
     const linked = final !== undefined
@@ -505,7 +563,18 @@ function repairLockTemporaries(directory, uid) {
       final = lstatSync(join(directory, LOCK_FILE));
       paired = true;
     } else if (temporary.nlink === 1) {
-      unlinkExact(path, {
+      const pid = Number(match[1]);
+      const observed = processIdentityProbe(pid);
+      if (
+        observed?.state === 'present'
+        && typeof observed.identity === 'string'
+        && processIdentityDigest(observed.identity) === match[2]
+      ) continue;
+      if (observed?.state === 'ambiguous') {
+        fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_LOCK_AMBIGUOUS');
+      }
+      if ((temporary.mode & 0o7777) !== FILE_MODE) chmodSync(path, FILE_MODE);
+      unlinkTemporaryExact(path, {
         dev: temporary.dev, ino: temporary.ino, nlink: 1, mode: FILE_MODE,
       }, uid);
       fsyncDirectory(directory);
@@ -522,7 +591,19 @@ function loadHistories(directory, uid) {
   const histories = new Map();
   for (const name of names) {
     if (name === LOCK_FILE) continue;
-    if (LOCK_TEMPORARY_FILE.test(name) || TEMPORARY_FILE.test(name)) {
+    if (LOCK_TEMPORARY_FILE.test(name)) {
+      const status = lstatSync(join(directory, name));
+      if (
+        !status.isFile()
+        || status.isSymbolicLink()
+        || (uid !== undefined && status.uid !== uid)
+        || status.nlink !== 1
+        || ((status.mode & 0o7777) & ~FILE_MODE) !== 0
+        || status.size > MAX_FILE_BYTES
+      ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
+      continue;
+    }
+    if (TEMPORARY_FILE.test(name)) {
       fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_DIRECTORY_INVALID');
     }
     if (!RECORD_FILE.test(name)) {
@@ -596,7 +677,7 @@ function readLock(path, uid) {
 }
 
 function acquireLock(state, operationId, randomBytesImpl, identity, probe) {
-  repairLockTemporaries(state.directory, state.uid);
+  repairLockTemporaries(state.directory, state.uid, probe);
   const path = join(state.directory, LOCK_FILE);
   if (existsSync(path)) {
     const current = readLock(path, state.uid);
@@ -614,10 +695,12 @@ function acquireLock(state, operationId, randomBytesImpl, identity, probe) {
   }
   const lockId = randomId(randomBytesImpl);
   const value = lockValue(operationId, lockId, identity);
+  const identityDigest = processIdentityDigest(identity);
   publish({
     directory: state.directory,
     name: LOCK_FILE,
-    temporaryName: `.notification-pages-private-deploy-lock-${lockId}.tmp`,
+    temporaryName:
+      `.notification-pages-private-deploy-lock-${process.pid}-${identityDigest}-${lockId}.tmp`,
     value,
     uid: state.uid,
   });
@@ -849,7 +932,6 @@ export async function withNotificationPagesPrivateDeployJournal({
     .update(`${NOTIFICATION_PAGES_PRIVATE_DEPLOY_JOURNAL_PROFILE}\n${contractDigest}\n`)
     .digest('hex');
   const state = ensureDirectory({ repositoryRoot, reportedHome });
-  repairTemporaries(state.directory, state.uid);
   const identity = processIdentity
     ?? requireCurrentProductionAdminProcessIdentity(processIdentityProbe);
   if (typeof identity !== 'string' || identity.length < 8 || identity.length > 128) {
@@ -864,6 +946,9 @@ export async function withNotificationPagesPrivateDeployJournal({
   );
   let primary;
   try {
+    // Record temporaries are repaired only after the global lock is ours. A
+    // contender can therefore never unlink the first writer's pre-link file.
+    repairTemporaries(state.directory, state.uid);
     const journal = createJournal({
       state,
       operationId,

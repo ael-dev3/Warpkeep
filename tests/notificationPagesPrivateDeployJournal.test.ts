@@ -1,9 +1,11 @@
 import {
   chmodSync,
+  existsSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
   realpathSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -213,5 +215,74 @@ describe('notification Pages private deployment journal', () => {
       runId: '22',
       operation: () => undefined,
     })).rejects.toThrow('NOTIFICATION_PAGES_DEPLOY_JOURNAL_FILE_INVALID');
+  });
+
+  it('never repairs another live writer before acquiring the global lock', async () => {
+    const home = privateHome();
+    const random = deterministicRandom();
+    let releaseFirst!: () => void;
+    const holdFirst = new Promise<void>(resolveHold => {
+      releaseFirst = resolveHold;
+    });
+    let enteredFirst!: () => void;
+    const firstEntered = new Promise<void>(resolveEntered => {
+      enteredFirst = resolveEntered;
+    });
+    let temporary = '';
+    const first = run({
+      home,
+      random,
+      async operation(journal) {
+        journal.prepared(null);
+        temporary = join(
+          journal.directory,
+          `.notification-pages-private-deploy-${journal.operationId}`
+            + '-00000002-reconciled-not-current-'
+            + `${'7'.repeat(24)}.json.tmp`,
+        );
+        writeFileSync(temporary, '{', { mode: 0o400 });
+        enteredFirst();
+        await holdFirst;
+      },
+    });
+    await firstEntered;
+    await expect(run({
+      home,
+      runId: '23',
+      random,
+      operation: () => undefined,
+    })).rejects.toThrow('NOTIFICATION_PAGES_DEPLOY_JOURNAL_BUSY');
+    expect(existsSync(temporary)).toBe(true);
+    releaseFirst();
+    await first;
+
+    await run({
+      home,
+      runId: '24',
+      random,
+      operation(journal) {
+        expect(journal.inspect().phase).toBe('prepared');
+      },
+    });
+    expect(existsSync(temporary)).toBe(false);
+  });
+
+  it('repairs an owner-only subset directory mode left by interrupted creation', async () => {
+    const home = privateHome();
+    let directory = '';
+    await run({
+      home,
+      operation(journal) {
+        directory = journal.directory;
+        journal.prepared(null);
+      },
+    });
+    chmodSync(directory, 0o500);
+    await run({
+      home,
+      runId: '25',
+      operation: () => undefined,
+    });
+    expect(statSync(directory).mode & 0o7777).toBe(0o700);
   });
 });
