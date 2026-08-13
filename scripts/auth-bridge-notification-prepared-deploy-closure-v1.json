@@ -4,7 +4,7 @@
   "members": [
     {
       "path": ".github/workflows/deploy-pages.yml",
-      "sha256": "9be99be73bdc13816e430a87d24d8d176af3a3f899eacfa1ff4dda45633a1b41"
+      "sha256": "03acf77f37520588c660524e683ef143f4e3162a3530aa46901cb28510c15925"
     },
     {
       "path": ".github/workflows/notification-bridge-prepared.yml",
@@ -12,7 +12,7 @@
     },
     {
       "path": ".github/workflows/verify.yml",
-      "sha256": "8baf295be0fd15bf55bff0b6f4519b97382b30ea61f933522ad3139e75310ab0"
+      "sha256": "55f9dd6569084291fed4064daaf5b6fe54a72404a0b959c96fcd388afeed5d93"
     },
     {
       "path": "package-lock.json",
@@ -104,7 +104,7 @@
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-installed-toolchain.mjs",
-      "sha256": "670ed63c00c01876d0e2d595e8f9520316ac864a46ed6a734c4418c43611ccd7"
+      "sha256": "28b262795718a55c3651cab076fb03cddecb82521dc987b3fe7ba26df3635907"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-receipt.d.mts",

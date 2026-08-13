@@ -220,7 +220,13 @@ function runnerIdentityDigest({
 function assertOwnedSafeMetadata(metadata, kind, code) {
   if (
     metadata.uid !== currentUserId()
-    || (metadata.mode & 0o022) !== 0
+    // Linux reports symbolic-link mode as 0777 because those permission bits
+    // are not enforceable there. Darwin retains the stricter production rule.
+    // The exact mode remains bound into both resolver and tree digests.
+    || (
+      (metadata.mode & 0o022) !== 0
+      && !(kind === 'symbolicLink' && process.platform === 'linux')
+    )
     || (kind !== 'directory' && metadata.nlink !== 1)
   ) fail(code);
 }

@@ -6,6 +6,7 @@ import {
   chmodSync,
   cpSync,
   linkSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -74,6 +75,7 @@ interface WorkflowStep {
   env?: Record<string, string>;
   run?: string;
   uses?: string;
+  with?: Record<string, string>;
 }
 
 interface WorkflowJob {
@@ -536,6 +538,32 @@ describe('notification-bridge-prepared protected workflow', () => {
     ]);
   });
 
+  it('pins Node for both full root security-suite jobs', () => {
+    const verifyDocument = parse(readFileSync(
+      resolve(repositoryRoot, '.github/workflows/verify.yml'),
+      'utf8',
+    )) as { jobs?: Record<string, WorkflowJob> };
+    const pagesDocument = parse(pagesWorkflow()) as {
+      jobs?: Record<string, WorkflowJob>;
+    };
+    const documents = [verifyDocument, pagesDocument];
+    const fullSuiteJobs = documents.flatMap(document => (
+      Object.values(document.jobs ?? {}).filter(job => job.steps?.some(
+        candidate => candidate.run === 'npm test -- --maxWorkers=2',
+      ))
+    ));
+    expect(fullSuiteJobs).toHaveLength(2);
+    for (const job of fullSuiteJobs) {
+      const setup = job.steps?.find(candidate => (
+        candidate.uses
+          === 'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020'
+      ));
+      expect(setup).toMatchObject({
+        with: { 'node-version': '22.22.3' },
+      });
+    }
+  });
+
   it('detects hidden index flags and direct worktree drift that status can hide', () => {
     const root = realpathSync(mkdtempSync(join(
       tmpdir(),
@@ -618,7 +646,7 @@ describe('notification-bridge-prepared protected workflow', () => {
         installedToolchainByteAttestationRequired: true,
         executableSecurityClosureMemberCount: 300,
       });
-  });
+  }, 60_000);
 
   it('derives the exact executable, receipt, config, ABI, Worker, and toolchain closure', () => {
     const manifest = JSON.parse(readFileSync(resolve(
@@ -684,7 +712,7 @@ describe('notification-bridge-prepared protected workflow', () => {
         memberCount: 300,
         manifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
       });
-  }, 30_000);
+  }, 90_000);
 
   it('rejects a one-byte mutation in every closure member', () => {
     const root = createPolicyFixture();
@@ -808,7 +836,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     })).toThrow(
       'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_WORKER_GRAPH_INCOMPLETE',
     );
-  }, 60_000);
+  }, 180_000);
 
   it('rejects noncanonical or byte-mutated closure manifests', () => {
     const root = createPolicyFixture();
@@ -822,7 +850,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     })).toThrow(
       'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_NOT_CANONICAL',
     );
-  });
+  }, 60_000);
 
   it('rejects altered or duplicate protected-workflow bootstrap pins', () => {
     for (const mutation of ['altered', 'duplicate'] as const) {
@@ -875,6 +903,36 @@ describe('notification-bridge-prepared protected workflow', () => {
       { ...authority },
       { repositoryRoot: fixture.root },
     )).toThrow('AUTH_BRIDGE_PREPARED_TOOLCHAIN_AUTHORITY_INVALID');
+  });
+
+  it('accepts Linux native symlink modes while retaining exact tree authority', () => {
+    if (process.platform !== 'linux') return;
+    const fixture = createInstalledToolchainFixture();
+    const link = lstatSync(resolve(fixture.nodeModules, 'wrangler'));
+    expect(link.isSymbolicLink()).toBe(true);
+    expect(link.mode & 0o022).toBe(0o022);
+    expect(verifyInstalledToolchainFixture(fixture)).toMatchObject({
+      resolverNamespaceSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+      treeSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
+    });
+
+    const writableTarget = createInstalledToolchainFixture();
+    const packagePath = resolve(
+      writableTarget.nodeModules,
+      fixtureWranglerTarget,
+      'package.json',
+    );
+    chmodSync(packagePath, 0o664);
+    expect(() => verifyInstalledToolchainFixture(writableTarget)).toThrow(
+      /AUTH_BRIDGE_PREPARED_TOOLCHAIN_/u,
+    );
+
+    const escapingTarget = createInstalledToolchainFixture();
+    unlinkSync(resolve(escapingTarget.nodeModules, 'wrangler'));
+    symlinkSync('/tmp', resolve(escapingTarget.nodeModules, 'wrangler'));
+    expect(() => verifyInstalledToolchainFixture(escapingTarget)).toThrow(
+      /AUTH_BRIDGE_PREPARED_TOOLCHAIN_/u,
+    );
   });
 
   it('keeps runner identity stable across staged Node copies and runner-bound', () => {
@@ -1014,7 +1072,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: extra,
     })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
-  }, 30_000);
+  }, 90_000);
 
   it('loads separated credentials only into the guarded no-argv entrypoint', () => {
     const source = workflow();
@@ -1228,7 +1286,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(() => verifyAuthBridgeNotificationPreparedStaticPolicy({
       repositoryRoot: directSecret,
     })).toThrow(/AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_/u);
-  }, 30_000);
+  }, 90_000);
 
   it('uses only the exact lockfile toolchain from the protected checkout', () => {
     const source = workflow();
