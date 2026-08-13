@@ -1161,6 +1161,55 @@ describe('auth-bridge prepared GitHub write permit', () => {
     })).resolves.toBe(realpathSync(repository));
   });
 
+  it('rejects hidden index flags and direct checkout drift', async () => {
+    const repository = mkdtempSync(join(
+      realpathSync(tmpdir()),
+      'warpkeep-checkout-hidden-',
+    ));
+    temporaryDirectories.push(repository);
+    const git = (args: readonly string[]) => execFileSync('/usr/bin/git', args, {
+      cwd: repository,
+      encoding: 'utf8',
+      env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null' },
+    }).trim();
+    git(['init', '--initial-branch=main']);
+    git(['config', 'user.name', 'Warpkeep test']);
+    git(['config', 'user.email', 'warpkeep-test@example.invalid']);
+    const tracked = join(repository, 'tracked.txt');
+    writeFileSync(tracked, 'exact checkout\n');
+    git(['add', 'tracked.txt']);
+    git(['commit', '-m', 'exact checkout']);
+    git(['remote', 'add', 'origin', 'https://github.com/ael-dev3/Warpkeep']);
+    const head = git(['rev-parse', 'HEAD']);
+    const inspect = () => attestAuthBridgeNotificationPreparedDeployCheckout({
+      repositoryRoot: realpathSync(repository),
+      sourceCommit: head,
+    });
+
+    git(['update-index', '--assume-unchanged', '--', 'tracked.txt']);
+    writeFileSync(tracked, 'mutated\n');
+    await expect(inspect()).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_DEPLOY_CHECKOUT_MISMATCH',
+    });
+
+    git(['update-index', '--no-assume-unchanged', '--', 'tracked.txt']);
+    writeFileSync(tracked, 'exact checkout\n');
+    git(['update-index', '--refresh']);
+    git(['update-index', '--skip-worktree', '--', 'tracked.txt']);
+    writeFileSync(tracked, 'mutated\n');
+    await expect(inspect()).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_DEPLOY_CHECKOUT_MISMATCH',
+    });
+
+    git(['update-index', '--no-skip-worktree', '--', 'tracked.txt']);
+    writeFileSync(tracked, 'exact checkout\n');
+    git(['update-index', '--refresh']);
+    writeFileSync(tracked, 'mutated\n');
+    await expect(inspect()).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_DEPLOY_GIT_INSPECTION_FAILED',
+    });
+  });
+
   it('re-attests protected main and the current in-progress workflow per effect', async () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

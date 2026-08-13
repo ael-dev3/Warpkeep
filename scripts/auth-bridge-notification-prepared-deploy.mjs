@@ -5,17 +5,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
 import {
-  authBridgeNotificationPreparedVersionContract,
-  executeAuthBridgeNotificationPreparedDeployAdapter,
-  prepareAndWriteAuthBridgeNotificationPreparedReceipt,
-} from './auth-bridge-notification-prepared-deploy-adapter.mjs';
+  verifyAuthBridgeNotificationPreparedDeployClosure,
+} from './auth-bridge-notification-prepared-deploy-closure.mjs';
 import {
-  buildAuthBridgeNotificationPreparedWranglerMultipart,
-  createAuthBridgeNotificationPreparedCloudflareRuntime,
-} from './auth-bridge-notification-prepared-cloudflare-runtime.mjs';
-import {
-  withAuthBridgeNotificationPreparedDeployJournal,
-} from './auth-bridge-notification-prepared-deploy-journal.mjs';
+  verifyAuthBridgeNotificationPreparedInstalledToolchain,
+} from './auth-bridge-notification-prepared-installed-toolchain.mjs';
 
 const execFileAsync = promisify(execFile);
 const REPOSITORY = 'ael-dev3/Warpkeep';
@@ -136,7 +130,13 @@ function copyAndScrubEnvironment(environment) {
 async function exactGit(repositoryRoot, args) {
   let result;
   try {
-    result = await execFileAsync('/usr/bin/git', args, {
+    result = await execFileAsync('/usr/bin/git', [
+      '-c',
+      'core.fsmonitor=false',
+      '-c',
+      'core.untrackedCache=false',
+      ...args,
+    ], {
       cwd: repositoryRoot,
       encoding: 'utf8',
       env: Object.freeze({
@@ -170,16 +170,29 @@ export async function attestAuthBridgeNotificationPreparedDeployCheckout({
   if (!SOURCE_COMMIT.test(sourceCommit ?? '')) {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_SOURCE_COMMIT_INVALID');
   }
-  const [topLevel, head, status, origin] = await Promise.all([
+  const [topLevel, head, status, origin, trackedEntries] = await Promise.all([
     exactGit(repository, ['rev-parse', '--show-toplevel']),
     exactGit(repository, ['rev-parse', 'HEAD']),
-    exactGit(repository, ['status', '--porcelain=v1', '--untracked-files=no']),
+    exactGit(repository, ['status', '--porcelain=v1', '--untracked-files=all']),
     exactGit(repository, ['remote', 'get-url', 'origin']),
+    exactGit(repository, ['ls-files', '-v']),
+    exactGit(repository, ['diff-index', '--quiet', '--cached', 'HEAD', '--']),
+    exactGit(repository, ['diff-files', '--quiet', '--']),
+    exactGit(repository, [
+      'diff',
+      '--no-ext-diff',
+      '--no-textconv',
+      '--exit-code',
+      'HEAD',
+      '--',
+    ]),
   ]);
   if (
     topLevel !== repository
     || head !== sourceCommit
     || status !== ''
+    || trackedEntries.length < 1
+    || trackedEntries.split('\n').some(entry => !entry.startsWith('H '))
     || ![
       `https://github.com/${REPOSITORY}`,
       `https://github.com/${REPOSITORY}.git`,
@@ -302,12 +315,15 @@ export async function runAuthBridgeNotificationPreparedDeploy({
   wranglerEntrypoint,
   clock = () => new Date(),
 } = {}) {
-  const values = copyAndScrubEnvironment(environment);
   const scriptDirectory = dirname(fileURLToPath(import.meta.url));
   const inferredRepository = resolve(scriptDirectory, '..');
+  const sourceCommit = environment.GITHUB_SHA;
+  if (!SOURCE_COMMIT.test(sourceCommit ?? '')) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_SOURCE_COMMIT_INVALID');
+  }
   const repository = await attestAuthBridgeNotificationPreparedDeployCheckout({
     repositoryRoot: repositoryRoot ?? inferredRepository,
-    sourceCommit: values.GITHUB_SHA,
+    sourceCommit,
   });
   if (repository !== inferredRepository) {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_REPOSITORY_INVALID');
@@ -315,6 +331,46 @@ export async function runAuthBridgeNotificationPreparedDeploy({
   const serviceRoot = join(repository, 'services', 'auth-bridge');
   const exactWranglerEntrypoint = wranglerEntrypoint
     ?? join(serviceRoot, 'node_modules', 'wrangler', 'bin', 'wrangler.js');
+  const sourceClosure = verifyAuthBridgeNotificationPreparedDeployClosure({
+    repositoryRoot: repository,
+  });
+  const toolchain = verifyAuthBridgeNotificationPreparedInstalledToolchain({
+    repositoryRoot: repository,
+    nodeExecutable,
+    wranglerEntrypoint: exactWranglerEntrypoint,
+  });
+  if (toolchain.wranglerEntrypoint !== realpathSync(exactWranglerEntrypoint)) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_TOOLCHAIN_INVALID');
+  }
+  const sourceClosureAfterToolchain =
+    verifyAuthBridgeNotificationPreparedDeployClosure({
+    repositoryRoot: repository,
+  });
+  if (
+    sourceClosureAfterToolchain.manifestSha256 !== sourceClosure.manifestSha256
+    || toolchain.sourceClosureManifestSha256 !== sourceClosure.manifestSha256
+  ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_SOURCE_CLOSURE_INVALID');
+  // No credential is read or copied until the fixed installed-tree authority
+  // and complete source closure have both been re-attested in this process.
+  const values = copyAndScrubEnvironment(environment);
+  if (values.GITHUB_SHA !== sourceCommit) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_SOURCE_COMMIT_INVALID');
+  }
+  const [adapter, cloudflareRuntime, deployJournal] = await Promise.all([
+    import('./auth-bridge-notification-prepared-deploy-adapter.mjs'),
+    import('./auth-bridge-notification-prepared-cloudflare-runtime.mjs'),
+    import('./auth-bridge-notification-prepared-deploy-journal.mjs'),
+  ]);
+  const {
+    authBridgeNotificationPreparedVersionContract,
+    executeAuthBridgeNotificationPreparedDeployAdapter,
+    prepareAndWriteAuthBridgeNotificationPreparedReceipt,
+  } = adapter;
+  const {
+    buildAuthBridgeNotificationPreparedWranglerMultipart,
+    createAuthBridgeNotificationPreparedCloudflareRuntime,
+  } = cloudflareRuntime;
+  const { withAuthBridgeNotificationPreparedDeployJournal } = deployJournal;
   let interrupted = false;
   const interrupt = () => { interrupted = true; };
   process.once('SIGINT', interrupt);
@@ -337,6 +393,18 @@ export async function runAuthBridgeNotificationPreparedDeploy({
       repositoryRoot: repository,
       deploy: async beforeModes => {
         if (interrupted) fail('AUTH_BRIDGE_PREPARED_DEPLOY_INTERRUPTED');
+        const buildToolchain =
+          verifyAuthBridgeNotificationPreparedInstalledToolchain({
+            repositoryRoot: repository,
+            nodeExecutable,
+            wranglerEntrypoint: exactWranglerEntrypoint,
+          });
+        if (
+          buildToolchain.treeSha256 !== toolchain.treeSha256
+          || buildToolchain.runnerIdentityDigest
+            !== toolchain.runnerIdentityDigest
+          || buildToolchain.wranglerEntrypoint !== toolchain.wranglerEntrypoint
+        ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_TOOLCHAIN_INVALID');
         const placeholder = authBridgeNotificationPreparedVersionContract({
           accountId: values.WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID,
           zoneId: values.WARPKEEP_AUTH_BRIDGE_ZONE_ID,

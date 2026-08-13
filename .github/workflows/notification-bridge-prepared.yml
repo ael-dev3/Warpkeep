@@ -18,8 +18,11 @@ concurrency:
 
 jobs:
   notification-bridge-prepared:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # This repository-exclusive account retains the owner-only deploy journal
+    # and receipt namespace across failed jobs and runner restarts. Never move
+    # this mutation onto a GitHub-hosted or ephemeral runner.
+    runs-on: [self-hosted, macOS, ARM64, warpkeep-production-admin, warpkeep-repository-exclusive]
+    timeout-minutes: 45
     environment:
       name: notification-bridge-prepared
     permissions:
@@ -32,27 +35,32 @@ jobs:
       WARPKEEP_BRIDGE_NOTIFICATION_DELIVERY_ENABLED: 'true'
       WARPKEEP_HERMES_EXECUTION_APPROVED: 'false'
       WARPKEEP_PAGES_PRESENTATION_ENABLED: 'false'
-      # No reviewed repository adapter currently preserves the two live auth
-      # modes, proves the Cloudflare control plane, and durably exports a 0600
-      # receipt. This stays false until all three mechanics are checked in.
-      WARPKEEP_SAFE_DEPLOYMENT_MECHANICS_REVIEWED: 'false'
+      WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: '1dfa16869566fec7db36764bb60ecd0112311238cad4408286569a6cf1a412d4'
+      WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '232ea03fa812bbe757862158f1a3e33716b51c9d4e55ce2511e272e97dfd89aa'
+      WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256: '670ed63c00c01876d0e2d595e8f9520316ac864a46ed6a734c4418c43611ccd7'
+      WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256: '745188c6fae1c54b56e809916be9b50393c68d59c4f62742f55e67f4ca0550dd'
     steps:
-      - name: Resolve exact protected main commit
+      - name: Resolve exact protected main run authority
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [[ ! "$WARPKEEP_EXPECTED_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
-            echo 'The requested bridge source commit was invalid.' >&2
+          if [[ "$GITHUB_REPOSITORY" != 'ael-dev3/Warpkeep' \
+            || "$GITHUB_EVENT_NAME" != 'workflow_dispatch' \
+            || "$GITHUB_REF" != 'refs/heads/main' \
+            || "$GITHUB_SHA" != "$WARPKEEP_EXPECTED_SOURCE_COMMIT" \
+            || ! "$WARPKEEP_EXPECTED_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo 'The requested bridge run authority was invalid.' >&2
             exit 1
           fi
           protected_main="$(
-            gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha'
+            gh api "repos/ael-dev3/Warpkeep/branches/main" \
+              --jq 'select(.protected == true) | .commit.sha'
           )"
           if [[ ! "$protected_main" =~ ^[0-9a-f]{40}$ \
             || "$protected_main" != "$WARPKEEP_EXPECTED_SOURCE_COMMIT" ]]; then
-            echo 'The requested bridge source is not the current protected main commit.' >&2
+            echo 'The requested bridge source is not current protected main.' >&2
             exit 1
           fi
 
@@ -61,23 +69,61 @@ jobs:
         with:
           ref: ${{ inputs.source_commit }}
           persist-credentials: false
+          clean: true
+          fetch-depth: 1
 
       - name: Re-attest detached protected checkout
         shell: bash
         run: |
           set -euo pipefail
-          actual_commit="$(git rev-parse --verify HEAD^{commit})"
-          origin_url="$(git remote get-url origin)"
+          git_safe=(/usr/bin/git -c core.fsmonitor=false -c core.untrackedCache=false)
+          actual_commit="$("${git_safe[@]}" rev-parse --verify HEAD^{commit})"
+          origin_url="$("${git_safe[@]}" remote get-url origin)"
+          checkout_status="$("${git_safe[@]}" status --porcelain=v1 --untracked-files=all)"
           if [[ "$actual_commit" != "$WARPKEEP_EXPECTED_SOURCE_COMMIT" \
             || "$origin_url" != 'https://github.com/ael-dev3/Warpkeep' \
-            || -n "$(git status --porcelain=v1 --untracked-files=all)" ]]; then
+            || -n "$checkout_status" ]]; then
             echo 'The protected bridge checkout was not exact and clean.' >&2
             exit 1
           fi
-          if git symbolic-ref -q HEAD >/dev/null; then
+          if "${git_safe[@]}" symbolic-ref -q HEAD >/dev/null; then
             echo 'The protected bridge checkout was not detached.' >&2
             exit 1
           fi
+          tracked_entries="$("${git_safe[@]}" ls-files -v)"
+          while IFS= read -r tracked_entry; do
+            if [[ "$tracked_entry" != 'H '* ]]; then
+              echo 'AUTH_BRIDGE_PREPARED_HIDDEN_INDEX_STATE_INVALID' >&2
+              exit 1
+            fi
+          done <<< "$tracked_entries"
+          "${git_safe[@]}" diff-index --quiet --cached HEAD --
+          "${git_safe[@]}" diff-files --quiet --
+          "${git_safe[@]}" diff --no-ext-diff --no-textconv --exit-code HEAD --
+          verify_bootstrap_digest() {
+            local expected="$1"
+            local path="$2"
+            local output
+            local actual
+            if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
+              echo 'AUTH_BRIDGE_PREPARED_BOOTSTRAP_DIGEST_INVALID' >&2
+              exit 1
+            fi
+            output="$(/usr/bin/shasum -a 256 -- "$path")"
+            actual="${output%% *}"
+            if [[ "$actual" != "$expected" ]]; then
+              echo 'AUTH_BRIDGE_PREPARED_BOOTSTRAP_DIGEST_MISMATCH' >&2
+              exit 1
+            fi
+          }
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256" \
+            scripts/auth-bridge-notification-prepared-deploy-closure.mjs
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256" \
+            scripts/auth-bridge-notification-prepared-deploy-closure-v1.json
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256" \
+            scripts/auth-bridge-notification-prepared-installed-toolchain.mjs
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256" \
+            scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json
 
       - name: Setup pinned pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
@@ -85,20 +131,67 @@ jobs:
           version: 11.7.0
           run_install: false
 
-      - name: Setup Node
+      - name: Setup exact Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 22.22.3
           cache: pnpm
           cache-dependency-path: services/auth-bridge/pnpm-lock.yaml
 
       - name: Install exact auth bridge dependencies
-        run: pnpm --dir services/auth-bridge install --frozen-lockfile
+        run: pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts --package-import-method=copy
 
-      - name: Check exact auth bridge source
-        run: pnpm --dir services/auth-bridge run check
+      - name: Attest source and toolchain immediately before production secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git_safe=(/usr/bin/git -c core.fsmonitor=false -c core.untrackedCache=false)
+          actual_commit="$("${git_safe[@]}" rev-parse --verify HEAD^{commit})"
+          checkout_status="$("${git_safe[@]}" status --porcelain=v1 --untracked-files=all)"
+          if [[ "$actual_commit" != "$WARPKEEP_EXPECTED_SOURCE_COMMIT" \
+            || -n "$checkout_status" ]]; then
+            echo 'AUTH_BRIDGE_PREPARED_POSTINSTALL_SOURCE_INVALID' >&2
+            exit 1
+          fi
+          tracked_entries="$("${git_safe[@]}" ls-files -v)"
+          while IFS= read -r tracked_entry; do
+            if [[ "$tracked_entry" != 'H '* ]]; then
+              echo 'AUTH_BRIDGE_PREPARED_HIDDEN_INDEX_STATE_INVALID' >&2
+              exit 1
+            fi
+          done <<< "$tracked_entries"
+          "${git_safe[@]}" diff-index --quiet --cached HEAD --
+          "${git_safe[@]}" diff-files --quiet --
+          "${git_safe[@]}" diff --no-ext-diff --no-textconv --exit-code HEAD --
+          verify_bootstrap_digest() {
+            local expected="$1"
+            local path="$2"
+            local output
+            local actual
+            if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
+              echo 'AUTH_BRIDGE_PREPARED_BOOTSTRAP_DIGEST_INVALID' >&2
+              exit 1
+            fi
+            output="$(/usr/bin/shasum -a 256 -- "$path")"
+            actual="${output%% *}"
+            if [[ "$actual" != "$expected" ]]; then
+              echo 'AUTH_BRIDGE_PREPARED_BOOTSTRAP_DIGEST_MISMATCH' >&2
+              exit 1
+            fi
+          }
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256" \
+            scripts/auth-bridge-notification-prepared-deploy-closure.mjs
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256" \
+            scripts/auth-bridge-notification-prepared-deploy-closure-v1.json
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256" \
+            scripts/auth-bridge-notification-prepared-installed-toolchain.mjs
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256" \
+            scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json
+          node scripts/auth-bridge-notification-prepared-deploy-closure.mjs
+          node scripts/auth-bridge-notification-prepared-installed-toolchain.mjs
+          node scripts/auth-bridge-notification-prepared-deploy-closure.mjs
 
-      - name: Prove bridge-only static release policy
+      - name: Prove guarded bridge-only release policy
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -112,7 +205,7 @@ jobs:
             exit 1
           fi
           variable="$(
-            gh api --paginate "repos/${GITHUB_REPOSITORY}/actions/variables" \
+            gh api --paginate "repos/ael-dev3/Warpkeep/actions/variables" \
               --jq '.variables[] | select(.name == "WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED") | .value'
           )"
           pages_value="${variable:-false}"
@@ -121,19 +214,70 @@ jobs:
             exit 1
           fi
 
-      # Fail before loading either the bridge administrator token or Cloudflare
-      # credentials. The repository has no reviewed adapter that can read the
-      # PRE-deploy private attestation, preserve both auth modes, deploy via the
-      # pinned Wrangler package, prove control-plane convergence, and install
-      # the receipt into a durable protected 0600 sink. Direct Wrangler calls or
-      # an Actions artifact would fabricate that missing boundary.
-      - name: Require reviewed deploy adapter and durable private receipt sink
+      - name: Run guarded prepared bridge deployment
+        id: deploy
+        continue-on-error: true
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: ${{ secrets.WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID }}
+          WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: ${{ secrets.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN }}
+          WARPKEEP_AUTH_BRIDGE_ZONE_ID: ${{ secrets.WARPKEEP_AUTH_BRIDGE_ZONE_ID }}
+          WARPKEEP_PRODUCTION_ADMIN_TOKEN: ${{ secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN }}
         run: |
           set -euo pipefail
-          if [[ "$WARPKEEP_SAFE_DEPLOYMENT_MECHANICS_REVIEWED" != 'false' ]]; then
-            echo 'The checked deployment blocker was not exact.' >&2
+          if [[ -z "$GITHUB_TOKEN" \
+            || -z "$WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID" \
+            || -z "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN" \
+            || -z "$WARPKEEP_AUTH_BRIDGE_ZONE_ID" \
+            || -z "$WARPKEEP_PRODUCTION_ADMIN_TOKEN" \
+            || "$GITHUB_TOKEN" == "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN" \
+            || "$GITHUB_TOKEN" == "$WARPKEEP_PRODUCTION_ADMIN_TOKEN" \
+            || "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN" == "$WARPKEEP_PRODUCTION_ADMIN_TOKEN" ]]; then
+            echo 'AUTH_BRIDGE_PREPARED_DEPLOY_CREDENTIALS_INVALID' >&2
             exit 1
           fi
-          echo 'AUTH_BRIDGE_PREPARED_DEPLOY_ADAPTER_AND_PRIVATE_SINK_UNAVAILABLE' >&2
+          printf '%s\n' 'attempted=true' >> "$GITHUB_OUTPUT"
+          node scripts/auth-bridge-notification-prepared-deploy.mjs >/dev/null
+
+      - name: Recover and re-attest a failed deployment attempt
+        id: recovery
+        if: ${{ always() && steps.deploy.outputs.attempted == 'true' && steps.deploy.outcome != 'success' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: ${{ secrets.WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID }}
+          WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: ${{ secrets.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN }}
+          WARPKEEP_AUTH_BRIDGE_ZONE_ID: ${{ secrets.WARPKEEP_AUTH_BRIDGE_ZONE_ID }}
+          WARPKEEP_PRODUCTION_ADMIN_TOKEN: ${{ secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$GITHUB_TOKEN" \
+            || -z "$WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID" \
+            || -z "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN" \
+            || -z "$WARPKEEP_AUTH_BRIDGE_ZONE_ID" \
+            || -z "$WARPKEEP_PRODUCTION_ADMIN_TOKEN" \
+            || "$GITHUB_TOKEN" == "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN" \
+            || "$GITHUB_TOKEN" == "$WARPKEEP_PRODUCTION_ADMIN_TOKEN" \
+            || "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN" == "$WARPKEEP_PRODUCTION_ADMIN_TOKEN" ]]; then
+            echo 'AUTH_BRIDGE_PREPARED_DEPLOY_CREDENTIALS_INVALID' >&2
+            exit 1
+          fi
+          node scripts/auth-bridge-notification-prepared-deploy.mjs >/dev/null
+
+      - name: Require a verified deployment or recovery
+        if: ${{ always() }}
+        shell: bash
+        env:
+          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+          DEPLOYMENT_ATTEMPTED: ${{ steps.deploy.outputs.attempted }}
+          RECOVERY_OUTCOME: ${{ steps.recovery.outcome }}
+        run: |
+          set -euo pipefail
+          if [[ "$DEPLOYMENT_ATTEMPTED" == 'true' \
+            && ("$DEPLOY_OUTCOME" == 'success' || "$RECOVERY_OUTCOME" == 'success') ]]; then
+            exit 0
+          fi
+          echo 'AUTH_BRIDGE_PREPARED_DEPLOY_OR_RECOVERY_UNVERIFIED' >&2
           exit 1

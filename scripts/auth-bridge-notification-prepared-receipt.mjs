@@ -789,6 +789,7 @@ export function readPrivateAuthBridgeNotificationPreparedReceipt({
 
 async function readBoundedCanonicalReleaseAttestation(response) {
   const advertisedLength = response.headers.get('content-length');
+  const contentEncoding = response.headers.get('content-encoding');
   if (
     advertisedLength !== null
     && (!/^\d+$/u.test(advertisedLength)
@@ -815,8 +816,15 @@ async function readBoundedCanonicalReleaseAttestation(response) {
   } finally {
     reader.releaseLock();
   }
+  // Fetch exposes decoded bytes, while Cloudflare may retain the compressed
+  // wire Content-Length. Both lengths stay independently bounded, but equality
+  // is meaningful only when no content coding was applied (or it is identity).
   if (
     advertisedLength !== null
+    && (
+      contentEncoding === null
+      || /^identity$/iu.test(contentEncoding)
+    )
     && Number(advertisedLength) !== totalBytes
   ) fail('AUTH_BRIDGE_PREPARED_ATTESTATION_SIZE_INVALID');
   const bytes = Buffer.alloc(totalBytes);

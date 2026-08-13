@@ -357,6 +357,48 @@ describe('fresh public release-attestation binding', () => {
     expect(init).not.toHaveProperty('body');
   });
 
+  it('accepts decoded gzip length and rejects absent or identity mismatches', async () => {
+    const source = JSON.stringify(releaseAttestation());
+    const gzipLength = Math.max(1, Math.floor(Buffer.byteLength(source) / 2));
+    await expect(fetchFreshAuthBridgeReleaseAttestation({
+      fetchImpl: vi.fn(async () => releaseResponse({
+        source,
+        headers: {
+          'content-encoding': 'gzip',
+          'content-length': String(gzipLength),
+        },
+      })) as typeof fetch,
+      now: NOW,
+    })).resolves.toMatchObject({ attestation: releaseAttestation() });
+
+    for (const contentEncoding of [undefined, 'identity']) {
+      const headers: Record<string, string> = {
+        'content-length': String(Buffer.byteLength(source) + 1),
+      };
+      if (contentEncoding !== undefined) {
+        headers['content-encoding'] = contentEncoding;
+      }
+      const fetchImpl = vi.fn(
+        async () => releaseResponse({ source, headers }),
+      ) as typeof fetch;
+      await expect(fetchFreshAuthBridgeReleaseAttestation({
+        fetchImpl,
+        now: NOW,
+      })).rejects.toThrow('AUTH_BRIDGE_PREPARED_ATTESTATION_SIZE_INVALID');
+    }
+
+    await expect(fetchFreshAuthBridgeReleaseAttestation({
+      fetchImpl: vi.fn(async () => releaseResponse({
+        source,
+        headers: {
+          'content-encoding': 'gzip',
+          'content-length': String(16 * 1_024 + 1),
+        },
+      })) as typeof fetch,
+      now: NOW,
+    })).rejects.toThrow('AUTH_BRIDGE_PREPARED_ATTESTATION_SIZE_INVALID');
+  });
+
   it('rejects stale, cache-mediated, CORS, redirected, or noncanonical evidence', async () => {
     const cases = [
       releaseResponse({

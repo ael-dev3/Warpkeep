@@ -9,6 +9,16 @@ on:
 permissions:
   contents: read
 
+# These reviewed bytes are the authority bootstrap for both repository-
+# exclusive jobs. The source-closure manifest canonicalizes only these exact
+# values, so changing any protected executable requires an explicit refreeze.
+env:
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: '1dfa16869566fec7db36764bb60ecd0112311238cad4408286569a6cf1a412d4'
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '232ea03fa812bbe757862158f1a3e33716b51c9d4e55ce2511e272e97dfd89aa'
+  WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256: '670ed63c00c01876d0e2d595e8f9520316ac864a46ed6a734c4418c43611ccd7'
+  WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256: '745188c6fae1c54b56e809916be9b50393c68d59c4f62742f55e67f4ca0550dd'
+  WARPKEEP_NOTIFICATION_PAGES_PRIVATE_DEPLOY_LAUNCHER_SHA256: 'ac18ecc2371d8bfff17ea8abec9d989085c4992d2ebeb70e7c9947bfac62837e'
+
 concurrency:
   # This workflow-scoped lock is retained through build, deployment, and the
   # matching live postflight. A newer verified-main run may replace another
@@ -427,6 +437,62 @@ jobs:
           persist-credentials: false
           clean: true
 
+      - name: Verify exact protected private deployment bootstrap
+        shell: bash
+        env:
+          WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          git_safe=(/usr/bin/git -c core.fsmonitor=false -c core.untrackedCache=false)
+          actual_commit="$("${git_safe[@]}" rev-parse --verify HEAD^{commit})"
+          origin_url="$("${git_safe[@]}" remote get-url origin)"
+          checkout_status="$("${git_safe[@]}" status --porcelain=v1 --untracked-files=all)"
+          if [[ "$actual_commit" != "$WARPKEEP_PAGES_SOURCE_COMMIT" \
+            || "$origin_url" != 'https://github.com/ael-dev3/Warpkeep' \
+            || -n "$checkout_status" ]]; then
+            echo 'The private Pages bootstrap checkout was not exact.' >&2
+            exit 1
+          fi
+          if "${git_safe[@]}" symbolic-ref -q HEAD >/dev/null; then
+            echo 'The private Pages bootstrap checkout was not detached.' >&2
+            exit 1
+          fi
+          while IFS= read -r tracked_entry; do
+            if [[ "$tracked_entry" != 'H '* ]]; then
+              echo 'NOTIFICATION_PAGES_PRIVATE_HIDDEN_INDEX_STATE_INVALID' >&2
+              exit 1
+            fi
+          done <<< "$("${git_safe[@]}" ls-files -v)"
+          "${git_safe[@]}" diff-index --quiet --cached HEAD --
+          "${git_safe[@]}" diff-files --quiet --
+          "${git_safe[@]}" diff --no-ext-diff --no-textconv --exit-code HEAD --
+          verify_bootstrap_digest() {
+            local expected="$1"
+            local path="$2"
+            local output
+            local actual
+            if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
+              echo 'NOTIFICATION_PAGES_PRIVATE_BOOTSTRAP_DIGEST_INVALID' >&2
+              exit 1
+            fi
+            output="$(/usr/bin/shasum -a 256 -- "$path")"
+            actual="${output%% *}"
+            if [[ "$actual" != "$expected" ]]; then
+              echo 'NOTIFICATION_PAGES_PRIVATE_BOOTSTRAP_DIGEST_MISMATCH' >&2
+              exit 1
+            fi
+          }
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256" \
+            scripts/auth-bridge-notification-prepared-deploy-closure.mjs
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256" \
+            scripts/auth-bridge-notification-prepared-deploy-closure-v1.json
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256" \
+            scripts/auth-bridge-notification-prepared-installed-toolchain.mjs
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256" \
+            scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json
+          verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PRIVATE_DEPLOY_LAUNCHER_SHA256" \
+            scripts/notification-pages-private-deploy-launcher.mjs
+
       - name: Setup exact pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
@@ -459,12 +525,48 @@ jobs:
           WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          actual_commit="$(git rev-parse --verify HEAD^{commit})"
+          git_safe=(/usr/bin/git -c core.fsmonitor=false -c core.untrackedCache=false)
+          actual_commit="$("${git_safe[@]}" rev-parse --verify HEAD^{commit})"
           if [[ "$actual_commit" != "$WARPKEEP_PAGES_SOURCE_COMMIT" \
-            || -n "$(git status --porcelain=v1 --untracked-files=no)" ]]; then
+            || -n "$("${git_safe[@]}" status --porcelain=v1 --untracked-files=all)" ]]; then
             echo 'Private Pages toolchain source changed during installation.' >&2
             exit 1
           fi
+          while IFS= read -r tracked_entry; do
+            if [[ "$tracked_entry" != 'H '* ]]; then
+              echo 'NOTIFICATION_PAGES_PRIVATE_HIDDEN_INDEX_STATE_INVALID' >&2
+              exit 1
+            fi
+          done <<< "$("${git_safe[@]}" ls-files -v)"
+          "${git_safe[@]}" diff-index --quiet --cached HEAD --
+          "${git_safe[@]}" diff-files --quiet --
+          "${git_safe[@]}" diff --no-ext-diff --no-textconv --exit-code HEAD --
+          verify_bootstrap_digest() {
+            local expected="$1"
+            local path="$2"
+            local output
+            local actual
+            if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
+              echo 'NOTIFICATION_PAGES_PRIVATE_BOOTSTRAP_DIGEST_INVALID' >&2
+              exit 1
+            fi
+            output="$(/usr/bin/shasum -a 256 -- "$path")"
+            actual="${output%% *}"
+            if [[ "$actual" != "$expected" ]]; then
+              echo 'NOTIFICATION_PAGES_PRIVATE_BOOTSTRAP_DIGEST_MISMATCH' >&2
+              exit 1
+            fi
+          }
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256" \
+            scripts/auth-bridge-notification-prepared-deploy-closure.mjs
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256" \
+            scripts/auth-bridge-notification-prepared-deploy-closure-v1.json
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256" \
+            scripts/auth-bridge-notification-prepared-installed-toolchain.mjs
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256" \
+            scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json
+          verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PRIVATE_DEPLOY_LAUNCHER_SHA256" \
+            scripts/notification-pages-private-deploy-launcher.mjs
           private_node="$(realpath -- "$(command -v node)")"
           /usr/bin/env -i \
             CI=true \
@@ -569,6 +671,62 @@ jobs:
             exit 1
           fi
           echo "WARPKEEP_PRIVATE_NODE=$private_root/node" >> "$GITHUB_ENV"
+
+      - name: Re-verify protected bootstrap immediately before private operator
+        shell: bash
+        env:
+          WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          git_safe=(/usr/bin/git -c core.fsmonitor=false -c core.untrackedCache=false)
+          actual_commit="$("${git_safe[@]}" rev-parse --verify HEAD^{commit})"
+          origin_url="$("${git_safe[@]}" remote get-url origin)"
+          checkout_status="$("${git_safe[@]}" status --porcelain=v1 --untracked-files=all)"
+          if [[ "$actual_commit" != "$WARPKEEP_PAGES_SOURCE_COMMIT" \
+            || "$origin_url" != 'https://github.com/ael-dev3/Warpkeep' \
+            || -n "$checkout_status" ]]; then
+            echo 'The private Pages operator checkout was not exact.' >&2
+            exit 1
+          fi
+          if "${git_safe[@]}" symbolic-ref -q HEAD >/dev/null; then
+            echo 'The private Pages operator checkout was not detached.' >&2
+            exit 1
+          fi
+          while IFS= read -r tracked_entry; do
+            if [[ "$tracked_entry" != 'H '* ]]; then
+              echo 'NOTIFICATION_PAGES_PRIVATE_HIDDEN_INDEX_STATE_INVALID' >&2
+              exit 1
+            fi
+          done <<< "$("${git_safe[@]}" ls-files -v)"
+          "${git_safe[@]}" diff-index --quiet --cached HEAD --
+          "${git_safe[@]}" diff-files --quiet --
+          "${git_safe[@]}" diff --no-ext-diff --no-textconv --exit-code HEAD --
+          verify_bootstrap_digest() {
+            local expected="$1"
+            local path="$2"
+            local output
+            local actual
+            if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
+              echo 'NOTIFICATION_PAGES_PRIVATE_BOOTSTRAP_DIGEST_INVALID' >&2
+              exit 1
+            fi
+            output="$(/usr/bin/shasum -a 256 -- "$path")"
+            actual="${output%% *}"
+            if [[ "$actual" != "$expected" ]]; then
+              echo 'NOTIFICATION_PAGES_PRIVATE_BOOTSTRAP_DIGEST_MISMATCH' >&2
+              exit 1
+            fi
+          }
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256" \
+            scripts/auth-bridge-notification-prepared-deploy-closure.mjs
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256" \
+            scripts/auth-bridge-notification-prepared-deploy-closure-v1.json
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256" \
+            scripts/auth-bridge-notification-prepared-installed-toolchain.mjs
+          verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256" \
+            scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json
+          verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PRIVATE_DEPLOY_LAUNCHER_SHA256" \
+            scripts/notification-pages-private-deploy-launcher.mjs
 
       - name: Retire only a proven-skipped prior deployment invocation
         id: private-recovery
