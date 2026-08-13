@@ -56,7 +56,10 @@ const HEAD_TREE = execFileSync(
 function protectedIdenticalAncestor(): string {
   const ancestors = execFileSync(
     '/usr/bin/git',
-    ['rev-list', '--first-parent', 'HEAD^'],
+    // Pull-request verification checks out GitHub's synthetic merge commit.
+    // Search the histories of every parent so the protected-identical anchor
+    // on the candidate branch remains visible without weakening the byte diff.
+    ['rev-list', '--topo-order', 'HEAD^@'],
     { cwd: process.cwd(), encoding: 'utf8' },
   ).trim().split('\n');
   for (const ancestor of ancestors) {
