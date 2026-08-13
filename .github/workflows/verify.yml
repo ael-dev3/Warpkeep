@@ -27,6 +27,12 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Setup pinned pnpm for bridge runtime-contract tests
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.7.0
+          run_install: false
+
       - name: Stage Node in a runner-private toolchain path
         shell: bash
         run: |
@@ -67,6 +73,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Install exact bridge runtime-test toolchain
+        run: pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
 
       - name: Re-attest runner-private Node after dependency install
         shell: bash
