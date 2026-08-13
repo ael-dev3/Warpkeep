@@ -34,6 +34,12 @@ matches the exact release state. In particular, `THE GREATER REALM OPENS`, the
 castle-allocation description, and notification-gated admission description
 must remain absent until each claim is supported by current evidence.
 
+The Unreleased Changelog descriptions of bounded ambient boats and the
+fail-closed notification implementation intentionally remain in pre-generation
+source: they describe dormant reviewed code and explicitly disclaim live
+activation. Do not duplicate or remove those truthful engineering notes when
+preparing the activation-client release entry.
+
 ## Reapplication gate
 
 Reapplication belongs only in the reviewed activation-client source after all
