@@ -11,12 +11,12 @@ import {
 } from "spacetimedb";
 
 import {
-  ProductionPlayerCanaryAdminEvidenceV1,
+  ProductionPlayerCanaryRuntimeRoutePlanV1,
 } from "./types";
 
 export const params = {
-  fid: __t.u64(),
-  reviewedAdmissionPlanDigest: __t.string(),
   evidenceNonce: __t.string(),
+  reviewedAdmissionPlanDigest: __t.string(),
+  routeSetCommitment: __t.string(),
 };
-export const returnType = ProductionPlayerCanaryAdminEvidenceV1
+export const returnType = ProductionPlayerCanaryRuntimeRoutePlanV1

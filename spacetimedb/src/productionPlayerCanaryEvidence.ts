@@ -8,7 +8,6 @@ import {
   CASTLE_WORKER_GATHER_QUANTUM_MICROS,
   CASTLE_WORKER_TRAVEL_MICROS_PER_STEP,
   CASTLE_WORKERS_PER_CASTLE,
-  assertWorkerCommandKey,
   workerResourceKinds,
   workerResourcePolicy,
 } from './castleWorkerPolicy';
@@ -25,7 +24,7 @@ import {
   resolveGreaterRealmResourceLocationV1,
 } from './greaterRealmResourceLocationAuthority';
 import {
-  greaterRealmWorkerRouteStepsV1,
+  greaterRealmWorkerRouteStepsWithinBoundV1,
 } from './greaterRealmWorkerAuthority';
 import {
   greaterRealmWorkerCapacityDigestV1,
@@ -41,6 +40,15 @@ import {
   productionPlayerCanaryBaselineErrorCode,
   requireProductionPlayerCanaryBaselineRow,
 } from './productionPlayerCanaryBaseline';
+import {
+  requireProductionPlayerCanaryApprovalRegistrationV1,
+  productionPlayerCanaryApprovalErrorCode,
+} from './productionPlayerCanaryApproval';
+import {
+  PRODUCTION_PLAYER_CANARY_MAXIMUM_ROUTE_STEPS,
+  productionPlayerCanaryCommandAuthorityV1,
+  productionPlayerCanaryRoutePolicyErrorCode,
+} from './productionPlayerCanaryRoutePolicy';
 import type warpkeep from './schema';
 import { sha256Hex } from './sha256';
 
@@ -60,8 +68,6 @@ export type ProductionPlayerCanaryAdminEvidenceInput = Readonly<{
   fid: bigint;
   reviewedAdmissionPlanDigest: string;
   evidenceNonce: string;
-  dispatchIdempotencyKeys: readonly string[];
-  recallIdempotencyKeys: readonly string[];
 }>;
 
 export type ProductionPlayerCanaryAdminEvidence = Readonly<{
@@ -72,6 +78,10 @@ export type ProductionPlayerCanaryAdminEvidence = Readonly<{
   admissionProfileDigest: string;
   evidenceDigest: string;
   routeSetCommitment: string;
+  commandSetCommitment: string;
+  ownerApprovalArtifactDigest: string;
+  ownerApprovalCommitment: string;
+  approvalRegistrationCommitment: string;
   requestCycle: bigint;
   requestedAtMicros: bigint;
   baselineCapturedAtMicros: bigint;
@@ -168,24 +178,6 @@ function admissionProfileDigest(profile: Readonly<{
     profileField(profile.pfpUrl),
     profileField(profile.publicBio),
   ])}\n`);
-}
-
-function requireExactKeys(
-  values: readonly string[],
-  code: string,
-): readonly string[] {
-  if (values.length !== CASTLE_WORKERS_PER_CASTLE) fail(code);
-  const seen = new Set<string>();
-  for (const value of values) {
-    try {
-      assertWorkerCommandKey(value);
-    } catch {
-      fail(code);
-    }
-    if (seen.has(value)) fail(code);
-    seen.add(value);
-  }
-  return Object.freeze([...values]);
 }
 
 function exactReceipt(
@@ -285,22 +277,34 @@ export function inspectProductionPlayerCanaryAdminEvidence(
     || !SHA256.test(input.reviewedAdmissionPlanDigest)
     || !SHA256.test(input.evidenceNonce)
   ) fail('PRODUCTION_PLAYER_CANARY_EVIDENCE_INPUT_INVALID');
-  const dispatchKeys = requireExactKeys(
-    input.dispatchIdempotencyKeys,
-    'PRODUCTION_PLAYER_CANARY_DISPATCH_KEYS_INVALID',
-  );
-  const recallKeys = requireExactKeys(
-    input.recallIdempotencyKeys,
-    'PRODUCTION_PLAYER_CANARY_RECALL_KEYS_INVALID',
-  );
-  if (new Set([...dispatchKeys, ...recallKeys]).size !== 8) {
-    fail('PRODUCTION_PLAYER_CANARY_COMMAND_KEYS_OVERLAP');
-  }
   const baselineRow = requireProductionPlayerCanaryBaselineRow(ctx, {
     fid: input.fid,
     reviewedAdmissionPlanDigest: input.reviewedAdmissionPlanDigest,
     evidenceNonce: input.evidenceNonce,
   });
+  const registration = requireProductionPlayerCanaryApprovalRegistrationV1(ctx, {
+    fid: input.fid,
+    reviewedAdmissionPlanDigest: input.reviewedAdmissionPlanDigest,
+    evidenceNonce: input.evidenceNonce,
+  });
+  const commandAuthority = productionPlayerCanaryCommandAuthorityV1({
+    evidenceNonce: input.evidenceNonce,
+    reviewedAdmissionPlanDigest: input.reviewedAdmissionPlanDigest,
+    serverBaselineCommitment: baselineRow.baselineCommitment,
+    routeSetCommitment: baselineRow.routeSetCommitment,
+  });
+  if (
+    registration.routeSetCommitment !== baselineRow.routeSetCommitment
+    || registration.commandKeyPolicyVersion
+      !== commandAuthority.commandKeyPolicyVersion
+    || registration.commandSetCommitment !== commandAuthority.commandSetCommitment
+  ) fail('PRODUCTION_PLAYER_CANARY_APPROVAL_REGISTRATION_INVALID');
+  const dispatchKeys = commandAuthority.commands.map(
+    command => command.dispatchIdempotencyKey,
+  );
+  const recallKeys = commandAuthority.commands.map(
+    command => command.recallIdempotencyKey,
+  );
   const baseline = Object.freeze({
     food: requireU64(
       baselineRow.resourceFood,
@@ -479,6 +483,8 @@ export function inspectProductionPlayerCanaryAdminEvidence(
       || recall.resultRevision !== 3n
       || timestampMicros(recall.createdAt) <= timestampMicros(dispatch.createdAt)
       || baselineObservedAtMicros > timestampMicros(dispatch.createdAt)
+      || timestampMicros(dispatch.createdAt) < registration.approvedAtMicros
+      || timestampMicros(recall.createdAt) >= registration.notAfterMicros
     ) fail('PRODUCTION_PLAYER_CANARY_JOURNEY_INVALID');
 
     const metadata = parseGreaterRealmWorkerDispatchReceiptKindV2(
@@ -521,14 +527,18 @@ export function inspectProductionPlayerCanaryAdminEvidence(
         expectedRevision: metadata.expectedRevision,
       })
     ) fail('PRODUCTION_PLAYER_CANARY_REACHABILITY_INVALID');
-    const routeSteps = greaterRealmWorkerRouteStepsV1(
+    const routeSteps = greaterRealmWorkerRouteStepsWithinBoundV1(
       ctx,
       world.atlas.atlasId,
       location.component.componentKey,
       location.component.rootCellKey,
       origin,
       location.destination,
+      PRODUCTION_PLAYER_CANARY_MAXIMUM_ROUTE_STEPS,
     );
+    if (routeSteps === undefined) {
+      fail('PRODUCTION_PLAYER_CANARY_REACHABILITY_INVALID');
+    }
     const elapsed = timestampMicros(recall.createdAt)
       - timestampMicros(dispatch.createdAt)
       - BigInt(routeSteps) * CASTLE_WORKER_TRAVEL_MICROS_PER_STEP;
@@ -571,6 +581,16 @@ export function inspectProductionPlayerCanaryAdminEvidence(
     resourceKinds.size !== workerResourceKinds().length
     || workerResourceKinds().some(kind => !resourceKinds.has(kind))
   ) fail('PRODUCTION_PLAYER_CANARY_DISTINCT_RESOURCES_REQUIRED');
+  if (
+    dispatchTimestamps.reduce((maximum, value) => value > maximum ? value : maximum)
+      - dispatchTimestamps.reduce((minimum, value) => value < minimum ? value : minimum)
+      > 30_000_000n
+  ) fail('PRODUCTION_PLAYER_CANARY_DISPATCH_BURST_INVALID');
+  if (
+    recallTimestamps.reduce((maximum, value) => value > maximum ? value : maximum)
+      - recallTimestamps.reduce((minimum, value) => value < minimum ? value : minimum)
+      > 30_000_000n
+  ) fail('PRODUCTION_PLAYER_CANARY_RECALL_BURST_INVALID');
 
   const terminalAssignments = boundedRows(
     ctx.db.workerAssignmentV1.byFid.filter(input.fid),
@@ -598,6 +618,7 @@ export function inspectProductionPlayerCanaryAdminEvidence(
   const observedAtMicros = ctx.timestamp.microsSinceUnixEpoch;
   if (
     observedAtMicros < baselineObservedAtMicros
+    || observedAtMicros >= registration.notAfterMicros
     || resource.account.revision <= baseline.revision
   ) fail('PRODUCTION_PLAYER_CANARY_RESOURCE_EVIDENCE_INVALID');
   let baselineProjected;
@@ -657,12 +678,19 @@ export function inspectProductionPlayerCanaryAdminEvidence(
     input.reviewedAdmissionPlanDigest,
     ...routeApprovalMaterial,
   ])}\n`);
+  if (routeSetCommitment !== registration.routeSetCommitment) {
+    fail('PRODUCTION_PLAYER_CANARY_ROUTE_APPROVAL_MISMATCH');
+  }
   const evidenceDigest = sha256Hex(`${framed([
     'warpkeep.production-player-canary.admin-evidence.v1',
     challengeDigest,
     input.reviewedAdmissionPlanDigest,
     baselineRow.baselineCommitment,
     routeSetCommitment,
+    registration.commandSetCommitment,
+    registration.ownerApprovalArtifactDigest,
+    registration.ownerApprovalCommitment,
+    registration.approvalRegistrationCommitment,
     input.fid,
     request.requestCycle,
     timestampMicros(request.requestedAt),
@@ -706,6 +734,10 @@ export function inspectProductionPlayerCanaryAdminEvidence(
     admissionProfileDigest: currentAdmissionProfileDigest,
     evidenceDigest,
     routeSetCommitment,
+    commandSetCommitment: registration.commandSetCommitment,
+    ownerApprovalArtifactDigest: registration.ownerApprovalArtifactDigest,
+    ownerApprovalCommitment: registration.ownerApprovalCommitment,
+    approvalRegistrationCommitment: registration.approvalRegistrationCommitment,
     requestCycle: request.requestCycle,
     requestedAtMicros: timestampMicros(request.requestedAt),
     baselineCapturedAtMicros: baselineObservedAtMicros,
@@ -740,6 +772,8 @@ export function productionPlayerCanaryEvidenceErrorCode(
   error: unknown,
 ): string | undefined {
   return productionPlayerCanaryBaselineErrorCode(error)
+    ?? productionPlayerCanaryApprovalErrorCode(error)
+    ?? productionPlayerCanaryRoutePolicyErrorCode(error)
     ?? (error instanceof ProductionPlayerCanaryEvidenceError
     ? error.code
     : undefined);

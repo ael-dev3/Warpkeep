@@ -23,6 +23,9 @@ import {
   productionPlayerCanaryBaselineChallengeDigest,
   productionPlayerCanaryBaselineReconciliationTestSeams,
 } from '../scripts/production-player-canary-baseline-reconciliation.mjs';
+import {
+  deriveProductionPlayerCanaryCommandAuthorityV1,
+} from '../scripts/production-player-canary-command-authority.mjs';
 
 const NONCE = 'a'.repeat(64);
 const PLAN = 'b'.repeat(64);
@@ -44,6 +47,17 @@ function approval(routeSteps = 4, lifetimeSeconds = 1_260) {
     routeSteps,
     nodeCount: 8,
   }));
+  const routeSetCommitment = productionPlayerCanaryRouteSetCommitment({
+    evidenceNonce: NONCE,
+    reviewedAdmissionPlanDigest: PLAN,
+    routes,
+  });
+  const commandAuthority = deriveProductionPlayerCanaryCommandAuthorityV1({
+    evidenceNonce: NONCE,
+    reviewedAdmissionPlanDigest: PLAN,
+    serverBaselineCommitment: '9'.repeat(64),
+    routeSetCommitment,
+  });
   return {
     schemaVersion: 1,
     kind: 'warpkeep-production-player-canary-owner-approval-v1',
@@ -61,12 +75,10 @@ function approval(routeSteps = 4, lifetimeSeconds = 1_260) {
     maximumGatheringSeconds: 120,
     maximumRouteSteps: routeSteps,
     serverBaselineCommitment: '9'.repeat(64),
+    routeSetCommitment,
+    commandKeyPolicyVersion: commandAuthority.commandKeyPolicyVersion,
+    commandSetCommitment: commandAuthority.commandSetCommitment,
     routes,
-    commands: routes.map(({ ordinal }) => ({
-      ordinal,
-      dispatchIdempotencyKey: `canary-dispatch-${ordinal.toString().padStart(2, '0')}`,
-      recallIdempotencyKey: `canary-recall-${ordinal.toString().padStart(4, '0')}`,
-    })),
   };
 }
 
@@ -88,6 +100,7 @@ function baselineReconciliation(value = approval()) {
     challengeDigest: productionPlayerCanaryBaselineChallengeDigest(value.evidenceNonce),
     reviewedAdmissionPlanDigest: value.reviewedAdmissionPlanDigest,
     serverBaselineCommitment: value.serverBaselineCommitment,
+    routeSetCommitment: value.routeSetCommitment,
     capturedAtMicros: BigInt(APPROVED_AT.getTime() - 1_000) * 1_000n,
     baselineCaptured: true,
     directTierOneFounder: true,
@@ -279,7 +292,16 @@ describe('production player canary owner approval', () => {
     })).toThrow('PRODUCTION_PLAYER_CANARY_OWNER_APPROVAL_BASELINE_RECONCILIATION_REQUIRED');
     expect(() => writeProductionPlayerCanaryOwnerApproval({
       directory,
-      approval: { ...value, serverBaselineCommitment: '8'.repeat(64) },
+      approval: {
+        ...value,
+        serverBaselineCommitment: '8'.repeat(64),
+        commandSetCommitment: deriveProductionPlayerCanaryCommandAuthorityV1({
+          evidenceNonce: value.evidenceNonce,
+          reviewedAdmissionPlanDigest: value.reviewedAdmissionPlanDigest,
+          serverBaselineCommitment: '8'.repeat(64),
+          routeSetCommitment: value.routeSetCommitment,
+        }).commandSetCommitment,
+      },
       baselineReconciliation: baselineReconciliation(value),
     })).toThrow('PRODUCTION_PLAYER_CANARY_OWNER_APPROVAL_BASELINE_RECONCILIATION_REQUIRED');
     expect(readdirSync(directory)).toEqual([]);

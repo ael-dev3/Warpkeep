@@ -14,6 +14,7 @@ export type ProductionPlayerCanaryBaselineReconciliationStatus = Readonly<{
   challengeDigest: string;
   reviewedAdmissionPlanDigest: string;
   serverBaselineCommitment: string;
+  routeSetCommitment: string;
   capturedAtMicros: bigint;
   baselineCaptured: boolean;
   directTierOneFounder: boolean;
@@ -32,6 +33,7 @@ export type ProductionPlayerCanaryBaselineReconciliation = Readonly<{
   challengeDigest: string;
   reviewedAdmissionPlanDigest: string;
   serverBaselineCommitment: string;
+  routeSetCommitment: string;
   capturedAtMicros: bigint;
   status: ProductionPlayerCanaryBaselineReconciliationStatus;
 }>;

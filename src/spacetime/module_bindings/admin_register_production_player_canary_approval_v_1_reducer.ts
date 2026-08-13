@@ -10,13 +10,16 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-import {
-  ProductionPlayerCanaryAdminEvidenceV1,
-} from "./types";
-
-export const params = {
+export default {
   fid: __t.u64(),
   reviewedAdmissionPlanDigest: __t.string(),
   evidenceNonce: __t.string(),
+  serverBaselineCommitment: __t.string(),
+  routeSetCommitment: __t.string(),
+  commandKeyPolicyVersion: __t.string(),
+  commandSetCommitment: __t.string(),
+  ownerApprovalArtifactDigest: __t.string(),
+  ownerApprovalCommitment: __t.string(),
+  approvedAtMicros: __t.u64(),
+  notAfterMicros: __t.u64(),
 };
-export const returnType = ProductionPlayerCanaryAdminEvidenceV1

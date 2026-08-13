@@ -13,6 +13,7 @@ import {
 
 const NONCE = 'a'.repeat(64);
 const PLAN = 'b'.repeat(64);
+const ROUTE = 'c'.repeat(64);
 
 function pristineMaterial(overrides: Record<string, unknown> = {}) {
   const castleId = 71n;
@@ -21,6 +22,7 @@ function pristineMaterial(overrides: Record<string, unknown> = {}) {
     reviewedAdmissionPlanDigest: PLAN,
     evidenceNonce: NONCE,
     challengeDigest: productionPlayerCanaryChallengeDigest(NONCE),
+    routeSetCommitment: ROUTE,
     castleId,
     atlasId: 'GENESIS_001_GREATER_REALM',
     atlasRevision: 7n,
@@ -63,6 +65,7 @@ function immutableRow() {
     fid: material.fid,
     reviewedAdmissionPlanDigest: material.reviewedAdmissionPlanDigest,
     baselineCommitment: commitments.serverBaselineCommitment,
+    routeSetCommitment: material.routeSetCommitment,
     castleId: material.castleId,
     atlasId: material.atlasId,
     atlasRevision: material.atlasRevision,
@@ -176,6 +179,7 @@ test('readback represents definite absence without manufacturing baseline author
     challengeDigest: productionPlayerCanaryChallengeDigest(NONCE),
     reviewedAdmissionPlanDigest: PLAN,
     serverBaselineCommitment: '',
+    routeSetCommitment: '',
     capturedAtMicros: 0n,
     baselineCaptured: false,
     directTierOneFounder: false,

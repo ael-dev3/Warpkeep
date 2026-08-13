@@ -11,7 +11,7 @@ import {
 } from "spacetimedb";
 
 import {
-  ProductionPlayerCanaryAdminEvidenceV1,
+  ProductionPlayerCanaryApprovalRegistrationStatusV1,
 } from "./types";
 
 export const params = {
@@ -19,4 +19,4 @@ export const params = {
   reviewedAdmissionPlanDigest: __t.string(),
   evidenceNonce: __t.string(),
 };
-export const returnType = ProductionPlayerCanaryAdminEvidenceV1
+export const returnType = ProductionPlayerCanaryApprovalRegistrationStatusV1

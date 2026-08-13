@@ -68,6 +68,7 @@ import AdminImportGreaterRealmComponentsV1Reducer from "./admin_import_greater_r
 import AdminImportGreaterRealmRegionsV1Reducer from "./admin_import_greater_realm_regions_v_1_reducer";
 import AdminPlanGreaterRealmRelocationV1Reducer from "./admin_plan_greater_realm_relocation_v_1_reducer";
 import AdminPrepareGreaterRealmActivationV1Reducer from "./admin_prepare_greater_realm_activation_v_1_reducer";
+import AdminRegisterProductionPlayerCanaryApprovalV1Reducer from "./admin_register_production_player_canary_approval_v_1_reducer";
 import AdminRelocateGreaterRealmCanaryV1Reducer from "./admin_relocate_greater_realm_canary_v_1_reducer";
 import AdminRepairMissingWorkerReturnScheduleV1Reducer from "./admin_repair_missing_worker_return_schedule_v_1_reducer";
 import AdminResetAccessRequestV1Reducer from "./admin_reset_access_request_v_1_reducer";
@@ -127,6 +128,7 @@ import * as AdminGetGreaterRealmImportPlanV1Procedure from "./admin_get_greater_
 import * as AdminGetGreaterRealmReenableStatusV1Procedure from "./admin_get_greater_realm_reenable_status_v_1_procedure";
 import * as AdminGetGreaterRealmStatusV1Procedure from "./admin_get_greater_realm_status_v_1_procedure";
 import * as AdminGetInnerKeepStatusV1Procedure from "./admin_get_inner_keep_status_v_1_procedure";
+import * as AdminGetProductionPlayerCanaryApprovalV1Procedure from "./admin_get_production_player_canary_approval_v_1_procedure";
 import * as AdminGetProductionPlayerCanaryBaselineV1Procedure from "./admin_get_production_player_canary_baseline_v_1_procedure";
 import * as AdminGetProductionPlayerCanaryEvidenceV1Procedure from "./admin_get_production_player_canary_evidence_v_1_procedure";
 import * as AdminGetRealmChatReportContextV1Procedure from "./admin_get_realm_chat_report_context_v_1_procedure";
@@ -139,6 +141,7 @@ import * as AdminListAccessRequestsV1Procedure from "./admin_list_access_request
 import * as AdminListRealmChatReportsV1Procedure from "./admin_list_realm_chat_reports_v_1_procedure";
 import * as AdminPlanInnerKeepBuildersV1Procedure from "./admin_plan_inner_keep_builders_v_1_procedure";
 import * as AdminPlanInnerKeepCatalogV1Procedure from "./admin_plan_inner_keep_catalog_v_1_procedure";
+import * as AdminPlanProductionPlayerCanaryRoutesV1Procedure from "./admin_plan_production_player_canary_routes_v_1_procedure";
 import * as AdminPlanWorkerRosterV1Procedure from "./admin_plan_worker_roster_v_1_procedure";
 import * as AuthResolverGetFidAdmissionV2Procedure from "./auth_resolver_get_fid_admission_v_2_procedure";
 import * as GetAlphaBackendInfoProcedure from "./get_alpha_backend_info_procedure";
@@ -156,6 +159,7 @@ import * as GetMyWoodExpeditionStateV1Procedure from "./get_my_wood_expedition_s
 import * as GetMyWorkerControlStateV1Procedure from "./get_my_worker_control_state_v_1_procedure";
 import * as GetMyWorkerControlStateV2Procedure from "./get_my_worker_control_state_v_2_procedure";
 import * as GetMyWorkerRosterV1Procedure from "./get_my_worker_roster_v_1_procedure";
+import * as GetProductionPlayerCanaryRuntimeV1Procedure from "./get_production_player_canary_runtime_v_1_procedure";
 import * as GetRealmAtlasBootstrapV1Procedure from "./get_realm_atlas_bootstrap_v_1_procedure";
 import * as GetRealmAtlasChunkV1Procedure from "./get_realm_atlas_chunk_v_1_procedure";
 import * as GetRealmAtlasResourceLocationsV1Procedure from "./get_realm_atlas_resource_locations_v_1_procedure";
@@ -814,6 +818,7 @@ const reducersSchema = __reducers(
   __reducerSchema("admin_import_greater_realm_regions_v1", AdminImportGreaterRealmRegionsV1Reducer),
   __reducerSchema("admin_plan_greater_realm_relocation_v1", AdminPlanGreaterRealmRelocationV1Reducer),
   __reducerSchema("admin_prepare_greater_realm_activation_v1", AdminPrepareGreaterRealmActivationV1Reducer),
+  __reducerSchema("admin_register_production_player_canary_approval_v1", AdminRegisterProductionPlayerCanaryApprovalV1Reducer),
   __reducerSchema("admin_relocate_greater_realm_canary_v1", AdminRelocateGreaterRealmCanaryV1Reducer),
   __reducerSchema("admin_repair_missing_worker_return_schedule_v1", AdminRepairMissingWorkerReturnScheduleV1Reducer),
   __reducerSchema("admin_reset_access_request_v1", AdminResetAccessRequestV1Reducer),
@@ -875,6 +880,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("admin_get_greater_realm_reenable_status_v_1", AdminGetGreaterRealmReenableStatusV1Procedure.params, AdminGetGreaterRealmReenableStatusV1Procedure.returnType),
   __procedureSchema("admin_get_greater_realm_status_v1", AdminGetGreaterRealmStatusV1Procedure.params, AdminGetGreaterRealmStatusV1Procedure.returnType),
   __procedureSchema("admin_get_inner_keep_status_v1", AdminGetInnerKeepStatusV1Procedure.params, AdminGetInnerKeepStatusV1Procedure.returnType),
+  __procedureSchema("admin_get_production_player_canary_approval_v1", AdminGetProductionPlayerCanaryApprovalV1Procedure.params, AdminGetProductionPlayerCanaryApprovalV1Procedure.returnType),
   __procedureSchema("admin_get_production_player_canary_baseline_v1", AdminGetProductionPlayerCanaryBaselineV1Procedure.params, AdminGetProductionPlayerCanaryBaselineV1Procedure.returnType),
   __procedureSchema("admin_get_production_player_canary_evidence_v1", AdminGetProductionPlayerCanaryEvidenceV1Procedure.params, AdminGetProductionPlayerCanaryEvidenceV1Procedure.returnType),
   __procedureSchema("admin_get_realm_chat_report_context_v_1", AdminGetRealmChatReportContextV1Procedure.params, AdminGetRealmChatReportContextV1Procedure.returnType),
@@ -887,6 +893,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("admin_list_realm_chat_reports_v_1", AdminListRealmChatReportsV1Procedure.params, AdminListRealmChatReportsV1Procedure.returnType),
   __procedureSchema("admin_plan_inner_keep_builders_v1", AdminPlanInnerKeepBuildersV1Procedure.params, AdminPlanInnerKeepBuildersV1Procedure.returnType),
   __procedureSchema("admin_plan_inner_keep_catalog_v1", AdminPlanInnerKeepCatalogV1Procedure.params, AdminPlanInnerKeepCatalogV1Procedure.returnType),
+  __procedureSchema("admin_plan_production_player_canary_routes_v1", AdminPlanProductionPlayerCanaryRoutesV1Procedure.params, AdminPlanProductionPlayerCanaryRoutesV1Procedure.returnType),
   __procedureSchema("admin_plan_worker_roster_v1", AdminPlanWorkerRosterV1Procedure.params, AdminPlanWorkerRosterV1Procedure.returnType),
   __procedureSchema("auth_resolver_get_fid_admission_v2", AuthResolverGetFidAdmissionV2Procedure.params, AuthResolverGetFidAdmissionV2Procedure.returnType),
   __procedureSchema("get_alpha_backend_info", GetAlphaBackendInfoProcedure.params, GetAlphaBackendInfoProcedure.returnType),
@@ -904,6 +911,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("get_my_worker_control_state_v1", GetMyWorkerControlStateV1Procedure.params, GetMyWorkerControlStateV1Procedure.returnType),
   __procedureSchema("get_my_worker_control_state_v2", GetMyWorkerControlStateV2Procedure.params, GetMyWorkerControlStateV2Procedure.returnType),
   __procedureSchema("get_my_worker_roster_v1", GetMyWorkerRosterV1Procedure.params, GetMyWorkerRosterV1Procedure.returnType),
+  __procedureSchema("get_production_player_canary_runtime_v1", GetProductionPlayerCanaryRuntimeV1Procedure.params, GetProductionPlayerCanaryRuntimeV1Procedure.returnType),
   __procedureSchema("get_realm_atlas_bootstrap_v1", GetRealmAtlasBootstrapV1Procedure.params, GetRealmAtlasBootstrapV1Procedure.returnType),
   __procedureSchema("get_realm_atlas_chunk_v1", GetRealmAtlasChunkV1Procedure.params, GetRealmAtlasChunkV1Procedure.returnType),
   __procedureSchema("get_realm_atlas_resource_locations_v1", GetRealmAtlasResourceLocationsV1Procedure.params, GetRealmAtlasResourceLocationsV1Procedure.returnType),

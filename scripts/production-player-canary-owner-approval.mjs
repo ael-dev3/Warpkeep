@@ -19,6 +19,10 @@ import { assertProductionAdminTrustedAncestors } from './production-admin-token-
 import {
   requireProductionPlayerCanaryBaselineReconciliationForApproval,
 } from './production-player-canary-baseline-reconciliation.mjs';
+import {
+  PRODUCTION_PLAYER_CANARY_COMMAND_KEY_POLICY_VERSION,
+  deriveProductionPlayerCanaryCommandAuthorityV1,
+} from './production-player-canary-command-authority.mjs';
 
 export const PRODUCTION_PLAYER_CANARY_OWNER_APPROVAL_KIND =
   'warpkeep-production-player-canary-owner-approval-v1';
@@ -29,7 +33,6 @@ const ID = /^[0-9a-f]{32}$/u;
 const DECIMAL_U64 = /^(?:0|[1-9][0-9]{0,19})$/u;
 const WORKER_ID = /^genesis-001-castle-[0-9]+-worker-0[1-4]$/u;
 const LOCATION_ID = /^GRL-[A-Z2-7]{26}$/u;
-const COMMAND_KEY = /^[a-z0-9][a-z0-9-]{15,79}$/u;
 const ISO_INSTANT = /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$/u;
 const FILENAME = /^production-player-canary-owner-approval-([0-9a-f]{32})\.json$/u;
 const MAXIMUM_BYTES = 32 * 1_024;
@@ -37,6 +40,7 @@ const MAXIMUM_APPROVAL_LIFETIME_MS = 7 * 24 * 60 * 60 * 1_000;
 const OPERATOR_MARGIN_SECONDS = 15 * 60;
 const U64_MAX = 0xffff_ffff_ffff_ffffn;
 const RESOURCE_KINDS = Object.freeze(['food', 'wood', 'stone', 'gold']);
+const MAXIMUM_ROUTE_STEPS = 12;
 
 const APPROVAL_KEYS = Object.freeze([
   'schemaVersion', 'kind', 'approvalId', 'evidenceNonce',
@@ -44,14 +48,12 @@ const APPROVAL_KEYS = Object.freeze([
   'predecessorLiveReceiptDigest', 'predecessorLiveRootReceiptDigest',
   'predecessorLiveRootPagesSourceCommit', 'approvedAt', 'notAfter',
   'minimumGatheringSeconds', 'maximumGatheringSeconds', 'maximumRouteSteps',
-  'serverBaselineCommitment', 'routes', 'commands',
+  'serverBaselineCommitment', 'routeSetCommitment',
+  'commandKeyPolicyVersion', 'commandSetCommitment', 'routes',
 ]);
 const ROUTE_KEYS = Object.freeze([
   'ordinal', 'workerId', 'resourceKind', 'locationId',
   'atlasRevision', 'routeSteps', 'nodeCount',
-]);
-const COMMAND_KEYS = Object.freeze([
-  'ordinal', 'dispatchIdempotencyKey', 'recallIdempotencyKey',
 ]);
 
 export class ProductionPlayerCanaryOwnerApprovalError extends Error {
@@ -114,8 +116,10 @@ function canonicalApproval(value) {
     maximumGatheringSeconds: value.maximumGatheringSeconds,
     maximumRouteSteps: value.maximumRouteSteps,
     serverBaselineCommitment: value.serverBaselineCommitment,
+    routeSetCommitment: value.routeSetCommitment,
+    commandKeyPolicyVersion: value.commandKeyPolicyVersion,
+    commandSetCommitment: value.commandSetCommitment,
     routes: value.routes.map(route => ({ ...route })),
-    commands: value.commands.map(command => ({ ...command })),
   };
 }
 
@@ -153,17 +157,12 @@ export function parseProductionPlayerCanaryOwnerApproval(value) {
     APPROVAL_KEYS,
     'PRODUCTION_PLAYER_CANARY_OWNER_APPROVAL_INVALID',
   );
-  if (!Array.isArray(approval.routes) || !Array.isArray(approval.commands)) {
+  if (!Array.isArray(approval.routes)) {
     fail('PRODUCTION_PLAYER_CANARY_OWNER_APPROVAL_INVALID');
   }
   const routes = approval.routes.map(route => exactKeys(
     route,
     ROUTE_KEYS,
-    'PRODUCTION_PLAYER_CANARY_OWNER_APPROVAL_INVALID',
-  ));
-  const commands = approval.commands.map(command => exactKeys(
-    command,
-    COMMAND_KEYS,
     'PRODUCTION_PLAYER_CANARY_OWNER_APPROVAL_INVALID',
   ));
   const approvedAtMs = exactInstant(approval.approvedAt)
@@ -179,6 +178,12 @@ export function parseProductionPlayerCanaryOwnerApproval(value) {
       || !SHA256.test(approval.reviewedAdmissionPlanDigest)
     || typeof approval.serverBaselineCommitment !== 'string'
       || !SHA256.test(approval.serverBaselineCommitment)
+    || typeof approval.routeSetCommitment !== 'string'
+      || !SHA256.test(approval.routeSetCommitment)
+    || approval.commandKeyPolicyVersion
+      !== PRODUCTION_PLAYER_CANARY_COMMAND_KEY_POLICY_VERSION
+    || typeof approval.commandSetCommitment !== 'string'
+      || !SHA256.test(approval.commandSetCommitment)
     || typeof approval.protectedCommit !== 'string' || !COMMIT.test(approval.protectedCommit)
     || typeof approval.protectedTree !== 'string' || !COMMIT.test(approval.protectedTree)
     || typeof approval.predecessorLiveReceiptDigest !== 'string'
@@ -193,35 +198,29 @@ export function parseProductionPlayerCanaryOwnerApproval(value) {
     || approval.minimumGatheringSeconds !== 60
     || approval.maximumGatheringSeconds !== 120
     || !Number.isSafeInteger(approval.maximumRouteSteps)
-    || approval.maximumRouteSteps < 1 || approval.maximumRouteSteps > 8_192
-    || routes.length !== 4 || commands.length !== 4
+    || approval.maximumRouteSteps < 1
+    || approval.maximumRouteSteps > MAXIMUM_ROUTE_STEPS
+    || routes.length !== 4
     || new Set(routes.map(route => route.workerId)).size !== 4
     || new Set(routes.map(route => route.locationId)).size !== 4
     || new Set(routes.map(route => route.resourceKind)).size !== 4
-    || new Set(commands.flatMap(command => [
-      command.dispatchIdempotencyKey,
-      command.recallIdempotencyKey,
-    ])).size !== 8
   ) fail('PRODUCTION_PLAYER_CANARY_OWNER_APPROVAL_INVALID');
+  let commonRouteSteps;
   for (let index = 0; index < 4; index += 1) {
     const ordinal = index + 1;
     const route = routes[index];
-    const command = commands[index];
     if (
       route.ordinal !== ordinal
-      || command.ordinal !== ordinal
       || !WORKER_ID.test(route.workerId)
-      || !RESOURCE_KINDS.includes(route.resourceKind)
+      || route.resourceKind !== RESOURCE_KINDS[index]
       || !LOCATION_ID.test(route.locationId)
       || u64(route.atlasRevision, 'PRODUCTION_PLAYER_CANARY_OWNER_APPROVAL_INVALID') === '0'
       || !Number.isSafeInteger(route.routeSteps) || route.routeSteps < 1
       || route.routeSteps > approval.maximumRouteSteps
       || !Number.isSafeInteger(route.nodeCount) || route.nodeCount < 1 || route.nodeCount > 32
-      || typeof command.dispatchIdempotencyKey !== 'string'
-      || !COMMAND_KEY.test(command.dispatchIdempotencyKey)
-      || typeof command.recallIdempotencyKey !== 'string'
-      || !COMMAND_KEY.test(command.recallIdempotencyKey)
+      || (commonRouteSteps !== undefined && route.routeSteps !== commonRouteSteps)
     ) fail('PRODUCTION_PLAYER_CANARY_OWNER_APPROVAL_INVALID');
+    commonRouteSteps = route.routeSteps;
   }
   const requiredLifetimeSeconds = 2 * Math.max(...routes.map(route => route.routeSteps)) * 30
     + approval.maximumGatheringSeconds
@@ -229,11 +228,22 @@ export function parseProductionPlayerCanaryOwnerApproval(value) {
   if (notAfterMs - approvedAtMs < requiredLifetimeSeconds * 1_000) {
     fail('PRODUCTION_PLAYER_CANARY_OWNER_APPROVAL_CUTOFF_TOO_SHORT');
   }
-  return Object.freeze(canonicalApproval({
-    ...approval,
+  const routeSetCommitment = productionPlayerCanaryRouteSetCommitment({
+    evidenceNonce: approval.evidenceNonce,
+    reviewedAdmissionPlanDigest: approval.reviewedAdmissionPlanDigest,
     routes,
-    commands,
-  }));
+  });
+  const commandAuthority = deriveProductionPlayerCanaryCommandAuthorityV1({
+    evidenceNonce: approval.evidenceNonce,
+    reviewedAdmissionPlanDigest: approval.reviewedAdmissionPlanDigest,
+    serverBaselineCommitment: approval.serverBaselineCommitment,
+    routeSetCommitment,
+  });
+  if (
+    approval.routeSetCommitment !== routeSetCommitment
+    || approval.commandSetCommitment !== commandAuthority.commandSetCommitment
+  ) fail('PRODUCTION_PLAYER_CANARY_OWNER_APPROVAL_INVALID');
+  return Object.freeze(canonicalApproval({ ...approval, routes }));
 }
 
 function exactDirectory(directory) {
@@ -462,7 +472,7 @@ export function inspectProductionPlayerCanaryOwnerApproval(input) {
     if (
       !Number.isSafeInteger(nowMs)
       || nowMs < Date.parse(approval.approvedAt)
-      || nowMs > Date.parse(approval.notAfter)
+      || nowMs >= Date.parse(approval.notAfter)
     ) fail('PRODUCTION_PLAYER_CANARY_OWNER_APPROVAL_EXPIRED');
     const routeSetCommitment = productionPlayerCanaryRouteSetCommitment(approval);
     const approvalCommitment = createHash('sha256').update(`${framed([
@@ -477,6 +487,7 @@ export function inspectProductionPlayerCanaryOwnerApproval(input) {
       artifactDigest: reference.sha256,
       approvalCommitment,
       routeSetCommitment,
+      commandSetCommitment: approval.commandSetCommitment,
     });
   } finally {
     bytes.fill(0);

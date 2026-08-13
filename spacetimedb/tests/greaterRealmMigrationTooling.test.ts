@@ -61,6 +61,7 @@ test('v17 is the exact frozen prefix before the private canary suffix', () => {
   assert.deepEqual(candidateTables.slice(0, v17Tables.length), v17Tables);
   assert.deepEqual(candidateTables.slice(v17Tables.length), [
     'productionPlayerCanaryBaselineV1',
+    'productionPlayerCanaryApprovalRegistrationV1',
   ]);
 });
 

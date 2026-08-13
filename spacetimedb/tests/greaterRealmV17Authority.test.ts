@@ -81,12 +81,15 @@ test('v17 remains refs 72-83 before the private canary suffix', () => {
   const fixtureTables = registrations(v17, 'const db = schema({');
 
   assert.equal(v16Tables.length, 72);
-  assert.equal(currentTables.length, 85);
+  assert.equal(currentTables.length, 86);
   assert.equal(fixtureTables.length, 84);
   assert.deepEqual(currentTables.slice(0, 72), v16Tables);
   assert.deepEqual(fixtureTables.slice(0, 72), v16Tables);
   assert.deepEqual(currentTables.slice(72, 84), greaterRealmSuffix);
-  assert.deepEqual(currentTables.slice(84), ['productionPlayerCanaryBaselineV1']);
+  assert.deepEqual(currentTables.slice(84), [
+    'productionPlayerCanaryBaselineV1',
+    'productionPlayerCanaryApprovalRegistrationV1',
+  ]);
   assert.deepEqual(fixtureTables.slice(72), greaterRealmSuffix);
   const sentinel = section(v17, 'export const fixtureSeedGreaterRealmSentinelV17');
   for (const tableName of greaterRealmSuffix) {

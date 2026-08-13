@@ -1807,6 +1807,10 @@ export const ProductionPlayerCanaryAdminEvidenceV1 = __t.object("ProductionPlaye
   admissionProfileDigest: __t.string(),
   evidenceDigest: __t.string(),
   routeSetCommitment: __t.string(),
+  commandSetCommitment: __t.string(),
+  ownerApprovalArtifactDigest: __t.string(),
+  ownerApprovalCommitment: __t.string(),
+  approvalRegistrationCommitment: __t.string(),
   requestCycle: __t.u64(),
   requestedAtMicros: __t.u64(),
   baselineCapturedAtMicros: __t.u64(),
@@ -1837,11 +1841,50 @@ export const ProductionPlayerCanaryAdminEvidenceV1 = __t.object("ProductionPlaye
 });
 export type ProductionPlayerCanaryAdminEvidenceV1 = __Infer<typeof ProductionPlayerCanaryAdminEvidenceV1>;
 
+export const ProductionPlayerCanaryApprovalRegistrationStatusV1 = __t.object("ProductionPlayerCanaryApprovalRegistrationStatusV1", {
+  profile: __t.string(),
+  challengeDigest: __t.string(),
+  reviewedAdmissionPlanDigest: __t.string(),
+  serverBaselineCommitment: __t.string(),
+  routeSetCommitment: __t.string(),
+  commandKeyPolicyVersion: __t.string(),
+  commandSetCommitment: __t.string(),
+  ownerApprovalArtifactDigest: __t.string(),
+  ownerApprovalCommitment: __t.string(),
+  approvalRegistrationCommitment: __t.string(),
+  approvedAtMicros: __t.u64(),
+  notAfterMicros: __t.u64(),
+  registeredAtMicros: __t.u64(),
+  approvalRegistered: __t.bool(),
+  routePlanBound: __t.bool(),
+  commandSetBound: __t.bool(),
+  ownerApprovalBound: __t.bool(),
+});
+export type ProductionPlayerCanaryApprovalRegistrationStatusV1 = __Infer<typeof ProductionPlayerCanaryApprovalRegistrationStatusV1>;
+
+export const ProductionPlayerCanaryApprovalRegistrationV1 = __t.object("ProductionPlayerCanaryApprovalRegistrationV1", {
+  challengeDigest: __t.string(),
+  fid: __t.u64(),
+  reviewedAdmissionPlanDigest: __t.string(),
+  serverBaselineCommitment: __t.string(),
+  routeSetCommitment: __t.string(),
+  commandKeyPolicyVersion: __t.string(),
+  commandSetCommitment: __t.string(),
+  ownerApprovalArtifactDigest: __t.string(),
+  ownerApprovalCommitment: __t.string(),
+  approvalRegistrationCommitment: __t.string(),
+  approvedAtMicros: __t.u64(),
+  notAfterMicros: __t.u64(),
+  registeredAt: __t.timestamp(),
+});
+export type ProductionPlayerCanaryApprovalRegistrationV1 = __Infer<typeof ProductionPlayerCanaryApprovalRegistrationV1>;
+
 export const ProductionPlayerCanaryBaselineStatusV1 = __t.object("ProductionPlayerCanaryBaselineStatusV1", {
   profile: __t.string(),
   challengeDigest: __t.string(),
   reviewedAdmissionPlanDigest: __t.string(),
   serverBaselineCommitment: __t.string(),
+  routeSetCommitment: __t.string(),
   capturedAtMicros: __t.u64(),
   baselineCaptured: __t.bool(),
   directTierOneFounder: __t.bool(),
@@ -1857,6 +1900,7 @@ export const ProductionPlayerCanaryBaselineV1 = __t.object("ProductionPlayerCana
   fid: __t.u64(),
   reviewedAdmissionPlanDigest: __t.string(),
   baselineCommitment: __t.string(),
+  routeSetCommitment: __t.string(),
   castleId: __t.u64(),
   atlasId: __t.string(),
   atlasRevision: __t.u64(),
@@ -1872,6 +1916,46 @@ export const ProductionPlayerCanaryBaselineV1 = __t.object("ProductionPlayerCana
   pristineRosterCommitment: __t.string(),
 });
 export type ProductionPlayerCanaryBaselineV1 = __Infer<typeof ProductionPlayerCanaryBaselineV1>;
+
+export const ProductionPlayerCanaryRoutePlanV1 = __t.object("ProductionPlayerCanaryRoutePlanV1", {
+  profile: __t.string(),
+  challengeDigest: __t.string(),
+  reviewedAdmissionPlanDigest: __t.string(),
+  serverBaselineCommitment: __t.string(),
+  routeSetCommitment: __t.string(),
+  atlasRevision: __t.u64(),
+  equalRouteSteps: __t.u32(),
+  get routes() {
+    return __t.array(ProductionPlayerCanaryRouteV1);
+  },
+});
+export type ProductionPlayerCanaryRoutePlanV1 = __Infer<typeof ProductionPlayerCanaryRoutePlanV1>;
+
+export const ProductionPlayerCanaryRouteV1 = __t.object("ProductionPlayerCanaryRouteV1", {
+  ordinal: __t.u32(),
+  workerId: __t.string(),
+  resourceKind: __t.string(),
+  locationId: __t.string(),
+  atlasRevision: __t.u64(),
+  routeSteps: __t.u32(),
+  nodeCount: __t.u32(),
+});
+export type ProductionPlayerCanaryRouteV1 = __Infer<typeof ProductionPlayerCanaryRouteV1>;
+
+export const ProductionPlayerCanaryRuntimeRoutePlanV1 = __t.object("ProductionPlayerCanaryRuntimeRoutePlanV1", {
+  profile: __t.string(),
+  reviewedAdmissionPlanDigest: __t.string(),
+  serverBaselineCommitment: __t.string(),
+  routeSetCommitment: __t.string(),
+  commandKeyPolicyVersion: __t.string(),
+  commandSetCommitment: __t.string(),
+  atlasRevision: __t.u64(),
+  equalRouteSteps: __t.u32(),
+  get routes() {
+    return __t.array(ProductionPlayerCanaryRouteV1);
+  },
+});
+export type ProductionPlayerCanaryRuntimeRoutePlanV1 = __Infer<typeof ProductionPlayerCanaryRuntimeRoutePlanV1>;
 
 export const QaObserverCastleV1 = __t.object("QaObserverCastleV1", {
   castleId: __t.u64(),

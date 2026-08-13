@@ -26,6 +26,7 @@ export declare function inspectProductionPlayerCanaryOwnerApproval(input: Readon
   artifactDigest: string;
   approvalCommitment: string;
   routeSetCommitment: string;
+  commandSetCommitment: string;
 }>;
 export declare const productionPlayerCanaryOwnerApprovalTestSeams: Readonly<{
   sameFile: (

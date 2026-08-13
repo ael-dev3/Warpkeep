@@ -273,6 +273,76 @@ export function greaterRealmWorkerRouteStepsV1(
   return routeSteps;
 }
 
+type BoundedRouteCell = Pick<
+  CellRow,
+  | 'cellKey' | 'atlasId' | 'componentKey' | 'tier' | 'passable'
+  | 'routeDepth' | 'routeParentDirection' | 'sealedBoundaryMask'
+  | 'atlasQ' | 'atlasR'
+>;
+
+/**
+ * Exact parent-tree distance with work bounded by `maximumSteps`. Unlike the
+ * general route projection this never walks either branch to a potentially
+ * 4,096-deep root before rejecting a short canary route.
+ */
+export function greaterRealmWorkerRouteStepsWithinBoundV1(
+  ctx: Pick<WarpkeepReducerContext, 'db'>,
+  atlasId: string,
+  componentKey: string,
+  rootCellKey: string,
+  origin: CellRow,
+  destination: CellRow,
+  maximumSteps: number,
+): number | undefined {
+  if (!Number.isSafeInteger(maximumSteps) || maximumSteps < 1) {
+    fail('GREATER_REALM_WORKER_ROUTE_INVALID');
+  }
+  const root = ctx.db.greaterRealmCellV1.cellKey.find(rootCellKey);
+  if (root === null) fail('GREATER_REALM_WORKER_ROUTE_INVALID');
+  for (const row of [root, origin, destination]) {
+    if (
+      row.atlasId !== atlasId
+      || row.componentKey !== componentKey
+      || row.tier !== 1
+      || !row.passable
+      || row.routeDepth === undefined
+      || row.routeDepth > GREATER_REALM_MAX_ROUTE_DEPTH
+    ) fail('GREATER_REALM_WORKER_ROUTE_INVALID');
+  }
+  if (root.routeDepth !== 0 || root.routeParentDirection !== undefined) {
+    fail('GREATER_REALM_WORKER_ROUTE_INVALID');
+  }
+  if (origin.cellKey === destination.cellKey) return undefined;
+
+  let left: BoundedRouteCell = origin;
+  let right: BoundedRouteCell = destination;
+  let distance = 0;
+  while (left.routeDepth! > right.routeDepth!) {
+    if (distance >= maximumSteps) return undefined;
+    const next = parentCell(ctx, atlasId, componentKey, left as CellRow);
+    if (next === null) return undefined;
+    left = next;
+    distance += 1;
+  }
+  while (right.routeDepth! > left.routeDepth!) {
+    if (distance >= maximumSteps) return undefined;
+    const next = parentCell(ctx, atlasId, componentKey, right as CellRow);
+    if (next === null) return undefined;
+    right = next;
+    distance += 1;
+  }
+  while (left.cellKey !== right.cellKey) {
+    if (distance + 2 > maximumSteps) return undefined;
+    const leftParent = parentCell(ctx, atlasId, componentKey, left as CellRow);
+    const rightParent = parentCell(ctx, atlasId, componentKey, right as CellRow);
+    if (leftParent === null || rightParent === null) return undefined;
+    left = leftParent;
+    right = rightParent;
+    distance += 2;
+  }
+  return distance > 0 ? distance : undefined;
+}
+
 function requireActiveDispatchRoots(
   ctx: WarpkeepReducerContext,
   input: GreaterRealmWorkerDispatchInputV2,

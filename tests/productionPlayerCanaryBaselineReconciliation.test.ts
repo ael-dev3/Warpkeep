@@ -12,6 +12,7 @@ import { GreaterRealmCutoverWriteNotStartedError } from
 const NONCE = 'a'.repeat(64);
 const PLAN = 'b'.repeat(64);
 const COMMITMENT = 'c'.repeat(64);
+const ROUTE = 'd'.repeat(64);
 const reconciliationTestSeams = productionPlayerCanaryBaselineReconciliationTestSeams!;
 
 function input(overrides: Readonly<Record<string, unknown>> = {}) {
@@ -33,6 +34,7 @@ function capturedStatus(overrides: Readonly<Record<string, unknown>> = {}) {
     challengeDigest: productionPlayerCanaryBaselineChallengeDigest(NONCE),
     reviewedAdmissionPlanDigest: PLAN,
     serverBaselineCommitment: COMMITMENT,
+    routeSetCommitment: ROUTE,
     capturedAtMicros: 1_723_545_600_000_000n,
     baselineCaptured: true,
     directTierOneFounder: true,
@@ -50,6 +52,7 @@ function missingStatus() {
     challengeDigest: productionPlayerCanaryBaselineChallengeDigest(NONCE),
     reviewedAdmissionPlanDigest: PLAN,
     serverBaselineCommitment: '',
+    routeSetCommitment: '',
     capturedAtMicros: 0n,
     baselineCaptured: false,
     directTierOneFounder: false,

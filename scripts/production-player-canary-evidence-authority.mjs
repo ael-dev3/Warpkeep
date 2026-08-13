@@ -4,6 +4,10 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, isAbsolute, resolve } from 'node:path';
 
+import {
+  deriveProductionPlayerCanaryCommandAuthorityV1,
+} from './production-player-canary-command-authority.mjs';
+
 export const PRODUCTION_PLAYER_CANARY_EVIDENCE_AUTHORITY_PROFILE =
   'warpkeep-production-player-canary-evidence-authority-v1';
 
@@ -14,7 +18,9 @@ const U64_MAX = 0xffff_ffff_ffff_ffffn;
 const authorityBrand = new WeakSet();
 const PROTECTED_RUNTIME_SOURCE_CLOSURE = Object.freeze([
   'scripts/production-player-canary-admin-transport.ts',
+  'scripts/production-player-canary-approval-reconciliation.mjs',
   'scripts/production-player-canary-baseline-reconciliation.mjs',
+  'scripts/production-player-canary-command-authority.mjs',
   'scripts/production-player-canary-evidence-authority.mjs',
   'scripts/production-player-canary-owner-approval.mjs',
   'scripts/greater-realm-production-transport.ts',
@@ -244,7 +250,9 @@ const HERMES_KEYS = Object.freeze([
 const ADMIN_EVIDENCE_KEYS = Object.freeze([
   'profile', 'challengeDigest', 'reviewedAdmissionPlanDigest',
   'serverBaselineCommitment', 'admissionProfileDigest', 'evidenceDigest',
-  'routeSetCommitment', 'requestCycle',
+  'routeSetCommitment', 'commandSetCommitment',
+  'ownerApprovalArtifactDigest', 'ownerApprovalCommitment',
+  'approvalRegistrationCommitment', 'requestCycle',
   'requestedAtMicros', 'baselineCapturedAtMicros', 'observedAtMicros',
   'earliestDispatchAtMicros',
   'latestRecallAtMicros', 'directTierOneFounder',
@@ -427,6 +435,10 @@ function parseAdminEvidence(value) {
     || !SHA256.test(evidence.admissionProfileDigest)
     || !SHA256.test(evidence.evidenceDigest)
     || !SHA256.test(evidence.routeSetCommitment)
+    || !SHA256.test(evidence.commandSetCommitment)
+    || !SHA256.test(evidence.ownerApprovalArtifactDigest)
+    || !SHA256.test(evidence.ownerApprovalCommitment)
+    || !SHA256.test(evidence.approvalRegistrationCommitment)
     || u64(evidence.requestCycle, 'PRODUCTION_PLAYER_CANARY_ADMIN_EVIDENCE_INVALID') !== 0n
     || requestedAtMicros < 1n
     || baselineCapturedAtMicros <= requestedAtMicros
@@ -496,7 +508,7 @@ export function parseProductionPlayerCanaryEvidenceAuthority(value) {
     || !exactInstant(authority.notAfter)
     || !exactInstant(authority.recordedAt)
     || Date.parse(authority.approvedAt) > Date.parse(authority.recordedAt)
-    || Date.parse(authority.recordedAt) > Date.parse(authority.notAfter)
+    || Date.parse(authority.recordedAt) >= Date.parse(authority.notAfter)
     || !COMMIT.test(authority.protectedCommit)
     || !COMMIT.test(authority.protectedTree)
     || !SHA256.test(authority.notificationPagesLiveReceiptDigest)
@@ -564,7 +576,10 @@ function buildExpectedEvidenceAuthority(input) {
   );
   const inspectedApproval = exactKeys(
     input.inspectedApproval,
-    ['approval', 'artifactDigest', 'approvalCommitment', 'routeSetCommitment'],
+    [
+      'approval', 'artifactDigest', 'approvalCommitment',
+      'routeSetCommitment', 'commandSetCommitment',
+    ],
     'PRODUCTION_PLAYER_CANARY_OWNER_APPROVAL_INVALID',
   );
   const approval = record(
@@ -607,6 +622,35 @@ function buildExpectedEvidenceAuthority(input) {
   const approvedAtMicros = BigInt(Date.parse(approval.approvedAt)) * 1_000n;
   const notAfterMicros = BigInt(Date.parse(approval.notAfter)) * 1_000n;
   const observedAtMillis = admin.observedAtMicros / 1_000n;
+  const expectedOwnerApprovalCommitment = createHash('sha256').update(`${framed([
+    'warpkeep.production-player-canary.owner-approval.v1',
+    approval.evidenceNonce,
+    inspectedApproval.artifactDigest,
+    approval.serverBaselineCommitment,
+    inspectedApproval.routeSetCommitment,
+  ])}\n`, 'utf8').digest('hex');
+  const expectedCommandAuthority = deriveProductionPlayerCanaryCommandAuthorityV1({
+    evidenceNonce: approval.evidenceNonce,
+    reviewedAdmissionPlanDigest: approval.reviewedAdmissionPlanDigest,
+    serverBaselineCommitment: approval.serverBaselineCommitment,
+    routeSetCommitment: inspectedApproval.routeSetCommitment,
+  });
+  const expectedApprovalRegistrationCommitment = createHash('sha256').update(
+    `${framed([
+      'warpkeep.production-player-canary.approval-registration.v1',
+      expectedChallengeDigest,
+      planDigest,
+      approval.serverBaselineCommitment,
+      inspectedApproval.routeSetCommitment,
+      expectedCommandAuthority.commandKeyPolicyVersion,
+      expectedCommandAuthority.commandSetCommitment,
+      inspectedApproval.artifactDigest,
+      inspectedApproval.approvalCommitment,
+      approvedAtMicros,
+      notAfterMicros,
+    ])}\n`,
+    'utf8',
+  ).digest('hex');
   if (
     admin.challengeDigest !== expectedChallengeDigest
     || admin.reviewedAdmissionPlanDigest !== planDigest
@@ -624,8 +668,21 @@ function buildExpectedEvidenceAuthority(input) {
       !== hermes.notificationPagesLiveRootPagesSourceCommit
     || !SHA256.test(inspectedApproval.artifactDigest)
     || !SHA256.test(inspectedApproval.approvalCommitment)
+    || inspectedApproval.approvalCommitment !== expectedOwnerApprovalCommitment
     || !SHA256.test(inspectedApproval.routeSetCommitment)
+    || !SHA256.test(inspectedApproval.commandSetCommitment)
+    || approval.routeSetCommitment !== inspectedApproval.routeSetCommitment
+    || approval.commandKeyPolicyVersion
+      !== expectedCommandAuthority.commandKeyPolicyVersion
+    || approval.commandSetCommitment
+      !== expectedCommandAuthority.commandSetCommitment
+    || approval.commandSetCommitment !== inspectedApproval.commandSetCommitment
     || admin.routeSetCommitment !== inspectedApproval.routeSetCommitment
+    || admin.commandSetCommitment !== inspectedApproval.commandSetCommitment
+    || admin.ownerApprovalArtifactDigest !== inspectedApproval.artifactDigest
+    || admin.ownerApprovalCommitment !== inspectedApproval.approvalCommitment
+    || admin.approvalRegistrationCommitment
+      !== expectedApprovalRegistrationCommitment
     || admin.maximumRouteSteps > approval.maximumRouteSteps
     || admin.minimumGatheringElapsedMicros
       < BigInt(approval.minimumGatheringSeconds) * 1_000_000n
@@ -633,8 +690,8 @@ function buildExpectedEvidenceAuthority(input) {
       >= BigInt(approval.maximumGatheringSeconds) * 1_000_000n
     || admin.baselineCapturedAtMicros > approvedAtMicros
     || admin.earliestDispatchAtMicros < approvedAtMicros
-    || admin.latestRecallAtMicros > notAfterMicros
-    || admin.observedAtMicros > notAfterMicros
+    || admin.latestRecallAtMicros >= notAfterMicros
+    || admin.observedAtMicros >= notAfterMicros
     || observedAtMillis > BigInt(Number.MAX_SAFE_INTEGER)
   ) fail('PRODUCTION_PLAYER_CANARY_SAME_FOUNDER_EVIDENCE_INVALID');
 
@@ -692,19 +749,11 @@ function adminProcedureInput(plan, approval) {
   if (
     typeof approval.serverBaselineCommitment !== 'string'
     || !SHA256.test(approval.serverBaselineCommitment)
-    || !Array.isArray(approval.commands)
-    || approval.commands.length !== 4
   ) fail('PRODUCTION_PLAYER_CANARY_PRIVATE_ADMIN_INPUT_INVALID');
   return Object.freeze({
     fid: u64(plan.fid, 'PRODUCTION_PLAYER_CANARY_PRIVATE_ADMIN_INPUT_INVALID'),
     reviewedAdmissionPlanDigest: approval.reviewedAdmissionPlanDigest,
     evidenceNonce: approval.evidenceNonce,
-    dispatchIdempotencyKeys: Object.freeze(
-      approval.commands.map(command => command.dispatchIdempotencyKey),
-    ),
-    recallIdempotencyKeys: Object.freeze(
-      approval.commands.map(command => command.recallIdempotencyKey),
-    ),
   });
 }
 

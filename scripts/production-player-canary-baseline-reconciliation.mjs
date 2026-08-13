@@ -9,7 +9,7 @@ const SHA256 = /^[0-9a-f]{64}$/u;
 const U64_MAX = 0xffff_ffff_ffff_ffffn;
 const STATUS_KEYS = Object.freeze([
   'profile', 'challengeDigest', 'reviewedAdmissionPlanDigest',
-  'serverBaselineCommitment', 'capturedAtMicros', 'baselineCaptured',
+  'serverBaselineCommitment', 'routeSetCommitment', 'capturedAtMicros', 'baselineCaptured',
   'directTierOneFounder', 'normalRequestAdmission', 'pristineWorkerCount',
   'terminalGraphEmpty', 'pristineResourceAccount',
 ]);
@@ -148,6 +148,7 @@ function projectStatus(raw, input) {
   if (status.baselineCaptured === false) {
     if (
       status.serverBaselineCommitment !== ''
+      || status.routeSetCommitment !== ''
       || status.capturedAtMicros !== 0n
       || status.directTierOneFounder !== false
       || status.normalRequestAdmission !== false
@@ -159,6 +160,8 @@ function projectStatus(raw, input) {
     status.baselineCaptured !== true
     || typeof status.serverBaselineCommitment !== 'string'
     || !SHA256.test(status.serverBaselineCommitment)
+    || typeof status.routeSetCommitment !== 'string'
+    || !SHA256.test(status.routeSetCommitment)
     || status.capturedAtMicros < 1n
     || status.directTierOneFounder !== true
     || status.normalRequestAdmission !== true
@@ -185,6 +188,7 @@ function brandCapturedStatus(status, submissionOutcome) {
     challengeDigest: status.challengeDigest,
     reviewedAdmissionPlanDigest: status.reviewedAdmissionPlanDigest,
     serverBaselineCommitment: status.serverBaselineCommitment,
+    routeSetCommitment: status.routeSetCommitment,
     capturedAtMicros: status.capturedAtMicros,
     status,
   });
@@ -343,6 +347,7 @@ export function requireProductionPlayerCanaryBaselineReconciliationForApproval(
       !== approval.reviewedAdmissionPlanDigest
     || reconciliation.serverBaselineCommitment
       !== approval.serverBaselineCommitment
+    || reconciliation.routeSetCommitment !== approval.routeSetCommitment
   ) fail('PRODUCTION_PLAYER_CANARY_BASELINE_RECONCILIATION_COMMITMENT_MISMATCH');
   return reconciliation;
 }

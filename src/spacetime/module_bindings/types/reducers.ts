@@ -40,6 +40,7 @@ import AdminImportGreaterRealmComponentsV1Reducer from "../admin_import_greater_
 import AdminImportGreaterRealmRegionsV1Reducer from "../admin_import_greater_realm_regions_v_1_reducer";
 import AdminPlanGreaterRealmRelocationV1Reducer from "../admin_plan_greater_realm_relocation_v_1_reducer";
 import AdminPrepareGreaterRealmActivationV1Reducer from "../admin_prepare_greater_realm_activation_v_1_reducer";
+import AdminRegisterProductionPlayerCanaryApprovalV1Reducer from "../admin_register_production_player_canary_approval_v_1_reducer";
 import AdminRelocateGreaterRealmCanaryV1Reducer from "../admin_relocate_greater_realm_canary_v_1_reducer";
 import AdminRepairMissingWorkerReturnScheduleV1Reducer from "../admin_repair_missing_worker_return_schedule_v_1_reducer";
 import AdminResetAccessRequestV1Reducer from "../admin_reset_access_request_v_1_reducer";
@@ -115,6 +116,7 @@ export type AdminImportGreaterRealmComponentsV1Params = __Infer<typeof AdminImpo
 export type AdminImportGreaterRealmRegionsV1Params = __Infer<typeof AdminImportGreaterRealmRegionsV1Reducer>;
 export type AdminPlanGreaterRealmRelocationV1Params = __Infer<typeof AdminPlanGreaterRealmRelocationV1Reducer>;
 export type AdminPrepareGreaterRealmActivationV1Params = __Infer<typeof AdminPrepareGreaterRealmActivationV1Reducer>;
+export type AdminRegisterProductionPlayerCanaryApprovalV1Params = __Infer<typeof AdminRegisterProductionPlayerCanaryApprovalV1Reducer>;
 export type AdminRelocateGreaterRealmCanaryV1Params = __Infer<typeof AdminRelocateGreaterRealmCanaryV1Reducer>;
 export type AdminRepairMissingWorkerReturnScheduleV1Params = __Infer<typeof AdminRepairMissingWorkerReturnScheduleV1Reducer>;
 export type AdminResetAccessRequestV1Params = __Infer<typeof AdminResetAccessRequestV1Reducer>;

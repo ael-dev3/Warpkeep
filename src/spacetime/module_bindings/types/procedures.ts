@@ -23,6 +23,7 @@ import * as AdminGetGreaterRealmImportPlanV1Procedure from "../admin_get_greater
 import * as AdminGetGreaterRealmReenableStatusV1Procedure from "../admin_get_greater_realm_reenable_status_v_1_procedure";
 import * as AdminGetGreaterRealmStatusV1Procedure from "../admin_get_greater_realm_status_v_1_procedure";
 import * as AdminGetInnerKeepStatusV1Procedure from "../admin_get_inner_keep_status_v_1_procedure";
+import * as AdminGetProductionPlayerCanaryApprovalV1Procedure from "../admin_get_production_player_canary_approval_v_1_procedure";
 import * as AdminGetProductionPlayerCanaryBaselineV1Procedure from "../admin_get_production_player_canary_baseline_v_1_procedure";
 import * as AdminGetProductionPlayerCanaryEvidenceV1Procedure from "../admin_get_production_player_canary_evidence_v_1_procedure";
 import * as AdminGetRealmChatReportContextV1Procedure from "../admin_get_realm_chat_report_context_v_1_procedure";
@@ -35,6 +36,7 @@ import * as AdminListAccessRequestsV1Procedure from "../admin_list_access_reques
 import * as AdminListRealmChatReportsV1Procedure from "../admin_list_realm_chat_reports_v_1_procedure";
 import * as AdminPlanInnerKeepBuildersV1Procedure from "../admin_plan_inner_keep_builders_v_1_procedure";
 import * as AdminPlanInnerKeepCatalogV1Procedure from "../admin_plan_inner_keep_catalog_v_1_procedure";
+import * as AdminPlanProductionPlayerCanaryRoutesV1Procedure from "../admin_plan_production_player_canary_routes_v_1_procedure";
 import * as AdminPlanWorkerRosterV1Procedure from "../admin_plan_worker_roster_v_1_procedure";
 import * as AuthResolverGetFidAdmissionV2Procedure from "../auth_resolver_get_fid_admission_v_2_procedure";
 import * as GetAlphaBackendInfoProcedure from "../get_alpha_backend_info_procedure";
@@ -52,6 +54,7 @@ import * as GetMyWoodExpeditionStateV1Procedure from "../get_my_wood_expedition_
 import * as GetMyWorkerControlStateV1Procedure from "../get_my_worker_control_state_v_1_procedure";
 import * as GetMyWorkerControlStateV2Procedure from "../get_my_worker_control_state_v_2_procedure";
 import * as GetMyWorkerRosterV1Procedure from "../get_my_worker_roster_v_1_procedure";
+import * as GetProductionPlayerCanaryRuntimeV1Procedure from "../get_production_player_canary_runtime_v_1_procedure";
 import * as GetRealmAtlasBootstrapV1Procedure from "../get_realm_atlas_bootstrap_v_1_procedure";
 import * as GetRealmAtlasChunkV1Procedure from "../get_realm_atlas_chunk_v_1_procedure";
 import * as GetRealmAtlasResourceLocationsV1Procedure from "../get_realm_atlas_resource_locations_v_1_procedure";
@@ -96,6 +99,8 @@ export type AdminGetGreaterRealmStatusV1Args = __Infer<typeof AdminGetGreaterRea
 export type AdminGetGreaterRealmStatusV1Result = __Infer<typeof AdminGetGreaterRealmStatusV1Procedure.returnType>;
 export type AdminGetInnerKeepStatusV1Args = __Infer<typeof AdminGetInnerKeepStatusV1Procedure.params>;
 export type AdminGetInnerKeepStatusV1Result = __Infer<typeof AdminGetInnerKeepStatusV1Procedure.returnType>;
+export type AdminGetProductionPlayerCanaryApprovalV1Args = __Infer<typeof AdminGetProductionPlayerCanaryApprovalV1Procedure.params>;
+export type AdminGetProductionPlayerCanaryApprovalV1Result = __Infer<typeof AdminGetProductionPlayerCanaryApprovalV1Procedure.returnType>;
 export type AdminGetProductionPlayerCanaryBaselineV1Args = __Infer<typeof AdminGetProductionPlayerCanaryBaselineV1Procedure.params>;
 export type AdminGetProductionPlayerCanaryBaselineV1Result = __Infer<typeof AdminGetProductionPlayerCanaryBaselineV1Procedure.returnType>;
 export type AdminGetProductionPlayerCanaryEvidenceV1Args = __Infer<typeof AdminGetProductionPlayerCanaryEvidenceV1Procedure.params>;
@@ -120,6 +125,8 @@ export type AdminPlanInnerKeepBuildersV1Args = __Infer<typeof AdminPlanInnerKeep
 export type AdminPlanInnerKeepBuildersV1Result = __Infer<typeof AdminPlanInnerKeepBuildersV1Procedure.returnType>;
 export type AdminPlanInnerKeepCatalogV1Args = __Infer<typeof AdminPlanInnerKeepCatalogV1Procedure.params>;
 export type AdminPlanInnerKeepCatalogV1Result = __Infer<typeof AdminPlanInnerKeepCatalogV1Procedure.returnType>;
+export type AdminPlanProductionPlayerCanaryRoutesV1Args = __Infer<typeof AdminPlanProductionPlayerCanaryRoutesV1Procedure.params>;
+export type AdminPlanProductionPlayerCanaryRoutesV1Result = __Infer<typeof AdminPlanProductionPlayerCanaryRoutesV1Procedure.returnType>;
 export type AdminPlanWorkerRosterV1Args = __Infer<typeof AdminPlanWorkerRosterV1Procedure.params>;
 export type AdminPlanWorkerRosterV1Result = __Infer<typeof AdminPlanWorkerRosterV1Procedure.returnType>;
 export type AuthResolverGetFidAdmissionV2Args = __Infer<typeof AuthResolverGetFidAdmissionV2Procedure.params>;
@@ -154,6 +161,8 @@ export type GetMyWorkerControlStateV2Args = __Infer<typeof GetMyWorkerControlSta
 export type GetMyWorkerControlStateV2Result = __Infer<typeof GetMyWorkerControlStateV2Procedure.returnType>;
 export type GetMyWorkerRosterV1Args = __Infer<typeof GetMyWorkerRosterV1Procedure.params>;
 export type GetMyWorkerRosterV1Result = __Infer<typeof GetMyWorkerRosterV1Procedure.returnType>;
+export type GetProductionPlayerCanaryRuntimeV1Args = __Infer<typeof GetProductionPlayerCanaryRuntimeV1Procedure.params>;
+export type GetProductionPlayerCanaryRuntimeV1Result = __Infer<typeof GetProductionPlayerCanaryRuntimeV1Procedure.returnType>;
 export type GetRealmAtlasBootstrapV1Args = __Infer<typeof GetRealmAtlasBootstrapV1Procedure.params>;
 export type GetRealmAtlasBootstrapV1Result = __Infer<typeof GetRealmAtlasBootstrapV1Procedure.returnType>;
 export type GetRealmAtlasChunkV1Args = __Infer<typeof GetRealmAtlasChunkV1Procedure.params>;

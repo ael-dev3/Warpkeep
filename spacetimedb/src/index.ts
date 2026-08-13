@@ -92,6 +92,10 @@ export {
   adminGetWorkerRolloutStatusV2,
   adminCaptureProductionPlayerCanaryBaselineV1,
   adminGetProductionPlayerCanaryBaselineV1,
+  adminPlanProductionPlayerCanaryRoutesV1,
+  adminRegisterProductionPlayerCanaryApprovalV1,
+  adminGetProductionPlayerCanaryApprovalV1,
+  getProductionPlayerCanaryRuntimeV1,
   adminGetProductionPlayerCanaryEvidenceV1,
 } from './reducers/castleWorkers';
 export {

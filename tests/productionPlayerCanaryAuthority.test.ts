@@ -36,6 +36,9 @@ import {
   productionPlayerCanaryRouteSetCommitment,
 } from '../scripts/production-player-canary-owner-approval.mjs';
 import {
+  deriveProductionPlayerCanaryCommandAuthorityV1,
+} from '../scripts/production-player-canary-command-authority.mjs';
+import {
   PRODUCTION_PLAYER_CANARY_PROFILE,
   ProductionPlayerCanaryReceiptError,
   canonicalProductionPlayerCanaryReceiptBytes,
@@ -52,7 +55,6 @@ const ROOT_COMMIT = 'c'.repeat(40);
 const LIVE = '1'.repeat(64);
 const ROOT = '2'.repeat(64);
 const ADMIN_EVIDENCE = '3'.repeat(64);
-const APPROVAL = '5'.repeat(64);
 const NOW = Date.parse('2026-08-13T12:06:00.000Z');
 const REQUESTED_AT_MICROS = BigInt(Date.parse('2026-08-13T11:58:00.000Z')) * 1_000n;
 const BASELINE_AT_MICROS = BigInt(Date.parse('2026-08-13T11:59:00.000Z')) * 1_000n;
@@ -127,7 +129,7 @@ function evidenceAuthority(
     resourceKind,
     locationId: `GRL-${String.fromCharCode(65 + index).repeat(26)}`,
     atlasRevision: '7',
-    routeSteps: index + 1,
+    routeSteps: 4,
     nodeCount: 8,
   }));
   const routeSetCommitment = productionPlayerCanaryRouteSetCommitment({
@@ -135,6 +137,20 @@ function evidenceAuthority(
     reviewedAdmissionPlanDigest,
     routes,
   });
+  const commandAuthority = deriveProductionPlayerCanaryCommandAuthorityV1({
+    evidenceNonce,
+    reviewedAdmissionPlanDigest,
+    serverBaselineCommitment: serverBaseline,
+    routeSetCommitment,
+  });
+  const artifactDigest = '4'.repeat(64);
+  const approvalCommitment = createHash('sha256').update(`${framed([
+    'warpkeep.production-player-canary.owner-approval.v1',
+    evidenceNonce,
+    artifactDigest,
+    serverBaseline,
+    routeSetCommitment,
+  ])}\n`, 'utf8').digest('hex');
   const approval = {
     schemaVersion: 1,
     kind: 'warpkeep-production-player-canary-owner-approval-v1',
@@ -152,12 +168,10 @@ function evidenceAuthority(
     maximumGatheringSeconds: 120,
     maximumRouteSteps: 4,
     serverBaselineCommitment: serverBaseline,
+    routeSetCommitment,
+    commandKeyPolicyVersion: commandAuthority.commandKeyPolicyVersion,
+    commandSetCommitment: commandAuthority.commandSetCommitment,
     routes,
-    commands: routes.map(({ ordinal }) => ({
-      ordinal,
-      dispatchIdempotencyKey: `canary-dispatch-${ordinal.toString().padStart(2, '0')}`,
-      recallIdempotencyKey: `canary-recall-${ordinal.toString().padStart(4, '0')}`,
-    })),
   };
   const inspectedPlan = {
     plan,
@@ -167,10 +181,27 @@ function evidenceAuthority(
   };
   const inspectedApproval = {
     approval,
-    artifactDigest: '4'.repeat(64),
-    approvalCommitment: APPROVAL,
+    artifactDigest,
+    approvalCommitment,
     routeSetCommitment,
+    commandSetCommitment: commandAuthority.commandSetCommitment,
   };
+  const approvalRegistrationCommitment = createHash('sha256').update(
+    `${framed([
+      'warpkeep.production-player-canary.approval-registration.v1',
+      challengeDigest,
+      reviewedAdmissionPlanDigest,
+      serverBaseline,
+      routeSetCommitment,
+      commandAuthority.commandKeyPolicyVersion,
+      commandAuthority.commandSetCommitment,
+      inspectedApproval.artifactDigest,
+      inspectedApproval.approvalCommitment,
+      BigInt(Date.parse(approval.approvedAt)) * 1_000n,
+      BigInt(Date.parse(approval.notAfter)) * 1_000n,
+    ])}\n`,
+    'utf8',
+  ).digest('hex');
   const notificationPagesLiveAuthority = {
     notificationPagesLiveReceiptDigest: LIVE,
     notificationPagesLivePagesSourceCommit: COMMIT,
@@ -197,6 +228,10 @@ function evidenceAuthority(
     admissionProfileDigest: productionPlayerCanaryAdmissionProfileDigest(profile),
     evidenceDigest: ADMIN_EVIDENCE,
     routeSetCommitment,
+    commandSetCommitment: commandAuthority.commandSetCommitment,
+    ownerApprovalArtifactDigest: inspectedApproval.artifactDigest,
+    ownerApprovalCommitment: inspectedApproval.approvalCommitment,
+    approvalRegistrationCommitment,
     requestCycle: 0n,
     requestedAtMicros: REQUESTED_AT_MICROS,
     baselineCapturedAtMicros: BASELINE_AT_MICROS,
@@ -519,8 +554,7 @@ describe('production player canary authority', () => {
     expect({ planReads, approvalReads, hermesReads, notificationReads, adminReads })
       .toEqual({ planReads: 2, approvalReads: 2, hermesReads: 2, notificationReads: 2, adminReads: 1 });
     expect(Object.keys(adminArguments ?? {}).sort()).toEqual([
-      'dispatchIdempotencyKeys', 'evidenceNonce', 'fid',
-      'recallIdempotencyKeys', 'reviewedAdmissionPlanDigest',
+      'evidenceNonce', 'fid', 'reviewedAdmissionPlanDigest',
     ]);
     expect(JSON.stringify(adminArguments, (_key, value) => (
       typeof value === 'bigint' ? value.toString() : value

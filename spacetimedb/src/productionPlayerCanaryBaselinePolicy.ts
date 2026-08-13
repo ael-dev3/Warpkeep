@@ -27,6 +27,7 @@ export type ProductionPlayerCanaryCapturedBaselineStatus = Readonly<{
   challengeDigest: string;
   reviewedAdmissionPlanDigest: string;
   serverBaselineCommitment: string;
+  routeSetCommitment: string;
   capturedAtMicros: bigint;
   baselineCaptured: true;
   directTierOneFounder: true;
@@ -41,6 +42,7 @@ export type ProductionPlayerCanaryMissingBaselineStatus = Readonly<{
   challengeDigest: string;
   reviewedAdmissionPlanDigest: string;
   serverBaselineCommitment: '';
+  routeSetCommitment: '';
   capturedAtMicros: 0n;
   baselineCaptured: false;
   directTierOneFounder: false;
@@ -59,6 +61,7 @@ export type ProductionPlayerCanaryPristineBaselineMaterial = Readonly<{
   reviewedAdmissionPlanDigest: string;
   evidenceNonce: string;
   challengeDigest: string;
+  routeSetCommitment: string;
   castleId: bigint;
   atlasId: string;
   atlasRevision: bigint;
@@ -96,6 +99,7 @@ export type ProductionPlayerCanaryStoredBaseline = Readonly<{
   fid: bigint;
   reviewedAdmissionPlanDigest: string;
   baselineCommitment: string;
+  routeSetCommitment: string;
   castleId: bigint;
   atlasId: string;
   atlasRevision: bigint;
@@ -185,6 +189,7 @@ export function assertProductionPlayerCanaryPristineBaselineMaterial(
   if (
     !SHA256.test(material.reviewedAdmissionPlanDigest)
     || !SHA256.test(material.evidenceNonce)
+    || !SHA256.test(material.routeSetCommitment)
     || material.challengeDigest
       !== productionPlayerCanaryChallengeDigest(material.evidenceNonce)
     || material.atlasId.length < 1
@@ -249,6 +254,7 @@ function pristineRosterCommitment(
 type BaselineCommitmentMaterial = Pick<
   ProductionPlayerCanaryPristineBaselineMaterial,
   | 'fid' | 'reviewedAdmissionPlanDigest' | 'evidenceNonce' | 'challengeDigest'
+  | 'routeSetCommitment'
   | 'castleId' | 'atlasId' | 'atlasRevision' | 'capturedAtMicros'
   | 'resourceSettledThroughMicros' | 'resourceRevision'
   | 'resourceFood' | 'resourceWood' | 'resourceStone' | 'resourceGold'
@@ -264,6 +270,7 @@ function baselineCommitment(
     material.evidenceNonce,
     material.reviewedAdmissionPlanDigest,
     material.challengeDigest,
+    material.routeSetCommitment,
     material.fid,
     material.castleId,
     material.atlasId,
@@ -303,6 +310,7 @@ export function productionPlayerCanaryBaselineStatusForStoredRow(
     row.challengeDigest !== input.challengeDigest
     || row.fid !== input.fid
     || row.reviewedAdmissionPlanDigest !== input.reviewedAdmissionPlanDigest
+    || !SHA256.test(row.routeSetCommitment)
     || !SHA256.test(row.pristineRosterCommitment)
     || row.atlasId.length < 1
     || row.atlasRevision < 1n
@@ -322,6 +330,7 @@ export function productionPlayerCanaryBaselineStatusForStoredRow(
     challengeDigest: row.challengeDigest,
     reviewedAdmissionPlanDigest: row.reviewedAdmissionPlanDigest,
     serverBaselineCommitment: row.baselineCommitment,
+    routeSetCommitment: row.routeSetCommitment,
     capturedAtMicros: row.capturedAtMicros,
     baselineCaptured: true,
     directTierOneFounder: true,
@@ -340,6 +349,7 @@ export function productionPlayerCanaryMissingBaselineStatus(
     challengeDigest: input.challengeDigest,
     reviewedAdmissionPlanDigest: input.reviewedAdmissionPlanDigest,
     serverBaselineCommitment: '',
+    routeSetCommitment: '',
     capturedAtMicros: 0n,
     baselineCaptured: false,
     directTierOneFounder: false,

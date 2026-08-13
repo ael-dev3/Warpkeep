@@ -24,6 +24,10 @@ import {
   reconcileProductionPlayerCanaryStoredBaselines,
   validateProductionPlayerCanaryBaselineInput,
 } from './productionPlayerCanaryBaselinePolicy';
+import {
+  type ProductionPlayerCanaryRoutePlanV1,
+  planProductionPlayerCanaryRouteSetV1,
+} from './productionPlayerCanaryRoutePolicy';
 import type warpkeep from './schema';
 
 export {
@@ -254,7 +258,7 @@ function buildPristineMaterial(
     );
   }
   const account = resource.account;
-  const material = Object.freeze({
+  const materialWithoutRoute = Object.freeze({
     fid: input.fid,
     reviewedAdmissionPlanDigest: input.reviewedAdmissionPlanDigest,
     evidenceNonce: input.evidenceNonce,
@@ -294,6 +298,20 @@ function buildPristineMaterial(
       'PRODUCTION_PLAYER_CANARY_BASELINE_PRISTINE_REQUIRED',
     ),
   });
+  const routePlan = planProductionPlayerCanaryRouteSetV1(ctx, {
+    fid: materialWithoutRoute.fid,
+    reviewedAdmissionPlanDigest: materialWithoutRoute.reviewedAdmissionPlanDigest,
+    evidenceNonce: materialWithoutRoute.evidenceNonce,
+    challengeDigest: materialWithoutRoute.challengeDigest,
+    serverBaselineCommitment: '',
+    castleId: materialWithoutRoute.castleId,
+    atlasId: materialWithoutRoute.atlasId,
+    atlasRevision: materialWithoutRoute.atlasRevision,
+  });
+  const material = Object.freeze({
+    ...materialWithoutRoute,
+    routeSetCommitment: routePlan.routeSetCommitment,
+  });
   assertProductionPlayerCanaryPristineBaselineMaterial(material);
   return material;
 }
@@ -304,6 +322,7 @@ function storedRow(row: BaselineRow) {
     fid: row.fid,
     reviewedAdmissionPlanDigest: row.reviewedAdmissionPlanDigest,
     baselineCommitment: row.baselineCommitment,
+    routeSetCommitment: row.routeSetCommitment,
     castleId: row.castleId,
     atlasId: row.atlasId,
     atlasRevision: row.atlasRevision,
@@ -359,7 +378,12 @@ export function captureProductionPlayerCanaryBaseline(
   const commitments = productionPlayerCanaryBaselineCommitments(material);
   const rosterCommitment = commitments.pristineRosterCommitment;
   const commitment = commitments.serverBaselineCommitment;
-  if (ctx.db.productionPlayerCanaryBaselineV1.baselineCommitment.find(commitment) !== null) {
+  if (
+    ctx.db.productionPlayerCanaryBaselineV1.baselineCommitment.find(commitment) !== null
+    || ctx.db.productionPlayerCanaryBaselineV1.routeSetCommitment.find(
+      material.routeSetCommitment,
+    ) !== null
+  ) {
     fail('PRODUCTION_PLAYER_CANARY_BASELINE_CONFLICT');
   }
   const inserted = ctx.db.productionPlayerCanaryBaselineV1.insert({
@@ -367,6 +391,7 @@ export function captureProductionPlayerCanaryBaseline(
     fid: material.fid,
     reviewedAdmissionPlanDigest: material.reviewedAdmissionPlanDigest,
     baselineCommitment: commitment,
+    routeSetCommitment: material.routeSetCommitment,
     castleId: material.castleId,
     atlasId: material.atlasId,
     atlasRevision: material.atlasRevision,
@@ -406,4 +431,29 @@ export function requireProductionPlayerCanaryBaselineRow(
   if (row === null) fail('PRODUCTION_PLAYER_CANARY_BASELINE_REQUIRED');
   statusForRow(row, input);
   return row;
+}
+
+/** Recompute the private deterministic route plan against the immutable baseline. */
+export function inspectProductionPlayerCanaryRoutePlan(
+  ctx: WarpkeepReducerContext,
+  rawInput: ProductionPlayerCanaryBaselineInput,
+): ProductionPlayerCanaryRoutePlanV1 {
+  const input = validateInput(rawInput);
+  const row = existingBaselineRow(ctx, input);
+  if (row === null) fail('PRODUCTION_PLAYER_CANARY_BASELINE_REQUIRED');
+  const status = statusForRow(row, input);
+  const routePlan = planProductionPlayerCanaryRouteSetV1(ctx, {
+    fid: row.fid,
+    reviewedAdmissionPlanDigest: row.reviewedAdmissionPlanDigest,
+    evidenceNonce: input.evidenceNonce,
+    challengeDigest: row.challengeDigest,
+    serverBaselineCommitment: row.baselineCommitment,
+    castleId: row.castleId,
+    atlasId: row.atlasId,
+    atlasRevision: row.atlasRevision,
+  });
+  if (routePlan.routeSetCommitment !== status.routeSetCommitment) {
+    fail('PRODUCTION_PLAYER_CANARY_ROUTE_PLAN_CHANGED');
+  }
+  return routePlan;
 }
