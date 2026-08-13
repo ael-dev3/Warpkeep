@@ -13,11 +13,11 @@ permissions:
 # exclusive jobs. The source-closure manifest canonicalizes only these exact
 # values, so changing any protected executable requires an explicit refreeze.
 env:
-  WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: '1dfa16869566fec7db36764bb60ecd0112311238cad4408286569a6cf1a412d4'
-  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '98b4c58208d1b120c7cf7659768dafe4739f1ec36c856187d6fc0336315a0774'
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: '81f03855f02369bf78b99838942df7ba0268dfe16a954313ce83996f404a9b04'
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '02077b80179c796f8da6c48c2f61a1b5462bd5c1b70e43f19e9a68a3d025497d'
   WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256: '28b262795718a55c3651cab076fb03cddecb82521dc987b3fe7ba26df3635907'
   WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256: '745188c6fae1c54b56e809916be9b50393c68d59c4f62742f55e67f4ca0550dd'
-  WARPKEEP_NOTIFICATION_PAGES_PRIVATE_DEPLOY_LAUNCHER_SHA256: 'ac18ecc2371d8bfff17ea8abec9d989085c4992d2ebeb70e7c9947bfac62837e'
+  WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256: 'ac18ecc2371d8bfff17ea8abec9d989085c4992d2ebeb70e7c9947bfac62837e'
 
 concurrency:
   # This workflow-scoped lock is retained through build, deployment, and the
@@ -490,7 +490,7 @@ jobs:
             scripts/auth-bridge-notification-prepared-installed-toolchain.mjs
           verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256" \
             scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json
-          verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PRIVATE_DEPLOY_LAUNCHER_SHA256" \
+          verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256" \
             scripts/notification-pages-private-deploy-launcher.mjs
 
       - name: Setup exact pnpm
@@ -565,7 +565,7 @@ jobs:
             scripts/auth-bridge-notification-prepared-installed-toolchain.mjs
           verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256" \
             scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json
-          verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PRIVATE_DEPLOY_LAUNCHER_SHA256" \
+          verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256" \
             scripts/notification-pages-private-deploy-launcher.mjs
           private_node="$(realpath -- "$(command -v node)")"
           /usr/bin/env -i \
@@ -725,7 +725,7 @@ jobs:
             scripts/auth-bridge-notification-prepared-installed-toolchain.mjs
           verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256" \
             scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json
-          verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PRIVATE_DEPLOY_LAUNCHER_SHA256" \
+          verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256" \
             scripts/notification-pages-private-deploy-launcher.mjs
 
       - name: Retire only a proven-skipped prior deployment invocation

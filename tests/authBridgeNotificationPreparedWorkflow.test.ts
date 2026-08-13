@@ -62,7 +62,7 @@ const bootstrapPinFiles = Object.freeze({
 });
 const pagesBootstrapPinFiles = Object.freeze({
   ...bootstrapPinFiles,
-  WARPKEEP_NOTIFICATION_PAGES_PRIVATE_DEPLOY_LAUNCHER_SHA256:
+  WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256:
     'scripts/notification-pages-private-deploy-launcher.mjs',
 });
 const temporaryDirectories: string[] = [];
@@ -504,7 +504,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       'pnpm --dir services/auth-bridge install',
     );
     const postInstallPinIndex = source.indexOf(
-      'verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PRIVATE_DEPLOY_LAUNCHER_SHA256"',
+      'verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256"',
       installIndex,
     );
     const toolchainLaunchIndex = source.indexOf(
@@ -512,7 +512,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       postInstallPinIndex,
     );
     const deployPinIndex = source.lastIndexOf(
-      'verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PRIVATE_DEPLOY_LAUNCHER_SHA256"',
+      'verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256"',
       source.indexOf('- name: Retire only a proven-skipped prior deployment invocation'),
     );
     const operatorLaunchIndex = source.indexOf(

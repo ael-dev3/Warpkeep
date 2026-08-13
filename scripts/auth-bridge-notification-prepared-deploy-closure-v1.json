@@ -4,7 +4,7 @@
   "members": [
     {
       "path": ".github/workflows/deploy-pages.yml",
-      "sha256": "03acf77f37520588c660524e683ef143f4e3162a3530aa46901cb28510c15925"
+      "sha256": "17fa6c7a65095c215d94fee893083c65476c74feb738d6b7dc2f27207b9ca9c3"
     },
     {
       "path": ".github/workflows/notification-bridge-prepared.yml",
@@ -76,7 +76,7 @@
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
-      "sha256": "1dfa16869566fec7db36764bb60ecd0112311238cad4408286569a6cf1a412d4"
+      "sha256": "81f03855f02369bf78b99838942df7ba0268dfe16a954313ce83996f404a9b04"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",

@@ -50,7 +50,7 @@ const BOOTSTRAP_PIN_BINDINGS = Object.freeze([
       'scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json',
   }),
   Object.freeze({
-    name: 'WARPKEEP_NOTIFICATION_PAGES_PRIVATE_DEPLOY_LAUNCHER_SHA256',
+    name: 'WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256',
     path: 'scripts/notification-pages-private-deploy-launcher.mjs',
   }),
 ]);

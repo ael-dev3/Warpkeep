@@ -1948,7 +1948,7 @@ describe('Greater Realm public and release boundary', () => {
     })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_MARKER');
   });
 
-  it('rejects renamed raw seeds in known and extensionless text while allowing a digest', () => {
+  it('rejects renamed raw seeds while allowing public source-integrity digests', () => {
     const paths = scannerRepository();
     mkdirSync(join(paths.repositoryRoot, 'tools'));
     for (const name of ['raw-seed.py', 'raw-seed.script']) {
@@ -1984,6 +1984,24 @@ describe('Greater Realm public and release boundary', () => {
       repositoryRoot: paths.repositoryRoot,
       trackedPaths: ['tools/ordinary-digest.ts'],
     })).toMatchObject({ trackedPathCount: 1 });
+
+    writeFileSync(
+      join(paths.repositoryRoot, 'tools', 'public-launcher-digest.yml'),
+      `WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256: '${'ac'.repeat(32)}'\n`,
+    );
+    expect(verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      trackedPaths: ['tools/public-launcher-digest.yml'],
+    })).toMatchObject({ trackedPathCount: 1 });
+
+    writeFileSync(
+      join(paths.repositoryRoot, 'tools', 'private-named-launcher-value.yml'),
+      `WARPKEEP_NOTIFICATION_PAGES_PRIVATE_DEPLOY_LAUNCHER_SHA256: '${'ac'.repeat(32)}'\n`,
+    );
+    expect(() => verifyGreaterRealmPublicBoundary({
+      repositoryRoot: paths.repositoryRoot,
+      trackedPaths: ['tools/private-named-launcher-value.yml'],
+    })).toThrow('GREATER_REALM_PUBLIC_BOUNDARY_PRIVATE_FIELD');
   });
 
   it('scans exact extensionless text names and template-style suffixes', () => {
