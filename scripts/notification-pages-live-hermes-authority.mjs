@@ -128,8 +128,20 @@ export async function inspectHermesNotificationPagesLiveAuthority(
 }
 
 export function sameNotificationPagesLiveHermesAuthority(left, right) {
-  const first = parseNotificationPagesLiveHermesAuthority(left);
-  const second = parseNotificationPagesLiveHermesAuthority(right);
+  const project = value => parseNotificationPagesLiveHermesAuthority({
+    notificationPagesLiveReceiptDigest:
+      value?.notificationPagesLiveReceiptDigest,
+    notificationPagesLivePagesSourceCommit:
+      value?.notificationPagesLivePagesSourceCommit,
+    notificationPagesLiveBridgeSourceCommit:
+      value?.notificationPagesLiveBridgeSourceCommit,
+    notificationPagesLiveRootReceiptDigest:
+      value?.notificationPagesLiveRootReceiptDigest,
+    notificationPagesLiveRootPagesSourceCommit:
+      value?.notificationPagesLiveRootPagesSourceCommit,
+  });
+  const first = project(left);
+  const second = project(right);
   return Object.keys(EMPTY_NOTIFICATION_PAGES_LIVE_HERMES_AUTHORITY)
     .every(key => first[key] === second[key]);
 }

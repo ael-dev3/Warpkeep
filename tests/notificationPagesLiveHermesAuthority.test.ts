@@ -135,6 +135,23 @@ describe('notification Pages live Hermes authority', () => {
     expect(parseNotificationPagesLiveHermesAuthority(authority, { required: true }))
       .toEqual(authority);
     expect(sameNotificationPagesLiveHermesAuthority(authority, { ...authority })).toBe(true);
+    expect(sameNotificationPagesLiveHermesAuthority({
+      schemaVersion: 4,
+      kind: 'warpkeep-reviewed-founder-admission-plan',
+      fid: '123',
+      ...authority,
+    }, {
+      schemaVersion: 2,
+      kind: 'warpkeep-reviewed-admission-notification-recovery-plan',
+      fid: '123',
+      ...authority,
+    })).toBe(true);
+    expect(sameNotificationPagesLiveHermesAuthority({
+      schemaVersion: 4,
+      kind: 'warpkeep-reviewed-founder-admission-plan',
+      ...authority,
+      notificationPagesLiveReceiptDigest: 'f'.repeat(64),
+    }, authority)).toBe(false);
     expect(() => parseNotificationPagesLiveHermesAuthority({
       ...authority,
       notificationPagesLiveReceiptDigest: null,
