@@ -3,7 +3,7 @@
   "profile": "warpkeep-auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1",
   "sourceClosureProfile": "warpkeep-auth-bridge-notification-prepared-deploy-closure-v1",
   "sourceClosureManifestPath": "scripts/auth-bridge-notification-prepared-deploy-closure-v1.json",
-  "lockfileSha256": "41642a1ffb9de21d5f552133fa6dec873362f692c6a440b85c895d928052c768",
+  "lockfileSha256": "e162613375a2a5534a631d38e9cf2d2b9a66bdeb4ff05be63376afaf57f7fde9",
   "packageManager": "pnpm@11.7.0",
   "platform": "darwin",
   "architecture": "arm64",
@@ -35,13 +35,13 @@
   "resolverNamespaceDirectoryCount": 6,
   "resolverNamespaceFileCount": 8,
   "resolverNamespaceSymbolicLinkCount": 10,
-  "resolverNamespaceSha256": "bad7198295e4f7e5eecac66b590631cbacaad4f4b86a884aadbb993b0e61c117",
+  "resolverNamespaceSha256": "5a62b8eb0960be2f9eda967bfe683fddfea93768c2ebf41da43354e69d8f947e",
   "normalizedShimFileCount": 31,
   "entryCount": 18153,
   "directoryCount": 1532,
   "fileCount": 16378,
   "symbolicLinkCount": 243,
   "executableFileCount": 65,
-  "totalFileBytes": 305064486,
-  "treeSha256": "8b26cad43beab2eed6e219623c8dfb03f92667e587fe8c7465dab0e1cb21b9e9"
+  "totalFileBytes": 305064638,
+  "treeSha256": "747e099d141297c00238d7ef96f641e2e6dae42f8310f2d342bf7f8192bd8d19"
 }
