@@ -104,7 +104,20 @@ hours, and terminal output contains only the record filename, SHA-256, bounded
 timestamps, and capacity state. It accepts no notification credential, private
 input, SpacetimeDB CLI path, mutable target, or direct npm/`tsx` fallback.
 
-Pages continues to run the unchanged read-only legacy live verifier. Its notification presentation variable is currently hardcoded false, and CI runs `verify:greater-realm-release-gates` before build to accept only an explicitly enumerated safe release phase. The current tree must be the closed review phase; later envelopes permit production-approved pre-generation, candidate-approved inert append, exact import-only TF, exact activation-only FT, then client presentation, then notifications. `TT`, partial approval pairs, notification-before-client, and every unenumerated combination fail. A later client activation is a separate release and must not be coupled to server publication.
+Pages continues to run the unchanged read-only legacy live verifier. Its
+notification presentation variable is currently hardcoded false, and CI runs
+`verify:greater-realm-release-gates` before build to accept only an explicitly
+enumerated safe release phase. The current tree must be the closed-review
+phase. Later envelopes permit production-approved pre-generation,
+candidate-approved inert append, exact import-only `TF`, exact activation-only
+`FT`, client presentation, and then a two-step notification release. The first
+notification step is Pages-only (`Pages=true`, `Hermes=false`) and requires the
+short-lived prepared bridge receipt. Only after its live postflight installs a
+durable chain root may a later source release enable Hermes; that durable-final
+phase forbids the prepared binding and requires the checked-in live root.
+`TT`, partial approval pairs, Hermes-before-live-Pages, notification-before-
+client, and every unenumerated combination fail. Client activation remains a
+separate release and must not be coupled to server publication.
 
 ## Receipts and recovery
 
