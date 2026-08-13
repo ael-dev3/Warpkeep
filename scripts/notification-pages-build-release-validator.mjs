@@ -78,6 +78,9 @@ export async function validateNotificationPagesBuildRelease(
     || typeof gate.phase !== 'string'
   ) fail('NOTIFICATION_PAGES_BUILD_RELEASE_AUTHORITY_INVALID');
 
+  // This flag controls the notification opt-in surface, not Greater Realm
+  // world presentation. The gen0 and durable notification lanes deliberately
+  // remain on the 0.3.43 world client until activation-client follows Hermes.
   const expectedPresentation = lane.mode === 'closed-review' ? 'false' : 'true';
   if (
     environment.VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED
@@ -91,7 +94,8 @@ export async function validateNotificationPagesBuildRelease(
         !== GREATER_REALM_NOTIFICATION_RELEASE_PHASE.PAGES_PRESENTATION_ACTIVATION)
     || (lane.mode === 'durable'
       && gate.phase !== GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ROOTED_INERT
-      && gate.phase !== GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL)
+      && gate.phase !== GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL
+      && gate.phase !== GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ACTIVATION_CLIENT)
     || (lane.mode !== 'closed-review'
       && gate.notificationReleaseAuthority === null)
   ) fail('NOTIFICATION_PAGES_BUILD_RELEASE_PHASE_MISMATCH');

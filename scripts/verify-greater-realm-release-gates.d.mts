@@ -32,23 +32,31 @@ export type GreaterRealmReleaseGateVerificationDependencies = Readonly<{
     pagesSourceCommit: string,
     repositoryRoot: string,
   ) => void | Promise<void>;
+  assertProductionPlayerCanarySourceAncestor?: (
+    pagesSourceCommit: string,
+    repositoryRoot: string,
+  ) => void | Promise<void>;
 }>;
 
 export const GREATER_REALM_NOTIFICATION_RELEASE_PHASE: Readonly<{
   PAGES_PRESENTATION_ACTIVATION: 'notification-pages-presentation-activation';
   ROOTED_INERT: 'notification-pages-rooted-inert';
   DURABLE_FINAL: 'notification-durable-final';
+  ACTIVATION_CLIENT: 'activation-client';
 }>;
 
 export type GreaterRealmNotificationReleaseAuthority = Readonly<{
   phase:
     | typeof GREATER_REALM_NOTIFICATION_RELEASE_PHASE.PAGES_PRESENTATION_ACTIVATION
     | typeof GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ROOTED_INERT
-    | typeof GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL;
+    | typeof GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL
+    | typeof GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ACTIVATION_CLIENT;
   notificationPreparedReceiptDigest: string | null;
   notificationPreparedBridgeSourceCommit: string | null;
   notificationPagesLiveRootReceiptDigest: string | null;
   notificationPagesLiveRootPagesSourceCommit: string | null;
+  productionPlayerCanaryReceiptDigest: string | null;
+  productionPlayerCanarySourceCommit: string | null;
 }>;
 
 export type GreaterRealmReleaseGateEnvelope = Readonly<{
@@ -69,6 +77,8 @@ export type GreaterRealmReleaseGateEnvelope = Readonly<{
   notificationPreparedBridgeSourceCommit: string | null;
   notificationPagesLiveRootReceiptDigest: string | null;
   notificationPagesLiveRootPagesSourceCommit: string | null;
+  productionPlayerCanaryReceiptDigest: string | null;
+  productionPlayerCanarySourceCommit: string | null;
 }>;
 
 export function parseGreaterRealmNotificationReleaseAuthority(

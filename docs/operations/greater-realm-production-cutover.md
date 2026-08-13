@@ -116,18 +116,61 @@ the source-only Pages build validator before build to accept only an explicitly
 enumerated safe release phase. Hosted build performs no owner-private receipt
 read or live bridge fetch. The current tree must be the closed-review
 phase. Later envelopes permit production-approved pre-generation,
-candidate-approved inert append, exact import-only `TF`, exact activation-only
-`FT`, client presentation, and then a three-step notification release. The first
-notification step is Pages-only (`Pages=true`, `Hermes=false`) and requires the
-short-lived prepared bridge receipt. Only after its live postflight installs a
-durable chain root may a second, Hermes-inert source clear prepared/private
-bindings and populate that root. This `notification-pages-rooted-inert` phase
-retains `Pages=true`, `Hermes=false`. A third projection-only source may then
-change Hermes `false` to `true` without changing the root; that durable-final
-phase forbids prepared authority and requires the checked-in live root.
-`TT`, partial approval pairs, Hermes-before-live-Pages, notification-before-
-client, and every unenumerated combination fail. Client activation remains a
-separate release and must not be coupled to server publication.
+candidate-approved inert append, exact import-only `TF`, and exact
+activation-only `FT`, followed by a three-step notification release that keeps
+the world client/server gates false and the release identity at `0.3.43`. The
+first notification step is Pages-only (`Pages=true`, `Hermes=false`) and
+requires the short-lived prepared bridge receipt. Only after its live
+postflight installs a durable chain root may a second, Hermes-inert source clear
+prepared/private bindings and populate that root. This
+`notification-pages-rooted-inert` phase retains `Pages=true`, `Hermes=false`.
+A third projection-only source may then change Hermes `false` to `true` without
+changing the root; that `notification-durable-final` phase forbids prepared
+authority and still retains the inert `0.3.43` world presentation.
+
+Only a later `activation-client` successor may atomically move the package and
+Mini App identity to `0.3.44`, change downstream client approval false → true,
+and change both client/server presentation gates false → true. It requires the
+unchanged durable Pages root, Hermes already true in its predecessor, and a
+checked-in content-addressed production-player-canary binding whose owner-only
+receipt is authenticated before deployment network access. Partial approval
+pairs, Hermes-before-live-Pages, active world presentation before durable
+Hermes/canary proof, and every unenumerated combination fail. This final
+presentation activation remains a separate successor to the earlier server
+module publication; it does not redefine the C0-C3 rollout.
+
+The hosted closed-review deployment job is a fresh checkout and does not reuse
+the build job's dependency tree. Before its last release-gate check it installs
+the exact root lock with lifecycle scripts, audit requests, and funding requests
+disabled under umask `0022`. A dedicated builtins-only boundary then uses the
+reviewed Greater Realm bootstrap to install and attest exactly the `yaml` and
+`typescript` resolver links (including the runner's exact native TypeScript
+package), imports and calls the release verifier literally, and always repeats
+both resolver and clean-source attestation afterward. A missing, redirected,
+polluted, or changed resolver stops before the Pages deployment action.
+
+The bridge-prepared workflow receives the canary owner FID only as the
+protected environment secret `WARPKEEP_PLAYER_CANARY_OWNER_FID`; this is
+distinct from the Cloudflare binding name `PLAYER_CANARY_OWNER_FID`. The
+entrypoint validates a canonical positive safe-integer FID and removes the
+environment entry with the other credentials before runtime imports. Its
+append-only v3 journal records the exact deployed predecessor deployment/version
+pair but never the FID value. The reviewed path requires the predecessor already have migration
+tag `v5`, the exact same reviewed version-specific module source digest, runtime
+compatibility/exports, plain-text and Durable Object bindings, and exactly the
+six established secret bindings. B0 must separately deploy that exact reviewed
+source/configuration at `v5` with those six secrets; a migration-tag-only update
+is insufficient. A `v4` predecessor stops for that separately reviewed B0
+prerequisite. The nondeploying version-upload multipart omits `keep_bindings`,
+uses strict inheritance with six explicit `inherit` descriptors whose
+`version_id` is the pinned predecessor version, and adds only one ephemeral
+`secret_text` binding, `PLAYER_CANARY_OWNER_FID`. A newer nondeployed version
+therefore cannot silently substitute different secret values. Candidate inspection
+then proves exactly seven secrets and the reviewed source. Immediately before
+the sole deployment POST, the exact six-secret predecessor is re-attested. The
+workflow never calls the legacy Worker `/secrets` PUT or DELETE endpoints, and
+ambiguity recovery performs no cleanup mutation. No FID value appears in argv,
+terminal output, artifacts, checked-in variables, receipts, or journal records.
 
 ### Private Pages authority and recovery
 
@@ -139,7 +182,8 @@ attestation, then source-closure attestation again before dynamically importing
 the operator. A runner mismatch, source change, resolver extra/missing byte, or
 dangerous Node/shell override stops before private input or network access.
 
-The one-time activation source names three exact owner-private inputs: the
+The one-time notification generation-zero source names three exact
+owner-private inputs: the
 active-v17 evidence digest, the forward-activation publish-receipt digest, and
 the reviewed founder count. The prepared binding separately names the exact
 bridge-prepared receipt and bridge source commit. The operator derives every
@@ -164,7 +208,12 @@ workflow run, attempt, Pages source, founder count, and input digests. It
 durably journals only non-secret expectations. Ordinary later Pages releases
 use only the checked-in permanent root: the receipt module writes a durable
 predecessor claim and candidate authority, and the journal retains its digest
-before deployment.
+before deployment. The final activation-client candidate additionally names
+the exact C6/Hermes-final predecessor through the production-player-canary
+binding. Its private canary receipt must match that predecessor, its durable
+Pages/Hermes authorities, and the normal admitted-owner exactly-once evidence;
+the operator authenticates this source-bound authority before any live fetch or
+deployment attempt.
 
 Immediately before deployment, the workflow proves via GitHub API that `main`
 is protected and still names the candidate, the exact Verify run/attempt

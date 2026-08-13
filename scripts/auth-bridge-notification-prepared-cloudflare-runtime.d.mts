@@ -60,6 +60,15 @@ export function buildAuthBridgeNotificationPreparedWranglerMultipart(
   sourceDigest: string;
 }>>;
 
+export function attestAuthBridgeNotificationPreparedCandidateMultipartMetadata(
+  options: Readonly<{
+    metadata: unknown;
+    contract: Readonly<Record<string, unknown>>;
+    playerCanaryOwnerFid: string;
+    predecessorVersionId: string;
+  }>,
+): true;
+
 export function projectAuthBridgeNotificationPreparedCloudflareVersion(
   options: Readonly<{
     value: unknown;
@@ -72,6 +81,7 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime(
   options: Readonly<{
     contract: Readonly<Record<string, unknown>>;
     apiToken: string;
+    playerCanaryOwnerFid: string;
     repositoryRoot: string;
     serviceRoot: string;
     nodeExecutable: string;
@@ -96,19 +106,39 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime(
     journal: Readonly<{
       inspect: () => Readonly<{
         phase: string | null;
-        uploadMode?: 'migration' | 'version' | null;
+        uploadMode?: 'version' | null;
+        predecessorDeploymentId?: string | null;
+        predecessorVersionId?: string | null;
       }>;
     }>;
   }>,
 ): Readonly<{
-  prepareUpload: (contract: Readonly<Record<string, unknown>>) => Promise<Readonly<{ mode: 'migration' | 'version' }>>;
+  prepareUpload: (contract: Readonly<Record<string, unknown>>) => Promise<Readonly<{
+    mode: 'version';
+    predecessorDeploymentId: string;
+    predecessorVersionId: string;
+  }>>;
   uploadVersion: (
     contract: Readonly<Record<string, unknown>>,
-    plan: Readonly<{ mode: 'migration' | 'version' }>,
-  ) => Promise<Readonly<{ versionId?: string }>>;
+    plan: Readonly<{
+      mode: 'version';
+      predecessorDeploymentId: string;
+      predecessorVersionId: string;
+    }>,
+  ) => Promise<Readonly<{ versionId: string }>>;
   reconcileVersion: (contract: Readonly<Record<string, unknown>>) => Promise<readonly string[]>;
   inspectVersion: (versionId: string) => Promise<unknown>;
-  releaseVersion: (input: Readonly<{ versionId: string; percentage: 100; message: string }>) => Promise<void>;
+  assertPredecessorStable: (predecessor: Readonly<{
+    deploymentId: string;
+    versionId: string;
+  }>) => Promise<void>;
+  releaseVersion: (input: Readonly<{
+    versionId: string;
+    predecessorDeploymentId: string;
+    predecessorVersionId: string;
+    percentage: 100;
+    message: string;
+  }>) => Promise<void>;
   inspectDeployment: () => Promise<unknown>;
   dispose: () => void;
 }>;

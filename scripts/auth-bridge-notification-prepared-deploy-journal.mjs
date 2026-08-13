@@ -34,9 +34,9 @@ import {
 } from './production-admin-token-budget.mjs';
 
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_PROFILE =
-  'warpkeep-auth-bridge-notification-prepared-deploy-journal-v1';
+  'warpkeep-auth-bridge-notification-prepared-deploy-journal-v3';
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_STATE_CHILD =
-  'bridge-prepared-deploy-journal-v1';
+  'bridge-prepared-deploy-journal-v3';
 
 const DIRECTORY_MODE = 0o700;
 const FILE_MODE = 0o600;
@@ -49,14 +49,22 @@ const RUN_ID = /^[1-9][0-9]{0,19}$/u;
 const STRICT_UTC = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}Z$/u;
 const PHASES = Object.freeze({
   prepared: 1,
-  'upload-invoked': 2,
-  uploaded: 3,
-  'release-uncertain': 4,
-  'release-invoked': 5,
-  completed: 6,
+  'remote-reconcile-started': 2,
+  'upload-invoked': 3,
+  uploaded: 4,
+  'release-uncertain': 5,
+  'release-invoked': 6,
+  completed: 7,
 });
-const RECORD_FILE = /^auth-bridge-prepared-deploy-([a-f0-9]{64})-0([1-6])-(prepared|upload-invoked|uploaded|release-uncertain|release-invoked|completed)\.json$/u;
-const RECORD_TEMPORARY_FILE = /^\.auth-bridge-prepared-deploy-([a-f0-9]{64})-0([1-6])-(prepared|upload-invoked|uploaded|release-uncertain|release-invoked|completed)-([a-f0-9]{24})\.json\.tmp$/u;
+const PHASE_PATTERN = '(prepared|remote-reconcile-started|upload-invoked|uploaded|release-uncertain|release-invoked|completed)';
+const RECORD_FILE = new RegExp(
+  `^auth-bridge-prepared-deploy-([a-f0-9]{64})-(0[1-7])-${PHASE_PATTERN}\\.json$`,
+  'u',
+);
+const RECORD_TEMPORARY_FILE = new RegExp(
+  `^\\.auth-bridge-prepared-deploy-([a-f0-9]{64})-(0[1-7])-${PHASE_PATTERN}-([a-f0-9]{24})\\.json\\.tmp$`,
+  'u',
+);
 const LOCK_FILE = '.auth-bridge-prepared-deploy.lock';
 const LOCK_TEMPORARY_FILE = /^\.auth-bridge-prepared-deploy-lock-([a-f0-9]{24})\.tmp$/u;
 const RECORD_KEYS = Object.freeze([
@@ -621,6 +629,10 @@ function phasePayload(phase, value) {
   const payload = canonicalValue(value);
   const expectedKeys = {
     prepared: ['contract'],
+    'remote-reconcile-started': [
+      'predecessorDeploymentId', 'predecessorVersionId', 'sourceCommit',
+      'sourceDigest', 'versionTag',
+    ],
     'upload-invoked': ['sourceCommit', 'sourceDigest', 'uploadMode', 'versionTag'],
     'release-uncertain': ['sourceCommit', 'versionId', 'versionTag'],
     'release-invoked': ['sourceCommit', 'versionId', 'versionTag'],
@@ -629,11 +641,19 @@ function phasePayload(phase, value) {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_PAYLOAD_INVALID');
   }
   if (
-    phase === 'upload-invoked'
+    ['remote-reconcile-started', 'upload-invoked'].includes(phase)
     && (!SOURCE_COMMIT.test(payload.sourceCommit)
       || !SHA256_HEX.test(payload.sourceDigest)
-      || !['migration', 'version'].includes(payload.uploadMode)
       || typeof payload.versionTag !== 'string')
+  ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_PAYLOAD_INVALID');
+  if (
+    phase === 'remote-reconcile-started'
+    && (!VERSION_ID.test(payload.predecessorDeploymentId)
+      || !VERSION_ID.test(payload.predecessorVersionId))
+  ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_PAYLOAD_INVALID');
+  if (
+    phase === 'upload-invoked'
+    && payload.uploadMode !== 'version'
   ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_PAYLOAD_INVALID');
   if (
     ['release-uncertain', 'release-invoked'].includes(phase)
@@ -658,7 +678,8 @@ function phasePayload(phase, value) {
 }
 
 function recordName(operationId, phase) {
-  return `auth-bridge-prepared-deploy-${operationId}-0${PHASES[phase]}-${phase}.json`;
+  const ordinal = String(PHASES[phase]).padStart(2, '0');
+  return `auth-bridge-prepared-deploy-${operationId}-${ordinal}-${phase}.json`;
 }
 
 function parseRecord(name, body) {
@@ -720,7 +741,7 @@ function repairRecordPublications(directory, uid) {
         ))
       || ![1, 2].includes(temporary.nlink)
     ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_DIRECTORY_INVALID');
-    const destinationName = `auth-bridge-prepared-deploy-${match[1]}-0${match[2]}-${match[3]}.json`;
+    const destinationName = `auth-bridge-prepared-deploy-${match[1]}-${match[2]}-${match[3]}.json`;
     const destinationPath = join(directory, destinationName);
     let destination;
     try { destination = lstatSync(destinationPath); } catch (error) {
@@ -840,12 +861,11 @@ function createJournal({
         fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_PAYLOAD_MISMATCH');
       }
       if (behavior === 'effect-boundary') {
-        fail(
-          phase === 'upload-invoked'
-            ? 'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_ALREADY_INVOKED'
-            : 'AUTH_BRIDGE_PREPARED_DEPLOY_RELEASE_ALREADY_INVOKED',
-          true,
-        );
+        const code = {
+          'upload-invoked': 'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_ALREADY_INVOKED',
+          'release-invoked': 'AUTH_BRIDGE_PREPARED_DEPLOY_RELEASE_ALREADY_INVOKED',
+        }[phase];
+        fail(code ?? 'AUTH_BRIDGE_PREPARED_DEPLOY_EFFECT_ALREADY_INVOKED', true);
       }
       return;
     }
@@ -855,9 +875,13 @@ function createJournal({
       (phase === 'prepared' && previous !== undefined)
       || (phase !== 'prepared' && previous === undefined)
       || (previous !== undefined && previous.ordinal >= ordinal)
-      || (phase === 'upload-invoked' && previous?.value.phase !== 'prepared')
+      || (phase === 'remote-reconcile-started'
+        && previous?.value.phase !== 'prepared')
+      || (phase === 'upload-invoked'
+        && previous?.value.phase !== 'remote-reconcile-started')
       || (phase === 'uploaded'
-        && !['prepared', 'upload-invoked'].includes(previous?.value.phase))
+        && !['remote-reconcile-started', 'upload-invoked']
+          .includes(previous?.value.phase))
       || (phase === 'release-uncertain' && previous?.value.phase !== 'uploaded')
       || (phase === 'release-invoked'
         && previous?.value.phase !== 'release-uncertain')
@@ -908,6 +932,12 @@ function createJournal({
         uploadMode: records.find(
           record => record.value.phase === 'upload-invoked',
         )?.value.payload.uploadMode ?? null,
+        predecessorDeploymentId: records.find(
+          record => record.value.phase === 'remote-reconcile-started',
+        )?.value.payload.predecessorDeploymentId ?? null,
+        predecessorVersionId: records.find(
+          record => record.value.phase === 'remote-reconcile-started',
+        )?.value.payload.predecessorVersionId ?? null,
       });
     },
     prepared(value) {
@@ -915,6 +945,9 @@ function createJournal({
         fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_CONTRACT_MISMATCH');
       }
       return transition('prepared', { contract });
+    },
+    remoteReconcileStarted(value) {
+      return transition('remote-reconcile-started', value);
     },
     uploadInvoked(value) {
       return transition('upload-invoked', value, 'effect-boundary');

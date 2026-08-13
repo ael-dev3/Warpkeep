@@ -1,6 +1,10 @@
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_PROFILE:
   'warpkeep-auth-bridge-notification-prepared-deploy-v1';
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_WRANGLER_VERSION: '4.110.0';
+export const AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES:
+  readonly ['ADMIN_TOKEN_SECRET', 'FARCASTER_RPC_URL', 'FARCASTER_RPC_URL_SECONDARY', 'NOTIFICATION_OPERATOR_SECRET', 'SESSION_COOKIE_KEY', 'SIGNING_KEY_JWK'];
+export const AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING:
+  'PLAYER_CANARY_OWNER_FID';
 
 export class AuthBridgeNotificationPreparedDeployError extends Error {
   readonly code: string;
@@ -42,20 +46,41 @@ export function attestAuthBridgeNotificationPreparedDeployment(
 export function executeAuthBridgeNotificationPreparedDeployAdapter(
   options: Readonly<{
     contract: Readonly<Record<string, unknown>>;
-    prepareUpload: (contract: Readonly<Record<string, unknown>>) => Promise<Readonly<{ mode: 'migration' | 'version' }>>;
+    prepareUpload: (contract: Readonly<Record<string, unknown>>) => Promise<Readonly<{
+      mode: 'version';
+      predecessorDeploymentId: string;
+      predecessorVersionId: string;
+    }>>;
     uploadVersion: (
       contract: Readonly<Record<string, unknown>>,
-      plan: Readonly<{ mode: 'migration' | 'version' }>,
-    ) => Promise<Readonly<{ versionId?: string }>>;
+      plan: Readonly<{
+        mode: 'version';
+        predecessorDeploymentId: string;
+        predecessorVersionId: string;
+      }>,
+    ) => Promise<Readonly<{ versionId: string }>>;
     reconcileVersion: (contract: Readonly<Record<string, unknown>>) => Promise<readonly string[]>;
     inspectVersion: (versionId: string) => Promise<unknown>;
-    releaseVersion: (input: Readonly<{ versionId: string; percentage: 100; message: string }>) => Promise<void>;
+    assertPredecessorStable: (predecessor: Readonly<{
+      deploymentId: string;
+      versionId: string;
+    }>) => Promise<void>;
+    releaseVersion: (input: Readonly<{
+      versionId: string;
+      predecessorDeploymentId: string;
+      predecessorVersionId: string;
+      percentage: 100;
+      message: string;
+    }>) => Promise<void>;
     inspectDeployment: () => Promise<unknown>;
     journal: Readonly<{
       inspect: () => Readonly<{
-        phase: 'prepared' | 'upload-invoked' | 'uploaded' | 'release-uncertain' | 'release-invoked' | 'completed' | null;
+        phase: 'prepared' | 'remote-reconcile-started' | 'upload-invoked' | 'uploaded' | 'release-uncertain' | 'release-invoked' | 'completed' | null;
+        predecessorDeploymentId: string | null;
+        predecessorVersionId: string | null;
       }>;
       prepared: (contract: Readonly<Record<string, unknown>>) => Promise<void>;
+      remoteReconcileStarted: (input: Readonly<Record<string, unknown>>) => Promise<void>;
       uploadInvoked: (input: Readonly<Record<string, unknown>>) => Promise<void>;
       uploaded: (version: Readonly<Record<string, unknown>>) => Promise<void>;
       releaseUncertain: (input: Readonly<Record<string, unknown>>) => Promise<void>;

@@ -81,6 +81,8 @@ const STATIC_SECURITY_INPUTS = Object.freeze([
   'scripts/notification-pages-live-release-binding.mjs',
   'scripts/notification-pages-private-release-binding.d.mts',
   'scripts/notification-pages-private-release-binding.mjs',
+  'scripts/production-player-canary-release-binding.d.mts',
+  'scripts/production-player-canary-release-binding.mjs',
   'scripts/profiles/founder-admission-plan.ts',
   'scripts/verify-auth-bridge-notification-prepared-policy.d.mts',
   'scripts/verify-auth-bridge-notification-prepared-policy.mjs',

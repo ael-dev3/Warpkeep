@@ -293,9 +293,11 @@ or an already tracked byte-identical replay, with no temporary or unrelated
 drift. A crash retry initially admits only that destination and one canonical
 UUID writer temporary; recovery or byte validation happens only after all
 private and runtime authority checks. The file is committed only as part of the
-single atomic C4 activation-client/Alpha `0.3.44` change. Its historical fields
-do not assert
-that C3 or C4 is currently pending, inactive, or untouched.
+single atomic C4 notification generation-zero change. C4 retains the inert
+Alpha `0.3.43` world identity; durable rooting, Hermes finalization, and the
+later C7 activation-client change remain separate reviewed phases. Its
+historical fields do not assert that C3 or C4 is currently pending, inactive,
+or untouched.
 
 ## Post-selection Tier-I runtime release
 
@@ -399,7 +401,7 @@ node scripts/atlas/greater-realm-toolchain-bootstrap.mjs retain-pending-owner-re
 # Explicit owner approval and post-selection runtime export, still on C0.
 npm run atlas:select-candidate -- --workspace /absolute/owner/workspace --batch '<private-batch-handle>' --candidate '<private-candidate-handle>' --approval-reference '<private-owner-reference>' --confirm-selection
 npm run atlas:export-runtime-release -- --workspace /absolute/owner/workspace --batch '<private-batch-handle>'
-# After reviewed C1-C3 and active canaries: prepare the one snapshot path for atomic C4.
+# After reviewed C1-C3 and active canaries: prepare the one snapshot path for inert C4.
 node scripts/atlas/greater-realm-toolchain-bootstrap.mjs export-pending-owner-report --workspace /absolute/owner/workspace --batch '<private-batch-handle>'
 ```
 

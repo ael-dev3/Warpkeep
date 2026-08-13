@@ -46,20 +46,25 @@ const RELEASE_BINDING_FIELDS = Object.freeze([
   'notificationPreparedBridgeSourceCommit',
   'notificationPagesLiveRootReceiptDigest',
   'notificationPagesLiveRootPagesSourceCommit',
+  'productionPlayerCanaryReceiptDigest',
+  'productionPlayerCanarySourceCommit',
 ]);
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
 const COMMIT_SHA = /^[a-f0-9]{40}$/u;
 
 /**
- * Notification delivery is deliberately split across two source releases.
- * Pages presentation is activated while Hermes is still inert and is rooted
- * in the short-lived prepared bridge receipt. Hermes can only be activated by
- * a later source with the immutable durable Pages chain root populated.
+ * Notification delivery is deliberately completed before Greater Realm world
+ * presentation. Pages notification presentation is activated while the world
+ * client/server gates and Hermes are still inert, then rooted in the durable
+ * Pages chain. Hermes can only be activated from that root. The existing
+ * activation-client phase is accepted only as a later durable-root successor
+ * carrying the exact checked-in production-player-canary binding.
  */
 export const GREATER_REALM_NOTIFICATION_RELEASE_PHASE = Object.freeze({
   PAGES_PRESENTATION_ACTIVATION: 'notification-pages-presentation-activation',
   ROOTED_INERT: 'notification-pages-rooted-inert',
   DURABLE_FINAL: 'notification-durable-final',
+  ACTIVATION_CLIENT: 'activation-client',
 });
 
 const base = Object.freeze(Object.fromEntries(BOOLEAN_FIELDS.map(field => [field, false])));
@@ -81,33 +86,29 @@ const SAFE_PHASES = Object.freeze([
     additivePublishApproved: true,
     importForwardFixApproved: true,
   }, 'import-only'),
-  ...[
-    [false, 'activation-only'],
-    [true, 'activation-client'],
-  ].map(([client, name]) => phase(
-    'production-approved',
-    {
-      activationMutationsCompiled: true,
-      entryAgreementApproved: true,
-      additivePublishApproved: true,
-      activationForwardFixApproved: true,
-      clientPresentationAllowed: client,
-      serverPresentationAllowed: client,
-      clientActivationApproved: client,
-    },
-    name,
-  )),
   phase('production-approved', {
     activationMutationsCompiled: true,
     entryAgreementApproved: true,
     additivePublishApproved: true,
     activationForwardFixApproved: true,
-    clientPresentationAllowed: true,
-    serverPresentationAllowed: true,
-    clientActivationApproved: true,
+  }, 'activation-only'),
+  phase('production-approved', {
+    activationMutationsCompiled: true,
+    entryAgreementApproved: true,
+    additivePublishApproved: true,
+    activationForwardFixApproved: true,
     admissionNotificationsApproved: true,
     pagesNotificationsEnabled: true,
   }, GREATER_REALM_NOTIFICATION_RELEASE_PHASE.PAGES_PRESENTATION_ACTIVATION),
+  phase('production-approved', {
+    activationMutationsCompiled: true,
+    entryAgreementApproved: true,
+    additivePublishApproved: true,
+    activationForwardFixApproved: true,
+    admissionNotificationsApproved: true,
+    hermesNotificationDeliveryApproved: true,
+    pagesNotificationsEnabled: true,
+  }, GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL),
   phase('production-approved', {
     activationMutationsCompiled: true,
     entryAgreementApproved: true,
@@ -119,7 +120,7 @@ const SAFE_PHASES = Object.freeze([
     admissionNotificationsApproved: true,
     hermesNotificationDeliveryApproved: true,
     pagesNotificationsEnabled: true,
-  }, GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL),
+  }, GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ACTIVATION_CLIENT),
 ]);
 
 function envelopeKey(value) {
@@ -150,9 +151,19 @@ function parseNotificationReleaseBindings(value) {
     || typeof rootSource !== 'string'
     || !COMMIT_SHA.test(rootSource)
   )) fail('GREATER_REALM_NOTIFICATION_PAGES_LIVE_ROOT_BINDING_INVALID');
+  const canaryDigest = value.productionPlayerCanaryReceiptDigest;
+  const canarySource = value.productionPlayerCanarySourceCommit;
+  const hasProductionPlayerCanary = canaryDigest !== null || canarySource !== null;
+  if (hasProductionPlayerCanary && (
+    typeof canaryDigest !== 'string'
+    || !SHA256_HEX.test(canaryDigest)
+    || typeof canarySource !== 'string'
+    || !COMMIT_SHA.test(canarySource)
+  )) fail('GREATER_REALM_PRODUCTION_PLAYER_CANARY_BINDING_INVALID');
   return Object.freeze({
     hasPreparedBinding,
     hasLiveRoot,
+    hasProductionPlayerCanary,
   });
 }
 
@@ -171,6 +182,7 @@ export function parseGreaterRealmNotificationReleaseAuthority(value) {
     value.phase !== GREATER_REALM_NOTIFICATION_RELEASE_PHASE.PAGES_PRESENTATION_ACTIVATION
       && value.phase !== GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ROOTED_INERT
       && value.phase !== GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL
+      && value.phase !== GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ACTIVATION_CLIENT
     )
   ) fail('GREATER_REALM_NOTIFICATION_RELEASE_AUTHORITY_INVALID');
   const bindings = parseNotificationReleaseBindings(value);
@@ -192,6 +204,15 @@ export function parseGreaterRealmNotificationReleaseAuthority(value) {
       fail('GREATER_REALM_NOTIFICATION_PREPARED_BINDING_UNEXPECTED');
     }
   }
+  if (
+    value.phase === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ACTIVATION_CLIENT
+  ) {
+    if (!bindings.hasProductionPlayerCanary) {
+      fail('GREATER_REALM_PRODUCTION_PLAYER_CANARY_BINDING_REQUIRED');
+    }
+  } else if (bindings.hasProductionPlayerCanary) {
+    fail('GREATER_REALM_PRODUCTION_PLAYER_CANARY_BINDING_UNEXPECTED');
+  }
   return Object.freeze({
     phase: value.phase,
     notificationPreparedReceiptDigest: value.notificationPreparedReceiptDigest,
@@ -201,6 +222,10 @@ export function parseGreaterRealmNotificationReleaseAuthority(value) {
       value.notificationPagesLiveRootReceiptDigest,
     notificationPagesLiveRootPagesSourceCommit:
       value.notificationPagesLiveRootPagesSourceCommit,
+    productionPlayerCanaryReceiptDigest:
+      value.productionPlayerCanaryReceiptDigest,
+    productionPlayerCanarySourceCommit:
+      value.productionPlayerCanarySourceCommit,
   });
 }
 
@@ -269,6 +294,17 @@ function assertPagesLiveRootSourceIsAncestor(
   });
 }
 
+function assertProductionPlayerCanarySourceIsAncestor(
+  pagesSourceCommit,
+  repositoryRoot = REPOSITORY_ROOT,
+) {
+  assertSourceIsAncestor(pagesSourceCommit, repositoryRoot, {
+    headInvalidCode: 'GREATER_REALM_PRODUCTION_PLAYER_CANARY_HEAD_INVALID',
+    notAncestorCode:
+      'GREATER_REALM_PRODUCTION_PLAYER_CANARY_SOURCE_NOT_ANCESTOR',
+  });
+}
+
 export async function verifyGreaterRealmReleaseGateEnvelope(
   value,
   {
@@ -281,6 +317,8 @@ export async function verifyGreaterRealmReleaseGateEnvelope(
       inspectPrivateAuthBridgeNotificationPreparedReceiptByDigest,
     assertBridgeSourceAncestor = assertPreparedBridgeSourceIsAncestor,
     assertPagesLiveRootSourceAncestor = assertPagesLiveRootSourceIsAncestor,
+    assertProductionPlayerCanarySourceAncestor =
+      assertProductionPlayerCanarySourceIsAncestor,
   } = {},
 ) {
   if (
@@ -316,13 +354,17 @@ export async function verifyGreaterRealmReleaseGateEnvelope(
   const notificationPhase = phaseName
       === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.PAGES_PRESENTATION_ACTIVATION
     || phaseName === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ROOTED_INERT
-    || phaseName === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL;
+    || phaseName === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL
+    || phaseName === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ACTIVATION_CLIENT;
   if (!notificationPhase) {
     if (bindings.hasPreparedBinding) {
       fail('GREATER_REALM_NOTIFICATION_PREPARED_BINDING_UNEXPECTED');
     }
     if (bindings.hasLiveRoot) {
       fail('GREATER_REALM_NOTIFICATION_PAGES_LIVE_ROOT_BINDING_UNEXPECTED');
+    }
+    if (bindings.hasProductionPlayerCanary) {
+      fail('GREATER_REALM_PRODUCTION_PLAYER_CANARY_BINDING_UNEXPECTED');
     }
     return phaseName;
   }
@@ -333,6 +375,7 @@ export async function verifyGreaterRealmReleaseGateEnvelope(
   if (
     phaseName === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ROOTED_INERT
     || phaseName === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL
+    || phaseName === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ACTIVATION_CLIENT
   ) {
     // This public/static gate proves source lineage only. The separate private
     // predeploy and Hermes boundaries must authenticate the current-source
@@ -341,6 +384,12 @@ export async function verifyGreaterRealmReleaseGateEnvelope(
       authority.notificationPagesLiveRootPagesSourceCommit,
       REPOSITORY_ROOT,
     );
+    if (phaseName === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ACTIVATION_CLIENT) {
+      await assertProductionPlayerCanarySourceAncestor(
+        authority.productionPlayerCanarySourceCommit,
+        REPOSITORY_ROOT,
+      );
+    }
     return phaseName;
   }
 
@@ -497,16 +546,19 @@ export async function inspectGreaterRealmReleaseGateState(
     pagesNotificationsEnabled,
     ...notificationSources.preparedBinding,
     ...notificationSources.liveRootBinding,
+    ...notificationSources.productionPlayerCanaryBinding,
   }, options, dependencies);
   const notificationReleaseAuthority = [
     GREATER_REALM_NOTIFICATION_RELEASE_PHASE.PAGES_PRESENTATION_ACTIVATION,
     GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ROOTED_INERT,
     GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL,
+    GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ACTIVATION_CLIENT,
   ].includes(phaseName)
     ? parseGreaterRealmNotificationReleaseAuthority({
       phase: phaseName,
       ...notificationSources.preparedBinding,
       ...notificationSources.liveRootBinding,
+      ...notificationSources.productionPlayerCanaryBinding,
     })
     : null;
   return Object.freeze({ phase: phaseName, notificationReleaseAuthority });

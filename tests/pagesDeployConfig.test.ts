@@ -5,6 +5,8 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
+import { assertNotificationReleaseAuthorityMatchesSources } from '../scripts/validate-pages-deploy-config.mjs';
+// @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { validatePagesDeploymentConfiguration } from '../scripts/validate-pages-deploy-config.mjs';
 import {
   AUTH_BRIDGE_NOTIFICATION_DELIVERY_CONTRACT_DIGEST,
@@ -33,6 +35,8 @@ const PREPARED_RECEIPT_DIGEST = 'b'.repeat(64);
 const PREPARED_BRIDGE_SOURCE_COMMIT = 'c'.repeat(40);
 const LIVE_ROOT_RECEIPT_DIGEST = 'd'.repeat(64);
 const LIVE_ROOT_PAGES_SOURCE_COMMIT = 'e'.repeat(40);
+const PLAYER_CANARY_RECEIPT_DIGEST = 'f'.repeat(64);
+const PLAYER_CANARY_SOURCE_COMMIT = '1'.repeat(40);
 const RELEASE_HEADERS = Object.freeze({
   'content-type': 'application/json; charset=utf-8',
   'cache-control': 'no-store',
@@ -104,6 +108,7 @@ function preparedGateDependencies() {
     }),
     assertBridgeSourceAncestor: vi.fn(),
     assertPagesLiveRootSourceAncestor: vi.fn(),
+    assertProductionPlayerCanarySourceAncestor: vi.fn(),
   };
 }
 
@@ -158,6 +163,8 @@ const EMPTY_RELEASE_BINDINGS = Object.freeze({
   notificationPreparedBridgeSourceCommit: null,
   notificationPagesLiveRootReceiptDigest: null,
   notificationPagesLiveRootPagesSourceCommit: null,
+  productionPlayerCanaryReceiptDigest: null,
+  productionPlayerCanarySourceCommit: null,
 });
 
 const PREPARED_RELEASE_BINDINGS = Object.freeze({
@@ -165,6 +172,8 @@ const PREPARED_RELEASE_BINDINGS = Object.freeze({
   notificationPreparedBridgeSourceCommit: PREPARED_BRIDGE_SOURCE_COMMIT,
   notificationPagesLiveRootReceiptDigest: null,
   notificationPagesLiveRootPagesSourceCommit: null,
+  productionPlayerCanaryReceiptDigest: null,
+  productionPlayerCanarySourceCommit: null,
 });
 
 const DURABLE_RELEASE_BINDINGS = Object.freeze({
@@ -172,21 +181,35 @@ const DURABLE_RELEASE_BINDINGS = Object.freeze({
   notificationPreparedBridgeSourceCommit: null,
   notificationPagesLiveRootReceiptDigest: LIVE_ROOT_RECEIPT_DIGEST,
   notificationPagesLiveRootPagesSourceCommit: LIVE_ROOT_PAGES_SOURCE_COMMIT,
+  productionPlayerCanaryReceiptDigest: null,
+  productionPlayerCanarySourceCommit: null,
 });
 
-const ACTIVATED_CLIENT_ENVELOPE = Object.freeze({
+const PLAYER_CANARY_RELEASE_BINDINGS = Object.freeze({
+  productionPlayerCanaryReceiptDigest: PLAYER_CANARY_RECEIPT_DIGEST,
+  productionPlayerCanarySourceCommit: PLAYER_CANARY_SOURCE_COMMIT,
+});
+
+const INERT_NOTIFICATION_ENVELOPE = Object.freeze({
   entryAgreementReleaseStatus: 'production-approved' as const,
   importMutationsCompiled: false,
   activationMutationsCompiled: true,
-  clientPresentationAllowed: true,
-  serverPresentationAllowed: true,
+  clientPresentationAllowed: false,
+  serverPresentationAllowed: false,
   entryAgreementApproved: true,
   additivePublishApproved: true,
   importForwardFixApproved: false,
   activationForwardFixApproved: true,
-  clientActivationApproved: true,
+  clientActivationApproved: false,
   admissionNotificationsApproved: true,
   pagesNotificationsEnabled: true,
+});
+
+const ACTIVATED_CLIENT_ENVELOPE = Object.freeze({
+  ...INERT_NOTIFICATION_ENVELOPE,
+  clientPresentationAllowed: true,
+  serverPresentationAllowed: true,
+  clientActivationApproved: true,
 });
 
 function pagesPresentationAuthority() {
@@ -286,7 +309,8 @@ describe('Pages deployment configuration validation', () => {
       });
       expect(result.status).not.toBe(0);
       expect(result.stderr).toContain(
-        'must exactly match the reviewed checked-in prepared and durable bindings',
+        'must exactly match the reviewed checked-in prepared, durable, and '
+          + 'production-player-canary bindings',
       );
     }
 
@@ -301,7 +325,15 @@ describe('Pages deployment configuration validation', () => {
         notificationPagesLiveRootReceiptDigest: LIVE_ROOT_RECEIPT_DIGEST,
         notificationPagesLiveRootPagesSourceCommit: LIVE_ROOT_PAGES_SOURCE_COMMIT,
       },
+      {
+        ...pagesPresentationAuthority(),
+        ...PLAYER_CANARY_RELEASE_BINDINGS,
+      },
       { ...durableFinalAuthority(), notificationPagesLiveRootReceiptDigest: null },
+      {
+        ...durableFinalAuthority(),
+        ...PLAYER_CANARY_RELEASE_BINDINGS,
+      },
       {
         ...durableFinalAuthority(),
         notificationPreparedReceiptDigest: PREPARED_RECEIPT_DIGEST,
@@ -338,6 +370,36 @@ describe('Pages deployment configuration validation', () => {
         'explicit notification release phase and authority is invalid',
       );
     }
+  });
+
+  it('rejects a checked-in production-player-canary binding mismatch', () => {
+    const authority = {
+      phase: GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ACTIVATION_CLIENT,
+      ...DURABLE_RELEASE_BINDINGS,
+      ...PLAYER_CANARY_RELEASE_BINDINGS,
+    };
+    const parsedSources = {
+      preparedBinding: {
+        notificationPreparedReceiptDigest: null,
+        notificationPreparedBridgeSourceCommit: null,
+      },
+      liveRootBinding: DURABLE_RELEASE_BINDINGS,
+      productionPlayerCanaryBinding: PLAYER_CANARY_RELEASE_BINDINGS,
+    };
+    expect(() => assertNotificationReleaseAuthorityMatchesSources(
+      authority,
+      parsedSources,
+    )).not.toThrow();
+    expect(() => assertNotificationReleaseAuthorityMatchesSources(
+      authority,
+      {
+        ...parsedSources,
+        productionPlayerCanaryBinding: {
+          ...PLAYER_CANARY_RELEASE_BINDINGS,
+          productionPlayerCanarySourceCommit: '2'.repeat(40),
+        },
+      },
+    )).toThrow(/production-player-canary bindings/u);
   });
 
   it('attests that the current tree is one exact safe phase with distinct verifiers', async () => {
@@ -416,6 +478,7 @@ describe('Pages deployment configuration validation', () => {
         const notificationApproved = (mask & (1 << 9)) !== 0
           && (mask & (1 << 11)) !== 0;
         const hermesApproved = (mask & (1 << 10)) !== 0;
+        const clientApproved = (mask & (1 << 8)) !== 0;
         const envelope = Object.fromEntries([
           ['entryAgreementReleaseStatus', entryAgreementReleaseStatus],
           ...fields.map((field, index) => [field, (mask & (1 << index)) !== 0]),
@@ -443,6 +506,18 @@ describe('Pages deployment configuration validation', () => {
               ? LIVE_ROOT_PAGES_SOURCE_COMMIT
               : null,
           ],
+          [
+            'productionPlayerCanaryReceiptDigest',
+            notificationApproved && hermesApproved && clientApproved
+              ? PLAYER_CANARY_RECEIPT_DIGEST
+              : null,
+          ],
+          [
+            'productionPlayerCanarySourceCommit',
+            notificationApproved && hermesApproved && clientApproved
+              ? PLAYER_CANARY_SOURCE_COMMIT
+              : null,
+          ],
         ]);
         try {
           accepted.add(await verifyGreaterRealmReleaseGateEnvelope(envelope, {
@@ -466,14 +541,8 @@ describe('Pages deployment configuration validation', () => {
     ]);
     expect(rejected).toBe(2 ** (fields.length + 1) - accepted.size);
     await expect(verifyGreaterRealmReleaseGateEnvelope({
-      entryAgreementReleaseStatus: 'production-approved',
-      ...Object.fromEntries(fields.map(field => [field, false])),
-      activationMutationsCompiled: true,
-      entryAgreementApproved: true,
-      additivePublishApproved: true,
-      activationForwardFixApproved: true,
-      admissionNotificationsApproved: true,
-      pagesNotificationsEnabled: true,
+      ...ACTIVATED_CLIENT_ENVELOPE,
+      hermesNotificationDeliveryApproved: false,
       ...PREPARED_RELEASE_BINDINGS,
     })).rejects.toThrow(/PHASE_INVALID/);
     await expect(verifyGreaterRealmReleaseGateEnvelope({
@@ -487,7 +556,7 @@ describe('Pages deployment configuration validation', () => {
 
   it('orders prepared authority checks before Pages presentation activation', async () => {
     const pagesEnvelope = {
-      ...ACTIVATED_CLIENT_ENVELOPE,
+      ...INERT_NOTIFICATION_ENVELOPE,
       hermesNotificationDeliveryApproved: false,
       ...PREPARED_RELEASE_BINDINGS,
     };
@@ -611,7 +680,7 @@ describe('Pages deployment configuration validation', () => {
 
   it('requires the durable root for Hermes and never reads prepared authority', async () => {
     const durableEnvelope = {
-      ...ACTIVATED_CLIENT_ENVELOPE,
+      ...INERT_NOTIFICATION_ENVELOPE,
       hermesNotificationDeliveryApproved: true,
       ...DURABLE_RELEASE_BINDINGS,
     };
@@ -683,9 +752,74 @@ describe('Pages deployment configuration validation', () => {
     expect(dependencies.assertBridgeSourceAncestor).not.toHaveBeenCalled();
   });
 
+  it('allows activation-client only after durable Hermes and rejects every early path', async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error('activation-client gate must not fetch');
+    }) as typeof fetch;
+    const dependencies = {
+      inspectPreparedReceiptByDigest: vi.fn(),
+      assertBridgeSourceAncestor: vi.fn(),
+      assertPagesLiveRootSourceAncestor: vi.fn(),
+      assertProductionPlayerCanarySourceAncestor: vi.fn(),
+    };
+    const finalEnvelope = {
+      ...ACTIVATED_CLIENT_ENVELOPE,
+      hermesNotificationDeliveryApproved: true,
+      ...DURABLE_RELEASE_BINDINGS,
+      ...PLAYER_CANARY_RELEASE_BINDINGS,
+    };
+    await expect(verifyGreaterRealmReleaseGateEnvelope(
+      finalEnvelope,
+      { fetchImpl: fetchMock, now: NOW },
+      dependencies,
+    )).resolves.toBe(
+      GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ACTIVATION_CLIENT,
+    );
+    for (const early of [
+      {
+        ...ACTIVATED_CLIENT_ENVELOPE,
+        hermesNotificationDeliveryApproved: false,
+        ...PREPARED_RELEASE_BINDINGS,
+        ...PLAYER_CANARY_RELEASE_BINDINGS,
+      },
+      {
+        ...ACTIVATED_CLIENT_ENVELOPE,
+        hermesNotificationDeliveryApproved: false,
+        ...DURABLE_RELEASE_BINDINGS,
+        ...PLAYER_CANARY_RELEASE_BINDINGS,
+      },
+      {
+        ...ACTIVATED_CLIENT_ENVELOPE,
+        hermesNotificationDeliveryApproved: true,
+        ...EMPTY_RELEASE_BINDINGS,
+        ...PLAYER_CANARY_RELEASE_BINDINGS,
+      },
+      {
+        ...ACTIVATED_CLIENT_ENVELOPE,
+        hermesNotificationDeliveryApproved: true,
+        ...DURABLE_RELEASE_BINDINGS,
+      },
+    ]) {
+      await expect(verifyGreaterRealmReleaseGateEnvelope(
+        early,
+        { fetchImpl: fetchMock, now: NOW },
+        dependencies,
+      )).rejects.toThrow();
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(dependencies.inspectPreparedReceiptByDigest).not.toHaveBeenCalled();
+    expect(dependencies.assertBridgeSourceAncestor).not.toHaveBeenCalled();
+    expect(dependencies.assertPagesLiveRootSourceAncestor).toHaveBeenCalledWith(
+      LIVE_ROOT_PAGES_SOURCE_COMMIT,
+      process.cwd(),
+    );
+    expect(dependencies.assertProductionPlayerCanarySourceAncestor)
+      .toHaveBeenCalledWith(PLAYER_CANARY_SOURCE_COMMIT, process.cwd());
+  });
+
   it('accepts the durable root while Hermes stays inert without private hosted access', async () => {
     const rootedEnvelope = {
-      ...ACTIVATED_CLIENT_ENVELOPE,
+      ...INERT_NOTIFICATION_ENVELOPE,
       hermesNotificationDeliveryApproved: false,
       ...DURABLE_RELEASE_BINDINGS,
     };
@@ -698,6 +832,7 @@ describe('Pages deployment configuration validation', () => {
       }),
       assertBridgeSourceAncestor: vi.fn(),
       assertPagesLiveRootSourceAncestor: vi.fn(),
+      assertProductionPlayerCanarySourceAncestor: vi.fn(),
     };
     await expect(verifyGreaterRealmReleaseGateEnvelope(rootedEnvelope, {
       fetchImpl: fetchMock,
@@ -717,7 +852,7 @@ describe('Pages deployment configuration validation', () => {
 
   it('keeps hosted staged validation static while private predeploy owns inspection', async () => {
     const pagesEnvelope = {
-      ...ACTIVATED_CLIENT_ENVELOPE,
+      ...INERT_NOTIFICATION_ENVELOPE,
       hermesNotificationDeliveryApproved: false,
       ...PREPARED_RELEASE_BINDINGS,
     };
@@ -753,7 +888,7 @@ describe('Pages deployment configuration validation', () => {
       assertBridgeSourceAncestor: vi.fn(),
     };
     await expect(verifyGreaterRealmReleaseGateEnvelope({
-      ...ACTIVATED_CLIENT_ENVELOPE,
+      ...INERT_NOTIFICATION_ENVELOPE,
       hermesNotificationDeliveryApproved: true,
       ...DURABLE_RELEASE_BINDINGS,
       notificationPagesLiveRootPagesSourceCommit: head,
@@ -761,7 +896,7 @@ describe('Pages deployment configuration validation', () => {
       GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL,
     );
     await expect(verifyGreaterRealmReleaseGateEnvelope({
-      ...ACTIVATED_CLIENT_ENVELOPE,
+      ...INERT_NOTIFICATION_ENVELOPE,
       hermesNotificationDeliveryApproved: true,
       ...DURABLE_RELEASE_BINDINGS,
       notificationPagesLiveRootPagesSourceCommit: '0'.repeat(40),
@@ -790,19 +925,25 @@ describe('Pages deployment configuration validation', () => {
     ] as const;
     const exactEnvelopes = [
       {
-        ...ACTIVATED_CLIENT_ENVELOPE,
+        ...INERT_NOTIFICATION_ENVELOPE,
         hermesNotificationDeliveryApproved: false,
         ...PREPARED_RELEASE_BINDINGS,
+      },
+      {
+        ...INERT_NOTIFICATION_ENVELOPE,
+        hermesNotificationDeliveryApproved: true,
+        ...DURABLE_RELEASE_BINDINGS,
+      },
+      {
+        ...INERT_NOTIFICATION_ENVELOPE,
+        hermesNotificationDeliveryApproved: false,
+        ...DURABLE_RELEASE_BINDINGS,
       },
       {
         ...ACTIVATED_CLIENT_ENVELOPE,
         hermesNotificationDeliveryApproved: true,
         ...DURABLE_RELEASE_BINDINGS,
-      },
-      {
-        ...ACTIVATED_CLIENT_ENVELOPE,
-        hermesNotificationDeliveryApproved: false,
-        ...DURABLE_RELEASE_BINDINGS,
+        ...PLAYER_CANARY_RELEASE_BINDINGS,
       },
     ];
     const fetchMock = vi.fn(async () => {
@@ -812,6 +953,7 @@ describe('Pages deployment configuration validation', () => {
       inspectPreparedReceiptByDigest: vi.fn(),
       assertBridgeSourceAncestor: vi.fn(),
       assertPagesLiveRootSourceAncestor: vi.fn(),
+      assertProductionPlayerCanarySourceAncestor: vi.fn(),
     };
     for (const exact of exactEnvelopes) {
       for (const field of fields) {
@@ -821,6 +963,7 @@ describe('Pages deployment configuration validation', () => {
         };
         const projectionOnly = exact.notificationPagesLiveRootReceiptDigest
           === LIVE_ROOT_RECEIPT_DIGEST
+          && exact.clientActivationApproved === false
           && field === 'hermesNotificationDeliveryApproved';
         if (projectionOnly) {
           await expect(verifyGreaterRealmReleaseGateEnvelope(
@@ -847,6 +990,8 @@ describe('Pages deployment configuration validation', () => {
     expect(dependencies.inspectPreparedReceiptByDigest).not.toHaveBeenCalled();
     expect(dependencies.assertBridgeSourceAncestor).not.toHaveBeenCalled();
     expect(dependencies.assertPagesLiveRootSourceAncestor).toHaveBeenCalledTimes(2);
+    expect(dependencies.assertProductionPlayerCanarySourceAncestor)
+      .not.toHaveBeenCalled();
   });
 
   it('rejects authorities on every non-notification phase without side effects', async () => {
@@ -889,13 +1034,6 @@ describe('Pages deployment configuration validation', () => {
         importForwardFixApproved: true,
       },
       { entryAgreementReleaseStatus: 'production-approved', ...activatedServer },
-      {
-        entryAgreementReleaseStatus: 'production-approved',
-        ...activatedServer,
-        clientPresentationAllowed: true,
-        serverPresentationAllowed: true,
-        clientActivationApproved: true,
-      },
     ];
     const fetchMock = vi.fn(async () => {
       throw new Error('non-notification phase must not fetch');
@@ -906,7 +1044,11 @@ describe('Pages deployment configuration validation', () => {
       assertPagesLiveRootSourceAncestor: vi.fn(),
     };
     for (const envelope of nonNotificationEnvelopes) {
-      for (const authority of [PREPARED_RELEASE_BINDINGS, DURABLE_RELEASE_BINDINGS]) {
+      for (const authority of [
+        PREPARED_RELEASE_BINDINGS,
+        DURABLE_RELEASE_BINDINGS,
+        { ...EMPTY_RELEASE_BINDINGS, ...PLAYER_CANARY_RELEASE_BINDINGS },
+      ]) {
         await expect(verifyGreaterRealmReleaseGateEnvelope({
           ...envelope,
           ...authority,

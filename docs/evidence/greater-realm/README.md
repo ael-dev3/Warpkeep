@@ -21,7 +21,8 @@ package, verifies the runtime release and exact C0-to-C3 lineage, and writes
 only the previously retained bytes to the fixed repository path. Its
 postcondition is the unchanged C3 HEAD plus exactly that one untracked file (or
 an exact tracked replay), with no temporary or unrelated drift. The file then
-enters Git atomically with the C4 activation-client/Alpha `0.3.44` change.
+enters Git atomically with the inert C4 notification generation-zero change;
+C4 remains Alpha `0.3.43` and does not activate world presentation.
 
 The snapshot schema is
 `warpkeep.greater-realm.pre-selection-retention-snapshot.v1`. Every lifecycle

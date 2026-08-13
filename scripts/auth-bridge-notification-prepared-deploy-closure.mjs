@@ -88,6 +88,8 @@ const REVIEWED_RELEASE_SOURCE_PATHS = Object.freeze({
     'scripts/auth-bridge-notification-prepared-release-binding.mjs',
   privateBinding: 'scripts/notification-pages-private-release-binding.mjs',
   liveRootBinding: 'scripts/notification-pages-live-release-binding.mjs',
+  productionPlayerCanaryBinding:
+    'scripts/production-player-canary-release-binding.mjs',
 });
 
 const INERT_CLIENT_RELEASE_VERSION = '0.3.43';
@@ -104,21 +106,21 @@ const REVIEWED_RELEASE_SOURCE_PATH_SET =
 
 const REVIEWED_RELEASE_PHASE_IDENTITIES = new Map([
   // Production-approved pre-generation.
-  ['FF|FFFF|FF|FF|0|0|NNN', INERT_CLIENT_RELEASE_STATE],
+  ['FF|FFFF|FF|FF|0|0|NNNN', INERT_CLIENT_RELEASE_STATE],
   // Candidate-approved inert append.
-  ['FF|TTFF|FF|FF|0|0|NNN', INERT_CLIENT_RELEASE_STATE],
+  ['FF|TTFF|FF|FF|0|0|NNNN', INERT_CLIENT_RELEASE_STATE],
   // Import-only forward fix.
-  ['TF|TTTF|FF|FF|0|0|NNN', INERT_CLIENT_RELEASE_STATE],
+  ['TF|TTTF|FF|FF|0|0|NNNN', INERT_CLIENT_RELEASE_STATE],
   // Activation-only forward fix.
-  ['FT|TTFT|FF|FF|0|0|NNN', INERT_CLIENT_RELEASE_STATE],
-  // Client and server presentation are approved together after active proof.
-  ['FT|TTFT|TF|TT|0|0|NNN', ACTIVE_CLIENT_RELEASE_STATE],
-  // Generation-zero notification Pages activation.
-  ['FT|TTFT|TT|TT|1|0|PPN', ACTIVE_CLIENT_RELEASE_STATE],
-  // Durable Pages root installed while Hermes remains inert.
-  ['FT|TTFT|TT|TT|1|0|NNP', ACTIVE_CLIENT_RELEASE_STATE],
-  // Final notification delivery approval.
-  ['FT|TTFT|TT|TT|1|1|NNP', ACTIVE_CLIENT_RELEASE_STATE],
+  ['FT|TTFT|FF|FF|0|0|NNNN', INERT_CLIENT_RELEASE_STATE],
+  // Generation-zero notification Pages activation remains world-client inert.
+  ['FT|TTFT|FT|FF|1|0|PPNN', INERT_CLIENT_RELEASE_STATE],
+  // Durable Pages root installed while Hermes and world presentation stay inert.
+  ['FT|TTFT|FT|FF|1|0|NNPN', INERT_CLIENT_RELEASE_STATE],
+  // Final notification delivery approval still retains the 0.3.43 world client.
+  ['FT|TTFT|FT|FF|1|1|NNPN', INERT_CLIENT_RELEASE_STATE],
+  // Presentation activates only after durable Hermes plus the canary binding.
+  ['FT|TTFT|TT|TT|1|1|NNPP', ACTIVE_CLIENT_RELEASE_STATE],
 ]);
 
 function expectedMemberDigestProfile(memberPath) {
@@ -207,6 +209,8 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/notification-pages-release-source-parser.mjs',
     'scripts/production-admin-token-budget.d.mts',
     'scripts/production-admin-token-budget.mjs',
+    'scripts/production-player-canary-release-binding.d.mts',
+    'scripts/production-player-canary-release-binding.mjs',
     'scripts/profiles/farcaster-profile-policy.ts',
     'scripts/profiles/founder-admission-plan.ts',
     'scripts/profiles/profile-transport.ts',
@@ -809,7 +813,7 @@ function canonicalReviewedReleaseMemberBodies(memberBodies) {
       + '} as const);',
     values => {
       const state = booleanState(values);
-      if (!['FF', 'TF', 'TT'].includes(state)) {
+      if (!['FF', 'FT', 'TT'].includes(state)) {
         fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_PHASE_INVALID');
       }
       return state;
@@ -886,6 +890,18 @@ function canonicalReviewedReleaseMemberBodies(memberBodies) {
       bindingState,
     ),
   );
+  const productionPlayerCanaryBinding = record(
+    'productionPlayerCanaryBinding',
+    projectReviewedReleaseSource(
+      body('productionPlayerCanaryBinding'),
+      /^export const PRODUCTION_PLAYER_CANARY_RELEASE_BINDING = Object\.freeze\(\{\n  productionPlayerCanaryReceiptDigest: (null|'[a-f0-9]{64}'),\n  productionPlayerCanarySourceCommit: (null|'[a-f0-9]{40}'),\n\}\);$/gmu,
+      'export const PRODUCTION_PLAYER_CANARY_RELEASE_BINDING = Object.freeze({\n'
+        + '  productionPlayerCanaryReceiptDigest: null,\n'
+        + '  productionPlayerCanarySourceCommit: null,\n'
+        + '});',
+      bindingState,
+    ),
+  );
 
   const phaseKey = [
     modulePolicy,
@@ -894,7 +910,8 @@ function canonicalReviewedReleaseMemberBodies(memberBodies) {
     presentation,
     pages,
     hermes,
-    `${preparedBinding}${privateBinding}${liveRootBinding}`,
+    `${preparedBinding}${privateBinding}${liveRootBinding}`
+      + productionPlayerCanaryBinding,
   ].join('|');
   const requiredClientReleaseIdentity =
     REVIEWED_RELEASE_PHASE_IDENTITIES.get(phaseKey);

@@ -246,7 +246,6 @@ describe('Greater Realm release-gate deployment boundary', () => {
       expect(policy.split(`'${member}'`)).toHaveLength(2);
     }
   });
-
   it('contains one literal verifier import and no resolver shell construction', () => {
     const source = readFileSync(
       'scripts/greater-realm-release-gate-deploy-boundary.mjs',
