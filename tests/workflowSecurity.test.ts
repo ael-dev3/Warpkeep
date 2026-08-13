@@ -93,7 +93,9 @@ describe('GitHub workflow security policy', () => {
     expect(build).toContain('npm run validate:pages-release-build');
     expect(build).not.toContain('npm run validate:pages-config');
     expect(build).not.toContain('npm run verify:greater-realm-release-gates');
-    expect(source.match(/npm run verify:greater-realm-release-gates/g)).toHaveLength(1);
+    expect(source.match(
+      /scripts\/greater-realm-release-gate-deploy-boundary\.mjs/g,
+    )).toHaveLength(2);
     expect(build.indexOf('npm run validate:pages-release-build')).toBeLessThan(
       build.indexOf('npm run build'),
     );
@@ -122,21 +124,35 @@ describe('GitHub workflow security policy', () => {
 
     expect(deployStart).toBeGreaterThan(jobsStart);
     expect(postflightStart).toBeGreaterThan(deployStart);
-    expect(deploy.match(/^      - /gm)).toHaveLength(6);
+    expect(deploy.match(/^      - /gm)).toHaveLength(7);
     expect(deploy).toMatch(/^      - name: Confirm artifact SHA remains current main$/m);
     expect(deploy).toMatch(/^      - name: Checkout exact deployment source$/m);
     expect(deploy).toMatch(
       /^      - name: Re-attest release authority immediately before deployment$/m,
     );
+    expect(deploy).toMatch(
+      /^      - name: Install exact deployment-boundary parser dependencies$/m,
+    );
     expect(deploy).toMatch(/^      - name: Deploy to GitHub Pages$/m);
     expect(deploy).toContain('Confirm artifact SHA remains current main');
     expect(deploy).toContain('actions/deploy-pages@');
     expect(deploy).toContain('deployment-attempted: ${{ steps.deployment-attempt.outputs.attempted }}');
-    expect(deploy.indexOf('scripts/verify-greater-realm-release-gates.mjs')).toBeLessThan(
+    expect(deploy).toContain('node-version: 22.22.3');
+    expect(deploy).toContain('umask 0022');
+    expect(deploy).toContain(
+      'npm ci --ignore-scripts --no-audit --no-fund',
+    );
+    expect(deploy).toContain(
+      'scripts/greater-realm-release-gate-deploy-boundary.mjs',
+    );
+    expect(deploy).not.toContain('scripts/verify-greater-realm-release-gates.mjs');
+    expect(deploy.indexOf(
+      'scripts/greater-realm-release-gate-deploy-boundary.mjs',
+    )).toBeLessThan(
       deploy.indexOf('actions/deploy-pages@'),
     );
     expect(deploy.slice(
-      deploy.indexOf('scripts/verify-greater-realm-release-gates.mjs'),
+      deploy.indexOf('scripts/greater-realm-release-gate-deploy-boundary.mjs'),
       deploy.indexOf('actions/deploy-pages@'),
     ).match(/^      - name:/gm)).toHaveLength(1);
     expect(postflight).toContain('needs: deploy');
@@ -146,8 +162,25 @@ describe('GitHub workflow security policy', () => {
     expect(postflight).toContain(
       'Re-verify Greater Realm release gates and notification authority',
     );
-    expect(postflight).toContain('npm run verify:greater-realm-release-gates');
-    expect(postflight.indexOf('npm run verify:greater-realm-release-gates')).toBeLessThan(
+    expect(postflight).toContain(
+      'WARPKEEP_VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}',
+    );
+    expect(postflight).toContain('node-version: 22.22.3');
+    expect(postflight).toContain('Install exact live-verification resolver tree');
+    expect(postflight).toContain(
+      'npm ci --ignore-scripts --no-audit --no-fund',
+    );
+    expect(postflight.indexOf(
+      'npm ci --ignore-scripts --no-audit --no-fund',
+    )).toBeLessThan(
+      postflight.indexOf('node scripts/greater-realm-release-gate-deploy-boundary.mjs'),
+    );
+    expect(postflight).toContain(
+      'node scripts/greater-realm-release-gate-deploy-boundary.mjs',
+    );
+    expect(postflight.indexOf(
+      'node scripts/greater-realm-release-gate-deploy-boundary.mjs',
+    )).toBeLessThan(
       postflight.indexOf('Verify exact live release'),
     );
     expect(postflight).toContain('Verify exact live release');
@@ -200,8 +233,12 @@ describe('GitHub workflow security policy', () => {
       'WARPKEEP_SHARED_ALPHA_ENABLED must be exactly true or false.',
     );
     expect(liveVerification).toContain('maximum_attempts=4');
-    expect(liveVerification).toContain('npm run verify:greater-realm-release-gates');
-    expect(liveVerification.indexOf('npm run verify:greater-realm-release-gates')).toBeLessThan(
+    expect(liveVerification).toContain(
+      'node scripts/greater-realm-release-gate-deploy-boundary.mjs',
+    );
+    expect(liveVerification.indexOf(
+      'node scripts/greater-realm-release-gate-deploy-boundary.mjs',
+    )).toBeLessThan(
       liveVerification.indexOf('node scripts/verify-alpha-production.mjs'),
     );
     expect(liveVerification).toContain(
@@ -331,7 +368,6 @@ describe('GitHub workflow security policy', () => {
         'echo "WARPKEEP_PRIVATE_NODE_SHA256=$staged_sha" >> "$GITHUB_ENV"',
       );
       expect(source).toMatch(/run: npm ci(?:\r?\n|$)/u);
-      expect(source).not.toContain('npm ci --ignore-scripts');
       expect(source).toContain(
         'Re-attest runner-private Node after dependency install',
       );

@@ -181,7 +181,7 @@ four profiles: `raw-file-sha256-v1`,
 `reviewed-release-transition-projection-sha256-v1`, or the single composed
 `reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1` used by
 the Pages workflow. A projected digest is therefore never represented as an
-ordinary file SHA-256. Its 305 sorted path/profile/digest records cover both
+ordinary file SHA-256. Its 307 sorted path/profile/digest records cover both
 protected production workflows, the
 Pages and Hermes policy inputs, the policy verifier, and the complete
 AST-derived local import graphs rooted at the guarded bridge entrypoint, full
@@ -219,7 +219,7 @@ has no regeneration or write mode. It binds pnpm 11.7.0, Node 22.22.3 on
 darwin-arm64, the checked lockfile, exact top-level Wrangler, TypeScript, and
 YAML 2.9.0 resolver links, required Wrangler/esbuild/workerd/TypeScript
 executable paths, and a deterministic SHA-256 over 18,153 entries and
-305,064,486 canonical bytes
+305,064,638 canonical bytes
 in the copy-only, lifecycle-script-free `.pnpm` tree. A second digest fixes all
 24 entries in the complete top-level resolver namespace: root and scoped
 directories, every package link and exact target, metadata files, and root

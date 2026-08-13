@@ -53,6 +53,61 @@ function privateDirectory(): string {
   return path;
 }
 
+function installedRootClosureFixture(): string {
+  const root = privateDirectory();
+  mkdirSync(join(root, 'node_modules', 'tsx'), { recursive: true });
+  const packages = {
+    '': { name: 'warpkeep', version: '0.3.43' },
+    'node_modules/tsx': {
+      version: '4.23.0',
+      resolved: 'https://registry.npmjs.org/tsx/-/tsx-4.23.0.tgz',
+      integrity: `sha512-${'A'.repeat(86)}==`,
+    },
+    'node_modules/@typescript/typescript-linux-x64': {
+      version: '7.0.2',
+      resolved: 'https://registry.npmjs.org/typescript-linux-x64.tgz',
+      integrity: `sha512-${'B'.repeat(86)}==`,
+      optional: true,
+      os: ['linux'],
+      cpu: ['x64'],
+    },
+    'node_modules/@typescript/typescript-darwin-arm64': {
+      version: '7.0.2',
+      resolved: 'https://registry.npmjs.org/typescript-darwin-arm64.tgz',
+      integrity: `sha512-${'C'.repeat(86)}==`,
+      optional: true,
+      os: ['darwin'],
+      cpu: ['arm64'],
+    },
+  };
+  const rootLock = {
+    name: 'warpkeep',
+    version: '0.3.43',
+    lockfileVersion: 3,
+    packages,
+  };
+  const installedLock = {
+    name: rootLock.name,
+    version: rootLock.version,
+    lockfileVersion: 3,
+    packages: {
+      'node_modules/tsx': packages['node_modules/tsx'],
+      'node_modules/@typescript/typescript-linux-x64':
+        packages['node_modules/@typescript/typescript-linux-x64'],
+    },
+  };
+  writeFileSync(join(root, 'package-lock.json'), `${JSON.stringify(rootLock)}\n`);
+  writeFileSync(
+    join(root, 'node_modules', '.package-lock.json'),
+    `${JSON.stringify(installedLock)}\n`,
+  );
+  writeFileSync(
+    join(root, 'node_modules', 'tsx', 'package.json'),
+    `${JSON.stringify({ name: 'tsx', version: '4.23.0' })}\n`,
+  );
+  return root;
+}
+
 function materializeHermesParserRootDependencies(
   root: string,
   options: Readonly<{ includeProductionNative?: boolean }> = {},
@@ -774,6 +829,39 @@ describe('Greater Realm production bootstrap', () => {
     expect(greaterRealmProductionBootstrapTestSeams
       .attestHermesSourceParserResolver(root, installed))
       .toEqual(installed);
+  });
+
+  it('attests the platform-specific installed npm lock and hardened modes', () => {
+    const exact = installedRootClosureFixture();
+    expect(greaterRealmProductionBootstrapTestSeams
+      .attestInstalledRootDependencyClosure(exact, 'linux', 'x64'))
+      .toMatchObject({
+        platform: 'linux',
+        architecture: 'x64',
+        installedPackageCount: 2,
+      });
+
+    const polluted = installedRootClosureFixture();
+    const installedPath = join(polluted, 'node_modules', '.package-lock.json');
+    const installed = JSON.parse(readFileSync(installedPath, 'utf8')) as {
+      packages: Record<string, unknown>;
+    };
+    const root = JSON.parse(readFileSync(
+      join(polluted, 'package-lock.json'),
+      'utf8',
+    )) as { packages: Record<string, unknown> };
+    installed.packages['node_modules/@typescript/typescript-darwin-arm64'] =
+      root.packages['node_modules/@typescript/typescript-darwin-arm64'];
+    writeFileSync(installedPath, `${JSON.stringify(installed)}\n`);
+    expect(() => greaterRealmProductionBootstrapTestSeams
+      .attestInstalledRootDependencyClosure(polluted, 'linux', 'x64'))
+      .toThrow(/NPM_CLOSURE_INVALID/u);
+
+    const writable = installedRootClosureFixture();
+    chmodSync(join(writable, 'node_modules', '.package-lock.json'), 0o666);
+    expect(() => greaterRealmProductionBootstrapTestSeams
+      .attestInstalledRootDependencyClosure(writable, 'linux', 'x64'))
+      .toThrow(/NPM_CLOSURE_INVALID/u);
   });
 
   it('attests the owner-private modes produced by the production umask', () => {

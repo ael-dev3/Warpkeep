@@ -300,7 +300,15 @@ jobs:
       - name: Setup Node for the deployment-boundary verifier
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 22.22.3
+
+      - name: Install exact deployment-boundary parser dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 0022
+          [[ "$(node --version)" == 'v22.22.3' ]]
+          npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Stage deployment-boundary Node in a runner-private path
         shell: bash
@@ -353,7 +361,8 @@ jobs:
           fi
           echo "$WARPKEEP_DEPLOY_PRIVATE_NODE_SHA256  $WARPKEEP_DEPLOY_PRIVATE_NODE" \
             | sha256sum --check --strict -
-          "$WARPKEEP_DEPLOY_PRIVATE_NODE" scripts/verify-greater-realm-release-gates.mjs
+          "$WARPKEEP_DEPLOY_PRIVATE_NODE" \
+            scripts/greater-realm-release-gate-deploy-boundary.mjs
           echo 'attempted=true' >> "$GITHUB_OUTPUT"
 
       - name: Deploy to GitHub Pages
@@ -368,6 +377,7 @@ jobs:
     permissions:
       contents: read
     env:
+      WARPKEEP_VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}
       WARPKEEP_EXPECTED_DEPLOYED_SHA: ${{ github.event.workflow_run.head_sha }}
       VITE_WARPKEEP_SHARED_ALPHA_ENABLED: ${{ vars.WARPKEEP_SHARED_ALPHA_ENABLED }}
     steps:
@@ -381,10 +391,19 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 22.22.3
+          cache: npm
+
+      - name: Install exact live-verification resolver tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 0022
+          [[ "$(node --version)" == 'v22.22.3' ]]
+          npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Re-verify Greater Realm release gates and notification authority
-        run: npm run verify:greater-realm-release-gates
+        run: node scripts/greater-realm-release-gate-deploy-boundary.mjs
 
       - name: Verify exact live release
         shell: bash

@@ -1914,6 +1914,139 @@ function npmEnvironment(input, runtime) {
   });
 }
 
+function compatibleNpmPlatform(package_, platform, architecture, code) {
+  const permits = (values, selected) => {
+    if (values === undefined) return true;
+    if (
+      !Array.isArray(values)
+      || values.length < 1
+      || values.some(value => (
+        typeof value !== 'string'
+        || !/^!?[a-z0-9][a-z0-9_-]{0,31}$/u.test(value)
+      ))
+    ) fail(code);
+    if (values.includes(`!${selected}`)) return false;
+    const positive = values.filter(value => !value.startsWith('!'));
+    return positive.length === 0 || positive.includes(selected);
+  };
+  return permits(package_.os, platform) && permits(package_.cpu, architecture);
+}
+
+/**
+ * Re-attests npm's installed-lock projection against the protected root lock.
+ * This is intentionally read-only: callers must perform `npm ci` separately.
+ */
+export function attestInstalledRootDependencyClosure(
+  cloneRoot,
+  platform = process.platform,
+  architecture = process.arch,
+) {
+  const code = 'GREATER_REALM_PRODUCTION_BOOTSTRAP_NPM_CLOSURE_INVALID';
+  try {
+    if (
+      typeof cloneRoot !== 'string'
+      || !isAbsolute(cloneRoot)
+      || realpathSync(cloneRoot) !== cloneRoot
+      || !/^[a-z0-9][a-z0-9_-]{0,31}$/u.test(platform ?? '')
+      || !/^[a-z0-9][a-z0-9_-]{0,31}$/u.test(architecture ?? '')
+    ) fail(code);
+    const rootStatus = lstatSync(cloneRoot);
+    const nodeModules = join(cloneRoot, 'node_modules');
+    const nodeModulesStatus = lstatSync(nodeModules);
+    for (const [path, status] of [
+      [cloneRoot, rootStatus],
+      [nodeModules, nodeModulesStatus],
+    ]) {
+      if (
+        !status.isDirectory()
+        || status.isSymbolicLink()
+        || realpathSync(path) !== path
+        || status.nlink < 1
+        || (process.getuid !== undefined && status.uid !== process.getuid())
+        || ![0o700, 0o750, 0o755].includes(status.mode & 0o7777)
+      ) fail(code);
+    }
+    const rootLock = readExactJson(
+      join(cloneRoot, 'package-lock.json'),
+      4 * 1024 * 1024,
+      code,
+    );
+    const installedLock = readExactJson(
+      join(nodeModules, '.package-lock.json'),
+      4 * 1024 * 1024,
+      code,
+    );
+    if (
+      rootLock.lockfileVersion !== 3 || installedLock.lockfileVersion !== 3
+      || rootLock.name !== installedLock.name
+      || rootLock.version !== installedLock.version
+    ) fail(code);
+    const rootPackages = exactKeys(
+      rootLock.packages,
+      Object.keys(rootLock.packages),
+      code,
+    );
+    const installedPackages = exactKeys(
+      installedLock.packages,
+      Object.keys(installedLock.packages),
+      code,
+    );
+    const actualInstalledKeys = Object.keys(installedPackages).toSorted();
+    const compatibleRootPackage = path => compatibleNpmPlatform(
+      rootPackages[path],
+      platform,
+      architecture,
+      code,
+    );
+    const allowedInstalledKeys = new Set(Object.keys(rootPackages)
+      .filter(path => (
+        path.startsWith('node_modules/') && compatibleRootPackage(path)
+      )));
+    const requiredInstalledKeys = Object.keys(rootPackages).filter(path => (
+      path.startsWith('node_modules/')
+      && compatibleRootPackage(path)
+      && rootPackages[path].optional !== true
+    ));
+    if (
+      actualInstalledKeys.some(path => !allowedInstalledKeys.has(path))
+      || requiredInstalledKeys.some(path => !actualInstalledKeys.includes(path))
+    ) fail(code);
+    for (const [path, installed] of Object.entries(installedPackages)) {
+      if (path === '' || !path.startsWith('node_modules/')) {
+        fail(code);
+      }
+      const expected = rootPackages[path];
+      if (
+        expected === undefined || installed.version !== expected.version
+        || installed.integrity !== expected.integrity
+        || installed.resolved !== expected.resolved
+      ) fail(code);
+    }
+    const tsxManifest = readExactJson(
+      join(nodeModules, 'tsx', 'package.json'),
+      64 * 1024,
+      code,
+    );
+    if (tsxManifest.name !== 'tsx' || tsxManifest.version !== '4.23.0') {
+      fail(code);
+    }
+    return Object.freeze({
+      platform,
+      architecture,
+      installedPackageCount: actualInstalledKeys.length,
+      installedLockDigest: createHash('sha256')
+        .update(JSON.stringify(installedLock))
+        .digest('hex'),
+    });
+  } catch (error) {
+    if (
+      error instanceof GreaterRealmProductionBootstrapError
+      && error.code === code
+    ) throw error;
+    fail(code, error);
+  }
+}
+
 function installRootDependencies(input, runtime, npm, spawnSyncImpl) {
   runExact(runtime.nodePath, [
     npm.npmCli, 'ci', '--ignore-scripts', '--no-audit', '--no-fund',
@@ -1927,66 +2060,31 @@ function installRootDependencies(input, runtime, npm, spawnSyncImpl) {
     maxBuffer: 128 * 1024 * 1024,
     code: 'GREATER_REALM_PRODUCTION_BOOTSTRAP_NPM_INSTALL_FAILED',
   });
-  const rootLock = JSON.parse(readFileSync(join(input.cloneRoot, 'package-lock.json'), 'utf8'));
-  const installedLock = JSON.parse(readFileSync(
-    join(input.cloneRoot, 'node_modules', '.package-lock.json'), 'utf8',
-  ));
-  if (
-    rootLock.lockfileVersion !== 3 || installedLock.lockfileVersion !== 3
-    || rootLock.name !== installedLock.name || rootLock.version !== installedLock.version
-  ) fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_NPM_CLOSURE_INVALID');
-  const rootPackages = exactKeys(rootLock.packages, Object.keys(rootLock.packages),
-    'GREATER_REALM_PRODUCTION_BOOTSTRAP_NPM_CLOSURE_INVALID');
-  const installedPackages = installedLock.packages;
-  const actualInstalledKeys = Object.keys(installedPackages).toSorted();
-  const compatibleRootPackage = path => {
-    const package_ = rootPackages[path];
-    return (package_.os === undefined || package_.os.includes('darwin'))
-      && (package_.cpu === undefined || package_.cpu.includes('arm64'));
-  };
-  const allowedInstalledKeys = new Set(Object.keys(rootPackages)
-    .filter(path => path.startsWith('node_modules/') && compatibleRootPackage(path)));
-  const requiredInstalledKeys = Object.keys(rootPackages).filter(path => (
-    path.startsWith('node_modules/')
-    && compatibleRootPackage(path)
-    && rootPackages[path].optional !== true
-  ));
-  if (
-    actualInstalledKeys.some(path => !allowedInstalledKeys.has(path))
-    || requiredInstalledKeys.some(path => !actualInstalledKeys.includes(path))
-  ) fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_NPM_CLOSURE_INVALID');
-  for (const [path, installed] of Object.entries(installedPackages)) {
-    if (path === '' || !path.startsWith('node_modules/')) {
-      fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_NPM_CLOSURE_INVALID');
-    }
-    const expected = rootPackages[path];
-    if (
-      expected === undefined || installed.version !== expected.version
-      || installed.integrity !== expected.integrity
-      || installed.resolved !== expected.resolved
-    ) fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_NPM_CLOSURE_INVALID');
-  }
-  const tsxManifest = JSON.parse(readFileSync(
-    join(input.cloneRoot, 'node_modules', 'tsx', 'package.json'), 'utf8',
-  ));
-  if (tsxManifest.name !== 'tsx' || tsxManifest.version !== '4.23.0') {
-    fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_NPM_CLOSURE_INVALID');
-  }
+  attestInstalledRootDependencyClosure(input.cloneRoot, 'darwin', 'arm64');
 }
 
-function readExactJson(path, maximumBytes) {
-  const mode = Number(lstatSync(path, { bigint: true }).mode & 0o7777n);
-  if (![0o600, 0o644].includes(mode)) {
-    fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_HERMES_RESOLVER_INVALID');
-  }
-  const opened = readExactFile(path, maximumBytes, mode);
+function readExactJson(
+  path,
+  maximumBytes,
+  code = 'GREATER_REALM_PRODUCTION_BOOTSTRAP_HERMES_RESOLVER_INVALID',
+) {
+  let opened;
   try {
+    const mode = Number(lstatSync(path, { bigint: true }).mode & 0o7777n);
+    if (![0o600, 0o644].includes(mode)) fail(code);
+    opened = readExactFile(path, maximumBytes, mode);
     return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(
       opened.bytes,
     ));
+  } catch (error) {
+    if (
+      error instanceof GreaterRealmProductionBootstrapError
+      && error.code === code
+    ) throw error;
+    fail(code, error);
   } finally {
-    opened.bytes.fill(0);
-    closeSync(opened.descriptor);
+    opened?.bytes.fill(0);
+    if (opened !== undefined) closeSync(opened.descriptor);
   }
 }
 
@@ -2116,7 +2214,7 @@ function exactInstalledHermesSourceParserPackage({
   });
 }
 
-function attestHermesSourceParserResolver(cloneRoot, expectedIdentity) {
+export function attestHermesSourceParserResolver(cloneRoot, expectedIdentity) {
   const code = 'GREATER_REALM_PRODUCTION_BOOTSTRAP_HERMES_RESOLVER_INVALID';
   try {
     if (realpathSync(cloneRoot) !== cloneRoot) fail(code);
@@ -2205,7 +2303,7 @@ function attestHermesSourceParserResolver(cloneRoot, expectedIdentity) {
   }
 }
 
-function installHermesSourceParserResolver(
+export function installHermesSourceParserResolver(
   cloneRoot,
   nativePackageName = HERMES_SOURCE_PARSER_PRODUCTION_NATIVE_PACKAGE,
 ) {
@@ -3101,6 +3199,7 @@ export async function runGreaterRealmProductionBootstrap(inputArguments, depende
 export const greaterRealmProductionBootstrapTestSeams = Object.freeze({
   assertEnvironment: assertBootstrapEnvironment,
   attestHermesSourceParserResolver,
+  attestInstalledRootDependencyClosure,
   cacheArchivePath,
   cleanupCompletedRun: cleanupCompletedBootstrapRun,
   containProcessGroup: containBootstrapProcessGroup,

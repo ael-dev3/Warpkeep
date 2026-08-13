@@ -72,6 +72,8 @@ const STATIC_SECURITY_INPUTS = Object.freeze([
   'scripts/greater-realm-downstream-release-policy.ts',
   'scripts/greater-realm-production-bootstrap.mjs',
   'scripts/greater-realm-production-publisher-core.ts',
+  'scripts/greater-realm-release-gate-deploy-boundary.d.mts',
+  'scripts/greater-realm-release-gate-deploy-boundary.mjs',
   'scripts/hermes-admin.ts',
   'scripts/notification-pages-live-hermes-authority.d.mts',
   'scripts/notification-pages-live-hermes-authority.mjs',
