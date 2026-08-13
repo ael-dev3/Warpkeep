@@ -4,6 +4,15 @@ import { pathToFileURL } from 'node:url';
 import {
   WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS,
 } from './entry-agreement-policy.mjs';
+import {
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_RELEASE_BINDING,
+} from './auth-bridge-notification-prepared-release-binding.mjs';
+import {
+  NOTIFICATION_PAGES_LIVE_RELEASE_BINDING,
+} from './notification-pages-live-release-binding.mjs';
+import {
+  parseGreaterRealmNotificationReleaseAuthority,
+} from './verify-greater-realm-release-gates.mjs';
 
 const EXPECTED_CANONICAL_ORIGIN = 'https://warpkeep.com';
 const EXPECTED_REPOSITORY_URL = 'https://github.com/ael-dev3/Warpkeep';
@@ -88,10 +97,44 @@ export function validatePagesDeploymentConfiguration(
     environment.VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED,
     'VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED'
   );
+  let notificationReleaseAuthority;
   if (admissionNotificationsEnabled) {
+    // The default CLI intentionally never supplies this. A future production
+    // wrapper must import the reviewed, checked-in phase and bindings and pass
+    // that exact source authority; mutable process environment is not trusted.
+    if (options.notificationReleaseAuthority === undefined) {
+      fail(
+        'VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED=true requires an '
+        + 'explicit source-supplied notification release phase and authority.'
+      );
+    }
+    try {
+      notificationReleaseAuthority =
+        parseGreaterRealmNotificationReleaseAuthority(
+          options.notificationReleaseAuthority,
+        );
+    } catch (error) {
+      fail(
+        'the explicit notification release phase and authority is invalid: '
+        + (error instanceof Error ? error.message : 'unknown authority error'),
+      );
+    }
+    const checkedInBindings = {
+      ...AUTH_BRIDGE_NOTIFICATION_PREPARED_RELEASE_BINDING,
+      ...NOTIFICATION_PAGES_LIVE_RELEASE_BINDING,
+    };
+    if (Object.entries(checkedInBindings).some(
+      ([field, expected]) => notificationReleaseAuthority[field] !== expected,
+    )) {
+      fail(
+        'the explicit notification release authority must exactly match the '
+        + 'reviewed checked-in prepared and durable bindings.',
+      );
+    }
+  } else if (options.notificationReleaseAuthority !== undefined) {
     fail(
-      'VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED must remain false until '
-      + 'the separately approved notification release.'
+      'notification release authority must be omitted while '
+      + 'VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED=false.'
     );
   }
   if (environment.VITE_WARPKEEP_OIDC_AUDIENCE !== EXPECTED_AUDIENCE) {
@@ -104,6 +147,9 @@ export function validatePagesDeploymentConfiguration(
     fail(`VITE_SPACETIMEDB_DATABASE must be ${EXPECTED_SPACETIMEDB_DATABASE}.`);
   }
   if (!sharedAlphaEnabled) {
+    if (admissionNotificationsEnabled) {
+      fail('admission notification presentation requires shared alpha enabled.');
+    }
     return 'Pages deployment validation passed with shared alpha disabled.';
   }
 
@@ -117,6 +163,10 @@ export function validatePagesDeploymentConfiguration(
   );
   if (bridge !== EXPECTED_BRIDGE || issuer !== EXPECTED_BRIDGE) {
     fail(`the bridge URL and OIDC issuer must both be ${EXPECTED_BRIDGE}.`);
+  }
+  if (notificationReleaseAuthority !== undefined) {
+    return 'Pages deployment validation passed with shared alpha enabled; '
+      + `admission notification release phase=${notificationReleaseAuthority.phase}.`;
   }
   return 'Pages deployment validation passed with shared alpha enabled.';
 }

@@ -27,6 +27,25 @@ export type GreaterRealmReleaseGateVerificationDependencies = Readonly<{
     bridgeSourceCommit: string,
     repositoryRoot: string,
   ) => void | Promise<void>;
+  assertPagesLiveRootSourceAncestor?: (
+    pagesSourceCommit: string,
+    repositoryRoot: string,
+  ) => void | Promise<void>;
+}>;
+
+export const GREATER_REALM_NOTIFICATION_RELEASE_PHASE: Readonly<{
+  PAGES_PRESENTATION_ACTIVATION: 'notification-pages-presentation-activation';
+  DURABLE_FINAL: 'notification-durable-final';
+}>;
+
+export type GreaterRealmNotificationReleaseAuthority = Readonly<{
+  phase:
+    | typeof GREATER_REALM_NOTIFICATION_RELEASE_PHASE.PAGES_PRESENTATION_ACTIVATION
+    | typeof GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL;
+  notificationPreparedReceiptDigest: string | null;
+  notificationPreparedBridgeSourceCommit: string | null;
+  notificationPagesLiveRootReceiptDigest: string | null;
+  notificationPagesLiveRootPagesSourceCommit: string | null;
 }>;
 
 export type GreaterRealmReleaseGateEnvelope = Readonly<{
@@ -45,7 +64,13 @@ export type GreaterRealmReleaseGateEnvelope = Readonly<{
   pagesNotificationsEnabled: boolean;
   notificationPreparedReceiptDigest: string | null;
   notificationPreparedBridgeSourceCommit: string | null;
+  notificationPagesLiveRootReceiptDigest: string | null;
+  notificationPagesLiveRootPagesSourceCommit: string | null;
 }>;
+
+export function parseGreaterRealmNotificationReleaseAuthority(
+  value: unknown,
+): GreaterRealmNotificationReleaseAuthority;
 
 export function verifyGreaterRealmReleaseGateEnvelope(
   value: unknown,

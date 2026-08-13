@@ -11,6 +11,10 @@ import {
   AUTH_BRIDGE_NOTIFICATION_PREPARED_RELEASE_BINDING,
 } from './auth-bridge-notification-prepared-release-binding.mjs';
 import { WARPKEEP_ENTRY_AGREEMENT_RELEASE_STATUS } from './entry-agreement-policy.mjs';
+import {
+  NOTIFICATION_PAGES_LIVE_RELEASE_BINDING,
+  parseNotificationPagesLiveReleaseBinding,
+} from './notification-pages-live-release-binding.mjs';
 
 const REPOSITORY_ROOT = resolve(import.meta.dirname, '..');
 
@@ -44,9 +48,22 @@ const BOOLEAN_FIELDS = Object.freeze([
 const RELEASE_BINDING_FIELDS = Object.freeze([
   'notificationPreparedReceiptDigest',
   'notificationPreparedBridgeSourceCommit',
+  'notificationPagesLiveRootReceiptDigest',
+  'notificationPagesLiveRootPagesSourceCommit',
 ]);
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
 const COMMIT_SHA = /^[a-f0-9]{40}$/u;
+
+/**
+ * Notification delivery is deliberately split across two source releases.
+ * Pages presentation is activated while Hermes is still inert and is rooted
+ * in the short-lived prepared bridge receipt. Hermes can only be activated by
+ * a later source with the immutable durable Pages chain root populated.
+ */
+export const GREATER_REALM_NOTIFICATION_RELEASE_PHASE = Object.freeze({
+  PAGES_PRESENTATION_ACTIVATION: 'notification-pages-presentation-activation',
+  DURABLE_FINAL: 'notification-durable-final',
+});
 
 const base = Object.freeze(Object.fromEntries(BOOLEAN_FIELDS.map(field => [field, false])));
 
@@ -68,10 +85,9 @@ const SAFE_PHASES = Object.freeze([
     importForwardFixApproved: true,
   }, 'import-only'),
   ...[
-    [false, false, 'activation-only'],
-    [true, false, 'activation-client'],
-    [true, true, 'activation-client-and-notifications'],
-  ].map(([client, notifications, name]) => phase(
+    [false, 'activation-only'],
+    [true, 'activation-client'],
+  ].map(([client, name]) => phase(
     'production-approved',
     {
       activationMutationsCompiled: true,
@@ -81,12 +97,32 @@ const SAFE_PHASES = Object.freeze([
       clientPresentationAllowed: client,
       serverPresentationAllowed: client,
       clientActivationApproved: client,
-      admissionNotificationsApproved: notifications,
-      hermesNotificationDeliveryApproved: notifications,
-      pagesNotificationsEnabled: notifications,
     },
     name,
   )),
+  phase('production-approved', {
+    activationMutationsCompiled: true,
+    entryAgreementApproved: true,
+    additivePublishApproved: true,
+    activationForwardFixApproved: true,
+    clientPresentationAllowed: true,
+    serverPresentationAllowed: true,
+    clientActivationApproved: true,
+    admissionNotificationsApproved: true,
+    pagesNotificationsEnabled: true,
+  }, GREATER_REALM_NOTIFICATION_RELEASE_PHASE.PAGES_PRESENTATION_ACTIVATION),
+  phase('production-approved', {
+    activationMutationsCompiled: true,
+    entryAgreementApproved: true,
+    additivePublishApproved: true,
+    activationForwardFixApproved: true,
+    clientPresentationAllowed: true,
+    serverPresentationAllowed: true,
+    clientActivationApproved: true,
+    admissionNotificationsApproved: true,
+    hermesNotificationDeliveryApproved: true,
+    pagesNotificationsEnabled: true,
+  }, GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL),
 ]);
 
 function envelopeKey(value) {
@@ -98,22 +134,79 @@ function envelopeKey(value) {
 
 const SAFE_PHASE_BY_ENVELOPE = new Map(SAFE_PHASES.map(value => [envelopeKey(value), value.phase]));
 
-function hasValidNotificationPreparedBinding(value) {
+function parseNotificationReleaseBindings(value) {
   const digest = value.notificationPreparedReceiptDigest;
   const sourceCommit = value.notificationPreparedBridgeSourceCommit;
-  if (digest === null && sourceCommit === null) return false;
-  if (
+  const hasPreparedBinding = digest !== null || sourceCommit !== null;
+  if (hasPreparedBinding && (
     typeof digest !== 'string'
-    || !SHA256_HEX.test(digest)
-    || typeof sourceCommit !== 'string'
-    || !COMMIT_SHA.test(sourceCommit)
-  ) fail('GREATER_REALM_NOTIFICATION_PREPARED_BINDING_INVALID');
-  return true;
+      || !SHA256_HEX.test(digest)
+      || typeof sourceCommit !== 'string'
+      || !COMMIT_SHA.test(sourceCommit)
+  )) fail('GREATER_REALM_NOTIFICATION_PREPARED_BINDING_INVALID');
+  const liveRoot = parseNotificationPagesLiveReleaseBinding({
+    notificationPagesLiveRootReceiptDigest:
+      value.notificationPagesLiveRootReceiptDigest,
+    notificationPagesLiveRootPagesSourceCommit:
+      value.notificationPagesLiveRootPagesSourceCommit,
+  });
+  return Object.freeze({
+    hasPreparedBinding,
+    hasLiveRoot: liveRoot.notificationPagesLiveRootReceiptDigest !== null,
+  });
 }
 
-function assertPreparedBridgeSourceIsAncestor(
-  bridgeSourceCommit,
-  repositoryRoot = REPOSITORY_ROOT,
+/**
+ * Parse the exact, source-supplied authority accepted by notification-enabled
+ * Pages validation. Environment variables never select either phase.
+ */
+export function parseGreaterRealmNotificationReleaseAuthority(value) {
+  if (
+    value === null
+    || typeof value !== 'object'
+    || Array.isArray(value)
+    || Object.keys(value).sort().join(',')
+      !== ['phase', ...RELEASE_BINDING_FIELDS].sort().join(',')
+    || (
+      value.phase !== GREATER_REALM_NOTIFICATION_RELEASE_PHASE.PAGES_PRESENTATION_ACTIVATION
+      && value.phase !== GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL
+    )
+  ) fail('GREATER_REALM_NOTIFICATION_RELEASE_AUTHORITY_INVALID');
+  const bindings = parseNotificationReleaseBindings(value);
+  if (
+    value.phase
+      === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.PAGES_PRESENTATION_ACTIVATION
+  ) {
+    if (!bindings.hasPreparedBinding) {
+      fail('GREATER_REALM_NOTIFICATION_PREPARED_BINDING_REQUIRED');
+    }
+    if (bindings.hasLiveRoot) {
+      fail('GREATER_REALM_NOTIFICATION_PAGES_LIVE_ROOT_BINDING_UNEXPECTED');
+    }
+  } else {
+    if (!bindings.hasLiveRoot) {
+      fail('GREATER_REALM_NOTIFICATION_PAGES_LIVE_ROOT_BINDING_REQUIRED');
+    }
+    if (bindings.hasPreparedBinding) {
+      fail('GREATER_REALM_NOTIFICATION_PREPARED_BINDING_UNEXPECTED');
+    }
+  }
+  return Object.freeze({
+    phase: value.phase,
+    notificationPreparedReceiptDigest: value.notificationPreparedReceiptDigest,
+    notificationPreparedBridgeSourceCommit:
+      value.notificationPreparedBridgeSourceCommit,
+    notificationPagesLiveRootReceiptDigest:
+      value.notificationPagesLiveRootReceiptDigest,
+    notificationPagesLiveRootPagesSourceCommit:
+      value.notificationPagesLiveRootPagesSourceCommit,
+  });
+}
+
+function assertSourceIsAncestor(
+  sourceCommit,
+  repositoryRoot,
+  { headInvalidCode, notAncestorCode },
 ) {
   const environment = {
     GIT_CONFIG_GLOBAL: '/dev/null',
@@ -135,11 +228,11 @@ function assertPreparedBridgeSourceIsAncestor(
   );
   const headCommit = head.status === 0 ? head.stdout.trim() : '';
   if (!COMMIT_SHA.test(headCommit)) {
-    fail('GREATER_REALM_NOTIFICATION_PREPARED_PAGES_SOURCE_INVALID');
+    fail(headInvalidCode);
   }
   const ancestry = spawnSync(
     '/usr/bin/git',
-    ['merge-base', '--is-ancestor', bridgeSourceCommit, headCommit],
+    ['merge-base', '--is-ancestor', sourceCommit, headCommit],
     {
       cwd: repositoryRoot,
       encoding: 'utf8',
@@ -149,8 +242,30 @@ function assertPreparedBridgeSourceIsAncestor(
     },
   );
   if (ancestry.status !== 0) {
-    fail('GREATER_REALM_NOTIFICATION_PREPARED_BRIDGE_SOURCE_NOT_ANCESTOR');
+    fail(notAncestorCode);
   }
+}
+
+function assertPreparedBridgeSourceIsAncestor(
+  bridgeSourceCommit,
+  repositoryRoot = REPOSITORY_ROOT,
+) {
+  assertSourceIsAncestor(bridgeSourceCommit, repositoryRoot, {
+    headInvalidCode: 'GREATER_REALM_NOTIFICATION_PREPARED_PAGES_SOURCE_INVALID',
+    notAncestorCode:
+      'GREATER_REALM_NOTIFICATION_PREPARED_BRIDGE_SOURCE_NOT_ANCESTOR',
+  });
+}
+
+function assertPagesLiveRootSourceIsAncestor(
+  pagesSourceCommit,
+  repositoryRoot = REPOSITORY_ROOT,
+) {
+  assertSourceIsAncestor(pagesSourceCommit, repositoryRoot, {
+    headInvalidCode: 'GREATER_REALM_NOTIFICATION_PAGES_LIVE_HEAD_INVALID',
+    notAncestorCode:
+      'GREATER_REALM_NOTIFICATION_PAGES_LIVE_ROOT_SOURCE_NOT_ANCESTOR',
+  });
 }
 
 export async function verifyGreaterRealmReleaseGateEnvelope(
@@ -160,6 +275,7 @@ export async function verifyGreaterRealmReleaseGateEnvelope(
     inspectPreparedReceiptByDigest =
       inspectPrivateAuthBridgeNotificationPreparedReceiptByDigest,
     assertBridgeSourceAncestor = assertPreparedBridgeSourceIsAncestor,
+    assertPagesLiveRootSourceAncestor = assertPagesLiveRootSourceIsAncestor,
   } = {},
 ) {
   if (
@@ -181,29 +297,50 @@ export async function verifyGreaterRealmReleaseGateEnvelope(
   ) fail('GREATER_REALM_RELEASE_GATE_ENVELOPE_INVALID');
   const phaseName = SAFE_PHASE_BY_ENVELOPE.get(envelopeKey(value));
   if (phaseName === undefined) fail('GREATER_REALM_RELEASE_GATE_PHASE_INVALID');
-  const hasBinding = hasValidNotificationPreparedBinding(value);
-  if (phaseName !== 'activation-client-and-notifications') {
-    if (hasBinding) fail('GREATER_REALM_NOTIFICATION_PREPARED_BINDING_UNEXPECTED');
+  const notificationPhase = phaseName
+      === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.PAGES_PRESENTATION_ACTIVATION
+    || phaseName === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL;
+  if (!notificationPhase) {
+    const bindings = parseNotificationReleaseBindings(value);
+    if (bindings.hasPreparedBinding) {
+      fail('GREATER_REALM_NOTIFICATION_PREPARED_BINDING_UNEXPECTED');
+    }
+    if (bindings.hasLiveRoot) {
+      fail('GREATER_REALM_NOTIFICATION_PAGES_LIVE_ROOT_BINDING_UNEXPECTED');
+    }
     return phaseName;
   }
-  if (!hasBinding) fail('GREATER_REALM_NOTIFICATION_PREPARED_BINDING_REQUIRED');
+  const authority = parseGreaterRealmNotificationReleaseAuthority({
+    phase: phaseName,
+    ...Object.fromEntries(RELEASE_BINDING_FIELDS.map(field => [field, value[field]])),
+  });
+  if (phaseName === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL) {
+    // This public/static gate proves source lineage only. The separate private
+    // predeploy and Hermes boundaries must authenticate the current-source
+    // durable receipt against this immutable root before any side effect.
+    await assertPagesLiveRootSourceAncestor(
+      authority.notificationPagesLiveRootPagesSourceCommit,
+      REPOSITORY_ROOT,
+    );
+    return phaseName;
+  }
 
   await assertBridgeSourceAncestor(
-    value.notificationPreparedBridgeSourceCommit,
+    authority.notificationPreparedBridgeSourceCommit,
     REPOSITORY_ROOT,
   );
   const inspected = await inspectPreparedReceiptByDigest({
-    receiptDigest: value.notificationPreparedReceiptDigest,
+    receiptDigest: authority.notificationPreparedReceiptDigest,
     repositoryRoot: REPOSITORY_ROOT,
     fetchImpl,
     now,
   });
   if (
-    inspected.receiptDigest !== value.notificationPreparedReceiptDigest
+    inspected.receiptDigest !== authority.notificationPreparedReceiptDigest
     || inspected.receipt.bridgeSourceCommit
-      !== value.notificationPreparedBridgeSourceCommit
+      !== authority.notificationPreparedBridgeSourceCommit
     || inspected.liveAttestation.bridgeSourceCommit
-      !== value.notificationPreparedBridgeSourceCommit
+      !== authority.notificationPreparedBridgeSourceCommit
     || inspected.liveAttestation.notificationDeliveryContractDigest
       !== AUTH_BRIDGE_NOTIFICATION_DELIVERY_CONTRACT_DIGEST
     || inspected.liveAttestation.notificationDeliveryEnabled !== true
@@ -318,6 +455,7 @@ export async function verifyGreaterRealmReleaseGateState(
     hermesNotificationDeliveryApproved,
     pagesNotificationsEnabled,
     ...AUTH_BRIDGE_NOTIFICATION_PREPARED_RELEASE_BINDING,
+    ...NOTIFICATION_PAGES_LIVE_RELEASE_BINDING,
   }, options, dependencies);
   return `Greater Realm release phase=${phaseName}; legacy=100 and v17=600 verifiers are distinct.`;
 }
