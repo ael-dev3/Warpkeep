@@ -43,6 +43,12 @@ import {
 import {
   ensureCanonicalProductionAdminStateDirectory,
 } from './production-admin-token-budget.mjs';
+import {
+  inspectProductionPlayerCanaryDeployAuthority,
+} from './production-player-canary-deploy-authority.mjs';
+import {
+  requireFreshProductionPlayerCanaryActivationAuthority,
+} from './production-player-canary-receipt.mjs';
 
 export const NOTIFICATION_PAGES_PRIVATE_DEPLOY_OPERATOR_PROFILE =
   'warpkeep-notification-pages-private-deploy-operator-v1';
@@ -201,6 +207,29 @@ function parseLiveRootBinding(value) {
   });
 }
 
+function parseProductionPlayerCanaryBinding(value) {
+  if (!exactKeys(value, [
+    'productionPlayerCanaryReceiptDigest',
+    'productionPlayerCanarySourceCommit',
+  ])) fail('NOTIFICATION_PAGES_DEPLOY_PLAYER_CANARY_BINDING_INVALID');
+  const digest = value.productionPlayerCanaryReceiptDigest;
+  const sourceCommit = value.productionPlayerCanarySourceCommit;
+  if (digest === null && sourceCommit === null) {
+    return Object.freeze({
+      productionPlayerCanaryReceiptDigest: null,
+      productionPlayerCanarySourceCommit: null,
+    });
+  }
+  if (
+    typeof digest !== 'string' || !SHA256.test(digest)
+    || typeof sourceCommit !== 'string' || !COMMIT.test(sourceCommit)
+  ) fail('NOTIFICATION_PAGES_DEPLOY_PLAYER_CANARY_BINDING_INVALID');
+  return Object.freeze({
+    productionPlayerCanaryReceiptDigest: digest,
+    productionPlayerCanarySourceCommit: sourceCommit,
+  });
+}
+
 /**
  * Classify only exact source-controlled release states. A hosted runner may
  * evaluate this function because it reads no private state and grants no
@@ -212,6 +241,10 @@ export function classifyNotificationPagesPrivateDeployment({
   preparedBinding,
   privateBinding,
   liveRootBinding,
+  productionPlayerCanaryBinding = {
+    productionPlayerCanaryReceiptDigest: null,
+    productionPlayerCanarySourceCommit: null,
+  },
 } = {}) {
   if (
     typeof candidatePagesSourceCommit !== 'string'
@@ -225,9 +258,14 @@ export function classifyNotificationPagesPrivateDeployment({
   let root;
   privateInputs = parsePrivateBinding(privateBinding);
   root = parseLiveRootBinding(liveRootBinding);
+  const playerCanary = parseProductionPlayerCanaryBinding(
+    productionPlayerCanaryBinding,
+  );
   const hasPrepared = prepared.receiptDigest !== null;
   const hasPrivate = privateInputs.notificationPagesActiveV17EvidenceDigest !== null;
   const hasRoot = root.notificationPagesLiveRootReceiptDigest !== null;
+  const hasPlayerCanary =
+    playerCanary.productionPlayerCanaryReceiptDigest !== null;
   let mode;
   if (
     phase.pagesPresentationEnabled === false
@@ -235,6 +273,7 @@ export function classifyNotificationPagesPrivateDeployment({
     && !hasPrepared
     && !hasPrivate
     && !hasRoot
+    && !hasPlayerCanary
   ) {
     mode = 'closed-review';
   } else if (
@@ -243,6 +282,7 @@ export function classifyNotificationPagesPrivateDeployment({
     && hasPrepared
     && hasPrivate
     && !hasRoot
+    && !hasPlayerCanary
   ) {
     mode = 'gen0';
   } else if (
@@ -278,6 +318,11 @@ export function classifyNotificationPagesPrivateDeployment({
       root.notificationPagesLiveRootReceiptDigest,
     chainRootPagesSourceCommit:
       root.notificationPagesLiveRootPagesSourceCommit,
+    productionPlayerCanaryReceiptDigest:
+      playerCanary.productionPlayerCanaryReceiptDigest,
+    productionPlayerCanarySourceCommit:
+      playerCanary.productionPlayerCanarySourceCommit,
+    requiresProductionPlayerCanary: hasPlayerCanary,
   });
 }
 
@@ -1143,13 +1188,29 @@ function defaultDependencies() {
       expectedNotificationsPresentationEnabled: true,
       expectedHermesExecutionApproved: false,
     }),
-    inspectCandidate: contract =>
+    inspectCandidate: (contract, playerCanaryInspection = null) =>
       liveReceipt.inspectLatestPrivateNotificationPagesLiveReceiptForCandidate({
         directory: receiptDirectory,
         repositoryRoot: REPOSITORY_ROOT,
         candidatePagesSourceCommit: contract.candidatePagesSourceCommit,
         expectedChainRootReceiptDigest: contract.chainRootReceiptDigest,
         expectedChainRootPagesSourceCommit: contract.chainRootPagesSourceCommit,
+        ...(playerCanaryInspection === null ? {} : {
+          productionPlayerCanaryActivationAuthority:
+            playerCanaryInspection.authority,
+        }),
+      }),
+    inspectPlayerCanary: contract =>
+      inspectProductionPlayerCanaryDeployAuthority({
+        contract,
+        repositoryRoot: REPOSITORY_ROOT,
+        now: new Date(),
+      }),
+    requireFreshPlayerCanary: (authority, contract) =>
+      requireFreshProductionPlayerCanaryActivationAuthority(authority, {
+        candidatePagesSourceCommit: contract.candidatePagesSourceCommit,
+        predecessorPagesSourceCommit:
+          contract.productionPlayerCanarySourceCommit,
       }),
     promote: (contract, candidateAuthorityDigest) =>
       liveReceipt.promoteNotificationPagesLiveReceipt({
@@ -1163,7 +1224,42 @@ function defaultDependencies() {
   });
 }
 
-async function finishExactCurrent(contract, journal, state, dependencies) {
+function exactPlayerCanaryInspection(value, contract) {
+  if (
+    !isRecord(value)
+    || !isRecord(value.authority)
+    || !SHA256.test(value.authorityDigest ?? '')
+    || value.authority.candidatePagesSourceCommit
+      !== contract.candidatePagesSourceCommit
+    || value.authority.productionPlayerCanaryReceiptDigest
+      !== contract.productionPlayerCanaryReceiptDigest
+    || value.authority.productionPlayerCanarySourceCommit
+      !== contract.productionPlayerCanarySourceCommit
+  ) fail('NOTIFICATION_PAGES_DEPLOY_PLAYER_CANARY_AUTHORITY_INVALID');
+  return value;
+}
+
+async function freshPlayerCanary(contract, dependencies) {
+  if (contract.requiresProductionPlayerCanary !== true) return null;
+  if (
+    typeof dependencies.inspectPlayerCanary !== 'function'
+    || typeof dependencies.requireFreshPlayerCanary !== 'function'
+  ) fail('NOTIFICATION_PAGES_DEPLOY_PLAYER_CANARY_API_UNAVAILABLE');
+  const inspection = exactPlayerCanaryInspection(
+    await dependencies.inspectPlayerCanary(contract),
+    contract,
+  );
+  dependencies.requireFreshPlayerCanary(inspection.authority, contract);
+  return inspection;
+}
+
+async function finishExactCurrent(
+  contract,
+  journal,
+  state,
+  dependencies,
+  playerCanaryInspection = null,
+) {
   let result;
   if (contract.mode === 'gen0') {
     if (state.latestHandoff === null) {
@@ -1178,7 +1274,10 @@ async function finishExactCurrent(contract, journal, state, dependencies) {
       state.candidateAuthorityDigest,
     ));
   } else {
-    const inspected = await dependencies.inspectCandidate(contract);
+    const inspected = await dependencies.inspectCandidate(
+      contract,
+      playerCanaryInspection,
+    );
     if (
       !isRecord(inspected)
       || inspected.candidateAlreadyLive !== true
@@ -1264,6 +1363,13 @@ export async function executeNotificationPagesPrivateDeployPhase({
         if (before.completed) {
           return Object.freeze({ deployRequired: false, completed: true });
         }
+        // C7 authenticates its private canary before the first public live
+        // reconciliation. C5/C6 have a null binding and never touch canary
+        // descriptors, receipts, or secrets.
+        const playerCanaryInspection = await freshPlayerCanary(
+          contract,
+          dependencies,
+        );
         let handoff = null;
         if (contract.mode === 'gen0') {
           if (before.latestHandoff !== null) {
@@ -1291,7 +1397,13 @@ export async function executeNotificationPagesPrivateDeployPhase({
         if (reconciliation.status === 'exact-current') {
           journal.reconciledExactCurrent(contract.mode);
           state = journal.inspect();
-          await finishExactCurrent(contract, journal, state, dependencies);
+          await finishExactCurrent(
+            contract,
+            journal,
+            state,
+            dependencies,
+            playerCanaryInspection,
+          );
           return Object.freeze({ deployRequired: false, completed: true });
         }
         journal.reconciledNotCurrent(contract.mode);
@@ -1302,7 +1414,10 @@ export async function executeNotificationPagesPrivateDeployPhase({
         if (contract.mode === 'gen0') {
           return Object.freeze({ deployRequired: true, completed: false });
         }
-        const authority = await dependencies.inspectCandidate(contract);
+        const authority = await dependencies.inspectCandidate(
+          contract,
+          playerCanaryInspection,
+        );
         if (
           !isRecord(authority)
           || authority.candidateAlreadyLive !== false
@@ -1317,6 +1432,10 @@ export async function executeNotificationPagesPrivateDeployPhase({
         if (state.completed || state.deploymentInvoked) {
           fail('NOTIFICATION_PAGES_DEPLOY_ALREADY_INVOKED', true);
         }
+        const playerCanaryInspection = await freshPlayerCanary(
+          contract,
+          dependencies,
+        );
         if (contract.mode === 'gen0') {
           if (state.latestHandoff === null) {
             fail('NOTIFICATION_PAGES_DEPLOY_HANDOFF_JOURNAL_INVALID');
@@ -1328,7 +1447,10 @@ export async function executeNotificationPagesPrivateDeployPhase({
           if (state.candidateAuthorityDigest === null) {
             fail('NOTIFICATION_PAGES_DEPLOY_CANDIDATE_AUTHORITY_REQUIRED');
           }
-          const authority = await dependencies.inspectCandidate(contract);
+          const authority = await dependencies.inspectCandidate(
+            contract,
+            playerCanaryInspection,
+          );
           if (
             !isRecord(authority)
             || authority.candidateAlreadyLive !== false
@@ -1337,6 +1459,12 @@ export async function executeNotificationPagesPrivateDeployPhase({
         }
         dependencies.assertSource(contract.candidatePagesSourceCommit);
         await dependencies.assertDeploymentAuthority(deploymentAuthorityRequest);
+        if (playerCanaryInspection !== null) {
+          dependencies.requireFreshPlayerCanary(
+            playerCanaryInspection.authority,
+            contract,
+          );
+        }
         journal.deployInvoked(state.candidateAuthorityDigest);
         return Object.freeze({ deploymentAttempted: true });
       }

@@ -19,11 +19,14 @@ export declare function inspectProductionPlayerCanaryActivationAuthority(input: 
   binding?: unknown;
   directory?: string;
   expectedPredecessorPagesSourceCommit: string;
+  expectedCandidatePagesSourceCommit?: string;
   expectedProtectedTree: string;
   expectedLiveReceiptDigest: string;
   expectedLivePagesSourceCommit: string;
   expectedLiveRootReceiptDigest: string;
   expectedLiveRootPagesSourceCommit: string;
+  /** One trusted observation shared with the surrounding evidence inspection. */
+  now?: Date;
   /**
    * Must be the branded result of fresh private plan/Hermes/bridge/DB inspection.
    * Its observation timestamp and DB evidence digest may be newer than the
@@ -31,6 +34,20 @@ export declare function inspectProductionPlayerCanaryActivationAuthority(input: 
    */
   expectedEvidenceAuthority: unknown;
 }>): Readonly<Record<string, string | number | boolean>>;
+export declare function requireProductionPlayerCanaryActivationAuthority(
+  value: unknown,
+): Readonly<Record<string, string | number | boolean>>;
+export declare function productionPlayerCanaryActivationAuthorityDigest(
+  value: unknown,
+): string;
+export declare function requireFreshProductionPlayerCanaryActivationAuthority(
+  value: unknown,
+  options: Readonly<{
+    candidatePagesSourceCommit: string;
+    predecessorPagesSourceCommit: string;
+    now?: number;
+  }>,
+): Readonly<Record<string, string | number | boolean>>;
 export declare function sameProductionPlayerCanaryActivationAuthority(
   left: unknown,
   right: unknown,

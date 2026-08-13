@@ -41,6 +41,24 @@ export function inspectHermesNotificationPagesLiveAuthority(
   }>,
 ): Promise<NotificationPagesLiveHermesAuthority>;
 
+export function inspectActivationPredecessorHermesNotificationPagesLiveAuthority(
+  input: Readonly<{
+    required: true;
+    pagesSourceCommit: string;
+    candidatePagesSourceCommit: string;
+    rootBinding?: Readonly<Record<string, unknown>>;
+    directory?: string;
+    repositoryRoot?: string;
+    fetchImpl?: typeof fetch;
+    now?: Date;
+  }>,
+  dependencies?: Readonly<{
+    inspectActivationPredecessor?: (
+      input: Readonly<Record<string, unknown>>,
+    ) => Promise<NotificationPagesLiveInspection>;
+  }>,
+): Promise<NotificationPagesLiveHermesAuthority>;
+
 export function sameNotificationPagesLiveHermesAuthority(
   left: unknown,
   right: unknown,

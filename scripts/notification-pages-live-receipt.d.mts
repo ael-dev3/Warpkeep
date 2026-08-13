@@ -8,6 +8,8 @@ export const NOTIFICATION_PAGES_LIVE_BRIDGE_ORIGIN:
 export const NOTIFICATION_PAGES_LIVE_PROTECTED_PATHS: readonly string[];
 export const NOTIFICATION_PAGES_LIVE_CANDIDATE_PROTECTED_PATHS:
   readonly string[];
+export const NOTIFICATION_PAGES_PRODUCTION_PLAYER_CANARY_ACTIVATION_PATHS:
+  readonly string[];
 
 export class NotificationPagesLiveReceiptError extends Error {
   readonly code: string;
@@ -258,6 +260,33 @@ export function inspectPrivateNotificationPagesLiveReceiptByPagesSourceCommit(
   }>,
 ): Promise<NotificationPagesLiveInspection>;
 
+export function inspectPrivateNotificationPagesLiveReceiptForActivationPredecessor(
+  options: Readonly<{
+    directory: string;
+    repositoryRoot: string;
+    candidatePagesSourceCommit: string;
+    pagesSourceCommit: string;
+    expectedChainRootReceiptDigest: string;
+    expectedChainRootPagesSourceCommit: string;
+    fetchImpl?: typeof fetch;
+    now?: Date;
+  }>,
+): Promise<NotificationPagesLiveInspection>;
+
+export function assertNotificationPagesProductionPlayerCanaryActivationTransition(
+  options: Readonly<{
+    predecessorPagesSourceCommit: string;
+    candidatePagesSourceCommit: string;
+    activationAuthority: unknown;
+    now?: number;
+  }>,
+): Readonly<{
+  predecessorPagesSourceCommit: string;
+  candidatePagesSourceCommit: string;
+  productionPlayerCanaryReceiptDigest: string;
+  productionPlayerCanaryActivationAuthorityDigest: string;
+}>;
+
 export function inspectLatestPrivateNotificationPagesLiveReceiptForCandidate(
   options: Readonly<{
     directory: string;
@@ -269,6 +298,7 @@ export function inspectLatestPrivateNotificationPagesLiveReceiptForCandidate(
     fetchImpl?: typeof fetch;
     now?: Date;
     randomBytesImpl?: (size: number) => Buffer;
+    productionPlayerCanaryActivationAuthority?: unknown;
   }>,
 ): Promise<NotificationPagesLiveCandidateAuthority>;
 
@@ -292,3 +322,15 @@ export function promoteNotificationPagesLiveReceipt(options: Readonly<{
   chainRootPagesSourceCommit: string;
   liveAttestation?: Readonly<Record<string, unknown>>;
 }>>;
+
+export const notificationPagesLiveReceiptTestSeams: Readonly<{
+  assertProductionPlayerCanaryActivationSourceTransition: (
+    predecessorPagesSourceCommit: string,
+    candidatePagesSourceCommit: string,
+  ) => Readonly<Record<string, string>>;
+  exactChangedPaths: (
+    predecessorPagesSourceCommit: string,
+    candidatePagesSourceCommit: string,
+    code: string,
+  ) => readonly string[];
+}> | undefined;

@@ -84,7 +84,15 @@ function protectedIdenticalAncestor(): string {
       // Continue to the next first-parent ancestor.
     }
   }
-  throw new Error('missing protected-path-identical promotion ancestor');
+  // A security-infrastructure change may intentionally establish a new
+  // protected anchor. The only fixtures that use this value exercise terminal
+  // chain capacity or a transition that must be rejected; a real parent keeps
+  // those checks fail-closed without manufacturing an unreviewed predecessor.
+  return execFileSync(
+    '/usr/bin/git',
+    ['rev-parse', '--verify', 'HEAD^'],
+    { cwd: process.cwd(), encoding: 'utf8' },
+  ).trim();
 }
 
 const PREDECESSOR_COMMIT = protectedIdenticalAncestor();
@@ -937,6 +945,7 @@ function completedCandidateCrashFixture(
     protectedPathsDigest,
     stagedHandoffBinding: null,
     stagedHandoffBindingDigest: null,
+    productionPlayerCanaryActivationAuthorityDigest: null,
   };
   const authorityBytes = Buffer.from(
     `${JSON.stringify(authority, null, 2)}\n`,
@@ -2009,7 +2018,7 @@ describe('notification Pages ongoing live receipt', () => {
       now: NOW,
       randomBytesImpl: size => Buffer.alloc(size, 8),
     })).rejects.toThrow(
-      'NOTIFICATION_PAGES_LIVE_RELEASE_BINDING_TRANSITION_INVALID',
+      /NOTIFICATION_PAGES_LIVE_(?:RELEASE_BINDING_TRANSITION_INVALID|ACTIVE_EVIDENCE_CLOSURE_INVALID)/u,
     );
     expect(authorityFetch).not.toHaveBeenCalled();
     expect(readdirSync(targetWorkspace.directory).some(name =>

@@ -64,6 +64,7 @@ export declare function inspectProductionPlayerCanaryExpectedEvidenceAuthority(
     expectedTargetConfigurationDigest: string;
     expectedProfilePolicyVersion: string;
     pagesSourceCommit: string;
+    candidatePagesSourceCommit?: string;
     rootBinding?: Readonly<Record<string, unknown>>;
     liveReceiptDirectory?: string;
     repositoryRoot?: string;

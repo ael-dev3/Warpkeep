@@ -21,8 +21,12 @@ const PROTECTED_RUNTIME_SOURCE_CLOSURE = Object.freeze([
   'scripts/production-player-canary-approval-reconciliation.mjs',
   'scripts/production-player-canary-baseline-reconciliation.mjs',
   'scripts/production-player-canary-command-authority.mjs',
+  'scripts/production-player-canary-core.ts',
+  'scripts/production-player-canary-deploy-authority.mjs',
   'scripts/production-player-canary-evidence-authority.mjs',
   'scripts/production-player-canary-owner-approval.mjs',
+  'scripts/production-player-canary-receipt.mjs',
+  'scripts/notification-pages-private-deploy-operator.mjs',
   'scripts/greater-realm-production-transport.ts',
   'scripts/greater-realm-cutover-write-control.ts',
   'scripts/hermes-admin.ts',
@@ -764,7 +768,11 @@ async function defaultInspectClaimedPlan(input) {
 
 async function defaultInspectHermes(input) {
   const module = await import('./notification-pages-live-hermes-authority.mjs');
-  return module.inspectHermesNotificationPagesLiveAuthority(input);
+  return input.candidatePagesSourceCommit === input.pagesSourceCommit
+    ? module.inspectHermesNotificationPagesLiveAuthority(input)
+    : module.inspectActivationPredecessorHermesNotificationPagesLiveAuthority(
+      input,
+    );
 }
 
 async function defaultInspectOwnerApproval(input) {
@@ -799,11 +807,15 @@ async function defaultCallAdminEvidence(input) {
 }
 
 async function inspectExpectedEvidenceAuthority(input, dependencies) {
+  const candidatePagesSourceCommit = input?.candidatePagesSourceCommit
+    ?? input?.pagesSourceCommit;
   if (
     input === null
     || typeof input !== 'object'
     || typeof input.founderPlanDirectory !== 'string'
     || typeof input.ownerApprovalDirectory !== 'string'
+    || typeof candidatePagesSourceCommit !== 'string'
+    || !COMMIT.test(candidatePagesSourceCommit)
     || !(input.now instanceof Date)
     || !Number.isSafeInteger(input.now.getTime())
   ) fail('PRODUCTION_PLAYER_CANARY_EVIDENCE_INSPECTION_INPUT_INVALID');
@@ -849,6 +861,7 @@ async function inspectExpectedEvidenceAuthority(input, dependencies) {
   const hermesInput = Object.freeze({
     required: true,
     pagesSourceCommit: input.pagesSourceCommit,
+    candidatePagesSourceCommit,
     rootBinding: input.rootBinding,
     directory: input.liveReceiptDirectory,
     repositoryRoot: input.repositoryRoot,

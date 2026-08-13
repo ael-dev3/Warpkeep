@@ -13,7 +13,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 import { describe, expect, it, vi } from 'vitest';
@@ -40,11 +40,13 @@ import {
 } from '../scripts/production-player-canary-command-authority.mjs';
 import {
   PRODUCTION_PLAYER_CANARY_PROFILE,
+  PRODUCTION_PLAYER_CANARY_FRESH_INSPECTION_MAXIMUM_AGE_MS,
   ProductionPlayerCanaryReceiptError,
   canonicalProductionPlayerCanaryReceiptBytes,
   installProductionPlayerCanaryReceipt,
   parseProductionPlayerCanaryReceipt,
   productionPlayerCanaryReceiptTestSeams,
+  requireFreshProductionPlayerCanaryActivationAuthority,
   sameProductionPlayerCanaryActivationAuthority,
 } from '../scripts/production-player-canary-receipt.mjs';
 import { workerResourcePolicy } from '../spacetimedb/src/castleWorkerPolicy';
@@ -66,6 +68,36 @@ const EVIDENCE_NONCE = 'e'.repeat(64);
 const BRIDGE_COMMIT = 'd'.repeat(40);
 const evidenceAuthorityTestSeams = productionPlayerCanaryEvidenceAuthorityTestSeams!;
 const receiptTestSeams = productionPlayerCanaryReceiptTestSeams!;
+const CANARY_PROTECTED_RUNTIME_PATHS = Object.freeze([
+  'scripts/notification-pages-private-deploy-operator.mjs',
+  'scripts/production-player-canary-admin-transport.ts',
+  'scripts/production-player-canary-baseline-reconciliation.mjs',
+  'scripts/production-player-canary-core.ts',
+  'scripts/production-player-canary-deploy-authority.mjs',
+  'scripts/production-player-canary-evidence-authority.mjs',
+  'scripts/production-player-canary-owner-approval.mjs',
+  'scripts/production-player-canary-receipt.mjs',
+]);
+const EXACT_C7_PRESENTATION_PATHS = Object.freeze([
+  'CHANGELOG.md',
+  'README.md',
+  'index.html',
+  'package-lock.json',
+  'package.json',
+  'public/.well-known/farcaster.json',
+  'scripts/farcaster-miniapp-contract.mjs',
+  'scripts/greater-realm-downstream-release-policy.ts',
+  'scripts/production-player-canary-release-binding.mjs',
+  'src/components/menu/latestPatchNotes.ts',
+  'src/greater-realm/greaterRealmTransport.ts',
+  'src/spacetime/greaterRealmProviderBridge.ts',
+  'tests/buildInfo.test.ts',
+  'tests/deploymentBase.test.ts',
+  'tests/farcasterMiniAppContract.test.ts',
+  'tests/latestPatchNotes.test.ts',
+  'tests/menuFarcasterAuthIntegration.test.tsx',
+  'tests/menuMainMenu.test.tsx',
+].sort());
 
 function framed(values: readonly (string | number | bigint)[]) {
   return values.map(value => {
@@ -333,10 +365,14 @@ function protectedSourceRepository() {
     join(import.meta.dirname, '../scripts/production-player-canary-evidence-authority.mjs'),
     'utf8',
   );
-  writeFileSync(
-    join(repositoryRoot, 'scripts/production-player-canary-evidence-authority.mjs'),
-    executingAuthorityBytes,
-  );
+  for (const runtimePath of CANARY_PROTECTED_RUNTIME_PATHS) {
+    const destination = join(repositoryRoot, runtimePath);
+    mkdirSync(dirname(destination), { recursive: true });
+    writeFileSync(
+      destination,
+      readFileSync(join(import.meta.dirname, '..', runtimePath), 'utf8'),
+    );
+  }
   writeFileSync(join(repositoryRoot, 'package.json'), JSON.stringify({
     version: '0.3.43',
   }));
@@ -349,14 +385,20 @@ function protectedSourceRepository() {
   git(['commit', '--quiet', '-m', 'protected predecessor']);
   const protectedCommit = git(['rev-parse', '--verify', 'HEAD^{commit}']);
   const protectedTree = git(['rev-parse', '--verify', 'HEAD^{tree}']);
-  writeFileSync(join(repositoryRoot, 'package.json'), JSON.stringify({
-    version: '0.3.44',
-  }));
-  writeFileSync(join(repositoryRoot, 'package-lock.json'), JSON.stringify({
-    version: '0.3.44',
-    packages: { '': { version: '0.3.44' } },
-  }));
-  writeFileSync(join(repositoryRoot, 'successor.txt'), 'clean successor\n');
+  for (const path of EXACT_C7_PRESENTATION_PATHS) {
+    const destination = join(repositoryRoot, path);
+    mkdirSync(dirname(destination), { recursive: true });
+    if (path === 'package.json') {
+      writeFileSync(destination, JSON.stringify({ version: '0.3.44' }));
+    } else if (path === 'package-lock.json') {
+      writeFileSync(destination, JSON.stringify({
+        version: '0.3.44',
+        packages: { '': { version: '0.3.44' } },
+      }));
+    } else {
+      writeFileSync(destination, `exact C7 presentation: ${path}\n`);
+    }
+  }
   git(['add', '--all']);
   git(['commit', '--quiet', '-m', 'clean successor']);
   return {
@@ -398,8 +440,14 @@ function inspect(
 }
 
 describe('production player canary authority', () => {
-  it('accepts an exact protected predecessor from a clean descendant checkout', () => {
+  it('accepts C7 evidence only with exact-18 presentation drift and identical C6 authority bytes', () => {
     const fixture = protectedSourceRepository();
+    expect(fixture.git([
+      'diff', '--name-only', fixture.protectedCommit, 'HEAD', '--',
+    ]).split('\n').filter(Boolean).sort()).toEqual(EXACT_C7_PRESENTATION_PATHS);
+    expect(fixture.git([
+      'show', `${fixture.protectedCommit}:scripts/production-player-canary-evidence-authority.mjs`,
+    ])).toBe(fixture.executingAuthorityBytes.trimEnd());
     expect(() => evidenceAuthorityTestSeams.assertProtectedSourceAtRoot(
       fixture.repositoryRoot,
       fixture.protectedCommit,
@@ -414,6 +462,28 @@ describe('production player canary authority', () => {
       fixture.repositoryRoot,
       fixture.executingAuthorityBytes,
     )).toThrow('PRODUCTION_PLAYER_CANARY_PROTECTED_SOURCE_INVALID');
+  });
+
+  it('rejects an exact-18 C7 descendant after any canary runtime byte drifts', () => {
+    for (const runtimePath of CANARY_PROTECTED_RUNTIME_PATHS) {
+      const fixture = protectedSourceRepository();
+      expect(fixture.git([
+        'diff', '--name-only', fixture.protectedCommit, 'HEAD', '--',
+      ]).split('\n').filter(Boolean).sort()).toEqual(EXACT_C7_PRESENTATION_PATHS);
+      writeFileSync(
+        join(fixture.repositoryRoot, runtimePath),
+        `${readFileSync(join(fixture.repositoryRoot, runtimePath), 'utf8')}\n// hostile drift\n`,
+      );
+      fixture.git(['add', '--', runtimePath]);
+      fixture.git(['commit', '--quiet', '-m', 'hostile runtime drift']);
+      expect(() => evidenceAuthorityTestSeams.assertProtectedSourceAtRoot(
+        fixture.repositoryRoot,
+        fixture.protectedCommit,
+        fixture.protectedTree,
+        fixture.repositoryRoot,
+        fixture.executingAuthorityBytes,
+      )).toThrow('PRODUCTION_PLAYER_CANARY_PROTECTED_SOURCE_CLOSURE_MISMATCH');
+    }
   });
 
   it('rejects non-ancestors and changed attestation implementation bytes', () => {
@@ -737,6 +807,51 @@ describe('production player canary authority', () => {
       historicalAuthority,
       Date.parse('2026-08-13T12:11:00.000Z'),
     )).toThrow(
+      'PRODUCTION_PLAYER_CANARY_ACTIVATION_AUTHORITY_MISMATCH',
+    );
+  });
+
+  it('binds freshness to one trusted observation and rejects future or stale reuse', () => {
+    const value = receipt();
+    const directory = privateDirectory();
+    installProductionPlayerCanaryReceipt({
+      directory,
+      evidenceAuthority: value.evidenceAuthority,
+      randomId: () => '7'.repeat(32),
+    });
+    const authority = inspect(directory, value, value.evidenceAuthority, NOW);
+    const binding = {
+      candidatePagesSourceCommit: COMMIT,
+      predecessorPagesSourceCommit: COMMIT,
+    };
+    expect(requireFreshProductionPlayerCanaryActivationAuthority(
+      authority,
+      { ...binding, now: NOW },
+    )).toBe(authority);
+    expect(() => requireFreshProductionPlayerCanaryActivationAuthority(
+      authority,
+      { ...binding, now: NOW - 1 },
+    )).toThrow('PRODUCTION_PLAYER_CANARY_ACTIVATION_AUTHORITY_STALE');
+    expect(() => requireFreshProductionPlayerCanaryActivationAuthority(
+      authority,
+      {
+        ...binding,
+        now: NOW
+          + PRODUCTION_PLAYER_CANARY_FRESH_INSPECTION_MAXIMUM_AGE_MS
+          + 1,
+      },
+    )).toThrow('PRODUCTION_PLAYER_CANARY_ACTIVATION_AUTHORITY_STALE');
+    expect(() => receiptTestSeams.inspectActivationAuthority({
+      binding: bindingFor(value),
+      directory,
+      expectedPredecessorPagesSourceCommit: COMMIT,
+      expectedProtectedTree: TREE,
+      expectedLiveReceiptDigest: LIVE,
+      expectedLivePagesSourceCommit: COMMIT,
+      expectedLiveRootReceiptDigest: ROOT,
+      expectedLiveRootPagesSourceCommit: ROOT_COMMIT,
+      expectedEvidenceAuthority: value.evidenceAuthority,
+    }, Date.parse('2026-08-13T12:04:59.999Z'))).toThrow(
       'PRODUCTION_PLAYER_CANARY_ACTIVATION_AUTHORITY_MISMATCH',
     );
   });

@@ -784,7 +784,7 @@ describe('notification-bridge-prepared protected workflow', () => {
         guardedRecoveryRequired: true,
         privateReceiptSinkRequired: true,
         installedToolchainByteAttestationRequired: true,
-        executableSecurityClosureMemberCount: 309,
+        executableSecurityClosureMemberCount: 345,
       });
   }, 60_000);
 
@@ -802,7 +802,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     });
     expect(paths).toEqual(manifest.members.map(member => member.path));
     expect(manifest.schemaVersion).toBe(2);
-    expect(paths).toHaveLength(309);
+    expect(paths).toHaveLength(345);
     expect(paths).toEqual(expect.arrayContaining([
       'scripts/auth-bridge-notification-prepared-deploy.mjs',
       'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
@@ -853,6 +853,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       'scripts/greater-realm-production-bootstrap.mjs',
       'scripts/validate-pages-deploy-config.mjs',
       'scripts/verify-alpha-production.mjs',
+      'scripts/verify-production-dist-exclusions.mjs',
     ]);
     expect(paths.filter(path => path.endsWith('.mjs')).length).toBe(
       paths.filter(path => path.endsWith('.d.mts')).length
@@ -862,7 +863,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       repositoryRoot: root,
     })).toMatchObject({
         profile: 'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1',
-        memberCount: 309,
+        memberCount: 345,
         manifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
       });
   }, 90_000);

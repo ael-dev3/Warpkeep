@@ -33,6 +33,9 @@ const ACTIVE_DIGEST = 'f'.repeat(64);
 const MODULE_DIGEST = '1'.repeat(64);
 const AUTHORITY_DIGEST = '2'.repeat(64);
 const RECEIPT_DIGEST = '3'.repeat(64);
+const CANARY_RECEIPT_DIGEST = '8'.repeat(64);
+const CANARY_SOURCE = '9'.repeat(40);
+const CANARY_AUTHORITY_DIGEST = 'a'.repeat(64);
 
 function home(): string {
   const path = mkdtempSync(join(
@@ -68,13 +71,24 @@ function bindings(mode: 'closed-review' | 'gen0' | 'durable') {
       notificationPagesLiveRootPagesSourceCommit:
         mode === 'durable' ? ROOT_SOURCE : null,
     },
+    productionPlayerCanaryBinding: {
+      productionPlayerCanaryReceiptDigest: null,
+      productionPlayerCanarySourceCommit: null,
+    },
   };
 }
 
-function contract(mode: 'gen0' | 'durable') {
+function contract(mode: 'gen0' | 'durable', playerCanary = false) {
+  const sourceBindings = bindings(mode);
   return classifyNotificationPagesPrivateDeployment({
     candidatePagesSourceCommit: CANDIDATE,
-    ...bindings(mode),
+    ...sourceBindings,
+    productionPlayerCanaryBinding: playerCanary
+      ? {
+        productionPlayerCanaryReceiptDigest: CANARY_RECEIPT_DIGEST,
+        productionPlayerCanarySourceCommit: CANARY_SOURCE,
+      }
+      : sourceBindings.productionPlayerCanaryBinding,
   });
 }
 
@@ -124,6 +138,11 @@ function dependencies(options: {
       candidateAlreadyLive: false,
       candidateAuthorityDigest: AUTHORITY_DIGEST,
     });
+  const canaryAuthority = Object.freeze({
+    candidatePagesSourceCommit: CANDIDATE,
+    productionPlayerCanaryReceiptDigest: CANARY_RECEIPT_DIGEST,
+    productionPlayerCanarySourceCommit: CANARY_SOURCE,
+  });
   return {
     assertSource: vi.fn(),
     delay: vi.fn(async () => undefined),
@@ -145,6 +164,11 @@ function dependencies(options: {
       result: 'installed',
     })),
     inspectCandidate,
+    inspectPlayerCanary: vi.fn(async () => ({
+      authority: canaryAuthority,
+      authorityDigest: CANARY_AUTHORITY_DIGEST,
+    })),
+    requireFreshPlayerCanary: vi.fn(() => canaryAuthority),
     promote: vi.fn(async () => ({
       receiptDigest: RECEIPT_DIGEST,
       result: 'installed',
@@ -164,10 +188,11 @@ function execute(input: {
   runAttempt?: number;
   home: string;
   dependencies: ReturnType<typeof dependencies>;
+  playerCanary?: boolean;
 }) {
   return executeNotificationPagesPrivateDeployPhase({
     command: input.command,
-    contract: contract(input.mode),
+    contract: contract(input.mode, input.playerCanary),
     runId: input.runId ?? '41',
     runAttempt: input.runAttempt ?? 1,
     sourceRunId: '51',
@@ -393,6 +418,73 @@ describe('notification Pages private deployment operator', () => {
       expect.objectContaining({ candidatePagesSourceCommit: CANDIDATE }),
       AUTHORITY_DIGEST,
     );
+  });
+
+  it('authenticates C7 privately before reconciliation and freshly again before the marker', async () => {
+    const reportedHome = home();
+    const mocked = dependencies({
+      reconciliations: ['definitely-not-current'],
+    });
+    await execute({
+      mode: 'durable', command: 'predeploy', home: reportedHome,
+      dependencies: mocked, playerCanary: true,
+    });
+    expect(mocked.inspectPlayerCanary).toHaveBeenCalledTimes(1);
+    expect(mocked.requireFreshPlayerCanary).toHaveBeenCalledTimes(1);
+    expect(mocked.inspectPlayerCanary.mock.invocationCallOrder[0])
+      .toBeLessThan(mocked.reconcile.mock.invocationCallOrder[0]);
+    expect(mocked.reconcile.mock.invocationCallOrder[0])
+      .toBeLessThan(mocked.inspectCandidate.mock.invocationCallOrder[0]);
+    expect(mocked.inspectCandidate).toHaveBeenLastCalledWith(
+      expect.objectContaining({ requiresProductionPlayerCanary: true }),
+      expect.objectContaining({ authorityDigest: CANARY_AUTHORITY_DIGEST }),
+    );
+
+    await execute({
+      mode: 'durable', command: 'mark-deploy-invoked', home: reportedHome,
+      dependencies: mocked, playerCanary: true,
+    });
+    expect(mocked.inspectPlayerCanary).toHaveBeenCalledTimes(2);
+    expect(mocked.requireFreshPlayerCanary).toHaveBeenCalledTimes(3);
+    const secondCanaryInspection =
+      mocked.inspectPlayerCanary.mock.invocationCallOrder[1];
+    const secondCandidateInspection =
+      mocked.inspectCandidate.mock.invocationCallOrder[1];
+    const deploymentAuthority =
+      mocked.assertDeploymentAuthority.mock.invocationCallOrder[0];
+    const finalFreshness =
+      mocked.requireFreshPlayerCanary.mock.invocationCallOrder[2];
+    expect(secondCanaryInspection).toBeLessThan(secondCandidateInspection);
+    expect(secondCandidateInspection).toBeLessThan(deploymentAuthority);
+    expect(deploymentAuthority).toBeLessThan(finalFreshness);
+  });
+
+  it('retains the fresh C7 authority when reconciliation finds an already-live candidate', async () => {
+    const mocked = dependencies({
+      reconciliations: ['exact-current'],
+      candidateAlreadyLive: true,
+    });
+    await expect(execute({
+      mode: 'durable', command: 'predeploy', home: home(),
+      dependencies: mocked, playerCanary: true,
+    })).resolves.toEqual({ deployRequired: false, completed: true });
+    expect(mocked.inspectPlayerCanary).toHaveBeenCalledTimes(1);
+    expect(mocked.inspectCandidate).toHaveBeenCalledWith(
+      expect.objectContaining({ requiresProductionPlayerCanary: true }),
+      expect.objectContaining({ authorityDigest: CANARY_AUTHORITY_DIGEST }),
+    );
+  });
+
+  it('never opens private canary state for durable null-binding predecessors', async () => {
+    const mocked = dependencies({
+      reconciliations: ['definitely-not-current'],
+    });
+    await execute({
+      mode: 'durable', command: 'predeploy', home: home(),
+      dependencies: mocked,
+    });
+    expect(mocked.inspectPlayerCanary).not.toHaveBeenCalled();
+    expect(mocked.requireFreshPlayerCanary).not.toHaveBeenCalled();
   });
 
   it('never marks a second deployment after a crash and an old CDN response', async () => {

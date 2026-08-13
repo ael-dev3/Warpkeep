@@ -39,6 +39,9 @@ export const PRODUCTION_PLAYER_CANARY_RECEIPT_MAXIMUM_AGE_MS =
 export const PRODUCTION_PLAYER_CANARY_FRESH_INSPECTION_MAXIMUM_AGE_MS =
   5 * 60 * 1_000;
 
+const activationAuthorityBrand = new WeakSet();
+const activationAuthorityFreshness = new WeakMap();
+
 const RECEIPT_DIRECTORY_NAME = 'production-player-canary-receipts-v1';
 const RECEIPT_NAME = /^production-player-canary-([0-9a-f]{64})\.json$/u;
 const TEMPORARY_NAME = /^\.production-player-canary-([0-9a-f]{64})\.json-([0-9a-f]{32})\.tmp$/u;
@@ -403,10 +406,14 @@ function inspectActivationAuthority(input, now) {
     input.binding ?? PRODUCTION_PLAYER_CANARY_RELEASE_BINDING,
     { required: true },
   );
+  const expectedCandidatePagesSourceCommit =
+    input.expectedCandidatePagesSourceCommit
+      ?? input.expectedPredecessorPagesSourceCommit;
   if (
     !exactCommit(input.expectedPredecessorPagesSourceCommit)
     || input.expectedPredecessorPagesSourceCommit
       !== binding.productionPlayerCanarySourceCommit
+    || !exactCommit(expectedCandidatePagesSourceCommit)
     || !exactCommit(input.expectedProtectedTree)
     || !exactDigest(input.expectedLiveRootReceiptDigest)
     || !exactCommit(input.expectedLiveRootPagesSourceCommit)
@@ -476,8 +483,9 @@ function inspectActivationAuthority(input, now) {
     || now > notAfterMs
     || now - recordedAtMs > PRODUCTION_PLAYER_CANARY_RECEIPT_MAXIMUM_AGE_MS
   ) fail('PRODUCTION_PLAYER_CANARY_ACTIVATION_AUTHORITY_MISMATCH');
-  return Object.freeze({
+  const authority = Object.freeze({
     profile: PRODUCTION_PLAYER_CANARY_PROFILE,
+    candidatePagesSourceCommit: expectedCandidatePagesSourceCommit,
     productionPlayerCanaryReceiptDigest: digest,
     productionPlayerCanarySourceCommit: receipt.source.protectedCommit,
     productionPlayerCanarySourceTree: receipt.source.protectedTree,
@@ -503,10 +511,61 @@ function inspectActivationAuthority(input, now) {
     recordedAt: receipt.recordedAt,
     notAfter: receipt.evidenceAuthority.notAfter,
   });
+  activationAuthorityBrand.add(authority);
+  activationAuthorityFreshness.set(authority, Object.freeze({
+    inspectedAtMs: now,
+    notAfterMs: Date.parse(receipt.evidenceAuthority.notAfter),
+  }));
+  return authority;
 }
 
 export function inspectProductionPlayerCanaryActivationAuthority(input) {
-  return inspectActivationAuthority(input, Date.now());
+  const now = input?.now ?? new Date();
+  if (!(now instanceof Date) || !Number.isSafeInteger(now.getTime())) {
+    fail('PRODUCTION_PLAYER_CANARY_ACTIVATION_INPUT_INVALID');
+  }
+  return inspectActivationAuthority(input, now.getTime());
+}
+
+export function requireProductionPlayerCanaryActivationAuthority(value) {
+  if (!activationAuthorityBrand.has(value)) {
+    fail('PRODUCTION_PLAYER_CANARY_ACTIVATION_AUTHORITY_REQUIRED');
+  }
+  return value;
+}
+
+export function productionPlayerCanaryActivationAuthorityDigest(value) {
+  const authority = requireProductionPlayerCanaryActivationAuthority(value);
+  return createHash('sha256')
+    .update('warpkeep.production-player-canary.activation-authority.v1\0', 'utf8')
+    .update(JSON.stringify(authority), 'utf8')
+    .digest('hex');
+}
+
+export function requireFreshProductionPlayerCanaryActivationAuthority(
+  value,
+  {
+    candidatePagesSourceCommit,
+    predecessorPagesSourceCommit,
+    now = Date.now(),
+  } = {},
+) {
+  const authority = requireProductionPlayerCanaryActivationAuthority(value);
+  const freshness = activationAuthorityFreshness.get(authority);
+  if (
+    freshness === undefined
+    || !Number.isSafeInteger(now)
+    || !exactCommit(candidatePagesSourceCommit)
+    || !exactCommit(predecessorPagesSourceCommit)
+    || authority.candidatePagesSourceCommit !== candidatePagesSourceCommit
+    || authority.productionPlayerCanarySourceCommit
+      !== predecessorPagesSourceCommit
+    || freshness.inspectedAtMs > now
+    || now - freshness.inspectedAtMs
+      > PRODUCTION_PLAYER_CANARY_FRESH_INSPECTION_MAXIMUM_AGE_MS
+    || now > freshness.notAfterMs
+  ) fail('PRODUCTION_PLAYER_CANARY_ACTIVATION_AUTHORITY_STALE');
+  return authority;
 }
 
 export function sameProductionPlayerCanaryActivationAuthority(left, right) {

@@ -33,7 +33,7 @@ import {
   verifyAuthBridgeNotificationPreparedDeployClosure,
 } from './auth-bridge-notification-prepared-deploy-closure.mjs';
 
-const MEMBER_PATH = /^(?:package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|(?:\.github\/workflows|scripts|services\/auth-bridge|spacetimedb\/src|src)\/[A-Za-z0-9._/-]+)$/u;
+const MEMBER_PATH = /^(?:owner-canary\/index\.html|package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|vite\.config\.ts|(?:\.github\/workflows|scripts|services\/auth-bridge|spacetimedb\/src|src)\/[A-Za-z0-9._/-]+)$/u;
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
 const MAX_MEMBERS = 384;
 const SCRIPT_GRAPH_ROOTS = Object.freeze([
@@ -58,6 +58,7 @@ const STATIC_SECURITY_INPUTS = Object.freeze([
   '.github/workflows/deploy-pages.yml',
   '.github/workflows/notification-bridge-prepared.yml',
   '.github/workflows/verify.yml',
+  'owner-canary/index.html',
   'package-lock.json',
   'package.json',
   'public/.well-known/farcaster.json',
@@ -83,9 +84,11 @@ const STATIC_SECURITY_INPUTS = Object.freeze([
   'scripts/notification-pages-private-release-binding.mjs',
   'scripts/production-player-canary-release-binding.d.mts',
   'scripts/production-player-canary-release-binding.mjs',
+  'scripts/production-player-canary-core.ts',
   'scripts/profiles/founder-admission-plan.ts',
   'scripts/verify-auth-bridge-notification-prepared-policy.d.mts',
   'scripts/verify-auth-bridge-notification-prepared-policy.mjs',
+  'scripts/verify-production-dist-exclusions.mjs',
   'services/auth-bridge/package.json',
   'services/auth-bridge/pnpm-lock.yaml',
   'services/auth-bridge/pnpm-workspace.yaml',
@@ -93,8 +96,23 @@ const STATIC_SECURITY_INPUTS = Object.freeze([
   'services/auth-bridge/vitest.config.ts',
   'services/auth-bridge/vitest.workerd.config.ts',
   'services/auth-bridge/wrangler.toml',
+  'spacetimedb/src/index.ts',
+  'spacetimedb/src/productionPlayerCanaryBaseline.ts',
+  'spacetimedb/src/productionPlayerCanaryBaselinePolicy.ts',
+  'spacetimedb/src/productionPlayerCanaryEvidence.ts',
+  'spacetimedb/src/reducers/castleWorkers.ts',
+  'spacetimedb/src/schema.ts',
+  'src/owner-canary/OwnerCanaryApp.tsx',
+  'src/owner-canary/main.tsx',
+  'src/owner-canary/ownerCanary.css',
+  'src/owner-canary/ownerCanaryAuthClient.ts',
+  'src/owner-canary/ownerCanaryController.ts',
+  'src/owner-canary/ownerCanaryEvidence.ts',
+  'src/owner-canary/ownerCanaryProductionRuntime.ts',
+  'src/owner-canary/ownerCanaryRuntime.ts',
   'src/greater-realm/greaterRealmTransport.ts',
   'src/spacetime/greaterRealmProviderBridge.ts',
+  'vite.config.ts',
 ]);
 const ATTESTED_INSTALLED_IMPORTS = new Map([
   ['scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs', new Set([

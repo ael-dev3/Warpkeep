@@ -22,7 +22,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_PROFILE =
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH =
   'scripts/auth-bridge-notification-prepared-deploy-closure-v1.json';
 
-const MEMBER_PATH = /^(?:package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|(?:\.github\/workflows|scripts|services\/auth-bridge|spacetimedb\/src|src)\/[A-Za-z0-9._/-]+)$/u;
+const MEMBER_PATH = /^(?:owner-canary\/index\.html|package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|vite\.config\.ts|(?:\.github\/workflows|scripts|services\/auth-bridge|spacetimedb\/src|src)\/[A-Za-z0-9._/-]+)$/u;
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
 const MAX_MANIFEST_BYTES = 192 * 1_024;
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
@@ -146,6 +146,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     '.github/workflows/deploy-pages.yml',
     '.github/workflows/notification-bridge-prepared.yml',
     '.github/workflows/verify.yml',
+    'owner-canary/index.html',
     'package-lock.json',
     'package.json',
     'public/.well-known/farcaster.json',
@@ -178,9 +179,11 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/entry-agreement-policy.mjs',
     'scripts/farcaster-miniapp-contract.mjs',
     'scripts/founder-admission-authority.ts',
+    'scripts/greater-realm-cutover-write-control.ts',
     'scripts/greater-realm-downstream-release-policy.ts',
     'scripts/greater-realm-production-bootstrap.mjs',
     'scripts/greater-realm-production-publisher-core.ts',
+    'scripts/greater-realm-production-transport.ts',
     'scripts/greater-realm-release-gate-deploy-boundary.d.mts',
     'scripts/greater-realm-release-gate-deploy-boundary.mjs',
     'scripts/hermes-admin.ts',
@@ -209,6 +212,18 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/notification-pages-release-source-parser.mjs',
     'scripts/production-admin-token-budget.d.mts',
     'scripts/production-admin-token-budget.mjs',
+    'scripts/production-player-canary-admin-transport.ts',
+    'scripts/production-player-canary-baseline-reconciliation.d.mts',
+    'scripts/production-player-canary-baseline-reconciliation.mjs',
+    'scripts/production-player-canary-core.ts',
+    'scripts/production-player-canary-deploy-authority.d.mts',
+    'scripts/production-player-canary-deploy-authority.mjs',
+    'scripts/production-player-canary-evidence-authority.d.mts',
+    'scripts/production-player-canary-evidence-authority.mjs',
+    'scripts/production-player-canary-owner-approval.d.mts',
+    'scripts/production-player-canary-owner-approval.mjs',
+    'scripts/production-player-canary-receipt.d.mts',
+    'scripts/production-player-canary-receipt.mjs',
     'scripts/production-player-canary-release-binding.d.mts',
     'scripts/production-player-canary-release-binding.mjs',
     'scripts/profiles/farcaster-profile-policy.ts',
@@ -220,6 +235,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/verify-auth-bridge-notification-prepared-policy.mjs',
     'scripts/verify-greater-realm-release-gates.d.mts',
     'scripts/verify-greater-realm-release-gates.mjs',
+    'scripts/verify-production-dist-exclusions.mjs',
     'services/auth-bridge/package.json',
     'services/auth-bridge/pnpm-lock.yaml',
     'services/auth-bridge/pnpm-workspace.yaml',
@@ -271,10 +287,16 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'spacetimedb/src/goldExpeditionPolicy.ts',
     'spacetimedb/src/goldSitePolicy.ts',
     'spacetimedb/src/greaterRealmV17Policy.ts',
+    'spacetimedb/src/index.ts',
     'spacetimedb/src/lowlandsSurface.ts',
+    'spacetimedb/src/productionPlayerCanaryBaseline.ts',
+    'spacetimedb/src/productionPlayerCanaryBaselinePolicy.ts',
+    'spacetimedb/src/productionPlayerCanaryEvidence.ts',
     'spacetimedb/src/profileAuthorityPolicy.ts',
+    'spacetimedb/src/reducers/castleWorkers.ts',
     'spacetimedb/src/resourceAuthorityPolicy.ts',
     'spacetimedb/src/resourceSitePlacementPolicy.ts',
+    'spacetimedb/src/schema.ts',
     'spacetimedb/src/stoneExpeditionPolicy.ts',
     'spacetimedb/src/stoneSitePolicy.ts',
     'spacetimedb/src/waterWorld.ts',
@@ -282,6 +304,14 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'spacetimedb/src/woodSitePolicy.ts',
     'spacetimedb/src/world.ts',
     'src/greater-realm/greaterRealmTransport.ts',
+    'src/owner-canary/OwnerCanaryApp.tsx',
+    'src/owner-canary/main.tsx',
+    'src/owner-canary/ownerCanary.css',
+    'src/owner-canary/ownerCanaryAuthClient.ts',
+    'src/owner-canary/ownerCanaryController.ts',
+    'src/owner-canary/ownerCanaryEvidence.ts',
+    'src/owner-canary/ownerCanaryProductionRuntime.ts',
+    'src/owner-canary/ownerCanaryRuntime.ts',
     'src/security/publicImageUrl.ts',
     'src/spacetime/greaterRealmProviderBridge.ts',
     'src/spacetime/module_bindings/accept_alpha_terms_v_1_reducer.ts',
@@ -305,6 +335,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'src/spacetime/module_bindings/admin_begin_greater_realm_verification_v_1_reducer.ts',
     'src/spacetime/module_bindings/admin_begin_worker_legacy_drain_v_1_reducer.ts',
     'src/spacetime/module_bindings/admin_bump_auth_epoch_reducer.ts',
+    'src/spacetime/module_bindings/admin_capture_production_player_canary_baseline_v_1_reducer.ts',
     'src/spacetime/module_bindings/admin_commit_greater_realm_active_v_1_reducer.ts',
     'src/spacetime/module_bindings/admin_complete_worker_legacy_drain_v_1_reducer.ts',
     'src/spacetime/module_bindings/admin_deactivate_inner_keep_v_1_reducer.ts',
@@ -328,6 +359,8 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'src/spacetime/module_bindings/admin_get_greater_realm_reenable_status_v_1_procedure.ts',
     'src/spacetime/module_bindings/admin_get_greater_realm_status_v_1_procedure.ts',
     'src/spacetime/module_bindings/admin_get_inner_keep_status_v_1_procedure.ts',
+    'src/spacetime/module_bindings/admin_get_production_player_canary_baseline_v_1_procedure.ts',
+    'src/spacetime/module_bindings/admin_get_production_player_canary_evidence_v_1_procedure.ts',
     'src/spacetime/module_bindings/admin_get_realm_chat_report_context_v_1_procedure.ts',
     'src/spacetime/module_bindings/admin_get_realm_chat_status_v_1_procedure.ts',
     'src/spacetime/module_bindings/admin_get_worker_rollout_status_v_2_procedure.ts',
@@ -446,12 +479,15 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'src/spacetime/module_bindings/stone_node_occupation_v_1_table.ts',
     'src/spacetime/module_bindings/stone_site_v_1_table.ts',
     'src/spacetime/module_bindings/types.ts',
+    'src/spacetime/module_bindings/types/procedures.ts',
+    'src/spacetime/module_bindings/types/reducers.ts',
     'src/spacetime/module_bindings/wood_expedition_schedule_v_1_table.ts',
     'src/spacetime/module_bindings/wood_node_occupation_v_1_table.ts',
     'src/spacetime/module_bindings/wood_site_v_1_table.ts',
     'src/spacetime/module_bindings/worker_node_occupation_v_1_table.ts',
     'src/spacetime/module_bindings/world_tile_meta_v_1_table.ts',
     'src/spacetime/module_bindings/world_tile_table.ts',
+    'vite.config.ts',
   ]);
 
 export class AuthBridgeNotificationPreparedDeployClosureError extends Error {
@@ -1120,6 +1156,11 @@ export function assertAuthBridgeNotificationPreparedDeployClosureAuthority(
   ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_AUTHORITY_INVALID');
   return authority;
 }
+
+export const authBridgeNotificationPreparedDeployClosureTestSeams =
+  process.env.NODE_ENV === 'test' && process.env.VITEST === 'true'
+    ? Object.freeze({ expectedMemberDigestProfile, parseManifest })
+    : undefined;
 
 function main() {
   const closure = verifyAuthBridgeNotificationPreparedDeployClosure();
