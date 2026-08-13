@@ -4,6 +4,10 @@ import {
   NOTIFICATION_PAGES_LIVE_RELEASE_BINDING,
   parseNotificationPagesLiveReleaseBinding,
 } from '../scripts/notification-pages-live-release-binding.mjs';
+import {
+  GREATER_REALM_NOTIFICATION_RELEASE_PHASE,
+  parseGreaterRealmNotificationReleaseAuthority,
+} from '../scripts/verify-greater-realm-release-gates.mjs';
 
 describe('notification Pages live release binding', () => {
   it('keeps the durable live chain unbound before the reviewed activation', () => {
@@ -48,5 +52,14 @@ describe('notification Pages live release binding', () => {
         'NOTIFICATION_PAGES_LIVE_RELEASE_BINDING_INVALID',
       );
     }
+  });
+
+  it('never permits Hermes final authority with the checked-in null root', () => {
+    expect(() => parseGreaterRealmNotificationReleaseAuthority({
+      phase: GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL,
+      notificationPreparedReceiptDigest: null,
+      notificationPreparedBridgeSourceCommit: null,
+      ...NOTIFICATION_PAGES_LIVE_RELEASE_BINDING,
+    })).toThrow('GREATER_REALM_NOTIFICATION_PAGES_LIVE_ROOT_BINDING_REQUIRED');
   });
 });
