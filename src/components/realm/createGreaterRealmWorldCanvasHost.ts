@@ -645,6 +645,8 @@ export function createGreaterRealmWorldCanvasHost(
       telemetry.scene.grassPatchCount,
       telemetry.scene.npcCount,
       telemetry.scene.wildlifeCount,
+      telemetry.scene.ambientBoatCount,
+      telemetry.scene.localVesselCount,
       telemetry.scene.boatCount,
       telemetry.publicCastleCount,
       telemetry.publicResourceCount,

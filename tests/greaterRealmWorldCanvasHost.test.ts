@@ -37,6 +37,8 @@ const EMPTY_TELEMETRY: GreaterRealmSceneTelemetry = Object.freeze({
   flowerGeometryBytes: 0,
   npcCount: 0,
   wildlifeCount: 0,
+  ambientBoatCount: 0,
+  localVesselCount: 0,
   boatCount: 0,
   resourceCount: 0,
   uploadedThisFrame: 0,

@@ -112,6 +112,48 @@ function navigableLocalVesselChunk() {
   return decodeGreaterRealmChunkDto(raw);
 }
 
+function missingAmbientDestinationChunk() {
+  const raw = structuredClone(navigableLocalVesselChunk()) as any;
+  const destination = raw.coreCells.find((cell: any) => (
+    cell.atlasQ === 1 && cell.atlasR === 0
+  ));
+  destination.hydroDepthClass = 1;
+  return decodeGreaterRealmChunkDto(raw);
+}
+
+function shiftedNavigableChunk(ordinal: number) {
+  const raw = structuredClone(navigableLocalVesselChunk()) as any;
+  const nextHandle = handle(800 + ordinal);
+  const shift = ordinal * 20;
+  const cellKeys = new Map<string, string>();
+  raw.chunkHandle = nextHandle;
+  for (const cell of [...raw.coreCells, ...raw.apronCells]) {
+    const previous = cell.cellKey;
+    cell.atlasQ += shift;
+    cell.cellKey = `T1_LOWLANDS:${cell.atlasQ}:${cell.atlasR}`;
+    cellKeys.set(previous, cell.cellKey);
+  }
+  raw.coreCells.forEach((cell: any) => { cell.chunkHandle = nextHandle; });
+  raw.resourceLocations.forEach((location: any, index: number) => {
+    location.atlasQ += shift;
+    location.cellKey = cellKeys.get(location.cellKey) ?? location.cellKey;
+    location.locationId = `GRL-${BASE32[(ordinal * 2 + index) % 32]!.repeat(26)}`;
+  });
+  return decodeGreaterRealmChunkDto(raw);
+}
+
+function ambientBoatMesh(runtime: ReturnType<typeof createGreaterRealmSceneRuntime>) {
+  const mesh = runtime.group.getObjectByName('greater-realm-ambient-river-boats');
+  expect(mesh).toBeInstanceOf(THREE.InstancedMesh);
+  return mesh as THREE.InstancedMesh;
+}
+
+function instancePosition(mesh: THREE.InstancedMesh, index = 0) {
+  const matrix = new THREE.Matrix4();
+  mesh.getMatrixAt(index, matrix);
+  return new THREE.Vector3().setFromMatrixPosition(matrix);
+}
+
 function geometryUploadBytes(root: THREE.Object3D) {
   const geometries = new Set<THREE.BufferGeometry>();
   let bytes = 0;
@@ -251,7 +293,7 @@ describe('Greater Realm scene runtime', () => {
     runtime.dispose();
   });
 
-  it('creates a boat only after the player takes the local helm and blocks unknown water', () => {
+  it('moves bounded ambient boats only between returned river cells and keeps the helm local', () => {
     const runtime = createGreaterRealmSceneRuntime({
       deviceClass: 'desktop',
       graphicsProfile: 'balanced',
@@ -266,7 +308,44 @@ describe('Greater Realm scene runtime', () => {
     expect(runtime.group.children.some((chunk) => (
       chunk.children.some((child) => child.name.startsWith('greater-realm-feature-lamp-post:'))
     ))).toBe(true);
-    expect(runtime.getTelemetry().boatCount).toBe(0);
+    expect(runtime.getTelemetry()).toMatchObject({
+      ambientBoatCount: 1,
+      localVesselCount: 0,
+      boatCount: 1
+    });
+    const ambient = ambientBoatMesh(runtime);
+    const ambientGeometry = ambient.geometry as THREE.BoxGeometry;
+    expect(ambientGeometry.parameters.depth).toBeGreaterThan(
+      ambientGeometry.parameters.width
+    );
+    expect(ambient.userData).toMatchObject({
+      greaterRealmPresentationOnly: true,
+      greaterRealmReturnedLaneCount: 1
+    });
+    const before = instancePosition(ambient);
+    expect(runtime.update(8)).toBe(true);
+    const after = instancePosition(ambient);
+    expect(after.distanceTo(before)).toBeGreaterThan(0.01);
+    const source = new THREE.Vector3();
+    const destination = new THREE.Vector3();
+    const plan = createGreaterRealmChunkPresentationPlan({
+      chunk: navigableLocalVesselChunk(),
+      graphicsProfile: 'balanced',
+      cellSize: 1
+    });
+    const cells = new Map(plan.boatCells.map((cell) => [cell.coordinateKey, cell]));
+    const sourceCell = cells.get('0,0')!;
+    const destinationCell = cells.get('1,0')!;
+    source.set(sourceCell.position.x, sourceCell.position.y, sourceCell.position.z);
+    destination.set(
+      destinationCell.position.x,
+      destinationCell.position.y,
+      destinationCell.position.z
+    );
+    expect(after.x).toBeGreaterThanOrEqual(Math.min(source.x, destination.x) - 1e-6);
+    expect(after.x).toBeLessThanOrEqual(Math.max(source.x, destination.x) + 1e-6);
+    expect(after.z).toBeGreaterThanOrEqual(Math.min(source.z, destination.z) - 1e-6);
+    expect(after.z).toBeLessThanOrEqual(Math.max(source.z, destination.z) + 1e-6);
     expect(runtime.getLocalVesselState()).toMatchObject({
       status: 'available',
       persisted: false
@@ -278,7 +357,11 @@ describe('Greater Realm scene runtime', () => {
       persisted: false
     });
     expect(runtime.group.getObjectByName('greater-realm-local-player-vessel')).toBeDefined();
-    expect(runtime.getTelemetry().boatCount).toBe(1);
+    expect(runtime.getTelemetry()).toMatchObject({
+      ambientBoatCount: 1,
+      localVesselCount: 1,
+      boatCount: 2
+    });
     expect(runtime.moveLocalVessel('forward')).toMatchObject({
       status: 'selected',
       atlasQ: 1,
@@ -291,9 +374,124 @@ describe('Greater Realm scene runtime', () => {
       message: expect.stringContaining('not returned')
     });
     runtime.releaseLocalVessel();
-    expect(runtime.getTelemetry().boatCount).toBe(0);
+    expect(runtime.getTelemetry()).toMatchObject({
+      ambientBoatCount: 1,
+      localVesselCount: 0,
+      boatCount: 1
+    });
     expect(runtime.group.getObjectByName('greater-realm-local-player-vessel')).toBeUndefined();
     runtime.dispose();
+  });
+
+  it('never creates ambient traffic across an unreturned deep-water endpoint', () => {
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'desktop',
+      graphicsProfile: 'high'
+    });
+    runtime.setView({
+      revision: 1n,
+      cellSize: 1,
+      chunks: [{ chunk: missingAmbientDestinationChunk(), distanceChunks: 0 }]
+    });
+    runtime.flushUploads();
+    expect(runtime.getTelemetry()).toMatchObject({
+      ambientBoatCount: 0,
+      localVesselCount: 0,
+      boatCount: 0
+    });
+    expect(runtime.group.getObjectByName('greater-realm-ambient-river-boats')).toBeUndefined();
+    runtime.dispose();
+  });
+
+  it('holds ambient river boats static under reduced motion', () => {
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'mobile',
+      graphicsProfile: 'reduced',
+      reducedMotion: true
+    });
+    runtime.setView({
+      revision: 1n,
+      cellSize: 1,
+      chunks: [{ chunk: navigableLocalVesselChunk(), distanceChunks: 0 }]
+    });
+    runtime.flushUploads();
+    const ambient = ambientBoatMesh(runtime);
+    const before = instancePosition(ambient);
+    expect(runtime.update(42)).toBe(false);
+    expect(instancePosition(ambient)).toEqual(before);
+    runtime.setReducedMotion(false);
+    expect(runtime.update(42)).toBe(true);
+    expect(instancePosition(ambient).distanceTo(before)).toBeGreaterThan(0.01);
+    runtime.dispose();
+  });
+
+  it('drops the ambient fleet on context loss and rebuilds it from returned lanes', () => {
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'desktop',
+      graphicsProfile: 'balanced'
+    });
+    const canvas = document.createElement('canvas');
+    runtime.bindCanvas(canvas);
+    runtime.setView({
+      revision: 1n,
+      cellSize: 1,
+      chunks: [{ chunk: navigableLocalVesselChunk(), distanceChunks: 0 }]
+    });
+    runtime.flushUploads();
+    const original = ambientBoatMesh(runtime);
+    const disposeGeometry = vi.spyOn(original.geometry, 'dispose');
+    const lost = new Event('webglcontextlost', { cancelable: true });
+    canvas.dispatchEvent(lost);
+    expect(lost.defaultPrevented).toBe(true);
+    expect(disposeGeometry).toHaveBeenCalledOnce();
+    expect(runtime.getTelemetry()).toMatchObject({
+      contextLost: true,
+      ambientBoatCount: 0
+    });
+    expect(runtime.group.getObjectByName('greater-realm-ambient-river-boats')).toBeUndefined();
+
+    canvas.dispatchEvent(new Event('webglcontextrestored'));
+    expect(runtime.getTelemetry()).toMatchObject({
+      contextLost: false,
+      ambientBoatCount: 1
+    });
+    expect(ambientBoatMesh(runtime)).not.toBe(original);
+    runtime.flushUploads();
+    runtime.dispose();
+    expect(runtime.group.children).toHaveLength(0);
+  });
+
+  it('caps the ambient fleet to the reviewed profile budget', () => {
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'mobile',
+      graphicsProfile: 'reduced',
+      localVesselOrigin: { atlasQ: 0, atlasR: 0 }
+    });
+    runtime.setView({
+      revision: 1n,
+      cellSize: 1,
+      chunks: Array.from({ length: 10 }, (_, ordinal) => ({
+        chunk: shiftedNavigableChunk(ordinal),
+        distanceChunks: ordinal
+      }))
+    });
+    const telemetry = runtime.getTelemetry();
+    expect(telemetry.ambientBoatCount).toBe(
+      GREATER_REALM_GRAPHICS_BUDGETS.reduced.boatCount - 1
+    );
+    expect(telemetry.localVesselCount).toBe(0);
+    expect(telemetry.boatCount).toBeLessThanOrEqual(
+      GREATER_REALM_GRAPHICS_BUDGETS.reduced.boatCount
+    );
+    expect(ambientBoatMesh(runtime).count).toBe(telemetry.ambientBoatCount);
+    expect(runtime.selectLocalVessel().status).toBe('selected');
+    expect(runtime.getTelemetry()).toMatchObject({
+      ambientBoatCount: GREATER_REALM_GRAPHICS_BUDGETS.reduced.boatCount - 1,
+      localVesselCount: 1,
+      boatCount: GREATER_REALM_GRAPHICS_BUDGETS.reduced.boatCount
+    });
+    runtime.dispose();
+    expect(runtime.group.children).toHaveLength(0);
   });
 
   it('caps a large requested view before allocation on Reduced', () => {

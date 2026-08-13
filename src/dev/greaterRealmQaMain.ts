@@ -138,6 +138,8 @@ async function start() {
     root.dataset.greaterRealmQaChunkCount = String(telemetry.uploadedChunkCount);
     root.dataset.greaterRealmQaDrawCalls = String(telemetry.drawCallCount);
     root.dataset.greaterRealmQaInstances = String(telemetry.instanceCount);
+    root.dataset.greaterRealmQaAmbientBoats = String(telemetry.ambientBoatCount);
+    root.dataset.greaterRealmQaLocalVessels = String(telemetry.localVesselCount);
     root.dataset.greaterRealmQaBoats = String(telemetry.boatCount);
     root.dataset.greaterRealmQaResources = String(telemetry.resourceCount);
     root.dataset.greaterRealmQaBlockedCells = String(telemetry.blockedCellCount);

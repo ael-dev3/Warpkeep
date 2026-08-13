@@ -53,6 +53,8 @@ export type GreaterRealmSceneTelemetry = Readonly<{
   flowerGeometryBytes: number;
   npcCount: number;
   wildlifeCount: number;
+  ambientBoatCount: number;
+  localVesselCount: number;
   boatCount: number;
   resourceCount: number;
   uploadedThisFrame: number;
@@ -132,6 +134,22 @@ type LocalVesselResource = Readonly<{
   material: THREE.MeshStandardMaterial;
 }>;
 
+type AmbientBoatRoute = Readonly<{
+  id: string;
+  from: GreaterRealmBoatCellPresentation;
+  to: GreaterRealmBoatCellPresentation;
+  headingRadians: number;
+  phase: number;
+}>;
+
+type AmbientBoatResource = Readonly<{
+  signature: string;
+  mesh: THREE.InstancedMesh;
+  geometry: THREE.BoxGeometry;
+  material: THREE.MeshStandardMaterial;
+  routes: readonly AmbientBoatRoute[];
+}>;
+
 type SelectedChunk = Readonly<{
   signature: string;
   plan: GreaterRealmChunkPresentationPlan;
@@ -142,7 +160,64 @@ function finiteDistance(value: number) {
   return Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : Number.MAX_SAFE_INTEGER;
 }
 
-const GREATER_REALM_LOCAL_VESSEL_UPLOAD_BYTES = 840;
+const GREATER_REALM_BOAT_GEOMETRY_UPLOAD_BYTES = 840;
+const GREATER_REALM_INSTANCE_MATRIX_UPLOAD_BYTES = 64;
+const GREATER_REALM_LOCAL_VESSEL_UPLOAD_BYTES = GREATER_REALM_BOAT_GEOMETRY_UPLOAD_BYTES;
+
+function stableLaneUnit(value: string) {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0) / 0x1_0000_0000;
+}
+
+/**
+ * Select a deterministic, profile-bounded set of scenic river crossings.
+ * Both endpoints must be explicit returned deep-water cells. No missing cell,
+ * inferred topology, or server-side movement authority is manufactured here.
+ */
+function ambientBoatRoutes(
+  lanes: readonly GreaterRealmBoatLanePresentation[],
+  cells: ReadonlyMap<string, GreaterRealmBoatCellPresentation>,
+  maximumBoats: number
+): readonly AmbientBoatRoute[] {
+  const maximum = Number.isSafeInteger(maximumBoats)
+    ? Math.max(0, maximumBoats)
+    : 0;
+  const seen = new Set<string>();
+  const routes: AmbientBoatRoute[] = [];
+  for (const lane of lanes) {
+    const id = `${lane.fromCoordinateKey}>${lane.toCoordinateKey}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const from = cells.get(lane.fromCoordinateKey);
+    const to = cells.get(lane.toCoordinateKey);
+    if (
+      from === undefined
+      || to === undefined
+      || from.coordinateKey === to.coordinateKey
+      || from.hydroBodyId === undefined
+      || to.hydroBodyId === undefined
+      || from.hydroBodyId !== to.hydroBodyId
+    ) continue;
+    routes.push(Object.freeze({
+      id,
+      from,
+      to,
+      headingRadians: Math.atan2(
+        to.position.x - from.position.x,
+        to.position.z - from.position.z
+      ),
+      phase: stableLaneUnit(id)
+    }));
+  }
+  routes.sort((left, right) => (
+    left.phase - right.phase || left.id.localeCompare(right.id)
+  ));
+  return Object.freeze(routes.slice(0, maximum));
+}
 
 function biomeColor(biomeClass: number) {
   if ([6, 7].includes(biomeClass)) return new THREE.Color('#c7d1cf');
@@ -587,18 +662,27 @@ export function createGreaterRealmSceneRuntime(
         Math.max(0, options.reservedUploadBytesPerFrame!)
       )
     : 0;
+  // One reviewed boat slot remains available for the explicit local helm.
+  // Ambient traffic can never make the total exceed the profile boat ceiling.
+  const ambientBoatCapacity = Math.max(0, budget.boatCount - 1);
+  // Reserve one draw for the bounded ambient river fleet and one for the
+  // opt-in local helm. The reservations remain fixed even when either layer
+  // is absent, so a later view/selection cannot push the total over budget.
   const maximumRuntimeDrawCalls = Math.max(
     0,
-    budget.maximumDrawCalls - reservedDrawCalls - 1
+    budget.maximumDrawCalls - reservedDrawCalls - 2
   );
   const maximumRuntimeSceneInstances = Math.max(
     0,
-    budget.maximumSceneInstances - reservedSceneInstances - 1
+    budget.maximumSceneInstances - reservedSceneInstances - budget.boatCount
   );
+  const maximumAmbientBoatUploadBytes = GREATER_REALM_BOAT_GEOMETRY_UPLOAD_BYTES
+    + ambientBoatCapacity * GREATER_REALM_INSTANCE_MATRIX_UPLOAD_BYTES;
   const maximumRuntimeUploadBytesPerFrame = Math.max(
     0,
     budget.maximumUploadBytesPerFrame
       - reservedUploadBytesPerFrame
+      - maximumAmbientBoatUploadBytes
       - GREATER_REALM_LOCAL_VESSEL_UPLOAD_BYTES
   );
   const group = new THREE.Group();
@@ -618,6 +702,8 @@ export function createGreaterRealmSceneRuntime(
   let localVesselBlocked = false;
   let localVesselMessage = 'No returned deep-water lane is available in this view.';
   let localVesselResource: LocalVesselResource | undefined;
+  let ambientBoatResource: AmbientBoatResource | undefined;
+  let pendingAmbientBoatUploadBytes = 0;
   let pendingLocalVesselUploadBytes = 0;
   let viewRevision: bigint | undefined;
   let scheduler: RealmAmbientScheduler | undefined;
@@ -655,6 +741,96 @@ export function createGreaterRealmSceneRuntime(
   const localVesselStarts = () => boatLanes.filter((lane) => (
     boatCells.has(lane.fromCoordinateKey)
   ));
+  const disposeAmbientBoatResource = () => {
+    const resource = ambientBoatResource;
+    if (resource === undefined) return;
+    ambientBoatResource = undefined;
+    pendingAmbientBoatUploadBytes = 0;
+    group.remove(resource.mesh);
+    resource.mesh.dispose();
+    resource.geometry.dispose();
+    resource.material.dispose();
+  };
+  const updateAmbientBoatMatrices = (elapsedSeconds: number, active: boolean) => {
+    const resource = ambientBoatResource;
+    if (resource === undefined) return false;
+    const time = Number.isFinite(elapsedSeconds) ? Math.max(0, elapsedSeconds) : 0;
+    resource.routes.forEach((route, index) => {
+      // A complete out-and-back takes 42–56 seconds. The cosine eases each
+      // turn at a returned endpoint so the presentation never overshoots a
+      // lane or snaps across an unreturned cell.
+      const speed = 0.018 + route.phase * 0.006;
+      const cycle = active
+        ? (route.phase + time * speed) % 1
+        : route.phase;
+      const angle = cycle * Math.PI * 2;
+      const progress = 0.5 - Math.cos(angle) * 0.5;
+      position.set(
+        THREE.MathUtils.lerp(route.from.position.x, route.to.position.x, progress),
+        THREE.MathUtils.lerp(route.from.position.y, route.to.position.y, progress)
+          + (active ? Math.sin(time * 0.55 + route.phase * 17) * 0.008 : 0),
+        THREE.MathUtils.lerp(route.from.position.z, route.to.position.z, progress)
+      );
+      const movingForward = Math.sin(angle) >= 0;
+      rotation.setFromAxisAngle(
+        up,
+        route.headingRadians + (movingForward ? 0 : Math.PI)
+      );
+      scale.set(1, 1, 1);
+      matrix.compose(position, rotation, scale);
+      resource.mesh.setMatrixAt(index, matrix);
+    });
+    resource.mesh.instanceMatrix.needsUpdate = true;
+    return active && resource.routes.length > 0;
+  };
+  const syncAmbientBoats = () => {
+    const routes = ambientBoatRoutes(boatLanes, boatCells, ambientBoatCapacity);
+    const signature = [
+      viewRevision,
+      cellSize,
+      ...routes.map((route) => route.id)
+    ].join('|');
+    if (
+      routes.length === 0
+      || contextLost
+      || disposed
+    ) {
+      disposeAmbientBoatResource();
+      return;
+    }
+    if (ambientBoatResource?.signature === signature) return;
+    disposeAmbientBoatResource();
+    // Heading yaw is measured from +Z throughout the realm presentation.
+    // Keep the hull's long axis on Z so boats face along their river lane.
+    const geometry = new THREE.BoxGeometry(0.11, 0.065, 0.24);
+    const material = new THREE.MeshStandardMaterial({
+      color: '#9b6a3e',
+      emissive: '#352113',
+      emissiveIntensity: 0.16,
+      roughness: 0.76,
+      fog: true
+    });
+    const mesh = new THREE.InstancedMesh(geometry, material, routes.length);
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    mesh.name = 'greater-realm-ambient-river-boats';
+    mesh.userData.greaterRealmPresentationOnly = true;
+    mesh.userData.greaterRealmReturnedLaneCount = routes.length;
+    // At most 24 tiny instances are drawn, and their full returned paths are
+    // more useful than a stale instance bound when a boat changes direction.
+    mesh.frustumCulled = false;
+    mesh.raycast = () => {};
+    ambientBoatResource = Object.freeze({
+      signature,
+      mesh,
+      geometry,
+      material,
+      routes
+    });
+    group.add(mesh);
+    pendingAmbientBoatUploadBytes = GREATER_REALM_BOAT_GEOMETRY_UPLOAD_BYTES
+      + routes.length * GREATER_REALM_INSTANCE_MATRIX_UPLOAD_BYTES;
+    updateAmbientBoatMatrices(0, false);
+  };
   const disposeLocalVesselResource = () => {
     const resource = localVesselResource;
     if (resource === undefined) return;
@@ -736,7 +912,9 @@ export function createGreaterRealmSceneRuntime(
     if (disposed || contextLost) return;
     contextLost = true;
     for (const handle of [...uploaded.keys()]) removeUploaded(handle);
+    disposeAmbientBoatResource();
     disposeLocalVesselResource();
+    pendingAmbientBoatUploadBytes = 0;
     pendingLocalVesselUploadBytes = 0;
     queueAllSelected();
     syncScheduler();
@@ -746,6 +924,7 @@ export function createGreaterRealmSceneRuntime(
     if (disposed || !contextLost) return;
     contextLost = false;
     queueAllSelected();
+    syncAmbientBoats();
     syncLocalVesselMesh();
     syncScheduler();
     options.onInvalidate?.();
@@ -763,6 +942,7 @@ export function createGreaterRealmSceneRuntime(
     if (!disposed && contextLost && boundCanvas !== null) {
       contextLost = false;
       queueAllSelected();
+      syncAmbientBoats();
       syncLocalVesselMesh();
       syncScheduler();
       options.onInvalidate?.();
@@ -772,6 +952,8 @@ export function createGreaterRealmSceneRuntime(
   const telemetry = (): GreaterRealmSceneTelemetry => {
     const plans = [...uploaded.values()].map((row) => row.plan);
     const actors = plans.flatMap((plan) => plan.actors);
+    const ambientBoatCount = ambientBoatResource?.routes.length ?? 0;
+    const localVesselCount = Number(localVesselResource !== undefined);
     return Object.freeze({
       disposed,
       deviceClass: options.deviceClass,
@@ -782,9 +964,11 @@ export function createGreaterRealmSceneRuntime(
       uploadedChunkCount: uploaded.size,
       pendingUploadCount: pending.size,
       drawCallCount: plans.reduce((total, plan) => total + plan.drawCallCount, 0)
-        + Number(localVesselResource !== undefined),
+        + Number(ambientBoatCount > 0)
+        + localVesselCount,
       instanceCount: plans.reduce((total, plan) => total + plan.instanceCount, 0)
-        + Number(localVesselResource !== undefined),
+        + ambientBoatCount
+        + localVesselCount,
       accessCellCount: access.size,
       blockedCellCount: plans.reduce((total, plan) => total + plan.blockedCoordinateKeys.length, 0),
       canopyCount: actors.filter((actor) => actor.kind === 'canopy').length,
@@ -795,7 +979,9 @@ export function createGreaterRealmSceneRuntime(
       flowerGeometryBytes: plans.reduce((total, plan) => total + plan.flowerGeometryBytes, 0),
       npcCount: actors.filter((actor) => actor.kind === 'npc').length,
       wildlifeCount: actors.filter((actor) => actor.kind === 'wildlife').length,
-      boatCount: Number(localVesselResource !== undefined),
+      ambientBoatCount,
+      localVesselCount,
+      boatCount: ambientBoatCount + localVesselCount,
       resourceCount: plans.reduce((total, plan) => total + plan.resources.length, 0),
       uploadedThisFrame,
       uploadBytesThisFrame,
@@ -810,6 +996,7 @@ export function createGreaterRealmSceneRuntime(
     const active = animationActive();
     const time = active && Number.isFinite(elapsedSeconds) ? Math.max(0, elapsedSeconds) : 0;
     const touchedMeshes = new Set<THREE.InstancedMesh>();
+    const ambientBoatsMoved = updateAmbientBoatMatrices(time, active);
     for (const resource of uploaded.values()) {
       for (const material of resource.waterMaterials) {
         const phase = Number(material.userData.greaterRealmPhase ?? 0);
@@ -860,9 +1047,11 @@ export function createGreaterRealmSceneRuntime(
     touchedMeshes.forEach((mesh) => {
       mesh.instanceMatrix.needsUpdate = true;
     });
-    return active && (touchedMeshes.size > 0 || [...uploaded.values()].some(
-      (resource) => resource.waterMaterials.length > 0
-    ));
+    return active && (
+      ambientBoatsMoved
+      || touchedMeshes.size > 0
+      || [...uploaded.values()].some((resource) => resource.waterMaterials.length > 0)
+    );
   };
 
   return Object.freeze({
@@ -1000,6 +1189,7 @@ export function createGreaterRealmSceneRuntime(
         }
         return row.plan.boatLanes;
       }));
+      syncAmbientBoats();
       if (
         revisionChanged
         || (localVesselCellKey !== undefined && !boatCells.has(localVesselCellKey))
@@ -1019,7 +1209,9 @@ export function createGreaterRealmSceneRuntime(
     },
     flushUploads: () => {
       uploadedThisFrame = 0;
-      uploadBytesThisFrame = pendingLocalVesselUploadBytes;
+      uploadBytesThisFrame = pendingAmbientBoatUploadBytes
+        + pendingLocalVesselUploadBytes;
+      pendingAmbientBoatUploadBytes = 0;
       pendingLocalVesselUploadBytes = 0;
       if (disposed || contextLost) return 0;
       let chunkUploadBytesThisFrame = 0;
@@ -1165,7 +1357,9 @@ export function createGreaterRealmSceneRuntime(
       access.clear();
       boatCells.clear();
       boatLanes = Object.freeze([]);
+      pendingAmbientBoatUploadBytes = 0;
       pendingLocalVesselUploadBytes = 0;
+      disposeAmbientBoatResource();
       disposeLocalVesselResource();
       group.clear();
     }

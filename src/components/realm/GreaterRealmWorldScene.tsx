@@ -316,6 +316,12 @@ export function GreaterRealmWorldScene({
         canvas.dataset.greaterRealmGrassPatches = String(telemetry.scene.grassPatchCount);
         canvas.dataset.greaterRealmNpcs = String(telemetry.scene.npcCount);
         canvas.dataset.greaterRealmWildlife = String(telemetry.scene.wildlifeCount);
+        canvas.dataset.greaterRealmAmbientBoats = String(
+          telemetry.scene.ambientBoatCount
+        );
+        canvas.dataset.greaterRealmLocalVessels = String(
+          telemetry.scene.localVesselCount
+        );
         canvas.dataset.greaterRealmBoats = String(telemetry.scene.boatCount);
         canvas.dataset.greaterRealmPublicResources = String(telemetry.publicResourceCount);
         canvas.dataset.greaterRealmVisibleRegions = String(telemetry.visibleRegionCount);

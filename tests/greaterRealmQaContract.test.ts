@@ -26,6 +26,8 @@ describe('Greater Realm browser QA contract', () => {
       'greaterRealmQaChunkCount',
       'greaterRealmQaDrawCalls',
       'greaterRealmQaInstances',
+      'greaterRealmQaAmbientBoats',
+      'greaterRealmQaLocalVessels',
       'greaterRealmQaBoats',
       'greaterRealmQaResources',
       'greaterRealmQaBlockedCells',
