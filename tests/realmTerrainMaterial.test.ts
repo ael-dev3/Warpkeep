@@ -5,7 +5,6 @@ import {
   createRealmTerrainMaterial,
   injectRealmTerrainFragmentShader,
   injectRealmTerrainVertexShader,
-  realmTerrainFineReliefMode,
   realmTerrainShaderCacheKey,
   REALM_TERRAIN_PREVAILING_WIND_GLSL,
   REALM_TERRAIN_SHADER_CACHE_KEY,
@@ -67,18 +66,45 @@ describe('Crafted Lowlands terrain material', () => {
       .toThrow('REALM_TERRAIN_SHADER_FRAGMENT_CONTRACT_CHANGED');
   });
 
-  it('selects bounded fine relief by quality without changing material family', () => {
+  it('injects quality-tiered oblique macro relief without replacing terrain hue', () => {
     const high = injectRealmTerrainFragmentShader(
       THREE.ShaderLib.standard.fragmentShader,
-      realmTerrainFineReliefMode('high')
+      'high'
     );
     const balanced = injectRealmTerrainFragmentShader(
       THREE.ShaderLib.standard.fragmentShader,
-      realmTerrainFineReliefMode('balanced')
+      'balanced'
     );
     const reduced = injectRealmTerrainFragmentShader(
       THREE.ShaderLib.standard.fragmentShader,
-      realmTerrainFineReliefMode('reduced')
+      'reduced'
+    );
+
+    expect(high).toContain('warpkeepReliefDirection');
+    expect(high).toContain('dot(warpkeepMacroReliefNormal, warpkeepReliefDirection)');
+    expect(high).toContain('warpkeepReliefLuminance');
+    expect(high).toContain('* 0.14');
+    expect(high).toContain('terrainHollow * 0.025');
+    expect(balanced).toContain('* 0.1');
+    expect(balanced).toContain('terrainHollow * 0.018');
+    expect(reduced).not.toContain('warpkeepReliefDirection');
+    expect(reduced).not.toContain('warpkeepReliefLuminance');
+    expect(high).not.toContain('mix(diffuseColor.rgb, vec3(');
+    expect(balanced).not.toContain('mix(diffuseColor.rgb, vec3(');
+  });
+
+  it('selects bounded fine relief by quality without changing material family', () => {
+    const high = injectRealmTerrainFragmentShader(
+      THREE.ShaderLib.standard.fragmentShader,
+      'high'
+    );
+    const balanced = injectRealmTerrainFragmentShader(
+      THREE.ShaderLib.standard.fragmentShader,
+      'balanced'
+    );
+    const reduced = injectRealmTerrainFragmentShader(
+      THREE.ShaderLib.standard.fragmentShader,
+      'reduced'
     );
 
     expect(high).toContain('warpkeepSnowCrossPhase');
@@ -89,6 +115,8 @@ describe('Crafted Lowlands terrain material', () => {
     expect(balanced.match(/fwidth\(/g)).toHaveLength(3);
     expect(reduced).not.toContain('warpkeepSnowGradient');
     expect(reduced).not.toContain('warpkeepSandGradient');
+    expect(reduced).not.toContain('warpkeepReliefDirection');
+    expect(reduced).not.toContain('warpkeepReliefLuminance');
     expect(reduced).toContain('warpkeepVegetationGradient');
     expect(reduced.match(/fwidth\(/g)).toHaveLength(1);
     expect(new Set([
@@ -96,6 +124,9 @@ describe('Crafted Lowlands terrain material', () => {
       realmTerrainShaderCacheKey('balanced'),
       realmTerrainShaderCacheKey('reduced')
     ])).toHaveProperty('size', 3);
+    expect(realmTerrainShaderCacheKey('balanced')).toContain(
+      'oblique-0.60632-0.559193--0.565402-0.1-0.018'
+    );
   });
 
   it('retains an ordinary standard material when a shader marker drifts', () => {
@@ -115,7 +146,9 @@ describe('Crafted Lowlands terrain material', () => {
       shaderEnhanced: false,
       shaderFallbackActive: true,
       compileAttemptCount: 1,
-      fineReliefMode: 'one-band'
+      fineReliefMode: 'one-band',
+      strategicReliefEnabled: true,
+      strategicReliefStrength: 0.1
     });
     expect(layer.getTelemetryRevision()).toBe(1);
     expect(layer.material.customProgramCacheKey()).toBe(
@@ -141,7 +174,9 @@ describe('Crafted Lowlands terrain material', () => {
       shaderEnhanced: true,
       shaderFallbackActive: false,
       compileAttemptCount: 1,
-      fineReliefMode: 'one-band'
+      fineReliefMode: 'one-band',
+      strategicReliefEnabled: true,
+      strategicReliefStrength: 0.1
     });
     expect(layer.getTelemetryRevision()).toBe(1);
     layer.dispose();

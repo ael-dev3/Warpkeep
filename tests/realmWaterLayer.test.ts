@@ -272,7 +272,7 @@ describe('Realm canonical water layer', () => {
     const shader = compileMaterial(ocean.material);
     expect(ocean.material.userData.waterWaveComponents).toBe(0);
     expect(shader.vertexShader).not.toContain('uniform float uWaterTime');
-    expect(shader.vertexShader).toContain('return 0.0');
+    expect(shader.vertexShader).toContain('waterHeight = 0.0;');
     expect(shader.fragmentShader).toContain('float waterGlimmer = abs(vWarpkeepWaterWave)');
     expect(shader.fragmentShader).toContain('vWarpkeepWaterFogMix');
     expect(shader.fragmentShader).toContain('fogColor');
@@ -385,6 +385,19 @@ describe('Realm canonical water layer', () => {
 
     expect(materials.map((material) => material.userData.waterWaveComponents))
       .toEqual([0, 0, 0]);
+    expect(materials.map((material) => material.userData.waterWaveHierarchy))
+      .toEqual([
+        { swell: 0, crossSwell: 0, detail: 0 },
+        { swell: 0, crossSwell: 0, detail: 0 },
+        { swell: 0, crossSwell: 0, detail: 0 }
+      ]);
+    materials.forEach((material) => {
+      const shader = compileMaterial(material);
+      expect(shader.vertexShader).not.toContain('uniform float uWaterTime');
+      expect(shader.vertexShader).not.toContain('warpkeepWaterBandSwell');
+      expect(shader.vertexShader).not.toContain('warpkeepWaterRiverPhase');
+      expect(shader.vertexShader).not.toContain('waterCompression +=');
+    });
     expect(layer.getTelemetry()).toMatchObject({
       animated: false,
       drawCalls: 3,
@@ -829,8 +842,32 @@ describe('Realm canonical water layer', () => {
       .not.toContain('dot(normalize(vNormal), normalize(-vViewPosition))');
     expect(shader.fragmentShader).toContain('vec3 waterReflectionColor = mix(');
     expect(shader.fragmentShader).toContain('waterReflectionStrength * bankSoftness');
+    expect(shader.vertexShader).toContain('warpkeepWaterBandSwell');
+    expect(shader.vertexShader).toContain('warpkeepWaterBandCrossSwell');
+    expect(shader.vertexShader).toContain('warpkeepWaterBandDetail');
+    expect(shader.vertexShader).toContain('float warpkeepWaterNormalCompression');
+    expect(shader.vertexShader).toContain('out float waterCompression');
+    expect(shader.vertexShader.match(/\n  warpkeepWaterSurface\(/g)).toHaveLength(1);
+    expect(shader.vertexShader).not.toContain('warpkeepWaterEpsilon');
+    expect(shader.vertexShader).not.toContain('warpkeepWaterDx');
+    expect(shader.vertexShader).toContain('waterGradient +=');
+    expect(shader.vertexShader).toContain(
+      'waterCompression += warpkeepWaterBandSwell0Sin * 0.001372'
+    );
+    expect(shader.vertexShader).toContain(
+      'waterCompression += warpkeepWaterBandDetail1Sin * 0.006818'
+    );
+    expect(shader.vertexShader).toContain('vWarpkeepWaterCompression =');
+    expect(shader.vertexShader).not.toContain('for (');
+    expect(shader.fragmentShader).toContain('vWarpkeepWaterCompression');
+    expect(shader.fragmentShader).toContain('waterCompressionCrest');
+    expect(ocean.material.userData.waterWaveHierarchy).toEqual({
+      swell: 3,
+      crossSwell: 3,
+      detail: 2
+    });
     expect(ocean.material.userData.waterShaderContract)
-      .toContain('-v8-reflection-ripples-4');
+      .toContain('-v9-wave-hierarchy-ripples-4');
     expect(shader.uniforms).toHaveProperty('uWaterTime');
     expect(layer.updateEnvironment(1)).toBe(true);
     expect(layer.updateEnvironment(1)).toBe(false);
@@ -883,7 +920,7 @@ describe('Realm canonical water layer', () => {
       expect(rivers.material.userData.waterWaveComponents).toBe(expectedWaveCount);
       expect(shader.vertexShader.match(/sin\(/g) ?? []).toHaveLength(expectedWaveCount);
       expect(rivers.material.userData.waterShaderContract)
-        .toContain('-v8-reflection-ripples-');
+        .toContain('-v9-wave-hierarchy-ripples-');
 
       layer.dispose();
     }

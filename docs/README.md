@@ -20,6 +20,8 @@ contributors. This page routes deeper work without duplicating it.
   legal-review, privacy, moderation, and activation boundaries
 - [Genesis water](design/genesis-water.md) — canonical coast, river, and fog
   layout
+- [Realm surface relief and analytic waves](design/realm-surface-relief-and-analytic-waves.md)
+  — quality-tiered topographic relief, coherent water derivatives, and clean-room provenance
 - [Lowlands audio](design/lowlands-audio.md) — scene transitions and runtime
   sound boundaries
 - [Northern Reach reference boundary](design/northern-reach-reference-boundary.md)

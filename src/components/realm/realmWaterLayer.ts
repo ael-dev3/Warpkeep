@@ -17,8 +17,11 @@ import {
   type GenesisWaterCellV1
 } from '../../../spacetimedb/src/waterWorld';
 import {
+  realmWaterWaveComponentCount,
+  REALM_WATER_WAVE_HIERARCHY_SPECS,
   resolveRealmLivingRealmBudget,
-  type RealmQualitySpec
+  type RealmQualitySpec,
+  type RealmWaterWaveHierarchySpec
 } from './realmQuality';
 import { pointyHexCorners } from './createTerrainGeometry';
 import {
@@ -78,9 +81,21 @@ function fogMixForCell(cell: GenesisWaterCellV1): number {
 }
 
 export const REALM_WATER_RENDER_BUDGETS = Object.freeze({
-  high: Object.freeze({ triangles: 220_000, draws: 4, waveComponents: 8 }),
-  balanced: Object.freeze({ triangles: 105_000, draws: 4, waveComponents: 5 }),
-  reduced: Object.freeze({ triangles: 35_000, draws: 4, waveComponents: 0 })
+  high: Object.freeze({
+    triangles: 220_000,
+    draws: 4,
+    waveComponents: realmWaterWaveComponentCount('high')
+  }),
+  balanced: Object.freeze({
+    triangles: 105_000,
+    draws: 4,
+    waveComponents: realmWaterWaveComponentCount('balanced')
+  }),
+  reduced: Object.freeze({
+    triangles: 35_000,
+    draws: 4,
+    waveComponents: realmWaterWaveComponentCount('reduced')
+  })
 });
 
 /** Water shares one demand-driven scheduler with grass and moving wagons. */
@@ -993,15 +1008,18 @@ function createWaterMaterial(
     depthWrite: true,
     fog: true
   });
-  const activeWaveComponents = reducedMotion
-    ? 0
-    : river
-      ? quality.id === 'high'
+  const waveHierarchy: RealmWaterWaveHierarchySpec = reducedMotion
+    ? REALM_WATER_WAVE_HIERARCHY_SPECS.reduced
+    : REALM_WATER_WAVE_HIERARCHY_SPECS[quality.id];
+  const activeWaveComponents = river
+    ? reducedMotion
+      ? 0
+      : quality.id === 'high'
         ? 2
         : quality.id === 'balanced'
           ? 1
           : 0
-      : REALM_WATER_RENDER_BUDGETS[quality.id].waveComponents;
+    : waveHierarchy.swell + waveHierarchy.crossSwell + waveHierarchy.detail;
   const safeRippleSlotCount = Math.max(0, Math.min(4, Math.trunc(rippleSlotCount)));
   const rippleCenters = Array.from(
     { length: safeRippleSlotCount },
@@ -1017,33 +1035,125 @@ function createWaterMaterial(
     uWaterRippleCenters: { value: rippleCenters },
     uWaterRippleParams: { value: rippleParams }
   };
-  const oceanWaveTerms = Array.from({ length: activeWaveComponents }, (_, index) => {
-    const ordinal = index + 1;
-    const directionX = (0.54 + ((ordinal * 17) % 31) / 100).toFixed(3);
-    const directionZ = (0.84 - ((ordinal * 11) % 23) / 100).toFixed(3);
-    const frequency = (0.28 + ordinal * 0.075).toFixed(3);
-    const speed = (0.16 + ordinal * 0.031).toFixed(3);
-    const amplitude = (0.024 / Math.sqrt(ordinal)).toFixed(5);
-    return `sin(dot(waterWorldXZ, vec2(${directionX}, ${directionZ})) * ${frequency} + uWaterTime * ${speed}) * ${amplitude}`;
+  const OCEAN_WAVE_BAND_SPECS = Object.freeze({
+    swell: Object.freeze({
+      label: 'warpkeepWaterBandSwell',
+      directions: Object.freeze([
+        Object.freeze([0.78, 0.62]),
+        Object.freeze([0.91, 0.31]),
+        Object.freeze([0.54, 0.84])
+      ]),
+      frequencies: Object.freeze([0.24, 0.32, 0.41]),
+      speeds: Object.freeze([0.145, 0.18, 0.215]),
+      amplitudes: Object.freeze([0.024, 0.018, 0.014])
+    }),
+    crossSwell: Object.freeze({
+      label: 'warpkeepWaterBandCrossSwell',
+      directions: Object.freeze([
+        Object.freeze([-0.66, 0.75]),
+        Object.freeze([-0.28, 0.96]),
+        Object.freeze([-0.86, 0.51])
+      ]),
+      frequencies: Object.freeze([0.47, 0.58, 0.7]),
+      speeds: Object.freeze([0.21, 0.255, 0.3]),
+      amplitudes: Object.freeze([0.011, 0.009, 0.007])
+    }),
+    detail: Object.freeze({
+      label: 'warpkeepWaterBandDetail',
+      directions: Object.freeze([
+        Object.freeze([0.23, -0.97]),
+        Object.freeze([0.96, -0.27])
+      ]),
+      frequencies: Object.freeze([1.05, 1.42]),
+      speeds: Object.freeze([0.39, 0.48]),
+      amplitudes: Object.freeze([0.0048, 0.0034])
+    })
   });
-  const riverWaveTerms = [
-    `sin(
-    dot(waterWorldXZ, normalize(waterFlow + vec2(0.0001))) * 2.65
+  const oceanWaveBandStatements = (
+    band: keyof typeof OCEAN_WAVE_BAND_SPECS,
+    count: number
+  ) => {
+    const spec = OCEAN_WAVE_BAND_SPECS[band];
+    return Array.from({ length: count }, (_, index) => {
+      const direction = spec.directions[index]!;
+      const frequency = spec.frequencies[index]!;
+      const amplitude = spec.amplitudes[index]!;
+      const directionLengthSquared = direction[0]! * direction[0]!
+        + direction[1]! * direction[1]!;
+      const prefix = `${spec.label}${index}`;
+      return `
+  float ${prefix}Phase = dot(waterWorldXZ, vec2(${
+        direction[0]!.toFixed(3)
+      }, ${direction[1]!.toFixed(3)})) * ${frequency.toFixed(3)}
+    + uWaterTime * ${spec.speeds[index]!.toFixed(3)};
+  float ${prefix}Sin = sin(${prefix}Phase);
+  float ${prefix}Cos = cos(${prefix}Phase);
+  waterHeight += ${prefix}Sin * ${amplitude.toFixed(5)};
+  waterGradient += vec2(${direction[0]!.toFixed(3)}, ${direction[1]!.toFixed(3)})
+    * ${prefix}Cos * ${(frequency * amplitude).toFixed(6)};
+  waterCompression += ${prefix}Sin * ${(
+        frequency * frequency * amplitude * directionLengthSquared
+      ).toFixed(6)};`;
+    });
+  };
+  const oceanWaveStatements = [
+    ...oceanWaveBandStatements('swell', waveHierarchy.swell),
+    ...oceanWaveBandStatements('crossSwell', waveHierarchy.crossSwell),
+    ...oceanWaveBandStatements('detail', waveHierarchy.detail)
+  ];
+  const riverWaveStatements = [
+    `
+  vec2 warpkeepWaterRiverDirection0 = normalize(waterFlow + vec2(0.0001));
+  float warpkeepWaterRiverFrequency0 = 2.65;
+  float warpkeepWaterRiverAmplitude0 = 0.0026 + waterFlowAccumulation * 0.0018;
+  float warpkeepWaterRiverPhase0 =
+    dot(waterWorldXZ, warpkeepWaterRiverDirection0) * warpkeepWaterRiverFrequency0
       + uWaterTime * (0.54 + waterFlowAccumulation * 0.24)
-      + waterFeaturePhase * 6.283185
-  ) * (0.0026 + waterFlowAccumulation * 0.0018)`,
-    `sin(
-    dot(waterWorldXZ, normalize(vec2(-waterFlow.y, waterFlow.x) + vec2(0.0001))) * 1.87
+      + waterFeaturePhase * 6.283185;
+  float warpkeepWaterRiverSin0 = sin(warpkeepWaterRiverPhase0);
+  float warpkeepWaterRiverCos0 = cos(warpkeepWaterRiverPhase0);
+  waterHeight += warpkeepWaterRiverSin0 * warpkeepWaterRiverAmplitude0;
+  waterGradient += warpkeepWaterRiverDirection0 * warpkeepWaterRiverCos0
+    * warpkeepWaterRiverFrequency0 * warpkeepWaterRiverAmplitude0;
+  waterCompression += warpkeepWaterRiverSin0
+    * warpkeepWaterRiverFrequency0 * warpkeepWaterRiverFrequency0
+    * warpkeepWaterRiverAmplitude0;`,
+    `
+  vec2 warpkeepWaterRiverDirection1 = normalize(
+    vec2(-waterFlow.y, waterFlow.x) + vec2(0.0001)
+  );
+  float warpkeepWaterRiverFrequency1 = 1.87;
+  float warpkeepWaterRiverAmplitude1 = 0.0010 + waterFlowAccumulation * 0.0006;
+  float warpkeepWaterRiverPhase1 =
+    dot(waterWorldXZ, warpkeepWaterRiverDirection1) * warpkeepWaterRiverFrequency1
       + uWaterTime * (0.31 + waterFlowAccumulation * 0.14)
-      + waterFeaturePhase * 3.141593
-  ) * (0.0010 + waterFlowAccumulation * 0.0006)`
+      + waterFeaturePhase * 3.141593;
+  float warpkeepWaterRiverSin1 = sin(warpkeepWaterRiverPhase1);
+  float warpkeepWaterRiverCos1 = cos(warpkeepWaterRiverPhase1);
+  waterHeight += warpkeepWaterRiverSin1 * warpkeepWaterRiverAmplitude1;
+  waterGradient += warpkeepWaterRiverDirection1 * warpkeepWaterRiverCos1
+    * warpkeepWaterRiverFrequency1 * warpkeepWaterRiverAmplitude1;
+  waterCompression += warpkeepWaterRiverSin1
+    * warpkeepWaterRiverFrequency1 * warpkeepWaterRiverFrequency1
+    * warpkeepWaterRiverAmplitude1;`
   ].slice(0, activeWaveComponents);
-  const effectiveWaveTerms = river ? riverWaveTerms : oceanWaveTerms;
+  const effectiveWaveStatements = river ? riverWaveStatements : oceanWaveStatements;
   const timeUniform = activeWaveComponents > 0 ? 'uniform float uWaterTime;\n' : '';
-  const baseHeightFunction = activeWaveComponents === 0
-    ? 'float warpkeepWaterBaseHeight(vec2 waterWorldXZ, float waterRegime, vec2 waterFlow, float waterFlowAccumulation, float waterFeaturePhase) { return 0.0; }'
-    : `float warpkeepWaterBaseHeight(vec2 waterWorldXZ, float waterRegime, vec2 waterFlow, float waterFlowAccumulation, float waterFeaturePhase) {
-  return ${effectiveWaveTerms.join(' + ')};
+  const baseWaveFunction = `
+void warpkeepWaterBaseWave(
+  vec2 waterWorldXZ,
+  float waterRegime,
+  vec2 waterFlow,
+  float waterFlowAccumulation,
+  float waterFeaturePhase,
+  out float waterHeight,
+  out vec2 waterGradient,
+  out float waterCompression
+) {
+  waterHeight = 0.0;
+  waterGradient = vec2(0.0);
+  waterCompression = 0.0;
+${effectiveWaveStatements.join('')}
 }`;
   const rippleUniforms = safeRippleSlotCount > 0 ? `
 uniform int uWaterRippleCount;
@@ -1077,11 +1187,35 @@ void warpkeepWaterRipple(vec2 waterWorldXZ, out float rippleHeight, out vec2 rip
   rippleHeight = 0.0;
   rippleGradient = vec2(0.0);
 ${rippleTerms}}
-float warpkeepWaterHeight(vec2 waterWorldXZ, float waterRegime, vec2 waterFlow, float waterFlowAccumulation, float waterFeaturePhase) {
-  float rippleHeight;
-  vec2 rippleGradient;
-  warpkeepWaterRipple(waterWorldXZ, rippleHeight, rippleGradient);
-  return warpkeepWaterBaseHeight(waterWorldXZ, waterRegime, waterFlow, waterFlowAccumulation, waterFeaturePhase) + rippleHeight;
+void warpkeepWaterSurface(
+  vec2 waterWorldXZ,
+  float waterRegime,
+  vec2 waterFlow,
+  float waterFlowAccumulation,
+  float waterFeaturePhase,
+  out float waterHeight,
+  out vec2 waterGradient,
+  out float waterCompression
+) {
+  warpkeepWaterBaseWave(
+    waterWorldXZ,
+    waterRegime,
+    waterFlow,
+    waterFlowAccumulation,
+    waterFeaturePhase,
+    waterHeight,
+    waterGradient,
+    waterCompression
+  );
+  float warpkeepWaterRippleHeight;
+  vec2 warpkeepWaterRippleGradient;
+  warpkeepWaterRipple(
+    waterWorldXZ,
+    warpkeepWaterRippleHeight,
+    warpkeepWaterRippleGradient
+  );
+  waterHeight += warpkeepWaterRippleHeight;
+  waterGradient += warpkeepWaterRippleGradient;
 }
 `;
   const foamQualityScale = quality.id === 'high'
@@ -1090,7 +1224,7 @@ float warpkeepWaterHeight(vec2 waterWorldXZ, float waterRegime, vec2 waterFlow, 
       ? 0.62
       : 0;
   const waterTimeExpression = activeWaveComponents > 0 ? 'uWaterTime' : '0.0';
-  const shaderContract = `warpkeep-water-world-space-r185-${river ? 'river' : 'ocean'}-v8-reflection-ripples-${safeRippleSlotCount}`;
+  const shaderContract = `warpkeep-water-world-space-r185-${river ? 'river' : 'ocean'}-v9-wave-hierarchy-ripples-${safeRippleSlotCount}`;
   let shaderFallback = false;
   material.onBeforeCompile = (shader) => {
     if (
@@ -1151,13 +1285,14 @@ varying float vWarpkeepWaterFogMix;
 varying float vWarpkeepWaterRegime;
 varying float vWarpkeepWaterShoreFoam;
 varying float vWarpkeepWaterWave;
+varying float vWarpkeepWaterCompression;
 varying float vWarpkeepWaterFlowAccumulation;
 varying float vWarpkeepWaterFeaturePhase;
 varying float vWarpkeepWaterSourceMix;
 varying float vWarpkeepWaterMouthMix;
 varying vec2 vWarpkeepWaterWorldXZ;
 varying vec2 vWarpkeepWaterFlow;
-${baseHeightFunction}
+${baseWaveFunction}
 ${rippleFunction}
 ${shader.vertexShader}`
       .replace('#include <color_vertex>', `#include <color_vertex>
@@ -1173,36 +1308,41 @@ ${shader.vertexShader}`
   vWarpkeepWaterFlow = normalize(vec2(waterFlowX, waterFlowZ) + vec2(0.0001));`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
   vWarpkeepWaterWorldXZ = (modelMatrix * vec4(position, 1.0)).xz;
-  vWarpkeepWaterWave = warpkeepWaterHeight(
-    vWarpkeepWaterWorldXZ,
-    waterRegime,
-    vec2(waterFlowX, waterFlowZ),
-    waterFlowAccumulation,
-    waterFeaturePhase
-  )
-    * (1.0 - clamp(waterFogMix, 0.0, 1.0));
+  vWarpkeepWaterWave = warpkeepWaterNormalHeight;
+  float warpkeepWaterWaveVisibility = 1.0 - clamp(waterFogMix, 0.0, 1.0);
+  vWarpkeepWaterWave *= warpkeepWaterWaveVisibility;
+  vWarpkeepWaterCompression = warpkeepWaterNormalCompression
+    * warpkeepWaterWaveVisibility;
   // Full-cell river edges stay physically welded. Downstream motion is
   // expressed by bounded normals and light, while only ocean vertices swell.
   transformed.y += vWarpkeepWaterWave * (1.0 - step(0.5, waterRegime));`)
       .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
-  float warpkeepWaterEpsilon = 0.045;
-  float warpkeepWaterWaveVisibility = 1.0 - clamp(waterFogMix, 0.0, 1.0);
-  vec2 warpkeepWaterNormalWorldXZ = (modelMatrix * vec4(position, 1.0)).xz;
-  float warpkeepWaterNormalHeight = warpkeepWaterBaseHeight(warpkeepWaterNormalWorldXZ, waterRegime, vec2(waterFlowX, waterFlowZ), waterFlowAccumulation, waterFeaturePhase);
-  float warpkeepWaterDx = ((warpkeepWaterBaseHeight(warpkeepWaterNormalWorldXZ + vec2(warpkeepWaterEpsilon, 0.0), waterRegime, vec2(waterFlowX, waterFlowZ), waterFlowAccumulation, waterFeaturePhase) - warpkeepWaterNormalHeight) / warpkeepWaterEpsilon) * warpkeepWaterWaveVisibility;
-  float warpkeepWaterDz = ((warpkeepWaterBaseHeight(warpkeepWaterNormalWorldXZ + vec2(0.0, warpkeepWaterEpsilon), waterRegime, vec2(waterFlowX, waterFlowZ), waterFlowAccumulation, waterFeaturePhase) - warpkeepWaterNormalHeight) / warpkeepWaterEpsilon) * warpkeepWaterWaveVisibility;
-  float warpkeepWaterRippleHeight;
-  vec2 warpkeepWaterRippleGradient;
-  warpkeepWaterRipple(warpkeepWaterNormalWorldXZ, warpkeepWaterRippleHeight, warpkeepWaterRippleGradient);
-  warpkeepWaterDx += warpkeepWaterRippleGradient.x * warpkeepWaterWaveVisibility;
-  warpkeepWaterDz += warpkeepWaterRippleGradient.y * warpkeepWaterWaveVisibility;
-  objectNormal = normalize(vec3(-warpkeepWaterDx, 1.0, -warpkeepWaterDz));`);
+  float warpkeepWaterNormalHeight;
+  vec2 warpkeepWaterGradient;
+  float warpkeepWaterNormalCompression;
+  warpkeepWaterSurface(
+    (modelMatrix * vec4(position, 1.0)).xz,
+    waterRegime,
+    vec2(waterFlowX, waterFlowZ),
+    waterFlowAccumulation,
+    waterFeaturePhase,
+    warpkeepWaterNormalHeight,
+    warpkeepWaterGradient,
+    warpkeepWaterNormalCompression
+  );
+  warpkeepWaterGradient *= 1.0 - clamp(waterFogMix, 0.0, 1.0);
+  objectNormal = normalize(vec3(
+    -warpkeepWaterGradient.x,
+    1.0,
+    -warpkeepWaterGradient.y
+  ));`);
     shader.fragmentShader = `${timeUniform}varying float vWarpkeepWaterDepth;
 varying float vWarpkeepWaterBankBlend;
 varying float vWarpkeepWaterFogMix;
 varying float vWarpkeepWaterRegime;
 varying float vWarpkeepWaterShoreFoam;
 varying float vWarpkeepWaterWave;
+varying float vWarpkeepWaterCompression;
 varying float vWarpkeepWaterFlowAccumulation;
 varying float vWarpkeepWaterFeaturePhase;
 varying float vWarpkeepWaterSourceMix;
@@ -1243,9 +1383,17 @@ ${shader.fragmentShader}`
         waterGlimmer += step(0.5, vWarpkeepWaterRegime)
           * waterDirectionalCurrent
           * (0.005 + vWarpkeepWaterFlowAccumulation * 0.006);
-        float waterCrest = vWarpkeepWaterRegime > 0.5
-          ? smoothstep(0.0018, 0.0046, abs(vWarpkeepWaterWave))
-          : smoothstep(0.012, 0.032, abs(vWarpkeepWaterWave));
+        float waterCompressionCrest = smoothstep(
+          0.0006,
+          0.0048,
+          max(vWarpkeepWaterCompression, 0.0)
+        );
+        float waterCrest = max(
+          vWarpkeepWaterRegime > 0.5
+            ? smoothstep(0.0018, 0.0046, abs(vWarpkeepWaterWave))
+            : smoothstep(0.012, 0.032, abs(vWarpkeepWaterWave)),
+          waterCompressionCrest * (1.0 - step(0.5, vWarpkeepWaterRegime))
+        );
         float riverFoamPattern = mix(0.42, 1.0, waterDirectionalCurrent)
           * mix(0.64, 1.0, waterCrossCurrent);
         float oceanFoamPattern = 0.58 + 0.42 * sin(
@@ -1291,6 +1439,9 @@ ${shader.fragmentShader}`
   );
   material.userData.waterUniforms = uniforms;
   material.userData.waterWaveComponents = activeWaveComponents;
+  material.userData.waterWaveHierarchy = river
+    ? Object.freeze({ swell: activeWaveComponents, crossSwell: 0, detail: 0 })
+    : waveHierarchy;
   material.userData.waterRippleSlots = safeRippleSlotCount;
   material.userData.waterFoamQualityScale = foamQualityScale;
   material.userData.waterPhysicalRiverDisplacement = 0;
