@@ -5,7 +5,7 @@
     {
       "path": ".github/workflows/deploy-pages.yml",
       "digestProfile": "reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1",
-      "sha256": "17fa6c7a65095c215d94fee893083c65476c74feb738d6b7dc2f27207b9ca9c3"
+      "sha256": "8bbad7913e12f8d615abaff148bcf7fb08681cbb6928f5139936c2f7de655139"
     },
     {
       "path": ".github/workflows/notification-bridge-prepared.yml",
@@ -90,7 +90,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "232dc94f69bf8a7c0aace2d7d7d7c171cf91b63798e8b5d01946c4cea980a3c5"
+      "sha256": "bf779a162bcf5058a0be047889e50bab272f6ea556d0cc88db8d5b7de04a3812"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.d.mts",
@@ -100,7 +100,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9a4791ca21d1142455d77cc5d70352ed7b585727aa934bb2ac2801b1ae2ab06c"
+      "sha256": "8e7a3f6739f6e021182164421a92d71409a1f4de3295f4b02a11f451c60bd48a"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
@@ -185,12 +185,22 @@
     {
       "path": "scripts/greater-realm-production-bootstrap.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8e1c55119a7544892c3d9b693dc5628366b49da715d60d4e1265beca83979d13"
+      "sha256": "80a29e9b88c2eb60725a10e0bf0e062ff3ae2019fb529f539abf699fd3571a1d"
     },
     {
       "path": "scripts/greater-realm-production-publisher-core.ts",
       "digestProfile": "reviewed-release-transition-projection-sha256-v1",
       "sha256": "5201fc1163a61bf8ad01da95a5455bc51b2e75f0152fa5103dd670653406d5d3"
+    },
+    {
+      "path": "scripts/greater-realm-release-gate-deploy-boundary.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "81b19ac8bf20947c7399abd5aa256901d1ea8e075de38f1b31fb31c42d4723ea"
+    },
+    {
+      "path": "scripts/greater-realm-release-gate-deploy-boundary.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "a32f480c4c4c7d8f65b73d6edccba84f072e0961302ae3886d31ec1689378c8a"
     },
     {
       "path": "scripts/hermes-admin.ts",
