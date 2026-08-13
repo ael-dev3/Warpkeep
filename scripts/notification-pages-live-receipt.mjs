@@ -13,6 +13,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  readSync,
   readdirSync,
   realpathSync,
   statSync,
@@ -29,10 +30,21 @@ import {
 } from 'node:path';
 import { parseDocument } from 'yaml';
 import {
-  createScanner,
-  LanguageVariant,
+  isAsExpression,
+  isCallExpression,
+  isIdentifier,
+  isImportDeclaration,
+  isObjectLiteralExpression,
+  isPropertyAccessExpression,
+  isPropertyAssignment,
+  isStringLiteral,
+  isVariableStatement,
+  ModifierFlags,
+  NodeFlags,
   SyntaxKind,
 } from 'typescript/unstable/ast';
+import { createVirtualFileSystem } from 'typescript/unstable/fs';
+import { API as TypeScriptAPI } from 'typescript/unstable/sync';
 
 import {
   DEFAULT_AUTH_BRIDGE_URL,
@@ -51,6 +63,8 @@ import {
 import {
   assertProductionAdminTrustedAncestors,
   canonicalProductionAdminAccountHome,
+  productionAdminRecordedOwnerIsDead,
+  requireCurrentProductionAdminProcessIdentity,
 } from './production-admin-token-budget.mjs';
 import { verifyFrontend } from './verify-alpha-production.mjs';
 
@@ -65,39 +79,166 @@ export const NOTIFICATION_PAGES_LIVE_PROTECTED_PATHS = Object.freeze([
   'index.html',
   'package-lock.json',
   'package.json',
-  'public/.well-known/farcaster.json',
+  'public',
   'scripts/admission-notifications',
+  'scripts/access-requests',
+  'scripts/alpha-activation-controls.ts',
+  'scripts/alpha-v10-activation-controls.ts',
   'scripts/auth-bridge-config-attestation.mjs',
   'scripts/auth-bridge-notification-prepared-receipt.mjs',
   'scripts/auth-bridge-notification-prepared-release-binding.mjs',
   'scripts/entry-agreement-policy.mjs',
   'scripts/farcaster-miniapp-contract.mjs',
+  'scripts/atlas',
+  'scripts/greater-realm-production-bootstrap.mjs',
+  'scripts/greater-realm-production-pages-evidence-operator.ts',
+  'scripts/greater-realm-production-pages-evidence.ts',
+  'scripts/greater-realm-production-provenance.ts',
+  'scripts/greater-realm-production-relocation-core.ts',
+  'scripts/greater-realm-production-transport.ts',
+  'scripts/greater-realm-production-verifier-core.ts',
+  'scripts/greater-realm-production-verifier.ts',
+  'scripts/greater-realm-cutover-write-control.ts',
+  'scripts/greater-realm-cutover-operation-journal.ts',
+  'scripts/greater-realm-cutover-receipts.ts',
+  'scripts/greater-realm-production-immutable-artifact.ts',
+  'scripts/greater-realm-openat.ts',
+  'scripts/greater-realm-openat-helper.py',
+  'scripts/greater-realm-production-publisher-core.ts',
+  'scripts/publish-spacetime-dev.mjs',
+  'scripts/spacetime-additive-migration-proof.mjs',
+  'scripts/spacetime-cli-attestation.mjs',
+  'scripts/spacetime-publish-receipt.mjs',
+  'scripts/spacetime-table-schema-attestation.mjs',
+  'scripts/verify-spacetime-additive-migration.mjs',
   'scripts/hermes-admin.ts',
+  'scripts/hermes-machine-output.ts',
+  'scripts/founder-admission-authority.ts',
   'scripts/notification-pages-private-handoff.mjs',
+  'scripts/notification-pages-private-handoff.d.mts',
+  'scripts/notification-pages-live-receipt.d.mts',
   'scripts/notification-pages-live-receipt.mjs',
+  'scripts/notification-pages-live-hermes-authority.mjs',
+  'scripts/notification-pages-live-release-binding.d.mts',
+  'scripts/notification-pages-live-release-binding.mjs',
+  'scripts/profiles/farcaster-profile-policy.ts',
+  'scripts/profiles/founder-admission-plan.ts',
+  'scripts/profiles/profile-transport.ts',
   'scripts/production-admin-token-budget.mjs',
   'scripts/qa-observer/local-vite-fs-deny.mjs',
   'scripts/validate-pages-deploy-config.mjs',
   'scripts/verify-alpha-production.mjs',
   'scripts/verify-greater-realm-release-gates.mjs',
   'services/auth-bridge',
+  'spacetimedb',
   'src',
+  'tsconfig.app.json',
+  'tsconfig.json',
+  'tsconfig.node.json',
+  'vite.config.ts',
+]);
+
+// Successor Pages releases may legitimately carry unrelated game changes.
+// Only the reviewed notification presentation, build, and ongoing authority
+// surfaces inherit a predecessor without a newly authenticated staged handoff.
+// Runtime imports for Hermes and active evidence are additionally derived and
+// checked below from their pinned source commits.
+export const NOTIFICATION_PAGES_LIVE_CANDIDATE_PROTECTED_PATHS = Object.freeze([
+  '.github/workflows/deploy-pages.yml',
+  'index.html',
+  'package-lock.json',
+  'package.json',
+  'public/.well-known/farcaster.json',
+  'public/warpkeep-boot.css',
+  'public/warpkeep-noscript.css',
+  'scripts/access-requests',
+  'scripts/admission-notifications',
+  'scripts/alpha-activation-controls.ts',
+  'scripts/alpha-v10-activation-controls.ts',
+  'scripts/auth-bridge-config-attestation.mjs',
+  'scripts/auth-bridge-notification-prepared-receipt.mjs',
+  'scripts/auth-bridge-notification-prepared-release-binding.mjs',
+  'scripts/entry-agreement-policy.mjs',
+  'scripts/farcaster-miniapp-contract.mjs',
+  'scripts/founder-admission-authority.ts',
+  'scripts/hermes-admin.ts',
+  'scripts/hermes-machine-output.ts',
+  'scripts/notification-pages-live-hermes-authority.mjs',
+  'scripts/notification-pages-live-receipt.d.mts',
+  'scripts/notification-pages-live-receipt.mjs',
+  'scripts/notification-pages-live-release-binding.d.mts',
+  'scripts/notification-pages-live-release-binding.mjs',
+  'scripts/notification-pages-private-handoff.d.mts',
+  'scripts/notification-pages-private-handoff.mjs',
+  'scripts/production-admin-token-budget.mjs',
+  'scripts/profiles/farcaster-profile-policy.ts',
+  'scripts/profiles/founder-admission-plan.ts',
+  'scripts/profiles/profile-transport.ts',
+  'scripts/qa-observer/local-vite-fs-deny.mjs',
+  'scripts/validate-pages-deploy-config.mjs',
+  'scripts/verify-alpha-production.mjs',
+  'scripts/verify-greater-realm-release-gates.mjs',
+  'spacetimedb/src/alphaActivationPolicy.ts',
+  'spacetimedb/src/alphaV10ActivationPolicy.ts',
+  'spacetimedb/src/entryAgreementPolicy.ts',
+  'spacetimedb/src/profileAuthorityPolicy.ts',
+  'spacetimedb/src/resourceAuthorityPolicy.ts',
+  'src/build',
+  'src/App.tsx',
+  'src/components/WarpkeepExperience.css',
+  'src/components/WarpkeepExperience.tsx',
+  'src/components/auth',
+  'src/components/errors',
+  'src/components/menu/WarpkeepMainMenu.css',
+  'src/components/menu/WarpkeepMainMenu.tsx',
+  'src/farcaster',
+  'src/main.tsx',
+  'src/security',
+  'src/spacetime/module_bindings',
+  'src/spacetime/WarpkeepSpacetimeProvider.tsx',
+  'src/spacetime/warpkeepBackendTypes.ts',
+  'src/spacetime/warpkeepConfig.ts',
+  'src/styles/global.css',
+  'tsconfig.app.json',
+  'tsconfig.json',
+  'tsconfig.node.json',
   'vite.config.ts',
 ]);
 
 const DIRECTORY_MODE = 0o700;
 const FILE_MODE = 0o600;
 const MAX_RECEIPT_BYTES = 32 * 1024;
-const MAX_DIRECTORY_ENTRIES = 256;
+const MAX_CHAIN_GENERATION = 255;
+// Every retained generation owns content, source, and root/successor records.
+// 1,024 keeps the complete 0..255 chain reachable while reserving bounded
+// headroom for the two-file predeploy authority and hard-link publication.
+const MAX_DIRECTORY_ENTRIES = 1024;
 const MAX_FOUNDERS = 600;
 const MAX_FRONTEND_DOCUMENT_BYTES = 1_000_000;
 const MAX_FRONTEND_ASSET_BYTES = 16_000_000;
+const MAX_FRONTEND_AGGREGATE_BYTES = 64_000_000;
 const MAX_FRONTEND_ASSET_COUNT = 64;
+const MAX_GIT_TREE_INVENTORY_BYTES = 2 * 1024 * 1024;
+const MAX_GIT_TREE_ENTRIES = 8_192;
+const MAX_GIT_SOURCE_FILES = 4_096;
+const MAX_GIT_SOURCE_FILE_BYTES = 512 * 1024;
+const MAX_GIT_SOURCE_AGGREGATE_BYTES = 32 * 1024 * 1024;
+const MAX_PRESENTATION_SOURCE_FILES = 512;
+const MAX_PRESENTATION_SOURCE_BYTES = 64 * 1024 * 1024;
+const MAX_CHECKOUT_TREE_BYTES = 4 * 1024 * 1024;
+const MAX_CHECKOUT_TREE_ENTRIES = 4_096;
+const MAX_CHECKOUT_AGGREGATE_BYTES = 256 * 1024 * 1024;
 const TEMPORARY_STALE_MILLISECONDS = 10 * 60 * 1_000;
 const NOTIFICATIONS_PRESENTATION_MARKER =
   'warpkeep-admission-notifications-presentation-enabled-v1';
+const DEPLOYED_BUILD_SHA_SENTINEL =
+  /\b(VITE_WARPKEEP_BUILD_SHA|buildSha):(["'`])([0-9a-f]{40})\2/gu;
 const REPOSITORY_ROOT = realpathSync(resolve(import.meta.dirname, '..'));
 const SOURCE_COMMIT = /^[0-9a-f]{40}$/u;
+const GIT_OBJECT_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
+const GIT_SOURCE_PATH = /\.(?:[cm]?[jt]s|[jt]sx|css)$/u;
+const GIT_TYPESCRIPT_SOURCE_PATH = /\.(?:[cm]?[jt]s|[jt]sx)$/u;
+const GIT_REGULAR_FILE_MODE = /^(?:100644|100755)$/u;
 const SHA256 = /^[0-9a-f]{64}$/u;
 const RUN_ID = /^[1-9][0-9]{0,19}$/u;
 const STRICT_UTC = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}Z$/u;
@@ -114,6 +255,15 @@ const CANDIDATE_TEMPORARY_FILE = /^\.notification-pages-candidate-([0-9a-f]{64})
 const CANDIDATE_CLAIM_FILE = /^notification-pages-candidate-claim-([0-9a-f]{64})\.json$/u;
 const CANDIDATE_CLAIM_TEMPORARY_FILE = /^\.notification-pages-candidate-claim-([0-9a-f]{64})-([0-9a-f]{24})\.json\.tmp$/u;
 const CANDIDATE_KIND = 'warpkeep-notification-pages-candidate-authority-v1';
+const WRITER_LOCK_FILE =
+  '.notification-pages-live-receipts-v1-writer-lock.json';
+const WRITER_LOCK_TEMPORARY_FILE =
+  /^\.notification-pages-live-receipts-v1-writer-slot-([0-9a-f]{2})\.json$/u;
+const WRITER_LOCK_LIFETIME_MILLISECONDS = 5 * 60 * 1_000;
+const WRITER_LOCK_WAIT_MILLISECONDS = 25;
+const WRITER_LOCK_WAIT_MAXIMUM_MILLISECONDS = 30_000;
+const MAX_WRITER_LOCK_TEMPORARIES = 256;
+let writerLockSequence = 0;
 const RECEIPT_KEYS = Object.freeze([
   'schemaVersion',
   'kind',
@@ -144,13 +294,14 @@ const CHAIN_KEYS = Object.freeze([
   'generation',
   'previousReceiptDigest',
   'previousPagesSourceCommit',
+  'candidateAuthorityDigest',
 ]);
 const PAGES_KEYS = Object.freeze([
   'origin',
   'sourceCommit',
   'liveBuildSha',
-  'liveFrontendDigest',
-  'rootAssetCount',
+  'notificationPresentationDigest',
+  'notificationPresentationAssetCount',
   'notificationsPresentationEnabled',
   'hermesExecutionApprovedAtActivation',
 ]);
@@ -211,7 +362,7 @@ const CANDIDATE_KEYS = Object.freeze([
   'chainRootReceiptDigest',
   'chainRootPagesSourceCommit',
   'candidatePagesSourceCommit',
-  'predeployLiveFrontendDigest',
+  'predeployNotificationPresentationDigest',
   'predeployLiveBridgeAttestationDigest',
   'protectedPathsDigest',
   'stagedHandoffBinding',
@@ -243,10 +394,66 @@ const STAGED_HANDOFF_AUTHORIZED_PATHS = Object.freeze([
   'vite.config.ts',
 ]);
 const NON_STAGED_PROTECTED_PATHS = Object.freeze(
-  NOTIFICATION_PAGES_LIVE_PROTECTED_PATHS.filter(
-    path => !STAGED_HANDOFF_AUTHORIZED_PATHS.includes(path),
+  NOTIFICATION_PAGES_LIVE_CANDIDATE_PROTECTED_PATHS.filter(
+    path => !STAGED_HANDOFF_AUTHORIZED_PATHS.some(authorizedPath =>
+      path === authorizedPath || path.startsWith(`${authorizedPath}/`)),
   ),
 );
+const ACTIVE_EVIDENCE_LITERAL_DEPENDENCIES = Object.freeze([
+  'scripts/greater-realm-openat-helper.py',
+  'scripts/greater-realm-production-publisher-core.ts',
+  'scripts/verify-spacetime-additive-migration.mjs',
+]);
+const ACTIVE_EVIDENCE_IMPORT_ROOTS = Object.freeze([
+  'scripts/greater-realm-production-pages-evidence-operator.ts',
+  'scripts/greater-realm-production-pages-evidence.ts',
+  'scripts/greater-realm-production-provenance.ts',
+  'scripts/greater-realm-production-transport.ts',
+  'scripts/greater-realm-production-verifier-core.ts',
+  'scripts/greater-realm-production-verifier.ts',
+]);
+const HERMES_AUTHORITY_IMPORT_ROOTS = Object.freeze([
+  'scripts/hermes-admin.ts',
+]);
+const RELEASE_BINDING_SOURCE_PATH =
+  'scripts/notification-pages-live-release-binding.mjs';
+const PRESENTATION_SOURCE_ROOT = 'src/main.tsx';
+const PRESENTATION_REALM_EXEMPTION = Object.freeze({
+  importer: 'src/components/WarpkeepExperience.tsx',
+  specifier: './realm/RealmMapScreen',
+  resolved: 'src/components/realm/RealmMapScreen.tsx',
+});
+const PRESENTATION_BUILD_INPUTS = Object.freeze([
+  '.github/workflows/deploy-pages.yml',
+  'index.html',
+  'package-lock.json',
+  'package.json',
+  'public/.well-known/farcaster.json',
+  'public/apple-touch-icon-180-fe27e8dc1c97cc36.png',
+  'public/audio/warpkeep-lowlands-theme.mp3',
+  'public/audio/warpkeep-menu-theme.mp3',
+  'public/audio/warpkeep-title-theme-a.mp3',
+  'public/audio/warpkeep-title-theme-b.mp3',
+  'public/favicon-64-7b82ca973fe757f5.png',
+  'public/images/menu/warpkeep-menu-poster-v2.webp',
+  'public/images/miniapp/warpkeep-embed-1200x800-a07da89d7df56da9.png',
+  'public/images/miniapp/warpkeep-icon-1024-d1b42d20f03c2905.png',
+  'public/images/miniapp/warpkeep-portrait-realm-alpha-0.3.43-1284x2778.png',
+  'public/images/miniapp/warpkeep-portrait-resource-alpha-0.3.43-1284x2778.png',
+  'public/images/miniapp/warpkeep-portrait-worker-alpha-0.3.43-1284x2778.png',
+  'public/images/miniapp/warpkeep-realm-card-1200x630-d800619debbded6f.png',
+  'public/images/miniapp/warpkeep-splash-200-117256827545daa1.png',
+  'public/models/title/warpkeep-title-compact.glb',
+  'public/models/title/warpkeep-title-high.glb',
+  'public/video/warpkeep-menu-loop-v2.mp4',
+  'public/warpkeep-boot.css',
+  'public/warpkeep-noscript.css',
+  'src/vite-env.d.ts',
+  'tsconfig.app.json',
+  'tsconfig.json',
+  'tsconfig.node.json',
+  'vite.config.ts',
+]);
 
 export class NotificationPagesLiveReceiptError extends Error {
   constructor(code) {
@@ -552,18 +759,21 @@ export function parseNotificationPagesLiveReceipt(value, { now } = {}) {
     !exactOrderedKeys(chain, CHAIN_KEYS)
     || !Number.isSafeInteger(chain.generation)
     || chain.generation < 0
-    || chain.generation >= MAX_DIRECTORY_ENTRIES
+    || chain.generation > MAX_CHAIN_GENERATION
     || (
       chain.generation === 0
         ? (
           chain.previousReceiptDigest !== null
           || chain.previousPagesSourceCommit !== null
+          || chain.candidateAuthorityDigest !== null
         )
         : (
           typeof chain.previousReceiptDigest !== 'string'
           || !SHA256.test(chain.previousReceiptDigest)
           || typeof chain.previousPagesSourceCommit !== 'string'
           || !SOURCE_COMMIT.test(chain.previousPagesSourceCommit)
+          || typeof chain.candidateAuthorityDigest !== 'string'
+          || !SHA256.test(chain.candidateAuthorityDigest)
         )
     )
   ) fail('NOTIFICATION_PAGES_LIVE_CHAIN_INVALID');
@@ -579,11 +789,11 @@ export function parseNotificationPagesLiveReceipt(value, { now } = {}) {
     || typeof pages.sourceCommit !== 'string'
     || !SOURCE_COMMIT.test(pages.sourceCommit)
     || pages.liveBuildSha !== pages.sourceCommit
-    || typeof pages.liveFrontendDigest !== 'string'
-    || !SHA256.test(pages.liveFrontendDigest)
-    || !Number.isSafeInteger(pages.rootAssetCount)
-    || pages.rootAssetCount < 1
-    || pages.rootAssetCount > MAX_FRONTEND_ASSET_COUNT
+    || typeof pages.notificationPresentationDigest !== 'string'
+    || !SHA256.test(pages.notificationPresentationDigest)
+    || !Number.isSafeInteger(pages.notificationPresentationAssetCount)
+    || pages.notificationPresentationAssetCount < 1
+    || pages.notificationPresentationAssetCount > MAX_FRONTEND_ASSET_COUNT
     || pages.notificationsPresentationEnabled !== true
     || pages.hermesExecutionApprovedAtActivation !== false
   ) fail('NOTIFICATION_PAGES_LIVE_PAGES_BINDING_INVALID');
@@ -809,8 +1019,8 @@ function parseCandidateAuthority(value, { now } = {}) {
     || !SOURCE_COMMIT.test(value.chainRootPagesSourceCommit)
     || typeof value.candidatePagesSourceCommit !== 'string'
     || !SOURCE_COMMIT.test(value.candidatePagesSourceCommit)
-    || typeof value.predeployLiveFrontendDigest !== 'string'
-    || !SHA256.test(value.predeployLiveFrontendDigest)
+    || typeof value.predeployNotificationPresentationDigest !== 'string'
+    || !SHA256.test(value.predeployNotificationPresentationDigest)
     || typeof value.predeployLiveBridgeAttestationDigest !== 'string'
     || !SHA256.test(value.predeployLiveBridgeAttestationDigest)
     || value.protectedPathsDigest !== protectedPathsDigest()
@@ -904,7 +1114,7 @@ function readContentAddressedFile(path, expectedDigest, expectedNlink, options) 
   }
 }
 
-function unlinkExact(path, expected) {
+function unlinkExact(path, expected, missingAllowed = true) {
   try {
     const current = lstatSync(path);
     if (
@@ -917,8 +1127,360 @@ function unlinkExact(path, expected) {
     unlinkSync(path);
   } catch (error) {
     if (error instanceof NotificationPagesLiveReceiptError) throw error;
-    if (error?.code === 'ENOENT') return;
+    if (error?.code === 'ENOENT' && missingAllowed) return;
     fail('NOTIFICATION_PAGES_LIVE_TEMPORARY_CHANGED');
+  }
+}
+
+function writerLockBody({ lockId, createdAt, processStartIdentity }) {
+  return Buffer.from(`${JSON.stringify({
+    schemaVersion: 1,
+    kind: 'warpkeep-notification-pages-live-writer-lock-v1',
+    lockId,
+    owner: { pid: process.pid, processStartIdentity },
+    createdAt,
+    expiresAt: createdAt + WRITER_LOCK_LIFETIME_MILLISECONDS,
+  })}\n`, 'utf8');
+}
+
+function parseWriterLock(bytes) {
+  let value;
+  try {
+    value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+  } catch {
+    fail('NOTIFICATION_PAGES_LIVE_WRITER_LOCK_INVALID');
+  }
+  if (
+    !exactOrderedKeys(value, [
+      'schemaVersion', 'kind', 'lockId', 'owner', 'createdAt', 'expiresAt',
+    ])
+    || value.schemaVersion !== 1
+    || value.kind !== 'warpkeep-notification-pages-live-writer-lock-v1'
+    || typeof value.lockId !== 'string'
+    || !/^[0-9a-f]{24}$/u.test(value.lockId)
+    || !exactOrderedKeys(value.owner, ['pid', 'processStartIdentity'])
+    || !Number.isSafeInteger(value.owner.pid)
+    || value.owner.pid < 1
+    || typeof value.owner.processStartIdentity !== 'string'
+    || value.owner.processStartIdentity.length < 8
+    || value.owner.processStartIdentity.length > 128
+    || !Number.isSafeInteger(value.createdAt)
+    || !Number.isSafeInteger(value.expiresAt)
+    || value.createdAt < 0
+    || value.expiresAt - value.createdAt
+      !== WRITER_LOCK_LIFETIME_MILLISECONDS
+  ) fail('NOTIFICATION_PAGES_LIVE_WRITER_LOCK_INVALID');
+  return Object.freeze(value);
+}
+
+function repairWriterLockPublication(lockDirectory) {
+  const lockPath = join(lockDirectory, WRITER_LOCK_FILE);
+  for (let retry = 0; retry < 32; retry += 1) {
+    const entries = readdirSync(lockDirectory, { withFileTypes: true });
+    const temporaries = entries.filter(entry =>
+      WRITER_LOCK_TEMPORARY_FILE.test(entry.name));
+    let restart = false;
+    let liveTemporaryCount = 0;
+    for (const entry of temporaries) {
+      const path = join(lockDirectory, entry.name);
+      let metadata;
+      try {
+        metadata = lstatSync(path);
+      } catch (error) {
+        if (error?.code === 'ENOENT') {
+          restart = true;
+          break;
+        }
+        fail('NOTIFICATION_PAGES_LIVE_WRITER_LOCK_INVALID');
+      }
+      if (
+        !entry.isFile()
+        || !metadata.isFile()
+        || metadata.isSymbolicLink()
+        || (process.getuid !== undefined && metadata.uid !== process.getuid())
+        || (metadata.nlink !== 1 && metadata.nlink !== 2)
+        || (metadata.mode & 0o7777) !== FILE_MODE
+        || metadata.size > MAX_RECEIPT_BYTES
+      ) fail('NOTIFICATION_PAGES_LIVE_WRITER_LOCK_INVALID');
+      if (metadata.nlink === 1) {
+        if (
+          metadata.mtimeMs
+            <= Date.now() - WRITER_LOCK_LIFETIME_MILLISECONDS
+        ) {
+          try {
+            unlinkExact(path, metadata);
+            fsyncDirectory(lockDirectory);
+          } catch (error) {
+            if (
+              error instanceof NotificationPagesLiveReceiptError
+              && error.code === 'NOTIFICATION_PAGES_LIVE_TEMPORARY_CHANGED'
+            ) {
+              restart = true;
+              break;
+            }
+            throw error;
+          }
+        } else {
+          liveTemporaryCount += 1;
+        }
+        continue;
+      }
+      let lockMetadata;
+      try {
+        lockMetadata = lstatSync(lockPath);
+      } catch (error) {
+        if (error?.code === 'ENOENT') {
+          restart = true;
+          break;
+        }
+        fail('NOTIFICATION_PAGES_LIVE_WRITER_LOCK_INVALID');
+      }
+      if (
+        lockMetadata.dev !== metadata.dev
+        || lockMetadata.ino !== metadata.ino
+        || lockMetadata.nlink !== 2
+      ) {
+        restart = true;
+        break;
+      }
+      try {
+        unlinkExact(path, metadata);
+        fsyncDirectory(lockDirectory);
+      } catch (error) {
+        if (
+          error instanceof NotificationPagesLiveReceiptError
+          && error.code === 'NOTIFICATION_PAGES_LIVE_TEMPORARY_CHANGED'
+        ) {
+          restart = true;
+          break;
+        }
+        throw error;
+      }
+      restart = true;
+      break;
+    }
+    if (restart) continue;
+    if (liveTemporaryCount >= MAX_WRITER_LOCK_TEMPORARIES) {
+      fail('NOTIFICATION_PAGES_LIVE_WRITER_BUSY');
+    }
+    let lockMetadata;
+    try {
+      lockMetadata = lstatSync(lockPath);
+    } catch (error) {
+      if (error?.code === 'ENOENT') return;
+      fail('NOTIFICATION_PAGES_LIVE_WRITER_LOCK_INVALID');
+    }
+    if (
+      !lockMetadata.isFile()
+      || lockMetadata.isSymbolicLink()
+      || (lockMetadata.nlink !== 1 && lockMetadata.nlink !== 2)
+      || (lockMetadata.mode & 0o7777) !== FILE_MODE
+      || (process.getuid !== undefined && lockMetadata.uid !== process.getuid())
+    ) fail('NOTIFICATION_PAGES_LIVE_WRITER_LOCK_INVALID');
+    if (lockMetadata.nlink === 2) continue;
+    return;
+  }
+  fail('NOTIFICATION_PAGES_LIVE_WRITER_BUSY');
+}
+
+function acquireWriterLock(lockDirectory, receiptDirectory, randomBytesImpl) {
+  repairWriterLockPublication(lockDirectory);
+  const processStartIdentity = requireCurrentProductionAdminProcessIdentity();
+  const lockPath = join(lockDirectory, WRITER_LOCK_FILE);
+  const attemptedSlots = new Set();
+  while (true) {
+    const createdAt = Date.now();
+    const entropy = temporarySuffix(randomBytesImpl ?? randomBytes);
+    writerLockSequence += 1;
+    const lockId = createHash('sha256')
+      .update(
+        `${entropy}\0${process.pid}\0${createdAt}\0${writerLockSequence}`,
+        'utf8',
+      )
+      .digest('hex')
+      .slice(0, 24);
+    const body = writerLockBody({ lockId, createdAt, processStartIdentity });
+    const slot = writerLockSequence % MAX_WRITER_LOCK_TEMPORARIES;
+    attemptedSlots.add(slot);
+    const temporary = join(
+      lockDirectory,
+      `.notification-pages-live-receipts-v1-writer-slot-`
+        + `${slot.toString(16).padStart(2, '0')}.json`,
+    );
+    let descriptor;
+    let identity;
+    let lockIdentity;
+    let publicationStage = 'open';
+    try {
+      descriptor = openSync(
+        temporary,
+        constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY
+          | (constants.O_NOFOLLOW ?? 0),
+        FILE_MODE,
+      );
+      const created = fstatSync(descriptor);
+      identity = Object.freeze({ dev: created.dev, ino: created.ino });
+      let offset = 0;
+      while (offset < body.byteLength) {
+        const written = writeSync(
+          descriptor,
+          body,
+          offset,
+          body.byteLength - offset,
+        );
+        if (written <= 0) fail('NOTIFICATION_PAGES_LIVE_WRITER_LOCK_FAILED');
+        offset += written;
+      }
+      fchmodSync(descriptor, FILE_MODE);
+      fsyncSync(descriptor);
+      const complete = fstatSync(descriptor);
+      if (
+        complete.dev !== created.dev
+        || complete.ino !== created.ino
+        || complete.nlink !== 1
+        || complete.size !== body.byteLength
+        || (complete.mode & 0o7777) !== FILE_MODE
+      ) fail('NOTIFICATION_PAGES_LIVE_WRITER_LOCK_FAILED');
+      closeSync(descriptor);
+      descriptor = undefined;
+      publicationStage = 'link';
+      linkSync(temporary, lockPath);
+      lockIdentity = identity;
+      fsyncDirectory(lockDirectory);
+      unlinkExact(temporary, identity);
+      identity = undefined;
+      fsyncDirectory(lockDirectory);
+      readExactExpectedFile(lockPath, body);
+      body.fill(0);
+      if (existsSync(receiptDirectory)) {
+        assertPrivateDirectory(receiptDirectory, lockDirectory);
+      }
+      return Object.freeze({ path: lockPath, dev: created.dev, ino: created.ino });
+    } catch (error) {
+      let removedPublication = false;
+      if (descriptor !== undefined) {
+        try { closeSync(descriptor); } catch { /* Preserve primary error. */ }
+      }
+      if (identity !== undefined) {
+        try {
+          unlinkExact(temporary, identity);
+          removedPublication = true;
+        } catch { /* Preserve primary error. */ }
+      }
+      if (lockIdentity !== undefined) {
+        try {
+          unlinkExact(lockPath, lockIdentity);
+          removedPublication = true;
+        } catch { /* Fail closed below. */ }
+      }
+      if (removedPublication) {
+        try { fsyncDirectory(lockDirectory); } catch { /* Preserve primary error. */ }
+      }
+      body.fill(0);
+      if (error?.code !== 'EEXIST') {
+        if (error instanceof NotificationPagesLiveReceiptError) throw error;
+        fail('NOTIFICATION_PAGES_LIVE_WRITER_LOCK_FAILED');
+      }
+      if (publicationStage === 'open') {
+        if (attemptedSlots.size >= MAX_WRITER_LOCK_TEMPORARIES) {
+          fail('NOTIFICATION_PAGES_LIVE_WRITER_BUSY');
+        }
+        continue;
+      }
+      repairWriterLockPublication(lockDirectory);
+      let before;
+      try {
+        before = lstatSync(lockPath);
+      } catch (readError) {
+        if (readError?.code === 'ENOENT') continue;
+        fail('NOTIFICATION_PAGES_LIVE_WRITER_LOCK_INVALID');
+      }
+      let opened;
+      try {
+        opened = stableFile(
+          lockPath,
+          1,
+          'NOTIFICATION_PAGES_LIVE_WRITER_LOCK_INVALID',
+        );
+      } catch (readError) {
+        let after;
+        try {
+          after = lstatSync(lockPath);
+        } catch (statError) {
+          if (statError?.code === 'ENOENT') continue;
+          throw readError;
+        }
+        if (after.dev !== before.dev || after.ino !== before.ino) continue;
+        throw readError;
+      }
+      if (opened.dev !== before.dev || opened.ino !== before.ino) {
+        opened.bytes.fill(0);
+        continue;
+      }
+      let existing;
+      try {
+        existing = parseWriterLock(opened.bytes);
+      } finally {
+        opened.bytes.fill(0);
+      }
+      const dead = productionAdminRecordedOwnerIsDead({
+        pid: existing.owner.pid,
+        processStartIdentity: existing.owner.processStartIdentity,
+      });
+      if (createdAt >= existing.expiresAt && dead === true) {
+        try {
+          unlinkExact(lockPath, opened);
+          fsyncDirectory(lockDirectory);
+        } catch (unlinkError) {
+          if (
+            unlinkError instanceof NotificationPagesLiveReceiptError
+            && unlinkError.code === 'NOTIFICATION_PAGES_LIVE_TEMPORARY_CHANGED'
+          ) continue;
+          throw unlinkError;
+        }
+        continue;
+      }
+      fail('NOTIFICATION_PAGES_LIVE_WRITER_BUSY');
+    }
+  }
+}
+
+async function acquireWriterLockWithWait(
+  lockDirectory,
+  receiptDirectory,
+  randomBytesImpl,
+) {
+  const startedAt = Date.now();
+  while (true) {
+    try {
+      return acquireWriterLock(
+        lockDirectory,
+        receiptDirectory,
+        randomBytesImpl,
+      );
+    } catch (error) {
+      if (
+        !(error instanceof NotificationPagesLiveReceiptError)
+        || error.code !== 'NOTIFICATION_PAGES_LIVE_WRITER_BUSY'
+      ) throw error;
+      const current = Date.now();
+      if (
+        current < startedAt
+        || current - startedAt >= WRITER_LOCK_WAIT_MAXIMUM_MILLISECONDS
+      ) throw error;
+      await new Promise(resolvePromise =>
+        setTimeout(resolvePromise, WRITER_LOCK_WAIT_MILLISECONDS));
+    }
+  }
+}
+
+function releaseWriterLock(lockDirectory, lock) {
+  try {
+    unlinkExact(lock.path, lock, false);
+    fsyncDirectory(lockDirectory);
+  } catch (error) {
+    if (error instanceof NotificationPagesLiveReceiptError) throw error;
+    fail('NOTIFICATION_PAGES_LIVE_WRITER_LOCK_RELEASE_FAILED');
   }
 }
 
@@ -1316,7 +1878,7 @@ function readInventory(directory, options) {
     while (cursor.receipt.chain.generation > 0) {
       cursor = receiptsByDigest.get(cursor.receipt.chain.previousReceiptDigest);
       traversed += 1;
-      if (cursor === undefined || traversed > MAX_DIRECTORY_ENTRIES) {
+      if (cursor === undefined || traversed > MAX_CHAIN_GENERATION) {
         fail('NOTIFICATION_PAGES_LIVE_CHAIN_INVALID');
       }
     }
@@ -1422,6 +1984,27 @@ function repairPublicationReservations(directory) {
   }
   const records = [...recordsBySource.values()];
   try {
+    const completedCandidateAuthorities = new Set(
+      records
+        .filter(record => record.receipt.chain.generation > 0)
+        .map(record => record.receipt.chain.candidateAuthorityDigest),
+    );
+    for (const candidate of candidateAuthorities) {
+      if (!completedCandidateAuthorities.has(candidate.authorityDigest)) continue;
+      let authority;
+      try {
+        authority = parseCandidateAuthority(JSON.parse(
+          new TextDecoder('utf-8', { fatal: true }).decode(candidate.bytes),
+        ));
+      } catch {
+        fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_INVALID');
+      }
+      retireCandidateAuthority({
+        directory,
+        predecessorReceiptDigest: authority.predecessorReceiptDigest,
+        authorityDigest: candidate.authorityDigest,
+      });
+    }
     for (const record of records) {
       installCanonicalPrivateBytes({
         directory,
@@ -1461,6 +2044,7 @@ function repairPublicationReservations(directory) {
       });
     }
     for (const candidate of candidateAuthorities) {
+      if (completedCandidateAuthorities.has(candidate.authorityDigest)) continue;
       installCanonicalPrivateBytes({
         directory,
         basename:
@@ -1477,8 +2061,7 @@ function repairPublicationReservations(directory) {
   }
 }
 
-/** Create or attest the dedicated, bounded owner-only live receipt directory. */
-export function ensureNotificationPagesLiveReceiptDirectory({
+function ensureNotificationPagesLiveReceiptDirectoryBase({
   directory,
   repositoryRoot,
 } = {}) {
@@ -1490,8 +2073,12 @@ export function ensureNotificationPagesLiveReceiptDirectory({
       fsyncDirectory(directory);
       fsyncDirectory(validated.parent);
     } catch (error) {
+      if (error?.code === 'EEXIST') {
+        // A concurrent first writer created the same dedicated directory.
+      } else {
       if (error instanceof NotificationPagesLiveReceiptError) throw error;
       fail('NOTIFICATION_PAGES_LIVE_DIRECTORY_CREATE_FAILED');
+      }
     }
   }
   let metadata;
@@ -1522,6 +2109,12 @@ export function ensureNotificationPagesLiveReceiptDirectory({
     }
   }
   const canonical = assertPrivateDirectory(directory, validated.parent);
+  return canonical;
+}
+
+function repairNotificationPagesLiveReceiptDirectory(directory, repositoryRoot) {
+  const validated = validateDirectoryRequest(directory, repositoryRoot);
+  const canonical = assertPrivateDirectory(directory, validated.parent);
   try {
     repairLinkedTemporaries(canonical);
     repairPublicationReservations(canonical);
@@ -1531,6 +2124,70 @@ export function ensureNotificationPagesLiveReceiptDirectory({
     fail('NOTIFICATION_PAGES_LIVE_DIRECTORY_INVALID');
   }
   return canonical;
+}
+
+async function withWriterLock({
+  directory,
+  repositoryRoot,
+  randomBytesImpl = randomBytes,
+}, operation) {
+  const canonical = ensureNotificationPagesLiveReceiptDirectoryBase({
+    directory,
+    repositoryRoot,
+  });
+  const lockDirectory = dirname(canonical);
+  const lock = await acquireWriterLockWithWait(
+    lockDirectory,
+    canonical,
+    randomBytesImpl,
+  );
+  let result;
+  let operationError;
+  try {
+    const repaired = repairNotificationPagesLiveReceiptDirectory(
+      canonical,
+      repositoryRoot,
+    );
+    result = await operation(repaired);
+  } catch (error) {
+    operationError = error;
+  }
+  let cleanupError;
+  try {
+    releaseWriterLock(lockDirectory, lock);
+  } catch (error) {
+    cleanupError = error;
+  }
+  if (operationError !== undefined && cleanupError !== undefined) {
+    throw new AggregateError(
+      [operationError, cleanupError],
+      'NOTIFICATION_PAGES_LIVE_WRITER_MULTIPLE_FAILURES',
+    );
+  }
+  if (operationError !== undefined) throw operationError;
+  if (cleanupError !== undefined) throw cleanupError;
+  return result;
+}
+
+/** Create, repair, and attest the dedicated owner-only live receipt directory. */
+export function ensureNotificationPagesLiveReceiptDirectory({
+  directory,
+  repositoryRoot,
+} = {}) {
+  const canonical = ensureNotificationPagesLiveReceiptDirectoryBase({
+    directory,
+    repositoryRoot,
+  });
+  const lockDirectory = dirname(canonical);
+  const lock = acquireWriterLock(lockDirectory, canonical, randomBytes);
+  try {
+    return repairNotificationPagesLiveReceiptDirectory(
+      canonical,
+      repositoryRoot,
+    );
+  } finally {
+    releaseWriterLock(lockDirectory, lock);
+  }
 }
 
 export function defaultNotificationPagesLiveReceiptDirectory() {
@@ -1543,6 +2200,15 @@ export function defaultNotificationPagesLiveReceiptDirectory() {
   );
 }
 
+const GIT_ENVIRONMENT = Object.freeze({
+  GIT_CONFIG_GLOBAL: '/dev/null',
+  GIT_CONFIG_NOSYSTEM: '1',
+  GIT_CONFIG_SYSTEM: '/dev/null',
+  GIT_NO_REPLACE_OBJECTS: '1',
+  HOME: '/nonexistent',
+  PATH: '/usr/bin:/bin',
+});
+
 function gitResult(arguments_) {
   return spawnSync(
     '/usr/bin/git',
@@ -1550,17 +2216,26 @@ function gitResult(arguments_) {
     {
       cwd: REPOSITORY_ROOT,
       encoding: 'utf8',
-      env: {
-        GIT_CONFIG_GLOBAL: '/dev/null',
-        GIT_CONFIG_NOSYSTEM: '1',
-        GIT_CONFIG_SYSTEM: '/dev/null',
-        GIT_NO_REPLACE_OBJECTS: '1',
-        HOME: '/nonexistent',
-        PATH: '/usr/bin:/bin',
-      },
+      env: GIT_ENVIRONMENT,
       stdio: ['ignore', 'pipe', 'ignore'],
       timeout: 10_000,
       maxBuffer: 1024 * 1024,
+    },
+  );
+}
+
+function gitBufferResult(arguments_, { input, maxBuffer }) {
+  return spawnSync(
+    '/usr/bin/git',
+    ['--no-optional-locks', ...arguments_],
+    {
+      cwd: REPOSITORY_ROOT,
+      encoding: null,
+      env: GIT_ENVIRONMENT,
+      input,
+      stdio: ['pipe', 'pipe', 'ignore'],
+      timeout: 10_000,
+      maxBuffer,
     },
   );
 }
@@ -1592,7 +2267,173 @@ function assertNoDiff(ancestor, descendant, paths, code) {
   if (result.status !== 0 || result.stdout !== '') fail(code);
 }
 
+function exactHeadProtectedEntries(paths, code) {
+  const result = gitBufferResult([
+    'ls-tree', '-r', '-z', '--full-tree',
+    '--format=%(objectmode)%x09%(objectname)%x09%(objecttype)%x09%(objectsize)%x09%(path)',
+    'HEAD', '--', ...paths,
+  ], {
+    input: Buffer.alloc(0),
+    maxBuffer: MAX_CHECKOUT_TREE_BYTES,
+  });
+  const bytes = result.stdout;
+  if (
+    result.status !== 0
+    || !Buffer.isBuffer(bytes)
+    || bytes.byteLength > MAX_CHECKOUT_TREE_BYTES
+  ) fail(code);
+  let inventory;
+  try {
+    inventory = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    bytes.fill(0);
+    fail(code);
+  }
+  bytes.fill(0);
+  const rawEntries = inventory.split('\0');
+  if (
+    rawEntries.pop() !== ''
+    || rawEntries.length < 1
+    || rawEntries.length > MAX_CHECKOUT_TREE_ENTRIES
+  ) fail(code);
+  let aggregateBytes = 0;
+  const entries = new Map();
+  for (const rawEntry of rawEntries) {
+    const parts = rawEntry.split('\t');
+    if (parts.length !== 5) fail(code);
+    const [mode, objectId, objectType, sizeSource, path] = parts;
+    if (
+      !GIT_REGULAR_FILE_MODE.test(mode)
+      || !GIT_OBJECT_ID.test(objectId)
+      || objectType !== 'blob'
+      || !/^(?:0|[1-9][0-9]*)$/u.test(sizeSource)
+      || path.length < 1
+      || path !== resolve('/', path).slice(1)
+      || entries.has(path)
+    ) fail(code);
+    const size = Number(sizeSource);
+    if (
+      !Number.isSafeInteger(size)
+      || aggregateBytes > MAX_CHECKOUT_AGGREGATE_BYTES - size
+    ) fail(code);
+    aggregateBytes += size;
+    entries.set(path, Object.freeze({ mode, objectId, path, size }));
+  }
+  return entries;
+}
+
+function assertCanonicalProtectedIndex(entries, paths, code) {
+  const result = gitBufferResult([
+    'ls-files', '--stage', '-v', '-z', '--', ...paths,
+  ], {
+    input: Buffer.alloc(0),
+    maxBuffer: MAX_CHECKOUT_TREE_BYTES,
+  });
+  const bytes = result.stdout;
+  if (
+    result.status !== 0
+    || !Buffer.isBuffer(bytes)
+    || bytes.byteLength > MAX_CHECKOUT_TREE_BYTES
+  ) fail(code);
+  let inventory;
+  try {
+    inventory = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    bytes.fill(0);
+    fail(code);
+  }
+  bytes.fill(0);
+  const rawEntries = inventory.split('\0');
+  if (
+    rawEntries.pop() !== ''
+    || rawEntries.length !== entries.size
+  ) fail(code);
+  const seen = new Set();
+  for (const rawEntry of rawEntries) {
+    const match = /^([A-Z]) ([0-7]{6}) ([0-9a-f]{40}|[0-9a-f]{64}) ([0-3])\t([\s\S]+)$/u.exec(
+      rawEntry,
+    );
+    if (match === null) fail(code);
+    const [, flag, mode, objectId, stage, path] = match;
+    const head = entries.get(path);
+    if (
+      flag !== 'H'
+      || stage !== '0'
+      || head === undefined
+      || mode !== head.mode
+      || objectId !== head.objectId
+      || seen.has(path)
+    ) fail(code);
+    seen.add(path);
+  }
+}
+
+function sameFileIdentity(left, right) {
+  return left.dev === right.dev
+    && left.ino === right.ino
+    && left.mode === right.mode
+    && left.size === right.size
+    && left.mtimeNs === right.mtimeNs
+    && left.ctimeNs === right.ctimeNs;
+}
+
+function assertExactProtectedWorktree(entries, code) {
+  if (typeof constants.O_NOFOLLOW !== 'number') fail(code);
+  for (const entry of entries.values()) {
+    const path = join(REPOSITORY_ROOT, entry.path);
+    let descriptor;
+    const buffer = Buffer.allocUnsafe(64 * 1024);
+    try {
+      const beforePath = lstatSync(path, { bigint: true });
+      if (!beforePath.isFile() || beforePath.size !== BigInt(entry.size)) {
+        fail(code);
+      }
+      descriptor = openSync(
+        path,
+        constants.O_RDONLY | constants.O_NOFOLLOW,
+      );
+      const before = fstatSync(descriptor, { bigint: true });
+      if (
+        !before.isFile()
+        || !sameFileIdentity(beforePath, before)
+        || before.size !== BigInt(entry.size)
+        || (
+          entry.mode === '100755'
+            ? (before.mode & 0o111n) === 0n
+            : (before.mode & 0o111n) !== 0n
+        )
+      ) fail(code);
+      const hash = createHash(entry.objectId.length === 40 ? 'sha1' : 'sha256');
+      hash.update(`blob ${entry.size}\0`, 'utf8');
+      let offset = 0;
+      while (offset < entry.size) {
+        const length = Math.min(buffer.byteLength, entry.size - offset);
+        const read = readSync(descriptor, buffer, 0, length, offset);
+        if (read !== length) fail(code);
+        hash.update(buffer.subarray(0, read));
+        offset += read;
+      }
+      const after = fstatSync(descriptor, { bigint: true });
+      const afterPath = lstatSync(path, { bigint: true });
+      if (
+        !sameFileIdentity(before, after)
+        || !sameFileIdentity(after, afterPath)
+        || hash.digest('hex') !== entry.objectId
+      ) fail(code);
+    } catch (error) {
+      if (error instanceof NotificationPagesLiveReceiptError) throw error;
+      fail(code);
+    } finally {
+      buffer.fill(0);
+      if (descriptor !== undefined) {
+        try { closeSync(descriptor); } catch { /* Preserve primary outcome. */ }
+      }
+    }
+  }
+}
+
 function assertCleanProtectedCheckout(paths = NOTIFICATION_PAGES_LIVE_PROTECTED_PATHS) {
+  const code = 'NOTIFICATION_PAGES_LIVE_PROTECTED_CHECKOUT_DIRTY';
   for (const arguments_ of [
     [
       'diff', '--quiet', '--no-ext-diff', '--no-textconv', 'HEAD', '--',
@@ -1605,9 +2446,12 @@ function assertCleanProtectedCheckout(paths = NOTIFICATION_PAGES_LIVE_PROTECTED_
   ]) {
     const result = gitResult(arguments_);
     if (result.status !== 0 || result.stdout !== '') {
-      fail('NOTIFICATION_PAGES_LIVE_PROTECTED_CHECKOUT_DIRTY');
+      fail(code);
     }
   }
+  const entries = exactHeadProtectedEntries(paths, code);
+  assertCanonicalProtectedIndex(entries, paths, code);
+  assertExactProtectedWorktree(entries, code);
   const untracked = gitResult([
     'ls-files', '--others', '--exclude-standard', '-z', '--', ...paths,
   ]);
@@ -1615,7 +2459,7 @@ function assertCleanProtectedCheckout(paths = NOTIFICATION_PAGES_LIVE_PROTECTED_
     untracked.status !== 0
     || untracked.stdout.includes('\0')
     || untracked.stdout !== ''
-  ) fail('NOTIFICATION_PAGES_LIVE_PROTECTED_CHECKOUT_DIRTY');
+  ) fail(code);
 }
 
 function assertExactCleanHead(expectedHead) {
@@ -1650,18 +2494,10 @@ function assertReceiptGitProvenance(receipt) {
   assertNoDiff(
     receipt.sourceRelease.moduleSourceCommit,
     receipt.pages.sourceCommit,
-    ['spacetimedb'],
-    'NOTIFICATION_PAGES_LIVE_MODULE_SOURCE_DRIFT',
-  );
-  assertNoDiff(
-    receipt.bridge.sourceCommit,
-    receipt.pages.sourceCommit,
-    [
-      'services/auth-bridge',
-      'scripts/auth-bridge-config-attestation.mjs',
-      'scripts/auth-bridge-notification-prepared-receipt.mjs',
-    ],
-    'NOTIFICATION_PAGES_LIVE_BRIDGE_SOURCE_DRIFT',
+    assertActiveEvidenceImportClosure(
+      receipt.sourceRelease.moduleSourceCommit,
+    ),
+    'NOTIFICATION_PAGES_LIVE_ACTIVE_EVIDENCE_SOURCE_DRIFT',
   );
 }
 
@@ -1678,82 +2514,584 @@ function sourceAtCommit(commit, path, code) {
   return result.stdout;
 }
 
+function parseTypeScriptSourceFile(source, fileName, code) {
+  let api;
+  let snapshot;
+  try {
+    const directory = dirname(fileName);
+    api = new TypeScriptAPI({
+      cwd: directory,
+      fs: createVirtualFileSystem({ [fileName]: source }),
+    });
+    snapshot = api.updateSnapshot({ openFiles: [fileName] });
+    const project = snapshot.getDefaultProjectForFile(fileName);
+    const sourceFile = project?.program.getSourceFile(fileName);
+    if (
+      project === undefined
+      || sourceFile === undefined
+      || project.program.getSyntacticDiagnostics(fileName).length !== 0
+    ) fail(code);
+    return Object.freeze({ api, snapshot, sourceFile });
+  } catch (error) {
+    try { snapshot?.dispose(); } catch { /* Preserve primary error. */ }
+    try { api?.close(); } catch { /* Preserve primary error. */ }
+    if (error instanceof NotificationPagesLiveReceiptError) throw error;
+    fail(code);
+  }
+}
+
 function exactHermesApprovalSource(source) {
   const code = 'NOTIFICATION_PAGES_LIVE_HERMES_PHASE_INVALID';
-  const scanner = createScanner(true, LanguageVariant.Standard, source);
-  const skipTemplateLiteral = () => {
-    let expressionBraceDepth = 0;
-    while (true) {
-      const nested = scanner.scan();
-      if (scanner.isUnterminated() || nested === SyntaxKind.EndOfFile) fail(code);
-      if (nested === SyntaxKind.TemplateHead) {
-        skipTemplateLiteral();
-        continue;
-      }
-      if (nested === SyntaxKind.OpenBraceToken) {
-        expressionBraceDepth += 1;
-        continue;
-      }
-      if (nested !== SyntaxKind.CloseBraceToken) continue;
-      if (expressionBraceDepth > 0) {
-        expressionBraceDepth -= 1;
-        continue;
-      }
-      const template = scanner.reScanTemplateToken(false);
-      if (scanner.isUnterminated()) fail(code);
-      if (template === SyntaxKind.TemplateTail) return;
-      if (template !== SyntaxKind.TemplateMiddle) fail(code);
-    }
-  };
-  const topLevelTokens = [];
-  let braceDepth = 0;
-  let parenthesisDepth = 0;
-  let bracketDepth = 0;
-  while (true) {
-    const token = scanner.scan();
-    if (scanner.isUnterminated()) fail(code);
-    if (token === SyntaxKind.EndOfFile) break;
-    if (token === SyntaxKind.TemplateHead) {
-      skipTemplateLiteral();
-      continue;
-    }
-    const topLevel = braceDepth === 0
-      && parenthesisDepth === 0
-      && bracketDepth === 0;
-    if (topLevel) topLevelTokens.push(scanner.getTokenText());
-    if (token === SyntaxKind.OpenBraceToken) braceDepth += 1;
-    if (token === SyntaxKind.CloseBraceToken) braceDepth -= 1;
-    if (token === SyntaxKind.OpenParenToken) parenthesisDepth += 1;
-    if (token === SyntaxKind.CloseParenToken) parenthesisDepth -= 1;
-    if (token === SyntaxKind.OpenBracketToken) bracketDepth += 1;
-    if (token === SyntaxKind.CloseBracketToken) bracketDepth -= 1;
-    if (braceDepth < 0 || parenthesisDepth < 0 || bracketDepth < 0) fail(code);
-  }
-  if (
-    braceDepth !== 0
-    || parenthesisDepth !== 0
-    || bracketDepth !== 0
-  ) fail(code);
-  const prefix = [
-    'export',
-    'const',
-    'FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED',
-    '=',
-  ];
-  const suffix = ['as', 'const', ';'];
+  const fileName = '/notification-pages-live-phase/hermes-admin.ts';
+  const parsed = parseTypeScriptSourceFile(source, fileName, code);
   const matches = [];
-  for (let index = 0; index <= topLevelTokens.length - 8; index += 1) {
-    if (
-      prefix.every((value, offset) => topLevelTokens[index + offset] === value)
-      && (topLevelTokens[index + 4] === 'true'
-        || topLevelTokens[index + 4] === 'false')
-      && suffix.every(
-        (value, offset) => topLevelTokens[index + 5 + offset] === value,
-      )
-    ) matches.push(topLevelTokens[index + 4] === 'true');
+  try {
+    for (const statement of parsed.sourceFile.statements) {
+      if (
+        !isVariableStatement(statement)
+        || statement.modifierFlags !== ModifierFlags.Export
+        || statement.modifiers?.length !== 1
+        || statement.modifiers[0].kind !== SyntaxKind.ExportKeyword
+        || (statement.declarationList.flags & NodeFlags.Const) === 0
+        || statement.declarationList.declarations.length !== 1
+      ) continue;
+      const declaration = statement.declarationList.declarations[0];
+      if (
+        !isIdentifier(declaration.name)
+        || declaration.name.text
+          !== 'FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED'
+        || declaration.type !== undefined
+        || declaration.exclamationToken !== undefined
+        || declaration.initializer === undefined
+        || !isAsExpression(declaration.initializer)
+        || declaration.initializer.type.kind !== SyntaxKind.TypeReference
+        || !isIdentifier(declaration.initializer.type.typeName)
+        || declaration.initializer.type.typeName.text !== 'const'
+        || declaration.initializer.type.typeArguments !== undefined
+        || (
+          declaration.initializer.expression.kind !== SyntaxKind.TrueKeyword
+          && declaration.initializer.expression.kind !== SyntaxKind.FalseKeyword
+        )
+      ) continue;
+      matches.push(
+        declaration.initializer.expression.kind === SyntaxKind.TrueKeyword,
+      );
+    }
+  } catch (error) {
+    if (error instanceof NotificationPagesLiveReceiptError) throw error;
+    fail(code);
+  } finally {
+    try { parsed.snapshot.dispose(); } catch { /* Preserve parse outcome. */ }
+    try { parsed.api.close(); } catch { /* Preserve parse outcome. */ }
   }
   if (matches.length !== 1) fail(code);
   return matches[0];
+}
+
+const HERMES_DIRECT_LOCAL_IMPORTS = Object.freeze([
+  '../services/auth-bridge/src/types',
+  '../spacetimedb/src/alphaActivationPolicy',
+  '../spacetimedb/src/alphaV10ActivationPolicy',
+  '../spacetimedb/src/entryAgreementPolicy',
+  '../spacetimedb/src/profileAuthorityPolicy',
+  '../spacetimedb/src/resourceAuthorityPolicy',
+  '../src/spacetime/module_bindings',
+  '../src/spacetime/module_bindings/types',
+  './access-requests/reset-plan',
+  './admission-notifications/recovery-plan',
+  './alpha-activation-controls',
+  './alpha-v10-activation-controls',
+  './auth-bridge-notification-prepared-receipt.mjs',
+  './auth-bridge-notification-prepared-release-binding.mjs',
+  './founder-admission-authority',
+  './hermes-machine-output',
+  './production-admin-token-budget.mjs',
+  './profiles/farcaster-profile-policy',
+  './profiles/founder-admission-plan',
+  './profiles/profile-transport',
+]);
+
+function assertHermesDirectImportClosure(source) {
+  const code = 'NOTIFICATION_PAGES_LIVE_HERMES_IMPORT_CLOSURE_INVALID';
+  const parsed = parseTypeScriptSourceFile(
+    source,
+    '/notification-pages-live-phase/hermes-admin.ts',
+    code,
+  );
+  try {
+    const localImports = parsed.sourceFile.statements
+      .filter(isImportDeclaration)
+      .map(statement => statement.moduleSpecifier)
+      .filter(isStringLiteral)
+      .map(specifier => specifier.text)
+      .filter(specifier => specifier.startsWith('.'))
+      .sort();
+    if (
+      localImports.length !== HERMES_DIRECT_LOCAL_IMPORTS.length
+      || localImports.some(
+        (specifier, index) => specifier !== HERMES_DIRECT_LOCAL_IMPORTS[index],
+      )
+    ) fail(code);
+  } finally {
+    try { parsed.snapshot.dispose(); } catch { /* Preserve parse outcome. */ }
+    try { parsed.api.close(); } catch { /* Preserve parse outcome. */ }
+  }
+}
+
+const EVIDENCE_VIRTUAL_ROOT = '/notification-pages-live-evidence';
+
+function exactCommitSourceTree(commit, code) {
+  const inventoryResult = gitBufferResult([
+    'ls-tree', '-r', '-z', '--full-tree',
+    '--format=%(objectmode)%x09%(objectname)%x09%(objecttype)%x09%(objectsize)%x09%(path)',
+    commit,
+  ], {
+    input: Buffer.alloc(0),
+    maxBuffer: MAX_GIT_TREE_INVENTORY_BYTES,
+  });
+  const inventoryBytes = inventoryResult.stdout;
+  if (
+    inventoryResult.status !== 0
+    || !Buffer.isBuffer(inventoryBytes)
+    || inventoryBytes.byteLength < 1
+    || inventoryBytes.byteLength > MAX_GIT_TREE_INVENTORY_BYTES
+  ) fail(code);
+
+  let inventory;
+  try {
+    inventory = new TextDecoder('utf-8', { fatal: true }).decode(
+      inventoryBytes,
+    );
+  } catch {
+    inventoryBytes.fill(0);
+    fail(code);
+  }
+  inventoryBytes.fill(0);
+  const rawEntries = inventory.split('\0');
+  if (rawEntries.pop() !== '' || rawEntries.length > MAX_GIT_TREE_ENTRIES) {
+    fail(code);
+  }
+
+  const sourceEntries = [];
+  let aggregateBytes = 0;
+  const entries = new Map();
+  const paths = new Set();
+  const sourcePaths = new Set();
+  for (const rawEntry of rawEntries) {
+    const firstTab = rawEntry.indexOf('\t');
+    const secondTab = rawEntry.indexOf('\t', firstTab + 1);
+    const thirdTab = rawEntry.indexOf('\t', secondTab + 1);
+    const fourthTab = rawEntry.indexOf('\t', thirdTab + 1);
+    if (
+      firstTab < 1
+      || secondTab < 0
+      || thirdTab < 0
+      || fourthTab < 0
+    ) fail(code);
+    const mode = rawEntry.slice(0, firstTab);
+    const objectId = rawEntry.slice(firstTab + 1, secondTab);
+    const objectType = rawEntry.slice(secondTab + 1, thirdTab);
+    const sizeSource = rawEntry.slice(thirdTab + 1, fourthTab);
+    const path = rawEntry.slice(fourthTab + 1);
+    if (
+      !/^[0-7]{6}$/u.test(mode)
+      ||
+      !GIT_OBJECT_ID.test(objectId)
+      || path.length < 1
+      || path !== resolve('/', path).slice(1)
+      || paths.has(path)
+    ) fail(code);
+    paths.add(path);
+    const size = /^(?:0|[1-9][0-9]*)$/u.test(sizeSource)
+      ? Number(sizeSource)
+      : null;
+    if (size !== null && !Number.isSafeInteger(size)) fail(code);
+    entries.set(path, Object.freeze({
+      mode,
+      objectId,
+      objectType,
+      path,
+      size,
+    }));
+    if (!GIT_SOURCE_PATH.test(path)) continue;
+    if (
+      objectType !== 'blob'
+      || !GIT_REGULAR_FILE_MODE.test(mode)
+      || size === null
+    ) fail(code);
+    if (
+      size > MAX_GIT_SOURCE_FILE_BYTES
+      || sourceEntries.length >= MAX_GIT_SOURCE_FILES
+      || aggregateBytes > MAX_GIT_SOURCE_AGGREGATE_BYTES - size
+    ) fail(code);
+    aggregateBytes += size;
+    sourcePaths.add(path);
+    sourceEntries.push(Object.freeze({ objectId, path, size }));
+  }
+
+  const batchInput = Buffer.from(
+    sourceEntries.map(entry => `${entry.objectId}\n`).join(''),
+    'ascii',
+  );
+  const batchResult = gitBufferResult(['cat-file', '--batch'], {
+    input: batchInput,
+    maxBuffer: MAX_GIT_SOURCE_AGGREGATE_BYTES
+      + MAX_GIT_SOURCE_FILES * 160,
+  });
+  batchInput.fill(0);
+  const batchBytes = batchResult.stdout;
+  if (batchResult.status !== 0 || !Buffer.isBuffer(batchBytes)) fail(code);
+
+  let api;
+  let snapshot;
+  try {
+    const virtualFiles = {};
+    const contents = new Map();
+    let offset = 0;
+    const decoder = new TextDecoder('utf-8', { fatal: true });
+    for (const entry of sourceEntries) {
+      const headerEnd = batchBytes.indexOf(0x0a, offset);
+      if (headerEnd < offset) fail(code);
+      const expectedHeader = `${entry.objectId} blob ${entry.size}`;
+      if (batchBytes.toString('ascii', offset, headerEnd) !== expectedHeader) {
+        fail(code);
+      }
+      const bodyStart = headerEnd + 1;
+      const bodyEnd = bodyStart + entry.size;
+      if (bodyEnd >= batchBytes.byteLength || batchBytes[bodyEnd] !== 0x0a) {
+        fail(code);
+      }
+      const source = decoder.decode(batchBytes.subarray(bodyStart, bodyEnd));
+      contents.set(entry.path, source);
+      if (GIT_TYPESCRIPT_SOURCE_PATH.test(entry.path)) {
+        virtualFiles[`${EVIDENCE_VIRTUAL_ROOT}/${entry.path}`] = source;
+      }
+      offset = bodyEnd + 1;
+    }
+    if (offset !== batchBytes.byteLength) fail(code);
+    batchBytes.fill(0);
+    const virtualPaths = Object.keys(virtualFiles);
+    api = new TypeScriptAPI({
+      cwd: EVIDENCE_VIRTUAL_ROOT,
+      fs: createVirtualFileSystem(virtualFiles),
+    });
+    snapshot = api.updateSnapshot({ openFiles: virtualPaths });
+    return Object.freeze({
+      api,
+      contents,
+      entries,
+      paths,
+      sourcePaths,
+      snapshot,
+    });
+  } catch (error) {
+    batchBytes.fill(0);
+    try { snapshot?.dispose(); } catch { /* Preserve primary error. */ }
+    try { api?.close(); } catch { /* Preserve primary error. */ }
+    if (error instanceof NotificationPagesLiveReceiptError) throw error;
+    fail(code);
+  }
+}
+
+function exactRegularTreeEntry(tree, path, code) {
+  const entry = tree.entries.get(path);
+  if (
+    entry === undefined
+    || entry.objectType !== 'blob'
+    || !GIT_REGULAR_FILE_MODE.test(entry.mode)
+    || entry.size === null
+  ) fail(code);
+  return entry;
+}
+
+function localRuntimeImportsFromTree(tree, path, code) {
+  exactRegularTreeEntry(tree, path, code);
+  const virtualPath = `${EVIDENCE_VIRTUAL_ROOT}/${path}`;
+  const project = tree.snapshot.getDefaultProjectForFile(virtualPath);
+  const sourceFile = project?.program.getSourceFile(virtualPath);
+  if (
+    project === undefined
+    || sourceFile === undefined
+    || project.program.getSyntacticDiagnostics(virtualPath).length !== 0
+  ) fail(code);
+  return Object.freeze(sourceFile.statements
+    .filter(statement => isImportDeclaration(statement)
+      || statement.kind === SyntaxKind.ExportDeclaration)
+    .map(statement => statement.moduleSpecifier)
+    .filter(specifier => specifier !== undefined)
+    .filter(isStringLiteral)
+    .map(specifier => specifier.text)
+    .filter(specifier => specifier.startsWith('.')));
+}
+
+function resolveLocalImportFromTree(tree, importerPath, specifier, code) {
+  const base = resolve('/', dirname(importerPath), specifier).slice(1);
+  for (const candidate of [
+    base,
+    `${base}.ts`, `${base}.tsx`, `${base}.mts`, `${base}.mjs`, `${base}.js`,
+    `${base}.jsx`, `${base}.cts`, `${base}.cjs`, `${base}.css`,
+    `${base}/index.ts`, `${base}/index.tsx`, `${base}/index.mts`,
+    `${base}/index.mjs`, `${base}/index.js`, `${base}/index.jsx`,
+    `${base}/index.cts`, `${base}/index.cjs`, `${base}/index.css`,
+  ]) {
+    if (tree.sourcePaths.has(candidate)) {
+      exactRegularTreeEntry(tree, candidate, code);
+      return candidate;
+    }
+  }
+  fail(code);
+}
+
+function presentationLocalImportsFromTree(tree, path, code) {
+  exactRegularTreeEntry(tree, path, code);
+  const virtualPath = `${EVIDENCE_VIRTUAL_ROOT}/${path}`;
+  const project = tree.snapshot.getDefaultProjectForFile(virtualPath);
+  const sourceFile = project?.program.getSourceFile(virtualPath);
+  if (
+    project === undefined
+    || sourceFile === undefined
+    || project.program.getSyntacticDiagnostics(virtualPath).length !== 0
+  ) fail(code);
+  const imports = [];
+  const staticEdgeHasRuntimeBytes = node => {
+    if (isImportDeclaration(node)) {
+      const clause = node.importClause;
+      if (clause === undefined) return true;
+      if (clause.isTypeOnly || clause.name !== undefined) {
+        return clause.isTypeOnly !== true;
+      }
+      const bindings = clause.namedBindings;
+      if (bindings === undefined) return false;
+      if (bindings.kind === SyntaxKind.NamespaceImport) return true;
+      return bindings.elements.some(element => element.isTypeOnly !== true);
+    }
+    if (node.isTypeOnly === true) return false;
+    const clause = node.exportClause;
+    if (clause === undefined) return true;
+    if (clause.kind === SyntaxKind.NamespaceExport) return true;
+    return clause.elements.some(element => element.isTypeOnly !== true);
+  };
+  const visit = node => {
+    if (
+      isImportDeclaration(node)
+      || node.kind === SyntaxKind.ExportDeclaration
+    ) {
+      const specifier = node.moduleSpecifier;
+      if (specifier !== undefined && staticEdgeHasRuntimeBytes(node)) {
+        if (!isStringLiteral(specifier)) fail(code);
+        if (specifier.text.startsWith('.')) {
+          if (imports.length >= MAX_PRESENTATION_SOURCE_FILES) fail(code);
+          imports.push(Object.freeze({
+            dynamic: false,
+            specifier: specifier.text,
+          }));
+        }
+      }
+    } else if (
+      isCallExpression(node)
+      && node.expression.kind === SyntaxKind.ImportKeyword
+    ) {
+      if (
+        node.arguments.length !== 1
+        || (
+          !isStringLiteral(node.arguments[0])
+          && node.arguments[0].kind
+            !== SyntaxKind.NoSubstitutionTemplateLiteral
+        )
+      ) fail(code);
+      const specifier = node.arguments[0].text;
+      if (specifier.startsWith('.')) {
+        if (imports.length >= MAX_PRESENTATION_SOURCE_FILES) fail(code);
+        imports.push(Object.freeze({ dynamic: true, specifier }));
+      }
+    }
+    node.forEachChild(visit);
+  };
+  sourceFile.forEachChild(visit);
+  return Object.freeze(imports);
+}
+
+const presentationSourceClosureCache = new Map();
+
+function exactPresentationSourceClosure(commit) {
+  const cached = presentationSourceClosureCache.get(commit);
+  if (cached !== undefined) return cached;
+  const code = 'NOTIFICATION_PAGES_LIVE_PRESENTATION_SOURCE_CLOSURE_INVALID';
+  const tree = exactCommitSourceTree(commit, code);
+  try {
+    const pending = [PRESENTATION_SOURCE_ROOT];
+    const discovered = new Set(pending);
+    const visited = new Set();
+    let aggregateBytes = 0;
+    let exemptionCount = 0;
+    while (pending.length > 0) {
+      const path = pending.shift();
+      if (visited.has(path)) continue;
+      const entry = exactRegularTreeEntry(tree, path, code);
+      if (
+        visited.size >= MAX_PRESENTATION_SOURCE_FILES
+        || entry.size > MAX_GIT_SOURCE_FILE_BYTES
+        || aggregateBytes > MAX_PRESENTATION_SOURCE_BYTES - entry.size
+      ) fail(code);
+      aggregateBytes += entry.size;
+      visited.add(path);
+      if (path.endsWith('.css')) {
+        const source = tree.contents.get(path);
+        if (typeof source !== 'string' || /@import\b/iu.test(source)) fail(code);
+        continue;
+      }
+      for (const edge of presentationLocalImportsFromTree(tree, path, code)) {
+        const resolvedImport = resolveLocalImportFromTree(
+          tree,
+          path,
+          edge.specifier,
+          code,
+        );
+        if (
+          edge.dynamic
+          && path === PRESENTATION_REALM_EXEMPTION.importer
+          && edge.specifier === PRESENTATION_REALM_EXEMPTION.specifier
+        ) {
+          if (resolvedImport !== PRESENTATION_REALM_EXEMPTION.resolved) {
+            fail(code);
+          }
+          exemptionCount += 1;
+          continue;
+        }
+        if (!discovered.has(resolvedImport)) {
+          if (discovered.size >= MAX_PRESENTATION_SOURCE_FILES) fail(code);
+          discovered.add(resolvedImport);
+          pending.push(resolvedImport);
+        }
+      }
+    }
+    if (exemptionCount !== 1) fail(code);
+    for (const path of PRESENTATION_BUILD_INPUTS) {
+      if (visited.has(path)) continue;
+      const entry = exactRegularTreeEntry(tree, path, code);
+      if (
+        visited.size >= MAX_PRESENTATION_SOURCE_FILES
+        || entry.size > MAX_FRONTEND_ASSET_BYTES
+        || aggregateBytes > MAX_PRESENTATION_SOURCE_BYTES - entry.size
+      ) fail(code);
+      aggregateBytes += entry.size;
+      visited.add(path);
+    }
+    const closure = Object.freeze([...visited].sort());
+    if (presentationSourceClosureCache.size >= 32) {
+      presentationSourceClosureCache.delete(
+        presentationSourceClosureCache.keys().next().value,
+      );
+    }
+    presentationSourceClosureCache.set(commit, closure);
+    return closure;
+  } finally {
+    try { tree.snapshot.dispose(); } catch { /* Preserve closure outcome. */ }
+    try { tree.api.close(); } catch { /* Preserve closure outcome. */ }
+  }
+}
+
+export function deriveNotificationPagesLivePresentationSourceClosure({
+  sourceCommit,
+} = {}) {
+  const commit = exactCommit(
+    sourceCommit,
+    'NOTIFICATION_PAGES_LIVE_PRESENTATION_SOURCE_CLOSURE_INVALID',
+  );
+  return exactPresentationSourceClosure(commit);
+}
+
+export function assertNotificationPagesLivePresentationSourceNoDrift({
+  predecessorSourceCommit,
+  candidateSourceCommit,
+} = {}) {
+  const code = 'NOTIFICATION_PAGES_LIVE_CANDIDATE_NOTIFICATION_DRIFT';
+  const predecessor = exactCommit(predecessorSourceCommit, code);
+  const candidate = exactCommit(candidateSourceCommit, code);
+  assertAncestor(predecessor, candidate, code);
+  const paths = exactPresentationSourceClosure(predecessor);
+  assertNoDiff(predecessor, candidate, paths, code);
+  return paths;
+}
+
+function pathCoveredByProtectedClosure(path) {
+  return NOTIFICATION_PAGES_LIVE_PROTECTED_PATHS.some(protectedPath =>
+    path === protectedPath || path.startsWith(`${protectedPath}/`));
+}
+
+const localImportClosureCache = new Map();
+
+function exactProtectedLocalImportClosure({
+  commit,
+  roots,
+  literalDependencies,
+  cacheScope,
+  code,
+}) {
+  const cacheKey = `${cacheScope}:${commit}`;
+  const cached = localImportClosureCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  const tree = exactCommitSourceTree(commit, code);
+  try {
+    const pending = [...roots];
+    const visited = new Set(literalDependencies);
+    for (const path of literalDependencies) {
+      if (
+        !tree.paths.has(path)
+        || !pathCoveredByProtectedClosure(path)
+      ) {
+        fail(code);
+      }
+      exactRegularTreeEntry(tree, path, code);
+    }
+    while (pending.length > 0) {
+      const path = pending.shift();
+      if (visited.has(path)) continue;
+      visited.add(path);
+      if (!pathCoveredByProtectedClosure(path)) fail(code);
+      for (const specifier of localRuntimeImportsFromTree(tree, path, code)) {
+        const resolvedImport = resolveLocalImportFromTree(
+          tree,
+          path,
+          specifier,
+          code,
+        );
+        if (!pathCoveredByProtectedClosure(resolvedImport)) fail(code);
+        pending.push(resolvedImport);
+      }
+    }
+    const closure = Object.freeze([...visited].sort());
+    if (localImportClosureCache.size >= 32) {
+      localImportClosureCache.delete(
+        localImportClosureCache.keys().next().value,
+      );
+    }
+    localImportClosureCache.set(cacheKey, closure);
+    return closure;
+  } finally {
+    try { tree.snapshot.dispose(); } catch { /* Preserve closure outcome. */ }
+    try { tree.api.close(); } catch { /* Preserve closure outcome. */ }
+  }
+}
+
+function assertActiveEvidenceImportClosure(commit) {
+  return exactProtectedLocalImportClosure({
+    commit,
+    roots: ACTIVE_EVIDENCE_IMPORT_ROOTS,
+    literalDependencies: ACTIVE_EVIDENCE_LITERAL_DEPENDENCIES,
+    cacheScope: 'active-evidence',
+    code: 'NOTIFICATION_PAGES_LIVE_ACTIVE_EVIDENCE_CLOSURE_INVALID',
+  });
+}
+
+function assertHermesAuthorityImportClosure(commit) {
+  return exactProtectedLocalImportClosure({
+    commit,
+    roots: HERMES_AUTHORITY_IMPORT_ROOTS,
+    literalDependencies: [],
+    cacheScope: 'hermes-authority',
+    code: 'NOTIFICATION_PAGES_LIVE_HERMES_IMPORT_CLOSURE_INVALID',
+  });
 }
 
 function exactPagesPresentationSource(source) {
@@ -1776,7 +3114,437 @@ function exactPagesPresentationSource(source) {
     'VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED',
   ]);
   if (value !== 'true' && value !== 'false') fail(code);
+  const steps = document.toJS()?.jobs?.build?.steps;
+  if (!Array.isArray(steps)) fail(code);
+  const buildSteps = steps.filter(step =>
+    isRecord(step)
+    && step.name === 'Build'
+    && step.run === 'npm run build');
+  if (buildSteps.length !== 1) fail(code);
+  for (const step of steps) {
+    if (!isRecord(step)) fail(code);
+    const environment = step.env;
+    if (
+      environment !== undefined
+      && (
+        !isRecord(environment)
+        || Object.hasOwn(
+          environment,
+          'VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED',
+        )
+      )
+    ) fail(code);
+    if (
+      step !== buildSteps[0]
+      && typeof step.run === 'string'
+      && /(?:^|\s)npm\s+run\s+build(?:\s|$)/u.test(step.run)
+    ) fail(code);
+  }
   return value === 'true';
+}
+
+function exactReleaseBindingSource(source, code) {
+  if (
+    typeof source !== 'string'
+    || source.length < 1
+    || Buffer.byteLength(source, 'utf8') > MAX_GIT_SOURCE_FILE_BYTES
+  ) fail(code);
+  const parsed = parseTypeScriptSourceFile(
+    source,
+    '/notification-pages-live-phase/notification-pages-live-release-binding.mjs',
+    code,
+  );
+  try {
+    const matches = [];
+    for (const statement of parsed.sourceFile.statements) {
+      if (
+        !isVariableStatement(statement)
+        || statement.modifierFlags !== ModifierFlags.Export
+        || statement.modifiers?.length !== 1
+        || statement.modifiers[0].kind !== SyntaxKind.ExportKeyword
+        || (statement.declarationList.flags & NodeFlags.Const) === 0
+        || statement.declarationList.declarations.length !== 1
+      ) continue;
+      const declaration = statement.declarationList.declarations[0];
+      const initializer = declaration.initializer;
+      if (
+        !isIdentifier(declaration.name)
+        || declaration.name.text !== 'NOTIFICATION_PAGES_LIVE_RELEASE_BINDING'
+        || declaration.type !== undefined
+        || declaration.exclamationToken !== undefined
+        || initializer === undefined
+        || !isCallExpression(initializer)
+        || !isPropertyAccessExpression(initializer.expression)
+        || !isIdentifier(initializer.expression.expression)
+        || initializer.expression.expression.text !== 'Object'
+        || initializer.expression.name.text !== 'freeze'
+        || initializer.arguments.length !== 1
+        || !isObjectLiteralExpression(initializer.arguments[0])
+        || initializer.arguments[0].properties.length !== 2
+      ) continue;
+      const values = {};
+      const initializerSpans = [];
+      for (const property of initializer.arguments[0].properties) {
+        if (
+          !isPropertyAssignment(property)
+          || !isIdentifier(property.name)
+          || ![
+            'notificationPagesLiveRootReceiptDigest',
+            'notificationPagesLiveRootPagesSourceCommit',
+          ].includes(property.name.text)
+          || Object.hasOwn(values, property.name.text)
+          || (
+            property.initializer.kind !== SyntaxKind.NullKeyword
+            && !isStringLiteral(property.initializer)
+          )
+        ) fail(code);
+        values[property.name.text] = property.initializer.kind
+          === SyntaxKind.NullKeyword ? null : property.initializer.text;
+        initializerSpans.push(Object.freeze({
+          end: property.initializer.end,
+          key: property.name.text,
+          start: property.initializer.getStart(parsed.sourceFile),
+        }));
+      }
+      const digest = values.notificationPagesLiveRootReceiptDigest;
+      const sourceCommit = values.notificationPagesLiveRootPagesSourceCommit;
+      if (
+        !(
+          digest === null
+          && sourceCommit === null
+        )
+        && !(
+          typeof digest === 'string'
+          && SHA256.test(digest)
+          && typeof sourceCommit === 'string'
+          && SOURCE_COMMIT.test(sourceCommit)
+        )
+      ) fail(code);
+      initializerSpans.sort((left, right) => left.start - right.start);
+      let projection = '';
+      let offset = 0;
+      for (const span of initializerSpans) {
+        if (span.start < offset || span.end <= span.start) fail(code);
+        projection += source.slice(offset, span.start);
+        projection += `<NOTIFICATION_PAGES_LIVE_RELEASE_BINDING:${span.key}>`;
+        offset = span.end;
+      }
+      projection += source.slice(offset);
+      matches.push(Object.freeze({
+        notificationPagesLiveRootReceiptDigest: digest,
+        notificationPagesLiveRootPagesSourceCommit: sourceCommit,
+        sourceProjection: projection,
+      }));
+    }
+    if (matches.length !== 1) fail(code);
+    return matches[0];
+  } catch (error) {
+    if (error instanceof NotificationPagesLiveReceiptError) throw error;
+    fail(code);
+  } finally {
+    try { parsed.snapshot.dispose(); } catch { /* Preserve parse outcome. */ }
+    try { parsed.api.close(); } catch { /* Preserve parse outcome. */ }
+  }
+}
+
+function releaseBindingAtCommit(commit) {
+  const code = 'NOTIFICATION_PAGES_LIVE_RELEASE_BINDING_SOURCE_INVALID';
+  return exactReleaseBindingSource(sourceAtCommit(
+    commit,
+    RELEASE_BINDING_SOURCE_PATH,
+    code,
+  ), code);
+}
+
+export function parseNotificationPagesLiveReleaseBindingSource(source) {
+  const parsed = exactReleaseBindingSource(
+    source,
+    'NOTIFICATION_PAGES_LIVE_RELEASE_BINDING_SOURCE_INVALID',
+  );
+  return Object.freeze({
+    notificationPagesLiveRootReceiptDigest:
+      parsed.notificationPagesLiveRootReceiptDigest,
+    notificationPagesLiveRootPagesSourceCommit:
+      parsed.notificationPagesLiveRootPagesSourceCommit,
+    sourceProjectionDigest: digest(Buffer.from(parsed.sourceProjection, 'utf8')),
+  });
+}
+
+function assertCandidateReleaseBinding({ candidate, predecessor }) {
+  const candidateBinding = releaseBindingAtCommit(candidate);
+  const candidateDigest = candidateBinding.notificationPagesLiveRootReceiptDigest;
+  const candidateSource =
+    candidateBinding.notificationPagesLiveRootPagesSourceCommit;
+  if (predecessor === null) {
+    if (candidateDigest !== null || candidateSource !== null) {
+      fail('NOTIFICATION_PAGES_LIVE_RELEASE_BINDING_TRANSITION_INVALID');
+    }
+    return;
+  }
+  const predecessorBinding = releaseBindingAtCommit(
+    predecessor.receipt.pages.sourceCommit,
+  );
+  const predecessorDigest =
+    predecessorBinding.notificationPagesLiveRootReceiptDigest;
+  const predecessorSource =
+    predecessorBinding.notificationPagesLiveRootPagesSourceCommit;
+  if (predecessorDigest === null && predecessorSource === null) {
+    if (
+      predecessor.receipt.chain.generation !== 0
+      || predecessor.chainRootReceiptDigest !== predecessor.receiptDigest
+      || predecessor.chainRootPagesSourceCommit
+        !== predecessor.receipt.pages.sourceCommit
+      || candidateDigest !== predecessor.receiptDigest
+      || candidateSource !== predecessor.receipt.pages.sourceCommit
+      || candidateBinding.sourceProjection
+        !== predecessorBinding.sourceProjection
+    ) fail('NOTIFICATION_PAGES_LIVE_RELEASE_BINDING_TRANSITION_INVALID');
+    return;
+  }
+  if (
+    candidateDigest !== predecessorDigest
+    || candidateSource !== predecessorSource
+    || candidateDigest !== predecessor.chainRootReceiptDigest
+    || candidateSource !== predecessor.chainRootPagesSourceCommit
+  ) fail('NOTIFICATION_PAGES_LIVE_RELEASE_BINDING_TRANSITION_INVALID');
+}
+
+function candidateDiffProtectedPaths(predecessor, basePaths, staged = false) {
+  let paths = [
+    ...basePaths,
+    ...assertHermesAuthorityImportClosure(
+      predecessor.receipt.pages.sourceCommit,
+    ),
+    ...assertActiveEvidenceImportClosure(
+      predecessor.receipt.sourceRelease.moduleSourceCommit,
+    ),
+  ];
+  if (staged) {
+    paths = paths.filter(path => !STAGED_HANDOFF_AUTHORIZED_PATHS.some(
+      authorizedPath => path === authorizedPath
+        || path.startsWith(`${authorizedPath}/`),
+    ));
+  }
+  paths.push(...exactPresentationSourceClosure(
+    predecessor.receipt.pages.sourceCommit,
+  ));
+  // This source is compared structurally below so the one reviewed false→true
+  // finalization literal can change without authorizing any other Hermes byte.
+  paths = paths.filter(path => path !== 'scripts/hermes-admin.ts');
+  const predecessorBinding = releaseBindingAtCommit(
+    predecessor.receipt.pages.sourceCommit,
+  );
+  if (
+    predecessor.receipt.chain.generation === 0
+    && predecessorBinding.notificationPagesLiveRootReceiptDigest === null
+    && predecessorBinding.notificationPagesLiveRootPagesSourceCommit === null
+  ) {
+    paths = paths.filter(
+      path => path !== RELEASE_BINDING_SOURCE_PATH,
+    );
+  }
+  return Object.freeze([...new Set(paths)].sort());
+}
+
+function exactHermesApprovalProjection(source) {
+  const code = 'NOTIFICATION_PAGES_LIVE_HERMES_PHASE_INVALID';
+  const fileName = '/notification-pages-live-phase/hermes-admin.ts';
+  const parsed = parseTypeScriptSourceFile(source, fileName, code);
+  const matches = [];
+  try {
+    for (const statement of parsed.sourceFile.statements) {
+      if (
+        !isVariableStatement(statement)
+        || statement.modifierFlags !== ModifierFlags.Export
+        || statement.modifiers?.length !== 1
+        || statement.modifiers[0].kind !== SyntaxKind.ExportKeyword
+        || (statement.declarationList.flags & NodeFlags.Const) === 0
+        || statement.declarationList.declarations.length !== 1
+      ) continue;
+      const declaration = statement.declarationList.declarations[0];
+      if (
+        !isIdentifier(declaration.name)
+        || declaration.name.text
+          !== 'FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED'
+        || declaration.type !== undefined
+        || declaration.exclamationToken !== undefined
+        || declaration.initializer === undefined
+        || !isAsExpression(declaration.initializer)
+        || declaration.initializer.type.kind !== SyntaxKind.TypeReference
+        || !isIdentifier(declaration.initializer.type.typeName)
+        || declaration.initializer.type.typeName.text !== 'const'
+        || declaration.initializer.type.typeArguments !== undefined
+        || (
+          declaration.initializer.expression.kind !== SyntaxKind.TrueKeyword
+          && declaration.initializer.expression.kind !== SyntaxKind.FalseKeyword
+        )
+      ) continue;
+      const expression = declaration.initializer.expression;
+      matches.push(Object.freeze({
+        approved: expression.kind === SyntaxKind.TrueKeyword,
+        start: expression.getStart(parsed.sourceFile),
+        end: expression.end,
+      }));
+    }
+    if (matches.length !== 1) fail(code);
+    const match = matches[0];
+    return Object.freeze({
+      approved: match.approved,
+      projection: source.slice(0, match.start)
+        + '<NOTIFICATION_PAGES_LIVE_HERMES_APPROVAL>'
+        + source.slice(match.end),
+    });
+  } catch (error) {
+    if (error instanceof NotificationPagesLiveReceiptError) throw error;
+    fail(code);
+  } finally {
+    try { parsed.snapshot.dispose(); } catch { /* Preserve parse outcome. */ }
+    try { parsed.api.close(); } catch { /* Preserve parse outcome. */ }
+  }
+}
+
+export function assertNotificationPagesLiveHermesSourceTransition({
+  predecessorHermesSource,
+  candidateHermesSource,
+  staged,
+  predecessorRootBound,
+} = {}) {
+  if (
+    typeof predecessorHermesSource !== 'string'
+    || predecessorHermesSource.length < 1
+    || predecessorHermesSource.length > 512 * 1024
+    || typeof candidateHermesSource !== 'string'
+    || candidateHermesSource.length < 1
+    || candidateHermesSource.length > 512 * 1024
+    || typeof staged !== 'boolean'
+    || typeof predecessorRootBound !== 'boolean'
+  ) fail('NOTIFICATION_PAGES_LIVE_HERMES_PHASE_INVALID');
+  const previous = exactHermesApprovalProjection(predecessorHermesSource);
+  const next = exactHermesApprovalProjection(candidateHermesSource);
+  if (staged) {
+    if (
+      next.approved !== false
+      || candidateHermesSource !== predecessorHermesSource
+    ) fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_NOTIFICATION_DRIFT');
+  } else if (candidateHermesSource !== predecessorHermesSource && (
+    previous.approved !== false
+    || next.approved !== true
+    || previous.projection !== next.projection
+    || !predecessorRootBound
+  )) fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_NOTIFICATION_DRIFT');
+  return Object.freeze({
+    predecessorHermesExecutionApproved: previous.approved,
+    candidateHermesExecutionApproved: next.approved,
+  });
+}
+
+function assertHermesSourceTransition({ predecessor, candidate, staged }) {
+  const previousSource = sourceAtCommit(
+    predecessor.receipt.pages.sourceCommit,
+    'scripts/hermes-admin.ts',
+    'NOTIFICATION_PAGES_LIVE_HERMES_PHASE_INVALID',
+  );
+  const candidateSource = sourceAtCommit(
+    candidate,
+    'scripts/hermes-admin.ts',
+    'NOTIFICATION_PAGES_LIVE_HERMES_PHASE_INVALID',
+  );
+  const previousBinding = releaseBindingAtCommit(
+    predecessor.receipt.pages.sourceCommit,
+  );
+  assertNotificationPagesLiveHermesSourceTransition({
+    predecessorHermesSource: previousSource,
+    candidateHermesSource: candidateSource,
+    staged,
+    predecessorRootBound:
+      previousBinding.notificationPagesLiveRootReceiptDigest !== null
+      && previousBinding.notificationPagesLiveRootPagesSourceCommit !== null,
+  });
+}
+
+function assertReceiptReleaseBinding(entry) {
+  const binding = releaseBindingAtCommit(entry.receipt.pages.sourceCommit);
+  const rootDigest = binding.notificationPagesLiveRootReceiptDigest;
+  const rootSource = binding.notificationPagesLiveRootPagesSourceCommit;
+  if (entry.receipt.chain.generation === 0) {
+    if (
+      rootDigest !== null
+      || rootSource !== null
+      || entry.chainRootReceiptDigest !== entry.receiptDigest
+      || entry.chainRootPagesSourceCommit !== entry.receipt.pages.sourceCommit
+    ) fail('NOTIFICATION_PAGES_LIVE_RELEASE_BINDING_TRANSITION_INVALID');
+    return;
+  }
+  if (
+    rootDigest !== entry.chainRootReceiptDigest
+    || rootSource !== entry.chainRootPagesSourceCommit
+  ) fail('NOTIFICATION_PAGES_LIVE_RELEASE_BINDING_TRANSITION_INVALID');
+}
+
+function assertInventoryAuthorities(inventory) {
+  for (const entry of inventory) {
+    assertReceiptGitProvenance(entry.receipt);
+    assertReceiptReleaseBinding(entry);
+  }
+}
+
+function assertInventoryCanAddSuccessor(inventory) {
+  if (inventory.some(
+    entry => entry.receipt.chain.generation >= MAX_CHAIN_GENERATION,
+  )) fail('NOTIFICATION_PAGES_LIVE_CHAIN_GENERATION_EXHAUSTED');
+}
+
+function assertProspectiveReceiptGitProvenance({
+  predecessor,
+  candidate,
+  bridgeSourceCommit,
+  sourceRelease = predecessor.receipt.sourceRelease,
+}) {
+  for (const commit of [
+    sourceRelease.atlasSourceCommit,
+    sourceRelease.moduleSourceCommit,
+    bridgeSourceCommit,
+    candidate,
+  ]) exactCommit(commit, 'NOTIFICATION_PAGES_LIVE_GIT_SOURCE_INVALID');
+  assertAncestor(
+    sourceRelease.atlasSourceCommit,
+    sourceRelease.moduleSourceCommit,
+    'NOTIFICATION_PAGES_LIVE_GIT_ANCESTRY_INVALID',
+  );
+  assertAncestor(
+    sourceRelease.moduleSourceCommit,
+    candidate,
+    'NOTIFICATION_PAGES_LIVE_GIT_ANCESTRY_INVALID',
+  );
+  assertAncestor(
+    bridgeSourceCommit,
+    candidate,
+    'NOTIFICATION_PAGES_LIVE_GIT_ANCESTRY_INVALID',
+  );
+  assertNoDiff(
+    sourceRelease.moduleSourceCommit,
+    candidate,
+    assertActiveEvidenceImportClosure(sourceRelease.moduleSourceCommit),
+    'NOTIFICATION_PAGES_LIVE_ACTIVE_EVIDENCE_SOURCE_DRIFT',
+  );
+}
+
+function assertCandidateStaticAuthority({
+  predecessor,
+  candidate,
+  bridgeSourceCommit,
+  sourceRelease,
+  staged = false,
+}) {
+  assertCandidateReleaseBinding({ candidate, predecessor });
+  assertSuccessorPresentationPhase(candidate);
+  assertHermesSourceTransition({ predecessor, candidate, staged });
+  assertProspectiveReceiptGitProvenance({
+    predecessor,
+    candidate,
+    bridgeSourceCommit,
+    sourceRelease,
+  });
 }
 
 export function parseNotificationPagesActivationPhaseSources({
@@ -1798,29 +3566,42 @@ export function parseNotificationPagesActivationPhaseSources({
   });
 }
 
-function assertActivationPresentationPhase(sourceCommit) {
+function notificationPagesSourcePhase(sourceCommit) {
+  const hermesSource = sourceAtCommit(
+    sourceCommit,
+    'scripts/hermes-admin.ts',
+    'NOTIFICATION_PAGES_LIVE_HERMES_PHASE_INVALID',
+  );
   const phase = parseNotificationPagesActivationPhaseSources({
     pagesWorkflowSource: sourceAtCommit(
       sourceCommit,
       '.github/workflows/deploy-pages.yml',
       'NOTIFICATION_PAGES_LIVE_PAGES_PHASE_INVALID',
     ),
-    hermesSource: sourceAtCommit(
-      sourceCommit,
-      'scripts/hermes-admin.ts',
-      'NOTIFICATION_PAGES_LIVE_HERMES_PHASE_INVALID',
-    ),
+    hermesSource,
   });
-  if (
-    !phase.pagesPresentationEnabled
-    || phase.hermesExecutionApproved
-  ) {
+  assertHermesDirectImportClosure(hermesSource);
+  assertHermesAuthorityImportClosure(sourceCommit);
+  assertActiveEvidenceImportClosure(sourceCommit);
+  return phase;
+}
+
+function assertActivationPresentationPhase(sourceCommit) {
+  const phase = notificationPagesSourcePhase(sourceCommit);
+  if (!phase.pagesPresentationEnabled || phase.hermesExecutionApproved) {
+    fail('NOTIFICATION_PAGES_LIVE_ACTIVATION_PHASE_INVALID');
+  }
+}
+
+function assertSuccessorPresentationPhase(sourceCommit) {
+  if (!notificationPagesSourcePhase(sourceCommit).pagesPresentationEnabled) {
     fail('NOTIFICATION_PAGES_LIVE_ACTIVATION_PHASE_INVALID');
   }
 }
 
 async function readBoundedResponseClone(response, maximumBytes) {
   const advertised = response.headers.get('content-length');
+  const contentEncoding = response.headers.get('content-encoding');
   if (
     advertised !== null
     && (!/^(?:0|[1-9][0-9]*)$/u.test(advertised)
@@ -1853,7 +3634,18 @@ async function readBoundedResponseClone(response, maximumBytes) {
   } finally {
     reader.releaseLock();
   }
-  if (advertised !== null && Number(advertised) !== total) {
+  // Fetch exposes decoded response bytes while intermediaries such as
+  // Cloudflare may preserve the compressed wire Content-Length. Equality is
+  // meaningful only when no content coding was applied (or identity was
+  // explicitly declared); both representations remain independently bounded.
+  if (
+    advertised !== null
+    && (
+      contentEncoding === null
+      || /^identity$/iu.test(contentEncoding)
+    )
+    && Number(advertised) !== total
+  ) {
     fail('NOTIFICATION_PAGES_LIVE_FRONTEND_RESPONSE_SIZE_INVALID');
   }
   const bytes = Buffer.alloc(total);
@@ -1865,20 +3657,25 @@ async function readBoundedResponseClone(response, maximumBytes) {
   return bytes;
 }
 
-function runtimeAssetReference(specifier, current) {
+function runtimeAssetReference(specifier, current, sourceKind) {
   if (
     typeof specifier !== 'string'
     || specifier.length < 1
     || specifier.length > 512
     || /[\\\u0000-\u001f\u007f]/u.test(specifier)
   ) return undefined;
-  const hasRuntimeAssetExtension =
-    /\.(?:avif|css|gif|ico|jpe?g|js|json|mjs|mp3|mp4|otf|png|svg|ttf|wasm|webp|woff2?)$/iu
-      .test(specifier);
+  const hasRuntimeAssetExtension = sourceKind === 'html'
+    ? /\.(?:avif|css|gif|ico|jpe?g|js|mjs|png|svg|webp)$/iu.test(specifier)
+    : sourceKind === 'css'
+      ? /\.(?:avif|css|gif|ico|jpe?g|js|mjs|mp3|mp4|otf|png|svg|ttf|wav|webm|webp|woff2?)$/iu
+        .test(specifier)
+      : /\.(?:css|js|mjs)$/iu.test(specifier);
   if (!hasRuntimeAssetExtension) return undefined;
   let resolved;
   try {
-    resolved = specifier.startsWith('assets/')
+    const rootRelative = /^(?:assets|audio|images|models|video)\//u
+      .test(specifier);
+    resolved = rootRelative
       ? new URL(`/${specifier}`, NOTIFICATION_PAGES_LIVE_PAGES_ORIGIN)
       : new URL(specifier, current);
   } catch {
@@ -1886,25 +3683,25 @@ function runtimeAssetReference(specifier, current) {
   }
   if (
     resolved.origin !== NOTIFICATION_PAGES_LIVE_PAGES_ORIGIN
-    || !resolved.pathname.startsWith('/assets/')
+    || resolved.pathname === '/'
     || resolved.search
     || resolved.hash
   ) return undefined;
   return resolved.href;
 }
 
-function runtimeAssetReferences(source, current) {
+function runtimeAssetReferences(source, current, sourceKind) {
   const references = new Set();
   for (const match of source.matchAll(
     /(["'`])([^"'`\n\r]{1,512})\1/gu,
   )) {
-    const referenced = runtimeAssetReference(match[2], current);
+    const referenced = runtimeAssetReference(match[2], current, sourceKind);
     if (referenced !== undefined) references.add(referenced);
   }
   for (const match of source.matchAll(
     /\burl\(\s*([^"'`\s)][^\s)]{0,511})\s*\)/gu,
   )) {
-    const referenced = runtimeAssetReference(match[1], current);
+    const referenced = runtimeAssetReference(match[1], current, sourceKind);
     if (referenced !== undefined) references.add(referenced);
   }
   return references;
@@ -1912,15 +3709,36 @@ function runtimeAssetReferences(source, current) {
 
 function isTraversableFrontendAsset(entry) {
   const contentType = entry.contentType.toLowerCase();
-  return /(?:java|ecma)script|text\/css|application\/json|image\/svg\+xml/u
-    .test(contentType);
+  return /(?:java|ecma)script|text\/css/u.test(contentType);
 }
 
-function validFrontendAssetResponse(response) {
-  const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
-  return response.status === 200
-    && contentType.length >= 1
-    && !contentType.includes('text/html');
+function validFrontendAssetMetadata(status, contentTypeValue, url) {
+  const contentType = contentTypeValue.toLowerCase();
+  const pathname = new URL(url).pathname;
+  const validMime = /\.m?js$/iu.test(pathname)
+    ? /(?:java|ecma)script/u.test(contentType)
+    : /\.css$/iu.test(pathname)
+      ? contentType.startsWith('text/css')
+      : /\.svg$/iu.test(pathname)
+        ? contentType.startsWith('image/svg+xml')
+        : /\.(?:avif|gif|ico|jpe?g|png|webp)$/iu.test(pathname)
+          ? contentType.startsWith('image/')
+          : /\.(?:otf|ttf|woff2?)$/iu.test(pathname)
+            ? /(?:font|application)\//u.test(contentType)
+            : /\.(?:mp3|wav)$/iu.test(pathname)
+              ? contentType.startsWith('audio/')
+              : /\.(?:mp4|webm)$/iu.test(pathname)
+                ? contentType.startsWith('video/')
+            : false;
+  return status === 200 && validMime;
+}
+
+function validFrontendAssetResponse(response, url) {
+  return validFrontendAssetMetadata(
+    response.status,
+    response.headers.get('content-type') ?? '',
+    url,
+  );
 }
 
 async function fetchExactLiveFrontendAttestation({
@@ -1933,6 +3751,7 @@ async function fetchExactLiveFrontendAttestation({
   }
   const captures = new Map();
   const responseBytes = new Map();
+  let aggregateBytes = 0;
   const captureFetch = async (input, init) => {
     const requested = input instanceof Request ? input.url : String(input);
     let url;
@@ -1941,22 +3760,39 @@ async function fetchExactLiveFrontendAttestation({
     } catch {
       fail('NOTIFICATION_PAGES_LIVE_FRONTEND_RESPONSE_INVALID');
     }
+    const capturesPagesResponse =
+      url.origin === NOTIFICATION_PAGES_LIVE_PAGES_ORIGIN
+      && url.pathname.startsWith('/');
+    if (capturesPagesResponse) {
+      if (captures.has(url.href)) {
+        fail('NOTIFICATION_PAGES_LIVE_FRONTEND_RESPONSE_DUPLICATE');
+      }
+      if (captures.size >= MAX_FRONTEND_ASSET_COUNT + 1) {
+        fail('NOTIFICATION_PAGES_LIVE_FRONTEND_ATTESTATION_INVALID');
+      }
+    }
     const response = await fetchImpl(input, init);
     if (!(response instanceof Response)) {
       fail('NOTIFICATION_PAGES_LIVE_FRONTEND_RESPONSE_INVALID');
     }
     if (
-      url.origin === NOTIFICATION_PAGES_LIVE_PAGES_ORIGIN
-      && (url.pathname === '/' || url.pathname.startsWith('/assets/'))
+      capturesPagesResponse
     ) {
-      if (captures.has(url.href)) {
-        fail('NOTIFICATION_PAGES_LIVE_FRONTEND_RESPONSE_DUPLICATE');
+      if (
+        url.pathname !== '/'
+        && !validFrontendAssetResponse(response, url.href)
+      ) {
+        fail('NOTIFICATION_PAGES_LIVE_FRONTEND_MISMATCH');
       }
       const maximum = url.pathname === '/'
         ? MAX_FRONTEND_DOCUMENT_BYTES
         : MAX_FRONTEND_ASSET_BYTES;
       const bytes = await readBoundedResponseClone(response, maximum);
       try {
+        aggregateBytes += bytes.byteLength;
+        if (aggregateBytes > MAX_FRONTEND_AGGREGATE_BYTES) {
+          fail('NOTIFICATION_PAGES_LIVE_FRONTEND_RESPONSE_SIZE_INVALID');
+        }
         captures.set(url.href, Object.freeze({
           url: url.href,
           status: response.status,
@@ -1986,6 +3822,42 @@ async function fetchExactLiveFrontendAttestation({
     for (const bytes of responseBytes.values()) bytes.fill(0);
     fail('NOTIFICATION_PAGES_LIVE_FRONTEND_ATTESTATION_INVALID');
   }
+  const rootBytes = responseBytes.get(root.url);
+  if (rootBytes === undefined) {
+    fail('NOTIFICATION_PAGES_LIVE_FRONTEND_ATTESTATION_INVALID');
+  }
+  let rootSource;
+  try {
+    rootSource = new TextDecoder('utf-8', { fatal: true }).decode(rootBytes);
+  } catch {
+    fail('NOTIFICATION_PAGES_LIVE_FRONTEND_ATTESTATION_INVALID');
+  }
+  for (const referenced of [
+    ...runtimeAssetReferences(rootSource, root.url, 'html'),
+  ].sort()) {
+    if (captures.has(referenced)) continue;
+    if (captures.size >= MAX_FRONTEND_ASSET_COUNT + 1) {
+      fail('NOTIFICATION_PAGES_LIVE_FRONTEND_ATTESTATION_INVALID');
+    }
+    let response;
+    try {
+      response = await captureFetch(new URL(referenced), {
+        method: 'GET',
+        headers: { accept: '*/*', 'cache-control': 'no-store' },
+        cache: 'no-store',
+        credentials: 'omit',
+        redirect: 'error',
+        referrerPolicy: 'no-referrer',
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch (error) {
+      if (error instanceof NotificationPagesLiveReceiptError) throw error;
+      fail('NOTIFICATION_PAGES_LIVE_FRONTEND_MISMATCH');
+    }
+    if (!validFrontendAssetResponse(response, referenced)) {
+      fail('NOTIFICATION_PAGES_LIVE_FRONTEND_MISMATCH');
+    }
+  }
   const pending = [...captures.values()]
     .filter(entry => entry.url !== `${NOTIFICATION_PAGES_LIVE_PAGES_ORIGIN}/`)
     .map(entry => entry.url);
@@ -2014,19 +3886,26 @@ async function fetchExactLiveFrontendAttestation({
       } catch {
         fail('NOTIFICATION_PAGES_LIVE_FRONTEND_ATTESTATION_INVALID');
       }
-      let markerOffset = source.indexOf(NOTIFICATIONS_PRESENTATION_MARKER);
-      while (markerOffset !== -1) {
-        presentationMarkerCount += 1;
-        markerOffset = source.indexOf(
-          NOTIFICATIONS_PRESENTATION_MARKER,
-          markerOffset + NOTIFICATIONS_PRESENTATION_MARKER.length,
-        );
+      const contentType = currentCapture.contentType.toLowerCase();
+      const sourceKind = contentType.includes('text/css') ? 'css' : 'js';
+      if (sourceKind === 'js') {
+        let markerOffset = source.indexOf(NOTIFICATIONS_PRESENTATION_MARKER);
+        while (markerOffset !== -1) {
+          presentationMarkerCount += 1;
+          markerOffset = source.indexOf(
+            NOTIFICATIONS_PRESENTATION_MARKER,
+            markerOffset + NOTIFICATIONS_PRESENTATION_MARKER.length,
+          );
+        }
       }
-      const references = runtimeAssetReferences(source, current);
+      const references = runtimeAssetReferences(source, current, sourceKind);
       for (const referenced of [...references].sort()) {
         if (captures.has(referenced)) {
           pending.push(referenced);
           continue;
+        }
+        if (captures.size >= MAX_FRONTEND_ASSET_COUNT + 1) {
+          fail('NOTIFICATION_PAGES_LIVE_FRONTEND_ATTESTATION_INVALID');
         }
         let response;
         try {
@@ -2043,7 +3922,7 @@ async function fetchExactLiveFrontendAttestation({
           if (error instanceof NotificationPagesLiveReceiptError) throw error;
           fail('NOTIFICATION_PAGES_LIVE_FRONTEND_MISMATCH');
         }
-        if (!validFrontendAssetResponse(response)) {
+        if (!validFrontendAssetResponse(response, referenced)) {
           fail('NOTIFICATION_PAGES_LIVE_FRONTEND_MISMATCH');
         }
         pending.push(referenced);
@@ -2065,20 +3944,157 @@ async function fetchExactLiveFrontendAttestation({
   }
   const manifest = Object.freeze({
     schemaVersion: 1,
-    kind: 'warpkeep-notification-pages-live-frontend-manifest-v1',
+    kind: 'warpkeep-notification-pages-presentation-manifest-v1',
     origin: NOTIFICATION_PAGES_LIVE_PAGES_ORIGIN,
     expectedBuildSha,
+    scope: 'root-html-plus-executable-style-closure',
     notificationsPresentationEnabled: true,
     document: root,
     assets: Object.freeze(assets),
   });
-  const liveFrontendDigest = createHash('sha256')
-    .update('warpkeep-notification-pages-live-frontend-v1\0', 'utf8')
+  const notificationPresentationDigest = createHash('sha256')
+    .update('warpkeep-notification-pages-presentation-v1\0', 'utf8')
     .update(JSON.stringify(manifest), 'utf8')
     .digest('hex');
   return Object.freeze({
-    liveFrontendDigest,
-    rootAssetCount: assets.length,
+    notificationPresentationDigest,
+    notificationPresentationAssetCount: assets.length,
+  });
+}
+
+function observedFrontendBuildSha(sources) {
+  const observed = new Map([
+    ['VITE_WARPKEEP_BUILD_SHA', []],
+    ['buildSha', []],
+  ]);
+  for (const bytes of sources) {
+    let source;
+    try {
+      source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch {
+      fail('NOTIFICATION_PAGES_LIVE_RECONCILIATION_AMBIGUOUS');
+    }
+    for (const match of source.matchAll(DEPLOYED_BUILD_SHA_SENTINEL)) {
+      observed.get(match[1]).push(match[3]);
+    }
+  }
+  const environmentValues = observed.get('VITE_WARPKEEP_BUILD_SHA');
+  const buildInfoValues = observed.get('buildSha');
+  if (
+    environmentValues.length !== 1
+    || buildInfoValues.length !== 1
+    || environmentValues[0] !== buildInfoValues[0]
+  ) {
+    fail('NOTIFICATION_PAGES_LIVE_RECONCILIATION_AMBIGUOUS');
+  }
+  return environmentValues[0];
+}
+
+async function probeExactDeployedBuildSha(fetchImpl) {
+  const sources = [];
+  const captureFetch = async (input, init) => {
+    const requested = input instanceof Request ? input.url : String(input);
+    let url;
+    try {
+      url = new URL(requested);
+    } catch {
+      fail('NOTIFICATION_PAGES_LIVE_RECONCILIATION_AMBIGUOUS');
+    }
+    let response;
+    try {
+      response = await fetchImpl(input, init);
+    } catch {
+      fail('NOTIFICATION_PAGES_LIVE_RECONCILIATION_AMBIGUOUS');
+    }
+    if (!(response instanceof Response)) {
+      fail('NOTIFICATION_PAGES_LIVE_RECONCILIATION_AMBIGUOUS');
+    }
+    if (
+      url.origin === NOTIFICATION_PAGES_LIVE_PAGES_ORIGIN
+      && /\/assets\/[^/]+\.m?js$/iu.test(url.pathname)
+    ) {
+      if (!validFrontendAssetResponse(response, url.href)) {
+        fail('NOTIFICATION_PAGES_LIVE_RECONCILIATION_AMBIGUOUS');
+      }
+      let bytes;
+      try {
+        bytes = await readBoundedResponseClone(
+          response,
+          MAX_FRONTEND_ASSET_BYTES,
+        );
+        sources.push(Buffer.from(bytes));
+      } catch {
+        fail('NOTIFICATION_PAGES_LIVE_RECONCILIATION_AMBIGUOUS');
+      } finally {
+        bytes?.fill(0);
+      }
+    }
+    return response;
+  };
+  try {
+    await verifyFrontend(
+      NOTIFICATION_PAGES_LIVE_PAGES_ORIGIN,
+      undefined,
+      captureFetch,
+    );
+    return observedFrontendBuildSha(sources);
+  } catch (error) {
+    if (
+      error instanceof NotificationPagesLiveReceiptError
+      && error.code === 'NOTIFICATION_PAGES_LIVE_RECONCILIATION_AMBIGUOUS'
+    ) throw error;
+    fail('NOTIFICATION_PAGES_LIVE_RECONCILIATION_AMBIGUOUS');
+  } finally {
+    for (const bytes of sources) bytes.fill(0);
+  }
+}
+
+/**
+ * Non-mutating gen-0 recovery probe. A different exact build sentinel is the
+ * only safe negative. Matching builds must pass the complete presentation
+ * closure and marker contract; every transport/content ambiguity throws.
+ * `definitely-not-current` describes only the public response observed by
+ * this probe. It is not evidence that no Pages deployment was invoked and may
+ * authorize a deploy only before a durable deploy-invoked journal transition.
+ */
+export async function reconcileNotificationPagesLiveCandidate({
+  repositoryRoot,
+  candidatePagesSourceCommit,
+  fetchImpl = fetch,
+} = {}) {
+  canonicalRepositoryRoot(repositoryRoot);
+  const candidate = exactCommit(
+    candidatePagesSourceCommit,
+    'NOTIFICATION_PAGES_LIVE_CANDIDATE_SOURCE_INVALID',
+  );
+  if (currentHead() !== candidate) {
+    fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_NOT_HEAD');
+  }
+  assertCleanProtectedCheckout();
+  const observedPagesSourceCommit = await probeExactDeployedBuildSha(fetchImpl);
+  if (observedPagesSourceCommit !== candidate) {
+    assertExactCleanHead(candidate);
+    return Object.freeze({
+      status: 'definitely-not-current',
+      candidatePagesSourceCommit: candidate,
+      observedPagesSourceCommit,
+    });
+  }
+  let presentation;
+  try {
+    presentation = await fetchExactLiveFrontendAttestation({
+      expectedBuildSha: candidate,
+      expectedNotificationsPresentationEnabled: true,
+      fetchImpl,
+    });
+  } catch {
+    fail('NOTIFICATION_PAGES_LIVE_RECONCILIATION_AMBIGUOUS');
+  }
+  assertExactCleanHead(candidate);
+  return Object.freeze({
+    status: 'exact-current',
+    candidatePagesSourceCommit: candidate,
+    ...presentation,
   });
 }
 
@@ -2143,13 +4159,16 @@ function buildReceipt(
       generation: 0,
       previousReceiptDigest: null,
       previousPagesSourceCommit: null,
+      candidateAuthorityDigest: null,
     },
     pages: {
       origin: NOTIFICATION_PAGES_LIVE_PAGES_ORIGIN,
       sourceCommit: handoff.pagesSourceCommit,
       liveBuildSha: handoff.pagesSourceCommit,
-      liveFrontendDigest: frontendAttestation.liveFrontendDigest,
-      rootAssetCount: frontendAttestation.rootAssetCount,
+      notificationPresentationDigest:
+        frontendAttestation.notificationPresentationDigest,
+      notificationPresentationAssetCount:
+        frontendAttestation.notificationPresentationAssetCount,
       notificationsPresentationEnabled: true,
       hermesExecutionApprovedAtActivation: false,
     },
@@ -2173,6 +4192,7 @@ function buildSuccessorReceipt({
   frontendAttestation,
   liveAttestation,
   stagedHandoffBinding,
+  candidateAuthorityDigest,
 }) {
   const source = stagedHandoffBinding === null
     ? Object.freeze({
@@ -2200,13 +4220,16 @@ function buildSuccessorReceipt({
       generation: previous.chain.generation + 1,
       previousReceiptDigest,
       previousPagesSourceCommit: previous.pages.sourceCommit,
+      candidateAuthorityDigest,
     },
     pages: {
       origin: NOTIFICATION_PAGES_LIVE_PAGES_ORIGIN,
       sourceCommit: candidatePagesSourceCommit,
       liveBuildSha: candidatePagesSourceCommit,
-      liveFrontendDigest: frontendAttestation.liveFrontendDigest,
-      rootAssetCount: frontendAttestation.rootAssetCount,
+      notificationPresentationDigest:
+        frontendAttestation.notificationPresentationDigest,
+      notificationPresentationAssetCount:
+        frontendAttestation.notificationPresentationAssetCount,
       notificationsPresentationEnabled: true,
       hermesExecutionApprovedAtActivation: false,
     },
@@ -2498,17 +4521,13 @@ function chainRootForNewReceipt(receipt, receiptDigest, inventory) {
 
 function installReceipt({
   directory,
-  repositoryRoot,
   receipt,
   randomBytesImpl,
 }) {
   const proposedBytes = canonicalReceiptBytes(receipt);
   let installedBytes;
   try {
-    const canonicalDirectory = ensureNotificationPagesLiveReceiptDirectory({
-      directory,
-      repositoryRoot,
-    });
+    const canonicalDirectory = directory;
     const inventory = readInventory(canonicalDirectory, {
       now: new Date(receipt.recordedAt),
     });
@@ -2621,8 +4640,10 @@ async function fetchExactLiveFrontendBinding(receipt, fetchImpl) {
     fetchImpl,
   });
   if (
-    frontend.liveFrontendDigest !== receipt.pages.liveFrontendDigest
-    || frontend.rootAssetCount !== receipt.pages.rootAssetCount
+    frontend.notificationPresentationDigest
+      !== receipt.pages.notificationPresentationDigest
+    || frontend.notificationPresentationAssetCount
+      !== receipt.pages.notificationPresentationAssetCount
   ) fail('NOTIFICATION_PAGES_LIVE_FRONTEND_CONTENT_MISMATCH');
   return frontend;
 }
@@ -2675,74 +4696,113 @@ export async function writePrivateNotificationPagesLiveReceipt({
   if (expectations.expectedPagesSourceCommit !== head) {
     fail('NOTIFICATION_PAGES_LIVE_PAGES_SOURCE_NOT_HEAD');
   }
-  const preflightInventory = staticInventory({ directory, repositoryRoot, now });
-  if (preflightInventory.length > 0) {
-    fail('NOTIFICATION_PAGES_LIVE_ROOT_ALREADY_BOUND');
-  }
-  if (boundedEntries(directory).length > MAX_DIRECTORY_ENTRIES - 4) {
-    fail('NOTIFICATION_PAGES_LIVE_DIRECTORY_INVENTORY_EXCEEDED');
-  }
-  assertActivationPresentationPhase(head);
-  let handoff;
-  try {
-    handoff = await inspectNotificationPagesPrivateHandoff({
-      ...expectations,
-      repositoryRoot,
-      fetchImpl,
-      now,
-    });
-  } catch {
-    fail('NOTIFICATION_PAGES_LIVE_HANDOFF_INVALID');
-  }
-  if (handoff.pagesSourceCommit !== head) {
-    fail('NOTIFICATION_PAGES_LIVE_PAGES_SOURCE_NOT_HEAD');
-  }
-  const frontendAttestation = await fetchExactLiveFrontendAttestation({
-    expectedBuildSha: handoff.pagesSourceCommit,
-    expectedNotificationsPresentationEnabled:
-      expectedNotificationsPresentationEnabled,
-    fetchImpl,
-  });
-  let refreshedBridge;
-  try {
-    refreshedBridge = await fetchFreshAuthBridgeReleaseAttestation({
-      fetchImpl,
-      now,
-    });
-  } catch {
-    fail('NOTIFICATION_PAGES_LIVE_BRIDGE_ATTESTATION_INVALID');
-  }
-  if (
-    refreshedBridge.digest
-      !== canonicalAuthBridgeReleaseAttestationDigest(handoff.liveAttestation)
-    || JSON.stringify(refreshedBridge.attestation)
-      !== JSON.stringify(handoff.liveAttestation)
-  ) fail('NOTIFICATION_PAGES_LIVE_BRIDGE_ATTESTATION_MISMATCH');
-  const receipt = buildReceipt(
-    handoff,
-    now,
-    frontendAttestation,
-    refreshedBridge.attestation,
-  );
-  assertReceiptGitProvenance(receipt);
-  assertExactCleanHead(head);
-  return installReceipt({
+  return withWriterLock({
     directory,
     repositoryRoot,
-    receipt,
     randomBytesImpl,
+  }, async canonicalDirectory => {
+    const preflightInventory = readInventory(canonicalDirectory, { now });
+    if (preflightInventory.length > 0) {
+      assertInventoryAuthorities(preflightInventory);
+      const existing = preflightInventory.length === 1
+        ? preflightInventory[0]
+        : undefined;
+      if (
+        existing === undefined
+        || existing.receipt.chain.generation !== 0
+        || existing.receipt.pages.sourceCommit !== head
+      ) fail('NOTIFICATION_PAGES_LIVE_ROOT_ALREADY_BOUND');
+      // The authenticated handoff authorizes the no-replace root creation.
+      // Once that root is durable, replay authority comes from the canonical
+      // private receipt itself; a crashed job must remain recoverable after its
+      // short-lived handoff files and preparation window are gone.
+      await verifyExactLiveBindings(existing.receipt, fetchImpl, now);
+      assertExactCleanHead(head);
+      return Object.freeze({
+        path: existing.path,
+        receiptDigest: existing.receiptDigest,
+        result: 'unchanged',
+        receipt: existing.receipt,
+        preparedBinding: existing.receipt.preparedBinding,
+        chainRootReceiptDigest: existing.chainRootReceiptDigest,
+        chainRootPagesSourceCommit: existing.chainRootPagesSourceCommit,
+      });
+    }
+    if (boundedEntries(canonicalDirectory).length > MAX_DIRECTORY_ENTRIES - 4) {
+      fail('NOTIFICATION_PAGES_LIVE_DIRECTORY_INVENTORY_EXCEEDED');
+    }
+    assertActivationPresentationPhase(head);
+    assertCandidateReleaseBinding({ candidate: head, predecessor: null });
+    let handoff;
+    try {
+      handoff = await inspectNotificationPagesPrivateHandoff({
+        ...expectations,
+        repositoryRoot,
+        fetchImpl,
+        now,
+      });
+    } catch {
+      fail('NOTIFICATION_PAGES_LIVE_HANDOFF_INVALID');
+    }
+    if (handoff.pagesSourceCommit !== head) {
+      fail('NOTIFICATION_PAGES_LIVE_PAGES_SOURCE_NOT_HEAD');
+    }
+    const frontendAttestation = await fetchExactLiveFrontendAttestation({
+      expectedBuildSha: handoff.pagesSourceCommit,
+      expectedNotificationsPresentationEnabled:
+        expectedNotificationsPresentationEnabled,
+      fetchImpl,
+    });
+    let refreshedBridge;
+    try {
+      refreshedBridge = await fetchFreshAuthBridgeReleaseAttestation({
+        fetchImpl,
+        now,
+      });
+    } catch {
+      fail('NOTIFICATION_PAGES_LIVE_BRIDGE_ATTESTATION_INVALID');
+    }
+    if (
+      refreshedBridge.digest
+        !== canonicalAuthBridgeReleaseAttestationDigest(handoff.liveAttestation)
+      || JSON.stringify(refreshedBridge.attestation)
+        !== JSON.stringify(handoff.liveAttestation)
+    ) fail('NOTIFICATION_PAGES_LIVE_BRIDGE_ATTESTATION_MISMATCH');
+    const receipt = buildReceipt(
+      handoff,
+      now,
+      frontendAttestation,
+      refreshedBridge.attestation,
+    );
+    assertReceiptGitProvenance(receipt);
+    assertExactCleanHead(head);
+    return installReceipt({
+      directory: canonicalDirectory,
+      receipt,
+      randomBytesImpl,
+    });
   });
 }
 
 function staticInventory({ directory, repositoryRoot, now }) {
   exactDate(now, 'NOTIFICATION_PAGES_LIVE_RECEIPT_TIME_INVALID');
-  const canonicalDirectory = ensureNotificationPagesLiveReceiptDirectory({
+  const canonicalDirectory = ensureNotificationPagesLiveReceiptDirectoryBase({
     directory,
     repositoryRoot,
   });
-  const inventory = readInventory(canonicalDirectory, { now });
-  for (const entry of inventory) assertReceiptGitProvenance(entry.receipt);
-  return inventory;
+  const lockDirectory = dirname(canonicalDirectory);
+  const lock = acquireWriterLock(lockDirectory, canonicalDirectory, randomBytes);
+  try {
+    repairNotificationPagesLiveReceiptDirectory(
+      canonicalDirectory,
+      repositoryRoot,
+    );
+    const inventory = readInventory(canonicalDirectory, { now });
+    assertInventoryAuthorities(inventory);
+    return inventory;
+  } finally {
+    releaseWriterLock(lockDirectory, lock);
+  }
 }
 
 function staticReceiptEntryBySource({
@@ -2841,6 +4901,94 @@ function commitDistance(ancestor, descendant) {
   return distance;
 }
 
+function assertStagedExpectationsMatchBinding(expectations, binding) {
+  if (
+    expectations === null
+    || binding === null
+    || expectations.expectedHandoffDigest !== binding.handoff.digest
+    || expectations.expectedKeyId !== binding.handoff.keyId
+    || expectations.expectedWorkflowRunId !== binding.handoff.workflowRunId
+    || expectations.expectedWorkflowRunAttempt
+      !== binding.handoff.workflowRunAttempt
+    || expectations.expectedPagesSourceCommit !== binding.pagesSourceCommit
+    || expectations.expectedFounderCount !== binding.expectedFounderCount
+    || expectations.expectedActiveEvidenceMaximumAgeMilliseconds
+      !== binding.handoff.activeEvidenceMaximumAgeMilliseconds
+    || expectations.expectedPreparedReceiptDigest
+      !== binding.handoff.preparedReceiptDigest
+    || expectations.expectedActiveV17EvidenceDigest
+      !== binding.handoff.activeV17EvidenceDigest
+    || expectations.expectedDeployedModuleReceiptDigest
+      !== binding.handoff.deployedModuleReceiptDigest
+    || expectations.expectedBridgeSourceCommit !== binding.bridgeSourceCommit
+  ) fail('NOTIFICATION_PAGES_LIVE_STAGED_HANDOFF_INVALID');
+}
+
+async function inspectDurableCandidateBindings({
+  predecessor,
+  stagedHandoffBinding,
+  fetchImpl,
+  now,
+}) {
+  const frontendAttestation = await fetchExactLiveFrontendBinding(
+    predecessor.receipt,
+    fetchImpl,
+  );
+  let bridge;
+  try {
+    bridge = await fetchFreshAuthBridgeReleaseAttestation({ fetchImpl, now });
+  } catch {
+    fail('NOTIFICATION_PAGES_LIVE_BRIDGE_ATTESTATION_INVALID');
+  }
+  const expectedBridge = stagedHandoffBinding?.liveAttestation
+    ?? predecessor.receipt.bridge.liveAttestation;
+  const expectedDigest = canonicalAuthBridgeReleaseAttestationDigest(
+    expectedBridge,
+  );
+  if (
+    bridge.digest !== expectedDigest
+    || JSON.stringify(bridge.attestation) !== JSON.stringify(expectedBridge)
+  ) fail('NOTIFICATION_PAGES_LIVE_BRIDGE_ATTESTATION_MISMATCH');
+  return Object.freeze({
+    frontendAttestation,
+    candidateLiveAttestation: bridge.attestation,
+  });
+}
+
+function futureCandidateResult({
+  predecessor,
+  candidate,
+  authority,
+  authorityDigest,
+  authorityPath,
+  frontendAttestation,
+  candidateLiveAttestation,
+}) {
+  const staged = authority.stagedHandoffBinding;
+  return Object.freeze({
+    candidatePagesSourceCommit: candidate,
+    livePagesSourceCommit: predecessor.receipt.pages.sourceCommit,
+    candidateAlreadyLive: false,
+    liveReceiptInspection: Object.freeze({
+      path: predecessor.path,
+      receiptDigest: predecessor.receiptDigest,
+      receipt: predecessor.receipt,
+      preparedBinding: predecessor.receipt.preparedBinding,
+      chainRootReceiptDigest: predecessor.chainRootReceiptDigest,
+      chainRootPagesSourceCommit: predecessor.chainRootPagesSourceCommit,
+      frontendAttestation,
+    }),
+    candidateAuthorityPath: authorityPath,
+    candidateAuthorityDigest: authorityDigest,
+    candidateAuthority: authority,
+    candidatePreparedBinding:
+      staged?.preparedBinding ?? predecessor.receipt.preparedBinding,
+    candidateLiveAttestation,
+    preparedBinding: predecessor.receipt.preparedBinding,
+    liveAttestation: candidateLiveAttestation,
+  });
+}
+
 /**
  * Resolve the nearest live ancestor for a future Pages candidate. The checkout
  * must be that exact candidate and notification-critical bytes must be equal.
@@ -2864,11 +5012,17 @@ export async function inspectLatestPrivateNotificationPagesLiveReceiptForCandida
     fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_NOT_HEAD');
   }
   assertCleanProtectedCheckout();
-  const inventory = staticInventory({ directory, repositoryRoot, now });
+  return withWriterLock({
+    directory,
+    repositoryRoot,
+    randomBytesImpl,
+  }, async canonicalDirectory => {
+  const inventory = readInventory(canonicalDirectory, { now });
   const exactLive = inventory.find(
     entry => entry.receipt.pages.sourceCommit === candidate,
   );
   if (exactLive !== undefined) {
+    assertInventoryAuthorities(inventory);
     assertExpectedChainRoot(
       exactLive,
       expectedChainRootReceiptDigest,
@@ -2886,6 +5040,8 @@ export async function inspectLatestPrivateNotificationPagesLiveReceiptForCandida
       candidateAuthority: null,
     });
   }
+  assertInventoryCanAddSuccessor(inventory);
+  assertInventoryAuthorities(inventory);
   const ancestors = [];
   for (const entry of inventory) {
     const result = gitResult([
@@ -2921,33 +5077,103 @@ export async function inspectLatestPrivateNotificationPagesLiveReceiptForCandida
     expectedChainRootReceiptDigest,
     expectedChainRootPagesSourceCommit,
   );
-  let stagedHandoff;
-  let expectations = null;
-  if (stagedHandoffExpectations === undefined) {
+  const expectations = stagedHandoffExpectations === undefined
+    ? null
+    : canonicalHandoffExpectations(stagedHandoffExpectations);
+  if (
+    expectations !== null
+    && expectations.expectedPagesSourceCommit !== candidate
+  ) fail('NOTIFICATION_PAGES_LIVE_STAGED_HANDOFF_INVALID');
+  const existingClaim = readCandidateClaim({
+    directory: canonicalDirectory,
+    predecessorReceiptDigest: latest.receiptDigest,
+    now,
+  });
+  if (
+    existingClaim !== null
+    && existingClaim.authority.candidatePagesSourceCommit !== candidate
+  ) fail('NOTIFICATION_PAGES_LIVE_PREDECESSOR_ALREADY_AUTHORIZED');
+  const usesStagedPolicy = expectations !== null
+    || (
+      existingClaim !== null
+      && existingClaim.authority.stagedHandoffBinding !== null
+    );
+  assertCandidateReleaseBinding({ candidate, predecessor: latest });
+  if (!usesStagedPolicy) {
     assertNoDiff(
       latest.receipt.pages.sourceCommit,
       candidate,
-      NOTIFICATION_PAGES_LIVE_PROTECTED_PATHS,
+      candidateDiffProtectedPaths(
+        latest,
+        NOTIFICATION_PAGES_LIVE_CANDIDATE_PROTECTED_PATHS,
+      ),
       'NOTIFICATION_PAGES_LIVE_CANDIDATE_NOTIFICATION_DRIFT',
     );
   } else {
-    expectations = canonicalHandoffExpectations(stagedHandoffExpectations);
-    if (expectations.expectedPagesSourceCommit !== candidate) {
-      fail('NOTIFICATION_PAGES_LIVE_STAGED_HANDOFF_INVALID');
-    }
     assertNoDiff(
       latest.receipt.pages.sourceCommit,
       candidate,
-      NON_STAGED_PROTECTED_PATHS,
+      candidateDiffProtectedPaths(latest, NON_STAGED_PROTECTED_PATHS, true),
       'NOTIFICATION_PAGES_LIVE_CANDIDATE_NOTIFICATION_DRIFT',
     );
   }
-  let inspected;
+  if (
+    existingClaim !== null
+    && expectations !== null
+    && existingClaim.authority.stagedHandoffBinding === null
+  ) fail('NOTIFICATION_PAGES_LIVE_PREDECESSOR_ALREADY_AUTHORIZED');
+  if (
+    existingClaim !== null
+    && expectations !== null
+    && existingClaim.authority.stagedHandoffBinding !== null
+  ) {
+    assertStagedExpectationsMatchBinding(
+      expectations,
+      existingClaim.authority.stagedHandoffBinding,
+    );
+  }
+  const stagedSource = existingClaim?.authority.stagedHandoffBinding ?? null;
+  assertCandidateStaticAuthority({
+    predecessor: latest,
+    candidate,
+    bridgeSourceCommit: stagedSource?.bridgeSourceCommit
+      ?? expectations?.expectedBridgeSourceCommit
+      ?? latest.receipt.bridge.sourceCommit,
+    sourceRelease: stagedSource?.sourceRelease ?? latest.receipt.sourceRelease,
+    staged: usesStagedPolicy,
+  });
+  const currentEntryCount = boundedEntries(canonicalDirectory).length;
+  if (
+    currentEntryCount > MAX_DIRECTORY_ENTRIES - (existingClaim === null ? 6 : 4)
+  ) fail('NOTIFICATION_PAGES_LIVE_DIRECTORY_INVENTORY_EXCEEDED');
+  if (existingClaim !== null) {
+    const verified = await inspectDurableCandidateBindings({
+      predecessor: latest,
+      stagedHandoffBinding: existingClaim.authority.stagedHandoffBinding,
+      fetchImpl,
+      now,
+    });
+    assertExactCleanHead(candidate);
+    return futureCandidateResult({
+      predecessor: latest,
+      candidate,
+      authority: existingClaim.authority,
+      authorityDigest: existingClaim.authorityDigest,
+      authorityPath: existingClaim.path,
+      ...verified,
+    });
+  }
+  let stagedHandoff;
   let stagedBinding = null;
+  let verified;
   if (expectations === null) {
-    inspected = await inspectEntry(latest, fetchImpl, now);
+    const live = await verifyExactLiveBindings(latest.receipt, fetchImpl, now);
+    verified = Object.freeze({
+      frontendAttestation: live.frontendAttestation,
+      candidateLiveAttestation: live.liveAttestation,
+    });
   } else {
-    const frontend = await fetchExactLiveFrontendBinding(
+    const frontendAttestation = await fetchExactLiveFrontendBinding(
       latest.receipt,
       fetchImpl,
     );
@@ -2965,15 +5191,16 @@ export async function inspectLatestPrivateNotificationPagesLiveReceiptForCandida
       fail('NOTIFICATION_PAGES_LIVE_STAGED_HANDOFF_INVALID');
     }
     stagedBinding = durableStagedHandoffBinding(stagedHandoff);
-    inspected = Object.freeze({
-      path: latest.path,
-      receiptDigest: latest.receiptDigest,
-      receipt: latest.receipt,
-      preparedBinding: latest.receipt.preparedBinding,
-      chainRootReceiptDigest: latest.chainRootReceiptDigest,
-      chainRootPagesSourceCommit: latest.chainRootPagesSourceCommit,
-      liveAttestation: latest.receipt.bridge.liveAttestation,
-      frontendAttestation: frontend,
+    assertCandidateStaticAuthority({
+      predecessor: latest,
+      candidate,
+      bridgeSourceCommit: stagedBinding.bridgeSourceCommit,
+      sourceRelease: stagedBinding.sourceRelease,
+      staged: true,
+    });
+    verified = Object.freeze({
+      frontendAttestation,
+      candidateLiveAttestation: stagedBinding.liveAttestation,
     });
   }
   const candidateAuthority = parseCandidateAuthority({
@@ -2981,12 +5208,13 @@ export async function inspectLatestPrivateNotificationPagesLiveReceiptForCandida
     kind: CANDIDATE_KIND,
     recordedAt: latest.receipt.recordedAt,
     repository: NOTIFICATION_PAGES_PRIVATE_HANDOFF_REPOSITORY,
-    predecessorReceiptDigest: inspected.receiptDigest,
+    predecessorReceiptDigest: latest.receiptDigest,
     predecessorPagesSourceCommit: latest.receipt.pages.sourceCommit,
     chainRootReceiptDigest: latest.chainRootReceiptDigest,
     chainRootPagesSourceCommit: latest.chainRootPagesSourceCommit,
     candidatePagesSourceCommit: candidate,
-    predeployLiveFrontendDigest: latest.receipt.pages.liveFrontendDigest,
+    predeployNotificationPresentationDigest:
+      latest.receipt.pages.notificationPresentationDigest,
     predeployLiveBridgeAttestationDigest: stagedHandoff === undefined
       ? latest.receipt.bridge.liveAttestationDigest
       : canonicalAuthBridgeReleaseAttestationDigest(
@@ -3003,13 +5231,7 @@ export async function inspectLatestPrivateNotificationPagesLiveReceiptForCandida
   try {
     const candidateAuthorityDigest = digest(bytes);
     assertExactCleanHead(candidate);
-    const candidateDirectory = ensureNotificationPagesLiveReceiptDirectory({
-      directory,
-      repositoryRoot,
-    });
-    if (boundedEntries(candidateDirectory).length > MAX_DIRECTORY_ENTRIES - 6) {
-      fail('NOTIFICATION_PAGES_LIVE_DIRECTORY_INVENTORY_EXCEEDED');
-    }
+    const candidateDirectory = canonicalDirectory;
     try {
       installCanonicalPrivateBytes({
       directory: candidateDirectory,
@@ -3050,25 +5272,22 @@ export async function inspectLatestPrivateNotificationPagesLiveReceiptForCandida
     } finally {
       claim.bytes.fill(0);
     }
-    return Object.freeze({
-      ...inspected,
-      candidatePagesSourceCommit: candidate,
-      livePagesSourceCommit: latest.receipt.pages.sourceCommit,
-      candidateAlreadyLive: false,
-      candidateAuthorityPath: installed.path,
-      candidateAuthorityDigest,
-      candidateAuthority,
-      candidatePreparedBinding: stagedBinding?.preparedBinding ?? null,
-      candidateLiveAttestation: stagedBinding?.liveAttestation ?? null,
+    return futureCandidateResult({
+      predecessor: latest,
+      candidate,
+      authority: candidateAuthority,
+      authorityDigest: candidateAuthorityDigest,
+      authorityPath: installed.path,
+      ...verified,
     });
   } finally {
     bytes.fill(0);
   }
+  });
 }
 
 function readCandidateAuthority({
   directory,
-  repositoryRoot,
   candidateAuthorityDigest,
   now,
 }) {
@@ -3076,12 +5295,8 @@ function readCandidateAuthority({
     typeof candidateAuthorityDigest !== 'string'
     || !SHA256.test(candidateAuthorityDigest)
   ) fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_INVALID');
-  const canonicalDirectory = ensureNotificationPagesLiveReceiptDirectory({
-    directory,
-    repositoryRoot,
-  });
   const expectedPath = join(
-    canonicalDirectory,
+    directory,
     `notification-pages-candidate-${candidateAuthorityDigest}.json`,
   );
   const opened = stableFile(
@@ -3110,9 +5325,121 @@ function readCandidateAuthority({
     } finally {
       canonical.fill(0);
     }
-    return authority;
+    return Object.freeze({
+      authority,
+      authorityDigest: candidateAuthorityDigest,
+      path: expectedPath,
+    });
   } finally {
     opened.bytes.fill(0);
+  }
+}
+
+function readCandidateClaim({ directory, predecessorReceiptDigest, now }) {
+  const path = join(
+    directory,
+    `notification-pages-candidate-claim-${predecessorReceiptDigest}.json`,
+  );
+  if (!existsSync(path)) return null;
+  const opened = stableFile(
+    path,
+    1,
+    'NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_FILE_INVALID',
+  );
+  try {
+    let value;
+    try {
+      value = JSON.parse(
+        new TextDecoder('utf-8', { fatal: true }).decode(opened.bytes),
+      );
+    } catch {
+      fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_BYTES_INVALID');
+    }
+    const authority = parseCandidateAuthority(value, { now });
+    const canonical = canonicalCandidateAuthorityBytes(authority);
+    try {
+      if (
+        authority.predecessorReceiptDigest !== predecessorReceiptDigest
+        || !opened.bytes.equals(canonical)
+      ) fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_INVALID');
+    } finally {
+      canonical.fill(0);
+    }
+    const authorityDigest = digest(opened.bytes);
+    const content = readCandidateAuthority({
+      directory,
+      candidateAuthorityDigest: authorityDigest,
+      now,
+    });
+    if (content.authority !== authority) {
+      const contentBytes = canonicalCandidateAuthorityBytes(content.authority);
+      try {
+        if (!opened.bytes.equals(contentBytes)) {
+          fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_INVALID');
+        }
+      } finally {
+        contentBytes.fill(0);
+      }
+    }
+    return Object.freeze({
+      authority,
+      authorityDigest,
+      path: content.path,
+    });
+  } finally {
+    opened.bytes.fill(0);
+  }
+}
+
+function candidateAuthorityPaths(directory, predecessorReceiptDigest, authorityDigest) {
+  return Object.freeze({
+    claim: join(
+      directory,
+      `notification-pages-candidate-claim-${predecessorReceiptDigest}.json`,
+    ),
+    content: join(
+      directory,
+      `notification-pages-candidate-${authorityDigest}.json`,
+    ),
+  });
+}
+
+function retireCandidateAuthority({
+  directory,
+  predecessorReceiptDigest,
+  authorityDigest,
+}) {
+  const paths = candidateAuthorityPaths(
+    directory,
+    predecessorReceiptDigest,
+    authorityDigest,
+  );
+  // Retire content first. If the process dies between unlinks, the fixed
+  // predecessor claim remains sufficient for repair to identify and remove
+  // the orphaned half. Removing the claim first would strand anonymous
+  // content after a crash.
+  for (const path of [paths.content, paths.claim]) {
+    if (!existsSync(path)) continue;
+    const opened = stableFile(
+      path,
+      1,
+      'NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_FILE_INVALID',
+    );
+    try {
+      if (digest(opened.bytes) !== authorityDigest) {
+        fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_INVALID');
+      }
+      const authority = parseCandidateAuthority(JSON.parse(
+        new TextDecoder('utf-8', { fatal: true }).decode(opened.bytes),
+      ));
+      if (authority.predecessorReceiptDigest !== predecessorReceiptDigest) {
+        fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_INVALID');
+      }
+      unlinkExact(path, opened, false);
+      fsyncDirectory(directory);
+    } finally {
+      opened.bytes.fill(0);
+    }
   }
 }
 
@@ -3145,31 +5472,53 @@ export async function promoteNotificationPagesLiveReceipt({
     fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_NOT_HEAD');
   }
   assertCleanProtectedCheckout();
-  const durableAuthority = readCandidateAuthority({
+  return withWriterLock({
     directory,
     repositoryRoot,
+    randomBytesImpl,
+  }, async canonicalDirectory => {
+  const inventory = readInventory(canonicalDirectory, { now });
+  const replaySuccessor = inventory.find(entry =>
+    entry.receipt.pages.sourceCommit === candidate
+    && entry.receipt.chain.candidateAuthorityDigest
+      === candidateAuthorityDigest);
+  if (replaySuccessor !== undefined) {
+    assertInventoryAuthorities(inventory);
+    assertExpectedChainRoot(
+      replaySuccessor,
+      expectedChainRootReceiptDigest,
+      expectedChainRootPagesSourceCommit,
+    );
+    retireCandidateAuthority({
+      directory: canonicalDirectory,
+      predecessorReceiptDigest:
+        replaySuccessor.receipt.chain.previousReceiptDigest,
+      authorityDigest: candidateAuthorityDigest,
+    });
+    const inspected = await inspectEntry(replaySuccessor, fetchImpl, now);
+    assertExactCleanHead(candidate);
+    return Object.freeze({ ...inspected, result: 'unchanged' });
+  }
+  assertInventoryCanAddSuccessor(inventory);
+  assertInventoryAuthorities(inventory);
+  const durableRecord = readCandidateAuthority({
+    directory: canonicalDirectory,
     candidateAuthorityDigest,
     now,
   });
-  if (
-    durableAuthority.candidatePagesSourceCommit !== candidate
-  ) fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_INVALID');
-  const candidateClaim = stableFile(
-    join(
-      ensureNotificationPagesLiveReceiptDirectory({ directory, repositoryRoot }),
-      `notification-pages-candidate-claim-${durableAuthority.predecessorReceiptDigest}.json`,
-    ),
-    1,
-    'NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_FILE_INVALID',
-  );
-  try {
-    if (digest(candidateClaim.bytes) !== candidateAuthorityDigest) {
-      fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_INVALID');
-    }
-  } finally {
-    candidateClaim.bytes.fill(0);
+  const durableAuthority = durableRecord.authority;
+  if (durableAuthority.candidatePagesSourceCommit !== candidate) {
+    fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_INVALID');
   }
-  const inventory = staticInventory({ directory, repositoryRoot, now });
+  const candidateClaim = readCandidateClaim({
+    directory: canonicalDirectory,
+    predecessorReceiptDigest: durableAuthority.predecessorReceiptDigest,
+    now,
+  });
+  if (
+    candidateClaim === null
+    || candidateClaim.authorityDigest !== candidateAuthorityDigest
+  ) fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_INVALID');
   const previousEntry = inventory.find(entry =>
     entry.receipt.pages.sourceCommit
       === durableAuthority.predecessorPagesSourceCommit);
@@ -3188,35 +5537,16 @@ export async function promoteNotificationPagesLiveReceipt({
       !== durableAuthority.chainRootReceiptDigest
     || previousEntry.chainRootPagesSourceCommit
       !== durableAuthority.chainRootPagesSourceCommit
-    || previousEntry.receipt.pages.liveFrontendDigest
-      !== durableAuthority.predeployLiveFrontendDigest
+    || previousEntry.receipt.pages.notificationPresentationDigest
+      !== durableAuthority.predeployNotificationPresentationDigest
   ) fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_INVALID');
   assertAncestor(
     previousEntry.receipt.pages.sourceCommit,
     candidate,
     'NOTIFICATION_PAGES_LIVE_GIT_ANCESTRY_INVALID',
   );
-
-  const exactSuccessor = inventory.find(
-    entry => entry.receipt.pages.sourceCommit === candidate,
-  );
-  if (exactSuccessor !== undefined) {
-    if (
-      exactSuccessor.receipt.chain.previousReceiptDigest
-        !== previousEntry.receiptDigest
-      || exactSuccessor.chainRootReceiptDigest
-        !== durableAuthority.chainRootReceiptDigest
-    ) fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_INVALID');
-    const inspected = await inspectEntry(exactSuccessor, fetchImpl, now);
-    assertExactCleanHead(candidate);
-    return Object.freeze({ ...inspected, result: 'unchanged' });
-  }
-  if (inventory.some(entry =>
-    entry.receipt.chain.previousReceiptDigest === previousEntry.receiptDigest)) {
-    fail('NOTIFICATION_PAGES_LIVE_PREDECESSOR_NOT_TIP');
-  }
-
   const stagedHandoffBinding = durableAuthority.stagedHandoffBinding;
+  assertCandidateReleaseBinding({ candidate, predecessor: previousEntry });
   if (stagedHandoffBinding === null) {
     if (
       previousEntry.receipt.bridge.liveAttestationDigest
@@ -3225,7 +5555,10 @@ export async function promoteNotificationPagesLiveReceipt({
     assertNoDiff(
       previousEntry.receipt.pages.sourceCommit,
       candidate,
-      NOTIFICATION_PAGES_LIVE_PROTECTED_PATHS,
+      candidateDiffProtectedPaths(
+        previousEntry,
+        NOTIFICATION_PAGES_LIVE_CANDIDATE_PROTECTED_PATHS,
+      ),
       'NOTIFICATION_PAGES_LIVE_CANDIDATE_NOTIFICATION_DRIFT',
     );
   } else {
@@ -3237,9 +5570,51 @@ export async function promoteNotificationPagesLiveReceipt({
     assertNoDiff(
       previousEntry.receipt.pages.sourceCommit,
       candidate,
-      NON_STAGED_PROTECTED_PATHS,
+      candidateDiffProtectedPaths(
+        previousEntry,
+        NON_STAGED_PROTECTED_PATHS,
+        true,
+      ),
       'NOTIFICATION_PAGES_LIVE_CANDIDATE_NOTIFICATION_DRIFT',
     );
+  }
+  assertCandidateStaticAuthority({
+    predecessor: previousEntry,
+    candidate,
+    bridgeSourceCommit: stagedHandoffBinding?.bridgeSourceCommit
+      ?? previousEntry.receipt.bridge.sourceCommit,
+    sourceRelease: stagedHandoffBinding?.sourceRelease
+      ?? previousEntry.receipt.sourceRelease,
+    staged: stagedHandoffBinding !== null,
+  });
+
+  const exactSuccessor = inventory.find(
+    entry => entry.receipt.pages.sourceCommit === candidate,
+  );
+  if (exactSuccessor !== undefined) {
+    if (
+      exactSuccessor.receipt.chain.previousReceiptDigest
+        !== previousEntry.receiptDigest
+      || exactSuccessor.chainRootReceiptDigest
+        !== durableAuthority.chainRootReceiptDigest
+      || exactSuccessor.receipt.chain.candidateAuthorityDigest
+        !== candidateAuthorityDigest
+    ) fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_INVALID');
+    retireCandidateAuthority({
+      directory: canonicalDirectory,
+      predecessorReceiptDigest: previousEntry.receiptDigest,
+      authorityDigest: candidateAuthorityDigest,
+    });
+    const inspected = await inspectEntry(exactSuccessor, fetchImpl, now);
+    assertExactCleanHead(candidate);
+    return Object.freeze({ ...inspected, result: 'unchanged' });
+  }
+  if (inventory.some(entry =>
+    entry.receipt.chain.previousReceiptDigest === previousEntry.receiptDigest)) {
+    fail('NOTIFICATION_PAGES_LIVE_PREDECESSOR_NOT_TIP');
+  }
+  if (boundedEntries(canonicalDirectory).length > MAX_DIRECTORY_ENTRIES - 4) {
+    fail('NOTIFICATION_PAGES_LIVE_DIRECTORY_INVENTORY_EXCEEDED');
   }
 
   const frontendAttestation = await fetchExactLiveFrontendAttestation({
@@ -3273,13 +5648,20 @@ export async function promoteNotificationPagesLiveReceipt({
     frontendAttestation,
     liveAttestation: bridge.attestation,
     stagedHandoffBinding,
+    candidateAuthorityDigest,
   });
   assertReceiptGitProvenance(receipt);
   assertExactCleanHead(candidate);
-  return installReceipt({
-    directory,
-    repositoryRoot,
+  const installed = installReceipt({
+    directory: canonicalDirectory,
     receipt,
     randomBytesImpl,
+  });
+  retireCandidateAuthority({
+    directory: canonicalDirectory,
+    predecessorReceiptDigest: previousEntry.receiptDigest,
+    authorityDigest: candidateAuthorityDigest,
+  });
+  return installed;
   });
 }

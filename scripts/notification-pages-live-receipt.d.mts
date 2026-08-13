@@ -6,6 +6,8 @@ export const NOTIFICATION_PAGES_LIVE_PAGES_ORIGIN: 'https://warpkeep.com';
 export const NOTIFICATION_PAGES_LIVE_BRIDGE_ORIGIN:
   'https://auth.warpkeep.com';
 export const NOTIFICATION_PAGES_LIVE_PROTECTED_PATHS: readonly string[];
+export const NOTIFICATION_PAGES_LIVE_CANDIDATE_PROTECTED_PATHS:
+  readonly string[];
 
 export class NotificationPagesLiveReceiptError extends Error {
   readonly code: string;
@@ -62,13 +64,14 @@ export type NotificationPagesLiveReceipt = Readonly<{
     generation: number;
     previousReceiptDigest: string | null;
     previousPagesSourceCommit: string | null;
+    candidateAuthorityDigest: string | null;
   }>;
   pages: Readonly<{
     origin: 'https://warpkeep.com';
     sourceCommit: string;
     liveBuildSha: string;
-    liveFrontendDigest: string;
-    rootAssetCount: number;
+    notificationPresentationDigest: string;
+    notificationPresentationAssetCount: number;
     notificationsPresentationEnabled: true;
     hermesExecutionApprovedAtActivation: false;
   }>;
@@ -110,11 +113,11 @@ export type NotificationPagesLiveInspection = Readonly<{
 }>;
 
 export type NotificationPagesLiveCandidateAuthority =
-  NotificationPagesLiveInspection & Readonly<{
+  Readonly<{
     candidatePagesSourceCommit: string;
     livePagesSourceCommit: string;
   }> & (
-    Readonly<{
+    NotificationPagesLiveInspection & Readonly<{
       candidateAlreadyLive: true;
       candidateAuthorityPath: null;
       candidateAuthorityDigest: null;
@@ -122,11 +125,27 @@ export type NotificationPagesLiveCandidateAuthority =
     }>
     | Readonly<{
       candidateAlreadyLive: false;
+      liveReceiptInspection: Readonly<{
+        path: string;
+        receiptDigest: string;
+        receipt: NotificationPagesLiveReceipt;
+        preparedBinding: NotificationPagesLivePreparedBinding;
+        chainRootReceiptDigest: string;
+        chainRootPagesSourceCommit: string;
+        frontendAttestation: Readonly<{
+          notificationPresentationDigest: string;
+          notificationPresentationAssetCount: number;
+        }>;
+      }>;
       candidateAuthorityPath: string;
       candidateAuthorityDigest: string;
       candidateAuthority: Readonly<Record<string, unknown>>;
-      candidatePreparedBinding: NotificationPagesLivePreparedBinding | null;
-      candidateLiveAttestation: Readonly<Record<string, unknown>> | null;
+      candidatePreparedBinding: NotificationPagesLivePreparedBinding;
+      candidateLiveAttestation: Readonly<Record<string, unknown>>;
+      /** @deprecated Use liveReceiptInspection.preparedBinding. */
+      preparedBinding: NotificationPagesLivePreparedBinding;
+      /** @deprecated Use candidateLiveAttestation. */
+      liveAttestation: Readonly<Record<string, unknown>>;
     }>
   );
 
@@ -151,6 +170,62 @@ export function parseNotificationPagesActivationPhaseSources(
   pagesPresentationEnabled: boolean;
   hermesExecutionApproved: boolean;
 }>;
+
+export function assertNotificationPagesLiveHermesSourceTransition(
+  sources: Readonly<{
+    predecessorHermesSource: string;
+    candidateHermesSource: string;
+    staged: boolean;
+    predecessorRootBound: boolean;
+  }>,
+): Readonly<{
+  predecessorHermesExecutionApproved: boolean;
+  candidateHermesExecutionApproved: boolean;
+}>;
+
+export function parseNotificationPagesLiveReleaseBindingSource(
+  source: string,
+): Readonly<{
+  notificationPagesLiveRootReceiptDigest: string | null;
+  notificationPagesLiveRootPagesSourceCommit: string | null;
+  sourceProjectionDigest: string;
+}>;
+
+export function deriveNotificationPagesLivePresentationSourceClosure(
+  options: Readonly<{
+    sourceCommit: string;
+  }>,
+): readonly string[];
+
+export function assertNotificationPagesLivePresentationSourceNoDrift(
+  options: Readonly<{
+    predecessorSourceCommit: string;
+    candidateSourceCommit: string;
+  }>,
+): readonly string[];
+
+export function reconcileNotificationPagesLiveCandidate(options: Readonly<{
+  repositoryRoot: string;
+  candidatePagesSourceCommit: string;
+  fetchImpl?: typeof fetch;
+}>): Promise<Readonly<
+  | {
+    status: 'exact-current';
+    candidatePagesSourceCommit: string;
+    notificationPresentationDigest: string;
+    notificationPresentationAssetCount: number;
+  }
+  | {
+    /**
+     * The current public response names another exact build. This is safe to
+     * use only before a durable deploy-invoked journal transition; it does not
+     * prove that no Pages deployment has already been invoked.
+     */
+    status: 'definitely-not-current';
+    candidatePagesSourceCommit: string;
+    observedPagesSourceCommit: string;
+  }
+>>;
 
 export function writePrivateNotificationPagesLiveReceipt(options: Readonly<{
   directory: string;
