@@ -12,4 +12,4 @@ overrides:
   postcss: 8.5.25
   # PostCSS's compatible range otherwise resolves to Nano ID 3.3.16, affected
   # by GHSA-2v37-7h3g-55p8. Keep the patched release until upstream raises it.
-  nanoid: 3.3.17
+  nanoid: 3.3.18

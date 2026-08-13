@@ -86,7 +86,7 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     || installedToolchain.profile
       !== 'warpkeep-auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1'
     || installedToolchain.lockfileSha256
-      !== '41642a1ffb9de21d5f552133fa6dec873362f692c6a440b85c895d928052c768'
+      !== 'e162613375a2a5534a631d38e9cf2d2b9a66bdeb4ff05be63376afaf57f7fde9'
     || installedToolchain.packageManager !== 'pnpm@11.7.0'
     || installedToolchain.platform !== 'darwin'
     || installedToolchain.architecture !== 'arm64'
