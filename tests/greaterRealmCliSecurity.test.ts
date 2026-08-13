@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { spawnSync } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import {
   chmodSync,
   existsSync,
@@ -71,9 +71,20 @@ function provenanceFixture() {
     'spacetimedb/src/ignored-drift.ts\n',
   );
   writeFileSync(join(root, 'spacetimedb', 'src', 'world.ts'), 'export const world = 1;\n');
+  writeFileSync(
+    join(root, 'spacetimedb', 'src', 'greaterRealmV17Policy.ts'),
+    'export const GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED = false;\n'
+      + 'export const GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED = false;\n',
+  );
   writeFileSync(join(root, 'client', 'renderer.ts'), 'export const renderer = 1;\n');
   runFixtureGit(root, ['init', '--quiet']);
-  runFixtureGit(root, ['add', '.gitignore', 'spacetimedb/src/world.ts', 'client/renderer.ts']);
+  runFixtureGit(root, [
+    'add',
+    '.gitignore',
+    'spacetimedb/src/greaterRealmV17Policy.ts',
+    'spacetimedb/src/world.ts',
+    'client/renderer.ts',
+  ]);
   runFixtureGit(root, [
     '-c', 'user.name=Warpkeep Test',
     '-c', 'user.email=warpkeep-test@example.invalid',
@@ -395,6 +406,46 @@ describe('Greater Realm atlas CLI security boundary', () => {
     }
   });
 
+  it('accepts only one verified batch handle for the fixed pending-owner export', () => {
+    expect(greaterRealmCliArgumentTestSeams.pendingOwnerReportExport([
+      '--batch',
+      'GR-B-AAAAAAAAAAAAAAAA',
+    ])).toEqual(expect.objectContaining({
+      command: 'export-pending-owner-report',
+      batchHandle: 'GR-B-AAAAAAAAAAAAAAAA',
+    }));
+    for (const rejected of [
+      [],
+      ['--batch', 'GR-B-AAAAAAAAAAAAAAAA', '--output', '/tmp/report.json'],
+      ['--batch', 'GR-B-AAAAAAAAAAAAAAAA', '--input', '/tmp/report.json'],
+      ['--batch', 'GR-B-AAAAAAAAAAAAAAAA', '--candidate', 'GR-A-AAAAAAAAAAAAAAAA'],
+      ['--batch', 'GR-B-AAAAAAAAAAAAAAAA', '--resume'],
+    ]) {
+      expect(() => greaterRealmCliArgumentTestSeams.pendingOwnerReportExport(rejected))
+        .toThrow('GREATER_REALM_CLI_ARGUMENTS_INVALID');
+    }
+  });
+
+  it('accepts only one verified batch handle for owner-private report retention', () => {
+    expect(greaterRealmCliArgumentTestSeams.pendingOwnerReportRetention([
+      '--batch',
+      'GR-B-AAAAAAAAAAAAAAAA',
+    ])).toEqual(expect.objectContaining({
+      command: 'retain-pending-owner-report',
+      batchHandle: 'GR-B-AAAAAAAAAAAAAAAA',
+    }));
+    for (const rejected of [
+      [],
+      ['--batch', 'GR-B-AAAAAAAAAAAAAAAA', '--output', '/tmp/report.json'],
+      ['--batch', 'GR-B-AAAAAAAAAAAAAAAA', '--input', '/tmp/report.json'],
+      ['--batch', 'GR-B-AAAAAAAAAAAAAAAA', '--candidate', 'GR-A-AAAAAAAAAAAAAAAA'],
+      ['--batch', 'GR-B-AAAAAAAAAAAAAAAA', '--resume'],
+    ]) {
+      expect(() => greaterRealmCliArgumentTestSeams.pendingOwnerReportRetention(rejected))
+        .toThrow('GREATER_REALM_CLI_ARGUMENTS_INVALID');
+    }
+  });
+
   it('binds accepted replay to atlas and manifest authority together', () => {
     const atlasDigest = 'a'.repeat(64);
     const manifestDigest = 'b'.repeat(64);
@@ -466,24 +517,93 @@ describe('Greater Realm atlas CLI security boundary', () => {
     }
   });
 
-  it('permits resume past only the exact recoverable pending-report artifacts', () => {
-    const report = greaterRealmPublicEvidenceTestSeams.pendingOwnerReportPath;
-    const temporary = `${report}.${randomUUID()}.tmp`;
-    expect(greaterRealmPublicEvidenceTestSeams.isRecoverablePendingOwnerReportStatus(
-      `?? ${report}\0`,
-    )).toBe(true);
-    expect(greaterRealmPublicEvidenceTestSeams.isRecoverablePendingOwnerReportStatus(
-      `?? ${report}\0?? ${temporary}\0`,
-    )).toBe(true);
-    for (const status of [
-      ` M ${report}\0`,
-      `?? ${report}.not-a-writer-temp.tmp\0`,
-      `?? docs/evidence/greater-realm/unrelated.json\0`,
-      `?? ${report}\0?? package.json\0`,
-    ]) {
-      expect(greaterRealmPublicEvidenceTestSeams
-        .isRecoverablePendingOwnerReportStatus(status)).toBe(false);
+  it('requires an exactly clean C3 Git tree before preparing the C4 report', () => {
+    const fixture = provenanceFixture();
+    expect(greaterRealmCliArgumentTestSeams.cleanSourceCommit(fixture.root))
+      .toBe(fixture.commit);
+
+    writeFileSync(join(fixture.root, 'outside-scope.txt'), 'dirty source\n');
+    expect(() => greaterRealmCliArgumentTestSeams.cleanSourceCommit(fixture.root))
+      .toThrow('GREATER_REALM_CLI_SOURCE_TREE_DIRTY');
+  });
+
+  it('allows only the exact C0-to-C3 v17 policy transition while preparing C4', () => {
+    const fixture = provenanceFixture();
+    writeFileSync(
+      join(fixture.root, 'spacetimedb', 'src', 'greaterRealmV17Policy.ts'),
+      'export const GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED = false;\n'
+        + 'export const GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED = true;\n',
+    );
+    runFixtureGit(fixture.root, ['add', 'spacetimedb/src/greaterRealmV17Policy.ts']);
+    runFixtureGit(fixture.root, [
+      '-c', 'user.name=Warpkeep Test',
+      '-c', 'user.email=warpkeep-test@example.invalid',
+      'commit', '--quiet', '-m', 'reviewed v17 transition',
+    ]);
+    expect(() => greaterRealmCliArgumentTestSeams
+      .assertRetainedPendingOwnerSourceLineage(
+        fixture.commit,
+        fixture.root,
+      ))
+      .not.toThrow();
+
+    writeFileSync(
+      join(fixture.root, 'spacetimedb', 'src', 'world.ts'),
+      'export const world = 2;\n',
+    );
+    runFixtureGit(fixture.root, ['add', 'spacetimedb/src/world.ts']);
+    runFixtureGit(fixture.root, [
+      '-c', 'user.name=Warpkeep Test',
+      '-c', 'user.email=warpkeep-test@example.invalid',
+      'commit', '--quiet', '-m', 'unreviewed generator drift',
+    ]);
+    expect(() => greaterRealmCliArgumentTestSeams
+      .assertRetainedPendingOwnerSourceLineage(fixture.commit, fixture.root))
+      .toThrow('GREATER_REALM_PENDING_OWNER_REPORT_SOURCE_LINEAGE_INVALID');
+  });
+
+  it('phase-bounds retained publication to inert 0.3.43 activation-only source', () => {
+    expect(() => greaterRealmCliArgumentTestSeams
+      .assertPendingOwnerRetentionSourcePhase('pre-generation'))
+      .not.toThrow();
+    for (const phase of ['closed-review', 'import-only', 'activation-only']) {
+      expect(() => greaterRealmCliArgumentTestSeams
+        .assertPendingOwnerRetentionSourcePhase(phase))
+        .toThrow('GREATER_REALM_RETAINED_PENDING_OWNER_REPORT_SOURCE_PHASE_INVALID');
     }
+
+    expect(() => greaterRealmCliArgumentTestSeams
+      .assertPendingOwnerPublicationSourcePhase('activation-only'))
+      .not.toThrow();
+    for (const phase of ['pre-generation', 'import-only', 'activation-client']) {
+      expect(() => greaterRealmCliArgumentTestSeams
+        .assertPendingOwnerPublicationSourcePhase(phase))
+        .toThrow('GREATER_REALM_PENDING_OWNER_REPORT_SOURCE_PHASE_INVALID');
+    }
+
+    const fixture = publicEvidenceFixture();
+    writeFileSync(join(fixture.repositoryRoot, 'package.json'), JSON.stringify({
+      name: 'warpkeep',
+      version: '0.3.43',
+      description: 'A Farcaster-connected persistent strategy world in active Alpha development.',
+    }));
+    writeFileSync(join(fixture.repositoryRoot, 'package-lock.json'), JSON.stringify({
+      name: 'warpkeep',
+      version: '0.3.43',
+      packages: { '': { name: 'warpkeep', version: '0.3.43' } },
+    }));
+    expect(() => greaterRealmCliArgumentTestSeams
+      .assertPendingOwnerPublicationReleaseIdentity(fixture.repositoryRoot))
+      .not.toThrow();
+
+    writeFileSync(join(fixture.repositoryRoot, 'package.json'), JSON.stringify({
+      name: 'warpkeep',
+      version: '0.3.44',
+      description: 'A six-region world foundation is available; the core gameplay loop remains incomplete. Invite-only Alpha.',
+    }));
+    expect(() => greaterRealmCliArgumentTestSeams
+      .assertPendingOwnerPublicationReleaseIdentity(fixture.repositoryRoot))
+      .toThrow('GREATER_REALM_PENDING_OWNER_REPORT_RELEASE_IDENTITY_INVALID');
   });
 
   it('regenerates rejected attempts and rejects a tampered failure ledger', () => {

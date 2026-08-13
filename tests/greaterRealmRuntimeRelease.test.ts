@@ -40,6 +40,7 @@ import {
   GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
   GREATER_REALM_RUNTIME_FRAMING_SPEC_V1,
   GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH,
+  assertGreaterRealmRuntimeReleaseMatches,
   createGreaterRealmRuntimeRelease,
   greaterRealmRuntimeReleaseTestSeams,
   openOrCreateGreaterRealmRuntimeReleaseSeed,
@@ -1558,6 +1559,57 @@ describe('Greater Realm declassified runtime release', () => {
       .toBe(0o600);
     expect(statSync(join(workspaceRoot, GREATER_REALM_RUNTIME_RELEASE_DIRECTORY)).mode & 0o777)
       .toBe(0o700);
+  });
+
+  it('rejects a stale release from another selected candidate at the same C0', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-runtime-release-stale-batch-'));
+    temporaryRoots.push(root);
+    const repositoryRoot = join(root, 'repository');
+    const workspaceRoot = join(root, 'private-workspace');
+    mkdirSync(repositoryRoot, { mode: 0o700 });
+    const workspace = openGreaterRealmPrivateWorkspace({ repositoryRoot, workspaceRoot });
+    const secondCandidate = createGreaterRealmRuntimeReleaseFixtureSource();
+    const seed = openOrCreateGreaterRealmRuntimeReleaseSeed(workspace);
+    let selectedRelease: GreaterRealmRuntimeReleaseArtifacts | undefined;
+    let staleForSelection: GreaterRealmRuntimeReleaseArtifacts | undefined;
+    try {
+      const changedCell = secondCandidate.regionId.findIndex(region => region === 1);
+      expect(changedCell).toBeGreaterThanOrEqual(0);
+      secondCandidate.vegetationDensity[changedCell] =
+        secondCandidate.vegetationDensity[changedCell] === 255 ? 0 : 255;
+      staleForSelection = createGreaterRealmRuntimeRelease({
+        source,
+        sourceCommit: GREATER_REALM_RUNTIME_RELEASE_FIXTURE_SOURCE_COMMIT,
+        releaseSeed: seed,
+      });
+      selectedRelease = createGreaterRealmRuntimeRelease({
+        source: secondCandidate,
+        sourceCommit: GREATER_REALM_RUNTIME_RELEASE_FIXTURE_SOURCE_COMMIT,
+        releaseSeed: seed,
+      });
+      expect(staleForSelection.manifest.sourceCommit)
+        .toBe(selectedRelease.manifest.sourceCommit);
+      expect(staleForSelection.manifest.generatorVersion)
+        .toBe(selectedRelease.manifest.generatorVersion);
+      expect(staleForSelection.chunks.map(chunk => chunk.bytes))
+        .not.toEqual(selectedRelease.chunks.map(chunk => chunk.bytes));
+      await expect(writeGreaterRealmRuntimeRelease({
+        workspace,
+        artifacts: staleForSelection,
+      })).resolves.toBe('installed');
+      expect(() => assertGreaterRealmRuntimeReleaseMatches(workspace, staleForSelection!))
+        .not.toThrow();
+      expect(() => assertGreaterRealmRuntimeReleaseMatches(workspace, selectedRelease!))
+        .toThrow('GREATER_REALM_RUNTIME_RELEASE_REPLAY_MISMATCH');
+    } finally {
+      seed.fill(0);
+      secondCandidate.grid.clearIndex?.();
+      for (const release of [selectedRelease, staleForSelection]) {
+        release?.manifestBytes.fill(0);
+        release?.statusBytes.fill(0);
+        for (const chunk of release?.chunks ?? []) chunk.bytes.fill(0);
+      }
+    }
   });
 
   it('fails closed when publication lacks its separate seed control', async () => {

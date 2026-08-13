@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import {
@@ -29,9 +31,15 @@ import {
   createGreaterRealmSanitizedReview,
 } from '../scripts/atlas/greater-realm-sanitized-review';
 import { greaterRealmPublicEvidenceTestSeams } from '../scripts/atlas/greater-realm-cli';
+import { runGreaterRealmTrustedGit } from '../scripts/atlas/greater-realm-git';
+import { openGreaterRealmPrivateWorkspace } from '../scripts/atlas/greater-realm-private-workspace';
 
 const CANDIDATE_HANDLE = 'GR-A-AAAAAAAAAAAAAAAA';
 const REVIEW_BATCH_HANDLE = 'GR-B-BBBBBBBBBBBBBBBB';
+const SOURCE_CLOSURE = Object.freeze({
+  profile: 'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1' as const,
+  manifestSha256: 'e'.repeat(64),
+});
 
 function candidate(
   candidateHandle = CANDIDATE_HANDLE,
@@ -120,8 +128,37 @@ function sanitizedReview(
   return createGreaterRealmSanitizedReview(reviewSource(candidates));
 }
 
+function privateBatchBinding(review = sanitizedReview()) {
+  return Object.freeze({
+    sourceCommit: review.sourceCommit,
+    batchSeedDigest: 'b'.repeat(64),
+    sanitizedReviewDigest: review.reportDigest,
+    requestedCount: 1,
+    maximumAttempts: 1,
+    attemptsUsed: 1,
+    candidates: Object.freeze([Object.freeze({
+      candidateHandle: review.candidates[0]!.candidateHandle,
+      candidateOrdinal: 0,
+      manifestDigest: 'c'.repeat(64),
+      atlasDigest: 'd'.repeat(64),
+    })]),
+    rejectedAttempts: Object.freeze([]),
+  });
+}
+
+function runFixtureGit(repositoryRoot: string, arguments_: readonly string[]): string {
+  const result = runGreaterRealmTrustedGit(arguments_, repositoryRoot);
+  if (
+    result.error
+    || result.signal !== null
+    || result.status !== 0
+    || result.stderr.length !== 0
+  ) throw new Error('GREATER_REALM_PENDING_OWNER_TEST_GIT_FAILED');
+  return result.stdout.trim();
+}
+
 describe('Greater Realm pending owner report', () => {
-  it('projects one verified sanitized world into an explicit pending owner state', () => {
+  it('projects one verified world into an explicit historical retention state', () => {
     const source = sanitizedReview();
     const report = createGreaterRealmPendingOwnerReport({
       sanitizedReview: source,
@@ -130,19 +167,21 @@ describe('Greater Realm pending owner report', () => {
 
     expect(report).toMatchObject({
       schema: GREATER_REALM_PENDING_OWNER_REPORT_SCHEMA,
+      snapshotLifecycle: 'retained-before-owner-selection',
       atlasId: 'GENESIS_001_GREATER_REALM',
-      worldCount: 1,
-      automatedValidationStatus: 'private-package-and-sanitized-aggregate-verified',
-      ownerValidationStatus: 'pending',
-      selectionStatus: 'pending',
-      selectedCandidateHandle: null,
-      activationStatus: 'inactive',
-      productionUntouched: true,
+      worldCountAtRetention: 1,
+      automatedValidationAtRetention:
+        'private-package-and-sanitized-aggregate-verified',
+      ownerValidationAtRetention: 'pending',
+      selectionAtRetention: 'pending',
+      selectedCandidateHandleAtRetention: null,
+      activationAtRetention: 'inactive',
+      productionAtRetention: 'untouched',
       sourceReportDigest: source.reportDigest,
     });
-    expect(report.candidate).toEqual(source.candidates[0]);
-    expect(report.candidate.insideApprovedRange).toBe(true);
-    expect(Object.values(report.candidate.proofs).every(Boolean)).toBe(true);
+    expect(report.candidateAtRetention).toEqual(source.candidates[0]);
+    expect(report.candidateAtRetention.insideApprovedRange).toBe(true);
+    expect(Object.values(report.candidateAtRetention.proofs).every(Boolean)).toBe(true);
     expect(Object.isFrozen(report)).toBe(true);
   });
 
@@ -159,9 +198,9 @@ describe('Greater Realm pending owner report', () => {
     expect(parseGreaterRealmPendingOwnerReport(JSON.parse(first))).toEqual(report);
 
     const tampered = structuredClone(report) as unknown as {
-      candidate: { quality: { naturalnessBasisPoints: number } };
+      candidateAtRetention: { quality: { naturalnessBasisPoints: number } };
     };
-    tampered.candidate.quality.naturalnessBasisPoints -= 1;
+    tampered.candidateAtRetention.quality.naturalnessBasisPoints -= 1;
     expect(() => parseGreaterRealmPendingOwnerReport(tampered)).toThrow(
       'GREATER_REALM_SANITIZED_REVIEW_DIGEST_MISMATCH',
     );
@@ -218,6 +257,39 @@ describe('Greater Realm pending owner report', () => {
       ...report,
       hiddenSeed: 'not-public',
     })).toThrow('GREATER_REALM_PENDING_OWNER_REPORT_INVALID');
+
+    const { snapshotLifecycle: _historicalMarker, ...ambiguous } = report;
+    expect(() => parseGreaterRealmPendingOwnerReport({
+      ...ambiguous,
+      worldCount: 1,
+      candidate: report.candidateAtRetention,
+      automatedValidationStatus:
+        'private-package-and-sanitized-aggregate-verified',
+      ownerValidationStatus: 'pending',
+      selectionStatus: 'pending',
+      selectedCandidateHandle: null,
+      activationStatus: 'inactive',
+      productionUntouched: true,
+    })).toThrow('GREATER_REALM_PENDING_OWNER_REPORT_INVALID');
+
+    expect(() => parseGreaterRealmPendingOwnerReport({
+      schema: 'warpkeep.greater-realm.pending-owner-report.v1',
+      atlasId: report.atlasId,
+      generatorVersion: report.generatorVersion,
+      sourceCommit: report.sourceCommit,
+      reviewBatchHandle: report.reviewBatchHandle,
+      sourceReportDigest: report.sourceReportDigest,
+      worldCount: 1,
+      candidate: report.candidateAtRetention,
+      automatedValidationStatus:
+        'private-package-and-sanitized-aggregate-verified',
+      ownerValidationStatus: 'pending',
+      selectionStatus: 'pending',
+      selectedCandidateHandle: null,
+      activationStatus: 'inactive',
+      productionUntouched: true,
+      privacyBoundary: report.privacyBoundary,
+    })).toThrow('GREATER_REALM_PENDING_OWNER_REPORT_INVALID');
   });
 
   it('rejects source accessors without executing them', () => {
@@ -250,11 +322,14 @@ describe('Greater Realm pending owner report', () => {
     expect(serialized).not.toMatch(
       /(?:coordinate|seedMaterial|transform|chunkKey|layoutDigest|stageDigest|packageDigest|preview|screenshot|imagePath)/iu,
     );
-    expect(serialized).toContain('"ownerValidationStatus": "pending"');
-    expect(serialized).toContain('"activationStatus": "inactive"');
+    expect(serialized).toContain('"ownerValidationAtRetention": "pending"');
+    expect(serialized).toContain('"activationAtRetention": "inactive"');
+    expect(serialized).not.toMatch(
+      /"(?:ownerValidationStatus|selectionStatus|activationStatus|productionUntouched)"/u,
+    );
   });
 
-  it('installs only reparsed canonical bytes with pinned public metadata', () => {
+  it('exports only reparsed canonical bytes with pinned public metadata', () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), 'warpkeep-pending-owner-install-')));
     const repositoryRoot = join(root, 'repository');
     const evidenceRoot = join(repositoryRoot, 'docs', 'evidence', 'greater-realm');
@@ -267,7 +342,7 @@ describe('Greater Realm pending owner report', () => {
     try {
       const abandoned = `${destination}.${randomUUID()}.tmp`;
       writeFileSync(abandoned, 'partial', { mode: 0o600 });
-      greaterRealmPublicEvidenceTestSeams.installPendingOwnerReport({
+      greaterRealmPublicEvidenceTestSeams.exportPendingOwnerReport({
         repositoryRoot,
         review,
       });
@@ -285,14 +360,14 @@ describe('Greater Realm pending owner report', () => {
       const linked = `${destination}.${randomUUID()}.tmp`;
       linkSync(destination, linked);
       expect(statSync(destination).nlink).toBe(2);
-      greaterRealmPublicEvidenceTestSeams.installPendingOwnerReport({
+      greaterRealmPublicEvidenceTestSeams.exportPendingOwnerReport({
         repositoryRoot,
         review,
       });
       expect(existsSync(linked)).toBe(false);
       expect(statSync(destination).nlink).toBe(1);
       writeFileSync(destination, '{}\n', { mode: 0o644 });
-      expect(() => greaterRealmPublicEvidenceTestSeams.installPendingOwnerReport({
+      expect(() => greaterRealmPublicEvidenceTestSeams.exportPendingOwnerReport({
         repositoryRoot,
         review,
       })).toThrow();
@@ -300,5 +375,231 @@ describe('Greater Realm pending owner report', () => {
     } finally {
       rmSync(root, { force: true, recursive: true });
     }
+  });
+
+  it('atomically retains one immutable owner-private snapshot before selection', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'warpkeep-pending-owner-retain-')));
+    const repositoryRoot = join(root, 'repository');
+    const workspaceRoot = join(root, 'owner-workspace');
+    mkdirSync(repositoryRoot, { mode: 0o755 });
+    const workspace = openGreaterRealmPrivateWorkspace({
+      repositoryRoot,
+      workspaceRoot,
+    });
+    const review = sanitizedReview();
+    const batch = privateBatchBinding(review);
+    try {
+      const first = await greaterRealmPublicEvidenceTestSeams.retainPendingOwnerReport({
+        workspace,
+        pendingReview: review,
+        batch,
+        sourceClosure: SOURCE_CLOSURE,
+      });
+      const second = await greaterRealmPublicEvidenceTestSeams.retainPendingOwnerReport({
+        workspace,
+        pendingReview: review,
+        batch,
+        sourceClosure: SOURCE_CLOSURE,
+      });
+      expect(second).toBe(first);
+      expect(first).toBe(serializeGreaterRealmPendingOwnerReport(
+        createGreaterRealmPendingOwnerReport({
+          sanitizedReview: review,
+          privatePackageVerified: true,
+        }),
+      ));
+      expect(workspace.attestTree(
+        greaterRealmPublicEvidenceTestSeams.retainedPendingOwnerReportDirectory(
+          review.reviewBatchHandle,
+        ),
+      )).toEqual({
+        directoryCount: 1,
+        entryCount: 3,
+        fileCount: 2,
+        byteCount: expect.any(Number),
+      });
+      expect(existsSync(join(
+        repositoryRoot,
+        greaterRealmPublicEvidenceTestSeams.pendingOwnerReportPath,
+      ))).toBe(false);
+
+      expect(() => greaterRealmPublicEvidenceTestSeams.readRetainedPendingOwnerReport({
+        workspace,
+        pendingReview: review,
+        batch: Object.freeze({
+          ...batch,
+          candidates: Object.freeze([Object.freeze({
+            ...batch.candidates[0]!,
+            atlasDigest: 'e'.repeat(64),
+          })]),
+        }),
+        sourceClosure: SOURCE_CLOSURE,
+      })).toThrow('GREATER_REALM_RETAINED_PENDING_OWNER_REPORT_INVALID');
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it('recovers only the fixed C3 writer namespace and rejects wrong replay bytes or drift', () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'warpkeep-pending-owner-c4-prep-')));
+    const repositoryRoot = join(root, 'repository');
+    const evidenceRoot = join(repositoryRoot, 'docs', 'evidence', 'greater-realm');
+    mkdirSync(evidenceRoot, { recursive: true, mode: 0o755 });
+    writeFileSync(join(repositoryRoot, 'baseline.txt'), 'clean C3\n');
+    runFixtureGit(repositoryRoot, ['init', '--quiet']);
+    runFixtureGit(repositoryRoot, ['add', 'baseline.txt']);
+    runFixtureGit(repositoryRoot, [
+      '-c', 'user.name=Warpkeep Test',
+      '-c', 'user.email=warpkeep-test@example.invalid',
+      'commit', '--quiet', '-m', 'C3 fixture',
+    ]);
+    const head = runFixtureGit(repositoryRoot, ['rev-parse', '--verify', 'HEAD^{commit}']);
+    const review = sanitizedReview();
+    const bytes = Buffer.from(serializeGreaterRealmPendingOwnerReport(
+      createGreaterRealmPendingOwnerReport({
+        sanitizedReview: review,
+        privatePackageVerified: true,
+      }),
+    ), 'utf8');
+    const path = join(
+      repositoryRoot,
+      greaterRealmPublicEvidenceTestSeams.pendingOwnerReportPath,
+    );
+    try {
+      const interruptedTemporary = `${path}.${randomUUID()}.tmp`;
+      writeFileSync(interruptedTemporary, 'interrupted write', { mode: 0o600 });
+      expect(greaterRealmPublicEvidenceTestSeams
+        .pendingOwnerReportStartupSourceCommit(repositoryRoot)).toBe(head);
+      greaterRealmPublicEvidenceTestSeams.exportPendingOwnerReport({
+        repositoryRoot,
+        review,
+      });
+      expect(existsSync(interruptedTemporary)).toBe(false);
+      expect(readFileSync(path)).toEqual(bytes);
+      expect(greaterRealmPublicEvidenceTestSeams
+        .pendingOwnerReportStartupSourceCommit(repositoryRoot)).toBe(head);
+      expect(greaterRealmPublicEvidenceTestSeams.assertPreparedWorktree({
+        repositoryRoot,
+        expectedHead: head,
+        expectedBytes: bytes,
+      })).toBe('fixed-untracked-snapshot');
+
+      const linkedTemporary = `${path}.${randomUUID()}.tmp`;
+      linkSync(path, linkedTemporary);
+      expect(statSync(path).nlink).toBe(2);
+      expect(greaterRealmPublicEvidenceTestSeams
+        .pendingOwnerReportStartupSourceCommit(repositoryRoot)).toBe(head);
+      greaterRealmPublicEvidenceTestSeams.exportPendingOwnerReport({
+        repositoryRoot,
+        review,
+      });
+      expect(existsSync(linkedTemporary)).toBe(false);
+      expect(statSync(path).nlink).toBe(1);
+      expect(readFileSync(path)).toEqual(bytes);
+
+      writeFileSync(path, '{}\n', { mode: 0o644 });
+      expect(greaterRealmPublicEvidenceTestSeams
+        .pendingOwnerReportStartupSourceCommit(repositoryRoot)).toBe(head);
+      expect(() => greaterRealmPublicEvidenceTestSeams.exportPendingOwnerReport({
+        repositoryRoot,
+        review,
+      })).toThrow();
+      expect(readFileSync(path, 'utf8')).toBe('{}\n');
+      writeFileSync(path, bytes, { mode: 0o644 });
+
+      writeFileSync(join(repositoryRoot, 'unexpected.txt'), 'drift\n');
+      expect(() => greaterRealmPublicEvidenceTestSeams
+        .pendingOwnerReportStartupSourceCommit(repositoryRoot))
+        .toThrow('GREATER_REALM_CLI_SOURCE_TREE_DIRTY');
+      expect(() => greaterRealmPublicEvidenceTestSeams.assertPreparedWorktree({
+        repositoryRoot,
+        expectedHead: head,
+        expectedBytes: bytes,
+      })).toThrow('GREATER_REALM_PENDING_OWNER_REPORT_POSTCONDITION_INVALID');
+      rmSync(join(repositoryRoot, 'unexpected.txt'));
+
+      runFixtureGit(repositoryRoot, [
+        'add',
+        greaterRealmPublicEvidenceTestSeams.pendingOwnerReportPath,
+      ]);
+      runFixtureGit(repositoryRoot, [
+        '-c', 'user.name=Warpkeep Test',
+        '-c', 'user.email=warpkeep-test@example.invalid',
+        'commit', '--quiet', '-m', 'track exact snapshot',
+      ]);
+      const trackedHead = runFixtureGit(
+        repositoryRoot,
+        ['rev-parse', '--verify', 'HEAD^{commit}'],
+      );
+      expect(greaterRealmPublicEvidenceTestSeams.assertPreparedWorktree({
+        repositoryRoot,
+        expectedHead: trackedHead,
+        expectedBytes: bytes,
+      })).toBe('exact-tracked-replay');
+    } finally {
+      bytes.fill(0);
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it('keeps generation and resume paths private until the explicit report export', () => {
+    const source = readFileSync(
+      join(process.cwd(), 'scripts', 'atlas', 'greater-realm-cli.ts'),
+      'utf8',
+    );
+    const start = source.indexOf('async function generateSingleWorldCandidate(');
+    const end = source.indexOf('async function abortSingleWorldCandidateGeneration(');
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+    const generationAndResume = source.slice(start, end);
+
+    expect(generationAndResume).not.toContain('exportPendingOwnerReport(');
+    expect(generationAndResume).not.toContain(
+      'docs/evidence/greater-realm/pending-owner-review-v1.json',
+    );
+    expect(source).toContain("arguments_.command === 'retain-pending-owner-report'");
+    expect(source).toContain("arguments_.command === 'export-pending-owner-report'");
+    expect(source).not.toContain('allowPendingOwnerReportRecovery');
+    expect(source.indexOf('retainPendingOwnerReport(')).toBeGreaterThan(end);
+    expect(source.indexOf('exportPendingOwnerReport(retainedBytes);')).toBeGreaterThan(end);
+    const exportBranch = source.indexOf(
+      "if (arguments_.command === 'export-pending-owner-report') {",
+    );
+    const runtimeLock = source.indexOf("'locks/runtime-release-v1.lock'", exportBranch);
+    const batchLock = source.indexOf('`locks/${batchHandle}.selection.lock`', runtimeLock);
+    const installedReleaseRead = source.indexOf(
+      'const installedRuntimeRelease = readGreaterRealmRuntimeRelease(workspace);',
+      batchLock,
+    );
+    const releaseSeedOpen = source.indexOf(
+      'const releaseSeed = openOrCreateGreaterRealmRuntimeReleaseSeed(workspace);',
+      installedReleaseRead,
+    );
+    const exactRuntimeMatch = source.indexOf(
+      'assertGreaterRealmRuntimeReleaseMatches(workspace, expectedRuntimeRelease);',
+      releaseSeedOpen,
+    );
+    const publicInstall = source.indexOf(
+      'exportPendingOwnerReport(retainedBytes);',
+      exactRuntimeMatch,
+    );
+    expect(exportBranch).toBeGreaterThanOrEqual(0);
+    expect(runtimeLock).toBeGreaterThan(exportBranch);
+    expect(batchLock).toBeGreaterThan(runtimeLock);
+    expect(installedReleaseRead).toBeGreaterThan(batchLock);
+    expect(releaseSeedOpen).toBeGreaterThan(installedReleaseRead);
+    expect(exactRuntimeMatch).toBeGreaterThan(releaseSeedOpen);
+    expect(publicInstall).toBeGreaterThan(exactRuntimeMatch);
+    const bootstrap = readFileSync(
+      join(
+        process.cwd(),
+        'scripts',
+        'atlas',
+        'greater-realm-toolchain-bootstrap.mjs',
+      ),
+      'utf8',
+    );
+    expect(bootstrap).toContain("'retain-pending-owner-report'");
+    expect(bootstrap).toContain("'export-pending-owner-report'");
   });
 });

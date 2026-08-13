@@ -30,6 +30,13 @@ const SOURCE_CLOSURE_PROFILE =
   'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1';
 const SOURCE_CLOSURE_MANIFEST_PATH =
   'scripts/auth-bridge-notification-prepared-deploy-closure-v1.json';
+const RAW_FILE_SOURCE_DIGEST_PROFILE = 'raw-file-sha256-v1';
+const SOURCE_DIGEST_PROFILES = new Set([
+  RAW_FILE_SOURCE_DIGEST_PROFILE,
+  'bootstrap-pin-projection-sha256-v1',
+  'reviewed-release-transition-projection-sha256-v1',
+  'reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1',
+]);
 const SERVICE_PATH = 'services/auth-bridge';
 const VIRTUAL_STORE_PATH = `${SERVICE_PATH}/node_modules/.pnpm`;
 const LOCKFILE_PATH = `${SERVICE_PATH}/pnpm-lock.yaml`;
@@ -37,7 +44,7 @@ const INSTALLED_LOCKFILE_PATH = `${VIRTUAL_STORE_PATH}/lock.yaml`;
 const PACKAGE_MANAGER = 'pnpm@11.7.0';
 const WRANGLER_VERSION = '4.110.0';
 const MAX_MANIFEST_BYTES = 32 * 1_024;
-const MAX_SOURCE_MANIFEST_BYTES = 64 * 1_024;
+const MAX_SOURCE_MANIFEST_BYTES = 192 * 1_024;
 const MAX_ENTRIES = 25_000;
 const MAX_DIRECTORIES = 4_000;
 const MAX_FILES = 20_000;
@@ -438,28 +445,34 @@ function sourceManifestBinding(repository, installedManifestSha256) {
     'AUTH_BRIDGE_PREPARED_TOOLCHAIN_SOURCE_MANIFEST_INVALID',
   );
   if (
-    document.schemaVersion !== 1
+    document.schemaVersion !== 2
     || document.profile !== SOURCE_CLOSURE_PROFILE
     || !Array.isArray(document.members)
   ) fail('AUTH_BRIDGE_PREPARED_TOOLCHAIN_SOURCE_MANIFEST_INVALID');
   const expected = new Map([
     [AUTH_BRIDGE_NOTIFICATION_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_PATH,
-      installedManifestSha256],
+      undefined],
     [LOCKFILE_PATH, undefined],
   ]);
   let previous = '';
   for (const member of document.members) {
     if (
-      !exactKeys(member, ['path', 'sha256'])
+      !exactKeys(member, ['path', 'digestProfile', 'sha256'])
       || validateRelativePath(
         member.path,
         'AUTH_BRIDGE_PREPARED_TOOLCHAIN_SOURCE_MANIFEST_INVALID',
       ) !== member.path
+      || !SOURCE_DIGEST_PROFILES.has(member.digestProfile)
       || !SHA256_HEX.test(member.sha256 ?? '')
       || member.path <= previous
     ) fail('AUTH_BRIDGE_PREPARED_TOOLCHAIN_SOURCE_MANIFEST_INVALID');
     previous = member.path;
-    if (expected.has(member.path)) expected.set(member.path, member.sha256);
+    if (expected.has(member.path)) {
+      if (member.digestProfile !== RAW_FILE_SOURCE_DIGEST_PROFILE) {
+        fail('AUTH_BRIDGE_PREPARED_TOOLCHAIN_SOURCE_BINDING_INVALID');
+      }
+      expected.set(member.path, member.sha256);
+    }
   }
   if (
     expected.get(AUTH_BRIDGE_NOTIFICATION_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_PATH)

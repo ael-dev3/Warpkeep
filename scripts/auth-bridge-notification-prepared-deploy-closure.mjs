@@ -22,13 +22,20 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_PROFILE =
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH =
   'scripts/auth-bridge-notification-prepared-deploy-closure-v1.json';
 
-const MEMBER_PATH = /^(?:package(?:-lock)?\.json|(?:\.github\/workflows|scripts|services\/auth-bridge|spacetimedb\/src|src)\/[A-Za-z0-9._/-]+)$/u;
+const MEMBER_PATH = /^(?:package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|(?:\.github\/workflows|scripts|services\/auth-bridge|spacetimedb\/src|src)\/[A-Za-z0-9._/-]+)$/u;
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
-const MAX_MANIFEST_BYTES = 128 * 1_024;
+const MAX_MANIFEST_BYTES = 192 * 1_024;
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
 const MAX_MEMBERS = 384;
 const MANIFEST_KEYS = Object.freeze(['schemaVersion', 'profile', 'members']);
-const MEMBER_KEYS = Object.freeze(['path', 'sha256']);
+const MEMBER_KEYS = Object.freeze(['path', 'digestProfile', 'sha256']);
+const RAW_FILE_DIGEST_PROFILE = 'raw-file-sha256-v1';
+const BOOTSTRAP_PIN_DIGEST_PROFILE =
+  'bootstrap-pin-projection-sha256-v1';
+const REVIEWED_RELEASE_TRANSITION_DIGEST_PROFILE =
+  'reviewed-release-transition-projection-sha256-v1';
+const REVIEWED_RELEASE_TRANSITION_PLUS_BOOTSTRAP_PIN_DIGEST_PROFILE =
+  'reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1';
 const authenticatedSourceClosureAuthorities = new WeakSet();
 const BOOTSTRAP_PIN_CANONICAL_VALUE = '0'.repeat(64);
 const BOOTSTRAP_PIN_BINDINGS = Object.freeze([
@@ -65,6 +72,71 @@ const BOOTSTRAP_PINNED_WORKFLOWS = new Map([
   })],
 ]);
 
+const REVIEWED_RELEASE_SOURCE_PATHS = Object.freeze({
+  package: 'package.json',
+  packageLock: 'package-lock.json',
+  farcasterContract: 'scripts/farcaster-miniapp-contract.mjs',
+  farcasterManifest: 'public/.well-known/farcaster.json',
+  modulePolicy: 'spacetimedb/src/greaterRealmV17Policy.ts',
+  publisher: 'scripts/greater-realm-production-publisher-core.ts',
+  downstream: 'scripts/greater-realm-downstream-release-policy.ts',
+  clientPresentation: 'src/spacetime/greaterRealmProviderBridge.ts',
+  serverPresentation: 'src/greater-realm/greaterRealmTransport.ts',
+  pages: '.github/workflows/deploy-pages.yml',
+  hermes: 'scripts/hermes-admin.ts',
+  preparedBinding:
+    'scripts/auth-bridge-notification-prepared-release-binding.mjs',
+  privateBinding: 'scripts/notification-pages-private-release-binding.mjs',
+  liveRootBinding: 'scripts/notification-pages-live-release-binding.mjs',
+});
+
+const INERT_CLIENT_RELEASE_VERSION = '0.3.43';
+const ACTIVE_CLIENT_RELEASE_VERSION = '0.3.44';
+const INERT_FARCASTER_DESCRIPTION =
+  'Command four Workers, gather resources and return to a permanent keep in Genesis 001. Invite-only Alpha.';
+const ACTIVE_FARCASTER_DESCRIPTION =
+  'Explore a six-region world foundation. The core gameplay loop remains incomplete; invite-only Alpha.';
+const INERT_CLIENT_RELEASE_STATE = 'I';
+const ACTIVE_CLIENT_RELEASE_STATE = 'A';
+
+const REVIEWED_RELEASE_SOURCE_PATH_SET =
+  new Set(Object.values(REVIEWED_RELEASE_SOURCE_PATHS));
+
+const REVIEWED_RELEASE_PHASE_IDENTITIES = new Map([
+  // Production-approved pre-generation.
+  ['FF|FFFF|FF|FF|0|0|NNN', INERT_CLIENT_RELEASE_STATE],
+  // Candidate-approved inert append.
+  ['FF|TTFF|FF|FF|0|0|NNN', INERT_CLIENT_RELEASE_STATE],
+  // Import-only forward fix.
+  ['TF|TTTF|FF|FF|0|0|NNN', INERT_CLIENT_RELEASE_STATE],
+  // Activation-only forward fix.
+  ['FT|TTFT|FF|FF|0|0|NNN', INERT_CLIENT_RELEASE_STATE],
+  // Client and server presentation are approved together after active proof.
+  ['FT|TTFT|TF|TT|0|0|NNN', ACTIVE_CLIENT_RELEASE_STATE],
+  // Generation-zero notification Pages activation.
+  ['FT|TTFT|TT|TT|1|0|PPN', ACTIVE_CLIENT_RELEASE_STATE],
+  // Durable Pages root installed while Hermes remains inert.
+  ['FT|TTFT|TT|TT|1|0|NNP', ACTIVE_CLIENT_RELEASE_STATE],
+  // Final notification delivery approval.
+  ['FT|TTFT|TT|TT|1|1|NNP', ACTIVE_CLIENT_RELEASE_STATE],
+]);
+
+function expectedMemberDigestProfile(memberPath) {
+  if (
+    REVIEWED_RELEASE_SOURCE_PATH_SET.has(memberPath)
+    && BOOTSTRAP_PINNED_WORKFLOWS.has(memberPath)
+  ) {
+    return REVIEWED_RELEASE_TRANSITION_PLUS_BOOTSTRAP_PIN_DIGEST_PROFILE;
+  }
+  if (REVIEWED_RELEASE_SOURCE_PATH_SET.has(memberPath)) {
+    return REVIEWED_RELEASE_TRANSITION_DIGEST_PROFILE;
+  }
+  if (BOOTSTRAP_PINNED_WORKFLOWS.has(memberPath)) {
+    return BOOTSTRAP_PIN_DIGEST_PROFILE;
+  }
+  return RAW_FILE_DIGEST_PROFILE;
+}
+
 // This checked-in path namespace is the builtins-only runtime completeness
 // authority. The policy-only TypeScript graph derivation must equal it exactly.
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
@@ -74,6 +146,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     '.github/workflows/verify.yml',
     'package-lock.json',
     'package.json',
+    'public/.well-known/farcaster.json',
     'scripts/access-requests/reset-plan.ts',
     'scripts/admission-notifications/recovery-plan.ts',
     'scripts/alpha-activation-controls.ts',
@@ -103,7 +176,9 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/entry-agreement-policy.mjs',
     'scripts/farcaster-miniapp-contract.mjs',
     'scripts/founder-admission-authority.ts',
+    'scripts/greater-realm-downstream-release-policy.ts',
     'scripts/greater-realm-production-bootstrap.mjs',
+    'scripts/greater-realm-production-publisher-core.ts',
     'scripts/hermes-admin.ts',
     'scripts/hermes-machine-output.ts',
     'scripts/notification-pages-build-release-validator.d.mts',
@@ -200,7 +275,9 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'spacetimedb/src/woodExpeditionPolicy.ts',
     'spacetimedb/src/woodSitePolicy.ts',
     'spacetimedb/src/world.ts',
+    'src/greater-realm/greaterRealmTransport.ts',
     'src/security/publicImageUrl.ts',
+    'src/spacetime/greaterRealmProviderBridge.ts',
     'src/spacetime/module_bindings/accept_alpha_terms_v_1_reducer.ts',
     'src/spacetime/module_bindings/access_request_get_status_v_1_procedure.ts',
     'src/spacetime/module_bindings/access_request_submit_v_1_procedure.ts',
@@ -524,7 +601,7 @@ function parseManifest(body) {
   }
   if (
     !exactKeys(value, MANIFEST_KEYS)
-    || value.schemaVersion !== 1
+    || value.schemaVersion !== 2
     || value.profile !== AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_PROFILE
     || !Array.isArray(value.members)
     || value.members.length < 1
@@ -535,6 +612,7 @@ function parseManifest(body) {
     if (
       !exactKeys(member, MEMBER_KEYS)
       || !MEMBER_PATH.test(member.path ?? '')
+      || member.digestProfile !== expectedMemberDigestProfile(member.path)
       || !SHA256_HEX.test(member.sha256 ?? '')
       || member.path <= previous
     ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
@@ -549,6 +627,291 @@ function parseManifest(body) {
 
 function sha256Body(body) {
   return createHash('sha256').update(body).digest('hex');
+}
+
+function reviewedReleaseSource(body) {
+  try {
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(body);
+    if (Buffer.byteLength(source, 'utf8') !== body.byteLength) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID');
+    }
+    return source;
+  } catch (error) {
+    if (error instanceof AuthBridgeNotificationPreparedDeployClosureError) {
+      throw error;
+    }
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID');
+  }
+}
+
+function projectReviewedReleaseSource(body, pattern, canonicalMatch, inspect) {
+  const source = reviewedReleaseSource(body);
+  const matches = [...source.matchAll(pattern)];
+  if (matches.length !== 1 || matches[0].index === undefined) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID');
+  }
+  const match = matches[0];
+  const state = inspect(match.slice(1));
+  return Object.freeze({
+    body: Buffer.from(
+      source.slice(0, match.index)
+        + canonicalMatch
+        + source.slice(match.index + match[0].length),
+      'utf8',
+    ),
+    state,
+  });
+}
+
+function booleanState(values) {
+  if (values.some(value => value !== 'true' && value !== 'false')) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID');
+  }
+  return values.map(value => value === 'true' ? 'T' : 'F').join('');
+}
+
+function bindingState(values) {
+  const nulls = values.filter(value => value === 'null').length;
+  if (nulls === values.length) return 'N';
+  if (nulls === 0) return 'P';
+  fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID');
+}
+
+function exactClientReleaseState(values, inertValue, activeValue) {
+  if (values.length < 1 || values.some(value => value !== values[0])) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID');
+  }
+  if (values[0] === inertValue) return INERT_CLIENT_RELEASE_STATE;
+  if (values[0] === activeValue) return ACTIVE_CLIENT_RELEASE_STATE;
+  fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID');
+}
+
+function canonicalReviewedReleaseMemberBodies(memberBodies) {
+  const body = role => {
+    const member = memberBodies.get(REVIEWED_RELEASE_SOURCE_PATHS[role]);
+    if (member === undefined) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
+    }
+    return member;
+  };
+  const projected = new Map();
+  const record = (role, projection) => {
+    projected.set(REVIEWED_RELEASE_SOURCE_PATHS[role], projection.body);
+    return projection.state;
+  };
+
+  try {
+  const packageIdentity = record('package', projectReviewedReleaseSource(
+    body('package'),
+    /^  "version": "(0\.3\.43|0\.3\.44)",$/gmu,
+    `  "version": "${INERT_CLIENT_RELEASE_VERSION}",`,
+    values => exactClientReleaseState(
+      values,
+      INERT_CLIENT_RELEASE_VERSION,
+      ACTIVE_CLIENT_RELEASE_VERSION,
+    ),
+  ));
+  const packageLockIdentity = record(
+    'packageLock',
+    projectReviewedReleaseSource(
+      body('packageLock'),
+      /^\{\n  "name": "warpkeep",\n  "version": "(0\.3\.43|0\.3\.44)",\n  "lockfileVersion": 3,\n  "requires": true,\n  "packages": \{\n    "": \{\n      "name": "warpkeep",\n      "version": "(0\.3\.43|0\.3\.44)",$/gmu,
+      '{\n'
+        + '  "name": "warpkeep",\n'
+        + `  "version": "${INERT_CLIENT_RELEASE_VERSION}",\n`
+        + '  "lockfileVersion": 3,\n'
+        + '  "requires": true,\n'
+        + '  "packages": {\n'
+        + '    "": {\n'
+        + '      "name": "warpkeep",\n'
+        + `      "version": "${INERT_CLIENT_RELEASE_VERSION}",`,
+      values => exactClientReleaseState(
+        values,
+        INERT_CLIENT_RELEASE_VERSION,
+        ACTIVE_CLIENT_RELEASE_VERSION,
+      ),
+    ),
+  );
+  const farcasterContractIdentity = record(
+    'farcasterContract',
+    projectReviewedReleaseSource(
+      body('farcasterContract'),
+      /^  description:\n    '(Command four Workers, gather resources and return to a permanent keep in Genesis 001\. Invite-only Alpha\.|Explore a six-region world foundation\. The core gameplay loop remains incomplete; invite-only Alpha\.)',$/gmu,
+      '  description:\n'
+        + `    '${INERT_FARCASTER_DESCRIPTION}',`,
+      values => exactClientReleaseState(
+        values,
+        INERT_FARCASTER_DESCRIPTION,
+        ACTIVE_FARCASTER_DESCRIPTION,
+      ),
+    ),
+  );
+  const farcasterManifestIdentity = record(
+    'farcasterManifest',
+    projectReviewedReleaseSource(
+      body('farcasterManifest'),
+      /^    "description": "(Command four Workers, gather resources and return to a permanent keep in Genesis 001\. Invite-only Alpha\.|Explore a six-region world foundation\. The core gameplay loop remains incomplete; invite-only Alpha\.)",$/gmu,
+      `    "description": "${INERT_FARCASTER_DESCRIPTION}",`,
+      values => exactClientReleaseState(
+        values,
+        INERT_FARCASTER_DESCRIPTION,
+        ACTIVE_FARCASTER_DESCRIPTION,
+      ),
+    ),
+  );
+
+  const modulePolicy = record('modulePolicy', projectReviewedReleaseSource(
+    body('modulePolicy'),
+    /^export const GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED = (false|true);\nexport const GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED = (false|true);$/gmu,
+    'export const GREATER_REALM_V17_IMPORT_MUTATIONS_ALLOWED = false;\n'
+      + 'export const GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED = false;',
+    values => {
+      const state = booleanState(values);
+      if (state === 'TT') {
+        fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_PHASE_INVALID');
+      }
+      return state;
+    },
+  ));
+
+  const publisher = record('publisher', projectReviewedReleaseSource(
+    body('publisher'),
+    /^export const GREATER_REALM_PRODUCTION_RELEASE_FLAGS = Object\.freeze\(\{\n  entryAgreementApproved: (false|true),\n  additivePublishApproved: (false|true),\n  importForwardFixApproved: (false|true),\n  activationForwardFixApproved: (false|true),\n  clientActivationApproved: (false|true),\n  admissionNotificationsApproved: (false|true),\n\} as const\);$/gmu,
+    'export const GREATER_REALM_PRODUCTION_RELEASE_FLAGS = Object.freeze({\n'
+      + '  entryAgreementApproved: false,\n'
+      + '  additivePublishApproved: false,\n'
+      + '  importForwardFixApproved: false,\n'
+      + '  activationForwardFixApproved: false,\n'
+      + '  clientActivationApproved: false,\n'
+      + '  admissionNotificationsApproved: false,\n'
+      + '} as const);',
+    values => {
+      const state = booleanState(values);
+      if (state.slice(4) !== 'FF') {
+        fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_PHASE_INVALID');
+      }
+      const upstream = state.slice(0, 4);
+      if (!['FFFF', 'TTFF', 'TTTF', 'TTFT'].includes(upstream)) {
+        fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_PHASE_INVALID');
+      }
+      return upstream;
+    },
+  ));
+
+  const downstream = record('downstream', projectReviewedReleaseSource(
+    body('downstream'),
+    /^export const GREATER_REALM_DOWNSTREAM_RELEASE_FLAGS = Object\.freeze\(\{\n  clientActivationApproved: (false|true),\n  admissionNotificationsApproved: (false|true),\n\} as const\);$/gmu,
+    'export const GREATER_REALM_DOWNSTREAM_RELEASE_FLAGS = Object.freeze({\n'
+      + '  clientActivationApproved: false,\n'
+      + '  admissionNotificationsApproved: false,\n'
+      + '} as const);',
+    values => {
+      const state = booleanState(values);
+      if (!['FF', 'TF', 'TT'].includes(state)) {
+        fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_PHASE_INVALID');
+      }
+      return state;
+    },
+  ));
+
+  const clientPresentation = record(
+    'clientPresentation',
+    projectReviewedReleaseSource(
+      body('clientPresentation'),
+      /^export const GREATER_REALM_CLIENT_PRESENTATION_ALLOWED = (false|true) as const;$/gmu,
+      'export const GREATER_REALM_CLIENT_PRESENTATION_ALLOWED = false as const;',
+      booleanState,
+    ),
+  );
+  const serverPresentation = record(
+    'serverPresentation',
+    projectReviewedReleaseSource(
+      body('serverPresentation'),
+      /^export const GREATER_REALM_SERVER_PRESENTATION_ALLOWED = (false|true) as const;$/gmu,
+      'export const GREATER_REALM_SERVER_PRESENTATION_ALLOWED = false as const;',
+      booleanState,
+    ),
+  );
+  const presentation = `${clientPresentation}${serverPresentation}`;
+
+  const pages = record('pages', projectReviewedReleaseSource(
+    body('pages'),
+    /^      VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: '(false|true)'$/gmu,
+    "      VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'false'",
+    values => booleanState(values) === 'T' ? '1' : '0',
+  ));
+  const hermes = record('hermes', projectReviewedReleaseSource(
+    body('hermes'),
+    /^export const FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = (false|true) as const;$/gmu,
+    'export const FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = false as const;',
+    values => booleanState(values) === 'T' ? '1' : '0',
+  ));
+
+  const preparedBinding = record(
+    'preparedBinding',
+    projectReviewedReleaseSource(
+      body('preparedBinding'),
+      /^export const AUTH_BRIDGE_NOTIFICATION_PREPARED_RELEASE_BINDING = Object\.freeze\(\{\n  notificationPreparedReceiptDigest: (null|'[a-f0-9]{64}'),\n  notificationPreparedBridgeSourceCommit: (null|'[a-f0-9]{40}'),\n\}\);$/gmu,
+      'export const AUTH_BRIDGE_NOTIFICATION_PREPARED_RELEASE_BINDING = Object.freeze({\n'
+        + '  notificationPreparedReceiptDigest: null,\n'
+        + '  notificationPreparedBridgeSourceCommit: null,\n'
+        + '});',
+      bindingState,
+    ),
+  );
+  const privateBinding = record(
+    'privateBinding',
+    projectReviewedReleaseSource(
+      body('privateBinding'),
+      /^export const NOTIFICATION_PAGES_PRIVATE_RELEASE_BINDING = Object\.freeze\(\{\n  notificationPagesActiveV17EvidenceDigest: (null|'[a-f0-9]{64}'),\n  notificationPagesDeployedModuleReceiptDigest: (null|'[a-f0-9]{64}'),\n  notificationPagesExpectedFounderCount: (null|(?:[1-9]|[1-9][0-9]|[1-5][0-9]{2}|600)),\n\}\);$/gmu,
+      'export const NOTIFICATION_PAGES_PRIVATE_RELEASE_BINDING = Object.freeze({\n'
+        + '  notificationPagesActiveV17EvidenceDigest: null,\n'
+        + '  notificationPagesDeployedModuleReceiptDigest: null,\n'
+        + '  notificationPagesExpectedFounderCount: null,\n'
+        + '});',
+      bindingState,
+    ),
+  );
+  const liveRootBinding = record(
+    'liveRootBinding',
+    projectReviewedReleaseSource(
+      body('liveRootBinding'),
+      /^export const NOTIFICATION_PAGES_LIVE_RELEASE_BINDING = Object\.freeze\(\{\n  notificationPagesLiveRootReceiptDigest: (null|'[a-f0-9]{64}'),\n  notificationPagesLiveRootPagesSourceCommit: (null|'[a-f0-9]{40}'),\n\}\);$/gmu,
+      'export const NOTIFICATION_PAGES_LIVE_RELEASE_BINDING = Object.freeze({\n'
+        + '  notificationPagesLiveRootReceiptDigest: null,\n'
+        + '  notificationPagesLiveRootPagesSourceCommit: null,\n'
+        + '});',
+      bindingState,
+    ),
+  );
+
+  const phaseKey = [
+    modulePolicy,
+    publisher,
+    downstream,
+    presentation,
+    pages,
+    hermes,
+    `${preparedBinding}${privateBinding}${liveRootBinding}`,
+  ].join('|');
+  const requiredClientReleaseIdentity =
+    REVIEWED_RELEASE_PHASE_IDENTITIES.get(phaseKey);
+  if (
+    requiredClientReleaseIdentity === undefined
+    || [
+      packageIdentity,
+      packageLockIdentity,
+      farcasterContractIdentity,
+      farcasterManifestIdentity,
+    ].some(identity => identity !== requiredClientReleaseIdentity)
+  ) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_PHASE_INVALID');
+  }
+  return projected;
+  } catch (error) {
+    for (const projectedBody of projected.values()) projectedBody.fill(0);
+    throw error;
+  }
 }
 
 function readBootstrapPinValues(repository, manifestSha256) {
@@ -633,25 +996,87 @@ export function verifyAuthBridgeNotificationPreparedDeployClosure({
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
   }
   const expectedPins = readBootstrapPinValues(repository, manifestSha256);
-  for (const member of manifest.members) {
-    const body = readMember(
-      repository,
-      member.path,
-      'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_INVALID',
-    );
-    let canonicalBody;
-    try {
-      canonicalBody = BOOTSTRAP_PINNED_WORKFLOWS.has(member.path)
-        ? canonicalPinnedWorkflowBody(member.path, body, expectedPins)
-        : body;
-      if (sha256Body(canonicalBody) !== member.sha256) {
-        fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_DIGEST_MISMATCH');
+  const releaseMemberBodies = new Map();
+  let releaseBodies;
+  try {
+    for (const memberPath of Object.values(REVIEWED_RELEASE_SOURCE_PATHS)) {
+      releaseMemberBodies.set(memberPath, readMember(
+        repository,
+        memberPath,
+        'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_INVALID',
+      ));
+    }
+    releaseBodies = canonicalReviewedReleaseMemberBodies(releaseMemberBodies);
+    for (const body of releaseMemberBodies.values()) body.fill(0);
+    releaseMemberBodies.clear();
+    for (const member of manifest.members) {
+      const releaseBody = releaseBodies.get(member.path);
+      const body = releaseBody ?? readMember(
+        repository,
+        member.path,
+        'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_INVALID',
+      );
+      let canonicalBody;
+      try {
+        if (member.digestProfile === RAW_FILE_DIGEST_PROFILE) {
+          if (
+            releaseBody !== undefined
+            || BOOTSTRAP_PINNED_WORKFLOWS.has(member.path)
+          ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
+          canonicalBody = body;
+        } else if (
+          member.digestProfile === BOOTSTRAP_PIN_DIGEST_PROFILE
+        ) {
+          if (
+            releaseBody !== undefined
+            || !BOOTSTRAP_PINNED_WORKFLOWS.has(member.path)
+          ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
+          canonicalBody = canonicalPinnedWorkflowBody(
+            member.path,
+            body,
+            expectedPins,
+          );
+        } else if (
+          member.digestProfile
+            === REVIEWED_RELEASE_TRANSITION_DIGEST_PROFILE
+        ) {
+          if (
+            releaseBody === undefined
+            || BOOTSTRAP_PINNED_WORKFLOWS.has(member.path)
+          ) {
+            fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
+          }
+          canonicalBody = body;
+        } else if (
+          member.digestProfile
+            === REVIEWED_RELEASE_TRANSITION_PLUS_BOOTSTRAP_PIN_DIGEST_PROFILE
+        ) {
+          if (
+            releaseBody === undefined
+            || !BOOTSTRAP_PINNED_WORKFLOWS.has(member.path)
+          ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
+          canonicalBody = canonicalPinnedWorkflowBody(
+            member.path,
+            body,
+            expectedPins,
+          );
+        } else {
+          fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
+        }
+        if (sha256Body(canonicalBody) !== member.sha256) {
+          fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_DIGEST_MISMATCH');
+        }
+      } finally {
+        if (canonicalBody !== undefined && canonicalBody !== body) {
+          canonicalBody.fill(0);
+        }
+        if (releaseBody === undefined) body.fill(0);
       }
-    } finally {
-      if (canonicalBody !== undefined && canonicalBody !== body) {
-        canonicalBody.fill(0);
-      }
-      body.fill(0);
+    }
+  } finally {
+    for (const body of releaseMemberBodies.values()) body.fill(0);
+    if (releaseBodies !== undefined) {
+      for (const body of releaseBodies.values()) body.fill(0);
     }
   }
   const authority = Object.freeze({

@@ -394,16 +394,19 @@ projection described below. A sanitized aggregate report may contain:
 - boolean hard-proof results;
 - selection status, which remains `pending` in this pull request.
 
-PR A provides a narrow pending-owner-report projection with schema
-`warpkeep.greater-realm.pending-owner-report.v1`. It accepts only a canonical
-sanitized review that has already passed the existing recursive validator, plus
-an explicit assertion from the caller that private-package verification
-succeeded. It then requires exactly one eligible in-range world, every hard
-proof true, `selectionStatus: pending`, and no selected handle. The projection
-adds explicit automated-validation, owner-validation, activation, and
-production-untouched status while retaining the source sanitized-report digest;
-it does not accept generator candidates, private arrays, coordinates, seeds,
-package objects, paths, or preview material.
+PR A provides a narrow pre-selection retention projection with schema
+`warpkeep.greater-realm.pre-selection-retention-snapshot.v1`. It accepts only a
+canonical sanitized review that has already passed the existing recursive
+validator, plus an explicit assertion from the caller that private-package
+verification succeeded. It then requires exactly one eligible in-range world,
+every hard proof true, `selectionStatus: pending`, and no selected handle at
+the retention instant. Its public fields are explicitly historical:
+`ownerValidationAtRetention`, `selectionAtRetention`,
+`selectedCandidateHandleAtRetention`, `activationAtRetention`, and
+`productionAtRetention`. Present-tense lifecycle claims are not part of the
+schema. The projection retains the source sanitized-report digest; it does not
+accept generator candidates, private arrays, coordinates, seeds, package
+objects, paths, or preview material.
 
 It must not contain coordinates, named exact hidden-region sizes, transforms,
 seeds, seed digests, private/layout/stage/package digests, chunk keys, exact
@@ -450,14 +453,32 @@ side effect. The record stores only an opaque candidate handle, objective
 directions, and hard-constraint labels—never metric values or reconstructive
 material. No scalar score makes the final choice.
 
-The CLI invokes the public pending-report projection only after
-`verifyPrivateReviewBatch` has rebound the canonical pending review to the
-regenerated private package. It serializes schema
-`warpkeep.greater-realm.pending-owner-report.v1`, reparses those exact bytes,
-and installs them through the pinned public-evidence writer at
-`docs/evidence/greater-realm/pending-owner-review-v1.json`. Raw generator or
-package values have no alternative input path. No real owner report exists or
-is published until the final verified generation workflow runs.
+Generation, resume, comparison, and owner review leave the Git worktree exactly
+clean. Before selection on protected C0, the explicit
+`retain-pending-owner-report` command replays the private package and seals the
+canonical snapshot plus an exact source/batch/candidate/digest/A-closure binding
+at a fixed owner-private path. Selection and runtime export refuse a missing or
+mismatched retained snapshot. This makes the historical pending state
+unforgeably pre-selection rather than something reconstructed later.
+
+After explicit selection, runtime export, reviewed C1-C3 transitions, and
+active-v17 canaries, `export-pending-owner-report` prepares C4 from an otherwise
+clean protected C3 source. It requires the exact activation-only/Alpha `0.3.43`
+phase, selected package and matching runtime release, retained A-closure
+binding, and exact C0-to-C3 v17-policy lineage. Under the runtime-release lock
+and then the batch-selection lock, it proves the release already exists, opens
+only its retained public seed, recreates the release from the selected private
+candidate, and exactly compares manifest, status, paths, and every chunk. It
+accepts no output path and installs only the retained bytes through the pinned
+public-evidence writer at
+`docs/evidence/greater-realm/pending-owner-review-v1.json`. The postcondition is
+the unchanged C3 HEAD plus exactly that untracked file (or an exact tracked
+replay). A restart admits only that destination and one UUID-scoped writer
+temporary before delayed recovery and retained-byte validation. The snapshot
+enters Git atomically with C4 activation-client/Alpha
+`0.3.44`; its at-retention fields do not claim that C3 or C4 remains pending,
+inactive, or production-untouched. Raw generator or package values have no
+alternative input path.
 
 Only an explicit owner approval may be recorded as a private selection receipt.
 After that approval, the owner-only runtime exporter may replay the selected

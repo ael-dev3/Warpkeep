@@ -36,6 +36,7 @@ import {
   isCallExpression,
   isIdentifier,
   isImportDeclaration,
+  isNumericLiteral,
   isObjectLiteralExpression,
   isPropertyAccessExpression,
   isPropertyAssignment,
@@ -92,11 +93,13 @@ export const NOTIFICATION_PAGES_LIVE_PROTECTED_PATHS = Object.freeze([
   'scripts/alpha-v10-activation-controls.ts',
   'scripts/auth-bridge-config-attestation.mjs',
   'scripts/auth-bridge-notification-prepared-receipt.mjs',
+  'scripts/auth-bridge-notification-prepared-release-binding.d.mts',
   'scripts/auth-bridge-notification-prepared-release-binding.mjs',
   'scripts/entry-agreement-policy.mjs',
   'scripts/farcaster-miniapp-contract.mjs',
   'scripts/atlas',
   'scripts/greater-realm-production-bootstrap.mjs',
+  'scripts/greater-realm-downstream-release-policy.ts',
   'scripts/greater-realm-production-pages-evidence-operator.ts',
   'scripts/greater-realm-production-pages-evidence.ts',
   'scripts/greater-realm-production-provenance.ts',
@@ -127,6 +130,8 @@ export const NOTIFICATION_PAGES_LIVE_PROTECTED_PATHS = Object.freeze([
   'scripts/notification-pages-live-hermes-authority.mjs',
   'scripts/notification-pages-live-release-binding.d.mts',
   'scripts/notification-pages-live-release-binding.mjs',
+  'scripts/notification-pages-private-release-binding.d.mts',
+  'scripts/notification-pages-private-release-binding.mjs',
   'scripts/profiles/farcaster-profile-policy.ts',
   'scripts/profiles/founder-admission-plan.ts',
   'scripts/profiles/profile-transport.ts',
@@ -163,10 +168,12 @@ export const NOTIFICATION_PAGES_LIVE_CANDIDATE_PROTECTED_PATHS = Object.freeze([
   'scripts/alpha-v10-activation-controls.ts',
   'scripts/auth-bridge-config-attestation.mjs',
   'scripts/auth-bridge-notification-prepared-receipt.mjs',
+  'scripts/auth-bridge-notification-prepared-release-binding.d.mts',
   'scripts/auth-bridge-notification-prepared-release-binding.mjs',
   'scripts/entry-agreement-policy.mjs',
   'scripts/farcaster-miniapp-contract.mjs',
   'scripts/founder-admission-authority.ts',
+  'scripts/greater-realm-downstream-release-policy.ts',
   'scripts/hermes-admin.ts',
   'scripts/hermes-machine-output.ts',
   'scripts/notification-pages-live-hermes-authority.mjs',
@@ -174,6 +181,8 @@ export const NOTIFICATION_PAGES_LIVE_CANDIDATE_PROTECTED_PATHS = Object.freeze([
   'scripts/notification-pages-live-receipt.mjs',
   'scripts/notification-pages-live-release-binding.d.mts',
   'scripts/notification-pages-live-release-binding.mjs',
+  'scripts/notification-pages-private-release-binding.d.mts',
+  'scripts/notification-pages-private-release-binding.mjs',
   'scripts/notification-pages-private-handoff.d.mts',
   'scripts/notification-pages-private-handoff.mjs',
   'scripts/production-admin-token-budget.mjs',
@@ -423,6 +432,10 @@ const HERMES_AUTHORITY_IMPORT_ROOTS = Object.freeze([
 ]);
 const RELEASE_BINDING_SOURCE_PATH =
   'scripts/notification-pages-live-release-binding.mjs';
+const PREPARED_BINDING_SOURCE_PATH =
+  'scripts/auth-bridge-notification-prepared-release-binding.mjs';
+const PRIVATE_BINDING_SOURCE_PATH =
+  'scripts/notification-pages-private-release-binding.mjs';
 const PRESENTATION_SOURCE_ROOT = 'src/main.tsx';
 const PRESENTATION_REALM_EXEMPTION = Object.freeze({
   importer: 'src/components/WarpkeepExperience.tsx',
@@ -2497,13 +2510,9 @@ function assertReceiptGitProvenance(receipt) {
     receipt.pages.sourceCommit,
     'NOTIFICATION_PAGES_LIVE_GIT_ANCESTRY_INVALID',
   );
-  assertNoDiff(
+  assertActiveEvidenceSourceNoDrift(
     receipt.sourceRelease.moduleSourceCommit,
     receipt.pages.sourceCommit,
-    assertActiveEvidenceImportClosure(
-      receipt.sourceRelease.moduleSourceCommit,
-    ),
-    'NOTIFICATION_PAGES_LIVE_ACTIVE_EVIDENCE_SOURCE_DRIFT',
   );
 }
 
@@ -3282,6 +3291,212 @@ export function parseNotificationPagesLiveReleaseBindingSource(source) {
   });
 }
 
+function exactAuxiliaryReleaseBindingSource({
+  source,
+  fileName,
+  variableName,
+  fields,
+  code,
+}) {
+  if (
+    typeof source !== 'string'
+    || source.length < 1
+    || Buffer.byteLength(source, 'utf8') > MAX_GIT_SOURCE_FILE_BYTES
+  ) fail(code);
+  const parsed = parseTypeScriptSourceFile(source, fileName, code);
+  try {
+    const matches = [];
+    for (const statement of parsed.sourceFile.statements) {
+      if (
+        !isVariableStatement(statement)
+        || statement.modifierFlags !== ModifierFlags.Export
+        || statement.modifiers?.length !== 1
+        || statement.modifiers[0].kind !== SyntaxKind.ExportKeyword
+        || (statement.declarationList.flags & NodeFlags.Const) === 0
+        || statement.declarationList.declarations.length !== 1
+      ) continue;
+      const declaration = statement.declarationList.declarations[0];
+      const initializer = declaration.initializer;
+      if (
+        !isIdentifier(declaration.name)
+        || declaration.name.text !== variableName
+        || declaration.type !== undefined
+        || declaration.exclamationToken !== undefined
+        || initializer === undefined
+        || !isCallExpression(initializer)
+        || !isPropertyAccessExpression(initializer.expression)
+        || !isIdentifier(initializer.expression.expression)
+        || initializer.expression.expression.text !== 'Object'
+        || initializer.expression.name.text !== 'freeze'
+        || initializer.arguments.length !== 1
+        || !isObjectLiteralExpression(initializer.arguments[0])
+        || initializer.arguments[0].properties.length !== fields.length
+      ) continue;
+      const values = {};
+      const initializerSpans = [];
+      for (let index = 0; index < fields.length; index += 1) {
+        const field = fields[index];
+        const property = initializer.arguments[0].properties[index];
+        if (
+          !isPropertyAssignment(property)
+          || !isIdentifier(property.name)
+          || property.name.text !== field.key
+        ) fail(code);
+        const expression = property.initializer;
+        let value;
+        if (expression.kind === SyntaxKind.NullKeyword) {
+          value = null;
+        } else if (field.type === 'count' && isNumericLiteral(expression)) {
+          if (!/^(?:[1-9]|[1-9][0-9]|[1-5][0-9]{2}|600)$/u.test(
+            expression.text,
+          )) fail(code);
+          value = Number(expression.text);
+        } else if (field.type !== 'count' && isStringLiteral(expression)) {
+          value = expression.text;
+          if (
+            !(field.type === 'digest' ? SHA256 : SOURCE_COMMIT).test(value)
+            || !/^'[^'\r\n]*'$/u.test(expression.getText(parsed.sourceFile))
+          ) fail(code);
+        } else fail(code);
+        values[field.key] = value;
+        initializerSpans.push(Object.freeze({
+          end: expression.end,
+          key: field.key,
+          start: expression.getStart(parsed.sourceFile),
+        }));
+      }
+      const fieldValues = fields.map(field => values[field.key]);
+      if (
+        !fieldValues.every(value => value === null)
+        && !fieldValues.every(value => value !== null)
+      ) fail(code);
+      let sourceProjection = '';
+      let offset = 0;
+      for (const span of initializerSpans) {
+        if (span.start < offset || span.end <= span.start) fail(code);
+        sourceProjection += source.slice(offset, span.start);
+        sourceProjection += `<${variableName}:${span.key}>`;
+        offset = span.end;
+      }
+      sourceProjection += source.slice(offset);
+      matches.push(Object.freeze({
+        values: Object.freeze(values),
+        sourceProjection,
+      }));
+    }
+    if (matches.length !== 1) fail(code);
+    return matches[0];
+  } catch (error) {
+    if (error instanceof NotificationPagesLiveReceiptError) throw error;
+    fail(code);
+  } finally {
+    try { parsed.snapshot.dispose(); } catch { /* Preserve parse outcome. */ }
+    try { parsed.api.close(); } catch { /* Preserve parse outcome. */ }
+  }
+}
+
+function preparedBindingAtCommit(commit) {
+  const code = 'NOTIFICATION_PAGES_LIVE_PREPARED_BINDING_SOURCE_INVALID';
+  return exactAuxiliaryReleaseBindingSource({
+    source: sourceAtCommit(commit, PREPARED_BINDING_SOURCE_PATH, code),
+    fileName: '/notification-pages-live-phase/prepared-release-binding.mjs',
+    variableName: 'AUTH_BRIDGE_NOTIFICATION_PREPARED_RELEASE_BINDING',
+    fields: [
+      { key: 'notificationPreparedReceiptDigest', type: 'digest' },
+      { key: 'notificationPreparedBridgeSourceCommit', type: 'commit' },
+    ],
+    code,
+  });
+}
+
+function privateBindingAtCommit(commit) {
+  const code = 'NOTIFICATION_PAGES_LIVE_PRIVATE_BINDING_SOURCE_INVALID';
+  return exactAuxiliaryReleaseBindingSource({
+    source: sourceAtCommit(commit, PRIVATE_BINDING_SOURCE_PATH, code),
+    fileName: '/notification-pages-live-phase/private-release-binding.mjs',
+    variableName: 'NOTIFICATION_PAGES_PRIVATE_RELEASE_BINDING',
+    fields: [
+      { key: 'notificationPagesActiveV17EvidenceDigest', type: 'digest' },
+      { key: 'notificationPagesDeployedModuleReceiptDigest', type: 'digest' },
+      { key: 'notificationPagesExpectedFounderCount', type: 'count' },
+    ],
+    code,
+  });
+}
+
+function assertCandidateAuxiliaryReleaseBindingTransition({
+  candidate,
+  predecessor,
+  staged,
+}) {
+  const code = 'NOTIFICATION_PAGES_LIVE_RELEASE_BINDING_TRANSITION_INVALID';
+  if (predecessor === null) return;
+  const predecessorRoot = releaseBindingAtCommit(
+    predecessor.receipt.pages.sourceCommit,
+  );
+  const candidateRoot = releaseBindingAtCommit(candidate);
+  if (
+    predecessorRoot.notificationPagesLiveRootReceiptDigest !== null
+    || predecessorRoot.notificationPagesLiveRootPagesSourceCommit !== null
+  ) {
+    if (
+      candidateRoot.notificationPagesLiveRootReceiptDigest
+        !== predecessorRoot.notificationPagesLiveRootReceiptDigest
+      || candidateRoot.notificationPagesLiveRootPagesSourceCommit
+        !== predecessorRoot.notificationPagesLiveRootPagesSourceCommit
+      || sourceAtCommit(
+        candidate,
+        PREPARED_BINDING_SOURCE_PATH,
+        code,
+      ) !== sourceAtCommit(
+        predecessor.receipt.pages.sourceCommit,
+        PREPARED_BINDING_SOURCE_PATH,
+        code,
+      )
+      || sourceAtCommit(
+        candidate,
+        PRIVATE_BINDING_SOURCE_PATH,
+        code,
+      ) !== sourceAtCommit(
+        predecessor.receipt.pages.sourceCommit,
+        PRIVATE_BINDING_SOURCE_PATH,
+        code,
+      )
+    ) fail(code);
+    return;
+  }
+  if (staged || predecessor.receipt.chain.generation !== 0) fail(code);
+  const predecessorPrepared = preparedBindingAtCommit(
+    predecessor.receipt.pages.sourceCommit,
+  );
+  const predecessorPrivate = privateBindingAtCommit(
+    predecessor.receipt.pages.sourceCommit,
+  );
+  const candidatePrepared = preparedBindingAtCommit(candidate);
+  const candidatePrivate = privateBindingAtCommit(candidate);
+  if (
+    predecessorPrepared.values.notificationPreparedReceiptDigest
+      !== predecessor.receipt.preparedBinding.receiptDigest
+    || predecessorPrepared.values.notificationPreparedBridgeSourceCommit
+      !== predecessor.receipt.preparedBinding.bridgeSourceCommit
+    || predecessorPrivate.values.notificationPagesActiveV17EvidenceDigest
+      !== predecessor.receipt.handoff.activeV17EvidenceDigest
+    || predecessorPrivate.values.notificationPagesDeployedModuleReceiptDigest
+      !== predecessor.receipt.handoff.deployedModuleReceiptDigest
+    || predecessorPrivate.values.notificationPagesExpectedFounderCount
+      !== predecessor.receipt.expectedFounderCount
+    || candidatePrepared.values.notificationPreparedReceiptDigest !== null
+    || candidatePrepared.values.notificationPreparedBridgeSourceCommit !== null
+    || candidatePrivate.values.notificationPagesActiveV17EvidenceDigest !== null
+    || candidatePrivate.values.notificationPagesDeployedModuleReceiptDigest
+      !== null
+    || candidatePrivate.values.notificationPagesExpectedFounderCount !== null
+    || candidatePrepared.sourceProjection
+      !== predecessorPrepared.sourceProjection
+    || candidatePrivate.sourceProjection !== predecessorPrivate.sourceProjection
+  ) fail(code);
+}
+
 function assertCandidateReleaseBinding({ candidate, predecessor }) {
   const candidateBinding = releaseBindingAtCommit(candidate);
   const candidateDigest = candidateBinding.notificationPagesLiveRootReceiptDigest;
@@ -3351,9 +3566,11 @@ function candidateDiffProtectedPaths(predecessor, basePaths, staged = false) {
     && predecessorBinding.notificationPagesLiveRootReceiptDigest === null
     && predecessorBinding.notificationPagesLiveRootPagesSourceCommit === null
   ) {
-    paths = paths.filter(
-      path => path !== RELEASE_BINDING_SOURCE_PATH,
-    );
+    paths = paths.filter(path => ![
+      PREPARED_BINDING_SOURCE_PATH,
+      PRIVATE_BINDING_SOURCE_PATH,
+      RELEASE_BINDING_SOURCE_PATH,
+    ].includes(path));
   }
   return Object.freeze([...new Set(paths)].sort());
 }
@@ -3413,6 +3630,52 @@ function exactHermesApprovalProjection(source) {
     try { parsed.snapshot.dispose(); } catch { /* Preserve parse outcome. */ }
     try { parsed.api.close(); } catch { /* Preserve parse outcome. */ }
   }
+}
+
+function assertActiveEvidenceSourceNoDrift(moduleSourceCommit, pagesSourceCommit) {
+  const code = 'NOTIFICATION_PAGES_LIVE_ACTIVE_EVIDENCE_SOURCE_DRIFT';
+  const closure = assertActiveEvidenceImportClosure(moduleSourceCommit);
+  const projectedPaths = [
+    RELEASE_BINDING_SOURCE_PATH,
+    'scripts/hermes-admin.ts',
+  ];
+  if (!projectedPaths.every(path => closure.includes(path))) fail(code);
+  assertNoDiff(
+    moduleSourceCommit,
+    pagesSourceCommit,
+    closure.filter(path => !projectedPaths.includes(path)),
+    code,
+  );
+  const moduleRoot = releaseBindingAtCommit(moduleSourceCommit);
+  const pagesRoot = releaseBindingAtCommit(pagesSourceCommit);
+  const moduleHermes = exactHermesApprovalProjection(sourceAtCommit(
+    moduleSourceCommit,
+    'scripts/hermes-admin.ts',
+    code,
+  ));
+  const pagesHermes = exactHermesApprovalProjection(sourceAtCommit(
+    pagesSourceCommit,
+    'scripts/hermes-admin.ts',
+    code,
+  ));
+  const rootState = binding => (
+    binding.notificationPagesLiveRootReceiptDigest === null
+    && binding.notificationPagesLiveRootPagesSourceCommit === null
+  ) ? 'N' : 'P';
+  if (
+    moduleRoot.sourceProjection !== pagesRoot.sourceProjection
+    || moduleHermes.projection !== pagesHermes.projection
+    || rootState(moduleRoot) !== 'N'
+    || moduleHermes.approved
+    || ![
+      'NF',
+      'PF',
+      'PT',
+    ].includes(
+      rootState(pagesRoot)
+        + (pagesHermes.approved ? 'T' : 'F'),
+    )
+  ) fail(code);
 }
 
 export function assertNotificationPagesLiveHermesSourceTransition({
@@ -3533,11 +3796,9 @@ function assertProspectiveReceiptGitProvenance({
     candidate,
     'NOTIFICATION_PAGES_LIVE_GIT_ANCESTRY_INVALID',
   );
-  assertNoDiff(
+  assertActiveEvidenceSourceNoDrift(
     sourceRelease.moduleSourceCommit,
     candidate,
-    assertActiveEvidenceImportClosure(sourceRelease.moduleSourceCommit),
-    'NOTIFICATION_PAGES_LIVE_ACTIVE_EVIDENCE_SOURCE_DRIFT',
   );
 }
 
@@ -3549,6 +3810,11 @@ function assertCandidateStaticAuthority({
   staged = false,
 }) {
   assertCandidateReleaseBinding({ candidate, predecessor });
+  assertCandidateAuxiliaryReleaseBindingTransition({
+    candidate,
+    predecessor,
+    staged,
+  });
   assertSuccessorPresentationPhase(candidate);
   assertHermesSourceTransition({ predecessor, candidate, staged });
   assertProspectiveReceiptGitProvenance({
