@@ -7,6 +7,9 @@ import {
   REALM_GRASS_RENDER_PLANS,
   REALM_LIGHTING_SPECS,
   REALM_QUALITY_SPECS,
+  REALM_TERRAIN_RELIEF_SPECS,
+  REALM_WATER_WAVE_HIERARCHY_SPECS,
+  realmWaterWaveComponentCount,
   resolveRealmPixelRatio,
   resolveRealmRenderPlan,
   selectRealmQuality
@@ -64,6 +67,46 @@ describe('realm quality profiles', () => {
       balanced: { toneMappingExposure: 1, sunIntensity: 1.85 },
       reduced: { toneMappingExposure: 0.98, sunIntensity: 1.7 }
     });
+  });
+
+  it('tiers a bounded color-preserving strategic terrain relief cue', () => {
+    expect(REALM_TERRAIN_RELIEF_SPECS).toEqual({
+      high: {
+        enabled: true,
+        direction: { x: 0.60632, y: 0.559193, z: -0.565402 },
+        strength: 0.14,
+        hollowStrength: 0.025
+      },
+      balanced: {
+        enabled: true,
+        direction: { x: 0.60632, y: 0.559193, z: -0.565402 },
+        strength: 0.1,
+        hollowStrength: 0.018
+      },
+      reduced: {
+        enabled: false,
+        direction: { x: 0.60632, y: 0.559193, z: -0.565402 },
+        strength: 0,
+        hollowStrength: 0
+      }
+    });
+    Object.values(REALM_TERRAIN_RELIEF_SPECS).forEach((spec) => {
+      const length = Math.hypot(spec.direction.x, spec.direction.y, spec.direction.z);
+      expect(length).toBeCloseTo(1, 5);
+      expect(spec.strength).toBeLessThanOrEqual(0.14);
+      expect(spec.hollowStrength).toBeLessThanOrEqual(0.025);
+    });
+  });
+
+  it('tiers deterministic scale-separated analytic ocean waves', () => {
+    expect(REALM_WATER_WAVE_HIERARCHY_SPECS).toEqual({
+      high: { swell: 3, crossSwell: 3, detail: 2 },
+      balanced: { swell: 2, crossSwell: 2, detail: 1 },
+      reduced: { swell: 0, crossSwell: 0, detail: 0 }
+    });
+    expect(realmWaterWaveComponentCount('high')).toBe(8);
+    expect(realmWaterWaveComponentCount('balanced')).toBe(5);
+    expect(realmWaterWaveComponentCount('reduced')).toBe(0);
   });
 
   it('bounds the procedural environment maps and keeps reflections restrained', () => {

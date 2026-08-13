@@ -1,7 +1,11 @@
 import * as THREE from 'three';
 
 import { REALM_PREVAILING_WIND } from '../../game/map/realmPrevailingWind';
-import type { RealmQuality } from './realmQuality';
+import {
+  REALM_TERRAIN_RELIEF_SPECS,
+  type RealmQuality,
+  type RealmTerrainReliefSpec
+} from './realmQuality';
 
 export const REALM_TERRAIN_THREE_SHADER_CONTRACT = 'three-r185';
 export type RealmTerrainFineReliefMode = 'two-band' | 'one-band' | 'none';
@@ -32,10 +36,19 @@ export function realmTerrainFineReliefMode(
 }
 
 export function realmTerrainShaderCacheKey(quality: RealmQuality) {
+  const relief = REALM_TERRAIN_RELIEF_SPECS[quality];
   return [
-    'warpkeep-living-realm-terrain-v4',
+    'warpkeep-living-realm-terrain-v5',
     REALM_TERRAIN_THREE_SHADER_CONTRACT,
-    realmTerrainFineReliefMode(quality)
+    realmTerrainFineReliefMode(quality),
+    relief.enabled ? [
+      'oblique',
+      relief.direction.x,
+      relief.direction.y,
+      relief.direction.z,
+      relief.strength,
+      relief.hollowStrength
+    ].join('-') : 'oblique-none'
   ].join('-');
 }
 
@@ -48,6 +61,8 @@ export type RealmTerrainMaterialTelemetry = Readonly<{
   shaderFallbackActive: boolean;
   compileAttemptCount: number;
   fineReliefMode: RealmTerrainFineReliefMode;
+  strategicReliefEnabled: boolean;
+  strategicReliefStrength: number;
 }>;
 
 export type RealmTerrainMaterial = Readonly<{
@@ -93,7 +108,40 @@ vTerrainWorldXZ = (modelMatrix * vec4(transformed, 1.0)).xz;`
   )}`;
 }
 
-function climateReliefShader(mode: RealmTerrainFineReliefMode) {
+function strategicTerrainReliefShader(
+  relief: RealmTerrainReliefSpec,
+  macroNormalName: string
+) {
+  if (!relief.enabled || relief.strength <= 0) return '';
+  const direction = relief.direction;
+  return `
+vec3 warpkeepMacroReliefNormal = ${macroNormalName};
+vec3 warpkeepReliefDirection = normalize(vec3(
+  ${finiteGlslFloatLiteral(direction.x)},
+  ${finiteGlslFloatLiteral(direction.y)},
+  ${finiteGlslFloatLiteral(direction.z)}
+));
+float warpkeepReliefSignal = clamp(
+  (dot(warpkeepMacroReliefNormal, warpkeepReliefDirection)
+    - warpkeepReliefDirection.y) * 1.35,
+  -0.55,
+  0.55
+);
+float warpkeepReliefLuminance = clamp(
+  1.0
+    + warpkeepReliefSignal * ${finiteGlslFloatLiteral(relief.strength)}
+    - terrainHollow * ${finiteGlslFloatLiteral(relief.hollowStrength)},
+  0.89,
+  1.08
+);
+diffuseColor.rgb *= warpkeepReliefLuminance;
+`;
+}
+
+function climateReliefShader(
+  mode: RealmTerrainFineReliefMode,
+  strategicRelief: RealmTerrainReliefSpec
+) {
   const vegetationRelief = `
 float warpkeepVegetationPhase =
   dot(vTerrainWorldXZ, vec2(0.73, -0.41)) * 2.35
@@ -116,6 +164,10 @@ vec3 warpkeepVegetationMacroNormalWorld = normalize(vec3(
   dot(warpkeepVegetationViewRotation[1], normal),
   dot(warpkeepVegetationViewRotation[2], normal)
 ));
+${strategicTerrainReliefShader(
+  strategicRelief,
+  'warpkeepVegetationMacroNormalWorld'
+)}
 float warpkeepVegetationMacroNormalY =
   max(warpkeepVegetationMacroNormalWorld.y, 0.08);
 vec2 warpkeepVegetationMacroSlope = vec2(
@@ -166,6 +218,7 @@ vec3 warpkeepMacroNormalWorld = normalize(vec3(
   dot(warpkeepViewRotation[1], normal),
   dot(warpkeepViewRotation[2], normal)
 ));
+${strategicTerrainReliefShader(strategicRelief, 'warpkeepMacroNormalWorld')}
 float warpkeepMacroNormalY = max(warpkeepMacroNormalWorld.y, 0.08);
 vec2 warpkeepMacroSlope = vec2(
   -warpkeepMacroNormalWorld.x / warpkeepMacroNormalY,
@@ -210,8 +263,10 @@ normal = normalize(
 
 export function injectRealmTerrainFragmentShader(
   fragmentShader: string,
-  fineReliefMode: RealmTerrainFineReliefMode = 'one-band'
+  quality: RealmQuality = 'balanced'
 ) {
+  const fineReliefMode = realmTerrainFineReliefMode(quality);
+  const strategicRelief = REALM_TERRAIN_RELIEF_SPECS[quality];
   const colorMarker = '#include <color_fragment>';
   const roughnessMarker = '#include <roughnessmap_fragment>';
   const normalMarker = '#include <normal_fragment_maps>';
@@ -287,7 +342,7 @@ roughnessFactor = clamp(
   return `${FRAGMENT_DECLARATIONS}\n${fragmentShader
     .replace(colorMarker, color)
     .replace(roughnessMarker, roughness)
-    .replace(normalMarker, climateReliefShader(fineReliefMode))}`;
+    .replace(normalMarker, climateReliefShader(fineReliefMode, strategicRelief))}`;
 }
 
 /**
@@ -299,6 +354,7 @@ export function createRealmTerrainMaterial(
   quality: RealmQuality = 'balanced'
 ): RealmTerrainMaterial {
   const fineReliefMode = realmTerrainFineReliefMode(quality);
+  const strategicRelief = REALM_TERRAIN_RELIEF_SPECS[quality];
   const material = new THREE.MeshStandardMaterial({
     vertexColors: true,
     roughness: 0.94,
@@ -319,7 +375,7 @@ export function createRealmTerrainMaterial(
       shader.vertexShader = injectRealmTerrainVertexShader(originalVertexShader);
       shader.fragmentShader = injectRealmTerrainFragmentShader(
         originalFragmentShader,
-        fineReliefMode
+        quality
       );
       shaderEnhanced = true;
       shaderFallbackActive = false;
@@ -335,6 +391,7 @@ export function createRealmTerrainMaterial(
   material.customProgramCacheKey = () => realmTerrainShaderCacheKey(quality);
   material.userData.realmTerrainShaderContract = REALM_TERRAIN_THREE_SHADER_CONTRACT;
   material.userData.realmTerrainFineReliefMode = fineReliefMode;
+  material.userData.realmTerrainStrategicRelief = strategicRelief;
 
   return Object.freeze({
     material,
@@ -343,7 +400,9 @@ export function createRealmTerrainMaterial(
       shaderEnhanced,
       shaderFallbackActive,
       compileAttemptCount,
-      fineReliefMode
+      fineReliefMode,
+      strategicReliefEnabled: strategicRelief.enabled,
+      strategicReliefStrength: strategicRelief.strength
     }),
     getTelemetryRevision: () => telemetryRevision,
     dispose: () => {

@@ -6,6 +6,11 @@ full engineering record.
 
 ## [Unreleased]
 
+- Improved strategic-zoom surface readability with bounded, quality-tiered
+  terrain relief and scale-separated analytic ocean waves. The pass preserves
+  canonical terrain heights, authored water geometry, picking, shorelines,
+  deterministic simulation, reduced-motion behavior, and WebGL fallbacks.
+
 - Prepared the review-only Greater Realm client candidate as a genuinely
   explorable six-region atlas: accessible pointer, touch, keyboard, and button
   navigation; distinct terrain, coasts, castles, landmarks, public resource

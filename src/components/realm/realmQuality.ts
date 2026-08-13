@@ -81,6 +81,67 @@ export const REALM_LIGHTING_SPECS: Readonly<Record<RealmQuality, RealmLightingSp
   reduced: { toneMappingExposure: 0.98, sunIntensity: 1.7 }
 };
 
+export type RealmTerrainReliefSpec = Readonly<{
+  enabled: boolean;
+  direction: Readonly<{ x: number; y: number; z: number }>;
+  strength: number;
+  hollowStrength: number;
+}>;
+
+const REALM_TERRAIN_RELIEF_DIRECTION = Object.freeze({
+  x: 0.60632,
+  y: 0.559193,
+  z: -0.565402
+});
+
+/**
+ * A terrain-only cross-light exposes broad ridges that the view-aligned world
+ * sun flattens at strategic zoom. It is a bounded, hue-preserving shader cue:
+ * no extra light, draw, texture, geometry, or canonical-height mutation.
+ */
+export const REALM_TERRAIN_RELIEF_SPECS = Object.freeze({
+  high: Object.freeze({
+    enabled: true,
+    direction: REALM_TERRAIN_RELIEF_DIRECTION,
+    strength: 0.14,
+    hollowStrength: 0.025
+  }),
+  balanced: Object.freeze({
+    enabled: true,
+    direction: REALM_TERRAIN_RELIEF_DIRECTION,
+    strength: 0.1,
+    hollowStrength: 0.018
+  }),
+  reduced: Object.freeze({
+    enabled: false,
+    direction: REALM_TERRAIN_RELIEF_DIRECTION,
+    strength: 0,
+    hollowStrength: 0
+  })
+} satisfies Readonly<Record<RealmQuality, RealmTerrainReliefSpec>>);
+
+export type RealmWaterWaveHierarchySpec = Readonly<{
+  swell: 0 | 2 | 3;
+  crossSwell: 0 | 2 | 3;
+  detail: 0 | 1 | 2;
+}>;
+
+/**
+ * Deterministic scale-separated analytic waves. Counts sum to the established
+ * ocean shader budget while replacing the old near-parallel frequency ladder
+ * with broad swell, crossing swell, and small surface detail bands.
+ */
+export const REALM_WATER_WAVE_HIERARCHY_SPECS = Object.freeze({
+  high: Object.freeze({ swell: 3, crossSwell: 3, detail: 2 }),
+  balanced: Object.freeze({ swell: 2, crossSwell: 2, detail: 1 }),
+  reduced: Object.freeze({ swell: 0, crossSwell: 0, detail: 0 })
+} satisfies Readonly<Record<RealmQuality, RealmWaterWaveHierarchySpec>>);
+
+export function realmWaterWaveComponentCount(quality: RealmQuality) {
+  const hierarchy = REALM_WATER_WAVE_HIERARCHY_SPECS[quality];
+  return hierarchy.swell + hierarchy.crossSwell + hierarchy.detail;
+}
+
 export type RealmEnvironmentSpec = Readonly<{
   textureWidth: 64 | 128 | 256;
   textureHeight: 32 | 64 | 128;
