@@ -187,6 +187,20 @@ function cellPosition(cell: GreaterRealmPublicCellDto, cellSize: number, lift = 
   return Object.freeze({ x: world.x, y: cell.elevation / 1_000 + lift, z: world.z });
 }
 
+function boatCellPosition(cell: GreaterRealmPublicCellDto, cellSize: number) {
+  const world = axialToWorld({ q: cell.atlasQ, r: cell.atlasR }, cellSize);
+  // Boat presentation is restricted to returned navigable water cells, so its
+  // vertical presentation must follow the returned hydrology surface rather
+  // than the submerged terrain bed. The 0.08 center lift leaves the local
+  // vessel's 0.09-high hull resting exactly on the rendered +0.035 water
+  // plane and keeps the smaller ambient hull clear through its gentle bob.
+  return Object.freeze({
+    x: world.x,
+    y: (cell.hydroSurfaceMilli ?? cell.elevation) / 1_000 + 0.08,
+    z: world.z
+  });
+}
+
 function coordinatePosition(
   atlasQ: number,
   atlasR: number,
@@ -456,7 +470,7 @@ export function createGreaterRealmChunkPresentationPlan(input: Readonly<{
     atlasQ: cell.atlasQ,
     atlasR: cell.atlasR,
     ...(cell.hydroBodyId === undefined ? {} : { hydroBodyId: cell.hydroBodyId }),
-    position: cellPosition(cell, cellSize, 0.075)
+    position: boatCellPosition(cell, cellSize)
   })));
   const limits = allowance(input.graphicsProfile, input.actorAllowance);
   const actors: GreaterRealmPresentationActor[] = [];

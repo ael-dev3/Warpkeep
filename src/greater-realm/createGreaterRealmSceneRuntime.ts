@@ -139,7 +139,9 @@ type AmbientBoatRoute = Readonly<{
   from: GreaterRealmBoatCellPresentation;
   to: GreaterRealmBoatCellPresentation;
   headingRadians: number;
+  selectionRank: number;
   phase: number;
+  speed: number;
 }>;
 
 type AmbientBoatResource = Readonly<{
@@ -164,10 +166,11 @@ const GREATER_REALM_BOAT_GEOMETRY_UPLOAD_BYTES = 840;
 const GREATER_REALM_INSTANCE_MATRIX_UPLOAD_BYTES = 64;
 const GREATER_REALM_LOCAL_VESSEL_UPLOAD_BYTES = GREATER_REALM_BOAT_GEOMETRY_UPLOAD_BYTES;
 
-function stableLaneUnit(value: string) {
+function stableLaneUnit(domain: 'phase' | 'selection' | 'speed', value: string) {
   let hash = 0x811c9dc5;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
+  const input = `${domain}\0${value}`;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
     hash = Math.imul(hash, 0x01000193);
   }
   return (hash >>> 0) / 0x1_0000_0000;
@@ -210,11 +213,13 @@ function ambientBoatRoutes(
         to.position.x - from.position.x,
         to.position.z - from.position.z
       ),
-      phase: stableLaneUnit(id)
+      selectionRank: stableLaneUnit('selection', id),
+      phase: stableLaneUnit('phase', id),
+      speed: 0.018 + stableLaneUnit('speed', id) * 0.006
     }));
   }
   routes.sort((left, right) => (
-    left.phase - right.phase || left.id.localeCompare(right.id)
+    left.selectionRank - right.selectionRank || left.id.localeCompare(right.id)
   ));
   return Object.freeze(routes.slice(0, maximum));
 }
@@ -759,9 +764,8 @@ export function createGreaterRealmSceneRuntime(
       // A complete out-and-back takes 42–56 seconds. The cosine eases each
       // turn at a returned endpoint so the presentation never overshoots a
       // lane or snaps across an unreturned cell.
-      const speed = 0.018 + route.phase * 0.006;
       const cycle = active
-        ? (route.phase + time * speed) % 1
+        ? (route.phase + time * route.speed) % 1
         : route.phase;
       const angle = cycle * Math.PI * 2;
       const progress = 0.5 - Math.cos(angle) * 0.5;

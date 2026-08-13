@@ -96,9 +96,14 @@ function navigableLocalVesselChunk() {
   ) as any;
   const source = raw.coreCells.find((cell: any) => cell.atlasQ === 0 && cell.atlasR === 0);
   const destination = raw.coreCells.find((cell: any) => cell.atlasQ === 1 && cell.atlasR === 0);
+  Object.assign(source, {
+    elevation: -2_500,
+    hydroSurfaceMilli: 750
+  });
   source.hydroFlowDirection = 0;
   Object.assign(destination, {
     passable: true,
+    elevation: -2_250,
     geologicalBarrierBand: 0,
     hydroRegime: GREATER_REALM_HYDRO_REGIME.RIVER,
     hydroBodyId: source.hydroBodyId,
@@ -336,6 +341,10 @@ describe('Greater Realm scene runtime', () => {
     const cells = new Map(plan.boatCells.map((cell) => [cell.coordinateKey, cell]));
     const sourceCell = cells.get('0,0')!;
     const destinationCell = cells.get('1,0')!;
+    const waterPlane = 0.75 + 0.035;
+    expect(sourceCell.position.y).toBeCloseTo(0.75 + 0.08, 8);
+    expect(destinationCell.position.y).toBeCloseTo(0.75 + 0.08, 8);
+    expect(sourceCell.position.y - (-2.5)).toBeGreaterThan(3);
     source.set(sourceCell.position.x, sourceCell.position.y, sourceCell.position.z);
     destination.set(
       destinationCell.position.x,
@@ -346,6 +355,7 @@ describe('Greater Realm scene runtime', () => {
     expect(after.x).toBeLessThanOrEqual(Math.max(source.x, destination.x) + 1e-6);
     expect(after.z).toBeGreaterThanOrEqual(Math.min(source.z, destination.z) - 1e-6);
     expect(after.z).toBeLessThanOrEqual(Math.max(source.z, destination.z) + 1e-6);
+    expect(after.y - ambientGeometry.parameters.height / 2).toBeGreaterThan(waterPlane);
     expect(runtime.getLocalVesselState()).toMatchObject({
       status: 'available',
       persisted: false
@@ -484,6 +494,20 @@ describe('Greater Realm scene runtime', () => {
       GREATER_REALM_GRAPHICS_BUDGETS.reduced.boatCount
     );
     expect(ambientBoatMesh(runtime).count).toBe(telemetry.ambientBoatCount);
+    const ambient = ambientBoatMesh(runtime);
+    const initialProgress = Array.from({ length: ambient.count }, (_, index) => {
+      const xInAxialCells = instancePosition(ambient, index).x / Math.sqrt(3);
+      return xInAxialCells - Math.floor(xInAxialCells / 20) * 20;
+    });
+    expect(Math.max(...initialProgress) - Math.min(...initialProgress)).toBeGreaterThan(0.5);
+    expect(runtime.flushUploads()).toBeGreaterThan(0);
+    expect(runtime.update(4)).toBe(true);
+    const progressDeltas = Array.from({ length: ambient.count }, (_, index) => {
+      const xInAxialCells = instancePosition(ambient, index).x / Math.sqrt(3);
+      const progress = xInAxialCells - Math.floor(xInAxialCells / 20) * 20;
+      return progress - initialProgress[index]!;
+    });
+    expect(Math.max(...progressDeltas) - Math.min(...progressDeltas)).toBeGreaterThan(0.25);
     expect(runtime.selectLocalVessel().status).toBe('selected');
     expect(runtime.getTelemetry()).toMatchObject({
       ambientBoatCount: GREATER_REALM_GRAPHICS_BUDGETS.reduced.boatCount - 1,
