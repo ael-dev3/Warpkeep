@@ -1,0 +1,217 @@
+import {
+  chmodSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+
+import {
+  NotificationPagesPrivateDeployJournalError,
+  withNotificationPagesPrivateDeployJournal,
+} from '../scripts/notification-pages-private-deploy-journal.mjs';
+
+const REPOSITORY_ROOT = resolve(import.meta.dirname, '..');
+const CANDIDATE = 'a'.repeat(40);
+const ROOT_DIGEST = 'b'.repeat(64);
+const ROOT_SOURCE = 'c'.repeat(40);
+
+function privateHome(): string {
+  const path = mkdtempSync(join(
+    realpathSync(tmpdir()),
+    'warpkeep-pages-journal-home-',
+  ));
+  chmodSync(path, 0o700);
+  return path;
+}
+
+function deterministicRandom() {
+  let counter = 0;
+  return (size: number) => {
+    counter += 1;
+    return Buffer.alloc(size, counter);
+  };
+}
+
+function contract(mode: 'gen0' | 'durable' = 'durable') {
+  return {
+    candidatePagesSourceCommit: CANDIDATE,
+    mode,
+    rootReceiptDigest: mode === 'durable' ? ROOT_DIGEST : null,
+    rootPagesSourceCommit: mode === 'durable' ? ROOT_SOURCE : null,
+  };
+}
+
+function run<T>(input: {
+  home: string;
+  runId?: string;
+  runAttempt?: number;
+  contract?: Readonly<Record<string, unknown>>;
+  random?: (size: number) => Buffer;
+  operation: Parameters<typeof withNotificationPagesPrivateDeployJournal<T>>[0]['operation'];
+}) {
+  return withNotificationPagesPrivateDeployJournal({
+    contract: input.contract ?? contract(),
+    repositoryRoot: REPOSITORY_ROOT,
+    reportedHome: input.home,
+    runId: input.runId ?? '17',
+    runAttempt: input.runAttempt ?? 1,
+    clock: () => new Date('2026-08-13T12:00:00.000Z'),
+    randomBytesImpl: input.random ?? deterministicRandom(),
+    processIdentity: 'test-process-start-identity',
+    processIdentityProbe: () => ({
+      state: 'present' as const,
+      identity: 'test-process-start-identity',
+    }),
+    operation: input.operation,
+  });
+}
+
+describe('notification Pages private deployment journal', () => {
+  it('persists one effect boundary and completes through exact-current recovery', async () => {
+    const home = privateHome();
+    const random = deterministicRandom();
+    await run({
+      home,
+      random,
+      operation(journal) {
+        journal.prepared(null);
+        journal.reconciledNotCurrent('durable');
+        journal.candidateAuthorized('d'.repeat(64));
+        journal.deployInvoked('d'.repeat(64));
+        expect(journal.inspect()).toMatchObject({
+          deploymentInvoked: true,
+          completed: false,
+          candidateAuthorityDigest: 'd'.repeat(64),
+        });
+      },
+    });
+
+    await expect(run({
+      home,
+      runId: '18',
+      random,
+      operation(journal) {
+        journal.prepared(null);
+        journal.reconciledNotCurrent('durable');
+        return journal.deployInvoked('d'.repeat(64));
+      },
+    })).rejects.toMatchObject({
+      code: 'NOTIFICATION_PAGES_DEPLOY_ALREADY_INVOKED',
+      deploymentMayHaveChanged: true,
+    });
+
+    await run({
+      home,
+      runId: '19',
+      random,
+      operation(journal) {
+        journal.prepared(null);
+        journal.reconciledExactCurrent('durable');
+        journal.completed('e'.repeat(64), 'installed');
+        expect(journal.inspect()).toMatchObject({
+          deploymentInvoked: true,
+          completed: true,
+          phase: 'postflight-completed',
+        });
+      },
+    });
+  });
+
+  it('makes same-attempt transitions idempotent except the deployment boundary', async () => {
+    const home = privateHome();
+    const random = deterministicRandom();
+    await run({
+      home,
+      random,
+      operation(journal) {
+        journal.prepared(null);
+        journal.prepared(null);
+        journal.reconciledNotCurrent('gen0');
+        journal.reconciledNotCurrent('gen0');
+        journal.deployInvoked(null);
+        expect(() => journal.deployInvoked(null)).toThrow(
+          'NOTIFICATION_PAGES_DEPLOY_ALREADY_INVOKED',
+        );
+      },
+      contract: contract('gen0'),
+    });
+  });
+
+  it('retains only private canonical records outside the repository', async () => {
+    const home = privateHome();
+    let directory = '';
+    await run({
+      home,
+      operation(journal) {
+        directory = journal.directory;
+        journal.prepared(null);
+        journal.reconciledExactCurrent('durable');
+        journal.completed('f'.repeat(64), 'unchanged');
+      },
+    });
+    expect(directory.startsWith(REPOSITORY_ROOT)).toBe(false);
+    const names = readdirSync(directory);
+    expect(names).toHaveLength(3);
+    for (const name of names) {
+      const path = join(directory, name);
+      const body = readFileSync(path, 'utf8');
+      expect(body.endsWith('\n')).toBe(true);
+      expect(JSON.stringify(JSON.parse(body)) + '\n').toBe(body);
+    }
+  });
+
+  it('fails closed on altered records and unfinished competing operations', async () => {
+    const home = privateHome();
+    let directory = '';
+    await run({
+      home,
+      operation(journal) {
+        directory = journal.directory;
+        journal.prepared(null);
+        journal.reconciledNotCurrent('durable');
+      },
+    });
+    await expect(run({
+      home,
+      runId: '20',
+      contract: { ...contract(), candidatePagesSourceCommit: '9'.repeat(40) },
+      operation: () => undefined,
+    })).rejects.toThrow('NOTIFICATION_PAGES_DEPLOY_JOURNAL_OTHER_OPERATION_UNFINISHED');
+
+    const first = readdirSync(directory).find(name => name.endsWith('-prepared.json'))!;
+    const path = join(directory, first);
+    const value = JSON.parse(readFileSync(path, 'utf8'));
+    value.payload.handoff = { unexpected: true };
+    writeFileSync(path, JSON.stringify(value) + '\n', { mode: 0o600 });
+    await expect(run({
+      home,
+      runId: '21',
+      operation: () => undefined,
+    })).rejects.toBeInstanceOf(NotificationPagesPrivateDeployJournalError);
+  });
+
+  it('never accepts non-private journal record modes', async () => {
+    const home = privateHome();
+    let directory = '';
+    await run({
+      home,
+      operation(journal) {
+        directory = journal.directory;
+        journal.prepared(null);
+      },
+    });
+    const first = readdirSync(directory).find(name => name.endsWith('-prepared.json'))!;
+    chmodSync(join(directory, first), 0o644);
+    await expect(run({
+      home,
+      runId: '22',
+      operation: () => undefined,
+    })).rejects.toThrow('NOTIFICATION_PAGES_DEPLOY_JOURNAL_FILE_INVALID');
+  });
+});
