@@ -266,7 +266,8 @@ function baseArguments(command: string, ...arguments_: string[]): string[] {
   const root = '/private/tmp/warpkeep-production-admin/run-' + 'a'.repeat(32);
   const adminCommands = new Set([
     'import-inspect', 'import-apply', 'import-recover', 'publish', 'publish-recover', 'relocation',
-    'relocation-recover', 'verify', 'hermes-list-pending', 'hermes-admit-confirm', 'hermes-allow-confirm',
+    'relocation-recover', 'verify', 'pages-active-evidence', 'hermes-list-pending',
+    'hermes-admit-confirm', 'hermes-allow-confirm',
     'hermes-notification-recover-dry', 'hermes-notification-recover-confirm',
   ]);
   const notificationCommands = new Set([
@@ -305,6 +306,14 @@ describe('Greater Realm production bootstrap', () => {
       baseArguments('verify', '600'),
     ).commandArguments).toEqual(['--expected-founder-count=600']);
     expect(parseGreaterRealmProductionBootstrapArguments(
+      baseArguments('pages-active-evidence', '600'),
+    )).toMatchObject({
+      commandArguments: ['--expected-founder-count=600'],
+      adminSecretPath: '/private/credentials/admin-secret',
+      notificationSecretPath: undefined,
+      privateInputPath: undefined,
+    });
+    expect(parseGreaterRealmProductionBootstrapArguments(
       baseArguments('publish-recover-inspect'),
     ).commandArguments).toEqual(['recover-inspect']);
     expect(parseGreaterRealmProductionBootstrapArguments(
@@ -333,6 +342,11 @@ describe('Greater Realm production bootstrap', () => {
     expect(() => parseGreaterRealmProductionBootstrapArguments(
       baseArguments('verify', '601'),
     )).toThrow(/COMMAND_ARGUMENTS_INVALID/);
+    for (const founderCount of ['0', '01', '601', '600\n']) {
+      expect(() => parseGreaterRealmProductionBootstrapArguments(
+        baseArguments('pages-active-evidence', founderCount),
+      )).toThrow(/(?:COMMAND_)?ARGUMENTS_INVALID/);
+    }
     expect(() => parseGreaterRealmProductionBootstrapArguments(
       baseArguments('hermes-allow-confirm', '123', '--confirm'),
     )).toThrow(/COMMAND_ARGUMENTS_INVALID/);
@@ -556,6 +570,35 @@ describe('Greater Realm production bootstrap', () => {
     );
     expect(envelope).toMatch(
       /hermes-list-pending\)\n    \[ "\$#" -eq 0 \]/u,
+    );
+  });
+
+  it('gives active-v17 Pages evidence only one count and the administrator secret', () => {
+    const parsed = parseGreaterRealmProductionBootstrapArguments(
+      baseArguments('pages-active-evidence', '417'),
+    );
+    expect(parsed).toMatchObject({
+      commandArguments: ['--expected-founder-count=417'],
+      adminSecretPath: '/private/credentials/admin-secret',
+      notificationSecretPath: undefined,
+      privateInputPath: undefined,
+      spacetimeExecutablePath: undefined,
+      spacetimeCliConfigPath: undefined,
+    });
+    for (const index of [9, 10, 11]) {
+      const wrong = baseArguments('pages-active-evidence', '417');
+      wrong[index] = wrong[index] === '-' ? `/private/unexpected/${index}` : '-';
+      expect(() => parseGreaterRealmProductionBootstrapArguments(wrong))
+        .toThrow(/COMMAND_ARGUMENTS_INVALID/);
+    }
+
+    const envelope = readFileSync(
+      'docs/operations/greater-realm-production-launch-envelope.sh.txt',
+      'utf8',
+    );
+    expect(envelope).toContain('verify|pages-active-evidence|hermes-list-pending');
+    expect(envelope).toMatch(
+      /pages-active-evidence\)\n    \/usr\/bin\/python3[\s\S]*?1-5\]\[0-9\]\{2\}\|600/u,
     );
   });
 

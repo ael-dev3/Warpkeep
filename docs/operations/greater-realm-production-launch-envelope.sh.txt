@@ -17,6 +17,10 @@
 # owner-private administrator-secret path and installs its FID/timestamp census
 # as a no-clobber 0600 report below the owner-private production-admin root;
 # terminal output contains only the report filename and SHA-256 reference.
+# `pages-active-evidence` takes exactly one founder count in the range 1..600.
+# It uses only the owner-private administrator-secret path, freshly verifies
+# active v17, and installs a 24-hour content-addressed 0600 Pages handoff record;
+# terminal output contains only its filename, digest, times, and capacity state.
 # Never execute this file by pathname from a mutable checkout.
 set -eu
 umask 077
@@ -57,7 +61,7 @@ case "$admin_secret" in -|/*) ;; *) fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMEN
 case "$notification_secret" in -|/*) ;; *) fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;; esac
 case "$private_input" in -|/*) ;; *) fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;; esac
 case "$production_command" in
-  import-inspect|import-apply|import-recover-inspect|import-recover|publish|publish-recover-inspect|publish-recover|relocation|relocation-recover-inspect|relocation-recover|verify|hermes-list-pending|hermes-admit-dry|hermes-admit-confirm|hermes-allow-dry|hermes-allow-confirm|hermes-notification-inspect|hermes-notification-recover-dry|hermes-notification-recover-confirm|launch-run-inspect|launch-run-cleanup) ;;
+  import-inspect|import-apply|import-recover-inspect|import-recover|publish|publish-recover-inspect|publish-recover|relocation|relocation-recover-inspect|relocation-recover|verify|pages-active-evidence|hermes-list-pending|hermes-admit-dry|hermes-admit-confirm|hermes-allow-dry|hermes-allow-confirm|hermes-notification-inspect|hermes-notification-recover-dry|hermes-notification-recover-confirm|launch-run-inspect|launch-run-cleanup) ;;
   *) fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
 esac
 case "$production_command" in
@@ -71,7 +75,7 @@ case "$production_command" in
   *) [ "$spacetime_cli_config" = - ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
 esac
 case "$production_command" in
-  import-inspect|import-apply|publish|relocation|verify|hermes-list-pending|hermes-admit-confirm|hermes-allow-confirm|hermes-notification-recover-dry|hermes-notification-recover-confirm)
+  import-inspect|import-apply|publish|relocation|verify|pages-active-evidence|hermes-list-pending|hermes-admit-confirm|hermes-allow-confirm|hermes-notification-recover-dry|hermes-notification-recover-confirm)
     [ "$admin_secret" != - ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
   import-recover|publish-recover|relocation-recover|launch-run-inspect|launch-run-cleanup) ;;
   *) [ "$admin_secret" = - ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
@@ -100,6 +104,12 @@ case "$production_command" in
   *) [ "$bundle_node" != - ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID ;;
 esac
 case "$production_command" in
+  pages-active-evidence)
+    /usr/bin/python3 -I -S -B -c '
+import re,sys
+if len(sys.argv) != 2 or re.fullmatch(r"(?:[1-9]|[1-9][0-9]|[1-5][0-9]{2}|600)",sys.argv[1]) is None: raise SystemExit(1)
+' "$@" || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID
+    ;;
   hermes-list-pending)
     [ "$#" -eq 0 ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID
     ;;

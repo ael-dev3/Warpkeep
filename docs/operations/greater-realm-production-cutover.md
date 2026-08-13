@@ -96,6 +96,14 @@ the `verify:greater-realm-production` npm alias is an intentional refusal stub.
 
 It requires the exact active release/activation/atlas/v2-Worker graph, full selected artifact tuple, independently attested module commit, imported static counts, legacy evacuation, population/account/worker aggregates, relocation-versus-founded split, region distribution, and matching v1/v2 roster digests. Admission must be open below 600 and closed at 600.
 
+After active verification, the exact `pages-active-evidence` envelope row
+repeats the same authenticated check in process and durably installs a
+content-addressed, owner-only `0600` handoff record. Its sole command argument
+is the reviewed founder count (`1..600`), its freshness window is fixed at 24
+hours, and terminal output contains only the record filename, SHA-256, bounded
+timestamps, and capacity state. It accepts no notification credential, private
+input, SpacetimeDB CLI path, mutable target, or direct npm/`tsx` fallback.
+
 Pages continues to run the unchanged read-only legacy live verifier. Its notification presentation variable is currently hardcoded false, and CI runs `verify:greater-realm-release-gates` before build to accept only an explicitly enumerated safe release phase. The current tree must be the closed review phase; later envelopes permit production-approved pre-generation, candidate-approved inert append, exact import-only TF, exact activation-only FT, then client presentation, then notifications. `TT`, partial approval pairs, notification-before-client, and every unenumerated combination fail. A later client activation is a separate release and must not be coupled to server publication.
 
 ## Receipts and recovery

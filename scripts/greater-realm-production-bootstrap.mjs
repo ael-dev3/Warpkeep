@@ -430,6 +430,18 @@ const COMMANDS = Object.freeze({
     privateInput: false,
     requiresAdminSecret: true,
   }),
+  'pages-active-evidence': Object.freeze({
+    entrypoint: 'scripts/greater-realm-production-pages-evidence-operator.ts',
+    validateArguments(arguments_) {
+      if (
+        arguments_.length !== 1
+        || !/^(?:[1-9]|[1-9][0-9]|[1-5][0-9]{2}|600)$/u.test(arguments_[0])
+      ) fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_COMMAND_ARGUMENTS_INVALID');
+      return Object.freeze([`--expected-founder-count=${arguments_[0]}`]);
+    },
+    privateInput: false,
+    requiresAdminSecret: true,
+  }),
   'hermes-list-pending': Object.freeze({
     entrypoint: 'scripts/hermes-admin.ts',
     exactArguments: Object.freeze(['list-pending-access-requests']),
