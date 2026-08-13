@@ -9,9 +9,10 @@ full engineering record.
 - Prepared the review-only Greater Realm client candidate as a genuinely
   explorable six-region atlas: accessible pointer, touch, keyboard, and button
   navigation; distinct terrain, coasts, castles, landmarks, public resource
-  markers, and feature signs; and an explicit local helm preview that follows
-  only returned deep-water lanes. The helm is presentation-only and is not
-  saved as player travel. Production import, activation, presentation,
+  markers, feature signs, and bounded ambient river boats that follow returned
+  deep-water lanes and float on their water surfaces; and an explicit local
+  helm preview that uses the same presentation-only route authority. Neither
+  ambient boats nor the helm save player travel. Production import, activation, presentation,
   notification, legal-review, and owner-approval gates remain closed, so this
   entry does not claim the Greater Realm is live.
 
@@ -30,6 +31,14 @@ full engineering record.
   receipts, notification consent, or admission state. Notification and
   presentation gates remain off, including an explicit Hermes mutation-blackout
   literal bound to both founder admission paths.
+
+- Prepared fail-closed Farcaster admission notifications with one stable
+  logical notification ID per pending-request timestamp, durable terminal sent
+  receipts, and admission only after the provider reports at least one
+  successful token. Provider acceptance is not presented as proof that any
+  device displayed the notification; notification delivery and admission stay
+  disabled until the reviewed bridge, Pages presentation, private receipt, and
+  owner-approval sequence completes.
 
 - Added the active-only Greater Realm founding authority behind the existing
   profiled admission paths. Future founders receive a server-selected balanced

@@ -76,7 +76,7 @@ export const FARCASTER_MINI_APP_CONFIG = Object.freeze({
   splashBackgroundColor: '#010207',
   subtitle: 'Persistent Farcaster strategy',
   description:
-    'Command four Workers, gather resources and return to a permanent keep in Genesis 001. Invite-only Alpha.',
+    'Explore six regions, command four Workers, gather resources, and return to a permanent keep. Invite-only Alpha.',
   screenshotUrls: Object.freeze([
     `${FARCASTER_MINI_APP_ASSET_ROOT}/warpkeep-portrait-realm-alpha-0.3.43-1284x2778.png`,
     `${FARCASTER_MINI_APP_ASSET_ROOT}/warpkeep-portrait-resource-alpha-0.3.43-1284x2778.png`,
