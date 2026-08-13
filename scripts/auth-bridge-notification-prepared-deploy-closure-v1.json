@@ -16,11 +16,11 @@
     },
     {
       "path": "package-lock.json",
-      "sha256": "34eb6906bf90892f3bf1a0334dcc60824d2dccf0b89400392405622b8ab5322e"
+      "sha256": "f311239002a532091732417ae80f5fc891edbe3dbf28aed4e0a7330de79b36c7"
     },
     {
       "path": "package.json",
-      "sha256": "75bbb3344ed033404aa2c50400b4a3574e7951ac0c8771f3e66762bc7b566f5c"
+      "sha256": "3070d8db94f8a84986302e63fd87977be978bbf80438137a488cc08b26bb9b6a"
     },
     {
       "path": "scripts/access-requests/reset-plan.ts",
@@ -124,15 +124,15 @@
     },
     {
       "path": "scripts/entry-agreement-policy.d.mts",
-      "sha256": "424f31f9d46ff8a627d8cba691f65e9b3aacfa8f62f2629e3ea2b7d10fd840b9"
+      "sha256": "dc6d2a4f0a578981dcbd2cb7cc803e9ef157091833f4e6b7326bba4ae8bf1eb0"
     },
     {
       "path": "scripts/entry-agreement-policy.mjs",
-      "sha256": "cf780f2ae43d3197ab4200c14fd997c26fc499e44dc4db4263b0ac45f428457a"
+      "sha256": "e46320d7e5c09aaf95fcc8bfd24c48792762651d53167b726647bcfced39c165"
     },
     {
       "path": "scripts/farcaster-miniapp-contract.mjs",
-      "sha256": "a2eedb3b3409a240205ab9d4a924b66fffc53842f9040745fd6b2ad592e85843"
+      "sha256": "9aa2b72c033cedba9e3328a7acd2010257df4251b4cdf649cb66bb4a634a2743"
     },
     {
       "path": "scripts/founder-admission-authority.ts",
@@ -140,7 +140,7 @@
     },
     {
       "path": "scripts/greater-realm-production-bootstrap.mjs",
-      "sha256": "b38a191b3ba74d774a87aa753d961c0cad0a684877c5add2f4be22ee01cf78ae"
+      "sha256": "8e1c55119a7544892c3d9b693dc5628366b49da715d60d4e1265beca83979d13"
     },
     {
       "path": "scripts/hermes-admin.ts",
@@ -260,7 +260,7 @@
     },
     {
       "path": "scripts/validate-pages-deploy-config.mjs",
-      "sha256": "01cabbc9036cd16066e4b0dfe50aa277d90b0879a2b6d1b7d8f744d619b5d8f2"
+      "sha256": "51d35980de539e16894f5ebb66005aaaa5856bb5eea11ab67eeaa21a51ce774a"
     },
     {
       "path": "scripts/verify-alpha-production.mjs",
@@ -456,7 +456,7 @@
     },
     {
       "path": "spacetimedb/src/entryAgreementPolicy.ts",
-      "sha256": "a15cba341733984d4e6ed9409f9a243a555ad437230d96ad32809fe50519a87c"
+      "sha256": "3a79f540b8ac19382078f53794bdca0a755c0be0d002f03b492bb2c58741ecc3"
     },
     {
       "path": "spacetimedb/src/foodExpeditionPolicy.ts",
