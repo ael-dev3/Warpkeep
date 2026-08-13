@@ -2826,7 +2826,14 @@ function localRuntimeImportsFromTree(tree, path, code) {
     .filter(specifier => specifier !== undefined)
     .filter(isStringLiteral)
     .map(specifier => specifier.text)
-    .filter(specifier => specifier.startsWith('.')));
+    .filter(specifier => specifier.startsWith('.'))
+    // The receipt's four fixed service-local parser imports are runtime
+    // toolchain authority, not tracked source dependencies. Their complete
+    // resolver/tree bytes are attested separately by the production A/B
+    // bootstrap before this module can load on the privileged runner.
+    .filter(specifier => !specifier.startsWith(
+      '../services/auth-bridge/node_modules/',
+    )));
 }
 
 function resolveLocalImportFromTree(tree, importerPath, specifier, code) {
