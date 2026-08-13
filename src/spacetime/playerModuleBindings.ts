@@ -56,6 +56,7 @@ import * as GetMyResourceStateV2Procedure from './module_bindings/get_my_resourc
 import * as GetMyWorkerControlStateV1Procedure from './module_bindings/get_my_worker_control_state_v_1_procedure'
 import * as GetMyWorkerControlStateV2Procedure from './module_bindings/get_my_worker_control_state_v_2_procedure'
 import * as GetMyWorkerRosterV1Procedure from './module_bindings/get_my_worker_roster_v_1_procedure'
+import * as GetProductionPlayerCanaryRuntimeV1Procedure from './module_bindings/get_production_player_canary_runtime_v_1_procedure'
 import * as GetRealmAtlasBootstrapV1Procedure from './module_bindings/get_realm_atlas_bootstrap_v_1_procedure'
 import * as GetRealmAtlasChunkV1Procedure from './module_bindings/get_realm_atlas_chunk_v_1_procedure'
 import * as GetRealmAtlasResourceLocationsV1Procedure from './module_bindings/get_realm_atlas_resource_locations_v_1_procedure'
@@ -100,6 +101,10 @@ import WoodSiteV1Row from './module_bindings/wood_site_v_1_table'
 import StoneNodeOccupationV1Row from './module_bindings/stone_node_occupation_v_1_table'
 import StoneSiteV1Row from './module_bindings/stone_site_v_1_table'
 import WorkerNodeOccupationV1Row from './module_bindings/worker_node_occupation_v_1_table'
+
+export type {
+  ProductionPlayerCanaryRuntimeRoutePlanV1,
+} from './module_bindings/types'
 
 const tablesSchema = __schema({
   castle: __table({
@@ -559,6 +564,14 @@ const proceduresSchema = __procedures(
     'get_my_worker_roster_v1',
     GetMyWorkerRosterV1Procedure.params,
     GetMyWorkerRosterV1Procedure.returnType,
+  ),
+  // Caller-authenticated production canary planning is the sole canary API in
+  // the browser projection. All admin inspection, planning, and registration
+  // surfaces remain confined to the complete generated server-side binding.
+  __procedureSchema(
+    'get_production_player_canary_runtime_v1',
+    GetProductionPlayerCanaryRuntimeV1Procedure.params,
+    GetProductionPlayerCanaryRuntimeV1Procedure.returnType,
   ),
   // Greater Realm v17 is procedure-only in the browser. Its atlas, chunk,
   // occupancy, import, and verification tables stay out of this projection.

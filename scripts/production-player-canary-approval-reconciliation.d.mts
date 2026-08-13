@@ -41,6 +41,13 @@ export declare function registerAndReconcileProductionPlayerCanaryApprovalV1(
   }>,
 ): Promise<Readonly<Record<string, unknown>>>;
 
+export declare function reacquireProductionPlayerCanaryApprovalReconciliationV1(
+  input: Readonly<{
+    adminSecret: string;
+    arguments: Readonly<Record<string, unknown>>;
+  }>,
+): Promise<Readonly<Record<string, unknown>>>;
+
 export declare function requireProductionPlayerCanaryApprovalReconciliation(
   value: unknown,
 ): Readonly<Record<string, unknown>>;

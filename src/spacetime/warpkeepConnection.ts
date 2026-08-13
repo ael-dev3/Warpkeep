@@ -200,6 +200,17 @@ export type WarpkeepRealmChatSubscription = Readonly<{
 
 /** Maincloud may need to wake a database before completing the authenticated handshake. */
 export const CONNECTION_HANDSHAKE_TIMEOUT_MILLISECONDS = 30_000;
+/** Authority teardown must observe the socket's close event instead of only requesting it. */
+export const CONNECTION_DISCONNECT_ACKNOWLEDGEMENT_TIMEOUT_MILLISECONDS = 5_000;
+type WarpkeepDisconnectAcknowledgement = Error | null;
+type PendingWarpkeepDisconnect = Readonly<{
+  promise: Promise<void>;
+  resolve: () => void;
+  reject: (error: unknown) => void;
+}>;
+const disconnectAcknowledgements =
+  new WeakMap<WarpkeepConnection, WarpkeepDisconnectAcknowledgement>();
+const pendingDisconnects = new WeakMap<WarpkeepConnection, PendingWarpkeepDisconnect>();
 const GOLD_PROJECTION_UNAVAILABLE = 'unavailable' as const;
 const GOLD_PROJECTION_PENDING = 'pending' as const;
 const GOLD_PROJECTION_READY = 'ready' as const;
@@ -294,6 +305,19 @@ const REALM_CHAT_REPORT_CATEGORIES = new Set([
   'other'
 ]);
 export { WARPKEEP_ALPHA_TERMS_VERSION } from '../legal/alphaTermsPolicy';
+
+function acknowledgeWarpkeepDisconnect(
+  connection: WarpkeepConnection,
+  error: Error | undefined
+) {
+  if (disconnectAcknowledgements.has(connection)) return;
+  const acknowledgement = error ?? null;
+  disconnectAcknowledgements.set(connection, acknowledgement);
+  const pending = pendingDisconnects.get(connection);
+  if (!pending) return;
+  if (acknowledgement) pending.reject(acknowledgement);
+  else pending.resolve();
+}
 
 const admissionStatuses = new Set<WarpkeepAdmissionStatus>([
   'not_admitted',
@@ -396,7 +420,8 @@ export function createWarpkeepConnectionBuilder(
     .withUri(config.spacetimeUri)
     .withDatabaseName(config.spacetimeDatabase)
     .withToken(bridgeJwt)
-    .onDisconnect(() => {
+    .onDisconnect((connection, error) => {
+      acknowledgeWarpkeepDisconnect(connection as WarpkeepConnection, error);
       callbacks.onDisconnected?.();
     });
 }
@@ -3361,4 +3386,52 @@ export function disconnectWarpkeep(connection: WarpkeepConnection | undefined) {
   } catch {
     // A stale socket must not compromise title/menu or sign-out.
   }
+}
+
+/**
+ * Closes an authority-bearing socket and resolves only after the SDK confirms
+ * its `onDisconnect` event. A close request, transport failure, or silent
+ * socket is never treated as successful authority teardown.
+ */
+export function disconnectWarpkeepConfirmed(connection: WarpkeepConnection): Promise<void> {
+  if (disconnectAcknowledgements.has(connection)) {
+    const acknowledgement = disconnectAcknowledgements.get(connection);
+    return acknowledgement ? Promise.reject(acknowledgement) : Promise.resolve();
+  }
+
+  const existing = pendingDisconnects.get(connection);
+  if (existing) return existing.promise;
+
+  let resolvePromise!: () => void;
+  let rejectPromise!: (error: unknown) => void;
+  const promise = new Promise<void>((resolve, reject) => {
+    resolvePromise = resolve;
+    rejectPromise = reject;
+  });
+  const timeout = setTimeout(() => {
+    if (pendingDisconnects.get(connection)?.promise !== promise) return;
+    pendingDisconnects.delete(connection);
+    rejectPromise(new Error('Warpkeep disconnect acknowledgement timed out.'));
+  }, CONNECTION_DISCONNECT_ACKNOWLEDGEMENT_TIMEOUT_MILLISECONDS);
+  const settle = (callback: () => void) => {
+    if (pendingDisconnects.get(connection)?.promise !== promise) return;
+    pendingDisconnects.delete(connection);
+    clearTimeout(timeout);
+    callback();
+  };
+  const pending = Object.freeze({
+    promise,
+    resolve: () => settle(resolvePromise),
+    reject: (error: unknown) => settle(() => rejectPromise(error)),
+  });
+  pendingDisconnects.set(connection, pending);
+
+  if (!connection.isDisconnectRequested) {
+    try {
+      connection.disconnect();
+    } catch (error) {
+      pending.reject(error);
+    }
+  }
+  return promise;
 }

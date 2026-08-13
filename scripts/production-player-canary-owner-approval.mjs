@@ -41,6 +41,7 @@ const OPERATOR_MARGIN_SECONDS = 15 * 60;
 const U64_MAX = 0xffff_ffff_ffff_ffffn;
 const RESOURCE_KINDS = Object.freeze(['food', 'wood', 'stone', 'gold']);
 const MAXIMUM_ROUTE_STEPS = 12;
+const preparedApprovalBrand = new WeakSet();
 
 const APPROVAL_KEYS = Object.freeze([
   'schemaVersion', 'kind', 'approvalId', 'evidenceNonce',
@@ -316,6 +317,32 @@ function fsyncDirectory(directory) {
  * conflict and remains untouched.
  */
 function reconcilePublishedApproval(directory, filename, destination, expectedBytes) {
+  const temporaryPrefix = `.${filename}.`;
+  const temporaryNames = readdirSync(directory).filter(name =>
+    name.startsWith(temporaryPrefix)
+    && /^[0-9a-f]{32}\.tmp$/u.test(name.slice(temporaryPrefix.length)));
+  const unpublished = [];
+  for (const name of temporaryNames) {
+    const path = join(directory, name);
+    const status = lstatSync(path, { bigint: true });
+    if (status.nlink !== 1n) continue;
+    if (
+      !status.isFile()
+      || status.isSymbolicLink()
+      || ((status.mode & 0o7777n) & ~0o600n) !== 0n
+      || status.size > BigInt(MAXIMUM_BYTES)
+      || (process.getuid !== undefined
+        && status.uid !== BigInt(process.getuid()))
+    ) fail('PRODUCTION_PLAYER_CANARY_OWNER_APPROVAL_FILE_INVALID');
+    unpublished.push(path);
+  }
+  if (unpublished.length > 1) {
+    fail('PRODUCTION_PLAYER_CANARY_OWNER_APPROVAL_FILE_INVALID');
+  }
+  if (unpublished.length === 1) {
+    unlinkSync(unpublished[0]);
+    fsyncDirectory(directory);
+  }
   let destinationStatus;
   try {
     destinationStatus = lstatSync(destination, { bigint: true });
@@ -339,7 +366,6 @@ function reconcilePublishedApproval(directory, filename, destination, expectedBy
   } finally { current.fill(0); }
   if (destinationStatus.nlink === 1n) return true;
 
-  const temporaryPrefix = `.${filename}.`;
   const aliases = [];
   for (const name of readdirSync(directory)) {
     if (
@@ -372,30 +398,69 @@ function reconcilePublishedApproval(directory, filename, destination, expectedBy
   return true;
 }
 
-export function writeProductionPlayerCanaryOwnerApproval(input) {
-  const directory = exactDirectory(input.directory);
-  // The owner must durably precommit the identifier with the approved tuple.
-  // Generating it here would make a killed-after-link retry publish a second
-  // semantically equivalent artifact under a different name.
-  const approval = parseProductionPlayerCanaryOwnerApproval(input.approval);
+/**
+ * Canonicalize and bind owner-authored bytes before no-clobber publication.
+ * The returned material can be checked against a fresh private server route
+ * plan by the registration argument builder without first installing a file.
+ */
+export function prepareProductionPlayerCanaryOwnerApprovalV1(input) {
+  const approval = parseProductionPlayerCanaryOwnerApproval(input?.approval);
+  for (const route of approval.routes) Object.freeze(route);
+  Object.freeze(approval.routes);
   try {
     requireProductionPlayerCanaryBaselineReconciliationForApproval(
-      input.baselineReconciliation,
+      input?.baselineReconciliation,
       approval,
     );
   } catch {
     fail('PRODUCTION_PLAYER_CANARY_OWNER_APPROVAL_BASELINE_RECONCILIATION_REQUIRED');
   }
   const bytes = Buffer.from(`${JSON.stringify(approval)}\n`, 'utf8');
+  try {
+    const artifactDigest = createHash('sha256').update(bytes).digest('hex');
+    const routeSetCommitment = productionPlayerCanaryRouteSetCommitment(approval);
+    const approvalCommitment = createHash('sha256').update(`${framed([
+      'warpkeep.production-player-canary.owner-approval.v1',
+      approval.evidenceNonce,
+      artifactDigest,
+      approval.serverBaselineCommitment,
+      routeSetCommitment,
+    ])}\n`, 'utf8').digest('hex');
+    const prepared = Object.freeze({
+      approval,
+      artifactDigest,
+      approvalCommitment,
+      routeSetCommitment,
+      commandSetCommitment: approval.commandSetCommitment,
+    });
+    preparedApprovalBrand.add(prepared);
+    return prepared;
+  } finally {
+    bytes.fill(0);
+  }
+}
+
+export function writePreparedProductionPlayerCanaryOwnerApproval(input) {
+  const directory = exactDirectory(input?.directory);
+  const prepared = input?.preparedApproval;
+  if (!preparedApprovalBrand.has(prepared)) {
+    fail('PRODUCTION_PLAYER_CANARY_OWNER_APPROVAL_PREPARATION_REQUIRED');
+  }
+  const approval = prepared.approval;
+  const bytes = Buffer.from(`${JSON.stringify(approval)}\n`, 'utf8');
   const filename = `production-player-canary-owner-approval-${approval.approvalId}.json`;
   const destination = join(directory, filename);
   const temporary = join(directory, `.${filename}.${randomUUID().replaceAll('-', '')}.tmp`);
   let descriptor;
   try {
+    if (createHash('sha256').update(bytes).digest('hex')
+      !== prepared.artifactDigest) {
+      fail('PRODUCTION_PLAYER_CANARY_OWNER_APPROVAL_PREPARATION_CHANGED');
+    }
     if (reconcilePublishedApproval(directory, filename, destination, bytes)) {
       return Object.freeze({
         filename,
-        sha256: createHash('sha256').update(bytes).digest('hex'),
+        sha256: prepared.artifactDigest,
       });
     }
     descriptor = openSync(
@@ -418,7 +483,7 @@ export function writeProductionPlayerCanaryOwnerApproval(input) {
     fsyncDirectory(directory);
     return Object.freeze({
       filename,
-      sha256: createHash('sha256').update(bytes).digest('hex'),
+      sha256: prepared.artifactDigest,
     });
   } catch (error) {
     try { unlinkSync(temporary); } catch { /* No surviving unpublished temporary. */ }
@@ -428,6 +493,13 @@ export function writeProductionPlayerCanaryOwnerApproval(input) {
     bytes.fill(0);
     if (descriptor !== undefined) closeSync(descriptor);
   }
+}
+
+export function writeProductionPlayerCanaryOwnerApproval(input) {
+  return writePreparedProductionPlayerCanaryOwnerApproval({
+    directory: input?.directory,
+    preparedApproval: prepareProductionPlayerCanaryOwnerApprovalV1(input),
+  });
 }
 
 export function inspectProductionPlayerCanaryOwnerApproval(input) {

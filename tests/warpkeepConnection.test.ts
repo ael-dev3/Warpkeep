@@ -9,6 +9,7 @@ import {
 } from '../src/spacetime/playerModuleBindings';
 import {
   acceptWarpkeepAlphaTerms,
+  CONNECTION_DISCONNECT_ACKNOWLEDGEMENT_TIMEOUT_MILLISECONDS,
   CONNECTION_HANDSHAKE_TIMEOUT_MILLISECONDS,
   classifyWarpkeepConnectionFailure,
   connectWarpkeep,
@@ -19,6 +20,7 @@ import {
   collectWarpkeepResources,
   createWarpkeepConnectionBuilder,
   disconnectWarpkeep,
+  disconnectWarpkeepConfirmed,
   dispatchWarpkeepGoldExpedition,
   dispatchWarpkeepStoneExpedition,
   dispatchWarpkeepWoodExpedition,
@@ -2235,5 +2237,87 @@ describe('Warpkeep authenticated connection boundary', () => {
       isDisconnectRequested: true,
       disconnect: vi.fn(() => { throw new Error('stale'); })
     } as unknown as WarpkeepConnection)).not.toThrow();
+  });
+
+  it('confirms authority teardown only after the exact onDisconnect acknowledgement', async () => {
+    const builder = builderDouble();
+    let requested = false;
+    const disconnect = vi.fn(() => { requested = true; });
+    const connection = {
+      get isDisconnectRequested() { return requested; },
+      disconnect
+    } as unknown as WarpkeepConnection;
+    let onDisconnect: ((connection: WarpkeepConnection, error?: Error) => void) | undefined;
+    builder.onDisconnect.mockImplementation((callback) => {
+      onDisconnect = callback;
+      return builder;
+    });
+    vi.spyOn(DbConnection, 'builder').mockReturnValue(builder as never);
+    createWarpkeepConnectionBuilder(config, 'header.payload.signature');
+
+    let outcome = 'pending';
+    const confirmed = disconnectWarpkeepConfirmed(connection).then(() => {
+      outcome = 'confirmed';
+    });
+    await Promise.resolve();
+    expect(disconnect).toHaveBeenCalledOnce();
+    expect(outcome).toBe('pending');
+
+    onDisconnect?.(connection);
+    await confirmed;
+    expect(outcome).toBe('confirmed');
+  });
+
+  it('shares one confirmed close request and rejects a silent socket at the bound', async () => {
+    vi.useFakeTimers();
+    let requested = false;
+    const disconnect = vi.fn(() => { requested = true; });
+    const connection = {
+      get isDisconnectRequested() { return requested; },
+      disconnect
+    } as unknown as WarpkeepConnection;
+
+    const first = disconnectWarpkeepConfirmed(connection);
+    const second = disconnectWarpkeepConfirmed(connection);
+    expect(second).toBe(first);
+    expect(disconnect).toHaveBeenCalledOnce();
+    const rejected = expect(first).rejects.toThrow(
+      'Warpkeep disconnect acknowledgement timed out.',
+    );
+    await vi.advanceTimersByTimeAsync(
+      CONNECTION_DISCONNECT_ACKNOWLEDGEMENT_TIMEOUT_MILLISECONDS - 1,
+    );
+    expect(vi.getTimerCount()).toBe(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await rejected;
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('never swallows a disconnect request or acknowledged transport failure', async () => {
+    const requestFailure = new Error('socket close request failed');
+    await expect(disconnectWarpkeepConfirmed({
+      isDisconnectRequested: false,
+      disconnect: vi.fn(() => { throw requestFailure; })
+    } as unknown as WarpkeepConnection)).rejects.toBe(requestFailure);
+
+    const builder = builderDouble();
+    const disconnect = vi.fn();
+    const connection = {
+      isDisconnectRequested: false,
+      disconnect
+    } as unknown as WarpkeepConnection;
+    let onDisconnect: ((connection: WarpkeepConnection, error?: Error) => void) | undefined;
+    builder.onDisconnect.mockImplementation((callback) => {
+      onDisconnect = callback;
+      return builder;
+    });
+    vi.spyOn(DbConnection, 'builder').mockReturnValue(builder as never);
+    createWarpkeepConnectionBuilder(config, 'header.payload.signature');
+
+    const transportFailure = new Error('socket closed with transport failure');
+    const confirmed = disconnectWarpkeepConfirmed(connection);
+    onDisconnect?.(connection, transportFailure);
+    await expect(confirmed).rejects.toBe(transportFailure);
+    await expect(disconnectWarpkeepConfirmed(connection)).rejects.toBe(transportFailure);
   });
 });

@@ -26,6 +26,9 @@ const RESOURCE_KINDS = Object.freeze(['food', 'wood', 'stone', 'gold']);
 const INPUT_KEYS = Object.freeze([
   'adminSecret', 'arguments', 'assertCanStartWrite',
 ]);
+const REACQUIRE_INPUT_KEYS = Object.freeze([
+  'adminSecret', 'arguments',
+]);
 const ARGUMENT_KEYS = Object.freeze([
   'fid', 'reviewedAdmissionPlanDigest', 'evidenceNonce',
   'serverBaselineCommitment', 'routeSetCommitment',
@@ -343,6 +346,18 @@ function validateInput(input) {
   });
 }
 
+function validateReacquireInput(input) {
+  const value = exactRecord(
+    input,
+    REACQUIRE_INPUT_KEYS,
+    'PRODUCTION_PLAYER_CANARY_APPROVAL_RECONCILIATION_INPUT_INVALID',
+  );
+  return validateInput({
+    ...value,
+    assertCanStartWrite: () => undefined,
+  });
+}
+
 function isWriteNotStartedError(error) {
   return error !== null
     && typeof error === 'object'
@@ -516,6 +531,51 @@ async function reconcileWithDependencies(rawInput, dependencies) {
   );
 }
 
+async function reacquireWithDependencies(rawInput, dependencies) {
+  const input = validateReacquireInput(rawInput);
+  let session;
+  try {
+    session = await dependencies.openSession(input.adminSecret);
+  } catch (error) {
+    fail(
+      'PRODUCTION_PLAYER_CANARY_APPROVAL_REACQUISITION_SESSION_UNAVAILABLE',
+      'safe-pre-mutation-failure',
+      error,
+    );
+  }
+  let rawStatus;
+  let readError;
+  let closeError;
+  try {
+    try {
+      rawStatus = await dependencies.read({
+        session,
+        arguments: readArguments(input),
+      });
+    } catch (error) {
+      readError = error;
+    }
+  } finally {
+    try {
+      await closeSession(session);
+    } catch (error) {
+      closeError = error;
+    }
+  }
+  if (readError !== undefined || closeError !== undefined) {
+    fail(
+      'PRODUCTION_PLAYER_CANARY_APPROVAL_REACQUISITION_UNAVAILABLE',
+      'halt',
+      readError ?? closeError,
+    );
+  }
+  const status = projectStatus(rawStatus, input);
+  if (!status.approvalRegistered) {
+    fail('PRODUCTION_PLAYER_CANARY_APPROVAL_REACQUISITION_ABSENT');
+  }
+  return brand(status, 'existing-row-reacquired');
+}
+
 const DEFAULT_DEPENDENCIES = Object.freeze({
   async openSession(adminSecret) {
     const module = await import('./greater-realm-production-transport.ts');
@@ -536,6 +596,14 @@ export function registerAndReconcileProductionPlayerCanaryApprovalV1(input) {
   return reconcileWithDependencies(input, DEFAULT_DEPENDENCIES);
 }
 
+/**
+ * Reacquire branded authority from an exact committed registration after a
+ * process restart. This path opens a fresh session and never submits a reducer.
+ */
+export function reacquireProductionPlayerCanaryApprovalReconciliationV1(input) {
+  return reacquireWithDependencies(input, DEFAULT_DEPENDENCIES);
+}
+
 export function requireProductionPlayerCanaryApprovalReconciliation(value) {
   if (
     value === null
@@ -548,5 +616,9 @@ export function requireProductionPlayerCanaryApprovalReconciliation(value) {
 
 export const productionPlayerCanaryApprovalReconciliationTestSeams =
   process.env.NODE_ENV === 'test' && process.env.VITEST === 'true'
-    ? Object.freeze({ reconcileWithDependencies, projectStatus })
+    ? Object.freeze({
+      reconcileWithDependencies,
+      reacquireWithDependencies,
+      projectStatus,
+    })
     : undefined;

@@ -140,6 +140,50 @@ describe('production player canary baseline reconciliation', () => {
     expect(fixture.operations.openSession).toHaveBeenCalledTimes(1);
   });
 
+  it('reacquires an exact committed row after restart without submitting', async () => {
+    const fixture = dependencies();
+    const { assertCanStartWrite: _permit, ...reacquireInput } = input();
+    const result = await reconciliationTestSeams.reacquireWithDependencies(
+      reacquireInput,
+      fixture.operations,
+    );
+
+    expect(result).toMatchObject({
+      submissionOutcome: 'existing-row-reacquired',
+      serverBaselineCommitment: COMMITMENT,
+      routeSetCommitment: ROUTE,
+    });
+    expect(requireProductionPlayerCanaryBaselineReconciliation(result)).toBe(result);
+    expect(fixture.events).toEqual(['open', 'read', 'close']);
+    expect(fixture.operations.capture).not.toHaveBeenCalled();
+    expect(fixture.operations.refresh).not.toHaveBeenCalled();
+    expect(fixture.operations.read).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails closed when restart reacquisition is absent or unreadable', async () => {
+    const { assertCanStartWrite: _permit, ...reacquireInput } = input();
+    const absent = dependencies({ read: async () => missingStatus() });
+    await expect(reconciliationTestSeams.reacquireWithDependencies(
+      reacquireInput,
+      absent.operations,
+    )).rejects.toThrow(
+      'PRODUCTION_PLAYER_CANARY_BASELINE_REACQUISITION_ABSENT',
+    );
+    expect(absent.operations.capture).not.toHaveBeenCalled();
+
+    const unavailable = dependencies({
+      read: async () => { throw new Error('read unavailable'); },
+    });
+    await expect(reconciliationTestSeams.reacquireWithDependencies(
+      reacquireInput,
+      unavailable.operations,
+    )).rejects.toMatchObject({
+      code: 'PRODUCTION_PLAYER_CANARY_BASELINE_REACQUISITION_UNAVAILABLE',
+      disposition: 'halt',
+    });
+    expect(unavailable.events).toEqual(['open', 'read', 'close']);
+  });
+
   it('rethrows the identical proven pre-mutation failure only after absence is read back', async () => {
     const notStarted = new GreaterRealmCutoverWriteNotStartedError(
       'TEST_CAPTURE_NOT_STARTED',

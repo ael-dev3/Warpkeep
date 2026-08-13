@@ -24,6 +24,8 @@ const PROTECTED_RUNTIME_SOURCE_CLOSURE = Object.freeze([
   'scripts/production-player-canary-core.ts',
   'scripts/production-player-canary-deploy-authority.mjs',
   'scripts/production-player-canary-evidence-authority.mjs',
+  'scripts/production-player-canary-operator-journal.mjs',
+  'scripts/production-player-canary-operator.mjs',
   'scripts/production-player-canary-owner-approval.mjs',
   'scripts/production-player-canary-receipt.mjs',
   'scripts/notification-pages-private-deploy-operator.mjs',
@@ -205,6 +207,15 @@ function assertProtectedSource(repositoryRoot, protectedCommit, protectedTree) {
     EXECUTING_REPOSITORY_ROOT,
     EXECUTING_AUTHORITY_BYTES,
   );
+}
+
+/** Exact protected checkout guard shared by owner-private mutation callsites. */
+export function assertProductionPlayerCanaryProtectedSource({
+  repositoryRoot,
+  protectedCommit,
+  protectedTree,
+} = {}) {
+  assertProtectedSource(repositoryRoot, protectedCommit, protectedTree);
 }
 
 const AUTHORITY_KEYS = Object.freeze([

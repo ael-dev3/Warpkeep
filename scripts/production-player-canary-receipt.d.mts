@@ -57,11 +57,35 @@ export declare function installProductionPlayerCanaryReceipt(input: Readonly<{
   evidenceAuthority: unknown;
   directory?: string;
   randomId?: () => string;
+  expectedReceiptDigest?: string;
 }>): Readonly<{
   filename: string;
   receiptDigest: string;
   result: 'installed' | 'unchanged';
 }>;
+export declare function productionPlayerCanaryReceiptDigestForEvidenceAuthority(
+  value: unknown,
+): string;
+export declare function prepareProductionPlayerCanaryReceiptInstallation(input: Readonly<{
+  evidenceAuthority: unknown;
+}>): Readonly<{
+  receiptDigest: string;
+  evidenceAuthorityDigest: string;
+  recordedAt: string;
+  notAfter: string;
+}>;
+export declare function reconcileProductionPlayerCanaryReceiptInstallation(input: Readonly<{
+  directory?: string;
+  expectedReceiptDigest: string;
+}>): Readonly<
+  | { state: 'absent' }
+  | {
+    state: 'installed';
+    filename: string;
+    receiptDigest: string;
+    result: 'unchanged';
+  }
+>;
 export declare const productionPlayerCanaryReceiptTestSeams: Readonly<{
   installReceipt: (
     input: Readonly<{ receipt: unknown; directory?: string; randomId?: () => string }>,

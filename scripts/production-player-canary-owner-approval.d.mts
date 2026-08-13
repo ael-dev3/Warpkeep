@@ -17,6 +17,22 @@ export declare function writeProductionPlayerCanaryOwnerApproval(input: Readonly
   /** Branded result of freshly authenticated server baseline reconciliation. */
   baselineReconciliation: unknown;
 }>): Readonly<{ filename: string; sha256: string }>;
+export declare function prepareProductionPlayerCanaryOwnerApprovalV1(input: Readonly<{
+  approval: unknown;
+  baselineReconciliation: unknown;
+}>): Readonly<{
+  approval: Readonly<Record<string, unknown>>;
+  artifactDigest: string;
+  approvalCommitment: string;
+  routeSetCommitment: string;
+  commandSetCommitment: string;
+}>;
+export declare function writePreparedProductionPlayerCanaryOwnerApproval(
+  input: Readonly<{
+    directory: string;
+    preparedApproval: unknown;
+  }>,
+): Readonly<{ filename: string; sha256: string }>;
 export declare function inspectProductionPlayerCanaryOwnerApproval(input: Readonly<{
   directory: string;
   reference: Readonly<{ filename: string; sha256: string }>;

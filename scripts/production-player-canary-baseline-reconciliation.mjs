@@ -20,6 +20,9 @@ const INPUT_KEYS = Object.freeze([
   'adminSecret', 'arguments', 'assertCanStartWrite',
   'expectedServerBaselineCommitment',
 ]);
+const REACQUIRE_INPUT_KEYS = Object.freeze([
+  'adminSecret', 'arguments', 'expectedServerBaselineCommitment',
+]);
 const reconciliationBrand = new WeakSet();
 
 export class ProductionPlayerCanaryBaselineReconciliationError extends Error {
@@ -111,6 +114,20 @@ function validateInput(input) {
     }),
     assertCanStartWrite: value.assertCanStartWrite,
     expectedServerBaselineCommitment: value.expectedServerBaselineCommitment,
+  });
+}
+
+function validateReacquireInput(input) {
+  const value = exactRecord(
+    input,
+    REACQUIRE_INPUT_KEYS.filter(key =>
+      key !== 'expectedServerBaselineCommitment'
+      || Object.prototype.hasOwnProperty.call(input ?? {}, key)),
+    'PRODUCTION_PLAYER_CANARY_BASELINE_RECONCILIATION_INPUT_INVALID',
+  );
+  return validateInput({
+    ...value,
+    assertCanStartWrite: () => undefined,
   });
 }
 
@@ -295,6 +312,51 @@ async function reconcileWithDependencies(rawInput, dependencies) {
   );
 }
 
+async function reacquireWithDependencies(rawInput, dependencies) {
+  const input = validateReacquireInput(rawInput);
+  let session;
+  try {
+    session = await dependencies.openSession(input.adminSecret);
+  } catch (error) {
+    fail(
+      'PRODUCTION_PLAYER_CANARY_BASELINE_REACQUISITION_SESSION_UNAVAILABLE',
+      'safe-pre-mutation-failure',
+      error,
+    );
+  }
+  let rawStatus;
+  let readError;
+  let closeError;
+  try {
+    try {
+      rawStatus = await dependencies.read({
+        session,
+        arguments: input.arguments,
+      });
+    } catch (error) {
+      readError = error;
+    }
+  } finally {
+    try {
+      await closeSession(session);
+    } catch (error) {
+      closeError = error;
+    }
+  }
+  if (readError !== undefined || closeError !== undefined) {
+    fail(
+      'PRODUCTION_PLAYER_CANARY_BASELINE_REACQUISITION_UNAVAILABLE',
+      'halt',
+      readError ?? closeError,
+    );
+  }
+  const status = projectStatus(rawStatus, input);
+  if (!status.baselineCaptured) {
+    fail('PRODUCTION_PLAYER_CANARY_BASELINE_REACQUISITION_ABSENT');
+  }
+  return brandCapturedStatus(status, 'existing-row-reacquired');
+}
+
 const DEFAULT_DEPENDENCIES = Object.freeze({
   async openSession(adminSecret) {
     const module = await import('./greater-realm-production-transport.ts');
@@ -319,6 +381,14 @@ const DEFAULT_DEPENDENCIES = Object.freeze({
  */
 export function captureAndReconcileProductionPlayerCanaryBaselineV1(input) {
   return reconcileWithDependencies(input, DEFAULT_DEPENDENCIES);
+}
+
+/**
+ * Reacquire branded authority from an exact committed row after a process
+ * restart. This path opens a fresh session and performs no reducer submission.
+ */
+export function reacquireProductionPlayerCanaryBaselineReconciliationV1(input) {
+  return reacquireWithDependencies(input, DEFAULT_DEPENDENCIES);
 }
 
 export function requireProductionPlayerCanaryBaselineReconciliation(value) {
@@ -356,6 +426,7 @@ export const productionPlayerCanaryBaselineReconciliationTestSeams =
   process.env.NODE_ENV === 'test' && process.env.VITEST === 'true'
     ? Object.freeze({
       reconcileWithDependencies,
+      reacquireWithDependencies,
       brandCapturedStatusForTest(rawStatus, rawInput) {
         const input = validateInput(rawInput);
         const status = projectStatus(rawStatus, input);

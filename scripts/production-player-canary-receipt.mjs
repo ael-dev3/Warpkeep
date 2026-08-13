@@ -653,34 +653,147 @@ function installReceipt(input, testHooks = {}) {
   }
 }
 
+function receiptForEvidenceAuthority(authority) {
+  return {
+    schemaVersion: 1,
+    profile: PRODUCTION_PLAYER_CANARY_PROFILE,
+    source: {
+      protectedCommit: authority.protectedCommit,
+      protectedTree: authority.protectedTree,
+    },
+    predecessor: {
+      phaseTuple: PRODUCTION_PLAYER_CANARY_PREDECESSOR_TUPLE,
+      releaseVersion: PRODUCTION_PLAYER_CANARY_PREDECESSOR_VERSION,
+      worldClientPresentationEnabled: false,
+      worldServerPresentationEnabled: false,
+      pagesSourceCommit: authority.notificationPagesLivePagesSourceCommit,
+      liveReceiptDigest: authority.notificationPagesLiveReceiptDigest,
+      liveRootReceiptDigest: authority.notificationPagesLiveRootReceiptDigest,
+      liveRootPagesSourceCommit:
+        authority.notificationPagesLiveRootPagesSourceCommit,
+    },
+    evidenceAuthority: authority,
+    recordedAt: authority.recordedAt,
+  };
+}
+
+/** Bind a durable operator intent to the exact bytes before publication. */
+export function productionPlayerCanaryReceiptDigestForEvidenceAuthority(value) {
+  const authority = requireProductionPlayerCanaryExpectedEvidenceAuthority(value);
+  const bytes = canonicalProductionPlayerCanaryReceiptBytes(
+    receiptForEvidenceAuthority(authority),
+  );
+  try {
+    return createHash('sha256').update(bytes).digest('hex');
+  } finally {
+    bytes.fill(0);
+  }
+}
+
+export function prepareProductionPlayerCanaryReceiptInstallation({
+  evidenceAuthority: value,
+} = {}) {
+  const authority = requireProductionPlayerCanaryExpectedEvidenceAuthority(value);
+  const receiptDigest = productionPlayerCanaryReceiptDigestForEvidenceAuthority(
+    authority,
+  );
+  const authorityBytes = Buffer.from(JSON.stringify(authority), 'utf8');
+  try {
+    return Object.freeze({
+      receiptDigest,
+      evidenceAuthorityDigest: createHash('sha256')
+        .update('warpkeep.production-player-canary.evidence-authority.v1\0', 'utf8')
+        .update(authorityBytes)
+        .digest('hex'),
+      recordedAt: authority.recordedAt,
+      notAfter: authority.notAfter,
+    });
+  } finally {
+    authorityBytes.fill(0);
+  }
+}
+
+/**
+ * Recover an exact post-link operator crash from a previously journaled digest.
+ * No fresh authority is inferred and no different receipt is accepted.
+ */
+export function reconcileProductionPlayerCanaryReceiptInstallation({
+  directory = defaultProductionPlayerCanaryReceiptDirectory(),
+  expectedReceiptDigest,
+} = {}) {
+  if (!exactDigest(expectedReceiptDigest)) {
+    fail('PRODUCTION_PLAYER_CANARY_RECEIPT_RECONCILIATION_INPUT_INVALID');
+  }
+  const canonicalDirectory = exactDirectory(
+    directory,
+    'PRODUCTION_PLAYER_CANARY_RECEIPT_DIRECTORY_INVALID',
+  );
+  const expectedFilename =
+    `production-player-canary-${expectedReceiptDigest}.json`;
+  for (const name of readdirSync(canonicalDirectory).sort()) {
+    const temporary = TEMPORARY_NAME.exec(name);
+    if (
+      name !== expectedFilename
+      && (temporary === null || temporary[1] !== expectedReceiptDigest)
+    ) fail('PRODUCTION_PLAYER_CANARY_RECEIPT_DIRECTORY_CONTENT_INVALID');
+  }
+  reconcileReceiptDirectory(canonicalDirectory);
+  const names = readdirSync(canonicalDirectory).sort();
+  if (names.length === 0) {
+    return Object.freeze({ state: 'absent' });
+  }
+  if (names.length !== 1 || names[0] !== expectedFilename) {
+    fail('PRODUCTION_PLAYER_CANARY_RECEIPT_DIRECTORY_CONTENT_INVALID');
+  }
+  const bytes = readExactReceipt(
+    join(canonicalDirectory, expectedFilename),
+    expectedReceiptDigest,
+  );
+  try {
+    let parsed;
+    try {
+      parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    } catch {
+      fail('PRODUCTION_PLAYER_CANARY_RECEIPT_INVALID');
+    }
+    const receipt = parseProductionPlayerCanaryReceipt(parsed);
+    const canonical = canonicalProductionPlayerCanaryReceiptBytes(receipt);
+    try {
+      if (!canonical.equals(bytes)) {
+        fail('PRODUCTION_PLAYER_CANARY_RECEIPT_NONCANONICAL');
+      }
+    } finally {
+      canonical.fill(0);
+    }
+  } finally {
+    bytes.fill(0);
+  }
+  return Object.freeze({
+    state: 'installed',
+    filename: expectedFilename,
+    receiptDigest: expectedReceiptDigest,
+    result: 'unchanged',
+  });
+}
+
 export function installProductionPlayerCanaryReceipt(input) {
   const authority = requireProductionPlayerCanaryExpectedEvidenceAuthority(
     input?.evidenceAuthority,
   );
+  const receipt = receiptForEvidenceAuthority(authority);
+  if (input?.expectedReceiptDigest !== undefined) {
+    const bytes = canonicalProductionPlayerCanaryReceiptBytes(receipt);
+    try {
+      if (createHash('sha256').update(bytes).digest('hex')
+        !== input.expectedReceiptDigest) {
+        fail('PRODUCTION_PLAYER_CANARY_RECEIPT_INTENT_MISMATCH');
+      }
+    } finally { bytes.fill(0); }
+  }
   return installReceipt({
     directory: input.directory,
     randomId: input.randomId,
-    receipt: {
-      schemaVersion: 1,
-      profile: PRODUCTION_PLAYER_CANARY_PROFILE,
-      source: {
-        protectedCommit: authority.protectedCommit,
-        protectedTree: authority.protectedTree,
-      },
-      predecessor: {
-        phaseTuple: PRODUCTION_PLAYER_CANARY_PREDECESSOR_TUPLE,
-        releaseVersion: PRODUCTION_PLAYER_CANARY_PREDECESSOR_VERSION,
-        worldClientPresentationEnabled: false,
-        worldServerPresentationEnabled: false,
-        pagesSourceCommit: authority.notificationPagesLivePagesSourceCommit,
-        liveReceiptDigest: authority.notificationPagesLiveReceiptDigest,
-        liveRootReceiptDigest: authority.notificationPagesLiveRootReceiptDigest,
-        liveRootPagesSourceCommit:
-          authority.notificationPagesLiveRootPagesSourceCommit,
-      },
-      evidenceAuthority: authority,
-      recordedAt: authority.recordedAt,
-    },
+    receipt,
   });
 }
 

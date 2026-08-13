@@ -29,6 +29,7 @@ export type ProductionPlayerCanaryBaselineReconciliation = Readonly<{
   submissionOutcome:
     | 'capture-acknowledged'
     | 'existing-row-after-write-not-started'
+    | 'existing-row-reacquired'
     | 'row-reconciled-after-submission-error';
   challengeDigest: string;
   reviewedAdmissionPlanDigest: string;
@@ -60,6 +61,9 @@ export declare function productionPlayerCanaryBaselineChallengeDigest(
 export declare function captureAndReconcileProductionPlayerCanaryBaselineV1(
   input: ProductionPlayerCanaryBaselineReconciliationInput,
 ): Promise<ProductionPlayerCanaryBaselineReconciliation>;
+export declare function reacquireProductionPlayerCanaryBaselineReconciliationV1(
+  input: Omit<ProductionPlayerCanaryBaselineReconciliationInput, 'assertCanStartWrite'>,
+): Promise<ProductionPlayerCanaryBaselineReconciliation>;
 export declare function requireProductionPlayerCanaryBaselineReconciliation(
   value: unknown,
 ): ProductionPlayerCanaryBaselineReconciliation;
@@ -79,6 +83,16 @@ export declare const productionPlayerCanaryBaselineReconciliationTestSeams:
           assertCanStartWrite: ProductionPlayerCanaryBaselineWritePermit;
         }>) => Promise<void>;
         refresh: (session: unknown) => Promise<void>;
+        read: (input: Readonly<{
+          session: unknown;
+          arguments: ProductionPlayerCanaryBaselineReconciliationInput['arguments'];
+        }>) => Promise<unknown>;
+      }>,
+    ) => Promise<ProductionPlayerCanaryBaselineReconciliation>;
+    reacquireWithDependencies: (
+      input: Omit<ProductionPlayerCanaryBaselineReconciliationInput, 'assertCanStartWrite'>,
+      dependencies: Readonly<{
+        openSession: (adminSecret: string) => Promise<unknown>;
         read: (input: Readonly<{
           session: unknown;
           arguments: ProductionPlayerCanaryBaselineReconciliationInput['arguments'];

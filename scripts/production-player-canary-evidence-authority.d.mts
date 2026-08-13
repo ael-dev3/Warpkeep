@@ -48,6 +48,13 @@ export declare function productionPlayerCanarySubjectCommitment(
   fid: bigint | string,
   evidenceNonce: string,
 ): string;
+export declare function assertProductionPlayerCanaryProtectedSource(
+  input: Readonly<{
+    repositoryRoot: string;
+    protectedCommit: string;
+    protectedTree: string;
+  }>,
+): void;
 export declare function validateProductionPlayerCanaryAdminEvidenceV1(
   value: unknown,
 ): void;

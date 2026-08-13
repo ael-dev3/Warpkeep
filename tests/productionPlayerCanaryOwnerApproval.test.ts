@@ -15,10 +15,15 @@ import {
   ProductionPlayerCanaryOwnerApprovalError,
   inspectProductionPlayerCanaryOwnerApproval,
   parseProductionPlayerCanaryOwnerApproval,
+  prepareProductionPlayerCanaryOwnerApprovalV1,
   productionPlayerCanaryRouteSetCommitment,
   productionPlayerCanaryOwnerApprovalTestSeams,
+  writePreparedProductionPlayerCanaryOwnerApproval,
   writeProductionPlayerCanaryOwnerApproval,
 } from '../scripts/production-player-canary-owner-approval.mjs';
+import {
+  productionPlayerCanaryApprovalRegistrationArgumentsV1,
+} from '../scripts/production-player-canary-approval-reconciliation.mjs';
 import {
   productionPlayerCanaryBaselineChallengeDigest,
   productionPlayerCanaryBaselineReconciliationTestSeams,
@@ -111,6 +116,25 @@ function baselineReconciliation(value = approval()) {
   }, input);
 }
 
+function serverRoutePlan(
+  value = approval(),
+  baseline = baselineReconciliation(value),
+) {
+  return {
+    profile: 'warpkeep-production-player-canary-route-plan-v1',
+    challengeDigest: baseline.challengeDigest,
+    reviewedAdmissionPlanDigest: baseline.reviewedAdmissionPlanDigest,
+    serverBaselineCommitment: baseline.serverBaselineCommitment,
+    routeSetCommitment: baseline.routeSetCommitment,
+    atlasRevision: 7n,
+    equalRouteSteps: 4,
+    routes: value.routes.map(route => ({
+      ...route,
+      atlasRevision: BigInt(route.atlasRevision),
+    })),
+  };
+}
+
 describe('production player canary owner approval', () => {
   it('compares every descriptor/path metadata field, not only device and inode', () => {
     const exact = {
@@ -157,6 +181,100 @@ describe('production player canary owner approval', () => {
     });
     expect(productionPlayerCanaryRouteSetCommitment({ ...value, evidenceNonce: '3'.repeat(64) }))
       .not.toBe(inspected.routeSetCommitment);
+  });
+
+  it('validates prepared bytes against the fresh route plan before publication', () => {
+    const directory = privateDirectory();
+    const value = approval();
+    const baseline = baselineReconciliation(value);
+    const prepared = prepareProductionPlayerCanaryOwnerApprovalV1({
+      approval: value,
+      baselineReconciliation: baseline,
+    });
+    const arguments_ = productionPlayerCanaryApprovalRegistrationArgumentsV1({
+      fid: 123n,
+      baselineReconciliation: baseline,
+      routePlan: serverRoutePlan(value, baseline),
+      inspectedApproval: prepared,
+    });
+    expect(arguments_).toMatchObject({
+      routeSetCommitment: prepared.routeSetCommitment,
+      ownerApprovalArtifactDigest: prepared.artifactDigest,
+      ownerApprovalCommitment: prepared.approvalCommitment,
+    });
+    expect(readdirSync(directory)).toEqual([]);
+
+    const reference = writePreparedProductionPlayerCanaryOwnerApproval({
+      directory,
+      preparedApproval: prepared,
+    });
+    expect(reference.sha256).toBe(prepared.artifactDigest);
+    expect(readdirSync(directory)).toEqual([reference.filename]);
+  });
+
+  it('rejects route-plan drift and reconstructed preparation before publication', () => {
+    const directory = privateDirectory();
+    const value = approval();
+    const baseline = baselineReconciliation(value);
+    const prepared = prepareProductionPlayerCanaryOwnerApprovalV1({
+      approval: value,
+      baselineReconciliation: baseline,
+    });
+    const routePlan = serverRoutePlan(value, baseline);
+    expect(() => productionPlayerCanaryApprovalRegistrationArgumentsV1({
+      fid: 123n,
+      baselineReconciliation: baseline,
+      routePlan: {
+        ...routePlan,
+        routes: routePlan.routes.map((route, index) => index === 0
+          ? { ...route, locationId: `GRL-${'Z'.repeat(26)}` }
+          : route),
+      },
+      inspectedApproval: prepared,
+    })).toThrow('PRODUCTION_PLAYER_CANARY_APPROVAL_REGISTRATION_MATERIAL_MISMATCH');
+    expect(() => writePreparedProductionPlayerCanaryOwnerApproval({
+      directory,
+      preparedApproval: { ...prepared },
+    })).toThrow('PRODUCTION_PLAYER_CANARY_OWNER_APPROVAL_PREPARATION_REQUIRED');
+    expect(readdirSync(directory)).toEqual([]);
+  });
+
+  it('keeps nested prepared routes immutable before no-clobber publication', () => {
+    const directory = privateDirectory();
+    const value = approval();
+    const prepared = prepareProductionPlayerCanaryOwnerApprovalV1({
+      approval: value,
+      baselineReconciliation: baselineReconciliation(value),
+    });
+    expect(() => {
+      const routes = prepared.approval.routes as Array<{ locationId: string }>;
+      routes[0].locationId = `GRL-${'Z'.repeat(26)}`;
+    }).toThrow(TypeError);
+    expect(writePreparedProductionPlayerCanaryOwnerApproval({
+      directory,
+      preparedApproval: prepared,
+    }).sha256).toBe(prepared.artifactDigest);
+  });
+
+  it('removes an inert pre-link temporary before an exact retry', () => {
+    const directory = privateDirectory();
+    const value = approval();
+    const prepared = prepareProductionPlayerCanaryOwnerApprovalV1({
+      approval: value,
+      baselineReconciliation: baselineReconciliation(value),
+    });
+    const filename =
+      `production-player-canary-owner-approval-${value.approvalId}.json`;
+    writeFileSync(
+      join(directory, `.${filename}.${'0'.repeat(32)}.tmp`),
+      Buffer.alloc(0),
+      { mode: 0o600 },
+    );
+    expect(writePreparedProductionPlayerCanaryOwnerApproval({
+      directory,
+      preparedApproval: prepared,
+    })).toEqual({ filename, sha256: prepared.artifactDigest });
+    expect(readdirSync(directory)).toEqual([filename]);
   });
 
   it('rejects a cutoff one second shorter than travel, gather, and operator margin', () => {

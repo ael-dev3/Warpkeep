@@ -305,6 +305,47 @@ describe('production player canary approval registration reconciliation', () => 
     expect(fixture.operations.register).toHaveBeenCalledTimes(1);
   });
 
+  it('reacquires an exact committed registration after restart without submitting', async () => {
+    const fixture = dependencies();
+    const { assertCanStartWrite: _permit, ...reacquireInput } = input();
+    const result = await approvalTestSeams.reacquireWithDependencies(
+      reacquireInput,
+      fixture.operations,
+    );
+    expect(result).toMatchObject({
+      submissionOutcome: 'existing-row-reacquired',
+      approvalRegistrationCommitment: REGISTRATION,
+      routeSetCommitment: ROUTE,
+    });
+    expect(requireProductionPlayerCanaryApprovalReconciliation(result)).toBe(result);
+    expect(fixture.events).toEqual(['open', 'read', 'close']);
+    expect(fixture.operations.register).not.toHaveBeenCalled();
+    expect(fixture.operations.refresh).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when registration restart reacquisition is absent or conflicts', async () => {
+    const { assertCanStartWrite: _permit, ...reacquireInput } = input();
+    const absent = dependencies({ read: async () => missingStatus() });
+    await expect(approvalTestSeams.reacquireWithDependencies(
+      reacquireInput,
+      absent.operations,
+    )).rejects.toThrow(
+      'PRODUCTION_PLAYER_CANARY_APPROVAL_REACQUISITION_ABSENT',
+    );
+    expect(absent.operations.register).not.toHaveBeenCalled();
+
+    const conflict = dependencies({
+      read: async () => registeredStatus({ commandSetCommitment: '9'.repeat(64) }),
+    });
+    await expect(approvalTestSeams.reacquireWithDependencies(
+      reacquireInput,
+      conflict.operations,
+    )).rejects.toThrow(
+      'PRODUCTION_PLAYER_CANARY_APPROVAL_RECONCILIATION_STATUS_CONFLICT',
+    );
+    expect(conflict.operations.register).not.toHaveBeenCalled();
+  });
+
   it('rethrows proven no-write absence and requires explicit retry for ambiguous absence', async () => {
     const notStarted = new GreaterRealmCutoverWriteNotStartedError(
       'TEST_APPROVAL_NOT_STARTED',

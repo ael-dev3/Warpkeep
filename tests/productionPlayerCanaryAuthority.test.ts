@@ -48,7 +48,10 @@ import {
   canonicalProductionPlayerCanaryReceiptBytes,
   installProductionPlayerCanaryReceipt,
   parseProductionPlayerCanaryReceipt,
+  prepareProductionPlayerCanaryReceiptInstallation,
+  productionPlayerCanaryReceiptDigestForEvidenceAuthority,
   productionPlayerCanaryReceiptTestSeams,
+  reconcileProductionPlayerCanaryReceiptInstallation,
   requireFreshProductionPlayerCanaryActivationAuthority,
   sameProductionPlayerCanaryActivationAuthority,
 } from '../scripts/production-player-canary-receipt.mjs';
@@ -79,6 +82,8 @@ const CANARY_PROTECTED_RUNTIME_PATHS = Object.freeze([
   'scripts/production-player-canary-core.ts',
   'scripts/production-player-canary-deploy-authority.mjs',
   'scripts/production-player-canary-evidence-authority.mjs',
+  'scripts/production-player-canary-operator-journal.mjs',
+  'scripts/production-player-canary-operator.mjs',
   'scripts/production-player-canary-owner-approval.mjs',
   'scripts/production-player-canary-receipt.mjs',
 ]);
@@ -785,6 +790,98 @@ describe('production player canary authority', () => {
       name,
       modified: statSync(join(directory, name), { bigint: true }).mtimeNs,
     }))).toEqual(beforeInspection);
+  });
+
+  it('binds receipt publication to an exact pre-journaled digest', () => {
+    const directory = privateDirectory();
+    const authority = evidenceAuthority();
+    const intent = prepareProductionPlayerCanaryReceiptInstallation({
+      evidenceAuthority: authority,
+    });
+    expect(intent).toMatchObject({
+      receiptDigest:
+        productionPlayerCanaryReceiptDigestForEvidenceAuthority(authority),
+      recordedAt: authority.recordedAt,
+      notAfter: authority.notAfter,
+    });
+    expect(intent.evidenceAuthorityDigest).toMatch(/^[0-9a-f]{64}$/u);
+    expect(() => installProductionPlayerCanaryReceipt({
+      directory,
+      evidenceAuthority: authority,
+      expectedReceiptDigest: '0'.repeat(64),
+      randomId: () => '1'.repeat(32),
+    })).toThrow('PRODUCTION_PLAYER_CANARY_RECEIPT_INTENT_MISMATCH');
+    expect(readdirSync(directory)).toEqual([]);
+
+    const installed = installProductionPlayerCanaryReceipt({
+      directory,
+      evidenceAuthority: authority,
+      expectedReceiptDigest: intent.receiptDigest,
+      randomId: () => '2'.repeat(32),
+    });
+    expect(installed.receiptDigest).toBe(intent.receiptDigest);
+    expect(reconcileProductionPlayerCanaryReceiptInstallation({
+      directory,
+      expectedReceiptDigest: intent.receiptDigest,
+    })).toEqual({
+      state: 'installed',
+      filename: installed.filename,
+      receiptDigest: installed.receiptDigest,
+      result: 'unchanged',
+    });
+  });
+
+  it('recovers only the exact journaled receipt publication crash states', () => {
+    const authority = evidenceAuthority();
+    const value = receipt(authority);
+    const intent = prepareProductionPlayerCanaryReceiptInstallation({
+      evidenceAuthority: authority,
+    });
+    const linkedDirectory = privateDirectory();
+    expect(() => receiptTestSeams.installReceipt({
+      directory: linkedDirectory,
+      receipt: value,
+      randomId: () => '3'.repeat(32),
+    }, {
+      afterLink: () => { throw new Error('simulated-sigkill-after-link'); },
+    })).toThrow('PRODUCTION_PLAYER_CANARY_RECEIPT_INSTALL_INVALID');
+    expect(readdirSync(linkedDirectory)).toHaveLength(2);
+    expect(reconcileProductionPlayerCanaryReceiptInstallation({
+      directory: linkedDirectory,
+      expectedReceiptDigest: intent.receiptDigest,
+    })).toMatchObject({
+      state: 'installed',
+      receiptDigest: intent.receiptDigest,
+      result: 'unchanged',
+    });
+    expect(readdirSync(linkedDirectory)).toEqual([
+      `production-player-canary-${intent.receiptDigest}.json`,
+    ]);
+
+    const unpublishedDirectory = privateDirectory();
+    const bytes = canonicalProductionPlayerCanaryReceiptBytes(value);
+    try {
+      writeFileSync(join(
+        unpublishedDirectory,
+        `.production-player-canary-${intent.receiptDigest}.json-${'4'.repeat(32)}.tmp`,
+      ), bytes, { mode: 0o600 });
+    } finally {
+      bytes.fill(0);
+    }
+    expect(reconcileProductionPlayerCanaryReceiptInstallation({
+      directory: unpublishedDirectory,
+      expectedReceiptDigest: intent.receiptDigest,
+    })).toEqual({ state: 'absent' });
+    expect(readdirSync(unpublishedDirectory)).toEqual([]);
+
+    const conflictingDirectory = privateDirectory();
+    writeFileSync(join(conflictingDirectory, 'unrelated.json'), '{}\n', {
+      mode: 0o600,
+    });
+    expect(() => reconcileProductionPlayerCanaryReceiptInstallation({
+      directory: conflictingDirectory,
+      expectedReceiptDigest: intent.receiptDigest,
+    })).toThrow('PRODUCTION_PLAYER_CANARY_RECEIPT_DIRECTORY_CONTENT_INVALID');
   });
 
   it('separates immutable issuance evidence from a fresh activation observation', () => {
