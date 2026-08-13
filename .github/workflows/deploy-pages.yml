@@ -654,7 +654,7 @@ jobs:
                 (.run_attempt | tostring) == $runAttempt and
                 .status == "in_progress" and
                 .event == "workflow_run" and
-                .path == ".github/workflows/deploy-pages.yml@main" and
+                .path == ".github/workflows/deploy-pages.yml" and
                 .head_branch == "main" and
                 .head_sha == $source and
                 .repository.full_name == $repository and
@@ -670,7 +670,7 @@ jobs:
                 .status == "completed" and
                 .conclusion == "success" and
                 .event == "push" and
-                .path == ".github/workflows/verify.yml@main" and
+                .path == ".github/workflows/verify.yml" and
                 .head_branch == "main" and
                 .head_sha == $source and
                 .repository.full_name == $repository and
@@ -707,7 +707,7 @@ jobs:
                 (.run_attempt | tostring) == $runAttempt and
                 .status == "in_progress" and
                 .event == "workflow_run" and
-                .path == ".github/workflows/deploy-pages.yml@main" and
+                .path == ".github/workflows/deploy-pages.yml" and
                 .head_branch == "main" and
                 .head_sha == $source and
                 .repository.full_name == $repository and

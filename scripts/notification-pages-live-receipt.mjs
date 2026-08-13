@@ -28,7 +28,9 @@ import {
   resolve,
   sep,
 } from 'node:path';
-import { parseDocument } from 'yaml';
+import {
+  parseDocument,
+} from '../services/auth-bridge/node_modules/yaml/dist/index.js';
 import {
   isAsExpression,
   isCallExpression,
@@ -42,9 +44,13 @@ import {
   ModifierFlags,
   NodeFlags,
   SyntaxKind,
-} from 'typescript/unstable/ast';
-import { createVirtualFileSystem } from 'typescript/unstable/fs';
-import { API as TypeScriptAPI } from 'typescript/unstable/sync';
+} from '../services/auth-bridge/node_modules/typescript/dist/ast/index.js';
+import {
+  createVirtualFileSystem,
+} from '../services/auth-bridge/node_modules/typescript/dist/api/fs.js';
+import {
+  API as TypeScriptAPI,
+} from '../services/auth-bridge/node_modules/typescript/dist/api/sync/api.js';
 
 import {
   DEFAULT_AUTH_BRIDGE_URL,

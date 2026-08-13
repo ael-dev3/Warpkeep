@@ -113,7 +113,6 @@ describe('notification Pages private deployment workflow', () => {
     const source = workflow();
     const privateDeploy = job(source, 'private-deploy');
     for (const command of [
-      'recover-skipped-invocation',
       'predeploy',
       'mark-deploy-invoked',
       'postflight',
@@ -122,6 +121,9 @@ describe('notification Pages private deployment workflow', () => {
         `scripts/notification-pages-private-deploy-launcher.mjs ${command}`,
       );
     }
+    expect(privateDeploy).toMatch(
+      /scripts\/notification-pages-private-deploy-launcher\.mjs \\\n+\s+recover-skipped-invocation/u,
+    );
     expect(source).not.toMatch(
       /node scripts\/notification-pages-private-deploy-operator\.mjs/u,
     );
@@ -187,7 +189,7 @@ describe('notification Pages private deployment workflow', () => {
       '(.run_attempt | tostring) == $runAttempt',
       '.status == "in_progress"',
       '.event == "workflow_run"',
-      '.path == ".github/workflows/deploy-pages.yml@main"',
+      '.path == ".github/workflows/deploy-pages.yml"',
       '.repository.full_name == $repository',
       '.head_repository.full_name == $repository',
     ]) expect(privateDeploy).toContain(requirement);
@@ -195,7 +197,7 @@ describe('notification Pages private deployment workflow', () => {
       '.status == "completed"',
       '.conclusion == "success"',
       '.event == "push"',
-      '.path == ".github/workflows/verify.yml@main"',
+      '.path == ".github/workflows/verify.yml"',
     ]) expect(privateDeploy).toContain(requirement);
   });
 

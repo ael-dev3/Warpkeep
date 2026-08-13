@@ -193,7 +193,7 @@ function githubAdjudicationFetch(overrides: {
       status: 'completed',
       conclusion: 'cancelled',
       event: 'workflow_run',
-      path: '.github/workflows/deploy-pages.yml@main',
+      path: '.github/workflows/deploy-pages.yml',
       head_branch: 'main',
       head_sha: CANDIDATE,
       repository: { full_name: 'ael-dev3/Warpkeep' },
@@ -415,6 +415,10 @@ describe('notification Pages private deployment operator', () => {
     {
       name: 'wrong workflow',
       run: { path: '.github/workflows/decoy.yml' },
+    },
+    {
+      name: 'ref-suffixed workflow path not returned by the live API',
+      run: { path: '.github/workflows/deploy-pages.yml@main' },
     },
     {
       name: 'wrong source',

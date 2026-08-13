@@ -931,7 +931,7 @@ async function adjudicateSkippedGitHubDeployment(
     || run.status !== 'completed'
     || !['cancelled', 'failure', 'timed_out'].includes(run.conclusion)
     || run.event !== 'workflow_run'
-    || run.path !== `${WORKFLOW}@main`
+    || run.path !== WORKFLOW
     || run.head_branch !== 'main'
     || run.head_sha !== request.candidatePagesSourceCommit
     || run.repository?.full_name !== REPOSITORY
