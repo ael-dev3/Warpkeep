@@ -34,3 +34,30 @@ condition = "AND"
 regexTarget = "secret"
 regexes = ['''^0x7a9E6965FCF1ad2cfbff67f0C0aA102F0DEa23d4$''']
 paths = ['''^public/\.well-known/farcaster\.json$''']
+
+[[allowlists]]
+description = "Fixed owner-private launch directory label, never credential material"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^launch-secrets-v1$''']
+paths = [
+  '''^scripts/production-player-canary-deploy-authority\.d\.mts$''',
+  '''^scripts/production-player-canary-deploy-authority\.mjs$''',
+]
+
+[[allowlists]]
+description = "Fixed owner-private notification secret filename, never its contents"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^notification-operator-secret-v1\.txt$''']
+paths = ['''^scripts/production-player-canary-deploy-authority\.mjs$''']
+
+[[allowlists]]
+description = "Non-secret operator test fixture material"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^notification-secret-material-00001$''']
+paths = ['''^tests/productionPlayerCanaryOperator\.test\.ts$''']
