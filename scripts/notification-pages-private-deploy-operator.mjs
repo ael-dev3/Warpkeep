@@ -506,8 +506,10 @@ function validateDeployedModuleReceipt(bytes) {
     || !['verified', 'verified-after-submission-error'].includes(record.outcome)
     || !exactTarget(record.target)
     || record.moduleDeltaPolicy !== 'reviewed-same-schema'
-    || record.predecessorTableCount !== 84
-    || record.postTableCount !== 84
+    || !SHA256.test(record.v17TableSchemaDigest ?? '')
+    || !SHA256.test(record.currentCandidateTableSchemaDigest ?? '')
+    || record.predecessorTableCount !== 86
+    || record.postTableCount !== 86
     || record.schemaMutation !== 'none'
     || record.importMutationsCompiled !== false
     || record.activationMutationsCompiled !== true
@@ -1601,6 +1603,12 @@ export async function runNotificationPagesPrivateDeployOperatorCli(
 }
 
 export const notificationPagesPrivateDeployOperatorTestSeams = Object.freeze({
+  validateDeployedModuleReceipt(bytes) {
+    if (process.env.NODE_ENV !== 'test') {
+      fail('NOTIFICATION_PAGES_DEPLOY_TEST_SEAM_FORBIDDEN');
+    }
+    return validateDeployedModuleReceipt(bytes);
+  },
   attestCurrentGitHubDeploymentAuthority(request, options) {
     if (process.env.NODE_ENV !== 'test') {
       fail('NOTIFICATION_PAGES_DEPLOY_TEST_SEAM_FORBIDDEN');

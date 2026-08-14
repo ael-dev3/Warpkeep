@@ -68,6 +68,7 @@ const FILE_MODE = 0o600;
 const FIXTURE_NAMES = Object.freeze([
   'production-v1',
   ...Array.from({ length: 16 }, (_, index) => `additive-v${index + 2}-schema`),
+  'current-candidate-inspection',
 ] as const);
 const MODULE_DEPENDENCIES = Object.freeze({
   esbuild: '0.25.12',

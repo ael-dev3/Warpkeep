@@ -25,7 +25,7 @@ const actualModule = resolve(repositoryRoot, 'spacetimedb');
 // downgrade before the rehearsal reaches its request-CAS checks.
 const inspectionModule = resolve(
   repositoryRoot,
-  'spacetimedb/migration-fixtures/additive-v17-schema',
+  'spacetimedb/migration-fixtures/current-candidate-inspection',
 );
 const actualArtifactPath = join(actualModule, 'dist', 'bundle.js');
 const inspectionArtifactPath = join(inspectionModule, 'dist', 'bundle.js');

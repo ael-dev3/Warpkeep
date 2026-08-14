@@ -129,11 +129,13 @@ test('general rehearsal preserves the populated v14 to v15 boundary inside v17',
   assert.match(verifier, /The v15 boundary must refuse its own predecessor/);
   assert.match(verifier, /inner_keep_layout_v1: 56/);
   assert.match(verifier, /castle_inner_construction_schedule_v_1: 63/);
-  assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 17/);
+  assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 18/);
   assert.match(receipt, /const V15_TABLE_SCHEMA_RECEIPT_FIELD = 'v15_table_schema_sha256'/);
   assert.match(receipt, /v15TableSchemaDigest/);
   assert.match(receipt, /const V16_TABLE_SCHEMA_RECEIPT_FIELD = 'v16_table_schema_sha256'/);
   assert.match(receipt, /v16TableSchemaDigest/);
   assert.match(receipt, /const V17_TABLE_SCHEMA_RECEIPT_FIELD = 'v17_table_schema_sha256'/);
+  assert.match(receipt, /'current_candidate_table_schema_sha256'/);
   assert.match(receipt, /v17TableSchemaDigest/);
+  assert.match(receipt, /currentCandidateTableSchemaDigest/);
 });

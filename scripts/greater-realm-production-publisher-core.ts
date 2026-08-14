@@ -102,9 +102,10 @@ export type GreaterRealmProductionPublishReceipt = Readonly<{
   artifactDigest: string;
   v14TableSchemaDigest: string;
   v17TableSchemaDigest: string;
+  currentCandidateTableSchemaDigest: string;
   predecessorTableCount: number;
-  postTableCount: 84;
-  schemaMutation: 'append-28' | 'none';
+  postTableCount: 86;
+  schemaMutation: 'append-30' | 'none';
   importMutationsCompiled: boolean;
   activationMutationsCompiled: boolean;
   releaseState: string;
@@ -151,6 +152,11 @@ const V17_TABLES = Object.freeze([
   'realm_worker_system_v2',
 ] as const);
 
+const CURRENT_CANDIDATE_TABLES = Object.freeze([
+  'production_player_canary_baseline_v1',
+  'production_player_canary_approval_registration_v1',
+] as const);
+
 function contractRefs(
   contracts: Readonly<Record<string, Readonly<{ productTypeRef: number }>>>,
 ): Readonly<Record<string, number>> {
@@ -171,6 +177,11 @@ export const GREATER_REALM_PRODUCTION_V17_TABLE_REFS = Object.freeze({
   ...contractRefs(INNER_KEEP_V15_TABLE_CONTRACTS),
   ...Object.fromEntries(V16_TABLES.map((name, index) => [name, 64 + index])),
   ...Object.fromEntries(V17_TABLES.map((name, index) => [name, 72 + index])),
+});
+
+export const GREATER_REALM_PRODUCTION_CURRENT_CANDIDATE_TABLE_REFS = Object.freeze({
+  ...GREATER_REALM_PRODUCTION_V17_TABLE_REFS,
+  ...Object.fromEntries(CURRENT_CANDIDATE_TABLES.map((name, index) => [name, 84 + index])),
 });
 
 const SHA256 = /^[0-9a-f]{64}$/u;
@@ -282,24 +293,35 @@ export function verifyGreaterRealmV14ProductionPredecessor(
   });
 }
 
-export function verifyGreaterRealmV17ProductionSchema(input: Readonly<{
+export function verifyGreaterRealmCurrentCandidateProductionSchema(input: Readonly<{
   description: unknown;
   artifactReceipt: MigrationArtifactReceipt;
   predecessorSignatures?: Readonly<Record<string, string>>;
-}>): Readonly<{ tableSignatures: Readonly<Record<string, string>>; tableCount: 84 }> {
+}>): Readonly<{ tableSignatures: Readonly<Record<string, string>>; tableCount: 86 }> {
   const description = schema(input.description);
+  const v17Names = new Set(Object.keys(GREATER_REALM_PRODUCTION_V17_TABLE_REFS));
   assertExactRefs(
-    description,
+    Object.freeze({
+      ...description,
+      tables: description.tables.filter(table => (
+        typeof table.name === 'string' && v17Names.has(table.name)
+      )),
+    }),
     GREATER_REALM_PRODUCTION_V17_TABLE_REFS,
     input.artifactReceipt.v17TableSchemaDigest,
   );
+  assertExactRefs(
+    description,
+    GREATER_REALM_PRODUCTION_CURRENT_CANDIDATE_TABLE_REFS,
+    input.artifactReceipt.currentCandidateTableSchemaDigest,
+  );
   const tableSignatures = signatures(
     description,
-    Object.keys(GREATER_REALM_PRODUCTION_V17_TABLE_REFS),
+    Object.keys(GREATER_REALM_PRODUCTION_CURRENT_CANDIDATE_TABLE_REFS),
   );
   if (input.predecessorSignatures !== undefined) {
     const expectedNames = Object.keys(input.predecessorSignatures);
-    if (expectedNames.length !== 56 && expectedNames.length !== 84) {
+    if (expectedNames.length !== 56 && expectedNames.length !== 86) {
       fail('GREATER_REALM_PRODUCTION_PREDECESSOR_CAPTURE_INVALID');
     }
     for (const name of expectedNames) {
@@ -308,7 +330,7 @@ export function verifyGreaterRealmV17ProductionSchema(input: Readonly<{
       }
     }
   }
-  return Object.freeze({ tableSignatures, tableCount: 84 });
+  return Object.freeze({ tableSignatures, tableCount: 86 });
 }
 
 function exactFlags(value: GreaterRealmProductionReleaseFlags): void {
@@ -632,6 +654,7 @@ function publisherArtifactAudit(
     v15TableSchemaDigest: artifactReceipt.v15TableSchemaDigest,
     v16TableSchemaDigest: artifactReceipt.v16TableSchemaDigest,
     v17TableSchemaDigest: artifactReceipt.v17TableSchemaDigest,
+    currentCandidateTableSchemaDigest: artifactReceipt.currentCandidateTableSchemaDigest,
   });
 }
 
@@ -666,6 +689,10 @@ export async function inspectGreaterRealmProductionPublisherRecoverySnapshot(inp
   readImportStatus?: () => Promise<unknown>;
   readCutoverStatus?: () => Promise<unknown>;
   readHistoricalAggregate: () => Promise<unknown>;
+  testOnlyDependencies?: Readonly<{
+    verifyV14Predecessor?: typeof verifyGreaterRealmV14ProductionPredecessor;
+    verifyCurrentCandidateSchema?: typeof verifyGreaterRealmCurrentCandidateProductionSchema;
+  }>;
 }>): Promise<Readonly<{
   status: Readonly<Record<string, unknown>>;
   audit: Readonly<Record<string, unknown>>;
@@ -676,25 +703,31 @@ export async function inspectGreaterRealmProductionPublisherRecoverySnapshot(inp
     fail('GREATER_REALM_PRODUCTION_MODULE_DELTA_POLICY_INVALID');
   }
   const append = input.lane === GREATER_REALM_PRODUCTION_PUBLISH_LANE.APPEND_INERT_V17;
+  const verifyV14Predecessor = input.testOnlyDependencies?.verifyV14Predecessor
+    ?? verifyGreaterRealmV14ProductionPredecessor;
+  const verifyCurrentCandidateSchema = input.testOnlyDependencies?.verifyCurrentCandidateSchema
+    ?? verifyGreaterRealmCurrentCandidateProductionSchema;
   const description = await input.readSchema();
   let schemaDigest: string;
+  let appendAlreadyPublished = false;
   if (append) {
     try {
-      verifyGreaterRealmV14ProductionPredecessor(description, input.artifactReceipt);
+      verifyV14Predecessor(description, input.artifactReceipt);
       schemaDigest = input.artifactReceipt.v14TableSchemaDigest;
     } catch {
-      verifyGreaterRealmV17ProductionSchema({
+      verifyCurrentCandidateSchema({
         description,
         artifactReceipt: input.artifactReceipt,
       });
-      schemaDigest = input.artifactReceipt.v17TableSchemaDigest;
+      schemaDigest = input.artifactReceipt.currentCandidateTableSchemaDigest;
+      appendAlreadyPublished = true;
     }
   } else {
-    verifyGreaterRealmV17ProductionSchema({
+    verifyCurrentCandidateSchema({
       description,
       artifactReceipt: input.artifactReceipt,
     });
-    schemaDigest = input.artifactReceipt.v17TableSchemaDigest;
+    schemaDigest = input.artifactReceipt.currentCandidateTableSchemaDigest;
   }
   const plan = expectedCompileMode(input.lane);
   const expectedAtlasRelease = Object.freeze({
@@ -704,7 +737,7 @@ export async function inspectGreaterRealmProductionPublisherRecoverySnapshot(inp
     expectedReleaseSha256: input.expectedReleaseSha256,
   });
   let status: PublisherStatus | undefined;
-  if (!append) {
+  if (!append || appendAlreadyPublished) {
     const reader = plan.statusKind === 'import'
       ? input.readImportStatus
       : input.readCutoverStatus;
@@ -792,7 +825,7 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
   }>;
   testOnlyDependencies?: Readonly<{
     verifyV14Predecessor?: typeof verifyGreaterRealmV14ProductionPredecessor;
-    verifyV17Schema?: typeof verifyGreaterRealmV17ProductionSchema;
+    verifyCurrentCandidateSchema?: typeof verifyGreaterRealmCurrentCandidateProductionSchema;
     projectCutoverStatus?: typeof projectGreaterRealmProductionCutoverStatusForCompileMode;
     projectCutoverStatusShape?: typeof projectGreaterRealmProductionCutoverStatusShape;
   }>;
@@ -816,6 +849,7 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
     !SHA256.test(input.artifactReceipt.artifactDigest)
     || !SHA256.test(input.artifactReceipt.v14TableSchemaDigest)
     || !SHA256.test(input.artifactReceipt.v17TableSchemaDigest)
+    || !SHA256.test(input.artifactReceipt.currentCandidateTableSchemaDigest)
   ) fail('GREATER_REALM_PRODUCTION_MIGRATION_RECEIPT_INVALID');
 
   const append = input.lane === GREATER_REALM_PRODUCTION_PUBLISH_LANE.APPEND_INERT_V17;
@@ -842,8 +876,8 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
     });
   const verifyV14Predecessor = input.testOnlyDependencies?.verifyV14Predecessor
     ?? verifyGreaterRealmV14ProductionPredecessor;
-  const verifyV17Schema = input.testOnlyDependencies?.verifyV17Schema
-    ?? verifyGreaterRealmV17ProductionSchema;
+  const verifyCurrentCandidateSchema = input.testOnlyDependencies?.verifyCurrentCandidateSchema
+    ?? verifyGreaterRealmCurrentCandidateProductionSchema;
   let predecessorSignatures: Readonly<Record<string, string>>;
   let beforeStatus: PublisherStatus | undefined;
   const plan = expectedCompileMode(input.lane);
@@ -858,7 +892,7 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
         input.artifactReceipt,
       ).tableSignatures;
     } else {
-      predecessorSignatures = verifyV17Schema({
+      predecessorSignatures = verifyCurrentCandidateSchema({
         description: beforeSchema,
         artifactReceipt: input.artifactReceipt,
       }).tableSignatures;
@@ -900,7 +934,7 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
     append,
     schemaDigest: append
       ? input.artifactReceipt.v14TableSchemaDigest
-      : input.artifactReceipt.v17TableSchemaDigest,
+      : input.artifactReceipt.currentCandidateTableSchemaDigest,
     status: beforeStatus,
   });
   const beforeJournalAudit = Object.freeze({
@@ -945,7 +979,7 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
     contract: `publish-${input.lane}-v1`,
     statusRules: Object.freeze({
       schemaDigest: Object.freeze({
-        rule: 'equals', value: input.artifactReceipt.v17TableSchemaDigest,
+        rule: 'equals', value: input.artifactReceipt.currentCandidateTableSchemaDigest,
       }),
       ...(!append && 'stateDigest' in beforeJournalStatus
         ? {
@@ -985,6 +1019,8 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
     arguments: Object.freeze({
       artifactDigest: input.artifactReceipt.artifactDigest,
       v17TableSchemaDigest: input.artifactReceipt.v17TableSchemaDigest,
+      currentCandidateTableSchemaDigest:
+        input.artifactReceipt.currentCandidateTableSchemaDigest,
       artifactReceipt: input.artifactReceipt,
     }),
     identity: Object.freeze({
@@ -993,6 +1029,8 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
       artifactDigest: input.artifactReceipt.artifactDigest,
       v14TableSchemaDigest: input.artifactReceipt.v14TableSchemaDigest,
       v17TableSchemaDigest: input.artifactReceipt.v17TableSchemaDigest,
+      currentCandidateTableSchemaDigest:
+        input.artifactReceipt.currentCandidateTableSchemaDigest,
       artifactReceipt: input.artifactReceipt,
       ...(input.publishExecutableIdentity === undefined
         ? {}
@@ -1019,7 +1057,7 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
         if (append) {
           verifyV14Predecessor(schemaDescription, input.artifactReceipt);
         } else {
-          verifyV17Schema({
+          verifyCurrentCandidateSchema({
             description: schemaDescription,
             artifactReceipt: input.artifactReceipt,
           });
@@ -1036,7 +1074,7 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
             append,
             schemaDigest: append
               ? input.artifactReceipt.v14TableSchemaDigest
-              : input.artifactReceipt.v17TableSchemaDigest,
+              : input.artifactReceipt.currentCandidateTableSchemaDigest,
             status,
           }),
           audit: Object.freeze({
@@ -1079,7 +1117,7 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
   let postStatus: PublisherStatus;
   let postHistoricalAggregateDigest: string;
   try {
-    verifyV17Schema({
+    verifyCurrentCandidateSchema({
       description: await input.readSchema(),
       artifactReceipt: input.artifactReceipt,
       predecessorSignatures,
@@ -1124,7 +1162,7 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
   await journalOperation?.reconcile({
     afterStatus: publisherJournalStatus({
       append,
-      schemaDigest: input.artifactReceipt.v17TableSchemaDigest,
+      schemaDigest: input.artifactReceipt.currentCandidateTableSchemaDigest,
       status: postStatus,
     }),
     afterAudit: Object.freeze({
@@ -1136,7 +1174,7 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
   input.operationJournal?.reconcileCommand({
     afterStatus: publisherJournalStatus({
       append,
-      schemaDigest: input.artifactReceipt.v17TableSchemaDigest,
+      schemaDigest: input.artifactReceipt.currentCandidateTableSchemaDigest,
       status: postStatus,
     }),
     afterAudit: Object.freeze({
@@ -1146,7 +1184,7 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
     receiptAfterStatus: publisherReceiptStatus({
       lane: input.lane,
       moduleDeltaPolicy: input.moduleDeltaPolicy,
-      schemaDigest: input.artifactReceipt.v17TableSchemaDigest,
+      schemaDigest: input.artifactReceipt.currentCandidateTableSchemaDigest,
       status: postStatus,
       historicalAggregateDigest: postHistoricalAggregateDigest!,
     }),
@@ -1172,9 +1210,11 @@ export async function executeGreaterRealmProductionPublishLane(input: Readonly<{
     artifactDigest: input.artifactReceipt.artifactDigest,
     v14TableSchemaDigest: input.artifactReceipt.v14TableSchemaDigest,
     v17TableSchemaDigest: input.artifactReceipt.v17TableSchemaDigest,
-    predecessorTableCount: append ? 56 : 84,
-    postTableCount: 84,
-    schemaMutation: append ? 'append-28' : 'none',
+    currentCandidateTableSchemaDigest:
+      input.artifactReceipt.currentCandidateTableSchemaDigest,
+    predecessorTableCount: append ? 56 : 86,
+    postTableCount: 86,
+    schemaMutation: append ? 'append-30' : 'none',
     importMutationsCompiled: postStatus.importMutationsCompiled,
     activationMutationsCompiled: postStatus.activationMutationsCompiled,
     releaseState: releaseState(postStatus),

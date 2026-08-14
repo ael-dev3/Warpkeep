@@ -79,6 +79,9 @@ export function runNotificationPagesPrivateDeployOperatorCli(
 ): Promise<void>;
 
 export const notificationPagesPrivateDeployOperatorTestSeams: Readonly<{
+  validateDeployedModuleReceipt: (
+    bytes: Uint8Array,
+  ) => Readonly<Record<string, unknown>>;
   attestCurrentGitHubDeploymentAuthority: (
     request: Readonly<Record<string, unknown>>,
     options: Readonly<{

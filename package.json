@@ -102,6 +102,7 @@
     "stdb:build-v15-migration-fixture": "spacetime build --module-path spacetimedb/migration-fixtures/additive-v15-schema",
     "stdb:build-v16-migration-fixture": "spacetime build --module-path spacetimedb/migration-fixtures/additive-v16-schema",
     "stdb:build-v17-migration-fixture": "spacetime build --module-path spacetimedb/migration-fixtures/additive-v17-schema",
+    "stdb:build-current-candidate-inspection-fixture": "spacetime build --module-path spacetimedb/migration-fixtures/current-candidate-inspection",
     "stdb:verify-additive-migration": "node scripts/verify-spacetime-additive-migration.mjs",
     "stdb:verify-worker-migration": "node scripts/verify-castle-worker-additive-migration.mjs",
     "stdb:verify-access-request-migration": "node scripts/verify-access-request-additive-migration.mjs",

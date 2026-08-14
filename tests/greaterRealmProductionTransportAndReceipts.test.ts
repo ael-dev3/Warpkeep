@@ -218,6 +218,7 @@ describe('Greater Realm atlas/module source ancestry', () => {
           v15TableSchemaDigest: digest,
           v16TableSchemaDigest: digest,
           v17TableSchemaDigest: digest,
+          currentCandidateTableSchemaDigest: digest,
           artifactDigest: createHash('sha256').update(readFileSync(artifactPath)).digest('hex'),
         });
       },
@@ -281,6 +282,7 @@ describe('Greater Realm atlas/module source ancestry', () => {
         v15TableSchemaDigest: digest,
         v16TableSchemaDigest: digest,
         v17TableSchemaDigest: digest,
+        currentCandidateTableSchemaDigest: digest,
         artifactDigest: createHash('sha256').update(readFileSync(artifactPath)).digest('hex'),
       }),
     });
@@ -377,6 +379,7 @@ describe('Greater Realm atlas/module source ancestry', () => {
           v15TableSchemaDigest: digest,
           v16TableSchemaDigest: digest,
           v17TableSchemaDigest: digest,
+          currentCandidateTableSchemaDigest: digest,
           artifactDigest: createHash('sha256').update(readFileSync(artifactPath)).digest('hex'),
         }),
         testOnlyDurabilityStep: step => {

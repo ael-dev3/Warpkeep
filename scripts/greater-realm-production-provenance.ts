@@ -794,6 +794,7 @@ function verifyExactProductionWorkingTree(input: Readonly<{
     ...Array.from({ length: 16 }, (_, index) => (
       `spacetimedb/migration-fixtures/additive-v${index + 2}-schema/node_modules/`
     )),
+    'spacetimedb/migration-fixtures/current-candidate-inspection/node_modules/',
     'spacetimedb/migration-fixtures/production-v1/node_modules/',
   ];
   if (

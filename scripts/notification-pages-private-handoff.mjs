@@ -111,7 +111,8 @@ const PUBLISH_RECORD_KEYS = Object.freeze([
   'schemaVersion', 'kind', 'lane', 'outcome', 'target', 'atlasSourceCommit',
   'atlasId', 'publicReleaseId', 'expectedReleaseSha256', 'moduleSourceCommit',
   'moduleDeltaPolicy', 'artifactDigest', 'v14TableSchemaDigest',
-  'v17TableSchemaDigest', 'predecessorTableCount', 'postTableCount',
+  'v17TableSchemaDigest', 'currentCandidateTableSchemaDigest',
+  'predecessorTableCount', 'postTableCount',
   'schemaMutation', 'importMutationsCompiled', 'activationMutationsCompiled',
   'releaseState', 'activationMode', 'historicalAggregateDigest',
   'operationReceiptChainDigest', 'operationReceiptCount',
@@ -371,8 +372,9 @@ function validatePublishRecord(record, code) {
     || !exactPattern(record.artifactDigest, SHA256_HEX)
     || !exactPattern(record.v14TableSchemaDigest, SHA256_HEX)
     || !exactPattern(record.v17TableSchemaDigest, SHA256_HEX)
-    || record.predecessorTableCount !== 84
-    || record.postTableCount !== 84
+    || !exactPattern(record.currentCandidateTableSchemaDigest, SHA256_HEX)
+    || record.predecessorTableCount !== 86
+    || record.postTableCount !== 86
     || record.schemaMutation !== 'none'
     || record.importMutationsCompiled !== false
     || record.activationMutationsCompiled !== true

@@ -15,7 +15,7 @@
     {
       "path": ".github/workflows/verify.yml",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "55f9dd6569084291fed4064daaf5b6fe54a72404a0b959c96fcd388afeed5d93"
+      "sha256": "9dff1e6d481d00b9c25643e03b9b31e619c30fec8edd323b42f062e6f200f60b"
     },
     {
       "path": "owner-canary/index.html",
@@ -30,7 +30,7 @@
     {
       "path": "package.json",
       "digestProfile": "reviewed-release-transition-projection-sha256-v1",
-      "sha256": "b50e993de7174221ff9572f905a081221c69c60aa51097c2eabed470c871b564"
+      "sha256": "12610ed606302587d2b3310b80aba87636e71ad2e314bf3eb994c6dc85f9871a"
     },
     {
       "path": "public/.well-known/farcaster.json",
@@ -200,7 +200,7 @@
     {
       "path": "scripts/greater-realm-production-publisher-core.ts",
       "digestProfile": "reviewed-release-transition-projection-sha256-v1",
-      "sha256": "5201fc1163a61bf8ad01da95a5455bc51b2e75f0152fa5103dd670653406d5d3"
+      "sha256": "343151622244eefb1e919bafd90c3a2e9bc6d87ff55bd301cf6f91dcc53ec69f"
     },
     {
       "path": "scripts/greater-realm-production-transport.ts",
@@ -300,12 +300,12 @@
     {
       "path": "scripts/notification-pages-private-deploy-operator.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "1c49c8ee928e050576fc055ef8c1eff0c8757a73b1e0c956eb9cf632d16a0c67"
+      "sha256": "636221cb687ccdedc42a0707e012a210ce311f5497e0da100c0d2c9296843453"
     },
     {
       "path": "scripts/notification-pages-private-deploy-operator.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "907447d445addd331410f3adbf5e60e3fc0c804bd5b3a38584c1e5fb6f88a066"
+      "sha256": "0e2d294eff23835961a11ea1e6d1e27e8bd623b26874e1db9f57855a2a3826fd"
     },
     {
       "path": "scripts/notification-pages-private-handoff.d.mts",
@@ -315,7 +315,7 @@
     {
       "path": "scripts/notification-pages-private-handoff.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8ffd7a19836285cd52e8f9687c2473e702349eabb86e296346ed7b5f77fdcc40"
+      "sha256": "1382e43e2a42ad0e03c806fe42396157e702af956dee02af478e628d446a1fa7"
     },
     {
       "path": "scripts/notification-pages-private-release-binding.d.mts",

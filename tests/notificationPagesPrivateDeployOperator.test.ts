@@ -337,6 +337,60 @@ async function attestWithToken(fetchImpl: typeof fetch) {
 }
 
 describe('notification Pages private deployment operator', () => {
+  it('rejects historical 84-table active receipts and requires both schema digests', () => {
+    const target = Object.freeze({
+      uri: 'https://maincloud.spacetimedb.com',
+      database: 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+      deleteData: 'never',
+    });
+    const record = Object.freeze({
+      schemaVersion: 1,
+      kind: 'warpkeep-greater-realm-production-publish-v1',
+      lane: 'forward-activation-active-v17',
+      outcome: 'verified',
+      target,
+      atlasSourceCommit: '1'.repeat(40),
+      atlasId: 'GREATER_REALM_V1',
+      publicReleaseId: 'GRR-TEST',
+      expectedReleaseSha256: '2'.repeat(64),
+      moduleSourceCommit: '3'.repeat(40),
+      moduleDeltaPolicy: 'reviewed-same-schema',
+      v17TableSchemaDigest: '4'.repeat(64),
+      currentCandidateTableSchemaDigest: '5'.repeat(64),
+      predecessorTableCount: 86,
+      postTableCount: 86,
+      schemaMutation: 'none',
+      importMutationsCompiled: false,
+      activationMutationsCompiled: true,
+      releaseState: 'active',
+      activationMode: 'active',
+    });
+    const receiptBytes = (nextRecord: Readonly<Record<string, unknown>>) => Buffer.from(
+      `${JSON.stringify({
+        schemaVersion: 1,
+        kind: 'warpkeep-greater-realm-production-publish-v1',
+        target,
+        record: nextRecord,
+      }, null, 2)}\n`,
+      'utf8',
+    );
+    expect(notificationPagesPrivateDeployOperatorTestSeams
+      .validateDeployedModuleReceipt(receiptBytes(record))).toMatchObject({
+        atlasId: 'GREATER_REALM_V1',
+      });
+    expect(() => notificationPagesPrivateDeployOperatorTestSeams
+      .validateDeployedModuleReceipt(receiptBytes({
+        ...record,
+        predecessorTableCount: 84,
+        postTableCount: 84,
+      }))).toThrow(/MODULE_RECEIPT_INVALID/);
+    const missingCandidateDigest = { ...record } as Record<string, unknown>;
+    delete missingCandidateDigest.currentCandidateTableSchemaDigest;
+    expect(() => notificationPagesPrivateDeployOperatorTestSeams
+      .validateDeployedModuleReceipt(receiptBytes(missingCandidateDigest)))
+      .toThrow(/MODULE_RECEIPT_INVALID/);
+  });
+
   it('classifies only exact closed, generation-zero, and durable source states', () => {
     for (const mode of ['closed-review', 'gen0', 'durable'] as const) {
       expect(classifyNotificationPagesPrivateDeployment({

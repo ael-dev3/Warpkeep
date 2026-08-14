@@ -133,9 +133,17 @@ assert.deepEqual(v17Registrations.slice(72), [
   'realmWorkerSystemV2',
 ]);
 assert.deepEqual(
-  candidateRegistrations,
+  candidateRegistrations.slice(0, v17Registrations.length),
   v17Registrations,
-  'candidate must be the complete exact v17 Greater Realm append',
+  'candidate must preserve the complete exact v17 Greater Realm prefix',
+);
+assert.deepEqual(
+  candidateRegistrations.slice(v17Registrations.length),
+  [
+    'productionPlayerCanaryBaselineV1',
+    'productionPlayerCanaryApprovalRegistrationV1',
+  ],
+  'candidate must append only the two private production-player canary authority tables',
 );
 
 const v13TailStart = v13Fixture.indexOf(
@@ -211,7 +219,7 @@ assert.match(proof, /arguments_\.filter\(value => value === '--delete-data=never
 assert.match(proof, /arguments_\.some\(value => value\.startsWith\('--delete-data='/);
 assert.doesNotMatch(proof, /--delete-data=(?:always|on-conflict|if-required)/);
 
-assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 17/);
+assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 18/);
 assert.match(receipt, /v13_table_schema_sha256/);
 assert.match(receipt, /v13TableSchemaDigest/);
 assert.match(receipt, /v14_table_schema_sha256/);
@@ -221,12 +229,15 @@ assert.match(receipt, /v15TableSchemaDigest/);
 assert.match(receipt, /v16_table_schema_sha256/);
 assert.match(receipt, /v16TableSchemaDigest/);
 assert.match(receipt, /v17_table_schema_sha256/);
+assert.match(receipt, /current_candidate_table_schema_sha256/);
 assert.match(receipt, /v17TableSchemaDigest/);
+assert.match(receipt, /currentCandidateTableSchemaDigest/);
 
 console.log(
   'access-request additive migration proof passed: exact v12 refs 0–52 preserved, '
   + 'private access_request_v1 remains the exact v13 ref 53 boundary, '
   + 'the reviewed v14 daily Marks, v15 Inner Keep, and v16 Chat suffixes remain frozen before the exact v17 Greater Realm extension, '
+  + 'the two private production-player canary authority tables are its only candidate suffix, '
   + 'the loopback proof exercises 2/10/50 same-cycle calls and two FIDs, '
   + 'and every rehearsal remains deletion-disabled',
 );

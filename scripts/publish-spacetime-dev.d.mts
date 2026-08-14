@@ -44,6 +44,7 @@ export interface MigrationArtifactReceipt {
   readonly v15TableSchemaDigest: string;
   readonly v16TableSchemaDigest: string;
   readonly v17TableSchemaDigest: string;
+  readonly currentCandidateTableSchemaDigest: string;
   readonly artifactDigest: string;
 }
 

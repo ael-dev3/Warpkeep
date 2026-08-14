@@ -8,7 +8,7 @@ This runbook describes the guarded tooling for the additive v14-to-v17 cutover. 
 - Database identity: `c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e`
 - Publish deletion policy: `never`
 - Predecessor: exact active v14, 56 tables
-- Candidate: exact additive v17, 84 tables; all 56 predecessor signatures unchanged
+- Candidate: exact 86-table current candidate (frozen v17 prefix plus private canary refs 84–85); all 56 predecessor signatures unchanged
 - Runtime capacity: 600 castles, six regions, 600 active slots, and 12,000 active resource nodes
 
 No alias, target override, environment-carried administrator secret, destructive publish, or unknown status field is accepted. The reviewed launch envelope receives only the canonical absolute path of an owner-private administrator-secret file. The commit-bound operator opens that file with the exact no-follow, owner, mode, link-count, size, and descriptor/path identity checks only after local provenance, artifact, plan, and operator-lock checks. Git, dependency, proof, and publish-preparation children never inherit the secret bytes or descriptor.
@@ -26,7 +26,7 @@ Trusted Git must prove both commits exist in the canonical repository and `atlas
 
 | Lane | Exact transition | Required database phase |
 | --- | --- | --- |
-| `append-inert-v17` | v14/56 → v17/84, `-- → FF` | no v17 release |
+| `append-inert-v17` | v14/56 → current candidate/86, `-- → FF` | no v17 release |
 | `enable-import-only-v17` | `FF → TF` | no v17 release |
 | `forward-import-importing-v17` | `TF → TF` | importing |
 | `forward-import-ready-v17` | `TF → TF` | verified ready |
@@ -190,7 +190,7 @@ bridge-prepared receipt and bridge source commit. The operator derives every
 filename from these checked-in digests under fixed owner-private directories.
 It requires no-follow stable descriptors, owner-only `0600` files, one link,
 bounded size, and exact content digests. It compares the publish lane, verified
-outcome, same-schema 84-to-84 policy, mutation flags, active state, canonical
+outcome, same-schema 86-to-86 policy, mutation flags, active state, canonical
 target, source-release tuple, founder count, and evidence target before the
 handoff module performs full canonical, freshness, ordering, Git-provenance,
 and live-bridge validation. The operator's dependency-bearing, source-attested

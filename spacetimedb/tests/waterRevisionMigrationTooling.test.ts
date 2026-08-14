@@ -57,11 +57,12 @@ test('the auth-neutral v11 fixture extends the exact v10 table prefix at ref 46'
   assert.match(v11, /name: 'fixture_seed_water_revision_sentinel_v11'/);
 });
 
-test('the migration verifier retains the populated v10 to v11 proof inside protocol v17', () => {
+test('the migration verifier retains the populated v10 to v11 proof inside proof protocol v18', () => {
   const verifier = source('../../scripts/verify-spacetime-additive-migration.mjs');
   const receipt = source('../../scripts/spacetime-additive-migration-proof.mjs');
 
-  assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 17/);
+  assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 18/);
+  assert.match(receipt, /current_candidate_table_schema_sha256/);
   assert.match(verifier, /spacetimedb\/migration-fixtures\/additive-v11-schema/);
   assert.match(verifier, /const additiveV11Tables = Object\.freeze\(\[\s*'realm_water_revision_v1'/);
   assert.match(verifier, /realm_water_revision_v1: 46/);
@@ -85,11 +86,15 @@ test('the migration verifier retains the populated v10 to v11 proof inside proto
   assert.match(verifier, /waterStateDigests\(server, ownerToken, database\), activatedDigests/);
 
   const inspectionFixtures = [
-    ...verifier.matchAll(/inspectionArtifactPath = join\((additiveV\d+SchemaFixture)/g),
+    ...verifier.matchAll(/inspectionArtifactPath = join\((currentCandidateInspectionFixture)/g),
   ].map(match => match[1]);
   assert.ok(inspectionFixtures.length >= 4);
   assert.deepEqual(
     new Set(inspectionFixtures),
-    new Set(['additiveV17SchemaFixture']),
+    new Set(['currentCandidateInspectionFixture']),
+  );
+  assert.doesNotMatch(
+    verifier,
+    /inspectionArtifactPath = join\(additiveV17SchemaFixture/,
   );
 });

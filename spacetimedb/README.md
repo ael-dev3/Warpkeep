@@ -236,11 +236,13 @@ Schema generation 17 appends exactly twelve tables without changing refs 0–71:
 `npm run stdb:verify-additive-migration` starts a disposable loopback server,
 builds and publishes the frozen v16 predecessor, seeds representative legacy
 Water, Inner Keep, and Chat rows, and records every predecessor-table row
-digest. It then installs the real v17 artifact, compares all 84 table
-signatures with the auth-neutral fixture, seeds one typed sentinel in each v17
-table, proves exact row preservation across an idempotent artifact republish,
-and rejects v17-to-v16 and older rollback attempts with deletion disabled. Its
-single success receipt binds the v11 through v17 schema digests and compiled
+digest. It then installs the real 86-table current candidate, compares the
+frozen 84-table v17 prefix and the two private canary tables with their exact
+auth-neutral fixtures, seeds one typed sentinel in each v17 table, proves exact
+row preservation across an idempotent artifact republish, and rejects
+current-candidate-to-v17, v17-to-v16, and older rollback attempts with deletion
+disabled. Its protocol-v18 success receipt independently binds the v11 through
+v17 prefix digests, the exact 86-table current-candidate digest, and the compiled
 artifact digest.
 
 This command is local migration evidence only. Production v17 work is

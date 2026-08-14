@@ -92,7 +92,7 @@ test('general rehearsal retains v15 schema and row preservation inside v17', () 
   assert.match(proof, /value\.startsWith\('--delete-data='/);
   assert.doesNotMatch(proof, /--delete-data=(?:always|on-conflict|if-required)/);
 
-  assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 17/);
+  assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 18/);
   assert.match(receipt, /const V13_TABLE_SCHEMA_RECEIPT_FIELD = 'v13_table_schema_sha256'/);
   assert.match(receipt, /v13TableSchemaDigest/);
   assert.match(receipt, /const V14_TABLE_SCHEMA_RECEIPT_FIELD = 'v14_table_schema_sha256'/);
@@ -102,7 +102,9 @@ test('general rehearsal retains v15 schema and row preservation inside v17', () 
   assert.match(receipt, /const V16_TABLE_SCHEMA_RECEIPT_FIELD = 'v16_table_schema_sha256'/);
   assert.match(receipt, /v16TableSchemaDigest/);
   assert.match(receipt, /const V17_TABLE_SCHEMA_RECEIPT_FIELD = 'v17_table_schema_sha256'/);
+  assert.match(receipt, /'current_candidate_table_schema_sha256'/);
   assert.match(receipt, /v17TableSchemaDigest/);
+  assert.match(receipt, /currentCandidateTableSchemaDigest/);
 });
 
 test('connected rehearsal contains the bounded private request lifecycle', () => {
@@ -166,7 +168,7 @@ test('connected rehearsal contains the bounded private request lifecycle', () =>
   assert.match(proof, /final fresh founder access request/);
 
   assert.ok(invocation >= 0);
-  assert.match(finalOwnerRead, /additiveV17SchemaFixture/);
+  assert.match(finalOwnerRead, /currentCandidateInspectionFixture/);
   assert.match(finalOwnerRead, /tableRowDigests\([\s\S]*deployedV12Tables/);
   assert.match(finalOwnerRead, /access_request_v1 WHERE fid = \$\{syntheticMissingAccessRequestFid\}/);
   assert.match(finalOwnerRead, /access_request_v1 WHERE fid = \$\{syntheticSecondAccessRequestFid\}/);
@@ -184,7 +186,7 @@ test('dedicated Worker v11-to-v12 proof remains a separate frozen boundary', () 
   assert.doesNotMatch(verifier, /additive-v13-schema|accessRequestV1/);
 });
 
-test('workspace metadata includes frozen v13 through v16 and current v17 fixtures', () => {
+test('workspace metadata includes frozen v13 through v17 and current-candidate inspection fixtures', () => {
   assert.match(
     source('../migration-fixtures/additive-v13-schema/package.json'),
     /warpkeep-additive-v13-schema-migration-fixture/,
@@ -224,5 +226,24 @@ test('workspace metadata includes frozen v13 through v16 and current v17 fixture
   assert.match(
     source('../pnpm-lock.yaml'),
     /migration-fixtures\/additive-v17-schema:/,
+  );
+  assert.match(
+    source('../migration-fixtures/current-candidate-inspection/package.json'),
+    /warpkeep-current-candidate-inspection-migration-fixture/,
+  );
+  assert.match(
+    source('../pnpm-lock.yaml'),
+    /migration-fixtures\/current-candidate-inspection:/,
+  );
+  const packageJson = JSON.parse(source('../../package.json')) as {
+    scripts?: Record<string, string>;
+  };
+  assert.equal(
+    packageJson.scripts?.['stdb:build-current-candidate-inspection-fixture'],
+    'spacetime build --module-path spacetimedb/migration-fixtures/current-candidate-inspection',
+  );
+  assert.match(
+    source('../../.github/workflows/verify.yml'),
+    /npm run stdb:build-current-candidate-inspection-fixture/,
   );
 });
