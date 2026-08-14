@@ -140,7 +140,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "728145bea40d26ae28ed756e13124f114e38bd6025a260d39248bbaffd21842b"
+      "sha256": "2f3363bf9576cc22efd729f453b4cf1eb1c407a5f9ba611ef6a990833b4a1623"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.d.mts",
@@ -150,7 +150,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "4ed371512caf174b6bd40b17b9b396a557b63df7955e9c9ad51c7b8ca73e1dfd"
+      "sha256": "13d8ffbe97d23ff4586138290a5f3267e9889d03ae953ae26ce87bd00fdeb843"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
@@ -305,12 +305,12 @@
     {
       "path": "scripts/notification-pages-live-receipt.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "a7c8cdcb0628ba34969f317b973a8e9700897b6dc7fb86ef994ad0d7280d2381"
+      "sha256": "552d65e80a6e916a4a31b81d9c4035f0d46623f68f763fa3c9ba3fd3afa699ef"
     },
     {
       "path": "scripts/notification-pages-live-receipt.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c3b36cd56e8283cc0b6f853474914210c0b0e886039de0d8445c87ff95ed7243"
+      "sha256": "d988dd31e833452c8c9bf5231b89af49d1ca3b480faeeef95dc25a0bbc181a10"
     },
     {
       "path": "scripts/notification-pages-live-release-binding.d.mts",
@@ -393,6 +393,16 @@
       "sha256": "0ac956518ebbed5e893adcb8159c2a4c287d684850921249b18ba6bc9352648e"
     },
     {
+      "path": "scripts/production-player-canary-activation-launcher.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "8f3963343cb33e014cc6202f5ca15c342224cb80ca0ab467d0b598a2d0d9c14e"
+    },
+    {
+      "path": "scripts/production-player-canary-activation-launcher.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "e6d26d9376f9bbfbc91a9ddc42eaa99598b097026972cc3c24cb87a5c5223430"
+    },
+    {
       "path": "scripts/production-player-canary-admin-transport.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "fec4d331a3450d8398174b94abab123a33d436d88cb1de42109bbf56de8f6973"
@@ -445,12 +455,12 @@
     {
       "path": "scripts/production-player-canary-deploy-authority.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9c651091499b9cf70634ae147f70e5eb1f992db23849d311fc44f57ba6741628"
+      "sha256": "be7f37a8ab63ccc019fd2f67839c78374d888c0cb9f15510e1db0a8fc4e3ccc8"
     },
     {
       "path": "scripts/production-player-canary-deploy-authority.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d1e295149cd89b06cf8cdbaec8047b14c7036210d0b010f4bf079fef38888455"
+      "sha256": "1e5842805506995a34aa3aa0733f919ea057b8d8b800cb8f98c65edb45d36405"
     },
     {
       "path": "scripts/production-player-canary-evidence-authority.d.mts",
@@ -465,12 +475,12 @@
     {
       "path": "scripts/production-player-canary-operator-journal.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "3dd9cae45b4652a6d50a793d7ca019aa4fa227f77e76bdf2f73be510a4a6b819"
+      "sha256": "5152f79b565d4c3c998d961123d1b2bd0aa3cc7881f6f9b4653c415c70fc7359"
     },
     {
       "path": "scripts/production-player-canary-operator-journal.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "20c8a911e25eba08b54228850f1532b8ad820863af44177097d999ba63146c92"
+      "sha256": "868dc4872a9f4ca8445186d1e8b024944289dad3df7e77717b575a1adec6f067"
     },
     {
       "path": "scripts/production-player-canary-operator.d.mts",
@@ -495,12 +505,12 @@
     {
       "path": "scripts/production-player-canary-receipt.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6a032d836e78282b62f4a2ede0a3893fc8cfd3f78c3a98d953b1f13b2f962747"
+      "sha256": "ea3bc2020509a7fc109cd1f7a80dd6e6c6a74706bb48d78dba9e10979b166506"
     },
     {
       "path": "scripts/production-player-canary-receipt.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "377b9d41281efde28cbef56cf3d4ba6732c3a4a358965612f1cb8fea620c3fec"
+      "sha256": "8642a7f94fd2101bc0c4d8096938cc1b0af8b3d8f21903b8487fc87c7308dc40"
     },
     {
       "path": "scripts/production-player-canary-release-binding.d.mts",

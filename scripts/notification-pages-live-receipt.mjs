@@ -3692,6 +3692,20 @@ function assertProductionPlayerCanaryActivationSourceTransition(
   });
 }
 
+/**
+ * Public source-only form of the reviewed C6 -> C7 check. It validates the
+ * exact 18-path transition but deliberately grants no live/deploy authority.
+ */
+export function assertNotificationPagesProductionPlayerCanaryActivationSourceTransition({
+  predecessorPagesSourceCommit,
+  candidatePagesSourceCommit,
+} = {}) {
+  return assertProductionPlayerCanaryActivationSourceTransition(
+    predecessorPagesSourceCommit,
+    candidatePagesSourceCommit,
+  );
+}
+
 export function assertNotificationPagesProductionPlayerCanaryActivationTransition({
   predecessorPagesSourceCommit,
   candidatePagesSourceCommit,

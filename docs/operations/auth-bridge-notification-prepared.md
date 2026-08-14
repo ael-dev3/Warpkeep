@@ -238,13 +238,14 @@ four profiles: `raw-file-sha256-v1`,
 `reviewed-release-transition-projection-sha256-v1`, or the single composed
 `reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1` used by
 the Pages workflow. A projected digest is therefore never represented as an
-ordinary file SHA-256. Its 382 sorted path/profile/digest records cover all
+ordinary file SHA-256. Its 384 sorted path/profile/digest records cover all
 three protected production workflows, the
 Pages and Hermes policy inputs, the policy verifier, and the complete
 AST-derived local import graphs rooted at the guarded prepared and B0 bridge
 entrypoints, B0 policy verifier, full Hermes CLI, Pages build validator, Pages
 lane classifier, builtins-only private launcher, and private production
-player-canary operator and browser launcher. It also covers every matching
+player-canary operator, browser launcher, and activation-request launcher. It
+also covers every matching
 `.d.mts` ABI, all 170 generated Spacetime module bindings reached by Hermes,
 all 24 reached Spacetime policy
 modules, all 17 Worker source modules, every file executed by the CI `pnpm

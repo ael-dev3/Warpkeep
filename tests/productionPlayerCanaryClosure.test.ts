@@ -27,6 +27,8 @@ const CANARY_RAW_RUNTIME_PATHS = Object.freeze([
   'scripts/notification-pages-live-receipt.mjs',
   'scripts/production-admin-token-budget.d.mts',
   'scripts/production-admin-token-budget.mjs',
+  'scripts/production-player-canary-activation-launcher.d.mts',
+  'scripts/production-player-canary-activation-launcher.mjs',
   'scripts/production-player-canary-admin-transport.ts',
   'scripts/production-player-canary-approval-reconciliation.d.mts',
   'scripts/production-player-canary-approval-reconciliation.mjs',

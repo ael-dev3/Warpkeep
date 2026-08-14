@@ -103,6 +103,49 @@ export declare function productionPlayerCanaryOperatorConfirmationDigest(input: 
   effectDigest: string;
 }>): string;
 export declare function productionPlayerCanaryOperatorEffectDigest(value: unknown): string;
+export declare function inspectProductionPlayerCanaryTerminalReceiptJournal(
+  input: Readonly<{ operatorOperationId: string }>,
+): Readonly<{
+  operationId: string;
+  contract: Omit<ProductionPlayerCanaryOperatorContract, 'evidenceNonce'>;
+  ownerApprovalReference: Readonly<{ filename: string; sha256: string }>;
+  baselineCheckpoint: Readonly<{
+    attempt: number;
+    challengeDigest: string;
+    reviewedAdmissionPlanDigest: string;
+    serverBaselineCommitment: string;
+    routeSetCommitment: string;
+    capturedAtMicros: string;
+    submissionOutcome: string;
+  }>;
+  ownerApprovalCheckpoint: Readonly<{
+    reference: Readonly<{ filename: string; sha256: string }>;
+    approvalCommitment: string;
+    routeSetCommitment: string;
+    commandSetCommitment: string;
+  }>;
+  approvalCheckpoint: Readonly<{
+    attempt: number;
+    approvalRegistrationCommitment: string;
+    routeSetCommitment: string;
+    commandSetCommitment: string;
+    registeredAtMicros: string;
+    submissionOutcome: string;
+  }>;
+  receiptIntent: Readonly<{
+    attempt: number;
+    receiptDigest: string;
+    evidenceAuthorityDigest: string;
+    recordedAt: string;
+    notAfter: string;
+  }>;
+  receipt: Readonly<{
+    filename: string;
+    receiptDigest: string;
+    result: 'installed' | 'unchanged';
+  }>;
+  terminalRecordDigest: string;
+}>;
 export declare function withProductionPlayerCanaryOperatorJournal<T>(input: Readonly<{
   contract: ProductionPlayerCanaryOperatorContract;
   reportedHome?: string;
@@ -127,5 +170,9 @@ export declare const productionPlayerCanaryOperatorJournalTestSeams:
         currentProcessIdentity?: () => string;
       }>,
     ): Promise<T>;
+    inspectTerminalReceiptJournalAtHome(
+      operationId: string,
+      reportedHome: string,
+    ): ReturnType<typeof inspectProductionPlayerCanaryTerminalReceiptJournal>;
   }>
   | undefined;

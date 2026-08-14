@@ -22,6 +22,7 @@ import {
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import {
+  canonicalProductionAdminAccountHome,
   ensureCanonicalProductionAdminStateDirectory,
 } from './production-admin-token-budget.mjs';
 
@@ -94,22 +95,38 @@ function fail(code, disposition = 'halt', cause) {
   throw new ProductionPlayerCanaryOperatorJournalError(code, disposition, cause);
 }
 
-function exactRecord(value, keys, code) {
+function exactOwnDataKeys(value, keys, ordered) {
   if (
     value === null
     || typeof value !== 'object'
     || Array.isArray(value)
-    || Object.keys(value).join('\0') !== keys.join('\0')
+    || Object.getPrototypeOf(value) !== Object.prototype
+  ) return false;
+  const ownKeys = Reflect.ownKeys(value);
+  if (ownKeys.some(key => typeof key !== 'string')) return false;
+  const compared = ordered ? ownKeys : [...ownKeys].sort();
+  const expected = ordered ? keys : [...keys].sort();
+  if (compared.join('\0') !== expected.join('\0')) return false;
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  return ownKeys.every(key => {
+    const descriptor = descriptors[key];
+    return descriptor.enumerable === true
+      && Object.hasOwn(descriptor, 'value')
+      && !Object.hasOwn(descriptor, 'get')
+      && !Object.hasOwn(descriptor, 'set');
+  });
+}
+
+function exactRecord(value, keys, code) {
+  if (
+    !exactOwnDataKeys(value, keys, true)
   ) fail(code);
   return value;
 }
 
 function exactKeysUnordered(value, keys, code) {
   if (
-    value === null
-    || typeof value !== 'object'
-    || Array.isArray(value)
-    || Object.keys(value).sort().join('\0') !== [...keys].sort().join('\0')
+    !exactOwnDataKeys(value, keys, false)
   ) fail(code);
   return value;
 }
@@ -289,6 +306,40 @@ function journalDirectory(reportedHome) {
     join(parent, PRODUCTION_PLAYER_CANARY_OPERATOR_JOURNAL_STATE_CHILD),
     parent,
   );
+}
+
+function existingPrivateDirectory(path, parent) {
+  const requested = resolve(path);
+  try {
+    const status = lstatSync(requested, { bigint: true });
+    if (
+      requested === parent
+      || !inside(parent, requested)
+      || !status.isDirectory()
+      || status.isSymbolicLink()
+      || (status.mode & 0o7777n) !== 0o700n
+      || (process.getuid !== undefined
+        && status.uid !== BigInt(process.getuid()))
+      || realpathSync(requested) !== requested
+      || realpathSync(join(requested, '..')) !== parent
+    ) fail('PRODUCTION_PLAYER_CANARY_OPERATOR_JOURNAL_DIRECTORY_INVALID');
+  } catch (error) {
+    if (error instanceof ProductionPlayerCanaryOperatorJournalError) throw error;
+    fail('PRODUCTION_PLAYER_CANARY_OPERATOR_JOURNAL_DIRECTORY_INVALID');
+  }
+  return requested;
+}
+
+function existingJournalDirectory(reportedHome) {
+  const home = canonicalProductionAdminAccountHome(reportedHome);
+  let parent = home;
+  for (const name of [
+    '.warpkeep',
+    'private',
+    'production-admin-v1',
+    PRODUCTION_PLAYER_CANARY_OPERATOR_JOURNAL_STATE_CHILD,
+  ]) parent = existingPrivateDirectory(join(parent, name), parent);
+  return parent;
 }
 
 function sameFile(left, right) {
@@ -865,6 +916,79 @@ function loadRecords(directory, operationId) {
   return records;
 }
 
+function inspectTerminalReceiptJournalAtHome(operationId, reportedHome) {
+  if (typeof operationId !== 'string' || !ID.test(operationId)) {
+    fail('PRODUCTION_PLAYER_CANARY_OPERATOR_JOURNAL_INSPECTION_INPUT_INVALID');
+  }
+  const directory = existingJournalDirectory(reportedHome);
+  let names;
+  try { names = readdirSync(directory).sort(); } catch {
+    fail('PRODUCTION_PLAYER_CANARY_OPERATOR_JOURNAL_DIRECTORY_INVALID');
+  }
+  if (
+    names.length < 1
+    || names.some(name => {
+      const match = RECORD_FILE.exec(name);
+      return name !== LOCK_FILE && (match === null || match[1] !== operationId);
+    })
+  ) {
+    fail('PRODUCTION_PLAYER_CANARY_OPERATOR_JOURNAL_NOT_SETTLED');
+  }
+  assertTerminalJournalLockQuiescent(directory, operationId);
+  const records = loadRecords(directory, operationId);
+  const prepared = records[0];
+  const ownerApproval = records.findLast(
+    record => record.phase === 'owner-approval-installed',
+  );
+  const baseline = records.findLast(
+    record => record.phase === 'baseline-reconciled',
+  );
+  const approval = records.findLast(
+    record => record.phase === 'approval-reconciled',
+  );
+  const receiptIntent = records.findLast(
+    record => record.phase === 'receipt-install-intent',
+  );
+  const terminal = records.at(-1);
+  if (
+    prepared?.phase !== 'prepared'
+    || prepared.payload.contract.operationId !== operationId
+    || baseline === undefined
+    || ownerApproval === undefined
+    || approval === undefined
+    || receiptIntent === undefined
+    || terminal?.phase !== 'receipt-installed'
+    || terminal.payload.receiptDigest !== receiptIntent.payload.receiptDigest
+  ) fail('PRODUCTION_PLAYER_CANARY_OPERATOR_JOURNAL_NOT_SETTLED');
+  return Object.freeze({
+    operationId,
+    contract: prepared.payload.contract,
+    ownerApprovalReference: ownerApproval.payload.reference,
+    baselineCheckpoint: baseline.payload,
+    ownerApprovalCheckpoint: ownerApproval.payload,
+    approvalCheckpoint: approval.payload,
+    receiptIntent: receiptIntent.payload,
+    receipt: terminal.payload,
+    terminalRecordDigest: terminal.digest,
+  });
+}
+
+/**
+ * Read a completed operator chain without taking its lock, reconciling a
+ * temporary, creating a directory, or appending a later journal phase.
+ */
+export function inspectProductionPlayerCanaryTerminalReceiptJournal(input = {}) {
+  if (
+    !exactOwnDataKeys(input, ['operatorOperationId'], true)
+  ) {
+    fail('PRODUCTION_PLAYER_CANARY_OPERATOR_JOURNAL_INSPECTION_INPUT_INVALID');
+  }
+  return inspectTerminalReceiptJournalAtHome(
+    input.operatorOperationId,
+    undefined,
+  );
+}
+
 const OPERATOR_LOCK_HELPER = String.raw`
 import fcntl,sys
 try:
@@ -876,6 +1000,58 @@ except Exception as error:
     sys.exit(74)
 print("READY",flush=True)
 `;
+
+function assertTerminalJournalLockQuiescent(directory, operationId) {
+  const path = join(directory, LOCK_FILE);
+  let before;
+  let descriptor;
+  try {
+    before = readLock(path);
+    if (before.value.operationId !== operationId) {
+      fail('PRODUCTION_PLAYER_CANARY_OPERATOR_JOURNAL_NOT_SETTLED');
+    }
+    descriptor = openSync(
+      path,
+      constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0),
+    );
+    const result = spawnSync('/usr/bin/python3', [
+      '-I', '-c', OPERATOR_LOCK_HELPER,
+    ], {
+      cwd: directory,
+      env: {
+        PATH: '/usr/bin:/bin',
+        HOME: '/nonexistent',
+        LC_ALL: 'C',
+        PYTHONHASHSEED: '0',
+      },
+      stdio: ['ignore', 'pipe', 'pipe', descriptor],
+      timeout: 5_000,
+      killSignal: 'SIGKILL',
+      maxBuffer: 4_096,
+      encoding: 'utf8',
+    });
+    if (
+      result.status !== 0
+      || result.signal !== null
+      || result.error !== undefined
+      || result.stdout !== 'READY\n'
+      || result.stderr !== ''
+    ) fail('PRODUCTION_PLAYER_CANARY_OPERATOR_JOURNAL_NOT_SETTLED');
+    const after = readLock(path);
+    if (
+      after.digest !== before.digest
+      || !sameFile(after.identity, before.identity)
+    ) fail('PRODUCTION_PLAYER_CANARY_OPERATOR_JOURNAL_NOT_SETTLED');
+  } catch (error) {
+    if (
+      error instanceof ProductionPlayerCanaryOperatorJournalError
+      && error.code === 'PRODUCTION_PLAYER_CANARY_OPERATOR_JOURNAL_NOT_SETTLED'
+    ) throw error;
+    fail('PRODUCTION_PLAYER_CANARY_OPERATOR_JOURNAL_NOT_SETTLED');
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
 
 function parseLockBytes(bytes) {
   let raw;
@@ -1289,6 +1465,7 @@ export const productionPlayerCanaryOperatorJournalTestSeams =
       canonicalBytes,
       digestValue,
       journalDirectory,
+      inspectTerminalReceiptJournalAtHome,
       loadRecords,
       reconcileTemporaries,
       withJournalDependencies,

@@ -22,6 +22,19 @@ export declare function writeProductionPlayerCanaryActivationRequest(
   }>,
 ): Promise<Readonly<{ activationRequestDigest: string }>>;
 
+export declare function requireInspectedActivationRequestReferences(
+  request: Readonly<Record<string, unknown>>,
+  inspectedPlan: Readonly<Record<string, unknown>>,
+  inspectedApproval: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>>;
+
+export declare function preflightProductionPlayerCanaryActivationRequestPublication(
+  input: Readonly<{ request: Readonly<Record<string, unknown>> }>,
+): Readonly<{
+  state: 'absent' | 'recoverable' | 'installed';
+  activationRequestDigest: string;
+}>;
+
 export declare function inspectProductionPlayerCanaryDeployAuthority(
   input: Readonly<{
     contract: Readonly<Record<string, unknown>>;
@@ -66,6 +79,12 @@ export declare const productionPlayerCanaryDeployAuthorityTestSeams: Readonly<{
     stateDirectory: string,
     request: Readonly<Record<string, unknown>>,
   ) => Readonly<{ activationRequestDigest: string }>;
+  preflightCanonicalRequestAtStateDirectory: (
+    stateDirectory: string,
+    request: Readonly<Record<string, unknown>>,
+  ) => ReturnType<
+    typeof preflightProductionPlayerCanaryActivationRequestPublication
+  >;
   requireInspectedActivationRequestReferences: (
     request: Readonly<Record<string, unknown>>,
     inspectedPlan: Readonly<Record<string, unknown>>,

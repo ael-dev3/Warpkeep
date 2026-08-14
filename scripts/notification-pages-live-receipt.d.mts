@@ -287,6 +287,17 @@ export function assertNotificationPagesProductionPlayerCanaryActivationTransitio
   productionPlayerCanaryActivationAuthorityDigest: string;
 }>;
 
+export function assertNotificationPagesProductionPlayerCanaryActivationSourceTransition(
+  options: Readonly<{
+    predecessorPagesSourceCommit: string;
+    candidatePagesSourceCommit: string;
+  }>,
+): Readonly<{
+  predecessorPagesSourceCommit: string;
+  candidatePagesSourceCommit: string;
+  productionPlayerCanaryReceiptDigest: string;
+}>;
+
 export function inspectLatestPrivateNotificationPagesLiveReceiptForCandidate(
   options: Readonly<{
     directory: string;
