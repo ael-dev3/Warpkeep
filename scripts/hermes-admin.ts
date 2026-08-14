@@ -3643,8 +3643,10 @@ async function main() {
     command,
     dryRun,
   }));
-  // This checked-in literal is the activation-client side of the coordinated
-  // notification release envelope. False is a complete mutation blackout: it
+  // This checked-in literal is the durable delivery side of the coordinated
+  // notification release envelope. It becomes true before the separately
+  // canary-bound activation-client release. False is a complete mutation
+  // blackout: it
   // is checked before credentials, bridge delivery, administrator-token
   // issuance, database connection, reviewed-plan access or claim, and either
   // admission reducer. It must never become a skip-delivery path.

@@ -1,7 +1,7 @@
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_PROFILE:
-  'warpkeep-auth-bridge-notification-prepared-deploy-journal-v1';
+  'warpkeep-auth-bridge-notification-prepared-deploy-journal-v3';
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_STATE_CHILD:
-  'bridge-prepared-deploy-journal-v1';
+  'bridge-prepared-deploy-journal-v3';
 
 export class AuthBridgeNotificationPreparedDeployJournalError extends Error {
   readonly code: string;
@@ -15,11 +15,20 @@ export type AuthBridgeNotificationPreparedDeployJournal = Readonly<{
   inspect: () => Readonly<{
     operationId: string;
     contractDigest: string;
-    phase: 'prepared' | 'upload-invoked' | 'uploaded' | 'release-uncertain' | 'release-invoked' | 'completed' | null;
+    phase: 'prepared' | 'remote-reconcile-started' | 'upload-invoked' | 'uploaded' | 'release-uncertain' | 'release-invoked' | 'completed' | null;
     phases: readonly string[];
-    uploadMode: 'migration' | 'version' | null;
+    uploadMode: 'version' | null;
+    predecessorDeploymentId: string | null;
+    predecessorVersionId: string | null;
   }>;
   prepared: (contract: Readonly<Record<string, unknown>>) => Promise<void>;
+  remoteReconcileStarted: (input: Readonly<{
+    predecessorDeploymentId: string;
+    predecessorVersionId: string;
+    sourceCommit: string;
+    sourceDigest: string;
+    versionTag: string;
+  }>) => Promise<void>;
   uploadInvoked: (input: Readonly<Record<string, unknown>>) => Promise<void>;
   uploaded: (version: Readonly<Record<string, unknown>>) => Promise<void>;
   releaseUncertain: (input: Readonly<Record<string, unknown>>) => Promise<void>;

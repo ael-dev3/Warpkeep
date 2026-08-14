@@ -230,8 +230,9 @@ function deployedRecord(overrides: Readonly<Record<string, unknown>> = {}) {
     artifactDigest: '5'.repeat(64),
     v14TableSchemaDigest: '6'.repeat(64),
     v17TableSchemaDigest: '7'.repeat(64),
-    predecessorTableCount: 84,
-    postTableCount: 84,
+    currentCandidateTableSchemaDigest: 'a'.repeat(64),
+    predecessorTableCount: 86,
+    postTableCount: 86,
     schemaMutation: 'none',
     importMutationsCompiled: false,
     activationMutationsCompiled: true,
@@ -501,6 +502,15 @@ describe('notification-to-Pages private evidence handoff', () => {
     }))).toThrow('NOTIFICATION_PAGES_HANDOFF_ACTIVE_EVIDENCE_INVALID');
     expect(() => createHandoff(evidence({
       deployedRecord: deployedRecord({ artifactDigest: ['5'.repeat(64)] }),
+    }))).toThrow('NOTIFICATION_PAGES_HANDOFF_MODULE_RECEIPT_INVALID');
+    expect(() => createHandoff(evidence({
+      deployedRecord: deployedRecord({ currentCandidateTableSchemaDigest: undefined }),
+    }))).toThrow('NOTIFICATION_PAGES_HANDOFF_MODULE_RECEIPT_INVALID');
+    expect(() => createHandoff(evidence({
+      deployedRecord: deployedRecord({ currentCandidateTableSchemaDigest: 'A'.repeat(64) }),
+    }))).toThrow('NOTIFICATION_PAGES_HANDOFF_MODULE_RECEIPT_INVALID');
+    expect(() => createHandoff(evidence({
+      deployedRecord: deployedRecord({ predecessorTableCount: 84, postTableCount: 84 }),
     }))).toThrow('NOTIFICATION_PAGES_HANDOFF_MODULE_RECEIPT_INVALID');
 
     expect(() => createHandoff(evidence({

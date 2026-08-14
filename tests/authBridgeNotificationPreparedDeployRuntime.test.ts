@@ -24,6 +24,7 @@ import {
 } from '../scripts/auth-bridge-notification-prepared-deploy-adapter.mjs';
 import {
   authBridgeNotificationPreparedSourceDigest,
+  attestAuthBridgeNotificationPreparedCandidateMultipartMetadata,
   buildAuthBridgeNotificationPreparedWranglerMultipart,
   createAuthBridgeNotificationPreparedCloudflareRuntime,
   inspectAuthBridgeNotificationPreparedMultipart,
@@ -36,6 +37,7 @@ import {
 } from '../scripts/auth-bridge-notification-prepared-deploy-journal.mjs';
 import {
   attestAuthBridgeNotificationPreparedDeployCheckout,
+  authBridgeNotificationPreparedDeployTestSeams,
   createAuthBridgeNotificationPreparedGithubWritePermit,
 } from '../scripts/auth-bridge-notification-prepared-deploy.mjs';
 
@@ -44,11 +46,17 @@ const ZONE_ID = 'b'.repeat(32);
 const SOURCE_COMMIT = 'c'.repeat(40);
 const VERSION_ID = '123e4567-e89b-42d3-a456-426614174000';
 const OLD_VERSION_ID = '987e6543-e21b-42d3-a456-426614174000';
+const NON_PREDECESSOR_VERSION_ID = '887e6543-e21b-42d3-a456-426614174000';
+const CONCURRENT_VERSION_ID = '787e6543-e21b-42d3-a456-426614174000';
+const OLD_DEPLOYMENT_ID = '323e4567-e89b-42d3-a456-426614174000';
+const DRIFTED_DEPLOYMENT_ID = '423e4567-e89b-42d3-a456-426614174000';
 const NOW = new Date('2026-08-13T00:00:00.000Z');
+const PLAYER_CANARY_OWNER_FID = '4242424242';
 const temporaryDirectories: string[] = [];
 
 type JournalPhase =
   | 'prepared'
+  | 'remote-reconcile-started'
   | 'upload-invoked'
   | 'uploaded'
   | 'release-uncertain'
@@ -212,6 +220,66 @@ function response(body: unknown, url: string, resultInfo?: unknown) {
   return value;
 }
 
+function officialVersionUploadResult(
+  value: ReturnType<typeof contract>,
+  overrides: Readonly<Record<string, unknown>> = {},
+) {
+  return {
+    resources: {
+      bindings: [
+        ...Object.entries(value.variables).map(([name, text]) => ({
+          name,
+          text,
+          type: 'plain_text',
+        })),
+        ...value.secretBindingNames.map(name => ({ name, type: 'secret_text' })),
+        ...value.durableObjectBindings.map(binding => ({
+          name: binding.name,
+          type: 'durable_object_namespace',
+          class_name: binding.className,
+        })),
+      ],
+      script: {
+        etag: 'e'.repeat(64),
+        handlers: ['fetch'],
+        last_deployed_from: 'api',
+        named_handlers: [],
+      },
+      script_runtime: {
+        compatibility_date: value.compatibilityDate,
+        compatibility_flags: value.compatibilityFlags,
+        exports: {},
+        limits: {},
+        migration_tag: 'v5',
+        usage_model: 'standard',
+      },
+    },
+    id: VERSION_ID,
+    exports_reconciliation: {
+      created: [],
+      deleted: [],
+      info: [],
+      removable_entries: [],
+      renamed: [],
+      transfer_pending: [],
+      transferred: [],
+      updated: [],
+      warnings: [],
+    },
+    metadata: {
+      author_email: 'operator@example.com',
+      author_id: 'f'.repeat(32),
+      created_on: '2026-08-12T23:58:00.000Z',
+      hasPreview: false,
+      modified_on: '2026-08-12T23:58:00.000Z',
+      source: 'api',
+    },
+    number: 2,
+    startup_time_ms: 10,
+    ...overrides,
+  };
+}
+
 function rawResponse(body: unknown, url: string) {
   const value = new Response(JSON.stringify(body), {
     status: 200,
@@ -243,7 +311,99 @@ afterEach(() => {
   }
 });
 
+describe('auth-bridge prepared protected environment', () => {
+  it('validates and immediately removes the owner FID with all credentials', () => {
+    const environment: NodeJS.ProcessEnv = {
+      GITHUB_ACTIONS: 'true',
+      GITHUB_EVENT_NAME: 'workflow_dispatch',
+      GITHUB_REF: 'refs/heads/main',
+      GITHUB_REPOSITORY: 'ael-dev3/Warpkeep',
+      GITHUB_RUN_ATTEMPT: '1',
+      GITHUB_RUN_ID: '1001',
+      GITHUB_SHA: SOURCE_COMMIT,
+      GITHUB_TOKEN: 'github-owner-test-token-value',
+      GITHUB_WORKFLOW_REF:
+        'ael-dev3/Warpkeep/.github/workflows/notification-bridge-prepared.yml@refs/heads/main',
+      WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: ACCOUNT_ID,
+      WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN:
+        'cloudflare-owner-test-token-value',
+      WARPKEEP_AUTH_BRIDGE_ZONE_ID: ZONE_ID,
+      WARPKEEP_PLAYER_CANARY_OWNER_FID: PLAYER_CANARY_OWNER_FID,
+      WARPKEEP_PRODUCTION_ADMIN_TOKEN: 'production-admin-test-token-value',
+    };
+    const values = authBridgeNotificationPreparedDeployTestSeams
+      .copyAndScrubEnvironment(environment);
+    expect(values.WARPKEEP_PLAYER_CANARY_OWNER_FID)
+      .toBe(PLAYER_CANARY_OWNER_FID);
+    for (const name of [
+      'GITHUB_TOKEN',
+      'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
+      'WARPKEEP_PLAYER_CANARY_OWNER_FID',
+      'WARPKEEP_PRODUCTION_ADMIN_TOKEN',
+    ]) expect(environment).not.toHaveProperty(name);
+
+    for (const invalid of ['0', '01', '-1', '9007199254740992']) {
+      const hostile = { ...environment, ...{
+        GITHUB_TOKEN: 'github-owner-test-token-value',
+        WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN:
+          'cloudflare-owner-test-token-value',
+        WARPKEEP_PLAYER_CANARY_OWNER_FID: invalid,
+        WARPKEEP_PRODUCTION_ADMIN_TOKEN: 'production-admin-test-token-value',
+      } };
+      expect(() => authBridgeNotificationPreparedDeployTestSeams
+        .copyAndScrubEnvironment(hostile))
+        .toThrow(/ENVIRONMENT_INVALID/u);
+      expect(hostile).not.toHaveProperty('WARPKEEP_PLAYER_CANARY_OWNER_FID');
+    }
+  });
+});
+
 describe('auth-bridge prepared durable deployment journal', () => {
+  it('persists the exact predecessor without any global-secret phase', async () => {
+    const home = temporaryHome();
+    const value = contract('d'.repeat(64));
+    const uploadMarker = {
+      sourceCommit: SOURCE_COMMIT,
+      sourceDigest: 'd'.repeat(64),
+      uploadMode: 'version',
+      versionTag: `notification-prepared-${SOURCE_COMMIT}`,
+    } as const;
+    await withAuthBridgeNotificationPreparedDeployJournal({
+      ...journalOptions(home, value),
+      operation: async journal => {
+        await journal.prepared(value);
+        await journal.remoteReconcileStarted({
+          predecessorDeploymentId: OLD_DEPLOYMENT_ID,
+          predecessorVersionId: OLD_VERSION_ID,
+          sourceCommit: uploadMarker.sourceCommit,
+          sourceDigest: uploadMarker.sourceDigest,
+          versionTag: uploadMarker.versionTag,
+        });
+        await journal.uploadInvoked(uploadMarker);
+        expect(journal.inspect().phases).toEqual([
+          'prepared',
+          'remote-reconcile-started',
+          'upload-invoked',
+        ]);
+        expect(journal.inspect().predecessorDeploymentId).toBe(OLD_DEPLOYMENT_ID);
+        expect(journal.inspect().predecessorVersionId).toBe(OLD_VERSION_ID);
+      },
+    });
+    const directory = join(
+      home,
+      '.warpkeep',
+      'private',
+      'production-admin-v1',
+      AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_STATE_CHILD,
+    );
+    const journalText = readdirSync(directory)
+      .map(name => readFileSync(join(directory, name), 'utf8'))
+      .join('');
+    expect(journalText).not.toContain('secret-stage');
+    expect(journalText).not.toContain('secret-remove');
+    expect(journalText).not.toContain(PLAYER_CANARY_OWNER_FID);
+  });
+
   it('retains first-entry-only upload/release invocation markers across runs', async () => {
     const home = temporaryHome();
     const value = contract('d'.repeat(64));
@@ -258,13 +418,23 @@ describe('auth-bridge prepared durable deployment journal', () => {
       versionId: VERSION_ID,
       versionTag: `notification-prepared-${SOURCE_COMMIT}`,
     };
-
     await withAuthBridgeNotificationPreparedDeployJournal({
       ...journalOptions(home, value),
       operation: async journal => {
         await journal.prepared(value);
+        await journal.remoteReconcileStarted({
+          predecessorDeploymentId: OLD_DEPLOYMENT_ID,
+          predecessorVersionId: OLD_VERSION_ID,
+          sourceCommit: uploadMarker.sourceCommit,
+          sourceDigest: uploadMarker.sourceDigest,
+          versionTag: uploadMarker.versionTag,
+        });
         await journal.uploadInvoked(uploadMarker);
-        expect(journal.inspect().phases).toEqual(['prepared', 'upload-invoked']);
+        expect(journal.inspect().phases).toEqual([
+          'prepared',
+          'remote-reconcile-started',
+          'upload-invoked',
+        ]);
         expect(journal.inspect().uploadMode).toBe('version');
       },
     });
@@ -327,7 +497,6 @@ describe('auth-bridge prepared durable deployment journal', () => {
       uploadMode: 'version',
       versionTag: `notification-prepared-${SOURCE_COMMIT}`,
     };
-
     await withAuthBridgeNotificationPreparedDeployJournal({
       ...journalOptions(home, value),
       clock: () => new Date('2026-08-13T00:00:00.000Z'),
@@ -339,6 +508,13 @@ describe('auth-bridge prepared durable deployment journal', () => {
       clock: () => new Date('2026-08-12T23:59:59.999Z'),
       operation: async journal => {
         await journal.prepared(value);
+        await journal.remoteReconcileStarted({
+          predecessorDeploymentId: OLD_DEPLOYMENT_ID,
+          predecessorVersionId: OLD_VERSION_ID,
+          sourceCommit: uploadMarker.sourceCommit,
+          sourceDigest: uploadMarker.sourceDigest,
+          versionTag: uploadMarker.versionTag,
+        });
         await journal.uploadInvoked(uploadMarker);
         expect(journal.inspect().phase).toBe('upload-invoked');
       },
@@ -348,7 +524,11 @@ describe('auth-bridge prepared durable deployment journal', () => {
       runAttempt: 3,
       clock: () => new Date('2026-08-13T00:00:01.000Z'),
       operation: journal => {
-        expect(journal.inspect().phases).toEqual(['prepared', 'upload-invoked']);
+        expect(journal.inspect().phases).toEqual([
+          'prepared',
+          'remote-reconcile-started',
+          'upload-invoked',
+        ]);
       },
     });
   });
@@ -542,6 +722,27 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       contract: value,
       sourceDigest: digest,
     })).toThrow('AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_BINDING_MISMATCH');
+    for (const extra of [
+      { value: PLAYER_CANARY_OWNER_FID },
+      { text: PLAYER_CANARY_OWNER_FID },
+      { extra: 'forbidden' },
+    ]) {
+      expect(() => projectAuthBridgeNotificationPreparedCloudflareVersion({
+        value: {
+          ...raw,
+          resources: {
+            ...raw.resources,
+            bindings: bindings.map(binding => (
+              binding.name === 'PLAYER_CANARY_OWNER_FID'
+                ? { ...binding, ...extra }
+                : binding
+            )),
+          },
+        },
+        contract: value,
+        sourceDigest: digest,
+      })).toThrow('AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_BINDING_UNEXPECTED');
+    }
     for (const scriptRuntime of [
       {
         ...raw.resources.script_runtime,
@@ -632,6 +833,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     const runtime = createAuthBridgeNotificationPreparedCloudflareRuntime({
       contract: value,
       apiToken: 'cloudflare-test-token-value-1234567890',
+      playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
       repositoryRoot: realpathSync(process.cwd()),
       serviceRoot: realpathSync(join(process.cwd(), 'services/auth-bridge')),
       nodeExecutable: process.execPath,
@@ -639,7 +841,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       multipartBody: body,
       multipartContentType: contentType,
       fetchImpl,
-      journal: { inspect: () => ({ phase: 'uploaded' }) },
+      journal: { inspect: () => ({ phase: 'prepared' }) },
     });
     await expect(runtime.inspectVersion(VERSION_ID)).resolves.toEqual({
       ...value,
@@ -707,14 +909,47 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       id: OLD_VERSION_ID,
       annotations: {},
       metadata: { created_on: '2026-08-12T23:50:00.000Z', source: 'api' },
-      resources: { bindings: [] },
+      resources: {
+        bindings: [
+          ...Object.entries(value.variables).map(([name, text]) => ({
+            name,
+            type: 'plain_text',
+            text,
+          })),
+          ...value.secretBindingNames
+            .filter(name => name !== 'PLAYER_CANARY_OWNER_FID')
+            .map(name => ({ name, type: 'secret_text' })),
+          ...value.durableObjectBindings.map(binding => ({
+            name: binding.name,
+            type: 'durable_object_namespace',
+            class_name: binding.className,
+          })),
+        ],
+        script: { etag: 'd'.repeat(64) },
+        script_runtime: {
+          compatibility_date: value.compatibilityDate,
+          compatibility_flags: value.compatibilityFlags,
+          migration_tag: 'v5',
+          exports: {
+            default: { type: 'worker' },
+            ...Object.fromEntries(value.durableObjectBindings.map(binding => [
+              binding.className,
+              { type: 'durable-object', storage: 'sqlite', state: 'created' },
+            ])),
+          },
+        },
+      },
     };
     let uploaded = false;
     let targetLive = false;
     let phase: JournalPhase = null;
-    let uploadMode: 'migration' | 'version' | null = null;
+    let uploadMode: 'version' | null = null;
+    let predecessorDeploymentId: string | null = null;
+    let predecessorVersionId: string | null = null;
     let uploadPosts = 0;
     let releasePosts = 0;
+    let secretEndpointWrites = 0;
+    const mutationOrder: string[] = [];
     let previewsEnabled = false;
     let extraDomain = false;
     let extraRoute = false;
@@ -726,13 +961,19 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       const url = String(input);
       const method = init?.method ?? 'GET';
       if (url.includes('/versions?deployable=true')) return response({
-        items: uploaded ? [{
+        items: [{
+          id: OLD_VERSION_ID,
+          annotations: {
+            'workers/tag': value.versionTag,
+            'workers/message': value.versionMessage,
+          },
+        }, ...(uploaded ? [{
           id: VERSION_ID,
           annotations: {
             'workers/tag': value.versionTag,
             'workers/message': value.versionMessage,
           },
-        }] : [],
+        }] : [])],
       }, url);
       if (url.endsWith('/workers/scripts')) {
         return response([{
@@ -741,16 +982,36 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
           cache_options: { enabled: cacheEnabled, cross_version_cache: true },
         }], url);
       }
-      if (url.endsWith('/secrets')) {
-        return response(value.secretBindingNames.map(name => ({
-          name,
-          type: 'secret_text',
-        })), url);
+      if (url.includes('/secrets')) {
+        if (method !== 'GET') secretEndpointWrites += 1;
+        throw new Error(`legacy secret endpoint forbidden: ${method} ${url}`);
       }
       if (url.endsWith('/versions?bindings_inherit=strict') && method === 'POST') {
+        const candidate = inspectAuthBridgeNotificationPreparedMultipart(
+          Buffer.from(init?.body as Buffer),
+          String((init?.headers as Record<string, string>)['content-type']),
+        );
+        expect(candidate.metadata).not.toHaveProperty('keep_bindings');
+        expect((candidate.metadata.bindings as { type?: string }[]).filter(
+          (binding: { type?: string }) => binding.type === 'inherit',
+        )).toEqual(value.secretBindingNames
+          .filter(name => name !== 'PLAYER_CANARY_OWNER_FID')
+          .map(name => ({
+            name,
+            type: 'inherit',
+            version_id: OLD_VERSION_ID,
+          })));
+        expect((candidate.metadata.bindings as { type?: string }[]).filter(
+          (binding: { type?: string }) => binding.type === 'secret_text',
+        )).toEqual([{
+          name: 'PLAYER_CANARY_OWNER_FID',
+          text: PLAYER_CANARY_OWNER_FID,
+          type: 'secret_text',
+        }]);
         uploadPosts += 1;
+        mutationOrder.push('upload');
         uploaded = true;
-        return response({ id: VERSION_ID }, url);
+        return response(officialVersionUploadResult(value), url);
       }
       if (url.includes('/content/v2?version=')) {
         return multipartResponse(contentMultipart(), url);
@@ -763,6 +1024,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       }
       if (url.endsWith('/deployments') && method === 'POST') {
         releasePosts += 1;
+        mutationOrder.push('release');
         targetLive = true;
         return response({ id: '223e4567-e89b-42d3-a456-426614174000' }, url);
       }
@@ -771,7 +1033,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
         return response([{
           id: target
             ? '223e4567-e89b-42d3-a456-426614174000'
-            : '323e4567-e89b-42d3-a456-426614174000',
+            : OLD_DEPLOYMENT_ID,
           created_on: target
             ? '2026-08-12T23:59:00.000Z'
             : '2026-08-12T23:55:00.000Z',
@@ -835,10 +1097,20 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       throw new Error(`unexpected request: ${method} ${url}`);
     });
     const journal = {
-      inspect: () => ({ phase, uploadMode }),
-      prepared: vi.fn(async () => { phase = 'prepared'; }),
+      inspect: () => ({
+        phase,
+        uploadMode,
+        predecessorDeploymentId,
+        predecessorVersionId,
+      }),
+      prepared: vi.fn(async () => { phase ??= 'prepared'; }),
+      remoteReconcileStarted: vi.fn(async (input: Readonly<Record<string, unknown>>) => {
+        predecessorDeploymentId = input.predecessorDeploymentId as string;
+        predecessorVersionId = input.predecessorVersionId as string;
+        phase = 'remote-reconcile-started';
+      }),
       uploadInvoked: vi.fn(async (input: Readonly<Record<string, unknown>>) => {
-        if (input.uploadMode !== 'migration' && input.uploadMode !== 'version') {
+        if (input.uploadMode !== 'version') {
           throw new Error('test harness requires an exact upload mode');
         }
         phase = 'upload-invoked';
@@ -852,6 +1124,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     const runtime = createAuthBridgeNotificationPreparedCloudflareRuntime({
       contract: value,
       apiToken: 'cloudflare-test-token-value-1234567890',
+      playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
       repositoryRoot: realpathSync(process.cwd()),
       serviceRoot: realpathSync(join(process.cwd(), 'services/auth-bridge')),
       nodeExecutable: process.execPath,
@@ -890,7 +1163,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     await expect(runtime.inspectDeployment()).resolves.toMatchObject({
       versionId: OLD_VERSION_ID,
       versionTag: null,
-      sourceCommit: null,
+      sourceCommit: SOURCE_COMMIT,
     });
     await expect(executeAuthBridgeNotificationPreparedDeployAdapter({
       contract: value,
@@ -901,9 +1174,10 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     })).resolves.toMatchObject({ outcome: 'verified' });
     expect(uploadPosts).toBe(1);
     expect(releasePosts).toBe(1);
+    expect(secretEndpointWrites).toBe(0);
+    expect(mutationOrder).toEqual(['upload', 'release']);
     expect(targetLive).toBe(true);
     expect(phase).toBe('completed');
-
     for (const [message, trigger] of [
       [null, 'warpkeep-notification-prepared'],
       ['wrong message', 'warpkeep-notification-prepared'],
@@ -916,22 +1190,10 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
         code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_DEPLOYMENT_INVALID',
       });
     }
-    uploadMode = 'migration';
-    targetMessage = value.versionMessage;
-    targetTrigger = 'upload';
-    await expect(runtime.inspectDeployment()).resolves.toMatchObject({
-      versionId: VERSION_ID,
-    });
-    for (const trigger of [null, 'wrong-trigger'] as const) {
-      targetTrigger = trigger;
-      await expect(runtime.inspectDeployment()).rejects.toMatchObject({
-        code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_DEPLOYMENT_INVALID',
-      });
-    }
     runtime.dispose();
   });
 
-  it('performs one direct mutation and applies only the reviewed v4-to-v5 migration', async () => {
+  it('uploads one nondeploying seven-binding candidate and fails closed on v4', async () => {
     const template = multipart();
     const contentType = 'multipart/form-data; boundary=warpkeep-boundary-v1';
     const digest = inspectAuthBridgeNotificationPreparedMultipart(template, contentType)
@@ -939,15 +1201,80 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     const value = contract(digest);
     const body = uploadMultipart(value);
     const urls: string[] = [];
-    const prerequisiteResponse = (url: string, migrationTag = 'v5') => {
+    let predecessorExtraBinding = false;
+    let includeSameTagNonpredecessor = false;
+    let livePredecessorDeploymentId = OLD_DEPLOYMENT_ID;
+    const predecessorDetail = {
+      id: OLD_VERSION_ID,
+      annotations: {
+        'workers/tag': value.versionTag,
+        'workers/message': value.versionMessage,
+      },
+      metadata: { created_on: '2026-08-12T23:50:00.000Z', source: 'api' },
+      resources: {
+        bindings: [
+          ...Object.entries(value.variables).map(([name, text]) => ({
+            name,
+            type: 'plain_text',
+            text,
+          })),
+          ...value.secretBindingNames
+            .filter(name => name !== 'PLAYER_CANARY_OWNER_FID')
+            .map(name => ({ name, type: 'secret_text' })),
+          ...value.durableObjectBindings.map(binding => ({
+            name: binding.name,
+            type: 'durable_object_namespace',
+            class_name: binding.className,
+          })),
+        ],
+        script: { etag: 'd'.repeat(64) },
+        script_runtime: {
+          compatibility_date: value.compatibilityDate,
+          compatibility_flags: value.compatibilityFlags,
+          migration_tag: 'v5',
+          exports: {
+            default: { type: 'worker' },
+            ...Object.fromEntries(value.durableObjectBindings.map(binding => [
+              binding.className,
+              { type: 'durable-object', storage: 'sqlite', state: 'created' },
+            ])),
+          },
+        },
+      },
+    };
+    let predecessorSourceBody = contentMultipart();
+    const prerequisiteResponse = (
+      url: string,
+      method: string,
+      migrationTag = 'v5',
+    ) => {
+      if (url.includes('/versions?deployable=true')) return response({
+        items: [
+          {
+            id: OLD_VERSION_ID,
+            annotations: {
+              'workers/tag': value.versionTag,
+              'workers/message': value.versionMessage,
+            },
+          },
+          {
+            id: CONCURRENT_VERSION_ID,
+            annotations: {
+              'workers/tag': 'concurrent-nondeployed-secret-change',
+              'workers/message': 'concurrent-nondeployed-secret-change',
+            },
+          },
+          ...(includeSameTagNonpredecessor ? [{
+            id: NON_PREDECESSOR_VERSION_ID,
+            annotations: {
+              'workers/tag': value.versionTag,
+              'workers/message': value.versionMessage,
+            },
+          }] : []),
+        ],
+      }, url);
       if (url.endsWith('/workers/scripts')) {
         return response([{ id: value.workerName, migration_tag: migrationTag }], url);
-      }
-      if (url.endsWith('/secrets')) {
-        return response(value.secretBindingNames.map(name => ({
-          name,
-          type: 'secret_text',
-        })), url);
       }
       if (url.includes('/workers/domains?service=')) return response([{
         id: 'domain-id',
@@ -976,22 +1303,68 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       if (url.endsWith('/subdomain')) {
         return response({ enabled: false, previews_enabled: false }, url);
       }
+      if (url.endsWith('/deployments') && method === 'GET') return response([{
+        id: livePredecessorDeploymentId,
+        created_on: '2026-08-12T23:55:00.000Z',
+        strategy: 'percentage',
+        versions: [{ version_id: OLD_VERSION_ID, percentage: 100 }],
+        annotations: {},
+      }], url);
+      if (url.endsWith(`/versions/${OLD_VERSION_ID}`)) {
+        return response({
+          ...predecessorDetail,
+          resources: {
+            ...predecessorDetail.resources,
+            bindings: [
+              ...predecessorDetail.resources.bindings,
+              ...(predecessorExtraBinding ? [{
+                name: 'UNREVIEWED_EXTRA',
+                type: 'plain_text',
+                text: 'forbidden',
+              }] : []),
+            ],
+            script_runtime: {
+              ...predecessorDetail.resources.script_runtime,
+              migration_tag: migrationTag,
+            },
+          },
+        }, url);
+      }
+      if (url.endsWith(`/versions/${NON_PREDECESSOR_VERSION_ID}`)) {
+        return response({
+          ...predecessorDetail,
+          id: NON_PREDECESSOR_VERSION_ID,
+        }, url);
+      }
+      if (url.endsWith(`/content/v2?version=${OLD_VERSION_ID}`)) {
+        return multipartResponse(predecessorSourceBody, url);
+      }
+      if (url.endsWith(`/content/v2?version=${NON_PREDECESSOR_VERSION_ID}`)) {
+        return multipartResponse(contentMultipart(), url);
+      }
       return undefined;
     };
+    let candidateBody: Buffer | undefined;
     const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      urls.push(`${init?.method}:${url}`);
-      const prerequisite = prerequisiteResponse(url);
+      const method = init?.method ?? 'GET';
+      urls.push(`${method}:${url}`);
+      if (url.includes('/secrets')) throw new Error('legacy secret endpoint forbidden');
+      const prerequisite = prerequisiteResponse(url, method);
       if (prerequisite !== undefined) return prerequisite;
-      if (url.endsWith('/versions?bindings_inherit=strict')) {
+      if (url.endsWith('/versions?bindings_inherit=strict') && method === 'POST') {
+        candidateBody = Buffer.from(init?.body as Buffer);
+        return response(officialVersionUploadResult(value), url);
+      }
+      if (url.endsWith('/deployments') && method === 'POST') {
         return response({ id: VERSION_ID }, url);
       }
-      if (url.endsWith('/deployments')) return response({ id: VERSION_ID }, url);
       throw new Error('unexpected request');
     });
     const runtime = createAuthBridgeNotificationPreparedCloudflareRuntime({
       contract: value,
       apiToken: 'cloudflare-test-token-value-1234567890',
+      playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
       repositoryRoot: realpathSync(process.cwd()),
       serviceRoot: realpathSync(join(process.cwd(), 'services/auth-bridge')),
       nodeExecutable: process.execPath,
@@ -999,22 +1372,138 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       multipartBody: body,
       multipartContentType: contentType,
       fetchImpl,
-      journal: { inspect: () => ({ phase: 'prepared' }) },
+      journal: { inspect: () => ({ phase: 'prepared', predecessorVersionId: null }) },
     });
+    predecessorSourceBody = Buffer.from(
+      contentMultipart().toString('utf8').replace(
+        'return new Response("ok")',
+        'return new Response("different")',
+      ),
+    );
+    await expect(runtime.prepareUpload(value)).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_SOURCE_UNVERIFIED',
+    });
+    expect(urls.filter(item => item.startsWith('POST:'))).toHaveLength(0);
+    predecessorSourceBody = contentMultipart();
     const uploadPlan = await runtime.prepareUpload(value);
+    expect(uploadPlan).toEqual({
+      mode: 'version',
+      predecessorDeploymentId: OLD_DEPLOYMENT_ID,
+      predecessorVersionId: OLD_VERSION_ID,
+    });
+    await expect(runtime.reconcileVersion(value)).resolves.toEqual([]);
+    includeSameTagNonpredecessor = true;
+    await expect(runtime.reconcileVersion(value)).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_BINDING_MISMATCH',
+    });
+    expect(urls.filter(item => item.startsWith('POST:'))).toHaveLength(0);
+    includeSameTagNonpredecessor = false;
     await expect(runtime.uploadVersion(value, uploadPlan)).resolves.toEqual({
       versionId: VERSION_ID,
     });
-    await runtime.releaseVersion({
+    const candidate = inspectAuthBridgeNotificationPreparedMultipart(
+      candidateBody as Buffer,
+      contentType,
+    );
+    expect(candidate.metadata).not.toHaveProperty('keep_bindings');
+    const inheritedBindings = (candidate.metadata.bindings as {
+      name?: string;
+      type?: string;
+      version_id?: string;
+    }[]).filter(binding => binding.type === 'inherit');
+    expect(inheritedBindings).toEqual(value.secretBindingNames
+      .filter(name => name !== 'PLAYER_CANARY_OWNER_FID')
+      .map(name => ({
+        name,
+        type: 'inherit',
+        version_id: OLD_VERSION_ID,
+      })));
+    expect((candidate.metadata.bindings as { type?: string }[]).filter(
+      (binding: { type?: string }) => binding.type === 'secret_text',
+    )).toEqual([{
+      name: 'PLAYER_CANARY_OWNER_FID',
+      text: PLAYER_CANARY_OWNER_FID,
+      type: 'secret_text',
+    }]);
+    expect(attestAuthBridgeNotificationPreparedCandidateMultipartMetadata({
+      metadata: candidate.metadata,
+      contract: value,
+      playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
+      predecessorVersionId: OLD_VERSION_ID,
+    })).toBe(true);
+    const candidateBindings = candidate.metadata.bindings as Record<string, unknown>[];
+    const firstInheritedIndex = candidateBindings.findIndex(
+      binding => binding.type === 'inherit',
+    );
+    const hostileBindings = [
+      candidateBindings.filter((_, index) => index !== firstInheritedIndex),
+      candidateBindings.map((binding, index) => index === firstInheritedIndex
+        ? { ...binding, name: 'UNREVIEWED_SECRET' }
+        : binding),
+      candidateBindings.map((binding, index) => index === firstInheritedIndex
+        ? { ...binding, type: 'secret_text' }
+        : binding),
+      candidateBindings.map((binding, index) => index === firstInheritedIndex
+        ? { ...binding, version_id: NON_PREDECESSOR_VERSION_ID }
+        : binding),
+      [
+        ...candidateBindings,
+        {
+          name: value.secretBindingNames[0],
+          type: 'inherit',
+          version_id: OLD_VERSION_ID,
+        },
+      ],
+    ];
+    for (const bindings of hostileBindings) {
+      expect(() => attestAuthBridgeNotificationPreparedCandidateMultipartMetadata({
+        metadata: { ...candidate.metadata, bindings },
+        contract: value,
+        playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
+        predecessorVersionId: OLD_VERSION_ID,
+      })).toThrow('AUTH_BRIDGE_PREPARED_CLOUDFLARE_MULTIPART_METADATA_MISMATCH');
+    }
+    const release = {
       versionId: VERSION_ID,
+      predecessorDeploymentId: OLD_DEPLOYMENT_ID,
+      predecessorVersionId: OLD_VERSION_ID,
       percentage: 100,
       message: value.versionMessage,
+    } as const;
+    predecessorSourceBody = Buffer.from(
+      contentMultipart().toString('utf8').replace(
+        'return new Response("ok")',
+        'return new Response("different")',
+      ),
+    );
+    await expect(runtime.releaseVersion(release)).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_SOURCE_UNVERIFIED',
     });
+    expect(urls.filter(item => item.startsWith('POST:')
+      && item.endsWith('/deployments'))).toHaveLength(0);
+    predecessorSourceBody = contentMultipart();
+    livePredecessorDeploymentId = DRIFTED_DEPLOYMENT_ID;
+    await expect(runtime.releaseVersion(release)).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_DRIFT',
+    });
+    expect(urls.filter(item => item.startsWith('POST:')
+      && item.endsWith('/deployments'))).toHaveLength(0);
+    livePredecessorDeploymentId = OLD_DEPLOYMENT_ID;
+    predecessorExtraBinding = true;
+    await expect(runtime.releaseVersion(release)).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_BINDING_MISMATCH',
+    });
+    expect(urls.filter(item => item.startsWith('POST:')
+      && item.endsWith('/deployments'))).toHaveLength(0);
+    predecessorExtraBinding = false;
+    await runtime.releaseVersion(release);
     expect(urls.filter(item => item.startsWith('POST:'))).toHaveLength(2);
 
     const failedFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      const prerequisite = prerequisiteResponse(url);
+      const method = init?.method ?? 'GET';
+      if (url.includes('/secrets')) throw new Error('legacy secret endpoint forbidden');
+      const prerequisite = prerequisiteResponse(url, method);
       if (prerequisite !== undefined) return prerequisite;
       if (init?.method === 'POST') throw new Error('connection lost');
       throw new Error('unexpected request');
@@ -1022,6 +1511,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     const failed = createAuthBridgeNotificationPreparedCloudflareRuntime({
       contract: value,
       apiToken: 'cloudflare-test-token-value-1234567890',
+      playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
       repositoryRoot: realpathSync(process.cwd()),
       serviceRoot: realpathSync(join(process.cwd(), 'services/auth-bridge')),
       nodeExecutable: process.execPath,
@@ -1029,7 +1519,12 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       multipartBody: body,
       multipartContentType: contentType,
       fetchImpl: failedFetch,
-      journal: { inspect: () => ({ phase: 'upload-invoked' }) },
+      journal: {
+        inspect: () => ({
+          phase: 'upload-invoked',
+          predecessorVersionId: OLD_VERSION_ID,
+        }),
+      },
     });
     const failedPlan = await failed.prepareUpload(value);
     await expect(failed.uploadVersion(value, failedPlan)).rejects.toMatchObject({
@@ -1039,25 +1534,77 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     expect(failedFetch.mock.calls.filter(([, init]) => init?.method === 'POST'))
       .toHaveLength(1);
 
-    let migrationUpload: RequestInit | undefined;
-    let migrationUploadBody: Buffer | undefined;
+    const officialEcho = officialVersionUploadResult(value);
+    const hostileUploadResults = [
+      officialVersionUploadResult(value, { undocumented: 'redacted' }),
+      {
+        ...officialEcho,
+        resources: {
+          ...officialEcho.resources,
+          secret_echo: {
+            nested: `forbidden-${PLAYER_CANARY_OWNER_FID}-echo`,
+          },
+        },
+      },
+    ];
+    const hostileResponseFetches: ReturnType<typeof vi.fn>[] = [];
+    const hostileResponseRuntimes: ReturnType<
+      typeof createAuthBridgeNotificationPreparedCloudflareRuntime
+    >[] = [];
+    for (const hostileUploadResult of hostileUploadResults) {
+      const hostileResponseFetch = vi.fn(async (
+        input: RequestInfo | URL,
+        init?: RequestInit,
+      ) => {
+        const url = String(input);
+        const method = init?.method ?? 'GET';
+        if (url.includes('/secrets')) {
+          throw new Error('legacy secret endpoint forbidden');
+        }
+        const prerequisite = prerequisiteResponse(url, method);
+        if (prerequisite !== undefined) return prerequisite;
+        if (url.endsWith('/versions?bindings_inherit=strict') && method === 'POST') {
+          return response(hostileUploadResult, url);
+        }
+        throw new Error(`unexpected request: ${method} ${url}`);
+      });
+      const hostileResponseRuntime =
+        createAuthBridgeNotificationPreparedCloudflareRuntime({
+          contract: value,
+          apiToken: 'cloudflare-test-token-value-1234567890',
+          playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
+          repositoryRoot: realpathSync(process.cwd()),
+          serviceRoot: realpathSync(join(process.cwd(), 'services/auth-bridge')),
+          nodeExecutable: process.execPath,
+          wranglerEntrypoint: process.execPath,
+          multipartBody: body,
+          multipartContentType: contentType,
+          fetchImpl: hostileResponseFetch,
+          journal: {
+            inspect: () => ({ phase: 'prepared', predecessorVersionId: null }),
+          },
+        });
+      const hostileResponsePlan = await hostileResponseRuntime.prepareUpload(value);
+      await expect(hostileResponseRuntime.uploadVersion(value, hostileResponsePlan))
+        .rejects.toMatchObject({
+          code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_UPLOAD_RESPONSE_INVALID',
+        });
+      hostileResponseFetches.push(hostileResponseFetch);
+      hostileResponseRuntimes.push(hostileResponseRuntime);
+    }
+
     const migrationFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      if (url.includes('/versions?deployable=true')) {
-        return response({ items: [] }, url);
-      }
-      const prerequisite = prerequisiteResponse(url, 'v4');
+      const method = init?.method ?? 'GET';
+      if (url.includes('/secrets')) throw new Error('legacy secret endpoint forbidden');
+      const prerequisite = prerequisiteResponse(url, method, 'v4');
       if (prerequisite !== undefined) return prerequisite;
-      if (url.endsWith('/warpkeep-auth-bridge?excludeScript=true&bindings_inherit=strict')) {
-        migrationUpload = init;
-        migrationUploadBody = Buffer.from(init?.body as Buffer);
-        return response({ id: value.workerName, migration_tag: 'v5' }, url);
-      }
       throw new Error(`unexpected request: ${init?.method ?? 'GET'} ${url}`);
     });
     const migrating = createAuthBridgeNotificationPreparedCloudflareRuntime({
       contract: value,
       apiToken: 'cloudflare-test-token-value-1234567890',
+      playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
       repositoryRoot: realpathSync(process.cwd()),
       serviceRoot: realpathSync(join(process.cwd(), 'services/auth-bridge')),
       nodeExecutable: process.execPath,
@@ -1066,26 +1613,27 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       multipartContentType: contentType,
       fetchImpl: migrationFetch,
       journal: {
-        inspect: () => ({ phase: 'prepared', uploadMode: 'migration' as const }),
+        inspect: () => ({ phase: 'prepared', predecessorVersionId: null }),
       },
     });
-    await expect(migrating.reconcileVersion(value)).resolves.toEqual([]);
-    await expect(migrating.prepareUpload(value)).resolves.toEqual({ mode: 'migration' });
-    await expect(migrating.uploadVersion(value, { mode: 'migration' })).resolves.toEqual({});
-    expect(migrationUpload?.method).toBe('PUT');
-    expect(migrationUploadBody).toBeInstanceOf(Buffer);
-    expect(inspectAuthBridgeNotificationPreparedMultipart(
-      migrationUploadBody as Buffer,
-      String((migrationUpload?.headers as Record<string, string>)['content-type']),
-    ).metadata.migrations).toEqual({
-      old_tag: 'v4',
-      new_tag: 'v5',
-      steps: [{ new_sqlite_classes: ['AdmissionNotification'] }],
+    await expect(migrating.prepareUpload(value)).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_DEPLOY_V5_PREREQUISITE_REQUIRED',
     });
-    expect(migrationFetch.mock.calls.filter(([, init]) => init?.method === 'PUT'))
-      .toHaveLength(1);
+    expect(migrationFetch.mock.calls.filter(([, init]) => (
+      init?.method !== undefined && init.method !== 'GET'
+    ))).toHaveLength(0);
+    expect([
+      ...fetchImpl.mock.calls,
+      ...failedFetch.mock.calls,
+      ...hostileResponseFetches.flatMap(fetch => fetch.mock.calls),
+      ...migrationFetch.mock.calls,
+    ]
+      .some(([input]) => String(input).includes('/secrets'))).toBe(false);
     runtime.dispose();
     failed.dispose();
+    for (const hostileResponseRuntime of hostileResponseRuntimes) {
+      hostileResponseRuntime.dispose();
+    }
     migrating.dispose();
   });
 
@@ -1114,6 +1662,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     const runtime = createAuthBridgeNotificationPreparedCloudflareRuntime({
       contract: value,
       apiToken: 'cloudflare-test-token-value-1234567890',
+      playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
       repositoryRoot: realpathSync(process.cwd()),
       serviceRoot: realpathSync(join(process.cwd(), 'services/auth-bridge')),
       nodeExecutable: process.execPath,
@@ -1123,7 +1672,12 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       fetchImpl,
       settleDelayImpl,
       journal: {
-        inspect: () => ({ phase: 'upload-invoked', uploadMode: 'version' as const }),
+        inspect: () => ({
+          phase: 'upload-invoked',
+          uploadMode: 'version' as const,
+          predecessorDeploymentId: OLD_DEPLOYMENT_ID,
+          predecessorVersionId: OLD_VERSION_ID,
+        }),
       },
     });
     await expect(runtime.reconcileVersion(value)).rejects.toMatchObject({

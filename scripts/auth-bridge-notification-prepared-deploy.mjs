@@ -20,6 +20,7 @@ const SOURCE_COMMIT = /^[a-f0-9]{40}$/u;
 const ACCOUNT_ID = /^[a-f0-9]{32}$/u;
 const RUN_ID = /^[1-9][0-9]{0,19}$/u;
 const SECRET = /^\S{20,4096}$/u;
+const POSITIVE_FID = /^[1-9][0-9]{0,15}$/u;
 const MAX_GITHUB_RESPONSE_BYTES = 512 * 1024;
 const REQUIRED_ENVIRONMENT = Object.freeze([
   'GITHUB_ACTIONS',
@@ -34,6 +35,7 @@ const REQUIRED_ENVIRONMENT = Object.freeze([
   'WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID',
   'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
   'WARPKEEP_AUTH_BRIDGE_ZONE_ID',
+  'WARPKEEP_PLAYER_CANARY_OWNER_FID',
   'WARPKEEP_PRODUCTION_ADMIN_TOKEN',
 ]);
 const FORBIDDEN_ENVIRONMENT = Object.freeze([
@@ -106,6 +108,7 @@ function copyAndScrubEnvironment(environment) {
   for (const name of [
     'GITHUB_TOKEN',
     'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
+    'WARPKEEP_PLAYER_CANARY_OWNER_FID',
     'WARPKEEP_PRODUCTION_ADMIN_TOKEN',
   ]) delete environment[name];
   if (
@@ -123,9 +126,16 @@ function copyAndScrubEnvironment(environment) {
     || !SECRET.test(values.WARPKEEP_PRODUCTION_ADMIN_TOKEN)
     || !ACCOUNT_ID.test(values.WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID)
     || !ACCOUNT_ID.test(values.WARPKEEP_AUTH_BRIDGE_ZONE_ID)
+    || !POSITIVE_FID.test(values.WARPKEEP_PLAYER_CANARY_OWNER_FID)
+    || BigInt(values.WARPKEEP_PLAYER_CANARY_OWNER_FID)
+      > BigInt(Number.MAX_SAFE_INTEGER)
   ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_ENVIRONMENT_INVALID');
   return Object.freeze(values);
 }
+
+export const authBridgeNotificationPreparedDeployTestSeams = Object.freeze({
+  copyAndScrubEnvironment,
+});
 
 async function exactGit(repositoryRoot, args) {
   let result;
@@ -275,7 +285,10 @@ export function createAuthBridgeNotificationPreparedGithubWritePermit({
     return boundedGithubJson(response);
   };
   return async phase => {
-    if (!['upload', 'release'].includes(phase) || isInterrupted()) {
+    if (
+      !['upload', 'release'].includes(phase)
+      || isInterrupted()
+    ) {
       fail('AUTH_BRIDGE_PREPARED_DEPLOY_WRITE_PERMIT_REJECTED');
     }
     await attestCheckout({
@@ -437,6 +450,8 @@ export async function runAuthBridgeNotificationPreparedDeploy({
               const runtime = createAuthBridgeNotificationPreparedCloudflareRuntime({
                 contract,
                 apiToken: values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN,
+                playerCanaryOwnerFid:
+                  values.WARPKEEP_PLAYER_CANARY_OWNER_FID,
                 repositoryRoot: repository,
                 serviceRoot,
                 nodeExecutable,

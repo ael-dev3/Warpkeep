@@ -79,7 +79,7 @@ function stripProductionCspFromLocalServe() {
     apply: 'serve' as const,
     transformIndexHtml(html: string) {
       return html.replace(
-        /\s*<meta\s+data-warpkeep-production-csp\s+http-equiv="Content-Security-Policy"\s+content="[^"]*"\s*\/>/,
+        /\s*<meta\s+(?:data-warpkeep-production-csp|data-warpkeep-owner-canary-production-csp)\s+http-equiv="Content-Security-Policy"\s+content="[^"]*"\s*\/>/,
         ''
       );
     }
@@ -89,11 +89,14 @@ function stripProductionCspFromLocalServe() {
 export default defineConfig(({ command }) => ({
   base: deploymentBase,
   build: {
-    // The public application is the sole HTML build entry. Local QA pages are
-    // served by Vite in development and can never become an accidental
-    // production entry through directory discovery or a future config change.
+    // These are the only two executable production documents. The owner
+    // canary is deliberately a separate module graph; local QA pages remain
+    // excluded from production entry discovery.
     rollupOptions: {
-      input: resolve(process.cwd(), 'index.html')
+      input: {
+        application: resolve(process.cwd(), 'index.html'),
+        ownerCanary: resolve(process.cwd(), 'owner-canary/index.html')
+      }
     },
     // Three.js is isolated behind the title/realm boundaries and compresses to
     // roughly 150 KiB. Keep the warning just above that single vendor chunk so

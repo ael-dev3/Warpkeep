@@ -56,6 +56,7 @@ export interface BridgeConfig {
   privateJwk: PrivateEcJwk
   adminTokenSecret: string
   sessionCookieKey: string
+  playerCanaryOwnerFid?: string
   spacetimeDbUri: string
   spacetimeDbDatabase: string
   publicAuthEnabled: boolean
@@ -192,6 +193,19 @@ function parseSessionCookieKey(value: string): string {
     throw new ConfigurationError()
   }
   return value
+}
+
+function parseOptionalPlayerCanaryOwnerFid(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined
+  const canonical = value
+  if (!/^[1-9]\d{0,15}$/.test(canonical)) {
+    throw new ConfigurationError()
+  }
+  const fid = Number(canonical)
+  if (!Number.isSafeInteger(fid) || String(fid) !== canonical) {
+    throw new ConfigurationError()
+  }
+  return canonical
 }
 
 function parseSpacetimeDbUri(value: string, production: boolean): string {
@@ -492,6 +506,9 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
   }
   const adminTokenSecret = parseAdminTokenSecret(required(env, 'ADMIN_TOKEN_SECRET'))
   const sessionCookieKey = parseSessionCookieKey(required(env, 'SESSION_COOKIE_KEY'))
+  const playerCanaryOwnerFid = parseOptionalPlayerCanaryOwnerFid(
+    env.PLAYER_CANARY_OWNER_FID,
+  )
   if (
     sessionCookieKey === adminTokenSecret
     || sessionCookieKey === privateJwk.d
@@ -600,6 +617,7 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
     privateJwk,
     adminTokenSecret,
     sessionCookieKey,
+    ...(playerCanaryOwnerFid === undefined ? {} : { playerCanaryOwnerFid }),
     spacetimeDbUri,
     spacetimeDbDatabase,
     publicAuthEnabled: parsePublicAuthEnabled(required(env, 'PUBLIC_AUTH_ENABLED')),

@@ -286,7 +286,7 @@ function setClientReleaseIdentity(root: string, active: boolean): void {
   );
 }
 
-function advanceToActivationClientPhase(root: string): void {
+function advanceToActivationOnlyPhase(root: string): void {
   setPublisherFlag(root, 'entryAgreementApproved', true);
   setPublisherFlag(root, 'additivePublishApproved', true);
   replaceFile(
@@ -296,6 +296,9 @@ function advanceToActivationClientPhase(root: string): void {
     'export const GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED = true;',
   );
   setPublisherFlag(root, 'activationForwardFixApproved', true);
+}
+
+function activateClientIdentity(root: string): void {
   setClientReleaseIdentity(root, true);
   setDownstreamFlag(root, 'clientActivationApproved', true);
   replaceFile(
@@ -338,21 +341,8 @@ function advanceFixtureSourceToPhase(root: string, phase: number): void {
   );
   setPublisherFlag(root, 'activationForwardFixApproved', true);
   if (phase === 3) return;
-  setClientReleaseIdentity(root, true);
-  setDownstreamFlag(root, 'clientActivationApproved', true);
-  replaceFile(
-    root,
-    'src/spacetime/greaterRealmProviderBridge.ts',
-    'export const GREATER_REALM_CLIENT_PRESENTATION_ALLOWED = false as const;',
-    'export const GREATER_REALM_CLIENT_PRESENTATION_ALLOWED = true as const;',
-  );
-  replaceFile(
-    root,
-    'src/greater-realm/greaterRealmTransport.ts',
-    'export const GREATER_REALM_SERVER_PRESENTATION_ALLOWED = false as const;',
-    'export const GREATER_REALM_SERVER_PRESENTATION_ALLOWED = true as const;',
-  );
-  if (phase === 4) return;
+  // C4-C6 bring notification presentation, its durable root, and Hermes live
+  // while the Greater Realm world client remains the inert 0.3.43 identity.
   setDownstreamFlag(root, 'admissionNotificationsApproved', true);
   replaceFile(
     root,
@@ -378,7 +368,7 @@ function advanceFixtureSourceToPhase(root: string, phase: number): void {
       + `  notificationPagesDeployedModuleReceiptDigest: '${'d'.repeat(64)}',\n`
       + '  notificationPagesExpectedFounderCount: 417,',
   );
-  if (phase === 5) return;
+  if (phase === 4) return;
   replaceFile(
     root,
     'scripts/auth-bridge-notification-prepared-release-binding.mjs',
@@ -405,13 +395,23 @@ function advanceFixtureSourceToPhase(root: string, phase: number): void {
     `  notificationPagesLiveRootReceiptDigest: '${'e'.repeat(64)}',\n`
       + `  notificationPagesLiveRootPagesSourceCommit: '${'f'.repeat(40)}',`,
   );
-  if (phase === 6) return;
+  if (phase === 5) return;
   replaceFile(
     root,
     'scripts/hermes-admin.ts',
     'export const FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = false as const;',
     'export const FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = true as const;',
   );
+  if (phase === 6) return;
+  replaceFile(
+    root,
+    'scripts/production-player-canary-release-binding.mjs',
+    '  productionPlayerCanaryReceiptDigest: null,\n'
+      + '  productionPlayerCanarySourceCommit: null,',
+    `  productionPlayerCanaryReceiptDigest: '${'1'.repeat(64)}',\n`
+      + `  productionPlayerCanarySourceCommit: '${'2'.repeat(40)}',`,
+  );
+  activateClientIdentity(root);
 }
 
 afterEach(() => {
@@ -426,7 +426,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
     for (let phase = 0; phase <= 7; phase += 1) {
       const root = createTransitionFixture(phase);
       const authority = verify(root);
-      expect(authority.memberCount).toBe(307);
+      expect(authority.memberCount).toBe(361);
       manifestDigests.add(authority.manifestSha256);
       for (const relativePath of REVIEWED_RELEASE_TRANSITION_PATHS) {
         const source = readFileSync(resolve(root, relativePath), 'utf8');
@@ -442,15 +442,15 @@ describe('auth-bridge reviewed release-transition source projection', () => {
   it('retains one closure authority through every exact reviewed phase', () => {
     const root = createTransitionFixture();
     const baseline = verify(root);
-    expect(baseline.memberCount).toBe(307);
-    const expectActiveIdentityRejectedBeforeC4 = (): void => {
+    expect(baseline.memberCount).toBe(361);
+    const expectActiveIdentityRejectedBeforeActivation = (): void => {
       setClientReleaseIdentity(root, true);
       expect(() => verify(root)).toThrow(
         'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_PHASE_INVALID',
       );
       setClientReleaseIdentity(root, false);
     };
-    const expectInertIdentityRejectedFromC4 = (): void => {
+    const expectInertIdentityRejectedAfterActivation = (): void => {
       setClientReleaseIdentity(root, false);
       expect(() => verify(root)).toThrow(
         'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_PHASE_INVALID',
@@ -459,13 +459,13 @@ describe('auth-bridge reviewed release-transition source projection', () => {
     };
 
     // C0 cannot publish the activation-client identity.
-    expectActiveIdentityRejectedBeforeC4();
+    expectActiveIdentityRejectedBeforeActivation();
 
     setPublisherFlag(root, 'entryAgreementApproved', true);
     setPublisherFlag(root, 'additivePublishApproved', true);
     expect(verify(root).manifestSha256).toBe(baseline.manifestSha256);
     // C1 remains inert even after the reviewed append is approved.
-    expectActiveIdentityRejectedBeforeC4();
+    expectActiveIdentityRejectedBeforeActivation();
 
     replaceFile(
       root,
@@ -476,7 +476,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
     setPublisherFlag(root, 'importForwardFixApproved', true);
     expect(verify(root).manifestSha256).toBe(baseline.manifestSha256);
     // C2 import-only authority does not publish a client release.
-    expectActiveIdentityRejectedBeforeC4();
+    expectActiveIdentityRejectedBeforeActivation();
 
     replaceFile(
       root,
@@ -494,25 +494,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
     setPublisherFlag(root, 'activationForwardFixApproved', true);
     expect(verify(root).manifestSha256).toBe(baseline.manifestSha256);
     // C3 activation-only authority still requires the inert identity.
-    expectActiveIdentityRejectedBeforeC4();
-
-    setClientReleaseIdentity(root, true);
-    setDownstreamFlag(root, 'clientActivationApproved', true);
-    replaceFile(
-      root,
-      'src/spacetime/greaterRealmProviderBridge.ts',
-      'export const GREATER_REALM_CLIENT_PRESENTATION_ALLOWED = false as const;',
-      'export const GREATER_REALM_CLIENT_PRESENTATION_ALLOWED = true as const;',
-    );
-    replaceFile(
-      root,
-      'src/greater-realm/greaterRealmTransport.ts',
-      'export const GREATER_REALM_SERVER_PRESENTATION_ALLOWED = false as const;',
-      'export const GREATER_REALM_SERVER_PRESENTATION_ALLOWED = true as const;',
-    );
-    expect(verify(root).manifestSha256).toBe(baseline.manifestSha256);
-    // C4 is the first phase where reverting to 0.3.43 is invalid.
-    expectInertIdentityRejectedFromC4();
+    expectActiveIdentityRejectedBeforeActivation();
 
     setDownstreamFlag(root, 'admissionNotificationsApproved', true);
     replaceFile(
@@ -540,7 +522,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
         + '  notificationPagesExpectedFounderCount: 417,',
     );
     expect(verify(root).manifestSha256).toBe(baseline.manifestSha256);
-    expectInertIdentityRejectedFromC4();
+    expectActiveIdentityRejectedBeforeActivation();
 
     replaceFile(
       root,
@@ -569,7 +551,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
         + `  notificationPagesLiveRootPagesSourceCommit: '${'f'.repeat(40)}',`,
     );
     expect(verify(root).manifestSha256).toBe(baseline.manifestSha256);
-    expectInertIdentityRejectedFromC4();
+    expectActiveIdentityRejectedBeforeActivation();
 
     replaceFile(
       root,
@@ -578,7 +560,24 @@ describe('auth-bridge reviewed release-transition source projection', () => {
       'export const FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = true as const;',
     );
     expect(verify(root).manifestSha256).toBe(baseline.manifestSha256);
-    expectInertIdentityRejectedFromC4();
+    expectActiveIdentityRejectedBeforeActivation();
+
+    replaceFile(
+      root,
+      'scripts/production-player-canary-release-binding.mjs',
+      '  productionPlayerCanaryReceiptDigest: null,\n'
+        + '  productionPlayerCanarySourceCommit: null,',
+      `  productionPlayerCanaryReceiptDigest: '${'1'.repeat(64)}',\n`
+        + `  productionPlayerCanarySourceCommit: '${'2'.repeat(40)}',`,
+    );
+    // A canary binding cannot activate presentation on its own.
+    expect(() => verify(root)).toThrow(
+      'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_PHASE_INVALID',
+    );
+
+    activateClientIdentity(root);
+    expect(verify(root).manifestSha256).toBe(baseline.manifestSha256);
+    expectInertIdentityRejectedAfterActivation();
   }, 120_000);
 
   it('rejects impossible tuples, nonliteral drift, extra bytes, and declaration drift', () => {
@@ -660,6 +659,14 @@ describe('auth-bridge reviewed release-transition source projection', () => {
       'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID',
     );
     expectMutationRejected(
+      'scripts/production-player-canary-release-binding.mjs',
+      source => source.replace(
+        'productionPlayerCanaryReceiptDigest: null',
+        `productionPlayerCanaryReceiptDigest: '${'1'.repeat(64)}'`,
+      ),
+      'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID',
+    );
+    expectMutationRejected(
       'spacetimedb/src/greaterRealmV17Policy.ts',
       source => `${source}\n`,
       'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_DIGEST_MISMATCH',
@@ -669,11 +676,38 @@ describe('auth-bridge reviewed release-transition source projection', () => {
       source => `${source}\n`,
       'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_DIGEST_MISMATCH',
     );
+    expectMutationRejected(
+      'scripts/production-player-canary-release-binding.d.mts',
+      source => `${source}\n`,
+      'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_DIGEST_MISMATCH',
+    );
   }, 120_000);
 
   it('rejects every partial or mismatched activation-client identity', () => {
     const root = createTransitionFixture();
-    advanceToActivationClientPhase(root);
+    advanceToActivationOnlyPhase(root);
+    setDownstreamFlag(root, 'admissionNotificationsApproved', true);
+    replaceFile(
+      root,
+      '.github/workflows/deploy-pages.yml',
+      "      VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'false'",
+      "      VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'true'",
+    );
+    replaceFile(
+      root,
+      'scripts/notification-pages-live-release-binding.mjs',
+      '  notificationPagesLiveRootReceiptDigest: null,\n'
+        + '  notificationPagesLiveRootPagesSourceCommit: null,',
+      `  notificationPagesLiveRootReceiptDigest: '${'e'.repeat(64)}',\n`
+        + `  notificationPagesLiveRootPagesSourceCommit: '${'f'.repeat(40)}',`,
+    );
+    replaceFile(
+      root,
+      'scripts/hermes-admin.ts',
+      'export const FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = false as const;',
+      'export const FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = true as const;',
+    );
+    activateClientIdentity(root);
     const expectIdentityMutationRejected = (
       relativePath: string,
       before: string,
@@ -685,7 +719,15 @@ describe('auth-bridge reviewed release-transition source projection', () => {
       replaceFile(root, relativePath, after, before);
     };
 
-    expect(verify(root).memberCount).toBe(307);
+    replaceFile(
+      root,
+      'scripts/production-player-canary-release-binding.mjs',
+      '  productionPlayerCanaryReceiptDigest: null,\n'
+        + '  productionPlayerCanarySourceCommit: null,',
+      `  productionPlayerCanaryReceiptDigest: '${'1'.repeat(64)}',\n`
+        + `  productionPlayerCanarySourceCommit: '${'2'.repeat(40)}',`,
+    );
+    expect(verify(root).memberCount).toBe(361);
     expectIdentityMutationRejected(
       'package.json',
       '  "version": "0.3.44",',
@@ -790,9 +832,8 @@ describe('auth-bridge reviewed release-transition source projection', () => {
   }, 120_000);
 
   it('keeps Pages bootstrap pins exact after activation-client projection', () => {
-    const root = createTransitionFixture();
-    advanceToActivationClientPhase(root);
-    expect(verify(root).memberCount).toBe(307);
+    const root = createTransitionFixture(7);
+    expect(verify(root).memberCount).toBe(361);
     const path = resolve(root, '.github/workflows/deploy-pages.yml');
     const source = readFileSync(path, 'utf8');
     const name = 'WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256';

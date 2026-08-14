@@ -23,6 +23,10 @@ export type NotificationPagesReleaseSources = Readonly<{
     notificationPagesLiveRootReceiptDigest: string | null;
     notificationPagesLiveRootPagesSourceCommit: string | null;
   }>;
+  productionPlayerCanaryBinding: Readonly<{
+    productionPlayerCanaryReceiptDigest: string | null;
+    productionPlayerCanarySourceCommit: string | null;
+  }>;
 }>;
 
 export function parseNotificationPagesReleaseSources(
@@ -32,6 +36,7 @@ export function parseNotificationPagesReleaseSources(
     preparedBindingSource: string;
     privateBindingSource: string;
     liveRootBindingSource: string;
+    productionPlayerCanaryBindingSource: string;
   }>,
 ): NotificationPagesReleaseSources;
 

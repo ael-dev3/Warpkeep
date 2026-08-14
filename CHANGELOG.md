@@ -61,10 +61,11 @@ full engineering record.
   client gates keep Greater Realm presentation sealed.
 
 - Extended the deletion-disabled local additive migration rehearsal through
-  protocol v17 refs 72–83. It now proves all frozen v16 rows survive the real
-  Greater Realm artifact, binds typed suffix sentinels and exact schema
-  signatures into the receipt, rejects v17 rollback, and keeps production
-  import, activation, and publication authority hard-closed.
+  proof protocol v18. It keeps the exact frozen v17 boundary at refs 72–83,
+  proves the private canary authority is the only current-candidate suffix at
+  refs 84–85, binds both exact schema digests into the receipt, rejects
+  current-candidate rollback, and keeps production import, activation, and
+  publication authority hard-closed.
 
 - Made the long Castles, Workers, Resource Sites, and Public Water lists in
   **Explore** independently collapsible, with live result counts and sticky

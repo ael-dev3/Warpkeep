@@ -30,9 +30,9 @@ draft:
 13. `tests/menuFarcasterAuthIntegration.test.tsx`
 14. `tests/menuMainMenu.test.tsx`
 
-The separately verified retained pending-owner report is published in the same
-C4 source as release evidence, but it is not presentation copy and is not one
-of these 14 paths.
+The separately verified retained pending-owner report is published earlier in
+the inert C4 notification generation-zero source. It is release evidence, not
+presentation copy, and is not one of these 14 paths.
 
 Do not blindly cherry-pick the old commit. Reconcile its Changelog hunks with
 all later truthful Unreleased entries, replace the bounded package and metadata
@@ -51,8 +51,10 @@ the top-level `package.json` version, the top-level and root-package
 `scripts/farcaster-miniapp-contract.mjs`, and `miniapp.description` in
 `public/.well-known/farcaster.json`. C0 through C3 require all three version
 slots to be exactly `0.3.43` and both descriptions to retain the current
-Genesis 001 wording. C4 activation-client and every later reviewed phase
-require all three versions to be exactly `0.3.44` and both descriptions to be
+Genesis 001 wording. C4 notification generation zero, C5 durable rooting, and
+C6 durable Hermes finalization also require the exact inert `0.3.43` identity.
+Only the later C7 activation-client phase and its reviewed successors require
+all three versions to be exactly `0.3.44` and both descriptions to be
 exactly:
 
 > Explore a six-region world foundation. The core gameplay loop remains incomplete; invite-only Alpha.
@@ -93,11 +95,18 @@ of the following are true and bound to the same release:
   separately reviewed activation change;
 - existing-player relocation, new Tier-I founding, Workers, and all four
   gathering paths have passed the production canaries;
+- notification Pages has a durable checked-in chain root, Hermes delivery is
+  approved from that root, and the normal admitted-owner exactly-once path is
+  durably verified;
+- the checked-in production-player-canary binding names the content-addressed,
+  owner-private receipt for the exact C6/Hermes-final predecessor, and private
+  predeploy inspection authenticates it before any deployment network call;
 - Tier-II and Tier-III player access remains closed; and
 - any admission-notification wording reflects the actually approved bridge,
   Pages, Hermes, receipt, and exactly-once admission phase at deployment time.
 
-If any condition is not yet true, retain Alpha `0.3.43` presentation. Do not
-publish the `0.3.44` identity early or revive the rejected presentation. This
-handoff grants no import, activation, deployment, notification, or admission
-authority by itself.
+If any condition is not yet true, retain Alpha `0.3.43` presentation. In
+particular, Pages generation zero, durable rooting, and Hermes finalization are
+not world-client activation authority. Do not publish the `0.3.44` identity
+early or revive the rejected presentation. This handoff grants no import,
+activation, deployment, notification, or admission authority by itself.

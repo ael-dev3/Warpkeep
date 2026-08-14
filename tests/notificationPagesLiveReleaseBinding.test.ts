@@ -60,6 +60,8 @@ describe('notification Pages live release binding', () => {
       notificationPreparedReceiptDigest: null,
       notificationPreparedBridgeSourceCommit: null,
       ...NOTIFICATION_PAGES_LIVE_RELEASE_BINDING,
+      productionPlayerCanaryReceiptDigest: null,
+      productionPlayerCanarySourceCommit: null,
     })).toThrow('GREATER_REALM_NOTIFICATION_PAGES_LIVE_ROOT_BINDING_REQUIRED');
   });
 });

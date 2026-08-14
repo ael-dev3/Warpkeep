@@ -5,6 +5,8 @@ import {
   ADMISSION_NOTIFICATION_RECOVERY_PATH,
   ADMISSION_NOTIFICATION_STATUS_PATH,
   FARCASTER_VERIFICATION_TIMEOUT_MILLISECONDS,
+  PLAYER_CANARY_QUICK_AUTH_EXCHANGE_PATH,
+  PLAYER_CANARY_QUICK_AUTH_MAX_AGE_SECONDS,
   QUICK_AUTH_MAX_ISSUER_LIFETIME_SECONDS,
   RELEASE_ATTESTATION_PATH,
   RELEASE_ATTESTATION_PROFILE,
@@ -56,6 +58,7 @@ const QUICK_AUTH_ORIGIN = 'https://warpkeep.com'
 const QUICK_AUTH_DOMAIN = 'warpkeep.com'
 const QUICK_AUTH_ISSUER = 'https://auth.farcaster.xyz'
 const QUICK_AUTH_PATH = '/v2/farcaster/quick-auth/exchange'
+const PLAYER_CANARY_PATH = PLAYER_CANARY_QUICK_AUTH_EXCHANGE_PATH
 const ACCESS_STATUS_PATH = '/v2/access/status'
 const ACCESS_REQUEST_PATH = '/v2/access/request'
 const syntheticQuickAuthSegment = (value: object) => btoa(JSON.stringify(value))
@@ -619,6 +622,15 @@ describe('Warpkeep auth bridge', () => {
       const response = await h.app.fetch(request('/healthz'), env(overrides))
       expect(response.status).toBe(503)
       await expect(response.json()).resolves.toMatchObject({ error: { code: 'service_misconfigured' } })
+    }
+  })
+
+  it('accepts only an optional exact canonical managed owner FID', () => {
+    expect(readBridgeConfig(env()).playerCanaryOwnerFid).toBeUndefined()
+    expect(readBridgeConfig(env({ PLAYER_CANARY_OWNER_FID: FID })).playerCanaryOwnerFid)
+      .toBe(FID)
+    for (const value of ['', ` ${FID}`, `${FID} `, '012345', '1.5', '9007199254740992']) {
+      expect(() => readBridgeConfig(env({ PLAYER_CANARY_OWNER_FID: value }))).toThrow()
     }
   })
 
@@ -1593,6 +1605,12 @@ describe('Warpkeep auth bridge', () => {
     const firstBody = await json(first)
     const secondBody = await json(second)
     expect(firstBody).toEqual(secondBody)
+    const withPlayerCanaryOwner = await json(await call({
+      PLAYER_CANARY_OWNER_FID: FID,
+    }))
+    expect(withPlayerCanaryOwner).toEqual(firstBody)
+    expect(withPlayerCanaryOwner).not.toHaveProperty('playerCanaryOwnerFid')
+    expect(JSON.stringify(withPlayerCanaryOwner)).not.toContain('PLAYER_CANARY_OWNER_FID')
     const farcasterRpcEndpointFingerprints = (await Promise.all([
       farcasterRpcEndpointFingerprint('https://optimism-rpc-one.example.com/'),
       farcasterRpcEndpointFingerprint('https://optimism-rpc-two.example.net/'),
@@ -4344,6 +4362,240 @@ describe('Warpkeep auth bridge', () => {
       expect(response.headers.has('set-cookie')).toBe(false)
       expect(h.events).toContain('auth_epoch_failed')
       expect(h.events).toContain('quick_auth_rejected')
+    })
+  })
+
+  describe('owner-only production player canary exchange', () => {
+    const ownerEnv = (overrides: Partial<WorkerEnv> = {}) => env({
+      PLAYER_CANARY_OWNER_FID: FID,
+      ...overrides,
+    })
+
+    it('issues the existing short player JWT without returning identity or setting a cookie', async () => {
+      const h = harness()
+      const now = 1_800_000_000_000
+      h.setNow(now)
+      const response = await h.app.fetch(quickAuthRequest(
+        QUICK_AUTH_TOKEN,
+        {},
+        { headers: { cookie: '__Host-warpkeep_session=must-not-be-used' } },
+        PLAYER_CANARY_PATH,
+      ), ownerEnv())
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get('access-control-allow-origin')).toBe(QUICK_AUTH_ORIGIN)
+      expect(response.headers.has('access-control-allow-credentials')).toBe(false)
+      expect(response.headers.has('set-cookie')).toBe(false)
+      expect(h.quickAuthVerifier.verifyJwt).toHaveBeenCalledWith({
+        token: QUICK_AUTH_TOKEN,
+        domain: QUICK_AUTH_DOMAIN,
+      })
+      expect(h.resolver.resolve).toHaveBeenCalledWith(FID)
+      const body = await json(response)
+      expect(Object.keys(body)).toEqual([
+        'version',
+        'status',
+        'accessToken',
+        'tokenType',
+        'accessExpiresAt',
+      ])
+      expect(body).toMatchObject({
+        version: 1,
+        status: 'authorized',
+        tokenType: 'spacetime-access',
+        accessExpiresAt: now + PLAYER_TOKEN_TTL_SECONDS * 1_000,
+      })
+      expect(body).not.toHaveProperty('identity')
+      expect(body).not.toHaveProperty('fid')
+      expect(decodeJwtPayload(String(body.accessToken))).toMatchObject({
+        sub: `farcaster:${FID}`,
+        fid: FID,
+        auth_epoch: 7,
+      })
+      expect(h.events).toContain('auth_epoch_resolved')
+      expect(h.events).toContain('player_canary_exchange_succeeded')
+      expect(h.events).not.toContain('quick_auth_succeeded')
+    })
+
+    it('accepts an exactly 120-second-old credential and rejects one second older', async () => {
+      const nowSeconds = 1_800_000_000
+      const verifierForAge = (ageSeconds: number): QuickAuthVerifier => ({
+        verifyJwt: vi.fn(async () => ({
+          sub: Number(FID),
+          iss: QUICK_AUTH_ISSUER,
+          aud: QUICK_AUTH_DOMAIN,
+          iat: nowSeconds - ageSeconds,
+          exp: nowSeconds + 300,
+        })),
+      })
+      const accepted = harness({
+        quickAuthVerifier: verifierForAge(PLAYER_CANARY_QUICK_AUTH_MAX_AGE_SECONDS),
+      })
+      accepted.setNow(nowSeconds * 1_000)
+      expect((await accepted.app.fetch(
+        quickAuthRequest(QUICK_AUTH_TOKEN, {}, {}, PLAYER_CANARY_PATH),
+        ownerEnv(),
+      )).status).toBe(200)
+      expect(accepted.resolver.resolve).toHaveBeenCalledOnce()
+
+      const rejected = harness({
+        quickAuthVerifier: verifierForAge(PLAYER_CANARY_QUICK_AUTH_MAX_AGE_SECONDS + 1),
+      })
+      rejected.setNow(nowSeconds * 1_000)
+      const response = await rejected.app.fetch(
+        quickAuthRequest(QUICK_AUTH_TOKEN, {}, {}, PLAYER_CANARY_PATH),
+        ownerEnv(),
+      )
+      expect(response.status).toBe(401)
+      await expect(response.json()).resolves.toMatchObject({ error: { code: 'quick_auth_invalid' } })
+      expect(rejected.resolver.resolve).not.toHaveBeenCalled()
+      expect(rejected.events).toContain('player_canary_exchange_rejected')
+    })
+
+    it('revalidates freshness after admission resolution before signing', async () => {
+      const nowSeconds = 1_800_000_000
+      let h!: Harness
+      const signer = vi.fn(async () => 'must-not-be-issued')
+      const resolver: AuthEpochResolver = {
+        resolve: vi.fn(async () => {
+          h.setNow((nowSeconds + PLAYER_CANARY_QUICK_AUTH_MAX_AGE_SECONDS + 1) * 1_000)
+          return { state: 'enabled', authEpoch: 7 } as const
+        }),
+      }
+      h = harness({
+        resolver,
+        signer,
+        quickAuthVerifier: {
+          verifyJwt: vi.fn(async () => ({
+            sub: Number(FID),
+            iss: QUICK_AUTH_ISSUER,
+            aud: QUICK_AUTH_DOMAIN,
+            iat: nowSeconds,
+            exp: nowSeconds + 600,
+          })),
+        },
+      })
+      h.setNow(nowSeconds * 1_000)
+
+      const response = await h.app.fetch(
+        quickAuthRequest(QUICK_AUTH_TOKEN, {}, {}, PLAYER_CANARY_PATH),
+        ownerEnv(),
+      )
+      expect(response.status).toBe(401)
+      expect(signer).not.toHaveBeenCalled()
+      expect(h.events).toContain('player_canary_exchange_rejected')
+    })
+
+    it('discards a signed token when signing crosses the freshness bound', async () => {
+      const nowSeconds = 1_800_000_000
+      let h!: Harness
+      const signer = vi.fn(async () => {
+        h.setNow((nowSeconds + PLAYER_CANARY_QUICK_AUTH_MAX_AGE_SECONDS + 1) * 1_000)
+        return 'header.payload.signature'
+      })
+      h = harness({
+        signer,
+        quickAuthVerifier: {
+          verifyJwt: vi.fn(async () => ({
+            sub: Number(FID),
+            iss: QUICK_AUTH_ISSUER,
+            aud: QUICK_AUTH_DOMAIN,
+            iat: nowSeconds,
+            exp: nowSeconds + 600,
+          })),
+        },
+      })
+      h.setNow(nowSeconds * 1_000)
+
+      const response = await h.app.fetch(
+        quickAuthRequest(QUICK_AUTH_TOKEN, {}, {}, PLAYER_CANARY_PATH),
+        ownerEnv(),
+      )
+      expect(response.status).toBe(401)
+      expect(signer).toHaveBeenCalledOnce()
+      expect(h.events).not.toContain('player_canary_exchange_succeeded')
+      expect(h.events).toContain('player_canary_exchange_rejected')
+    })
+
+    it('fails closed before verification when the managed owner secret is absent', async () => {
+      const h = harness()
+      const response = await h.app.fetch(
+        quickAuthRequest(QUICK_AUTH_TOKEN, {}, {}, PLAYER_CANARY_PATH),
+        env(),
+      )
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toEqual({
+        error: {
+          code: 'player_canary_unavailable',
+          message: 'The production player canary is unavailable.',
+        },
+      })
+      expect(h.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+      expect(h.resolver.resolve).not.toHaveBeenCalled()
+      expect(h.events).toEqual(['player_canary_exchange_rejected'])
+    })
+
+    it('returns the same generic denial for a different subject and a non-admitted owner', async () => {
+      const different = harness()
+      const differentResponse = await different.app.fetch(
+        quickAuthRequest(QUICK_AUTH_TOKEN, {}, {}, PLAYER_CANARY_PATH),
+        ownerEnv({ PLAYER_CANARY_OWNER_FID: '67890' }),
+      )
+      const differentText = await differentResponse.text()
+      expect(differentResponse.status).toBe(403)
+      expect(JSON.parse(differentText)).toEqual({
+        error: {
+          code: 'player_canary_forbidden',
+          message: 'Canary authorization was not granted.',
+        },
+      })
+      expect(different.resolver.resolve).not.toHaveBeenCalled()
+
+      const missing = harness({ epoch: 0 })
+      const missingResponse = await missing.app.fetch(
+        quickAuthRequest(QUICK_AUTH_TOKEN, {}, {}, PLAYER_CANARY_PATH),
+        ownerEnv(),
+      )
+      const missingText = await missingResponse.text()
+      expect(missingResponse.status).toBe(403)
+      expect(missingText).toBe(differentText)
+      expect(JSON.stringify(different.events)).not.toContain(FID)
+      expect(JSON.stringify(missing.events)).not.toContain(FID)
+      expect(different.events).toEqual(['player_canary_exchange_rejected'])
+      expect(missing.events).toEqual(['auth_epoch_resolved', 'player_canary_exchange_rejected'])
+    })
+
+    it('uses exact non-credentialed CORS and remains behind the public-auth kill switch', async () => {
+      const h = harness()
+      const preflight = await h.app.fetch(request(PLAYER_CANARY_PATH, undefined, {
+        method: 'OPTIONS',
+        headers: {
+          origin: QUICK_AUTH_ORIGIN,
+          'access-control-request-method': 'POST',
+          'access-control-request-headers': 'Authorization, Content-Type',
+        },
+      }), ownerEnv())
+      expect(preflight.status).toBe(204)
+      expect(preflight.headers.get('access-control-allow-origin')).toBe(QUICK_AUTH_ORIGIN)
+      expect(preflight.headers.get('access-control-allow-headers')).toBe('authorization, content-type')
+      expect(preflight.headers.has('access-control-allow-credentials')).toBe(false)
+
+      const hostile = await h.app.fetch(quickAuthRequest(QUICK_AUTH_TOKEN, {}, {
+        headers: { origin: 'https://hostile.example' },
+      }, PLAYER_CANARY_PATH), ownerEnv())
+      expect(hostile.status).toBe(403)
+      expect(hostile.headers.has('access-control-allow-origin')).toBe(false)
+      expect(h.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+
+      const paused = harness()
+      const pausedResponse = await paused.app.fetch(
+        quickAuthRequest(QUICK_AUTH_TOKEN, {}, {}, PLAYER_CANARY_PATH),
+        ownerEnv({ PUBLIC_AUTH_ENABLED: 'false' }),
+      )
+      expect(pausedResponse.status).toBe(503)
+      await expect(pausedResponse.json()).resolves.toMatchObject({ error: { code: 'public_auth_paused' } })
+      expect(paused.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+      expect(paused.resolver.resolve).not.toHaveBeenCalled()
     })
   })
 })

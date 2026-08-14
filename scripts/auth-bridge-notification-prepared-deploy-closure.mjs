@@ -22,7 +22,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_PROFILE =
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH =
   'scripts/auth-bridge-notification-prepared-deploy-closure-v1.json';
 
-const MEMBER_PATH = /^(?:package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|(?:\.github\/workflows|scripts|services\/auth-bridge|spacetimedb\/src|src)\/[A-Za-z0-9._/-]+)$/u;
+const MEMBER_PATH = /^(?:owner-canary\/index\.html|package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|vite\.config\.ts|(?:\.github\/workflows|scripts|services\/auth-bridge|spacetimedb\/src|src)\/[A-Za-z0-9._/-]+)$/u;
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
 const MAX_MANIFEST_BYTES = 192 * 1_024;
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
@@ -88,6 +88,8 @@ const REVIEWED_RELEASE_SOURCE_PATHS = Object.freeze({
     'scripts/auth-bridge-notification-prepared-release-binding.mjs',
   privateBinding: 'scripts/notification-pages-private-release-binding.mjs',
   liveRootBinding: 'scripts/notification-pages-live-release-binding.mjs',
+  productionPlayerCanaryBinding:
+    'scripts/production-player-canary-release-binding.mjs',
 });
 
 const INERT_CLIENT_RELEASE_VERSION = '0.3.43';
@@ -104,21 +106,21 @@ const REVIEWED_RELEASE_SOURCE_PATH_SET =
 
 const REVIEWED_RELEASE_PHASE_IDENTITIES = new Map([
   // Production-approved pre-generation.
-  ['FF|FFFF|FF|FF|0|0|NNN', INERT_CLIENT_RELEASE_STATE],
+  ['FF|FFFF|FF|FF|0|0|NNNN', INERT_CLIENT_RELEASE_STATE],
   // Candidate-approved inert append.
-  ['FF|TTFF|FF|FF|0|0|NNN', INERT_CLIENT_RELEASE_STATE],
+  ['FF|TTFF|FF|FF|0|0|NNNN', INERT_CLIENT_RELEASE_STATE],
   // Import-only forward fix.
-  ['TF|TTTF|FF|FF|0|0|NNN', INERT_CLIENT_RELEASE_STATE],
+  ['TF|TTTF|FF|FF|0|0|NNNN', INERT_CLIENT_RELEASE_STATE],
   // Activation-only forward fix.
-  ['FT|TTFT|FF|FF|0|0|NNN', INERT_CLIENT_RELEASE_STATE],
-  // Client and server presentation are approved together after active proof.
-  ['FT|TTFT|TF|TT|0|0|NNN', ACTIVE_CLIENT_RELEASE_STATE],
-  // Generation-zero notification Pages activation.
-  ['FT|TTFT|TT|TT|1|0|PPN', ACTIVE_CLIENT_RELEASE_STATE],
-  // Durable Pages root installed while Hermes remains inert.
-  ['FT|TTFT|TT|TT|1|0|NNP', ACTIVE_CLIENT_RELEASE_STATE],
-  // Final notification delivery approval.
-  ['FT|TTFT|TT|TT|1|1|NNP', ACTIVE_CLIENT_RELEASE_STATE],
+  ['FT|TTFT|FF|FF|0|0|NNNN', INERT_CLIENT_RELEASE_STATE],
+  // Generation-zero notification Pages activation remains world-client inert.
+  ['FT|TTFT|FT|FF|1|0|PPNN', INERT_CLIENT_RELEASE_STATE],
+  // Durable Pages root installed while Hermes and world presentation stay inert.
+  ['FT|TTFT|FT|FF|1|0|NNPN', INERT_CLIENT_RELEASE_STATE],
+  // Final notification delivery approval still retains the 0.3.43 world client.
+  ['FT|TTFT|FT|FF|1|1|NNPN', INERT_CLIENT_RELEASE_STATE],
+  // Presentation activates only after durable Hermes plus the canary binding.
+  ['FT|TTFT|TT|TT|1|1|NNPP', ACTIVE_CLIENT_RELEASE_STATE],
 ]);
 
 function expectedMemberDigestProfile(memberPath) {
@@ -144,6 +146,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     '.github/workflows/deploy-pages.yml',
     '.github/workflows/notification-bridge-prepared.yml',
     '.github/workflows/verify.yml',
+    'owner-canary/index.html',
     'package-lock.json',
     'package.json',
     'public/.well-known/farcaster.json',
@@ -176,9 +179,11 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/entry-agreement-policy.mjs',
     'scripts/farcaster-miniapp-contract.mjs',
     'scripts/founder-admission-authority.ts',
+    'scripts/greater-realm-cutover-write-control.ts',
     'scripts/greater-realm-downstream-release-policy.ts',
     'scripts/greater-realm-production-bootstrap.mjs',
     'scripts/greater-realm-production-publisher-core.ts',
+    'scripts/greater-realm-production-transport.ts',
     'scripts/greater-realm-release-gate-deploy-boundary.d.mts',
     'scripts/greater-realm-release-gate-deploy-boundary.mjs',
     'scripts/hermes-admin.ts',
@@ -207,6 +212,28 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/notification-pages-release-source-parser.mjs',
     'scripts/production-admin-token-budget.d.mts',
     'scripts/production-admin-token-budget.mjs',
+    'scripts/production-player-canary-admin-transport.ts',
+    'scripts/production-player-canary-approval-reconciliation.d.mts',
+    'scripts/production-player-canary-approval-reconciliation.mjs',
+    'scripts/production-player-canary-baseline-reconciliation.d.mts',
+    'scripts/production-player-canary-baseline-reconciliation.mjs',
+    'scripts/production-player-canary-command-authority.d.mts',
+    'scripts/production-player-canary-command-authority.mjs',
+    'scripts/production-player-canary-core.ts',
+    'scripts/production-player-canary-deploy-authority.d.mts',
+    'scripts/production-player-canary-deploy-authority.mjs',
+    'scripts/production-player-canary-evidence-authority.d.mts',
+    'scripts/production-player-canary-evidence-authority.mjs',
+    'scripts/production-player-canary-operator-journal.d.mts',
+    'scripts/production-player-canary-operator-journal.mjs',
+    'scripts/production-player-canary-operator.d.mts',
+    'scripts/production-player-canary-operator.mjs',
+    'scripts/production-player-canary-owner-approval.d.mts',
+    'scripts/production-player-canary-owner-approval.mjs',
+    'scripts/production-player-canary-receipt.d.mts',
+    'scripts/production-player-canary-receipt.mjs',
+    'scripts/production-player-canary-release-binding.d.mts',
+    'scripts/production-player-canary-release-binding.mjs',
     'scripts/profiles/farcaster-profile-policy.ts',
     'scripts/profiles/founder-admission-plan.ts',
     'scripts/profiles/profile-transport.ts',
@@ -216,6 +243,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/verify-auth-bridge-notification-prepared-policy.mjs',
     'scripts/verify-greater-realm-release-gates.d.mts',
     'scripts/verify-greater-realm-release-gates.mjs',
+    'scripts/verify-production-dist-exclusions.mjs',
     'services/auth-bridge/package.json',
     'services/auth-bridge/pnpm-lock.yaml',
     'services/auth-bridge/pnpm-workspace.yaml',
@@ -267,10 +295,19 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'spacetimedb/src/goldExpeditionPolicy.ts',
     'spacetimedb/src/goldSitePolicy.ts',
     'spacetimedb/src/greaterRealmV17Policy.ts',
+    'spacetimedb/src/index.ts',
     'spacetimedb/src/lowlandsSurface.ts',
+    'spacetimedb/src/productionPlayerCanaryApproval.ts',
+    'spacetimedb/src/productionPlayerCanaryApprovalPolicy.ts',
+    'spacetimedb/src/productionPlayerCanaryBaseline.ts',
+    'spacetimedb/src/productionPlayerCanaryBaselinePolicy.ts',
+    'spacetimedb/src/productionPlayerCanaryEvidence.ts',
+    'spacetimedb/src/productionPlayerCanaryRoutePolicy.ts',
     'spacetimedb/src/profileAuthorityPolicy.ts',
+    'spacetimedb/src/reducers/castleWorkers.ts',
     'spacetimedb/src/resourceAuthorityPolicy.ts',
     'spacetimedb/src/resourceSitePlacementPolicy.ts',
+    'spacetimedb/src/schema.ts',
     'spacetimedb/src/stoneExpeditionPolicy.ts',
     'spacetimedb/src/stoneSitePolicy.ts',
     'spacetimedb/src/waterWorld.ts',
@@ -278,6 +315,15 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'spacetimedb/src/woodSitePolicy.ts',
     'spacetimedb/src/world.ts',
     'src/greater-realm/greaterRealmTransport.ts',
+    'src/owner-canary/OwnerCanaryApp.tsx',
+    'src/owner-canary/main.tsx',
+    'src/owner-canary/ownerCanary.css',
+    'src/owner-canary/ownerCanaryAuthClient.ts',
+    'src/owner-canary/ownerCanaryController.ts',
+    'src/owner-canary/ownerCanaryEvidence.ts',
+    'src/owner-canary/ownerCanaryProductionRuntime.ts',
+    'src/owner-canary/ownerCanaryRuntime.ts',
+    'src/owner-canary/ownerCanaryRuntimePlan.ts',
     'src/security/publicImageUrl.ts',
     'src/spacetime/greaterRealmProviderBridge.ts',
     'src/spacetime/module_bindings/accept_alpha_terms_v_1_reducer.ts',
@@ -301,6 +347,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'src/spacetime/module_bindings/admin_begin_greater_realm_verification_v_1_reducer.ts',
     'src/spacetime/module_bindings/admin_begin_worker_legacy_drain_v_1_reducer.ts',
     'src/spacetime/module_bindings/admin_bump_auth_epoch_reducer.ts',
+    'src/spacetime/module_bindings/admin_capture_production_player_canary_baseline_v_1_reducer.ts',
     'src/spacetime/module_bindings/admin_commit_greater_realm_active_v_1_reducer.ts',
     'src/spacetime/module_bindings/admin_complete_worker_legacy_drain_v_1_reducer.ts',
     'src/spacetime/module_bindings/admin_deactivate_inner_keep_v_1_reducer.ts',
@@ -324,6 +371,9 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'src/spacetime/module_bindings/admin_get_greater_realm_reenable_status_v_1_procedure.ts',
     'src/spacetime/module_bindings/admin_get_greater_realm_status_v_1_procedure.ts',
     'src/spacetime/module_bindings/admin_get_inner_keep_status_v_1_procedure.ts',
+    'src/spacetime/module_bindings/admin_get_production_player_canary_approval_v_1_procedure.ts',
+    'src/spacetime/module_bindings/admin_get_production_player_canary_baseline_v_1_procedure.ts',
+    'src/spacetime/module_bindings/admin_get_production_player_canary_evidence_v_1_procedure.ts',
     'src/spacetime/module_bindings/admin_get_realm_chat_report_context_v_1_procedure.ts',
     'src/spacetime/module_bindings/admin_get_realm_chat_status_v_1_procedure.ts',
     'src/spacetime/module_bindings/admin_get_worker_rollout_status_v_2_procedure.ts',
@@ -339,8 +389,10 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'src/spacetime/module_bindings/admin_plan_greater_realm_relocation_v_1_reducer.ts',
     'src/spacetime/module_bindings/admin_plan_inner_keep_builders_v_1_procedure.ts',
     'src/spacetime/module_bindings/admin_plan_inner_keep_catalog_v_1_procedure.ts',
+    'src/spacetime/module_bindings/admin_plan_production_player_canary_routes_v_1_procedure.ts',
     'src/spacetime/module_bindings/admin_plan_worker_roster_v_1_procedure.ts',
     'src/spacetime/module_bindings/admin_prepare_greater_realm_activation_v_1_reducer.ts',
+    'src/spacetime/module_bindings/admin_register_production_player_canary_approval_v_1_reducer.ts',
     'src/spacetime/module_bindings/admin_relocate_greater_realm_canary_v_1_reducer.ts',
     'src/spacetime/module_bindings/admin_repair_missing_worker_return_schedule_v_1_reducer.ts',
     'src/spacetime/module_bindings/admin_reset_access_request_v_1_reducer.ts',
@@ -398,6 +450,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'src/spacetime/module_bindings/get_my_worker_control_state_v_1_procedure.ts',
     'src/spacetime/module_bindings/get_my_worker_control_state_v_2_procedure.ts',
     'src/spacetime/module_bindings/get_my_worker_roster_v_1_procedure.ts',
+    'src/spacetime/module_bindings/get_production_player_canary_runtime_v_1_procedure.ts',
     'src/spacetime/module_bindings/get_realm_atlas_bootstrap_v_1_procedure.ts',
     'src/spacetime/module_bindings/get_realm_atlas_chunk_v_1_procedure.ts',
     'src/spacetime/module_bindings/get_realm_atlas_resource_locations_v_1_procedure.ts',
@@ -442,12 +495,15 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'src/spacetime/module_bindings/stone_node_occupation_v_1_table.ts',
     'src/spacetime/module_bindings/stone_site_v_1_table.ts',
     'src/spacetime/module_bindings/types.ts',
+    'src/spacetime/module_bindings/types/procedures.ts',
+    'src/spacetime/module_bindings/types/reducers.ts',
     'src/spacetime/module_bindings/wood_expedition_schedule_v_1_table.ts',
     'src/spacetime/module_bindings/wood_node_occupation_v_1_table.ts',
     'src/spacetime/module_bindings/wood_site_v_1_table.ts',
     'src/spacetime/module_bindings/worker_node_occupation_v_1_table.ts',
     'src/spacetime/module_bindings/world_tile_meta_v_1_table.ts',
     'src/spacetime/module_bindings/world_tile_table.ts',
+    'vite.config.ts',
   ]);
 
 export class AuthBridgeNotificationPreparedDeployClosureError extends Error {
@@ -809,7 +865,7 @@ function canonicalReviewedReleaseMemberBodies(memberBodies) {
       + '} as const);',
     values => {
       const state = booleanState(values);
-      if (!['FF', 'TF', 'TT'].includes(state)) {
+      if (!['FF', 'FT', 'TT'].includes(state)) {
         fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_PHASE_INVALID');
       }
       return state;
@@ -886,6 +942,18 @@ function canonicalReviewedReleaseMemberBodies(memberBodies) {
       bindingState,
     ),
   );
+  const productionPlayerCanaryBinding = record(
+    'productionPlayerCanaryBinding',
+    projectReviewedReleaseSource(
+      body('productionPlayerCanaryBinding'),
+      /^export const PRODUCTION_PLAYER_CANARY_RELEASE_BINDING = Object\.freeze\(\{\n  productionPlayerCanaryReceiptDigest: (null|'[a-f0-9]{64}'),\n  productionPlayerCanarySourceCommit: (null|'[a-f0-9]{40}'),\n\}\);$/gmu,
+      'export const PRODUCTION_PLAYER_CANARY_RELEASE_BINDING = Object.freeze({\n'
+        + '  productionPlayerCanaryReceiptDigest: null,\n'
+        + '  productionPlayerCanarySourceCommit: null,\n'
+        + '});',
+      bindingState,
+    ),
+  );
 
   const phaseKey = [
     modulePolicy,
@@ -894,7 +962,8 @@ function canonicalReviewedReleaseMemberBodies(memberBodies) {
     presentation,
     pages,
     hermes,
-    `${preparedBinding}${privateBinding}${liveRootBinding}`,
+    `${preparedBinding}${privateBinding}${liveRootBinding}`
+      + productionPlayerCanaryBinding,
   ].join('|');
   const requiredClientReleaseIdentity =
     REVIEWED_RELEASE_PHASE_IDENTITIES.get(phaseKey);
@@ -1103,6 +1172,11 @@ export function assertAuthBridgeNotificationPreparedDeployClosureAuthority(
   ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_AUTHORITY_INVALID');
   return authority;
 }
+
+export const authBridgeNotificationPreparedDeployClosureTestSeams =
+  process.env.NODE_ENV === 'test' && process.env.VITEST === 'true'
+    ? Object.freeze({ expectedMemberDigestProfile, parseManifest })
+    : undefined;
 
 function main() {
   const closure = verifyAuthBridgeNotificationPreparedDeployClosure();

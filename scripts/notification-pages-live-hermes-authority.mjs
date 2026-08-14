@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 
 import {
   defaultNotificationPagesLiveReceiptDirectory,
+  inspectPrivateNotificationPagesLiveReceiptForActivationPredecessor,
   inspectPrivateNotificationPagesLiveReceiptByPagesSourceCommit,
 } from './notification-pages-live-receipt.mjs';
 import {
@@ -97,6 +98,64 @@ export async function inspectHermesNotificationPagesLiveAuthority(
   )({
     directory: input.directory ?? defaultNotificationPagesLiveReceiptDirectory(),
     repositoryRoot: input.repositoryRoot ?? resolve(import.meta.dirname, '..'),
+    pagesSourceCommit: input.pagesSourceCommit,
+    expectedChainRootReceiptDigest: root.notificationPagesLiveRootReceiptDigest,
+    expectedChainRootPagesSourceCommit:
+      root.notificationPagesLiveRootPagesSourceCommit,
+    ...(input.fetchImpl === undefined ? {} : { fetchImpl: input.fetchImpl }),
+    ...(input.now === undefined ? {} : { now: input.now }),
+  });
+  const receipt = inspected?.receipt;
+  if (
+    inspected?.receiptDigest === undefined
+    || !SHA256.test(inspected.receiptDigest)
+    || inspected.chainRootReceiptDigest
+      !== root.notificationPagesLiveRootReceiptDigest
+    || inspected.chainRootPagesSourceCommit
+      !== root.notificationPagesLiveRootPagesSourceCommit
+    || receipt?.pages?.sourceCommit !== input.pagesSourceCommit
+    || receipt.pages.notificationsPresentationEnabled !== true
+    || receipt.pages.hermesExecutionApprovedAtActivation !== false
+    || typeof receipt.bridge?.sourceCommit !== 'string'
+    || !COMMIT.test(receipt.bridge.sourceCommit)
+  ) fail('NOTIFICATION_PAGES_LIVE_HERMES_AUTHORITY_MISMATCH');
+  return parseNotificationPagesLiveHermesAuthority({
+    notificationPagesLiveReceiptDigest: inspected.receiptDigest,
+    notificationPagesLivePagesSourceCommit: receipt.pages.sourceCommit,
+    notificationPagesLiveBridgeSourceCommit: receipt.bridge.sourceCommit,
+    notificationPagesLiveRootReceiptDigest: inspected.chainRootReceiptDigest,
+    notificationPagesLiveRootPagesSourceCommit: inspected.chainRootPagesSourceCommit,
+  }, { required: true });
+}
+
+/**
+ * Resolve the exact live C6 Hermes authority from an exact clean C7 checkout.
+ * The ordinary current-source API above intentionally remains HEAD-bound.
+ */
+export async function inspectActivationPredecessorHermesNotificationPagesLiveAuthority(
+  input,
+  dependencies = {},
+) {
+  const root = parseNotificationPagesLiveReleaseBinding(
+    input?.rootBinding ?? NOTIFICATION_PAGES_LIVE_RELEASE_BINDING,
+    { required: true },
+  );
+  if (
+    input === null
+    || typeof input !== 'object'
+    || typeof input.pagesSourceCommit !== 'string'
+    || !COMMIT.test(input.pagesSourceCommit)
+    || typeof input.candidatePagesSourceCommit !== 'string'
+    || !COMMIT.test(input.candidatePagesSourceCommit)
+    || input.candidatePagesSourceCommit === input.pagesSourceCommit
+  ) fail('NOTIFICATION_PAGES_LIVE_HERMES_PREDECESSOR_SOURCE_INVALID');
+  const inspected = await (
+    dependencies.inspectActivationPredecessor
+      ?? inspectPrivateNotificationPagesLiveReceiptForActivationPredecessor
+  )({
+    directory: input.directory ?? defaultNotificationPagesLiveReceiptDirectory(),
+    repositoryRoot: input.repositoryRoot ?? resolve(import.meta.dirname, '..'),
+    candidatePagesSourceCommit: input.candidatePagesSourceCommit,
     pagesSourceCommit: input.pagesSourceCommit,
     expectedChainRootReceiptDigest: root.notificationPagesLiveRootReceiptDigest,
     expectedChainRootPagesSourceCommit:

@@ -14,9 +14,10 @@ import {
   statSync,
   unlinkSync,
   writeSync,
+  type BigIntStats,
 } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, isAbsolute, join, resolve } from 'node:path';
 
 import {
   normalizeAdmissionReadyTrustedProfile,
@@ -26,11 +27,13 @@ import {
 import type {
   NotificationPagesLiveHermesAuthority,
 } from '../notification-pages-live-hermes-authority.mjs';
+import { assertProductionAdminTrustedAncestors } from '../production-admin-token-budget.mjs';
 
 const DIGEST_PATTERN = /^[0-9a-f]{64}$/;
 const PLAN_FILENAME_PATTERN = /^founder-admission-plan-([0-9]{8}T[0-9]{9}Z)-([0-9a-f]{32})\.json$/;
 const MAXIMUM_PRIVATE_INPUT_BYTES = 32 * 1_024;
 const MAXIMUM_PLAN_BYTES = 64 * 1_024;
+const MAXIMUM_PLAN_CLAIM_BYTES = 1_024;
 const MAXIMUM_CLOCK_SKEW_MS = 60_000;
 const PRIVATE_NOTE_CONTROL_PATTERN = /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/;
 
@@ -77,6 +80,13 @@ export type ReviewedFounderAdmissionPlan = Readonly<{
   fid: string;
   note: string;
   profile: AdmissionReadyTrustedProfile;
+}>;
+
+export type InspectedClaimedReviewedFounderAdmissionPlan = Readonly<{
+  plan: ReviewedFounderAdmissionPlan;
+  planDigest: string;
+  claimDigest: string;
+  claimedAt: string;
 }>;
 
 export class FounderAdmissionPlanError extends Error {
@@ -240,6 +250,73 @@ function assertPrivateDirectory(directory: string): void {
   }
 }
 
+function assertExistingPrivateDirectory(directory: string): void {
+  try {
+    if (!isAbsolute(directory) || resolve(directory) !== directory) {
+      throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_DIRECTORY_INVALID');
+    }
+    assertProductionAdminTrustedAncestors(directory);
+    const status = lstatSync(directory, { bigint: true });
+    if (
+      !status.isDirectory()
+      || status.isSymbolicLink()
+      || (status.mode & 0o7777n) !== 0o700n
+      || (process.getuid !== undefined && status.uid !== BigInt(process.getuid()))
+    ) throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_DIRECTORY_PERMISSIONS');
+  } catch (error) {
+    if (error instanceof FounderAdmissionPlanError) throw error;
+    throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_DIRECTORY_INVALID');
+  }
+}
+
+function sameStableFile(
+  left: BigIntStats,
+  right: BigIntStats,
+): boolean {
+  return left.dev === right.dev
+    && left.ino === right.ino
+    && left.mode === right.mode
+    && left.uid === right.uid
+    && left.nlink === right.nlink
+    && left.size === right.size
+    && left.mtimeNs === right.mtimeNs
+    && left.ctimeNs === right.ctimeNs;
+}
+
+function readStablePrivateFile(path: string, maximumBytes: number): Buffer {
+  let descriptor: number | undefined;
+  try {
+    const pathStatus = lstatSync(path, { bigint: true });
+    if (
+      !pathStatus.isFile()
+      || pathStatus.isSymbolicLink()
+      || (pathStatus.mode & 0o7777n) !== 0o600n
+      || pathStatus.nlink !== 1n
+      || pathStatus.size < 1n
+      || pathStatus.size > BigInt(maximumBytes)
+      || (process.getuid !== undefined && pathStatus.uid !== BigInt(process.getuid()))
+    ) throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_FILE_PERMISSIONS');
+    descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const opened = fstatSync(descriptor, { bigint: true });
+    if (!sameStableFile(pathStatus, opened)) {
+      throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_FILE_CHANGED');
+    }
+    const bytes = readFileSync(descriptor);
+    const after = fstatSync(descriptor, { bigint: true });
+    const current = lstatSync(path, { bigint: true });
+    if (!sameStableFile(opened, after) || !sameStableFile(opened, current)) {
+      bytes.fill(0);
+      throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_FILE_CHANGED');
+    }
+    return bytes;
+  } catch (error) {
+    if (error instanceof FounderAdmissionPlanError) throw error;
+    throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_UNAVAILABLE');
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
 function timestampForFilename(now: Date): string {
   return now.toISOString().replace(/[-:.]/g, '');
 }
@@ -336,15 +413,27 @@ function planPayload(plan: ReviewedFounderAdmissionPlan): string {
   return JSON.stringify(plan);
 }
 
-function assertFreshPlan(plan: ReviewedFounderAdmissionPlan, now: Date): void {
-  const current = now.getTime();
+function assertPlanTemporalShape(plan: ReviewedFounderAdmissionPlan): Readonly<{
+  createdAt: number;
+  expiresAt: number;
+}> {
   const createdAt = Date.parse(plan.createdAt);
   const expiresAt = Date.parse(plan.expiresAt);
   if (
     !Number.isFinite(createdAt)
     || !Number.isFinite(expiresAt)
     || expiresAt - createdAt !== REVIEWED_FOUNDER_ADMISSION_PLAN_LIFETIME_MS
-    || createdAt > current + MAXIMUM_CLOCK_SKEW_MS
+    || new Date(createdAt).toISOString() !== plan.createdAt
+    || new Date(expiresAt).toISOString() !== plan.expiresAt
+  ) throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_EXPIRED');
+  return Object.freeze({ createdAt, expiresAt });
+}
+
+function assertFreshPlan(plan: ReviewedFounderAdmissionPlan, now: Date): void {
+  const current = now.getTime();
+  const { createdAt, expiresAt } = assertPlanTemporalShape(plan);
+  if (
+    createdAt > current + MAXIMUM_CLOCK_SKEW_MS
     || expiresAt < current
   ) throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_EXPIRED');
 }
@@ -442,6 +531,75 @@ export function writeReviewedFounderAdmissionPlan(input: Readonly<{
   return Object.freeze({ filename, sha256: digest, expiresAt: plan.expiresAt });
 }
 
+function readReviewedFounderAdmissionPlanInternal(input: Readonly<{
+  directory?: string;
+  reference: ReviewedFounderAdmissionPlanReference;
+  expectedSourceConfigurationDigest: string;
+  expectedTargetConfigurationDigest: string;
+  expectedProfilePolicyVersion: string;
+  now?: Date;
+  allowExpiredAfterClaim?: boolean;
+  requireExistingPrivateDirectory?: boolean;
+}>): ReviewedFounderAdmissionPlan {
+  const directory = input.directory ?? DEFAULT_FOUNDER_ADMISSION_PLAN_DIRECTORY;
+  if (input.requireExistingPrivateDirectory === true) {
+    assertExistingPrivateDirectory(directory);
+  } else {
+    assertPrivateDirectory(directory);
+  }
+  const reference = parseReviewedFounderAdmissionPlanReference({
+    reviewedAdmissionPlan: {
+      filename: input.reference.filename,
+      sha256: input.reference.sha256,
+    },
+  });
+  const path = join(directory, reference.filename);
+  const bytes = readStablePrivateFile(path, MAXIMUM_PLAN_BYTES);
+  try {
+    let envelope: UnknownRecord;
+    try {
+      envelope = record(JSON.parse(bytes.toString('utf8')), 'FOUNDER_ADMISSION_PLAN_INVALID');
+    } catch (error) {
+      if (error instanceof FounderAdmissionPlanError) throw error;
+      throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_INVALID');
+    }
+    onlyKeys(envelope, ['sha256', 'plan'], 'FOUNDER_ADMISSION_PLAN_INVALID');
+    const plan = parsePlan(envelope.plan);
+    const digest = sha256(planPayload(plan));
+    if (
+      envelope.sha256 !== digest
+      || reference.sha256 !== digest
+      || plan.sourceConfigurationDigest !== input.expectedSourceConfigurationDigest
+      || plan.targetConfigurationDigest !== input.expectedTargetConfigurationDigest
+      || plan.profilePolicyVersion !== input.expectedProfilePolicyVersion
+    ) throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_ATTESTATION_MISMATCH');
+    const canonicalBytes = Buffer.from(
+      `${JSON.stringify({ sha256: digest, plan }, null, 2)}\n`,
+      'utf8',
+    );
+    try {
+      if (!canonicalBytes.equals(bytes)) {
+        throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_NONCANONICAL');
+      }
+    } finally {
+      canonicalBytes.fill(0);
+    }
+    assertPlanTemporalShape(plan);
+    if (input.allowExpiredAfterClaim !== true) {
+      assertFreshPlan(plan, input.now ?? new Date());
+    }
+    const match = PLAN_FILENAME_PATTERN.exec(reference.filename);
+    if (
+      !match
+      || match[2] !== plan.planId
+      || match[1] !== timestampForFilename(new Date(plan.createdAt))
+    ) throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_ATTESTATION_MISMATCH');
+    return plan;
+  } finally {
+    bytes.fill(0);
+  }
+}
+
 export function readReviewedFounderAdmissionPlan(input: Readonly<{
   directory?: string;
   reference: ReviewedFounderAdmissionPlanReference;
@@ -450,67 +608,81 @@ export function readReviewedFounderAdmissionPlan(input: Readonly<{
   expectedProfilePolicyVersion: string;
   now?: Date;
 }>): ReviewedFounderAdmissionPlan {
-  const directory = input.directory ?? DEFAULT_FOUNDER_ADMISSION_PLAN_DIRECTORY;
-  assertPrivateDirectory(directory);
-  const reference = parseReviewedFounderAdmissionPlanReference({
-    reviewedAdmissionPlan: {
-      filename: input.reference.filename,
-      sha256: input.reference.sha256,
-    },
+  return readReviewedFounderAdmissionPlanInternal(input);
+}
+
+/**
+ * Re-inspect both durable artifacts immediately before a canary proof. The
+ * claim digest is over the exact descriptor-read bytes, not a caller-supplied
+ * reconstruction, and the private plan digest comes from the established plan
+ * verifier above.
+ */
+export function inspectClaimedReviewedFounderAdmissionPlan(input: Readonly<{
+  directory: string;
+  reference: ReviewedFounderAdmissionPlanReference;
+  expectedSourceConfigurationDigest: string;
+  expectedTargetConfigurationDigest: string;
+  expectedProfilePolicyVersion: string;
+  now?: Date;
+}>): InspectedClaimedReviewedFounderAdmissionPlan {
+  if (typeof input.directory !== 'string') {
+    throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_DIRECTORY_INVALID');
+  }
+  assertExistingPrivateDirectory(input.directory);
+  const plan = readReviewedFounderAdmissionPlanInternal({
+    ...input,
+    allowExpiredAfterClaim: true,
+    requireExistingPrivateDirectory: true,
   });
-  const path = join(directory, reference.filename);
-  let descriptor: number;
+  const planDigest = input.reference.sha256;
+  const claimPath = join(
+    input.directory,
+    `founder-admission-plan-${plan.planId}.claimed`,
+  );
+  const bytes = readStablePrivateFile(claimPath, MAXIMUM_PLAN_CLAIM_BYTES);
   try {
-    descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-  } catch {
-    throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_UNAVAILABLE');
-  }
-  let bytes: Buffer;
-  try {
-    const status = fstatSync(descriptor);
-    if (
-      !status.isFile()
-      || status.size < 1
-      || status.size > MAXIMUM_PLAN_BYTES
-      || (status.mode & 0o777) !== 0o600
-      || status.nlink !== 1
-      || (process.getuid !== undefined && status.uid !== process.getuid())
-    ) throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_FILE_PERMISSIONS');
+    let claim: UnknownRecord;
     try {
-      bytes = readFileSync(descriptor);
-    } catch {
-      throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_READ_FAILED');
+      claim = record(JSON.parse(bytes.toString('utf8')), 'FOUNDER_ADMISSION_PLAN_CLAIM_INVALID');
+    } catch (error) {
+      if (error instanceof FounderAdmissionPlanError) throw error;
+      throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_CLAIM_INVALID');
     }
-  } finally {
-    closeSync(descriptor);
-  }
-  let envelope: UnknownRecord;
-  try {
-    envelope = record(JSON.parse(bytes.toString('utf8')), 'FOUNDER_ADMISSION_PLAN_INVALID');
-  } catch (error) {
-    if (error instanceof FounderAdmissionPlanError) throw error;
-    throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_INVALID');
+    onlyKeys(claim, ['planId', 'sha256', 'claimedAt'], 'FOUNDER_ADMISSION_PLAN_CLAIM_INVALID');
+    const claimedAtMs = typeof claim.claimedAt === 'string'
+      ? Date.parse(claim.claimedAt)
+      : Number.NaN;
+    if (
+      claim.planId !== plan.planId
+      || claim.sha256 !== planDigest
+      || typeof claim.claimedAt !== 'string'
+      || !Number.isSafeInteger(claimedAtMs)
+      || new Date(claimedAtMs).toISOString() !== claim.claimedAt
+      || claimedAtMs < Date.parse(plan.createdAt)
+      || claimedAtMs > Date.parse(plan.expiresAt)
+      || claimedAtMs > (input.now ?? new Date()).getTime() + MAXIMUM_CLOCK_SKEW_MS
+    ) throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_CLAIM_INVALID');
+    const canonicalBytes = Buffer.from(`${JSON.stringify({
+      planId: claim.planId,
+      sha256: claim.sha256,
+      claimedAt: claim.claimedAt,
+    })}\n`, 'utf8');
+    try {
+      if (!canonicalBytes.equals(bytes)) {
+        throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_CLAIM_NONCANONICAL');
+      }
+    } finally {
+      canonicalBytes.fill(0);
+    }
+    return Object.freeze({
+      plan,
+      planDigest,
+      claimDigest: createHash('sha256').update(bytes).digest('hex'),
+      claimedAt: claim.claimedAt,
+    });
   } finally {
     bytes.fill(0);
   }
-  onlyKeys(envelope, ['sha256', 'plan'], 'FOUNDER_ADMISSION_PLAN_INVALID');
-  const plan = parsePlan(envelope.plan);
-  const digest = sha256(planPayload(plan));
-  if (
-    envelope.sha256 !== digest
-    || reference.sha256 !== digest
-    || plan.sourceConfigurationDigest !== input.expectedSourceConfigurationDigest
-    || plan.targetConfigurationDigest !== input.expectedTargetConfigurationDigest
-    || plan.profilePolicyVersion !== input.expectedProfilePolicyVersion
-  ) throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_ATTESTATION_MISMATCH');
-  assertFreshPlan(plan, input.now ?? new Date());
-  const match = PLAN_FILENAME_PATTERN.exec(reference.filename);
-  if (
-    !match
-    || match[2] !== plan.planId
-    || match[1] !== timestampForFilename(new Date(plan.createdAt))
-  ) throw new FounderAdmissionPlanError('FOUNDER_ADMISSION_PLAN_ATTESTATION_MISMATCH');
-  return plan;
 }
 
 /**

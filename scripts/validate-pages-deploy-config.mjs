@@ -57,6 +57,26 @@ function exactBoolean(value, label) {
   fail(`${label} must be exactly true or false.`);
 }
 
+export function assertNotificationReleaseAuthorityMatchesSources(
+  notificationReleaseAuthority,
+  parsedSources,
+) {
+  const checkedInBindings = {
+    ...parsedSources.preparedBinding,
+    ...parsedSources.liveRootBinding,
+    ...parsedSources.productionPlayerCanaryBinding,
+  };
+  if (Object.entries(checkedInBindings).some(
+    ([field, expected]) => notificationReleaseAuthority[field] !== expected,
+  )) {
+    fail(
+      'the explicit notification release authority must exactly match the '
+      + 'reviewed checked-in prepared, durable, and production-player-canary '
+      + 'bindings.',
+    );
+  }
+}
+
 export function validatePagesDeploymentConfiguration(
   environment = process.env,
   options = {},
@@ -119,18 +139,10 @@ export function validatePagesDeploymentConfiguration(
     const parsedSources = readNotificationPagesReleaseSources({
       repositoryRoot: resolve(import.meta.dirname, '..'),
     });
-    const checkedInBindings = {
-      ...parsedSources.preparedBinding,
-      ...parsedSources.liveRootBinding,
-    };
-    if (Object.entries(checkedInBindings).some(
-      ([field, expected]) => notificationReleaseAuthority[field] !== expected,
-    )) {
-      fail(
-        'the explicit notification release authority must exactly match the '
-        + 'reviewed checked-in prepared and durable bindings.',
-      );
-    }
+    assertNotificationReleaseAuthorityMatchesSources(
+      notificationReleaseAuthority,
+      parsedSources,
+    );
   } else if (options.notificationReleaseAuthority !== undefined) {
     fail(
       'notification release authority must be omitted while '

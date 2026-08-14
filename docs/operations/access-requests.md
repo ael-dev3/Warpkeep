@@ -49,11 +49,13 @@ it does not consume capacity. Prepared, draining, canary, halted, corrupt, or
 mode-changing checkpoints submit no admission mutation.
 
 The checked-in Hermes notification-delivery approval literal is also `false`.
-That temporary activation-client blackout permits read-only/dry-run review but
+That temporary delivery blackout permits read-only/dry-run review but
 blocks confirmed new-founder admission and existing-founder re-enable before
 notification transport, administrator-token issuance, database connection,
 plan claim, or reducer submission. It may become `true` only in the coordinated
-final phase with the Worker delivery and Pages presentation gates; it never
+durable-final notification phase after the Worker, Pages generation zero, and
+checked-in live root. Greater Realm client/server presentation remains false
+until the later canary-bound activation-client release. Hermes approval never
 authorizes skipping the required pre-admission notification.
 
 ## Owner canary reset

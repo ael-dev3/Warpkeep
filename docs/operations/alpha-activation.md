@@ -172,12 +172,13 @@ pass. Confirm:
 ### Admission notification rollout
 
 Farcaster admission notifications are an optional auth-bridge capability, not
-a SpacetimeDB schema change. The checked-in Hermes activation-client literal
+a SpacetimeDB schema change. The checked-in Hermes delivery literal
 `FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED`, Worker literal
 `APPROVAL_NOTIFICATIONS_ENABLED`, and Pages presentation literal
 `VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED` begin `false`. Hermes and Pages
-must remain `false` until the separately approved final notification phase;
-the Worker may become live only in the protected bridge-prepared phase below.
+advance in separate source-bound phases; the Worker may become live only in the
+protected bridge-prepared phase below. Greater Realm client/server presentation
+and the `0.3.44` identity remain false/inert throughout all notification phases.
 This is an intentional temporary admission blackout: confirmed `admit-founder` and `allow-fid`
 execution stops before bridge delivery, administrator-token issuance, database
 connection, plan claim, or reducer submission. A false Hermes gate must never
@@ -196,6 +197,23 @@ skip delivery and continue admission. Roll them out in this order:
    pair, Durable Object binding, webhook isolation, and redacted configuration
    attestation. Keep raw notification tokens and signed webhook bodies out of
    logs and release evidence.
+   Stage `PLAYER_CANARY_OWNER_FID` through the protected
+   `WARPKEEP_PLAYER_CANARY_OWNER_FID` workflow secret only. The guarded
+   transition requires the deployed `v5` predecessor with the exact same
+   reviewed module source digest, runtime compatibility/exports, plain-text and
+   Durable Object configuration, and exactly the old six Worker secrets. B0 is
+   therefore a separate deployment of that exact reviewed source/configuration
+   at `v5`, not a migration-tag-only change. The guarded transition then uploads
+   a nondeploying strict-inheritance version whose ephemeral multipart omits
+   `keep_bindings`, pins each of the established six secrets to that exact
+   predecessor version with an `inherit` descriptor, and adds only the canary
+   secret as explicit `secret_text`. Candidate inspection
+   attests exactly seven, and the exact predecessor is rechecked immediately
+   before the sole deployment POST. It never mutates the legacy `/secrets`
+   endpoint; ambiguous upload recovery reconciles the candidate without a
+   cleanup mutation. Never
+   store or print the FID value in source, argv, artifacts, receipts, or journal
+   records.
 4. The checked-in production manifest already pins the exact reviewed
    `webhookUrl`; preserve it byte-for-byte. Deploy and attest the backend with
    `APPROVAL_NOTIFICATIONS_ENABLED=false` first, so the advertised endpoint is
@@ -208,14 +226,16 @@ skip delivery and continue admission. Roll them out in this order:
    zero Hermes delivery, token, database, or admission calls. The release
    verifier must attest the exact source literals and protected bridge receipt;
    publisher approval alone is not activation-client or live-bridge evidence.
-6. In the separately approved final notification phase, require that protected
-   receipt and change Hermes plus Pages to `true` while preserving the verified
-   Worker. No Hermes-only or Pages-only `true` posture is admissible. Use one
-   owner-controlled production client for the signed enable/add and
-   disable/remove canary, and retain only privacy-safe static evidence—not the
-   signed body or token.
-7. Give Hermes both isolated secrets through its private environment only after
-   that coordinated release. For
+6. In the separately approved generation-zero Pages phase, require that
+   protected receipt and change only Pages to `true` while Hermes and both world
+   presentation gates remain false. Its live postflight must install the
+   content-addressed generation-zero receipt. A later reviewed source clears the
+   prepared/private bindings and checks in that immutable durable root while
+   Hermes remains false.
+7. Only after the durable root is checked in may a projection-only source change
+   Hermes false → true. Keep Alpha `0.3.43` and both world presentation gates
+   false. Give Hermes both isolated secrets through its private environment only
+   after this durable-final source. For
    `allow-fid` and confirmed `admit-founder`, Hermes must queue the exact pending
    request generation before requesting the fresh mutation-session administrator
    token or invoking a reducer. If the player opted in, require Farcaster
@@ -224,6 +244,12 @@ skip delivery and continue admission. Roll them out in this order:
    tooling cannot override the no-consent boundary; a policy change requires
    separate explicit owner approval. Never queue a
    post-admission reconciliation notification; that legacy path is retired.
+8. Exercise the normal admitted-owner exactly-once path, then the separately
+   authorized production-player canary. Retain only privacy-safe,
+   content-addressed evidence—never the signed body, token, or subject. Only a
+   later activation-client source bound to that exact Hermes-final predecessor
+   and canary receipt may publish the `0.3.44` identity and enable both Greater
+   Realm client/server presentation gates.
 
 ### Owner canary and end-to-end acceptance
 
@@ -245,8 +271,10 @@ it.
    `miniapp_notification_unsubscribed`. This proves the signed opt-out reached
    the private erasure path. Confirm ordinary authentication still works and no
    approval notification was sent during this canary.
-4. After review, execute the coordinated Hermes, Worker, and client activation
-   described above and verify the deployed build SHA. With a fresh pending request cycle, confirm
+4. After the durable Hermes source, normal admitted-owner exactly-once proof,
+   and separately authorized production-player canary are all accepted, review
+   and execute only the later activation-client successor and verify the
+   deployed build SHA. With a fresh pending request cycle, confirm
    **REQUEST RECEIVED**, select **ENABLE ADMISSION ALERTS** once, accept the
    native prompt, and observe either the enabled host hint or the truthful
    setup-requested state. The access request timestamp and state must not

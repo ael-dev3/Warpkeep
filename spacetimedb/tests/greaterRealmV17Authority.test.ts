@@ -72,7 +72,7 @@ test('production import and activation authority follow the exact reviewed compi
   );
 });
 
-test('v17 appends refs 72-83 after the byte-frozen v16 prefix', () => {
+test('v17 remains refs 72-83 before the private canary suffix', () => {
   const current = source('../src/schema.ts');
   const v16 = source('../migration-fixtures/additive-v16-schema/src/index.ts');
   const v17 = source('../migration-fixtures/additive-v17-schema/src/index.ts');
@@ -81,11 +81,15 @@ test('v17 appends refs 72-83 after the byte-frozen v16 prefix', () => {
   const fixtureTables = registrations(v17, 'const db = schema({');
 
   assert.equal(v16Tables.length, 72);
-  assert.equal(currentTables.length, 84);
+  assert.equal(currentTables.length, 86);
   assert.equal(fixtureTables.length, 84);
   assert.deepEqual(currentTables.slice(0, 72), v16Tables);
   assert.deepEqual(fixtureTables.slice(0, 72), v16Tables);
-  assert.deepEqual(currentTables.slice(72), greaterRealmSuffix);
+  assert.deepEqual(currentTables.slice(72, 84), greaterRealmSuffix);
+  assert.deepEqual(currentTables.slice(84), [
+    'productionPlayerCanaryBaselineV1',
+    'productionPlayerCanaryApprovalRegistrationV1',
+  ]);
   assert.deepEqual(fixtureTables.slice(72), greaterRealmSuffix);
   const sentinel = section(v17, 'export const fixtureSeedGreaterRealmSentinelV17');
   for (const tableName of greaterRealmSuffix) {

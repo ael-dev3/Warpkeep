@@ -26,6 +26,9 @@ export type NotificationPagesPrivateDeployContract = Readonly<{
   deployedModuleReceiptDigest: string | null;
   chainRootReceiptDigest: string | null;
   chainRootPagesSourceCommit: string | null;
+  productionPlayerCanaryReceiptDigest: string | null;
+  productionPlayerCanarySourceCommit: string | null;
+  requiresProductionPlayerCanary: boolean;
 }>;
 
 export function classifyNotificationPagesPrivateDeployment(
@@ -38,6 +41,7 @@ export function classifyNotificationPagesPrivateDeployment(
     preparedBinding: Readonly<Record<string, unknown>>;
     privateBinding: Readonly<Record<string, unknown>>;
     liveRootBinding: Readonly<Record<string, unknown>>;
+    productionPlayerCanaryBinding?: Readonly<Record<string, unknown>>;
   }>,
 ): NotificationPagesPrivateDeployContract;
 
@@ -75,6 +79,9 @@ export function runNotificationPagesPrivateDeployOperatorCli(
 ): Promise<void>;
 
 export const notificationPagesPrivateDeployOperatorTestSeams: Readonly<{
+  validateDeployedModuleReceipt: (
+    bytes: Uint8Array,
+  ) => Readonly<Record<string, unknown>>;
   attestCurrentGitHubDeploymentAuthority: (
     request: Readonly<Record<string, unknown>>,
     options: Readonly<{

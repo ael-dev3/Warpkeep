@@ -207,6 +207,19 @@ function exactBindings(repositoryRoot) {
     ],
     'NOTIFICATION_PAGES_DEPLOY_LANE_ROOT_BINDING_INVALID',
   );
+  const productionPlayerCanaryBinding = exactBindingDeclaration(
+    exactHeadBindingSource(
+      repositoryRoot,
+      'scripts/production-player-canary-release-binding.mjs',
+      'NOTIFICATION_PAGES_DEPLOY_LANE_PLAYER_CANARY_BINDING_INVALID',
+    ),
+    'PRODUCTION_PLAYER_CANARY_RELEASE_BINDING',
+    [
+      ['productionPlayerCanaryReceiptDigest', 'digest'],
+      ['productionPlayerCanarySourceCommit', 'commit'],
+    ],
+    'NOTIFICATION_PAGES_DEPLOY_LANE_PLAYER_CANARY_BINDING_INVALID',
+  );
   return Object.freeze({
     preparedReceiptDigest: prepared.notificationPreparedReceiptDigest,
     bridgeSourceCommit: prepared.notificationPreparedBridgeSourceCommit,
@@ -220,6 +233,10 @@ function exactBindings(repositoryRoot) {
       rootBinding.notificationPagesLiveRootReceiptDigest,
     chainRootPagesSourceCommit:
       rootBinding.notificationPagesLiveRootPagesSourceCommit,
+    productionPlayerCanaryReceiptDigest:
+      productionPlayerCanaryBinding.productionPlayerCanaryReceiptDigest,
+    productionPlayerCanarySourceCommit:
+      productionPlayerCanaryBinding.productionPlayerCanarySourceCommit,
   });
 }
 
@@ -237,6 +254,9 @@ export function classifyNotificationPagesDeployLane({
     || parsed.expectedFounderCount !== null;
   const hasRoot = parsed.chainRootReceiptDigest !== null
     || parsed.chainRootPagesSourceCommit !== null;
+  const hasProductionPlayerCanary =
+    parsed.productionPlayerCanaryReceiptDigest !== null
+    || parsed.productionPlayerCanarySourceCommit !== null;
   if (
     (hasPrepared && (
       parsed.preparedReceiptDigest === null
@@ -251,17 +271,23 @@ export function classifyNotificationPagesDeployLane({
       parsed.chainRootReceiptDigest === null
       || parsed.chainRootPagesSourceCommit === null
     ))
+    || (hasProductionPlayerCanary && (
+      parsed.productionPlayerCanaryReceiptDigest === null
+      || parsed.productionPlayerCanarySourceCommit === null
+    ))
   ) fail('NOTIFICATION_PAGES_DEPLOY_LANE_BINDING_PARTIAL');
   let mode;
   if (
     !hasPrepared
     && !hasPrivate
     && !hasRoot
+    && !hasProductionPlayerCanary
   ) mode = 'closed-review';
   else if (
     hasPrepared
     && hasPrivate
     && !hasRoot
+    && !hasProductionPlayerCanary
   ) mode = 'gen0';
   else if (
     !hasPrepared

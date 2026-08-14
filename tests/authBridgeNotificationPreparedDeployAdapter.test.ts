@@ -32,6 +32,7 @@ const SOURCE_COMMIT = 'c'.repeat(40);
 const SOURCE_DIGEST = 'd'.repeat(64);
 const VERSION_ID = '123e4567-e89b-42d3-a456-426614174000';
 const NON_TARGET_VERSION_ID = '123e4567-e89b-42d3-a456-426614174001';
+const NON_TARGET_DEPLOYMENT_ID = '123e4567-e89b-42d3-a456-426614174002';
 const NOW = new Date('2026-08-12T12:00:00.000Z');
 const CREATED_AT = '2026-08-12T11:58:00.000Z';
 const OBSERVED_AT = '2026-08-12T11:59:00.000Z';
@@ -40,6 +41,7 @@ const temporaryDirectories: string[] = [];
 
 type JournalPhase =
   | 'prepared'
+  | 'remote-reconcile-started'
   | 'upload-invoked'
   | 'uploaded'
   | 'release-uncertain'
@@ -95,28 +97,45 @@ function harness({
   releaseError,
   inspectedVersion = version(),
   inspectedDeployments = [nonTargetDeployment(), deployment()],
-  initialPhase = null,
+  initialPhase = 'prepared',
   initialUploadMode = null,
 }: {
   releaseError?: Error;
   inspectedVersion?: unknown;
   inspectedDeployments?: readonly unknown[];
   initialPhase?: JournalPhase;
-  initialUploadMode?: 'migration' | 'version' | null;
+  initialUploadMode?: 'version' | null;
 } = {}) {
   const events: string[] = [];
   let inspectDeploymentCall = 0;
   let phase: JournalPhase = initialPhase;
   let uploadMode = initialUploadMode;
+  let predecessorDeploymentId = initialPhase === 'prepared'
+    ? null
+    : NON_TARGET_DEPLOYMENT_ID;
+  let predecessorVersionId = initialPhase === 'prepared'
+    ? null
+    : NON_TARGET_VERSION_ID;
   const journal = {
-    inspect: vi.fn(() => ({ phase, uploadMode })),
+    inspect: vi.fn(() => ({
+      phase,
+      uploadMode,
+      predecessorDeploymentId,
+      predecessorVersionId,
+    })),
     prepared: vi.fn(async () => {
       events.push('prepared');
       phase ??= 'prepared';
     }),
+    remoteReconcileStarted: vi.fn(async (input: Readonly<Record<string, unknown>>) => {
+      events.push('remote-reconcile-started');
+      predecessorDeploymentId = input.predecessorDeploymentId as string;
+      predecessorVersionId = input.predecessorVersionId as string;
+      phase = 'remote-reconcile-started';
+    }),
     uploadInvoked: vi.fn(async (input: Readonly<Record<string, unknown>>) => {
       events.push('upload-invoked');
-      if (input.uploadMode !== 'migration' && input.uploadMode !== 'version') {
+      if (input.uploadMode !== 'version') {
         throw new Error('test harness requires an exact upload mode');
       }
       phase = 'upload-invoked';
@@ -141,9 +160,13 @@ function harness({
   return {
     events,
     journal,
-    prepareUpload: vi.fn(async (): Promise<{ mode: 'migration' | 'version' }> => {
+    prepareUpload: vi.fn(async () => {
       events.push('prepare-upload');
-      return { mode: 'version' as const };
+      return {
+        mode: 'version' as const,
+        predecessorDeploymentId: NON_TARGET_DEPLOYMENT_ID,
+        predecessorVersionId: NON_TARGET_VERSION_ID,
+      };
     }),
     uploadVersion: vi.fn(async () => {
       events.push('upload');
@@ -156,6 +179,16 @@ function harness({
     inspectVersion: vi.fn(async () => {
       events.push('inspect-version');
       return inspectedVersion;
+    }),
+    assertPredecessorStable: vi.fn(async (value: Readonly<{
+      deploymentId: string;
+      versionId: string;
+    }>) => {
+      events.push('assert-predecessor-stable');
+      if (
+        value.deploymentId !== NON_TARGET_DEPLOYMENT_ID
+        || value.versionId !== NON_TARGET_VERSION_ID
+      ) throw new Error('predecessor drift');
     }),
     releaseVersion: vi.fn(async () => {
       events.push('release');
@@ -291,6 +324,7 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
         'FARCASTER_RPC_URL',
         'FARCASTER_RPC_URL_SECONDARY',
         'NOTIFICATION_OPERATOR_SECRET',
+        'PLAYER_CANARY_OWNER_FID',
         'SESSION_COOKIE_KEY',
         'SIGNING_KEY_JWK',
       ],
@@ -338,8 +372,9 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
 
     expect(values.events).toEqual([
       'prepared',
-      'reconcile-version',
       'prepare-upload',
+      'remote-reconcile-started',
+      'reconcile-version',
       'permit-upload',
       'upload-invoked',
       'upload',
@@ -349,6 +384,7 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
       'inspect-deployment',
       'release-uncertain',
       'permit-release',
+      'assert-predecessor-stable',
       'release-invoked',
       'release',
       'inspect-deployment',
@@ -357,6 +393,8 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
     expect(values.releaseVersion).toHaveBeenCalledOnce();
     expect(values.releaseVersion).toHaveBeenCalledWith({
       versionId: VERSION_ID,
+      predecessorDeploymentId: NON_TARGET_DEPLOYMENT_ID,
+      predecessorVersionId: NON_TARGET_VERSION_ID,
       percentage: 100,
       message: `Warpkeep notification preparation ${SOURCE_COMMIT}`,
     });
@@ -549,30 +587,6 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
     expect(values.releaseVersion).not.toHaveBeenCalled();
   });
 
-  it('accepts remote reconciliation as authority after an immediately deployed migration', async () => {
-    const values = harness({ inspectedDeployments: [deployment()] });
-    values.prepareUpload.mockImplementationOnce(async () => {
-      values.events.push('prepare-upload');
-      return { mode: 'migration' as const };
-    });
-    (values.uploadVersion as unknown as {
-      mockImplementationOnce: (implementation: () => Promise<{}>) => void;
-    }).mockImplementationOnce(async () => {
-      values.events.push('upload');
-      return {};
-    });
-
-    await expect(executeAuthBridgeNotificationPreparedDeployAdapter({
-      contract: contract(),
-      ...values,
-    })).resolves.toMatchObject({ outcome: 'already-verified' });
-
-    expect(values.uploadVersion).toHaveBeenCalledOnce();
-    expect(values.reconcileVersion).toHaveBeenCalledTimes(2);
-    expect(values.releaseVersion).not.toHaveBeenCalled();
-    expect(values.journal.completed).toHaveBeenCalledOnce();
-  });
-
   it('never repeats a marked upload or release without remote proof', async () => {
     const uploadRestart = harness({
       initialPhase: 'upload-invoked',
@@ -633,21 +647,6 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
       ...uploadRestart,
     })).rejects.toBe(uploadAdjudication);
 
-    const migrationRestart = harness({
-      initialPhase: 'uploaded',
-      initialUploadMode: 'migration',
-    });
-    migrationRestart.reconcileVersion.mockResolvedValue([VERSION_ID]);
-    const migrationAdjudication = Object.assign(new Error('deployment not visible'), {
-      code: 'AUTH_BRIDGE_PREPARED_DEPLOY_MIGRATION_OPERATOR_ADJUDICATION_REQUIRED',
-      deploymentMayHaveChanged: true,
-    });
-    migrationRestart.inspectDeployment.mockRejectedValueOnce(migrationAdjudication);
-    await expect(executeAuthBridgeNotificationPreparedDeployAdapter({
-      contract: contract(),
-      ...migrationRestart,
-    })).rejects.toBe(migrationAdjudication);
-    expect(migrationRestart.releaseVersion).not.toHaveBeenCalled();
   });
 
   it('retains typed ambiguity while reconciling an uploaded or already-live version', async () => {

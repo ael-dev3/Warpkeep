@@ -14,6 +14,8 @@ const PREPARED_DIGEST = 'b'.repeat(64);
 const BRIDGE_SOURCE = 'c'.repeat(40);
 const ROOT_DIGEST = 'd'.repeat(64);
 const ROOT_SOURCE = 'e'.repeat(40);
+const CANARY_DIGEST = 'f'.repeat(64);
+const CANARY_SOURCE = '1'.repeat(40);
 
 function environment(presentation: 'true' | 'false') {
   return {
@@ -52,6 +54,8 @@ describe('notification Pages build release validator', () => {
         notificationPreparedBridgeSourceCommit: BRIDGE_SOURCE,
         notificationPagesLiveRootReceiptDigest: null,
         notificationPagesLiveRootPagesSourceCommit: null,
+        productionPlayerCanaryReceiptDigest: null,
+        productionPlayerCanarySourceCommit: null,
       },
     }));
     await expect(validateNotificationPagesBuildRelease(environment('true'), {
@@ -71,6 +75,7 @@ describe('notification Pages build release validator', () => {
   it.each([
     GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ROOTED_INERT,
     GREATER_REALM_NOTIFICATION_RELEASE_PHASE.DURABLE_FINAL,
+    GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ACTIVATION_CLIENT,
   ])('accepts durable source phase %s without a prepared authority', async phase => {
     const validateConfiguration = vi.fn(checkedValidation);
     await expect(validateNotificationPagesBuildRelease(environment('true'), {
@@ -83,6 +88,12 @@ describe('notification Pages build release validator', () => {
           notificationPreparedBridgeSourceCommit: null,
           notificationPagesLiveRootReceiptDigest: ROOT_DIGEST,
           notificationPagesLiveRootPagesSourceCommit: ROOT_SOURCE,
+          productionPlayerCanaryReceiptDigest:
+            phase === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ACTIVATION_CLIENT
+              ? CANARY_DIGEST : null,
+          productionPlayerCanarySourceCommit:
+            phase === GREATER_REALM_NOTIFICATION_RELEASE_PHASE.ACTIVATION_CLIENT
+              ? CANARY_SOURCE : null,
         },
       }),
       validateConfiguration,
@@ -104,6 +115,8 @@ describe('notification Pages build release validator', () => {
           notificationPreparedBridgeSourceCommit: BRIDGE_SOURCE,
           notificationPagesLiveRootReceiptDigest: null,
           notificationPagesLiveRootPagesSourceCommit: null,
+          productionPlayerCanaryReceiptDigest: null,
+          productionPlayerCanarySourceCommit: null,
         },
       }),
       validateConfiguration,
@@ -118,6 +131,8 @@ describe('notification Pages build release validator', () => {
           notificationPreparedBridgeSourceCommit: null,
           notificationPagesLiveRootReceiptDigest: ROOT_DIGEST,
           notificationPagesLiveRootPagesSourceCommit: ROOT_SOURCE,
+          productionPlayerCanaryReceiptDigest: null,
+          productionPlayerCanarySourceCommit: null,
         },
       }),
       validateConfiguration,

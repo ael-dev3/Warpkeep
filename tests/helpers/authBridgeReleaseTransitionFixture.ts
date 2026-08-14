@@ -16,6 +16,7 @@ export const AUTH_BRIDGE_RELEASE_TRANSITION_FIXTURE_PATHS = new Set([
   'scripts/hermes-admin.ts',
   'scripts/notification-pages-live-release-binding.mjs',
   'scripts/notification-pages-private-release-binding.mjs',
+  'scripts/production-player-canary-release-binding.mjs',
   'spacetimedb/src/greaterRealmV17Policy.ts',
   'src/greater-realm/greaterRealmTransport.ts',
   'src/spacetime/greaterRealmProviderBridge.ts',
@@ -140,7 +141,7 @@ export function canonicalAuthBridgeReleaseTransitionFixtureSource(
         + '  clientActivationApproved: false,\n'
         + '  admissionNotificationsApproved: false,\n'
         + '} as const);',
-      values => booleanTuple(values, ['FF', 'TF', 'TT']),
+      values => booleanTuple(values, ['FF', 'FT', 'TT']),
     );
   }
   if (relativePath === 'src/spacetime/greaterRealmProviderBridge.ts') {
@@ -204,6 +205,17 @@ export function canonicalAuthBridgeReleaseTransitionFixtureSource(
       'export const NOTIFICATION_PAGES_LIVE_RELEASE_BINDING = Object.freeze({\n'
         + '  notificationPagesLiveRootReceiptDigest: null,\n'
         + '  notificationPagesLiveRootPagesSourceCommit: null,\n'
+        + '});',
+      bindingTuple,
+    );
+  }
+  if (relativePath === 'scripts/production-player-canary-release-binding.mjs') {
+    return replaceExact(
+      source,
+      /^export const PRODUCTION_PLAYER_CANARY_RELEASE_BINDING = Object\.freeze\(\{\n  productionPlayerCanaryReceiptDigest: (null|'[a-f0-9]{64}'),\n  productionPlayerCanarySourceCommit: (null|'[a-f0-9]{40}'),\n\}\);$/gmu,
+      'export const PRODUCTION_PLAYER_CANARY_RELEASE_BINDING = Object.freeze({\n'
+        + '  productionPlayerCanaryReceiptDigest: null,\n'
+        + '  productionPlayerCanarySourceCommit: null,\n'
         + '});',
       bindingTuple,
     );

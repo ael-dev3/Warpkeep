@@ -129,18 +129,19 @@ autoscaling, shared-repository, containerized, or GitHub-hosted runner for this
 workflow, and do not point its account home at the checkout or an Actions
 temporary directory.
 
-The protected environment must supply these four independently managed values:
+The protected environment must supply these five independently managed values:
 
 ```text
 WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID
 WARPKEEP_AUTH_BRIDGE_ZONE_ID
 WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN
 WARPKEEP_PRODUCTION_ADMIN_TOKEN
+WARPKEEP_PLAYER_CANARY_OWNER_FID
 ```
 
 The Cloudflare token and bridge administrator token are distinct credentials.
 The read-only GitHub run credential comes only from `github.token`; it is not
-reused as either production credential. The workflow exposes the four
+reused as either production credential. The workflow exposes the five
 environment values only to the guarded deployment and recovery steps. Missing,
 empty, malformed, ambient generic Cloudflare, proxy, or Node injection values
 fail before production I/O. Without the exact runner labels and all protected
@@ -181,7 +182,7 @@ four profiles: `raw-file-sha256-v1`,
 `reviewed-release-transition-projection-sha256-v1`, or the single composed
 `reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1` used by
 the Pages workflow. A projected digest is therefore never represented as an
-ordinary file SHA-256. Its 307 sorted path/profile/digest records cover both
+ordinary file SHA-256. Its 361 sorted path/profile/digest records cover both
 protected production workflows, the
 Pages and Hermes policy inputs, the policy verifier, and the complete
 AST-derived local import graphs rooted at the guarded bridge entrypoint, full

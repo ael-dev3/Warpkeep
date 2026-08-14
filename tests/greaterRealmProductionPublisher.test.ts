@@ -17,15 +17,20 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   executeGreaterRealmProductionPublishLane,
+  inspectGreaterRealmProductionPublisherRecoverySnapshot,
+  verifyGreaterRealmCurrentCandidateProductionSchema,
   greaterRealmProductionModuleDeltaPolicy,
   GREATER_REALM_PRODUCTION_PUBLISH_LANE,
   GREATER_REALM_PRODUCTION_RELEASE_FLAGS,
   GREATER_REALM_PRODUCTION_V14_TABLE_REFS,
   GREATER_REALM_PRODUCTION_V17_TABLE_REFS,
+  GREATER_REALM_PRODUCTION_CURRENT_CANDIDATE_TABLE_REFS,
   requireGreaterRealmProductionPublishLane,
   type GreaterRealmProductionPublishLane,
   type GreaterRealmProductionReleaseFlags,
 } from '../scripts/greater-realm-production-publisher-core';
+// @ts-expect-error Repository-owned ESM helper is exercised through exact publisher tests.
+import { canonicalTableSchemaBoundaryDigest } from '../scripts/spacetime-table-schema-attestation.mjs';
 import {
   authorizeGreaterRealmPublishExactBeforeClear,
   cleanupGreaterRealmPublishSupervisor,
@@ -67,6 +72,7 @@ const artifactReceipt = Object.freeze({
   v15TableSchemaDigest: '5'.repeat(64),
   v16TableSchemaDigest: '6'.repeat(64),
   v17TableSchemaDigest: '7'.repeat(64),
+  currentCandidateTableSchemaDigest: '9'.repeat(64),
   artifactDigest: '8'.repeat(64),
 }) satisfies MigrationArtifactReceipt;
 
@@ -143,6 +149,7 @@ const recoveryBeforeAudit = Object.freeze({
   v15TableSchemaDigest: artifactReceipt.v15TableSchemaDigest,
   v16TableSchemaDigest: artifactReceipt.v16TableSchemaDigest,
   v17TableSchemaDigest: artifactReceipt.v17TableSchemaDigest,
+  currentCandidateTableSchemaDigest: artifactReceipt.currentCandidateTableSchemaDigest,
 });
 const recoveryBeforeStatus = Object.freeze({ phase: 'before' });
 
@@ -168,6 +175,7 @@ function recoveryOperation(
       artifactDigest: receipt.artifactDigest,
       v14TableSchemaDigest: receipt.v14TableSchemaDigest,
       v17TableSchemaDigest: receipt.v17TableSchemaDigest,
+      currentCandidateTableSchemaDigest: receipt.currentCandidateTableSchemaDigest,
       artifactReceipt: receipt,
       publishExecutableIdentity: Object.freeze({
         path: '/test/spacetime-snapshot',
@@ -454,14 +462,14 @@ function fakeDependencies() {
       tableCount: 56 as const,
     });
   });
-  const v17 = vi.fn((input: Readonly<{
+  const currentCandidate = vi.fn((input: Readonly<{
     description: unknown;
     artifactReceipt: MigrationArtifactReceipt;
     predecessorSignatures?: Readonly<Record<string, string>>;
   }>) => {
     const description = input.description as Readonly<{ generation?: string }>;
-    if (description.generation !== undefined && description.generation !== 'v17') {
-      throw new Error('not v17');
+    if (description.generation !== undefined && description.generation !== 'current-candidate') {
+      throw new Error('not current candidate');
     }
     if (
       input.predecessorSignatures !== undefined
@@ -469,7 +477,7 @@ function fakeDependencies() {
     ) throw new Error('predecessor changed');
     return Object.freeze({
       tableSignatures: Object.freeze({ legacy: 'exact', suffix: 'exact' }),
-      tableCount: 84 as const,
+      tableCount: 86 as const,
     });
   });
   const projectCutoverStatus = vi.fn((
@@ -488,7 +496,7 @@ function fakeDependencies() {
   ));
   return {
     verifyV14Predecessor: v14,
-    verifyV17Schema: v17,
+    verifyCurrentCandidateSchema: currentCandidate,
     projectCutoverStatus,
     projectCutoverStatusShape,
   };
@@ -520,7 +528,7 @@ async function executeLane(
   let published = false;
   const append = lane === GREATER_REALM_PRODUCTION_PUBLISH_LANE.APPEND_INERT_V17;
   const readSchema = vi.fn(async () => ({
-    generation: append ? published ? 'v17' : 'v14' : 'v17',
+    generation: append ? published ? 'current-candidate' : 'v14' : 'current-candidate',
   }));
   const readImportStatus = vi.fn(async () => (
     published ? { ...after } : { ...(before ?? after) }
@@ -1318,17 +1326,138 @@ describe('Greater Realm production publisher lanes', () => {
     }
   });
 
-  it('binds exactly 56 v14 and 84 v17 table identities', () => {
+  it('binds exactly 56 v14, frozen 84-table v17, and 86-table current-candidate identities', () => {
     expect(Object.keys(GREATER_REALM_PRODUCTION_V14_TABLE_REFS)).toHaveLength(56);
     expect(Object.keys(GREATER_REALM_PRODUCTION_V17_TABLE_REFS)).toHaveLength(84);
     expect(GREATER_REALM_PRODUCTION_V17_TABLE_REFS.greater_realm_release_v1).toBe(72);
     expect(GREATER_REALM_PRODUCTION_V17_TABLE_REFS.realm_worker_system_v2).toBe(83);
+    expect(Object.keys(GREATER_REALM_PRODUCTION_CURRENT_CANDIDATE_TABLE_REFS)).toHaveLength(86);
+    expect(GREATER_REALM_PRODUCTION_CURRENT_CANDIDATE_TABLE_REFS
+      .production_player_canary_baseline_v1).toBe(84);
+    expect(GREATER_REALM_PRODUCTION_CURRENT_CANDIDATE_TABLE_REFS
+      .production_player_canary_approval_registration_v1).toBe(85);
     for (const [name, reference] of Object.entries(GREATER_REALM_PRODUCTION_V14_TABLE_REFS)) {
       expect(GREATER_REALM_PRODUCTION_V17_TABLE_REFS[name]).toBe(reference);
     }
   });
 
-  it('executes the 56-to-84 append only into the inert compile mode', async () => {
+  it('requires independently valid frozen-v17 and current-candidate schema digests', () => {
+    const names = Object.keys(GREATER_REALM_PRODUCTION_CURRENT_CANDIDATE_TABLE_REFS);
+    const description = Object.freeze({
+      tables: Object.freeze(names.map(name => Object.freeze({
+        name,
+        product_type_ref: GREATER_REALM_PRODUCTION_CURRENT_CANDIDATE_TABLE_REFS[name],
+        table_access: Object.freeze({ Private: Object.freeze({}) }),
+      }))),
+      typespace: Object.freeze({
+        types: Object.freeze(names.map(() => Object.freeze({
+          Product: Object.freeze({ elements: Object.freeze([]) }),
+        }))),
+      }),
+    });
+    const v17Names = Object.keys(GREATER_REALM_PRODUCTION_V17_TABLE_REFS);
+    const exactReceipt = Object.freeze({
+      ...artifactReceipt,
+      v17TableSchemaDigest: canonicalTableSchemaBoundaryDigest(
+        { ...description, tables: description.tables.slice(0, 84) },
+        v17Names,
+      ),
+      currentCandidateTableSchemaDigest: canonicalTableSchemaBoundaryDigest(
+        description,
+        names,
+      ),
+    });
+    expect(verifyGreaterRealmCurrentCandidateProductionSchema({
+      description,
+      artifactReceipt: exactReceipt,
+    })).toMatchObject({ tableCount: 86 });
+    expect(() => verifyGreaterRealmCurrentCandidateProductionSchema({
+      description,
+      artifactReceipt: {
+        ...exactReceipt,
+        currentCandidateTableSchemaDigest: '0'.repeat(64),
+      },
+    })).toThrow(/SCHEMA_BOUNDARY_MISMATCH/);
+    const missingCandidateDigest = { ...exactReceipt } as Record<string, unknown>;
+    delete missingCandidateDigest.currentCandidateTableSchemaDigest;
+    expect(() => verifyGreaterRealmCurrentCandidateProductionSchema({
+      description,
+      artifactReceipt: missingCandidateDigest as unknown as MigrationArtifactReceipt,
+    })).toThrow(/SCHEMA_BOUNDARY_MISMATCH/);
+    expect(() => verifyGreaterRealmCurrentCandidateProductionSchema({
+      description,
+      artifactReceipt: {
+        ...exactReceipt,
+        v17TableSchemaDigest: '0'.repeat(64),
+      },
+    })).toThrow(/SCHEMA_BOUNDARY_MISMATCH/);
+    const historicalV17 = Object.freeze({
+      ...description,
+      tables: description.tables.slice(0, 84),
+      typespace: description.typespace,
+    });
+    expect(() => verifyGreaterRealmCurrentCandidateProductionSchema({
+      description: historicalV17,
+      artifactReceipt: exactReceipt,
+    })).toThrow(/SCHEMA_BOUNDARY_MISMATCH/);
+  });
+
+  it('reads exact inert status for an already-published append recovery snapshot', async () => {
+    const lane = GREATER_REALM_PRODUCTION_PUBLISH_LANE.APPEND_INERT_V17;
+    const inspect = (generation: 'v14' | 'current-candidate', observed?: ReturnType<typeof status>) => {
+      const readImportStatus = vi.fn(async () => observed);
+      return {
+        readImportStatus,
+        promise: inspectGreaterRealmProductionPublisherRecoverySnapshot({
+          lane,
+          moduleDeltaPolicy: greaterRealmProductionModuleDeltaPolicy(lane),
+          expectedAtlasSourceCommit: ATLAS_SOURCE_COMMIT,
+          expectedAtlasId: ATLAS_ID,
+          expectedPublicReleaseId: PUBLIC_RELEASE_ID,
+          expectedReleaseSha256: EXPECTED_RELEASE_SHA256,
+          artifactReceipt,
+          readSchema: async () => ({ generation }),
+          readImportStatus,
+          readHistoricalAggregate: async () => Object.freeze({ founders: 100n }),
+          testOnlyDependencies: fakeDependencies(),
+        }),
+      };
+    };
+
+    const exact = inspect(
+      'current-candidate',
+      status({ importCompiled: false, activationCompiled: false }),
+    );
+    await expect(exact.promise).resolves.toMatchObject({
+      status: {
+        schemaDigest: artifactReceipt.currentCandidateTableSchemaDigest,
+        importMutationsCompiled: false,
+        activationMutationsCompiled: false,
+      },
+    });
+    expect(exact.readImportStatus).toHaveBeenCalledTimes(1);
+
+    for (const observed of [
+      status({ importCompiled: true, activationCompiled: false }),
+      status({ importCompiled: false, activationCompiled: true }),
+    ]) {
+      const hostile = inspect('current-candidate', observed);
+      await expect(hostile.promise).rejects.toThrow(/COMPILE_MODE_MISMATCH/);
+      expect(hostile.readImportStatus).toHaveBeenCalledTimes(1);
+    }
+
+    const predecessor = inspect('v14');
+    await expect(predecessor.promise).resolves.toMatchObject({
+      status: {
+        schemaDigest: artifactReceipt.v14TableSchemaDigest,
+        importMutationsCompiled: false,
+        activationMutationsCompiled: false,
+      },
+    });
+    expect(predecessor.readImportStatus).not.toHaveBeenCalled();
+  });
+
+  it('executes the 56-to-86 append only into the inert compile mode', async () => {
     const result = await executeLane(
       GREATER_REALM_PRODUCTION_PUBLISH_LANE.APPEND_INERT_V17,
       undefined,
@@ -1343,8 +1472,8 @@ describe('Greater Realm production publisher lanes', () => {
       moduleSourceCommit: MODULE_SOURCE_COMMIT,
       moduleDeltaPolicy: 'append-approval-only',
       predecessorTableCount: 56,
-      postTableCount: 84,
-      schemaMutation: 'append-28',
+      postTableCount: 86,
+      schemaMutation: 'append-30',
       importMutationsCompiled: false,
       activationMutationsCompiled: false,
       releaseState: 'absent',
@@ -1469,8 +1598,8 @@ describe('Greater Realm production publisher lanes', () => {
   ) => {
     const result = await executeLane(lane, before, after);
     expect(result.receipt).toMatchObject({
-      predecessorTableCount: 84,
-      postTableCount: 84,
+      predecessorTableCount: 86,
+      postTableCount: 86,
       schemaMutation: 'none',
       releaseState: 'releaseState' in after ? after.releaseState : after.state,
       importMutationsCompiled: after.importMutationsCompiled,
@@ -1752,7 +1881,7 @@ describe('Greater Realm production publisher lanes', () => {
           moduleSourceCommit: MODULE_SOURCE_COMMIT,
           moduleDeltaPolicy: 'import-gate-only',
           artifactReceipt,
-          readSchema: async () => ({ generation: 'v17' }),
+          readSchema: async () => ({ generation: 'current-candidate' }),
           readImportStatus: transport.inspect,
           readHistoricalAggregate,
           assertCanStartWrite: () => undefined,

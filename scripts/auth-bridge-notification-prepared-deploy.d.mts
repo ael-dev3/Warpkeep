@@ -40,3 +40,7 @@ export function runAuthBridgeNotificationPreparedDeploy(
   receiptDigest: string;
   result: 'installed' | 'unchanged';
 }>>;
+
+export const authBridgeNotificationPreparedDeployTestSeams: Readonly<{
+  copyAndScrubEnvironment: (environment: NodeJS.ProcessEnv) => Readonly<Record<string, string>>;
+}>;

@@ -1,0 +1,149 @@
+:root {
+  color: #f3eee2;
+  background: #07090d;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 50% -10%, rgba(130, 99, 44, 0.2), transparent 42rem),
+    #07090d;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.owner-canary {
+  display: grid;
+  min-height: 100vh;
+  padding: max(24px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right))
+    max(24px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  place-items: center;
+}
+
+.owner-canary__panel {
+  width: min(100%, 38rem);
+  padding: clamp(24px, 7vw, 48px);
+  border: 1px solid #5c513c;
+  border-radius: 8px;
+  background: rgba(12, 15, 20, 0.96);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.48);
+}
+
+.owner-canary h1,
+.owner-canary h2 {
+  margin: 0;
+  color: #fff8e7;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.owner-canary h1 {
+  font-size: clamp(2rem, 8vw, 3.25rem);
+}
+
+.owner-canary h2 {
+  font-size: 1.45rem;
+}
+
+.owner-canary__eyebrow {
+  margin: 0 0 10px;
+  color: #c6a45d;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.owner-canary__copy,
+.owner-canary__notice,
+.owner-canary__success,
+.owner-canary__failure,
+.owner-canary__stage p {
+  color: #c9c4b8;
+  line-height: 1.55;
+}
+
+.owner-canary__field,
+.owner-canary__confirmation {
+  display: grid;
+  gap: 9px;
+  margin-top: 24px;
+  color: #e6ddcb;
+}
+
+.owner-canary__field input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #5c513c;
+  border-radius: 4px;
+  color: #fff8e7;
+  background: #090b0f;
+}
+
+.owner-canary__confirmation {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+}
+
+.owner-canary__confirmation input {
+  width: 18px;
+  height: 18px;
+}
+
+.owner-canary button {
+  width: 100%;
+  margin-top: 20px;
+  padding: 12px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.owner-canary button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.owner-canary__primary {
+  border: 1px solid #cfab62;
+  color: #120f09;
+  background: #cfab62;
+  font-weight: 750;
+}
+
+.owner-canary__secondary {
+  border: 1px solid #73664e;
+  color: #e6ddcb;
+  background: transparent;
+}
+
+.owner-canary__stage,
+.owner-canary__notice,
+.owner-canary__success,
+.owner-canary__failure {
+  margin-top: 24px;
+  padding: 18px;
+  border: 1px solid #403a30;
+  border-radius: 4px;
+  background: #0a0d12;
+}
+
+.owner-canary__success {
+  border-color: #526a47;
+  color: #dcebd3;
+}
+
+.owner-canary__failure {
+  border-color: #744b48;
+  color: #f0cfcb;
+}

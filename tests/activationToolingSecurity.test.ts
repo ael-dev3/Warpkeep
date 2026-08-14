@@ -1613,6 +1613,7 @@ async function withTestProvenArtifact<T>(callback: (receipt: {
   v15TableSchemaDigest: string;
   v16TableSchemaDigest: string;
   v17TableSchemaDigest: string;
+  currentCandidateTableSchemaDigest: string;
   artifactDigest: string;
 }) => Promise<T> | T): Promise<T> {
   let previous: Buffer | undefined;
@@ -1633,6 +1634,7 @@ async function withTestProvenArtifact<T>(callback: (receipt: {
     v15TableSchemaDigest: 'e'.repeat(64),
     v16TableSchemaDigest: 'f'.repeat(64),
     v17TableSchemaDigest: '0'.repeat(64),
+    currentCandidateTableSchemaDigest: 'a'.repeat(64),
     artifactDigest: createHash('sha256').update(content).digest('hex'),
   });
   try {
@@ -3372,6 +3374,7 @@ describe('activation publish safety', () => {
         v15TableSchemaDigest: receipt.v15TableSchemaDigest,
         v16TableSchemaDigest: receipt.v16TableSchemaDigest,
         v17TableSchemaDigest: receipt.v17TableSchemaDigest,
+        currentCandidateTableSchemaDigest: receipt.currentCandidateTableSchemaDigest,
         artifactDigest: receipt.artifactDigest,
       })}\n`;
       const parsed = parseMigrationProofReceipt(success);
@@ -3432,6 +3435,25 @@ describe('activation publish safety', () => {
         '',
       ))).toThrow(/exact success receipt/i);
       expect(() => parseMigrationProofReceipt(success.replace(
+        ` current_candidate_table_schema_sha256=${receipt.currentCandidateTableSchemaDigest}`,
+        '',
+      ))).toThrow(/exact success receipt/i);
+      expect(() => parseMigrationProofReceipt(success.replace(
+        ` current_candidate_table_schema_sha256=${receipt.currentCandidateTableSchemaDigest}`,
+        ` current_candidate_table_schema_sha256=${receipt.currentCandidateTableSchemaDigest}`
+          + ` current_candidate_table_schema_sha256=${receipt.currentCandidateTableSchemaDigest}`,
+      ))).toThrow(/exact success receipt/i);
+      expect(() => parseMigrationProofReceipt(success.replace(
+        ` current_candidate_table_schema_sha256=${receipt.currentCandidateTableSchemaDigest}`,
+        ` current_candidate_table_schema_sha256=${receipt.currentCandidateTableSchemaDigest.toUpperCase()}`,
+      ))).toThrow(/exact success receipt/i);
+      expect(() => parseMigrationProofReceipt(success.replace(
+        ` v17_table_schema_sha256=${receipt.v17TableSchemaDigest}`
+          + ` current_candidate_table_schema_sha256=${receipt.currentCandidateTableSchemaDigest}`,
+        ` current_candidate_table_schema_sha256=${receipt.currentCandidateTableSchemaDigest}`
+          + ` v17_table_schema_sha256=${receipt.v17TableSchemaDigest}`,
+      ))).toThrow(/exact success receipt/i);
+      expect(() => parseMigrationProofReceipt(success.replace(
         ` v11_table_schema_sha256=${receipt.v11TableSchemaDigest}`
           + ` v12_table_schema_sha256=${receipt.v12TableSchemaDigest}`,
         ` v12_table_schema_sha256=${receipt.v12TableSchemaDigest}`
@@ -3482,6 +3504,10 @@ describe('activation publish safety', () => {
       expect(() => verifyMigrationArtifactReceipt({
         ...receipt,
         v17TableSchemaDigest: 'A'.repeat(64),
+      })).toThrow(/receipt was invalid/i);
+      expect(() => verifyMigrationArtifactReceipt({
+        ...receipt,
+        currentCandidateTableSchemaDigest: 'A'.repeat(64),
       })).toThrow(/receipt was invalid/i);
       expect(() => verifyMigrationArtifactReceipt({ ...receipt, extra: true }))
         .toThrow(/receipt was invalid/i);
@@ -3568,6 +3594,7 @@ describe('activation publish safety', () => {
       v15TableSchemaDigest: '5'.repeat(64),
       v16TableSchemaDigest: '6'.repeat(64),
       v17TableSchemaDigest: '7'.repeat(64),
+      currentCandidateTableSchemaDigest: '9'.repeat(64),
       artifactDigest: '8'.repeat(64),
     });
     const expectations = Object.freeze({
@@ -3676,6 +3703,7 @@ describe('activation publish safety', () => {
         v15TableSchemaDigest: receipt.v15TableSchemaDigest,
         v16TableSchemaDigest: receipt.v16TableSchemaDigest,
         v17TableSchemaDigest: receipt.v17TableSchemaDigest,
+        currentCandidateTableSchemaDigest: receipt.currentCandidateTableSchemaDigest,
         artifactDigest: receipt.artifactDigest,
       })}\n`;
       const fakeSpawnSync = (...args: unknown[]) => {

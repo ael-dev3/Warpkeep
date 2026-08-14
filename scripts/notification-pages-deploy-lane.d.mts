@@ -22,4 +22,6 @@ export function classifyNotificationPagesDeployLane(options: Readonly<{
   expectedFounderCount: number | null;
   chainRootReceiptDigest: string | null;
   chainRootPagesSourceCommit: string | null;
+  productionPlayerCanaryReceiptDigest: string | null;
+  productionPlayerCanarySourceCommit: string | null;
 }>;

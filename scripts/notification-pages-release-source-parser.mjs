@@ -211,6 +211,7 @@ export function parseNotificationPagesReleaseSources({
   preparedBindingSource,
   privateBindingSource,
   liveRootBindingSource,
+  productionPlayerCanaryBindingSource,
 } = {}) {
   return Object.freeze({
     phase: Object.freeze({
@@ -245,6 +246,15 @@ export function parseNotificationPagesReleaseSources({
       ],
       'NOTIFICATION_PAGES_RELEASE_SOURCE_ROOT_BINDING_INVALID',
     ),
+    productionPlayerCanaryBinding: exactObjectBinding(
+      productionPlayerCanaryBindingSource,
+      'PRODUCTION_PLAYER_CANARY_RELEASE_BINDING',
+      [
+        ['productionPlayerCanaryReceiptDigest', 'digest'],
+        ['productionPlayerCanarySourceCommit', 'commit'],
+      ],
+      'NOTIFICATION_PAGES_RELEASE_SOURCE_PLAYER_CANARY_BINDING_INVALID',
+    ),
   });
 }
 
@@ -262,5 +272,7 @@ export function readNotificationPagesReleaseSources({ repositoryRoot } = {}) {
       source('scripts/notification-pages-private-release-binding.mjs'),
     liveRootBindingSource:
       source('scripts/notification-pages-live-release-binding.mjs'),
+    productionPlayerCanaryBindingSource:
+      source('scripts/production-player-canary-release-binding.mjs'),
   });
 }

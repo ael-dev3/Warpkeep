@@ -248,6 +248,7 @@ const PUBLISH_ARTIFACT_DIGEST_KEYS = Object.freeze([
   'v15TableSchemaDigest',
   'v16TableSchemaDigest',
   'v17TableSchemaDigest',
+  'currentCandidateTableSchemaDigest',
 ] as const);
 
 function publisherRecoveryArtifactReceipt(
@@ -275,6 +276,8 @@ function publisherRecoveryArtifactReceipt(
     v15TableSchemaDigest: audit.v15TableSchemaDigest as string,
     v16TableSchemaDigest: audit.v16TableSchemaDigest as string,
     v17TableSchemaDigest: audit.v17TableSchemaDigest as string,
+    currentCandidateTableSchemaDigest:
+      audit.currentCandidateTableSchemaDigest as string,
   });
 }
 
@@ -336,6 +339,8 @@ function publisherRecoveryOperationAuthority(input: Readonly<{
     || identity.artifactDigest !== receipt.artifactDigest
     || identity.v14TableSchemaDigest !== receipt.v14TableSchemaDigest
     || identity.v17TableSchemaDigest !== receipt.v17TableSchemaDigest
+    || identity.currentCandidateTableSchemaDigest
+      !== receipt.currentCandidateTableSchemaDigest
     || input.retention.artifactDigest !== receipt.artifactDigest
   ) fail('GREATER_REALM_PRODUCTION_PUBLISH_RECOVERY_ARTIFACT_INVALID');
   return Object.freeze({
@@ -398,12 +403,14 @@ function reconstructRecoveredPublisherReceipt(
     || operationIdentity.artifactDigest !== artifactReceipt.artifactDigest
     || operationIdentity.v14TableSchemaDigest !== artifactReceipt.v14TableSchemaDigest
     || operationIdentity.v17TableSchemaDigest !== artifactReceipt.v17TableSchemaDigest
+    || operationIdentity.currentCandidateTableSchemaDigest
+      !== artifactReceipt.currentCandidateTableSchemaDigest
     || retention.moduleSourceCommit !== chain.sourceRelease.moduleSourceCommit
     || retention.artifactDigest !== artifactReceipt.artifactDigest
     || after.lane !== lane
     || after.moduleDeltaPolicy !== greaterRealmProductionModuleDeltaPolicy(lane)
     || typeof after.schemaDigest !== 'string'
-    || after.schemaDigest !== artifactReceipt.v17TableSchemaDigest
+    || after.schemaDigest !== artifactReceipt.currentCandidateTableSchemaDigest
     || typeof after.importMutationsCompiled !== 'boolean'
     || typeof after.activationMutationsCompiled !== 'boolean'
     || typeof after.releaseState !== 'string'
@@ -439,12 +446,14 @@ function reconstructRecoveredPublisherReceipt(
       artifactDigest: artifactReceipt.artifactDigest,
       v14TableSchemaDigest: artifactReceipt.v14TableSchemaDigest,
       v17TableSchemaDigest: artifactReceipt.v17TableSchemaDigest,
+      currentCandidateTableSchemaDigest:
+        artifactReceipt.currentCandidateTableSchemaDigest,
       predecessorTableCount:
-        lane === GREATER_REALM_PRODUCTION_PUBLISH_LANE.APPEND_INERT_V17 ? 56 : 84,
-      postTableCount: 84,
+        lane === GREATER_REALM_PRODUCTION_PUBLISH_LANE.APPEND_INERT_V17 ? 56 : 86,
+      postTableCount: 86,
       schemaMutation:
         lane === GREATER_REALM_PRODUCTION_PUBLISH_LANE.APPEND_INERT_V17
-          ? 'append-28'
+          ? 'append-30'
           : 'none',
       importMutationsCompiled: after.importMutationsCompiled,
       activationMutationsCompiled: after.activationMutationsCompiled,

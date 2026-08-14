@@ -38,6 +38,19 @@ import {
   legacyExpeditionReturnErrorCode,
   returnActiveLegacyExpedition,
 } from '../legacyExpeditionReturnAuthority';
+import {
+  inspectProductionPlayerCanaryAdminEvidence,
+  productionPlayerCanaryEvidenceErrorCode,
+} from '../productionPlayerCanaryEvidence';
+import {
+  captureProductionPlayerCanaryBaseline,
+  inspectProductionPlayerCanaryBaseline,
+  inspectProductionPlayerCanaryRoutePlan,
+} from '../productionPlayerCanaryBaseline';
+import {
+  inspectProductionPlayerCanaryApprovalRegistrationV1,
+  registerProductionPlayerCanaryApprovalV1,
+} from '../productionPlayerCanaryApproval';
 import warpkeep from '../schema';
 import type {
   GreaterRealmIndexedPublicReadAuthorityV1,
@@ -238,7 +251,156 @@ const adminWorkerRolloutStatusV2 = t.object('AdminWorkerRolloutStatusV2', {
   genericCommandReceipts: t.u64(),
 });
 
+const productionPlayerCanaryAdminEvidenceV1 = t.object(
+  'ProductionPlayerCanaryAdminEvidenceV1',
+  {
+    profile: t.string(),
+    challengeDigest: t.string(),
+    reviewedAdmissionPlanDigest: t.string(),
+    serverBaselineCommitment: t.string(),
+    admissionProfileDigest: t.string(),
+    evidenceDigest: t.string(),
+    routeSetCommitment: t.string(),
+    commandSetCommitment: t.string(),
+    ownerApprovalArtifactDigest: t.string(),
+    ownerApprovalCommitment: t.string(),
+    approvalRegistrationCommitment: t.string(),
+    requestCycle: t.u64(),
+    requestedAtMicros: t.u64(),
+    baselineCapturedAtMicros: t.u64(),
+    observedAtMicros: t.u64(),
+    earliestDispatchAtMicros: t.u64(),
+    latestRecallAtMicros: t.u64(),
+    directTierOneFounder: t.bool(),
+    normalRequestAdmission: t.bool(),
+    ownerBound: t.bool(),
+    currentTermsAccepted: t.bool(),
+    workerCount: t.u32(),
+    dispatchReceiptCount: t.u32(),
+    recallReceiptCount: t.u32(),
+    distinctResourceKindCount: t.u32(),
+    minimumGatheringElapsedMicros: t.u64(),
+    maximumGatheringElapsedMicros: t.u64(),
+    maximumRouteSteps: t.u32(),
+    terminalIdleWorkerCount: t.u32(),
+    terminalAssignmentCount: t.u64(),
+    terminalOccupationCount: t.u64(),
+    terminalScheduleCount: t.u64(),
+    isolatedResourceKindCount: t.u32(),
+    resourceQuantumCount: t.u32(),
+    foodDelta: t.u64(),
+    woodDelta: t.u64(),
+    stoneDelta: t.u64(),
+    goldDelta: t.u64(),
+  },
+);
+
+const productionPlayerCanaryBaselineStatusV1 = t.object(
+  'ProductionPlayerCanaryBaselineStatusV1',
+  {
+    profile: t.string(),
+    challengeDigest: t.string(),
+    reviewedAdmissionPlanDigest: t.string(),
+    serverBaselineCommitment: t.string(),
+    routeSetCommitment: t.string(),
+    capturedAtMicros: t.u64(),
+    baselineCaptured: t.bool(),
+    directTierOneFounder: t.bool(),
+    normalRequestAdmission: t.bool(),
+    pristineWorkerCount: t.u32(),
+    terminalGraphEmpty: t.bool(),
+    pristineResourceAccount: t.bool(),
+  },
+);
+
+const productionPlayerCanaryBaselineInputV1 = {
+  fid: t.u64(),
+  reviewedAdmissionPlanDigest: t.string(),
+  evidenceNonce: t.string(),
+};
+
+const productionPlayerCanaryRouteV1 = t.object(
+  'ProductionPlayerCanaryRouteV1',
+  {
+    ordinal: t.u32(),
+    workerId: t.string(),
+    resourceKind: t.string(),
+    locationId: t.string(),
+    atlasRevision: t.u64(),
+    routeSteps: t.u32(),
+    nodeCount: t.u32(),
+  },
+);
+
+const productionPlayerCanaryRoutePlanV1 = t.object(
+  'ProductionPlayerCanaryRoutePlanV1',
+  {
+    profile: t.string(),
+    challengeDigest: t.string(),
+    reviewedAdmissionPlanDigest: t.string(),
+    serverBaselineCommitment: t.string(),
+    routeSetCommitment: t.string(),
+    atlasRevision: t.u64(),
+    equalRouteSteps: t.u32(),
+    routes: t.array(productionPlayerCanaryRouteV1),
+  },
+);
+
+const productionPlayerCanaryApprovalRegistrationInputV1 = {
+  fid: t.u64(),
+  reviewedAdmissionPlanDigest: t.string(),
+  evidenceNonce: t.string(),
+  serverBaselineCommitment: t.string(),
+  routeSetCommitment: t.string(),
+  commandKeyPolicyVersion: t.string(),
+  commandSetCommitment: t.string(),
+  ownerApprovalArtifactDigest: t.string(),
+  ownerApprovalCommitment: t.string(),
+  approvedAtMicros: t.u64(),
+  notAfterMicros: t.u64(),
+};
+
+const productionPlayerCanaryApprovalRegistrationStatusV1 = t.object(
+  'ProductionPlayerCanaryApprovalRegistrationStatusV1',
+  {
+    profile: t.string(),
+    challengeDigest: t.string(),
+    reviewedAdmissionPlanDigest: t.string(),
+    serverBaselineCommitment: t.string(),
+    routeSetCommitment: t.string(),
+    commandKeyPolicyVersion: t.string(),
+    commandSetCommitment: t.string(),
+    ownerApprovalArtifactDigest: t.string(),
+    ownerApprovalCommitment: t.string(),
+    approvalRegistrationCommitment: t.string(),
+    approvedAtMicros: t.u64(),
+    notAfterMicros: t.u64(),
+    registeredAtMicros: t.u64(),
+    approvalRegistered: t.bool(),
+    routePlanBound: t.bool(),
+    commandSetBound: t.bool(),
+    ownerApprovalBound: t.bool(),
+  },
+);
+
+const productionPlayerCanaryRuntimeRoutePlanV1 = t.object(
+  'ProductionPlayerCanaryRuntimeRoutePlanV1',
+  {
+    profile: t.string(),
+    reviewedAdmissionPlanDigest: t.string(),
+    serverBaselineCommitment: t.string(),
+    routeSetCommitment: t.string(),
+    commandKeyPolicyVersion: t.string(),
+    commandSetCommitment: t.string(),
+    atlasRevision: t.u64(),
+    equalRouteSteps: t.u32(),
+    routes: t.array(productionPlayerCanaryRouteV1),
+  },
+);
+
 function senderPolicyError(error: unknown): never {
+  const canaryCode = productionPlayerCanaryEvidenceErrorCode(error);
+  if (canaryCode !== undefined) throw new SenderError(canaryCode);
   const rolloutCode = castleWorkerRolloutErrorCode(error);
   if (rolloutCode !== undefined) throw new SenderError(rolloutCode);
   const legacyCode = legacyExpeditionReturnErrorCode(error);
@@ -957,6 +1119,158 @@ export const adminGetWorkerRolloutStatusV2 = warpkeep.procedure(
         genericSchedules: status.genericSchedules,
         genericCommandReceipts: status.genericCommandReceipts,
       };
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  }),
+);
+
+/**
+ * One-use, admin-only capture before the first player command. Exact replay is
+ * a no-op; conflicts fail and no reset/delete reducer exists.
+ */
+export const adminCaptureProductionPlayerCanaryBaselineV1 = warpkeep.reducer(
+  { name: 'admin_capture_production_player_canary_baseline_v1' },
+  productionPlayerCanaryBaselineInputV1,
+  (ctx, input) => {
+    try {
+      requireAdmin(ctx);
+      captureProductionPlayerCanaryBaseline(ctx, input);
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  },
+);
+
+/** Admin-only readback/reconciliation of the commitment; no raw snapshot. */
+export const adminGetProductionPlayerCanaryBaselineV1 = warpkeep.procedure(
+  { name: 'admin_get_production_player_canary_baseline_v1' },
+  productionPlayerCanaryBaselineInputV1,
+  productionPlayerCanaryBaselineStatusV1,
+  (ctx, input) => ctx.withTx(tx => {
+    try {
+      requireAdmin(tx);
+      return inspectProductionPlayerCanaryBaseline(tx, input);
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  }),
+);
+
+/** Admin-only private route plan; raw topology stays out of public tables. */
+export const adminPlanProductionPlayerCanaryRoutesV1 = warpkeep.procedure(
+  { name: 'admin_plan_production_player_canary_routes_v1' },
+  productionPlayerCanaryBaselineInputV1,
+  productionPlayerCanaryRoutePlanV1,
+  (ctx, input) => ctx.withTx(tx => {
+    try {
+      requireAdmin(tx);
+      const plan = inspectProductionPlayerCanaryRoutePlan(tx, input);
+      return { ...plan, routes: plan.routes.map(route => ({ ...route })) };
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  }),
+);
+
+/** Append one exact owner approval; exact lost-response replay is read-only. */
+export const adminRegisterProductionPlayerCanaryApprovalV1 = warpkeep.reducer(
+  { name: 'admin_register_production_player_canary_approval_v1' },
+  productionPlayerCanaryApprovalRegistrationInputV1,
+  (ctx, input) => {
+    try {
+      requireAdmin(ctx);
+      registerProductionPlayerCanaryApprovalV1(ctx, input);
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  },
+);
+
+/** Commitment/timestamp-only admin reconciliation; raw routes are separate. */
+export const adminGetProductionPlayerCanaryApprovalV1 = warpkeep.procedure(
+  { name: 'admin_get_production_player_canary_approval_v1' },
+  productionPlayerCanaryBaselineInputV1,
+  productionPlayerCanaryApprovalRegistrationStatusV1,
+  (ctx, input) => ctx.withTx(tx => {
+    try {
+      requireAdmin(tx);
+      return inspectProductionPlayerCanaryApprovalRegistrationV1(tx, input);
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  }),
+);
+
+/**
+ * Caller-authenticated runtime plan. FID/castle and the eight raw command keys
+ * never leave the server. The browser independently derives keys and verifies
+ * only their command-set commitment inside its module-private closure.
+ */
+export const getProductionPlayerCanaryRuntimeV1 = warpkeep.procedure(
+  { name: 'get_production_player_canary_runtime_v1' },
+  {
+    evidenceNonce: t.string(),
+    reviewedAdmissionPlanDigest: t.string(),
+    routeSetCommitment: t.string(),
+  },
+  productionPlayerCanaryRuntimeRoutePlanV1,
+  (ctx, input) => ctx.withTx(tx => {
+    try {
+      const { claims } = requireGameplayReadPlayerV1(tx);
+      const baselineInput = Object.freeze({
+        fid: claims.fid,
+        reviewedAdmissionPlanDigest: input.reviewedAdmissionPlanDigest,
+        evidenceNonce: input.evidenceNonce,
+      });
+      const registration = inspectProductionPlayerCanaryApprovalRegistrationV1(
+        tx,
+        baselineInput,
+      );
+      if (
+        !registration.approvalRegistered
+        || registration.routeSetCommitment !== input.routeSetCommitment
+        || tx.timestamp.microsSinceUnixEpoch < registration.approvedAtMicros
+        || tx.timestamp.microsSinceUnixEpoch >= registration.notAfterMicros
+      ) throw new SenderError('PRODUCTION_PLAYER_CANARY_RUNTIME_AUTHORITY_UNAVAILABLE');
+      const routePlan = inspectProductionPlayerCanaryRoutePlan(tx, baselineInput);
+      if (routePlan.routeSetCommitment !== registration.routeSetCommitment) {
+        throw new SenderError('PRODUCTION_PLAYER_CANARY_RUNTIME_AUTHORITY_UNAVAILABLE');
+      }
+      return {
+        profile: 'warpkeep-production-player-canary-runtime-route-plan-v1',
+        reviewedAdmissionPlanDigest: registration.reviewedAdmissionPlanDigest,
+        serverBaselineCommitment: registration.serverBaselineCommitment,
+        routeSetCommitment: registration.routeSetCommitment,
+        commandKeyPolicyVersion: registration.commandKeyPolicyVersion,
+        commandSetCommitment: registration.commandSetCommitment,
+        atlasRevision: routePlan.atlasRevision,
+        equalRouteSteps: routePlan.equalRouteSteps,
+        routes: routePlan.routes.map(route => ({ ...route })),
+      };
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  }),
+);
+
+/**
+ * Read-only, Hermes-admin evidence for one player-path canary. The request
+ * carries private FID/nonce correlation in RAM; the raw baseline is loaded
+ * from private server authority and the result exposes only commitments.
+ */
+export const adminGetProductionPlayerCanaryEvidenceV1 = warpkeep.procedure(
+  { name: 'admin_get_production_player_canary_evidence_v1' },
+  {
+    fid: t.u64(),
+    reviewedAdmissionPlanDigest: t.string(),
+    evidenceNonce: t.string(),
+  },
+  productionPlayerCanaryAdminEvidenceV1,
+  (ctx, input) => ctx.withTx(tx => {
+    try {
+      requireAdmin(tx);
+      return inspectProductionPlayerCanaryAdminEvidence(tx, input);
     } catch (error) {
       return senderPolicyError(error);
     }

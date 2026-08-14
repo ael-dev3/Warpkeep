@@ -55,6 +55,11 @@ export interface WorkerEnv {
   ADMIN_TOKEN_SECRET?: string
   /** Cloudflare managed HMAC key for opaque HttpOnly session cookies. */
   SESSION_COOKIE_KEY?: string
+  /**
+   * Cloudflare managed secret containing the one canonical FID allowed to use
+   * the production player canary exchange. It must never be a Worker var.
+   */
+  PLAYER_CANARY_OWNER_FID?: string
   /** Non-secret Maincloud origin used only by the Worker auth-epoch lookup. */
   SPACETIMEDB_URI?: string
   /** Non-secret database name used only by the Worker auth-epoch lookup. */
@@ -111,6 +116,8 @@ export type SafeLogEvent =
   | 'quick_auth_succeeded'
   | 'quick_auth_rejected'
   | 'quick_auth_verifier_unavailable'
+  | 'player_canary_exchange_succeeded'
+  | 'player_canary_exchange_rejected'
   | 'exchange_binding_missing'
   | 'exchange_binding_invalid'
   | 'exchange_binding_mismatch'

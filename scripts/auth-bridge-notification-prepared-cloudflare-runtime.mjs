@@ -15,6 +15,8 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 
 import {
   AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_PROFILE,
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING,
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES,
   AUTH_BRIDGE_NOTIFICATION_PREPARED_WRANGLER_VERSION,
 } from './auth-bridge-notification-prepared-deploy-adapter.mjs';
 
@@ -37,6 +39,7 @@ const SHA256_HEX = /^[a-f0-9]{64}$/u;
 const VERSION_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u;
 const CLOUDFLARE_UTC = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?Z$/u;
 const SECRET_TOKEN = /^[A-Za-z0-9._~+\-/=]{20,4096}$/u;
+const POSITIVE_FID = /^[1-9][0-9]{0,15}$/u;
 const FORBIDDEN_AMBIENT_FILES = Object.freeze([
   '.env',
   '.env.local',
@@ -84,6 +87,33 @@ function exactKeys(value, keys) {
 
 function exactJson(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function containsForbiddenResponseValue(value, forbidden) {
+  const pending = [value];
+  let inspected = 0;
+  while (pending.length > 0) {
+    const current = pending.pop();
+    inspected += 1;
+    if (inspected > MAX_JSON_BYTES) {
+      fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_RESPONSE_JSON_INVALID');
+    }
+    if (typeof current === 'string') {
+      if (current.includes(forbidden)) return true;
+      continue;
+    }
+    if (
+      typeof current === 'number'
+      && Number.isSafeInteger(current)
+      && String(current) === forbidden
+    ) return true;
+    if (current === null || typeof current !== 'object') continue;
+    for (const [key, nested] of Object.entries(current)) {
+      if (key.includes(forbidden)) return true;
+      pending.push(nested);
+    }
+  }
+  return false;
 }
 
 function defaultSettleDelay(milliseconds) {
@@ -150,7 +180,13 @@ function assertContract(contract) {
     || contract.compatibilityDate !== '2026-07-11'
     || !exactJson(contract.compatibilityFlags, ['nodejs_compat'])
     || !isRecord(contract.variables)
-    || !Array.isArray(contract.secretBindingNames)
+    || !exactJson(contract.secretBindingNames, [
+      ...AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES
+        .slice(0, 4),
+      AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING,
+      ...AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES
+        .slice(4),
+    ])
     || !Array.isArray(contract.durableObjectBindings)
     || !Array.isArray(contract.migrations)
   ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_CONTRACT_INVALID');
@@ -351,7 +387,12 @@ function contentTypeFromBody(body) {
   return `multipart/form-data; boundary=${first.slice(2)}`;
 }
 
-function exactMultipartMetadata(metadata, contract, expectedMigrations) {
+function exactMultipartMetadata(
+  metadata,
+  contract,
+  candidate,
+) {
+  const candidateExpected = candidate !== undefined;
   if (
     !isRecord(metadata)
     || typeof metadata.main_module !== 'string'
@@ -362,12 +403,44 @@ function exactMultipartMetadata(metadata, contract, expectedMigrations) {
       'workers/message': contract.versionMessage,
       'workers/tag': contract.versionTag,
     })
-    || !exactJson(metadata.keep_bindings, ['secret_text', 'secret_key'])
-    || (expectedMigrations === undefined
-      ? metadata.migrations !== undefined
-      : !exactJson(metadata.migrations, expectedMigrations))
+    || (candidateExpected
+      ? metadata.keep_bindings !== undefined
+      : !exactJson(metadata.keep_bindings, ['secret_text', 'secret_key']))
+    || metadata.migrations !== undefined
   ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_MULTIPART_METADATA_MISMATCH');
-  const projected = metadata.bindings.map(bindingProjection)
+  const projected = metadata.bindings.map(binding => {
+    if (binding?.type === 'secret_text') {
+      if (
+        !candidateExpected
+        || !isRecord(binding)
+        || Object.keys(binding).sort().join(',') !== 'name,text,type'
+        || binding.name
+          !== AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING
+        || binding.text !== candidate.playerCanaryOwnerFid
+      ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_MULTIPART_METADATA_MISMATCH');
+      return Object.freeze({
+        name: binding.name,
+        type: binding.type,
+        text: binding.text,
+      });
+    }
+    if (binding?.type === 'inherit') {
+      if (
+        !candidateExpected
+        || !isRecord(binding)
+        || Object.keys(binding).sort().join(',') !== 'name,type,version_id'
+        || !AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES
+          .includes(binding.name)
+        || binding.version_id !== candidate.predecessorVersionId
+      ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_MULTIPART_METADATA_MISMATCH');
+      return Object.freeze({
+        name: binding.name,
+        type: binding.type,
+        versionId: binding.version_id,
+      });
+    }
+    return bindingProjection(binding);
+  })
     .sort((left, right) => left.name.localeCompare(right.name, 'en'));
   const expected = [
     ...Object.entries(contract.variables).map(([name, text]) => ({
@@ -380,27 +453,42 @@ function exactMultipartMetadata(metadata, contract, expectedMigrations) {
       type: 'durable_object_namespace',
       className: binding.className,
     })),
+    ...(candidateExpected ? [
+      ...AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES
+        .map(name => ({
+          name,
+          type: 'inherit',
+          versionId: candidate.predecessorVersionId,
+        })),
+      {
+        name: AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING,
+        type: 'secret_text',
+        text: candidate.playerCanaryOwnerFid,
+      },
+    ] : []),
   ].sort((left, right) => left.name.localeCompare(right.name, 'en'));
   if (!exactJson(projected, expected)) {
     fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_MULTIPART_METADATA_MISMATCH');
   }
 }
 
-function reviewedV5Migration(contract) {
-  const previous = contract.migrations.at(-2);
-  const next = contract.migrations.at(-1);
+/** Test seam for the version-pinned candidate inheritance projection. */
+export function attestAuthBridgeNotificationPreparedCandidateMultipartMetadata({
+  metadata,
+  contract,
+  playerCanaryOwnerFid,
+  predecessorVersionId,
+} = {}) {
   if (
-    previous?.tag !== 'v4'
-    || next?.tag !== 'v5'
-    || !exactJson(next.newSqliteClasses, ['AdmissionNotification'])
-  ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_MIGRATION_MISMATCH');
-  return Object.freeze({
-    old_tag: previous.tag,
-    new_tag: next.tag,
-    steps: Object.freeze([
-      Object.freeze({ new_sqlite_classes: Object.freeze(['AdmissionNotification']) }),
-    ]),
-  });
+    !POSITIVE_FID.test(playerCanaryOwnerFid ?? '')
+    || BigInt(playerCanaryOwnerFid) > BigInt(Number.MAX_SAFE_INTEGER)
+    || !VERSION_ID.test(predecessorVersionId ?? '')
+  ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_MULTIPART_METADATA_MISMATCH');
+  exactMultipartMetadata(metadata, assertContract(contract), Object.freeze({
+    playerCanaryOwnerFid,
+    predecessorVersionId,
+  }));
+  return true;
 }
 
 function multipartWithMetadata(body, contentType, metadata) {
@@ -738,7 +826,30 @@ function createApi({ apiToken, fetchImpl, requestTimeoutMilliseconds }) {
       || maximumBytes < 1
       || maximumBytes > 2 * MAX_MULTIPART_BYTES
     ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_REQUEST_INVALID');
+    const forbiddenResponseSubstring = options.forbiddenResponseSubstring;
+    if (
+      forbiddenResponseSubstring !== undefined
+      && (
+        typeof forbiddenResponseSubstring !== 'string'
+        || forbiddenResponseSubstring.length < 1
+        || forbiddenResponseSubstring.length > 512
+        || forbiddenResponseSubstring.includes('\0')
+      )
+    ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_REQUEST_INVALID');
     const body = await boundedBody(response, maximumBytes);
+    let containsForbiddenBytes = false;
+    if (forbiddenResponseSubstring !== undefined) {
+      const forbiddenBytes = Buffer.from(forbiddenResponseSubstring, 'utf8');
+      try {
+        containsForbiddenBytes = body.includes(forbiddenBytes);
+      } finally {
+        forbiddenBytes.fill(0);
+      }
+    }
+    if (containsForbiddenBytes) {
+      body.fill(0);
+      fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_UPLOAD_RESPONSE_INVALID');
+    }
     let envelope;
     try { envelope = JSON.parse(body.toString('utf8')); } catch {
       fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_RESPONSE_JSON_INVALID');
@@ -753,6 +864,10 @@ function createApi({ apiToken, fetchImpl, requestTimeoutMilliseconds }) {
       || !Array.isArray(envelope.messages)
       || !Object.hasOwn(envelope, 'result')
     ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_RESPONSE_ENVELOPE_INVALID');
+    if (
+      forbiddenResponseSubstring !== undefined
+      && containsForbiddenResponseValue(envelope, forbiddenResponseSubstring)
+    ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_UPLOAD_RESPONSE_INVALID');
     return Object.freeze({
       result: envelope.result,
       resultInfo: envelope.result_info,
@@ -780,6 +895,32 @@ function createApi({ apiToken, fetchImpl, requestTimeoutMilliseconds }) {
   return Object.freeze({ request, json, multipart });
 }
 
+function exactVersionUploadResult(result) {
+  const allowedKeys = new Set([
+    'exports_reconciliation',
+    'id',
+    'metadata',
+    'number',
+    'resources',
+    'startup_time_ms',
+  ]);
+  if (
+    !isRecord(result)
+    || !VERSION_ID.test(result.id ?? '')
+    || Object.keys(result).some(key => !allowedKeys.has(key))
+    || (result.resources !== undefined && !isRecord(result.resources))
+    || (result.exports_reconciliation !== undefined
+      && !isRecord(result.exports_reconciliation))
+    || (result.metadata !== undefined && !isRecord(result.metadata))
+    || (result.number !== undefined
+      && (!Number.isSafeInteger(result.number) || result.number < 1))
+    || (result.startup_time_ms !== undefined
+      && (!Number.isFinite(result.startup_time_ms)
+        || result.startup_time_ms < 0))
+  ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_UPLOAD_RESPONSE_INVALID');
+  return result.id;
+}
+
 function bindingProjection(binding) {
   if (!isRecord(binding) || typeof binding.name !== 'string') {
     fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_INVALID');
@@ -787,7 +928,10 @@ function bindingProjection(binding) {
   if (binding.type === 'plain_text' && typeof binding.text === 'string') {
     return Object.freeze({ name: binding.name, type: binding.type, text: binding.text });
   }
-  if (binding.type === 'secret_text') {
+  if (
+    binding.type === 'secret_text'
+    && Object.keys(binding).sort().join(',') === 'name,type'
+  ) {
     return Object.freeze({ name: binding.name, type: binding.type });
   }
   if (
@@ -988,6 +1132,103 @@ function exactDeployedVersion(result, deployment) {
   });
 }
 
+function exactPredecessorVersion(result, deployment, contract, sourceDigest) {
+  const deployed = exactDeployedVersion(result, deployment);
+  if (
+    !isRecord(result.resources)
+    || !Array.isArray(result.resources.bindings)
+    || !SHA256_HEX.test(result.resources.script?.etag ?? '')
+    || !isRecord(result.resources.script_runtime)
+    || Object.keys(result.resources).some(key => ![
+      'bindings', 'script', 'script_runtime',
+    ].includes(key))
+  ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_V5_PREREQUISITE_REQUIRED');
+  const runtime = result.resources.script_runtime;
+  if (
+    Object.keys(runtime).some(key => ![
+      'compatibility_date',
+      'compatibility_flags',
+      'exports',
+      'limits',
+      'migration_tag',
+      'usage_model',
+    ].includes(key))
+    || (runtime.limits !== undefined && !exactJson(runtime.limits, {}))
+    || ![undefined, 'standard'].includes(runtime.usage_model)
+    || runtime.compatibility_date !== contract.compatibilityDate
+    || !exactJson(runtime.compatibility_flags, contract.compatibilityFlags)
+    || runtime.migration_tag !== contract.migrations.at(-1).tag
+  ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_V5_PREREQUISITE_REQUIRED');
+  if (sourceDigest !== contract.sourceDigest) {
+    fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_SOURCE_MISMATCH');
+  }
+  const bindings = result.resources.bindings
+    .map(bindingProjection)
+    .sort((left, right) => left.name.localeCompare(right.name, 'en'));
+  const expected = [
+    ...Object.entries(contract.variables).map(([name, text]) => ({
+      name,
+      type: 'plain_text',
+      text,
+    })),
+    ...AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES
+      .map(name => ({ name, type: 'secret_text' })),
+    ...contract.durableObjectBindings.map(binding => ({
+      name: binding.name,
+      type: 'durable_object_namespace',
+      className: binding.className,
+    })),
+  ].sort((left, right) => left.name.localeCompare(right.name, 'en'));
+  if (!exactJson(bindings, expected)) {
+    fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_BINDING_MISMATCH');
+  }
+  if (!isRecord(runtime.exports)) {
+    fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_EXPORT_MISMATCH');
+  }
+  const durableExports = Object.entries(runtime.exports)
+    .filter(([, exported]) => exported?.type === 'durable-object')
+    .map(([name, exported]) => {
+      if (
+        !isRecord(exported)
+        || exported.type !== 'durable-object'
+        || exported.storage !== 'sqlite'
+        || exported.container !== undefined
+        || ![undefined, 'created'].includes(exported.state)
+        || Object.keys(exported).some(key => ![
+          'state', 'storage', 'type',
+        ].includes(key))
+      ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_EXPORT_MISMATCH');
+      return name;
+    })
+    .sort((left, right) => left.localeCompare(right, 'en'));
+  const expectedExports = contract.durableObjectBindings
+    .map(binding => binding.className)
+    .sort((left, right) => left.localeCompare(right, 'en'));
+  const nonDurableExports = Object.entries(runtime.exports)
+    .filter(([, exported]) => exported?.type !== 'durable-object');
+  const defaultExport = nonDurableExports[0]?.[1];
+  if (
+    !exactJson(durableExports, expectedExports)
+    || nonDurableExports.length !== 1
+    || nonDurableExports[0][0] !== 'default'
+    || !isRecord(defaultExport)
+    || defaultExport.type !== 'worker'
+    || ![undefined, 'created'].includes(defaultExport.state)
+    || (defaultExport.cache !== undefined
+      && !exactJson(defaultExport.cache, { enabled: false }))
+    || Object.keys(defaultExport).some(key => ![
+      'cache', 'state', 'type',
+    ].includes(key))
+  ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_EXPORT_MISMATCH');
+  if (deployed.versionId !== deployment.versionId) {
+    fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_MISMATCH');
+  }
+  return Object.freeze({
+    deploymentId: deployment.deploymentId,
+    versionId: deployed.versionId,
+  });
+}
+
 function exactDomain(response, contract) {
   const result = response.result;
   const info = response.resultInfo;
@@ -1072,6 +1313,7 @@ function exactWorkerScript(result, contract) {
 export function createAuthBridgeNotificationPreparedCloudflareRuntime({
   contract: contractInput,
   apiToken,
+  playerCanaryOwnerFid,
   repositoryRoot,
   serviceRoot,
   nodeExecutable,
@@ -1104,6 +1346,8 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
     typeof commandRunner !== 'function'
     || typeof clock !== 'function'
     || typeof settleDelayImpl !== 'function'
+    || !POSITIVE_FID.test(playerCanaryOwnerFid ?? '')
+    || BigInt(playerCanaryOwnerFid) > BigInt(Number.MAX_SAFE_INTEGER)
     || !Number.isSafeInteger(requestTimeoutMilliseconds)
     || requestTimeoutMilliseconds < 1_000
     || requestTimeoutMilliseconds > 30_000
@@ -1112,7 +1356,8 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
   ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_RUNTIME_INVALID');
   const api = createApi({ apiToken, fetchImpl, requestTimeoutMilliseconds });
   let preparedMultipart;
-  let preparedUploadMode;
+  let preparedPredecessorDeploymentId;
+  let preparedPredecessorVersionId;
   if (multipartBody !== undefined) {
     if (!Buffer.isBuffer(multipartBody)) {
       fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_MULTIPART_INVALID');
@@ -1158,35 +1403,6 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
     return script;
   };
 
-  const attestUploadPrerequisites = async () => {
-    const [secrets, script] = await Promise.all([
-      api.json(`${basePath}/secrets`),
-      attestInfrastructure(),
-    ]);
-    if (!Array.isArray(secrets.result)) {
-      fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_UPLOAD_PREREQUISITES_INVALID');
-    }
-    const migrationTag = script.migration_tag;
-    if (!['v4', 'v5'].includes(migrationTag)) {
-      fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_MIGRATION_MISMATCH');
-    }
-    const names = secrets.result.map(secret => {
-      if (
-        !isRecord(secret)
-        || typeof secret.name !== 'string'
-        || secret.type !== 'secret_text'
-      ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_SECRET_BINDING_MISMATCH');
-      return secret.name;
-    }).sort((left, right) => left.localeCompare(right, 'en'));
-    const expected = [...contract.secretBindingNames].sort(
-      (left, right) => left.localeCompare(right, 'en'),
-    );
-    if (!exactJson(names, expected)) {
-      fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_SECRET_BINDING_MISMATCH');
-    }
-    return Object.freeze({ migrationRequired: migrationTag === 'v4' });
-  };
-
   const prepareMultipart = async () => {
     if (preparedMultipart !== undefined) return preparedMultipart;
     const built = await buildAuthBridgeNotificationPreparedWranglerMultipart({
@@ -1208,31 +1424,19 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
     return preparedMultipart;
   };
 
-  const prepareUpload = async () => {
-    const prerequisites = await attestUploadPrerequisites();
-    await prepareMultipart();
-    preparedUploadMode = prerequisites.migrationRequired ? 'migration' : 'version';
-    return Object.freeze({
-      mode: preparedUploadMode,
-    });
-  };
-
-  const inspectVersion = async versionId => {
+  const inspectVersionSourceDigest = async versionId => {
     if (!VERSION_ID.test(versionId ?? '')) {
       fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_ID_INVALID');
     }
-    const [detail, remote] = await Promise.all([
-      api.json(`${basePath}/versions/${versionId}`),
-      api.multipart(
-        `${basePath}/content/v2?version=${versionId}`,
-      ),
-    ]);
     const source = await prepareMultipart();
     const local = inspectAuthBridgeNotificationPreparedMultipart(
       source.body,
       source.contentType,
     );
     exactMultipartMetadata(local.metadata, contract);
+    const remote = await api.multipart(
+      `${basePath}/content/v2?version=${versionId}`,
+    );
     let remoteDigest;
     try {
       const remoteParts = parseAuthBridgeNotificationPreparedMultipart(
@@ -1252,15 +1456,97 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
       remote.body.fill(0);
     }
     if (
-      !SHA256_HEX.test(detail.result?.resources?.script?.etag ?? '')
-      || local.sourceDigest !== contract.sourceDigest
+      local.sourceDigest !== contract.sourceDigest
       || remoteDigest !== contract.sourceDigest
     ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_SOURCE_UNVERIFIED');
+    return remoteDigest;
+  };
+
+  const inspectDeployedPredecessor = async () => {
+    const [deploymentResponse, script] = await Promise.all([
+      api.json(`${basePath}/deployments`),
+      attestInfrastructure(),
+    ]);
+    if (script.migration_tag !== 'v5') {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_V5_PREREQUISITE_REQUIRED');
+    }
+    const latest = exactDeployment(deploymentResponse.result);
+    const [detail, sourceDigest] = await Promise.all([
+      api.json(`${basePath}/versions/${latest.versionId}`),
+      inspectVersionSourceDigest(latest.versionId),
+    ]);
+    return exactPredecessorVersion(
+      detail.result,
+      latest,
+      contract,
+      sourceDigest,
+    );
+  };
+
+  const prepareUpload = async () => {
+    const predecessor = await inspectDeployedPredecessor();
+    await prepareMultipart();
+    preparedPredecessorDeploymentId = predecessor.deploymentId;
+    preparedPredecessorVersionId = predecessor.versionId;
+    return Object.freeze({
+      mode: 'version',
+      predecessorDeploymentId: predecessor.deploymentId,
+      predecessorVersionId: predecessor.versionId,
+    });
+  };
+
+  const assertPredecessorStable = async predecessor => {
+    if (
+      !exactKeys(predecessor, ['deploymentId', 'versionId'])
+      || !VERSION_ID.test(predecessor.deploymentId ?? '')
+      || !VERSION_ID.test(predecessor.versionId ?? '')
+      || (preparedPredecessorDeploymentId !== undefined
+        && predecessor.deploymentId !== preparedPredecessorDeploymentId)
+      || (preparedPredecessorVersionId !== undefined
+        && predecessor.versionId !== preparedPredecessorVersionId)
+    ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_MISMATCH');
+    const observed = await inspectDeployedPredecessor();
+    if (
+      observed.deploymentId !== predecessor.deploymentId
+      || observed.versionId !== predecessor.versionId
+    ) {
+      fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_DRIFT', true);
+    }
+  };
+
+  const inspectVersion = async versionId => {
+    if (!VERSION_ID.test(versionId ?? '')) {
+      fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_ID_INVALID');
+    }
+    const [detail, remoteDigest] = await Promise.all([
+      api.json(`${basePath}/versions/${versionId}`),
+      inspectVersionSourceDigest(versionId),
+    ]);
+    if (!SHA256_HEX.test(detail.result?.resources?.script?.etag ?? '')) {
+      fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_SOURCE_UNVERIFIED');
+    }
     return projectVersion(detail.result, contract, remoteDigest);
+  };
+
+  const pinnedPredecessor = () => {
+    const state = journal.inspect();
+    const deploymentId = preparedPredecessorDeploymentId
+      ?? state.predecessorDeploymentId;
+    const versionId = preparedPredecessorVersionId
+      ?? state.predecessorVersionId;
+    if (
+      [undefined, null].includes(deploymentId)
+      && [undefined, null].includes(versionId)
+    ) return undefined;
+    if (!VERSION_ID.test(deploymentId ?? '') || !VERSION_ID.test(versionId ?? '')) {
+      fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_MISMATCH');
+    }
+    return Object.freeze({ deploymentId, versionId });
   };
 
   const listCandidates = async () => {
     const candidates = [];
+    const predecessor = pinnedPredecessor();
     for (let page = 1; page <= MAX_VERSION_PAGES; page += 1) {
       const response = await api.json(
         `${basePath}/versions?deployable=true&page=${page}&per_page=100`,
@@ -1279,6 +1565,7 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
           item?.annotations?.['workers/tag'] === contract.versionTag
           || item?.annotations?.['workers/message'] === contract.versionMessage
         ) {
+          if (item.id === predecessor?.versionId) continue;
           try {
             const version = await inspectVersion(item.id);
             if (version.versionTag === contract.versionTag) candidates.push(item.id);
@@ -1304,8 +1591,15 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
   };
 
   const reconcileVersion = async () => {
+    const state = journal.inspect();
+    const phase = state.phase;
+    if (phase === 'remote-reconcile-started') {
+      await assertPredecessorStable(Object.freeze({
+        deploymentId: state.predecessorDeploymentId,
+        versionId: state.predecessorVersionId,
+      }));
+    }
     let candidates = await listCandidates();
-    const phase = journal.inspect().phase;
     if (candidates.length === 0 && phase === 'upload-invoked') {
       for (let attempt = 1;
         attempt < RECOVERY_SETTLE_ATTEMPTS && candidates.length === 0;
@@ -1320,64 +1614,93 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
         );
       }
     }
-    if (candidates.length === 0 && phase === 'prepared') {
-      await attestUploadPrerequisites();
-    }
     return candidates;
   };
 
   const uploadVersion = async (_canonicalContract, plan) => {
     if (
-      !exactKeys(plan, ['mode'])
-      || !['migration', 'version'].includes(plan.mode)
+      !exactKeys(plan, [
+        'mode', 'predecessorDeploymentId', 'predecessorVersionId',
+      ])
+      || plan.mode !== 'version'
+      || !VERSION_ID.test(plan.predecessorDeploymentId ?? '')
+      || !VERSION_ID.test(plan.predecessorVersionId ?? '')
     ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_UPLOAD_PLAN_INVALID');
     const source = await prepareMultipart();
-    if (plan.mode !== preparedUploadMode) {
+    if (
+      plan.predecessorDeploymentId !== preparedPredecessorDeploymentId
+      || plan.predecessorVersionId !== preparedPredecessorVersionId
+    ) {
       fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_UPLOAD_PLAN_STALE');
     }
-    if (plan.mode === 'migration') {
-      const local = inspectAuthBridgeNotificationPreparedMultipart(
-        source.body,
-        source.contentType,
-      );
-      const migration = reviewedV5Migration(contract);
-      const metadata = Object.freeze({
-        ...local.metadata,
-        migrations: migration,
-      });
-      exactMultipartMetadata(metadata, contract, migration);
-      const body = multipartWithMetadata(source.body, source.contentType, metadata);
-      try {
-        await api.json(`${basePath}?excludeScript=true&bindings_inherit=strict`, {
-          method: 'PUT',
+    const local = inspectAuthBridgeNotificationPreparedMultipart(
+      source.body,
+      source.contentType,
+    );
+    const {
+      keep_bindings: _discardedKeepBindings,
+      ...candidateMetadata
+    } = local.metadata;
+    const metadata = Object.freeze({
+      ...candidateMetadata,
+      bindings: Object.freeze([
+        ...local.metadata.bindings,
+        ...AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES
+          .map(name => Object.freeze({
+            name,
+            type: 'inherit',
+            version_id: plan.predecessorVersionId,
+          })),
+        Object.freeze({
+          name: AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING,
+          text: playerCanaryOwnerFid,
+          type: 'secret_text',
+        }),
+      ]),
+    });
+    exactMultipartMetadata(metadata, contract, Object.freeze({
+      playerCanaryOwnerFid,
+      predecessorVersionId: plan.predecessorVersionId,
+    }));
+    const body = multipartWithMetadata(source.body, source.contentType, metadata);
+    try {
+      const response = await api.json(
+        `${basePath}/versions?bindings_inherit=strict`,
+        {
+          method: 'POST',
           headers: { 'content-type': source.contentType },
           body,
           mutation: true,
-        });
-      } finally {
-        body.fill(0);
+          forbiddenResponseSubstring: playerCanaryOwnerFid,
+        },
+      );
+      if (response.resultInfo !== undefined) {
+        fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_UPLOAD_RESPONSE_INVALID');
       }
-      return Object.freeze({});
+      return Object.freeze({
+        versionId: exactVersionUploadResult(response.result),
+      });
+    } finally {
+      body.fill(0);
     }
-    const response = await api.json(`${basePath}/versions?bindings_inherit=strict`, {
-      method: 'POST',
-      headers: { 'content-type': source.contentType },
-      body: source.body,
-      mutation: true,
-    });
-    if (!VERSION_ID.test(response.result?.id ?? '')) {
-      fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_UPLOAD_RESPONSE_INVALID', true);
-    }
-    return Object.freeze({ versionId: response.result.id });
   };
 
   const releaseVersion = async input => {
     if (
-      !exactKeys(input, ['versionId', 'percentage', 'message'])
+      !exactKeys(input, [
+        'versionId', 'predecessorDeploymentId', 'predecessorVersionId',
+        'percentage', 'message',
+      ])
       || !VERSION_ID.test(input.versionId ?? '')
+      || !VERSION_ID.test(input.predecessorDeploymentId ?? '')
+      || !VERSION_ID.test(input.predecessorVersionId ?? '')
       || input.percentage !== 100
       || input.message !== contract.versionMessage
     ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_RELEASE_INPUT_INVALID');
+    await assertPredecessorStable(Object.freeze({
+      deploymentId: input.predecessorDeploymentId,
+      versionId: input.predecessorVersionId,
+    }));
     await api.json(`${basePath}/deployments`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -1403,16 +1726,17 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
       (await api.json(`${basePath}/versions/${latest.versionId}`)).result,
       latest,
     );
+    const predecessor = pinnedPredecessor();
+    const isPinnedPredecessor = predecessor !== undefined
+      && latest.deploymentId === predecessor.deploymentId
+      && deployedVersion.versionId === predecessor.versionId;
     if (
       deployedVersion.versionTag === contract.versionTag
+      && !isPinnedPredecessor
       && (deployedVersion.sourceCommit !== contract.sourceCommit
         || deployedVersion.versionMessage !== contract.versionMessage
         || latest.message !== contract.versionMessage
-        || latest.triggeredBy !== (
-          journal.inspect().uploadMode === 'migration'
-            ? 'upload'
-            : 'warpkeep-notification-prepared'
-        ))
+        || latest.triggeredBy !== 'warpkeep-notification-prepared')
     ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_DEPLOYMENT_INVALID');
     const now = clock();
     if (!(now instanceof Date) || Number.isNaN(now.getTime())) {
@@ -1433,39 +1757,20 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
     });
   };
 
-  const inspectDeployment = async () => {
-    let deployment = await inspectDeploymentOnce();
-    if (
-      journal.inspect().uploadMode === 'migration'
-      && deployment.versionTag !== contract.versionTag
-    ) {
-      for (let attempt = 1;
-        attempt < RECOVERY_SETTLE_ATTEMPTS
-          && deployment.versionTag !== contract.versionTag;
-        attempt += 1) {
-        await settleDelayImpl(RECOVERY_SETTLE_MILLISECONDS);
-        deployment = await inspectDeploymentOnce();
-      }
-      if (deployment.versionTag !== contract.versionTag) {
-        fail(
-          'AUTH_BRIDGE_PREPARED_DEPLOY_MIGRATION_OPERATOR_ADJUDICATION_REQUIRED',
-          true,
-        );
-      }
-    }
-    return deployment;
-  };
+  const inspectDeployment = inspectDeploymentOnce;
 
   return Object.freeze({
     prepareUpload,
     uploadVersion,
     reconcileVersion,
     inspectVersion,
+    assertPredecessorStable,
     releaseVersion,
     inspectDeployment,
     dispose() {
       preparedMultipart?.body.fill(0);
-      preparedUploadMode = undefined;
+      preparedPredecessorDeploymentId = undefined;
+      preparedPredecessorVersionId = undefined;
     },
   });
 }

@@ -711,7 +711,7 @@ test('all public polls use read gates while all mutation reducers keep full game
     'innerKeep', 'realmChat', 'resources', 'stoneExpeditions', 'woodExpeditions',
   ];
   const reducers = reducerPaths.map(name => source(`../src/reducers/${name}.ts`)).join('\n');
-  assert.equal(reducers.match(/requireGameplayReadPlayerV1\(tx\)/g)?.length, 13);
+  assert.equal(reducers.match(/requireGameplayReadPlayerV1\(tx\)/g)?.length, 14);
   assert.equal(reducers.match(/requireGreaterRealmPublicReadAuthorityV1\(tx\)/g)?.length, 5);
   assert.equal(reducers.match(/requireGameplayPlayerV1\(ctx\)/g)?.length, 16);
 

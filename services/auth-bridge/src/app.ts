@@ -134,6 +134,7 @@ const AUTH_EPOCH_PROBE_FID = '9007199254740991'
 const V2_CHALLENGE_PATH = '/v2/farcaster/challenge'
 const V2_EXCHANGE_PATH = '/v2/farcaster/exchange'
 const V2_QUICK_AUTH_EXCHANGE_PATH = '/v2/farcaster/quick-auth/exchange'
+export const PLAYER_CANARY_QUICK_AUTH_EXCHANGE_PATH = '/v2/farcaster/player-canary/exchange'
 const V2_REFRESH_PATH = '/v2/session/refresh'
 const V2_LOGOUT_PATH = '/v2/session/logout'
 const V2_ACCESS_STATUS_PATH = '/v2/access/status'
@@ -149,6 +150,7 @@ const QUICK_AUTH_BROWSER_ORIGIN = 'https://warpkeep.com'
 const QUICK_AUTH_ISSUER = 'https://auth.farcaster.xyz'
 const MAX_QUICK_AUTH_TOKEN_BYTES = 8 * 1024
 export const QUICK_AUTH_MAX_ISSUER_LIFETIME_SECONDS = 60 * 60
+export const PLAYER_CANARY_QUICK_AUTH_MAX_AGE_SECONDS = 2 * 60
 const QUICK_AUTH_VERIFIER_PACKAGE = '@farcaster/quick-auth@0.0.8'
 
 const ACCESS_REQUEST_FAILURE_EVENTS:
@@ -414,7 +416,10 @@ function accessRequestUsesBearer(request: Request): boolean {
 }
 
 function routeCorsHeaders(request: Request, config: BridgeConfig, pathname = new URL(request.url).pathname): HeadersInit {
-  if (pathname === V2_QUICK_AUTH_EXCHANGE_PATH) {
+  if (
+    pathname === V2_QUICK_AUTH_EXCHANGE_PATH
+    || pathname === PLAYER_CANARY_QUICK_AUTH_EXCHANGE_PATH
+  ) {
     const origin = request.headers.get('origin')
     return origin === QUICK_AUTH_BROWSER_ORIGIN ? quickAuthCorsHeaders(origin) : {}
   }
@@ -489,6 +494,7 @@ function isPublicAuthPath(pathname: string): boolean {
   return pathname === V2_CHALLENGE_PATH
     || pathname === V2_EXCHANGE_PATH
     || pathname === V2_QUICK_AUTH_EXCHANGE_PATH
+    || pathname === PLAYER_CANARY_QUICK_AUTH_EXCHANGE_PATH
     || pathname === V2_REFRESH_PATH
     || isAccessRequestPath(pathname)
 }
@@ -710,6 +716,8 @@ function quickAuthCredential(request: Request): string {
 
 function verifiedQuickAuthClaims(payload: unknown, nowSeconds: number): Readonly<{
   fid: string
+  issuedAtSeconds: number
+  expiresAtSeconds: number
 }> {
   if (
     !payload
@@ -740,7 +748,22 @@ function verifiedQuickAuthClaims(payload: unknown, nowSeconds: number): Readonly
   ) throw invalidQuickAuthCredential()
   return Object.freeze({
     fid: canonicalFid(claims.sub),
+    issuedAtSeconds: claims.iat,
+    expiresAtSeconds: claims.exp,
   })
+}
+
+function requireFreshPlayerCanaryQuickAuth(
+  verification: ReturnType<typeof verifiedQuickAuthClaims>,
+  nowSeconds: number,
+): void {
+  if (
+    !Number.isSafeInteger(nowSeconds)
+    || nowSeconds < verification.issuedAtSeconds
+    || nowSeconds - verification.issuedAtSeconds > PLAYER_CANARY_QUICK_AUTH_MAX_AGE_SECONDS
+  ) {
+    throw invalidQuickAuthCredential()
+  }
 }
 
 function requireString(value: unknown, name: string, maxLength: number): string {
@@ -1510,6 +1533,28 @@ async function quickAuthResponseBody(
   }
 }
 
+async function playerCanaryQuickAuthResponseBody(
+  config: BridgeConfig,
+  signer: typeof signEs256Jwt,
+  fid: string,
+  admission: Extract<AdmissionResolution, { state: 'enabled' }>,
+  issuedAtMilliseconds: number,
+): Promise<Record<string, unknown>> {
+  const issuedAt = Math.floor(issuedAtMilliseconds / 1_000)
+  if (!Number.isSafeInteger(issuedAt) || issuedAt < 0) {
+    throw new Error('Invalid signing time.')
+  }
+  const claims = playerClaims(config, issuedAt, fid, admission.authEpoch)
+  const accessToken = await signer(config, claims)
+  return {
+    version: 1,
+    status: 'authorized',
+    accessToken,
+    tokenType: 'spacetime-access',
+    accessExpiresAt: claims.exp * 1_000,
+  }
+}
+
 function accessRequestResponseBody(
   result: AccessRequestResolution,
 ): Record<string, unknown> {
@@ -1696,7 +1741,13 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
         if (request.method === 'OPTIONS' && isAccessRequestPath(url.pathname)) {
           return allowedAccessRequestPreflight(request, config)
         }
-        if (request.method === 'OPTIONS' && url.pathname === V2_QUICK_AUTH_EXCHANGE_PATH) {
+        if (
+          request.method === 'OPTIONS'
+          && (
+            url.pathname === V2_QUICK_AUTH_EXCHANGE_PATH
+            || url.pathname === PLAYER_CANARY_QUICK_AUTH_EXCHANGE_PATH
+          )
+        ) {
           return allowedQuickAuthPreflight(request)
         }
         if (request.method === 'OPTIONS' && isCredentialedPath(url.pathname)) {
@@ -2054,6 +2105,109 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           }
           verifiedQuickAuthClaims(verifiedPayload, Math.floor(completedAt / 1_000))
           logger.event('quick_auth_succeeded')
+          return json(responseBody, 200, quickAuthCorsHeaders(origin))
+        }
+
+        if (request.method === 'POST' && url.pathname === PLAYER_CANARY_QUICK_AUTH_EXCHANGE_PATH) {
+          const origin = requireQuickAuthBrowserOrigin(request)
+          if (url.search) {
+            throw new HttpError(400, 'player_canary_query_not_allowed', 'This endpoint does not accept query parameters.')
+          }
+          if (config.playerCanaryOwnerFid === undefined) {
+            throw new HttpError(503, 'player_canary_unavailable', 'The production player canary is unavailable.')
+          }
+          await enforceRateLimit(request, 'exchange', env, dependencies.rateLimiter, logger)
+          requireExactKeys(await parseObjectBody(request), [])
+
+          let token = quickAuthCredential(request)
+          let verifiedPayload: unknown
+          try {
+            verifiedPayload = await verifyQuickAuthWithDeadline(
+              dependencies.quickAuthVerifier ?? defaultQuickAuthVerifier(),
+              {
+                token,
+                domain: QUICK_AUTH_DOMAIN,
+              },
+            )
+          } catch (error) {
+            if (error instanceof QuickAuthErrors.InvalidTokenError) {
+              throw invalidQuickAuthCredential()
+            }
+            logger.event('quick_auth_verifier_unavailable')
+            throw new HttpError(
+              503,
+              'verification_unavailable',
+              'Farcaster authentication is temporarily unavailable.',
+            )
+          } finally {
+            token = ''
+          }
+
+          const verifiedAt = now()
+          if (!Number.isSafeInteger(verifiedAt) || verifiedAt < 0) {
+            throw new HttpError(503, 'verification_unavailable', 'Farcaster authentication is temporarily unavailable.')
+          }
+          const verification = verifiedQuickAuthClaims(verifiedPayload, Math.floor(verifiedAt / 1_000))
+          requireFreshPlayerCanaryQuickAuth(verification, Math.floor(verifiedAt / 1_000))
+          if (!(await timingSafeSecretMatch(verification.fid, config.playerCanaryOwnerFid))) {
+            throw new HttpError(403, 'player_canary_forbidden', 'Canary authorization was not granted.')
+          }
+
+          let admission: AdmissionResolution
+          try {
+            admission = requireAdmission(
+              await (dependencies.authEpochResolver ?? defaultAuthEpochResolver(config)).resolve(verification.fid),
+            )
+          } catch (error) {
+            logAuthEpochFailure(logger, error)
+            throw new HttpError(503, 'authorization_unavailable', 'Authorization is temporarily unavailable.')
+          }
+          logger.event('auth_epoch_resolved')
+          if (admission.state !== 'enabled') {
+            throw new HttpError(403, 'player_canary_forbidden', 'Canary authorization was not granted.')
+          }
+
+          const signingTime = now()
+          if (!Number.isSafeInteger(signingTime) || signingTime < verifiedAt) {
+            throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')
+          }
+          const signingVerification = verifiedQuickAuthClaims(
+            verifiedPayload,
+            Math.floor(signingTime / 1_000),
+          )
+          requireFreshPlayerCanaryQuickAuth(signingVerification, Math.floor(signingTime / 1_000))
+          if (!(await timingSafeSecretMatch(signingVerification.fid, config.playerCanaryOwnerFid))) {
+            throw new HttpError(403, 'player_canary_forbidden', 'Canary authorization was not granted.')
+          }
+
+          let responseBody: Record<string, unknown>
+          try {
+            responseBody = await playerCanaryQuickAuthResponseBody(
+              config,
+              dependencies.signer ?? signEs256Jwt,
+              signingVerification.fid,
+              admission,
+              signingTime,
+            )
+          } catch (error) {
+            if (error instanceof HttpError) throw error
+            logger.event('configuration_error')
+            throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')
+          }
+
+          const completedAt = now()
+          if (!Number.isSafeInteger(completedAt) || completedAt < signingTime) {
+            throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')
+          }
+          const completionVerification = verifiedQuickAuthClaims(
+            verifiedPayload,
+            Math.floor(completedAt / 1_000),
+          )
+          requireFreshPlayerCanaryQuickAuth(completionVerification, Math.floor(completedAt / 1_000))
+          if (!(await timingSafeSecretMatch(completionVerification.fid, config.playerCanaryOwnerFid))) {
+            throw new HttpError(403, 'player_canary_forbidden', 'Canary authorization was not granted.')
+          }
+          logger.event('player_canary_exchange_succeeded')
           return json(responseBody, 200, quickAuthCorsHeaders(origin))
         }
 
@@ -2968,6 +3122,9 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
         throw new HttpError(404, 'not_found', 'Route not found.')
       } catch (error) {
         if (url.pathname === V2_QUICK_AUTH_EXCHANGE_PATH) logger.event('quick_auth_rejected')
+        if (url.pathname === PLAYER_CANARY_QUICK_AUTH_EXCHANGE_PATH) {
+          logger.event('player_canary_exchange_rejected')
+        }
         if (isAccessRequestPath(url.pathname)) logger.event('access_request_rejected')
         if (error instanceof HttpError) {
           if (url.pathname === QA_OBSERVER_CHALLENGE_PATH) logger.event('qa_challenge_rejected')

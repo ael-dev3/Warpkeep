@@ -287,7 +287,8 @@ describe('local QA production exclusion', () => {
     expect(fullstackBrowser).not.toMatch(
       /from ['"][^'"]*(?:services\/auth-bridge|farcasterAuthClient|farcasterOidcBridgeClient)['"]/
     );
-    expect(viteConfig).toContain("input: resolve(process.cwd(), 'index.html')");
+    expect(viteConfig).toContain("application: resolve(process.cwd(), 'index.html')");
+    expect(viteConfig).toContain("ownerCanary: resolve(process.cwd(), 'owner-canary/index.html')");
     expect(viteConfig).toContain("__WARPKEEP_LOCAL_QA__: JSON.stringify(command === 'serve')");
     expect(viteConfig).toContain('warpkeep-local-serve-csp-boundary');
     expect(viteConfig).toContain('data-warpkeep-production-csp');

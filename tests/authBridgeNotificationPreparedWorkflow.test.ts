@@ -770,7 +770,10 @@ describe('notification-bridge-prepared protected workflow', () => {
       "VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'false'",
     );
     expect(pages).not.toContain('vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED');
-    expect(verifyAuthBridgeNotificationPreparedStaticPolicy({ repositoryRoot }))
+    const policyRoot = createPolicyFixture();
+    expect(verifyAuthBridgeNotificationPreparedStaticPolicy({
+      repositoryRoot: policyRoot,
+    }))
       .toEqual({
         bridgeNotificationDeliveryEnabled: true,
         hermesExecutionApproved: false,
@@ -781,7 +784,7 @@ describe('notification-bridge-prepared protected workflow', () => {
         guardedRecoveryRequired: true,
         privateReceiptSinkRequired: true,
         installedToolchainByteAttestationRequired: true,
-        executableSecurityClosureMemberCount: 307,
+        executableSecurityClosureMemberCount: 361,
       });
   }, 60_000);
 
@@ -799,7 +802,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     });
     expect(paths).toEqual(manifest.members.map(member => member.path));
     expect(manifest.schemaVersion).toBe(2);
-    expect(paths).toHaveLength(307);
+    expect(paths).toHaveLength(361);
     expect(paths).toEqual(expect.arrayContaining([
       'scripts/auth-bridge-notification-prepared-deploy.mjs',
       'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
@@ -841,6 +844,9 @@ describe('notification-bridge-prepared protected workflow', () => {
       'scripts/notification-pages-live-release-binding.mjs',
       'scripts/notification-pages-private-release-binding.mjs',
       'scripts/notification-pages-release-source-parser.mjs',
+      'scripts/production-player-canary-release-binding.mjs',
+      'scripts/production-player-canary-operator-journal.mjs',
+      'scripts/production-player-canary-operator.mjs',
       'src/greater-realm/greaterRealmTransport.ts',
       'src/spacetime/greaterRealmProviderBridge.ts',
     ]));
@@ -849,6 +855,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       'scripts/greater-realm-production-bootstrap.mjs',
       'scripts/validate-pages-deploy-config.mjs',
       'scripts/verify-alpha-production.mjs',
+      'scripts/verify-production-dist-exclusions.mjs',
     ]);
     expect(paths.filter(path => path.endsWith('.mjs')).length).toBe(
       paths.filter(path => path.endsWith('.d.mts')).length
@@ -858,7 +865,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       repositoryRoot: root,
     })).toMatchObject({
         profile: 'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1',
-        memberCount: 307,
+        memberCount: 361,
         manifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
       });
   }, 90_000);
@@ -929,7 +936,9 @@ describe('notification-bridge-prepared protected workflow', () => {
         .update(readFileSync(resolve(extra, extraPath)))
         .digest('hex'),
     });
-    extraManifest.members.sort((left, right) => left.path.localeCompare(right.path, 'en'));
+    extraManifest.members.sort((left, right) => (
+      left.path < right.path ? -1 : left.path > right.path ? 1 : 0
+    ));
     writeFileSync(extraManifestPath, `${JSON.stringify(extraManifest, null, 2)}\n`);
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: extra,
@@ -1309,6 +1318,8 @@ describe('notification-bridge-prepared protected workflow', () => {
         '${{ secrets.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN }}',
       WARPKEEP_AUTH_BRIDGE_ZONE_ID:
         '${{ secrets.WARPKEEP_AUTH_BRIDGE_ZONE_ID }}',
+      WARPKEEP_PLAYER_CANARY_OWNER_FID:
+        '${{ secrets.WARPKEEP_PLAYER_CANARY_OWNER_FID }}',
       WARPKEEP_PRODUCTION_ADMIN_TOKEN:
         '${{ secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN }}',
     };
@@ -1319,7 +1330,14 @@ describe('notification-bridge-prepared protected workflow', () => {
       'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
     );
     expect(preparedJob().env).not.toHaveProperty('WARPKEEP_PRODUCTION_ADMIN_TOKEN');
-    expect(source.match(/secrets\./gu)).toHaveLength(8);
+    expect(preparedJob().env).not.toHaveProperty(
+      'WARPKEEP_PLAYER_CANARY_OWNER_FID',
+    );
+    expect(source.match(/secrets\./gu)).toHaveLength(10);
+    expect(source.match(
+      /WARPKEEP_PLAYER_CANARY_OWNER_FID: \$\{\{ secrets\.WARPKEEP_PLAYER_CANARY_OWNER_FID \}\}/gu,
+    )).toHaveLength(2);
+    expect(source).not.toMatch(/^\s+PLAYER_CANARY_OWNER_FID:/mu);
     expect(source.match(
       /AUTH_BRIDGE_PREPARED_DEPLOY_CREDENTIALS_INVALID/gu,
     )).toHaveLength(2);
@@ -1371,6 +1389,10 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(sourceAfterInstalledIndex).toBeGreaterThan(installedIndex);
     expect(scrubIndex).toBeGreaterThan(sourceAfterInstalledIndex);
     expect(runtimeImportIndex).toBeGreaterThan(scrubIndex);
+    expect(entrypoint).toContain("'WARPKEEP_PLAYER_CANARY_OWNER_FID'");
+    expect(entrypoint).not.toMatch(
+      /process\.(?:stdout|stderr)[\s\S]{0,256}WARPKEEP_PLAYER_CANARY_OWNER_FID/u,
+    );
   });
 
   it('always attempts guarded recovery after failure and rejects an unverified outcome', () => {

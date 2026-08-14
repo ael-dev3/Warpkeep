@@ -1,10 +1,14 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 
 import { tables as generatedTables } from '../src/spacetime/module_bindings'
-import { DbConnection, tables as playerTables } from '../src/spacetime/playerModuleBindings'
+import {
+  DbConnection,
+  tables as playerTables,
+  type ProductionPlayerCanaryRuntimeRoutePlanV1,
+} from '../src/spacetime/playerModuleBindings'
 
 const PLAYER_TABLE_KEYS = [
   'castle',
@@ -112,6 +116,7 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).toContain("'get_my_resource_state_v2'")
     expect(playerBindings).toContain("'get_my_worker_control_state_v1'")
     expect(playerBindings).toContain("'get_my_worker_roster_v1'")
+    expect(playerBindings).toContain("'get_production_player_canary_runtime_v1'")
     expect(playerBindings).toContain("'get_realm_chat_history_v1'")
     expect(playerBindings).toContain("'get_realm_chat_recent_v1'")
     expect(playerBindings).toContain("'get_realm_atlas_bootstrap_v1'")
@@ -171,6 +176,12 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).not.toContain("name: 'greater_realm_cell_occupancy_v1'")
     expect(playerBindings).not.toContain('admin_import_greater_realm')
     expect(playerBindings).not.toContain('admin_finalize_greater_realm')
+    expect(playerBindings).not.toContain('admin_capture_production_player_canary_baseline_v1')
+    expect(playerBindings).not.toContain('admin_get_production_player_canary_approval_v1')
+    expect(playerBindings).not.toContain('admin_get_production_player_canary_baseline_v1')
+    expect(playerBindings).not.toContain('admin_get_production_player_canary_evidence_v1')
+    expect(playerBindings).not.toContain('admin_plan_production_player_canary_routes_v1')
+    expect(playerBindings).not.toContain('admin_register_production_player_canary_approval_v1')
   })
 
   it('exposes only the player reducer and procedure accessors at runtime', () => {
@@ -226,6 +237,7 @@ describe('player SpacetimeDB bindings', () => {
       'getMyWorkerControlStateV1',
       'getMyWorkerControlStateV2',
       'getMyWorkerRosterV1',
+      'getProductionPlayerCanaryRuntimeV1',
       'getRealmAtlasBootstrapV1',
       'getRealmAtlasChunkV1',
       'getRealmAtlasResourceLocationsV1',
@@ -234,6 +246,35 @@ describe('player SpacetimeDB bindings', () => {
       'getRealmChatRecentV1',
       'planRealmRouteV1',
     ])
+
+    expectTypeOf(
+      connection.procedures.getProductionPlayerCanaryRuntimeV1,
+    ).parameter(0).toEqualTypeOf<{
+      evidenceNonce: string
+      reviewedAdmissionPlanDigest: string
+      routeSetCommitment: string
+    }>()
+    expectTypeOf(
+      connection.procedures.getProductionPlayerCanaryRuntimeV1,
+    ).returns.toEqualTypeOf<Promise<ProductionPlayerCanaryRuntimeRoutePlanV1>>()
+    expect(connection.procedures).not.toHaveProperty(
+      'adminGetProductionPlayerCanaryApprovalV1',
+    )
+    expect(connection.procedures).not.toHaveProperty(
+      'adminGetProductionPlayerCanaryBaselineV1',
+    )
+    expect(connection.procedures).not.toHaveProperty(
+      'adminGetProductionPlayerCanaryEvidenceV1',
+    )
+    expect(connection.procedures).not.toHaveProperty(
+      'adminPlanProductionPlayerCanaryRoutesV1',
+    )
+    expect(connection.reducers).not.toHaveProperty(
+      'adminCaptureProductionPlayerCanaryBaselineV1',
+    )
+    expect(connection.reducers).not.toHaveProperty(
+      'adminRegisterProductionPlayerCanaryApprovalV1',
+    )
 
     connection.disconnect()
   })

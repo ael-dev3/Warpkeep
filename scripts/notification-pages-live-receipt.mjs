@@ -74,6 +74,10 @@ import {
   requireCurrentProductionAdminProcessIdentity,
 } from './production-admin-token-budget.mjs';
 import { verifyFrontend } from './verify-alpha-production.mjs';
+import {
+  productionPlayerCanaryActivationAuthorityDigest,
+  requireFreshProductionPlayerCanaryActivationAuthority,
+} from './production-player-canary-receipt.mjs';
 
 export const NOTIFICATION_PAGES_LIVE_RECEIPT_KIND =
   'warpkeep-notification-pages-live-v1';
@@ -136,6 +140,18 @@ export const NOTIFICATION_PAGES_LIVE_PROTECTED_PATHS = Object.freeze([
   'scripts/profiles/founder-admission-plan.ts',
   'scripts/profiles/profile-transport.ts',
   'scripts/production-admin-token-budget.mjs',
+  'scripts/production-player-canary-admin-transport.ts',
+  'scripts/production-player-canary-baseline-reconciliation.mjs',
+  'scripts/production-player-canary-command-authority.mjs',
+  'scripts/production-player-canary-core.ts',
+  'scripts/production-player-canary-deploy-authority.mjs',
+  'scripts/production-player-canary-evidence-authority.mjs',
+  'scripts/production-player-canary-operator-journal.mjs',
+  'scripts/production-player-canary-operator.mjs',
+  'scripts/production-player-canary-owner-approval.mjs',
+  'scripts/production-player-canary-receipt.mjs',
+  'scripts/production-player-canary-release-binding.mjs',
+  'scripts/notification-pages-private-deploy-operator.mjs',
   'scripts/qa-observer/local-vite-fs-deny.mjs',
   'scripts/validate-pages-deploy-config.mjs',
   'scripts/verify-alpha-production.mjs',
@@ -186,6 +202,15 @@ export const NOTIFICATION_PAGES_LIVE_CANDIDATE_PROTECTED_PATHS = Object.freeze([
   'scripts/notification-pages-private-handoff.d.mts',
   'scripts/notification-pages-private-handoff.mjs',
   'scripts/production-admin-token-budget.mjs',
+  'scripts/production-player-canary-admin-transport.ts',
+  'scripts/production-player-canary-baseline-reconciliation.mjs',
+  'scripts/production-player-canary-core.ts',
+  'scripts/production-player-canary-deploy-authority.mjs',
+  'scripts/production-player-canary-evidence-authority.mjs',
+  'scripts/production-player-canary-owner-approval.mjs',
+  'scripts/production-player-canary-receipt.mjs',
+  'scripts/production-player-canary-release-binding.mjs',
+  'scripts/notification-pages-private-deploy-operator.mjs',
   'scripts/profiles/farcaster-profile-policy.ts',
   'scripts/profiles/founder-admission-plan.ts',
   'scripts/profiles/profile-transport.ts',
@@ -219,6 +244,28 @@ export const NOTIFICATION_PAGES_LIVE_CANDIDATE_PROTECTED_PATHS = Object.freeze([
   'tsconfig.node.json',
   'vite.config.ts',
 ]);
+
+export const NOTIFICATION_PAGES_PRODUCTION_PLAYER_CANARY_ACTIVATION_PATHS =
+  Object.freeze([
+    'CHANGELOG.md',
+    'README.md',
+    'index.html',
+    'package-lock.json',
+    'package.json',
+    'public/.well-known/farcaster.json',
+    'scripts/farcaster-miniapp-contract.mjs',
+    'scripts/greater-realm-downstream-release-policy.ts',
+    'scripts/production-player-canary-release-binding.mjs',
+    'src/components/menu/latestPatchNotes.ts',
+    'src/greater-realm/greaterRealmTransport.ts',
+    'src/spacetime/greaterRealmProviderBridge.ts',
+    'tests/buildInfo.test.ts',
+    'tests/deploymentBase.test.ts',
+    'tests/farcasterMiniAppContract.test.ts',
+    'tests/latestPatchNotes.test.ts',
+    'tests/menuFarcasterAuthIntegration.test.tsx',
+    'tests/menuMainMenu.test.tsx',
+  ]);
 
 const DIRECTORY_MODE = 0o700;
 const FILE_MODE = 0o600;
@@ -382,6 +429,7 @@ const CANDIDATE_KEYS = Object.freeze([
   'protectedPathsDigest',
   'stagedHandoffBinding',
   'stagedHandoffBindingDigest',
+  'productionPlayerCanaryActivationAuthorityDigest',
 ]);
 const STAGED_HANDOFF_BINDING_KEYS = Object.freeze([
   'handoff',
@@ -436,6 +484,8 @@ const PREPARED_BINDING_SOURCE_PATH =
   'scripts/auth-bridge-notification-prepared-release-binding.mjs';
 const PRIVATE_BINDING_SOURCE_PATH =
   'scripts/notification-pages-private-release-binding.mjs';
+const PRODUCTION_PLAYER_CANARY_BINDING_SOURCE_PATH =
+  'scripts/production-player-canary-release-binding.mjs';
 const PRESENTATION_SOURCE_ROOT = 'src/main.tsx';
 const PRESENTATION_REALM_EXEMPTION = Object.freeze({
   importer: 'src/components/WarpkeepExperience.tsx',
@@ -1050,6 +1100,15 @@ function parseCandidateAuthority(value, { now } = {}) {
           typeof value.stagedHandoffBindingDigest !== 'string'
           || !SHA256.test(value.stagedHandoffBindingDigest)
         )
+    )
+    || !(
+      value.productionPlayerCanaryActivationAuthorityDigest === null
+      || (
+        typeof value.productionPlayerCanaryActivationAuthorityDigest === 'string'
+        && SHA256.test(
+          value.productionPlayerCanaryActivationAuthorityDigest,
+        )
+      )
     )
   ) fail('NOTIFICATION_PAGES_LIVE_CANDIDATE_AUTHORITY_INVALID');
   let stagedHandoffBinding = null;
@@ -3424,6 +3483,252 @@ function privateBindingAtCommit(commit) {
   });
 }
 
+function productionPlayerCanaryBindingAtCommit(commit) {
+  const code = 'NOTIFICATION_PAGES_LIVE_PLAYER_CANARY_BINDING_SOURCE_INVALID';
+  return exactAuxiliaryReleaseBindingSource({
+    source: sourceAtCommit(
+      commit,
+      PRODUCTION_PLAYER_CANARY_BINDING_SOURCE_PATH,
+      code,
+    ),
+    fileName: '/notification-pages-live-phase/production-player-canary-binding.mjs',
+    variableName: 'PRODUCTION_PLAYER_CANARY_RELEASE_BINDING',
+    fields: [
+      { key: 'productionPlayerCanaryReceiptDigest', type: 'digest' },
+      { key: 'productionPlayerCanarySourceCommit', type: 'commit' },
+    ],
+    code,
+  });
+}
+
+function exactChangedPaths(predecessor, candidate, code) {
+  const result = gitResult([
+    'diff', '--name-only', '--no-renames', '-z', predecessor, candidate, '--',
+  ]);
+  if (result.status !== 0 || !result.stdout.endsWith('\0')) fail(code);
+  const paths = result.stdout.slice(0, -1).split('\0');
+  if (
+    paths.length < 1
+    || paths.some(path => path.length < 1 || path !== resolve('/', path).slice(1))
+  ) fail(code);
+  return Object.freeze(paths.sort());
+}
+
+function exactProjectedBooleanSource(commit, path, declarations, code) {
+  let source = sourceAtCommit(commit, path, code);
+  const values = {};
+  const escape = value => value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+  for (const declaration of declarations) {
+    const pattern = new RegExp(
+      `(${escape(declaration.prefix)})(false|true)(${escape(declaration.suffix)})`,
+      'gu',
+    );
+    const matches = [...source.matchAll(pattern)];
+    if (matches.length !== 1) fail(code);
+    values[declaration.key] = matches[0][2] === 'true';
+    source = source.slice(0, matches[0].index)
+      + matches[0][1]
+      + `<${declaration.key}>`
+      + matches[0][3]
+      + source.slice(matches[0].index + matches[0][0].length);
+  }
+  return Object.freeze({ values: Object.freeze(values), projection: source });
+}
+
+function exactReleaseIdentityAtCommit(commit, code) {
+  let packageValue;
+  let lockValue;
+  let manifestValue;
+  try {
+    packageValue = JSON.parse(sourceAtCommit(commit, 'package.json', code));
+    lockValue = JSON.parse(sourceAtCommit(commit, 'package-lock.json', code));
+    manifestValue = JSON.parse(sourceAtCommit(
+      commit,
+      'public/.well-known/farcaster.json',
+      code,
+    ));
+  } catch {
+    fail(code);
+  }
+  const contractSource = sourceAtCommit(
+    commit,
+    'scripts/farcaster-miniapp-contract.mjs',
+    code,
+  );
+  const contractDescriptions = [...contractSource.matchAll(
+    /^  description:\n    '([^'\r\n]+)',$/gmu,
+  )];
+  if (
+    typeof packageValue?.version !== 'string'
+    || lockValue?.version !== packageValue.version
+    || lockValue?.packages?.['']?.version !== packageValue.version
+    || typeof manifestValue?.miniapp?.description !== 'string'
+    || contractDescriptions.length !== 1
+    || contractDescriptions[0][1] !== manifestValue.miniapp.description
+  ) fail(code);
+  return Object.freeze({
+    version: packageValue.version,
+    description: manifestValue.miniapp.description,
+  });
+}
+
+const WORLD_FOUNDATION_DESCRIPTION =
+  'Explore a six-region world foundation. The core gameplay loop remains incomplete; invite-only Alpha.';
+const INERT_WORLD_DESCRIPTION =
+  'Command four Workers, gather resources and return to a permanent keep in Genesis 001. Invite-only Alpha.';
+
+/**
+ * Source-only prerequisite for the historical Hermes lookup. It recognizes one
+ * exact C6 -> C7 source shape but grants no deployment authority by itself.
+ */
+function assertProductionPlayerCanaryActivationSourceTransition(
+  predecessor,
+  candidate,
+) {
+  const code = 'NOTIFICATION_PAGES_LIVE_PLAYER_CANARY_TRANSITION_INVALID';
+  exactCommit(predecessor, code);
+  exactCommit(candidate, code);
+  assertAncestor(predecessor, candidate, code);
+  const changed = exactChangedPaths(predecessor, candidate, code);
+  const expected = [...NOTIFICATION_PAGES_PRODUCTION_PLAYER_CANARY_ACTIVATION_PATHS]
+    .sort();
+  if (JSON.stringify(changed) !== JSON.stringify(expected)) fail(code);
+
+  const predecessorBinding = productionPlayerCanaryBindingAtCommit(predecessor);
+  const candidateBinding = productionPlayerCanaryBindingAtCommit(candidate);
+  if (
+    predecessorBinding.values.productionPlayerCanaryReceiptDigest !== null
+    || predecessorBinding.values.productionPlayerCanarySourceCommit !== null
+    || candidateBinding.values.productionPlayerCanaryReceiptDigest === null
+    || candidateBinding.values.productionPlayerCanarySourceCommit !== predecessor
+    || predecessorBinding.sourceProjection !== candidateBinding.sourceProjection
+  ) fail(code);
+
+  const downstreamDeclarations = [
+    { key: 'client', prefix: '  clientActivationApproved: ', suffix: ',' },
+    { key: 'notifications', prefix: '  admissionNotificationsApproved: ', suffix: ',' },
+  ];
+  const predecessorDownstream = exactProjectedBooleanSource(
+    predecessor,
+    'scripts/greater-realm-downstream-release-policy.ts',
+    downstreamDeclarations,
+    code,
+  );
+  const candidateDownstream = exactProjectedBooleanSource(
+    candidate,
+    'scripts/greater-realm-downstream-release-policy.ts',
+    downstreamDeclarations,
+    code,
+  );
+  const clientDeclarations = [{
+    key: 'clientPresentation',
+    prefix: 'export const GREATER_REALM_CLIENT_PRESENTATION_ALLOWED = ',
+    suffix: ' as const;',
+  }];
+  const serverDeclarations = [{
+    key: 'serverPresentation',
+    prefix: 'export const GREATER_REALM_SERVER_PRESENTATION_ALLOWED = ',
+    suffix: ' as const;',
+  }];
+  const predecessorClient = exactProjectedBooleanSource(
+    predecessor,
+    'src/spacetime/greaterRealmProviderBridge.ts',
+    clientDeclarations,
+    code,
+  );
+  const candidateClient = exactProjectedBooleanSource(
+    candidate,
+    'src/spacetime/greaterRealmProviderBridge.ts',
+    clientDeclarations,
+    code,
+  );
+  const predecessorServer = exactProjectedBooleanSource(
+    predecessor,
+    'src/greater-realm/greaterRealmTransport.ts',
+    serverDeclarations,
+    code,
+  );
+  const candidateServer = exactProjectedBooleanSource(
+    candidate,
+    'src/greater-realm/greaterRealmTransport.ts',
+    serverDeclarations,
+    code,
+  );
+  if (
+    predecessorDownstream.projection !== candidateDownstream.projection
+    || predecessorDownstream.values.client !== false
+    || predecessorDownstream.values.notifications !== true
+    || candidateDownstream.values.client !== true
+    || candidateDownstream.values.notifications !== true
+    || predecessorClient.projection !== candidateClient.projection
+    || predecessorClient.values.clientPresentation !== false
+    || candidateClient.values.clientPresentation !== true
+    || predecessorServer.projection !== candidateServer.projection
+    || predecessorServer.values.serverPresentation !== false
+    || candidateServer.values.serverPresentation !== true
+  ) fail(code);
+
+  const predecessorIdentity = exactReleaseIdentityAtCommit(predecessor, code);
+  const candidateIdentity = exactReleaseIdentityAtCommit(candidate, code);
+  if (
+    predecessorIdentity.version !== '0.3.43'
+    || predecessorIdentity.description !== INERT_WORLD_DESCRIPTION
+    || candidateIdentity.version !== '0.3.44'
+    || candidateIdentity.description !== WORLD_FOUNDATION_DESCRIPTION
+  ) fail(code);
+  const predecessorPhase = notificationPagesSourcePhase(predecessor);
+  const candidatePhase = notificationPagesSourcePhase(candidate);
+  if (
+    predecessorPhase.pagesPresentationEnabled !== true
+    || predecessorPhase.hermesExecutionApproved !== true
+    || candidatePhase.pagesPresentationEnabled !== true
+    || candidatePhase.hermesExecutionApproved !== true
+  ) fail(code);
+  return Object.freeze({
+    predecessorPagesSourceCommit: predecessor,
+    candidatePagesSourceCommit: candidate,
+    productionPlayerCanaryReceiptDigest:
+      candidateBinding.values.productionPlayerCanaryReceiptDigest,
+  });
+}
+
+export function assertNotificationPagesProductionPlayerCanaryActivationTransition({
+  predecessorPagesSourceCommit,
+  candidatePagesSourceCommit,
+  activationAuthority,
+  now = Date.now(),
+} = {}) {
+  const transition = assertProductionPlayerCanaryActivationSourceTransition(
+    predecessorPagesSourceCommit,
+    candidatePagesSourceCommit,
+  );
+  const authority = requireFreshProductionPlayerCanaryActivationAuthority(
+    activationAuthority,
+    {
+      candidatePagesSourceCommit,
+      predecessorPagesSourceCommit,
+      now,
+    },
+  );
+  const predecessorTreeResult = gitResult([
+    'rev-parse', '--verify', `${predecessorPagesSourceCommit}^{tree}`,
+  ]);
+  const predecessorTree = predecessorTreeResult.stdout.trim();
+  if (predecessorTreeResult.status !== 0 || !SOURCE_COMMIT.test(predecessorTree)) {
+    fail('NOTIFICATION_PAGES_LIVE_PLAYER_CANARY_TRANSITION_INVALID');
+  }
+  if (
+    authority.productionPlayerCanaryReceiptDigest
+      !== transition.productionPlayerCanaryReceiptDigest
+    || authority.productionPlayerCanarySourceTree !== predecessorTree
+  ) fail('NOTIFICATION_PAGES_LIVE_PLAYER_CANARY_AUTHORITY_MISMATCH');
+  return Object.freeze({
+    ...transition,
+    productionPlayerCanaryActivationAuthorityDigest:
+      productionPlayerCanaryActivationAuthorityDigest(authority),
+  });
+}
+
 function assertCandidateAuxiliaryReleaseBindingTransition({
   candidate,
   predecessor,
@@ -5166,6 +5471,54 @@ export async function inspectPrivateNotificationPagesLiveReceiptByPagesSourceCom
   return inspected;
 }
 
+/**
+ * Exact historical C6 lookup used only while an exact clean C7 descendant is
+ * being privately authenticated. This is deliberately a separate API from the
+ * current-source Hermes lookup so ordinary callers cannot weaken HEAD==source.
+ */
+export async function inspectPrivateNotificationPagesLiveReceiptForActivationPredecessor({
+  directory,
+  repositoryRoot,
+  candidatePagesSourceCommit,
+  pagesSourceCommit,
+  expectedChainRootReceiptDigest,
+  expectedChainRootPagesSourceCommit,
+  fetchImpl = fetch,
+  now = new Date(),
+} = {}) {
+  canonicalRepositoryRoot(repositoryRoot);
+  const candidate = exactCommit(
+    candidatePagesSourceCommit,
+    'NOTIFICATION_PAGES_LIVE_CANDIDATE_SOURCE_INVALID',
+  );
+  const predecessor = exactCommit(
+    pagesSourceCommit,
+    'NOTIFICATION_PAGES_LIVE_EXPECTED_PAGES_SOURCE_INVALID',
+  );
+  if (candidate === predecessor || currentHead() !== candidate) {
+    fail('NOTIFICATION_PAGES_LIVE_EXPECTED_PREDECESSOR_NOT_CANDIDATE_HEAD');
+  }
+  assertCleanProtectedCheckout();
+  assertProductionPlayerCanaryActivationSourceTransition(
+    predecessor,
+    candidate,
+  );
+  const entry = staticReceiptEntryBySource({
+    directory,
+    repositoryRoot,
+    pagesSourceCommit: predecessor,
+    now,
+  });
+  assertExpectedChainRoot(
+    entry,
+    expectedChainRootReceiptDigest,
+    expectedChainRootPagesSourceCommit,
+  );
+  const inspected = await inspectEntry(entry, fetchImpl, now);
+  assertExactCleanHead(candidate);
+  return inspected;
+}
+
 function commitDistance(ancestor, descendant) {
   const result = gitResult(['rev-list', '--count', `${ancestor}..${descendant}`]);
   const value = result.status === 0 ? result.stdout.trim() : '';
@@ -5281,6 +5634,7 @@ export async function inspectLatestPrivateNotificationPagesLiveReceiptForCandida
   fetchImpl = fetch,
   now = new Date(),
   randomBytesImpl = randomBytes,
+  productionPlayerCanaryActivationAuthority,
 } = {}) {
   const candidate = exactCommit(
     candidatePagesSourceCommit,
@@ -5376,8 +5730,39 @@ export async function inspectLatestPrivateNotificationPagesLiveReceiptForCandida
       existingClaim !== null
       && existingClaim.authority.stagedHandoffBinding !== null
     );
+  const candidatePlayerCanaryBinding =
+    productionPlayerCanaryBindingAtCommit(candidate);
+  const usesProductionPlayerCanaryPolicy =
+    candidatePlayerCanaryBinding.values
+      .productionPlayerCanaryReceiptDigest !== null
+    || (
+      existingClaim !== null
+      && existingClaim.authority
+        .productionPlayerCanaryActivationAuthorityDigest !== null
+    );
+  let productionPlayerCanaryTransition = null;
+  if (usesProductionPlayerCanaryPolicy) {
+    productionPlayerCanaryTransition =
+      assertNotificationPagesProductionPlayerCanaryActivationTransition({
+        predecessorPagesSourceCommit: latest.receipt.pages.sourceCommit,
+        candidatePagesSourceCommit: candidate,
+        activationAuthority: productionPlayerCanaryActivationAuthority,
+        now: now.getTime(),
+      });
+    if (
+      existingClaim !== null
+      && existingClaim.authority
+        .productionPlayerCanaryActivationAuthorityDigest
+          !== productionPlayerCanaryTransition
+            .productionPlayerCanaryActivationAuthorityDigest
+    ) fail('NOTIFICATION_PAGES_LIVE_PLAYER_CANARY_AUTHORITY_MISMATCH');
+  }
   assertCandidateReleaseBinding({ candidate, predecessor: latest });
-  if (!usesStagedPolicy) {
+  if (usesProductionPlayerCanaryPolicy) {
+    if (usesStagedPolicy) {
+      fail('NOTIFICATION_PAGES_LIVE_PLAYER_CANARY_TRANSITION_INVALID');
+    }
+  } else if (!usesStagedPolicy) {
     assertNoDiff(
       latest.receipt.pages.sourceCommit,
       candidate,
@@ -5503,6 +5888,9 @@ export async function inspectLatestPrivateNotificationPagesLiveReceiptForCandida
     stagedHandoffBindingDigest: stagedBinding === null
       ? null
       : stagedHandoffBindingDigest(stagedBinding),
+    productionPlayerCanaryActivationAuthorityDigest:
+      productionPlayerCanaryTransition
+        ?.productionPlayerCanaryActivationAuthorityDigest ?? null,
   }, { now });
   const bytes = canonicalCandidateAuthorityBytes(candidateAuthority);
   let installed;
@@ -5824,8 +6212,18 @@ export async function promoteNotificationPagesLiveReceipt({
     'NOTIFICATION_PAGES_LIVE_GIT_ANCESTRY_INVALID',
   );
   const stagedHandoffBinding = durableAuthority.stagedHandoffBinding;
+  const usesProductionPlayerCanaryPolicy =
+    durableAuthority.productionPlayerCanaryActivationAuthorityDigest !== null;
   assertCandidateReleaseBinding({ candidate, predecessor: previousEntry });
-  if (stagedHandoffBinding === null) {
+  if (usesProductionPlayerCanaryPolicy) {
+    if (stagedHandoffBinding !== null) {
+      fail('NOTIFICATION_PAGES_LIVE_PLAYER_CANARY_TRANSITION_INVALID');
+    }
+    assertProductionPlayerCanaryActivationSourceTransition(
+      previousEntry.receipt.pages.sourceCommit,
+      candidate,
+    );
+  } else if (stagedHandoffBinding === null) {
     if (
       previousEntry.receipt.bridge.liveAttestationDigest
         !== durableAuthority.predeployLiveBridgeAttestationDigest
@@ -5943,3 +6341,11 @@ export async function promoteNotificationPagesLiveReceipt({
   return installed;
   });
 }
+
+export const notificationPagesLiveReceiptTestSeams =
+  process.env.NODE_ENV === 'test' && process.env.VITEST === 'true'
+    ? Object.freeze({
+      assertProductionPlayerCanaryActivationSourceTransition,
+      exactChangedPaths,
+    })
+    : undefined;

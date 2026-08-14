@@ -16,6 +16,15 @@ function registrations(text: string, marker: string): string[] {
     .filter(value => /^[A-Za-z][A-Za-z0-9]*$/.test(value));
 }
 
+function tableDefinition(text: string, name: string): string {
+  const exported = `export const ${name} = table(`;
+  const local = `const ${name} = table(`;
+  const start = text.indexOf(exported) >= 0 ? text.indexOf(exported) : text.indexOf(local);
+  const end = text.indexOf('\n);', start);
+  assert.ok(start >= 0 && end > start, `missing table definition: ${name}`);
+  return text.slice(start, end + 3).replace(/^export /, '');
+}
+
 const suffixRegistrations = [
   'greaterRealmReleaseV1',
   'greaterRealmChunkV1',
@@ -46,19 +55,51 @@ const suffixTables = [
   'realm_worker_system_v2',
 ] as const;
 
-test('v17 is the exact frozen v16 prefix plus Greater Realm refs 72-83', () => {
+test('v17 is the exact frozen prefix before the private canary suffix', () => {
   const v16 = source('../migration-fixtures/additive-v16-schema/src/index.ts');
   const v17 = source('../migration-fixtures/additive-v17-schema/src/index.ts');
+  const inspection = source('../migration-fixtures/current-candidate-inspection/src/index.ts');
   const candidate = source('../src/schema.ts');
   const v16Tables = registrations(v16, 'const db = schema({');
   const v17Tables = registrations(v17, 'const db = schema({');
+  const inspectionTables = registrations(inspection, 'const db = schema({');
   const candidateTables = registrations(candidate, 'const warpkeep = schema({');
 
   assert.equal(v16Tables.length, 72);
   assert.equal(v17Tables.length, 84);
+  assert.equal(inspectionTables.length, 86);
   assert.deepEqual(v17Tables.slice(0, 72), v16Tables);
   assert.deepEqual(v17Tables.slice(72), suffixRegistrations);
-  assert.deepEqual(candidateTables, v17Tables);
+  assert.deepEqual(candidateTables.slice(0, v17Tables.length), v17Tables);
+  assert.deepEqual(candidateTables.slice(v17Tables.length), [
+    'productionPlayerCanaryBaselineV1',
+    'productionPlayerCanaryApprovalRegistrationV1',
+  ]);
+  assert.deepEqual(inspectionTables, candidateTables);
+  const canaryTableNames = [
+    'productionPlayerCanaryBaselineV1',
+    'productionPlayerCanaryApprovalRegistrationV1',
+  ] as const;
+  for (const name of canaryTableNames) {
+    assert.equal(tableDefinition(inspection, name), tableDefinition(candidate, name));
+    assert.doesNotMatch(tableDefinition(inspection, name), /public:\s*true/);
+  }
+  const inspectionWithoutCanaryDeclarations = canaryTableNames.reduce(
+    (text, name) => text.replace(tableDefinition(inspection, name), ''),
+    inspection,
+  );
+  for (const name of canaryTableNames) {
+    assert.equal(
+      inspectionWithoutCanaryDeclarations.match(new RegExp(`\\b${name}\\b`, 'g'))?.length,
+      1,
+      `${name} may appear outside its declaration only in the schema registration`,
+    );
+  }
+  assert.doesNotMatch(inspection, /db\.(?:procedure|clientConnected|clientDisconnected)\s*\(/);
+  assert.doesNotMatch(
+    inspection,
+    /db\.reducer\([^\n]*productionPlayerCanary(?:Baseline|ApprovalRegistration)V1/,
+  );
 });
 
 test('v17 fixture freezes public visibility, composite indexes, and typed sentinels', () => {
@@ -112,19 +153,37 @@ test('connected proof binds all predecessor rows and keeps v17 publication fail 
 
   assert.match(proof, /function assertDeployedV16TablesUnchanged\(before, after\)/);
   assert.match(proof, /function assertAdditiveV17Schema\(before, after\)/);
+  assert.match(proof, /function assertCurrentCandidateSchema\(before, after\)/);
+  assert.match(proof, /spacetimedb\/migration-fixtures\/current-candidate-inspection/);
   assert.match(proof, /greater_realm_release_v1: 72/);
   assert.match(proof, /realm_worker_system_v2: 83/);
+  assert.match(proof, /production_player_canary_baseline_v1: 84/);
+  assert.match(proof, /production_player_canary_approval_registration_v1: 85/);
+  assert.match(
+    proof,
+    /const provenV17TableSchemaDigest = projectedTableSchemaBoundaryDigest\(\s*emptyCandidateV17,\s*deployedV17Tables,/,
+  );
+  assert.match(
+    proof,
+    /projectedTableSchemaBoundaryDigest\(description, deployedV17Tables\),\s*provenV17TableSchemaDigest/,
+  );
+  assert.match(
+    proof,
+    /const provenCurrentCandidateTableSchemaDigest =\s*canonicalTableSchemaBoundaryDigest\(\s*emptyCandidateV17,\s*deployedCurrentCandidateTables,/,
+  );
   assert.match(proof, /populatedGreaterRealmPredecessorV16Rows/);
   assert.match(proof, /fixture_seed_water_sentinel_v9/);
   assert.match(proof, /fixture_seed_inner_keep_sentinel_v15/);
   assert.match(proof, /fixture_seed_realm_chat_sentinel_v16/);
   assert.match(proof, /fixture_seed_greater_realm_sentinel_v17/);
   assert.match(proof, /populatedGreaterRealmV17Rows/);
-  assert.match(proof, /populatedV17RowsBeforeRollback/);
+  assert.match(proof, /populatedCurrentCandidateRowsBeforeRollback/);
+  assert.match(proof, /additiveV17SchemaFixture,[\s\S]{0,120}emptyDatabase,[\s\S]{0,40}false/);
   assert.match(proof, /additiveV16SchemaFixture,[\s\S]{0,120}emptyDatabase,[\s\S]{0,40}false/);
   assert.match(proof, /publishBuiltArtifact\([\s\S]{0,180}greaterRealmMigrationDatabase/);
-  assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 17/);
+  assert.match(receipt, /ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 18/);
   assert.match(receipt, /v17_table_schema_sha256/);
+  assert.match(receipt, /current_candidate_table_schema_sha256/);
   assert.match(publisher, /function requireGreaterRealmV17ProductionPublishReady\(\)/);
 
   const lane = publisher.indexOf('export async function executeProtocolV15InactivePublicationLane(');

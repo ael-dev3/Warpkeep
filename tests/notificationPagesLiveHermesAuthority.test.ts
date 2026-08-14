@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   EMPTY_NOTIFICATION_PAGES_LIVE_HERMES_AUTHORITY,
+  inspectActivationPredecessorHermesNotificationPagesLiveAuthority,
   inspectHermesNotificationPagesLiveAuthority,
   parseNotificationPagesLiveHermesAuthority,
   sameNotificationPagesLiveHermesAuthority,
@@ -12,6 +13,7 @@ const ROOT_COMMIT = 'b'.repeat(40);
 const RECEIPT_DIGEST = 'c'.repeat(64);
 const PAGES_COMMIT = 'd'.repeat(40);
 const BRIDGE_COMMIT = 'e'.repeat(40);
+const CANDIDATE_COMMIT = 'f'.repeat(40);
 
 const rootBinding = Object.freeze({
   notificationPagesLiveRootReceiptDigest: ROOT_DIGEST,
@@ -82,6 +84,43 @@ describe('notification Pages live Hermes authority', () => {
     expect(inspectByPagesSourceCommit).toHaveBeenCalledWith({
       directory: '/private/receipts',
       repositoryRoot: '/checkout',
+      pagesSourceCommit: PAGES_COMMIT,
+      expectedChainRootReceiptDigest: ROOT_DIGEST,
+      expectedChainRootPagesSourceCommit: ROOT_COMMIT,
+    });
+  });
+
+  it('uses the separate exact-predecessor API for a clean activation descendant', async () => {
+    const inspectActivationPredecessor = vi.fn(async () => ({
+      receiptDigest: RECEIPT_DIGEST,
+      chainRootReceiptDigest: ROOT_DIGEST,
+      chainRootPagesSourceCommit: ROOT_COMMIT,
+      receipt: {
+        pages: {
+          sourceCommit: PAGES_COMMIT,
+          notificationsPresentationEnabled: true,
+          hermesExecutionApprovedAtActivation: false,
+        },
+        bridge: { sourceCommit: BRIDGE_COMMIT },
+      },
+    }));
+    await expect(
+      inspectActivationPredecessorHermesNotificationPagesLiveAuthority({
+        required: true,
+        rootBinding,
+        pagesSourceCommit: PAGES_COMMIT,
+        candidatePagesSourceCommit: CANDIDATE_COMMIT,
+        directory: '/private/receipts',
+        repositoryRoot: '/checkout',
+      }, {
+        inspectActivationPredecessor:
+          inspectActivationPredecessor as unknown as never,
+      }),
+    ).resolves.toEqual(authority);
+    expect(inspectActivationPredecessor).toHaveBeenCalledWith({
+      directory: '/private/receipts',
+      repositoryRoot: '/checkout',
+      candidatePagesSourceCommit: CANDIDATE_COMMIT,
       pagesSourceCommit: PAGES_COMMIT,
       expectedChainRootReceiptDigest: ROOT_DIGEST,
       expectedChainRootPagesSourceCommit: ROOT_COMMIT,

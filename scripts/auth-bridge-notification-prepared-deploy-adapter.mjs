@@ -35,13 +35,21 @@ const MIGRATIONS = Object.freeze([
   Object.freeze({ tag: 'v4', newSqliteClasses: Object.freeze(['QaChallengeReplayGuard']) }),
   Object.freeze({ tag: 'v5', newSqliteClasses: Object.freeze(['AdmissionNotification']) }),
 ]);
-const SECRET_BINDING_NAMES = Object.freeze([
+export const AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES =
+  Object.freeze([
   'ADMIN_TOKEN_SECRET',
   'FARCASTER_RPC_URL',
   'FARCASTER_RPC_URL_SECONDARY',
   'NOTIFICATION_OPERATOR_SECRET',
   'SESSION_COOKIE_KEY',
   'SIGNING_KEY_JWK',
+  ]);
+export const AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING =
+  'PLAYER_CANARY_OWNER_FID';
+const SECRET_BINDING_NAMES = Object.freeze([
+  ...AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES.slice(0, 4),
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING,
+  ...AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES.slice(4),
 ]);
 const CONTRACT_KEYS = Object.freeze([
   'schemaVersion',
@@ -338,6 +346,7 @@ function attestReleaseCandidateDeployment({
   contract,
   versionId,
   versionCreatedAt,
+  predecessorVersionId,
   now,
 }) {
   const canonicalContract = canonicalVersionContract(contract);
@@ -381,7 +390,12 @@ function attestReleaseCandidateDeployment({
   if (!exactJson(infrastructure, expectedInfrastructure)) {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_PRE_RELEASE_INFRASTRUCTURE_MISMATCH', true);
   }
-  if (value.versionId !== versionId) return undefined;
+  if (value.versionId !== versionId) {
+    if (value.versionId !== predecessorVersionId) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_PREDECESSOR_DRIFT', true);
+    }
+    return undefined;
+  }
   return attestAuthBridgeNotificationPreparedDeployment({
     value,
     contract: canonicalContract,
@@ -392,9 +406,9 @@ function attestReleaseCandidateDeployment({
 }
 
 /**
- * One upload and one irreversible 100% release. Every effect boundary is
- * journaled by the caller. Once release is authorized this function always
- * performs a fresh postflight, even when the release call reports an error.
+ * One nondeploying version upload and one irreversible 100% deployment. The
+ * exact v5/six-secret predecessor is durably pinned before reconciliation and
+ * re-attested immediately before the sole deployment POST.
  */
 export async function executeAuthBridgeNotificationPreparedDeployAdapter({
   contract,
@@ -402,6 +416,7 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
   uploadVersion,
   inspectVersion,
   reconcileVersion,
+  assertPredecessorStable,
   releaseVersion,
   inspectDeployment,
   journal,
@@ -413,6 +428,7 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
     [uploadVersion, 'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_REQUIRED'],
     [inspectVersion, 'AUTH_BRIDGE_PREPARED_DEPLOY_VERSION_INSPECTION_REQUIRED'],
     [reconcileVersion, 'AUTH_BRIDGE_PREPARED_DEPLOY_VERSION_RECONCILIATION_REQUIRED'],
+    [assertPredecessorStable, 'AUTH_BRIDGE_PREPARED_DEPLOY_PREDECESSOR_INSPECTION_REQUIRED'],
     [releaseVersion, 'AUTH_BRIDGE_PREPARED_DEPLOY_RELEASE_REQUIRED'],
     [inspectDeployment, 'AUTH_BRIDGE_PREPARED_DEPLOY_POSTFLIGHT_REQUIRED'],
     [assertCanStartWrite, 'AUTH_BRIDGE_PREPARED_DEPLOY_WRITE_PERMIT_REQUIRED'],
@@ -422,6 +438,7 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
     || ![
       'prepared',
       'inspect',
+      'remoteReconcileStarted',
       'uploadInvoked',
       'uploaded',
       'releaseUncertain',
@@ -435,7 +452,36 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOCK_REQUIRED');
   }
   await journal.prepared(canonicalContract);
-  const startingPhase = journal.inspect().phase;
+  let journalState = journal.inspect();
+  let uploadPlan;
+  if (journalState.phase === 'prepared') {
+    uploadPlan = await prepareUpload(canonicalContract);
+    if (
+      !exactKeys(uploadPlan, [
+        'mode', 'predecessorDeploymentId', 'predecessorVersionId',
+      ])
+      || uploadPlan.mode !== 'version'
+      || !exactPattern(uploadPlan.predecessorDeploymentId, VERSION_ID)
+      || !exactPattern(uploadPlan.predecessorVersionId, VERSION_ID)
+    ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_PREPARATION_INVALID');
+    await journal.remoteReconcileStarted(Object.freeze({
+      predecessorDeploymentId: uploadPlan.predecessorDeploymentId,
+      predecessorVersionId: uploadPlan.predecessorVersionId,
+      sourceCommit: canonicalContract.sourceCommit,
+      sourceDigest: canonicalContract.sourceDigest,
+      versionTag: canonicalContract.versionTag,
+    }));
+    journalState = journal.inspect();
+  }
+  const startingPhase = journalState.phase;
+  const predecessorDeploymentId = journalState.predecessorDeploymentId;
+  const predecessorVersionId = journalState.predecessorVersionId;
+  if (
+    !exactPattern(predecessorDeploymentId, VERSION_ID)
+    || !exactPattern(predecessorVersionId, VERSION_ID)
+  ) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_PREDECESSOR_INVALID');
+  }
   const prior = await reconcileVersion(canonicalContract);
   if (!Array.isArray(prior) || prior.length > 1) {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_VERSION_RECONCILIATION_INVALID');
@@ -444,17 +490,24 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_VERSION_RECONCILIATION_INVALID');
   }
   let versionId = prior[0];
-  if (versionId === undefined && startingPhase !== 'prepared') {
+  if (
+    versionId === undefined
+    && startingPhase !== 'remote-reconcile-started'
+  ) {
     throw ambiguous(
       undefined,
       'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',
     );
   }
   if (versionId === undefined) {
-    const uploadPlan = await prepareUpload(canonicalContract);
+    uploadPlan ??= await prepareUpload(canonicalContract);
     if (
-      !exactKeys(uploadPlan, ['mode'])
-      || !['migration', 'version'].includes(uploadPlan.mode)
+      !exactKeys(uploadPlan, [
+        'mode', 'predecessorDeploymentId', 'predecessorVersionId',
+      ])
+      || uploadPlan.mode !== 'version'
+      || uploadPlan.predecessorDeploymentId !== predecessorDeploymentId
+      || uploadPlan.predecessorVersionId !== predecessorVersionId
     ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_PREPARATION_INVALID');
     if (await assertCanStartWrite('upload') !== true) {
       fail('AUTH_BRIDGE_PREPARED_DEPLOY_WRITE_PERMIT_REJECTED');
@@ -467,19 +520,21 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
     }));
     let upload;
     let uploadError;
+    let uploadResponseInvalid = false;
     try {
       upload = await uploadVersion(canonicalContract, uploadPlan);
     } catch (error) {
       uploadError = error;
+      uploadResponseInvalid = error?.code
+        === 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_UPLOAD_RESPONSE_INVALID';
     }
-    if (upload !== undefined) {
-      if (
-        !isRecord(upload)
-        || (upload.versionId !== undefined
-          && !exactPattern(upload.versionId, VERSION_ID))
-      ) {
-        uploadError = upload;
-      }
+    if (
+      uploadError === undefined
+      && (!exactKeys(upload, ['versionId'])
+        || !exactPattern(upload.versionId, VERSION_ID))
+    ) {
+      uploadError = upload;
+      uploadResponseInvalid = true;
     }
     let reconciled;
     try {
@@ -492,6 +547,9 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
           : new AggregateError([uploadError, reconcileError]),
         'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OUTCOME_AMBIGUOUS',
       );
+    }
+    if (uploadResponseInvalid) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_RESPONSE_INVALID');
     }
     if (
       !Array.isArray(reconciled)
@@ -524,6 +582,7 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
       contract: canonicalContract,
       versionId: version.versionId,
       versionCreatedAt: version.createdAt,
+      predecessorVersionId,
       now: clock(),
     });
   } catch (error) {
@@ -563,6 +622,10 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
   if (await assertCanStartWrite('release') !== true) {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_WRITE_PERMIT_REJECTED');
   }
+  await assertPredecessorStable(Object.freeze({
+    deploymentId: predecessorDeploymentId,
+    versionId: predecessorVersionId,
+  }));
   let releaseError;
   let releaseInvoked = false;
   try {
@@ -574,6 +637,8 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
     releaseInvoked = true;
     await releaseVersion(Object.freeze({
       versionId: version.versionId,
+      predecessorDeploymentId,
+      predecessorVersionId,
       percentage: 100,
       message: version.versionMessage,
     }));

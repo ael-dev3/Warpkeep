@@ -3405,7 +3405,7 @@ function validateMigrationArtifactReceiptShape(receipt, expectedArtifactPath = P
     receipt === null
     || typeof receipt !== 'object'
     || Object.keys(receipt).sort().join(',')
-      !== 'artifactDigest,artifactPath,v11TableSchemaDigest,v12TableSchemaDigest,v13TableSchemaDigest,v14TableSchemaDigest,v15TableSchemaDigest,v16TableSchemaDigest,v17TableSchemaDigest'
+      !== 'artifactDigest,artifactPath,currentCandidateTableSchemaDigest,v11TableSchemaDigest,v12TableSchemaDigest,v13TableSchemaDigest,v14TableSchemaDigest,v15TableSchemaDigest,v16TableSchemaDigest,v17TableSchemaDigest'
     || receipt.artifactPath !== expectedArtifactPath
     || !SHA256_DIGEST.test(receipt.v11TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.v12TableSchemaDigest ?? '')
@@ -3414,6 +3414,7 @@ function validateMigrationArtifactReceiptShape(receipt, expectedArtifactPath = P
     || !SHA256_DIGEST.test(receipt.v15TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.v16TableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.v17TableSchemaDigest ?? '')
+    || !SHA256_DIGEST.test(receipt.currentCandidateTableSchemaDigest ?? '')
     || !SHA256_DIGEST.test(receipt.artifactDigest ?? '')
   ) {
     fail('The additive migration proof artifact receipt was invalid.');
@@ -3427,6 +3428,7 @@ function validateMigrationArtifactReceiptShape(receipt, expectedArtifactPath = P
     v15TableSchemaDigest: receipt.v15TableSchemaDigest,
     v16TableSchemaDigest: receipt.v16TableSchemaDigest,
     v17TableSchemaDigest: receipt.v17TableSchemaDigest,
+    currentCandidateTableSchemaDigest: receipt.currentCandidateTableSchemaDigest,
     artifactDigest: receipt.artifactDigest,
   });
 }
@@ -3495,6 +3497,7 @@ export function parseMigrationProofReceipt(output) {
     v15TableSchemaDigest: proofReceipt.v15TableSchemaDigest,
     v16TableSchemaDigest: proofReceipt.v16TableSchemaDigest,
     v17TableSchemaDigest: proofReceipt.v17TableSchemaDigest,
+    currentCandidateTableSchemaDigest: proofReceipt.currentCandidateTableSchemaDigest,
     artifactDigest: proofReceipt.artifactDigest,
   });
 }
@@ -3515,6 +3518,7 @@ export function parseMigrationProofReceiptAtExactPath(output, artifactPath) {
     v15TableSchemaDigest: proofReceipt.v15TableSchemaDigest,
     v16TableSchemaDigest: proofReceipt.v16TableSchemaDigest,
     v17TableSchemaDigest: proofReceipt.v17TableSchemaDigest,
+    currentCandidateTableSchemaDigest: proofReceipt.currentCandidateTableSchemaDigest,
     artifactDigest: proofReceipt.artifactDigest,
   }, artifactPath);
 }

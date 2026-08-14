@@ -6,6 +6,8 @@ const V14_TABLE_SCHEMA_RECEIPT_FIELD = 'v14_table_schema_sha256';
 const V15_TABLE_SCHEMA_RECEIPT_FIELD = 'v15_table_schema_sha256';
 const V16_TABLE_SCHEMA_RECEIPT_FIELD = 'v16_table_schema_sha256';
 const V17_TABLE_SCHEMA_RECEIPT_FIELD = 'v17_table_schema_sha256';
+const CURRENT_CANDIDATE_TABLE_SCHEMA_RECEIPT_FIELD =
+  'current_candidate_table_schema_sha256';
 const ARTIFACT_RECEIPT_FIELD = 'artifact_sha256';
 const RECEIPT_FIELDS = Object.freeze([
   V11_TABLE_SCHEMA_RECEIPT_FIELD,
@@ -15,12 +17,13 @@ const RECEIPT_FIELDS = Object.freeze([
   V15_TABLE_SCHEMA_RECEIPT_FIELD,
   V16_TABLE_SCHEMA_RECEIPT_FIELD,
   V17_TABLE_SCHEMA_RECEIPT_FIELD,
+  CURRENT_CANDIDATE_TABLE_SCHEMA_RECEIPT_FIELD,
   ARTIFACT_RECEIPT_FIELD,
 ]);
 const INVALID_RECEIPT_MESSAGE =
   'The current additive migration proof did not produce its exact success receipt.';
 
-export const ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 17;
+export const ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION = 18;
 export const ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION = '2.6.1';
 // The compiled lifecycle lane includes a nine-minute route and one complete
 // gathering minute. Keep a bounded margin for server startup and cleanup.
@@ -44,6 +47,7 @@ export function formatAdditiveMigrationProofReceipt({
   v15TableSchemaDigest,
   v16TableSchemaDigest,
   v17TableSchemaDigest,
+  currentCandidateTableSchemaDigest,
   artifactDigest,
 }) {
   if (
@@ -66,6 +70,8 @@ export function formatAdditiveMigrationProofReceipt({
     || !SHA256_DIGEST.test(v16TableSchemaDigest)
     || typeof v17TableSchemaDigest !== 'string'
     || !SHA256_DIGEST.test(v17TableSchemaDigest)
+    || typeof currentCandidateTableSchemaDigest !== 'string'
+    || !SHA256_DIGEST.test(currentCandidateTableSchemaDigest)
     || typeof artifactDigest !== 'string'
     || !SHA256_DIGEST.test(artifactDigest)
   ) {
@@ -79,6 +85,7 @@ export function formatAdditiveMigrationProofReceipt({
     + `${V15_TABLE_SCHEMA_RECEIPT_FIELD}=${v15TableSchemaDigest} `
     + `${V16_TABLE_SCHEMA_RECEIPT_FIELD}=${v16TableSchemaDigest} `
     + `${V17_TABLE_SCHEMA_RECEIPT_FIELD}=${v17TableSchemaDigest} `
+    + `${CURRENT_CANDIDATE_TABLE_SCHEMA_RECEIPT_FIELD}=${currentCandidateTableSchemaDigest} `
     + `${ARTIFACT_RECEIPT_FIELD}=${artifactDigest}`;
 }
 
@@ -105,6 +112,8 @@ export function parseAdditiveMigrationProofReceipt(output) {
   const v15TableSchemaDigest = digestFields[V15_TABLE_SCHEMA_RECEIPT_FIELD][0][1];
   const v16TableSchemaDigest = digestFields[V16_TABLE_SCHEMA_RECEIPT_FIELD][0][1];
   const v17TableSchemaDigest = digestFields[V17_TABLE_SCHEMA_RECEIPT_FIELD][0][1];
+  const currentCandidateTableSchemaDigest =
+    digestFields[CURRENT_CANDIDATE_TABLE_SCHEMA_RECEIPT_FIELD][0][1];
   const artifactDigest = digestFields[ARTIFACT_RECEIPT_FIELD][0][1];
   const receiptSuffix = ` ${V11_TABLE_SCHEMA_RECEIPT_FIELD}=${v11TableSchemaDigest}`
     + ` ${V12_TABLE_SCHEMA_RECEIPT_FIELD}=${v12TableSchemaDigest}`
@@ -113,6 +122,7 @@ export function parseAdditiveMigrationProofReceipt(output) {
     + ` ${V15_TABLE_SCHEMA_RECEIPT_FIELD}=${v15TableSchemaDigest}`
     + ` ${V16_TABLE_SCHEMA_RECEIPT_FIELD}=${v16TableSchemaDigest}`
     + ` ${V17_TABLE_SCHEMA_RECEIPT_FIELD}=${v17TableSchemaDigest}`
+    + ` ${CURRENT_CANDIDATE_TABLE_SCHEMA_RECEIPT_FIELD}=${currentCandidateTableSchemaDigest}`
     + ` ${ARTIFACT_RECEIPT_FIELD}=${artifactDigest}`;
   if (
     !proofLine.startsWith(`${SUCCESS_PREFIX} `)
@@ -123,6 +133,7 @@ export function parseAdditiveMigrationProofReceipt(output) {
     || !SHA256_DIGEST.test(v15TableSchemaDigest)
     || !SHA256_DIGEST.test(v16TableSchemaDigest)
     || !SHA256_DIGEST.test(v17TableSchemaDigest)
+    || !SHA256_DIGEST.test(currentCandidateTableSchemaDigest)
     || !SHA256_DIGEST.test(artifactDigest)
     || !proofLine.endsWith(receiptSuffix)
     || proofLine.slice(SUCCESS_PREFIX.length + 1, -receiptSuffix.length).length === 0
@@ -138,6 +149,7 @@ export function parseAdditiveMigrationProofReceipt(output) {
     v15TableSchemaDigest,
     v16TableSchemaDigest,
     v17TableSchemaDigest,
+    currentCandidateTableSchemaDigest,
     artifactDigest,
   });
 }

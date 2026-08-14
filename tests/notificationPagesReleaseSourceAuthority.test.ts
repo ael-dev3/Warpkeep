@@ -27,12 +27,15 @@ const DIGEST_B = 'b'.repeat(64);
 const COMMIT_C = 'c'.repeat(40);
 const ROOT_DIGEST = 'd'.repeat(64);
 const ROOT_COMMIT = 'e'.repeat(40);
+const CANARY_DIGEST = 'f'.repeat(64);
+const CANARY_COMMIT = '1'.repeat(40);
 const fixtureRoots: string[] = [];
 
 const bindingPaths = Object.freeze([
   'scripts/auth-bridge-notification-prepared-release-binding.mjs',
   'scripts/notification-pages-private-release-binding.mjs',
   'scripts/notification-pages-live-release-binding.mjs',
+  'scripts/production-player-canary-release-binding.mjs',
 ]);
 
 function checkedInReleaseSources() {
@@ -55,6 +58,10 @@ function checkedInReleaseSources() {
     ),
     liveRootBindingSource: readFileSync(
       resolve(repositoryRoot, bindingPaths[2]),
+      'utf8',
+    ),
+    productionPlayerCanaryBindingSource: readFileSync(
+      resolve(repositoryRoot, bindingPaths[3]),
       'utf8',
     ),
   };
@@ -89,11 +96,13 @@ function sourceFixture({
   prepared = false,
   privateInputs = false,
   root = false,
+  canary = false,
   mutate,
 }: {
   prepared?: boolean;
   privateInputs?: boolean;
   root?: boolean;
+  canary?: boolean;
   mutate?: (sources: Map<string, string>) => void;
 } = {}) {
   const rootPath = realpathSync(mkdtempSync(
@@ -148,6 +157,20 @@ function sourceFixture({
     );
     sources.set(bindingPaths[2], source);
   }
+  if (canary) {
+    let source = sources.get(bindingPaths[3])!;
+    source = replaceBinding(
+      source,
+      'productionPlayerCanaryReceiptDigest',
+      CANARY_DIGEST,
+    );
+    source = replaceBinding(
+      source,
+      'productionPlayerCanarySourceCommit',
+      CANARY_COMMIT,
+    );
+    sources.set(bindingPaths[3], source);
+  }
   mutate?.(sources);
   for (const [relative, source] of sources) {
     writeFileSync(resolve(rootPath, relative), source, { mode: 0o600 });
@@ -179,6 +202,17 @@ describe('notification Pages dependency-free deploy lane authority', () => {
     })).mode).toBe('gen0');
     expect(classifyNotificationPagesDeployLane(sourceFixture({ root: true })).mode)
       .toBe('durable');
+    expect(classifyNotificationPagesDeployLane(sourceFixture({
+      root: true,
+      canary: true,
+    }))).toMatchObject({
+      mode: 'durable',
+      productionPlayerCanaryReceiptDigest: CANARY_DIGEST,
+      productionPlayerCanarySourceCommit: CANARY_COMMIT,
+    });
+    expect(() => classifyNotificationPagesDeployLane(sourceFixture({
+      canary: true,
+    }))).toThrow('NOTIFICATION_PAGES_DEPLOY_LANE_SOURCE_STATE_INVALID');
     for (const rootPath of fixtureRoots) {
       expect(() => readFileSync(resolve(rootPath, 'node_modules/.bin/node')))
         .toThrow();
@@ -276,6 +310,10 @@ describe('notification Pages structural release source authority', () => {
       liveRootBinding: {
         notificationPagesLiveRootReceiptDigest: null,
         notificationPagesLiveRootPagesSourceCommit: null,
+      },
+      productionPlayerCanaryBinding: {
+        productionPlayerCanaryReceiptDigest: null,
+        productionPlayerCanarySourceCommit: null,
       },
     });
   });
@@ -376,6 +414,13 @@ describe('notification Pages structural release source authority', () => {
         field: 'notificationPagesLiveRootReceiptDigest',
         value: ROOT_DIGEST,
         code: 'NOTIFICATION_PAGES_RELEASE_SOURCE_ROOT_BINDING_INVALID',
+      },
+      {
+        key: 'productionPlayerCanaryBindingSource' as const,
+        field: 'productionPlayerCanaryReceiptDigest',
+        value: CANARY_DIGEST,
+        code:
+          'NOTIFICATION_PAGES_RELEASE_SOURCE_PLAYER_CANARY_BINDING_INVALID',
       },
     ];
     for (const { key, field, value, code } of cases) {

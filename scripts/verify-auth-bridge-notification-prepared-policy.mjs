@@ -227,6 +227,7 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     'WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID',
     'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
     'WARPKEEP_AUTH_BRIDGE_ZONE_ID',
+    'WARPKEEP_PLAYER_CANARY_OWNER_FID',
     'WARPKEEP_PRODUCTION_ADMIN_TOKEN',
   ]) {
     exactCount(
@@ -262,7 +263,10 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     ['withAuthBridgeNotificationPreparedDeployJournal({', 1],
     ['prepareAndWriteAuthBridgeNotificationPreparedReceipt({', 1],
     ['apiToken: values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN', 1],
+    ['playerCanaryOwnerFid:', 1],
+    ['values.WARPKEEP_PLAYER_CANARY_OWNER_FID', 3],
     ['adminToken: values.WARPKEEP_PRODUCTION_ADMIN_TOKEN', 1],
+    ['executeAuthBridgeNotificationPreparedDeployAdapter({', 1],
     ['createAuthBridgeNotificationPreparedGithubWritePermit({', 2],
     ['verifyAuthBridgeNotificationPreparedInstalledToolchain({', 2],
     ['verifyAuthBridgeNotificationPreparedDeployClosure({', 2],
@@ -283,9 +287,14 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
   );
   if (
     entrypoint.includes('reportedHome:')
+    || entrypoint.includes('ensureAuthBridgeNotificationPreparedPlayerCanarySecret')
+    || entrypoint.includes('rollbackAuthBridgeNotificationPreparedPlayerCanarySecret')
     || !entrypoint.includes("'WARPKEEP_PRODUCTION_ADMIN_TOKEN',")
     || !entrypoint.includes("'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',")
+    || !entrypoint.includes("'WARPKEEP_PLAYER_CANARY_OWNER_FID',")
     || !entrypoint.includes("'GITHUB_TOKEN',")
+    || /process\.(?:stdout|stderr)[\s\S]{0,256}WARPKEEP_PLAYER_CANARY_OWNER_FID/u
+      .test(entrypoint)
   ) fail('AUTH_BRIDGE_PREPARED_PRIVATE_RUNTIME_BOUNDARY_INVALID');
   const installedAttestationIndex = entrypoint.indexOf(
     'verifyAuthBridgeNotificationPreparedInstalledToolchain({',

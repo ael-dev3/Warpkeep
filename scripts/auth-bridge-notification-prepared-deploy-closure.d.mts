@@ -29,3 +29,8 @@ export function assertAuthBridgeNotificationPreparedDeployClosureAuthority<
     ownerUid: number;
   }>,
 >(authority: T, options: Readonly<{ repositoryRoot: string }>): T;
+
+export const authBridgeNotificationPreparedDeployClosureTestSeams: Readonly<{
+  expectedMemberDigestProfile: (memberPath: string) => string;
+  parseManifest: (body: Buffer) => Readonly<Record<string, unknown>>;
+}> | undefined;
