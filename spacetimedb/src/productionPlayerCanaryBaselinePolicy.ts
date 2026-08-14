@@ -115,6 +115,56 @@ export type ProductionPlayerCanaryStoredBaseline = Readonly<{
   pristineRosterCommitment: string;
 }>;
 
+/**
+ * Nonce-independent integrity audit for the append-only stored baseline.
+ * This deliberately cannot recompute `baselineCommitment`: that commitment is
+ * framed with the raw private evidence nonce, which is available only to the
+ * final evidence path. It still proves every persisted scalar and digest shape
+ * plus the exact pristine genesis resource chronology.
+ */
+export function assertProductionPlayerCanaryStoredBaselineIntegrityV2(
+  row: ProductionPlayerCanaryStoredBaseline,
+  observedAtMicros: bigint,
+): void {
+  const code = 'STATE_INTEGRITY';
+  requireU64(row.fid, code);
+  requireU64(row.castleId, code);
+  requireU64(row.atlasRevision, code);
+  requireU64(row.capturedAtMicros, code);
+  requireU64(row.resourceSettledThroughMicros, code);
+  requireU64(row.resourceRevision, code);
+  requireU64(row.resourceFood, code);
+  requireU64(row.resourceWood, code);
+  requireU64(row.resourceStone, code);
+  requireU64(row.resourceGold, code);
+  requireU64(row.resourceCreatedAtMicros, code);
+  requireU64(observedAtMicros, code);
+  if (
+    row.fid < 1n
+    || row.fid > BigInt(Number.MAX_SAFE_INTEGER)
+    || row.castleId < 1n
+    || row.atlasRevision < 1n
+    || row.capturedAtMicros < 1n
+    || row.capturedAtMicros > observedAtMicros
+    || typeof row.atlasId !== 'string'
+    || row.atlasId.length < 1
+    || !SHA256.test(row.challengeDigest)
+    || !SHA256.test(row.reviewedAdmissionPlanDigest)
+    || !SHA256.test(row.baselineCommitment)
+    || !SHA256.test(row.routeSetCommitment)
+    || !SHA256.test(row.pristineRosterCommitment)
+    || row.resourcePolicyVersion !== GENESIS_RESOURCE_POLICY_VERSION
+    || row.resourceRevision !== 0n
+    || row.resourceFood !== GENESIS_STARTING_RESOURCE_BALANCES.food
+    || row.resourceWood !== GENESIS_STARTING_RESOURCE_BALANCES.wood
+    || row.resourceStone !== GENESIS_STARTING_RESOURCE_BALANCES.stone
+    || row.resourceGold !== GENESIS_STARTING_RESOURCE_BALANCES.gold
+    || row.resourceCreatedAtMicros < 1n
+    || row.resourceCreatedAtMicros > row.capturedAtMicros
+    || row.resourceSettledThroughMicros !== row.resourceCreatedAtMicros
+  ) failProductionPlayerCanaryBaseline(code);
+}
+
 export class ProductionPlayerCanaryBaselineError extends Error {
   constructor(readonly code: string) {
     super(code);

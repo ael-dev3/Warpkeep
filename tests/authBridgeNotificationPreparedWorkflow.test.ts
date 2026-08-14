@@ -77,6 +77,11 @@ const BOOTSTRAP_PROJECTION_PATHS = new Set([
   '.github/workflows/notification-bridge-b0.yml',
   '.github/workflows/notification-bridge-prepared.yml',
 ]);
+const RETAINED_TYPE_ONLY_DECLARATION_PATHS = Object.freeze([
+  'scripts/production-player-canary-activation-launcher.d.mts',
+  'scripts/production-player-canary-browser-launcher.d.mts',
+  'scripts/production-player-canary-release-binding.d.mts',
+]);
 const temporaryDirectories: string[] = [];
 
 interface WorkflowStep {
@@ -182,6 +187,9 @@ function createPolicyFixture(): string {
     cpSync(resolve(repositoryRoot, path), destination, { recursive: true });
   };
   for (const path of AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS) {
+    copyTracked(path);
+  }
+  for (const path of RETAINED_TYPE_ONLY_DECLARATION_PATHS) {
     copyTracked(path);
   }
   for (const path of [
@@ -866,7 +874,8 @@ describe('notification-bridge-prepared protected workflow', () => {
     ]);
     expect(paths.filter(path => path.endsWith('.mjs')).length).toBe(
       paths.filter(path => path.endsWith('.d.mts')).length
-        + declarationOptional.size,
+        + declarationOptional.size
+        + RETAINED_TYPE_ONLY_DECLARATION_PATHS.length,
     );
     expect(verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: root,

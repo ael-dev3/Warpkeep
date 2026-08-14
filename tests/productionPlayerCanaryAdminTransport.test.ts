@@ -63,7 +63,7 @@ describe('production player canary typed admin transport', () => {
       ...BASELINE_ARGUMENTS,
       serverBaselineCommitment: 'c'.repeat(64),
       routeSetCommitment: 'd'.repeat(64),
-      commandKeyPolicyVersion: 'warpkeep-production-player-canary-command-key-v1',
+      commandKeyPolicyVersion: 'warpkeep-production-player-canary-command-key-v2',
       commandSetCommitment: 'e'.repeat(64),
       ownerApprovalArtifactDigest: 'f'.repeat(64),
       ownerApprovalCommitment: '1'.repeat(64),

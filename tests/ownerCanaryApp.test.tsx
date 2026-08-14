@@ -33,6 +33,10 @@ const NO_RECOVERY = Object.freeze({
   recover: async () => undefined,
 });
 
+const NO_FRESH_PAGE_RECOVERY = Object.freeze({
+  recover: async () => undefined,
+});
+
 const PRIVATE_NONCE = 'a'.repeat(64);
 const PLAN_DIGEST = 'b'.repeat(64);
 const ROUTE_SET_COMMITMENT = 'c'.repeat(64);
@@ -122,6 +126,7 @@ function journey(): OwnerCanaryJourneyEvidence {
 function failingRuntime(): OwnerCanaryRuntime {
   return Object.freeze({
     recoveryApi: NO_RECOVERY,
+    freshPageRecoveryApi: NO_FRESH_PAGE_RECOVERY,
     evidenceApi: Object.freeze({
       run: async () => {
         throw new Error('synthetic pre-authority failure');
@@ -131,6 +136,8 @@ function failingRuntime(): OwnerCanaryRuntime {
     closeAuthority: async () => undefined,
     openRecallRecoveryAuthority: async () => Object.freeze({}),
     closeRecallRecoveryAuthority: async () => undefined,
+    openFreshPageRecoveryAuthority: async () => Object.freeze({}),
+    closeFreshPageRecoveryAuthority: async () => undefined,
     verifyPrivateSubject: async () => true,
     acceptSanitizedEvidence: async () => undefined,
   });
@@ -149,11 +156,14 @@ function handoffFailingRuntime(
   });
   return Object.freeze({
     recoveryApi: NO_RECOVERY,
+    freshPageRecoveryApi: NO_FRESH_PAGE_RECOVERY,
     evidenceApi,
     openAuthority: async () => Object.freeze({}),
     closeAuthority: async () => undefined,
     openRecallRecoveryAuthority: async () => Object.freeze({}),
     closeRecallRecoveryAuthority: async () => undefined,
+    openFreshPageRecoveryAuthority: async () => Object.freeze({}),
+    closeFreshPageRecoveryAuthority: async () => undefined,
     verifyPrivateSubject: async () => true,
     acceptSanitizedEvidence: async () => {
       onHandoff();
@@ -174,11 +184,14 @@ function stageFailingRuntime(onMutation: () => void): OwnerCanaryRuntime<Readonl
   });
   return Object.freeze({
     recoveryApi: NO_RECOVERY,
+    freshPageRecoveryApi: NO_FRESH_PAGE_RECOVERY,
     evidenceApi,
     openAuthority: async () => Object.freeze({}),
     closeAuthority: async () => undefined,
     openRecallRecoveryAuthority: async () => Object.freeze({}),
     closeRecallRecoveryAuthority: async () => undefined,
+    openFreshPageRecoveryAuthority: async () => Object.freeze({}),
+    closeFreshPageRecoveryAuthority: async () => undefined,
     verifyPrivateSubject: async () => true,
     acceptSanitizedEvidence: async () => undefined,
   });
@@ -187,6 +200,7 @@ function stageFailingRuntime(onMutation: () => void): OwnerCanaryRuntime<Readonl
 function recoverableRuntime(
   onRecovery: () => void,
   closeRecallRecoveryAuthority: () => Promise<void> = async () => undefined,
+  closeAuthority: () => Promise<void> = async () => undefined,
 ): OwnerCanaryRuntime<Readonly<Record<string, never>>> {
   let recoveryState: 'none' | 'required' | 'running' | 'safe' | 'unconfirmed' = 'none';
   const recoveryApi = Object.freeze({
@@ -211,11 +225,50 @@ function recoverableRuntime(
   });
   return Object.freeze({
     recoveryApi,
+    freshPageRecoveryApi: NO_FRESH_PAGE_RECOVERY,
     evidenceApi,
+    openAuthority: async () => Object.freeze({}),
+    closeAuthority,
+    openRecallRecoveryAuthority: async () => Object.freeze({}),
+    closeRecallRecoveryAuthority,
+    openFreshPageRecoveryAuthority: async () => Object.freeze({}),
+    closeFreshPageRecoveryAuthority: async () => undefined,
+    verifyPrivateSubject: async () => true,
+    acceptSanitizedEvidence: async () => undefined,
+  });
+}
+
+function freshPageRecoverableRuntime(
+  onRecovery: (input: Readonly<{
+    evidenceNonce: string;
+    reviewedAdmissionPlanDigest: string;
+  }>) => void,
+  closeFreshPageRecoveryAuthority: () => Promise<void> = async () => undefined,
+): OwnerCanaryRuntime<Readonly<Record<string, never>>> {
+  return Object.freeze({
+    recoveryApi: NO_RECOVERY,
+    freshPageRecoveryApi: Object.freeze({
+      async recover(
+        _authority: Readonly<Record<string, never>>,
+        input: Readonly<{
+          evidenceNonce: string;
+          reviewedAdmissionPlanDigest: string;
+        }>,
+      ) {
+        onRecovery(input);
+      },
+    }),
+    evidenceApi: Object.freeze({
+      run: async () => {
+        throw new Error('main evidence must stay excluded in reload recovery');
+      },
+    }),
     openAuthority: async () => Object.freeze({}),
     closeAuthority: async () => undefined,
     openRecallRecoveryAuthority: async () => Object.freeze({}),
-    closeRecallRecoveryAuthority,
+    closeRecallRecoveryAuthority: async () => undefined,
+    openFreshPageRecoveryAuthority: async () => Object.freeze({}),
+    closeFreshPageRecoveryAuthority,
     verifyPrivateSubject: async () => true,
     acceptSanitizedEvidence: async () => undefined,
   });
@@ -233,11 +286,14 @@ function cancellableRuntime(onMutation: () => void): OwnerCanaryRuntime<Readonly
   });
   return Object.freeze({
     recoveryApi: NO_RECOVERY,
+    freshPageRecoveryApi: NO_FRESH_PAGE_RECOVERY,
     evidenceApi,
     openAuthority: async () => Object.freeze({}),
     closeAuthority: async () => undefined,
     openRecallRecoveryAuthority: async () => Object.freeze({}),
     closeRecallRecoveryAuthority: async () => undefined,
+    openFreshPageRecoveryAuthority: async () => Object.freeze({}),
+    closeFreshPageRecoveryAuthority: async () => undefined,
     verifyPrivateSubject: async () => true,
     acceptSanitizedEvidence: async () => undefined,
   });
@@ -298,6 +354,97 @@ describe('owner canary run-level consent', () => {
     fireEvent.click(confirmation);
     expect((begin as HTMLButtonElement).disabled).toBe(true);
     expect(getQuickAuthToken).not.toHaveBeenCalled();
+  });
+
+  it('runs fresh-page ordinal-zero recovery from immediately cleared uncontrolled inputs only', async () => {
+    const fetch = prepareAuthorizedAuth();
+    const recoveries: Array<Readonly<{
+      evidenceNonce: string;
+      reviewedAdmissionPlanDigest: string;
+    }>> = [];
+    render(<OwnerCanaryApp loadRuntime={async () => freshPageRecoverableRuntime(
+      input => recoveries.push(input),
+    )} />);
+
+    const mainNonce = await screen.findByLabelText('Private evidence nonce');
+    const mainPlan = screen.getByLabelText('Reviewed admission-plan digest');
+    const mainRoutes = screen.getByLabelText('Private route-set commitment');
+    const confirmation = screen.getByRole('checkbox', {
+      name: 'I approve this run to mutate an already-admitted live production player.',
+    });
+    const begin = screen.getByRole('button', { name: 'Begin reviewed canary' });
+    fireEvent.change(mainNonce, { target: { value: PRIVATE_NONCE } });
+    fireEvent.change(mainPlan, { target: { value: PLAN_DIGEST } });
+    fireEvent.change(mainRoutes, { target: { value: ROUTE_SET_COMMITMENT } });
+    fireEvent.click(confirmation);
+    expect((begin as HTMLButtonElement).disabled).toBe(false);
+
+    const recoveryNonce = screen.getByLabelText('Reload recovery evidence nonce');
+    const recoveryPlan = screen.getByLabelText('Reload recovery admission-plan digest');
+    expect(recoveryNonce.getAttribute('value')).toBe('');
+    expect(recoveryPlan.getAttribute('value')).toBe('');
+    fireEvent.change(recoveryNonce, { target: { value: PRIVATE_NONCE } });
+    fireEvent.change(recoveryPlan, { target: { value: PLAN_DIGEST } });
+    const recover = screen.getByRole('button', {
+      name: 'Authenticate and attempt reload recall-or-fence',
+    });
+    fireEvent.click(recover);
+
+    expect((recoveryNonce as HTMLInputElement).value).toBe('');
+    expect((recoveryPlan as HTMLInputElement).value).toBe('');
+    expect((mainNonce as HTMLInputElement).value).toBe('');
+    expect((mainPlan as HTMLInputElement).value).toBe('');
+    expect((mainRoutes as HTMLInputElement).value).toBe('');
+    expect((confirmation as HTMLInputElement).checked).toBe(false);
+    expect((begin as HTMLButtonElement).disabled).toBe(true);
+
+    await waitFor(() => expect(recoveries).toHaveLength(1));
+    expect(recoveries[0]).toEqual({
+      evidenceNonce: PRIVATE_NONCE,
+      reviewedAdmissionPlanDigest: PLAN_DIGEST,
+    });
+    expect(Object.isFrozen(recoveries[0])).toBe(true);
+    expect(Reflect.ownKeys(recoveries[0] as object)).toEqual([
+      'evidenceNonce',
+      'reviewedAdmissionPlanDigest',
+    ]);
+    expect(getQuickAuthToken).toHaveBeenCalledOnce();
+    expect(fetch).toHaveBeenCalledOnce();
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'ended browser-unconfirmed',
+    );
+    expect(screen.queryByText(/Recall safety was observed/u)).toBeNull();
+
+    fireEvent.change(recoveryNonce, { target: { value: PRIVATE_NONCE } });
+    fireEvent.change(recoveryPlan, { target: { value: PLAN_DIGEST } });
+    fireEvent.click(recover);
+    await waitFor(() => expect(recoveries).toHaveLength(2));
+    expect(getQuickAuthToken).toHaveBeenCalledTimes(2);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect((begin as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByText(/reports recovery as safe/u)).toBeTruthy();
+  });
+
+  it('consumes the main page before validating malformed reload recovery input', async () => {
+    const recovery = vi.fn();
+    render(<OwnerCanaryApp loadRuntime={async () => freshPageRecoverableRuntime(recovery)} />);
+    const nonce = await screen.findByLabelText('Reload recovery evidence nonce');
+    const plan = screen.getByLabelText('Reload recovery admission-plan digest');
+    fireEvent.change(nonce, { target: { value: PRIVATE_NONCE.slice(1) } });
+    fireEvent.change(plan, { target: { value: PLAN_DIGEST } });
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Authenticate and attempt reload recall-or-fence',
+    }));
+    expect((nonce as HTMLInputElement).value).toBe('');
+    expect((plan as HTMLInputElement).value).toBe('');
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'ended browser-unconfirmed',
+    );
+    expect(recovery).not.toHaveBeenCalled();
+    expect(getQuickAuthToken).not.toHaveBeenCalled();
+    expect((screen.getByRole('button', {
+      name: 'Begin reviewed canary',
+    }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('permanently consumes the page session after a failed run attempt', async () => {
@@ -410,6 +557,49 @@ describe('owner canary run-level consent', () => {
       name: 'Authenticate and attempt recall-only recovery',
     })).toBeNull();
     expect((begin as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('labels an ambiguous-main recovery as the evidence-invalidating all-four fence', async () => {
+    prepareAuthorizedAuth();
+    let closeCount = 0;
+    render(<OwnerCanaryApp loadRuntime={async () => recoverableRuntime(
+      vi.fn(),
+      async () => undefined,
+      async () => {
+        closeCount += 1;
+        if (closeCount === 4) throw new Error('synthetic ambiguous main close');
+      },
+    )} />);
+
+    fireEvent.change(await screen.findByLabelText('Private evidence nonce'), {
+      target: { value: PRIVATE_NONCE },
+    });
+    fireEvent.change(screen.getByLabelText('Reviewed admission-plan digest'), {
+      target: { value: PLAN_DIGEST },
+    });
+    fireEvent.change(screen.getByLabelText('Private route-set commitment'), {
+      target: { value: ROUTE_SET_COMMITMENT },
+    });
+    fireEvent.click(screen.getByRole('checkbox', {
+      name: 'I approve this run to mutate an already-admitted live production player.',
+    }));
+    fireEvent.click(screen.getByRole('button', { name: 'Begin reviewed canary' }));
+    for (let stageNumber = 1; stageNumber <= 4; stageNumber += 1) {
+      await screen.findByText(`STAGE ${stageNumber} OF 10`);
+      fireEvent.click(screen.getByRole('button', {
+        name: 'Authenticate and run this stage',
+      }));
+    }
+
+    expect(await screen.findByRole('heading', {
+      name: 'Urgent all-four recall-or-fence',
+    })).toBeTruthy();
+    expect(screen.getByText(/fence every reviewed dispatch key/u)).toBeTruthy();
+    expect(screen.getByText(/permanently invalidates evidence/u)).toBeTruthy();
+    expect(screen.getByRole('button', {
+      name: 'Authenticate and attempt all-four recall-or-fence',
+    })).toBeTruthy();
+    expect(screen.queryByText(/recall only workers whose reviewed dispatch/u)).toBeNull();
   });
 
   it('removes browser recovery after recovery-authority close becomes ambiguous', async () => {

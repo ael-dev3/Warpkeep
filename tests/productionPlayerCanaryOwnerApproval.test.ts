@@ -29,7 +29,7 @@ import {
   productionPlayerCanaryBaselineReconciliationTestSeams,
 } from '../scripts/production-player-canary-baseline-reconciliation.mjs';
 import {
-  deriveProductionPlayerCanaryCommandAuthorityV1,
+  deriveProductionPlayerCanaryCommandAuthorityV2,
 } from '../scripts/production-player-canary-command-authority.mjs';
 
 const NONCE = 'a'.repeat(64);
@@ -57,8 +57,8 @@ function approval(routeSteps = 4, lifetimeSeconds = 1_260) {
     reviewedAdmissionPlanDigest: PLAN,
     routes,
   });
-  const commandAuthority = deriveProductionPlayerCanaryCommandAuthorityV1({
-    evidenceNonce: NONCE,
+  const commandAuthority = deriveProductionPlayerCanaryCommandAuthorityV2({
+    challengeDigest: productionPlayerCanaryBaselineChallengeDigest(NONCE),
     reviewedAdmissionPlanDigest: PLAN,
     serverBaselineCommitment: '9'.repeat(64),
     routeSetCommitment,
@@ -413,8 +413,10 @@ describe('production player canary owner approval', () => {
       approval: {
         ...value,
         serverBaselineCommitment: '8'.repeat(64),
-        commandSetCommitment: deriveProductionPlayerCanaryCommandAuthorityV1({
-          evidenceNonce: value.evidenceNonce,
+        commandSetCommitment: deriveProductionPlayerCanaryCommandAuthorityV2({
+          challengeDigest: productionPlayerCanaryBaselineChallengeDigest(
+            value.evidenceNonce,
+          ),
           reviewedAdmissionPlanDigest: value.reviewedAdmissionPlanDigest,
           serverBaselineCommitment: '8'.repeat(64),
           routeSetCommitment: value.routeSetCommitment,

@@ -57,6 +57,8 @@ export const CASTLE_WORKER_POLICY_VERSION = 'genesis-001-castle-workers-v1';
 export const CASTLE_WORKER_GATHER_QUANTUM_MICROS = 60_000_000n;
 export const CASTLE_WORKER_TRAVEL_MICROS_PER_STEP = 30_000_000n;
 export const CASTLE_WORKER_MAX_GATHERING_DURATION_MICROS = 30n * 24n * 60n * 60n * 1_000_000n;
+/** Strictly below two gather quanta: the canary can accrue exactly one. */
+export const PRODUCTION_PLAYER_CANARY_GATHERING_DURATION_MICROS = 119_999_999n;
 export const CASTLE_WORKER_U64_MAX = (1n << 64n) - 1n;
 export const CASTLE_WORKER_PROTOCOL_CAPABILITY = 'generic-castle-workers-v1';
 
@@ -218,6 +220,95 @@ export function assertWorkerCommandKey(value: string): void {
   if (!/^[a-z0-9][a-z0-9-]{15,79}$/.test(value)) fail('WORKER_COMMAND_KEY_INVALID');
 }
 
+export type WorkerIdempotencyReceiptPruneCandidateV1 = Readonly<{
+  requestKey: string;
+  fid: bigint;
+  assignmentId?: string;
+  createdAtMicros: bigint;
+}>;
+
+function workerCommandKeyFromRequestKey(
+  requestKey: string,
+  fid: bigint,
+): string {
+  const prefix = `${fid.toString()}:`;
+  if (!requestKey.startsWith(prefix)) {
+    fail('WORKER_IDEMPOTENCY_RECEIPT_INVALID');
+  }
+  const commandKey = requestKey.slice(prefix.length);
+  assertWorkerCommandKey(commandKey);
+  return commandKey;
+}
+
+/**
+ * Production-canary command rows are durable safety authority. Capacity
+ * maintenance may evict only the oldest ordinary command rows and must fail
+ * closed if an incoming row cannot fit without deleting a pc1/pc2 row.
+ */
+export function planWorkerIdempotencyReceiptPruneV1(input: Readonly<{
+  fid: bigint;
+  maximumReceiptCount: number;
+  activeAssignmentIds: readonly string[];
+  receipts: readonly WorkerIdempotencyReceiptPruneCandidateV1[];
+}>): readonly string[] {
+  if (
+    input.fid <= 0n
+    || !Number.isSafeInteger(input.maximumReceiptCount)
+    || input.maximumReceiptCount < 1
+    || input.receipts.length > input.maximumReceiptCount
+  ) fail('WORKER_IDEMPOTENCY_RECEIPT_INVALID');
+  const activeAssignmentIds = new Set(input.activeAssignmentIds);
+  if (
+    activeAssignmentIds.size !== input.activeAssignmentIds.length
+    || input.activeAssignmentIds.some(assignmentId => (
+      typeof assignmentId !== 'string' || assignmentId.length < 1
+    ))
+  ) fail('WORKER_IDEMPOTENCY_RECEIPT_INVALID');
+  const seen = new Set<string>();
+  const candidates = input.receipts.map((receipt) => {
+    if (
+      receipt.fid !== input.fid
+      || receipt.createdAtMicros < 0n
+      || seen.has(receipt.requestKey)
+    ) fail('WORKER_IDEMPOTENCY_RECEIPT_INVALID');
+    seen.add(receipt.requestKey);
+    const commandKey = workerCommandKeyFromRequestKey(receipt.requestKey, input.fid);
+    return Object.freeze({
+      ...receipt,
+      commandKey,
+    });
+  });
+  const completedRecoveryFencePresent = candidates.some(candidate => (
+    candidate.commandKey.startsWith('pc2-f00-')
+  ));
+  const deleteCount = Math.max(
+    0,
+    candidates.length - input.maximumReceiptCount + 1,
+  );
+  if (deleteCount === 0) return Object.freeze([]);
+  const deletable = candidates
+    .filter(candidate => !(
+      candidate.commandKey.startsWith('pc1-')
+      || candidate.commandKey.startsWith('pc2-')
+      || candidate.assignmentId !== undefined
+        && (
+          activeAssignmentIds.has(candidate.assignmentId)
+          || completedRecoveryFencePresent
+        )
+    ))
+    .sort((left, right) => (
+      left.createdAtMicros < right.createdAtMicros ? -1
+        : left.createdAtMicros > right.createdAtMicros ? 1
+          : left.requestKey.localeCompare(right.requestKey)
+    ));
+  if (deletable.length < deleteCount) {
+    fail('WORKER_IDEMPOTENCY_RESERVED_CAPACITY');
+  }
+  return Object.freeze(
+    deletable.slice(0, deleteCount).map(receipt => receipt.requestKey),
+  );
+}
+
 export type CastleWorkerTimeline = Readonly<{
   startedAtMicros: bigint;
   arrivesAtMicros: bigint;
@@ -233,6 +324,150 @@ export function planCastleWorkerTimeline(startedAtMicros: bigint, routeSteps: nu
   const gatheringEndsAtMicros = checkedSum(arrivesAtMicros, CASTLE_WORKER_MAX_GATHERING_DURATION_MICROS, 'WORKER_TIME_OVERFLOW');
   const returnsAtMicros = checkedSum(gatheringEndsAtMicros, travelMicros, 'WORKER_TIME_OVERFLOW');
   return Object.freeze({ startedAtMicros, arrivesAtMicros, gatheringEndsAtMicros, returnsAtMicros });
+}
+
+export function clampProductionPlayerCanaryTimeline(
+  timeline: CastleWorkerTimeline,
+): CastleWorkerTimeline {
+  const travelMicros = timeline.arrivesAtMicros - timeline.startedAtMicros;
+  if (
+    travelMicros <= 0n
+    || timeline.gatheringEndsAtMicros !== checkedSum(
+      timeline.arrivesAtMicros,
+      CASTLE_WORKER_MAX_GATHERING_DURATION_MICROS,
+      'WORKER_TIME_OVERFLOW',
+    )
+    || timeline.returnsAtMicros !== checkedSum(
+      timeline.gatheringEndsAtMicros,
+      travelMicros,
+      'WORKER_TIME_OVERFLOW',
+    )
+  ) fail('WORKER_TIME_INVALID');
+  const gatheringEndsAtMicros = checkedSum(
+    timeline.arrivesAtMicros,
+    PRODUCTION_PLAYER_CANARY_GATHERING_DURATION_MICROS,
+    'WORKER_TIME_OVERFLOW',
+  );
+  return Object.freeze({
+    startedAtMicros: timeline.startedAtMicros,
+    arrivesAtMicros: timeline.arrivesAtMicros,
+    gatheringEndsAtMicros,
+    returnsAtMicros: checkedSum(
+      gatheringEndsAtMicros,
+      travelMicros,
+      'WORKER_TIME_OVERFLOW',
+    ),
+  });
+}
+
+/**
+ * Plan the short canary journey and prove the complete return is inside the
+ * half-open approval window. Equality is outside the approved interval.
+ */
+export function planProductionPlayerCanaryTimelineBeforeCutoff(
+  startedAtMicros: bigint,
+  routeSteps: number,
+  notAfterMicros: bigint,
+): CastleWorkerTimeline {
+  assertU64(notAfterMicros, 'PRODUCTION_PLAYER_CANARY_TIMELINE_CUTOFF_INVALID');
+  const timeline = clampProductionPlayerCanaryTimeline(
+    planCastleWorkerTimeline(startedAtMicros, routeSteps),
+  );
+  if (timeline.returnsAtMicros >= notAfterMicros) {
+    fail('PRODUCTION_PLAYER_CANARY_TIMELINE_CUTOFF_INVALID');
+  }
+  return timeline;
+}
+
+/**
+ * Validate immutable pc2 replay timing without constraining the mutable
+ * returnsAt of an assignment that has already begun returning.
+ */
+export function productionPlayerCanaryReplayTimelineIsValid(input: Readonly<{
+  startedAtMicros: bigint;
+  arrivesAtMicros: bigint;
+  gatheringEndsAtMicros: bigint;
+  routeSteps: number;
+  approvedRouteSteps: number;
+  notAfterMicros: bigint;
+}>): boolean {
+  try {
+    if (
+      input.routeSteps !== input.approvedRouteSteps
+      || !Number.isSafeInteger(input.approvedRouteSteps)
+      || input.approvedRouteSteps < 1
+    ) return false;
+    const travelMicros = checkedProduct(
+      BigInt(input.approvedRouteSteps),
+      CASTLE_WORKER_TRAVEL_MICROS_PER_STEP,
+      'WORKER_TIME_OVERFLOW',
+    );
+    return input.arrivesAtMicros === checkedSum(
+      input.startedAtMicros,
+      travelMicros,
+      'WORKER_TIME_OVERFLOW',
+    )
+      && input.gatheringEndsAtMicros === checkedSum(
+        input.arrivesAtMicros,
+        PRODUCTION_PLAYER_CANARY_GATHERING_DURATION_MICROS,
+        'WORKER_TIME_OVERFLOW',
+      )
+      && checkedSum(
+        input.gatheringEndsAtMicros,
+        travelMicros,
+        'WORKER_TIME_OVERFLOW',
+      ) < input.notAfterMicros;
+  } catch {
+    return false;
+  }
+}
+
+export type DueCastleWorkerScheduleV1 = Readonly<{
+  assignmentId: string;
+  scheduleId: string | bigint;
+}>;
+
+/**
+ * Run at most three due transitions for one assignment. The live schema uses
+ * this same loop with a dynamic indexed lookup after each transition.
+ */
+export function runBoundedDueCastleWorkerScheduleDrainV1<
+  Schedule extends DueCastleWorkerScheduleV1,
+>(
+  initial: Schedule,
+  observedAtMicros: bigint,
+  run: (schedule: Schedule) => void,
+  schedulesForAssignment: (assignmentId: string) => readonly Schedule[],
+  scheduledAtMicros: (schedule: Schedule) => bigint | undefined,
+): void {
+  let current = initial;
+  for (let transition = 0; transition < 3; transition += 1) {
+    run(current);
+    if (transition === 2) return;
+    const due = schedulesForAssignment(initial.assignmentId)
+      .filter(schedule => {
+        const scheduledAt = scheduledAtMicros(schedule);
+        return schedule.assignmentId === initial.assignmentId
+          && schedule.scheduleId !== current.scheduleId
+          && scheduledAt !== undefined
+          && scheduledAt <= observedAtMicros;
+      })
+      .sort((left, right) => {
+        const leftAt = scheduledAtMicros(left)!;
+        const rightAt = scheduledAtMicros(right)!;
+        const leftId = left.scheduleId;
+        const rightId = right.scheduleId;
+        const idOrder = typeof leftId === 'bigint' && typeof rightId === 'bigint'
+          ? leftId < rightId ? -1 : leftId > rightId ? 1 : 0
+          : leftId.toString() < rightId.toString() ? -1
+            : leftId.toString() > rightId.toString() ? 1 : 0;
+        return leftAt < rightAt ? -1
+          : leftAt > rightAt ? 1
+            : idOrder;
+      });
+    if (due.length === 0) return;
+    current = due[0]!;
+  }
 }
 
 export type CastleWorkerAccrualState = Readonly<{
@@ -293,6 +528,16 @@ export function workerAssignmentStateIsConsistent(state: CastleWorkerAccrualStat
       CASTLE_WORKER_MAX_GATHERING_DURATION_MICROS,
       'WORKER_TIME_OVERFLOW',
     );
+    const canaryGatheringEndsAtMicros = checkedSum(
+      canonicalArrivesAtMicros,
+      PRODUCTION_PLAYER_CANARY_GATHERING_DURATION_MICROS,
+      'WORKER_TIME_OVERFLOW',
+    );
+    const canaryDuration = state.gatheringEndsAtMicros
+      === canaryGatheringEndsAtMicros;
+    const gatheringAccrualCap = canaryDuration
+      ? policy.ratePerQuantum
+      : policy.gatheringTotal;
     if (
       state.policyVersion !== CASTLE_WORKER_POLICY_VERSION
       || (state.phase !== 'outbound' && state.phase !== 'gathering' && state.phase !== 'returning')
@@ -301,9 +546,10 @@ export function workerAssignmentStateIsConsistent(state: CastleWorkerAccrualStat
       || state.arrivesAtMicros > state.settledThroughMicros
       || state.settledThroughMicros > state.gatheringEndsAtMicros
       || state.materializedAmount > state.accruedAmount
-      || state.accruedAmount > policy.gatheringTotal
+      || state.accruedAmount > gatheringAccrualCap
       || state.arrivesAtMicros !== canonicalArrivesAtMicros
-      || state.gatheringEndsAtMicros !== canonicalGatheringEndsAtMicros
+      || (state.gatheringEndsAtMicros !== canonicalGatheringEndsAtMicros
+        && !canaryDuration)
     ) return false;
     if (state.phase !== 'returning') {
       return state.returnStartedAtMicros === undefined
@@ -370,7 +616,13 @@ export function planCastleWorkerAccrual(
   const settledThroughMicros = checkedSum(state.settledThroughMicros, elapsed, 'WORKER_ACCRUAL_OVERFLOW');
   const newlyAccruedAmount = checkedProduct(completedQuanta, policy.ratePerQuantum, 'WORKER_ACCRUAL_OVERFLOW');
   const accruedAmount = checkedSum(state.accruedAmount, newlyAccruedAmount, 'WORKER_ACCRUAL_OVERFLOW');
-  if (accruedAmount > policy.gatheringTotal) fail('WORKER_ACCRUAL_CAP');
+  const gatheringDurationMicros = state.gatheringEndsAtMicros
+    - state.arrivesAtMicros;
+  const gatheringAccrualCap = gatheringDurationMicros
+    === PRODUCTION_PLAYER_CANARY_GATHERING_DURATION_MICROS
+    ? policy.ratePerQuantum
+    : policy.gatheringTotal;
+  if (accruedAmount > gatheringAccrualCap) fail('WORKER_ACCRUAL_CAP');
   return Object.freeze({ accruedAmount, newlyAccruedAmount, completedQuanta, settledThroughMicros });
 }
 

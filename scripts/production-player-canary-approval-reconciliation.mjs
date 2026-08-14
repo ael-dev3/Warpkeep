@@ -5,7 +5,7 @@ import {
   requireProductionPlayerCanaryBaselineReconciliation,
 } from './production-player-canary-baseline-reconciliation.mjs';
 import {
-  deriveProductionPlayerCanaryCommandAuthorityV1,
+  deriveProductionPlayerCanaryCommandAuthorityV2,
 } from './production-player-canary-command-authority.mjs';
 import {
   productionPlayerCanaryRouteSetCommitment,
@@ -17,7 +17,7 @@ export const PRODUCTION_PLAYER_CANARY_APPROVAL_RECONCILIATION_PROFILE =
 const SERVER_PROFILE =
   'warpkeep-production-player-canary-approval-registration-v1';
 const COMMAND_KEY_POLICY_VERSION =
-  'warpkeep-production-player-canary-command-key-v1';
+  'warpkeep-production-player-canary-command-key-v2';
 const SHA256 = /^[0-9a-f]{64}$/u;
 const U64_MAX = 0xffff_ffff_ffff_ffffn;
 const WORKER_ID = /^genesis-001-castle-[0-9]+-worker-0[1-4]$/u;
@@ -268,8 +268,8 @@ export function productionPlayerCanaryApprovalRegistrationArgumentsV1(input) {
     })
     || approval.commandKeyPolicyVersion !== COMMAND_KEY_POLICY_VERSION
   ) fail('PRODUCTION_PLAYER_CANARY_APPROVAL_REGISTRATION_MATERIAL_MISMATCH');
-  const commandAuthority = deriveProductionPlayerCanaryCommandAuthorityV1({
-    evidenceNonce: approval.evidenceNonce,
+  const commandAuthority = deriveProductionPlayerCanaryCommandAuthorityV2({
+    challengeDigest: baseline.challengeDigest,
     reviewedAdmissionPlanDigest: baseline.reviewedAdmissionPlanDigest,
     serverBaselineCommitment: baseline.serverBaselineCommitment,
     routeSetCommitment: routePlan.routeSetCommitment,

@@ -24,7 +24,7 @@ import {
   productionPlayerCanaryBaselineReconciliationTestSeams,
 } from '../scripts/production-player-canary-baseline-reconciliation.mjs';
 import {
-  deriveProductionPlayerCanaryCommandAuthorityV1,
+  deriveProductionPlayerCanaryCommandAuthorityV2,
 } from '../scripts/production-player-canary-command-authority.mjs';
 import {
   inspectProductionPlayerCanaryOwnerApproval,
@@ -78,8 +78,8 @@ const routeSetCommitment = productionPlayerCanaryRouteSetCommitment({
   reviewedAdmissionPlanDigest: PLAN,
   routes,
 });
-const commandAuthority = deriveProductionPlayerCanaryCommandAuthorityV1({
-  evidenceNonce: NONCE,
+const commandAuthority = deriveProductionPlayerCanaryCommandAuthorityV2({
+  challengeDigest: productionPlayerCanaryBaselineChallengeDigest(NONCE),
   reviewedAdmissionPlanDigest: PLAN,
   serverBaselineCommitment: BASELINE,
   routeSetCommitment,
@@ -660,6 +660,7 @@ describe('production player canary bounded operator', () => {
       recoveryStatus({ disposition: 'recall-required' }),
       recoveryStatus({ assignmentCount: -1n }),
       recoveryStatus({ dispatchReceiptCount: 5 }),
+      recoveryStatus({ noOpRecallReceiptCount: 6 }),
     ];
     for (const status of hostile) {
       deps.inspectRecovery = async () => status;
@@ -669,6 +670,63 @@ describe('production player canary bounded operator', () => {
       })).rejects.toThrow('PRODUCTION_PLAYER_CANARY_OPERATOR_RECOVERY_STATUS_INVALID');
       expect((await execute({ command: 'inspect' })).phase).toBe('prepared');
     }
+    deps.inspectRecovery = async () => recoveryStatus({
+      dispatchReceiptCount: 0,
+      correlatedRecallReceiptCount: 0,
+      noOpRecallReceiptCount: 5,
+      structuralEvidenceCandidate: false,
+      disposition: 'terminal-evidence-impossible',
+    });
+    await expect(execute({
+      command: 'inspect-recovery',
+      adminSecret: SECRET,
+    })).resolves.toMatchObject({
+      phase: null,
+      recoveryStatus: {
+        dispatchReceiptCount: 0,
+        noOpRecallReceiptCount: 5,
+        structuralEvidenceCandidate: false,
+        disposition: 'terminal-evidence-impossible',
+      },
+    });
+    deps.inspectRecovery = async () => recoveryStatus({
+      idleWorkerCount: 3,
+      outboundWorkerCount: 1,
+      assignmentCount: 1n,
+      occupationCount: 1n,
+      scheduleCount: 1n,
+      noOpRecallReceiptCount: 1,
+      terminalSafe: false,
+      structuralEvidenceCandidate: false,
+      disposition: 'terminal-evidence-impossible',
+    });
+    await expect(execute({
+      command: 'inspect-recovery',
+      adminSecret: SECRET,
+    })).resolves.toMatchObject({
+      phase: null,
+      recoveryStatus: {
+        outboundWorkerCount: 1,
+        noOpRecallReceiptCount: 1,
+        terminalSafe: false,
+        disposition: 'terminal-evidence-impossible',
+      },
+    });
+    deps.inspectRecovery = async () => recoveryStatus({
+      idleWorkerCount: 3,
+      outboundWorkerCount: 1,
+      assignmentCount: 1n,
+      occupationCount: 1n,
+      scheduleCount: 1n,
+      noOpRecallReceiptCount: 1,
+      terminalSafe: false,
+      structuralEvidenceCandidate: false,
+      disposition: 'recall-required',
+    });
+    await expect(execute({
+      command: 'inspect-recovery',
+      adminSecret: SECRET,
+    })).rejects.toThrow('PRODUCTION_PLAYER_CANARY_OPERATOR_RECOVERY_STATUS_INVALID');
     let getterRead = false;
     const accessor = recoveryStatus();
     Object.defineProperty(accessor, 'serverBaselineCommitment', {

@@ -122,6 +122,7 @@ async function runtimeFixture(options: Readonly<{
   dispatchFailureBeforeCommitAtOrdinal?: number;
   recallResponseLossAfterCommitAtOrdinal?: number;
   notAfterMicros?: bigint;
+  connectFailureAtCall?: number;
 }> = {}) {
   const commandMaterial = await ownerCanaryRuntimePlanTestSeams!.deriveCommandMaterial({
     ...INPUT,
@@ -132,7 +133,7 @@ async function runtimeFixture(options: Readonly<{
     reviewedAdmissionPlanDigest: INPUT.reviewedAdmissionPlanDigest,
     serverBaselineCommitment: SERVER_BASELINE_COMMITMENT,
     routeSetCommitment: INPUT.routeSetCommitment,
-    commandKeyPolicyVersion: 'warpkeep-production-player-canary-command-key-v1',
+    commandKeyPolicyVersion: 'warpkeep-production-player-canary-command-key-v2',
     commandSetCommitment: commandMaterial.commandSetCommitment,
     notAfterMicros: options.notAfterMicros ?? 1_000_000_000n,
     atlasRevision: ATLAS_REVISION,
@@ -143,6 +144,7 @@ async function runtimeFixture(options: Readonly<{
   let resourceRevision = 1n;
   const workerRevisions = [1n, 1n, 1n, 1n];
   const assignments = new Map<string, Assignment>();
+  let recoveryFenced = false;
   const dispatchInputs: unknown[] = [];
   const recallInputs: unknown[] = [];
   const runtimePlanInputs: unknown[] = [];
@@ -255,6 +257,7 @@ async function runtimeFixture(options: Readonly<{
           || route.atlasRevision !== input.expectedRevision
           || commandMaterial.dispatch[routeIndex] !== input.idempotencyKey
         ) throw new Error('fixture dispatch mismatch');
+        if (recoveryFenced) throw new Error('fixture dispatch fenced');
         if (options.dispatchFailureBeforeCommitAtOrdinal === route.ordinal) {
           throw new Error('synthetic dispatch failure before commit');
         }
@@ -282,6 +285,34 @@ async function runtimeFixture(options: Readonly<{
         ordinal: number;
       }) => {
         recallInputs.push({ ...input });
+        if (input.ordinal === 0) {
+          if (
+            input.reviewedAdmissionPlanDigest !== INPUT.reviewedAdmissionPlanDigest
+            || input.evidenceNonce !== INPUT.evidenceNonce
+          ) throw new Error('fixture recall-or-fence mismatch');
+          if (recoveryFenced) return;
+          for (const [index, route] of ROUTES.entries()) {
+            const assignment = assignments.get(route.workerId);
+            if (
+              assignment
+              && assignment.dispatchKey !== commandMaterial.dispatch[index]
+            ) throw new Error('fixture recall-or-fence dispatch mismatch');
+          }
+          for (const [index, route] of ROUTES.entries()) {
+            const assignment = assignments.get(route.workerId);
+            if (!assignment || assignment.recallKey !== undefined) continue;
+            serverMicros += 1_000_000n;
+            resourceRevision += 1n;
+            workerRevisions[index] = workerRevisions[index]! + 1n;
+            assignment.recallKey = commandMaterial.recall[index]!;
+            assignment.recallAtMicros = serverMicros;
+          }
+          // The real atomic reducer publishes f00 last as proof that every
+          // position fence and exact containment recall completed. A later
+          // serialized dispatch with a reviewed key must observe it.
+          recoveryFenced = true;
+          return;
+        }
         const routeIndex = input.ordinal - 1;
         const route = ROUTES[routeIndex];
         const assignment = route ? assignments.get(route.workerId) : undefined;
@@ -316,12 +347,17 @@ async function runtimeFixture(options: Readonly<{
   const authorityClosureCallbacks: Array<Readonly<{
     onAuthorityClosureUnconfirmed?: () => void;
   }>> = [];
+  let connectCallCount = 0;
   const connect = vi.fn(async (
     _config: unknown,
     _jwt: string,
     _signal: AbortSignal,
     callbacks: Readonly<{ onAuthorityClosureUnconfirmed?: () => void }>,
   ) => {
+    connectCallCount += 1;
+    if (options.connectFailureAtCall === connectCallCount) {
+      throw new Error('synthetic connect failure');
+    }
     authorityClosureCallbacks.push(callbacks);
     return connection;
   });
@@ -344,6 +380,7 @@ async function runtimeFixture(options: Readonly<{
     dispatchInputs,
     recallInputs,
     runtimePlanInputs,
+    connect,
     wait,
     acknowledgeSanitizedEvidence,
     authoritySession: authoritySession(),
@@ -352,6 +389,7 @@ async function runtimeFixture(options: Readonly<{
     },
     commitLateDispatch(ordinal: number) {
       const route = ROUTES[ordinal - 1];
+      if (recoveryFenced) throw new Error('fixture late dispatch fenced');
       if (!route || assignments.has(route.workerId)) {
         throw new Error('fixture late dispatch mismatch');
       }
@@ -362,6 +400,10 @@ async function runtimeFixture(options: Readonly<{
         dispatchKey: commandMaterial.dispatch[ordinal - 1]!,
         dispatchAtMicros: serverMicros,
       });
+    },
+    assignmentRecallKey(ordinal: number) {
+      const route = ROUTES[ordinal - 1];
+      return route ? assignments.get(route.workerId)?.recallKey : undefined;
     },
     setServerMicros(value: bigint) { serverMicros = value; },
     advanceServerMicros(value: bigint) { serverMicros += value; },
@@ -399,7 +441,138 @@ async function openRecallRecoveryAuthority(
   );
 }
 
+async function openFreshPageRecoveryAuthority(
+  fixture: Awaited<ReturnType<typeof runtimeFixture>>,
+) {
+  return fixture.runtime.openFreshPageRecoveryAuthority(
+    fixture.authoritySession,
+    new AbortController().signal,
+  );
+}
+
 describe('owner canary production evidence runtime', () => {
+  it('gives a fresh page only the atomic ordinal-zero recall-or-fence capability', async () => {
+    const fixture = await runtimeFixture();
+    const authority = await openFreshPageRecoveryAuthority(fixture);
+    const signal = new AbortController().signal;
+    await expect(fixture.runtime.freshPageRecoveryApi.recover(
+      authority,
+      {
+        evidenceNonce: INPUT.evidenceNonce,
+        reviewedAdmissionPlanDigest: INPUT.reviewedAdmissionPlanDigest,
+      },
+      signal,
+    )).resolves.toBeUndefined();
+    expect(fixture.recallInputs).toEqual([{
+      reviewedAdmissionPlanDigest: INPUT.reviewedAdmissionPlanDigest,
+      evidenceNonce: INPUT.evidenceNonce,
+      ordinal: 0,
+    }]);
+    expect(fixture.dispatchInputs).toEqual([]);
+    expect(fixture.runtimePlanInputs).toEqual([]);
+    expect(fixture.runtime.recoveryApi.state()).toBe('none');
+
+    await expect(fixture.runtime.openAuthority(
+      fixture.authoritySession,
+      signal,
+    )).rejects.toThrow('The owner canary evidence runtime stopped.');
+    await expect(fixture.runtime.evidenceApi.run({
+      ...INPUT,
+      signal,
+      runStage: async <Result>(): Promise<Result> => {
+        throw new Error('fresh recovery cannot run a main stage');
+      },
+    })).rejects.toThrow('The owner canary evidence runtime stopped.');
+
+    const secondAuthority = await openFreshPageRecoveryAuthority(fixture);
+    await expect(fixture.runtime.freshPageRecoveryApi.recover(
+      secondAuthority,
+      {
+        evidenceNonce: INPUT.evidenceNonce,
+        reviewedAdmissionPlanDigest: INPUT.reviewedAdmissionPlanDigest,
+      },
+      signal,
+    )).resolves.toBeUndefined();
+    expect(fixture.recallInputs.map(input => (
+      input as { ordinal: number }
+    ).ordinal)).toEqual([0, 0]);
+  });
+
+  it('latches the first fresh-page subject inside the runtime across authority reopen', async () => {
+    const fixture = await runtimeFixture();
+    const first = await fixture.runtime.openFreshPageRecoveryAuthority(
+      fixture.authoritySession,
+      new AbortController().signal,
+    );
+    expect(first.subjectFid).toBe(FID);
+    await expect(fixture.runtime.openFreshPageRecoveryAuthority(
+      authoritySession(FID + 1),
+      new AbortController().signal,
+    )).rejects.toThrow('The owner canary evidence runtime stopped.');
+    const sameSubject = await fixture.runtime.openFreshPageRecoveryAuthority(
+      fixture.authoritySession,
+      new AbortController().signal,
+    );
+    expect(sameSubject.subjectFid).toBe(FID);
+    expect(fixture.recallInputs).toEqual([]);
+  });
+
+  it('latches the first fresh-page subject before a failed connection can subject-hop', async () => {
+    const fixture = await runtimeFixture({ connectFailureAtCall: 1 });
+    await expect(fixture.runtime.openFreshPageRecoveryAuthority(
+      fixture.authoritySession,
+      new AbortController().signal,
+    )).rejects.toThrow('synthetic connect failure');
+    await expect(fixture.runtime.openFreshPageRecoveryAuthority(
+      authoritySession(FID + 1),
+      new AbortController().signal,
+    )).rejects.toThrow('The owner canary evidence runtime stopped.');
+    expect(fixture.connect).toHaveBeenCalledTimes(1);
+    expect(fixture.recallInputs).toEqual([]);
+  });
+
+  it('rejects malformed or substituted fresh-page recovery capabilities before mutation', async () => {
+    const fixture = await runtimeFixture();
+    const authority = await openFreshPageRecoveryAuthority(fixture);
+    let nonceRead = false;
+    const accessor = {
+      get evidenceNonce() {
+        nonceRead = true;
+        return INPUT.evidenceNonce;
+      },
+      reviewedAdmissionPlanDigest: INPUT.reviewedAdmissionPlanDigest,
+    };
+    await expect(fixture.runtime.freshPageRecoveryApi.recover(
+      authority,
+      accessor,
+      new AbortController().signal,
+    )).rejects.toThrow('The owner canary evidence runtime stopped.');
+    expect(nonceRead).toBe(false);
+    expect(fixture.recallInputs).toEqual([]);
+
+    const other = await runtimeFixture();
+    const substituted = await openFreshPageRecoveryAuthority(other);
+    await expect(fixture.runtime.freshPageRecoveryApi.recover(
+      substituted as never,
+      {
+        evidenceNonce: INPUT.evidenceNonce,
+        reviewedAdmissionPlanDigest: INPUT.reviewedAdmissionPlanDigest,
+      },
+      new AbortController().signal,
+    )).rejects.toThrow('The owner canary evidence runtime stopped.');
+    expect(fixture.recallInputs).toEqual([]);
+
+    const mixed = await runtimeFixture();
+    await mixed.runtime.openAuthority(
+      mixed.authoritySession,
+      new AbortController().signal,
+    );
+    await expect(openFreshPageRecoveryAuthority(mixed)).rejects.toThrow(
+      'The owner canary evidence runtime stopped.',
+    );
+    expect(mixed.recallInputs).toEqual([]);
+  });
+
   it('runs the exact ten memory-only stages with ordered equal routes and deterministic replay', async () => {
     const fixture = await runtimeFixture();
     const { evidence, stages } = await runEvidence(fixture);
@@ -580,7 +753,7 @@ describe('owner canary production evidence runtime', () => {
     expect(fixture.runtime.recoveryApi.state()).toBe('safe');
   });
 
-  it('never publishes browser-safe after an unconfirmed main close and recalls a late dispatch on retry', async () => {
+  it('atomically fences every reviewed dispatch key after an unconfirmed main close', async () => {
     const fixture = await runtimeFixture({
       dispatchFailureBeforeCommitAtOrdinal: 1,
     });
@@ -595,20 +768,46 @@ describe('owner canary production evidence runtime', () => {
       firstAuthority,
       new AbortController().signal,
     )).rejects.toThrow('The owner canary evidence runtime stopped.');
-    expect(fixture.recallInputs).toEqual([]);
+    expect(fixture.recallInputs).toEqual([{
+      reviewedAdmissionPlanDigest: INPUT.reviewedAdmissionPlanDigest,
+      evidenceNonce: INPUT.evidenceNonce,
+      ordinal: 0,
+    }]);
     expect(fixture.runtime.recoveryApi.state()).toBe('unconfirmed');
+    expect(() => fixture.commitLateDispatch(1)).toThrow('fixture late dispatch fenced');
 
-    fixture.commitLateDispatch(1);
     const secondAuthority = await openRecallRecoveryAuthority(fixture);
     await expect(fixture.runtime.recoveryApi.recover(
       secondAuthority,
       new AbortController().signal,
     )).rejects.toThrow('The owner canary evidence runtime stopped.');
+    expect(fixture.recallInputs.map(input => (
+      input as { ordinal: number }
+    ).ordinal)).toEqual([0, 0]);
+    expect(fixture.runtime.recoveryApi.state()).toBe('unconfirmed');
+  });
+
+  it('recalls a late old dispatch that serializes before the poisoned recovery fence', async () => {
+    const fixture = await runtimeFixture({
+      dispatchFailureBeforeCommitAtOrdinal: 1,
+    });
+    await expect(runEvidence(fixture)).rejects.toThrow(
+      'The owner canary runtime plan stopped.',
+    );
+    fixture.poisonLatestAuthorityLifecycle();
+    fixture.commitLateDispatch(1);
+
+    const authority = await openRecallRecoveryAuthority(fixture);
+    await expect(fixture.runtime.recoveryApi.recover(
+      authority,
+      new AbortController().signal,
+    )).rejects.toThrow('The owner canary evidence runtime stopped.');
     expect(fixture.recallInputs).toEqual([{
       reviewedAdmissionPlanDigest: INPUT.reviewedAdmissionPlanDigest,
       evidenceNonce: INPUT.evidenceNonce,
-      ordinal: 1,
+      ordinal: 0,
     }]);
+    expect(fixture.assignmentRecallKey(1)).toMatch(/^pc2-r01-[0-9a-f]{64}$/u);
     expect(fixture.runtime.recoveryApi.state()).toBe('unconfirmed');
   });
 

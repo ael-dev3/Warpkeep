@@ -34,6 +34,7 @@ import {
 } from './ownerCanaryEvidence';
 import type { OwnerCanaryEvidenceApi } from './ownerCanaryController';
 import type {
+  OwnerCanaryFreshPageRecoveryInput,
   OwnerCanaryRecoveryState,
   OwnerCanaryRuntime,
 } from './ownerCanaryRuntime';
@@ -57,7 +58,7 @@ export const OWNER_CANARY_RECOVERY_READ_CEILING_MILLISECONDS = 10_000;
 const RUNTIME_PLAN_PROFILE =
   'warpkeep-production-player-canary-runtime-route-plan-v1';
 const COMMAND_KEY_POLICY_VERSION =
-  'warpkeep-production-player-canary-command-key-v1';
+  'warpkeep-production-player-canary-command-key-v2';
 const SHA256 = /^[0-9a-f]{64}$/u;
 const WORKER_ID = /^genesis-001-castle-[1-9][0-9]*-worker-0[1-4]$/u;
 const LOCATION_ID = /^GRL-[A-Z2-7]{26}$/u;
@@ -76,6 +77,16 @@ type OwnerCanaryRecallRecoveryAuthority = Readonly<{
   connection: WarpkeepConnection;
   subjectFid: number;
   [recallRecoveryAuthorityBrand]: true;
+}>;
+
+const freshPageRecoveryAuthorityBrand: unique symbol = Symbol(
+  'OwnerCanaryFreshPageRecoveryAuthority',
+);
+
+type OwnerCanaryFreshPageRecoveryAuthority = Readonly<{
+  connection: WarpkeepConnection;
+  subjectFid: number;
+  [freshPageRecoveryAuthorityBrand]: true;
 }>;
 
 type PrivateRoute = Readonly<{
@@ -779,9 +790,48 @@ function makePlanBoundary(
   });
 }
 
+function exactFreshPageRecoveryInput(
+  value: unknown,
+): OwnerCanaryFreshPageRecoveryInput | undefined {
+  if (!exactRecord(value, ['evidenceNonce', 'reviewedAdmissionPlanDigest'])) return undefined;
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const evidenceNonce = descriptors.evidenceNonce?.value;
+  const reviewedAdmissionPlanDigest = descriptors.reviewedAdmissionPlanDigest?.value;
+  return typeof evidenceNonce === 'string'
+    && SHA256.test(evidenceNonce)
+    && typeof reviewedAdmissionPlanDigest === 'string'
+    && SHA256.test(reviewedAdmissionPlanDigest)
+    ? Object.freeze({ evidenceNonce, reviewedAdmissionPlanDigest })
+    : undefined;
+}
+
+async function runRecallOrFence(
+  authority: Readonly<{ connection: WarpkeepConnection }>,
+  input: OwnerCanaryFreshPageRecoveryInput,
+  signal: AbortSignal,
+): Promise<void> {
+  const reducer = (authority.connection.reducers as unknown as Readonly<{
+    recallProductionPlayerCanaryWorkerV1?: (request: Readonly<{
+      reviewedAdmissionPlanDigest: string;
+      evidenceNonce: string;
+      ordinal: number;
+    }>) => Promise<unknown>;
+  }>).recallProductionPlayerCanaryWorkerV1;
+  if (typeof reducer !== 'function') throw failure('stage-invariant');
+  await awaitWarpkeepAuthorityOperation(() => reducer(Object.freeze({
+    reviewedAdmissionPlanDigest: input.reviewedAdmissionPlanDigest,
+    evidenceNonce: input.evidenceNonce,
+    ordinal: 0,
+  })), signal);
+}
+
 export function createOwnerCanaryEvidenceRuntime(
   dependencies: OwnerCanaryEvidenceRuntimeDependencies,
-): OwnerCanaryRuntime<OwnerCanaryAuthority, OwnerCanaryRecallRecoveryAuthority> {
+): OwnerCanaryRuntime<
+  OwnerCanaryAuthority,
+  OwnerCanaryRecallRecoveryAuthority,
+  OwnerCanaryFreshPageRecoveryAuthority
+> {
   if (
     !isExactOwnerCanaryProductionConfig(dependencies.config)
     || typeof dependencies.verifyPrivateSubject !== 'function'
@@ -798,6 +848,7 @@ export function createOwnerCanaryEvidenceRuntime(
     plan: PrivateRuntimePlan;
     expectedAtlasId: string;
     expectedSubjectFid: number;
+    evidenceNonce: string;
     attemptedOrdinals: ReadonlySet<OwnerCanaryCommandOrdinal>;
     preDispatchRevisions: PreDispatchWorkerRevisions;
   }>;
@@ -806,10 +857,14 @@ export function createOwnerCanaryEvidenceRuntime(
   let recoveryRecord: RecoveryRecord | undefined;
   let authorityLifecyclePoisoned = false;
   let recoveryAuthorityLifecyclePoisoned = false;
+  let freshPageRecoveryOnly = false;
+  let freshPageRecoverySubjectFid: number | undefined;
+  let openMainAuthorityCount = 0;
   const authorityLifecycleAbort = new AbortController();
   const recoveryAuthorityLifecycleAbort = new AbortController();
   const mainAuthorities = new WeakSet<object>();
   const recallRecoveryAuthorities = new WeakSet<object>();
+  const freshPageRecoveryAuthorities = new WeakSet<object>();
   const poisonAuthorityLifecycle = () => {
     authorityLifecyclePoisoned = true;
     authorityLifecycleAbort.abort(failure('authority-session'));
@@ -841,6 +896,17 @@ export function createOwnerCanaryEvidenceRuntime(
       ) throw failure('stage-invariant');
       recoveryState = 'running';
       try {
+        if (authorityLifecyclePoisoned) {
+          await withActionCeiling(
+            signal,
+            actionSignal => runRecallOrFence(authority, Object.freeze({
+              evidenceNonce: retained.evidenceNonce,
+              reviewedAdmissionPlanDigest: retained.plan.reviewedAdmissionPlanDigest,
+            }), actionSignal),
+          );
+          recoveryState = 'unconfirmed';
+          throw failure('authority-session');
+        }
         const before = requireControlState(await withRecoveryReadCeiling(
           signal,
           readSignal => awaitWarpkeepAuthorityOperation(
@@ -866,8 +932,25 @@ export function createOwnerCanaryEvidenceRuntime(
           })
           .map(route => route.ordinal);
         let commandFailure: unknown;
+        let poisonedRecallOrFenceCompleted = false;
         await withActionCeiling(signal, async actionSignal => {
+          if (authorityLifecyclePoisoned) {
+            await runRecallOrFence(authority, Object.freeze({
+              evidenceNonce: retained.evidenceNonce,
+              reviewedAdmissionPlanDigest: retained.plan.reviewedAdmissionPlanDigest,
+            }), actionSignal);
+            poisonedRecallOrFenceCompleted = true;
+            return;
+          }
           for (const ordinal of activeOrdinals) {
+            if (authorityLifecyclePoisoned) {
+              await runRecallOrFence(authority, Object.freeze({
+                evidenceNonce: retained.evidenceNonce,
+                reviewedAdmissionPlanDigest: retained.plan.reviewedAdmissionPlanDigest,
+              }), actionSignal);
+              poisonedRecallOrFenceCompleted = true;
+              break;
+            }
             try {
               await retained.boundary.runRecoveryRecall({
                 plan: retained.handle,
@@ -880,6 +963,19 @@ export function createOwnerCanaryEvidenceRuntime(
             }
           }
         });
+        if (authorityLifecyclePoisoned) {
+          if (!poisonedRecallOrFenceCompleted) {
+            await withActionCeiling(
+              signal,
+              actionSignal => runRecallOrFence(authority, Object.freeze({
+                evidenceNonce: retained.evidenceNonce,
+                reviewedAdmissionPlanDigest: retained.plan.reviewedAdmissionPlanDigest,
+              }), actionSignal),
+            );
+          }
+          recoveryState = 'unconfirmed';
+          throw failure('authority-session');
+        }
         const after = requireControlState(await withRecoveryReadCeiling(
           signal,
           readSignal => awaitWarpkeepAuthorityOperation(
@@ -904,9 +1000,17 @@ export function createOwnerCanaryEvidenceRuntime(
           worker.revision < before.value.roster.workers[index]!.revision
         ))) throw failure('control-state');
         if (authorityLifecyclePoisoned) {
-          // The ambiguous old main connection may still publish a delayed
-          // dispatch after this read. Keep the recall handle retryable and
-          // leave terminal safety exclusively to repeated admin inspection.
+          // Fence every reviewed dispatch key before leaving an ambiguous old
+          // main connection to repeated admin inspection. This reducer is
+          // atomic: it either recalls the exact active canary assignments or
+          // commits the permanent no-dispatch marker.
+          await withActionCeiling(
+            signal,
+            actionSignal => runRecallOrFence(authority, Object.freeze({
+              evidenceNonce: retained.evidenceNonce,
+              reviewedAdmissionPlanDigest: retained.plan.reviewedAdmissionPlanDigest,
+            }), actionSignal),
+          );
           recoveryState = 'unconfirmed';
           throw failure('authority-session');
         }
@@ -923,14 +1027,42 @@ export function createOwnerCanaryEvidenceRuntime(
     },
   });
 
+  const freshPageRecoveryApi = Object.freeze({
+    async recover(
+      authority: OwnerCanaryFreshPageRecoveryAuthority,
+      candidate: OwnerCanaryFreshPageRecoveryInput,
+      callerSignal: AbortSignal,
+    ): Promise<void> {
+      const input = exactFreshPageRecoveryInput(candidate);
+      const signal = AbortSignal.any([
+        callerSignal,
+        recoveryAuthorityLifecycleAbort.signal,
+      ]);
+      if (
+        !freshPageRecoveryOnly
+        || !input
+        || signal.aborted
+        || recoveryAuthorityLifecyclePoisoned
+        || !freshPageRecoveryAuthorities.has(authority)
+      ) throw failure('stage-invariant');
+      await withActionCeiling(
+        signal,
+        actionSignal => runRecallOrFence(authority, input, actionSignal),
+      );
+    },
+  });
+
   return Object.freeze({
     recoveryApi,
+    freshPageRecoveryApi,
     verifyPrivateSubject: dependencies.verifyPrivateSubject,
     async openAuthority(
       session: FarcasterOidcSession,
       signal: AbortSignal,
     ): Promise<OwnerCanaryAuthority> {
-      if (authorityLifecyclePoisoned) throw failure('authority-session');
+      if (authorityLifecyclePoisoned || freshPageRecoveryOnly) {
+        throw failure('authority-session');
+      }
       const observedNow = now();
       const parsed = Number.isSafeInteger(observedNow) && observedNow >= 0
         ? parseFarcasterOidcJwt(session.jwt, {
@@ -975,6 +1107,7 @@ export function createOwnerCanaryEvidenceRuntime(
         subjectFid: parsed.claims.fid,
       });
       mainAuthorities.add(authority);
+      openMainAuthorityCount += 1;
       return authority;
     },
     closeAuthority: async authority => {
@@ -987,6 +1120,7 @@ export function createOwnerCanaryEvidenceRuntime(
         throw error;
       }
       mainAuthorities.delete(authority);
+      openMainAuthorityCount -= 1;
       if (alreadyPoisoned || authorityLifecyclePoisoned) {
         throw failure('authority-session');
       }
@@ -1060,6 +1194,91 @@ export function createOwnerCanaryEvidenceRuntime(
         throw error;
       }
       recallRecoveryAuthorities.delete(authority);
+      if (alreadyPoisoned || recoveryAuthorityLifecyclePoisoned) {
+        poisonRecoveryAuthorityLifecycle();
+        throw failure('authority-session');
+      }
+    },
+    async openFreshPageRecoveryAuthority(
+      session: FarcasterOidcSession,
+      signal: AbortSignal,
+    ): Promise<OwnerCanaryFreshPageRecoveryAuthority> {
+      if (
+        recoveryAuthorityLifecyclePoisoned
+        || openMainAuthorityCount !== 0
+        || (!freshPageRecoveryOnly && mainRunConsumed)
+      ) throw failure('authority-session');
+      // This mode is permanent even when parsing, connecting, or the reducer
+      // fails. Main evidence and dispatch authority can never follow it.
+      freshPageRecoveryOnly = true;
+      mainRunConsumed = true;
+      const observedNow = now();
+      const parsed = Number.isSafeInteger(observedNow) && observedNow >= 0
+        ? parseFarcasterOidcJwt(session.jwt, {
+            issuer: CANONICAL_WARPKEEP_AUTH_ORIGIN,
+            audience: DEFAULT_WARPKEEP_OIDC_AUDIENCE,
+            now: observedNow,
+          })
+        : undefined;
+      if (
+        !parsed
+        || parsed.session.issuer !== session.issuer
+        || parsed.session.audience !== session.audience
+        || parsed.session.expiresAt !== session.expiresAt
+      ) throw failure('authority-session');
+      const expectedSubjectFid = freshPageRecoverySubjectFid
+        ?? parsed.claims.fid;
+      if (parsed.claims.fid !== expectedSubjectFid) {
+        throw failure('authority-session');
+      }
+      // Latch before connection establishment: even a failed first transport
+      // cannot be followed by a different owner subject in this page realm.
+      freshPageRecoverySubjectFid = expectedSubjectFid;
+      let connection: WarpkeepConnection;
+      try {
+        connection = await connect(
+          dependencies.config,
+          parsed.session.jwt,
+          signal,
+          Object.freeze({
+            onAuthorityClosureUnconfirmed: poisonRecoveryAuthorityLifecycle,
+          }),
+        );
+      } catch (error) {
+        if (isWarpkeepAuthorityClosureUnconfirmed(error)) {
+          poisonRecoveryAuthorityLifecycle();
+        }
+        throw error;
+      }
+      if (signal.aborted || recoveryAuthorityLifecycleAbort.signal.aborted) {
+        try {
+          await disconnectWarpkeepConfirmed(connection);
+        } catch (error) {
+          poisonRecoveryAuthorityLifecycle();
+          throw error;
+        }
+        throw failure('authority-session');
+      }
+      const authority = Object.freeze({
+        connection,
+        subjectFid: parsed.claims.fid,
+        [freshPageRecoveryAuthorityBrand]: true as const,
+      });
+      freshPageRecoveryAuthorities.add(authority);
+      return authority;
+    },
+    closeFreshPageRecoveryAuthority: async authority => {
+      if (!freshPageRecoveryAuthorities.has(authority)) {
+        throw failure('authority-session');
+      }
+      const alreadyPoisoned = recoveryAuthorityLifecyclePoisoned;
+      try {
+        await disconnectWarpkeepConfirmed(authority.connection);
+      } catch (error) {
+        poisonRecoveryAuthorityLifecycle();
+        throw error;
+      }
+      freshPageRecoveryAuthorities.delete(authority);
       if (alreadyPoisoned || recoveryAuthorityLifecyclePoisoned) {
         poisonRecoveryAuthorityLifecycle();
         throw failure('authority-session');
@@ -1606,6 +1825,7 @@ export function createOwnerCanaryEvidenceRuntime(
               plan: privatePlan,
               expectedAtlasId: baseline.atlasId,
               expectedSubjectFid: runtimeSubjectFid!,
+              evidenceNonce: input.evidenceNonce,
               attemptedOrdinals: new Set(attemptedDispatchOrdinals),
               preDispatchRevisions: preDispatchWorkerRevisions,
             });

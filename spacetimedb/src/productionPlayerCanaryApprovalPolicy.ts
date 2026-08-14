@@ -2,6 +2,8 @@ import { sha256Hex } from './sha256';
 
 export const PRODUCTION_PLAYER_CANARY_APPROVAL_REGISTRATION_PROFILE =
   'warpkeep-production-player-canary-approval-registration-v1';
+export const PRODUCTION_PLAYER_CANARY_COMMAND_KEY_POLICY_VERSION =
+  'warpkeep-production-player-canary-command-key-v2';
 
 export class ProductionPlayerCanaryApprovalError extends Error {
   constructor(readonly code: string) {
@@ -12,6 +14,40 @@ export class ProductionPlayerCanaryApprovalError extends Error {
 
 function fail(code: string): never {
   throw new ProductionPlayerCanaryApprovalError(code);
+}
+
+export type ProductionPlayerCanaryGameplayWriteRegistrationV2 = Readonly<{
+  fid: bigint;
+  commandKeyPolicyVersion: string;
+  approvedAtMicros: bigint;
+  notAfterMicros: bigint;
+  registeredAt: Readonly<{ microsSinceUnixEpoch: bigint }>;
+}>;
+
+/** Pure decision seam used by every caller-triggered gameplay mutation gate. */
+export function productionPlayerCanaryGameplayWriteGateCodeV2(
+  registration: ProductionPlayerCanaryGameplayWriteRegistrationV2 | null,
+  fid: bigint,
+  observedAtMicros: bigint,
+): 'STATE_INTEGRITY'
+  | 'PRODUCTION_PLAYER_CANARY_GENERIC_WORKER_WRITE_BLOCKED'
+  | undefined {
+  if (registration === null) return undefined;
+  if (
+    registration.fid !== fid
+    || registration.commandKeyPolicyVersion
+      !== PRODUCTION_PLAYER_CANARY_COMMAND_KEY_POLICY_VERSION
+    || registration.approvedAtMicros < 1n
+    || registration.notAfterMicros <= registration.approvedAtMicros
+    || registration.registeredAt.microsSinceUnixEpoch
+      < registration.approvedAtMicros
+    || registration.registeredAt.microsSinceUnixEpoch
+      >= registration.notAfterMicros
+  ) return 'STATE_INTEGRITY';
+  return observedAtMicros >= registration.approvedAtMicros
+    && observedAtMicros < registration.notAfterMicros
+    ? 'PRODUCTION_PLAYER_CANARY_GENERIC_WORKER_WRITE_BLOCKED'
+    : undefined;
 }
 
 function framed(values: readonly (string | number | bigint | boolean)[]): string {

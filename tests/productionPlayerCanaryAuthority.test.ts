@@ -39,7 +39,7 @@ import {
   productionPlayerCanaryRouteSetCommitment,
 } from '../scripts/production-player-canary-owner-approval.mjs';
 import {
-  deriveProductionPlayerCanaryCommandAuthorityV1,
+  deriveProductionPlayerCanaryCommandAuthorityV2,
 } from '../scripts/production-player-canary-command-authority.mjs';
 import {
   PRODUCTION_PLAYER_CANARY_PROFILE,
@@ -178,8 +178,8 @@ function evidenceAuthority(
     reviewedAdmissionPlanDigest,
     routes,
   });
-  const commandAuthority = deriveProductionPlayerCanaryCommandAuthorityV1({
-    evidenceNonce,
+  const commandAuthority = deriveProductionPlayerCanaryCommandAuthorityV2({
+    challengeDigest,
     reviewedAdmissionPlanDigest,
     serverBaselineCommitment: serverBaseline,
     routeSetCommitment,

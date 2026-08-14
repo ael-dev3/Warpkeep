@@ -201,7 +201,7 @@ describe('isolated owner canary production entry', () => {
       ),
     ].join('\n');
     expect(publicBrowserBoundary).not.toMatch(
-      /(?:serverBaselineCommitment|commandSetCommitment|pc1-[dr][0-9]{2}-|idempotencyKey)/,
+      /(?:serverBaselineCommitment|commandSetCommitment|pc[12]-(?:[dr][0-9]{2}|f00)-|idempotencyKey)/,
     );
   });
 });

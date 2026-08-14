@@ -140,17 +140,17 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2f3363bf9576cc22efd729f453b4cf1eb1c407a5f9ba611ef6a990833b4a1623"
+      "sha256": "48be4a58ad48241488dcee9ab1197ce54f80bc421a3c59e087339b6d964494ff"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "22b4b540c1528b2708eb27e8b16fd3088078f393070909a6e5d0253f368efcbc"
+      "sha256": "4bd4a56dcc3b2facab709325ceb73b0fe7624068527c25ef37af612a6de5a62d"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "13d8ffbe97d23ff4586138290a5f3267e9889d03ae953ae26ce87bd00fdeb843"
+      "sha256": "8173aea4e8f1f3d6be62d285459dd127ba5a507be9d1e61d4d25504f051642dd"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
@@ -393,11 +393,6 @@
       "sha256": "0ac956518ebbed5e893adcb8159c2a4c287d684850921249b18ba6bc9352648e"
     },
     {
-      "path": "scripts/production-player-canary-activation-launcher.d.mts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8f3963343cb33e014cc6202f5ca15c342224cb80ca0ab467d0b598a2d0d9c14e"
-    },
-    {
       "path": "scripts/production-player-canary-activation-launcher.mjs",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "e6d26d9376f9bbfbc91a9ddc42eaa99598b097026972cc3c24cb87a5c5223430"
@@ -415,7 +410,7 @@
     {
       "path": "scripts/production-player-canary-approval-reconciliation.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f6607b7ee5a1c8239fb5d825f98c02cdaec3c7169a5d66202bf4001b2222a572"
+      "sha256": "ca053c588c3f2f83630f29f1abed41178b8fad9f7b4886b80c42c9284cb4af0a"
     },
     {
       "path": "scripts/production-player-canary-baseline-reconciliation.d.mts",
@@ -428,11 +423,6 @@
       "sha256": "509efe293feac98cf09332f881287ad9c925a51c123186fa6141e739e2cd9d8d"
     },
     {
-      "path": "scripts/production-player-canary-browser-launcher.d.mts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "cef4c81168eab431ab1d6200f961725d65af97fd87e337493fdaab6cce6a00be"
-    },
-    {
       "path": "scripts/production-player-canary-browser-launcher.mjs",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "63317f95dfc860aedd5df068f6eb93f0ee0d517151235975ae992e0db76a43ff"
@@ -440,12 +430,12 @@
     {
       "path": "scripts/production-player-canary-command-authority.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "08c27a4196cdf5c3666c6580bea18ff49dc20ad674d4cd8b15faee9b82a429ca"
+      "sha256": "a77fa585980a8398f2d87c334c268e7144d59b80c0ad00e56139e37858bbb233"
     },
     {
       "path": "scripts/production-player-canary-command-authority.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6c17b4668c02084ef4c55d14df3f28835fa0328f09375844efbc271356f9d186"
+      "sha256": "eb07e3868a4ce6382801488bda99f6051bf95295360994f8ab53ead03a553ba6"
     },
     {
       "path": "scripts/production-player-canary-core.ts",
@@ -470,7 +460,7 @@
     {
       "path": "scripts/production-player-canary-evidence-authority.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8654a5c23b47589d61761bca410a31a9491adaf8e791e4aaf954c7d71dfad83f"
+      "sha256": "61b87563b5abef632074623e98b14f676d6e62c7694be877c80cda985d266622"
     },
     {
       "path": "scripts/production-player-canary-operator-journal.d.mts",
@@ -490,7 +480,7 @@
     {
       "path": "scripts/production-player-canary-operator.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d8dba94c594f21adfcf67f344848cd4b6fe0ba26f61907bd9762f4deeba58149"
+      "sha256": "8902d72caefbbfecb25345ea3e48eaecd77d17efa323c8668fe1d14ac2f832de"
     },
     {
       "path": "scripts/production-player-canary-owner-approval.d.mts",
@@ -500,7 +490,7 @@
     {
       "path": "scripts/production-player-canary-owner-approval.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e2d1471f0ba9d2b711eeebb402a5670bc7ffa0b504e2747c61018c3c64d0c7d1"
+      "sha256": "c144d10f610b46e5f2f60904b6204c6fa935e3c56c6e46ed8eca0b4ac6da19ff"
     },
     {
       "path": "scripts/production-player-canary-receipt.d.mts",
@@ -511,11 +501,6 @@
       "path": "scripts/production-player-canary-receipt.mjs",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "8642a7f94fd2101bc0c4d8096938cc1b0af8b3d8f21903b8487fc87c7308dc40"
-    },
-    {
-      "path": "scripts/production-player-canary-release-binding.d.mts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "df0446e5fce8ef09dd1b18a330608f223cdf0c66b043c201c391e26bf8156870"
     },
     {
       "path": "scripts/production-player-canary-release-binding.mjs",
@@ -788,9 +773,19 @@
       "sha256": "39767d277f4fe9b30adb24a4fdde358e680a0ac47b6a349157a3e9b89f5e4f6d"
     },
     {
+      "path": "spacetimedb/src/auth.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "4eb32000dce32a4480a6ee5bca57bfa84adc41295616a58526815e1d384d989c"
+    },
+    {
+      "path": "spacetimedb/src/castleWorkerAuthority.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "422fa52b8cd931f7d6fada4d720889fad39712d17cdb295307052d320a88462f"
+    },
+    {
       "path": "spacetimedb/src/castleWorkerPolicy.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "581e18a404fdf4aae374c78b0d376a98e2aed5d8cb61826dc1918d64a944ab93"
+      "sha256": "7a219d3cc7abacf03f1efc6bb7e03f69f39ba86193dc0c9420ce0e44e65a514a"
     },
     {
       "path": "spacetimedb/src/config.ts",
@@ -838,6 +833,11 @@
       "sha256": "e1045a8b001ea2f3357f19ce327a1c180c394e72eb9c91349e441a6301988b6c"
     },
     {
+      "path": "spacetimedb/src/greaterRealmWorkerAuthority.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "3e648332c88b9791509d54933d7a7897bdd0c9625e01857f18db3a6a8f6f1789"
+    },
+    {
       "path": "spacetimedb/src/index.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "265b2446df79cf6967bf9864a61ec33614a6d31458ca3a861e840ea29900e0f3"
@@ -850,42 +850,42 @@
     {
       "path": "spacetimedb/src/productionPlayerCanaryApproval.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "5d602bb5ff7dee928cce0eb023d2e6d36540653fe842987cfea3f6e50691abd9"
+      "sha256": "0623f3e87e6bed0f9e04d54208526970fb9d9a850869617373b5546052360163"
     },
     {
       "path": "spacetimedb/src/productionPlayerCanaryApprovalPolicy.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "a849628b16e02eea3494f10ac33b0edbde2a0afdf35928d758323dd1bbdd5091"
+      "sha256": "91cb61f367329b59525594d8995d769ed5ed713181925b22c07bb1670e325b43"
     },
     {
       "path": "spacetimedb/src/productionPlayerCanaryBaseline.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "96d8695e98bf934e244cf5a4fb69a488a882753626de6c36e3413def30c39c28"
+      "sha256": "7acbd56404906ccbb7573790248fdd39749fc6459aaa0210a01bd57f646d906d"
     },
     {
       "path": "spacetimedb/src/productionPlayerCanaryBaselinePolicy.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d386c9f8adcb9888eb6eda1d7b21474848c5cb3fa1342fe1f05979abe4d92ac6"
+      "sha256": "ed00a2a3ab0e4f12f3074d43a89d780fe08e838f69f5cb42055840b00229b899"
     },
     {
       "path": "spacetimedb/src/productionPlayerCanaryEvidence.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "302f87038a44e4d608bf186e11eceb0e42245211656dad589b36581dbc87ee2e"
+      "sha256": "d8d327925b903714cb9bd7c9396d6c92713e6a5503adda29dff3d53153e92d15"
     },
     {
       "path": "spacetimedb/src/productionPlayerCanaryRecovery.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "072dfdf5e741e2396fa04cb6116e998f4ddaacb4948aad6c3ffb2d5ef4b35413"
+      "sha256": "778782008aaa3e9533a9b8d124918711d467b29a070a3febefc905e8d6e4915e"
     },
     {
       "path": "spacetimedb/src/productionPlayerCanaryRecoveryPolicy.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8a42e27a86d1fb7d31f055a5286849e6e80282155857e34d70a590a82e0af79e"
+      "sha256": "6ddcb5975fdd727f2b3f9d063f006b26f7847ad983dffee0689d719e33d5f004"
     },
     {
       "path": "spacetimedb/src/productionPlayerCanaryRoutePolicy.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "a029b3a247db998268e7fcd2839e95ec8f2e43d7347d6df88c0cacc69be5a195"
+      "sha256": "1fa5f53dd18ba2fcc39ae7d839dfe789ae7b39951dc0a0adf84d9e712dc309f4"
     },
     {
       "path": "spacetimedb/src/profileAuthorityPolicy.ts",
@@ -895,7 +895,7 @@
     {
       "path": "spacetimedb/src/reducers/castleWorkers.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "fdacfb265f9b8c0dd19036a55c65bd60c6c68f719b314afe2547ff99346d8f17"
+      "sha256": "90df295f0ca14215977b61db445ed82dfea33a139b82f16eb8240d7bbfc62570"
     },
     {
       "path": "spacetimedb/src/resourceAuthorityPolicy.ts",
@@ -910,7 +910,7 @@
     {
       "path": "spacetimedb/src/schema.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "a69d9cef82bc6d590d0a82f57b4198a91087ff6fe278b4c340bfcd7d11a6eb3a"
+      "sha256": "8b709620eb9a56027e9987a86b3cd9af9e93d87afc2dac049742e50c850ab019"
     },
     {
       "path": "spacetimedb/src/stoneExpeditionPolicy.ts",
@@ -950,7 +950,7 @@
     {
       "path": "src/owner-canary/OwnerCanaryApp.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d3785128360655cd4c65a87639c6e638669a1be5acc70900fb1cb7d548c8a5fd"
+      "sha256": "aed2738e0e125d56b2fb1f5c59f45789748e5f2d17eb3cac37b68cc4824711ab"
     },
     {
       "path": "src/owner-canary/main.tsx",
@@ -970,7 +970,7 @@
     {
       "path": "src/owner-canary/ownerCanaryController.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "203f656b4f199e97b99ebffdafd0ba5b0bec7da5bb77a263818edba9c3302442"
+      "sha256": "decbf94f2d35e7c25959da8932d327290b8f604ff42615e5ea5bbb78724dc2ba"
     },
     {
       "path": "src/owner-canary/ownerCanaryEvidence.ts",
@@ -980,7 +980,7 @@
     {
       "path": "src/owner-canary/ownerCanaryEvidenceRuntime.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b323de9560b385fd914a84a8d51b6920c3bc4aabfe2f831f2f3229b56e577130"
+      "sha256": "f51da3516002fc5f75d4c29fb60c65e2c43d691155812c63a16a5d67b60813ee"
     },
     {
       "path": "src/owner-canary/ownerCanaryProductionComposition.ts",
@@ -1000,12 +1000,12 @@
     {
       "path": "src/owner-canary/ownerCanaryRuntime.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "0b3d56311320a656e18fc8ea6f4d9b9c7dfa57fbeafbe5548f3ef918d1e35ebc"
+      "sha256": "ed4815f5b0a5bb930c0a8a4767a2e71ef3712bd6ed8b20d048135d33b6dac02f"
     },
     {
       "path": "src/owner-canary/ownerCanaryRuntimePlan.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2691450b434c72a5726f4b4a491cb1eaf758c214375b4121d2b55e7f6304daff"
+      "sha256": "b46fe6e527ce03806bf2574bcb12d45b2818c9c8419f492b0049c3686bb32cbe"
     },
     {
       "path": "src/security/publicImageUrl.ts",

@@ -15,9 +15,11 @@ import {
   type ProductionPlayerCanaryBaselineStatus,
   type ProductionPlayerCanaryPristineBaselineMaterial,
   type ValidProductionPlayerCanaryBaselineInput,
+  assertProductionPlayerCanaryStoredBaselineIntegrityV2,
   assertProductionPlayerCanaryPristineBaselineMaterial,
   failProductionPlayerCanaryBaseline,
   productionPlayerCanaryBaselineCommitments,
+  productionPlayerCanaryChallengeDigest,
   productionPlayerCanaryBaselineErrorCode,
   productionPlayerCanaryMissingBaselineStatus,
   productionPlayerCanaryBaselineStatusForStoredRow,
@@ -39,6 +41,7 @@ export {
   productionPlayerCanaryBaselineCommitments,
   productionPlayerCanaryBaselineErrorCode,
   productionPlayerCanaryChallengeDigest,
+  assertProductionPlayerCanaryStoredBaselineIntegrityV2,
 } from './productionPlayerCanaryBaselinePolicy';
 
 type WarpkeepReducerContext = ReducerCtx<InferSchema<typeof warpkeep>>;
@@ -337,6 +340,146 @@ function storedRow(row: BaselineRow) {
     resourceCreatedAtMicros: row.resourceCreatedAtMicros,
     pristineRosterCommitment: row.pristineRosterCommitment,
   });
+}
+
+function sameStoredBaseline(left: BaselineRow, right: BaselineRow): boolean {
+  return left.challengeDigest === right.challengeDigest
+    && left.fid === right.fid
+    && left.reviewedAdmissionPlanDigest === right.reviewedAdmissionPlanDigest
+    && left.baselineCommitment === right.baselineCommitment
+    && left.routeSetCommitment === right.routeSetCommitment
+    && left.castleId === right.castleId
+    && left.atlasId === right.atlasId
+    && left.atlasRevision === right.atlasRevision
+    && timestampMicros(left.capturedAt) === timestampMicros(right.capturedAt)
+    && left.resourceSettledThroughMicros === right.resourceSettledThroughMicros
+    && left.resourceRevision === right.resourceRevision
+    && left.resourceFood === right.resourceFood
+    && left.resourceWood === right.resourceWood
+    && left.resourceStone === right.resourceStone
+    && left.resourceGold === right.resourceGold
+    && left.resourcePolicyVersion === right.resourcePolicyVersion
+    && left.resourceCreatedAtMicros === right.resourceCreatedAtMicros
+    && left.pristineRosterCommitment === right.pristineRosterCommitment;
+}
+
+/**
+ * Read-only, nonce-independent validation of the complete append-only baseline
+ * and all four unique projections. Raw-nonce final evidence performs the
+ * stronger baseline-commitment recomputation separately.
+ */
+export function requireStoredProductionPlayerCanaryBaselineV2(
+  ctx: WarpkeepReducerContext,
+  fid: bigint,
+): BaselineRow | null {
+  const baselines = ctx.db.productionPlayerCanaryBaselineV1;
+  const row = baselines.fid.find(fid);
+  if (row === null) return null;
+  assertProductionPlayerCanaryStoredBaselineIntegrityV2(
+    storedRow(row),
+    ctx.timestamp.microsSinceUnixEpoch,
+  );
+  const indexedRows = [
+    baselines.challengeDigest.find(row.challengeDigest),
+    baselines.fid.find(row.fid),
+    baselines.baselineCommitment.find(row.baselineCommitment),
+    baselines.routeSetCommitment.find(row.routeSetCommitment),
+  ] as const;
+  if (
+    row.fid !== fid
+    || indexedRows.some(candidate => (
+      candidate === null || !sameStoredBaseline(row, candidate)
+    ))
+  ) fail('STATE_INTEGRITY');
+  return row;
+}
+
+/**
+ * NEW approval registration gets one final current-state pristine check. The
+ * stored baseline remains immutable, but an assignment, receipt, occupation,
+ * schedule, resource mutation, roster transition, or authority change may
+ * otherwise race between capture and registration. Exact registration replay
+ * deliberately does not call this mutable-state check.
+ */
+export function assertProductionPlayerCanaryApprovalPristineBaselineV2(
+  ctx: WarpkeepReducerContext,
+  rawInput: ProductionPlayerCanaryBaselineInput,
+): void {
+  const input = validateInput(rawInput);
+  const stored = requireStoredProductionPlayerCanaryBaselineV2(ctx, input.fid);
+  if (stored === null) fail('PRODUCTION_PLAYER_CANARY_BASELINE_REQUIRED');
+  // Retain the raw-nonce commitment recomputation before comparing current
+  // mutable state to the immutable append-only snapshot.
+  requireProductionPlayerCanaryBaselineRow(ctx, input);
+  const current = buildPristineMaterial(ctx, input);
+  const currentCommitments = productionPlayerCanaryBaselineCommitments(current);
+  if (
+    current.challengeDigest !== stored.challengeDigest
+    || current.fid !== stored.fid
+    || current.reviewedAdmissionPlanDigest
+      !== stored.reviewedAdmissionPlanDigest
+    || current.routeSetCommitment !== stored.routeSetCommitment
+    || current.castleId !== stored.castleId
+    || current.atlasId !== stored.atlasId
+    || current.atlasRevision !== stored.atlasRevision
+    || current.capturedAtMicros < timestampMicros(stored.capturedAt)
+    || current.resourceSettledThroughMicros
+      !== stored.resourceSettledThroughMicros
+    || current.resourceRevision !== stored.resourceRevision
+    || current.resourceFood !== stored.resourceFood
+    || current.resourceWood !== stored.resourceWood
+    || current.resourceStone !== stored.resourceStone
+    || current.resourceGold !== stored.resourceGold
+    || current.resourcePolicyVersion !== stored.resourcePolicyVersion
+    || current.resourceCreatedAtMicros !== stored.resourceCreatedAtMicros
+    || currentCommitments.pristineRosterCommitment
+      !== stored.pristineRosterCommitment
+  ) fail('PRODUCTION_PLAYER_CANARY_BASELINE_PRISTINE_REQUIRED');
+}
+
+/**
+ * Reprove the stored baseline's current pristine graph before the first pc2
+ * mutation without recovering or accepting the raw evidence nonce. A
+ * challenge-derived synthetic nonce is used only to reuse the complete current
+ * founder/admission/resource/roster/zero-graph inspector; its derived
+ * commitments are ignored. Immutable stored commitments remain validated by
+ * `requireStoredProductionPlayerCanaryBaselineV2`, while final evidence alone
+ * performs raw-nonce recomputation.
+ */
+export function assertProductionPlayerCanaryStoredBaselineCurrentPristineV2(
+  ctx: WarpkeepReducerContext,
+  fid: bigint,
+): BaselineRow {
+  const stored = requireStoredProductionPlayerCanaryBaselineV2(ctx, fid);
+  if (stored === null) fail('PRODUCTION_PLAYER_CANARY_BASELINE_REQUIRED');
+  const syntheticEvidenceNonce = stored.challengeDigest;
+  const current = buildPristineMaterial(ctx, Object.freeze({
+    fid,
+    reviewedAdmissionPlanDigest: stored.reviewedAdmissionPlanDigest,
+    evidenceNonce: syntheticEvidenceNonce,
+    challengeDigest: productionPlayerCanaryChallengeDigest(
+      syntheticEvidenceNonce,
+    ),
+  }));
+  if (
+    current.fid !== stored.fid
+    || current.reviewedAdmissionPlanDigest
+      !== stored.reviewedAdmissionPlanDigest
+    || current.castleId !== stored.castleId
+    || current.atlasId !== stored.atlasId
+    || current.atlasRevision !== stored.atlasRevision
+    || current.capturedAtMicros < timestampMicros(stored.capturedAt)
+    || current.resourceSettledThroughMicros
+      !== stored.resourceSettledThroughMicros
+    || current.resourceRevision !== stored.resourceRevision
+    || current.resourceFood !== stored.resourceFood
+    || current.resourceWood !== stored.resourceWood
+    || current.resourceStone !== stored.resourceStone
+    || current.resourceGold !== stored.resourceGold
+    || current.resourcePolicyVersion !== stored.resourcePolicyVersion
+    || current.resourceCreatedAtMicros !== stored.resourceCreatedAtMicros
+  ) fail('PRODUCTION_PLAYER_CANARY_BASELINE_PRISTINE_REQUIRED');
+  return stored;
 }
 
 function statusForRow(

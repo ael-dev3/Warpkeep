@@ -5,7 +5,7 @@ import {
   greaterRealmWorkerRouteStepsWithinBoundV1,
 } from '../src/greaterRealmWorkerAuthority';
 import {
-  productionPlayerCanaryCommandAuthorityV1,
+  productionPlayerCanaryCommandAuthorityV2,
   productionPlayerCanaryRouteSetCommitmentV1,
   selectProductionPlayerCanaryEqualRoutesV1,
 } from '../src/productionPlayerCanaryRoutePolicy';
@@ -16,8 +16,8 @@ const BASELINE = 'c'.repeat(64);
 const ROUTE = 'd'.repeat(64);
 
 test('server command derivation matches the independent browser fixed vector', () => {
-  const authority = productionPlayerCanaryCommandAuthorityV1({
-    evidenceNonce: NONCE,
+  const authority = productionPlayerCanaryCommandAuthorityV2({
+    challengeDigest: NONCE,
     reviewedAdmissionPlanDigest: PLAN,
     serverBaselineCommitment: BASELINE,
     routeSetCommitment: ROUTE,
@@ -27,25 +27,29 @@ test('server command derivation matches the independent browser fixed vector', (
     recall: command.recallIdempotencyKey,
   })), [
     {
-      dispatch: 'pc1-d01-395e313394f5da8c705de5112a57e29c74678d6795f55b509f6169a1f0c09080',
-      recall: 'pc1-r01-821f764e1a723152e1c4883709c0644a8204eecfd978a60caa289fca64ea733d',
+      dispatch: 'pc2-d01-a27e57760cdd1249f9bdd1dd992510504dc2d13cdcf53cd445d5b241bfb1cabe',
+      recall: 'pc2-r01-5a462e21d437a3f00017c25bbdf83e052e9bf9c92bd358a62d8a8d0fe0b0e164',
     },
     {
-      dispatch: 'pc1-d02-2b1f3855a49ef4a1d673c992ffbcd58976dc775c70268d618a18d68af50db2c3',
-      recall: 'pc1-r02-124cb05fc26cd047596613471198a5e87c6dfe416d575894ae4e82e3ef27f700',
+      dispatch: 'pc2-d02-65761615f11604191a55a9ff402e01e5517243e349894f673b27ca65bfe5bcae',
+      recall: 'pc2-r02-8cfcb6cb221a48e13a7dcf22667c75285387703ddaee21db0695afdbdab255d3',
     },
     {
-      dispatch: 'pc1-d03-9c0d1ad82e64138e65ae35fa6b0929d1b83bf3ddcb78d6e91e1317facbde04e4',
-      recall: 'pc1-r03-412008be7e68262551f0dc2602ed5048cc2c2aaae458a62c6953be25acf4c6c8',
+      dispatch: 'pc2-d03-f4f0543e96c799313b6e553b79bc492794c3dcf57250b993a985e7fecc7a14a9',
+      recall: 'pc2-r03-3875a694b3209aee90496d4d03ed123ced90ef0674cdbe5f754962da43539713',
     },
     {
-      dispatch: 'pc1-d04-f0a76fe36b5c3e45aef06dd346cfa9434e83f7c52a9272c912f2816d7f2afb90',
-      recall: 'pc1-r04-bbfe3067eac01aa0b894541f1617491902948182716e9a0a8534fd9c2988bfba',
+      dispatch: 'pc2-d04-e68ae0a7108cbb7435c97dd5526a2fe4139eae0554f1ab162675965f6dc83e47',
+      recall: 'pc2-r04-4cbf389b6b15ad26161b58802d28a15913bfbc8d8fb1dcc7e6c2b1afeaa9efcb',
     },
   ]);
   assert.equal(
     authority.commandSetCommitment,
-    '5f6bd8f228fe6df5f54d6a9ac852d55774f574c1c08aa2d263930adc0933f5a2',
+    '23b1a478735aa32dd791393a0a6067841b8cacae437dcc245ac69f322a08134e',
+  );
+  assert.equal(
+    authority.recoveryFenceIdempotencyKey,
+    'pc2-f00-08e3175673b973588a2800d4df6dd4d1cc576531edbb43d3c00194d8cd3c2a59',
   );
 });
 

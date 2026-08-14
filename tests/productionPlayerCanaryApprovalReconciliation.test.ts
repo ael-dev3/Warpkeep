@@ -13,7 +13,7 @@ import {
   productionPlayerCanaryBaselineReconciliationTestSeams,
 } from '../scripts/production-player-canary-baseline-reconciliation.mjs';
 import {
-  deriveProductionPlayerCanaryCommandAuthorityV1,
+  deriveProductionPlayerCanaryCommandAuthorityV2,
 } from '../scripts/production-player-canary-command-authority.mjs';
 import {
   productionPlayerCanaryRouteSetCommitment,
@@ -50,8 +50,8 @@ const ROUTE = productionPlayerCanaryRouteSetCommitment({
   reviewedAdmissionPlanDigest: PLAN,
   routes: ROUTES,
 });
-const COMMAND = deriveProductionPlayerCanaryCommandAuthorityV1({
-  evidenceNonce: NONCE,
+const COMMAND = deriveProductionPlayerCanaryCommandAuthorityV2({
+  challengeDigest: productionPlayerCanaryBaselineChallengeDigest(NONCE),
   reviewedAdmissionPlanDigest: PLAN,
   serverBaselineCommitment: BASELINE,
   routeSetCommitment: ROUTE,
@@ -257,7 +257,7 @@ describe('production player canary approval registration reconciliation', () => 
       notAfterMicros: NOT_AFTER_MICROS,
     });
     expect(Object.values(result).map(String).join('|'))
-      .not.toMatch(/pc1-[dr]0[1-4]-/u);
+      .not.toMatch(/pc[12]-(?:[dr]0[1-4]|f00)-/u);
     const poisoned = {
       fid: 123n,
       baselineReconciliation: baselineReconciliation(),

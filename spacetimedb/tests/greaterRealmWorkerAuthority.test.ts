@@ -24,10 +24,23 @@ test('authenticated public input validation precedes receipt replay and every fr
   const authority = source('../src/castleWorkerAuthority.ts');
   const reducerStart = position(reducer, 'export const dispatchGreaterRealmWorkerV1');
   const reducerBody = reducer.slice(reducerStart, position(reducer.slice(reducerStart), 'export const recallWorkerV1') + reducerStart);
-  assert.ok(
-    position(reducerBody, 'requireAuthenticatedCastleOwnerActionV1(ctx)')
-      < position(reducerBody, 'dispatchGreaterRealmCastleWorkerV2(ctx'),
+  const authenticated = position(
+    reducerBody,
+    'requireAuthenticatedCastleOwnerActionV1(ctx)',
   );
+  const frozenInput = position(reducerBody, 'const dispatchInput = Object.freeze({');
+  const canaryAwareDispatch = position(
+    reducerBody,
+    'dispatchProductionPlayerCanaryAwareGreaterRealmWorkerV1(',
+  );
+  assert.ok(
+    authenticated < frozenInput && frozenInput < canaryAwareDispatch,
+  );
+  assert.match(
+    reducerBody.slice(canaryAwareDispatch),
+    /dispatchProductionPlayerCanaryAwareGreaterRealmWorkerV1\(\s*ctx,\s*dispatchInput,\s*\)/,
+  );
+  assert.doesNotMatch(reducerBody, /dispatchGreaterRealmCastleWorkerV2\(/);
 
   const start = position(authority, 'export function dispatchGreaterRealmCastleWorkerV2');
   const body = authority.slice(start, position(authority.slice(start), '\nfunction progressBasisPoints') + start);

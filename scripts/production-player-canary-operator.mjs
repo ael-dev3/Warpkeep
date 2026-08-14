@@ -518,7 +518,6 @@ function validateRecoveryStatus(status, contract, inspectedPlan) {
   const boundedCounts = [
     status.dispatchReceiptCount,
     status.correlatedRecallReceiptCount,
-    status.noOpRecallReceiptCount,
     status.idleWorkerCount,
     status.outboundWorkerCount,
     status.gatheringWorkerCount,
@@ -526,6 +525,9 @@ function validateRecoveryStatus(status, contract, inspectedPlan) {
   ];
   if (
     boundedCounts.some(value => !Number.isSafeInteger(value) || value < 0 || value > 4)
+    || !Number.isSafeInteger(status.noOpRecallReceiptCount)
+    || status.noOpRecallReceiptCount < 0
+    || status.noOpRecallReceiptCount > 5
     || !Number.isSafeInteger(status.unexpectedReceiptCount)
     || status.unexpectedReceiptCount < 0
     || status.unexpectedReceiptCount > 128
@@ -560,6 +562,8 @@ function validateRecoveryStatus(status, contract, inspectedPlan) {
     && status.unexpectedReceiptCount === 0;
   const disposition = structuralEvidenceCandidate
     ? 'terminal-evidence-candidate'
+    : status.noOpRecallReceiptCount > 0
+      ? 'terminal-evidence-impossible'
     : status.outboundWorkerCount > 0 || status.gatheringWorkerCount > 0
       ? 'recall-required'
       : status.returningWorkerCount > 0

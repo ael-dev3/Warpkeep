@@ -53,6 +53,11 @@ const DECLARATION_OPTIONAL_GRAPH_MEMBERS = new Set([
   'scripts/validate-pages-deploy-config.mjs',
   'scripts/verify-alpha-production.mjs',
 ]);
+const NON_RUNTIME_DECLARATIONS_OUTSIDE_PROTECTED_CLOSURE = new Set([
+  'scripts/production-player-canary-activation-launcher.mjs',
+  'scripts/production-player-canary-browser-launcher.mjs',
+  'scripts/production-player-canary-release-binding.mjs',
+]);
 const WORKER_GRAPH_ROOT = 'services/auth-bridge/src/index.ts';
 const WORKER_SOURCE_DIRECTORY = 'services/auth-bridge/src';
 const CHECK_SOURCE_DIRECTORIES = Object.freeze([
@@ -88,7 +93,6 @@ const STATIC_SECURITY_INPUTS = Object.freeze([
   'scripts/notification-pages-live-release-binding.mjs',
   'scripts/notification-pages-private-release-binding.d.mts',
   'scripts/notification-pages-private-release-binding.mjs',
-  'scripts/production-player-canary-release-binding.d.mts',
   'scripts/production-player-canary-release-binding.mjs',
   'scripts/production-player-canary-approval-reconciliation.d.mts',
   'scripts/production-player-canary-approval-reconciliation.mjs',
@@ -105,6 +109,9 @@ const STATIC_SECURITY_INPUTS = Object.freeze([
   'services/auth-bridge/vitest.workerd.config.ts',
   'services/auth-bridge/wrangler.toml',
   'spacetimedb/src/index.ts',
+  'spacetimedb/src/auth.ts',
+  'spacetimedb/src/castleWorkerAuthority.ts',
+  'spacetimedb/src/greaterRealmWorkerAuthority.ts',
   'spacetimedb/src/productionPlayerCanaryApproval.ts',
   'spacetimedb/src/productionPlayerCanaryApprovalPolicy.ts',
   'spacetimedb/src/productionPlayerCanaryBaseline.ts',
@@ -410,6 +417,9 @@ export function deriveAuthBridgeNotificationPreparedDeployClosurePaths({
       }
       continue;
     }
+    if (NON_RUNTIME_DECLARATIONS_OUTSIDE_PROTECTED_CLOSURE.has(memberPath)) {
+      continue;
+    }
     if (DECLARATION_OPTIONAL_GRAPH_MEMBERS.has(memberPath)) {
       fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_ABI_NAMESPACE_CHANGED');
     }
@@ -421,6 +431,9 @@ export function deriveAuthBridgeNotificationPreparedDeployClosurePaths({
     members.add(declaration);
   }
   if ([...DECLARATION_OPTIONAL_GRAPH_MEMBERS].some(
+    memberPath => !scriptGraph.has(memberPath),
+  )) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_ABI_NAMESPACE_CHANGED');
+  if ([...NON_RUNTIME_DECLARATIONS_OUTSIDE_PROTECTED_CLOSURE].some(
     memberPath => !scriptGraph.has(memberPath),
   )) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_ABI_NAMESPACE_CHANGED');
   if (members.size > MAX_MEMBERS) {

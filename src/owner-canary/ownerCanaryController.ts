@@ -4,6 +4,8 @@ import type {
 } from '../farcaster/farcasterAuthTypes';
 import type { OwnerCanaryPrivateSession } from './ownerCanaryAuthClient';
 import type {
+  OwnerCanaryFreshPageRecoveryApi,
+  OwnerCanaryFreshPageRecoveryInput,
   OwnerCanaryRecoveryApi,
   OwnerCanaryRecoveryState,
 } from './ownerCanaryRuntime';
@@ -100,6 +102,7 @@ export function ownerCanaryControllerFailureCode(
 export type OwnerCanaryControllerDependencies<
   Authority,
   RecallRecoveryAuthority = Authority,
+  FreshPageRecoveryAuthority = RecallRecoveryAuthority,
 > = Readonly<{
   evidenceApi: OwnerCanaryEvidenceApi<Authority>;
   requestStageConsent(input: Readonly<{
@@ -117,6 +120,11 @@ export type OwnerCanaryControllerDependencies<
     signal: AbortSignal,
   ): Promise<RecallRecoveryAuthority>;
   closeRecallRecoveryAuthority(authority: RecallRecoveryAuthority): Promise<void> | void;
+  openFreshPageRecoveryAuthority?(
+    session: FarcasterOidcSession,
+    signal: AbortSignal,
+  ): Promise<FreshPageRecoveryAuthority>;
+  closeFreshPageRecoveryAuthority?(authority: FreshPageRecoveryAuthority): Promise<void> | void;
   verifyPrivateSubject(input: Readonly<{
     privateSession: OwnerCanaryPrivateSession;
     latchedSubjectFid: number;
@@ -124,6 +132,7 @@ export type OwnerCanaryControllerDependencies<
     signal: AbortSignal;
   }>): Promise<boolean>;
   recoveryApi?: OwnerCanaryRecoveryApi<RecallRecoveryAuthority>;
+  freshPageRecoveryApi?: OwnerCanaryFreshPageRecoveryApi<FreshPageRecoveryAuthority>;
   onState?(state: OwnerCanaryControllerState): void;
   onRecoveryState?(state: OwnerCanaryRecoveryState): void;
 }>;
@@ -131,6 +140,10 @@ export type OwnerCanaryControllerDependencies<
 export type OwnerCanaryController = Readonly<{
   run(input: OwnerCanaryRunInput, signal?: AbortSignal): Promise<OwnerCanarySanitizedEvidence>;
   recover(signal?: AbortSignal): Promise<void>;
+  recoverFreshPage(
+    input: OwnerCanaryFreshPageRecoveryInput,
+    signal?: AbortSignal,
+  ): Promise<void>;
   cancel(): void;
   state(): OwnerCanaryControllerState;
   recoveryState(): OwnerCanaryRecoveryState;
@@ -175,6 +188,31 @@ function exactPrivateRunInput(value: unknown): OwnerCanaryRunInput | undefined {
     reviewedAdmissionPlanDigest,
     routeSetCommitment,
   });
+}
+
+function exactFreshPageRecoveryInput(
+  value: unknown,
+): OwnerCanaryFreshPageRecoveryInput | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return undefined;
+  const ownKeys = Reflect.ownKeys(value);
+  if (ownKeys.some((key) => typeof key !== 'string')) return undefined;
+  const keys = (ownKeys as string[]).sort();
+  if (keys.join('\0') !== [
+    'evidenceNonce',
+    'reviewedAdmissionPlanDigest',
+  ].sort().join('\0')) return undefined;
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const evidenceNonce = descriptors.evidenceNonce?.value;
+  const reviewedAdmissionPlanDigest = descriptors.reviewedAdmissionPlanDigest?.value;
+  if (
+    typeof evidenceNonce !== 'string'
+    || typeof reviewedAdmissionPlanDigest !== 'string'
+    || !PRIVATE_DIGEST_PATTERN.test(evidenceNonce)
+    || !PRIVATE_DIGEST_PATTERN.test(reviewedAdmissionPlanDigest)
+  ) return undefined;
+  return Object.freeze({ evidenceNonce, reviewedAdmissionPlanDigest });
 }
 
 function framedTextBytes(frames: readonly string[]): Uint8Array {
@@ -233,13 +271,23 @@ export function requireOwnerCanaryPlayerEvidence(
   return value as OwnerCanarySanitizedEvidence;
 }
 
-export function createOwnerCanaryController<Authority, RecallRecoveryAuthority = Authority>(
-  dependencies: OwnerCanaryControllerDependencies<Authority, RecallRecoveryAuthority>,
+export function createOwnerCanaryController<
+  Authority,
+  RecallRecoveryAuthority = Authority,
+  FreshPageRecoveryAuthority = RecallRecoveryAuthority,
+>(
+  dependencies: OwnerCanaryControllerDependencies<
+    Authority,
+    RecallRecoveryAuthority,
+    FreshPageRecoveryAuthority
+  >,
 ): OwnerCanaryController {
   let activeAbort: AbortController | undefined;
   let mainAuthorityCloseUnconfirmed = false;
   let recoveryAuthorityCloseUnconfirmed = false;
   let mainRunConsumed = false;
+  let freshPageRecoveryOnly = false;
+  let freshPageSubjectFid: number | undefined;
   let latchedSubjectFid: number | undefined;
   let latchedReviewedAdmissionPlanDigest: string | undefined;
   let publicRecoveryState: OwnerCanaryRecoveryState = 'none';
@@ -270,6 +318,125 @@ export function createOwnerCanaryController<Authority, RecallRecoveryAuthority =
     state: () => publicState,
     recoveryState: () => publicRecoveryState,
     cancel: () => activeAbort?.abort(),
+    async recoverFreshPage(
+      input: OwnerCanaryFreshPageRecoveryInput,
+      externalSignal?: AbortSignal,
+    ): Promise<void> {
+      if (
+        recoveryAuthorityCloseUnconfirmed
+        || activeAbort
+        || !dependencies.freshPageRecoveryApi
+        || !dependencies.openFreshPageRecoveryAuthority
+        || !dependencies.closeFreshPageRecoveryAuthority
+        || (!freshPageRecoveryOnly && mainRunConsumed)
+      ) throw failure(recoveryAuthorityCloseUnconfirmed
+        ? 'authority-close-unconfirmed'
+        : activeAbort
+          ? 'already-running'
+          : 'stage-failed');
+
+      // Selecting reload recovery permanently excludes this controller and
+      // page realm from the main canary, even when private input is malformed.
+      freshPageRecoveryOnly = true;
+      mainRunConsumed = true;
+      let privateInput = exactFreshPageRecoveryInput(input);
+      if (!privateInput) {
+        publishRecovery('unconfirmed');
+        throw failure('invalid-private-input');
+      }
+
+      const abort = new AbortController();
+      activeAbort = abort;
+      const forwardAbort = () => abort.abort();
+      externalSignal?.addEventListener('abort', forwardAbort, { once: true });
+      if (externalSignal?.aborted) abort.abort();
+      let privateSession: OwnerCanaryPrivateSession | undefined;
+      let authority: FreshPageRecoveryAuthority | undefined;
+      let authorityOpened = false;
+      let closeFailed = false;
+      publishRecovery('running');
+      try {
+        const quickAuth = await dependencies.getQuickAuthToken({ force: true });
+        if (abort.signal.aborted) throw failure('cancelled');
+        if (quickAuth.status !== 'token') throw failure('quick-auth-unavailable');
+        let token: string | undefined = quickAuth.token;
+        try {
+          privateSession = await dependencies.exchangeQuickAuth(token, abort.signal);
+        } catch (error) {
+          if (abort.signal.aborted) throw failure('cancelled');
+          if (error instanceof OwnerCanaryControllerError) throw error;
+          throw failure('exchange-failed');
+        } finally {
+          token = undefined;
+        }
+        if (
+          !privateSession
+          || !Number.isSafeInteger(privateSession.subjectFid)
+          || privateSession.subjectFid <= 0
+        ) throw failure('exchange-failed');
+        const expectedSubjectFid = freshPageSubjectFid ?? privateSession.subjectFid;
+        if (privateSession.subjectFid !== expectedSubjectFid) {
+          throw failure('subject-changed');
+        }
+        // Latch before the fallible verifier or connection open. A failed
+        // first attempt cannot switch owner subjects inside this page realm.
+        freshPageSubjectFid = expectedSubjectFid;
+        let approvedSubject = false;
+        try {
+          approvedSubject = await dependencies.verifyPrivateSubject({
+            privateSession,
+            latchedSubjectFid: expectedSubjectFid,
+            reviewedAdmissionPlanDigest: privateInput.reviewedAdmissionPlanDigest,
+            signal: abort.signal,
+          });
+        } catch {
+          if (abort.signal.aborted) throw failure('cancelled');
+          throw failure('subject-not-approved');
+        }
+        if (approvedSubject !== true) throw failure('subject-not-approved');
+        authority = await dependencies.openFreshPageRecoveryAuthority(
+          privateSession.session,
+          abort.signal,
+        );
+        authorityOpened = true;
+        privateSession = undefined;
+        await dependencies.freshPageRecoveryApi.recover(
+          authority,
+          privateInput,
+          abort.signal,
+        );
+        if (abort.signal.aborted) throw failure('cancelled');
+      } catch (error) {
+        publishRecovery('unconfirmed');
+        throw error instanceof OwnerCanaryControllerError
+          ? error
+          : failure(abort.signal.aborted ? 'cancelled' : 'stage-failed');
+      } finally {
+        privateSession = undefined;
+        privateInput = undefined;
+        if (authorityOpened) {
+          try {
+            await dependencies.closeFreshPageRecoveryAuthority(
+              authority as FreshPageRecoveryAuthority,
+            );
+          } catch {
+            recoveryAuthorityCloseUnconfirmed = true;
+            closeFailed = true;
+            publish(Object.freeze({
+              phase: 'recovery-authority-close-unconfirmed',
+              completedStageCount: publicState.completedStageCount,
+            }));
+          }
+        }
+        // A reload cannot prove which old dispatches or transports remain in
+        // flight. Only repeated admin status can establish terminal safety.
+        publishRecovery('unconfirmed');
+        abort.abort();
+        externalSignal?.removeEventListener('abort', forwardAbort);
+        if (activeAbort === abort) activeAbort = undefined;
+        if (closeFailed) throw failure('authority-close-unconfirmed');
+      }
+    },
     async recover(externalSignal?: AbortSignal): Promise<void> {
       if (
         recoveryAuthorityCloseUnconfirmed
@@ -354,7 +521,11 @@ export function createOwnerCanaryController<Authority, RecallRecoveryAuthority =
           }
         }
         const runtimeState = dependencies.recoveryApi.state();
-        if (!closeFailed && runtimeState === 'safe') {
+        if (
+          !closeFailed
+          && !mainAuthorityCloseUnconfirmed
+          && runtimeState === 'safe'
+        ) {
           publishRecovery('safe');
           latchedSubjectFid = undefined;
           latchedReviewedAdmissionPlanDigest = undefined;

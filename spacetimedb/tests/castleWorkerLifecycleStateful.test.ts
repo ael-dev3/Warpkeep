@@ -399,6 +399,9 @@ function makeLifecycleFixture(
             .filter(row => row.fid === value),
         },
       },
+      productionPlayerCanaryApprovalRegistrationV1: {
+        fid: { find: () => null },
+      },
       workerAssignmentScheduleV1: {
         count: () => BigInt(schedules.size),
         iter: () => schedules.values(),

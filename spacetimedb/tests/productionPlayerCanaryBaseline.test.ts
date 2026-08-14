@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
+  assertProductionPlayerCanaryStoredBaselineIntegrityV2,
   productionPlayerCanaryBaselineCommitments,
   productionPlayerCanaryChallengeDigest,
   productionPlayerCanaryMissingBaselineStatus,
@@ -122,6 +123,47 @@ test('commitments bind nonce, plan, private resource state, and pristine roster'
   assert.notEqual(first.serverBaselineCommitment, differentPlan.serverBaselineCommitment);
   assert.notEqual(first.pristineRosterCommitment, differentNonce.pristineRosterCommitment);
   assert.match(first.serverBaselineCommitment, /^[0-9a-f]{64}$/u);
+});
+
+test('nonce-independent stored-baseline audit pins every scalar except raw-nonce commitment recomputation', () => {
+  const row = immutableRow();
+  assert.doesNotThrow(() => assertProductionPlayerCanaryStoredBaselineIntegrityV2(
+    row,
+    row.capturedAtMicros,
+  ));
+  const hostile = [
+    { challengeDigest: 'x'.repeat(64) },
+    { reviewedAdmissionPlanDigest: 'x'.repeat(64) },
+    { baselineCommitment: 'x'.repeat(64) },
+    { routeSetCommitment: 'x'.repeat(64) },
+    { pristineRosterCommitment: 'x'.repeat(64) },
+    { fid: 0n },
+    { castleId: 0n },
+    { atlasId: '' },
+    { atlasRevision: 0n },
+    { resourceRevision: 1n },
+    { resourceFood: 1n },
+    { resourcePolicyVersion: 'substituted-policy' },
+    { resourceCreatedAtMicros: 0n },
+    { resourceCreatedAtMicros: row.capturedAtMicros + 1n },
+    { resourceSettledThroughMicros: row.resourceCreatedAtMicros + 1n },
+  ] as const;
+  for (const drift of hostile) {
+    assert.throws(
+      () => assertProductionPlayerCanaryStoredBaselineIntegrityV2(
+        { ...row, ...drift },
+        row.capturedAtMicros,
+      ),
+      /STATE_INTEGRITY/u,
+    );
+  }
+  assert.throws(
+    () => assertProductionPlayerCanaryStoredBaselineIntegrityV2(
+      row,
+      row.capturedAtMicros - 1n,
+    ),
+    /STATE_INTEGRITY/u,
+  );
 });
 
 test('an exact lost-response replay remains read-only after gameplay and every key collision fails closed', () => {

@@ -80,6 +80,11 @@ const BOOTSTRAP_WORKFLOWS = Object.freeze({
 });
 const REVIEWED_RELEASE_TRANSITION_PATHS =
   AUTH_BRIDGE_RELEASE_TRANSITION_FIXTURE_PATHS;
+const RETAINED_TYPE_ONLY_DECLARATION_PATHS = Object.freeze([
+  'scripts/production-player-canary-activation-launcher.d.mts',
+  'scripts/production-player-canary-browser-launcher.d.mts',
+  'scripts/production-player-canary-release-binding.d.mts',
+]);
 const temporaryDirectories: string[] = [];
 
 function sha256(value: Buffer | string): string {
@@ -147,6 +152,11 @@ function createTransitionFixture(sourcePhase = 0): string {
   )));
   temporaryDirectories.push(root);
   for (const relativePath of AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS) {
+    const destination = resolve(root, relativePath);
+    mkdirSync(dirname(destination), { recursive: true });
+    cpSync(resolve(repositoryRoot, relativePath), destination);
+  }
+  for (const relativePath of RETAINED_TYPE_ONLY_DECLARATION_PATHS) {
     const destination = resolve(root, relativePath);
     mkdirSync(dirname(destination), { recursive: true });
     cpSync(resolve(repositoryRoot, relativePath), destination);
@@ -680,11 +690,22 @@ describe('auth-bridge reviewed release-transition source projection', () => {
       source => `${source}\n`,
       'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_DIGEST_MISMATCH',
     );
-    expectMutationRejected(
-      'scripts/production-player-canary-release-binding.d.mts',
-      source => `${source}\n`,
-      'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_DIGEST_MISMATCH',
+    const retainedDeclaration =
+      'scripts/production-player-canary-release-binding.d.mts';
+    expect(AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS)
+      .not.toContain(retainedDeclaration);
+    const retainedDeclarationPath = resolve(root, retainedDeclaration);
+    const retainedDeclarationSource = readFileSync(
+      retainedDeclarationPath,
+      'utf8',
     );
+    const baselineManifestSha256 = verify(root).manifestSha256;
+    try {
+      writeFileSync(retainedDeclarationPath, `${retainedDeclarationSource}\n`);
+      expect(verify(root).manifestSha256).toBe(baselineManifestSha256);
+    } finally {
+      writeFileSync(retainedDeclarationPath, retainedDeclarationSource);
+    }
   }, 120_000);
 
   it('rejects every partial or mismatched activation-client identity', () => {

@@ -96,8 +96,9 @@ route-set commitment. The raw tuple and both server values remain inside the
 runtime's `evidenceApi.run` closure and never enter React, controller state, a
 URL, a rendered result, or sanitized evidence.
 
-The runtime-plan module validates the five 64-hex inputs, derives the eight
-idempotency keys, compares the expected command-set commitment, and returns an
+The runtime-plan module validates the five 64-hex inputs, derives the stored
+challenge digest and nine idempotency keys, compares the expected command-set
+commitment, and returns an
 empty frozen branded handle. The handle has no properties or getters. Its
 command material lives only in a module-private `WeakMap`. A runtime-owned
 consumer can receive exactly one selected key at a time; the page and
@@ -110,8 +111,8 @@ For operation `dispatch` or `recall` and canonical decimal ordinal `1` through
 values, joined by `|` with one final LF:
 
 ```text
-warpkeep.production-player-canary.command-key.v1
-<private evidence nonce>
+warpkeep.production-player-canary.command-key.v2
+<stored challenge digest>
 <reviewed admission-plan digest>
 <server baseline commitment>
 <private route-set commitment>
@@ -119,14 +120,16 @@ warpkeep.production-player-canary.command-key.v1
 <ordinal>
 ```
 
-The complete key is `pc1-d01-<64-hex digest>` through
-`pc1-d04-<64-hex digest>` for dispatch, or `pc1-r01-<64-hex digest>` through
-`pc1-r04-<64-hex digest>` for recall. The command-set commitment uses the same
-framing and hashing over this exact ordered sequence:
+The complete key is `pc2-d01-<64-hex digest>` through
+`pc2-d04-<64-hex digest>` for dispatch, or `pc2-r01-<64-hex digest>` through
+`pc2-r04-<64-hex digest>` for recall. A ninth
+`pc2-f00-<64-hex digest>` key uses operation `fence` and ordinal `0`. The
+command-set commitment uses the same framing and hashing over this exact
+ordered sequence:
 
 ```text
-warpkeep.production-player-canary.command-set.v1
-<private evidence nonce>
+warpkeep.production-player-canary.command-set.v2
+<stored challenge digest>
 <reviewed admission-plan digest>
 <server baseline commitment>
 <private route-set commitment>
@@ -138,7 +141,15 @@ warpkeep.production-player-canary.command-set.v1
 <recall key 3>
 <dispatch key 4>
 <recall key 4>
+<recovery fence key>
 ```
+
+The challenge digest is the existing SHA-256 challenge-v1 commitment to the
+private evidence nonce. Raw nonce bytes are absent from command-v2 framing.
+Server dispatch, recovery, evidence, and inspection reconstruct the same v2
+authority from the immutable stored challenge and registered tuple. The entire
+`pc1-` namespace is reserved and rejected, as is every `pc2-` key that is not
+the exact stored dispatch, recall, or fence key.
 
 The source now contains a provisional production evidence adapter. It accepts
 only the exact canonical Maincloud database, canonical auth origin and OIDC
@@ -165,7 +176,10 @@ balances. These browser checks are non-authoritative: independent server/admin
 evidence remains the only resource-isolation and receipt authority.
 
 Server-reviewed worker policy pins travel to 30 seconds per route step and one
-gather quantum to 60 seconds. Gathering evidence is accepted at or after one
+gather quantum to 60 seconds. A classified canary assignment alone is clamped
+to exactly 119,999,999 microseconds after arrival, while ordinary assignments
+retain the generic duration. This admits exactly one completed 60-second
+quantum and never a second. Gathering evidence is accepted at or after one
 quantum and strictly before two, and dispatch/recall bursts each have a
 30-second ceiling. The reviewed production composition pins a five-second poll
 interval and 96 attempts. Its wait rejects any different requested interval
@@ -173,6 +187,14 @@ and aborts immediately. Ninety-five waits cover 475 seconds: 55 seconds beyond
 the maximum 420-second route-plus-first-quantum bound and beyond the maximum
 390-second terminal-return bound. The evidence adapter still requires explicit
 policy injection and has no permissive default.
+
+Every accepted pc2 or tolerated post-cutoff generic receipt is rebound to the
+current immutable atlas revision, exact fingerprint, node count, capacity
+digest, canonical route, and assignment timeline. A terminal idle revision is
+not sufficient by itself: the canonical natural or explicit-recall
+return-complete time must be at or before the observation, and no receipt may
+be future-dated. These checks apply equally to replay, recovery, status, and
+authoritative evidence.
 
 The generic worker reducer does not return its authoritative dispatch receipt
 timestamp. A control read immediately after each dispatch therefore provides
@@ -216,11 +238,110 @@ transferred, journaled, or handed to another browser realm.
 Recovery opens a separately branded authority only after the forced fresh
 same-subject verification. It cannot enter the evidence/dispatch surface and
 never reuses or clears an ambiguously closed main authority. If main-authority
-closure was unconfirmed, recall attempts remain available but browser state can
-never become `safe` in that page realm: the handle stays retryable and repeated
-admin inspection is the only terminal-safety authority. If closure of the new
-recovery authority is itself unconfirmed, browser recovery is permanently
-disabled and the state remains `unconfirmed` for operator-only reconciliation.
+closure was unconfirmed, the in-page control stops using ordinal-specific
+salvage and invokes the same atomic ordinal-`0` all-four recall-or-fence reducer
+as reload recovery. That marker serializes against a late old dispatch and
+permanently makes evidence impossible. Browser state can never become `safe` in
+that page realm: the handle stays retryable and repeated admin inspection is
+the only terminal-safety authority. If closure of the new recovery authority is
+itself unconfirmed, browser recovery is permanently disabled and the state
+remains `unconfirmed` for operator-only reconciliation.
+
+A newly loaded page has a separate recovery-only control for loss of the
+original page realm. Its nonce and reviewed-plan fields are uncontrolled DOM
+inputs and are cleared synchronously before validation, authentication, or any
+I/O. Selecting the control permanently excludes the main canary in both the
+controller and runtime. Every attempt forces fresh Quick Auth. The controller
+latches the first valid exchanged subject before its fallible verifier/open;
+the runtime independently latches the first parsed subject before its fallible
+connection open. Neither layer can subject-hop after a failed attempt. The
+separately branded authority invokes only the conditional canary reducer with
+ordinal `0`.
+
+The server atomically preflights all four exact stored tuples. A fresh sweep
+first inserts every missing recall-shaped position fence at that ordinal's
+exact dispatch request key, then performs exact assignment-local containment
+recalls, and inserts `pc2-f00` **last** at the same transaction timestamp as
+durable proof that the sweep completed. A valid existing `pc2-f00` makes replay
+strictly read-only: the reducer validates every dispatch/position/recall row and
+never heals a missing or malformed position. Fence timestamps satisfy
+`approvedAtMicros <= createdAtMicros <= observedAtMicros`; every position fence
+has exactly the marker timestamp. With `k` actual dispatches, the reserved
+canary receipt set is bounded by `5 + k <= 9`. Bounded, canonical generic rows
+created after cutoff are validated separately and never authorize a canary
+mutation or evidence. No browser read, generic recall, dispatch, evidence,
+storage, URL, or cross-page handoff participates. Every fresh-page result
+remains `unconfirmed`, even when the reducer and authority close both
+acknowledge; only repeated read-only admin inspection can establish terminal
+safety.
+
+An approval is active on exactly the half-open interval
+`approvedAtMicros <= now < notAfterMicros`. During that interval the central
+gameplay-player gate blocks caller-triggered generic gameplay mutations for the
+target FID. Exact canary dispatch/recovery reducers and scheduled worker
+transitions use their narrower owner authority and remain available. At
+`now == notAfterMicros`, new canary dispatch is unavailable and generic
+gameplay resumes; exact idempotent read-only replay remains permitted. This
+prevents legacy dispatch, generic recall/all, collection, Inner Keep, chat, or
+another gameplay write from pruning or materializing the at-most-nine canary
+receipts. The schedule wrapper boundedly drains at most the three newly due
+transitions for the same assignment in one transaction, so an overdue canary
+can move arrival, expiry, and return-complete to a stable graph without a
+caller mutation.
+
+Ordinary `recall_all_workers_v1` is the one intentionally permanent gameplay
+restriction for the target FID: once a valid v2 approval registration exists,
+it fails with `PRODUCTION_PLAYER_CANARY_RECALL_ALL_PERMANENTLY_BLOCKED` during
+the approval window, at cutoff, after cutoff, and after `pc2-f00`, including an
+otherwise exact replay. Its workerless receipt cannot prove per-assignment
+lineage. Ordinary per-worker recall remains available after cutoff and is
+validated against its exact assignment. Other FIDs are unaffected. A malformed
+registration is `STATE_INTEGRITY`, and historical recall-all rows are retained
+but any one created at or after registration is invalid recovery topology.
+
+The core 64-row Worker receipt maintenance boundary never prunes a `pc1-` or
+`pc2-` request and never prunes an ordinary receipt correlated to a currently
+active assignment. Once `pc2-f00` exists, it also retains every
+assignment-correlated generic receipt, including a journey that completed
+after the marker, because those rows are durable replay lineage for the marker
+snapshot. Only the oldest uncorrelated ordinary row is eligible for eviction.
+If no such row exists, the incoming Worker command fails before any receipt is
+deleted or inserted.
+
+Ordinal-`0` containment, and ordinal-specific recovery at or after cutoff,
+uses a narrowly scoped assignment-local safety path. It rederives the exact
+owner, baseline, approval, route, dispatch receipt, assignment, and whole-roster
+graph, but intentionally remains available after the normal worker gameplay
+gate is disabled or rolled back. It never settles the whole FID, shared passive
+resources, or unrelated assignments. The selected canary preserves already
+materialized value and forfeits at most its one unmaterialized canary quantum
+before returning, leaving no latent credit. Pre-cutoff ordinal-specific recall
+continues to use the ordinary gameplay-gated, evidence-preserving settlement
+path. This carve-out is not available to generic worker commands.
+
+Version 2 is a migration hard stop, not an in-place reinterpretation. Before
+any module or live activation, the target FID must have no v1 approval
+registration, canary receipt, assignment, occupation, or schedule. A pristine,
+coherent stored baseline may be reused only with a newly coherent v2 approval.
+A stale v1 registration fails closed. Immediately before a NEW registration
+insert, the server rechecks the current founder/world/resource authority, four
+idle revision-`0` workers, and zero assignment/occupation/schedule/receipt
+graph against the stored baseline. Exact registration replay returns before
+that mutable-state check. The first pc2 mutation repeats the whole
+nonce-independent pristine check; every later NEW ordinal independently proves
+its selected route is still idle revision/timeline `0` with an empty graph.
+Fresh ordinal-`0` recovery applies the same rule to every undispatched,
+non-later route before it can write a position fence or `pc2-f00`.
+
+Every registration-present write gate, pc2 NEW/replay classifier, recovery
+pass, and status inspection performs the same nonce-independent stored-authority
+audit first. All four baseline and eight approval unique-index projections must
+resolve to their exact complete immutable rows; baseline scalar/digest shapes,
+pristine genesis balances and chronology, approval commitment material, and
+capture/approval/observation ordering must agree. This audit intentionally
+cannot recompute the nonce-framed server baseline commitment because the raw
+private evidence nonce is not persisted. The raw-nonce final-evidence path
+retains that stronger recomputation; no runtime or generic write gate infers it.
 
 Hermes has a separate read-only
 `admin_get_production_player_canary_recovery_status_v1` procedure and repeatable
@@ -237,6 +358,15 @@ safety maps to `terminal-evidence-impossible`. Structural candidacy is
 diagnostic only; the full
 admin evidence procedure and protected receipt remain the sole evidence and
 release authority.
+Each dispatch-position fence and the deterministic global marker is counted in
+the existing no-op recall count (at most five total). Their presence makes full
+evidence candidacy impossible while leaving terminal safety independently
+reportable. A valid nonzero no-op count includes the completed global sweep
+marker, so `terminal-evidence-impossible` after that sweep is terminal guidance
+for the canary recovery operation even when a validated later, unrelated
+post-cutoff assignment is still outbound, gathering, or returning. Do not loop
+ordinal-0 canary recovery in that state. Let the unrelated assignment finish or
+use normal owner controls; repeat the read-only admin inspection afterward.
 
 The checked-in `loadOwnerCanaryProductionRuntime` still deliberately returns
 `null`, including for exact canonical configuration. The exact poll policy,
@@ -300,10 +430,17 @@ create that request, dispatch B0, invoke the private Pages deploy, mutate
 Cloudflare, activate the player loader, or enable world presentation. The
 ordinary protected closed-review `workflow_run` may still build, deploy, and
 verify-live the inert Pages source after merge. The corrected recovery plus B0
-closure has 382 members; this launcher and its declaration are the only two new
-closure members, for an exact 384 of 384 with no spare slot. A later loader
-activation must modify only already-protected members. Do not add another graph
-root or declaration.
+closure has 382 members. The executable activation launcher and its declaration
+originally filled the final two slots. Reload safety keeps the activation,
+browser, and release-binding declaration files checked in and typechecked but
+removes those three non-executable type-only paths from the production closure.
+It protects executable `spacetimedb/src/auth.ts`,
+`spacetimedb/src/castleWorkerAuthority.ts`, and
+`spacetimedb/src/greaterRealmWorkerAuthority.ts` in their place. The matching
+activation-launcher, browser-launcher, and release-binding runtime `.mjs` files
+all remain protected. The closure therefore stays exact at 384 of 384 with no
+spare slot. A later loader activation must modify only already-protected
+members. Do not add another graph root or declaration.
 
 Execution is a separate reviewed boundary. It requires all of the following:
 
