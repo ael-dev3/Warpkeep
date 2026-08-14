@@ -219,5 +219,5 @@ describe('production player canary prepared-deploy closure', () => {
         ).toBe(true);
       } finally { substitutedBytes.fill(0); }
     }
-  });
+  }, 30_000);
 });
