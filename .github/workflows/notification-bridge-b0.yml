@@ -1,4 +1,4 @@
-name: Prepare Admission Notification Auth Bridge
+name: Bootstrap Admission Notification Auth Bridge B0
 
 on:
   workflow_dispatch:
@@ -13,25 +13,26 @@ permissions:
   contents: read
 
 concurrency:
-  group: notification-bridge-prepared
+  group: notification-bridge-b0
   cancel-in-progress: false
 
 jobs:
-  notification-bridge-prepared:
+  notification-bridge-b0:
     # This repository-exclusive account retains the owner-only deploy journal
     # and receipt namespace across failed jobs and runner restarts. Never move
     # this mutation onto a GitHub-hosted or ephemeral runner.
     runs-on: [self-hosted, macOS, ARM64, warpkeep-production-admin, warpkeep-repository-exclusive]
     timeout-minutes: 45
     environment:
-      name: notification-bridge-prepared
+      name: notification-bridge-b0
     permissions:
       actions: read
       contents: read
     env:
       WARPKEEP_EXPECTED_SOURCE_COMMIT: ${{ inputs.source_commit }}
-      # This protected manual phase is bridge-only. Later execution and
-      # presentation gates remain inert in both source and the receipt ABI.
+      # B0 changes only the auth-bridge Worker to the reviewed v5/six-secret
+      # predecessor. Every later secret, Hermes, Pages, world, and presentation
+      # activation remains inert.
       WARPKEEP_BRIDGE_NOTIFICATION_DELIVERY_ENABLED: 'true'
       WARPKEEP_HERMES_EXECUTION_APPROVED: 'false'
       WARPKEEP_PAGES_PRESENTATION_ENABLED: 'false'
@@ -93,7 +94,7 @@ jobs:
           tracked_entries="$("${git_safe[@]}" ls-files -v)"
           while IFS= read -r tracked_entry; do
             if [[ "$tracked_entry" != 'H '* ]]; then
-              echo 'AUTH_BRIDGE_PREPARED_HIDDEN_INDEX_STATE_INVALID' >&2
+              echo 'AUTH_BRIDGE_NOTIFICATION_B0_HIDDEN_INDEX_STATE_INVALID' >&2
               exit 1
             fi
           done <<< "$tracked_entries"
@@ -106,13 +107,13 @@ jobs:
             local output
             local actual
             if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
-              echo 'AUTH_BRIDGE_PREPARED_BOOTSTRAP_DIGEST_INVALID' >&2
+              echo 'AUTH_BRIDGE_NOTIFICATION_B0_BOOTSTRAP_DIGEST_INVALID' >&2
               exit 1
             fi
             output="$(/usr/bin/shasum -a 256 -- "$path")"
             actual="${output%% *}"
             if [[ "$actual" != "$expected" ]]; then
-              echo 'AUTH_BRIDGE_PREPARED_BOOTSTRAP_DIGEST_MISMATCH' >&2
+              echo 'AUTH_BRIDGE_NOTIFICATION_B0_BOOTSTRAP_DIGEST_MISMATCH' >&2
               exit 1
             fi
           }
@@ -150,13 +151,13 @@ jobs:
           checkout_status="$("${git_safe[@]}" status --porcelain=v1 --untracked-files=all)"
           if [[ "$actual_commit" != "$WARPKEEP_EXPECTED_SOURCE_COMMIT" \
             || -n "$checkout_status" ]]; then
-            echo 'AUTH_BRIDGE_PREPARED_POSTINSTALL_SOURCE_INVALID' >&2
+            echo 'AUTH_BRIDGE_NOTIFICATION_B0_POSTINSTALL_SOURCE_INVALID' >&2
             exit 1
           fi
           tracked_entries="$("${git_safe[@]}" ls-files -v)"
           while IFS= read -r tracked_entry; do
             if [[ "$tracked_entry" != 'H '* ]]; then
-              echo 'AUTH_BRIDGE_PREPARED_HIDDEN_INDEX_STATE_INVALID' >&2
+              echo 'AUTH_BRIDGE_NOTIFICATION_B0_HIDDEN_INDEX_STATE_INVALID' >&2
               exit 1
             fi
           done <<< "$tracked_entries"
@@ -169,13 +170,13 @@ jobs:
             local output
             local actual
             if [[ ! "$expected" =~ ^[0-9a-f]{64}$ ]]; then
-              echo 'AUTH_BRIDGE_PREPARED_BOOTSTRAP_DIGEST_INVALID' >&2
+              echo 'AUTH_BRIDGE_NOTIFICATION_B0_BOOTSTRAP_DIGEST_INVALID' >&2
               exit 1
             fi
             output="$(/usr/bin/shasum -a 256 -- "$path")"
             actual="${output%% *}"
             if [[ "$actual" != "$expected" ]]; then
-              echo 'AUTH_BRIDGE_PREPARED_BOOTSTRAP_DIGEST_MISMATCH' >&2
+              echo 'AUTH_BRIDGE_NOTIFICATION_B0_BOOTSTRAP_DIGEST_MISMATCH' >&2
               exit 1
             fi
           }
@@ -197,7 +198,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          node scripts/verify-auth-bridge-notification-prepared-policy.mjs
+          node scripts/verify-auth-bridge-notification-b0-policy.mjs
           if [[ "$WARPKEEP_BRIDGE_NOTIFICATION_DELIVERY_ENABLED" != 'true' \
             || "$WARPKEEP_HERMES_EXECUTION_APPROVED" != 'false' \
             || "$WARPKEEP_PAGES_PRESENTATION_ENABLED" != 'false' ]]; then
@@ -214,7 +215,7 @@ jobs:
             exit 1
           fi
 
-      - name: Run guarded prepared bridge deployment
+      - name: Run guarded B0 bridge deployment
         id: deploy
         continue-on-error: true
         shell: bash
@@ -223,7 +224,6 @@ jobs:
           WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: ${{ secrets.WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID }}
           WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: ${{ secrets.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN }}
           WARPKEEP_AUTH_BRIDGE_ZONE_ID: ${{ secrets.WARPKEEP_AUTH_BRIDGE_ZONE_ID }}
-          WARPKEEP_PLAYER_CANARY_OWNER_FID: ${{ secrets.WARPKEEP_PLAYER_CANARY_OWNER_FID }}
           WARPKEEP_PRODUCTION_ADMIN_TOKEN: ${{ secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN }}
         run: |
           set -euo pipefail
@@ -231,16 +231,15 @@ jobs:
             || -z "$WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID" \
             || -z "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN" \
             || -z "$WARPKEEP_AUTH_BRIDGE_ZONE_ID" \
-            || ! "$WARPKEEP_PLAYER_CANARY_OWNER_FID" =~ ^[1-9][0-9]{0,15}$ \
             || -z "$WARPKEEP_PRODUCTION_ADMIN_TOKEN" \
             || "$GITHUB_TOKEN" == "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN" \
             || "$GITHUB_TOKEN" == "$WARPKEEP_PRODUCTION_ADMIN_TOKEN" \
             || "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN" == "$WARPKEEP_PRODUCTION_ADMIN_TOKEN" ]]; then
-            echo 'AUTH_BRIDGE_PREPARED_DEPLOY_CREDENTIALS_INVALID' >&2
+            echo 'AUTH_BRIDGE_NOTIFICATION_B0_DEPLOY_CREDENTIALS_INVALID' >&2
             exit 1
           fi
           printf '%s\n' 'attempted=true' >> "$GITHUB_OUTPUT"
-          node scripts/auth-bridge-notification-prepared-deploy.mjs >/dev/null
+          node scripts/auth-bridge-notification-b0-deploy.mjs >/dev/null
 
       - name: Recover and re-attest a failed deployment attempt
         id: recovery
@@ -252,7 +251,6 @@ jobs:
           WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: ${{ secrets.WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID }}
           WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: ${{ secrets.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN }}
           WARPKEEP_AUTH_BRIDGE_ZONE_ID: ${{ secrets.WARPKEEP_AUTH_BRIDGE_ZONE_ID }}
-          WARPKEEP_PLAYER_CANARY_OWNER_FID: ${{ secrets.WARPKEEP_PLAYER_CANARY_OWNER_FID }}
           WARPKEEP_PRODUCTION_ADMIN_TOKEN: ${{ secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN }}
         run: |
           set -euo pipefail
@@ -260,15 +258,14 @@ jobs:
             || -z "$WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID" \
             || -z "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN" \
             || -z "$WARPKEEP_AUTH_BRIDGE_ZONE_ID" \
-            || ! "$WARPKEEP_PLAYER_CANARY_OWNER_FID" =~ ^[1-9][0-9]{0,15}$ \
             || -z "$WARPKEEP_PRODUCTION_ADMIN_TOKEN" \
             || "$GITHUB_TOKEN" == "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN" \
             || "$GITHUB_TOKEN" == "$WARPKEEP_PRODUCTION_ADMIN_TOKEN" \
             || "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN" == "$WARPKEEP_PRODUCTION_ADMIN_TOKEN" ]]; then
-            echo 'AUTH_BRIDGE_PREPARED_DEPLOY_CREDENTIALS_INVALID' >&2
+            echo 'AUTH_BRIDGE_NOTIFICATION_B0_DEPLOY_CREDENTIALS_INVALID' >&2
             exit 1
           fi
-          node scripts/auth-bridge-notification-prepared-deploy.mjs >/dev/null
+          node scripts/auth-bridge-notification-b0-deploy.mjs >/dev/null
 
       - name: Require a verified deployment or recovery
         if: ${{ always() }}
@@ -283,5 +280,5 @@ jobs:
             && ("$DEPLOY_OUTCOME" == 'success' || "$RECOVERY_OUTCOME" == 'success') ]]; then
             exit 0
           fi
-          echo 'AUTH_BRIDGE_PREPARED_DEPLOY_OR_RECOVERY_UNVERIFIED' >&2
+          echo 'AUTH_BRIDGE_NOTIFICATION_B0_DEPLOY_OR_RECOVERY_UNVERIFIED' >&2
           exit 1

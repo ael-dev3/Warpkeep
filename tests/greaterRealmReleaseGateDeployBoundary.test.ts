@@ -17,6 +17,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   greaterRealmReleaseGateDeployBoundaryTestSeams,
 } from '../scripts/greater-realm-release-gate-deploy-boundary.mjs';
+import {
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS,
+} from '../scripts/auth-bridge-notification-prepared-deploy-closure.mjs';
 
 const COMMIT = 'a'.repeat(40);
 const temporaryDirectories: string[] = [];
@@ -239,8 +242,11 @@ describe('Greater Realm release-gate deployment boundary', () => {
       'scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs',
       'utf8',
     );
-    expect(manifest.members).toHaveLength(361);
     const checkedMembers = manifest.members.map(member => member.path);
+    expect(checkedMembers).toEqual(
+      AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS,
+    );
+    expect(checkedMembers).toHaveLength(372);
     for (const member of boundaryMembers) {
       expect(checkedMembers).toContain(member);
       expect(policy.split(`'${member}'`)).toHaveLength(2);

@@ -69,6 +69,10 @@ const BOOTSTRAP_WORKFLOWS = Object.freeze({
     indentation: '  ',
     names: BOOTSTRAP_BINDINGS.map(binding => binding.name),
   }),
+  '.github/workflows/notification-bridge-b0.yml': Object.freeze({
+    indentation: '      ',
+    names: BOOTSTRAP_BINDINGS.slice(0, 4).map(binding => binding.name),
+  }),
   '.github/workflows/notification-bridge-prepared.yml': Object.freeze({
     indentation: '      ',
     names: BOOTSTRAP_BINDINGS.slice(0, 4).map(binding => binding.name),
@@ -426,7 +430,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
     for (let phase = 0; phase <= 7; phase += 1) {
       const root = createTransitionFixture(phase);
       const authority = verify(root);
-      expect(authority.memberCount).toBe(361);
+      expect(authority.memberCount).toBe(372);
       manifestDigests.add(authority.manifestSha256);
       for (const relativePath of REVIEWED_RELEASE_TRANSITION_PATHS) {
         const source = readFileSync(resolve(root, relativePath), 'utf8');
@@ -442,7 +446,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
   it('retains one closure authority through every exact reviewed phase', () => {
     const root = createTransitionFixture();
     const baseline = verify(root);
-    expect(baseline.memberCount).toBe(361);
+    expect(baseline.memberCount).toBe(372);
     const expectActiveIdentityRejectedBeforeActivation = (): void => {
       setClientReleaseIdentity(root, true);
       expect(() => verify(root)).toThrow(
@@ -727,7 +731,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
       `  productionPlayerCanaryReceiptDigest: '${'1'.repeat(64)}',\n`
         + `  productionPlayerCanarySourceCommit: '${'2'.repeat(40)}',`,
     );
-    expect(verify(root).memberCount).toBe(361);
+    expect(verify(root).memberCount).toBe(372);
     expectIdentityMutationRejected(
       'package.json',
       '  "version": "0.3.44",',
@@ -833,7 +837,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
 
   it('keeps Pages bootstrap pins exact after activation-client projection', () => {
     const root = createTransitionFixture(7);
-    expect(verify(root).memberCount).toBe(361);
+    expect(verify(root).memberCount).toBe(372);
     const path = resolve(root, '.github/workflows/deploy-pages.yml');
     const source = readFileSync(path, 'utf8');
     const name = 'WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256';

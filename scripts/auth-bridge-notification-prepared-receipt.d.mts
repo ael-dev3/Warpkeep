@@ -87,6 +87,13 @@ export function canonicalAuthBridgeReleaseAttestationDigest(
   attestation: AuthBridgeReleaseAttestation,
 ): string;
 
+export function canonicalAuthBridgeNotificationPreparedReceiptPublication(
+  receipt: AuthBridgeNotificationPreparedReceipt,
+): Readonly<{
+  receiptBytesBase64: string;
+  receiptDigest: string;
+}>;
+
 export function writePrivateAuthBridgeNotificationPreparedReceipt(
   options: Readonly<{
     receipt: AuthenticatedAuthBridgeNotificationPreparedReceipt;
@@ -129,6 +136,16 @@ export function prepareAuthBridgeNotificationPreparedReceipt(
     fetchImpl?: typeof fetch;
     clock?: () => Date;
     lifetimeMilliseconds?: number;
+  }>,
+): Promise<AuthenticatedAuthBridgeNotificationPreparedReceipt>;
+
+export function authenticateAuthBridgeNotificationPreparedReceiptForPublication(
+  options: Readonly<{
+    receipt: AuthBridgeNotificationPreparedReceipt;
+    adminToken: string;
+    expectedBridgeSourceCommit: string;
+    fetchImpl?: typeof fetch;
+    now?: Date;
   }>,
 ): Promise<AuthenticatedAuthBridgeNotificationPreparedReceipt>;
 

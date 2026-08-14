@@ -37,6 +37,8 @@ const MEMBER_PATH = /^(?:owner-canary\/index\.html|package(?:-lock)?\.json|publi
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
 const MAX_MEMBERS = 384;
 const SCRIPT_GRAPH_ROOTS = Object.freeze([
+  'scripts/auth-bridge-notification-b0-deploy.mjs',
+  'scripts/verify-auth-bridge-notification-b0-policy.mjs',
   'scripts/auth-bridge-notification-prepared-deploy.mjs',
   'scripts/hermes-admin.ts',
   'scripts/notification-pages-build-release-validator.mjs',
@@ -57,6 +59,7 @@ const CHECK_SOURCE_DIRECTORIES = Object.freeze([
 ]);
 const STATIC_SECURITY_INPUTS = Object.freeze([
   '.github/workflows/deploy-pages.yml',
+  '.github/workflows/notification-bridge-b0.yml',
   '.github/workflows/notification-bridge-prepared.yml',
   '.github/workflows/verify.yml',
   'owner-canary/index.html',
