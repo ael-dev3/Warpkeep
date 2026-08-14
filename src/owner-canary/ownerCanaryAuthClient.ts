@@ -12,11 +12,45 @@ const MAX_QUICK_AUTH_TOKEN_BYTES = 8 * 1_024;
 const MAX_RESPONSE_BYTES = 32 * 1_024;
 const DEFAULT_TIMEOUT_MS = 10_000;
 const COMPACT_JWT_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+const SHA256 = /^[0-9a-f]{64}$/u;
+const ownerCanaryPrivateSessions = new WeakSet<object>();
 
 export type OwnerCanaryPrivateSession = Readonly<{
   session: FarcasterOidcSession;
   subjectFid: number;
 }>;
+
+/**
+ * Verifies one freshly exchanged, module-branded owner session against the
+ * controller's memory-only subject latch. It never returns or retains a FID.
+ */
+export async function verifyOwnerCanaryProductionPrivateSubject(input: Readonly<{
+  privateSession: OwnerCanaryPrivateSession;
+  latchedSubjectFid: number;
+  reviewedAdmissionPlanDigest: string;
+  signal: AbortSignal;
+}>): Promise<boolean> {
+  if (
+    input.signal.aborted
+    || typeof input.privateSession !== 'object'
+    || input.privateSession === null
+    || !ownerCanaryPrivateSessions.has(input.privateSession)
+    || !Number.isSafeInteger(input.latchedSubjectFid)
+    || input.latchedSubjectFid <= 0
+    || input.privateSession.subjectFid !== input.latchedSubjectFid
+    || !SHA256.test(input.reviewedAdmissionPlanDigest)
+  ) return false;
+  const parsed = parseFarcasterOidcJwt(input.privateSession.session.jwt, {
+    issuer: OWNER_CANARY_AUTH_ORIGIN,
+    audience: FARCASTER_OIDC_DEFAULT_AUDIENCE,
+    now: Date.now(),
+  });
+  return parsed !== undefined
+    && parsed.claims.fid === input.latchedSubjectFid
+    && parsed.session.issuer === input.privateSession.session.issuer
+    && parsed.session.audience === input.privateSession.session.audience
+    && parsed.session.expiresAt === input.privateSession.session.expiresAt;
+}
 
 export type OwnerCanaryAuthFailureCode =
   | 'configuration'
@@ -246,10 +280,12 @@ export function createOwnerCanaryAuthClient(
         if (!parsed || parsed.session.expiresAt !== body.accessExpiresAt) {
           throw failure('invalid-response');
         }
-        return Object.freeze({
+        const privateSession = Object.freeze({
           session: parsed.session,
           subjectFid: parsed.claims.fid,
         });
+        ownerCanaryPrivateSessions.add(privateSession);
+        return privateSession;
       } finally {
         globalThis.clearTimeout(timeout);
         signal?.removeEventListener('abort', onAbort);

@@ -140,7 +140,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "dfddc847bf10b1a815384644aba7381be0ac8d9e410ed31f54e7ac3908a0717e"
+      "sha256": "728145bea40d26ae28ed756e13124f114e38bd6025a260d39248bbaffd21842b"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.d.mts",
@@ -150,7 +150,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ffe0631f25ddeee8d5e91977c16ad8f48cd1463293e49506e47b4915a3b0791b"
+      "sha256": "4ed371512caf174b6bd40b17b9b396a557b63df7955e9c9ad51c7b8ca73e1dfd"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
@@ -395,7 +395,7 @@
     {
       "path": "scripts/production-player-canary-admin-transport.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "431f4b0ca147346a84808f8ef699608b46d118dd126abd54aaa4d2fa3e8b3725"
+      "sha256": "fec4d331a3450d8398174b94abab123a33d436d88cb1de42109bbf56de8f6973"
     },
     {
       "path": "scripts/production-player-canary-approval-reconciliation.d.mts",
@@ -416,6 +416,16 @@
       "path": "scripts/production-player-canary-baseline-reconciliation.mjs",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "509efe293feac98cf09332f881287ad9c925a51c123186fa6141e739e2cd9d8d"
+    },
+    {
+      "path": "scripts/production-player-canary-browser-launcher.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "cef4c81168eab431ab1d6200f961725d65af97fd87e337493fdaab6cce6a00be"
+    },
+    {
+      "path": "scripts/production-player-canary-browser-launcher.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "63317f95dfc860aedd5df068f6eb93f0ee0d517151235975ae992e0db76a43ff"
     },
     {
       "path": "scripts/production-player-canary-command-authority.d.mts",
@@ -465,12 +475,12 @@
     {
       "path": "scripts/production-player-canary-operator.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "286519ac4045fe733dc3b8c2823853ed14d9ee33344b2e256c46494612d3e932"
+      "sha256": "56eeaf7abe7ac614909030cdcc63de870c33e04087228ffc0ab03d8c510d3b7e"
     },
     {
       "path": "scripts/production-player-canary-operator.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "5590436a8ba5a40489c9fb0c100804f2358e252c931ba16b7fd5fad039adb460"
+      "sha256": "d8dba94c594f21adfcf67f344848cd4b6fe0ba26f61907bd9762f4deeba58149"
     },
     {
       "path": "scripts/production-player-canary-owner-approval.d.mts",
@@ -820,7 +830,7 @@
     {
       "path": "spacetimedb/src/index.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "59366272823965b02b6635b3923716c90aecd8d50534217992fd7c326efcb6fc"
+      "sha256": "265b2446df79cf6967bf9864a61ec33614a6d31458ca3a861e840ea29900e0f3"
     },
     {
       "path": "spacetimedb/src/lowlandsSurface.ts",
@@ -853,6 +863,16 @@
       "sha256": "302f87038a44e4d608bf186e11eceb0e42245211656dad589b36581dbc87ee2e"
     },
     {
+      "path": "spacetimedb/src/productionPlayerCanaryRecovery.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "072dfdf5e741e2396fa04cb6116e998f4ddaacb4948aad6c3ffb2d5ef4b35413"
+    },
+    {
+      "path": "spacetimedb/src/productionPlayerCanaryRecoveryPolicy.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "8a42e27a86d1fb7d31f055a5286849e6e80282155857e34d70a590a82e0af79e"
+    },
+    {
       "path": "spacetimedb/src/productionPlayerCanaryRoutePolicy.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "a029b3a247db998268e7fcd2839e95ec8f2e43d7347d6df88c0cacc69be5a195"
@@ -865,7 +885,7 @@
     {
       "path": "spacetimedb/src/reducers/castleWorkers.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "50379b6c22b53dbc001c8ae911f0748c98b8a939564b373162b320fb747e68ec"
+      "sha256": "fdacfb265f9b8c0dd19036a55c65bd60c6c68f719b314afe2547ff99346d8f17"
     },
     {
       "path": "spacetimedb/src/resourceAuthorityPolicy.ts",
@@ -880,7 +900,7 @@
     {
       "path": "spacetimedb/src/schema.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "0b9e8511a2b9d6a6458078d795de0c9b1d936d6a6bf05d0ef78e258a77305527"
+      "sha256": "a69d9cef82bc6d590d0a82f57b4198a91087ff6fe278b4c340bfcd7d11a6eb3a"
     },
     {
       "path": "spacetimedb/src/stoneExpeditionPolicy.ts",
@@ -920,7 +940,7 @@
     {
       "path": "src/owner-canary/OwnerCanaryApp.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "30816531d9ab0361cdd803a048a11e5c94ffa08cda4307246f2ab52596a9e4a8"
+      "sha256": "d3785128360655cd4c65a87639c6e638669a1be5acc70900fb1cb7d548c8a5fd"
     },
     {
       "path": "src/owner-canary/main.tsx",
@@ -935,12 +955,12 @@
     {
       "path": "src/owner-canary/ownerCanaryAuthClient.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "649becc41235929e00f03a3b24f57e5ff1e5a9bf5ad22bde95dd873cd44dd3de"
+      "sha256": "d6a808543ada1b8666376fbed674e04d4492ee68414d22262646d719a20233da"
     },
     {
       "path": "src/owner-canary/ownerCanaryController.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "34590e938bd340f873cd7f508c5b2799e200d16d52d787794217c65e8cd46486"
+      "sha256": "203f656b4f199e97b99ebffdafd0ba5b0bec7da5bb77a263818edba9c3302442"
     },
     {
       "path": "src/owner-canary/ownerCanaryEvidence.ts",
@@ -948,19 +968,34 @@
       "sha256": "dba989837956968250228f400ebceb9341d6c4c892839646a0c18a1ac44c6896"
     },
     {
+      "path": "src/owner-canary/ownerCanaryEvidenceRuntime.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "b323de9560b385fd914a84a8d51b6920c3bc4aabfe2f831f2f3229b56e577130"
+    },
+    {
+      "path": "src/owner-canary/ownerCanaryProductionComposition.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "8ccc2dddbe1f43c997b5d27306feae423bd4cd263bc3a46c27c3787ba1128439"
+    },
+    {
+      "path": "src/owner-canary/ownerCanaryProductionConfig.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "0173a54d250e14ef119008a75fefa0ef6fb6e637e949f66f0b3c9e10f7ab7b6e"
+    },
+    {
       "path": "src/owner-canary/ownerCanaryProductionRuntime.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "aed55288abed42b578ce52260353ba96dd5a2f7cb4e506188602702f7ddefe0d"
+      "sha256": "f99fbb2117c16f19b4d4d78c9137cf573aa41449c2ecfd57c3926f4c80f2f1bf"
     },
     {
       "path": "src/owner-canary/ownerCanaryRuntime.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "3cc1f816ce4a238224c863b62a752ab9529826bf114c0da7a5c6c733ea245447"
+      "sha256": "0b3d56311320a656e18fc8ea6f4d9b9c7dfa57fbeafbe5548f3ef918d1e35ebc"
     },
     {
       "path": "src/owner-canary/ownerCanaryRuntimePlan.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f837f3be4c3ff1e8deff9437e6b01e00ce8531a5c699fcab5f2cea4701c03af7"
+      "sha256": "2691450b434c72a5726f4b4a491cb1eaf758c214375b4121d2b55e7f6304daff"
     },
     {
       "path": "src/security/publicImageUrl.ts",
@@ -1211,6 +1246,11 @@
       "path": "src/spacetime/module_bindings/admin_get_production_player_canary_evidence_v_1_procedure.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "79a8bb2879f386cec98f6dd9de7f25dddfc9b78385c86d7b293e86e76ec1b8f2"
+    },
+    {
+      "path": "src/spacetime/module_bindings/admin_get_production_player_canary_recovery_status_v_1_procedure.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "f3ead8187a4a1c67bbe149dfe778809c273647cafe444358733a37f8263ef273"
     },
     {
       "path": "src/spacetime/module_bindings/admin_get_realm_chat_report_context_v_1_procedure.ts",
@@ -1650,7 +1690,7 @@
     {
       "path": "src/spacetime/module_bindings/index.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2c5afbdb1e60adfb6e8d22179e1b371c5cfd31aa203f8ef9941d044c24dc516e"
+      "sha256": "b56ebcc5aa129bf75d23b2d60365e22c443b198235cd9ac79df5195aa5ef5663"
     },
     {
       "path": "src/spacetime/module_bindings/inner_keep_build_level_v_1_table.ts",
@@ -1778,6 +1818,11 @@
       "sha256": "04020f82bcd2f4f8e9f696162d1412dc09f551e164203b40b45d55ad4a6cad79"
     },
     {
+      "path": "src/spacetime/module_bindings/recall_production_player_canary_worker_v_1_reducer.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "c50878890969423f483f8dc0d779b9a7172c589e17ff52855c6aa9b62f855b95"
+    },
+    {
       "path": "src/spacetime/module_bindings/recall_worker_v_1_reducer.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "24515b6400cd869851881fb0acc4780bdc05333df2ac17aa1e8dac6aa29b1ae6"
@@ -1815,17 +1860,17 @@
     {
       "path": "src/spacetime/module_bindings/types.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e4e0297924837f958a541c0a7b59f9b9753252307f9b56baaff3094424ab5eeb"
+      "sha256": "9075a53b771a2c4d819b84d926bc4041fedeb81fc3efc6b82b70af095344d6de"
     },
     {
       "path": "src/spacetime/module_bindings/types/procedures.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f468ea48122cce48ee9303ab90f23dcf672d2eca52daf1de96392e3957cd0938"
+      "sha256": "20826f4d131a11d49251baa7cc65a4956303141070106b1da94be75cf97ce7ad"
     },
     {
       "path": "src/spacetime/module_bindings/types/reducers.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "82f656cf9b110b87ab6d6b6183da5c160f89b9012e5a689fba85b4cb17fa4081"
+      "sha256": "3ac5a307284aa8254b3e12a7b47fda528af519d73d72389b06fb072a1d9a85bf"
     },
     {
       "path": "src/spacetime/module_bindings/wood_expedition_schedule_v_1_table.ts",
@@ -1856,6 +1901,11 @@
       "path": "src/spacetime/module_bindings/world_tile_table.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "c0b1fbede63493bc33c85866001cd4b10a05ce7bd1a10efe9be42957e624e27e"
+    },
+    {
+      "path": "src/spacetime/playerModuleBindings.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "9cd1a3111c97c26862e113415c8560a471d3f7ea347516b540841ed398f0e0b6"
     },
     {
       "path": "vite.config.ts",

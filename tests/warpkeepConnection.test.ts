@@ -9,10 +9,12 @@ import {
 } from '../src/spacetime/playerModuleBindings';
 import {
   acceptWarpkeepAlphaTerms,
+  awaitWarpkeepAuthorityOperation,
   CONNECTION_DISCONNECT_ACKNOWLEDGEMENT_TIMEOUT_MILLISECONDS,
   CONNECTION_HANDSHAKE_TIMEOUT_MILLISECONDS,
   classifyWarpkeepConnectionFailure,
   connectWarpkeep,
+  connectWarpkeepAuthority,
   bootstrapWarpkeepPlayer,
   collectWarpkeepGoldExpedition,
   collectWarpkeepStoneExpedition,
@@ -21,6 +23,7 @@ import {
   createWarpkeepConnectionBuilder,
   disconnectWarpkeep,
   disconnectWarpkeepConfirmed,
+  isWarpkeepAuthorityClosureUnconfirmed,
   dispatchWarpkeepGoldExpedition,
   dispatchWarpkeepStoneExpedition,
   dispatchWarpkeepWoodExpedition,
@@ -37,6 +40,7 @@ import {
   readWarpkeepWoodExpeditionState,
   readWarpkeepResourceState,
   readWarpkeepWorkerControlState,
+  recallWarpkeepProductionPlayerCanaryWorker,
   returnWarpkeepLegacyExpedition,
   readWarpkeepRealmSnapshot,
   WarpkeepLegacyRealmRetiredError,
@@ -435,6 +439,48 @@ afterEach(() => {
 });
 
 describe('Warpkeep authenticated connection boundary', () => {
+  it('projects only caller-authorized canary recall into the real browser schema', () => {
+    const playerBindings = readFileSync(
+      resolve(process.cwd(), 'src/spacetime/playerModuleBindings.ts'),
+      'utf8'
+    );
+    expect(playerBindings.match(
+      /recall_production_player_canary_worker_v1/g
+    )).toHaveLength(1);
+    expect(playerBindings.match(
+      /RecallProductionPlayerCanaryWorkerV1Reducer/g
+    )).toHaveLength(2);
+    expect(playerBindings).not.toContain(
+      'admin_get_production_player_canary_recovery_status_v1'
+    );
+    expect(playerBindings).not.toContain(
+      'AdminGetProductionPlayerCanaryRecoveryStatusV1Procedure'
+    );
+
+    const socket = {
+      protocol: '',
+      send: vi.fn(),
+      close: vi.fn(),
+      onclose: undefined,
+      onopen: undefined,
+      onmessage: undefined,
+      onerror: undefined,
+    };
+    const connection = DbConnection.builder()
+      .withUri('https://example.invalid')
+      .withDatabaseName('warpkeep-test')
+      .withWSFn(async () => socket as never)
+      .build();
+
+    expect(connection.reducers).toHaveProperty(
+      'recallProductionPlayerCanaryWorkerV1'
+    );
+    expect(connection.procedures).not.toHaveProperty(
+      'adminGetProductionPlayerCanaryRecoveryStatusV1'
+    );
+    connection.disconnect();
+  });
+
   it('reduces raw SDK failures to bounded credential-free diagnostics', () => {
     const bearerLikeMaterial = 'header.payload.signature';
     expect(classifyWarpkeepConnectionFailure(
@@ -501,6 +547,503 @@ describe('Warpkeep authenticated connection boundary', () => {
 
     await expect(connectWarpkeep(config, 'header.payload.signature')).resolves.toBe(connection);
     expect(window.localStorage.length).toBe(0);
+  });
+
+  it('closes and rejects an owner-authority socket when cancellation wins the handshake', async () => {
+    const builder = builderDouble();
+    const abort = new AbortController();
+    let requested = false;
+    const disconnect = vi.fn(() => { requested = true; });
+    const connection = {
+      get isDisconnectRequested() { return requested; },
+      disconnect,
+    } as unknown as WarpkeepConnection;
+    let onConnect: ((connection: WarpkeepConnection, identity: unknown, token: string) => void) | undefined;
+    let onDisconnect: ((connection: WarpkeepConnection, error?: Error) => void) | undefined;
+    builder.onConnect.mockImplementation((callback) => {
+      onConnect = callback;
+      return builder;
+    });
+    builder.onDisconnect.mockImplementation((callback) => {
+      onDisconnect = callback;
+      return builder;
+    });
+    builder.build.mockReturnValue(connection);
+    vi.spyOn(DbConnection, 'builder').mockReturnValue(builder as never);
+
+    const cancelled = connectWarpkeepAuthority(
+      config,
+      'header.payload.signature',
+      abort.signal,
+    );
+    let outcome = 'pending';
+    void cancelled.then(
+      () => { outcome = 'resolved'; },
+      () => { outcome = 'rejected'; },
+    );
+    abort.abort();
+    await Promise.resolve();
+    expect(disconnect).toHaveBeenCalledOnce();
+    expect(outcome).toBe('pending');
+
+    onDisconnect?.(connection);
+    await expect(cancelled).rejects.toMatchObject({ name: 'AbortError' });
+    expect(outcome).toBe('rejected');
+
+    onConnect?.(connection, {}, 'SERVER_ISSUED_TOKEN_MUST_NOT_BE_STORED');
+    await Promise.resolve();
+    expect(disconnect).toHaveBeenCalledOnce();
+    expect(window.localStorage.length).toBe(0);
+  });
+
+  it('does not publish a synchronously authenticated socket when abort happens inside build', async () => {
+    const builder = builderDouble();
+    const abort = new AbortController();
+    let requested = false;
+    const connection = {
+      get isDisconnectRequested() { return requested; },
+      disconnect: vi.fn(() => { requested = true; }),
+    } as unknown as WarpkeepConnection;
+    let onConnect: ((connection: WarpkeepConnection, identity: unknown, token: string) => void) | undefined;
+    let onDisconnect: ((connection: WarpkeepConnection, error?: Error) => void) | undefined;
+    builder.onConnect.mockImplementation((callback) => {
+      onConnect = callback;
+      return builder;
+    });
+    builder.onDisconnect.mockImplementation((callback) => {
+      onDisconnect = callback;
+      return builder;
+    });
+    builder.build.mockImplementation(() => {
+      onConnect?.(connection, {}, 'SERVER_ISSUED_TOKEN_MUST_NOT_BE_STORED');
+      abort.abort();
+      return connection;
+    });
+    vi.spyOn(DbConnection, 'builder').mockReturnValue(builder as never);
+
+    const cancelled = connectWarpkeepAuthority(
+      config,
+      'header.payload.signature',
+      abort.signal,
+    );
+    expect(connection.disconnect).toHaveBeenCalledOnce();
+    onDisconnect?.(connection);
+    await expect(cancelled).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('waits for every distinct socket to close when abort races a synchronous connection', async () => {
+    const builder = builderDouble();
+    const abort = new AbortController();
+    const disconnected = new Set<WarpkeepConnection>();
+    const first = {
+      get isDisconnectRequested() { return disconnected.has(first as never); },
+      disconnect: vi.fn(() => { disconnected.add(first as never); }),
+    } as unknown as WarpkeepConnection;
+    const returned = {
+      get isDisconnectRequested() { return disconnected.has(returned as never); },
+      disconnect: vi.fn(() => { disconnected.add(returned as never); }),
+    } as unknown as WarpkeepConnection;
+    let onConnect: ((connection: WarpkeepConnection, identity: unknown, token: string) => void) | undefined;
+    let onDisconnect: ((connection: WarpkeepConnection, error?: Error) => void) | undefined;
+    builder.onConnect.mockImplementation((callback) => {
+      onConnect = callback;
+      return builder;
+    });
+    builder.onDisconnect.mockImplementation((callback) => {
+      onDisconnect = callback;
+      return builder;
+    });
+    builder.build.mockImplementation(() => {
+      onConnect?.(first, {}, 'SERVER_ISSUED_TOKEN_MUST_NOT_BE_STORED');
+      abort.abort();
+      return returned;
+    });
+    vi.spyOn(DbConnection, 'builder').mockReturnValue(builder as never);
+
+    const cancelled = connectWarpkeepAuthority(
+      config,
+      'header.payload.signature',
+      abort.signal,
+    );
+    expect(first.disconnect).toHaveBeenCalledOnce();
+    expect(returned.disconnect).toHaveBeenCalledOnce();
+    let outcome = 'pending';
+    void cancelled.catch(() => { outcome = 'rejected'; });
+    onDisconnect?.(first);
+    await Promise.resolve();
+    expect(outcome).toBe('pending');
+    onDisconnect?.(returned);
+    await expect(cancelled).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('absorbs a late authenticated socket into an active cancellation close barrier', async () => {
+    const builder = builderDouble();
+    const closed = new Set<WarpkeepConnection>();
+    const connection = () => {
+      const value = {
+        get isDisconnectRequested() { return closed.has(value as never); },
+        disconnect: vi.fn(() => { closed.add(value as never); }),
+      } as unknown as WarpkeepConnection;
+      return value;
+    };
+    const first = connection();
+    const late = connection();
+    const abort = new AbortController();
+    let onConnect: ((connection: WarpkeepConnection, identity: unknown, token: string) => void) | undefined;
+    let onDisconnect: ((connection: WarpkeepConnection, error?: Error) => void) | undefined;
+    builder.onConnect.mockImplementation((callback) => {
+      onConnect = callback;
+      return builder;
+    });
+    builder.onDisconnect.mockImplementation((callback) => {
+      onDisconnect = callback;
+      return builder;
+    });
+    builder.build.mockReturnValue(first);
+    vi.spyOn(DbConnection, 'builder').mockReturnValue(builder as never);
+
+    const opened = connectWarpkeepAuthority(
+      config,
+      'header.payload.signature',
+      abort.signal,
+    );
+    const rejected = opened.catch((error: unknown) => error);
+    abort.abort();
+    expect(first.disconnect).toHaveBeenCalledOnce();
+    onConnect?.(late, {}, 'SERVER_ISSUED_TOKEN_MUST_NOT_BE_STORED');
+    expect(late.disconnect).toHaveBeenCalledOnce();
+
+    let settled = false;
+    void rejected.then(() => { settled = true; });
+    onDisconnect?.(first);
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    onDisconnect?.(late);
+    await expect(rejected).resolves.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('activates the close barrier before a reentrant failure diagnostic can expose a socket', async () => {
+    const builder = builderDouble();
+    const closed = new Set<WarpkeepConnection>();
+    const connection = () => {
+      const value = {
+        get isDisconnectRequested() { return closed.has(value as never); },
+        disconnect: vi.fn(() => { closed.add(value as never); }),
+      } as unknown as WarpkeepConnection;
+      return value;
+    };
+    const first = connection();
+    const reentrant = connection();
+    const abort = new AbortController();
+    let onConnect: ((connection: WarpkeepConnection, identity: unknown, token: string) => void) | undefined;
+    let onDisconnect: ((connection: WarpkeepConnection, error?: Error) => void) | undefined;
+    builder.onConnect.mockImplementation((callback) => {
+      onConnect = callback;
+      return builder;
+    });
+    builder.onDisconnect.mockImplementation((callback) => {
+      onDisconnect = callback;
+      return builder;
+    });
+    builder.build.mockReturnValue(first);
+    vi.spyOn(DbConnection, 'builder').mockReturnValue(builder as never);
+
+    const opened = connectWarpkeepAuthority(
+      config,
+      'header.payload.signature',
+      abort.signal,
+      {
+        onConnectionFailure: () => {
+          onConnect?.(reentrant, {}, 'SERVER_ISSUED_TOKEN_MUST_NOT_BE_STORED');
+        },
+      },
+    );
+    const rejected = opened.catch((error: unknown) => error);
+    abort.abort();
+    expect(first.disconnect).toHaveBeenCalledOnce();
+    expect(reentrant.disconnect).toHaveBeenCalledOnce();
+
+    let settled = false;
+    void rejected.then(() => { settled = true; });
+    onDisconnect?.(first);
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    onDisconnect?.(reentrant);
+    await expect(rejected).resolves.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('closes every duplicate synchronous authenticated socket before rejecting', async () => {
+    const builder = builderDouble();
+    const closed = new Set<WarpkeepConnection>();
+    const connection = () => {
+      const value = {
+        get isDisconnectRequested() { return closed.has(value as never); },
+        disconnect: vi.fn(() => { closed.add(value as never); }),
+      } as unknown as WarpkeepConnection;
+      return value;
+    };
+    const first = connection();
+    const second = connection();
+    let onConnect: ((connection: WarpkeepConnection, identity: unknown, token: string) => void) | undefined;
+    let onDisconnect: ((connection: WarpkeepConnection, error?: Error) => void) | undefined;
+    builder.onConnect.mockImplementation((callback) => {
+      onConnect = callback;
+      return builder;
+    });
+    builder.onDisconnect.mockImplementation((callback) => {
+      onDisconnect = callback;
+      return builder;
+    });
+    builder.build.mockImplementation(() => {
+      onConnect?.(first, {}, 'SERVER_ISSUED_TOKEN_MUST_NOT_BE_STORED');
+      onConnect?.(second, {}, 'SERVER_ISSUED_TOKEN_MUST_NOT_BE_STORED');
+      return second;
+    });
+    vi.spyOn(DbConnection, 'builder').mockReturnValue(builder as never);
+
+    const rejected = connectWarpkeepAuthority(
+      config,
+      'header.payload.signature',
+      new AbortController().signal,
+    );
+    expect(first.disconnect).toHaveBeenCalledOnce();
+    expect(second.disconnect).toHaveBeenCalledOnce();
+    let outcome = 'pending';
+    void rejected.catch(() => { outcome = 'rejected'; });
+    onDisconnect?.(first);
+    await Promise.resolve();
+    expect(outcome).toBe('pending');
+    onDisconnect?.(second);
+    await expect(rejected).rejects.toThrow('Warpkeep records are unavailable.');
+  });
+
+  it('poisons on a distinct late authenticated socket and closes it exclusively', async () => {
+    const builder = builderDouble();
+    const closed = new Set<WarpkeepConnection>();
+    const connection = () => {
+      const value = {
+        get isDisconnectRequested() { return closed.has(value as never); },
+        disconnect: vi.fn(() => { closed.add(value as never); }),
+      } as unknown as WarpkeepConnection;
+      return value;
+    };
+    const primary = connection();
+    const late = connection();
+    let onConnect: ((connection: WarpkeepConnection, identity: unknown, token: string) => void) | undefined;
+    let onDisconnect: ((connection: WarpkeepConnection, error?: Error) => void) | undefined;
+    builder.onConnect.mockImplementation((callback) => {
+      onConnect = callback;
+      return builder;
+    });
+    builder.onDisconnect.mockImplementation((callback) => {
+      onDisconnect = callback;
+      return builder;
+    });
+    builder.build.mockReturnValue(primary);
+    vi.spyOn(DbConnection, 'builder').mockReturnValue(builder as never);
+    const onAuthorityClosureUnconfirmed = vi.fn();
+
+    const opened = connectWarpkeepAuthority(
+      config,
+      'header.payload.signature',
+      new AbortController().signal,
+      { onAuthorityClosureUnconfirmed },
+    );
+    onConnect?.(primary, {}, 'SERVER_ISSUED_TOKEN_MUST_NOT_BE_STORED');
+    await expect(opened).resolves.toBe(primary);
+    onConnect?.(late, {}, 'SERVER_ISSUED_TOKEN_MUST_NOT_BE_STORED');
+    expect(onAuthorityClosureUnconfirmed).toHaveBeenCalledOnce();
+    expect(late.disconnect).toHaveBeenCalledOnce();
+    expect(primary.disconnect).not.toHaveBeenCalled();
+    onDisconnect?.(late);
+
+    const closePrimary = disconnectWarpkeepConfirmed(primary);
+    onDisconnect?.(primary);
+    await closePrimary;
+  });
+
+  it('never publishes a socket whose disconnect was acknowledged before authentication', async () => {
+    const builder = builderDouble();
+    const connection = {
+      isDisconnectRequested: false,
+      disconnect: vi.fn(),
+    } as unknown as WarpkeepConnection;
+    let onConnect: ((connection: WarpkeepConnection, identity: unknown, token: string) => void) | undefined;
+    let onDisconnect: ((connection: WarpkeepConnection, error?: Error) => void) | undefined;
+    builder.onConnect.mockImplementation((callback) => {
+      onConnect = callback;
+      return builder;
+    });
+    builder.onDisconnect.mockImplementation((callback) => {
+      onDisconnect = callback;
+      return builder;
+    });
+    builder.build.mockImplementation(() => {
+      onDisconnect?.(connection);
+      return connection;
+    });
+    vi.spyOn(DbConnection, 'builder').mockReturnValue(builder as never);
+
+    const opened = connectWarpkeepAuthority(
+      config,
+      'header.payload.signature',
+      new AbortController().signal,
+    );
+    onConnect?.(connection, {}, 'SERVER_ISSUED_TOKEN_MUST_NOT_BE_STORED');
+    expect(connection.disconnect).toHaveBeenCalledOnce();
+    onDisconnect?.(connection);
+    await expect(opened).rejects.toThrow('Warpkeep records are unavailable.');
+  });
+
+  it('fails closed and poisons when a hostile disconnect-requested getter throws', async () => {
+    const builder = builderDouble();
+    const connection = {
+      get isDisconnectRequested(): boolean { throw new Error('hostile stale socket'); },
+      disconnect: vi.fn(),
+    } as unknown as WarpkeepConnection;
+    let onConnect: ((connection: WarpkeepConnection, identity: unknown, token: string) => void) | undefined;
+    builder.onConnect.mockImplementation((callback) => {
+      onConnect = callback;
+      return builder;
+    });
+    builder.build.mockReturnValue(connection);
+    vi.spyOn(DbConnection, 'builder').mockReturnValue(builder as never);
+    const onAuthorityClosureUnconfirmed = vi.fn();
+
+    const opened = connectWarpkeepAuthority(
+      config,
+      'header.payload.signature',
+      new AbortController().signal,
+      { onAuthorityClosureUnconfirmed },
+    );
+    onConnect?.(connection, {}, 'SERVER_ISSUED_TOKEN_MUST_NOT_BE_STORED');
+    const error = await opened.catch((caught: unknown) => caught);
+    expect(isWarpkeepAuthorityClosureUnconfirmed(error)).toBe(true);
+    expect(onAuthorityClosureUnconfirmed).toHaveBeenCalledOnce();
+    expect(connection.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('poisons immediately on a late connection error and closes the published socket', async () => {
+    const builder = builderDouble();
+    let requested = false;
+    const connection = {
+      get isDisconnectRequested() { return requested; },
+      disconnect: vi.fn(() => { requested = true; }),
+    } as unknown as WarpkeepConnection;
+    let onConnect: ((connection: WarpkeepConnection, identity: unknown, token: string) => void) | undefined;
+    let onConnectError: ((context: unknown, error: Error) => void) | undefined;
+    let onDisconnect: ((connection: WarpkeepConnection, error?: Error) => void) | undefined;
+    builder.onConnect.mockImplementation((callback) => {
+      onConnect = callback;
+      return builder;
+    });
+    builder.onConnectError.mockImplementation((callback) => {
+      onConnectError = callback;
+      return builder;
+    });
+    builder.onDisconnect.mockImplementation((callback) => {
+      onDisconnect = callback;
+      return builder;
+    });
+    builder.build.mockReturnValue(connection);
+    vi.spyOn(DbConnection, 'builder').mockReturnValue(builder as never);
+    const onAuthorityClosureUnconfirmed = vi.fn();
+
+    const opened = connectWarpkeepAuthority(
+      config,
+      'header.payload.signature',
+      new AbortController().signal,
+      { onAuthorityClosureUnconfirmed },
+    );
+    onConnect?.(connection, {}, 'SERVER_ISSUED_TOKEN_MUST_NOT_BE_STORED');
+    await expect(opened).resolves.toBe(connection);
+    onConnectError?.({}, new Error('late transport failure'));
+    expect(onAuthorityClosureUnconfirmed).toHaveBeenCalledOnce();
+    expect(connection.disconnect).toHaveBeenCalledOnce();
+    onDisconnect?.(connection);
+  });
+
+  it('poisons an unexpected clean primary disconnect before a later close can reuse its ack', async () => {
+    const builder = builderDouble();
+    const connection = {
+      isDisconnectRequested: false,
+      disconnect: vi.fn(),
+    } as unknown as WarpkeepConnection;
+    let onConnect: ((connection: WarpkeepConnection, identity: unknown, token: string) => void) | undefined;
+    let onDisconnect: ((connection: WarpkeepConnection, error?: Error) => void) | undefined;
+    builder.onConnect.mockImplementation((callback) => {
+      onConnect = callback;
+      return builder;
+    });
+    builder.onDisconnect.mockImplementation((callback) => {
+      onDisconnect = callback;
+      return builder;
+    });
+    builder.build.mockReturnValue(connection);
+    vi.spyOn(DbConnection, 'builder').mockReturnValue(builder as never);
+    const onAuthorityClosureUnconfirmed = vi.fn();
+
+    const opened = connectWarpkeepAuthority(
+      config,
+      'header.payload.signature',
+      new AbortController().signal,
+      { onAuthorityClosureUnconfirmed },
+    );
+    onConnect?.(connection, {}, 'SERVER_ISSUED_TOKEN_MUST_NOT_BE_STORED');
+    await expect(opened).resolves.toBe(connection);
+    onDisconnect?.(connection);
+    expect(onAuthorityClosureUnconfirmed).toHaveBeenCalledOnce();
+    await expect(disconnectWarpkeepConfirmed(connection)).resolves.toBeUndefined();
+    expect(connection.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('does not invoke a lazy authority operation after pre-abort', async () => {
+    const abort = new AbortController();
+    abort.abort();
+    const operation = vi.fn(async () => 1);
+    await expect(awaitWarpkeepAuthorityOperation(operation, abort.signal))
+      .rejects.toMatchObject({ name: 'AbortError' });
+    expect(operation).not.toHaveBeenCalled();
+  });
+
+  it('brands an unconfirmed owner-authority cancellation close for runtime poisoning', async () => {
+    vi.useFakeTimers();
+    const builder = builderDouble();
+    const abort = new AbortController();
+    let requested = false;
+    const connection = {
+      get isDisconnectRequested() { return requested; },
+      disconnect: vi.fn(() => { requested = true; }),
+    } as unknown as WarpkeepConnection;
+    builder.build.mockReturnValue(connection);
+    vi.spyOn(DbConnection, 'builder').mockReturnValue(builder as never);
+
+    const cancelled = connectWarpkeepAuthority(
+      config,
+      'header.payload.signature',
+      abort.signal,
+    );
+    const rejected = cancelled.catch((error: unknown) => error);
+    abort.abort();
+    await vi.advanceTimersByTimeAsync(
+      CONNECTION_DISCONNECT_ACKNOWLEDGEMENT_TIMEOUT_MILLISECONDS,
+    );
+    const error = await rejected;
+    expect(isWarpkeepAuthorityClosureUnconfirmed(error)).toBe(true);
+    expect(connection.disconnect).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('does not construct an owner-authority builder for a pre-aborted signal', async () => {
+    const abort = new AbortController();
+    abort.abort();
+    const builder = vi.spyOn(DbConnection, 'builder');
+    await expect(connectWarpkeepAuthority(
+      config,
+      'header.payload.signature',
+      abort.signal,
+    )).rejects.toMatchObject({ name: 'AbortError' });
+    expect(builder).not.toHaveBeenCalled();
   });
 
   it('reports only the bounded failure class when token exchange is rejected', async () => {
@@ -1205,6 +1748,39 @@ describe('Warpkeep authenticated connection boundary', () => {
       termsVersion: BROWSER_ALPHA_TERMS_VERSION,
       accepted: true
     });
+  });
+
+  it('sends only the private canary correlation tuple to conditional recall', async () => {
+    const recall = vi.fn(async () => undefined);
+    const connection = {
+      reducers: { recallProductionPlayerCanaryWorkerV1: recall },
+    } as unknown as WarpkeepConnection;
+    await recallWarpkeepProductionPlayerCanaryWorker(
+      connection,
+      'a'.repeat(64),
+      'b'.repeat(64),
+      3,
+    );
+    expect(recall).toHaveBeenCalledWith({
+      reviewedAdmissionPlanDigest: 'a'.repeat(64),
+      evidenceNonce: 'b'.repeat(64),
+      ordinal: 3,
+    });
+    for (const hostile of [
+      ['', 'b'.repeat(64), 3],
+      ['a'.repeat(64), 'B'.repeat(64), 3],
+      ['a'.repeat(64), 'b'.repeat(64), 0],
+      ['a'.repeat(64), 'b'.repeat(64), 5],
+      ['a'.repeat(64), 'b'.repeat(64), 1.5],
+    ] as const) {
+      await expect(recallWarpkeepProductionPlayerCanaryWorker(
+        connection,
+        hostile[0],
+        hostile[1],
+        hostile[2],
+      )).rejects.toThrow('Production player canary recall is unavailable.');
+    }
+    expect(recall).toHaveBeenCalledOnce();
   });
 
   it.each([true, false])(

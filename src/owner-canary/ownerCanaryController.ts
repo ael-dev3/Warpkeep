@@ -3,6 +3,10 @@ import type {
   FarcasterQuickAuthTokenResult,
 } from '../farcaster/farcasterAuthTypes';
 import type { OwnerCanaryPrivateSession } from './ownerCanaryAuthClient';
+import type {
+  OwnerCanaryRecoveryApi,
+  OwnerCanaryRecoveryState,
+} from './ownerCanaryRuntime';
 import {
   sanitizeOwnerCanaryJourneyEvidence,
   type OwnerCanarySanitizedEvidence,
@@ -47,7 +51,11 @@ export type OwnerCanaryControllerState =
     }>
   | Readonly<{ phase: 'complete'; completedStageCount: 10 }>
   | Readonly<{
-      phase: 'cancelled' | 'failed' | 'authority-close-unconfirmed';
+      phase:
+        | 'cancelled'
+        | 'failed'
+        | 'authority-close-unconfirmed'
+        | 'recovery-authority-close-unconfirmed';
       completedStageCount: number;
     }>;
 
@@ -89,7 +97,10 @@ export function ownerCanaryControllerFailureCode(
     : null;
 }
 
-export type OwnerCanaryControllerDependencies<Authority> = Readonly<{
+export type OwnerCanaryControllerDependencies<
+  Authority,
+  RecallRecoveryAuthority = Authority,
+> = Readonly<{
   evidenceApi: OwnerCanaryEvidenceApi<Authority>;
   requestStageConsent(input: Readonly<{
     stage: OwnerCanaryStage;
@@ -101,18 +112,28 @@ export type OwnerCanaryControllerDependencies<Authority> = Readonly<{
   exchangeQuickAuth(token: string, signal: AbortSignal): Promise<OwnerCanaryPrivateSession>;
   openAuthority(session: FarcasterOidcSession, signal: AbortSignal): Promise<Authority>;
   closeAuthority(authority: Authority): Promise<void> | void;
+  openRecallRecoveryAuthority(
+    session: FarcasterOidcSession,
+    signal: AbortSignal,
+  ): Promise<RecallRecoveryAuthority>;
+  closeRecallRecoveryAuthority(authority: RecallRecoveryAuthority): Promise<void> | void;
   verifyPrivateSubject(input: Readonly<{
-    subjectFid: number;
+    privateSession: OwnerCanaryPrivateSession;
+    latchedSubjectFid: number;
     reviewedAdmissionPlanDigest: string;
     signal: AbortSignal;
   }>): Promise<boolean>;
+  recoveryApi?: OwnerCanaryRecoveryApi<RecallRecoveryAuthority>;
   onState?(state: OwnerCanaryControllerState): void;
+  onRecoveryState?(state: OwnerCanaryRecoveryState): void;
 }>;
 
 export type OwnerCanaryController = Readonly<{
   run(input: OwnerCanaryRunInput, signal?: AbortSignal): Promise<OwnerCanarySanitizedEvidence>;
+  recover(signal?: AbortSignal): Promise<void>;
   cancel(): void;
   state(): OwnerCanaryControllerState;
+  recoveryState(): OwnerCanaryRecoveryState;
 }>;
 
 export type OwnerCanaryRunInput = Readonly<{
@@ -212,11 +233,16 @@ export function requireOwnerCanaryPlayerEvidence(
   return value as OwnerCanarySanitizedEvidence;
 }
 
-export function createOwnerCanaryController<Authority>(
-  dependencies: OwnerCanaryControllerDependencies<Authority>,
+export function createOwnerCanaryController<Authority, RecallRecoveryAuthority = Authority>(
+  dependencies: OwnerCanaryControllerDependencies<Authority, RecallRecoveryAuthority>,
 ): OwnerCanaryController {
   let activeAbort: AbortController | undefined;
-  let authorityCloseUnconfirmed = false;
+  let mainAuthorityCloseUnconfirmed = false;
+  let recoveryAuthorityCloseUnconfirmed = false;
+  let mainRunConsumed = false;
+  let latchedSubjectFid: number | undefined;
+  let latchedReviewedAdmissionPlanDigest: string | undefined;
+  let publicRecoveryState: OwnerCanaryRecoveryState = 'none';
   let publicState: OwnerCanaryControllerState = Object.freeze({
     phase: 'idle',
     completedStageCount: 0,
@@ -231,14 +257,126 @@ export function createOwnerCanaryController<Authority>(
     }
   };
 
+  const publishRecovery = (state: OwnerCanaryRecoveryState) => {
+    publicRecoveryState = state;
+    try {
+      dependencies.onRecoveryState?.(state);
+    } catch {
+      // Presentation observers are not recovery authority.
+    }
+  };
+
   return Object.freeze({
     state: () => publicState,
+    recoveryState: () => publicRecoveryState,
     cancel: () => activeAbort?.abort(),
+    async recover(externalSignal?: AbortSignal): Promise<void> {
+      if (
+        recoveryAuthorityCloseUnconfirmed
+        || activeAbort
+        || !dependencies.recoveryApi
+        || (publicRecoveryState !== 'required' && publicRecoveryState !== 'unconfirmed')
+        || latchedSubjectFid === undefined
+        || latchedReviewedAdmissionPlanDigest === undefined
+      ) throw failure(recoveryAuthorityCloseUnconfirmed
+        ? 'authority-close-unconfirmed'
+        : 'stage-failed');
+      const abort = new AbortController();
+      activeAbort = abort;
+      const forwardAbort = () => abort.abort();
+      externalSignal?.addEventListener('abort', forwardAbort, { once: true });
+      if (externalSignal?.aborted) abort.abort();
+      let privateSession: OwnerCanaryPrivateSession | undefined;
+      let authority: RecallRecoveryAuthority | undefined;
+      let authorityOpened = false;
+      publishRecovery('running');
+      try {
+        const quickAuth = await dependencies.getQuickAuthToken({ force: true });
+        if (abort.signal.aborted) throw failure('cancelled');
+        if (quickAuth.status !== 'token') throw failure('quick-auth-unavailable');
+        let token: string | undefined = quickAuth.token;
+        try {
+          privateSession = await dependencies.exchangeQuickAuth(token, abort.signal);
+        } catch (error) {
+          if (abort.signal.aborted) throw failure('cancelled');
+          if (error instanceof OwnerCanaryControllerError) throw error;
+          throw failure('exchange-failed');
+        } finally {
+          token = undefined;
+        }
+        if (
+          !privateSession
+          || privateSession.subjectFid !== latchedSubjectFid
+        ) throw failure('subject-changed');
+        let approvedSubject = false;
+        try {
+          approvedSubject = await dependencies.verifyPrivateSubject({
+            privateSession,
+            latchedSubjectFid,
+            reviewedAdmissionPlanDigest: latchedReviewedAdmissionPlanDigest,
+            signal: abort.signal,
+          });
+        } catch {
+          if (abort.signal.aborted) throw failure('cancelled');
+          throw failure('subject-not-approved');
+        }
+        if (approvedSubject !== true) throw failure('subject-not-approved');
+        authority = await dependencies.openRecallRecoveryAuthority(
+          privateSession.session,
+          abort.signal,
+        );
+        authorityOpened = true;
+        privateSession = undefined;
+        await dependencies.recoveryApi.recover(authority, abort.signal);
+        if (abort.signal.aborted) throw failure('cancelled');
+      } catch (error) {
+        publishRecovery('unconfirmed');
+        throw error instanceof OwnerCanaryControllerError
+          ? error
+          : failure(abort.signal.aborted ? 'cancelled' : 'stage-failed');
+      } finally {
+        privateSession = undefined;
+        let closeFailed = false;
+        if (authorityOpened) {
+          try {
+            await dependencies.closeRecallRecoveryAuthority(
+              authority as RecallRecoveryAuthority,
+            );
+          } catch {
+            recoveryAuthorityCloseUnconfirmed = true;
+            publishRecovery('unconfirmed');
+            publish(Object.freeze({
+              phase: 'recovery-authority-close-unconfirmed',
+              completedStageCount: publicState.completedStageCount,
+            }));
+            abort.abort();
+            closeFailed = true;
+          }
+        }
+        const runtimeState = dependencies.recoveryApi.state();
+        if (!closeFailed && runtimeState === 'safe') {
+          publishRecovery('safe');
+          latchedSubjectFid = undefined;
+          latchedReviewedAdmissionPlanDigest = undefined;
+        } else {
+          publishRecovery('unconfirmed');
+        }
+        abort.abort();
+        externalSignal?.removeEventListener('abort', forwardAbort);
+        if (activeAbort === abort) activeAbort = undefined;
+        if (closeFailed) throw failure('authority-close-unconfirmed');
+      }
+    },
     async run(input: OwnerCanaryRunInput, externalSignal?: AbortSignal): Promise<OwnerCanarySanitizedEvidence> {
-      if (authorityCloseUnconfirmed) throw failure('authority-close-unconfirmed');
+      if (mainAuthorityCloseUnconfirmed || recoveryAuthorityCloseUnconfirmed) {
+        throw failure('authority-close-unconfirmed');
+      }
       if (activeAbort) throw failure('already-running');
+      if (mainRunConsumed) throw failure('stage-failed');
       const privateInput = exactPrivateRunInput(input);
       if (!privateInput) throw failure('invalid-private-input');
+      mainRunConsumed = true;
+      latchedReviewedAdmissionPlanDigest = privateInput.reviewedAdmissionPlanDigest;
       const abort = new AbortController();
       activeAbort = abort;
       const forwardAbort = () => abort.abort();
@@ -247,7 +385,6 @@ export function createOwnerCanaryController<Authority>(
       let expectedStageIndex = 0;
       let stageActive = false;
       let fatal = false;
-      let firstSubjectFid: number | undefined;
 
       const runStage: OwnerCanaryRunStage<Authority> = async (stage, operation) => {
         if (
@@ -306,23 +443,24 @@ export function createOwnerCanaryController<Authority>(
             || !Number.isSafeInteger(privateSession.subjectFid)
             || privateSession.subjectFid <= 0
           ) throw failure('exchange-failed');
-          if (firstSubjectFid === undefined) {
-            let approvedSubject = false;
-            try {
-              approvedSubject = await dependencies.verifyPrivateSubject({
-                subjectFid: privateSession.subjectFid,
-                reviewedAdmissionPlanDigest: privateInput.reviewedAdmissionPlanDigest,
-                signal: abort.signal,
-              });
-            } catch {
-              if (abort.signal.aborted) throw failure('cancelled');
-              throw failure('subject-not-approved');
-            }
-            if (approvedSubject !== true) throw failure('subject-not-approved');
-            firstSubjectFid = privateSession.subjectFid;
-          } else if (privateSession.subjectFid !== firstSubjectFid) {
+          const expectedSubjectFid = latchedSubjectFid ?? privateSession.subjectFid;
+          if (privateSession.subjectFid !== expectedSubjectFid) {
             throw failure('subject-changed');
           }
+          let approvedSubject = false;
+          try {
+            approvedSubject = await dependencies.verifyPrivateSubject({
+              privateSession,
+              latchedSubjectFid: expectedSubjectFid,
+              reviewedAdmissionPlanDigest: privateInput.reviewedAdmissionPlanDigest,
+              signal: abort.signal,
+            });
+          } catch {
+            if (abort.signal.aborted) throw failure('cancelled');
+            throw failure('subject-not-approved');
+          }
+          if (approvedSubject !== true) throw failure('subject-not-approved');
+          latchedSubjectFid = expectedSubjectFid;
           try {
             authority = await dependencies.openAuthority(privateSession.session, abort.signal);
             authorityOpened = true;
@@ -359,7 +497,7 @@ export function createOwnerCanaryController<Authority>(
               await dependencies.closeAuthority(authority as Authority);
             } catch {
               fatal = true;
-              authorityCloseUnconfirmed = true;
+              mainAuthorityCloseUnconfirmed = true;
               abort.abort();
               throw failure('authority-close-unconfirmed');
             } finally {
@@ -385,10 +523,10 @@ export function createOwnerCanaryController<Authority>(
           throw failure('evidence-contract');
         }
         const journey = sanitizeOwnerCanaryJourneyEvidence(candidate);
-        if (!journey || firstSubjectFid === undefined) throw failure('evidence-contract');
+        if (!journey || latchedSubjectFid === undefined) throw failure('evidence-contract');
         const sameSubjectCommitment = await defaultSameSubjectDigest({
           evidenceNonce: privateInput.evidenceNonce,
-          subjectFid: firstSubjectFid,
+          subjectFid: latchedSubjectFid,
         });
         if (!HEX_DIGEST_PATTERN.test(sameSubjectCommitment)) {
           throw failure('evidence-contract');
@@ -420,7 +558,12 @@ export function createOwnerCanaryController<Authority>(
         throw normalized;
       } finally {
         abort.abort();
-        firstSubjectFid = undefined;
+        const runtimeRecoveryState = dependencies.recoveryApi?.state() ?? 'none';
+        publishRecovery(runtimeRecoveryState);
+        if (runtimeRecoveryState === 'none' || runtimeRecoveryState === 'safe') {
+          latchedSubjectFid = undefined;
+          latchedReviewedAdmissionPlanDigest = undefined;
+        }
         externalSignal?.removeEventListener('abort', forwardAbort);
         if (activeAbort === abort) activeAbort = undefined;
       }

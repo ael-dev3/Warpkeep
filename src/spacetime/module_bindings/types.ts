@@ -1917,6 +1917,33 @@ export const ProductionPlayerCanaryBaselineV1 = __t.object("ProductionPlayerCana
 });
 export type ProductionPlayerCanaryBaselineV1 = __Infer<typeof ProductionPlayerCanaryBaselineV1>;
 
+export const ProductionPlayerCanaryRecoveryStatusV1 = __t.object("ProductionPlayerCanaryRecoveryStatusV1", {
+  profile: __t.string(),
+  challengeDigest: __t.string(),
+  reviewedAdmissionPlanDigest: __t.string(),
+  serverBaselineCommitment: __t.string(),
+  routeSetCommitment: __t.string(),
+  commandSetCommitment: __t.string(),
+  approvalRegistrationCommitment: __t.string(),
+  notAfterMicros: __t.u64(),
+  observedAtMicros: __t.u64(),
+  dispatchReceiptCount: __t.u32(),
+  correlatedRecallReceiptCount: __t.u32(),
+  noOpRecallReceiptCount: __t.u32(),
+  unexpectedReceiptCount: __t.u32(),
+  idleWorkerCount: __t.u32(),
+  outboundWorkerCount: __t.u32(),
+  gatheringWorkerCount: __t.u32(),
+  returningWorkerCount: __t.u32(),
+  assignmentCount: __t.u64(),
+  occupationCount: __t.u64(),
+  scheduleCount: __t.u64(),
+  terminalSafe: __t.bool(),
+  structuralEvidenceCandidate: __t.bool(),
+  disposition: __t.string(),
+});
+export type ProductionPlayerCanaryRecoveryStatusV1 = __Infer<typeof ProductionPlayerCanaryRecoveryStatusV1>;
+
 export const ProductionPlayerCanaryRoutePlanV1 = __t.object("ProductionPlayerCanaryRoutePlanV1", {
   profile: __t.string(),
   challengeDigest: __t.string(),
@@ -1949,6 +1976,7 @@ export const ProductionPlayerCanaryRuntimeRoutePlanV1 = __t.object("ProductionPl
   routeSetCommitment: __t.string(),
   commandKeyPolicyVersion: __t.string(),
   commandSetCommitment: __t.string(),
+  notAfterMicros: __t.u64(),
   atlasRevision: __t.u64(),
   equalRouteSteps: __t.u32(),
   get routes() {

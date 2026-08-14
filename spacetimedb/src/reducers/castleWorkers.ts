@@ -43,6 +43,11 @@ import {
   productionPlayerCanaryEvidenceErrorCode,
 } from '../productionPlayerCanaryEvidence';
 import {
+  inspectProductionPlayerCanaryRecoveryStatusV1,
+  productionPlayerCanaryRecoveryErrorCode,
+  recallProductionPlayerCanaryWorkerV1 as recallProductionPlayerCanaryWorkerAuthorityV1,
+} from '../productionPlayerCanaryRecovery';
+import {
   captureProductionPlayerCanaryBaseline,
   inspectProductionPlayerCanaryBaseline,
   inspectProductionPlayerCanaryRoutePlan,
@@ -295,6 +300,35 @@ const productionPlayerCanaryAdminEvidenceV1 = t.object(
   },
 );
 
+const productionPlayerCanaryRecoveryStatusV1 = t.object(
+  'ProductionPlayerCanaryRecoveryStatusV1',
+  {
+    profile: t.string(),
+    challengeDigest: t.string(),
+    reviewedAdmissionPlanDigest: t.string(),
+    serverBaselineCommitment: t.string(),
+    routeSetCommitment: t.string(),
+    commandSetCommitment: t.string(),
+    approvalRegistrationCommitment: t.string(),
+    notAfterMicros: t.u64(),
+    observedAtMicros: t.u64(),
+    dispatchReceiptCount: t.u32(),
+    correlatedRecallReceiptCount: t.u32(),
+    noOpRecallReceiptCount: t.u32(),
+    unexpectedReceiptCount: t.u32(),
+    idleWorkerCount: t.u32(),
+    outboundWorkerCount: t.u32(),
+    gatheringWorkerCount: t.u32(),
+    returningWorkerCount: t.u32(),
+    assignmentCount: t.u64(),
+    occupationCount: t.u64(),
+    scheduleCount: t.u64(),
+    terminalSafe: t.bool(),
+    structuralEvidenceCandidate: t.bool(),
+    disposition: t.string(),
+  },
+);
+
 const productionPlayerCanaryBaselineStatusV1 = t.object(
   'ProductionPlayerCanaryBaselineStatusV1',
   {
@@ -392,6 +426,7 @@ const productionPlayerCanaryRuntimeRoutePlanV1 = t.object(
     routeSetCommitment: t.string(),
     commandKeyPolicyVersion: t.string(),
     commandSetCommitment: t.string(),
+    notAfterMicros: t.u64(),
     atlasRevision: t.u64(),
     equalRouteSteps: t.u32(),
     routes: t.array(productionPlayerCanaryRouteV1),
@@ -399,6 +434,8 @@ const productionPlayerCanaryRuntimeRoutePlanV1 = t.object(
 );
 
 function senderPolicyError(error: unknown): never {
+  const recoveryCode = productionPlayerCanaryRecoveryErrorCode(error);
+  if (recoveryCode !== undefined) throw new SenderError(recoveryCode);
   const canaryCode = productionPlayerCanaryEvidenceErrorCode(error);
   if (canaryCode !== undefined) throw new SenderError(canaryCode);
   const rolloutCode = castleWorkerRolloutErrorCode(error);
@@ -709,6 +746,34 @@ export const recallWorkerV1 = warpkeep.reducer(
     try {
       const { claims, castle } = requireGameplayPlayerV1(ctx);
       recallCastleWorker(ctx, { fid: claims.fid, castle, workerId, idempotencyKey });
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  },
+);
+
+/**
+ * Recall one reviewed canary assignment only when its exact deterministic
+ * dispatch receipt still names the current assignment. No browser-supplied
+ * worker, route, assignment, or command key is accepted.
+ */
+export const recallProductionPlayerCanaryWorkerV1 = warpkeep.reducer(
+  { name: 'recall_production_player_canary_worker_v1' },
+  {
+    reviewedAdmissionPlanDigest: t.string(),
+    evidenceNonce: t.string(),
+    ordinal: t.u32(),
+  },
+  (ctx, input) => {
+    try {
+      const { claims, castle } = requireAuthenticatedCastleOwnerActionV1(ctx);
+      recallProductionPlayerCanaryWorkerAuthorityV1(ctx, {
+        fid: claims.fid,
+        castle,
+        reviewedAdmissionPlanDigest: input.reviewedAdmissionPlanDigest,
+        evidenceNonce: input.evidenceNonce,
+        ordinal: input.ordinal,
+      });
     } catch (error) {
       return senderPolicyError(error);
     }
@@ -1244,6 +1309,7 @@ export const getProductionPlayerCanaryRuntimeV1 = warpkeep.procedure(
         routeSetCommitment: registration.routeSetCommitment,
         commandKeyPolicyVersion: registration.commandKeyPolicyVersion,
         commandSetCommitment: registration.commandSetCommitment,
+        notAfterMicros: registration.notAfterMicros,
         atlasRevision: routePlan.atlasRevision,
         equalRouteSteps: routePlan.equalRouteSteps,
         routes: routePlan.routes.map(route => ({ ...route })),
@@ -1271,6 +1337,21 @@ export const adminGetProductionPlayerCanaryEvidenceV1 = warpkeep.procedure(
     try {
       requireAdmin(tx);
       return inspectProductionPlayerCanaryAdminEvidence(tx, input);
+    } catch (error) {
+      return senderPolicyError(error);
+    }
+  }),
+);
+
+/** Admin-only recovery diagnosis. This procedure is repeatable and read-only. */
+export const adminGetProductionPlayerCanaryRecoveryStatusV1 = warpkeep.procedure(
+  { name: 'admin_get_production_player_canary_recovery_status_v1' },
+  productionPlayerCanaryBaselineInputV1,
+  productionPlayerCanaryRecoveryStatusV1,
+  (ctx, input) => ctx.withTx(tx => {
+    try {
+      requireAdmin(tx);
+      return inspectProductionPlayerCanaryRecoveryStatusV1(tx, input);
     } catch (error) {
       return senderPolicyError(error);
     }

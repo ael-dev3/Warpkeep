@@ -26,6 +26,7 @@ import * as AdminGetInnerKeepStatusV1Procedure from "../admin_get_inner_keep_sta
 import * as AdminGetProductionPlayerCanaryApprovalV1Procedure from "../admin_get_production_player_canary_approval_v_1_procedure";
 import * as AdminGetProductionPlayerCanaryBaselineV1Procedure from "../admin_get_production_player_canary_baseline_v_1_procedure";
 import * as AdminGetProductionPlayerCanaryEvidenceV1Procedure from "../admin_get_production_player_canary_evidence_v_1_procedure";
+import * as AdminGetProductionPlayerCanaryRecoveryStatusV1Procedure from "../admin_get_production_player_canary_recovery_status_v_1_procedure";
 import * as AdminGetRealmChatReportContextV1Procedure from "../admin_get_realm_chat_report_context_v_1_procedure";
 import * as AdminGetRealmChatStatusV1Procedure from "../admin_get_realm_chat_status_v_1_procedure";
 import * as AdminGetWorkerRolloutStatusV2Procedure from "../admin_get_worker_rollout_status_v_2_procedure";
@@ -105,6 +106,8 @@ export type AdminGetProductionPlayerCanaryBaselineV1Args = __Infer<typeof AdminG
 export type AdminGetProductionPlayerCanaryBaselineV1Result = __Infer<typeof AdminGetProductionPlayerCanaryBaselineV1Procedure.returnType>;
 export type AdminGetProductionPlayerCanaryEvidenceV1Args = __Infer<typeof AdminGetProductionPlayerCanaryEvidenceV1Procedure.params>;
 export type AdminGetProductionPlayerCanaryEvidenceV1Result = __Infer<typeof AdminGetProductionPlayerCanaryEvidenceV1Procedure.returnType>;
+export type AdminGetProductionPlayerCanaryRecoveryStatusV1Args = __Infer<typeof AdminGetProductionPlayerCanaryRecoveryStatusV1Procedure.params>;
+export type AdminGetProductionPlayerCanaryRecoveryStatusV1Result = __Infer<typeof AdminGetProductionPlayerCanaryRecoveryStatusV1Procedure.returnType>;
 export type AdminGetRealmChatReportContextV1Args = __Infer<typeof AdminGetRealmChatReportContextV1Procedure.params>;
 export type AdminGetRealmChatReportContextV1Result = __Infer<typeof AdminGetRealmChatReportContextV1Procedure.returnType>;
 export type AdminGetRealmChatStatusV1Args = __Infer<typeof AdminGetRealmChatStatusV1Procedure.params>;

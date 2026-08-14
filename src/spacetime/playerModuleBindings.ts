@@ -67,6 +67,7 @@ import DispatchGoldExpeditionV1Reducer from './module_bindings/dispatch_gold_exp
 import DispatchWoodExpeditionV1Reducer from './module_bindings/dispatch_wood_expedition_v_1_reducer'
 import DispatchStoneExpeditionV1Reducer from './module_bindings/dispatch_stone_expedition_v_1_reducer'
 import RecallAllWorkersV1Reducer from './module_bindings/recall_all_workers_v_1_reducer'
+import RecallProductionPlayerCanaryWorkerV1Reducer from './module_bindings/recall_production_player_canary_worker_v_1_reducer'
 import RecallWorkerV1Reducer from './module_bindings/recall_worker_v_1_reducer'
 import ReturnLegacyExpeditionV1Reducer from './module_bindings/return_legacy_expedition_v_1_reducer'
 import InnerKeepStartProjectV1Reducer from './module_bindings/inner_keep_start_project_v_1_reducer'
@@ -487,8 +488,12 @@ const reducersSchema = __reducers(
   __reducerSchema('dispatch_worker_v1', DispatchWorkerV1Reducer),
   __reducerSchema('dispatch_greater_realm_worker_v1', DispatchGreaterRealmWorkerV1Reducer),
   __reducerSchema('inner_keep_start_project_v1', InnerKeepStartProjectV1Reducer),
-  __reducerSchema('recall_worker_v1', RecallWorkerV1Reducer),
   __reducerSchema('recall_all_workers_v1', RecallAllWorkersV1Reducer),
+  __reducerSchema(
+    'recall_production_player_canary_worker_v1',
+    RecallProductionPlayerCanaryWorkerV1Reducer,
+  ),
+  __reducerSchema('recall_worker_v1', RecallWorkerV1Reducer),
   __reducerSchema('return_legacy_expedition_v1', ReturnLegacyExpeditionV1Reducer),
   __reducerSchema('send_realm_chat_message_v1', SendRealmChatMessageV1Reducer),
   __reducerSchema('report_realm_chat_message_v1', ReportRealmChatMessageV1Reducer),

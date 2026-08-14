@@ -4,6 +4,7 @@ import {
   createOwnerCanaryAuthClient,
   OWNER_CANARY_EXCHANGE_PATH,
   ownerCanaryAuthFailureCode,
+  verifyOwnerCanaryProductionPrivateSubject,
 } from '../src/owner-canary/ownerCanaryAuthClient';
 
 const NOW = Date.UTC(2026, 7, 13, 12, 0, 0);
@@ -149,5 +150,44 @@ describe('owner canary Quick Auth client', () => {
     await vi.advanceTimersByTimeAsync(10_000);
     const error = await pending;
     expect(ownerCanaryAuthFailureCode(error)).toBe('timeout');
+  });
+
+  it('accepts only the exact freshly exchanged branded production subject', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(NOW);
+    const productionJwt = playerJwt({
+      iss: 'https://auth.warpkeep.com',
+      aud: ['warpkeep-spacetimedb'],
+    });
+    const productionClient = createOwnerCanaryAuthClient({
+      now: () => NOW,
+      fetch: vi.fn(async () => response({ accessToken: productionJwt })),
+    });
+    const privateSession = await productionClient.exchangeQuickAuth(QUICK_AUTH_TOKEN);
+    const signal = new AbortController().signal;
+    const exact = {
+      privateSession,
+      latchedSubjectFid: FID,
+      reviewedAdmissionPlanDigest: 'a'.repeat(64),
+      signal,
+    };
+    await expect(verifyOwnerCanaryProductionPrivateSubject(exact)).resolves.toBe(true);
+    await expect(verifyOwnerCanaryProductionPrivateSubject({
+      ...exact,
+      latchedSubjectFid: FID + 1,
+    })).resolves.toBe(false);
+    await expect(verifyOwnerCanaryProductionPrivateSubject({
+      ...exact,
+      privateSession: Object.freeze({ ...privateSession }),
+    })).resolves.toBe(false);
+    await expect(verifyOwnerCanaryProductionPrivateSubject({
+      ...exact,
+      reviewedAdmissionPlanDigest: 'a'.repeat(63),
+    })).resolves.toBe(false);
+    const aborted = new AbortController();
+    aborted.abort();
+    await expect(verifyOwnerCanaryProductionPrivateSubject({
+      ...exact,
+      signal: aborted.signal,
+    })).resolves.toBe(false);
   });
 });

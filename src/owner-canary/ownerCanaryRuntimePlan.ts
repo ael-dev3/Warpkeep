@@ -12,6 +12,7 @@ export type OwnerCanaryCommandOperation = typeof OWNER_CANARY_COMMAND_OPERATIONS
 export type OwnerCanaryCommandOrdinal = 1 | 2 | 3 | 4;
 
 declare const ownerCanaryRuntimePlanBrand: unique symbol;
+declare const ownerCanaryRecallRecoveryPlanBrand: unique symbol;
 
 /**
  * Empty, module-branded handle. Its command material exists only in this
@@ -19,6 +20,14 @@ declare const ownerCanaryRuntimePlanBrand: unique symbol;
  */
 export type OwnerCanaryRuntimePlan = Readonly<{
   readonly [ownerCanaryRuntimePlanBrand]: true;
+}>;
+
+/**
+ * Empty, module-branded attenuation of one runtime plan. It can address only
+ * recall keys whose matching dispatch ordinal was actually invoked.
+ */
+export type OwnerCanaryRecallRecoveryPlan = Readonly<{
+  readonly [ownerCanaryRecallRecoveryPlanBrand]: true;
 }>;
 
 export type OwnerCanaryRuntimePlanPreparation = Readonly<{
@@ -48,6 +57,14 @@ export type OwnerCanaryRuntimePlanBoundary<Authority> = Readonly<{
     authority: Authority;
     signal: AbortSignal;
   }>): Promise<void>;
+  takeRecallRecoveryPlan(plan: OwnerCanaryRuntimePlan): OwnerCanaryRecallRecoveryPlan | undefined;
+  runRecoveryRecall(input: Readonly<{
+    plan: OwnerCanaryRecallRecoveryPlan;
+    ordinal: OwnerCanaryCommandOrdinal;
+    authority: Authority;
+    signal: AbortSignal;
+  }>): Promise<void>;
+  disposeRecallRecovery(plan: OwnerCanaryRecallRecoveryPlan): void;
   dispose(plan: OwnerCanaryRuntimePlan): void;
 }>;
 
@@ -56,6 +73,7 @@ export type OwnerCanaryRuntimePlanFailureCode =
   | 'command-set-mismatch'
   | 'invalid-plan-handle'
   | 'invalid-command'
+  | 'invalid-recovery-command'
   | 'plan-poisoned'
   | 'command-failed';
 
@@ -74,6 +92,12 @@ const COMMAND_INPUT_KEYS = Object.freeze([
   'authority',
   'signal',
 ]);
+const RECOVERY_COMMAND_INPUT_KEYS = Object.freeze([
+  'plan',
+  'ordinal',
+  'authority',
+  'signal',
+]);
 const ORDINALS = Object.freeze([1, 2, 3, 4] as const);
 const failureCodes = new WeakMap<Error, OwnerCanaryRuntimePlanFailureCode>();
 
@@ -85,8 +109,15 @@ type CommandMaterial = Readonly<{
 
 type PlanRecord = {
   readonly commands: CommandMaterial;
+  readonly attemptedDispatchOrdinals: Set<OwnerCanaryCommandOrdinal>;
+  recoveryPlan?: OwnerCanaryRecallRecoveryPlan;
   activeCommand: boolean;
   poisoned: boolean;
+};
+
+type RecoveryPlanRecord = {
+  readonly recallKeys: ReadonlyMap<OwnerCanaryCommandOrdinal, string>;
+  activeCommand: boolean;
 };
 
 export class OwnerCanaryRuntimePlanError extends Error {
@@ -261,6 +292,22 @@ function exactCommandInput<Authority>(value: unknown): Readonly<{
   return Object.freeze({ plan, operation, ordinal, authority, signal });
 }
 
+function exactRecoveryCommandInput<Authority>(value: unknown): Readonly<{
+  plan: OwnerCanaryRecallRecoveryPlan;
+  ordinal: OwnerCanaryCommandOrdinal;
+  authority: Authority;
+  signal: AbortSignal;
+}> | undefined {
+  if (!hasExactKeys(value, RECOVERY_COMMAND_INPUT_KEYS)) return undefined;
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const plan = descriptors.plan?.value as OwnerCanaryRecallRecoveryPlan;
+  const ordinal = descriptors.ordinal?.value as OwnerCanaryCommandOrdinal;
+  const authority = descriptors.authority?.value as Authority;
+  const signal = descriptors.signal?.value;
+  if (!ORDINALS.includes(ordinal) || !(signal instanceof AbortSignal)) return undefined;
+  return Object.freeze({ plan, ordinal, authority, signal });
+}
+
 /**
  * Internal production-runtime integration seam. The future reviewed live
  * adapter owns this boundary and its consumer inside its `evidenceApi.run`
@@ -271,6 +318,7 @@ export function createOwnerCanaryRuntimePlanBoundary<Authority>(
 ): OwnerCanaryRuntimePlanBoundary<Authority> {
   if (typeof consumeCommand !== 'function') throw failure('invalid-plan-input');
   const plans = new WeakMap<object, PlanRecord>();
+  const recoveryPlans = new WeakMap<object, RecoveryPlanRecord>();
 
   return Object.freeze({
     async prepare(input: OwnerCanaryRuntimePlanPreparation): Promise<OwnerCanaryRuntimePlan> {
@@ -281,7 +329,12 @@ export function createOwnerCanaryRuntimePlanBoundary<Authority>(
         throw failure('command-set-mismatch');
       }
       const plan = Object.freeze({}) as OwnerCanaryRuntimePlan;
-      plans.set(plan, { commands, activeCommand: false, poisoned: false });
+      plans.set(plan, {
+        commands,
+        attemptedDispatchOrdinals: new Set(),
+        activeCommand: false,
+        poisoned: false,
+      });
       return plan;
     },
 
@@ -297,6 +350,23 @@ export function createOwnerCanaryRuntimePlanBoundary<Authority>(
       if (command.signal.aborted) {
         record.poisoned = true;
         throw failure('command-failed');
+      }
+      if (command.operation === 'dispatch') {
+        record.attemptedDispatchOrdinals.add(command.ordinal);
+        if (record.recoveryPlan === undefined) {
+          const recoveryPlan = Object.freeze({}) as OwnerCanaryRecallRecoveryPlan;
+          record.recoveryPlan = recoveryPlan;
+          recoveryPlans.set(recoveryPlan, {
+            recallKeys: new Map(),
+            activeCommand: false,
+          });
+        }
+        const recovery = recoveryPlans.get(record.recoveryPlan);
+        if (!recovery) throw failure('invalid-plan-handle');
+        (recovery.recallKeys as Map<OwnerCanaryCommandOrdinal, string>).set(
+          command.ordinal,
+          record.commands.recall[command.ordinal - 1],
+        );
       }
       record.activeCommand = true;
       const keys = command.operation === 'dispatch'
@@ -319,6 +389,44 @@ export function createOwnerCanaryRuntimePlanBoundary<Authority>(
       } finally {
         record.activeCommand = false;
       }
+    },
+
+    takeRecallRecoveryPlan(plan): OwnerCanaryRecallRecoveryPlan | undefined {
+      const record = plans.get(plan);
+      if (!record) throw failure('invalid-plan-handle');
+      return record.recoveryPlan;
+    },
+
+    async runRecoveryRecall(input): Promise<void> {
+      const command = exactRecoveryCommandInput<Authority>(input);
+      if (!command) throw failure('invalid-recovery-command');
+      const record = recoveryPlans.get(command.plan);
+      const idempotencyKey = record?.recallKeys.get(command.ordinal);
+      if (!record || idempotencyKey === undefined || record.activeCommand) {
+        throw failure('invalid-recovery-command');
+      }
+      if (command.signal.aborted) throw failure('command-failed');
+      record.activeCommand = true;
+      try {
+        await consumeCommand(Object.freeze({
+          operation: 'recall',
+          ordinal: command.ordinal,
+          idempotencyKey,
+          authority: command.authority,
+          signal: command.signal,
+        }));
+        if (command.signal.aborted) throw failure('command-failed');
+      } catch (error) {
+        throw error instanceof OwnerCanaryRuntimePlanError
+          ? error
+          : failure('command-failed');
+      } finally {
+        record.activeCommand = false;
+      }
+    },
+
+    disposeRecallRecovery(plan): void {
+      recoveryPlans.delete(plan);
     },
 
     dispose(plan: OwnerCanaryRuntimePlan): void {

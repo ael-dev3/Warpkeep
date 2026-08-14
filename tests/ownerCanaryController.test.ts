@@ -12,11 +12,19 @@ import {
   type OwnerCanaryEvidenceApi,
 } from '../src/owner-canary/ownerCanaryController';
 import type { OwnerCanaryJourneyEvidence } from '../src/owner-canary/ownerCanaryEvidence';
+import type { OwnerCanaryPrivateSession } from '../src/owner-canary/ownerCanaryAuthClient';
 
 const FID = 12_345;
 const EVIDENCE_NONCE = 'a'.repeat(64);
 const ADMISSION_PLAN_DIGEST = 'b'.repeat(64);
 const ROUTE_SET_COMMITMENT = 'c'.repeat(64);
+
+type VerificationInput = Readonly<{
+  privateSession: OwnerCanaryPrivateSession;
+  latchedSubjectFid: number;
+  reviewedAdmissionPlanDigest: string;
+  signal: AbortSignal;
+}>;
 
 function state(tier: number): OwnerCanaryJourneyEvidence['baseline'] {
   return Object.freeze({
@@ -119,7 +127,11 @@ function fixture(overrides: Partial<Parameters<typeof createOwnerCanaryControlle
   });
   const openAuthority = vi.fn(async () => Object.freeze({ index: exchangeIndex - 1 }));
   const closeAuthority = vi.fn(async () => undefined);
-  const verifyPrivateSubject = vi.fn(async () => true);
+  const openRecallRecoveryAuthority = vi.fn(async () => Object.freeze({
+    index: exchangeIndex - 1,
+  }));
+  const closeRecallRecoveryAuthority = vi.fn(async () => undefined);
+  const verifyPrivateSubject = vi.fn(async (_input: VerificationInput) => true);
   const controller = createOwnerCanaryController({
     evidenceApi: sequentialEvidenceApi(),
     requestStageConsent,
@@ -127,6 +139,8 @@ function fixture(overrides: Partial<Parameters<typeof createOwnerCanaryControlle
     exchangeQuickAuth,
     openAuthority,
     closeAuthority,
+    openRecallRecoveryAuthority,
+    closeRecallRecoveryAuthority,
     verifyPrivateSubject,
     ...overrides,
   });
@@ -137,6 +151,8 @@ function fixture(overrides: Partial<Parameters<typeof createOwnerCanaryControlle
     exchangeQuickAuth,
     openAuthority,
     closeAuthority,
+    openRecallRecoveryAuthority,
+    closeRecallRecoveryAuthority,
     verifyPrivateSubject,
   };
 }
@@ -166,11 +182,12 @@ describe('owner canary browser-memory controller', () => {
     expect(h.exchangeQuickAuth).toHaveBeenCalledTimes(10);
     expect(h.openAuthority).toHaveBeenCalledTimes(10);
     expect(h.closeAuthority).toHaveBeenCalledTimes(10);
-    expect(h.verifyPrivateSubject).toHaveBeenCalledOnce();
-    expect(h.verifyPrivateSubject).toHaveBeenCalledWith(expect.objectContaining({
-      subjectFid: FID,
-      reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
-    }));
+    expect(h.verifyPrivateSubject).toHaveBeenCalledTimes(10);
+    expect(h.verifyPrivateSubject.mock.calls.every(([input]) => (
+      input.latchedSubjectFid === FID
+      && input.privateSession.subjectFid === FID
+      && input.reviewedAdmissionPlanDigest === ADMISSION_PLAN_DIGEST
+    ))).toBe(true);
     expect(runtimeInput).toMatchObject({
       evidenceNonce: EVIDENCE_NONCE,
       reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
@@ -287,6 +304,114 @@ describe('owner canary browser-memory controller', () => {
     },
   );
 
+  it('uses only a fresh recovery authority after an unconfirmed main close', async () => {
+    let runtimeRecoveryState: 'none' | 'required' | 'safe' = 'none';
+    const evidenceAuthorities: unknown[] = [];
+    const recoveryAuthorities: unknown[] = [];
+    const openAuthority = vi.fn(async () => Object.freeze({
+      index: 0,
+      kind: 'main' as const,
+    }));
+    const openRecallRecoveryAuthority = vi.fn(async () => Object.freeze({
+      index: 1,
+      kind: 'recovery' as const,
+    }));
+    const h = fixture({
+      openAuthority,
+      closeAuthority: async () => {
+        throw new Error('synthetic ambiguous main close');
+      },
+      openRecallRecoveryAuthority,
+      closeRecallRecoveryAuthority: async () => undefined,
+      recoveryApi: Object.freeze({
+        state: () => runtimeRecoveryState,
+        async recover(authority) {
+          recoveryAuthorities.push(authority);
+          runtimeRecoveryState = 'safe';
+        },
+      }),
+      evidenceApi: Object.freeze({
+        async run({ runStage }) {
+          await runStage('baseline', async authority => {
+            evidenceAuthorities.push(authority);
+            runtimeRecoveryState = 'required';
+            throw new Error('synthetic ambiguous dispatch');
+          });
+          return journey();
+        },
+      }),
+    });
+    const input = {
+      evidenceNonce: EVIDENCE_NONCE,
+      reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+      routeSetCommitment: ROUTE_SET_COMMITMENT,
+    };
+    const mainError = await h.controller.run(input).catch((error: unknown) => error);
+    expect(ownerCanaryControllerFailureCode(mainError)).toBe(
+      'authority-close-unconfirmed',
+    );
+    expect(h.controller.recoveryState()).toBe('required');
+
+    await expect(h.controller.recover()).resolves.toBeUndefined();
+    expect(h.controller.recoveryState()).toBe('safe');
+    expect(evidenceAuthorities).toEqual([{ index: 0, kind: 'main' }]);
+    expect(recoveryAuthorities).toEqual([{ index: 1, kind: 'recovery' }]);
+    expect(openAuthority).toHaveBeenCalledOnce();
+    expect(openRecallRecoveryAuthority).toHaveBeenCalledOnce();
+
+    const consumed = await h.controller.run(input).catch((error: unknown) => error);
+    expect(ownerCanaryControllerFailureCode(consumed)).toBe(
+      'authority-close-unconfirmed',
+    );
+    expect(openAuthority).toHaveBeenCalledOnce();
+  });
+
+  it('makes an ambiguous recovery-authority close permanently operator-only', async () => {
+    let runtimeRecoveryState: 'none' | 'required' | 'safe' = 'none';
+    const closeRecallRecoveryAuthority = vi.fn(async () => {
+      throw new Error('synthetic ambiguous recovery close');
+    });
+    const h = fixture({
+      closeRecallRecoveryAuthority,
+      recoveryApi: Object.freeze({
+        state: () => runtimeRecoveryState,
+        async recover() {
+          runtimeRecoveryState = 'safe';
+        },
+      }),
+      evidenceApi: Object.freeze({
+        async run({ runStage }) {
+          await runStage('baseline', async () => {
+            runtimeRecoveryState = 'required';
+            throw new Error('synthetic ambiguous dispatch');
+          });
+          return journey();
+        },
+      }),
+    });
+    await expect(h.controller.run({
+      evidenceNonce: EVIDENCE_NONCE,
+      reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+      routeSetCommitment: ROUTE_SET_COMMITMENT,
+    })).rejects.toThrow();
+    const beforeRecoveryAuthCount = h.getQuickAuthToken.mock.calls.length;
+    const closeError = await h.controller.recover().catch((error: unknown) => error);
+    expect(ownerCanaryControllerFailureCode(closeError)).toBe(
+      'authority-close-unconfirmed',
+    );
+    expect(h.controller.state().phase).toBe(
+      'recovery-authority-close-unconfirmed',
+    );
+    expect(h.controller.recoveryState()).toBe('unconfirmed');
+    expect(closeRecallRecoveryAuthority).toHaveBeenCalledOnce();
+
+    const blocked = await h.controller.recover().catch((error: unknown) => error);
+    expect(ownerCanaryControllerFailureCode(blocked)).toBe(
+      'authority-close-unconfirmed',
+    );
+    expect(h.getQuickAuthToken).toHaveBeenCalledTimes(beforeRecoveryAuthCount + 1);
+  });
+
   it('closes an authority even when the runtime handle is undefined', async () => {
     const closeAuthority = vi.fn(async (_authority: undefined) => undefined);
     const controller = createOwnerCanaryController<undefined>({
@@ -303,6 +428,8 @@ describe('owner canary browser-memory controller', () => {
       exchangeQuickAuth: async () => ({ session: session(0), subjectFid: FID }),
       openAuthority: async () => undefined,
       closeAuthority,
+      openRecallRecoveryAuthority: async () => undefined,
+      closeRecallRecoveryAuthority: async () => undefined,
       verifyPrivateSubject: async () => true,
     });
     const error = await controller.run({
@@ -380,5 +507,64 @@ describe('owner canary browser-memory controller', () => {
     const inheritedError = await inherited.controller.run(inheritedInput)
       .catch((caught: unknown) => caught);
     expect(ownerCanaryControllerFailureCode(inheritedError)).toBe('invalid-private-input');
+  });
+
+  it('permanently consumes the main run and fresh-authenticates every recovery click', async () => {
+    let runtimeRecoveryState: 'none' | 'required' | 'unconfirmed' | 'safe' = 'none';
+    const recover = vi.fn(async () => {
+      runtimeRecoveryState = 'safe';
+    });
+    let exchangeIndex = 0;
+    const exchangeQuickAuth = vi.fn(async () => {
+      const index = exchangeIndex++;
+      return Object.freeze({
+        session: session(index),
+        subjectFid: index === 1 ? FID + 1 : FID,
+      });
+    });
+    const h = fixture({
+      exchangeQuickAuth,
+      recoveryApi: Object.freeze({
+        state: () => runtimeRecoveryState,
+        recover,
+      }),
+      evidenceApi: Object.freeze({
+        async run({ runStage }) {
+          await runStage('baseline', async () => {
+            runtimeRecoveryState = 'required';
+            throw new Error('synthetic post-dispatch ambiguity');
+          });
+          return journey();
+        },
+      }),
+    });
+    const input = {
+      evidenceNonce: EVIDENCE_NONCE,
+      reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+      routeSetCommitment: ROUTE_SET_COMMITMENT,
+    };
+    await expect(h.controller.run(input)).rejects.toThrow();
+    expect(h.controller.recoveryState()).toBe('required');
+    expect(h.getQuickAuthToken).toHaveBeenCalledTimes(1);
+
+    const consumed = await h.controller.run(input).catch((caught: unknown) => caught);
+    expect(ownerCanaryControllerFailureCode(consumed)).toBe('stage-failed');
+    expect(h.getQuickAuthToken).toHaveBeenCalledTimes(1);
+
+    const changed = await h.controller.recover().catch((caught: unknown) => caught);
+    expect(ownerCanaryControllerFailureCode(changed)).toBe('subject-changed');
+    expect(h.controller.recoveryState()).toBe('unconfirmed');
+    expect(recover).not.toHaveBeenCalled();
+
+    await expect(h.controller.recover()).resolves.toBeUndefined();
+    expect(h.controller.recoveryState()).toBe('safe');
+    expect(recover).toHaveBeenCalledOnce();
+    expect(h.getQuickAuthToken).toHaveBeenCalledTimes(3);
+    expect(exchangeQuickAuth).toHaveBeenCalledTimes(3);
+    expect(h.verifyPrivateSubject).toHaveBeenCalledTimes(2);
+    expect(h.verifyPrivateSubject.mock.calls.every(([verification]) => (
+      verification.latchedSubjectFid === FID
+      && verification.reviewedAdmissionPlanDigest === ADMISSION_PLAN_DIGEST
+    ))).toBe(true);
   });
 });

@@ -160,6 +160,7 @@ import {
 
 export type WarpkeepConnectionFailureReason =
   | 'handshake_timeout'
+  | 'cancelled'
   | 'token_exchange_unauthorized'
   | 'token_exchange_forbidden'
   | 'token_exchange_unavailable'
@@ -167,13 +168,21 @@ export type WarpkeepConnectionFailureReason =
   | 'transport_failed'
   | 'setup_failed';
 
+export type WarpkeepConnection = DbConnection;
+
 export type WarpkeepConnectionCallbacks = Readonly<{
-  onDisconnected?: () => void;
+  onDisconnected?: (
+    connection?: WarpkeepConnection,
+    confirmedCloseWasPending?: boolean,
+  ) => void;
   /** Privacy-safe failure class only; raw transport errors and credentials stay internal. */
   onConnectionFailure?: (reason: WarpkeepConnectionFailureReason) => void;
 }>;
 
-export type WarpkeepConnection = DbConnection;
+export type WarpkeepAuthorityConnectionCallbacks = WarpkeepConnectionCallbacks & Readonly<{
+  /** Latches the owning runtime after any authority socket lacks confirmed close. */
+  onAuthorityClosureUnconfirmed?: () => void;
+}>;
 
 export type WarpkeepGreaterRealmConnectionAuthority = Readonly<{
   /** Monotonic provider-owned socket generation; never sourced from the server. */
@@ -211,6 +220,7 @@ type PendingWarpkeepDisconnect = Readonly<{
 const disconnectAcknowledgements =
   new WeakMap<WarpkeepConnection, WarpkeepDisconnectAcknowledgement>();
 const pendingDisconnects = new WeakMap<WarpkeepConnection, PendingWarpkeepDisconnect>();
+const confirmedDisconnectRequests = new WeakSet<WarpkeepConnection>();
 const GOLD_PROJECTION_UNAVAILABLE = 'unavailable' as const;
 const GOLD_PROJECTION_PENDING = 'pending' as const;
 const GOLD_PROJECTION_READY = 'ready' as const;
@@ -421,8 +431,12 @@ export function createWarpkeepConnectionBuilder(
     .withDatabaseName(config.spacetimeDatabase)
     .withToken(bridgeJwt)
     .onDisconnect((connection, error) => {
-      acknowledgeWarpkeepDisconnect(connection as WarpkeepConnection, error);
-      callbacks.onDisconnected?.();
+      const warpkeepConnection = connection as WarpkeepConnection;
+      const confirmedCloseWasPending = confirmedDisconnectRequests.delete(
+        warpkeepConnection,
+      );
+      acknowledgeWarpkeepDisconnect(warpkeepConnection, error);
+      callbacks.onDisconnected?.(warpkeepConnection, confirmedCloseWasPending);
     });
 }
 
@@ -479,6 +493,302 @@ export function connectWarpkeep(
   });
 }
 
+function warpkeepConnectionAbortError(signal: AbortSignal) {
+  if (signal.reason instanceof Error) return signal.reason;
+  const error = new Error('Warpkeep authority connection was cancelled.');
+  error.name = 'AbortError';
+  return error;
+}
+
+const warpkeepAuthorityClosureUnconfirmedErrors = new WeakSet<Error>();
+
+function warpkeepAuthorityClosureUnconfirmedError() {
+  const error = new Error('Warpkeep authority closure could not be confirmed.');
+  warpkeepAuthorityClosureUnconfirmedErrors.add(error);
+  return error;
+}
+
+function warpkeepAuthorityConnectionAlreadyDisconnected(
+  connection: WarpkeepConnection,
+): boolean {
+  try {
+    return connection.isDisconnectRequested
+      || disconnectAcknowledgements.has(connection);
+  } catch {
+    return true;
+  }
+}
+
+/** Allows the owning runtime to poison itself after an unconfirmed open-time close. */
+export function isWarpkeepAuthorityClosureUnconfirmed(error: unknown): boolean {
+  return error instanceof Error && warpkeepAuthorityClosureUnconfirmedErrors.has(error);
+}
+
+/**
+ * Owner-authority connection seam. Cancellation never publishes a socket to
+ * its caller, and every built or late-authenticated socket is closed through
+ * the acknowledgement-bearing close boundary before cancellation settles.
+ */
+export function connectWarpkeepAuthority(
+  config: WarpkeepRuntimeConfig,
+  bridgeJwt: string,
+  signal: AbortSignal,
+  callbacks: WarpkeepAuthorityConnectionCallbacks = {}
+): Promise<WarpkeepConnection> {
+  if (!(signal instanceof AbortSignal)) {
+    return Promise.reject(new Error('Warpkeep authority connection is unavailable.'));
+  }
+  if (signal.aborted) return Promise.reject(warpkeepConnectionAbortError(signal));
+
+  return new Promise((resolve, reject) => {
+    let outcome: 'pending' | 'resolved' | 'failed' = 'pending';
+    let builtConnection: WarpkeepConnection | undefined;
+    const seenConnections = new Set<WarpkeepConnection>();
+    const authenticatedConnections = new Set<WarpkeepConnection>();
+    let building = true;
+    let deferredFailure: Readonly<{
+      reason: WarpkeepConnectionFailureReason;
+      error: Error;
+    }> | undefined;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    let closing: Promise<never> | undefined;
+    let closingBarrierActive = false;
+    let closingBarrierGeneration = 0;
+    let closingBarrierUnconfirmed = false;
+    const closingBarrierPromises = new Map<WarpkeepConnection, Promise<void>>();
+
+    const clear = () => {
+      if (timeout !== undefined) clearTimeout(timeout);
+      timeout = undefined;
+      signal.removeEventListener('abort', cancel);
+    };
+    const close = (connection: WarpkeepConnection): Promise<void> =>
+      disconnectWarpkeepConfirmed(connection);
+    const poisonClosure = () => {
+      try {
+        callbacks.onAuthorityClosureUnconfirmed?.();
+      } catch {
+        // The lifecycle is already poisoned; observers cannot reverse it.
+      }
+    };
+    const uniqueConnections = (
+      connections: readonly (WarpkeepConnection | undefined)[]
+    ): WarpkeepConnection[] => [...new Set(connections.filter(
+      (connection): connection is WarpkeepConnection => connection !== undefined
+    ))];
+    const queueBarrierClose = (connection: WarpkeepConnection) => {
+      if (closingBarrierPromises.has(connection)) return;
+      closingBarrierGeneration += 1;
+      const pending = close(connection).catch(error => {
+        closingBarrierUnconfirmed = true;
+        throw error;
+      });
+      closingBarrierPromises.set(connection, pending);
+    };
+    const drainClosingBarrier = async (error: Error): Promise<never> => {
+      closingBarrierActive = true;
+      try {
+        for (;;) {
+          const generation = closingBarrierGeneration;
+          await Promise.allSettled(closingBarrierPromises.values());
+          await Promise.resolve();
+          if (generation === closingBarrierGeneration) break;
+        }
+        if (closingBarrierUnconfirmed) poisonClosure();
+        throw closingBarrierUnconfirmed
+          ? warpkeepAuthorityClosureUnconfirmedError()
+          : error;
+      } finally {
+        closingBarrierActive = false;
+      }
+    };
+    const failAfterClose = (
+      reason: WarpkeepConnectionFailureReason,
+      error: Error,
+      connections = uniqueConnections([builtConnection, ...seenConnections])
+    ) => {
+      if (outcome !== 'pending') {
+        if (outcome === 'failed' && closingBarrierActive) {
+          for (const connection of connections) queueBarrierClose(connection);
+          return;
+        }
+        for (const connection of connections) {
+          void close(connection).catch(() => poisonClosure());
+        }
+        return;
+      }
+      if (building) {
+        deferredFailure = Object.freeze({ reason, error });
+        return;
+      }
+      outcome = 'failed';
+      closingBarrierActive = true;
+      clear();
+      try {
+        callbacks.onConnectionFailure?.(reason);
+      } catch {
+        // Diagnostics never change authority teardown or the bounded result.
+      }
+      for (const connection of connections) queueBarrierClose(connection);
+      if (closingBarrierPromises.size === 0) {
+        closingBarrierActive = false;
+        reject(error);
+        return;
+      }
+      if (!closing) {
+        closing = drainClosingBarrier(error);
+        void closing.then(_value => undefined, reject);
+      }
+    };
+    const cancel = () => failAfterClose(
+      'cancelled',
+      warpkeepConnectionAbortError(signal)
+    );
+
+    signal.addEventListener('abort', cancel, { once: true });
+    timeout = setTimeout(() => failAfterClose(
+      'handshake_timeout',
+      new Error('Warpkeep records are unavailable.')
+    ), CONNECTION_HANDSHAKE_TIMEOUT_MILLISECONDS);
+
+    try {
+      const authorityCallbacks: WarpkeepConnectionCallbacks = Object.freeze({
+        onDisconnected: (connection, confirmedCloseWasPending) => {
+          try {
+            callbacks.onDisconnected?.(connection, confirmedCloseWasPending);
+          } catch {
+            // Diagnostics cannot change the authority lifecycle decision.
+          }
+          if (outcome === 'resolved' && confirmedCloseWasPending !== true) {
+            poisonClosure();
+          }
+        },
+      });
+      const builder = createWarpkeepConnectionBuilder(
+        config,
+        bridgeJwt,
+        authorityCallbacks,
+      )
+        .onConnect((connection, _identity, _serverIssuedToken) => {
+          // Never persist or log `_serverIssuedToken`; it is not Warpkeep authority.
+          const disconnectedBeforeAuthentication = disconnectAcknowledgements.delete(connection);
+          confirmedDisconnectRequests.delete(connection);
+          seenConnections.add(connection);
+          authenticatedConnections.add(connection);
+          if (disconnectedBeforeAuthentication) {
+            if (outcome !== 'pending') poisonClosure();
+            failAfterClose(
+              'transport_failed',
+              new Error('Warpkeep records are unavailable.'),
+              [connection],
+            );
+            return;
+          }
+          if (outcome !== 'pending' || signal.aborted) {
+            if (building) {
+              deferredFailure ??= Object.freeze({
+                reason: signal.aborted ? 'cancelled' : 'transport_failed',
+                error: signal.aborted
+                  ? warpkeepConnectionAbortError(signal)
+                  : new Error('Warpkeep records are unavailable.'),
+              });
+              return;
+            }
+            poisonClosure();
+            failAfterClose(
+              signal.aborted ? 'cancelled' : 'transport_failed',
+              signal.aborted
+                ? warpkeepConnectionAbortError(signal)
+                : new Error('Warpkeep records are unavailable.'),
+              [connection]
+            );
+            return;
+          }
+          if (building) {
+            return;
+          }
+          if (connection !== builtConnection) {
+            failAfterClose(
+              'transport_failed',
+              new Error('Warpkeep records are unavailable.'),
+              uniqueConnections([builtConnection, connection])
+            );
+            return;
+          }
+          if (warpkeepAuthorityConnectionAlreadyDisconnected(connection)) {
+            failAfterClose(
+              'transport_failed',
+              new Error('Warpkeep records are unavailable.'),
+              [connection],
+            );
+            return;
+          }
+          outcome = 'resolved';
+          clear();
+          builtConnection = undefined;
+          resolve(connection);
+        })
+        .onConnectError((_context, error) => {
+          if (outcome !== 'pending') poisonClosure();
+          failAfterClose(
+            classifyWarpkeepConnectionFailure(error),
+            new Error('Warpkeep records are unavailable.')
+          );
+        });
+      const connection = builder.build();
+      building = false;
+      builtConnection = connection;
+      seenConnections.add(connection);
+      if (deferredFailure) {
+        const failure = deferredFailure;
+        deferredFailure = undefined;
+        failAfterClose(
+          failure.reason,
+          failure.error,
+          uniqueConnections([connection, ...seenConnections])
+        );
+      } else if (signal.aborted) {
+        failAfterClose(
+          signal.aborted ? 'cancelled' : 'transport_failed',
+          signal.aborted
+            ? warpkeepConnectionAbortError(signal)
+            : new Error('Warpkeep records are unavailable.'),
+          uniqueConnections([connection, ...seenConnections])
+        );
+      } else if (
+        authenticatedConnections.size > 1
+        || (authenticatedConnections.size === 1
+          && !authenticatedConnections.has(connection))
+      ) {
+        failAfterClose(
+          'transport_failed',
+          new Error('Warpkeep records are unavailable.'),
+          uniqueConnections([connection, ...seenConnections])
+        );
+      } else if (authenticatedConnections.has(connection)) {
+        if (
+          builtConnection !== connection
+          || warpkeepAuthorityConnectionAlreadyDisconnected(connection)
+        ) {
+          failAfterClose(
+            'transport_failed',
+            new Error('Warpkeep records are unavailable.'),
+            uniqueConnections([connection, ...seenConnections])
+          );
+        } else {
+          outcome = 'resolved';
+          clear();
+          builtConnection = undefined;
+          resolve(connection);
+        }
+      }
+    } catch {
+      building = false;
+      failAfterClose('setup_failed', new Error('Warpkeep records are unavailable.'));
+    }
+  });
+}
+
 function greaterRealmConnectionAbortReason(signal: AbortSignal) {
   if (signal.reason instanceof Error) return signal.reason;
   const error = new Error('GREATER_REALM_CONNECTION_REQUEST_CANCELLED');
@@ -506,6 +816,21 @@ function awaitGreaterRealmConnectionOperation<T>(
       (error: unknown) => finish(() => reject(error))
     );
   });
+}
+
+/** Abort-aware read/command boundary used by the isolated owner canary. */
+export function awaitWarpkeepAuthorityOperation<T>(
+  operation: () => Promise<T>,
+  signal: AbortSignal
+): Promise<T> {
+  if (signal.aborted) return Promise.reject(greaterRealmConnectionAbortReason(signal));
+  let started: Promise<T>;
+  try {
+    started = operation();
+  } catch (error) {
+    return Promise.reject(error);
+  }
+  return awaitGreaterRealmConnectionOperation(started, signal);
 }
 
 function assertGreaterRealmConnectionAuthority(
@@ -1078,6 +1403,11 @@ function workerReducerSurface(connection: WarpkeepConnection) {
       idempotencyKey: string;
     }>) => Promise<unknown> | unknown;
     recallWorkerV1?: (input: Readonly<{ workerId: string; idempotencyKey: string }>) => Promise<unknown> | unknown;
+    recallProductionPlayerCanaryWorkerV1?: (input: Readonly<{
+      reviewedAdmissionPlanDigest: string;
+      evidenceNonce: string;
+      ordinal: number;
+    }>) => Promise<unknown> | unknown;
     recallAllWorkersV1?: (input: Readonly<{ idempotencyKey: string }>) => Promise<unknown> | unknown;
   };
 }
@@ -1139,6 +1469,28 @@ export async function recallWarpkeepWorker(connection: WarpkeepConnection, worke
   const reducer = workerReducerSurface(connection).recallWorkerV1;
   if (typeof reducer !== 'function') throw new Error('Worker command is unavailable.');
   await reducer({ workerId, idempotencyKey });
+}
+
+/** Atomic recall of only the server-correlated reviewed canary assignment. */
+export async function recallWarpkeepProductionPlayerCanaryWorker(
+  connection: WarpkeepConnection,
+  reviewedAdmissionPlanDigest: string,
+  evidenceNonce: string,
+  ordinal: number,
+) {
+  if (
+    !/^[0-9a-f]{64}$/.test(reviewedAdmissionPlanDigest)
+    || !/^[0-9a-f]{64}$/.test(evidenceNonce)
+    || !Number.isSafeInteger(ordinal)
+    || ordinal < 1
+    || ordinal > 4
+  ) throw new Error('Production player canary recall is unavailable.');
+  const reducer = workerReducerSurface(connection)
+    .recallProductionPlayerCanaryWorkerV1;
+  if (typeof reducer !== 'function') {
+    throw new Error('Production player canary recall is unavailable.');
+  }
+  await reducer({ reviewedAdmissionPlanDigest, evidenceNonce, ordinal });
 }
 
 export async function recallAllWarpkeepWorkers(connection: WarpkeepConnection, idempotencyKey: string) {
@@ -3426,12 +3778,14 @@ export function disconnectWarpkeepConfirmed(connection: WarpkeepConnection): Pro
   });
   pendingDisconnects.set(connection, pending);
 
-  if (!connection.isDisconnectRequested) {
-    try {
+  try {
+    if (!connection.isDisconnectRequested) {
+      confirmedDisconnectRequests.add(connection);
       connection.disconnect();
-    } catch (error) {
-      pending.reject(error);
     }
+  } catch (error) {
+    confirmedDisconnectRequests.delete(connection);
+    pending.reject(error);
   }
   return promise;
 }

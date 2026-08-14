@@ -5,6 +5,7 @@ import type {
   AdminGetProductionPlayerCanaryApprovalV1Result,
   AdminGetProductionPlayerCanaryBaselineV1Result,
   AdminGetProductionPlayerCanaryEvidenceV1Result,
+  AdminGetProductionPlayerCanaryRecoveryStatusV1Result,
   AdminPlanProductionPlayerCanaryRoutesV1Result,
 } from '../src/spacetime/module_bindings/types/procedures';
 import {
@@ -14,6 +15,7 @@ import {
   getProductionPlayerCanaryApprovalV1,
   getProductionPlayerCanaryBaselineV1,
   getProductionPlayerCanaryEvidenceV1,
+  getProductionPlayerCanaryRecoveryStatusV1,
   planProductionPlayerCanaryRoutesV1,
   registerProductionPlayerCanaryApprovalV1,
 } from '../scripts/production-player-canary-admin-transport';
@@ -90,15 +92,19 @@ describe('production player canary typed admin transport', () => {
       AdminGetProductionPlayerCanaryApprovalV1Result;
     const evidenceResult = Object.freeze({ marker: 'evidence' }) as unknown as
       AdminGetProductionPlayerCanaryEvidenceV1Result;
+    const recoveryResult = Object.freeze({ marker: 'recovery' }) as unknown as
+      AdminGetProductionPlayerCanaryRecoveryStatusV1Result;
     const adminGetProductionPlayerCanaryBaselineV1 = vi.fn(async () => baselineResult);
     const adminPlanProductionPlayerCanaryRoutesV1 = vi.fn(async () => planResult);
     const adminGetProductionPlayerCanaryApprovalV1 = vi.fn(async () => approvalResult);
     const adminGetProductionPlayerCanaryEvidenceV1 = vi.fn(async () => evidenceResult);
+    const adminGetProductionPlayerCanaryRecoveryStatusV1 = vi.fn(async () => recoveryResult);
     const session = readSession({
       adminGetProductionPlayerCanaryBaselineV1,
       adminPlanProductionPlayerCanaryRoutesV1,
       adminGetProductionPlayerCanaryApprovalV1,
       adminGetProductionPlayerCanaryEvidenceV1,
+      adminGetProductionPlayerCanaryRecoveryStatusV1,
     });
     const finalArguments = BASELINE_ARGUMENTS;
 
@@ -118,6 +124,10 @@ describe('production player canary typed admin transport', () => {
       session,
       arguments: finalArguments,
     })).resolves.toBe(evidenceResult);
+    await expect(getProductionPlayerCanaryRecoveryStatusV1({
+      session,
+      arguments: finalArguments,
+    })).resolves.toBe(recoveryResult);
     expect(adminGetProductionPlayerCanaryBaselineV1)
       .toHaveBeenCalledWith(BASELINE_ARGUMENTS);
     expect(adminPlanProductionPlayerCanaryRoutesV1)
@@ -125,6 +135,8 @@ describe('production player canary typed admin transport', () => {
     expect(adminGetProductionPlayerCanaryApprovalV1)
       .toHaveBeenCalledWith(BASELINE_ARGUMENTS);
     expect(adminGetProductionPlayerCanaryEvidenceV1)
+      .toHaveBeenCalledWith(finalArguments);
+    expect(adminGetProductionPlayerCanaryRecoveryStatusV1)
       .toHaveBeenCalledWith(finalArguments);
     expect(Object.keys(finalArguments).sort()).toEqual([
       'evidenceNonce', 'fid', 'reviewedAdmissionPlanDigest',

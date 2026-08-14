@@ -7,6 +7,8 @@ import type {
   AdminPlanProductionPlayerCanaryRoutesV1Result,
   AdminGetProductionPlayerCanaryEvidenceV1Args,
   AdminGetProductionPlayerCanaryEvidenceV1Result,
+  AdminGetProductionPlayerCanaryRecoveryStatusV1Args,
+  AdminGetProductionPlayerCanaryRecoveryStatusV1Result,
 } from '../src/spacetime/module_bindings/types/procedures';
 import type {
   AdminCaptureProductionPlayerCanaryBaselineV1Params,
@@ -102,5 +104,17 @@ export function getProductionPlayerCanaryEvidenceV1(input: Readonly<{
 }>): Promise<AdminGetProductionPlayerCanaryEvidenceV1Result> {
   return input.session.withConnection(connection => withAdminOperationTimeout(
     connection.procedures.adminGetProductionPlayerCanaryEvidenceV1(input.arguments),
+  ));
+}
+
+/** Typed, timeout-bounded, admin-only read of recovery/receipt structure. */
+export function getProductionPlayerCanaryRecoveryStatusV1(input: Readonly<{
+  session: GreaterRealmProductionAdminSession;
+  arguments: AdminGetProductionPlayerCanaryRecoveryStatusV1Args;
+}>): Promise<AdminGetProductionPlayerCanaryRecoveryStatusV1Result> {
+  return input.session.withConnection(connection => withAdminOperationTimeout(
+    connection.procedures.adminGetProductionPlayerCanaryRecoveryStatusV1(
+      input.arguments,
+    ),
   ));
 }

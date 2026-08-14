@@ -790,7 +790,7 @@ describe('notification-bridge-prepared protected workflow', () => {
         guardedRecoveryRequired: true,
         privateReceiptSinkRequired: true,
         installedToolchainByteAttestationRequired: true,
-        executableSecurityClosureMemberCount: 372,
+        executableSecurityClosureMemberCount: 382,
       });
   }, 60_000);
 
@@ -808,7 +808,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     });
     expect(paths).toEqual(manifest.members.map(member => member.path));
     expect(manifest.schemaVersion).toBe(2);
-    expect(paths).toHaveLength(372);
+    expect(paths).toHaveLength(382);
     expect(paths).toEqual(expect.arrayContaining([
       'scripts/auth-bridge-notification-prepared-deploy.mjs',
       'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
@@ -872,7 +872,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       repositoryRoot: root,
     })).toMatchObject({
         profile: 'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1',
-        memberCount: 372,
+        memberCount: 382,
         manifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
       });
   }, 90_000);
@@ -917,7 +917,11 @@ describe('notification-bridge-prepared protected workflow', () => {
       profile: string;
       members: Array<{ path: string; digestProfile: string; sha256: string }>;
     };
-    missingManifest.members.splice(8, 1);
+    const browserProjectionIndex = missingManifest.members.findIndex(
+      member => member.path === 'src/spacetime/playerModuleBindings.ts',
+    );
+    expect(browserProjectionIndex).toBeGreaterThanOrEqual(0);
+    missingManifest.members.splice(browserProjectionIndex, 1);
     writeFileSync(missingManifestPath, `${JSON.stringify(missingManifest, null, 2)}\n`);
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: missing,

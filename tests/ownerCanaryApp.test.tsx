@@ -28,6 +28,11 @@ import type {
 import type { OwnerCanaryJourneyEvidence } from '../src/owner-canary/ownerCanaryEvidence';
 import type { OwnerCanaryRuntime } from '../src/owner-canary/ownerCanaryRuntime';
 
+const NO_RECOVERY = Object.freeze({
+  state: () => 'none' as const,
+  recover: async () => undefined,
+});
+
 const PRIVATE_NONCE = 'a'.repeat(64);
 const PLAN_DIGEST = 'b'.repeat(64);
 const ROUTE_SET_COMMITMENT = 'c'.repeat(64);
@@ -116,6 +121,7 @@ function journey(): OwnerCanaryJourneyEvidence {
 
 function failingRuntime(): OwnerCanaryRuntime {
   return Object.freeze({
+    recoveryApi: NO_RECOVERY,
     evidenceApi: Object.freeze({
       run: async () => {
         throw new Error('synthetic pre-authority failure');
@@ -123,6 +129,8 @@ function failingRuntime(): OwnerCanaryRuntime {
     }),
     openAuthority: async () => Object.freeze({}),
     closeAuthority: async () => undefined,
+    openRecallRecoveryAuthority: async () => Object.freeze({}),
+    closeRecallRecoveryAuthority: async () => undefined,
     verifyPrivateSubject: async () => true,
     acceptSanitizedEvidence: async () => undefined,
   });
@@ -140,9 +148,12 @@ function handoffFailingRuntime(
     },
   });
   return Object.freeze({
+    recoveryApi: NO_RECOVERY,
     evidenceApi,
     openAuthority: async () => Object.freeze({}),
     closeAuthority: async () => undefined,
+    openRecallRecoveryAuthority: async () => Object.freeze({}),
+    closeRecallRecoveryAuthority: async () => undefined,
     verifyPrivateSubject: async () => true,
     acceptSanitizedEvidence: async () => {
       onHandoff();
@@ -162,9 +173,49 @@ function stageFailingRuntime(onMutation: () => void): OwnerCanaryRuntime<Readonl
     },
   });
   return Object.freeze({
+    recoveryApi: NO_RECOVERY,
     evidenceApi,
     openAuthority: async () => Object.freeze({}),
     closeAuthority: async () => undefined,
+    openRecallRecoveryAuthority: async () => Object.freeze({}),
+    closeRecallRecoveryAuthority: async () => undefined,
+    verifyPrivateSubject: async () => true,
+    acceptSanitizedEvidence: async () => undefined,
+  });
+}
+
+function recoverableRuntime(
+  onRecovery: () => void,
+  closeRecallRecoveryAuthority: () => Promise<void> = async () => undefined,
+): OwnerCanaryRuntime<Readonly<Record<string, never>>> {
+  let recoveryState: 'none' | 'required' | 'running' | 'safe' | 'unconfirmed' = 'none';
+  const recoveryApi = Object.freeze({
+    state: () => recoveryState,
+    async recover() {
+      recoveryState = 'running';
+      onRecovery();
+      recoveryState = 'safe';
+    },
+  });
+  const evidenceApi: OwnerCanaryEvidenceApi<Readonly<Record<string, never>>> = Object.freeze({
+    async run({ runStage }) {
+      for (const stage of OWNER_CANARY_STAGES.slice(0, 3)) {
+        await runStage(stage, async () => undefined);
+      }
+      await runStage('dispatch', async () => {
+        recoveryState = 'required';
+        throw new Error('synthetic lost dispatch response');
+      });
+      return journey();
+    },
+  });
+  return Object.freeze({
+    recoveryApi,
+    evidenceApi,
+    openAuthority: async () => Object.freeze({}),
+    closeAuthority: async () => undefined,
+    openRecallRecoveryAuthority: async () => Object.freeze({}),
+    closeRecallRecoveryAuthority,
     verifyPrivateSubject: async () => true,
     acceptSanitizedEvidence: async () => undefined,
   });
@@ -181,9 +232,12 @@ function cancellableRuntime(onMutation: () => void): OwnerCanaryRuntime<Readonly
     },
   });
   return Object.freeze({
+    recoveryApi: NO_RECOVERY,
     evidenceApi,
     openAuthority: async () => Object.freeze({}),
     closeAuthority: async () => undefined,
+    openRecallRecoveryAuthority: async () => Object.freeze({}),
+    closeRecallRecoveryAuthority: async () => undefined,
     verifyPrivateSubject: async () => true,
     acceptSanitizedEvidence: async () => undefined,
   });
@@ -232,7 +286,7 @@ describe('owner canary run-level consent', () => {
     const plan = screen.getByLabelText('Reviewed admission-plan digest');
     const routes = screen.getByLabelText('Private route-set commitment');
     const confirmation = screen.getByRole('checkbox', {
-      name: 'I approve this run to create and mutate live production player state.',
+      name: 'I approve this run to mutate an already-admitted live production player.',
     });
     const begin = screen.getByRole('button', { name: 'Begin reviewed canary' });
     expect(screen.getByText(/page realm is single-use/i).textContent).toContain('Never retry');
@@ -253,7 +307,7 @@ describe('owner canary run-level consent', () => {
     const plan = screen.getByLabelText('Reviewed admission-plan digest');
     const routes = screen.getByLabelText('Private route-set commitment');
     const confirmation = screen.getByRole('checkbox', {
-      name: 'I approve this run to create and mutate live production player state.',
+      name: 'I approve this run to mutate an already-admitted live production player.',
     });
     const begin = screen.getByRole('button', { name: 'Begin reviewed canary' });
 
@@ -288,7 +342,7 @@ describe('owner canary run-level consent', () => {
     const plan = screen.getByLabelText('Reviewed admission-plan digest');
     const routes = screen.getByLabelText('Private route-set commitment');
     const confirmation = screen.getByRole('checkbox', {
-      name: 'I approve this run to create and mutate live production player state.',
+      name: 'I approve this run to mutate an already-admitted live production player.',
     });
     const begin = screen.getByRole('button', { name: 'Begin reviewed canary' });
     fireEvent.change(nonce, { target: { value: PRIVATE_NONCE } });
@@ -312,6 +366,94 @@ describe('owner canary run-level consent', () => {
     expect((begin as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it('offers only fresh-auth recall recovery after dispatch ambiguity and never re-enables main run', async () => {
+    const fetch = prepareAuthorizedAuth();
+    const recovery = vi.fn();
+    render(<OwnerCanaryApp loadRuntime={async () => recoverableRuntime(recovery)} />);
+
+    const nonce = await screen.findByLabelText('Private evidence nonce');
+    const plan = screen.getByLabelText('Reviewed admission-plan digest');
+    const routes = screen.getByLabelText('Private route-set commitment');
+    const confirmation = screen.getByRole('checkbox', {
+      name: 'I approve this run to mutate an already-admitted live production player.',
+    });
+    const begin = screen.getByRole('button', { name: 'Begin reviewed canary' });
+    fireEvent.change(nonce, { target: { value: PRIVATE_NONCE } });
+    fireEvent.change(plan, { target: { value: PLAN_DIGEST } });
+    fireEvent.change(routes, { target: { value: ROUTE_SET_COMMITMENT } });
+    fireEvent.click(confirmation);
+    fireEvent.click(begin);
+
+    for (let stageNumber = 1; stageNumber <= 4; stageNumber += 1) {
+      await screen.findByText(`STAGE ${stageNumber} OF 10`);
+      fireEvent.click(screen.getByRole('button', {
+        name: 'Authenticate and run this stage',
+      }));
+    }
+    const recoveryButton = await screen.findByRole('button', {
+      name: 'Authenticate and attempt recall-only recovery',
+    });
+    expect(screen.getByRole('alert').textContent).toContain(
+      'recall-only control below is the sole permitted browser action',
+    );
+    expect(screen.getByText(/This cannot dispatch, restart, complete evidence, or authorize release/u))
+      .toBeTruthy();
+    expect((begin as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(recoveryButton);
+    await waitFor(() => expect(screen.getByRole('status').textContent).toContain(
+      'Recall safety was observed',
+    ));
+    expect(recovery).toHaveBeenCalledOnce();
+    expect(getQuickAuthToken).toHaveBeenCalledTimes(5);
+    expect(fetch).toHaveBeenCalledTimes(5);
+    expect(screen.queryByRole('button', {
+      name: 'Authenticate and attempt recall-only recovery',
+    })).toBeNull();
+    expect((begin as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('removes browser recovery after recovery-authority close becomes ambiguous', async () => {
+    prepareAuthorizedAuth();
+    const recovery = vi.fn();
+    render(<OwnerCanaryApp loadRuntime={async () => recoverableRuntime(
+      recovery,
+      async () => {
+        throw new Error('synthetic ambiguous recovery close');
+      },
+    )} />);
+
+    fireEvent.change(await screen.findByLabelText('Private evidence nonce'), {
+      target: { value: PRIVATE_NONCE },
+    });
+    fireEvent.change(screen.getByLabelText('Reviewed admission-plan digest'), {
+      target: { value: PLAN_DIGEST },
+    });
+    fireEvent.change(screen.getByLabelText('Private route-set commitment'), {
+      target: { value: ROUTE_SET_COMMITMENT },
+    });
+    fireEvent.click(screen.getByRole('checkbox', {
+      name: 'I approve this run to mutate an already-admitted live production player.',
+    }));
+    fireEvent.click(screen.getByRole('button', { name: 'Begin reviewed canary' }));
+    for (let stageNumber = 1; stageNumber <= 4; stageNumber += 1) {
+      await screen.findByText(`STAGE ${stageNumber} OF 10`);
+      fireEvent.click(screen.getByRole('button', {
+        name: 'Authenticate and run this stage',
+      }));
+    }
+    fireEvent.click(await screen.findByRole('button', {
+      name: 'Authenticate and attempt recall-only recovery',
+    }));
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain(
+      'Recovery-authority closure could not be confirmed',
+    ));
+    expect(recovery).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button', {
+      name: 'Authenticate and attempt recall-only recovery',
+    })).toBeNull();
+    expect(screen.queryByText(/Recall safety was observed/u)).toBeNull();
+  });
+
   it('does not retry after cancellation follows an accepted stage mutation', async () => {
     prepareAuthorizedAuth();
     const mutationAccepted = vi.fn();
@@ -321,7 +463,7 @@ describe('owner canary run-level consent', () => {
     const plan = screen.getByLabelText('Reviewed admission-plan digest');
     const routes = screen.getByLabelText('Private route-set commitment');
     const confirmation = screen.getByRole('checkbox', {
-      name: 'I approve this run to create and mutate live production player state.',
+      name: 'I approve this run to mutate an already-admitted live production player.',
     });
     const begin = screen.getByRole('button', { name: 'Begin reviewed canary' });
     fireEvent.change(nonce, { target: { value: PRIVATE_NONCE } });
@@ -355,7 +497,7 @@ describe('owner canary run-level consent', () => {
     const plan = screen.getByLabelText('Reviewed admission-plan digest');
     const routes = screen.getByLabelText('Private route-set commitment');
     const confirmation = screen.getByRole('checkbox', {
-      name: 'I approve this run to create and mutate live production player state.',
+      name: 'I approve this run to mutate an already-admitted live production player.',
     });
     const begin = screen.getByRole('button', { name: 'Begin reviewed canary' });
 

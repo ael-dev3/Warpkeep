@@ -1366,6 +1366,100 @@ export function recallCastleWorker(
   });
 }
 
+/**
+ * Atomic canary-only recall. The expected assignment comes from the exact
+ * deterministic dispatch receipt validated by the caller. A different current
+ * assignment is rejected before any mutation, and an already-idle worker does
+ * not acquire a synthetic no-op receipt.
+ */
+export function recallCastleWorkerForExactCanaryAssignment(
+  ctx: WarpkeepReducerContext,
+  input: Readonly<{
+    fid: bigint;
+    castle: CastleRow;
+    workerId: string;
+    recallIdempotencyKey: string;
+    expectedResourceKind: string;
+    expectedSiteId: string;
+    expectedAssignmentId: string;
+  }>,
+): 'idle' | 'returning' | 'recalled' | 'replayed' {
+  const requestKey = assignmentRequestKey(input.fid, input.recallIdempotencyKey);
+  const prior = ctx.db.workerCommandIdempotencyV1.requestKey.find(requestKey);
+  if (prior !== null) {
+    if (
+      !recallReplayMatches(prior, input.fid, input.workerId)
+      || prior.resourceKind !== input.expectedResourceKind
+      || prior.siteId !== input.expectedSiteId
+      || prior.assignmentId !== input.expectedAssignmentId
+      || !canonicalCastleOwnershipMatches(ctx, input.fid, input.castle.castleId)
+      || !receiptOwnerIsCanonical(ctx, prior, input.castle.castleId)
+    ) fail('WORKER_CANARY_RECALL_REPLAY_INVALID');
+    return 'replayed';
+  }
+  workerSystemActiveForCurrentGameplayV1(ctx);
+  if (!canonicalCastleOwnershipMatches(ctx, input.fid, input.castle.castleId)) {
+    fail('WORKER_NOT_OWNED');
+  }
+  const callerGraph = assertCallerWorkerGraph(ctx, input.fid, input.castle.castleId);
+  if (!callerGraph.roster.some(worker => worker.workerId === input.workerId)) {
+    fail('WORKER_NOT_OWNED');
+  }
+  settleAllWorkerAssignmentsForFid(ctx, input.fid);
+  const worker = ctx.db.castleWorkerV1.workerId.find(input.workerId);
+  if (
+    worker === null
+    || worker.originCastleId !== input.castle.castleId
+    || !castleWorkerPublicStateIsConsistent(worker)
+  ) fail('WORKER_PUBLIC_PRIVATE_MISMATCH');
+  let assignment = ctx.db.workerAssignmentV1.workerId.find(input.workerId);
+  if (assignment === null) {
+    if (worker.status !== 'idle') fail('WORKER_ASSIGNMENT_MISSING');
+    return 'idle';
+  }
+  assertAssignmentState(assignment);
+  if (
+    assignment.fid !== input.fid
+    || assignment.originCastleId !== input.castle.castleId
+    || assignment.assignmentId !== input.expectedAssignmentId
+    || assignment.workerId !== input.workerId
+    || assignment.resourceKind !== input.expectedResourceKind
+    || assignment.siteId !== input.expectedSiteId
+    || !assignmentOwnerIsCanonical(ctx, assignment)
+    || !publicWorkerMatchesAssignment(worker, assignment)
+  ) fail('WORKER_CANARY_ASSIGNMENT_MISMATCH');
+  if (assignment.phase === 'returning') return 'returning';
+  const now = ctx.timestamp.microsSinceUnixEpoch;
+  const returnStartedAtMicros = now < assignment.gatheringEndsAtMicros
+    ? now
+    : assignment.gatheringEndsAtMicros;
+  const progress = returnStartedAtMicros < assignment.arrivesAtMicros
+    ? progressBasisPoints(assignment, returnStartedAtMicros)
+    : 10_000;
+  assignment = beginWorkerReturn(ctx, assignment, progress, returnStartedAtMicros);
+  const updatedWorker = ctx.db.castleWorkerV1.workerId.find(worker.workerId);
+  if (
+    updatedWorker === null
+    || !publicWorkerMatchesAssignment(updatedWorker, assignment)
+  ) fail('WORKER_PUBLIC_PRIVATE_MISMATCH');
+  pruneWorkerIdempotencyReceipts(ctx, input.fid);
+  ctx.db.workerCommandIdempotencyV1.insert({
+    ...recallWorkerReceipt(
+      requestKey,
+      input.fid,
+      worker.workerId,
+      updatedWorker.revision,
+      {
+        resourceKind: assignment.resourceKind,
+        siteId: assignment.siteId,
+        assignmentId: assignment.assignmentId,
+      },
+    ),
+    createdAt: ctx.timestamp,
+  });
+  return 'recalled';
+}
+
 export function recallAllCastleWorkers(
   ctx: WarpkeepReducerContext,
   input: Readonly<{ fid: bigint; castle: CastleRow; idempotencyKey: string }>,
