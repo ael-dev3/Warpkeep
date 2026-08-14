@@ -285,10 +285,98 @@ remains only the in-process non-authoritative acknowledgement described above.
 Delete the packet through the owner's separately reviewed local retention
 procedure after the run; this source slice does not invent one.
 
-The launcher and evidence adapter are added as prepared-deploy closure graph
-roots/security inputs. The signed closure manifest is intentionally not
-refrozen in this provisional lane; the protected predecessor correction and
-true merge must occur first, then the combined closure is refrozen once.
+The launcher and evidence adapter are prepared-deploy closure graph
+roots/security inputs. Their final manifest and protected-workflow pins are
+refrozen only on the protected true merge that contains the predecessor
+recovery correction.
+
+## Final activation-request launcher
+
+`scripts/production-player-canary-activation-launcher.mjs` is source-only in
+this lane. Its separate execution performs no network call, deploy, activation,
+or journal advance; its only mutation is publication of the fixed activation
+request through the existing no-clobber writer. Merging this source does not
+create that request, dispatch B0, invoke the private Pages deploy, mutate
+Cloudflare, activate the player loader, or enable world presentation. The
+ordinary protected closed-review `workflow_run` may still build, deploy, and
+verify-live the inert Pages source after merge. The corrected recovery plus B0
+closure has 382 members; this launcher and its declaration are the only two new
+closure members, for an exact 384 of 384 with no spare slot. A later loader
+activation must modify only already-protected members. Do not add another graph
+root or declaration.
+
+Execution is a separate reviewed boundary. It requires all of the following:
+
+- the protected C6 commit and tree containing the completed live canary;
+- the C6 operator journal ending at exactly `receipt-installed`, with no active
+  lock, temporary, unrelated operation, or later phase;
+- exactly one settled, canonical owner-private canary receipt matching that
+  journal, plan, claim, approval, baseline, route, command, registration, C6
+  source, and live-root authority;
+- the exact reviewed C7 candidate checked out at its supplied commit and tree,
+  with only the fixed 18-path activation transition; and
+- the separately reviewed player loader activation needed to have completed
+  the live canary. Browser UI or sanitized browser evidence is never input or
+  release authority.
+
+The only command is literal `write`. It accepts no path, secret, identity,
+repository, receipt directory, URL, or run-all selector in arguments or
+environment. Standard input must already be a current-user-owned, one-link
+regular file at exact mode `0600`, at most 32 KiB, containing this exact
+pretty-printed canonical JSON shape and one final LF:
+
+```json
+{
+  "schemaVersion": 1,
+  "profile": "warpkeep-production-player-canary-activation-launcher-v1",
+  "operatorOperationId": "<32 lowercase hex>",
+  "candidatePagesSourceTree": "<40 lowercase hex>",
+  "request": {
+    "schemaVersion": 1,
+    "profile": "warpkeep-production-player-canary-deploy-authority-v1",
+    "candidatePagesSourceCommit": "<reviewed C7 commit>",
+    "predecessorPagesSourceCommit": "<protected C6 commit>",
+    "predecessorProtectedTree": "<protected C6 tree>",
+    "productionPlayerCanaryReceiptDigest": "<64 lowercase hex>",
+    "founderPlanDirectory": "<journal-bound absolute owner-private directory>",
+    "reviewedAdmissionPlanReference": {
+      "filename": "<journal-bound canonical JSON filename>",
+      "sha256": "<64 lowercase hex>"
+    },
+    "ownerApprovalDirectory": "<journal-bound absolute owner-private directory>",
+    "ownerApprovalReference": {
+      "filename": "<journal-bound canonical JSON filename>",
+      "sha256": "<64 lowercase hex>"
+    }
+  }
+}
+```
+
+Run it only from the exact reviewed checkout, redirecting the already-created
+owner-private file to standard input so its path does not become launcher
+authority:
+
+```text
+node scripts/production-player-canary-activation-launcher.mjs write < /absolute/owner-private/activation-launch-v1.json
+```
+
+The launcher performs all source, closure, journal, receipt, plan, approval,
+and publication-conflict checks read-only before its sole call to the existing
+no-clobber activation-request writer. Success prints exactly the lowercase
+SHA-256 digest of the canonical installed request plus LF. It prints no path,
+secret, identity, receipt content, or browser evidence. The writer uses an
+owner-only `0600` exclusive temporary, fsync, no-clobber hard link, directory
+fsync, temporary unlink, and final directory fsync. A byte-identical retry
+returns the same digest without replacing the destination; an exact pre-link
+or post-link crash temporary is recoverable. A different destination,
+temporary, hard link, reference, receipt, source, or closure is preserved and
+fails closed before a known mismatch write. If stdout is lost after successful
+publication, rerun only the exact same canonical input and compare the returned
+digest; never synthesize a new request or infer success from browser UX.
+
+The manifest and all three protected-workflow pin sets are refrozen at exactly
+384 members on the protected true merge of PR205. Preserve that exact source
+and obtain an independent audit before any execution.
 
 ## Approved Mini App reachability
 

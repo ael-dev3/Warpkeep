@@ -44,6 +44,7 @@ const SCRIPT_GRAPH_ROOTS = Object.freeze([
   'scripts/notification-pages-build-release-validator.mjs',
   'scripts/notification-pages-deploy-lane.mjs',
   'scripts/notification-pages-private-deploy-launcher.mjs',
+  'scripts/production-player-canary-activation-launcher.mjs',
   'scripts/production-player-canary-operator.mjs',
   'scripts/production-player-canary-browser-launcher.mjs',
 ]);

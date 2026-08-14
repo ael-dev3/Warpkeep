@@ -7,6 +7,8 @@ import {
   readFileSync,
   readdirSync,
   realpathSync,
+  statSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -93,6 +95,22 @@ function approvalResult(outcome = 'register-acknowledged') {
     registeredAtMicros: 1_786_622_401_000_000n,
     submissionOutcome: outcome,
   };
+}
+
+function directorySnapshot(directory: string) {
+  return readdirSync(directory).sort().map(name => {
+    const path = join(directory, name);
+    const status = statSync(path, { bigint: true });
+    return {
+      name,
+      bytes: readFileSync(path).toString('base64'),
+      mode: status.mode,
+      nlink: status.nlink,
+      size: status.size,
+      mtimeNs: status.mtimeNs,
+      ctimeNs: status.ctimeNs,
+    };
+  });
 }
 
 describe('production player canary private operator journal', () => {
@@ -186,6 +204,17 @@ describe('production player canary private operator journal', () => {
           receiptDigest: '9'.repeat(64),
           result: 'installed',
         });
+        const activeDirectory = join(
+          home,
+          '.warpkeep/private/production-admin-v1',
+          'production-player-canary-operator-journal-v1',
+        );
+        const beforeActiveInspection = directorySnapshot(activeDirectory);
+        expect(() => journalTestSeams.inspectTerminalReceiptJournalAtHome(
+          operation.operationId,
+          home,
+        )).toThrow('PRODUCTION_PLAYER_CANARY_OPERATOR_JOURNAL_NOT_SETTLED');
+        expect(directorySnapshot(activeDirectory)).toEqual(beforeActiveInspection);
       },
     }, options);
 
@@ -203,11 +232,58 @@ describe('production player canary private operator journal', () => {
     expect(recordBytes).not.toContain('pc1-d01-');
     expect(recordBytes).toContain('"phase":"receipt-installed"');
 
+    const beforeInspection = directorySnapshot(directory);
+    expect(journalTestSeams.inspectTerminalReceiptJournalAtHome(
+      operation.operationId,
+      home,
+    )).toMatchObject({
+      operationId: operation.operationId,
+      contract: {
+        protectedCommit: operation.protectedCommit,
+        protectedTree: operation.protectedTree,
+      },
+      ownerApprovalReference: reference,
+      baselineCheckpoint: {
+        serverBaselineCommitment: BASELINE,
+        routeSetCommitment: ROUTE,
+      },
+      ownerApprovalCheckpoint: {
+        approvalCommitment: '7'.repeat(64),
+        commandSetCommitment: COMMAND,
+      },
+      approvalCheckpoint: {
+        approvalRegistrationCommitment: REGISTRATION,
+        commandSetCommitment: COMMAND,
+      },
+      receipt: {
+        receiptDigest: '9'.repeat(64),
+        result: 'installed',
+      },
+    });
+    expect(directorySnapshot(directory)).toEqual(beforeInspection);
+
     await expect(withProductionPlayerCanaryOperatorJournal({
       contract: operation,
       reportedHome: home,
       operation: journal => journal.inspect(),
     }, options)).resolves.toMatchObject({ phase: 'receipt-installed' });
+
+    for (const hostileName of [
+      `production-player-canary-operator-${'2'.repeat(32)}`
+        + '-00000001-prepared.json',
+      `.production-player-canary-operator-${operation.operationId}`
+        + `-00000099-prepared.json.${'a'.repeat(24)}.tmp`,
+    ]) {
+      const hostilePath = join(directory, hostileName);
+      writeFileSync(hostilePath, '{}\n', { mode: 0o600 });
+      const beforeFailure = directorySnapshot(directory);
+      expect(() => journalTestSeams.inspectTerminalReceiptJournalAtHome(
+        operation.operationId,
+        home,
+      )).toThrow('PRODUCTION_PLAYER_CANARY_OPERATOR_JOURNAL_NOT_SETTLED');
+      expect(directorySnapshot(directory)).toEqual(beforeFailure);
+      unlinkSync(hostilePath);
+    }
   });
 
   it('poisons an absent post-intent row until a new explicit attempt is journaled', async () => {

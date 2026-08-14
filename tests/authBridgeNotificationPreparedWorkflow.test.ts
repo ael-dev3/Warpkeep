@@ -790,7 +790,7 @@ describe('notification-bridge-prepared protected workflow', () => {
         guardedRecoveryRequired: true,
         privateReceiptSinkRequired: true,
         installedToolchainByteAttestationRequired: true,
-        executableSecurityClosureMemberCount: 382,
+        executableSecurityClosureMemberCount: 384,
       });
   }, 60_000);
 
@@ -808,7 +808,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     });
     expect(paths).toEqual(manifest.members.map(member => member.path));
     expect(manifest.schemaVersion).toBe(2);
-    expect(paths).toHaveLength(382);
+    expect(paths).toHaveLength(384);
     expect(paths).toEqual(expect.arrayContaining([
       'scripts/auth-bridge-notification-prepared-deploy.mjs',
       'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
@@ -872,7 +872,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       repositoryRoot: root,
     })).toMatchObject({
         profile: 'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1',
-        memberCount: 382,
+        memberCount: 384,
         manifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
       });
   }, 90_000);
@@ -953,7 +953,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     writeFileSync(extraManifestPath, `${JSON.stringify(extraManifest, null, 2)}\n`);
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: extra,
-    })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
+    })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
 
     const imported = createPolicyFixture();
     const importedDependency = 'scripts/atomic-install-file-family.mjs';
@@ -972,7 +972,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     );
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: imported,
-    })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
+    })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_TOO_LARGE');
 
     const unreviewedInstalledImport = createPolicyFixture();
     const closureVerifier = resolve(
@@ -1316,7 +1316,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     );
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: extra,
-    })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
+    })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_TOO_LARGE');
   }, 90_000);
 
   it('loads separated credentials only into the guarded no-argv entrypoint', () => {

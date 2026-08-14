@@ -86,6 +86,13 @@ export declare function reconcileProductionPlayerCanaryReceiptInstallation(input
     result: 'unchanged';
   }
 >;
+export declare function inspectSettledProductionPlayerCanaryReceipt(
+  input: Readonly<{ expectedReceiptDigest: string }>,
+): Readonly<{
+  filename: string;
+  receiptDigest: string;
+  receipt: Readonly<Record<string, unknown>>;
+}>;
 export declare const productionPlayerCanaryReceiptTestSeams: Readonly<{
   installReceipt: (
     input: Readonly<{ receipt: unknown; directory?: string; randomId?: () => string }>,
@@ -96,6 +103,10 @@ export declare const productionPlayerCanaryReceiptTestSeams: Readonly<{
     result: 'installed' | 'unchanged';
   }>;
   reconcileReceiptDirectory: (directory: string) => void;
+  inspectSettledReceiptAtDirectory: (
+    directory: string,
+    expectedReceiptDigest: string,
+  ) => ReturnType<typeof inspectSettledProductionPlayerCanaryReceipt>;
   inspectActivationAuthority: (
     input: Readonly<Record<string, unknown>>,
     now: number,

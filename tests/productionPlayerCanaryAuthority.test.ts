@@ -820,6 +820,24 @@ describe('production player canary authority', () => {
       randomId: () => '2'.repeat(32),
     });
     expect(installed.receiptDigest).toBe(intent.receiptDigest);
+    const beforeReadOnlyInspection = readdirSync(directory).map(name => ({
+      name,
+      bytes: readFileSync(join(directory, name)).toString('base64'),
+      mtimeNs: statSync(join(directory, name), { bigint: true }).mtimeNs,
+    }));
+    expect(receiptTestSeams.inspectSettledReceiptAtDirectory(
+      directory,
+      intent.receiptDigest,
+    )).toMatchObject({
+      filename: installed.filename,
+      receiptDigest: intent.receiptDigest,
+      receipt: { evidenceAuthority: authority },
+    });
+    expect(readdirSync(directory).map(name => ({
+      name,
+      bytes: readFileSync(join(directory, name)).toString('base64'),
+      mtimeNs: statSync(join(directory, name), { bigint: true }).mtimeNs,
+    }))).toEqual(beforeReadOnlyInspection);
     expect(reconcileProductionPlayerCanaryReceiptInstallation({
       directory,
       expectedReceiptDigest: intent.receiptDigest,
@@ -846,6 +864,12 @@ describe('production player canary authority', () => {
       afterLink: () => { throw new Error('simulated-sigkill-after-link'); },
     })).toThrow('PRODUCTION_PLAYER_CANARY_RECEIPT_INSTALL_INVALID');
     expect(readdirSync(linkedDirectory)).toHaveLength(2);
+    const linkedBeforeInspection = readdirSync(linkedDirectory).sort();
+    expect(() => receiptTestSeams.inspectSettledReceiptAtDirectory(
+      linkedDirectory,
+      intent.receiptDigest,
+    )).toThrow('PRODUCTION_PLAYER_CANARY_RECEIPT_NOT_SETTLED');
+    expect(readdirSync(linkedDirectory).sort()).toEqual(linkedBeforeInspection);
     expect(reconcileProductionPlayerCanaryReceiptInstallation({
       directory: linkedDirectory,
       expectedReceiptDigest: intent.receiptDigest,
@@ -868,6 +892,13 @@ describe('production player canary authority', () => {
     } finally {
       bytes.fill(0);
     }
+    const unpublishedBeforeInspection = readdirSync(unpublishedDirectory).sort();
+    expect(() => receiptTestSeams.inspectSettledReceiptAtDirectory(
+      unpublishedDirectory,
+      intent.receiptDigest,
+    )).toThrow('PRODUCTION_PLAYER_CANARY_RECEIPT_NOT_SETTLED');
+    expect(readdirSync(unpublishedDirectory).sort())
+      .toEqual(unpublishedBeforeInspection);
     expect(reconcileProductionPlayerCanaryReceiptInstallation({
       directory: unpublishedDirectory,
       expectedReceiptDigest: intent.receiptDigest,

@@ -246,7 +246,7 @@ describe('Greater Realm release-gate deployment boundary', () => {
     expect(checkedMembers).toEqual(
       AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS,
     );
-    expect(checkedMembers).toHaveLength(382);
+    expect(checkedMembers).toHaveLength(384);
     for (const member of boundaryMembers) {
       expect(checkedMembers).toContain(member);
       expect(policy.split(`'${member}'`)).toHaveLength(2);

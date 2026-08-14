@@ -26,6 +26,7 @@ import {
   requireFreshProductionPlayerCanaryActivationAuthority,
 } from './production-player-canary-receipt.mjs';
 import {
+  defaultProductionAdminStateDirectory,
   ensureCanonicalProductionAdminStateDirectory,
 } from './production-admin-token-budget.mjs';
 
@@ -76,10 +77,25 @@ function fail(code) {
 }
 
 function exactKeys(value, keys) {
-  return value !== null
-    && typeof value === 'object'
-    && !Array.isArray(value)
-    && Object.keys(value).join('\0') === keys.join('\0');
+  if (
+    value === null
+    || typeof value !== 'object'
+    || Array.isArray(value)
+    || Object.getPrototypeOf(value) !== Object.prototype
+  ) return false;
+  const ownKeys = Reflect.ownKeys(value);
+  if (
+    ownKeys.some(key => typeof key !== 'string')
+    || ownKeys.join('\0') !== keys.join('\0')
+  ) return false;
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  return ownKeys.every(key => {
+    const descriptor = descriptors[key];
+    return descriptor.enumerable === true
+      && Object.hasOwn(descriptor, 'value')
+      && !Object.hasOwn(descriptor, 'get')
+      && !Object.hasOwn(descriptor, 'set');
+  });
 }
 
 function fixedPrivateFile(path, maximumBytes, code) {
@@ -260,7 +276,7 @@ function canonicalRequestBytes(request) {
   return Buffer.from(`${JSON.stringify(request, null, 2)}\n`, 'utf8');
 }
 
-function requireInspectedActivationRequestReferences(
+export function requireInspectedActivationRequestReferences(
   request,
   inspectedPlan,
   inspectedApproval,
@@ -285,6 +301,34 @@ function requireInspectedActivationRequestReferences(
       !== plan.notificationPagesLiveRootPagesSourceCommit
   ) fail('PRODUCTION_PLAYER_CANARY_ACTIVATION_REQUEST_REFERENCE_MISMATCH');
   return request;
+}
+
+function probeExactPrivateDirectory(path, parent, code) {
+  try { lstatSync(path); } catch (error) {
+    if (error?.code === 'ENOENT') return undefined;
+    fail(code);
+  }
+  return exactPrivateDirectory(path, parent, code);
+}
+
+function fixedDeployStateDirectoryIfPresent() {
+  const productionAdmin = defaultProductionAdminStateDirectory();
+  const home = dirname(dirname(dirname(productionAdmin)));
+  let parent = home;
+  for (const name of ['.warpkeep', 'private', 'production-admin-v1']) {
+    const child = probeExactPrivateDirectory(
+      join(parent, name),
+      parent,
+      'PRODUCTION_PLAYER_CANARY_DEPLOY_STATE_DIRECTORY_INVALID',
+    );
+    if (child === undefined) return undefined;
+    parent = child;
+  }
+  return probeExactPrivateDirectory(
+    join(parent, PRODUCTION_PLAYER_CANARY_DEPLOY_STATE_CHILD),
+    parent,
+    'PRODUCTION_PLAYER_CANARY_DEPLOY_STATE_DIRECTORY_INVALID',
+  );
 }
 
 function matchingRequestTemporaries(stateDirectory) {
@@ -312,6 +356,105 @@ function exactExpectedTemporary(path, expectedBytes) {
   } finally {
     inspected.bytes.fill(0);
   }
+}
+
+function preflightCanonicalRequestAtStateDirectory(
+  stateDirectory,
+  requestValue,
+) {
+  const request = parseProductionPlayerCanaryActivationRequest(requestValue);
+  const names = (() => {
+    try { return readdirSync(stateDirectory).sort(); } catch {
+      return fail('PRODUCTION_PLAYER_CANARY_ACTIVATION_REQUEST_FILE_INVALID');
+    }
+  })();
+  if (names.some(name =>
+    name !== PRODUCTION_PLAYER_CANARY_ACTIVATION_REQUEST_BASENAME
+      && name !== PRODUCTION_PLAYER_CANARY_LAUNCH_SECRETS_CHILD
+      && !REQUEST_TEMPORARY.test(name))) {
+    fail('PRODUCTION_PLAYER_CANARY_ACTIVATION_REQUEST_FILE_INVALID');
+  }
+  if (names.includes(PRODUCTION_PLAYER_CANARY_LAUNCH_SECRETS_CHILD)) {
+    exactPrivateDirectory(
+      join(stateDirectory, PRODUCTION_PLAYER_CANARY_LAUNCH_SECRETS_CHILD),
+      stateDirectory,
+      'PRODUCTION_PLAYER_CANARY_DEPLOY_SECRET_DIRECTORY_INVALID',
+    );
+  }
+  const destination = join(
+    stateDirectory,
+    PRODUCTION_PLAYER_CANARY_ACTIVATION_REQUEST_BASENAME,
+  );
+  const bytes = canonicalRequestBytes(request);
+  const activationRequestDigest = createHash('sha256').update(bytes).digest('hex');
+  try {
+    const temporaries = matchingRequestTemporaries(stateDirectory);
+    let destinationStatus;
+    try { destinationStatus = lstatSync(destination, { bigint: true }); } catch (error) {
+      if (error?.code !== 'ENOENT') {
+        fail('PRODUCTION_PLAYER_CANARY_ACTIVATION_REQUEST_FILE_INVALID');
+      }
+    }
+    if (destinationStatus === undefined) {
+      for (const temporary of temporaries) {
+        if (exactExpectedTemporary(temporary, bytes).nlink !== 1n) {
+          fail('PRODUCTION_PLAYER_CANARY_ACTIVATION_REQUEST_FILE_INVALID');
+        }
+      }
+      return Object.freeze({
+        state: temporaries.length === 0 ? 'absent' : 'recoverable',
+        activationRequestDigest,
+      });
+    }
+    const installed = readPrivateFileWithLinks(
+      destination,
+      destinationStatus.nlink,
+    );
+    try {
+      if (!installed.bytes.equals(bytes)) {
+        fail('PRODUCTION_PLAYER_CANARY_ACTIVATION_REQUEST_CONFLICT');
+      }
+    } finally { installed.bytes.fill(0); }
+    let linkedAliases = 0;
+    for (const temporary of temporaries) {
+      const status = exactExpectedTemporary(temporary, bytes);
+      if (
+        status.dev === destinationStatus.dev
+        && status.ino === destinationStatus.ino
+      ) linkedAliases += 1;
+      else if (status.nlink !== 1n) {
+        fail('PRODUCTION_PLAYER_CANARY_ACTIVATION_REQUEST_FILE_INVALID');
+      }
+    }
+    if (BigInt(linkedAliases) !== destinationStatus.nlink - 1n) {
+      fail('PRODUCTION_PLAYER_CANARY_ACTIVATION_REQUEST_FILE_INVALID');
+    }
+    return Object.freeze({
+      state: temporaries.length === 0 ? 'installed' : 'recoverable',
+      activationRequestDigest,
+    });
+  } finally { bytes.fill(0); }
+}
+
+/** Read-only publication-state check used before any directory or file write. */
+export function preflightProductionPlayerCanaryActivationRequestPublication(
+  input = {},
+) {
+  if (
+    !exactKeys(input, ['request'])
+  ) fail('PRODUCTION_PLAYER_CANARY_ACTIVATION_REQUEST_INPUT_INVALID');
+  const request = parseProductionPlayerCanaryActivationRequest(input.request);
+  const stateDirectory = fixedDeployStateDirectoryIfPresent();
+  if (stateDirectory !== undefined) {
+    return preflightCanonicalRequestAtStateDirectory(stateDirectory, request);
+  }
+  const bytes = canonicalRequestBytes(request);
+  try {
+    return Object.freeze({
+      state: 'absent',
+      activationRequestDigest: createHash('sha256').update(bytes).digest('hex'),
+    });
+  } finally { bytes.fill(0); }
 }
 
 /**
@@ -503,6 +646,8 @@ export async function writeProductionPlayerCanaryActivationRequest({
     inspectedPlan,
     inspectedApproval,
   );
+
+  preflightProductionPlayerCanaryActivationRequestPublication({ request });
 
   const parent = ensureCanonicalProductionAdminStateDirectory();
   const stateDirectory = ensureFixedPrivateDirectory(
@@ -735,6 +880,7 @@ export const productionPlayerCanaryDeployAuthorityTestSeams =
     ? Object.freeze({
       fixedPrivateFile,
       inspectActivationAfterEvidence,
+      preflightCanonicalRequestAtStateDirectory,
       publishCanonicalRequest,
       readCanonicalRequest,
       requireInspectedActivationRequestReferences,

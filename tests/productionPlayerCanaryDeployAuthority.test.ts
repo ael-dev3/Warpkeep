@@ -207,6 +207,87 @@ describe('production player canary deploy authority', () => {
     expect(readdirSync(stateDirectory)).toEqual(['activation-request-v1.json']);
   });
 
+  it('preflights absent, installed, and recoverable publication states read-only', () => {
+    const stateDirectory = mkdtempSync(join(tmpdir(), 'warpkeep-canary-preflight-'));
+    chmodSync(stateDirectory, 0o700);
+    const snapshot = () => readdirSync(stateDirectory).sort().map(name => {
+      const path = join(stateDirectory, name);
+      const status = lstatSync(path, { bigint: true });
+      return {
+        name,
+        bytes: status.isFile() ? readFileSync(path).toString('base64') : null,
+        ino: status.ino,
+        mode: status.mode,
+        nlink: status.nlink,
+        mtimeNs: status.mtimeNs,
+        ctimeNs: status.ctimeNs,
+      };
+    });
+    const digest = createHash('sha256')
+      .update(`${JSON.stringify(request, null, 2)}\n`)
+      .digest('hex');
+    expect(seams.preflightCanonicalRequestAtStateDirectory(
+      stateDirectory,
+      request,
+    )).toEqual({ state: 'absent', activationRequestDigest: digest });
+    expect(snapshot()).toEqual([]);
+
+    seams.publishCanonicalRequest(stateDirectory, request);
+    const installed = snapshot();
+    expect(seams.preflightCanonicalRequestAtStateDirectory(
+      stateDirectory,
+      request,
+    )).toEqual({ state: 'installed', activationRequestDigest: digest });
+    expect(snapshot()).toEqual(installed);
+
+    const destination = join(stateDirectory, 'activation-request-v1.json');
+    const linkedCrash = join(
+      stateDirectory,
+      `.activation-request-v1.json.${'3'.repeat(32)}.tmp`,
+    );
+    linkSync(destination, linkedCrash);
+    const recoverable = snapshot();
+    expect(seams.preflightCanonicalRequestAtStateDirectory(
+      stateDirectory,
+      request,
+    )).toEqual({ state: 'recoverable', activationRequestDigest: digest });
+    expect(snapshot()).toEqual(recoverable);
+  });
+
+  it('detects every known conflict before the writer can create a directory or file', () => {
+    const stateDirectory = mkdtempSync(join(tmpdir(), 'warpkeep-canary-preflight-'));
+    chmodSync(stateDirectory, 0o700);
+    const destination = join(stateDirectory, 'activation-request-v1.json');
+    const conflicting = `${JSON.stringify({
+      ...request,
+      candidatePagesSourceCommit: '9'.repeat(40),
+    }, null, 2)}\n`;
+    writeFileSync(destination, conflicting, { mode: 0o600 });
+    const before = readFileSync(destination);
+    expect(() => seams.preflightCanonicalRequestAtStateDirectory(
+      stateDirectory,
+      request,
+    )).toThrow('PRODUCTION_PLAYER_CANARY_ACTIVATION_REQUEST_CONFLICT');
+    expect(readFileSync(destination)).toEqual(before);
+    expect(readdirSync(stateDirectory)).toEqual(['activation-request-v1.json']);
+
+    const source = readFileSync(
+      join(process.cwd(), 'scripts/production-player-canary-deploy-authority.mjs'),
+      'utf8',
+    );
+    const writer = source.slice(source.indexOf(
+      'export async function writeProductionPlayerCanaryActivationRequest',
+    ));
+    expect(writer.indexOf(
+      'preflightProductionPlayerCanaryActivationRequestPublication({ request });',
+    )).toBeGreaterThanOrEqual(0);
+    expect(writer.indexOf(
+      'preflightProductionPlayerCanaryActivationRequestPublication({ request });',
+    )).toBeLessThan(writer.indexOf(
+      'const parent = ensureCanonicalProductionAdminStateDirectory();',
+    ));
+  });
+
   it('leaves a different installed request untouched', () => {
     const stateDirectory = mkdtempSync(join(tmpdir(), 'warpkeep-canary-conflict-'));
     chmodSync(stateDirectory, 0o700);

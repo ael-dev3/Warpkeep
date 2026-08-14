@@ -225,6 +225,8 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/notification-pages-release-source-parser.mjs',
     'scripts/production-admin-token-budget.d.mts',
     'scripts/production-admin-token-budget.mjs',
+    'scripts/production-player-canary-activation-launcher.d.mts',
+    'scripts/production-player-canary-activation-launcher.mjs',
     'scripts/production-player-canary-admin-transport.ts',
     'scripts/production-player-canary-approval-reconciliation.d.mts',
     'scripts/production-player-canary-approval-reconciliation.mjs',

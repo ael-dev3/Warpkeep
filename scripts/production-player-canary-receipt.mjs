@@ -776,6 +776,81 @@ export function reconcileProductionPlayerCanaryReceiptInstallation({
   });
 }
 
+function inspectSettledReceiptAtDirectory(directory, expectedReceiptDigest) {
+  if (!exactDigest(expectedReceiptDigest)) {
+    fail('PRODUCTION_PLAYER_CANARY_RECEIPT_INSPECTION_INPUT_INVALID');
+  }
+  const canonicalDirectory = exactDirectory(
+    directory,
+    'PRODUCTION_PLAYER_CANARY_RECEIPT_DIRECTORY_INVALID',
+  );
+  const filename = `production-player-canary-${expectedReceiptDigest}.json`;
+  let names;
+  try { names = readdirSync(canonicalDirectory).sort(); } catch {
+    fail('PRODUCTION_PLAYER_CANARY_RECEIPT_DIRECTORY_INVALID');
+  }
+  if (names.length !== 1 || names[0] !== filename) {
+    fail('PRODUCTION_PLAYER_CANARY_RECEIPT_NOT_SETTLED');
+  }
+  const bytes = readExactReceipt(
+    join(canonicalDirectory, filename),
+    expectedReceiptDigest,
+  );
+  try {
+    let parsed;
+    try {
+      parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    } catch {
+      fail('PRODUCTION_PLAYER_CANARY_RECEIPT_INVALID');
+    }
+    const receipt = parseProductionPlayerCanaryReceipt(parsed);
+    const canonical = canonicalProductionPlayerCanaryReceiptBytes(receipt);
+    try {
+      if (!canonical.equals(bytes)) {
+        fail('PRODUCTION_PLAYER_CANARY_RECEIPT_NONCANONICAL');
+      }
+    } finally { canonical.fill(0); }
+    return Object.freeze({
+      filename,
+      receiptDigest: expectedReceiptDigest,
+      receipt,
+    });
+  } finally { bytes.fill(0); }
+}
+
+/**
+ * Inspect exactly one installed receipt. Unlike reconciliation, this function
+ * never removes a temporary, installs a hard link, or fsyncs a directory.
+ */
+export function inspectSettledProductionPlayerCanaryReceipt(input = {}) {
+  const ownKeys = input !== null && typeof input === 'object'
+    ? Reflect.ownKeys(input)
+    : [];
+  if (
+    input === null
+    || typeof input !== 'object'
+    || Array.isArray(input)
+    || Object.getPrototypeOf(input) !== Object.prototype
+    || ownKeys.some(key => typeof key !== 'string')
+    || ownKeys.join('\0') !== 'expectedReceiptDigest'
+    || (() => {
+      const descriptor = Object.getOwnPropertyDescriptor(
+        input,
+        'expectedReceiptDigest',
+      );
+      return descriptor === undefined
+        || descriptor.enumerable !== true
+        || !Object.hasOwn(descriptor, 'value')
+        || Object.hasOwn(descriptor, 'get')
+        || Object.hasOwn(descriptor, 'set');
+    })()
+  ) fail('PRODUCTION_PLAYER_CANARY_RECEIPT_INSPECTION_INPUT_INVALID');
+  return inspectSettledReceiptAtDirectory(
+    defaultProductionPlayerCanaryReceiptDirectory(),
+    input.expectedReceiptDigest,
+  );
+}
+
 export function installProductionPlayerCanaryReceipt(input) {
   const authority = requireProductionPlayerCanaryExpectedEvidenceAuthority(
     input?.evidenceAuthority,
@@ -802,6 +877,7 @@ export const productionPlayerCanaryReceiptTestSeams =
     ? Object.freeze({
       exactDirectory,
       inspectActivationAuthority,
+      inspectSettledReceiptAtDirectory,
       installReceipt,
       reconcileReceiptDirectory,
       receiptName: RECEIPT_NAME,
