@@ -20,6 +20,7 @@ import {
   castleWorkerErrorCode,
   runCastleWorkerSchedule,
 } from './castleWorkerAuthority';
+import { runBoundedDueCastleWorkerScheduleDrainV1 } from './castleWorkerPolicy';
 import {
   dailyMarksErrorCode,
   runDailyMarkSchedule,
@@ -2119,13 +2120,42 @@ export const runStoneExpeditionScheduleV1 = warpkeep.reducer(
   },
 );
 
-/** Scheduler-only lifecycle reducer for staged generic castle workers. */
+function workerScheduleAtMicros(
+  schedule: Parameters<typeof runCastleWorkerSchedule>[1],
+): bigint | undefined {
+  const value = schedule.scheduledAt.value;
+  return schedule.scheduledAt.tag === 'Time'
+    && typeof value === 'object'
+    && value !== null
+    && 'microsSinceUnixEpoch' in value
+    && typeof value.microsSinceUnixEpoch === 'bigint'
+    ? value.microsSinceUnixEpoch
+    : undefined;
+}
+
+function runCastleWorkerScheduleWithDueDrain(
+  ctx: Parameters<typeof runCastleWorkerSchedule>[0],
+  initial: Parameters<typeof runCastleWorkerSchedule>[1],
+): void {
+  const observedAtMicros = ctx.timestamp.microsSinceUnixEpoch;
+  runBoundedDueCastleWorkerScheduleDrainV1(
+    initial,
+    observedAtMicros,
+    current => runCastleWorkerSchedule(ctx, current),
+    assignmentId => [...ctx.db.workerAssignmentScheduleV1.byAssignment.filter(
+      assignmentId,
+    )],
+    workerScheduleAtMicros,
+  );
+}
+
+/** Scheduler-only lifecycle reducer with a bounded same-assignment due drain. */
 export const runCastleWorkerScheduleV1 = warpkeep.reducer(
   { name: 'run_worker_assignment_schedule_v_1' },
   { arg: workerAssignmentScheduleV1.rowType },
   (ctx, { arg }) => {
     try {
-      runCastleWorkerSchedule(ctx, arg);
+      runCastleWorkerScheduleWithDueDrain(ctx, arg);
     } catch (error) {
       const code = castleWorkerErrorCode(error);
       if (code !== undefined) throw new SenderError(code);

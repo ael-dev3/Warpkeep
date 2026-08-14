@@ -1,15 +1,31 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { relative, sep } from 'node:path';
+import {
+  readFileSync,
+  realpathSync,
+  statSync,
+} from 'node:fs';
+import {
+  dirname,
+  extname,
+  isAbsolute,
+  relative,
+  resolve,
+  sep,
+} from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { build, type Plugin } from 'esbuild';
+import { build, type Loader, type Plugin } from 'esbuild';
 
 import type * as FoundingAuthority from '../src/foundingAuthority';
 import type * as RelocationAuthority from '../src/greaterRealmRelocationAuthority';
 import type * as CutoverStatus from '../src/greaterRealmCutoverStatus';
 import type * as CutoverAudit from '../src/greaterRealmCutoverAudit';
 import type * as CastleWorkerAuthority from '../src/castleWorkerAuthority';
+import type * as ProductionPlayerCanaryApproval from '../src/productionPlayerCanaryApproval';
+import type * as ProductionPlayerCanaryBaseline from '../src/productionPlayerCanaryBaseline';
+import type * as ProductionPlayerCanaryRecovery from '../src/productionPlayerCanaryRecovery';
+import type * as ProductionPlayerCanaryEvidence from '../src/productionPlayerCanaryEvidence';
+import type * as ProductionPlayerCanaryRoutePolicy from '../src/productionPlayerCanaryRoutePolicy';
 
 import {
   assertGreaterRealmCurrentFounderForFidV1,
@@ -31,12 +47,20 @@ import {
 } from '../src/greaterRealmRelocationSnapshot';
 import { GENESIS_RESOURCE_POLICY_VERSION } from '../src/resourceAuthorityPolicy';
 import {
+  CASTLE_WORKER_TRAVEL_MICROS_PER_STEP,
   CASTLE_WORKER_POLICY_VERSION,
+  PRODUCTION_PLAYER_CANARY_GATHERING_DURATION_MICROS,
   planCastleWorkerTimeline,
   rosterDigestForCastleIds,
+  runBoundedDueCastleWorkerScheduleDrainV1,
   workerResourcePolicy,
 } from '../src/castleWorkerPolicy';
 import { expectedWorkerRowsForCastle } from '../src/castleWorkerRoster';
+import {
+  encodeProductionPlayerCanaryRecoverySnapshotV2,
+  parseProductionPlayerCanaryRecoverySnapshotV2,
+} from '../src/productionPlayerCanaryRecoveryPolicy';
+import { WARPKEEP_ALPHA_TERMS_VERSION } from '../src/entryAgreementPolicy';
 import { ADMITTED_DAILY_MARK_POLICY_VERSION } from '../src/marksAuthorityPolicy';
 import { CANONICAL_INNER_KEEP_LAYOUT } from '../src/innerKeepLayoutPolicy';
 import { INNER_KEEP_POLICY_VERSION } from '../src/innerKeepPolicy';
@@ -62,15 +86,61 @@ import {
   HEGEMONY_REALM_ID,
 } from '../src/world';
 
+const repositoryRoot = realpathSync(fileURLToPath(new URL('../../', import.meta.url)));
+
+function exactLocalSourcePath(
+  importPath: string,
+  resolveDir: string,
+): string | undefined {
+  const unresolved = isAbsolute(importPath)
+    ? resolve(importPath)
+    : resolve(resolveDir, importPath);
+  const candidates = [
+    unresolved,
+    `${unresolved}.ts`,
+    `${unresolved}.tsx`,
+    `${unresolved}.js`,
+    `${unresolved}.mjs`,
+    `${unresolved}.json`,
+    resolve(unresolved, 'index.ts'),
+  ];
+  for (const candidate of candidates) {
+    const fromRoot = relative(repositoryRoot, candidate);
+    if (fromRoot === '..' || fromRoot.startsWith(`..${sep}`) || isAbsolute(fromRoot)) {
+      continue;
+    }
+    try {
+      if (!statSync(candidate).isFile() || realpathSync(candidate) !== candidate) continue;
+      return candidate;
+    } catch {
+      // Try the next exact extension candidate.
+    }
+  }
+  return undefined;
+}
+
 const sdkRuntimeStub: Plugin = {
-  name: 'warpkeep-greater-realm-founding-test-runtime',
+  name: 'warpkeep-stateful-host-read-runtime',
   setup(buildContext) {
-    buildContext.onResolve(
-      { filter: /^spacetimedb(?:\/server)?$/ },
-      args => ({ path: args.path, namespace: 'warpkeep-greater-realm-sdk' }),
-    );
+    buildContext.onResolve({ filter: /^spacetimedb(?:\/server)?$/ }, args => ({
+      path: args.path,
+      namespace: 'warpkeep-stateful-sdk',
+    }));
+    buildContext.onResolve({ filter: /^node:/ }, args => ({
+      path: args.path,
+      external: true,
+    }));
+    buildContext.onResolve({ filter: /.*/ }, args => {
+      const localPath = exactLocalSourcePath(args.path, args.resolveDir);
+      if (localPath === undefined) {
+        return {
+          errors: [{ text: `stateful bundle import rejected: ${args.path}` }],
+        };
+      }
+      return { path: localPath, namespace: 'warpkeep-stateful-local' };
+    });
     buildContext.onLoad(
-      { filter: /.*/, namespace: 'warpkeep-greater-realm-sdk' },
+      { filter: /.*/, namespace: 'warpkeep-stateful-sdk' },
       args => ({
         loader: 'js',
         contents: args.path === 'spacetimedb'
@@ -80,40 +150,68 @@ const sdkRuntimeStub: Plugin = {
                 value: Object.freeze({ microsSinceUnixEpoch })
               })
             });`
-          : `
-              export class SenderError extends Error {
-                constructor(message) {
-                  super(message);
-                  this.name = 'SenderError';
-                }
+          : `export class SenderError extends Error {
+              constructor(message) {
+                super(message);
+                this.name = 'SenderError';
               }
-            `,
+            }`,
       }),
+    );
+    buildContext.onLoad(
+      { filter: /.*/, namespace: 'warpkeep-stateful-local' },
+      args => {
+        const extension = extname(args.path);
+        const loader: Loader = extension === '.tsx'
+          ? 'tsx'
+          : extension === '.ts'
+            ? 'ts'
+            : extension === '.json'
+              ? 'json'
+              : 'js';
+        return {
+          contents: readFileSync(args.path),
+          loader,
+          resolveDir: dirname(args.path),
+        };
+      },
     );
   },
 };
 
 async function loadExactProductionModule<Module>(sourceUrl: URL): Promise<Module> {
   const sourcePath = fileURLToPath(sourceUrl);
-  const repositoryRoot = fileURLToPath(new URL('../../', import.meta.url));
+  const label = relative(repositoryRoot, sourcePath).split(sep).join('/');
+  const trace = process.env.WARPKEEP_STATEFUL_BUNDLE_TRACE === '1';
+  if (trace) process.stderr.write(`bundle:start:${label}\n`);
   const result = await build({
     absWorkingDir: repositoryRoot,
     bundle: true,
-    entryPoints: [sourcePath],
     format: 'esm',
     logLevel: 'silent',
     metafile: true,
     platform: 'node',
     plugins: [sdkRuntimeStub],
+    stdin: {
+      contents: `export * from ${JSON.stringify(sourcePath)};`,
+      loader: 'js',
+      resolveDir: repositoryRoot,
+      sourcefile: `stateful-entry-${label.replaceAll('/', '-')}.mjs`,
+    },
     target: 'node22',
     treeShaking: true,
     write: false,
   });
+  if (trace) process.stderr.write(`bundle:built:${label}\n`);
   assert.equal(result.outputFiles.length, 1);
-  const exactInput = relative(repositoryRoot, sourcePath).split(sep).join('/');
-  assert.ok(Object.hasOwn(result.metafile.inputs, exactInput));
+  assert.ok(Object.keys(result.metafile.inputs).some(
+    input => input.endsWith(label),
+  ));
   const encoded = Buffer.from(result.outputFiles[0]!.contents).toString('base64');
-  return import(`data:text/javascript;base64,${encoded}`) as Promise<Module>;
+  const loaded = import(`data:text/javascript;base64,${encoded}`) as Promise<Module>;
+  const module = await loaded;
+  if (trace) process.stderr.write(`bundle:imported:${label}\n`);
+  return module;
 }
 
 const {
@@ -153,11 +251,43 @@ const {
   inspectCastleWorkerGraphForCurrentGameplayV1,
   projectMyGreaterRealmWorkerStateV2,
   projectMyWorkerStateForCurrentGameplayV1,
+  recallAllCastleWorkers,
   recallCastleWorker,
   recallCastleWorkerForExactCanaryAssignment,
   runCastleWorkerSchedule,
+  settleAllWorkerAssignmentsForFid,
 } = await loadExactProductionModule<typeof CastleWorkerAuthority>(
   new URL('../src/castleWorkerAuthority.ts', import.meta.url),
+);
+const {
+  captureProductionPlayerCanaryBaseline,
+  inspectProductionPlayerCanaryRoutePlan,
+} = await loadExactProductionModule<typeof ProductionPlayerCanaryBaseline>(
+  new URL('../src/productionPlayerCanaryBaseline.ts', import.meta.url),
+);
+const {
+  productionPlayerCanaryOwnerApprovalCommitmentV1,
+  registerProductionPlayerCanaryApprovalV1,
+} = await loadExactProductionModule<typeof ProductionPlayerCanaryApproval>(
+  new URL('../src/productionPlayerCanaryApproval.ts', import.meta.url),
+);
+const {
+  productionPlayerCanaryCommandAuthorityV2,
+} = await loadExactProductionModule<typeof ProductionPlayerCanaryRoutePolicy>(
+  new URL('../src/productionPlayerCanaryRoutePolicy.ts', import.meta.url),
+);
+const {
+  assertProductionPlayerCanaryGenericWorkerWriteAvailableV2,
+  dispatchProductionPlayerCanaryAwareGreaterRealmWorkerV1,
+  inspectProductionPlayerCanaryRecoveryStatusV1,
+  recallProductionPlayerCanaryWorkerV1,
+} = await loadExactProductionModule<typeof ProductionPlayerCanaryRecovery>(
+  new URL('../src/productionPlayerCanaryRecovery.ts', import.meta.url),
+);
+const {
+  inspectProductionPlayerCanaryAdminEvidence,
+} = await loadExactProductionModule<typeof ProductionPlayerCanaryEvidence>(
+  new URL('../src/productionPlayerCanaryEvidence.ts', import.meta.url),
 );
 
 type Row = Record<string, any>;
@@ -169,15 +299,16 @@ function clone<T>(value: T): T {
 class MemoryTable {
   rows: Row[];
   readonly primary: string;
-  readonly indexFields: Readonly<Record<string, string>>;
+  readonly indexFields: Readonly<Record<string, string | readonly string[]>>;
   readonly uniqueFields: ReadonlySet<string>;
   readonly autoInc: boolean;
+  nextAutoInc = 1n;
   mutate: () => void;
   [key: string]: any;
 
   constructor(
     primary: string,
-    indexFields: Readonly<Record<string, string>> = {},
+    indexFields: Readonly<Record<string, string | readonly string[]>> = {},
     rows: readonly Row[] = [],
     autoInc = false,
   ) {
@@ -186,26 +317,36 @@ class MemoryTable {
     this.uniqueFields = new Set([
       primary,
       ...Object.entries(indexFields)
-        .filter(([accessor]) => !accessor.startsWith('by'))
-        .map(([, field]) => field),
+        .filter(([accessor, field]) => (
+          !accessor.startsWith('by') && typeof field === 'string'
+        ))
+        .map(([, field]) => field as string),
     ]);
     this.rows = clone(rows as Row[]);
     this.autoInc = autoInc;
     this.mutate = () => {};
     for (const [accessor, field] of Object.entries(this.indexFields)) {
+      const matches = (row: Row, value: unknown) => Array.isArray(field)
+        ? Array.isArray(value)
+          && value.length === field.length
+          && field.every((column, index) => row[column] === value[index])
+        : row[field as string] === value;
       this[accessor] = {
-        find: (value: unknown) => this.rows.find(row => row[field] === value) ?? null,
-        filter: (value: unknown) => this.rows.filter(row => row[field] === value),
+        find: (value: unknown) => this.rows.find(row => matches(row, value)) ?? null,
+        filter: (value: unknown) => this.rows.filter(row => matches(row, value)),
         update: (next: Row) => {
           this.mutate();
-          const index = this.rows.findIndex(row => row[field] === next[field]);
+          const key = Array.isArray(field)
+            ? field.map(column => next[column])
+            : next[field as string];
+          const index = this.rows.findIndex(row => matches(row, key));
           if (index < 0) throw new Error(`missing update ${accessor}`);
           this.rows[index] = clone(next);
           return this.rows[index];
         },
         delete: (value: unknown) => {
           this.mutate();
-          const index = this.rows.findIndex(row => row[field] === value);
+          const index = this.rows.findIndex(row => matches(row, value));
           if (index < 0) return false;
           this.rows.splice(index, 1);
           return true;
@@ -226,12 +367,17 @@ class MemoryTable {
     this.mutate();
     const inserted = clone(row);
     if (this.autoInc && inserted[this.primary] === 0n) {
-      inserted[this.primary] = this.rows.reduce(
+      const currentMaximum = this.rows.reduce(
         (maximum, existing) => existing[this.primary] > maximum
           ? existing[this.primary] as bigint
           : maximum,
         0n,
-      ) + 1n;
+      );
+      if (this.nextAutoInc <= currentMaximum) {
+        this.nextAutoInc = currentMaximum + 1n;
+      }
+      inserted[this.primary] = this.nextAutoInc;
+      this.nextAutoInc += 1n;
     }
     if (this.rows.some(existing => existing[this.primary] === inserted[this.primary])) {
       throw new Error(`duplicate ${this.primary}`);
@@ -250,7 +396,7 @@ class MemoryTable {
 
 function empty(
   primary = 'id',
-  indexes: Readonly<Record<string, string>> = {},
+  indexes: Readonly<Record<string, string | readonly string[]>> = {},
   autoInc = false,
 ): MemoryTable {
   return new MemoryTable(primary, indexes, [], autoInc);
@@ -325,31 +471,31 @@ function tableSet(): Record<string, MemoryTable> {
     alphaTermsAcceptanceV1: empty('acceptanceKey'),
     resourceAccountV1: empty('fid', { castleId: 'castleId' }),
     goldSiteV1: empty('siteId'),
-    goldNodeOccupationV1: empty('siteId'),
+    goldNodeOccupationV1: empty('siteId', { byOriginCastle: 'originCastleId' }),
     goldExpeditionV1: empty('expeditionId', { fid: 'fid' }),
-    goldExpeditionIdempotencyV1: empty('requestKey'),
-    goldExpeditionScheduleV1: empty('scheduleId'),
+    goldExpeditionIdempotencyV1: empty('requestKey', { fid: 'fid' }),
+    goldExpeditionScheduleV1: empty('scheduleId', { originCastleId: 'originCastleId' }),
     realmForestLayoutV1: empty('realmId'),
     realmForestInstanceV1: empty('tileKey'),
     foodSiteV1: empty('siteId'),
-    foodNodeOccupationV1: empty('siteId'),
+    foodNodeOccupationV1: empty('siteId', { byOriginCastle: 'originCastleId' }),
     foodExpeditionV1: empty('expeditionId', { fid: 'fid' }),
-    foodExpeditionIdempotencyV1: empty('requestKey'),
-    foodExpeditionScheduleV1: empty('scheduleId'),
+    foodExpeditionIdempotencyV1: empty('requestKey', { fid: 'fid' }),
+    foodExpeditionScheduleV1: empty('scheduleId', { originCastleId: 'originCastleId' }),
     woodSiteV1: empty('siteId'),
-    woodNodeOccupationV1: empty('siteId'),
+    woodNodeOccupationV1: empty('siteId', { byOriginCastle: 'originCastleId' }),
     woodExpeditionV1: empty('expeditionId', { fid: 'fid' }),
-    woodExpeditionIdempotencyV1: empty('requestKey'),
-    woodExpeditionScheduleV1: empty('scheduleId'),
+    woodExpeditionIdempotencyV1: empty('requestKey', { fid: 'fid' }),
+    woodExpeditionScheduleV1: empty('scheduleId', { originCastleId: 'originCastleId' }),
     realmWaterLayoutV1: empty('realmId'),
     realmWaterBodyV1: empty('bodyId'),
     realmWaterCellV1: empty('cellKey'),
     realmEnvironmentV1: empty('realmId'),
     stoneSiteV1: empty('siteId'),
-    stoneNodeOccupationV1: empty('siteId'),
+    stoneNodeOccupationV1: empty('siteId', { byOriginCastle: 'originCastleId' }),
     stoneExpeditionV1: empty('expeditionId', { fid: 'fid' }),
-    stoneExpeditionIdempotencyV1: empty('requestKey'),
-    stoneExpeditionScheduleV1: empty('scheduleId'),
+    stoneExpeditionIdempotencyV1: empty('requestKey', { fid: 'fid' }),
+    stoneExpeditionScheduleV1: empty('scheduleId', { originCastleId: 'originCastleId' }),
     realmWaterRevisionV1: empty('realmId'),
     realmWorkerSystemV1: empty('realmId'),
     castleWorkerV1: empty('workerId', { byOriginCastle: 'originCastleId' }),
@@ -357,7 +503,10 @@ function tableSet(): Record<string, MemoryTable> {
       'assignmentId',
       { workerId: 'workerId', byFid: 'fid' },
     ),
-    workerNodeOccupationV1: empty('nodeKey', { byWorker: 'workerId' }),
+    workerNodeOccupationV1: empty(
+      'nodeKey',
+      { byWorker: 'workerId', byOriginCastle: 'originCastleId' },
+    ),
     workerCommandIdempotencyV1: empty(
       'requestKey',
       { byFid: 'fid' },
@@ -398,13 +547,30 @@ function tableSet(): Record<string, MemoryTable> {
     greaterRealmCellOccupancyV1: empty('cellKey', { castleId: 'castleId' }),
     greaterRealmResourceNodeV1: empty(
       'nodeId',
-      { releaseOrdinal: 'releaseOrdinal', locationId: 'locationId' },
-      ['locationId'],
+      {
+        releaseOrdinal: 'releaseOrdinal',
+        locationId: 'locationId',
+        byComponentAndResourceKind: ['componentKey', 'resourceKind'],
+      },
     ),
     greaterRealmActivationV1: empty('activationId'),
     realmAtlasV1: empty('atlasId'),
     realmAtlasVisibleRegionV1: empty('regionId'),
     realmWorkerSystemV2: empty('atlasId'),
+    productionPlayerCanaryBaselineV1: empty('challengeDigest', {
+      fid: 'fid',
+      baselineCommitment: 'baselineCommitment',
+      routeSetCommitment: 'routeSetCommitment',
+    }),
+    productionPlayerCanaryApprovalRegistrationV1: empty('challengeDigest', {
+      fid: 'fid',
+      serverBaselineCommitment: 'serverBaselineCommitment',
+      routeSetCommitment: 'routeSetCommitment',
+      commandSetCommitment: 'commandSetCommitment',
+      ownerApprovalArtifactDigest: 'ownerApprovalArtifactDigest',
+      ownerApprovalCommitment: 'ownerApprovalCommitment',
+      approvalRegistrationCommitment: 'approvalRegistrationCommitment',
+    }),
   };
 }
 
@@ -638,6 +804,10 @@ class Fixture {
         tier: 1,
         rootCellKey: `${region.id}:0:0`,
         cellCount: 100,
+        expectedFoodNodeCount: 500,
+        expectedWoodNodeCount: 500,
+        expectedStoneNodeCount: 500,
+        expectedGoldNodeCount: 500,
         active: true,
       });
       db.greaterRealmChunkV1.rows.push({
@@ -710,14 +880,14 @@ class Fixture {
             nodeId: `GRN-${String(resourceOrdinal).padStart(5, '0')}`,
             releaseOrdinal: resourceOrdinal,
             atlasId,
-            locationId: `GRL-${String(resourceOrdinal).padStart(5, '0')}`,
+            locationId: `GRL-${opaqueSuffix(100_000 + resourceOrdinal)}`,
             cellKey: `${region.id}:${index % 100}:0`,
             regionId: region.id,
             componentKey: `GRC-${opaqueSuffix(region.ordinal)}`,
             resourceKind: kind,
             tier: 1,
             nodeOrdinal: 0,
-            allocationRank: resourceOrdinal,
+            allocationRank: GREATER_REALM_UNASSIGNED_RANK,
             legacyCatalogId: region.ordinal === 0 ? `${kind}-${index}` : undefined,
             policyVersion: 'fixture-v1',
             active: false,
@@ -740,6 +910,10 @@ class Fixture {
 
   transaction<T>(work: () => T, faultAt?: number): T {
     const before = this.snapshot();
+    const uuidSequenceBefore = this.uuidSequence;
+    const autoIncBefore = Object.fromEntries(Object.entries(this.tables).map(
+      ([name, table]) => [name, table.nextAutoInc],
+    ));
     this.mutationCount = 0;
     this.faultAt = faultAt;
     try {
@@ -748,6 +922,10 @@ class Fixture {
       return result;
     } catch (error) {
       this.restore(before);
+      this.uuidSequence = uuidSequenceBefore;
+      for (const [name, next] of Object.entries(autoIncBefore)) {
+        this.tables[name]!.nextAutoInc = next;
+      }
       this.faultAt = undefined;
       throw error;
     }
@@ -1112,6 +1290,2312 @@ function addOnePostCommitFounder(
   });
   return Object.freeze({ fid, castleId, claim });
 }
+
+const CANARY_REVIEWED_PLAN_DIGEST = '1'.repeat(64);
+const CANARY_EVIDENCE_NONCE = '2'.repeat(64);
+const CANARY_OWNER_ARTIFACT_DIGEST = '3'.repeat(64);
+
+function prepareProductionPlayerCanaryFixture(
+  beforeRegistration?: (candidate: Readonly<{
+    fixture: Fixture;
+    fid: bigint;
+    registrationInput: Parameters<
+      typeof registerProductionPlayerCanaryApprovalV1
+    >[1];
+  }>) => void,
+) {
+  const fixture = new Fixture();
+  advanceToActive(fixture);
+  const founded = addOnePostCommitFounder(fixture, 50_001n);
+  const db = fixture.tables;
+  const fid = founded.fid;
+  const castle = db.castle.castleId.find(founded.castleId)!;
+  const admittedAt = castle.createdAt;
+  const admittedAtMicros = admittedAt.microsSinceUnixEpoch as bigint;
+  const profile = db.realmProfileV1.fid.find(fid)!;
+  Object.assign(profile, {
+    firstAuthenticatedAt: admittedAt,
+    profileUpdatedAt: admittedAt,
+    publicStatus: 'active',
+    communityStatsVisible: true,
+    totalSnapBurnedMicros: undefined,
+    marksEarnedMicros: 0n,
+    marksSpentMicros: 0n,
+    marksBalanceMicros: 0n,
+    marksPolicyVersion: ADMITTED_DAILY_MARK_POLICY_VERSION,
+  });
+  const resource = db.resourceAccountV1.fid.find(fid)!;
+  Object.assign(resource, {
+    food: 0n,
+    wood: 0n,
+    stone: 0n,
+    gold: 0n,
+    settledThroughMicros: admittedAtMicros,
+    revision: 0n,
+    createdAt: admittedAt,
+    updatedAt: admittedAt,
+  });
+  db.accessRequestV1.insert({
+    fid,
+    requestCycle: 0n,
+    requestedAt: timestamp(admittedAtMicros - 1n),
+  });
+  db.playerV2.insert({
+    fid,
+    username: undefined,
+    displayName: undefined,
+    pfpUrl: undefined,
+    joinedAt: admittedAt,
+    status: 'active',
+  });
+  db.playerOwnershipV2.insert({ fid, identity: `fixture:${fid.toString()}` });
+  db.alphaTermsAcceptanceV1.insert({
+    acceptanceKey: `${fid.toString()}:${WARPKEEP_ALPHA_TERMS_VERSION}`,
+    fid,
+    termsVersion: WARPKEEP_ALPHA_TERMS_VERSION,
+    acceptedAt: admittedAt,
+  });
+  db.adminAudit.insert({
+    id: 0n,
+    action: 'admit_founder_for_access_request_v2',
+    targetFid: fid,
+    actorSubject: 'admin:canary-fixture',
+    createdAt: admittedAt,
+    note: 'exact production player canary fixture',
+  });
+
+  const authorityAtMicros = 1_000_000_000_000n;
+  fixture.ctx.timestamp = timestamp(authorityAtMicros);
+  const baselineInput = Object.freeze({
+    fid,
+    reviewedAdmissionPlanDigest: CANARY_REVIEWED_PLAN_DIGEST,
+    evidenceNonce: CANARY_EVIDENCE_NONCE,
+  });
+  const baseline = fixture.transaction(() => (
+    captureProductionPlayerCanaryBaseline(fixture.ctx, baselineInput)
+  ));
+  assert.equal(baseline.baselineCaptured, true);
+  const routePlan = inspectProductionPlayerCanaryRoutePlan(
+    fixture.ctx,
+    baselineInput,
+  );
+  const commands = productionPlayerCanaryCommandAuthorityV2({
+    challengeDigest: baseline.challengeDigest,
+    reviewedAdmissionPlanDigest: baselineInput.reviewedAdmissionPlanDigest,
+    serverBaselineCommitment: baseline.serverBaselineCommitment,
+    routeSetCommitment: baseline.routeSetCommitment,
+  });
+  const ownerApprovalCommitment = productionPlayerCanaryOwnerApprovalCommitmentV1({
+    evidenceNonce: baselineInput.evidenceNonce,
+    ownerApprovalArtifactDigest: CANARY_OWNER_ARTIFACT_DIGEST,
+    serverBaselineCommitment: baseline.serverBaselineCommitment,
+    routeSetCommitment: baseline.routeSetCommitment,
+  });
+  const notAfterMicros = authorityAtMicros + 20_000_000_000n;
+  const registrationInput = Object.freeze({
+    ...baselineInput,
+    serverBaselineCommitment: baseline.serverBaselineCommitment,
+    routeSetCommitment: baseline.routeSetCommitment,
+    commandKeyPolicyVersion: commands.commandKeyPolicyVersion,
+    commandSetCommitment: commands.commandSetCommitment,
+    ownerApprovalArtifactDigest: CANARY_OWNER_ARTIFACT_DIGEST,
+    ownerApprovalCommitment,
+    approvedAtMicros: authorityAtMicros,
+    notAfterMicros,
+  });
+  beforeRegistration?.(Object.freeze({ fixture, fid, registrationInput }));
+  const registration = fixture.transaction(() => (
+    registerProductionPlayerCanaryApprovalV1(fixture.ctx, registrationInput)
+  ));
+  return Object.freeze({
+    fixture,
+    fid,
+    castle,
+    baselineInput,
+    baseline,
+    routePlan,
+    commands,
+    registrationInput,
+    registration,
+  });
+}
+
+type PreparedCanaryFixture = ReturnType<typeof prepareProductionPlayerCanaryFixture>;
+
+function dispatchProductionCanaryOrdinal(
+  prepared: PreparedCanaryFixture,
+  ordinal: number,
+) {
+  const { fixture, fid, castle, routePlan, commands, registration } = prepared;
+  const route = routePlan.routes[ordinal - 1]!;
+  const command = commands.commands[ordinal - 1]!;
+  fixture.ctx.timestamp = timestamp(registration.approvedAtMicros + BigInt(ordinal));
+  return fixture.transaction(() => (
+    dispatchProductionPlayerCanaryAwareGreaterRealmWorkerV1(fixture.ctx, {
+      fid,
+      castle,
+      workerId: route.workerId,
+      resourceKind: route.resourceKind,
+      locationId: route.locationId,
+      expectedRevision: route.atlasRevision,
+      idempotencyKey: command.dispatchIdempotencyKey,
+    })
+  ));
+}
+
+function replayProductionCanaryOrdinalAtCurrentTime(
+  prepared: PreparedCanaryFixture,
+  ordinal: number,
+) {
+  const { fixture, fid, castle, routePlan, commands } = prepared;
+  const route = routePlan.routes[ordinal - 1]!;
+  const command = commands.commands[ordinal - 1]!;
+  return fixture.transaction(() => (
+    dispatchProductionPlayerCanaryAwareGreaterRealmWorkerV1(fixture.ctx, {
+      fid,
+      castle,
+      workerId: route.workerId,
+      resourceKind: route.resourceKind,
+      locationId: route.locationId,
+      expectedRevision: route.atlasRevision,
+      idempotencyKey: command.dispatchIdempotencyKey,
+    })
+  ));
+}
+
+function recoverProductionCanaryOrdinal(
+  prepared: PreparedCanaryFixture,
+  ordinal: number,
+) {
+  const { fixture, fid, castle, baselineInput } = prepared;
+  return fixture.transaction(() => recallProductionPlayerCanaryWorkerV1(
+    fixture.ctx,
+    { fid, castle, ...baselineInput, ordinal },
+  ));
+}
+
+function runNextWorkerSchedule(fixture: Fixture, workerId: string): Row {
+  const schedule = fixture.tables.workerAssignmentScheduleV1.byWorker.find(workerId)!;
+  fixture.ctx.timestamp = timestamp(
+    fixture.ctx.timestamp.microsSinceUnixEpoch
+      >= schedule.scheduledAt.value.microsSinceUnixEpoch
+      ? fixture.ctx.timestamp.microsSinceUnixEpoch
+      : schedule.scheduledAt.value.microsSinceUnixEpoch,
+  );
+  fixture.transaction(() => runCastleWorkerSchedule(fixture.ctx, schedule));
+  return schedule;
+}
+
+function dispatchGenericCanaryRoute(
+  prepared: PreparedCanaryFixture,
+  ordinal: number,
+  idempotencyKey: string,
+  observedAtMicros = prepared.registration.notAfterMicros,
+) {
+  const { fixture, fid, castle, routePlan } = prepared;
+  const route = routePlan.routes[ordinal - 1]!;
+  fixture.ctx.timestamp = timestamp(observedAtMicros);
+  return fixture.transaction(() => dispatchProductionPlayerCanaryAwareGreaterRealmWorkerV1(
+    fixture.ctx,
+    {
+      fid,
+      castle,
+      workerId: route.workerId,
+      resourceKind: route.resourceKind,
+      locationId: route.locationId,
+      expectedRevision: route.atlasRevision,
+      idempotencyKey,
+    },
+  ));
+}
+
+function completeWorkerAssignmentNaturally(fixture: Fixture, workerId: string): void {
+  for (let transition = 0; transition < 3; transition += 1) {
+    if (fixture.tables.workerAssignmentV1.workerId.find(workerId) === null) return;
+    runNextWorkerSchedule(fixture, workerId);
+  }
+  assert.equal(fixture.tables.workerAssignmentV1.workerId.find(workerId), null);
+}
+
+function recallOrdinaryCanaryRoute(
+  prepared: PreparedCanaryFixture,
+  ordinal: number,
+  idempotencyKey: string,
+  observedAtMicros: bigint,
+): void {
+  const { fixture, fid, castle, routePlan } = prepared;
+  fixture.ctx.timestamp = timestamp(observedAtMicros);
+  fixture.transaction(() => recallCastleWorker(fixture.ctx, {
+    fid,
+    castle,
+    workerId: routePlan.routes[ordinal - 1]!.workerId,
+    idempotencyKey,
+  }));
+}
+
+function mutateDispatchV2ReceiptMetadata(
+  receipt: Row,
+  field: 'expectedRevision' | 'capacityDigest' | 'fingerprint',
+  value: string,
+): void {
+  const fields = String(receipt.commandKind).split(':');
+  assert.equal(fields.length, 5);
+  assert.equal(fields[0], 'dispatch-v2');
+  fields[field === 'expectedRevision' ? 1 : field === 'capacityDigest' ? 3 : 4] = value;
+  receipt.commandKind = fields.join(':');
+}
+
+function runCurrentWorkerSchedule(
+  fixture: Fixture,
+  workerId: string,
+): void {
+  const schedule = fixture.tables.workerAssignmentScheduleV1.byWorker.find(workerId)!;
+  assert.ok(
+    fixture.ctx.timestamp.microsSinceUnixEpoch
+      >= schedule.scheduledAt.value.microsSinceUnixEpoch,
+  );
+  fixture.transaction(() => runCastleWorkerSchedule(fixture.ctx, schedule));
+}
+
+function fillProductionCanaryReceiptsWithPinnedRows(
+  prepared: PreparedCanaryFixture,
+): void {
+  const { fixture, fid, routePlan } = prepared;
+  const route = routePlan.routes[3]!;
+  const worker = fixture.tables.castleWorkerV1.workerId.find(route.workerId)!;
+  while (fixture.tables.workerCommandIdempotencyV1.rows.filter(
+    row => row.fid === fid,
+  ).length < 64) {
+    const ordinal = fixture.tables.workerCommandIdempotencyV1.rows.filter(
+      row => row.fid === fid,
+    ).length;
+    fixture.tables.workerCommandIdempotencyV1.insert({
+      requestKey: `${fid.toString()}:pinned-correlation-${String(ordinal).padStart(4, '0')}`,
+      fid,
+      workerId: route.workerId,
+      commandKind: 'recall',
+      resourceKind: route.resourceKind,
+      siteId: `${route.locationId}:1`,
+      assignmentId: `pinned-assignment-${String(ordinal).padStart(4, '0')}`,
+      resultRevision: worker.revision,
+      createdAt: fixture.ctx.timestamp,
+    });
+  }
+}
+
+test('production canary fence-first serialization is atomic, terminal, and replay-only', () => {
+  const prepared = prepareProductionPlayerCanaryFixture();
+  const { fixture, fid, commands, registration, baselineInput } = prepared;
+  fixture.ctx.timestamp = timestamp(registration.approvedAtMicros + 1n);
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+  const rows = fixture.tables.workerCommandIdempotencyV1.rows.filter(
+    row => row.fid === fid,
+  );
+  assert.equal(rows.length, 5);
+  const marker = rows.at(-1)!;
+  assert.equal(
+    marker.requestKey,
+    `${fid.toString()}:${commands.recoveryFenceIdempotencyKey}`,
+  );
+  assert.equal(marker.commandKind, 'recall-all');
+  assert.equal(marker.workerId, undefined);
+  for (let index = 0; index < 4; index += 1) {
+    const position = rows[index]!;
+    assert.equal(
+      position.requestKey,
+      `${fid.toString()}:${commands.commands[index]!.dispatchIdempotencyKey}`,
+    );
+    assert.equal(position.commandKind, 'recall');
+    assert.equal(position.workerId, prepared.routePlan.routes[index]!.workerId);
+    assert.deepEqual(position.createdAt, marker.createdAt);
+  }
+  const replayBefore = stateText(fixture);
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+  assert.equal(stateText(fixture), replayBefore);
+  assert.equal(
+    inspectProductionPlayerCanaryRecoveryStatusV1(fixture.ctx, {
+      fid,
+      ...baselineInput,
+    }).disposition,
+    'terminal-evidence-impossible',
+  );
+  const dispatchBefore = stateText(fixture);
+  assert.match(
+    errorCode(() => dispatchProductionCanaryOrdinal(prepared, 1)) ?? '',
+    /FENCED/,
+  );
+  assert.equal(stateText(fixture), dispatchBefore);
+});
+
+test('production canary rejects future recovery rows and malformed f00 snapshots without writes', () => {
+  const assertRejected = (
+    prepared: PreparedCanaryFixture,
+    label: string,
+  ) => {
+    const { fixture, fid, baselineInput } = prepared;
+    const before = stateText(fixture);
+    const uuidBefore = fixture.uuidSequence;
+    assert.match(
+      errorCode(() => recoverProductionCanaryOrdinal(prepared, 0)) ?? '',
+      /RECEIPT_INVALID|REPLAY_INVALID|ASSIGNMENT_INVALID/u,
+      label,
+    );
+    assert.equal(stateText(fixture), before, label);
+    assert.equal(fixture.uuidSequence, uuidBefore, label);
+    assert.match(errorCode(() => inspectProductionPlayerCanaryRecoveryStatusV1(
+      fixture.ctx,
+      { fid, ...baselineInput },
+    )) ?? '', /RECEIPT_INVALID|REPLAY_INVALID|ASSIGNMENT_INVALID/u, label);
+    assert.equal(stateText(fixture), before, label);
+    assert.equal(fixture.uuidSequence, uuidBefore, label);
+  };
+
+  for (const kind of ['marker', 'position'] as const) {
+    const prepared = prepareProductionPlayerCanaryFixture();
+    const { fixture, fid, commands, registration } = prepared;
+    fixture.ctx.timestamp = timestamp(registration.notAfterMicros);
+    assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+    const key = kind === 'marker'
+      ? commands.recoveryFenceIdempotencyKey
+      : commands.commands[0]!.dispatchIdempotencyKey;
+    fixture.tables.workerCommandIdempotencyV1.requestKey.find(
+      `${fid.toString()}:${key}`,
+    )!.createdAt = timestamp(
+      fixture.ctx.timestamp.microsSinceUnixEpoch + 1n,
+    );
+    assertRejected(prepared, `future ${kind}`);
+  }
+
+  {
+    const prepared = prepareProductionPlayerCanaryFixture();
+    const { fixture, registration } = prepared;
+    fixture.ctx.timestamp = timestamp(registration.notAfterMicros);
+    assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+    const generic = dispatchGenericCanaryRoute(
+      prepared,
+      1,
+      'generic-future-receipt-0001',
+      registration.notAfterMicros,
+    );
+    fixture.tables.workerCommandIdempotencyV1.rows.find(row => (
+      row.assignmentId === generic.assignment!.assignmentId
+      && row.commandKind.startsWith('dispatch-v2:')
+    ))!.createdAt = timestamp(
+      fixture.ctx.timestamp.microsSinceUnixEpoch + 1n,
+    );
+    assertRejected(prepared, 'future generic');
+  }
+
+  for (const kind of ['payload', 'vector', 'maximum'] as const) {
+    const prepared = prepareProductionPlayerCanaryFixture();
+    const { fixture, fid, commands, registration } = prepared;
+    if (kind === 'vector') dispatchProductionCanaryOrdinal(prepared, 1);
+    fixture.ctx.timestamp = timestamp(registration.notAfterMicros);
+    assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+    const marker = fixture.tables.workerCommandIdempotencyV1.requestKey.find(
+      `${fid.toString()}:${commands.recoveryFenceIdempotencyKey}`,
+    )!;
+    if (kind === 'payload') marker.assignmentId = 'pc2-f00-s1|malformed';
+    if (kind === 'maximum') marker.resultRevision += 1n;
+    if (kind === 'vector') {
+      const snapshot = [...parseProductionPlayerCanaryRecoverySnapshotV2(
+        marker.assignmentId!,
+      )];
+      [snapshot[0], snapshot[1]] = [snapshot[1]!, snapshot[0]!];
+      marker.assignmentId = encodeProductionPlayerCanaryRecoverySnapshotV2(snapshot);
+    }
+    assertRejected(prepared, `snapshot ${kind}`);
+  }
+});
+
+test('production canary completed f00 never heals a missing position fence', () => {
+  const prepared = prepareProductionPlayerCanaryFixture();
+  const { fixture, fid, commands, registration, baselineInput } = prepared;
+  fixture.ctx.timestamp = timestamp(registration.notAfterMicros);
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+  const missingKey = `${fid.toString()}:${commands.commands[2]!.dispatchIdempotencyKey}`;
+  fixture.tables.workerCommandIdempotencyV1.requestKey.delete(missingKey);
+  assert.equal(
+    fixture.tables.workerCommandIdempotencyV1.requestKey.find(missingKey),
+    null,
+  );
+  const before = stateText(fixture);
+  const uuidBefore = fixture.uuidSequence;
+  assert.match(
+    errorCode(() => recoverProductionCanaryOrdinal(prepared, 0)) ?? '',
+    /REPLAY_INVALID|RECEIPT_INVALID/u,
+  );
+  assert.equal(stateText(fixture), before);
+  assert.equal(fixture.uuidSequence, uuidBefore);
+  assert.match(errorCode(() => inspectProductionPlayerCanaryRecoveryStatusV1(
+    fixture.ctx,
+    { fid, ...baselineInput },
+  )) ?? '', /REPLAY_INVALID|RECEIPT_INVALID/u);
+  assert.equal(stateText(fixture), before);
+  assert.equal(fixture.uuidSequence, uuidBefore);
+  assert.equal(
+    fixture.tables.workerCommandIdempotencyV1.requestKey.find(missingKey),
+    null,
+  );
+});
+
+test('production canary dispatch-first lost response is clamped then atomically recalled and fenced', () => {
+  const prepared = prepareProductionPlayerCanaryFixture();
+  const { fixture, fid, commands, registration, routePlan } = prepared;
+  const dispatched = dispatchProductionCanaryOrdinal(prepared, 1);
+  assert.equal(dispatched.idempotent, false);
+  assert.ok(dispatched.assignment);
+  assert.equal(
+    dispatched.assignment.gatheringEndsAtMicros
+      - dispatched.assignment.arrivesAtMicros,
+    119_999_999n,
+  );
+  const plannedReturn = dispatched.assignment.gatheringEndsAtMicros
+    + (dispatched.assignment.arrivesAtMicros - dispatched.assignment.startedAtMicros);
+  assert.ok(plannedReturn < registration.notAfterMicros);
+
+  const lostResponseBefore = stateText(fixture);
+  const replay = dispatchProductionCanaryOrdinal(prepared, 1);
+  assert.equal(replay.idempotent, true);
+  assert.equal(replay.assignment?.assignmentId, dispatched.assignment.assignmentId);
+  assert.equal(stateText(fixture), lostResponseBefore);
+
+  fixture.ctx.timestamp = timestamp(registration.approvedAtMicros + 2n);
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+  const receipts = fixture.tables.workerCommandIdempotencyV1.rows.filter(
+    row => row.fid === fid,
+  );
+  assert.equal(receipts.length, 6);
+  const marker = receipts.at(-1)!;
+  assert.equal(
+    marker.requestKey,
+    `${fid.toString()}:${commands.recoveryFenceIdempotencyKey}`,
+  );
+  assert.equal(marker.commandKind, 'recall-all');
+  assert.match(marker.assignmentId, /^pc2-f00-s1\|/u);
+  const recall = fixture.tables.workerCommandIdempotencyV1.requestKey.find(
+    `${fid.toString()}:${commands.commands[0]!.recallIdempotencyKey}`,
+  );
+  assert.equal(recall?.assignmentId, dispatched.assignment.assignmentId);
+  assert.equal(
+    fixture.tables.castleWorkerV1.workerId.find(routePlan.routes[0]!.workerId)?.status,
+    'returning',
+  );
+  for (let index = 1; index < 4; index += 1) {
+    const position = fixture.tables.workerCommandIdempotencyV1.requestKey.find(
+      `${fid.toString()}:${commands.commands[index]!.dispatchIdempotencyKey}`,
+    );
+    assert.equal(position?.workerId, routePlan.routes[index]!.workerId);
+    assert.deepEqual(position?.createdAt, marker.createdAt);
+  }
+  const fencedBefore = stateText(fixture);
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 1), 'fenced');
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+  assert.equal(stateText(fixture), fencedBefore);
+});
+
+test('production canary pc2 dispatch and ordinal-zero serialize safely at the same microsecond', () => {
+  const prepared = prepareProductionPlayerCanaryFixture();
+  const dispatched = dispatchProductionCanaryOrdinal(prepared, 1);
+  assert.ok(dispatched.assignment);
+  const dispatchAt = clone(prepared.fixture.ctx.timestamp);
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+  const recall = prepared.fixture.tables.workerCommandIdempotencyV1.requestKey.find(
+    `${prepared.fid.toString()}:${prepared.commands.commands[0]!.recallIdempotencyKey}`,
+  )!;
+  assert.deepEqual(recall.createdAt, dispatchAt);
+  assert.equal(recall.resultRevision, 2n);
+  const before = stateText(prepared.fixture);
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+  assert.equal(stateText(prepared.fixture), before);
+});
+
+test('production canary f00 accepts same-micro generic-after serialization through terminal completion', () => {
+  const prepared = prepareProductionPlayerCanaryFixture();
+  const { fixture, fid, baselineInput, registration, routePlan } = prepared;
+  fixture.ctx.timestamp = timestamp(registration.notAfterMicros);
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+  const markerAt = clone(fixture.ctx.timestamp);
+  const generic = dispatchGenericCanaryRoute(
+    prepared,
+    1,
+    'generic-after-f00-worker-0001',
+    registration.notAfterMicros,
+  );
+  assert.equal(generic.idempotent, false);
+  assert.deepEqual(generic.assignment?.createdAt, markerAt);
+  let status = inspectProductionPlayerCanaryRecoveryStatusV1(fixture.ctx, {
+    fid,
+    ...baselineInput,
+  });
+  assert.equal(status.terminalSafe, false);
+  assert.equal(status.disposition, 'terminal-evidence-impossible');
+  const activeBefore = stateText(fixture);
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+  assert.equal(stateText(fixture), activeBefore);
+
+  completeWorkerAssignmentNaturally(fixture, routePlan.routes[0]!.workerId);
+  status = inspectProductionPlayerCanaryRecoveryStatusV1(fixture.ctx, {
+    fid,
+    ...baselineInput,
+  });
+  assert.equal(status.terminalSafe, true);
+  assert.equal(status.disposition, 'terminal-evidence-impossible');
+  const terminalBefore = stateText(fixture);
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+  assert.equal(stateText(fixture), terminalBefore);
+});
+
+test('production canary f00 tracks generic-before completion after direct and post-arrival recalls', () => {
+  const exercise = (recallAfterArrival: boolean) => {
+    const prepared = prepareProductionPlayerCanaryFixture();
+    const { fixture, fid, baselineInput, registration, routePlan } = prepared;
+    const workerId = routePlan.routes[0]!.workerId;
+    const generic = dispatchGenericCanaryRoute(
+      prepared,
+      1,
+      recallAfterArrival
+        ? 'generic-before-f00-arrival-recall-0001'
+        : 'generic-before-f00-direct-recall-0001',
+      registration.notAfterMicros,
+    );
+    assert.ok(generic.assignment);
+    assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+    const marker = fixture.tables.workerCommandIdempotencyV1.requestKey.find(
+      `${fid.toString()}:${prepared.commands.recoveryFenceIdempotencyKey}`,
+    )!;
+    assert.deepEqual(marker.createdAt, generic.assignment.createdAt);
+
+    if (recallAfterArrival) runNextWorkerSchedule(fixture, workerId);
+    recallOrdinaryCanaryRoute(
+      prepared,
+      1,
+      recallAfterArrival
+        ? 'generic-after-arrival-recall-0001'
+        : 'generic-direct-outbound-recall-0001',
+      fixture.ctx.timestamp.microsSinceUnixEpoch,
+    );
+    const recall = fixture.tables.workerCommandIdempotencyV1.rows.find(row => (
+      row.assignmentId === generic.assignment?.assignmentId
+      && row.commandKind === 'recall'
+    ))!;
+    assert.equal(
+      recall.resultRevision,
+      recallAfterArrival ? 3n : 2n,
+    );
+    runNextWorkerSchedule(fixture, workerId);
+    assert.equal(fixture.tables.workerAssignmentV1.workerId.find(workerId), null);
+    const status = inspectProductionPlayerCanaryRecoveryStatusV1(fixture.ctx, {
+      fid,
+      ...baselineInput,
+    });
+    assert.equal(status.terminalSafe, true);
+    assert.equal(status.disposition, 'terminal-evidence-impossible');
+    const terminalBefore = stateText(fixture);
+    assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+    assert.equal(stateText(fixture), terminalBefore);
+  };
+  exercise(false);
+  exercise(true);
+});
+
+test('production canary terminal replay tracks a later journey after f00 captured original pc2 returning', () => {
+  const exercise = (natural: boolean) => {
+    const prepared = prepareProductionPlayerCanaryFixture();
+    const { fixture, fid, baselineInput, registration, routePlan } = prepared;
+    const workerId = routePlan.routes[0]!.workerId;
+    dispatchProductionCanaryOrdinal(prepared, 1);
+    fixture.ctx.timestamp = timestamp(registration.notAfterMicros);
+    assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+    const markerSnapshot = parseProductionPlayerCanaryRecoverySnapshotV2(
+      fixture.tables.workerCommandIdempotencyV1.requestKey.find(
+        `${fid.toString()}:${prepared.commands.recoveryFenceIdempotencyKey}`,
+      )!.assignmentId!,
+    )[0]!;
+    assert.equal(markerSnapshot.status, 'r');
+    assert.ok(markerSnapshot.assignmentId);
+    runNextWorkerSchedule(fixture, workerId);
+    assert.equal(fixture.tables.workerAssignmentV1.workerId.find(workerId), null);
+
+    const later = dispatchGenericCanaryRoute(
+      prepared,
+      1,
+      natural
+        ? 'generic-after-original-snapshot-natural-0001'
+        : 'generic-after-original-snapshot-direct-0001',
+      fixture.ctx.timestamp.microsSinceUnixEpoch < registration.notAfterMicros
+        ? registration.notAfterMicros
+        : fixture.ctx.timestamp.microsSinceUnixEpoch,
+    );
+    assert.ok(later.assignment);
+    if (natural) {
+      completeWorkerAssignmentNaturally(fixture, workerId);
+    } else {
+      recallOrdinaryCanaryRoute(
+        prepared,
+        1,
+        'generic-after-original-snapshot-direct-recall-0001',
+        fixture.ctx.timestamp.microsSinceUnixEpoch,
+      );
+      runNextWorkerSchedule(fixture, workerId);
+    }
+    assert.equal(fixture.tables.workerAssignmentV1.workerId.find(workerId), null);
+    const status = inspectProductionPlayerCanaryRecoveryStatusV1(fixture.ctx, {
+      fid,
+      ...baselineInput,
+    });
+    assert.equal(status.terminalSafe, true);
+    assert.equal(status.disposition, 'terminal-evidence-impossible');
+    const before = stateText(fixture);
+    assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+    assert.equal(stateText(fixture), before);
+  };
+  exercise(false);
+  exercise(true);
+});
+
+test('production canary rejects coherent huge generic-before-f00 revision forgery active and terminal', () => {
+  const exercise = (terminal: boolean) => {
+    const prepared = prepareProductionPlayerCanaryFixture();
+    const { fixture, fid, commands, registration, routePlan } = prepared;
+    const workerId = routePlan.routes[0]!.workerId;
+    const generic = dispatchGenericCanaryRoute(
+      prepared,
+      1,
+      terminal
+        ? 'generic-before-f00-huge-terminal-0001'
+        : 'generic-before-f00-huge-active-0001',
+      registration.notAfterMicros,
+    );
+    assert.ok(generic.assignment);
+    assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+    if (terminal) completeWorkerAssignmentNaturally(fixture, workerId);
+
+    const forgedDispatchRevision = 100n;
+    const genericReceipt = fixture.tables.workerCommandIdempotencyV1.rows.find(row => (
+      row.assignmentId === generic.assignment?.assignmentId
+      && row.commandKind.startsWith('dispatch-v2:')
+    ))!;
+    genericReceipt.resultRevision = forgedDispatchRevision;
+    const position = fixture.tables.workerCommandIdempotencyV1.requestKey.find(
+      `${fid.toString()}:${commands.commands[0]!.dispatchIdempotencyKey}`,
+    )!;
+    position.resultRevision = forgedDispatchRevision;
+    const marker = fixture.tables.workerCommandIdempotencyV1.requestKey.find(
+      `${fid.toString()}:${commands.recoveryFenceIdempotencyKey}`,
+    )!;
+    const snapshot = [...parseProductionPlayerCanaryRecoverySnapshotV2(
+      marker.assignmentId!,
+    )];
+    snapshot[0] = Object.freeze({
+      ...snapshot[0]!,
+      workerRevision: forgedDispatchRevision,
+      timelineRevision: Number(forgedDispatchRevision),
+    });
+    marker.assignmentId = encodeProductionPlayerCanaryRecoverySnapshotV2(snapshot);
+    marker.resultRevision = forgedDispatchRevision;
+    const worker = fixture.tables.castleWorkerV1.workerId.find(workerId)!;
+    worker.revision = terminal
+      ? forgedDispatchRevision + 3n
+      : forgedDispatchRevision;
+    worker.timelineRevision = Number(worker.revision);
+    if (!terminal) {
+      const assignment = fixture.tables.workerAssignmentV1.workerId.find(workerId)!;
+      const occupation = fixture.tables.workerNodeOccupationV1.byWorker.find(workerId)!;
+      const schedule = fixture.tables.workerAssignmentScheduleV1.byWorker.find(workerId)!;
+      assignment.timelineRevision = Number(forgedDispatchRevision);
+      occupation.timelineRevision = Number(forgedDispatchRevision);
+      schedule.timelineRevision = Number(forgedDispatchRevision);
+    }
+
+    const before = stateText(fixture);
+    assert.match(
+      errorCode(() => recoverProductionCanaryOrdinal(prepared, 0)) ?? '',
+      /RECEIPT_INVALID|REPLAY_INVALID|ASSIGNMENT_INVALID/u,
+    );
+    assert.equal(stateText(fixture), before);
+    assert.match(
+      errorCode(() => inspectProductionPlayerCanaryRecoveryStatusV1(
+        fixture.ctx,
+        { fid, ...prepared.baselineInput },
+      )) ?? '',
+      /RECEIPT_INVALID|REPLAY_INVALID|ASSIGNMENT_INVALID/u,
+    );
+    assert.equal(stateText(fixture), before);
+  };
+  exercise(false);
+  exercise(true);
+});
+
+test('production canary rejects coherent forged original pc2 revisions active and terminal', () => {
+  const exercise = (terminal: boolean) => {
+    const prepared = prepareProductionPlayerCanaryFixture();
+    const { fixture, routePlan } = prepared;
+    const workerId = routePlan.routes[0]!.workerId;
+    const dispatched = dispatchProductionCanaryOrdinal(prepared, 1);
+    assert.ok(dispatched.assignment);
+    if (terminal) completeWorkerAssignmentNaturally(fixture, workerId);
+    const worker = fixture.tables.castleWorkerV1.workerId.find(workerId)!;
+    worker.revision = 100n;
+    worker.timelineRevision = 100;
+    if (!terminal) {
+      const assignment = fixture.tables.workerAssignmentV1.workerId.find(workerId)!;
+      const occupation = fixture.tables.workerNodeOccupationV1.byWorker.find(workerId)!;
+      const schedule = fixture.tables.workerAssignmentScheduleV1.byWorker.find(workerId)!;
+      assignment.timelineRevision = 100;
+      occupation.timelineRevision = 100;
+      schedule.timelineRevision = 100;
+    }
+    const before = stateText(fixture);
+    assert.match(
+      errorCode(() => replayProductionCanaryOrdinalAtCurrentTime(prepared, 1)) ?? '',
+      /ROSTER_INVALID|ASSIGNMENT_INVALID|RECEIPT_INVALID|REPLAY_INVALID/u,
+    );
+    assert.equal(stateText(fixture), before);
+  };
+  exercise(false);
+  exercise(true);
+});
+
+test('production canary rejects terminal pc2 receipts whose immutable planned return reaches cutoff', () => {
+  for (const beyondCutoffMicros of [0n, 1n]) {
+    const prepared = prepareProductionPlayerCanaryFixture();
+    const { fixture, fid, commands, registration, routePlan } = prepared;
+    dispatchProductionCanaryOrdinal(prepared, 1);
+    completeWorkerAssignmentNaturally(fixture, routePlan.routes[0]!.workerId);
+    const dispatch = fixture.tables.workerCommandIdempotencyV1.requestKey.find(
+      `${fid.toString()}:${commands.commands[0]!.dispatchIdempotencyKey}`,
+    )!;
+    const travelMicros = BigInt(routePlan.routes[0]!.routeSteps)
+      * CASTLE_WORKER_TRAVEL_MICROS_PER_STEP;
+    dispatch.createdAt = timestamp(
+      registration.notAfterMicros
+        - PRODUCTION_PLAYER_CANARY_GATHERING_DURATION_MICROS
+        - 2n * travelMicros
+        + beyondCutoffMicros,
+    );
+    const before = stateText(fixture);
+    assert.match(
+      errorCode(() => replayProductionCanaryOrdinalAtCurrentTime(prepared, 1)) ?? '',
+      /RECEIPT_INVALID|REPLAY_INVALID/u,
+    );
+    assert.equal(stateText(fixture), before);
+    assert.match(
+      errorCode(() => recoverProductionCanaryOrdinal(prepared, 0)) ?? '',
+      /RECEIPT_INVALID|REPLAY_INVALID/u,
+    );
+    assert.equal(stateText(fixture), before);
+  }
+});
+
+test('production canary rebinds pc2 capacity digest on active and terminal replay paths', () => {
+  for (const terminal of [false, true]) {
+    const prepared = prepareProductionPlayerCanaryFixture();
+    const { fixture, fid, commands, routePlan } = prepared;
+    dispatchProductionCanaryOrdinal(prepared, 1);
+    if (terminal) {
+      completeWorkerAssignmentNaturally(fixture, routePlan.routes[0]!.workerId);
+    }
+    const dispatch = fixture.tables.workerCommandIdempotencyV1.requestKey.find(
+      `${fid.toString()}:${commands.commands[0]!.dispatchIdempotencyKey}`,
+    )!;
+    const originalCapacity = String(dispatch.commandKind).split(':')[3]!;
+    mutateDispatchV2ReceiptMetadata(
+      dispatch,
+      'capacityDigest',
+      originalCapacity === 'b'.repeat(64) ? 'c'.repeat(64) : 'b'.repeat(64),
+    );
+    const before = stateText(fixture);
+    const uuidBefore = fixture.uuidSequence;
+    assert.match(
+      errorCode(() => replayProductionCanaryOrdinalAtCurrentTime(prepared, 1)) ?? '',
+      /RECEIPT_INVALID|REPLAY_INVALID/u,
+    );
+    assert.equal(stateText(fixture), before);
+    assert.equal(fixture.uuidSequence, uuidBefore);
+    assert.match(
+      errorCode(() => recoverProductionCanaryOrdinal(prepared, 0)) ?? '',
+      /RECEIPT_INVALID|REPLAY_INVALID/u,
+    );
+    assert.equal(stateText(fixture), before);
+    assert.equal(fixture.uuidSequence, uuidBefore);
+  }
+});
+
+test('production canary dispatch and replay reject malformed full stored approval authority without writes', () => {
+  const corruptions: readonly [string, (prepared: PreparedCanaryFixture) => void][] = [
+    ['artifact', prepared => {
+      prepared.fixture.tables.productionPlayerCanaryApprovalRegistrationV1.fid
+        .find(prepared.fid)!.ownerApprovalArtifactDigest = '4'.repeat(64);
+    }],
+    ['owner', prepared => {
+      prepared.fixture.tables.productionPlayerCanaryApprovalRegistrationV1.fid
+        .find(prepared.fid)!.ownerApprovalCommitment = '5'.repeat(64);
+    }],
+    ['registration', prepared => {
+      prepared.fixture.tables.productionPlayerCanaryApprovalRegistrationV1.fid
+        .find(prepared.fid)!.approvalRegistrationCommitment = '6'.repeat(64);
+    }],
+    ['cross-index', prepared => {
+      const table = prepared.fixture.tables
+        .productionPlayerCanaryApprovalRegistrationV1;
+      const row = table.fid.find(prepared.fid)!;
+      table.rows.unshift({
+        ...clone(row),
+        challengeDigest: '7'.repeat(64),
+        fid: prepared.fid + 99_999n,
+      });
+    }],
+  ];
+  for (const [label, corrupt] of corruptions) {
+    const fresh = prepareProductionPlayerCanaryFixture();
+    corrupt(fresh);
+    const freshBefore = stateText(fresh.fixture);
+    assert.equal(
+      errorCode(() => dispatchProductionCanaryOrdinal(fresh, 1)),
+      'STATE_INTEGRITY',
+      `${label} NEW dispatch`,
+    );
+    assert.equal(stateText(fresh.fixture), freshBefore);
+
+    const replay = prepareProductionPlayerCanaryFixture();
+    dispatchProductionCanaryOrdinal(replay, 1);
+    corrupt(replay);
+    const replayBefore = stateText(replay.fixture);
+    assert.equal(
+      errorCode(() => replayProductionCanaryOrdinalAtCurrentTime(replay, 1)),
+      'STATE_INTEGRITY',
+      `${label} replay`,
+    );
+    assert.equal(stateText(replay.fixture), replayBefore);
+  }
+});
+
+test('production canary containment survives rollout off while wrong tuples and pre-cutoff ordinals stay gated', () => {
+  const wrongTuple = prepareProductionPlayerCanaryFixture();
+  const wrongRoute = wrongTuple.routePlan.routes[1]!;
+  const firstCommand = wrongTuple.commands.commands[0]!;
+  const wrongBefore = stateText(wrongTuple.fixture);
+  const wrongUuid = wrongTuple.fixture.uuidSequence;
+  assert.match(errorCode(() => wrongTuple.fixture.transaction(() => (
+    dispatchProductionPlayerCanaryAwareGreaterRealmWorkerV1(
+      wrongTuple.fixture.ctx,
+      {
+        fid: wrongTuple.fid,
+        castle: wrongTuple.castle,
+        workerId: wrongRoute.workerId,
+        resourceKind: wrongRoute.resourceKind,
+        locationId: wrongRoute.locationId,
+        expectedRevision: wrongRoute.atlasRevision,
+        idempotencyKey: firstCommand.dispatchIdempotencyKey,
+      },
+    )
+  ))) ?? '', /DISPATCH_TUPLE_INVALID/u);
+  assert.equal(stateText(wrongTuple.fixture), wrongBefore);
+  assert.equal(wrongTuple.fixture.uuidSequence, wrongUuid);
+
+  const preCutoff = prepareProductionPlayerCanaryFixture();
+  dispatchProductionCanaryOrdinal(preCutoff, 1);
+  preCutoff.fixture.tables.realmWorkerSystemV1.rows[0]!.mode = 'staged';
+  const preCutoffBefore = stateText(preCutoff.fixture);
+  const preCutoffUuid = preCutoff.fixture.uuidSequence;
+  assert.equal(
+    errorCode(() => recoverProductionCanaryOrdinal(preCutoff, 1)),
+    'WORKER_SYSTEM_NOT_READY',
+  );
+  assert.equal(stateText(preCutoff.fixture), preCutoffBefore);
+  assert.equal(preCutoff.fixture.uuidSequence, preCutoffUuid);
+
+  for (const ordinal of [0, 1]) {
+    const postCutoff = prepareProductionPlayerCanaryFixture();
+    const { fixture, registration, routePlan } = postCutoff;
+    dispatchProductionCanaryOrdinal(postCutoff, 1);
+    fixture.ctx.timestamp = timestamp(registration.notAfterMicros);
+    fixture.tables.realmWorkerSystemV1.rows[0]!.mode = 'staged';
+    assert.equal(
+      recoverProductionCanaryOrdinal(postCutoff, ordinal),
+      ordinal === 0 ? 'fenced' : 'recalled',
+    );
+    assert.equal(
+      fixture.tables.castleWorkerV1.workerId.find(
+        routePlan.routes[0]!.workerId,
+      )!.status,
+      'returning',
+    );
+  }
+});
+
+test('production canary first pc2 and every later target reprove pristine mutable state', () => {
+  const templatePrepared = prepareProductionPlayerCanaryFixture();
+  const templateDispatch = dispatchProductionCanaryOrdinal(templatePrepared, 1);
+  const assignmentTemplate = clone(templateDispatch.assignment!);
+  const occupationTemplate = clone(
+    templatePrepared.fixture.tables.workerNodeOccupationV1.byWorker.find(
+      templatePrepared.routePlan.routes[0]!.workerId,
+    )!,
+  );
+  const scheduleTemplate = clone(
+    templatePrepared.fixture.tables.workerAssignmentScheduleV1.byWorker.find(
+      templatePrepared.routePlan.routes[0]!.workerId,
+    )!,
+  );
+  const corruptions: readonly [string, (prepared: PreparedCanaryFixture) => void][] = [
+    ['worker-revision', prepared => {
+      const worker = prepared.fixture.tables.castleWorkerV1.workerId.find(
+        prepared.routePlan.routes[0]!.workerId,
+      )!;
+      worker.revision = 100n;
+      worker.timelineRevision = 100;
+    }],
+    ['assignment', prepared => {
+      prepared.fixture.tables.workerAssignmentV1.insert(clone(assignmentTemplate));
+    }],
+    ['occupation', prepared => {
+      prepared.fixture.tables.workerNodeOccupationV1.insert(clone(occupationTemplate));
+    }],
+    ['schedule', prepared => {
+      prepared.fixture.tables.workerAssignmentScheduleV1.insert({
+        ...clone(scheduleTemplate),
+        scheduleId: 0n,
+      });
+    }],
+    ['resource', prepared => {
+      const resource = prepared.fixture.tables.resourceAccountV1.fid.find(
+        prepared.fid,
+      )!;
+      resource.food += 1n;
+      resource.revision += 1n;
+      resource.updatedAt = prepared.fixture.ctx.timestamp;
+    }],
+  ];
+  for (const [label, corrupt] of corruptions) {
+    const prepared = prepareProductionPlayerCanaryFixture();
+    corrupt(prepared);
+    const before = stateText(prepared.fixture);
+    const uuidBefore = prepared.fixture.uuidSequence;
+    assert.match(
+      errorCode(() => dispatchProductionCanaryOrdinal(prepared, 1)) ?? '',
+      /BASELINE_PRISTINE_REQUIRED|DISPATCH_TARGET_NOT_PRISTINE/u,
+      label,
+    );
+    assert.equal(stateText(prepared.fixture), before, label);
+    assert.equal(prepared.fixture.uuidSequence, uuidBefore, label);
+  }
+
+  const later = prepareProductionPlayerCanaryFixture();
+  dispatchProductionCanaryOrdinal(later, 1);
+  const target = later.fixture.tables.castleWorkerV1.workerId.find(
+    later.routePlan.routes[1]!.workerId,
+  )!;
+  target.revision = 100n;
+  target.timelineRevision = 100;
+  const laterBefore = stateText(later.fixture);
+  const laterUuid = later.fixture.uuidSequence;
+  assert.equal(
+    errorCode(() => dispatchProductionCanaryOrdinal(later, 2)),
+    'PRODUCTION_PLAYER_CANARY_DISPATCH_TARGET_NOT_PRISTINE',
+  );
+  assert.equal(stateText(later.fixture), laterBefore);
+  assert.equal(later.fixture.uuidSequence, laterUuid);
+
+  const freshSweep = prepareProductionPlayerCanaryFixture();
+  const sweepTarget = freshSweep.fixture.tables.castleWorkerV1.workerId.find(
+    freshSweep.routePlan.routes[2]!.workerId,
+  )!;
+  sweepTarget.revision = 100n;
+  sweepTarget.timelineRevision = 100;
+  const sweepBefore = stateText(freshSweep.fixture);
+  const sweepUuid = freshSweep.fixture.uuidSequence;
+  assert.equal(
+    errorCode(() => recoverProductionCanaryOrdinal(freshSweep, 0)),
+    'PRODUCTION_PLAYER_CANARY_DISPATCH_TARGET_NOT_PRISTINE',
+  );
+  assert.equal(stateText(freshSweep.fixture), sweepBefore);
+  assert.equal(freshSweep.fixture.uuidSequence, sweepUuid);
+});
+
+test('production canary NEW approval rejects receipt and graph races while exact replay ignores later mutable state', () => {
+  const template = prepareProductionPlayerCanaryFixture();
+  const dispatched = dispatchProductionCanaryOrdinal(template, 1);
+  const assignmentTemplate = clone(dispatched.assignment!);
+  const occupationTemplate = clone(
+    template.fixture.tables.workerNodeOccupationV1.byWorker.find(
+      template.routePlan.routes[0]!.workerId,
+    )!,
+  );
+  const scheduleTemplate = clone(
+    template.fixture.tables.workerAssignmentScheduleV1.byWorker.find(
+      template.routePlan.routes[0]!.workerId,
+    )!,
+  );
+  const races: readonly [string, (fixture: Fixture, fid: bigint) => void][] = [
+    ['pc1 receipt', (fixture, fid) => {
+      const resource = fixture.tables.resourceAccountV1.fid.find(fid)!;
+      const worker = fixture.tables.castleWorkerV1.byOriginCastle.filter(
+        resource.castleId,
+      )[0]!;
+      fixture.tables.workerCommandIdempotencyV1.insert({
+        requestKey: `${fid.toString()}:pc1-approval-race-0001`,
+        fid,
+        workerId: worker.workerId,
+        commandKind: 'recall',
+        resourceKind: undefined,
+        siteId: undefined,
+        assignmentId: undefined,
+        resultRevision: worker.revision,
+        createdAt: fixture.ctx.timestamp,
+      });
+    }],
+    ['ordinary receipt', (fixture, fid) => {
+      const resource = fixture.tables.resourceAccountV1.fid.find(fid)!;
+      const worker = fixture.tables.castleWorkerV1.byOriginCastle.filter(
+        resource.castleId,
+      )[0]!;
+      fixture.tables.workerCommandIdempotencyV1.insert({
+        requestKey: `${fid.toString()}:ordinary-approval-race-0001`,
+        fid,
+        workerId: worker.workerId,
+        commandKind: 'recall',
+        resourceKind: undefined,
+        siteId: undefined,
+        assignmentId: undefined,
+        resultRevision: worker.revision,
+        createdAt: fixture.ctx.timestamp,
+      });
+    }],
+    ['assignment', fixture => {
+      fixture.tables.workerAssignmentV1.insert(clone(assignmentTemplate));
+    }],
+    ['occupation', fixture => {
+      fixture.tables.workerNodeOccupationV1.insert(clone(occupationTemplate));
+    }],
+    ['schedule', fixture => {
+      fixture.tables.workerAssignmentScheduleV1.insert({
+        ...clone(scheduleTemplate),
+        scheduleId: 0n,
+      });
+    }],
+  ];
+  for (const [label, race] of races) {
+    let racedFixture: Fixture | undefined;
+    let racedBefore = '';
+    let racedUuid = -1;
+    assert.equal(errorCode(() => prepareProductionPlayerCanaryFixture(candidate => {
+      racedFixture = candidate.fixture;
+      race(candidate.fixture, candidate.fid);
+      racedBefore = stateText(candidate.fixture);
+      racedUuid = candidate.fixture.uuidSequence;
+    })), 'PRODUCTION_PLAYER_CANARY_BASELINE_PRISTINE_REQUIRED', label);
+    assert.ok(racedFixture, label);
+    assert.equal(stateText(racedFixture), racedBefore, label);
+    assert.equal(racedFixture.uuidSequence, racedUuid, label);
+    assert.equal(
+      racedFixture.tables.productionPlayerCanaryApprovalRegistrationV1.count(),
+      0n,
+      label,
+    );
+  }
+
+  const replay = prepareProductionPlayerCanaryFixture();
+  replay.fixture.tables.castleWorkerV1.workerId.find(
+    replay.routePlan.routes[0]!.workerId,
+  )!.revision = 100n;
+  const replayBefore = stateText(replay.fixture);
+  const replayUuid = replay.fixture.uuidSequence;
+  const replayStatus = replay.fixture.transaction(() => (
+    registerProductionPlayerCanaryApprovalV1(
+      replay.fixture.ctx,
+      replay.registrationInput,
+    )
+  ));
+  assert.equal(replayStatus.approvalRegistered, true);
+  assert.equal(stateText(replay.fixture), replayBefore);
+  assert.equal(replay.fixture.uuidSequence, replayUuid);
+});
+
+test('production canary all write recovery and status paths reject corrupt stored baseline or approval indexes', () => {
+  const corruptions: readonly [string, (prepared: PreparedCanaryFixture) => void][] = [
+    ['baseline-scalar', prepared => {
+      prepared.fixture.tables.productionPlayerCanaryBaselineV1.fid
+        .find(prepared.fid)!.resourceRevision = 1n;
+    }],
+    ['baseline-cross-index', prepared => {
+      const table = prepared.fixture.tables.productionPlayerCanaryBaselineV1;
+      const row = table.fid.find(prepared.fid)!;
+      table.rows.unshift({
+        ...clone(row),
+        challengeDigest: '8'.repeat(64),
+        fid: prepared.fid + 88_888n,
+      });
+    }],
+    ['approval-artifact', prepared => {
+      prepared.fixture.tables.productionPlayerCanaryApprovalRegistrationV1.fid
+        .find(prepared.fid)!.ownerApprovalArtifactDigest = '9'.repeat(64);
+    }],
+    ['approval-cross-index', prepared => {
+      const table = prepared.fixture.tables
+        .productionPlayerCanaryApprovalRegistrationV1;
+      const row = table.fid.find(prepared.fid)!;
+      table.rows.unshift({
+        ...clone(row),
+        challengeDigest: 'a'.repeat(64),
+        fid: prepared.fid + 77_777n,
+      });
+    }],
+  ];
+  for (const [label, corrupt] of corruptions) {
+    const fresh = prepareProductionPlayerCanaryFixture();
+    corrupt(fresh);
+    const freshBefore = stateText(fresh.fixture);
+    const freshUuid = fresh.fixture.uuidSequence;
+    assert.equal(
+      errorCode(() => dispatchProductionCanaryOrdinal(fresh, 1)),
+      'STATE_INTEGRITY',
+      `${label} NEW pc2`,
+    );
+    assert.equal(stateText(fresh.fixture), freshBefore);
+    assert.equal(fresh.fixture.uuidSequence, freshUuid);
+
+    const active = prepareProductionPlayerCanaryFixture();
+    dispatchProductionCanaryOrdinal(active, 1);
+    dispatchGenericCanaryRoute(
+      active,
+      2,
+      `generic-before-${label}-corruption-0002`,
+      active.registration.notAfterMicros,
+    );
+    corrupt(active);
+    const before = stateText(active.fixture);
+    const uuidBefore = active.fixture.uuidSequence;
+    const assertIntegrity = (action: () => unknown, operation: string) => {
+      assert.equal(errorCode(action), 'STATE_INTEGRITY', `${label} ${operation}`);
+      assert.equal(stateText(active.fixture), before);
+      assert.equal(active.fixture.uuidSequence, uuidBefore);
+    };
+    assertIntegrity(
+      () => replayProductionCanaryOrdinalAtCurrentTime(active, 1),
+      'pc2 replay',
+    );
+    assertIntegrity(
+      () => dispatchGenericCanaryRoute(
+        active,
+        3,
+        `generic-after-${label}-corruption-0003`,
+        active.registration.notAfterMicros + 1n,
+      ),
+      'generic dispatch',
+    );
+    assertIntegrity(() => active.fixture.transaction(() => {
+      assertProductionPlayerCanaryGenericWorkerWriteAvailableV2(
+        active.fixture.ctx,
+        { fid: active.fid, idempotencyKey: `recall-after-${label}-corruption` },
+      );
+      recallCastleWorker(active.fixture.ctx, {
+        fid: active.fid,
+        castle: active.castle,
+        workerId: active.routePlan.routes[1]!.workerId,
+        idempotencyKey: `recall-after-${label}-corruption`,
+      });
+    }), 'per-worker recall');
+    assertIntegrity(() => active.fixture.transaction(() => {
+      assertProductionPlayerCanaryGenericWorkerWriteAvailableV2(
+        active.fixture.ctx,
+        { fid: active.fid, idempotencyKey: `settle-after-${label}-corruption` },
+      );
+      settleAllWorkerAssignmentsForFid(active.fixture.ctx, active.fid);
+    }), 'resource settlement');
+    assertIntegrity(
+      () => recoverProductionCanaryOrdinal(active, 0),
+      'ordinal-zero recovery',
+    );
+    assertIntegrity(
+      () => inspectProductionPlayerCanaryRecoveryStatusV1(active.fixture.ctx, {
+        fid: active.fid,
+        ...active.baselineInput,
+      }),
+      'admin status',
+    );
+    assertIntegrity(
+      () => inspectProductionPlayerCanaryAdminEvidence(active.fixture.ctx, {
+        fid: active.fid,
+        ...active.baselineInput,
+      }),
+      'admin evidence',
+    );
+  }
+});
+
+test('production canary accepts generic-after-f00 returning phase lineage for direct arrival and no-op recalls', () => {
+  const exercise = (mode: 'direct' | 'arrival' | 'natural-noop') => {
+    const prepared = prepareProductionPlayerCanaryFixture();
+    const { fixture, fid, baselineInput, registration, routePlan } = prepared;
+    const workerId = routePlan.routes[0]!.workerId;
+    fixture.ctx.timestamp = timestamp(registration.notAfterMicros);
+    assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+    const generic = dispatchGenericCanaryRoute(
+      prepared,
+      1,
+      `generic-after-f00-${mode}-0001`,
+      registration.notAfterMicros,
+    );
+    assert.ok(generic.assignment);
+    if (mode !== 'direct') runNextWorkerSchedule(fixture, workerId);
+    if (mode === 'natural-noop') runNextWorkerSchedule(fixture, workerId);
+    recallOrdinaryCanaryRoute(
+      prepared,
+      1,
+      `generic-after-f00-${mode}-recall-0001`,
+      fixture.ctx.timestamp.microsSinceUnixEpoch,
+    );
+    const assignment = fixture.tables.workerAssignmentV1.workerId.find(workerId)!;
+    const worker = fixture.tables.castleWorkerV1.workerId.find(workerId)!;
+    assert.equal(assignment.phase, 'returning');
+    assert.equal(worker.revision, mode === 'direct' ? 2n : 3n);
+    const status = inspectProductionPlayerCanaryRecoveryStatusV1(fixture.ctx, {
+      fid,
+      ...baselineInput,
+    });
+    assert.equal(status.disposition, 'terminal-evidence-impossible');
+    const before = stateText(fixture);
+    assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+    assert.equal(stateText(fixture), before);
+  };
+  exercise('direct');
+  exercise('arrival');
+  exercise('natural-noop');
+});
+
+test('production canary ordinal-zero preserves two later generic journeys including one due accrual quantum', () => {
+  const prepared = prepareProductionPlayerCanaryFixture();
+  const { fixture, fid, baselineInput, registration, routePlan } = prepared;
+  const original = dispatchProductionCanaryOrdinal(prepared, 1);
+  assert.ok(original.assignment);
+  const laterTwo = dispatchGenericCanaryRoute(
+    prepared,
+    2,
+    'generic-mixed-due-ordinal-0002',
+    registration.notAfterMicros,
+  );
+  const laterThree = dispatchGenericCanaryRoute(
+    prepared,
+    3,
+    'generic-mixed-outbound-ordinal-0003',
+    registration.notAfterMicros,
+  );
+  assert.ok(laterTwo.assignment);
+  assert.ok(laterThree.assignment);
+  runNextWorkerSchedule(fixture, routePlan.routes[1]!.workerId);
+  const gathering = fixture.tables.workerAssignmentV1.workerId.find(
+    routePlan.routes[1]!.workerId,
+  )!;
+  assert.equal(gathering.phase, 'gathering');
+  fixture.ctx.timestamp = timestamp(
+    gathering.arrivesAtMicros
+      + workerResourcePolicy(gathering.resourceKind).quantumMicros,
+  );
+
+  const laterState = [1, 2].map(index => {
+    const workerId = routePlan.routes[index]!.workerId;
+    return Object.freeze({
+      assignment: clone(fixture.tables.workerAssignmentV1.workerId.find(workerId)),
+      worker: clone(fixture.tables.castleWorkerV1.workerId.find(workerId)),
+      occupation: clone(fixture.tables.workerNodeOccupationV1.byWorker.find(workerId)),
+      schedule: clone(fixture.tables.workerAssignmentScheduleV1.byWorker.find(workerId)),
+    });
+  });
+  const sharedEconomy = Object.freeze({
+    resource: clone(fixture.tables.resourceAccountV1.fid.find(fid)),
+    activation: clone(fixture.tables.greaterRealmActivationV1.rows[0]),
+    claim: clone(fixture.tables.greaterRealmCastleClaimV1.castleId.find(
+      prepared.castle.castleId,
+    )),
+    resourceNodes: clone(fixture.tables.greaterRealmResourceNodeV1.rows.filter(
+      row => row.locationId === routePlan.routes[1]!.locationId
+        || row.locationId === routePlan.routes[2]!.locationId,
+    )),
+  });
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+  for (let offset = 0; offset < laterState.length; offset += 1) {
+    const workerId = routePlan.routes[offset + 1]!.workerId;
+    assert.deepEqual(
+      {
+        assignment: fixture.tables.workerAssignmentV1.workerId.find(workerId),
+        worker: fixture.tables.castleWorkerV1.workerId.find(workerId),
+        occupation: fixture.tables.workerNodeOccupationV1.byWorker.find(workerId),
+        schedule: fixture.tables.workerAssignmentScheduleV1.byWorker.find(workerId),
+      },
+      laterState[offset],
+    );
+  }
+  assert.deepEqual({
+    resource: fixture.tables.resourceAccountV1.fid.find(fid),
+    activation: fixture.tables.greaterRealmActivationV1.rows[0],
+    claim: fixture.tables.greaterRealmCastleClaimV1.castleId.find(
+      prepared.castle.castleId,
+    ),
+    resourceNodes: fixture.tables.greaterRealmResourceNodeV1.rows.filter(
+      row => row.locationId === routePlan.routes[1]!.locationId
+        || row.locationId === routePlan.routes[2]!.locationId,
+    ),
+  }, sharedEconomy);
+  const status = inspectProductionPlayerCanaryRecoveryStatusV1(fixture.ctx, {
+    fid,
+    ...baselineInput,
+  });
+  assert.equal(status.disposition, 'terminal-evidence-impossible');
+  const replayBefore = stateText(fixture);
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+  assert.equal(stateText(fixture), replayBefore);
+});
+
+test('production canary delayed postcutoff ordinal recalls preserve a due unrelated generic journey', () => {
+  for (let ordinal = 1; ordinal <= 4; ordinal += 1) {
+    const prepared = prepareProductionPlayerCanaryFixture();
+    const { fixture, fid, registration, routePlan } = prepared;
+    const laterOrdinal = ordinal === 4 ? 1 : ordinal + 1;
+    dispatchProductionCanaryOrdinal(prepared, ordinal);
+    const later = dispatchGenericCanaryRoute(
+      prepared,
+      laterOrdinal,
+      `generic-delayed-recall-${ordinal}-later-${laterOrdinal}`,
+      registration.notAfterMicros,
+    );
+    assert.ok(later.assignment);
+    const laterWorkerId = routePlan.routes[laterOrdinal - 1]!.workerId;
+    runNextWorkerSchedule(fixture, laterWorkerId);
+    const gathering = fixture.tables.workerAssignmentV1.workerId.find(
+      laterWorkerId,
+    )!;
+    fixture.ctx.timestamp = timestamp(
+      gathering.arrivesAtMicros
+        + workerResourcePolicy(gathering.resourceKind).quantumMicros,
+    );
+    const unrelatedBefore = Object.freeze({
+      assignment: clone(fixture.tables.workerAssignmentV1.workerId.find(laterWorkerId)),
+      worker: clone(fixture.tables.castleWorkerV1.workerId.find(laterWorkerId)),
+      occupation: clone(fixture.tables.workerNodeOccupationV1.byWorker.find(laterWorkerId)),
+      schedule: clone(fixture.tables.workerAssignmentScheduleV1.byWorker.find(laterWorkerId)),
+      resource: clone(fixture.tables.resourceAccountV1.fid.find(fid)),
+      activation: clone(fixture.tables.greaterRealmActivationV1.rows[0]),
+      claim: clone(fixture.tables.greaterRealmCastleClaimV1.castleId.find(
+        prepared.castle.castleId,
+      )),
+    });
+    assert.equal(recoverProductionCanaryOrdinal(prepared, ordinal), 'recalled');
+    assert.deepEqual({
+      assignment: fixture.tables.workerAssignmentV1.workerId.find(laterWorkerId),
+      worker: fixture.tables.castleWorkerV1.workerId.find(laterWorkerId),
+      occupation: fixture.tables.workerNodeOccupationV1.byWorker.find(laterWorkerId),
+      schedule: fixture.tables.workerAssignmentScheduleV1.byWorker.find(laterWorkerId),
+      resource: fixture.tables.resourceAccountV1.fid.find(fid),
+      activation: fixture.tables.greaterRealmActivationV1.rows[0],
+      claim: fixture.tables.greaterRealmCastleClaimV1.castleId.find(
+        prepared.castle.castleId,
+      ),
+    }, unrelatedBefore);
+    const replayBefore = stateText(fixture);
+    assert.equal(recoverProductionCanaryOrdinal(prepared, ordinal), 'replayed');
+    assert.equal(stateText(fixture), replayBefore);
+  }
+});
+
+test('production canary rejects coherent generic metadata route and timeline tampering without writes', () => {
+  const exercise = (
+    label: string,
+    corrupt: (prepared: PreparedCanaryFixture, assignment: Row, receipt: Row) => void,
+  ) => {
+    const prepared = prepareProductionPlayerCanaryFixture();
+    const { fixture, fid, baselineInput, registration, routePlan } = prepared;
+    fixture.ctx.timestamp = timestamp(registration.notAfterMicros);
+    assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+    const dispatched = dispatchGenericCanaryRoute(
+      prepared,
+      1,
+      `generic-coherent-tamper-${label}-0001`,
+      registration.notAfterMicros,
+    );
+    const assignment = dispatched.assignment!;
+    const receipt = fixture.tables.workerCommandIdempotencyV1.rows.find(row => (
+      row.assignmentId === assignment.assignmentId
+      && row.commandKind.startsWith('dispatch-v2:')
+    ))!;
+    corrupt(prepared, assignment, receipt);
+    const before = stateText(fixture);
+    const uuidBefore = fixture.uuidSequence;
+    assert.match(
+      errorCode(() => recoverProductionCanaryOrdinal(prepared, 0)) ?? '',
+      /RECEIPT_INVALID|ASSIGNMENT_INVALID|REPLAY_INVALID/u,
+      label,
+    );
+    assert.equal(stateText(fixture), before, label);
+    assert.equal(fixture.uuidSequence, uuidBefore, label);
+    assert.match(errorCode(() => inspectProductionPlayerCanaryRecoveryStatusV1(
+      fixture.ctx,
+      { fid, ...baselineInput },
+    )) ?? '', /RECEIPT_INVALID|ASSIGNMENT_INVALID|REPLAY_INVALID/u, label);
+    assert.equal(stateText(fixture), before, label);
+    assert.equal(fixture.uuidSequence, uuidBefore, label);
+    assert.equal(
+      fixture.tables.castleWorkerV1.workerId.find(
+        routePlan.routes[0]!.workerId,
+      )!.status,
+      'outbound',
+    );
+  };
+
+  exercise('fingerprint', (_prepared, _assignment, receipt) => {
+    const original = String(receipt.commandKind).split(':')[4]!;
+    mutateDispatchV2ReceiptMetadata(
+      receipt,
+      'fingerprint',
+      original === 'd'.repeat(64) ? 'e'.repeat(64) : 'd'.repeat(64),
+    );
+  });
+  exercise('atlas', (_prepared, _assignment, receipt) => {
+    const expected = BigInt(String(receipt.commandKind).split(':')[1]!);
+    mutateDispatchV2ReceiptMetadata(
+      receipt,
+      'expectedRevision',
+      (expected + 1n).toString(),
+    );
+  });
+  exercise('capacity', (_prepared, _assignment, receipt) => {
+    const original = String(receipt.commandKind).split(':')[3]!;
+    mutateDispatchV2ReceiptMetadata(
+      receipt,
+      'capacityDigest',
+      original === 'f'.repeat(64) ? '0'.repeat(64) : 'f'.repeat(64),
+    );
+  });
+  exercise('route-timeline', ({ fixture }, assignment) => {
+    const altered = planCastleWorkerTimeline(
+      assignment.startedAtMicros,
+      assignment.routeSteps + 1,
+    );
+    Object.assign(assignment, altered, {
+      routeSteps: assignment.routeSteps + 1,
+      settledThroughMicros: altered.arrivesAtMicros,
+    });
+    const worker = fixture.tables.castleWorkerV1.workerId.find(
+      assignment.workerId,
+    )!;
+    Object.assign(worker, altered, { routeSteps: assignment.routeSteps });
+    const occupation = fixture.tables.workerNodeOccupationV1.byWorker.find(
+      assignment.workerId,
+    )!;
+    Object.assign(occupation, {
+      startedAtMicros: altered.startedAtMicros,
+      arrivesAtMicros: altered.arrivesAtMicros,
+      gatheringEndsAtMicros: altered.gatheringEndsAtMicros,
+    });
+    const schedule = fixture.tables.workerAssignmentScheduleV1.byWorker.find(
+      assignment.workerId,
+    )!;
+    schedule.scheduledAt = {
+      tag: 'Time',
+      value: timestamp(altered.arrivesAtMicros),
+    };
+  });
+});
+
+function completeNormalProductionCanaryEvidenceRun(
+  prepared: PreparedCanaryFixture,
+): void {
+  const { fixture, registration, routePlan } = prepared;
+  const dispatched = [1, 2, 3, 4].map(ordinal => (
+    dispatchProductionCanaryOrdinal(prepared, ordinal).assignment!
+  ));
+  const events = dispatched.flatMap((assignment, index) => ([
+    Object.freeze({
+      kind: 'arrival' as const,
+      ordinal: index + 1,
+      atMicros: assignment.arrivesAtMicros,
+    }),
+    Object.freeze({
+      kind: 'recall' as const,
+      ordinal: index + 1,
+      atMicros: assignment.arrivesAtMicros
+        + workerResourcePolicy(assignment.resourceKind).quantumMicros,
+    }),
+  ])).sort((left, right) => (
+    left.atMicros < right.atMicros ? -1
+      : left.atMicros > right.atMicros ? 1
+        : left.kind === right.kind ? left.ordinal - right.ordinal
+          : left.kind === 'arrival' ? -1 : 1
+  ));
+  for (const event of events) {
+    fixture.ctx.timestamp = timestamp(event.atMicros);
+    if (event.kind === 'arrival') {
+      runCurrentWorkerSchedule(
+        fixture,
+        routePlan.routes[event.ordinal - 1]!.workerId,
+      );
+    } else {
+      assert.equal(recoverProductionCanaryOrdinal(prepared, event.ordinal), 'recalled');
+    }
+  }
+  const returnSchedules = routePlan.routes.map(route => (
+    fixture.tables.workerAssignmentScheduleV1.byWorker.find(route.workerId)!
+  )).sort((left, right) => {
+    const leftAt = left.scheduledAt.value.microsSinceUnixEpoch as bigint;
+    const rightAt = right.scheduledAt.value.microsSinceUnixEpoch as bigint;
+    return leftAt < rightAt ? -1 : leftAt > rightAt ? 1 : 0;
+  });
+  for (const schedule of returnSchedules) {
+    fixture.ctx.timestamp = timestamp(schedule.scheduledAt.value.microsSinceUnixEpoch);
+    fixture.transaction(() => runCastleWorkerSchedule(fixture.ctx, schedule));
+  }
+  assert.ok(fixture.ctx.timestamp.microsSinceUnixEpoch < registration.notAfterMicros);
+}
+
+test('production canary normal pre-cutoff all-four recall materializes one quantum and remains evidence-eligible', () => {
+  const prepared = prepareProductionPlayerCanaryFixture();
+  const { fixture, fid, baselineInput } = prepared;
+  completeNormalProductionCanaryEvidenceRun(prepared);
+  const resource = fixture.tables.resourceAccountV1.fid.find(fid)!;
+  const storedBaseline = fixture.tables.productionPlayerCanaryBaselineV1.fid.find(fid)!;
+  assert.ok(resource.revision > storedBaseline.resourceRevision);
+  const status = inspectProductionPlayerCanaryRecoveryStatusV1(fixture.ctx, {
+    fid,
+    ...baselineInput,
+  });
+  assert.equal(status.terminalSafe, true);
+  assert.equal(status.structuralEvidenceCandidate, true);
+  assert.equal(status.disposition, 'terminal-evidence-candidate');
+  const evidence = inspectProductionPlayerCanaryAdminEvidence(fixture.ctx, {
+    fid,
+    ...baselineInput,
+  });
+  assert.equal(evidence.resourceQuantumCount, 4);
+  assert.equal(evidence.dispatchReceiptCount, 4);
+  assert.equal(evidence.recallReceiptCount, 4);
+  for (const kind of ['food', 'wood', 'stone', 'gold'] as const) {
+    assert.equal(
+      evidence[`${kind}Delta`],
+      workerResourcePolicy(kind).ratePerQuantum,
+    );
+  }
+});
+
+test('production canary admin evidence rejects future dispatch and recall receipts read-only', () => {
+  const prepared = prepareProductionPlayerCanaryFixture();
+  const { fixture, fid, baselineInput, commands } = prepared;
+  completeNormalProductionCanaryEvidenceRun(prepared);
+  const dispatch = fixture.tables.workerCommandIdempotencyV1.requestKey.find(
+    `${fid.toString()}:${commands.commands[0]!.dispatchIdempotencyKey}`,
+  )!;
+  const recall = fixture.tables.workerCommandIdempotencyV1.requestKey.find(
+    `${fid.toString()}:${commands.commands[0]!.recallIdempotencyKey}`,
+  )!;
+  const originalDispatchAt = clone(dispatch.createdAt);
+  const originalRecallAt = clone(recall.createdAt);
+  const assertFutureRejected = (label: string) => {
+    const before = stateText(fixture);
+    const uuidBefore = fixture.uuidSequence;
+    assert.equal(errorCode(() => inspectProductionPlayerCanaryAdminEvidence(
+      fixture.ctx,
+      { fid, ...baselineInput },
+    )), 'PRODUCTION_PLAYER_CANARY_JOURNEY_INVALID', label);
+    assert.equal(stateText(fixture), before, label);
+    assert.equal(fixture.uuidSequence, uuidBefore, label);
+  };
+  dispatch.createdAt = timestamp(
+    fixture.ctx.timestamp.microsSinceUnixEpoch + 1n,
+  );
+  assertFutureRejected('future dispatch');
+  dispatch.createdAt = originalDispatchAt;
+  recall.createdAt = timestamp(
+    fixture.ctx.timestamp.microsSinceUnixEpoch + 1n,
+  );
+  assertFutureRejected('future recall');
+  recall.createdAt = originalRecallAt;
+  dispatch.createdAt = timestamp(
+    fixture.ctx.timestamp.microsSinceUnixEpoch + 1n,
+  );
+  recall.createdAt = timestamp(
+    fixture.ctx.timestamp.microsSinceUnixEpoch + 2n,
+  );
+  assertFutureRejected('coordinated future dispatch and recall');
+});
+
+test('production canary overdue schedule drains actual arrival expiry and return in exactly three transitions', () => {
+  const prepared = prepareProductionPlayerCanaryFixture();
+  const { fixture, registration, routePlan } = prepared;
+  fixture.ctx.timestamp = timestamp(registration.notAfterMicros);
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+  const dispatched = dispatchGenericCanaryRoute(
+    prepared,
+    1,
+    'generic-overdue-three-stage-drain-0001',
+    registration.notAfterMicros,
+  );
+  assert.ok(dispatched.assignment);
+  const workerId = routePlan.routes[0]!.workerId;
+  const initial = fixture.tables.workerAssignmentScheduleV1.byWorker.find(workerId)!;
+  fixture.ctx.timestamp = timestamp(dispatched.assignment.returnsAtMicros);
+  let transitions = 0;
+  fixture.transaction(() => runBoundedDueCastleWorkerScheduleDrainV1(
+    initial,
+    fixture.ctx.timestamp.microsSinceUnixEpoch,
+    schedule => {
+      transitions += 1;
+      runCastleWorkerSchedule(fixture.ctx, schedule);
+    },
+    assignmentId => fixture.tables.workerAssignmentScheduleV1.byAssignment
+      .filter(assignmentId),
+    schedule => schedule.scheduledAt.value.microsSinceUnixEpoch,
+  ));
+  assert.equal(transitions, 3);
+  assert.equal(fixture.tables.workerAssignmentV1.workerId.find(workerId), null);
+  assert.equal(
+    fixture.tables.workerAssignmentScheduleV1.byWorker.find(workerId),
+    null,
+  );
+  const worker = fixture.tables.castleWorkerV1.workerId.find(workerId)!;
+  assert.equal(worker.status, 'idle');
+  assert.equal(worker.revision, 4n);
+  const before = stateText(fixture);
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+  assert.equal(stateText(fixture), before);
+});
+
+test('production canary f00 pins reserved and completed-generic receipts at the live 64-row prune boundary', () => {
+  const prepared = prepareProductionPlayerCanaryFixture();
+  const { fixture, fid, castle, commands, registration, routePlan } = prepared;
+  fixture.ctx.timestamp = timestamp(registration.notAfterMicros);
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+  const completed = dispatchGenericCanaryRoute(
+    prepared,
+    1,
+    'generic-completed-before-prune-0001',
+    registration.notAfterMicros,
+  );
+  assert.ok(completed.assignment);
+  completeWorkerAssignmentNaturally(fixture, routePlan.routes[0]!.workerId);
+
+  const fillerWorker = fixture.tables.castleWorkerV1.workerId.find(
+    routePlan.routes[3]!.workerId,
+  )!;
+  const lookalikeKey = `${fid.toString()}:xpc2-lookalike-0000`;
+  fixture.tables.workerCommandIdempotencyV1.insert({
+    requestKey: lookalikeKey,
+    fid,
+    workerId: fillerWorker.workerId,
+    commandKind: 'recall',
+    resourceKind: undefined,
+    siteId: undefined,
+    assignmentId: undefined,
+    resultRevision: fillerWorker.revision,
+    createdAt: timestamp(fixture.ctx.timestamp.microsSinceUnixEpoch - 1n),
+  });
+  while (fixture.tables.workerCommandIdempotencyV1.rows.filter(
+    row => row.fid === fid,
+  ).length < 64) {
+    const ordinal = fixture.tables.workerCommandIdempotencyV1.rows.filter(
+      row => row.fid === fid,
+    ).length;
+    fixture.tables.workerCommandIdempotencyV1.insert({
+      requestKey: `${fid.toString()}:historical-noop-${String(ordinal).padStart(4, '0')}`,
+      fid,
+      workerId: fillerWorker.workerId,
+      commandKind: 'recall',
+      resourceKind: undefined,
+      siteId: undefined,
+      assignmentId: undefined,
+      resultRevision: fillerWorker.revision,
+      createdAt: fixture.ctx.timestamp,
+    });
+  }
+  const completedAssignmentId = completed.assignment.assignmentId;
+  const protectedBefore = fixture.tables.workerCommandIdempotencyV1.rows
+    .filter(row => (
+      row.requestKey.startsWith(`${fid.toString()}:pc2-`)
+      || row.assignmentId === completedAssignmentId
+    ))
+    .map(row => clone(row));
+  assert.equal(
+    protectedBefore.filter(row => row.requestKey.includes(
+      commands.recoveryFenceIdempotencyKey,
+    )).length,
+    1,
+  );
+  const oldestHistoricalKey = fixture.tables.workerCommandIdempotencyV1.rows
+    .filter(row => row.requestKey.includes(':historical-noop-'))
+    .sort((left, right) => left.requestKey.localeCompare(right.requestKey))[0]!
+    .requestKey;
+
+  const second = dispatchGenericCanaryRoute(
+    prepared,
+    2,
+    'generic-live-prune-dispatch-0002',
+    fixture.ctx.timestamp.microsSinceUnixEpoch + 1n,
+  );
+  assert.equal(second.idempotent, false);
+  assert.equal(
+    fixture.tables.workerCommandIdempotencyV1.requestKey.find(lookalikeKey),
+    null,
+  );
+  assert.notEqual(
+    fixture.tables.workerCommandIdempotencyV1.requestKey.find(oldestHistoricalKey),
+    null,
+  );
+  assert.equal(
+    fixture.tables.workerCommandIdempotencyV1.rows.filter(row => row.fid === fid).length,
+    64,
+  );
+  for (const protectedRow of protectedBefore) {
+    assert.deepEqual(
+      fixture.tables.workerCommandIdempotencyV1.requestKey.find(
+        protectedRow.requestKey,
+      ),
+      protectedRow,
+    );
+  }
+
+  fixture.ctx.timestamp = timestamp(
+    fixture.ctx.timestamp.microsSinceUnixEpoch + 1n,
+  );
+  fixture.transaction(() => recallCastleWorker(fixture.ctx, {
+    fid,
+    castle,
+    workerId: routePlan.routes[1]!.workerId,
+    idempotencyKey: 'generic-live-prune-recall-0002',
+  }));
+  assert.equal(
+    fixture.tables.workerCommandIdempotencyV1.requestKey.find(oldestHistoricalKey),
+    null,
+  );
+  assert.equal(
+    fixture.tables.workerCommandIdempotencyV1.rows.filter(row => row.fid === fid).length,
+    64,
+  );
+  for (const protectedRow of protectedBefore) {
+    assert.deepEqual(
+      fixture.tables.workerCommandIdempotencyV1.requestKey.find(
+        protectedRow.requestKey,
+      ),
+      protectedRow,
+    );
+  }
+  assert.ok(fixture.tables.workerCommandIdempotencyV1.rows.some(row => (
+    row.assignmentId === second.assignment?.assignmentId
+    && row.commandKind === 'recall'
+  )));
+});
+
+test('production canary all-pinned 64-row cap rolls back real dispatch and recall transactions', () => {
+  const dispatchPrepared = prepareProductionPlayerCanaryFixture();
+  dispatchPrepared.fixture.ctx.timestamp = timestamp(
+    dispatchPrepared.registration.notAfterMicros,
+  );
+  assert.equal(recoverProductionCanaryOrdinal(dispatchPrepared, 0), 'fenced');
+  fillProductionCanaryReceiptsWithPinnedRows(dispatchPrepared);
+  const dispatchBefore = stateText(dispatchPrepared.fixture);
+  const dispatchUuidBefore = dispatchPrepared.fixture.uuidSequence;
+  assert.equal(
+    errorCode(() => dispatchGenericCanaryRoute(
+      dispatchPrepared,
+      1,
+      'generic-all-pinned-dispatch-0001',
+      dispatchPrepared.registration.notAfterMicros + 1n,
+    )),
+    'WORKER_IDEMPOTENCY_RESERVED_CAPACITY',
+  );
+  assert.equal(stateText(dispatchPrepared.fixture), dispatchBefore);
+  assert.equal(dispatchPrepared.fixture.uuidSequence, dispatchUuidBefore);
+
+  const recallPrepared = prepareProductionPlayerCanaryFixture();
+  recallPrepared.fixture.ctx.timestamp = timestamp(
+    recallPrepared.registration.notAfterMicros,
+  );
+  assert.equal(recoverProductionCanaryOrdinal(recallPrepared, 0), 'fenced');
+  const active = dispatchGenericCanaryRoute(
+    recallPrepared,
+    1,
+    'generic-all-pinned-live-0001',
+    recallPrepared.registration.notAfterMicros + 1n,
+  );
+  assert.ok(active.assignment);
+  fillProductionCanaryReceiptsWithPinnedRows(recallPrepared);
+  recallPrepared.fixture.ctx.timestamp = timestamp(
+    recallPrepared.fixture.ctx.timestamp.microsSinceUnixEpoch + 1n,
+  );
+  const recallBefore = stateText(recallPrepared.fixture);
+  const recallUuidBefore = recallPrepared.fixture.uuidSequence;
+  assert.equal(errorCode(() => recallPrepared.fixture.transaction(() => (
+    recallCastleWorker(recallPrepared.fixture.ctx, {
+      fid: recallPrepared.fid,
+      castle: recallPrepared.castle,
+      workerId: recallPrepared.routePlan.routes[0]!.workerId,
+      idempotencyKey: 'generic-all-pinned-recall-0001',
+    })
+  ))), 'WORKER_IDEMPOTENCY_RESERVED_CAPACITY');
+  assert.equal(stateText(recallPrepared.fixture), recallBefore);
+  assert.equal(recallPrepared.fixture.uuidSequence, recallUuidBefore);
+});
+
+test('production canary ordinal-zero injected mid-sweep fault rolls back every row and retries deterministically', () => {
+  const prepared = prepareProductionPlayerCanaryFixture();
+  const { fixture, fid, castle, baselineInput, registration } = prepared;
+  dispatchProductionCanaryOrdinal(prepared, 1);
+  fixture.ctx.timestamp = timestamp(registration.approvedAtMicros + 2n);
+  const before = stateText(fixture);
+  const uuidBefore = fixture.uuidSequence;
+  assert.throws(() => fixture.transaction(() => (
+    recallProductionPlayerCanaryWorkerV1(fixture.ctx, {
+      fid,
+      castle,
+      ...baselineInput,
+      ordinal: 0,
+    })
+  ), 5), /INJECTED_TRANSACTION_FAULT/u);
+  assert.equal(stateText(fixture), before);
+  assert.equal(fixture.uuidSequence, uuidBefore);
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+});
+
+test('production canary completed f00 rejects historical assignment occupation and schedule orphans without writes', () => {
+  const prepared = prepareProductionPlayerCanaryFixture();
+  const { fixture, routePlan, registration } = prepared;
+  const dispatched = dispatchProductionCanaryOrdinal(prepared, 1);
+  assert.ok(dispatched.assignment);
+  const assignmentTemplate = clone(dispatched.assignment);
+  const occupationTemplate = clone(
+    fixture.tables.workerNodeOccupationV1.byWorker.find(
+      routePlan.routes[0]!.workerId,
+    )!,
+  );
+  const scheduleTemplate = clone(
+    fixture.tables.workerAssignmentScheduleV1.byWorker.find(
+      routePlan.routes[0]!.workerId,
+    )!,
+  );
+  fixture.ctx.timestamp = timestamp(registration.approvedAtMicros + 2n);
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+  completeWorkerAssignmentNaturally(fixture, routePlan.routes[0]!.workerId);
+
+  const assertRejectedWithoutWrite = (insert: () => void, remove: () => void) => {
+    insert();
+    const before = stateText(fixture);
+    assert.match(
+      errorCode(() => recoverProductionCanaryOrdinal(prepared, 0)) ?? '',
+      /ASSIGNMENT_INVALID/u,
+    );
+    assert.equal(stateText(fixture), before);
+    remove();
+  };
+  assertRejectedWithoutWrite(
+    () => fixture.tables.workerAssignmentV1.insert({
+      ...assignmentTemplate,
+      fid: 99_999n,
+      workerId: 'orphan-worker-assignment',
+    }),
+    () => {
+      fixture.tables.workerAssignmentV1.assignmentId.delete(
+        assignmentTemplate.assignmentId,
+      );
+    },
+  );
+  assertRejectedWithoutWrite(
+    () => fixture.tables.workerNodeOccupationV1.insert({
+      ...occupationTemplate,
+      workerId: 'orphan-worker-occupation',
+      originCastleId: 99_999n,
+    }),
+    () => {
+      fixture.tables.workerNodeOccupationV1.nodeKey.delete(
+        occupationTemplate.nodeKey,
+      );
+    },
+  );
+  let orphanScheduleId = 0n;
+  assertRejectedWithoutWrite(
+    () => {
+      const inserted = fixture.tables.workerAssignmentScheduleV1.insert({
+        ...scheduleTemplate,
+        scheduleId: 0n,
+        workerId: 'orphan-worker-schedule',
+      });
+      orphanScheduleId = inserted.scheduleId;
+    },
+    () => {
+      fixture.tables.workerAssignmentScheduleV1.scheduleId.delete(orphanScheduleId);
+    },
+  );
+});
+
+test('production canary pc2 replay is read-only after recall returning and terminal orphan variants', () => {
+  const prepared = prepareProductionPlayerCanaryFixture();
+  const { fixture, routePlan } = prepared;
+  const dispatched = dispatchProductionCanaryOrdinal(prepared, 1);
+  assert.ok(dispatched.assignment);
+  const assignmentTemplate = clone(dispatched.assignment);
+  const occupationTemplate = clone(
+    fixture.tables.workerNodeOccupationV1.byWorker.find(
+      routePlan.routes[0]!.workerId,
+    )!,
+  );
+  const scheduleTemplate = clone(
+    fixture.tables.workerAssignmentScheduleV1.byWorker.find(
+      routePlan.routes[0]!.workerId,
+    )!,
+  );
+
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 1), 'recalled');
+  const returningBefore = stateText(fixture);
+  const returningReplay = replayProductionCanaryOrdinalAtCurrentTime(prepared, 1);
+  assert.equal(returningReplay.idempotent, true);
+  assert.equal(returningReplay.assignment?.phase, 'returning');
+  assert.equal(stateText(fixture), returningBefore);
+
+  runNextWorkerSchedule(fixture, routePlan.routes[0]!.workerId);
+  const terminalBefore = stateText(fixture);
+  const terminalReplay = replayProductionCanaryOrdinalAtCurrentTime(prepared, 1);
+  assert.equal(terminalReplay.idempotent, true);
+  assert.equal(terminalReplay.assignment, undefined);
+  assert.equal(stateText(fixture), terminalBefore);
+
+  const assertTerminalOrphanRejected = (
+    label: string,
+    insert: () => void,
+    remove: () => void,
+  ) => {
+    insert();
+    const before = stateText(fixture);
+    const uuidBefore = fixture.uuidSequence;
+    assert.match(
+      errorCode(() => replayProductionCanaryOrdinalAtCurrentTime(prepared, 1)) ?? '',
+      /ASSIGNMENT_INVALID|REPLAY_INVALID/u,
+      label,
+    );
+    assert.equal(stateText(fixture), before, label);
+    assert.equal(fixture.uuidSequence, uuidBefore, label);
+    remove();
+  };
+  assertTerminalOrphanRejected(
+    'assignment',
+    () => fixture.tables.workerAssignmentV1.insert({
+      ...assignmentTemplate,
+      fid: 99_999n,
+      workerId: 'pc2-replay-orphan-assignment',
+    }),
+    () => fixture.tables.workerAssignmentV1.assignmentId.delete(
+      assignmentTemplate.assignmentId,
+    ),
+  );
+  assertTerminalOrphanRejected(
+    'occupation',
+    () => fixture.tables.workerNodeOccupationV1.insert({
+      ...occupationTemplate,
+      workerId: 'pc2-replay-orphan-occupation',
+      originCastleId: 99_999n,
+    }),
+    () => fixture.tables.workerNodeOccupationV1.nodeKey.delete(
+      occupationTemplate.nodeKey,
+    ),
+  );
+  let orphanScheduleId = 0n;
+  assertTerminalOrphanRejected(
+    'schedule',
+    () => {
+      orphanScheduleId = fixture.tables.workerAssignmentScheduleV1.insert({
+        ...scheduleTemplate,
+        scheduleId: 0n,
+        workerId: 'pc2-replay-orphan-schedule',
+      }).scheduleId;
+    },
+    () => fixture.tables.workerAssignmentScheduleV1.scheduleId.delete(
+      orphanScheduleId,
+    ),
+  );
+});
+
+test('production canary terminal pc2 and generic receipts must be chronologically complete when observed', () => {
+  for (const recalled of [false, true]) {
+    const prepared = prepareProductionPlayerCanaryFixture();
+    const { fixture, fid, commands, routePlan } = prepared;
+    dispatchProductionCanaryOrdinal(prepared, 1);
+    const workerId = routePlan.routes[0]!.workerId;
+    if (recalled) {
+      runNextWorkerSchedule(fixture, workerId);
+      assert.equal(recoverProductionCanaryOrdinal(prepared, 1), 'recalled');
+      runNextWorkerSchedule(fixture, workerId);
+    } else {
+      completeWorkerAssignmentNaturally(fixture, workerId);
+    }
+    const receipt = fixture.tables.workerCommandIdempotencyV1.requestKey.find(
+      `${fid.toString()}:${recalled
+        ? commands.commands[0]!.recallIdempotencyKey
+        : commands.commands[0]!.dispatchIdempotencyKey}`,
+    )!;
+    receipt.createdAt = timestamp(
+      receipt.createdAt.microsSinceUnixEpoch + 1n,
+    );
+    const before = stateText(fixture);
+    const uuidBefore = fixture.uuidSequence;
+    assert.match(
+      errorCode(() => replayProductionCanaryOrdinalAtCurrentTime(prepared, 1)) ?? '',
+      /ASSIGNMENT_INVALID|REPLAY_INVALID|RECEIPT_INVALID|ROSTER_INVALID/u,
+    );
+    assert.equal(stateText(fixture), before);
+    assert.equal(fixture.uuidSequence, uuidBefore);
+  }
+
+  for (const recalled of [false, true]) {
+    const prepared = prepareProductionPlayerCanaryFixture();
+    const { fixture, fid, baselineInput, registration, routePlan } = prepared;
+    fixture.ctx.timestamp = timestamp(registration.notAfterMicros);
+    assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+    const generic = dispatchGenericCanaryRoute(
+      prepared,
+      1,
+      recalled
+        ? 'generic-terminal-chronology-recall-0001'
+        : 'generic-terminal-chronology-natural-0001',
+      registration.notAfterMicros,
+    );
+    const workerId = routePlan.routes[0]!.workerId;
+    if (recalled) {
+      runNextWorkerSchedule(fixture, workerId);
+      recallOrdinaryCanaryRoute(
+        prepared,
+        1,
+        'generic-terminal-chronology-recall-command-0001',
+        fixture.ctx.timestamp.microsSinceUnixEpoch,
+      );
+      runNextWorkerSchedule(fixture, workerId);
+    } else {
+      completeWorkerAssignmentNaturally(fixture, workerId);
+    }
+    const receipt = fixture.tables.workerCommandIdempotencyV1.rows.find(row => (
+      row.assignmentId === generic.assignment!.assignmentId
+      && (
+        recalled
+          ? row.commandKind === 'recall'
+          : row.commandKind.startsWith('dispatch-v2:')
+      )
+    ))!;
+    receipt.createdAt = timestamp(
+      receipt.createdAt.microsSinceUnixEpoch + 1n,
+    );
+    const before = stateText(fixture);
+    const uuidBefore = fixture.uuidSequence;
+    assert.match(errorCode(() => inspectProductionPlayerCanaryRecoveryStatusV1(
+      fixture.ctx,
+      { fid, ...baselineInput },
+    )) ?? '', /ASSIGNMENT_INVALID|REPLAY_INVALID|RECEIPT_INVALID|ROSTER_INVALID/u);
+    assert.equal(stateText(fixture), before);
+    assert.equal(fixture.uuidSequence, uuidBefore);
+    assert.match(
+      errorCode(() => recoverProductionCanaryOrdinal(prepared, 0)) ?? '',
+      /ASSIGNMENT_INVALID|REPLAY_INVALID|RECEIPT_INVALID|ROSTER_INVALID/u,
+    );
+    assert.equal(stateText(fixture), before);
+    assert.equal(fixture.uuidSequence, uuidBefore);
+  }
+});
+
+test('production canary approval permanently blocks ordinary recall-all while leaving other FIDs unchanged', () => {
+  const prepared = prepareProductionPlayerCanaryFixture();
+  const { fixture, fid, castle, registration } = prepared;
+  const assertBlocked = (atMicros: bigint, key: string) => {
+    fixture.ctx.timestamp = timestamp(atMicros);
+    const before = stateText(fixture);
+    assert.equal(errorCode(() => fixture.transaction(() => (
+      recallAllCastleWorkers(fixture.ctx, {
+        fid,
+        castle,
+        idempotencyKey: key,
+      })
+    ))), 'PRODUCTION_PLAYER_CANARY_RECALL_ALL_PERMANENTLY_BLOCKED');
+    assert.equal(stateText(fixture), before);
+  };
+  assertBlocked(registration.approvedAtMicros, 'blocked-recall-all-window-0001');
+  assertBlocked(registration.notAfterMicros, 'blocked-recall-all-cutoff-0002');
+  assertBlocked(registration.notAfterMicros + 1n, 'blocked-recall-all-after-0003');
+  fixture.ctx.timestamp = timestamp(registration.notAfterMicros + 2n);
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+  assertBlocked(registration.notAfterMicros + 2n, 'blocked-recall-all-f00-0004');
+
+  const registrationRow = fixture.tables
+    .productionPlayerCanaryApprovalRegistrationV1.fid.find(fid)!;
+  registrationRow.commandKeyPolicyVersion = 'malformed-v1';
+  fixture.ctx.timestamp = timestamp(registration.notAfterMicros + 3n);
+  const malformedBefore = stateText(fixture);
+  assert.equal(errorCode(() => fixture.transaction(() => (
+    recallAllCastleWorkers(fixture.ctx, {
+      fid,
+      castle,
+      idempotencyKey: 'blocked-recall-all-malformed-0005',
+    })
+  ))), 'STATE_INTEGRITY');
+  assert.equal(stateText(fixture), malformedBefore);
+
+  const otherFid = 1_001n;
+  const otherCastle = fixture.tables.castle.ownerFid.find(otherFid)!;
+  fixture.transaction(() => recallAllCastleWorkers(fixture.ctx, {
+    fid: otherFid,
+    castle: otherCastle,
+    idempotencyKey: 'other-fid-recall-all-allowed-0001',
+  }));
+  assert.notEqual(
+    fixture.tables.workerCommandIdempotencyV1.requestKey.find(
+      `${otherFid.toString()}:other-fid-recall-all-allowed-0001`,
+    ),
+    null,
+  );
+});
+
+test('production canary preserves historical recall-all rows but rejects replay and post-registration topology', () => {
+  const historical = prepareProductionPlayerCanaryFixture();
+  const historicalKey = `${historical.fid.toString()}:historical-recall-all-0001`;
+  const registeredAtMicros = historical.registration.registeredAtMicros;
+  historical.fixture.tables.workerCommandIdempotencyV1.insert({
+    requestKey: historicalKey,
+    fid: historical.fid,
+    workerId: undefined,
+    commandKind: 'recall-all',
+    resourceKind: undefined,
+    siteId: undefined,
+    assignmentId: undefined,
+    resultRevision: 0n,
+    createdAt: timestamp(registeredAtMicros - 1n),
+  });
+  historical.fixture.ctx.timestamp = timestamp(historical.registration.notAfterMicros);
+  assert.equal(recoverProductionCanaryOrdinal(historical, 0), 'fenced');
+  assert.notEqual(
+    historical.fixture.tables.workerCommandIdempotencyV1.requestKey.find(historicalKey),
+    null,
+  );
+  const replayBefore = stateText(historical.fixture);
+  assert.equal(errorCode(() => historical.fixture.transaction(() => (
+    recallAllCastleWorkers(historical.fixture.ctx, {
+      fid: historical.fid,
+      castle: historical.castle,
+      idempotencyKey: 'historical-recall-all-0001',
+    })
+  ))), 'PRODUCTION_PLAYER_CANARY_RECALL_ALL_PERMANENTLY_BLOCKED');
+  assert.equal(stateText(historical.fixture), replayBefore);
+
+  const forbidden = prepareProductionPlayerCanaryFixture();
+  const forbiddenKey = `${forbidden.fid.toString()}:forbidden-recall-all-0001`;
+  forbidden.fixture.tables.workerCommandIdempotencyV1.insert({
+    requestKey: forbiddenKey,
+    fid: forbidden.fid,
+    workerId: undefined,
+    commandKind: 'recall-all',
+    resourceKind: undefined,
+    siteId: undefined,
+    assignmentId: undefined,
+    resultRevision: 0n,
+    createdAt: timestamp(forbidden.registration.registeredAtMicros),
+  });
+  forbidden.fixture.ctx.timestamp = timestamp(forbidden.registration.notAfterMicros);
+  const forbiddenBefore = stateText(forbidden.fixture);
+  assert.match(
+    errorCode(() => recoverProductionCanaryOrdinal(forbidden, 0)) ?? '',
+    /RECEIPT_INVALID/u,
+  );
+  assert.equal(stateText(forbidden.fixture), forbiddenBefore);
+  assert.notEqual(
+    forbidden.fixture.tables.workerCommandIdempotencyV1.requestKey.find(forbiddenKey),
+    null,
+  );
+});
+
+test('production canary accepts exact postcutoff ordinary per-worker recall before f00 active and completed', () => {
+  const active = prepareProductionPlayerCanaryFixture();
+  const activeDispatch = dispatchProductionCanaryOrdinal(active, 1);
+  assert.ok(activeDispatch.assignment);
+  recallOrdinaryCanaryRoute(
+    active,
+    1,
+    'ordinary-original-recall-active-0001',
+    active.registration.notAfterMicros,
+  );
+  const activeAssignmentBefore = clone(
+    active.fixture.tables.workerAssignmentV1.workerId.find(
+      active.routePlan.routes[0]!.workerId,
+    )!,
+  );
+  const activeWorkerBefore = clone(
+    active.fixture.tables.castleWorkerV1.workerId.find(
+      active.routePlan.routes[0]!.workerId,
+    )!,
+  );
+  assert.equal(activeAssignmentBefore.phase, 'returning');
+  assert.equal(recoverProductionCanaryOrdinal(active, 0), 'fenced');
+  assert.deepEqual(
+    active.fixture.tables.workerAssignmentV1.workerId.find(
+      active.routePlan.routes[0]!.workerId,
+    ),
+    activeAssignmentBefore,
+  );
+  assert.deepEqual(
+    active.fixture.tables.castleWorkerV1.workerId.find(
+      active.routePlan.routes[0]!.workerId,
+    ),
+    activeWorkerBefore,
+  );
+
+  const completed = prepareProductionPlayerCanaryFixture();
+  dispatchProductionCanaryOrdinal(completed, 1);
+  recallOrdinaryCanaryRoute(
+    completed,
+    1,
+    'ordinary-original-recall-complete-0001',
+    completed.registration.notAfterMicros,
+  );
+  runCurrentWorkerSchedule(completed.fixture, completed.routePlan.routes[0]!.workerId);
+  assert.equal(
+    completed.fixture.tables.workerAssignmentV1.workerId.find(
+      completed.routePlan.routes[0]!.workerId,
+    ),
+    null,
+  );
+  assert.equal(recoverProductionCanaryOrdinal(completed, 0), 'fenced');
+  const completedBefore = stateText(completed.fixture);
+  assert.equal(recoverProductionCanaryOrdinal(completed, 0), 'fenced');
+  assert.equal(stateText(completed.fixture), completedBefore);
+});
+
+test('production canary accepts exact dual pc2 plus ordinary no-op recall and rejects forged dual revisions', () => {
+  const prepared = prepareProductionPlayerCanaryFixture();
+  const { fixture, fid, commands, registration, routePlan } = prepared;
+  dispatchProductionCanaryOrdinal(prepared, 1);
+  fixture.ctx.timestamp = timestamp(registration.approvedAtMicros + 2n);
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+  const pc2Recall = fixture.tables.workerCommandIdempotencyV1.requestKey.find(
+    `${fid.toString()}:${commands.commands[0]!.recallIdempotencyKey}`,
+  )!;
+  recallOrdinaryCanaryRoute(
+    prepared,
+    1,
+    'ordinary-original-noop-after-f00-0001',
+    registration.notAfterMicros,
+  );
+  const ordinaryKey = `${fid.toString()}:ordinary-original-noop-after-f00-0001`;
+  const ordinary = fixture.tables.workerCommandIdempotencyV1.requestKey.find(
+    ordinaryKey,
+  )!;
+  assert.equal(ordinary.resultRevision, pc2Recall.resultRevision);
+  const exactBefore = stateText(fixture);
+  assert.equal(recoverProductionCanaryOrdinal(prepared, 0), 'fenced');
+  assert.equal(stateText(fixture), exactBefore);
+
+  runCurrentWorkerSchedule(fixture, routePlan.routes[0]!.workerId);
+  const canonicalRevision = ordinary.resultRevision;
+  for (const forgedRevision of [1n, canonicalRevision + 1n, canonicalRevision + 99n]) {
+    ordinary.resultRevision = forgedRevision;
+    const forgedBefore = stateText(fixture);
+    assert.match(
+      errorCode(() => recoverProductionCanaryOrdinal(prepared, 0)) ?? '',
+      /RECEIPT_INVALID/u,
+    );
+    assert.equal(stateText(fixture), forgedBefore);
+  }
+  ordinary.resultRevision = canonicalRevision;
+});
 
 test('the bounded cutover status tracks every production phase and admission boundary', () => {
   const fixture = new Fixture();

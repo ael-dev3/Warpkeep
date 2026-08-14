@@ -58,9 +58,12 @@ function OwnerCanaryPanel({
   const [pendingConsent, setPendingConsent] = useState<PendingConsent | null>(null);
   const [handoffState, setHandoffState] = useState<EvidenceHandoffState>('idle');
   const [runAttempted, setRunAttempted] = useState(false);
+  const [freshPageRecoveryOnly, setFreshPageRecoveryOnly] = useState(false);
   const [recoveryState, setRecoveryState] = useState<OwnerCanaryRecoveryState>('none');
   const controllerRef = useRef<OwnerCanaryController | undefined>(undefined);
   const pendingConsentRef = useRef<PendingConsent | undefined>(undefined);
+  const freshRecoveryNonceRef = useRef<HTMLInputElement | null>(null);
+  const freshRecoveryPlanRef = useRef<HTMLInputElement | null>(null);
 
   const settlePendingConsent = useCallback((approved: boolean) => {
     const pending = pendingConsentRef.current;
@@ -124,6 +127,26 @@ function OwnerCanaryPanel({
     setPendingConsent(pending);
   }), []);
 
+  const buildController = useCallback((selectedRuntime: OwnerCanaryRuntime) => (
+    createOwnerCanaryController({
+      evidenceApi: selectedRuntime.evidenceApi,
+      recoveryApi: selectedRuntime.recoveryApi,
+      freshPageRecoveryApi: selectedRuntime.freshPageRecoveryApi,
+      requestStageConsent,
+      getQuickAuthToken: host.quickAuth.getToken,
+      exchangeQuickAuth: (token, signal) => authClient.exchangeQuickAuth(token, signal),
+      openAuthority: selectedRuntime.openAuthority,
+      closeAuthority: selectedRuntime.closeAuthority,
+      openRecallRecoveryAuthority: selectedRuntime.openRecallRecoveryAuthority,
+      closeRecallRecoveryAuthority: selectedRuntime.closeRecallRecoveryAuthority,
+      openFreshPageRecoveryAuthority: selectedRuntime.openFreshPageRecoveryAuthority,
+      closeFreshPageRecoveryAuthority: selectedRuntime.closeFreshPageRecoveryAuthority,
+      verifyPrivateSubject: selectedRuntime.verifyPrivateSubject,
+      onState: setControllerState,
+      onRecoveryState: setRecoveryState,
+    })
+  ), [authClient, host.quickAuth.getToken, requestStageConsent]);
+
   const running = controllerState.phase === 'awaiting-consent'
     || controllerState.phase === 'authenticating'
     || controllerState.phase === 'running-stage';
@@ -137,6 +160,7 @@ function OwnerCanaryPanel({
     && /^[0-9a-f]{64}$/.test(routeSetCommitment)
     && controllerState.phase !== 'authority-close-unconfirmed'
     && handoffState !== 'failed'
+    && !freshPageRecoveryOnly
     && !runAttempted
     && !busy;
 
@@ -153,20 +177,7 @@ function OwnerCanaryPanel({
     setEvidenceNonce('');
     setReviewedAdmissionPlanDigest('');
     setRouteSetCommitment('');
-    const controller = createOwnerCanaryController({
-      evidenceApi: runtime.evidenceApi,
-      recoveryApi: runtime.recoveryApi,
-      requestStageConsent,
-      getQuickAuthToken: host.quickAuth.getToken,
-      exchangeQuickAuth: (token, signal) => authClient.exchangeQuickAuth(token, signal),
-      openAuthority: runtime.openAuthority,
-      closeAuthority: runtime.closeAuthority,
-      openRecallRecoveryAuthority: runtime.openRecallRecoveryAuthority,
-      closeRecallRecoveryAuthority: runtime.closeRecallRecoveryAuthority,
-      verifyPrivateSubject: runtime.verifyPrivateSubject,
-      onState: setControllerState,
-      onRecoveryState: setRecoveryState,
-    });
+    const controller = buildController(runtime);
     controllerRef.current = controller;
     void runOwnerCanaryPlayerEvidence(controller, runInput)
       .then(async (evidence) => {
@@ -187,11 +198,9 @@ function OwnerCanaryPanel({
         ) controllerRef.current = undefined;
       });
   }, [
-    authClient,
+    buildController,
     canStart,
     evidenceNonce,
-    host.quickAuth.getToken,
-    requestStageConsent,
     reviewedAdmissionPlanDigest,
     routeSetCommitment,
     runtime,
@@ -215,6 +224,41 @@ function OwnerCanaryPanel({
       ) controllerRef.current = undefined;
     });
   }, [recoveryState]);
+
+  const recoverFreshPage = useCallback(() => {
+    if (
+      !runtime
+      || busy
+      || (runAttempted && !freshPageRecoveryOnly)
+      || controllerState.phase === 'recovery-authority-close-unconfirmed'
+    ) return;
+    const nonceInput = freshRecoveryNonceRef.current;
+    const planInput = freshRecoveryPlanRef.current;
+    if (!nonceInput || !planInput) return;
+    const recoveryInput = Object.freeze({
+      evidenceNonce: nonceInput.value,
+      reviewedAdmissionPlanDigest: planInput.value,
+    });
+    // Clear DOM-held private input before validation, authentication, or I/O.
+    nonceInput.value = '';
+    planInput.value = '';
+    setFreshPageRecoveryOnly(true);
+    setRunAttempted(true);
+    setConfirmed(false);
+    setEvidenceNonce('');
+    setReviewedAdmissionPlanDigest('');
+    setRouteSetCommitment('');
+    const controller = controllerRef.current ?? buildController(runtime);
+    controllerRef.current = controller;
+    void controller.recoverFreshPage(recoveryInput).catch(() => undefined);
+  }, [
+    buildController,
+    busy,
+    controllerState.phase,
+    freshPageRecoveryOnly,
+    runAttempted,
+    runtime,
+  ]);
 
   const unavailableMessage = host.state === 'detecting'
     ? 'Confirming the Farcaster Mini App host…'
@@ -251,7 +295,7 @@ function OwnerCanaryPanel({
               <input
                 autoCapitalize="none"
                 autoComplete="off"
-                disabled={busy}
+                disabled={busy || runAttempted}
                 inputMode="text"
                 maxLength={64}
                 onChange={(event) => setEvidenceNonce(event.currentTarget.value)}
@@ -266,7 +310,7 @@ function OwnerCanaryPanel({
               <input
                 autoCapitalize="none"
                 autoComplete="off"
-                disabled={busy}
+                disabled={busy || runAttempted}
                 inputMode="text"
                 maxLength={64}
                 onChange={(event) => setReviewedAdmissionPlanDigest(event.currentTarget.value)}
@@ -280,7 +324,7 @@ function OwnerCanaryPanel({
               <input
                 autoCapitalize="none"
                 autoComplete="off"
-                disabled={busy}
+                disabled={busy || runAttempted}
                 inputMode="text"
                 maxLength={64}
                 onChange={(event) => setRouteSetCommitment(event.currentTarget.value)}
@@ -293,7 +337,7 @@ function OwnerCanaryPanel({
             <label className="owner-canary__confirmation">
               <input
                 checked={confirmed}
-                disabled={busy}
+                disabled={busy || runAttempted}
                 onChange={(event) => setConfirmed(event.currentTarget.checked)}
                 type="checkbox"
               />
@@ -309,6 +353,68 @@ function OwnerCanaryPanel({
             </button>
           </>
         )}
+
+        {host.state === 'miniapp' && runtime && (!runAttempted || freshPageRecoveryOnly) ? (
+          <div
+            className="owner-canary__stage"
+            role="group"
+            aria-labelledby="owner-canary-fresh-recovery-title"
+          >
+            <p className="owner-canary__eyebrow">FRESH-PAGE RECALL OR FENCE</p>
+            <h2 id="owner-canary-fresh-recovery-title">Recover after a page loss</h2>
+            <p>
+              Use this only after the original canary page was lost or reloaded. Selecting it
+              permanently excludes the main run in this page. It can request only the server-owned
+              all-four recall-or-fence sweep; it cannot dispatch, produce evidence, or authorize release.
+            </p>
+            <label className="owner-canary__field">
+              <span>Reload recovery evidence nonce</span>
+              <input
+                autoCapitalize="none"
+                autoComplete="off"
+                defaultValue=""
+                disabled={busy || (runAttempted && !freshPageRecoveryOnly)}
+                inputMode="text"
+                maxLength={64}
+                placeholder="64 lowercase hexadecimal characters"
+                ref={freshRecoveryNonceRef}
+                spellCheck={false}
+                type="password"
+              />
+            </label>
+            <label className="owner-canary__field">
+              <span>Reload recovery admission-plan digest</span>
+              <input
+                autoCapitalize="none"
+                autoComplete="off"
+                defaultValue=""
+                disabled={busy || (runAttempted && !freshPageRecoveryOnly)}
+                inputMode="text"
+                maxLength={64}
+                placeholder="64 lowercase hexadecimal characters"
+                ref={freshRecoveryPlanRef}
+                spellCheck={false}
+                type="password"
+              />
+            </label>
+            <button
+              className="owner-canary__primary"
+              disabled={
+                busy
+                || (runAttempted && !freshPageRecoveryOnly)
+                || controllerState.phase === 'recovery-authority-close-unconfirmed'
+              }
+              onClick={recoverFreshPage}
+              type="button"
+            >
+              Authenticate and attempt reload recall-or-fence
+            </button>
+            <p>
+              Every attempt remains browser-unconfirmed. Use the read-only admin recovery inspection
+              to determine terminal safety; this page never reports recovery as safe.
+            </p>
+          </div>
+        ) : null}
 
         {pendingConsent ? (
           <div className="owner-canary__stage" role="group" aria-labelledby="owner-canary-stage-title">
@@ -379,27 +485,51 @@ function OwnerCanaryPanel({
               : 'The canary was cancelled, but an accepted production mutation cannot be ruled out. Do not retry in this page session; close the Mini App and require independent operator reconciliation.'}
           </p>
         ) : null}
-        {(recoveryState === 'required' || recoveryState === 'unconfirmed')
+        {!freshPageRecoveryOnly
+          && (recoveryState === 'required' || recoveryState === 'unconfirmed')
           && controllerState.phase !== 'recovery-authority-close-unconfirmed' ? (
           <div className="owner-canary__stage" role="group" aria-labelledby="owner-canary-recovery-title">
             <p className="owner-canary__eyebrow">RECALL-ONLY RECOVERY</p>
-            <h2 id="owner-canary-recovery-title">Urgent worker recall</h2>
+            <h2 id="owner-canary-recovery-title">
+              {controllerState.phase === 'authority-close-unconfirmed'
+                ? 'Urgent all-four recall-or-fence'
+                : 'Urgent worker recall'}
+            </h2>
             <p>
-              Authenticate again to recall only workers whose reviewed dispatch was attempted.
-              This cannot dispatch, restart, complete evidence, or authorize release.
+              {controllerState.phase === 'authority-close-unconfirmed'
+                ? 'Authenticate again to atomically recall exact active canary assignments or fence every reviewed dispatch key. This permanently invalidates evidence and remains browser-unconfirmed.'
+                : 'Authenticate again to recall only workers whose reviewed dispatch was attempted. This cannot dispatch, restart, complete evidence, or authorize release.'}
             </p>
             <button className="owner-canary__primary" onClick={recover} type="button">
-              Authenticate and attempt recall-only recovery
+              {controllerState.phase === 'authority-close-unconfirmed'
+                ? 'Authenticate and attempt all-four recall-or-fence'
+                : 'Authenticate and attempt recall-only recovery'}
             </button>
           </div>
-        ) : recoveryState === 'running' ? (
+        ) : !freshPageRecoveryOnly && recoveryState === 'running' ? (
           <p aria-live="assertive" className="owner-canary__notice" role="status">
             Running recall-only recovery with fresh owner authentication.
           </p>
-        ) : recoveryState === 'safe' && controllerState.phase !== 'complete' ? (
+        ) : !freshPageRecoveryOnly
+          && recoveryState === 'safe'
+          && controllerState.phase !== 'complete' ? (
           <p aria-live="assertive" className="owner-canary__success" role="status">
             Recall safety was observed for every attempted worker. This is not canary evidence or
             release authority; independent admin inspection is still required.
+          </p>
+        ) : null}
+        {freshPageRecoveryOnly
+          && recoveryState === 'running'
+          && controllerState.phase !== 'recovery-authority-close-unconfirmed' ? (
+          <p aria-live="assertive" className="owner-canary__notice" role="status">
+            Running the all-four recall-or-fence sweep with fresh owner authentication.
+          </p>
+        ) : freshPageRecoveryOnly
+          && recoveryState === 'unconfirmed'
+          && controllerState.phase !== 'recovery-authority-close-unconfirmed' ? (
+          <p aria-live="assertive" className="owner-canary__failure" role="alert">
+            The reload recall-or-fence attempt ended browser-unconfirmed. Never run the main canary
+            in this page; use read-only admin recovery inspection to determine terminal safety.
           </p>
         ) : null}
         {running ? (

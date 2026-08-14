@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { readdirSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
@@ -16,6 +16,19 @@ import {
 const seams = authBridgeNotificationPreparedDeployClosureTestSeams!;
 const RAW = 'raw-file-sha256-v1';
 const PROJECTED = 'reviewed-release-transition-projection-sha256-v1';
+const PROTECTED_SECURITY_SWAP_PATHS = Object.freeze([
+  'spacetimedb/src/auth.ts',
+  'spacetimedb/src/castleWorkerAuthority.ts',
+  'spacetimedb/src/greaterRealmWorkerAuthority.ts',
+  'scripts/production-player-canary-activation-launcher.mjs',
+  'scripts/production-player-canary-browser-launcher.mjs',
+  'scripts/production-player-canary-release-binding.mjs',
+]);
+const RETAINED_TYPE_ONLY_DECLARATION_PATHS = Object.freeze([
+  'scripts/production-player-canary-activation-launcher.d.mts',
+  'scripts/production-player-canary-browser-launcher.d.mts',
+  'scripts/production-player-canary-release-binding.d.mts',
+]);
 
 const CANARY_RAW_RUNTIME_PATHS = Object.freeze([
   'owner-canary/index.html',
@@ -27,14 +40,12 @@ const CANARY_RAW_RUNTIME_PATHS = Object.freeze([
   'scripts/notification-pages-live-receipt.mjs',
   'scripts/production-admin-token-budget.d.mts',
   'scripts/production-admin-token-budget.mjs',
-  'scripts/production-player-canary-activation-launcher.d.mts',
   'scripts/production-player-canary-activation-launcher.mjs',
   'scripts/production-player-canary-admin-transport.ts',
   'scripts/production-player-canary-approval-reconciliation.d.mts',
   'scripts/production-player-canary-approval-reconciliation.mjs',
   'scripts/production-player-canary-baseline-reconciliation.d.mts',
   'scripts/production-player-canary-baseline-reconciliation.mjs',
-  'scripts/production-player-canary-browser-launcher.d.mts',
   'scripts/production-player-canary-browser-launcher.mjs',
   'scripts/production-player-canary-command-authority.d.mts',
   'scripts/production-player-canary-command-authority.mjs',
@@ -54,6 +65,9 @@ const CANARY_RAW_RUNTIME_PATHS = Object.freeze([
   'scripts/profiles/founder-admission-plan.ts',
   'scripts/verify-production-dist-exclusions.mjs',
   'spacetimedb/src/index.ts',
+  'spacetimedb/src/auth.ts',
+  'spacetimedb/src/castleWorkerAuthority.ts',
+  'spacetimedb/src/greaterRealmWorkerAuthority.ts',
   'spacetimedb/src/productionPlayerCanaryApproval.ts',
   'spacetimedb/src/productionPlayerCanaryApprovalPolicy.ts',
   'spacetimedb/src/productionPlayerCanaryBaseline.ts',
@@ -113,6 +127,14 @@ function manifestWithProfiles(
   };
 }
 
+function closureRejectsManifestBytes(body: Buffer): boolean {
+  try {
+    return !seams.manifestMemberSetMatchesExpected(seams.parseManifest(body));
+  } catch {
+    return true;
+  }
+}
+
 describe('production player canary prepared-deploy closure', () => {
   it('derives every canary runtime member into the exact raw closure', () => {
     const derived = deriveAuthBridgeNotificationPreparedDeployClosurePaths({
@@ -150,4 +172,52 @@ describe('production player canary prepared-deploy closure', () => {
     }
     canonical.fill(0);
   });
+
+  it('protects executable gameplay authorities while excluding only retained type declarations', () => {
+    const derived = deriveAuthBridgeNotificationPreparedDeployClosurePaths({
+      repositoryRoot: process.cwd(),
+    });
+    for (const protectedPath of PROTECTED_SECURITY_SWAP_PATHS) {
+      expect(derived.filter(path => path === protectedPath))
+        .toEqual([protectedPath]);
+    }
+    for (const declarationPath of RETAINED_TYPE_ONLY_DECLARATION_PATHS) {
+      const declaration = readFileSync(declarationPath, 'utf8');
+      expect(declaration.length).toBeGreaterThan(0);
+      expect(declaration).toMatch(/\b(?:declare|interface|type)\b/u);
+      expect(derived).not.toContain(declarationPath);
+      for (const runtimePath of derived.filter(path => path.endsWith('.mjs'))) {
+        expect(readFileSync(runtimePath, 'utf8'), `${runtimePath} imports ${declarationPath}`)
+          .not.toContain(declarationPath);
+      }
+    }
+
+    for (const protectedPath of PROTECTED_SECURITY_SWAP_PATHS) {
+      const removed = manifestWithProfiles();
+      removed.members = removed.members.filter(member => member.path !== protectedPath);
+      const removedBytes = Buffer.from(`${JSON.stringify(removed, null, 2)}\n`, 'utf8');
+      try {
+        expect(closureRejectsManifestBytes(removedBytes), `removed ${protectedPath}`)
+          .toBe(true);
+      } finally { removedBytes.fill(0); }
+
+      const substituted = manifestWithProfiles();
+      const index = substituted.members.findIndex(member => member.path === protectedPath);
+      expect(index).toBeGreaterThanOrEqual(0);
+      substituted.members[index] = {
+        ...substituted.members[index]!,
+        path: RETAINED_TYPE_ONLY_DECLARATION_PATHS[0]!,
+      };
+      const substitutedBytes = Buffer.from(
+        `${JSON.stringify(substituted, null, 2)}\n`,
+        'utf8',
+      );
+      try {
+        expect(
+          closureRejectsManifestBytes(substitutedBytes),
+          `substituted ${protectedPath}`,
+        ).toBe(true);
+      } finally { substitutedBytes.fill(0); }
+    }
+  }, 30_000);
 });

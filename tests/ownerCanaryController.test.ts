@@ -131,6 +131,19 @@ function fixture(overrides: Partial<Parameters<typeof createOwnerCanaryControlle
     index: exchangeIndex - 1,
   }));
   const closeRecallRecoveryAuthority = vi.fn(async () => undefined);
+  const openFreshPageRecoveryAuthority = vi.fn(async () => Object.freeze({
+    index: exchangeIndex - 1,
+  }));
+  const closeFreshPageRecoveryAuthority = vi.fn(async () => undefined);
+  const freshPageRecover = vi.fn(async (
+    _authority: Readonly<{ index: number }>,
+    _input: Readonly<{
+      evidenceNonce: string;
+      reviewedAdmissionPlanDigest: string;
+    }>,
+    _signal: AbortSignal,
+  ) => undefined);
+  const freshPageRecoveryApi = Object.freeze({ recover: freshPageRecover });
   const verifyPrivateSubject = vi.fn(async (_input: VerificationInput) => true);
   const controller = createOwnerCanaryController({
     evidenceApi: sequentialEvidenceApi(),
@@ -141,6 +154,9 @@ function fixture(overrides: Partial<Parameters<typeof createOwnerCanaryControlle
     closeAuthority,
     openRecallRecoveryAuthority,
     closeRecallRecoveryAuthority,
+    openFreshPageRecoveryAuthority,
+    closeFreshPageRecoveryAuthority,
+    freshPageRecoveryApi,
     verifyPrivateSubject,
     ...overrides,
   });
@@ -153,6 +169,9 @@ function fixture(overrides: Partial<Parameters<typeof createOwnerCanaryControlle
     closeAuthority,
     openRecallRecoveryAuthority,
     closeRecallRecoveryAuthority,
+    openFreshPageRecoveryAuthority,
+    closeFreshPageRecoveryAuthority,
+    freshPageRecoveryApi,
     verifyPrivateSubject,
   };
 }
@@ -353,7 +372,7 @@ describe('owner canary browser-memory controller', () => {
     expect(h.controller.recoveryState()).toBe('required');
 
     await expect(h.controller.recover()).resolves.toBeUndefined();
-    expect(h.controller.recoveryState()).toBe('safe');
+    expect(h.controller.recoveryState()).toBe('unconfirmed');
     expect(evidenceAuthorities).toEqual([{ index: 0, kind: 'main' }]);
     expect(recoveryAuthorities).toEqual([{ index: 1, kind: 'recovery' }]);
     expect(openAuthority).toHaveBeenCalledOnce();
@@ -566,5 +585,159 @@ describe('owner canary browser-memory controller', () => {
       verification.latchedSubjectFid === FID
       && verification.reviewedAdmissionPlanDigest === ADMISSION_PLAN_DIGEST
     ))).toBe(true);
+  });
+
+  it('makes fresh-page recovery repeatable, fresh-authenticated, and permanently main-run exclusive', async () => {
+    const evidenceRun = vi.fn(async () => journey());
+    const h = fixture({
+      evidenceApi: Object.freeze({ run: evidenceRun }),
+    });
+    const input = Object.freeze({
+      evidenceNonce: EVIDENCE_NONCE,
+      reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+    });
+
+    await expect(h.controller.recoverFreshPage(input)).resolves.toBeUndefined();
+    expect(h.controller.recoveryState()).toBe('unconfirmed');
+    expect(h.getQuickAuthToken).toHaveBeenCalledOnce();
+    expect(h.getQuickAuthToken).toHaveBeenCalledWith({ force: true });
+    expect(h.exchangeQuickAuth).toHaveBeenCalledOnce();
+    expect(h.verifyPrivateSubject).toHaveBeenCalledWith(expect.objectContaining({
+      latchedSubjectFid: FID,
+      reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+    }));
+    expect(h.openFreshPageRecoveryAuthority).toHaveBeenCalledOnce();
+    expect(h.closeFreshPageRecoveryAuthority).toHaveBeenCalledOnce();
+    expect(h.freshPageRecoveryApi.recover).toHaveBeenCalledOnce();
+    expect(h.freshPageRecoveryApi.recover.mock.calls[0]?.[1]).toEqual(input);
+    expect(Reflect.ownKeys(h.freshPageRecoveryApi.recover.mock.calls[0]?.[1] as object))
+      .toEqual(['evidenceNonce', 'reviewedAdmissionPlanDigest']);
+
+    await expect(h.controller.run({
+      evidenceNonce: EVIDENCE_NONCE,
+      reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+      routeSetCommitment: ROUTE_SET_COMMITMENT,
+    })).rejects.toThrow();
+    expect(evidenceRun).not.toHaveBeenCalled();
+    expect(h.openAuthority).not.toHaveBeenCalled();
+    expect(h.requestStageConsent).not.toHaveBeenCalled();
+
+    await expect(h.controller.recoverFreshPage(input)).resolves.toBeUndefined();
+    expect(h.getQuickAuthToken).toHaveBeenCalledTimes(2);
+    expect(h.exchangeQuickAuth).toHaveBeenCalledTimes(2);
+    expect(h.freshPageRecoveryApi.recover).toHaveBeenCalledTimes(2);
+    expect(h.controller.recoveryState()).toBe('unconfirmed');
+  });
+
+  it('does not read malformed fresh-page accessors but still consumes the main run', async () => {
+    let nonceRead = false;
+    const input = {
+      get evidenceNonce() {
+        nonceRead = true;
+        return EVIDENCE_NONCE;
+      },
+      reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+    };
+    const h = fixture();
+    const error = await h.controller.recoverFreshPage(input)
+      .catch((caught: unknown) => caught);
+    expect(ownerCanaryControllerFailureCode(error)).toBe('invalid-private-input');
+    expect(nonceRead).toBe(false);
+    expect(h.controller.recoveryState()).toBe('unconfirmed');
+    expect(h.getQuickAuthToken).not.toHaveBeenCalled();
+    expect(h.openFreshPageRecoveryAuthority).not.toHaveBeenCalled();
+    expect(h.freshPageRecoveryApi.recover).not.toHaveBeenCalled();
+
+    const mainError = await h.controller.run({
+      evidenceNonce: EVIDENCE_NONCE,
+      reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+      routeSetCommitment: ROUTE_SET_COMMITMENT,
+    }).catch((caught: unknown) => caught);
+    expect(ownerCanaryControllerFailureCode(mainError)).toBe('stage-failed');
+    expect(h.requestStageConsent).not.toHaveBeenCalled();
+  });
+
+  it('latches the first fresh-page subject and makes an ambiguous recovery close permanent', async () => {
+    let exchangeCall = 0;
+    const closeFreshPageRecoveryAuthority = vi.fn(async () => undefined);
+    const h = fixture({
+      exchangeQuickAuth: vi.fn(async () => {
+        const index = exchangeCall++;
+        return Object.freeze({
+          session: session(index),
+          subjectFid: index === 0 ? FID : FID + 1,
+        });
+      }),
+      closeFreshPageRecoveryAuthority,
+    });
+    const input = {
+      evidenceNonce: EVIDENCE_NONCE,
+      reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+    };
+    await expect(h.controller.recoverFreshPage(input)).resolves.toBeUndefined();
+    const changed = await h.controller.recoverFreshPage(input)
+      .catch((caught: unknown) => caught);
+    expect(ownerCanaryControllerFailureCode(changed)).toBe('subject-changed');
+    expect(h.freshPageRecoveryApi.recover).toHaveBeenCalledOnce();
+    expect(h.openFreshPageRecoveryAuthority).toHaveBeenCalledOnce();
+
+    const closeFailure = fixture({
+      closeFreshPageRecoveryAuthority: vi.fn(async () => {
+        throw new Error('synthetic ambiguous fresh recovery close');
+      }),
+    });
+    const closeError = await closeFailure.controller.recoverFreshPage(input)
+      .catch((caught: unknown) => caught);
+    expect(ownerCanaryControllerFailureCode(closeError)).toBe(
+      'authority-close-unconfirmed',
+    );
+    expect(closeFailure.controller.state().phase).toBe(
+      'recovery-authority-close-unconfirmed',
+    );
+    expect(closeFailure.controller.recoveryState()).toBe('unconfirmed');
+    const authCount = closeFailure.getQuickAuthToken.mock.calls.length;
+    const retry = await closeFailure.controller.recoverFreshPage(input)
+      .catch((caught: unknown) => caught);
+    expect(ownerCanaryControllerFailureCode(retry)).toBe(
+      'authority-close-unconfirmed',
+    );
+    expect(closeFailure.getQuickAuthToken).toHaveBeenCalledTimes(authCount);
+  });
+
+  it('cannot subject-hop after a failed first fresh-page verifier or authority open', async () => {
+    const input = {
+      evidenceNonce: EVIDENCE_NONCE,
+      reviewedAdmissionPlanDigest: ADMISSION_PLAN_DIGEST,
+    };
+    for (const failurePoint of ['verify', 'open'] as const) {
+      let exchangeCall = 0;
+      let openCall = 0;
+      const h = fixture({
+        exchangeQuickAuth: vi.fn(async () => {
+          const index = exchangeCall++;
+          return Object.freeze({
+            session: session(index),
+            subjectFid: index === 0 ? FID : FID + 1,
+          });
+        }),
+        verifyPrivateSubject: vi.fn(async () => failurePoint !== 'verify'),
+        openFreshPageRecoveryAuthority: vi.fn(async () => {
+          if (failurePoint === 'open' && openCall++ === 0) {
+            throw new Error('synthetic first fresh authority open failure');
+          }
+          return Object.freeze({ index: openCall });
+        }),
+      });
+      const first = await h.controller.recoverFreshPage(input)
+        .catch((caught: unknown) => caught);
+      expect(ownerCanaryControllerFailureCode(first)).toBe(
+        failurePoint === 'verify' ? 'subject-not-approved' : 'stage-failed',
+      );
+      const changed = await h.controller.recoverFreshPage(input)
+        .catch((caught: unknown) => caught);
+      expect(ownerCanaryControllerFailureCode(changed)).toBe('subject-changed');
+      expect(h.getQuickAuthToken).toHaveBeenCalledTimes(2);
+      expect(h.freshPageRecoveryApi.recover).not.toHaveBeenCalled();
+    }
   });
 });

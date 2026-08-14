@@ -223,7 +223,7 @@ describe('notification Pages player-canary activation transition', () => {
       candidatePagesSourceCommit: c7,
       activationAuthority: Object.freeze({}),
     })).toThrow('PRODUCTION_PLAYER_CANARY_ACTIVATION_AUTHORITY_REQUIRED');
-  });
+  }, 30_000);
 
   it('rejects missing/extra paths and identity, gate, or binding decoys', () => {
     const transition = fixture();

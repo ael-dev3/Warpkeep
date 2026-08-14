@@ -165,7 +165,7 @@ function validFixture() {
     serverBaselineCommitment: BASELINE_COMMITMENT,
     routeSetCommitment: ROUTE_COMMITMENT,
     commandKeyPolicyVersion:
-      'warpkeep-production-player-canary-command-key-v1',
+      'warpkeep-production-player-canary-command-key-v2',
     commandSetCommitment: COMMAND_COMMITMENT,
   });
   const references = Object.freeze({

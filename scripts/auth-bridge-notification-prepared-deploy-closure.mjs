@@ -225,14 +225,12 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/notification-pages-release-source-parser.mjs',
     'scripts/production-admin-token-budget.d.mts',
     'scripts/production-admin-token-budget.mjs',
-    'scripts/production-player-canary-activation-launcher.d.mts',
     'scripts/production-player-canary-activation-launcher.mjs',
     'scripts/production-player-canary-admin-transport.ts',
     'scripts/production-player-canary-approval-reconciliation.d.mts',
     'scripts/production-player-canary-approval-reconciliation.mjs',
     'scripts/production-player-canary-baseline-reconciliation.d.mts',
     'scripts/production-player-canary-baseline-reconciliation.mjs',
-    'scripts/production-player-canary-browser-launcher.d.mts',
     'scripts/production-player-canary-browser-launcher.mjs',
     'scripts/production-player-canary-command-authority.d.mts',
     'scripts/production-player-canary-command-authority.mjs',
@@ -249,7 +247,6 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/production-player-canary-owner-approval.mjs',
     'scripts/production-player-canary-receipt.d.mts',
     'scripts/production-player-canary-receipt.mjs',
-    'scripts/production-player-canary-release-binding.d.mts',
     'scripts/production-player-canary-release-binding.mjs',
     'scripts/profiles/farcaster-profile-policy.ts',
     'scripts/profiles/founder-admission-plan.ts',
@@ -304,6 +301,8 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'services/auth-bridge/wrangler.toml',
     'spacetimedb/src/alphaActivationPolicy.ts',
     'spacetimedb/src/alphaV10ActivationPolicy.ts',
+    'spacetimedb/src/auth.ts',
+    'spacetimedb/src/castleWorkerAuthority.ts',
     'spacetimedb/src/castleWorkerPolicy.ts',
     'spacetimedb/src/config.ts',
     'spacetimedb/src/entryAgreementPolicy.ts',
@@ -314,6 +313,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'spacetimedb/src/goldExpeditionPolicy.ts',
     'spacetimedb/src/goldSitePolicy.ts',
     'spacetimedb/src/greaterRealmV17Policy.ts',
+    'spacetimedb/src/greaterRealmWorkerAuthority.ts',
     'spacetimedb/src/index.ts',
     'spacetimedb/src/lowlandsSurface.ts',
     'spacetimedb/src/productionPlayerCanaryApproval.ts',
@@ -710,6 +710,11 @@ function parseManifest(body) {
   return value;
 }
 
+function manifestMemberSetMatchesExpected(manifest) {
+  return JSON.stringify(manifest.members.map(member => member.path))
+    === JSON.stringify(AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS);
+}
+
 function sha256Body(body) {
   return createHash('sha256').update(body).digest('hex');
 }
@@ -1080,16 +1085,12 @@ export function verifyAuthBridgeNotificationPreparedDeployClosure({
   const manifestSha256 = sha256Body(manifestBody);
   let manifest;
   try { manifest = parseManifest(manifestBody); } finally { manifestBody.fill(0); }
-  const manifestPaths = manifest.members.map(member => member.path);
   if (
     JSON.stringify(AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS)
       !== JSON.stringify(
         [...AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS].sort(),
       )
-    || JSON.stringify(manifestPaths)
-      !== JSON.stringify(
-        AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS,
-      )
+    || !manifestMemberSetMatchesExpected(manifest)
   ) {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
   }
@@ -1202,7 +1203,11 @@ export function assertAuthBridgeNotificationPreparedDeployClosureAuthority(
 
 export const authBridgeNotificationPreparedDeployClosureTestSeams =
   process.env.NODE_ENV === 'test' && process.env.VITEST === 'true'
-    ? Object.freeze({ expectedMemberDigestProfile, parseManifest })
+    ? Object.freeze({
+        expectedMemberDigestProfile,
+        manifestMemberSetMatchesExpected,
+        parseManifest,
+      })
     : undefined;
 
 function main() {

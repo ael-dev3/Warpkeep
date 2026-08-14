@@ -230,6 +230,8 @@ describe('production player canary private operator journal', () => {
     expect(recordBytes).not.toContain(NONCE);
     expect(recordBytes).not.toContain('"fid"');
     expect(recordBytes).not.toContain('pc1-d01-');
+    expect(recordBytes).not.toContain('pc2-d01-');
+    expect(recordBytes).not.toContain('pc2-f00-');
     expect(recordBytes).toContain('"phase":"receipt-installed"');
 
     const beforeInspection = directorySnapshot(directory);

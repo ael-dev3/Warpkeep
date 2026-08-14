@@ -1,15 +1,17 @@
 import type { InferSchema, ReducerCtx } from 'spacetimedb/server';
 
 import {
+  assertProductionPlayerCanaryApprovalPristineBaselineV2,
   type ProductionPlayerCanaryBaselineInput,
   requireProductionPlayerCanaryBaselineRow,
+  requireStoredProductionPlayerCanaryBaselineV2,
   inspectProductionPlayerCanaryRoutePlan,
 } from './productionPlayerCanaryBaseline';
 import {
   PRODUCTION_PLAYER_CANARY_COMMAND_KEY_POLICY_VERSION,
-  type ProductionPlayerCanaryCommandAuthorityV1,
+  type ProductionPlayerCanaryCommandAuthorityV2,
   type ProductionPlayerCanaryRoutePlanV1,
-  productionPlayerCanaryCommandAuthorityV1,
+  productionPlayerCanaryCommandAuthorityV2,
 } from './productionPlayerCanaryRoutePolicy';
 import {
   PRODUCTION_PLAYER_CANARY_APPROVAL_REGISTRATION_PROFILE,
@@ -32,6 +34,7 @@ type WarpkeepReducerContext = ReducerCtx<InferSchema<typeof warpkeep>>;
 type ApprovalRow = NonNullable<ReturnType<
   WarpkeepReducerContext['db']['productionPlayerCanaryApprovalRegistrationV1']['challengeDigest']['find']
 >>;
+export type ProductionPlayerCanaryStoredApprovalRegistrationV2 = ApprovalRow;
 
 const SHA256 = /^[0-9a-f]{64}$/u;
 const U64_MAX = 0xffff_ffff_ffff_ffffn;
@@ -169,6 +172,76 @@ function statusForRow(row: ApprovalRow): ProductionPlayerCanaryApprovalRegistrat
   });
 }
 
+function sameStoredApprovalRegistration(
+  left: ApprovalRow,
+  right: ApprovalRow,
+): boolean {
+  return left.challengeDigest === right.challengeDigest
+    && left.fid === right.fid
+    && left.reviewedAdmissionPlanDigest === right.reviewedAdmissionPlanDigest
+    && left.serverBaselineCommitment === right.serverBaselineCommitment
+    && left.routeSetCommitment === right.routeSetCommitment
+    && left.commandKeyPolicyVersion === right.commandKeyPolicyVersion
+    && left.commandSetCommitment === right.commandSetCommitment
+    && left.ownerApprovalArtifactDigest === right.ownerApprovalArtifactDigest
+    && left.ownerApprovalCommitment === right.ownerApprovalCommitment
+    && left.approvalRegistrationCommitment
+      === right.approvalRegistrationCommitment
+    && left.approvedAtMicros === right.approvedAtMicros
+    && left.notAfterMicros === right.notAfterMicros
+    && timestampMicros(left.registeredAt) === timestampMicros(right.registeredAt);
+}
+
+/**
+ * Validate one stored v2 approval as an exact append-only authority. Every
+ * unique index must resolve to the same complete immutable row, and its bound
+ * baseline must predate approval. Callers use this shared read-only audit for
+ * NEW dispatch, replay, recovery/status, and the permanent recall-all fence.
+ */
+export function requireStoredProductionPlayerCanaryApprovalRegistrationV2(
+  ctx: WarpkeepReducerContext,
+  fid: bigint,
+): ProductionPlayerCanaryStoredApprovalRegistrationV2 | null {
+  const registrations = ctx.db.productionPlayerCanaryApprovalRegistrationV1;
+  const row = registrations.fid.find(fid);
+  if (row === null) return null;
+  try {
+    statusForRow(row);
+  } catch {
+    fail('STATE_INTEGRITY');
+  }
+  const indexedRows = [
+    registrations.challengeDigest.find(row.challengeDigest),
+    registrations.fid.find(row.fid),
+    registrations.serverBaselineCommitment.find(row.serverBaselineCommitment),
+    registrations.routeSetCommitment.find(row.routeSetCommitment),
+    registrations.commandSetCommitment.find(row.commandSetCommitment),
+    registrations.ownerApprovalArtifactDigest.find(
+      row.ownerApprovalArtifactDigest,
+    ),
+    registrations.ownerApprovalCommitment.find(row.ownerApprovalCommitment),
+    registrations.approvalRegistrationCommitment.find(
+      row.approvalRegistrationCommitment,
+    ),
+  ] as const;
+  const baseline = requireStoredProductionPlayerCanaryBaselineV2(ctx, fid);
+  if (
+    row.fid !== fid
+    || timestampMicros(row.registeredAt) > ctx.timestamp.microsSinceUnixEpoch
+    || indexedRows.some(candidate => (
+      candidate === null || !sameStoredApprovalRegistration(row, candidate)
+    ))
+    || baseline === null
+    || baseline.fid !== fid
+    || baseline.challengeDigest !== row.challengeDigest
+    || baseline.reviewedAdmissionPlanDigest !== row.reviewedAdmissionPlanDigest
+    || baseline.baselineCommitment !== row.serverBaselineCommitment
+    || baseline.routeSetCommitment !== row.routeSetCommitment
+    || timestampMicros(baseline.capturedAt) > row.approvedAtMicros
+  ) fail('STATE_INTEGRITY');
+  return row;
+}
+
 function allRowsForInput(
   ctx: WarpkeepReducerContext,
   challengeDigest: string,
@@ -217,7 +290,7 @@ function requireBoundServerAuthority(
 ): Readonly<{
   baseline: ReturnType<typeof requireProductionPlayerCanaryBaselineRow>;
   routePlan: ProductionPlayerCanaryRoutePlanV1;
-  commands: ProductionPlayerCanaryCommandAuthorityV1;
+  commands: ProductionPlayerCanaryCommandAuthorityV2;
 }> {
   const baseline = requireProductionPlayerCanaryBaselineRow(
     ctx,
@@ -227,8 +300,8 @@ function requireBoundServerAuthority(
     ctx,
     inputForBaseline(input),
   );
-  const commands = productionPlayerCanaryCommandAuthorityV1({
-    evidenceNonce: input.evidenceNonce,
+  const commands = productionPlayerCanaryCommandAuthorityV2({
+    challengeDigest: baseline.challengeDigest,
     reviewedAdmissionPlanDigest: input.reviewedAdmissionPlanDigest,
     serverBaselineCommitment: baseline.baselineCommitment,
     routeSetCommitment: routePlan.routeSetCommitment,
@@ -317,6 +390,10 @@ export function registerProductionPlayerCanaryApprovalV1(
     || input.approvedAtMicros > registeredAtMicros
     || registeredAtMicros >= input.notAfterMicros
   ) fail('PRODUCTION_PLAYER_CANARY_APPROVAL_REGISTRATION_TIME_INVALID');
+  assertProductionPlayerCanaryApprovalPristineBaselineV2(
+    ctx,
+    inputForBaseline(input),
+  );
   return statusForRow(ctx.db.productionPlayerCanaryApprovalRegistrationV1.insert({
     ...material,
     fid: input.fid,

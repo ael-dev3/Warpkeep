@@ -32,5 +32,8 @@ export function assertAuthBridgeNotificationPreparedDeployClosureAuthority<
 
 export const authBridgeNotificationPreparedDeployClosureTestSeams: Readonly<{
   expectedMemberDigestProfile: (memberPath: string) => string;
+  manifestMemberSetMatchesExpected: (
+    manifest: Readonly<Record<string, unknown>>,
+  ) => boolean;
   parseManifest: (body: Buffer) => Readonly<Record<string, unknown>>;
 }> | undefined;

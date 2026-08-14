@@ -36,6 +36,12 @@ import {
 } from './greaterRealmPublicReadAuthority';
 import { evaluatePlayerOwnership } from './playerOwnershipPolicy';
 import {
+  requireStoredProductionPlayerCanaryApprovalRegistrationV2,
+} from './productionPlayerCanaryApproval';
+import {
+  productionPlayerCanaryGameplayWriteGateCodeV2,
+} from './productionPlayerCanaryApprovalPolicy';
+import {
   assertGenesisResourceForFid,
   assertGreaterRealmResourceForIndexedReadV1,
 } from './resourceAuthority';
@@ -305,12 +311,8 @@ export function requireAuthenticatedCastleOwnerActionV1(
   return Object.freeze({ ...admitted, player: player!, castle });
 }
 
-/**
- * Require the complete current gameplay graph. Resource entry points never
- * infer current entry-agreement acceptance from public presentation fields or
- * historical evidence alone.
- */
-export function requireGameplayPlayerV1(ctx: WarpkeepReducerContext) {
+/** Gate-free current gameplay graph shared by mutations and legacy reads. */
+function requireGameplayPlayerGraphV1(ctx: WarpkeepReducerContext) {
   const admitted = requireOwnedCastleActionV1(ctx);
   const acceptanceKey = `${admitted.claims.fid}:${WARPKEEP_ALPHA_TERMS_VERSION}`;
   const acceptance = ctx.db.alphaTermsAcceptanceV1.acceptanceKey.find(acceptanceKey);
@@ -323,6 +325,30 @@ export function requireGameplayPlayerV1(ctx: WarpkeepReducerContext) {
   }
   const resource = assertGenesisResourceForFid(ctx, admitted.claims.fid);
   return Object.freeze({ ...admitted, ...resource });
+}
+
+/**
+ * Require the complete current gameplay graph and mutation authority. Resource
+ * entry points never infer acceptance from presentation or historical evidence.
+ */
+export function requireGameplayPlayerV1(ctx: WarpkeepReducerContext) {
+  const gameplay = requireGameplayPlayerGraphV1(ctx);
+  let activeCanary;
+  try {
+    activeCanary = requireStoredProductionPlayerCanaryApprovalRegistrationV2(
+      ctx,
+      gameplay.claims.fid,
+    );
+  } catch {
+    throw new SenderError('STATE_INTEGRITY');
+  }
+  const canaryGateCode = productionPlayerCanaryGameplayWriteGateCodeV2(
+    activeCanary,
+    gameplay.claims.fid,
+    ctx.timestamp.microsSinceUnixEpoch,
+  );
+  if (canaryGateCode !== undefined) throw new SenderError(canaryGateCode);
+  return gameplay;
 }
 
 /**
@@ -343,7 +369,7 @@ export function requireGameplayReadPlayerV1(ctx: WarpkeepReducerContext) {
     activation === undefined
     || activation.canaryAt === undefined
     || activation.rolledBackAt !== undefined
-  ) return requireGameplayPlayerV1(ctx);
+  ) return requireGameplayPlayerGraphV1(ctx);
   try {
     const authority = assertGreaterRealmIndexedPublicReadAuthorityV1(
       ctx,

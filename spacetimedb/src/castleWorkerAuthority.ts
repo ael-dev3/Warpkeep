@@ -29,6 +29,9 @@ import {
   activeExpeditionResourceReservations,
   planResourceSettlementForActiveExpeditionReservations,
 } from './resourceExpeditionReservationAuthority';
+import {
+  requireStoredProductionPlayerCanaryApprovalRegistrationV2,
+} from './productionPlayerCanaryApproval';
 import type warpkeep from './schema';
 import {
   CASTLE_WORKER_POLICY_VERSION,
@@ -39,6 +42,7 @@ import {
   type CastleWorkerSiteShape,
   planCastleWorkerAccrual,
   planCastleWorkerTimeline,
+  planWorkerIdempotencyReceiptPruneV1,
   rosterDigestForCastleIds,
   workerAssignmentStateIsConsistent,
   workerIdForCastle,
@@ -511,21 +515,56 @@ function assertCallerWorkerGraph(
 }
 
 function pruneWorkerIdempotencyReceipts(ctx: WarpkeepReducerContext, fid: bigint): void {
-  const receipts = [...boundedRows(
+  const receipts = boundedRows(
     ctx.db.workerCommandIdempotencyV1.byFid.filter(fid),
     WORKER_IDEMPOTENCY_RECEIPTS_PER_FID,
     'WORKER_IDEMPOTENCY_LIMIT',
-  )]
-    .sort((left, right) => {
-      const timeOrder = left.createdAt.microsSinceUnixEpoch < right.createdAt.microsSinceUnixEpoch
-        ? -1
-        : left.createdAt.microsSinceUnixEpoch > right.createdAt.microsSinceUnixEpoch ? 1 : 0;
-      return timeOrder || left.requestKey.localeCompare(right.requestKey);
-    });
-  const deleteCount = Math.max(0, receipts.length - WORKER_IDEMPOTENCY_RECEIPTS_PER_FID + 1);
-  for (const receipt of receipts.slice(0, deleteCount)) {
-    ctx.db.workerCommandIdempotencyV1.requestKey.delete(receipt.requestKey);
+  );
+  const activeAssignmentIds = boundedRows(
+    ctx.db.workerAssignmentV1.byFid.filter(fid),
+    CASTLE_WORKERS_PER_CASTLE,
+    'WORKER_ASSIGNMENT_LIMIT',
+  ).map(assignment => assignment.assignmentId);
+  const requestKeysToDelete = planWorkerIdempotencyReceiptPruneV1({
+    fid,
+    maximumReceiptCount: WORKER_IDEMPOTENCY_RECEIPTS_PER_FID,
+    activeAssignmentIds,
+    receipts: receipts.map(receipt => ({
+      requestKey: receipt.requestKey,
+      fid: receipt.fid,
+      assignmentId: receipt.assignmentId,
+      createdAtMicros: receipt.createdAt.microsSinceUnixEpoch,
+    })),
+  });
+  for (const requestKey of requestKeysToDelete) {
+    ctx.db.workerCommandIdempotencyV1.requestKey.delete(requestKey);
   }
+}
+
+/**
+ * Ordinary recall-all cannot be correlated to one reviewed assignment because
+ * its canonical receipt is deliberately workerless. Once this FID has a v2
+ * production-canary registration, keep that ambiguity closed permanently:
+ * exact replays are blocked too, even after approval expiry or a completed
+ * recovery fence. Per-worker and dedicated canary recall paths remain the only
+ * assignment-correlated safety authorities.
+ */
+export function assertProductionPlayerCanaryRecallAllAvailableV2(
+  ctx: WarpkeepReducerContext,
+  fid: bigint,
+): void {
+  let registration;
+  try {
+    registration = requireStoredProductionPlayerCanaryApprovalRegistrationV2(
+      ctx,
+      fid,
+    );
+  } catch {
+    fail('STATE_INTEGRITY');
+  }
+  if (registration === null) return;
+
+  fail('PRODUCTION_PLAYER_CANARY_RECALL_ALL_PERMANENTLY_BLOCKED');
 }
 
 function updateResourceAccount(
@@ -1464,6 +1503,7 @@ export function recallAllCastleWorkers(
   ctx: WarpkeepReducerContext,
   input: Readonly<{ fid: bigint; castle: CastleRow; idempotencyKey: string }>,
 ): void {
+  assertProductionPlayerCanaryRecallAllAvailableV2(ctx, input.fid);
   const requestKey = assignmentRequestKey(input.fid, input.idempotencyKey);
   const prior = ctx.db.workerCommandIdempotencyV1.requestKey.find(requestKey);
   if (prior !== null) {

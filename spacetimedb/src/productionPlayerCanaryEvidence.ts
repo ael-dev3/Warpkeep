@@ -39,14 +39,16 @@ import {
 import {
   productionPlayerCanaryBaselineErrorCode,
   requireProductionPlayerCanaryBaselineRow,
+  requireStoredProductionPlayerCanaryBaselineV2,
 } from './productionPlayerCanaryBaseline';
 import {
   requireProductionPlayerCanaryApprovalRegistrationV1,
+  requireStoredProductionPlayerCanaryApprovalRegistrationV2,
   productionPlayerCanaryApprovalErrorCode,
 } from './productionPlayerCanaryApproval';
 import {
   PRODUCTION_PLAYER_CANARY_MAXIMUM_ROUTE_STEPS,
-  productionPlayerCanaryCommandAuthorityV1,
+  productionPlayerCanaryCommandAuthorityV2,
   productionPlayerCanaryRoutePolicyErrorCode,
 } from './productionPlayerCanaryRoutePolicy';
 import type warpkeep from './schema';
@@ -277,6 +279,16 @@ export function inspectProductionPlayerCanaryAdminEvidence(
     || !SHA256.test(input.reviewedAdmissionPlanDigest)
     || !SHA256.test(input.evidenceNonce)
   ) fail('PRODUCTION_PLAYER_CANARY_EVIDENCE_INPUT_INVALID');
+  const observedAtMicros = ctx.timestamp.microsSinceUnixEpoch;
+  const storedBaseline = requireStoredProductionPlayerCanaryBaselineV2(
+    ctx,
+    input.fid,
+  );
+  const storedRegistration =
+    requireStoredProductionPlayerCanaryApprovalRegistrationV2(ctx, input.fid);
+  if (storedBaseline === null || storedRegistration === null) {
+    fail('PRODUCTION_PLAYER_CANARY_APPROVAL_REGISTRATION_INVALID');
+  }
   const baselineRow = requireProductionPlayerCanaryBaselineRow(ctx, {
     fid: input.fid,
     reviewedAdmissionPlanDigest: input.reviewedAdmissionPlanDigest,
@@ -287,8 +299,8 @@ export function inspectProductionPlayerCanaryAdminEvidence(
     reviewedAdmissionPlanDigest: input.reviewedAdmissionPlanDigest,
     evidenceNonce: input.evidenceNonce,
   });
-  const commandAuthority = productionPlayerCanaryCommandAuthorityV1({
-    evidenceNonce: input.evidenceNonce,
+  const commandAuthority = productionPlayerCanaryCommandAuthorityV2({
+    challengeDigest: baselineRow.challengeDigest,
     reviewedAdmissionPlanDigest: input.reviewedAdmissionPlanDigest,
     serverBaselineCommitment: baselineRow.baselineCommitment,
     routeSetCommitment: baselineRow.routeSetCommitment,
@@ -485,6 +497,8 @@ export function inspectProductionPlayerCanaryAdminEvidence(
       || baselineObservedAtMicros > timestampMicros(dispatch.createdAt)
       || timestampMicros(dispatch.createdAt) < registration.approvedAtMicros
       || timestampMicros(recall.createdAt) >= registration.notAfterMicros
+      || timestampMicros(dispatch.createdAt) > observedAtMicros
+      || timestampMicros(recall.createdAt) > observedAtMicros
     ) fail('PRODUCTION_PLAYER_CANARY_JOURNEY_INVALID');
 
     const metadata = parseGreaterRealmWorkerDispatchReceiptKindV2(
@@ -615,7 +629,6 @@ export function inspectProductionPlayerCanaryAdminEvidence(
     fail('PRODUCTION_PLAYER_CANARY_TERMINAL_GRAPH_INVALID');
   }
 
-  const observedAtMicros = ctx.timestamp.microsSinceUnixEpoch;
   if (
     observedAtMicros < baselineObservedAtMicros
     || observedAtMicros >= registration.notAfterMicros

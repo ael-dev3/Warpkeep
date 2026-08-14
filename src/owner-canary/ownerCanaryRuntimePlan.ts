@@ -1,7 +1,10 @@
 export const OWNER_CANARY_COMMAND_KEY_DOMAIN =
-  'warpkeep.production-player-canary.command-key.v1';
+  'warpkeep.production-player-canary.command-key.v2';
 export const OWNER_CANARY_COMMAND_SET_DOMAIN =
-  'warpkeep.production-player-canary.command-set.v1';
+  'warpkeep.production-player-canary.command-set.v2';
+
+const OWNER_CANARY_CHALLENGE_DOMAIN =
+  'warpkeep.production-player-canary.challenge.v1';
 
 export const OWNER_CANARY_COMMAND_OPERATIONS = Object.freeze([
   'dispatch',
@@ -192,20 +195,28 @@ async function sha256Frames(frames: readonly string[]): Promise<string> {
 }
 
 function commandPrefix(
-  operation: OwnerCanaryCommandOperation,
-  ordinal: OwnerCanaryCommandOrdinal,
+  operation: OwnerCanaryCommandOperation | 'fence',
+  ordinal: OwnerCanaryCommandOrdinal | 0,
 ): string {
-  return `pc1-${operation === 'dispatch' ? 'd' : 'r'}${ordinal.toString().padStart(2, '0')}-`;
+  const operationCode = operation === 'dispatch' ? 'd'
+    : operation === 'recall' ? 'r'
+      : 'f';
+  return `pc2-${operationCode}${ordinal.toString().padStart(2, '0')}-`;
 }
 
 async function commandKey(
-  input: Omit<OwnerCanaryRuntimePlanPreparation, 'expectedCommandSetCommitment'>,
-  operation: OwnerCanaryCommandOperation,
-  ordinal: OwnerCanaryCommandOrdinal,
+  input: Readonly<{
+    challengeDigest: string;
+    reviewedAdmissionPlanDigest: string;
+    serverBaselineCommitment: string;
+    routeSetCommitment: string;
+  }>,
+  operation: OwnerCanaryCommandOperation | 'fence',
+  ordinal: OwnerCanaryCommandOrdinal | 0,
 ): Promise<string> {
   const digest = await sha256Frames([
     OWNER_CANARY_COMMAND_KEY_DOMAIN,
-    input.evidenceNonce,
+    input.challengeDigest,
     input.reviewedAdmissionPlanDigest,
     input.serverBaselineCommitment,
     input.routeSetCommitment,
@@ -218,11 +229,21 @@ async function commandKey(
 async function deriveCommandMaterial(
   input: Omit<OwnerCanaryRuntimePlanPreparation, 'expectedCommandSetCommitment'>,
 ): Promise<CommandMaterial> {
+  const challengeDigest = await sha256Frames([
+    OWNER_CANARY_CHALLENGE_DOMAIN,
+    input.evidenceNonce,
+  ]);
+  const authorityInput = Object.freeze({
+    challengeDigest,
+    reviewedAdmissionPlanDigest: input.reviewedAdmissionPlanDigest,
+    serverBaselineCommitment: input.serverBaselineCommitment,
+    routeSetCommitment: input.routeSetCommitment,
+  });
   const dispatch = [] as string[];
   const recall = [] as string[];
   for (const ordinal of ORDINALS) {
-    dispatch.push(await commandKey(input, 'dispatch', ordinal));
-    recall.push(await commandKey(input, 'recall', ordinal));
+    dispatch.push(await commandKey(authorityInput, 'dispatch', ordinal));
+    recall.push(await commandKey(authorityInput, 'recall', ordinal));
   }
   const exactDispatch = dispatch as [string, string, string, string];
   const exactRecall = recall as [string, string, string, string];
@@ -230,13 +251,22 @@ async function deriveCommandMaterial(
     exactDispatch[index]!,
     exactRecall[index]!,
   ]);
+  const recoveryFenceIdempotencyKey = await commandKey(
+    authorityInput,
+    'fence',
+    0,
+  );
+  if (new Set([...orderedKeys, recoveryFenceIdempotencyKey]).size !== 9) {
+    throw failure('invalid-plan-input');
+  }
   const commandSetCommitment = await sha256Frames([
     OWNER_CANARY_COMMAND_SET_DOMAIN,
-    input.evidenceNonce,
+    challengeDigest,
     input.reviewedAdmissionPlanDigest,
     input.serverBaselineCommitment,
     input.routeSetCommitment,
     ...orderedKeys,
+    recoveryFenceIdempotencyKey,
   ]);
   return Object.freeze({
     dispatch: Object.freeze(exactDispatch),

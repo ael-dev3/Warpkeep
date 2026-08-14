@@ -18,6 +18,20 @@ export type OwnerCanaryRecoveryApi<Authority> = Readonly<{
   recover(authority: Authority, signal: AbortSignal): Promise<void>;
 }>;
 
+export type OwnerCanaryFreshPageRecoveryInput = Readonly<{
+  evidenceNonce: string;
+  reviewedAdmissionPlanDigest: string;
+}>;
+
+/** Reload-only all-worker recall-or-fence. It can never publish browser safety. */
+export type OwnerCanaryFreshPageRecoveryApi<Authority> = Readonly<{
+  recover(
+    authority: Authority,
+    input: OwnerCanaryFreshPageRecoveryInput,
+    signal: AbortSignal,
+  ): Promise<void>;
+}>;
+
 /**
  * Production integration seam. The adapter may keep its branded runtime-plan
  * handle plus private worker, location, cell, and idempotency-key correlations
@@ -26,9 +40,11 @@ export type OwnerCanaryRecoveryApi<Authority> = Readonly<{
 export type OwnerCanaryRuntime<
   Authority = unknown,
   RecallRecoveryAuthority = Authority,
+  FreshPageRecoveryAuthority = RecallRecoveryAuthority,
 > = Readonly<{
   evidenceApi: OwnerCanaryEvidenceApi<Authority>;
   recoveryApi: OwnerCanaryRecoveryApi<RecallRecoveryAuthority>;
+  freshPageRecoveryApi: OwnerCanaryFreshPageRecoveryApi<FreshPageRecoveryAuthority>;
   openAuthority(session: FarcasterOidcSession, signal: AbortSignal): Promise<Authority>;
   closeAuthority(authority: Authority): Promise<void> | void;
   openRecallRecoveryAuthority(
@@ -36,6 +52,11 @@ export type OwnerCanaryRuntime<
     signal: AbortSignal,
   ): Promise<RecallRecoveryAuthority>;
   closeRecallRecoveryAuthority(authority: RecallRecoveryAuthority): Promise<void> | void;
+  openFreshPageRecoveryAuthority(
+    session: FarcasterOidcSession,
+    signal: AbortSignal,
+  ): Promise<FreshPageRecoveryAuthority>;
+  closeFreshPageRecoveryAuthority(authority: FreshPageRecoveryAuthority): Promise<void> | void;
   verifyPrivateSubject(input: Readonly<{
     privateSession: OwnerCanaryPrivateSession;
     latchedSubjectFid: number;

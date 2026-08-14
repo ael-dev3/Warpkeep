@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, isAbsolute, resolve } from 'node:path';
 
 import {
-  deriveProductionPlayerCanaryCommandAuthorityV1,
+  deriveProductionPlayerCanaryCommandAuthorityV2,
 } from './production-player-canary-command-authority.mjs';
 
 export const PRODUCTION_PLAYER_CANARY_EVIDENCE_AUTHORITY_PROFILE =
@@ -644,8 +644,8 @@ function buildExpectedEvidenceAuthority(input) {
     approval.serverBaselineCommitment,
     inspectedApproval.routeSetCommitment,
   ])}\n`, 'utf8').digest('hex');
-  const expectedCommandAuthority = deriveProductionPlayerCanaryCommandAuthorityV1({
-    evidenceNonce: approval.evidenceNonce,
+  const expectedCommandAuthority = deriveProductionPlayerCanaryCommandAuthorityV2({
+    challengeDigest: expectedChallengeDigest,
     reviewedAdmissionPlanDigest: approval.reviewedAdmissionPlanDigest,
     serverBaselineCommitment: approval.serverBaselineCommitment,
     routeSetCommitment: inspectedApproval.routeSetCommitment,

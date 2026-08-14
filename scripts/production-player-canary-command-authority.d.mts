@@ -1,14 +1,15 @@
 export declare const PRODUCTION_PLAYER_CANARY_COMMAND_KEY_POLICY_VERSION:
-  'warpkeep-production-player-canary-command-key-v1';
+  'warpkeep-production-player-canary-command-key-v2';
 
 export declare class ProductionPlayerCanaryCommandAuthorityError extends Error {
   readonly code: string;
 }
 
-export type ProductionPlayerCanaryCommandAuthorityV1 = Readonly<{
+export type ProductionPlayerCanaryCommandAuthorityV2 = Readonly<{
   commandKeyPolicyVersion:
     typeof PRODUCTION_PLAYER_CANARY_COMMAND_KEY_POLICY_VERSION;
   commandSetCommitment: string;
+  recoveryFenceIdempotencyKey: string;
   commands: readonly Readonly<{
     ordinal: number;
     dispatchIdempotencyKey: string;
@@ -16,11 +17,11 @@ export type ProductionPlayerCanaryCommandAuthorityV1 = Readonly<{
   }>[];
 }>;
 
-export declare function deriveProductionPlayerCanaryCommandAuthorityV1(
+export declare function deriveProductionPlayerCanaryCommandAuthorityV2(
   input: Readonly<{
-    evidenceNonce: string;
+    challengeDigest: string;
     reviewedAdmissionPlanDigest: string;
     serverBaselineCommitment: string;
     routeSetCommitment: string;
   }>,
-): ProductionPlayerCanaryCommandAuthorityV1;
+): ProductionPlayerCanaryCommandAuthorityV2;

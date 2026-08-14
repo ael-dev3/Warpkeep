@@ -14,13 +14,16 @@ import {
 import { GREATER_REALM_MAX_RESOURCE_NODES_PER_LOCATION } from './greaterRealmV17Policy';
 import type warpkeep from './schema';
 import { sha256Hex } from './sha256';
+import {
+  PRODUCTION_PLAYER_CANARY_COMMAND_KEY_POLICY_VERSION,
+} from './productionPlayerCanaryApprovalPolicy';
+
+export { PRODUCTION_PLAYER_CANARY_COMMAND_KEY_POLICY_VERSION } from './productionPlayerCanaryApprovalPolicy';
 
 type WarpkeepReducerContext = ReducerCtx<InferSchema<typeof warpkeep>>;
 
 export const PRODUCTION_PLAYER_CANARY_ROUTE_PLAN_PROFILE =
   'warpkeep-production-player-canary-route-plan-v1';
-export const PRODUCTION_PLAYER_CANARY_COMMAND_KEY_POLICY_VERSION =
-  'warpkeep-production-player-canary-command-key-v1';
 export const PRODUCTION_PLAYER_CANARY_MAXIMUM_ROUTE_STEPS = 12;
 export const PRODUCTION_PLAYER_CANARY_RESOURCE_KINDS = Object.freeze([
   'food', 'wood', 'stone', 'gold',
@@ -61,10 +64,11 @@ export type ProductionPlayerCanaryCommandV1 = Readonly<{
   recallIdempotencyKey: string;
 }>;
 
-export type ProductionPlayerCanaryCommandAuthorityV1 = Readonly<{
+export type ProductionPlayerCanaryCommandAuthorityV2 = Readonly<{
   commandKeyPolicyVersion:
     typeof PRODUCTION_PLAYER_CANARY_COMMAND_KEY_POLICY_VERSION;
   commandSetCommitment: string;
+  recoveryFenceIdempotencyKey: string;
   commands: readonly ProductionPlayerCanaryCommandV1[];
 }>;
 
@@ -177,34 +181,41 @@ export function productionPlayerCanaryRouteSetCommitmentV1(input: Readonly<{
 }
 
 function commandKey(input: Readonly<{
-  evidenceNonce: string;
+  challengeDigest: string;
   reviewedAdmissionPlanDigest: string;
   serverBaselineCommitment: string;
   routeSetCommitment: string;
-  operation: 'dispatch' | 'recall';
+  operation: 'dispatch' | 'recall' | 'fence';
   ordinal: number;
 }>): string {
   const digest = sha256Hex(`${framed([
-    'warpkeep.production-player-canary.command-key.v1',
-    input.evidenceNonce,
+    'warpkeep.production-player-canary.command-key.v2',
+    input.challengeDigest,
     input.reviewedAdmissionPlanDigest,
     input.serverBaselineCommitment,
     input.routeSetCommitment,
     input.operation,
     input.ordinal,
   ])}\n`);
-  const operation = input.operation === 'dispatch' ? 'd' : 'r';
-  return `pc1-${operation}${input.ordinal.toString().padStart(2, '0')}-${digest}`;
+  const operation = input.operation === 'dispatch' ? 'd'
+    : input.operation === 'recall' ? 'r'
+      : 'f';
+  return `pc2-${operation}${input.ordinal.toString().padStart(2, '0')}-${digest}`;
 }
 
-export function productionPlayerCanaryCommandAuthorityV1(input: Readonly<{
-  evidenceNonce: string;
+/**
+ * Reload-safe authority derives exclusively from the immutable stored
+ * challenge digest. The raw nonce is deliberately absent so a fresh page can
+ * re-establish the same commands without retaining browser state.
+ */
+export function productionPlayerCanaryCommandAuthorityV2(input: Readonly<{
+  challengeDigest: string;
   reviewedAdmissionPlanDigest: string;
   serverBaselineCommitment: string;
   routeSetCommitment: string;
-}>): ProductionPlayerCanaryCommandAuthorityV1 {
+}>): ProductionPlayerCanaryCommandAuthorityV2 {
   for (const value of [
-    input.evidenceNonce,
+    input.challengeDigest,
     input.reviewedAdmissionPlanDigest,
     input.serverBaselineCommitment,
     input.routeSetCommitment,
@@ -217,23 +228,29 @@ export function productionPlayerCanaryCommandAuthorityV1(input: Readonly<{
       recallIdempotencyKey: commandKey({ ...input, operation: 'recall', ordinal }),
     });
   }));
+  const recoveryFenceIdempotencyKey = commandKey({
+    ...input,
+    operation: 'fence',
+    ordinal: 0,
+  });
   const orderedKeys = commands.flatMap(command => [
     command.dispatchIdempotencyKey,
     command.recallIdempotencyKey,
-  ]);
-  if (new Set(orderedKeys).size !== 8) {
+  ]).concat(recoveryFenceIdempotencyKey);
+  if (new Set(orderedKeys).size !== 9) {
     fail('PRODUCTION_PLAYER_CANARY_COMMAND_AUTHORITY_INVALID');
   }
   return Object.freeze({
     commandKeyPolicyVersion: PRODUCTION_PLAYER_CANARY_COMMAND_KEY_POLICY_VERSION,
     commandSetCommitment: sha256Hex(`${framed([
-      'warpkeep.production-player-canary.command-set.v1',
-      input.evidenceNonce,
+      'warpkeep.production-player-canary.command-set.v2',
+      input.challengeDigest,
       input.reviewedAdmissionPlanDigest,
       input.serverBaselineCommitment,
       input.routeSetCommitment,
       ...orderedKeys,
     ])}\n`),
+    recoveryFenceIdempotencyKey,
     commands,
   });
 }

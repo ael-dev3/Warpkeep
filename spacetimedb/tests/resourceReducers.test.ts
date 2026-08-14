@@ -155,24 +155,44 @@ test('new founding writes the complete private resource account in the same atom
 
 test('gameplay resource authority requires the current entry agreement and the caller-bound founder graph', () => {
   const auth = source('../src/auth.ts');
+  const gameplayGraph = section(
+    auth,
+    'function requireGameplayPlayerGraphV1',
+    '/**\n * Require the complete current gameplay graph and mutation authority.',
+  );
   const gameplay = section(
     auth,
     'export function requireGameplayPlayerV1',
     '/** Admin inputs',
   );
-  const admittedAt = gameplay.indexOf('requireOwnedCastleActionV1(ctx)');
-  const acceptanceAt = gameplay.indexOf('alphaTermsAcceptanceV1.acceptanceKey.find');
-  const resourceAt = gameplay.indexOf('assertGenesisResourceForFid(ctx, admitted.claims.fid)');
+  const admittedAt = gameplayGraph.indexOf('requireOwnedCastleActionV1(ctx)');
+  const acceptanceAt = gameplayGraph.indexOf('alphaTermsAcceptanceV1.acceptanceKey.find');
+  const resourceAt = gameplayGraph.indexOf('assertGenesisResourceForFid(ctx, admitted.claims.fid)');
 
   assert.ok(admittedAt >= 0 && acceptanceAt > admittedAt && resourceAt > acceptanceAt);
   assert.match(
-    gameplay,
+    gameplayGraph,
     /acceptanceKey = `\$\{admitted\.claims\.fid\}:\$\{WARPKEEP_ALPHA_TERMS_VERSION\}`/,
   );
-  assert.match(gameplay, /acceptance\.fid !== admitted\.claims\.fid/);
-  assert.match(gameplay, /acceptance\.termsVersion !== WARPKEEP_ALPHA_TERMS_VERSION/);
-  assert.match(gameplay, /ALPHA_TERMS_REQUIRED/);
-  assert.doesNotMatch(gameplay, /ENTRY_AGREEMENT_EVIDENCE_VERSIONS|hasRetainedEntryAgreementEvidence/);
+  assert.match(gameplayGraph, /acceptance\.fid !== admitted\.claims\.fid/);
+  assert.match(gameplayGraph, /acceptance\.termsVersion !== WARPKEEP_ALPHA_TERMS_VERSION/);
+  assert.match(gameplayGraph, /ALPHA_TERMS_REQUIRED/);
+  assert.doesNotMatch(gameplayGraph, /ENTRY_AGREEMENT_EVIDENCE_VERSIONS|hasRetainedEntryAgreementEvidence/);
+
+  const gameplayGraphAt = gameplay.indexOf('requireGameplayPlayerGraphV1(ctx)');
+  const storedApprovalAt = gameplay.indexOf(
+    'requireStoredProductionPlayerCanaryApprovalRegistrationV2(',
+  );
+  const writeGateAt = gameplay.indexOf(
+    'productionPlayerCanaryGameplayWriteGateCodeV2(',
+  );
+  const returnAt = gameplay.lastIndexOf('return gameplay;');
+  assert.ok(
+    gameplayGraphAt >= 0
+      && storedApprovalAt > gameplayGraphAt
+      && writeGateAt > storedApprovalAt
+      && returnAt > writeGateAt,
+  );
 
   const admitted = section(
     auth,

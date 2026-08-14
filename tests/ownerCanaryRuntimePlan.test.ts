@@ -14,19 +14,19 @@ const INPUT = Object.freeze({
 });
 
 const DISPATCH_KEYS = Object.freeze([
-  'pc1-d01-395e313394f5da8c705de5112a57e29c74678d6795f55b509f6169a1f0c09080',
-  'pc1-d02-2b1f3855a49ef4a1d673c992ffbcd58976dc775c70268d618a18d68af50db2c3',
-  'pc1-d03-9c0d1ad82e64138e65ae35fa6b0929d1b83bf3ddcb78d6e91e1317facbde04e4',
-  'pc1-d04-f0a76fe36b5c3e45aef06dd346cfa9434e83f7c52a9272c912f2816d7f2afb90',
+  'pc2-d01-c7c5fb03fba4f6f4c5addc3fca0130884ceb1e6b8df6b58ee9690c0d64cb547b',
+  'pc2-d02-0a171407f85a979af42505e662b59196550f915e182528b44b07dca545168576',
+  'pc2-d03-856c2366330d1bc6e8c7f495e5046f53c51cdf76a20e2ee7c84bb0a4c6d8d1e3',
+  'pc2-d04-e5b958439a11ff76260c3c9513f1edcaad18412ab95e3cf56a42370eb1e391f5',
 ]);
 const RECALL_KEYS = Object.freeze([
-  'pc1-r01-821f764e1a723152e1c4883709c0644a8204eecfd978a60caa289fca64ea733d',
-  'pc1-r02-124cb05fc26cd047596613471198a5e87c6dfe416d575894ae4e82e3ef27f700',
-  'pc1-r03-412008be7e68262551f0dc2602ed5048cc2c2aaae458a62c6953be25acf4c6c8',
-  'pc1-r04-bbfe3067eac01aa0b894541f1617491902948182716e9a0a8534fd9c2988bfba',
+  'pc2-r01-2fcfce8e88179e426427cc30024f3ca568c8875c3fa4aa1682d2b0c082a50862',
+  'pc2-r02-3fd24530443cd9fafd67355e85926f6a69d05a0e363a848be0abff635029cd65',
+  'pc2-r03-a193b134012a5a5c2dd8e5c2fe2ebc3e677f4ffaf8cc2cc5dad4205dca68791b',
+  'pc2-r04-e279382141a36349cb59c7386603177bcdfa19247b2dc71996b993ec0f232eb2',
 ]);
 const COMMAND_SET_COMMITMENT =
-  '5f6bd8f228fe6df5f54d6a9ac852d55774f574c1c08aa2d263930adc0933f5a2';
+  'e12bfcfd5d1aa8d1ca94e6d71bdf47b87d20fea14c5aaefe704d5c34eb2f42f4';
 
 describe('owner canary private runtime plan', () => {
   it('matches the fixed cross-runtime command-key and ordered command-set vectors', async () => {
@@ -63,7 +63,7 @@ describe('owner canary private runtime plan', () => {
     expect(JSON.stringify(plan)).not.toContain(INPUT.reviewedAdmissionPlanDigest);
     expect(JSON.stringify(plan)).not.toContain(INPUT.serverBaselineCommitment);
     expect(JSON.stringify(plan)).not.toContain(INPUT.routeSetCommitment);
-    expect(JSON.stringify(plan)).not.toContain('pc1-');
+    expect(JSON.stringify(plan)).not.toContain('pc2-');
 
     const authority = Object.freeze({ session: 7 });
     const signal = new AbortController().signal;

@@ -14,7 +14,7 @@ const material = Object.freeze({
   reviewedAdmissionPlanDigest: 'b'.repeat(64),
   serverBaselineCommitment: 'c'.repeat(64),
   routeSetCommitment: 'd'.repeat(64),
-  commandKeyPolicyVersion: 'warpkeep-production-player-canary-command-key-v1',
+  commandKeyPolicyVersion: 'warpkeep-production-player-canary-command-key-v2',
   commandSetCommitment: 'e'.repeat(64),
   ownerApprovalArtifactDigest: 'f'.repeat(64),
   ownerApprovalCommitment: '1'.repeat(64),
@@ -152,6 +152,57 @@ test('approval authority remains a private append-only suffix with exact unique 
     register.indexOf('if (existing !== null)')
       < register.indexOf('const authority = requireBoundServerAuthority'),
     'exact replay must return before mutable route/time checks',
+  );
+  assert.ok(
+    register.indexOf('if (existing !== null)')
+      < register.indexOf(
+        'assertProductionPlayerCanaryApprovalPristineBaselineV2',
+      ),
+    'exact replay must return before the NEW-only current pristine recheck',
+  );
+  assert.ok(
+    register.indexOf('assertProductionPlayerCanaryApprovalPristineBaselineV2')
+      < register.indexOf(
+        'productionPlayerCanaryApprovalRegistrationV1.insert',
+      ),
+    'the current pristine recheck must be the final authority before insert',
+  );
+});
+
+test('stale v1 canary state is never reinterpreted as v2 authority', () => {
+  const approval = readFileSync(
+    new URL('../src/productionPlayerCanaryApproval.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(
+    approval,
+    /input\.commandKeyPolicyVersion[\s\S]*!== PRODUCTION_PLAYER_CANARY_COMMAND_KEY_POLICY_VERSION/u,
+  );
+  assert.match(
+    approval,
+    /row\.commandKeyPolicyVersion[\s\S]*!== PRODUCTION_PLAYER_CANARY_COMMAND_KEY_POLICY_VERSION/u,
+  );
+
+  const baseline = readFileSync(
+    new URL('../src/productionPlayerCanaryBaseline.ts', import.meta.url),
+    'utf8',
+  );
+  for (const field of [
+    'assignmentCount',
+    'occupationCount',
+    'scheduleCount',
+    'commandReceiptCount',
+  ]) assert.match(baseline, new RegExp(`\\b${field}\\b`, 'u'));
+  assert.match(baseline, /PRODUCTION_PLAYER_CANARY_BASELINE_PRISTINE_REQUIRED/u);
+
+  const recovery = readFileSync(
+    new URL('../src/productionPlayerCanaryRecovery.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(recovery, /RESERVED_COMMAND_V1_PREFIX = 'pc1-'/u);
+  assert.match(
+    recovery,
+    /registration\.commandKeyPolicyVersion[\s\S]*!== commandAuthority\.commandKeyPolicyVersion/u,
   );
 });
 

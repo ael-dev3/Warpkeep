@@ -9,12 +9,12 @@ import {
 import {
   castleWorkerErrorCode,
   dispatchCastleWorker,
-  dispatchGreaterRealmCastleWorkerV2,
   inspectCastleWorkerGraph,
   inspectCastleWorkerGraphForCurrentGameplayV1,
   projectMyGreaterRealmWorkerStateV2ForIndexedReadV1,
   projectMyWorkerStateForCurrentGameplayIndexedReadV1,
   projectMyWorkerStateForIndexedReadV1,
+  assertProductionPlayerCanaryRecallAllAvailableV2,
   recallAllCastleWorkers,
   recallCastleWorker,
   repairMissingWorkerReturnSchedule,
@@ -43,6 +43,8 @@ import {
   productionPlayerCanaryEvidenceErrorCode,
 } from '../productionPlayerCanaryEvidence';
 import {
+  assertProductionPlayerCanaryGenericWorkerWriteAvailableV2,
+  dispatchProductionPlayerCanaryAwareGreaterRealmWorkerV1,
   inspectProductionPlayerCanaryRecoveryStatusV1,
   productionPlayerCanaryRecoveryErrorCode,
   recallProductionPlayerCanaryWorkerV1 as recallProductionPlayerCanaryWorkerAuthorityV1,
@@ -705,6 +707,10 @@ export const dispatchWorkerV1 = warpkeep.reducer(
   (ctx, { workerId, resourceKind, siteId, idempotencyKey }) => {
     try {
       const { claims, castle } = requireGameplayPlayerV1(ctx);
+      assertProductionPlayerCanaryGenericWorkerWriteAvailableV2(ctx, {
+        fid: claims.fid,
+        idempotencyKey,
+      });
       dispatchCastleWorker(ctx, { fid: claims.fid, castle, workerId, resourceKind, siteId, idempotencyKey });
     } catch (error) {
       return senderPolicyError(error);
@@ -724,7 +730,7 @@ export const dispatchGreaterRealmWorkerV1 = warpkeep.reducer(
   (ctx, { workerId, resourceKind, locationId, expectedRevision, idempotencyKey }) => {
     try {
       const { claims, castle } = requireAuthenticatedCastleOwnerActionV1(ctx);
-      dispatchGreaterRealmCastleWorkerV2(ctx, {
+      const dispatchInput = Object.freeze({
         fid: claims.fid,
         castle,
         workerId,
@@ -733,6 +739,10 @@ export const dispatchGreaterRealmWorkerV1 = warpkeep.reducer(
         expectedRevision,
         idempotencyKey,
       });
+      dispatchProductionPlayerCanaryAwareGreaterRealmWorkerV1(
+        ctx,
+        dispatchInput,
+      );
     } catch (error) {
       return senderPolicyError(error);
     }
@@ -745,6 +755,10 @@ export const recallWorkerV1 = warpkeep.reducer(
   (ctx, { workerId, idempotencyKey }) => {
     try {
       const { claims, castle } = requireGameplayPlayerV1(ctx);
+      assertProductionPlayerCanaryGenericWorkerWriteAvailableV2(ctx, {
+        fid: claims.fid,
+        idempotencyKey,
+      });
       recallCastleWorker(ctx, { fid: claims.fid, castle, workerId, idempotencyKey });
     } catch (error) {
       return senderPolicyError(error);
@@ -753,9 +767,9 @@ export const recallWorkerV1 = warpkeep.reducer(
 );
 
 /**
- * Recall one reviewed canary assignment only when its exact deterministic
- * dispatch receipt still names the current assignment. No browser-supplied
- * worker, route, assignment, or command key is accepted.
+ * Recall one reviewed assignment (1..4), or atomically recall/fence the exact
+ * four-worker set (0). No browser-supplied worker, route, assignment, or
+ * command key is accepted.
  */
 export const recallProductionPlayerCanaryWorkerV1 = warpkeep.reducer(
   { name: 'recall_production_player_canary_worker_v1' },
@@ -785,7 +799,16 @@ export const recallAllWorkersV1 = warpkeep.reducer(
   { idempotencyKey: t.string() },
   (ctx, { idempotencyKey }) => {
     try {
+      const authenticated = requireAuthenticatedCastleOwnerActionV1(ctx);
+      assertProductionPlayerCanaryRecallAllAvailableV2(
+        ctx,
+        authenticated.claims.fid,
+      );
       const { claims, castle } = requireGameplayPlayerV1(ctx);
+      assertProductionPlayerCanaryGenericWorkerWriteAvailableV2(ctx, {
+        fid: claims.fid,
+        idempotencyKey,
+      });
       recallAllCastleWorkers(ctx, { fid: claims.fid, castle, idempotencyKey });
     } catch (error) {
       return senderPolicyError(error);
@@ -1268,7 +1291,7 @@ export const adminGetProductionPlayerCanaryApprovalV1 = warpkeep.procedure(
 );
 
 /**
- * Caller-authenticated runtime plan. FID/castle and the eight raw command keys
+ * Caller-authenticated runtime plan. FID/castle and the nine raw command keys
  * never leave the server. The browser independently derives keys and verifies
  * only their command-set commitment inside its module-private closure.
  */

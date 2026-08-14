@@ -17,11 +17,12 @@ import { basename, isAbsolute, join, resolve } from 'node:path';
 
 import { assertProductionAdminTrustedAncestors } from './production-admin-token-budget.mjs';
 import {
+  productionPlayerCanaryBaselineChallengeDigest,
   requireProductionPlayerCanaryBaselineReconciliationForApproval,
 } from './production-player-canary-baseline-reconciliation.mjs';
 import {
   PRODUCTION_PLAYER_CANARY_COMMAND_KEY_POLICY_VERSION,
-  deriveProductionPlayerCanaryCommandAuthorityV1,
+  deriveProductionPlayerCanaryCommandAuthorityV2,
 } from './production-player-canary-command-authority.mjs';
 
 export const PRODUCTION_PLAYER_CANARY_OWNER_APPROVAL_KIND =
@@ -234,8 +235,10 @@ export function parseProductionPlayerCanaryOwnerApproval(value) {
     reviewedAdmissionPlanDigest: approval.reviewedAdmissionPlanDigest,
     routes,
   });
-  const commandAuthority = deriveProductionPlayerCanaryCommandAuthorityV1({
-    evidenceNonce: approval.evidenceNonce,
+  const commandAuthority = deriveProductionPlayerCanaryCommandAuthorityV2({
+    challengeDigest: productionPlayerCanaryBaselineChallengeDigest(
+      approval.evidenceNonce,
+    ),
     reviewedAdmissionPlanDigest: approval.reviewedAdmissionPlanDigest,
     serverBaselineCommitment: approval.serverBaselineCommitment,
     routeSetCommitment,
