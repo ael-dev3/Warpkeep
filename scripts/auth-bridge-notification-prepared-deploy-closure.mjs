@@ -62,6 +62,10 @@ const BOOTSTRAP_PIN_BINDINGS = Object.freeze([
   }),
 ]);
 const BOOTSTRAP_PINNED_WORKFLOWS = new Map([
+  ['.github/workflows/notification-bridge-b0.yml', Object.freeze({
+    indentation: '      ',
+    bindings: Object.freeze(BOOTSTRAP_PIN_BINDINGS.slice(0, 4)),
+  })],
   ['.github/workflows/notification-bridge-prepared.yml', Object.freeze({
     indentation: '      ',
     bindings: Object.freeze(BOOTSTRAP_PIN_BINDINGS.slice(0, 4)),
@@ -144,6 +148,7 @@ function expectedMemberDigestProfile(memberPath) {
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
   Object.freeze([
     '.github/workflows/deploy-pages.yml',
+    '.github/workflows/notification-bridge-b0.yml',
     '.github/workflows/notification-bridge-prepared.yml',
     '.github/workflows/verify.yml',
     'owner-canary/index.html',
@@ -156,6 +161,14 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/alpha-v10-activation-controls.ts',
     'scripts/auth-bridge-config-attestation.d.mts',
     'scripts/auth-bridge-config-attestation.mjs',
+    'scripts/auth-bridge-notification-b0-cloudflare-runtime.d.mts',
+    'scripts/auth-bridge-notification-b0-cloudflare-runtime.mjs',
+    'scripts/auth-bridge-notification-b0-deploy-adapter.d.mts',
+    'scripts/auth-bridge-notification-b0-deploy-adapter.mjs',
+    'scripts/auth-bridge-notification-b0-deploy-journal.d.mts',
+    'scripts/auth-bridge-notification-b0-deploy-journal.mjs',
+    'scripts/auth-bridge-notification-b0-deploy.d.mts',
+    'scripts/auth-bridge-notification-b0-deploy.mjs',
     'scripts/auth-bridge-notification-prepared-cloudflare-runtime.d.mts',
     'scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs',
     'scripts/auth-bridge-notification-prepared-deploy-adapter.d.mts',
@@ -239,6 +252,8 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/profiles/profile-transport.ts',
     'scripts/validate-pages-deploy-config.mjs',
     'scripts/verify-alpha-production.mjs',
+    'scripts/verify-auth-bridge-notification-b0-policy.d.mts',
+    'scripts/verify-auth-bridge-notification-b0-policy.mjs',
     'scripts/verify-auth-bridge-notification-prepared-policy.d.mts',
     'scripts/verify-auth-bridge-notification-prepared-policy.mjs',
     'scripts/verify-greater-realm-release-gates.d.mts',

@@ -1,5 +1,61 @@
 # Auth bridge notification preparation
 
+## B0 v5/six-secret bootstrap
+
+The guarded player-canary secret transition has a strict predecessor: the live
+`warpkeep-auth-bridge` Worker must already be the exact reviewed source and
+configuration at Durable Object migration tag `v5`, with exactly the six
+established secret bindings:
+
+- `ADMIN_TOKEN_SECRET`
+- `FARCASTER_RPC_URL`
+- `FARCASTER_RPC_URL_SECONDARY`
+- `NOTIFICATION_OPERATOR_SECRET`
+- `SESSION_COOKIE_KEY`
+- `SIGNING_KEY_JWK`
+
+The protected manual workflow
+`.github/workflows/notification-bridge-b0.yml` creates that predecessor. It is
+separate from the seventh-secret prepared-deploy journal and never reads,
+creates, inherits, replaces, or deletes `PLAYER_CANARY_OWNER_FID`.
+
+B0 accepts only a deployed `v4` predecessor with those exact six secret names.
+It builds the reviewed source without credentials, uploads one nondeploying
+candidate through the Workers Versions API with six `inherit` bindings resolved
+under strict inheritance from the freshly re-attested, durably pinned
+predecessor and only the `v4` to `v5` `AdmissionNotification` migration, then
+re-reads the candidate source, variables, compatibility settings, exports,
+migration tag, Durable Object bindings, and exact six-secret namespace. The
+append-only B0 journal records the predecessor deployment/version and every
+effect boundary. A retained Node file descriptor holds a nonblocking kernel
+`flock` on one fixed owner-only inode for the whole journal callback; acquisition
+uses a synchronous credential-free Python helper on the inherited descriptor,
+and release occurs only when Node closes that descriptor or its process dies.
+No actor unlinks or stale-reclaims the lock pathname. Immediately before the
+sole Deployments API `POST`, B0
+re-attests that the same predecessor is still live. A failed or lost response
+is reconciled from the fixed private journal and exact remote version/deployment
+identity; no mutation is retried without remote proof.
+
+After fresh private and public poststate validation constructs the canonical
+prepared receipt, B0 appends a `receipt-publication-intent` containing its exact
+canonical bytes and digest before installation. Publication uses the existing
+content-addressed no-replace receipt writer; a matching destination/temporary
+hard-link crash pair is repaired exactly. The subsequent `receipt-published`
+record durably binds the digest even though the workflow suppresses command
+output. Recovery revalidates current remote Worker and admin/public bridge state,
+then reuses the WAL-bound receipt bytes across an advancing clock; it cannot
+mint a second receipt authority after an intent exists.
+
+This phase remains release-inert: package `0.3.43`, Pages presentation false,
+Hermes execution false, and every seventh-secret, player-canary deployment, and
+world/presentation activation call remains absent. The reviewed inert owner
+endpoint and canary safety source remain in the closure and uploaded v5 source,
+but B0 neither configures their secret nor invokes them. The B0 workflow must
+not be dispatched until its final protected-main source closure and workflow
+bootstrap hashes have been reviewed and refrozen for the exact protected merge
+commit.
+
 This phase prepares notification delivery at `https://auth.warpkeep.com`
 without enabling founder-admission execution or Pages presentation. It is a
 short-lived evidence boundary, not authorization for either later phase.
@@ -182,12 +238,13 @@ four profiles: `raw-file-sha256-v1`,
 `reviewed-release-transition-projection-sha256-v1`, or the single composed
 `reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1` used by
 the Pages workflow. A projected digest is therefore never represented as an
-ordinary file SHA-256. Its 361 sorted path/profile/digest records cover both
-protected production workflows, the
+ordinary file SHA-256. Its 372 sorted path/profile/digest records cover all
+three protected production workflows, the
 Pages and Hermes policy inputs, the policy verifier, and the complete
-AST-derived local import graphs rooted at the guarded bridge entrypoint, full
-Hermes CLI, Pages build validator, Pages lane classifier, and builtins-only
-private launcher. It also covers every matching `.d.mts` ABI, all 168 generated
+AST-derived local import graphs rooted at the guarded prepared and B0 bridge
+entrypoints, B0 policy verifier, full Hermes CLI, Pages build validator, Pages
+lane classifier, builtins-only private launcher, and private production
+player-canary operator. It also covers every matching `.d.mts` ABI, all 168 generated
 Spacetime module bindings reached by Hermes, all 22 reached Spacetime policy
 modules, all 17 Worker source modules, every file executed by the CI `pnpm
 check` gate, the Greater Realm production bootstrap, and the exact auth-bridge
@@ -206,7 +263,8 @@ The Pages workflow contains the same four pins plus the exact builtins-only
 private launcher digest. Trusted `/usr/bin/shasum` checks the relevant raw
 checkout files before installation, after installation, and—on the
 credentialed Pages job—again before any private operator command. A then
-requires both checked-out workflows' pin values to equal those same raw bytes.
+requires all three checked-out workflows' pin values to equal those same raw
+bytes.
 To avoid a self-hash cycle, only those exact quoted values are replaced by a
 fixed marker when each workflow member digest is calculated; every other
 workflow byte remains covered. A pin, namespace, verifier, or manifest change

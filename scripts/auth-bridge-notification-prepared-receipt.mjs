@@ -586,6 +586,22 @@ function receiptBytes(receipt) {
   return bytes;
 }
 
+/** Canonical bytes/digest projection safe to bind into an owner-private WAL. */
+export function canonicalAuthBridgeNotificationPreparedReceiptPublication(
+  receipt,
+) {
+  const parsed = parseAuthBridgeNotificationPreparedReceipt(receipt);
+  const bytes = receiptBytes(parsed);
+  try {
+    return Object.freeze({
+      receiptBytesBase64: bytes.toString('base64'),
+      receiptDigest: createHash('sha256').update(bytes).digest('hex'),
+    });
+  } finally {
+    bytes.fill(0);
+  }
+}
+
 function readExactReceipt(path, expectedBytes, uid) {
   let descriptor;
   try {
@@ -1056,6 +1072,43 @@ export async function prepareAuthBridgeNotificationPreparedReceipt({
   });
   authenticatedPreparedReceipts.add(receipt);
   return receipt;
+}
+
+/**
+ * Re-authenticates one exact WAL-bound receipt against current private and
+ * public bridge state before a recovery process may publish its bytes.
+ */
+export async function authenticateAuthBridgeNotificationPreparedReceiptForPublication({
+  receipt,
+  adminToken,
+  expectedBridgeSourceCommit,
+  fetchImpl = fetch,
+  now = new Date(),
+} = {}) {
+  const parsed = parseAuthBridgeNotificationPreparedReceipt(receipt);
+  validateReceiptFreshness(parsed, now);
+  if (
+    typeof expectedBridgeSourceCommit !== 'string'
+    || !SOURCE_COMMIT.test(expectedBridgeSourceCommit)
+    || parsed.bridgeSourceCommit !== expectedBridgeSourceCommit
+  ) fail('AUTH_BRIDGE_PREPARED_EXPECTED_SOURCE_INVALID');
+  const privateAttestation = await verifyAuthBridgeRpcRoleAttestation({
+    bridgeUrl: DEFAULT_AUTH_BRIDGE_URL,
+    adminToken,
+    fetchImpl,
+  });
+  if (
+    privateAttestation.notificationDeliveryEnabled !== true
+    || privateAttestation.notificationTransportConfigured !== true
+    || privateAttestation.notificationClientCount !== 1
+    || privateAttestation.publicAuthEnabled !== parsed.publicAuthEnabledAfter
+    || privateAttestation.accessExpectedFidRequired
+      !== parsed.accessExpectedFidRequiredAfter
+  ) fail('AUTH_BRIDGE_PREPARED_PRIVATE_POSTSTATE_INVALID');
+  const live = await fetchFreshAuthBridgeReleaseAttestation({ fetchImpl, now });
+  bindReceiptToAttestation(parsed, live);
+  authenticatedPreparedReceipts.add(parsed);
+  return parsed;
 }
 
 function bindReceiptToAttestation(receipt, live) {
