@@ -140,17 +140,155 @@ warpkeep.production-player-canary.command-set.v1
 <recall key 4>
 ```
 
-The checked-in `loadOwnerCanaryProductionRuntime` deliberately returns `null`.
-The separate live-v17 lane must first generate and review that runtime API,
-then inject the baseline-bound opaque plan, reviewed player operations,
-private subject/admission-plan correlation, and mandatory sanitized evidence
-handoff before the page can authenticate or mutate anything. The UI does not
-report completion until that in-process handoff resolves successfully. If the
-player stages finish but handoff completion cannot be confirmed, the outcome is
-ambiguous: the page permanently blocks another run for that session, uses
-non-claiming failure copy, and requires host teardown plus independent operator
-reconciliation. It never retries a completed mutation sequence from browser
-state alone.
+The source now contains a provisional production evidence adapter. It accepts
+only the exact canonical Maincloud database, canonical auth origin and OIDC
+audience with shared alpha explicitly enabled. Loading the production entry
+only reads that public configuration: it performs no authentication, socket
+construction, procedure call, reducer call, or other network work. The first
+possible network action remains the controller's explicit post-consent
+authentication stage.
+
+The adapter implements the ten ordered, memory-only stages above. The
+`baseline`, `founder`, and `routes` stages read and compare the caller-private
+runtime plan; `founder` is strictly a read-only confirmation after normal
+admission and server baseline capture. The server procedure requires the
+direct active v17 Tier-I founded claim, current ownership, current entry
+agreement and control readiness. Browser code does not found, admit, bootstrap,
+accept Terms, or call an admin surface. `dispatch` revalidates the unexpired
+server plan immediately before the four ordered commands. Replay uses the same
+four opaque plan keys, preserves the exact capacity leases, and permits only a
+normal outbound-to-gathering transition. Recall always sends the four ordered
+reviewed keys before judging whether the bounded evidence window remained
+valid. Terminal reads require stable atlas context, monotonic server clocks,
+idle zero-cargo workers, zero pending worker amounts, and nondecreasing resource
+balances. These browser checks are non-authoritative: independent server/admin
+evidence remains the only resource-isolation and receipt authority.
+
+Server-reviewed worker policy pins travel to 30 seconds per route step and one
+gather quantum to 60 seconds. Gathering evidence is accepted at or after one
+quantum and strictly before two, and dispatch/recall bursts each have a
+30-second ceiling. The reviewed production composition pins a five-second poll
+interval and 96 attempts. Its wait rejects any different requested interval
+and aborts immediately. Ninety-five waits cover 475 seconds: 55 seconds beyond
+the maximum 420-second route-plus-first-quantum bound and beyond the maximum
+390-second terminal-return bound. The evidence adapter still requires explicit
+policy injection and has no permissive default.
+
+The generic worker reducer does not return its authoritative dispatch receipt
+timestamp. A control read immediately after each dispatch therefore provides
+only a later observation bound. The adapter's per-route
+`gatheringElapsedMs` is the conservative lower bound from that observation to
+the accepted gathering observation after subtracting reviewed travel time;
+the pre-dispatch observation separately proves the strict upper window. This
+brackets the true gathering interval inside the reviewed 60-to-120-second
+window, but it is not relabeled as an exact reducer-receipt elapsed time. The
+admin evidence procedure remains the only exact receipt-timestamp authority.
+The caller-private runtime plan now includes the registered `notAfterMicros`.
+The browser requires the pre-dispatch observation and every post-dispatch
+observation to remain strictly before it, while each post-read brackets the
+immediately preceding invocation.
+
+The first dispatch invocation also creates an empty, branded recovery handle
+inside a private `WeakMap`. It retains only recall keys for ordinals whose
+dispatch invocation was actually attempted, exposes no dispatch method, and
+survives poisoning or disposal of the original full plan. A failed main run is
+permanently consumed. Recovery can then be clicked only in `required` or
+`unconfirmed` state. Every click forces a new owner Quick Auth exchange,
+verifies the same memory-latched subject and reviewed plan digest, and opens a
+new player authority. A ten-second pre-read validates all four workers and the
+exact reviewed routes: unattempted workers must be clean idle; attempted
+workers may be clean idle, returning, outbound, or gathering. Only attempted
+outbound/gathering workers may invoke the dedicated conditional-recall reducer.
+The browser sends only the reviewed plan digest, evidence nonce, and ordinal;
+the server derives the dispatch and recall keys, requires the exact canary
+dispatch receipt, and atomically proves that its assignment, resource, and
+site are still current before mutation. A later same-route assignment is
+rejected, an exact recall receipt replays read-only, and an already-idle worker
+does not acquire a no-op receipt. The browser also binds recovery to the exact
+four immediate pre-dispatch worker revisions and rejects any state outside the
+reviewed B-through-B+4 transition window. Returning and idle workers are not
+mutated. A ten-second post-read must show every attempted worker returning or
+clean idle and every unattempted worker clean idle. Exact post-state is
+authoritative even if a reducer response was lost; failures stay `unconfirmed`
+so the same idempotent recall keys can be tried again. Nothing is stored,
+transferred, journaled, or handed to another browser realm.
+
+Recovery opens a separately branded authority only after the forced fresh
+same-subject verification. It cannot enter the evidence/dispatch surface and
+never reuses or clears an ambiguously closed main authority. If main-authority
+closure was unconfirmed, recall attempts remain available but browser state can
+never become `safe` in that page realm: the handle stays retryable and repeated
+admin inspection is the only terminal-safety authority. If closure of the new
+recovery authority is itself unconfirmed, browser recovery is permanently
+disabled and the state remains `unconfirmed` for operator-only reconciliation.
+
+Hermes has a separate read-only
+`admin_get_production_player_canary_recovery_status_v1` procedure and repeatable
+operator `inspect-recovery` command. Its input is only the private FID, reviewed
+plan digest, and evidence nonce. Its aggregate reports commitments, approval
+expiry and observation time, exact dispatch/correlated/no-op/unexpected receipt
+counts, four worker-state counts, assignment/occupation/schedule counts,
+terminal safety, structural candidacy, and one of `recall-required`,
+`return-in-progress`, `terminal-evidence-candidate`, or
+`terminal-evidence-impossible`. Inspection never advances or creates the
+operator journal and never calls a mutation. Structural candidacy is false at
+or after `notAfterMicros` even when the graph is terminally safe, so expired
+safety maps to `terminal-evidence-impossible`. Structural candidacy is
+diagnostic only; the full
+admin evidence procedure and protected receipt remain the sole evidence and
+release authority.
+
+The checked-in `loadOwnerCanaryProductionRuntime` still deliberately returns
+`null`, including for exact canonical configuration. The exact poll policy,
+fresh branded subject verifier, approval cutoff, dispatch brackets,
+recall-only recovery, and in-process acknowledgement now exist as inert source,
+but the loader does not import or compose them. The protected predecessor must
+merge first, then the combined source and closure must be independently audited
+and refrozen. The in-process `acceptSanitizedEvidence` callback is only a
+non-authoritative UX acknowledgement. It is not a journal, receipt, C7 input,
+file writer, browser transfer, or network receiver. Failure remains ambiguous
+and permanently blocks another main run in that page realm; browser evidence
+never authorizes release.
+
+## Owner-private manual launch packet
+
+`scripts/production-player-canary-browser-launcher.mjs` is the local,
+owner-private one-command packet writer and inspector. It accepts only an
+absolute destination inside an existing current-user-owned directory whose
+exact mode is `0700`. `write` creates a new regular file without following
+links or overwriting a path, verifies one link and current-user ownership, and
+fixes and verifies exact mode `0600`. `inspect` reopens without following links
+and accepts only canonical UTF-8 JSON bytes with these three keys in this exact
+order:
+
+```json
+{
+  "evidenceNonce": "<64 lowercase hex>",
+  "reviewedAdmissionPlanDigest": "<64 lowercase hex>",
+  "routeSetCommitment": "<64 lowercase hex>"
+}
+```
+
+The write command reads those three values from bounded standard input and
+prints only a fixed success token, never a value or path. Example shape (do not
+put live values in shell history) is:
+
+```text
+node scripts/production-player-canary-browser-launcher.mjs write /absolute/owner-only/directory/launch.json
+```
+
+The human inspects that file locally and manually enters the three values into
+the already-clearing owner UI. There is intentionally no automated browser
+launch or local-to-browser transfer and no POST, download, clipboard, storage,
+file picker, `postMessage`, journal, or receipt path. Browser-to-local handoff
+remains only the in-process non-authoritative acknowledgement described above.
+Delete the packet through the owner's separately reviewed local retention
+procedure after the run; this source slice does not invent one.
+
+The launcher and evidence adapter are added as prepared-deploy closure graph
+roots/security inputs. The signed closure manifest is intentionally not
+refrozen in this provisional lane; the protected predecessor correction and
+true merge must occur first, then the combined closure is refrozen once.
 
 ## Approved Mini App reachability
 
@@ -208,8 +346,8 @@ Separate explicit approval is required for each production-changing boundary:
 - stage, replace, or remove `PLAYER_CANARY_OWNER_FID`;
 - deploy/release the changed bridge and Pages artifacts;
 - connect the live-v17 player runtime and private verifier handoff; and
-- begin the canary that founds or mutates live player, worker, and resource
-  state.
+- begin the canary that mutates the already-admitted live player, worker, and
+  resource state.
 
 No token file, browser session export, owner FID disclosure, realm presentation
 enablement, admin impersonation, notification bypass, commit, push, protected

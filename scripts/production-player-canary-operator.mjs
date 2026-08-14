@@ -49,6 +49,7 @@ const COMMIT = /^[0-9a-f]{40}$/u;
 const PRIVATE_DIRECTORY_MODE = 0o700;
 const COMMANDS = Object.freeze([
   'inspect',
+  'inspect-recovery',
   'capture-baseline',
   'inspect-route-plan',
   'prepare-owner-approval',
@@ -57,6 +58,12 @@ const COMMANDS = Object.freeze([
   'finalize-receipt',
 ]);
 const ROUTE_RESOURCES = Object.freeze(['food', 'wood', 'stone', 'gold']);
+const RECOVERY_DISPOSITIONS = Object.freeze([
+  'recall-required',
+  'return-in-progress',
+  'terminal-evidence-candidate',
+  'terminal-evidence-impossible',
+]);
 const PHASES_AFTER_BASELINE = new Set([
   'baseline-reconciled',
   'owner-approval-install-intent',
@@ -450,6 +457,122 @@ function validateRoutePlan(plan, baseline) {
   });
 }
 
+function validateRecoveryStatus(status, contract, inspectedPlan) {
+  const expectedKeys = [
+    'profile',
+    'challengeDigest',
+    'reviewedAdmissionPlanDigest',
+    'serverBaselineCommitment',
+    'routeSetCommitment',
+    'commandSetCommitment',
+    'approvalRegistrationCommitment',
+    'notAfterMicros',
+    'observedAtMicros',
+    'dispatchReceiptCount',
+    'correlatedRecallReceiptCount',
+    'noOpRecallReceiptCount',
+    'unexpectedReceiptCount',
+    'idleWorkerCount',
+    'outboundWorkerCount',
+    'gatheringWorkerCount',
+    'returningWorkerCount',
+    'assignmentCount',
+    'occupationCount',
+    'scheduleCount',
+    'terminalSafe',
+    'structuralEvidenceCandidate',
+    'disposition',
+  ].sort();
+  if (
+    status === null
+    || typeof status !== 'object'
+    || Array.isArray(status)
+    || Object.getPrototypeOf(status) !== Object.prototype
+  ) fail('PRODUCTION_PLAYER_CANARY_OPERATOR_RECOVERY_STATUS_INVALID');
+  const ownKeys = Reflect.ownKeys(status);
+  if (
+    ownKeys.some(key => typeof key !== 'string')
+    || [...ownKeys].sort().join('\0') !== expectedKeys.join('\0')
+  ) fail('PRODUCTION_PLAYER_CANARY_OPERATOR_RECOVERY_STATUS_INVALID');
+  const descriptors = Object.getOwnPropertyDescriptors(status);
+  if (Object.values(descriptors).some(descriptor => (
+    !Object.hasOwn(descriptor, 'value')
+    || descriptor.get !== undefined
+    || descriptor.set !== undefined
+  ))) fail('PRODUCTION_PLAYER_CANARY_OPERATOR_RECOVERY_STATUS_INVALID');
+  if (
+    status.profile !== 'warpkeep-production-player-canary-recovery-status-v1'
+    || status.challengeDigest
+      !== productionPlayerCanaryBaselineChallengeDigest(contract.evidenceNonce)
+    || status.reviewedAdmissionPlanDigest !== inspectedPlan.planDigest
+    || !SHA256.test(status.serverBaselineCommitment)
+    || !SHA256.test(status.routeSetCommitment)
+    || !SHA256.test(status.commandSetCommitment)
+    || !SHA256.test(status.approvalRegistrationCommitment)
+    || typeof status.notAfterMicros !== 'bigint'
+    || status.notAfterMicros < 1n
+    || typeof status.observedAtMicros !== 'bigint'
+    || status.observedAtMicros < 1n
+    || !RECOVERY_DISPOSITIONS.includes(status.disposition)
+  ) fail('PRODUCTION_PLAYER_CANARY_OPERATOR_RECOVERY_STATUS_INVALID');
+  const boundedCounts = [
+    status.dispatchReceiptCount,
+    status.correlatedRecallReceiptCount,
+    status.noOpRecallReceiptCount,
+    status.idleWorkerCount,
+    status.outboundWorkerCount,
+    status.gatheringWorkerCount,
+    status.returningWorkerCount,
+  ];
+  if (
+    boundedCounts.some(value => !Number.isSafeInteger(value) || value < 0 || value > 4)
+    || !Number.isSafeInteger(status.unexpectedReceiptCount)
+    || status.unexpectedReceiptCount < 0
+    || status.unexpectedReceiptCount > 128
+    || typeof status.assignmentCount !== 'bigint'
+    || status.assignmentCount < 0n
+    || status.assignmentCount > 4n
+    || typeof status.occupationCount !== 'bigint'
+    || status.occupationCount < 0n
+    || status.occupationCount > 4n
+    || typeof status.scheduleCount !== 'bigint'
+    || status.scheduleCount < 0n
+    || status.scheduleCount > 4n
+    || typeof status.terminalSafe !== 'boolean'
+    || typeof status.structuralEvidenceCandidate !== 'boolean'
+    || status.idleWorkerCount
+      + status.outboundWorkerCount
+      + status.gatheringWorkerCount
+      + status.returningWorkerCount !== 4
+  ) fail('PRODUCTION_PLAYER_CANARY_OPERATOR_RECOVERY_STATUS_INVALID');
+  const terminalSafe = status.idleWorkerCount === 4
+    && status.outboundWorkerCount === 0
+    && status.gatheringWorkerCount === 0
+    && status.returningWorkerCount === 0
+    && status.assignmentCount === 0n
+    && status.occupationCount === 0n
+    && status.scheduleCount === 0n;
+  const structuralEvidenceCandidate = terminalSafe
+    && status.observedAtMicros < status.notAfterMicros
+    && status.dispatchReceiptCount === 4
+    && status.correlatedRecallReceiptCount === 4
+    && status.noOpRecallReceiptCount === 0
+    && status.unexpectedReceiptCount === 0;
+  const disposition = structuralEvidenceCandidate
+    ? 'terminal-evidence-candidate'
+    : status.outboundWorkerCount > 0 || status.gatheringWorkerCount > 0
+      ? 'recall-required'
+      : status.returningWorkerCount > 0
+        ? 'return-in-progress'
+        : 'terminal-evidence-impossible';
+  if (
+    status.terminalSafe !== terminalSafe
+    || status.structuralEvidenceCandidate !== structuralEvidenceCandidate
+    || status.disposition !== disposition
+  ) fail('PRODUCTION_PLAYER_CANARY_OPERATOR_RECOVERY_STATUS_INVALID');
+  return Object.freeze({ ...status });
+}
+
 async function readRoutePlan(adminSecret, arguments_, baseline, deps) {
   return validateRoutePlan(
     await deps.planRoutes({ adminSecret, arguments: arguments_ }),
@@ -594,6 +717,23 @@ function defaultDependencies() {
         await session.close();
       }
     },
+    async inspectRecovery(input) {
+      const [transport, canary] = await Promise.all([
+        import('./greater-realm-production-transport.ts'),
+        import('./production-player-canary-admin-transport.ts'),
+      ]);
+      const session = transport.createGreaterRealmAdminTransportSession({
+        adminSecret: input.adminSecret,
+      });
+      try {
+        return await canary.getProductionPlayerCanaryRecoveryStatusV1({
+          session,
+          arguments: input.arguments,
+        });
+      } finally {
+        await session.close();
+      }
+    },
     prepareOwnerApproval: prepareProductionPlayerCanaryOwnerApprovalV1,
     writeOwnerApproval: writePreparedProductionPlayerCanaryOwnerApproval,
     inspectOwnerApproval: inspectProductionPlayerCanaryOwnerApproval,
@@ -653,6 +793,29 @@ async function executeWithDependencies(rawInput, deps) {
   }
   validatePrivatePathIsolation(contract, rawInput.reportedHome);
   deps.assertProtectedSource(contract);
+  if (rawInput.command === 'inspect-recovery') {
+    const now = deps.now();
+    if (!(now instanceof Date) || !Number.isSafeInteger(now.getTime())) {
+      fail('PRODUCTION_PLAYER_CANARY_OPERATOR_CLOCK_INVALID');
+    }
+    const inspectedPlan = validateClaimedPlan(
+      contract,
+      await deps.inspectClaimedPlan({ contract, now }),
+    );
+    const adminSecret = requireSecret(
+      rawInput.adminSecret,
+      'PRODUCTION_PLAYER_CANARY_OPERATOR_ADMIN_SECRET_INVALID',
+    );
+    const recoveryStatus = validateRecoveryStatus(
+      await deps.inspectRecovery({
+        adminSecret,
+        arguments: baselineArguments(contract, inspectedPlan),
+      }),
+      contract,
+      inspectedPlan,
+    );
+    return Object.freeze({ phase: null, recoveryStatus });
+  }
   let initiallyInspectedPlan;
   let initialNow;
   return deps.withJournal({
@@ -1080,6 +1243,7 @@ export const productionPlayerCanaryOperatorTestSeams =
       assertProtectedSource,
       executeWithDependencies,
       validateClaimedPlan,
+      validateRecoveryStatus,
       validateRoutePlan,
     })
     : undefined;

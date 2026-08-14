@@ -12,6 +12,7 @@ export declare class ProductionPlayerCanaryOperatorError extends Error {
 
 export type ProductionPlayerCanaryOperatorCommand =
   | 'inspect'
+  | 'inspect-recovery'
   | 'capture-baseline'
   | 'inspect-route-plan'
   | 'prepare-owner-approval'

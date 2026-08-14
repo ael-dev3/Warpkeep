@@ -141,6 +141,70 @@ describe('owner canary private runtime plan', () => {
     expect(ownerCanaryRuntimePlanFailureCode(reconstructed)).toBe('invalid-plan-handle');
   });
 
+  it('attenuates at first dispatch invocation to attempted-ordinal recall only and permits exact retry', async () => {
+    const received: Array<Readonly<Record<string, unknown>>> = [];
+    const consume = vi.fn(async (command: Readonly<Record<string, unknown>>) => {
+      received.push(command);
+      if (command.operation === 'dispatch') throw new Error('synthetic lost dispatch response');
+    });
+    const boundary = createOwnerCanaryRuntimePlanBoundary(consume);
+    const plan = await boundary.prepare({
+      ...INPUT,
+      expectedCommandSetCommitment: COMMAND_SET_COMMITMENT,
+    });
+    await expect(boundary.runCommand({
+      plan,
+      operation: 'dispatch',
+      ordinal: 2,
+      authority: Object.freeze({}),
+      signal: new AbortController().signal,
+    })).rejects.toThrow('The owner canary runtime plan stopped.');
+    const recovery = boundary.takeRecallRecoveryPlan(plan)!;
+    expect(recovery).toBeDefined();
+    expect(Object.isFrozen(recovery)).toBe(true);
+    expect(Reflect.ownKeys(recovery)).toEqual([]);
+    expect(JSON.stringify(recovery)).toBe('{}');
+    expect('dispatch' in recovery).toBe(false);
+
+    boundary.dispose(plan);
+    const rejected = await boundary.runRecoveryRecall({
+      plan: recovery,
+      ordinal: 1,
+      authority: Object.freeze({}),
+      signal: new AbortController().signal,
+    }).catch((caught: unknown) => caught);
+    expect(ownerCanaryRuntimePlanFailureCode(rejected)).toBe('invalid-recovery-command');
+
+    const authority = Object.freeze({ recovery: true });
+    const signal = new AbortController().signal;
+    await boundary.runRecoveryRecall({ plan: recovery, ordinal: 2, authority, signal });
+    await boundary.runRecoveryRecall({ plan: recovery, ordinal: 2, authority, signal });
+    expect(received.slice(1)).toEqual([
+      {
+        operation: 'recall',
+        ordinal: 2,
+        idempotencyKey: RECALL_KEYS[1],
+        authority,
+        signal,
+      },
+      {
+        operation: 'recall',
+        ordinal: 2,
+        idempotencyKey: RECALL_KEYS[1],
+        authority,
+        signal,
+      },
+    ]);
+    boundary.disposeRecallRecovery(recovery);
+    const disposed = await boundary.runRecoveryRecall({
+      plan: recovery,
+      ordinal: 2,
+      authority,
+      signal,
+    }).catch((caught: unknown) => caught);
+    expect(ownerCanaryRuntimePlanFailureCode(disposed)).toBe('invalid-recovery-command');
+  });
+
   it('invalidates a disposed plan without exposing or returning its command material', async () => {
     const boundary = createOwnerCanaryRuntimePlanBoundary(vi.fn(async () => undefined));
     const plan = await boundary.prepare({

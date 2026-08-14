@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto';
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -244,6 +245,35 @@ function registeredStatus(arguments_: Readonly<Record<string, unknown>>) {
   };
 }
 
+function recoveryStatus(overrides: Readonly<Record<string, unknown>> = {}) {
+  return {
+    profile: 'warpkeep-production-player-canary-recovery-status-v1',
+    challengeDigest: productionPlayerCanaryBaselineChallengeDigest(NONCE),
+    reviewedAdmissionPlanDigest: PLAN,
+    serverBaselineCommitment: BASELINE,
+    routeSetCommitment,
+    commandSetCommitment: commandAuthority.commandSetCommitment,
+    approvalRegistrationCommitment: '9'.repeat(64),
+    notAfterMicros: BigInt(NOW.getTime() + 1_260_000) * 1_000n,
+    observedAtMicros: BigInt(NOW.getTime()) * 1_000n,
+    dispatchReceiptCount: 4,
+    correlatedRecallReceiptCount: 4,
+    noOpRecallReceiptCount: 0,
+    unexpectedReceiptCount: 0,
+    idleWorkerCount: 4,
+    outboundWorkerCount: 0,
+    gatheringWorkerCount: 0,
+    returningWorkerCount: 0,
+    assignmentCount: 0n,
+    occupationCount: 0n,
+    scheduleCount: 0n,
+    terminalSafe: true,
+    structuralEvidenceCandidate: true,
+    disposition: 'terminal-evidence-candidate',
+    ...overrides,
+  };
+}
+
 function dependencies(home: string) {
   const baseline = baselineReconciliation();
   const calls = {
@@ -251,6 +281,7 @@ function dependencies(home: string) {
     capture: vi.fn(),
     register: vi.fn(),
     evidence: vi.fn(),
+    recovery: vi.fn(),
     receipt: vi.fn(),
   };
   const close = vi.fn(async () => undefined);
@@ -294,6 +325,10 @@ function dependencies(home: string) {
       },
       reacquireBaseline: async () => baseline,
       planRoutes: async () => routePlan(),
+      inspectRecovery: async () => {
+        calls.recovery();
+        return recoveryStatus();
+      },
       prepareOwnerApproval: prepareProductionPlayerCanaryOwnerApprovalV1,
       writeOwnerApproval: writePreparedProductionPlayerCanaryOwnerApproval,
       inspectOwnerApproval: inspectProductionPlayerCanaryOwnerApproval,
@@ -355,6 +390,22 @@ describe('production player canary bounded operator', () => {
       expectedBaselineConfirmation: expect.stringMatching(/^[0-9a-f]{64}$/u),
     });
     expect(calls.capture).not.toHaveBeenCalled();
+
+    await expect(execute({
+      command: 'inspect-recovery',
+      adminSecret: SECRET,
+    })).resolves.toEqual({
+      phase: null,
+      recoveryStatus: recoveryStatus(),
+    });
+    await expect(execute({
+      command: 'inspect-recovery',
+      adminSecret: SECRET,
+    })).resolves.toMatchObject({ phase: null });
+    expect(calls.recovery).toHaveBeenCalledTimes(2);
+    expect(calls.capture).not.toHaveBeenCalled();
+    expect(calls.register).not.toHaveBeenCalled();
+    expect(calls.evidence).not.toHaveBeenCalled();
 
     await expect(execute({
       command: 'capture-baseline',
@@ -590,6 +641,117 @@ describe('production player canary bounded operator', () => {
       contract: fixture.contract,
       reportedHome: fixture.home,
     }, deps)).resolves.toMatchObject({ phase: 'prepared' });
+  });
+
+  it('rejects hostile recovery aggregates without advancing the journal or invoking writes', async () => {
+    const fixture = privateFixture();
+    const { calls, deps } = dependencies(fixture.home);
+    const execute = (input: Readonly<Record<string, unknown>>) =>
+      operatorTestSeams.executeWithDependencies({
+        contract: fixture.contract,
+        reportedHome: fixture.home,
+        ...input,
+      }, deps);
+    await execute({ command: 'inspect' });
+    const hostile = [
+      { ...recoveryStatus(), unexpected: true },
+      recoveryStatus({ idleWorkerCount: 3 }),
+      recoveryStatus({ structuralEvidenceCandidate: false }),
+      recoveryStatus({ disposition: 'recall-required' }),
+      recoveryStatus({ assignmentCount: -1n }),
+      recoveryStatus({ dispatchReceiptCount: 5 }),
+    ];
+    for (const status of hostile) {
+      deps.inspectRecovery = async () => status;
+      await expect(execute({
+        command: 'inspect-recovery',
+        adminSecret: SECRET,
+      })).rejects.toThrow('PRODUCTION_PLAYER_CANARY_OPERATOR_RECOVERY_STATUS_INVALID');
+      expect((await execute({ command: 'inspect' })).phase).toBe('prepared');
+    }
+    let getterRead = false;
+    const accessor = recoveryStatus();
+    Object.defineProperty(accessor, 'serverBaselineCommitment', {
+      enumerable: true,
+      get() {
+        getterRead = true;
+        return BASELINE;
+      },
+    });
+    deps.inspectRecovery = async () => accessor;
+    await expect(execute({
+      command: 'inspect-recovery',
+      adminSecret: SECRET,
+    })).rejects.toThrow('PRODUCTION_PLAYER_CANARY_OPERATOR_RECOVERY_STATUS_INVALID');
+    expect(getterRead).toBe(false);
+    const notAfterMicros = recoveryStatus().notAfterMicros as bigint;
+    for (const observedAtMicros of [notAfterMicros, notAfterMicros + 1n]) {
+      deps.inspectRecovery = async () => recoveryStatus({
+        observedAtMicros,
+        structuralEvidenceCandidate: false,
+        disposition: 'terminal-evidence-impossible',
+      });
+      await expect(execute({
+        command: 'inspect-recovery',
+        adminSecret: SECRET,
+      })).resolves.toMatchObject({
+        phase: null,
+        recoveryStatus: {
+          observedAtMicros,
+          structuralEvidenceCandidate: false,
+          disposition: 'terminal-evidence-impossible',
+        },
+      });
+      deps.inspectRecovery = async () => recoveryStatus({ observedAtMicros });
+      await expect(execute({
+        command: 'inspect-recovery',
+        adminSecret: SECRET,
+      })).rejects.toThrow('PRODUCTION_PLAYER_CANARY_OPERATOR_RECOVERY_STATUS_INVALID');
+    }
+    expect(calls.capture).not.toHaveBeenCalled();
+    expect(calls.register).not.toHaveBeenCalled();
+    expect(calls.receipt).not.toHaveBeenCalled();
+  });
+
+  it('keeps fresh-operation recovery inspection wholly outside journal creation', async () => {
+    const fixture = privateFixture();
+    const { calls, deps } = dependencies(fixture.home);
+    const executeRecovery = () => operatorTestSeams.executeWithDependencies({
+      command: 'inspect-recovery',
+      contract: fixture.contract,
+      reportedHome: fixture.home,
+      adminSecret: SECRET,
+    }, deps);
+    const journalRoot = join(fixture.home, '.warpkeep');
+    expect(existsSync(journalRoot)).toBe(false);
+
+    let getterRead = false;
+    const hostile = recoveryStatus();
+    Object.defineProperty(hostile, 'profile', {
+      enumerable: true,
+      get() {
+        getterRead = true;
+        return 'warpkeep-production-player-canary-recovery-status-v1';
+      },
+    });
+    deps.inspectRecovery = async () => hostile;
+    await expect(executeRecovery()).rejects.toThrow(
+      'PRODUCTION_PLAYER_CANARY_OPERATOR_RECOVERY_STATUS_INVALID',
+    );
+    expect(getterRead).toBe(false);
+    expect(existsSync(journalRoot)).toBe(false);
+
+    deps.inspectRecovery = async () => recoveryStatus();
+    await expect(executeRecovery()).resolves.toEqual({
+      phase: null,
+      recoveryStatus: recoveryStatus(),
+    });
+    await expect(executeRecovery()).resolves.toMatchObject({ phase: null });
+    expect(existsSync(journalRoot)).toBe(false);
+    expect(calls.capture).not.toHaveBeenCalled();
+    expect(calls.register).not.toHaveBeenCalled();
+    expect(calls.evidence).not.toHaveBeenCalled();
+    expect(calls.receipt).not.toHaveBeenCalled();
   });
 
   it('derives and accepts only the next explicitly confirmed approval retry', async () => {

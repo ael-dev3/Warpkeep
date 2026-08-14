@@ -45,6 +45,7 @@ const SCRIPT_GRAPH_ROOTS = Object.freeze([
   'scripts/notification-pages-deploy-lane.mjs',
   'scripts/notification-pages-private-deploy-launcher.mjs',
   'scripts/production-player-canary-operator.mjs',
+  'scripts/production-player-canary-browser-launcher.mjs',
 ]);
 const DECLARATION_OPTIONAL_GRAPH_MEMBERS = new Set([
   'scripts/farcaster-miniapp-contract.mjs',
@@ -108,6 +109,8 @@ const STATIC_SECURITY_INPUTS = Object.freeze([
   'spacetimedb/src/productionPlayerCanaryBaseline.ts',
   'spacetimedb/src/productionPlayerCanaryBaselinePolicy.ts',
   'spacetimedb/src/productionPlayerCanaryEvidence.ts',
+  'spacetimedb/src/productionPlayerCanaryRecovery.ts',
+  'spacetimedb/src/productionPlayerCanaryRecoveryPolicy.ts',
   'spacetimedb/src/productionPlayerCanaryRoutePolicy.ts',
   'spacetimedb/src/reducers/castleWorkers.ts',
   'spacetimedb/src/schema.ts',
@@ -117,11 +120,15 @@ const STATIC_SECURITY_INPUTS = Object.freeze([
   'src/owner-canary/ownerCanaryAuthClient.ts',
   'src/owner-canary/ownerCanaryController.ts',
   'src/owner-canary/ownerCanaryEvidence.ts',
+  'src/owner-canary/ownerCanaryEvidenceRuntime.ts',
+  'src/owner-canary/ownerCanaryProductionComposition.ts',
+  'src/owner-canary/ownerCanaryProductionConfig.ts',
   'src/owner-canary/ownerCanaryProductionRuntime.ts',
   'src/owner-canary/ownerCanaryRuntime.ts',
   'src/owner-canary/ownerCanaryRuntimePlan.ts',
   'src/greater-realm/greaterRealmTransport.ts',
   'src/spacetime/greaterRealmProviderBridge.ts',
+  'src/spacetime/playerModuleBindings.ts',
   'vite.config.ts',
 ]);
 const ATTESTED_INSTALLED_IMPORTS = new Map([

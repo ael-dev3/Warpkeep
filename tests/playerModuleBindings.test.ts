@@ -180,6 +180,7 @@ describe('player SpacetimeDB bindings', () => {
     expect(playerBindings).not.toContain('admin_get_production_player_canary_approval_v1')
     expect(playerBindings).not.toContain('admin_get_production_player_canary_baseline_v1')
     expect(playerBindings).not.toContain('admin_get_production_player_canary_evidence_v1')
+    expect(playerBindings).not.toContain('admin_get_production_player_canary_recovery_status_v1')
     expect(playerBindings).not.toContain('admin_plan_production_player_canary_routes_v1')
     expect(playerBindings).not.toContain('admin_register_production_player_canary_approval_v1')
   })
@@ -217,6 +218,7 @@ describe('player SpacetimeDB bindings', () => {
       'dispatchWorkerV1',
       'innerKeepStartProjectV1',
       'recallAllWorkersV1',
+      'recallProductionPlayerCanaryWorkerV1',
       'recallWorkerV1',
       'reportRealmChatMessageV1',
       'returnLegacyExpeditionV1',
@@ -265,6 +267,9 @@ describe('player SpacetimeDB bindings', () => {
     )
     expect(connection.procedures).not.toHaveProperty(
       'adminGetProductionPlayerCanaryEvidenceV1',
+    )
+    expect(connection.procedures).not.toHaveProperty(
+      'adminGetProductionPlayerCanaryRecoveryStatusV1',
     )
     expect(connection.procedures).not.toHaveProperty(
       'adminPlanProductionPlayerCanaryRoutesV1',

@@ -79,6 +79,7 @@ export {
   dispatchWorkerV1,
   dispatchGreaterRealmWorkerV1,
   recallWorkerV1,
+  recallProductionPlayerCanaryWorkerV1,
   recallAllWorkersV1,
   returnLegacyExpeditionV1,
   adminGetWorkerSystemStatusV1,
@@ -97,6 +98,7 @@ export {
   adminGetProductionPlayerCanaryApprovalV1,
   getProductionPlayerCanaryRuntimeV1,
   adminGetProductionPlayerCanaryEvidenceV1,
+  adminGetProductionPlayerCanaryRecoveryStatusV1,
 } from './reducers/castleWorkers';
 export {
   getMyGoldExpeditionStateV1,

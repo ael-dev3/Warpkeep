@@ -22,6 +22,7 @@ import {
 } from './ownerCanaryController';
 import { loadOwnerCanaryProductionRuntime } from './ownerCanaryProductionRuntime';
 import type {
+  OwnerCanaryRecoveryState,
   OwnerCanaryRuntime,
   OwnerCanaryRuntimeLoader,
 } from './ownerCanaryRuntime';
@@ -57,6 +58,7 @@ function OwnerCanaryPanel({
   const [pendingConsent, setPendingConsent] = useState<PendingConsent | null>(null);
   const [handoffState, setHandoffState] = useState<EvidenceHandoffState>('idle');
   const [runAttempted, setRunAttempted] = useState(false);
+  const [recoveryState, setRecoveryState] = useState<OwnerCanaryRecoveryState>('none');
   const controllerRef = useRef<OwnerCanaryController | undefined>(undefined);
   const pendingConsentRef = useRef<PendingConsent | undefined>(undefined);
 
@@ -125,7 +127,7 @@ function OwnerCanaryPanel({
   const running = controllerState.phase === 'awaiting-consent'
     || controllerState.phase === 'authenticating'
     || controllerState.phase === 'running-stage';
-  const busy = running || handoffState === 'pending';
+  const busy = running || handoffState === 'pending' || recoveryState === 'running';
   const canStart = host.state === 'miniapp'
     && runtime !== undefined
     && runtime !== null
@@ -153,13 +155,17 @@ function OwnerCanaryPanel({
     setRouteSetCommitment('');
     const controller = createOwnerCanaryController({
       evidenceApi: runtime.evidenceApi,
+      recoveryApi: runtime.recoveryApi,
       requestStageConsent,
       getQuickAuthToken: host.quickAuth.getToken,
       exchangeQuickAuth: (token, signal) => authClient.exchangeQuickAuth(token, signal),
       openAuthority: runtime.openAuthority,
       closeAuthority: runtime.closeAuthority,
+      openRecallRecoveryAuthority: runtime.openRecallRecoveryAuthority,
+      closeRecallRecoveryAuthority: runtime.closeRecallRecoveryAuthority,
       verifyPrivateSubject: runtime.verifyPrivateSubject,
       onState: setControllerState,
+      onRecoveryState: setRecoveryState,
     });
     controllerRef.current = controller;
     void runOwnerCanaryPlayerEvidence(controller, runInput)
@@ -174,7 +180,11 @@ function OwnerCanaryPanel({
       })
       .catch(() => undefined)
       .finally(() => {
-        if (controllerRef.current === controller) controllerRef.current = undefined;
+        if (
+          controllerRef.current === controller
+          && controller.recoveryState() !== 'required'
+          && controller.recoveryState() !== 'unconfirmed'
+        ) controllerRef.current = undefined;
       });
   }, [
     authClient,
@@ -191,6 +201,20 @@ function OwnerCanaryPanel({
     settlePendingConsent(false);
     controllerRef.current?.cancel();
   }, [settlePendingConsent]);
+
+  const recover = useCallback(() => {
+    const controller = controllerRef.current;
+    if (
+      !controller
+      || (recoveryState !== 'required' && recoveryState !== 'unconfirmed')
+    ) return;
+    void controller.recover().catch(() => undefined).finally(() => {
+      if (
+        controllerRef.current === controller
+        && controller.recoveryState() === 'safe'
+      ) controllerRef.current = undefined;
+    });
+  }, [recoveryState]);
 
   const unavailableMessage = host.state === 'detecting'
     ? 'Confirming the Farcaster Mini App host…'
@@ -273,7 +297,7 @@ function OwnerCanaryPanel({
                 onChange={(event) => setConfirmed(event.currentTarget.checked)}
                 type="checkbox"
               />
-              <span>I approve this run to create and mutate live production player state.</span>
+              <span>I approve this run to mutate an already-admitted live production player.</span>
             </label>
             <button
               className="owner-canary__primary"
@@ -327,8 +351,14 @@ function OwnerCanaryPanel({
         ) : null}
         {controllerState.phase === 'authority-close-unconfirmed' ? (
           <p aria-live="assertive" className="owner-canary__failure" role="alert">
-            Player-authority closure could not be confirmed. Do not retry in this page session;
-            close the Mini App and require independent operator confirmation.
+            Player-authority closure could not be confirmed. Never retry the main run. If recall is
+            required, only the fresh-authenticated recovery control below may open a new authority;
+            independent operator confirmation remains mandatory.
+          </p>
+        ) : controllerState.phase === 'recovery-authority-close-unconfirmed' ? (
+          <p aria-live="assertive" className="owner-canary__failure" role="alert">
+            Recovery-authority closure could not be confirmed. Browser recovery is now permanently
+            disabled; close the Mini App and require independent operator confirmation.
           </p>
         ) : handoffState === 'failed' ? (
           <p aria-live="assertive" className="owner-canary__failure" role="alert">
@@ -337,15 +367,39 @@ function OwnerCanaryPanel({
           </p>
         ) : controllerState.phase === 'failed' ? (
           <p aria-live="assertive" className="owner-canary__failure" role="alert">
-            The canary stopped, but its production outcome may be ambiguous. Do not retry in this
-            page session; close the Mini App and require independent operator reconciliation.
+            {recoveryState === 'required' || recoveryState === 'unconfirmed'
+              ? 'The main canary stopped after dispatch may have been attempted. Never retry the main run; the recall-only control below is the sole permitted browser action.'
+              : 'The canary stopped, but its production outcome may be ambiguous. Do not retry in this page session; close the Mini App and require independent operator reconciliation.'}
           </p>
         ) : null}
         {controllerState.phase === 'cancelled' ? (
           <p aria-live="assertive" className="owner-canary__failure" role="alert">
-            The canary was cancelled, but an accepted production mutation cannot be ruled out. Do
-            not retry in this page session; close the Mini App and require independent operator
-            reconciliation.
+            {recoveryState === 'required' || recoveryState === 'unconfirmed'
+              ? 'The main canary was cancelled after dispatch may have been attempted. Never retry the main run; the recall-only control below is the sole permitted browser action.'
+              : 'The canary was cancelled, but an accepted production mutation cannot be ruled out. Do not retry in this page session; close the Mini App and require independent operator reconciliation.'}
+          </p>
+        ) : null}
+        {(recoveryState === 'required' || recoveryState === 'unconfirmed')
+          && controllerState.phase !== 'recovery-authority-close-unconfirmed' ? (
+          <div className="owner-canary__stage" role="group" aria-labelledby="owner-canary-recovery-title">
+            <p className="owner-canary__eyebrow">RECALL-ONLY RECOVERY</p>
+            <h2 id="owner-canary-recovery-title">Urgent worker recall</h2>
+            <p>
+              Authenticate again to recall only workers whose reviewed dispatch was attempted.
+              This cannot dispatch, restart, complete evidence, or authorize release.
+            </p>
+            <button className="owner-canary__primary" onClick={recover} type="button">
+              Authenticate and attempt recall-only recovery
+            </button>
+          </div>
+        ) : recoveryState === 'running' ? (
+          <p aria-live="assertive" className="owner-canary__notice" role="status">
+            Running recall-only recovery with fresh owner authentication.
+          </p>
+        ) : recoveryState === 'safe' && controllerState.phase !== 'complete' ? (
+          <p aria-live="assertive" className="owner-canary__success" role="status">
+            Recall safety was observed for every attempted worker. This is not canary evidence or
+            release authority; independent admin inspection is still required.
           </p>
         ) : null}
         {running ? (

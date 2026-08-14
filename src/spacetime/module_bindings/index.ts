@@ -105,6 +105,7 @@ import DispatchWoodExpeditionV1Reducer from "./dispatch_wood_expedition_v_1_redu
 import DispatchWorkerV1Reducer from "./dispatch_worker_v_1_reducer";
 import InnerKeepStartProjectV1Reducer from "./inner_keep_start_project_v_1_reducer";
 import RecallAllWorkersV1Reducer from "./recall_all_workers_v_1_reducer";
+import RecallProductionPlayerCanaryWorkerV1Reducer from "./recall_production_player_canary_worker_v_1_reducer";
 import RecallWorkerV1Reducer from "./recall_worker_v_1_reducer";
 import ReportRealmChatMessageV1Reducer from "./report_realm_chat_message_v_1_reducer";
 import ReturnLegacyExpeditionV1Reducer from "./return_legacy_expedition_v_1_reducer";
@@ -131,6 +132,7 @@ import * as AdminGetInnerKeepStatusV1Procedure from "./admin_get_inner_keep_stat
 import * as AdminGetProductionPlayerCanaryApprovalV1Procedure from "./admin_get_production_player_canary_approval_v_1_procedure";
 import * as AdminGetProductionPlayerCanaryBaselineV1Procedure from "./admin_get_production_player_canary_baseline_v_1_procedure";
 import * as AdminGetProductionPlayerCanaryEvidenceV1Procedure from "./admin_get_production_player_canary_evidence_v_1_procedure";
+import * as AdminGetProductionPlayerCanaryRecoveryStatusV1Procedure from "./admin_get_production_player_canary_recovery_status_v_1_procedure";
 import * as AdminGetRealmChatReportContextV1Procedure from "./admin_get_realm_chat_report_context_v_1_procedure";
 import * as AdminGetRealmChatStatusV1Procedure from "./admin_get_realm_chat_status_v_1_procedure";
 import * as AdminGetWorkerRolloutStatusV2Procedure from "./admin_get_worker_rollout_status_v_2_procedure";
@@ -855,6 +857,7 @@ const reducersSchema = __reducers(
   __reducerSchema("dispatch_worker_v1", DispatchWorkerV1Reducer),
   __reducerSchema("inner_keep_start_project_v1", InnerKeepStartProjectV1Reducer),
   __reducerSchema("recall_all_workers_v1", RecallAllWorkersV1Reducer),
+  __reducerSchema("recall_production_player_canary_worker_v1", RecallProductionPlayerCanaryWorkerV1Reducer),
   __reducerSchema("recall_worker_v1", RecallWorkerV1Reducer),
   __reducerSchema("report_realm_chat_message_v1", ReportRealmChatMessageV1Reducer),
   __reducerSchema("return_legacy_expedition_v1", ReturnLegacyExpeditionV1Reducer),
@@ -883,6 +886,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("admin_get_production_player_canary_approval_v1", AdminGetProductionPlayerCanaryApprovalV1Procedure.params, AdminGetProductionPlayerCanaryApprovalV1Procedure.returnType),
   __procedureSchema("admin_get_production_player_canary_baseline_v1", AdminGetProductionPlayerCanaryBaselineV1Procedure.params, AdminGetProductionPlayerCanaryBaselineV1Procedure.returnType),
   __procedureSchema("admin_get_production_player_canary_evidence_v1", AdminGetProductionPlayerCanaryEvidenceV1Procedure.params, AdminGetProductionPlayerCanaryEvidenceV1Procedure.returnType),
+  __procedureSchema("admin_get_production_player_canary_recovery_status_v1", AdminGetProductionPlayerCanaryRecoveryStatusV1Procedure.params, AdminGetProductionPlayerCanaryRecoveryStatusV1Procedure.returnType),
   __procedureSchema("admin_get_realm_chat_report_context_v_1", AdminGetRealmChatReportContextV1Procedure.params, AdminGetRealmChatReportContextV1Procedure.returnType),
   __procedureSchema("admin_get_realm_chat_status_v_1", AdminGetRealmChatStatusV1Procedure.params, AdminGetRealmChatStatusV1Procedure.returnType),
   __procedureSchema("admin_get_worker_rollout_status_v2", AdminGetWorkerRolloutStatusV2Procedure.params, AdminGetWorkerRolloutStatusV2Procedure.returnType),

@@ -77,6 +77,7 @@ import DispatchWoodExpeditionV1Reducer from "../dispatch_wood_expedition_v_1_red
 import DispatchWorkerV1Reducer from "../dispatch_worker_v_1_reducer";
 import InnerKeepStartProjectV1Reducer from "../inner_keep_start_project_v_1_reducer";
 import RecallAllWorkersV1Reducer from "../recall_all_workers_v_1_reducer";
+import RecallProductionPlayerCanaryWorkerV1Reducer from "../recall_production_player_canary_worker_v_1_reducer";
 import RecallWorkerV1Reducer from "../recall_worker_v_1_reducer";
 import ReportRealmChatMessageV1Reducer from "../report_realm_chat_message_v_1_reducer";
 import ReturnLegacyExpeditionV1Reducer from "../return_legacy_expedition_v_1_reducer";
@@ -153,6 +154,7 @@ export type DispatchWoodExpeditionV1Params = __Infer<typeof DispatchWoodExpediti
 export type DispatchWorkerV1Params = __Infer<typeof DispatchWorkerV1Reducer>;
 export type InnerKeepStartProjectV1Params = __Infer<typeof InnerKeepStartProjectV1Reducer>;
 export type RecallAllWorkersV1Params = __Infer<typeof RecallAllWorkersV1Reducer>;
+export type RecallProductionPlayerCanaryWorkerV1Params = __Infer<typeof RecallProductionPlayerCanaryWorkerV1Reducer>;
 export type RecallWorkerV1Params = __Infer<typeof RecallWorkerV1Reducer>;
 export type ReportRealmChatMessageV1Params = __Infer<typeof ReportRealmChatMessageV1Reducer>;
 export type ReturnLegacyExpeditionV1Params = __Infer<typeof ReturnLegacyExpeditionV1Reducer>;

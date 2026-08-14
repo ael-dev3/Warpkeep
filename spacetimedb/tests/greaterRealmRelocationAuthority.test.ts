@@ -154,6 +154,7 @@ const {
   projectMyGreaterRealmWorkerStateV2,
   projectMyWorkerStateForCurrentGameplayV1,
   recallCastleWorker,
+  recallCastleWorkerForExactCanaryAssignment,
   runCastleWorkerSchedule,
 } = await loadExactProductionModule<typeof CastleWorkerAuthority>(
   new URL('../src/castleWorkerAuthority.ts', import.meta.url),
@@ -2845,6 +2846,146 @@ test('active v17 Worker dispatch allocates first-free public leases, replays exa
   fixture.transaction(() => runCastleWorkerSchedule(fixture.ctx, haltedReturn));
   assert.equal(fixture.tables.castleWorkerV1.workerId.find(thirdInput.workerId)!.status, 'idle');
   assert.equal(fixture.tables.workerAssignmentV1.workerId.find(thirdInput.workerId), null);
+});
+
+test('conditional canary recall is exact-assignment atomic, replay-safe, and idle-no-op free', () => {
+  const fixture = new Fixture();
+  advanceToActive(fixture);
+  const target = prepareGreaterRealmWorkerLocation(fixture, 'food', 2);
+  const dispatch = greaterRealmDispatchInput(
+    fixture,
+    1,
+    'food',
+    target.locationId,
+    'conditional-canary-dispatch-0001',
+  );
+  fixture.transaction(() => dispatchGreaterRealmCastleWorkerV2(fixture.ctx, dispatch));
+  const dispatchReceipt = fixture.tables.workerCommandIdempotencyV1.requestKey.find(
+    `${dispatch.fid.toString()}:${dispatch.idempotencyKey}`,
+  )!;
+  const exact = {
+    fid: dispatch.fid,
+    castle: dispatch.castle,
+    workerId: dispatch.workerId,
+    recallIdempotencyKey: 'conditional-canary-recall-0001',
+    expectedResourceKind: dispatchReceipt.resourceKind,
+    expectedSiteId: dispatchReceipt.siteId,
+    expectedAssignmentId: dispatchReceipt.assignmentId,
+  };
+  for (const hostile of [
+    { ...exact, expectedAssignmentId: '00000000-0000-7000-8000-999999999999' },
+    { ...exact, expectedResourceKind: 'wood' },
+    { ...exact, expectedSiteId: `${target.locationId}:2` },
+  ]) {
+    const before = stateText(fixture);
+    assert.equal(
+      errorCode(() => fixture.transaction(() => (
+        recallCastleWorkerForExactCanaryAssignment(fixture.ctx, hostile)
+      ))),
+      'WORKER_CANARY_ASSIGNMENT_MISMATCH',
+    );
+    assert.equal(stateText(fixture), before);
+  }
+
+  // Recovery is safety authority, not proof eligibility: an expired approval
+  // timestamp cannot make the exact assignment unsafe to recall.
+  fixture.ctx.timestamp = timestamp(9_999_999_999_999n);
+  assert.equal(fixture.transaction(() => (
+    recallCastleWorkerForExactCanaryAssignment(fixture.ctx, exact)
+  )), 'recalled');
+  const recallRequestKey = `${dispatch.fid.toString()}:${exact.recallIdempotencyKey}`;
+  const recallReceipt = fixture.tables.workerCommandIdempotencyV1.requestKey.find(
+    recallRequestKey,
+  )!;
+  assert.equal(recallReceipt.assignmentId, dispatchReceipt.assignmentId);
+  assert.equal(recallReceipt.resourceKind, dispatchReceipt.resourceKind);
+  assert.equal(recallReceipt.siteId, dispatchReceipt.siteId);
+  const replayBefore = stateText(fixture);
+  assert.equal(
+    recallCastleWorkerForExactCanaryAssignment(fixture.ctx, exact),
+    'replayed',
+  );
+  assert.equal(stateText(fixture), replayBefore);
+
+  const returnSchedule = fixture.tables.workerAssignmentScheduleV1.byWorker.find(
+    dispatch.workerId,
+  )!;
+  fixture.ctx.timestamp = timestamp(returnSchedule.scheduledAt.value.microsSinceUnixEpoch);
+  fixture.transaction(() => runCastleWorkerSchedule(fixture.ctx, returnSchedule));
+  assert.equal(fixture.tables.workerAssignmentV1.workerId.find(dispatch.workerId), null);
+
+  const idleFixture = new Fixture();
+  advanceToActive(idleFixture);
+  const idleTarget = prepareGreaterRealmWorkerLocation(idleFixture, 'food', 2);
+  const completed = greaterRealmDispatchInput(
+    idleFixture,
+    1,
+    'food',
+    idleTarget.locationId,
+    'conditional-canary-natural-0001',
+  );
+  idleFixture.transaction(() => dispatchGreaterRealmCastleWorkerV2(
+    idleFixture.ctx,
+    completed,
+  ));
+  const completedReceipt = idleFixture.tables.workerCommandIdempotencyV1.requestKey.find(
+    `${completed.fid.toString()}:${completed.idempotencyKey}`,
+  )!;
+  for (let transition = 0; transition < 3; transition += 1) {
+    const schedule = idleFixture.tables.workerAssignmentScheduleV1.byWorker.find(
+      completed.workerId,
+    )!;
+    idleFixture.ctx.timestamp = timestamp(schedule.scheduledAt.value.microsSinceUnixEpoch);
+    idleFixture.transaction(() => runCastleWorkerSchedule(idleFixture.ctx, schedule));
+  }
+  const idleRecallKey = 'conditional-canary-idle-recall-0001';
+  const idleBefore = stateText(idleFixture);
+  assert.equal(recallCastleWorkerForExactCanaryAssignment(idleFixture.ctx, {
+    fid: completed.fid,
+    castle: completed.castle,
+    workerId: completed.workerId,
+    recallIdempotencyKey: idleRecallKey,
+    expectedResourceKind: completedReceipt.resourceKind,
+    expectedSiteId: completedReceipt.siteId,
+    expectedAssignmentId: completedReceipt.assignmentId,
+  }), 'idle');
+  assert.equal(stateText(idleFixture), idleBefore);
+  assert.equal(
+    idleFixture.tables.workerCommandIdempotencyV1.requestKey.find(
+      `${completed.fid.toString()}:${idleRecallKey}`,
+    ),
+    null,
+  );
+
+  // A later same-route assignment (including the read->write race case) must
+  // never be recalled with the earlier canary's expected assignment identity.
+  const unrelated = greaterRealmDispatchInput(
+    idleFixture,
+    1,
+    'food',
+    idleTarget.locationId,
+    'ordinary-later-same-route-0001',
+  );
+  idleFixture.transaction(() => dispatchGreaterRealmCastleWorkerV2(
+    idleFixture.ctx,
+    unrelated,
+  ));
+  const unrelatedBefore = stateText(idleFixture);
+  assert.equal(
+    errorCode(() => idleFixture.transaction(() => (
+      recallCastleWorkerForExactCanaryAssignment(idleFixture.ctx, {
+        fid: completed.fid,
+        castle: completed.castle,
+        workerId: completed.workerId,
+        recallIdempotencyKey: 'conditional-canary-race-recall-0001',
+        expectedResourceKind: completedReceipt.resourceKind,
+        expectedSiteId: completedReceipt.siteId,
+        expectedAssignmentId: completedReceipt.assignmentId,
+      })
+    ))),
+    'WORKER_CANARY_ASSIGNMENT_MISMATCH',
+  );
+  assert.equal(stateText(idleFixture), unrelatedBefore);
 });
 
 test('active v17 Worker dispatch resolves every resource in all six immutable components', () => {
