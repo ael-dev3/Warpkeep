@@ -113,6 +113,9 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     "WARPKEEP_BRIDGE_NOTIFICATION_DELIVERY_ENABLED: 'true'",
     "WARPKEEP_HERMES_EXECUTION_APPROVED: 'false'",
     "WARPKEEP_PAGES_PRESENTATION_ENABLED: 'false'",
+    'WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: ${{ vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED }}',
+    'pages_value="${WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED:-false}"',
+    'if [[ "$pages_value" != \'false\' ]]; then',
     DEDICATED_RUNNER,
     "environment:\n      name: notification-bridge-prepared",
     "GITHUB_REF\" != 'refs/heads/main'",
@@ -248,6 +251,7 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     workflow.includes('WARPKEEP_SAFE_DEPLOYMENT_MECHANICS_REVIEWED')
     || /\bwrangler\s+(?:deploy|publish|versions\s+upload)\b/u.test(workflow)
     || /\b(?:curl|wget)\b/u.test(workflow)
+    || workflow.includes('actions/variables')
     || /upload-(?:artifact|pages-artifact)@/u.test(workflow)
     || /^\s+(?:CLOUDFLARE_API_TOKEN|WARPKEEP_ADMIN_TOKEN_SECRET):/mu.test(workflow)
     || /WARPKEEP_AUTH_BRIDGE_NOTIFICATION_PREPARED_RECEIPT_PATH/u.test(workflow)

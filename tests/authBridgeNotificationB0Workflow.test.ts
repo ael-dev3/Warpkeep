@@ -68,6 +68,17 @@ describe('notification bridge B0 protected workflow', () => {
     expect(workflowSource).toContain(
       "WARPKEEP_PAGES_PRESENTATION_ENABLED: 'false'",
     );
+    expect(workflowSource).toContain(
+      'WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: '
+        + '${{ vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED }}',
+    );
+    expect(workflowSource).toContain(
+      'pages_value="${WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED:-false}"',
+    );
+    expect(workflowSource).toContain(
+      'if [[ "$pages_value" != \'false\' ]]; then',
+    );
+    expect(workflowSource).not.toContain('actions/variables');
     expect(workflowSource).not.toContain('0.3.44');
     expect(workflowSource).not.toContain('0.4.');
     expect(workflowSource).not.toContain('deploy-pages');

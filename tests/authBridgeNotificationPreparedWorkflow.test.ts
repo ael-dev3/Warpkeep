@@ -793,10 +793,15 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(source).toContain(
       "WARPKEEP_PAGES_PRESENTATION_ENABLED: 'false'",
     );
-    expect(source).toContain('actions/variables');
     expect(source).toContain(
-      'select(.name == "WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED")',
+      'WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: '
+        + '${{ vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED }}',
     );
+    expect(source).toContain(
+      'pages_value="${WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED:-false}"',
+    );
+    expect(source).toContain('if [[ "$pages_value" != \'false\' ]]; then');
+    expect(source).not.toContain('actions/variables');
     expect(pages).toContain(
       "VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'false'",
     );

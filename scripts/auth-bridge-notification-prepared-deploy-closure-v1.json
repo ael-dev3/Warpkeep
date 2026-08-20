@@ -10,12 +10,12 @@
     {
       "path": ".github/workflows/notification-bridge-b0.yml",
       "digestProfile": "bootstrap-pin-projection-sha256-v1",
-      "sha256": "98a3d5fbaefd76c5ce51f1fc901496765d472868f4b11a7a02cb77bea5d215ba"
+      "sha256": "846a555973696f15160250146b4d85b7ac79dcc87d712313f0aeece0a56fd311"
     },
     {
       "path": ".github/workflows/notification-bridge-prepared.yml",
       "digestProfile": "bootstrap-pin-projection-sha256-v1",
-      "sha256": "6a3eb569e4fe532f9a6c3d734c59d08fda9ff1ddd36eb449440e94eed54b8a4f"
+      "sha256": "e5cbf4a741c762254e52a69c37933448cc68eb0526a5b4ecfa2ec43b5016bcb9"
     },
     {
       "path": ".github/workflows/verify.yml",
@@ -540,7 +540,7 @@
     {
       "path": "scripts/verify-auth-bridge-notification-b0-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "12ad2d54c8c2d041d2a30723b72cbe3c44a2df27c1945525a2946abbac43b977"
+      "sha256": "31fe81f05cc7a9608b10bb95d88d8003383ba09d707f7ee7792ea770b08a46ae"
     },
     {
       "path": "scripts/verify-auth-bridge-notification-prepared-policy.d.mts",
@@ -550,7 +550,7 @@
     {
       "path": "scripts/verify-auth-bridge-notification-prepared-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "23d4303356f6f5684d1c0040c7e7711ba399e3869d92c75ead2ef243545291ab"
+      "sha256": "562b3525c9cbcad827c557b60c096f75ab571ae1a1e321b5d5faac46798e4c75"
     },
     {
       "path": "scripts/verify-greater-realm-release-gates.d.mts",

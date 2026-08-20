@@ -163,6 +163,11 @@ commit, dispatch SHA, checkout, and every write permit to current protected
 index and worktree directly with `HEAD`; rechecks a clean detached checkout;
 uses the lockfile-pinned auth-bridge toolchain; proves bridge-only intent; and
 checks that the Hermes source gate and Pages repository variable remain false.
+The B0 and prepared policy steps receive that public repository variable
+through the native GitHub Actions `vars` context, so neither needs a Variables
+API request or broader token permission. An absent or empty value is
+canonicalized to `false`; every nonempty value other than the exact lowercase
+literal `false` fails closed.
 The production-admin job deliberately
 does not execute the auth-bridge `pnpm check` scripts: CI performs that
 credential-free quality gate, while the production job will execute no
