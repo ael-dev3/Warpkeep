@@ -67,6 +67,9 @@ export function verifyAuthBridgeNotificationB0StaticPolicy({
     "WARPKEEP_BRIDGE_NOTIFICATION_DELIVERY_ENABLED: 'true'",
     "WARPKEEP_HERMES_EXECUTION_APPROVED: 'false'",
     "WARPKEEP_PAGES_PRESENTATION_ENABLED: 'false'",
+    'WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: ${{ vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED }}',
+    'pages_value="${WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED:-false}"',
+    'if [[ "$pages_value" != \'false\' ]]; then',
     "if: ${{ always() && steps.deploy.outputs.attempted == 'true' && steps.deploy.outcome != 'success' }}",
     "echo 'AUTH_BRIDGE_NOTIFICATION_B0_DEPLOY_OR_RECOVERY_UNVERIFIED' >&2",
   ]) exact(workflow, value, 1, 'AUTH_BRIDGE_NOTIFICATION_B0_WORKFLOW_INVALID');
@@ -102,6 +105,7 @@ export function verifyAuthBridgeNotificationB0StaticPolicy({
     || workflow.includes('spacetime publish')
     || /\bwrangler\s+(?:deploy|publish|versions|secret)\b/u.test(workflow)
     || /\b(?:curl|wget)\b/u.test(workflow)
+    || workflow.includes('actions/variables')
     || /^\s+(?:push|pull_request|schedule|workflow_run):/mu.test(workflow)
     || /^\s+(?:actions|contents):\s+write\s*$/mu.test(workflow)
     || /^\s+runs-on:\s+(?:ubuntu|windows)-/mu.test(workflow)

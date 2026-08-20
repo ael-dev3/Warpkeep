@@ -36,7 +36,7 @@ jobs:
       WARPKEEP_HERMES_EXECUTION_APPROVED: 'false'
       WARPKEEP_PAGES_PRESENTATION_ENABLED: 'false'
       WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: '8173aea4e8f1f3d6be62d285459dd127ba5a507be9d1e61d4d25504f051642dd'
-      WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '3305f7fe096e65b20b90eb7c16a889534f37458be6353ff01d65d22b06edaba6'
+      WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '73f36fb312b4e38d23e9002aacc9369e6bf9054766e8da3af43267a2be0d713a'
       WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256: 'b1237a05f4788a66c5370c3d09af26add2cae3af767c12a9fd0dc02498dc7649'
       WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256: '9bb11880c6a9f4cb69b76b05f7ef5219ded2a86e3a44ee2c4d9371262213a161'
     steps:
@@ -194,7 +194,7 @@ jobs:
       - name: Prove guarded bridge-only release policy
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: ${{ vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED }}
         run: |
           set -euo pipefail
           node scripts/verify-auth-bridge-notification-prepared-policy.mjs
@@ -204,11 +204,7 @@ jobs:
             echo 'The bridge-only release gates were not exact.' >&2
             exit 1
           fi
-          variable="$(
-            gh api --paginate "repos/ael-dev3/Warpkeep/actions/variables" \
-              --jq '.variables[] | select(.name == "WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED") | .value'
-          )"
-          pages_value="${variable:-false}"
+          pages_value="${WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED:-false}"
           if [[ "$pages_value" != 'false' ]]; then
             echo 'Pages notification presentation is not inert.' >&2
             exit 1
