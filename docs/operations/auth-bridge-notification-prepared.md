@@ -214,6 +214,14 @@ entrypoint process's step-scoped environment at startup; they are not a
 late-open private-file boundary. Before reading or copying them, the entrypoint
 loads only Node built-ins and the builtins-only A and B attestors, and it spawns
 `git` with a replacement environment that contains no credential. It verifies
+Git subprocess output remains capped at 64 KiB except for the exact
+`git ls-files -v` tracked-index inventory used by both the B0 and prepared
+entrypoints. That one inventory has a 256 KiB cap, matching the reviewed
+release-gate Git inspection bound and leaving bounded headroom above the
+117,065-byte protected-tree inventory observed at the failed B0 run. Both the
+child-process limit and an
+independent UTF-8 byte-length check fail closed as a Git inspection error
+before credentials are copied. It verifies
 the complete source closure, verifies the fixed installed tree, re-verifies the
 source closure, binds the two opaque authorities to the same manifest, and
 checks the clean checkout. Only then does it copy and delete the credential

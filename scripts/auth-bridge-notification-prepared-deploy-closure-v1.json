@@ -110,7 +110,7 @@
     {
       "path": "scripts/auth-bridge-notification-b0-deploy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "23b4061bd94f8d0ea33a5c8170d7f0fdd73fba6369e324a2683c031eca58afe0"
+      "sha256": "ebd5ef8977e76026c9fbf86c2add6f86045476a4d98117eb0810a749a8a0b01a"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-cloudflare-runtime.d.mts",
@@ -170,7 +170,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "a3a4cc825b156f2755d6fa436cc45d56823ec83951c00817e4e37249a91c05d1"
+      "sha256": "731b7e847207c5cd7a8bf3b82386c37e9d370da9f453d38eb4543b0e72ca9cb3"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json",
@@ -540,7 +540,7 @@
     {
       "path": "scripts/verify-auth-bridge-notification-b0-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "31fe81f05cc7a9608b10bb95d88d8003383ba09d707f7ee7792ea770b08a46ae"
+      "sha256": "d2ce4e7d9a837675949e1c131bb1cfab5a8ee15d2a16ced08183cf8d74000dc7"
     },
     {
       "path": "scripts/verify-auth-bridge-notification-prepared-policy.d.mts",
@@ -550,7 +550,7 @@
     {
       "path": "scripts/verify-auth-bridge-notification-prepared-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "562b3525c9cbcad827c557b60c096f75ab571ae1a1e321b5d5faac46798e4c75"
+      "sha256": "52095c9c17a4a1ea7b406bb77bde4bc66c0468df0180c24837cb58a3b4c22aab"
     },
     {
       "path": "scripts/verify-greater-realm-release-gates.d.mts",
