@@ -21,6 +21,8 @@ const ACCOUNT_ID = /^[a-f0-9]{32}$/u;
 const RUN_ID = /^[1-9][0-9]{0,19}$/u;
 const SECRET = /^\S{20,4096}$/u;
 const MAX_GITHUB_RESPONSE_BYTES = 512 * 1024;
+const MAX_GIT_OUTPUT_BYTES = 64 * 1024;
+const MAX_TRACKED_LISTING_BYTES = 256 * 1024;
 const REQUIRED_ENVIRONMENT = Object.freeze([
   'GITHUB_ACTIONS',
   'GITHUB_EVENT_NAME',
@@ -127,7 +129,7 @@ function copyAndScrubEnvironment(environment) {
   return Object.freeze(values);
 }
 
-async function exactGit(repositoryRoot, args) {
+async function boundedExactGit(repositoryRoot, args, maximumOutputBytes) {
   let result;
   try {
     result = await execFileAsync('/usr/bin/git', [
@@ -148,15 +150,30 @@ async function exactGit(repositoryRoot, args) {
         PATH: '/usr/bin:/bin',
         TZ: 'UTC',
       }),
-      maxBuffer: 64 * 1024,
+      maxBuffer: maximumOutputBytes,
       timeout: 5_000,
       windowsHide: true,
     });
   } catch {
     fail('AUTH_BRIDGE_NOTIFICATION_B0_DEPLOY_GIT_INSPECTION_FAILED');
   }
-  if (result.stderr !== '') fail('AUTH_BRIDGE_NOTIFICATION_B0_DEPLOY_GIT_INSPECTION_FAILED');
+  if (
+    result.stderr !== ''
+    || Buffer.byteLength(result.stdout, 'utf8') > maximumOutputBytes
+  ) fail('AUTH_BRIDGE_NOTIFICATION_B0_DEPLOY_GIT_INSPECTION_FAILED');
   return result.stdout.trim();
+}
+
+function exactGit(repositoryRoot, args) {
+  return boundedExactGit(repositoryRoot, args, MAX_GIT_OUTPUT_BYTES);
+}
+
+function exactTrackedListing(repositoryRoot) {
+  return boundedExactGit(
+    repositoryRoot,
+    ['ls-files', '-v'],
+    MAX_TRACKED_LISTING_BYTES,
+  );
 }
 
 export async function attestAuthBridgeNotificationB0DeployCheckout({
@@ -175,7 +192,7 @@ export async function attestAuthBridgeNotificationB0DeployCheckout({
     exactGit(repository, ['rev-parse', 'HEAD']),
     exactGit(repository, ['status', '--porcelain=v1', '--untracked-files=all']),
     exactGit(repository, ['remote', 'get-url', 'origin']),
-    exactGit(repository, ['ls-files', '-v']),
+    exactTrackedListing(repository),
     exactGit(repository, ['diff-index', '--quiet', '--cached', 'HEAD', '--']),
     exactGit(repository, ['diff-files', '--quiet', '--']),
     exactGit(repository, [

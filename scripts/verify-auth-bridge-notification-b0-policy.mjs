@@ -126,6 +126,24 @@ export function verifyAuthBridgeNotificationB0StaticPolicy({
       fail('AUTH_BRIDGE_NOTIFICATION_B0_ENTRYPOINT_INVALID');
     }
   }
+  for (const [value, expected] of [
+    ['const MAX_GIT_OUTPUT_BYTES = 64 * 1024;', 1],
+    ['const MAX_TRACKED_LISTING_BYTES = 256 * 1024;', 1],
+    ['MAX_GIT_OUTPUT_BYTES', 2],
+    ['MAX_TRACKED_LISTING_BYTES', 2],
+    ['boundedExactGit(', 3],
+    ['maxBuffer: maximumOutputBytes,', 1],
+    ["Buffer.byteLength(result.stdout, 'utf8') > maximumOutputBytes", 1],
+    ['return boundedExactGit(repositoryRoot, args, MAX_GIT_OUTPUT_BYTES);', 1],
+    ["['ls-files', '-v'],\n    MAX_TRACKED_LISTING_BYTES,", 1],
+    ['exactGit(repository,', 7],
+    ['exactTrackedListing(repository),', 1],
+  ]) exact(
+    entrypoint,
+    value,
+    expected,
+    'AUTH_BRIDGE_NOTIFICATION_B0_ENTRYPOINT_INVALID',
+  );
   assertExactPredecessorReattestationCount(runtime);
   if (
     entrypoint.includes('reportedHome:')
