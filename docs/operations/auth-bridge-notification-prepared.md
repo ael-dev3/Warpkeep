@@ -287,9 +287,11 @@ directories, every package link and exact target, metadata files, and root
 `.bin` shims. Missing, redirected, substituted, or extra resolver entries fail
 closed even when their target bytes exist elsewhere in the attested store.
 Only pnpm's nondeterministic validation timestamp, absolute cache-store path,
-and absolute service-root metadata key are replaced with fixed markers before
-hashing; no resolver name, link, executable path, package byte, or setting is
-normalized away.
+absolute service-root metadata key, and GitHub Actions' explicit
+`enableGlobalVirtualStore: false` default are normalized before hashing. That
+setting may be absent or literal `false`; `true` and malformed values fail
+closed. No resolver name, link, executable path, package byte, or other setting
+is normalized away.
 Each directory, regular file, and relative in-tree symbolic link contributes
 its path, type, mode, and content or target; owner, hardlink, no-follow, size,
 count, and tree bounds are also enforced. All 31 path-dependent store `.bin`

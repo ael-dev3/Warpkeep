@@ -375,11 +375,17 @@ function canonicalResolverMetadataFile(path, relativePath, serviceRoot, code) {
       || !isRecord(document.projects)
       || JSON.stringify(Object.keys(document.projects))
         !== JSON.stringify([serviceRoot])
+      || !isRecord(document.settings)
+      || (
+        Object.hasOwn(document.settings, 'enableGlobalVirtualStore')
+        && document.settings.enableGlobalVirtualStore !== false
+      )
     ) fail(code);
     const project = document.projects[serviceRoot];
     if (!isRecord(project)) fail(code);
     document.lastValidatedTimestamp = NORMALIZED_PNPM_VALIDATION_TIME;
     document.projects = { [NORMALIZED_SERVICE_ROOT]: project };
+    delete document.settings.enableGlobalVirtualStore;
   } else {
     fail(code);
   }

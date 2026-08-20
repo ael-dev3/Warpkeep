@@ -397,6 +397,23 @@ function createInstalledToolchainFixture(): Readonly<{
     `#!/bin/sh\nexec ${service}/node_modules/wrangler/bin/wrangler.js "$@"\n`,
   );
   chmodSync(resolverShim, 0o755);
+  writeFileSync(
+    resolve(nodeModules, '.pnpm-workspace-state-v1.json'),
+    `${JSON.stringify({
+      lastValidatedTimestamp: 1_787_222_861_637,
+      projects: {
+        [service]: {
+          name: '@warpkeep/auth-bridge',
+          version: '0.1.0',
+        },
+      },
+      pnpmfiles: [],
+      settings: {
+        nodeLinker: 'isolated',
+      },
+      filteredInstall: false,
+    }, null, 2)}\n`,
+  );
 
   const candidate = createAuthBridgeNotificationPreparedInstalledToolchainCandidate({
     repositoryRoot: root,
@@ -1084,6 +1101,78 @@ describe('notification-bridge-prepared protected workflow', () => {
       { ...authority },
       { repositoryRoot: fixture.root },
     )).toThrow('AUTH_BRIDGE_PREPARED_TOOLCHAIN_AUTHORITY_INVALID');
+  });
+
+  it('normalizes pnpm CI global virtual-store false to the existing manifest', () => {
+    const fixture = createInstalledToolchainFixture();
+    const manifest = JSON.parse(readFileSync(resolve(
+      fixture.root,
+      AUTH_BRIDGE_NOTIFICATION_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_PATH,
+    ), 'utf8')) as Record<string, unknown>;
+    const workspaceStatePath = resolve(
+      fixture.nodeModules,
+      '.pnpm-workspace-state-v1.json',
+    );
+    const workspaceState = JSON.parse(
+      readFileSync(workspaceStatePath, 'utf8'),
+    ) as { settings: Record<string, unknown> };
+    workspaceState.settings.enableGlobalVirtualStore = false;
+    writeFileSync(
+      workspaceStatePath,
+      `${JSON.stringify(workspaceState, null, 2)}\n`,
+    );
+
+    expect(createAuthBridgeNotificationPreparedInstalledToolchainCandidate({
+      repositoryRoot: fixture.root,
+    })).toEqual(manifest);
+    expect(verifyInstalledToolchainFixture(fixture)).toMatchObject({
+      resolverNamespaceSha256: manifest.resolverNamespaceSha256,
+      treeSha256: manifest.treeSha256,
+    });
+  });
+
+  it('rejects true and malformed pnpm global virtual-store settings', () => {
+    for (const value of [true, null, 0, 'false', {}, []]) {
+      const fixture = createInstalledToolchainFixture();
+      const workspaceStatePath = resolve(
+        fixture.nodeModules,
+        '.pnpm-workspace-state-v1.json',
+      );
+      const workspaceState = JSON.parse(
+        readFileSync(workspaceStatePath, 'utf8'),
+      ) as { settings: Record<string, unknown> };
+      workspaceState.settings.enableGlobalVirtualStore = value;
+      writeFileSync(
+        workspaceStatePath,
+        `${JSON.stringify(workspaceState, null, 2)}\n`,
+      );
+      expect(
+        () => verifyInstalledToolchainFixture(fixture),
+        JSON.stringify(value),
+      ).toThrow('AUTH_BRIDGE_PREPARED_TOOLCHAIN_RESOLVER_INVALID');
+    }
+  });
+
+  it('rejects missing or non-record pnpm workspace settings', () => {
+    for (const settings of [undefined, null]) {
+      const fixture = createInstalledToolchainFixture();
+      const workspaceStatePath = resolve(
+        fixture.nodeModules,
+        '.pnpm-workspace-state-v1.json',
+      );
+      const workspaceState = JSON.parse(
+        readFileSync(workspaceStatePath, 'utf8'),
+      ) as { settings?: unknown };
+      if (settings === undefined) delete workspaceState.settings;
+      else workspaceState.settings = settings;
+      writeFileSync(
+        workspaceStatePath,
+        `${JSON.stringify(workspaceState, null, 2)}\n`,
+      );
+      expect(() => verifyInstalledToolchainFixture(fixture)).toThrow(
+        'AUTH_BRIDGE_PREPARED_TOOLCHAIN_RESOLVER_INVALID',
+      );
+    }
   });
 
   it('requires raw source-closure digest profiles for toolchain binding inputs', () => {
