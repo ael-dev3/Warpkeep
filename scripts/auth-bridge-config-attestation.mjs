@@ -69,6 +69,21 @@ function fail(message) {
   throw new Error(`Auth bridge configuration verification failed: ${message}`);
 }
 
+class AuthBridgePrivateAttestationError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'AuthBridgePrivateAttestationError';
+    this.code = code;
+  }
+}
+
+function failPrivateAttestation(code, message) {
+  throw new AuthBridgePrivateAttestationError(
+    code,
+    `Auth bridge configuration verification failed: ${message}`,
+  );
+}
+
 function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -351,20 +366,33 @@ export async function verifyAuthBridgeRpcRoleAttestation({
   expectedSecondaryRpcUrl = DEFAULT_FARCASTER_RPC_SECONDARY_URL,
   fetchImpl = fetch,
 } = {}) {
-  const bridgeOrigin = normalizeBridgeOrigin(bridgeUrl);
-  if (bridgeOrigin !== new URL(DEFAULT_AUTH_BRIDGE_URL).origin) {
-    fail('credentialed attestation is pinned to the canonical Warpkeep bridge.');
+  let bridgeOrigin;
+  let credential;
+  let primaryUrl;
+  let secondaryUrl;
+  try {
+    bridgeOrigin = normalizeBridgeOrigin(bridgeUrl);
+    if (bridgeOrigin !== new URL(DEFAULT_AUTH_BRIDGE_URL).origin) {
+      fail('credentialed attestation is pinned to the canonical Warpkeep bridge.');
+    }
+    credential = readAdminToken(adminToken);
+    primaryUrl = normalizeExpectedRpcUrl(
+      expectedPrimaryRpcUrl,
+      'WARPKEEP_EXPECTED_FARCASTER_RPC_PRIMARY_URL',
+    );
+    secondaryUrl = normalizeExpectedRpcUrl(
+      expectedSecondaryRpcUrl,
+      'WARPKEEP_EXPECTED_FARCASTER_RPC_SECONDARY_URL',
+    );
+    if (primaryUrl === secondaryUrl) {
+      fail('the expected RPC roles must use distinct endpoints.');
+    }
+  } catch {
+    failPrivateAttestation(
+      'AUTH_BRIDGE_PRIVATE_ATTESTATION_INPUT_INVALID',
+      'the private attestation input was invalid.',
+    );
   }
-  const credential = readAdminToken(adminToken);
-  const primaryUrl = normalizeExpectedRpcUrl(
-    expectedPrimaryRpcUrl,
-    'WARPKEEP_EXPECTED_FARCASTER_RPC_PRIMARY_URL',
-  );
-  const secondaryUrl = normalizeExpectedRpcUrl(
-    expectedSecondaryRpcUrl,
-    'WARPKEEP_EXPECTED_FARCASTER_RPC_SECONDARY_URL',
-  );
-  if (primaryUrl === secondaryUrl) fail('the expected RPC roles must use distinct endpoints.');
 
   let response;
   try {
@@ -380,9 +408,35 @@ export async function verifyAuthBridgeRpcRoleAttestation({
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MILLISECONDS),
     });
   } catch {
-    fail('the private attestation endpoint was unreachable.');
+    failPrivateAttestation(
+      'AUTH_BRIDGE_PRIVATE_ATTESTATION_UNREACHABLE',
+      'the private attestation endpoint was unreachable.',
+    );
   }
-  if (!response.ok) fail('the private attestation endpoint rejected the request.');
+  if (!(response instanceof Response)) {
+    failPrivateAttestation(
+      'AUTH_BRIDGE_PRIVATE_ATTESTATION_CONTRACT_INVALID',
+      'the private attestation response contract was invalid.',
+    );
+  }
+  if (!response.ok || response.status !== 200) {
+    if (response.status === 401 || response.status === 403) {
+      failPrivateAttestation(
+        'AUTH_BRIDGE_PRIVATE_ATTESTATION_AUTH_REJECTED',
+        'the private attestation endpoint rejected the request.',
+      );
+    }
+    if (response.status === 429) {
+      failPrivateAttestation(
+        'AUTH_BRIDGE_PRIVATE_ATTESTATION_RATE_LIMITED',
+        'the private attestation endpoint rejected the request.',
+      );
+    }
+    failPrivateAttestation(
+      'AUTH_BRIDGE_PRIVATE_ATTESTATION_HTTP_REJECTED',
+      'the private attestation endpoint rejected the request.',
+    );
+  }
   for (const name of [
     'access-control-allow-origin',
     'access-control-allow-methods',
@@ -390,16 +444,32 @@ export async function verifyAuthBridgeRpcRoleAttestation({
     'access-control-allow-credentials',
   ]) {
     if (response.headers.has(name)) {
-      fail('the private attestation endpoint exposed browser CORS headers.');
+      failPrivateAttestation(
+        'AUTH_BRIDGE_PRIVATE_ATTESTATION_HEADERS_INVALID',
+        'the private attestation endpoint exposed browser CORS headers.',
+      );
     }
   }
   if (response.headers.get('cache-control') !== 'no-store') {
-    fail('the private attestation endpoint was cacheable.');
+    failPrivateAttestation(
+      'AUTH_BRIDGE_PRIVATE_ATTESTATION_HEADERS_INVALID',
+      'the private attestation endpoint was cacheable.',
+    );
   }
 
-  const body = await readBoundedJson(response);
-  const modes = readPrivateAttestationModes(body);
-  const roles = readRoleFingerprints(body.farcasterRpcEndpointRoleFingerprints);
+  let body;
+  let modes;
+  let roles;
+  try {
+    body = await readBoundedJson(response);
+    modes = readPrivateAttestationModes(body);
+    roles = readRoleFingerprints(body.farcasterRpcEndpointRoleFingerprints);
+  } catch {
+    failPrivateAttestation(
+      'AUTH_BRIDGE_PRIVATE_ATTESTATION_CONTRACT_INVALID',
+      'the private attestation response contract was invalid.',
+    );
+  }
   const expectedRoles = Object.freeze({
     primary: farcasterRpcEndpointFingerprint(primaryUrl),
     secondary: farcasterRpcEndpointFingerprint(secondaryUrl),
@@ -408,7 +478,10 @@ export async function verifyAuthBridgeRpcRoleAttestation({
     roles.primary !== expectedRoles.primary
     || roles.secondary !== expectedRoles.secondary
   ) {
-    fail('the live RPC primary/secondary assignment did not match the reviewed configuration.');
+    failPrivateAttestation(
+      'AUTH_BRIDGE_PRIVATE_ATTESTATION_RPC_ROLES_INVALID',
+      'the live RPC primary/secondary assignment did not match the reviewed configuration.',
+    );
   }
   const legacySet = body.farcasterRpcEndpointFingerprints;
   if (
@@ -418,10 +491,16 @@ export async function verifyAuthBridgeRpcRoleAttestation({
     || JSON.stringify([...legacySet].sort())
       !== JSON.stringify([expectedRoles.primary, expectedRoles.secondary].sort())
   ) {
-    fail('the live RPC endpoint set did not match the reviewed configuration.');
+    failPrivateAttestation(
+      'AUTH_BRIDGE_PRIVATE_ATTESTATION_RPC_ROLES_INVALID',
+      'the live RPC endpoint set did not match the reviewed configuration.',
+    );
   }
   if (typeof body.digest !== 'string' || !SHA256_HEX.test(body.digest)) {
-    fail('the private attestation digest was invalid.');
+    failPrivateAttestation(
+      'AUTH_BRIDGE_PRIVATE_ATTESTATION_CONTRACT_INVALID',
+      'the private attestation digest was invalid.',
+    );
   }
 
   return Object.freeze({

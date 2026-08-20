@@ -185,7 +185,9 @@ describe('private auth bridge RPC role attestation', () => {
       await expect(verifyAuthBridgeRpcRoleAttestation({
         adminToken: ADMIN_TOKEN,
         fetchImpl,
-      })).rejects.toThrow(/private attestation|notification delivery mode/u)
+      })).rejects.toMatchObject({
+        code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_CONTRACT_INVALID',
+      })
     }
   })
 
@@ -203,7 +205,9 @@ describe('private auth bridge RPC role attestation', () => {
       await expect(verifyAuthBridgeRpcRoleAttestation({
         adminToken: ADMIN_TOKEN,
         fetchImpl,
-      })).rejects.toThrow(/notification/u)
+      })).rejects.toMatchObject({
+        code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_CONTRACT_INVALID',
+      })
     }
   })
 
@@ -218,7 +222,22 @@ describe('private auth bridge RPC role attestation', () => {
     await expect(verifyAuthBridgeRpcRoleAttestation({
       adminToken: ADMIN_TOKEN,
       fetchImpl,
-    })).rejects.toThrow('primary/secondary assignment did not match')
+    })).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_RPC_ROLES_INVALID',
+    })
+  })
+
+  it('categorizes a changed legacy endpoint set as an RPC-role failure', async () => {
+    const fetchImpl = vi.fn(async () => privateResponse(privateBody({
+      farcasterRpcEndpointFingerprints: [PRIMARY_FINGERPRINT, 'f'.repeat(64)].sort(),
+    }))) as typeof fetch
+
+    await expect(verifyAuthBridgeRpcRoleAttestation({
+      adminToken: ADMIN_TOKEN,
+      fetchImpl,
+    })).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_RPC_ROLES_INVALID',
+    })
   })
 
   it('rejects a noncanonical bridge before the credential reaches fetch', async () => {
@@ -228,7 +247,9 @@ describe('private auth bridge RPC role attestation', () => {
       bridgeUrl: 'https://evil.example',
       adminToken: ADMIN_TOKEN,
       fetchImpl,
-    })).rejects.toThrow('pinned to the canonical Warpkeep bridge')
+    })).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_INPUT_INVALID',
+    })
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 
@@ -239,7 +260,9 @@ describe('private auth bridge RPC role attestation', () => {
     await expect(verifyAuthBridgeRpcRoleAttestation({
       adminToken: ADMIN_TOKEN,
       fetchImpl: corsFetch,
-    })).rejects.toThrow('exposed browser CORS headers')
+    })).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_HEADERS_INVALID',
+    })
 
     const cacheableFetch = vi.fn(async () => privateResponse(
       privateBody(),
@@ -248,7 +271,75 @@ describe('private auth bridge RPC role attestation', () => {
     await expect(verifyAuthBridgeRpcRoleAttestation({
       adminToken: ADMIN_TOKEN,
       fetchImpl: cacheableFetch,
-    })).rejects.toThrow('was cacheable')
+    })).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_HEADERS_INVALID',
+    })
+  })
+
+  it('categorizes private HTTP rejection without exposing response details', async () => {
+    for (const [status, code] of [
+      [401, 'AUTH_BRIDGE_PRIVATE_ATTESTATION_AUTH_REJECTED'],
+      [403, 'AUTH_BRIDGE_PRIVATE_ATTESTATION_AUTH_REJECTED'],
+      [429, 'AUTH_BRIDGE_PRIVATE_ATTESTATION_RATE_LIMITED'],
+      [201, 'AUTH_BRIDGE_PRIVATE_ATTESTATION_HTTP_REJECTED'],
+      [500, 'AUTH_BRIDGE_PRIVATE_ATTESTATION_HTTP_REJECTED'],
+    ] as const) {
+      const fetchImpl = vi.fn(async () => new Response('private response', {
+        status,
+      })) as typeof fetch
+      let observed: unknown
+      try {
+        await verifyAuthBridgeRpcRoleAttestation({
+          adminToken: ADMIN_TOKEN,
+          fetchImpl,
+        })
+      } catch (error) {
+        observed = error
+      }
+      expect(observed).toMatchObject({ code })
+      expect(String((observed as Error).message)).not.toContain(ADMIN_TOKEN)
+      expect(String((observed as Error).message)).not.toContain('private response')
+      expect(String((observed as Error).message)).not.toMatch(
+        /\b(?:201|401|403|429|500)\b|unauthorized|forbidden|too many requests/u,
+      )
+    }
+  })
+
+  it('reduces malformed responses and hostile stream errors to a fixed category', async () => {
+    const nonResponse = vi.fn(async () => ({} as Response)) as typeof fetch
+    await expect(verifyAuthBridgeRpcRoleAttestation({
+      adminToken: ADMIN_TOKEN,
+      fetchImpl: nonResponse,
+    })).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_CONTRACT_INVALID',
+    })
+
+    const injected = `upstream ${ADMIN_TOKEN} private response 429`
+    const hostileResponse = new Response(new ReadableStream({
+      pull(controller) {
+        controller.error(new Error(injected))
+      },
+    }), {
+      status: 200,
+      headers: {
+        'cache-control': 'no-store',
+        'content-type': 'application/json; charset=utf-8',
+      },
+    })
+    let observed: unknown
+    try {
+      await verifyAuthBridgeRpcRoleAttestation({
+        adminToken: ADMIN_TOKEN,
+        fetchImpl: vi.fn(async () => hostileResponse) as typeof fetch,
+      })
+    } catch (error) {
+      observed = error
+    }
+    expect(observed).toMatchObject({
+      code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_CONTRACT_INVALID',
+    })
+    expect(String((observed as Error).message)).not.toContain(ADMIN_TOKEN)
+    expect(String((observed as Error).message)).not.toContain(injected)
   })
 
   it('keeps credentials out of transport failure messages', async () => {
@@ -264,6 +355,9 @@ describe('private auth bridge RPC role attestation', () => {
       })
     } catch (error) {
       message = error instanceof Error ? error.message : String(error)
+      expect(error).toMatchObject({
+        code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_UNREACHABLE',
+      })
     }
     expect(message).toContain('attestation endpoint was unreachable')
     expect(message).not.toContain(ADMIN_TOKEN)

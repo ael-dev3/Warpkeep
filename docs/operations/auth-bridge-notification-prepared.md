@@ -242,6 +242,14 @@ checkout before each Cloudflare write, then:
 6. verifies fresh public/private endpoints before installing the content-
    addressed `0600` receipt in the private account-home sink.
 
+The private PRE-attestation reports only a fixed, non-secret category when it
+cannot establish authority: invalid local input, unreachable endpoint,
+authentication rejection, rate limiting, other HTTP rejection, invalid
+security headers, invalid response contract, or mismatched RPC roles. It never
+prints the credential, response body, upstream error text, or private
+attestation fields. A PRE-attestation category is a pre-journal failure and
+must be resolved before another guarded deployment is dispatched.
+
 The static policy verifier validates the canonical schema-v2
 `auth-bridge-notification-prepared-deploy-closure-v1.json` manifest before any
 release-policy check. Every sorted member has the exact keys `path`,

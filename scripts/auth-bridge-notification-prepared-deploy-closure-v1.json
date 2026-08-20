@@ -70,7 +70,7 @@
     {
       "path": "scripts/auth-bridge-config-attestation.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c2bfbccc5304effad8ec8077ffc275bd756fabad5921a72924d12aa5497b9709"
+      "sha256": "050d30340a80611a1b9c08074bb155fca9c792f5d657d7653923221ef2fca542"
     },
     {
       "path": "scripts/auth-bridge-notification-b0-cloudflare-runtime.d.mts",
