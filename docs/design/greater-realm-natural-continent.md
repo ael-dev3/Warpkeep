@@ -4,7 +4,7 @@ Status: candidate-generation design only
 
 Atlas: `GENESIS_001_GREATER_REALM`
 
-Generator algorithm: `greater-realm-v2-natural-continent-pr-a.17`
+Generator algorithm: `greater-realm-v2-natural-continent-pr-a.18`
 Terrain-seed namespace: `greater-realm-v2-natural-continent-pr-a.3`
 Private atlas format: `8`
 Living-world authority: `greater-realm-private-living-world-v4`
@@ -72,7 +72,7 @@ the package implementation. There is no mutable random stream and no
 
 The current authority revision binds the two private density channels,
 marsh-aware dressing, domain material records, final water-body metadata, and
-the audited patch/chunk contract as living-world v4, generator `.17`, and
+the audited patch/chunk contract as living-world v4, generator `.18`, and
 private atlas format 8. The terrain-seed namespace intentionally remains `.3`:
 these are authority and package revisions, not authorization to reroll the
 owner's candidate ordinal.

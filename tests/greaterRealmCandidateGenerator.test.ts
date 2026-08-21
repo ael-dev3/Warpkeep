@@ -61,6 +61,7 @@ let secondaryEvidence: Readonly<{
   gridDigest: string;
   reliefMatches: boolean;
   forestProof: boolean;
+  eligibilityFailureCodes: readonly string[];
 }> | undefined;
 let rejectedFixtureEvidence: Readonly<{
   code: ReturnType<typeof greaterRealmCandidateRejectionCode>;
@@ -363,6 +364,9 @@ beforeAll(() => {
             === JSON.stringify(measured),
         forestProof: generatedSecondary.privateMetrics.naturalComposition
           .forestPatches.proof,
+        eligibilityFailureCodes: Object.freeze([
+          ...generatedSecondary.privateMetrics.eligibilityFailureCodes,
+        ]),
       });
     } finally {
       if (generatedSecondary) clearGreaterRealmCandidateSecret(generatedSecondary);
@@ -524,6 +528,13 @@ describe('Greater Realm private candidate generator', () => {
     );
     expect(secondaryEvidence.finalDigest).not.toBe(candidate.stageDigests.final);
     expect(secondaryEvidence.gridDigest).not.toBe(gridDigest(candidate));
+    expect(secondaryEvidence.eligibilityFailureCodes).toContain(
+      'REGIONAL_HYDROGEOMORPHOLOGY_QA',
+    );
+    expect(secondaryEvidence.eligibilityFailureCodes.some(code => (
+      /^REGIONAL_HYDROGEOMORPHOLOGY_(?:FROSTMERE|MIREFEN|SUNSCAR|STONEWAKE|TIER_II|THRONEHEART)$/u
+        .test(code)
+    ))).toBe(true);
   });
 
   it('classifies bounded dry-gate-apron exhaustion as a typed candidate rejection', () => {
@@ -531,7 +542,7 @@ describe('Greater Realm private candidate generator', () => {
       throw new Error('GREATER_REALM_REJECTION_EVIDENCE_MISSING');
     }
     expect(rejectedFixtureEvidence.code).toBe(
-      'GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT',
+      'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT',
     );
     expect(rejectedFixtureEvidence.retiredLargeAuthorityCount).toBeGreaterThan(0);
     expect(rejectedFixtureEvidence.allRetiredAuthoritiesCleared).toBe(true);

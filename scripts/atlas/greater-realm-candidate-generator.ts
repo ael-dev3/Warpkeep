@@ -7,7 +7,11 @@ import {
   GREATER_REALM_REQUIRED_GATE_COUNT,
   type GreaterRealmSanitizedCandidateSource,
 } from './greater-realm-contracts';
-import { rejectGreaterRealmCandidate } from './greater-realm-candidate-rejection';
+import {
+  rejectGreaterRealmCandidate,
+  rejectGreaterRealmTierTwoCapacity,
+  type GreaterRealmTierTwoCapacityRejectionReason,
+} from './greater-realm-candidate-rejection';
 import {
   GREATER_REALM_AXIAL_DIRECTIONS,
   accumulateGreaterRealmSingleFlow,
@@ -100,7 +104,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.17' as const;
+  'greater-realm-v2-natural-continent-pr-a.18' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -169,10 +173,15 @@ export type GreaterRealmRankedSiblingSearchLimits = Readonly<{
   maximumCompletePlans: number;
 }>;
 
-type GreaterRealmRankedSiblingSearchResult<Alternative, Option> = Readonly<{
-  alternative: Alternative;
-  options: readonly Option[];
-}>;
+export type GreaterRealmRankedSiblingSearchResult<Alternative, Option> =
+  | Readonly<{
+      outcome: 'match';
+      alternative: Alternative;
+      options: readonly Option[];
+    }>
+  | Readonly<{ outcome: 'no-match' }>
+  | Readonly<{ outcome: 'search-node-limit' }>
+  | Readonly<{ outcome: 'complete-plan-limit' }>;
 
 /**
  * Explore ranked component assignments and their ranked sibling-pair options
@@ -188,7 +197,7 @@ export function searchGreaterRealmRankedSiblingAlternatives<
   optionGroupsFor: (alternative: Alternative) => readonly (readonly Option[])[],
   accept: (alternative: Alternative, options: readonly Option[]) => boolean,
   limits: GreaterRealmRankedSiblingSearchLimits,
-): GreaterRealmRankedSiblingSearchResult<Alternative, Option> | undefined;
+): GreaterRealmRankedSiblingSearchResult<Alternative, Option>;
 export function searchGreaterRealmRankedSiblingAlternatives<Alternative, Option>(
   alternatives: readonly Alternative[],
   optionGroupsFor: (alternative: Alternative) => readonly (readonly Option[])[],
@@ -197,7 +206,7 @@ export function searchGreaterRealmRankedSiblingAlternatives<Alternative, Option>
   footprintsFor: (
     option: Option,
   ) => readonly GreaterRealmRankedSiblingSearchOption[],
-): GreaterRealmRankedSiblingSearchResult<Alternative, Option> | undefined;
+): GreaterRealmRankedSiblingSearchResult<Alternative, Option>;
 export function searchGreaterRealmRankedSiblingAlternatives<Alternative, Option>(
   alternatives: readonly Alternative[],
   optionGroupsFor: (alternative: Alternative) => readonly (readonly Option[])[],
@@ -206,7 +215,7 @@ export function searchGreaterRealmRankedSiblingAlternatives<Alternative, Option>
   footprintsFor?: (
     option: Option,
   ) => readonly GreaterRealmRankedSiblingSearchOption[],
-): GreaterRealmRankedSiblingSearchResult<Alternative, Option> | undefined {
+): GreaterRealmRankedSiblingSearchResult<Alternative, Option> {
   if (
     !Number.isSafeInteger(limits.maximumSearchNodes)
     || limits.maximumSearchNodes < 1
@@ -226,7 +235,49 @@ export function searchGreaterRealmRankedSiblingAlternatives<Alternative, Option>
   const occupiedTierTwo = new Set<number>();
   let searchNodes = 0;
   let completePlans = 0;
-  let result: GreaterRealmRankedSiblingSearchResult<Alternative, Option> | undefined;
+  let searchNodeLimitReached = false;
+  let completePlanLimitReached = false;
+  let result: Extract<
+    GreaterRealmRankedSiblingSearchResult<Alternative, Option>,
+    { outcome: 'match' }
+  > | undefined;
+  // Preserve the original bounded traversal exactly. Future work is structural:
+  // unvisited opaque footprint choices remain a limit, not an inferred no-match.
+  const hasFutureRankedWork = (
+    currentTotalRank: number,
+    currentAlternativeRank: number,
+  ): boolean => {
+    for (
+      let futureTotalRank = currentTotalRank;
+      futureTotalRank <= maximumTotalRank;
+      futureTotalRank += 1
+    ) {
+      const maximumAlternativeRank = Math.min(
+        futureTotalRank,
+        alternatives.length - 1,
+      );
+      const firstAlternativeRank = futureTotalRank === currentTotalRank
+        ? currentAlternativeRank + 1
+        : 0;
+      for (
+        let futureAlternativeRank = firstAlternativeRank;
+        futureAlternativeRank <= maximumAlternativeRank;
+        futureAlternativeRank += 1
+      ) {
+        const groups = optionGroupsByAlternative[futureAlternativeRank]!;
+        if (groups.length === 0 || groups.some(options => options.length === 0)) {
+          continue;
+        }
+        const localRank = futureTotalRank - futureAlternativeRank;
+        const maximumLocalRank = groups.reduce(
+          (sum, options) => sum + options.length - 1,
+          0,
+        );
+        if (localRank >= 0 && localRank <= maximumLocalRank) return true;
+      }
+    }
+    return false;
+  };
   const footprintConflicts = (
     footprint: GreaterRealmRankedSiblingSearchOption,
   ): boolean => footprint.tierOneCells.some(cell => occupiedTierOne.has(cell))
@@ -257,19 +308,24 @@ export function searchGreaterRealmRankedSiblingAlternatives<Alternative, Option>
       const selected = new Array<Option | undefined>(groups.length);
       const chooseAtRank = (depth: number, remainingRank: number): boolean => {
         if (depth === groups.length) {
-          if (remainingRank !== 0 || completePlans >= limits.maximumCompletePlans) {
+          if (remainingRank !== 0) return false;
+          if (completePlans >= limits.maximumCompletePlans) {
+            completePlanLimitReached = true;
             return false;
           }
           completePlans += 1;
           const options = Object.freeze([...selected] as Option[]);
           if (!accept(alternative, options)) return false;
-          result = Object.freeze({ alternative, options });
+          result = Object.freeze({ outcome: 'match', alternative, options });
           return true;
         }
         const options = groups[depth]!;
         const maximumOptionIndex = Math.min(remainingRank, options.length - 1);
         for (let optionIndex = 0; optionIndex <= maximumOptionIndex; optionIndex += 1) {
-          if (searchNodes >= limits.maximumSearchNodes) return false;
+          if (searchNodes >= limits.maximumSearchNodes) {
+            searchNodeLimitReached = true;
+            return false;
+          }
           searchNodes += 1;
           const option = options[optionIndex]!;
           const directFootprint = footprintsFor === undefined
@@ -298,6 +354,21 @@ export function searchGreaterRealmRankedSiblingAlternatives<Alternative, Option>
       };
       chooseAtRank(0, totalRank - alternativeRank);
       if (
+        !searchNodeLimitReached
+        && !completePlanLimitReached
+        && (
+          searchNodes >= limits.maximumSearchNodes
+          || completePlans >= limits.maximumCompletePlans
+        )
+        && hasFutureRankedWork(totalRank, alternativeRank)
+      ) {
+        if (searchNodes >= limits.maximumSearchNodes) {
+          searchNodeLimitReached = true;
+        } else {
+          completePlanLimitReached = true;
+        }
+      }
+      if (
         searchNodes >= limits.maximumSearchNodes
         || completePlans >= limits.maximumCompletePlans
       ) break;
@@ -307,7 +378,14 @@ export function searchGreaterRealmRankedSiblingAlternatives<Alternative, Option>
       || completePlans >= limits.maximumCompletePlans
     ) break;
   }
-  return result;
+  if (result) return result;
+  if (searchNodeLimitReached) {
+    return Object.freeze({ outcome: 'search-node-limit' });
+  }
+  if (completePlanLimitReached) {
+    return Object.freeze({ outcome: 'complete-plan-limit' });
+  }
+  return Object.freeze({ outcome: 'no-match' });
 }
 
 export type GreaterRealmPseudoTectonicDomain = Readonly<{
@@ -2117,7 +2195,7 @@ function assignTiersAndRegions(
       .filter(cell => tierId[cell] === 2);
   }
   if (tierTwoBoundary.length < 3) {
-    rejectGreaterRealmCandidate('GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT');
+    rejectGreaterRealmTierTwoCapacity('BOUNDARY_MISSING');
   }
   const parentAnchors: number[] = [];
   const firstParentAnchor = [...tierTwoBoundary].sort((first, second) => {
@@ -2735,7 +2813,7 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
   legacyProtectedCell: Uint8Array;
   legacyReserveCell: Uint8Array;
   components: readonly GreaterRealmTierTwoCapacityComponent[];
-  reject: (suffix: string) => never;
+  reject: (reason: GreaterRealmTierTwoCapacityRejectionReason) => never;
 }>): GreaterRealmTierTwoDryGateApronAuthority {
   type ScratchArray = Uint8Array | Uint16Array | Uint32Array | Int8Array | Int32Array;
   const scratchArrays = new Set<ScratchArray>();
@@ -3237,8 +3315,8 @@ function allocateTierTwoPassableCapacity(
   };
   let retainedAuthorityArrays: ReadonlySet<OwnedAllocatorArray> = new Set();
   let gateApronAuthority: GreaterRealmTierTwoDryGateApronAuthority | undefined;
-  const reject = (_suffix: string): never => rejectGreaterRealmCandidate(
-    'GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT',
+  const reject = (reason: GreaterRealmTierTwoCapacityRejectionReason): never => (
+    rejectGreaterRealmTierTwoCapacity(reason)
   );
   try {
   const tierId = own(new Uint8Array(strategy.tierId));
@@ -3798,10 +3876,14 @@ function allocateTierTwoPassableCapacity(
     }),
     pair => pair.bundles,
   );
-  if (!gateApronSearch) {
-    reject('DRY_GATE_APRON_SEARCH_EXHAUSTED');
-  }
-  const capacityAssignment = gateApronSearch!.alternative;
+  const capacityAssignment = (() => {
+    switch (gateApronSearch.outcome) {
+      case 'match': return gateApronSearch.alternative;
+      case 'search-node-limit': return reject('DRY_GATE_APRON_SEARCH_NODE_LIMIT');
+      case 'complete-plan-limit': return reject('DRY_GATE_APRON_COMPLETE_PLAN_LIMIT');
+      case 'no-match': return reject('DRY_GATE_APRON_NO_MATCH');
+    }
+  })();
   if (!selectedRepartition || !selectedOwnershipForests || !selectedBundleByChild) {
     reject('DRY_GATE_APRON_PLAN_MISSING');
   }
@@ -5159,7 +5241,7 @@ function repairNaturalRegionLandCoherence(
       // island would require a new pre-allocation normalization pass; never
       // mutate Tier III into Tier II here and silently invalidate the spines.
       if (sourceRegion === TIER_III_REGION_INDEX) {
-        rejectGreaterRealmCandidate('GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT');
+        rejectGreaterRealmTierTwoCapacity('THRONE_COMPONENT_REPAIR_FORBIDDEN');
       }
 
       const waterSwapCandidates: number[] = [];
@@ -5996,8 +6078,8 @@ function assertTierTwoCapacityAuthority(input: Readonly<{
   tierTwoSpineOwner: Int8Array;
   barrier?: Uint8Array;
 }>): void {
-  const reject = (): never => rejectGreaterRealmCandidate(
-    'GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT',
+  const reject = (reason: GreaterRealmTierTwoCapacityRejectionReason): never => (
+    rejectGreaterRealmTierTwoCapacity(reason)
   );
   const { grid } = input;
   if (
@@ -6007,7 +6089,7 @@ function assertTierTwoCapacityAuthority(input: Readonly<{
     || input.tierTwoPassableOwner.length !== grid.cellCount
     || input.tierTwoSpineOwner.length !== grid.cellCount
     || (input.barrier !== undefined && input.barrier.length !== grid.cellCount)
-  ) reject();
+  ) reject('AUTHORITY_SHAPE_INVALID');
   const spineMasks = Array.from({ length: TIER_II_REGION_COUNT }, () => (
     new Uint8Array(grid.cellCount)
   ));
@@ -6024,7 +6106,7 @@ function assertTierTwoCapacityAuthority(input: Readonly<{
         || input.tierId[cell] !== 2
         || input.regionId[cell] !== passableOwner
         || !strategicallyPassableSurface(input.waterRegime[cell]!)
-      ) reject();
+      ) reject('AUTHORITY_PASSABLE_OWNERSHIP_INVALID');
     }
     const spineOwner = input.tierTwoSpineOwner[cell]!;
     if (spineOwner < 0) continue;
@@ -6035,7 +6117,7 @@ function assertTierTwoCapacityAuthority(input: Readonly<{
       || input.tierId[cell] !== 2
       || input.regionId[cell] !== spineOwner
       || !strategicallyPassableSurface(input.waterRegime[cell]!)
-    ) reject();
+    ) reject('AUTHORITY_SPINE_OWNERSHIP_INVALID');
     const parent = spineOwner - TIER_I_REGION_COUNT;
     spineMasks[parent]![cell] = 1;
     spineCounts[parent] += 1;
@@ -6052,16 +6134,18 @@ function assertTierTwoCapacityAuthority(input: Readonly<{
       input.barrier !== undefined
       && !crossTierAdjacent
       && input.barrier[cell] !== 0
-    ) reject();
+    ) reject('AUTHORITY_BARRIER_FRONTIER_INVALID');
   }
   for (let parent = 0; parent < TIER_II_REGION_COUNT; parent += 1) {
     if (
       spineCounts[parent] === 0
       || touchesOuter[parent] !== 1
       || touchesInner[parent] !== 1
-    ) reject();
+    ) reject('AUTHORITY_SPINE_FRONTIER_INVALID');
     const components = connectedComponents(grid, spineMasks[parent]!);
-    if (components.length !== 1 || components[0]!.length !== spineCounts[parent]) reject();
+    if (components.length !== 1 || components[0]!.length !== spineCounts[parent]) {
+      reject('AUTHORITY_SPINE_CONNECTIVITY_INVALID');
+    }
   }
   } finally {
     for (const mask of spineMasks) mask.fill(0);
@@ -10063,7 +10147,7 @@ export function generateGreaterRealmCandidate(input: Readonly<{
           || strategy.regionId[cell] !== capacityStrategy.regionId[cell]
         )
       ) {
-        rejectGreaterRealmCandidate('GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT');
+        rejectGreaterRealmTierTwoCapacity('LEGACY_PROTECTED_AUTHORITY_CHANGED');
       }
     }
     if (
@@ -10071,7 +10155,7 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       || finalRegionAuthorityCounts.some(
         (count, region) => count !== strategy.regionCounts[region],
       )
-    ) rejectGreaterRealmCandidate('GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT');
+    ) rejectGreaterRealmTierTwoCapacity('FINAL_AUTHORITY_COUNTS_CHANGED');
     const sites = castleAndPotentialSites(
       grid,
       candidateSeed,
@@ -10460,6 +10544,18 @@ export function generateGreaterRealmCandidate(input: Readonly<{
         && topographicQa.biomeElevationConsistency.marshClassificationMismatchCount === 0,
       REGIONAL_HYDROGEOMORPHOLOGY_QA:
         topographicQa.regionalHydrogeomorphology.proof,
+      REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE:
+        topographicQa.regionalHydrogeomorphology.frostmere.proof,
+      REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN:
+        topographicQa.regionalHydrogeomorphology.mirefen.proof,
+      REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR:
+        topographicQa.regionalHydrogeomorphology.sunscar.proof,
+      REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE:
+        topographicQa.regionalHydrogeomorphology.stonewake.proof,
+      REGIONAL_HYDROGEOMORPHOLOGY_TIER_II:
+        topographicQa.regionalHydrogeomorphology.tierII.proof,
+      REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART:
+        topographicQa.regionalHydrogeomorphology.throneheart.proof,
       CHUNK_PARTITION_BENCHMARK: chunkBenchmark.proof,
       TOPOGRAPHY_PATCH_SUPPORT: topographyPatchSupport.proof,
       SEDIMENT_MATERIAL_BUDGET: fluvial.erodedMaterialUnits

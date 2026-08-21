@@ -1,12 +1,17 @@
 // @vitest-environment node
 
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
 
 import {
   GREATER_REALM_CANDIDATE_REJECTION_CODES,
+  GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_CODE_BY_REASON,
+  GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_REASONS,
   GreaterRealmCandidateRejectionError,
   greaterRealmCandidateRejectionCode,
   rejectGreaterRealmCandidate,
+  rejectGreaterRealmTierTwoCapacity,
   type GreaterRealmCandidateRejectionCode,
 } from '../scripts/atlas/greater-realm-candidate-rejection';
 import {
@@ -28,12 +33,51 @@ describe('Greater Realm expected candidate rejection boundary', () => {
       'GREATER_REALM_STRATEGIC_BASIN_CAPACITY_INVARIANT',
       'GREATER_REALM_TIER_THREE_CAPACITY_INVARIANT',
       'GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT',
+      ...Object.values(GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_CODE_BY_REASON),
       'GREATER_REALM_STRATEGIC_HIGHLAND_REFERENCE_MISSING',
       'GREATER_REALM_HYDROLOGY_BODY_SURFACE_GEOGRAPHY_EXHAUSTED',
     ]);
     expect(Object.isFrozen(GREATER_REALM_CANDIDATE_REJECTION_CODES)).toBe(true);
     expect(new Set(GREATER_REALM_CANDIDATE_REJECTION_CODES).size)
       .toBe(GREATER_REALM_CANDIDATE_REJECTION_CODES.length);
+  });
+
+  it('maps every public-safe Tier-II terminal reason one-to-one', () => {
+    const codes = Object.values(
+      GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_CODE_BY_REASON,
+    );
+    expect(Object.isFrozen(GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_REASONS))
+      .toBe(true);
+    expect(Object.isFrozen(GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_CODE_BY_REASON))
+      .toBe(true);
+    expect(Object.keys(GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_CODE_BY_REASON))
+      .toEqual(GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_REASONS);
+    expect(new Set(codes).size).toBe(codes.length);
+    expect(codes).not.toContain('GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT');
+    for (const reason of GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_REASONS) {
+      try {
+        rejectGreaterRealmTierTwoCapacity(reason);
+      } catch (error) {
+        expect(greaterRealmCandidateRejectionCode(error)).toBe(
+          GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_CODE_BY_REASON[reason],
+        );
+        continue;
+      }
+      throw new Error('GREATER_REALM_TIER_TWO_REJECTION_FACTORY_DID_NOT_THROW');
+    }
+  });
+
+  it('keeps the historical broad code out of the .18 generator', () => {
+    const generatorSource = readFileSync(new URL(
+      '../scripts/atlas/greater-realm-candidate-generator.ts',
+      import.meta.url,
+    ), 'utf8');
+    expect(generatorSource).not.toContain(
+      "'GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT'",
+    );
+    for (const reason of GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_REASONS) {
+      expect(generatorSource).toContain(`'${reason}'`);
+    }
   });
 
   it('classifies only the typed error and never a message-compatible Error', () => {

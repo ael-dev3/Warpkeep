@@ -23,7 +23,7 @@ pull-request comments, CI artifacts, logs, and public SpacetimeDB tables are not
 private storage.
 
 The two additional density channels and marsh-aware dressing rules are bound by
-living-world authority v4, generator algorithm `.17`, and private atlas format
+living-world authority v4, generator algorithm `.18`, and private atlas format
 8. The terrain-seed
 namespace remains `.3`; a package-layout revision is not permission to reroll
 private world authority.
@@ -442,6 +442,16 @@ generator boundary; the same range error raised by a directly invoked audit
 remains fatal. Both rejection forms must reproduce exactly. Accepted attempts must
 reproduce the complete candidate binary, private manifest, chunk and
 topography-patch manifests, marked seed envelopes, and preview set.
+
+Generator `.18` changes only rejection diagnostics. Every Tier-II allocator
+terminal has a frozen typed code, and the bounded gate-apron search separately
+records a complete no-match, node limit, or complete-plan limit. Regional
+hydrogeomorphology also records the failing public region proof alongside its
+umbrella gate. The historical `.17` broad Tier-II code remains allowlisted only
+so an authenticated exhausted ledger can be inspected and retired; `.18` never
+emits it. Terrain channels, thresholds, traversal order, atlas format, and the
+`.3` terrain-seed namespace are unchanged.
+
 Verification requires exact bytes, bounded sizes, complete inventories,
 authority bindings, and recorded SHA-256 values. Each preview must exactly
 match the regenerated marked PNG before its bounded decode/dimension check. A
