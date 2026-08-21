@@ -817,6 +817,9 @@ function readExactImmutableFile(input: Readonly<{
       before.dev !== after.dev
       || before.ino !== after.ino
       || before.size !== after.size
+      || before.nlink !== after.nlink
+      || before.mode !== after.mode
+      || before.uid !== after.uid
       || before.mtimeMs !== after.mtimeMs
       || before.ctimeMs !== after.ctimeMs
       || (input.expectedBody !== undefined && !body.equals(input.expectedBody))
@@ -833,6 +836,89 @@ function readExactImmutableFile(input: Readonly<{
   }
 }
 
+function completeLinkedPublication(input: Readonly<{
+  directory: string;
+  temporary: string;
+  destination: string;
+  temporaryIdentity: Readonly<{ dev: number; ino: number }>;
+  body: Buffer;
+  maximumBytes: number;
+}>): InstalledFile {
+  const readCompletedDestination = (): InstalledFile => {
+    const installed = readExactImmutableFile({
+      path: input.destination,
+      maximumBytes: input.maximumBytes,
+      expectedBody: input.body,
+      expectedNlink: 1,
+    });
+    if (
+      installed.dev !== input.temporaryIdentity.dev
+      || installed.ino !== input.temporaryIdentity.ino
+    ) {
+      installed.body.fill(0);
+      fail('GREATER_REALM_CUTOVER_JOURNAL_FILE_REPLACED');
+    }
+    return installed;
+  };
+
+  let temporaryWasAlreadyRemoved = false;
+  const temporaryStatus = lstatIfPresent(input.temporary);
+  if (temporaryStatus === undefined) {
+    temporaryWasAlreadyRemoved = true;
+  } else {
+    if (
+      temporaryStatus.isSymbolicLink()
+      || !temporaryStatus.isFile()
+      || temporaryStatus.dev !== input.temporaryIdentity.dev
+      || temporaryStatus.ino !== input.temporaryIdentity.ino
+      || temporaryStatus.nlink !== 2
+      || temporaryStatus.size !== input.body.byteLength
+      || (temporaryStatus.mode & 0o7777) !== FILE_MODE
+      || (process.getuid !== undefined && temporaryStatus.uid !== process.getuid())
+    ) fail('GREATER_REALM_CUTOVER_JOURNAL_FILE_REPLACED');
+    try {
+      const verifiedTemporary = readExactImmutableFile({
+        path: input.temporary,
+        maximumBytes: input.maximumBytes,
+        expectedBody: input.body,
+        expectedNlink: 2,
+      });
+      try {
+        if (
+          verifiedTemporary.dev !== input.temporaryIdentity.dev
+          || verifiedTemporary.ino !== input.temporaryIdentity.ino
+        ) fail('GREATER_REALM_CUTOVER_JOURNAL_FILE_REPLACED');
+      } finally {
+        verifiedTemporary.body.fill(0);
+      }
+    } catch (error) {
+      if (lstatIfPresent(input.temporary) !== undefined) throw error;
+      temporaryWasAlreadyRemoved = true;
+    }
+  }
+
+  if (!temporaryWasAlreadyRemoved) {
+    try {
+      unlinkExact(input.temporary, input.temporaryIdentity, 2);
+    } catch (error) {
+      if (lstatIfPresent(input.temporary) !== undefined) throw error;
+      temporaryWasAlreadyRemoved = true;
+    }
+  }
+
+  if (temporaryWasAlreadyRemoved) {
+    const recovered = readCompletedDestination();
+    recovered.body.fill(0);
+  }
+  fsyncDirectory(input.directory);
+  const installed = readCompletedDestination();
+  if (lstatIfPresent(input.temporary) !== undefined) {
+    installed.body.fill(0);
+    fail('GREATER_REALM_CUTOVER_JOURNAL_FILE_REPLACED');
+  }
+  return installed;
+}
+
 function installImmutableFile(input: Readonly<{
   directory: string;
   basename: string;
@@ -841,6 +927,7 @@ function installImmutableFile(input: Readonly<{
   temporaryBasename: string;
   testOnlyAfterPartialWrite?: () => void;
   testOnlyAfterTemporaryFsync?: () => void;
+  testOnlyAfterLinkedPublicationFsync?: () => void;
 }>): InstalledFile {
   if (input.body.byteLength < 1 || input.body.byteLength > input.maximumBytes) {
     fail('GREATER_REALM_CUTOVER_JOURNAL_FILE_SIZE_INVALID');
@@ -898,14 +985,17 @@ function installImmutableFile(input: Readonly<{
     input.testOnlyAfterTemporaryFsync?.();
     linkSync(temporary, destination);
     fsyncDirectory(input.directory);
-    unlinkExact(temporary, temporaryIdentity, 2);
-    temporaryIdentity = undefined;
-    fsyncDirectory(input.directory);
-    return readExactImmutableFile({
-      path: destination,
+    input.testOnlyAfterLinkedPublicationFsync?.();
+    const installed = completeLinkedPublication({
+      directory: input.directory,
+      temporary,
+      destination,
+      temporaryIdentity,
+      body: input.body,
       maximumBytes: input.maximumBytes,
-      expectedBody: input.body,
     });
+    temporaryIdentity = undefined;
+    return installed;
   } catch (error) {
     if (temporaryIdentity !== undefined) {
       try {
@@ -1908,6 +1998,9 @@ function installCommandGroup(
         testOnlyAfterTemporaryFsync: () => {
           testOnlyStep(`after-command-${record.phase}-temporary-fsync-before-link`);
         },
+        testOnlyAfterLinkedPublicationFsync: () => {
+          testOnlyStep(`after-command-${record.phase}-linked-publication-fsync`);
+        },
       }),
     });
     testOnlyStep?.(`after-command-${record.phase}-fsync`);
@@ -1955,6 +2048,11 @@ function installJournalPhase(
       body,
       maximumBytes: MAX_JOURNAL_BYTES,
       temporaryBasename: `${phaseBasename(record.journalId, record.phase).slice(0, -5)}-${randomUUID().replaceAll('-', '').slice(0, 12)}.json.tmp`,
+      ...(testOnlyStep === undefined ? {} : {
+        testOnlyAfterLinkedPublicationFsync: () => {
+          testOnlyStep(`after-${record.phase}-linked-publication-fsync`);
+        },
+      }),
     });
     testOnlyStep?.(`after-${record.phase}-fsync`);
     return Object.freeze({ record, installed });

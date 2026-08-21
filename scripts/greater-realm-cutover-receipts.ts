@@ -14,6 +14,7 @@ import {
   readdirSync,
   realpathSync,
   statSync,
+  type Stats,
   unlinkSync,
   writeSync,
 } from 'node:fs';
@@ -530,6 +531,133 @@ function fsyncPrivateDirectory(directory: string): void {
   }
 }
 
+type LinkedPublicationIdentity = Readonly<{ dev: number; ino: number }>;
+
+function readExactLinkedPublication(input: Readonly<{
+  path: string;
+  expectedBody: Buffer;
+  maximumBytes: number;
+  expectedNlink: number;
+  failureCode: string;
+}>): LinkedPublicationIdentity {
+  let descriptor: number | undefined;
+  let actual: Buffer | undefined;
+  try {
+    descriptor = openSync(input.path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const before = fstatSync(descriptor);
+    if (
+      !before.isFile()
+      || before.size !== input.expectedBody.byteLength
+      || before.size < 1
+      || before.size > input.maximumBytes
+      || before.nlink !== input.expectedNlink
+      || (before.mode & 0o7777) !== FILE_MODE
+      || (process.getuid !== undefined && before.uid !== process.getuid())
+    ) fail(input.failureCode);
+    actual = readFileSync(descriptor);
+    const after = fstatSync(descriptor);
+    if (
+      before.dev !== after.dev
+      || before.ino !== after.ino
+      || before.size !== after.size
+      || before.nlink !== after.nlink
+      || before.mode !== after.mode
+      || before.uid !== after.uid
+      || before.mtimeMs !== after.mtimeMs
+      || before.ctimeMs !== after.ctimeMs
+      || !actual.equals(input.expectedBody)
+    ) fail(input.failureCode);
+    return Object.freeze({ dev: before.dev, ino: before.ino });
+  } catch (error) {
+    if (error instanceof GreaterRealmCutoverReceiptError) throw error;
+    return fail(input.failureCode);
+  } finally {
+    actual?.fill(0);
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+function linkedPublicationTemporaryStatus(path: string): Stats | undefined {
+  try {
+    return lstatSync(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw error;
+  }
+}
+
+function completeLinkedPublication(input: Readonly<{
+  directory: string;
+  temporary: string;
+  destination: string;
+  identity: LinkedPublicationIdentity;
+  body: Buffer;
+  maximumBytes: number;
+  failureCode: string;
+}>): void {
+  const readCompletedDestination = (): void => {
+    const installed = readExactLinkedPublication({
+      path: input.destination,
+      expectedBody: input.body,
+      maximumBytes: input.maximumBytes,
+      expectedNlink: 1,
+      failureCode: input.failureCode,
+    });
+    if (installed.dev !== input.identity.dev || installed.ino !== input.identity.ino) {
+      fail(input.failureCode);
+    }
+  };
+
+  let temporaryWasAlreadyRemoved = false;
+  const temporaryStatus = linkedPublicationTemporaryStatus(input.temporary);
+  if (temporaryStatus === undefined) {
+    temporaryWasAlreadyRemoved = true;
+  } else {
+    if (
+      temporaryStatus.isSymbolicLink()
+      || !temporaryStatus.isFile()
+      || temporaryStatus.dev !== input.identity.dev
+      || temporaryStatus.ino !== input.identity.ino
+      || temporaryStatus.nlink !== 2
+      || temporaryStatus.size !== input.body.byteLength
+      || (temporaryStatus.mode & 0o7777) !== FILE_MODE
+      || (process.getuid !== undefined && temporaryStatus.uid !== process.getuid())
+    ) fail(input.failureCode);
+    try {
+      const verifiedTemporary = readExactLinkedPublication({
+        path: input.temporary,
+        expectedBody: input.body,
+        maximumBytes: input.maximumBytes,
+        expectedNlink: 2,
+        failureCode: input.failureCode,
+      });
+      if (
+        verifiedTemporary.dev !== input.identity.dev
+        || verifiedTemporary.ino !== input.identity.ino
+      ) fail(input.failureCode);
+    } catch (error) {
+      if (linkedPublicationTemporaryStatus(input.temporary) !== undefined) throw error;
+      temporaryWasAlreadyRemoved = true;
+    }
+  }
+
+  if (!temporaryWasAlreadyRemoved) {
+    try {
+      unlinkSync(input.temporary);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') fail(input.failureCode);
+      temporaryWasAlreadyRemoved = true;
+    }
+  }
+
+  if (temporaryWasAlreadyRemoved) readCompletedDestination();
+  fsyncPrivateDirectory(input.directory);
+  readCompletedDestination();
+  if (linkedPublicationTemporaryStatus(input.temporary) !== undefined) {
+    fail(input.failureCode);
+  }
+}
+
 function unlinkExactRecoveryOwner(opened: OpenedRecoveryOwner): void {
   const current = lstatSync(opened.path);
   if (
@@ -589,6 +717,13 @@ function installRecoveryOwner(
     }
     fsyncSync(descriptor);
     chmodSync(temporary, FILE_MODE);
+    const ready = fstatSync(descriptor);
+    if (
+      ready.dev !== opened.dev || ready.ino !== opened.ino
+      || ready.nlink !== 1 || ready.size !== body.byteLength
+      || (ready.mode & 0o7777) !== FILE_MODE
+      || (process.getuid !== undefined && ready.uid !== process.getuid())
+    ) fail('GREATER_REALM_CUTOVER_RECOVERY_OWNER_WRITE_FAILED');
     closeSync(descriptor);
     descriptor = undefined;
     testOnlyStep?.('before-recovery-owner-link');
@@ -602,15 +737,20 @@ function installRecoveryOwner(
     }
     fsyncPrivateDirectory(directory);
     testOnlyStep?.('after-recovery-owner-fsync');
-    const temporaryStatus = lstatSync(temporary);
-    if (
-      temporaryStatus.dev !== opened.dev || temporaryStatus.ino !== opened.ino
-      || temporaryStatus.nlink !== 2
-    ) fail('GREATER_REALM_CUTOVER_RECOVERY_OWNER_WRITE_FAILED');
-    unlinkSync(temporary);
-    fsyncPrivateDirectory(directory);
+    completeLinkedPublication({
+      directory,
+      temporary,
+      destination,
+      identity: opened,
+      body,
+      maximumBytes: 16 * 1024,
+      failureCode: 'GREATER_REALM_CUTOVER_RECOVERY_OWNER_WRITE_FAILED',
+    });
     const installed = readRecoveryOwner(destination);
-    if (!installed.body.equals(body)) {
+    if (
+      installed.dev !== opened.dev || installed.ino !== opened.ino
+      || !installed.body.equals(body)
+    ) {
       fail('GREATER_REALM_CUTOVER_RECOVERY_OWNER_WRITE_FAILED');
     }
     return installed;
@@ -1190,7 +1330,12 @@ export async function withGreaterRealmCutoverOperatorLock<T>(input: Readonly<{
     chmodSync(temporaryPath, FILE_MODE);
     input.testOnlyStep?.('after-chmod');
     const status = fstatSync(descriptor);
-    if (status.dev !== opened.dev || status.ino !== opened.ino) {
+    if (
+      status.dev !== opened.dev || status.ino !== opened.ino
+      || status.nlink !== 1 || status.size !== body.byteLength
+      || (status.mode & 0o7777) !== FILE_MODE
+      || (process.getuid !== undefined && status.uid !== process.getuid())
+    ) {
       fail('GREATER_REALM_CUTOVER_OPERATOR_LOCK_FAILED');
     }
     try {
@@ -1214,9 +1359,16 @@ export async function withGreaterRealmCutoverOperatorLock<T>(input: Readonly<{
     input.testOnlyStep?.('after-link');
     fsyncPrivateDirectory(directory);
     input.testOnlyStep?.('after-directory-fsync');
-    unlinkExactOperatorLock(temporaryPath, opened);
+    completeLinkedPublication({
+      directory,
+      temporary: temporaryPath,
+      destination: lockPath,
+      identity: opened,
+      body,
+      maximumBytes: OPERATOR_LOCK_MAX_BYTES,
+      failureCode: 'GREATER_REALM_CUTOVER_OPERATOR_LOCK_FAILED',
+    });
     temporaryPath = undefined;
-    fsyncPrivateDirectory(directory);
     input.testOnlyStep?.('after-temp-unlink');
     input.testOnlyStep?.('before-operation');
     if (interruptedBy === undefined) {
@@ -1321,12 +1473,15 @@ export function writePrivateGreaterRealmCutoverReceipt(input: Readonly<{
     `.${basename.slice(0, -5)}-${randomUUID().replaceAll('-', '').slice(0, 12)}.json.tmp`,
   );
   let descriptor: number | undefined;
+  let opened: LinkedPublicationIdentity | undefined;
   try {
     descriptor = openSync(
       temporary,
       constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | (constants.O_NOFOLLOW ?? 0),
       FILE_MODE,
     );
+    const initial = fstatSync(descriptor);
+    opened = Object.freeze({ dev: initial.dev, ino: initial.ino });
     let offset = 0;
     while (offset < body.byteLength) {
       const written = writeSync(descriptor, body, offset, body.byteLength - offset);
@@ -1335,16 +1490,26 @@ export function writePrivateGreaterRealmCutoverReceipt(input: Readonly<{
     }
     fsyncSync(descriptor);
     chmodSync(temporary, FILE_MODE);
+    const ready = fstatSync(descriptor);
+    if (
+      ready.dev !== opened.dev || ready.ino !== opened.ino
+      || ready.nlink !== 1 || ready.size !== body.byteLength
+      || (ready.mode & 0o7777) !== FILE_MODE
+      || (process.getuid !== undefined && ready.uid !== process.getuid())
+    ) fail('GREATER_REALM_CUTOVER_RECEIPT_WRITE_FAILED');
     closeSync(descriptor);
     descriptor = undefined;
     linkSync(temporary, destination);
-    unlinkSync(temporary);
-    const directoryDescriptor = openSync(directory, constants.O_RDONLY);
-    try {
-      fsyncSync(directoryDescriptor);
-    } finally {
-      closeSync(directoryDescriptor);
-    }
+    fsyncPrivateDirectory(directory);
+    completeLinkedPublication({
+      directory,
+      temporary,
+      destination,
+      identity: opened,
+      body,
+      maximumBytes: MAX_RECEIPT_BYTES,
+      failureCode: 'GREATER_REALM_CUTOVER_RECEIPT_WRITE_FAILED',
+    });
     readExact(destination, body);
     return Object.freeze({
       path: destination,
@@ -1356,7 +1521,15 @@ export function writePrivateGreaterRealmCutoverReceipt(input: Readonly<{
     if (descriptor !== undefined) {
       try { closeSync(descriptor); } catch { /* Preserve the fixed error. */ }
     }
-    try { unlinkSync(temporary); } catch { /* Preserve the fixed error. */ }
+    if (opened !== undefined) {
+      try {
+        const temporaryStatus = lstatSync(temporary);
+        if (
+          temporaryStatus.dev === opened.dev && temporaryStatus.ino === opened.ino
+          && (temporaryStatus.nlink === 1 || temporaryStatus.nlink === 2)
+        ) unlinkSync(temporary);
+      } catch { /* Preserve the fixed error. */ }
+    }
     if (error instanceof GreaterRealmCutoverReceiptError) throw error;
     fail('GREATER_REALM_CUTOVER_RECEIPT_WRITE_FAILED');
   } finally {
