@@ -89,6 +89,10 @@ function exactJson(left, right) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function exactEmptyApiMessages(value) {
+  return value === null || (Array.isArray(value) && value.length === 0);
+}
+
 function containsForbiddenResponseValue(value, forbidden) {
   const pending = [value];
   let inspected = 0;
@@ -859,9 +863,8 @@ function createApi({ apiToken, fetchImpl, requestTimeoutMilliseconds }) {
     if (
       !isRecord(envelope)
       || envelope.success !== true
-      || !Array.isArray(envelope.errors)
-      || envelope.errors.length !== 0
-      || !Array.isArray(envelope.messages)
+      || !exactEmptyApiMessages(envelope.errors)
+      || !exactEmptyApiMessages(envelope.messages)
       || !Object.hasOwn(envelope, 'result')
     ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_RESPONSE_ENVELOPE_INVALID');
     if (
@@ -1238,7 +1241,7 @@ function exactDomain(response, contract) {
     || !isRecord(result[0])
     || Object.keys(result[0]).some(key => ![
       'id', 'zone_id', 'zone_name', 'hostname', 'service', 'environment',
-      'cert_id',
+      'cert_id', 'enabled', 'previews_enabled',
     ].includes(key))
     || typeof result[0].id !== 'string'
     || typeof result[0].zone_name !== 'string'
@@ -1247,6 +1250,8 @@ function exactDomain(response, contract) {
     || result[0].hostname !== contract.route.pattern
     || result[0].service !== contract.workerName
     || ![undefined, null, 'production'].includes(result[0].environment)
+    || result[0].enabled !== true
+    || result[0].previews_enabled !== false
     || !isRecord(info)
     || info.count !== 1
   ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_DOMAIN_MISMATCH');

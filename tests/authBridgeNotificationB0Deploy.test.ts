@@ -24,7 +24,10 @@ import {
   executeAuthBridgeNotificationB0DeployAdapter,
 } from '../scripts/auth-bridge-notification-b0-deploy-adapter.mjs';
 import {
+  authBridgeNotificationB0SourceDigest,
   attestAuthBridgeNotificationB0CandidateMultipartMetadata,
+  createAuthBridgeNotificationB0CloudflareRuntime,
+  inspectAuthBridgeNotificationB0Multipart,
   projectAuthBridgeNotificationB0CloudflareVersion,
 } from '../scripts/auth-bridge-notification-b0-cloudflare-runtime.mjs';
 import {
@@ -41,6 +44,73 @@ const PREDECESSOR_DEPLOYMENT_ID =
 const PREDECESSOR_VERSION_ID =
   '123e4567-e89b-42d3-a456-426614174002';
 const VERSION_ID = '123e4567-e89b-42d3-a456-426614174003';
+const REVIEWED_V5_DEPLOYMENT_ID =
+  'bb527e8d-c7dc-4eba-92a8-21beae4d3965';
+const REVIEWED_V5_VERSION_ID =
+  '3aaf1957-7613-47f5-b40b-24018aec1335';
+const REVIEWED_V5_SOURCE_ETAG =
+  '5db8091c35db39f07c9b714441a9a8291c5a4636900a90ec19c3c5ea0b6982f7';
+const REVIEWED_V5_DEPLOYMENT_MESSAGE =
+  'Promote main:e8bd065 single admission notification; rollback:481f8b94';
+const REVIEWED_V5_VERSION_MESSAGE =
+  'main:e8bd065 single admission notification; rollback:481f8b94';
+const REVIEWED_V5_VARIABLES = Object.freeze({
+  ACCESS_EXPECTED_FID_REQUIRED: 'true',
+  ALLOWED_ORIGINS: 'https://warpkeep.com',
+  APPROVAL_NOTIFICATIONS_ENABLED: 'true',
+  ENVIRONMENT: 'production',
+  FARCASTER_DOMAIN: 'warpkeep.com',
+  FARCASTER_SIWE_URI: 'https://warpkeep.com/',
+  ISSUER: 'https://auth.warpkeep.com',
+  MINIAPP_NOTIFICATION_CLIENTS:
+    '9152=https://api.farcaster.xyz/v1/frame-notifications',
+  MINIAPP_NOTIFICATION_HUB_URLS:
+    'https://rho.farcaster.xyz:3381/,https://hub.pinata.cloud/',
+  OIDC_AUDIENCE: 'warpkeep-spacetimedb',
+  OIDC_KEY_ID: 'warpkeep-alpha-2026-07-01',
+  PUBLIC_AUTH_ENABLED: 'true',
+  QA_OBSERVER_ENABLED: 'false',
+  SPACETIMEDB_DATABASE:
+    'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+  SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
+});
+const REVIEWED_V5_DURABLE_OBJECT_BINDINGS = Object.freeze([
+  Object.freeze({
+    name: 'ADMISSION_NOTIFICATIONS',
+    className: 'AdmissionNotification',
+    namespaceId: '01d53045d07a4f79ab21646de395d82c',
+  }),
+  Object.freeze({
+    name: 'AUTH_RATE_LIMITER',
+    className: 'AuthRateLimiter',
+    namespaceId: 'd800d603256f4a0f9907ba0b9267bc89',
+  }),
+  Object.freeze({
+    name: 'CHALLENGE_REPLAY_GUARD',
+    className: 'ChallengeReplayGuard',
+    namespaceId: 'bbda3461bd4c4caf91478705d65374fc',
+  }),
+  Object.freeze({
+    name: 'QA_CHALLENGE_REPLAY_GUARD',
+    className: 'QaChallengeReplayGuard',
+    namespaceId: '28d55581e3124399b8cfbc2bd4019bef',
+  }),
+  Object.freeze({
+    name: 'SESSION_FAMILIES',
+    className: 'SessionFamily',
+    namespaceId: 'b4525a7a374743deb3666471fe2ae06c',
+  }),
+]);
+const RUNTIME_MODULE_BYTES = Buffer.from(
+  'export default { fetch() { return new Response("ok") } };\n',
+  'utf8',
+);
+const RUNTIME_SOURCE_DIGEST = authBridgeNotificationB0SourceDigest([{
+  name: 'index.js',
+  field: 'index.js',
+  contentType: 'application/javascript+module',
+  bytes: RUNTIME_MODULE_BYTES,
+}]);
 const NOW = new Date('2026-08-13T12:00:00.000Z');
 const temporaryDirectories: string[] = [];
 type Phase =
@@ -59,16 +129,19 @@ afterEach(() => {
   }
 });
 
-function contract() {
+function contract(
+  sourceDigest = SOURCE_DIGEST,
+  accessExpectedFidRequired = false,
+) {
   return authBridgeNotificationB0VersionContract({
     accountId: ACCOUNT_ID,
     zoneId: ZONE_ID,
     sourceCommit: SOURCE_COMMIT,
-    sourceDigest: SOURCE_DIGEST,
+    sourceDigest,
     beforeModes: {
       bridgeSourceCommit: SOURCE_COMMIT,
       publicAuthEnabled: true,
-      accessExpectedFidRequired: false,
+      accessExpectedFidRequired,
     },
   }) as Readonly<Record<string, unknown>> & Readonly<{
     durableObjectBindings: readonly Readonly<{
@@ -80,9 +153,132 @@ function contract() {
       newSqliteClasses: readonly string[];
     }>[];
     variables: Readonly<Record<string, string>>;
+    compatibilityDate: string;
+    compatibilityFlags: readonly string[];
     versionMessage: string;
     versionTag: string;
   }>;
+}
+
+function runtimeMultipart(
+  value: ReturnType<typeof contract>,
+  boundary = 'warpkeep-b0-v5-boundary',
+) {
+  const metadata = JSON.stringify({
+    main_module: 'index.js',
+    bindings: [
+      ...Object.entries(value.variables).map(([name, text]) => ({
+        name,
+        type: 'plain_text',
+        text,
+      })),
+      ...value.durableObjectBindings.map(binding => ({
+        name: binding.name,
+        type: 'durable_object_namespace',
+        class_name: binding.className,
+      })),
+    ],
+    compatibility_date: value.compatibilityDate,
+    compatibility_flags: value.compatibilityFlags,
+    keep_bindings: ['secret_text', 'secret_key'],
+    annotations: {
+      'workers/message': value.versionMessage,
+      'workers/tag': value.versionTag,
+    },
+  });
+  return Buffer.from([
+    `--${boundary}\r\n`,
+    'Content-Disposition: form-data; name="metadata"\r\n',
+    'Content-Type: application/json\r\n\r\n',
+    metadata,
+    `\r\n--${boundary}\r\n`,
+    'Content-Disposition: form-data; name="index.js"; filename="index.js"\r\n',
+    'Content-Type: application/javascript+module\r\n\r\n',
+    RUNTIME_MODULE_BYTES.toString('utf8'),
+    `\r\n--${boundary}--\r\n`,
+  ].join(''), 'utf8');
+}
+
+function cloudflareResponse(
+  body: unknown,
+  url: string,
+  resultInfo?: unknown,
+  emptyMessages: 'array' | 'null' | 'record' = 'array',
+) {
+  const response = new Response(JSON.stringify({
+    success: true,
+    errors: emptyMessages === 'array'
+      ? []
+      : (emptyMessages === 'null' ? null : {}),
+    messages: emptyMessages === 'array'
+      ? []
+      : (emptyMessages === 'null' ? null : {}),
+    result: body,
+    ...(resultInfo === undefined ? {} : { result_info: resultInfo }),
+  }), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+  Object.defineProperty(response, 'url', { value: url });
+  Object.defineProperty(response, 'redirected', { value: false });
+  return response;
+}
+
+type ReviewedV5Detail = Record<string, unknown> & {
+  annotations: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  resources: {
+    bindings: Record<string, unknown>[];
+    script: Record<string, unknown>;
+    script_runtime: Record<string, unknown>;
+  };
+};
+
+function reviewedV5Detail(): ReviewedV5Detail {
+  return {
+    id: REVIEWED_V5_VERSION_ID,
+    number: 46,
+    annotations: {
+      'workers/message': REVIEWED_V5_VERSION_MESSAGE,
+      'workers/triggered_by': 'version_upload',
+    },
+    metadata: {
+      created_on: '2026-08-04T14:42:56.481717Z',
+      has_preview: false,
+      source: 'wrangler',
+    },
+    resources: {
+      bindings: [
+        ...Object.entries(REVIEWED_V5_VARIABLES).map(([name, text]) => ({
+          name,
+          type: 'plain_text',
+          text,
+        })),
+        ...AUTH_BRIDGE_NOTIFICATION_B0_SECRET_BINDING_NAMES.map(name => ({
+          name,
+          type: 'secret_text',
+        })),
+        ...REVIEWED_V5_DURABLE_OBJECT_BINDINGS.map(binding => ({
+          name: binding.name,
+          type: 'durable_object_namespace',
+          class_name: binding.className,
+          namespace_id: binding.namespaceId,
+        })),
+      ],
+      script: {
+        etag: REVIEWED_V5_SOURCE_ETAG,
+        handlers: ['fetch'],
+        last_deployed_from: 'wrangler',
+        named_handlers: [],
+      },
+      script_runtime: {
+        compatibility_date: '2026-07-11',
+        compatibility_flags: ['nodejs_compat'],
+        migration_tag: 'v5',
+        usage_model: 'standard',
+      },
+    },
+  };
 }
 
 function candidateMetadata(value = contract()) {
@@ -109,11 +305,6 @@ function candidateMetadata(value = contract()) {
     annotations: {
       'workers/message': value.versionMessage,
       'workers/tag': value.versionTag,
-    },
-    migrations: {
-      old_tag: 'v4',
-      new_tag: 'v5',
-      steps: [{ new_sqlite_classes: ['AdmissionNotification'] }],
     },
   };
 }
@@ -175,6 +366,117 @@ function rawCandidateVersion(value = contract()) {
           ]),
         ]),
       },
+    },
+  };
+}
+
+function reviewedV5RuntimeHarness(
+  mutate?: (detail: ReviewedV5Detail) => void,
+  domainEmptyMessages: 'null' | 'record' = 'null',
+) {
+  const value = contract(RUNTIME_SOURCE_DIGEST, true);
+  const boundary = 'warpkeep-b0-v5-boundary';
+  const contentType = `multipart/form-data; boundary=${boundary}`;
+  const body = runtimeMultipart(value, boundary);
+  const detail = reviewedV5Detail();
+  mutate?.(detail);
+  let candidateBody: Buffer | undefined;
+  const fetchImpl = vi.fn(async (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) => {
+    const url = String(input);
+    const method = init?.method ?? 'GET';
+    if (url.endsWith('/workers/scripts')) {
+      return cloudflareResponse([{
+        id: value.workerName,
+        migration_tag: 'v5',
+        cache_options: { enabled: false, cross_version_cache: true },
+      }], url);
+    }
+    if (url.includes('/workers/domains?service=')) {
+      return cloudflareResponse([{
+        id: 'domain-id',
+        zone_id: ZONE_ID,
+        zone_name: 'warpkeep.com',
+        hostname: 'auth.warpkeep.com',
+        service: value.workerName,
+        environment: 'production',
+        cert_id: 'certificate-id',
+        enabled: true,
+        previews_enabled: false,
+      }], url, { count: 1 }, domainEmptyMessages);
+    }
+    if (url.endsWith('/environments/production/routes?show_zonename=true')) {
+      return cloudflareResponse([], url);
+    }
+    if (url.endsWith('/script-settings')) {
+      return cloudflareResponse({
+        logpush: false,
+        observability: { enabled: false },
+        tags: [],
+        tail_consumers: [],
+      }, url);
+    }
+    if (url.endsWith('/subdomain')) {
+      return cloudflareResponse({
+        enabled: false,
+        previews_enabled: false,
+      }, url);
+    }
+    if (url.endsWith('/deployments') && method === 'GET') {
+      return cloudflareResponse([{
+        id: REVIEWED_V5_DEPLOYMENT_ID,
+        created_on: '2026-08-04T14:45:32.958436Z',
+        source: 'wrangler',
+        strategy: 'percentage',
+        versions: [{
+          version_id: REVIEWED_V5_VERSION_ID,
+          percentage: 100,
+        }],
+        annotations: {
+          'workers/message': REVIEWED_V5_DEPLOYMENT_MESSAGE,
+          'workers/triggered_by': 'deployment',
+        },
+      }], url);
+    }
+    if (url.endsWith(`/versions/${REVIEWED_V5_VERSION_ID}`)) {
+      return cloudflareResponse(detail, url);
+    }
+    if (
+      url.endsWith('/versions?bindings_inherit=strict')
+      && method === 'POST'
+    ) {
+      candidateBody = Buffer.from(init?.body as Buffer);
+      return cloudflareResponse({ id: VERSION_ID }, url);
+    }
+    throw new Error(`unexpected request: ${method} ${url}`);
+  });
+  const runtime = createAuthBridgeNotificationB0CloudflareRuntime({
+    contract: value,
+    apiToken: 'cloudflare-test-token-value-1234567890',
+    repositoryRoot: realpathSync(process.cwd()),
+    serviceRoot: realpathSync(join(process.cwd(), 'services/auth-bridge')),
+    nodeExecutable: process.execPath,
+    wranglerEntrypoint: process.execPath,
+    multipartBody: body,
+    multipartContentType: contentType,
+    fetchImpl: fetchImpl as typeof fetch,
+    journal: { inspect: () => ({ phase: 'prepared' }) },
+  });
+  return {
+    body,
+    contentType,
+    detail,
+    fetchImpl,
+    runtime,
+    value,
+    candidateMetadata: () => {
+      if (candidateBody === undefined) throw new Error('candidate not uploaded');
+      return inspectAuthBridgeNotificationB0Multipart(
+        candidateBody,
+        contentType,
+      ).metadata;
     },
   };
 }
@@ -261,7 +563,7 @@ function recoveryHarness({
 }
 
 describe('auth-bridge notification B0 deploy', () => {
-  it('binds only the established six inherited secrets and exact v4-to-v5 migration', () => {
+  it('binds only the established six inherited secrets without replaying v5 migration', () => {
     const value = contract();
     expect(value.secretBindingNames).toEqual([
       'ADMIN_TOKEN_SECRET',
@@ -275,8 +577,20 @@ describe('auth-bridge notification B0 deploy', () => {
     expect(attestAuthBridgeNotificationB0CandidateMultipartMetadata({
       metadata: candidateMetadata(value),
       contract: value,
-      predecessorVersionId: PREDECESSOR_VERSION_ID,
+      predecessorVersionId: REVIEWED_V5_VERSION_ID,
     })).toBe(true);
+    expect(() => attestAuthBridgeNotificationB0CandidateMultipartMetadata({
+      metadata: {
+        ...candidateMetadata(value),
+        migrations: {
+          old_tag: 'v4',
+          new_tag: 'v5',
+          steps: [{ new_sqlite_classes: ['AdmissionNotification'] }],
+        },
+      },
+      contract: value,
+      predecessorVersionId: REVIEWED_V5_VERSION_ID,
+    })).toThrowError(/MULTIPART_METADATA_MISMATCH/u);
     expect(() => attestAuthBridgeNotificationB0CandidateMultipartMetadata({
       metadata: {
         ...candidateMetadata(value),
@@ -286,7 +600,7 @@ describe('auth-bridge notification B0 deploy', () => {
         ],
       },
       contract: value,
-      predecessorVersionId: PREDECESSOR_VERSION_ID,
+      predecessorVersionId: REVIEWED_V5_VERSION_ID,
     })).toThrowError(/(?:MULTIPART_METADATA_MISMATCH|VERSION_BINDING_UNEXPECTED)/u);
     expect(() => attestAuthBridgeNotificationB0CandidateMultipartMetadata({
       metadata: {
@@ -298,8 +612,111 @@ describe('auth-bridge notification B0 deploy', () => {
         )),
       },
       contract: value,
-      predecessorVersionId: PREDECESSOR_VERSION_ID,
+      predecessorVersionId: REVIEWED_V5_VERSION_ID,
     })).toThrowError(/MULTIPART_METADATA_MISMATCH/u);
+  });
+
+  it('pins the exact reviewed e8 v5 predecessor and uploads without migrations', async () => {
+    expect(Object.keys(REVIEWED_V5_VARIABLES)).toHaveLength(15);
+    expect(AUTH_BRIDGE_NOTIFICATION_B0_SECRET_BINDING_NAMES).toHaveLength(6);
+    expect(REVIEWED_V5_DURABLE_OBJECT_BINDINGS).toHaveLength(5);
+    expect(REVIEWED_V5_DURABLE_OBJECT_BINDINGS.every(binding => (
+      /^[a-f0-9]{32}$/u.test(binding.namespaceId)
+    ))).toBe(true);
+    const harness = reviewedV5RuntimeHarness();
+    expect(harness.detail.resources.script_runtime).not.toHaveProperty('exports');
+    const plan = await harness.runtime.prepareUpload(harness.value);
+    expect(plan).toEqual({
+      mode: 'version',
+      predecessorDeploymentId: REVIEWED_V5_DEPLOYMENT_ID,
+      predecessorVersionId: REVIEWED_V5_VERSION_ID,
+    });
+    await expect(harness.runtime.uploadVersion(
+      harness.value,
+      plan,
+    )).resolves.toEqual({ versionId: VERSION_ID });
+    const metadata = harness.candidateMetadata();
+    expect(metadata).not.toHaveProperty('keep_bindings');
+    expect(metadata).not.toHaveProperty('migrations');
+    expect((metadata.bindings as { name: string; type: string }[])
+      .filter(binding => binding.type === 'inherit'))
+      .toEqual(AUTH_BRIDGE_NOTIFICATION_B0_SECRET_BINDING_NAMES.map(name => ({
+        name,
+        type: 'inherit',
+      })));
+    expect(harness.fetchImpl.mock.calls.filter(([, init]) => (
+      (init?.method ?? 'GET') === 'POST'
+    ))).toHaveLength(1);
+    harness.runtime.dispose();
+  });
+
+  it('accepts only the live null or reviewed empty-array API message envelope', async () => {
+    const invalid = reviewedV5RuntimeHarness(undefined, 'record');
+    await expect(invalid.runtime.prepareUpload(invalid.value)).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_NOTIFICATION_B0_CLOUDFLARE_RESPONSE_ENVELOPE_INVALID',
+    });
+    invalid.runtime.dispose();
+  });
+
+  it.each([
+    {
+      name: 'migration tag',
+      code: 'AUTH_BRIDGE_NOTIFICATION_B0_DEPLOY_REVIEWED_V5_PREREQUISITE_REQUIRED',
+      mutate: (detail: ReviewedV5Detail) => {
+        detail.resources.script_runtime.migration_tag = 'v4';
+      },
+    },
+    {
+      name: 'source etag',
+      code: 'AUTH_BRIDGE_NOTIFICATION_B0_DEPLOY_REVIEWED_V5_PREREQUISITE_REQUIRED',
+      mutate: (detail: ReviewedV5Detail) => {
+        detail.resources.script.etag = 'f'.repeat(64);
+      },
+    },
+    {
+      name: 'plain variable',
+      code: 'AUTH_BRIDGE_NOTIFICATION_B0_CLOUDFLARE_PREDECESSOR_BINDING_MISMATCH',
+      mutate: (detail: ReviewedV5Detail) => {
+        const binding = detail.resources.bindings.find(item => (
+          item.name === 'PUBLIC_AUTH_ENABLED'
+        ));
+        if (binding === undefined) throw new Error('fixture binding missing');
+        binding.text = 'false';
+      },
+    },
+    {
+      name: 'secret binding name',
+      code: 'AUTH_BRIDGE_NOTIFICATION_B0_CLOUDFLARE_PREDECESSOR_BINDING_MISMATCH',
+      mutate: (detail: ReviewedV5Detail) => {
+        const binding = detail.resources.bindings.find(item => (
+          item.name === 'ADMIN_TOKEN_SECRET'
+        ));
+        if (binding === undefined) throw new Error('fixture binding missing');
+        binding.name = 'UNREVIEWED_SECRET';
+      },
+    },
+    {
+      name: 'Durable Object namespace id',
+      code: 'AUTH_BRIDGE_NOTIFICATION_B0_CLOUDFLARE_PREDECESSOR_BINDING_MISMATCH',
+      mutate: (detail: ReviewedV5Detail) => {
+        const binding = detail.resources.bindings.find(item => (
+          item.name === 'ADMISSION_NOTIFICATIONS'
+        ));
+        if (binding === undefined) throw new Error('fixture binding missing');
+        binding.namespace_id = 'f'.repeat(32);
+      },
+    },
+  ])('rejects a near-miss reviewed v5 predecessor: $name', async ({
+    code,
+    mutate,
+  }) => {
+    const harness = reviewedV5RuntimeHarness(mutate);
+    await expect(harness.runtime.prepareUpload(harness.value))
+      .rejects.toMatchObject({ code });
+    expect(harness.fetchImpl.mock.calls.every(([, init]) => (
+      (init?.method ?? 'GET') === 'GET'
+    ))).toBe(true);
+    harness.runtime.dispose();
   });
 
   it('attests exact uploaded source, v5 runtime, configuration, DO exports, and six secrets', () => {

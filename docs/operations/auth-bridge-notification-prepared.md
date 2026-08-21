@@ -19,13 +19,16 @@ The protected manual workflow
 separate from the seventh-secret prepared-deploy journal and never reads,
 creates, inherits, replaces, or deletes `PLAYER_CANARY_OWNER_FID`.
 
-B0 accepts only a deployed `v4` predecessor with those exact six secret names.
-It builds the reviewed source without credentials, uploads one nondeploying
-candidate through the Workers Versions API with six `inherit` bindings resolved
-under strict inheritance from the freshly re-attested, durably pinned
-predecessor and only the `v4` to `v5` `AdmissionNotification` migration, then
-re-reads the candidate source, variables, compatibility settings, exports,
-migration tag, Durable Object bindings, and exact six-secret namespace. The
+B0 accepts only the exact reviewed deployed `v5` predecessor, including its
+pinned deployment/version identity, source/configuration identity, all 15
+predecessor variables, five Durable Object namespace bindings, and those exact
+six secret names. It builds the reviewed source without credentials, uploads
+one nondeploying candidate through the Workers Versions API with six `inherit`
+bindings resolved under strict inheritance from the freshly re-attested,
+durably pinned predecessor, and omits migration metadata because the
+`AdmissionNotification` migration is already live at `v5`. B0 then re-reads the
+candidate source, variables, compatibility settings, exports, migration tag,
+Durable Object bindings, and exact six-secret namespace. The
 append-only B0 journal records the predecessor deployment/version and every
 effect boundary. A retained Node file descriptor holds a nonblocking kernel
 `flock` on one fixed owner-only inode for the whole journal callback; acquisition
