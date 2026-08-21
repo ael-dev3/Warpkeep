@@ -204,11 +204,16 @@ function journalOptions(home: string, value: Readonly<Record<string, unknown>>) 
   } as const;
 }
 
-function response(body: unknown, url: string, resultInfo?: unknown) {
+function response(
+  body: unknown,
+  url: string,
+  resultInfo?: unknown,
+  nullMessages = false,
+) {
   const value = new Response(JSON.stringify({
     success: true,
-    errors: [],
-    messages: [],
+    errors: nullMessages ? null : [],
+    messages: nullMessages ? null : [],
     result: body,
     ...(resultInfo === undefined ? {} : { result_info: resultInfo }),
   }), {
@@ -1059,6 +1064,8 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
         service: 'warpkeep-auth-bridge',
         environment: 'production',
         cert_id: 'certificate-id',
+        enabled: true,
+        previews_enabled: false,
         }, ...(extraDomain ? [{
           id: 'extra-domain-id',
           zone_id: ZONE_ID,
@@ -1284,13 +1291,15 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
         service: 'warpkeep-auth-bridge',
         environment: 'production',
         cert_id: 'certificate-id',
+        enabled: true,
+        previews_enabled: false,
       }], url, {
         count: 1,
         page: 1,
         per_page: 100,
         total_count: 1,
         total_pages: 1,
-      });
+      }, true);
       if (url.endsWith('/environments/production/routes?show_zonename=true')) {
         return response([], url);
       }

@@ -458,8 +458,8 @@ function stableCompletedDeployment({
  * One nondeploying version upload and one irreversible 100% deployment. The
  * exact six-secret predecessor is durably pinned before reconciliation
  * and re-attested immediately before the sole deployment POST. The candidate
- * is always a nondeploying v5 version, including when it carries the reviewed
- * v4-to-v5 AdmissionNotification migration.
+ * is always a code-only nondeploying v5 version. Its exact reviewed predecessor
+ * is already at v5, so the candidate never replays Durable Object migrations.
  */
 export async function executeAuthBridgeNotificationB0DeployAdapter({
   contract,

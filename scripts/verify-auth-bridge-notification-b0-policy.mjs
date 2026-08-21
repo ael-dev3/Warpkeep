@@ -19,6 +19,18 @@ const BOOTSTRAP_PIN_NAMES = Object.freeze([
 ]);
 const PREDECESSOR_REATTESTATION =
   'await assertPredecessorStable(Object.freeze({';
+const REVIEWED_LIVE_V5_PREDECESSOR_LITERALS = Object.freeze([
+  "deploymentId: 'bb527e8d-c7dc-4eba-92a8-21beae4d3965'",
+  "versionId: '3aaf1957-7613-47f5-b40b-24018aec1335'",
+  "'5db8091c35db39f07c9b714441a9a8291c5a4636900a90ec19c3c5ea0b6982f7'",
+  "'Promote main:e8bd065 single admission notification; rollback:481f8b94'",
+  "versionMessage: 'main:e8bd065 single admission notification; rollback:481f8b94'",
+  "namespaceId: '01d53045d07a4f79ab21646de395d82c'",
+  "namespaceId: 'd800d603256f4a0f9907ba0b9267bc89'",
+  "namespaceId: 'bbda3461bd4c4caf91478705d65374fc'",
+  "namespaceId: '28d55581e3124399b8cfbc2bd4019bef'",
+  "namespaceId: 'b4525a7a374743deb3666471fe2ae06c'",
+]);
 
 function fail(code) {
   throw new Error(code);
@@ -145,6 +157,14 @@ export function verifyAuthBridgeNotificationB0StaticPolicy({
     'AUTH_BRIDGE_NOTIFICATION_B0_ENTRYPOINT_INVALID',
   );
   assertExactPredecessorReattestationCount(runtime);
+  for (const literal of REVIEWED_LIVE_V5_PREDECESSOR_LITERALS) {
+    exact(
+      runtime,
+      literal,
+      1,
+      'AUTH_BRIDGE_NOTIFICATION_B0_RUNTIME_BOUNDARY_INVALID',
+    );
+  }
   if (
     entrypoint.includes('reportedHome:')
     || adapter.includes('PLAYER_CANARY_OWNER_FID')
@@ -152,7 +172,23 @@ export function verifyAuthBridgeNotificationB0StaticPolicy({
     || runtime.includes('/secrets')
     || runtime.includes('excludeScript=true')
     || !runtime.includes("`${basePath}/versions?bindings_inherit=strict`")
-    || !runtime.includes('migrations: reviewedV5Migration(contract)')
+    || runtime.includes('reviewedV5Migration')
+    || runtime.includes('AUTH_BRIDGE_NOTIFICATION_B0_DEPLOY_V4_PREREQUISITE_REQUIRED')
+    || !runtime.includes(
+      'value === null || (Array.isArray(value) && value.length === 0)',
+    )
+    || !runtime.includes('|| metadata.migrations !== undefined')
+    || !runtime.includes(
+      'predecessorVersionId !== REVIEWED_LIVE_V5_PREDECESSOR.versionId',
+    )
+    || !runtime.includes(
+      'script.migration_tag !== REVIEWED_LIVE_V5_PREDECESSOR.migrationTag',
+    )
+    || !runtime.includes(
+      'runtime.migration_tag !== REVIEWED_LIVE_V5_PREDECESSOR.migrationTag',
+    )
+    || !runtime.includes('.map(exactReviewedLiveV5BindingProjection)')
+    || !runtime.includes('namespaceId: binding.namespace_id')
     || !runtime.includes("`${basePath}/deployments`")
     || !runtime.includes("'workers/triggered_by': 'warpkeep-notification-b0'")
     || !journal.includes('fcntl.flock(3,fcntl.LOCK_EX|fcntl.LOCK_NB)')
