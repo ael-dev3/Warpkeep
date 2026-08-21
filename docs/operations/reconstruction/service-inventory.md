@@ -1,6 +1,7 @@
 # Service inventory
 
-> **Alpha 0.3.13 uses backend protocol 3; recovery remains fail-closed.**
+> **The Alpha 0.3.43 Genesis 001 baseline uses backend protocol 3; recovery
+> remains fail-closed.**
 > The 10,000-cell Genesis world and 100 permanent castle slots are seeded,
 > deliberately admitted founders hold their permanent castles, and Worker public
 > auth plus shared-alpha realm entry are enabled at their separately recorded production
@@ -27,16 +28,17 @@ Key workflows:
 
 - `.github/workflows/verify.yml`: root, Worker, module, binding, build, audit, license, and asset gates.
 - `.github/workflows/codeql.yml`: JavaScript/TypeScript CodeQL.
-- `.github/workflows/deploy-pages.yml`: exact `${{ github.sha }}` build and Pages deployment from `main`.
+- `.github/workflows/deploy-pages.yml`: successful `Verify` `workflow_run` on
+  `main`, exact `head_sha` build and Pages deployment, and live postflight.
 
 Verified `main` protection requires pull requests including for administrators;
 strict current-head `verify`, `auth-bridge`, `spacetimedb-module`, `analyze`, and
 `CodeQL` checks; stale-review dismissal; resolved conversations; and linear
 history. Force pushes and deletion are disabled, and repository policy requires
-Actions to be full-SHA pinned. Required commit signatures remain disabled.
-Dependabot security updates remain intentionally disabled because automated
-security PRs in a public repository could disclose an unpatched issue; use a
-private, disclosure-safe remediation path.
+Actions to be full-SHA pinned. Required commit signatures are enabled.
+Dependabot security updates are enabled. Sensitive vulnerabilities that cannot
+be safely disclosed in a public pull request still require a private,
+disclosure-safe remediation path.
 
 The `github-pages` environment should permit only the intended release branch.
 Record live repository rules, required checks, and environment policy in the
@@ -166,11 +168,12 @@ still denied; see the resolver residual in
 [`threat-model.md`](../../security/threat-model.md).
 `admin_get_fid_auth_epoch` is retained only for rollback compatibility.
 
-Current Alpha 0.3.13 production has the complete 10,000-cell world,
-10,000 metadata rows, one realm, 100 immutable slots, and deliberately admitted
-founders with matching founding graphs. A recovery verifier must obtain the
-fresh privacy-safe aggregate and compare it with the private current-state
-record; it must not reuse the historical zero-admission values above.
+The Alpha 0.3.43 Genesis 001 production baseline has the complete 10,000-cell
+world, 10,000 metadata rows, one realm, 100 immutable slots, and deliberately
+admitted founders with matching founding graphs. A recovery verifier must
+obtain the fresh privacy-safe aggregate and compare it with the private
+current-state record; it must not reuse the historical zero-admission values
+above.
 
 The local module preserves the original five-table prefix exactly, in this
 order: private `allowed_fid`, public `world_tile`, public legacy `player`, public

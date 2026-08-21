@@ -2,9 +2,10 @@
 
 ## Status and scope
 
-This document describes the current security model for Warpkeep Alpha 0.3.19. It
-covers the browser application, Farcaster Sign In with Farcaster (SIWF), the Cloudflare authentication
-bridge, SpacetimeDB game authority, local operator tools, GitHub Actions, and GitHub Pages delivery.
+This document describes the current security model for Warpkeep's invite-only
+Alpha. It covers the browser application, Farcaster Sign In with Farcaster
+(SIWF), the Cloudflare authentication bridge, SpacetimeDB game authority, local
+operator tools, GitHub Actions, and GitHub Pages delivery.
 
 Warpkeep is an invite-only alpha. It is not certified against OWASP ASVS and has
 not received an independent penetration test. Security controls reduce risk; they do not make a browser,

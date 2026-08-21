@@ -14,7 +14,7 @@ The Realm records one experimental Community Mark for each admitted keeper per e
 
 ## Quick start
 
-Prerequisites: Git, Node.js 22.11 or newer within the Node 22 LTS line, and npm 10.
+Prerequisites: Git, Node.js 22.13 or newer within the Node 22 LTS line, and npm 10.9.8.
 
 ```sh
 git clone https://github.com/ael-dev3/Warpkeep.git

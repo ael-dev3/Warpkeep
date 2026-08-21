@@ -1,8 +1,8 @@
 # Deployment and recovery
 
-Alpha 0.3.13 uses backend protocol 3, schema generation 11, and the 10,000-cell
-Genesis 001 world. Recovery starts by observing the existing services; it never
-assumes that a local checkout describes production.
+The Alpha 0.3.43 Genesis 001 baseline uses backend protocol 3, schema generation
+11, and the 10,000-cell world. Recovery starts by observing the existing
+services; it never assumes that a local checkout describes production.
 
 This guide does not authorize a deployment, secret change, database publish,
 seed, admission, or public-auth change. Keep identities, mutable counts,
