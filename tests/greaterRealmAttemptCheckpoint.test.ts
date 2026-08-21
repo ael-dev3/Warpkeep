@@ -49,7 +49,7 @@ function binding(
   overrides: Partial<GreaterRealmAttemptCheckpointBinding> = {},
 ): GreaterRealmAttemptCheckpointBinding {
   return Object.freeze({
-    generatorVersion: 'greater-realm-v2-natural-continent-pr-a.17',
+    generatorVersion: 'greater-realm-v2-natural-continent-pr-a.18',
     sourceCommit: 'a'.repeat(40),
     toolchainReceipt: `sha256:${'b'.repeat(64)}`,
     toolchainProfile: 'darwin-arm64',
@@ -76,12 +76,13 @@ function seed(): Buffer {
 
 function createInitial(
   workspace: ReturnType<typeof openGreaterRealmPrivateWorkspace>,
+  checkpointBinding: GreaterRealmAttemptCheckpointBinding = binding(),
 ): GreaterRealmAttemptCheckpointState {
   const rootSeed = seed();
   try {
     return createGreaterRealmAttemptCheckpoint({
       workspace,
-      binding: binding(),
+      binding: checkpointBinding,
       batchHandle: BATCH_HANDLE,
       rootSeed,
       candidateHandle: FIRST_CANDIDATE,
@@ -161,9 +162,12 @@ describe('Greater Realm attempt-boundary checkpoint', () => {
     }
   });
 
-  it('resumes at the exact next ordinal with a chained rejection ledger and stable handle', () => {
+  it('resumes a historical .17 broad rejection at the exact next ordinal', () => {
     const { workspace } = fixture();
-    const initial = createInitial(workspace);
+    const historicalBinding = binding({
+      generatorVersion: 'greater-realm-v2-natural-continent-pr-a.17',
+    });
+    const initial = createInitial(workspace, historicalBinding);
     let afterProof: GreaterRealmAttemptCheckpointState | undefined;
     let afterGeography: GreaterRealmAttemptCheckpointState | undefined;
     let accepted: GreaterRealmAttemptCheckpointState | undefined;
@@ -185,7 +189,7 @@ describe('Greater Realm attempt-boundary checkpoint', () => {
         rejectedAttempt: Object.freeze({
           kind: 'geography-exhaustion',
           candidateOrdinal: 1,
-          rejectionCode: 'GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE',
+          rejectionCode: 'GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT',
         }),
         nextCandidateHandle: THIRD_CANDIDATE,
       });
@@ -200,7 +204,7 @@ describe('Greater Realm attempt-boundary checkpoint', () => {
       });
       const resumed = resumeGreaterRealmAttemptCheckpoint({
         workspace,
-        binding: binding(),
+        binding: historicalBinding,
       });
       try {
         expect(resumed.phase).toBe('accepted');
@@ -217,7 +221,7 @@ describe('Greater Realm attempt-boundary checkpoint', () => {
           {
             kind: 'geography-exhaustion',
             candidateOrdinal: 1,
-            rejectionCode: 'GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE',
+            rejectionCode: 'GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT',
           },
         ]);
         expect(resumed.acceptedPerformance).toEqual({
@@ -278,7 +282,7 @@ describe('Greater Realm attempt-boundary checkpoint', () => {
     const state = createInitial(workspace);
     try {
       for (const stale of [
-        binding({ generatorVersion: 'greater-realm-v2-natural-continent-pr-a.18' }),
+        binding({ generatorVersion: 'greater-realm-v2-natural-continent-pr-a.17' }),
         binding({ sourceCommit: 'c'.repeat(40) }),
         binding({ toolchainReceipt: `sha256:${'d'.repeat(64)}` }),
         binding({ toolchainProfile: 'linux-x64' }),
@@ -491,6 +495,35 @@ describe('Greater Realm attempt-boundary checkpoint', () => {
       clearGreaterRealmAttemptCheckpointSecret(rotated);
     } finally {
       closeSync(retiredDescriptor);
+      clearGreaterRealmAttemptCheckpointSecret(initial);
+    }
+  });
+
+  it('authenticates and retires a historical .17 broad rejection ledger', () => {
+    const { workspace } = fixture();
+    const historicalBinding = binding({
+      generatorVersion: 'greater-realm-v2-natural-continent-pr-a.17',
+    });
+    const initial = createInitial(workspace, historicalBinding);
+    let rejected: GreaterRealmAttemptCheckpointState | undefined;
+    try {
+      rejected = recordGreaterRealmRejectedAttempt({
+        workspace,
+        state: initial,
+        rejectedAttempt: Object.freeze({
+          kind: 'geography-exhaustion',
+          candidateOrdinal: 0,
+          rejectionCode: 'GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT',
+        }),
+        nextCandidateHandle: SECOND_CANDIDATE,
+      });
+      expect(() => abortGreaterRealmAttemptCheckpoint({ workspace })).not.toThrow();
+      expect(existsSync(join(
+        workspace.root,
+        greaterRealmAttemptCheckpointTestSeams.checkpointDirectory,
+      ))).toBe(false);
+    } finally {
+      clearGreaterRealmAttemptCheckpointSecret(rejected);
       clearGreaterRealmAttemptCheckpointSecret(initial);
     }
   });
