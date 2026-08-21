@@ -6,6 +6,7 @@ import {
   chmodSync,
   closeSync,
   existsSync,
+  linkSync,
   lstatSync,
   mkdirSync,
   mkdtempSync,
@@ -13,6 +14,7 @@ import {
   readFileSync,
   realpathSync,
   readdirSync,
+  renameSync,
   rmSync,
   symlinkSync,
   unlinkSync,
@@ -60,6 +62,63 @@ function temporaryDirectory(prefix: string): string {
   chmodSync(directory, 0o700);
   temporaryDirectories.push(directory);
   return directory;
+}
+
+function linkedPublicationPair(directory: string): Readonly<{
+  temporaryPath: string;
+  destinationPath: string;
+  dev: number;
+  ino: number;
+}> {
+  const linked = readdirSync(directory).map(name => Object.freeze({
+    name,
+    path: join(directory, name),
+    status: lstatSync(join(directory, name)),
+  })).filter(entry => entry.status.nlink === 2);
+  const temporary = linked.filter(entry => entry.name.endsWith('.tmp'));
+  expect(temporary).toHaveLength(1);
+  const destination = linked.filter(entry => (
+    entry.path !== temporary[0]!.path
+    && entry.status.dev === temporary[0]!.status.dev
+    && entry.status.ino === temporary[0]!.status.ino
+  ));
+  expect(destination).toHaveLength(1);
+  return Object.freeze({
+    temporaryPath: temporary[0]!.path,
+    destinationPath: destination[0]!.path,
+    dev: temporary[0]!.status.dev,
+    ino: temporary[0]!.status.ino,
+  });
+}
+
+function tamperLinkedPublication(input: Readonly<{
+  parent: string;
+  linked: ReturnType<typeof linkedPublicationPair>;
+  mismatch: 'inode' | 'body' | 'mode' | 'nlink';
+}>): void {
+  const body = readFileSync(input.linked.destinationPath);
+  unlinkSync(input.linked.temporaryPath);
+  if (input.mismatch === 'inode') {
+    const replacement = join(input.parent, 'wrong-inode-replacement.json');
+    writeFileSync(replacement, body, { mode: 0o600 });
+    unlinkSync(input.linked.destinationPath);
+    renameSync(replacement, input.linked.destinationPath);
+    expect(lstatSync(input.linked.destinationPath).ino).not.toBe(input.linked.ino);
+  } else if (input.mismatch === 'body') {
+    writeFileSync(input.linked.destinationPath, '{"wrong":true}\n', { encoding: 'utf8' });
+  } else if (input.mismatch === 'mode') {
+    chmodSync(input.linked.destinationPath, 0o640);
+  } else {
+    linkSync(input.linked.destinationPath, join(input.parent, 'wrong-nlink.json'));
+  }
+}
+
+function nestedErrorCodes(error: unknown): string[] {
+  if (error === null || typeof error !== 'object') return [];
+  const code = Reflect.get(error, 'code');
+  const own = typeof code === 'string' ? [code] : [];
+  if (!(error instanceof AggregateError)) return own;
+  return [...own, ...error.errors.flatMap(nestedErrorCodes)];
 }
 
 afterEach(() => {
@@ -1251,6 +1310,72 @@ describe('Greater Realm private cutover receipts', () => {
       operation: async () => 'released',
     })).resolves.toBe('released');
   });
+
+  it('completes a live initial-lock publication after a second admission repairs its linked pair', async () => {
+    const parent = temporaryDirectory('warpkeep-gr-lock-linked-publication-');
+    const directory = join(parent, 'dedicated');
+    const operation = vi.fn(async () => 'completed');
+    let repaired = false;
+    await expect(withGreaterRealmCutoverOperatorLock({
+      directory,
+      repositoryRoot: process.cwd(),
+      testOnlyStep: step => {
+        if (step !== 'after-directory-fsync') return;
+        const linked = linkedPublicationPair(directory);
+        const secondAdmission = writePrivateGreaterRealmCutoverReceipt({
+          directory,
+          repositoryRoot: process.cwd(),
+          kind: 'warpkeep-greater-realm-production-relocation-v1',
+          record,
+        });
+        expect(secondAdmission.result).toBe('installed');
+        expect(existsSync(linked.temporaryPath)).toBe(false);
+        const destination = lstatSync(linked.destinationPath);
+        expect({ dev: destination.dev, ino: destination.ino, nlink: destination.nlink })
+          .toEqual({ dev: linked.dev, ino: linked.ino, nlink: 1 });
+        repaired = true;
+      },
+      operation,
+    })).resolves.toBe('completed');
+    expect(repaired).toBe(true);
+    expect(operation).toHaveBeenCalledOnce();
+    expect(readdirSync(directory).some(name => name.endsWith('.tmp'))).toBe(false);
+    expect(readdirSync(directory)).not.toContain('.greater-realm-cutover.lock');
+    expect(readdirSync(directory).filter(name => (
+      /^greater-realm-relocation-[0-9a-f]{64}\.json$/u.test(name)
+    ))).toHaveLength(1);
+  });
+
+  it.each(['inode', 'body', 'mode', 'nlink'] as const)(
+    'rejects cooperative initial-lock completion with the wrong destination %s',
+    async mismatch => {
+      const parent = temporaryDirectory(`warpkeep-gr-lock-linked-wrong-${mismatch}-`);
+      const directory = join(parent, 'dedicated');
+      const operation = vi.fn(async () => 'must-not-run');
+      let failure: unknown;
+      try {
+        await withGreaterRealmCutoverOperatorLock({
+          directory,
+          repositoryRoot: process.cwd(),
+          testOnlyStep: step => {
+            if (step !== 'after-directory-fsync') return;
+            tamperLinkedPublication({
+              parent,
+              linked: linkedPublicationPair(directory),
+              mismatch,
+            });
+          },
+          operation,
+        });
+      } catch (error) {
+        failure = error;
+      }
+      expect(nestedErrorCodes(failure)).toContain(
+        'GREATER_REALM_CUTOVER_OPERATOR_LOCK_FAILED',
+      );
+      expect(operation).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     'before-directory',

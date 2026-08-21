@@ -1,4 +1,16 @@
-import { appendFileSync, existsSync, readFileSync, readdirSync } from 'node:fs';
+import {
+  appendFileSync,
+  chmodSync,
+  existsSync,
+  linkSync,
+  lstatSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { join } from 'node:path';
 
 import {
   createGreaterRealmCutoverExpectedAfterPredicate,
@@ -83,7 +95,120 @@ function submitted(name: string): boolean {
   return existsSync(counterPath!) && readFileSync(counterPath!, 'utf8').split('\n').includes(name);
 }
 
+function linkedPublicationPair(): Readonly<{
+  temporaryPath: string;
+  destinationPath: string;
+  dev: number;
+  ino: number;
+}> {
+  const linked = readdirSync(directory!).map(name => Object.freeze({
+    name,
+    path: join(directory!, name),
+    status: lstatSync(join(directory!, name)),
+  })).filter(entry => entry.status.nlink === 2);
+  const temporary = linked.filter(entry => entry.name.endsWith('.tmp'));
+  if (temporary.length !== 1) throw new Error('JOURNAL_LINKED_PUBLICATION_TEMPORARY_INVALID');
+  const destination = linked.filter(entry => (
+    entry.path !== temporary[0]!.path
+    && entry.status.dev === temporary[0]!.status.dev
+    && entry.status.ino === temporary[0]!.status.ino
+  ));
+  if (destination.length !== 1) {
+    throw new Error('JOURNAL_LINKED_PUBLICATION_DESTINATION_INVALID');
+  }
+  return Object.freeze({
+    temporaryPath: temporary[0]!.path,
+    destinationPath: destination[0]!.path,
+    dev: temporary[0]!.status.dev,
+    ino: temporary[0]!.status.ino,
+  });
+}
+
+function exerciseLinkedImmutablePublication(step: string): void {
+  if (crashStep === `repair-${step}`) {
+    const linked = linkedPublicationPair();
+    const repairReceipt = writePrivateGreaterRealmCutoverReceipt({
+      directory: directory!,
+      repositoryRoot: repositoryRoot!,
+      kind: 'warpkeep-greater-realm-production-relocation-v1',
+      record: Object.freeze({
+        outcome: 'verified',
+        artifactDigest: 'f'.repeat(64),
+        linkedPublicationRepairStep: step,
+      }),
+      now: new Date(now),
+    });
+    if (repairReceipt.result !== 'installed' || existsSync(linked.temporaryPath)) {
+      throw new Error('JOURNAL_LINKED_PUBLICATION_REPAIR_FAILED');
+    }
+    const repaired = lstatSync(linked.destinationPath);
+    if (
+      repaired.dev !== linked.dev || repaired.ino !== linked.ino || repaired.nlink !== 1
+    ) throw new Error('JOURNAL_LINKED_PUBLICATION_REPAIR_INVALID');
+    appendFileSync(`${counterPath}.linked-publication-repaired`, `${step}\n`, {
+      encoding: 'utf8', mode: 0o600,
+    });
+    return;
+  }
+  const tamperPrefix = `tamper-${step}-`;
+  if (!crashStep?.startsWith(tamperPrefix)) return;
+  const mismatch = crashStep.slice(tamperPrefix.length);
+  if (!['inode', 'body', 'mode', 'nlink'].includes(mismatch)) {
+    throw new Error('JOURNAL_LINKED_PUBLICATION_TAMPER_INVALID');
+  }
+  const linked = linkedPublicationPair();
+  const body = readFileSync(linked.destinationPath);
+  unlinkSync(linked.temporaryPath);
+  if (mismatch === 'inode') {
+    const replacement = `${counterPath}.wrong-inode-replacement.json`;
+    writeFileSync(replacement, body, { mode: 0o600 });
+    unlinkSync(linked.destinationPath);
+    renameSync(replacement, linked.destinationPath);
+  } else if (mismatch === 'body') {
+    writeFileSync(linked.destinationPath, '{"wrong":true}\n', { encoding: 'utf8' });
+  } else if (mismatch === 'mode') {
+    chmodSync(linked.destinationPath, 0o640);
+  } else {
+    linkSync(linked.destinationPath, `${counterPath}.wrong-nlink`);
+  }
+}
+
 function injectStep(step: string): void {
+  if (
+    step === 'after-command-started-linked-publication-fsync'
+    || step === 'after-prepared-linked-publication-fsync'
+  ) exerciseLinkedImmutablePublication(step);
+  if (
+    crashStep === 'concurrent-recovery-claim-before-link'
+    && step === 'before-recovery-owner-link'
+  ) {
+    appendFileSync(`${counterPath}.claim-ready`, `${process.pid}\n`, {
+      encoding: 'utf8', mode: 0o600,
+    });
+    const deadline = Date.now() + 10_000;
+    while (!existsSync(`${counterPath}.claim-release`)) {
+      if (Date.now() >= deadline) {
+        throw new Error('JOURNAL_CONCURRENT_CLAIM_BARRIER_TIMEOUT');
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+    }
+  }
+  if (
+    (crashStep === 'concurrent-recovery-claim-before-link'
+      || crashStep === 'concurrent-linked-recovery-owner-publication')
+    && step === 'after-recovery-owner-fsync'
+  ) {
+    appendFileSync(`${counterPath}.claim-linked-ready`, `${process.pid}\n`, {
+      encoding: 'utf8', mode: 0o600,
+    });
+    const deadline = Date.now() + 10_000;
+    while (!existsSync(`${counterPath}.claim-finish-release`)) {
+      if (Date.now() >= deadline) {
+        throw new Error('JOURNAL_CONCURRENT_CLAIM_FINISH_BARRIER_TIMEOUT');
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+    }
+  }
   if (step === crashStep) process.exit(0);
   if (`fail-${step}` === crashStep) {
     throw new Error(`JOURNAL_INJECTED_CLEANUP_FAILURE:${step}`);
@@ -152,6 +277,68 @@ async function installInitialImport(): Promise<never> {
     },
   });
   throw new Error('JOURNAL_CRASH_FIXTURE_DID_NOT_EXIT');
+}
+
+async function installCompletedImport(): Promise<void> {
+  await withGreaterRealmCutoverOperatorLock({
+    directory: directory!,
+    repositoryRoot: repositoryRoot!,
+    now: () => now,
+    testOnlyStep: injectStep,
+    operation: async control => {
+      const chain = createGreaterRealmCutoverOperationJournalChain({
+        directory: directory!,
+        repositoryRoot: repositoryRoot!,
+        control,
+        command,
+        target: GREATER_REALM_CUTOVER_RECEIPT_TARGET,
+        sourceRelease,
+        now: () => now,
+        testOnlyStep: injectStep,
+      });
+      const oneOperationTerminal = predicate('fixture-command-one-operation-v1', 1, 1);
+      chain.bindCommandPlan({
+        beforeStatus: before0,
+        beforeAudit: audit0,
+        terminalExpectedAfterPredicate: oneOperationTerminal,
+      });
+      const operation = await chain.prepare({
+        operationKind: 'reducer',
+        operationName: 'fixture-op-1',
+        arguments: Object.freeze({ batch: 1 }),
+        identity: Object.freeze({ reducer: 'fixture-op-1' }),
+        beforeStatus: before0,
+        beforeAudit: audit0,
+        expectedAfterPredicate: oneOperationTerminal,
+      });
+      await operation.writePermit.markSubmissionUncertain!();
+      operation.writePermit();
+      appendOperation('op-1');
+      await operation.reconcile({
+        afterStatus: after1,
+        afterAudit: audit1,
+        outcome: 'verified',
+      });
+      chain.reconcileCommand({ afterStatus: after1, afterAudit: audit1 });
+      const receipt = receiptFor(chain);
+      const prepared = chain.prepareCommandReceipt(receipt);
+      const installed = writePrivateGreaterRealmCutoverReceipt({
+        directory: directory!,
+        repositoryRoot: repositoryRoot!,
+        kind: receipt.kind,
+        record: receipt.record,
+        now: new Date(now),
+      });
+      if (
+        installed.receiptDigest !== prepared.receiptDigest
+        || !installed.path.endsWith(prepared.receiptBasename)
+      ) throw new Error('JOURNAL_COMPLETED_IMPORT_RECEIPT_INVALID');
+      chain.completeCommandReceipt({
+        path: installed.path,
+        receiptDigest: installed.receiptDigest,
+      });
+    },
+  });
 }
 
 async function installInitialLockOnly(): Promise<never> {
@@ -440,6 +627,7 @@ async function recoverPublish(): Promise<void> {
 }
 
 if (action === 'initial-import') await installInitialImport();
+else if (action === 'complete-import') await installCompletedImport();
 else if (action === 'initial-lock-only') await installInitialLockOnly();
 else if (action === 'recover-import') await recoverImport();
 else if (action === 'initial-publish') await installInitialPublish('compile-changing');

@@ -4,11 +4,15 @@ import { spawn, spawnSync } from 'node:child_process';
 import {
   chmodSync,
   existsSync,
+  linkSync,
+  lstatSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
   readdirSync,
+  renameSync,
   rmSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -51,7 +55,8 @@ function temporaryDirectory(prefix: string): string {
 }
 
 function fixture(input: Readonly<{
-  action: 'initial-import' | 'recover-import' | 'initial-publish' | 'recover-publish'
+  action: 'initial-import' | 'complete-import' | 'recover-import'
+    | 'initial-publish' | 'recover-publish'
     | 'initial-publish-same-schema' | 'initial-publish-plan-only' | 'initial-lock-only'
     | 'normal-publish-cleanup-context' | 'initial-publish-cleanup-tail'
     | 'initial-publish-cleanup-failure';
@@ -113,11 +118,35 @@ function failingFixture(input: Readonly<{
   expect(result.stderr).toMatch(/JOURNAL_INJECTED_CLEANUP_FAILURE/u);
 }
 
+function failingImmutablePublicationFixture(input: Readonly<{
+  directory: string;
+  now: number;
+  crashStep: string;
+  counterPath: string;
+}>): void {
+  const result = spawnSync(process.execPath, [
+    TSX,
+    FIXTURE,
+    'complete-import',
+    input.directory,
+    process.cwd(),
+    String(input.now),
+    input.crashStep,
+    input.counterPath,
+  ], { encoding: 'utf8', env: process.env, timeout: 20_000 });
+  expect(result.status, `${result.stdout}\n${result.stderr}`).not.toBe(0);
+  expect(result.stderr).toMatch(
+    /GREATER_REALM_CUTOVER_JOURNAL_(?:FILE_(?:REPLACED|CHANGED|INVALID)|WRITE_FAILED)/u,
+  );
+}
+
 function concurrentFixture(input: Readonly<{
   action: 'recover-import';
   directory: string;
   now: number;
-  crashStep: 'concurrent-recovery-claim';
+  crashStep: 'concurrent-recovery-claim'
+    | 'concurrent-recovery-claim-before-link'
+    | 'concurrent-linked-recovery-owner-publication';
   counterPath: string;
 }>): Promise<Readonly<{
   status: number | null;
@@ -163,6 +192,53 @@ function concurrentFixture(input: Readonly<{
 function operationNames(counterPath: string): string[] {
   if (!existsSync(counterPath)) return [];
   return readFileSync(counterPath, 'utf8').trim().split('\n').filter(Boolean);
+}
+
+async function waitForOperationCount(
+  path: string,
+  count: number,
+  timeoutError: string,
+): Promise<void> {
+  const deadline = Date.now() + 10_000;
+  while (operationNames(path).length !== count) {
+    if (Date.now() >= deadline) throw new Error(timeoutError);
+    await new Promise(resolve => setTimeout(resolve, 10));
+  }
+}
+
+function linkedRecoveryOwnerPair(directory: string): Readonly<{
+  temporaryPath: string;
+  destinationPath: string;
+  dev: number;
+  ino: number;
+}> {
+  const temporaryName = readdirSync(directory).find(name => (
+    /^\.greater-realm-cutover-recovery-owner-([0-9a-f]{32})-([0-9]{8})-[0-9a-f]{32}-[1-9][0-9]*-[0-9a-f]{64}-[0-9a-f]{12}\.json\.tmp$/u
+      .test(name)
+  ));
+  expect(temporaryName).toBeDefined();
+  const match = /^\.greater-realm-cutover-recovery-owner-([0-9a-f]{32})-([0-9]{8})-/u
+    .exec(temporaryName!);
+  expect(match).not.toBeNull();
+  const destinationPath = join(
+    directory,
+    `.greater-realm-cutover-recovery-owner-${match![1]}-${match![2]}.json`,
+  );
+  const temporaryPath = join(directory, temporaryName!);
+  const temporary = lstatSync(temporaryPath);
+  const destination = lstatSync(destinationPath);
+  expect(temporary.nlink).toBe(2);
+  expect(destination.nlink).toBe(2);
+  expect({ dev: temporary.dev, ino: temporary.ino }).toEqual({
+    dev: destination.dev,
+    ino: destination.ino,
+  });
+  return Object.freeze({
+    temporaryPath,
+    destinationPath,
+    dev: temporary.dev,
+    ino: temporary.ino,
+  });
 }
 
 function journalFiles(directory: string): string[] {
@@ -431,6 +507,48 @@ afterEach(() => {
 
 describe('Greater Realm cutover operation journal crash recovery', () => {
   it.each([
+    'after-command-started-linked-publication-fsync',
+    'after-prepared-linked-publication-fsync',
+  ])('completes live immutable publication after a second admission repairs %s', step => {
+    const parent = temporaryDirectory(`warpkeep-gr-linked-immutable-${step}-`);
+    const directory = join(parent, 'receipts');
+    const counterPath = join(parent, 'remote-operations.txt');
+    fixture({
+      action: 'complete-import',
+      directory,
+      now: Date.now(),
+      crashStep: `repair-${step}`,
+      counterPath,
+    });
+    expect(operationNames(`${counterPath}.linked-publication-repaired`)).toEqual([step]);
+    expect(operationNames(counterPath)).toEqual(['op-1']);
+    expect(journalFiles(directory)).toEqual([]);
+    expect(readdirSync(directory).some(name => name.endsWith('.tmp'))).toBe(false);
+    expect(readdirSync(directory)).not.toContain('.greater-realm-cutover.lock');
+    expect(readdirSync(directory).filter(name => (
+      /^greater-realm-(?:import|relocation)-[0-9a-f]{64}\.json$/u.test(name)
+    ))).toHaveLength(2);
+  }, 45_000);
+
+  it.each(['inode', 'body', 'mode', 'nlink'] as const)(
+    'rejects cooperative immutable completion with the wrong destination %s',
+    mismatch => {
+      const parent = temporaryDirectory(`warpkeep-gr-linked-immutable-wrong-${mismatch}-`);
+      const directory = join(parent, 'receipts');
+      const counterPath = join(parent, 'remote-operations.txt');
+      failingImmutablePublicationFixture({
+        directory,
+        now: Date.now(),
+        crashStep:
+          `tamper-after-command-started-linked-publication-fsync-${mismatch}`,
+        counterPath,
+      });
+      expect(operationNames(counterPath)).toEqual([]);
+    },
+    45_000,
+  );
+
+  it.each([
     'before-recovery-owner-link',
     'after-recovery-owner-partial-write-before-fsync',
     'after-recovery-owner-fsync',
@@ -547,11 +665,7 @@ describe('Greater Realm cutover operation journal crash recovery', () => {
       action: 'recover-import', directory, now,
       crashStep: 'concurrent-recovery-claim', counterPath,
     });
-    const deadline = Date.now() + 10_000;
-    while (operationNames(readyPath).length !== 2) {
-      if (Date.now() >= deadline) throw new Error('JOURNAL_CONCURRENT_READY_TIMEOUT');
-      await new Promise(resolve => setTimeout(resolve, 10));
-    }
+    await waitForOperationCount(readyPath, 2, 'JOURNAL_CONCURRENT_READY_TIMEOUT');
     writeFileSync(releasePath, 'release\n', { encoding: 'utf8', mode: 0o600 });
     const results = await Promise.all([first, second]);
     expect(results.map(result => result.signal)).toEqual([null, null]);
@@ -559,6 +673,44 @@ describe('Greater Realm cutover operation journal crash recovery', () => {
       results.map(result => result.status).sort(),
       results.map(result => `${result.stdout}\n${result.stderr}`).join('\n---\n'),
     ).toEqual([0, 1]);
+    expect(operationNames(counterPath)).toEqual(['op-1', 'op-2']);
+    expect(journalFiles(directory)).toEqual([]);
+    expect(readdirSync(directory)).not.toContain('.greater-realm-cutover.lock');
+  }, 45_000);
+
+  it('reports an exact CAS conflict when two recovery owners reach the link together', async () => {
+    const parent = temporaryDirectory('warpkeep-gr-owner-cas-');
+    const directory = join(parent, 'receipts');
+    const counterPath = join(parent, 'remote-operations.txt');
+    const readyPath = `${counterPath}.claim-ready`;
+    const releasePath = `${counterPath}.claim-release`;
+    const linkedReadyPath = `${counterPath}.claim-linked-ready`;
+    const finishReleasePath = `${counterPath}.claim-finish-release`;
+    const now = Date.now();
+    fixture({ action: 'initial-import', directory, now, counterPath });
+    const first = concurrentFixture({
+      action: 'recover-import', directory, now,
+      crashStep: 'concurrent-recovery-claim-before-link', counterPath,
+    });
+    const second = concurrentFixture({
+      action: 'recover-import', directory, now,
+      crashStep: 'concurrent-recovery-claim-before-link', counterPath,
+    });
+    await waitForOperationCount(readyPath, 2, 'JOURNAL_CONCURRENT_CAS_READY_TIMEOUT');
+    writeFileSync(releasePath, 'release\n', { encoding: 'utf8', mode: 0o600 });
+    await waitForOperationCount(
+      linkedReadyPath,
+      1,
+      'JOURNAL_CONCURRENT_CAS_LINKED_TIMEOUT',
+    );
+    const rejected = await Promise.race([first, second]);
+    expect(rejected.signal).toBeNull();
+    expect(rejected.status, `${rejected.stdout}\n${rejected.stderr}`).toBe(1);
+    expect(rejected.stderr).toMatch(/GREATER_REALM_CUTOVER_RECOVERY_OWNER_CAS_CONFLICT/u);
+    writeFileSync(finishReleasePath, 'release\n', { encoding: 'utf8', mode: 0o600 });
+    const results = await Promise.all([first, second]);
+    expect(results.map(result => result.signal)).toEqual([null, null]);
+    expect(results.map(result => result.status).sort()).toEqual([0, 1]);
     expect(results.map(result => result.stderr).join('\n')).toMatch(
       /GREATER_REALM_CUTOVER_RECOVERY_OWNER_CAS_CONFLICT/u,
     );
@@ -566,6 +718,92 @@ describe('Greater Realm cutover operation journal crash recovery', () => {
     expect(journalFiles(directory)).toEqual([]);
     expect(readdirSync(directory)).not.toContain('.greater-realm-cutover.lock');
   }, 45_000);
+
+  it('completes a recovery-owner publication after another admission repairs its exact linked pair', async () => {
+    const parent = temporaryDirectory('warpkeep-gr-owner-linked-publication-');
+    const directory = join(parent, 'receipts');
+    const counterPath = join(parent, 'remote-operations.txt');
+    const linkedReadyPath = `${counterPath}.claim-linked-ready`;
+    const finishReleasePath = `${counterPath}.claim-finish-release`;
+    const now = Date.now();
+    fixture({ action: 'initial-import', directory, now, counterPath });
+    const publisher = concurrentFixture({
+      action: 'recover-import', directory, now,
+      crashStep: 'concurrent-linked-recovery-owner-publication', counterPath,
+    });
+    await waitForOperationCount(
+      linkedReadyPath,
+      1,
+      'JOURNAL_LINKED_RECOVERY_OWNER_READY_TIMEOUT',
+    );
+    const linked = linkedRecoveryOwnerPair(directory);
+    const inspection = inspectGreaterRealmCutoverOperatorJournalRecovery({
+      directory,
+      repositoryRoot: process.cwd(),
+      now: () => now,
+    });
+    expect(inspection.recoveryOwnerState).toBe('live');
+    expect(inspection.recoveryEligible).toBe(false);
+    expect(existsSync(linked.temporaryPath)).toBe(false);
+    const repaired = lstatSync(linked.destinationPath);
+    expect({ dev: repaired.dev, ino: repaired.ino, nlink: repaired.nlink }).toEqual({
+      dev: linked.dev,
+      ino: linked.ino,
+      nlink: 1,
+    });
+    writeFileSync(finishReleasePath, 'release\n', { encoding: 'utf8', mode: 0o600 });
+    const result = await publisher;
+    expect(result.signal).toBeNull();
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+    expect(operationNames(counterPath)).toEqual(['op-1', 'op-2']);
+    expect(journalFiles(directory)).toEqual([]);
+    expect(readdirSync(directory)).not.toContain('.greater-realm-cutover.lock');
+  }, 45_000);
+
+  it.each(['inode', 'body', 'mode', 'nlink'] as const)(
+    'rejects cooperative recovery-owner completion with the wrong destination %s',
+    async mismatch => {
+      const parent = temporaryDirectory(`warpkeep-gr-owner-linked-wrong-${mismatch}-`);
+      const directory = join(parent, 'receipts');
+      const counterPath = join(parent, 'remote-operations.txt');
+      const linkedReadyPath = `${counterPath}.claim-linked-ready`;
+      const finishReleasePath = `${counterPath}.claim-finish-release`;
+      const now = Date.now();
+      fixture({ action: 'initial-import', directory, now, counterPath });
+      const publisher = concurrentFixture({
+        action: 'recover-import', directory, now,
+        crashStep: 'concurrent-linked-recovery-owner-publication', counterPath,
+      });
+      await waitForOperationCount(
+        linkedReadyPath,
+        1,
+        `JOURNAL_LINKED_RECOVERY_OWNER_WRONG_${mismatch.toUpperCase()}_READY_TIMEOUT`,
+      );
+      const linked = linkedRecoveryOwnerPair(directory);
+      const body = readFileSync(linked.destinationPath);
+      unlinkSync(linked.temporaryPath);
+      if (mismatch === 'inode') {
+        const replacement = join(parent, 'wrong-inode-replacement.json');
+        writeFileSync(replacement, body, { mode: 0o600 });
+        unlinkSync(linked.destinationPath);
+        renameSync(replacement, linked.destinationPath);
+        expect(lstatSync(linked.destinationPath).ino).not.toBe(linked.ino);
+      } else if (mismatch === 'body') {
+        writeFileSync(linked.destinationPath, '{"wrong":true}\n', { encoding: 'utf8' });
+      } else if (mismatch === 'mode') {
+        chmodSync(linked.destinationPath, 0o640);
+      } else {
+        linkSync(linked.destinationPath, join(parent, 'wrong-nlink.json'));
+      }
+      writeFileSync(finishReleasePath, 'release\n', { encoding: 'utf8', mode: 0o600 });
+      const result = await publisher;
+      expect(result.signal).toBeNull();
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(1);
+      expect(result.stderr).toMatch(/GREATER_REALM_CUTOVER_RECOVERY_OWNER_WRITE_FAILED/u);
+      expect(operationNames(counterPath)).toEqual(['op-1']);
+    },
+    45_000,
+  );
 
   it('removes a partial initial-lock prelink temporary only after encoded owner death is exact', async () => {
     const parent = temporaryDirectory('warpkeep-gr-lock-prelink-temp-');
