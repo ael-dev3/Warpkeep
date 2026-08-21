@@ -129,6 +129,30 @@ const REVIEWED_LIVE_V5_DURABLE_OBJECT_BINDINGS = Object.freeze([
     namespaceId: 'b4525a7a374743deb3666471fe2ae06c',
   }),
 ]);
+const REVIEWED_V5_API_NAMED_HANDLER_NAMES = Object.freeze([
+  'AdmissionNotification',
+  'AuthRateLimiter',
+  'ChallengeReplayGuard',
+  'DurableObjectAdmissionNotificationStore',
+  'DurableObjectChallengeStore',
+  'DurableObjectQaObserverChallengeStore',
+  'DurableObjectSessionFamilyStore',
+  'MemoryChallengeStore',
+  'MemoryQaObserverChallengeStore',
+  'MemorySessionFamilyStore',
+  'MiniAppWebhookInvalidError',
+  'MiniAppWebhookVerifierUnavailableError',
+  'QaChallengeReplayGuard',
+  'SessionFamily',
+  'SpacetimeHttpAccessRequestResolver',
+  'SpacetimeHttpAuthEpochResolver',
+  'SpacetimeHttpQaObserverResolver',
+  'admissionNotificationDeliveryContractDigest',
+  'admissionNotificationDeliveryContractVector',
+  'createAuthBridge',
+  'createMiniAppWebhookVerifier',
+  'serializeAdmissionNotificationDeliveryContract',
+]);
 
 export class AuthBridgeNotificationB0CloudflareRuntimeError extends Error {
   constructor(code, deploymentMayHaveChanged = false) {
@@ -985,6 +1009,170 @@ function bindingProjection(binding) {
   fail('AUTH_BRIDGE_NOTIFICATION_B0_CLOUDFLARE_VERSION_BINDING_UNEXPECTED');
 }
 
+function detailBindingProjection(binding) {
+  if (!isRecord(binding) || typeof binding.name !== 'string') {
+    fail('AUTH_BRIDGE_NOTIFICATION_B0_CLOUDFLARE_VERSION_INVALID');
+  }
+  const keys = Object.keys(binding).sort().join(',');
+  if (
+    binding.type === 'plain_text'
+    && keys === 'name,text,type'
+    && typeof binding.text === 'string'
+  ) return Object.freeze({
+    name: binding.name,
+    type: binding.type,
+    text: binding.text,
+  });
+  if (binding.type === 'secret_text' && keys === 'name,type') {
+    return Object.freeze({ name: binding.name, type: binding.type });
+  }
+  if (
+    binding.type === 'durable_object_namespace'
+    && keys === 'class_name,name,namespace_id,type'
+    && typeof binding.class_name === 'string'
+    && ACCOUNT_ID.test(binding.namespace_id ?? '')
+  ) return Object.freeze({
+    name: binding.name,
+    type: binding.type,
+    className: binding.class_name,
+    namespaceId: binding.namespace_id,
+  });
+  fail('AUTH_BRIDGE_NOTIFICATION_B0_CLOUDFLARE_VERSION_BINDING_UNEXPECTED');
+}
+
+function exactApiScriptAttestation(script, code) {
+  if (
+    !isRecord(script)
+    || Object.keys(script).sort().join(',')
+      !== 'etag,handlers,last_deployed_from,named_handlers'
+    || !SHA256_HEX.test(script.etag ?? '')
+    || !exactJson(script.handlers, ['fetch'])
+    || script.last_deployed_from !== 'api'
+    || !Array.isArray(script.named_handlers)
+  ) fail(code);
+  const namedHandlers = script.named_handlers.map(namedHandler => {
+    if (
+      !isRecord(namedHandler)
+      || Object.keys(namedHandler).sort().join(',') !== 'handlers,name'
+      || typeof namedHandler.name !== 'string'
+      || !exactJson(namedHandler.handlers, ['class'])
+    ) fail(code);
+    return namedHandler.name;
+  }).sort();
+  if (!exactJson(namedHandlers, [...REVIEWED_V5_API_NAMED_HANDLER_NAMES].sort())) {
+    fail(code);
+  }
+}
+
+function exactApiVersionShape(value, contract, expectedTag, expectedMessage, code) {
+  const metadata = value.metadata;
+  const annotations = value.annotations;
+  const resources = value.resources;
+  const runtime = resources.script_runtime;
+  if (
+    Object.keys(value).sort().join(',')
+      !== 'annotations,id,metadata,number,resources'
+    || !Number.isSafeInteger(value.number)
+    || value.number < 1
+    || Object.keys(metadata).sort().join(',')
+      !== 'author_email,author_id,created_on,has_preview,source'
+    || metadata.author_email !== ''
+    || !ACCOUNT_ID.test(metadata.author_id ?? '')
+    || metadata.source !== 'api'
+    || metadata.has_preview !== false
+    || typeof metadata.created_on !== 'string'
+    || !CLOUDFLARE_UTC.test(metadata.created_on)
+    || Number.isNaN(Date.parse(metadata.created_on))
+    || !isRecord(annotations)
+    || Object.keys(annotations).sort().join(',')
+      !== 'workers/message,workers/tag,workers/triggered_by'
+    || annotations['workers/message'] !== expectedMessage
+    || annotations['workers/tag'] !== expectedTag
+    || annotations['workers/triggered_by'] !== 'version_upload'
+    || Object.keys(resources).sort().join(',')
+      !== 'bindings,script,script_runtime'
+    || Object.keys(runtime).sort().join(',')
+      !== 'compatibility_date,compatibility_flags,migration_tag,usage_model'
+    || runtime.compatibility_date !== contract.compatibilityDate
+    || !exactJson(runtime.compatibility_flags, contract.compatibilityFlags)
+    || runtime.migration_tag !== contract.migrations.at(-1).tag
+    || runtime.usage_model !== 'standard'
+  ) fail(code);
+  exactApiScriptAttestation(resources.script, code);
+}
+
+function expectedReviewedDurableObjectBindings(contract, code) {
+  const contracted = contract.durableObjectBindings
+    .map(({ name, className }) => ({ name, className }))
+    .sort((left, right) => left.name.localeCompare(right.name, 'en'));
+  const reviewed = REVIEWED_LIVE_V5_DURABLE_OBJECT_BINDINGS
+    .map(({ name, className }) => ({ name, className }))
+    .sort((left, right) => left.name.localeCompare(right.name, 'en'));
+  if (!exactJson(contracted, reviewed)) fail(code);
+  return REVIEWED_LIVE_V5_DURABLE_OBJECT_BINDINGS.map(binding => ({
+    name: binding.name,
+    type: 'durable_object_namespace',
+    className: binding.className,
+    namespaceId: binding.namespaceId,
+  }));
+}
+
+function exactExportsOrApiScript(
+  value,
+  contract,
+  expectedTag,
+  expectedMessage,
+  code,
+) {
+  const exports = value.resources.script_runtime.exports;
+  if (exports === undefined) {
+    exactApiVersionShape(
+      value,
+      contract,
+      expectedTag,
+      expectedMessage,
+      code,
+    );
+    return;
+  }
+  if (!isRecord(exports)) fail(code);
+  const durableExports = Object.entries(exports)
+    .filter(([, exported]) => exported?.type === 'durable-object')
+    .map(([name, exported]) => {
+      if (
+        !isRecord(exported)
+        || exported.type !== 'durable-object'
+        || exported.storage !== 'sqlite'
+        || exported.container !== undefined
+        || ![undefined, 'created'].includes(exported.state)
+        || Object.keys(exported).some(key => ![
+          'state', 'storage', 'type',
+        ].includes(key))
+      ) fail(code);
+      return name;
+    })
+    .sort((left, right) => left.localeCompare(right, 'en'));
+  const expectedExports = contract.durableObjectBindings
+    .map(binding => binding.className)
+    .sort((left, right) => left.localeCompare(right, 'en'));
+  const nonDurableExports = Object.entries(exports)
+    .filter(([, exported]) => exported?.type !== 'durable-object');
+  const defaultExport = nonDurableExports[0]?.[1];
+  if (
+    !exactJson(durableExports, expectedExports)
+    || nonDurableExports.length !== 1
+    || nonDurableExports[0][0] !== 'default'
+    || !isRecord(defaultExport)
+    || defaultExport.type !== 'worker'
+    || ![undefined, 'created'].includes(defaultExport.state)
+    || (defaultExport.cache !== undefined
+      && !exactJson(defaultExport.cache, { enabled: false }))
+    || Object.keys(defaultExport).some(key => ![
+      'cache', 'state', 'type',
+    ].includes(key))
+  ) fail(code);
+}
+
 function projectVersion(value, contract, sourceDigest) {
   if (
     !isRecord(value)
@@ -1023,7 +1211,7 @@ function projectVersion(value, contract, sourceDigest) {
     || runtime.migration_tag !== contract.migrations.at(-1).tag
     || sourceDigest !== contract.sourceDigest
   ) fail('AUTH_BRIDGE_NOTIFICATION_B0_CLOUDFLARE_VERSION_MISMATCH');
-  const bindings = value.resources.bindings.map(bindingProjection)
+  const bindings = value.resources.bindings.map(detailBindingProjection)
     .sort((left, right) => left.name.localeCompare(right.name, 'en'));
   const expected = [
     ...Object.entries(contract.variables).map(([name, text]) => ({
@@ -1032,53 +1220,21 @@ function projectVersion(value, contract, sourceDigest) {
       text,
     })),
     ...contract.secretBindingNames.map(name => ({ name, type: 'secret_text' })),
-    ...contract.durableObjectBindings.map(binding => ({
-      name: binding.name,
-      type: 'durable_object_namespace',
-      className: binding.className,
-    })),
+    ...expectedReviewedDurableObjectBindings(
+      contract,
+      'AUTH_BRIDGE_NOTIFICATION_B0_CLOUDFLARE_VERSION_BINDING_MISMATCH',
+    ),
   ].sort((left, right) => left.name.localeCompare(right.name, 'en'));
   if (!exactJson(bindings, expected)) {
     fail('AUTH_BRIDGE_NOTIFICATION_B0_CLOUDFLARE_VERSION_BINDING_MISMATCH');
   }
-  if (!isRecord(runtime.exports)) {
-    fail('AUTH_BRIDGE_NOTIFICATION_B0_CLOUDFLARE_VERSION_EXPORT_MISMATCH');
-  }
-  const durableExports = Object.entries(runtime.exports)
-    .filter(([, exported]) => exported?.type === 'durable-object')
-    .map(([name, exported]) => {
-      if (
-        !isRecord(exported)
-        || exported.type !== 'durable-object'
-        || exported.storage !== 'sqlite'
-        || exported.container !== undefined
-        || ![undefined, 'created'].includes(exported.state)
-        || Object.keys(exported).some(key => ![
-          'state', 'storage', 'type',
-        ].includes(key))
-      ) fail('AUTH_BRIDGE_NOTIFICATION_B0_CLOUDFLARE_VERSION_EXPORT_MISMATCH');
-      return name;
-    })
-    .sort((left, right) => left.localeCompare(right, 'en'));
-  const expectedExports = contract.durableObjectBindings
-    .map(binding => binding.className)
-    .sort((left, right) => left.localeCompare(right, 'en'));
-  const nonDurableExports = Object.entries(runtime.exports)
-    .filter(([, exported]) => exported?.type !== 'durable-object');
-  const defaultExport = nonDurableExports[0]?.[1];
-  if (
-    !exactJson(durableExports, expectedExports)
-    || nonDurableExports.length !== 1
-    || nonDurableExports[0][0] !== 'default'
-    || !isRecord(defaultExport)
-    || defaultExport.type !== 'worker'
-    || ![undefined, 'created'].includes(defaultExport.state)
-    || (defaultExport.cache !== undefined
-      && !exactJson(defaultExport.cache, { enabled: false }))
-    || Object.keys(defaultExport).some(key => ![
-      'cache', 'state', 'type',
-    ].includes(key))
-  ) fail('AUTH_BRIDGE_NOTIFICATION_B0_CLOUDFLARE_VERSION_EXPORT_MISMATCH');
+  exactExportsOrApiScript(
+    value,
+    contract,
+    contract.versionTag,
+    contract.versionMessage,
+    'AUTH_BRIDGE_NOTIFICATION_B0_CLOUDFLARE_VERSION_EXPORT_MISMATCH',
+  );
   return Object.freeze({
     ...contract,
     versionId: value.id,

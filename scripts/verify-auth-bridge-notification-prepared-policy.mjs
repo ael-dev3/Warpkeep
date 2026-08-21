@@ -16,6 +16,37 @@ const BOOTSTRAP_PIN_NAMES = Object.freeze([
   'WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256',
   'WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256',
 ]);
+const REVIEWED_V5_NAMESPACE_ID_LITERALS = Object.freeze([
+  "namespaceId: '01d53045d07a4f79ab21646de395d82c'",
+  "namespaceId: 'd800d603256f4a0f9907ba0b9267bc89'",
+  "namespaceId: 'bbda3461bd4c4caf91478705d65374fc'",
+  "namespaceId: '28d55581e3124399b8cfbc2bd4019bef'",
+  "namespaceId: 'b4525a7a374743deb3666471fe2ae06c'",
+]);
+const REVIEWED_V5_API_NAMED_HANDLER_NAMES = Object.freeze([
+  'AdmissionNotification',
+  'AuthRateLimiter',
+  'ChallengeReplayGuard',
+  'DurableObjectAdmissionNotificationStore',
+  'DurableObjectChallengeStore',
+  'DurableObjectQaObserverChallengeStore',
+  'DurableObjectSessionFamilyStore',
+  'MemoryChallengeStore',
+  'MemoryQaObserverChallengeStore',
+  'MemorySessionFamilyStore',
+  'MiniAppWebhookInvalidError',
+  'MiniAppWebhookVerifierUnavailableError',
+  'QaChallengeReplayGuard',
+  'SessionFamily',
+  'SpacetimeHttpAccessRequestResolver',
+  'SpacetimeHttpAuthEpochResolver',
+  'SpacetimeHttpQaObserverResolver',
+  'admissionNotificationDeliveryContractDigest',
+  'admissionNotificationDeliveryContractVector',
+  'createAuthBridge',
+  'createMiniAppWebhookVerifier',
+  'serializeAdmissionNotificationDeliveryContract',
+]);
 
 function fail(code) {
   throw new Error(code);
@@ -260,6 +291,9 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     || /^\s+(?:actions|contents):\s+write\s*$/mu.test(workflow)
   ) fail('AUTH_BRIDGE_PREPARED_UNREVIEWED_DEPLOYMENT_MECHANICS');
   const entrypoint = read('scripts/auth-bridge-notification-prepared-deploy.mjs');
+  const runtime = read(
+    'scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs',
+  );
   for (const [exact, count] of [
     ["const REPOSITORY = 'ael-dev3/Warpkeep';", 1],
     ["const WORKFLOW_PATH = '.github/workflows/notification-bridge-prepared.yml';", 1],
@@ -330,6 +364,59 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     || sourceAttestationAfterInstalledIndex <= installedAttestationIndex
     || credentialReadIndex <= sourceAttestationAfterInstalledIndex
   ) fail('AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_BOUNDARY_INVALID');
+  const reviewedNamedHandlerBlock = [
+    'const REVIEWED_V5_API_NAMED_HANDLER_NAMES = Object.freeze([',
+    ...REVIEWED_V5_API_NAMED_HANDLER_NAMES.map(name => `  '${name}',`),
+    ']);',
+  ].join('\n');
+  exactOccurrence(
+    runtime,
+    reviewedNamedHandlerBlock,
+    'AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID',
+  );
+  for (const [value, expected] of [
+    ['function exactApiScriptAttestation(script, code) {', 1],
+    ['function exactApiVersionShape(', 1],
+    ['function exactExportsOrApiScript(', 1],
+    ['exactApiScriptAttestation(', 2],
+    ['exactApiVersionShape(', 2],
+    ['exactExportsOrApiScript(', 3],
+    ['const REVIEWED_V5_API_NAMED_HANDLER_NAMES = Object.freeze([', 1],
+    ["!== 'etag,handlers,last_deployed_from,named_handlers'", 1],
+    ["!SHA256_HEX.test(script.etag ?? '')", 1],
+    ["!exactJson(script.handlers, ['fetch'])", 1],
+    ["!== 'handlers,name'", 1],
+    ["!exactJson(namedHandler.handlers, ['class'])", 1],
+    ["script.last_deployed_from !== 'api'", 1],
+    ['!Array.isArray(script.named_handlers)', 1],
+    ["!== 'annotations,id,metadata,number,resources'", 1],
+    ['value.number < 1', 1],
+    ["!== 'author_email,author_id,created_on,has_preview,source'", 1],
+    ["metadata.author_email !== ''", 1],
+    ["!ACCOUNT_ID.test(metadata.author_id ?? '')", 1],
+    ["!== 'workers/message,workers/tag,workers/triggered_by'", 1],
+    ["!== 'bindings,script,script_runtime'", 1],
+    ["!== 'compatibility_date,compatibility_flags,migration_tag,usage_model'", 1],
+    ["runtime.usage_model !== 'standard'", 1],
+    ["annotations['workers/triggered_by'] !== 'version_upload'", 1],
+    ["keys === 'class_name,name,namespace_id,type'", 1],
+    ['.map(detailBindingProjection)', 2],
+    ['...expectedReviewedDurableObjectBindings(', 2],
+    ['`notification-b0-${contract.sourceCommit}`', 1],
+    ['`Warpkeep notification B0 ${contract.sourceCommit}`', 1],
+  ]) exactCount(
+    runtime,
+    value,
+    expected,
+    'AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID',
+  );
+  for (const literal of REVIEWED_V5_NAMESPACE_ID_LITERALS) {
+    exactOccurrence(
+      runtime,
+      literal,
+      'AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID',
+    );
+  }
   return Object.freeze({
     bridgeNotificationDeliveryEnabled: true,
     hermesExecutionApproved: false,

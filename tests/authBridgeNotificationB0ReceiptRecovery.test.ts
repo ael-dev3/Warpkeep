@@ -126,6 +126,7 @@ function testHarness() {
   let now = new Date('2026-08-13T12:00:00.000Z');
   let candidateExists = false;
   let liveVersion = PREDECESSOR_VERSION_ID;
+  let liveAttestationSourceCommit = SOURCE_COMMIT;
   let runAttempt = 0;
   const mutations: string[] = [];
   const value = authBridgeNotificationB0VersionContract({
@@ -164,7 +165,7 @@ function testHarness() {
       return responseWithUrl({
         schemaVersion: 1,
         profile: 'warpkeep-admission-notification-bridge-v1',
-        bridgeSourceCommit: SOURCE_COMMIT,
+        bridgeSourceCommit: liveAttestationSourceCommit,
         notificationDeliveryEnabled: true,
         notificationTransportConfigured: true,
         admissionNotificationStoreConfigured: true,
@@ -251,6 +252,9 @@ function testHarness() {
     mutations,
     invoke,
     advance() { now = new Date(now.getTime() + 60_000); },
+    setLiveAttestationSourceCommit(sourceCommit: string) {
+      liveAttestationSourceCommit = sourceCommit;
+    },
     inspect: () => withJournal(journal => journal.inspect()),
     receipts: () => {
       const directory = join(
@@ -265,6 +269,27 @@ function testHarness() {
 }
 
 describe('auth-bridge notification B0 receipt recovery', () => {
+  it('rejects a retained receipt recovery when live source no longer matches', async () => {
+    const harness = testHarness();
+    await expect(harness.invoke({
+      testOnlyAfterDeployCompleted: () => {
+        throw new Error('crash immediately after durable completed');
+      },
+    })).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_NOTIFICATION_B0_DEPLOY_RECEIPT_PREPARATION_AMBIGUOUS',
+      deploymentMayHaveChanged: true,
+    });
+    expect(harness.mutations).toEqual(['versions-post', 'deployments-post']);
+    harness.setLiveAttestationSourceCommit('f'.repeat(40));
+    harness.advance();
+    await expect(harness.invoke()).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_NOTIFICATION_B0_DEPLOY_RECEIPT_PREPARATION_AMBIGUOUS',
+      deploymentMayHaveChanged: true,
+    });
+    expect(harness.mutations).toEqual(['versions-post', 'deployments-post']);
+    expect(harness.receipts()).toEqual([]);
+  });
+
   it('reopens a real completed WAL with an advancing observation clock', async () => {
     const harness = testHarness();
     await expect(harness.invoke({

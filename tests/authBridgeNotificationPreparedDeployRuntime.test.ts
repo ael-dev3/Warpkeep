@@ -69,6 +69,57 @@ const BEFORE_MODES = Object.freeze({
   publicAuthEnabled: true,
   accessExpectedFidRequired: false,
 });
+const EXACT_DURABLE_OBJECT_BINDINGS = Object.freeze([
+  Object.freeze({
+    name: 'ADMISSION_NOTIFICATIONS',
+    className: 'AdmissionNotification',
+    namespaceId: '01d53045d07a4f79ab21646de395d82c',
+  }),
+  Object.freeze({
+    name: 'AUTH_RATE_LIMITER',
+    className: 'AuthRateLimiter',
+    namespaceId: 'd800d603256f4a0f9907ba0b9267bc89',
+  }),
+  Object.freeze({
+    name: 'CHALLENGE_REPLAY_GUARD',
+    className: 'ChallengeReplayGuard',
+    namespaceId: 'bbda3461bd4c4caf91478705d65374fc',
+  }),
+  Object.freeze({
+    name: 'QA_CHALLENGE_REPLAY_GUARD',
+    className: 'QaChallengeReplayGuard',
+    namespaceId: '28d55581e3124399b8cfbc2bd4019bef',
+  }),
+  Object.freeze({
+    name: 'SESSION_FAMILIES',
+    className: 'SessionFamily',
+    namespaceId: 'b4525a7a374743deb3666471fe2ae06c',
+  }),
+]);
+const EXACT_NAMED_HANDLERS = Object.freeze([
+  'AdmissionNotification',
+  'AuthRateLimiter',
+  'ChallengeReplayGuard',
+  'DurableObjectAdmissionNotificationStore',
+  'DurableObjectChallengeStore',
+  'DurableObjectQaObserverChallengeStore',
+  'DurableObjectSessionFamilyStore',
+  'MemoryChallengeStore',
+  'MemoryQaObserverChallengeStore',
+  'MemorySessionFamilyStore',
+  'MiniAppWebhookInvalidError',
+  'MiniAppWebhookVerifierUnavailableError',
+  'QaChallengeReplayGuard',
+  'SessionFamily',
+  'SpacetimeHttpAccessRequestResolver',
+  'SpacetimeHttpAuthEpochResolver',
+  'SpacetimeHttpQaObserverResolver',
+  'admissionNotificationDeliveryContractDigest',
+  'admissionNotificationDeliveryContractVector',
+  'createAuthBridge',
+  'createMiniAppWebhookVerifier',
+  'serializeAdmissionNotificationDeliveryContract',
+]);
 
 function multipart(boundary = 'warpkeep-boundary-v1') {
   const metadata = JSON.stringify({ main_module: 'index.js' });
@@ -159,6 +210,107 @@ function contract(sourceDigest: string) {
       className: string;
     }>[];
   }>;
+}
+
+type ExactVersionDetail = Record<string, unknown> & {
+  annotations: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  resources: {
+    bindings: Record<string, unknown>[];
+    script: Record<string, unknown>;
+    script_runtime: Record<string, unknown>;
+  };
+};
+
+function exactNamespaceId(name: string) {
+  const binding = EXACT_DURABLE_OBJECT_BINDINGS.find(item => item.name === name);
+  if (binding === undefined) throw new Error(`unknown Durable Object ${name}`);
+  return binding.namespaceId;
+}
+
+function exactNamedHandlers() {
+  return EXACT_NAMED_HANDLERS.map(name => ({ handlers: ['class'], name }));
+}
+
+function exactScript(etag: string) {
+  return {
+    etag,
+    handlers: ['fetch'],
+    last_deployed_from: 'api',
+    named_handlers: exactNamedHandlers(),
+  };
+}
+
+function exactExports(value: ReturnType<typeof contract>) {
+  return {
+    default: { type: 'worker' },
+    ...Object.fromEntries(value.durableObjectBindings.map(binding => [
+      binding.className,
+      { type: 'durable-object', storage: 'sqlite', state: 'created' },
+    ])),
+  };
+}
+
+function exactVersionDetail(
+  value: ReturnType<typeof contract>,
+  {
+    id = VERSION_ID,
+    number = 2,
+    createdAt = '2026-08-12T23:58:00.000Z',
+    etag = 'e'.repeat(64),
+    secretBindingNames = value.secretBindingNames,
+    annotations = {
+      'workers/message': value.versionMessage,
+      'workers/tag': value.versionTag,
+      'workers/triggered_by': 'version_upload',
+    },
+    exports: runtimeExports,
+  }: Readonly<{
+    id?: string;
+    number?: number;
+    createdAt?: string;
+    etag?: string;
+    secretBindingNames?: readonly string[];
+    annotations?: Readonly<Record<string, unknown>>;
+    exports?: Readonly<Record<string, unknown>> | null;
+  }> = {},
+): ExactVersionDetail {
+  return {
+    id,
+    number,
+    annotations: { ...annotations },
+    metadata: {
+      author_email: '',
+      author_id: 'e'.repeat(32),
+      created_on: createdAt,
+      has_preview: false,
+      source: 'api',
+    },
+    resources: {
+      bindings: [
+        ...Object.entries(value.variables).map(([name, text]) => ({
+          name,
+          type: 'plain_text',
+          text,
+        })),
+        ...secretBindingNames.map(name => ({ name, type: 'secret_text' })),
+        ...value.durableObjectBindings.map(binding => ({
+          name: binding.name,
+          type: 'durable_object_namespace',
+          class_name: binding.className,
+          namespace_id: exactNamespaceId(binding.name),
+        })),
+      ],
+      script: exactScript(etag),
+      script_runtime: {
+        compatibility_date: value.compatibilityDate,
+        compatibility_flags: value.compatibilityFlags,
+        migration_tag: 'v5',
+        usage_model: 'standard',
+        ...(runtimeExports === undefined ? {} : { exports: runtimeExports }),
+      },
+    },
+  };
 }
 
 function version(value = contract('d'.repeat(64))) {
@@ -673,56 +825,32 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       'multipart/form-data; boundary=warpkeep-boundary-v1',
     ).sourceDigest;
     const value = contract(digest);
-    const bindings = [
-      ...Object.entries(value.variables).map(([name, text]) => ({
-        name,
-        type: 'plain_text',
-        text,
-      })),
-      ...value.secretBindingNames.map(name => ({ name, type: 'secret_text' })),
-      ...value.durableObjectBindings.map(binding => ({
-        name: binding.name,
-        type: 'durable_object_namespace',
-        class_name: binding.className,
-      })),
-    ];
-    const raw = {
-      id: VERSION_ID,
-      annotations: {
-        'workers/tag': value.versionTag,
-        'workers/message': value.versionMessage,
-      },
-      metadata: {
-        created_on: '2026-08-12T23:58:00.000Z',
-        source: 'api',
-      },
-      resources: {
-        bindings,
-        script_runtime: {
-          compatibility_date: value.compatibilityDate,
-          compatibility_flags: value.compatibilityFlags,
-          limits: {},
-          migration_tag: 'v5',
-          usage_model: 'standard',
-          exports: {
-            default: { type: 'worker', cache: { enabled: false }, state: 'created' },
-            ...Object.fromEntries(value.durableObjectBindings.map(binding => [
-              binding.className,
-              { type: 'durable-object', storage: 'sqlite', state: 'created' },
-            ])),
-          },
-        },
-      },
-    };
+    const raw = exactVersionDetail(value);
+    expect(raw.resources.bindings).toHaveLength(28);
+    expect(raw.resources.script.named_handlers).toHaveLength(22);
+    expect(raw.resources.script_runtime).not.toHaveProperty('exports');
     expect(projectAuthBridgeNotificationPreparedCloudflareVersion({
       value: raw,
       contract: value,
       sourceDigest: digest,
     })).toEqual({ ...value, versionId: VERSION_ID, createdAt: raw.metadata.created_on });
+
+    const exportsPresent = exactVersionDetail(value, {
+      exports: exactExports(value),
+    });
+    expect(projectAuthBridgeNotificationPreparedCloudflareVersion({
+      value: exportsPresent,
+      contract: value,
+      sourceDigest: digest,
+    })).toMatchObject({ versionId: VERSION_ID });
+
     expect(() => projectAuthBridgeNotificationPreparedCloudflareVersion({
       value: {
         ...raw,
-        resources: { ...raw.resources, bindings: bindings.slice(1) },
+        resources: {
+          ...raw.resources,
+          bindings: raw.resources.bindings.slice(1),
+        },
       },
       contract: value,
       sourceDigest: digest,
@@ -737,7 +865,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
           ...raw,
           resources: {
             ...raw.resources,
-            bindings: bindings.map(binding => (
+            bindings: raw.resources.bindings.map(binding => (
               binding.name === 'PLAYER_CANARY_OWNER_FID'
                 ? { ...binding, ...extra }
                 : binding
@@ -748,26 +876,229 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
         sourceDigest: digest,
       })).toThrow('AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_BINDING_UNEXPECTED');
     }
-    for (const scriptRuntime of [
-      {
-        ...raw.resources.script_runtime,
-        exports: {
-          ...raw.resources.script_runtime.exports,
-          default: { type: 'worker', cache: { enabled: true }, state: 'created' },
-        },
+  });
+
+  it.each([
+    {
+      name: 'top-level extra key',
+      mutate: (detail: ExactVersionDetail) => {
+        detail.unreviewed = false;
       },
-      { ...raw.resources.script_runtime, limits: { cpu_ms: 1 } },
-      { ...raw.resources.script_runtime, usage_model: 'unbound' },
-    ]) {
-      expect(() => projectAuthBridgeNotificationPreparedCloudflareVersion({
-        value: {
-          ...raw,
-          resources: { ...raw.resources, script_runtime: scriptRuntime },
-        },
-        contract: value,
-        sourceDigest: digest,
-      })).toThrow(/AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_(?:EXPORT|RUNTIME)_MISMATCH/u);
-    }
+    },
+    {
+      name: 'missing named handler',
+      mutate: (detail: ExactVersionDetail) => {
+        (detail.resources.script.named_handlers as unknown[]).pop();
+      },
+    },
+    {
+      name: 'duplicate named handler',
+      mutate: (detail: ExactVersionDetail) => {
+        const handlers = detail.resources.script.named_handlers as Record<
+          string,
+          unknown
+        >[];
+        handlers.push(structuredClone(handlers[0]));
+      },
+    },
+    {
+      name: 'renamed named handler',
+      mutate: (detail: ExactVersionDetail) => {
+        const handlers = detail.resources.script.named_handlers as Record<
+          string,
+          unknown
+        >[];
+        handlers[0].name = 'AdmissionNotificationV2';
+      },
+    },
+    {
+      name: 'malformed named handler',
+      mutate: (detail: ExactVersionDetail) => {
+        const handlers = detail.resources.script.named_handlers as Record<
+          string,
+          unknown
+        >[];
+        handlers[0].handlers = ['fetch'];
+      },
+    },
+    {
+      name: 'named handler extra key',
+      mutate: (detail: ExactVersionDetail) => {
+        const handlers = detail.resources.script.named_handlers as Record<
+          string,
+          unknown
+        >[];
+        handlers[0].type = 'class';
+      },
+    },
+    {
+      name: 'null named handlers',
+      mutate: (detail: ExactVersionDetail) => {
+        detail.resources.script.named_handlers = null;
+      },
+    },
+    {
+      name: 'missing fetch handler',
+      mutate: (detail: ExactVersionDetail) => {
+        detail.resources.script.handlers = ['scheduled'];
+      },
+    },
+    {
+      name: 'missing script handlers key',
+      mutate: (detail: ExactVersionDetail) => {
+        delete detail.resources.script.handlers;
+      },
+    },
+    {
+      name: 'non-SHA script etag',
+      mutate: (detail: ExactVersionDetail) => {
+        detail.resources.script.etag = 'not-a-sha';
+      },
+    },
+    {
+      name: 'null script',
+      mutate: (detail: ExactVersionDetail) => {
+        detail.resources.script = null as unknown as Record<string, unknown>;
+      },
+    },
+    {
+      name: 'wrong deployment source',
+      mutate: (detail: ExactVersionDetail) => {
+        detail.resources.script.last_deployed_from = 'wrangler';
+      },
+    },
+    {
+      name: 'null exports',
+      mutate: (detail: ExactVersionDetail) => {
+        detail.resources.script_runtime.exports = null;
+      },
+    },
+    {
+      name: 'present near-miss exports',
+      mutate: (detail: ExactVersionDetail) => {
+        detail.resources.script_runtime.exports = {
+          default: { type: 'worker' },
+        };
+      },
+    },
+    {
+      name: 'runtime limits under exports-absent shape',
+      mutate: (detail: ExactVersionDetail) => {
+        detail.resources.script_runtime.limits = {};
+      },
+    },
+    {
+      name: 'runtime extra under exports-absent shape',
+      mutate: (detail: ExactVersionDetail) => {
+        detail.resources.script_runtime.unreviewed = false;
+      },
+    },
+    {
+      name: 'wrong Durable Object namespace id',
+      mutate: (detail: ExactVersionDetail) => {
+        const binding = detail.resources.bindings.find(item => (
+          item.name === 'ADMISSION_NOTIFICATIONS'
+        ));
+        if (binding === undefined) throw new Error('fixture binding missing');
+        binding.namespace_id = 'f'.repeat(32);
+      },
+    },
+    {
+      name: 'raw binding extra key',
+      mutate: (detail: ExactVersionDetail) => {
+        detail.resources.bindings[0].unreviewed = false;
+      },
+    },
+    {
+      name: 'wrong secret binding name',
+      mutate: (detail: ExactVersionDetail) => {
+        const binding = detail.resources.bindings.find(item => (
+          item.name === 'ADMIN_TOKEN_SECRET'
+        ));
+        if (binding === undefined) throw new Error('fixture binding missing');
+        binding.name = 'UNREVIEWED_SECRET';
+      },
+    },
+    {
+      name: 'duplicate secret binding',
+      mutate: (detail: ExactVersionDetail) => {
+        const binding = detail.resources.bindings.find(item => (
+          item.name === 'ADMIN_TOKEN_SECRET'
+        ));
+        if (binding === undefined) throw new Error('fixture binding missing');
+        detail.resources.bindings.push(structuredClone(binding));
+      },
+    },
+    {
+      name: 'metadata drift',
+      mutate: (detail: ExactVersionDetail) => {
+        detail.metadata.has_preview = true;
+      },
+    },
+    {
+      name: 'metadata author email drift',
+      mutate: (detail: ExactVersionDetail) => {
+        detail.metadata.author_email = 'operator@example.invalid';
+      },
+    },
+    {
+      name: 'metadata author email non-string',
+      mutate: (detail: ExactVersionDetail) => {
+        detail.metadata.author_email = null;
+      },
+    },
+    {
+      name: 'metadata missing preview',
+      mutate: (detail: ExactVersionDetail) => {
+        delete detail.metadata.has_preview;
+      },
+    },
+    {
+      name: 'metadata source drift',
+      mutate: (detail: ExactVersionDetail) => {
+        detail.metadata.source = 'wrangler';
+      },
+    },
+    {
+      name: 'metadata extra key',
+      mutate: (detail: ExactVersionDetail) => {
+        detail.metadata.modified_on = '2026-08-12T23:58:00.000Z';
+      },
+    },
+    {
+      name: 'annotation drift',
+      mutate: (detail: ExactVersionDetail) => {
+        detail.annotations['workers/triggered_by'] = 'deployment';
+      },
+    },
+    {
+      name: 'annotation missing trigger',
+      mutate: (detail: ExactVersionDetail) => {
+        delete detail.annotations['workers/triggered_by'];
+      },
+    },
+    {
+      name: 'annotation extra key',
+      mutate: (detail: ExactVersionDetail) => {
+        detail.annotations['workers/unreviewed'] = 'forbidden';
+      },
+    },
+  ])('rejects exact prepared candidate GET near miss before deployment: $name', ({
+    mutate,
+  }) => {
+    const body = multipart();
+    const digest = inspectAuthBridgeNotificationPreparedMultipart(
+      body,
+      'multipart/form-data; boundary=warpkeep-boundary-v1',
+    ).sourceDigest;
+    const value = contract(digest);
+    const hostile = structuredClone(exactVersionDetail(value));
+    mutate(hostile);
+    expect(() => projectAuthBridgeNotificationPreparedCloudflareVersion({
+      value: hostile,
+      contract: value,
+      sourceDigest: digest,
+    })).toThrow(/AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_/u);
   });
 
   it('derives the immutable uploaded-source proof from version-specific modules', async () => {
@@ -777,46 +1108,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       .sourceDigest;
     const value = contract(digest);
     const body = uploadMultipart(value);
-    const bindings = [
-      ...Object.entries(value.variables).map(([name, text]) => ({
-        name,
-        type: 'plain_text',
-        text,
-      })),
-      ...value.secretBindingNames.map(name => ({ name, type: 'secret_text' })),
-      ...value.durableObjectBindings.map(binding => ({
-        name: binding.name,
-        type: 'durable_object_namespace',
-        class_name: binding.className,
-      })),
-    ];
-    const stable = {
-      id: VERSION_ID,
-      annotations: {
-        'workers/tag': value.versionTag,
-        'workers/message': value.versionMessage,
-      },
-      metadata: {
-        created_on: '2026-08-12T23:58:00.000Z',
-        source: 'api',
-      },
-      resources: {
-        bindings,
-        script: { etag: 'e'.repeat(64) },
-        script_runtime: {
-          compatibility_date: value.compatibilityDate,
-          compatibility_flags: value.compatibilityFlags,
-          migration_tag: 'v5',
-          exports: {
-            default: { type: 'worker' },
-            ...Object.fromEntries(value.durableObjectBindings.map(binding => [
-              binding.className,
-              { type: 'durable-object', storage: 'sqlite', state: 'created' },
-            ])),
-          },
-        },
-      },
-    };
+    const stable = exactVersionDetail(value);
     let remoteBody = contentMultipart();
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -873,78 +1165,21 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       .sourceDigest;
     const value = contract(digest);
     const body = uploadMultipart(value);
-    const bindings = [
-      ...Object.entries(value.variables).map(([name, text]) => ({
-        name,
-        type: 'plain_text',
-        text,
-      })),
-      ...value.secretBindingNames.map(name => ({ name, type: 'secret_text' })),
-      ...value.durableObjectBindings.map(binding => ({
-        name: binding.name,
-        type: 'durable_object_namespace',
-        class_name: binding.className,
-      })),
-    ];
-    const targetDetail = {
-      id: VERSION_ID,
-      annotations: {
-        'workers/tag': value.versionTag,
-        'workers/message': value.versionMessage,
-      },
-      metadata: { created_on: '2026-08-12T23:58:00.000Z', source: 'api' },
-      resources: {
-        bindings,
-        script: { etag: 'e'.repeat(64) },
-        script_runtime: {
-          compatibility_date: value.compatibilityDate,
-          compatibility_flags: value.compatibilityFlags,
-          migration_tag: 'v5',
-          exports: {
-            default: { type: 'worker' },
-            ...Object.fromEntries(value.durableObjectBindings.map(binding => [
-              binding.className,
-              { type: 'durable-object', storage: 'sqlite', state: 'created' },
-            ])),
-          },
-        },
-      },
-    };
-    const oldDetail = {
+    const targetDetail = exactVersionDetail(value);
+    const oldDetail = exactVersionDetail(value, {
       id: OLD_VERSION_ID,
-      annotations: {},
-      metadata: { created_on: '2026-08-12T23:50:00.000Z', source: 'api' },
-      resources: {
-        bindings: [
-          ...Object.entries(value.variables).map(([name, text]) => ({
-            name,
-            type: 'plain_text',
-            text,
-          })),
-          ...value.secretBindingNames
-            .filter(name => name !== 'PLAYER_CANARY_OWNER_FID')
-            .map(name => ({ name, type: 'secret_text' })),
-          ...value.durableObjectBindings.map(binding => ({
-            name: binding.name,
-            type: 'durable_object_namespace',
-            class_name: binding.className,
-          })),
-        ],
-        script: { etag: 'd'.repeat(64) },
-        script_runtime: {
-          compatibility_date: value.compatibilityDate,
-          compatibility_flags: value.compatibilityFlags,
-          migration_tag: 'v5',
-          exports: {
-            default: { type: 'worker' },
-            ...Object.fromEntries(value.durableObjectBindings.map(binding => [
-              binding.className,
-              { type: 'durable-object', storage: 'sqlite', state: 'created' },
-            ])),
-          },
-        },
+      number: 1,
+      createdAt: '2026-08-12T23:50:00.000Z',
+      etag: 'd'.repeat(64),
+      secretBindingNames: value.secretBindingNames.filter(
+        name => name !== 'PLAYER_CANARY_OWNER_FID',
+      ),
+      annotations: {
+        'workers/tag': `notification-b0-${SOURCE_COMMIT}`,
+        'workers/message': `Warpkeep notification B0 ${SOURCE_COMMIT}`,
+        'workers/triggered_by': 'version_upload',
       },
-    };
+    });
     let uploaded = false;
     let targetLive = false;
     let phase: JournalPhase = null;
@@ -1169,7 +1404,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     cacheEnabled = false;
     await expect(runtime.inspectDeployment()).resolves.toMatchObject({
       versionId: OLD_VERSION_ID,
-      versionTag: null,
+      versionTag: `notification-b0-${SOURCE_COMMIT}`,
       sourceCommit: SOURCE_COMMIT,
     });
     await expect(executeAuthBridgeNotificationPreparedDeployAdapter({
@@ -1211,44 +1446,29 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     let predecessorExtraBinding = false;
     let includeSameTagNonpredecessor = false;
     let livePredecessorDeploymentId = OLD_DEPLOYMENT_ID;
-    const predecessorDetail = {
+    const predecessorDetail = exactVersionDetail(value, {
       id: OLD_VERSION_ID,
+      number: 1,
+      createdAt: '2026-08-12T23:50:00.000Z',
+      etag: 'd'.repeat(64),
+      secretBindingNames: value.secretBindingNames.filter(
+        name => name !== 'PLAYER_CANARY_OWNER_FID',
+      ),
       annotations: {
-        'workers/tag': value.versionTag,
-        'workers/message': value.versionMessage,
+        'workers/tag': `notification-b0-${SOURCE_COMMIT}`,
+        'workers/message': `Warpkeep notification B0 ${SOURCE_COMMIT}`,
+        'workers/triggered_by': 'version_upload',
       },
-      metadata: { created_on: '2026-08-12T23:50:00.000Z', source: 'api' },
-      resources: {
-        bindings: [
-          ...Object.entries(value.variables).map(([name, text]) => ({
-            name,
-            type: 'plain_text',
-            text,
-          })),
-          ...value.secretBindingNames
-            .filter(name => name !== 'PLAYER_CANARY_OWNER_FID')
-            .map(name => ({ name, type: 'secret_text' })),
-          ...value.durableObjectBindings.map(binding => ({
-            name: binding.name,
-            type: 'durable_object_namespace',
-            class_name: binding.className,
-          })),
-        ],
-        script: { etag: 'd'.repeat(64) },
-        script_runtime: {
-          compatibility_date: value.compatibilityDate,
-          compatibility_flags: value.compatibilityFlags,
-          migration_tag: 'v5',
-          exports: {
-            default: { type: 'worker' },
-            ...Object.fromEntries(value.durableObjectBindings.map(binding => [
-              binding.className,
-              { type: 'durable-object', storage: 'sqlite', state: 'created' },
-            ])),
-          },
-        },
-      },
-    };
+    });
+    const nonPredecessorDetail = exactVersionDetail(value, {
+      id: NON_PREDECESSOR_VERSION_ID,
+      number: 3,
+      createdAt: '2026-08-12T23:52:00.000Z',
+      etag: 'c'.repeat(64),
+      secretBindingNames: value.secretBindingNames.filter(
+        name => name !== 'PLAYER_CANARY_OWNER_FID',
+      ),
+    });
     let predecessorSourceBody = contentMultipart();
     const prerequisiteResponse = (
       url: string,
@@ -1340,10 +1560,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
         }, url);
       }
       if (url.endsWith(`/versions/${NON_PREDECESSOR_VERSION_ID}`)) {
-        return response({
-          ...predecessorDetail,
-          id: NON_PREDECESSOR_VERSION_ID,
-        }, url);
+        return response(nonPredecessorDetail, url);
       }
       if (url.endsWith(`/content/v2?version=${OLD_VERSION_ID}`)) {
         return multipartResponse(predecessorSourceBody, url);
@@ -1394,6 +1611,33 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     });
     expect(urls.filter(item => item.startsWith('POST:'))).toHaveLength(0);
     predecessorSourceBody = contentMultipart();
+
+    predecessorDetail.resources.script_runtime.exports = null;
+    await expect(runtime.prepareUpload(value)).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_EXPORT_MISMATCH',
+    });
+    delete predecessorDetail.resources.script_runtime.exports;
+    const predecessorHandlers = predecessorDetail.resources.script
+      .named_handlers as unknown[];
+    const removedPredecessorHandler = predecessorHandlers.pop();
+    await expect(runtime.prepareUpload(value)).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_EXPORT_MISMATCH',
+    });
+    predecessorHandlers.push(removedPredecessorHandler);
+    const predecessorNamespace = predecessorDetail.resources.bindings.find(
+      binding => binding.name === 'ADMISSION_NOTIFICATIONS',
+    );
+    if (predecessorNamespace === undefined) {
+      throw new Error('fixture binding missing');
+    }
+    const reviewedNamespaceId = predecessorNamespace.namespace_id;
+    predecessorNamespace.namespace_id = 'f'.repeat(32);
+    await expect(runtime.prepareUpload(value)).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_BINDING_MISMATCH',
+    });
+    predecessorNamespace.namespace_id = reviewedNamespaceId;
+    expect(urls.filter(item => item.startsWith('POST:'))).toHaveLength(0);
+
     const uploadPlan = await runtime.prepareUpload(value);
     expect(uploadPlan).toEqual({
       mode: 'version',
