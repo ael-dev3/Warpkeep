@@ -31,6 +31,30 @@ const REVIEWED_LIVE_V5_PREDECESSOR_LITERALS = Object.freeze([
   "namespaceId: '28d55581e3124399b8cfbc2bd4019bef'",
   "namespaceId: 'b4525a7a374743deb3666471fe2ae06c'",
 ]);
+const REVIEWED_V5_API_NAMED_HANDLER_NAMES = Object.freeze([
+  'AdmissionNotification',
+  'AuthRateLimiter',
+  'ChallengeReplayGuard',
+  'DurableObjectAdmissionNotificationStore',
+  'DurableObjectChallengeStore',
+  'DurableObjectQaObserverChallengeStore',
+  'DurableObjectSessionFamilyStore',
+  'MemoryChallengeStore',
+  'MemoryQaObserverChallengeStore',
+  'MemorySessionFamilyStore',
+  'MiniAppWebhookInvalidError',
+  'MiniAppWebhookVerifierUnavailableError',
+  'QaChallengeReplayGuard',
+  'SessionFamily',
+  'SpacetimeHttpAccessRequestResolver',
+  'SpacetimeHttpAuthEpochResolver',
+  'SpacetimeHttpQaObserverResolver',
+  'admissionNotificationDeliveryContractDigest',
+  'admissionNotificationDeliveryContractVector',
+  'createAuthBridge',
+  'createMiniAppWebhookVerifier',
+  'serializeAdmissionNotificationDeliveryContract',
+]);
 
 function fail(code) {
   throw new Error(code);
@@ -157,6 +181,51 @@ export function verifyAuthBridgeNotificationB0StaticPolicy({
     'AUTH_BRIDGE_NOTIFICATION_B0_ENTRYPOINT_INVALID',
   );
   assertExactPredecessorReattestationCount(runtime);
+  const reviewedNamedHandlerBlock = [
+    'const REVIEWED_V5_API_NAMED_HANDLER_NAMES = Object.freeze([',
+    ...REVIEWED_V5_API_NAMED_HANDLER_NAMES.map(name => `  '${name}',`),
+    ']);',
+  ].join('\n');
+  exact(
+    runtime,
+    reviewedNamedHandlerBlock,
+    1,
+    'AUTH_BRIDGE_NOTIFICATION_B0_RUNTIME_BOUNDARY_INVALID',
+  );
+  for (const [value, expected] of [
+    ['function exactApiScriptAttestation(script, code) {', 1],
+    ['function exactApiVersionShape(', 1],
+    ['function exactExportsOrApiScript(', 1],
+    ['exactApiScriptAttestation(', 2],
+    ['exactApiVersionShape(', 2],
+    ['exactExportsOrApiScript(', 2],
+    ['const REVIEWED_V5_API_NAMED_HANDLER_NAMES = Object.freeze([', 1],
+    ["!== 'etag,handlers,last_deployed_from,named_handlers'", 1],
+    ["!SHA256_HEX.test(script.etag ?? '')", 1],
+    ["!exactJson(script.handlers, ['fetch'])", 2],
+    ["!== 'handlers,name'", 1],
+    ["!exactJson(namedHandler.handlers, ['class'])", 1],
+    ["script.last_deployed_from !== 'api'", 1],
+    ['!Array.isArray(script.named_handlers)', 2],
+    ["!== 'annotations,id,metadata,number,resources'", 1],
+    ['value.number < 1', 1],
+    ["!== 'author_email,author_id,created_on,has_preview,source'", 1],
+    ["metadata.author_email !== ''", 1],
+    ["!ACCOUNT_ID.test(metadata.author_id ?? '')", 1],
+    ["!== 'workers/message,workers/tag,workers/triggered_by'", 1],
+    ["!== 'bindings,script,script_runtime'", 1],
+    ["!== 'compatibility_date,compatibility_flags,migration_tag,usage_model'", 2],
+    ["runtime.usage_model !== 'standard'", 2],
+    ["annotations['workers/triggered_by'] !== 'version_upload'", 1],
+    ["keys === 'class_name,name,namespace_id,type'", 2],
+    ['.map(detailBindingProjection)', 1],
+    ['...expectedReviewedDurableObjectBindings(', 1],
+  ]) exact(
+    runtime,
+    value,
+    expected,
+    'AUTH_BRIDGE_NOTIFICATION_B0_RUNTIME_BOUNDARY_INVALID',
+  );
   for (const literal of REVIEWED_LIVE_V5_PREDECESSOR_LITERALS) {
     exact(
       runtime,

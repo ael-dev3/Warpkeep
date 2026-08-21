@@ -27,8 +27,15 @@ one nondeploying candidate through the Workers Versions API with six `inherit`
 bindings resolved under strict inheritance from the freshly re-attested,
 durably pinned predecessor, and omits migration metadata because the
 `AdmissionNotification` migration is already live at `v5`. B0 then re-reads the
-candidate source, variables, compatibility settings, exports, migration tag,
-Durable Object bindings, and exact six-secret namespace. The
+candidate source, variables, compatibility settings, migration tag, Durable
+Object bindings (including the five reviewed namespace IDs), and exact
+six-secret namespace. When the official version-detail response includes
+runtime exports, B0 attests them exactly. When that API omits exports, B0
+instead requires the exact API metadata and annotations, exact script keys and
+source etag, `fetch`, `last_deployed_from=api`, all 22 reviewed class named
+handlers, the independently verified module-source digest, and the exact `v5`
+runtime and binding fallback. `exports: null`, partial exports, or any hybrid or
+extra-field shape fails closed. The
 append-only B0 journal records the predecessor deployment/version and every
 effect boundary. A retained Node file descriptor holds a nonblocking kernel
 `flock` on one fixed owner-only inode for the whole journal callback; acquisition
@@ -39,6 +46,17 @@ sole Deployments API `POST`, B0
 re-attests that the same predecessor is still live. A failed or lost response
 is reconciled from the fixed private journal and exact remote version/deployment
 identity; no mutation is retried without remote proof.
+
+The protected-main `dfa24a4806486fd09302f76d9e3346b63bf1baa6` attempt
+reached an undeployed Cloudflare Worker version 47 and left its durable B0
+journal at `upload-invoked`. Preserve both version 47 and every record in that
+operation history as incident evidence. Do not retry or resume that source
+commit, adopt or deploy version 47, delete the remote candidate or journal,
+manually release it, or manufacture a completion record. Continuation requires
+a newly reviewed protected-main successor with a different source commit,
+version tag, and journal operation ID. Its reconciliation may observe but must
+ignore the retained `dfa24a4` candidate and may release only the exact candidate
+for the new protected successor.
 
 After fresh private and public poststate validation constructs the canonical
 prepared receipt, B0 appends a `receipt-publication-intent` containing its exact
@@ -366,9 +384,12 @@ the same state machine and persistent journal. The job succeeds only when the
 primary invocation or recovery completes verified. An ambiguous already-
 invoked release that cannot be reconciled fails for explicit owner
 adjudication; it is never retried blindly. Forced runner loss may prevent the
-same job from reaching its recovery step, so the owner must rerun the exact
-manual workflow on the same persistent runner and source commit. Concurrency is
-non-cancelling and globally serialized.
+same job from reaching its recovery step. An ordinary operation that has not
+crossed an effect boundary is resumed only through the same guarded workflow
+and persistent runner. An operation already retained at `upload-invoked` is not
+blindly rerun; the known `dfa24a4`/version-47 history is preserved and
+superseded only by the separately reviewed protected successor described
+above. Concurrency is non-cancelling and globally serialized.
 
 No receipt, receipt path, administrator secret, or Cloudflare secret is placed
 in argv, logs, step outputs, artifacts, the checkout, or `dist`. The workflow

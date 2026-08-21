@@ -157,7 +157,8 @@ environment entry with the other credentials before runtime imports. Its
 append-only v3 journal records the exact deployed predecessor deployment/version
 pair but never the FID value. The reviewed path requires the predecessor already have migration
 tag `v5`, the exact same reviewed version-specific module source digest, runtime
-compatibility/exports, plain-text and Durable Object bindings, and exactly the
+compatibility, plain-text and Durable Object bindings (including reviewed
+namespace IDs), and exactly the
 six established secret bindings. B0 must separately deploy that exact reviewed
 source/configuration at `v5` with those six secrets; a migration-tag-only update
 is insufficient. A `v4` predecessor stops for that separately reviewed B0
@@ -171,6 +172,15 @@ the sole deployment POST, the exact six-secret predecessor is re-attested. The
 workflow never calls the legacy Worker `/secrets` PUT or DELETE endpoints, and
 ambiguity recovery performs no cleanup mutation. No FID value appears in argv,
 terminal output, artifacts, checked-in variables, receipts, or journal records.
+Runtime exports are attested exactly whenever the official version-detail API
+returns them. If the API omits exports, the fallback is the exact metadata,
+annotations, script/etag/`fetch`/API deployment source, all 22 named class
+handlers, independently verified module digest, `v5` runtime, and exact raw
+bindings with namespace IDs; null or partial exports are never equivalent.
+Retain the undeployed `dfa24a4` version 47 and its `upload-invoked` journal as
+evidence. It must not be retried, adopted, deleted, or manually released. Only
+a new reviewed protected-main successor with a distinct source tag and journal
+operation may continue, and its reconciler must ignore the retained candidate.
 
 ### Private Pages authority and recovery
 

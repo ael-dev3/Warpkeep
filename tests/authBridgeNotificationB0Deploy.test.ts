@@ -10,6 +10,7 @@ import {
   readdirSync,
   realpathSync,
   rmSync,
+  writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -44,6 +45,12 @@ const PREDECESSOR_DEPLOYMENT_ID =
 const PREDECESSOR_VERSION_ID =
   '123e4567-e89b-42d3-a456-426614174002';
 const VERSION_ID = '123e4567-e89b-42d3-a456-426614174003';
+const DFA_SOURCE_COMMIT =
+  'dfa24a4806486fd09302f76d9e3346b63bf1baa6';
+const DFA_VERSION_ID = '035e091c-02a2-48f0-854d-9eada8e545dc';
+const DFA_VERSION_CREATED_AT = '2026-08-21T05:13:08.501893Z';
+const DFA_SCRIPT_ETAG =
+  'ad64a309e164d064e25d327b576514e317d72fe586a320ca3448660f18c88083';
 const REVIEWED_V5_DEPLOYMENT_ID =
   'bb527e8d-c7dc-4eba-92a8-21beae4d3965';
 const REVIEWED_V5_VERSION_ID =
@@ -101,6 +108,30 @@ const REVIEWED_V5_DURABLE_OBJECT_BINDINGS = Object.freeze([
     namespaceId: 'b4525a7a374743deb3666471fe2ae06c',
   }),
 ]);
+const EXACT_NAMED_HANDLERS = Object.freeze([
+  'AdmissionNotification',
+  'AuthRateLimiter',
+  'ChallengeReplayGuard',
+  'DurableObjectAdmissionNotificationStore',
+  'DurableObjectChallengeStore',
+  'DurableObjectQaObserverChallengeStore',
+  'DurableObjectSessionFamilyStore',
+  'MemoryChallengeStore',
+  'MemoryQaObserverChallengeStore',
+  'MemorySessionFamilyStore',
+  'MiniAppWebhookInvalidError',
+  'MiniAppWebhookVerifierUnavailableError',
+  'QaChallengeReplayGuard',
+  'SessionFamily',
+  'SpacetimeHttpAccessRequestResolver',
+  'SpacetimeHttpAuthEpochResolver',
+  'SpacetimeHttpQaObserverResolver',
+  'admissionNotificationDeliveryContractDigest',
+  'admissionNotificationDeliveryContractVector',
+  'createAuthBridge',
+  'createMiniAppWebhookVerifier',
+  'serializeAdmissionNotificationDeliveryContract',
+]);
 const RUNTIME_MODULE_BYTES = Buffer.from(
   'export default { fetch() { return new Response("ok") } };\n',
   'utf8',
@@ -132,14 +163,15 @@ afterEach(() => {
 function contract(
   sourceDigest = SOURCE_DIGEST,
   accessExpectedFidRequired = false,
+  sourceCommit = SOURCE_COMMIT,
 ) {
   return authBridgeNotificationB0VersionContract({
     accountId: ACCOUNT_ID,
     zoneId: ZONE_ID,
-    sourceCommit: SOURCE_COMMIT,
+    sourceCommit,
     sourceDigest,
     beforeModes: {
-      bridgeSourceCommit: SOURCE_COMMIT,
+      bridgeSourceCommit: sourceCommit,
       publicAuthEnabled: true,
       accessExpectedFidRequired,
     },
@@ -224,6 +256,23 @@ function cloudflareResponse(
   return response;
 }
 
+function cloudflareMultipartResponse(
+  body: Buffer,
+  url: string,
+  contentType: string,
+) {
+  const response = new Response(Uint8Array.from(body), {
+    status: 200,
+    headers: {
+      'cf-entrypoint': 'index.js',
+      'content-type': contentType,
+    },
+  });
+  Object.defineProperty(response, 'url', { value: url });
+  Object.defineProperty(response, 'redirected', { value: false });
+  return response;
+}
+
 type ReviewedV5Detail = Record<string, unknown> & {
   annotations: Record<string, unknown>;
   metadata: Record<string, unknown>;
@@ -233,6 +282,26 @@ type ReviewedV5Detail = Record<string, unknown> & {
     script_runtime: Record<string, unknown>;
   };
 };
+
+type CandidateDetail = Record<string, unknown> & {
+  annotations: Record<string, unknown>;
+  metadata: Record<string, unknown>;
+  resources: {
+    bindings: Record<string, unknown>[];
+    script: Record<string, unknown>;
+    script_runtime: Record<string, unknown>;
+  };
+};
+
+function exactCandidateExports(value: ReturnType<typeof contract>) {
+  return Object.fromEntries([
+    ['default', { type: 'worker' }],
+    ...value.durableObjectBindings.map(binding => [
+      binding.className,
+      { type: 'durable-object', storage: 'sqlite' },
+    ]),
+  ]);
+}
 
 function reviewedV5Detail(): ReviewedV5Detail {
   return {
@@ -328,13 +397,18 @@ function deployment(versionId = VERSION_ID) {
 function rawCandidateVersion(value = contract()) {
   return {
     id: VERSION_ID,
+    number: 48,
     metadata: {
+      author_email: '',
+      author_id: 'e'.repeat(32),
       created_on: '2026-08-13T11:58:00.000Z',
+      has_preview: false,
       source: 'api',
     },
     annotations: {
       'workers/message': value.versionMessage,
       'workers/tag': value.versionTag,
+      'workers/triggered_by': 'version_upload',
     },
     resources: {
       bindings: [
@@ -351,20 +425,52 @@ function rawCandidateVersion(value = contract()) {
           name: binding.name,
           type: 'durable_object_namespace',
           class_name: binding.className,
+          namespace_id: REVIEWED_V5_DURABLE_OBJECT_BINDINGS.find(
+            reviewed => reviewed.name === binding.name,
+          )?.namespaceId,
         })),
       ],
-      script: { etag: SOURCE_DIGEST },
+      script: {
+        etag: SOURCE_DIGEST,
+        handlers: ['fetch'],
+        last_deployed_from: 'api',
+        named_handlers: EXACT_NAMED_HANDLERS.map(name => ({
+          handlers: ['class'],
+          name,
+        })),
+      },
       script_runtime: {
         compatibility_date: '2026-07-11',
         compatibility_flags: ['nodejs_compat'],
         migration_tag: 'v5',
-        exports: Object.fromEntries([
-          ['default', { type: 'worker' }],
-          ...value.durableObjectBindings.map(binding => [
-            binding.className,
-            { type: 'durable-object', storage: 'sqlite' },
-          ]),
-        ]),
+        usage_model: 'standard',
+      },
+    },
+  };
+}
+
+function exactDfaV47Candidate() {
+  const value = contract(RUNTIME_SOURCE_DIGEST, true, DFA_SOURCE_COMMIT);
+  const candidate = rawCandidateVersion(value);
+  return {
+    value,
+    candidate: {
+      ...candidate,
+      id: DFA_VERSION_ID,
+      number: 47,
+      metadata: {
+        author_email: '',
+        author_id: 'e'.repeat(32),
+        created_on: DFA_VERSION_CREATED_AT,
+        has_preview: false,
+        source: 'api',
+      },
+      resources: {
+        ...candidate.resources,
+        script: {
+          ...candidate.resources.script,
+          etag: DFA_SCRIPT_ETAG,
+        },
       },
     },
   };
@@ -373,6 +479,12 @@ function rawCandidateVersion(value = contract()) {
 function reviewedV5RuntimeHarness(
   mutate?: (detail: ReviewedV5Detail) => void,
   domainEmptyMessages: 'null' | 'record' = 'null',
+  deployableCandidates: readonly Readonly<{
+    detail?: CandidateDetail;
+    id: string;
+    message: string;
+    tag: string;
+  }>[] = [],
 ) {
   const value = contract(RUNTIME_SOURCE_DIGEST, true);
   const boundary = 'warpkeep-b0-v5-boundary';
@@ -381,6 +493,7 @@ function reviewedV5RuntimeHarness(
   const detail = reviewedV5Detail();
   mutate?.(detail);
   let candidateBody: Buffer | undefined;
+  let releasedVersionId: string | undefined;
   const fetchImpl = vi.fn(async (
     input: RequestInfo | URL,
     init?: RequestInit,
@@ -440,8 +553,40 @@ function reviewedV5RuntimeHarness(
         },
       }], url);
     }
+    if (url.endsWith('/deployments') && method === 'POST') {
+      const payload = JSON.parse(String(init?.body)) as {
+        versions?: { version_id?: string }[];
+      };
+      releasedVersionId = payload.versions?.[0]?.version_id;
+      return cloudflareResponse({
+        id: '223e4567-e89b-42d3-a456-426614174000',
+      }, url);
+    }
+    if (url.includes('/versions?deployable=true')) {
+      return cloudflareResponse({
+        items: deployableCandidates.map(candidate => ({
+          id: candidate.id,
+          annotations: {
+            'workers/message': candidate.message,
+            'workers/tag': candidate.tag,
+          },
+        })),
+      }, url);
+    }
     if (url.endsWith(`/versions/${REVIEWED_V5_VERSION_ID}`)) {
       return cloudflareResponse(detail, url);
+    }
+    const candidate = deployableCandidates.find(item => (
+      url.endsWith(`/versions/${item.id}`)
+    ));
+    if (candidate?.detail !== undefined) {
+      return cloudflareResponse(candidate.detail, url);
+    }
+    if (candidate !== undefined && url.includes('/content/v2?version=')) {
+      return cloudflareMultipartResponse(body, url, contentType);
+    }
+    if (url.includes('/content/v2?version=')) {
+      return cloudflareMultipartResponse(body, url, contentType);
     }
     if (
       url.endsWith('/versions?bindings_inherit=strict')
@@ -478,6 +623,7 @@ function reviewedV5RuntimeHarness(
         contentType,
       ).metadata;
     },
+    releasedVersionId: () => releasedVersionId,
   };
 }
 
@@ -719,17 +865,262 @@ describe('auth-bridge notification B0 deploy', () => {
     harness.runtime.dispose();
   });
 
-  it('attests exact uploaded source, v5 runtime, configuration, DO exports, and six secrets', () => {
-    const value = contract();
+  it('attests the exact exports-absent v47 GET shape and exact optional exports', () => {
+    const { candidate, value } = exactDfaV47Candidate();
+    expect(candidate.resources.bindings).toHaveLength(27);
+    expect((candidate.resources.bindings as Record<string, unknown>[])
+      .filter(binding => (
+      binding.type === 'durable_object_namespace'
+      )).map(binding => binding.namespace_id)).toEqual(
+      REVIEWED_V5_DURABLE_OBJECT_BINDINGS.map(binding => binding.namespaceId),
+    );
+    expect(candidate.resources.script_runtime).not.toHaveProperty('exports');
+    expect(candidate.resources.script.named_handlers).toHaveLength(22);
     expect(projectAuthBridgeNotificationB0CloudflareVersion({
-      value: rawCandidateVersion(value),
+      value: candidate,
       contract: value,
-      sourceDigest: SOURCE_DIGEST,
+      sourceDigest: RUNTIME_SOURCE_DIGEST,
     })).toMatchObject({
-      sourceDigest: SOURCE_DIGEST,
-      versionId: VERSION_ID,
-      createdAt: '2026-08-13T11:58:00.000Z',
+      sourceDigest: RUNTIME_SOURCE_DIGEST,
+      versionId: DFA_VERSION_ID,
+      createdAt: '2026-08-21T05:13:08.501Z',
     });
+
+    const exportsPresent = structuredClone(candidate) as CandidateDetail;
+    exportsPresent.resources.script_runtime.exports = exactCandidateExports(value);
+    expect(projectAuthBridgeNotificationB0CloudflareVersion({
+      value: exportsPresent,
+      contract: value,
+      sourceDigest: RUNTIME_SOURCE_DIGEST,
+    })).toMatchObject({ versionId: DFA_VERSION_ID });
+  });
+
+  it.each([
+    {
+      name: 'top-level extra key',
+      mutate: (detail: CandidateDetail) => {
+        detail.unreviewed = false;
+      },
+    },
+    {
+      name: 'missing named handler',
+      mutate: (detail: CandidateDetail) => {
+        (detail.resources.script.named_handlers as unknown[]).pop();
+      },
+    },
+    {
+      name: 'duplicate named handler',
+      mutate: (detail: CandidateDetail) => {
+        const handlers = detail.resources.script.named_handlers as Record<
+          string,
+          unknown
+        >[];
+        handlers.push(structuredClone(handlers[0]));
+      },
+    },
+    {
+      name: 'renamed named handler',
+      mutate: (detail: CandidateDetail) => {
+        const handlers = detail.resources.script.named_handlers as Record<
+          string,
+          unknown
+        >[];
+        handlers[0].name = 'AdmissionNotificationV2';
+      },
+    },
+    {
+      name: 'named handler extra key',
+      mutate: (detail: CandidateDetail) => {
+        const handlers = detail.resources.script.named_handlers as Record<
+          string,
+          unknown
+        >[];
+        handlers[0].type = 'class';
+      },
+    },
+    {
+      name: 'wrong named handler type',
+      mutate: (detail: CandidateDetail) => {
+        const handlers = detail.resources.script.named_handlers as Record<
+          string,
+          unknown
+        >[];
+        handlers[0].handlers = ['fetch'];
+      },
+    },
+    {
+      name: 'null named handlers',
+      mutate: (detail: CandidateDetail) => {
+        detail.resources.script.named_handlers = null;
+      },
+    },
+    {
+      name: 'missing fetch handler',
+      mutate: (detail: CandidateDetail) => {
+        detail.resources.script.handlers = ['scheduled'];
+      },
+    },
+    {
+      name: 'missing script handlers key',
+      mutate: (detail: CandidateDetail) => {
+        delete detail.resources.script.handlers;
+      },
+    },
+    {
+      name: 'non-SHA script etag',
+      mutate: (detail: CandidateDetail) => {
+        detail.resources.script.etag = 'not-a-sha';
+      },
+    },
+    {
+      name: 'null script',
+      mutate: (detail: CandidateDetail) => {
+        detail.resources.script = null as unknown as Record<string, unknown>;
+      },
+    },
+    {
+      name: 'wrong deployment source',
+      mutate: (detail: CandidateDetail) => {
+        detail.resources.script.last_deployed_from = 'wrangler';
+      },
+    },
+    {
+      name: 'script extra key',
+      mutate: (detail: CandidateDetail) => {
+        detail.resources.script.unreviewed = false;
+      },
+    },
+    {
+      name: 'null exports',
+      mutate: (detail: CandidateDetail) => {
+        detail.resources.script_runtime.exports = null;
+      },
+    },
+    {
+      name: 'present near-miss exports',
+      mutate: (detail: CandidateDetail) => {
+        detail.resources.script_runtime.exports = {
+          default: { type: 'worker' },
+        };
+      },
+    },
+    {
+      name: 'runtime extra key under exports-absent shape',
+      mutate: (detail: CandidateDetail) => {
+        detail.resources.script_runtime.unreviewed = false;
+      },
+    },
+    {
+      name: 'runtime limits under exports-absent shape',
+      mutate: (detail: CandidateDetail) => {
+        detail.resources.script_runtime.limits = {};
+      },
+    },
+    {
+      name: 'wrong Durable Object namespace id',
+      mutate: (detail: CandidateDetail) => {
+        const binding = detail.resources.bindings.find(item => (
+          item.name === 'ADMISSION_NOTIFICATIONS'
+        ));
+        if (binding === undefined) throw new Error('fixture binding missing');
+        binding.namespace_id = 'f'.repeat(32);
+      },
+    },
+    {
+      name: 'raw binding extra key',
+      mutate: (detail: CandidateDetail) => {
+        detail.resources.bindings[0].unreviewed = false;
+      },
+    },
+    {
+      name: 'wrong secret binding name',
+      mutate: (detail: CandidateDetail) => {
+        const binding = detail.resources.bindings.find(item => (
+          item.name === 'ADMIN_TOKEN_SECRET'
+        ));
+        if (binding === undefined) throw new Error('fixture binding missing');
+        binding.name = 'UNREVIEWED_SECRET';
+      },
+    },
+    {
+      name: 'duplicate secret binding',
+      mutate: (detail: CandidateDetail) => {
+        const binding = detail.resources.bindings.find(item => (
+          item.name === 'ADMIN_TOKEN_SECRET'
+        ));
+        if (binding === undefined) throw new Error('fixture binding missing');
+        detail.resources.bindings.push(structuredClone(binding));
+      },
+    },
+    {
+      name: 'metadata preview drift',
+      mutate: (detail: CandidateDetail) => {
+        detail.metadata.has_preview = true;
+      },
+    },
+    {
+      name: 'metadata author email drift',
+      mutate: (detail: CandidateDetail) => {
+        detail.metadata.author_email = 'operator@example.invalid';
+      },
+    },
+    {
+      name: 'metadata author email non-string',
+      mutate: (detail: CandidateDetail) => {
+        detail.metadata.author_email = null;
+      },
+    },
+    {
+      name: 'metadata missing preview field',
+      mutate: (detail: CandidateDetail) => {
+        delete detail.metadata.has_preview;
+      },
+    },
+    {
+      name: 'metadata source drift',
+      mutate: (detail: CandidateDetail) => {
+        detail.metadata.source = 'wrangler';
+      },
+    },
+    {
+      name: 'metadata extra key',
+      mutate: (detail: CandidateDetail) => {
+        detail.metadata.modified_on = DFA_VERSION_CREATED_AT;
+      },
+    },
+    {
+      name: 'annotation trigger drift',
+      mutate: (detail: CandidateDetail) => {
+        detail.annotations['workers/triggered_by'] = 'deployment';
+      },
+    },
+    {
+      name: 'annotation missing trigger',
+      mutate: (detail: CandidateDetail) => {
+        delete detail.annotations['workers/triggered_by'];
+      },
+    },
+    {
+      name: 'annotation extra key',
+      mutate: (detail: CandidateDetail) => {
+        detail.annotations['workers/unreviewed'] = 'forbidden';
+      },
+    },
+  ])('rejects an exact candidate GET near miss before deployment: $name', ({
+    mutate,
+  }) => {
+    const { candidate, value } = exactDfaV47Candidate();
+    const hostile = structuredClone(candidate) as CandidateDetail;
+    mutate(hostile);
+    expect(() => projectAuthBridgeNotificationB0CloudflareVersion({
+      value: hostile,
+      contract: value,
+      sourceDigest: RUNTIME_SOURCE_DIGEST,
+    })).toThrow(/AUTH_BRIDGE_NOTIFICATION_B0_CLOUDFLARE_VERSION_/u);
+  });
+
+  it('rejects runtime, binding, and source-policy drift after exact GET shape', () => {
+    const value = contract();
     expect(() => projectAuthBridgeNotificationB0CloudflareVersion({
       value: {
         ...rawCandidateVersion(value),
@@ -758,6 +1149,43 @@ describe('auth-bridge notification B0 deploy', () => {
       contract: value,
       sourceDigest: SOURCE_DIGEST,
     })).toThrowError(/VERSION_BINDING_MISMATCH/u);
+  });
+
+  it('ignores retained dfa v47 and releases only the protected successor candidate', async () => {
+    const successor = contract(RUNTIME_SOURCE_DIGEST, true, SOURCE_COMMIT);
+    const successorDetail = rawCandidateVersion(successor) as CandidateDetail;
+    const harness = reviewedV5RuntimeHarness(undefined, 'null', [
+      {
+        id: DFA_VERSION_ID,
+        tag: `notification-b0-${DFA_SOURCE_COMMIT}`,
+        message: `Warpkeep notification B0 ${DFA_SOURCE_COMMIT}`,
+      },
+      {
+        id: VERSION_ID,
+        tag: successor.versionTag,
+        message: successor.versionMessage,
+        detail: successorDetail,
+      },
+    ]);
+    const plan = await harness.runtime.prepareUpload(successor);
+    const candidates = await harness.runtime.reconcileVersion(successor);
+    expect(candidates).toEqual([VERSION_ID]);
+    expect(harness.fetchImpl.mock.calls.some(([input]) => (
+      String(input).endsWith(`/versions/${DFA_VERSION_ID}`)
+    ))).toBe(false);
+
+    await harness.runtime.releaseVersion({
+      versionId: candidates[0],
+      predecessorDeploymentId: plan.predecessorDeploymentId,
+      predecessorVersionId: plan.predecessorVersionId,
+      percentage: 100,
+      message: successor.versionMessage,
+    });
+    expect(harness.releasedVersionId()).toBe(VERSION_ID);
+    expect(harness.fetchImpl.mock.calls.filter(([, init]) => (
+      (init?.method ?? 'GET') === 'POST'
+    ))).toHaveLength(1);
+    harness.runtime.dispose();
   });
 
   it('orders one nondeploying candidate upload before attestation and one deployment POST', async () => {
@@ -957,6 +1385,149 @@ describe('auth-bridge notification B0 deploy', () => {
       },
     });
     expect(readdirSync(stateDirectory)).not.toContain(temporary.split('/').at(-1));
+  });
+
+  it('retains unresolved dfa upload history beside a distinct successor operation', async () => {
+    const home = mkdtempSync(join(realpathSync(tmpdir()), 'warpkeep-b0-successor-'));
+    chmodSync(home, 0o700);
+    temporaryDirectories.push(home);
+    const repositoryRoot = realpathSync(process.cwd());
+    const dfaContract = contract(SOURCE_DIGEST, false, DFA_SOURCE_COMMIT);
+    const successorContract = contract(SOURCE_DIGEST, false, SOURCE_COMMIT);
+    let dfaOperationId = '';
+    await withAuthBridgeNotificationB0DeployJournal({
+      contract: dfaContract,
+      repositoryRoot,
+      reportedHome: home,
+      runId: '1101',
+      runAttempt: 1,
+      clock: () => new Date(NOW),
+      processIdentity: 'test-process-start-identity',
+      operation: async journal => {
+        dfaOperationId = journal.operationId;
+        await journal.prepared(dfaContract);
+        await journal.remoteReconcileStarted({
+          predecessorDeploymentId: PREDECESSOR_DEPLOYMENT_ID,
+          predecessorVersionId: PREDECESSOR_VERSION_ID,
+          sourceCommit: DFA_SOURCE_COMMIT,
+          sourceDigest: SOURCE_DIGEST,
+          versionTag: `notification-b0-${DFA_SOURCE_COMMIT}`,
+        });
+        await journal.uploadInvoked({
+          sourceCommit: DFA_SOURCE_COMMIT,
+          sourceDigest: SOURCE_DIGEST,
+          uploadMode: 'version',
+          versionTag: `notification-b0-${DFA_SOURCE_COMMIT}`,
+        });
+        expect(journal.inspect().phase).toBe('upload-invoked');
+      },
+    });
+
+    let successorOperationId = '';
+    await withAuthBridgeNotificationB0DeployJournal({
+      contract: successorContract,
+      repositoryRoot,
+      reportedHome: home,
+      runId: '1102',
+      runAttempt: 1,
+      clock: () => new Date(NOW),
+      processIdentity: 'test-process-start-identity',
+      operation: async journal => {
+        successorOperationId = journal.operationId;
+        expect(journal.inspect().phase).toBeNull();
+        await journal.prepared(successorContract);
+        expect(journal.inspect().phase).toBe('prepared');
+      },
+    });
+    expect(successorOperationId).not.toBe(dfaOperationId);
+
+    await withAuthBridgeNotificationB0DeployJournal({
+      contract: dfaContract,
+      repositoryRoot,
+      reportedHome: home,
+      runId: '1103',
+      runAttempt: 2,
+      clock: () => new Date(NOW),
+      processIdentity: 'test-process-start-identity',
+      operation: journal => {
+        expect(journal.operationId).toBe(dfaOperationId);
+        expect(journal.inspect().phase).toBe('upload-invoked');
+      },
+    });
+    await withAuthBridgeNotificationB0DeployJournal({
+      contract: successorContract,
+      repositoryRoot,
+      reportedHome: home,
+      runId: '1104',
+      runAttempt: 2,
+      clock: () => new Date(NOW),
+      processIdentity: 'test-process-start-identity',
+      operation: journal => {
+        expect(journal.operationId).toBe(successorOperationId);
+        expect(journal.inspect().phase).toBe('prepared');
+      },
+    });
+  });
+
+  it('blocks a successor opening when retained dfa history is corrupt', async () => {
+    const home = mkdtempSync(join(realpathSync(tmpdir()), 'warpkeep-b0-corrupt-'));
+    chmodSync(home, 0o700);
+    temporaryDirectories.push(home);
+    const repositoryRoot = realpathSync(process.cwd());
+    const dfaContract = contract(SOURCE_DIGEST, false, DFA_SOURCE_COMMIT);
+    const successorContract = contract(SOURCE_DIGEST, false, SOURCE_COMMIT);
+    let dfaOperationId = '';
+    await withAuthBridgeNotificationB0DeployJournal({
+      contract: dfaContract,
+      repositoryRoot,
+      reportedHome: home,
+      runId: '1201',
+      runAttempt: 1,
+      clock: () => new Date(NOW),
+      processIdentity: 'test-process-start-identity',
+      operation: async journal => {
+        dfaOperationId = journal.operationId;
+        await journal.prepared(dfaContract);
+        await journal.remoteReconcileStarted({
+          predecessorDeploymentId: PREDECESSOR_DEPLOYMENT_ID,
+          predecessorVersionId: PREDECESSOR_VERSION_ID,
+          sourceCommit: DFA_SOURCE_COMMIT,
+          sourceDigest: SOURCE_DIGEST,
+          versionTag: `notification-b0-${DFA_SOURCE_COMMIT}`,
+        });
+        await journal.uploadInvoked({
+          sourceCommit: DFA_SOURCE_COMMIT,
+          sourceDigest: SOURCE_DIGEST,
+          uploadMode: 'version',
+          versionTag: `notification-b0-${DFA_SOURCE_COMMIT}`,
+        });
+      },
+    });
+    const stateDirectory = join(
+      home,
+      '.warpkeep/private/production-admin-v1',
+      AUTH_BRIDGE_NOTIFICATION_B0_DEPLOY_JOURNAL_STATE_CHILD,
+    );
+    const dfaPrepared = readdirSync(stateDirectory).find(name => (
+      name.includes(dfaOperationId) && name.endsWith('-prepared.json')
+    ));
+    expect(dfaPrepared).toBeDefined();
+    writeFileSync(join(stateDirectory, dfaPrepared!), '{}\n');
+
+    await expect(withAuthBridgeNotificationB0DeployJournal({
+      contract: successorContract,
+      repositoryRoot,
+      reportedHome: home,
+      runId: '1202',
+      runAttempt: 1,
+      clock: () => new Date(NOW),
+      processIdentity: 'test-process-start-identity',
+      operation: journal => journal.inspect(),
+    })).rejects.toMatchObject({
+      code: expect.stringMatching(
+        /^AUTH_BRIDGE_NOTIFICATION_B0_DEPLOY_JOURNAL_/u,
+      ),
+    });
   });
 
   it('retains the kernel lock in Node after the synchronous helper exits', async () => {

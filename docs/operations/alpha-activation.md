@@ -200,8 +200,13 @@ skip delivery and continue admission. Roll them out in this order:
    Stage `PLAYER_CANARY_OWNER_FID` through the protected
    `WARPKEEP_PLAYER_CANARY_OWNER_FID` workflow secret only. The guarded
    transition requires the deployed `v5` predecessor with the exact same
-   reviewed module source digest, runtime compatibility/exports, plain-text and
-   Durable Object configuration, and exactly the old six Worker secrets. B0 is
+   reviewed module source digest, runtime compatibility, plain-text and Durable
+   Object configuration (including exact namespace IDs), and exactly the old
+   six Worker secrets. Runtime exports are attested exactly when the official
+   API supplies them. When exports are omitted, the required fallback is the
+   exact API metadata/annotations, script etag and handler shape, all 22 reviewed
+   named class handlers, source digest, `v5` runtime, and raw bindings; null or
+   partial exports fail closed. B0 is
    therefore a separate deployment of that exact reviewed source/configuration
    at `v5`, not a migration-tag-only change. The guarded transition then uploads
    a nondeploying strict-inheritance version whose ephemeral multipart omits
@@ -214,6 +219,11 @@ skip delivery and continue admission. Roll them out in this order:
    cleanup mutation. Never
    store or print the FID value in source, argv, artifacts, receipts, or journal
    records.
+   Preserve the undeployed `dfa24a4` version 47 and its unresolved
+   `upload-invoked` history. Do not retry or adopt that candidate, delete either
+   evidence set, or manually release it. Continue only from a new reviewed
+   protected-main successor whose distinct source tag and journal operation
+   reconcile and deploy only that successor's exact candidate.
 4. The checked-in production manifest already pins the exact reviewed
    `webhookUrl`; preserve it byte-for-byte. Deploy and attest the backend with
    `APPROVAL_NOTIFICATIONS_ENABLED=false` first, so the advertised endpoint is
