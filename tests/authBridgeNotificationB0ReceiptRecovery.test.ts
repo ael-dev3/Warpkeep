@@ -86,8 +86,10 @@ function privateBody(prepared: boolean) {
     miniAppNotificationClientFids: [9_152],
     miniAppWebhookPath: '/v1/farcaster/miniapp/webhook',
     admissionNotificationPath: '/v1/admin/admission-notification',
-    admissionNotificationRecoveryPath:
-      '/v1/admin/admission-notification-recovery',
+    ...(prepared ? {
+      admissionNotificationRecoveryPath:
+        '/v1/admin/admission-notification-recovery',
+    } : {}),
     admissionNotificationStatusPath: '/v1/admin/admission-notification-status',
     publicAuthEnabled: true,
     accessExpectedFidRequired: false,

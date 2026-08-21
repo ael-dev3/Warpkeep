@@ -193,9 +193,11 @@ function privateResponse(body: Record<string, unknown>): Response {
 }
 
 function preparationFetch({
+  prePrivate = privateBody({ prepared: false }),
   postPrivate = privateBody({ prepared: true }),
   publicBody = releaseAttestation(),
 }: {
+  prePrivate?: Record<string, unknown>;
   postPrivate?: Record<string, unknown>;
   publicBody?: Record<string, unknown>;
 } = {}) {
@@ -204,9 +206,7 @@ function preparationFetch({
     const url = String(input);
     if (url === 'https://auth.warpkeep.com/v1/admin/config-attestation') {
       privateCalls += 1;
-      return privateResponse(privateCalls === 1
-        ? privateBody({ prepared: false })
-        : postPrivate);
+      return privateResponse(privateCalls === 1 ? prePrivate : postPrivate);
     }
     if (url === AUTH_BRIDGE_RELEASE_ATTESTATION_URL) {
       return releaseResponse({ body: publicBody });
@@ -475,6 +475,25 @@ describe('fresh public release-attestation binding', () => {
       clock: () => NOW,
     })).rejects.toThrow('deploy failed');
     expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('keeps predecessor compatibility unavailable to the prepared PRE read', async () => {
+    const predecessor = privateBody({ prepared: false });
+    delete predecessor.admissionNotificationRecoveryPath;
+    const deploy = vi.fn(async () => undefined);
+    const fetchMock = preparationFetch({ prePrivate: predecessor });
+
+    await expect(prepareAuthBridgeNotificationPreparedReceipt({
+      adminToken: ADMIN_TOKEN,
+      deploy,
+      expectedBridgeSourceCommit: SOURCE_COMMIT,
+      fetchImpl: fetchMock as typeof fetch,
+      clock: () => NOW,
+    })).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_CONTRACT_INVALID',
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(deploy).not.toHaveBeenCalled();
   });
 
   it('validates source, lifetime, and clock before credentialed I/O', async () => {

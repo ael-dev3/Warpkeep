@@ -250,6 +250,15 @@ prints the credential, response body, upstream error text, or private
 attestation fields. A PRE-attestation category is a pre-journal failure and
 must be resolved before another guarded deployment is dispatched.
 
+The B0 entrypoint has one narrower compatibility seam for its authenticated
+PRE read. It accepts either the exact current private contract or the exact
+deployed `e8bd065` predecessor contract, which lacks only
+`admissionNotificationRecoveryPath`. The current shape is required after B0
+and by the POST check; same-source journal recovery may begin from either exact
+shape but must still finish on the current shape. Every other missing, extra,
+or changed field fails closed. The prepared entrypoint always requires the
+current shape and never uses the predecessor allowance.
+
 The static policy verifier validates the canonical schema-v2
 `auth-bridge-notification-prepared-deploy-closure-v1.json` manifest before any
 release-policy check. Every sorted member has the exact keys `path`,

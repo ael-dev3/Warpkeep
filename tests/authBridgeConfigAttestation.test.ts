@@ -5,6 +5,7 @@ import {
   DEFAULT_FARCASTER_RPC_SECONDARY_URL,
   farcasterRpcEndpointFingerprint,
   parseAuthBridgeReleaseAttestation,
+  verifyAuthBridgeNotificationB0RpcRoleAttestation,
   verifyAuthBridgePreparedConfigAttestation,
   verifyAuthBridgeReleaseAttestation,
   verifyAuthBridgeRpcRoleAttestation,
@@ -82,6 +83,14 @@ function privateResponse(
       ...headers,
     },
   })
+}
+
+function b0PredecessorPrivateBody(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const body = privateBody(overrides)
+  delete body.admissionNotificationRecoveryPath
+  return body
 }
 
 function releaseAttestation(overrides: Record<string, unknown> = {}) {
@@ -172,6 +181,61 @@ describe('private auth bridge RPC role attestation', () => {
     expect(requestHeaders.get('authorization')).toBe(`Bearer ${ADMIN_TOKEN}`)
     expect(requestHeaders.has('origin')).toBe(false)
     expect(init).not.toHaveProperty('body')
+  })
+
+  it('accepts exact predecessor and current shapes only at the B0 seam', async () => {
+    const predecessorFetch = vi.fn(async () => privateResponse(
+      b0PredecessorPrivateBody(),
+    )) as typeof fetch
+    await expect(verifyAuthBridgeNotificationB0RpcRoleAttestation({
+      adminToken: ADMIN_TOKEN,
+      fetchImpl: predecessorFetch,
+    })).resolves.toMatchObject({
+      notificationDeliveryEnabled: false,
+      notificationTransportConfigured: false,
+      notificationClientCount: 0,
+      publicAuthEnabled: true,
+      accessExpectedFidRequired: false,
+    })
+
+    await expect(verifyAuthBridgeRpcRoleAttestation({
+      adminToken: ADMIN_TOKEN,
+      fetchImpl: vi.fn(async () => privateResponse(
+        b0PredecessorPrivateBody(),
+      )) as typeof fetch,
+    })).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_CONTRACT_INVALID',
+    })
+
+    await expect(verifyAuthBridgeRpcRoleAttestation({
+      adminToken: ADMIN_TOKEN,
+      fetchImpl: vi.fn(async () => privateResponse(
+        b0PredecessorPrivateBody(),
+      )) as typeof fetch,
+      b0Contract: true,
+    } as unknown as Parameters<
+      typeof verifyAuthBridgeRpcRoleAttestation
+    >[0])).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_CONTRACT_INVALID',
+    })
+
+    await expect(verifyAuthBridgeNotificationB0RpcRoleAttestation({
+      adminToken: ADMIN_TOKEN,
+      fetchImpl: vi.fn(async () => privateResponse()) as typeof fetch,
+    })).resolves.toMatchObject({
+      notificationDeliveryEnabled: false,
+      publicAuthEnabled: true,
+      accessExpectedFidRequired: false,
+    })
+
+    const missingStatus = b0PredecessorPrivateBody()
+    delete missingStatus.admissionNotificationStatusPath
+    await expect(verifyAuthBridgeNotificationB0RpcRoleAttestation({
+      adminToken: ADMIN_TOKEN,
+      fetchImpl: vi.fn(async () => privateResponse(missingStatus)) as typeof fetch,
+    })).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_CONTRACT_INVALID',
+    })
   })
 
   it('rejects missing, extra, and malformed private fields', async () => {
