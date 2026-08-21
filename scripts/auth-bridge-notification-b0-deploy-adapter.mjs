@@ -2,7 +2,7 @@ import {
   authenticateAuthBridgeNotificationPreparedReceiptForPublication,
   canonicalAuthBridgeNotificationPreparedReceiptPublication,
   parseAuthBridgeNotificationPreparedReceipt,
-  prepareAuthBridgeNotificationPreparedReceipt,
+  prepareAuthBridgeNotificationB0Receipt,
   writePrivateAuthBridgeNotificationPreparedReceipt,
 } from './auth-bridge-notification-prepared-receipt.mjs';
 
@@ -789,7 +789,7 @@ export async function prepareAndWriteAuthBridgeNotificationB0Receipt({
   let deploymentStarted = false;
   let receipt;
   try {
-    receipt = await prepareAuthBridgeNotificationPreparedReceipt({
+    receipt = await prepareAuthBridgeNotificationB0Receipt({
       adminToken,
       expectedBridgeSourceCommit,
       fetchImpl,

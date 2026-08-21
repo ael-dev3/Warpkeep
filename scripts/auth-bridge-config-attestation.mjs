@@ -52,6 +52,11 @@ const PRIVATE_ATTESTATION_KEYS = Object.freeze([
   'qaObserverKeyExpiresAt',
   'qaObserverMaxRegistrationLifetimeMilliseconds',
 ]);
+const B0_PREDECESSOR_ATTESTATION_KEYS = Object.freeze(
+  PRIVATE_ATTESTATION_KEYS.filter(
+    key => key !== 'admissionNotificationRecoveryPath',
+  ),
+);
 export const AUTH_BRIDGE_RELEASE_ATTESTATION_KEYS = Object.freeze([
   'schemaVersion',
   'profile',
@@ -257,8 +262,13 @@ function canonicalTimestampOrNull(value, label) {
   return value;
 }
 
-function readPrivateAttestationModes(body) {
-  if (!exactKeys(body, PRIVATE_ATTESTATION_KEYS)) {
+function readPrivateAttestationModes(body, b0Contract = false) {
+  const currentContract = exactKeys(body, PRIVATE_ATTESTATION_KEYS);
+  const predecessorContract = exactKeys(
+    body,
+    B0_PREDECESSOR_ATTESTATION_KEYS,
+  );
+  if (!currentContract && (!b0Contract || !predecessorContract)) {
     fail('the private attestation shape was invalid.');
   }
   if (
@@ -282,8 +292,9 @@ function readPrivateAttestationModes(body) {
     || body.accessRequestSubmitProcedure !== 'access_request_submit_v1'
     || body.miniAppWebhookPath !== '/v1/farcaster/miniapp/webhook'
     || body.admissionNotificationPath !== '/v1/admin/admission-notification'
-    || body.admissionNotificationRecoveryPath
-      !== '/v1/admin/admission-notification-recovery'
+    || (currentContract
+      && body.admissionNotificationRecoveryPath
+        !== '/v1/admin/admission-notification-recovery')
     || body.admissionNotificationStatusPath !== '/v1/admin/admission-notification-status'
     || body.qaObserverMaxRegistrationLifetimeMilliseconds
       !== 366 * 24 * 60 * 60 * 1_000
@@ -359,13 +370,13 @@ function readPrivateAttestationModes(body) {
   });
 }
 
-export async function verifyAuthBridgeRpcRoleAttestation({
+async function verifyAuthBridgeRpcRoleAttestationContract({
   bridgeUrl = DEFAULT_AUTH_BRIDGE_URL,
   adminToken,
   expectedPrimaryRpcUrl = DEFAULT_FARCASTER_RPC_PRIMARY_URL,
   expectedSecondaryRpcUrl = DEFAULT_FARCASTER_RPC_SECONDARY_URL,
   fetchImpl = fetch,
-} = {}) {
+} = {}, b0Contract = false) {
   let bridgeOrigin;
   let credential;
   let primaryUrl;
@@ -462,7 +473,7 @@ export async function verifyAuthBridgeRpcRoleAttestation({
   let roles;
   try {
     body = await readBoundedJson(response);
-    modes = readPrivateAttestationModes(body);
+    modes = readPrivateAttestationModes(body, b0Contract);
     roles = readRoleFingerprints(body.farcasterRpcEndpointRoleFingerprints);
   } catch {
     failPrivateAttestation(
@@ -509,6 +520,23 @@ export async function verifyAuthBridgeRpcRoleAttestation({
     farcasterRpcEndpointRoleFingerprints: roles,
     ...modes,
   });
+}
+
+export function verifyAuthBridgeRpcRoleAttestation(options) {
+  return verifyAuthBridgeRpcRoleAttestationContract(options, false);
+}
+
+/**
+ * Verifies either the exact private response emitted by the live e8bd065 B0
+ * predecessor or the exact current response emitted after B0. The two shapes
+ * differ only by the predecessor's deliberate absence of the not-yet-deployed
+ * notification-recovery path, allowing same-source journal recovery without
+ * weakening the prepared path's current-contract requirement.
+ */
+export function verifyAuthBridgeNotificationB0RpcRoleAttestation(
+  options,
+) {
+  return verifyAuthBridgeRpcRoleAttestationContract(options, true);
 }
 
 const RELEASE_SECURITY_HEADERS = Object.freeze({

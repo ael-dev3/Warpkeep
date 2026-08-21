@@ -31,6 +31,7 @@ import {
 import {
   DEFAULT_AUTH_BRIDGE_URL,
   parseAuthBridgeReleaseAttestation,
+  verifyAuthBridgeNotificationB0RpcRoleAttestation,
   verifyAuthBridgeRpcRoleAttestation,
 } from './auth-bridge-config-attestation.mjs';
 
@@ -971,7 +972,7 @@ function currentDate(clock) {
  * attestations and a caller-supplied deployment operation. The administrator
  * credential is never passed to that operation.
  */
-export async function prepareAuthBridgeNotificationPreparedReceipt({
+async function prepareAuthBridgeNotificationReceipt({
   adminToken,
   deploy,
   expectedBridgeSourceCommit,
@@ -979,7 +980,7 @@ export async function prepareAuthBridgeNotificationPreparedReceipt({
   clock = () => new Date(),
   lifetimeMilliseconds =
     AUTH_BRIDGE_NOTIFICATION_PREPARED_RECEIPT_LIFETIME_MILLISECONDS,
-} = {}) {
+} = {}, verifyPredeployAttestation) {
   if (typeof deploy !== 'function') {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_OPERATION_REQUIRED');
   }
@@ -994,7 +995,7 @@ export async function prepareAuthBridgeNotificationPreparedReceipt({
       > AUTH_BRIDGE_NOTIFICATION_PREPARED_RECEIPT_LIFETIME_MILLISECONDS
   ) fail('AUTH_BRIDGE_PREPARED_RECEIPT_LIFETIME_INVALID');
   const operationStartedAt = currentDate(clock).getTime();
-  const before = await verifyAuthBridgeRpcRoleAttestation({
+  const before = await verifyPredeployAttestation({
     bridgeUrl: DEFAULT_AUTH_BRIDGE_URL,
     adminToken,
     fetchImpl,
@@ -1072,6 +1073,20 @@ export async function prepareAuthBridgeNotificationPreparedReceipt({
   });
   authenticatedPreparedReceipts.add(receipt);
   return receipt;
+}
+
+export function prepareAuthBridgeNotificationPreparedReceipt(options) {
+  return prepareAuthBridgeNotificationReceipt(
+    options,
+    verifyAuthBridgeRpcRoleAttestation,
+  );
+}
+
+export function prepareAuthBridgeNotificationB0Receipt(options) {
+  return prepareAuthBridgeNotificationReceipt(
+    options,
+    verifyAuthBridgeNotificationB0RpcRoleAttestation,
+  );
 }
 
 /**

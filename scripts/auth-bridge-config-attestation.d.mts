@@ -53,6 +53,16 @@ export function verifyAuthBridgeRpcRoleAttestation(options?: Readonly<{
   fetchImpl?: typeof fetch;
 }>): Promise<AuthBridgeRpcRoleAttestation>;
 
+export function verifyAuthBridgeNotificationB0RpcRoleAttestation(
+  options?: Readonly<{
+    bridgeUrl?: string;
+    adminToken?: string;
+    expectedPrimaryRpcUrl?: string;
+    expectedSecondaryRpcUrl?: string;
+    fetchImpl?: typeof fetch;
+  }>,
+): Promise<AuthBridgeRpcRoleAttestation>;
+
 export function parseAuthBridgeReleaseAttestation(
   value: unknown,
 ): AuthBridgeReleaseAttestation;

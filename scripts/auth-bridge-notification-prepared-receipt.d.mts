@@ -139,6 +139,21 @@ export function prepareAuthBridgeNotificationPreparedReceipt(
   }>,
 ): Promise<AuthenticatedAuthBridgeNotificationPreparedReceipt>;
 
+export function prepareAuthBridgeNotificationB0Receipt(
+  options: Readonly<{
+    adminToken: string;
+    deploy: (preservedModes: Readonly<{
+      bridgeSourceCommit: string;
+      publicAuthEnabled: boolean;
+      accessExpectedFidRequired: boolean;
+    }>) => void | Promise<void>;
+    expectedBridgeSourceCommit: string;
+    fetchImpl?: typeof fetch;
+    clock?: () => Date;
+    lifetimeMilliseconds?: number;
+  }>,
+): Promise<AuthenticatedAuthBridgeNotificationPreparedReceipt>;
+
 export function authenticateAuthBridgeNotificationPreparedReceiptForPublication(
   options: Readonly<{
     receipt: AuthBridgeNotificationPreparedReceipt;
