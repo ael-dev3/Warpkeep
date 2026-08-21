@@ -3,7 +3,7 @@
 Warpkeep is building a persistent strategy world one playable loop at a time.
 Dates and feature order may change as the Alpha is tested.
 
-## Live now — Alpha 0.3.17
+## Genesis 001 baseline — Alpha 0.3.43
 
 - Farcaster-gated entry to the persistent Genesis 001 realm
 - 10,000 world cells and 100 permanent castle sites near the founding district
@@ -21,8 +21,8 @@ Dates and feature order may change as the Alpha is tested.
 - separate private Community Marks accounting with no spending, transfer,
   conversion, redemption, or reward loop
 
-The core strategy loop is not playable yet. The current Alpha is a working
-world foundation and visual representation of what is being built.
+The core strategy loop is not playable in this baseline. Alpha 0.3.43 is a
+working world foundation and visual representation of what is being built.
 
 ## Now building
 

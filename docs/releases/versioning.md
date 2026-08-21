@@ -1,7 +1,7 @@
 # Versioning and releases
 
 Warpkeep uses semantic versions for the product and Git commit SHAs for builds.
-Alpha `0.3.43` is the live **The Realm Stands Ready** release. A version is
+Alpha `0.3.43` shipped as **The Realm Stands Ready**. A version is
 described as live only after its protected review, matching client deployment,
 and production smoke test all succeed.
 
