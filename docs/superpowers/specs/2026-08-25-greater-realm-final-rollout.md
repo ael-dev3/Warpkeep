@@ -131,8 +131,13 @@ binds receipts emitted by its predecessor:
 5. C4: Pages notification generation zero with world presentation still closed.
 6. C5: durable Pages-rooted, Hermes-inert successor.
 7. C6: durable Hermes notification successor, still on the inert world client.
-8. C7: activation-client successor, version `0.3.44`, atomically enabling both
-   presentation gates only after the durable C6 root and player-canary receipt.
+8. C7: one atomic activation-client successor that moves both the package and
+   Mini App identity to `0.3.44`, changes `clientActivationApproved` from
+   `false` to `true`, and changes both the client and server presentation gates
+   from `false` to `true`. It requires the durable C6 Pages root to remain
+   unchanged, Hermes to already be `true` in its predecessor, and the exact
+   checked-in production-player-canary binding whose owner-only receipt is
+   authenticated before deployment network access.
 
 Every write uses only the exact row in
 `docs/operations/greater-realm-production-launch-envelope.sh.txt`. Intentional

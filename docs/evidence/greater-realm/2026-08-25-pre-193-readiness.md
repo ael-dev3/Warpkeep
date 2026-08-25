@@ -11,8 +11,12 @@ Audited commit: [`4387b37ad6433b38136db745643029335b854100`](https://github.com/
 | `git status --short` | 0 | Pass: clean checkout (0 changed paths). |
 | `git rev-parse HEAD` | 0 | Pass: emitted the audited SHA above (1 identity). |
 | `git merge-base --is-ancestor 0ca019b797fcfbf56f0f8598900d80d85e0ea037 HEAD` | 0 | Pass: the required baseline is an ancestor of audited `HEAD` (1 ancestry assertion). |
+| `gh api repos/ael-dev3/Warpkeep/branches/main --jq .commit.sha` | 1 | Failed: GitHub API connection failed before any response, so no authenticated current `main` tip was emitted (0 tip identities). |
 
-The source identity is locally proven, but protected-main status cannot be inferred from local history; the authenticated protected-CI result below remains required.
+The source identity is locally proven, but protected-main status cannot be
+inferred from local history. `READY` requires exact equality between the
+authenticated current `main` tip and the audited SHA, followed by a successful
+push-triggered Verify run for that same SHA. Neither result is available here.
 
 ## Pull-request census
 
@@ -38,7 +42,26 @@ Bounded diagnostic only (not a replacement for the mandated runner): `cd spaceti
 | --- | ---: | --- |
 | `node_modules/.bin/vitest run tests/greaterRealmPresentationPlan.test.ts tests/greaterRealmSceneRuntime.test.ts tests/greaterRealmClientBridge.test.ts tests/greaterRealmResourceLocations.test.ts tests/greaterRealmWorkerControl.test.ts --maxWorkers=2` | 0 | Pass: 5 test files passed; 45 tests passed; 0 failed and 0 skipped. |
 
-Observed coverage includes roads, rivers/streams, bridges/fords, water animation, bounded moving ambient boats, reduced motion, NPCs, wildlife, castles, public resource markers, worker dispatch/recall, and closed presentation gates. The passing run reported its root as `/private/tmp/warpkeep-greater-realm-final.9WtZ23`.
+Observed coverage includes roads, rivers/streams, bridges/fords, water animation, bounded moving ambient boats, reduced motion, NPCs, wildlife, castles, public resource markers, worker dispatch/recall, and closed presentation gates.
+
+### Client command provenance
+
+The mandated client command was rerun from a fresh detached local clone at
+`/private/tmp/warpkeep-pre193-audited.8NHGOh`, created without network access
+at the audited commit. Its `node_modules` was supplied by a local copy-on-write
+copy from the trusted dependency tree; no dependency installation occurred.
+
+| Command | Exit | Result / counts |
+| --- | ---: | --- |
+| `pwd` | 0 | `/private/tmp/warpkeep-pre193-audited.8NHGOh` (1 checkout path). |
+| `git rev-parse HEAD` | 0 | `4387b37ad6433b38136db745643029335b854100` (1 SHA). |
+| `git status --short` | 0 | Pass: no output; clean checkout (0 changed paths). |
+| `node_modules/.bin/vitest run tests/greaterRealmPresentationPlan.test.ts tests/greaterRealmSceneRuntime.test.ts tests/greaterRealmClientBridge.test.ts tests/greaterRealmResourceLocations.test.ts tests/greaterRealmWorkerControl.test.ts --maxWorkers=2` | 0 | Pass: 5 test files passed; 45 tests passed; 0 failed and 0 skipped. |
+
+The checkout SHA exactly equals the audited commit
+`4387b37ad6433b38136db745643029335b854100` (1 equality assertion). This
+isolated rerun supplies client-test provenance only; it does not resolve any
+other readiness blocker.
 
 ## Release and security gates
 
@@ -64,7 +87,10 @@ Portable local gates passed where they could run. The migration rehearsal, admis
 | `gh api repos/ael-dev3/Warpkeep/branches/main/protection` | 1 | Failed: GitHub API connection failed before any response; branch-protection status unavailable. |
 | `gh run list --branch main --workflow Verify --limit 10 --json databaseId,headSha,status,conclusion,event,attempt,createdAt,updatedAt,url` | 1 | Failed: GitHub API connection failed before any response; 0 runs returned and no check URL available. |
 
-The authenticated evidence required to show protected `main` and a successful push-triggered `Verify` run for exact audited `HEAD` is unavailable. Local history is not treated as a substitute.
+The authenticated evidence required to show protected `main`, exact equality
+between the current authenticated `main` tip and audited `HEAD`, and a
+successful push-triggered `Verify` run for that same SHA is unavailable. Local
+history is not treated as a substitute.
 
 ## Environment limitations
 
@@ -72,7 +98,10 @@ The authenticated evidence required to show protected `main` and a successful pu
 | --- | ---: | --- |
 | `/bin/ps -o lstart= -p "$$"` | 127 | Managed sandbox denied execution: `operation not permitted: /bin/ps`. No process rows emitted. |
 
-The sandbox also denied the Unix-domain IPC socket needed by `tsx`. The original failed checkout used the supplied dependency-tree symlink matching the unchanged lockfile; this round's successful client rerun used the pre-existing local copy-on-write dependency directory in `/private/tmp`. No dependency installation was performed as part of this evidence amendment. The required process-lifecycle tests were neither edited nor waived. A `READY` result would still require their authenticated protected-main CI success.
+The sandbox also denied the Unix-domain IPC socket needed by `tsx`. The required
+process-lifecycle tests were neither edited nor waived. The client provenance
+rerun above used a copy-on-write local dependency copy without installation. A
+`READY` result would still require the authenticated protected-main CI success.
 
 ### Evidence self-review and public-safety scan
 
@@ -85,12 +114,15 @@ The public-safety scan used `git grep -n -I -E 'BEGIN (RSA|OPENSSH|EC|PRIVATE) K
 | Command | Exit | Observed result |
 | --- | ---: | --- |
 | `git add docs/evidence/greater-realm/2026-08-25-pre-193-readiness.md` | 0 | Exactly the evidence file was staged. |
-| `git commit -m "docs: record Greater Realm pre-193 readiness"` | 0 | Initial commit `7c90e4629427b11d96c5c59c97831f3400f8a43f`: 1 file, 92 insertions. Review amendments subsequently preserved one final evidence-only commit. |
+| `git commit -m "docs: record Greater Realm pre-193 readiness"` | 0 | Initial result `7c90e4629427b11d96c5c59c97831f3400f8a43f`: 1 file, 92 insertions. |
+
+Task-level review amendments later produced final evidence-task commit `e7a9225015192a510d69f1ff1603399b94bd5869`: 1 file, 99 insertions. The separate branch-level final-review provenance correction changes plan/spec/evidence documentation and is not evidence-only.
+
 ## Verdict
 
 **NOT READY.** The audited checkout is clean and descends from the required baseline, and the portable license, atlas-boundary, runtime-asset, file-size, release-gate, typecheck, and build checks passed. However, readiness is blocked by all of the following unresolved conditions:
 
-1. GitHub API access failed, so the open-PR census, protected branch configuration, and exact protected-main `Verify` run cannot be authenticated.
+1. GitHub API access failed, so the current `main` tip/equality, open-PR census, protected branch configuration, and exact protected-main `Verify` run cannot be authenticated.
 2. The server authority suite could not start because the managed sandbox denied the `tsx` IPC pipe.
 3. The additive-migration and admission-CAS rehearsals could not run because the pinned SpacetimeDB CLI was inactive.
 4. The auth-bridge check could not run because pnpm refused non-interactive modules-directory removal.

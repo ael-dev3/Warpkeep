@@ -46,12 +46,16 @@ Run:
 git status --short
 git rev-parse HEAD
 git merge-base --is-ancestor 0ca019b797fcfbf56f0f8598900d80d85e0ea037 HEAD
+gh api repos/ael-dev3/Warpkeep/branches/main --jq .commit.sha
 gh pr list --state open --limit 100 --json number,title,isDraft,headRefName,headRefOid,baseRefName,mergeStateStatus,statusCheckRollup
 ```
 
 Expected: clean checkout; `HEAD` is the named baseline or a descendant; the
 only intended open pull request is draft #193; no other PR remains silently
-outstanding. Capture only PR numbers, titles, public SHAs, and check conclusions.
+outstanding. The authenticated current `main` tip returned by the exact branch
+API command must equal the audited `HEAD` SHA before `READY`; local ancestry is
+not a substitute. Capture the exact branch-tip command and result, plus only PR
+numbers, titles, public SHAs, and check conclusions.
 
 - [ ] **Step 2: Verify server allocation, Tier-I, relocation, resources, and workers**
 
@@ -79,6 +83,9 @@ leakage.
 Run:
 
 ```bash
+pwd
+git rev-parse HEAD
+git status --short
 node_modules/.bin/vitest run \
   tests/greaterRealmPresentationPlan.test.ts \
   tests/greaterRealmSceneRuntime.test.ts \
@@ -91,7 +98,10 @@ node_modules/.bin/vitest run \
 Expected: zero failed tests. The report must name observed coverage for roads,
 rivers/streams, bridges/fords, water animation, bounded moving ambient boats,
 reduced motion, NPCs, wildlife, castles, public resource markers, worker
-dispatch/recall, and closed presentation gates.
+dispatch/recall, and closed presentation gates. A client rerun in any other
+checkout must record its `pwd`, exact `git rev-parse HEAD`, clean `git status
+--short`, and explicit equality to the audited commit before its file/test
+counts can support this evidence.
 
 - [ ] **Step 4: Verify fail-closed release and repository security boundaries**
 
@@ -125,7 +135,10 @@ gh run list --branch main --workflow Verify --limit 10 --json databaseId,headSha
 ```
 
 Expected: `main` is protected and the newest Verify run for the exact audited
-`HEAD` completed successfully from a push. A DNS/API failure yields `NOT READY`;
+`HEAD` completed successfully from a push. `READY` additionally requires that
+the authenticated current `main` tip captured in Step 1 equals the audited
+`HEAD`, and that successful push-triggered Verify run has that same SHA; a
+historical successful run is insufficient. A DNS/API failure yields `NOT READY`;
 it is not replaced by an assumption based on local history.
 
 - [ ] **Step 6: Write the evidence report**
@@ -173,5 +186,7 @@ git add docs/evidence/greater-realm/2026-08-25-pre-193-readiness.md
 git commit -m "docs: record Greater Realm pre-193 readiness"
 ```
 
-Expected: one commit containing only the evidence report. Do not push or merge
-under this task.
+Expected: the evidence task's one commit contains only the evidence report. A
+later branch-level review or provenance fix is a separate commit and must list
+its own touched files; do not characterize the entire final branch as containing
+only the evidence commit. Do not push or merge under this task.
