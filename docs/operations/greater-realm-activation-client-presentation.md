@@ -12,8 +12,8 @@ not a claim that Warpkeep has reached a complete gameplay loop.
 ## Exact deferred file set
 
 The activation-client change must review and reconstruct exactly these 14
-presentation paths for `0.3.44`; it must not replay the rejected presentation
-draft:
+presentation/documentation paths for `0.3.44`; it must not replay the rejected
+presentation draft:
 
 1. `CHANGELOG.md`
 2. `index.html`
@@ -30,9 +30,16 @@ draft:
 13. `tests/menuFarcasterAuthIntegration.test.tsx`
 14. `tests/menuMainMenu.test.tsx`
 
+These 14 paths are only the presentation/documentation subset. The complete C7
+source transition has exactly 18 guarded paths: the 14 above plus four release
+boundary paths carrying downstream approval, the production-player-canary
+binding, the client presentation gate, and the server presentation gate. All 18
+must move atomically; neither count describes an alternative release shape.
+
 The separately verified retained pending-owner report is published earlier in
 the inert C4 notification generation-zero source. It is release evidence, not
-presentation copy, and is not one of these 14 paths.
+presentation copy, and is not one of the 14 presentation/documentation paths or
+the 18 total guarded C7 paths.
 
 Do not blindly cherry-pick the old commit. Reconcile its Changelog hunks with
 all later truthful Unreleased entries, replace the bounded package and metadata

@@ -451,7 +451,10 @@ Execution is a separate reviewed boundary. It requires all of the following:
   journal, plan, claim, approval, baseline, route, command, registration, C6
   source, and live-root authority;
 - the exact reviewed C7 candidate checked out at its supplied commit and tree,
-  with only the fixed 18-path activation transition; and
+  with only the fixed 18-path activation transition: 14
+  presentation/documentation paths plus the four guarded boundary paths carrying
+  downstream approval, the player-canary binding, the client gate, and the
+  server-presentation gate; and
 - the separately reviewed player loader activation needed to have completed
   the live canary. Browser UI or sanitized browser evidence is never input or
   release authority.

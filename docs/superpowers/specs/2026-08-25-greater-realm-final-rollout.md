@@ -148,8 +148,11 @@ lane for reconciliation; it is not retried.
 ## Documentation and player admission
 
 - README and CHANGELOG remain truthful about the closed world before C7. Their
-  live-world update is part of the reviewed 14-path activation-client change,
-  never an optimistic pre-release edit.
+  live-world update is part of the 14-path presentation/documentation subset of
+  the reviewed 18-path activation-client change, never an optimistic pre-release
+  edit. The other four guarded paths atomically carry downstream approval, the
+  production-player-canary binding, the client presentation gate, and the server
+  presentation gate.
 - After C7 postflight, run the bounded private pending-request census. It is
   advisory only; each founder is processed sequentially through a fresh dry-run
   plan and confirmed request-CAS operation.
