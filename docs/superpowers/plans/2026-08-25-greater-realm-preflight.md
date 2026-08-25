@@ -25,7 +25,7 @@
 ### Task 1: Produce the pre-#193 readiness evidence
 
 **Files:**
-- Create: `docs/evidence/greater-realm/2026-08-25-pre-193-readiness.md`
+- Create: `docs/superpowers/evidence/2026-08-25-greater-realm-pre-193-readiness.md`
 - Verify: `spacetimedb/src/greaterRealmActivationPolicy.ts`
 - Verify: `spacetimedb/src/greaterRealmFoundingAuthority.ts`
 - Verify: `spacetimedb/src/greaterRealmWorkerAuthority.ts`
@@ -143,7 +143,7 @@ it is not replaced by an assumption based on local history.
 
 - [ ] **Step 6: Write the evidence report**
 
-Create `docs/evidence/greater-realm/2026-08-25-pre-193-readiness.md` with these
+Create `docs/superpowers/evidence/2026-08-25-greater-realm-pre-193-readiness.md` with these
 exact top-level sections:
 
 ```markdown
@@ -172,8 +172,8 @@ Run:
 ```bash
 git diff --check
 git diff --stat
-git diff -- docs/evidence/greater-realm/2026-08-25-pre-193-readiness.md
-git grep -n -I -E 'BEGIN (RSA|OPENSSH|EC|PRIVATE) KEY|Bearer [A-Za-z0-9._-]+|WARPKEEP_[A-Z0-9_]*(TOKEN|SECRET)=' -- docs/evidence/greater-realm/2026-08-25-pre-193-readiness.md
+git diff -- docs/superpowers/evidence/2026-08-25-greater-realm-pre-193-readiness.md
+git grep -n -I -E 'BEGIN (RSA|OPENSSH|EC|PRIVATE) KEY|Bearer [A-Za-z0-9._-]+|WARPKEEP_[A-Z0-9_]*(TOKEN|SECRET)=' -- docs/superpowers/evidence/2026-08-25-greater-realm-pre-193-readiness.md
 ```
 
 Expected: no whitespace errors; exactly one evidence file is added; the secret
@@ -182,7 +182,7 @@ pattern scan emits no matches.
 - [ ] **Step 8: Commit the evidence**
 
 ```bash
-git add docs/evidence/greater-realm/2026-08-25-pre-193-readiness.md
+git add docs/superpowers/evidence/2026-08-25-greater-realm-pre-193-readiness.md
 git commit -m "docs: record Greater Realm pre-193 readiness"
 ```
 

@@ -105,15 +105,15 @@ rerun above used a copy-on-write local dependency copy without installation. A
 
 ### Evidence self-review and public-safety scan
 
-The scoped report review used `git diff --check` (exit 0), `git diff --stat` (exit 0: exactly 1 added evidence file), and `git diff -- docs/evidence/greater-realm/2026-08-25-pre-193-readiness.md` (exit 0: only this report). No whitespace errors or out-of-scope tracked changes were found.
+The scoped report review used `git diff --check` (exit 0), `git diff --stat` (exit 0: exactly 1 added evidence file), and `git diff -- docs/superpowers/evidence/2026-08-25-greater-realm-pre-193-readiness.md` (exit 0: only this report). No whitespace errors or out-of-scope tracked changes were found.
 
-The public-safety scan used `git grep -n -I -E 'BEGIN (RSA|OPENSSH|EC|PRIVATE) KEY|Bearer [A-Za-z0-9._-]+|WARPKEEP_[A-Z0-9_]*(TOKEN|SECRET)=' -- docs/evidence/greater-realm/2026-08-25-pre-193-readiness.md`; it exited 1 with 0 matches, which is the expected no-match result. Self-review finding: the report is secret-free and names only public SHAs, aggregate counts, and bounded error summaries.
+The public-safety scan used `git grep -n -I -E 'BEGIN (RSA|OPENSSH|EC|PRIVATE) KEY|Bearer [A-Za-z0-9._-]+|WARPKEEP_[A-Z0-9_]*(TOKEN|SECRET)=' -- docs/superpowers/evidence/2026-08-25-greater-realm-pre-193-readiness.md`; it exited 1 with 0 matches, which is the expected no-match result. Self-review finding: the report is secret-free and names only public SHAs, aggregate counts, and bounded error summaries.
 
 ### Step 8 commit record
 
 | Command | Exit | Observed result |
 | --- | ---: | --- |
-| `git add docs/evidence/greater-realm/2026-08-25-pre-193-readiness.md` | 0 | Exactly the evidence file was staged. |
+| `git add docs/superpowers/evidence/2026-08-25-greater-realm-pre-193-readiness.md` | 0 | Exactly the evidence file was staged. |
 | `git commit -m "docs: record Greater Realm pre-193 readiness"` | 0 | Initial result `7c90e4629427b11d96c5c59c97831f3400f8a43f`: 1 file, 92 insertions. |
 
 Task-level review amendments later produced final evidence-task commit `e7a9225015192a510d69f1ff1603399b94bd5869`: 1 file, 99 insertions. The separate branch-level final-review provenance correction changes plan/spec/evidence documentation and is not evidence-only.
