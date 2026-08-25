@@ -10,6 +10,12 @@ export function attestAuthBridgeNotificationB0DeployCheckout(
   }>,
 ): Promise<string>;
 
+export const authBridgeNotificationB0DeployTestSeams: Readonly<{
+  settleGitInspections: <Value>(
+    inspections: readonly Promise<Value>[],
+  ) => Promise<readonly Value[]>;
+}>;
+
 export function createAuthBridgeNotificationB0GithubWritePermit(
   options: Readonly<{
     githubToken: string;

@@ -176,6 +176,18 @@ function exactTrackedListing(repositoryRoot) {
   );
 }
 
+async function settleGitInspections(inspections) {
+  const results = await Promise.allSettled(inspections);
+  if (results.some(result => result.status === 'rejected')) {
+    fail('AUTH_BRIDGE_NOTIFICATION_B0_DEPLOY_GIT_INSPECTION_FAILED');
+  }
+  return results.map(result => result.value);
+}
+
+export const authBridgeNotificationB0DeployTestSeams = Object.freeze({
+  settleGitInspections,
+});
+
 export async function attestAuthBridgeNotificationB0DeployCheckout({
   repositoryRoot,
   sourceCommit,
@@ -187,7 +199,7 @@ export async function attestAuthBridgeNotificationB0DeployCheckout({
   if (!SOURCE_COMMIT.test(sourceCommit ?? '')) {
     fail('AUTH_BRIDGE_NOTIFICATION_B0_DEPLOY_SOURCE_COMMIT_INVALID');
   }
-  const [topLevel, head, status, origin, trackedEntries] = await Promise.all([
+  const [topLevel, head, status, origin, trackedEntries] = await settleGitInspections([
     exactGit(repository, ['rev-parse', '--show-toplevel']),
     exactGit(repository, ['rev-parse', 'HEAD']),
     exactGit(repository, ['status', '--porcelain=v1', '--untracked-files=all']),

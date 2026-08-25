@@ -174,6 +174,11 @@ export function verifyAuthBridgeNotificationB0StaticPolicy({
     ["['ls-files', '-v'],\n    MAX_TRACKED_LISTING_BYTES,", 1],
     ['exactGit(repository,', 7],
     ['exactTrackedListing(repository),', 1],
+    ['async function settleGitInspections(inspections) {', 1],
+    ['const results = await Promise.allSettled(inspections);', 1],
+    ["results.some(result => result.status === 'rejected')", 1],
+    ['return results.map(result => result.value);', 1],
+    ['await settleGitInspections([', 1],
   ]) exact(
     entrypoint,
     value,

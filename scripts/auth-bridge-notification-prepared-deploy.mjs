@@ -137,6 +137,7 @@ function copyAndScrubEnvironment(environment) {
 
 export const authBridgeNotificationPreparedDeployTestSeams = Object.freeze({
   copyAndScrubEnvironment,
+  settleGitInspections,
 });
 
 async function boundedExactGit(repositoryRoot, args, maximumOutputBytes) {
@@ -186,6 +187,14 @@ function exactTrackedListing(repositoryRoot) {
   );
 }
 
+async function settleGitInspections(inspections) {
+  const results = await Promise.allSettled(inspections);
+  if (results.some(result => result.status === 'rejected')) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_GIT_INSPECTION_FAILED');
+  }
+  return results.map(result => result.value);
+}
+
 export async function attestAuthBridgeNotificationPreparedDeployCheckout({
   repositoryRoot,
   sourceCommit,
@@ -197,7 +206,7 @@ export async function attestAuthBridgeNotificationPreparedDeployCheckout({
   if (!SOURCE_COMMIT.test(sourceCommit ?? '')) {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_SOURCE_COMMIT_INVALID');
   }
-  const [topLevel, head, status, origin, trackedEntries] = await Promise.all([
+  const [topLevel, head, status, origin, trackedEntries] = await settleGitInspections([
     exactGit(repository, ['rev-parse', '--show-toplevel']),
     exactGit(repository, ['rev-parse', 'HEAD']),
     exactGit(repository, ['status', '--porcelain=v1', '--untracked-files=all']),
