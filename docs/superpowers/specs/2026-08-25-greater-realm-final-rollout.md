@@ -16,14 +16,22 @@ and every pending eligible player notified and admitted exactly once.
 ## Starting state
 
 - All completed pull requests through #217 are already in `main`.
-- An earlier reviewed snapshot of #193 is in `main` through merge commit
-  `8d74c71713529e473efba0098d048b1c25b73899`. The still-open draft #193 has
-  continued beyond that snapshot and must be integrated only after its separate
-  worker declares the head ready.
-- The current #193 head is not an ancestor of `main`. A wholesale merge result
-  would conflict with or regress newer release, security, renderer, notification,
-  and documentation work. Its final novel changes must be adapted onto the then
-  current protected `main` while preserving the pull request number.
+- The audited open draft #193 head is
+  `d9c173296c455f28b325321bb6168c02f6886370`. It is not an ancestor of `main`,
+  but its apparently novel final commits were already adapted as
+  `8200539dde2461c8ed6c6376559cdfb5b4cc76aa` and
+  `4fbe666fb9f251d7d66b32f73461f0b5875776f5`. The complete reviewed adaptation
+  reached protected `main` through merge
+  `8d74c71713529e473efba0098d048b1c25b73899` and PR #195 merge
+  `98a3636f482684d45673036d54acb461602ceb39`; at that exact #193 head there is
+  no remaining source delta to port.
+- PR #193 is intentionally retained as the final integration record. A wholesale
+  merge, conflict resolution, rebase, or force-push of its stale branch would
+  regress newer release, security, renderer, notification, and documentation
+  authority. If its head changes, wait for its separate worker, range-diff only
+  the new delta, and adapt genuinely novel behavior onto protected `main`. If
+  its head remains exact, retain it through the staged rollout and live receipts,
+  then close it as superseded last.
 - Greater Realm import, activation, client presentation, server presentation,
   notification delivery, and downstream release approvals are all compiled
   closed. This is correct until their named release phases.
@@ -98,22 +106,32 @@ and every pending eligible player notified and admitted exactly once.
 5. Preserve a content-addressed preflight evidence report. Do not open a new
    feature gap when existing behavior and tests already satisfy this spec.
 
-### Phase B — PR #193 last
+### Phase B — PR #193 final reconciliation
 
-1. Wait until #193 is non-draft or its separate worker explicitly reports the
-   final head ready. Capture that immutable head SHA.
-2. Check out the actual #193 head and merge the then current protected `main`
-   into it. Do not force-push over work still in progress.
-3. Resolve conflicts by preserving newer `main` security, disturbance,
-   release, notification, and operational authority, then port the final novel
-   water-first generation, terrain, grass, wildflower, and capability changes.
-4. The generator version may only advance beyond the current `.18` authority
+1. Authenticate #193's head before the first production successor and again
+   before final closure. The known retained-record head is
+   `d9c173296c455f28b325321bb6168c02f6886370`.
+2. If the head is still exact, prove the adapted lineage through `8200539`,
+   `4fbe666`, `8d74c717`, and `98a3636`; port nothing and never resolve the stale
+   branch's conflicts merely to make it mergeable.
+3. If the head changed, wait until its separate worker explicitly reports the
+   immutable final head ready. Range-diff from the known head, preserve newer
+   `main` security, disturbance, release, notification, and operational
+   authority, and adapt only genuinely novel behavior through a separate
+   protected successor. Run focused suites after each conflict family and the
+   complete protected workflow. Never wholesale merge, rebase, or force-push
+   the stale #193 branch.
+4. The generator version may advance beyond the current `.18` authority only
    when code, design, security docs, package evidence, and tests all name the
    same new value. It may never regress to `.17`.
-5. Run focused suites after each conflict family, then the complete protected
-   verification workflow. Merge #193 only after required checks are green and
-   the GitHub merge state is clean.
-6. Confirm the GitHub open-PR census is empty before production mutation.
+5. During C0-C7 and post-C7 admission, #193 may remain the sole intentional open
+   integration record. Immediately before any production mutation, authenticate
+   that its head is unchanged and that no other pull request is open; a phase PR
+   must already be merged and its exact push-triggered Verify green.
+6. After C7 postflight, sequential admission and notification reconciliation,
+   and final live receipts are complete, close #193 as superseded only after
+   recording the exact immutable-head-to-adapted-lineage provenance. Then
+   authenticate a zero-open-PR census.
 
 ### Phase C — protected production succession
 
@@ -171,7 +189,10 @@ lane for reconciliation; it is not retried.
 
 Stop the active release lane without guessing when any of these occurs:
 
-- #193 is still changing, draft, conflicted, or has a failing required check;
+- #193 changes from its authenticated retained-record head without a reviewed
+  new-delta adaptation, its separate worker reports active changes, or any pull
+  request other than the current reviewed phase PR and retained #193 record is
+  open;
 - branch protection, protected-main identity, or the exact Verify run cannot be
   authenticated;
 - selected artifacts, module source, schema, topology, counts, or digests drift;
@@ -186,8 +207,10 @@ Stop the active release lane without guessing when any of these occurs:
 
 The rollout is complete only when all of the following are simultaneously true:
 
-- GitHub reports zero open pull requests and protected `main` includes the final
-  adapted #193 head;
+- GitHub reports zero open pull requests and protected `main` contains every
+  audited behavior from #193's immutable final head through reviewed
+  adaptations (including the current `d9c1732` mapping through `8200539`,
+  `4fbe666`, `8d74c717`, and `98a3636` when that head remains unchanged);
 - full protected CI, build, migration rehearsals, release gates, secret scan,
   and final code/security review are green;
 - production verifies active v17, six Tier-I regions, 600 slots, 12,000 active

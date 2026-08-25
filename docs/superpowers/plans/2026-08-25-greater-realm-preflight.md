@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Produce reviewable evidence that current `main` satisfies the approved Greater Realm gameplay and security contract before the final adaptation of PR #193.
+**Goal:** Produce reviewable evidence that current `main` satisfies the approved Greater Realm gameplay and security contract before the final reconciliation of PR #193 and the staged release succession.
 
 **Architecture:** This plan does not open production gates or duplicate already implemented gameplay. It verifies server authority, client presentation, release boundaries, and GitHub state from an isolated checkout, then commits one public, secret-free evidence report. Production-only process tests must be proven by protected CI when the local sandbox cannot read process identities.
 
@@ -13,7 +13,12 @@
 ## Global Constraints
 
 - Baseline commit is `0ca019b797fcfbf56f0f8598900d80d85e0ea037` or a strict protected-main descendant containing no unreviewed gate change.
-- PR #193 remains unmerged and is integrated last only after its separate worker reports the immutable final head ready.
+- PR #193 remains unmerged as the final integration record. At the audited
+  `d9c173296c455f28b325321bb6168c02f6886370` head its behavior is already in
+  `main` through reviewed adaptations, so the stale branch is never merged. If
+  its head changes, wait for its separate worker and adapt only the new delta;
+  if it remains exact, close it as superseded only after the staged rollout and
+  live receipts complete.
 - Import, activation, client presentation, server presentation, notification delivery, and downstream release approvals remain compiled closed throughout this plan.
 - Only the six named Tier-I regions may be public, passable, foundable, or gatherable; Tier II and Tier III remain sealed and absent from public current-world authority.
 - Capacity remains exactly 600 castles, 2,400 workers, and 12,000 active resource nodes, with 100 castle slots per Tier-I region and four workers per castle.
