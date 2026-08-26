@@ -5,7 +5,9 @@
 > in the reviewed
 > [production launch envelope](./greater-realm-production-launch-envelope.sh.txt).
 > The only supported listing surface is the bounded, private
-> `hermes-list-pending` census row. Owner-canary reset remains unavailable.
+> `hermes-list-pending` census row. The one-time Genesis 001 frozen applicant
+> archive described below is a separate post-freeze evidence operation.
+> Owner-canary reset remains unavailable.
 
 An access request is a private expression of interest from a server-verified
 Farcaster account. It stores only the FID, a server-derived admission cycle,
@@ -32,11 +34,81 @@ The former general list operator remains a refusal stub and must not be invoked
 through npm or a direct TypeScript fallback. Do not copy the private census into
 the repository, CI artifacts, issue comments, or public operator logs.
 
-Admission is deliberately separate. For a missing FID, use only the reviewed
-`hermes-admit-dry` and `hermes-admit-confirm` envelope rows. For a disabled
-founder whose retained graph has passed review, use only `hermes-allow-dry` and
-`hermes-allow-confirm`. Listing never fetches a profile and never admits or
-edits state.
+## One-time Genesis 001 frozen applicant archive
+
+Do not run `export-access-request-census` until the Genesis 001 admission freeze
+has been deployed from the explicitly reviewed `0.3.43` source baseline
+`f39d57c8622077e6543a16e5610d0e4ec73910da` and independently verified in the
+deployed module. Verification must establish realm ID `GENESIS_001`, release
+`0.3.43`, existing-player access retained, admission-state mutations disabled,
+and new access-request submission disabled. The explicit attestation argument is
+not live proof by itself. Before either census pass, the exporter also calls the
+metadata-authorized, read-only `genesis_001_access_policy_v1` procedure and
+requires the exact receipt `GENESIS_001` / `0.3.43` / player access enabled /
+admission mutations disabled / request submissions disabled. A missing generated
+binding, procedure failure, additional or missing field, or value mismatch aborts
+before any applicant rows are read. Independently verify the deployment first;
+the exporter then records evidence only from that already-verified freeze.
+
+Both `--dry-run` and `--confirm` require the explicit source-bound prerequisite
+`--g001-admission-freeze-attestation`
+`c2fbbd41ac11b6a6d23088158e013d5660a1e24fc7da24e1a75a1ec525011463`.
+Any missing or different value fails during argument parsing, before production
+credentials or the database are accessed. The attestation digest commits to the
+realm, release, source baseline, disabled admission mutations, and disabled
+request submissions. The report's target digest additionally commits to the
+source-suspended Hermes command set, canonical production database URI and
+identity, authentication bridge, fixed live-freeze and census procedures,
+inclusion of resolved requests, pagination bounds, and two-pass census
+requirement, plus the exact descriptor-anchored writer source.
+
+Run both modes from the exact verified release checkout through the installed
+production administrator secret runner. It injects the existing secret without
+putting it in process arguments, shell history, or the environment of the
+calling shell; no secret rotation or manual secret copy is required. The release
+bundle must include generated bindings for `genesis_001_access_policy_v1`.
+
+```sh
+cd /absolute/path/to/the/verified-release-checkout
+'/Users/marko/Library/Application Support/Warpkeep/operations/bin/warpkeep-secrets' run-admin -- \
+  node node_modules/tsx/dist/cli.mjs scripts/hermes-admin.ts \
+  export-access-request-census --dry-run \
+  --g001-admission-freeze-attestation \
+  c2fbbd41ac11b6a6d23088158e013d5660a1e24fc7da24e1a75a1ec525011463
+```
+
+After reviewing the metadata-only dry-run result, repeat the same command with
+`--confirm` in place of `--dry-run`. Do not redirect either command's output to
+a shared file.
+
+Each mode reads the complete bounded census twice and fails closed unless both
+canonical snapshots match exactly. `--dry-run` writes nothing and prints only a
+metadata reference containing count, byte size, SHA-256, and basename; it never
+prints FIDs or the report body. After reviewing that metadata, `--confirm`
+creates one non-overwritable, timestamped mode-0600 TXT file in the actual
+production administrator account's canonical Desktop. Ambient `HOME` is
+ignored. The writer holds and repeatedly re-attests the Desktop directory and
+destination identities, refuses symlinks, and does not overwrite an existing
+timestamp.
+
+Keep the resulting TXT only on that private Desktop for the later Genesis 002
+review. Never place it in the repository, logs, shell history, CI artifacts,
+cloud sync, tickets, chat, or release evidence. Neither mode calls an admission
+or access-request mutation.
+
+The `0.3.43` source baseline also suspends every Hermes admission/reset operator
+at command dispatch, before trusted-launch capture, credentials, network calls,
+profile resolution, plan reads, or reducers. This covers `admit-founder`,
+`allow-fid`, `disable-fid`, `bump-auth-epoch`, `reset-access-request`, and
+`recover-admission-notification`, in both dry-run and confirmed forms. Read-only
+status, notification inspection, and census commands remain available.
+
+Admission remains deliberately separate and unavailable while this source-bound
+suspension is present. If a later reviewed release reopens it, a missing FID may
+use only the reviewed `hermes-admit-dry` and `hermes-admit-confirm` envelope rows;
+a disabled founder whose retained graph has passed review may use only
+`hermes-allow-dry` and `hermes-allow-confirm`. Listing never fetches a profile
+and never admits or edits state.
 
 Both mutation paths fail closed on the current world authority. While legacy
 founding is explicitly open, Hermes preserves the exact v3/v4 100-slot graph

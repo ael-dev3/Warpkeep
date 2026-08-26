@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   closeSync,
@@ -57,6 +58,7 @@ import {
 import { configureHermesMachineOutput } from './hermes-machine-output';
 import {
   assertProductionAdminTrustedAncestors,
+  canonicalProductionAdminAccountHome,
   recordProductionAdminTokenAttempt,
 } from './production-admin-token-budget.mjs';
 import {
@@ -138,6 +140,7 @@ type Command =
   | 'expand-world-v3'
   | 'list-access-requests'
   | 'list-pending-access-requests'
+  | 'export-access-request-census'
   | 'inspect-access-request-reset'
   | 'reset-access-request'
   | 'admit-founder'
@@ -231,6 +234,21 @@ const MAX_ACCESS_REQUEST_CENSUS_PAGES = 41;
 const MAX_ACCESS_REQUEST_CENSUS_ROWS = 4_096;
 const MAX_ACCESS_REQUEST_CENSUS_BYTES = 1024 * 1024;
 const COMMIT_SHA = /^[0-9a-f]{40}$/u;
+export const GENESIS_001_ACCESS_REQUEST_CENSUS_REALM_ID = 'GENESIS_001';
+export const GENESIS_001_ACCESS_REQUEST_CENSUS_RELEASE_VERSION = '0.3.43';
+export const GENESIS_001_ACCESS_REQUEST_CENSUS_SOURCE_BASELINE_COMMIT =
+  'f39d57c8622077e6543a16e5610d0e4ec73910da';
+export const GENESIS_001_SUSPENDED_HERMES_COMMANDS = Object.freeze([
+  'admit-founder',
+  'allow-fid',
+  'bump-auth-epoch',
+  'disable-fid',
+  'recover-admission-notification',
+  'reset-access-request',
+] as const satisfies readonly Command[]);
+const GENESIS_001_ACCESS_POLICY_PROCEDURE = 'genesis_001_access_policy_v1';
+const ACCESS_REQUEST_CENSUS_DESKTOP_WRITER =
+  'system-python-openat-census-v1';
 const MAX_JAVASCRIPT_DATE_MICROS = 8_640_000_000_000_000_000n;
 const ACCESS_REQUEST_PAGE_KEYS = Object.freeze([
   'entries',
@@ -333,6 +351,17 @@ export const PENDING_ACCESS_REQUEST_CENSUS_TARGET_CONFIGURATION_DIGEST = createH
     maximumRows: MAX_ACCESS_REQUEST_CENSUS_ROWS,
   }), 'utf8')
   .digest('hex');
+
+export const GENESIS_001_ADMISSION_FREEZE_ATTESTATION_DIGEST = createHash('sha256')
+  .update(JSON.stringify({
+    realmId: GENESIS_001_ACCESS_REQUEST_CENSUS_REALM_ID,
+    releaseVersion: GENESIS_001_ACCESS_REQUEST_CENSUS_RELEASE_VERSION,
+    sourceBaselineCommit: GENESIS_001_ACCESS_REQUEST_CENSUS_SOURCE_BASELINE_COMMIT,
+    admissionStateMutationsEnabled: false,
+    accessRequestSubmissionsEnabled: false,
+  }), 'utf8')
+  .digest('hex');
+
 export const ACCESS_REQUEST_RESET_TARGET_CONFIGURATION_DIGEST = createHash('sha256')
   .update(JSON.stringify({
     databaseUri: DEFAULT_URI,
@@ -828,6 +857,7 @@ function commandFrom(value: string | undefined): Command {
     || value === 'expand-world-v3'
     || value === 'list-access-requests'
     || value === 'list-pending-access-requests'
+    || value === 'export-access-request-census'
     || value === 'inspect-access-request-reset'
     || value === 'reset-access-request'
     || value === 'admit-founder'
@@ -853,12 +883,15 @@ function commandFrom(value: string | undefined): Command {
   }
   fail(
     'Usage: hermes-admin.ts '
-    + '<seed-world|expand-world-v3|list-access-requests|list-pending-access-requests|inspect-access-request-reset|reset-access-request|admit-founder|inspect-admission-notification|recover-admission-notification|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
+    + '<seed-world|expand-world-v3|list-access-requests|list-pending-access-requests|export-access-request-census|inspect-access-request-reset|reset-access-request|admit-founder|inspect-admission-notification|recover-admission-notification|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
     + '[...args] [--dry-run] [--confirm]. admit-founder requires private stdin: '
     + '--input-stdin --dry-run creates a reviewed plan; --input-stdin --confirm consumes it; '
     + 'allow-fid only re-enables an existing complete founder. list-access-requests accepts '
     + '[--limit 1..100] [--after-requested-at-micros U64 --after-fid FID] '
-    + '[--include-resolved] [--json]. reset-access-request dry-run requires FID and note; '
+    + '[--include-resolved] [--json]. export-access-request-census requires --dry-run or '
+    + '--confirm plus --g001-admission-freeze-attestation SHA256, after the source-bound '
+    + 'Genesis 001 freeze deploy has been independently verified. '
+    + 'reset-access-request dry-run requires FID and note; '
     + 'confirmed execution accepts the reviewed plan filename and digest. '
     + 'recover-admission-notification uses the same reviewed-plan shape for one '
     + 'exhausted first-time request generation, while '
@@ -878,6 +911,7 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     '--limit',
     '--after-requested-at-micros',
     '--after-fid',
+    '--g001-admission-freeze-attestation',
   ]);
   const flags = new Set<string>();
   const options = new Map<string, string>();
@@ -918,6 +952,7 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     || command === 'inspect-publish-post-v12'
     || command === 'list-access-requests'
     || command === 'list-pending-access-requests'
+    || (command === 'export-access-request-census' && flags.has('--dry-run'))
     || command === 'inspect-access-request-reset'
     || command === 'inspect-admission-notification';
   const expectedPositionals = command === 'reset-access-request'
@@ -938,12 +973,14 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     fail('Hermes command received an unexpected number of positional arguments.');
   }
   if (
-    (inspection && (flags.has('--confirm') || flags.has('--dry-run')))
-    || (!inspection && flags.has('--json'))
+    (inspection
+      && command !== 'export-access-request-census'
+      && (flags.has('--confirm') || flags.has('--dry-run')))
+    || (!inspection && command !== 'export-access-request-census' && flags.has('--json'))
   ) {
     fail('Hermes command received a flag that is invalid for this operation.');
   }
-  if (command !== 'list-access-requests' && (
+  if (command !== 'list-access-requests' && command !== 'export-access-request-census' && (
     flags.has('--include-resolved')
     || options.size > 0
   )) {
@@ -953,6 +990,7 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     flags.has('--input-stdin')
     || flags.has('--confirm')
     || flags.has('--dry-run')
+    || options.has('--g001-admission-freeze-attestation')
   )) {
     fail('Hermes command received a flag that is invalid for this operation.');
   }
@@ -961,6 +999,28 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     && (flags.size !== 0 || options.size !== 0)
   ) {
     fail('Hermes command received a flag that is invalid for this operation.');
+  }
+  if (command === 'export-access-request-census') {
+    if (
+      flags.has('--json')
+      || flags.has('--input-stdin')
+      || flags.has('--include-resolved')
+      || [...options.keys()].some(
+        option => option !== '--g001-admission-freeze-attestation',
+      )
+    ) fail('Hermes command received a flag that is invalid for this operation.');
+    if (flags.has('--dry-run') === flags.has('--confirm')) {
+      fail('Access request census export requires exactly one of --dry-run or --confirm.');
+    }
+    if (
+      options.get('--g001-admission-freeze-attestation')
+      !== GENESIS_001_ADMISSION_FREEZE_ATTESTATION_DIGEST
+    ) {
+      fail(
+        'Access request census requires the exact source-bound Genesis 001 '
+        + 'admission freeze attestation.',
+      );
+    }
   }
   if (command === 'admit-founder') {
     if (!flags.has('--input-stdin')) {
@@ -1048,6 +1108,10 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
     machineReadableInspection: inspection && flags.has('--json'),
     existingFounderReenableOnly: command === 'allow-fid',
     privateInputStdin: flags.has('--input-stdin'),
+    accessRequestCensusAdmissionFreezeAttestation:
+      command === 'export-access-request-census'
+        ? options.get('--g001-admission-freeze-attestation')
+        : undefined,
     accessRequestList: Object.freeze({
       limit: command === 'list-access-requests' ? Number(accessRequestLimitText) : 0,
       afterRequestedAtMicros,
@@ -1056,6 +1120,20 @@ export function parseHermesArguments(arguments_: readonly string[] = process.arg
         && flags.has('--include-resolved'),
     }),
   });
+}
+
+/**
+ * Source-bound operator suspension for the permanently sealed Genesis 001
+ * population. It runs before launch capture, credentials, network, profile
+ * resolution, reviewed-plan reads, or any reducer invocation.
+ */
+export function requireGenesis001AdmissionOperatorCommandEnabled(command: Command): void {
+  if ((GENESIS_001_SUSPENDED_HERMES_COMMANDS as readonly Command[]).includes(command)) {
+    fail(
+      'Genesis 001 admission/reset operator is suspended at source baseline '
+      + GENESIS_001_ACCESS_REQUEST_CENSUS_SOURCE_BASELINE_COMMIT + '.',
+    );
+  }
 }
 
 export function parseSeedableAlphaComponent(value: string | undefined): SeedableAlphaComponent {
@@ -1194,6 +1272,33 @@ export type PendingAccessRequestCensus = Readonly<{
   }>[];
   advisoryOnly: true;
   admissionMustRecheckRequestCas: true;
+}>;
+
+/** Private owner export. Its rows must never be sent to stdout. */
+export type AccessRequestCensus = Readonly<{
+  schemaVersion: 1;
+  kind: 'warpkeep-access-request-census-v1';
+  realmId: typeof GENESIS_001_ACCESS_REQUEST_CENSUS_REALM_ID;
+  releaseVersion: typeof GENESIS_001_ACCESS_REQUEST_CENSUS_RELEASE_VERSION;
+  sourceBaselineCommit: typeof GENESIS_001_ACCESS_REQUEST_CENSUS_SOURCE_BASELINE_COMMIT;
+  admissionFreezeAttestation: typeof GENESIS_001_ADMISSION_FREEZE_ATTESTATION_DIGEST;
+  targetConfigurationDigest: string;
+  totalRequests: string;
+  pendingRequests: string;
+  entries: readonly Readonly<{
+    fid: string;
+    requestedAtMicros: string;
+    admissionState: 'missing' | 'enabled' | 'disabled';
+    requestState: 'pending' | 'resolved';
+  }>[];
+}>;
+
+type Genesis001AccessPolicy = Readonly<{
+  realmId: typeof GENESIS_001_ACCESS_REQUEST_CENSUS_REALM_ID;
+  releaseVersion: typeof GENESIS_001_ACCESS_REQUEST_CENSUS_RELEASE_VERSION;
+  playerAccessEnabled: true;
+  admissionStateMutationsEnabled: false;
+  accessRequestSubmissionsEnabled: false;
 }>;
 
 type AccessRequestResetStatus = Readonly<{
@@ -1819,6 +1924,884 @@ export async function collectPendingAccessRequestCensus(
     afterFid = page.nextFid;
   }
   return fail('Pending access request census pagination exceeded the reviewed bound.');
+}
+
+function exactAccessRequestCensus(value: AccessRequestCensus): AccessRequestCensus {
+  exactObjectKeys(value as unknown as Record<string, unknown>, [
+    'admissionFreezeAttestation',
+    'entries',
+    'kind',
+    'pendingRequests',
+    'realmId',
+    'releaseVersion',
+    'schemaVersion',
+    'sourceBaselineCommit',
+    'targetConfigurationDigest',
+    'totalRequests',
+  ], 'Access request census was invalid.');
+  if (
+    value.schemaVersion !== 1
+    || value.kind !== 'warpkeep-access-request-census-v1'
+    || value.realmId !== GENESIS_001_ACCESS_REQUEST_CENSUS_REALM_ID
+    || value.releaseVersion !== GENESIS_001_ACCESS_REQUEST_CENSUS_RELEASE_VERSION
+    || value.sourceBaselineCommit
+      !== GENESIS_001_ACCESS_REQUEST_CENSUS_SOURCE_BASELINE_COMMIT
+    || value.admissionFreezeAttestation
+      !== GENESIS_001_ADMISSION_FREEZE_ATTESTATION_DIGEST
+    || value.targetConfigurationDigest !== ACCESS_REQUEST_CENSUS_TARGET_CONFIGURATION_DIGEST
+    || !/^(?:0|[1-9][0-9]{0,3})$/u.test(value.totalRequests)
+    || !/^(?:0|[1-9][0-9]{0,3})$/u.test(value.pendingRequests)
+    || BigInt(value.totalRequests) > BigInt(MAX_ACCESS_REQUEST_CENSUS_ROWS)
+    || BigInt(value.pendingRequests) > BigInt(value.totalRequests)
+    || !Array.isArray(value.entries)
+    || BigInt(value.entries.length) !== BigInt(value.totalRequests)
+  ) fail('Access request census was invalid.');
+  let previous: Readonly<{ fid: bigint; requestedAtMicros: bigint }> | undefined;
+  let pending = 0;
+  const seen = new Set<string>();
+  const entries = value.entries.map(candidate => {
+    exactObjectKeys(candidate as unknown as Record<string, unknown>, [
+      'admissionState', 'fid', 'requestState', 'requestedAtMicros',
+    ], 'Access request census entry was invalid.');
+    if (
+      typeof candidate.fid !== 'string'
+      || !/^[1-9][0-9]{0,15}$/u.test(candidate.fid)
+      || BigInt(candidate.fid) > BigInt(Number.MAX_SAFE_INTEGER)
+      || typeof candidate.requestedAtMicros !== 'string'
+      || !/^[1-9][0-9]{0,19}$/u.test(candidate.requestedAtMicros)
+      || BigInt(candidate.requestedAtMicros) > U64_MAXIMUM
+      || (candidate.admissionState !== 'missing'
+        && candidate.admissionState !== 'enabled'
+        && candidate.admissionState !== 'disabled')
+      || (candidate.requestState !== 'pending' && candidate.requestState !== 'resolved')
+      || (candidate.requestState === 'pending' && candidate.admissionState === 'enabled')
+      || seen.has(candidate.fid)
+    ) fail('Access request census entry was invalid.');
+    const ordered = Object.freeze({
+      fid: BigInt(candidate.fid),
+      requestedAtMicros: BigInt(candidate.requestedAtMicros),
+    });
+    if (previous !== undefined && compareAccessRequestEntries(previous, ordered) >= 0) {
+      fail('Access request census order was invalid.');
+    }
+    if (candidate.requestState === 'pending') pending += 1;
+    previous = ordered;
+    seen.add(candidate.fid);
+    return Object.freeze({ ...candidate });
+  });
+  if (BigInt(pending) !== BigInt(value.pendingRequests)) {
+    fail('Access request census was invalid.');
+  }
+  return Object.freeze({ ...value, entries: Object.freeze(entries) });
+}
+
+async function collectAccessRequestCensusPass(
+  connection: DbConnection,
+): Promise<AccessRequestCensus> {
+  let afterRequestedAtMicros = 0n;
+  let afterFid = 0n;
+  let expectedTotal: bigint | undefined;
+  let expectedPending: bigint | undefined;
+  const entries: Array<AccessRequestCensus['entries'][number]> = [];
+  const seenFids = new Set<string>();
+  let previous: AccessRequestListEntry | undefined;
+
+  for (let pageNumber = 1; pageNumber <= MAX_ACCESS_REQUEST_CENSUS_PAGES; pageNumber += 1) {
+    const page = await readAccessRequestListPage(connection, {
+      limit: MAX_ACCESS_REQUEST_PAGE_SIZE,
+      afterRequestedAtMicros,
+      afterFid,
+      includeResolved: true,
+    });
+    if (expectedTotal === undefined || expectedPending === undefined) {
+      expectedTotal = page.totalRequests;
+      expectedPending = page.pendingRequests;
+      if (
+        expectedTotal > BigInt(MAX_ACCESS_REQUEST_CENSUS_ROWS)
+        || expectedPending > expectedTotal
+      ) fail('Access request census totals exceeded the reviewed bound.');
+    } else if (
+      page.totalRequests !== expectedTotal
+      || page.pendingRequests !== expectedPending
+    ) {
+      fail('Access request census totals changed during inspection.');
+    }
+
+    for (const entry of page.entries) {
+      const fid = entry.fid.toString();
+      if (
+        seenFids.has(fid)
+        || (previous !== undefined && compareAccessRequestEntries(previous, entry) >= 0)
+      ) fail('Access request census page continuity was invalid.');
+      entries.push(Object.freeze({
+        fid,
+        requestedAtMicros: entry.requestedAtMicros.toString(),
+        admissionState: entry.admissionState,
+        requestState: entry.requestState,
+      }));
+      if (entries.length > MAX_ACCESS_REQUEST_CENSUS_ROWS) {
+        fail('Access request census rows exceeded the reviewed bound.');
+      }
+      seenFids.add(fid);
+      previous = entry;
+    }
+
+    if (!page.hasMore) {
+      if (BigInt(entries.length) !== expectedTotal) {
+        fail('Access request census did not close over the reported total.');
+      }
+      return exactAccessRequestCensus(Object.freeze({
+        schemaVersion: 1,
+        kind: 'warpkeep-access-request-census-v1',
+        realmId: GENESIS_001_ACCESS_REQUEST_CENSUS_REALM_ID,
+        releaseVersion: GENESIS_001_ACCESS_REQUEST_CENSUS_RELEASE_VERSION,
+        sourceBaselineCommit: GENESIS_001_ACCESS_REQUEST_CENSUS_SOURCE_BASELINE_COMMIT,
+        admissionFreezeAttestation: GENESIS_001_ADMISSION_FREEZE_ATTESTATION_DIGEST,
+        targetConfigurationDigest: ACCESS_REQUEST_CENSUS_TARGET_CONFIGURATION_DIGEST,
+        totalRequests: expectedTotal.toString(),
+        pendingRequests: expectedPending.toString(),
+        entries: Object.freeze(entries),
+      }));
+    }
+    if (
+      pageNumber === MAX_ACCESS_REQUEST_CENSUS_PAGES
+      || page.nextRequestedAtMicros === undefined
+      || page.nextFid === undefined
+    ) fail('Access request census pagination exceeded the reviewed bound.');
+    afterRequestedAtMicros = page.nextRequestedAtMicros;
+    afterFid = page.nextFid;
+  }
+  return fail('Access request census pagination exceeded the reviewed bound.');
+}
+
+async function requireLiveGenesis001AccessPolicy(connection: DbConnection): Promise<void> {
+  const procedures = (connection as unknown as Readonly<{
+    procedures?: Readonly<{
+      genesis001AccessPolicyV1?: (
+        params: Record<string, never>,
+      ) => Promise<unknown>;
+    }>;
+  }>).procedures;
+  const procedure = procedures?.genesis001AccessPolicyV1;
+  if (typeof procedure !== 'function') {
+    fail('Live Genesis 001 access policy procedure was unavailable.');
+  }
+  let raw: unknown;
+  try {
+    raw = await withOperationTimeout(procedure.call(procedures, {}));
+  } catch {
+    return fail('Live Genesis 001 access policy could not be verified.');
+  }
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    fail('Live Genesis 001 access policy was invalid.');
+  }
+  exactObjectKeys(raw as Record<string, unknown>, [
+    'accessRequestSubmissionsEnabled',
+    'admissionStateMutationsEnabled',
+    'playerAccessEnabled',
+    'realmId',
+    'releaseVersion',
+  ], 'Live Genesis 001 access policy was invalid.');
+  const policy = raw as Genesis001AccessPolicy;
+  if (
+    policy.realmId !== GENESIS_001_ACCESS_REQUEST_CENSUS_REALM_ID
+    || policy.releaseVersion !== GENESIS_001_ACCESS_REQUEST_CENSUS_RELEASE_VERSION
+    || policy.playerAccessEnabled !== true
+    || policy.admissionStateMutationsEnabled !== false
+    || policy.accessRequestSubmissionsEnabled !== false
+  ) fail('Live Genesis 001 access policy was invalid.');
+}
+
+/**
+ * Read every current request twice through the fixed admin procedure. This is
+ * a private post-freeze evidence path: it includes resolved rows, requires the
+ * source-bound Genesis 001 freeze attestation and exact live policy receipt,
+ * and fails if either complete bounded snapshot differs from the other.
+ */
+export async function collectAccessRequestCensus(
+  connection: DbConnection,
+  admissionFreezeAttestation: string,
+): Promise<AccessRequestCensus> {
+  if (admissionFreezeAttestation !== GENESIS_001_ADMISSION_FREEZE_ATTESTATION_DIGEST) {
+    fail('Access request census admission freeze attestation was invalid.');
+  }
+  await requireLiveGenesis001AccessPolicy(connection);
+  const first = await collectAccessRequestCensusPass(connection);
+  const firstCanonical = JSON.stringify(first);
+  const firstDigest = createHash('sha256').update(firstCanonical, 'utf8').digest('hex');
+  const second = await collectAccessRequestCensusPass(connection);
+  const secondCanonical = JSON.stringify(second);
+  const secondDigest = createHash('sha256').update(secondCanonical, 'utf8').digest('hex');
+  if (firstDigest !== secondDigest || firstCanonical !== secondCanonical) {
+    fail('Access request census changed between stable passes.');
+  }
+  return second;
+}
+
+type AccessRequestCensusReference = Readonly<{
+  count: number;
+  size: number;
+  sha256: string;
+  pathBasename: string;
+}>;
+
+function accessRequestCensusFilename(at: Date): string {
+  if (Number.isNaN(at.valueOf())) fail('Access request census timestamp was invalid.');
+  const padded = (value: number) => value.toString().padStart(2, '0');
+  return `warpkeep-access-request-census-${at.getUTCFullYear().toString().padStart(4, '0')}`
+    + `${padded(at.getUTCMonth() + 1)}${padded(at.getUTCDate())}`
+    + `T${padded(at.getUTCHours())}${padded(at.getUTCMinutes())}${padded(at.getUTCSeconds())}Z.txt`;
+}
+
+function privateAccessRequestCensusBytes(input: Readonly<{
+  census: AccessRequestCensus;
+  at: Date;
+}>): Readonly<{ bytes: Buffer; reference: AccessRequestCensusReference }> {
+  const census = exactAccessRequestCensus(input.census);
+  const lines = [
+    'warpkeep-access-request-census-v1',
+    `realm-id\t${census.realmId}`,
+    `release-version\t${census.releaseVersion}`,
+    `source-baseline-commit\t${census.sourceBaselineCommit}`,
+    `admission-freeze-attestation\t${census.admissionFreezeAttestation}`,
+    `target-configuration-digest\t${census.targetConfigurationDigest}`,
+    `total-requests\t${census.totalRequests}`,
+    `pending-requests\t${census.pendingRequests}`,
+    'requested-at-micros\tfid\trequest-state\tadmission-state',
+    ...census.entries.map(entry => (
+      `${entry.requestedAtMicros}\t${entry.fid}\t${entry.requestState}\t${entry.admissionState}`
+    )),
+    '',
+  ];
+  const bytes = Buffer.from(lines.join('\n'), 'utf8');
+  if (bytes.byteLength < 1 || bytes.byteLength > MAX_ACCESS_REQUEST_CENSUS_BYTES) {
+    bytes.fill(0);
+    fail('Access request census exceeded the private report size bound.');
+  }
+  return Object.freeze({
+    bytes,
+    reference: Object.freeze({
+      count: census.entries.length,
+      size: bytes.byteLength,
+      sha256: createHash('sha256').update(bytes).digest('hex'),
+      pathBasename: accessRequestCensusFilename(input.at),
+    }),
+  });
+}
+
+type AccessRequestCensusDirectoryIdentity = Readonly<{
+  dev: bigint;
+  ino: bigint;
+  uid: bigint;
+  mode: bigint;
+}>;
+
+type AccessRequestCensusDestinationIdentity = Readonly<{
+  dev: bigint;
+  ino: bigint;
+  uid: bigint;
+}>;
+
+const ACCESS_REQUEST_CENSUS_SYSTEM_PYTHON = '/usr/bin/python3';
+const ACCESS_REQUEST_CENSUS_LINUX_SYSTEM_PYTHON = /^\/usr\/bin\/python3\.[0-9]+$/u;
+const ACCESS_REQUEST_CENSUS_OPENAT_SOURCE = String.raw`
+import os
+import stat
+import sys
+
+MAX_BYTES = 1024 * 1024
+
+def die():
+    raise RuntimeError('invalid')
+
+def number(value):
+    if not value.isascii() or not value.isdecimal():
+        die()
+    return int(value, 10)
+
+def exact_root():
+    root = os.fstat(3)
+    expected = tuple(number(value) for value in sys.argv[3:7])
+    if not stat.S_ISDIR(root.st_mode):
+        die()
+    if (root.st_dev, root.st_ino, root.st_uid, root.st_mode) != expected:
+        die()
+    return 3
+
+def leaf_name():
+    leaf = sys.argv[2]
+    if not 0 < len(leaf) <= 255 or leaf in ('.', '..') or '/' in leaf or '\\' in leaf:
+        die()
+    if any(ord(character) < 0x20 or ord(character) == 0x7f for character in leaf):
+        die()
+    return leaf
+
+def exact_file_identity(value, expected):
+    if not stat.S_ISREG(value.st_mode):
+        die()
+    if (value.st_dev, value.st_ino, value.st_uid) != expected:
+        die()
+    if value.st_nlink != 1 or stat.S_IMODE(value.st_mode) != 0o600:
+        die()
+    if value.st_mode & 0o7000:
+        die()
+
+def exact_file(value, expected, size):
+    exact_file_identity(value, expected)
+    if value.st_size != size:
+        die()
+
+def file_expectation():
+    if len(sys.argv) != 11:
+        die()
+    expected = tuple(number(value) for value in sys.argv[7:10])
+    size = number(sys.argv[10])
+    if size > MAX_BYTES:
+        die()
+    return expected, size
+
+def create(root, leaf):
+    if len(sys.argv) != 7:
+        die()
+    output = None
+    created = False
+    identity = None
+    try:
+        previous_umask = os.umask(0)
+        try:
+            output = os.open(
+                leaf,
+                os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW,
+                0o600,
+                dir_fd=root,
+            )
+            created = True
+        finally:
+            os.umask(previous_umask)
+        os.fchmod(output, 0o600)
+        value = os.fstat(output)
+        identity = (value.st_dev, value.st_ino, value.st_uid)
+        exact_file(value, identity, 0)
+        os.fsync(output)
+        exact_root()
+        os.close(output)
+        output = None
+        os.fsync(root)
+        message = ('%d:%d:%d\n' % identity).encode('ascii')
+        offset = 0
+        while offset < len(message):
+            written = os.write(1, message[offset:])
+            if written <= 0:
+                die()
+            offset += written
+    except BaseException:
+        if output is not None:
+            try:
+                os.ftruncate(output, 0)
+                os.fchmod(output, 0o600)
+                os.fsync(output)
+            except BaseException:
+                pass
+            os.close(output)
+        if created and identity is not None:
+            try:
+                current = os.stat(leaf, dir_fd=root, follow_symlinks=False)
+                exact_file(current, identity, 0)
+                os.unlink(leaf, dir_fd=root)
+                os.fsync(root)
+            except BaseException:
+                pass
+        raise
+
+def write_existing(root, leaf):
+    expected, expected_size = file_expectation()
+    output = None
+    try:
+        output = os.open(leaf, os.O_WRONLY | os.O_NOFOLLOW, dir_fd=root)
+        exact_file(os.fstat(output), expected, 0)
+        total = 0
+        while True:
+            body = os.read(0, min(65536, expected_size - total + 1))
+            if not body:
+                break
+            total += len(body)
+            if total > expected_size:
+                die()
+            offset = 0
+            while offset < len(body):
+                written = os.write(output, body[offset:])
+                if written <= 0:
+                    die()
+                offset += written
+        if total != expected_size:
+            die()
+        os.fchmod(output, 0o600)
+        os.fsync(output)
+        exact_file(os.fstat(output), expected, expected_size)
+        exact_root()
+        os.close(output)
+        output = None
+        os.fsync(root)
+    except BaseException:
+        if output is not None:
+            try:
+                os.ftruncate(output, 0)
+                os.fchmod(output, 0o600)
+                os.fsync(output)
+            except BaseException:
+                pass
+            os.close(output)
+        raise
+
+def unlink_existing(root, leaf):
+    expected, _expected_size = file_expectation()
+    opened = os.open(leaf, os.O_WRONLY | os.O_NOFOLLOW, dir_fd=root)
+    try:
+        value = os.fstat(opened)
+        exact_file_identity(value, expected)
+        if value.st_size < 0 or value.st_size > MAX_BYTES:
+            die()
+        os.ftruncate(opened, 0)
+        os.fchmod(opened, 0o600)
+        os.fsync(opened)
+        exact_file(os.fstat(opened), expected, 0)
+    finally:
+        os.close(opened)
+    exact_root()
+    exact_file(os.stat(leaf, dir_fd=root, follow_symlinks=False), expected, 0)
+    os.unlink(leaf, dir_fd=root)
+    os.fsync(root)
+
+def main():
+    if len(sys.argv) < 7:
+        die()
+    operation = sys.argv[1]
+    leaf = leaf_name()
+    root = exact_root()
+    if operation == 'create':
+        create(root, leaf)
+    elif operation == 'write':
+        write_existing(root, leaf)
+    elif operation == 'unlink':
+        unlink_existing(root, leaf)
+    else:
+        die()
+
+try:
+    main()
+except FileExistsError:
+    os._exit(17)
+except BaseException:
+    os._exit(70)
+`.trim();
+
+const ACCESS_REQUEST_CENSUS_OPENAT_SOURCE_SHA256 = createHash('sha256')
+  .update(ACCESS_REQUEST_CENSUS_OPENAT_SOURCE, 'utf8')
+  .digest('hex');
+
+export const ACCESS_REQUEST_CENSUS_TARGET_CONFIGURATION_DIGEST = createHash('sha256')
+  .update(JSON.stringify({
+    realmId: GENESIS_001_ACCESS_REQUEST_CENSUS_REALM_ID,
+    releaseVersion: GENESIS_001_ACCESS_REQUEST_CENSUS_RELEASE_VERSION,
+    sourceBaselineCommit: GENESIS_001_ACCESS_REQUEST_CENSUS_SOURCE_BASELINE_COMMIT,
+    admissionFreezeAttestation: GENESIS_001_ADMISSION_FREEZE_ATTESTATION_DIGEST,
+    suspendedHermesCommands: GENESIS_001_SUSPENDED_HERMES_COMMANDS,
+    databaseUri: DEFAULT_URI,
+    databaseIdentity: DEFAULT_DATABASE_IDENTITY,
+    bridgeUrl: DEFAULT_BRIDGE,
+    freezeProcedure: GENESIS_001_ACCESS_POLICY_PROCEDURE,
+    procedure: 'admin_list_access_requests_v1',
+    includeResolved: true,
+    pageSize: MAX_ACCESS_REQUEST_PAGE_SIZE,
+    maximumPages: MAX_ACCESS_REQUEST_CENSUS_PAGES,
+    maximumRows: MAX_ACCESS_REQUEST_CENSUS_ROWS,
+    censusPasses: 2,
+    desktopWriter: ACCESS_REQUEST_CENSUS_DESKTOP_WRITER,
+    desktopWriterSourceSha256: ACCESS_REQUEST_CENSUS_OPENAT_SOURCE_SHA256,
+  }), 'utf8')
+  .digest('hex');
+
+function exactAccessRequestCensusSystemPython(): Readonly<{
+  path: string;
+  identity: string;
+}> {
+  try {
+    const directoryPath = '/usr/bin';
+    const directory = lstatSync(directoryPath, { bigint: true });
+    const entry = lstatSync(ACCESS_REQUEST_CENSUS_SYSTEM_PYTHON, { bigint: true });
+    const path = realpathSync(ACCESS_REQUEST_CENSUS_SYSTEM_PYTHON);
+    const target = lstatSync(path, { bigint: true });
+    const platformEntryValid = process.platform === 'darwin'
+      ? entry.isFile() && !entry.isSymbolicLink() && path === ACCESS_REQUEST_CENSUS_SYSTEM_PYTHON
+      : process.platform === 'linux'
+        && (entry.isFile() || entry.isSymbolicLink())
+        && (path === ACCESS_REQUEST_CENSUS_SYSTEM_PYTHON
+          || ACCESS_REQUEST_CENSUS_LINUX_SYSTEM_PYTHON.test(path));
+    if (
+      !platformEntryValid
+      || realpathSync(directoryPath) !== directoryPath
+      || directory.isSymbolicLink() || !directory.isDirectory()
+      || directory.uid !== 0n || (directory.mode & 0o7777n) !== 0o755n
+      || entry.uid !== 0n || dirname(path) !== directoryPath
+      || target.isSymbolicLink() || !target.isFile()
+      || target.uid !== 0n || (target.mode & 0o7777n) !== 0o755n
+    ) fail('Access request census openat helper was invalid.');
+    return Object.freeze({
+      path,
+      identity: [
+        directory.dev, directory.ino, directory.mode, directory.uid,
+        entry.dev, entry.ino, entry.mode, entry.uid, entry.size,
+        target.dev, target.ino, target.mode, target.uid, target.size, path,
+      ].join(':'),
+    });
+  } catch (error) {
+    if (error instanceof HermesCliError) throw error;
+    return fail('Access request census openat helper was invalid.');
+  }
+}
+
+function runAccessRequestCensusOpenAt(
+  directory: Readonly<{
+    descriptor: number;
+    identity: AccessRequestCensusDirectoryIdentity;
+  }>,
+  operation: 'create' | 'write' | 'unlink',
+  filename: string,
+  destinationIdentity?: AccessRequestCensusDestinationIdentity,
+  body?: Buffer,
+  expectedSize?: number,
+): Buffer {
+  if (
+    basename(filename) !== filename
+    || !/^warpkeep-access-request-census-[0-9]{8}T[0-9]{6}Z\.txt$/u.test(filename)
+    || ((operation === 'create') !== (destinationIdentity === undefined))
+    || ((operation === 'write') !== (body !== undefined))
+    || ((operation === 'unlink') !== (expectedSize !== undefined))
+    || (expectedSize !== undefined && (
+      !Number.isSafeInteger(expectedSize)
+      || expectedSize < 0
+      || expectedSize > MAX_ACCESS_REQUEST_CENSUS_BYTES
+    ))
+  ) fail('Access request census openat operation was invalid.');
+  const python = exactAccessRequestCensusSystemPython();
+  const arguments_ = [
+    '-I', '-S', '-B', '-c', ACCESS_REQUEST_CENSUS_OPENAT_SOURCE,
+    operation,
+    filename,
+    directory.identity.dev.toString(),
+    directory.identity.ino.toString(),
+    directory.identity.uid.toString(),
+    directory.identity.mode.toString(),
+    ...(destinationIdentity === undefined ? [] : [
+      destinationIdentity.dev.toString(),
+      destinationIdentity.ino.toString(),
+      destinationIdentity.uid.toString(),
+      (body?.byteLength ?? expectedSize ?? 0).toString(),
+    ]),
+  ];
+  const result = spawnSync(python.path, arguments_, {
+    encoding: 'buffer',
+    env: { LANG: 'C', LC_ALL: 'C' },
+    input: body,
+    stdio: ['pipe', 'pipe', 'pipe', directory.descriptor],
+    timeout: OPERATION_TIMEOUT_MS,
+    maxBuffer: 4_096,
+  });
+  const pythonAfter = exactAccessRequestCensusSystemPython();
+  if (
+    result.error !== undefined
+    || result.signal !== null
+    || !Buffer.isBuffer(result.stdout)
+    || !Buffer.isBuffer(result.stderr)
+    || result.stderr.byteLength !== 0
+    || pythonAfter.identity !== python.identity
+  ) fail('Access request census anchored filesystem operation failed.');
+  if (result.status === 17 && operation === 'create') {
+    fail('Access request census destination already exists; refusing to overwrite it.');
+  }
+  if (result.status !== 0) {
+    fail('Access request census anchored filesystem operation failed.');
+  }
+  return result.stdout;
+}
+
+function createAccessRequestCensusAtDirectory(
+  directory: Readonly<{
+    descriptor: number;
+    identity: AccessRequestCensusDirectoryIdentity;
+  }>,
+  filename: string,
+): AccessRequestCensusDestinationIdentity {
+  const output = runAccessRequestCensusOpenAt(directory, 'create', filename);
+  try {
+    const match = /^([0-9]+):([0-9]+):([0-9]+)\n$/u.exec(output.toString('ascii'));
+    if (match === null) fail('Access request census anchored create result was invalid.');
+    return Object.freeze({
+      dev: BigInt(match[1]!),
+      ino: BigInt(match[2]!),
+      uid: BigInt(match[3]!),
+    });
+  } finally {
+    output.fill(0);
+  }
+}
+
+function writeAccessRequestCensusAtDirectory(
+  directory: Readonly<{
+    descriptor: number;
+    identity: AccessRequestCensusDirectoryIdentity;
+  }>,
+  filename: string,
+  identity: AccessRequestCensusDestinationIdentity,
+  bytes: Buffer,
+): void {
+  const output = runAccessRequestCensusOpenAt(
+    directory,
+    'write',
+    filename,
+    identity,
+    bytes,
+  );
+  try {
+    if (output.byteLength !== 0) {
+      fail('Access request census anchored write result was invalid.');
+    }
+  } finally {
+    output.fill(0);
+  }
+}
+
+function unlinkAccessRequestCensusAtDirectory(
+  directory: Readonly<{
+    descriptor: number;
+    identity: AccessRequestCensusDirectoryIdentity;
+  }>,
+  filename: string,
+  identity: AccessRequestCensusDestinationIdentity,
+  expectedSize: number,
+): void {
+  const output = runAccessRequestCensusOpenAt(
+    directory,
+    'unlink',
+    filename,
+    identity,
+    undefined,
+    expectedSize,
+  );
+  try {
+    if (output.byteLength !== 0) {
+      fail('Access request census anchored unlink result was invalid.');
+    }
+  } finally {
+    output.fill(0);
+  }
+}
+
+type AccessRequestCensusWriterHooks = Readonly<{
+  /** Deterministic filesystem-race seam; production callers omit it. */
+  beforeCreate?: () => void;
+  /** Deterministic filesystem-race seam; production callers omit it. */
+  afterCreate?: () => void;
+  /** Deterministic filesystem-race seam; production callers omit it. */
+  beforeWrite?: () => void;
+}>;
+
+function accessRequestCensusDirectoryPathStatus(value: string) {
+  assertProductionAdminTrustedAncestors(value);
+  const status = lstatSync(value, { bigint: true });
+  if (
+    status.isSymbolicLink() || !status.isDirectory()
+    || (status.mode & 0o022n) !== 0n
+    || (process.getuid !== undefined && status.uid !== BigInt(process.getuid()))
+    || realpathSync(value) !== value
+  ) fail('Access request census directory was invalid.');
+  return status;
+}
+
+function sameAccessRequestCensusDirectoryIdentity(
+  left: AccessRequestCensusDirectoryIdentity,
+  right: AccessRequestCensusDirectoryIdentity,
+): boolean {
+  return left.dev === right.dev
+    && left.ino === right.ino
+    && left.uid === right.uid
+    && left.mode === right.mode;
+}
+
+function openAccessRequestCensusDirectory(value: string): Readonly<{
+  path: string;
+  descriptor: number;
+  identity: AccessRequestCensusDirectoryIdentity;
+}> {
+  if (!isAbsolute(value) || resolve(value) !== value || /[\u0000\r\n]/u.test(value)) {
+    fail('Access request census directory was invalid.');
+  }
+  let descriptor: number | undefined;
+  try {
+    const pathStatus = accessRequestCensusDirectoryPathStatus(value);
+    descriptor = openSync(
+      value,
+      constants.O_RDONLY | (constants.O_DIRECTORY ?? 0) | (constants.O_NOFOLLOW ?? 0),
+    );
+    const heldStatus = fstatSync(descriptor, { bigint: true });
+    if (
+      !heldStatus.isDirectory()
+      || !sameAccessRequestCensusDirectoryIdentity(pathStatus, heldStatus)
+    ) fail('Access request census directory changed while being opened.');
+    return Object.freeze({
+      path: value,
+      descriptor,
+      identity: Object.freeze({
+        dev: heldStatus.dev,
+        ino: heldStatus.ino,
+        uid: heldStatus.uid,
+        mode: heldStatus.mode,
+      }),
+    });
+  } catch (error) {
+    if (descriptor !== undefined) closeSync(descriptor);
+    if (error instanceof HermesCliError) throw error;
+    return fail('Access request census directory was invalid.');
+  }
+}
+
+function requireAccessRequestCensusDirectoryUnchanged(directory: Readonly<{
+  path: string;
+  descriptor: number;
+  identity: AccessRequestCensusDirectoryIdentity;
+}>): void {
+  try {
+    const pathStatus = accessRequestCensusDirectoryPathStatus(directory.path);
+    const heldStatus = fstatSync(directory.descriptor, { bigint: true });
+    if (
+      !heldStatus.isDirectory()
+      || !sameAccessRequestCensusDirectoryIdentity(directory.identity, pathStatus)
+      || !sameAccessRequestCensusDirectoryIdentity(directory.identity, heldStatus)
+    ) fail('Access request census directory changed during export.');
+  } catch (error) {
+    if (error instanceof HermesCliError && /changed during export/u.test(error.message)) {
+      throw error;
+    }
+    fail('Access request census directory changed during export.');
+  }
+}
+
+function requireAccessRequestCensusDestinationUnchanged(
+  destination: string,
+  identity: AccessRequestCensusDestinationIdentity,
+  expectedSize: bigint,
+): void {
+  try {
+    const pathStatus = lstatSync(destination, { bigint: true });
+    if (
+      pathStatus.isSymbolicLink() || !pathStatus.isFile()
+      || pathStatus.dev !== identity.dev || pathStatus.ino !== identity.ino
+      || pathStatus.uid !== identity.uid
+      || pathStatus.nlink !== 1n
+      || (pathStatus.mode & 0o7777n) !== 0o600n
+      || pathStatus.size !== expectedSize
+    ) fail('Access request census destination changed during export.');
+  } catch (error) {
+    if (error instanceof HermesCliError) throw error;
+    fail('Access request census destination changed during export.');
+  }
+}
+
+/** Print only non-identifying evidence for a private TXT export; do not write it. */
+export function inspectAccessRequestCensus(input: Readonly<{
+  census: AccessRequestCensus;
+  at?: Date;
+}>): AccessRequestCensusReference {
+  const prepared = privateAccessRequestCensusBytes({
+    census: input.census,
+    at: input.at ?? new Date(),
+  });
+  try {
+    console.log(JSON.stringify(prepared.reference));
+    return prepared.reference;
+  } finally {
+    prepared.bytes.fill(0);
+  }
+}
+
+/**
+ * Install one non-overwritable owner-only TXT export in the caller's Desktop.
+ * The caller supplies the directory so tests can exercise this only in a temp
+ * directory and the command path never prints the resulting full path.
+ */
+export function writeAccessRequestCensusText(input: Readonly<{
+  directory: string;
+  census: AccessRequestCensus;
+  at?: Date;
+}>, hooks: AccessRequestCensusWriterHooks = {}): AccessRequestCensusReference {
+  const directory = openAccessRequestCensusDirectory(input.directory);
+  let prepared: ReturnType<typeof privateAccessRequestCensusBytes>;
+  try {
+    prepared = privateAccessRequestCensusBytes({
+      census: input.census,
+      at: input.at ?? new Date(),
+    });
+  } catch (error) {
+    try { closeSync(directory.descriptor); } catch { /* Preserve validation failure. */ }
+    throw error;
+  }
+  const destination = join(directory.path, prepared.reference.pathBasename);
+  let createdIdentity: AccessRequestCensusDestinationIdentity | undefined;
+  try {
+    hooks.beforeCreate?.();
+    requireAccessRequestCensusDirectoryUnchanged(directory);
+    createdIdentity = createAccessRequestCensusAtDirectory(
+      directory,
+      prepared.reference.pathBasename,
+    );
+    hooks.afterCreate?.();
+    requireAccessRequestCensusDirectoryUnchanged(directory);
+    requireAccessRequestCensusDestinationUnchanged(
+      destination,
+      createdIdentity,
+      0n,
+    );
+    hooks.beforeWrite?.();
+    writeAccessRequestCensusAtDirectory(
+      directory,
+      prepared.reference.pathBasename,
+      createdIdentity,
+      prepared.bytes,
+    );
+    requireAccessRequestCensusDirectoryUnchanged(directory);
+    requireAccessRequestCensusDestinationUnchanged(
+      destination,
+      createdIdentity,
+      BigInt(prepared.bytes.byteLength),
+    );
+    fsyncSync(directory.descriptor);
+    requireAccessRequestCensusDirectoryUnchanged(directory);
+    requireAccessRequestCensusDestinationUnchanged(
+      destination,
+      createdIdentity,
+      BigInt(prepared.bytes.byteLength),
+    );
+    return prepared.reference;
+  } catch (error) {
+    if (createdIdentity !== undefined) {
+      for (const expectedSize of [prepared.bytes.byteLength, 0]) {
+        try {
+          unlinkAccessRequestCensusAtDirectory(
+            directory,
+            prepared.reference.pathBasename,
+            createdIdentity,
+            expectedSize,
+          );
+          break;
+        } catch { /* Try only the other exact safe size. */ }
+      }
+    }
+    if (error instanceof HermesCliError) throw error;
+    return fail('Access request census write failed.');
+  } finally {
+    try { closeSync(directory.descriptor); } catch { /* Best-effort close after fsync. */ }
+    prepared.bytes.fill(0);
+  }
 }
 
 function fsyncHermesPrivateDirectory(directory: string): void {
@@ -3638,7 +4621,9 @@ async function main() {
     machineReadableInspection,
     privateInputStdin,
     accessRequestList,
+    accessRequestCensusAdmissionFreezeAttestation,
   } = parseHermesArguments();
+  requireGenesis001AdmissionOperatorCommandEnabled(command);
   const capturedTrustedLaunch = captureTrustedHermesLaunch(trustedHermesReleaseRow({
     command,
     dryRun,
@@ -3686,7 +4671,8 @@ async function main() {
       : readTrustedHermesSecret(trustedLaunch.notificationSecretPath),
   );
   const privateInspectionOutput = machineReadableInspection
-    || command === 'list-pending-access-requests';
+    || command === 'list-pending-access-requests'
+    || command === 'export-access-request-census';
   configureHermesMachineOutput(
     privateInspectionOutput || command === 'inspect-admission-notification',
   );
@@ -3725,7 +4711,9 @@ async function main() {
   // identity. Durable mutations preserve the explicit-target safety boundary.
   const database = readDatabase(
     process.env.WARPKEEP_SPACETIMEDB_DATABASE,
-    inspection ? DEFAULT_DATABASE_IDENTITY : LEGACY_DATABASE_ALIAS,
+    inspection || command === 'export-access-request-census'
+      ? DEFAULT_DATABASE_IDENTITY
+      : LEGACY_DATABASE_ALIAS,
   );
   const uri = readHttpsUrl(process.env.WARPKEEP_SPACETIMEDB_URI || DEFAULT_URI, 'WARPKEEP_SPACETIMEDB_URI');
 
@@ -3859,10 +4847,11 @@ async function main() {
   if (command === 'expand-world-v3') {
     requireGenesisExpansionProductionTarget(database);
   }
-  if (command === 'list-access-requests') {
-    requireAccessRequestInspectionProductionTarget(database);
-  }
-  if (command === 'list-pending-access-requests') {
+  if (
+    command === 'list-access-requests'
+    || command === 'list-pending-access-requests'
+    || command === 'export-access-request-census'
+  ) {
     requireAccessRequestInspectionProductionTarget(database);
   }
   if (command === 'reset-access-request' || command === 'inspect-access-request-reset') {
@@ -3913,6 +4902,7 @@ async function main() {
     dryRun
     && command !== 'reset-access-request'
     && command !== 'recover-admission-notification'
+    && command !== 'export-access-request-census'
   ) {
     if (command === 'allow-fid') {
       await readNotificationPagesLiveAuthority(false);
@@ -4032,7 +5022,23 @@ async function main() {
   let notificationRecoveryClaimed = false;
   try {
     let mutationStatusHandled = false;
-    if (command === 'list-pending-access-requests') {
+    if (command === 'export-access-request-census') {
+      const census = await collectAccessRequestCensus(
+        connection,
+        accessRequestCensusAdmissionFreezeAttestation ?? '',
+      );
+      if (dryRun) {
+        inspectAccessRequestCensus({ census });
+      } else {
+        const reference = writeAccessRequestCensusText({
+          directory: join(canonicalProductionAdminAccountHome(), 'Desktop'),
+          census,
+        });
+        // Deliberately print the same metadata-only shape as --dry-run.
+        console.log(JSON.stringify(reference));
+      }
+      mutationStatusHandled = true;
+    } else if (command === 'list-pending-access-requests') {
       if (
         trustedLaunch?.row !== 'list-pending'
         || trustedLaunch.protectedCommit === undefined

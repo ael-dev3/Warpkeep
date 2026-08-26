@@ -6,8 +6,11 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   realpathSync,
+  renameSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -22,11 +25,14 @@ import { GENESIS_RESOURCE_POLICY_VERSION } from '../spacetimedb/src/resourceAuth
 import { configureHermesMachineOutput } from '../scripts/hermes-machine-output';
 import {
   admissionReadinessSummary,
+  collectAccessRequestCensus,
   collectPendingAccessRequestCensus,
   connect,
   FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED,
   FOUNDER_ADMISSION_SOURCE_CONFIGURATION_DIGEST,
+  GENESIS_001_SUSPENDED_HERMES_COMMANDS,
   inspectAdmissionNotification,
+  inspectAccessRequestCensus,
   inspectHermesNotificationPagesLiveAuthority,
   listAccessRequests,
   PENDING_ACCESS_REQUEST_CENSUS_TARGET_CONFIGURATION_DIGEST,
@@ -54,6 +60,7 @@ import {
   requireCredentialedProductionTarget,
   requireFounderAdmissionProductionTarget,
   requireFounderAdmissionNotificationDeliveryApproval,
+  requireGenesis001AdmissionOperatorCommandEnabled,
   requireGenesisExpansionProductionTarget,
   requireResourceBackfillProductionTarget,
   resolveAdmissionReadyFounderProfile,
@@ -72,6 +79,7 @@ import {
   verifyGenesisExpansionResourceCheckpointV4,
   verifyGenesisExpansionResourcePreservationV4,
   withOperationTimeout,
+  writeAccessRequestCensusText,
   writePendingAccessRequestCensus,
 } from '../scripts/hermes-admin';
 
@@ -86,6 +94,38 @@ const TEST_ADMIN_TOKEN_BUDGET = Object.freeze({
   }),
 });
 const NOTIFICATION_SECRET = 'TEST_ONLY_NOTIFICATION_SECRET_'.repeat(2);
+const TEST_G001_ADMISSION_FREEZE_ATTESTATION =
+  'c2fbbd41ac11b6a6d23088158e013d5660a1e24fc7da24e1a75a1ec525011463';
+const TEST_G001_CENSUS_TARGET_CONFIGURATION_DIGEST =
+  '26591fcc74c013e1a91b2bdb28c43a17982207f464815895d95aa030c737bb9b';
+const TEST_G001_LIVE_ACCESS_POLICY = Object.freeze({
+  realmId: 'GENESIS_001',
+  releaseVersion: '0.3.43',
+  playerAccessEnabled: true,
+  admissionStateMutationsEnabled: false,
+  accessRequestSubmissionsEnabled: false,
+});
+const TEST_ACCESS_REQUEST_CENSUS_AT = new Date('2026-08-27T12:34:56.000Z');
+
+function accessRequestCensusFixture() {
+  return Object.freeze({
+    schemaVersion: 1,
+    kind: 'warpkeep-access-request-census-v1',
+    realmId: 'GENESIS_001',
+    releaseVersion: '0.3.43',
+    sourceBaselineCommit: 'f39d57c8622077e6543a16e5610d0e4ec73910da',
+    admissionFreezeAttestation: TEST_G001_ADMISSION_FREEZE_ATTESTATION,
+    targetConfigurationDigest: TEST_G001_CENSUS_TARGET_CONFIGURATION_DIGEST,
+    totalRequests: '1',
+    pendingRequests: '1',
+    entries: Object.freeze([Object.freeze({
+      fid: '11111111',
+      requestedAtMicros: '1720000000000000',
+      admissionState: 'missing',
+      requestState: 'pending',
+    })]),
+  } as const);
+}
 
 function admissionNotificationDiagnostics(overrides: Record<string, unknown> = {}) {
   return {
@@ -1038,10 +1078,10 @@ describe('Hermes command-line boundary', () => {
     expect(reenableReducer).toBeGreaterThan(releaseGate);
   });
 
-  it('blacks out confirmed founder execution before reading credentials or targets', () => {
-    for (const [command, arguments_] of [
-      ['admit-founder', ['admit-founder', '--input-stdin', '--confirm']],
-      ['allow-fid', ['allow-fid', '12345', 'reviewed note', '--confirm']],
+  it('source-suspends confirmed founder execution before reading credentials or targets', () => {
+    for (const arguments_ of [
+      ['admit-founder', '--input-stdin', '--confirm'],
+      ['allow-fid', '12345', 'reviewed note', '--confirm'],
     ] as const) {
       const result = runHermes([...arguments_], {
         WARPKEEP_NOTIFICATION_OPERATOR_SECRET: 'MUST_NOT_BE_READ',
@@ -1053,7 +1093,8 @@ describe('Hermes command-line boundary', () => {
       expect(result.status).toBe(1);
       expect(result.stdout).toBe('');
       expect(result.stderr.trim()).toBe(
-        `Founder admission notification delivery is not approved. ${command} remains unavailable until the coordinated notification release.`,
+        'Genesis 001 admission/reset operator is suspended at source baseline '
+        + 'f39d57c8622077e6543a16e5610d0e4ec73910da.',
       );
       expect(result.stderr).not.toContain('MUST_NOT_BE_READ');
       expect(result.stderr).not.toContain('WARPKEEP_');
@@ -1295,11 +1336,68 @@ describe('Hermes command-line boundary', () => {
       inspection: true,
       machineReadableInspection: false,
     });
+    expect(parseHermesArguments([
+      'export-access-request-census',
+      '--dry-run',
+      '--g001-admission-freeze-attestation',
+      TEST_G001_ADMISSION_FREEZE_ATTESTATION,
+    ])).toMatchObject({
+      command: 'export-access-request-census',
+      dryRun: true,
+      confirmedByFlag: false,
+      inspection: true,
+      accessRequestCensusAdmissionFreezeAttestation:
+        TEST_G001_ADMISSION_FREEZE_ATTESTATION,
+    });
+    expect(parseHermesArguments([
+      'export-access-request-census',
+      '--confirm',
+      '--g001-admission-freeze-attestation',
+      TEST_G001_ADMISSION_FREEZE_ATTESTATION,
+    ])).toMatchObject({
+      command: 'export-access-request-census',
+      dryRun: false,
+      confirmedByFlag: true,
+      inspection: false,
+      accessRequestCensusAdmissionFreezeAttestation:
+        TEST_G001_ADMISSION_FREEZE_ATTESTATION,
+    });
     expect(() => parseHermesArguments([
       'list-pending-access-requests', '--json',
     ])).toThrow(/invalid for this operation/i);
     expect(() => parseHermesArguments([
       'list-pending-access-requests', '--limit', '1',
+    ])).toThrow(/invalid for this operation/i);
+    expect(() => parseHermesArguments(['export-access-request-census', '--confirm']))
+      .toThrow(/admission freeze attestation/i);
+    expect(() => parseHermesArguments([
+      'export-access-request-census',
+      '--dry-run',
+      '--g001-admission-freeze-attestation',
+      'a'.repeat(64),
+    ])).toThrow(/admission freeze attestation/i);
+    expect(() => parseHermesArguments([
+      'export-access-request-census',
+      '--g001-admission-freeze-attestation',
+      TEST_G001_ADMISSION_FREEZE_ATTESTATION,
+    ])).toThrow(/exactly one of/i);
+    expect(() => parseHermesArguments([
+      'export-access-request-census',
+      '--json',
+      '--dry-run',
+      '--g001-admission-freeze-attestation',
+      TEST_G001_ADMISSION_FREEZE_ATTESTATION,
+    ]))
+      .toThrow(/invalid for this operation/i);
+    expect(() => parseHermesArguments([
+      'list-pending-access-requests',
+      '--g001-admission-freeze-attestation',
+      TEST_G001_ADMISSION_FREEZE_ATTESTATION,
+    ])).toThrow(/invalid for this operation/i);
+    expect(() => parseHermesArguments([
+      'list-access-requests',
+      '--g001-admission-freeze-attestation',
+      TEST_G001_ADMISSION_FREEZE_ATTESTATION,
     ])).toThrow(/invalid for this operation/i);
     expect(() => parseHermesArguments([
       'list-access-requests', '--after-fid', '123',
@@ -1316,6 +1414,42 @@ describe('Hermes command-line boundary', () => {
     expect(() => parseHermesArguments([
       'inspect-alpha', '--limit', '5',
     ])).toThrow(/invalid for this operation/i);
+  });
+
+  it('source-suspends every Genesis 001 admission/reset operator before authority work', () => {
+    const suspended = [
+      'admit-founder',
+      'allow-fid',
+      'bump-auth-epoch',
+      'disable-fid',
+      'recover-admission-notification',
+      'reset-access-request',
+    ] as const;
+    expect(GENESIS_001_SUSPENDED_HERMES_COMMANDS).toEqual(suspended);
+    for (const command of suspended) {
+      expect(() => requireGenesis001AdmissionOperatorCommandEnabled(command))
+        .toThrow(/Genesis 001.*suspended.*f39d57c8622077e6543a16e5610d0e4ec73910da/i);
+    }
+    for (const command of [
+      'list-access-requests',
+      'list-pending-access-requests',
+      'export-access-request-census',
+      'inspect-access-request-reset',
+      'inspect-admission-notification',
+    ] as const) {
+      expect(() => requireGenesis001AdmissionOperatorCommandEnabled(command)).not.toThrow();
+    }
+
+    const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
+    const main = source.slice(source.indexOf('async function main()'));
+    const suspension = main.indexOf('requireGenesis001AdmissionOperatorCommandEnabled(command)');
+    expect(suspension).toBeGreaterThanOrEqual(0);
+    expect(suspension).toBeLessThan(main.indexOf('captureTrustedHermesLaunch('));
+    expect(suspension).toBeLessThan(
+      main.indexOf('requireFounderAdmissionNotificationDeliveryApproval(command)'),
+    );
+    expect(suspension).toBeLessThan(main.indexOf('process.env.WARPKEEP_ADMIN_TOKEN_SECRET'));
+    expect(suspension).toBeLessThan(main.indexOf('resolveAdmissionReadyFounderProfile('));
   });
 });
 
@@ -1606,6 +1740,335 @@ describe('Hermes private access request review boundary', () => {
     ))).toBe(true);
   });
 
+  it('exports every current request only to a timestamped 0600 TXT file and inspects it without FIDs', async () => {
+    const secondPage = {
+      entries: [{
+        fid: 33_333_333n,
+        requestedAtMicros: 1_720_000_002_000_000n,
+        admissionState: 'enabled',
+        requestState: 'resolved',
+      }],
+      nextRequestedAtMicros: undefined,
+      nextFid: undefined,
+      hasMore: false,
+      totalRequests: 3n,
+      pendingRequests: 1n,
+    } as const;
+    const firstPage = {
+      entries: [
+        {
+          fid: 11_111_111n,
+          requestedAtMicros: 1_720_000_000_000_000n,
+          admissionState: 'missing',
+          requestState: 'pending',
+        },
+        {
+          fid: 22_222_222n,
+          requestedAtMicros: 1_720_000_001_000_000n,
+          admissionState: 'disabled',
+          requestState: 'resolved',
+        },
+      ],
+      nextRequestedAtMicros: 1_720_000_001_000_000n,
+      nextFid: 22_222_222n,
+      hasMore: true,
+      totalRequests: 3n,
+      pendingRequests: 1n,
+    } as const;
+    const procedure = vi.fn()
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce(secondPage)
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce(secondPage);
+    const accessPolicy = vi.fn().mockResolvedValue(TEST_G001_LIVE_ACCESS_POLICY);
+    const census = await collectAccessRequestCensus({
+      procedures: {
+        genesis001AccessPolicyV1: accessPolicy,
+        adminListAccessRequestsV1: procedure,
+      },
+    } as never, TEST_G001_ADMISSION_FREEZE_ATTESTATION);
+    expect(accessPolicy).toHaveBeenCalledOnce();
+    expect(accessPolicy).toHaveBeenCalledWith({});
+    expect(accessPolicy.mock.invocationCallOrder[0]).toBeLessThan(
+      procedure.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+    );
+    expect(procedure).toHaveBeenNthCalledWith(1, {
+      afterRequestedAtMicros: 0n,
+      afterFid: 0n,
+      limit: 100,
+      includeResolved: true,
+    });
+    expect(procedure).toHaveBeenNthCalledWith(2, {
+      afterRequestedAtMicros: firstPage.nextRequestedAtMicros,
+      afterFid: firstPage.nextFid,
+      limit: 100,
+      includeResolved: true,
+    });
+    expect(procedure).toHaveBeenNthCalledWith(3, {
+      afterRequestedAtMicros: 0n,
+      afterFid: 0n,
+      limit: 100,
+      includeResolved: true,
+    });
+    expect(procedure).toHaveBeenCalledTimes(4);
+    expect(census).toMatchObject({
+      realmId: 'GENESIS_001',
+      releaseVersion: '0.3.43',
+      sourceBaselineCommit: 'f39d57c8622077e6543a16e5610d0e4ec73910da',
+      admissionFreezeAttestation: TEST_G001_ADMISSION_FREEZE_ATTESTATION,
+      targetConfigurationDigest: TEST_G001_CENSUS_TARGET_CONFIGURATION_DIGEST,
+    });
+
+    const output = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const at = new Date('2026-08-27T12:34:56.000Z');
+    const inspection = inspectAccessRequestCensus({ census, at });
+    const rendered = output.mock.calls.at(-1)?.[0] as string;
+    expect(JSON.parse(rendered)).toEqual(inspection);
+    expect(Object.keys(inspection).sort()).toEqual(['count', 'pathBasename', 'sha256', 'size']);
+    expect(inspection.count).toBe(3);
+    expect(inspection.pathBasename).toBe('warpkeep-access-request-census-20260827T123456Z.txt');
+    expect(rendered).not.toContain('11111111');
+    expect(rendered).not.toContain('22222222');
+    expect(rendered).not.toContain('33333333');
+
+    const directory = mkdtempSync(join(realpathSync(tmpdir()), 'warpkeep-access-census-'));
+    try {
+      const reference = (() => {
+        const previousUmask = process.umask(0o777);
+        try {
+          return writeAccessRequestCensusText({ directory, census, at });
+        } finally {
+          process.umask(previousUmask);
+        }
+      })();
+      expect(reference).toEqual(inspection);
+      const path = join(directory, reference.pathBasename);
+      expect(lstatSync(path).mode & 0o7777).toBe(0o600);
+      const report = readFileSync(path, 'utf8');
+      expect(report).toContain('access-request-census-v1');
+      expect(report).toContain('realm-id\tGENESIS_001\n');
+      expect(report).toContain('release-version\t0.3.43\n');
+      expect(report).toContain(
+        'source-baseline-commit\tf39d57c8622077e6543a16e5610d0e4ec73910da\n',
+      );
+      expect(report).toContain(
+        `admission-freeze-attestation\t${TEST_G001_ADMISSION_FREEZE_ATTESTATION}\n`,
+      );
+      expect(report).toContain(
+        `target-configuration-digest\t${TEST_G001_CENSUS_TARGET_CONFIGURATION_DIGEST}\n`,
+      );
+      expect(() => writeAccessRequestCensusText({ directory, census, at }))
+        .toThrow(/exists|overwrite/i);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('fails closed when all-request pagination repeats a FID', async () => {
+    const repeated = {
+      entries: [{
+        fid: 11_111_111n,
+        requestedAtMicros: 1_720_000_002_000_000n,
+        admissionState: 'missing',
+        requestState: 'pending',
+      }],
+      nextRequestedAtMicros: undefined,
+      nextFid: undefined,
+      hasMore: false,
+      totalRequests: 3n,
+      pendingRequests: 1n,
+    } as const;
+    const first = {
+      entries: [{
+        fid: 11_111_111n,
+        requestedAtMicros: 1_720_000_000_000_000n,
+        admissionState: 'missing',
+        requestState: 'pending',
+      }],
+      nextRequestedAtMicros: 1_720_000_000_000_000n,
+      nextFid: 11_111_111n,
+      hasMore: true,
+      totalRequests: 3n,
+      pendingRequests: 1n,
+    } as const;
+    await expect(collectAccessRequestCensus({
+      procedures: {
+        genesis001AccessPolicyV1: vi.fn().mockResolvedValue(TEST_G001_LIVE_ACCESS_POLICY),
+        adminListAccessRequestsV1: vi.fn()
+          .mockResolvedValueOnce(first)
+          .mockResolvedValueOnce(repeated),
+      },
+    } as never, TEST_G001_ADMISSION_FREEZE_ATTESTATION)).rejects.toThrow(/continuity/i);
+  });
+
+  it('fails closed when the all-request census changes between its two full passes', async () => {
+    const firstPass = {
+      entries: [{
+        fid: 11_111_111n,
+        requestedAtMicros: 1_720_000_000_000_000n,
+        admissionState: 'missing',
+        requestState: 'pending',
+      }],
+      nextRequestedAtMicros: undefined,
+      nextFid: undefined,
+      hasMore: false,
+      totalRequests: 1n,
+      pendingRequests: 1n,
+    } as const;
+    const secondPass = {
+      ...firstPass,
+      entries: [{
+        ...firstPass.entries[0],
+        requestedAtMicros: 1_720_000_000_000_001n,
+      }],
+    } as const;
+    const procedure = vi.fn()
+      .mockResolvedValueOnce(firstPass)
+      .mockResolvedValueOnce(secondPass);
+
+    await expect(collectAccessRequestCensus({
+      procedures: {
+        genesis001AccessPolicyV1: vi.fn().mockResolvedValue(TEST_G001_LIVE_ACCESS_POLICY),
+        adminListAccessRequestsV1: procedure,
+      },
+    } as never, TEST_G001_ADMISSION_FREEZE_ATTESTATION))
+      .rejects.toThrow(/changed between stable passes/i);
+    expect(procedure).toHaveBeenCalledTimes(2);
+  });
+
+  it('fails closed before census reads when the live Genesis 001 policy is not exact', async () => {
+    const procedure = vi.fn();
+    await expect(collectAccessRequestCensus({
+      procedures: {
+        genesis001AccessPolicyV1: vi.fn().mockResolvedValue({
+          ...TEST_G001_LIVE_ACCESS_POLICY,
+          admissionStateMutationsEnabled: true,
+        }),
+        adminListAccessRequestsV1: procedure,
+      },
+    } as never, TEST_G001_ADMISSION_FREEZE_ATTESTATION))
+      .rejects.toThrow(/live Genesis 001 access policy/i);
+    expect(procedure).not.toHaveBeenCalled();
+  });
+
+  it('fails closed before census reads when the live freeze procedure binding is unavailable', async () => {
+    const procedure = vi.fn();
+    await expect(collectAccessRequestCensus({
+      procedures: { adminListAccessRequestsV1: procedure },
+    } as never, TEST_G001_ADMISSION_FREEZE_ATTESTATION))
+      .rejects.toThrow(/live Genesis 001 access policy procedure was unavailable/i);
+    expect(procedure).not.toHaveBeenCalled();
+  });
+
+  it('binds confirmed census output to the canonical production account Desktop helper', () => {
+    const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
+    const command = source.slice(
+      source.lastIndexOf("if (command === 'export-access-request-census')"),
+      source.lastIndexOf("} else if (command === 'list-pending-access-requests')"),
+    );
+    expect(command).toContain("join(canonicalProductionAdminAccountHome(), 'Desktop')");
+    expect(command).not.toContain('process.env.HOME');
+  });
+
+  it('rejects a Desktop path swap before creating the census destination', () => {
+    const parent = mkdtempSync(join(realpathSync(tmpdir()), 'warpkeep-census-swap-before-'));
+    const directory = join(parent, 'Desktop');
+    const displaced = join(parent, 'Desktop-original');
+    mkdirSync(directory, { mode: 0o700 });
+    try {
+      expect(() => writeAccessRequestCensusText({
+        directory,
+        census: accessRequestCensusFixture(),
+        at: TEST_ACCESS_REQUEST_CENSUS_AT,
+      }, {
+        beforeCreate: () => {
+          renameSync(directory, displaced);
+          mkdirSync(directory, { mode: 0o700 });
+        },
+      })).toThrow(/directory.*changed/i);
+      expect(readdirSync(directory)).toEqual([]);
+      expect(readdirSync(displaced)).toEqual([]);
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it('removes the anchored empty file when the Desktop path swaps after create', () => {
+    const parent = mkdtempSync(join(realpathSync(tmpdir()), 'warpkeep-census-swap-after-'));
+    const directory = join(parent, 'Desktop');
+    const displaced = join(parent, 'Desktop-original');
+    mkdirSync(directory, { mode: 0o700 });
+    try {
+      expect(() => writeAccessRequestCensusText({
+        directory,
+        census: accessRequestCensusFixture(),
+        at: TEST_ACCESS_REQUEST_CENSUS_AT,
+      }, {
+        afterCreate: () => {
+          renameSync(directory, displaced);
+          mkdirSync(directory, { mode: 0o700 });
+        },
+      })).toThrow(/directory.*changed/i);
+      expect(readdirSync(directory)).toEqual([]);
+      expect(readdirSync(displaced)).toEqual([]);
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it('anchors write and cleanup when Desktop swaps after the final pre-write check', () => {
+    const parent = mkdtempSync(join(realpathSync(tmpdir()), 'warpkeep-census-swap-write-'));
+    const directory = join(parent, 'Desktop');
+    const displaced = join(parent, 'Desktop-original');
+    mkdirSync(directory, { mode: 0o700 });
+    try {
+      expect(() => writeAccessRequestCensusText({
+        directory,
+        census: accessRequestCensusFixture(),
+        at: TEST_ACCESS_REQUEST_CENSUS_AT,
+      }, {
+        beforeWrite: () => {
+          renameSync(directory, displaced);
+          mkdirSync(directory, { mode: 0o700 });
+        },
+      })).toThrow(/directory.*changed/i);
+      expect(readdirSync(directory)).toEqual([]);
+      expect(readdirSync(displaced)).toEqual([]);
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses destination and Desktop symlinks without changing their targets', () => {
+    const parent = mkdtempSync(join(realpathSync(tmpdir()), 'warpkeep-census-symlink-'));
+    const directory = join(parent, 'Desktop');
+    const alias = join(parent, 'Desktop-link');
+    const victim = join(parent, 'victim.txt');
+    const basename = 'warpkeep-access-request-census-20260827T123456Z.txt';
+    mkdirSync(directory, { mode: 0o700 });
+    writeFileSync(victim, 'must remain unchanged', { mode: 0o600 });
+    symlinkSync(victim, join(directory, basename));
+    symlinkSync(directory, alias);
+    try {
+      expect(() => writeAccessRequestCensusText({
+        directory,
+        census: accessRequestCensusFixture(),
+        at: TEST_ACCESS_REQUEST_CENSUS_AT,
+      })).toThrow(/exists|overwrite/i);
+      expect(readFileSync(victim, 'utf8')).toBe('must remain unchanged');
+      expect(lstatSync(join(directory, basename)).isSymbolicLink()).toBe(true);
+
+      expect(() => writeAccessRequestCensusText({
+        directory: alias,
+        census: accessRequestCensusFixture(),
+        at: new Date('2026-08-27T12:34:57.000Z'),
+      })).toThrow(/directory.*invalid/i);
+      expect(readdirSync(directory)).toEqual([basename]);
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
   it('keeps legacy listing separate from admission and exposes census only through the trusted row', () => {
     const source = readFileSync(resolve(repositoryRoot, 'scripts/hermes-admin.ts'), 'utf8');
     const listing = source.slice(
@@ -1672,7 +2135,7 @@ describe('Hermes access request reset boundary', () => {
     requestedAtMicros: 1_720_000_000_000_000n,
   } as const;
 
-  it('binds the CLI input flag to secret-only stdin and rejects environment fallback', () => {
+  it('source-suspends reset before reading a credential fallback', () => {
     const result = runHermes([
       'reset-access-request', '123', 'non-sensitive reset audit', '--input-stdin', '--dry-run',
     ], {
@@ -1680,7 +2143,7 @@ describe('Hermes access request reset boundary', () => {
         'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
     }, TEST_SECRET);
     expect(result.status).toBe(1);
-    expect(result.stderr).toMatch(/refuses an administrator secret from the environment/i);
+    expect(result.stderr).toMatch(/Genesis 001.*suspended.*f39d57c8622077e6543a16e5610d0e4ec73910da/i);
     expect(`${result.stdout}${result.stderr}`).not.toContain(TEST_SECRET);
   });
 
@@ -2180,7 +2643,7 @@ describe('Hermes credential destination policy', () => {
     }
   }, 60_000);
 
-  it('allows custom targets only for a secret-free dry run', () => {
+  it('source-suspends a custom-target admission dry run before network use', () => {
     const result = runHermes(
       ['allow-fid', '12345', 'test-only-note', '--dry-run', '--confirm'],
       {
@@ -2190,11 +2653,10 @@ describe('Hermes credential destination policy', () => {
         WARPKEEP_ADMIN_TOKEN_SECRET: undefined
       }
     );
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain('"dryRun":true');
-    expect(result.stdout).toContain('existing complete founder re-enable only');
-    expect(result.stdout).toContain('"existingFounderReenableOnly":true');
-    expect(result.stderr).toBe('');
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toMatch(/Genesis 001.*suspended.*f39d57c8622077e6543a16e5610d0e4ec73910da/i);
+    expect(result.stderr).not.toContain('staging.example');
   });
 
   it.each(['v2', 'v3', 'v4', 'v8', 'v10', 'v12'])('rejects misleading dry-run use on read-only protocol-%s inspection', (version) => {
