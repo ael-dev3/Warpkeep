@@ -1,9 +1,15 @@
 export const NOTIFICATION_PAGES_DEPLOY_LANE_PROFILE:
   'warpkeep-notification-pages-deploy-lane-v1';
+export const GENESIS_001_FROZEN_PAGES_SOURCE_COMMIT:
+  'f39d57c8622077e6543a16e5610d0e4ec73910da';
 
 export class NotificationPagesDeployLaneError extends Error {
   readonly code: string;
 }
+
+export function classifyGenesis001PagesSource(
+  candidatePagesSourceCommit: string,
+): 'eligible' | 'frozen';
 
 export function classifyNotificationPagesDeployLane(options: Readonly<{
   repositoryRoot?: string;

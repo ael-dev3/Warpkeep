@@ -11,6 +11,8 @@ import { pathToFileURL } from 'node:url';
 
 export const NOTIFICATION_PAGES_DEPLOY_LANE_PROFILE =
   'warpkeep-notification-pages-deploy-lane-v1';
+export const GENESIS_001_FROZEN_PAGES_SOURCE_COMMIT =
+  'f39d57c8622077e6543a16e5610d0e4ec73910da';
 
 const REPOSITORY_ROOT = realpathSync(resolve(import.meta.dirname, '..'));
 const SHA256 = /^[0-9a-f]{64}$/u;
@@ -28,6 +30,20 @@ export class NotificationPagesDeployLaneError extends Error {
 
 function fail(code) {
   throw new NotificationPagesDeployLaneError(code);
+}
+
+/**
+ * Genesis 001 is permanently presented by the already-live 0.3.43 artifact.
+ * The protected source commit may be replayed, but no successor is eligible
+ * to replace it at the warpkeep.com Pages target.
+ */
+export function classifyGenesis001PagesSource(candidatePagesSourceCommit) {
+  if (!COMMIT.test(candidatePagesSourceCommit ?? '')) {
+    fail('NOTIFICATION_PAGES_DEPLOY_LANE_SOURCE_COMMIT_INVALID');
+  }
+  return candidatePagesSourceCommit === GENESIS_001_FROZEN_PAGES_SOURCE_COMMIT
+    ? 'eligible'
+    : 'frozen';
 }
 
 function git(arguments_, repositoryRoot = REPOSITORY_ROOT) {
@@ -318,9 +334,6 @@ function main(arguments_, environment) {
     || typeof environment.WARPKEEP_PAGES_SOURCE_COMMIT !== 'string'
     || typeof environment.GITHUB_OUTPUT !== 'string'
   ) fail('NOTIFICATION_PAGES_DEPLOY_LANE_ENVIRONMENT_INVALID');
-  const result = classifyNotificationPagesDeployLane({
-    candidatePagesSourceCommit: environment.WARPKEEP_PAGES_SOURCE_COMMIT,
-  });
   const descriptor = Number(environment.GITHUB_OUTPUT_FD);
   if (!Number.isSafeInteger(descriptor) || descriptor < 3) {
     fail('NOTIFICATION_PAGES_DEPLOY_LANE_OUTPUT_INVALID');
@@ -329,6 +342,16 @@ function main(arguments_, environment) {
   if (!stat.isFile() || stat.nlink !== 1 || (stat.mode & 0o022) !== 0) {
     fail('NOTIFICATION_PAGES_DEPLOY_LANE_OUTPUT_INVALID');
   }
+  if (
+    classifyGenesis001PagesSource(environment.WARPKEEP_PAGES_SOURCE_COMMIT)
+      === 'frozen'
+  ) {
+    writeSync(descriptor, 'deployment-lane=frozen\n', null, 'utf8');
+    return;
+  }
+  const result = classifyNotificationPagesDeployLane({
+    candidatePagesSourceCommit: environment.WARPKEEP_PAGES_SOURCE_COMMIT,
+  });
   writeSync(descriptor, `deployment-lane=${result.mode}\n`, null, 'utf8');
 }
 

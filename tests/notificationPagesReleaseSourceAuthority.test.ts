@@ -1,9 +1,11 @@
 // @vitest-environment node
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import {
+  closeSync,
   mkdtempSync,
   mkdirSync,
+  openSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -15,6 +17,8 @@ import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  GENESIS_001_FROZEN_PAGES_SOURCE_COMMIT,
+  classifyGenesis001PagesSource,
   classifyNotificationPagesDeployLane,
 } from '../scripts/notification-pages-deploy-lane.mjs';
 import {
@@ -193,6 +197,52 @@ afterEach(() => {
 });
 
 describe('notification Pages dependency-free deploy lane authority', () => {
+  it('permanently freezes Genesis 001 Pages after the protected 0.3.43 source', () => {
+    expect(GENESIS_001_FROZEN_PAGES_SOURCE_COMMIT)
+      .toBe('f39d57c8622077e6543a16e5610d0e4ec73910da');
+    expect(classifyGenesis001PagesSource(
+      GENESIS_001_FROZEN_PAGES_SOURCE_COMMIT,
+    )).toBe('eligible');
+    expect(classifyGenesis001PagesSource('a'.repeat(40))).toBe('frozen');
+    expect(() => classifyGenesis001PagesSource('not-a-commit')).toThrow(
+      'NOTIFICATION_PAGES_DEPLOY_LANE_SOURCE_COMMIT_INVALID',
+    );
+  });
+
+  it('makes every post-freeze workflow source a no-deploy lane', () => {
+    const fixtureRoot = realpathSync(mkdtempSync(
+      resolve(tmpdir(), 'warpkeep-pages-frozen-output-'),
+    ));
+    fixtureRoots.push(fixtureRoot);
+    const outputPath = resolve(fixtureRoot, 'github-output');
+    const outputDescriptor = openSync(outputPath, 'wx', 0o600);
+    const result = spawnSync(
+      process.execPath,
+      [resolve(repositoryRoot, 'scripts/notification-pages-deploy-lane.mjs')],
+      {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          GITHUB_ACTIONS: 'true',
+          CI: 'true',
+          GITHUB_REPOSITORY: 'ael-dev3/Warpkeep',
+          GITHUB_EVENT_NAME: 'workflow_run',
+          GITHUB_WORKFLOW_REF:
+            'ael-dev3/Warpkeep/.github/workflows/deploy-pages.yml@refs/heads/main',
+          WARPKEEP_PAGES_SOURCE_COMMIT: 'a'.repeat(40),
+          GITHUB_OUTPUT: outputPath,
+          GITHUB_OUTPUT_FD: '3',
+        },
+        stdio: ['ignore', 'pipe', 'pipe', outputDescriptor],
+      },
+    );
+    closeSync(outputDescriptor);
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toBe('');
+    expect(readFileSync(outputPath, 'utf8')).toBe('deployment-lane=frozen\n');
+  });
+
   it('classifies only exact complete source tuples in an archive without node_modules', () => {
     expect(classifyNotificationPagesDeployLane(sourceFixture()).mode)
       .toBe('closed-review');
