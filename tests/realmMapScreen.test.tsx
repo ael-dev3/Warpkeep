@@ -360,7 +360,9 @@ describe('RealmMapScreen', () => {
     expect(within(record).queryByText('q 2 · r -1')).toBeNull();
     expect(selectionAnnouncement().textContent)
       .toContain('Peer Watch. Selected castle.');
-    expect(screen.getByRole('button', { name: 'CLOSE RECORD' })).toBe(document.activeElement);
+    await waitFor(() => expect(
+      screen.getByRole('button', { name: 'CLOSE RECORD' })
+    ).toBe(document.activeElement));
   });
 
   it('keeps player Explore useful through semantic resource sites without exposing q/r navigation', async () => {

@@ -40,11 +40,11 @@ const PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/u;
 const VERSION = /^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:[-+][0-9A-Za-z.-]+)?$/u;
 const MAXIMUM_ARCHIVE_BYTES = 256 * 1024 * 1024;
 const MAXIMUM_SECRET_BYTES = 514;
-const EXPECTED_NODE_VERSION = 'v24.14.0';
-const EXPECTED_NODE_SHA256 = '90e41658177a192c8c23940e58d8252544e5b40cbaef7bd52a3c3c54caf9dd91';
-const EXPECTED_NPM_VERSION = '11.9.0';
-const EXPECTED_NPM_TREE_SHA256 = 'bff72d9fd50e307b21344db40e0a6e5d680d1831a7fabbe3365d1f8b04dc0aab';
-const EXPECTED_NPM_TREE_ENTRIES = 2_223;
+const EXPECTED_NODE_VERSION = 'v24.19.0';
+const EXPECTED_NODE_SHA256 = '714024e01b43d82baacc136f44770a75017e9c7858542bad6746f19e7f15635d';
+const EXPECTED_NPM_VERSION = '11.17.0';
+const EXPECTED_NPM_TREE_SHA256 = 'a2a9f70444ecf3a3c487a5580ef60f0f1595495af2a886c03c1495f7110c25f9';
+const EXPECTED_NPM_TREE_ENTRIES = 2_375;
 const EXPECTED_NODE_TEAM = '2DC432GLL2';
 const EXPECTED_PLATFORM = 'darwin';
 const EXPECTED_ARCH = 'arm64';
@@ -1368,7 +1368,7 @@ function npmTreeIdentity(root, privateCopy) {
     fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_NPM_RUNTIME_INVALID');
   }
   const hash = createHash('sha256');
-  updateLengthFramed(hash, 'domain', 'warpkeep-chatgpt-bundled-npm-11.9.0-tree-v1');
+  updateLengthFramed(hash, 'domain', 'warpkeep-chatgpt-bundled-npm-11.17.0-tree-v1');
   for (const entry of entries) {
     updateLengthFramed(hash, 'path', entry.path);
     updateLengthFramed(hash, 'kind', entry.kind);
