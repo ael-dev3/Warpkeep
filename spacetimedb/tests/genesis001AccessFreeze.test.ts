@@ -75,6 +75,31 @@ test('Genesis 001 release 0.3.43 seals population changes while retaining player
   );
 });
 
+test('Genesis 001 exposes an exact read-only live access-policy receipt', () => {
+  const reducer = source('../src/reducers/genesis001AccessPolicy.ts');
+  const index = source('../src/index.ts');
+  const schema = source('../src/schema.ts');
+
+  assert.match(
+    reducer,
+    /const genesis001AccessPolicyReceiptV1 = t\.object\('Genesis001AccessPolicyV1', \{[\s\S]*realmId: t\.string\(\),[\s\S]*releaseVersion: t\.string\(\),[\s\S]*playerAccessEnabled: t\.bool\(\),[\s\S]*admissionStateMutationsEnabled: t\.bool\(\),[\s\S]*accessRequestSubmissionsEnabled: t\.bool\(\),[\s\S]*\}\);/,
+  );
+  const procedure = exportedSection(reducer, 'genesis001AccessPolicyV1');
+  assert.match(procedure, /name: 'genesis_001_access_policy_v1'/);
+  assert.match(procedure, /requireWarpkeepMetadataConnection\(tx\)/);
+  assert.match(procedure, /return GENESIS_001_ACCESS_POLICY/);
+  assert.doesNotMatch(procedure, /tx\.db\./);
+  assert.doesNotMatch(procedure, /\.(?:insert|update|delete)\s*\(/);
+  assert.match(
+    index,
+    /export \{\s*genesis001AccessPolicyV1,\s*\} from '\.\/reducers\/genesis001AccessPolicy';/,
+  );
+  assert.equal(
+    schema.match(/'genesis_001_access_policy_v1'/g)?.length,
+    1,
+  );
+});
+
 test('enabled-player admission remains policy-bound before its first table read', () => {
   const auth = source('../src/auth.ts');
   const start = auth.indexOf('export function requireAllowedFid(');

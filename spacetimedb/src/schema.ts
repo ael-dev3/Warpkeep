@@ -2197,6 +2197,7 @@ export const runInnerKeepConstructionScheduleV1 = warpkeep.reducer(
 // SpacetimeDB 2.6's default case converter separates a trailing digit from
 // its prefix (`v2` -> `v_2`). Pin every versioned wire spelling explicitly.
 for (const name of [
+  'genesis_001_access_policy_v1',
   'auth_resolver_get_fid_admission_v2',
   'qa_observer_get_realm_snapshot_v1',
   'qa_observer_get_realm_attestation_v2',
