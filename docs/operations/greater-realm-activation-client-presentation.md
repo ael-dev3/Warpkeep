@@ -1,18 +1,18 @@
 # Greater Realm activation-client presentation handoff
 
-Status: **deferred; not live presentation**
+Status: **approved for C7; not live presentation**
 
 The inert and pre-generation source must continue to identify itself as Alpha
-`0.3.43` and must not state that the Greater Realm is live. An earlier
-minor-version presentation draft and its player-facing claims were rejected
-and deliberately forward-reverted. The reviewed live-world target is Alpha
-`0.3.44`: a Greater Realm foundation update inside the existing `0.3.x` line,
-not a claim that Warpkeep has reached a complete gameplay loop.
+`0.3.43` and must not state that the Greater Realm is live. An earlier `0.4.0`
+marketing draft and its unsupported player-facing claims were rejected and
+deliberately forward-reverted. The newly reviewed live-world target is Alpha
+`0.4.0`: a broader player-facing Greater Realm world-foundation milestone, not
+a claim that Warpkeep has reached a stable core gameplay loop or public release.
 
 ## Exact deferred file set
 
 The activation-client change must review and reconstruct exactly these 14
-presentation/documentation paths for `0.3.44`; it must not replay the rejected
+presentation/documentation paths for `0.4.0`; it must not replay the rejected
 presentation draft:
 
 1. `CHANGELOG.md`
@@ -44,11 +44,12 @@ the 18 total guarded C7 paths.
 Do not blindly cherry-pick the old commit. Reconcile its Changelog hunks with
 all later truthful Unreleased entries, replace the bounded package and metadata
 identity described below, then review every patch note, screenshot reference,
-and test expectation against the exact `0.3.44` release state. The rejected
-minor-version marketing title and every stale draft version literal must remain
-absent. Live-Greater-Realm notice, Tier-I castle-allocation description, and
-notification-gated admission description must remain absent until each claim
-is supported by current evidence.
+and test expectation against the exact `0.4.0` release state. The rejected
+draft's marketing title, date, and unsupported claims must remain absent;
+reusing its version number never authorizes those bytes. Live-Greater-Realm
+notice, Tier-I castle-allocation description, and notification-gated admission
+description must remain absent until each claim is supported by current
+evidence.
 
 ## A-layer release-identity boundary
 
@@ -61,7 +62,7 @@ slots to be exactly `0.3.43` and both descriptions to retain the current
 Genesis 001 wording. C4 notification generation zero, C5 durable rooting, and
 C6 durable Hermes finalization also require the exact inert `0.3.43` identity.
 Only the later C7 activation-client phase and its reviewed successors require
-all three versions to be exactly `0.3.44` and both descriptions to be
+all three versions to be exactly `0.4.0` and both descriptions to be
 exactly:
 
 > Explore a six-region world foundation. The core gameplay loop remains incomplete; invite-only Alpha.
@@ -79,11 +80,12 @@ mislabeling their canonical projection digests as raw file SHA-256. The Pages
 workflow uses the distinct composed release-transition-plus-bootstrap-pin
 profile because both exact projections apply to that path.
 
-The `0.3.44` release notes must call this a world-foundation update and state
+The `0.4.0` release notes must call this a world-foundation update and state
 plainly that the core gameplay loop remains unfinished. They must not imply
 that construction, units, combat, alliances, Realm Chat, or any other dormant
-system is available. A larger, livelier map is meaningful progress, but it is
-not by itself a completed game loop or a semantic-versioning minor milestone.
+system is available. This is a semantic-versioning minor milestone because it
+is a broader player-facing world-foundation change; `1.0.0` remains reserved
+for a stable core gameplay loop and public release.
 
 The Unreleased Changelog descriptions of bounded ambient boats and the
 fail-closed notification implementation intentionally remain in pre-generation
@@ -114,6 +116,6 @@ of the following are true and bound to the same release:
 
 If any condition is not yet true, retain Alpha `0.3.43` presentation. In
 particular, Pages generation zero, durable rooting, and Hermes finalization are
-not world-client activation authority. Do not publish the `0.3.44` identity
+not world-client activation authority. Do not publish the `0.4.0` identity
 early or revive the rejected presentation. This handoff grants no import,
 activation, deployment, notification, or admission authority by itself.

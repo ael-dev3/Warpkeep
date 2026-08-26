@@ -3673,7 +3673,7 @@ function assertProductionPlayerCanaryActivationSourceTransition(
   if (
     predecessorIdentity.version !== '0.3.43'
     || predecessorIdentity.description !== INERT_WORLD_DESCRIPTION
-    || candidateIdentity.version !== '0.3.44'
+    || candidateIdentity.version !== '0.4.0'
     || candidateIdentity.description !== WORLD_FOUNDATION_DESCRIPTION
   ) fail(code);
   const predecessorPhase = notificationPagesSourcePhase(predecessor);

@@ -36,7 +36,7 @@ const REVIEWED_RELEASE_TRANSITION_DIGEST_PROFILE =
 const REVIEWED_RELEASE_TRANSITION_PLUS_BOOTSTRAP_PIN_DIGEST_PROFILE =
   'reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1';
 const INERT_CLIENT_RELEASE_VERSION = '0.3.43';
-const ACTIVE_CLIENT_RELEASE_VERSION = '0.3.44';
+const ACTIVE_CLIENT_RELEASE_VERSION = '0.4.0';
 const INERT_FARCASTER_DESCRIPTION =
   'Command four Workers, gather resources and return to a permanent keep in Genesis 001. Invite-only Alpha.';
 const ACTIVE_FARCASTER_DESCRIPTION =
@@ -755,18 +755,18 @@ describe('auth-bridge reviewed release-transition source projection', () => {
     expect(verify(root).memberCount).toBe(384);
     expectIdentityMutationRejected(
       'package.json',
-      '  "version": "0.3.44",',
+      '  "version": "0.4.0",',
       '  "version": "0.3.43",',
     );
     expectIdentityMutationRejected(
       'package-lock.json',
-      '  "version": "0.3.44",\n  "lockfileVersion": 3,',
+      '  "version": "0.4.0",\n  "lockfileVersion": 3,',
       '  "version": "0.3.43",\n  "lockfileVersion": 3,',
       'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID',
     );
     expectIdentityMutationRejected(
       'package-lock.json',
-      '      "version": "0.3.44",',
+      '      "version": "0.4.0",',
       '      "version": "0.3.43",',
       'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID',
     );
@@ -798,7 +798,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
         writeFileSync(path, source);
       }
     };
-    for (const version of ['0.4.0', '0.3.45', '0.3.44-alpha.1']) {
+    for (const version of ['0.3.44', '0.4.1', '0.4.0-alpha.1']) {
       expectMutationRejected(
         'package.json',
         source => source.replace('"version": "0.3.43"', `"version": "${version}"`),
@@ -809,7 +809,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
       'package.json',
       source => source.replace(
         '  "private": true,',
-        '  "private": true,\n  "version": "0.3.44",',
+        '  "private": true,\n  "version": "0.4.0",',
       ),
       'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID',
     );
@@ -817,7 +817,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
       'package-lock.json',
       source => source.replace(
         '  "lockfileVersion": 3,',
-        '  "version": "0.3.44",\n  "lockfileVersion": 3,',
+        '  "version": "0.4.0",\n  "lockfileVersion": 3,',
       ),
       'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID',
     );

@@ -150,7 +150,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8173aea4e8f1f3d6be62d285459dd127ba5a507be9d1e61d4d25504f051642dd"
+      "sha256": "ba9ef44318b10456ed5a6f041af62de34d91998e7905010cbcddab104fa16d97"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
@@ -310,7 +310,7 @@
     {
       "path": "scripts/notification-pages-live-receipt.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d988dd31e833452c8c9bf5231b89af49d1ca3b480faeeef95dc25a0bbc181a10"
+      "sha256": "9406290e6f3fa118c2c62f20db2a7bb89986bd31f261d8a5b403f250ed496589"
     },
     {
       "path": "scripts/notification-pages-live-release-binding.d.mts",
@@ -535,12 +535,12 @@
     {
       "path": "scripts/verify-auth-bridge-notification-b0-policy.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "1eb245acb18e463a2ea0720057fa6fd683dcd676a4e930e4ff6afdc3b9edb14c"
+      "sha256": "7b7756d000e736a3526767c430e1bbd1095d529ad5b65190383d1ba0eb3665fc"
     },
     {
       "path": "scripts/verify-auth-bridge-notification-b0-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "96f9e83a1ef38c26c77e97685e61e020ffc9d3c40d8364a25239631c0d45a628"
+      "sha256": "48c6f86f1bba8211196d6532725ff6d50a044529b511d1d0a88529ccc56aa264"
     },
     {
       "path": "scripts/verify-auth-bridge-notification-prepared-policy.d.mts",

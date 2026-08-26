@@ -150,7 +150,7 @@ binds receipts emitted by its predecessor:
 6. C5: durable Pages-rooted, Hermes-inert successor.
 7. C6: durable Hermes notification successor, still on the inert world client.
 8. C7: one atomic activation-client successor that moves both the package and
-   Mini App identity to `0.3.44`, changes `clientActivationApproved` from
+   Mini App identity to `0.4.0`, changes `clientActivationApproved` from
    `false` to `true`, and changes both the client and server presentation gates
    from `false` to `true`. It requires the durable C6 Pages root to remain
    unchanged, Hermes to already be `true` in its predecessor, and the exact
@@ -218,7 +218,7 @@ The rollout is complete only when all of the following are simultaneously true:
   resource journeys;
 - the live client shows the Greater Realm and its living-world presentation,
   while Tier II/III remain inaccessible;
-- README and CHANGELOG describe the live `0.3.44` release;
+- README and CHANGELOG describe the live `0.4.0` release;
 - the bounded pending census has zero eligible rows after sequential processing,
   with one logical notification receipt and one admission outcome per consumed
   request cycle.

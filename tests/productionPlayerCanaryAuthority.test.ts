@@ -398,11 +398,11 @@ function protectedSourceRepository() {
     const destination = join(repositoryRoot, path);
     mkdirSync(dirname(destination), { recursive: true });
     if (path === 'package.json') {
-      writeFileSync(destination, JSON.stringify({ version: '0.3.44' }));
+      writeFileSync(destination, JSON.stringify({ version: '0.4.0' }));
     } else if (path === 'package-lock.json') {
       writeFileSync(destination, JSON.stringify({
-        version: '0.3.44',
-        packages: { '': { version: '0.3.44' } },
+        version: '0.4.0',
+        packages: { '': { version: '0.4.0' } },
       }));
     } else {
       writeFileSync(destination, `exact C7 presentation: ${path}\n`);

@@ -71,14 +71,14 @@ export function canonicalAuthBridgeReleaseTransitionFixtureSource(
   if (relativePath === 'package.json') {
     return replaceExact(
       source,
-      /^  "version": "(0\.3\.43|0\.3\.44)",$/gmu,
+      /^  "version": "(0\.3\.43|0\.4\.0)",$/gmu,
       `  "version": "${INERT_VERSION}",`,
     );
   }
   if (relativePath === 'package-lock.json') {
     return replaceExact(
       source,
-      /^\{\n  "name": "warpkeep",\n  "version": "(0\.3\.43|0\.3\.44)",\n  "lockfileVersion": 3,\n  "requires": true,\n  "packages": \{\n    "": \{\n      "name": "warpkeep",\n      "version": "(0\.3\.43|0\.3\.44)",$/gmu,
+      /^\{\n  "name": "warpkeep",\n  "version": "(0\.3\.43|0\.4\.0)",\n  "lockfileVersion": 3,\n  "requires": true,\n  "packages": \{\n    "": \{\n      "name": "warpkeep",\n      "version": "(0\.3\.43|0\.4\.0)",$/gmu,
       '{\n'
         + '  "name": "warpkeep",\n'
         + `  "version": "${INERT_VERSION}",\n`
