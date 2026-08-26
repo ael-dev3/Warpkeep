@@ -92,6 +92,23 @@ describe('notification bridge B0 protected workflow', () => {
     )).toHaveLength(2);
   });
 
+  it('rejects both stale and active release identities in the B0 workflow', () => {
+    expect(() => policyTestSeams.assertInertReleaseIdentity(
+      workflowSource,
+      { version: '0.3.43' },
+    )).not.toThrow();
+    for (const forbiddenVersion of ['0.3.44', '0.4.0', '0.4.1']) {
+      expect(() => policyTestSeams.assertInertReleaseIdentity(
+        `${workflowSource}\n# ${forbiddenVersion}\n`,
+        { version: '0.3.43' },
+      )).toThrow('AUTH_BRIDGE_NOTIFICATION_B0_UNREVIEWED_CAPABILITY');
+    }
+    expect(() => policyTestSeams.assertInertReleaseIdentity(
+      workflowSource,
+      { version: '0.4.0' },
+    )).toThrow('AUTH_BRIDGE_NOTIFICATION_B0_UNREVIEWED_CAPABILITY');
+  });
+
   it('always attempts one recovery pass after a failed guarded invocation', () => {
     expect(workflowSource).toContain('continue-on-error: true');
     expect(workflowSource).toContain(

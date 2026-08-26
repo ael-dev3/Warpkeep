@@ -14,5 +14,9 @@ export function verifyAuthBridgeNotificationB0StaticPolicy(
 export const authBridgeNotificationB0PolicyTestSeams:
   | Readonly<{
     assertExactPredecessorReattestationCount(runtimeSource: string): void;
+    assertInertReleaseIdentity(
+      workflowSource: string,
+      packageDocument: Readonly<{ version?: unknown }>,
+    ): void;
   }>
   | undefined;

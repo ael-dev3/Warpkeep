@@ -178,7 +178,8 @@ a SpacetimeDB schema change. The checked-in Hermes delivery literal
 `VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED` begin `false`. Hermes and Pages
 advance in separate source-bound phases; the Worker may become live only in the
 protected bridge-prepared phase below. Greater Realm client/server presentation
-and the `0.3.44` identity remain false/inert throughout all notification phases.
+remains false and the `0.4.0` identity remains inert throughout all notification
+phases.
 This is an intentional temporary admission blackout: confirmed `admit-founder` and `allow-fid`
 execution stops before bridge delivery, administrator-token issuance, database
 connection, plan claim, or reducer submission. A false Hermes gate must never
@@ -258,7 +259,7 @@ skip delivery and continue admission. Roll them out in this order:
    authorized production-player canary. Retain only privacy-safe,
    content-addressed evidence—never the signed body, token, or subject. Only a
    later activation-client source bound to that exact Hermes-final predecessor
-   and canary receipt may publish the `0.3.44` identity and enable both Greater
+   and canary receipt may publish the `0.4.0` identity and enable both Greater
    Realm client/server presentation gates.
 
 ### Owner canary and end-to-end acceptance

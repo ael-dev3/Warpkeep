@@ -74,6 +74,14 @@ function assertExactPredecessorReattestationCount(runtime) {
   }
 }
 
+function assertInertReleaseIdentity(workflow, packageDocument) {
+  if (
+    packageDocument.version !== '0.3.43'
+    || workflow.includes('0.3.44')
+    || workflow.includes('0.4.')
+  ) fail('AUTH_BRIDGE_NOTIFICATION_B0_UNREVIEWED_CAPABILITY');
+}
+
 /** Repository-only B0 policy verification; performs no network or mutation. */
 export function verifyAuthBridgeNotificationB0StaticPolicy({
   repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..'),
@@ -132,11 +140,10 @@ export function verifyAuthBridgeNotificationB0StaticPolicy({
     'AUTH_BRIDGE_NOTIFICATION_B0_CREDENTIAL_BOUNDARY_INVALID');
   exact(workflow, 'GITHUB_TOKEN: ${{ github.token }}', 2,
     'AUTH_BRIDGE_NOTIFICATION_B0_CREDENTIAL_BOUNDARY_INVALID');
+  assertInertReleaseIdentity(workflow, packageDocument);
   if (
-    packageDocument.version !== '0.3.43'
-    || workflow.includes('PLAYER_CANARY_OWNER_FID')
+    workflow.includes('PLAYER_CANARY_OWNER_FID')
     || workflow.includes('WARPKEEP_PLAYER_CANARY_OWNER_FID')
-    || workflow.includes('0.3.44')
     || workflow.includes('production-player-canary')
     || workflow.includes('spacetime publish')
     || /\bwrangler\s+(?:deploy|publish|versions|secret)\b/u.test(workflow)
@@ -295,7 +302,10 @@ export function verifyAuthBridgeNotificationB0StaticPolicy({
 
 export const authBridgeNotificationB0PolicyTestSeams =
   process.env.NODE_ENV === 'test' && process.env.VITEST === 'true'
-    ? Object.freeze({ assertExactPredecessorReattestationCount })
+    ? Object.freeze({
+      assertExactPredecessorReattestationCount,
+      assertInertReleaseIdentity,
+    })
     : undefined;
 
 function main() {

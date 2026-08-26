@@ -477,7 +477,7 @@ replay). A restart admits only that destination and one UUID-scoped writer
 temporary before delayed recovery and retained-byte validation. The snapshot
 enters Git atomically with inert C4 notification generation zero, which remains
 Alpha `0.3.43`. Durable rooting, Hermes finalization, and the C7
-activation-client/Alpha `0.3.44` change remain separate reviewed phases. Its
+activation-client/Alpha `0.4.0` change remain separate reviewed phases. Its
 at-retention fields do not claim that C3 or C4 remains pending, inactive, or
 production-untouched. Raw generator or package values have no alternative
 input path.

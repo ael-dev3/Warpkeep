@@ -143,7 +143,7 @@ function fixture() {
   sources['package.json'] = replaceOnce(
     sourceAt(c6, 'package.json'),
     '"version": "0.3.43"',
-    '"version": "0.3.44"',
+    '"version": "0.4.0"',
   );
   const lock = sourceAt(c6, 'package-lock.json');
   if (lock.match(/"version": "0\.3\.43"/gu)?.length !== 2) {
@@ -151,7 +151,7 @@ function fixture() {
   }
   sources['package-lock.json'] = lock.replaceAll(
     '"version": "0.3.43"',
-    '"version": "0.3.44"',
+    '"version": "0.4.0"',
   );
   sources['public/.well-known/farcaster.json'] = replaceOnce(
     sourceAt(c6, 'public/.well-known/farcaster.json'),
@@ -246,8 +246,8 @@ describe('notification Pages player-canary activation transition', () => {
     reject({
       ...transition.sources,
       'package.json': transition.sources['package.json'].replace(
+        '"version": "0.4.0"',
         '"version": "0.3.44"',
-        '"version": "0.3.45"',
       ),
     });
     reject({

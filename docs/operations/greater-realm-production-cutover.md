@@ -129,7 +129,7 @@ changing the root; that `notification-durable-final` phase forbids prepared
 authority and still retains the inert `0.3.43` world presentation.
 
 Only a later `activation-client` successor may atomically move the package and
-Mini App identity to `0.3.44`, change downstream client approval false → true,
+Mini App identity to `0.4.0`, change downstream client approval false → true,
 and change both client/server presentation gates false → true. It requires the
 unchanged durable Pages root, Hermes already true in its predecessor, and a
 checked-in content-addressed production-player-canary binding whose owner-only

@@ -97,7 +97,7 @@ const REVIEWED_RELEASE_SOURCE_PATHS = Object.freeze({
 });
 
 const INERT_CLIENT_RELEASE_VERSION = '0.3.43';
-const ACTIVE_CLIENT_RELEASE_VERSION = '0.3.44';
+const ACTIVE_CLIENT_RELEASE_VERSION = '0.4.0';
 const INERT_FARCASTER_DESCRIPTION =
   'Command four Workers, gather resources and return to a permanent keep in Genesis 001. Invite-only Alpha.';
 const ACTIVE_FARCASTER_DESCRIPTION =
@@ -793,7 +793,7 @@ function canonicalReviewedReleaseMemberBodies(memberBodies) {
   try {
   const packageIdentity = record('package', projectReviewedReleaseSource(
     body('package'),
-    /^  "version": "(0\.3\.43|0\.3\.44)",$/gmu,
+    /^  "version": "(0\.3\.43|0\.4\.0)",$/gmu,
     `  "version": "${INERT_CLIENT_RELEASE_VERSION}",`,
     values => exactClientReleaseState(
       values,
@@ -805,7 +805,7 @@ function canonicalReviewedReleaseMemberBodies(memberBodies) {
     'packageLock',
     projectReviewedReleaseSource(
       body('packageLock'),
-      /^\{\n  "name": "warpkeep",\n  "version": "(0\.3\.43|0\.3\.44)",\n  "lockfileVersion": 3,\n  "requires": true,\n  "packages": \{\n    "": \{\n      "name": "warpkeep",\n      "version": "(0\.3\.43|0\.3\.44)",$/gmu,
+      /^\{\n  "name": "warpkeep",\n  "version": "(0\.3\.43|0\.4\.0)",\n  "lockfileVersion": 3,\n  "requires": true,\n  "packages": \{\n    "": \{\n      "name": "warpkeep",\n      "version": "(0\.3\.43|0\.4\.0)",$/gmu,
       '{\n'
         + '  "name": "warpkeep",\n'
         + `  "version": "${INERT_CLIENT_RELEASE_VERSION}",\n`

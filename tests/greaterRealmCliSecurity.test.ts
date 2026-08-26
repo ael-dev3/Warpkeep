@@ -598,7 +598,7 @@ describe('Greater Realm atlas CLI security boundary', () => {
 
     writeFileSync(join(fixture.repositoryRoot, 'package.json'), JSON.stringify({
       name: 'warpkeep',
-      version: '0.3.44',
+      version: '0.4.0',
       description: 'A six-region world foundation is available; the core gameplay loop remains incomplete. Invite-only Alpha.',
     }));
     expect(() => greaterRealmCliArgumentTestSeams
