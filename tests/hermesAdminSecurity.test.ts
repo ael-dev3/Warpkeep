@@ -97,7 +97,7 @@ const NOTIFICATION_SECRET = 'TEST_ONLY_NOTIFICATION_SECRET_'.repeat(2);
 const TEST_G001_ADMISSION_FREEZE_ATTESTATION =
   'c2fbbd41ac11b6a6d23088158e013d5660a1e24fc7da24e1a75a1ec525011463';
 const TEST_G001_CENSUS_TARGET_CONFIGURATION_DIGEST =
-  '26591fcc74c013e1a91b2bdb28c43a17982207f464815895d95aa030c737bb9b';
+  '1c953d003c005acdb260d57320c78fae08bfe6b2a89433c5cd74f4d2c03d6aef';
 const TEST_G001_LIVE_ACCESS_POLICY = Object.freeze({
   realmId: 'GENESIS_001',
   releaseVersion: '0.3.43',
@@ -1787,10 +1787,19 @@ describe('Hermes private access request review boundary', () => {
         adminListAccessRequestsV1: procedure,
       },
     } as never, TEST_G001_ADMISSION_FREEZE_ATTESTATION);
-    expect(accessPolicy).toHaveBeenCalledOnce();
-    expect(accessPolicy).toHaveBeenCalledWith({});
+    expect(accessPolicy).toHaveBeenCalledTimes(3);
+    expect(accessPolicy.mock.calls).toEqual([[{}], [{}], [{}]]);
     expect(accessPolicy.mock.invocationCallOrder[0]).toBeLessThan(
       procedure.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+    );
+    expect(accessPolicy.mock.invocationCallOrder[1]).toBeGreaterThan(
+      procedure.mock.invocationCallOrder[1] ?? Number.NEGATIVE_INFINITY,
+    );
+    expect(accessPolicy.mock.invocationCallOrder[1]).toBeLessThan(
+      procedure.mock.invocationCallOrder[2] ?? Number.POSITIVE_INFINITY,
+    );
+    expect(accessPolicy.mock.invocationCallOrder[2]).toBeGreaterThan(
+      procedure.mock.invocationCallOrder[3] ?? Number.NEGATIVE_INFINITY,
     );
     expect(procedure).toHaveBeenNthCalledWith(1, {
       afterRequestedAtMicros: 0n,
@@ -1934,6 +1943,54 @@ describe('Hermes private access request review boundary', () => {
     } as never, TEST_G001_ADMISSION_FREEZE_ATTESTATION))
       .rejects.toThrow(/changed between stable passes/i);
     expect(procedure).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not export when the final live freeze receipt changes after stable passes', async () => {
+    const page = {
+      entries: [{
+        fid: 11_111_111n,
+        requestedAtMicros: 1_720_000_000_000_000n,
+        admissionState: 'missing',
+        requestState: 'pending',
+      }],
+      nextRequestedAtMicros: undefined,
+      nextFid: undefined,
+      hasMore: false,
+      totalRequests: 1n,
+      pendingRequests: 1n,
+    } as const;
+    const accessPolicy = vi.fn()
+      .mockResolvedValueOnce(TEST_G001_LIVE_ACCESS_POLICY)
+      .mockResolvedValueOnce(TEST_G001_LIVE_ACCESS_POLICY)
+      .mockResolvedValueOnce({
+        ...TEST_G001_LIVE_ACCESS_POLICY,
+        admissionStateMutationsEnabled: true,
+      });
+    const procedure = vi.fn().mockResolvedValue(page);
+    const directory = mkdtempSync(join(realpathSync(tmpdir()), 'warpkeep-census-final-policy-'));
+    let writeAttempted = false;
+    try {
+      const exportAttempt = collectAccessRequestCensus({
+        procedures: {
+          genesis001AccessPolicyV1: accessPolicy,
+          adminListAccessRequestsV1: procedure,
+        },
+      } as never, TEST_G001_ADMISSION_FREEZE_ATTESTATION).then(census => {
+        writeAttempted = true;
+        return writeAccessRequestCensusText({
+          directory,
+          census,
+          at: TEST_ACCESS_REQUEST_CENSUS_AT,
+        });
+      });
+      await expect(exportAttempt).rejects.toThrow(/live Genesis 001 access policy/i);
+      expect(accessPolicy).toHaveBeenCalledTimes(3);
+      expect(procedure).toHaveBeenCalledTimes(2);
+      expect(writeAttempted).toBe(false);
+      expect(readdirSync(directory)).toEqual([]);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it('fails closed before census reads when the live Genesis 001 policy is not exact', async () => {

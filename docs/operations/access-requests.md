@@ -42,13 +42,14 @@ has been deployed from the explicitly reviewed `0.3.43` source baseline
 deployed module. Verification must establish realm ID `GENESIS_001`, release
 `0.3.43`, existing-player access retained, admission-state mutations disabled,
 and new access-request submission disabled. The explicit attestation argument is
-not live proof by itself. Before either census pass, the exporter also calls the
-metadata-authorized, read-only `genesis_001_access_policy_v1` procedure and
-requires the exact receipt `GENESIS_001` / `0.3.43` / player access enabled /
-admission mutations disabled / request submissions disabled. A missing generated
-binding, procedure failure, additional or missing field, or value mismatch aborts
-before any applicant rows are read. Independently verify the deployment first;
-the exporter then records evidence only from that already-verified freeze.
+not live proof by itself. Immediately before each census pass, and once more
+after both canonical snapshots match, the exporter calls the metadata-authorized,
+read-only `genesis_001_access_policy_v1` procedure and requires the exact receipt
+`GENESIS_001` / `0.3.43` / player access enabled / admission mutations disabled /
+request submissions disabled. A missing generated binding, procedure failure,
+additional or missing field, or value mismatch aborts the operation. Independently
+verify the deployment first; the exporter then records evidence only from that
+already-verified freeze.
 
 Both `--dry-run` and `--confirm` require the explicit source-bound prerequisite
 `--g001-admission-freeze-attestation`
@@ -90,6 +91,16 @@ production administrator account's canonical Desktop. Ambient `HOME` is
 ignored. The writer holds and repeatedly re-attests the Desktop directory and
 destination identities, refuses symlinks, and does not overwrite an existing
 timestamp.
+
+When the exact created leaf remains reachable, failed-write cleanup reopens it
+through the held Desktop descriptor, verifies its identity, truncates it to
+zero, and fsyncs it. Portable unlink is still name-based. A hostile process
+running as the same administrator UID could move the inode before cleanup or
+replace the leaf after the final identity check; the former can leave the moved
+private inode behind and the latter can cause the replacement to be unlinked.
+No replacement receives census bytes, which are written only through the held
+expected inode. Run the one-time export only while other processes under that
+administrator account are trusted.
 
 Keep the resulting TXT only on that private Desktop for the later Genesis 002
 review. Never place it in the repository, logs, shell history, CI artifacts,

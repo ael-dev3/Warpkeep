@@ -2129,12 +2129,14 @@ export async function collectAccessRequestCensus(
   const first = await collectAccessRequestCensusPass(connection);
   const firstCanonical = JSON.stringify(first);
   const firstDigest = createHash('sha256').update(firstCanonical, 'utf8').digest('hex');
+  await requireLiveGenesis001AccessPolicy(connection);
   const second = await collectAccessRequestCensusPass(connection);
   const secondCanonical = JSON.stringify(second);
   const secondDigest = createHash('sha256').update(secondCanonical, 'utf8').digest('hex');
   if (firstDigest !== secondDigest || firstCanonical !== secondCanonical) {
     fail('Access request census changed between stable passes.');
   }
+  await requireLiveGenesis001AccessPolicy(connection);
   return second;
 }
 
@@ -2410,6 +2412,7 @@ export const ACCESS_REQUEST_CENSUS_TARGET_CONFIGURATION_DIGEST = createHash('sha
     databaseIdentity: DEFAULT_DATABASE_IDENTITY,
     bridgeUrl: DEFAULT_BRIDGE,
     freezeProcedure: GENESIS_001_ACCESS_POLICY_PROCEDURE,
+    freezePolicyChecks: 3,
     procedure: 'admin_list_access_requests_v1',
     includeResolved: true,
     pageSize: MAX_ACCESS_REQUEST_PAGE_SIZE,
@@ -2571,6 +2574,13 @@ function writeAccessRequestCensusAtDirectory(
   }
 }
 
+/**
+ * Privacy-safe best-effort cleanup. When the exact created inode remains at
+ * the leaf, it is descriptor-opened, identity-checked, truncated, and fsynced
+ * before the final dirfd-relative stat/unlink. Portable unlink remains
+ * name-based: a same-UID process can race this cleanup, but no replacement leaf
+ * can receive bytes written through the already-held expected inode.
+ */
 function unlinkAccessRequestCensusAtDirectory(
   directory: Readonly<{
     descriptor: number;
