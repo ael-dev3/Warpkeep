@@ -1186,6 +1186,37 @@ describe('Greater Realm production bootstrap', () => {
     expect(environment).not.toHaveProperty('LD_PRELOAD');
   });
 
+  it('pins the reviewed OpenAI-signed Node and bundled npm runtimes consistently', () => {
+    const source = readFileSync('scripts/greater-realm-production-bootstrap.mjs', 'utf8');
+    const immutableArtifact = readFileSync(
+      'scripts/greater-realm-production-immutable-artifact.ts',
+      'utf8',
+    );
+    const envelope = readFileSync(
+      'docs/operations/greater-realm-production-launch-envelope.sh.txt',
+      'utf8',
+    );
+    const version = 'v24.19.0';
+    const sha256 = '714024e01b43d82baacc136f44770a75017e9c7858542bad6746f19e7f15635d';
+    const npmVersion = '11.17.0';
+    const npmTreeSha256 =
+      'a2a9f70444ecf3a3c487a5580ef60f0f1595495af2a886c03c1495f7110c25f9';
+
+    expect(source).toContain(`const EXPECTED_NODE_VERSION = '${version}';`);
+    expect(source).toContain(`const EXPECTED_NODE_SHA256 = '${sha256}';`);
+    expect(immutableArtifact).toContain(`const TRUSTED_NODE_SHA256 = '${sha256}';`);
+    expect(source).toContain("const EXPECTED_NODE_TEAM = '2DC432GLL2';");
+    expect(source).toContain(`const EXPECTED_NPM_VERSION = '${npmVersion}';`);
+    expect(source).toContain(`const EXPECTED_NPM_TREE_SHA256 = '${npmTreeSha256}';`);
+    expect(source).toContain('const EXPECTED_NPM_TREE_ENTRIES = 2_375;');
+    expect(source).toContain(
+      "'warpkeep-chatgpt-bundled-npm-11.17.0-tree-v1'",
+    );
+    expect(envelope).toContain(`= ${sha256} ]`);
+    expect(envelope).toContain(`[ "$("$staged_node" --version)" = ${version} ]`);
+    expect(envelope).toContain('TeamIdentifier=2DC432GLL2');
+  });
+
   it('binds the launch record before the one-shot detached operator gate', () => {
     const source = readFileSync('scripts/greater-realm-production-bootstrap.mjs', 'utf8');
     const envelope = readFileSync(

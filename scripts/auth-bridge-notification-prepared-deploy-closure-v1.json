@@ -240,7 +240,7 @@
     {
       "path": "scripts/greater-realm-production-bootstrap.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "80a29e9b88c2eb60725a10e0bf0e062ff3ae2019fb529f539abf699fd3571a1d"
+      "sha256": "528434712c276a4b60b582b54b5aefaa98928b23c10e99031877a930850facf4"
     },
     {
       "path": "scripts/greater-realm-production-publisher-core.ts",
