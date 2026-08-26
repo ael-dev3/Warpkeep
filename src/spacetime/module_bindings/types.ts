@@ -941,6 +941,15 @@ export const FoodSiteV1 = __t.object("FoodSiteV1", {
 });
 export type FoodSiteV1 = __Infer<typeof FoodSiteV1>;
 
+export const Genesis001AccessPolicyV1 = __t.object("Genesis001AccessPolicyV1", {
+  realmId: __t.string(),
+  releaseVersion: __t.string(),
+  playerAccessEnabled: __t.bool(),
+  admissionStateMutationsEnabled: __t.bool(),
+  accessRequestSubmissionsEnabled: __t.bool(),
+});
+export type Genesis001AccessPolicyV1 = __Infer<typeof Genesis001AccessPolicyV1>;
+
 export const GoldExpeditionIdempotencyV1 = __t.object("GoldExpeditionIdempotencyV1", {
   requestKey: __t.string(),
   fid: __t.u64(),
