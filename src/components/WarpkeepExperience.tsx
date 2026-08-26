@@ -16,6 +16,7 @@ import type {
   VerifiedFarcasterIdentity
 } from '../farcaster/farcasterAuthTypes';
 import type { WarpkeepBackendState } from '../spacetime/warpkeepBackendTypes';
+import { NEW_ADMISSIONS_SUSPENDED } from '../release/admissionLaunchPolicy';
 import {
   useWarpkeepBackend,
   WARPKEEP_SHARED_ALPHA_UNAVAILABLE_MESSAGE
@@ -1380,6 +1381,7 @@ export function WarpkeepExperience() {
       }: AuthRailRenderControls) => (
         <FarcasterAdmissionPanel
           accessRequest={accessRequest}
+          admissionRequestsSuspended={NEW_ADMISSIONS_SUSPENDED}
           admissionCheck={farcasterAuthState.phase === 'pending-admission'
             ? admissionCheck
             : undefined}

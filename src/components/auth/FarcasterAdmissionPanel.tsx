@@ -6,6 +6,7 @@ import type {
   VerifiedFarcasterIdentity
 } from '../../farcaster/farcasterAuthTypes';
 import type { WarpkeepBackendPhase } from '../../spacetime/warpkeepBackendTypes';
+import { ADMISSIONS_SUSPENDED_NOTICE } from '../../release/admissionLaunchPolicy';
 import {
   accessRequestOwnsPrimaryAction,
   FarcasterAccessRequestAction,
@@ -33,6 +34,7 @@ export type FarcasterAdmissionPanelProps = Readonly<{
   onReviewTerms?: () => void;
   accessRequest?: AccessRequestViewState;
   admissionCheck?: FarcasterAdmissionCheckViewState;
+  admissionRequestsSuspended?: boolean;
   onRequestAccess?: () => boolean;
   onRetryAccessRequestStatus?: () => void;
   onSignOut: () => void;
@@ -106,6 +108,7 @@ export function FarcasterAdmissionPanel({
   onReviewTerms,
   accessRequest = IDLE_ACCESS_REQUEST,
   admissionCheck = IDLE_ADMISSION_CHECK,
+  admissionRequestsSuspended = false,
   onRequestAccess,
   onRetryAccessRequestStatus,
   onSignOut,
@@ -205,10 +208,16 @@ export function FarcasterAdmissionPanel({
                 ? 'Warpkeep has not yet confirmed active admission. Check again in a moment.'
                 : 'This Farcaster identity is not yet admitted to the Hegemony frontier.'}
             </p>
-            <FarcasterAccessRequestMessage
-              descriptionId={accessRequestDescriptionId}
-              state={accessRequest}
-            />
+            {admissionRequestsSuspended ? (
+              <p className="farcaster-admission-panel__lead" role="status">
+                {ADMISSIONS_SUSPENDED_NOTICE}
+              </p>
+            ) : (
+              <FarcasterAccessRequestMessage
+                descriptionId={accessRequestDescriptionId}
+                state={accessRequest}
+              />
+            )}
           </>
         ) : null}
 
@@ -242,7 +251,7 @@ export function FarcasterAdmissionPanel({
             REVIEW TERMS
           </button>
         ) : null}
-        {denied && onRequestAccess ? (
+        {denied && !admissionRequestsSuspended && onRequestAccess ? (
           <FarcasterAccessRequestAction
             admissionCheck={admissionCheck}
             descriptionId={accessRequestDescriptionId}
@@ -253,7 +262,9 @@ export function FarcasterAdmissionPanel({
             state={accessRequest}
           />
         ) : null}
-        {denied && !accessRequestOwnsPrimaryAction(accessRequest) ? (
+        {denied && (
+          admissionRequestsSuspended || !accessRequestOwnsPrimaryAction(accessRequest)
+        ) ? (
           <FarcasterAdmissionCheckAction
             onCheckAdmission={onCheckAgain}
             primaryActionRef={primaryActionRef}

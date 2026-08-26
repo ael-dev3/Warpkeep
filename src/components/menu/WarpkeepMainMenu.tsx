@@ -25,12 +25,21 @@ import {
 import { CreditsRoll } from './CreditsRoll';
 import { LatestPatchNotesPopover } from './LatestPatchNotesPopover';
 import { MenuDevelopmentNotice } from './MenuDevelopmentNotice';
+import { RealmChoiceSelector } from './RealmChoiceSelector';
 import { SettingsPanel } from './SettingsPanel';
 import {
   WarpkeepBuildStamp,
   type WarpkeepPatchNotesState
 } from './WarpkeepBuildStamp';
 import { menuCommands, type MenuCommand, type MenuCommandId } from './menuCommands';
+import {
+  GENESIS_001_ID,
+  GENESIS_002_ID,
+  GENESIS_002_SEALED_NOTICE,
+  NEW_ADMISSIONS_SUSPENDED,
+  getRealmChoices,
+  type RealmId
+} from './realmChoicePolicy';
 import {
   DEFAULT_WARPKEEP_REPOSITORY_URL,
   WARPKEEP_BUILD_INFO,
@@ -336,6 +345,7 @@ export function WarpkeepMainMenu({
   const [termsRequest, setTermsRequest] = useState<TermsRequest | null>(null);
   const [sessionRestoreRequest, setSessionRestoreRequest] =
     useState<SessionRestoreRequest | null>(null);
+  const [selectedRealmId, setSelectedRealmId] = useState<RealmId>(GENESIS_001_ID);
   const reducedMotion = useReducedMotionPreference();
   const interactive = interactiveOverride ?? (active && visible);
   const shouldFocusFirstCommand = focusFirstCommand ?? inputModality === 'keyboard';
@@ -362,6 +372,10 @@ export function WarpkeepMainMenu({
     && authState.expiresAt !== undefined
     && authState.expiresAt > Date.now()
   ), [authState]);
+  const realmChoices = useMemo(
+    () => getRealmChoices(hasCurrentAuthenticatedAccess()),
+    [hasCurrentAuthenticatedAccess]
+  );
   const canReuseEntryAgreement = useCallback(() => (
     entryAgreementSatisfied && hasCurrentAuthenticatedAccess()
   ), [entryAgreementSatisfied, hasCurrentAuthenticatedAccess]);
@@ -612,6 +626,12 @@ export function WarpkeepMainMenu({
     setSurface('credits');
   }, [closePatchNotes]);
 
+  const selectRealm = useCallback((realmId: RealmId) => {
+    setActiveNotice(null);
+    closePatchNotes();
+    setSelectedRealmId(realmId);
+  }, [closePatchNotes]);
+
   const closeCredits = useCallback(() => {
     setSurface('commands');
     restoreSurfaceTriggerFocus();
@@ -786,6 +806,30 @@ export function WarpkeepMainMenu({
     });
   }, []);
 
+  const denySelectedRealmEntry = useCallback((
+    anchorElement?: HTMLButtonElement | null
+  ) => {
+    if (selectedRealmId !== GENESIS_002_ID) return false;
+    const enterRealmCommand = menuCommands.find(({ id }) => id === 'enter-realm');
+    if (anchorElement && enterRealmCommand) {
+      openNotice(
+        enterRealmCommand,
+        anchorElement,
+        GENESIS_002_SEALED_NOTICE
+      );
+    }
+    return true;
+  }, [openNotice, selectedRealmId]);
+
+  const requestSelectedRealmEntry = useCallback((
+    identity: VerifiedFarcasterIdentity,
+    anchorElement?: HTMLButtonElement | null
+  ) => {
+    if (denySelectedRealmEntry(anchorElement)) return false;
+    onRequestAuthenticatedRealm?.(identity);
+    return true;
+  }, [denySelectedRealmEntry, onRequestAuthenticatedRealm]);
+
   const openAuthPanel = useCallback((keyboardDriven: boolean) => {
     authWasKeyboardDrivenRef.current = keyboardDriven;
     setActiveNotice(null);
@@ -887,7 +931,7 @@ export function WarpkeepMainMenu({
       authAttemptStartedRef.current = false;
       invalidateSessionRestore();
       setSurface('commands');
-      onRequestAuthenticatedRealm?.(identity);
+      requestSelectedRealmEntry(identity, commandRefs.current[0]);
       return;
     }
     if (entryAgreementRequired) {
@@ -903,9 +947,9 @@ export function WarpkeepMainMenu({
     hasCurrentAuthenticatedAccess,
     interactive,
     invalidateSessionRestore,
-    onRequestAuthenticatedRealm,
     openAuthPanel,
     openTerms,
+    requestSelectedRealmEntry,
     sessionRestoreRequest
   ]);
 
@@ -924,6 +968,11 @@ export function WarpkeepMainMenu({
       return;
     }
 
+    if (command.id === 'enter-realm' && selectedRealmId === GENESIS_002_ID) {
+      openNotice(command, anchorElement, GENESIS_002_SEALED_NOTICE);
+      return;
+    }
+
     if (command.id === 'enter-realm' && backendUnavailableMessage) {
       openNotice(command, anchorElement, backendUnavailableMessage);
       return;
@@ -934,7 +983,7 @@ export function WarpkeepMainMenu({
         if (canReuseEntryAgreement()) {
           setActiveNotice(null);
           closePatchNotes();
-          onRequestAuthenticatedRealm?.(authenticatedIdentity);
+          requestSelectedRealmEntry(authenticatedIdentity, anchorElement);
         } else {
           openTerms('enter-authenticated', anchorElement, keyboardDriven);
         }
@@ -961,12 +1010,13 @@ export function WarpkeepMainMenu({
     canReuseEntryAgreement,
     farcasterAuthEnabled,
     onRequestEnterRealm,
-    onRequestAuthenticatedRealm,
     openCredits,
     openAuthPanel,
     openSettings,
     openNotice,
-    openTerms
+    openTerms,
+    requestSelectedRealmEntry,
+    selectedRealmId
   ]);
 
   const handleRetrySignIn = useCallback(() => {
@@ -986,6 +1036,15 @@ export function WarpkeepMainMenu({
   const handleTermsContinue = useCallback(() => {
     const request = termsRequest;
     if (!request) {
+      return;
+    }
+
+    if (
+      request.continuation === 'enter-authenticated'
+      && denySelectedRealmEntry(authPrimaryActionRef.current)
+    ) {
+      acceptedEntryAttemptRef.current = false;
+      setTermsRequest(null);
       return;
     }
 
@@ -1021,7 +1080,10 @@ export function WarpkeepMainMenu({
     } else if (request.continuation === 'enter-authenticated') {
       if (authenticatedIdentity && hasCurrentAuthenticatedAccess()) {
         acceptedEntryAttemptRef.current = false;
-        onRequestAuthenticatedRealm?.(authenticatedIdentity);
+        requestSelectedRealmEntry(
+          authenticatedIdentity,
+          authPrimaryActionRef.current ?? commandRefs.current[0]
+        );
       } else if (
         authState.phase === 'authenticated'
         || authState.phase === 'pending-admission'
@@ -1038,15 +1100,16 @@ export function WarpkeepMainMenu({
   }, [
     authenticatedIdentity,
     authState.phase,
+    denySelectedRealmEntry,
     hasCurrentAuthenticatedAccess,
     onAcceptAlphaTermsAttempt,
-    onRequestAuthenticatedRealm,
     onRequestEnterRealm,
     onRequestFarcasterSignIn,
     onRefreshFarcasterSession,
     onRequestAuthRailCheck,
     onRetryFarcasterSignIn,
     openAuthPanel,
+    requestSelectedRealmEntry,
     termsRequest
   ]);
 
@@ -1067,6 +1130,9 @@ export function WarpkeepMainMenu({
   }, [invalidateSessionRestore, onSignOut, restoreFirstCommandFocus]);
 
   const handleAuthenticatedRealmEntry = useCallback((identity: VerifiedFarcasterIdentity) => {
+    if (denySelectedRealmEntry(authPrimaryActionRef.current)) {
+      return;
+    }
     const hasCurrentAccess = hasCurrentAuthenticatedAccess()
       && authenticatedIdentity?.fid === identity.fid;
     if (!hasCurrentAccess) {
@@ -1092,15 +1158,18 @@ export function WarpkeepMainMenu({
       return;
     }
     acceptedEntryAttemptRef.current = false;
+    if (!requestSelectedRealmEntry(identity, authPrimaryActionRef.current)) {
+      return;
+    }
     setSurface('commands');
-    onRequestAuthenticatedRealm?.(identity);
   }, [
     authenticatedIdentity,
     canReuseEntryAgreement,
+    denySelectedRealmEntry,
     hasCurrentAuthenticatedAccess,
     onRefreshFarcasterSession,
-    onRequestAuthenticatedRealm,
-    openTerms
+    openTerms,
+    requestSelectedRealmEntry
   ]);
 
   const handleRefreshFarcasterSession = useCallback(() => {
@@ -1271,6 +1340,12 @@ export function WarpkeepMainMenu({
             className="warpkeep-menu-nav"
             onKeyDown={handleNavigationKeyDown}
           >
+            <RealmChoiceSelector
+              choices={realmChoices}
+              interactive={interactive && !sessionRestorePending}
+              onSelect={selectRealm}
+              selectedRealmId={selectedRealmId}
+            />
             <ol className="warpkeep-menu-command-list">
               {menuCommands.map((command, commandIndex) => (
                 <li className="warpkeep-menu-command-item" key={command.id}>
@@ -1424,6 +1499,7 @@ export function WarpkeepMainMenu({
                   onCheckAdmission={handleCheckFarcasterAdmission}
                   accessRequest={accessRequest}
                   admissionCheck={admissionCheck}
+                  admissionRequestsSuspended={NEW_ADMISSIONS_SUSPENDED}
                   onRequestAccess={onRequestAccess}
                   onRetryAccessRequestStatus={onRetryAccessRequestStatus}
                   onRememberDeviceChange={onRememberDeviceChange}

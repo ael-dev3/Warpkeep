@@ -1,0 +1,216 @@
+.realm-choice-selector {
+  display: grid;
+  gap: 0.35rem;
+  width: 100%;
+  margin: 0 0 clamp(0.55rem, 1.25vh, 0.95rem);
+}
+
+.realm-choice-selector__eyebrow {
+  margin: 0;
+  color: rgba(211, 179, 120, 0.78);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(0.5rem, 0.64vw, 0.62rem);
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.realm-choice-selector__choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.realm-choice-selector__choice {
+  position: relative;
+  min-width: 0;
+}
+
+.warpkeep-menu .realm-choice-selector__button {
+  display: grid;
+  position: relative;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  min-height: 3.45rem;
+  margin: 0;
+  padding: 0.48rem 0.62rem;
+  border: 1px solid rgba(202, 157, 85, 0.32);
+  border-radius: 0.35rem;
+  color: #d9bd89;
+  background: rgba(8, 5, 11, 0.54);
+  box-shadow: inset 0 0 0 1px rgba(5, 3, 8, 0.38);
+  font-family: Georgia, "Times New Roman", serif;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.warpkeep-menu .realm-choice-selector__button[aria-checked="true"] {
+  border-color: rgba(239, 204, 139, 0.82);
+  background: rgba(39, 24, 38, 0.76);
+  box-shadow: inset 0 0 0 1px rgba(246, 215, 158, 0.12), 0 0 0.75rem rgba(117, 62, 139, 0.22);
+}
+
+.warpkeep-menu .realm-choice-selector__button:focus-visible {
+  outline: 2px solid rgba(250, 220, 163, 0.9);
+  outline-offset: 2px;
+}
+
+.warpkeep-menu .realm-choice-selector__button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.realm-choice-selector__identity,
+.realm-choice-selector__admission {
+  display: grid;
+  min-width: 0;
+}
+
+.realm-choice-selector__name {
+  overflow: hidden;
+  color: #f0d9ae;
+  font-size: clamp(0.69rem, 0.9vw, 0.84rem);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.realm-choice-selector__version {
+  margin-top: 0.2rem;
+  color: rgba(217, 189, 137, 0.68);
+  font-size: 0.58rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.realm-choice-selector__admission {
+  justify-items: center;
+  color: #ff7676;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.47rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  line-height: 1.1;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.realm-choice-selector__button[data-admission="admitted"] .realm-choice-selector__admission {
+  color: #7ee7a7;
+}
+
+.realm-choice-selector__mark {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 0.85;
+  text-shadow: 0 0 0.6rem currentColor;
+}
+
+.realm-choice-selector__tooltip {
+  position: absolute;
+  z-index: 12;
+  right: 0;
+  bottom: calc(100% + 0.5rem);
+  left: 0;
+  width: max-content;
+  max-width: min(19rem, calc(100vw - 2rem));
+  margin-inline: auto;
+  padding: 0.58rem 0.68rem;
+  border: 1px solid rgba(226, 197, 139, 0.48);
+  border-radius: 0.4rem;
+  color: #ead8b8;
+  background: rgba(7, 9, 15, 0.97);
+  box-shadow: 0 0.8rem 2rem rgba(0, 0, 0, 0.42);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+  text-align: left;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(0.2rem);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.realm-choice-selector__choice:hover .realm-choice-selector__tooltip,
+.realm-choice-selector__choice:focus-within .realm-choice-selector__tooltip {
+  opacity: 1;
+  transform: none;
+}
+
+@media (max-height: 650px), (orientation: portrait) {
+  .realm-choice-selector {
+    gap: 0.22rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .warpkeep-menu .realm-choice-selector__button {
+    min-height: 3rem;
+    padding-block: 0.38rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .realm-choice-selector__choices {
+    gap: 0.35rem;
+  }
+
+  .warpkeep-menu .realm-choice-selector__button {
+    gap: 0.3rem;
+    padding-inline: 0.45rem;
+  }
+
+  .realm-choice-selector__name {
+    font-size: 0.65rem;
+  }
+
+  .realm-choice-selector__version {
+    font-size: 0.52rem;
+  }
+
+  .realm-choice-selector__admission {
+    font-size: 0.42rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .warpkeep-menu .realm-choice-selector__button {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: center;
+    gap: 0.28rem;
+    min-height: 3.75rem;
+  }
+
+  .realm-choice-selector__name {
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .realm-choice-selector__admission {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.3rem;
+    white-space: nowrap;
+  }
+
+  .realm-choice-selector__mark {
+    font-size: 0.9rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .realm-choice-selector__button,
+  .realm-choice-selector__tooltip {
+    transition-duration: 1ms;
+  }
+}

@@ -753,7 +753,7 @@ describe('Warpkeep Farcaster Mini App direct entry', () => {
     expectPlayerRealmChrome();
   });
 
-  it('keeps a non-admitted Quick Auth identity on Request Access', async () => {
+  it('keeps a non-admitted Quick Auth identity on suspended admission', async () => {
     window.history.replaceState({}, '', '/?miniApp=true');
     const backend = createBackendRuntime();
     const bridge = createQuickAuthBridge(createQuickAuthResponse('pending-admission'));
@@ -768,7 +768,9 @@ describe('Warpkeep Farcaster Mini App direct entry', () => {
     await settle();
 
     expect(screen.getByRole('heading', { name: 'ENTRY NOT YET GRANTED' })).not.toBeNull();
-    expect(screen.getByRole('button', { name: 'REQUEST ACCESS' })).not.toBeNull();
+    expect(screen.getByText(/admissions are temporarily suspended/i)).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'CHECK ADMISSION' })).not.toBeNull();
     expect(container.querySelector('[data-warpkeep-audio-director="true"]')).not.toBeNull();
     expect([...container.querySelectorAll<HTMLAudioElement>('audio')]
       .every((audio) => audio.muted)).toBe(true);
