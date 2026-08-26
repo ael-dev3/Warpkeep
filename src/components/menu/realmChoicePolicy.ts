@@ -2,6 +2,10 @@ import {
   ADMISSIONS_SUSPENDED_NOTICE,
   NEW_ADMISSIONS_SUSPENDED
 } from '../../release/admissionLaunchPolicy';
+import {
+  GENESIS_001_GAME_VERSION,
+  GENESIS_002_GAME_VERSION
+} from '../../release/realmReleaseIdentity';
 
 export { ADMISSIONS_SUSPENDED_NOTICE, NEW_ADMISSIONS_SUSPENDED };
 
@@ -32,7 +36,7 @@ export function getRealmChoices(genesis001Admitted: boolean): readonly RealmChoi
     Object.freeze({
       id: GENESIS_001_ID,
       label: 'Genesis 001',
-      version: '0.3.43',
+      version: GENESIS_001_GAME_VERSION,
       admission: genesis001Admitted ? 'admitted' : 'not-admitted',
       statusLabel: genesis001Admitted ? 'Admitted' : 'Not admitted',
       tooltip: genesis001Admitted
@@ -42,7 +46,7 @@ export function getRealmChoices(genesis001Admitted: boolean): readonly RealmChoi
     Object.freeze({
       id: GENESIS_002_ID,
       label: 'Genesis 002',
-      version: '0.4.0',
+      version: GENESIS_002_GAME_VERSION,
       admission: 'not-admitted',
       statusLabel: 'Not admitted',
       tooltip: GENESIS_002_SEALED_TOOLTIP
