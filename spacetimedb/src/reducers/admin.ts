@@ -9,6 +9,10 @@ import {
   resolveAuthResolverAdmission,
 } from '../admissionPolicy';
 import {
+  Genesis001AccessPolicyError,
+  requireGenesis001AdmissionStateMutationEnabled as enforceGenesis001AdmissionStateMutationEnabled,
+} from '../genesis001AccessPolicy';
+import {
   MAX_AUTH_EPOCH,
   WARPKEEP_BACKEND_PROTOCOL_VERSION,
 } from '../config';
@@ -87,6 +91,17 @@ function cleanAdminNote(note: string): string {
   return trimmed;
 }
 
+function requireGenesis001AdmissionStateMutationEnabled(): void {
+  try {
+    enforceGenesis001AdmissionStateMutationEnabled();
+  } catch (error) {
+    if (error instanceof Genesis001AccessPolicyError) {
+      throw new SenderError(error.code);
+    }
+    throw error;
+  }
+}
+
 function audit(
   ctx: Parameters<typeof requireAdmin>[0],
   action: string,
@@ -115,6 +130,7 @@ function applyAllowedFidTransition(
       | 'admit_founder_for_access_request_v2';
   }>,
 ): void {
+  requireGenesis001AdmissionStateMutationEnabled();
   const existing = ctx.db.allowedFid.fid.find(input.fid);
   try {
     executeAllowFidTransition(existing, {
@@ -781,6 +797,7 @@ export const adminAllowFid = warpkeep.reducer(
   { fid: t.u64(), note: t.string() },
   (ctx, { fid, note }) => {
     const admin = requireAdmin(ctx);
+    requireGenesis001AdmissionStateMutationEnabled();
     requireSupportedFid(fid);
     const cleanNote = cleanAdminNote(note);
     const existing = ctx.db.allowedFid.fid.find(fid);
@@ -820,6 +837,7 @@ export const adminAdmitFounderV1 = warpkeep.reducer(
   },
   (ctx, input) => {
     const admin = requireAdmin(ctx);
+    requireGenesis001AdmissionStateMutationEnabled();
     requireSupportedFid(input.fid);
     const cleanNote = cleanAdminNote(input.note);
     if (input.profilePolicyVersion !== FARCASTER_PROFILE_POLICY_VERSION) {
@@ -927,6 +945,7 @@ export const adminAllowFidForAccessRequestV1 = warpkeep.reducer(
     expectedRequestedAtMicros,
   }) => {
     const admin = requireAdmin(ctx);
+    requireGenesis001AdmissionStateMutationEnabled();
     requireSupportedFid(fid);
     const cleanNote = cleanAdminNote(note);
     const existing = ctx.db.allowedFid.fid.find(fid);
@@ -981,6 +1000,7 @@ export const adminAdmitFounderForAccessRequestV2 = warpkeep.reducer(
   },
   (ctx, input) => {
     const admin = requireAdmin(ctx);
+    requireGenesis001AdmissionStateMutationEnabled();
     requireSupportedFid(input.fid);
     const cleanNote = cleanAdminNote(input.note);
     if (input.profilePolicyVersion !== FARCASTER_PROFILE_POLICY_VERSION) {
@@ -1031,6 +1051,7 @@ export const adminDisableFid = warpkeep.reducer(
   { fid: t.u64(), note: t.string() },
   (ctx, { fid, note }) => {
     const admin = requireAdmin(ctx);
+    requireGenesis001AdmissionStateMutationEnabled();
     requireSupportedFid(fid);
     const cleanNote = cleanAdminNote(note);
     const existing = ctx.db.allowedFid.fid.find(fid);
@@ -1048,6 +1069,7 @@ export const adminBumpAuthEpoch = warpkeep.reducer(
   { fid: t.u64(), note: t.string() },
   (ctx, { fid, note }) => {
     const admin = requireAdmin(ctx);
+    requireGenesis001AdmissionStateMutationEnabled();
     requireSupportedFid(fid);
     const cleanNote = cleanAdminNote(note);
     const existing = ctx.db.allowedFid.fid.find(fid);

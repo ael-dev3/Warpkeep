@@ -11,6 +11,11 @@ import {
   takeBoundedAccessRequestRows,
 } from '../accessRequestPolicy';
 import {
+  Genesis001AccessPolicyError,
+  requireGenesis001AccessRequestSubmissionEnabled as enforceGenesis001AccessRequestSubmissionEnabled,
+  requireGenesis001AdmissionStateMutationEnabled as enforceGenesis001AdmissionStateMutationEnabled,
+} from '../genesis001AccessPolicy';
+import {
   requireAccessRequestResolver,
   requireAdmin,
   requireSupportedFid,
@@ -64,6 +69,27 @@ const adminAccessRequestAdmissionStatusV1 = t.object(
 );
 
 type AdmissionState = AuthResolverAdmission['state'];
+
+function requireGenesis001Policy(
+  enforce: () => void,
+): void {
+  try {
+    enforce();
+  } catch (error) {
+    if (error instanceof Genesis001AccessPolicyError) {
+      throw new SenderError(error.code);
+    }
+    throw error;
+  }
+}
+
+function requireGenesis001AdmissionStateMutationEnabled(): void {
+  requireGenesis001Policy(enforceGenesis001AdmissionStateMutationEnabled);
+}
+
+function requireGenesis001AccessRequestSubmissionEnabled(): void {
+  requireGenesis001Policy(enforceGenesis001AccessRequestSubmissionEnabled);
+}
 
 function resolveAdmissionState(
   allowed: Parameters<typeof resolveAuthResolverAdmission>[0],
@@ -268,6 +294,7 @@ export const accessRequestSubmitV1 = warpkeep.procedure(
   ctx =>
     ctx.withTx(tx => {
       const { requestFid } = requireAccessRequestResolver(tx, 'submit');
+      requireGenesis001AccessRequestSubmissionEnabled();
       const allowed = tx.db.allowedFid.fid.find(requestFid);
       const admission = resolveAdmissionState(allowed);
       if (admission === 'enabled') {
@@ -482,6 +509,7 @@ export const adminResetAccessRequestV1 = warpkeep.reducer(
     note,
   }) => {
     const admin = requireAdmin(ctx);
+    requireGenesis001AdmissionStateMutationEnabled();
     requireSupportedFid(fid);
     const cleanNote = cleanResetNote(note);
     if (
