@@ -43,4 +43,7 @@ export function runAuthBridgeNotificationPreparedDeploy(
 
 export const authBridgeNotificationPreparedDeployTestSeams: Readonly<{
   copyAndScrubEnvironment: (environment: NodeJS.ProcessEnv) => Readonly<Record<string, string>>;
+  settleGitInspections: <Value>(
+    inspections: readonly Promise<Value>[],
+  ) => Promise<readonly Value[]>;
 }>;

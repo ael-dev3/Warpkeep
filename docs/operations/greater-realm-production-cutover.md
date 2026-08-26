@@ -260,6 +260,6 @@ do not edit or delete its owner-only `0600` records, checkpoints, or terminals.
 
 ## Receipts and recovery
 
-Publish, import, and relocation share one owner-only no-clobber lock and receipt directory at `~/.warpkeep/private/greater-realm-cutover-receipts` by default. The directory must be outside the repository, mode `0700`, dedicated to these receipts, and free of symlinks; receipts are mode `0600`, canonical, bounded to 64 KiB, and contain no actor, subject, FID, castle, cell, slot, node, secret, token, or credential field.
+Publish, import, and relocation share one owner-only no-clobber lock and receipt directory at `~/.warpkeep/private/production-admin-v1/greater-realm-cutover-receipts` by default. The directory must be outside the repository, mode `0700`, dedicated to these receipts, and free of symlinks; receipts are mode `0600`, canonical, bounded to 64 KiB, and contain no actor, subject, FID, castle, cell, slot, node, secret, token, or credential field.
 
 Do not delete data, edit a receipt, or rerun a write merely because the command returned an error. For a publish or reducer outcome marked ambiguous, stop all later lanes, run the relevant read-only inspection with a fresh credential, compare the schema/status digest, full immutable atlas-release tuple, module commit, and audit delta, and preserve both terminal output and the last receipt. Escalate any schema growth, phase drift, target mismatch, status disagreement, missing postflight, or unexpected aggregate change as a release blocker.
