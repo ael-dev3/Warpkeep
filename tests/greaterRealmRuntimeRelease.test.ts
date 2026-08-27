@@ -41,11 +41,13 @@ import {
   GREATER_REALM_RUNTIME_FRAMING_SPEC_V1,
   GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH,
   assertGreaterRealmRuntimeReleaseMatches,
+  createGenesis002GreaterRealmRuntimeRelease,
   createGreaterRealmRuntimeRelease,
   greaterRealmRuntimeReleaseTestSeams,
   openOrCreateGreaterRealmRuntimeReleaseSeed,
   readGreaterRealmRuntimeRelease,
   verifyGreaterRealmRuntimeReleaseArtifacts,
+  verifyGenesis002GreaterRealmRuntimeReleaseArtifacts,
   writeGreaterRealmRuntimeRelease,
   type GreaterRealmRuntimeCell,
   type GreaterRealmRuntimeChunkPayload,
@@ -539,6 +541,33 @@ describe('Greater Realm declassified runtime release', () => {
       && component.expectedStoneNodeCount === 0
       && component.expectedGoldNodeCount === 0
     ))).toBe(true);
+  });
+
+  it('generates a distinct G002 package without reinterpreting historical G001 bytes', () => {
+    const genesis002 = createGenesis002GreaterRealmRuntimeRelease({
+      source,
+      sourceCommit: GREATER_REALM_RUNTIME_RELEASE_FIXTURE_SOURCE_COMMIT,
+      releaseSeed: greaterRealmRuntimeReleaseFixtureSeed(),
+    });
+    try {
+      expect(genesis002.manifest.atlasId).toBe('GENESIS_002_GREATER_REALM');
+      expect(artifacts.manifest.atlasId).toBe('GENESIS_001_GREATER_REALM');
+      expect(genesis002.manifest.releaseSha256)
+        .not.toBe(artifacts.manifest.releaseSha256);
+      expect(() => verifyGenesis002GreaterRealmRuntimeReleaseArtifacts(genesis002))
+        .not.toThrow();
+      expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(genesis002)).toThrow();
+      expect(() => verifyGenesis002GreaterRealmRuntimeReleaseArtifacts(artifacts)).toThrow();
+      expect(genesis002.chunks.every(chunk => (
+        chunk.payload.cells.every(cell => cell.atlasId === 'GENESIS_002_GREATER_REALM')
+        && chunk.payload.castleSlots.every(slot => slot.atlasId === 'GENESIS_002_GREATER_REALM')
+        && chunk.payload.resourceNodes.every(node => node.atlasId === 'GENESIS_002_GREATER_REALM')
+      ))).toBe(true);
+    } finally {
+      genesis002.manifestBytes.fill(0);
+      genesis002.statusBytes.fill(0);
+      for (const chunk of genesis002.chunks) chunk.bytes.fill(0);
+    }
   });
 
   it('uses exact 15x15 axial bins, bounded visible windows, and exact public cell keys', () => {

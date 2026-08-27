@@ -47,6 +47,7 @@ const ALLOWED_COMMANDS = Object.freeze([
   'compare-candidates',
   'retain-pending-owner-report',
   'export-pending-owner-report',
+  'export-genesis002-runtime-release',
   'export-runtime-release',
   'export-sanitized-review',
   'generate-candidates',

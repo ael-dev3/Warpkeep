@@ -29,7 +29,6 @@ import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
-// @ts-expect-error Executable bootstrap MJS intentionally has no declaration artifact.
 import * as greaterRealmProductionBootstrapModule from '../scripts/greater-realm-production-bootstrap.mjs';
 const {
   canonicalNpmPackageTarballUrl,

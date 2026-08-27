@@ -5,6 +5,9 @@ import {
   assertGreaterRealmPrivateInvocation,
 } from './atlas/greater-realm-private-workspace';
 import {
+  requireGenesis001LegacyGreaterRealmProductionCliReadOnly,
+} from './greater-realm-legacy-production-seal.mjs';
+import {
   defaultGreaterRealmCutoverReceiptDirectory,
   GREATER_REALM_CUTOVER_RECEIPT_TARGET,
   inspectGreaterRealmCutoverOperatorJournalRecovery,
@@ -143,7 +146,7 @@ function reconstructRecoveredImportReceipt(chain: ImportRecoveredChain) {
     || after.verificationPhase !== 'complete'
     || after.verificationCursor !== '0'
     || typeof after.verificationDigest !== 'string'
-    || !/^(?:[0-9a-f]{64}|sha256-v1:[0-9a-f]{64}:[0-9]+:.*)$/u.test(after.verificationDigest)
+    || !/^(?:[0-9a-f]{64}|sha256-v1:[0-9a-f]{64}:[0-9a-f]+:[0-9a-f]*)$/u.test(after.verificationDigest)
     || after.importsExact !== true
     || after.ready !== true
     || afterAudit.releaseState !== 'ready'
@@ -536,6 +539,10 @@ export const greaterRealmProductionImportOperatorTestSeams = Object.freeze({
 });
 
 async function main(): Promise<void> {
+  requireGenesis001LegacyGreaterRealmProductionCliReadOnly({
+    entrypoint: 'import',
+    arguments_: process.argv.slice(2),
+  });
   assertGreaterRealmPrivateInvocation();
   const parsed = parseGreaterRealmProductionImportArguments(process.argv.slice(2));
   if (process.env.WKGR_PRODUCTION_BOOTSTRAP_PROFILE

@@ -249,19 +249,13 @@ function setDownstreamFlag(root: string, name: string, value: boolean): void {
   );
 }
 
-function setClientReleaseIdentity(root: string, active: boolean): void {
+function setLauncherReleaseIdentity(root: string, active: boolean): void {
   const beforeVersion = active
     ? INERT_CLIENT_RELEASE_VERSION
     : ACTIVE_CLIENT_RELEASE_VERSION;
   const afterVersion = active
     ? ACTIVE_CLIENT_RELEASE_VERSION
     : INERT_CLIENT_RELEASE_VERSION;
-  const beforeDescription = active
-    ? INERT_FARCASTER_DESCRIPTION
-    : ACTIVE_FARCASTER_DESCRIPTION;
-  const afterDescription = active
-    ? ACTIVE_FARCASTER_DESCRIPTION
-    : INERT_FARCASTER_DESCRIPTION;
   replaceFile(
     root,
     'package.json',
@@ -286,6 +280,18 @@ function setClientReleaseIdentity(root: string, active: boolean): void {
       + '      "name": "warpkeep",\n'
       + `      "version": "${afterVersion}",`,
   );
+}
+
+function setSupersededClientPresentationIdentity(
+  root: string,
+  active: boolean,
+): void {
+  const beforeDescription = active
+    ? INERT_FARCASTER_DESCRIPTION
+    : ACTIVE_FARCASTER_DESCRIPTION;
+  const afterDescription = active
+    ? ACTIVE_FARCASTER_DESCRIPTION
+    : INERT_FARCASTER_DESCRIPTION;
   replaceFile(
     root,
     'scripts/farcaster-miniapp-contract.mjs',
@@ -300,20 +306,25 @@ function setClientReleaseIdentity(root: string, active: boolean): void {
   );
 }
 
-function advanceToActivationOnlyPhase(root: string): void {
-  setPublisherFlag(root, 'entryAgreementApproved', true);
-  setPublisherFlag(root, 'additivePublishApproved', true);
-  replaceFile(
-    root,
-    'spacetimedb/src/greaterRealmV17Policy.ts',
-    'export const GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED = false;',
-    'export const GREATER_REALM_V17_ACTIVATION_MUTATIONS_ALLOWED = true;',
-  );
-  setPublisherFlag(root, 'activationForwardFixApproved', true);
+function setSealedLaunchBinding(root: string, active: boolean): void {
+  const path = resolve(root, 'config/releases/0.4.0-sealed-launch.json');
+  const value = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
+  const keys = Object.keys(value);
+  const firstOperational = keys.indexOf('preparationSourceCommit');
+  const lastOperational = keys.indexOf('g002AdmissionMutationsEnabled');
+  if (firstOperational !== 3 || lastOperational <= firstOperational) {
+    throw new Error('fixture sealed launch binding was invalid');
+  }
+  value.pagesDeploymentApproved = active;
+  for (const key of keys.slice(firstOperational, lastOperational + 1)) {
+    value[key] = active ? 'reviewed-fixture-value' : null;
+  }
+  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-function activateClientIdentity(root: string): void {
-  setClientReleaseIdentity(root, true);
+function activateSupersededClientIdentity(root: string): void {
+  setLauncherReleaseIdentity(root, true);
+  setSupersededClientPresentationIdentity(root, true);
   setDownstreamFlag(root, 'clientActivationApproved', true);
   replaceFile(
     root,
@@ -329,11 +340,20 @@ function activateClientIdentity(root: string): void {
   );
 }
 
+function activateSealedLaunchIdentity(root: string): void {
+  setLauncherReleaseIdentity(root, true);
+  setSealedLaunchBinding(root, true);
+}
+
 function advanceFixtureSourceToPhase(root: string, phase: number): void {
   if (!Number.isSafeInteger(phase) || phase < 0 || phase > 7) {
     throw new Error('fixture release phase was invalid');
   }
   if (phase === 0) return;
+  if (phase === 7) {
+    activateSealedLaunchIdentity(root);
+    return;
+  }
   setPublisherFlag(root, 'entryAgreementApproved', true);
   setPublisherFlag(root, 'additivePublishApproved', true);
   if (phase === 1) return;
@@ -417,15 +437,6 @@ function advanceFixtureSourceToPhase(root: string, phase: number): void {
     'export const FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = true as const;',
   );
   if (phase === 6) return;
-  replaceFile(
-    root,
-    'scripts/production-player-canary-release-binding.mjs',
-    '  productionPlayerCanaryReceiptDigest: null,\n'
-      + '  productionPlayerCanarySourceCommit: null,',
-    `  productionPlayerCanaryReceiptDigest: '${'1'.repeat(64)}',\n`
-      + `  productionPlayerCanarySourceCommit: '${'2'.repeat(40)}',`,
-  );
-  activateClientIdentity(root);
 }
 
 afterEach(() => {
@@ -440,7 +451,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
     for (let phase = 0; phase <= 7; phase += 1) {
       const root = createTransitionFixture(phase);
       const authority = verify(root);
-      expect(authority.memberCount).toBe(385);
+      expect(authority.memberCount).toBe(926);
       manifestDigests.add(authority.manifestSha256);
       for (const relativePath of REVIEWED_RELEASE_TRANSITION_PATHS) {
         const source = readFileSync(resolve(root, relativePath), 'utf8');
@@ -456,20 +467,13 @@ describe('auth-bridge reviewed release-transition source projection', () => {
   it('retains one closure authority through every exact reviewed phase', () => {
     const root = createTransitionFixture();
     const baseline = verify(root);
-    expect(baseline.memberCount).toBe(385);
+    expect(baseline.memberCount).toBe(926);
     const expectActiveIdentityRejectedBeforeActivation = (): void => {
-      setClientReleaseIdentity(root, true);
+      setLauncherReleaseIdentity(root, true);
       expect(() => verify(root)).toThrow(
         'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_PHASE_INVALID',
       );
-      setClientReleaseIdentity(root, false);
-    };
-    const expectInertIdentityRejectedAfterActivation = (): void => {
-      setClientReleaseIdentity(root, false);
-      expect(() => verify(root)).toThrow(
-        'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_PHASE_INVALID',
-      );
-      setClientReleaseIdentity(root, true);
+      setLauncherReleaseIdentity(root, false);
     };
 
     // C0 cannot publish the activation-client identity.
@@ -589,9 +593,23 @@ describe('auth-bridge reviewed release-transition source projection', () => {
       'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_PHASE_INVALID',
     );
 
-    activateClientIdentity(root);
-    expect(verify(root).manifestSha256).toBe(baseline.manifestSha256);
-    expectInertIdentityRejectedAfterActivation();
+    // The superseded C7 presentation launch remains invalid even when its
+    // historical canary binding is present.
+    activateSupersededClientIdentity(root);
+    expect(() => verify(root)).toThrow(
+      'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID',
+    );
+
+    // The owner-approved successor is a separate, clean release phase: only
+    // the launcher becomes 0.4.0, an exact sealed G002 operational binding is
+    // present, and both legacy presentation lanes remain disabled.
+    const sealedRoot = createTransitionFixture();
+    activateSealedLaunchIdentity(sealedRoot);
+    expect(verify(sealedRoot).manifestSha256).toBe(baseline.manifestSha256);
+    setLauncherReleaseIdentity(sealedRoot, false);
+    expect(() => verify(sealedRoot)).toThrow(
+      'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_PHASE_INVALID',
+    );
   }, 120_000);
 
   it('rejects impossible tuples, nonliteral drift, extra bytes, and declaration drift', () => {
@@ -708,31 +726,9 @@ describe('auth-bridge reviewed release-transition source projection', () => {
     }
   }, 120_000);
 
-  it('rejects every partial or mismatched activation-client identity', () => {
+  it('rejects every partial, mismatched, or superseded activation identity', () => {
     const root = createTransitionFixture();
-    advanceToActivationOnlyPhase(root);
-    setDownstreamFlag(root, 'admissionNotificationsApproved', true);
-    replaceFile(
-      root,
-      '.github/workflows/deploy-pages.yml',
-      "      VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'false'",
-      "      VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'true'",
-    );
-    replaceFile(
-      root,
-      'scripts/notification-pages-live-release-binding.mjs',
-      '  notificationPagesLiveRootReceiptDigest: null,\n'
-        + '  notificationPagesLiveRootPagesSourceCommit: null,',
-      `  notificationPagesLiveRootReceiptDigest: '${'e'.repeat(64)}',\n`
-        + `  notificationPagesLiveRootPagesSourceCommit: '${'f'.repeat(40)}',`,
-    );
-    replaceFile(
-      root,
-      'scripts/hermes-admin.ts',
-      'export const FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = false as const;',
-      'export const FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = true as const;',
-    );
-    activateClientIdentity(root);
+    activateSealedLaunchIdentity(root);
     const expectIdentityMutationRejected = (
       relativePath: string,
       before: string,
@@ -744,15 +740,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
       replaceFile(root, relativePath, after, before);
     };
 
-    replaceFile(
-      root,
-      'scripts/production-player-canary-release-binding.mjs',
-      '  productionPlayerCanaryReceiptDigest: null,\n'
-        + '  productionPlayerCanarySourceCommit: null,',
-      `  productionPlayerCanaryReceiptDigest: '${'1'.repeat(64)}',\n`
-        + `  productionPlayerCanarySourceCommit: '${'2'.repeat(40)}',`,
-    );
-    expect(verify(root).memberCount).toBe(385);
+    expect(verify(root).memberCount).toBe(926);
     expectIdentityMutationRejected(
       'package.json',
       '  "version": "0.4.0",',
@@ -772,13 +760,20 @@ describe('auth-bridge reviewed release-transition source projection', () => {
     );
     expectIdentityMutationRejected(
       'scripts/farcaster-miniapp-contract.mjs',
-      `  description:\n    '${ACTIVE_FARCASTER_DESCRIPTION}',`,
       `  description:\n    '${INERT_FARCASTER_DESCRIPTION}',`,
+      `  description:\n    '${ACTIVE_FARCASTER_DESCRIPTION}',`,
+      'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID',
     );
     expectIdentityMutationRejected(
       'public/.well-known/farcaster.json',
-      `    "description": "${ACTIVE_FARCASTER_DESCRIPTION}",`,
       `    "description": "${INERT_FARCASTER_DESCRIPTION}",`,
+      `    "description": "${ACTIVE_FARCASTER_DESCRIPTION}",`,
+      'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID',
+    );
+
+    setSealedLaunchBinding(root, false);
+    expect(() => verify(root)).toThrow(
+      'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_PHASE_INVALID',
     );
   }, 120_000);
 
@@ -858,7 +853,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
 
   it('keeps Pages bootstrap pins exact after activation-client projection', () => {
     const root = createTransitionFixture(7);
-    expect(verify(root).memberCount).toBe(385);
+    expect(verify(root).memberCount).toBe(926);
     const path = resolve(root, '.github/workflows/deploy-pages.yml');
     const source = readFileSync(path, 'utf8');
     const name = 'WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256';

@@ -1,5 +1,20 @@
 # Greater Realm production cutover
 
+> **SUPERSEDED — DO NOT EXECUTE AS WRITTEN.** This historical v14-to-v17 plan
+> targeted Genesis 001. The owner-approved 0.4.0 release instead preserves the
+> exact frozen same-schema Genesis 001 0.3.43 module and places the selected
+> Greater Realm atlas in a fresh, private Genesis 002 database with zero
+> population and activation/presentation disabled. The repository's current
+> 86-table/future module must never be published to the Genesis 001 identity.
+> Only the exact reviewed frozen 2ae same-schema lane may target G001. Future
+> G002 admission, activation, or presentation requires a fresh reviewed release
+> plan. Preserve the historical detail below for audit only; its production
+> aliases remain refusal-only. The direct legacy G001 publisher, import/apply
+> and recovery, relocation, activation, and cutover CLI mutations are also
+> source-sealed before private-workspace inspection, credentials, network, or
+> writes; the historical launch envelope enforces the same refusal. Only
+> explicitly read-only inspection remains available.
+
 This runbook describes the guarded tooling for the additive v14-to-v17 cutover. It does not authorize a release. The checked-in V4 entry agreement is the exact production-approved bundle, while the publisher, import, activation, browser, server-presentation, and notification feature gates remain false. The commands therefore fail before a production read or write until separate reviewed release changes approve the relevant lane; agreement selection alone approves none of those lanes.
 
 ## Immutable boundary

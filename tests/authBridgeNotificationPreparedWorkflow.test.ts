@@ -820,7 +820,7 @@ describe('notification-bridge-prepared protected workflow', () => {
         guardedRecoveryRequired: true,
         privateReceiptSinkRequired: true,
         installedToolchainByteAttestationRequired: true,
-        executableSecurityClosureMemberCount: 385,
+        executableSecurityClosureMemberCount: 926,
       });
   }, 60_000);
 
@@ -838,7 +838,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     });
     expect(paths).toEqual(manifest.members.map(member => member.path));
     expect(manifest.schemaVersion).toBe(2);
-    expect(paths).toHaveLength(385);
+    expect(paths).toHaveLength(926);
     expect(paths).toEqual(expect.arrayContaining([
       'scripts/auth-bridge-notification-prepared-deploy.mjs',
       'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
@@ -889,7 +889,6 @@ describe('notification-bridge-prepared protected workflow', () => {
     ]));
     const declarationOptional = new Set([
       'scripts/farcaster-miniapp-contract.mjs',
-      'scripts/greater-realm-production-bootstrap.mjs',
       'scripts/validate-pages-deploy-config.mjs',
       'scripts/verify-alpha-production.mjs',
       'scripts/verify-production-dist-exclusions.mjs',
@@ -903,9 +902,54 @@ describe('notification-bridge-prepared protected workflow', () => {
       repositoryRoot: root,
     })).toMatchObject({
         profile: 'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1',
-        memberCount: 385,
+        memberCount: 926,
         manifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
       });
+  }, 90_000);
+
+  it('derives the production browser admission and request graph from the shipped entrypoint', () => {
+    const paths = deriveAuthBridgeNotificationPreparedDeployClosurePaths({
+      repositoryRoot,
+    });
+    expect(paths).toEqual(expect.arrayContaining([
+      'index.html',
+      'src/main.tsx',
+      'src/App.tsx',
+      'src/styles/global.css',
+      'src/components/WarpkeepExperience.tsx',
+      'src/components/WarpkeepExperience.css',
+      'src/components/title/WarpkeepTitleScreen3D.tsx',
+      'src/components/realm/RealmMapScreen.tsx',
+      'src/components/auth/FarcasterMiniAppEntryGate.tsx',
+      'src/components/auth/FarcasterMiniAppEntryGate.css',
+      'src/components/auth/FarcasterAdmissionPanel.tsx',
+      'src/components/auth/FarcasterAdmissionPanel.css',
+      'src/components/auth/FarcasterAccessRequest.tsx',
+      'src/farcaster/FarcasterAuthProvider.tsx',
+      'src/farcaster/FarcasterAuthProviderCore.tsx',
+      'src/farcaster/useAccessRequest.ts',
+      'src/farcaster/accessRequestStateMachine.ts',
+      'src/farcaster/farcasterOidcBridgeClient.ts',
+      'src/release/admissionLaunchPolicy.ts',
+      'src/components/menu/realmChoicePolicy.ts',
+    ]));
+  }, 90_000);
+
+  it.each([
+    "@import './unreviewed.css';\n",
+    ".unreviewed { background-image: url('./unreviewed.png'); }\n",
+  ])('rejects an unbound browser CSS dependency: %s', dependency => {
+    const root = createPolicyFixture();
+    const globalCss = resolve(root, 'src/styles/global.css');
+    writeFileSync(
+      globalCss,
+      `${dependency}${readFileSync(globalCss, 'utf8')}`,
+    );
+    expect(() => deriveAuthBridgeNotificationPreparedDeployClosurePaths({
+      repositoryRoot: root,
+    })).toThrow(
+      'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_ASSET_IMPORT_FORBIDDEN',
+    );
   }, 90_000);
 
   it('rejects a one-byte mutation in every closure member', () => {

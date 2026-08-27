@@ -6,6 +6,7 @@ const ACTIVE_DESCRIPTION =
 
 export const AUTH_BRIDGE_RELEASE_TRANSITION_FIXTURE_PATHS = new Set([
   '.github/workflows/deploy-pages.yml',
+  'config/releases/0.4.0-sealed-launch.json',
   'package-lock.json',
   'package.json',
   'public/.well-known/farcaster.json',
@@ -74,6 +75,35 @@ export function canonicalAuthBridgeReleaseTransitionFixtureSource(
       /^  "version": "(0\.3\.43|0\.4\.0)",$/gmu,
       `  "version": "${INERT_VERSION}",`,
     );
+  }
+  if (relativePath === 'config/releases/0.4.0-sealed-launch.json') {
+    const value = JSON.parse(source) as Record<string, unknown>;
+    if (
+      value.schemaVersion !== 1
+      || value.profile !== 'warpkeep-0.4.0-sealed-launch-v1'
+      || typeof value.pagesDeploymentApproved !== 'boolean'
+      || value.g002PresentationEnabled !== false
+      || value.legacyGreaterRealmClientPresentationEnabled !== false
+      || value.legacyGreaterRealmServerPresentationEnabled !== false
+      || value.admissionNotificationsEnabled !== false
+    ) throw new Error('release-transition sealed binding was invalid');
+    const keys = Object.keys(value);
+    const firstOperational = keys.indexOf('preparationSourceCommit');
+    const lastOperational = keys.indexOf('g002AdmissionMutationsEnabled');
+    if (
+      firstOperational !== 3
+      || lastOperational <= firstOperational
+      || keys[lastOperational + 1] !== 'g002PresentationEnabled'
+    ) throw new Error('release-transition sealed binding was invalid');
+    const operationalKeys = keys.slice(firstOperational, lastOperational + 1);
+    const nulls = operationalKeys.filter(key => value[key] === null).length;
+    if (!(
+      (value.pagesDeploymentApproved === false && nulls === operationalKeys.length)
+      || (value.pagesDeploymentApproved === true && nulls === 0)
+    )) throw new Error('release-transition sealed binding was partial');
+    value.pagesDeploymentApproved = false;
+    for (const key of operationalKeys) value[key] = null;
+    return `${JSON.stringify(value, null, 2)}\n`;
   }
   if (relativePath === 'package-lock.json') {
     return replaceExact(

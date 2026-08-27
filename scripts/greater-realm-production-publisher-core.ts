@@ -20,7 +20,6 @@ import {
   type GreaterRealmPublishSupervisorIdentity,
   type MigrationArtifactReceipt,
 } from './publish-spacetime-dev.mjs';
-// @ts-expect-error This repository-owned ESM helper is covered by direct tests.
 import { canonicalTableSchemaBoundaryDigest } from './spacetime-table-schema-attestation.mjs';
 
 import {

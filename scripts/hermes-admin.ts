@@ -245,12 +245,22 @@ export const GENESIS_001_SUSPENDED_HERMES_COMMANDS = Object.freeze([
   'allow-fid',
   'bump-auth-epoch',
   'disable-fid',
+  'list-access-requests',
+  'list-pending-access-requests',
   'recover-admission-notification',
   'reset-access-request',
 ] as const satisfies readonly Command[]);
 const GENESIS_001_ACCESS_POLICY_PROCEDURE = 'genesis_001_access_policy_v1';
 const ACCESS_REQUEST_CENSUS_DESKTOP_WRITER =
   'system-python-openat-census-v1';
+const ACCESS_REQUEST_CENSUS_PRIVATE_REFERENCE_DIRECTORY = Object.freeze([
+  'Library',
+  'Application Support',
+  'Warpkeep',
+  'operations',
+  'audit',
+  'private',
+] as const);
 const MAX_JAVASCRIPT_DATE_MICROS = 8_640_000_000_000_000_000n;
 const ACCESS_REQUEST_PAGE_KEYS = Object.freeze([
   'entries',
@@ -856,10 +866,17 @@ function readTrustedFounderAdmissionInput(path: string): Record<string, unknown>
 
 function commandFrom(value: string | undefined): Command {
   if (
+    value === 'list-access-requests'
+    || value === 'list-pending-access-requests'
+  ) {
+    fail(
+      'Legacy access-request listing is suspended for the 0.4.0 sealed launch. '
+      + 'Use only the reviewed private export-access-request-census command.',
+    );
+  }
+  if (
     value === 'seed-world'
     || value === 'expand-world-v3'
-    || value === 'list-access-requests'
-    || value === 'list-pending-access-requests'
     || value === 'export-access-request-census'
     || value === 'inspect-access-request-reset'
     || value === 'reset-access-request'
@@ -886,12 +903,11 @@ function commandFrom(value: string | undefined): Command {
   }
   fail(
     'Usage: hermes-admin.ts '
-    + '<seed-world|expand-world-v3|list-access-requests|list-pending-access-requests|export-access-request-census|inspect-access-request-reset|reset-access-request|admit-founder|inspect-admission-notification|recover-admission-notification|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
+    + '<seed-world|expand-world-v3|export-access-request-census|inspect-access-request-reset|reset-access-request|admit-founder|inspect-admission-notification|recover-admission-notification|allow-fid|disable-fid|bump-auth-epoch|backfill-resources|seed-alpha-component|activate-alpha-water|inspect-alpha|inspect-alpha-v2|inspect-alpha-v3|inspect-alpha-v4|inspect-alpha-v8|inspect-alpha-v10|inspect-alpha-v12|inspect-publish-pre-v12|inspect-publish-post-v12> '
     + '[...args] [--dry-run] [--confirm]. admit-founder requires private stdin: '
     + '--input-stdin --dry-run creates a reviewed plan; --input-stdin --confirm consumes it; '
-    + 'allow-fid only re-enables an existing complete founder. list-access-requests accepts '
-    + '[--limit 1..100] [--after-requested-at-micros U64 --after-fid FID] '
-    + '[--include-resolved] [--json]. export-access-request-census requires --dry-run or '
+    + 'allow-fid only re-enables an existing complete founder. The legacy listing commands '
+    + 'are source-suspended. export-access-request-census requires --dry-run or '
     + '--confirm plus --g001-admission-freeze-attestation SHA256, after the source-bound '
     + 'Genesis 001 freeze deploy has been independently verified. '
     + 'reset-access-request dry-run requires FID and note; '
@@ -2156,12 +2172,36 @@ type AccessRequestCensusReference = Readonly<{
   pathBasename: string;
 }>;
 
+type AccessRequestCensusDryRunResult = Readonly<{
+  schemaVersion: 1;
+  status: 'ready';
+  privateFilesWritten: false;
+}>;
+
+type AccessRequestCensusExportResult = Readonly<{
+  schemaVersion: 1;
+  status: 'written';
+  privateCensusBasename: string;
+  privateExporterReferenceBasename: string;
+}>;
+
+const ACCESS_REQUEST_CENSUS_LEAF = /^(?:warpkeep-access-request-census-[0-9]{8}T[0-9]{6}Z\.txt|warpkeep-access-request-census-export-reference-[0-9]{8}T[0-9]{6}Z\.json)$/u;
+
 function accessRequestCensusFilename(at: Date): string {
   if (Number.isNaN(at.valueOf())) fail('Access request census timestamp was invalid.');
   const padded = (value: number) => value.toString().padStart(2, '0');
   return `warpkeep-access-request-census-${at.getUTCFullYear().toString().padStart(4, '0')}`
     + `${padded(at.getUTCMonth() + 1)}${padded(at.getUTCDate())}`
     + `T${padded(at.getUTCHours())}${padded(at.getUTCMinutes())}${padded(at.getUTCSeconds())}Z.txt`;
+}
+
+function accessRequestCensusExporterReferenceFilename(at: Date): string {
+  return accessRequestCensusFilename(at)
+    .replace(
+      /^warpkeep-access-request-census-/u,
+      'warpkeep-access-request-census-export-reference-',
+    )
+    .replace(/\.txt$/u, '.json');
 }
 
 function privateAccessRequestCensusBytes(input: Readonly<{
@@ -2431,6 +2471,10 @@ export const ACCESS_REQUEST_CENSUS_TARGET_CONFIGURATION_DIGEST = createHash('sha
     censusPasses: 2,
     desktopWriter: ACCESS_REQUEST_CENSUS_DESKTOP_WRITER,
     desktopWriterSourceSha256: ACCESS_REQUEST_CENSUS_OPENAT_SOURCE_SHA256,
+    privateExporterReferenceDirectory:
+      ACCESS_REQUEST_CENSUS_PRIVATE_REFERENCE_DIRECTORY,
+    privateExporterReferenceFormat: 'canonical-json-v1',
+    commandOutput: 'basename-status-only-v1',
   }), 'utf8')
   .digest('hex');
 
@@ -2486,7 +2530,7 @@ function runAccessRequestCensusOpenAt(
 ): Buffer {
   if (
     basename(filename) !== filename
-    || !/^warpkeep-access-request-census-[0-9]{8}T[0-9]{6}Z\.txt$/u.test(filename)
+    || !ACCESS_REQUEST_CENSUS_LEAF.test(filename)
     || ((operation === 'create') !== (destinationIdentity === undefined))
     || ((operation === 'write') !== (body !== undefined))
     || ((operation === 'unlink') !== (expectedSize !== undefined))
@@ -2727,18 +2771,23 @@ function requireAccessRequestCensusDestinationUnchanged(
   }
 }
 
-/** Print only non-identifying evidence for a private TXT export; do not write it. */
+/** Validate a private TXT export without printing a raw metadata verifier. */
 export function inspectAccessRequestCensus(input: Readonly<{
   census: AccessRequestCensus;
   at?: Date;
-}>): AccessRequestCensusReference {
+}>): AccessRequestCensusDryRunResult {
   const prepared = privateAccessRequestCensusBytes({
     census: input.census,
     at: input.at ?? new Date(),
   });
   try {
-    console.log(JSON.stringify(prepared.reference));
-    return prepared.reference;
+    const result = Object.freeze({
+      schemaVersion: 1,
+      status: 'ready',
+      privateFilesWritten: false,
+    } as const);
+    console.log(JSON.stringify(result));
+    return result;
   } finally {
     prepared.bytes.fill(0);
   }
@@ -2821,6 +2870,154 @@ export function writeAccessRequestCensusText(input: Readonly<{
   } finally {
     try { closeSync(directory.descriptor); } catch { /* Best-effort close after fsync. */ }
     prepared.bytes.fill(0);
+  }
+}
+
+/**
+ * Install the private Desktop TXT and its raw exporter reference as one
+ * fail-closed operation. The raw count, size, digest, and report pathname are
+ * written only to the owner-private reference; callers receive basenames and
+ * status only.
+ */
+export function writeAccessRequestCensusExport(input: Readonly<{
+  censusDirectory: string;
+  referenceDirectory: string;
+  census: AccessRequestCensus;
+  at?: Date;
+}>): AccessRequestCensusExportResult {
+  const at = input.at ?? new Date();
+  const censusDirectory = openAccessRequestCensusDirectory(input.censusDirectory);
+  let referenceDirectory: ReturnType<typeof openAccessRequestCensusDirectory>;
+  try {
+    referenceDirectory = openAccessRequestCensusDirectory(input.referenceDirectory);
+  } catch (error) {
+    closeSync(censusDirectory.descriptor);
+    throw error;
+  }
+  let prepared: ReturnType<typeof privateAccessRequestCensusBytes>;
+  try {
+    prepared = privateAccessRequestCensusBytes({ census: input.census, at });
+  } catch (error) {
+    closeSync(censusDirectory.descriptor);
+    closeSync(referenceDirectory.descriptor);
+    throw error;
+  }
+  const referenceBasename = accessRequestCensusExporterReferenceFilename(at);
+  const referenceBytes = Buffer.from(
+    `${JSON.stringify(prepared.reference)}\n`,
+    'utf8',
+  );
+  const censusDestination = join(
+    censusDirectory.path,
+    prepared.reference.pathBasename,
+  );
+  const referenceDestination = join(referenceDirectory.path, referenceBasename);
+  let censusIdentity: AccessRequestCensusDestinationIdentity | undefined;
+  let referenceIdentity: AccessRequestCensusDestinationIdentity | undefined;
+  try {
+    requireAccessRequestCensusDirectoryUnchanged(censusDirectory);
+    requireAccessRequestCensusDirectoryUnchanged(referenceDirectory);
+
+    // Reserve the private reference first. An occupied reference leaf must
+    // abort before the Desktop TXT exists.
+    referenceIdentity = createAccessRequestCensusAtDirectory(
+      referenceDirectory,
+      referenceBasename,
+    );
+    requireAccessRequestCensusDirectoryUnchanged(referenceDirectory);
+    requireAccessRequestCensusDestinationUnchanged(
+      referenceDestination,
+      referenceIdentity,
+      0n,
+    );
+
+    censusIdentity = createAccessRequestCensusAtDirectory(
+      censusDirectory,
+      prepared.reference.pathBasename,
+    );
+    requireAccessRequestCensusDirectoryUnchanged(censusDirectory);
+    requireAccessRequestCensusDestinationUnchanged(
+      censusDestination,
+      censusIdentity,
+      0n,
+    );
+
+    writeAccessRequestCensusAtDirectory(
+      censusDirectory,
+      prepared.reference.pathBasename,
+      censusIdentity,
+      prepared.bytes,
+    );
+    requireAccessRequestCensusDirectoryUnchanged(censusDirectory);
+    requireAccessRequestCensusDestinationUnchanged(
+      censusDestination,
+      censusIdentity,
+      BigInt(prepared.bytes.byteLength),
+    );
+
+    writeAccessRequestCensusAtDirectory(
+      referenceDirectory,
+      referenceBasename,
+      referenceIdentity,
+      referenceBytes,
+    );
+    requireAccessRequestCensusDirectoryUnchanged(referenceDirectory);
+    requireAccessRequestCensusDestinationUnchanged(
+      referenceDestination,
+      referenceIdentity,
+      BigInt(referenceBytes.byteLength),
+    );
+
+    fsyncSync(censusDirectory.descriptor);
+    fsyncSync(referenceDirectory.descriptor);
+    requireAccessRequestCensusDestinationUnchanged(
+      censusDestination,
+      censusIdentity,
+      BigInt(prepared.bytes.byteLength),
+    );
+    requireAccessRequestCensusDestinationUnchanged(
+      referenceDestination,
+      referenceIdentity,
+      BigInt(referenceBytes.byteLength),
+    );
+    return Object.freeze({
+      schemaVersion: 1,
+      status: 'written',
+      privateCensusBasename: prepared.reference.pathBasename,
+      privateExporterReferenceBasename: referenceBasename,
+    });
+  } catch (error) {
+    for (const cleanup of [
+      censusIdentity === undefined ? undefined : Object.freeze({
+        directory: censusDirectory,
+        filename: prepared.reference.pathBasename,
+        identity: censusIdentity,
+        size: prepared.bytes.byteLength,
+      }),
+      referenceIdentity === undefined ? undefined : Object.freeze({
+        directory: referenceDirectory,
+        filename: referenceBasename,
+        identity: referenceIdentity,
+        size: referenceBytes.byteLength,
+      }),
+    ]) {
+      if (cleanup === undefined) continue;
+      try {
+        unlinkAccessRequestCensusAtDirectory(
+          cleanup.directory,
+          cleanup.filename,
+          cleanup.identity,
+          cleanup.size,
+        );
+      } catch { /* Best-effort exact-inode cleanup; preserve the root failure. */ }
+    }
+    if (error instanceof HermesCliError) throw error;
+    return fail('Access request census export write failed.');
+  } finally {
+    try { closeSync(censusDirectory.descriptor); } catch { /* Best effort. */ }
+    try { closeSync(referenceDirectory.descriptor); } catch { /* Best effort. */ }
+    prepared.bytes.fill(0);
+    referenceBytes.fill(0);
   }
 }
 
@@ -5050,12 +5247,16 @@ async function main() {
       if (dryRun) {
         inspectAccessRequestCensus({ census });
       } else {
-        const reference = writeAccessRequestCensusText({
-          directory: join(canonicalProductionAdminAccountHome(), 'Desktop'),
+        const productionAdminHome = canonicalProductionAdminAccountHome();
+        const result = writeAccessRequestCensusExport({
+          censusDirectory: join(productionAdminHome, 'Desktop'),
+          referenceDirectory: join(
+            productionAdminHome,
+            ...ACCESS_REQUEST_CENSUS_PRIVATE_REFERENCE_DIRECTORY,
+          ),
           census,
         });
-        // Deliberately print the same metadata-only shape as --dry-run.
-        console.log(JSON.stringify(reference));
+        console.log(JSON.stringify(result));
       }
       mutationStatusHandled = true;
     } else if (command === 'list-pending-access-requests') {

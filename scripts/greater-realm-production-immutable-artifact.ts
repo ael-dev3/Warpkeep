@@ -27,10 +27,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { gunzipSync } from 'node:zlib';
 import { parse as parseYaml } from 'yaml';
 
-import {
-  parseMigrationProofReceiptAtExactPath,
-  type MigrationArtifactReceipt,
-} from './publish-spacetime-dev.mjs';
+import { parseAdditiveMigrationProofReceipt } from './spacetime-additive-migration-proof.mjs';
 import {
   attestGreaterRealmProductionCommitMaterializationRemoved,
   cleanupGreaterRealmProductionCommitMaterialization,
@@ -76,6 +73,51 @@ const MODULE_DEPENDENCIES = Object.freeze({
   tsx: '4.20.6',
   typescript: '5.6.3',
 });
+
+type MigrationArtifactReceipt = Readonly<{
+  artifactPath: string;
+  v11TableSchemaDigest: string;
+  v12TableSchemaDigest: string;
+  v13TableSchemaDigest: string;
+  v14TableSchemaDigest: string;
+  v15TableSchemaDigest: string;
+  v16TableSchemaDigest: string;
+  v17TableSchemaDigest: string;
+  currentCandidateTableSchemaDigest: string;
+  artifactDigest: string;
+}>;
+
+function parseMigrationProofReceiptAtExactPath(
+  output: string,
+  artifactPath: string,
+): MigrationArtifactReceipt {
+  let parsed: ReturnType<typeof parseAdditiveMigrationProofReceipt>;
+  try {
+    parsed = parseAdditiveMigrationProofReceipt(output);
+  } catch {
+    return fail('GREATER_REALM_IMMUTABLE_ARTIFACT_RECEIPT_INVALID');
+  }
+  if (
+    !isAbsolute(artifactPath)
+    || resolve(artifactPath) !== artifactPath
+  ) fail('GREATER_REALM_IMMUTABLE_ARTIFACT_RECEIPT_INVALID');
+  const artifact = attestProvenArtifact(artifactPath);
+  if (artifact.digest !== parsed.artifactDigest) {
+    fail('GREATER_REALM_IMMUTABLE_ARTIFACT_RECEIPT_INVALID');
+  }
+  return Object.freeze({
+    artifactPath,
+    v11TableSchemaDigest: parsed.v11TableSchemaDigest,
+    v12TableSchemaDigest: parsed.v12TableSchemaDigest,
+    v13TableSchemaDigest: parsed.v13TableSchemaDigest,
+    v14TableSchemaDigest: parsed.v14TableSchemaDigest,
+    v15TableSchemaDigest: parsed.v15TableSchemaDigest,
+    v16TableSchemaDigest: parsed.v16TableSchemaDigest,
+    v17TableSchemaDigest: parsed.v17TableSchemaDigest,
+    currentCandidateTableSchemaDigest: parsed.currentCandidateTableSchemaDigest,
+    artifactDigest: parsed.artifactDigest,
+  });
+}
 
 export type GreaterRealmImmutableArtifactProof = Readonly<{
   artifactReceipt: MigrationArtifactReceipt;
@@ -499,7 +541,11 @@ function lockedPackageClosure(materializedRoot: string): Readonly<{
     fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
   }
   const importers = exactRecord(lock.importers);
-  const expectedImporters = ['.', ...FIXTURE_NAMES.map(name => `migration-fixtures/${name}`)].sort();
+  const expectedImporters = [
+    '.',
+    'genesis002',
+    ...FIXTURE_NAMES.map(name => `migration-fixtures/${name}`),
+  ].sort();
   if (JSON.stringify(Object.keys(importers).sort()) !== JSON.stringify(expectedImporters)) {
     fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
   }
@@ -508,6 +554,18 @@ function lockedPackageClosure(materializedRoot: string): Readonly<{
   for (const [name, version] of Object.entries(MODULE_DEPENDENCIES)) {
     if (name !== 'spacetimedb') {
       exactImporterDependency(rootImporter, 'devDependencies', name, version);
+    }
+  }
+  const genesis002Importer = exactRecord(importers.genesis002);
+  exactImporterDependency(
+    genesis002Importer,
+    'dependencies',
+    'spacetimedb',
+    '2.6.1',
+  );
+  for (const [name, version] of Object.entries(MODULE_DEPENDENCIES)) {
+    if (name !== 'spacetimedb') {
+      exactImporterDependency(genesis002Importer, 'devDependencies', name, version);
     }
   }
   for (const fixture of FIXTURE_NAMES) {
@@ -1128,6 +1186,127 @@ function installLockedDependencyClosure(input: Readonly<{
     );
   }
   return result ?? fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_INSTALL_FAILED');
+}
+
+/**
+ * Runs one synchronous build action in an exact Git-tree materialization with
+ * the already-reviewed offline pnpm closure, then removes every generated and
+ * dependency inode before deleting the materialized source tree. This is the
+ * realm-neutral source-build primitive used by the fresh G002 publisher.
+ */
+export function withGreaterRealmLockedSourceBuild<T>(input: Readonly<{
+  repositoryRoot: string;
+  moduleSourceCommit: string;
+  dependencyCacheRoot: string;
+  generatedFiles: readonly string[];
+  materializationParent?: string;
+  operation: (context: Readonly<{
+    materializedRoot: string;
+    dependencyClosureDigest: string;
+    moduleTreeId: string;
+  }>) => T;
+}>): Readonly<{
+  result: T;
+  dependencyClosureDigest: string;
+  moduleTreeId: string;
+}> {
+  if (
+    !COMMIT.test(input.moduleSourceCommit)
+    || !isAbsolute(input.dependencyCacheRoot)
+    || input.generatedFiles.length < 1
+    || input.generatedFiles.some(path => (
+      path.startsWith('/')
+      || path.endsWith('/')
+      || path.split('/').some(component => (
+        component === '' || component === '.' || component === '..'
+      ))
+    ))
+  ) fail('GREATER_REALM_LOCKED_SOURCE_BUILD_INPUT_INVALID');
+  const stateRoot = input.materializationParent === undefined
+    ? ensureCanonicalProductionAdminStateDirectory()
+    : ensurePrivateParent(input.materializationParent);
+  const parent = ensurePrivateParent(join(stateRoot, 'locked-source-builds-v1'));
+  const destination = join(parent, randomUUID().replaceAll('-', ''));
+  const materialization = createGreaterRealmProductionCommitMaterialization({
+    repositoryRoot: input.repositoryRoot,
+    moduleSourceCommit: input.moduleSourceCommit,
+    destination,
+  });
+  let installed: ReturnType<typeof installLockedDependencyClosure> | undefined;
+  let result: T | undefined;
+  let primaryError: unknown;
+  try {
+    installed = installLockedDependencyClosure({
+      materializedRoot: materialization.root,
+      dependencyCacheRoot: input.dependencyCacheRoot,
+    });
+    const roots = dependencyRoots(materialization.root);
+    const allowedPrefixes = roots.map(root => (
+      `${relative(materialization.root, root).split(sep).join('/')}/`
+    ));
+    materialization.verify({ prefixes: allowedPrefixes });
+    result = input.operation({
+      materializedRoot: materialization.root,
+      dependencyClosureDigest: installed.dependencyClosureDigest,
+      moduleTreeId: materialization.moduleTreeId,
+    });
+    const after = roots.map(root => dependencyTreeSnapshot({
+      root,
+      boundary: join(materialization.root, 'spacetimedb'),
+    }));
+    if (
+      after.length !== installed.snapshots.length
+      || after.some((snapshot, index) => (
+        snapshot.contentDigest !== installed!.snapshots[index]!.contentDigest
+        || snapshot.identityDigest !== installed!.snapshots[index]!.identityDigest
+      ))
+    ) fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_TREE_CHANGED');
+    materialization.verify({ prefixes: allowedPrefixes, files: input.generatedFiles });
+    for (const relativePath of [...input.generatedFiles].reverse()) {
+      const path = join(materialization.root, ...relativePath.split('/'));
+      const status = lstatSync(path);
+      if (
+        status.isSymbolicLink()
+        || !status.isFile()
+        || status.nlink !== 1
+        || realpathSync(path) !== path
+      ) fail('GREATER_REALM_LOCKED_SOURCE_BUILD_OUTPUT_INVALID');
+      unlinkSync(path);
+      fsyncExactDirectory(dirname(path));
+      const generatedDirectory = dirname(path);
+      if (readdirSync(generatedDirectory).length !== 0) {
+        fail('GREATER_REALM_LOCKED_SOURCE_BUILD_OUTPUT_INVALID');
+      }
+      rmdirSync(generatedDirectory);
+      fsyncExactDirectory(dirname(generatedDirectory));
+    }
+    for (const root of [...roots].reverse()) {
+      removeExactBuildTree(root, join(materialization.root, 'spacetimedb'));
+    }
+    materialization.verify();
+  } catch (error) {
+    primaryError = error;
+  }
+  let cleanupError: unknown;
+  try {
+    if (primaryError === undefined) materialization.cleanup();
+  } catch (error) {
+    cleanupError = error;
+  }
+  if (primaryError !== undefined || cleanupError !== undefined) {
+    throw new AggregateError(
+      [
+        ...(primaryError === undefined ? [] : [primaryError]),
+        ...(cleanupError === undefined ? [] : [cleanupError]),
+      ],
+      'GREATER_REALM_LOCKED_SOURCE_BUILD_FAILED',
+    );
+  }
+  return Object.freeze({
+    result: result as T,
+    dependencyClosureDigest: installed!.dependencyClosureDigest,
+    moduleTreeId: materialization.moduleTreeId,
+  });
 }
 
 type ProvenArtifactIdentity = Readonly<{

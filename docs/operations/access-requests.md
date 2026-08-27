@@ -34,6 +34,13 @@ The former general list operator remains a refusal stub and must not be invoked
 through npm or a direct TypeScript fallback. Do not copy the private census into
 the repository, CI artifacts, issue comments, or public operator logs.
 
+The 0.4.0 auth bridge independently rejects both `POST` and browser preflight
+for `/v2/access/request` with the fixed `admission_requests_suspended` response
+before rate limiting, credential verification, session lookup, admission
+resolution, or database access. The read-only `/v2/access/status` route remains
+available so existing state can still be inspected. The browser hides request
+controls, but that presentation is not the security boundary.
+
 ## One-time Genesis 001 frozen applicant archive
 
 The freeze itself has one supported publisher entrypoint:
@@ -66,6 +73,12 @@ receipt basename and file SHA-256. The final receipt is separate from retained
 ambiguous-outcome recovery metadata; no applicant or player state enters either
 record.
 
+The legacy `list-access-requests` and `list-pending-access-requests` entrypoints
+are source-suspended for the sealed 0.4.0 launch. They fail during argument
+parsing, before trusted-launch capture, credentials, or network access, and do
+not print applicant data or deterministic report digests. The reviewed private
+`export-access-request-census` path below is the only applicant-export surface.
+
 Do not run `export-access-request-census` until the Genesis 001 admission freeze
 has been deployed from the explicitly reviewed `0.3.43` source baseline
 `2ae51984e1fa6ce5b0028c1a250359fed79d819b` and independently verified in the
@@ -93,7 +106,9 @@ mutations, and disabled request submissions. The report's target digest addition
 source-suspended Hermes command set, canonical production database URI and
 identity, authentication bridge, fixed live-freeze and census procedures,
 inclusion of resolved requests, pagination bounds, and two-pass census
-requirement, plus the exact descriptor-anchored writer source.
+requirement, plus the exact descriptor-anchored writer source, canonical
+owner-private exporter-reference directory, canonical JSON reference format,
+and basename/status-only command output.
 
 Run both modes from the exact verified release checkout through the installed
 production administrator secret runner. It injects the existing secret without
@@ -110,19 +125,23 @@ cd /absolute/path/to/the/verified-release-checkout
   b043a0e2e4e2c23e183a0497f47c6d8265f4d95e1d3b58c85629d0de80683304
 ```
 
-After reviewing the metadata-only dry-run result, repeat the same command with
-`--confirm` in place of `--dry-run`. Do not redirect either command's output to
-a shared file.
+After the dry-run reports only that the export is ready, repeat the same command
+with `--confirm` in place of `--dry-run`. Do not redirect either command's
+output to a shared file.
 
 Each mode reads the complete bounded census twice and fails closed unless both
-canonical snapshots match exactly. `--dry-run` writes nothing and prints only a
-metadata reference containing count, byte size, SHA-256, and basename; it never
-prints FIDs or the report body. After reviewing that metadata, `--confirm`
-creates one non-overwritable, timestamped mode-0600 TXT file in the actual
-production administrator account's canonical Desktop. Ambient `HOME` is
-ignored. The writer holds and repeatedly re-attests the Desktop directory and
-destination identities, refuses symlinks, and does not overwrite an existing
-timestamp.
+canonical snapshots match exactly. `--dry-run` writes nothing and prints only
+`schemaVersion`, `status=ready`, and `privateFilesWritten=false`; it never prints
+count, byte size, SHA-256, a path, FIDs, or the report body. `--confirm` creates
+one non-overwritable, timestamped mode-0600 TXT file in the actual production
+administrator account's canonical Desktop and a distinct non-overwritable
+mode-0600 raw exporter reference under the canonical
+`Library/Application Support/Warpkeep/operations/audit/private` directory.
+Confirm output contains only `schemaVersion`, `status=written`, and the two
+privacy-safe basenames. Ambient `HOME` is ignored. The writer holds and
+repeatedly re-attests both directories and both destination identities, refuses
+symlinks, cleans exact partial files on failure, and does not overwrite an
+existing timestamp.
 
 When the exact created leaf remains reachable, failed-write cleanup reopens it
 through the held Desktop descriptor, verifies its identity, truncates it to
@@ -134,10 +153,12 @@ No replacement receives census bytes, which are written only through the held
 expected inode. Run the one-time export only while other processes under that
 administrator account are trusted.
 
-Keep the resulting TXT only on that private Desktop for the later Genesis 002
-review. Never place it in the repository, logs, shell history, CI artifacts,
-cloud sync, tickets, chat, or release evidence. Neither mode calls an admission
-or access-request mutation.
+Keep the resulting TXT only on that private Desktop and the raw exporter
+reference only in the private audit directory for the later Genesis 002 review.
+The raw reference contains count, size, TXT SHA-256, and basename; never print
+or copy it into the repository, logs, shell history, CI artifacts, cloud sync,
+tickets, chat, or release evidence. Neither mode calls an admission or
+access-request mutation.
 
 The `0.3.43` source baseline also suspends every Hermes admission/reset operator
 at command dispatch, before trusted-launch capture, credentials, network calls,

@@ -7,14 +7,14 @@ import {
   getRealmChoices
 } from '../src/components/menu/realmChoicePolicy';
 import {
-  GENESIS_001_GAME_VERSION,
-  GENESIS_002_GAME_VERSION
+  GENESIS_001_PRESERVED_RELEASE_VERSION,
+  GENESIS_002_SEALED_RELEASE_VERSION
 } from '../src/release/realmReleaseIdentity';
 
 describe('realm choice policy', () => {
   it('keeps the two realm game identities distinct from the 0.4.0 launcher', () => {
-    expect(GENESIS_001_GAME_VERSION).toBe('0.3.43');
-    expect(GENESIS_002_GAME_VERSION).toBe('0.4.0');
+    expect(GENESIS_001_PRESERVED_RELEASE_VERSION).toBe('0.3.43');
+    expect(GENESIS_002_SEALED_RELEASE_VERSION).toBe('0.4.0');
   });
 
   it('keeps every new admission path suspended for the 0.4.0 launch', () => {

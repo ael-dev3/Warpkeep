@@ -90,13 +90,13 @@ describe('GitHub workflow security policy', () => {
     expect(build).toContain(
       'WARPKEEP_SHARED_ALPHA_ENABLED must be exactly true or false.',
     );
-    expect(build).toContain('npm run validate:pages-release-build');
+    expect(build).toContain('npm run verify:sealed-launch:activation');
     expect(build).not.toContain('npm run validate:pages-config');
     expect(build).not.toContain('npm run verify:greater-realm-release-gates');
     expect(source.match(
-      /scripts\/greater-realm-release-gate-deploy-boundary\.mjs/g,
-    )).toHaveLength(2);
-    expect(build.indexOf('npm run validate:pages-release-build')).toBeLessThan(
+      /scripts\/verify-0\.4\.0-sealed-launch\.mjs/g,
+    )).toHaveLength(3);
+    expect(build.indexOf('npm run verify:sealed-launch:activation')).toBeLessThan(
       build.indexOf('npm run build'),
     );
     expect(source).toContain('group: pages-main');
@@ -143,16 +143,16 @@ describe('GitHub workflow security policy', () => {
       'npm ci --ignore-scripts --no-audit --no-fund',
     );
     expect(deploy).toContain(
-      'scripts/greater-realm-release-gate-deploy-boundary.mjs',
+      'scripts/verify-0.4.0-sealed-launch.mjs --phase=activation',
     );
     expect(deploy).not.toContain('scripts/verify-greater-realm-release-gates.mjs');
     expect(deploy.indexOf(
-      'scripts/greater-realm-release-gate-deploy-boundary.mjs',
+      'scripts/verify-0.4.0-sealed-launch.mjs --phase=activation',
     )).toBeLessThan(
       deploy.indexOf('actions/deploy-pages@'),
     );
     expect(deploy.slice(
-      deploy.indexOf('scripts/greater-realm-release-gate-deploy-boundary.mjs'),
+      deploy.indexOf('scripts/verify-0.4.0-sealed-launch.mjs --phase=activation'),
       deploy.indexOf('actions/deploy-pages@'),
     ).match(/^      - name:/gm)).toHaveLength(1);
     expect(postflight).toContain('needs: deploy');
@@ -160,7 +160,7 @@ describe('GitHub workflow security policy', () => {
       "if: ${{ always() && needs.deploy.outputs.deployment-attempted == 'true' }}",
     );
     expect(postflight).toContain(
-      'Re-verify Greater Realm release gates and notification authority',
+      'Re-verify sealed-launch receipts and closed presentation gates',
     );
     expect(postflight).toContain(
       'WARPKEEP_VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}',
@@ -173,13 +173,14 @@ describe('GitHub workflow security policy', () => {
     expect(postflight.indexOf(
       'npm ci --ignore-scripts --no-audit --no-fund',
     )).toBeLessThan(
-      postflight.indexOf('node scripts/greater-realm-release-gate-deploy-boundary.mjs'),
+      postflight.indexOf('node scripts/verify-0.4.0-sealed-launch.mjs --phase=activation'),
     );
     expect(postflight).toContain(
-      'node scripts/greater-realm-release-gate-deploy-boundary.mjs',
+      'node scripts/verify-0.4.0-sealed-launch.mjs --phase=activation',
     );
+    expect(postflight).toContain('npm run verify:admission-request-suspension');
     expect(postflight.indexOf(
-      'node scripts/greater-realm-release-gate-deploy-boundary.mjs',
+      'node scripts/verify-0.4.0-sealed-launch.mjs --phase=activation',
     )).toBeLessThan(
       postflight.indexOf('Verify exact live release'),
     );
@@ -234,10 +235,15 @@ describe('GitHub workflow security policy', () => {
     );
     expect(liveVerification).toContain('maximum_attempts=4');
     expect(liveVerification).toContain(
-      'node scripts/greater-realm-release-gate-deploy-boundary.mjs',
+      'node scripts/verify-0.4.0-sealed-launch.mjs --phase=activation',
     );
     expect(liveVerification.indexOf(
-      'node scripts/greater-realm-release-gate-deploy-boundary.mjs',
+      'node scripts/verify-0.4.0-sealed-launch.mjs --phase=activation',
+    )).toBeLessThan(
+      liveVerification.indexOf('npm run verify:admission-request-suspension'),
+    );
+    expect(liveVerification.indexOf(
+      'npm run verify:admission-request-suspension',
     )).toBeLessThan(
       liveVerification.indexOf('node scripts/verify-alpha-production.mjs'),
     );

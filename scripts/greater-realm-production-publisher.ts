@@ -4,6 +4,9 @@ import { pathToFileURL } from 'node:url';
 
 import { assertGreaterRealmPrivateInvocation } from './atlas/greater-realm-private-workspace';
 import {
+  requireGenesis001LegacyGreaterRealmProductionCliReadOnly,
+} from './greater-realm-legacy-production-seal.mjs';
+import {
   cleanupGreaterRealmPublishSupervisor,
   attestPinnedSpacetimeCli,
   canonicalSchemaDescribeChildArguments,
@@ -1279,6 +1282,10 @@ export const greaterRealmProductionPublisherTestSeams = Object.freeze({
 });
 
 async function main(): Promise<void> {
+  requireGenesis001LegacyGreaterRealmProductionCliReadOnly({
+    entrypoint: 'publisher',
+    arguments_: process.argv.slice(2),
+  });
   assertGreaterRealmPrivateInvocation();
   const arguments_ = parseGreaterRealmProductionPublisherArguments(process.argv.slice(2));
   if (process.env.WKGR_PRODUCTION_BOOTSTRAP_PROFILE

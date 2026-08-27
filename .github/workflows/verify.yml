@@ -122,6 +122,9 @@ jobs:
       - name: Run tests
         run: npm test -- --maxWorkers=2
 
+      - name: Verify the two-phase sealed-launch source state
+        run: npm run verify:sealed-launch
+
       - name: Typecheck
         run: npm run typecheck
 
@@ -213,7 +216,9 @@ jobs:
       - name: Verify module and generated bindings
         run: |
           pnpm --dir spacetimedb run verify
+          pnpm --dir spacetimedb/genesis002 run verify
           npm run stdb:verify-bindings
+          npm run stdb:genesis002:verify-private-loopback
           npm run stdb:build-v14-migration-fixture
           npm run stdb:build-v15-migration-fixture
           npm run stdb:build-v16-migration-fixture
