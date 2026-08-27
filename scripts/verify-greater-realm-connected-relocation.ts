@@ -56,6 +56,11 @@ export const DISPOSABLE_RELOCATION_REDUCER_MODULE =
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const sourceModule = join(repositoryRoot, 'spacetimedb');
 const productionPolicyPath = join(sourceModule, 'src', 'greaterRealmV17Policy.ts');
+const productionGenesis001AccessPolicyPath = join(
+  sourceModule,
+  'src',
+  'genesis001AccessPolicy.ts',
+);
 const productionIndexPath = join(sourceModule, 'src', 'index.ts');
 const expectedCliVersion = '2.6.1';
 const expectedCliCommit = '052c83fe984a4c4eb7bb4f9afa5c6b1903891d87';
@@ -275,6 +280,42 @@ function countOccurrences(value: string, needle: string): number {
   return value.split(needle).length - 1;
 }
 
+const sealedGenesis001AdmissionDeclaration =
+  '  admissionStateMutationsEnabled: false,';
+const openGenesis001AdmissionDeclaration =
+  '  admissionStateMutationsEnabled: true,';
+const sealedGenesis001RequestDeclaration =
+  '  accessRequestSubmissionsEnabled: false,';
+const openGenesis001RequestDeclaration =
+  '  accessRequestSubmissionsEnabled: true,';
+
+/**
+ * Open only the numeric-loopback, in-memory dormant-mechanics rehearsal. The
+ * workflow's earlier real-module gate remains authoritative for sealed access.
+ */
+export function enableDisposableGenesis001AdmissionRehearsal(source: string): string {
+  if (
+    countOccurrences(source, sealedGenesis001AdmissionDeclaration) !== 1
+    || countOccurrences(source, openGenesis001AdmissionDeclaration) !== 0
+    || countOccurrences(source, sealedGenesis001RequestDeclaration) !== 1
+    || countOccurrences(source, openGenesis001RequestDeclaration) !== 0
+  ) {
+    fail(
+      'Disposable Genesis 001 access policy was missing, duplicated, malformed, or already open.',
+    );
+  }
+  const enabled = source
+    .replace(sealedGenesis001AdmissionDeclaration, openGenesis001AdmissionDeclaration)
+    .replace(sealedGenesis001RequestDeclaration, openGenesis001RequestDeclaration);
+  if (
+    countOccurrences(enabled, sealedGenesis001AdmissionDeclaration) !== 0
+    || countOccurrences(enabled, openGenesis001AdmissionDeclaration) !== 1
+    || countOccurrences(enabled, sealedGenesis001RequestDeclaration) !== 0
+    || countOccurrences(enabled, openGenesis001RequestDeclaration) !== 1
+  ) fail('Disposable Genesis 001 access policy substitution was incomplete.');
+  return enabled;
+}
+
 /** Normalize only the copied policy to the fully enabled rehearsal scenario. */
 export function enableDisposableGreaterRealmRelocationGates(source: string): string {
   return normalizeGreaterRealmConnectedDisposableGateMode(source, 'TT');
@@ -391,6 +432,7 @@ export type DisposableModule = Readonly<{
   moduleDirectory: string;
   artifactPath: string;
   productionPolicyBytes: Buffer;
+  productionGenesis001AccessPolicyBytes: Buffer;
   productionIndexBytes: Buffer;
   productionSourceDigest: string;
   productionGateMode: GreaterRealmConnectedProductionGateMode;
@@ -401,6 +443,9 @@ export async function createDisposableGreaterRealmRelocationModule(
   runtimeDirectory: string,
 ): Promise<DisposableModule> {
   const productionPolicyBytes = await readFile(productionPolicyPath);
+  const productionGenesis001AccessPolicyBytes = await readFile(
+    productionGenesis001AccessPolicyPath,
+  );
   const productionIndexBytes = await readFile(productionIndexPath);
   const productionGateMode = parseGreaterRealmConnectedProductionGateMode(
     productionPolicyBytes.toString('utf8'),
@@ -440,6 +485,11 @@ export async function createDisposableGreaterRealmRelocationModule(
   await symlink(sourceDependencies, join(moduleDirectory, 'node_modules'), 'dir');
 
   const copiedPolicyPath = join(moduleDirectory, 'src', 'greaterRealmV17Policy.ts');
+  const copiedGenesis001AccessPolicyPath = join(
+    moduleDirectory,
+    'src',
+    'genesis001AccessPolicy.ts',
+  );
   const copiedIndexPath = join(moduleDirectory, 'src', 'index.ts');
   const reducerPath = join(
     moduleDirectory,
@@ -454,6 +504,12 @@ export async function createDisposableGreaterRealmRelocationModule(
     encoding: 'utf8', mode: 0o600, flag: 'w',
   });
   assertGreaterRealmConnectedDisposableGateMode(enabledPolicy, 'TT');
+  const enabledGenesis001AccessPolicy = enableDisposableGenesis001AdmissionRehearsal(
+    await readFile(copiedGenesis001AccessPolicyPath, 'utf8'),
+  );
+  await writeFile(copiedGenesis001AccessPolicyPath, enabledGenesis001AccessPolicy, {
+    encoding: 'utf8', mode: 0o600, flag: 'w',
+  });
   const copiedIndex = await readFile(copiedIndexPath, 'utf8');
   if (
     countOccurrences(copiedIndex, 'warpkeep-disposable-connected-relocation-rehearsal-v1') !== 0
@@ -468,6 +524,8 @@ export async function createDisposableGreaterRealmRelocationModule(
   });
   if (
     (await readFile(productionPolicyPath)).compare(productionPolicyBytes) !== 0
+    || (await readFile(productionGenesis001AccessPolicyPath))
+      .compare(productionGenesis001AccessPolicyBytes) !== 0
     || (await readFile(productionIndexPath)).compare(productionIndexBytes) !== 0
     || parseGreaterRealmConnectedProductionGateMode(
       await readFile(productionPolicyPath, 'utf8'),
@@ -484,6 +542,7 @@ export async function createDisposableGreaterRealmRelocationModule(
     moduleDirectory,
     artifactPath: join(moduleDirectory, 'dist', 'bundle.js'),
     productionPolicyBytes,
+    productionGenesis001AccessPolicyBytes,
     productionIndexBytes,
     productionSourceDigest,
     productionGateMode,
@@ -2470,6 +2529,8 @@ async function main(): Promise<void> {
     proofStage = 'production-source-attestation';
     if (
       (await readFile(productionPolicyPath)).compare(disposable.productionPolicyBytes) !== 0
+      || (await readFile(productionGenesis001AccessPolicyPath))
+        .compare(disposable.productionGenesis001AccessPolicyBytes) !== 0
       || (await readFile(productionIndexPath)).compare(disposable.productionIndexBytes) !== 0
       || await directoryDigest(join(sourceModule, 'src')) !== disposable.productionSourceDigest
       || await directoryDigest(join(disposable.moduleDirectory, 'src'))
