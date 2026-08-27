@@ -13,6 +13,7 @@ import {
   clearGreaterRealmLivingWorldAuthority,
   deriveGreaterRealmLivingWorld,
   hasGreaterRealmCandidateScaleLivingWorldCapacity,
+  refineGreaterRealmOpenGroundcoverFringes,
   type GreaterRealmLivingWorldCandidateCapacityMetrics,
   type GreaterRealmLivingWorldInput,
 } from '../scripts/atlas/greater-realm-living-world';
@@ -234,6 +235,60 @@ function adjacentToAnyMask(
 }
 
 describe('Greater Realm private living-world authority', () => {
+  it('opens only safe woody fringe leaves to guarantee independent groundcover', () => {
+    const grid = indexGreaterRealmAxialGrid(coordinatesForRadius(4));
+    const vegetationDensity = new Uint8Array(grid.cellCount);
+    const groundcoverDensity = new Uint8Array(grid.cellCount);
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      if (axialDistance(grid.q[cell]!, grid.r[cell]!) <= 2) {
+        vegetationDensity[cell] = 64;
+        groundcoverDensity[cell] = 96;
+      }
+    }
+    const fringe = grid.indexOf({ q: 3, r: 0 });
+    expect(fringe).toBeGreaterThanOrEqual(0);
+    vegetationDensity[fringe] = 32;
+    groundcoverDensity[fringe] = 112;
+    const groundcoverBefore = new Uint8Array(groundcoverDensity);
+    try {
+      const cleared = refineGreaterRealmOpenGroundcoverFringes(
+        grid,
+        new Uint32Array([1, 2, 3, 4]),
+        vegetationDensity,
+        groundcoverDensity,
+      );
+      expect(cleared).toBe(1);
+      expect(vegetationDensity[fringe]).toBe(0);
+      expect(groundcoverDensity).toEqual(groundcoverBefore);
+      expect([...groundcoverDensity].filter(Boolean)).toHaveLength(20);
+      expect([...groundcoverDensity].filter((value, cell) => (
+        value !== 0 && vegetationDensity[cell] === 0
+      ))).toHaveLength(1);
+    } finally {
+      grid.clearIndex?.();
+    }
+  });
+
+  it('does not hollow a woody interior when no safe fringe leaf exists', () => {
+    const grid = indexGreaterRealmAxialGrid(coordinatesForRadius(2));
+    const vegetationDensity = new Uint8Array(grid.cellCount);
+    vegetationDensity.fill(64);
+    const groundcoverDensity = new Uint8Array(grid.cellCount);
+    groundcoverDensity.fill(96);
+    const vegetationBefore = new Uint8Array(vegetationDensity);
+    try {
+      expect(refineGreaterRealmOpenGroundcoverFringes(
+        grid,
+        new Uint32Array([1, 2, 3, 4]),
+        vegetationDensity,
+        groundcoverDensity,
+      )).toBe(0);
+      expect(vegetationDensity).toEqual(vegetationBefore);
+    } finally {
+      grid.clearIndex?.();
+    }
+  });
+
   it('freezes serialized living-world class identifiers', () => {
     expect(GREATER_REALM_LIVING_WORLD_VERSION)
       .toBe('greater-realm-private-living-world-v4');
@@ -824,6 +879,15 @@ describe('Greater Realm private living-world authority', () => {
       { at: cell(-5, 10), biome: GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND,
         landform: GREATER_REALM_LANDFORM_ID.LOWLAND, temperature: 4_500, moisture: 1_000,
         elevation: 4_000, expected: GREATER_REALM_ECOLOGY_CLASS.PLAINS },
+      { at: cell(-4, 10), biome: GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND,
+        landform: GREATER_REALM_LANDFORM_ID.LOWLAND, temperature: 3_400, moisture: 1_000,
+        elevation: 4_000, expected: GREATER_REALM_ECOLOGY_CLASS.TAIGA },
+      { at: cell(-3, 10), biome: GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND,
+        landform: GREATER_REALM_LANDFORM_ID.LOWLAND, temperature: 3_500, moisture: 1_000,
+        elevation: 4_000, expected: GREATER_REALM_ECOLOGY_CLASS.PLAINS },
+      { at: cell(-2, 10), biome: GREATER_REALM_BIOME_ID.VOLCANIC_UPLAND,
+        landform: GREATER_REALM_LANDFORM_ID.BASIN, temperature: 3_400, moisture: 1_000,
+        elevation: 4_000, expected: GREATER_REALM_ECOLOGY_CLASS.ALPINE },
       { at: cell(-8, 8), biome: GREATER_REALM_BIOME_ID.FLOWER_MEADOW,
         landform: GREATER_REALM_LANDFORM_ID.HILL, temperature: 4_500, moisture: 3_500,
         elevation: 4_000, expected: GREATER_REALM_ECOLOGY_CLASS.PLAINS },

@@ -3,11 +3,45 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const splitRootTestRun = [
+  'npm test -- \\',
+  '  --exclude tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
+  '  --exclude tests/productionPlayerCanaryClosure.test.ts \\',
+  '  --maxWorkers=2',
+  'npm test -- \\',
+  '  tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
+  '  tests/productionPlayerCanaryClosure.test.ts \\',
+  '  --maxWorkers=1 \\',
+  '  --testTimeout=180000',
+  '',
+].join('\n');
+const pagesRootTestRun = 'npm test -- --maxWorkers=2';
+
+interface WorkflowStep {
+  name?: string;
+  run?: string;
+  [key: string]: unknown;
+}
+
+interface WorkflowJob {
+  'timeout-minutes'?: number;
+  steps?: WorkflowStep[];
+}
 
 function workflow(name: string) {
   return readFileSync(resolve(repositoryRoot, '.github/workflows', name), 'utf8');
+}
+
+function workflowJob(workflowName: string, jobName: string): WorkflowJob {
+  const document = parse(workflow(workflowName)) as {
+    jobs?: Record<string, WorkflowJob>;
+  };
+  const job = document.jobs?.[jobName];
+  if (job === undefined) throw new Error(`workflow job ${jobName} missing`);
+  return job;
 }
 
 function allWorkflows() {
@@ -90,13 +124,13 @@ describe('GitHub workflow security policy', () => {
     expect(build).toContain(
       'WARPKEEP_SHARED_ALPHA_ENABLED must be exactly true or false.',
     );
-    expect(build).toContain('npm run validate:pages-release-build');
+    expect(build).toContain('npm run verify:sealed-launch:activation');
     expect(build).not.toContain('npm run validate:pages-config');
     expect(build).not.toContain('npm run verify:greater-realm-release-gates');
     expect(source.match(
-      /scripts\/greater-realm-release-gate-deploy-boundary\.mjs/g,
-    )).toHaveLength(2);
-    expect(build.indexOf('npm run validate:pages-release-build')).toBeLessThan(
+      /scripts\/verify-0\.4\.0-sealed-launch\.mjs/g,
+    )).toHaveLength(3);
+    expect(build.indexOf('npm run verify:sealed-launch:activation')).toBeLessThan(
       build.indexOf('npm run build'),
     );
     expect(source).toContain('group: pages-main');
@@ -143,16 +177,16 @@ describe('GitHub workflow security policy', () => {
       'npm ci --ignore-scripts --no-audit --no-fund',
     );
     expect(deploy).toContain(
-      'scripts/greater-realm-release-gate-deploy-boundary.mjs',
+      'scripts/verify-0.4.0-sealed-launch.mjs --phase=activation',
     );
     expect(deploy).not.toContain('scripts/verify-greater-realm-release-gates.mjs');
     expect(deploy.indexOf(
-      'scripts/greater-realm-release-gate-deploy-boundary.mjs',
+      'scripts/verify-0.4.0-sealed-launch.mjs --phase=activation',
     )).toBeLessThan(
       deploy.indexOf('actions/deploy-pages@'),
     );
     expect(deploy.slice(
-      deploy.indexOf('scripts/greater-realm-release-gate-deploy-boundary.mjs'),
+      deploy.indexOf('scripts/verify-0.4.0-sealed-launch.mjs --phase=activation'),
       deploy.indexOf('actions/deploy-pages@'),
     ).match(/^      - name:/gm)).toHaveLength(1);
     expect(postflight).toContain('needs: deploy');
@@ -160,7 +194,7 @@ describe('GitHub workflow security policy', () => {
       "if: ${{ always() && needs.deploy.outputs.deployment-attempted == 'true' }}",
     );
     expect(postflight).toContain(
-      'Re-verify Greater Realm release gates and notification authority',
+      'Re-verify sealed-launch receipts and closed presentation gates',
     );
     expect(postflight).toContain(
       'WARPKEEP_VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}',
@@ -173,13 +207,14 @@ describe('GitHub workflow security policy', () => {
     expect(postflight.indexOf(
       'npm ci --ignore-scripts --no-audit --no-fund',
     )).toBeLessThan(
-      postflight.indexOf('node scripts/greater-realm-release-gate-deploy-boundary.mjs'),
+      postflight.indexOf('node scripts/verify-0.4.0-sealed-launch.mjs --phase=activation'),
     );
     expect(postflight).toContain(
-      'node scripts/greater-realm-release-gate-deploy-boundary.mjs',
+      'node scripts/verify-0.4.0-sealed-launch.mjs --phase=activation',
     );
+    expect(postflight).toContain('npm run verify:admission-request-suspension');
     expect(postflight.indexOf(
-      'node scripts/greater-realm-release-gate-deploy-boundary.mjs',
+      'node scripts/verify-0.4.0-sealed-launch.mjs --phase=activation',
     )).toBeLessThan(
       postflight.indexOf('Verify exact live release'),
     );
@@ -234,10 +269,15 @@ describe('GitHub workflow security policy', () => {
     );
     expect(liveVerification).toContain('maximum_attempts=4');
     expect(liveVerification).toContain(
-      'node scripts/greater-realm-release-gate-deploy-boundary.mjs',
+      'node scripts/verify-0.4.0-sealed-launch.mjs --phase=activation',
     );
     expect(liveVerification.indexOf(
-      'node scripts/greater-realm-release-gate-deploy-boundary.mjs',
+      'node scripts/verify-0.4.0-sealed-launch.mjs --phase=activation',
+    )).toBeLessThan(
+      liveVerification.indexOf('npm run verify:admission-request-suspension'),
+    );
+    expect(liveVerification.indexOf(
+      'npm run verify:admission-request-suspension',
     )).toBeLessThan(
       liveVerification.indexOf('node scripts/verify-alpha-production.mjs'),
     );
@@ -309,14 +349,24 @@ describe('GitHub workflow security policy', () => {
   });
 
   it('gives the complete root suite a bounded hosted-runner allowance', () => {
-    const verifySource = workflow('verify.yml');
-    const pagesSource = workflow('deploy-pages.yml');
-    for (const job of [
-      verifySource.slice(verifySource.indexOf('  verify:'), verifySource.indexOf('  auth-bridge:')),
-      pagesSource.slice(pagesSource.indexOf('  build:'), pagesSource.indexOf('  deploy:')),
+    for (const { job, timeoutMinutes, stepName, run } of [
+      {
+        job: workflowJob('verify.yml', 'verify'),
+        timeoutMinutes: 75,
+        stepName: 'Run tests',
+        run: splitRootTestRun,
+      },
+      {
+        job: workflowJob('deploy-pages.yml', 'build'),
+        timeoutMinutes: 45,
+        stepName: 'Test',
+        run: pagesRootTestRun,
+      },
     ]) {
-      expect(job).toMatch(/\n    timeout-minutes: 45\n/u);
-      expect(job).toContain('npm test -- --maxWorkers=2');
+      expect(job['timeout-minutes']).toBe(timeoutMinutes);
+      expect(job.steps?.filter(step => step.name === stepName)).toEqual([
+        { name: stepName, run },
+      ]);
     }
   });
 
@@ -342,11 +392,21 @@ describe('GitHub workflow security policy', () => {
 
   it('runs root tests from an integrity-checked private Node copy', () => {
     const rootTestWorkflows = [
-      workflow('verify.yml'),
-      workflow('deploy-pages.yml'),
+      {
+        source: workflow('verify.yml'),
+        job: workflowJob('verify.yml', 'verify'),
+        stepName: 'Run tests',
+        run: splitRootTestRun,
+      },
+      {
+        source: workflow('deploy-pages.yml'),
+        job: workflowJob('deploy-pages.yml', 'build'),
+        stepName: 'Test',
+        run: pagesRootTestRun,
+      },
     ];
 
-    for (const source of rootTestWorkflows) {
+    for (const { source, job, stepName, run } of rootTestWorkflows) {
       expect(source).toContain('Stage Node in a runner-private toolchain path');
       expect(source).toContain('source_command="$(command -v node)"');
       expect(source).toContain('[[ -L "$source_command" ]]');
@@ -377,7 +437,9 @@ describe('GitHub workflow security policy', () => {
       expect(source).toContain('node_mode="$(stat -c \'%a\' "$WARPKEEP_PRIVATE_NODE")"');
       expect(source).toContain('$((8#$node_mode & 0022)) -ne 0');
       expect(source).toContain('| sha256sum --check --strict -');
-      expect(source).toContain('npm test -- --maxWorkers=2');
+      expect(job.steps?.filter(step => step.name === stepName)).toEqual([
+        { name: stepName, run },
+      ]);
       expect(source).not.toMatch(/npm test -- --maxWorkers=[3-9]/);
     }
   });

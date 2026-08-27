@@ -438,9 +438,11 @@ It protects executable `spacetimedb/src/auth.ts`,
 `spacetimedb/src/castleWorkerAuthority.ts`, and
 `spacetimedb/src/greaterRealmWorkerAuthority.ts` in their place. The matching
 activation-launcher, browser-launcher, and release-binding runtime `.mjs` files
-all remain protected. The closure therefore stays exact at 384 of 384 with no
-spare slot. A later loader activation must modify only already-protected
-members. Do not add another graph root or declaration.
+all remain protected. The Genesis 001 freeze adds its exact generated access-
+policy procedure binding to the Hermes graph, so the deliberately reviewed
+closure is now exact at 385 of 385 with no spare slot. A later loader
+activation must modify only already-protected members. Do not add another graph
+root or declaration.
 
 Execution is a separate reviewed boundary. It requires all of the following:
 
@@ -515,8 +517,8 @@ publication, rerun only the exact same canonical input and compare the returned
 digest; never synthesize a new request or infer success from browser UX.
 
 The manifest and all three protected-workflow pin sets are refrozen at exactly
-384 members on the protected true merge of PR205. Preserve that exact source
-and obtain an independent audit before any execution.
+385 members with the Genesis 001 access-policy binding included. Preserve that
+exact source and obtain an independent audit before any execution.
 
 ## Approved Mini App reachability
 

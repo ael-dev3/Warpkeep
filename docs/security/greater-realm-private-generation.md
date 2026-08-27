@@ -23,7 +23,7 @@ pull-request comments, CI artifacts, logs, and public SpacetimeDB tables are not
 private storage.
 
 The two additional density channels and marsh-aware dressing rules are bound by
-living-world authority v4, generator algorithm `.18`, and private atlas format
+living-world authority v4, generator algorithm `.19`, and private atlas format
 8. The terrain-seed
 namespace remains `.3`; a package-layout revision is not permission to reroll
 private world authority.
@@ -83,6 +83,14 @@ The private workspace must:
   groundcovered cells are free of woody density, vegetation/groundcover
   Jaccard overlap exceeds 95%, or the aggregate counts are internally
   impossible;
+- reconstruct support-normalized castle angular sectors from final passable
+  regional geography with exact integer polar ordering, never split a
+  collinear ray across sectors, and retain the unchanged five-sector and 35%
+  maximum-share gates;
+- reconstruct the cool-climate living classification and any open-groundcover
+  correction from final climate/biome fields and the independent groundcover
+  channel; only degree-one woody fringe cells may be cleared, so an interior
+  canopy cannot be quota-carved to satisfy the 1% separation proof;
 - include final elevation, the low-frequency terrace delta, each
   glacial/arid/volcanic/coastal elevation delta, and the corresponding process
   masks/classes in that canonical inventory so
@@ -139,6 +147,12 @@ syncs each removed parent directory. Every checkpoint lifecycle entry first
 inventories and securely finishes any exact owner-only retired UUID directory
 left between the durable rename and deletion by a hard crash; malformed,
 substituted, or special entries fail closed.
+
+The current candidate and package authority is
+`greater-realm-v2-natural-continent-pr-a.19`, while the terrain-seed namespace
+remains `.3`. A `.18` checkpoint or package is not resumable, selectable, or
+publishable under `.19`; rotate an authenticated unaccepted or exhausted `.18`
+checkpoint and begin one fresh owner-private `.19` generation instead.
 
 Natural-composition review derives only coordinate-free scalar summaries and
 five public proof booleans from final private terrain authority. Temporary land,
@@ -443,14 +457,15 @@ remains fatal. Both rejection forms must reproduce exactly. Accepted attempts mu
 reproduce the complete candidate binary, private manifest, chunk and
 topography-patch manifests, marked seed envelopes, and preview set.
 
-Generator `.18` changes only rejection diagnostics. Every Tier-II allocator
-terminal has a frozen typed code, and the bounded gate-apron search separately
-records a complete no-match, node limit, or complete-plan limit. Regional
-hydrogeomorphology also records the failing public region proof alongside its
-umbrella gate. The historical `.17` broad Tier-II code remains allowlisted only
-so an authenticated exhausted ledger can be inspected and retired; `.18` never
-emits it. Terrain channels, thresholds, traversal order, atlas format, and the
-`.3` terrain-seed namespace are unchanged.
+Generator `.19` preserves the `.18` ordinary allocator and adds the bounded
+Lowlands-reserve repair lane only after a complete ordinary no-match. Every
+Tier-II allocator terminal has a frozen typed code, and the bounded gate-apron
+search separately records a complete no-match, node limit, or complete-plan
+limit. Regional hydrogeomorphology also records the failing public region proof
+alongside its umbrella gate. The historical `.17` broad Tier-II code remains
+allowlisted only so an authenticated exhausted ledger can be inspected and
+retired; `.19` never emits it. Terrain channels, thresholds, ordinary traversal
+order, atlas format, and the `.3` terrain-seed namespace are unchanged.
 
 Verification requires exact bytes, bounded sizes, complete inventories,
 authority bindings, and recorded SHA-256 values. Each preview must exactly

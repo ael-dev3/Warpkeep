@@ -40,6 +40,7 @@ import * as AdminPlanInnerKeepCatalogV1Procedure from "../admin_plan_inner_keep_
 import * as AdminPlanProductionPlayerCanaryRoutesV1Procedure from "../admin_plan_production_player_canary_routes_v_1_procedure";
 import * as AdminPlanWorkerRosterV1Procedure from "../admin_plan_worker_roster_v_1_procedure";
 import * as AuthResolverGetFidAdmissionV2Procedure from "../auth_resolver_get_fid_admission_v_2_procedure";
+import * as Genesis001AccessPolicyV1Procedure from "../genesis_001_access_policy_v_1_procedure";
 import * as GetAlphaBackendInfoProcedure from "../get_alpha_backend_info_procedure";
 import * as GetMyAdmissionStatusProcedure from "../get_my_admission_status_procedure";
 import * as GetMyAdmissionStatusV2Procedure from "../get_my_admission_status_v_2_procedure";
@@ -134,6 +135,8 @@ export type AdminPlanWorkerRosterV1Args = __Infer<typeof AdminPlanWorkerRosterV1
 export type AdminPlanWorkerRosterV1Result = __Infer<typeof AdminPlanWorkerRosterV1Procedure.returnType>;
 export type AuthResolverGetFidAdmissionV2Args = __Infer<typeof AuthResolverGetFidAdmissionV2Procedure.params>;
 export type AuthResolverGetFidAdmissionV2Result = __Infer<typeof AuthResolverGetFidAdmissionV2Procedure.returnType>;
+export type Genesis001AccessPolicyV1Args = __Infer<typeof Genesis001AccessPolicyV1Procedure.params>;
+export type Genesis001AccessPolicyV1Result = __Infer<typeof Genesis001AccessPolicyV1Procedure.returnType>;
 export type GetAlphaBackendInfoArgs = __Infer<typeof GetAlphaBackendInfoProcedure.params>;
 export type GetAlphaBackendInfoResult = __Infer<typeof GetAlphaBackendInfoProcedure.returnType>;
 export type GetMyAdmissionStatusArgs = __Infer<typeof GetMyAdmissionStatusProcedure.params>;

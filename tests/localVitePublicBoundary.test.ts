@@ -14,7 +14,6 @@ import {
   WARPKEEP_LOCAL_VITE_FS_DENY,
   warpkeepLocalPublicBoundaryPlugin,
 } from '../scripts/qa-observer/local-vite-fs-deny.mjs';
-// @ts-expect-error Executable ESM scanner exposes immutable marker text.
 import { GREATER_REALM_PRIVATE_MARKER_TEXT } from '../scripts/atlas/greater-realm-private-markers.mjs';
 
 const PRIVATE_MARKER_CASES = (GREATER_REALM_PRIVATE_MARKER_TEXT as readonly string[])

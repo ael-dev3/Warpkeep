@@ -146,6 +146,7 @@ import * as AdminPlanInnerKeepCatalogV1Procedure from "./admin_plan_inner_keep_c
 import * as AdminPlanProductionPlayerCanaryRoutesV1Procedure from "./admin_plan_production_player_canary_routes_v_1_procedure";
 import * as AdminPlanWorkerRosterV1Procedure from "./admin_plan_worker_roster_v_1_procedure";
 import * as AuthResolverGetFidAdmissionV2Procedure from "./auth_resolver_get_fid_admission_v_2_procedure";
+import * as Genesis001AccessPolicyV1Procedure from "./genesis_001_access_policy_v_1_procedure";
 import * as GetAlphaBackendInfoProcedure from "./get_alpha_backend_info_procedure";
 import * as GetMyAdmissionStatusProcedure from "./get_my_admission_status_procedure";
 import * as GetMyAdmissionStatusV2Procedure from "./get_my_admission_status_v_2_procedure";
@@ -900,6 +901,7 @@ const proceduresSchema = __procedures(
   __procedureSchema("admin_plan_production_player_canary_routes_v1", AdminPlanProductionPlayerCanaryRoutesV1Procedure.params, AdminPlanProductionPlayerCanaryRoutesV1Procedure.returnType),
   __procedureSchema("admin_plan_worker_roster_v1", AdminPlanWorkerRosterV1Procedure.params, AdminPlanWorkerRosterV1Procedure.returnType),
   __procedureSchema("auth_resolver_get_fid_admission_v2", AuthResolverGetFidAdmissionV2Procedure.params, AuthResolverGetFidAdmissionV2Procedure.returnType),
+  __procedureSchema("genesis_001_access_policy_v1", Genesis001AccessPolicyV1Procedure.params, Genesis001AccessPolicyV1Procedure.returnType),
   __procedureSchema("get_alpha_backend_info", GetAlphaBackendInfoProcedure.params, GetAlphaBackendInfoProcedure.returnType),
   __procedureSchema("get_my_admission_status", GetMyAdmissionStatusProcedure.params, GetMyAdmissionStatusProcedure.returnType),
   __procedureSchema("get_my_admission_status_v2", GetMyAdmissionStatusV2Procedure.params, GetMyAdmissionStatusV2Procedure.returnType),

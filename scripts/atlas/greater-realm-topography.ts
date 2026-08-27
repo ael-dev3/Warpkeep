@@ -365,6 +365,8 @@ export function deriveGreaterRealmTopography(input: Readonly<{
   geomorphicAridMask: Uint8Array;
   geomorphicVolcanicMask: Uint8Array;
   geomorphicCoastalClass: Uint8Array;
+  /** Final hydrology forbids provisional marsh visuals on cells left dry. */
+  waterRegimeIsAuthoritative?: boolean;
 }>): GreaterRealmDerivedTopography {
   const {
     grid,
@@ -389,6 +391,7 @@ export function deriveGreaterRealmTopography(input: Readonly<{
   } = input;
   const geomorphicHydrologyMoisture = input.geomorphicHydrologyMoisture
     ?? geomorphicMoisture;
+  const waterRegimeIsAuthoritative = input.waterRegimeIsAuthoritative ?? false;
   assertLengths(grid, [
     elevation,
     flowReceiver,
@@ -600,7 +603,12 @@ export function deriveGreaterRealmTopography(input: Readonly<{
     } else if (arid) {
       biomeId[cell] = slope[cell]! < 500 ? BIOME.DUNE_DESERT : slope[cell]! > 1_400 ? BIOME.RED_BADLANDS : BIOME.ROCKY_DESERT;
       landformId[cell] = slope[cell]! < 500 ? LANDFORM.DUNE : slope[cell]! > 1_400 ? LANDFORM.BADLANDS : LANDFORM.HIGHLAND;
-    } else if (saturated && nearFreshwater && slope[cell]! < 650) {
+    } else if (
+      !waterRegimeIsAuthoritative
+      && saturated
+      && nearFreshwater
+      && slope[cell]! < 650
+    ) {
       biomeId[cell] = nearCoast ? BIOME.SALT_MARSH : BIOME.FRESHWATER_MARSH;
       landformId[cell] = LANDFORM.BASIN;
     } else if (high || steep) {
@@ -734,6 +742,13 @@ export function deriveGreaterRealmTopography(input: Readonly<{
           for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
             const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
             if (neighbor < 0 || waterRegime[neighbor] !== WATER_DRY) continue;
+            if (
+              waterRegimeIsAuthoritative
+              && (
+                biomeId[neighbor] === BIOME.FRESHWATER_MARSH
+                || biomeId[neighbor] === BIOME.SALT_MARSH
+              )
+            ) continue;
             if (!isCompatibleBiomeLandformPair(
               WATER_DRY,
               biomeId[neighbor]!,
@@ -804,6 +819,15 @@ export function deriveGreaterRealmTopography(input: Readonly<{
         biomeId[cell]!,
         landformId[cell]!,
       )) incompatibleBiomeLandformPairCount += 1;
+      if (
+        waterRegimeIsAuthoritative
+        && waterRegime[cell] === WATER_DRY
+        && legacyProtectedCell[cell] !== 1
+        && (
+          biomeId[cell] === BIOME.FRESHWATER_MARSH
+          || biomeId[cell] === BIOME.SALT_MARSH
+        )
+      ) fail('GREATER_REALM_TOPOGRAPHY_FINAL_DRY_MARSH_INVALID');
       if (
         waterRegime[cell] === WATER_DRY
         && legacyProtectedCell[cell] !== 1

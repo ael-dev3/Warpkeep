@@ -31,6 +31,8 @@ export type ClaimErrorCode =
 
 export const MAX_PLAYER_SESSION_SECONDS = 10 * 60;
 export const MAX_HERMES_ADMIN_SESSION_SECONDS = 5 * 60;
+/** SpacetimeDB 2.6.1 may round its rewritten WebSocket-token iat up one second. */
+export const MAX_HERMES_ADMIN_CONNECTION_TOKEN_IAT_SKEW_MICROS = 1_000_000n;
 export const MAX_AUTH_EPOCH_RESOLVER_SESSION_SECONDS = 60;
 /** The bridge and module both limit this write-only principal to 15 seconds. */
 export const ACCESS_REQUEST_RESOLVER_ISSUANCE_SECONDS = 15;
@@ -337,7 +339,8 @@ export function readFreshHermesAdminJwt(
   if (
     !isHermesAdminJwt(claims)
     || currentTimeMicros < 0n
-    || currentTimeMicros < BigInt(issuedAt) * 1_000_000n
+    || currentTimeMicros + MAX_HERMES_ADMIN_CONNECTION_TOKEN_IAT_SKEW_MICROS
+      < BigInt(issuedAt) * 1_000_000n
     || expiresAt <= issuedAt
     || expiresAt - issuedAt > MAX_HERMES_ADMIN_SESSION_SECONDS
     || currentTimeMicros >= BigInt(expiresAt) * 1_000_000n

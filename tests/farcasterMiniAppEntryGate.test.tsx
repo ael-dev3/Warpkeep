@@ -162,7 +162,7 @@ describe('FarcasterMiniAppEntryGate', () => {
     expect(callbacks.onRetryAuthentication).toHaveBeenCalledOnce();
   });
 
-  it('keeps a non-admitted player on the manual access-request step', async () => {
+  it('keeps a non-admitted player on a read-only suspended-admission step', async () => {
     const callbacks = actions();
     render(
       <FarcasterMiniAppEntryGate
@@ -179,12 +179,13 @@ describe('FarcasterMiniAppEntryGate', () => {
     );
 
     expect(await screen.findByRole('heading', { name: 'ENTRY NOT YET GRANTED' })).not.toBeNull();
+    expect(screen.getByText(/admissions are temporarily suspended/i)).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'BACK TO MENU' }));
     expect(callbacks.onBackToMenu).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole('button', { name: 'REQUEST ACCESS' }));
-    expect(screen.queryByRole('button', { name: 'CHECK ADMISSION' })).toBeNull();
-    expect(callbacks.onRequestAccess).toHaveBeenCalledTimes(1);
-    expect(callbacks.onRefreshSession).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK ADMISSION' }));
+    expect(callbacks.onRequestAccess).not.toHaveBeenCalled();
+    expect(callbacks.onRefreshSession).toHaveBeenCalledTimes(1);
   });
 
   it('maps root Escape to the Warpkeep menu without signing out', () => {
@@ -210,7 +211,7 @@ describe('FarcasterMiniAppEntryGate', () => {
     expect(callbacks.onRefreshSession).not.toHaveBeenCalled();
   });
 
-  it('keeps an ambiguous Mini App petition sealed while CHECK STATUS reconciles it', async () => {
+  it('does not resume an ambiguous access-request workflow while admission is suspended', async () => {
     const callbacks = actions();
     render(
       <FarcasterMiniAppEntryGate
@@ -226,12 +227,13 @@ describe('FarcasterMiniAppEntryGate', () => {
       />
     );
 
-    expect(await screen.findByText('REQUEST STATUS UNAVAILABLE')).not.toBeNull();
-    expect(screen.getByText(/remains sealed and will not be sent again/i)).not.toBeNull();
+    expect(await screen.findByText(/admissions are temporarily suspended/i)).not.toBeNull();
+    expect(screen.queryByText('REQUEST STATUS UNAVAILABLE')).toBeNull();
     expect(screen.queryByRole('button', { name: 'REQUEST ACCESS' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'CHECK STATUS' }));
-    expect(callbacks.onRetryAccessRequestStatus).toHaveBeenCalledTimes(1);
-    expect(callbacks.onRefreshSession).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'CHECK STATUS' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'CHECK ADMISSION' }));
+    expect(callbacks.onRetryAccessRequestStatus).not.toHaveBeenCalled();
+    expect(callbacks.onRefreshSession).toHaveBeenCalledTimes(1);
     expect(callbacks.onRequestAccess).not.toHaveBeenCalled();
   });
 

@@ -1167,7 +1167,7 @@ function snapshot(status: unknown, audit: unknown): Snapshot {
 }
 
 const FIELD_PATH = /^[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z][A-Za-z0-9_-]*)*$/u;
-const VERIFY_DIGEST = /^(?:[0-9a-f]{64}|sha256-v1:[0-9a-f]{64}:[0-9]+:.*)$/u;
+const VERIFY_DIGEST = /^(?:[0-9a-f]{64}|sha256-v1:[0-9a-f]{64}:[0-9a-f]+:[0-9a-f]*)$/u;
 
 function normalizeExpectedAfterRule(value: unknown): GreaterRealmCutoverExpectedAfterRule {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {

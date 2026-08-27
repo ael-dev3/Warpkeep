@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 
 import { WARPKEEP_BUILD_INFO } from '../../build/buildInfo';
+import { GENESIS_001_PRESERVED_RELEASE_VERSION } from '../../release/realmReleaseIdentity';
 import type { GraphicsPreference } from '../../settings/graphicsPreference';
 import type { RealmQuality } from './realmQuality';
 import {
@@ -78,7 +79,7 @@ export function RealmRendererRecoveryPanel({
       ? 'balanced'
       : 'performance';
   const report = realmRendererSafeDiagnosticReport({
-    version: WARPKEEP_BUILD_INFO.version,
+    version: GENESIS_001_PRESERVED_RELEASE_VERSION,
     buildSha: WARPKEEP_BUILD_INFO.fullSha ?? WARPKEEP_BUILD_INFO.shortSha,
     viewportWidth,
     viewportHeight,
@@ -150,7 +151,7 @@ export function RealmRendererRecoveryPanel({
           <p><b>What you can do:</b> {diagnostic.suggestedAction}</p>
           <p>
             <b>Public build:</b>{' '}
-            ALPHA {WARPKEEP_BUILD_INFO.version} · BUILD {WARPKEEP_BUILD_INFO.shortSha}
+            GENESIS 001 · ALPHA {GENESIS_001_PRESERVED_RELEASE_VERSION} · BUILD {WARPKEEP_BUILD_INFO.shortSha}
           </p>
           <code className="realm-renderer-recovery-panel__report">{report}</code>
           <small>

@@ -60,10 +60,15 @@ const AUTH_V2_CREDENTIAL_PATHS = Object.freeze([
   '/v2/session/logout',
 ]);
 const AUTH_V2_QUICK_AUTH_PATH = '/v2/farcaster/quick-auth/exchange';
+const AUTH_V2_ACCESS_REQUEST_SUBMIT_PATH = '/v2/access/request';
 const AUTH_V2_ACCESS_REQUEST_PATHS = Object.freeze([
   '/v2/access/status',
-  '/v2/access/request',
+  AUTH_V2_ACCESS_REQUEST_SUBMIT_PATH,
 ]);
+const ADMISSION_REQUESTS_SUSPENDED_ERROR = Object.freeze({
+  code: 'admission_requests_suspended',
+  message: 'New admission requests are temporarily suspended.',
+});
 const AUTH_V2_PAUSED_PATHS = new Set([
   ...AUTH_V2_CREDENTIAL_PATHS.slice(0, 3),
   AUTH_V2_QUICK_AUTH_PATH,
@@ -1024,6 +1029,8 @@ async function verifyAuthV2Preflight(
     ? 'content-type, x-warpkeep-expected-fid'
     : 'content-type';
   const paused = !expectedPublicAuthEnabled && AUTH_V2_PAUSED_PATHS.has(pathname);
+  const admissionRequestsSuspended = expectedPublicAuthEnabled
+    && pathname === AUTH_V2_ACCESS_REQUEST_SUBMIT_PATH;
   const label = `bridge ${pathname} ${paused
     ? 'paused check'
     : expectedPublicAuthEnabled
@@ -1052,6 +1059,14 @@ async function verifyAuthV2Preflight(
       'Farcaster sign-in is temporarily paused for security hardening.',
       label,
     );
+  } else if (admissionRequestsSuspended) {
+    const payload = await readExactJsonAtStatus(preflight, label, 503);
+    verifyExactErrorPayload(
+      payload,
+      ADMISSION_REQUESTS_SUSPENDED_ERROR.code,
+      ADMISSION_REQUESTS_SUSPENDED_ERROR.message,
+      label,
+    );
   } else {
     if (preflight.status !== 204 || preflight.headers.has('content-type')) {
       fail(`${label} did not return an empty HTTP 204 response.`);
@@ -1075,6 +1090,14 @@ async function verifyAuthV2Preflight(
       payload,
       'public_auth_paused',
       'Farcaster sign-in is temporarily paused for security hardening.',
+      hostileLabel,
+    );
+  } else if (admissionRequestsSuspended) {
+    const payload = await readExactJsonAtStatus(hostile, hostileLabel, 503);
+    verifyExactErrorPayload(
+      payload,
+      ADMISSION_REQUESTS_SUSPENDED_ERROR.code,
+      ADMISSION_REQUESTS_SUSPENDED_ERROR.message,
       hostileLabel,
     );
   } else {
@@ -1101,6 +1124,8 @@ async function verifyAuthV2BearerPreflight(
     : 'authorization, content-type';
   const paused = !expectedPublicAuthEnabled
     && AUTH_V2_PAUSED_PATHS.has(pathname);
+  const admissionRequestsSuspended = expectedPublicAuthEnabled
+    && pathname === AUTH_V2_ACCESS_REQUEST_SUBMIT_PATH;
   const label = `bridge ${pathname} ${paused
     ? 'paused check'
     : expectedPublicAuthEnabled
@@ -1133,6 +1158,14 @@ async function verifyAuthV2BearerPreflight(
       'Farcaster sign-in is temporarily paused for security hardening.',
       label,
     );
+  } else if (admissionRequestsSuspended) {
+    const payload = await readExactJsonAtStatus(preflight, label, 503);
+    verifyExactErrorPayload(
+      payload,
+      ADMISSION_REQUESTS_SUSPENDED_ERROR.code,
+      ADMISSION_REQUESTS_SUSPENDED_ERROR.message,
+      label,
+    );
   } else if (preflight.status !== 204 || preflight.headers.has('content-type')) {
     fail(`${label} did not return an empty HTTP 204 response.`);
   }
@@ -1159,6 +1192,14 @@ async function verifyAuthV2BearerPreflight(
       payload,
       'public_auth_paused',
       'Farcaster sign-in is temporarily paused for security hardening.',
+      hostileLabel,
+    );
+  } else if (admissionRequestsSuspended) {
+    const payload = await readExactJsonAtStatus(hostile, hostileLabel, 503);
+    verifyExactErrorPayload(
+      payload,
+      ADMISSION_REQUESTS_SUSPENDED_ERROR.code,
+      ADMISSION_REQUESTS_SUSPENDED_ERROR.message,
       hostileLabel,
     );
   } else {

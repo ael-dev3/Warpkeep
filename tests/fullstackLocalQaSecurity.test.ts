@@ -25,7 +25,6 @@ import { hasUsableWarpkeepBridge } from '../src/spacetime/warpkeepConfig';
 import { LOCAL_FULLSTACK_BOOTSTRAP_MODULE_ID, localFullstackBootstrapVitePlugin } from '../scripts/qa-observer/local-fullstack-bootstrap-vite-plugin.mjs';
 // @ts-expect-error The development-only browser probe is an executable ESM module.
 import { dispatchInnerKeepTouchCompatibilityClick, installLocalFullstackSignalCleanup, isAllowedLocalFullstackBrowserUrl, safeBrowserRuntimeExceptionCode } from '../scripts/qa-observer/local-fullstack-browser-probe.mjs';
-// @ts-expect-error The disposable SpacetimeDB launcher is an executable ESM module.
 import { runDisposableLocalFullstackCli, startDisposableLocalFullstackSpacetime, terminateLocalFullstackProcessGroup } from '../scripts/qa-observer/local-fullstack-spacetime.mjs';
 
 const NOW = 1_800_000_000_000;
@@ -1285,12 +1284,12 @@ describe('disposable connected local QA cleanup lifecycle', () => {
   it('accepts only ESRCH as proof that a disposable process group stopped', async () => {
     const stopped = Object.assign(new Error('missing'), { code: 'ESRCH' });
     const unverifiable = Object.assign(new Error('denied'), { code: 'EPERM' });
-    const child = {
+    const child = Object.assign(new EventEmitter(), {
       exitCode: 0,
-      kill: vi.fn(),
+      kill: vi.fn((_signal?: NodeJS.Signals | number) => true),
       pid: 42_100,
       signalCode: null,
-    };
+    });
     const stoppedKill = vi.fn((_pid: number, signal: NodeJS.Signals | 0) => {
       if (signal === 0) throw stopped;
     });

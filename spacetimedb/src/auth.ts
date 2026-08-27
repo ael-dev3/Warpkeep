@@ -26,6 +26,10 @@ import {
 import { evaluateAdmissionEpoch } from './admissionPolicy';
 import { MAX_SUPPORTED_FID } from './config';
 import { assertGenesisFounderForFid } from './foundingAuthority';
+import {
+  Genesis001AccessPolicyError,
+  requireGenesis001PlayerAccessEnabled as enforceGenesis001PlayerAccessEnabled,
+} from './genesis001AccessPolicy';
 import { WARPKEEP_ALPHA_TERMS_VERSION } from './entryAgreementPolicy';
 import {
   currentGreaterRealmActivationRowV1,
@@ -53,8 +57,19 @@ function senderError(error: unknown): never {
   if (error instanceof ClaimValidationError) {
     throw new SenderError(error.code);
   }
+  if (error instanceof Genesis001AccessPolicyError) {
+    throw new SenderError(error.code);
+  }
 
   throw error;
+}
+
+function requireGenesis001PlayerAccessEnabled(): void {
+  try {
+    enforceGenesis001PlayerAccessEnabled();
+  } catch (error) {
+    senderError(error);
+  }
 }
 
 function requireJwtPayload(auth: AuthCtx): unknown {
@@ -211,6 +226,7 @@ export function requireAllowedFid(ctx: WarpkeepReducerContext): {
   allowed: NonNullable<ReturnType<typeof ctx.db.allowedFid.fid.find>>;
 } {
   const claims = requireWarpkeepJwt(ctx);
+  requireGenesis001PlayerAccessEnabled();
   const allowed = ctx.db.allowedFid.fid.find(claims.fid);
   const decision = evaluateAdmissionEpoch(allowed, claims.authEpoch);
 

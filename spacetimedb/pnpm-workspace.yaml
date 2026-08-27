@@ -1,5 +1,6 @@
 packages:
   - '.'
+  - 'genesis002'
   - 'migration-fixtures/*'
 
 allowBuilds:

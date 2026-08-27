@@ -1569,7 +1569,8 @@ export type GreaterRealmVerifiedPrivateShortlistMetrics = Readonly<{
   saltwaterBoundaryBasisPoints: number;
   minimumLargestPassableRegionShareBasisPoints: number;
   maximumMinorPassableFragmentShareBasisPoints: number;
-  maximumPassableBoundaryDensityBasisPoints: number;
+  maximumPassableSemanticInterfaceDensityBasisPoints: number;
+  maximumPassableImmutablePerimeterDensityBasisPoints: number;
   maximumPassableTendrilShareBasisPoints: number;
   throneAnchorBarrierClearance: number;
   gateRouteRedundancyProof: boolean;
@@ -1606,8 +1607,11 @@ function verifiedPrivateShortlistMetrics(
     maximumMinorPassableFragmentShareBasisPoints: Math.max(
       ...privateMetrics.minorPassableFragmentSharesBasisPoints,
     ),
-    maximumPassableBoundaryDensityBasisPoints: Math.max(
-      ...privateMetrics.passableBoundaryDensityBasisPoints,
+    maximumPassableSemanticInterfaceDensityBasisPoints: Math.max(
+      ...privateMetrics.passableSemanticInterfaceDensityBasisPoints,
+    ),
+    maximumPassableImmutablePerimeterDensityBasisPoints: Math.max(
+      ...privateMetrics.passableImmutablePerimeterDensityBasisPoints,
     ),
     maximumPassableTendrilShareBasisPoints: Math.max(
       ...privateMetrics.passableTendrilSharesBasisPoints,

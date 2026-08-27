@@ -1,3 +1,8 @@
+# SUPERSEDED FOR SEALED 0.4.0: every legacy G001 Greater Realm mutation and
+# legacy applicant-listing/admission row below is source-refused before the
+# protected bootstrap, credentials, network, or writes. Historical details are
+# retained for audit; only explicitly read-only inspection rows remain usable.
+#
 # This file is a review copy, not an executable. The supported production
 # invocation supplies these exact bytes from the protected release packet to:
 #   /usr/bin/env -i /bin/sh -c '<EXACT_REVIEWED_TEXT>' warpkeep-production \
@@ -43,6 +48,14 @@ notification_secret=$9
 private_input=${10}
 production_command=${11}
 shift 11
+
+case "$production_command" in
+  import-apply|import-recover|publish|publish-recover|relocation-recover|hermes-list-pending|hermes-admit-dry|hermes-admit-confirm|hermes-allow-dry|hermes-allow-confirm|hermes-notification-recover-dry|hermes-notification-recover-confirm)
+    fail GENESIS_001_LEGACY_GREATER_REALM_PRODUCTION_MUTATION_SEALED ;;
+  relocation)
+    [ "${1-}" = inspect ] \
+      || fail GENESIS_001_LEGACY_GREATER_REALM_PRODUCTION_MUTATION_SEALED ;;
+esac
 
 /usr/bin/python3 -I -S -B -c '
 import re,sys

@@ -15,6 +15,7 @@ import {
   GREATER_REALM_CONNECTED_STATIC_FLIP_COUNT,
   GREATER_REALM_CONNECTED_WORKER_COUNT,
   disposableGreaterRealmRelocationReducerSource,
+  enableDisposableGenesis001AdmissionRehearsal,
   enableDisposableGreaterRealmRelocationGates,
   parseConnectedCutoverStatus,
 } from '../scripts/verify-greater-realm-connected-relocation';
@@ -33,6 +34,10 @@ const runner = readFileSync(
 );
 const policy = readFileSync(
   resolve(root, 'spacetimedb/src/greaterRealmV17Policy.ts'),
+  'utf8',
+);
+const genesis001AccessPolicy = readFileSync(
+  resolve(root, 'spacetimedb/src/genesis001AccessPolicy.ts'),
   'utf8',
 );
 const index = readFileSync(resolve(root, 'spacetimedb/src/index.ts'), 'utf8');
@@ -76,6 +81,32 @@ describe('disposable Greater Realm connected relocation boundary', () => {
     )).toThrow(/missing, duplicated, or malformed/i);
     expect(runner).toContain('parseGreaterRealmConnectedProductionGateMode(');
     expect(runner).toContain("assertGreaterRealmConnectedDisposableGateMode(enabledPolicy, 'TT')");
+  });
+
+  it('opens admission only in the disposable loopback rehearsal copy', () => {
+    expect(genesis001AccessPolicy).toContain('admissionStateMutationsEnabled: false');
+    expect(genesis001AccessPolicy).toContain('accessRequestSubmissionsEnabled: false');
+    const enabled = enableDisposableGenesis001AdmissionRehearsal(
+      genesis001AccessPolicy,
+    );
+    expect(enabled).toContain('admissionStateMutationsEnabled: true');
+    expect(enabled).toContain('accessRequestSubmissionsEnabled: true');
+    expect(enabled).not.toContain('admissionStateMutationsEnabled: false');
+    expect(enabled).not.toContain('accessRequestSubmissionsEnabled: false');
+    expect(() => enableDisposableGenesis001AdmissionRehearsal(enabled))
+      .toThrow(/missing, duplicated, malformed, or already open/i);
+    expect(() => enableDisposableGenesis001AdmissionRehearsal(
+      genesis001AccessPolicy.replace('admissionStateMutationsEnabled: false', ''),
+    )).toThrow(/missing, duplicated, malformed, or already open/i);
+    expect(() => enableDisposableGenesis001AdmissionRehearsal(
+      `${genesis001AccessPolicy}\n  admissionStateMutationsEnabled: false,\n`,
+    )).toThrow(/missing, duplicated, malformed, or already open/i);
+    expect(runner).toContain('const copiedGenesis001AccessPolicyPath = join(');
+    expect(runner).toContain('enableDisposableGenesis001AdmissionRehearsal(');
+    expect(runner).toContain('writeFile(copiedGenesis001AccessPolicyPath');
+    expect(runner).not.toContain('writeFile(productionGenesis001AccessPolicyPath');
+    expect(genesis001AccessPolicy).toContain('admissionStateMutationsEnabled: false');
+    expect(genesis001AccessPolicy).toContain('accessRequestSubmissionsEnabled: false');
   });
 
   it('uses the nine registered production reducers and leaves zero rehearsal exports', () => {
@@ -262,5 +293,9 @@ describe('disposable Greater Realm connected relocation boundary', () => {
     expect(workflow).toContain(
       'timeout --signal=TERM --kill-after=15s 21m npm run stdb:verify-greater-realm-connected-relocation',
     );
+    expect(workflow.indexOf('npm run stdb:verify-admission-cas-rehearsal'))
+      .toBeLessThan(workflow.indexOf(
+        'npm run stdb:verify-greater-realm-connected-relocation',
+      ));
   });
 });
