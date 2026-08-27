@@ -11,9 +11,9 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    # The complete 4,485-test root security suite takes about 9 minutes on the
-    # pinned local runner and can exceed 20 minutes on a cold hosted runner.
-    timeout-minutes: 45
+    # The complete root security suite plus serial signed-closure derivation
+    # can exceed 45 minutes on a cold hosted runner.
+    timeout-minutes: 75
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -120,7 +120,16 @@ jobs:
           npm run verify:file-sizes
 
       - name: Run tests
-        run: npm test -- --maxWorkers=2
+        run: |
+          npm test -- \
+            --exclude tests/authBridgeNotificationPreparedWorkflow.test.ts \
+            --exclude tests/productionPlayerCanaryClosure.test.ts \
+            --maxWorkers=2
+          npm test -- \
+            tests/authBridgeNotificationPreparedWorkflow.test.ts \
+            tests/productionPlayerCanaryClosure.test.ts \
+            --maxWorkers=1 \
+            --testTimeout=180000
 
       - name: Verify the two-phase sealed-launch source state
         run: npm run verify:sealed-launch

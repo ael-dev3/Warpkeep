@@ -26,12 +26,17 @@ import {
 const EXPECTED_CLI_COMMIT = '052c83fe984a4c4eb7bb4f9afa5c6b1903891d87';
 const EXPECTED_LAUNCHER_SHA256 = Object.freeze({
   'darwin-arm64': '4d76214ab1ba1462bd1500739641ec1c8322f99529d899c28612bfa665ccdfc6',
+  // The reviewed Linux archive ships the CLI directly rather than through
+  // the macOS launcher, so the executable and launcher digests are identical.
+  'linux-x64': 'cac13c929049f31cb588c230a0d7fe5f388505b4c64047a68b1d5cfdc811624b',
 });
 const EXPECTED_CLI_BINARY_SHA256 = Object.freeze({
   'darwin-arm64': '2e737ddbbd7d337bb19c8fc22da9de44be4b7b2062146e7f65aa3f298d7994d6',
+  'linux-x64': 'cac13c929049f31cb588c230a0d7fe5f388505b4c64047a68b1d5cfdc811624b',
 });
 const EXPECTED_STANDALONE_BINARY_SHA256 = Object.freeze({
   'darwin-arm64': '15a0965f1deec6b79f67fc04b616fd1a6b8f633301b0cfd2ebb7f961b919a8fa',
+  'linux-x64': 'a9185a737c9b739896c8f51326e1c3aedefba80a0f01def76ce26f358d5c187b',
 });
 const MAXIMUM_CLI_BYTES = 128 * 1_024 * 1_024;
 const MAXIMUM_VERSION_OUTPUT_BYTES = 64 * 1_024;

@@ -83,8 +83,12 @@ export const SEALED_LAUNCH_SOURCE_PATHS = Object.freeze({
     'scripts/genesis002-production-import-operator.ts',
   genesis002TransportSource: 'scripts/genesis002-production-transport.ts',
   genesis002LiveReceiptSource: 'scripts/genesis002-sealed-live-receipt.mjs',
+  genesis002ActivationReceiptsSource:
+    'scripts/genesis002-activation-receipts.mjs',
   genesis002PrivateLoopbackSource:
     'scripts/genesis002-private-loopback-verifier.ts',
+  activationGeneratorSource:
+    'scripts/generate-0.4.0-sealed-launch-activation.mjs',
   atlasContractSource: 'scripts/atlas/greater-realm-contracts.ts',
   atlasRuntimeReleaseSource: 'scripts/atlas/greater-realm-runtime-release.ts',
   atlasCliSource: 'scripts/atlas/greater-realm-cli.ts',
@@ -598,12 +602,48 @@ function verifyGenesis002Policy(sources) {
     'SEALED_LAUNCH_G002_PUBLISHER_ENVIRONMENT_INVALID',
   );
   for (const token of [
+    "export { genesis002PublishReceiptDigest } from './genesis002-activation-receipts.mjs';",
+    'publishReceiptDigest: genesis002PublishReceiptDigest(receipt),',
+  ]) requireOnce(
+    sources.genesis002PublisherCoreSource.replaceAll('\n', ' '),
+    token,
+    'SEALED_LAUNCH_G002_PUBLISH_RECEIPT_INVALID',
+  );
+  for (const token of [
+    'export function genesis002PublishReceiptDigest(receipt)',
+    'warpkeep.genesis-002.production-publish-receipt.v1\\n',
+    'export function genesis002ProductionImportReceiptDigest(receipt)',
+    'warpkeep.genesis-002.production-import-receipt.v1\\n',
+    'Object.is(receipt.operationsSubmitted, -0)',
+    "(receipt.outcome === 'already-ready')",
+    '!== (receipt.operationsSubmitted === 0)',
+    'export function genesis002SealedLiveReceiptDigest(receipt)',
+    'warpkeep.genesis-002.sealed-live-receipt.v1\\n',
+  ]) requireOnce(
+    sources.genesis002ActivationReceiptsSource,
+    token,
+    'SEALED_LAUNCH_G002_ACTIVATION_RECEIPTS_INVALID',
+  );
+  for (const token of [
+    'descriptor.enumerable !== true',
+    "receipt.profile !== 'warpkeep-genesis-002-sealed-live-v1'",
+    "receipt.atlasState !== 'ready'",
+    'receipt[field] !== 0 || Object.is(receipt[field], -0)',
+    'receipt.admissionNotificationsEnabled !== false',
+  ]) {
+    if (!sources.genesis002ActivationReceiptsSource.includes(token)) {
+      fail('SEALED_LAUNCH_G002_ACTIVATION_RECEIPTS_INVALID');
+    }
+  }
+  for (const token of [
     'WARPKEEP_SPACETIME_CLI_CONFIG_PATH',
     'takeGenesis002ProductionAdminSecret',
     'attestGreaterRealmProductionProtectedMain',
     'verifyGenesis002FreshPublishStatus',
     'cliConfigSourcePath: local.cliConfigSourcePath',
     'spacetimeCliConfigSha256: artifact.spacetimeCliConfigSha256',
+    'publishReceipt: receipt,',
+    'publishReceiptDigest: receipt.publishReceiptDigest,',
     'environment.WARPKEEP_SPACETIMEDB_URI !== undefined',
     'environment.WARPKEEP_SPACETIMEDB_DATABASE !== undefined',
   ]) {
@@ -626,6 +666,14 @@ function verifyGenesis002Policy(sources) {
       fail('SEALED_LAUNCH_G002_IMPORT_CORE_INVALID');
     }
   }
+  for (const token of [
+    "export { genesis002ProductionImportReceiptDigest } from './genesis002-activation-receipts.mjs';",
+    'importReceiptDigest: genesis002ProductionImportReceiptDigest(receipt),',
+  ]) requireOnce(
+    sources.genesis002ImportCoreSource.replaceAll('\n', ' '),
+    token,
+    'SEALED_LAUNCH_G002_IMPORT_RECEIPT_INVALID',
+  );
   for (const reducer of [
     'admin_stage_greater_realm_release_v1',
     'admin_import_greater_realm_components_v1',
@@ -644,6 +692,7 @@ function verifyGenesis002Policy(sources) {
     'attestGreaterRealmProductionSourceAncestry',
     'GENESIS_002_PRODUCTION_IMPORT_MODULE_BINDING_MISMATCH',
     'verifyGenesis002SealedLiveStatus',
+    'importReceiptDigest: receipt.importReceiptDigest',
     "activationWrites: 'none'",
     "publicRootWrites: 'none'",
     ':MANUAL_RECONCILIATION_REQUIRED',
@@ -678,6 +727,7 @@ function verifyGenesis002Policy(sources) {
     'workerSystemRows: 0',
     'GENESIS_002_LIVE_TARGET_COLLIDES_WITH_GENESIS_001',
     "status.atlasId !== 'GENESIS_002_GREATER_REALM'",
+    'receiptDigest: genesis002SealedLiveReceiptDigest(receipt)',
   ]) {
     if (!sources.genesis002LiveReceiptSource.includes(token)) {
       fail('SEALED_LAUNCH_G002_LIVE_RECEIPT_INVALID');
@@ -730,6 +780,18 @@ function verifyGenesis002Policy(sources) {
     sources.verifyWorkflowSource,
     'npm run stdb:genesis002:verify-private-loopback',
     'SEALED_LAUNCH_G002_PRIVATE_LOOPBACK_WORKFLOW_INVALID',
+  );
+  for (const token of [
+    '--exclude tests/authBridgeNotificationPreparedWorkflow.test.ts',
+    '--exclude tests/productionPlayerCanaryClosure.test.ts',
+    'npm test -- \\\n            tests/authBridgeNotificationPreparedWorkflow.test.ts',
+    'tests/productionPlayerCanaryClosure.test.ts \\\n            --maxWorkers=1',
+    '--maxWorkers=1 \\\n            --testTimeout=180000',
+    '--testTimeout=180000',
+  ]) requireOnce(
+    sources.verifyWorkflowSource,
+    token,
+    'SEALED_LAUNCH_CLOSURE_TEST_LANE_INVALID',
   );
 }
 
@@ -1280,6 +1342,51 @@ function verifyStaticSources(sources) {
   verifyGenesis001AdmissionMonitorSuspension(sources);
   verifyGenesis001LegacyGreaterRealmProductionSeal(sources);
   verifyGenesis002Policy(sources);
+  for (const token of [
+    'createSealedLaunchActivationBindingFromEvidence',
+  ]) {
+    if (!sources.activationGeneratorSource.includes(token)) {
+      fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INVALID');
+    }
+  }
+  for (const token of [
+    'export function generateSealedLaunchActivationBindingFromDescriptor(',
+    '(named.mode & 0o7777n) !== 0o600n',
+    "new TextDecoder('utf-8', { fatal: true })",
+    'JSON.stringify(envelope, null, 2)',
+    'bytes?.fill(0)',
+    'warpkeep-0.4.0-sealed-launch-activation-evidence-v1',
+    'G002_DERIVED_BINDING_KEYS.some(key => candidate[key] !== null)',
+    'genesis002PublishReceiptDigest(publishReceipt)',
+    'genesis002ProductionImportReceiptDigest(',
+    'genesis002SealedLiveReceiptDigest(sealedLive)',
+    'publish.databaseIdentity !== atlasImport.databaseIdentity',
+    'publish.sourceCommit !== atlasImport.atlasSourceCommit',
+    'atlasImport.publicReleaseId !== sealedLive.publicReleaseId',
+    'g002DatabaseIdentity: publish.databaseIdentity',
+    'g002AllowedFids: sealedLive.allowedFids',
+    'g002AtlasReady: sealedLive.atlasState === \'ready\'',
+    'g002PresentationEnabled: sealedLive.playerPresentationEnabled',
+    'admissionNotificationsEnabled: sealedLive.admissionNotificationsEnabled',
+    'createSealedLaunchActivationBinding(binding)',
+  ]) requireOnce(
+    sources.activationGeneratorSource,
+    token,
+    'SEALED_LAUNCH_ACTIVATION_GENERATOR_INVALID',
+  );
+  requireAbsent(
+    sources.activationGeneratorSource,
+    ['readFileSync', 'writeFileSync', 'process.env'],
+    'SEALED_LAUNCH_ACTIVATION_GENERATOR_INVALID',
+  );
+  const packageJson = parseJson(
+    sources.packageJson,
+    'SEALED_LAUNCH_PACKAGE_INVALID',
+  );
+  if (
+    packageJson?.scripts?.['generate:sealed-launch:activation']
+      !== 'node scripts/generate-0.4.0-sealed-launch-activation.mjs'
+  ) fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INVALID');
   verifyClosedPresentationAndNotifications(sources);
   verifyPlayerFacingSealedRealmRelease(sources);
   verifyAdmissionRequestSuspensionBoundary(sources);
@@ -1370,6 +1477,10 @@ function verifyActivationBinding(binding) {
     || binding.g002AtlasActivationMutationsEnabled !== false
     || binding.g002PlayerAccessEnabled !== false
     || binding.g002AdmissionMutationsEnabled !== false
+    || binding.g002PresentationEnabled !== false
+    || binding.legacyGreaterRealmClientPresentationEnabled !== false
+    || binding.legacyGreaterRealmServerPresentationEnabled !== false
+    || binding.admissionNotificationsEnabled !== false
   ) fail('SEALED_LAUNCH_ACTIVATION_BINDING_INVALID');
   for (const commitmentKey of Object.keys(RECEIPT_COMMITMENT_DIGESTS)) {
     if (
@@ -1378,6 +1489,32 @@ function verifyActivationBinding(binding) {
         !== sealedLaunchReceiptCommitment(commitmentKey, binding)
     ) fail('SEALED_LAUNCH_RECEIPT_COMMITMENT_INVALID');
   }
+}
+
+/**
+ * Fill every release-wide commitment from one exact, privacy-safe activation
+ * candidate. Commitment slots must be null so reviewed evidence can never be
+ * silently replaced by a caller-provided value.
+ */
+export function createSealedLaunchActivationBinding(candidate) {
+  requireExactKeys(
+    candidate,
+    BINDING_KEYS,
+    'SEALED_LAUNCH_ACTIVATION_CANDIDATE_INVALID',
+  );
+  const commitmentKeys = Object.keys(RECEIPT_COMMITMENT_DIGESTS);
+  if (commitmentKeys.some(key => candidate[key] !== null)) {
+    fail('SEALED_LAUNCH_ACTIVATION_CANDIDATE_INVALID');
+  }
+  const binding = { ...candidate };
+  for (const commitmentKey of commitmentKeys) {
+    binding[commitmentKey] = sealedLaunchReceiptCommitment(
+      commitmentKey,
+      binding,
+    );
+  }
+  verifyActivationBinding(binding);
+  return Object.freeze(binding);
 }
 
 export function verifySealedLaunchSources(sources, requestedPhase = 'checked-in') {

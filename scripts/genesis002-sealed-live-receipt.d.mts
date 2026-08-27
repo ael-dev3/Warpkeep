@@ -10,6 +10,7 @@ export const GENESIS_002_SEALED_LIVE_PROFILE:
 export class Genesis002SealedLiveReceiptError extends Error {
   readonly code: string;
 }
+export function genesis002SealedLiveReceiptDigest(receipt: unknown): string;
 export function parseGenesis002SealedLiveArguments(
   values: readonly string[],
 ): Readonly<{

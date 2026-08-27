@@ -69,3 +69,19 @@ condition = "AND"
 regexTarget = "secret"
 regexes = ['''^g002AdmissionMutationsEnabled$''']
 paths = ['''^scripts/verify-0\.4\.0-sealed-launch\.mjs$''']
+
+[[allowlists]]
+description = "Non-secret sealed-launch boolean schema key in the activation envelope"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^g002AdmissionMutationsEnabled$''']
+paths = ['''^scripts/generate-0\.4\.0-sealed-launch-activation\.mjs$''']
+
+[[allowlists]]
+description = "Non-secret sealed-launch receipt digest schema key in a test fixture"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^g002PublishReceiptDigest$''']
+paths = ['''^tests/sealedLaunchActivationGenerator\.test\.ts$''']

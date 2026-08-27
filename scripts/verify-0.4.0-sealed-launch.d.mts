@@ -16,6 +16,10 @@ export function sealedLaunchReceiptCommitment(
   binding: Readonly<Record<string, unknown>>,
 ): string;
 
+export function createSealedLaunchActivationBinding(
+  candidate: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>>;
+
 export function verifySealedLaunchActivationHistory(input: Readonly<{
   bindingSource: string;
   candidateActivationCommit: string;

@@ -289,6 +289,7 @@ export async function executeGenesis002ProductionImportOperator(input: Readonly<
       adminSecret = '';
       return Object.freeze({
         importReceipt: receipt,
+        importReceiptDigest: receipt.importReceiptDigest,
         sealedLiveReceipt: live.receipt,
         sealedLiveReceiptDigest: live.receiptDigest,
         privacySafe: true,

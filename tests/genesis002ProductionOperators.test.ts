@@ -405,13 +405,35 @@ describe('Genesis 002 top-level production operators', () => {
       profile: 'warpkeep-genesis-002-fresh-publish-v1',
       zeroPopulationBoundary: true,
     }));
+    const publishReceipt = Object.freeze({
+      schemaVersion: 1 as const,
+      profile: 'warpkeep-genesis-002-production-publish-v1' as const,
+      databaseIdentity: DATABASE_IDENTITY,
+      database: 'warpkeep-genesis-002' as const,
+      moduleIdentity: 'warpkeep-genesis-002-sealed-v1' as const,
+      sourceCommit: MODULE_COMMIT,
+      moduleSha256: MODULE_SHA256,
+      moduleTreeId: MODULE_TREE_ID,
+      dependencyClosureDigest: DEPENDENCY_DIGEST,
+      spacetimeExecutableSha256: SPACETIME_DIGEST,
+      spacetimeCliConfigSha256: CLI_CONFIG_DIGEST,
+      deleteData: 'never' as const,
+      outcome: 'verified' as const,
+      freshStatusDigest: 'a'.repeat(64),
+      playerAccessEnabled: false as const,
+      admissionMutationsEnabled: false as const,
+      atlasImportMutationsEnabled: true as const,
+      atlasActivationMutationsEnabled: false as const,
+      playerPresentationEnabled: false as const,
+      publishReceiptDigest: 'b'.repeat(64),
+    });
     const executePublish = vi.fn(async input => {
       expect(input.artifactPath).toBe('/dev/fd/3');
       expect(input.artifactDescriptor).toBe(3);
       expect(input.childEnvironment).toEqual({ PATH: '/usr/bin:/bin' });
       const fresh = await input.postflight(DATABASE_IDENTITY);
       expect(fresh).toMatchObject({ zeroPopulationBoundary: true });
-      return { profile: 'warpkeep-genesis-002-production-publish-v1' };
+      return publishReceipt;
     });
     const confirmationDigest = genesis002PublishConfirmationDigest({
       sourceCommit: MODULE_COMMIT,
@@ -421,7 +443,7 @@ describe('Genesis 002 top-level production operators', () => {
       spacetimeExecutableSha256: SPACETIME_DIGEST,
       spacetimeCliConfigSha256: CLI_CONFIG_DIGEST,
     });
-    await expect(executeGenesis002ProductionPublisherCli({
+    const result = await executeGenesis002ProductionPublisherCli({
       arguments: ['publish', `--confirm=${confirmationDigest}`],
       environment,
       attestProtectedMain: () => MODULE_COMMIT,
@@ -442,10 +464,41 @@ describe('Genesis 002 top-level production operators', () => {
         createTransport: createTransport as never,
         verifyFreshStatus,
       },
-    })).resolves.toMatchObject({
+    });
+    expect(result).toMatchObject({
       profile: 'warpkeep-genesis-002-production-publish-v1',
+      publishReceiptDigest: 'b'.repeat(64),
       zeroPopulationPostflight: true,
     });
+    expect(Object.keys(
+      result.publishReceipt as Readonly<Record<string, unknown>>,
+    )).toEqual([
+      'schemaVersion',
+      'profile',
+      'databaseIdentity',
+      'database',
+      'moduleIdentity',
+      'sourceCommit',
+      'moduleSha256',
+      'moduleTreeId',
+      'dependencyClosureDigest',
+      'spacetimeExecutableSha256',
+      'spacetimeCliConfigSha256',
+      'deleteData',
+      'outcome',
+      'freshStatusDigest',
+      'playerAccessEnabled',
+      'admissionMutationsEnabled',
+      'atlasImportMutationsEnabled',
+      'atlasActivationMutationsEnabled',
+      'playerPresentationEnabled',
+      'publishReceiptDigest',
+    ]);
+    expect(result.publishReceipt).toEqual(publishReceipt);
+    expect(result.publishReceiptDigest).toBe(
+      (result.publishReceipt as { publishReceiptDigest: string })
+        .publishReceiptDigest,
+    );
     expect(environment).not.toHaveProperty('WARPKEEP_ADMIN_TOKEN_SECRET');
     expect(executePublish).toHaveBeenCalledTimes(1);
     expect(verifyFreshStatus).toHaveBeenCalledTimes(1);
@@ -477,19 +530,26 @@ describe('Genesis 002 top-level production operators', () => {
       attestProtectedMain: () => MODULE_COMMIT,
       dependencies: seam.dependencies as never,
     });
-    await expect(operation).resolves.toMatchObject({
+    const result = await operation;
+    expect(result).toMatchObject({
       importReceipt: {
         outcome: 'ready',
         atlasId: 'GENESIS_002_GREATER_REALM',
         zeroPopulationBoundary: true,
         activationMutationsEnabled: false,
         atlasWritesClosedByFinalization: true,
+        importReceiptDigest: expect.stringMatching(/^[0-9a-f]{64}$/u),
       },
+      importReceiptDigest: expect.stringMatching(/^[0-9a-f]{64}$/u),
       sealedLiveReceiptDigest: '9'.repeat(64),
       privacySafe: true,
       activationWrites: 'none',
       publicRootWrites: 'none',
     });
+    expect(result.importReceiptDigest).toBe(
+      (result.importReceipt as { importReceiptDigest: string })
+        .importReceiptDigest,
+    );
     expect(new Set(transport.reducers)).toEqual(new Set(
       Object.values(GENESIS_002_PRODUCTION_IMPORT_REDUCERS),
     ));

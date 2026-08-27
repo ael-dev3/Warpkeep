@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   GENESIS_002_SEALED_LIVE_TARGET,
+  genesis002SealedLiveReceiptDigest,
   parseGenesis002SealedLiveArguments,
   verifyGenesis002FreshPublishStatus,
   verifyGenesis002SealedLiveStatus,
@@ -182,6 +183,34 @@ describe('Genesis 002 sealed live receipt', () => {
     });
     expect(result.receipt).not.toHaveProperty('publicApprovalReceiptId');
     expect(result.receiptDigest).toMatch(/^[0-9a-f]{64}$/u);
+  });
+
+  it('recomputes only the exact ordered sealed-live receipt schema', () => {
+    const result = verifyGenesis002SealedLiveStatus(input());
+    expect(genesis002SealedLiveReceiptDigest(result.receipt)).toBe(
+      '36026daf8b85fbb0163c0400974e0725898294b78223a1d6e3d3e07dab780900',
+    );
+    expect(result.receiptDigest).toBe(
+      '36026daf8b85fbb0163c0400974e0725898294b78223a1d6e3d3e07dab780900',
+    );
+    expect(() => genesis002SealedLiveReceiptDigest(
+      Object.fromEntries(Object.entries(result.receipt).reverse()),
+    )).toThrow('GENESIS_002_SEALED_LIVE_RECEIPT_INVALID');
+    const { databaseIdentity: _databaseIdentity, ...missing } = result.receipt;
+    expect(() => genesis002SealedLiveReceiptDigest(missing))
+      .toThrow('GENESIS_002_SEALED_LIVE_RECEIPT_INVALID');
+    expect(() => genesis002SealedLiveReceiptDigest({
+      ...result.receipt,
+      futureAdmissionAuthority: false,
+    })).toThrow('GENESIS_002_SEALED_LIVE_RECEIPT_INVALID');
+    expect(() => genesis002SealedLiveReceiptDigest({
+      ...result.receipt,
+      databaseIdentity: [IDENTITY],
+    })).toThrow('GENESIS_002_SEALED_LIVE_RECEIPT_INVALID');
+    expect(() => genesis002SealedLiveReceiptDigest({
+      ...result.receipt,
+      allowedFids: -0,
+    })).toThrow('GENESIS_002_SEALED_LIVE_RECEIPT_INVALID');
   });
 
   it('rejects wrong target, source, population, activation, or unfinished atlas', () => {

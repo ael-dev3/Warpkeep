@@ -26,7 +26,7 @@ const MEMBER_PATH = /^(?:docs\/operations\/greater-realm-production-launch-envel
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
 const MAX_MANIFEST_BYTES = 256 * 1_024;
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
-const MAX_MEMBERS = 952;
+const MAX_MEMBERS = 956;
 const MANIFEST_KEYS = Object.freeze(['schemaVersion', 'profile', 'members']);
 const MEMBER_KEYS = Object.freeze(['path', 'digestProfile', 'sha256']);
 const RAW_FILE_DIGEST_PROFILE = 'raw-file-sha256-v1';
@@ -232,6 +232,8 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/entry-agreement-policy.mjs',
     'scripts/farcaster-miniapp-contract.mjs',
     'scripts/founder-admission-authority.ts',
+    'scripts/generate-0.4.0-sealed-launch-activation.d.mts',
+    'scripts/generate-0.4.0-sealed-launch-activation.mjs',
     'scripts/genesis001-admission-monitor-suspension.ts',
     'scripts/genesis001-census-privacy-safe-receipt.d.mts',
     'scripts/genesis001-census-privacy-safe-receipt.mjs',
@@ -240,6 +242,8 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/genesis001-frozen-publisher-core.ts',
     'scripts/genesis001-frozen-publisher-runtime.ts',
     'scripts/genesis001-frozen-publisher.ts',
+    'scripts/genesis002-activation-receipts.d.mts',
+    'scripts/genesis002-activation-receipts.mjs',
     'scripts/genesis002-private-loopback-verifier.ts',
     'scripts/genesis002-production-import-core.ts',
     'scripts/genesis002-production-import-operator.ts',

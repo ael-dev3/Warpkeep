@@ -130,17 +130,20 @@ state, and do not run any admit/allow mutation.
 ## Phase 3: deploy and prove the auth-bridge request kill switch
 
 Deploy the reviewed auth-bridge source whose production-default kill switch is
-true. Then run the direct live probe:
+true. Before the activation binding exists, run the implementation's direct
+live probe without a binding argument:
 
 ```sh
-npm run verify:admission-request-suspension
+node scripts/verify-admission-request-suspension.mjs --bridge=https://auth.warpkeep.com
 ```
 
 It must observe both `POST` and browser `OPTIONS` on
 `https://auth.warpkeep.com/v2/access/request` returning exact 503 JSON with
 code `admission_requests_suspended`, no redirect, and the expected CORS/content
 type. Read-only `/v2/access/status` preflight must remain 204. Bind the probe's
-privacy-safe receipt digest and exact auth-bridge source commit.
+privacy-safe receipt digest and exact auth-bridge source commit. The
+`npm run verify:admission-request-suspension` alias also verifies the checked-in
+binding, so use that alias only after the activation binding has been generated.
 
 ## Phase 4: publish a fresh, private Genesis 002 module
 
@@ -177,6 +180,12 @@ Publication is one-shot. Require the returned full G002 identity, identity-bound
 fresh zero status, no atlas, no activation/public roots/Worker rows, and false
 player presentation. If the process reports a possibly submitted error, stop
 and perform fresh read-only manual reconciliation; never rerun publish.
+
+The successful apply result emits `publishReceiptDigest`. Bind that exact field
+as `g002PublishReceiptDigest`; it is derived from the strict canonical publish
+receipt under the domain (including its trailing newline)
+`warpkeep.genesis-002.production-publish-receipt.v1\n`. Never hash or otherwise
+derive a binding from the publisher's pretty-printed CLI stdout.
 
 ## Phase 5: import and finalize the exact G002 atlas
 
@@ -223,6 +232,12 @@ As with publish, a possibly submitted error stops the operation and requires
 fresh read-only reconciliation. Do not blindly retry or manually advance a
 cursor.
 
+The successful apply result emits `importReceiptDigest`. Bind that exact field
+as `g002AtlasImportReceiptDigest`; it is derived from the strict canonical
+import receipt under the domain (including its trailing newline)
+`warpkeep.genesis-002.production-import-receipt.v1\n`. Never hash or otherwise
+derive a binding from the import operator's pretty-printed CLI stdout.
+
 ## Phase 6: final local and live gates
 
 From exact clean protected main, require all of the following before changing
@@ -258,6 +273,51 @@ reviewed successor that atomically:
 4. proves the preparation commit and frozen G001 baseline are ancestors;
 5. retains all G002, legacy presentation, and notification gates false; and
 6. sets `pagesDeploymentApproved: true`.
+
+Construct one private activation evidence envelope in this exact key order:
+
+1. `schemaVersion` with exact value `1`;
+2. `profile` with exact value
+   `warpkeep-0.4.0-sealed-launch-activation-evidence-v1`;
+3. `bindingCandidate` in the exact checked-in binding key order, with the G001
+   and admission-suspension evidence filled but every field from
+   `g002PublishReceiptDigest` through `admissionNotificationsEnabled` still
+   `null`;
+4. `g002PublishReceipt`, copied from the successful publisher CLI result's
+   exact nested `publishReceipt` object, including its final
+   `publishReceiptDigest` field; require that nested digest to equal the
+   result's top-level `publishReceiptDigest` and do not include the flattened
+   compatibility or operational-extra fields;
+5. `g002AtlasImportReceipt`, the exact nested import receipt including its
+   final `importReceiptDigest` field (which must equal the operator result's
+   top-level `importReceiptDigest`);
+6. `g002SealedLiveReceipt`, the exact final sealed-live receipt; and
+7. `g002SealedLiveReceiptDigest`, the digest emitted alongside that receipt.
+
+Do not prefill a G2 binding value and do not hash pretty CLI output. The
+generator recomputes each strict, domain-separated receipt digest, requires the
+supplied digest to match, cross-links the G2 database/module/artifact/atlas/
+release/zero-state/readiness/mutation/presentation/notification evidence, then
+derives all G2 binding fields and all nine commitments. Missing, extra,
+reordered, swapped, stale, or individually valid but mutually inconsistent
+receipts are rejected.
+
+Store the envelope as canonical pretty JSON with one trailing newline in a
+regular, owner-owned, single-link file with mode 0600 (and no more than 32 KiB).
+Generate the public binding only through the reviewed generator:
+
+```sh
+chmod 0600 "$WK_ACTIVATION_EVIDENCE"
+npm run generate:sealed-launch:activation \
+  < "$WK_ACTIVATION_EVIDENCE" \
+  > "$WK_ACTIVATION_BINDING"
+```
+
+The generator emits only the canonical public binding; it never emits the
+private evidence envelope. Review the generated binding, then place that exact
+output at `config/releases/0.4.0-sealed-launch.json`. The activation successor
+must change only that binding plus `package.json` and `package-lock.json`; any
+other changed path blocks activation review.
 
 Require `npm run verify:sealed-launch:activation` on the exact activation
 commit. Pages must repeat that verifier and the direct live auth-bridge probe

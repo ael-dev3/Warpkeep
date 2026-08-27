@@ -1,4 +1,10 @@
-import { createHash } from 'node:crypto';
+import {
+  genesis002SealedLiveReceiptDigest,
+} from './genesis002-activation-receipts.mjs';
+
+export {
+  genesis002SealedLiveReceiptDigest,
+} from './genesis002-activation-receipts.mjs';
 
 export const GENESIS_002_SEALED_LIVE_TARGET = Object.freeze({
   uri: 'https://maincloud.spacetimedb.com',
@@ -412,10 +418,6 @@ export function verifyGenesis002ImportRealmBoundary(input) {
   });
 }
 
-function canonicalJson(value) {
-  return `${JSON.stringify(value)}\n`;
-}
-
 export function verifyGenesis002SealedLiveStatus(input) {
   requireIdentityInput(input);
   const realm = verifyRealmStatus(input, input.realmStatusValue);
@@ -472,10 +474,7 @@ export function verifyGenesis002SealedLiveStatus(input) {
   });
   return Object.freeze({
     receipt,
-    receiptDigest: createHash('sha256')
-      .update('warpkeep.genesis-002.sealed-live-receipt.v1\n')
-      .update(canonicalJson(receipt))
-      .digest('hex'),
+    receiptDigest: genesis002SealedLiveReceiptDigest(receipt),
   });
 }
 

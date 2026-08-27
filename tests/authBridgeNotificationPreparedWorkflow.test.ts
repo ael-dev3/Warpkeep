@@ -707,6 +707,21 @@ describe('notification-bridge-prepared protected workflow', () => {
   });
 
   it('pins Node for both full root security-suite jobs', () => {
+    const fullRootSuiteCommands = new Set([
+      'npm test -- --maxWorkers=2',
+      [
+        'npm test -- \\',
+        '  --exclude tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
+        '  --exclude tests/productionPlayerCanaryClosure.test.ts \\',
+        '  --maxWorkers=2',
+        'npm test -- \\',
+        '  tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
+        '  tests/productionPlayerCanaryClosure.test.ts \\',
+        '  --maxWorkers=1 \\',
+        '  --testTimeout=180000',
+        '',
+      ].join('\n'),
+    ]);
     const verifyDocument = parse(readFileSync(
       resolve(repositoryRoot, '.github/workflows/verify.yml'),
       'utf8',
@@ -717,7 +732,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     const documents = [verifyDocument, pagesDocument];
     const fullSuiteJobs = documents.flatMap(document => (
       Object.values(document.jobs ?? {}).filter(job => job.steps?.some(
-        candidate => candidate.run === 'npm test -- --maxWorkers=2',
+        candidate => fullRootSuiteCommands.has(candidate.run ?? ''),
       ))
     ));
     expect(fullSuiteJobs).toHaveLength(2);
@@ -820,7 +835,7 @@ describe('notification-bridge-prepared protected workflow', () => {
         guardedRecoveryRequired: true,
         privateReceiptSinkRequired: true,
         installedToolchainByteAttestationRequired: true,
-        executableSecurityClosureMemberCount: 952,
+        executableSecurityClosureMemberCount: 956,
       });
   }, 60_000);
 
@@ -838,7 +853,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     });
     expect(paths).toEqual(manifest.members.map(member => member.path));
     expect(manifest.schemaVersion).toBe(2);
-    expect(paths).toHaveLength(952);
+    expect(paths).toHaveLength(956);
     expect(paths).toEqual(expect.arrayContaining([
       'scripts/auth-bridge-notification-prepared-deploy.mjs',
       'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
@@ -912,7 +927,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       repositoryRoot: root,
     })).toMatchObject({
         profile: 'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1',
-        memberCount: 952,
+        memberCount: 956,
         manifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
       });
   }, 90_000);

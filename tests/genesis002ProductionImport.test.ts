@@ -8,6 +8,7 @@ import {
   GENESIS_002_PRODUCTION_IMPORT_REDUCERS,
   GENESIS_002_PRODUCTION_IMPORT_TARGET,
   executeGenesis002ProductionImport,
+  genesis002ProductionImportReceiptDigest,
   parseGenesis002ProductionImportArguments,
   projectGenesis002ProductionImportStatus,
 } from '../scripts/genesis002-production-import-core';
@@ -17,6 +18,33 @@ const SHA = 'a'.repeat(64);
 const COMMIT = 'b'.repeat(40);
 const RELEASE_ID = `GRR-${'A'.repeat(26)}`;
 const APPROVAL_ID = `GRA-${'B'.repeat(26)}`;
+
+function importReceipt() {
+  return {
+    schemaVersion: 1,
+    profile: 'warpkeep.genesis-002.production-import.v1',
+    outcome: 'ready',
+    databaseIdentity: SHA,
+    moduleIdentity: 'warpkeep-genesis-002-sealed-v1',
+    moduleSourceCommit: COMMIT,
+    moduleSha256: SHA,
+    moduleTreeId: COMMIT,
+    dependencyClosureDigest: SHA,
+    spacetimeExecutableSha256: SHA,
+    atlasId: 'GENESIS_002_GREATER_REALM',
+    atlasSourceCommit: COMMIT,
+    publicReleaseId: RELEASE_ID,
+    expectedReleaseSha256: SHA,
+    verificationDigest: 'c'.repeat(64),
+    importEpoch: '1',
+    operationsSubmitted: 16,
+    operationChainDigest: 'd'.repeat(64),
+    zeroPopulationBoundary: true,
+    activationMutationsEnabled: false,
+    playerPresentationEnabled: false,
+    atlasWritesClosedByFinalization: true,
+  } as const;
+}
 
 function artifacts(): GreaterRealmRuntimeReleaseArtifacts {
   const manifest = {
@@ -214,6 +242,57 @@ function fakeTransport(ambiguousAfterFirstWrite = false) {
 }
 
 describe('Genesis 002 production atlas import boundary', () => {
+  it('pins the exact domain-separated import receipt digest', () => {
+    expect(genesis002ProductionImportReceiptDigest(importReceipt())).toBe(
+      '36c643635e88e873f4073feb582f857ff59036bcd8b77f460d41596bb4de7ceb',
+    );
+    expect(genesis002ProductionImportReceiptDigest({
+      ...importReceipt(),
+      operationChainDigest: 'e'.repeat(64),
+    })).not.toBe(
+      '36c643635e88e873f4073feb582f857ff59036bcd8b77f460d41596bb4de7ceb',
+    );
+  });
+
+  it('rejects reordered, missing, extra, or noncanonical import receipts', () => {
+    const receipt = importReceipt();
+    expect(() => genesis002ProductionImportReceiptDigest(
+      Object.fromEntries(Object.entries(receipt).reverse()),
+    )).toThrow('GENESIS_002_PRODUCTION_IMPORT_RECEIPT_INVALID');
+    const { atlasSourceCommit: _atlasSourceCommit, ...missing } = receipt;
+    expect(() => genesis002ProductionImportReceiptDigest(missing))
+      .toThrow('GENESIS_002_PRODUCTION_IMPORT_RECEIPT_INVALID');
+    expect(() => genesis002ProductionImportReceiptDigest({
+      ...receipt,
+      unexpected: true,
+    })).toThrow('GENESIS_002_PRODUCTION_IMPORT_RECEIPT_INVALID');
+    expect(() => genesis002ProductionImportReceiptDigest({
+      ...receipt,
+      importEpoch: '01',
+    })).toThrow('GENESIS_002_PRODUCTION_IMPORT_RECEIPT_INVALID');
+  });
+
+  it('binds each import outcome to a canonical non-negative operation count', () => {
+    for (const candidate of [
+      { ...importReceipt(), operationsSubmitted: -0 },
+      { ...importReceipt(), outcome: 'already-ready', operationsSubmitted: 1 },
+      { ...importReceipt(), outcome: 'ready', operationsSubmitted: 0 },
+      {
+        ...importReceipt(),
+        outcome: 'verified-after-submission-error',
+        operationsSubmitted: 0,
+      },
+    ]) {
+      expect(() => genesis002ProductionImportReceiptDigest(candidate))
+        .toThrow('GENESIS_002_PRODUCTION_IMPORT_RECEIPT_INVALID');
+    }
+    expect(() => genesis002ProductionImportReceiptDigest({
+      ...importReceipt(),
+      outcome: 'already-ready',
+      operationsSubmitted: 0,
+    })).not.toThrow();
+  });
+
   it('is permanently target-locked away from Genesis 001 and exposes only seven atlas writers', () => {
     expect(GENESIS_002_PRODUCTION_IMPORT_TARGET).toEqual({
       uri: 'https://maincloud.spacetimedb.com',
@@ -328,6 +407,7 @@ describe('Genesis 002 production atlas import boundary', () => {
       activationMutationsEnabled: false,
       playerPresentationEnabled: false,
       atlasWritesClosedByFinalization: true,
+      importReceiptDigest: expect.stringMatching(/^[0-9a-f]{64}$/u),
     });
     expect(new Set(transport.reducers)).toEqual(new Set(
       Object.values(GENESIS_002_PRODUCTION_IMPORT_REDUCERS),

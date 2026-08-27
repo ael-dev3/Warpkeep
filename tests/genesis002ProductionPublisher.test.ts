@@ -7,6 +7,7 @@ import {
   executeGenesis002Publish,
   genesis002PublishConfirmationDigest,
   genesis002PublishArguments,
+  genesis002PublishReceiptDigest,
   parseGenesis002DatabaseList,
   verifyGenesis002GeneratedAbi,
 } from '../scripts/genesis002-production-publisher.mjs';
@@ -29,7 +30,81 @@ const publishIdentity = {
   spacetimeCliConfigSha256: CLI_CONFIG_SHA256,
 };
 
+function publishReceipt() {
+  return {
+    schemaVersion: 1,
+    profile: 'warpkeep-genesis-002-production-publish-v1',
+    databaseIdentity: G002_IDENTITY,
+    database: 'warpkeep-genesis-002',
+    moduleIdentity: 'warpkeep-genesis-002-sealed-v1',
+    sourceCommit: SOURCE_COMMIT,
+    moduleSha256: MODULE_SHA256,
+    moduleTreeId: MODULE_TREE_ID,
+    dependencyClosureDigest: DEPENDENCY_SHA256,
+    spacetimeExecutableSha256: EXECUTABLE_SHA256,
+    spacetimeCliConfigSha256: CLI_CONFIG_SHA256,
+    deleteData: 'never',
+    outcome: 'verified',
+    freshStatusDigest: '1'.repeat(64),
+    playerAccessEnabled: false,
+    admissionMutationsEnabled: false,
+    atlasImportMutationsEnabled: true,
+    atlasActivationMutationsEnabled: false,
+    playerPresentationEnabled: false,
+  } as const;
+}
+
 describe('Genesis 002 production publisher', () => {
+  it('pins the exact domain-separated publish receipt digest', () => {
+    expect(genesis002PublishReceiptDigest(publishReceipt())).toBe(
+      '013a3b8824135f0f1a782a915f9ce8d7908c19d39510423fc1f817e137a06bb1',
+    );
+    expect(genesis002PublishReceiptDigest({
+      ...publishReceipt(),
+      moduleSha256: '1'.repeat(64),
+    })).not.toBe(
+      '013a3b8824135f0f1a782a915f9ce8d7908c19d39510423fc1f817e137a06bb1',
+    );
+  });
+
+  it('rejects reordered, missing, extra, or malformed publish receipts', () => {
+    const receipt = publishReceipt();
+    expect(() => genesis002PublishReceiptDigest(
+      Object.fromEntries(Object.entries(receipt).reverse()),
+    )).toThrow('GENESIS_002_PUBLISH_RECEIPT_INVALID');
+    const { sourceCommit: _sourceCommit, ...missing } = receipt;
+    expect(() => genesis002PublishReceiptDigest(missing))
+      .toThrow('GENESIS_002_PUBLISH_RECEIPT_INVALID');
+    expect(() => genesis002PublishReceiptDigest({ ...receipt, unexpected: true }))
+      .toThrow('GENESIS_002_PUBLISH_RECEIPT_INVALID');
+    expect(() => genesis002PublishReceiptDigest({
+      ...receipt,
+      outcome: 'submitted',
+    })).toThrow('GENESIS_002_PUBLISH_RECEIPT_INVALID');
+  });
+
+  it('rejects array coercion for every regex-validated publish receipt field', () => {
+    const receipt = publishReceipt();
+    for (const field of [
+      'databaseIdentity',
+      'sourceCommit',
+      'moduleSha256',
+      'moduleTreeId',
+      'dependencyClosureDigest',
+      'spacetimeExecutableSha256',
+      'spacetimeCliConfigSha256',
+      'freshStatusDigest',
+    ] as const) {
+      expect(
+        () => genesis002PublishReceiptDigest({
+          ...receipt,
+          [field]: [receipt[field]],
+        }),
+        field,
+      ).toThrow('GENESIS_002_PUBLISH_RECEIPT_INVALID');
+    }
+  });
+
   it('has one non-overridable new-database target and deletion disabled', () => {
     expect(GENESIS_002_PRODUCTION_TARGET).toEqual({
       uri: 'https://maincloud.spacetimedb.com',
@@ -114,6 +189,8 @@ describe('Genesis 002 production publisher', () => {
       spacetimeCliConfigSha256: CLI_CONFIG_SHA256,
       deleteData: 'never',
       outcome: 'verified',
+      publishReceiptDigest:
+        '11f932cacf0ef115fb6b67aec1df558456edb580bcec1da2fdbb185a664eec4d',
     });
     expect(spawn).toHaveBeenCalledTimes(3);
     expect(spawn.mock.calls[1]?.[1]).toEqual(

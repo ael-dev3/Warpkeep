@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  createSealedLaunchActivationBinding,
   verifySealedLaunchActivationHistory,
   classifySealedLaunchPagesSources,
   sealedLaunchReceiptCommitment,
@@ -74,8 +75,12 @@ function checkedInSources() {
     genesis002TransportSource:
       source('scripts/genesis002-production-transport.ts'),
     genesis002LiveReceiptSource: source('scripts/genesis002-sealed-live-receipt.mjs'),
+    genesis002ActivationReceiptsSource:
+      source('scripts/genesis002-activation-receipts.mjs'),
     genesis002PrivateLoopbackSource:
       source('scripts/genesis002-private-loopback-verifier.ts'),
+    activationGeneratorSource:
+      source('scripts/generate-0.4.0-sealed-launch-activation.mjs'),
     atlasContractSource: source('scripts/atlas/greater-realm-contracts.ts'),
     atlasRuntimeReleaseSource:
       source('scripts/atlas/greater-realm-runtime-release.ts'),
@@ -246,6 +251,41 @@ describe('0.4.0 sealed-launch verifier', () => {
     expect(classifySealedLaunchPagesSources(activationSources())).toBe(
       'sealed-g002',
     );
+  });
+
+  it('generates every receipt commitment from one exact activation candidate', () => {
+    const expected = activationBinding();
+    const candidate = { ...expected };
+    for (const key of Object.keys(candidate).filter(key => key.endsWith('Commitment'))) {
+      candidate[key] = null;
+    }
+    const generated = createSealedLaunchActivationBinding(candidate);
+    expect(generated).toEqual(expected);
+    expect(Object.keys(generated)).toEqual(Object.keys(expected));
+
+    expect(() => createSealedLaunchActivationBinding({
+      ...candidate,
+      applicantNames: ['must-never-enter-source-control'],
+    })).toThrow();
+    expect(() => createSealedLaunchActivationBinding({
+      ...candidate,
+      g002PublishReceiptCommitment: 'f'.repeat(64),
+    })).toThrow();
+    expect(() => createSealedLaunchActivationBinding({
+      ...candidate,
+      g002AdmissionMutationsEnabled: true,
+    })).toThrow();
+    for (const key of [
+      'g002PresentationEnabled',
+      'legacyGreaterRealmClientPresentationEnabled',
+      'legacyGreaterRealmServerPresentationEnabled',
+      'admissionNotificationsEnabled',
+    ]) {
+      expect(
+        () => createSealedLaunchActivationBinding({ ...candidate, [key]: true }),
+        key,
+      ).toThrow();
+    }
   });
 
   it('requires the public build stamp and selected patch notes to be 0.4.0 at activation', () => {
@@ -428,6 +468,22 @@ describe('0.4.0 sealed-launch verifier', () => {
       ['viteConfigSource', '__WARPKEEP_PRODUCT_VERSION__: JSON.stringify(productVersion)', '__WARPKEEP_PRODUCT_VERSION__: JSON.stringify(\'0.3.43\')'],
       ['buildInfoSource', '? __WARPKEEP_PRODUCT_VERSION__', "? '0.3.43'"],
       ['genesis002ContractSource', 'activationMutationsEnabled: false', 'activationMutationsEnabled: true'],
+      ['genesis002ActivationReceiptsSource', 'export function genesis002PublishReceiptDigest(receipt)', 'export function genesis002UncheckedReceiptDigest(receipt)'],
+      ['genesis002ActivationReceiptsSource', 'warpkeep.genesis-002.production-publish-receipt.v1\\n', 'warpkeep.genesis-002.production-publish-receipt.v2\\n'],
+      ['genesis002ActivationReceiptsSource', 'export function genesis002ProductionImportReceiptDigest(receipt)', 'export function genesis002UncheckedImportReceiptDigest(receipt)'],
+      ['genesis002ActivationReceiptsSource', 'warpkeep.genesis-002.production-import-receipt.v1\\n', 'warpkeep.genesis-002.production-import-receipt.v2\\n'],
+      ['genesis002ActivationReceiptsSource', 'Object.is(receipt.operationsSubmitted, -0)', 'Object.is(receipt.operationsSubmitted, 0)'],
+      ['genesis002ActivationReceiptsSource', 'receipt[field] !== 0 || Object.is(receipt[field], -0)', 'receipt[field] !== 0'],
+      ['genesis002ActivationReceiptsSource', 'export function genesis002SealedLiveReceiptDigest(receipt)', 'export function genesis002UncheckedLiveReceiptDigest(receipt)'],
+      ['genesis002ActivationReceiptsSource', 'warpkeep.genesis-002.sealed-live-receipt.v1\\n', 'warpkeep.genesis-002.sealed-live-receipt.v2\\n'],
+      ['genesis002PublisherCliSource', 'publishReceipt: receipt,', 'publishReceipt: { ...receipt, unexpected: true },'],
+      ['genesis002PublisherCliSource', 'publishReceiptDigest: receipt.publishReceiptDigest,', 'publishReceiptDigest: receipt.freshStatusDigest,'],
+      ['genesis002ImportOperatorSource', 'importReceiptDigest: receipt.importReceiptDigest', 'importReceiptDigest: receipt.verificationDigest'],
+      ['activationGeneratorSource', 'export function generateSealedLaunchActivationBindingFromDescriptor(', 'export function generateUncheckedActivationBinding('],
+      ['activationGeneratorSource', 'genesis002PublishReceiptDigest(publishReceipt)', 'publish.publishReceiptDigest'],
+      ['activationGeneratorSource', 'publish.sourceCommit !== atlasImport.atlasSourceCommit', 'publish.sourceCommit === atlasImport.atlasSourceCommit'],
+      ['activationGeneratorSource', 'g002DatabaseIdentity: publish.databaseIdentity', 'g002DatabaseIdentity: candidate.g002DatabaseIdentity'],
+      ['verifyWorkflowSource', '--exclude tests/authBridgeNotificationPreparedWorkflow.test.ts', '--exclude tests/unrelated.test.ts'],
       ['genesis002SchemaSource', "tableAccess: { tag: 'Private' }", "tableAccess: { tag: 'Public' }"],
       ['clientPresentationSource', 'GREATER_REALM_CLIENT_PRESENTATION_ALLOWED = false', 'GREATER_REALM_CLIENT_PRESENTATION_ALLOWED = true'],
       ['serverPresentationSource', 'GREATER_REALM_SERVER_PRESENTATION_ALLOWED = false', 'GREATER_REALM_SERVER_PRESENTATION_ALLOWED = true'],

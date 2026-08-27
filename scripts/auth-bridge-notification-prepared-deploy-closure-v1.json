@@ -20,7 +20,7 @@
     {
       "path": ".github/workflows/verify.yml",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "676e2b9c2bcd9df44b75086582d2a8c676d19ccfa8d39c232605de2748f07476"
+      "sha256": "4b50e9797be11b1f2628cc56b23083ee2e243e9ab3128ae51c4ee8afbbc6dcad"
     },
     {
       "path": "config/releases/0.4.0-sealed-launch.json",
@@ -50,7 +50,7 @@
     {
       "path": "package.json",
       "digestProfile": "reviewed-release-transition-projection-sha256-v1",
-      "sha256": "8dc70c9ce025abad9dee2c50c89fa53bcd50b64b5e6f73a3c607ad6ed35220d1"
+      "sha256": "d61f1d25ba135797acba49d0d019cf67aa759fca489121a953d1cdc86c7ee2a5"
     },
     {
       "path": "public/.well-known/farcaster.json",
@@ -330,7 +330,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "69b877ff1ac44c8bbb3d4585eef0cea749040badb911022a8a65b0be0cd7a8d7"
+      "sha256": "3c874e32c4249f85d11e33549d2d03f4b22114cc4a97326b5265b83ac7ef2755"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.d.mts",
@@ -340,7 +340,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "152c0e465e5852601049150667b0f32e36ddf888885552157e4453a4670063b1"
+      "sha256": "cb96a0772cf614ea997da153e7769deaad0094750b46fcb6c5ec10d17568d742"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
@@ -423,6 +423,16 @@
       "sha256": "abcbf4b28a27ac6470ed37f1aebf56b94d8955050eb649010c741dd19d8f6b1d"
     },
     {
+      "path": "scripts/generate-0.4.0-sealed-launch-activation.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "adf639ee5eb1a1d24e8c3c86f683228a01bf56bcfd77adce1140d75369bb23f8"
+    },
+    {
+      "path": "scripts/generate-0.4.0-sealed-launch-activation.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "d3768e7bd556b747a3a2444760a03b733bcbc3e1f0c24d26158f565202c68107"
+    },
+    {
       "path": "scripts/genesis001-admission-monitor-suspension.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "aa45bc40dc63c579bf0219e2f678ab042adede24d4c3c7b735d6e2d9c2244ffa"
@@ -463,6 +473,16 @@
       "sha256": "29590c2f949b1185345b00dd5572f5415f3822ecb1bbe24c78f80ffc00e3e018"
     },
     {
+      "path": "scripts/genesis002-activation-receipts.d.mts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "71a1e9fb6d2bcb060832d11538e41f3b40887e6ef30596e6846dc2494e0e296c"
+    },
+    {
+      "path": "scripts/genesis002-activation-receipts.mjs",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "1c0fa54386377cf8e8c1300772e9ed1d365c2216674fa646af9d90875685e609"
+    },
+    {
       "path": "scripts/genesis002-private-loopback-verifier.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "0ee6f8c4d2d18d9c2ba9a5842e15dc21cc4daafe11de20bbcd44612f8a668e8b"
@@ -470,27 +490,27 @@
     {
       "path": "scripts/genesis002-production-import-core.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "09fef2b4b1903f7630474deafbf5cabeafc4c765ff9a48360c03f5e3b48a3849"
+      "sha256": "601c46f4fbe24ef7fbd5ccfdf5a1bb99ca354a799bef4b54f1a217b087d54c03"
     },
     {
       "path": "scripts/genesis002-production-import-operator.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b11bbb3987919dad4d43b3ece3137757c92eccbe04a5e0df49e47f445e7b6c5b"
+      "sha256": "8bb1b9078026b6d3791a8411ebcb2f715780e0a2bd79038adf882396646f2485"
     },
     {
       "path": "scripts/genesis002-production-publisher-cli.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "3e2240d1848ba511e94122504b87d11fea746cd61d1bf61bdcfa374ecc1e166d"
+      "sha256": "54af583babdde2a3663d8fad253b1201dcd050a33cb98461b1e16bdb5dcaa339"
     },
     {
       "path": "scripts/genesis002-production-publisher.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d463c4e7e75575ff928ca2c8a5055d1f4c30124c62feba3f92fb72b06f2edc2a"
+      "sha256": "8f8a7292e9e3fba7324f04636bfa5cd679f8a594ffc3c35a6e7a8ff943ec4abe"
     },
     {
       "path": "scripts/genesis002-production-publisher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ab8188d5976c2a4ee7dce65a8b24ef21cad8a4b533202d209b7965f616404ebe"
+      "sha256": "db392be21e6eeebbce5166480d80bda36700f9ac82cb2060baeeae413618c656"
     },
     {
       "path": "scripts/genesis002-production-transport.ts",
@@ -500,12 +520,12 @@
     {
       "path": "scripts/genesis002-sealed-live-receipt.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "483e8ebd893b6ce08618813cc70c57587eaeedef8c0e9dffe286ade89973aeb4"
+      "sha256": "1ecab7a1d66c0bcf4489eef020a41dffd118bf609dc62e0d16e82e76eec949c1"
     },
     {
       "path": "scripts/genesis002-sealed-live-receipt.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "3aace5d337d46e1e3e753985992706ceb7d0dd6af4cbf2443d535aaab9aa4bc1"
+      "sha256": "47ef56a76ea21441d93f77434395474fb235b86b19a2ccb2fb00ac149c933364"
     },
     {
       "path": "scripts/genesis002_module_bindings/accept_alpha_terms_v_1_reducer.ts",
@@ -1060,7 +1080,7 @@
     {
       "path": "scripts/production-player-canary-activation-launcher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "4705ac896ecbe7a1431dc36936867c07f72ddfcedff548e2115a42472cc2c6fa"
+      "sha256": "cbde46f8032c036a8b745d2a1f1706c8d953adc3a8d879131f7a8d62c42581d7"
     },
     {
       "path": "scripts/production-player-canary-admin-transport.ts",
@@ -1250,7 +1270,7 @@
     {
       "path": "scripts/spacetime-cli-attestation.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9132abe0aa90e40acd350b116b87d719ac0cb3f17935dcd58066dc1e8fe282b1"
+      "sha256": "45566d8f0d7d13a60db6c73e15d1c7a615956188f8ce27a4b4b9dd8d94bb6f64"
     },
     {
       "path": "scripts/spacetime-publish-receipt.d.mts",
@@ -1280,12 +1300,12 @@
     {
       "path": "scripts/verify-0.4.0-sealed-launch.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "5b67dd9b7e33d6110a6c791982b53dab81271decbe17ace9c473f2d3b7209f2f"
+      "sha256": "079c804e31aa4ef75e7928db6f7a35bcceb88d100af09b3b705f43c0719d4039"
     },
     {
       "path": "scripts/verify-0.4.0-sealed-launch.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6c6dd61a6ef62bd35d24ceb7f17f3b3d3979778b7b835efce01e717877ebc662"
+      "sha256": "15ccfe27299f96fd6bc9d35e4772014ed73de0062ef1093c908d746175028f85"
     },
     {
       "path": "scripts/verify-admission-request-suspension.d.mts",

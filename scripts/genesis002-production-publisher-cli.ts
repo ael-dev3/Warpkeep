@@ -190,6 +190,8 @@ export async function executeGenesis002ProductionPublisherCli(input: Readonly<{
     adminSecret = '';
     return Object.freeze({
       ...receipt,
+      publishReceipt: receipt,
+      publishReceiptDigest: receipt.publishReceiptDigest,
       abi: artifact.abi,
       sourceMaterializedFromCommit: true,
       lockedDependencyClosure: true,

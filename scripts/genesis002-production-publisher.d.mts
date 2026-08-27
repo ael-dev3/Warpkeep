@@ -25,6 +25,31 @@ export function genesis002PublishConfirmationDigest(input: Readonly<{
   spacetimeExecutableSha256: string;
   spacetimeCliConfigSha256: string;
 }>): string;
+export type Genesis002PublishReceipt = Readonly<{
+  schemaVersion: 1;
+  profile: 'warpkeep-genesis-002-production-publish-v1';
+  databaseIdentity: string;
+  database: 'warpkeep-genesis-002';
+  moduleIdentity: 'warpkeep-genesis-002-sealed-v1';
+  sourceCommit: string;
+  moduleSha256: string;
+  moduleTreeId: string;
+  dependencyClosureDigest: string;
+  spacetimeExecutableSha256: string;
+  spacetimeCliConfigSha256: string;
+  deleteData: 'never';
+  outcome: 'verified' | 'verified-after-submission-error';
+  freshStatusDigest: string;
+  playerAccessEnabled: false;
+  admissionMutationsEnabled: false;
+  atlasImportMutationsEnabled: true;
+  atlasActivationMutationsEnabled: false;
+  playerPresentationEnabled: false;
+}>;
+export type Genesis002PublishResult = Readonly<Genesis002PublishReceipt & {
+  publishReceiptDigest: string;
+}>;
+export function genesis002PublishReceiptDigest(receipt: unknown): string;
 export function parseGenesis002DatabaseList(output: string): string | null;
 export function executeGenesis002Publish(input: Readonly<{
   sourceCommit: string;
@@ -43,7 +68,7 @@ export function executeGenesis002Publish(input: Readonly<{
   assertSourceAndArtifact: () => void;
   childEnvironment: Readonly<Record<string, string>>;
   artifactDescriptor?: number;
-}>): Promise<Readonly<Record<string, unknown>>>;
+}>): Promise<Genesis002PublishResult>;
 export function verifyGenesis002GeneratedAbi(input: Readonly<{
   reducers: readonly string[];
   procedures: readonly string[];

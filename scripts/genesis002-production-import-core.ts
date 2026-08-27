@@ -9,6 +9,11 @@ import {
   type GreaterRealmProductionImportStatus,
 } from './greater-realm-production-import-core';
 import type { GreaterRealmProductionCutoverStatus } from './greater-realm-production-relocation-core';
+import {
+  genesis002ProductionImportReceiptDigest,
+} from './genesis002-activation-receipts.mjs';
+
+export { genesis002ProductionImportReceiptDigest } from './genesis002-activation-receipts.mjs';
 
 export const GENESIS_002_PRODUCTION_IMPORT_TARGET = Object.freeze({
   uri: 'https://maincloud.spacetimedb.com',
@@ -36,7 +41,6 @@ const SHA256 = /^[0-9a-f]{64}$/u;
 const COMMIT = /^[0-9a-f]{40}$/u;
 const U64_MAXIMUM = (1n << 64n) - 1n;
 const MAXIMUM_OPERATIONS = 4_096;
-
 const STATUS_KEYS = Object.freeze([
   'present',
   'atlasId',
@@ -513,6 +517,7 @@ export type Genesis002ProductionImportReceipt = Readonly<{
   activationMutationsEnabled: false;
   playerPresentationEnabled: false;
   atlasWritesClosedByFinalization: true;
+  importReceiptDigest: string;
 }>;
 
 export async function executeGenesis002ProductionImport(input: Readonly<{
@@ -593,30 +598,36 @@ export async function executeGenesis002ProductionImport(input: Readonly<{
 
   const makeReceipt = (
     outcome: Genesis002ProductionImportReceipt['outcome'],
-  ): Genesis002ProductionImportReceipt => Object.freeze({
-    schemaVersion: 1,
-    profile: 'warpkeep.genesis-002.production-import.v1',
-    outcome,
-    databaseIdentity: input.databaseIdentity,
-    moduleIdentity: GENESIS_002_PRODUCTION_IMPORT_TARGET.moduleIdentity,
-    moduleSourceCommit: input.moduleSourceCommit,
-    moduleSha256: input.moduleSha256,
-    moduleTreeId: input.moduleTreeId,
-    dependencyClosureDigest: input.dependencyClosureDigest,
-    spacetimeExecutableSha256: input.spacetimeExecutableSha256,
-    atlasId: GENESIS_002_PRODUCTION_IMPORT_TARGET.atlasId,
-    atlasSourceCommit: authority.sourceCommit,
-    publicReleaseId: authority.publicReleaseId,
-    expectedReleaseSha256: authority.releaseSha256,
-    verificationDigest: status.verificationDigest,
-    importEpoch: input.importEpoch.toString(),
-    operationsSubmitted,
-    operationChainDigest: chain,
-    zeroPopulationBoundary: true,
-    activationMutationsEnabled: false,
-    playerPresentationEnabled: false,
-    atlasWritesClosedByFinalization: true,
-  });
+  ): Genesis002ProductionImportReceipt => {
+    const receipt = Object.freeze({
+      schemaVersion: 1 as const,
+      profile: 'warpkeep.genesis-002.production-import.v1' as const,
+      outcome,
+      databaseIdentity: input.databaseIdentity,
+      moduleIdentity: GENESIS_002_PRODUCTION_IMPORT_TARGET.moduleIdentity,
+      moduleSourceCommit: input.moduleSourceCommit,
+      moduleSha256: input.moduleSha256,
+      moduleTreeId: input.moduleTreeId,
+      dependencyClosureDigest: input.dependencyClosureDigest,
+      spacetimeExecutableSha256: input.spacetimeExecutableSha256,
+      atlasId: GENESIS_002_PRODUCTION_IMPORT_TARGET.atlasId,
+      atlasSourceCommit: authority.sourceCommit,
+      publicReleaseId: authority.publicReleaseId,
+      expectedReleaseSha256: authority.releaseSha256,
+      verificationDigest: status.verificationDigest,
+      importEpoch: input.importEpoch.toString(),
+      operationsSubmitted,
+      operationChainDigest: chain,
+      zeroPopulationBoundary: true as const,
+      activationMutationsEnabled: false as const,
+      playerPresentationEnabled: false as const,
+      atlasWritesClosedByFinalization: true as const,
+    });
+    return Object.freeze({
+      ...receipt,
+      importReceiptDigest: genesis002ProductionImportReceiptDigest(receipt),
+    });
+  };
 
   if (exactReady(status, authority, input.importEpoch)) return makeReceipt('already-ready');
   while (operationsSubmitted < maximumOperations) {

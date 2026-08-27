@@ -4317,6 +4317,12 @@ describe('activation publish safety', () => {
       'arm64',
     )).not.toThrow();
     expect(() => verifyPinnedCliAttestation(
+      'spacetimedb tool version 2.6.1; Commit: 052c83fe984a4c4eb7bb4f9afa5c6b1903891d87',
+      'cac13c929049f31cb588c230a0d7fe5f388505b4c64047a68b1d5cfdc811624b',
+      'linux',
+      'x64',
+    )).not.toThrow();
+    expect(() => verifyPinnedCliAttestation(
       'spacetimedb tool version 2.6.2; Commit: other',
       '4d76214ab1ba1462bd1500739641ec1c8322f99529d899c28612bfa665ccdfc6',
       'darwin',

@@ -28,6 +28,7 @@
     "verify:sealed-launch": "node scripts/verify-0.4.0-sealed-launch.mjs --phase=checked-in",
     "verify:sealed-launch:preparation": "node scripts/verify-0.4.0-sealed-launch.mjs --phase=preparation",
     "verify:sealed-launch:activation": "node scripts/verify-0.4.0-sealed-launch.mjs --phase=activation",
+    "generate:sealed-launch:activation": "node scripts/generate-0.4.0-sealed-launch-activation.mjs",
     "g001:census:privacy-safe-proof": "node scripts/genesis001-census-privacy-safe-receipt.mjs",
     "stdb:genesis002:publish:inspect": "tsx scripts/genesis002-production-publisher-cli.ts inspect",
     "stdb:genesis002:publish:apply": "tsx scripts/genesis002-production-publisher-cli.ts publish",

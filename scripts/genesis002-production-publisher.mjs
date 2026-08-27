@@ -24,6 +24,11 @@ import { fileURLToPath } from 'node:url';
 import { attestPinnedSpacetimeCli } from './spacetime-cli-attestation.mjs';
 import { withGreaterRealmLockedSourceBuild } from './greater-realm-production-immutable-artifact.ts';
 import { assertProductionAdminTrustedAncestors } from './production-admin-token-budget.mjs';
+import {
+  genesis002PublishReceiptDigest,
+} from './genesis002-activation-receipts.mjs';
+
+export { genesis002PublishReceiptDigest } from './genesis002-activation-receipts.mjs';
 
 export const GENESIS_002_PRODUCTION_TARGET = Object.freeze({
   uri: 'https://maincloud.spacetimedb.com',
@@ -45,7 +50,6 @@ const CHILD_ENVIRONMENT_KEYS = Object.freeze([
 ]);
 const MAXIMUM_CLI_CONFIG_BYTES = 64 * 1_024;
 const REPOSITORY_ROOT = realpathSync(resolve(fileURLToPath(new URL('..', import.meta.url))));
-
 export class Genesis002ProductionPublisherError extends Error {
   constructor(code, publishAttempted = false) {
     super(code);
@@ -289,7 +293,7 @@ export async function executeGenesis002Publish({
     ) throw error;
     fail('GENESIS_002_PUBLISH_OUTCOME_AMBIGUOUS_MANUAL_RECONCILIATION_REQUIRED', true);
   }
-  return Object.freeze({
+  const receipt = Object.freeze({
     schemaVersion: 1,
     profile: GENESIS_002_PUBLISH_PROFILE,
     databaseIdentity,
@@ -314,6 +318,10 @@ export async function executeGenesis002Publish({
     atlasImportMutationsEnabled: true,
     atlasActivationMutationsEnabled: false,
     playerPresentationEnabled: false,
+  });
+  return Object.freeze({
+    ...receipt,
+    publishReceiptDigest: genesis002PublishReceiptDigest(receipt),
   });
 }
 
