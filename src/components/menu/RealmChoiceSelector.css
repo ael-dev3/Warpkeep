@@ -206,6 +206,18 @@
   .realm-choice-selector__mark {
     font-size: 0.9rem;
   }
+
+  .realm-choice-selector__choice:first-child .realm-choice-selector__tooltip {
+    right: auto;
+    left: 0;
+    margin-inline: 0;
+  }
+
+  .realm-choice-selector__choice:last-child .realm-choice-selector__tooltip {
+    right: 0;
+    left: auto;
+    margin-inline: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -225,6 +225,12 @@ describe('Warpkeep main-menu responsive layout', () => {
     expect(narrowPhone).toMatch(
       /\.realm-choice-selector__admission\s*\{[^}]*display:\s*flex;[^}]*white-space:\s*nowrap;/s
     );
+    expect(narrowPhone).toMatch(
+      /\.realm-choice-selector__choice:first-child \.realm-choice-selector__tooltip\s*\{[^}]*right:\s*auto;[^}]*left:\s*0;[^}]*margin-inline:\s*0;/s
+    );
+    expect(narrowPhone).toMatch(
+      /\.realm-choice-selector__choice:last-child \.realm-choice-selector__tooltip\s*\{[^}]*right:\s*0;[^}]*left:\s*auto;[^}]*margin-inline:\s*0;/s
+    );
     expect(tooltip).toContain('max-width: min(19rem, calc(100vw - 2rem));');
   });
 
