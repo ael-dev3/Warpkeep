@@ -9,6 +9,7 @@ import type {
   FarcasterSessionAssurance,
   VerifiedFarcasterIdentity
 } from '../../farcaster/farcasterAuthTypes';
+import { ADMISSIONS_SUSPENDED_NOTICE } from '../../release/admissionLaunchPolicy';
 import {
   accessRequestOwnsPrimaryAction,
   FarcasterAccessRequestAction,
@@ -42,6 +43,7 @@ export type FarcasterQrAuthPanelProps = {
   onCheckAdmission?: () => boolean;
   accessRequest?: AccessRequestViewState;
   admissionCheck?: FarcasterAdmissionCheckViewState;
+  admissionRequestsSuspended?: boolean;
   onRequestAccess?: () => boolean;
   onRetryAccessRequestStatus?: () => void;
   onRememberDeviceChange?: (remember: boolean) => void;
@@ -228,6 +230,7 @@ export function FarcasterQrAuthPanel({
   onCheckAdmission,
   accessRequest = IDLE_ACCESS_REQUEST,
   admissionCheck = IDLE_ADMISSION_CHECK,
+  admissionRequestsSuspended = false,
   onRequestAccess,
   onRetryAccessRequestStatus,
   onRememberDeviceChange,
@@ -515,12 +518,18 @@ export function FarcasterQrAuthPanel({
           <p className="farcaster-auth-panel__lead">
             Your Farcaster identity is verified. Admission to the Hegemony frontier is still pending.
           </p>
-          <FarcasterAccessRequestMessage
-            descriptionId={accessRequestDescriptionId}
-            state={accessRequest}
-          />
+          {admissionRequestsSuspended ? (
+            <p className="farcaster-auth-panel__instruction" role="status">
+              {ADMISSIONS_SUSPENDED_NOTICE}
+            </p>
+          ) : (
+            <FarcasterAccessRequestMessage
+              descriptionId={accessRequestDescriptionId}
+              state={accessRequest}
+            />
+          )}
           <div className="farcaster-auth-panel__actions">
-            {onRequestAccess ? (
+            {!admissionRequestsSuspended && onRequestAccess ? (
               <FarcasterAccessRequestAction
                 admissionCheck={admissionCheck}
                 descriptionId={accessRequestDescriptionId}
@@ -531,7 +540,8 @@ export function FarcasterQrAuthPanel({
                 state={accessRequest}
               />
             ) : null}
-            {!accessRequestOwnsPrimaryAction(accessRequest) && onCheckAdmission ? (
+            {(admissionRequestsSuspended || !accessRequestOwnsPrimaryAction(accessRequest))
+              && onCheckAdmission ? (
               <FarcasterAdmissionCheckAction
                 onCheckAdmission={onCheckAdmission}
                 primaryActionRef={primaryActionRef}

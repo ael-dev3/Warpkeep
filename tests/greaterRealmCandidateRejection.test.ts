@@ -67,11 +67,17 @@ describe('Greater Realm expected candidate rejection boundary', () => {
     }
   });
 
-  it('keeps the historical broad code out of the .18 generator', () => {
+  it('keeps the historical broad code out of the .19 generator', () => {
     const generatorSource = readFileSync(new URL(
       '../scripts/atlas/greater-realm-candidate-generator.ts',
       import.meta.url,
     ), 'utf8');
+    expect(generatorSource).toContain(
+      "'greater-realm-v2-natural-continent-pr-a.19'",
+    );
+    expect(generatorSource).not.toContain(
+      "'greater-realm-v2-natural-continent-pr-a.18'",
+    );
     expect(generatorSource).not.toContain(
       "'GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT'",
     );

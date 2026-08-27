@@ -1,0 +1,23 @@
+{
+  "name": "warpkeep-genesis-002-spacetimedb-module",
+  "version": "0.4.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "description": "Warpkeep Genesis 002 sealed zero-admission authority module.",
+  "scripts": {
+    "stdb:version": "spacetime --version",
+    "stdb:build": "spacetime build --module-path .",
+    "typecheck": "tsc --noEmit",
+    "verify": "pnpm run typecheck && pnpm run stdb:build"
+  },
+  "dependencies": {
+    "spacetimedb": "2.6.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "tsx": "4.20.6",
+    "typescript": "5.6.3"
+  }
+}

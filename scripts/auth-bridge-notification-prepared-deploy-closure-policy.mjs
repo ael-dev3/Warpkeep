@@ -32,26 +32,45 @@ import {
   AuthBridgeNotificationPreparedDeployClosureError,
   verifyAuthBridgeNotificationPreparedDeployClosure,
 } from './auth-bridge-notification-prepared-deploy-closure.mjs';
+import {
+  SEALED_LAUNCH_SOURCE_PATHS,
+} from './verify-0.4.0-sealed-launch.mjs';
 
-const MEMBER_PATH = /^(?:owner-canary\/index\.html|package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|vite\.config\.ts|(?:\.github\/workflows|scripts|services\/auth-bridge|spacetimedb\/src|src)\/[A-Za-z0-9._/-]+)$/u;
+const MEMBER_PATH = /^(?:docs\/operations\/greater-realm-production-launch-envelope\.sh\.txt|(?:owner-canary\/)?index\.html|package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|vite\.config\.ts|spacetimedb\/(?:package\.json|pnpm-(?:lock|workspace)\.yaml|(?:src|genesis002)\/[A-Za-z0-9._/-]+)|(?:\.github\/workflows|config\/releases|scripts|services\/auth-bridge|src)\/[A-Za-z0-9._/-]+)$/u;
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
-const MAX_MEMBERS = 384;
+const MAX_MEMBERS = 956;
 const SCRIPT_GRAPH_ROOTS = Object.freeze([
   'scripts/auth-bridge-notification-b0-deploy.mjs',
   'scripts/verify-auth-bridge-notification-b0-policy.mjs',
   'scripts/auth-bridge-notification-prepared-deploy.mjs',
+  'scripts/genesis001-frozen-publisher.ts',
+  'scripts/greater-realm-production-pages-evidence-operator.ts',
+  'scripts/greater-realm-production-verifier.ts',
   'scripts/hermes-admin.ts',
+  'scripts/inner-keep-operator.ts',
   'scripts/notification-pages-build-release-validator.mjs',
   'scripts/notification-pages-deploy-lane.mjs',
   'scripts/notification-pages-private-deploy-launcher.mjs',
   'scripts/production-player-canary-activation-launcher.mjs',
   'scripts/production-player-canary-operator.mjs',
   'scripts/production-player-canary-browser-launcher.mjs',
+  'scripts/profiles/profiles-operator.ts',
+  'scripts/verify-0.4.0-sealed-launch.mjs',
+  'scripts/verify-auth-bridge-notification-prepared-receipt.mjs',
+  'scripts/water-revision-operator.ts',
+  'scripts/worker-return-repair-operator.ts',
+  'scripts/worker-rollout-operator.ts',
 ]);
+const SEALED_LAUNCH_SOURCE_GRAPH_ROOTS = Object.freeze(
+  Object.values(SEALED_LAUNCH_SOURCE_PATHS).filter(path => (
+    /\.(?:mjs|mts|ts|tsx)$/u.test(path)
+  )),
+);
 const DECLARATION_OPTIONAL_GRAPH_MEMBERS = new Set([
   'scripts/farcaster-miniapp-contract.mjs',
   'scripts/validate-pages-deploy-config.mjs',
   'scripts/verify-alpha-production.mjs',
+  'scripts/verify-auth-bridge-notification-prepared-receipt.mjs',
 ]);
 const NON_RUNTIME_DECLARATIONS_OUTSIDE_PROTECTED_CLOSURE = new Set([
   'scripts/production-player-canary-activation-launcher.mjs',
@@ -59,6 +78,7 @@ const NON_RUNTIME_DECLARATIONS_OUTSIDE_PROTECTED_CLOSURE = new Set([
   'scripts/production-player-canary-release-binding.mjs',
 ]);
 const WORKER_GRAPH_ROOT = 'services/auth-bridge/src/index.ts';
+const BROWSER_GRAPH_ROOT = 'src/main.tsx';
 const WORKER_SOURCE_DIRECTORY = 'services/auth-bridge/src';
 const CHECK_SOURCE_DIRECTORIES = Object.freeze([
   'services/auth-bridge/test',
@@ -69,6 +89,7 @@ const STATIC_SECURITY_INPUTS = Object.freeze([
   '.github/workflows/notification-bridge-b0.yml',
   '.github/workflows/notification-bridge-prepared.yml',
   '.github/workflows/verify.yml',
+  'index.html',
   'owner-canary/index.html',
   'package-lock.json',
   'package.json',
@@ -156,6 +177,17 @@ const ATTESTED_INSTALLED_IMPORTS = new Map([
     '../services/auth-bridge/node_modules/typescript/dist/ast/index.js',
     '../services/auth-bridge/node_modules/typescript/dist/api/fs.js',
     '../services/auth-bridge/node_modules/typescript/dist/api/sync/api.js',
+  ])],
+]);
+const ATTESTED_INSTALLED_REQUIRES = new Map([
+  ['scripts/atlas/greater-realm-candidate-package.ts', new Set([
+    'tsx/package.json',
+    'typescript/package.json',
+  ])],
+]);
+const ATTESTED_DYNAMIC_IMPORT_EXPRESSIONS = new Map([
+  ['scripts/greater-realm-production-bootstrap.mjs', new Set([
+    'yamlUrl.href',
   ])],
 ]);
 
@@ -262,6 +294,7 @@ function parseSourceFile(value, memberPath) {
 function sourceModuleSpecifiers(value, memberPath) {
   const parsed = parseSourceFile(value, memberPath);
   const specifiers = [];
+  const dynamicImportExpressions = new Set();
   try {
     const visit = node => {
       if (isImportDeclaration(node) || isExportDeclaration(node)) {
@@ -275,18 +308,46 @@ function sourceModuleSpecifiers(value, memberPath) {
         isCallExpression(node)
         && node.expression.kind === SyntaxKind.ImportKeyword
       ) {
-        if (node.arguments.length !== 1 || !isStringLiteral(node.arguments[0])) {
+        if (node.arguments.length !== 1) {
           fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_IMPORT_INVALID');
         }
-        specifiers.push(node.arguments[0].text);
+        if (isStringLiteral(node.arguments[0])) {
+          specifiers.push(node.arguments[0].text);
+        } else {
+          const expression = value.slice(
+            node.arguments[0].pos,
+            node.arguments[0].end,
+          ).trim();
+          if (
+            dynamicImportExpressions.has(expression)
+            || !ATTESTED_DYNAMIC_IMPORT_EXPRESSIONS.get(memberPath)
+              ?.has(expression)
+          ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_IMPORT_INVALID');
+          dynamicImportExpressions.add(expression);
+        }
       } else if (
         isCallExpression(node)
         && isIdentifier(node.expression)
         && node.expression.text === 'require'
-      ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_REQUIRE_FORBIDDEN');
+      ) {
+        if (
+          node.arguments.length !== 1
+          || !isStringLiteral(node.arguments[0])
+          || !ATTESTED_INSTALLED_REQUIRES.get(memberPath)
+            ?.has(node.arguments[0].text)
+        ) {
+          fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_REQUIRE_FORBIDDEN');
+        }
+      }
       node.forEachChild(visit);
     };
     parsed.sourceFile.forEachChild(visit);
+    const expectedDynamicImports = ATTESTED_DYNAMIC_IMPORT_EXPRESSIONS
+      .get(memberPath) ?? new Set();
+    if (
+      JSON.stringify([...dynamicImportExpressions].sort())
+        !== JSON.stringify([...expectedDynamicImports].sort())
+    ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_IMPORT_INVALID');
     return Object.freeze(specifiers);
   } finally {
     parsed.snapshot.dispose();
@@ -300,7 +361,7 @@ function resolveLocalSpecifier(repository, importer, specifier) {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_IMPORT_INVALID');
   }
   const base = resolve(repository, dirname(importer), specifier);
-  const candidates = /\.(?:mjs|mts|ts|tsx)$/u.test(specifier)
+  const candidates = /\.(?:css|json|mjs|mts|ts|tsx)$/u.test(specifier)
     ? [base]
     : [
       `${base}.mjs`,
@@ -335,6 +396,18 @@ function deriveLocalGraph(repository, roots) {
     const memberPath = pending.shift();
     if (memberPath === undefined || graph.has(memberPath)) continue;
     graph.add(memberPath);
+    if (memberPath.endsWith('.css')) {
+      const value = source(
+        repository,
+        memberPath,
+        'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_SOURCE_INVALID',
+      );
+      if (/@import\b|url\s*\(/iu.test(value)) {
+        fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_ASSET_IMPORT_FORBIDDEN');
+      }
+      continue;
+    }
+    if (!/\.(?:mjs|mts|ts|tsx)$/u.test(memberPath)) continue;
     const value = source(
       repository,
       memberPath,
@@ -376,8 +449,12 @@ export function deriveAuthBridgeNotificationPreparedDeployClosurePaths({
   repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..'),
 } = {}) {
   const repository = canonicalRepository(repositoryRoot);
-  const scriptGraph = deriveLocalGraph(repository, SCRIPT_GRAPH_ROOTS);
+  const scriptGraph = deriveLocalGraph(repository, [
+    ...SCRIPT_GRAPH_ROOTS,
+    ...SEALED_LAUNCH_SOURCE_GRAPH_ROOTS,
+  ]);
   const workerGraph = deriveLocalGraph(repository, [WORKER_GRAPH_ROOT]);
+  const browserGraph = deriveLocalGraph(repository, [BROWSER_GRAPH_ROOT]);
   const workerMembers = namespaceMembers(
     repository,
     WORKER_SOURCE_DIRECTORY,
@@ -399,7 +476,9 @@ export function deriveAuthBridgeNotificationPreparedDeployClosurePaths({
   ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_WORKER_GRAPH_INCOMPLETE');
   const members = new Set([
     ...STATIC_SECURITY_INPUTS,
+    ...Object.values(SEALED_LAUNCH_SOURCE_PATHS),
     ...scriptGraph,
+    ...browserGraph,
     ...workerMembers,
     ...checkMembers,
   ]);

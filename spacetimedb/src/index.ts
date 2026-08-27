@@ -18,6 +18,9 @@ export {
   acceptAlphaTermsV1,
 } from './reducers/admission';
 export {
+  genesis001AccessPolicyV1,
+} from './reducers/genesis001AccessPolicy';
+export {
   adminSeedWorld,
   adminExpandGenesisWorldV3,
   adminAllowFid,

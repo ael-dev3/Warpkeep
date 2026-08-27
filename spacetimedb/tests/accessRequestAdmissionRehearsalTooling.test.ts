@@ -6,7 +6,7 @@ function source(path: string): string {
   return readFileSync(new URL(path, import.meta.url), 'utf8');
 }
 
-test('CI executes the focused real-module request-CAS rehearsal before the general proof', () => {
+test('CI executes the focused real-module admission suspension rehearsal before the general proof', () => {
   const packageJson = JSON.parse(source('../../package.json')) as {
     scripts?: Record<string, string>;
   };
@@ -23,7 +23,7 @@ test('CI executes the focused real-module request-CAS rehearsal before the gener
   assert.ok(workflow.indexOf(command) < workflow.indexOf('npm run stdb:verify-additive-migration'));
 });
 
-test('request-CAS rehearsal is loopback-only, disposable, pinned, and deletion-disabled', () => {
+test('admission suspension rehearsal is loopback-only, disposable, pinned, and deletion-disabled', () => {
   const proof = source('../../scripts/verify-admission-request-cas-rehearsal.mjs');
 
   assert.match(proof, /expectedCliVersion = '2\.6\.1'/);
@@ -45,27 +45,39 @@ test('request-CAS rehearsal is loopback-only, disposable, pinned, and deletion-d
   assert.match(proof, /containServerProcessErrors/);
 });
 
-test('request-CAS rehearsal executes exact first admission and re-enable failures and commits', () => {
+test('admission rehearsal rejects every request and admission writer without mutation', () => {
   const proof = source('../../scripts/verify-admission-request-cas-rehearsal.mjs');
 
-  assert.match(proof, /admin_get_access_request_admission_status_v1/);
-  assert.match(proof, /admin_admit_founder_for_access_request_v2/);
-  assert.match(proof, /admin_allow_fid_for_access_request_v1/);
-  assert.match(proof, /admin_stage_worker_system_v1/);
-  assert.match(proof, /\['warpkeep-access-request-resolver'\],[\s\S]{0,40}15/);
-  assert.match(proof, /requestCycle: 0n/);
-  assert.match(proof, /requestCycle: 2n/);
-  assert.match(proof, /requestCycle: 1n/);
-  assert.match(proof, /requestedAtMicros: firstTuple\.requestedAtMicros \+ 1n/);
-  assert.match(proof, /requestedAtMicros: disabledTuple\.requestedAtMicros \+ 1n/);
-  assert.match(proof, /DELETE FROM access_request_v1 WHERE fid/);
-  assert.match(proof, /Stale replaced missing-FID request tuple mutated state/);
-  assert.match(proof, /First request-CAS admission retry duplicated founder state/);
-  assert.match(proof, /Request-CAS re-enable retry duplicated or changed state/);
-  assert.ok((proof.match(/expectedStatus|530/g) ?? []).length > 6);
+  for (const mutation of [
+    'access_request_submit_v1',
+    'admin_allow_fid',
+    'admin_admit_founder_v1',
+    'admin_allow_fid_for_access_request_v1',
+    'admin_admit_founder_for_access_request_v2',
+    'admin_disable_fid',
+    'admin_bump_auth_epoch',
+    'admin_reset_access_request_v1',
+  ]) assert.match(proof, new RegExp(`name: '${mutation}'`));
+
+  assert.match(
+    proof,
+    /expectedStatus: 500,[\s\S]*expectedError: 'ACCESS_REQUESTS_SEALED'/,
+  );
+  assert.equal((proof.match(/expectedStatus: 530/g) ?? []).length, 7);
+  assert.equal((proof.match(/expectedError: 'ADMISSIONS_SEALED'/g) ?? []).length, 7);
+  assert.match(proof, /sealedMutations\.length !== 8/);
+  assert.match(proof, /new Set\(sealedMutations\.map/);
+  assert.match(proof, /if \(rejectedMutations !== 8\)/);
+  assert.match(proof, /The module instance encountered a fatal error/);
+  assert.match(proof, /if \(responseBody !== expectedBody\)/);
+  assert.match(proof, /const baseline = await inspectState\(\)/);
+  assert.match(proof, /const after = await inspectState\(\)/);
+  assert.match(proof, /if \(after !== baseline\)/);
+  assert.match(proof, /Admission suspension attempt mutated state/);
+  assert.doesNotMatch(proof, /first-exact-admission|exact-reenable/);
 });
 
-test('request-CAS rehearsal binds permanent graphs, exact workers, audits, and epochs', () => {
+test('admission rehearsal binds the frozen policy, read-only status, and complete state digest', () => {
   const proof = source('../../scripts/verify-admission-request-cas-rehearsal.mjs');
 
   for (const table of [
@@ -84,15 +96,13 @@ test('request-CAS rehearsal binds permanent graphs, exact workers, audits, and e
     'admin_audit',
   ]) assert.match(proof, new RegExp(table));
 
-  assert.match(proof, /workers: 4n/);
-  assert.match(proof, /enabled = true AND auth_epoch = 1/);
-  assert.match(proof, /enabled = false AND auth_epoch = 1/);
-  assert.match(proof, /enabled = true AND auth_epoch = 2/);
-  assert.match(proof, /'admit_founder_for_access_request_v2'/);
-  assert.match(proof, /'allow_fid_for_access_request_v1'/);
-  assert.match(proof, /'disable_fid'/);
-  assert.match(proof, /SELECT action, target_fid, actor_subject FROM admin_audit/);
-  assert.match(proof, /projection\.includes\('service:hermes'\)/);
-  assert.match(proof, /projection\.includes\(String\(founderFid\)\)/);
-  assert.match(proof, /await inspectGraph\(\) !== foundedGraphDigest/);
+  assert.match(proof, /genesis_001_access_policy_v1/);
+  assert.match(proof, /access_request_get_status_v1/);
+  assert.match(proof, /admin_get_access_request_admission_status_v1/);
+  assert.match(proof, /realmId: 'GENESIS_001'/);
+  assert.match(proof, /releaseVersion: '0\.3\.43'/);
+  assert.match(proof, /playerAccessEnabled: true/);
+  assert.match(proof, /admissionStateMutationsEnabled: false/);
+  assert.match(proof, /accessRequestSubmissionsEnabled: false/);
+  assert.match(proof, /8\/8 mutation surfaces rejected/);
 });

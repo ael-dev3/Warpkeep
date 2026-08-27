@@ -13,8 +13,8 @@ permissions:
 # exclusive jobs. The source-closure manifest canonicalizes only these exact
 # values, so changing any protected executable requires an explicit refreeze.
 env:
-  WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: 'ba9ef44318b10456ed5a6f041af62de34d91998e7905010cbcddab104fa16d97'
-  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: 'e545d6a528d3c548734ba0b0057bfe9995bc9b74a330b277a6137d8eb7caad22'
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: 'cb96a0772cf614ea997da153e7769deaad0094750b46fcb6c5ec10d17568d742'
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '38cd67fa1dcfc6875d0f7696b24995416ef92b5d088c920c9cb10f4753235251'
   WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256: 'b1237a05f4788a66c5370c3d09af26add2cae3af767c12a9fd0dc02498dc7649'
   WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256: '9bb11880c6a9f4cb69b76b05f7ef5219ded2a86e3a44ee2c4d9371262213a161'
   WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256: 'ac18ecc2371d8bfff17ea8abec9d989085c4992d2ebeb70e7c9947bfac62837e'
@@ -51,7 +51,7 @@ jobs:
         with:
           node-version: 22
 
-      - name: Classify exact checked-in Pages release source
+      - name: Classify exact two-phase sealed-launch source
         id: release-source
         env:
           WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
@@ -59,7 +59,7 @@ jobs:
         run: |
           set -euo pipefail
           GITHUB_OUTPUT_FD=9 \
-            node scripts/notification-pages-deploy-lane.mjs \
+            node scripts/verify-0.4.0-sealed-launch.mjs --phase=pages \
             9>>"$GITHUB_OUTPUT"
 
   build:
@@ -68,9 +68,7 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main' &&
-      (needs.classify.outputs.deployment-lane == 'closed-review' ||
-       needs.classify.outputs.deployment-lane == 'gen0' ||
-       needs.classify.outputs.deployment-lane == 'durable')
+      needs.classify.outputs.deployment-lane == 'sealed-g002'
     runs-on: ubuntu-latest
     # Match Verify's bounded allowance for the complete root security suite.
     timeout-minutes: 45
@@ -238,8 +236,11 @@ jobs:
           npm audit
           npm audit signatures
 
-      - name: Validate the exact source-selected Pages build release
-        run: npm run validate:pages-release-build
+      - name: Validate the exact receipt-bound sealed Pages release
+        run: npm run verify:sealed-launch:activation
+
+      - name: Re-probe the live admission-request suspension
+        run: npm run verify:admission-request-suspension
 
       - name: Build
         run: npm run build
@@ -262,7 +263,7 @@ jobs:
 
   deploy:
     needs: [classify, build]
-    if: ${{ needs.classify.outputs.deployment-lane == 'closed-review' }}
+    if: ${{ needs.classify.outputs.deployment-lane == 'sealed-g002' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
@@ -362,7 +363,8 @@ jobs:
           echo "$WARPKEEP_DEPLOY_PRIVATE_NODE_SHA256  $WARPKEEP_DEPLOY_PRIVATE_NODE" \
             | sha256sum --check --strict -
           "$WARPKEEP_DEPLOY_PRIVATE_NODE" \
-            scripts/greater-realm-release-gate-deploy-boundary.mjs
+            scripts/verify-0.4.0-sealed-launch.mjs --phase=activation
+          npm run verify:admission-request-suspension
           echo 'attempted=true' >> "$GITHUB_OUTPUT"
 
       - name: Deploy to GitHub Pages
@@ -402,8 +404,11 @@ jobs:
           [[ "$(node --version)" == 'v22.22.3' ]]
           npm ci --ignore-scripts --no-audit --no-fund
 
-      - name: Re-verify Greater Realm release gates and notification authority
-        run: node scripts/greater-realm-release-gate-deploy-boundary.mjs
+      - name: Re-verify sealed-launch receipts and closed presentation gates
+        run: node scripts/verify-0.4.0-sealed-launch.mjs --phase=activation
+
+      - name: Re-probe the live admission-request suspension
+        run: npm run verify:admission-request-suspension
 
       - name: Verify exact live release
         shell: bash

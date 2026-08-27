@@ -707,6 +707,21 @@ describe('notification-bridge-prepared protected workflow', () => {
   });
 
   it('pins Node for both full root security-suite jobs', () => {
+    const fullRootSuiteCommands = new Set([
+      'npm test -- --maxWorkers=2',
+      [
+        'npm test -- \\',
+        '  --exclude tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
+        '  --exclude tests/productionPlayerCanaryClosure.test.ts \\',
+        '  --maxWorkers=2',
+        'npm test -- \\',
+        '  tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
+        '  tests/productionPlayerCanaryClosure.test.ts \\',
+        '  --maxWorkers=1 \\',
+        '  --testTimeout=180000',
+        '',
+      ].join('\n'),
+    ]);
     const verifyDocument = parse(readFileSync(
       resolve(repositoryRoot, '.github/workflows/verify.yml'),
       'utf8',
@@ -717,7 +732,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     const documents = [verifyDocument, pagesDocument];
     const fullSuiteJobs = documents.flatMap(document => (
       Object.values(document.jobs ?? {}).filter(job => job.steps?.some(
-        candidate => candidate.run === 'npm test -- --maxWorkers=2',
+        candidate => fullRootSuiteCommands.has(candidate.run ?? ''),
       ))
     ));
     expect(fullSuiteJobs).toHaveLength(2);
@@ -820,9 +835,9 @@ describe('notification-bridge-prepared protected workflow', () => {
         guardedRecoveryRequired: true,
         privateReceiptSinkRequired: true,
         installedToolchainByteAttestationRequired: true,
-        executableSecurityClosureMemberCount: 384,
+        executableSecurityClosureMemberCount: 956,
       });
-  }, 60_000);
+  }, 180_000);
 
   it('derives the exact executable, receipt, config, ABI, Worker, and toolchain closure', () => {
     const root = createPolicyFixture();
@@ -838,7 +853,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     });
     expect(paths).toEqual(manifest.members.map(member => member.path));
     expect(manifest.schemaVersion).toBe(2);
-    expect(paths).toHaveLength(384);
+    expect(paths).toHaveLength(956);
     expect(paths).toEqual(expect.arrayContaining([
       'scripts/auth-bridge-notification-prepared-deploy.mjs',
       'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
@@ -870,10 +885,14 @@ describe('notification-bridge-prepared protected workflow', () => {
       'public/.well-known/farcaster.json',
       'scripts/greater-realm-production-bootstrap.mjs',
       'scripts/greater-realm-production-publisher-core.ts',
+      'scripts/genesis001-frozen-publisher.ts',
+      'scripts/greater-realm-production-pages-evidence-operator.ts',
+      'scripts/greater-realm-production-verifier.ts',
       'scripts/greater-realm-release-gate-deploy-boundary.d.mts',
       'scripts/greater-realm-release-gate-deploy-boundary.mjs',
       'scripts/greater-realm-downstream-release-policy.ts',
       'scripts/hermes-admin.ts',
+      'scripts/inner-keep-operator.ts',
       'scripts/notification-pages-private-deploy-launcher.mjs',
       'scripts/notification-pages-private-deploy-operator.mjs',
       'scripts/notification-pages-live-receipt.mjs',
@@ -884,14 +903,19 @@ describe('notification-bridge-prepared protected workflow', () => {
       'scripts/production-player-canary-release-binding.mjs',
       'scripts/production-player-canary-operator-journal.mjs',
       'scripts/production-player-canary-operator.mjs',
+      'scripts/profiles/profiles-operator.ts',
+      'scripts/verify-auth-bridge-notification-prepared-receipt.mjs',
+      'scripts/water-revision-operator.ts',
+      'scripts/worker-return-repair-operator.ts',
+      'scripts/worker-rollout-operator.ts',
       'src/greater-realm/greaterRealmTransport.ts',
       'src/spacetime/greaterRealmProviderBridge.ts',
     ]));
     const declarationOptional = new Set([
       'scripts/farcaster-miniapp-contract.mjs',
-      'scripts/greater-realm-production-bootstrap.mjs',
       'scripts/validate-pages-deploy-config.mjs',
       'scripts/verify-alpha-production.mjs',
+      'scripts/verify-auth-bridge-notification-prepared-receipt.mjs',
       'scripts/verify-production-dist-exclusions.mjs',
     ]);
     expect(paths.filter(path => path.endsWith('.mjs')).length).toBe(
@@ -903,9 +927,54 @@ describe('notification-bridge-prepared protected workflow', () => {
       repositoryRoot: root,
     })).toMatchObject({
         profile: 'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1',
-        memberCount: 384,
+        memberCount: 956,
         manifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
       });
+  }, 180_000);
+
+  it('derives the production browser admission and request graph from the shipped entrypoint', () => {
+    const paths = deriveAuthBridgeNotificationPreparedDeployClosurePaths({
+      repositoryRoot,
+    });
+    expect(paths).toEqual(expect.arrayContaining([
+      'index.html',
+      'src/main.tsx',
+      'src/App.tsx',
+      'src/styles/global.css',
+      'src/components/WarpkeepExperience.tsx',
+      'src/components/WarpkeepExperience.css',
+      'src/components/title/WarpkeepTitleScreen3D.tsx',
+      'src/components/realm/RealmMapScreen.tsx',
+      'src/components/auth/FarcasterMiniAppEntryGate.tsx',
+      'src/components/auth/FarcasterMiniAppEntryGate.css',
+      'src/components/auth/FarcasterAdmissionPanel.tsx',
+      'src/components/auth/FarcasterAdmissionPanel.css',
+      'src/components/auth/FarcasterAccessRequest.tsx',
+      'src/farcaster/FarcasterAuthProvider.tsx',
+      'src/farcaster/FarcasterAuthProviderCore.tsx',
+      'src/farcaster/useAccessRequest.ts',
+      'src/farcaster/accessRequestStateMachine.ts',
+      'src/farcaster/farcasterOidcBridgeClient.ts',
+      'src/release/admissionLaunchPolicy.ts',
+      'src/components/menu/realmChoicePolicy.ts',
+    ]));
+  }, 90_000);
+
+  it.each([
+    "@import './unreviewed.css';\n",
+    ".unreviewed { background-image: url('./unreviewed.png'); }\n",
+  ])('rejects an unbound browser CSS dependency: %s', dependency => {
+    const root = createPolicyFixture();
+    const globalCss = resolve(root, 'src/styles/global.css');
+    writeFileSync(
+      globalCss,
+      `${dependency}${readFileSync(globalCss, 'utf8')}`,
+    );
+    expect(() => deriveAuthBridgeNotificationPreparedDeployClosurePaths({
+      repositoryRoot: root,
+    })).toThrow(
+      'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_ASSET_IMPORT_FORBIDDEN',
+    );
   }, 90_000);
 
   it('rejects a one-byte mutation in every closure member', () => {
@@ -934,7 +1003,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     }
   }, 300_000);
 
-  it('rejects missing, extra, and newly imported closure members', () => {
+  it('rejects a manifest missing a derived closure member', () => {
     const missing = createPolicyFixture();
     const missingManifestPath = resolve(
       missing,
@@ -957,7 +1026,9 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: missing,
     })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
+  }, 90_000);
 
+  it('rejects an extra manifest member', () => {
     const extra = createPolicyFixture();
     const extraManifestPath = resolve(
       extra,
@@ -985,7 +1056,9 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: extra,
     })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
+  }, 90_000);
 
+  it('rejects a newly imported local closure member', () => {
     const imported = createPolicyFixture();
     const importedDependency = 'scripts/atomic-install-file-family.mjs';
     const importedDeclaration = 'scripts/atomic-install-file-family.d.mts';
@@ -1004,7 +1077,9 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: imported,
     })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_TOO_LARGE');
+  }, 90_000);
 
+  it('rejects an unreviewed installed import', () => {
     const unreviewedInstalledImport = createPolicyFixture();
     const closureVerifier = resolve(
       unreviewedInstalledImport,
@@ -1019,7 +1094,9 @@ describe('notification-bridge-prepared protected workflow', () => {
     })).toThrow(
       'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_INSTALLED_IMPORT_INVALID',
     );
+  }, 90_000);
 
+  it('rejects a physically missing imported member', () => {
     const physicallyMissing = createPolicyFixture();
     rmSync(resolve(
       physicallyMissing,
@@ -1028,7 +1105,9 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: physicallyMissing,
     })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_IMPORT_UNRESOLVED');
+  }, 90_000);
 
+  it('rejects an unreferenced Worker source', () => {
     const unreferencedWorkerSource = createPolicyFixture();
     writeFileSync(resolve(
       unreferencedWorkerSource,
@@ -1039,7 +1118,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     })).toThrow(
       'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_WORKER_GRAPH_INCOMPLETE',
     );
-  }, 180_000);
+  }, 90_000);
 
   it('rejects noncanonical or byte-mutated closure manifests', () => {
     const root = createPolicyFixture();
@@ -1053,7 +1132,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     })).toThrow(
       'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_NOT_CANONICAL',
     );
-  }, 60_000);
+  }, 180_000);
 
   it('rejects altered or duplicate protected-workflow bootstrap pins', () => {
     for (const mutation of ['altered', 'duplicate'] as const) {
@@ -1420,7 +1499,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: extra,
     })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_TOO_LARGE');
-  }, 90_000);
+  }, 180_000);
 
   it('loads separated credentials only into the guarded no-argv entrypoint', () => {
     const source = workflow();
@@ -1647,7 +1726,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(() => verifyAuthBridgeNotificationPreparedStaticPolicy({
       repositoryRoot: directSecret,
     })).toThrow(/AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_/u);
-  }, 90_000);
+  }, 180_000);
 
   it('uses only the exact lockfile toolchain from the protected checkout', () => {
     const source = workflow();

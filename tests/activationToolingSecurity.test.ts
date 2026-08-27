@@ -129,7 +129,6 @@ import {
 } from '../scripts/spacetime-publish-receipt.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { ADDITIVE_MIGRATION_PROOF_MINIMUM_LIFECYCLE_MILLISECONDS, ADDITIVE_MIGRATION_PROOF_PROCESS_TIMEOUT_MILLISECONDS, ADDITIVE_MIGRATION_PROOF_PROTOCOL_VERSION, ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION, formatAdditiveMigrationProofReceipt } from '../scripts/spacetime-additive-migration-proof.mjs';
-// @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { canonicalTableSchemaBoundaryDigest } from '../scripts/spacetime-table-schema-attestation.mjs';
 // @ts-expect-error Repository JavaScript scripts intentionally expose test hooks.
 import { PROTECTED_AGGREGATE_STAGE, parseProductionVerifierArguments, protectedAggregateChildArguments, protectedAggregateChildEnvironment, protectedAggregateChildOptions, requiredProtectedAggregateSecret, resourceV4AggregateChildArguments, resourceV4ReadyAggregateChildEnvironment, resourceV4ReadyAggregateChildOptions, rootAssetUrls, shouldInspectConfiguredProtectedAggregate, validateProductionSigningKey, verifyBridge, verifyExpectedAlphaAggregate, verifyExpectedAlphaV2Aggregate, verifyExpectedAlphaV3Aggregate, verifyExpectedAlphaV4ResourcePrebackfillAggregate, verifyExpectedAlphaV4ResourceReadyAggregate, verifyFrontendEmbeddingHeaders, verifyPostBackfillResourceAggregateCheckpoints, verifyRootAssets } from '../scripts/verify-alpha-production.mjs';
@@ -1341,6 +1340,7 @@ type AuthV2FixtureOptions = {
   exposeHostileCors?: boolean;
   publicRoutesNotPaused?: boolean;
   publicRoutesPaused?: boolean;
+  accessRequestSubmissionsNotSuspended?: boolean;
   adminCorsLeak?: Readonly<{
     pathname: string;
     method: 'GET' | 'OPTIONS' | 'POST';
@@ -1520,6 +1520,18 @@ function authV2BridgeFetch(options: AuthV2FixtureOptions = {}) {
           error: {
             code: 'public_auth_paused',
             message: 'Farcaster sign-in is temporarily paused for security hardening.',
+          },
+        }, 503, cors, options.omitSecurityHeader);
+      }
+      if (
+        publicAuthEnabled
+        && url.pathname === '/v2/access/request'
+        && !options.accessRequestSubmissionsNotSuspended
+      ) {
+        return authV2JsonResponse({
+          error: {
+            code: 'admission_requests_suspended',
+            message: 'New admission requests are temporarily suspended.',
           },
         }, 503, cors, options.omitSecurityHeader);
       }
@@ -4305,6 +4317,12 @@ describe('activation publish safety', () => {
       'arm64',
     )).not.toThrow();
     expect(() => verifyPinnedCliAttestation(
+      'spacetimedb tool version 2.6.1; Commit: 052c83fe984a4c4eb7bb4f9afa5c6b1903891d87',
+      'cac13c929049f31cb588c230a0d7fe5f388505b4c64047a68b1d5cfdc811624b',
+      'linux',
+      'x64',
+    )).not.toThrow();
+    expect(() => verifyPinnedCliAttestation(
       'spacetimedb tool version 2.6.2; Commit: other',
       '4d76214ab1ba1462bd1500739641ec1c8322f99529d899c28612bfa665ccdfc6',
       'darwin',
@@ -5605,6 +5623,17 @@ describe('bounded auth-v2 production readiness verification', () => {
     expect(log).toHaveBeenCalledWith(
       'bridge: enabled auth-v2 read-only health, discovery, JWKS, retired v1, security headers, and credentialed plus bearer access CORS verified',
     );
+  });
+
+  it('fails enabled auth-v2 when access-request preflight is not release-sealed', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    await expect(verifyBridge(FRONTEND, ISSUER, {
+      requireAuthV2Enabled: true,
+      fetchImpl: authV2BridgeFetch({
+        publicAuthEnabled: true,
+        accessRequestSubmissionsNotSuspended: true,
+      }),
+    })).rejects.toThrow(/access\/request.*HTTP 204/i);
   });
 
   it.each([

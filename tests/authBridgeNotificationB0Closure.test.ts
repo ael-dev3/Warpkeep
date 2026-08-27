@@ -10,6 +10,9 @@ import {
 import {
   deriveAuthBridgeNotificationPreparedDeployClosurePaths,
 } from '../scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs';
+import {
+  SEALED_LAUNCH_SOURCE_PATHS,
+} from '../scripts/verify-0.4.0-sealed-launch.mjs';
 
 const repository = resolve(import.meta.dirname, '..');
 const B0_CLOSURE_PATHS = [
@@ -34,8 +37,8 @@ describe('notification bridge B0 security closure topology', () => {
     expect(derived).toEqual(
       AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS,
     );
-    expect(derived).toHaveLength(384);
-  }, 30_000);
+    expect(derived).toHaveLength(956);
+  }, 120_000);
 
   it('includes every B0 effect, recovery, workflow, policy, and ABI path', () => {
     for (const path of B0_CLOSURE_PATHS) {
@@ -43,5 +46,28 @@ describe('notification bridge B0 security closure topology', () => {
         AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS,
       ).toContain(path);
     }
+  });
+
+  it('derives every sealed-launch authority through the exact expanded namespaces', () => {
+    for (const path of Object.values(SEALED_LAUNCH_SOURCE_PATHS)) {
+      expect(AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS)
+        .toContain(path);
+    }
+    for (const path of [
+      'config/releases/0.4.0-sealed-launch.json',
+      'docs/operations/greater-realm-production-launch-envelope.sh.txt',
+      'scripts/genesis001-admission-monitor-suspension.ts',
+      'scripts/genesis002-production-import-operator.ts',
+      'scripts/genesis002-production-publisher.mjs',
+      'spacetimedb/genesis002/src/schema.ts',
+      'spacetimedb/package.json',
+      'spacetimedb/pnpm-lock.yaml',
+      'spacetimedb/pnpm-workspace.yaml',
+    ]) {
+      expect(AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS)
+        .toContain(path);
+    }
+    expect(AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS)
+      .not.toContain('spacetimedb/tsconfig.json');
   });
 });

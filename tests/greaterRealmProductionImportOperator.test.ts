@@ -296,6 +296,7 @@ function fakeTransport(options: Readonly<{
           slotRows: status.slotRows + BigInt(chunk.payload.castleSlots.length),
           resourceRows: status.resourceRows + BigInt(chunk.payload.resourceNodes.length),
           importsExact: next === 2n,
+          verificationDigest: nextDigest(),
         };
         authorityProgress.importedPassableCellCount += chunk.payload.cells
           .filter(cell => cell.passable).length;

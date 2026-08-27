@@ -27,10 +27,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { gunzipSync } from 'node:zlib';
 import { parse as parseYaml } from 'yaml';
 
-import {
-  parseMigrationProofReceiptAtExactPath,
-  type MigrationArtifactReceipt,
-} from './publish-spacetime-dev.mjs';
+import { parseAdditiveMigrationProofReceipt } from './spacetime-additive-migration-proof.mjs';
 import {
   attestGreaterRealmProductionCommitMaterializationRemoved,
   cleanupGreaterRealmProductionCommitMaterialization,
@@ -70,12 +67,100 @@ const FIXTURE_NAMES = Object.freeze([
   ...Array.from({ length: 16 }, (_, index) => `additive-v${index + 2}-schema`),
   'current-candidate-inspection',
 ] as const);
+const GENESIS001_HISTORICAL_FIXTURE_NAMES = Object.freeze([
+  'production-v1',
+  ...Array.from({ length: 13 }, (_, index) => `additive-v${index + 2}-schema`),
+] as const);
+const GENESIS001_HISTORICAL_LOCKED_PACKAGE_KEYS = Object.freeze([
+  '@esbuild/darwin-arm64@0.25.12',
+  'base64-js@1.5.1',
+  'esbuild@0.25.12',
+  'fsevents@2.3.3',
+  'get-tsconfig@4.14.0',
+  'headers-polyfill@4.0.3',
+  'object-inspect@1.13.4',
+  'prettier@3.9.5',
+  'pure-rand@7.0.1',
+  'resolve-pkg-maps@1.0.0',
+  'safe-stable-stringify@2.5.0',
+  'spacetimedb@2.6.1',
+  'statuses@2.0.2',
+  'tsx@4.20.6',
+  'typescript@5.6.3',
+  'url-polyfill@1.1.14',
+] as const);
+const GENESIS001_HISTORICAL_DEPENDENCY_INSTALLER_PROFILE =
+  'warpkeep-genesis-001-historical-root-dependency-closure-v1' as const;
+const GENESIS001_HISTORICAL_SOURCE_DIGESTS = Object.freeze({
+  lockfileSha256: '7bbf5d888143d6342219dbba9f501d15bcc9627a7bb6f2be07ea197760d4e234',
+  rootManifestSha256: '600b829bb2fd9c991ff918085539e527ecba3c2609bfffe35a9cf6ce3ad7b84f',
+});
 const MODULE_DEPENDENCIES = Object.freeze({
   esbuild: '0.25.12',
   spacetimedb: '2.6.1',
   tsx: '4.20.6',
   typescript: '5.6.3',
 });
+
+type MigrationArtifactReceipt = Readonly<{
+  artifactPath: string;
+  v11TableSchemaDigest: string;
+  v12TableSchemaDigest: string;
+  v13TableSchemaDigest: string;
+  v14TableSchemaDigest: string;
+  v15TableSchemaDigest: string;
+  v16TableSchemaDigest: string;
+  v17TableSchemaDigest: string;
+  currentCandidateTableSchemaDigest: string;
+  artifactDigest: string;
+}>;
+
+export type Genesis001HistoricalDependencyClosureProvenance = Readonly<{
+  dependencyInstallerProfile:
+    'warpkeep-genesis-001-historical-root-dependency-closure-v1';
+  dependencyLockfileSha256: string;
+  lockedPackageCount: 16;
+  dependencyArchiveClosureSha256: string;
+  dependencyClosureSha256: string;
+  dependencyTreeEntryCount: number;
+}>;
+
+type Genesis001HistoricalSourceDigests = Readonly<{
+  lockfileSha256: string;
+  rootManifestSha256: string;
+}>;
+
+function parseMigrationProofReceiptAtExactPath(
+  output: string,
+  artifactPath: string,
+): MigrationArtifactReceipt {
+  let parsed: ReturnType<typeof parseAdditiveMigrationProofReceipt>;
+  try {
+    parsed = parseAdditiveMigrationProofReceipt(output);
+  } catch {
+    return fail('GREATER_REALM_IMMUTABLE_ARTIFACT_RECEIPT_INVALID');
+  }
+  if (
+    !isAbsolute(artifactPath)
+    || resolve(artifactPath) !== artifactPath
+  ) fail('GREATER_REALM_IMMUTABLE_ARTIFACT_RECEIPT_INVALID');
+  const artifact = attestProvenArtifact(artifactPath);
+  if (artifact.digest !== parsed.artifactDigest) {
+    fail('GREATER_REALM_IMMUTABLE_ARTIFACT_RECEIPT_INVALID');
+  }
+  return Object.freeze({
+    artifactPath,
+    v11TableSchemaDigest: parsed.v11TableSchemaDigest,
+    v12TableSchemaDigest: parsed.v12TableSchemaDigest,
+    v13TableSchemaDigest: parsed.v13TableSchemaDigest,
+    v14TableSchemaDigest: parsed.v14TableSchemaDigest,
+    v15TableSchemaDigest: parsed.v15TableSchemaDigest,
+    v16TableSchemaDigest: parsed.v16TableSchemaDigest,
+    v17TableSchemaDigest: parsed.v17TableSchemaDigest,
+    currentCandidateTableSchemaDigest: parsed.currentCandidateTableSchemaDigest,
+    artifactDigest: parsed.artifactDigest,
+  });
+}
 
 export type GreaterRealmImmutableArtifactProof = Readonly<{
   artifactReceipt: MigrationArtifactReceipt;
@@ -479,42 +564,33 @@ function exactImporterDependency(
   }
 }
 
-function lockedPackageClosure(materializedRoot: string): Readonly<{
-  packages: readonly LockedPackage[];
-  lockBytes: Buffer;
-}> {
-  if (process.platform !== 'darwin' || process.arch !== 'arm64') {
-    fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_PLATFORM_UNSUPPORTED');
-  }
-  const spacetimeRoot = join(materializedRoot, 'spacetimedb');
-  const lockBytes = readFileSync(join(spacetimeRoot, 'pnpm-lock.yaml'));
-  let lock: Readonly<Record<string, unknown>>;
-  try {
-    lock = exactRecord(parseYaml(lockBytes.toString('utf8')));
-  } catch (error) {
-    if (error instanceof GreaterRealmImmutableArtifactError) throw error;
-    return fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
-  }
-  if (String(lock.lockfileVersion) !== '9.0') {
-    fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
-  }
-  const importers = exactRecord(lock.importers);
-  const expectedImporters = ['.', ...FIXTURE_NAMES.map(name => `migration-fixtures/${name}`)].sort();
-  if (JSON.stringify(Object.keys(importers).sort()) !== JSON.stringify(expectedImporters)) {
-    fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
-  }
-  const rootImporter = exactRecord(importers['.']);
-  exactImporterDependency(rootImporter, 'dependencies', 'spacetimedb', '2.6.1');
-  for (const [name, version] of Object.entries(MODULE_DEPENDENCIES)) {
-    if (name !== 'spacetimedb') {
-      exactImporterDependency(rootImporter, 'devDependencies', name, version);
+function exactImporterDependencies(
+  importer: Readonly<Record<string, unknown>>,
+  dependencies: Readonly<Record<string, string>>,
+  devDependencies: Readonly<Record<string, string>>,
+): void {
+  if (
+    JSON.stringify(Object.keys(importer).sort())
+      !== JSON.stringify(['dependencies', 'devDependencies'])
+  ) fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
+  for (const [field, expected] of [
+    ['dependencies', dependencies],
+    ['devDependencies', devDependencies],
+  ] as const) {
+    const actual = exactRecord(importer[field]);
+    if (JSON.stringify(Object.keys(actual).sort()) !== JSON.stringify(Object.keys(expected).sort())) {
+      fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
+    }
+    for (const [name, version] of Object.entries(expected)) {
+      exactImporterDependency(importer, field, name, version);
     }
   }
-  for (const fixture of FIXTURE_NAMES) {
-    const importer = exactRecord(importers[`migration-fixtures/${fixture}`]);
-    exactImporterDependency(importer, 'dependencies', 'spacetimedb', '2.6.1');
-    exactImporterDependency(importer, 'devDependencies', 'typescript', '5.6.3');
-  }
+}
+
+function selectedLockedPackages(
+  lock: Readonly<Record<string, unknown>>,
+  runtime: Readonly<{ platform: string; architecture: string }>,
+): readonly LockedPackage[] {
   const packageRecords = exactRecord(lock.packages);
   const snapshots = exactRecord(lock.snapshots);
   const pending = [
@@ -552,9 +628,9 @@ function lockedPackageClosure(materializedRoot: string): Readonly<{
         const os = dependencyRecord.os;
         const cpu = dependencyRecord.cpu;
         const compatible = (os === undefined || (
-          Array.isArray(os) && os.length === 1 && os[0] === process.platform
+          Array.isArray(os) && os.length === 1 && os[0] === runtime.platform
         )) && (cpu === undefined || (
-          Array.isArray(cpu) && cpu.length === 1 && cpu[0] === process.arch
+          Array.isArray(cpu) && cpu.length === 1 && cpu[0] === runtime.architecture
         ));
         if (!compatible) {
           if (field !== 'optionalDependencies') {
@@ -574,12 +650,153 @@ function lockedPackageClosure(materializedRoot: string): Readonly<{
       dependencies: Object.freeze(dependencies.sort()),
     }));
   }
-  const packages = [...selected.values()].sort((left, right) => left.key.localeCompare(right.key));
+  return Object.freeze(
+    [...selected.values()].sort((left, right) => left.key.localeCompare(right.key)),
+  );
+}
+
+function lockedPackageClosure(materializedRoot: string): Readonly<{
+  packages: readonly LockedPackage[];
+  lockBytes: Buffer;
+}> {
+  if (process.platform !== 'darwin' || process.arch !== 'arm64') {
+    fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_PLATFORM_UNSUPPORTED');
+  }
+  const spacetimeRoot = join(materializedRoot, 'spacetimedb');
+  const lockBytes = readFileSync(join(spacetimeRoot, 'pnpm-lock.yaml'));
+  let lock: Readonly<Record<string, unknown>>;
+  try {
+    lock = exactRecord(parseYaml(lockBytes.toString('utf8')));
+  } catch (error) {
+    if (error instanceof GreaterRealmImmutableArtifactError) throw error;
+    return fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
+  }
+  if (String(lock.lockfileVersion) !== '9.0') {
+    fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
+  }
+  const importers = exactRecord(lock.importers);
+  const expectedImporters = [
+    '.',
+    'genesis002',
+    ...FIXTURE_NAMES.map(name => `migration-fixtures/${name}`),
+  ].sort();
+  if (JSON.stringify(Object.keys(importers).sort()) !== JSON.stringify(expectedImporters)) {
+    fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
+  }
+  const rootImporter = exactRecord(importers['.']);
+  exactImporterDependency(rootImporter, 'dependencies', 'spacetimedb', '2.6.1');
+  for (const [name, version] of Object.entries(MODULE_DEPENDENCIES)) {
+    if (name !== 'spacetimedb') {
+      exactImporterDependency(rootImporter, 'devDependencies', name, version);
+    }
+  }
+  const genesis002Importer = exactRecord(importers.genesis002);
+  exactImporterDependency(
+    genesis002Importer,
+    'dependencies',
+    'spacetimedb',
+    '2.6.1',
+  );
+  for (const [name, version] of Object.entries(MODULE_DEPENDENCIES)) {
+    if (name !== 'spacetimedb') {
+      exactImporterDependency(genesis002Importer, 'devDependencies', name, version);
+    }
+  }
+  for (const fixture of FIXTURE_NAMES) {
+    const importer = exactRecord(importers[`migration-fixtures/${fixture}`]);
+    exactImporterDependency(importer, 'dependencies', 'spacetimedb', '2.6.1');
+    exactImporterDependency(importer, 'devDependencies', 'typescript', '5.6.3');
+  }
+  const packages = selectedLockedPackages(lock, {
+    platform: process.platform,
+    architecture: process.arch,
+  });
   if (
     packages.length !== 16
     || !packages.some(value => value.key === '@esbuild/darwin-arm64@0.25.12')
   ) fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
   return Object.freeze({ packages: Object.freeze(packages), lockBytes });
+}
+
+function requireGenesis001HistoricalRootManifest(materializedRoot: string): Buffer {
+  const path = join(materializedRoot, 'spacetimedb', 'package.json');
+  const bytes = readFileSync(path);
+  const manifest = exactJson(path);
+  if (
+    manifest.private !== true
+    || manifest.packageManager !== 'pnpm@11.7.0'
+    || JSON.stringify(manifest.dependencies) !== JSON.stringify({ spacetimedb: '2.6.1' })
+    || JSON.stringify(manifest.devDependencies) !== JSON.stringify({
+      esbuild: '0.25.12', tsx: '4.20.6', typescript: '5.6.3',
+    })
+  ) fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
+  return bytes;
+}
+
+function genesis001HistoricalLockedPackageClosure(
+  materializedRoot: string,
+  runtime: Readonly<{ platform: string; architecture: string }> = {
+    platform: process.platform,
+    architecture: process.arch,
+  },
+  sourceDigests: Genesis001HistoricalSourceDigests = GENESIS001_HISTORICAL_SOURCE_DIGESTS,
+): Readonly<{
+  packages: readonly LockedPackage[];
+  lockBytes: Buffer;
+  rootManifestBytes: Buffer;
+}> {
+  if (runtime.platform !== 'darwin' || runtime.architecture !== 'arm64') {
+    fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_PLATFORM_UNSUPPORTED');
+  }
+  const rootManifestBytes = requireGenesis001HistoricalRootManifest(materializedRoot);
+  const lockBytes = readFileSync(join(materializedRoot, 'spacetimedb', 'pnpm-lock.yaml'));
+  if (
+    !SHA256.test(sourceDigests.lockfileSha256)
+    || !SHA256.test(sourceDigests.rootManifestSha256)
+    || createHash('sha256').update(lockBytes).digest('hex') !== sourceDigests.lockfileSha256
+    || createHash('sha256').update(rootManifestBytes).digest('hex')
+      !== sourceDigests.rootManifestSha256
+  ) fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
+  let lock: Readonly<Record<string, unknown>>;
+  try {
+    lock = exactRecord(parseYaml(lockBytes.toString('utf8')));
+  } catch (error) {
+    if (error instanceof GreaterRealmImmutableArtifactError) throw error;
+    return fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
+  }
+  if (String(lock.lockfileVersion) !== '9.0') {
+    fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
+  }
+  const importers = exactRecord(lock.importers);
+  const expectedImporters = [
+    '.',
+    ...GENESIS001_HISTORICAL_FIXTURE_NAMES.map(name => `migration-fixtures/${name}`),
+  ].sort();
+  if (JSON.stringify(Object.keys(importers).sort()) !== JSON.stringify(expectedImporters)) {
+    fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
+  }
+  exactImporterDependencies(
+    exactRecord(importers['.']),
+    { spacetimedb: '2.6.1' },
+    { esbuild: '0.25.12', tsx: '4.20.6', typescript: '5.6.3' },
+  );
+  for (const fixture of GENESIS001_HISTORICAL_FIXTURE_NAMES) {
+    exactImporterDependencies(
+      exactRecord(importers[`migration-fixtures/${fixture}`]),
+      { spacetimedb: '2.6.1' },
+      { typescript: '5.6.3' },
+    );
+  }
+  const packages = selectedLockedPackages(lock, runtime);
+  if (
+    JSON.stringify(packages.map(value => value.key))
+      !== JSON.stringify(GENESIS001_HISTORICAL_LOCKED_PACKAGE_KEYS)
+  ) fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
+  return Object.freeze({
+    packages,
+    lockBytes,
+    rootManifestBytes,
+  });
 }
 
 function readVerifiedCacheArchive(cacheRoot: string, integrity: string): Buffer {
@@ -624,6 +841,84 @@ function readVerifiedCacheArchive(cacheRoot: string, integrity: string): Buffer 
   } finally {
     if (descriptor !== undefined) closeSync(descriptor);
   }
+}
+
+type Genesis001HistoricalArchiveIdentity = Readonly<{
+  dev: bigint;
+  ino: bigint;
+  mode: bigint;
+  uid: bigint;
+  nlink: bigint;
+  size: bigint;
+  mtimeNs: bigint;
+  ctimeNs: bigint;
+}>;
+
+function sameGenesis001HistoricalArchiveIdentity(
+  left: Genesis001HistoricalArchiveIdentity,
+  right: Genesis001HistoricalArchiveIdentity,
+): boolean {
+  return left.dev === right.dev
+    && left.ino === right.ino
+    && left.mode === right.mode
+    && left.uid === right.uid
+    && left.nlink === right.nlink
+    && left.size === right.size
+    && left.mtimeNs === right.mtimeNs
+    && left.ctimeNs === right.ctimeNs;
+}
+
+function genesis001HistoricalVerifiedCacheArchive(
+  cacheRoot: string,
+  integrity: string,
+): Readonly<{
+  body: Buffer;
+  identity: Genesis001HistoricalArchiveIdentity;
+}> {
+  const match = integrity.match(SHA512_INTEGRITY);
+  if (match === null) fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
+  const expected = Buffer.from(match[1]!, 'base64').toString('hex');
+  if (!/^[0-9a-f]{128}$/u.test(expected)) {
+    fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
+  }
+  const path = join(
+    cacheRoot,
+    '_cacache',
+    'content-v2',
+    'sha512',
+    expected.slice(0, 2),
+    expected.slice(2, 4),
+    expected.slice(4),
+  );
+  const before = lstatSync(path, { bigint: true });
+  const body = readVerifiedCacheArchive(cacheRoot, integrity);
+  const after = lstatSync(path, { bigint: true });
+  const identity = Object.freeze({
+    dev: after.dev,
+    ino: after.ino,
+    mode: after.mode,
+    uid: after.uid,
+    nlink: after.nlink,
+    size: after.size,
+    mtimeNs: after.mtimeNs,
+    ctimeNs: after.ctimeNs,
+  });
+  if (
+    before.isSymbolicLink()
+    || !before.isFile()
+    || before.dev !== after.dev
+    || before.ino !== after.ino
+    || before.mode !== after.mode
+    || before.uid !== after.uid
+    || before.nlink !== after.nlink
+    || before.size !== after.size
+    || before.mtimeNs !== after.mtimeNs
+    || before.ctimeNs !== after.ctimeNs
+  ) {
+    body.fill(0);
+    fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_CACHE_INVALID');
+  }
+  return Object.freeze({ body, identity });
 }
 
 function tarString(field: Buffer): string {
@@ -1128,6 +1423,517 @@ function installLockedDependencyClosure(input: Readonly<{
     );
   }
   return result ?? fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_INSTALL_FAILED');
+}
+
+function genesis001HistoricalArchiveClosureSha256(input: Readonly<{
+  packages: readonly LockedPackage[];
+  readArchive: (package_: LockedPackage) => Buffer;
+}>): string {
+  const digest = createHash('sha256');
+  updateLengthFramed(
+    digest,
+    'domain',
+    'warpkeep-genesis-001-historical-dependency-archive-closure-v1',
+  );
+  for (const package_ of input.packages) {
+    const body = input.readArchive(package_);
+    try {
+      updateLengthFramed(digest, 'package-key', package_.key);
+      updateLengthFramed(digest, 'package-integrity', package_.integrity);
+      updateLengthFramed(digest, 'archive-size', String(body.byteLength));
+      updateLengthFramed(
+        digest,
+        'archive-sha512',
+        createHash('sha512').update(body).digest(),
+      );
+    } finally {
+      body.fill(0);
+    }
+  }
+  return digest.digest('hex');
+}
+
+function genesis001HistoricalDependencyClosureSha256(input: Readonly<{
+  lockBytes: Buffer;
+  rootManifestBytes: Buffer;
+  packages: readonly LockedPackage[];
+  archiveClosureSha256: string;
+  snapshot: DependencyTreeSnapshot;
+}>): string {
+  const digest = createHash('sha256');
+  updateLengthFramed(digest, 'domain', GENESIS001_HISTORICAL_DEPENDENCY_INSTALLER_PROFILE);
+  updateLengthFramed(digest, 'root-package-json', input.rootManifestBytes);
+  updateLengthFramed(digest, 'pnpm-lock-yaml', input.lockBytes);
+  updateLengthFramed(digest, 'selected-packages-json', JSON.stringify(input.packages));
+  updateLengthFramed(digest, 'archive-closure-sha256', input.archiveClosureSha256);
+  updateLengthFramed(digest, 'dependency-root', 'spacetimedb/node_modules');
+  updateLengthFramed(digest, 'dependency-tree-entry-count', String(input.snapshot.entries.size));
+  updateLengthFramed(digest, 'dependency-tree-content-sha256', input.snapshot.contentDigest);
+  return digest.digest('hex');
+}
+
+function requireConstructedGenesis001HistoricalDependencyMetadata(
+  materializedRoot: string,
+  locked: Readonly<{
+    packages: readonly LockedPackage[];
+    lockBytes: Buffer;
+  }>,
+): void {
+  requireGenesis001HistoricalRootManifest(materializedRoot);
+  const spacetimeRoot = join(materializedRoot, 'spacetimedb');
+  const nodeModules = join(spacetimeRoot, 'node_modules');
+  if (
+    JSON.stringify(readdirSync(nodeModules).sort()) !== JSON.stringify([
+      '.bin', '.pnpm', 'esbuild', 'spacetimedb', 'tsx', 'typescript',
+    ])
+    || !readFileSync(join(nodeModules, '.pnpm', 'lock.yaml')).equals(locked.lockBytes)
+    || JSON.stringify(readdirSync(join(nodeModules, '.bin')).sort())
+      !== JSON.stringify(['esbuild', 'tsc', 'tsserver', 'tsx'])
+  ) fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
+  for (const [name, version] of Object.entries(MODULE_DEPENDENCIES)) {
+    const target = `.pnpm/${pnpmDirectory(`${name}@${version}`)}/node_modules/${name}`;
+    if (readlinkSync(join(nodeModules, name), 'utf8') !== target) {
+      fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
+    }
+    const packageManifest = exactJson(join(nodeModules, name, 'package.json'));
+    if (packageManifest.name !== name || packageManifest.version !== version) {
+      fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
+    }
+  }
+  for (const [name, target] of [
+    ['esbuild', '../esbuild/bin/esbuild'],
+    ['tsc', '../typescript/bin/tsc'],
+    ['tsserver', '../typescript/bin/tsserver'],
+    ['tsx', '../tsx/dist/cli.mjs'],
+  ] as const) {
+    if (readlinkSync(join(nodeModules, '.bin', name), 'utf8') !== target) {
+      fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
+    }
+  }
+  const expectedVirtualStoreEntries = [
+    'lock.yaml',
+    ...locked.packages.map(package_ => pnpmDirectory(package_.key)),
+  ].sort();
+  if (
+    JSON.stringify(readdirSync(join(nodeModules, '.pnpm')).sort())
+      !== JSON.stringify(expectedVirtualStoreEntries)
+  ) fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
+  for (const fixture of GENESIS001_HISTORICAL_FIXTURE_NAMES) {
+    if (existsSync(join(spacetimeRoot, 'migration-fixtures', fixture, 'node_modules'))) {
+      fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
+    }
+  }
+}
+
+function installGenesis001HistoricalLockedDependencyClosureWithWriter(input: Readonly<{
+  materializedRoot: string;
+  dependencyCacheRoot: string;
+  sourceDigests: Genesis001HistoricalSourceDigests;
+  writer: GreaterRealmOpenAtHelper;
+}>): Readonly<{
+  provenance: Genesis001HistoricalDependencyClosureProvenance;
+  snapshot: DependencyTreeSnapshot;
+  archiveIdentities: ReadonlyMap<string, Genesis001HistoricalArchiveIdentity>;
+  locked: ReturnType<typeof genesis001HistoricalLockedPackageClosure>;
+}> {
+  const locked = genesis001HistoricalLockedPackageClosure(
+    input.materializedRoot,
+    undefined,
+    input.sourceDigests,
+  );
+  const spacetimeRoot = join(input.materializedRoot, 'spacetimedb');
+  const nodeModules = join(spacetimeRoot, 'node_modules');
+  const virtualStore = join(nodeModules, '.pnpm');
+  const cacheRoot = ensurePrivateParent(input.dependencyCacheRoot);
+  const archiveIdentities = new Map<string, Genesis001HistoricalArchiveIdentity>();
+  const archiveBodies = new Map<string, Buffer>();
+  for (const package_ of locked.packages) {
+    const archive = genesis001HistoricalVerifiedCacheArchive(cacheRoot, package_.integrity);
+    archiveIdentities.set(package_.key, archive.identity);
+    archiveBodies.set(package_.key, archive.body);
+  }
+  const archiveClosureSha256 = genesis001HistoricalArchiveClosureSha256({
+    packages: locked.packages,
+    readArchive: package_ => {
+      const body = archiveBodies.get(package_.key);
+      if (body === undefined) fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_CACHE_INVALID');
+      return Buffer.from(body);
+    },
+  });
+  input.writer.mkdir('node_modules/.pnpm');
+  const extractionBudget: DependencyExtractionBudget = { entries: 0, fileBytes: 0 };
+  try {
+    for (const package_ of locked.packages) {
+      const body = archiveBodies.get(package_.key);
+      if (body === undefined) fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_CACHE_INVALID');
+      const archive = body;
+      archiveBodies.delete(package_.key);
+      const destination = join(
+        virtualStore,
+        pnpmDirectory(package_.key),
+        'node_modules',
+        ...package_.name.split('/'),
+      );
+      extractVerifiedPackage({
+        archive,
+        destination,
+        boundary: spacetimeRoot,
+        budget: extractionBudget,
+        writer: input.writer,
+      });
+      const packageManifest = exactJson(join(destination, 'package.json'));
+      if (packageManifest.name !== package_.name || packageManifest.version !== package_.version) {
+        fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_ARCHIVE_INVALID');
+      }
+    }
+  } finally {
+    for (const body of archiveBodies.values()) body.fill(0);
+    archiveBodies.clear();
+  }
+  const packagesByKey = new Map(locked.packages.map(value => [value.key, value]));
+  for (const package_ of locked.packages) {
+    const virtualNodeModules = join(
+      virtualStore,
+      pnpmDirectory(package_.key),
+      'node_modules',
+    );
+    for (const dependencyKey of package_.dependencies) {
+      const dependency = packagesByKey.get(dependencyKey);
+      if (dependency === undefined) fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_LOCK_INVALID');
+      const destination = join(virtualNodeModules, ...dependency.name.split('/'));
+      const dependencyPath = join(
+        virtualStore,
+        pnpmDirectory(dependency.key),
+        'node_modules',
+        ...dependency.name.split('/'),
+      );
+      createInternalSymlink({
+        destination,
+        target: relative(resolve(destination, '..'), dependencyPath),
+        boundary: spacetimeRoot,
+        writer: input.writer,
+      });
+    }
+  }
+  for (const [name, version] of Object.entries(MODULE_DEPENDENCIES)) {
+    createInternalSymlink({
+      destination: join(nodeModules, name),
+      target: `.pnpm/${pnpmDirectory(`${name}@${version}`)}/node_modules/${name}`,
+      boundary: spacetimeRoot,
+      writer: input.writer,
+    });
+  }
+  for (const [name, target] of [
+    ['esbuild', '../esbuild/bin/esbuild'],
+    ['tsc', '../typescript/bin/tsc'],
+    ['tsserver', '../typescript/bin/tsserver'],
+    ['tsx', '../tsx/dist/cli.mjs'],
+  ] as const) {
+    createInternalSymlink({
+      destination: join(nodeModules, '.bin', name),
+      target,
+      boundary: spacetimeRoot,
+      writer: input.writer,
+    });
+  }
+  input.writer.writeFile('node_modules/.pnpm/lock.yaml', locked.lockBytes, 0o600);
+  requireConstructedGenesis001HistoricalDependencyMetadata(input.materializedRoot, locked);
+  const snapshot = dependencyTreeSnapshot({ root: nodeModules, boundary: spacetimeRoot });
+  const dependencyClosureSha256 = genesis001HistoricalDependencyClosureSha256({
+    ...locked,
+    archiveClosureSha256,
+    snapshot,
+  });
+  const provenance: Genesis001HistoricalDependencyClosureProvenance = Object.freeze({
+    dependencyInstallerProfile: GENESIS001_HISTORICAL_DEPENDENCY_INSTALLER_PROFILE,
+    dependencyLockfileSha256: createHash('sha256').update(locked.lockBytes).digest('hex'),
+    lockedPackageCount: 16,
+    dependencyArchiveClosureSha256: archiveClosureSha256,
+    dependencyClosureSha256,
+    dependencyTreeEntryCount: snapshot.entries.size,
+  });
+  return Object.freeze({
+    provenance,
+    snapshot,
+    archiveIdentities: new Map(archiveIdentities),
+    locked,
+  });
+}
+
+function installGenesis001HistoricalLockedDependencyClosure(input: Readonly<{
+  materializedRoot: string;
+  dependencyCacheRoot: string;
+  sourceDigests: Genesis001HistoricalSourceDigests;
+}>): ReturnType<typeof installGenesis001HistoricalLockedDependencyClosureWithWriter> {
+  const writer = stageGreaterRealmOpenAtHelper({
+    root: join(input.materializedRoot, 'spacetimedb'),
+  });
+  let result: ReturnType<typeof installGenesis001HistoricalLockedDependencyClosureWithWriter>
+    | undefined;
+  let primaryError: unknown;
+  try {
+    result = installGenesis001HistoricalLockedDependencyClosureWithWriter({ ...input, writer });
+  } catch (error) {
+    primaryError = error;
+  }
+  let cleanupError: unknown;
+  try { writer.finish(); } catch (error) { cleanupError = error; }
+  if (primaryError !== undefined || cleanupError !== undefined) {
+    throw new AggregateError(
+      [...(primaryError === undefined ? [] : [primaryError]),
+        ...(cleanupError === undefined ? [] : [cleanupError])],
+      'GREATER_REALM_IMMUTABLE_DEPENDENCY_INSTALL_FAILED',
+    );
+  }
+  return result ?? fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_INSTALL_FAILED');
+}
+
+/**
+ * Installs the exact Darwin ARM64 dependency closure used by the historical
+ * Genesis 001 root module without constructing dependency trees for migration
+ * fixtures. The returned verifier reattests both cache archive identities and
+ * installed dependency content/inodes without exposing either private path.
+ */
+function withGenesis001HistoricalLockedDependencyClosureInternal<T>(input: Readonly<{
+  materializedRoot: string;
+  dependencyCacheRoot: string;
+  sourceDigests: Genesis001HistoricalSourceDigests;
+  operation: (context: Readonly<{
+    materializedRoot: string;
+    provenance: Genesis001HistoricalDependencyClosureProvenance;
+  }>) => T;
+}>): Readonly<{
+  result: T;
+  provenance: Genesis001HistoricalDependencyClosureProvenance;
+  verify: () => void;
+}> {
+  if (
+    !isAbsolute(input.materializedRoot)
+    || resolve(input.materializedRoot) !== input.materializedRoot
+    || realpathSync(input.materializedRoot) !== input.materializedRoot
+    || !isAbsolute(input.dependencyCacheRoot)
+    || resolve(input.dependencyCacheRoot) !== input.dependencyCacheRoot
+    || typeof input.operation !== 'function'
+    || existsSync(join(input.materializedRoot, 'spacetimedb', 'node_modules'))
+  ) fail('GREATER_REALM_GENESIS001_HISTORICAL_DEPENDENCY_INPUT_INVALID');
+  const cacheRoot = ensurePrivateParent(input.dependencyCacheRoot);
+  const installed = installGenesis001HistoricalLockedDependencyClosure({
+    materializedRoot: input.materializedRoot,
+    dependencyCacheRoot: cacheRoot,
+    sourceDigests: input.sourceDigests,
+  });
+  const verify = () => {
+    const current = genesis001HistoricalLockedPackageClosure(
+      input.materializedRoot,
+      undefined,
+      input.sourceDigests,
+    );
+    if (
+      !current.lockBytes.equals(installed.locked.lockBytes)
+      || !current.rootManifestBytes.equals(installed.locked.rootManifestBytes)
+      || JSON.stringify(current.packages) !== JSON.stringify(installed.locked.packages)
+      || ensurePrivateParent(input.dependencyCacheRoot) !== cacheRoot
+    ) fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_TREE_CHANGED');
+    const archiveClosureSha256 = genesis001HistoricalArchiveClosureSha256({
+      packages: current.packages,
+      readArchive: package_ => {
+        const archive = genesis001HistoricalVerifiedCacheArchive(cacheRoot, package_.integrity);
+        const expectedIdentity = installed.archiveIdentities.get(package_.key);
+        if (
+          expectedIdentity === undefined
+          || !sameGenesis001HistoricalArchiveIdentity(expectedIdentity, archive.identity)
+        ) {
+          archive.body.fill(0);
+          fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_CACHE_INVALID');
+        }
+        return archive.body;
+      },
+    });
+    requireConstructedGenesis001HistoricalDependencyMetadata(input.materializedRoot, current);
+    const after = dependencyTreeSnapshot({
+      root: join(input.materializedRoot, 'spacetimedb', 'node_modules'),
+      boundary: join(input.materializedRoot, 'spacetimedb'),
+    });
+    if (
+      after.contentDigest !== installed.snapshot.contentDigest
+      || after.identityDigest !== installed.snapshot.identityDigest
+    ) fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_TREE_CHANGED');
+    const provenance: Genesis001HistoricalDependencyClosureProvenance = Object.freeze({
+      dependencyInstallerProfile: GENESIS001_HISTORICAL_DEPENDENCY_INSTALLER_PROFILE,
+      dependencyLockfileSha256: createHash('sha256').update(current.lockBytes).digest('hex'),
+      lockedPackageCount: 16,
+      dependencyArchiveClosureSha256: archiveClosureSha256,
+      dependencyClosureSha256: genesis001HistoricalDependencyClosureSha256({
+        ...current,
+        archiveClosureSha256,
+        snapshot: after,
+      }),
+      dependencyTreeEntryCount: after.entries.size,
+    });
+    if (JSON.stringify(provenance) !== JSON.stringify(installed.provenance)) {
+      fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_TREE_CHANGED');
+    }
+  };
+  const result = input.operation({
+    materializedRoot: input.materializedRoot,
+    provenance: installed.provenance,
+  });
+  verify();
+  return Object.freeze({ result, provenance: installed.provenance, verify });
+}
+
+export function withGenesis001HistoricalLockedDependencyClosure<T>(input: Readonly<{
+  materializedRoot: string;
+  dependencyCacheRoot: string;
+  operation: (context: Readonly<{
+    materializedRoot: string;
+    provenance: Genesis001HistoricalDependencyClosureProvenance;
+  }>) => T;
+}>): Readonly<{
+  result: T;
+  provenance: Genesis001HistoricalDependencyClosureProvenance;
+  verify: () => void;
+}> {
+  genesis001HistoricalLockedPackageClosure(input.materializedRoot);
+  return withGenesis001HistoricalLockedDependencyClosureInternal({
+    ...input,
+    sourceDigests: GENESIS001_HISTORICAL_SOURCE_DIGESTS,
+  });
+}
+
+function observedGenesis001HistoricalSourceDigests(
+  materializedRoot: string,
+): Genesis001HistoricalSourceDigests {
+  const spacetimeRoot = join(materializedRoot, 'spacetimedb');
+  return Object.freeze({
+    lockfileSha256: createHash('sha256')
+      .update(readFileSync(join(spacetimeRoot, 'pnpm-lock.yaml')))
+      .digest('hex'),
+    rootManifestSha256: createHash('sha256')
+      .update(readFileSync(join(spacetimeRoot, 'package.json')))
+      .digest('hex'),
+  });
+}
+
+/**
+ * Runs one synchronous build action in an exact Git-tree materialization with
+ * the already-reviewed offline pnpm closure, then removes every generated and
+ * dependency inode before deleting the materialized source tree. This is the
+ * realm-neutral source-build primitive used by the fresh G002 publisher.
+ */
+export function withGreaterRealmLockedSourceBuild<T>(input: Readonly<{
+  repositoryRoot: string;
+  moduleSourceCommit: string;
+  dependencyCacheRoot: string;
+  generatedFiles: readonly string[];
+  materializationParent?: string;
+  operation: (context: Readonly<{
+    materializedRoot: string;
+    dependencyClosureDigest: string;
+    moduleTreeId: string;
+  }>) => T;
+}>): Readonly<{
+  result: T;
+  dependencyClosureDigest: string;
+  moduleTreeId: string;
+}> {
+  if (
+    !COMMIT.test(input.moduleSourceCommit)
+    || !isAbsolute(input.dependencyCacheRoot)
+    || input.generatedFiles.length < 1
+    || input.generatedFiles.some(path => (
+      path.startsWith('/')
+      || path.endsWith('/')
+      || path.split('/').some(component => (
+        component === '' || component === '.' || component === '..'
+      ))
+    ))
+  ) fail('GREATER_REALM_LOCKED_SOURCE_BUILD_INPUT_INVALID');
+  const stateRoot = input.materializationParent === undefined
+    ? ensureCanonicalProductionAdminStateDirectory()
+    : ensurePrivateParent(input.materializationParent);
+  const parent = ensurePrivateParent(join(stateRoot, 'locked-source-builds-v1'));
+  const destination = join(parent, randomUUID().replaceAll('-', ''));
+  const materialization = createGreaterRealmProductionCommitMaterialization({
+    repositoryRoot: input.repositoryRoot,
+    moduleSourceCommit: input.moduleSourceCommit,
+    destination,
+  });
+  let installed: ReturnType<typeof installLockedDependencyClosure> | undefined;
+  let result: T | undefined;
+  let primaryError: unknown;
+  try {
+    installed = installLockedDependencyClosure({
+      materializedRoot: materialization.root,
+      dependencyCacheRoot: input.dependencyCacheRoot,
+    });
+    const roots = dependencyRoots(materialization.root);
+    const allowedPrefixes = roots.map(root => (
+      `${relative(materialization.root, root).split(sep).join('/')}/`
+    ));
+    materialization.verify({ prefixes: allowedPrefixes });
+    result = input.operation({
+      materializedRoot: materialization.root,
+      dependencyClosureDigest: installed.dependencyClosureDigest,
+      moduleTreeId: materialization.moduleTreeId,
+    });
+    const after = roots.map(root => dependencyTreeSnapshot({
+      root,
+      boundary: join(materialization.root, 'spacetimedb'),
+    }));
+    if (
+      after.length !== installed.snapshots.length
+      || after.some((snapshot, index) => (
+        snapshot.contentDigest !== installed!.snapshots[index]!.contentDigest
+        || snapshot.identityDigest !== installed!.snapshots[index]!.identityDigest
+      ))
+    ) fail('GREATER_REALM_IMMUTABLE_DEPENDENCY_TREE_CHANGED');
+    materialization.verify({ prefixes: allowedPrefixes, files: input.generatedFiles });
+    for (const relativePath of [...input.generatedFiles].reverse()) {
+      const path = join(materialization.root, ...relativePath.split('/'));
+      const status = lstatSync(path);
+      if (
+        status.isSymbolicLink()
+        || !status.isFile()
+        || status.nlink !== 1
+        || realpathSync(path) !== path
+      ) fail('GREATER_REALM_LOCKED_SOURCE_BUILD_OUTPUT_INVALID');
+      unlinkSync(path);
+      fsyncExactDirectory(dirname(path));
+      const generatedDirectory = dirname(path);
+      if (readdirSync(generatedDirectory).length !== 0) {
+        fail('GREATER_REALM_LOCKED_SOURCE_BUILD_OUTPUT_INVALID');
+      }
+      rmdirSync(generatedDirectory);
+      fsyncExactDirectory(dirname(generatedDirectory));
+    }
+    for (const root of [...roots].reverse()) {
+      removeExactBuildTree(root, join(materialization.root, 'spacetimedb'));
+    }
+    materialization.verify();
+  } catch (error) {
+    primaryError = error;
+  }
+  let cleanupError: unknown;
+  try {
+    if (primaryError === undefined) materialization.cleanup();
+  } catch (error) {
+    cleanupError = error;
+  }
+  if (primaryError !== undefined || cleanupError !== undefined) {
+    throw new AggregateError(
+      [
+        ...(primaryError === undefined ? [] : [primaryError]),
+        ...(cleanupError === undefined ? [] : [cleanupError]),
+      ],
+      'GREATER_REALM_LOCKED_SOURCE_BUILD_FAILED',
+    );
+  }
+  return Object.freeze({
+    result: result as T,
+    dependencyClosureDigest: installed!.dependencyClosureDigest,
+    moduleTreeId: materialization.moduleTreeId,
+  });
 }
 
 type ProvenArtifactIdentity = Readonly<{
@@ -2407,6 +3213,28 @@ export function runGreaterRealmImmutableMigrationProof(input: Readonly<{
 
 export const greaterRealmImmutableArtifactTestSeams = Object.freeze({
   dependencyTreeSnapshot,
+  genesis001HistoricalProfile: (materializedRoot: string) => {
+    const sourceDigests = observedGenesis001HistoricalSourceDigests(materializedRoot);
+    const locked = genesis001HistoricalLockedPackageClosure(materializedRoot, {
+      platform: 'darwin',
+      architecture: 'arm64',
+    }, sourceDigests);
+    return Object.freeze({
+      dependencyLockfileSha256: createHash('sha256').update(locked.lockBytes).digest('hex'),
+      lockedPackageCount: locked.packages.length,
+    });
+  },
+  withGenesis001HistoricalFixtureClosure: <T>(input: Readonly<{
+    materializedRoot: string;
+    dependencyCacheRoot: string;
+    operation: (context: Readonly<{
+      materializedRoot: string;
+      provenance: Genesis001HistoricalDependencyClosureProvenance;
+    }>) => T;
+  }>) => withGenesis001HistoricalLockedDependencyClosureInternal({
+    ...input,
+    sourceDigests: observedGenesis001HistoricalSourceDigests(input.materializedRoot),
+  }),
   proofChildEnvironment: (
     runtime: GreaterRealmImmutableProofRuntime,
     executable: string,

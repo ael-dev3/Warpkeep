@@ -12,9 +12,14 @@ import {
   type GreaterRealmPrivateCandidate,
 } from './greater-realm-candidate-generator';
 import {
+  GENESIS_002_GREATER_REALM_ATLAS_ID,
   GREATER_REALM_ATLAS_ID,
   GREATER_REALM_MAXIMUM_ACTIVE_CELL_COUNT,
 } from './greater-realm-contracts';
+
+type GreaterRealmRuntimeAtlasId =
+  | typeof GREATER_REALM_ATLAS_ID
+  | typeof GENESIS_002_GREATER_REALM_ATLAS_ID;
 import {
   GREATER_REALM_WATER_DEPTH_CLASS_ID,
   GREATER_REALM_WATER_REGIME_ID,
@@ -44,6 +49,10 @@ export const GREATER_REALM_RUNTIME_STATUS_SCHEMA =
 export const GREATER_REALM_RUNTIME_RELEASE_DIRECTORY = 'runtime-release-v1' as const;
 export const GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH =
   'controls/runtime-release-public-seed-v1.wkgr-control' as const;
+export const GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY =
+  'genesis-002-runtime-release-v1' as const;
+export const GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH =
+  'controls/genesis-002-runtime-release-public-seed-v1.wkgr-control' as const;
 export const GREATER_REALM_RUNTIME_PARTITION_VERSION =
   'axial-bin-15-tier-one-filter-v1' as const;
 export const GREATER_REALM_RENDERER_CONTRACT_VERSION =
@@ -1146,6 +1155,7 @@ function passiveYieldClass(
 function buildCell(
   source: GreaterRealmRuntimeReleaseSource,
   releaseSeed: Uint8Array,
+  atlasId: GreaterRealmRuntimeAtlasId,
   cell: number,
   releaseOrdinal: number,
   chunkHandle: string,
@@ -1277,7 +1287,7 @@ function buildCell(
     cellKey: cellKey(source, cell),
     atlasCoordKey: atlasCoordKey(source, cell),
     releaseOrdinal,
-    atlasId: GREATER_REALM_ATLAS_ID,
+    atlasId,
     chunkHandle,
     regionId: PUBLIC_REGION_SPECS[source.regionId[cell]!]!.id,
     ...(component === undefined ? {} : { componentKey: component.key }),
@@ -1383,6 +1393,7 @@ function canonicalLegacyResourceRows(): Readonly<Record<ResourceKind, readonly R
 function buildSlots(
   source: GreaterRealmRuntimeReleaseSource,
   releaseSeed: Uint8Array,
+  atlasId: GreaterRealmRuntimeAtlasId,
   cellsBySourceIndex: ReadonlyMap<number, GreaterRealmRuntimeCell>,
   componentByCell: ReadonlyMap<number, NavigationComponent>,
   legacySlotByCell: ReadonlyMap<number, number>,
@@ -1425,7 +1436,7 @@ function buildSlots(
     return Object.freeze({
       slotId: opaqueId(releaseSeed, 'GRS', 'castle-slot', `${releaseOrdinal}`),
       releaseOrdinal,
-      atlasId: GREATER_REALM_ATLAS_ID,
+      atlasId,
       cellKey: runtimeCell.cellKey,
       regionId: runtimeCell.regionId,
       componentKey: component.key,
@@ -1441,6 +1452,7 @@ function buildSlots(
 function buildResourceNodes(
   source: GreaterRealmRuntimeReleaseSource,
   releaseSeed: Uint8Array,
+  atlasId: GreaterRealmRuntimeAtlasId,
   cellsBySourceIndex: ReadonlyMap<number, GreaterRealmRuntimeCell>,
   componentByCell: ReadonlyMap<number, NavigationComponent>,
   components: readonly NavigationComponent[],
@@ -1565,7 +1577,7 @@ function buildResourceNodes(
           nodes.push(Object.freeze({
             nodeId: opaqueId(releaseSeed, 'GRN', 'resource-node', `${releaseOrdinal}`),
             releaseOrdinal,
-            atlasId: GREATER_REALM_ATLAS_ID,
+            atlasId,
             locationId: selectedRow.locationId,
             cellKey: runtimeCell.cellKey,
             regionId: runtimeCell.regionId,
@@ -1605,6 +1617,7 @@ function digestComponent(
 }
 
 function releaseHeader(input: Readonly<{
+  atlasId?: GreaterRealmRuntimeAtlasId;
   publicReleaseId: string;
   publicApprovalReceiptId: string;
   sourceCommit: string;
@@ -1614,7 +1627,7 @@ function releaseHeader(input: Readonly<{
   return Object.freeze({
     schema: GREATER_REALM_RUNTIME_RELEASE_SCHEMA,
     classification: 'declassified-tier-i-runtime-import',
-    atlasId: GREATER_REALM_ATLAS_ID,
+    atlasId: input.atlasId ?? GREATER_REALM_ATLAS_ID,
     publicReleaseId: input.publicReleaseId,
     publicApprovalReceiptId: input.publicApprovalReceiptId,
     sourceCommit: input.sourceCommit,
@@ -1694,10 +1707,11 @@ function assertNoPrivateReleaseMaterial(value: unknown): void {
   ) fail('GREATER_REALM_RUNTIME_RELEASE_PRIVACY_BOUNDARY_INVALID');
 }
 
-export function createGreaterRealmRuntimeRelease(input: Readonly<{
+function createGreaterRealmRuntimeReleaseForAtlas(input: Readonly<{
   source: GreaterRealmRuntimeReleaseSource;
   sourceCommit: string;
   releaseSeed: Uint8Array;
+  atlasId: GreaterRealmRuntimeAtlasId;
 }>): GreaterRealmRuntimeReleaseArtifacts {
   if (!SOURCE_COMMIT_PATTERN.test(input.sourceCommit)) {
     fail('GREATER_REALM_RUNTIME_RELEASE_SOURCE_COMMIT_INVALID');
@@ -1736,6 +1750,7 @@ export function createGreaterRealmRuntimeRelease(input: Readonly<{
       const cell = buildCell(
         input.source,
         input.releaseSeed,
+        input.atlasId,
         sourceCell,
         releaseOrdinalBySourceCell.get(sourceCell)!,
         partition.handle,
@@ -1751,6 +1766,7 @@ export function createGreaterRealmRuntimeRelease(input: Readonly<{
   const slots = buildSlots(
     input.source,
     input.releaseSeed,
+    input.atlasId,
     cellsBySourceIndex,
     componentByCell,
     legacySlotByCell,
@@ -1758,6 +1774,7 @@ export function createGreaterRealmRuntimeRelease(input: Readonly<{
   const nodes = buildResourceNodes(
     input.source,
     input.releaseSeed,
+    input.atlasId,
     cellsBySourceIndex,
     componentByCell,
     components,
@@ -1954,6 +1971,7 @@ export function createGreaterRealmRuntimeRelease(input: Readonly<{
       stoneSiteDigest: GREATER_REALM_LEGACY_LOWLANDS_LOCK_PINS_V1.stoneSiteDigest,
   });
   const header = releaseHeader({
+    atlasId: input.atlasId,
     publicReleaseId,
     publicApprovalReceiptId,
     sourceCommit: input.sourceCommit,
@@ -1997,15 +2015,75 @@ export function createGreaterRealmRuntimeRelease(input: Readonly<{
     statusBytes: canonicalBytes(status),
     chunks: Object.freeze(chunks),
   });
-  verifyGreaterRealmRuntimeReleaseArtifacts(artifacts);
+  verifyGreaterRealmRuntimeReleaseArtifactsForAtlas(artifacts, input.atlasId);
   return artifacts;
 }
 
-function runtimeReleasePath(path: string): string {
+/** Historical C7/G001 producer retained byte-for-byte by default. */
+export function createGreaterRealmRuntimeRelease(input: Readonly<{
+  source: GreaterRealmRuntimeReleaseSource;
+  sourceCommit: string;
+  releaseSeed: Uint8Array;
+}>): GreaterRealmRuntimeReleaseArtifacts {
+  return createGreaterRealmRuntimeReleaseForAtlas({
+    ...input,
+    atlasId: GREATER_REALM_ATLAS_ID,
+  });
+}
+
+/** Sealed 0.4 producer; a legacy G001 package can never pass its verifier. */
+export function createGenesis002GreaterRealmRuntimeRelease(input: Readonly<{
+  source: GreaterRealmRuntimeReleaseSource;
+  sourceCommit: string;
+  releaseSeed: Uint8Array;
+}>): GreaterRealmRuntimeReleaseArtifacts {
+  return createGreaterRealmRuntimeReleaseForAtlas({
+    ...input,
+    atlasId: GENESIS_002_GREATER_REALM_ATLAS_ID,
+  });
+}
+
+function runtimeReleasePath(
+  path: string,
+  directory: string = GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+): string {
   if (!/^(?:import-manifest\.json|status\.json|chunks|chunks\/[A-Z]{3}-[A-Z2-7]{26}\.json)$/u.test(path)) {
     fail('GREATER_REALM_RUNTIME_RELEASE_PATH_INVALID');
   }
-  return `${GREATER_REALM_RUNTIME_RELEASE_DIRECTORY}/${path}`;
+  if (
+    directory !== GREATER_REALM_RUNTIME_RELEASE_DIRECTORY
+    && directory !== GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY
+  ) fail('GREATER_REALM_RUNTIME_RELEASE_PATH_INVALID');
+  return `${directory}/${path}`;
+}
+
+function openOrCreateRuntimeReleaseSeed(
+  workspace: GreaterRealmPrivateWorkspace,
+  directory: string,
+  controlPath: string,
+): Buffer {
+  workspace.ensureDirectory('controls');
+  const publication = workspace.recoverAtomicDirectoryPublish(directory);
+  const control = workspace.recoverAtomicFileWrite(controlPath);
+  if (control === 'absent') {
+    if (publication === 'published') {
+      fail('GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_MISSING');
+    }
+    const seed = randomBytes(RELEASE_SEED_BYTES);
+    const envelope = releaseSeedControlEnvelope(seed);
+    try {
+      workspace.writeFileAtomic(controlPath, envelope, RELEASE_SEED_CONTROL_BYTES);
+    } finally {
+      seed.fill(0);
+      envelope.fill(0);
+    }
+  }
+  const envelope = workspace.readFile(controlPath, RELEASE_SEED_CONTROL_BYTES);
+  try {
+    return parseReleaseSeedControlEnvelope(envelope);
+  } finally {
+    envelope.fill(0);
+  }
 }
 
 /**
@@ -2016,39 +2094,21 @@ function runtimeReleasePath(path: string): string {
 export function openOrCreateGreaterRealmRuntimeReleaseSeed(
   workspace: GreaterRealmPrivateWorkspace,
 ): Buffer {
-  workspace.ensureDirectory('controls');
-  const publication = workspace.recoverAtomicDirectoryPublish(
+  return openOrCreateRuntimeReleaseSeed(
+    workspace,
     GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
-  );
-  const control = workspace.recoverAtomicFileWrite(
     GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH,
   );
-  if (control === 'absent') {
-    if (publication === 'published') {
-      fail('GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_MISSING');
-    }
-    const seed = randomBytes(RELEASE_SEED_BYTES);
-    const envelope = releaseSeedControlEnvelope(seed);
-    try {
-      workspace.writeFileAtomic(
-        GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH,
-        envelope,
-        RELEASE_SEED_CONTROL_BYTES,
-      );
-    } finally {
-      seed.fill(0);
-      envelope.fill(0);
-    }
-  }
-  const envelope = workspace.readFile(
-    GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH,
-    RELEASE_SEED_CONTROL_BYTES,
+}
+
+export function openOrCreateGenesis002GreaterRealmRuntimeReleaseSeed(
+  workspace: GreaterRealmPrivateWorkspace,
+): Buffer {
+  return openOrCreateRuntimeReleaseSeed(
+    workspace,
+    GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+    GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH,
   );
-  try {
-    return parseReleaseSeedControlEnvelope(envelope);
-  } finally {
-    envelope.fill(0);
-  }
 }
 
 function releaseArtifactsEqual(
@@ -2089,13 +2149,14 @@ export function assertGreaterRealmRuntimeReleaseMatches(
 function assertReleaseSeedControlMatches(
   workspace: GreaterRealmPrivateWorkspace,
   artifacts: GreaterRealmRuntimeReleaseArtifacts,
+  controlPath: string = GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH,
 ): void {
   workspace.ensureDirectory('controls');
-  if (!workspace.hasFile(GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH)) {
+  if (!workspace.hasFile(controlPath)) {
     fail('GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_MISSING');
   }
   const envelope = workspace.readFile(
-    GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH,
+    controlPath,
     RELEASE_SEED_CONTROL_BYTES,
   );
   let seed: Buffer | undefined;
@@ -2151,6 +2212,68 @@ export async function writeGreaterRealmRuntimeRelease(input: Readonly<{
     },
   );
   const installed = readGreaterRealmRuntimeRelease(input.workspace);
+  if (!releaseArtifactsEqual(installed, input.artifacts)) {
+    fail('GREATER_REALM_RUNTIME_RELEASE_INSTALL_MISMATCH');
+  }
+  return 'installed';
+}
+
+export async function writeGenesis002GreaterRealmRuntimeRelease(input: Readonly<{
+  workspace: GreaterRealmPrivateWorkspace;
+  artifacts: GreaterRealmRuntimeReleaseArtifacts;
+}>): Promise<GreaterRealmRuntimeReleaseWriteResult> {
+  verifyGenesis002GreaterRealmRuntimeReleaseArtifacts(input.artifacts);
+  const publication = input.workspace.recoverAtomicDirectoryPublish(
+    GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+  );
+  assertReleaseSeedControlMatches(
+    input.workspace,
+    input.artifacts,
+    GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH,
+  );
+  if (publication === 'published') {
+    const installed = readGenesis002GreaterRealmRuntimeRelease(input.workspace);
+    if (!releaseArtifactsEqual(installed, input.artifacts)) {
+      fail('GREATER_REALM_RUNTIME_RELEASE_REPLAY_MISMATCH');
+    }
+    return 'unchanged';
+  }
+  await input.workspace.withAtomicDirectoryPublish(
+    GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+    async staged => {
+      staged.ensureDirectory(runtimeReleasePath(
+        'chunks',
+        GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+      ));
+      staged.writeFileAtomic(
+        runtimeReleasePath(
+          'import-manifest.json',
+          GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+        ),
+        input.artifacts.manifestBytes,
+        MAXIMUM_RUNTIME_MANIFEST_BYTES,
+      );
+      for (const chunk of input.artifacts.chunks) {
+        staged.writeFileAtomic(
+          runtimeReleasePath(
+            chunk.path,
+            GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+          ),
+          chunk.bytes,
+          MAXIMUM_RUNTIME_CHUNK_BYTES,
+        );
+      }
+      staged.writeFileAtomic(
+        runtimeReleasePath(
+          'status.json',
+          GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+        ),
+        input.artifacts.statusBytes,
+        MAXIMUM_RUNTIME_STATUS_BYTES,
+      );
+    },
+  );
+  const installed = readGenesis002GreaterRealmRuntimeRelease(input.workspace);
   if (!releaseArtifactsEqual(installed, input.artifacts)) {
     fail('GREATER_REALM_RUNTIME_RELEASE_INSTALL_MISMATCH');
   }
@@ -2435,8 +2558,9 @@ function assertReleasedLowlandsLock(cells: readonly GreaterRealmRuntimeCell[]): 
  * Re-hash a staged release and enforce its privacy, count, and parent closure.
  * The forthcoming importer can call this verifier before opening any mutation.
  */
-export function verifyGreaterRealmRuntimeReleaseArtifacts(
+function verifyGreaterRealmRuntimeReleaseArtifactsForAtlas(
   artifacts: GreaterRealmRuntimeReleaseArtifacts,
+  expectedAtlasId: GreaterRealmRuntimeAtlasId,
 ): void {
   let artifactBytes = artifacts.manifestBytes.byteLength + artifacts.statusBytes.byteLength;
   if (
@@ -2507,7 +2631,7 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
     ])
     || manifest.schema !== GREATER_REALM_RUNTIME_RELEASE_SCHEMA
     || manifest.classification !== 'declassified-tier-i-runtime-import'
-    || manifest.atlasId !== GREATER_REALM_ATLAS_ID
+    || manifest.atlasId !== expectedAtlasId
     || manifest.generatorVersion !== GREATER_REALM_GENERATOR_VERSION
     || manifest.sourceFormatVersion !== 'wkgr-runtime-source-v1'
     || manifest.livingWorldVersion !== GREATER_REALM_LIVING_WORLD_VERSION
@@ -2873,7 +2997,7 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
         'routeDepth',
       ])
       || cell.tier !== 1
-      || cell.atlasId !== GREATER_REALM_ATLAS_ID
+      || cell.atlasId !== expectedAtlasId
       || typeof cell.passable !== 'boolean'
       || typeof cell.cellKey !== 'string'
       || typeof cell.atlasCoordKey !== 'string'
@@ -3157,7 +3281,7 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
       || publicSlotIds.has(slot.slotId)
       || slotCellKeys.has(slot.cellKey)
       || !integerInRange(slot.releaseOrdinal, 0, UINT32_MAX)
-      || slot.atlasId !== GREATER_REALM_ATLAS_ID
+      || slot.atlasId !== expectedAtlasId
       || slot.tier !== 1
       || slot.active !== false
       || slot.regionOrderRank !== UINT32_MAX
@@ -3228,7 +3352,7 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
       || typeof node.policyVersion !== 'string'
       || node.policyVersion.length < 1
       || node.policyVersion.length > 64
-      || node.atlasId !== GREATER_REALM_ATLAS_ID
+      || node.atlasId !== expectedAtlasId
       || node.tier !== 1
       || node.active !== false
       || node.allocationRank !== UINT32_MAX
@@ -3405,6 +3529,7 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
     }
   }
   const expectedHeader = releaseHeader({
+    atlasId: expectedAtlasId,
     publicReleaseId: String(manifest.publicReleaseId),
     publicApprovalReceiptId: String(manifest.publicApprovalReceiptId),
     sourceCommit: String(manifest.sourceCommit),
@@ -3422,11 +3547,33 @@ export function verifyGreaterRealmRuntimeReleaseArtifacts(
   }
 }
 
-export function readGreaterRealmRuntimeRelease(
+/** Historical G001 runtime-release verifier. */
+export function verifyGreaterRealmRuntimeReleaseArtifacts(
+  artifacts: GreaterRealmRuntimeReleaseArtifacts,
+): void {
+  verifyGreaterRealmRuntimeReleaseArtifactsForAtlas(
+    artifacts,
+    GREATER_REALM_ATLAS_ID,
+  );
+}
+
+/** Exact G002 verifier used by the sealed import operator. */
+export function verifyGenesis002GreaterRealmRuntimeReleaseArtifacts(
+  artifacts: GreaterRealmRuntimeReleaseArtifacts,
+): void {
+  verifyGreaterRealmRuntimeReleaseArtifactsForAtlas(
+    artifacts,
+    GENESIS_002_GREATER_REALM_ATLAS_ID,
+  );
+}
+
+function readGreaterRealmRuntimeReleaseForAtlas(
   workspace: GreaterRealmPrivateWorkspace,
+  directory: string,
+  verify: (artifacts: GreaterRealmRuntimeReleaseArtifacts) => void,
 ): GreaterRealmRuntimeReleaseArtifacts {
   const manifestBytes = workspace.readFile(
-    runtimeReleasePath('import-manifest.json'),
+    runtimeReleasePath('import-manifest.json', directory),
     MAXIMUM_RUNTIME_MANIFEST_BYTES,
   );
   if (
@@ -3444,7 +3591,7 @@ export function readGreaterRealmRuntimeRelease(
   assertRuntimeReleaseManifestBounds(manifest);
   let cumulativeBytes = manifestBytes.byteLength;
   const statusBytes = workspace.readFile(
-    runtimeReleasePath('status.json'),
+    runtimeReleasePath('status.json', directory),
     Math.min(
       MAXIMUM_RUNTIME_STATUS_BYTES,
       MAXIMUM_RUNTIME_RELEASE_BYTES - cumulativeBytes,
@@ -3476,7 +3623,7 @@ export function readGreaterRealmRuntimeRelease(
     const remainingBytes = MAXIMUM_RUNTIME_RELEASE_BYTES - cumulativeBytes;
     if (remainingBytes < 1) fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
     const bytes = workspace.readFile(
-      runtimeReleasePath(path),
+      runtimeReleasePath(path, directory),
       Math.min(MAXIMUM_RUNTIME_CHUNK_BYTES, remainingBytes),
     );
     if (bytes.byteLength < 1 || bytes.byteLength > MAXIMUM_RUNTIME_CHUNK_BYTES) {
@@ -3549,8 +3696,28 @@ export function readGreaterRealmRuntimeRelease(
     statusBytes,
     chunks: Object.freeze(chunks),
   });
-  verifyGreaterRealmRuntimeReleaseArtifacts(artifacts);
+  verify(artifacts);
   return artifacts;
+}
+
+export function readGreaterRealmRuntimeRelease(
+  workspace: GreaterRealmPrivateWorkspace,
+): GreaterRealmRuntimeReleaseArtifacts {
+  return readGreaterRealmRuntimeReleaseForAtlas(
+    workspace,
+    GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+    verifyGreaterRealmRuntimeReleaseArtifacts,
+  );
+}
+
+export function readGenesis002GreaterRealmRuntimeRelease(
+  workspace: GreaterRealmPrivateWorkspace,
+): GreaterRealmRuntimeReleaseArtifacts {
+  return readGreaterRealmRuntimeReleaseForAtlas(
+    workspace,
+    GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+    verifyGenesis002GreaterRealmRuntimeReleaseArtifacts,
+  );
 }
 
 export const greaterRealmRuntimeReleaseTestSeams = Object.freeze({

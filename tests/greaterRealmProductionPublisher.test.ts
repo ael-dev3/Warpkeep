@@ -29,7 +29,6 @@ import {
   type GreaterRealmProductionPublishLane,
   type GreaterRealmProductionReleaseFlags,
 } from '../scripts/greater-realm-production-publisher-core';
-// @ts-expect-error Repository-owned ESM helper is exercised through exact publisher tests.
 import { canonicalTableSchemaBoundaryDigest } from '../scripts/spacetime-table-schema-attestation.mjs';
 import {
   authorizeGreaterRealmPublishExactBeforeClear,

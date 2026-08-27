@@ -208,6 +208,51 @@ describe('Warpkeep main-menu responsive layout', () => {
     );
   });
 
+  it('keeps both realm names and admission states legible on narrow phones', () => {
+    const css = readFileSync(
+      resolve(process.cwd(), 'src/components/menu/RealmChoiceSelector.css'),
+      'utf8'
+    );
+    const narrowPhone = readCssBlock(css, '@media (max-width: 520px)');
+    const tooltip = readCssBlock(css, '.realm-choice-selector__tooltip {');
+
+    expect(narrowPhone).toMatch(
+      /\.realm-choice-selector__button\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\);/s
+    );
+    expect(narrowPhone).toMatch(
+      /\.realm-choice-selector__name\s*\{[^}]*overflow:\s*visible;[^}]*text-overflow:\s*clip;/s
+    );
+    expect(narrowPhone).toMatch(
+      /\.realm-choice-selector__admission\s*\{[^}]*display:\s*flex;[^}]*white-space:\s*nowrap;/s
+    );
+    expect(narrowPhone).toMatch(
+      /\.realm-choice-selector__choice:first-child \.realm-choice-selector__tooltip\s*\{[^}]*right:\s*auto;[^}]*left:\s*0;[^}]*margin-inline:\s*0;/s
+    );
+    expect(narrowPhone).toMatch(
+      /\.realm-choice-selector__choice:last-child \.realm-choice-selector__tooltip\s*\{[^}]*right:\s*0;[^}]*left:\s*auto;[^}]*margin-inline:\s*0;/s
+    );
+    expect(tooltip).toContain('max-width: min(19rem, calc(100vw - 2rem));');
+  });
+
+  it('keeps complete realm names visible in the desktop menu rail', () => {
+    const css = readFileSync(
+      resolve(process.cwd(), 'src/components/menu/RealmChoiceSelector.css'),
+      'utf8'
+    );
+    const button = readCssBlock(
+      css,
+      '.warpkeep-menu .realm-choice-selector__button {'
+    );
+    const name = readCssBlock(css, '.realm-choice-selector__name {');
+    const admission = readCssBlock(css, '.realm-choice-selector__admission {');
+
+    expect(button).toContain('grid-template-columns: minmax(0, 1fr);');
+    expect(name).toContain('overflow: visible;');
+    expect(name).toContain('text-overflow: clip;');
+    expect(admission).toContain('display: flex;');
+    expect(admission).toContain('white-space: nowrap;');
+  });
+
   it('frees vertical space at 568x320 without hiding the project link', () => {
     const css = readFileSync(
       resolve(process.cwd(), 'src/components/menu/WarpkeepMainMenu.css'),

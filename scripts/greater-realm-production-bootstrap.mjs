@@ -28,6 +28,10 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 import { userInfo } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import {
+  requireGenesis001LegacyGreaterRealmProductionCliReadOnly,
+} from './greater-realm-legacy-production-seal.mjs';
+
 const PROFILE = 'warpkeep-greater-realm-production-bootstrap-v1';
 const CANONICAL_ORIGIN_URL = 'https://github.com/ael-dev3/Warpkeep.git';
 const CANONICAL_NPM_REGISTRY = 'https://registry.npmjs.org/';
@@ -3221,6 +3225,10 @@ export const greaterRealmProductionBootstrapTestSeams = Object.freeze({
 });
 
 async function main() {
+  requireGenesis001LegacyGreaterRealmProductionCliReadOnly({
+    entrypoint: 'bootstrap',
+    arguments_: process.argv.slice(2),
+  });
   const receipt = await runGreaterRealmProductionBootstrap(process.argv.slice(2));
   process.stdout.write(`${JSON.stringify(receipt)}\n`);
 }
@@ -3229,7 +3237,11 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   main().catch(error => {
     const code = error instanceof GreaterRealmProductionBootstrapError
       ? error.code
-      : 'GREATER_REALM_PRODUCTION_BOOTSTRAP_FAILED';
+      : error !== null
+        && typeof error === 'object'
+        && typeof error.code === 'string'
+        ? error.code
+        : 'GREATER_REALM_PRODUCTION_BOOTSTRAP_FAILED';
     process.stderr.write(`${code}\n`);
     process.exitCode = 1;
   });

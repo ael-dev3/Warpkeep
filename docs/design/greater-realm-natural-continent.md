@@ -4,7 +4,7 @@ Status: candidate-generation design only
 
 Atlas: `GENESIS_001_GREATER_REALM`
 
-Generator algorithm: `greater-realm-v2-natural-continent-pr-a.18`
+Generator algorithm: `greater-realm-v2-natural-continent-pr-a.19`
 Terrain-seed namespace: `greater-realm-v2-natural-continent-pr-a.3`
 Private atlas format: `8`
 Living-world authority: `greater-realm-private-living-world-v4`
@@ -72,7 +72,7 @@ the package implementation. There is no mutable random stream and no
 
 The current authority revision binds the two private density channels,
 marsh-aware dressing, domain material records, final water-body metadata, and
-the audited patch/chunk contract as living-world v4, generator `.18`, and
+the audited patch/chunk contract as living-world v4, generator `.19`, and
 private atlas format 8. The terrain-seed namespace intentionally remains `.3`:
 these are authority and package revisions, not authorization to reroll the
 owner's candidate ordinal.
@@ -145,8 +145,13 @@ Each candidate runs independently through these stage families:
    cannot satisfy the terrain gate. A separate coordinate-free topographic QA
    report checks final biome/elevation/water agreement, drainage and outlet
    behavior, erosion/sediment coupling, and marsh gradient/classification. Its
-   hard regional proof additionally requires Frostmere fjord systems, Mirefen
-   marsh/delta evidence and low-gradient lateral-channel braiding proxy,
+   hard regional proof additionally requires Frostmere fjord systems and a
+   Mirefen wetland-complex extent made from distinct final marsh-regime cells
+   plus explicit dry `RIVER_DELTA` biome cells. Mirefen still requires real
+   marsh hydrology, keeps the unchanged 64-cell extent threshold, and proves
+   separate delta-estuary evidence. Its low-gradient lateral-channel proxy
+   counts undirected channel/channel and channel/explicit-delta interfaces only
+   outside the single-receiver chain,
    Sunscar arid diversity with seasonal drainage and distinct oasis margins,
    Stonewake meaningful islands with genuine distinct-island saltwater
    straits, highland channel sources in every Tier II realm, and dense but
@@ -173,6 +178,14 @@ Each candidate runs independently through these stage families:
    persistence records, or gameplay systems. Their detailed contract is
    documented in
    [Greater Realm dormant living-world semantics](greater-realm-living-world-assets.md).
+
+Castle angular coverage is measured in six support-normalized sectors of each
+Tier-I region's final passable geography. The sector frame uses exact polar
+ordering around the regional support centroid and treats every collinear ray
+as one indivisible direction. This preserves the unchanged five-sector and
+35%-maximum-share gates without requiring an elongated coast or archipelago to
+occupy empty world-axis wedges, and without allowing a single ray to
+manufacture multiple sectors.
 
 `sedimentDepth` is the exact non-negative deposit added to the relaxed fluvial
 surface before final routing. The generator proves cell by cell that the final
@@ -307,8 +320,14 @@ A candidate is ineligible if any of these proofs fail:
 - the largest passable component covers less than 80% of a non-Stonewake Tier I
   region, 55% of intentionally archipelagic Stonewake Isles, 85% of a Tier II
   region, or 90% of Tier III;
-- passable-region fragmentation, boundary density, tendrils, radial tier
-  agreement, or radial Tier-I boundary alignment exceeds its fixed limit;
+- passable-region fragmentation, semantic-interface density, tendrils, radial
+  tier agreement, or radial Tier-I boundary alignment exceeds its fixed limit.
+  The 1,000-basis-point compactness ceiling measures only interfaces with
+  another passable semantic region. Off-grid edges plus final-water and sealed
+  geological-barrier perimeter are reported separately as immutable-perimeter
+  density; excluding them from the semantic metric does not exempt a detached
+  component, minor island, hole between passable regions, or one-cell tendril
+  from its independent topology, fragmentation, and tendril proof;
 - the measured final surface is outside 4–6 major ocean/sea bodies, 48–72
   major river networks, 120–240 minor stream heads, or 48–96 lakes;
 - a flow cycle, uphill routing edge, unexplained inland sink, or inconsistent
@@ -355,7 +374,8 @@ apron.
 Quality remains a vector, not an automatic decision. After the private package
 has been regenerated and byte-for-byte verified, the owner-review record joins
 its public aggregate evidence to coordinate-free private metrics. Those metrics
-span outer-boundary/coastal artifacts, passable-region coherence and route
+span outer-boundary/coastal artifacts, passable-region coherence, semantic
+interface density, separately observed immutable perimeter, and route
 fragmentation, throne-route clearance, chunk population balance, geological
 and landform alignment, climate/coastal compatibility, hydrology, biome
 diversity/balance, multiscale silhouette, directional ocean clearance, and

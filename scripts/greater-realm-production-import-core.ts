@@ -36,7 +36,7 @@ export const GREATER_REALM_PRODUCTION_IMPORT_LIMITS = Object.freeze({
 
 const SHA256 = /^[0-9a-f]{64}$/u;
 const SOURCE_COMMIT = /^[0-9a-f]{40}$/u;
-const VERIFY_DIGEST = /^(?:[0-9a-f]{64}|sha256-v1:[0-9a-f]{64}:[0-9]+:.*)$/u;
+const VERIFY_DIGEST = /^(?:[0-9a-f]{64}|sha256-v1:[0-9a-f]{64}:[0-9a-f]+:[0-9a-f]*)$/u;
 const U64_MAXIMUM = (1n << 64n) - 1n;
 
 export type GreaterRealmProductionImportStatus = Readonly<{
@@ -785,12 +785,17 @@ function importOperationPostcondition(input: Readonly<{
       return false;
     }
     const passableCells = cells.filter(cell => cell.passable).length;
-    return only('chunkRows', 'cellRows', 'slotRows', 'resourceRows', 'importsExact')
+    return only(
+      'chunkRows', 'cellRows', 'slotRows', 'resourceRows', 'importsExact',
+      'verificationDigest',
+    )
       && after.chunkRows === before.chunkRows + 1n
       && after.cellRows === before.cellRows + BigInt(cells.length)
       && after.slotRows === before.slotRows + BigInt(castleSlots.length)
       && after.resourceRows === before.resourceRows + BigInt(resourceNodes.length)
       && after.importsExact === importedCountsExact(after, authority)
+      && after.verificationDigest !== before.verificationDigest
+      && VERIFY_DIGEST.test(after.verificationDigest)
       && afterAuthority.importedPassableCellCount
         === beforeAuthority.importedPassableCellCount + passableCells
       && verifiedCountsUnchanged(beforeAuthority, afterAuthority);
@@ -1372,9 +1377,13 @@ export async function executeGreaterRealmProductionImport(input: Readonly<{
   fail('GREATER_REALM_PRODUCTION_IMPORT_OPERATION_LIMIT', operationsSubmitted > 0);
 }
 
-export const greaterRealmProductionImportTestSeams = Object.freeze({
+/** Shared, mutation-free planning/postcondition engine for realm-scoped operators. */
+export const greaterRealmProductionImportEngine = Object.freeze({
   canonicalJsonText,
   importAuthority,
+  importOperationPostcondition,
   planNextOperation,
   readyPostcondition,
 });
+
+export const greaterRealmProductionImportTestSeams = greaterRealmProductionImportEngine;

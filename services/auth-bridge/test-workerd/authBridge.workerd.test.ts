@@ -206,6 +206,7 @@ function proofFor(challenge: IssuedChallenge, bindingVerifier = BINDING_VERIFIER
 function harness(options: {
   admission?: AdmissionResolution
   accessRequestResolver?: AccessRequestResolver
+  accessRequestSubmissionsSuspended?: boolean
   config?: BridgeConfig
   rateLimiter?: { check(request: Request, action: string): Promise<{ allowed: true } | { allowed: false; retryAfterSeconds: number }> }
 } = {}) {
@@ -245,6 +246,8 @@ function harness(options: {
     rateLimiter: options.rateLimiter ?? { check: async () => ({ allowed: true }) },
     signer,
     logger: { event: event => events.push(event) },
+    accessRequestSubmissionsSuspended:
+      options.accessRequestSubmissionsSuspended ?? false,
   })
   return {
     app,
@@ -943,6 +946,38 @@ describe('auth bridge production bindings in workerd', () => {
     expect(getStatus).toHaveBeenCalledTimes(2)
     expect(submit).toHaveBeenCalledOnce()
     expect(h.signer).not.toHaveBeenCalled()
+  })
+
+  it('keeps the 0.4.0 submission suspension ahead of workerd request processing', async () => {
+    const submit = vi.fn(async () => ({ status: 'already-admitted' } as const))
+    const check = vi.fn(async () => ({ allowed: true as const }))
+    const h = harness({
+      admission: { state: 'missing', authEpoch: 0 },
+      accessRequestSubmissionsSuspended: true,
+      accessRequestResolver: {
+        getStatus: vi.fn(async () => ({ status: 'not-requested' } as const)),
+        submit,
+      },
+      rateLimiter: { check },
+    })
+
+    const response = await h.app.fetch(
+      accessBearerPost(ACCESS_REQUEST_PATH),
+      env as unknown as WorkerEnv,
+    )
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'admission_requests_suspended',
+        message: 'New admission requests are temporarily suspended.',
+      },
+    })
+    expect(check).not.toHaveBeenCalled()
+    expect(h.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+    expect(h.resolver.resolve).not.toHaveBeenCalled()
+    expect(submit).not.toHaveBeenCalled()
+    expect(h.events).toContain('access_request_rejected')
   })
 
   it('supports revoked-founder reapplication without gameplay tokens in workerd', async () => {

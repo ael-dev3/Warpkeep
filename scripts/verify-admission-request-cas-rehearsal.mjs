@@ -35,6 +35,15 @@ const expectedCliCommit = '052c83fe984a4c4eb7bb4f9afa5c6b1903891d87';
 const database = 'warpkeep-admission-cas-rehearsal';
 const founderFid = 740_101;
 const profilePolicyVersion = 'trusted-snapchain-profile-v3';
+const expectedFrozenPolicy = Object.freeze({
+  realmId: 'GENESIS_001',
+  releaseVersion: '0.3.43',
+  playerAccessEnabled: true,
+  admissionStateMutationsEnabled: false,
+  accessRequestSubmissionsEnabled: false,
+  sourceBaselineCommit: '2ae51984e1fa6ce5b0028c1a250359fed79d819b',
+  freezeReleaseNonce: '3f158f17acd5e1e63c74befef7cb3ccab7cb07feaaed432e7483467e1c856f00',
+});
 const maximumU64 = (1n << 64n) - 1n;
 const maximumOutputBytes = 1_000_000;
 const maximumResponseBytes = 16_384;
@@ -251,24 +260,6 @@ async function sql(server, token, query) {
 
 function outputDigest(output) {
   return createHash('sha256').update(output.replace(/\r\n/g, '\n').trim()).digest('hex');
-}
-
-function countFromSql(output) {
-  const normalized = output.replace(/\u001b\[[0-9;]*m/g, '').trim();
-  const match = normalized.match(/(?:^|\n)\s*(\d+)\s*$/);
-  if (!match) fail('Disposable aggregate count response was invalid.');
-  return BigInt(match[1]);
-}
-
-async function countWhere(server, token, table, predicate = 'true') {
-  if (!/^[a-z0-9_]+$/.test(table) || !/^[a-z0-9_ ='._:-]+$/i.test(predicate)) {
-    fail('Disposable aggregate coordinates were invalid.');
-  }
-  return countFromSql(await sql(
-    server,
-    token,
-    `SELECT COUNT(*) AS warpkeep_count FROM ${table} WHERE ${predicate}`,
-  ));
 }
 
 async function freeLoopbackPort() {
@@ -532,6 +523,23 @@ function parseAdmissionStatus(text) {
   });
 }
 
+function parseFrozenPolicy(text) {
+  let value;
+  try { value = JSON.parse(text); } catch { fail('Genesis 001 policy receipt was not JSON.'); }
+  if (!Array.isArray(value) || value.length !== 7) {
+    fail('Genesis 001 policy receipt contract was invalid.');
+  }
+  return Object.freeze({
+    realmId: value[0],
+    releaseVersion: value[1],
+    playerAccessEnabled: value[2],
+    admissionStateMutationsEnabled: value[3],
+    accessRequestSubmissionsEnabled: value[4],
+    sourceBaselineCommit: value[5],
+    freezeReleaseNonce: value[6],
+  });
+}
+
 function safeJsonUnsigned(value, label) {
   if (typeof value !== 'bigint' || value < 0n || value > BigInt(Number.MAX_SAFE_INTEGER)) {
     fail(`${label} was not safe for the loopback JSON wire.`);
@@ -576,83 +584,15 @@ async function fullStateDigest(server, ownerToken) {
     allowed: outputDigest(await sql(
       server,
       ownerToken,
-      `SELECT * FROM allowed_fid WHERE fid = ${founderFid}`,
+      'SELECT * FROM allowed_fid',
     )),
     request: outputDigest(await sql(
       server,
       ownerToken,
-      `SELECT * FROM access_request_v1 WHERE fid = ${founderFid}`,
+      'SELECT * FROM access_request_v1',
     )),
-    audits: {
-      admit: String(await exactAuditCount(
-        server,
-        ownerToken,
-        'admit_founder_for_access_request_v2',
-      )),
-      disable: String(await exactAuditCount(server, ownerToken, 'disable_fid')),
-      reenable: String(await exactAuditCount(
-        server,
-        ownerToken,
-        'allow_fid_for_access_request_v1',
-      )),
-    },
+    audits: outputDigest(await sql(server, ownerToken, 'SELECT * FROM admin_audit')),
   }));
-}
-
-async function exactGraphCounts(server, ownerToken, expected) {
-  const counts = {
-    allowed: await countWhere(server, ownerToken, 'allowed_fid', `fid = ${founderFid}`),
-    castle: await countWhere(server, ownerToken, 'castle', `owner_fid = ${founderFid}`),
-    claim: await countWhere(
-      server,
-      ownerToken,
-      'castle_slot_claim_v1',
-      `owner_fid = ${founderFid}`,
-    ),
-    profile: await countWhere(server, ownerToken, 'realm_profile_v1', `fid = ${founderFid}`),
-    marks: await countWhere(server, ownerToken, 'mark_account_v1', `fid = ${founderFid}`),
-    resource: await countWhere(server, ownerToken, 'resource_account_v1', `fid = ${founderFid}`),
-    workerSystem: await countWhere(server, ownerToken, 'realm_worker_system_v1'),
-    workers: await countWhere(server, ownerToken, 'castle_worker_v1'),
-    assignments: await countWhere(server, ownerToken, 'worker_assignment_v1', `fid = ${founderFid}`),
-    occupations: await countWhere(server, ownerToken, 'worker_node_occupation_v1'),
-    workerReceipts: await countWhere(
-      server,
-      ownerToken,
-      'worker_command_idempotency_v1',
-      `fid = ${founderFid}`,
-    ),
-    workerSchedules: await countWhere(server, ownerToken, 'worker_assignment_schedule_v_1'),
-  };
-  for (const [label, expectedCount] of Object.entries(expected)) {
-    if (counts[label] !== expectedCount) {
-      fail(`Exact graph count was invalid for ${label}.`);
-    }
-  }
-}
-
-async function exactAuditCount(server, ownerToken, action) {
-  if (!/^[a-z0-9_]+$/.test(action)) fail('Audit action fixture was invalid.');
-  return countWhere(
-    server,
-    ownerToken,
-    'admin_audit',
-    `action = '${action}'`,
-  );
-}
-
-async function assertAuditProjection(server, ownerToken, action) {
-  if (!/^[a-z0-9_]+$/.test(action)) fail('Audit action fixture was invalid.');
-  const projection = (await sql(
-    server,
-    ownerToken,
-    `SELECT action, target_fid, actor_subject FROM admin_audit WHERE action = '${action}'`,
-  )).replace(/\u001b\[[0-9;]*m/g, '');
-  if (
-    !projection.includes(action)
-    || !projection.includes(String(founderFid))
-    || !projection.includes('service:hermes')
-  ) fail('Request-CAS audit projection was not actor/target exact.');
 }
 
 async function main() {
@@ -759,9 +699,25 @@ async function main() {
       await useInspectionModule();
       return fullStateDigest(server, owner.token);
     };
-    const inspectGraph = async () => {
-      await useInspectionModule();
-      return graphDigest(server, owner.token);
+    const readFrozenPolicy = async () => {
+      await useActualModule();
+      return parseFrozenPolicy(await callLoopback(
+        server,
+        'genesis_001_access_policy_v1',
+        adminCredential(),
+        '[]',
+        200,
+      ));
+    };
+    const readRequestStatus = async () => {
+      await useActualModule();
+      return parseAccessRequestStatus(await callLoopback(
+        server,
+        'access_request_get_status_v1',
+        requestCredential('status'),
+        '[]',
+        200,
+      ));
     };
     const readAdmissionStatus = async () => {
       await useActualModule();
@@ -773,362 +729,135 @@ async function main() {
         200,
       ));
     };
-    const submitRequest = async () => {
+    const readOnlyState = async () => Object.freeze({
+      policy: await readFrozenPolicy(),
+      request: await readRequestStatus(),
+      admission: await readAdmissionStatus(),
+    });
+
+    rehearsalStage = 'frozen-policy-and-read-only-status';
+    const readOnlyBaseline = await readOnlyState();
+    assert.deepEqual(readOnlyBaseline, {
+      policy: expectedFrozenPolicy,
+      request: {
+        status: 'not_requested',
+        requestedAtMicros: undefined,
+      },
+      admission: {
+        admissionState: 'missing',
+        authEpoch: 0n,
+        requestState: 'not_requested',
+        requestCycle: undefined,
+        requestedAtMicros: undefined,
+      },
+    });
+
+    const sealedMutations = Object.freeze([
+      {
+        name: 'access_request_submit_v1',
+        credential: () => requestCredential('submit'),
+        body: '[]',
+        expectedStatus: 500,
+        expectedError: 'ACCESS_REQUESTS_SEALED',
+      },
+      {
+        name: 'admin_allow_fid',
+        credential: adminCredential,
+        body: JSON.stringify([founderFid, 'sealed rehearsal']),
+        expectedStatus: 530,
+        expectedError: 'ADMISSIONS_SEALED',
+      },
+      {
+        name: 'admin_admit_founder_v1',
+        credential: adminCredential,
+        body: JSON.stringify([
+          founderFid,
+          'sealed rehearsal',
+          'rehearsal.founder',
+          { some: 'Rehearsal Founder' },
+          'https://profiles.example.com/rehearsal-founder.png',
+          { some: 'Disposable sealed rehearsal' },
+          profilePolicyVersion,
+        ]),
+        expectedStatus: 530,
+        expectedError: 'ADMISSIONS_SEALED',
+      },
+      {
+        name: 'admin_allow_fid_for_access_request_v1',
+        credential: adminCredential,
+        body: readmissionArguments({ requestCycle: 0n, requestedAtMicros: 1n }),
+        expectedStatus: 530,
+        expectedError: 'ADMISSIONS_SEALED',
+      },
+      {
+        name: 'admin_admit_founder_for_access_request_v2',
+        credential: adminCredential,
+        body: firstAdmissionArguments({ requestCycle: 0n, requestedAtMicros: 1n }),
+        expectedStatus: 530,
+        expectedError: 'ADMISSIONS_SEALED',
+      },
+      {
+        name: 'admin_disable_fid',
+        credential: adminCredential,
+        body: JSON.stringify([founderFid, 'sealed rehearsal']),
+        expectedStatus: 530,
+        expectedError: 'ADMISSIONS_SEALED',
+      },
+      {
+        name: 'admin_bump_auth_epoch',
+        credential: adminCredential,
+        body: JSON.stringify([founderFid, 'sealed rehearsal']),
+        expectedStatus: 530,
+        expectedError: 'ADMISSIONS_SEALED',
+      },
+      {
+        name: 'admin_reset_access_request_v1',
+        credential: adminCredential,
+        body: JSON.stringify([
+          founderFid,
+          false,
+          1,
+          { some: 0 },
+          { some: 1 },
+          'sealed rehearsal',
+        ]),
+        expectedStatus: 530,
+        expectedError: 'ADMISSIONS_SEALED',
+      },
+    ]);
+    if (
+      sealedMutations.length !== 8
+      || new Set(sealedMutations.map(mutation => mutation.name)).size !== 8
+    ) fail('Admission suspension mutation surface list was not exact.');
+
+    rehearsalStage = 'reject-all-admission-mutations';
+    const baseline = await inspectState();
+    let rejectedMutations = 0;
+    for (const mutation of sealedMutations) {
       await useActualModule();
-      return parseAccessRequestStatus(await callLoopback(
+      const responseBody = (await callReducer(
         server,
-        'access_request_submit_v1',
-        requestCredential('submit'),
-        '[]',
-        200,
-      ));
-    };
+        mutation.name,
+        mutation.credential(),
+        mutation.body,
+        mutation.expectedStatus,
+      )).trim();
+      const expectedBody = mutation.expectedStatus === 500
+        ? `The module instance encountered a fatal error: ${mutation.expectedError}`
+        : mutation.expectedError;
+      if (responseBody !== expectedBody) {
+        fail(`Admission suspension rejection was not exact for ${mutation.name}.`);
+      }
+      const after = await inspectState();
+      if (after !== baseline) {
+        fail(`Admission suspension attempt mutated state for ${mutation.name}.`);
+      }
+      rejectedMutations += 1;
+    }
+    if (rejectedMutations !== 8) fail('Admission suspension proof was incomplete.');
 
-    rehearsalStage = 'seed-and-stage-workers';
-    await callReducer(
-      server,
-      'admin_seed_world',
-      adminCredential(),
-      '[]',
-      200,
-      120_000,
-    );
-    await callReducer(
-      server,
-      'admin_stage_worker_system_v1',
-      adminCredential(),
-      '[]',
-      200,
-    );
-    await useInspectionModule();
-    await exactGraphCounts(server, owner.token, {
-      allowed: 0n,
-      castle: 0n,
-      claim: 0n,
-      profile: 0n,
-      marks: 0n,
-      resource: 0n,
-      workerSystem: 1n,
-      workers: 0n,
-      assignments: 0n,
-      occupations: 0n,
-      workerReceipts: 0n,
-      workerSchedules: 0n,
-    });
-
-    rehearsalStage = 'missing-request';
-    const firstSubmitted = await submitRequest();
-    if (firstSubmitted.status !== 'requested' || firstSubmitted.requestedAtMicros === undefined) {
-      fail('Missing FID did not create its first request.');
-    }
-    const firstTuple = await readAdmissionStatus();
-    assert.deepEqual(firstTuple, {
-      admissionState: 'missing',
-      authEpoch: 0n,
-      requestState: 'pending',
-      requestCycle: 0n,
-      requestedAtMicros: firstSubmitted.requestedAtMicros,
-    });
-
-    rehearsalStage = 'missing-wrong-tuples';
-    const firstBaseline = await inspectState();
-    await useActualModule();
-    await callReducer(
-      server,
-      'admin_admit_founder_for_access_request_v2',
-      adminCredential(),
-      firstAdmissionArguments({ ...firstTuple, requestCycle: 1n }),
-      530,
-    );
-    if (await inspectState() !== firstBaseline) {
-      fail('Wrong missing-FID request cycle mutated state.');
-    }
-    await useActualModule();
-    await callReducer(
-      server,
-      'admin_admit_founder_for_access_request_v2',
-      adminCredential(),
-      firstAdmissionArguments({
-        ...firstTuple,
-        requestedAtMicros: firstTuple.requestedAtMicros + 1n,
-      }),
-      530,
-    );
-    if (await inspectState() !== firstBaseline) {
-      fail('Wrong missing-FID request timestamp mutated state.');
-    }
-
-    // Replace only the disposable cycle-zero request, then have real module
-    // code create the successor timestamp. This models an operator holding an
-    // exact tuple after the underlying application was independently replaced.
-    rehearsalStage = 'missing-replaced-request';
-    await sql(
-      server,
-      owner.token,
-      `DELETE FROM access_request_v1 WHERE fid = ${founderFid}`,
-    );
-    if (await countWhere(
-      server,
-      owner.token,
-      'access_request_v1',
-      `fid = ${founderFid}`,
-    ) !== 0n) fail('Disposable request replacement setup failed.');
-    const secondSubmitted = await submitRequest();
-    if (
-      secondSubmitted.status !== 'requested'
-      || secondSubmitted.requestedAtMicros === undefined
-      || secondSubmitted.requestedAtMicros === firstTuple.requestedAtMicros
-    ) fail('Real module did not create a distinct replacement request.');
-    const secondTuple = await readAdmissionStatus();
-    assert.deepEqual(secondTuple, {
-      admissionState: 'missing',
-      authEpoch: 0n,
-      requestState: 'pending',
-      requestCycle: 0n,
-      requestedAtMicros: secondSubmitted.requestedAtMicros,
-    });
-    const replacedBaseline = await inspectState();
-    rehearsalStage = 'missing-stale-replaced-tuple';
-    await useActualModule();
-    await callReducer(
-      server,
-      'admin_admit_founder_for_access_request_v2',
-      adminCredential(),
-      firstAdmissionArguments(firstTuple),
-      530,
-    );
-    if (await inspectState() !== replacedBaseline) {
-      fail('Stale replaced missing-FID request tuple mutated state.');
-    }
-
-    rehearsalStage = 'first-exact-admission';
-    await useActualModule();
-    await callReducer(
-      server,
-      'admin_admit_founder_for_access_request_v2',
-      adminCredential(),
-      firstAdmissionArguments(secondTuple),
-      200,
-    );
-    const admittedStatus = await readAdmissionStatus();
-    assert.deepEqual(admittedStatus, {
-      admissionState: 'enabled',
-      authEpoch: 1n,
-      requestState: 'resolved',
-      requestCycle: 0n,
-      requestedAtMicros: secondTuple.requestedAtMicros,
-    });
-    await useInspectionModule();
-    await exactGraphCounts(server, owner.token, {
-      allowed: 1n,
-      castle: 1n,
-      claim: 1n,
-      profile: 1n,
-      marks: 1n,
-      resource: 1n,
-      workerSystem: 1n,
-      workers: 4n,
-      assignments: 0n,
-      occupations: 0n,
-      workerReceipts: 0n,
-      workerSchedules: 0n,
-    });
-    if (
-      await countWhere(
-        server,
-        owner.token,
-        'allowed_fid',
-        `fid = ${founderFid} AND enabled = true AND auth_epoch = 1`,
-      ) !== 1n
-      || await exactAuditCount(
-        server,
-        owner.token,
-        'admit_founder_for_access_request_v2',
-      ) !== 1n
-    ) fail('First request-CAS admission did not preserve exact epoch/audit invariants.');
-    const foundedGraphDigest = await graphDigest(server, owner.token);
-    const admittedBaseline = await fullStateDigest(server, owner.token);
-    rehearsalStage = 'first-admission-retry';
-    await useActualModule();
-    await callReducer(
-      server,
-      'admin_admit_founder_for_access_request_v2',
-      adminCredential(),
-      firstAdmissionArguments(secondTuple),
-      530,
-    );
-    if (await inspectState() !== admittedBaseline) {
-      fail('First request-CAS admission retry duplicated founder state.');
-    }
-
-    rehearsalStage = 'disable-founder';
-    await useActualModule();
-    await callReducer(
-      server,
-      'admin_disable_fid',
-      adminCredential(),
-      JSON.stringify([founderFid, 'disposable request-CAS re-enable setup']),
-      200,
-    );
-    const disabledStatusBeforeRequest = await readAdmissionStatus();
-    assert.deepEqual(disabledStatusBeforeRequest, {
-      admissionState: 'disabled',
-      authEpoch: 1n,
-      requestState: 'resolved',
-      requestCycle: 0n,
-      requestedAtMicros: secondTuple.requestedAtMicros,
-    });
-    if (await inspectGraph() !== foundedGraphDigest) {
-      fail('Disabling a founder changed its permanent gameplay graph.');
-    }
-    await useInspectionModule();
-    if (
-      await countWhere(
-        server,
-        owner.token,
-        'allowed_fid',
-        `fid = ${founderFid} AND enabled = false AND auth_epoch = 1`,
-      ) !== 1n
-      || await exactAuditCount(server, owner.token, 'disable_fid') !== 1n
-    ) fail('Disable transition changed the auth epoch or duplicated its audit.');
-
-    rehearsalStage = 'disabled-request';
-    const disabledSubmitted = await submitRequest();
-    if (
-      disabledSubmitted.status !== 'requested'
-      || disabledSubmitted.requestedAtMicros === undefined
-    ) fail('Disabled founder did not create an authEpoch+1 request.');
-    const disabledTuple = await readAdmissionStatus();
-    assert.deepEqual(disabledTuple, {
-      admissionState: 'disabled',
-      authEpoch: 1n,
-      requestState: 'pending',
-      requestCycle: 2n,
-      requestedAtMicros: disabledSubmitted.requestedAtMicros,
-    });
-    if (await inspectGraph() !== foundedGraphDigest) {
-      fail('Disabled-founder request changed its permanent gameplay graph.');
-    }
-
-    rehearsalStage = 'disabled-wrong-tuples';
-    const disabledBaseline = await inspectState();
-    await useActualModule();
-    await callReducer(
-      server,
-      'admin_allow_fid_for_access_request_v1',
-      adminCredential(),
-      readmissionArguments({ ...disabledTuple, requestCycle: 1n }),
-      530,
-    );
-    if (await inspectState() !== disabledBaseline) {
-      fail('Wrong disabled-founder request cycle mutated state.');
-    }
-    await useActualModule();
-    await callReducer(
-      server,
-      'admin_allow_fid_for_access_request_v1',
-      adminCredential(),
-      readmissionArguments(firstTuple),
-      530,
-    );
-    if (await inspectState() !== disabledBaseline) {
-      fail('Stale disabled-founder request tuple mutated state.');
-    }
-    await useActualModule();
-    await callReducer(
-      server,
-      'admin_allow_fid_for_access_request_v1',
-      adminCredential(),
-      readmissionArguments({
-        ...disabledTuple,
-        requestedAtMicros: disabledTuple.requestedAtMicros + 1n,
-      }),
-      530,
-    );
-    if (await inspectState() !== disabledBaseline) {
-      fail('Wrong disabled-founder request timestamp mutated state.');
-    }
-
-    rehearsalStage = 'exact-reenable';
-    await useActualModule();
-    await callReducer(
-      server,
-      'admin_allow_fid_for_access_request_v1',
-      adminCredential(),
-      readmissionArguments(disabledTuple),
-      200,
-    );
-    const reenabledStatus = await readAdmissionStatus();
-    assert.deepEqual(reenabledStatus, {
-      admissionState: 'enabled',
-      authEpoch: 2n,
-      requestState: 'resolved',
-      requestCycle: 2n,
-      requestedAtMicros: disabledTuple.requestedAtMicros,
-    });
-    if (await inspectGraph() !== foundedGraphDigest) {
-      fail('Request-CAS re-enable changed the permanent gameplay graph.');
-    }
-    await useInspectionModule();
-    if (
-      await countWhere(
-        server,
-        owner.token,
-        'allowed_fid',
-        `fid = ${founderFid} AND enabled = true AND auth_epoch = 2`,
-      ) !== 1n
-      || await exactAuditCount(
-        server,
-        owner.token,
-        'allow_fid_for_access_request_v1',
-      ) !== 1n
-      || await exactAuditCount(
-        server,
-        owner.token,
-        'admit_founder_for_access_request_v2',
-      ) !== 1n
-      || await exactAuditCount(server, owner.token, 'disable_fid') !== 1n
-    ) fail('Re-enable transition did not preserve exact epoch/audit invariants.');
-    await assertAuditProjection(
-      server,
-      owner.token,
-      'admit_founder_for_access_request_v2',
-    );
-    await assertAuditProjection(
-      server,
-      owner.token,
-      'allow_fid_for_access_request_v1',
-    );
-    await assertAuditProjection(server, owner.token, 'disable_fid');
-
-    rehearsalStage = 'reenable-retry-and-final-invariants';
-    const reenabledBaseline = await fullStateDigest(server, owner.token);
-    await useActualModule();
-    await callReducer(
-      server,
-      'admin_allow_fid_for_access_request_v1',
-      adminCredential(),
-      readmissionArguments(disabledTuple),
-      530,
-    );
-    if (await inspectState() !== reenabledBaseline) {
-      fail('Request-CAS re-enable retry duplicated or changed state.');
-    }
-    await useInspectionModule();
-    await exactGraphCounts(server, owner.token, {
-      allowed: 1n,
-      castle: 1n,
-      claim: 1n,
-      profile: 1n,
-      marks: 1n,
-      resource: 1n,
-      workerSystem: 1n,
-      workers: 4n,
-      assignments: 0n,
-      occupations: 0n,
-      workerReceipts: 0n,
-      workerSchedules: 0n,
-    });
+    rehearsalStage = 'final-frozen-invariants';
+    assert.deepEqual(await readOnlyState(), readOnlyBaseline);
     if (
       createHash('sha256').update(await readFile(actualArtifactPath)).digest('hex')
         !== expectedActualArtifactDigest
@@ -1137,10 +866,10 @@ async function main() {
     ) fail('Rehearsal artifact changed during execution.');
 
     console.log(
-      `admission request-CAS real-module rehearsal passed in ${Date.now() - startedAt}ms: `
-      + 'missing cycle-0 request admitted once after wrong/replaced tuples failed; '
-      + 'disabled authEpoch+1 request re-enabled once; exact founder, castle, claim, '
-      + 'resource, four-worker, audit, and auth-epoch invariants held',
+      `admission suspension real-module rehearsal passed in ${Date.now() - startedAt}ms: `
+      + '8/8 mutation surfaces rejected; frozen Genesis 001 policy and read-only '
+      + 'statuses remained exact; complete admission, founder-graph, audit, and '
+      + 'artifact digests held',
     );
   } finally {
     disposableCliCredential = null;

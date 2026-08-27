@@ -27,6 +27,7 @@ import {
   farcasterAuthSafeDiagnosticReport
 } from '../../farcaster/farcasterAuthDiagnostics';
 import { WARPKEEP_BUILD_INFO } from '../../build/buildInfo';
+import { NEW_ADMISSIONS_SUSPENDED } from '../../release/admissionLaunchPolicy';
 import type {
   WarpkeepBackendPhase,
   WarpkeepBackendState
@@ -454,6 +455,7 @@ export function FarcasterMiniAppEntryGate({
     content = (
       <FarcasterAdmissionPanel
         accessRequest={accessRequest}
+        admissionRequestsSuspended={NEW_ADMISSIONS_SUSPENDED}
         admissionCheck={admissionCheck}
         approvalNotificationLaunch={approvalNotificationLaunch}
         identity={authState.identity}
@@ -469,6 +471,7 @@ export function FarcasterMiniAppEntryGate({
     content = (
       <FarcasterAdmissionPanel
         accessRequest={accessRequest}
+        admissionRequestsSuspended={NEW_ADMISSIONS_SUSPENDED}
         admissionCheck={admissionCheck}
         approvalNotificationLaunch={approvalNotificationLaunch}
         autoFocusHeading={!awaitingTerms}

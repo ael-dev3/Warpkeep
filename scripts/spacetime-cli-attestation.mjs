@@ -8,9 +8,11 @@ import {
   fchmodSync,
   fstatSync,
   fsyncSync,
+  lstatSync,
   mkdtempSync,
   openSync,
   readFileSync,
+  readdirSync,
   realpathSync,
   rmSync,
   statSync,
@@ -26,17 +28,28 @@ import {
 const EXPECTED_CLI_COMMIT = '052c83fe984a4c4eb7bb4f9afa5c6b1903891d87';
 const EXPECTED_LAUNCHER_SHA256 = Object.freeze({
   'darwin-arm64': '4d76214ab1ba1462bd1500739641ec1c8322f99529d899c28612bfa665ccdfc6',
+  // The reviewed Linux archive ships the CLI directly rather than through
+  // the macOS launcher, so the executable and launcher digests are identical.
+  'linux-x64': 'cac13c929049f31cb588c230a0d7fe5f388505b4c64047a68b1d5cfdc811624b',
 });
 const EXPECTED_CLI_BINARY_SHA256 = Object.freeze({
   'darwin-arm64': '2e737ddbbd7d337bb19c8fc22da9de44be4b7b2062146e7f65aa3f298d7994d6',
+  'linux-x64': 'cac13c929049f31cb588c230a0d7fe5f388505b4c64047a68b1d5cfdc811624b',
 });
 const EXPECTED_STANDALONE_BINARY_SHA256 = Object.freeze({
   'darwin-arm64': '15a0965f1deec6b79f67fc04b616fd1a6b8f633301b0cfd2ebb7f961b919a8fa',
+  'linux-x64': 'a9185a737c9b739896c8f51326e1c3aedefba80a0f01def76ce26f358d5c187b',
 });
 const MAXIMUM_CLI_BYTES = 128 * 1_024 * 1_024;
 const MAXIMUM_VERSION_OUTPUT_BYTES = 64 * 1_024;
 const SNAPSHOT_DIRECTORY_MODE = 0o700;
 const SNAPSHOT_EXECUTABLE_MODE = 0o500;
+const SNAPSHOT_CLI_FILENAME = 'spacetimedb-cli';
+const SNAPSHOT_STANDALONE_FILENAME = 'spacetimedb-standalone';
+const SNAPSHOT_MEMBERS = Object.freeze([
+  SNAPSHOT_CLI_FILENAME,
+  SNAPSHOT_STANDALONE_FILENAME,
+]);
 const CHILD_ENVIRONMENT_KEYS = Object.freeze([
   'PATH',
   'HOME',
@@ -97,6 +110,158 @@ function resolveExecutablePath(executable, environment) {
   fail('The pinned SpacetimeDB CLI executable was not found.');
 }
 
+function immutableIdentity(metadata, canonicalPath) {
+  return Object.freeze({
+    dev: metadata.dev,
+    ino: metadata.ino,
+    uid: metadata.uid,
+    gid: metadata.gid,
+    mode: metadata.mode,
+    nlink: metadata.nlink,
+    size: metadata.size,
+    mtimeNs: metadata.mtimeNs,
+    ctimeNs: metadata.ctimeNs,
+    canonicalPath,
+  });
+}
+
+function metadataMatches(left, right) {
+  return left.dev === right.dev
+    && left.ino === right.ino
+    && left.uid === right.uid
+    && left.gid === right.gid
+    && left.mode === right.mode
+    && left.nlink === right.nlink
+    && left.size === right.size
+    && left.mtimeNs === right.mtimeNs
+    && left.ctimeNs === right.ctimeNs;
+}
+
+function identitiesMatch(left, right) {
+  return metadataMatches(left, right)
+    && left.canonicalPath === right.canonicalPath;
+}
+
+function failSnapshotReattestation() {
+  fail('The private SpacetimeDB CLI snapshot failed re-attestation.');
+}
+
+function bindSnapshotPath(path, descriptorMetadata, kind) {
+  const pathMetadata = lstatSync(path, { bigint: true });
+  const canonicalPath = realpathSync(path);
+  const canonicalMetadata = lstatSync(canonicalPath, { bigint: true });
+  if (
+    canonicalPath !== path
+    || (kind === 'directory' ? !pathMetadata.isDirectory() : !pathMetadata.isFile())
+    || !metadataMatches(pathMetadata, descriptorMetadata)
+    || !metadataMatches(canonicalMetadata, descriptorMetadata)
+  ) failSnapshotReattestation();
+  return immutableIdentity(descriptorMetadata, canonicalPath);
+}
+
+function attestSnapshotDirectory(directory, expectedIdentity) {
+  let descriptor;
+  try {
+    descriptor = openSync(
+      directory,
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_DIRECTORY,
+    );
+    const before = fstatSync(descriptor, { bigint: true });
+    const beforeIdentity = bindSnapshotPath(directory, before, 'directory');
+    if (
+      !before.isDirectory()
+      || (before.mode & 0o7777n) !== BigInt(SNAPSHOT_DIRECTORY_MODE)
+      || before.nlink < 1n
+      || (expectedIdentity !== undefined && !identitiesMatch(beforeIdentity, expectedIdentity))
+    ) failSnapshotReattestation();
+    const members = readdirSync(directory).sort();
+    if (
+      members.length !== SNAPSHOT_MEMBERS.length
+      || members.some((member, index) => member !== SNAPSHOT_MEMBERS[index])
+    ) failSnapshotReattestation();
+    const after = fstatSync(descriptor, { bigint: true });
+    const afterIdentity = bindSnapshotPath(directory, after, 'directory');
+    if (
+      !identitiesMatch(beforeIdentity, afterIdentity)
+      || (expectedIdentity !== undefined && !identitiesMatch(afterIdentity, expectedIdentity))
+    ) failSnapshotReattestation();
+    return afterIdentity;
+  } catch (error) {
+    if (error instanceof SpacetimeCliAttestationError) throw error;
+    failSnapshotReattestation();
+  } finally {
+    if (descriptor !== undefined) {
+      try { closeSync(descriptor); } catch {}
+    }
+  }
+}
+
+function attestSnapshotExecutable(path, expectedDigest, expectedIdentity) {
+  let descriptor;
+  let bytes;
+  try {
+    descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const before = fstatSync(descriptor, { bigint: true });
+    const beforeIdentity = bindSnapshotPath(path, before, 'file');
+    if (
+      !before.isFile()
+      || before.size < 1n
+      || before.size > BigInt(MAXIMUM_CLI_BYTES)
+      || (before.mode & 0o7777n) !== BigInt(SNAPSHOT_EXECUTABLE_MODE)
+      || before.nlink !== 1n
+      || (expectedIdentity !== undefined && !identitiesMatch(beforeIdentity, expectedIdentity))
+    ) failSnapshotReattestation();
+    bytes = readFileSync(descriptor);
+    const after = fstatSync(descriptor, { bigint: true });
+    const afterIdentity = bindSnapshotPath(path, after, 'file');
+    if (
+      !identitiesMatch(beforeIdentity, afterIdentity)
+      || BigInt(bytes.byteLength) !== after.size
+      || createHash('sha256').update(bytes).digest('hex') !== expectedDigest
+      || (expectedIdentity !== undefined && !identitiesMatch(afterIdentity, expectedIdentity))
+    ) failSnapshotReattestation();
+    return afterIdentity;
+  } catch (error) {
+    if (error instanceof SpacetimeCliAttestationError) throw error;
+    failSnapshotReattestation();
+  } finally {
+    bytes?.fill(0);
+    if (descriptor !== undefined) {
+      try { closeSync(descriptor); } catch {}
+    }
+  }
+}
+
+function attestPrivateSnapshot(
+  directory,
+  cliPath,
+  cliDigest,
+  standalonePath,
+  standaloneDigest,
+  expectedState,
+) {
+  const directoryIdentity = attestSnapshotDirectory(
+    directory,
+    expectedState?.directory,
+  );
+  const cliIdentity = attestSnapshotExecutable(
+    cliPath,
+    cliDigest,
+    expectedState?.cli,
+  );
+  const standaloneIdentity = attestSnapshotExecutable(
+    standalonePath,
+    standaloneDigest,
+    expectedState?.standalone,
+  );
+  attestSnapshotDirectory(directory, expectedState?.directory ?? directoryIdentity);
+  return Object.freeze({
+    directory: directoryIdentity,
+    cli: cliIdentity,
+    standalone: standaloneIdentity,
+  });
+}
+
 function createExecutableSnapshot(sourcePath, expectedDigest) {
   let sourceDescriptor;
   let snapshotDescriptor;
@@ -122,13 +287,14 @@ function createExecutableSnapshot(sourcePath, expectedDigest) {
     sourceDescriptor = undefined;
 
     directory = mkdtempSync(join(tmpdir(), 'warpkeep-cli-attestation-'));
+    directory = realpathSync(directory);
     chmodSync(directory, SNAPSHOT_DIRECTORY_MODE);
     const directoryMetadata = statSync(directory);
     if (
       !directoryMetadata.isDirectory()
       || (directoryMetadata.mode & 0o777) !== SNAPSHOT_DIRECTORY_MODE
     ) fail('The private CLI snapshot directory was unsafe.');
-    const snapshotPath = join(directory, 'spacetimedb-cli');
+    const snapshotPath = join(directory, SNAPSHOT_CLI_FILENAME);
     snapshotDescriptor = openSync(
       snapshotPath,
       constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
@@ -293,10 +459,11 @@ export function attestPinnedSpacetimeCli(
     );
     snapshot = createExecutableSnapshot(reviewedCliPath, expectedDigest);
   }
+  const standalonePath = join(snapshot.directory, SNAPSHOT_STANDALONE_FILENAME);
   try {
     installReviewedCompanionExecutable(
       join(dirname(reviewedCliPath), 'spacetimedb-standalone'),
-      join(snapshot.directory, 'spacetimedb-standalone'),
+      standalonePath,
       expectedStandaloneDigest,
     );
   } catch (error) {
@@ -304,7 +471,38 @@ export function attestPinnedSpacetimeCli(
     throw error;
   }
   try {
-    const result = spawnSyncProcess(snapshot.path, ['--version'], {
+    const snapshotState = attestPrivateSnapshot(
+      snapshot.directory,
+      snapshot.path,
+      expectedDigest,
+      standalonePath,
+      expectedStandaloneDigest,
+    );
+    const provenance = Object.freeze({
+      version: ADDITIVE_MIGRATION_PROOF_SPACETIME_CLI_VERSION,
+      commit: EXPECTED_CLI_COMMIT,
+      cliExecutableSha256: expectedDigest,
+      standaloneExecutableSha256: expectedStandaloneDigest,
+    });
+    const attestedSnapshot = Object.freeze({
+      path: snapshot.path,
+      directory: snapshot.directory,
+      digest: snapshot.digest,
+      provenance,
+      verify() {
+        attestPrivateSnapshot(
+          snapshot.directory,
+          snapshot.path,
+          expectedDigest,
+          standalonePath,
+          expectedStandaloneDigest,
+          snapshotState,
+        );
+      },
+      cleanup: snapshot.cleanup,
+    });
+    attestedSnapshot.verify();
+    const result = spawnSyncProcess(attestedSnapshot.path, ['--version'], {
       encoding: 'utf8',
       env: environment,
       input: '',
@@ -315,8 +513,9 @@ export function attestPinnedSpacetimeCli(
     if (result.error || result.status !== 0 || result.signal) {
       fail('The exact reviewed SpacetimeDB CLI version could not be read safely.');
     }
-    verifyPinnedCliAttestation(result.stdout, snapshot.digest);
-    return snapshot;
+    verifyPinnedCliAttestation(result.stdout, attestedSnapshot.digest);
+    attestedSnapshot.verify();
+    return attestedSnapshot;
   } catch (error) {
     snapshot.cleanup();
     throw error;

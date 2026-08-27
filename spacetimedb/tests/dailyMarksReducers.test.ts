@@ -170,7 +170,7 @@ test('current agreement acceptance preserves the frozen projection until v14 bac
   assert.match(rollout, /!dailyMarksAfterAcceptance\.readyForBackfill/);
 });
 
-test('the v14 runtime proof covers revoked-receipt recovery and same-day re-entry', () => {
+test('the v14 runtime proof preserves daily Marks while current revocation is sealed', () => {
   const verifier = source('../../scripts/verify-spacetime-additive-migration.mjs');
   const rollout = section(
     verifier,
@@ -179,23 +179,27 @@ test('the v14 runtime proof covers revoked-receipt recovery and same-day re-entr
   );
   const activationAt = rollout.indexOf('const dailyMarksActive');
   const disableAt = rollout.indexOf("'admin_disable_fid'", activationAt);
-  const revokedRetryAt = rollout.indexOf("'admin_activate_daily_marks_v1'", disableAt);
-  const reenableAt = rollout.indexOf("'admin_allow_fid'", revokedRetryAt);
-  const reenabledRetryAt = rollout.indexOf("'admin_activate_daily_marks_v1'", reenableAt);
+  const sealedStatusAt = rollout.indexOf('const dailyMarksAfterSealedDisable', disableAt);
+  const sealedRetryAt = rollout.indexOf("'admin_activate_daily_marks_v1'", sealedStatusAt);
   assert.ok(
     activationAt >= 0
       && disableAt > activationAt
-      && revokedRetryAt > disableAt
-      && reenableAt > revokedRetryAt
-      && reenabledRetryAt > reenableAt,
+      && sealedStatusAt > disableAt
+      && sealedRetryAt > sealedStatusAt,
   );
-  assert.match(rollout, /dailyMarksRevoked\.enabledAllowedFids !== 0n/);
-  assert.match(rollout, /dailyMarksRevoked\.grants !== 1n/);
-  assert.match(rollout, /dailyMarksRevoked\.currentDayGrants !== 0n/);
-  assert.match(rollout, /JSON\.stringify\(\[1, 0, Number\(dailyMarksRevoked\.utcDay\)\]\)/);
-  assert.match(rollout, /dailyMarksReenabled\.grants !== 1n/);
-  assert.match(rollout, /dailyMarksReenabled\.currentDayGrants !== 1n/);
-  assert.match(rollout, /playerAuthEpoch = 2/);
+  assert.match(rollout, /'admin_disable_fid'[\s\S]*530/);
+  assert.match(rollout, /sealedDisableResponse\.trim\(\), 'ADMISSIONS_SEALED'/);
+  assert.match(
+    rollout,
+    /assert\.deepEqual\(dailyMarksAfterSealedDisable, dailyMarksActive\)/,
+  );
+  assert.match(rollout, /playerAuthEpoch !== 1/);
+  assert.match(
+    rollout,
+    /JSON\.stringify\(\[1, 1, Number\(dailyMarksActive\.utcDay\)\]\)/,
+  );
+  assert.match(rollout, /assert\.deepEqual\(dailyMarksSealedRetry, dailyMarksActive\)/);
+  assert.doesNotMatch(rollout, /'admin_allow_fid'|playerAuthEpoch = 2/);
 });
 
 test('no current module export exposes a burn or wallet credit writer', () => {

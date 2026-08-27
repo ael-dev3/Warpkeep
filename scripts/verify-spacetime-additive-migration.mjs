@@ -130,6 +130,7 @@ const historicalEntryAgreementVersions =
 const alphaTermsVersion = WARPKEEP_ENTRY_AGREEMENT_VERSION;
 const resourcePolicyVersion = 'genesis-resource-yield-v1';
 const marksPolicyVersion = 'admitted-daily-mark-v1';
+const frozenLegacyMarksPolicyVersion = 'snap-current-linked-wallet-1to1-v1';
 const profilePolicyVersion = 'trusted-snapchain-profile-v3';
 const resourceQuantumMicros = 600_000_000n;
 const expeditionScheduleWaitMilliseconds = 12 * 60 * 1_000;
@@ -2491,9 +2492,10 @@ function parseAdminAccessRequestPage(text) {
 }
 
 /**
- * Exercise the complete request lifecycle against one disposable populated
- * v13 database. Every request call gets a new exact 15-second FID-bound
- * principal; output contains neither the synthetic FID nor a timestamp.
+ * Exercise the permanently sealed current request boundary against one
+ * disposable database. Historical v13 request-row migration is rehearsed on
+ * its frozen predecessor fixture; the current candidate may only read that
+ * state and must never create another request.
  */
 async function verifyAccessRequestHttpLifecycle(server, database, privateKey) {
   let stage = 'request-status';
@@ -2504,28 +2506,6 @@ async function verifyAccessRequestHttpLifecycle(server, database, privateKey) {
     privateKey,
     accessRequestServiceClaims(fid, operation),
   );
-  const submitConcurrentBatch = async (fid, concurrency, label) => {
-    const texts = await Promise.all(Array.from({ length: concurrency }, () => (
-      callLoopbackProcedure(
-        server,
-        database,
-        'access_request_submit_v1',
-        requestCredential('submit', fid),
-        '[]',
-        200,
-      )
-    )));
-    const results = texts.map((text, index) => parseAccessRequestStatus(
-      text,
-      `${label} access-request status ${index + 1}`,
-    ));
-    const first = results[0];
-    if (!first || first.status !== 'requested' || first.requestedAtMicros === undefined) {
-      fail(`Loopback ${label} access-request batch omitted its canonical result.`);
-    }
-    for (const result of results) assert.deepEqual(result, first);
-    return first;
-  };
   try {
     const initial = parseAccessRequestStatus(
       await callLoopbackProcedure(
@@ -2543,42 +2523,19 @@ async function verifyAccessRequestHttpLifecycle(server, database, privateKey) {
       requestedAtMicros: undefined,
     });
 
-    stage = 'request-submit';
-    const submitted = await submitConcurrentBatch(
-      syntheticMissingAccessRequestFid,
-      2,
-      'two-call concurrent',
+    stage = 'sealed-current-access-request-submit';
+    const sealedResponse = await callLoopbackProcedure(
+      server,
+      database,
+      'access_request_submit_v1',
+      requestCredential('submit'),
+      '[]',
+      500,
     );
-    if (submitted.requestedAtMicros === undefined || submitted.requestedAtMicros <= 0n) {
-      fail('Loopback access-request submission omitted its database timestamp.');
-    }
-
-    stage = 'request-ten-call-concurrency';
-    const tenCallResult = await submitConcurrentBatch(
-      syntheticMissingAccessRequestFid,
-      10,
-      'ten-call concurrent',
+    assert.equal(
+      sealedResponse.trim(),
+      'The module instance encountered a fatal error: ACCESS_REQUESTS_SEALED',
     );
-    assert.deepEqual(tenCallResult, submitted);
-
-    stage = 'request-fifty-call-concurrency';
-    const fiftyCallResult = await submitConcurrentBatch(
-      syntheticMissingAccessRequestFid,
-      50,
-      'fifty-call concurrent',
-    );
-    assert.deepEqual(fiftyCallResult, submitted);
-
-    stage = 'request-second-fid';
-    const secondSubmitted = await submitConcurrentBatch(
-      syntheticSecondAccessRequestFid,
-      2,
-      'second-FID concurrent',
-    );
-    if (
-      secondSubmitted.requestedAtMicros === undefined
-      || secondSubmitted.requestedAtMicros <= 0n
-    ) fail('Loopback second-FID access request omitted its database timestamp.');
 
     stage = 'request-final-status';
     const finalStatus = parseAccessRequestStatus(
@@ -2592,7 +2549,7 @@ async function verifyAccessRequestHttpLifecycle(server, database, privateKey) {
       ),
       'final access-request status',
     );
-    assert.deepEqual(finalStatus, submitted);
+    assert.deepEqual(finalStatus, initial);
 
     stage = 'request-admin-denial';
     await callLoopbackProcedure(
@@ -2636,25 +2593,9 @@ async function verifyAccessRequestHttpLifecycle(server, database, privateKey) {
     assert.equal(page.nextRequestedAtMicros, undefined);
     assert.equal(page.nextFid, undefined);
     assert.equal(page.hasMore, false);
-    assert.equal(page.totalRequests, 2n);
-    assert.equal(page.pendingRequests, 2n);
-    assert.deepEqual(
-      [...page.entries].sort((left, right) => Number(left.fid - right.fid)),
-      [
-        {
-          fid: BigInt(syntheticSecondAccessRequestFid),
-          requestedAtMicros: secondSubmitted.requestedAtMicros,
-          admissionState: 'missing',
-          requestState: 'pending',
-        },
-        {
-          fid: BigInt(syntheticMissingAccessRequestFid),
-          requestedAtMicros: submitted.requestedAtMicros,
-          admissionState: 'missing',
-          requestState: 'pending',
-        },
-      ],
-    );
+    assert.equal(page.totalRequests, 0n);
+    assert.equal(page.pendingRequests, 0n);
+    assert.deepEqual(page.entries, []);
 
     stage = 'request-auth-resolver';
     const admission = parseLoopbackJson(await callLoopbackProcedure(
@@ -3037,7 +2978,13 @@ function parseWorkerControlState(text) {
 
 function assertResourceState(
   state,
-  { balances, pending, revision, expectedFid = BigInt(actualModuleFounderFid) },
+  {
+    balances,
+    pending,
+    revision,
+    expectedMarksPolicyVersion,
+    expectedFid = BigInt(actualModuleFounderFid),
+  },
 ) {
   if (
     state.fid !== expectedFid
@@ -3052,7 +2999,7 @@ function assertResourceState(
     || state.marksBalanceMicros !== 0n
     || state.revision !== revision
     || state.resourcePolicyVersion !== resourcePolicyVersion
-    || state.marksPolicyVersion !== marksPolicyVersion
+    || state.marksPolicyVersion !== expectedMarksPolicyVersion
     || state.settledThroughMicros > state.observedAtMicros
     || state.nextCollectAtMicros <= state.observedAtMicros
   ) fail('Loopback resource-state values violated the exact authority contract.');
@@ -3549,9 +3496,20 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
   const adminCredential = () => createEphemeralJwt(privateKey, adminServiceClaims());
   const playerCredential = () => createEphemeralJwt(
     privateKey,
-    playerClaims(actualModuleFounderFid, `farcaster:${actualModuleFounderFid}`, 2),
+    playerClaims(actualModuleFounderFid, `farcaster:${actualModuleFounderFid}`, 1),
   );
   try {
+    stage = 'grandfathered-world-expansion';
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_expand_genesis_world_v3',
+      adminCredential(),
+      JSON.stringify([1_261, 1_261, 2]),
+      200,
+      120_000,
+    );
+    stage = 'seed';
     await callLoopbackReducer(
       server,
       database,
@@ -3655,48 +3613,55 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
       )) !== seededForestInstancesDigest
     ) fail('Exact forest seed rerun was not a complete no-op.');
 
-    stage = 'atomic-founder-empty-fixture';
+    stage = 'grandfathered-founder-preservation';
     for (const table of [
       'allowed_fid',
       'castle',
       'castle_slot_claim_v1',
       'realm_profile_v1',
       'mark_account_v1',
-      'resource_account_v1',
     ]) {
-      if (await countForFid(server, ownerToken, database, table) !== 0n) {
-        fail('Actual module founder fixture was not empty.');
+      if (await countForFid(server, ownerToken, database, table) !== 1n) {
+        fail('Grandfathered Genesis 001 founder did not survive the current candidate.');
       }
     }
-    stage = 'atomic-founder-legacy-rejection';
+    if (
+      await countForFid(server, ownerToken, database, 'resource_account_v1') !== 0n
+      || await countForFid(server, ownerToken, database, 'player_v2') !== 0n
+      || await countForFid(server, ownerToken, database, 'player_ownership_v2') !== 0n
+    ) fail('Grandfathered predecessor unexpectedly gained current-only player state.');
+    const readSealedFounderState = async () => Object.freeze({
+      allowed: await callerRowDigest(server, ownerToken, database, 'allowed_fid'),
+      authority: await founderAuthorityDigest(server, ownerToken, database),
+      requests: outputDigest(await privateSql(
+        server,
+        ownerToken,
+        database,
+        'SELECT * FROM access_request_v1',
+      )),
+      audit: outputDigest(await privateSql(server, ownerToken, database, 'SELECT * FROM admin_audit')),
+    });
+    const sealedFounderBaseline = await readSealedFounderState();
+
+    stage = 'sealed-current-admission-boundary';
     await useActualModule();
-    await callLoopbackReducer(
+    const sealedAdmissionResponse = await callLoopbackReducer(
       server,
       database,
       'admin_allow_fid',
       adminCredential(),
-      JSON.stringify([actualModuleFounderFid, 'legacy first-time admission must fail']),
+      JSON.stringify([actualModuleFounderFid, 'sealed current admission proof']),
       530,
     );
-    await usePrivateInspectionModule();
-    for (const table of [
-      'allowed_fid',
-      'castle',
-      'castle_slot_claim_v1',
-      'realm_profile_v1',
-      'mark_account_v1',
-      'resource_account_v1',
-    ]) {
-      if (await countForFid(server, ownerToken, database, table) !== 0n) {
-        fail('Rejected legacy first-time admission changed founder state.');
-      }
-    }
-    if (await actionCount(server, ownerToken, database, 'allow_fid') !== 0n) {
-      fail('Rejected legacy first-time admission changed audit history.');
-    }
-
-    stage = 'atomic-founder-invalid-profile-rollback';
-    await useActualModule();
+    assert.equal(sealedAdmissionResponse.trim(), 'ADMISSIONS_SEALED');
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_disable_fid',
+      adminCredential(),
+      JSON.stringify([actualModuleFounderFid, 'sealed current revocation proof']),
+      530,
+    );
     await callLoopbackReducer(
       server,
       database,
@@ -3704,16 +3669,64 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
       adminCredential(),
       JSON.stringify([
         actualModuleOtherFid,
-        'invalid local profile must fail before writes',
-        'migration.invalid',
-        { some: 'Migration Invalid' },
-        'http://profiles.example.com/invalid.png',
-        { some: 'Disposable invalid profile fixture' },
+        'sealed current first-founding proof',
+        'migration.sealed',
+        { some: 'Migration Sealed' },
+        'https://profiles.example.com/migration-sealed.png',
+        { some: 'Sealed current admission fixture' },
         profilePolicyVersion,
       ]),
       530,
     );
+    const founderRequestCredential = operation => createEphemeralJwt(
+      privateKey,
+      accessRequestServiceClaims(actualModuleFounderFid, operation),
+    );
+    const sealedRequestResponse = await callLoopbackProcedure(
+      server,
+      database,
+      'access_request_submit_v1',
+      founderRequestCredential('submit'),
+      '[]',
+      500,
+    );
+    assert.equal(
+      sealedRequestResponse.trim(),
+      'The module instance encountered a fatal error: ACCESS_REQUESTS_SEALED',
+    );
+    const admittedStatus = parseAccessRequestStatus(
+      await callLoopbackProcedure(
+        server,
+        database,
+        'access_request_get_status_v1',
+        founderRequestCredential('status'),
+        '[]',
+        200,
+      ),
+      'grandfathered founder access-request status',
+    );
+    assert.deepEqual(admittedStatus, {
+      status: 'already_admitted',
+      requestedAtMicros: undefined,
+    });
+    const sealedRequestPage = parseAdminAccessRequestPage(await callLoopbackProcedure(
+      server,
+      database,
+      'admin_list_access_requests_v1',
+      adminCredential(),
+      '[0,0,100,false]',
+      200,
+    ));
+    assert.deepEqual(sealedRequestPage, {
+      entries: [],
+      nextRequestedAtMicros: undefined,
+      nextFid: undefined,
+      hasMore: false,
+      totalRequests: 0n,
+      pendingRequests: 0n,
+    });
     await usePrivateInspectionModule();
+    assert.deepEqual(await readSealedFounderState(), sealedFounderBaseline);
     for (const table of [
       'allowed_fid',
       'castle',
@@ -3723,90 +3736,9 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
       'resource_account_v1',
     ]) {
       if (await countForFid(server, ownerToken, database, table, actualModuleOtherFid) !== 0n) {
-        fail('Rejected profiled admission changed founder state.');
+        fail('Sealed current admission boundary created another founder.');
       }
     }
-    if (await actionCount(server, ownerToken, database, 'admit_founder_v1') !== 0n) {
-      fail('Rejected profiled admission changed audit history.');
-    }
-
-    stage = 'atomic-founder-profiled-commit';
-    await useActualModule();
-    await callLoopbackReducer(
-      server,
-      database,
-      'admin_admit_founder_v1',
-      adminCredential(),
-      JSON.stringify([
-        actualModuleFounderFid,
-        'local additive migration proof',
-        'migration.founder',
-        { some: 'Migration Founder' },
-        'https://profiles.example.com/migration-founder.png',
-        { some: 'Disposable local founder fixture' },
-        profilePolicyVersion,
-      ]),
-      200,
-    );
-    await usePrivateInspectionModule();
-    for (const table of [
-      'allowed_fid',
-      'castle',
-      'castle_slot_claim_v1',
-      'realm_profile_v1',
-      'mark_account_v1',
-      'resource_account_v1',
-    ]) {
-      if (await countForFid(server, ownerToken, database, table) !== 1n) {
-        fail('Actual module founder transaction was incomplete.');
-      }
-    }
-    if (
-      await countForFid(server, ownerToken, database, 'player_v2') !== 0n
-      || await countForFid(server, ownerToken, database, 'player_ownership_v2') !== 0n
-    ) fail('Actual module admission unexpectedly bootstrapped a player.');
-    stage = 'atomic-founder-profile-postcondition';
-    const completeProfileProjection = (await privateSql(
-      server,
-      ownerToken,
-      database,
-      `SELECT canonical_username, pfp_url FROM realm_profile_v1 WHERE fid = ${actualModuleFounderFid}`,
-    )).replace(/\u001b\[[0-9;]*m/g, '');
-    if (
-      !completeProfileProjection.includes('migration.founder')
-      || !completeProfileProjection.includes('https://profiles.example.com/migration-founder.png')
-      || await actionCount(server, ownerToken, database, 'admit_founder_v1') !== 1n
-    ) fail('Actual module profiled admission did not persist its reviewed projection exactly once.');
-
-    stage = 'atomic-founder-repeat-admission-rollback';
-    const founderAuthorityBeforeRepeatedAdmission = await founderAuthorityDigest(
-      server,
-      ownerToken,
-      database,
-    );
-    await useActualModule();
-    await callLoopbackReducer(
-      server,
-      database,
-      'admin_admit_founder_v1',
-      adminCredential(),
-      JSON.stringify([
-        actualModuleFounderFid,
-        'repeated local admission must fail',
-        'migration.changed',
-        { some: 'Migration Changed' },
-        'https://profiles.example.com/migration-changed.png',
-        { some: 'Repeated admission must not rewrite profile state' },
-        profilePolicyVersion,
-      ]),
-      530,
-    );
-    await usePrivateInspectionModule();
-    if (
-      await founderAuthorityDigest(server, ownerToken, database)
-        !== founderAuthorityBeforeRepeatedAdmission
-      || await actionCount(server, ownerToken, database, 'admit_founder_v1') !== 1n
-    ) fail('Repeated profiled admission changed founder state or audit history.');
 
     stage = 'atomic-founder-profile-clear-preserves-authority';
     const founderGameplayAuthorityBeforeClear = await founderGameplayAuthorityDigest(
@@ -3845,164 +3777,6 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
         !== founderGameplayAuthorityBeforeClear
       || await actionCount(server, ownerToken, database, 'profile_snapshot_v1') !== 1n
     ) fail('Trusted profile clear changed permanent gameplay authority.');
-
-    stage = 'atomic-founder-legacy-reenable';
-    const founderAuthorityBeforeReenable = await founderAuthorityDigest(
-      server,
-      ownerToken,
-      database,
-    );
-    await useActualModule();
-    await callLoopbackReducer(
-      server,
-      database,
-      'admin_disable_fid',
-      adminCredential(),
-      JSON.stringify([actualModuleFounderFid, 'local complete-founder re-enable proof']),
-      200,
-    );
-    await usePrivateInspectionModule();
-    const disabledFounderCount = countFromSql(await privateSql(
-      server,
-      ownerToken,
-      database,
-      `SELECT COUNT(*) AS warpkeep_count FROM allowed_fid WHERE fid = ${actualModuleFounderFid} AND enabled = false`,
-    ));
-    if (
-      disabledFounderCount !== 1n
-      || await founderAuthorityDigest(server, ownerToken, database) !== founderAuthorityBeforeReenable
-    ) fail('Local disable changed permanent founder authority state.');
-
-    stage = 'disabled-founder-access-request';
-    const disabledRequestCredential = operation => createEphemeralJwt(
-      privateKey,
-      accessRequestServiceClaims(actualModuleFounderFid, operation),
-    );
-    await useActualModule();
-    const disabledInitialStatus = parseAccessRequestStatus(
-      await callLoopbackProcedure(
-        server,
-        database,
-        'access_request_get_status_v1',
-        disabledRequestCredential('status'),
-        '[]',
-        200,
-      ),
-      'disabled founder initial access-request status',
-    );
-    assert.deepEqual(disabledInitialStatus, {
-      status: 'not_requested',
-      requestedAtMicros: undefined,
-    });
-    const disabledSubmitted = parseAccessRequestStatus(
-      await callLoopbackProcedure(
-        server,
-        database,
-        'access_request_submit_v1',
-        disabledRequestCredential('submit'),
-        '[]',
-        200,
-      ),
-      'disabled founder submitted access-request status',
-    );
-    assert.equal(disabledSubmitted.status, 'requested');
-    if (
-      disabledSubmitted.requestedAtMicros === undefined
-      || disabledSubmitted.requestedAtMicros <= 0n
-    ) fail('Disabled founder access request omitted its database timestamp.');
-    const disabledDuplicate = parseAccessRequestStatus(
-      await callLoopbackProcedure(
-        server,
-        database,
-        'access_request_submit_v1',
-        disabledRequestCredential('submit'),
-        '[]',
-        200,
-      ),
-      'disabled founder duplicate access-request status',
-    );
-    assert.deepEqual(disabledDuplicate, disabledSubmitted);
-    const disabledPendingPage = parseAdminAccessRequestPage(await callLoopbackProcedure(
-      server,
-      database,
-      'admin_list_access_requests_v1',
-      adminCredential(),
-      '[0,0,100,false]',
-      200,
-    ));
-    assert.deepEqual(disabledPendingPage, {
-      entries: [{
-        fid: BigInt(actualModuleFounderFid),
-        requestedAtMicros: disabledSubmitted.requestedAtMicros,
-        admissionState: 'disabled',
-        requestState: 'pending',
-      }],
-      nextRequestedAtMicros: undefined,
-      nextFid: undefined,
-      hasMore: false,
-      totalRequests: 1n,
-      pendingRequests: 1n,
-    });
-    await usePrivateInspectionModule();
-    if (
-      await founderAuthorityDigest(server, ownerToken, database)
-        !== founderAuthorityBeforeReenable
-    ) fail('Disabled founder access request changed permanent founder authority state.');
-
-    await useActualModule();
-    await callLoopbackReducer(
-      server,
-      database,
-      'admin_allow_fid',
-      adminCredential(),
-      JSON.stringify([actualModuleFounderFid, 'local complete-founder re-enable proof']),
-      200,
-    );
-    await usePrivateInspectionModule();
-    const reenabledFounderCount = countFromSql(await privateSql(
-      server,
-      ownerToken,
-      database,
-      `SELECT COUNT(*) AS warpkeep_count FROM allowed_fid WHERE fid = ${actualModuleFounderFid} AND enabled = true`,
-    ));
-    if (
-      reenabledFounderCount !== 1n
-      || await founderAuthorityDigest(server, ownerToken, database) !== founderAuthorityBeforeReenable
-      || await actionCount(server, ownerToken, database, 'allow_fid') !== 1n
-    ) fail('Legacy allow did not preserve and re-enable exactly one complete founder graph.');
-
-    await useActualModule();
-    const reenabledRequestStatus = parseAccessRequestStatus(
-      await callLoopbackProcedure(
-        server,
-        database,
-        'access_request_get_status_v1',
-        disabledRequestCredential('status'),
-        '[]',
-        200,
-      ),
-      're-enabled founder access-request status',
-    );
-    assert.deepEqual(reenabledRequestStatus, {
-      status: 'already_admitted',
-      requestedAtMicros: undefined,
-    });
-    const noPendingAfterReenable = parseAdminAccessRequestPage(await callLoopbackProcedure(
-      server,
-      database,
-      'admin_list_access_requests_v1',
-      adminCredential(),
-      '[0,0,100,false]',
-      200,
-    ));
-    assert.deepEqual(noPendingAfterReenable, {
-      entries: [],
-      nextRequestedAtMicros: undefined,
-      nextFid: undefined,
-      hasMore: false,
-      totalRequests: 1n,
-      pendingRequests: 0n,
-    });
 
     stage = 'bootstrap-presentation-independent-authority';
     await useActualModule();
@@ -4056,6 +3830,25 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
     if (await actionCount(server, ownerToken, database, 'profile_snapshot_v1') !== 2n) {
       fail('Exact-admin profile repair did not produce one audit transition.');
     }
+
+    stage = 'grandfathered-resource-backfill';
+    if (await countForFid(server, ownerToken, database, 'resource_account_v1') !== 0n) {
+      fail('Grandfathered resource fixture was not the frozen missing-account predecessor.');
+    }
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_backfill_resource_accounts_v1',
+      adminCredential(),
+      JSON.stringify([1, resourcePolicyVersion]),
+      200,
+    );
+    await usePrivateInspectionModule();
+    if (
+      await countForFid(server, ownerToken, database, 'resource_account_v1') !== 1n
+      || await actionCount(server, ownerToken, database, 'backfill_resource_accounts_v1') !== 1n
+    ) fail('Grandfathered founder resource backfill was not exact.');
 
     stage = 'bootstrap-gate';
     await useActualModule();
@@ -4133,7 +3926,7 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
     await useActualModule();
     const invalidSubjectCredential = createEphemeralJwt(
       privateKey,
-      playerClaims(actualModuleFounderFid, `farcaster:${actualModuleOtherFid}`, 2),
+      playerClaims(actualModuleFounderFid, `farcaster:${actualModuleOtherFid}`, 1),
     );
     await callLoopbackProcedure(
       server,
@@ -4196,6 +3989,7 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
       balances: startingResourceBalances,
       pending: Object.freeze({ food: 0n, wood: 0n, stone: 0n, gold: 0n }),
       revision: 0n,
+      expectedMarksPolicyVersion: frozenLegacyMarksPolicyVersion,
     });
     if (initial.nextCollectAtMicros - initial.settledThroughMicros !== resourceQuantumMicros) {
       fail('Actual module resource boundary was not one exact quantum.');
@@ -4227,6 +4021,7 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
       balances: startingResourceBalances,
       pending: rates,
       revision: 0n,
+      expectedMarksPolicyVersion: frozenLegacyMarksPolicyVersion,
     });
     if (pending.settledThroughMicros + resourceQuantumMicros !== initial.settledThroughMicros) {
       fail('Disposable timestamp fixture did not rewind exactly one quantum.');
@@ -4250,6 +4045,7 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
       balances: expectedBalances,
       pending: Object.freeze({ food: 0n, wood: 0n, stone: 0n, gold: 0n }),
       revision: 1n,
+      expectedMarksPolicyVersion: frozenLegacyMarksPolicyVersion,
     });
     if (collected.settledThroughMicros !== initial.settledThroughMicros) {
       fail('Actual module collection cursor was invalid.');
@@ -4324,7 +4120,7 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
     await usePrivateInspectionModule();
     if (
       await countForFid(server, ownerToken, database, 'resource_account_v1') !== 0n
-      || await actionCount(server, ownerToken, database, 'backfill_resource_accounts_v1') !== 0n
+      || await actionCount(server, ownerToken, database, 'backfill_resource_accounts_v1') !== 1n
     ) fail('Rejected resource backfill changed private state or audit history.');
     await useActualModule();
     await callLoopbackReducer(
@@ -4338,7 +4134,7 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
     await usePrivateInspectionModule();
     if (
       await countForFid(server, ownerToken, database, 'resource_account_v1') !== 1n
-      || await actionCount(server, ownerToken, database, 'backfill_resource_accounts_v1') !== 1n
+      || await actionCount(server, ownerToken, database, 'backfill_resource_accounts_v1') !== 2n
       || await callerRowDigest(server, ownerToken, database, 'mark_account_v1') !== marksBeforeBackfill
     ) fail('Guarded resource backfill did not create exactly one isolated account.');
     await useActualModule();
@@ -4363,6 +4159,7 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
       balances: startingResourceBalances,
       pending: Object.freeze({ food: 0n, wood: 0n, stone: 0n, gold: 0n }),
       revision: 0n,
+      expectedMarksPolicyVersion: frozenLegacyMarksPolicyVersion,
     });
     await usePrivateInspectionModule();
     const backfilledResourceDigest = await callerRowDigest(
@@ -4382,7 +4179,7 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
     );
     await usePrivateInspectionModule();
     if (
-      await actionCount(server, ownerToken, database, 'backfill_resource_accounts_v1') !== 1n
+      await actionCount(server, ownerToken, database, 'backfill_resource_accounts_v1') !== 2n
       || await callerRowDigest(server, ownerToken, database, 'resource_account_v1')
         !== backfilledResourceDigest
     ) fail('Exact resource backfill rerun was not a complete no-op.');
@@ -4412,7 +4209,7 @@ async function verifyActualModuleResourceLifecycle(server, database, privateKey,
     );
     await usePrivateInspectionModule();
     if (
-      await actionCount(server, ownerToken, database, 'backfill_resource_accounts_v1') !== 1n
+      await actionCount(server, ownerToken, database, 'backfill_resource_accounts_v1') !== 2n
       || await callerRowDigest(server, ownerToken, database, 'resource_account_v1')
       !== conflictingResourceDigest
     ) fail('Rejected conflicting resource state was mutated or audited.');
@@ -4487,17 +4284,22 @@ async function verifyActualModuleExpeditionLifecycles(
     };
   };
   const founderCredential = rotatingPlayerCredential(actualModuleFounderFid);
-  const contenderCredential = rotatingPlayerCredential(actualModuleOtherFid);
-  const disabledRequestCredential = operation => createEphemeralJwt(
-    privateKey,
-    accessRequestServiceClaims(actualModuleFounderFid, operation),
-  );
   const primaryKey = resource => `migration-${resource.kind}-primary-0001`;
-  const contenderKey = resource => `migration-${resource.kind}-contender-0001`;
   const goldResource = expeditionResources.find(resource => resource.kind === 'gold');
   if (goldResource === undefined) fail('Actual Gold expedition proof configuration was missing.');
 
   try {
+    stage = 'grandfathered-world-expansion';
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_expand_genesis_world_v3',
+      adminCredential(),
+      JSON.stringify([1_261, 1_261, 2]),
+      200,
+      120_000,
+    );
+    stage = 'seed-world';
     await callLoopbackReducer(
       server,
       database,
@@ -4508,48 +4310,62 @@ async function verifyActualModuleExpeditionLifecycles(
       120_000,
     );
 
-    stage = 'founders';
-    for (const [fid, username] of [
-      [actualModuleFounderFid, 'migration.expedition.one'],
-      [actualModuleOtherFid, 'migration.expedition.two'],
+    stage = 'expedition-grandfathered-founder';
+    await useInspectionModule();
+    for (const table of [
+      'allowed_fid',
+      'castle',
+      'castle_slot_claim_v1',
+      'realm_profile_v1',
+      'mark_account_v1',
     ]) {
-      await callLoopbackReducer(
-        server,
-        database,
-        'admin_admit_founder_v1',
-        adminCredential(),
-        JSON.stringify([
-          fid,
-          'disposable compiled expedition lifecycle proof',
-          username,
-          { some: username === 'migration.expedition.one'
-            ? 'Migration Expedition One'
-            : 'Migration Expedition Two' },
-          `https://profiles.example.com/${username}.png`,
-          { some: 'Disposable loopback-only expedition fixture' },
-          profilePolicyVersion,
-        ]),
-        200,
-      );
+      if (await countForFid(server, ownerToken, database, table) !== 1n) {
+        fail('Expedition lane lost its grandfathered Genesis 001 founder.');
+      }
     }
-    for (const credential of [founderCredential(), contenderCredential()]) {
-      await callLoopbackReducer(
-        server,
-        database,
-        'bootstrap_player_v2',
-        credential,
-        '[]',
-        200,
-      );
-      await callLoopbackReducer(
-        server,
-        database,
-        'accept_alpha_terms_v1',
-        credential,
-        JSON.stringify([alphaTermsVersion, true]),
-        200,
-      );
+    if (await countForFid(server, ownerToken, database, 'resource_account_v1') !== 0n) {
+      fail('Expedition predecessor did not begin at the frozen resource boundary.');
     }
+    await useActualModule();
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_upsert_realm_profile_v1',
+      adminCredential(),
+      JSON.stringify([
+        actualModuleFounderFid,
+        { some: 'migration.expedition.one' },
+        { some: 'Migration Expedition One' },
+        { some: 'https://profiles.example.com/migration.expedition.one.png' },
+        { some: 'Disposable loopback-only expedition fixture' },
+        profilePolicyVersion,
+      ]),
+      200,
+    );
+    await callLoopbackReducer(
+      server,
+      database,
+      'admin_backfill_resource_accounts_v1',
+      adminCredential(),
+      JSON.stringify([1, resourcePolicyVersion]),
+      200,
+    );
+    await callLoopbackReducer(
+      server,
+      database,
+      'bootstrap_player_v2',
+      founderCredential(),
+      '[]',
+      200,
+    );
+    await callLoopbackReducer(
+      server,
+      database,
+      'accept_alpha_terms_v1',
+      founderCredential(),
+      JSON.stringify([alphaTermsVersion, true]),
+      200,
+    );
 
     stage = 'site-seed';
     for (const resource of expeditionResources) {
@@ -4583,8 +4399,8 @@ async function verifyActualModuleExpeditionLifecycles(
       );
     }
 
-    stage = 'idempotent-replay-and-concurrent-reservation';
-    await Promise.all(expeditionResources.flatMap(resource => [
+    stage = 'idempotent-replay';
+    await Promise.all(expeditionResources.map(resource => (
       callLoopbackReducer(
         server,
         database,
@@ -4592,19 +4408,11 @@ async function verifyActualModuleExpeditionLifecycles(
         founderCredential(),
         JSON.stringify([resource.siteId, primaryKey(resource)]),
         200,
-      ),
-      callLoopbackReducer(
-        server,
-        database,
-        resource.dispatchReducer,
-        contenderCredential(),
-        JSON.stringify([resource.siteId, contenderKey(resource)]),
-        530,
-      ),
-    ]));
+      )
+    )));
     // Do not republish the inspection fixture while candidate-created
     // schedules are live: scheduled reducer lineage is module-version-bound.
-    // Candidate procedures prove the immediate owner/contender state here;
+    // Candidate procedures prove the immediate owner state here;
     // exact private row counts are inspected only after executable checks end.
     for (const resource of expeditionResources) {
       const founderState = await readActualExpeditionState(
@@ -4613,18 +4421,11 @@ async function verifyActualModuleExpeditionLifecycles(
         founderCredential(),
         resource,
       );
-      const contenderState = await readActualExpeditionState(
-        server,
-        database,
-        contenderCredential(),
-        resource,
-      );
       if (
         !founderState.active
         || founderState.phase !== 'outbound'
         || founderState.siteId !== resource.siteId
-        || contenderState.active
-      ) fail(`Actual ${resource.kind} dispatch replay or reservation was not atomic.`);
+      ) fail(`Actual ${resource.kind} dispatch replay was not atomic.`);
     }
 
     stage = 'canonical-schedule';
@@ -4835,9 +4636,9 @@ async function verifyActualModuleExpeditionLifecycles(
     );
     if (
       draining.phase !== 'draining'
-      || draining.expectedCastleCount !== 2n
-      || draining.expectedWorkerCount !== 8n
-      || draining.actualWorkerCount !== 8n
+      || draining.expectedCastleCount !== 1n
+      || draining.expectedWorkerCount !== 4n
+      || draining.actualWorkerCount !== 4n
       || draining.legacyExpeditions !== 4n
       || draining.legacyOccupations !== 4n
       || draining.legacySchedules < 8n
@@ -5003,7 +4804,7 @@ async function verifyActualModuleExpeditionLifecycles(
     );
     if (
       active.phase !== 'active'
-      || active.actualWorkerCount !== 8n
+      || active.actualWorkerCount !== 4n
       || active.legacyExpeditions !== 0n
       || active.legacyOccupations !== 0n
       || active.legacySchedules !== 0n
@@ -5150,88 +4951,9 @@ async function verifyActualModuleExpeditionLifecycles(
       || finalWorkerStatus.genericSchedules !== 0n
     ) fail('Actual Worker return completion did not release every node.');
 
-    // An enabled founder with no request has no deletion receipt. If a
-    // concurrent administrator disables that founder after status inspection,
-    // the stale reset must fail rather than claim the other action as its own.
-    stage = 'enabled-no-request-reset-status';
+    stage = 'grandfathered-founder-final-status';
     await useActualModule();
-    const enabledNoRequestStatus = parseAdminAccessRequestResetStatus(
-      await callLoopbackProcedure(
-        server,
-        database,
-        'admin_get_access_request_reset_status_v1',
-        adminCredential(),
-        JSON.stringify([actualModuleOtherFid]),
-        200,
-      ),
-    );
-    if (
-      enabledNoRequestStatus.admissionState !== 'enabled'
-      || enabledNoRequestStatus.requestState !== 'not_requested'
-      || enabledNoRequestStatus.requestCycle !== undefined
-      || enabledNoRequestStatus.requestedAtMicros !== undefined
-    ) fail('Enabled/no-request stale-reset fixture was invalid.');
-    await useInspectionModule();
-    const resetAuditBeforeConcurrentDisable = await actionCount(
-      server,
-      ownerToken,
-      database,
-      'reset_access_request_v1',
-    );
-    stage = 'enabled-no-request-concurrent-disable';
-    await useActualModule();
-    await callLoopbackReducer(
-      server,
-      database,
-      'admin_disable_fid',
-      adminCredential(),
-      JSON.stringify([actualModuleOtherFid, 'disposable concurrent reset guard']),
-      200,
-    );
-    stage = 'enabled-no-request-stale-reset-rejection';
-    await callLoopbackReducer(
-      server,
-      database,
-      'admin_reset_access_request_v1',
-      adminCredential(),
-      JSON.stringify([
-        actualModuleOtherFid,
-        true,
-        enabledNoRequestStatus.authEpoch,
-        { none: [] },
-        { none: [] },
-        'disposable stale enabled-no-request reset',
-      ]),
-      530,
-    );
-    await useInspectionModule();
-    if (
-      await actionCount(server, ownerToken, database, 'reset_access_request_v1')
-      !== resetAuditBeforeConcurrentDisable
-    ) fail('Rejected enabled/no-request reset created an audit receipt.');
-    stage = 'enabled-no-request-founder-restore';
-    await useActualModule();
-    await callLoopbackReducer(
-      server,
-      database,
-      'admin_allow_fid',
-      adminCredential(),
-      JSON.stringify([actualModuleOtherFid, 'restore concurrent reset guard fixture']),
-      200,
-    );
-
-    stage = 'founded-access-request-reset';
-    stage = 'founded-reset-admin-denial';
-    await callLoopbackProcedure(
-      server,
-      database,
-      'admin_get_access_request_reset_status_v1',
-      disabledRequestCredential('status'),
-      JSON.stringify([actualModuleFounderFid]),
-      500,
-    );
-    stage = 'founded-reset-initial-status';
-    let resetStatusBefore = parseAdminAccessRequestResetStatus(
+    const finalFounderStatus = parseAdminAccessRequestResetStatus(
       await callLoopbackProcedure(
         server,
         database,
@@ -5242,298 +4964,12 @@ async function verifyActualModuleExpeditionLifecycles(
       ),
     );
     if (
-      resetStatusBefore.admissionState === 'enabled'
-      && resetStatusBefore.requestState === 'not_requested'
-    ) {
-      stage = 'founded-reset-fixture-disable';
-      await callLoopbackReducer(
-        server,
-        database,
-        'admin_disable_fid',
-        adminCredential(),
-        JSON.stringify([actualModuleFounderFid, 'prepare resolved reset fixture']),
-        200,
-      );
-      stage = 'founded-reset-fixture-request';
-      const preparedRequest = parseAccessRequestStatus(
-        await callLoopbackProcedure(
-          server,
-          database,
-          'access_request_submit_v1',
-          disabledRequestCredential('submit'),
-          '[]',
-          200,
-        ),
-        'prepared founder reset request',
-      );
-      if (preparedRequest.status !== 'requested') {
-        fail('Founded reset fixture could not prepare a request.');
-      }
-      stage = 'founded-reset-fixture-readmit';
-      await callLoopbackReducer(
-        server,
-        database,
-        'admin_allow_fid',
-        adminCredential(),
-        JSON.stringify([actualModuleFounderFid, 'prepare resolved reset fixture']),
-        200,
-      );
-      stage = 'founded-reset-fixture-status';
-      resetStatusBefore = parseAdminAccessRequestResetStatus(
-        await callLoopbackProcedure(
-          server,
-          database,
-          'admin_get_access_request_reset_status_v1',
-          adminCredential(),
-          JSON.stringify([actualModuleFounderFid]),
-          200,
-        ),
-      );
-    }
-    if (
-      resetStatusBefore.admissionState !== 'enabled'
-      || resetStatusBefore.requestState !== 'resolved'
-      || resetStatusBefore.requestCycle === undefined
-      || resetStatusBefore.requestedAtMicros === undefined
-      || resetStatusBefore.requestCycle > BigInt(Number.MAX_SAFE_INTEGER)
-      || resetStatusBefore.requestedAtMicros > BigInt(Number.MAX_SAFE_INTEGER)
-    ) fail('Founded reset did not begin from the exact resolved-request state.');
-    stage = 'founded-reset-arguments';
-    const resetArguments = status => JSON.stringify([
-      actualModuleFounderFid,
-      status.admissionState === 'enabled',
-      status.authEpoch,
-      { some: Number(status.requestCycle) },
-      { some: Number(status.requestedAtMicros) },
-      'disposable exact founder reapplication reset',
-    ]);
-    const firstResetArguments = resetArguments(resetStatusBefore);
-    stage = 'founded-reset-reducer-denial';
-    await callLoopbackReducer(
-      server,
-      database,
-      'admin_reset_access_request_v1',
-      disabledRequestCredential('submit'),
-      firstResetArguments,
-      530,
-    );
-    stage = 'founded-reset-retained-before';
-    await useInspectionModule();
-    const retainedBeforeReset = await founderReapplicationRetainedStateDigest(
-      server,
-      ownerToken,
-      database,
-    );
-    stage = 'founded-reset-first-commit';
-    await useActualModule();
-    await callLoopbackReducer(
-      server,
-      database,
-      'admin_reset_access_request_v1',
-      adminCredential(),
-      firstResetArguments,
-      200,
-    );
-    stage = 'founded-reset-first-postcondition';
-    const resetStatusAfter = parseAdminAccessRequestResetStatus(
-      await callLoopbackProcedure(
-        server,
-        database,
-        'admin_get_access_request_reset_status_v1',
-        adminCredential(),
-        JSON.stringify([actualModuleFounderFid]),
-        200,
-      ),
-    );
-    if (
-      resetStatusAfter.admissionState !== 'disabled'
-      || resetStatusAfter.authEpoch !== resetStatusBefore.authEpoch
-      || resetStatusAfter.requestState !== 'not_requested'
-      || resetStatusAfter.requestCycle !== undefined
-      || resetStatusAfter.requestedAtMicros !== undefined
-    ) {
-      fail(
-        'Founded reset postcondition was invalid: '
-        + `admission=${resetStatusAfter.admissionState}, `
-        + `epoch_preserved=${resetStatusAfter.authEpoch === resetStatusBefore.authEpoch}, `
-        + `request=${resetStatusAfter.requestState}, `
-        + `tuple_absent=${resetStatusAfter.requestCycle === undefined
-          && resetStatusAfter.requestedAtMicros === undefined}.`,
-      );
-    }
-    stage = 'founded-reset-first-preservation';
-    await useInspectionModule();
-    if (
-      await countForFid(server, ownerToken, database, 'access_request_v1') !== 0n
-      || await actionCount(server, ownerToken, database, 'reset_access_request_v1') !== 1n
-      || await founderReapplicationRetainedStateDigest(server, ownerToken, database)
-        !== retainedBeforeReset
-    ) fail('Founded reset changed retained player state or missed its exact audit.');
-
-    // The deleted request tuple makes an ambiguous-response retry a no-op. A
-    // new request independently blocks the stale tuple before any mutation.
-    stage = 'founded-reset-exact-deletion-retry';
-    await useActualModule();
-    await callLoopbackReducer(
-      server,
-      database,
-      'admin_reset_access_request_v1',
-      adminCredential(),
-      firstResetArguments,
-      200,
-    );
-    stage = 'founded-reset-exact-deletion-retry-audit';
-    await useInspectionModule();
-    if (await actionCount(server, ownerToken, database, 'reset_access_request_v1') !== 1n) {
-      fail('Exact founded reset deletion retry duplicated its audit.');
-    }
-    stage = 'founded-reset-fresh-request';
-    await useActualModule();
-    const postResetRequest = parseAccessRequestStatus(
-      await callLoopbackProcedure(
-        server,
-        database,
-        'access_request_submit_v1',
-        disabledRequestCredential('submit'),
-        '[]',
-        200,
-      ),
-      'post-reset founder access request',
-    );
-    if (
-      postResetRequest.status !== 'requested'
-      || postResetRequest.requestedAtMicros === undefined
-    ) fail('Founded reset did not permit one fresh request.');
-    stage = 'founded-reset-stale-rejection';
-    await callLoopbackReducer(
-      server,
-      database,
-      'admin_reset_access_request_v1',
-      adminCredential(),
-      firstResetArguments,
-      530,
-    );
-    stage = 'founded-reset-pending-status';
-    const pendingResetStatus = parseAdminAccessRequestResetStatus(
-      await callLoopbackProcedure(
-        server,
-        database,
-        'admin_get_access_request_reset_status_v1',
-        adminCredential(),
-        JSON.stringify([actualModuleFounderFid]),
-        200,
-      ),
-    );
-    if (
-      pendingResetStatus.admissionState !== 'disabled'
-      || pendingResetStatus.requestState !== 'pending'
-      || pendingResetStatus.requestCycle === undefined
-      || pendingResetStatus.requestedAtMicros !== postResetRequest.requestedAtMicros
-      || pendingResetStatus.requestCycle > BigInt(Number.MAX_SAFE_INTEGER)
-      || pendingResetStatus.requestedAtMicros > BigInt(Number.MAX_SAFE_INTEGER)
-    ) fail('Stale founded reset damaged the fresh request.');
-
-    // Exercise the live owner-canary shape as well: already disabled with one
-    // pending request. It deletes only that exact tuple and remains retry-safe.
-    stage = 'disabled-pending-reset-arguments';
-    const pendingResetArguments = resetArguments(pendingResetStatus);
-    stage = 'disabled-pending-reset-commit';
-    await callLoopbackReducer(
-      server,
-      database,
-      'admin_reset_access_request_v1',
-      adminCredential(),
-      pendingResetArguments,
-      200,
-    );
-    stage = 'disabled-pending-reset-retry';
-    await callLoopbackReducer(
-      server,
-      database,
-      'admin_reset_access_request_v1',
-      adminCredential(),
-      pendingResetArguments,
-      200,
-    );
-    stage = 'disabled-pending-reset-preservation';
-    await useInspectionModule();
-    if (
-      await countForFid(server, ownerToken, database, 'access_request_v1') !== 0n
-      || await actionCount(server, ownerToken, database, 'reset_access_request_v1') !== 2n
-      || await founderReapplicationRetainedStateDigest(server, ownerToken, database)
-        !== retainedBeforeReset
-    ) fail('Disabled pending-request reset changed retained state or retry history.');
-
-    stage = 'disabled-pending-reset-reapplication';
-    await useActualModule();
-    const finalFreshRequest = parseAccessRequestStatus(
-      await callLoopbackProcedure(
-        server,
-        database,
-        'access_request_submit_v1',
-        disabledRequestCredential('submit'),
-        '[]',
-        200,
-      ),
-      'final fresh founder access request',
-    );
-    if (
-      finalFreshRequest.status !== 'requested'
-      || finalFreshRequest.requestedAtMicros === undefined
-    ) fail('Disabled pending-request reset did not permit reapplication.');
-    stage = 'same-cycle-stale-reset-rejection';
-    await callLoopbackReducer(
-      server,
-      database,
-      'admin_reset_access_request_v1',
-      adminCredential(),
-      pendingResetArguments,
-      530,
-    );
-    stage = 'same-cycle-fresh-request-status';
-    const sameCycleFreshStatus = parseAdminAccessRequestResetStatus(
-      await callLoopbackProcedure(
-        server,
-        database,
-        'admin_get_access_request_reset_status_v1',
-        adminCredential(),
-        JSON.stringify([actualModuleFounderFid]),
-        200,
-      ),
-    );
-    if (
-      sameCycleFreshStatus.requestState !== 'pending'
-      || sameCycleFreshStatus.requestCycle !== pendingResetStatus.requestCycle
-      || sameCycleFreshStatus.requestedAtMicros !== finalFreshRequest.requestedAtMicros
-    ) fail('Timestamp-bound stale reset damaged a same-cycle fresh request.');
-    stage = 'final-founder-readmission';
-    await callLoopbackReducer(
-      server,
-      database,
-      'admin_allow_fid',
-      adminCredential(),
-      JSON.stringify([actualModuleFounderFid, 'restore disposable founder after reset proof']),
-      200,
-    );
-    stage = 'final-founder-readmission-status';
-    const finalResetStatus = parseAdminAccessRequestResetStatus(
-      await callLoopbackProcedure(
-        server,
-        database,
-        'admin_get_access_request_reset_status_v1',
-        adminCredential(),
-        JSON.stringify([actualModuleFounderFid]),
-        200,
-      ),
-    );
-    if (
-      finalResetStatus.admissionState !== 'enabled'
-      || finalResetStatus.authEpoch !== pendingResetStatus.authEpoch + 1
-      || finalResetStatus.requestState !== 'resolved'
-      || finalResetStatus.requestCycle !== pendingResetStatus.requestCycle
-      || finalResetStatus.requestedAtMicros !== finalFreshRequest.requestedAtMicros
-    ) fail('Final founder re-admission did not resolve the exact fresh request epoch.');
-
+      finalFounderStatus.admissionState !== 'enabled'
+      || finalFounderStatus.authEpoch !== 1
+      || finalFounderStatus.requestState !== 'not_requested'
+      || finalFounderStatus.requestCycle !== undefined
+      || finalFounderStatus.requestedAtMicros !== undefined
+    ) fail('Grandfathered founder admission/request state drifted during gameplay.');
     return 'v11/v12-compatible four-resource legacy drain, exact zero activation, atomic four-worker control, dispatch, recall one/all, reconnect, and node reuse';
   } catch (error) {
     if (error instanceof MigrationProofError) {
@@ -5785,98 +5221,38 @@ async function verifyActualModuleWorkerRolloutFromV11(
       || !dailyMarksActive.active
     ) fail('Populated v11 daily Marks activation was not exact.');
 
-    // A revocation retains its immutable same-day receipt and balance, but the
-    // recovery checkpoint must compare only the currently enabled admission
-    // set. Prove both an active-schedule retry while revoked and idempotent
-    // re-entry without issuing a second receipt or Mark.
-    await callLoopbackReducer(
+    // The sealed current candidate cannot revoke the grandfathered founder.
+    // Its immutable same-day receipt, balance, and auth epoch remain unchanged.
+    const sealedDisableResponse = await callLoopbackReducer(
       server,
       database,
       'admin_disable_fid',
       adminCredential(),
-      JSON.stringify([fid, 'v14 revoked-receipt recovery proof']),
-      200,
+      JSON.stringify([fid, 'sealed v14 daily Marks preservation proof']),
+      530,
     );
-    const dailyMarksRevoked = await readActualAdminDailyMarksStatus(
+    assert.equal(sealedDisableResponse.trim(), 'ADMISSIONS_SEALED');
+    const dailyMarksAfterSealedDisable = await readActualAdminDailyMarksStatus(
       server,
       database,
       adminCredential(),
     );
-    if (
-      dailyMarksRevoked.utcDay !== dailyMarksActive.utcDay
-      || dailyMarksRevoked.allowedFids !== 1n
-      || dailyMarksRevoked.enabledAllowedFids !== 0n
-      || dailyMarksRevoked.dailyAccounts !== 1n
-      || dailyMarksRevoked.grants !== 1n
-      || dailyMarksRevoked.currentDayGrants !== 0n
-      || dailyMarksRevoked.grantInvariantViolations !== 0n
-      || dailyMarksRevoked.grantAccountReconciliationViolations !== 0n
-      || dailyMarksRevoked.profileProjectionViolations !== 0n
-      || !dailyMarksRevoked.active
-    ) fail('Same-day revoked daily Mark receipt was not eligibility-scoped.');
+    assert.deepEqual(dailyMarksAfterSealedDisable, dailyMarksActive);
+    if (playerAuthEpoch !== 1) fail('Sealed daily Marks proof changed the founder auth epoch.');
     await callLoopbackReducer(
       server,
       database,
       'admin_activate_daily_marks_v1',
       adminCredential(),
-      JSON.stringify([1, 0, Number(dailyMarksRevoked.utcDay)]),
+      JSON.stringify([1, 1, Number(dailyMarksActive.utcDay)]),
       200,
     );
-    const dailyMarksRevokedRetry = await readActualAdminDailyMarksStatus(
+    const dailyMarksSealedRetry = await readActualAdminDailyMarksStatus(
       server,
       database,
       adminCredential(),
     );
-    if (
-      dailyMarksRevokedRetry.grants !== 1n
-      || dailyMarksRevokedRetry.currentDayGrants !== 0n
-      || dailyMarksRevokedRetry.enabledAllowedFids !== 0n
-      || !dailyMarksRevokedRetry.active
-    ) fail('Revoked daily Marks activation recovery was not idempotent.');
-    await callLoopbackReducer(
-      server,
-      database,
-      'admin_allow_fid',
-      adminCredential(),
-      JSON.stringify([fid, 'v14 same-day re-enable proof']),
-      200,
-    );
-    playerAuthEpoch = 2;
-    const dailyMarksReenabled = await readActualAdminDailyMarksStatus(
-      server,
-      database,
-      adminCredential(),
-    );
-    if (
-      dailyMarksReenabled.utcDay !== dailyMarksRevoked.utcDay
-      || dailyMarksReenabled.enabledAllowedFids !== 1n
-      || dailyMarksReenabled.dailyAccounts !== 1n
-      || dailyMarksReenabled.grants !== 1n
-      || dailyMarksReenabled.currentDayGrants !== 1n
-      || dailyMarksReenabled.grantInvariantViolations !== 0n
-      || dailyMarksReenabled.grantAccountReconciliationViolations !== 0n
-      || dailyMarksReenabled.profileProjectionViolations !== 0n
-      || !dailyMarksReenabled.active
-    ) fail('Same-day daily Marks re-entry was not exactly-once.');
-    await callLoopbackReducer(
-      server,
-      database,
-      'admin_activate_daily_marks_v1',
-      adminCredential(),
-      JSON.stringify([1, 1, Number(dailyMarksReenabled.utcDay)]),
-      200,
-    );
-    const dailyMarksReenabledRetry = await readActualAdminDailyMarksStatus(
-      server,
-      database,
-      adminCredential(),
-    );
-    if (
-      dailyMarksReenabledRetry.grants !== 1n
-      || dailyMarksReenabledRetry.currentDayGrants !== 1n
-      || dailyMarksReenabledRetry.enabledAllowedFids !== 1n
-      || !dailyMarksReenabledRetry.active
-    ) fail('Re-enabled daily Marks activation recovery was not idempotent.');
+    assert.deepEqual(dailyMarksSealedRetry, dailyMarksActive);
     stage = 'preactivation';
     const absent = await readActualWorkerRolloutStatus(
       server,
@@ -7355,6 +6731,30 @@ async function main() {
     await publish(server, owner.token, additiveV8SchemaFixture, nonemptyDatabase);
     await publish(server, owner.token, additiveV8SchemaFixture, actualModuleDatabase);
     await publish(server, owner.token, additiveV8SchemaFixture, resourceLifecycleDatabase);
+    // Convert this isolated lane from the synthetic v1 world sentinel into one
+    // real predecessor-era admitted founder before later additive publications.
+    // The current candidate must preserve this authority but can never create,
+    // disable, or re-enable another admission.
+    await sql(
+      server,
+      owner.token,
+      resourceLifecycleDatabase,
+      'DELETE FROM world_tile',
+    );
+    await callLoopbackReducer(
+      server,
+      resourceLifecycleDatabase,
+      'fixture_seed_genesis_generation_v2',
+      owner.token,
+      '[]',
+      200,
+      120_000,
+    );
+    if (
+      await count(server, owner.token, resourceLifecycleDatabase, 'allowed_fid') !== 1n
+      || await count(server, owner.token, resourceLifecycleDatabase, 'castle') !== 1n
+      || await count(server, owner.token, resourceLifecycleDatabase, 'resource_account_v1') !== 0n
+    ) fail('Grandfathered resource predecessor seed was not exact.');
     const emptyV8 = await describe(server, owner.token, emptyDatabase);
     const nonemptyV8 = await describe(server, owner.token, nonemptyDatabase);
     const actualModuleV8 = await describe(server, owner.token, actualModuleDatabase);
@@ -8387,6 +7787,105 @@ async function main() {
     ]) {
       assertCurrentCandidateSchema(emptyV17, description);
     }
+
+    // Read the preserved v13 applicant through the current complete production
+    // census path. Its frozen historical cycle is resolved under the current
+    // missing-FID cycle, so the private export must deliberately include
+    // resolved rows. Then prove current submissions remain sealed and the
+    // visible applicant state is unchanged before the byte-level inspection.
+    const retainedAccessRequestFid = 991_201n;
+    const retainedAccessRequestStatusCredential = createEphemeralJwt(
+      privateKey,
+      accessRequestServiceClaims(retainedAccessRequestFid.toString(), 'status'),
+    );
+    const retainedAccessRequestSubmitCredential = createEphemeralJwt(
+      privateKey,
+      accessRequestServiceClaims(retainedAccessRequestFid.toString(), 'submit'),
+    );
+    const retainedAccessRequestAdminCredential = createEphemeralJwt(
+      privateKey,
+      adminServiceClaims(),
+    );
+    const retainedAccessRequestStatus = parseAccessRequestStatus(
+      await callLoopbackProcedure(
+        server,
+        dailyMarksMigrationDatabase,
+        'access_request_get_status_v1',
+        retainedAccessRequestStatusCredential,
+        '[]',
+        200,
+      ),
+      'retained v13 access-request status',
+    );
+    assert.deepEqual(retainedAccessRequestStatus, {
+      status: 'not_requested',
+      requestedAtMicros: undefined,
+    });
+    const retainedAccessRequestPage = parseAdminAccessRequestPage(
+      await callLoopbackProcedure(
+        server,
+        dailyMarksMigrationDatabase,
+        'admin_list_access_requests_v1',
+        retainedAccessRequestAdminCredential,
+        '[0,0,100,true]',
+        200,
+      ),
+    );
+    assert.equal(retainedAccessRequestPage.entries.length, 1);
+    const retainedAccessRequestTimestamp =
+      retainedAccessRequestPage.entries[0].requestedAtMicros;
+    assert.ok(retainedAccessRequestTimestamp > 0n);
+    assert.deepEqual(retainedAccessRequestPage, {
+      entries: [{
+        fid: retainedAccessRequestFid,
+        requestedAtMicros: retainedAccessRequestTimestamp,
+        admissionState: 'missing',
+        requestState: 'resolved',
+      }],
+      nextRequestedAtMicros: undefined,
+      nextFid: undefined,
+      hasMore: false,
+      totalRequests: 1n,
+      pendingRequests: 0n,
+    });
+    const retainedAccessRequestSubmitResponse = await callLoopbackProcedure(
+      server,
+      dailyMarksMigrationDatabase,
+      'access_request_submit_v1',
+      retainedAccessRequestSubmitCredential,
+      '[]',
+      500,
+    );
+    assert.equal(
+      retainedAccessRequestSubmitResponse.trim(),
+      'The module instance encountered a fatal error: ACCESS_REQUESTS_SEALED',
+    );
+    assert.deepEqual(
+      parseAccessRequestStatus(
+        await callLoopbackProcedure(
+          server,
+          dailyMarksMigrationDatabase,
+          'access_request_get_status_v1',
+          retainedAccessRequestStatusCredential,
+          '[]',
+          200,
+        ),
+        'retained v13 access-request status after sealed submission',
+      ),
+      retainedAccessRequestStatus,
+    );
+    assert.deepEqual(
+      parseAdminAccessRequestPage(await callLoopbackProcedure(
+        server,
+        dailyMarksMigrationDatabase,
+        'admin_list_access_requests_v1',
+        retainedAccessRequestAdminCredential,
+        '[0,0,100,true]',
+        200,
+      )),
+      retainedAccessRequestPage,
+    );
+
     await publish(
       server,
       owner.token,
@@ -8567,8 +8066,8 @@ async function main() {
       privateKey,
     );
     // Return to the exact auth-neutral current-candidate schema only for
-    // private owner SQL. The append-only request row remains while every v12
-    // row digest stays byte-for-byte identical to its pre-request baseline.
+    // private owner SQL. The sealed request attempt created no row, while
+    // every v12 digest stays byte-for-byte identical to its baseline.
     await publish(
       server,
       owner.token,
@@ -8595,7 +8094,7 @@ async function main() {
         populatedWaterStoneMigrationDatabase,
         'access_request_v1',
       ),
-      2n,
+      0n,
     );
     assert.equal(
       countFromSql(await sql(
@@ -8604,7 +8103,7 @@ async function main() {
         populatedWaterStoneMigrationDatabase,
         `SELECT COUNT(*) AS warpkeep_count FROM access_request_v1 WHERE fid = ${syntheticMissingAccessRequestFid}`,
       )),
-      1n,
+      0n,
     );
     assert.equal(
       countFromSql(await sql(
@@ -8613,7 +8112,7 @@ async function main() {
         populatedWaterStoneMigrationDatabase,
         `SELECT COUNT(*) AS warpkeep_count FROM access_request_v1 WHERE fid = ${syntheticSecondAccessRequestFid}`,
       )),
-      1n,
+      0n,
     );
     assert.equal(
       countFromSql(await sql(
@@ -8861,6 +8360,65 @@ async function main() {
       server,
       workerRolloutV11Database,
       privateKey,
+    );
+    // Build the expedition lane from a genuinely admitted v8 predecessor,
+    // then advance it through every frozen schema before the sealed current
+    // artifact. This proves existing Genesis 001 gameplay survives without
+    // invoking any 0.4.0 admission mutation.
+    await publish(
+      server,
+      owner.token,
+      additiveV8SchemaFixture,
+      expeditionLifecycleDatabase,
+    );
+    await callLoopbackReducer(
+      server,
+      expeditionLifecycleDatabase,
+      'fixture_seed_genesis_generation_v2',
+      owner.token,
+      '[]',
+      200,
+      120_000,
+    );
+    const expeditionGrandfatheredV8Rows = await tableRowDigests(
+      server,
+      owner.token,
+      expeditionLifecycleDatabase,
+      deployedV8Tables,
+    );
+    for (const fixture of [
+      additiveV9SchemaFixture,
+      additiveV10SchemaFixture,
+      additiveV11SchemaFixture,
+      additiveV12SchemaFixture,
+      additiveV13SchemaFixture,
+      additiveV14SchemaFixture,
+      additiveV15SchemaFixture,
+      additiveV16SchemaFixture,
+      additiveV17SchemaFixture,
+    ]) {
+      await publish(server, owner.token, fixture, expeditionLifecycleDatabase);
+    }
+    await publishBuiltArtifact(
+      server,
+      owner.token,
+      builtArtifactPath,
+      expeditionLifecycleDatabase,
+    );
+    await publish(
+      server,
+      owner.token,
+      currentCandidateInspectionFixture,
+      expeditionLifecycleDatabase,
+    );
+    assert.deepEqual(
+      await tableRowDigests(
+        server,
+        owner.token,
+        expeditionLifecycleDatabase,
+        deployedV8Tables,
+      ),
+      expeditionGrandfatheredV8Rows,
     );
     await publishBuiltArtifact(
       server,

@@ -2,6 +2,7 @@ import { createSiweMessage } from 'viem/siwe'
 import { Errors as QuickAuthErrors } from '@farcaster/quick-auth'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  ACCESS_REQUEST_SUBMISSIONS_SUSPENDED,
   ADMISSION_NOTIFICATION_RECOVERY_PATH,
   ADMISSION_NOTIFICATION_STATUS_PATH,
   FARCASTER_VERIFICATION_TIMEOUT_MILLISECONDS,
@@ -203,6 +204,7 @@ function harness(options: {
   sessionFamilyStore?: SessionFamilyStore
   miniAppWebhookVerifier?: MiniAppWebhookVerifier
   admissionNotificationStore?: AdmissionNotificationStore
+  accessRequestSubmissionsSuspended?: boolean
 } = {}): Harness {
   let now = Date.now()
   const verifier = options.verifier ?? {
@@ -244,6 +246,8 @@ function harness(options: {
     signer: options.signer,
     now: () => now,
     logger: { event: (event) => events.push(event) },
+    accessRequestSubmissionsSuspended:
+      options.accessRequestSubmissionsSuspended ?? false,
   })
   return {
     app,
@@ -3243,6 +3247,89 @@ describe('Warpkeep auth bridge', () => {
   })
 
   describe('neutral access requests', () => {
+    it('suspends new request submission before credentials or backend work', async () => {
+      expect(ACCESS_REQUEST_SUBMISSIONS_SUSPENDED).toBe(true)
+      const getStatus = vi.fn(async () => ({ status: 'not-requested' } as const))
+      const submit = vi.fn(async () => ({ status: 'already-admitted' } as const))
+      const rateLimit = vi.fn(async () => ({ allowed: true as const }))
+      const h = harness({
+        epoch: 0,
+        accessRequestSubmissionsSuspended: true,
+        accessRequestResolver: {
+          getStatus,
+          submit,
+        },
+        rateLimiter: { check: rateLimit },
+      })
+
+      const response = await h.app.fetch(
+        accessBearerRequest(ACCESS_REQUEST_PATH),
+        env(),
+      )
+
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toEqual({
+        error: {
+          code: 'admission_requests_suspended',
+          message: 'New admission requests are temporarily suspended.',
+        },
+      })
+      expect(response.headers.get('access-control-allow-origin'))
+        .toBe(QUICK_AUTH_ORIGIN)
+      expect(rateLimit).not.toHaveBeenCalled()
+      expect(h.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+      expect(h.resolver.resolve).not.toHaveBeenCalled()
+      expect(submit).not.toHaveBeenCalled()
+      expect(h.events).toContain('access_request_rejected')
+      expect(h.events).not.toContain('access_request_succeeded')
+
+      const statusResponse = await h.app.fetch(
+        accessBearerRequest(ACCESS_STATUS_PATH),
+        env(),
+      )
+      expect(statusResponse.status).toBe(200)
+      await expect(statusResponse.json()).resolves.toEqual({
+        version: 1,
+        status: 'not-requested',
+      })
+      expect(rateLimit).toHaveBeenCalledOnce()
+      expect(h.quickAuthVerifier.verifyJwt).toHaveBeenCalledOnce()
+      expect(h.resolver.resolve).toHaveBeenCalledOnce()
+      expect(getStatus).toHaveBeenCalledOnce()
+    })
+
+    it('rejects submission preflight while the release suspension is active', async () => {
+      const rateLimit = vi.fn(async () => ({ allowed: true as const }))
+      const h = harness({
+        epoch: 0,
+        accessRequestSubmissionsSuspended: true,
+        rateLimiter: { check: rateLimit },
+      })
+      const response = await h.app.fetch(request(
+        ACCESS_REQUEST_PATH,
+        undefined,
+        {
+          method: 'OPTIONS',
+          headers: {
+            origin: QUICK_AUTH_ORIGIN,
+            'access-control-request-method': 'POST',
+            'access-control-request-headers':
+              'Authorization, Content-Type, X-Warpkeep-Expected-Fid',
+          },
+        },
+      ), env())
+
+      expect(response.status).toBe(503)
+      await expect(response.json()).resolves.toMatchObject({
+        error: { code: 'admission_requests_suspended' },
+      })
+      expect(response.headers.get('access-control-allow-origin'))
+        .toBe(QUICK_AUTH_ORIGIN)
+      expect(rateLimit).not.toHaveBeenCalled()
+      expect(h.quickAuthVerifier.verifyJwt).not.toHaveBeenCalled()
+      expect(h.resolver.resolve).not.toHaveBeenCalled()
+    })
+
     it('reuses exact Quick Auth and returns only neutral status projections', async () => {
       const getStatus = vi.fn(async () => ({ status: 'not-requested' } as const))
       const submit = vi.fn(async () => ({

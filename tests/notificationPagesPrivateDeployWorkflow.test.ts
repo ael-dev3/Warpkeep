@@ -34,7 +34,7 @@ const privateLabels = [
 ];
 
 describe('notification Pages private deployment workflow', () => {
-  it('uses a dependency-free source-binding classifier for the verified main run', () => {
+  it('uses the dependency-free sealed-launch classifier for the verified main run', () => {
     const source = workflow();
     const document = parse(source) as {
       on?: Record<string, unknown>;
@@ -47,7 +47,9 @@ describe('notification Pages private deployment workflow', () => {
     expect(source).toContain("github.event.workflow_run.event == 'push'");
     expect(source).toContain("github.event.workflow_run.head_branch == 'main'");
     expect(source).not.toMatch(/^\s+(?:push|workflow_dispatch|schedule):/mu);
-    expect(classify).toContain('node scripts/notification-pages-deploy-lane.mjs');
+    expect(classify).toContain(
+      'node scripts/verify-0.4.0-sealed-launch.mjs --phase=pages',
+    );
     expect(classify).not.toMatch(/(?:npm|pnpm) (?:ci|install)/u);
     expect(classify).not.toContain('services/auth-bridge/node_modules');
     expect(classify).not.toContain('notification-pages-live-receipt.mjs');
@@ -57,12 +59,49 @@ describe('notification Pages private deployment workflow', () => {
     expect(source).toContain(
       'WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}',
     );
-    expect(source).toContain("deployment-lane == 'closed-review'");
+    expect(source).toContain("deployment-lane == 'sealed-g002'");
+    expect(source).not.toContain("deployment-lane == 'closed-review'");
     expect(source).toContain("deployment-lane == 'gen0'");
     expect(source).toContain("deployment-lane == 'durable'");
     expect(document.jobs).toHaveProperty('deploy');
     expect(document.jobs).toHaveProperty('private-toolchain');
     expect(document.jobs).toHaveProperty('private-deploy');
+  });
+
+  it('ends preparation before artifacts, deployment authority, or notification lanes', () => {
+    const source = workflow();
+    const verifier = readFileSync(
+      resolve(repositoryRoot, 'scripts/verify-0.4.0-sealed-launch.mjs'),
+      'utf8',
+    );
+    const classify = job(source, 'classify', 'build');
+    const build = job(source, 'build', 'deploy');
+    const deploy = job(source, 'deploy', 'verify-live');
+    const privateToolchain = job(source, 'private-toolchain', 'private-deploy');
+    const privateDeploy = job(source, 'private-deploy');
+
+    expect(verifier).toContain(
+      "return result.phase === 'activation' ? 'sealed-g002' : 'sealed-launch-blocked';",
+    );
+    expect(classify).not.toMatch(
+      /(?:actions\/(?:upload|deploy)-pages|environment:|pages:\s*write|id-token:\s*write|secrets\.|npm ci)/u,
+    );
+    expect(build).toContain("deployment-lane == 'sealed-g002'");
+    expect(build).not.toContain('sealed-launch-blocked');
+    expect(build.indexOf('npm run verify:sealed-launch:activation')).toBeLessThan(
+      build.indexOf('npm run build'),
+    );
+    expect(build.indexOf('npm run build')).toBeLessThan(
+      build.indexOf('actions/upload-pages-artifact@'),
+    );
+    expect(deploy).toContain("deployment-lane == 'sealed-g002'");
+    expect(deploy).not.toContain('sealed-launch-blocked');
+    expect(privateToolchain).not.toContain('sealed-launch-blocked');
+    expect(privateDeploy).not.toContain('sealed-launch-blocked');
+    expect(privateToolchain).toMatch(/deployment-lane == 'gen0'[\s\S]*deployment-lane == 'durable'/u);
+    expect(privateDeploy).toMatch(/deployment-lane == 'gen0'[\s\S]*deployment-lane == 'durable'/u);
+    expect(verifier).not.toMatch(/\?\s*'(?:gen0|durable)'/u);
+    expect(source).not.toContain('vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED');
   });
 
   it('builds the source literal and validates notification authority statically', () => {
@@ -72,10 +111,10 @@ describe('notification Pages private deployment workflow', () => {
       "VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'false'",
     );
     expect(build).not.toContain('vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED');
-    expect(build).toContain('npm run validate:pages-release-build');
+    expect(build).toContain('npm run verify:sealed-launch:activation');
     expect(build).not.toContain('npm run validate:pages-config');
     expect(build).not.toContain('npm run verify:greater-realm-release-gates');
-    expect(build.indexOf('npm run validate:pages-release-build')).toBeLessThan(
+    expect(build.indexOf('npm run verify:sealed-launch:activation')).toBeLessThan(
       build.indexOf('npm run build'),
     );
     expect(build).toContain('actions/upload-pages-artifact@');

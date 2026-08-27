@@ -21,7 +21,7 @@ export const GREATER_REALM_CANDIDATE_REJECTION_CODES = Object.freeze([
   'GREATER_REALM_STRATEGIC_BASIN_CAPACITY_INVARIANT',
   'GREATER_REALM_TIER_THREE_CAPACITY_INVARIANT',
   // Historical `.17` checkpoints may contain this collapsed outcome. The
-  // `.18` generator keeps it parseable for authenticated retirement only and
+  // `.19` generator keeps it parseable for authenticated retirement only and
   // emits one of the typed Tier-II outcomes declared below instead.
   'GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT',
   'GREATER_REALM_TIER_TWO_PASSABLE_COMPONENTS_EMPTY',

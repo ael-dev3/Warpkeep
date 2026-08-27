@@ -1,6 +1,18 @@
 # Greater Realm activation-client presentation handoff
 
-Status: **approved for C7; not live presentation**
+> **SUPERSEDED — DO NOT EXECUTE AS WRITTEN.** The owner-approved Warpkeep 0.4.0
+> release is now a two-realm shell: Genesis 001 remains on exact 0.3.43 for its
+> existing admitted players, while the Greater Realm atlas is introduced in a
+> fresh, private Genesis 002 database with zero admissions and player
+> presentation disabled. The former C7 plan reserving 0.4.0 for an active
+> Greater Realm client is not launch authority. Future G002 admission,
+> activation, or presentation requires a fresh reviewed release plan. Preserve
+> the historical detail below for audit only. All legacy G001 Greater Realm
+> publisher/import/relocation/activation/cutover mutation entrypoints and their
+> historical launch-envelope rows are now source-refused before credentials or
+> network access; this document cannot authorize them.
+
+Historical status: **formerly approved for C7; superseded and not executable**
 
 The inert and pre-generation source must continue to identify itself as Alpha
 `0.3.43` and must not state that the Greater Realm is live. An earlier `0.4.0`

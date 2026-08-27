@@ -202,6 +202,7 @@ describe('Realm renderer recovery UI', () => {
     const manualCopy = screen.getByRole('textbox', {
       name: 'Renderer diagnostics for manual copy'
     }) as HTMLTextAreaElement;
+    expect(manualCopy.value).toContain('warpkeep_version=0.3.43');
     expect(manualCopy.value).toContain('webgl_max_texture_size=8192');
     expect(manualCopy.value).toContain('drawing_buffer_px=1082x2402');
     expect(manualCopy.value).not.toMatch(/fid|token|username|cookie|url|mozilla|angle/i);

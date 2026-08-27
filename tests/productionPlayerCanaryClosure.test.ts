@@ -149,7 +149,7 @@ describe('production player canary prepared-deploy closure', () => {
       expect(derived, path).toContain(path);
       expect(seams.expectedMemberDigestProfile(path), path).toBe(RAW);
     }
-  }, 30_000);
+  }, 180_000);
 
   it('rejects projection substitution for every canary raw runtime member', () => {
     const canonical = Buffer.from(
@@ -219,5 +219,5 @@ describe('production player canary prepared-deploy closure', () => {
         ).toBe(true);
       } finally { substitutedBytes.fill(0); }
     }
-  }, 30_000);
+  }, 180_000);
 });

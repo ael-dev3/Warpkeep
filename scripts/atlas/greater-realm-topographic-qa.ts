@@ -45,6 +45,7 @@ const FROSTMERE_REGION = 1;
 const SUNSCAR_REGION = 2;
 const MIREFEN_REGION = 3;
 const STONEWAKE_REGION = 4;
+const DEFAULT_TIER_ONE_SEMANTIC_REGION_BY_ROLE = Object.freeze([0, 1, 2, 3, 4, 5]);
 const FIRST_TIER_II_REGION = 6;
 const LAST_TIER_II_REGION = 8;
 const THRONEHEART_REGION = 9;
@@ -55,7 +56,7 @@ const OASIS_FRESHWATER_INFLUENCE_MAXIMUM_DISTANCE = 3;
 export const GREATER_REALM_REGIONAL_HYDROGEOMORPHOLOGY_POLICY = Object.freeze({
   frostmereMinimumFjordCells: 8,
   frostmereMinimumFjordSystems: 2,
-  mirefenMinimumMarshCells: 64,
+  mirefenMinimumWetlandComplexCells: 64,
   mirefenMinimumDeltaEstuaryCells: 8,
   mirefenMinimumBraidedChannelProxyEdges: 8,
   sunscarMinimumAridDryLandBasisPoints: 500,
@@ -80,10 +81,17 @@ export type GreaterRealmRegionalHydrogeomorphologyMetrics = Readonly<{
   }>;
   mirefen: Readonly<{
     marshCellCount: number;
+    /**
+     * Distinct final cells carrying either marsh hydrology or the explicit
+     * dry RIVER_DELTA biome. At least one marsh cell remains mandatory, so a
+     * dry delta field alone cannot satisfy the regional proof.
+     */
+    wetlandComplexCellCount: number;
     deltaEstuaryCellCount: number;
     /**
-     * Low-gradient lateral channel adjacency in the single-receiver DAG. This
-     * is explicitly a braided-waterway proxy, not divergent-flow authority.
+     * Low-gradient lateral channel/channel and channel/explicit-delta
+     * adjacency outside the single-receiver DAG. This is explicitly a
+     * braided-waterway proxy, not divergent-flow authority.
      */
     braidedChannelProxyEdgeCount: number;
     proof: boolean;
@@ -125,6 +133,104 @@ export type GreaterRealmRegionalHydrogeomorphologyMetrics = Readonly<{
   }>;
   proof: boolean;
 }>;
+
+export type GreaterRealmTierOneRegionalSignature = Readonly<{
+  region: number;
+  frostmere: GreaterRealmRegionalHydrogeomorphologyMetrics['frostmere'];
+  sunscar: GreaterRealmRegionalHydrogeomorphologyMetrics['sunscar'];
+  mirefen: GreaterRealmRegionalHydrogeomorphologyMetrics['mirefen'];
+  stonewake: GreaterRealmRegionalHydrogeomorphologyMetrics['stonewake'];
+}>;
+
+/**
+ * Assign semantic Tier-I names to already-proved physical regions. This
+ * changes metadata only: the returned array maps semantic role id to the
+ * existing region id, leaving every cell's region authority untouched.
+ */
+export function assignGreaterRealmTierOneSemanticRegionsBySignature(
+  signatures: readonly GreaterRealmTierOneRegionalSignature[],
+): readonly number[] {
+  const ordered = [...signatures].sort((first, second) => first.region - second.region);
+  if (
+    ordered.length !== 5
+    || ordered.some((signature, index) => signature.region !== index + 1)
+  ) fail('GREATER_REALM_TIER_ONE_SEMANTIC_SIGNATURES_INVALID');
+  const signal = (
+    signature: GreaterRealmTierOneRegionalSignature,
+    role: number,
+  ): Readonly<{ proof: boolean; value: bigint }> => {
+    switch (role) {
+      case FROSTMERE_REGION:
+        return Object.freeze({
+          proof: signature.frostmere.proof,
+          value: BigInt(signature.frostmere.fjordCellCount) * 10_000n
+            + BigInt(signature.frostmere.fjordSystemCount) * 100_000n,
+        });
+      case SUNSCAR_REGION:
+        return Object.freeze({
+          proof: signature.sunscar.proof,
+          value: BigInt(signature.sunscar.aridDryLandBasisPoints) * 10_000n
+            + BigInt(signature.sunscar.aridBiomeClassCount) * 100_000n
+            + BigInt(signature.sunscar.seasonalChannelCellCount) * 100n
+            + BigInt(signature.sunscar.oasisMarginCellCount) * 1_000n
+            + BigInt(signature.sunscar.oasisSystemCount) * 10_000n,
+        });
+      case MIREFEN_REGION:
+        return Object.freeze({
+          proof: signature.mirefen.proof,
+          value: BigInt(signature.mirefen.wetlandComplexCellCount) * 10_000n
+            + BigInt(signature.mirefen.deltaEstuaryCellCount) * 10_000n
+            + BigInt(signature.mirefen.braidedChannelProxyEdgeCount) * 10_000n,
+        });
+      case STONEWAKE_REGION:
+        return Object.freeze({
+          proof: signature.stonewake.proof,
+          value: BigInt(signature.stonewake.meaningfulIslandCount) * 100_000n
+            + BigInt(signature.stonewake.narrowIslandStraitCellCount) * 1_000n,
+        });
+      default:
+        return Object.freeze({ proof: false, value: 0n });
+    }
+  };
+  let bestMapping: readonly number[] | undefined;
+  let bestProofCount = -1;
+  let bestSignal = -1n;
+  for (let frost = 1; frost <= 5; frost += 1) {
+    for (let sunscar = 1; sunscar <= 5; sunscar += 1) {
+      if (sunscar === frost) continue;
+      for (let mirefen = 1; mirefen <= 5; mirefen += 1) {
+        if (mirefen === frost || mirefen === sunscar) continue;
+        for (let stonewake = 1; stonewake <= 5; stonewake += 1) {
+          if ([frost, sunscar, mirefen].includes(stonewake)) continue;
+          const emberwood = [1, 2, 3, 4, 5].find(region => (
+            ![frost, sunscar, mirefen, stonewake].includes(region)
+          ));
+          if (emberwood === undefined) {
+            fail('GREATER_REALM_TIER_ONE_SEMANTIC_ASSIGNMENT_INCOMPLETE');
+          }
+          const mapping = [0, frost, sunscar, mirefen, stonewake, emberwood] as const;
+          let proofCount = 0;
+          let totalSignal = 0n;
+          for (let role = 1; role <= 4; role += 1) {
+            const roleSignal = signal(ordered[mapping[role]! - 1]!, role);
+            if (roleSignal.proof) proofCount += 1;
+            totalSignal += roleSignal.value;
+          }
+          if (
+            proofCount > bestProofCount
+            || (proofCount === bestProofCount && totalSignal > bestSignal)
+          ) {
+            bestMapping = mapping;
+            bestProofCount = proofCount;
+            bestSignal = totalSignal;
+          }
+        }
+      }
+    }
+  }
+  if (!bestMapping) fail('GREATER_REALM_TIER_ONE_SEMANTIC_ASSIGNMENT_FAILED');
+  return Object.freeze([...bestMapping]);
+}
 
 export const GREATER_REALM_TOPOGRAPHIC_QA_FIXED_BINS = Object.freeze({
   elevation: Object.freeze({
@@ -183,6 +289,8 @@ export type GreaterRealmComponentSummary = Readonly<{
 export type GreaterRealmTopographicQaInput = Readonly<{
   grid: IndexedAxialGrid;
   regionId: Uint8Array;
+  /** Semantic role id -> already-proved physical Tier-I region id. */
+  tierOneSemanticRegionByRole?: readonly number[];
   geomorphologyCoastalClass: Uint8Array;
   elevation: Int32Array;
   /**
@@ -446,6 +554,15 @@ function assertInputArrays(input: GreaterRealmTopographicQaInput): void {
   if (input.waterClassificationExemptionMask?.some(value => value > 1)) {
     fail('GREATER_REALM_TOPOGRAPHIC_QA_WATER_EXEMPTION_MASK_INVALID');
   }
+  if (
+    input.tierOneSemanticRegionByRole !== undefined
+    && (
+      input.tierOneSemanticRegionByRole.length !== 6
+      || input.tierOneSemanticRegionByRole[0] !== 0
+      || [...input.tierOneSemanticRegionByRole].sort((first, second) => first - second)
+        .some((region, index) => region !== index)
+    )
+  ) fail('GREATER_REALM_TOPOGRAPHIC_QA_SEMANTIC_REGION_MAPPING_INVALID');
 }
 
 function validateGrid(grid: IndexedAxialGrid): void {
@@ -834,9 +951,15 @@ function aridBiomeClass(biomeId: number): number {
 function measureRegionalHydrogeomorphology(
   input: GreaterRealmTopographicQaInput,
   seaLevel: number,
+  semanticRegionByRole: readonly number[] = input.tierOneSemanticRegionByRole
+    ?? DEFAULT_TIER_ONE_SEMANTIC_REGION_BY_ROLE,
 ): GreaterRealmRegionalHydrogeomorphologyMetrics {
   const policy = GREATER_REALM_REGIONAL_HYDROGEOMORPHOLOGY_POLICY;
   const { grid } = input;
+  const frostmereRegion = semanticRegionByRole[FROSTMERE_REGION]!;
+  const sunscarRegion = semanticRegionByRole[SUNSCAR_REGION]!;
+  const mirefenRegion = semanticRegionByRole[MIREFEN_REGION]!;
+  const stonewakeRegion = semanticRegionByRole[STONEWAKE_REGION]!;
   const fjordMask = new Uint8Array(grid.cellCount);
   const oasisMarginMask = new Uint8Array(grid.cellCount);
   const stonewakeIslandMask = new Uint8Array(grid.cellCount);
@@ -883,6 +1006,7 @@ function measureRegionalHydrogeomorphology(
 
   let frostmereFjordCellCount = 0;
   let mirefenMarshCellCount = 0;
+  let mirefenWetlandComplexCellCount = 0;
   let mirefenDeltaEstuaryCellCount = 0;
   let mirefenBraidedChannelProxyEdgeCount = 0;
   let sunscarDryCellCount = 0;
@@ -910,7 +1034,7 @@ function measureRegionalHydrogeomorphology(
         const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
         if (
           neighbor < 0
-          || input.regionId[neighbor] !== SUNSCAR_REGION
+          || input.regionId[neighbor] !== sunscarRegion
           || input.waterRegime[neighbor] === WATER_OCEAN
           || input.waterRegime[neighbor] === WATER_SEA
         ) continue;
@@ -939,7 +1063,7 @@ function measureRegionalHydrogeomorphology(
       const channel = isChannelRegime(regime);
 
       if (
-        region === FROSTMERE_REGION
+        region === frostmereRegion
         && input.geomorphologyCoastalClass[cell]
           === GREATER_REALM_COASTAL_CLASS.glacialFjord
       ) {
@@ -947,20 +1071,39 @@ function measureRegionalHydrogeomorphology(
         frostmereFjordCellCount += 1;
       }
 
-      if (region === MIREFEN_REGION) {
-        if (regime === WATER_MARSH) mirefenMarshCellCount += 1;
+      if (region === mirefenRegion) {
+        const explicitDryRiverDelta = regime === WATER_DRY
+          && input.biomeId[cell] === GREATER_REALM_BIOME_ID.RIVER_DELTA;
+        if (regime === WATER_MARSH) {
+          mirefenMarshCellCount += 1;
+          mirefenWetlandComplexCellCount += 1;
+        } else if (explicitDryRiverDelta) {
+          mirefenWetlandComplexCellCount += 1;
+        }
         if (
           input.geomorphologyCoastalClass[cell]
             === GREATER_REALM_COASTAL_CLASS.deltaEstuary
         ) mirefenDeltaEstuaryCellCount += 1;
-        if (channel && input.slope[cell]! <= 1_200) {
+        if (
+          (channel || explicitDryRiverDelta)
+          && input.slope[cell]! <= 1_200
+        ) {
           for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
             const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
+            const neighborChannel = neighbor >= 0
+              && isChannelRegime(input.waterRegime[neighbor]!);
+            const neighborExplicitDryRiverDelta = neighbor >= 0
+              && input.waterRegime[neighbor] === WATER_DRY
+              && input.biomeId[neighbor] === GREATER_REALM_BIOME_ID.RIVER_DELTA;
             if (
               neighbor <= cell
-              || input.regionId[neighbor] !== MIREFEN_REGION
-              || !isChannelRegime(input.waterRegime[neighbor]!)
+              || input.regionId[neighbor] !== mirefenRegion
               || input.slope[neighbor]! > 1_200
+              || !(
+                (channel && neighborChannel)
+                || (channel && neighborExplicitDryRiverDelta)
+                || (explicitDryRiverDelta && neighborChannel)
+              )
               || input.flowReceiver[cell] === neighbor
               || input.flowReceiver[neighbor] === cell
             ) continue;
@@ -969,7 +1112,7 @@ function measureRegionalHydrogeomorphology(
         }
       }
 
-      if (region === SUNSCAR_REGION && regime === WATER_DRY) {
+      if (region === sunscarRegion && regime === WATER_DRY) {
         sunscarDryCellCount += 1;
         const aridClass = aridBiomeClass(input.biomeId[cell]!);
         if (aridClass >= 0) {
@@ -986,7 +1129,7 @@ function measureRegionalHydrogeomorphology(
       }
 
       if (
-        region === STONEWAKE_REGION
+        region === stonewakeRegion
         && input.elevation[cell]! > seaLevel
       ) stonewakeIslandMask[cell] = 1;
 
@@ -1080,7 +1223,7 @@ function measureRegionalHydrogeomorphology(
     let stonewakeNarrowIslandStraitCellCount = 0;
     for (let start = 0; start < grid.cellCount; start += 1) {
       if (
-        input.regionId[start] !== STONEWAKE_REGION
+        input.regionId[start] !== stonewakeRegion
         || (
           input.waterRegime[start] !== WATER_OCEAN
           && input.waterRegime[start] !== WATER_SEA
@@ -1102,7 +1245,7 @@ function measureRegionalHydrogeomorphology(
           const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
           if (
             neighbor < 0
-            || input.regionId[neighbor] !== STONEWAKE_REGION
+            || input.regionId[neighbor] !== stonewakeRegion
           ) continue;
           const island = componentId[neighbor]!;
           if (island > 0 && meaningfulIslandComponent[island] === 1) {
@@ -1156,7 +1299,9 @@ function measureRegionalHydrogeomorphology(
       frostmereFjordCellCount >= policy.frostmereMinimumFjordCells
       && frostmereFjordSystemCount >= policy.frostmereMinimumFjordSystems;
     const mirefenProof =
-      mirefenMarshCellCount >= policy.mirefenMinimumMarshCells
+      mirefenMarshCellCount > 0
+      && mirefenWetlandComplexCellCount
+        >= policy.mirefenMinimumWetlandComplexCells
       && mirefenDeltaEstuaryCellCount >= policy.mirefenMinimumDeltaEstuaryCells
       && mirefenBraidedChannelProxyEdgeCount
         >= policy.mirefenMinimumBraidedChannelProxyEdges;
@@ -1191,6 +1336,7 @@ function measureRegionalHydrogeomorphology(
       }),
       mirefen: Object.freeze({
         marshCellCount: mirefenMarshCellCount,
+        wetlandComplexCellCount: mirefenWetlandComplexCellCount,
         deltaEstuaryCellCount: mirefenDeltaEstuaryCellCount,
         braidedChannelProxyEdgeCount:
           mirefenBraidedChannelProxyEdgeCount,
@@ -1253,6 +1399,31 @@ function measureRegionalHydrogeomorphology(
     throneheartNavigableComponentSizes?.fill(0);
     stonewakeIslandComponentSizes?.fill(0);
   }
+}
+
+export function deriveGreaterRealmTierOneSemanticRegionsFromFinalGeometry(
+  input: GreaterRealmTopographicQaInput,
+): readonly number[] {
+  assertInputArrays(input);
+  validateGrid(input.grid);
+  validateClassificationFields(input);
+  const seaLevel = input.seaLevel ?? 0;
+  const signatures: GreaterRealmTierOneRegionalSignature[] = [];
+  for (let region = 1; region <= 5; region += 1) {
+    const metrics = measureRegionalHydrogeomorphology(
+      input,
+      seaLevel,
+      Object.freeze([0, region, region, region, region, region]),
+    );
+    signatures.push(Object.freeze({
+      region,
+      frostmere: metrics.frostmere,
+      sunscar: metrics.sunscar,
+      mirefen: metrics.mirefen,
+      stonewake: metrics.stonewake,
+    }));
+  }
+  return assignGreaterRealmTierOneSemanticRegionsBySignature(signatures);
 }
 
 function frozenShares(counts: readonly number[], total: number): readonly number[] {
