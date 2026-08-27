@@ -60,6 +60,19 @@ zero woody-vegetation density, and the vegetation/groundcover Jaccard overlap
 may not exceed 95%. These are private authority checks, not rendered-instance
 or gameplay counts.
 
+The living classifier shares the final topography's 3,500 cool-forest
+transition: compatible cool meadow, heath, lowland, woodland, pine, and coast
+become taiga ecology, while cool volcanic and ash ground remains sparse alpine
+ecology. After ordinary clearance and patch pruning, a deterministic
+groundcover-channel pass may remove woody density only from degree-one canopy
+fringe cells until the unchanged 1% open-groundcover floor is met. Removing a
+leaf cannot split the retained woody component; dense interiors are never
+hollowed, and a candidate with insufficient safe fringe still fails closed.
+This is an in-place correction to the unpublished v4 candidate authority: the
+Greater Realm remains generation-only, no v4 candidate has been selected, and
+production is unchanged. Earlier pre-eligibility draft digests are not package
+authority.
+
 Road potential prefers connected, low-slope, dry corridors and may cross only
 river/stream cells that this authority explicitly classifies and proves as
 fords. `CARRIAGEWAY` is dormant future wagon and supply-wagon capacity beside

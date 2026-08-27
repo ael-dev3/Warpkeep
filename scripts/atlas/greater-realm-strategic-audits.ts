@@ -12,6 +12,9 @@ import {
   isCanonicalGreaterRealmAxialGrid,
   type IndexedAxialGrid,
 } from './greater-realm-terrain';
+import {
+  deriveGreaterRealmSupportNormalizedAngularSectors,
+} from './greater-realm-castle-distribution';
 
 export const GREATER_REALM_STRATEGIC_AUDITS_VERSION =
   'greater-realm-strategic-audits-v1' as const;
@@ -930,9 +933,14 @@ export function measureGreaterRealmCastleSuitability(
   const componentId = new Int32Array(cellCount);
   const routeQueue = new Uint32Array(cellCount);
   const regionCastleCounts = new Int32Array(TIER_I_REGION_COUNT);
-  const regionPassableCellCounts = new Int32Array(TIER_I_REGION_COUNT);
-  const regionQTotals = new Float64Array(TIER_I_REGION_COUNT);
-  const regionRTotals = new Float64Array(TIER_I_REGION_COUNT);
+  const distributionSectorByCell =
+    deriveGreaterRealmSupportNormalizedAngularSectors({
+      grid: input.grid,
+      regionId: input.regionId,
+      waterRegime: input.waterRegime,
+      barrier: input.barrier,
+      regionCount: TIER_I_REGION_COUNT,
+    });
   const sectorCounts = new Int32Array(TIER_I_REGION_COUNT * HEX_NEIGHBOR_COUNT);
   const castleCells = new Int32Array(policy.expectedTotalCastleSlots);
   castleCells.fill(-1);
@@ -949,15 +957,6 @@ export function measureGreaterRealmCastleSuitability(
     let newCastleSlotCount = 0;
     for (let cell = 0; cell < cellCount; cell += 1) {
       const region = input.regionId[cell]!;
-      if (
-        region < TIER_I_REGION_COUNT
-        && strategicallyPassableSurface(input.waterRegime[cell]!)
-        && input.barrier[cell] === 0
-      ) {
-        regionPassableCellCounts[region] += 1;
-        regionQTotals[region] += input.grid.q[cell]!;
-        regionRTotals[region] += input.grid.r[cell]!;
-      }
       if (input.castleSlot[cell] !== 1) continue;
       if (totalCastleSlotCount >= castleCells.length) {
         fail('GREATER_REALM_AUDIT_CASTLE_COUNT_BOUND_EXCEEDED');
@@ -1130,31 +1129,8 @@ export function measureGreaterRealmCastleSuitability(
       if (input.legacyCastleSlot[cell] === 1) continue;
       const region = input.regionId[cell]!;
       if (region <= 0 || region >= TIER_I_REGION_COUNT) continue;
-      const regionCellCount = regionPassableCellCounts[region]!;
-      if (regionCellCount <= 0) continue;
-      const deltaQ = input.grid.q[cell]! * regionCellCount - regionQTotals[region]!;
-      const deltaR = input.grid.r[cell]! * regionCellCount - regionRTotals[region]!;
-      let selectedSector = 0;
-      let selectedScore = Number.NEGATIVE_INFINITY;
-      const directions = [
-        [1, 0],
-        [1, -1],
-        [0, -1],
-        [-1, 0],
-        [-1, 1],
-        [0, 1],
-      ] as const;
-      for (let sector = 0; sector < directions.length; sector += 1) {
-        const [directionQ, directionR] = directions[sector]!;
-        const score = 2 * deltaQ * directionQ
-          + deltaQ * directionR
-          + deltaR * directionQ
-          + 2 * deltaR * directionR;
-        if (score > selectedScore) {
-          selectedScore = score;
-          selectedSector = sector;
-        }
-      }
+      const selectedSector = distributionSectorByCell[cell]!;
+      if (selectedSector >= HEX_NEIGHBOR_COUNT) continue;
       sectorCounts[region * HEX_NEIGHBOR_COUNT + selectedSector] += 1;
     }
     let minimumOccupiedDistributionSectors = HEX_NEIGHBOR_COUNT;
@@ -1259,9 +1235,7 @@ export function measureGreaterRealmCastleSuitability(
     componentId.fill(0);
     routeQueue.fill(0);
     regionCastleCounts.fill(0);
-    regionPassableCellCounts.fill(0);
-    regionQTotals.fill(0);
-    regionRTotals.fill(0);
+    distributionSectorByCell.fill(0);
     sectorCounts.fill(0);
     castleCells.fill(0);
   }

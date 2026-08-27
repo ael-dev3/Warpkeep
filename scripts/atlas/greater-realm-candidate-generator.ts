@@ -91,6 +91,9 @@ import {
   type GreaterRealmTierPotentialDensityMetrics,
 } from './greater-realm-strategic-audits';
 import {
+  deriveGreaterRealmSupportNormalizedAngularSectors,
+} from './greater-realm-castle-distribution';
+import {
   GREATER_REALM_REGIONAL_HYDROGEOMORPHOLOGY_POLICY,
   deriveGreaterRealmTierOneSemanticRegionsFromFinalGeometry,
   measureGreaterRealmTopographicQa,
@@ -4460,6 +4463,14 @@ function allocateTierTwoPassableCapacity(
       pair => pair.bundles,
     );
   };
+  const lowlandsRepairRankedCapacityAssignments = buildRankedCapacityAssignments(
+    lowlandsRepairSiblingPairsFor,
+    GREATER_REALM_LOWLANDS_REPAIR_MAX_CAPACITY_ASSIGNMENTS,
+  );
+  if (
+    rankedCapacityAssignments.length === 0
+    && lowlandsRepairRankedCapacityAssignments.length === 0
+  ) reject('ASSIGNMENT_MISSING');
   const gateApronLaneSearch = runGreaterRealmGateApronSearchLanes(
     () => searchGateApronLane(
       'ordinary',
@@ -4468,10 +4479,7 @@ function allocateTierTwoPassableCapacity(
     ),
     () => searchGateApronLane(
       'lowlands-repair',
-      buildRankedCapacityAssignments(
-        lowlandsRepairSiblingPairsFor,
-        GREATER_REALM_LOWLANDS_REPAIR_MAX_CAPACITY_ASSIGNMENTS,
-      ),
+      lowlandsRepairRankedCapacityAssignments,
       lowlandsRepairSiblingPairsFor,
     ),
   );
@@ -10246,36 +10254,21 @@ function castleAndPotentialSites(
   if (castleCount !== GREATER_REALM_LEGACY_LOWLANDS_LOCK_PINS_V1.castleSlotCount) {
     fail('GREATER_REALM_LEGACY_CASTLE_SLOT_COUNT_INVALID');
   }
-  const regionPassableCellCounts = own(new Int32Array(TIER_I_REGION_COUNT));
-  const regionQTotals = own(new Float64Array(TIER_I_REGION_COUNT));
-  const regionRTotals = own(new Float64Array(TIER_I_REGION_COUNT));
-  for (let cell = 0; cell < grid.cellCount; cell += 1) {
-    const region = regionId[cell]!;
-    if (
-      region >= TIER_I_REGION_COUNT
-      || !strategicallyPassableSurface(waterRegime[cell]!)
-      || barrier[cell] !== 0
-    ) continue;
-    regionPassableCellCounts[region] += 1;
-    regionQTotals[region] += grid.q[cell]!;
-    regionRTotals[region] += grid.r[cell]!;
-  }
-  const distributionSector = (cell: number, region: number): number => {
-    const regionCellCount = regionPassableCellCounts[region]!;
-    if (regionCellCount <= 0) fail('GREATER_REALM_CASTLE_DISTRIBUTION_REGION_EMPTY');
-    const deltaQ = grid.q[cell]! * regionCellCount - regionQTotals[region]!;
-    const deltaR = grid.r[cell]! * regionCellCount - regionRTotals[region]!;
-    let selectedSector = 0;
-    let selectedScore = Number.NEGATIVE_INFINITY;
-    for (let sector = 0; sector < GREATER_REALM_AXIAL_DIRECTIONS.length; sector += 1) {
-      const direction = GREATER_REALM_AXIAL_DIRECTIONS[sector]!;
-      const score = hexDot(deltaQ, deltaR, direction.q, direction.r);
-      if (score > selectedScore) {
-        selectedScore = score;
-        selectedSector = sector;
-      }
+  const distributionSectorByCell = own(
+    deriveGreaterRealmSupportNormalizedAngularSectors({
+      grid,
+      regionId,
+      waterRegime,
+      barrier,
+      regionCount: TIER_I_REGION_COUNT,
+    }),
+  );
+  const distributionSector = (cell: number): number => {
+    const sector = distributionSectorByCell[cell]!;
+    if (sector >= HEX_NEIGHBOR_COUNT) {
+      fail('GREATER_REALM_CASTLE_DISTRIBUTION_CELL_UNSUPPORTED');
     }
-    return selectedSector;
+    return sector;
   };
   const stableCastleLandform = (landform: number): boolean => (
     landform === GREATER_REALM_LANDFORM_ID.COASTAL_PLAIN
@@ -10380,7 +10373,7 @@ function castleAndPotentialSites(
       for (let offset = 0; offset < HEX_NEIGHBOR_COUNT; offset += 1) {
         const targetSector = (offset + attempt) % HEX_NEIGHBOR_COUNT;
         const cell = ordered.find(candidate => (
-          distributionSector(candidate, region) === targetSector
+          distributionSector(candidate) === targetSector
           && spacedFromSelected(candidate)
         ));
         if (cell === undefined) continue;
@@ -10389,7 +10382,7 @@ function castleAndPotentialSites(
       }
       for (const cell of ordered) {
         if (trial.includes(cell)) continue;
-        const sector = distributionSector(cell, region);
+        const sector = distributionSector(cell);
         if (sectorCounts[sector]! >= 35) continue;
         if (!spacedFromSelected(cell)) continue;
         trial.push(cell);
@@ -10459,7 +10452,7 @@ function castleAndPotentialSites(
       placementProof = false;
       continue;
     }
-    const sector = distributionSector(cell, region);
+    const sector = distributionSector(cell);
     verifiedSectorCounts[region * HEX_NEIGHBOR_COUNT + sector] += 1;
   }
   for (let region = 1; region < TIER_I_REGION_COUNT; region += 1) {

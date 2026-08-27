@@ -179,6 +179,14 @@ Each candidate runs independently through these stage families:
    documented in
    [Greater Realm dormant living-world semantics](greater-realm-living-world-assets.md).
 
+Castle angular coverage is measured in six support-normalized sectors of each
+Tier-I region's final passable geography. The sector frame uses exact polar
+ordering around the regional support centroid and treats every collinear ray
+as one indivisible direction. This preserves the unchanged five-sector and
+35%-maximum-share gates without requiring an elongated coast or archipelago to
+occupy empty world-axis wedges, and without allowing a single ray to
+manufacture multiple sectors.
+
 `sedimentDepth` is the exact non-negative deposit added to the relaxed fluvial
 surface before final routing. The generator proves cell by cell that the final
 fluvial elevation equals the relaxed base plus this depth, proves zero sediment

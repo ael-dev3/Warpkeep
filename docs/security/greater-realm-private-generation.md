@@ -83,6 +83,14 @@ The private workspace must:
   groundcovered cells are free of woody density, vegetation/groundcover
   Jaccard overlap exceeds 95%, or the aggregate counts are internally
   impossible;
+- reconstruct support-normalized castle angular sectors from final passable
+  regional geography with exact integer polar ordering, never split a
+  collinear ray across sectors, and retain the unchanged five-sector and 35%
+  maximum-share gates;
+- reconstruct the cool-climate living classification and any open-groundcover
+  correction from final climate/biome fields and the independent groundcover
+  channel; only degree-one woody fringe cells may be cleared, so an interior
+  canopy cannot be quota-carved to satisfy the 1% separation proof;
 - include final elevation, the low-frequency terrace delta, each
   glacial/arid/volcanic/coastal elevation delta, and the corresponding process
   masks/classes in that canonical inventory so

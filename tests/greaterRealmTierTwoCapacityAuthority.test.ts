@@ -111,7 +111,7 @@ describe('Greater Realm Tier-II capacity authority', () => {
       }
       expect(mutatedReserveCellCount).toBe(0);
 
-      expect(candidate.aggregate.eligible).toBe(false);
+      expect(candidate.aggregate.eligible).toBe(true);
       expect(candidate.aggregate.gateCount).toBe(18);
       expect(candidate.aggregate.proofs.gateApproaches).toBe(true);
       expect(candidate.aggregate.proofs.gateGraph).toBe(true);
@@ -139,11 +139,54 @@ describe('Greater Realm Tier-II capacity authority', () => {
           },
           proof: true,
         });
-      expect(candidate.privateMetrics.eligibilityFailureCodes).toEqual([
-        'PROOF_CASTLE_CAPACITY',
-        'CASTLE_SUITABILITY',
-        'LIVING_WORLD_DORMANT_CAPACITY',
-      ]);
+      expect(candidate.aggregate.proofs.castleCapacity).toBe(true);
+      expect(candidate.privateMetrics.strategicAudits.castleSuitability)
+        .toMatchObject({
+          totalCastleSlotCount: 600,
+          newCastleSlotCount: 500,
+          minimumRegionCastleSlotCount: 100,
+          maximumRegionCastleSlotCount: 100,
+          minimumMeasuredCastleSpacing: 5,
+          minimumOccupiedDistributionSectors: 6,
+          maximumDistributionSectorShareBasisPoints: 2_200,
+          fullyClearNewCastleFootprintCount: 500,
+          twoRouteAccessNewCastleCount: 500,
+          exactCapacityProof: true,
+          suitabilityProof: true,
+          fullFootprintProof: true,
+          distributionProof: true,
+          twoRouteAccessProof: true,
+          proof: true,
+        });
+      expect(candidate.privateMetrics.livingWorld.invariants)
+        .toMatchObject({
+          groundcoverIndependentFromWoodyVegetation: true,
+        });
+      expect(candidate.privateMetrics.livingWorld.metrics).toMatchObject({
+        ecologyCellCounts: {
+          plains: 37_907,
+          forest: 20_715,
+          taiga: 3_755,
+          jungle: 367,
+          swamp: 93,
+          savanna: 3_273,
+          desert: 4_299,
+          alpine: 2_693,
+          snow: 617,
+        },
+        vegetatedCellCount: 55_403,
+        groundcoverCellCount: 44_149,
+        groundcoverWithoutVegetationCellCount: 450,
+        vegetationGroundcoverJaccardBasisPoints: 7_824,
+      });
+      expect(
+        candidate.privateMetrics.livingWorld.metrics
+          .groundcoverWithoutVegetationCellCount * 100,
+      ).toBeGreaterThanOrEqual(
+        candidate.privateMetrics.livingWorld.metrics.groundcoverCellCount,
+      );
+      expect(candidate.privateMetrics.eligibilityFailureCodes).toEqual([]);
+      expect(Object.values(candidate.aggregate.proofs).every(Boolean)).toBe(true);
 
     } finally {
       rootSeed.fill(0);

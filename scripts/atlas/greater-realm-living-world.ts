@@ -283,6 +283,9 @@ const BASIS_POINTS = 10_000;
 const MINIMUM_VEGETATION_PATCH_CELLS = 6;
 const MINIMUM_GROUNDCOVER_PATCH_CELLS = 6;
 const MINIMUM_WILDFLOWER_PATCH_CELLS = 3;
+// Matches the final topography classifier's cool-forest transition. Living
+// ecology must not relabel the same climate band as ordinary warm plains.
+const COOL_ECOLOGY_TEMPERATURE_THRESHOLD = 3_500;
 const RUIN_SPACING = 12;
 const WAYSTONE_SPACING = 6;
 const LAMP_SPACING = 3;
@@ -734,6 +737,21 @@ function classifyEcology(
     || biome === GREATER_REALM_BIOME_ID.WARM_SCRUB
     || (temperature > 6_200 && moisture < 1_500)
   ) return GREATER_REALM_ECOLOGY_CLASS.SAVANNA;
+  if (temperature < COOL_ECOLOGY_TEMPERATURE_THRESHOLD) {
+    if (
+      biome === GREATER_REALM_BIOME_ID.VOLCANIC_UPLAND
+      || biome === GREATER_REALM_BIOME_ID.ASH_MEADOW
+    ) return GREATER_REALM_ECOLOGY_CLASS.ALPINE;
+    if (
+      biome === GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND
+      || biome === GREATER_REALM_BIOME_ID.FLOWER_MEADOW
+      || biome === GREATER_REALM_BIOME_ID.OAK_FOREST
+      || biome === GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST
+      || biome === GREATER_REALM_BIOME_ID.PINE_FOREST
+      || biome === GREATER_REALM_BIOME_ID.HEATHLAND
+      || biome === GREATER_REALM_BIOME_ID.COASTAL
+    ) return GREATER_REALM_ECOLOGY_CLASS.TAIGA;
+  }
   if (
     (
       biome === GREATER_REALM_BIOME_ID.OAK_FOREST
@@ -2308,6 +2326,89 @@ function pruneSmallDensityPatches(
   }
 }
 
+/**
+ * Convert only leaf cells on an existing woody patch boundary into open
+ * groundcover until the reviewed one-percent separation floor is met.
+ *
+ * Removing a degree-one cell cannot split the remaining woody component. The
+ * final prune handles a bounded undersized remnant, while a dense interior
+ * with no safe fringe remains untouched and therefore still fails closed.
+ */
+export function refineGreaterRealmOpenGroundcoverFringes(
+  grid: IndexedAxialGrid,
+  seed: GreaterRealmLivingWorldSeed,
+  vegetationDensity: Uint8Array,
+  groundcoverDensity: Uint8Array,
+): number {
+  if (
+    vegetationDensity.length !== grid.cellCount
+    || groundcoverDensity.length !== grid.cellCount
+  ) fail('GREATER_REALM_LIVING_WORLD_GROUNDCOVER_FRINGE_FIELD_INVALID');
+  const seedCopy = copyAndValidateSeed(seed);
+  const seedWords = seedCopy as unknown as SeedWords;
+  const candidates: number[] = [];
+  let groundcoverCellCount = 0;
+  let openGroundcoverCellCount = 0;
+  try {
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      if (groundcoverDensity[cell] === 0) continue;
+      groundcoverCellCount += 1;
+      if (vegetationDensity[cell] === 0) {
+        openGroundcoverCellCount += 1;
+        continue;
+      }
+      let woodyNeighborCount = 0;
+      for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
+        const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
+        if (neighbor >= 0 && vegetationDensity[neighbor] !== 0) {
+          woodyNeighborCount += 1;
+        }
+      }
+      if (woodyNeighborCount === 1) candidates.push(cell);
+    }
+    const requiredOpenGroundcoverCellCount = Math.floor(
+      (groundcoverCellCount + 99) / 100,
+    );
+    const shortfall = Math.max(
+      0,
+      requiredOpenGroundcoverCellCount - openGroundcoverCellCount,
+    );
+    if (shortfall === 0 || candidates.length === 0) return 0;
+    candidates.sort((left, right) => (
+      vegetationDensity[left]! - vegetationDensity[right]!
+      || groundcoverDensity[right]! - groundcoverDensity[left]!
+      || randomU32(
+        seedWords,
+        GROUNDCOVER_DETAIL_CHANNEL,
+        grid.q[left]!,
+        grid.r[left]!,
+        1,
+      ) - randomU32(
+        seedWords,
+        GROUNDCOVER_DETAIL_CHANNEL,
+        grid.q[right]!,
+        grid.r[right]!,
+        1,
+      )
+      || left - right
+    ));
+    const cleared = Math.min(shortfall, candidates.length);
+    for (let ordinal = 0; ordinal < cleared; ordinal += 1) {
+      vegetationDensity[candidates[ordinal]!] = 0;
+    }
+    pruneSmallDensityPatches(
+      grid,
+      vegetationDensity,
+      MINIMUM_VEGETATION_PATCH_CELLS,
+    );
+    return cleared;
+  } finally {
+    seedCopy.fill(0);
+    candidates.fill(0);
+    candidates.length = 0;
+  }
+}
+
 function densityPatchMetrics(
   grid: IndexedAxialGrid,
   density: Uint8Array,
@@ -2872,6 +2973,12 @@ export function deriveGreaterRealmLivingWorld(
       grid,
       wildflowerDensity,
       MINIMUM_WILDFLOWER_PATCH_CELLS,
+    );
+    refineGreaterRealmOpenGroundcoverFringes(
+      grid,
+      seed,
+      vegetationDensity,
+      groundcoverDensity,
     );
 
     for (let cell = 0; cell < grid.cellCount; cell += 1) {
