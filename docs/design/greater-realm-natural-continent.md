@@ -145,8 +145,13 @@ Each candidate runs independently through these stage families:
    cannot satisfy the terrain gate. A separate coordinate-free topographic QA
    report checks final biome/elevation/water agreement, drainage and outlet
    behavior, erosion/sediment coupling, and marsh gradient/classification. Its
-   hard regional proof additionally requires Frostmere fjord systems, Mirefen
-   marsh/delta evidence and low-gradient lateral-channel braiding proxy,
+   hard regional proof additionally requires Frostmere fjord systems and a
+   Mirefen wetland-complex extent made from distinct final marsh-regime cells
+   plus explicit dry `RIVER_DELTA` biome cells. Mirefen still requires real
+   marsh hydrology, keeps the unchanged 64-cell extent threshold, and proves
+   separate delta-estuary evidence. Its low-gradient lateral-channel proxy
+   counts undirected channel/channel and channel/explicit-delta interfaces only
+   outside the single-receiver chain,
    Sunscar arid diversity with seasonal drainage and distinct oasis margins,
    Stonewake meaningful islands with genuine distinct-island saltwater
    straits, highland channel sources in every Tier II realm, and dense but

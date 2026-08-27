@@ -90,6 +90,10 @@ Focused tests must prove:
 - semantic-interface compactness rejects adversarial interleaving while the
   separate immutable-perimeter diagnostic does not suppress fragmentation or
   tendril failures;
+- final semantic naming may treat distinct marsh-regime and explicit dry
+  `RIVER_DELTA` biome cells as Mirefen wetland-complex extent at the unchanged
+  64-cell threshold, but must retain actual marsh hydrology and must exclude
+  receiver-chain edges from its lateral distributary proxy;
 - the pinned public ordinary fixture retains its exact `.18` final digest under
   `.19`, demonstrating that Lane A is unchanged;
 - at least one non-secret deterministic fixture reaches Lane B and still passes

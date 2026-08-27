@@ -90,7 +90,7 @@ describe('Greater Realm Tier-II capacity authority', () => {
     }
   }, FULL_CANDIDATE_TIER_TWO_TIMEOUT_MS);
 
-  it('reclassifies post-hydrology topography while preserving repair ownership', () => {
+  it('separates final Frostmere and Mirefen evidence while preserving repair ownership', () => {
     const rootSeed = publicRepairRoot('greater-realm-lowlands-repair-public-g');
     const visitedLanes: Array<'ordinary' | 'lowlands-repair'> = [];
     let candidate: ReturnType<typeof generateGreaterRealmCandidate> | undefined;
@@ -111,7 +111,7 @@ describe('Greater Realm Tier-II capacity authority', () => {
       }
       expect(mutatedReserveCellCount).toBe(0);
 
-      expect(candidate.aggregate.eligible).toBe(true);
+      expect(candidate.aggregate.eligible).toBe(false);
       expect(candidate.aggregate.gateCount).toBe(18);
       expect(candidate.aggregate.proofs.gateApproaches).toBe(true);
       expect(candidate.aggregate.proofs.gateGraph).toBe(true);
@@ -122,8 +122,28 @@ describe('Greater Realm Tier-II capacity authority', () => {
         highGradientMarshCellCount: 0,
         marshClassificationMismatchCount: 0,
       });
-      expect(candidate.privateMetrics.topographicQa.regionalHydrogeomorphology.proof).toBe(true);
-      expect(candidate.privateMetrics.eligibilityFailureCodes).toEqual([]);
+      expect(candidate.tierOneSemanticRegionByRole).toEqual([0, 5, 2, 1, 4, 3]);
+      expect(candidate.privateMetrics.topographicQa.regionalHydrogeomorphology)
+        .toMatchObject({
+          frostmere: {
+            fjordCellCount: 12,
+            fjordSystemCount: 3,
+            proof: true,
+          },
+          mirefen: {
+            marshCellCount: 53,
+            wetlandComplexCellCount: 65,
+            deltaEstuaryCellCount: 26,
+            braidedChannelProxyEdgeCount: 8,
+            proof: true,
+          },
+          proof: true,
+        });
+      expect(candidate.privateMetrics.eligibilityFailureCodes).toEqual([
+        'PROOF_CASTLE_CAPACITY',
+        'CASTLE_SUITABILITY',
+        'LIVING_WORLD_DORMANT_CAPACITY',
+      ]);
 
     } finally {
       rootSeed.fill(0);

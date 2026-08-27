@@ -46,6 +46,7 @@ const regionalSignature = (
   }),
   mirefen: Object.freeze({
     marshCellCount: 0,
+    wetlandComplexCellCount: 0,
     deltaEstuaryCellCount: 0,
     braidedChannelProxyEdgeCount: 0,
     proof: false,
@@ -83,6 +84,7 @@ describe('Greater Realm final semantic region naming', () => {
       regionalSignature(3, {
         mirefen: Object.freeze({
           marshCellCount: 90,
+          wetlandComplexCellCount: 110,
           deltaEstuaryCellCount: 20,
           braidedChannelProxyEdgeCount: 14,
           proof: true,
@@ -128,6 +130,7 @@ describe('Greater Realm final semantic region naming', () => {
       regionalSignature(4, {
         mirefen: Object.freeze({
           marshCellCount: 100,
+          wetlandComplexCellCount: 124,
           deltaEstuaryCellCount: 24,
           braidedChannelProxyEdgeCount: 18,
           proof: true,
@@ -323,6 +326,56 @@ function landDetourStraitFixture(): GreaterRealmTopographicQaInput {
     flowReceiver,
     flowAccumulation,
     waterRegime,
+    biomeId,
+    landformId,
+    slope,
+    aspect,
+    profileCurvature: new Int32Array(grid.cellCount),
+    planCurvature: new Int32Array(grid.cellCount),
+    watershedId,
+    ridgeId: new Int32Array(grid.cellCount),
+  });
+}
+
+function mirefenTaxonomyFixture(radius = 2): GreaterRealmTopographicQaInput {
+  const coordinates: AxialCoordinate[] = [];
+  for (let q = -radius; q <= radius; q += 1) {
+    const minimumR = Math.max(-radius, -q - radius);
+    const maximumR = Math.min(radius, -q + radius);
+    for (let r = minimumR; r <= maximumR; r += 1) {
+      coordinates.push({ q, r });
+    }
+  }
+  const grid = indexGreaterRealmAxialGrid(coordinates);
+  const elevation = new Int32Array(grid.cellCount);
+  elevation.fill(1_000);
+  const regionId = new Uint8Array(grid.cellCount);
+  regionId.fill(3);
+  const preErosionElevation = new Int32Array(elevation);
+  const flowReceiver = new Int32Array(grid.cellCount);
+  flowReceiver.fill(-1);
+  const flowAccumulation = new BigUint64Array(grid.cellCount);
+  flowAccumulation.fill(1n);
+  const biomeId = new Uint8Array(grid.cellCount);
+  biomeId.fill(GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND);
+  const landformId = new Uint8Array(grid.cellCount);
+  landformId.fill(GREATER_REALM_LANDFORM_ID.LOWLAND);
+  const slope = new Uint16Array(grid.cellCount);
+  slope.fill(500);
+  const aspect = new Uint8Array(grid.cellCount);
+  aspect.fill(6);
+  const watershedId = new Int32Array(grid.cellCount);
+  watershedId.fill(1);
+  return Object.freeze({
+    grid,
+    regionId,
+    geomorphologyCoastalClass: new Uint8Array(grid.cellCount),
+    elevation,
+    preErosionElevation,
+    sedimentDepth: new Uint16Array(grid.cellCount),
+    flowReceiver,
+    flowAccumulation,
+    waterRegime: new Uint8Array(grid.cellCount),
     biomeId,
     landformId,
     slope,
@@ -762,6 +815,105 @@ describe('Greater Realm coordinate-free topographic QA', () => {
       proof: false,
     });
     expect(expectedProxyEdges).toBeGreaterThan(0);
+  });
+
+  it('treats explicit final river deltas as distinct wetland-complex extent', () => {
+    const input = mirefenTaxonomyFixture();
+    const marsh = input.grid.indexOf({ q: -1, r: 0 });
+    const delta = input.grid.indexOf({ q: 0, r: 0 });
+    const channel = input.grid.indexOf({ q: 1, r: 0 });
+    const waterRegime = new Uint8Array(input.waterRegime);
+    const biomeId = new Uint8Array(input.biomeId);
+    const landformId = new Uint8Array(input.landformId);
+    const geomorphologyCoastalClass = new Uint8Array(
+      input.geomorphologyCoastalClass,
+    );
+    waterRegime[marsh] = WATER_MARSH;
+    biomeId[marsh] = GREATER_REALM_BIOME_ID.FRESHWATER_MARSH;
+    landformId[marsh] = GREATER_REALM_LANDFORM_ID.BASIN;
+    biomeId[delta] = GREATER_REALM_BIOME_ID.RIVER_DELTA;
+    landformId[delta] = GREATER_REALM_LANDFORM_ID.DELTA;
+    geomorphologyCoastalClass[delta] = GREATER_REALM_COASTAL_CLASS.deltaEstuary;
+    waterRegime[channel] = WATER_RIVER;
+    biomeId[channel] = GREATER_REALM_BIOME_ID.RIVER_STREAM;
+    landformId[channel] = GREATER_REALM_LANDFORM_ID.WATERCOURSE;
+
+    const lateral = measureGreaterRealmTopographicQa({
+      ...input,
+      waterRegime,
+      biomeId,
+      landformId,
+      geomorphologyCoastalClass,
+    }).regionalHydrogeomorphology.mirefen;
+    expect(lateral).toMatchObject({
+      marshCellCount: 1,
+      wetlandComplexCellCount: 2,
+      deltaEstuaryCellCount: 1,
+      braidedChannelProxyEdgeCount: 1,
+    });
+
+    const receiverChain = new Int32Array(input.flowReceiver);
+    receiverChain[delta] = channel;
+    expect(measureGreaterRealmTopographicQa({
+      ...input,
+      waterRegime,
+      biomeId,
+      landformId,
+      geomorphologyCoastalClass,
+      flowReceiver: receiverChain,
+    }).regionalHydrogeomorphology.mirefen.braidedChannelProxyEdgeCount).toBe(0);
+  });
+
+  it('does not let a dry delta-only region satisfy the Mirefen proof', () => {
+    const input = mirefenTaxonomyFixture(6);
+    const waterRegime = new Uint8Array(input.waterRegime);
+    const biomeId = new Uint8Array(input.biomeId);
+    const landformId = new Uint8Array(input.landformId);
+    const geomorphologyCoastalClass = new Uint8Array(
+      input.geomorphologyCoastalClass,
+    );
+    let deltaEstuaryCells = 0;
+    for (let cell = 0; cell < input.grid.cellCount; cell += 1) {
+      if (input.grid.q[cell] === 0) {
+        waterRegime[cell] = WATER_RIVER;
+        biomeId[cell] = GREATER_REALM_BIOME_ID.RIVER_STREAM;
+        landformId[cell] = GREATER_REALM_LANDFORM_ID.WATERCOURSE;
+        continue;
+      }
+      biomeId[cell] = GREATER_REALM_BIOME_ID.RIVER_DELTA;
+      landformId[cell] = GREATER_REALM_LANDFORM_ID.DELTA;
+      if (
+        deltaEstuaryCells
+          < GREATER_REALM_REGIONAL_HYDROGEOMORPHOLOGY_POLICY
+            .mirefenMinimumDeltaEstuaryCells
+      ) {
+        geomorphologyCoastalClass[cell] =
+          GREATER_REALM_COASTAL_CLASS.deltaEstuary;
+        deltaEstuaryCells += 1;
+      }
+    }
+
+    const mirefen = measureGreaterRealmTopographicQa({
+      ...input,
+      waterRegime,
+      biomeId,
+      landformId,
+      geomorphologyCoastalClass,
+    }).regionalHydrogeomorphology.mirefen;
+    expect(mirefen.marshCellCount).toBe(0);
+    expect(mirefen.wetlandComplexCellCount).toBeGreaterThanOrEqual(
+      GREATER_REALM_REGIONAL_HYDROGEOMORPHOLOGY_POLICY
+        .mirefenMinimumWetlandComplexCells,
+    );
+    expect(mirefen.deltaEstuaryCellCount).toBeGreaterThanOrEqual(
+      GREATER_REALM_REGIONAL_HYDROGEOMORPHOLOGY_POLICY
+        .mirefenMinimumDeltaEstuaryCells,
+    );
+    expect(mirefen.braidedChannelProxyEdgeCount).toBeGreaterThanOrEqual(
+      GREATER_REALM_REGIONAL_HYDROGEOMORPHOLOGY_POLICY
+        .mirefenMinimumBraidedChannelProxyEdges,
+    );
+    expect(mirefen.proof).toBe(false);
   });
 
   it('treats up to two riparian cells as freshwater influence, not shoreline', () => {

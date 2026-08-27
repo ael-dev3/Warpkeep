@@ -56,7 +56,7 @@ const OASIS_FRESHWATER_INFLUENCE_MAXIMUM_DISTANCE = 3;
 export const GREATER_REALM_REGIONAL_HYDROGEOMORPHOLOGY_POLICY = Object.freeze({
   frostmereMinimumFjordCells: 8,
   frostmereMinimumFjordSystems: 2,
-  mirefenMinimumMarshCells: 64,
+  mirefenMinimumWetlandComplexCells: 64,
   mirefenMinimumDeltaEstuaryCells: 8,
   mirefenMinimumBraidedChannelProxyEdges: 8,
   sunscarMinimumAridDryLandBasisPoints: 500,
@@ -81,10 +81,17 @@ export type GreaterRealmRegionalHydrogeomorphologyMetrics = Readonly<{
   }>;
   mirefen: Readonly<{
     marshCellCount: number;
+    /**
+     * Distinct final cells carrying either marsh hydrology or the explicit
+     * dry RIVER_DELTA biome. At least one marsh cell remains mandatory, so a
+     * dry delta field alone cannot satisfy the regional proof.
+     */
+    wetlandComplexCellCount: number;
     deltaEstuaryCellCount: number;
     /**
-     * Low-gradient lateral channel adjacency in the single-receiver DAG. This
-     * is explicitly a braided-waterway proxy, not divergent-flow authority.
+     * Low-gradient lateral channel/channel and channel/explicit-delta
+     * adjacency outside the single-receiver DAG. This is explicitly a
+     * braided-waterway proxy, not divergent-flow authority.
      */
     braidedChannelProxyEdgeCount: number;
     proof: boolean;
@@ -171,7 +178,7 @@ export function assignGreaterRealmTierOneSemanticRegionsBySignature(
       case MIREFEN_REGION:
         return Object.freeze({
           proof: signature.mirefen.proof,
-          value: BigInt(signature.mirefen.marshCellCount) * 10_000n
+          value: BigInt(signature.mirefen.wetlandComplexCellCount) * 10_000n
             + BigInt(signature.mirefen.deltaEstuaryCellCount) * 10_000n
             + BigInt(signature.mirefen.braidedChannelProxyEdgeCount) * 10_000n,
         });
@@ -999,6 +1006,7 @@ function measureRegionalHydrogeomorphology(
 
   let frostmereFjordCellCount = 0;
   let mirefenMarshCellCount = 0;
+  let mirefenWetlandComplexCellCount = 0;
   let mirefenDeltaEstuaryCellCount = 0;
   let mirefenBraidedChannelProxyEdgeCount = 0;
   let sunscarDryCellCount = 0;
@@ -1064,19 +1072,38 @@ function measureRegionalHydrogeomorphology(
       }
 
       if (region === mirefenRegion) {
-        if (regime === WATER_MARSH) mirefenMarshCellCount += 1;
+        const explicitDryRiverDelta = regime === WATER_DRY
+          && input.biomeId[cell] === GREATER_REALM_BIOME_ID.RIVER_DELTA;
+        if (regime === WATER_MARSH) {
+          mirefenMarshCellCount += 1;
+          mirefenWetlandComplexCellCount += 1;
+        } else if (explicitDryRiverDelta) {
+          mirefenWetlandComplexCellCount += 1;
+        }
         if (
           input.geomorphologyCoastalClass[cell]
             === GREATER_REALM_COASTAL_CLASS.deltaEstuary
         ) mirefenDeltaEstuaryCellCount += 1;
-        if (channel && input.slope[cell]! <= 1_200) {
+        if (
+          (channel || explicitDryRiverDelta)
+          && input.slope[cell]! <= 1_200
+        ) {
           for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
             const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
+            const neighborChannel = neighbor >= 0
+              && isChannelRegime(input.waterRegime[neighbor]!);
+            const neighborExplicitDryRiverDelta = neighbor >= 0
+              && input.waterRegime[neighbor] === WATER_DRY
+              && input.biomeId[neighbor] === GREATER_REALM_BIOME_ID.RIVER_DELTA;
             if (
               neighbor <= cell
               || input.regionId[neighbor] !== mirefenRegion
-              || !isChannelRegime(input.waterRegime[neighbor]!)
               || input.slope[neighbor]! > 1_200
+              || !(
+                (channel && neighborChannel)
+                || (channel && neighborExplicitDryRiverDelta)
+                || (explicitDryRiverDelta && neighborChannel)
+              )
               || input.flowReceiver[cell] === neighbor
               || input.flowReceiver[neighbor] === cell
             ) continue;
@@ -1272,7 +1299,9 @@ function measureRegionalHydrogeomorphology(
       frostmereFjordCellCount >= policy.frostmereMinimumFjordCells
       && frostmereFjordSystemCount >= policy.frostmereMinimumFjordSystems;
     const mirefenProof =
-      mirefenMarshCellCount >= policy.mirefenMinimumMarshCells
+      mirefenMarshCellCount > 0
+      && mirefenWetlandComplexCellCount
+        >= policy.mirefenMinimumWetlandComplexCells
       && mirefenDeltaEstuaryCellCount >= policy.mirefenMinimumDeltaEstuaryCells
       && mirefenBraidedChannelProxyEdgeCount
         >= policy.mirefenMinimumBraidedChannelProxyEdges;
@@ -1307,6 +1336,7 @@ function measureRegionalHydrogeomorphology(
       }),
       mirefen: Object.freeze({
         marshCellCount: mirefenMarshCellCount,
+        wetlandComplexCellCount: mirefenWetlandComplexCellCount,
         deltaEstuaryCellCount: mirefenDeltaEstuaryCellCount,
         braidedChannelProxyEdgeCount:
           mirefenBraidedChannelProxyEdgeCount,
