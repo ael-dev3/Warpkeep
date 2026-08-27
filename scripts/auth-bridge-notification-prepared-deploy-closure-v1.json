@@ -2375,7 +2375,7 @@
     {
       "path": "src/components/menu/RealmChoiceSelector.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "87b2939dd93d91cdbbf7a4d7327987e9f4ab67c9a1fbf9d59b9971b852d30c02"
+      "sha256": "bbe81335e9f657ea1093a452c3d5d5c979f1975cfafed9852d9726f64b3806d4"
     },
     {
       "path": "src/components/menu/RealmChoiceSelector.tsx",
@@ -2555,7 +2555,7 @@
     {
       "path": "src/components/realm/RealmRendererRecoveryPanel.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "3dfe28e61fa67b89e223418317566bc62d023478b7a6062700aebe2359e894a4"
+      "sha256": "dc41e5bf723cb37e7c9bcb54a3411986790db2eeeea86758f16425364f5cf553"
     },
     {
       "path": "src/components/realm/RealmResourceBalancePanel.css",
