@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  GREATER_REALM_COASTAL_CLASS,
   GREATER_REALM_GEOMORPHOLOGY_VERSION,
+  repairGreaterRealmFinalFjordCoastalClass,
   shapeGreaterRealmGeomorphology,
 } from "../scripts/atlas/greater-realm-geomorphology";
 import {
@@ -77,6 +79,109 @@ function sum(values: Int32Array): number {
 }
 
 describe("Greater Realm geomorphic shaping", () => {
+  it("repairs only post-hydrology coast cells with complete cold-incised glacial evidence", () => {
+    const coordinates: AxialCoordinate[] = [];
+    for (let system = 0; system < 9; system += 1) {
+      coordinates.push({ q: system * 10, r: 0 }, { q: system * 10 + 1, r: 0 });
+    }
+    const grid = indexGreaterRealmAxialGrid(coordinates);
+    const coastalClass = new Uint8Array(grid.cellCount);
+    const waterRegime = new Uint8Array(grid.cellCount);
+    const temperature = new Int32Array(grid.cellCount);
+    temperature.fill(2_000);
+    const slope = new Uint16Array(grid.cellCount);
+    slope.fill(500);
+    const glacialMask = new Uint8Array(grid.cellCount);
+    const protectedCell = new Uint8Array(grid.cellCount);
+    const reserveCell = new Uint8Array(grid.cellCount);
+    for (let system = 0; system < 9; system += 1) {
+      glacialMask[system * 2] = 1;
+      waterRegime[system * 2 + 1] = 1;
+    }
+    coastalClass[2] = GREATER_REALM_COASTAL_CLASS.deltaEstuary;
+    protectedCell[4] = 1;
+    temperature[6] = 2_001;
+    slope[8] = 499;
+    glacialMask[10] = 0;
+    waterRegime[13] = 2;
+    waterRegime[14] = 3;
+    reserveCell[16] = 1;
+
+    const originalWater = new Uint8Array(waterRegime);
+    const originalTemperature = new Int32Array(temperature);
+    const originalSlope = new Uint16Array(slope);
+    const originalGlacialMask = new Uint8Array(glacialMask);
+    const originalProtected = new Uint8Array(protectedCell);
+    const originalReserve = new Uint8Array(reserveCell);
+    const first = repairGreaterRealmFinalFjordCoastalClass({
+      grid,
+      coastalClass,
+      waterRegime,
+      temperature,
+      slope,
+      glacialMask,
+      protectedCell,
+      reserveCell,
+      dryWaterRegime: 0,
+      oceanWaterRegime: 1,
+      seaWaterRegime: 5,
+    });
+
+    expect(first).toEqual({ reclassifiedCellCount: 1 });
+    expect(Array.from(coastalClass)).toEqual([
+      4, 0,
+      3, 0,
+      0, 0,
+      0, 0,
+      0, 0,
+      0, 0,
+      0, 0,
+      0, 0,
+      0, 0,
+    ]);
+    expect(waterRegime).toEqual(originalWater);
+    expect(temperature).toEqual(originalTemperature);
+    expect(slope).toEqual(originalSlope);
+    expect(glacialMask).toEqual(originalGlacialMask);
+    expect(protectedCell).toEqual(originalProtected);
+    expect(reserveCell).toEqual(originalReserve);
+    expect(repairGreaterRealmFinalFjordCoastalClass({
+      grid,
+      coastalClass,
+      waterRegime,
+      temperature,
+      slope,
+      glacialMask,
+      protectedCell,
+      reserveCell,
+      dryWaterRegime: 0,
+      oceanWaterRegime: 1,
+      seaWaterRegime: 5,
+    })).toEqual({ reclassifiedCellCount: 0 });
+  });
+
+  it("does not infer fjords from cold steep coast without glacial-process authority", () => {
+    const grid = indexGreaterRealmAxialGrid([
+      { q: 0, r: 0 },
+      { q: 1, r: 0 },
+    ]);
+    const coastalClass = new Uint8Array(grid.cellCount);
+
+    expect(repairGreaterRealmFinalFjordCoastalClass({
+      grid,
+      coastalClass,
+      waterRegime: Uint8Array.of(0, 1),
+      temperature: Int32Array.of(-2_000, -2_000),
+      slope: Uint16Array.of(4_000, 0),
+      glacialMask: new Uint8Array(grid.cellCount),
+      protectedCell: new Uint8Array(grid.cellCount),
+      dryWaterRegime: 0,
+      oceanWaterRegime: 1,
+      seaWaterRegime: 5,
+    })).toEqual({ reclassifiedCellCount: 0 });
+    expect(coastalClass).toEqual(new Uint8Array(grid.cellCount));
+  });
+
   it("makes deterministic, bounded, coherent changes without touching the legacy reserve", () => {
     const fixture = syntheticFixture();
     const originalElevation = new Int32Array(fixture.elevation);

@@ -1427,7 +1427,8 @@ const PRIVATE_SHORTLIST_METRIC_KEYS = Object.freeze([
   'saltwaterBoundaryBasisPoints',
   'minimumLargestPassableRegionShareBasisPoints',
   'maximumMinorPassableFragmentShareBasisPoints',
-  'maximumPassableBoundaryDensityBasisPoints',
+  'maximumPassableSemanticInterfaceDensityBasisPoints',
+  'maximumPassableImmutablePerimeterDensityBasisPoints',
   'maximumPassableTendrilShareBasisPoints',
   'throneAnchorBarrierClearance',
   'gateRouteRedundancyProof',
@@ -1478,7 +1479,8 @@ function validatedPrivateShortlistMetrics(
     'saltwaterBoundaryBasisPoints',
     'minimumLargestPassableRegionShareBasisPoints',
     'maximumMinorPassableFragmentShareBasisPoints',
-    'maximumPassableBoundaryDensityBasisPoints',
+    'maximumPassableSemanticInterfaceDensityBasisPoints',
+    'maximumPassableImmutablePerimeterDensityBasisPoints',
     'maximumPassableTendrilShareBasisPoints',
     'highlandBarrierShareBasisPoints',
     'ridgeUpliftAlignmentBasisPoints',
@@ -1573,10 +1575,10 @@ const PRIVATE_SHORTLIST_OBJECTIVES = Object.freeze([
     ),
   }),
   Object.freeze({
-    code: 'PASSABLE_REGION_BOUNDARY_DENSITY',
+    code: 'PASSABLE_REGION_SEMANTIC_INTERFACE_DENSITY',
     direction: 'minimize' as const,
     value: (candidate: ShortlistCandidate) => (
-      candidate.privateMetrics.maximumPassableBoundaryDensityBasisPoints
+      candidate.privateMetrics.maximumPassableSemanticInterfaceDensityBasisPoints
     ),
   }),
   Object.freeze({

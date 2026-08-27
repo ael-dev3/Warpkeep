@@ -53,6 +53,7 @@ const EXPECTED_ACTIVE_CELL_MAXIMUM = 150_000;
 const EXPECTED_CASTLES_PER_FRONTIER_REGION = 100;
 
 let pinned: GreaterRealmPrivateCandidate | undefined;
+let pinnedGateApronSearchLanes: Array<'ordinary' | 'lowlands-repair'> = [];
 let replayFingerprint: string | undefined;
 let secondaryEvidence: Readonly<{
   candidateOrdinal: number;
@@ -388,6 +389,7 @@ beforeAll(() => {
     pinned = generateGreaterRealmCandidate({
       rootSeed: firstRoot,
       candidateOrdinal: PINNED_ORDINAL,
+      onGateApronSearchLane: lane => pinnedGateApronSearchLanes.push(lane),
     });
   } finally {
     randomSpy.mockRestore();
@@ -401,6 +403,7 @@ beforeAll(() => {
 afterAll(() => {
   if (pinned) clearGreaterRealmCandidateSecret(pinned);
   pinned = undefined;
+  pinnedGateApronSearchLanes = [];
   replayFingerprint = undefined;
   secondaryEvidence = undefined;
   rejectedFixtureEvidence = undefined;
@@ -419,6 +422,7 @@ describe('Greater Realm private candidate generator', () => {
     expect(candidate.aggregate.eligible).toBe(true);
     expect(candidate.stageDigests.final).toBe(EXPECTED_PINNED_FINAL_DIGEST);
     expect(candidateReplayFingerprint(candidate)).toBe(replayFingerprint);
+    expect(pinnedGateApronSearchLanes).toEqual(['ordinary']);
   });
 
   it('binds domain materials, exact water descriptors, strategic audits, QA, chunks and LOD support', () => {

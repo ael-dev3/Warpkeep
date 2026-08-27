@@ -307,8 +307,14 @@ A candidate is ineligible if any of these proofs fail:
 - the largest passable component covers less than 80% of a non-Stonewake Tier I
   region, 55% of intentionally archipelagic Stonewake Isles, 85% of a Tier II
   region, or 90% of Tier III;
-- passable-region fragmentation, boundary density, tendrils, radial tier
-  agreement, or radial Tier-I boundary alignment exceeds its fixed limit;
+- passable-region fragmentation, semantic-interface density, tendrils, radial
+  tier agreement, or radial Tier-I boundary alignment exceeds its fixed limit.
+  The 1,000-basis-point compactness ceiling measures only interfaces with
+  another passable semantic region. Off-grid edges plus final-water and sealed
+  geological-barrier perimeter are reported separately as immutable-perimeter
+  density; excluding them from the semantic metric does not exempt a detached
+  component, minor island, hole between passable regions, or one-cell tendril
+  from its independent topology, fragmentation, and tendril proof;
 - the measured final surface is outside 4–6 major ocean/sea bodies, 48–72
   major river networks, 120–240 minor stream heads, or 48–96 lakes;
 - a flow cycle, uphill routing edge, unexplained inland sink, or inconsistent
@@ -355,7 +361,8 @@ apron.
 Quality remains a vector, not an automatic decision. After the private package
 has been regenerated and byte-for-byte verified, the owner-review record joins
 its public aggregate evidence to coordinate-free private metrics. Those metrics
-span outer-boundary/coastal artifacts, passable-region coherence and route
+span outer-boundary/coastal artifacts, passable-region coherence, semantic
+interface density, separately observed immutable perimeter, and route
 fragmentation, throne-route clearance, chunk population balance, geological
 and landform alignment, climate/coastal compatibility, hydrology, biome
 diversity/balance, multiscale silhouette, directional ocean clearance, and

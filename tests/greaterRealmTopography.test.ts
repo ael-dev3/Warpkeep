@@ -273,7 +273,7 @@ describe('Greater Realm derived topography', () => {
     const elevation = new Int32Array(grid.cellCount).fill(1_000);
     const geomorphicTemperature = new Int32Array(grid.cellCount).fill(4_000);
 
-    const derive = () => deriveGreaterRealmTopography({
+    const derive = (waterRegimeIsAuthoritative = false) => deriveGreaterRealmTopography({
       grid,
       elevation,
       flowReceiver: new Int32Array(grid.cellCount).fill(-1),
@@ -293,6 +293,7 @@ describe('Greater Realm derived topography', () => {
       geomorphicAridMask,
       geomorphicVolcanicMask,
       geomorphicCoastalClass,
+      waterRegimeIsAuthoritative,
     });
 
     // Four ordinary forest neighbors outvote the center's initial grassland
@@ -371,5 +372,27 @@ describe('Greater Realm derived topography', () => {
       GREATER_REALM_BIOME_ID.TUNDRA,
       GREATER_REALM_BIOME_ID.ALPINE_SNOW,
     ]).not.toContain(warmResult.biomeId[center]);
+
+    // The preliminary pass may nominate saturated dry land as marsh for the
+    // hydrology authority to accept or reject. Once hydrology is final, the
+    // same dry cells must receive a genuinely dry visual classification.
+    elevation.fill(1_000);
+    geomorphicTemperature.fill(4_000);
+    geomorphicMoisture.fill(6_000);
+    geomorphicGlacialMask.fill(0);
+    geomorphicAridMask.fill(0);
+    geomorphicVolcanicMask.fill(0);
+    geomorphicCoastalClass.fill(0);
+    const provisionalMarsh = derive();
+    const authoritative = derive(true);
+    const dryMarshCount = (biomeId: Uint8Array) => Array.from(
+      biomeId,
+      (biome, cell) => waterRegime[cell] === 0 && (
+        biome === GREATER_REALM_BIOME_ID.FRESHWATER_MARSH
+        || biome === GREATER_REALM_BIOME_ID.SALT_MARSH
+      ) ? 1 : 0,
+    ).reduce<number>((total, value) => total + value, 0);
+    expect(dryMarshCount(provisionalMarsh.biomeId)).toBeGreaterThan(0);
+    expect(dryMarshCount(authoritative.biomeId)).toBe(0);
   });
 });

@@ -3,6 +3,7 @@ import {
   createGreaterRealmMultiscaleIntegerField,
   greaterRealmCounterRandomU32,
   greaterRealmTerrainChannelId,
+  isCanonicalGreaterRealmAxialGrid,
   priorityFloodGreaterRealmHexGrid,
   routeGreaterRealmSingleFlow,
   type GreaterRealmTerrainSeed,
@@ -23,6 +24,103 @@ export const GREATER_REALM_COASTAL_CLASS = Object.freeze({
   deltaEstuary: 3,
   glacialFjord: 4,
 } as const);
+
+export type GreaterRealmFinalFjordCoastalClassRepairMetrics = Readonly<{
+  reclassifiedCellCount: number;
+}>;
+
+/**
+ * Repair a classification-order defect after final hydrology exposes coast
+ * that did not exist beside the provisional sea mask. Promotion is limited to
+ * previously unclassified dry coast with the same canonical cold, incision,
+ * and glacial-process evidence used by the original fjord constructor. No
+ * terrain, hydrology, ownership, passability, or existing coastal class is
+ * reconsidered.
+ */
+export function repairGreaterRealmFinalFjordCoastalClass(input: Readonly<{
+  grid: IndexedAxialGrid;
+  coastalClass: Uint8Array;
+  waterRegime: Uint8Array;
+  temperature: Int32Array;
+  slope: Uint16Array;
+  glacialMask: Uint8Array;
+  protectedCell: Uint8Array;
+  reserveCell?: Uint8Array;
+  dryWaterRegime: number;
+  oceanWaterRegime: number;
+  seaWaterRegime: number;
+}>): GreaterRealmFinalFjordCoastalClassRepairMetrics {
+  const { grid } = input;
+  if (
+    !isCanonicalGreaterRealmAxialGrid(grid)
+    || !(input.coastalClass instanceof Uint8Array)
+    || !(input.waterRegime instanceof Uint8Array)
+    || !(input.temperature instanceof Int32Array)
+    || !(input.slope instanceof Uint16Array)
+    || !(input.glacialMask instanceof Uint8Array)
+    || !(input.protectedCell instanceof Uint8Array)
+    || (
+      input.reserveCell !== undefined
+      && !(input.reserveCell instanceof Uint8Array)
+    )
+    || [
+      input.coastalClass,
+      input.waterRegime,
+      input.temperature,
+      input.slope,
+      input.glacialMask,
+      input.protectedCell,
+      ...(input.reserveCell ? [input.reserveCell] : []),
+    ].some(field => field.length !== grid.cellCount)
+    || [
+      input.dryWaterRegime,
+      input.oceanWaterRegime,
+      input.seaWaterRegime,
+    ].some(value => !Number.isSafeInteger(value) || value < 0 || value > 0xff)
+    || input.dryWaterRegime === input.oceanWaterRegime
+    || input.dryWaterRegime === input.seaWaterRegime
+    || input.oceanWaterRegime === input.seaWaterRegime
+  ) fail("GREATER_REALM_FINAL_FJORD_REPAIR_INPUT_INVALID");
+  for (let cell = 0; cell < grid.cellCount; cell += 1) {
+    if (
+      input.coastalClass[cell]! > GREATER_REALM_COASTAL_CLASS.glacialFjord
+      || input.glacialMask[cell]! > 1
+      || input.protectedCell[cell]! > 1
+      || (input.reserveCell?.[cell] ?? 0) > 1
+    ) fail("GREATER_REALM_FINAL_FJORD_REPAIR_INPUT_INVALID");
+  }
+
+  let reclassifiedCellCount = 0;
+  for (let cell = 0; cell < grid.cellCount; cell += 1) {
+    if (
+      input.coastalClass[cell] !== GREATER_REALM_COASTAL_CLASS.none
+      || input.waterRegime[cell] !== input.dryWaterRegime
+      || input.protectedCell[cell] === 1
+      || input.reserveCell?.[cell] === 1
+      || input.glacialMask[cell] !== 1
+      || input.temperature[cell]! > 2_000
+      || input.slope[cell]! < 500
+    ) continue;
+    let touchesFinalSaltwater = false;
+    for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
+      const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
+      if (
+        neighbor >= 0
+        && (
+          input.waterRegime[neighbor] === input.oceanWaterRegime
+          || input.waterRegime[neighbor] === input.seaWaterRegime
+        )
+      ) {
+        touchesFinalSaltwater = true;
+        break;
+      }
+    }
+    if (!touchesFinalSaltwater) continue;
+    input.coastalClass[cell] = GREATER_REALM_COASTAL_CLASS.glacialFjord;
+    reclassifiedCellCount += 1;
+  }
+  return Object.freeze({ reclassifiedCellCount });
+}
 
 const NEIGHBOR_COUNT = 6;
 const DISTANCE_UNREACHABLE = 0xffff;

@@ -1069,7 +1069,8 @@ describe('Greater Realm advanced authority invariants', () => {
     const topology = auditPassableRegions(candidate);
     const componentRegion = Array<number>(topology.componentSizes.length).fill(-1);
     const minorCells = Array<number>(REGION_COUNT).fill(0);
-    const boundarySides = Array<number>(REGION_COUNT).fill(0);
+    const semanticInterfaceSides = Array<number>(REGION_COUNT).fill(0);
+    const immutablePerimeterSides = Array<number>(REGION_COUNT).fill(0);
     const tendrilCells = Array<number>(REGION_COUNT).fill(0);
     for (let cell = 0; cell < candidate.grid.cellCount; cell += 1) {
       const component = topology.componentId[cell]!;
@@ -1090,7 +1091,12 @@ describe('Greater Realm advanced authority invariants', () => {
           && candidate.regionId[neighbor] === region
           && finalStrategicShapePassableWaterRegime(candidate.waterRegime[neighbor]!)
         ) sameNeighbors += 1;
-        else boundarySides[region] += 1;
+        else if (
+          neighbor < 0
+          || candidate.barrier[neighbor] !== 0
+          || !finalStrategicShapePassableWaterRegime(candidate.waterRegime[neighbor]!)
+        ) immutablePerimeterSides[region] += 1;
+        else semanticInterfaceSides[region] += 1;
       }
       if (sameNeighbors <= 1) tendrilCells[region] += 1;
     }
@@ -1101,20 +1107,25 @@ describe('Greater Realm advanced authority invariants', () => {
     const minorShares = topology.passableCounts.map((count, region) => Math.round(
       (minorCells[region]! * 10_000) / count,
     ));
-    const boundaryDensities = topology.passableCounts.map((count, region) => Math.round(
-      (boundarySides[region]! * 10_000) / (count * HEX_NEIGHBOR_COUNT),
+    const semanticInterfaceDensities = topology.passableCounts.map((count, region) => Math.round(
+      (semanticInterfaceSides[region]! * 10_000) / (count * HEX_NEIGHBOR_COUNT),
+    ));
+    const immutablePerimeterDensities = topology.passableCounts.map((count, region) => Math.round(
+      (immutablePerimeterSides[region]! * 10_000) / (count * HEX_NEIGHBOR_COUNT),
     ));
     const tendrilShares = topology.passableCounts.map((count, region) => Math.round(
       (tendrilCells[region]! * 10_000) / count,
     ));
 
     expect(candidate.privateMetrics.minorPassableFragmentSharesBasisPoints).toEqual(minorShares);
-    expect(candidate.privateMetrics.passableBoundaryDensityBasisPoints)
-      .toEqual(boundaryDensities);
+    expect(candidate.privateMetrics.passableSemanticInterfaceDensityBasisPoints)
+      .toEqual(semanticInterfaceDensities);
+    expect(candidate.privateMetrics.passableImmutablePerimeterDensityBasisPoints)
+      .toEqual(immutablePerimeterDensities);
     expect(candidate.privateMetrics.passableTendrilSharesBasisPoints).toEqual(tendrilShares);
     expect(minorShares.every((share, region) => share <= (region === 4 ? 500 : 300)))
       .toBe(true);
-    expect(boundaryDensities.every(share => share <= 1_000)).toBe(true);
+    expect(semanticInterfaceDensities.every(share => share <= 1_000)).toBe(true);
     expect(tendrilShares.every(share => share <= 150)).toBe(true);
     expect(candidate.aggregate.proofs.regionLandCoherence).toBe(true);
   });

@@ -8,7 +8,9 @@ import {
   GREATER_REALM_REGIONAL_HYDROGEOMORPHOLOGY_POLICY,
   GREATER_REALM_TOPOGRAPHIC_QA_FIXED_BINS,
   GREATER_REALM_TOPOGRAPHIC_QA_VERSION,
+  assignGreaterRealmTierOneSemanticRegionsBySignature,
   measureGreaterRealmTopographicQa,
+  type GreaterRealmTierOneRegionalSignature,
   type GreaterRealmTopographicQaInput,
 } from '../scripts/atlas/greater-realm-topographic-qa';
 import {
@@ -25,6 +27,131 @@ const WATER_OCEAN = 1;
 const WATER_LAKE = 2;
 const WATER_RIVER = 3;
 const WATER_MARSH = 6;
+
+const regionalSignature = (
+  region: number,
+  overrides: Partial<GreaterRealmTierOneRegionalSignature> = {},
+): GreaterRealmTierOneRegionalSignature => Object.freeze({
+  region,
+  frostmere: Object.freeze({ fjordCellCount: 0, fjordSystemCount: 0, proof: false }),
+  sunscar: Object.freeze({
+    dryCellCount: 1,
+    aridDryCellCount: 0,
+    aridDryLandBasisPoints: 0,
+    aridBiomeClassCount: 0,
+    seasonalChannelCellCount: 0,
+    oasisMarginCellCount: 0,
+    oasisSystemCount: 0,
+    proof: false,
+  }),
+  mirefen: Object.freeze({
+    marshCellCount: 0,
+    deltaEstuaryCellCount: 0,
+    braidedChannelProxyEdgeCount: 0,
+    proof: false,
+  }),
+  stonewake: Object.freeze({
+    meaningfulIslandCount: 0,
+    narrowIslandStraitCellCount: 0,
+    proof: false,
+  }),
+  ...overrides,
+});
+
+describe('Greater Realm final semantic region naming', () => {
+  it('assigns unique stable names to their defining regional signatures', () => {
+    const signatures = Object.freeze([
+      regionalSignature(1, {
+        frostmere: Object.freeze({
+          fjordCellCount: 12,
+          fjordSystemCount: 3,
+          proof: true,
+        }),
+      }),
+      regionalSignature(2, {
+        sunscar: Object.freeze({
+          dryCellCount: 1_000,
+          aridDryCellCount: 700,
+          aridDryLandBasisPoints: 7_000,
+          aridBiomeClassCount: 4,
+          seasonalChannelCellCount: 100,
+          oasisMarginCellCount: 12,
+          oasisSystemCount: 3,
+          proof: true,
+        }),
+      }),
+      regionalSignature(3, {
+        mirefen: Object.freeze({
+          marshCellCount: 90,
+          deltaEstuaryCellCount: 20,
+          braidedChannelProxyEdgeCount: 14,
+          proof: true,
+        }),
+      }),
+      regionalSignature(4, {
+        stonewake: Object.freeze({
+          meaningfulIslandCount: 4,
+          narrowIslandStraitCellCount: 20,
+          proof: true,
+        }),
+      }),
+      regionalSignature(5),
+    ]);
+
+    const first = assignGreaterRealmTierOneSemanticRegionsBySignature(signatures);
+    const replay = assignGreaterRealmTierOneSemanticRegionsBySignature(
+      Object.freeze(signatures.map(signature => Object.freeze({ ...signature }))),
+    );
+
+    expect(first).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(replay).toEqual(first);
+    expect([...first].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5]);
+  });
+
+  it('follows moved physical signatures without changing their region ids', () => {
+    const signatures = Object.freeze([
+      regionalSignature(1),
+      regionalSignature(2, {
+        stonewake: Object.freeze({
+          meaningfulIslandCount: 5,
+          narrowIslandStraitCellCount: 30,
+          proof: true,
+        }),
+      }),
+      regionalSignature(3, {
+        frostmere: Object.freeze({
+          fjordCellCount: 16,
+          fjordSystemCount: 4,
+          proof: true,
+        }),
+      }),
+      regionalSignature(4, {
+        mirefen: Object.freeze({
+          marshCellCount: 100,
+          deltaEstuaryCellCount: 24,
+          braidedChannelProxyEdgeCount: 18,
+          proof: true,
+        }),
+      }),
+      regionalSignature(5, {
+        sunscar: Object.freeze({
+          dryCellCount: 1_000,
+          aridDryCellCount: 800,
+          aridDryLandBasisPoints: 8_000,
+          aridBiomeClassCount: 5,
+          seasonalChannelCellCount: 120,
+          oasisMarginCellCount: 20,
+          oasisSystemCount: 4,
+          proof: true,
+        }),
+      }),
+    ]);
+
+    expect(assignGreaterRealmTierOneSemanticRegionsBySignature(signatures))
+      .toEqual([0, 3, 5, 4, 2, 1]);
+    expect(signatures.map(signature => signature.region)).toEqual([1, 2, 3, 4, 5]);
+  });
+});
 
 function fixture(reverseCoordinates = false): GreaterRealmTopographicQaInput {
   const coordinates: AxialCoordinate[] = [];
