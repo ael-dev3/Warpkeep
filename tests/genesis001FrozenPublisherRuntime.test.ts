@@ -400,7 +400,10 @@ describe('Genesis 001 concrete publisher CLI', () => {
   });
 
   it('uses only the exact Node runtime and verified archive cache for dependency construction', () => {
-    const workspaceRoot = privateRoot('g001-runtime-config-');
+    const workspaceParent = privateRoot('g001-runtime-config-');
+    const workspaceRoot = join(workspaceParent, 'workspace');
+    mkdirSync(workspaceRoot, { mode: 0o700 });
+    chmodSync(workspaceRoot, 0o700);
     const configuration = genesis001RuntimeConfiguration({
       repositoryRoot: process.cwd(),
       workspaceRoot,
