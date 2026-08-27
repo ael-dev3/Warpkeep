@@ -947,6 +947,8 @@ export const Genesis001AccessPolicyV1 = __t.object("Genesis001AccessPolicyV1", {
   playerAccessEnabled: __t.bool(),
   admissionStateMutationsEnabled: __t.bool(),
   accessRequestSubmissionsEnabled: __t.bool(),
+  sourceBaselineCommit: __t.string(),
+  freezeReleaseNonce: __t.string(),
 });
 export type Genesis001AccessPolicyV1 = __Infer<typeof Genesis001AccessPolicyV1>;
 

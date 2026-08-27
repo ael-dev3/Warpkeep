@@ -237,7 +237,9 @@ const COMMIT_SHA = /^[0-9a-f]{40}$/u;
 export const GENESIS_001_ACCESS_REQUEST_CENSUS_REALM_ID = 'GENESIS_001';
 export const GENESIS_001_ACCESS_REQUEST_CENSUS_RELEASE_VERSION = '0.3.43';
 export const GENESIS_001_ACCESS_REQUEST_CENSUS_SOURCE_BASELINE_COMMIT =
-  'f39d57c8622077e6543a16e5610d0e4ec73910da';
+  '2ae51984e1fa6ce5b0028c1a250359fed79d819b';
+export const GENESIS_001_ACCESS_REQUEST_CENSUS_FREEZE_NONCE =
+  '3f158f17acd5e1e63c74befef7cb3ccab7cb07feaaed432e7483467e1c856f00';
 export const GENESIS_001_SUSPENDED_HERMES_COMMANDS = Object.freeze([
   'admit-founder',
   'allow-fid',
@@ -357,6 +359,7 @@ export const GENESIS_001_ADMISSION_FREEZE_ATTESTATION_DIGEST = createHash('sha25
     realmId: GENESIS_001_ACCESS_REQUEST_CENSUS_REALM_ID,
     releaseVersion: GENESIS_001_ACCESS_REQUEST_CENSUS_RELEASE_VERSION,
     sourceBaselineCommit: GENESIS_001_ACCESS_REQUEST_CENSUS_SOURCE_BASELINE_COMMIT,
+    freezeReleaseNonce: GENESIS_001_ACCESS_REQUEST_CENSUS_FREEZE_NONCE,
     admissionStateMutationsEnabled: false,
     accessRequestSubmissionsEnabled: false,
   }), 'utf8')
@@ -1299,6 +1302,8 @@ type Genesis001AccessPolicy = Readonly<{
   playerAccessEnabled: true;
   admissionStateMutationsEnabled: false;
   accessRequestSubmissionsEnabled: false;
+  sourceBaselineCommit: typeof GENESIS_001_ACCESS_REQUEST_CENSUS_SOURCE_BASELINE_COMMIT;
+  freezeReleaseNonce: typeof GENESIS_001_ACCESS_REQUEST_CENSUS_FREEZE_NONCE;
 }>;
 
 type AccessRequestResetStatus = Readonly<{
@@ -2098,9 +2103,11 @@ async function requireLiveGenesis001AccessPolicy(connection: DbConnection): Prom
   exactObjectKeys(raw as Record<string, unknown>, [
     'accessRequestSubmissionsEnabled',
     'admissionStateMutationsEnabled',
+    'freezeReleaseNonce',
     'playerAccessEnabled',
     'realmId',
     'releaseVersion',
+    'sourceBaselineCommit',
   ], 'Live Genesis 001 access policy was invalid.');
   const policy = raw as Genesis001AccessPolicy;
   if (
@@ -2109,6 +2116,8 @@ async function requireLiveGenesis001AccessPolicy(connection: DbConnection): Prom
     || policy.playerAccessEnabled !== true
     || policy.admissionStateMutationsEnabled !== false
     || policy.accessRequestSubmissionsEnabled !== false
+    || policy.sourceBaselineCommit !== GENESIS_001_ACCESS_REQUEST_CENSUS_SOURCE_BASELINE_COMMIT
+    || policy.freezeReleaseNonce !== GENESIS_001_ACCESS_REQUEST_CENSUS_FREEZE_NONCE
   ) fail('Live Genesis 001 access policy was invalid.');
 }
 
@@ -2406,13 +2415,14 @@ export const ACCESS_REQUEST_CENSUS_TARGET_CONFIGURATION_DIGEST = createHash('sha
     realmId: GENESIS_001_ACCESS_REQUEST_CENSUS_REALM_ID,
     releaseVersion: GENESIS_001_ACCESS_REQUEST_CENSUS_RELEASE_VERSION,
     sourceBaselineCommit: GENESIS_001_ACCESS_REQUEST_CENSUS_SOURCE_BASELINE_COMMIT,
+    freezeReleaseNonce: GENESIS_001_ACCESS_REQUEST_CENSUS_FREEZE_NONCE,
     admissionFreezeAttestation: GENESIS_001_ADMISSION_FREEZE_ATTESTATION_DIGEST,
     suspendedHermesCommands: GENESIS_001_SUSPENDED_HERMES_COMMANDS,
     databaseUri: DEFAULT_URI,
     databaseIdentity: DEFAULT_DATABASE_IDENTITY,
     bridgeUrl: DEFAULT_BRIDGE,
     freezeProcedure: GENESIS_001_ACCESS_POLICY_PROCEDURE,
-    freezePolicyChecks: 3,
+    freezePolicyChecks: 5,
     procedure: 'admin_list_access_requests_v1',
     includeResolved: true,
     pageSize: MAX_ACCESS_REQUEST_PAGE_SIZE,

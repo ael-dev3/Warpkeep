@@ -35,7 +35,7 @@
     {
       "path": "package.json",
       "digestProfile": "reviewed-release-transition-projection-sha256-v1",
-      "sha256": "12610ed606302587d2b3310b80aba87636e71ad2e314bf3eb994c6dc85f9871a"
+      "sha256": "a74a73d9c72538cd514d72e22b618717def45fa82293c5bac1ca1e34b1cee46e"
     },
     {
       "path": "public/.well-known/farcaster.json",
@@ -140,7 +140,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "48be4a58ad48241488dcee9ab1197ce54f80bc421a3c59e087339b6d964494ff"
+      "sha256": "a7131a3c1bf6d29250fc224225055ca80b99c3a412f3e0044cc677dc7410a57e"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.d.mts",
@@ -150,7 +150,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ba9ef44318b10456ed5a6f041af62de34d91998e7905010cbcddab104fa16d97"
+      "sha256": "8b38c9cb834086470784a6c31b77ac62cd8d997f67b62cf8c1aedb6491249832"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
@@ -265,7 +265,7 @@
     {
       "path": "scripts/hermes-admin.ts",
       "digestProfile": "reviewed-release-transition-projection-sha256-v1",
-      "sha256": "947901593fe194a9161806d594d4715f84f6597c58464245070fe7f8f65874e3"
+      "sha256": "17c0817ff379765ea327444306afc936c7f813aae24ada6ea11115336a7a77c2"
     },
     {
       "path": "scripts/hermes-machine-output.ts",
@@ -395,7 +395,7 @@
     {
       "path": "scripts/production-player-canary-activation-launcher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e6d26d9376f9bbfbc91a9ddc42eaa99598b097026972cc3c24cb87a5c5223430"
+      "sha256": "c88c18d76bc6e138a5878b8a0f0876b1edb00d11294d6ef3a4d77fa8021dbe35"
     },
     {
       "path": "scripts/production-player-canary-admin-transport.ts",
@@ -775,7 +775,7 @@
     {
       "path": "spacetimedb/src/auth.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "4eb32000dce32a4480a6ee5bca57bfa84adc41295616a58526815e1d384d989c"
+      "sha256": "703bbfbbbe5b0cc56d7756000ee801f8a27a122e97227bae1aedd4440dc28df4"
     },
     {
       "path": "spacetimedb/src/castleWorkerAuthority.ts",
@@ -840,7 +840,7 @@
     {
       "path": "spacetimedb/src/index.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "265b2446df79cf6967bf9864a61ec33614a6d31458ca3a861e840ea29900e0f3"
+      "sha256": "b4b131518f43329ca18c825d40855dcacc679baa8545874e7fa2a98fe96fe54a"
     },
     {
       "path": "spacetimedb/src/lowlandsSurface.ts",
@@ -910,7 +910,7 @@
     {
       "path": "spacetimedb/src/schema.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8b709620eb9a56027e9987a86b3cd9af9e93d87afc2dac049742e50c850ab019"
+      "sha256": "d94ff04694fdb267716db88bab0ba1162018ae43adfdfa68b8942ecf7469391b"
     },
     {
       "path": "spacetimedb/src/stoneExpeditionPolicy.ts",
@@ -1568,6 +1568,11 @@
       "sha256": "081ede0887fc287e23cfad198658b277a19b1902134b2bd3ab54654c642ba533"
     },
     {
+      "path": "src/spacetime/module_bindings/genesis_001_access_policy_v_1_procedure.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "ccf0c3862a3f19d4cefbfc69198fdb217f4ee14961ae762df87a45e2c221b124"
+    },
+    {
       "path": "src/spacetime/module_bindings/get_alpha_backend_info_procedure.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "85dc4c31b1e670a35c2e57231f1589c3d0bf6e7b6be91cc18488c59081dfd4a3"
@@ -1700,7 +1705,7 @@
     {
       "path": "src/spacetime/module_bindings/index.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b56ebcc5aa129bf75d23b2d60365e22c443b198235cd9ac79df5195aa5ef5663"
+      "sha256": "d9a4d1d9492a67cf1cb789a9716c0c9e0d6085b2484b1ebd350ad041f49cd07b"
     },
     {
       "path": "src/spacetime/module_bindings/inner_keep_build_level_v_1_table.ts",
@@ -1870,12 +1875,12 @@
     {
       "path": "src/spacetime/module_bindings/types.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9075a53b771a2c4d819b84d926bc4041fedeb81fc3efc6b82b70af095344d6de"
+      "sha256": "25638803bf817d3001a1d3d68f0ede9ad146739cb9906154263f5a8a9fb1116e"
     },
     {
       "path": "src/spacetime/module_bindings/types/procedures.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "20826f4d131a11d49251baa7cc65a4956303141070106b1da94be75cf97ce7ad"
+      "sha256": "e796fd4e13652cfc6da158e3dfc8a4971ea3e5668aeb88f9688b768b35f93103"
     },
     {
       "path": "src/spacetime/module_bindings/types/reducers.ts",

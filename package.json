@@ -113,6 +113,7 @@
     "stdb:greater-realm:import:inspect": "/usr/bin/printf '%s\\n' 'PRODUCTION_COMMAND_REQUIRES_TRUSTED_ENV_I_LAUNCH; see docs/operations/greater-realm-production-launch-envelope.sh.txt' >&2; /usr/bin/false",
     "stdb:greater-realm:import:apply": "/usr/bin/printf '%s\\n' 'PRODUCTION_COMMAND_REQUIRES_TRUSTED_ENV_I_LAUNCH; see docs/operations/greater-realm-production-launch-envelope.sh.txt' >&2; /usr/bin/false",
     "stdb:greater-realm:publish": "/usr/bin/printf '%s\\n' 'PRODUCTION_COMMAND_REQUIRES_TRUSTED_ENV_I_LAUNCH; see docs/operations/greater-realm-production-launch-envelope.sh.txt' >&2; /usr/bin/false",
+    "stdb:genesis001:freeze-publish": "tsx scripts/genesis001-frozen-publisher.ts",
     "stdb:greater-realm:relocation": "/usr/bin/printf '%s\\n' 'PRODUCTION_COMMAND_REQUIRES_TRUSTED_ENV_I_LAUNCH; see docs/operations/greater-realm-production-launch-envelope.sh.txt' >&2; /usr/bin/false",
     "verify:greater-realm-production": "/usr/bin/printf '%s\\n' 'PRODUCTION_COMMAND_REQUIRES_TRUSTED_ENV_I_LAUNCH; see docs/operations/greater-realm-production-launch-envelope.sh.txt' >&2; /usr/bin/false",
     "verify:greater-realm-release-gates": "node scripts/verify-greater-realm-release-gates.mjs",

@@ -6046,7 +6046,7 @@ export function planGreaterRealmPublishSupervisor(
   return planned;
 }
 
-function monitorSpacetimePublishChild(child) {
+export function monitorSpacetimePublishChild(child) {
   return new Promise((resolvePromise, rejectPromise) => {
     let settled = false;
     let timedOut = false;

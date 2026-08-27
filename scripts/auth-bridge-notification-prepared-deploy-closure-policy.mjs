@@ -35,7 +35,7 @@ import {
 
 const MEMBER_PATH = /^(?:owner-canary\/index\.html|package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|vite\.config\.ts|(?:\.github\/workflows|scripts|services\/auth-bridge|spacetimedb\/src|src)\/[A-Za-z0-9._/-]+)$/u;
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
-const MAX_MEMBERS = 384;
+const MAX_MEMBERS = 385;
 const SCRIPT_GRAPH_ROOTS = Object.freeze([
   'scripts/auth-bridge-notification-b0-deploy.mjs',
   'scripts/verify-auth-bridge-notification-b0-policy.mjs',

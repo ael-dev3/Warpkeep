@@ -10,6 +10,8 @@ const genesis001AccessPolicyReceiptV1 = t.object('Genesis001AccessPolicyV1', {
   playerAccessEnabled: t.bool(),
   admissionStateMutationsEnabled: t.bool(),
   accessRequestSubmissionsEnabled: t.bool(),
+  sourceBaselineCommit: t.string(),
+  freezeReleaseNonce: t.string(),
 });
 
 /**

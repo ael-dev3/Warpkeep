@@ -13,6 +13,8 @@ export const GENESIS_001_ACCESS_POLICY = Object.freeze({
   playerAccessEnabled: true,
   admissionStateMutationsEnabled: false,
   accessRequestSubmissionsEnabled: false,
+  sourceBaselineCommit: '2ae51984e1fa6ce5b0028c1a250359fed79d819b',
+  freezeReleaseNonce: '3f158f17acd5e1e63c74befef7cb3ccab7cb07feaaed432e7483467e1c856f00',
 } as const);
 
 export class Genesis001AccessPolicyError extends Error {

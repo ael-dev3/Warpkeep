@@ -62,6 +62,8 @@ export function alphaV12AggregateChildArguments(...args: any[]): any;
 export function accessRequestV13InspectChildArguments(...args: any[]): any;
 export function attestPinnedSpacetimeCli(
   executable: string,
+  spawnSyncProcess?: any,
+  sourceEnvironment?: Readonly<Record<string, string | undefined>>,
 ): Readonly<{
   path: string;
   digest: string;
@@ -101,6 +103,7 @@ export function planGreaterRealmPublishSupervisor(
     boundary: 'final-installed' | 'temporary-created' | 'linked' | 'post-unlink';
   }>,
 ): GreaterRealmPublishSupervisorPlan;
+export function monitorSpacetimePublishChild(child: any): Promise<void>;
 export function inspectGreaterRealmPublishSupervisor(
   identity: GreaterRealmPublishSupervisorIdentity,
 ): Readonly<{

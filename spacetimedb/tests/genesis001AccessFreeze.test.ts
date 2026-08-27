@@ -63,6 +63,8 @@ test('Genesis 001 release 0.3.43 seals population changes while retaining player
     playerAccessEnabled: true,
     admissionStateMutationsEnabled: false,
     accessRequestSubmissionsEnabled: false,
+    sourceBaselineCommit: '2ae51984e1fa6ce5b0028c1a250359fed79d819b',
+    freezeReleaseNonce: '3f158f17acd5e1e63c74befef7cb3ccab7cb07feaaed432e7483467e1c856f00',
   });
   assert.doesNotThrow(() => requireGenesis001PlayerAccessEnabled());
   assert.deepEqual(resolveAuthResolverAdmission({ enabled: true, authEpoch: 7 }), {
@@ -82,7 +84,7 @@ test('Genesis 001 exposes an exact read-only live access-policy receipt', () => 
 
   assert.match(
     reducer,
-    /const genesis001AccessPolicyReceiptV1 = t\.object\('Genesis001AccessPolicyV1', \{[\s\S]*realmId: t\.string\(\),[\s\S]*releaseVersion: t\.string\(\),[\s\S]*playerAccessEnabled: t\.bool\(\),[\s\S]*admissionStateMutationsEnabled: t\.bool\(\),[\s\S]*accessRequestSubmissionsEnabled: t\.bool\(\),[\s\S]*\}\);/,
+    /const genesis001AccessPolicyReceiptV1 = t\.object\('Genesis001AccessPolicyV1', \{[\s\S]*realmId: t\.string\(\),[\s\S]*releaseVersion: t\.string\(\),[\s\S]*playerAccessEnabled: t\.bool\(\),[\s\S]*admissionStateMutationsEnabled: t\.bool\(\),[\s\S]*accessRequestSubmissionsEnabled: t\.bool\(\),[\s\S]*sourceBaselineCommit: t\.string\(\),[\s\S]*freezeReleaseNonce: t\.string\(\),[\s\S]*\}\);/,
   );
   const procedure = exportedSection(reducer, 'genesis001AccessPolicyV1');
   assert.match(procedure, /name: 'genesis_001_access_policy_v1'/);

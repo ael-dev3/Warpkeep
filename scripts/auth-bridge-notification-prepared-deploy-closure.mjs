@@ -26,7 +26,7 @@ const MEMBER_PATH = /^(?:owner-canary\/index\.html|package(?:-lock)?\.json|publi
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
 const MAX_MANIFEST_BYTES = 192 * 1_024;
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
-const MAX_MEMBERS = 384;
+const MAX_MEMBERS = 385;
 const MANIFEST_KEYS = Object.freeze(['schemaVersion', 'profile', 'members']);
 const MEMBER_KEYS = Object.freeze(['path', 'digestProfile', 'sha256']);
 const RAW_FILE_DIGEST_PROFILE = 'raw-file-sha256-v1';
@@ -460,6 +460,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'src/spacetime/module_bindings/food_expedition_schedule_v_1_table.ts',
     'src/spacetime/module_bindings/food_node_occupation_v_1_table.ts',
     'src/spacetime/module_bindings/food_site_v_1_table.ts',
+    'src/spacetime/module_bindings/genesis_001_access_policy_v_1_procedure.ts',
     'src/spacetime/module_bindings/get_alpha_backend_info_procedure.ts',
     'src/spacetime/module_bindings/get_my_admission_status_procedure.ts',
     'src/spacetime/module_bindings/get_my_admission_status_v_2_procedure.ts',

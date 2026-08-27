@@ -36,9 +36,39 @@ the repository, CI artifacts, issue comments, or public operator logs.
 
 ## One-time Genesis 001 frozen applicant archive
 
+The freeze itself has one supported publisher entrypoint:
+`npm run stdb:genesis001:freeze-publish -- publish
+--confirm-freeze-nonce=3f158f17acd5e1e63c74befef7cb3ccab7cb07feaaed432e7483467e1c856f00`.
+Run it only from the exact reviewed protected-main checkout with exact absolute
+paths supplied for `SPACETIME_BIN`, `WKG001_PNPM_EXECUTABLE_PATH`,
+`WKG001_PNPM_STORE_PATH`, `WKG001_PRODUCTION_SPACETIME_CLI_CONFIG_PATH`, and
+`WKG001_PRODUCTION_ADMIN_SECRET_PATH`. The CLI config and administrator secret
+must be existing owner-private files. Do not substitute an ambient `HOME`, a raw
+`SPACETIME_TOKEN`, or copied credentials.
+
+Before it can release its one supervised `--delete-data=never` publication, the
+publisher privately materializes and builds the exact
+`2ae51984e1fa6ce5b0028c1a250359fed79d819b` source, proves
+its full historical ABI, builds the six-writer frozen candidate, and repeats
+that proof against a disposable loopback database. It then re-attests protected
+main and the held artifact before release. A transport error is never retried:
+only a fresh exact production identity, full candidate ABI, canonical policy
+receipt, and nonce can reconcile it as successful. Every other outcome retains
+the private artifact and recovery metadata for manual reconciliation.
+
+After an exact postflight only, the publisher creates one non-overwritable
+owner-private mode-0600 final receipt under the configured private workspace's
+`receipts` directory. It binds the full production database identity,
+protected-main commit, exact historical source and ABI digests, freeze nonce,
+built artifact digest, equal candidate/postflight descriptor digests, and the
+canonical live policy receipt and its digest. Success output contains only the
+receipt basename and file SHA-256. The final receipt is separate from retained
+ambiguous-outcome recovery metadata; no applicant or player state enters either
+record.
+
 Do not run `export-access-request-census` until the Genesis 001 admission freeze
 has been deployed from the explicitly reviewed `0.3.43` source baseline
-`f39d57c8622077e6543a16e5610d0e4ec73910da` and independently verified in the
+`2ae51984e1fa6ce5b0028c1a250359fed79d819b` and independently verified in the
 deployed module. Verification must establish realm ID `GENESIS_001`, release
 `0.3.43`, existing-player access retained, admission-state mutations disabled,
 and new access-request submission disabled. The explicit attestation argument is
@@ -46,18 +76,20 @@ not live proof by itself. Immediately before each census pass, and once more
 after both canonical snapshots match, the exporter calls the metadata-authorized,
 read-only `genesis_001_access_policy_v1` procedure and requires the exact receipt
 `GENESIS_001` / `0.3.43` / player access enabled / admission mutations disabled /
-request submissions disabled. A missing generated binding, procedure failure,
-additional or missing field, or value mismatch aborts the operation. Independently
-verify the deployment first; the exporter then records evidence only from that
-already-verified freeze.
+request submissions disabled / source baseline
+`2ae51984e1fa6ce5b0028c1a250359fed79d819b` / freeze nonce
+`3f158f17acd5e1e63c74befef7cb3ccab7cb07feaaed432e7483467e1c856f00`.
+A missing generated binding, procedure failure, additional or missing field, or
+value mismatch aborts the operation. Independently verify the deployment first;
+the exporter then records evidence only from that already-verified freeze.
 
 Both `--dry-run` and `--confirm` require the explicit source-bound prerequisite
 `--g001-admission-freeze-attestation`
-`c2fbbd41ac11b6a6d23088158e013d5660a1e24fc7da24e1a75a1ec525011463`.
+`b043a0e2e4e2c23e183a0497f47c6d8265f4d95e1d3b58c85629d0de80683304`.
 Any missing or different value fails during argument parsing, before production
 credentials or the database are accessed. The attestation digest commits to the
-realm, release, source baseline, disabled admission mutations, and disabled
-request submissions. The report's target digest additionally commits to the
+realm, release, source baseline, source-bound freeze nonce, disabled admission
+mutations, and disabled request submissions. The report's target digest additionally commits to the
 source-suspended Hermes command set, canonical production database URI and
 identity, authentication bridge, fixed live-freeze and census procedures,
 inclusion of resolved requests, pagination bounds, and two-pass census
@@ -75,7 +107,7 @@ cd /absolute/path/to/the/verified-release-checkout
   node node_modules/tsx/dist/cli.mjs scripts/hermes-admin.ts \
   export-access-request-census --dry-run \
   --g001-admission-freeze-attestation \
-  c2fbbd41ac11b6a6d23088158e013d5660a1e24fc7da24e1a75a1ec525011463
+  b043a0e2e4e2c23e183a0497f47c6d8265f4d95e1d3b58c85629d0de80683304
 ```
 
 After reviewing the metadata-only dry-run result, repeat the same command with

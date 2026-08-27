@@ -95,15 +95,17 @@ const TEST_ADMIN_TOKEN_BUDGET = Object.freeze({
 });
 const NOTIFICATION_SECRET = 'TEST_ONLY_NOTIFICATION_SECRET_'.repeat(2);
 const TEST_G001_ADMISSION_FREEZE_ATTESTATION =
-  'c2fbbd41ac11b6a6d23088158e013d5660a1e24fc7da24e1a75a1ec525011463';
+  'b043a0e2e4e2c23e183a0497f47c6d8265f4d95e1d3b58c85629d0de80683304';
 const TEST_G001_CENSUS_TARGET_CONFIGURATION_DIGEST =
-  '1c953d003c005acdb260d57320c78fae08bfe6b2a89433c5cd74f4d2c03d6aef';
+  '13c05b6f91fcbb106942cc6941d59c52073d03ae13e99c9df5d09e7249b46c34';
 const TEST_G001_LIVE_ACCESS_POLICY = Object.freeze({
   realmId: 'GENESIS_001',
   releaseVersion: '0.3.43',
   playerAccessEnabled: true,
   admissionStateMutationsEnabled: false,
   accessRequestSubmissionsEnabled: false,
+  sourceBaselineCommit: '2ae51984e1fa6ce5b0028c1a250359fed79d819b',
+  freezeReleaseNonce: '3f158f17acd5e1e63c74befef7cb3ccab7cb07feaaed432e7483467e1c856f00',
 });
 const TEST_ACCESS_REQUEST_CENSUS_AT = new Date('2026-08-27T12:34:56.000Z');
 
@@ -113,7 +115,7 @@ function accessRequestCensusFixture() {
     kind: 'warpkeep-access-request-census-v1',
     realmId: 'GENESIS_001',
     releaseVersion: '0.3.43',
-    sourceBaselineCommit: 'f39d57c8622077e6543a16e5610d0e4ec73910da',
+    sourceBaselineCommit: '2ae51984e1fa6ce5b0028c1a250359fed79d819b',
     admissionFreezeAttestation: TEST_G001_ADMISSION_FREEZE_ATTESTATION,
     targetConfigurationDigest: TEST_G001_CENSUS_TARGET_CONFIGURATION_DIGEST,
     totalRequests: '1',
@@ -1094,7 +1096,7 @@ describe('Hermes command-line boundary', () => {
       expect(result.stdout).toBe('');
       expect(result.stderr.trim()).toBe(
         'Genesis 001 admission/reset operator is suspended at source baseline '
-        + 'f39d57c8622077e6543a16e5610d0e4ec73910da.',
+        + '2ae51984e1fa6ce5b0028c1a250359fed79d819b.',
       );
       expect(result.stderr).not.toContain('MUST_NOT_BE_READ');
       expect(result.stderr).not.toContain('WARPKEEP_');
@@ -1428,7 +1430,7 @@ describe('Hermes command-line boundary', () => {
     expect(GENESIS_001_SUSPENDED_HERMES_COMMANDS).toEqual(suspended);
     for (const command of suspended) {
       expect(() => requireGenesis001AdmissionOperatorCommandEnabled(command))
-        .toThrow(/Genesis 001.*suspended.*f39d57c8622077e6543a16e5610d0e4ec73910da/i);
+        .toThrow(/Genesis 001.*suspended.*2ae51984e1fa6ce5b0028c1a250359fed79d819b/i);
     }
     for (const command of [
       'list-access-requests',
@@ -1823,7 +1825,7 @@ describe('Hermes private access request review boundary', () => {
     expect(census).toMatchObject({
       realmId: 'GENESIS_001',
       releaseVersion: '0.3.43',
-      sourceBaselineCommit: 'f39d57c8622077e6543a16e5610d0e4ec73910da',
+      sourceBaselineCommit: '2ae51984e1fa6ce5b0028c1a250359fed79d819b',
       admissionFreezeAttestation: TEST_G001_ADMISSION_FREEZE_ATTESTATION,
       targetConfigurationDigest: TEST_G001_CENSUS_TARGET_CONFIGURATION_DIGEST,
     });
@@ -1858,7 +1860,7 @@ describe('Hermes private access request review boundary', () => {
       expect(report).toContain('realm-id\tGENESIS_001\n');
       expect(report).toContain('release-version\t0.3.43\n');
       expect(report).toContain(
-        'source-baseline-commit\tf39d57c8622077e6543a16e5610d0e4ec73910da\n',
+        'source-baseline-commit\t2ae51984e1fa6ce5b0028c1a250359fed79d819b\n',
       );
       expect(report).toContain(
         `admission-freeze-attestation\t${TEST_G001_ADMISSION_FREEZE_ATTESTATION}\n`,
@@ -1994,18 +1996,22 @@ describe('Hermes private access request review boundary', () => {
   });
 
   it('fails closed before census reads when the live Genesis 001 policy is not exact', async () => {
-    const procedure = vi.fn();
-    await expect(collectAccessRequestCensus({
-      procedures: {
-        genesis001AccessPolicyV1: vi.fn().mockResolvedValue({
-          ...TEST_G001_LIVE_ACCESS_POLICY,
-          admissionStateMutationsEnabled: true,
-        }),
-        adminListAccessRequestsV1: procedure,
-      },
-    } as never, TEST_G001_ADMISSION_FREEZE_ATTESTATION))
-      .rejects.toThrow(/live Genesis 001 access policy/i);
-    expect(procedure).not.toHaveBeenCalled();
+    for (const changedPolicy of [
+      { ...TEST_G001_LIVE_ACCESS_POLICY, admissionStateMutationsEnabled: true },
+      { ...TEST_G001_LIVE_ACCESS_POLICY, sourceBaselineCommit: 'f'.repeat(40) },
+      { ...TEST_G001_LIVE_ACCESS_POLICY, freezeReleaseNonce: 'f'.repeat(64) },
+      { ...TEST_G001_LIVE_ACCESS_POLICY, extra: true },
+    ]) {
+      const procedure = vi.fn();
+      await expect(collectAccessRequestCensus({
+        procedures: {
+          genesis001AccessPolicyV1: vi.fn().mockResolvedValue(changedPolicy),
+          adminListAccessRequestsV1: procedure,
+        },
+      } as never, TEST_G001_ADMISSION_FREEZE_ATTESTATION))
+        .rejects.toThrow(/live Genesis 001 access policy/i);
+      expect(procedure).not.toHaveBeenCalled();
+    }
   });
 
   it('fails closed before census reads when the live freeze procedure binding is unavailable', async () => {
@@ -2200,7 +2206,7 @@ describe('Hermes access request reset boundary', () => {
         'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
     }, TEST_SECRET);
     expect(result.status).toBe(1);
-    expect(result.stderr).toMatch(/Genesis 001.*suspended.*f39d57c8622077e6543a16e5610d0e4ec73910da/i);
+    expect(result.stderr).toMatch(/Genesis 001.*suspended.*2ae51984e1fa6ce5b0028c1a250359fed79d819b/i);
     expect(`${result.stdout}${result.stderr}`).not.toContain(TEST_SECRET);
   });
 
@@ -2712,7 +2718,7 @@ describe('Hermes credential destination policy', () => {
     );
     expect(result.status).toBe(1);
     expect(result.stdout).toBe('');
-    expect(result.stderr).toMatch(/Genesis 001.*suspended.*f39d57c8622077e6543a16e5610d0e4ec73910da/i);
+    expect(result.stderr).toMatch(/Genesis 001.*suspended.*2ae51984e1fa6ce5b0028c1a250359fed79d819b/i);
     expect(result.stderr).not.toContain('staging.example');
   });
 
