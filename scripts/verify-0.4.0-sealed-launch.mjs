@@ -372,11 +372,18 @@ function verifyGenesis001Policy(sources) {
     'genesis_001_access_policy_v1',
     '--delete-data=never',
     'GENESIS001_FINAL_RECEIPT_PROFILE',
-    'warpkeep-genesis-001-freeze-publish-final-receipt-v1',
+    'warpkeep-genesis-001-freeze-publish-final-receipt-v2',
+    'warpkeep-genesis-001-frozen-build-provenance-v2',
+    '27db838bb204ef7c21df2931f5656e4c8fb32e6e947f363a402b49714d32b5b1',
+    '052c83fe984a4c4eb7bb4f9afa5c6b1903891d87',
+    '2e737ddbbd7d337bb19c8fc22da9de44be4b7b2062146e7f65aa3f298d7994d6',
+    '15a0965f1deec6b79f67fc04b616fd1a6b8f633301b0cfd2ebb7f961b919a8fa',
+    '7bbf5d888143d6342219dbba9f501d15bcc9627a7bb6f2be07ea197760d4e234',
     'publishGenesis001Frozen',
     'sourceBaselineCommit',
     'baselineAbiSha256',
     'freezeReleaseNonce',
+    'buildProvenanceSha256',
     'livePolicyReceiptSha256',
   ]) {
     if (!sources.genesis001FrozenPublisherCoreSource.includes(token)) {
@@ -397,6 +404,10 @@ function verifyGenesis001Policy(sources) {
     'materializeGenesis001Frozen',
     'writeGenesis001FrozenFinalReceipt',
     'inspectGenesis001FrozenFinalReceipt',
+    'withGenesis001HistoricalLockedDependencyClosure',
+    'GENESIS001_TRUSTED_NODE_TEAM',
+    'input.cli.verify();',
+    "PATH: '/usr/bin:/bin'",
   ]) {
     if (!sources.genesis001FrozenPublisherRuntimeSource.includes(token)) {
       fail('SEALED_LAUNCH_G001_FROZEN_RUNTIME_INVALID');
@@ -410,6 +421,8 @@ function verifyGenesis001Policy(sources) {
     "requiredExactPath(input.environment, 'SPACETIME_BIN')",
     "'WKG001_PRODUCTION_SPACETIME_CLI_CONFIG_PATH'",
     "'WKG001_PRODUCTION_ADMIN_SECRET_PATH'",
+    "'WKG001_NODE_EXECUTABLE_PATH'",
+    "'WKG001_PRODUCTION_DEPENDENCY_CACHE_ROOT'",
   ]) {
     if (!sources.genesis001FrozenPublisherCliSource.includes(token)) {
       fail('SEALED_LAUNCH_G001_FROZEN_PUBLISHER_CLI_INVALID');
@@ -420,6 +433,22 @@ function verifyGenesis001Policy(sources) {
     'cli = attestGenesis001PinnedCli(executable, configuration.childEnvironment);',
     'SEALED_LAUNCH_G001_FROZEN_PUBLISHER_CLI_INVALID',
   );
+  requireAbsent(
+    `${sources.genesis001FrozenPublisherRuntimeSource}\n${sources.genesis001FrozenPublisherCliSource}`,
+    ['WKG001_PNPM_EXECUTABLE_PATH', 'WKG001_PNPM_STORE_PATH', "executable: '/bin/bash'"],
+    'SEALED_LAUNCH_G001_FROZEN_RUNTIME_INVALID',
+  );
+  for (const token of [
+    'withGenesis001HistoricalLockedDependencyClosure',
+    'warpkeep-genesis-001-historical-root-dependency-closure-v1',
+    'GENESIS001_HISTORICAL_LOCKED_PACKAGE_KEYS',
+    '7bbf5d888143d6342219dbba9f501d15bcc9627a7bb6f2be07ea197760d4e234',
+    '600b829bb2fd9c991ff918085539e527ecba3c2609bfffe35a9cf6ce3ad7b84f',
+  ]) {
+    if (!sources.immutableArtifactSource.includes(token)) {
+      fail('SEALED_LAUNCH_G001_FROZEN_RUNTIME_INVALID');
+    }
+  }
 }
 
 function verifyGenesis002Policy(sources) {

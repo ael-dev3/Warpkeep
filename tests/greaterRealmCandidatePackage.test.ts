@@ -480,7 +480,7 @@ describe('Greater Realm owner-only candidate package', () => {
     let derivedSeed: Buffer | undefined;
     try {
       expect(GREATER_REALM_GENERATOR_VERSION)
-        .toBe('greater-realm-v2-natural-continent-pr-a.18');
+        .toBe('greater-realm-v2-natural-continent-pr-a.19');
       expect(GREATER_REALM_TERRAIN_SEED_NAMESPACE)
         .toBe('greater-realm-v2-natural-continent-pr-a.3');
       expect(GREATER_REALM_GENERATOR_VERSION).not.toBe(
@@ -1507,6 +1507,21 @@ describe('Greater Realm owner-only candidate package', () => {
     const parsed = JSON.parse(original.toString('utf8')) as Record<string, unknown>;
     original.fill(0);
     parsed.sourceCommit = 'b'.repeat(40);
+    const corrupted = Buffer.from(`${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
+    const corruptedDigest = createHash('sha256').update(corrupted).digest('hex');
+
+    await replacePrivateFile(relativePath, corrupted, async () => {
+      await expect(verifyFixture({ expectedManifestDigest: corruptedDigest }))
+        .rejects.toThrow('GREATER_REALM_PRIVATE_MANIFEST_INVALID');
+    });
+  }, PRIVATE_REPLAY_TEST_TIMEOUT_MS);
+
+  it('rejects a legacy .18 manifest even when the expected digest is updated', async () => {
+    const relativePath = candidateRelativePath('manifest.private.json');
+    const original = requireFixture().workspace.readFile(relativePath);
+    const parsed = JSON.parse(original.toString('utf8')) as Record<string, unknown>;
+    original.fill(0);
+    parsed.generatorVersion = 'greater-realm-v2-natural-continent-pr-a.18';
     const corrupted = Buffer.from(`${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
     const corruptedDigest = createHash('sha256').update(corrupted).digest('hex');
 

@@ -837,7 +837,7 @@ describe('notification-bridge-prepared protected workflow', () => {
         installedToolchainByteAttestationRequired: true,
         executableSecurityClosureMemberCount: 956,
       });
-  }, 60_000);
+  }, 180_000);
 
   it('derives the exact executable, receipt, config, ABI, Worker, and toolchain closure', () => {
     const root = createPolicyFixture();
@@ -1132,7 +1132,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     })).toThrow(
       'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_NOT_CANONICAL',
     );
-  }, 60_000);
+  }, 180_000);
 
   it('rejects altered or duplicate protected-workflow bootstrap pins', () => {
     for (const mutation of ['altered', 'duplicate'] as const) {

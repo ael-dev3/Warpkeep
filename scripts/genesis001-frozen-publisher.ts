@@ -66,11 +66,14 @@ export async function executeGenesis001FrozenPublisherCli(input: Readonly<{
   const configuration = genesis001RuntimeConfiguration({
     repositoryRoot: REPOSITORY_ROOT,
     workspaceRoot: input.environment.WKG001_PRIVATE_WORKSPACE_ROOT,
-    pnpmExecutablePath: requiredExactPath(
+    nodeExecutablePath: requiredExactPath(
       input.environment,
-      'WKG001_PNPM_EXECUTABLE_PATH',
+      'WKG001_NODE_EXECUTABLE_PATH',
     ),
-    pnpmStorePath: requiredExactPath(input.environment, 'WKG001_PNPM_STORE_PATH'),
+    dependencyCacheRoot: requiredExactPath(
+      input.environment,
+      'WKG001_PRODUCTION_DEPENDENCY_CACHE_ROOT',
+    ),
     cliConfigPath: requiredExactPath(
       input.environment,
       'WKG001_PRODUCTION_SPACETIME_CLI_CONFIG_PATH',

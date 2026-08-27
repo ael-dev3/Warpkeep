@@ -527,9 +527,9 @@ describe('Greater Realm declassified runtime release', () => {
     const headerBytes = greaterRealmRuntimeReleaseTestSeams.canonicalBytes(header);
     expect(headerBytes).toHaveLength(1_421);
     expect(greaterRealmRuntimeReleaseTestSeams.sha256(headerBytes))
-      .toBe('c8e254d17803448beb4a1b170d871f4465dec4acaada49666590fa48ce6d2a96');
+      .toBe('28bc815bc7c01d348e49bd09bb0d3c8d7c411272241f712fb759b078a36c94b2');
     expect(artifacts.manifest.releaseSha256)
-      .toBe('58d6cb269c1befdd140e1db2320a5d1910c8ba782d049444963942e423cf40ab');
+      .toBe('204207de0cdd9635d3a7a79ee46c989e130fe94eb9b8a70c30e337d904adbddf');
     expect((artifacts.manifest.components as Array<Record<string, unknown>>)[0]!.componentSha256)
       .toBe('31955d3985dd9f906fe881990e4a051d7df3bfb5d24e3aa555870044a0f0a732');
     const slotless = (artifacts.manifest.components as Array<Record<string, number>>)

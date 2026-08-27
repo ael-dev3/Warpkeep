@@ -29,6 +29,18 @@ notification work requires a new reviewed release plan.
   `cb7d69d2bed316702ffa1aa8696a4e1ca1934a775b8312129b305a9c33eb0e03`
 - Genesis 001 freeze nonce:
   `3f158f17acd5e1e63c74befef7cb3ccab7cb07feaaed432e7483467e1c856f00`
+- Genesis 001 historical dependency lock SHA-256:
+  `7bbf5d888143d6342219dbba9f501d15bcc9627a7bb6f2be07ea197760d4e234`
+- Genesis 001 build Node: standalone `v24.19.0`, SHA-256
+  `27db838bb204ef7c21df2931f5656e4c8fb32e6e947f363a402b49714d32b5b1`
+- Genesis 001 SpacetimeDB CLI: `2.6.1`, commit
+  `052c83fe984a4c4eb7bb4f9afa5c6b1903891d87`, CLI SHA-256
+  `2e737ddbbd7d337bb19c8fc22da9de44be4b7b2062146e7f65aa3f298d7994d6`,
+  standalone companion SHA-256
+  `15a0965f1deec6b79f67fc04b616fd1a6b8f633301b0cfd2ebb7f961b919a8fa`
+- Genesis 001 dependency installer:
+  `warpkeep-genesis-001-historical-root-dependency-closure-v1`, exactly 16
+  Darwin/ARM64 integrity-addressed archives and no package-manager execution
 - Genesis 002 alias: `warpkeep-genesis-002` (must be absent before publish)
 - Genesis 002 module identity: `warpkeep-genesis-002-sealed-v1`
 - Genesis 002 atlas ID: `GENESIS_002_GREATER_REALM`
@@ -62,6 +74,19 @@ Publish only the exact same-schema module materialized from baseline
 `2ae51984...`, with the pinned baseline ABI, freeze nonce, full G001 identity,
 and `--delete-data=never`. The repository's current/future 86-table module is
 not eligible source for this step.
+
+Supply exact absolute `WKG001_NODE_EXECUTABLE_PATH` and
+`WKG001_PRODUCTION_DEPENDENCY_CACHE_ROOT` inputs. The publisher must stage and
+re-attest the reviewed standalone Node, safely construct the historical root
+dependency closure directly from the private verified archive cache, build both
+the exact baseline and frozen source from identical dependency provenance, and
+re-attest the private CLI/companion snapshot around every build, proof, read,
+and supervised release boundary. The exact CLI version, commit, and both binary
+digests must be present in build provenance. Fail before credentials if any
+identity differs. `WKG001_PNPM_EXECUTABLE_PATH` and
+`WKG001_PNPM_STORE_PATH` are not accepted release inputs. Retain the strict v2
+recovery/final receipt, which binds the build provenance and its canonical
+digest without recording private paths.
 
 Postflight must exact-match the administrator-only read receipt:
 
@@ -148,10 +173,12 @@ binding, so use that alias only after the activation binding has been generated.
 ## Phase 4: publish a fresh, private Genesis 002 module
 
 Use the existing secure wrapper so `WARPKEEP_ADMIN_TOKEN_SECRET` is injected
-only into the operator process:
+only into the operator process. Resolve `<operator-private-support-root>`
+locally to the reviewed owner-private operations directory; never commit a
+literal user-home path:
 
 ```text
-/Users/marko/Library/Application Support/Warpkeep/operations/bin/warpkeep-secrets run-admin -- <reviewed command>
+<operator-private-support-root>/bin/warpkeep-secrets run-admin -- <reviewed command>
 ```
 
 The concrete publisher additionally requires absolute paths for

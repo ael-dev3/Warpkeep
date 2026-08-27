@@ -1,3 +1,5 @@
+import type { AttestedSpacetimeCli } from './spacetime-cli-attestation.mjs';
+
 export const GENESIS_WORLD_PUBLISH_STAGE: Readonly<Record<string, string>>;
 export const INNER_KEEP_MODULE_PREDECESSOR: Readonly<Record<string, string>>;
 export const INNER_KEEP_PUBLICATION_STAGE: Readonly<Record<string, string>>;
@@ -64,11 +66,7 @@ export function attestPinnedSpacetimeCli(
   executable: string,
   spawnSyncProcess?: any,
   sourceEnvironment?: Readonly<Record<string, string | undefined>>,
-): Readonly<{
-  path: string;
-  digest: string;
-  cleanup: () => void;
-}>;
+): AttestedSpacetimeCli;
 export function canonicalSchemaDescribeChildArguments(...args: any[]): any;
 export function createPrivatePublishSnapshot(...args: any[]): any;
 export function dailyMarksV14InspectChildArguments(...args: any[]): any;

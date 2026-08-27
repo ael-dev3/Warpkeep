@@ -12,12 +12,14 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  assertGenesis001FrozenBuildProvenance,
   assertGenesis001FrozenFinalReceipt,
   assertFrozenDescriptorPreservesBaseline,
   assertGenesis001BaselineDescriptor,
   attestPrivateGenesis001Artifact,
   descriptorDigest,
   exactFrozenReceipt,
+  genesis001FrozenBuildProvenanceDigest,
   GENESIS001_LEGACY_COUNTS,
   GENESIS001_PRODUCTION_TARGET,
   Genesis001PublishManualStopError,
@@ -116,6 +118,32 @@ function frozenReceipt() {
   });
 }
 
+function buildProvenance() {
+  return {
+    schemaVersion: 2 as const,
+    profile: 'warpkeep-genesis-001-frozen-build-provenance-v2' as const,
+    platform: 'darwin' as const,
+    architecture: 'arm64' as const,
+    nodeVersion: 'v24.19.0' as const,
+    nodeExecutableSha256:
+      '27db838bb204ef7c21df2931f5656e4c8fb32e6e947f363a402b49714d32b5b1' as const,
+    spacetimeCliVersion: '2.6.1' as const,
+    spacetimeCliCommit: '052c83fe984a4c4eb7bb4f9afa5c6b1903891d87' as const,
+    spacetimeCliExecutableSha256:
+      '2e737ddbbd7d337bb19c8fc22da9de44be4b7b2062146e7f65aa3f298d7994d6' as const,
+    spacetimeStandaloneExecutableSha256:
+      '15a0965f1deec6b79f67fc04b616fd1a6b8f633301b0cfd2ebb7f961b919a8fa' as const,
+    dependencyInstallerProfile:
+      'warpkeep-genesis-001-historical-root-dependency-closure-v1' as const,
+    dependencyLockfileSha256:
+      '7bbf5d888143d6342219dbba9f501d15bcc9627a7bb6f2be07ea197760d4e234' as const,
+    lockedPackageCount: 16 as const,
+    dependencyArchiveClosureSha256: '3'.repeat(64),
+    dependencyClosureSha256: '4'.repeat(64),
+    dependencyTreeEntryCount: 321,
+  };
+}
+
 function liveSnapshot(value: ReturnType<typeof descriptor>): Genesis001LiveSnapshot {
   return Object.freeze({
     uri: GENESIS001_PRODUCTION_TARGET.uri,
@@ -125,6 +153,91 @@ function liveSnapshot(value: ReturnType<typeof descriptor>): Genesis001LiveSnaps
 }
 
 describe('Genesis 001 target-locked publisher contract', () => {
+  it('accepts only the exact historical build provenance and hashes its canonical form', () => {
+    const provenance = buildProvenance();
+    expect(() => assertGenesis001FrozenBuildProvenance(provenance)).not.toThrow();
+    expect(genesis001FrozenBuildProvenanceDigest(provenance)).toBe(
+      '1a9618156abb12ae3a4e147ed8103db3c4c23e39719280b0cec86958cd4c1d7a',
+    );
+
+    const { nodeExecutableSha256: _missing, ...missing } = provenance;
+    expect(() => assertGenesis001FrozenBuildProvenance(missing)).toThrow(/build provenance/i);
+    expect(() => assertGenesis001FrozenBuildProvenance({ ...provenance, extra: true }))
+      .toThrow(/build provenance/i);
+    expect(() => assertGenesis001FrozenBuildProvenance({
+      ...provenance,
+      dependencyInstallerProfile: 'pnpm-store',
+    })).toThrow(/build provenance/i);
+    expect(() => assertGenesis001FrozenBuildProvenance({
+      ...provenance,
+      nodeExecutableSha256: '1'.repeat(64),
+    })).toThrow(/build provenance/i);
+    expect(() => assertGenesis001FrozenBuildProvenance({
+      ...provenance,
+      spacetimeCliCommit: '1'.repeat(40),
+    })).toThrow(/build provenance/i);
+    expect(() => assertGenesis001FrozenBuildProvenance({
+      ...provenance,
+      spacetimeCliExecutableSha256: '1'.repeat(64),
+    })).toThrow(/build provenance/i);
+    expect(() => assertGenesis001FrozenBuildProvenance({
+      ...provenance,
+      spacetimeStandaloneExecutableSha256: '1'.repeat(64),
+    })).toThrow(/build provenance/i);
+    expect(() => assertGenesis001FrozenBuildProvenance({
+      ...provenance,
+      dependencyLockfileSha256: '2'.repeat(64),
+    })).toThrow(/build provenance/i);
+    expect(() => assertGenesis001FrozenBuildProvenance({
+      ...provenance,
+      dependencyTreeEntryCount: 0,
+    })).toThrow(/build provenance/i);
+    for (const dependencyTreeEntryCount of [1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(() => assertGenesis001FrozenBuildProvenance({
+        ...provenance,
+        dependencyTreeEntryCount,
+      })).toThrow(/build provenance/i);
+    }
+  });
+
+  it('requires exact build provenance and its canonical digest in final receipt v2', () => {
+    const provenance = buildProvenance();
+    const receipt = {
+      schemaVersion: 2,
+      profile: 'warpkeep-genesis-001-freeze-publish-final-receipt-v2',
+      outcome: 'published',
+      target: GENESIS001_PRODUCTION_TARGET,
+      protectedMainCommit: 'a'.repeat(40),
+      sourceBaselineCommit: G001_BASELINE,
+      baselineAbiSha256: G001_BASELINE_ABI_SHA256,
+      freezeReleaseNonce: G001_FREEZE_NONCE,
+      artifactSha256: 'b'.repeat(64),
+      candidateDescriptorSha256: 'c'.repeat(64),
+      postflightDescriptorSha256: 'c'.repeat(64),
+      buildProvenance: provenance,
+      buildProvenanceSha256:
+        '1a9618156abb12ae3a4e147ed8103db3c4c23e39719280b0cec86958cd4c1d7a',
+      livePolicyReceipt: frozenReceipt(),
+      livePolicyReceiptSha256: descriptorDigest(frozenReceipt()),
+    };
+    expect(() => assertGenesis001FrozenFinalReceipt(receipt)).not.toThrow();
+
+    const { buildProvenance: _missing, ...missing } = receipt;
+    expect(() => assertGenesis001FrozenFinalReceipt(missing)).toThrow(/final receipt/i);
+    expect(() => assertGenesis001FrozenFinalReceipt({
+      ...receipt,
+      buildProvenance: { ...provenance, extra: true },
+    })).toThrow(/final receipt/i);
+    expect(() => assertGenesis001FrozenFinalReceipt({
+      ...receipt,
+      buildProvenance: { ...provenance, nodeExecutableSha256: '9'.repeat(64) },
+    })).toThrow(/final receipt/i);
+    expect(() => assertGenesis001FrozenFinalReceipt({
+      ...receipt,
+      buildProvenanceSha256: '9'.repeat(64),
+    })).toThrow(/final receipt/i);
+  });
+
   it('locks the exact production identity and uses the JavaScript artifact without deletion', () => {
     const args = publishArguments('/private/tmp/private-module.js');
     expect(GENESIS001_PRODUCTION_TARGET).toEqual({
@@ -255,6 +368,10 @@ describe('Genesis 001 one-shot publish orchestration', () => {
     postSnapshot?: ReturnType<typeof liveSnapshot>;
     postPolicy?: unknown;
     postPolicyError?: Error;
+    provenanceMutation?: Readonly<{
+      artifactVerifyCall: number;
+      dependencyClosureSha256: string;
+    }>;
     sourceCommits?: readonly string[];
   }> = {}) {
     const events: string[] = [];
@@ -266,12 +383,22 @@ describe('Genesis 001 one-shot publish orchestration', () => {
       'a'.repeat(40),
     ])];
     let liveRead = 0;
+    let artifactVerifyCall = 0;
+    const provenance = buildProvenance();
     const artifact = Object.freeze({
       path: '/private/g001/bundle.js',
       sha256: 'b'.repeat(64),
       builtDescriptor: candidate,
       builtPolicy: frozenReceipt(),
-      verify: vi.fn(() => { events.push('artifact-verify'); }),
+      buildProvenance: provenance,
+      verify: vi.fn(() => {
+        artifactVerifyCall += 1;
+        events.push('artifact-verify');
+        if (input.provenanceMutation?.artifactVerifyCall === artifactVerifyCall) {
+          provenance.dependencyClosureSha256 =
+            input.provenanceMutation.dependencyClosureSha256;
+        }
+      }),
       close: vi.fn(() => { events.push('artifact-close'); }),
       cleanup: vi.fn(() => { events.push('artifact-cleanup'); }),
     });
@@ -335,7 +462,16 @@ describe('Genesis 001 one-shot publish orchestration', () => {
         });
       }),
     });
-    return { events, baseline, candidate, artifact, authority, supervisor, dependencies };
+    return {
+      events,
+      baseline,
+      candidate,
+      provenance,
+      artifact,
+      authority,
+      supervisor,
+      dependencies,
+    };
   }
 
   it('keeps all credentials behind build/ABI gates and releases one supervised publish', async () => {
@@ -372,8 +508,8 @@ describe('Genesis 001 one-shot publish orchestration', () => {
     expect(state.dependencies.prepareSupervisedPublish).toHaveBeenCalledTimes(1);
     expect(state.supervisor.release).toHaveBeenCalledTimes(1);
     expect(state.dependencies.persistFinalReceipt).toHaveBeenCalledWith({
-      schemaVersion: 1,
-      profile: 'warpkeep-genesis-001-freeze-publish-final-receipt-v1',
+      schemaVersion: 2,
+      profile: 'warpkeep-genesis-001-freeze-publish-final-receipt-v2',
       outcome: 'published',
       target: GENESIS001_PRODUCTION_TARGET,
       protectedMainCommit: 'a'.repeat(40),
@@ -383,9 +519,55 @@ describe('Genesis 001 one-shot publish orchestration', () => {
       artifactSha256: 'b'.repeat(64),
       candidateDescriptorSha256: descriptorDigest(state.candidate),
       postflightDescriptorSha256: descriptorDigest(state.candidate),
+      buildProvenance: buildProvenance(),
+      buildProvenanceSha256:
+        '1a9618156abb12ae3a4e147ed8103db3c4c23e39719280b0cec86958cd4c1d7a',
       livePolicyReceipt: frozenReceipt(),
       livePolicyReceiptSha256: descriptorDigest(frozenReceipt()),
     });
+  });
+
+  it('rejects malformed build provenance before credentials are acquired', async () => {
+    const state = harness({
+      provenanceMutation: {
+        artifactVerifyCall: 1,
+        dependencyClosureSha256: 'invalid',
+      },
+    });
+    await expect(publishGenesis001Frozen(state.dependencies)).rejects
+      .toThrow(/build provenance/i);
+    expect(state.dependencies.acquirePublishAuthority).not.toHaveBeenCalled();
+    expect(state.supervisor.release).not.toHaveBeenCalled();
+    expect(state.dependencies.persistFinalReceipt).not.toHaveBeenCalled();
+  });
+
+  it.each([2, 3])(
+    'rejects build provenance substitution at pre-release gate %i',
+    async artifactVerifyCall => {
+      const state = harness({
+        provenanceMutation: {
+          artifactVerifyCall,
+          dependencyClosureSha256: '9'.repeat(64),
+        },
+      });
+      await expect(publishGenesis001Frozen(state.dependencies)).rejects
+        .toThrow(/build provenance.*changed/i);
+      expect(state.supervisor.release).not.toHaveBeenCalled();
+      expect(state.dependencies.persistFinalReceipt).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects postflight build provenance substitution before persisting a receipt', async () => {
+    const state = harness({
+      provenanceMutation: {
+        artifactVerifyCall: 4,
+        dependencyClosureSha256: '9'.repeat(64),
+      },
+    });
+    await expect(publishGenesis001Frozen(state.dependencies)).rejects
+      .toBeInstanceOf(Genesis001PublishManualStopError);
+    expect(state.supervisor.release).toHaveBeenCalledTimes(1);
+    expect(state.dependencies.persistFinalReceipt).not.toHaveBeenCalled();
   });
 
   it('reconciles an outcome-ambiguous child failure only from a fresh exact identity/ABI/policy read', async () => {

@@ -28,7 +28,32 @@ export const GENESIS001_LEGACY_COUNTS = Object.freeze({
 });
 
 export const GENESIS001_FINAL_RECEIPT_PROFILE =
-  'warpkeep-genesis-001-freeze-publish-final-receipt-v1' as const;
+  'warpkeep-genesis-001-freeze-publish-final-receipt-v2' as const;
+
+export const GENESIS001_BUILD_PROVENANCE_PROFILE =
+  'warpkeep-genesis-001-frozen-build-provenance-v2' as const;
+
+export const GENESIS001_DEPENDENCY_INSTALLER_PROFILE =
+  'warpkeep-genesis-001-historical-root-dependency-closure-v1' as const;
+
+export const GENESIS001_NODE_VERSION = 'v24.19.0' as const;
+
+export const GENESIS001_NODE_EXECUTABLE_SHA256 =
+  '27db838bb204ef7c21df2931f5656e4c8fb32e6e947f363a402b49714d32b5b1' as const;
+
+export const GENESIS001_SPACETIME_CLI_VERSION = '2.6.1' as const;
+
+export const GENESIS001_SPACETIME_CLI_COMMIT =
+  '052c83fe984a4c4eb7bb4f9afa5c6b1903891d87' as const;
+
+export const GENESIS001_SPACETIME_CLI_EXECUTABLE_SHA256 =
+  '2e737ddbbd7d337bb19c8fc22da9de44be4b7b2062146e7f65aa3f298d7994d6' as const;
+
+export const GENESIS001_SPACETIME_STANDALONE_EXECUTABLE_SHA256 =
+  '15a0965f1deec6b79f67fc04b616fd1a6b8f633301b0cfd2ebb7f961b919a8fa' as const;
+
+export const GENESIS001_DEPENDENCY_LOCKFILE_SHA256 =
+  '7bbf5d888143d6342219dbba9f501d15bcc9627a7bb6f2be07ea197760d4e234' as const;
 
 export const GENESIS001_FINAL_RECEIPT_BASENAME =
   /^genesis-001-freeze-publish-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.json$/u;
@@ -68,11 +93,32 @@ export type PrivateGenesis001Artifact = Readonly<{
   close: () => void;
 }>;
 
+export type Genesis001FrozenBuildProvenance = Readonly<{
+  schemaVersion: 2;
+  profile: typeof GENESIS001_BUILD_PROVENANCE_PROFILE;
+  platform: 'darwin';
+  architecture: 'arm64';
+  nodeVersion: typeof GENESIS001_NODE_VERSION;
+  nodeExecutableSha256: typeof GENESIS001_NODE_EXECUTABLE_SHA256;
+  spacetimeCliVersion: typeof GENESIS001_SPACETIME_CLI_VERSION;
+  spacetimeCliCommit: typeof GENESIS001_SPACETIME_CLI_COMMIT;
+  spacetimeCliExecutableSha256: typeof GENESIS001_SPACETIME_CLI_EXECUTABLE_SHA256;
+  spacetimeStandaloneExecutableSha256:
+    typeof GENESIS001_SPACETIME_STANDALONE_EXECUTABLE_SHA256;
+  dependencyInstallerProfile: typeof GENESIS001_DEPENDENCY_INSTALLER_PROFILE;
+  dependencyLockfileSha256: typeof GENESIS001_DEPENDENCY_LOCKFILE_SHA256;
+  lockedPackageCount: 16;
+  dependencyArchiveClosureSha256: string;
+  dependencyClosureSha256: string;
+  dependencyTreeEntryCount: number;
+}>;
+
 export type BuiltGenesis001Artifact = Readonly<{
   path: string;
   sha256: string;
   builtDescriptor: Genesis001Descriptor;
   builtPolicy: unknown;
+  buildProvenance: Genesis001FrozenBuildProvenance;
   verify: () => void;
   close: () => void;
   cleanup: () => void;
@@ -101,7 +147,7 @@ export type Genesis001FrozenPolicyReceipt = Readonly<{
 }>;
 
 export type Genesis001FrozenFinalReceipt = Readonly<{
-  schemaVersion: 1;
+  schemaVersion: 2;
   profile: typeof GENESIS001_FINAL_RECEIPT_PROFILE;
   outcome: 'published' | 'reconciled';
   target: typeof GENESIS001_PRODUCTION_TARGET;
@@ -112,6 +158,8 @@ export type Genesis001FrozenFinalReceipt = Readonly<{
   artifactSha256: string;
   candidateDescriptorSha256: string;
   postflightDescriptorSha256: string;
+  buildProvenance: Genesis001FrozenBuildProvenance;
+  buildProvenanceSha256: string;
   livePolicyReceipt: Genesis001FrozenPolicyReceipt;
   livePolicyReceiptSha256: string;
 }>;
@@ -373,6 +421,64 @@ function exactKeys(value: Record<string, unknown>, expected: readonly string[]):
   return Object.keys(value).sort().join('\0') === [...expected].sort().join('\0');
 }
 
+export function assertGenesis001FrozenBuildProvenance(
+  value: unknown,
+): asserts value is Genesis001FrozenBuildProvenance {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Genesis 001 frozen build provenance is invalid');
+  }
+  const provenance = value as Record<string, unknown>;
+  const digest = /^[0-9a-f]{64}$/u;
+  if (
+    !exactKeys(provenance, [
+      'architecture',
+      'dependencyArchiveClosureSha256',
+      'dependencyClosureSha256',
+      'dependencyInstallerProfile',
+      'dependencyLockfileSha256',
+      'dependencyTreeEntryCount',
+      'lockedPackageCount',
+      'nodeExecutableSha256',
+      'nodeVersion',
+      'platform',
+      'profile',
+      'schemaVersion',
+      'spacetimeCliCommit',
+      'spacetimeCliExecutableSha256',
+      'spacetimeCliVersion',
+      'spacetimeStandaloneExecutableSha256',
+    ])
+    || provenance.schemaVersion !== 2
+    || provenance.profile !== GENESIS001_BUILD_PROVENANCE_PROFILE
+    || provenance.platform !== 'darwin'
+    || provenance.architecture !== 'arm64'
+    || provenance.nodeVersion !== GENESIS001_NODE_VERSION
+    || provenance.nodeExecutableSha256 !== GENESIS001_NODE_EXECUTABLE_SHA256
+    || provenance.spacetimeCliVersion !== GENESIS001_SPACETIME_CLI_VERSION
+    || provenance.spacetimeCliCommit !== GENESIS001_SPACETIME_CLI_COMMIT
+    || provenance.spacetimeCliExecutableSha256
+      !== GENESIS001_SPACETIME_CLI_EXECUTABLE_SHA256
+    || provenance.spacetimeStandaloneExecutableSha256
+      !== GENESIS001_SPACETIME_STANDALONE_EXECUTABLE_SHA256
+    || provenance.dependencyInstallerProfile !== GENESIS001_DEPENDENCY_INSTALLER_PROFILE
+    || provenance.dependencyLockfileSha256 !== GENESIS001_DEPENDENCY_LOCKFILE_SHA256
+    || provenance.lockedPackageCount !== 16
+    || typeof provenance.dependencyArchiveClosureSha256 !== 'string'
+    || !digest.test(provenance.dependencyArchiveClosureSha256)
+    || typeof provenance.dependencyClosureSha256 !== 'string'
+    || !digest.test(provenance.dependencyClosureSha256)
+    || !Number.isSafeInteger(provenance.dependencyTreeEntryCount)
+    || (provenance.dependencyTreeEntryCount as number) <= 0
+  ) {
+    throw new Error('Genesis 001 frozen build provenance is invalid');
+  }
+}
+
+export function genesis001FrozenBuildProvenanceDigest(value: unknown): string {
+  assertGenesis001FrozenBuildProvenance(value);
+  return descriptorDigest(value);
+}
+
 export function assertGenesis001FrozenFinalReceipt(
   value: unknown,
 ): asserts value is Genesis001FrozenFinalReceipt {
@@ -385,6 +491,8 @@ export function assertGenesis001FrozenFinalReceipt(
     !exactKeys(receipt, [
       'artifactSha256',
       'baselineAbiSha256',
+      'buildProvenance',
+      'buildProvenanceSha256',
       'candidateDescriptorSha256',
       'freezeReleaseNonce',
       'livePolicyReceipt',
@@ -397,7 +505,7 @@ export function assertGenesis001FrozenFinalReceipt(
       'sourceBaselineCommit',
       'target',
     ])
-    || receipt.schemaVersion !== 1
+    || receipt.schemaVersion !== 2
     || receipt.profile !== GENESIS001_FINAL_RECEIPT_PROFILE
     || !['published', 'reconciled'].includes(receipt.outcome as string)
     || canonicalJson(receipt.target) !== canonicalJson(GENESIS001_PRODUCTION_TARGET)
@@ -411,10 +519,23 @@ export function assertGenesis001FrozenFinalReceipt(
     || typeof receipt.candidateDescriptorSha256 !== 'string'
     || !digest.test(receipt.candidateDescriptorSha256)
     || receipt.postflightDescriptorSha256 !== receipt.candidateDescriptorSha256
+    || typeof receipt.buildProvenanceSha256 !== 'string'
+    || !digest.test(receipt.buildProvenanceSha256)
     || !exactFrozenReceipt(receipt.livePolicyReceipt)
     || typeof receipt.livePolicyReceiptSha256 !== 'string'
     || receipt.livePolicyReceiptSha256 !== descriptorDigest(receipt.livePolicyReceipt)
   ) {
+    throw new Error('Genesis 001 final receipt is invalid');
+  }
+  try {
+    assertGenesis001FrozenBuildProvenance(receipt.buildProvenance);
+    if (
+      receipt.buildProvenanceSha256
+        !== genesis001FrozenBuildProvenanceDigest(receipt.buildProvenance)
+    ) {
+      throw new Error('Genesis 001 final receipt build provenance digest changed');
+    }
+  } catch {
     throw new Error('Genesis 001 final receipt is invalid');
   }
 }
@@ -632,6 +753,19 @@ export async function publishGenesis001Frozen(
 
     artifact = await dependencies.buildImmutableArtifact(before.descriptor, sourceCommit);
     artifact.verify();
+    assertGenesis001FrozenBuildProvenance(artifact.buildProvenance);
+    const buildProvenance = Object.freeze({ ...artifact.buildProvenance });
+    const buildProvenanceSha256 = genesis001FrozenBuildProvenanceDigest(buildProvenance);
+    const verifyArtifactAndBuildProvenance = (): void => {
+      artifact!.verify();
+      assertGenesis001FrozenBuildProvenance(artifact!.buildProvenance);
+      if (
+        genesis001FrozenBuildProvenanceDigest(artifact!.buildProvenance)
+          !== buildProvenanceSha256
+      ) {
+        throw new Error('Genesis 001 frozen build provenance changed after attestation');
+      }
+    };
     assertFrozenDescriptorPreservesBaseline(before.descriptor, artifact.builtDescriptor);
     if (!exactFrozenReceipt(artifact.builtPolicy)) {
       throw new Error('source-built Genesis 001 policy receipt is invalid');
@@ -664,13 +798,13 @@ export async function publishGenesis001Frozen(
       throw error;
     }
 
-    artifact.verify();
+    verifyArtifactAndBuildProvenance();
     const releaseCommit = await dependencies.verifyProtectedCurrentMain();
     assertCommit(releaseCommit);
     if (releaseCommit !== sourceCommit) {
       throw new Error('protected main advanced before the Genesis 001 publish release');
     }
-    artifact.verify();
+    verifyArtifactAndBuildProvenance();
 
     let submissionError: unknown;
     try {
@@ -698,7 +832,7 @@ export async function publishGenesis001Frozen(
 
     let artifactError: unknown;
     try {
-      artifact.verify();
+      verifyArtifactAndBuildProvenance();
     } catch (error) {
       artifactError = error;
     }
@@ -752,7 +886,7 @@ export async function publishGenesis001Frozen(
 
     const livePolicyReceipt = canonicalGenesis001FrozenPolicyReceipt();
     const finalReceipt = Object.freeze({
-      schemaVersion: 1 as const,
+      schemaVersion: 2 as const,
       profile: GENESIS001_FINAL_RECEIPT_PROFILE,
       outcome: submissionError === undefined ? 'published' as const : 'reconciled' as const,
       target: GENESIS001_PRODUCTION_TARGET,
@@ -763,6 +897,8 @@ export async function publishGenesis001Frozen(
       artifactSha256: artifact.sha256,
       candidateDescriptorSha256: descriptorDigest(artifact.builtDescriptor),
       postflightDescriptorSha256: descriptorDigest(after!.descriptor),
+      buildProvenance,
+      buildProvenanceSha256,
       livePolicyReceipt,
       livePolicyReceiptSha256: descriptorDigest(livePolicyReceipt),
     });

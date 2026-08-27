@@ -95,7 +95,7 @@
     {
       "path": "scripts/atlas/greater-realm-candidate-generator.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "273be4625a59f0d850ccd7b79c23803d39f77d70be78c2cf6c2b249851b8c5bd"
+      "sha256": "22e6b37d077e3a36585ff4a3ea4605f21c1c8aeabaa0ddd52e939827713f1482"
     },
     {
       "path": "scripts/atlas/greater-realm-candidate-package.ts",
@@ -105,7 +105,7 @@
     {
       "path": "scripts/atlas/greater-realm-candidate-rejection.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "7dafadb9c4edc9d47f2c3a8a6a2367dc017b0dae8603507114a65e36a0b83760"
+      "sha256": "65201534047798e8f9d25bfa6e63febf4dfca5213a5ef12cdb04ad9541252292"
     },
     {
       "path": "scripts/atlas/greater-realm-castle-distribution.ts",
@@ -460,17 +460,17 @@
     {
       "path": "scripts/genesis001-frozen-publisher-core.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "74e389f46c63be87a1b8f66d0d39ec7bc133e741ad3278cbbc73af880393e3f6"
+      "sha256": "ecb198c7dd44117ba36f734f3be20dbb9920ad9c07145b02042d672290060c19"
     },
     {
       "path": "scripts/genesis001-frozen-publisher-runtime.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9796e276c9a43cb76ec6575e96e3fe21d263dd421c1d926399de97054100e81c"
+      "sha256": "6718c501ecc780bb057217660a4358ab72d6ba3f5c7376afd60d14df99c1742d"
     },
     {
       "path": "scripts/genesis001-frozen-publisher.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "29590c2f949b1185345b00dd5572f5415f3822ecb1bbe24c78f80ffc00e3e018"
+      "sha256": "506934fe091df64c7ff7d5d762024b39b5d9ba58adbf90087ea462e0853ec2d3"
     },
     {
       "path": "scripts/genesis002-activation-receipts.d.mts",
@@ -825,7 +825,7 @@
     {
       "path": "scripts/greater-realm-production-immutable-artifact.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b4849ad017f25ca5819984eb92f2e746bd367a366212655b04fcb411c6dd40c3"
+      "sha256": "6a40fc7f2b7e1fdb2897eb0ea253638c5b45a544c85f3bfc80a69bcadae2f381"
     },
     {
       "path": "scripts/greater-realm-production-import-core.ts",
@@ -1225,7 +1225,7 @@
     {
       "path": "scripts/publish-spacetime-dev.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "1c60fea66ad318c9b3090b24ae048718c8d2a71153e140559367cab0a9be4676"
+      "sha256": "8104965443c2ffca615b9142732eb7020261a903564de4bf4dbc34b52842c358"
     },
     {
       "path": "scripts/publish-spacetime-dev.mjs",
@@ -1265,12 +1265,12 @@
     {
       "path": "scripts/spacetime-cli-attestation.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2c7a118f3614225f1acb8e50cec2b6b2b3306684cc585fc6a05a669cf9ae1a75"
+      "sha256": "2345df8c2d71468c6619061ca3823e0a5309d0b1e33dcce72e681357b34b566a"
     },
     {
       "path": "scripts/spacetime-cli-attestation.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "45566d8f0d7d13a60db6c73e15d1c7a615956188f8ce27a4b4b9dd8d94bb6f64"
+      "sha256": "146c09afa250ad3764c528a18977dd73c29fe8ad68d637298f7f3cd9ac98d4b7"
     },
     {
       "path": "scripts/spacetime-publish-receipt.d.mts",
@@ -1305,7 +1305,7 @@
     {
       "path": "scripts/verify-0.4.0-sealed-launch.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "15ccfe27299f96fd6bc9d35e4772014ed73de0062ef1093c908d746175028f85"
+      "sha256": "53c18013153e74b1f755f905cbca1b82827ba881e82af68d3beaa9d3cde4f5d0"
     },
     {
       "path": "scripts/verify-admission-request-suspension.d.mts",

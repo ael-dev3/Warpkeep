@@ -47,11 +47,23 @@ The freeze itself has one supported publisher entrypoint:
 `npm run stdb:genesis001:freeze-publish -- publish
 --confirm-freeze-nonce=3f158f17acd5e1e63c74befef7cb3ccab7cb07feaaed432e7483467e1c856f00`.
 Run it only from the exact reviewed protected-main checkout with exact absolute
-paths supplied for `SPACETIME_BIN`, `WKG001_PNPM_EXECUTABLE_PATH`,
-`WKG001_PNPM_STORE_PATH`, `WKG001_PRODUCTION_SPACETIME_CLI_CONFIG_PATH`, and
-`WKG001_PRODUCTION_ADMIN_SECRET_PATH`. The CLI config and administrator secret
-must be existing owner-private files. Do not substitute an ambient `HOME`, a raw
-`SPACETIME_TOKEN`, or copied credentials.
+paths supplied for `SPACETIME_BIN`, `WKG001_NODE_EXECUTABLE_PATH`,
+`WKG001_PRODUCTION_DEPENDENCY_CACHE_ROOT`,
+`WKG001_PRODUCTION_SPACETIME_CLI_CONFIG_PATH`, and
+`WKG001_PRODUCTION_ADMIN_SECRET_PATH`. The Node input must be the reviewed
+standalone v24.19.0 binary; the publisher copies it into the owner-private run,
+requires mode 0500, its exact SHA-256 and Node.js Foundation signature, and
+re-attests it throughout the release. The dependency-cache input is read only:
+the publisher derives the exact 16-package Darwin/ARM64 closure from the
+historical lock, verifies every integrity-addressed archive, safely constructs
+`node_modules` without pnpm, Corepack, Bash, or network access, and re-attests
+both archive and installed-tree identities after each build. The CLI config and
+administrator secret must be existing owner-private files. The pinned
+SpacetimeDB 2.6.1 CLI (commit `052c83fe984a4c4eb7bb4f9afa5c6b1903891d87`)
+and its standalone companion are copied into one private snapshot, re-attested
+before and after builds, loopback proof, live reads, and the supervised release
+gate, and bound into build provenance. Do not substitute an ambient `HOME`, a
+raw `SPACETIME_TOKEN`, or copied credentials.
 
 Before it can release its one supervised `--delete-data=never` publication, the
 publisher privately materializes and builds the exact
@@ -68,8 +80,12 @@ owner-private mode-0600 final receipt under the configured private workspace's
 `receipts` directory. It binds the full production database identity,
 protected-main commit, exact historical source and ABI digests, freeze nonce,
 built artifact digest, equal candidate/postflight descriptor digests, and the
-canonical live policy receipt and its digest. Success output contains only the
-receipt basename and file SHA-256. The final receipt is separate from retained
+canonical live policy receipt and its digest. Its strict build-provenance block
+also binds the reviewed Node digest/version, exact CLI version/commit and both
+CLI executable digests, historical lock digest, dependency-installer profile,
+selected archive closure, constructed dependency tree, and their canonical
+provenance digest. Success output contains only the receipt basename and file
+SHA-256. The final receipt is separate from retained
 ambiguous-outcome recovery metadata; no applicant or player state enters either
 record.
 
@@ -115,10 +131,12 @@ production administrator secret runner. It injects the existing secret without
 putting it in process arguments, shell history, or the environment of the
 calling shell; no secret rotation or manual secret copy is required. The release
 bundle must include generated bindings for `genesis_001_access_policy_v1`.
+Resolve `<operator-private-support-root>` locally to the reviewed owner-private
+operations directory; never commit a literal user-home path.
 
 ```sh
 cd /absolute/path/to/the/verified-release-checkout
-'/Users/marko/Library/Application Support/Warpkeep/operations/bin/warpkeep-secrets' run-admin -- \
+'<operator-private-support-root>/bin/warpkeep-secrets' run-admin -- \
   node node_modules/tsx/dist/cli.mjs scripts/hermes-admin.ts \
   export-access-request-census --dry-run \
   --g001-admission-freeze-attestation \
