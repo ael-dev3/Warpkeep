@@ -16,27 +16,54 @@ describe('latest in-menu patch notes', () => {
     ) as { version: string };
 
     expect(Object.keys(WARPKEEP_PATCH_NOTES_BY_VERSION)).toContain(packageJson.version);
-    expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
-      releasedOn: '2 AUG 2026',
-      title: 'THE REALM STANDS READY'
-    });
-    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /mobile graphics session falters.*Performance mode.*privacy-safe diagnostics/i
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Request Access.*first accepted gesture.*Request Received.*never retries/i
-    );
-    expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
-      /Mini App.*available resource order.*four permanent Workers/i
-    );
+    if (packageJson.version === '0.3.43') {
+      expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
+        releasedOn: '2 AUG 2026',
+        title: 'THE REALM STANDS READY'
+      });
+      expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+        /mobile graphics session falters.*Performance mode.*privacy-safe diagnostics/i
+      );
+      expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+        /Request Access.*first accepted gesture.*Request Received.*never retries/i
+      );
+      expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).toMatch(
+        /Mini App.*available resource order.*four permanent Workers/i
+      );
+      expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('one clear account');
+      expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
+        'requests manual review only'
+      );
+    } else {
+      expect(packageJson.version).toBe('0.4.0');
+      expect(getLatestPatchNotes(packageJson.version)).toMatchObject({
+        releasedOn: '27 AUG 2026',
+        title: 'THE SECOND GENESIS WAITS'
+      });
+    }
     expect(getLatestPatchNotes(packageJson.version)?.highlights.join(' ')).not.toMatch(
       /released to players|deployed to players|public balances|guaranteed rewards/i
     );
-    expect(getLatestPatchNotes(packageJson.version)?.summary).toContain('one clear account');
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
-    expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain(
-      'requests manual review only'
+
+    const alpha040 = getLatestPatchNotes('0.4.0');
+    expect(alpha040?.summary).toMatch(/Genesis 001.*0\.3\.43.*Genesis 002.*sealed/i);
+    expect(alpha040?.highlights.join(' ')).toMatch(
+      /realm chooser.*green check.*admitted.*red X.*not admitted.*tooltips/i
     );
+    expect(alpha040?.highlights.join(' ')).toMatch(
+      /existing Genesis 001 keepers.*0\.3\.43.*new admissions.*access requests.*suspended/i
+    );
+    expect(alpha040?.highlights.join(' ')).toMatch(
+      /Genesis 002.*0\.4\.0.*zero admitted players.*private.*cannot be entered/i
+    );
+    expect(alpha040?.alphaNotice).toMatch(
+      /new admissions.*suspended.*Genesis 002.*no admitted users.*cannot be entered/i
+    );
+    expect(`${alpha040?.summary} ${alpha040?.highlights.join(' ')} ${alpha040?.alphaNotice}`)
+      .not.toMatch(
+        /explore.*Genesis 002|Greater Realm is live|construction (?:is|now) live|combat (?:is|now) live/i
+      );
 
     expect(getLatestPatchNotes('0.3.42')).toMatchObject({
       title: 'THE GATE FALLS QUIET'

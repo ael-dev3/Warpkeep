@@ -6,6 +6,20 @@ export type LatestPatchNotes = Readonly<{
   alphaNotice: string;
 }>;
 
+const ALPHA_0_4_0_PATCH_NOTES: LatestPatchNotes = Object.freeze({
+  releasedOn: '27 AUG 2026',
+  title: 'THE SECOND GENESIS WAITS',
+  summary:
+    'Genesis 001 remains the preserved 0.3.43 Realm, while the Genesis 002 world foundation arrives sealed behind the 0.4.0 launcher.',
+  highlights: Object.freeze([
+    'A new realm chooser shows a green check when the signed-in keeper is admitted, a red X when they are not admitted, and clear tooltips explaining each realm-specific state.',
+    'Existing Genesis 001 keepers retain their 0.3.43 Realm access; new admissions and access requests are suspended while the future admission path is rebuilt.',
+    'Genesis 002 carries the 0.4.0 world foundation with zero admitted players. Its data remains private, and it cannot be entered, queried by players, or reached through an access request.'
+  ]),
+  alphaNotice:
+    'Alpha 0.4.0 remains unfinished. New admissions are suspended, Genesis 002 has no admitted users and cannot be entered, and construction, units, combat, alliances, chat, and the larger strategy loop are not live.'
+});
+
 const ALPHA_0_3_43_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   releasedOn: '2 AUG 2026',
   title: 'THE REALM STANDS READY',
@@ -373,6 +387,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
+    '0.4.0': ALPHA_0_4_0_PATCH_NOTES,
     '0.3.43': ALPHA_0_3_43_PATCH_NOTES,
     '0.3.42': ALPHA_0_3_42_PATCH_NOTES,
     '0.3.41': ALPHA_0_3_41_PATCH_NOTES,
