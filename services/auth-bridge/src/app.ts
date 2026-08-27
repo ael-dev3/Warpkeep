@@ -139,6 +139,12 @@ const V2_REFRESH_PATH = '/v2/session/refresh'
 const V2_LOGOUT_PATH = '/v2/session/logout'
 const V2_ACCESS_STATUS_PATH = '/v2/access/status'
 const V2_ACCESS_REQUEST_PATH = '/v2/access/request'
+/**
+ * Release-bound 0.4.0 policy. Status inspection stays available, but the
+ * production bridge rejects new submissions before rate limiting,
+ * authentication, admission resolution, or database access.
+ */
+export const ACCESS_REQUEST_SUBMISSIONS_SUSPENDED = true as const
 export const MINIAPP_WEBHOOK_PATH = '/v1/farcaster/miniapp/webhook'
 export const ADMISSION_NOTIFICATION_PATH = '/v1/admin/admission-notification'
 export const ADMISSION_NOTIFICATION_RECOVERY_PATH = '/v1/admin/admission-notification-recovery'
@@ -232,6 +238,8 @@ export interface AuthBridgeDependencies {
   configReader?: (env: WorkerEnv) => BridgeConfig
   logger?: SafeLogger
   now?: () => number
+  /** Test seam for the dormant submission implementation; production omits it. */
+  accessRequestSubmissionsSuspended?: boolean
 }
 
 const noSecretLogger: SafeLogger = {
@@ -1661,6 +1669,9 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
   const configReader = dependencies.configReader ?? readBridgeConfig
   const logger = dependencies.logger ?? noSecretLogger
   const now = dependencies.now ?? Date.now
+  const accessRequestSubmissionsSuspended =
+    dependencies.accessRequestSubmissionsSuspended
+    ?? ACCESS_REQUEST_SUBMISSIONS_SUSPENDED
 
   return {
     async fetch(request: Request, env: WorkerEnv): Promise<Response> {
@@ -1736,6 +1747,17 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             503,
             'qa_observer_paused',
             'The read-only QA observer is disabled.',
+          )
+        }
+        if (
+          url.pathname === V2_ACCESS_REQUEST_PATH
+          && (request.method === 'POST' || request.method === 'OPTIONS')
+          && accessRequestSubmissionsSuspended
+        ) {
+          throw new HttpError(
+            503,
+            'admission_requests_suspended',
+            'New admission requests are temporarily suspended.',
           )
         }
         if (request.method === 'OPTIONS' && isAccessRequestPath(url.pathname)) {

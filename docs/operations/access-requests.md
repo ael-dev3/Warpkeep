@@ -114,6 +114,13 @@ profile resolution, plan reads, or reducers. This covers `admit-founder`,
 `recover-admission-notification`, in both dry-run and confirmed forms. Read-only
 status, notification inspection, and census commands remain available.
 
+The 0.4.0 auth bridge independently rejects both `POST` and browser preflight
+for `/v2/access/request` with the fixed `admission_requests_suspended` response
+before rate limiting, credential verification, session lookup, admission
+resolution, or database access. The read-only `/v2/access/status` route remains
+available so existing state can still be inspected. The browser hides request
+controls, but that presentation is not the security boundary.
+
 Admission remains deliberately separate and unavailable while this source-bound
 suspension is present. If a later reviewed release reopens it, a missing FID may
 use only the reviewed `hermes-admit-dry` and `hermes-admit-confirm` envelope rows;
