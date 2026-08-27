@@ -61,3 +61,11 @@ condition = "AND"
 regexTarget = "secret"
 regexes = ['''^notification-secret-material-00001$''']
 paths = ['''^tests/productionPlayerCanaryOperator\.test\.ts$''']
+
+[[allowlists]]
+description = "Non-secret sealed-launch boolean schema key"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^g002AdmissionMutationsEnabled$''']
+paths = ['''^scripts/verify-0\.4\.0-sealed-launch\.mjs$''']
