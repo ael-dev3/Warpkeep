@@ -73,6 +73,14 @@ test('v13 through v15 remain frozen prefixes before the v16 Realm Chat append', 
 test('general rehearsal retains v15 schema and row preservation inside v17', () => {
   const proof = source('../../scripts/verify-spacetime-additive-migration.mjs');
   const receipt = source('../../scripts/spacetime-additive-migration-proof.mjs');
+  const v13PreservationStart = proof.indexOf(
+    '// Prove the complete v13 suffix survives the v14 append while populated.',
+  );
+  const v13PreservationEnd = proof.indexOf(
+    '// Populate both private v14 tables before the v15 append.',
+    v13PreservationStart,
+  );
+  const v13Preservation = proof.slice(v13PreservationStart, v13PreservationEnd);
 
   assert.match(proof, /spacetimedb\/migration-fixtures\/additive-v13-schema/);
   assert.match(proof, /function assertAdditiveV13Schema\(before, after\)/);
@@ -88,6 +96,40 @@ test('general rehearsal retains v15 schema and row preservation inside v17', () 
   assert.match(proof, /assertAdditiveV16Schema\(emptyV15, emptyV16\)/);
   assert.match(proof, /tableRowDigests\([\s\S]*deployedV12Tables[\s\S]*populatedWaterStoneV12Rows/);
   assert.match(proof, /'access_request_v1',[\s\S]*\),\s*0n/);
+  assert.ok(v13PreservationStart >= 0 && v13PreservationEnd > v13PreservationStart);
+  assert.match(v13Preservation, /fixture_seed_access_request_sentinel_v13/);
+  assert.match(
+    v13Preservation,
+    /const dailyMarksV13Rows = await tableRowDigests\([\s\S]*deployedV13Tables/,
+  );
+  assert.match(
+    v13Preservation,
+    /count\([\s\S]*'access_request_v1'\)[\s\S]*1n/,
+  );
+  assert.ok(
+    (v13Preservation.match(/dailyMarksV13Rows/g) ?? []).length >= 4,
+    'v13 request sentinel digest must survive upgrade, republish, and rejected downgrade',
+  );
+
+  const currentCensusStart = proof.indexOf(
+    '// Read the preserved v13 applicant through the current complete production',
+  );
+  const currentCensusEnd = proof.indexOf(
+    'await publish(\n      server,\n      owner.token,\n      currentCandidateInspectionFixture,\n      dailyMarksMigrationDatabase,',
+    currentCensusStart,
+  );
+  assert.ok(currentCensusStart >= 0 && currentCensusEnd > currentCensusStart);
+  const currentCensus = proof.slice(currentCensusStart, currentCensusEnd);
+  assert.match(currentCensus, /const retainedAccessRequestFid = 991_201n/);
+  assert.match(currentCensus, /access_request_get_status_v1[\s\S]*status: 'not_requested'/);
+  assert.match(currentCensus, /admin_list_access_requests_v1/);
+  assert.match(currentCensus, /\[0,0,100,true\]/);
+  assert.match(currentCensus, /admissionState: 'missing'[\s\S]*requestState: 'resolved'/);
+  assert.match(currentCensus, /totalRequests: 1n[\s\S]*pendingRequests: 0n/);
+  assert.match(currentCensus, /access_request_submit_v1[\s\S]*500/);
+  assert.match(currentCensus, /ACCESS_REQUESTS_SEALED/);
+  assert.ok((currentCensus.match(/admin_list_access_requests_v1/g) ?? []).length >= 2);
+  assert.ok((currentCensus.match(/access_request_get_status_v1/g) ?? []).length >= 2);
   assert.match(proof, /'--delete-data=never'/);
   assert.match(proof, /value\.startsWith\('--delete-data='/);
   assert.doesNotMatch(proof, /--delete-data=(?:always|on-conflict|if-required)/);
@@ -107,7 +149,7 @@ test('general rehearsal retains v15 schema and row preservation inside v17', () 
   assert.match(receipt, /currentCandidateTableSchemaDigest/);
 });
 
-test('connected rehearsal contains the bounded private request lifecycle', () => {
+test('connected rehearsal seals current requests while preserving grandfathered admission', () => {
   const proof = source('../../scripts/verify-spacetime-additive-migration.mjs');
   const lifecycleStart = proof.indexOf('async function verifyAccessRequestHttpLifecycle(');
   const lifecycleEnd = proof.indexOf('\nfunction parseExpeditionState(', lifecycleStart);
@@ -117,6 +159,14 @@ test('connected rehearsal contains the bounded private request lifecycle', () =>
     'await verifyResolverHttpLifecycle(',
     invocation,
   ));
+  const resourceLifecycleStart = proof.indexOf(
+    'async function verifyActualModuleResourceLifecycle(',
+  );
+  const resourceLifecycleEnd = proof.indexOf(
+    '\nasync function verifyActualModuleExpeditionLifecycles(',
+    resourceLifecycleStart,
+  );
+  const resourceLifecycle = proof.slice(resourceLifecycleStart, resourceLifecycleEnd);
 
   assert.ok(lifecycleStart >= 0 && lifecycleEnd > lifecycleStart);
   assert.match(
@@ -129,51 +179,77 @@ test('connected rehearsal contains the bounded private request lifecycle', () =>
   );
   assert.match(
     lifecycle,
-    /access_request_submit_v1[\s\S]*requestCredential\('submit', fid\)/,
+    /access_request_submit_v1[\s\S]*requestCredential\('submit'\)[\s\S]*500/,
+  );
+  assert.match(
+    lifecycle,
+    /The module instance encountered a fatal error: ACCESS_REQUESTS_SEALED/,
   );
   assert.match(
     lifecycle,
     /access_request_get_status_v1[\s\S]*requestCredential\('status'\)/,
   );
-  assert.match(lifecycle, /const submitConcurrentBatch = async[\s\S]*access_request_submit_v1/);
   assert.equal((lifecycle.match(/access_request_submit_v1/g) ?? []).length, 1);
   assert.equal((lifecycle.match(/access_request_get_status_v1/g) ?? []).length, 2);
-  assert.match(lifecycle, /syntheticMissingAccessRequestFid,\s*2,\s*'two-call concurrent'/);
-  assert.match(lifecycle, /syntheticMissingAccessRequestFid,\s*10,\s*'ten-call concurrent'/);
-  assert.match(lifecycle, /syntheticMissingAccessRequestFid,\s*50,\s*'fifty-call concurrent'/);
-  assert.match(lifecycle, /syntheticSecondAccessRequestFid,\s*2,\s*'second-FID concurrent'/);
-  assert.match(lifecycle, /for \(const result of results\) assert\.deepEqual\(result, first\)/);
-  assert.match(lifecycle, /assert\.deepEqual\(tenCallResult, submitted\)/);
-  assert.match(lifecycle, /assert\.deepEqual\(fiftyCallResult, submitted\)/);
-  assert.match(lifecycle, /assert\.deepEqual\(finalStatus, submitted\)/);
+  assert.doesNotMatch(lifecycle, /submitConcurrentBatch|two-call concurrent|ten-call concurrent|fifty-call concurrent|second-FID concurrent/);
+  assert.match(
+    lifecycle,
+    /status:\s*'not_requested',[\s\S]*requestedAtMicros:\s*undefined/,
+  );
+  assert.match(lifecycle, /assert\.deepEqual\(finalStatus,\s*initial(?:Status)?\)/);
   assert.match(lifecycle, /admin_list_access_requests_v1[\s\S]*requestCredential\('status'\)[\s\S]*500/);
   assert.match(lifecycle, /get_alpha_backend_info[\s\S]*requestCredential\('status'\)[\s\S]*500/);
   assert.match(lifecycle, /get_my_resource_state_v1[\s\S]*requestCredential\('status'\)[\s\S]*500/);
   assert.match(lifecycle, /createEphemeralJwt\(privateKey, adminServiceClaims\(\)\)/);
-  assert.match(lifecycle, /admissionState: 'missing'/);
+  assert.match(lifecycle, /assert\.equal\(page\.totalRequests,\s*0n\)/);
+  assert.match(lifecycle, /assert\.equal\(page\.pendingRequests,\s*0n\)/);
+  assert.match(lifecycle, /assert\.deepEqual\(page\.entries,\s*\[\]\)/);
   assert.match(lifecycle, /auth_resolver_get_fid_admission_v2/);
   assert.match(lifecycle, /assert\.deepEqual\(admission, \['missing', 0\]\)/);
-  assert.match(proof, /stage = 'disabled-founder-access-request'/);
-  assert.match(proof, /admissionState: 'disabled'[\s\S]*requestState: 'pending'/);
-  assert.match(proof, /Local disable changed permanent founder authority state/);
-  assert.match(proof, /Disabled founder access request changed permanent founder authority state/);
-  assert.match(proof, /status: 'already_admitted'[\s\S]*pendingRequests: 0n/);
-  assert.match(proof, /stage = 'founded-access-request-reset'/);
-  assert.match(proof, /admin_get_access_request_reset_status_v1/);
-  assert.match(proof, /admin_reset_access_request_v1/);
-  assert.match(proof, /founderReapplicationRetainedStateDigest/);
-  assert.match(proof, /reset_access_request_v1'[\s\S]*!== 1n/);
-  assert.match(proof, /Stale founded reset damaged the fresh request/);
-  assert.match(proof, /Disabled pending-request reset changed retained state or retry history/);
-  assert.match(proof, /final fresh founder access request/);
+  assert.ok(
+    resourceLifecycleStart >= 0 && resourceLifecycleEnd > resourceLifecycleStart,
+  );
+  assert.match(resourceLifecycle, /stage = 'grandfathered-founder-preservation'/);
+  assert.match(resourceLifecycle, /stage = 'sealed-current-admission-boundary'/);
+  assert.match(resourceLifecycle, /ADMISSIONS_SEALED/);
+  assert.match(
+    proof,
+    /const frozenLegacyMarksPolicyVersion = 'snap-current-linked-wallet-1to1-v1'/,
+  );
+  assert.ok(
+    (resourceLifecycle.match(
+      /expectedMarksPolicyVersion: frozenLegacyMarksPolicyVersion/g,
+    ) ?? []).length >= 4,
+  );
+  assert.match(
+    resourceLifecycle,
+    /admin_(?:allow_fid|disable_fid|admit_founder_v1)[\s\S]*530/,
+  );
+  assert.doesNotMatch(
+    proof,
+    /stage = '(?:disabled-founder-access-request|founded-access-request-reset)'/,
+  );
 
   assert.ok(invocation >= 0);
   assert.match(finalOwnerRead, /currentCandidateInspectionFixture/);
   assert.match(finalOwnerRead, /tableRowDigests\([\s\S]*deployedV12Tables/);
-  assert.match(finalOwnerRead, /access_request_v1 WHERE fid = \$\{syntheticMissingAccessRequestFid\}/);
-  assert.match(finalOwnerRead, /access_request_v1 WHERE fid = \$\{syntheticSecondAccessRequestFid\}/);
-  assert.match(finalOwnerRead, /allowed_fid WHERE fid = \$\{syntheticMissingAccessRequestFid\}/);
-  assert.match(finalOwnerRead, /allowed_fid WHERE fid = \$\{syntheticSecondAccessRequestFid\}/);
+  assert.match(finalOwnerRead, /'access_request_v1',\s*\),\s*0n/);
+  assert.match(
+    finalOwnerRead,
+    /access_request_v1 WHERE fid = \$\{syntheticMissingAccessRequestFid\}`[,]?\s*\)\),\s*0n/,
+  );
+  assert.match(
+    finalOwnerRead,
+    /access_request_v1 WHERE fid = \$\{syntheticSecondAccessRequestFid\}`[,]?\s*\)\),\s*0n/,
+  );
+  assert.match(
+    finalOwnerRead,
+    /allowed_fid WHERE fid = \$\{syntheticMissingAccessRequestFid\}`[,]?\s*\)\),\s*0n/,
+  );
+  assert.match(
+    finalOwnerRead,
+    /allowed_fid WHERE fid = \$\{syntheticSecondAccessRequestFid\}`[,]?\s*\)\),\s*0n/,
+  );
 });
 
 test('dedicated Worker v11-to-v12 proof remains a separate frozen boundary', () => {
