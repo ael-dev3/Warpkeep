@@ -264,7 +264,7 @@ function exactSourceAttestation(launch, dependencies) {
     });
     closure = dependencies.verifySourceClosure({ repositoryRoot: REPOSITORY_ROOT });
     if (
-      closure?.memberCount !== 926
+      closure?.memberCount !== 952
       || typeof closure.manifestSha256 !== 'string'
       || !SHA256.test(closure.manifestSha256)
     ) fail('PRODUCTION_PLAYER_CANARY_ACTIVATION_LAUNCHER_CLOSURE_INVALID');

@@ -187,3 +187,4 @@ export type QaObserverGetRealmAttestationV2Args = __Infer<typeof QaObserverGetRe
 export type QaObserverGetRealmAttestationV2Result = __Infer<typeof QaObserverGetRealmAttestationV2Procedure.returnType>;
 export type QaObserverGetRealmSnapshotV1Args = __Infer<typeof QaObserverGetRealmSnapshotV1Procedure.params>;
 export type QaObserverGetRealmSnapshotV1Result = __Infer<typeof QaObserverGetRealmSnapshotV1Procedure.returnType>;
+

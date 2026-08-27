@@ -38,19 +38,28 @@ import {
 
 const MEMBER_PATH = /^(?:docs\/operations\/greater-realm-production-launch-envelope\.sh\.txt|(?:owner-canary\/)?index\.html|package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|vite\.config\.ts|spacetimedb\/(?:package\.json|pnpm-(?:lock|workspace)\.yaml|(?:src|genesis002)\/[A-Za-z0-9._/-]+)|(?:\.github\/workflows|config\/releases|scripts|services\/auth-bridge|src)\/[A-Za-z0-9._/-]+)$/u;
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
-const MAX_MEMBERS = 926;
+const MAX_MEMBERS = 952;
 const SCRIPT_GRAPH_ROOTS = Object.freeze([
   'scripts/auth-bridge-notification-b0-deploy.mjs',
   'scripts/verify-auth-bridge-notification-b0-policy.mjs',
   'scripts/auth-bridge-notification-prepared-deploy.mjs',
+  'scripts/genesis001-frozen-publisher.ts',
+  'scripts/greater-realm-production-pages-evidence-operator.ts',
+  'scripts/greater-realm-production-verifier.ts',
   'scripts/hermes-admin.ts',
+  'scripts/inner-keep-operator.ts',
   'scripts/notification-pages-build-release-validator.mjs',
   'scripts/notification-pages-deploy-lane.mjs',
   'scripts/notification-pages-private-deploy-launcher.mjs',
   'scripts/production-player-canary-activation-launcher.mjs',
   'scripts/production-player-canary-operator.mjs',
   'scripts/production-player-canary-browser-launcher.mjs',
+  'scripts/profiles/profiles-operator.ts',
   'scripts/verify-0.4.0-sealed-launch.mjs',
+  'scripts/verify-auth-bridge-notification-prepared-receipt.mjs',
+  'scripts/water-revision-operator.ts',
+  'scripts/worker-return-repair-operator.ts',
+  'scripts/worker-rollout-operator.ts',
 ]);
 const SEALED_LAUNCH_SOURCE_GRAPH_ROOTS = Object.freeze(
   Object.values(SEALED_LAUNCH_SOURCE_PATHS).filter(path => (
@@ -61,6 +70,7 @@ const DECLARATION_OPTIONAL_GRAPH_MEMBERS = new Set([
   'scripts/farcaster-miniapp-contract.mjs',
   'scripts/validate-pages-deploy-config.mjs',
   'scripts/verify-alpha-production.mjs',
+  'scripts/verify-auth-bridge-notification-prepared-receipt.mjs',
 ]);
 const NON_RUNTIME_DECLARATIONS_OUTSIDE_PROTECTED_CLOSURE = new Set([
   'scripts/production-player-canary-activation-launcher.mjs',

@@ -37,8 +37,8 @@ describe('notification bridge B0 security closure topology', () => {
     expect(derived).toEqual(
       AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS,
     );
-    expect(derived).toHaveLength(926);
-  }, 30_000);
+    expect(derived).toHaveLength(952);
+  }, 120_000);
 
   it('includes every B0 effect, recovery, workflow, policy, and ABI path', () => {
     for (const path of B0_CLOSURE_PATHS) {

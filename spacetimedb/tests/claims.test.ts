@@ -5,6 +5,7 @@ import {
   ACCESS_REQUEST_RESOLVER_ISSUANCE_SECONDS,
   ClaimValidationError,
   MAX_ACCESS_REQUEST_RESOLVER_SESSION_SECONDS,
+  MAX_HERMES_ADMIN_CONNECTION_TOKEN_IAT_SKEW_MICROS,
   MAX_AUTH_EPOCH_RESOLVER_SESSION_SECONDS,
   MAX_HERMES_ADMIN_SESSION_SECONDS,
   MAX_PLAYER_SESSION_SECONDS,
@@ -33,6 +34,7 @@ const config = {
 test('security authority windows stay pinned to the production limits', () => {
   assert.equal(MAX_PLAYER_SESSION_SECONDS, 600);
   assert.equal(MAX_HERMES_ADMIN_SESSION_SECONDS, 300);
+  assert.equal(MAX_HERMES_ADMIN_CONNECTION_TOKEN_IAT_SKEW_MICROS, 1_000_000n);
   assert.equal(MAX_AUTH_EPOCH_RESOLVER_SESSION_SECONDS, 60);
   assert.equal(ACCESS_REQUEST_RESOLVER_ISSUANCE_SECONDS, 15);
   assert.equal(MAX_ACCESS_REQUEST_RESOLVER_SESSION_SECONDS, 15);
@@ -282,15 +284,37 @@ test('expires Hermes authority at reducer time even when the socket stays open',
   }
 });
 
-test('rejects Hermes authority before its declared issuance time', () => {
+test('rejects Hermes authority before the bounded connection-token skew', () => {
   const issuedAt = 1_700_000_000;
   assert.throws(
     () => readFreshHermesAdminJwt(
       adminPayload(),
-      BigInt(issuedAt) * 1_000_000n - 1n,
+      BigInt(issuedAt) * 1_000_000n
+        - MAX_HERMES_ADMIN_CONNECTION_TOKEN_IAT_SKEW_MICROS
+        - 1n,
       config,
     ),
     (error: unknown) => error instanceof ClaimValidationError && error.code === 'INVALID_ADMIN_SESSION',
+  );
+});
+
+test('accepts only the bounded SpacetimeDB connection-token iat rounding skew', () => {
+  const issuedAtMicros = 1_700_000_000n * 1_000_000n;
+  const accepted = readFreshHermesAdminJwt(
+    adminPayload(),
+    issuedAtMicros - MAX_HERMES_ADMIN_CONNECTION_TOKEN_IAT_SKEW_MICROS,
+    config,
+  );
+  assert.equal(accepted.subject, 'service:hermes');
+
+  assert.throws(
+    () => readFreshHermesAdminJwt(
+      adminPayload(),
+      issuedAtMicros - MAX_HERMES_ADMIN_CONNECTION_TOKEN_IAT_SKEW_MICROS - 1n,
+      config,
+    ),
+    (error: unknown) => error instanceof ClaimValidationError
+      && error.code === 'INVALID_ADMIN_SESSION',
   );
 });
 

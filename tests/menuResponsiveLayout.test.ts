@@ -234,6 +234,25 @@ describe('Warpkeep main-menu responsive layout', () => {
     expect(tooltip).toContain('max-width: min(19rem, calc(100vw - 2rem));');
   });
 
+  it('keeps complete realm names visible in the desktop menu rail', () => {
+    const css = readFileSync(
+      resolve(process.cwd(), 'src/components/menu/RealmChoiceSelector.css'),
+      'utf8'
+    );
+    const button = readCssBlock(
+      css,
+      '.warpkeep-menu .realm-choice-selector__button {'
+    );
+    const name = readCssBlock(css, '.realm-choice-selector__name {');
+    const admission = readCssBlock(css, '.realm-choice-selector__admission {');
+
+    expect(button).toContain('grid-template-columns: minmax(0, 1fr);');
+    expect(name).toContain('overflow: visible;');
+    expect(name).toContain('text-overflow: clip;');
+    expect(admission).toContain('display: flex;');
+    expect(admission).toContain('white-space: nowrap;');
+  });
+
   it('frees vertical space at 568x320 without hiding the project link', () => {
     const css = readFileSync(
       resolve(process.cwd(), 'src/components/menu/WarpkeepMainMenu.css'),

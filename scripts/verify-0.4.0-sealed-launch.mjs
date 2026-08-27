@@ -43,6 +43,8 @@ export const SEALED_LAUNCH_SOURCE_PATHS = Object.freeze({
     'scripts/genesis001-frozen-publisher-core.ts',
   genesis001FrozenPublisherRuntimeSource:
     'scripts/genesis001-frozen-publisher-runtime.ts',
+  genesis001FrozenPublisherCliSource:
+    'scripts/genesis001-frozen-publisher.ts',
   genesis001CensusPrivacySafeReceiptSource:
     'scripts/genesis001-census-privacy-safe-receipt.mjs',
   genesis001AdmissionMonitorSuspensionSource:
@@ -396,6 +398,24 @@ function verifyGenesis001Policy(sources) {
       fail('SEALED_LAUNCH_G001_FROZEN_RUNTIME_INVALID');
     }
   }
+  for (const token of [
+    'createGenesis001FrozenPublisherDependencies',
+    'createGenesis001SignalLatch',
+    'requireGreaterRealmProductionTransportTarget',
+    '--confirm-freeze-nonce=',
+    "requiredExactPath(input.environment, 'SPACETIME_BIN')",
+    "'WKG001_PRODUCTION_SPACETIME_CLI_CONFIG_PATH'",
+    "'WKG001_PRODUCTION_ADMIN_SECRET_PATH'",
+  ]) {
+    if (!sources.genesis001FrozenPublisherCliSource.includes(token)) {
+      fail('SEALED_LAUNCH_G001_FROZEN_PUBLISHER_CLI_INVALID');
+    }
+  }
+  requireOnce(
+    sources.genesis001FrozenPublisherCliSource,
+    'cli = attestGenesis001PinnedCli(executable, configuration.childEnvironment);',
+    'SEALED_LAUNCH_G001_FROZEN_PUBLISHER_CLI_INVALID',
+  );
 }
 
 function verifyGenesis002Policy(sources) {

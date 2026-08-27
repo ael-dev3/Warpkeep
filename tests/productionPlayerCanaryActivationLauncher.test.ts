@@ -273,7 +273,7 @@ function injected(calls: string[]) {
       assertProtectedSource: () => { calls.push('protected-source'); },
       verifySourceClosure: () => {
         calls.push('closure');
-        return { memberCount: 926, manifestSha256: '5'.repeat(64) };
+        return { memberCount: 952, manifestSha256: '5'.repeat(64) };
       },
       assertSourceTransition: () => {
         calls.push('transition');
@@ -638,7 +638,7 @@ describe('production player canary activation request launcher', () => {
     ) => Promise<unknown>)(launch, {
       writeRequest: fakeWriter,
       verifySourceClosure: () => ({
-        memberCount: 926,
+        memberCount: 952,
         manifestSha256: '0'.repeat(64),
       }),
     })).rejects.toThrow(

@@ -33,6 +33,8 @@ function checkedInSources() {
       source('scripts/genesis001-frozen-publisher-core.ts'),
     genesis001FrozenPublisherRuntimeSource:
       source('scripts/genesis001-frozen-publisher-runtime.ts'),
+    genesis001FrozenPublisherCliSource:
+      source('scripts/genesis001-frozen-publisher.ts'),
     genesis001CensusPrivacySafeReceiptSource:
       source('scripts/genesis001-census-privacy-safe-receipt.mjs'),
     genesis001AdmissionMonitorSuspensionSource:
@@ -409,6 +411,7 @@ describe('0.4.0 sealed-launch verifier', () => {
       ['genesis001FrozenMaterializerSource', '2ae51984e1fa6ce5b0028c1a250359fed79d819b', 'f'.repeat(40)],
       ['genesis001FrozenPublisherCoreSource', '--delete-data=never', '--delete-data=always'],
       ['genesis001FrozenPublisherCoreSource', 'const receipt =', "const modulePath = 'spacetimedb';\nconst receipt ="],
+      ['genesis001FrozenPublisherCliSource', 'cli = attestGenesis001PinnedCli(executable, configuration.childEnvironment);', 'cli = undefined;'],
       ['genesis001CensusPrivacySafeReceiptSource', 'warpkeep.genesis-001.census-export.privacy-safe.opaque-proof.v1', 'warpkeep.genesis-001.census-export.raw-sha256.v1'],
       ['genesis001AdmissionMonitorSuspensionSource', 'warpkeep-genesis001-admission-monitor-suspension-v1', 'warpkeep-genesis001-admission-monitor-suspension-v2'],
       ['genesis001AdmissionMonitorSuspensionSource', 'disabled: true,', 'disabled: false,'],

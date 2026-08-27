@@ -95,6 +95,17 @@ function fail(code: string): never {
   throw new Genesis002PrivateLoopbackError(code);
 }
 
+export function genesis002PrivateLoopbackAdminJwtTimes(
+  wallClockSeconds: number,
+) {
+  const issuedAt = wallClockSeconds - 30;
+  return Object.freeze({
+    issuedAt,
+    notBefore: issuedAt,
+    expiresAt: wallClockSeconds + 240,
+  });
+}
+
 function safeEnvironment(runtimeDirectory: string) {
   const inherited = Object.fromEntries([
     'PATH',
@@ -178,9 +189,11 @@ function jwt(privateKey: string, input: Readonly<{
   roles: readonly string[];
   fid?: string;
 }>) {
-  // Keep the disposable credential comfortably inside the module's exact
-  // freshness window even when host and transaction clocks straddle a second.
-  const now = Math.floor(Date.now() / 1_000) - 5;
+  // Give the disposable credential enough backward clock tolerance for the
+  // local transaction clock while staying strictly below the admin time cap.
+  const times = genesis002PrivateLoopbackAdminJwtTimes(
+    Math.floor(Date.now() / 1_000),
+  );
   const header = Buffer.from(JSON.stringify({ alg: 'ES256', typ: 'JWT' }))
     .toString('base64url');
   const payload = Buffer.from(JSON.stringify({
@@ -189,16 +202,16 @@ function jwt(privateKey: string, input: Readonly<{
     aud: ['warpkeep-spacetimedb'],
     token_type: 'spacetime-access',
     roles: input.roles,
-    iat: now,
-    nbf: now,
-    exp: now + 240,
+    iat: times.issuedAt,
+    nbf: times.notBefore,
+    exp: times.expiresAt,
     jti: randomBytes(18).toString('base64url'),
     ...(input.fid === undefined ? {} : {
       auth_version: 2,
       fid: input.fid,
       auth_epoch: 1,
-      session_iat: now,
-      session_exp: now + 300,
+      session_iat: times.issuedAt,
+      session_exp: times.issuedAt + 300,
     }),
   })).toString('base64url');
   const signed = `${header}.${payload}`;
@@ -391,7 +404,7 @@ export async function verifyGenesis002PrivateLoopback() {
       roles: [],
       fid: '9900002',
     });
-    transport = createGenesis002ProductionTransport({
+    const activeTransport = createGenesis002ProductionTransport({
       databaseIdentity: DATABASE_IDENTITY,
       adminSecret: ADMIN_SECRET,
       requestToken: async () => jwt(privateKey, {
@@ -402,11 +415,12 @@ export async function verifyGenesis002PrivateLoopback() {
         connect(server, DATABASE_ALIAS, token)
       ),
     });
+    transport = activeTransport;
     const importTransport = Object.freeze({
-      inspect: () => transport!.inspect(),
-      prepareSubmission: () => transport!.prepareSubmission!(),
-      submit: async (...arguments_: Parameters<typeof transport.submit>) => {
-        await transport!.submit(...arguments_);
+      inspect: () => activeTransport.inspect(),
+      prepareSubmission: () => activeTransport.prepareSubmission!(),
+      submit: async (...arguments_: Parameters<typeof activeTransport.submit>) => {
+        await activeTransport.submit(...arguments_);
       },
     });
     const receipt = await executeGenesis002ProductionImport({
@@ -429,7 +443,7 @@ export async function verifyGenesis002PrivateLoopback() {
       || receipt.activationMutationsEnabled !== false
       || receipt.playerPresentationEnabled !== false
     ) fail('GENESIS_002_LOOPBACK_FINALIZATION_INVALID');
-    await transport.close();
+    await activeTransport.close();
     transport = undefined;
 
     await requireConnectionRejected(

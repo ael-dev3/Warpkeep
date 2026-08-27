@@ -820,7 +820,7 @@ describe('notification-bridge-prepared protected workflow', () => {
         guardedRecoveryRequired: true,
         privateReceiptSinkRequired: true,
         installedToolchainByteAttestationRequired: true,
-        executableSecurityClosureMemberCount: 926,
+        executableSecurityClosureMemberCount: 952,
       });
   }, 60_000);
 
@@ -838,7 +838,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     });
     expect(paths).toEqual(manifest.members.map(member => member.path));
     expect(manifest.schemaVersion).toBe(2);
-    expect(paths).toHaveLength(926);
+    expect(paths).toHaveLength(952);
     expect(paths).toEqual(expect.arrayContaining([
       'scripts/auth-bridge-notification-prepared-deploy.mjs',
       'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
@@ -870,10 +870,14 @@ describe('notification-bridge-prepared protected workflow', () => {
       'public/.well-known/farcaster.json',
       'scripts/greater-realm-production-bootstrap.mjs',
       'scripts/greater-realm-production-publisher-core.ts',
+      'scripts/genesis001-frozen-publisher.ts',
+      'scripts/greater-realm-production-pages-evidence-operator.ts',
+      'scripts/greater-realm-production-verifier.ts',
       'scripts/greater-realm-release-gate-deploy-boundary.d.mts',
       'scripts/greater-realm-release-gate-deploy-boundary.mjs',
       'scripts/greater-realm-downstream-release-policy.ts',
       'scripts/hermes-admin.ts',
+      'scripts/inner-keep-operator.ts',
       'scripts/notification-pages-private-deploy-launcher.mjs',
       'scripts/notification-pages-private-deploy-operator.mjs',
       'scripts/notification-pages-live-receipt.mjs',
@@ -884,6 +888,11 @@ describe('notification-bridge-prepared protected workflow', () => {
       'scripts/production-player-canary-release-binding.mjs',
       'scripts/production-player-canary-operator-journal.mjs',
       'scripts/production-player-canary-operator.mjs',
+      'scripts/profiles/profiles-operator.ts',
+      'scripts/verify-auth-bridge-notification-prepared-receipt.mjs',
+      'scripts/water-revision-operator.ts',
+      'scripts/worker-return-repair-operator.ts',
+      'scripts/worker-rollout-operator.ts',
       'src/greater-realm/greaterRealmTransport.ts',
       'src/spacetime/greaterRealmProviderBridge.ts',
     ]));
@@ -891,6 +900,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       'scripts/farcaster-miniapp-contract.mjs',
       'scripts/validate-pages-deploy-config.mjs',
       'scripts/verify-alpha-production.mjs',
+      'scripts/verify-auth-bridge-notification-prepared-receipt.mjs',
       'scripts/verify-production-dist-exclusions.mjs',
     ]);
     expect(paths.filter(path => path.endsWith('.mjs')).length).toBe(
@@ -902,7 +912,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       repositoryRoot: root,
     })).toMatchObject({
         profile: 'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1',
-        memberCount: 926,
+        memberCount: 952,
         manifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
       });
   }, 90_000);
@@ -978,7 +988,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     }
   }, 300_000);
 
-  it('rejects missing, extra, and newly imported closure members', () => {
+  it('rejects a manifest missing a derived closure member', () => {
     const missing = createPolicyFixture();
     const missingManifestPath = resolve(
       missing,
@@ -1001,7 +1011,9 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: missing,
     })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
+  }, 90_000);
 
+  it('rejects an extra manifest member', () => {
     const extra = createPolicyFixture();
     const extraManifestPath = resolve(
       extra,
@@ -1029,7 +1041,9 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: extra,
     })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MANIFEST_INVALID');
+  }, 90_000);
 
+  it('rejects a newly imported local closure member', () => {
     const imported = createPolicyFixture();
     const importedDependency = 'scripts/atomic-install-file-family.mjs';
     const importedDeclaration = 'scripts/atomic-install-file-family.d.mts';
@@ -1048,7 +1062,9 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: imported,
     })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_TOO_LARGE');
+  }, 90_000);
 
+  it('rejects an unreviewed installed import', () => {
     const unreviewedInstalledImport = createPolicyFixture();
     const closureVerifier = resolve(
       unreviewedInstalledImport,
@@ -1063,7 +1079,9 @@ describe('notification-bridge-prepared protected workflow', () => {
     })).toThrow(
       'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_INSTALLED_IMPORT_INVALID',
     );
+  }, 90_000);
 
+  it('rejects a physically missing imported member', () => {
     const physicallyMissing = createPolicyFixture();
     rmSync(resolve(
       physicallyMissing,
@@ -1072,7 +1090,9 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: physicallyMissing,
     })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_IMPORT_UNRESOLVED');
+  }, 90_000);
 
+  it('rejects an unreferenced Worker source', () => {
     const unreferencedWorkerSource = createPolicyFixture();
     writeFileSync(resolve(
       unreferencedWorkerSource,
@@ -1083,7 +1103,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     })).toThrow(
       'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_WORKER_GRAPH_INCOMPLETE',
     );
-  }, 180_000);
+  }, 90_000);
 
   it('rejects noncanonical or byte-mutated closure manifests', () => {
     const root = createPolicyFixture();

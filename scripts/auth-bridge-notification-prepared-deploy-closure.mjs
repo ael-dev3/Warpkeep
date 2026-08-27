@@ -24,9 +24,9 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH =
 
 const MEMBER_PATH = /^(?:docs\/operations\/greater-realm-production-launch-envelope\.sh\.txt|(?:owner-canary\/)?index\.html|package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|vite\.config\.ts|spacetimedb\/(?:package\.json|pnpm-(?:lock|workspace)\.yaml|(?:src|genesis002)\/[A-Za-z0-9._/-]+)|(?:\.github\/workflows|config\/releases|scripts|services\/auth-bridge|src)\/[A-Za-z0-9._/-]+)$/u;
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
-const MAX_MANIFEST_BYTES = 192 * 1_024;
+const MAX_MANIFEST_BYTES = 256 * 1_024;
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
-const MAX_MEMBERS = 926;
+const MAX_MEMBERS = 952;
 const MANIFEST_KEYS = Object.freeze(['schemaVersion', 'profile', 'members']);
 const MEMBER_KEYS = Object.freeze(['path', 'digestProfile', 'sha256']);
 const RAW_FILE_DIGEST_PROFILE = 'raw-file-sha256-v1';
@@ -239,6 +239,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/genesis001-frozen-materializer.mjs',
     'scripts/genesis001-frozen-publisher-core.ts',
     'scripts/genesis001-frozen-publisher-runtime.ts',
+    'scripts/genesis001-frozen-publisher.ts',
     'scripts/genesis002-private-loopback-verifier.ts',
     'scripts/genesis002-production-import-core.ts',
     'scripts/genesis002-production-import-operator.ts',
@@ -311,16 +312,28 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/greater-realm-production-import-core.ts',
     'scripts/greater-realm-production-import-operator.ts',
     'scripts/greater-realm-production-legacy-aggregate.ts',
+    'scripts/greater-realm-production-pages-evidence-operator.ts',
+    'scripts/greater-realm-production-pages-evidence.ts',
     'scripts/greater-realm-production-provenance.ts',
     'scripts/greater-realm-production-publisher-core.ts',
     'scripts/greater-realm-production-publisher.ts',
     'scripts/greater-realm-production-relocation-core.ts',
     'scripts/greater-realm-production-relocation-operator.ts',
     'scripts/greater-realm-production-transport.ts',
+    'scripts/greater-realm-production-verifier-core.ts',
+    'scripts/greater-realm-production-verifier.ts',
     'scripts/greater-realm-release-gate-deploy-boundary.d.mts',
     'scripts/greater-realm-release-gate-deploy-boundary.mjs',
     'scripts/hermes-admin.ts',
     'scripts/hermes-machine-output.ts',
+    'scripts/inner-keep-operator-core.ts',
+    'scripts/inner-keep-operator.ts',
+    'scripts/inner-keep-population-runtime-contract.d.mts',
+    'scripts/inner-keep-population-runtime-contract.mjs',
+    'scripts/inner-keep-rabbit-runtime-contract.d.mts',
+    'scripts/inner-keep-rabbit-runtime-contract.mjs',
+    'scripts/inner-keep-runtime-asset-contract.d.mts',
+    'scripts/inner-keep-runtime-asset-contract.mjs',
     'scripts/notification-pages-build-release-validator.d.mts',
     'scripts/notification-pages-build-release-validator.mjs',
     'scripts/notification-pages-deploy-lane.d.mts',
@@ -343,6 +356,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/notification-pages-private-release-binding.mjs',
     'scripts/notification-pages-release-source-parser.d.mts',
     'scripts/notification-pages-release-source-parser.mjs',
+    'scripts/private-operator-report.ts',
     'scripts/production-admin-token-budget.d.mts',
     'scripts/production-admin-token-budget.mjs',
     'scripts/production-player-canary-activation-launcher.mjs',
@@ -370,7 +384,10 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/production-player-canary-release-binding.mjs',
     'scripts/profiles/farcaster-profile-policy.ts',
     'scripts/profiles/founder-admission-plan.ts',
+    'scripts/profiles/profile-apply-audit.ts',
+    'scripts/profiles/profile-plan-artifact.ts',
     'scripts/profiles/profile-transport.ts',
+    'scripts/profiles/profiles-operator.ts',
     'scripts/publish-spacetime-dev.d.mts',
     'scripts/publish-spacetime-dev.mjs',
     'scripts/qa-observer/local-fullstack-spacetime.d.mts',
@@ -395,9 +412,18 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/verify-auth-bridge-notification-b0-policy.mjs',
     'scripts/verify-auth-bridge-notification-prepared-policy.d.mts',
     'scripts/verify-auth-bridge-notification-prepared-policy.mjs',
+    'scripts/verify-auth-bridge-notification-prepared-receipt.mjs',
     'scripts/verify-greater-realm-release-gates.d.mts',
     'scripts/verify-greater-realm-release-gates.mjs',
     'scripts/verify-production-dist-exclusions.mjs',
+    'scripts/warpkeep-package-version.d.mts',
+    'scripts/warpkeep-package-version.mjs',
+    'scripts/water-revision-operator.ts',
+    'scripts/worker-return-repair-operator-core.ts',
+    'scripts/worker-return-repair-operator.ts',
+    'scripts/worker-rollout-controls.ts',
+    'scripts/worker-rollout-operator-core.ts',
+    'scripts/worker-rollout-operator.ts',
     'services/auth-bridge/package.json',
     'services/auth-bridge/pnpm-lock.yaml',
     'services/auth-bridge/pnpm-workspace.yaml',
