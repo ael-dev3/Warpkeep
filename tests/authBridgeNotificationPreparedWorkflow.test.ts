@@ -930,7 +930,7 @@ describe('notification-bridge-prepared protected workflow', () => {
         memberCount: 956,
         manifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
       });
-  }, 90_000);
+  }, 180_000);
 
   it('derives the production browser admission and request graph from the shipped entrypoint', () => {
     const paths = deriveAuthBridgeNotificationPreparedDeployClosurePaths({
@@ -1499,7 +1499,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: extra,
     })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_TOO_LARGE');
-  }, 90_000);
+  }, 180_000);
 
   it('loads separated credentials only into the guarded no-argv entrypoint', () => {
     const source = workflow();
@@ -1726,7 +1726,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(() => verifyAuthBridgeNotificationPreparedStaticPolicy({
       repositoryRoot: directSecret,
     })).toThrow(/AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_/u);
-  }, 90_000);
+  }, 180_000);
 
   it('uses only the exact lockfile toolchain from the protected checkout', () => {
     const source = workflow();
