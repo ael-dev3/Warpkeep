@@ -1187,6 +1187,45 @@ describe('notification-bridge-prepared protected workflow', () => {
     )).toThrow('AUTH_BRIDGE_PREPARED_TOOLCHAIN_AUTHORITY_INVALID');
   });
 
+  it('accepts a valid source-closure manifest within the 256 KiB bound', () => {
+    const fixture = createInstalledToolchainFixture();
+    const sourceManifestPath = resolve(
+      fixture.root,
+      AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH,
+    );
+    const sourceManifest = JSON.parse(readFileSync(
+      sourceManifestPath,
+      'utf8',
+    )) as {
+      members: Array<{
+        path: string;
+        digestProfile: string;
+        sha256: string;
+      }>;
+    };
+    let index = 0;
+    while (Buffer.byteLength(
+      `${JSON.stringify(sourceManifest, null, 2)}\n`,
+      'utf8',
+    ) <= 200 * 1_024) {
+      sourceManifest.members.push({
+        path: `zz-fixture/${index.toString().padStart(4, '0')}-${'a'.repeat(850)}`,
+        digestProfile: 'raw-file-sha256-v1',
+        sha256: 'f'.repeat(64),
+      });
+      index += 1;
+    }
+    const source = `${JSON.stringify(sourceManifest, null, 2)}\n`;
+    expect(Buffer.byteLength(source, 'utf8')).toBeGreaterThan(192 * 1_024);
+    expect(Buffer.byteLength(source, 'utf8')).toBeLessThanOrEqual(256 * 1_024);
+    writeFileSync(sourceManifestPath, source);
+
+    expect(verifyInstalledToolchainFixture(fixture)).toMatchObject({
+      profile:
+        'warpkeep-auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1',
+    });
+  });
+
   it('normalizes pnpm CI global virtual-store false to the existing manifest', () => {
     const fixture = createInstalledToolchainFixture();
     const manifest = JSON.parse(readFileSync(resolve(
