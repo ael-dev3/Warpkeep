@@ -409,6 +409,8 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     ['...expectedReviewedDurableObjectBindings(', 2],
     ['`notification-b0-${contract.sourceCommit}`', 1],
     ['`Warpkeep notification B0 ${contract.sourceCommit}`', 1],
+    ["'workers/triggered_by':", 0],
+    ["latest.triggeredBy !== 'deployment'", 1],
   ]) exactCount(
     runtime,
     value,

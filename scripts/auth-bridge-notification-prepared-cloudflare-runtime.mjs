@@ -1865,7 +1865,6 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
         versions: [{ percentage: 100, version_id: input.versionId }],
         annotations: {
           'workers/message': input.message,
-          'workers/triggered_by': 'warpkeep-notification-prepared',
         },
       }),
       mutation: true,
@@ -1892,7 +1891,7 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
       && (deployedVersion.sourceCommit !== contract.sourceCommit
         || deployedVersion.versionMessage !== contract.versionMessage
         || latest.message !== contract.versionMessage
-        || latest.triggeredBy !== 'warpkeep-notification-prepared')
+        || latest.triggeredBy !== 'deployment')
     ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_DEPLOYMENT_INVALID');
     const now = clock();
     if (!(now instanceof Date) || Number.isNaN(now.getTime())) {

@@ -485,6 +485,7 @@ function reviewedV5RuntimeHarness(
     message: string;
     tag: string;
   }>[] = [],
+  releasedDeploymentTrigger: string | null = 'deployment',
 ) {
   const value = contract(RUNTIME_SOURCE_DIGEST, true);
   const boundary = 'warpkeep-b0-v5-boundary';
@@ -538,6 +539,24 @@ function reviewedV5RuntimeHarness(
       }, url);
     }
     if (url.endsWith('/deployments') && method === 'GET') {
+      if (releasedVersionId !== undefined) {
+        return cloudflareResponse([{
+          id: '223e4567-e89b-42d3-a456-426614174000',
+          created_on: '2026-08-13T11:59:00.000Z',
+          source: 'api',
+          strategy: 'percentage',
+          versions: [{
+            version_id: releasedVersionId,
+            percentage: 100,
+          }],
+          annotations: releasedDeploymentTrigger === null
+            ? { 'workers/message': value.versionMessage }
+            : {
+                'workers/message': value.versionMessage,
+                'workers/triggered_by': releasedDeploymentTrigger,
+              },
+        }], url);
+      }
       return cloudflareResponse([{
         id: REVIEWED_V5_DEPLOYMENT_ID,
         created_on: '2026-08-04T14:45:32.958436Z',
@@ -1187,6 +1206,76 @@ describe('auth-bridge notification B0 deploy', () => {
     ))).toHaveLength(1);
     harness.runtime.dispose();
   });
+
+  it('leaves the reserved deployment trigger annotation to Cloudflare', async () => {
+    const successor = contract(RUNTIME_SOURCE_DIGEST, true, SOURCE_COMMIT);
+    const harness = reviewedV5RuntimeHarness(undefined, 'null', [{
+      id: VERSION_ID,
+      tag: successor.versionTag,
+      message: successor.versionMessage,
+      detail: rawCandidateVersion(successor) as CandidateDetail,
+    }]);
+    const plan = await harness.runtime.prepareUpload(successor);
+
+    await harness.runtime.releaseVersion({
+      versionId: VERSION_ID,
+      predecessorDeploymentId: plan.predecessorDeploymentId,
+      predecessorVersionId: plan.predecessorVersionId,
+      percentage: 100,
+      message: successor.versionMessage,
+    });
+
+    const deploymentPosts = harness.fetchImpl.mock.calls.filter(([input, init]) => (
+      String(input).endsWith('/deployments')
+      && (init?.method ?? 'GET') === 'POST'
+    ));
+    expect(deploymentPosts).toHaveLength(1);
+    const body = JSON.parse(String(deploymentPosts[0][1]?.body)) as {
+      annotations?: Readonly<Record<string, string>>;
+    };
+    expect(body.annotations).toEqual({
+      'workers/message': successor.versionMessage,
+    });
+    expect(body.annotations).not.toHaveProperty('workers/triggered_by');
+    await expect(harness.runtime.inspectDeployment()).resolves.toMatchObject({
+      versionId: VERSION_ID,
+      versionTag: successor.versionTag,
+      sourceCommit: successor.sourceCommit,
+    });
+    harness.runtime.dispose();
+  });
+
+  it.each([null, 'wrong-trigger'] as const)(
+    'rejects a released deployment with server trigger %s',
+    async releasedDeploymentTrigger => {
+      const successor = contract(RUNTIME_SOURCE_DIGEST, true, SOURCE_COMMIT);
+      const harness = reviewedV5RuntimeHarness(
+        undefined,
+        'null',
+        [{
+          id: VERSION_ID,
+          tag: successor.versionTag,
+          message: successor.versionMessage,
+          detail: rawCandidateVersion(successor) as CandidateDetail,
+        }],
+        releasedDeploymentTrigger,
+      );
+      const plan = await harness.runtime.prepareUpload(successor);
+
+      await harness.runtime.releaseVersion({
+        versionId: VERSION_ID,
+        predecessorDeploymentId: plan.predecessorDeploymentId,
+        predecessorVersionId: plan.predecessorVersionId,
+        percentage: 100,
+        message: successor.versionMessage,
+      });
+
+      await expect(harness.runtime.inspectDeployment()).rejects.toThrow(
+        'AUTH_BRIDGE_NOTIFICATION_B0_CLOUDFLARE_DEPLOYMENT_INVALID',
+      );
+      harness.runtime.dispose();
+    },
+  );
 
   it('orders one nondeploying candidate upload before attestation and one deployment POST', async () => {
     const value = contract();
