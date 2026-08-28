@@ -59,6 +59,7 @@ type JournalPhase =
   | 'prepared'
   | 'remote-reconcile-started'
   | 'upload-invoked'
+  | 'upload-adjudication-required'
   | 'uploaded'
   | 'release-uncertain'
   | 'release-invoked'
@@ -584,6 +585,74 @@ describe('auth-bridge prepared durable deployment journal', () => {
     expect(journalText).not.toContain('secret-stage');
     expect(journalText).not.toContain('secret-remove');
     expect(journalText).not.toContain(PLAYER_CANARY_OWNER_FID);
+  });
+
+  it('persists only a fixed upload adjudication reason and never advances it', async () => {
+    const home = temporaryHome();
+    const value = contract('d'.repeat(64));
+    const uploadMarker = {
+      sourceCommit: SOURCE_COMMIT,
+      sourceDigest: 'd'.repeat(64),
+      uploadMode: 'version',
+      versionTag: `notification-prepared-${SOURCE_COMMIT}`,
+    } as const;
+    await withAuthBridgeNotificationPreparedDeployJournal({
+      ...journalOptions(home, value),
+      operation: async journal => {
+        await journal.prepared(value);
+        await journal.remoteReconcileStarted({
+          predecessorDeploymentId: OLD_DEPLOYMENT_ID,
+          predecessorVersionId: OLD_VERSION_ID,
+          sourceCommit: uploadMarker.sourceCommit,
+          sourceDigest: uploadMarker.sourceDigest,
+          versionTag: uploadMarker.versionTag,
+        });
+        await journal.uploadInvoked(uploadMarker);
+        await expect(journal.uploadAdjudicationRequired({
+          reason: 'raw-provider-diagnostic',
+        } as never)).rejects.toMatchObject({
+          code: 'AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_PAYLOAD_INVALID',
+        });
+        await journal.uploadAdjudicationRequired({
+          reason: 'invalid-upload-response',
+        });
+        await journal.uploadAdjudicationRequired({
+          reason: 'invalid-upload-response',
+        });
+        await expect(journal.uploadAdjudicationRequired({
+          reason: 'definitive-provider-rejection',
+        })).rejects.toMatchObject({
+          code: 'AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_PAYLOAD_MISMATCH',
+        });
+        await expect(journal.uploaded(version(value))).rejects.toMatchObject({
+          code: 'AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_TRANSITION_INVALID',
+        });
+        expect(journal.inspect()).toMatchObject({
+          phase: 'upload-adjudication-required',
+          uploadAdjudicationReason: 'invalid-upload-response',
+          phases: [
+            'prepared',
+            'remote-reconcile-started',
+            'upload-invoked',
+            'upload-adjudication-required',
+          ],
+        });
+      },
+    });
+
+    await withAuthBridgeNotificationPreparedDeployJournal({
+      ...journalOptions(home, value),
+      runAttempt: 2,
+      operation: async journal => {
+        expect(journal.inspect()).toMatchObject({
+          phase: 'upload-adjudication-required',
+          uploadAdjudicationReason: 'invalid-upload-response',
+        });
+        await expect(journal.completed(deployment())).rejects.toMatchObject({
+          code: 'AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_TRANSITION_INVALID',
+        });
+      },
+    });
   });
 
   it('retains first-entry-only upload/release invocation markers across runs', async () => {
@@ -1134,20 +1203,50 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     const value = contract(digest);
     const body = uploadMultipart(value);
     const stable = exactVersionDetail(value);
+    const predecessor = exactVersionDetail(value, {
+      id: OLD_VERSION_ID,
+      number: 1,
+    });
     let remoteBody = contentMultipart();
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.includes('/versions?deployable=true')) return response({
+      if (url.endsWith('/versions?page=1&per_page=1')) return response({
         items: [{
           id: VERSION_ID,
+          number: stable.number,
           annotations: {
             'workers/tag': value.versionTag,
             'workers/message': value.versionMessage,
           },
         }],
-      }, url);
+      }, url, {
+        count: 1,
+        page: 1,
+        per_page: 1,
+        total_count: 1,
+        total_pages: 1,
+      });
+      if (url.includes('/versions?deployable=true')) return response({
+        items: [{
+          id: VERSION_ID,
+          number: 2,
+          annotations: {
+            'workers/tag': value.versionTag,
+            'workers/message': value.versionMessage,
+          },
+        }],
+      }, url, {
+        count: 1,
+        page: 1,
+        per_page: 100,
+        total_count: 1,
+        total_pages: 1,
+      });
       if (url.includes('/content/v2?version=')) {
         return multipartResponse(remoteBody, url);
+      }
+      if (url.endsWith(`/versions/${OLD_VERSION_ID}`)) {
+        return response(predecessor, url);
       }
       if (url.endsWith(`/versions/${VERSION_ID}`)) return response(stable, url);
       throw new Error('unexpected request');
@@ -1163,15 +1262,18 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       multipartBody: body,
       multipartContentType: contentType,
       fetchImpl,
-      journal: { inspect: () => ({ phase: 'prepared' }) },
+      journal: { inspect: () => ({
+        phase: 'uploaded',
+        predecessorDeploymentId: OLD_DEPLOYMENT_ID,
+        predecessorVersionId: OLD_VERSION_ID,
+      }) },
     });
     await expect(runtime.inspectVersion(VERSION_ID)).resolves.toEqual({
       ...value,
       versionId: VERSION_ID,
       createdAt: stable.metadata.created_on,
     });
-    await expect(runtime.reconcileVersion(value)).resolves.toEqual([VERSION_ID]);
-    expect(fetchImpl).toHaveBeenCalledTimes(5);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
 
     remoteBody = Buffer.from(template.toString('utf8').replace(
       'return new Response("ok")',
@@ -1213,6 +1315,10 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     let uploadMode: 'version' | null = null;
     let predecessorDeploymentId: string | null = null;
     let predecessorVersionId: string | null = null;
+    let uploadAdjudicationReason:
+      | 'invalid-upload-response'
+      | 'definitive-provider-rejection'
+      | null = null;
     let uploadPosts = 0;
     let releasePosts = 0;
     let secretEndpointWrites = 0;
@@ -1228,21 +1334,58 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       const method = init?.method ?? 'GET';
-      if (url.includes('/versions?deployable=true')) return response({
-        items: [{
+      if (url.endsWith('/versions?page=1&per_page=1')) {
+        const latest = uploaded
+          ? {
+              id: VERSION_ID,
+              number: 2,
+              annotations: {
+                'workers/tag': value.versionTag,
+                'workers/message': value.versionMessage,
+              },
+            }
+          : {
+              id: OLD_VERSION_ID,
+              number: 1,
+              annotations: {
+                'workers/tag':
+                  `notification-b0-${AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT}`,
+                'workers/message':
+                  `Warpkeep notification B0 ${AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT}`,
+              },
+            };
+        return response({ items: [latest] }, url, {
+          count: 1,
+          page: 1,
+          per_page: 1,
+          total_count: 1,
+          total_pages: 1,
+        });
+      }
+      if (url.includes('/versions?deployable=true')) {
+        const items = [{
           id: OLD_VERSION_ID,
+          number: 1,
           annotations: {
             'workers/tag': value.versionTag,
             'workers/message': value.versionMessage,
           },
         }, ...(uploaded ? [{
           id: VERSION_ID,
+          number: 2,
           annotations: {
             'workers/tag': value.versionTag,
             'workers/message': value.versionMessage,
           },
-        }] : [])],
-      }, url);
+        }] : [])];
+        return response({ items }, url, {
+          count: items.length,
+          page: 1,
+          per_page: 100,
+          total_count: items.length,
+          total_pages: 1,
+        });
+      }
       if (url.endsWith('/workers/scripts')) {
         return response([{
           id: value.workerName,
@@ -1254,21 +1397,18 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
         if (method !== 'GET') secretEndpointWrites += 1;
         throw new Error(`legacy secret endpoint forbidden: ${method} ${url}`);
       }
-      if (url.endsWith('/versions?bindings_inherit=strict') && method === 'POST') {
+      if (url.endsWith('/versions') && method === 'POST') {
         const candidate = inspectAuthBridgeNotificationPreparedMultipart(
           Buffer.from(init?.body as Buffer),
           String((init?.headers as Record<string, string>)['content-type']),
         );
-        expect(candidate.metadata).not.toHaveProperty('keep_bindings');
+        expect(candidate.metadata.keep_bindings).toEqual([
+          'secret_text',
+          'secret_key',
+        ]);
         expect((candidate.metadata.bindings as { type?: string }[]).filter(
           (binding: { type?: string }) => binding.type === 'inherit',
-        )).toEqual(value.secretBindingNames
-          .filter(name => name !== 'PLAYER_CANARY_OWNER_FID')
-          .map(name => ({
-            name,
-            type: 'inherit',
-            version_id: OLD_VERSION_ID,
-          })));
+        )).toEqual([]);
         expect((candidate.metadata.bindings as { type?: string }[]).filter(
           (binding: { type?: string }) => binding.type === 'secret_text',
         )).toEqual([{
@@ -1373,6 +1513,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
         uploadMode,
         predecessorDeploymentId,
         predecessorVersionId,
+        uploadAdjudicationReason,
       }),
       prepared: vi.fn(async () => { phase ??= 'prepared'; }),
       remoteReconcileStarted: vi.fn(async (input: Readonly<Record<string, unknown>>) => {
@@ -1386,6 +1527,19 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
         }
         phase = 'upload-invoked';
         uploadMode = input.uploadMode;
+      }),
+      uploadAdjudicationRequired: vi.fn(async (
+        input: Readonly<Record<string, unknown>>,
+      ) => {
+        if (
+          phase !== 'upload-invoked'
+          || ![
+            'invalid-upload-response',
+            'definitive-provider-rejection',
+          ].includes(String(input.reason))
+        ) throw new Error('test harness requires an exact adjudication reason');
+        phase = 'upload-adjudication-required';
+        uploadAdjudicationReason = input.reason as typeof uploadAdjudicationReason;
       }),
       uploaded: vi.fn(async () => { phase = 'uploaded'; }),
       releaseUncertain: vi.fn(async () => { phase = 'release-uncertain'; }),
@@ -1473,7 +1627,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     runtime.dispose();
   });
 
-  it('uploads one nondeploying seven-binding candidate and fails closed on v4', async () => {
+  it('uploads one keep-bindings candidate and fails closed on lineage drift', async () => {
     const template = multipart();
     const contentType = 'multipart/form-data; boundary=warpkeep-boundary-v1';
     const digest = inspectAuthBridgeNotificationPreparedMultipart(template, contentType)
@@ -1483,7 +1637,18 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     const urls: string[] = [];
     let predecessorExtraBinding = false;
     let includeSameTagNonpredecessor = false;
+    let candidateListNumberShape: 'valid' | 'missing' | 'malformed' = 'valid';
     let livePredecessorDeploymentId = OLD_DEPLOYMENT_ID;
+    let candidateVersionNumber: number | 'missing' | 'malformed' = 2;
+    let latestUploadShape:
+      | 'predecessor'
+      | 'newer'
+      | 'empty'
+      | 'malformed'
+      | 'missing-number'
+      | 'candidate'
+      | 'uploaded'
+      | 'ambiguous' = 'predecessor';
     const predecessorDetail = exactVersionDetail(value, {
       id: OLD_VERSION_ID,
       number: 1,
@@ -1505,9 +1670,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       number: 3,
       createdAt: '2026-08-12T23:52:00.000Z',
       etag: 'c'.repeat(64),
-      secretBindingNames: value.secretBindingNames.filter(
-        name => name !== 'PLAYER_CANARY_OWNER_FID',
-      ),
+      secretBindingNames: value.secretBindingNames,
     });
     let predecessorSourceBody = contentMultipart();
     const prerequisiteResponse = (
@@ -1515,31 +1678,112 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       method: string,
       migrationTag = 'v5',
     ) => {
-      if (url.includes('/versions?deployable=true')) return response({
-        items: [
-          {
-            id: OLD_VERSION_ID,
-            annotations: {
-              'workers/tag': value.versionTag,
-              'workers/message': value.versionMessage,
-            },
+      if (url.endsWith('/versions?page=1&per_page=1')) {
+        const predecessorItem = {
+          id: OLD_VERSION_ID,
+          number: 1,
+          annotations: {
+            'workers/tag':
+              `notification-b0-${AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT}`,
+            'workers/message':
+              `Warpkeep notification B0 ${AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT}`,
           },
-          {
-            id: CONCURRENT_VERSION_ID,
-            annotations: {
-              'workers/tag': 'concurrent-nondeployed-secret-change',
-              'workers/message': 'concurrent-nondeployed-secret-change',
-            },
+        };
+        const items = latestUploadShape === 'empty'
+          ? []
+          : latestUploadShape === 'malformed'
+            ? [{ ...predecessorItem, number: '1' }]
+            : latestUploadShape === 'missing-number'
+              ? [Object.fromEntries(Object.entries(predecessorItem).filter(
+                  ([name]) => name !== 'number',
+                ))]
+            : latestUploadShape === 'candidate'
+              ? [{
+                  id: NON_PREDECESSOR_VERSION_ID,
+                  number: nonPredecessorDetail.number,
+                  annotations: {
+                    'workers/tag': value.versionTag,
+                    'workers/message': value.versionMessage,
+                  },
+                }]
+            : latestUploadShape === 'uploaded'
+              ? [{
+                  id: VERSION_ID,
+                  number: typeof candidateVersionNumber === 'number'
+                    ? candidateVersionNumber
+                    : 2,
+                  annotations: {
+                    'workers/tag': value.versionTag,
+                    'workers/message': value.versionMessage,
+                  },
+                }]
+            : latestUploadShape === 'newer'
+              ? [{
+                  id: CONCURRENT_VERSION_ID,
+                  number: 2,
+                  annotations: {
+                    'workers/tag': 'concurrent-nondeployed-secret-change',
+                    'workers/message': 'concurrent-nondeployed-secret-change',
+                  },
+                }]
+              : latestUploadShape === 'ambiguous'
+                ? [predecessorItem, {
+                  id: CONCURRENT_VERSION_ID,
+                  number: 1,
+                  annotations: {
+                    'workers/tag': 'ambiguous-latest-upload',
+                    'workers/message': 'ambiguous-latest-upload',
+                  },
+                }]
+                : [predecessorItem];
+        return response({ items }, url, {
+          count: items.length,
+          page: 1,
+          per_page: 1,
+          total_count: latestUploadShape === 'newer' ? 2 : items.length,
+          total_pages: latestUploadShape === 'newer' ? 2 : 1,
+        });
+      }
+      if (url.includes('/versions?deployable=true')) {
+        const predecessorItem = {
+          id: OLD_VERSION_ID,
+          number: 1,
+          annotations: {
+            'workers/tag':
+              `notification-b0-${AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT}`,
+            'workers/message':
+              `Warpkeep notification B0 ${AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT}`,
           },
-          ...(includeSameTagNonpredecessor ? [{
-            id: NON_PREDECESSOR_VERSION_ID,
-            annotations: {
-              'workers/tag': value.versionTag,
-              'workers/message': value.versionMessage,
-            },
-          }] : []),
-        ],
-      }, url);
+        };
+        const items = [
+          predecessorItem,
+          ...(includeSameTagNonpredecessor ? [candidateListNumberShape === 'missing'
+            ? {
+                id: NON_PREDECESSOR_VERSION_ID,
+                annotations: {
+                  'workers/tag': value.versionTag,
+                  'workers/message': value.versionMessage,
+                },
+              }
+            : {
+                id: NON_PREDECESSOR_VERSION_ID,
+                number: candidateListNumberShape === 'malformed'
+                  ? '3'
+                  : nonPredecessorDetail.number,
+                annotations: {
+                  'workers/tag': value.versionTag,
+                  'workers/message': value.versionMessage,
+                },
+              }] : []),
+        ];
+        return response({ items }, url, {
+          count: items.length,
+          page: 1,
+          per_page: 100,
+          total_count: items.length,
+          total_pages: 1,
+        });
+      }
       if (url.endsWith('/workers/scripts')) {
         return response([{ id: value.workerName, migration_tag: migrationTag }], url);
       }
@@ -1599,11 +1843,25 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
           },
         }, url);
       }
+      if (url.endsWith(`/versions/${VERSION_ID}`)) {
+        const candidateDetail = exactVersionDetail(value, {
+          id: VERSION_ID,
+          number: typeof candidateVersionNumber === 'number'
+            ? candidateVersionNumber
+            : 3,
+        });
+        if (candidateVersionNumber === 'missing') delete candidateDetail.number;
+        if (candidateVersionNumber === 'malformed') candidateDetail.number = 0;
+        return response(candidateDetail, url);
+      }
       if (url.endsWith(`/versions/${NON_PREDECESSOR_VERSION_ID}`)) {
         return response(nonPredecessorDetail, url);
       }
       if (url.endsWith(`/content/v2?version=${OLD_VERSION_ID}`)) {
         return multipartResponse(predecessorSourceBody, url);
+      }
+      if (url.endsWith(`/content/v2?version=${VERSION_ID}`)) {
+        return multipartResponse(contentMultipart(), url);
       }
       if (url.endsWith(`/content/v2?version=${NON_PREDECESSOR_VERSION_ID}`)) {
         return multipartResponse(contentMultipart(), url);
@@ -1618,7 +1876,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       if (url.includes('/secrets')) throw new Error('legacy secret endpoint forbidden');
       const prerequisite = prerequisiteResponse(url, method);
       if (prerequisite !== undefined) return prerequisite;
-      if (url.endsWith('/versions?bindings_inherit=strict') && method === 'POST') {
+      if (url.endsWith('/versions') && method === 'POST') {
         candidateBody = Buffer.from(init?.body as Buffer);
         return response(officialVersionUploadResult(value), url);
       }
@@ -1690,6 +1948,51 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT;
     expect(urls.filter(item => item.startsWith('POST:'))).toHaveLength(0);
 
+    const predecessorVersionNumber = predecessorDetail.number;
+    for (const invalidPredecessorVersionNumber of [
+      'missing',
+      0,
+      Number.MAX_SAFE_INTEGER,
+    ] as const) {
+      if (invalidPredecessorVersionNumber === 'missing') {
+        delete predecessorDetail.number;
+      } else {
+        predecessorDetail.number = invalidPredecessorVersionNumber;
+      }
+      await expect(runtime.prepareUpload(value)).rejects.toMatchObject({
+        code: expect.stringMatching(
+          /^AUTH_BRIDGE_PREPARED_CLOUDFLARE_(?:PREDECESSOR_(?:EXPORT_MISMATCH|NUMBER_MISMATCH|SEQUENCE_MISMATCH|VERSION_NUMBER_INVALID)|VERSION_LIST_INVALID)$/u,
+        ),
+      });
+      expect(urls.filter(item => item.startsWith('POST:'))).toHaveLength(0);
+    }
+    predecessorDetail.number = predecessorVersionNumber;
+
+    latestUploadShape = 'newer';
+    await expect(runtime.prepareUpload(value)).rejects.toMatchObject({
+      code: expect.stringMatching(
+        /^AUTH_BRIDGE_PREPARED_CLOUDFLARE_(?:LATEST_(?:UPLOAD|VERSION)_MISMATCH|PREDECESSOR_DRIFT)$/u,
+      ),
+    });
+    expect(urls.filter(item => item.startsWith('POST:'))).toHaveLength(0);
+    latestUploadShape = 'predecessor';
+
+    for (const invalidLatestUploadShape of [
+      'empty',
+      'malformed',
+      'missing-number',
+      'ambiguous',
+    ] as const) {
+      latestUploadShape = invalidLatestUploadShape;
+      await expect(runtime.prepareUpload(value)).rejects.toMatchObject({
+        code: expect.stringMatching(
+          /^AUTH_BRIDGE_PREPARED_CLOUDFLARE_(?:LATEST_(?:UPLOAD|VERSION)_(?:INVALID|AMBIGUOUS)|VERSION_LIST_(?:INVALID|AMBIGUOUS))$/u,
+        ),
+      });
+      expect(urls.filter(item => item.startsWith('POST:'))).toHaveLength(0);
+    }
+    latestUploadShape = 'predecessor';
+
     const uploadPlan = await runtime.prepareUpload(value);
     expect(uploadPlan).toEqual({
       mode: 'version',
@@ -1699,7 +2002,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     await expect(runtime.reconcileVersion(value)).resolves.toEqual([]);
     includeSameTagNonpredecessor = true;
     await expect(runtime.reconcileVersion(value)).rejects.toMatchObject({
-      code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_BINDING_MISMATCH',
+      code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_LINEAGE_MISMATCH',
     });
     expect(urls.filter(item => item.startsWith('POST:'))).toHaveLength(0);
     includeSameTagNonpredecessor = false;
@@ -1709,26 +2012,37 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     });
     expect(urls.filter(item => item.startsWith('POST:'))).toHaveLength(0);
     livePredecessorDeploymentId = OLD_DEPLOYMENT_ID;
+
+    latestUploadShape = 'newer';
+    await expect(runtime.uploadVersion(value, uploadPlan)).rejects.toMatchObject({
+      code: expect.stringMatching(
+        /^AUTH_BRIDGE_PREPARED_CLOUDFLARE_(?:LATEST_(?:UPLOAD|VERSION)_MISMATCH|PREDECESSOR_DRIFT)$/u,
+      ),
+    });
+    expect(urls.filter(item => item.startsWith('POST:'))).toHaveLength(0);
+    latestUploadShape = 'predecessor';
+
+    const successfulUploadStart = urls.length;
     await expect(runtime.uploadVersion(value, uploadPlan)).resolves.toEqual({
       versionId: VERSION_ID,
     });
+    const successfulUploadRequests = urls.slice(successfulUploadStart);
+    expect(successfulUploadRequests.at(-2)).toMatch(
+      /^GET:.*\/versions\?page=1&per_page=1$/u,
+    );
+    expect(successfulUploadRequests.at(-1)).toMatch(/^POST:.*\/versions$/u);
+    expect(successfulUploadRequests.at(-1)).not.toContain('bindings_inherit');
     const candidate = inspectAuthBridgeNotificationPreparedMultipart(
       candidateBody as Buffer,
       contentType,
     );
-    expect(candidate.metadata).not.toHaveProperty('keep_bindings');
-    const inheritedBindings = (candidate.metadata.bindings as {
-      name?: string;
-      type?: string;
-      version_id?: string;
-    }[]).filter(binding => binding.type === 'inherit');
-    expect(inheritedBindings).toEqual(value.secretBindingNames
-      .filter(name => name !== 'PLAYER_CANARY_OWNER_FID')
-      .map(name => ({
-        name,
-        type: 'inherit',
-        version_id: OLD_VERSION_ID,
-      })));
+    expect(candidate.metadata.keep_bindings).toEqual([
+      'secret_text',
+      'secret_key',
+    ]);
+    expect((candidate.metadata.bindings as { type?: string }[]).filter(
+      binding => binding.type === 'inherit',
+    )).toEqual([]);
     expect((candidate.metadata.bindings as { type?: string }[]).filter(
       (binding: { type?: string }) => binding.type === 'secret_text',
     )).toEqual([{
@@ -1740,46 +2054,219 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       metadata: candidate.metadata,
       contract: value,
       playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
-      predecessorVersionId: OLD_VERSION_ID,
     })).toBe(true);
     const candidateBindings = candidate.metadata.bindings as Record<string, unknown>[];
-    const firstInheritedIndex = candidateBindings.findIndex(
-      binding => binding.type === 'inherit',
+    const canaryIndex = candidateBindings.findIndex(
+      binding => binding.type === 'secret_text',
     );
-    const hostileBindings = [
-      candidateBindings.filter((_, index) => index !== firstInheritedIndex),
-      candidateBindings.map((binding, index) => index === firstInheritedIndex
+    const hostileMetadata = [
+      Object.fromEntries(Object.entries(candidate.metadata).filter(
+        ([name]) => name !== 'keep_bindings',
+      )),
+      { ...candidate.metadata, keep_bindings: ['secret_key', 'secret_text'] },
+      { ...candidate.metadata, keep_bindings: ['secret_text'] },
+      { ...candidate.metadata, keep_bindings: ['secret_text', 'secret_key', 'kv_namespace'] },
+      { ...candidate.metadata, keep_bindings: ['secret_text', 'secret_text'] },
+      {
+        ...candidate.metadata,
+        bindings: candidateBindings.filter((_, index) => index !== canaryIndex),
+      },
+      {
+        ...candidate.metadata,
+        bindings: candidateBindings.map((binding, index) => index === canaryIndex
         ? { ...binding, name: 'UNREVIEWED_SECRET' }
         : binding),
-      candidateBindings.map((binding, index) => index === firstInheritedIndex
-        ? { ...binding, type: 'secret_text' }
-        : binding),
-      candidateBindings.map((binding, index) => index === firstInheritedIndex
-        ? { name: binding.name, type: 'inherit' }
-        : binding),
-      candidateBindings.map((binding, index) => index === firstInheritedIndex
-        ? { ...binding, version_id: NON_PREDECESSOR_VERSION_ID }
-        : binding),
-      candidateBindings.map((binding, index) => index === firstInheritedIndex
-        ? { ...binding, old_name: value.secretBindingNames[0] }
-        : binding),
-      [
-        ...candidateBindings,
-        {
-          name: value.secretBindingNames[0],
-          type: 'inherit',
-          version_id: OLD_VERSION_ID,
-        },
-      ],
+      },
+      {
+        ...candidate.metadata,
+        bindings: candidateBindings.map((binding, index) => index === canaryIndex
+          ? { ...binding, type: 'plain_text' }
+          : binding),
+      },
+      {
+        ...candidate.metadata,
+        bindings: candidateBindings.map((binding, index) => index === canaryIndex
+          ? { ...binding, old_name: 'PLAYER_CANARY_OWNER_FID' }
+          : binding),
+      },
+      {
+        ...candidate.metadata,
+        bindings: [
+          ...candidateBindings,
+          {
+            name: value.secretBindingNames[0],
+            type: 'inherit',
+            version_id: OLD_VERSION_ID,
+          },
+        ],
+      },
+      { ...candidate.metadata, bindings: [...candidateBindings, candidateBindings[canaryIndex]] },
     ];
-    for (const bindings of hostileBindings) {
+    for (const metadata of hostileMetadata) {
       expect(() => attestAuthBridgeNotificationPreparedCandidateMultipartMetadata({
-        metadata: { ...candidate.metadata, bindings },
+        metadata,
         contract: value,
         playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
-        predecessorVersionId: OLD_VERSION_ID,
-      })).toThrow('AUTH_BRIDGE_PREPARED_CLOUDFLARE_MULTIPART_METADATA_MISMATCH');
+      })).toThrow(
+        /AUTH_BRIDGE_PREPARED_CLOUDFLARE_(?:MULTIPART_METADATA_MISMATCH|VERSION_BINDING_UNEXPECTED)/u,
+      );
     }
+
+    candidateVersionNumber = 3;
+    await expect(runtime.inspectVersion(VERSION_ID)).rejects.toMatchObject({
+      code: expect.stringMatching(
+        /^AUTH_BRIDGE_PREPARED_CLOUDFLARE_(?:VERSION_(?:SEQUENCE|LINEAGE)|CANDIDATE_LINEAGE)_MISMATCH$/u,
+      ),
+    });
+    for (const invalidCandidateVersionNumber of [
+      'missing',
+      'malformed',
+      Number.MAX_SAFE_INTEGER + 1,
+    ] as const) {
+      candidateVersionNumber = invalidCandidateVersionNumber;
+      await expect(runtime.inspectVersion(VERSION_ID)).rejects.toMatchObject({
+        code: expect.stringMatching(
+          /^AUTH_BRIDGE_PREPARED_CLOUDFLARE_(?:VERSION_(?:INVALID|SEQUENCE_MISMATCH|LINEAGE_MISMATCH)|CANDIDATE_LINEAGE_MISMATCH)$/u,
+        ),
+      });
+    }
+    candidateVersionNumber = 2;
+    await expect(runtime.inspectVersion(VERSION_ID)).resolves.toMatchObject({
+      versionId: VERSION_ID,
+    });
+
+    const createAuthorizedRecoveryRuntime = async () => {
+      includeSameTagNonpredecessor = false;
+      candidateListNumberShape = 'valid';
+      latestUploadShape = 'predecessor';
+      livePredecessorDeploymentId = OLD_DEPLOYMENT_ID;
+      predecessorExtraBinding = false;
+      const recoveryUrls: string[] = [];
+      const recoveryFetchImpl = vi.fn(async (
+        input: RequestInfo | URL,
+        init?: RequestInit,
+      ) => {
+        const url = String(input);
+        const method = init?.method ?? 'GET';
+        recoveryUrls.push(`${method}:${url}`);
+        const prerequisite = prerequisiteResponse(url, method);
+        if (prerequisite !== undefined) return prerequisite;
+        if (url.endsWith('/versions') && method === 'POST') {
+          throw new Error('upload response lost after provider invocation');
+        }
+        throw new Error(`unexpected recovery request: ${method} ${url}`);
+      });
+      const recoveryRuntime =
+        createAuthBridgeNotificationPreparedCloudflareRuntime({
+          contract: value,
+          apiToken: 'cloudflare-test-token-value-1234567890',
+          playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
+          repositoryRoot: realpathSync(process.cwd()),
+          serviceRoot: realpathSync(join(process.cwd(), 'services/auth-bridge')),
+          nodeExecutable: process.execPath,
+          wranglerEntrypoint: process.execPath,
+          multipartBody: body,
+          multipartContentType: contentType,
+          fetchImpl: recoveryFetchImpl,
+          journal: {
+            inspect: () => ({
+              phase: 'upload-invoked',
+              predecessorDeploymentId: OLD_DEPLOYMENT_ID,
+              predecessorVersionId: OLD_VERSION_ID,
+            }),
+          },
+        });
+      const recoveryPlan = await recoveryRuntime.prepareUpload(value);
+      await expect(recoveryRuntime.uploadVersion(value, recoveryPlan))
+        .rejects.toMatchObject({
+          code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_MUTATION_OUTCOME_AMBIGUOUS',
+          deploymentMayHaveChanged: true,
+        });
+      expect(recoveryUrls.filter(item => item.startsWith('POST:')))
+        .toHaveLength(1);
+      return { recoveryRuntime, recoveryUrls };
+    };
+
+    let authorizedRecovery = await createAuthorizedRecoveryRuntime();
+    includeSameTagNonpredecessor = true;
+    let recoveryReadStart = authorizedRecovery.recoveryUrls.length;
+    await expect(authorizedRecovery.recoveryRuntime.reconcileVersion(value))
+      .rejects.toMatchObject({
+      code: expect.stringMatching(
+        /^AUTH_BRIDGE_PREPARED_CLOUDFLARE_(?:VERSION_(?:SEQUENCE|LINEAGE)|CANDIDATE_LINEAGE)_MISMATCH$/u,
+      ),
+    });
+    expect(authorizedRecovery.recoveryUrls.slice(recoveryReadStart).every(
+      item => item.startsWith('GET:'),
+    )).toBe(true);
+    authorizedRecovery.recoveryRuntime.dispose();
+
+    nonPredecessorDetail.number = 2;
+    for (const invalidCandidateListNumberShape of [
+      'missing',
+      'malformed',
+    ] as const) {
+      authorizedRecovery = await createAuthorizedRecoveryRuntime();
+      includeSameTagNonpredecessor = true;
+      latestUploadShape = 'candidate';
+      candidateListNumberShape = invalidCandidateListNumberShape;
+      const invalidListReadStart = authorizedRecovery.recoveryUrls.length;
+      await expect(authorizedRecovery.recoveryRuntime.reconcileVersion(value))
+        .rejects.toMatchObject({
+          code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_LIST_INVALID',
+        });
+      expect(authorizedRecovery.recoveryUrls.slice(invalidListReadStart).every(
+        item => item.startsWith('GET:'),
+      )).toBe(true);
+      authorizedRecovery.recoveryRuntime.dispose();
+    }
+    authorizedRecovery = await createAuthorizedRecoveryRuntime();
+    includeSameTagNonpredecessor = true;
+    latestUploadShape = 'candidate';
+    candidateListNumberShape = 'valid';
+    const adjacentRecoveryReadStart = authorizedRecovery.recoveryUrls.length;
+    await expect(authorizedRecovery.recoveryRuntime.reconcileVersion(value))
+      .resolves.toEqual([NON_PREDECESSOR_VERSION_ID]);
+    expect(authorizedRecovery.recoveryUrls.slice(adjacentRecoveryReadStart).every(
+      item => item.startsWith('GET:'),
+    )).toBe(true);
+    authorizedRecovery.recoveryRuntime.dispose();
+
+    const uninvokedCandidateRuntime =
+      createAuthBridgeNotificationPreparedCloudflareRuntime({
+        contract: value,
+        apiToken: 'cloudflare-test-token-value-1234567890',
+        playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
+        repositoryRoot: realpathSync(process.cwd()),
+        serviceRoot: realpathSync(join(process.cwd(), 'services/auth-bridge')),
+        nodeExecutable: process.execPath,
+        wranglerEntrypoint: process.execPath,
+        multipartBody: body,
+        multipartContentType: contentType,
+        fetchImpl,
+        journal: {
+          inspect: () => ({
+            phase: 'remote-reconcile-started',
+            predecessorDeploymentId: OLD_DEPLOYMENT_ID,
+            predecessorVersionId: OLD_VERSION_ID,
+          }),
+        },
+      });
+    const uninvokedCandidateReadStart = urls.length;
+    await expect(uninvokedCandidateRuntime.reconcileVersion(value))
+      .rejects.toMatchObject({
+        code: 'AUTH_BRIDGE_PREPARED_DEPLOY_UNINVOKED_CANDIDATE',
+        deploymentMayHaveChanged: false,
+      });
+    expect(urls.slice(uninvokedCandidateReadStart).every(
+      item => item.startsWith('GET:'),
+    )).toBe(true);
+    uninvokedCandidateRuntime.dispose();
+
+    includeSameTagNonpredecessor = false;
+    latestUploadShape = 'predecessor';
+    nonPredecessorDetail.number = 3;
+
     const release = {
       versionId: VERSION_ID,
       predecessorDeploymentId: OLD_DEPLOYMENT_ID,
@@ -1787,6 +2274,16 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       percentage: 100,
       message: value.versionMessage,
     } as const;
+    latestUploadShape = 'uploaded';
+    candidateVersionNumber = 3;
+    await expect(runtime.releaseVersion(release)).rejects.toMatchObject({
+      code: expect.stringMatching(
+        /^AUTH_BRIDGE_PREPARED_CLOUDFLARE_(?:VERSION_(?:SEQUENCE|LINEAGE)|CANDIDATE_LINEAGE)_MISMATCH$/u,
+      ),
+    });
+    expect(urls.filter(item => item.startsWith('POST:')
+      && item.endsWith('/deployments'))).toHaveLength(0);
+    candidateVersionNumber = 2;
     predecessorSourceBody = Buffer.from(
       contentMultipart().toString('utf8').replace(
         'return new Response("ok")',
@@ -1815,6 +2312,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     predecessorExtraBinding = false;
     await runtime.releaseVersion(release);
     expect(urls.filter(item => item.startsWith('POST:'))).toHaveLength(2);
+    latestUploadShape = 'predecessor';
 
     const failedFetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -1825,6 +2323,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       if (init?.method === 'POST') throw new Error('connection lost');
       throw new Error('unexpected request');
     });
+    const failedSettleDelayImpl = vi.fn(async () => undefined);
     const failed = createAuthBridgeNotificationPreparedCloudflareRuntime({
       contract: value,
       apiToken: 'cloudflare-test-token-value-1234567890',
@@ -1836,6 +2335,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       multipartBody: body,
       multipartContentType: contentType,
       fetchImpl: failedFetch,
+      settleDelayImpl: failedSettleDelayImpl,
       journal: {
         inspect: () => ({
           phase: 'upload-invoked',
@@ -1850,6 +2350,17 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     });
     expect(failedFetch.mock.calls.filter(([, init]) => init?.method === 'POST'))
       .toHaveLength(1);
+    const failedReconcileReadStart = failedFetch.mock.calls.length;
+    await expect(failed.reconcileVersion(value)).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',
+      deploymentMayHaveChanged: true,
+    });
+    expect(failedFetch.mock.calls.slice(failedReconcileReadStart).length)
+      .toBeGreaterThan(0);
+    expect(failedFetch.mock.calls.slice(failedReconcileReadStart).every(
+      ([, init]) => init?.method === undefined || init.method === 'GET',
+    )).toBe(true);
+    expect(failedSettleDelayImpl).toHaveBeenCalledTimes(4);
 
     const rejectedFetch = vi.fn(async (
       input: RequestInfo | URL,
@@ -1859,7 +2370,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       const method = init?.method ?? 'GET';
       const prerequisite = prerequisiteResponse(url, method);
       if (prerequisite !== undefined) return prerequisite;
-      if (url.endsWith('/versions?bindings_inherit=strict') && method === 'POST') {
+      if (url.endsWith('/versions') && method === 'POST') {
         return rejectedResponse(10021, url);
       }
       throw new Error(`unexpected request: ${method} ${url}`);
@@ -1893,7 +2404,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       const method = init?.method ?? 'GET';
       const prerequisite = prerequisiteResponse(url, method);
       if (prerequisite !== undefined) return prerequisite;
-      if (url.endsWith('/versions?bindings_inherit=strict') && method === 'POST') {
+      if (url.endsWith('/versions') && method === 'POST') {
         return rejectedResponse(
           10021,
           url,
@@ -1954,7 +2465,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
         }
         const prerequisite = prerequisiteResponse(url, method);
         if (prerequisite !== undefined) return prerequisite;
-        if (url.endsWith('/versions?bindings_inherit=strict') && method === 'POST') {
+        if (url.endsWith('/versions') && method === 'POST') {
           return response(hostileUploadResult, url);
         }
         throw new Error(`unexpected request: ${method} ${url}`);
@@ -2028,7 +2539,46 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     migrating.dispose();
   });
 
-  it('settles a prior upload marker and requires adjudication without another write', async () => {
+  it('rejects terminal upload adjudication before any Cloudflare request', async () => {
+    const template = multipart();
+    const contentType = 'multipart/form-data; boundary=warpkeep-boundary-v1';
+    const digest = inspectAuthBridgeNotificationPreparedMultipart(template, contentType)
+      .sourceDigest;
+    const value = contract(digest);
+    const fetchImpl = vi.fn(async () => {
+      throw new Error('terminal adjudication must not reach Cloudflare');
+    });
+    const settleDelayImpl = vi.fn(async () => undefined);
+    const runtime = createAuthBridgeNotificationPreparedCloudflareRuntime({
+      contract: value,
+      apiToken: 'cloudflare-test-token-value-1234567890',
+      playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
+      repositoryRoot: realpathSync(process.cwd()),
+      serviceRoot: realpathSync(join(process.cwd(), 'services/auth-bridge')),
+      nodeExecutable: process.execPath,
+      wranglerEntrypoint: process.execPath,
+      multipartBody: uploadMultipart(value),
+      multipartContentType: contentType,
+      fetchImpl,
+      settleDelayImpl,
+      journal: {
+        inspect: () => ({
+          phase: 'upload-adjudication-required',
+          uploadAdjudicationReason: 'invalid-upload-response',
+        }),
+      },
+    });
+
+    await expect(runtime.reconcileVersion(value)).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',
+      deploymentMayHaveChanged: true,
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(settleDelayImpl).not.toHaveBeenCalled();
+    runtime.dispose();
+  });
+
+  it('rejects a fresh bare upload marker without fetch or settle', async () => {
     const template = multipart();
     const contentType = 'multipart/form-data; boundary=warpkeep-boundary-v1';
     const digest = inspectAuthBridgeNotificationPreparedMultipart(template, contentType)
@@ -2075,8 +2625,9 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       code: 'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',
       deploymentMayHaveChanged: true,
     });
-    expect(listReads).toBe(5);
-    expect(settleDelayImpl).toHaveBeenCalledTimes(4);
+    expect(listReads).toBe(0);
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(settleDelayImpl).not.toHaveBeenCalled();
     expect(writes).toBe(0);
     runtime.dispose();
   });

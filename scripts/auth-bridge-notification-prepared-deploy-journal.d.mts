@@ -15,11 +15,12 @@ export type AuthBridgeNotificationPreparedDeployJournal = Readonly<{
   inspect: () => Readonly<{
     operationId: string;
     contractDigest: string;
-    phase: 'prepared' | 'remote-reconcile-started' | 'upload-invoked' | 'uploaded' | 'release-uncertain' | 'release-invoked' | 'completed' | null;
+    phase: 'prepared' | 'remote-reconcile-started' | 'upload-invoked' | 'uploaded' | 'release-uncertain' | 'release-invoked' | 'completed' | 'upload-adjudication-required' | null;
     phases: readonly string[];
     uploadMode: 'version' | null;
     predecessorDeploymentId: string | null;
     predecessorVersionId: string | null;
+    uploadAdjudicationReason: 'invalid-upload-response' | 'definitive-provider-rejection' | null;
   }>;
   prepared: (contract: Readonly<Record<string, unknown>>) => Promise<void>;
   remoteReconcileStarted: (input: Readonly<{
@@ -30,6 +31,9 @@ export type AuthBridgeNotificationPreparedDeployJournal = Readonly<{
     versionTag: string;
   }>) => Promise<void>;
   uploadInvoked: (input: Readonly<Record<string, unknown>>) => Promise<void>;
+  uploadAdjudicationRequired: (input: Readonly<{
+    reason: 'invalid-upload-response' | 'definitive-provider-rejection';
+  }>) => Promise<void>;
   uploaded: (version: Readonly<Record<string, unknown>>) => Promise<void>;
   releaseUncertain: (input: Readonly<Record<string, unknown>>) => Promise<void>;
   releaseInvoked: (input: Readonly<Record<string, unknown>>) => Promise<void>;

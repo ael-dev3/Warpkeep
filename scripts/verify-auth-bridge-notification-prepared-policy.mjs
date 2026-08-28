@@ -65,6 +65,225 @@ function exactOccurrence(source, value, code) {
 }
 
 /**
+ * Verifies the immutable upload/reconciliation source invariants after the
+ * caller has authenticated their enclosing release closure. The production
+ * static-policy entrypoint below always performs that closure verification
+ * before delegating here.
+ */
+export function verifyAuthBridgeNotificationPreparedUploadBoundarySources({
+  adapterSource,
+  journalSource,
+  runtimeSource,
+} = {}) {
+  if (
+    typeof adapterSource !== 'string'
+    || typeof journalSource !== 'string'
+    || typeof runtimeSource !== 'string'
+  ) fail('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+
+  for (const [value, expected] of [
+    ['!Number.isSafeInteger(value.number)', 2],
+    ['value.number < 1', 2],
+    ["!exactJson(metadata.keep_bindings, ['secret_text', 'secret_key'])", 1],
+    ['bindings_inherit', 0],
+    ["type: 'inherit'", 0],
+    ['version_id: plan.predecessorVersionId', 0],
+    ['function exactVersionNumber(value, expectedVersionId, code) {', 1],
+    ['function expectedSuccessorVersionNumber(predecessorVersionNumber, code) {', 1],
+    ['predecessorVersionNumber >= Number.MAX_SAFE_INTEGER', 1],
+    ['return predecessorVersionNumber + 1;', 1],
+    ['function exactVersionUploadResult(result, predecessorVersionNumber) {', 1],
+    [') !== expectedSuccessorVersionNumber(', 1],
+    ['const inspectLatestUploadedVersion = async () => {', 1],
+    ['`${basePath}/versions?page=1&per_page=1`', 1],
+    [
+      "      || !VERSION_ID.test(items[0].id ?? '')\n"
+        + '      || !Number.isSafeInteger(items[0].number)\n'
+        + '      || items[0].number < 1\n'
+        + "    ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_LIST_INVALID');",
+      1,
+    ],
+    ['versionNumber: items[0].number,', 1],
+    ['const assertLatestUploadIsPredecessor = async predecessor => {', 1],
+    ['latest.versionId !== predecessor.versionId', 1],
+    ['latest.versionNumber !== predecessor.versionNumber', 1],
+    ['await assertLatestUploadIsPredecessor(Object.freeze({', 2],
+    ['versionNumber: predecessor.versionNumber,', 1],
+    ['versionNumber: preparedPredecessorVersionNumber,', 1],
+    ['const assertCandidateVersionLineage = async (', 1],
+    ['candidateVersionNumber !== expectedSuccessorVersionNumber(', 1],
+    ['await assertCandidateVersionLineage(versionId, inspected.detail);', 1],
+    ['const versionNumber = await assertCandidateVersionLineage(', 1],
+    ['const candidateVersionNumber = await assertCandidateVersionLineage(', 1],
+    ['!Number.isSafeInteger(item.number)', 1],
+    ['item.number < 1', 1],
+    ['item.number !== versionNumber', 1],
+    ['latest.versionId !== candidates[0]', 1],
+    ['latest.versionNumber !== candidateVersionNumbers.get(candidates[0])', 1],
+    ['latest.versionId !== input.versionId', 1],
+    ['latest.versionNumber !== candidateVersionNumber', 2],
+    ["phase === 'remote-reconcile-started' && candidates.length !== 0", 1],
+    ["fail('AUTH_BRIDGE_PREPARED_DEPLOY_UNINVOKED_CANDIDATE');", 1],
+    ['let sameRuntimeUploadReconciliationAuthorized = false;', 1],
+    ['sameRuntimeUploadReconciliationAuthorized = true;', 1],
+    ['sameRuntimeUploadReconciliationAuthorized = false;', 3],
+    [
+      "if (phase === 'upload-invoked') {\n"
+        + '      if (sameRuntimeUploadReconciliationAuthorized !== true) {\n'
+        + '        fail(\n'
+        + "          'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',\n"
+        + '          true,\n'
+        + '        );\n'
+        + '      }\n'
+        + '      sameRuntimeUploadReconciliationAuthorized = false;\n'
+        + '    }\n'
+        + "    if (phase === 'remote-reconcile-started') {",
+      1,
+    ],
+    [
+      "if (phase === 'upload-adjudication-required') {\n"
+        + '      fail(\n'
+        + "        'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',\n"
+        + '        true,\n'
+        + '      );\n'
+        + '    }\n'
+        + "    if (phase === 'upload-invoked') {\n"
+        + '      if (sameRuntimeUploadReconciliationAuthorized !== true) {\n'
+        + '        fail(\n'
+        + "          'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',\n"
+        + '          true,\n'
+        + '        );\n'
+        + '      }\n'
+        + '      sameRuntimeUploadReconciliationAuthorized = false;\n'
+        + '    }\n'
+        + "    if (phase === 'remote-reconcile-started') {",
+      1,
+    ],
+    [
+      "await assertPredecessorStable(Object.freeze({\n"
+        + "        deploymentId: plan.predecessorDeploymentId,\n"
+        + "        versionId: plan.predecessorVersionId,\n"
+        + "      }));\n"
+        + '      await assertLatestUploadIsPredecessor(Object.freeze({\n'
+        + '        versionId: plan.predecessorVersionId,\n'
+        + '        versionNumber: preparedPredecessorVersionNumber,\n'
+        + '      }));\n'
+        + '      sameRuntimeUploadReconciliationAuthorized = true;\n'
+        + "      const response = await api.json(\n"
+        + "        `${basePath}/versions`,\n"
+        + "        {\n"
+        + "          method: 'POST',",
+      1,
+    ],
+    [
+      'const candidateVersionNumber = await assertCandidateVersionLineage(\n'
+        + '      input.versionId,\n'
+        + '    );\n'
+        + '    await assertPredecessorStable(Object.freeze({\n'
+        + '      deploymentId: input.predecessorDeploymentId,\n'
+        + '      versionId: input.predecessorVersionId,\n'
+        + '    }));\n'
+        + '    const latest = await inspectLatestUploadedVersion();\n'
+        + '    if (\n'
+        + '      latest.versionId !== input.versionId\n'
+        + '      || latest.versionNumber !== candidateVersionNumber\n'
+        + "    ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_LATEST_UPLOAD_MISMATCH', true);\n"
+        + '    await api.json(`${basePath}/deployments`, {',
+      1,
+    ],
+  ]) exactCount(
+    runtimeSource,
+    value,
+    expected,
+    'AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID',
+  );
+
+  for (const [value, expected] of [
+    ['upload = await uploadVersion(canonicalContract, uploadPlan);', 1],
+    ["'uploadAdjudicationRequired',", 1],
+    [
+      "if (journalState.phase === 'upload-adjudication-required') {\n"
+        + '    throw ambiguous(\n'
+        + '      undefined,\n'
+        + "      'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',\n"
+        + '    );\n'
+        + '  }\n'
+        + "  if (journalState.phase === 'upload-invoked') {\n"
+        + '    throw ambiguous(\n'
+        + '      undefined,\n'
+        + "      'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',\n"
+        + '    );\n'
+        + '  }\n'
+        + '  let uploadPlan;',
+      1,
+    ],
+    ["startingPhase === 'remote-reconcile-started'\n    && prior.length !== 0", 1],
+    ["fail('AUTH_BRIDGE_PREPARED_DEPLOY_UNINVOKED_CANDIDATE');", 1],
+    [
+      "uploadResponseInvalid = [\n"
+        + "        'AUTH_BRIDGE_PREPARED_CLOUDFLARE_UPLOAD_RESPONSE_INVALID',\n"
+        + "        'AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_LINEAGE_MISMATCH',\n"
+        + '      ].includes(error?.code);',
+      1,
+    ],
+    [
+      "if (uploadResponseInvalid) {\n"
+        + '      await journal.uploadAdjudicationRequired(Object.freeze({\n'
+        + "        reason: 'invalid-upload-response',\n"
+        + '      }));\n'
+        + "      fail('AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_RESPONSE_INVALID');\n"
+        + '    }\n'
+        + '    if (isSanitizedProviderRejection(uploadError)) {\n'
+        + '      await journal.uploadAdjudicationRequired(Object.freeze({\n'
+        + "        reason: 'definitive-provider-rejection',\n"
+        + '      }));\n'
+        + '      throw canonicalSanitizedProviderRejection(uploadError);\n'
+        + '    }\n'
+        + '    let reconciled;',
+      1,
+    ],
+  ]) exactCount(
+    adapterSource,
+    value,
+    expected,
+    'AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID',
+  );
+
+  for (const [value, expected] of [
+    ["'upload-adjudication-required': 8,", 1],
+    [
+      "const PHASE_PATTERN = '(prepared|remote-reconcile-started|upload-invoked|uploaded|release-uncertain|release-invoked|completed|upload-adjudication-required)';",
+      1,
+    ],
+    ['(0[1-8])-${PHASE_PATTERN}', 2],
+    ["'upload-adjudication-required': ['reason'],", 1],
+    ["phase === 'upload-adjudication-required'", 3],
+    [
+      "  if (\n"
+        + "    phase === 'upload-adjudication-required'\n"
+        + '    && ![\n'
+        + "      'invalid-upload-response',\n"
+        + "      'definitive-provider-rejection',\n"
+        + '    ].includes(payload.reason)\n'
+        + "  ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_PAYLOAD_INVALID');",
+      1,
+    ],
+    ["&& previous?.value.phase !== 'upload-invoked'", 1],
+    ['previous.ordinal >= ordinal', 1],
+    ["record => record.value.phase === 'upload-adjudication-required'", 1],
+    ['?.value.payload.reason ?? null,', 1],
+    ['uploadAdjudicationRequired(value) {', 1],
+    ["return transition('upload-adjudication-required', value);", 1],
+  ]) exactCount(
+    journalSource,
+    value,
+    expected,
+    'AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID',
+  );
+  return true;
+}
+
+/**
  * Checks only repository-owned release policy. It performs no network or
  * control-plane operation. Production execution still requires the protected
  * environment, all dedicated credentials, and the repository-exclusive
@@ -294,9 +513,17 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
   const adapter = read(
     'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
   );
+  const journal = read(
+    'scripts/auth-bridge-notification-prepared-deploy-journal.mjs',
+  );
   const runtime = read(
     'scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs',
   );
+  verifyAuthBridgeNotificationPreparedUploadBoundarySources({
+    adapterSource: adapter,
+    journalSource: journal,
+    runtimeSource: runtime,
+  });
   for (const [exact, count] of [
     ["const REPOSITORY = 'ael-dev3/Warpkeep';", 1],
     ["const WORKFLOW_PATH = '.github/workflows/notification-bridge-prepared.yml';", 1],
@@ -406,7 +633,6 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     ["script.last_deployed_from !== 'api'", 1],
     ['!Array.isArray(script.named_handlers)', 1],
     ["!== 'annotations,id,metadata,number,resources'", 1],
-    ['value.number < 1', 1],
     ["!== 'author_email,author_id,created_on,has_preview,source'", 1],
     ["metadata.author_email !== ''", 1],
     ["!ACCOUNT_ID.test(metadata.author_id ?? '')", 1],
@@ -451,18 +677,7 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
         + '        );',
       1,
     ],
-    ["Object.keys(binding).sort().join(',') !== 'name,type,version_id'", 1],
-    ['version_id: plan.predecessorVersionId', 1],
     ["old_name:", 0],
-    [
-      "await assertPredecessorStable(Object.freeze({\n"
-        + "        deploymentId: plan.predecessorDeploymentId,\n"
-        + "        versionId: plan.predecessorVersionId,\n"
-        + "      }));\n"
-        + "      const response = await api.json(\n"
-        + "        `${basePath}/versions?bindings_inherit=strict`,",
-      1,
-    ],
     ["'workers/triggered_by':", 0],
     ["latest.triggeredBy !== 'deployment'", 1],
   ]) exactCount(

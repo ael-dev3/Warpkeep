@@ -65,7 +65,6 @@ export function attestAuthBridgeNotificationPreparedCandidateMultipartMetadata(
     metadata: unknown;
     contract: Readonly<Record<string, unknown>>;
     playerCanaryOwnerFid: string;
-    predecessorVersionId: string;
   }>,
 ): true;
 

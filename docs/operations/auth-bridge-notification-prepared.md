@@ -263,6 +263,34 @@ checkout before each Cloudflare write, then:
 6. verifies fresh public/private endpoints before installing the content-
    addressed `0600` receipt in the private account-home sink.
 
+For the seventh-secret transition, the prepared runtime requires the exact
+fully attested six-secret B0 version to be both the sole 100% live deployment
+and the latest unfiltered Worker upload. Its candidate multipart retains exact
+`keep_bindings: ["secret_text", "secret_key"]`, contains no `inherit`
+descriptor or inheritance query, and adds only `PLAYER_CANARY_OWNER_FID` as an
+explicit `secret_text` binding. The runtime checks latest-upload equality once
+before the journal enters the upload boundary and again as the final provider
+read immediately before the single Versions API POST. Because Cloudflare does
+not expose a conditional predecessor token for `keep_bindings`, the protected
+repository-exclusive writer lane remains held through upload and candidate
+reconciliation, and dashboard, API, Wrangler, and every other out-of-band
+Worker writer must remain quiescent for the same interval; any observed head
+mismatch fails closed before mutation. The
+candidate is independently re-read and must contain exactly the reviewed
+source/configuration and seven secret bindings. The predecessor and candidate
+detail must prove one immutable sequence step: the candidate number is exactly
+predecessor number plus one; when an upload response is received, it must prove
+the same step. The candidate must remain that unfiltered latest version in
+the final provider read before any deployment POST. Reconciliation is allowed
+only inside the same runtime immediately after its sole Versions API POST. A
+fresh run that encounters bare `upload-invoked` or the append-only terminal
+upload-adjudication phase performs zero provider I/O and requires operator
+adjudication; it cannot adopt or release a candidate. Invalid upload responses
+and definitive provider rejections append that terminal phase using only one
+of two fixed, non-sensitive reason enums before returning their first-run
+error. The authorized same-runtime path never issues a second upload or cleanup
+mutation.
+
 The private PRE-attestation reports only a fixed, non-secret category when it
 cannot establish authority: invalid local input, unreachable endpoint,
 authentication rejection, rate limiting, other HTTP rejection, invalid

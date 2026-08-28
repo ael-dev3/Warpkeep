@@ -546,7 +546,7 @@ and the address is the exact canonical HTTPS subpath with exactly one literal
 `miniApp=true` query value. The document's canonical metadata deliberately
 remains the query-free base URL; it is not an authorized launch URL.
 
-## Bridge secret and deployment blocker
+## Bridge secret and deployment contract
 
 `PLAYER_CANARY_OWNER_FID` is optional and managed-secret-only. If it is absent,
 the endpoint returns generic `503 player_canary_unavailable` before verifier or
@@ -555,19 +555,35 @@ decimal FID; whitespace, leading zeroes, and unsafe integers invalidate the
 entire bridge configuration. Its value is excluded from response identity,
 cookies, logs, configuration attestations, and release attestations.
 
-The protected Cloudflare deployment currently recognizes exactly six secret
-bindings. Its metadata uses `keep_bindings: ["secret_text", "secret_key"]`,
-which preserves existing bindings but provides no reviewed creation path for a
-new one. Do not deploy this bridge source until the deployment lane has an
-audited transition that:
+The reviewed live B0 predecessor recognizes exactly six secret bindings. The
+protected successor uses one nondeploying Versions API multipart with exact
+`keep_bindings: ["secret_text", "secret_key"]`, no `inherit` descriptors, and
+only `PLAYER_CANARY_OWNER_FID` added as an explicit `secret_text` binding. The
+lane first proves that the latest uploaded version is the same fully attested
+six-secret version serving 100% of live traffic, and repeats that unfiltered
+latest-upload check as the final provider read before the POST while holding
+the repository-exclusive writer boundary. A mismatch observed by that check
+stops before mutation. Because Cloudflare exposes no conditional predecessor
+token, dashboard, API, Wrangler, and every other out-of-band Worker writer must
+remain quiescent until candidate reconciliation completes.
+The independently fetched candidate detail must prove the candidate's
+immutable version number is exactly one greater than the predecessor; when an
+upload response is received, it must prove the same step. That candidate must
+remain the unfiltered latest version in
+the final provider read before release. Reconciliation is allowed only in the
+same runtime immediately after its sole POST. A fresh run seeing bare
+`upload-invoked` or terminal upload adjudication performs zero provider I/O,
+requires operator adjudication, and cannot adopt or release a candidate.
+The audited transition:
 
 - accepts exactly the existing six names plus `PLAYER_CANARY_OWNER_FID`;
-- stages the seventh value through a private managed-secret channel, never a
+- stages the seventh value through the protected workflow secret, never a
   repository variable, source file, output, receipt, shell argument, or log;
 - proves the uploaded Worker sees all seven exact `secret_text` bindings;
 - preserves the other six values unchanged and fails closed on ambiguity;
 - records only the binding name/state, never the FID value; and
-- has green recovery tests for interruption before and after secret staging.
+- reconciles an invoked upload without issuing a second upload or cleanup
+  mutation.
 
 ## Required owner approvals
 

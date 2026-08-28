@@ -466,6 +466,7 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
       'inspect',
       'remoteReconcileStarted',
       'uploadInvoked',
+      'uploadAdjudicationRequired',
       'uploaded',
       'releaseUncertain',
       'releaseInvoked',
@@ -479,6 +480,18 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
   }
   await journal.prepared(canonicalContract);
   let journalState = journal.inspect();
+  if (journalState.phase === 'upload-adjudication-required') {
+    throw ambiguous(
+      undefined,
+      'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',
+    );
+  }
+  if (journalState.phase === 'upload-invoked') {
+    throw ambiguous(
+      undefined,
+      'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',
+    );
+  }
   let uploadPlan;
   if (journalState.phase === 'prepared') {
     uploadPlan = await prepareUpload(canonicalContract);
@@ -515,6 +528,10 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
   if (prior.length === 1 && !exactPattern(prior[0], VERSION_ID)) {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_VERSION_RECONCILIATION_INVALID');
   }
+  if (
+    startingPhase === 'remote-reconcile-started'
+    && prior.length !== 0
+  ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_UNINVOKED_CANDIDATE');
   let versionId = prior[0];
   if (
     versionId === undefined
@@ -551,8 +568,10 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
       upload = await uploadVersion(canonicalContract, uploadPlan);
     } catch (error) {
       uploadError = error;
-      uploadResponseInvalid = error?.code
-        === 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_UPLOAD_RESPONSE_INVALID';
+      uploadResponseInvalid = [
+        'AUTH_BRIDGE_PREPARED_CLOUDFLARE_UPLOAD_RESPONSE_INVALID',
+        'AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_LINEAGE_MISMATCH',
+      ].includes(error?.code);
     }
     if (
       uploadError === undefined
@@ -561,6 +580,18 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
     ) {
       uploadError = upload;
       uploadResponseInvalid = true;
+    }
+    if (uploadResponseInvalid) {
+      await journal.uploadAdjudicationRequired(Object.freeze({
+        reason: 'invalid-upload-response',
+      }));
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_RESPONSE_INVALID');
+    }
+    if (isSanitizedProviderRejection(uploadError)) {
+      await journal.uploadAdjudicationRequired(Object.freeze({
+        reason: 'definitive-provider-rejection',
+      }));
+      throw canonicalSanitizedProviderRejection(uploadError);
     }
     let reconciled;
     try {
@@ -578,14 +609,6 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
         'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OUTCOME_AMBIGUOUS',
       );
     }
-    if (uploadResponseInvalid) {
-      fail('AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_RESPONSE_INVALID');
-    }
-    if (
-      isSanitizedProviderRejection(uploadError)
-      && Array.isArray(reconciled)
-      && reconciled.length === 0
-    ) throw canonicalSanitizedProviderRejection(uploadError);
     if (
       !Array.isArray(reconciled)
       || reconciled.length !== 1

@@ -55,14 +55,15 @@ const PHASES = Object.freeze({
   'release-uncertain': 5,
   'release-invoked': 6,
   completed: 7,
+  'upload-adjudication-required': 8,
 });
-const PHASE_PATTERN = '(prepared|remote-reconcile-started|upload-invoked|uploaded|release-uncertain|release-invoked|completed)';
+const PHASE_PATTERN = '(prepared|remote-reconcile-started|upload-invoked|uploaded|release-uncertain|release-invoked|completed|upload-adjudication-required)';
 const RECORD_FILE = new RegExp(
-  `^auth-bridge-prepared-deploy-([a-f0-9]{64})-(0[1-7])-${PHASE_PATTERN}\\.json$`,
+  `^auth-bridge-prepared-deploy-([a-f0-9]{64})-(0[1-8])-${PHASE_PATTERN}\\.json$`,
   'u',
 );
 const RECORD_TEMPORARY_FILE = new RegExp(
-  `^\\.auth-bridge-prepared-deploy-([a-f0-9]{64})-(0[1-7])-${PHASE_PATTERN}-([a-f0-9]{24})\\.json\\.tmp$`,
+  `^\\.auth-bridge-prepared-deploy-([a-f0-9]{64})-(0[1-8])-${PHASE_PATTERN}-([a-f0-9]{24})\\.json\\.tmp$`,
   'u',
 );
 const LOCK_FILE = '.auth-bridge-prepared-deploy.lock';
@@ -634,6 +635,7 @@ function phasePayload(phase, value) {
       'sourceDigest', 'versionTag',
     ],
     'upload-invoked': ['sourceCommit', 'sourceDigest', 'uploadMode', 'versionTag'],
+    'upload-adjudication-required': ['reason'],
     'release-uncertain': ['sourceCommit', 'versionId', 'versionTag'],
     'release-invoked': ['sourceCommit', 'versionId', 'versionTag'],
   }[phase];
@@ -654,6 +656,13 @@ function phasePayload(phase, value) {
   if (
     phase === 'upload-invoked'
     && payload.uploadMode !== 'version'
+  ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_PAYLOAD_INVALID');
+  if (
+    phase === 'upload-adjudication-required'
+    && ![
+      'invalid-upload-response',
+      'definitive-provider-rejection',
+    ].includes(payload.reason)
   ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_PAYLOAD_INVALID');
   if (
     ['release-uncertain', 'release-invoked'].includes(phase)
@@ -882,6 +891,8 @@ function createJournal({
       || (phase === 'uploaded'
         && !['remote-reconcile-started', 'upload-invoked']
           .includes(previous?.value.phase))
+      || (phase === 'upload-adjudication-required'
+        && previous?.value.phase !== 'upload-invoked')
       || (phase === 'release-uncertain' && previous?.value.phase !== 'uploaded')
       || (phase === 'release-invoked'
         && previous?.value.phase !== 'release-uncertain')
@@ -938,6 +949,9 @@ function createJournal({
         predecessorVersionId: records.find(
           record => record.value.phase === 'remote-reconcile-started',
         )?.value.payload.predecessorVersionId ?? null,
+        uploadAdjudicationReason: records.find(
+          record => record.value.phase === 'upload-adjudication-required',
+        )?.value.payload.reason ?? null,
       });
     },
     prepared(value) {
@@ -951,6 +965,9 @@ function createJournal({
     },
     uploadInvoked(value) {
       return transition('upload-invoked', value, 'effect-boundary');
+    },
+    uploadAdjudicationRequired(value) {
+      return transition('upload-adjudication-required', value);
     },
     uploaded(value) { return transition('uploaded', value); },
     releaseUncertain(value) { return transition('release-uncertain', value); },

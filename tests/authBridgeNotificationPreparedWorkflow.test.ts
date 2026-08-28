@@ -39,6 +39,7 @@ import {
   verifyAuthBridgeNotificationPreparedInstalledToolchain,
 } from '../scripts/auth-bridge-notification-prepared-installed-toolchain.mjs';
 import {
+  verifyAuthBridgeNotificationPreparedUploadBoundarySources,
   verifyAuthBridgeNotificationPreparedStaticPolicy,
 } from '../scripts/verify-auth-bridge-notification-prepared-policy.mjs';
 import {
@@ -83,6 +84,63 @@ const RETAINED_TYPE_ONLY_DECLARATION_PATHS = Object.freeze([
   'scripts/production-player-canary-release-binding.d.mts',
 ]);
 const temporaryDirectories: string[] = [];
+
+interface PreparedRuntimeBoundarySources {
+  adapterSource: string;
+  journalSource: string;
+  runtimeSource: string;
+}
+
+function preparedRuntimeBoundarySources(): PreparedRuntimeBoundarySources {
+  return {
+    adapterSource: readFileSync(resolve(
+      repositoryRoot,
+      'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
+    ), 'utf8'),
+    journalSource: readFileSync(resolve(
+      repositoryRoot,
+      'scripts/auth-bridge-notification-prepared-deploy-journal.mjs',
+    ), 'utf8'),
+    runtimeSource: readFileSync(resolve(
+      repositoryRoot,
+      'scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs',
+    ), 'utf8'),
+  };
+}
+
+function mutatePreparedBoundarySource(
+  sources: PreparedRuntimeBoundarySources,
+  source: keyof PreparedRuntimeBoundarySources,
+  before: string,
+  after: string,
+): void {
+  expect(sources[source].split(before)).toHaveLength(2);
+  sources[source] = sources[source].replace(before, after);
+}
+
+function mutatePreparedRuntimeSource(
+  sources: PreparedRuntimeBoundarySources,
+  before: string,
+  after: string,
+): void {
+  mutatePreparedBoundarySource(sources, 'runtimeSource', before, after);
+}
+
+function mutatePreparedAdapterSource(
+  sources: PreparedRuntimeBoundarySources,
+  before: string,
+  after: string,
+): void {
+  mutatePreparedBoundarySource(sources, 'adapterSource', before, after);
+}
+
+function mutatePreparedJournalSource(
+  sources: PreparedRuntimeBoundarySources,
+  before: string,
+  after: string,
+): void {
+  mutatePreparedBoundarySource(sources, 'journalSource', before, after);
+}
 
 interface WorkflowStep {
   name?: string;
@@ -307,6 +365,72 @@ function createPolicyFixture(): string {
     writeFileSync(path, source);
   }
   return root;
+}
+
+function mutatePreparedClosureMember(
+  root: string,
+  relativePath: string,
+  before: string,
+  after: string,
+): void {
+  const path = resolve(
+    root,
+    relativePath,
+  );
+  const source = readFileSync(path, 'utf8');
+  expect(source.split(before)).toHaveLength(2);
+  writeFileSync(path, source.replace(before, after));
+
+  const manifestPath = resolve(
+    root,
+    AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH,
+  );
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+    schemaVersion: number;
+    profile: string;
+    members: Array<{ path: string; digestProfile: string; sha256: string }>;
+  };
+  const member = manifest.members.find(candidate => candidate.path === relativePath);
+  expect(member?.digestProfile).toBe('raw-file-sha256-v1');
+  member!.sha256 = createHash('sha256').update(readFileSync(path)).digest('hex');
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+  const manifestDigest = createHash('sha256')
+    .update(readFileSync(manifestPath))
+    .digest('hex');
+  for (const [workflowRelativePath, indentation] of [
+    ['.github/workflows/notification-bridge-b0.yml', '      '],
+    ['.github/workflows/notification-bridge-prepared.yml', '      '],
+    ['.github/workflows/deploy-pages.yml', '  '],
+  ] as const) {
+    const workflowFixturePath = resolve(root, workflowRelativePath);
+    const workflowSource = readFileSync(workflowFixturePath, 'utf8');
+    const pin = new RegExp(
+      `^${indentation}WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '[a-f0-9]{64}'$`,
+      'mu',
+    );
+    expect([...workflowSource.matchAll(new RegExp(pin.source, 'gmu'))]).toHaveLength(1);
+    writeFileSync(
+      workflowFixturePath,
+      workflowSource.replace(
+        pin,
+        `${indentation}WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '${manifestDigest}'`,
+      ),
+    );
+  }
+}
+
+function mutatePreparedRuntime(
+  root: string,
+  before: string,
+  after: string,
+): void {
+  mutatePreparedClosureMember(
+    root,
+    'scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs',
+    before,
+    after,
+  );
 }
 
 const fixtureWranglerTarget =
@@ -1765,6 +1889,396 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(() => verifyAuthBridgeNotificationPreparedStaticPolicy({
       repositoryRoot: directSecret,
     })).toThrow(/AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_/u);
+  }, 180_000);
+
+  it('accepts only the reviewed keep-bindings latest-head upload contract', () => {
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      preparedRuntimeBoundarySources(),
+    )).not.toThrow();
+  }, 180_000);
+
+  it.each([
+    {
+      name: 'inherit query',
+      before: '`${basePath}/versions`,\n        {\n          method: \'POST\'',
+      after:
+        '`${basePath}/versions?bindings_inherit=strict`,\n        {\n          method: \'POST\'',
+    },
+    {
+      name: 'inherit descriptor',
+      before:
+        'bindings: Object.freeze([\n        ...local.metadata.bindings,\n        Object.freeze({',
+      after: 'bindings: Object.freeze([\n        ...local.metadata.bindings,\n'
+        + '        Object.freeze({ name: \'ADMIN_TOKEN_SECRET\', type: \'inherit\' }),\n'
+        + '        Object.freeze({',
+    },
+    {
+      name: 'inherit version pin',
+      before:
+        "name: AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING,\n          text: playerCanaryOwnerFid,",
+      after:
+        "name: AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING,\n"
+        + '          version_id: plan.predecessorVersionId,\n'
+        + '          text: playerCanaryOwnerFid,',
+    },
+  ])('rejects reintroduced $name mechanics', ({ before, after }) => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedRuntimeSource(sources, before, after);
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it.each([
+    {
+      name: 'missing',
+      after: '|| metadata.keep_bindings !== undefined',
+    },
+    {
+      name: 'reordered',
+      after: "|| !exactJson(metadata.keep_bindings, ['secret_key', 'secret_text'])",
+    },
+  ])('rejects $name keep-binding types', ({ after }) => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedRuntimeSource(
+      sources,
+      "|| !exactJson(metadata.keep_bindings, ['secret_text', 'secret_key'])",
+      after,
+    );
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it.each([
+    {
+      name: 'filtered latest-version lookup',
+      before: '`${basePath}/versions?page=1&per_page=1`',
+      after: '`${basePath}/versions?deployable=true&page=1&per_page=1`',
+    },
+    {
+      name: 'optional latest-version number',
+      before: '!Number.isSafeInteger(items[0].number)',
+      after: '(items[0].number !== undefined && !Number.isSafeInteger(items[0].number))',
+    },
+    {
+      name: 'overflowing predecessor number',
+      before: 'predecessorVersionNumber >= Number.MAX_SAFE_INTEGER',
+      after: 'predecessorVersionNumber > Number.MAX_SAFE_INTEGER',
+    },
+    {
+      name: 'unsequenced upload response',
+      before: ') !== expectedSuccessorVersionNumber(',
+      after: ') === expectedSuccessorVersionNumber(',
+    },
+    {
+      name: 'unsequenced candidate detail',
+      before: 'candidateVersionNumber !== expectedSuccessorVersionNumber(',
+      after: 'candidateVersionNumber === expectedSuccessorVersionNumber(',
+    },
+    {
+      name: 'missing candidate-list number validation',
+      before: '|| !Number.isSafeInteger(item.number)',
+      after: '|| false /* candidate number unchecked */',
+    },
+    {
+      name: 'candidate no longer latest at release',
+      before: 'latest.versionId !== input.versionId',
+      after: 'latest.versionId === input.versionId',
+    },
+    {
+      name: 'runtime adoption before upload WAL',
+      before: "phase === 'remote-reconcile-started' && candidates.length !== 0",
+      after: "phase === 'upload-invoked' && candidates.length !== 0",
+    },
+  ])('rejects $name lineage mutation', ({ before, after }) => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedRuntimeSource(sources, before, after);
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it('rejects adapter adoption before the upload-invoked WAL marker', () => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedAdapterSource(
+      sources,
+      "startingPhase === 'remote-reconcile-started'\n    && prior.length !== 0",
+      "startingPhase === 'upload-invoked'\n    && prior.length !== 0",
+    );
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it.each([
+    {
+      name: 'lineage error removed from invalid upload responses',
+      before:
+        "        'AUTH_BRIDGE_PREPARED_CLOUDFLARE_UPLOAD_RESPONSE_INVALID',\n"
+        + "        'AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_LINEAGE_MISMATCH',",
+      after: "        'AUTH_BRIDGE_PREPARED_CLOUDFLARE_UPLOAD_RESPONSE_INVALID',",
+    },
+    {
+      name: 'provider rejection terminal branch is conditionally skipped',
+      before: '    if (isSanitizedProviderRejection(uploadError)) {\n'
+        + '      await journal.uploadAdjudicationRequired(Object.freeze({',
+      after: '    if (uploadError === undefined\n'
+        + '      && isSanitizedProviderRejection(uploadError)) {\n'
+        + '      await journal.uploadAdjudicationRequired(Object.freeze({',
+    },
+  ])('rejects adapter mutation: $name', ({ before, after }) => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedAdapterSource(sources, before, after);
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it('rejects moving predecessor stability after the final release latest check', () => {
+    const sources = preparedRuntimeBoundarySources();
+    const stableThenLatest =
+      '    await assertPredecessorStable(Object.freeze({\n'
+      + '      deploymentId: input.predecessorDeploymentId,\n'
+      + '      versionId: input.predecessorVersionId,\n'
+      + '    }));\n'
+      + '    const latest = await inspectLatestUploadedVersion();';
+    mutatePreparedRuntimeSource(
+      sources,
+      stableThenLatest,
+      '    const latest = await inspectLatestUploadedVersion();\n'
+        + '    await assertPredecessorStable(Object.freeze({\n'
+        + '      deploymentId: input.predecessorDeploymentId,\n'
+        + '      versionId: input.predecessorVersionId,\n'
+        + '    }));',
+    );
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it('rejects a missing final latest-head check', () => {
+    const guardedUpload =
+      '      await assertLatestUploadIsPredecessor(Object.freeze({\n'
+      + '        versionId: plan.predecessorVersionId,\n'
+      + '        versionNumber: preparedPredecessorVersionNumber,\n'
+      + '      }));\n';
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedRuntimeSource(
+      sources,
+      guardedUpload,
+      '',
+    );
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it('rejects a moved final latest-head check', () => {
+    const guardedUpload =
+      '      await assertLatestUploadIsPredecessor(Object.freeze({\n'
+      + '        versionId: plan.predecessorVersionId,\n'
+      + '        versionNumber: preparedPredecessorVersionNumber,\n'
+      + '      }));\n';
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedRuntimeSource(
+      sources,
+      guardedUpload,
+      '',
+    );
+    mutatePreparedRuntimeSource(
+      sources,
+      "      if (response.resultInfo !== undefined) {",
+      '      await assertLatestUploadIsPredecessor(Object.freeze({\n'
+        + '        versionId: plan.predecessorVersionId,\n'
+        + '        versionNumber: preparedPredecessorVersionNumber,\n'
+        + '      }));\n'
+        + '      if (response.resultInfo !== undefined) {',
+    );
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it('rejects a second or retried version-upload POST', () => {
+    // Keep one full closure-authenticated negative case to prove the
+    // production static-policy entrypoint delegates to the source verifier.
+    const root = createPolicyFixture();
+    mutatePreparedRuntime(
+      root,
+      '      const response = await api.json(\n'
+        + '        `${basePath}/versions`,',
+      '      await api.json(\n'
+        + '        `${basePath}/versions`,\n'
+        + '        { method: \'POST\', headers: { \'content-type\': source.contentType }, body, mutation: true },\n'
+        + '      );\n'
+        + '      const response = await api.json(\n'
+        + '        `${basePath}/versions`,',
+    );
+    expect(() => verifyAuthBridgeNotificationPreparedStaticPolicy({
+      repositoryRoot: root,
+    })).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it('rejects a second adapter upload invocation', () => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedAdapterSource(
+      sources,
+      '      upload = await uploadVersion(canonicalContract, uploadPlan);',
+      '      upload = await uploadVersion(canonicalContract, uploadPlan);\n'
+        + '      upload = await uploadVersion(canonicalContract, uploadPlan);',
+    );
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it.each([
+    {
+      name: 'nonterminal adjudication ordinal',
+      before: "'upload-adjudication-required': 8,",
+      after: "'upload-adjudication-required': 4,",
+    },
+    {
+      name: 'adjudication phase removed from record grammar',
+      before:
+        "const PHASE_PATTERN = '(prepared|remote-reconcile-started|upload-invoked|uploaded|release-uncertain|release-invoked|completed|upload-adjudication-required)';",
+      after:
+        "const PHASE_PATTERN = '(prepared|remote-reconcile-started|upload-invoked|uploaded|release-uncertain|release-invoked|completed)';",
+    },
+    {
+      name: 'arbitrary adjudication reason',
+      before: "      'definitive-provider-rejection',\n    ].includes(payload.reason)",
+      after: "      'definitive-provider-rejection',\n      payload.reason,\n    ].includes(payload.reason)",
+    },
+    {
+      name: 'adjudication allowed before upload invocation',
+      before:
+        "phase === 'upload-adjudication-required'\n        && previous?.value.phase !== 'upload-invoked'",
+      after:
+        "phase === 'upload-adjudication-required'\n        && previous?.value.phase !== 'remote-reconcile-started'",
+    },
+    {
+      name: 'adjudication API writes a nonterminal phase',
+      before: "return transition('upload-adjudication-required', value);",
+      after: "return transition('uploaded', value);",
+    },
+    {
+      name: 'monotonic ordinal guard permits terminal regression',
+      before: 'previous.ordinal >= ordinal',
+      after: 'previous.ordinal < ordinal',
+    },
+  ])('rejects journal terminal mutation: $name', ({ before, after }) => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedJournalSource(sources, before, after);
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it.each([
+    {
+      name: 'missing invalid-response terminal append',
+      before:
+        '      await journal.uploadAdjudicationRequired(Object.freeze({\n'
+        + "        reason: 'invalid-upload-response',\n"
+        + '      }));',
+      after: '      // adjudication append removed',
+    },
+    {
+      name: 'missing provider-rejection terminal append',
+      before:
+        '      await journal.uploadAdjudicationRequired(Object.freeze({\n'
+        + "        reason: 'definitive-provider-rejection',\n"
+        + '      }));',
+      after: '      // adjudication append removed',
+    },
+    {
+      name: 'restart ignores durable adjudication',
+      before: "if (journalState.phase === 'upload-adjudication-required') {",
+      after: "if (journalState.phase === 'upload-invoked') {",
+    },
+    {
+      name: 'adjudication journal API no longer required',
+      before: "      'uploadAdjudicationRequired',\n",
+      after: '',
+    },
+  ])('rejects adapter terminal mutation: $name', ({ before, after }) => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedAdapterSource(sources, before, after);
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it('rejects runtime reconciliation that fetches after durable adjudication', () => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedRuntimeSource(
+      sources,
+      "    if (phase === 'upload-adjudication-required') {\n"
+        + '      fail(\n'
+        + "        'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',\n"
+        + '        true,\n'
+        + '      );\n'
+        + '    }\n',
+      '',
+    );
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it('rejects adapter restart reconciliation from a bare upload-invoked WAL state', () => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedAdapterSource(
+      sources,
+      "  if (journalState.phase === 'upload-invoked') {\n"
+        + '    throw ambiguous(\n'
+        + '      undefined,\n'
+        + "      'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',\n"
+        + '    );\n'
+        + '  }\n',
+      '',
+    );
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
+  }, 180_000);
+
+  it.each([
+    {
+      name: 'bare upload-invoked state may fetch candidates',
+      before: 'if (sameRuntimeUploadReconciliationAuthorized !== true) {',
+      after: 'if (sameRuntimeUploadReconciliationAuthorized === undefined) {',
+    },
+    {
+      name: 'same-instance authorization is not consumed before reads',
+      before: '      sameRuntimeUploadReconciliationAuthorized = false;\n'
+        + '    }\n'
+        + "    if (phase === 'remote-reconcile-started') {",
+      after: '    }\n'
+        + "    if (phase === 'remote-reconcile-started') {",
+    },
+    {
+      name: 'upload authorization is not immediately before the sole POST',
+      before: '      sameRuntimeUploadReconciliationAuthorized = true;\n'
+        + '      const response = await api.json(',
+      after: '      const response = await api.json(',
+    },
+    {
+      name: 'dispose retains same-instance upload authorization',
+      before: '      preparedPredecessorVersionNumber = undefined;\n'
+        + '      sameRuntimeUploadReconciliationAuthorized = false;\n'
+        + '    },',
+      after: '      preparedPredecessorVersionNumber = undefined;\n'
+        + '    },',
+    },
+  ])('rejects runtime upload-invoked authorization mutation: $name', ({ before, after }) => {
+    const sources = preparedRuntimeBoundarySources();
+    mutatePreparedRuntimeSource(sources, before, after);
+    expect(() => verifyAuthBridgeNotificationPreparedUploadBoundarySources(
+      sources,
+    )).toThrow('AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID');
   }, 180_000);
 
   it('uses only the exact lockfile toolchain from the protected checkout', () => {

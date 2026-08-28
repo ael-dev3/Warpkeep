@@ -177,15 +177,29 @@ namespace IDs), and exactly the
 six established secret bindings. B0 must separately deploy that exact reviewed
 source/configuration at `v5` with those six secrets; a migration-tag-only update
 is insufficient. A `v4` predecessor stops for that separately reviewed B0
-prerequisite. The nondeploying version-upload multipart omits `keep_bindings`,
-uses strict inheritance with six explicit `inherit` descriptors whose
-`version_id` is the pinned predecessor version, and adds only one ephemeral
-`secret_text` binding, `PLAYER_CANARY_OWNER_FID`. A newer nondeployed version
-therefore cannot silently substitute different secret values. Candidate inspection
-then proves exactly seven secrets and the reviewed source. Immediately before
-the sole deployment POST, the exact six-secret predecessor is re-attested. The
+prerequisite. The nondeploying version-upload multipart retains exactly
+`keep_bindings: ["secret_text", "secret_key"]`, contains no `inherit`
+descriptors, and adds only one explicit `secret_text` binding,
+`PLAYER_CANARY_OWNER_FID`. Before the operation enters its upload boundary, the
+latest uploaded version must be the exact fully attested live six-secret B0
+predecessor. The workflow repeats both the live-predecessor attestation and the
+unfiltered latest-upload identity check immediately before the single Versions
+API POST under the repository-exclusive writer lane. Any newer upload observed
+by that final check stops the operation before mutation. Cloudflare offers no
+conditional predecessor token for this POST, so operators must also exclude
+dashboard, API, Wrangler, and other out-of-band Worker uploads until candidate
+reconciliation completes. Candidate inspection then proves exactly
+seven secrets, the reviewed source, and an immutable version number exactly one
+greater than the predecessor. Reconciliation is authorized only in the same
+runtime immediately after its sole POST. A fresh run seeing bare
+`upload-invoked` or terminal upload adjudication performs zero provider I/O and
+requires operator adjudication; it cannot adopt or release a candidate. In the
+authorized path, the candidate must remain the unfiltered latest version in the final provider read before release. Before that final
+read and the sole deployment POST, the exact six-secret predecessor is
+re-attested again. The
 workflow never calls the legacy Worker `/secrets` PUT or DELETE endpoints, and
-ambiguity recovery performs no cleanup mutation. No FID value appears in argv,
+same-runtime ambiguity reconciliation performs no second upload or cleanup
+mutation. No FID value appears in argv,
 terminal output, artifacts, checked-in variables, receipts, or journal records.
 Runtime exports are attested exactly whenever the official version-detail API
 returns them. If the API omits exports, the fallback is the exact metadata,
