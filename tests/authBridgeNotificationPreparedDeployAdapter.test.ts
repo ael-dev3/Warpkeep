@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_PROFILE,
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
   AUTH_BRIDGE_NOTIFICATION_PREPARED_WRANGLER_VERSION,
   AuthBridgeNotificationPreparedDeployError,
   attestAuthBridgeNotificationPreparedDeployment,
@@ -50,7 +51,7 @@ type JournalPhase =
   | null;
 
 const BEFORE_MODES = Object.freeze({
-  bridgeSourceCommit: SOURCE_COMMIT,
+  bridgeSourceCommit: AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
   publicAuthEnabled: true,
   accessExpectedFidRequired: false,
 });
@@ -307,6 +308,8 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
       entrypoint: 'src/index.ts',
       workersDev: false,
       route: { pattern: 'auth.warpkeep.com', customDomain: true },
+      predecessorSourceCommit:
+        AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
       versionTag: `notification-prepared-${SOURCE_COMMIT}`,
       versionMessage: `Warpkeep notification preparation ${SOURCE_COMMIT}`,
       sourceCommit: SOURCE_COMMIT,
@@ -435,6 +438,34 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
       deploymentMayHaveChanged: true,
     });
     expect(unresolved.releaseVersion).not.toHaveBeenCalled();
+
+    const rejected = harness();
+    const rejection = Object.assign(new Error('redacted provider rejection'), {
+      code:
+        'AUTH_BRIDGE_PREPARED_CLOUDFLARE_MUTATION_REJECTED_HTTP_400_CODE_10021',
+      deploymentMayHaveChanged: false,
+    });
+    const adjudication = Object.assign(new Error('settle window expired'), {
+      code: 'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',
+      deploymentMayHaveChanged: true,
+    });
+    rejected.uploadVersion.mockRejectedValueOnce(rejection);
+    rejected.reconcileVersion
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(adjudication);
+    const surfacedRejection = await executeAuthBridgeNotificationPreparedDeployAdapter({
+      contract: contract(),
+      ...rejected,
+    }).catch(error => error as Error & { code?: string });
+    expect(surfacedRejection).not.toBe(rejection);
+    expect(surfacedRejection).toMatchObject({
+      code:
+        'AUTH_BRIDGE_PREPARED_CLOUDFLARE_MUTATION_REJECTED_HTTP_400_CODE_10021',
+      message:
+        'AUTH_BRIDGE_PREPARED_CLOUDFLARE_MUTATION_REJECTED_HTTP_400_CODE_10021',
+    });
+    expect(String(surfacedRejection)).not.toContain('redacted provider rejection');
+    expect(rejected.releaseVersion).not.toHaveBeenCalled();
 
     const duplicate = harness();
     duplicate.reconcileVersion.mockResolvedValueOnce([VERSION_ID, VERSION_ID]);
@@ -734,6 +765,8 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
     const result = await prepareAndWriteAuthBridgeNotificationPreparedReceipt({
       adminToken: ADMIN_TOKEN,
       expectedBridgeSourceCommit: SOURCE_COMMIT,
+      expectedPredecessorBridgeSourceCommit:
+        AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
       fetchImpl,
       clock: () => new Date(NOW),
       repositoryRoot: realpathSync(process.cwd()),
@@ -746,6 +779,46 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
     const receipt = JSON.parse(readFileSync(result.path, 'utf8'));
     expect(receipt.bridgeSourceCommit).toBe(SOURCE_COMMIT);
     expect(receipt.preparedAt).toBe(NOW.toISOString());
+  });
+
+  it('surfaces only a fixed sanitized provider rejection code after deploy starts', async () => {
+    const home = mkdtempSync(join(
+      realpathSync(tmpdir()),
+      'warpkeep-deploy-adapter-rejection-',
+    ));
+    chmodSync(home, 0o700);
+    temporaryDirectories.push(home);
+    const rejection = Object.assign(new Error('private provider diagnostic'), {
+      code:
+        'AUTH_BRIDGE_PREPARED_CLOUDFLARE_MUTATION_REJECTED_HTTP_400_CODE_10021',
+      deploymentMayHaveChanged: false,
+    });
+    const surfacedRejection = await prepareAndWriteAuthBridgeNotificationPreparedReceipt({
+      adminToken: ADMIN_TOKEN,
+      expectedBridgeSourceCommit: SOURCE_COMMIT,
+      expectedPredecessorBridgeSourceCommit:
+        AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
+      fetchImpl: vi.fn(async (input: RequestInfo | URL) => responseWithUrl(
+        privateBody(false),
+        String(input),
+        {
+          'cache-control': 'no-store',
+          'content-type': 'application/json; charset=utf-8',
+        },
+      )),
+      clock: () => new Date(NOW),
+      repositoryRoot: realpathSync(process.cwd()),
+      reportedHome: home,
+      deploy: async () => { throw rejection; },
+    }).catch(error => error as Error & { code?: string });
+    expect(surfacedRejection).not.toBe(rejection);
+    expect(surfacedRejection).toMatchObject({
+      code:
+        'AUTH_BRIDGE_PREPARED_CLOUDFLARE_MUTATION_REJECTED_HTTP_400_CODE_10021',
+      message:
+        'AUTH_BRIDGE_PREPARED_CLOUDFLARE_MUTATION_REJECTED_HTTP_400_CODE_10021',
+    });
+    expect(String(surfacedRejection)).not.toContain('private provider diagnostic');
   });
 
   it('keeps direct attestation helpers fail-closed', () => {

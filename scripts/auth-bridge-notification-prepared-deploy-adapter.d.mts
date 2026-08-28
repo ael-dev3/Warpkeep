@@ -1,6 +1,8 @@
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_PROFILE:
   'warpkeep-auth-bridge-notification-prepared-deploy-v1';
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_WRANGLER_VERSION: '4.110.0';
+export const AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT:
+  '308f901d91a1fb68d90f157a2ec164ed1acaf51d';
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES:
   readonly ['ADMIN_TOKEN_SECRET', 'FARCASTER_RPC_URL', 'FARCASTER_RPC_URL_SECONDARY', 'NOTIFICATION_OPERATOR_SECRET', 'SESSION_COOKIE_KEY', 'SIGNING_KEY_JWK'];
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING:
@@ -96,6 +98,7 @@ export function prepareAndWriteAuthBridgeNotificationPreparedReceipt(
   options: Readonly<{
     adminToken: string;
     expectedBridgeSourceCommit: string;
+    expectedPredecessorBridgeSourceCommit: string;
     fetchImpl?: typeof fetch;
     clock?: () => Date;
     lifetimeMilliseconds?: number;

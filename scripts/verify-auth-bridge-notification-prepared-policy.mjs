@@ -291,6 +291,9 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     || /^\s+(?:actions|contents):\s+write\s*$/mu.test(workflow)
   ) fail('AUTH_BRIDGE_PREPARED_UNREVIEWED_DEPLOYMENT_MECHANICS');
   const entrypoint = read('scripts/auth-bridge-notification-prepared-deploy.mjs');
+  const adapter = read(
+    'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
+  );
   const runtime = read(
     'scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs',
   );
@@ -302,6 +305,8 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     ['prepareAndWriteAuthBridgeNotificationPreparedReceipt({', 1],
     ['apiToken: values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN', 1],
     ['playerCanaryOwnerFid:', 1],
+    ['expectedPredecessorBridgeSourceCommit:', 1],
+    ['AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT', 2],
     ['values.WARPKEEP_PLAYER_CANARY_OWNER_FID', 3],
     ['adminToken: values.WARPKEEP_PRODUCTION_ADMIN_TOKEN', 1],
     ['executeAuthBridgeNotificationPreparedDeployAdapter({', 1],
@@ -350,6 +355,12 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     || /process\.(?:stdout|stderr)[\s\S]{0,256}WARPKEEP_PLAYER_CANARY_OWNER_FID/u
       .test(entrypoint)
   ) fail('AUTH_BRIDGE_PREPARED_PRIVATE_RUNTIME_BOUNDARY_INVALID');
+  exactOccurrence(
+    adapter,
+    "export const AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT =\n"
+      + "  '308f901d91a1fb68d90f157a2ec164ed1acaf51d';",
+    'AUTH_BRIDGE_PREPARED_RUNTIME_BOUNDARY_INVALID',
+  );
   const installedAttestationIndex = entrypoint.indexOf(
     'verifyAuthBridgeNotificationPreparedInstalledToolchain({',
   );
@@ -407,8 +418,51 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     ["keys === 'class_name,name,namespace_id,type'", 1],
     ['.map(detailBindingProjection)', 2],
     ['...expectedReviewedDurableObjectBindings(', 2],
-    ['`notification-b0-${contract.sourceCommit}`', 1],
-    ['`Warpkeep notification B0 ${contract.sourceCommit}`', 1],
+    ['`notification-b0-${contract.predecessorSourceCommit}`', 1],
+    ['`Warpkeep notification B0 ${contract.predecessorSourceCommit}`', 1],
+    ['function validatedForbiddenResponseSubstring(value) {', 1],
+    [
+      'async function sanitizedMutationRejectionCode(\n'
+        + '  response,\n'
+        + '  forbiddenResponseSubstring,\n'
+        + ') {',
+      1,
+    ],
+    [
+      "if (body.includes(forbiddenBytes)) return 'UNAVAILABLE';\n"
+        + '      } finally {\n'
+        + '        forbiddenBytes.fill(0);\n'
+        + '      }\n'
+        + '    }\n'
+        + "    const envelope = JSON.parse(body.toString('utf8'));",
+      1,
+    ],
+    ['Number.isSafeInteger(code) && code >= 1_000 && code <= 999_999_999', 1],
+    ['response.status >= 400', 1],
+    ['response.status <= 499', 1],
+    [
+      '`AUTH_BRIDGE_PREPARED_CLOUDFLARE_MUTATION_REJECTED_HTTP_${response.status}_CODE_${providerCode}`',
+      1,
+    ],
+    [
+      'const providerCode = await sanitizedMutationRejectionCode(\n'
+        + '          response,\n'
+        + '          forbiddenResponseSubstring,\n'
+        + '        );',
+      1,
+    ],
+    ["Object.keys(binding).sort().join(',') !== 'name,type,version_id'", 1],
+    ['version_id: plan.predecessorVersionId', 1],
+    ["old_name:", 0],
+    [
+      "await assertPredecessorStable(Object.freeze({\n"
+        + "        deploymentId: plan.predecessorDeploymentId,\n"
+        + "        versionId: plan.predecessorVersionId,\n"
+        + "      }));\n"
+        + "      const response = await api.json(\n"
+        + "        `${basePath}/versions?bindings_inherit=strict`,",
+      1,
+    ],
     ["'workers/triggered_by':", 0],
     ["latest.triggeredBy !== 'deployment'", 1],
   ]) exactCount(

@@ -402,6 +402,7 @@ export async function runAuthBridgeNotificationPreparedDeploy({
   ]);
   const {
     authBridgeNotificationPreparedVersionContract,
+    AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
     executeAuthBridgeNotificationPreparedDeployAdapter,
     prepareAndWriteAuthBridgeNotificationPreparedReceipt,
   } = adapter;
@@ -427,6 +428,8 @@ export async function runAuthBridgeNotificationPreparedDeploy({
     return await prepareAndWriteAuthBridgeNotificationPreparedReceipt({
       adminToken: values.WARPKEEP_PRODUCTION_ADMIN_TOKEN,
       expectedBridgeSourceCommit: values.GITHUB_SHA,
+      expectedPredecessorBridgeSourceCommit:
+        AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
       fetchImpl,
       clock,
       repositoryRoot: repository,

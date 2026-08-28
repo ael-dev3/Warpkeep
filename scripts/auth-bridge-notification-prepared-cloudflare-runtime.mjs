@@ -17,6 +17,7 @@ import {
   AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_PROFILE,
   AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING,
   AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES,
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
   AUTH_BRIDGE_NOTIFICATION_PREPARED_WRANGLER_VERSION,
 } from './auth-bridge-notification-prepared-deploy-adapter.mjs';
 
@@ -227,6 +228,8 @@ function assertContract(contract) {
       pattern: 'auth.warpkeep.com',
       customDomain: true,
     })
+    || contract.predecessorSourceCommit
+      !== AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT
     || !SOURCE_COMMIT.test(contract.sourceCommit ?? '')
     || !SHA256_HEX.test(contract.sourceDigest ?? '')
     || contract.versionTag !== `notification-prepared-${contract.sourceCommit}`
@@ -527,7 +530,7 @@ function exactMultipartMetadata(
   }
 }
 
-/** Test seam for the version-pinned candidate inheritance projection. */
+/** Test seam for the predecessor-attested, version-pinned inheritance projection. */
 export function attestAuthBridgeNotificationPreparedCandidateMultipartMetadata({
   metadata,
   contract,
@@ -818,6 +821,48 @@ function validateResponse(response) {
   ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_RESPONSE_INVALID');
 }
 
+function validatedForbiddenResponseSubstring(value) {
+  if (
+    value !== undefined
+    && (
+      typeof value !== 'string'
+      || value.length < 1
+      || value.length > 512
+      || value.includes('\0')
+    )
+  ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_REQUEST_INVALID');
+  return value;
+}
+
+async function sanitizedMutationRejectionCode(
+  response,
+  forbiddenResponseSubstring,
+) {
+  let body;
+  try {
+    body = await boundedBody(response, 64 * 1024);
+    if (forbiddenResponseSubstring !== undefined) {
+      const forbiddenBytes = Buffer.from(forbiddenResponseSubstring, 'utf8');
+      try {
+        if (body.includes(forbiddenBytes)) return 'UNAVAILABLE';
+      } finally {
+        forbiddenBytes.fill(0);
+      }
+    }
+    const envelope = JSON.parse(body.toString('utf8'));
+    const codes = Array.isArray(envelope?.errors)
+      ? [...new Set(envelope.errors.map(error => error?.code).filter(code => (
+        Number.isSafeInteger(code) && code >= 1_000 && code <= 999_999_999
+      )))].sort((left, right) => left - right)
+      : [];
+    return codes.length === 1 ? String(codes[0]) : 'UNAVAILABLE';
+  } catch {
+    return 'UNAVAILABLE';
+  } finally {
+    body?.fill(0);
+  }
+}
+
 function createApi({ apiToken, fetchImpl, requestTimeoutMilliseconds }) {
   if (!SECRET_TOKEN.test(apiToken ?? '') || typeof fetchImpl !== 'function') {
     fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_CREDENTIALS_INVALID');
@@ -829,6 +874,9 @@ function createApi({ apiToken, fetchImpl, requestTimeoutMilliseconds }) {
       || path.includes('\\')
       || path.includes('..')
     ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_REQUEST_INVALID');
+    const forbiddenResponseSubstring = validatedForbiddenResponseSubstring(
+      options.forbiddenResponseSubstring,
+    );
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), requestTimeoutMilliseconds);
     let response;
@@ -861,6 +909,19 @@ function createApi({ apiToken, fetchImpl, requestTimeoutMilliseconds }) {
     }
     validateResponse(response);
     if (response.status !== 200) {
+      if (
+        options.mutation === true
+        && response.status >= 400
+        && response.status <= 499
+      ) {
+        const providerCode = await sanitizedMutationRejectionCode(
+          response,
+          forbiddenResponseSubstring,
+        );
+        fail(
+          `AUTH_BRIDGE_PREPARED_CLOUDFLARE_MUTATION_REJECTED_HTTP_${response.status}_CODE_${providerCode}`,
+        );
+      }
       fail(
         options.mutation
           ? 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_MUTATION_OUTCOME_AMBIGUOUS'
@@ -881,16 +942,9 @@ function createApi({ apiToken, fetchImpl, requestTimeoutMilliseconds }) {
       || maximumBytes < 1
       || maximumBytes > 2 * MAX_MULTIPART_BYTES
     ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_REQUEST_INVALID');
-    const forbiddenResponseSubstring = options.forbiddenResponseSubstring;
-    if (
-      forbiddenResponseSubstring !== undefined
-      && (
-        typeof forbiddenResponseSubstring !== 'string'
-        || forbiddenResponseSubstring.length < 1
-        || forbiddenResponseSubstring.length > 512
-        || forbiddenResponseSubstring.includes('\0')
-      )
-    ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_REQUEST_INVALID');
+    const forbiddenResponseSubstring = validatedForbiddenResponseSubstring(
+      options.forbiddenResponseSubstring,
+    );
     const body = await boundedBody(response, maximumBytes);
     let containsForbiddenBytes = false;
     if (forbiddenResponseSubstring !== undefined) {
@@ -1355,7 +1409,9 @@ function exactPredecessorVersion(result, deployment, contract, sourceDigest) {
     ...Object.entries(contract.variables).map(([name, text]) => ({
       name,
       type: 'plain_text',
-      text,
+      text: name === 'WARPKEEP_BRIDGE_SOURCE_COMMIT'
+        ? contract.predecessorSourceCommit
+        : text,
     })),
     ...AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES
       .map(name => ({ name, type: 'secret_text' })),
@@ -1370,8 +1426,8 @@ function exactPredecessorVersion(result, deployment, contract, sourceDigest) {
   exactExportsOrApiScript(
     result,
     contract,
-    `notification-b0-${contract.sourceCommit}`,
-    `Warpkeep notification B0 ${contract.sourceCommit}`,
+    `notification-b0-${contract.predecessorSourceCommit}`,
+    `Warpkeep notification B0 ${contract.predecessorSourceCommit}`,
     'AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_EXPORT_MISMATCH',
   );
   if (deployed.versionId !== deployment.versionId) {
@@ -1820,6 +1876,13 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
     }));
     const body = multipartWithMetadata(source.body, source.contentType, metadata);
     try {
+      // Cloudflare's Versions API resolves each inherit descriptor against its
+      // explicit version_id. Re-attest that durable predecessor immediately
+      // before the pinned strict-inheritance request is sent.
+      await assertPredecessorStable(Object.freeze({
+        deploymentId: plan.predecessorDeploymentId,
+        versionId: plan.predecessorVersionId,
+      }));
       const response = await api.json(
         `${basePath}/versions?bindings_inherit=strict`,
         {
