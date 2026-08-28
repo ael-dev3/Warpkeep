@@ -663,8 +663,9 @@ describe('Greater Realm atlas/module source ancestry', () => {
     trustedGit(parent, ['init', '--bare', '--quiet', remote]);
     trustedGit(repositoryRoot, ['init', '--quiet']);
     trustedGit(repositoryRoot, ['symbolic-ref', 'HEAD', 'refs/heads/main']);
+    writeFileSync(join(repositoryRoot, '.gitignore'), '**/node_modules/\n', { mode: 0o644 });
     writeFileSync(join(repositoryRoot, 'source.txt'), 'exact\n', { mode: 0o644 });
-    trustedGit(repositoryRoot, ['add', 'source.txt']);
+    trustedGit(repositoryRoot, ['add', '.gitignore', 'source.txt']);
     trustedGit(repositoryRoot, [
       '-c', 'user.name=Warpkeep Test',
       '-c', 'user.email=warpkeep-test@example.invalid',
@@ -673,6 +674,16 @@ describe('Greater Realm atlas/module source ancestry', () => {
     trustedGit(repositoryRoot, ['remote', 'add', 'origin', remote]);
     trustedGit(repositoryRoot, ['push', '--quiet', 'origin', 'main:main']);
     const sourceCommit = trustedCommit('HEAD', repositoryRoot);
+    const parserToolchain = join(
+      repositoryRoot,
+      'services',
+      'auth-bridge',
+      'node_modules',
+      'yaml',
+      'dist',
+    );
+    mkdirSync(parserToolchain, { recursive: true, mode: 0o700 });
+    writeFileSync(join(parserToolchain, 'index.js'), 'export {};\n', { mode: 0o644 });
     const hostile = Object.freeze({
       PATH: '/private/tmp/hostile-git-path',
       GIT_CONFIG_GLOBAL: '/private/tmp/hostile-git-config',
@@ -696,6 +707,21 @@ describe('Greater Realm atlas/module source ancestry', () => {
         else process.env[key] = value;
       }
     }
+
+    const unreviewedToolchain = join(
+      repositoryRoot,
+      'services',
+      'unreviewed',
+      'node_modules',
+      'package',
+    );
+    mkdirSync(unreviewedToolchain, { recursive: true, mode: 0o700 });
+    writeFileSync(join(unreviewedToolchain, 'index.js'), 'export {};\n', { mode: 0o644 });
+    expect(() => greaterRealmProductionProvenanceTestSeams.attestProtectedMainAgainstOrigin({
+      repositoryRoot,
+      expectedOriginUrl: remote,
+    })).toThrowError('GREATER_REALM_PRODUCTION_PROTECTED_MAIN_MISMATCH');
+    rmSync(join(repositoryRoot, 'services', 'unreviewed'), { recursive: true });
 
     const decoy = join(parent, 'decoy-worktree');
     mkdirSync(decoy, { mode: 0o700 });

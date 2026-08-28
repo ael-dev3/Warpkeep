@@ -790,6 +790,7 @@ function verifyExactProductionWorkingTree(input: Readonly<{
   ]) ?? '').split('\0').filter(Boolean);
   const allowedIgnoredPrefixes = [
     'node_modules/',
+    'services/auth-bridge/node_modules/',
     'spacetimedb/node_modules/',
     ...Array.from({ length: 16 }, (_, index) => (
       `spacetimedb/migration-fixtures/additive-v${index + 2}-schema/node_modules/`
