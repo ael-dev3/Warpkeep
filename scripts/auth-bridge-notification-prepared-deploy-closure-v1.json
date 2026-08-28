@@ -310,17 +310,17 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "bf7088f1569a68fdb4ebfc09704ebd668a32bf0b39b345dcbda82a1759a668a5"
+      "sha256": "23c094caebbc059739f48d74f4024e19ae2bce013e508ce1a67219b206251f95"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-adapter.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "067fab026bccf8c400e4b911091ffcff9efce245051bf65572b736293a6308f4"
+      "sha256": "6fc68b7873245b7ae60bb9c521b473718692dbd2fd0d309a17c125227adbea95"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-adapter.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "bd8188ec8639791af5671ad693b8414ea490160c2a05a21b4b3a293aa1263ef0"
+      "sha256": "db10f88d41ed05c4defe899b9b6841ca3bad16a30a6576bc9431ae18b2810c93"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure-policy.d.mts",
@@ -360,7 +360,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "388933312fc3d5b2b3f244bf89edf631b7bad2036f5f620368efb726eedd2ff1"
+      "sha256": "0b302bae9ac019f36e772b71141ad6fdd50739474e1f6df884a75f74440bd393"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json",
@@ -380,12 +380,12 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-receipt.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "cd96cdf8cd16de857b9677ccc5b0da6f2c8ab3aecc0facfb721924ec01c793b6"
+      "sha256": "eccbaac02b9db7615f479d15030fab841fa0e18017331e3e2a1012c564d3f4f2"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-receipt.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "15d315b7b3d8e533ec056d3abb1610e8cc0ae715a77a89f8faab1e69b42b841d"
+      "sha256": "1fdab15f0991cf07add91d7a93d04e30ad42baa9980cf3cefa986047fcf3b43a"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-release-binding.d.mts",
@@ -1340,7 +1340,7 @@
     {
       "path": "scripts/verify-auth-bridge-notification-prepared-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c906de5fafb46021b2ccb5a72e03016247126eafe5876a6c1ee4b79c2164fe02"
+      "sha256": "eb774cdbfe8998ce1e13b0076457a60e3b2871146270c92c88c6e4b1409b0a46"
     },
     {
       "path": "scripts/verify-auth-bridge-notification-prepared-receipt.mjs",

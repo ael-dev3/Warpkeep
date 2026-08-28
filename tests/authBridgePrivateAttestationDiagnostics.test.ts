@@ -6,6 +6,7 @@ import {
   prepareAndWriteAuthBridgeNotificationB0Receipt,
 } from '../scripts/auth-bridge-notification-b0-deploy-adapter.mjs'
 import {
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
   prepareAndWriteAuthBridgeNotificationPreparedReceipt,
 } from '../scripts/auth-bridge-notification-prepared-deploy-adapter.mjs'
 
@@ -42,6 +43,8 @@ describe('private bridge PRE-attestation diagnostics', () => {
     await expect(prepareAndWriteAuthBridgeNotificationPreparedReceipt({
       adminToken: ADMIN_TOKEN,
       expectedBridgeSourceCommit: SOURCE_COMMIT,
+      expectedPredecessorBridgeSourceCommit:
+        AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
       fetchImpl: vi.fn(async () => new Response(null, { status: 429 })) as typeof fetch,
       clock: () => NOW,
       repositoryRoot: process.cwd(),

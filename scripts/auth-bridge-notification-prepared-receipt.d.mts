@@ -133,6 +133,7 @@ export function prepareAuthBridgeNotificationPreparedReceipt(
       accessExpectedFidRequired: boolean;
     }>) => void | Promise<void>;
     expectedBridgeSourceCommit: string;
+    expectedPredecessorBridgeSourceCommit?: string;
     fetchImpl?: typeof fetch;
     clock?: () => Date;
     lifetimeMilliseconds?: number;

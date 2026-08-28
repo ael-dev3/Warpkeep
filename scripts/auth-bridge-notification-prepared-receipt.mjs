@@ -976,6 +976,7 @@ async function prepareAuthBridgeNotificationReceipt({
   adminToken,
   deploy,
   expectedBridgeSourceCommit,
+  expectedPredecessorBridgeSourceCommit = expectedBridgeSourceCommit,
   fetchImpl = fetch,
   clock = () => new Date(),
   lifetimeMilliseconds =
@@ -987,6 +988,8 @@ async function prepareAuthBridgeNotificationReceipt({
   if (
     typeof expectedBridgeSourceCommit !== 'string'
     || !SOURCE_COMMIT.test(expectedBridgeSourceCommit)
+    || typeof expectedPredecessorBridgeSourceCommit !== 'string'
+    || !SOURCE_COMMIT.test(expectedPredecessorBridgeSourceCommit)
   ) fail('AUTH_BRIDGE_PREPARED_EXPECTED_SOURCE_INVALID');
   if (
     !Number.isSafeInteger(lifetimeMilliseconds)
@@ -1001,7 +1004,7 @@ async function prepareAuthBridgeNotificationReceipt({
     fetchImpl,
   });
   const beforeModes = Object.freeze({
-    bridgeSourceCommit: expectedBridgeSourceCommit,
+    bridgeSourceCommit: expectedPredecessorBridgeSourceCommit,
     publicAuthEnabled: before.publicAuthEnabled,
     accessExpectedFidRequired: before.accessExpectedFidRequired,
   });

@@ -46,6 +46,7 @@ import {
 const NOW = new Date('2026-08-11T12:00:00.000Z');
 const ADMIN_TOKEN = 'test-admin-token-that-is-long-enough-for-production';
 const SOURCE_COMMIT = 'a'.repeat(40);
+const PREDECESSOR_SOURCE_COMMIT = 'b'.repeat(40);
 const DELIVERY_CONTRACT_DIGEST =
   AUTH_BRIDGE_NOTIFICATION_DELIVERY_CONTRACT_DIGEST;
 const temporaryDirectories: string[] = [];
@@ -446,6 +447,24 @@ describe('fresh public release-attestation binding', () => {
       receipt: prepared,
       liveAttestation: releaseAttestation(),
     });
+  });
+
+  it('binds a reviewed predecessor source separately from the prepared source', async () => {
+    const deploy = vi.fn(async () => undefined);
+    const prepared = await prepareAuthBridgeNotificationPreparedReceipt({
+      adminToken: ADMIN_TOKEN,
+      deploy,
+      expectedBridgeSourceCommit: SOURCE_COMMIT,
+      expectedPredecessorBridgeSourceCommit: PREDECESSOR_SOURCE_COMMIT,
+      fetchImpl: preparationFetch() as typeof fetch,
+      clock: () => NOW,
+    });
+    expect(deploy).toHaveBeenCalledExactlyOnceWith({
+      bridgeSourceCommit: PREDECESSOR_SOURCE_COMMIT,
+      publicAuthEnabled: true,
+      accessExpectedFidRequired: false,
+    });
+    expect(prepared.bridgeSourceCommit).toBe(SOURCE_COMMIT);
   });
 
   it('cannot prepare writable evidence without authenticated preserved pre-state', async () => {

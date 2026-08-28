@@ -6,6 +6,8 @@ import {
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_PROFILE =
   'warpkeep-auth-bridge-notification-prepared-deploy-v1';
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_WRANGLER_VERSION = '4.110.0';
+export const AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT =
+  '308f901d91a1fb68d90f157a2ec164ed1acaf51d';
 
 const ACCOUNT_ID = /^[a-f0-9]{32}$/u;
 const SOURCE_COMMIT = /^[a-f0-9]{40}$/u;
@@ -61,6 +63,7 @@ const CONTRACT_KEYS = Object.freeze([
   'entrypoint',
   'workersDev',
   'route',
+  'predecessorSourceCommit',
   'versionTag',
   'versionMessage',
   'sourceCommit',
@@ -191,7 +194,8 @@ export function authBridgeNotificationPreparedVersionContract({
         'publicAuthEnabled',
         'accessExpectedFidRequired',
       ])
-    || beforeModes.bridgeSourceCommit !== sourceCommit
+    || beforeModes.bridgeSourceCommit
+      !== AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT
   ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_INPUT_INVALID');
   return Object.freeze({
     schemaVersion: 1,
@@ -203,6 +207,8 @@ export function authBridgeNotificationPreparedVersionContract({
     entrypoint: ENTRYPOINT,
     workersDev: WORKERS_DEV,
     route: ROUTE,
+    predecessorSourceCommit:
+      AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
     versionTag: versionTag(sourceCommit),
     versionMessage: versionMessage(sourceCommit),
     sourceCommit,
@@ -233,7 +239,7 @@ function canonicalVersionContract(value) {
     sourceCommit: value.sourceCommit,
     sourceDigest: value.sourceDigest,
     beforeModes: {
-      bridgeSourceCommit: value.sourceCommit,
+      bridgeSourceCommit: value.predecessorSourceCommit,
       publicAuthEnabled: value.variables.PUBLIC_AUTH_ENABLED === 'true',
       accessExpectedFidRequired:
         value.variables.ACCESS_EXPECTED_FID_REQUIRED === 'true',
@@ -332,6 +338,26 @@ const OPERATOR_ADJUDICATION_CODES = new Set([
   'AUTH_BRIDGE_PREPARED_DEPLOY_RELEASE_OPERATOR_ADJUDICATION_REQUIRED',
   'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',
 ]);
+const SANITIZED_PROVIDER_REJECTION =
+  /^AUTH_BRIDGE_PREPARED_CLOUDFLARE_MUTATION_REJECTED_HTTP_4[0-9]{2}_CODE_(?:[0-9]{4,9}|UNAVAILABLE)$/u;
+
+function isSanitizedProviderRejection(error) {
+  return isRecord(error)
+    && error.deploymentMayHaveChanged === false
+    && SANITIZED_PROVIDER_REJECTION.test(error.code ?? '');
+}
+
+function canonicalSanitizedProviderRejection(error) {
+  if (!isSanitizedProviderRejection(error)) return undefined;
+  return new AuthBridgeNotificationPreparedDeployError(error.code, false);
+}
+
+function isUploadOperatorAdjudication(error) {
+  return isRecord(error)
+    && error.deploymentMayHaveChanged === true
+    && error.code
+      === 'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED';
+}
 
 function rethrowOperatorAdjudication(error) {
   if (
@@ -540,6 +566,10 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
     try {
       reconciled = await reconcileVersion(canonicalContract);
     } catch (reconcileError) {
+      if (
+        isSanitizedProviderRejection(uploadError)
+        && isUploadOperatorAdjudication(reconcileError)
+      ) throw canonicalSanitizedProviderRejection(uploadError);
       rethrowOperatorAdjudication(reconcileError);
       throw ambiguous(
         uploadError === undefined
@@ -551,6 +581,11 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
     if (uploadResponseInvalid) {
       fail('AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_RESPONSE_INVALID');
     }
+    if (
+      isSanitizedProviderRejection(uploadError)
+      && Array.isArray(reconciled)
+      && reconciled.length === 0
+    ) throw canonicalSanitizedProviderRejection(uploadError);
     if (
       !Array.isArray(reconciled)
       || reconciled.length !== 1
@@ -690,6 +725,7 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
 export async function prepareAndWriteAuthBridgeNotificationPreparedReceipt({
   adminToken,
   expectedBridgeSourceCommit,
+  expectedPredecessorBridgeSourceCommit,
   fetchImpl,
   clock,
   lifetimeMilliseconds,
@@ -711,6 +747,7 @@ export async function prepareAndWriteAuthBridgeNotificationPreparedReceipt({
     receipt = await prepareAuthBridgeNotificationPreparedReceipt({
       adminToken,
       expectedBridgeSourceCommit,
+      expectedPredecessorBridgeSourceCommit,
       fetchImpl,
       clock: trackedClock,
       lifetimeMilliseconds,
@@ -721,6 +758,8 @@ export async function prepareAndWriteAuthBridgeNotificationPreparedReceipt({
     });
   } catch (error) {
     if (deploymentStarted) {
+      const sanitized = canonicalSanitizedProviderRejection(error);
+      if (sanitized !== undefined) throw sanitized;
       throw ambiguous(
         error,
         'AUTH_BRIDGE_PREPARED_DEPLOY_RECEIPT_PREPARATION_AMBIGUOUS',
