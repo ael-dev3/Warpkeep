@@ -1196,7 +1196,8 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     let tailConsumer = false;
     let cacheEnabled = false;
     let targetMessage: string | null = value.versionMessage;
-    let targetTrigger: string | null = 'warpkeep-notification-prepared';
+    let targetTrigger: string | null = 'deployment';
+    let releaseBody: Readonly<Record<string, unknown>> | null = null;
     const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       const method = init?.method ?? 'GET';
@@ -1263,6 +1264,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
         return response(oldDetail, url);
       }
       if (url.endsWith('/deployments') && method === 'POST') {
+        releaseBody = JSON.parse(String(init?.body)) as Readonly<Record<string, unknown>>;
         releasePosts += 1;
         mutationOrder.push('release');
         targetLive = true;
@@ -1418,11 +1420,18 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     expect(releasePosts).toBe(1);
     expect(secretEndpointWrites).toBe(0);
     expect(mutationOrder).toEqual(['upload', 'release']);
+    expect(releaseBody).toMatchObject({
+      annotations: { 'workers/message': value.versionMessage },
+    });
+    expect((releaseBody as unknown as {
+      annotations?: Readonly<Record<string, string>>;
+    })
+      .annotations).not.toHaveProperty('workers/triggered_by');
     expect(targetLive).toBe(true);
     expect(phase).toBe('completed');
     for (const [message, trigger] of [
-      [null, 'warpkeep-notification-prepared'],
-      ['wrong message', 'warpkeep-notification-prepared'],
+      [null, 'deployment'],
+      ['wrong message', 'deployment'],
       [value.versionMessage, null],
       [value.versionMessage, 'wrong-trigger'],
     ] as const) {
