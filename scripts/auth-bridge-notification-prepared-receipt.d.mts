@@ -38,7 +38,7 @@ export type AuthBridgeNotificationPreparedReceipt = Readonly<{
   bridgeSourceCommit: string;
   notificationDeliveryContractDigest: string;
   notificationClientCount: 1;
-  notificationDeliveryEnabled: true;
+  notificationDeliveryEnabled: boolean;
   notificationTransportConfigured: true;
   admissionNotificationStoreConfigured: true;
   publicAuthEnabledBefore: boolean;
@@ -127,6 +127,7 @@ export function fetchFreshAuthBridgeReleaseAttestation(
 export function prepareAuthBridgeNotificationPreparedReceipt(
   options: Readonly<{
     adminToken: string;
+    expectedPtrSpacetimeDbDatabase: string;
     deploy: (preservedModes: Readonly<{
       bridgeSourceCommit: string;
       publicAuthEnabled: boolean;

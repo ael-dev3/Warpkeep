@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
 import {
+  importAuthBridgeNotificationPreparedAttestedModules,
   verifyAuthBridgeNotificationPreparedDeployClosure,
 } from './auth-bridge-notification-prepared-deploy-closure.mjs';
 import {
@@ -21,6 +22,9 @@ const ACCOUNT_ID = /^[a-f0-9]{32}$/u;
 const RUN_ID = /^[1-9][0-9]{0,19}$/u;
 const SECRET = /^\S{20,4096}$/u;
 const POSITIVE_FID = /^[1-9][0-9]{0,15}$/u;
+const SPACETIMEDB_DATABASE_IDENTITY = /^[a-f0-9]{64}$/u;
+const PRODUCTION_SPACETIMEDB_DATABASE =
+  'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
 const MAX_GITHUB_RESPONSE_BYTES = 512 * 1024;
 const MAX_GIT_OUTPUT_BYTES = 64 * 1024;
 const MAX_TRACKED_LISTING_BYTES = 256 * 1024;
@@ -38,6 +42,7 @@ const REQUIRED_ENVIRONMENT = Object.freeze([
   'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
   'WARPKEEP_AUTH_BRIDGE_ZONE_ID',
   'WARPKEEP_PLAYER_CANARY_OWNER_FID',
+  'WARPKEEP_PTR_SPACETIMEDB_DATABASE',
   'WARPKEEP_PRODUCTION_ADMIN_TOKEN',
 ]);
 const FORBIDDEN_ENVIRONMENT = Object.freeze([
@@ -49,15 +54,33 @@ const FORBIDDEN_ENVIRONMENT = Object.freeze([
   'WRANGLER_AUTH_DOMAIN',
   'WRANGLER_PROFILE',
   'WRANGLER_SEND_METRICS',
+  'BASH_ENV',
+  'ENV',
   'NODE_OPTIONS',
+  'NODE_PATH',
   'NODE_EXTRA_CA_CERTS',
   'NODE_TLS_REJECT_UNAUTHORIZED',
+  'NODE_DEBUG',
+  'NODE_DEBUG_NATIVE',
+  'OPENSSL_CONF',
+  'SSL_CERT_FILE',
+  'SSL_CERT_DIR',
+  'SSLKEYLOGFILE',
   'HTTP_PROXY',
   'HTTPS_PROXY',
   'ALL_PROXY',
+  'NO_PROXY',
   'http_proxy',
   'https_proxy',
   'all_proxy',
+  'no_proxy',
+  'DYLD_INSERT_LIBRARIES',
+  'DYLD_LIBRARY_PATH',
+  'DYLD_FRAMEWORK_PATH',
+  'DYLD_FALLBACK_LIBRARY_PATH',
+  'DYLD_FALLBACK_FRAMEWORK_PATH',
+  'LD_PRELOAD',
+  'LD_LIBRARY_PATH',
 ]);
 
 export class AuthBridgeNotificationPreparedDeployEntrypointError extends Error {
@@ -111,6 +134,7 @@ function copyAndScrubEnvironment(environment) {
     'GITHUB_TOKEN',
     'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
     'WARPKEEP_PLAYER_CANARY_OWNER_FID',
+    'WARPKEEP_PTR_SPACETIMEDB_DATABASE',
     'WARPKEEP_PRODUCTION_ADMIN_TOKEN',
   ]) delete environment[name];
   if (
@@ -131,6 +155,11 @@ function copyAndScrubEnvironment(environment) {
     || !POSITIVE_FID.test(values.WARPKEEP_PLAYER_CANARY_OWNER_FID)
     || BigInt(values.WARPKEEP_PLAYER_CANARY_OWNER_FID)
       > BigInt(Number.MAX_SAFE_INTEGER)
+    || !SPACETIMEDB_DATABASE_IDENTITY.test(
+      values.WARPKEEP_PTR_SPACETIMEDB_DATABASE,
+    )
+    || values.WARPKEEP_PTR_SPACETIMEDB_DATABASE
+      === PRODUCTION_SPACETIMEDB_DATABASE
   ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_ENVIRONMENT_INVALID');
   return Object.freeze(values);
 }
@@ -395,11 +424,16 @@ export async function runAuthBridgeNotificationPreparedDeploy({
   if (values.GITHUB_SHA !== sourceCommit) {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_SOURCE_COMMIT_INVALID');
   }
-  const [adapter, cloudflareRuntime, deployJournal] = await Promise.all([
-    import('./auth-bridge-notification-prepared-deploy-adapter.mjs'),
-    import('./auth-bridge-notification-prepared-cloudflare-runtime.mjs'),
-    import('./auth-bridge-notification-prepared-deploy-journal.mjs'),
-  ]);
+  const [adapter, cloudflareRuntime, deployJournal] =
+    await importAuthBridgeNotificationPreparedAttestedModules({
+      authority: sourceClosureAfterToolchain,
+      repositoryRoot: repository,
+      memberPaths: [
+        'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
+        'scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs',
+        'scripts/auth-bridge-notification-prepared-deploy-journal.mjs',
+      ],
+    });
   const {
     authBridgeNotificationPreparedVersionContract,
     AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
@@ -427,6 +461,8 @@ export async function runAuthBridgeNotificationPreparedDeploy({
     });
     return await prepareAndWriteAuthBridgeNotificationPreparedReceipt({
       adminToken: values.WARPKEEP_PRODUCTION_ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase:
+        values.WARPKEEP_PTR_SPACETIMEDB_DATABASE,
       expectedBridgeSourceCommit: values.GITHUB_SHA,
       expectedPredecessorBridgeSourceCommit:
         AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
@@ -481,6 +517,8 @@ export async function runAuthBridgeNotificationPreparedDeploy({
                 apiToken: values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN,
                 playerCanaryOwnerFid:
                   values.WARPKEEP_PLAYER_CANARY_OWNER_FID,
+                ptrSpacetimeDbDatabase:
+                  values.WARPKEEP_PTR_SPACETIMEDB_DATABASE,
                 repositoryRoot: repository,
                 serviceRoot,
                 nodeExecutable,

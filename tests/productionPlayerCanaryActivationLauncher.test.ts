@@ -19,6 +19,7 @@ import { spawnSync } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  EXPECTED_PROTECTED_SOURCE_CLOSURE_MEMBER_COUNT,
   parseProductionPlayerCanaryActivationLaunch,
   PRODUCTION_PLAYER_CANARY_ACTIVATION_LAUNCHER_PROFILE,
   productionPlayerCanaryActivationLauncherTestSeams,
@@ -273,7 +274,10 @@ function injected(calls: string[]) {
       assertProtectedSource: () => { calls.push('protected-source'); },
       verifySourceClosure: () => {
         calls.push('closure');
-        return { memberCount: 956, manifestSha256: '5'.repeat(64) };
+        return {
+          memberCount: EXPECTED_PROTECTED_SOURCE_CLOSURE_MEMBER_COUNT,
+          manifestSha256: '5'.repeat(64),
+        };
       },
       assertSourceTransition: () => {
         calls.push('transition');
@@ -638,7 +642,7 @@ describe('production player canary activation request launcher', () => {
     ) => Promise<unknown>)(launch, {
       writeRequest: fakeWriter,
       verifySourceClosure: () => ({
-        memberCount: 956,
+        memberCount: EXPECTED_PROTECTED_SOURCE_CLOSURE_MEMBER_COUNT,
         manifestSha256: '0'.repeat(64),
       }),
     })).rejects.toThrow(

@@ -13,8 +13,8 @@ permissions:
 # exclusive jobs. The source-closure manifest canonicalizes only these exact
 # values, so changing any protected executable requires an explicit refreeze.
 env:
-  WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: 'cb96a0772cf614ea997da153e7769deaad0094750b46fcb6c5ec10d17568d742'
-  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '388cb041b34b54725dd0873388bb522c78859ed30dbaf1cb42fe0b9d78041c46'
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: 'f91253c322a16fc61a47fb49f166bf6a2dddc915d3d54d1efdad905f5741a02c'
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: 'd60dc9f8375d89f4346d255a9f426f3f565a617edb51e1f80b44318fc2baab34'
   WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256: '8789b2a4c1e63eb9822ae7a4e15688ce78fe9c9f07adb82cd1982d5cab70b3ac'
   WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256: '9bb11880c6a9f4cb69b76b05f7ef5219ded2a86e3a44ee2c4d9371262213a161'
   WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256: 'ac18ecc2371d8bfff17ea8abec9d989085c4992d2ebeb70e7c9947bfac62837e'
@@ -82,8 +82,11 @@ jobs:
       VITE_WARPKEEP_REPOSITORY_URL: https://github.com/ael-dev3/Warpkeep
       VITE_WARPKEEP_CANONICAL_ORIGIN: https://warpkeep.com
       VITE_WARPKEEP_SHARED_ALPHA_ENABLED: ${{ vars.WARPKEEP_SHARED_ALPHA_ENABLED }}
-      # Presentation remains immutable-off until a separately reviewed release.
+      # Admission notifications remain immutable-off in the sealed launch.
       VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'false'
+      # PTR presentation is activation-bound to one immutable Maincloud identity.
+      VITE_WARPKEEP_PTR_ENABLED: 'true'
+      VITE_PTR_SPACETIMEDB_DATABASE: ${{ vars.WARPKEEP_PTR_SPACETIMEDB_DATABASE }}
       VITE_WARPKEEP_AUTH_BRIDGE_URL: ${{ vars.WARPKEEP_AUTH_BRIDGE_URL || '' }}
       VITE_WARPKEEP_OIDC_ISSUER: ${{ vars.WARPKEEP_OIDC_ISSUER || '' }}
       VITE_WARPKEEP_OIDC_AUDIENCE: ${{ vars.WARPKEEP_OIDC_AUDIENCE || 'warpkeep-spacetimedb' }}
@@ -187,6 +190,11 @@ jobs:
           echo "$private_bin" >> "$GITHUB_PATH"
           echo "WARPKEEP_PRIVATE_NODE=$private_bin/node" >> "$GITHUB_ENV"
           echo "WARPKEEP_PRIVATE_NODE_SHA256=$staged_sha" >> "$GITHUB_ENV"
+
+      - name: Validate exact activation-bound PTR build inputs
+        env:
+          WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        run: node scripts/verify-0.4.0-sealed-launch.mjs --phase=pages-build
 
       - name: Install
         run: npm ci

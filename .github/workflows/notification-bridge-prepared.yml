@@ -32,16 +32,16 @@ jobs:
       WARPKEEP_EXPECTED_SOURCE_COMMIT: ${{ inputs.source_commit }}
       # This protected manual phase is bridge-only. Later execution and
       # presentation gates remain inert in both source and the receipt ABI.
-      WARPKEEP_BRIDGE_NOTIFICATION_DELIVERY_ENABLED: 'true'
+      WARPKEEP_BRIDGE_NOTIFICATION_DELIVERY_ENABLED: 'false'
       WARPKEEP_HERMES_EXECUTION_APPROVED: 'false'
       WARPKEEP_PAGES_PRESENTATION_ENABLED: 'false'
-      WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: 'cb96a0772cf614ea997da153e7769deaad0094750b46fcb6c5ec10d17568d742'
-      WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '388cb041b34b54725dd0873388bb522c78859ed30dbaf1cb42fe0b9d78041c46'
+      WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: 'f91253c322a16fc61a47fb49f166bf6a2dddc915d3d54d1efdad905f5741a02c'
+      WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: 'd60dc9f8375d89f4346d255a9f426f3f565a617edb51e1f80b44318fc2baab34'
       WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256: '8789b2a4c1e63eb9822ae7a4e15688ce78fe9c9f07adb82cd1982d5cab70b3ac'
       WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256: '9bb11880c6a9f4cb69b76b05f7ef5219ded2a86e3a44ee2c4d9371262213a161'
     steps:
       - name: Resolve exact protected main run authority
-        shell: bash
+        shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -55,7 +55,7 @@ jobs:
             exit 1
           fi
           protected_main="$(
-            gh api "repos/ael-dev3/Warpkeep/branches/main" \
+            /opt/homebrew/bin/gh api "repos/ael-dev3/Warpkeep/branches/main" \
               --jq 'select(.protected == true) | .commit.sha'
           )"
           if [[ ! "$protected_main" =~ ^[0-9a-f]{40}$ \
@@ -64,16 +64,54 @@ jobs:
             exit 1
           fi
 
+      - name: Discard prior checkout Git metadata
+        shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}
+        run: |
+          set -euo pipefail
+          workspace="$GITHUB_WORKSPACE"
+          if [[ "$workspace" != /* \
+            || "${workspace##*/}" != 'Warpkeep' \
+            || "$workspace" == *$'\n'* \
+            || "$workspace" == *$'\r'* ]]; then
+            echo 'AUTH_BRIDGE_CHECKOUT_WORKSPACE_INVALID' >&2
+            exit 1
+          fi
+          git_metadata="$GITHUB_WORKSPACE/.git"
+          if [[ -e "$git_metadata" || -L "$git_metadata" ]]; then
+            /bin/rm -rf -- "$git_metadata"
+          fi
+          if [[ -e "$git_metadata" || -L "$git_metadata" ]]; then
+            echo 'AUTH_BRIDGE_CHECKOUT_METADATA_INVALID' >&2
+            exit 1
+          fi
+
       - name: Checkout exact protected source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        env:
+          BASH_ENV: ''
+          DYLD_INSERT_LIBRARIES: ''
+          DYLD_LIBRARY_PATH: ''
+          ENV: ''
+          GIT_ATTR_NOSYSTEM: '1'
+          GIT_CONFIG_COUNT: '2'
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_KEY_0: core.hooksPath
+          GIT_CONFIG_KEY_1: init.templateDir
+          GIT_CONFIG_NOSYSTEM: '1'
+          GIT_CONFIG_VALUE_0: /private/var/empty
+          GIT_CONFIG_VALUE_1: /private/var/empty
+          NODE_OPTIONS: ''
+          NODE_PATH: ''
+          PATH: /usr/bin:/bin
         with:
           ref: ${{ inputs.source_commit }}
           persist-credentials: false
+          set-safe-directory: false
           clean: true
           fetch-depth: 1
 
       - name: Re-attest detached protected checkout
-        shell: bash
+        shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           set -euo pipefail
           git_safe=(/usr/bin/git -c core.fsmonitor=false -c core.untrackedCache=false)
@@ -125,24 +163,272 @@ jobs:
           verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256" \
             scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json
 
-      - name: Setup pinned pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-        with:
-          version: 11.7.0
-          run_install: false
+      - name: Attest immutable Node and pnpm executable authorities
+        id: node-authority
+        shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}
+        run: |
+          set -euo pipefail
+          node_executable='/private/var/db/warpkeep/runtime/node-v22.22.3-darwin-arm64/bin/node'
+          pnpm_executable='/private/var/db/warpkeep/runtime/pnpm-v11.7.0-darwin-arm64/pnpm'
+          verify_immutable_executable() {
+            local executable="$1"
+            local expected_digest="$2"
+            local signature_profile="$3"
+            local component="$executable"
+            local acl_listing
+            local acl_permissions
+            local path_uid
+            local path_gid
+            local path_nlink
+            local path_mode
+            local path_type
+            while true; do
+              if [[ -L "$component" ]]; then
+                echo 'AUTH_BRIDGE_PREPARED_IMMUTABLE_TOOL_INVALID' >&2
+                exit 1
+              fi
+              IFS=: read -r path_uid path_gid path_nlink path_mode path_type < <(
+                /usr/bin/stat -f '%u:%g:%l:%Lp:%HT' -- "$component"
+              )
+              acl_listing="$(/bin/ls -lde -- "$component")"
+              acl_permissions="${acl_listing%% *}"
+              if [[ "$path_uid" != '0' \
+                || "$path_gid" != '0' \
+                || ! "$path_mode" =~ ^[0-7]{3,4}$ \
+                || $((8#$path_mode & 0022)) -ne 0 \
+                || "$acl_listing" == *$'\n'* \
+                || "$acl_permissions" == *+* ]]; then
+                echo 'AUTH_BRIDGE_PREPARED_IMMUTABLE_TOOL_INVALID' >&2
+                exit 1
+              fi
+              if [[ "$component" == "$executable" ]]; then
+                if [[ "$path_type" != 'Regular File' \
+                  || "$path_nlink" != '1' \
+                  || "$path_mode" != '555' \
+                  || ! -x "$component" ]]; then
+                  echo 'AUTH_BRIDGE_PREPARED_IMMUTABLE_TOOL_INVALID' >&2
+                  exit 1
+                fi
+              elif [[ "$path_type" != 'Directory' ]]; then
+                echo 'AUTH_BRIDGE_PREPARED_IMMUTABLE_TOOL_INVALID' >&2
+                exit 1
+              fi
+              if [[ "$component" == '/' ]]; then break; fi
+              component="${component%/*}"
+              if [[ -z "$component" ]]; then component='/'; fi
+            done
+            local digest_output
+            local digest
+            local signature
+            local file_type
+            digest_output="$(
+              /usr/bin/env -i PATH=/usr/bin:/bin \
+                /usr/bin/shasum -a 256 -- "$executable"
+            )"
+            digest="${digest_output%% *}"
+            file_type="$(/usr/bin/file -b -- "$executable")"
+            /usr/bin/codesign --verify --strict --verbose=4 "$executable" \
+              >/dev/null 2>&1
+            signature="$(/usr/bin/codesign -dv --verbose=4 "$executable" 2>&1)"
+            if [[ "$digest" != "$expected_digest" \
+              || "$file_type" != 'Mach-O 64-bit executable arm64' ]]; then
+              echo 'AUTH_BRIDGE_PREPARED_IMMUTABLE_TOOL_INVALID' >&2
+              exit 1
+            fi
+            if [[ "$signature_profile" == 'node' ]]; then
+              if [[ "$signature" != *$'TeamIdentifier=HX7739G8FX'* ]]; then
+                echo 'AUTH_BRIDGE_PREPARED_IMMUTABLE_TOOL_INVALID' >&2
+                exit 1
+              fi
+            elif [[ "$signature_profile" == 'pnpm' ]]; then
+              if [[ "$signature" != *$'Signature=adhoc'* \
+                || "$signature" != *$'TeamIdentifier=not set'* ]]; then
+                echo 'AUTH_BRIDGE_PREPARED_IMMUTABLE_TOOL_INVALID' >&2
+                exit 1
+              fi
+            else
+              echo 'AUTH_BRIDGE_PREPARED_IMMUTABLE_TOOL_INVALID' >&2
+              exit 1
+            fi
+          }
+          verify_immutable_executable \
+            "$node_executable" \
+            '5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c' \
+            node
+          verify_immutable_executable \
+            "$pnpm_executable" \
+            '71867bc41587756fcbcba886effe380ca1f2914fcd166a50d3a26e58545ea034' \
+            pnpm
+          printf 'path=%s\npnpm_path=%s\n' \
+            "$node_executable" "$pnpm_executable" >> "$GITHUB_OUTPUT"
 
-      - name: Setup exact Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22.22.3
-          cache: pnpm
-          cache-dependency-path: services/auth-bridge/pnpm-lock.yaml
+      - name: Attest source closure before package installation
+        shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}
+        env:
+          WARPKEEP_NODE_EXECUTABLE: ${{ steps.node-authority.outputs.path }}
+        run: |
+          set -euo pipefail
+          node_executable="$WARPKEEP_NODE_EXECUTABLE"
+          if [[ "$node_executable" != '/private/var/db/warpkeep/runtime/node-v22.22.3-darwin-arm64/bin/node' ]]; then
+            echo 'AUTH_BRIDGE_PREPARED_PREINSTALL_NODE_INVALID' >&2
+            exit 1
+          fi
+          exec 17<<'WARPKEEP_PREINSTALL_SOURCE_BOOTSTRAP'
+          import { createHash } from 'node:crypto';
+          import { closeSync, fstatSync, readFileSync } from 'node:fs';
+
+          function fail(code) {
+            const error = new Error(code);
+            error.code = code;
+            throw error;
+          }
+
+          function readExactPipe(descriptor) {
+            let body;
+            try {
+              if (!fstatSync(descriptor).isFIFO()) {
+                fail('AUTH_BRIDGE_PREPARED_PREINSTALL_BOOTSTRAP_INVALID');
+              }
+              body = readFileSync(descriptor);
+              if (
+                body.byteLength !== 65
+                || body.at(-1) !== 0x0a
+                || body.subarray(0, -1).includes(0x00)
+              ) fail('AUTH_BRIDGE_PREPARED_PREINSTALL_BOOTSTRAP_INVALID');
+              const value = body.subarray(0, -1).toString('ascii');
+              if (!/^[a-f0-9]{64}$/u.test(value)) {
+                fail('AUTH_BRIDGE_PREPARED_PREINSTALL_BOOTSTRAP_INVALID');
+              }
+              return value;
+            } finally {
+              if (body !== undefined) body.fill(0);
+              try { closeSync(descriptor); } catch { /* Process is failing. */ }
+            }
+          }
+
+          let closureBody;
+          try {
+            delete process.env.__CF_USER_TEXT_ENCODING;
+            if (Object.keys(process.env).length !== 0) {
+              fail('AUTH_BRIDGE_PREPARED_PREINSTALL_ENVIRONMENT_INVALID');
+            }
+            const expectedClosureDigest = readExactPipe(18);
+            const expectedManifestSha256 = readExactPipe(19);
+            closureBody = readFileSync(20);
+            try { closeSync(20); } catch { /* Process is failing. */ }
+            if (
+              createHash('sha256').update(closureBody).digest('hex')
+                !== expectedClosureDigest
+            ) fail('AUTH_BRIDGE_PREPARED_PREINSTALL_DIGEST_MISMATCH');
+            const closure = await import(
+              'data:text/javascript;base64,' + closureBody.toString('base64')
+            );
+            if (
+              typeof closure
+                .verifyAuthBridgeNotificationPreparedDeployClosure
+                !== 'function'
+            ) fail('AUTH_BRIDGE_PREPARED_PREINSTALL_BOOTSTRAP_INVALID');
+            const authority =
+              closure.verifyAuthBridgeNotificationPreparedDeployClosure({
+                repositoryRoot: process.cwd(),
+              });
+            if (authority.manifestSha256 !== expectedManifestSha256) {
+              fail('AUTH_BRIDGE_PREPARED_PREINSTALL_MANIFEST_MISMATCH');
+            }
+          } catch (error) {
+            const code = typeof error?.code === 'string'
+              && /^[A-Z0-9_]{8,128}$/u.test(error.code)
+              ? error.code
+              : 'AUTH_BRIDGE_PREPARED_PREINSTALL_BOOTSTRAP_FAILED';
+            process.stderr.write(code + '\n');
+            process.exitCode = 1;
+          } finally {
+            if (closureBody !== undefined) closureBody.fill(0);
+          }
+          WARPKEEP_PREINSTALL_SOURCE_BOOTSTRAP
+          exec 18< <(printf '%s\n' "$WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256")
+          exec 19< <(printf '%s\n' "$WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256")
+          exec 20< scripts/auth-bridge-notification-prepared-deploy-closure.mjs
+          unset PWD
+          exec -c "$node_executable" --input-type=module <&17 >/dev/null
 
       - name: Install exact auth bridge dependencies
-        run: pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts --package-import-method=copy
+        shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}
+        env:
+          WARPKEEP_PNPM_EXECUTABLE: ${{ steps.node-authority.outputs.pnpm_path }}
+        run: |
+          set -euo pipefail
+          pnpm_executable="$WARPKEEP_PNPM_EXECUTABLE"
+          if [[ "$pnpm_executable" != '/private/var/db/warpkeep/runtime/pnpm-v11.7.0-darwin-arm64/pnpm' ]]; then
+            echo 'AUTH_BRIDGE_PREPARED_PNPM_INVALID' >&2
+            exit 1
+          fi
+          forbidden_package_manager_config=(
+            .npmrc
+            .pnpmfile.cjs
+            .pnpmfile.mjs
+            pnpmfile.cjs
+            pnpmfile.mjs
+            services/auth-bridge/.npmrc
+            services/auth-bridge/.pnpmfile.cjs
+            services/auth-bridge/.pnpmfile.mjs
+            services/auth-bridge/pnpmfile.cjs
+            services/auth-bridge/pnpmfile.mjs
+          )
+          for config_path in "${forbidden_package_manager_config[@]}"; do
+            if [[ -e "$config_path" || -L "$config_path" ]]; then
+              echo 'AUTH_BRIDGE_PREPARED_PACKAGE_MANAGER_CONFIG_INVALID' >&2
+              exit 1
+            fi
+          done
+          if /usr/bin/grep -Eq \
+            '^[[:space:]]*(configDependencies|globalPnpmfile|pnpmfile|scriptShell|shellEmulator):' \
+            services/auth-bridge/pnpm-workspace.yaml; then
+            echo 'AUTH_BRIDGE_PREPARED_PACKAGE_MANAGER_CONFIG_INVALID' >&2
+            exit 1
+          fi
+          install_state="$(
+            /usr/bin/mktemp -d /private/tmp/warpkeep-auth-bridge-pnpm.XXXXXX
+          )"
+          if [[ "$install_state" != /private/tmp/warpkeep-auth-bridge-pnpm.* \
+            || -L "$install_state" ]]; then
+            echo 'AUTH_BRIDGE_PREPARED_PNPM_STATE_INVALID' >&2
+            exit 1
+          fi
+          trap '/bin/rm -rf -- "$install_state"' EXIT
+          /bin/mkdir -m 700 \
+            "$install_state/home" \
+            "$install_state/xdg-config" \
+            "$install_state/xdg-cache" \
+            "$install_state/xdg-data" \
+            "$install_state/pnpm-home" \
+            "$install_state/store" \
+            "$install_state/tmp"
+          /usr/bin/env -i \
+            CI=true \
+            HOME="$install_state/home" \
+            LANG=C \
+            LC_ALL=C \
+            NPM_CONFIG_GLOBALCONFIG=/dev/null \
+            NPM_CONFIG_USERCONFIG=/dev/null \
+            PATH=/usr/bin:/bin \
+            PNPM_HOME="$install_state/pnpm-home" \
+            TMPDIR="$install_state/tmp" \
+            XDG_CACHE_HOME="$install_state/xdg-cache" \
+            XDG_CONFIG_HOME="$install_state/xdg-config" \
+            XDG_DATA_HOME="$install_state/xdg-data" \
+            "$pnpm_executable" \
+              --dir services/auth-bridge \
+              install \
+              --frozen-lockfile \
+              --ignore-scripts \
+              --ignore-pnpmfile \
+              --package-import-method=copy \
+              --store-dir "$install_state/store" \
+              --verify-store-integrity
 
-      - name: Attest source and toolchain immediately before production secrets
-        shell: bash
+      - name: Re-attest checkout bytes immediately before production secrets
+        shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}
         run: |
           set -euo pipefail
           git_safe=(/usr/bin/git -c core.fsmonitor=false -c core.untrackedCache=false)
@@ -187,18 +473,13 @@ jobs:
             scripts/auth-bridge-notification-prepared-installed-toolchain.mjs
           verify_bootstrap_digest "$WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256" \
             scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json
-          node scripts/auth-bridge-notification-prepared-deploy-closure.mjs
-          node scripts/auth-bridge-notification-prepared-installed-toolchain.mjs
-          node scripts/auth-bridge-notification-prepared-deploy-closure.mjs
-
-      - name: Prove guarded bridge-only release policy
-        shell: bash
+      - name: Prove guarded bridge-only release gates
+        shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}
         env:
           WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: ${{ vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED }}
         run: |
           set -euo pipefail
-          node scripts/verify-auth-bridge-notification-prepared-policy.mjs
-          if [[ "$WARPKEEP_BRIDGE_NOTIFICATION_DELIVERY_ENABLED" != 'true' \
+          if [[ "$WARPKEEP_BRIDGE_NOTIFICATION_DELIVERY_ENABLED" != 'false' \
             || "$WARPKEEP_HERMES_EXECUTION_APPROVED" != 'false' \
             || "$WARPKEEP_PAGES_PRESENTATION_ENABLED" != 'false' ]]; then
             echo 'The bridge-only release gates were not exact.' >&2
@@ -213,21 +494,49 @@ jobs:
       - name: Run guarded prepared bridge deployment
         id: deploy
         continue-on-error: true
-        shell: bash
+        shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}
         env:
+          WARPKEEP_NODE_EXECUTABLE: ${{ steps.node-authority.outputs.path }}
           GITHUB_TOKEN: ${{ github.token }}
           WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: ${{ secrets.WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID }}
           WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: ${{ secrets.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN }}
           WARPKEEP_AUTH_BRIDGE_ZONE_ID: ${{ secrets.WARPKEEP_AUTH_BRIDGE_ZONE_ID }}
           WARPKEEP_PLAYER_CANARY_OWNER_FID: ${{ secrets.WARPKEEP_PLAYER_CANARY_OWNER_FID }}
+          WARPKEEP_PTR_SPACETIMEDB_DATABASE: ${{ secrets.WARPKEEP_PTR_SPACETIMEDB_DATABASE }}
           WARPKEEP_PRODUCTION_ADMIN_TOKEN: ${{ secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN }}
         run: |
           set -euo pipefail
+          for protected_binding in \
+            "$GITHUB_ACTIONS" \
+            "$GITHUB_EVENT_NAME" \
+            "$GITHUB_REF" \
+            "$GITHUB_REPOSITORY" \
+            "$GITHUB_RUN_ATTEMPT" \
+            "$GITHUB_RUN_ID" \
+            "$GITHUB_SHA" \
+            "$GITHUB_TOKEN" \
+            "$GITHUB_WORKFLOW_REF" \
+            "$WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID" \
+            "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN" \
+            "$WARPKEEP_AUTH_BRIDGE_ZONE_ID" \
+            "$WARPKEEP_PLAYER_CANARY_OWNER_FID" \
+            "$WARPKEEP_PTR_SPACETIMEDB_DATABASE" \
+            "$WARPKEEP_PRODUCTION_ADMIN_TOKEN"; do
+            if [[ -z "$protected_binding" \
+              || "$protected_binding" == *$'\n'* \
+              || "$protected_binding" == *$'\r'* ]]; then
+              echo 'AUTH_BRIDGE_PREPARED_DEPLOY_CREDENTIALS_INVALID' >&2
+              exit 1
+            fi
+          done
+          unset protected_binding
           if [[ -z "$GITHUB_TOKEN" \
             || -z "$WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID" \
             || -z "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN" \
             || -z "$WARPKEEP_AUTH_BRIDGE_ZONE_ID" \
             || ! "$WARPKEEP_PLAYER_CANARY_OWNER_FID" =~ ^[1-9][0-9]{0,15}$ \
+            || ! "$WARPKEEP_PTR_SPACETIMEDB_DATABASE" =~ ^[a-f0-9]{64}$ \
+            || "$WARPKEEP_PTR_SPACETIMEDB_DATABASE" == 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e' \
             || -z "$WARPKEEP_PRODUCTION_ADMIN_TOKEN" \
             || "$GITHUB_TOKEN" == "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN" \
             || "$GITHUB_TOKEN" == "$WARPKEEP_PRODUCTION_ADMIN_TOKEN" \
@@ -235,28 +544,357 @@ jobs:
             echo 'AUTH_BRIDGE_PREPARED_DEPLOY_CREDENTIALS_INVALID' >&2
             exit 1
           fi
+          export -n \
+            GITHUB_ACTIONS \
+            GITHUB_EVENT_NAME \
+            GITHUB_REF \
+            GITHUB_REPOSITORY \
+            GITHUB_RUN_ATTEMPT \
+            GITHUB_RUN_ID \
+            GITHUB_SHA \
+            GITHUB_TOKEN \
+            GITHUB_WORKFLOW_REF \
+            WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID \
+            WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN \
+            WARPKEEP_AUTH_BRIDGE_ZONE_ID \
+            WARPKEEP_PLAYER_CANARY_OWNER_FID \
+            WARPKEEP_PTR_SPACETIMEDB_DATABASE \
+            WARPKEEP_PRODUCTION_ADMIN_TOKEN
           printf '%s\n' 'attempted=true' >> "$GITHUB_OUTPUT"
-          node scripts/auth-bridge-notification-prepared-deploy.mjs >/dev/null
+          node_executable="$WARPKEEP_NODE_EXECUTABLE"
+          verify_immutable_executable_path() {
+            local executable="$1"
+            local component="$executable"
+            local acl_listing
+            local acl_permissions
+            local path_uid
+            local path_gid
+            local path_nlink
+            local path_mode
+            local path_type
+            if [[ "$executable" != '/private/var/db/warpkeep/runtime/node-v22.22.3-darwin-arm64/bin/node' ]]; then
+              echo 'AUTH_BRIDGE_PREPARED_DEPLOY_NODE_INVALID' >&2
+              exit 1
+            fi
+            while true; do
+              if [[ -L "$component" ]]; then
+                echo 'AUTH_BRIDGE_PREPARED_DEPLOY_NODE_INVALID' >&2
+                exit 1
+              fi
+              IFS=: read -r path_uid path_gid path_nlink path_mode path_type < <(
+                /usr/bin/stat -f '%u:%g:%l:%Lp:%HT' -- "$component"
+              )
+              acl_listing="$(/bin/ls -lde -- "$component")"
+              acl_permissions="${acl_listing%% *}"
+              if [[ "$path_uid" != '0' \
+                || "$path_gid" != '0' \
+                || ! "$path_mode" =~ ^[0-7]{3,4}$ \
+                || $((8#$path_mode & 0022)) -ne 0 \
+                || "$acl_listing" == *$'\n'* \
+                || "$acl_permissions" == *+* ]]; then
+                echo 'AUTH_BRIDGE_PREPARED_DEPLOY_NODE_INVALID' >&2
+                exit 1
+              fi
+              if [[ "$component" == "$executable" ]]; then
+                if [[ "$path_type" != 'Regular File' \
+                  || "$path_nlink" != '1' \
+                  || "$path_mode" != '555' \
+                  || ! -x "$component" ]]; then
+                  echo 'AUTH_BRIDGE_PREPARED_DEPLOY_NODE_INVALID' >&2
+                  exit 1
+                fi
+              elif [[ "$path_type" != 'Directory' ]]; then
+                echo 'AUTH_BRIDGE_PREPARED_DEPLOY_NODE_INVALID' >&2
+                exit 1
+              fi
+              if [[ "$component" == '/' ]]; then break; fi
+              component="${component%/*}"
+              if [[ -z "$component" ]]; then component='/'; fi
+            done
+            local digest_output
+            local digest
+            local signature
+            digest_output="$(
+              /usr/bin/env -i PATH=/usr/bin:/bin \
+                /usr/bin/shasum -a 256 -- "$executable"
+            )"
+            digest="${digest_output%% *}"
+            /usr/bin/codesign --verify --strict --verbose=4 "$executable" \
+              >/dev/null 2>&1
+            signature="$(/usr/bin/codesign -dv --verbose=4 "$executable" 2>&1)"
+            if [[ "$digest" != '5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c' \
+              || "$signature" != *$'TeamIdentifier=HX7739G8FX'* ]]; then
+              echo 'AUTH_BRIDGE_PREPARED_DEPLOY_NODE_INVALID' >&2
+              exit 1
+            fi
+          }
+          verify_immutable_executable_path "$node_executable"
+          exec 17<<'WARPKEEP_PROTECTED_NODE_BOOTSTRAP'
+          import { createHash } from 'node:crypto';
+          import { closeSync, fstatSync, readFileSync } from 'node:fs';
+
+          const entrypointPath =
+            'scripts/auth-bridge-notification-prepared-deploy.mjs';
+          const installedToolchainPath =
+            'scripts/auth-bridge-notification-prepared-installed-toolchain.mjs';
+          const staticPolicyPath =
+            'scripts/verify-auth-bridge-notification-prepared-policy.mjs';
+          const bindings = Object.freeze([
+            ['GITHUB_ACTIONS', 21],
+            ['GITHUB_EVENT_NAME', 22],
+            ['GITHUB_REF', 23],
+            ['GITHUB_REPOSITORY', 24],
+            ['GITHUB_RUN_ATTEMPT', 25],
+            ['GITHUB_RUN_ID', 26],
+            ['GITHUB_SHA', 27],
+            ['GITHUB_TOKEN', 28],
+            ['GITHUB_WORKFLOW_REF', 29],
+            ['WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID', 30],
+            ['WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN', 31],
+            ['WARPKEEP_AUTH_BRIDGE_ZONE_ID', 32],
+            ['WARPKEEP_PLAYER_CANARY_OWNER_FID', 33],
+            ['WARPKEEP_PTR_SPACETIMEDB_DATABASE', 34],
+            ['WARPKEEP_PRODUCTION_ADMIN_TOKEN', 35],
+          ]);
+
+          function fail(code) {
+            const error = new Error(code);
+            error.code = code;
+            throw error;
+          }
+
+          function readExactBinding(descriptor, code) {
+            let body;
+            try {
+              if (!fstatSync(descriptor).isFIFO()) fail(code);
+              body = readFileSync(descriptor);
+              if (body.byteLength < 2 || body.at(-1) !== 0x0a) fail(code);
+              const valueBody = body.subarray(0, body.byteLength - 1);
+              if (
+                valueBody.includes(0x00)
+                || valueBody.includes(0x0a)
+                || valueBody.includes(0x0d)
+              ) fail(code);
+              let value;
+              try {
+                value = new TextDecoder('utf-8', { fatal: true })
+                  .decode(valueBody);
+              } catch {
+                fail(code);
+              }
+              if (
+                value.length === 0
+                || Buffer.byteLength(value, 'utf8') !== valueBody.byteLength
+              ) fail(code);
+              return value;
+            } finally {
+              if (body !== undefined) body.fill(0);
+              try { closeSync(descriptor); } catch { /* Process is failing. */ }
+            }
+          }
+
+          let closureBody;
+          try {
+            delete process.env.__CF_USER_TEXT_ENCODING;
+            if (Object.keys(process.env).length !== 0) {
+              fail('AUTH_BRIDGE_PREPARED_DEPLOY_BOOTSTRAP_ENVIRONMENT_INVALID');
+            }
+            const expectedClosureDigest = readExactBinding(
+              18,
+              'AUTH_BRIDGE_PREPARED_DEPLOY_BOOTSTRAP_INVALID',
+            );
+            const expectedManifestSha256 = readExactBinding(
+              19,
+              'AUTH_BRIDGE_PREPARED_DEPLOY_BOOTSTRAP_INVALID',
+            );
+            if (
+              !/^[a-f0-9]{64}$/u.test(expectedClosureDigest)
+              || !/^[a-f0-9]{64}$/u.test(expectedManifestSha256)
+            ) {
+              fail('AUTH_BRIDGE_PREPARED_DEPLOY_BOOTSTRAP_INVALID');
+            }
+            closureBody = readFileSync(20);
+            try { closeSync(20); } catch { /* Process is failing. */ }
+            if (
+              createHash('sha256').update(closureBody).digest('hex')
+                !== expectedClosureDigest
+            ) {
+              fail('AUTH_BRIDGE_PREPARED_DEPLOY_BOOTSTRAP_DIGEST_MISMATCH');
+            }
+            const closureUrl = 'data:text/javascript;base64,'
+              + closureBody.toString('base64');
+            const closure = await import(closureUrl);
+            if (
+              typeof closure
+                .verifyAuthBridgeNotificationPreparedDeployClosure
+                !== 'function'
+              || typeof closure
+                .importAuthBridgeNotificationPreparedAttestedModules
+                !== 'function'
+            ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_BOOTSTRAP_INVALID');
+            const repositoryRoot = process.cwd();
+            const authority =
+              closure.verifyAuthBridgeNotificationPreparedDeployClosure({
+                repositoryRoot,
+              });
+            if (authority.manifestSha256 !== expectedManifestSha256) {
+              fail('AUTH_BRIDGE_PREPARED_DEPLOY_MANIFEST_AUTHORITY_MISMATCH');
+            }
+            const [installedToolchain, staticPolicy] =
+              await closure
+                .importAuthBridgeNotificationPreparedAttestedModules({
+                  authority,
+                  repositoryRoot,
+                  memberPaths: [installedToolchainPath, staticPolicyPath],
+                });
+            if (
+              typeof installedToolchain
+                .verifyAuthBridgeNotificationPreparedInstalledToolchain
+                !== 'function'
+              || typeof staticPolicy
+                .verifyAuthBridgeNotificationPreparedStaticPolicy
+                !== 'function'
+            ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_PREFLIGHT_INVALID');
+            const toolchainAuthority = installedToolchain
+              .verifyAuthBridgeNotificationPreparedInstalledToolchain({
+                repositoryRoot,
+                nodeExecutable: process.execPath,
+              });
+            const policyAuthority =
+              staticPolicy.verifyAuthBridgeNotificationPreparedStaticPolicy({
+                repositoryRoot,
+              });
+            if (
+              toolchainAuthority.sourceClosureManifestSha256
+                !== expectedManifestSha256
+              || policyAuthority.guardedRecoveryRequired !== true
+            ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_PREFLIGHT_INVALID');
+            const authorityAfterPreflight =
+              closure.verifyAuthBridgeNotificationPreparedDeployClosure({
+                repositoryRoot,
+              });
+            if (
+              authorityAfterPreflight.manifestSha256
+                !== expectedManifestSha256
+            ) {
+              fail('AUTH_BRIDGE_PREPARED_DEPLOY_MANIFEST_AUTHORITY_MISMATCH');
+            }
+            const [entrypoint] =
+              await closure
+                .importAuthBridgeNotificationPreparedAttestedModules({
+                  authority: authorityAfterPreflight,
+                  repositoryRoot,
+                  memberPaths: [entrypointPath],
+                });
+            if (
+              typeof entrypoint.runAuthBridgeNotificationPreparedDeploy
+                !== 'function'
+            ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_ENTRYPOINT_INVALID');
+            const values = Object.create(null);
+            for (const [name, descriptor] of bindings) {
+              values[name] = readExactBinding(
+                descriptor,
+                'AUTH_BRIDGE_PREPARED_DEPLOY_CREDENTIALS_INVALID',
+              );
+            }
+            if (
+              !/^[1-9][0-9]{0,15}$/u.test(
+                values.WARPKEEP_PLAYER_CANARY_OWNER_FID,
+              )
+              || !/^[a-f0-9]{64}$/u.test(
+                values.WARPKEEP_PTR_SPACETIMEDB_DATABASE,
+              )
+              || values.WARPKEEP_PTR_SPACETIMEDB_DATABASE
+                === 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e'
+              || values.GITHUB_TOKEN
+                === values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN
+              || values.GITHUB_TOKEN
+                === values.WARPKEEP_PRODUCTION_ADMIN_TOKEN
+              || values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN
+                === values.WARPKEEP_PRODUCTION_ADMIN_TOKEN
+            ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CREDENTIALS_INVALID');
+            for (const [name] of bindings) process.env[name] = values[name];
+            await entrypoint.runAuthBridgeNotificationPreparedDeploy();
+          } catch (error) {
+            const code = typeof error?.code === 'string'
+              && /^[A-Z0-9_]{8,128}$/u.test(error.code)
+              ? error.code
+              : 'AUTH_BRIDGE_PREPARED_DEPLOY_BOOTSTRAP_FAILED';
+            process.stderr.write(code + '\n');
+            process.exitCode = 1;
+          } finally {
+            if (closureBody !== undefined) closureBody.fill(0);
+          }
+          WARPKEEP_PROTECTED_NODE_BOOTSTRAP
+          exec 18< <(printf '%s\n' "$WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256")
+          exec 19< <(printf '%s\n' "$WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256")
+          exec 20< scripts/auth-bridge-notification-prepared-deploy-closure.mjs
+          exec 21< <(printf '%s\n' "$GITHUB_ACTIONS")
+          exec 22< <(printf '%s\n' "$GITHUB_EVENT_NAME")
+          exec 23< <(printf '%s\n' "$GITHUB_REF")
+          exec 24< <(printf '%s\n' "$GITHUB_REPOSITORY")
+          exec 25< <(printf '%s\n' "$GITHUB_RUN_ATTEMPT")
+          exec 26< <(printf '%s\n' "$GITHUB_RUN_ID")
+          exec 27< <(printf '%s\n' "$GITHUB_SHA")
+          exec 28< <(printf '%s\n' "$GITHUB_TOKEN")
+          exec 29< <(printf '%s\n' "$GITHUB_WORKFLOW_REF")
+          exec 30< <(printf '%s\n' "$WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID")
+          exec 31< <(printf '%s\n' "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN")
+          exec 32< <(printf '%s\n' "$WARPKEEP_AUTH_BRIDGE_ZONE_ID")
+          exec 33< <(printf '%s\n' "$WARPKEEP_PLAYER_CANARY_OWNER_FID")
+          exec 34< <(printf '%s\n' "$WARPKEEP_PTR_SPACETIMEDB_DATABASE")
+          exec 35< <(printf '%s\n' "$WARPKEEP_PRODUCTION_ADMIN_TOKEN")
+          verify_immutable_executable_path "$node_executable"
+          unset PWD
+          exec -c "$node_executable" --input-type=module <&17 >/dev/null
 
       - name: Recover and re-attest a failed deployment attempt
         id: recovery
         if: ${{ always() && steps.deploy.outputs.attempted == 'true' && steps.deploy.outcome != 'success' }}
         continue-on-error: true
-        shell: bash
+        shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}
         env:
+          WARPKEEP_NODE_EXECUTABLE: ${{ steps.node-authority.outputs.path }}
           GITHUB_TOKEN: ${{ github.token }}
           WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: ${{ secrets.WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID }}
           WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: ${{ secrets.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN }}
           WARPKEEP_AUTH_BRIDGE_ZONE_ID: ${{ secrets.WARPKEEP_AUTH_BRIDGE_ZONE_ID }}
           WARPKEEP_PLAYER_CANARY_OWNER_FID: ${{ secrets.WARPKEEP_PLAYER_CANARY_OWNER_FID }}
+          WARPKEEP_PTR_SPACETIMEDB_DATABASE: ${{ secrets.WARPKEEP_PTR_SPACETIMEDB_DATABASE }}
           WARPKEEP_PRODUCTION_ADMIN_TOKEN: ${{ secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN }}
         run: |
           set -euo pipefail
+          for protected_binding in \
+            "$GITHUB_ACTIONS" \
+            "$GITHUB_EVENT_NAME" \
+            "$GITHUB_REF" \
+            "$GITHUB_REPOSITORY" \
+            "$GITHUB_RUN_ATTEMPT" \
+            "$GITHUB_RUN_ID" \
+            "$GITHUB_SHA" \
+            "$GITHUB_TOKEN" \
+            "$GITHUB_WORKFLOW_REF" \
+            "$WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID" \
+            "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN" \
+            "$WARPKEEP_AUTH_BRIDGE_ZONE_ID" \
+            "$WARPKEEP_PLAYER_CANARY_OWNER_FID" \
+            "$WARPKEEP_PTR_SPACETIMEDB_DATABASE" \
+            "$WARPKEEP_PRODUCTION_ADMIN_TOKEN"; do
+            if [[ -z "$protected_binding" \
+              || "$protected_binding" == *$'\n'* \
+              || "$protected_binding" == *$'\r'* ]]; then
+              echo 'AUTH_BRIDGE_PREPARED_DEPLOY_CREDENTIALS_INVALID' >&2
+              exit 1
+            fi
+          done
+          unset protected_binding
           if [[ -z "$GITHUB_TOKEN" \
             || -z "$WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID" \
             || -z "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN" \
             || -z "$WARPKEEP_AUTH_BRIDGE_ZONE_ID" \
             || ! "$WARPKEEP_PLAYER_CANARY_OWNER_FID" =~ ^[1-9][0-9]{0,15}$ \
+            || ! "$WARPKEEP_PTR_SPACETIMEDB_DATABASE" =~ ^[a-f0-9]{64}$ \
+            || "$WARPKEEP_PTR_SPACETIMEDB_DATABASE" == 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e' \
             || -z "$WARPKEEP_PRODUCTION_ADMIN_TOKEN" \
             || "$GITHUB_TOKEN" == "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN" \
             || "$GITHUB_TOKEN" == "$WARPKEEP_PRODUCTION_ADMIN_TOKEN" \
@@ -264,11 +902,312 @@ jobs:
             echo 'AUTH_BRIDGE_PREPARED_DEPLOY_CREDENTIALS_INVALID' >&2
             exit 1
           fi
-          node scripts/auth-bridge-notification-prepared-deploy.mjs >/dev/null
+          export -n \
+            GITHUB_ACTIONS \
+            GITHUB_EVENT_NAME \
+            GITHUB_REF \
+            GITHUB_REPOSITORY \
+            GITHUB_RUN_ATTEMPT \
+            GITHUB_RUN_ID \
+            GITHUB_SHA \
+            GITHUB_TOKEN \
+            GITHUB_WORKFLOW_REF \
+            WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID \
+            WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN \
+            WARPKEEP_AUTH_BRIDGE_ZONE_ID \
+            WARPKEEP_PLAYER_CANARY_OWNER_FID \
+            WARPKEEP_PTR_SPACETIMEDB_DATABASE \
+            WARPKEEP_PRODUCTION_ADMIN_TOKEN
+          node_executable="$WARPKEEP_NODE_EXECUTABLE"
+          verify_immutable_executable_path() {
+            local executable="$1"
+            local component="$executable"
+            local acl_listing
+            local acl_permissions
+            local path_uid
+            local path_gid
+            local path_nlink
+            local path_mode
+            local path_type
+            if [[ "$executable" != '/private/var/db/warpkeep/runtime/node-v22.22.3-darwin-arm64/bin/node' ]]; then
+              echo 'AUTH_BRIDGE_PREPARED_DEPLOY_NODE_INVALID' >&2
+              exit 1
+            fi
+            while true; do
+              if [[ -L "$component" ]]; then
+                echo 'AUTH_BRIDGE_PREPARED_DEPLOY_NODE_INVALID' >&2
+                exit 1
+              fi
+              IFS=: read -r path_uid path_gid path_nlink path_mode path_type < <(
+                /usr/bin/stat -f '%u:%g:%l:%Lp:%HT' -- "$component"
+              )
+              acl_listing="$(/bin/ls -lde -- "$component")"
+              acl_permissions="${acl_listing%% *}"
+              if [[ "$path_uid" != '0' \
+                || "$path_gid" != '0' \
+                || ! "$path_mode" =~ ^[0-7]{3,4}$ \
+                || $((8#$path_mode & 0022)) -ne 0 \
+                || "$acl_listing" == *$'\n'* \
+                || "$acl_permissions" == *+* ]]; then
+                echo 'AUTH_BRIDGE_PREPARED_DEPLOY_NODE_INVALID' >&2
+                exit 1
+              fi
+              if [[ "$component" == "$executable" ]]; then
+                if [[ "$path_type" != 'Regular File' \
+                  || "$path_nlink" != '1' \
+                  || "$path_mode" != '555' \
+                  || ! -x "$component" ]]; then
+                  echo 'AUTH_BRIDGE_PREPARED_DEPLOY_NODE_INVALID' >&2
+                  exit 1
+                fi
+              elif [[ "$path_type" != 'Directory' ]]; then
+                echo 'AUTH_BRIDGE_PREPARED_DEPLOY_NODE_INVALID' >&2
+                exit 1
+              fi
+              if [[ "$component" == '/' ]]; then break; fi
+              component="${component%/*}"
+              if [[ -z "$component" ]]; then component='/'; fi
+            done
+            local digest_output
+            local digest
+            local signature
+            digest_output="$(
+              /usr/bin/env -i PATH=/usr/bin:/bin \
+                /usr/bin/shasum -a 256 -- "$executable"
+            )"
+            digest="${digest_output%% *}"
+            /usr/bin/codesign --verify --strict --verbose=4 "$executable" \
+              >/dev/null 2>&1
+            signature="$(/usr/bin/codesign -dv --verbose=4 "$executable" 2>&1)"
+            if [[ "$digest" != '5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c' \
+              || "$signature" != *$'TeamIdentifier=HX7739G8FX'* ]]; then
+              echo 'AUTH_BRIDGE_PREPARED_DEPLOY_NODE_INVALID' >&2
+              exit 1
+            fi
+          }
+          verify_immutable_executable_path "$node_executable"
+          exec 17<<'WARPKEEP_PROTECTED_NODE_BOOTSTRAP'
+          import { createHash } from 'node:crypto';
+          import { closeSync, fstatSync, readFileSync } from 'node:fs';
+
+          const entrypointPath =
+            'scripts/auth-bridge-notification-prepared-deploy.mjs';
+          const installedToolchainPath =
+            'scripts/auth-bridge-notification-prepared-installed-toolchain.mjs';
+          const staticPolicyPath =
+            'scripts/verify-auth-bridge-notification-prepared-policy.mjs';
+          const bindings = Object.freeze([
+            ['GITHUB_ACTIONS', 21],
+            ['GITHUB_EVENT_NAME', 22],
+            ['GITHUB_REF', 23],
+            ['GITHUB_REPOSITORY', 24],
+            ['GITHUB_RUN_ATTEMPT', 25],
+            ['GITHUB_RUN_ID', 26],
+            ['GITHUB_SHA', 27],
+            ['GITHUB_TOKEN', 28],
+            ['GITHUB_WORKFLOW_REF', 29],
+            ['WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID', 30],
+            ['WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN', 31],
+            ['WARPKEEP_AUTH_BRIDGE_ZONE_ID', 32],
+            ['WARPKEEP_PLAYER_CANARY_OWNER_FID', 33],
+            ['WARPKEEP_PTR_SPACETIMEDB_DATABASE', 34],
+            ['WARPKEEP_PRODUCTION_ADMIN_TOKEN', 35],
+          ]);
+
+          function fail(code) {
+            const error = new Error(code);
+            error.code = code;
+            throw error;
+          }
+
+          function readExactBinding(descriptor, code) {
+            let body;
+            try {
+              if (!fstatSync(descriptor).isFIFO()) fail(code);
+              body = readFileSync(descriptor);
+              if (body.byteLength < 2 || body.at(-1) !== 0x0a) fail(code);
+              const valueBody = body.subarray(0, body.byteLength - 1);
+              if (
+                valueBody.includes(0x00)
+                || valueBody.includes(0x0a)
+                || valueBody.includes(0x0d)
+              ) fail(code);
+              let value;
+              try {
+                value = new TextDecoder('utf-8', { fatal: true })
+                  .decode(valueBody);
+              } catch {
+                fail(code);
+              }
+              if (
+                value.length === 0
+                || Buffer.byteLength(value, 'utf8') !== valueBody.byteLength
+              ) fail(code);
+              return value;
+            } finally {
+              if (body !== undefined) body.fill(0);
+              try { closeSync(descriptor); } catch { /* Process is failing. */ }
+            }
+          }
+
+          let closureBody;
+          try {
+            delete process.env.__CF_USER_TEXT_ENCODING;
+            if (Object.keys(process.env).length !== 0) {
+              fail('AUTH_BRIDGE_PREPARED_DEPLOY_BOOTSTRAP_ENVIRONMENT_INVALID');
+            }
+            const expectedClosureDigest = readExactBinding(
+              18,
+              'AUTH_BRIDGE_PREPARED_DEPLOY_BOOTSTRAP_INVALID',
+            );
+            const expectedManifestSha256 = readExactBinding(
+              19,
+              'AUTH_BRIDGE_PREPARED_DEPLOY_BOOTSTRAP_INVALID',
+            );
+            if (
+              !/^[a-f0-9]{64}$/u.test(expectedClosureDigest)
+              || !/^[a-f0-9]{64}$/u.test(expectedManifestSha256)
+            ) {
+              fail('AUTH_BRIDGE_PREPARED_DEPLOY_BOOTSTRAP_INVALID');
+            }
+            closureBody = readFileSync(20);
+            try { closeSync(20); } catch { /* Process is failing. */ }
+            if (
+              createHash('sha256').update(closureBody).digest('hex')
+                !== expectedClosureDigest
+            ) {
+              fail('AUTH_BRIDGE_PREPARED_DEPLOY_BOOTSTRAP_DIGEST_MISMATCH');
+            }
+            const closureUrl = 'data:text/javascript;base64,'
+              + closureBody.toString('base64');
+            const closure = await import(closureUrl);
+            if (
+              typeof closure
+                .verifyAuthBridgeNotificationPreparedDeployClosure
+                !== 'function'
+              || typeof closure
+                .importAuthBridgeNotificationPreparedAttestedModules
+                !== 'function'
+            ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_BOOTSTRAP_INVALID');
+            const repositoryRoot = process.cwd();
+            const authority =
+              closure.verifyAuthBridgeNotificationPreparedDeployClosure({
+                repositoryRoot,
+              });
+            if (authority.manifestSha256 !== expectedManifestSha256) {
+              fail('AUTH_BRIDGE_PREPARED_DEPLOY_MANIFEST_AUTHORITY_MISMATCH');
+            }
+            const [installedToolchain, staticPolicy] =
+              await closure
+                .importAuthBridgeNotificationPreparedAttestedModules({
+                  authority,
+                  repositoryRoot,
+                  memberPaths: [installedToolchainPath, staticPolicyPath],
+                });
+            if (
+              typeof installedToolchain
+                .verifyAuthBridgeNotificationPreparedInstalledToolchain
+                !== 'function'
+              || typeof staticPolicy
+                .verifyAuthBridgeNotificationPreparedStaticPolicy
+                !== 'function'
+            ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_PREFLIGHT_INVALID');
+            const toolchainAuthority = installedToolchain
+              .verifyAuthBridgeNotificationPreparedInstalledToolchain({
+                repositoryRoot,
+                nodeExecutable: process.execPath,
+              });
+            const policyAuthority =
+              staticPolicy.verifyAuthBridgeNotificationPreparedStaticPolicy({
+                repositoryRoot,
+              });
+            if (
+              toolchainAuthority.sourceClosureManifestSha256
+                !== expectedManifestSha256
+              || policyAuthority.guardedRecoveryRequired !== true
+            ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_PREFLIGHT_INVALID');
+            const authorityAfterPreflight =
+              closure.verifyAuthBridgeNotificationPreparedDeployClosure({
+                repositoryRoot,
+              });
+            if (
+              authorityAfterPreflight.manifestSha256
+                !== expectedManifestSha256
+            ) {
+              fail('AUTH_BRIDGE_PREPARED_DEPLOY_MANIFEST_AUTHORITY_MISMATCH');
+            }
+            const [entrypoint] =
+              await closure
+                .importAuthBridgeNotificationPreparedAttestedModules({
+                  authority: authorityAfterPreflight,
+                  repositoryRoot,
+                  memberPaths: [entrypointPath],
+                });
+            if (
+              typeof entrypoint.runAuthBridgeNotificationPreparedDeploy
+                !== 'function'
+            ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_ENTRYPOINT_INVALID');
+            const values = Object.create(null);
+            for (const [name, descriptor] of bindings) {
+              values[name] = readExactBinding(
+                descriptor,
+                'AUTH_BRIDGE_PREPARED_DEPLOY_CREDENTIALS_INVALID',
+              );
+            }
+            if (
+              !/^[1-9][0-9]{0,15}$/u.test(
+                values.WARPKEEP_PLAYER_CANARY_OWNER_FID,
+              )
+              || !/^[a-f0-9]{64}$/u.test(
+                values.WARPKEEP_PTR_SPACETIMEDB_DATABASE,
+              )
+              || values.WARPKEEP_PTR_SPACETIMEDB_DATABASE
+                === 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e'
+              || values.GITHUB_TOKEN
+                === values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN
+              || values.GITHUB_TOKEN
+                === values.WARPKEEP_PRODUCTION_ADMIN_TOKEN
+              || values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN
+                === values.WARPKEEP_PRODUCTION_ADMIN_TOKEN
+            ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CREDENTIALS_INVALID');
+            for (const [name] of bindings) process.env[name] = values[name];
+            await entrypoint.runAuthBridgeNotificationPreparedDeploy();
+          } catch (error) {
+            const code = typeof error?.code === 'string'
+              && /^[A-Z0-9_]{8,128}$/u.test(error.code)
+              ? error.code
+              : 'AUTH_BRIDGE_PREPARED_DEPLOY_BOOTSTRAP_FAILED';
+            process.stderr.write(code + '\n');
+            process.exitCode = 1;
+          } finally {
+            if (closureBody !== undefined) closureBody.fill(0);
+          }
+          WARPKEEP_PROTECTED_NODE_BOOTSTRAP
+          exec 18< <(printf '%s\n' "$WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256")
+          exec 19< <(printf '%s\n' "$WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256")
+          exec 20< scripts/auth-bridge-notification-prepared-deploy-closure.mjs
+          exec 21< <(printf '%s\n' "$GITHUB_ACTIONS")
+          exec 22< <(printf '%s\n' "$GITHUB_EVENT_NAME")
+          exec 23< <(printf '%s\n' "$GITHUB_REF")
+          exec 24< <(printf '%s\n' "$GITHUB_REPOSITORY")
+          exec 25< <(printf '%s\n' "$GITHUB_RUN_ATTEMPT")
+          exec 26< <(printf '%s\n' "$GITHUB_RUN_ID")
+          exec 27< <(printf '%s\n' "$GITHUB_SHA")
+          exec 28< <(printf '%s\n' "$GITHUB_TOKEN")
+          exec 29< <(printf '%s\n' "$GITHUB_WORKFLOW_REF")
+          exec 30< <(printf '%s\n' "$WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID")
+          exec 31< <(printf '%s\n' "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN")
+          exec 32< <(printf '%s\n' "$WARPKEEP_AUTH_BRIDGE_ZONE_ID")
+          exec 33< <(printf '%s\n' "$WARPKEEP_PLAYER_CANARY_OWNER_FID")
+          exec 34< <(printf '%s\n' "$WARPKEEP_PTR_SPACETIMEDB_DATABASE")
+          exec 35< <(printf '%s\n' "$WARPKEEP_PRODUCTION_ADMIN_TOKEN")
+          verify_immutable_executable_path "$node_executable"
+          unset PWD
+          exec -c "$node_executable" --input-type=module <&17 >/dev/null
 
       - name: Require a verified deployment or recovery
         if: ${{ always() }}
-        shell: bash
+        shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}
         env:
           DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
           DEPLOYMENT_ATTEMPTED: ${{ steps.deploy.outputs.attempted }}

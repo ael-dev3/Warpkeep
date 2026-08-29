@@ -8,6 +8,10 @@ const MAP = readFileSync(
   resolve(ROOT, 'src/components/realm/RealmMapScreen.css'),
   'utf8'
 );
+const CHAT = readFileSync(
+  resolve(ROOT, 'src/components/realm/RealmChatDock.css'),
+  'utf8'
+);
 const PRESENTATION = readFileSync(
   resolve(ROOT, 'src/components/realm/RealmCastlePresentation.css'),
   'utf8'
@@ -54,6 +58,27 @@ function block(source: string, marker: string) {
 }
 
 describe('compact Realm CSS contract', () => {
+  it('reserves a compact Greater Realm control row for chat without covering vessel commands', () => {
+    const compactMap = block(MAP, '@media (width <= 760px), (pointer: coarse) {');
+    const compactControls = block(compactMap, '.greater-realm-world__controls {');
+    const compactChat = block(
+      CHAT,
+      '.realm-map-screen--greater-realm .realm-chat-dock[data-compact="true"][data-open="false"] {'
+    );
+
+    expect(compactControls).toContain('padding-block-end: 4.5rem;');
+    expect(compactChat).toContain('right: max(0.75rem, var(--realm-safe-right));');
+    expect(compactChat).toContain('bottom: max(0.75rem, var(--realm-safe-bottom));');
+    expect(compactChat).toContain('left: auto;');
+  });
+
+  it('removes the decorative zone legend from the narrow mobile overlay stack', () => {
+    const narrowMap = block(MAP, '@media (width <= 760px) {');
+    const narrowZoneLegend = block(narrowMap, '.greater-realm-world__zone-legend {');
+
+    expect(narrowZoneLegend).toContain('display: none;');
+  });
+
   it('keeps a stationary foundation nameplate inside a transparent 44px interaction target', () => {
     const label = block(PRESENTATION, '.realm-castle-label {');
     const plate = block(PRESENTATION, '.realm-castle-label__plate {');

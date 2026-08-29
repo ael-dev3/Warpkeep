@@ -17,6 +17,8 @@ import {
   AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_PROFILE,
   AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING,
   AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES,
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_DATABASE_BINDING,
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_OIDC_AUDIENCE,
   AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
   AUTH_BRIDGE_NOTIFICATION_PREPARED_WRANGLER_VERSION,
 } from './auth-bridge-notification-prepared-deploy-adapter.mjs';
@@ -41,6 +43,9 @@ const VERSION_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-
 const CLOUDFLARE_UTC = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?Z$/u;
 const SECRET_TOKEN = /^[A-Za-z0-9._~+\-/=]{20,4096}$/u;
 const POSITIVE_FID = /^[1-9][0-9]{0,15}$/u;
+const SPACETIMEDB_DATABASE_IDENTITY = /^[a-f0-9]{64}$/u;
+const PRODUCTION_SPACETIMEDB_DATABASE =
+  'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
 const FORBIDDEN_AMBIENT_FILES = Object.freeze([
   '.env',
   '.env.local',
@@ -172,6 +177,41 @@ function containsForbiddenResponseValue(value, forbidden) {
   return false;
 }
 
+function containsProtectedValueOutsideExactPlainTextBinding(
+  value,
+  protectedBinding,
+) {
+  const pending = [{ value, parent: null, key: null }];
+  let inspected = 0;
+  while (pending.length > 0) {
+    const current = pending.pop();
+    inspected += 1;
+    if (inspected > MAX_JSON_BYTES) {
+      fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_RESPONSE_JSON_INVALID');
+    }
+    if (typeof current.value === 'string') {
+      if (current.value.includes(protectedBinding.text)) {
+        const allowed = current.value === protectedBinding.text
+          && current.key === 'text'
+          && isRecord(current.parent)
+          && exactJson(current.parent, {
+            name: protectedBinding.name,
+            text: protectedBinding.text,
+            type: 'plain_text',
+          });
+        if (!allowed) return true;
+      }
+      continue;
+    }
+    if (current.value === null || typeof current.value !== 'object') continue;
+    for (const [key, nested] of Object.entries(current.value)) {
+      if (key.includes(protectedBinding.text)) return true;
+      pending.push({ value: nested, parent: current.value, key });
+    }
+  }
+  return false;
+}
+
 function defaultSettleDelay(milliseconds) {
   return new Promise(resolvePromise => setTimeout(resolvePromise, milliseconds));
 }
@@ -238,6 +278,13 @@ function assertContract(contract) {
     || contract.compatibilityDate !== '2026-07-11'
     || !exactJson(contract.compatibilityFlags, ['nodejs_compat'])
     || !isRecord(contract.variables)
+    || contract.variables.PTR_ENABLED !== 'true'
+    || contract.variables.PTR_OIDC_AUDIENCE
+      !== AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_OIDC_AUDIENCE
+    || contract.variables.PTR_SPACETIMEDB_DATABASE !== undefined
+    || !exactJson(contract.protectedPlainTextBindingNames, [
+      AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_DATABASE_BINDING,
+    ])
     || !exactJson(contract.secretBindingNames, [
       ...AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES
         .slice(0, 4),
@@ -498,6 +545,10 @@ function exactMultipartMetadata(
       name: AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING,
       type: 'secret_text',
       text: candidate.playerCanaryOwnerFid,
+    }, {
+      name: AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_DATABASE_BINDING,
+      type: 'plain_text',
+      text: candidate.ptrSpacetimeDbDatabase,
     }] : []),
   ].sort((left, right) => left.name.localeCompare(right.name, 'en'));
   if (!exactJson(projected, expected)) {
@@ -510,13 +561,17 @@ export function attestAuthBridgeNotificationPreparedCandidateMultipartMetadata({
   metadata,
   contract,
   playerCanaryOwnerFid,
+  ptrSpacetimeDbDatabase,
 } = {}) {
   if (
     !POSITIVE_FID.test(playerCanaryOwnerFid ?? '')
     || BigInt(playerCanaryOwnerFid) > BigInt(Number.MAX_SAFE_INTEGER)
+    || !SPACETIMEDB_DATABASE_IDENTITY.test(ptrSpacetimeDbDatabase ?? '')
+    || ptrSpacetimeDbDatabase === PRODUCTION_SPACETIMEDB_DATABASE
   ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_MULTIPART_METADATA_MISMATCH');
   exactMultipartMetadata(metadata, assertContract(contract), Object.freeze({
     playerCanaryOwnerFid,
+    ptrSpacetimeDbDatabase,
   }));
   return true;
 }
@@ -793,27 +848,42 @@ function validateResponse(response) {
   ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_RESPONSE_INVALID');
 }
 
-function validatedForbiddenResponseSubstring(value) {
+function validatedForbiddenResponseSubstrings(value) {
+  if (value === undefined) return Object.freeze([]);
   if (
-    value !== undefined
-    && (
-      typeof value !== 'string'
-      || value.length < 1
-      || value.length > 512
-      || value.includes('\0')
-    )
+    !Array.isArray(value)
+    || value.length < 1
+    || value.length > 8
+    || new Set(value).size !== value.length
+    || value.some(item => (
+      typeof item !== 'string'
+      || item.length < 1
+      || item.length > 512
+      || item.includes('\0')
+    ))
   ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_REQUEST_INVALID');
-  return value;
+  return Object.freeze([...value]);
+}
+
+function validatedProtectedPlainTextResponseBinding(value) {
+  if (value === undefined) return undefined;
+  if (
+    !exactKeys(value, ['name', 'text'])
+    || value.name !== AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_DATABASE_BINDING
+    || !SPACETIMEDB_DATABASE_IDENTITY.test(value.text ?? '')
+    || value.text === PRODUCTION_SPACETIMEDB_DATABASE
+  ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_REQUEST_INVALID');
+  return Object.freeze({ name: value.name, text: value.text });
 }
 
 async function sanitizedMutationRejectionCode(
   response,
-  forbiddenResponseSubstring,
+  forbiddenResponseSubstrings,
 ) {
   let body;
   try {
     body = await boundedBody(response, 64 * 1024);
-    if (forbiddenResponseSubstring !== undefined) {
+    for (const forbiddenResponseSubstring of forbiddenResponseSubstrings) {
       const forbiddenBytes = Buffer.from(forbiddenResponseSubstring, 'utf8');
       try {
         if (body.includes(forbiddenBytes)) return 'UNAVAILABLE';
@@ -846,9 +916,13 @@ function createApi({ apiToken, fetchImpl, requestTimeoutMilliseconds }) {
       || path.includes('\\')
       || path.includes('..')
     ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_REQUEST_INVALID');
-    const forbiddenResponseSubstring = validatedForbiddenResponseSubstring(
-      options.forbiddenResponseSubstring,
+    const forbiddenResponseSubstrings = validatedForbiddenResponseSubstrings(
+      options.forbiddenResponseSubstrings,
     );
+    const rejectionForbiddenResponseSubstrings =
+      validatedForbiddenResponseSubstrings(
+        options.rejectionForbiddenResponseSubstrings,
+      );
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), requestTimeoutMilliseconds);
     let response;
@@ -888,7 +962,7 @@ function createApi({ apiToken, fetchImpl, requestTimeoutMilliseconds }) {
       ) {
         const providerCode = await sanitizedMutationRejectionCode(
           response,
-          forbiddenResponseSubstring,
+          rejectionForbiddenResponseSubstrings,
         );
         fail(
           `AUTH_BRIDGE_PREPARED_CLOUDFLARE_MUTATION_REJECTED_HTTP_${response.status}_CODE_${providerCode}`,
@@ -914,15 +988,19 @@ function createApi({ apiToken, fetchImpl, requestTimeoutMilliseconds }) {
       || maximumBytes < 1
       || maximumBytes > 2 * MAX_MULTIPART_BYTES
     ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_REQUEST_INVALID');
-    const forbiddenResponseSubstring = validatedForbiddenResponseSubstring(
-      options.forbiddenResponseSubstring,
+    const forbiddenResponseSubstrings = validatedForbiddenResponseSubstrings(
+      options.forbiddenResponseSubstrings,
     );
+    const protectedPlainTextResponseBinding =
+      validatedProtectedPlainTextResponseBinding(
+        options.protectedPlainTextResponseBinding,
+      );
     const body = await boundedBody(response, maximumBytes);
     let containsForbiddenBytes = false;
-    if (forbiddenResponseSubstring !== undefined) {
+    for (const forbiddenResponseSubstring of forbiddenResponseSubstrings) {
       const forbiddenBytes = Buffer.from(forbiddenResponseSubstring, 'utf8');
       try {
-        containsForbiddenBytes = body.includes(forbiddenBytes);
+        containsForbiddenBytes ||= body.includes(forbiddenBytes);
       } finally {
         forbiddenBytes.fill(0);
       }
@@ -944,9 +1022,15 @@ function createApi({ apiToken, fetchImpl, requestTimeoutMilliseconds }) {
       || !exactEmptyApiMessages(envelope.messages)
       || !Object.hasOwn(envelope, 'result')
     ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_RESPONSE_ENVELOPE_INVALID');
+    if (forbiddenResponseSubstrings.some(forbiddenResponseSubstring => (
+      containsForbiddenResponseValue(envelope, forbiddenResponseSubstring)
+    ))) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_UPLOAD_RESPONSE_INVALID');
     if (
-      forbiddenResponseSubstring !== undefined
-      && containsForbiddenResponseValue(envelope, forbiddenResponseSubstring)
+      protectedPlainTextResponseBinding !== undefined
+      && containsProtectedValueOutsideExactPlainTextBinding(
+        envelope,
+        protectedPlainTextResponseBinding,
+      )
     ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_UPLOAD_RESPONSE_INVALID');
     return Object.freeze({
       result: envelope.result,
@@ -1218,7 +1302,12 @@ function exactExportsOrApiScript(
   ) fail(code);
 }
 
-function projectVersion(value, contract, sourceDigest) {
+function projectVersion(
+  value,
+  contract,
+  sourceDigest,
+  ptrSpacetimeDbDatabase,
+) {
   if (
     !isRecord(value)
     || !VERSION_ID.test(value.id ?? '')
@@ -1269,6 +1358,11 @@ function projectVersion(value, contract, sourceDigest) {
       type: 'plain_text',
       text,
     })),
+    {
+      name: AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_DATABASE_BINDING,
+      type: 'plain_text',
+      text: ptrSpacetimeDbDatabase,
+    },
     ...contract.secretBindingNames.map(name => ({ name, type: 'secret_text' })),
     ...expectedReviewedDurableObjectBindings(
       contract,
@@ -1541,6 +1635,7 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
   contract: contractInput,
   apiToken,
   playerCanaryOwnerFid,
+  ptrSpacetimeDbDatabase,
   repositoryRoot,
   serviceRoot,
   nodeExecutable,
@@ -1575,6 +1670,8 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
     || typeof settleDelayImpl !== 'function'
     || !POSITIVE_FID.test(playerCanaryOwnerFid ?? '')
     || BigInt(playerCanaryOwnerFid) > BigInt(Number.MAX_SAFE_INTEGER)
+    || !SPACETIMEDB_DATABASE_IDENTITY.test(ptrSpacetimeDbDatabase ?? '')
+    || ptrSpacetimeDbDatabase === PRODUCTION_SPACETIMEDB_DATABASE
     || !Number.isSafeInteger(requestTimeoutMilliseconds)
     || requestTimeoutMilliseconds < 1_000
     || requestTimeoutMilliseconds > 30_000
@@ -1816,7 +1913,12 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
     }
     return Object.freeze({
       detail: detail.result,
-      version: projectVersion(detail.result, contract, remoteDigest),
+      version: projectVersion(
+        detail.result,
+        contract,
+        remoteDigest,
+        ptrSpacetimeDbDatabase,
+      ),
     });
   };
 
@@ -2022,10 +2124,16 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
           text: playerCanaryOwnerFid,
           type: 'secret_text',
         }),
+        Object.freeze({
+          name: AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_DATABASE_BINDING,
+          text: ptrSpacetimeDbDatabase,
+          type: 'plain_text',
+        }),
       ]),
     });
     exactMultipartMetadata(metadata, contract, Object.freeze({
       playerCanaryOwnerFid,
+      ptrSpacetimeDbDatabase,
     }));
     const body = multipartWithMetadata(source.body, source.contentType, metadata);
     try {
@@ -2048,7 +2156,17 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime({
           headers: { 'content-type': source.contentType },
           body,
           mutation: true,
-          forbiddenResponseSubstring: playerCanaryOwnerFid,
+          forbiddenResponseSubstrings: Object.freeze([
+            playerCanaryOwnerFid,
+          ]),
+          rejectionForbiddenResponseSubstrings: Object.freeze([
+            playerCanaryOwnerFid,
+            ptrSpacetimeDbDatabase,
+          ]),
+          protectedPlainTextResponseBinding: Object.freeze({
+            name: AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_DATABASE_BINDING,
+            text: ptrSpacetimeDbDatabase,
+          }),
         },
       );
       if (response.resultInfo !== undefined) {
@@ -2169,6 +2287,16 @@ export function projectAuthBridgeNotificationPreparedCloudflareVersion({
   value,
   contract,
   sourceDigest,
+  ptrSpacetimeDbDatabase,
 } = {}) {
-  return projectVersion(value, assertContract(contract), sourceDigest);
+  if (
+    !SPACETIMEDB_DATABASE_IDENTITY.test(ptrSpacetimeDbDatabase ?? '')
+    || ptrSpacetimeDbDatabase === PRODUCTION_SPACETIMEDB_DATABASE
+  ) fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_BINDING_MISMATCH');
+  return projectVersion(
+    value,
+    assertContract(contract),
+    sourceDigest,
+    ptrSpacetimeDbDatabase,
+  );
 }

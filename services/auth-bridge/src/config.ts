@@ -1,6 +1,7 @@
 import type { WorkerEnv } from './types'
 
 export const PLAYER_TOKEN_TTL_SECONDS = 10 * 60
+export const PTR_TOKEN_TTL_SECONDS = 2 * 60
 export const ADMIN_TOKEN_TTL_SECONDS = 5 * 60
 export const INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS = 15
 export const INTERNAL_ACCESS_REQUEST_RESOLVER_TOKEN_TTL_SECONDS = 15
@@ -18,6 +19,7 @@ export const PRODUCTION_SPACETIMEDB_URI = 'https://maincloud.spacetimedb.com'
 /** Immutable public address; unlike a database alias, it cannot drift after a rename. */
 export const PRODUCTION_SPACETIMEDB_DATABASE = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e'
 export const PRODUCTION_QA_OBSERVER_SPACETIMEDB_URI = 'https://maincloud.spacetimedb.com'
+export const PTR_OIDC_AUDIENCE = 'warpkeep-ptr-spacetimedb'
 const PRODUCTION_ISSUER = 'https://auth.warpkeep.com'
 const PRODUCTION_DOMAIN = 'warpkeep.com'
 const PRODUCTION_ORIGIN = 'https://warpkeep.com'
@@ -29,6 +31,11 @@ export type QaObserverSpacetimeDbConfig = Readonly<{
   uri: string
   database: string
   audience: string
+}>
+
+export type PtrSpacetimeDbConfig = Readonly<{
+  database: string
+  audience: typeof PTR_OIDC_AUDIENCE
 }>
 
 export type FarcasterRpcUrls = readonly [string] | readonly [string, string]
@@ -57,6 +64,9 @@ export interface BridgeConfig {
   adminTokenSecret: string
   sessionCookieKey: string
   playerCanaryOwnerFid?: string
+  /** Optional on hand-built test configs; absence is always treated as disabled. */
+  ptrEnabled?: boolean
+  ptrSpacetimeDb?: PtrSpacetimeDbConfig
   spacetimeDbUri: string
   spacetimeDbDatabase: string
   publicAuthEnabled: boolean
@@ -582,6 +592,41 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
   ) {
     throw new ConfigurationError()
   }
+  const ptrEnabled = env.PTR_ENABLED === undefined
+    ? false
+    : parsePublicAuthEnabled(env.PTR_ENABLED)
+  const ptrDatabaseValue = env.PTR_SPACETIMEDB_DATABASE
+  const ptrAudienceValue = env.PTR_OIDC_AUDIENCE
+  const ptrValues = [ptrDatabaseValue, ptrAudienceValue]
+  if (
+    ptrValues.some(value => value !== undefined)
+    && !ptrValues.every(value => typeof value === 'string' && value.length > 0)
+  ) {
+    throw new ConfigurationError()
+  }
+  const ptrConfigured = ptrValues.every(value => typeof value === 'string' && value.length > 0)
+  if (
+    ptrConfigured
+    && (
+      !SPACETIMEDB_DATABASE_IDENTITY_PATTERN.test(ptrDatabaseValue!)
+      || ptrAudienceValue !== PTR_OIDC_AUDIENCE
+      || ptrDatabaseValue === spacetimeDbDatabase
+      || ptrDatabaseValue === qaObserverSpacetimeDb?.database
+      || PTR_OIDC_AUDIENCE === audience
+      || PTR_OIDC_AUDIENCE === qaObserverSpacetimeDb?.audience
+    )
+  ) {
+    throw new ConfigurationError()
+  }
+  const ptrSpacetimeDb: PtrSpacetimeDbConfig | undefined = ptrConfigured
+    ? Object.freeze({
+        database: ptrDatabaseValue!,
+        audience: PTR_OIDC_AUDIENCE,
+      })
+    : undefined
+  if (ptrEnabled && (!ptrSpacetimeDb || playerCanaryOwnerFid === undefined)) {
+    throw new ConfigurationError()
+  }
   const qaPublicJwkValue = env.QA_OBSERVER_PUBLIC_JWK?.trim()
   const qaRegisteredAtValue = env.QA_OBSERVER_KEY_REGISTERED_AT?.trim()
   const qaExpiryValue = env.QA_OBSERVER_KEY_EXPIRES_AT?.trim()
@@ -618,6 +663,8 @@ export function readBridgeConfig(env: WorkerEnv): BridgeConfig {
     adminTokenSecret,
     sessionCookieKey,
     ...(playerCanaryOwnerFid === undefined ? {} : { playerCanaryOwnerFid }),
+    ptrEnabled,
+    ...(ptrSpacetimeDb ? { ptrSpacetimeDb } : {}),
     spacetimeDbUri,
     spacetimeDbDatabase,
     publicAuthEnabled: parsePublicAuthEnabled(required(env, 'PUBLIC_AUTH_ENABLED')),

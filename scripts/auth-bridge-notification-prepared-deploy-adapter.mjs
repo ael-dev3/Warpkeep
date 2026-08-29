@@ -48,6 +48,10 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES 
   ]);
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING =
   'PLAYER_CANARY_OWNER_FID';
+export const AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_DATABASE_BINDING =
+  'PTR_SPACETIMEDB_DATABASE';
+export const AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_OIDC_AUDIENCE =
+  'warpkeep-ptr-spacetimedb';
 const SECRET_BINDING_NAMES = Object.freeze([
   ...AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES.slice(0, 4),
   AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING,
@@ -71,6 +75,7 @@ const CONTRACT_KEYS = Object.freeze([
   'compatibilityDate',
   'compatibilityFlags',
   'variables',
+  'protectedPlainTextBindingNames',
   'secretBindingNames',
   'durableObjectBindings',
   'migrations',
@@ -144,7 +149,8 @@ function variables(sourceCommit, beforeModes) {
       'AUTH_BRIDGE_PREPARED_DEPLOY_BEFORE_MODES_INVALID',
     ),
     ALLOWED_ORIGINS: 'https://warpkeep.com',
-    APPROVAL_NOTIFICATIONS_ENABLED: 'true',
+    // 0.4.0 installs the transport and PTR bindings while admission remains sealed.
+    APPROVAL_NOTIFICATIONS_ENABLED: 'false',
     ENVIRONMENT: 'production',
     FARCASTER_DOMAIN: 'warpkeep.com',
     FARCASTER_SIWE_URI: 'https://warpkeep.com/',
@@ -159,6 +165,9 @@ function variables(sourceCommit, beforeModes) {
       beforeModes.publicAuthEnabled,
       'AUTH_BRIDGE_PREPARED_DEPLOY_BEFORE_MODES_INVALID',
     ),
+    PTR_ENABLED: 'true',
+    PTR_OIDC_AUDIENCE:
+      AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_OIDC_AUDIENCE,
     QA_OBSERVER_ENABLED: 'false',
     SPACETIMEDB_DATABASE:
       'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
@@ -216,6 +225,9 @@ export function authBridgeNotificationPreparedVersionContract({
     compatibilityDate: COMPATIBILITY_DATE,
     compatibilityFlags: COMPATIBILITY_FLAGS,
     variables: variables(sourceCommit, beforeModes),
+    protectedPlainTextBindingNames: Object.freeze([
+      AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_DATABASE_BINDING,
+    ]),
     secretBindingNames: SECRET_BINDING_NAMES,
     durableObjectBindings: DURABLE_OBJECT_BINDINGS,
     migrations: MIGRATIONS,
@@ -747,6 +759,7 @@ export async function executeAuthBridgeNotificationPreparedDeployAdapter({
  */
 export async function prepareAndWriteAuthBridgeNotificationPreparedReceipt({
   adminToken,
+  expectedPtrSpacetimeDbDatabase,
   expectedBridgeSourceCommit,
   expectedPredecessorBridgeSourceCommit,
   fetchImpl,
@@ -769,6 +782,7 @@ export async function prepareAndWriteAuthBridgeNotificationPreparedReceipt({
   try {
     receipt = await prepareAuthBridgeNotificationPreparedReceipt({
       adminToken,
+      expectedPtrSpacetimeDbDatabase,
       expectedBridgeSourceCommit,
       expectedPredecessorBridgeSourceCommit,
       fetchImpl,

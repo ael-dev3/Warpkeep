@@ -11,6 +11,9 @@ export function attestAuthBridgeNotificationB0DeployCheckout(
 ): Promise<string>;
 
 export const authBridgeNotificationB0DeployTestSeams: Readonly<{
+  copyAndScrubEnvironment: (
+    environment: NodeJS.ProcessEnv,
+  ) => Readonly<Record<string, string>>;
   settleGitInspections: <Value>(
     inspections: readonly Promise<Value>[],
   ) => Promise<readonly Value[]>;

@@ -48,6 +48,7 @@ const ALLOWED_COMMANDS = Object.freeze([
   'retain-pending-owner-report',
   'export-pending-owner-report',
   'export-genesis002-runtime-release',
+  'export-ptr-runtime-release',
   'export-runtime-release',
   'export-sanitized-review',
   'generate-candidates',
@@ -838,8 +839,17 @@ function assertBootstrapInvocation(arguments_, environment, repositoryRoot = ROO
   }
 }
 
+function assertBootstrapCommand(command) {
+  if (typeof command !== 'string' || !ALLOWED_COMMANDS.includes(command)) {
+    fail('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_ARGUMENTS_INVALID');
+  }
+}
+
 /** Executable-only seam for non-vacuous invocation-boundary regressions. */
 export const greaterRealmToolchainBootstrapTestSeams = Object.freeze({
+  assertCommand(command) {
+    assertBootstrapCommand(command);
+  },
   assertInvocation(arguments_, environment, repositoryRoot) {
     assertBootstrapInvocation(arguments_, environment, repositoryRoot);
   },
@@ -850,9 +860,7 @@ function main() {
   assertBootstrapInvocation(arguments_, process.env);
   const verifyOnly = arguments_[0] === '--verify-only';
   if (verifyOnly && arguments_.length !== 1) fail('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_ARGUMENTS_INVALID');
-  if (!verifyOnly && !ALLOWED_COMMANDS.includes(arguments_[0])) {
-    fail('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_ARGUMENTS_INVALID');
-  }
+  if (!verifyOnly) assertBootstrapCommand(arguments_[0]);
   const receipt = verifyGreaterRealmTrustedToolchain();
   if (verifyOnly) {
     process.stdout.write(`${JSON.stringify({

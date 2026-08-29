@@ -4,6 +4,7 @@ import type {
   AdminTokenClaims,
   AuthEpochResolverTokenClaims,
   PlayerTokenClaims,
+  PtrOwnerTokenClaims,
   QaSnapshotResolverTokenClaims,
 } from './types'
 import {
@@ -11,6 +12,7 @@ import {
   INTERNAL_ACCESS_REQUEST_RESOLVER_TOKEN_TTL_SECONDS,
   INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS,
   PLAYER_TOKEN_TTL_SECONDS,
+  PTR_TOKEN_TTL_SECONDS,
   QA_SNAPSHOT_RESOLVER_TOKEN_TTL_SECONDS,
   type BridgeConfig,
 } from './config'
@@ -54,6 +56,7 @@ export async function signEs256Jwt(
   config: BridgeConfig,
   claims:
     | PlayerTokenClaims
+    | PtrOwnerTokenClaims
     | AdminTokenClaims
     | AuthEpochResolverTokenClaims
     | AccessRequestResolverTokenClaims
@@ -68,6 +71,50 @@ export async function signEs256Jwt(
     encoder.encode(signingInput),
   )
   return `${signingInput}.${base64Url(new Uint8Array(signature))}`
+}
+
+/** Short, owner-bound token for the independently isolated Public Test Realm. */
+export function ptrOwnerClaims(
+  config: BridgeConfig,
+  nowSeconds: number,
+  fid: string,
+  ttlSeconds = PTR_TOKEN_TTL_SECONDS,
+): PtrOwnerTokenClaims {
+  const ptr = config.ptrSpacetimeDb
+  const numericFid = Number(fid)
+  if (
+    !ptr
+    || config.ptrEnabled !== true
+    || config.playerCanaryOwnerFid !== fid
+    || !Number.isSafeInteger(nowSeconds)
+    || nowSeconds < 0
+    || !Number.isSafeInteger(ttlSeconds)
+    || ttlSeconds < 1
+    || ttlSeconds > PTR_TOKEN_TTL_SECONDS
+    || nowSeconds > Number.MAX_SAFE_INTEGER - ttlSeconds
+    || !/^[1-9]\d{0,15}$/.test(fid)
+    || !Number.isSafeInteger(numericFid)
+    || String(numericFid) !== fid
+  ) {
+    throw new Error('Invalid PTR access-token configuration.')
+  }
+  return {
+    iss: config.issuer,
+    sub: `farcaster:${fid}`,
+    aud: [ptr.audience],
+    token_type: 'spacetime-access',
+    auth_version: 2,
+    realm_id: 'PTR',
+    fid,
+    auth_epoch: 1,
+    roles: ['warpkeep-ptr-owner'],
+    iat: nowSeconds,
+    nbf: nowSeconds,
+    exp: nowSeconds + ttlSeconds,
+    session_iat: nowSeconds,
+    session_exp: nowSeconds + ttlSeconds,
+    jti: randomId(),
+  }
 }
 
 export function playerClaims(
@@ -120,6 +167,13 @@ function hermesAdminClaims(
 /** Five-minute external Hermes token for the server-only admin endpoint. */
 export function adminClaims(config: BridgeConfig, nowSeconds: number): AdminTokenClaims {
   return hermesAdminClaims(config.issuer, config.audience, nowSeconds, ADMIN_TOKEN_TTL_SECONDS)
+}
+
+/** Five-minute Hermes token for provisioning only the isolated PTR database. */
+export function ptrAdminClaims(config: BridgeConfig, nowSeconds: number): AdminTokenClaims {
+  const ptr = config.ptrSpacetimeDb
+  if (!config.ptrEnabled || !ptr) throw new Error('Invalid PTR admin-token configuration.')
+  return hermesAdminClaims(config.issuer, ptr.audience, nowSeconds, ADMIN_TOKEN_TTL_SECONDS)
 }
 
 /** Fresh 15-second resolver token bound to one canonical verified FID. */

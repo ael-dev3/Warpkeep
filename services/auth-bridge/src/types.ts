@@ -60,6 +60,12 @@ export interface WorkerEnv {
    * the production player canary exchange. It must never be a Worker var.
    */
   PLAYER_CANARY_OWNER_FID?: string
+  /** Independent fail-closed gate for the owner-only Public Test Realm. */
+  PTR_ENABLED?: string
+  /** Exact immutable SpacetimeDB identity for the isolated PTR database. */
+  PTR_SPACETIMEDB_DATABASE?: string
+  /** Exact dedicated PTR audience. It must never equal a gameplay or QA audience. */
+  PTR_OIDC_AUDIENCE?: string
   /** Non-secret Maincloud origin used only by the Worker auth-epoch lookup. */
   SPACETIMEDB_URI?: string
   /** Non-secret database name used only by the Worker auth-epoch lookup. */
@@ -118,6 +124,8 @@ export type SafeLogEvent =
   | 'quick_auth_verifier_unavailable'
   | 'player_canary_exchange_succeeded'
   | 'player_canary_exchange_rejected'
+  | 'ptr_exchange_succeeded'
+  | 'ptr_exchange_rejected'
   | 'exchange_binding_missing'
   | 'exchange_binding_invalid'
   | 'exchange_binding_mismatch'
@@ -131,6 +139,8 @@ export type SafeLogEvent =
   | 'session_revoke_failed'
   | 'admin_token_issued'
   | 'admin_token_rejected'
+  | 'ptr_admin_token_issued'
+  | 'ptr_admin_token_rejected'
   | 'admin_probe_rejected'
   | 'config_attestation_issued'
   | 'config_attestation_rejected'
@@ -435,6 +445,25 @@ export interface AdminTokenClaims {
   iat: number
   nbf: number
   exp: number
+  jti: string
+}
+
+export interface PtrOwnerTokenClaims {
+  iss: string
+  sub: string
+  aud: [string]
+  token_type: 'spacetime-access'
+  auth_version: 2
+  realm_id: 'PTR'
+  fid: string
+  auth_epoch: 1
+  roles: ['warpkeep-ptr-owner']
+  iat: number
+  nbf: number
+  exp: number
+  /** Original PTR session window, preserved when SpacetimeDB re-signs a connection token. */
+  session_iat: number
+  session_exp: number
   jti: string
 }
 

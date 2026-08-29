@@ -36,6 +36,7 @@ import {
 
 export const PRODUCTION_PLAYER_CANARY_ACTIVATION_LAUNCHER_PROFILE =
   'warpkeep-production-player-canary-activation-launcher-v1';
+export const EXPECTED_PROTECTED_SOURCE_CLOSURE_MEMBER_COUNT = 997;
 
 const REPOSITORY_ROOT = realpathSync(resolve(import.meta.dirname, '..'));
 const COMMIT = /^[0-9a-f]{40}$/u;
@@ -264,7 +265,7 @@ function exactSourceAttestation(launch, dependencies) {
     });
     closure = dependencies.verifySourceClosure({ repositoryRoot: REPOSITORY_ROOT });
     if (
-      closure?.memberCount !== 956
+      closure?.memberCount !== EXPECTED_PROTECTED_SOURCE_CLOSURE_MEMBER_COUNT
       || typeof closure.manifestSha256 !== 'string'
       || !SHA256.test(closure.manifestSha256)
     ) fail('PRODUCTION_PLAYER_CANARY_ACTIVATION_LAUNCHER_CLOSURE_INVALID');

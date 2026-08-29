@@ -41,6 +41,8 @@ const NOW = new Date('2026-08-12T12:00:00.000Z');
 const CREATED_AT = '2026-08-12T11:58:00.000Z';
 const OBSERVED_AT = '2026-08-12T11:59:00.000Z';
 const ADMIN_TOKEN = 'owner-private-test-admin-token-value';
+const PTR_DATABASE = '9'.repeat(64);
+const PTR_AUDIENCE = 'warpkeep-ptr-spacetimedb';
 const temporaryDirectories: string[] = [];
 
 type JournalPhase =
@@ -294,7 +296,7 @@ function privateBody(prepared: boolean) {
     accessRequestResolverTimeoutMilliseconds: 5_000,
     accessRequestStatusProcedure: 'access_request_get_status_v1',
     accessRequestSubmitProcedure: 'access_request_submit_v1',
-    approvalNotificationsEnabled: prepared,
+    approvalNotificationsEnabled: false,
     miniAppNotificationClientFids: [9_152],
     miniAppWebhookPath: '/v1/farcaster/miniapp/webhook',
     admissionNotificationPath: '/v1/admin/admission-notification',
@@ -303,6 +305,9 @@ function privateBody(prepared: boolean) {
     admissionNotificationStatusPath: '/v1/admin/admission-notification-status',
     publicAuthEnabled: true,
     accessExpectedFidRequired: false,
+    ptrEnabled: prepared,
+    ptrSpacetimeDbDatabase: prepared ? PTR_DATABASE : null,
+    ptrAudience: prepared ? PTR_AUDIENCE : null,
     qaObserverEnabled: false,
     qaObserverSpacetimeDbUri: null,
     qaObserverSpacetimeDbDatabase: null,
@@ -320,7 +325,7 @@ function publicBody() {
     schemaVersion: 1,
     profile: 'warpkeep-admission-notification-bridge-v1',
     bridgeSourceCommit: SOURCE_COMMIT,
-    notificationDeliveryEnabled: true,
+    notificationDeliveryEnabled: false,
     notificationTransportConfigured: true,
     admissionNotificationStoreConfigured: true,
     notificationClientCount: 1,
@@ -369,11 +374,14 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
       compatibilityDate: '2026-07-11',
       compatibilityFlags: ['nodejs_compat'],
       variables: expect.objectContaining({
-        APPROVAL_NOTIFICATIONS_ENABLED: 'true',
+        APPROVAL_NOTIFICATIONS_ENABLED: 'false',
         PUBLIC_AUTH_ENABLED: 'true',
         ACCESS_EXPECTED_FID_REQUIRED: 'false',
+        PTR_ENABLED: 'true',
+        PTR_OIDC_AUDIENCE: PTR_AUDIENCE,
         WARPKEEP_BRIDGE_SOURCE_COMMIT: SOURCE_COMMIT,
       }),
+      protectedPlainTextBindingNames: ['PTR_SPACETIMEDB_DATABASE'],
       secretBindingNames: [
         'ADMIN_TOKEN_SECRET',
         'FARCASTER_RPC_URL',
@@ -398,6 +406,7 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
         { tag: 'v5', newSqliteClasses: ['AdmissionNotification'] },
       ],
     });
+    expect(JSON.stringify(contract())).not.toContain(PTR_DATABASE);
     const wrangler = readFileSync(
       join(process.cwd(), 'services/auth-bridge/wrangler.toml'),
       'utf8',
@@ -1026,6 +1035,7 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
 
     const result = await prepareAndWriteAuthBridgeNotificationPreparedReceipt({
       adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
       expectedBridgeSourceCommit: SOURCE_COMMIT,
       expectedPredecessorBridgeSourceCommit:
         AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
@@ -1041,6 +1051,7 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
     const receipt = JSON.parse(readFileSync(result.path, 'utf8'));
     expect(receipt.bridgeSourceCommit).toBe(SOURCE_COMMIT);
     expect(receipt.preparedAt).toBe(NOW.toISOString());
+    expect(JSON.stringify(receipt)).not.toContain(PTR_DATABASE);
   });
 
   it('surfaces only a fixed sanitized provider rejection code after deploy starts', async () => {
@@ -1057,6 +1068,7 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
     });
     const surfacedRejection = await prepareAndWriteAuthBridgeNotificationPreparedReceipt({
       adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
       expectedBridgeSourceCommit: SOURCE_COMMIT,
       expectedPredecessorBridgeSourceCommit:
         AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,

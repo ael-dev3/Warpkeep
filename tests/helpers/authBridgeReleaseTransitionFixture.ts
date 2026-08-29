@@ -83,26 +83,38 @@ export function canonicalAuthBridgeReleaseTransitionFixtureSource(
       || value.profile !== 'warpkeep-0.4.0-sealed-launch-v1'
       || typeof value.pagesDeploymentApproved !== 'boolean'
       || value.g002PresentationEnabled !== false
+      || typeof value.ptrPresentationEnabled !== 'boolean'
       || value.legacyGreaterRealmClientPresentationEnabled !== false
       || value.legacyGreaterRealmServerPresentationEnabled !== false
       || value.admissionNotificationsEnabled !== false
     ) throw new Error('release-transition sealed binding was invalid');
     const keys = Object.keys(value);
     const firstOperational = keys.indexOf('preparationSourceCommit');
-    const lastOperational = keys.indexOf('g002AdmissionMutationsEnabled');
+    const lastOperational = keys.indexOf('ptrAccessRequestSurfacePresent');
     if (
       firstOperational !== 3
       || lastOperational <= firstOperational
       || keys[lastOperational + 1] !== 'g002PresentationEnabled'
+      || keys[lastOperational + 2] !== 'ptrPresentationEnabled'
+      || keys.at(-5) !== 'g002PresentationEnabled'
+      || keys.at(-4) !== 'ptrPresentationEnabled'
+      || keys.at(-3) !== 'legacyGreaterRealmClientPresentationEnabled'
+      || keys.at(-2) !== 'legacyGreaterRealmServerPresentationEnabled'
+      || keys.at(-1) !== 'admissionNotificationsEnabled'
     ) throw new Error('release-transition sealed binding was invalid');
     const operationalKeys = keys.slice(firstOperational, lastOperational + 1);
     const nulls = operationalKeys.filter(key => value[key] === null).length;
     if (!(
-      (value.pagesDeploymentApproved === false && nulls === operationalKeys.length)
-      || (value.pagesDeploymentApproved === true && nulls === 0)
+      (value.pagesDeploymentApproved === false
+        && value.ptrPresentationEnabled === false
+        && nulls === operationalKeys.length)
+      || (value.pagesDeploymentApproved === true
+        && value.ptrPresentationEnabled === true
+        && nulls === 0)
     )) throw new Error('release-transition sealed binding was partial');
     value.pagesDeploymentApproved = false;
     for (const key of operationalKeys) value[key] = null;
+    value.ptrPresentationEnabled = false;
     return `${JSON.stringify(value, null, 2)}\n`;
   }
   if (relativePath === 'package-lock.json') {

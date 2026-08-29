@@ -20,6 +20,10 @@ import {
   type GreaterRealmWindowDto,
   type GreaterRealmWindowRequest
 } from './greaterRealmPublicContract';
+import {
+  isCurrentPtrRealmAuthority,
+  type PtrRealmAuthority
+} from '../ptr/ptrRealmAuthClient';
 
 /** Closed until the additive v17 server contract and production postflight exist. */
 export const GREATER_REALM_SERVER_PRESENTATION_ALLOWED = false as const;
@@ -83,8 +87,9 @@ function ensureNotAborted(signal: AbortSignal) {
  * Procedure-facing seam for v17. While the literal gate is closed, a supplied
  * invoker is unreachable and current production behavior remains inert.
  */
-export function createGreaterRealmProcedureTransport(
-  invoker: GreaterRealmProcedureInvoker
+function createGreaterRealmProcedureTransportForAuthority(
+  invoker: GreaterRealmProcedureInvoker,
+  presentationAllowed: () => boolean
 ): GreaterRealmPublicTransport {
   let atlasContext: Readonly<{ atlasId: string; revision: bigint }> | undefined;
   const assertContextRevision = (expectedRevision: bigint) => {
@@ -94,7 +99,7 @@ export function createGreaterRealmProcedureTransport(
   };
   return Object.freeze({
     getBootstrap: async (signal) => {
-      if (!GREATER_REALM_SERVER_PRESENTATION_ALLOWED) return unavailable(signal);
+      if (!presentationAllowed()) return unavailable(signal);
       ensureNotAborted(signal);
       const decoded = decodeGreaterRealmBootstrapDto(await invoker.call(
         GREATER_REALM_PUBLIC_PROCEDURES.bootstrap,
@@ -106,7 +111,7 @@ export function createGreaterRealmProcedureTransport(
       return decoded;
     },
     getWindow: async (requested, signal) => {
-      if (!GREATER_REALM_SERVER_PRESENTATION_ALLOWED) return unavailable(signal);
+      if (!presentationAllowed()) return unavailable(signal);
       const request = createGreaterRealmWindowRequest(requested);
       assertContextRevision(request.expectedRevision);
       ensureNotAborted(signal);
@@ -126,7 +131,7 @@ export function createGreaterRealmProcedureTransport(
       return decoded;
     },
     getChunk: async (requested, signal) => {
-      if (!GREATER_REALM_SERVER_PRESENTATION_ALLOWED) return unavailable(signal);
+      if (!presentationAllowed()) return unavailable(signal);
       const request = createGreaterRealmChunkRequest(requested);
       assertContextRevision(request.expectedRevision);
       ensureNotAborted(signal);
@@ -145,7 +150,7 @@ export function createGreaterRealmProcedureTransport(
       return decoded;
     },
     getResourceLocations: async (requested, signal) => {
-      if (!GREATER_REALM_SERVER_PRESENTATION_ALLOWED) return unavailable(signal);
+      if (!presentationAllowed()) return unavailable(signal);
       const request = createGreaterRealmResourceLocationRequest(requested);
       assertContextRevision(request.expectedRevision);
       ensureNotAborted(signal);
@@ -163,7 +168,7 @@ export function createGreaterRealmProcedureTransport(
       return decoded;
     },
     planRoute: async (requested, signal) => {
-      if (!GREATER_REALM_SERVER_PRESENTATION_ALLOWED) return unavailable(signal);
+      if (!presentationAllowed()) return unavailable(signal);
       const request = createGreaterRealmRoutePlanRequest(requested);
       assertContextRevision(request.expectedRevision);
       ensureNotAborted(signal);
@@ -177,4 +182,28 @@ export function createGreaterRealmProcedureTransport(
       return decoded;
     }
   });
+}
+
+export function createGreaterRealmProcedureTransport(
+  invoker: GreaterRealmProcedureInvoker
+): GreaterRealmPublicTransport {
+  return createGreaterRealmProcedureTransportForAuthority(
+    invoker,
+    () => GREATER_REALM_SERVER_PRESENTATION_ALLOWED
+  );
+}
+
+/**
+ * PTR does not open the Genesis v17 gate. Its independent transport becomes
+ * callable only while the exact server-issued, memory-branded owner authority
+ * remains current; structural lookalikes and expired authorities stay inert.
+ */
+export function createPtrGreaterRealmProcedureTransport(
+  invoker: GreaterRealmProcedureInvoker,
+  authority: PtrRealmAuthority
+): GreaterRealmPublicTransport {
+  return createGreaterRealmProcedureTransportForAuthority(
+    invoker,
+    () => isCurrentPtrRealmAuthority(authority)
+  );
 }

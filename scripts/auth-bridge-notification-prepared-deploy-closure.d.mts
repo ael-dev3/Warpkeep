@@ -30,6 +30,16 @@ export function assertAuthBridgeNotificationPreparedDeployClosureAuthority<
   }>,
 >(authority: T, options: Readonly<{ repositoryRoot: string }>): T;
 
+export function importAuthBridgeNotificationPreparedAttestedModules(
+  options: Readonly<{
+    authority: ReturnType<
+      typeof verifyAuthBridgeNotificationPreparedDeployClosure
+    >;
+    repositoryRoot: string;
+    memberPaths: readonly string[];
+  }>,
+): Promise<readonly Readonly<Record<string, unknown>>[]>;
+
 export const authBridgeNotificationPreparedDeployClosureTestSeams: Readonly<{
   expectedMemberDigestProfile: (memberPath: string) => string;
   manifestMemberSetMatchesExpected: (

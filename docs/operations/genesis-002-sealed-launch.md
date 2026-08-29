@@ -6,7 +6,9 @@ source and exact confirmations**
 This runbook implements the owner-approved 0.4.0 release shape: Genesis 001
 continues serving its already admitted players on exact 0.3.43, Genesis 002
 holds the selected Greater Realm atlas but has no admitted users, and all new
-admission requests and admission operators are suspended.
+admission requests and admission operators are suspended. A distinct PTR holds
+the same canonical atlas ABI for short-lived owner-only patch testing; it has
+no player admission or access-request surface.
 
 This release shape supersedes the earlier C7 active-Greater-Realm plan. Never
 publish the repository's 86-table future module to Genesis 001 and never use
@@ -25,6 +27,8 @@ notification work requires a new reviewed release plan.
 - Genesis 001 release: `0.3.43`
 - Genesis 001 frozen source baseline:
   `2ae51984e1fa6ce5b0028c1a250359fed79d819b`
+- Genesis 001 completed freeze-operation source:
+  `d945256b217fa13ade944b9ed9880e8463b46123`
 - Genesis 001 baseline ABI SHA-256:
   `cb7d69d2bed316702ffa1aa8696a4e1ca1934a775b8312129b305a9c33eb0e03`
 - Genesis 001 freeze nonce:
@@ -44,19 +48,26 @@ notification work requires a new reviewed release plan.
 - Genesis 002 alias: `warpkeep-genesis-002` (must be absent before publish)
 - Genesis 002 module identity: `warpkeep-genesis-002-sealed-v1`
 - Genesis 002 atlas ID: `GENESIS_002_GREATER_REALM`
+- PTR alias: `warpkeep-ptr` (must be absent before publish)
+- PTR module identity: `warpkeep-ptr-owner-view-v1`
+- PTR atlas ID: `PTR_GREATER_REALM`
+- PTR release: `0.4.0-ptr.1`
 - Delete policy for both same-schema G001 freeze and fresh G002 publish:
   `never`
 
-The G002 full database identity does not exist until the one fresh publication.
-Record the returned 64-hex identity and require it to differ from Genesis 001.
-No alias or environment override may substitute for either identity.
+The G002 and PTR full database identities do not exist until their fresh
+publications. Record both returned lowercase 64-hex identities and require all
+three realm identities to differ. No alias or environment override may
+substitute for an identity.
 
 ## Phase 0: preparation main remains inert
 
 Before any production operation, the checked-in root package and lock remain
 `0.3.43`. `config/releases/0.4.0-sealed-launch.json` has
 `pagesDeploymentApproved: false`, null operational fields, and false G002,
-legacy-presentation, and notification gates.
+PTR-presentation, legacy-presentation, and notification gates. Every PTR
+receipt, identity, module, atlas, owner-state, and zero-population evidence
+field is null during preparation.
 
 Require:
 
@@ -68,12 +79,19 @@ The Pages classifier must emit `sealed-launch-blocked`. Its build and deploy
 jobs must not start, so no install, build, artifact upload, Pages environment,
 credential, or deployment action happens from preparation main.
 
-## Phase 1: freeze Genesis 001 without changing its world
+## Phase 1: adopt the completed one-time Genesis 001 freeze
 
-Publish only the exact same-schema module materialized from baseline
-`2ae51984...`, with the pinned baseline ABI, freeze nonce, full G001 identity,
-and `--delete-data=never`. The repository's current/future 86-table module is
-not eligible source for this step.
+The one-time same-schema freeze was already published successfully from the
+reviewed historical freeze source. **Do not publish it again.** The activation
+generator adopts only the exact retained owner-private final receipt whose
+source, canonical-file digest, target, policy, build provenance, baseline ABI,
+freeze nonce, and successful outcome match the independently pinned release
+authority. A structurally valid alternate receipt is not eligible.
+
+The repository's current/future 86-table module is never eligible for Genesis
+001. The instructions below describe the evidence that was produced and must
+be revalidated; they are historical recovery context, not authorization to
+rerun the publisher.
 
 Supply exact absolute `WKG001_NODE_EXECUTABLE_PATH` and
 `WKG001_PRODUCTION_DEPENDENCY_CACHE_ROOT` inputs. The publisher must stage and
@@ -100,16 +118,54 @@ sourceBaselineCommit=2ae51984e1fa6ce5b0028c1a250359fed79d819b
 freezeReleaseNonce=3f158f17acd5e1e63c74befef7cb3ccab7cb07feaaed432e7483467e1c856f00
 ```
 
-Retain the owner-private final receipt and externally record only its approved
+Retain the owner-private final receipt and expose only its approved
 privacy-safe digest/commitment fields. Existing G001 players must still connect;
 every request/admit/allow/re-enable/disable/revoke/reset/auth-epoch mutation
 must fail before state or audit writes.
 
 ## Phase 2: export applicants privately, then suspend the monitor
 
+From exact clean protected preparation source `S`, use the dedicated reviewed
+[G001 policy-observation launch envelope](./genesis-001-policy-observation-launch-envelope.sh.txt)—not
+the sealed legacy Greater Realm launch envelope—with the fixed command
+`g001-policy-observe` and no additional operator arguments. The bootstrap maps
+that command only to
+`scripts/genesis001-policy-observation-receipt.mjs` with exact child arguments
+`['observe']`, requires the owner-private administrator-secret file, and does
+not permit private stdin. Do not invoke the observer directly.
+
+Run those exact reviewed envelope bytes only while `S` remains the protected
+remote `main` tip. The observer's sanitized final receipt is eligible for the
+activation evidence only after the enclosing bootstrap reports success,
+completes its exact postflight, and confirms cleanup; child success by itself is
+not eligible evidence. If a launch is interrupted, use only the envelope's
+credential-free `launch-run-inspect [RUN_ID]` and confirmed
+`launch-run-cleanup RUN_ID CONFIRMATION_DIGEST` rows to inspect or recover its
+local lifecycle state before attempting a new observation.
+
+The observer attests protected `S` before opening the secret, removes the
+bootstrap path/commit/secret bindings from its environment, opens one fixed
+production transport session, refreshes it, and performs exactly one read-only
+`genesis_001_access_policy_v1` inspection. It submits no reducer, always closes
+the session, clears its local secret binding, rejects network failure or any
+reopened/wrong/partial policy, and writes one canonical sanitized policy receipt
+into bootstrap-owned bounded private stdout while keeping stderr empty. Neither
+child stream is inherited by the terminal. Only after operator success,
+postflight source attestation, runtime/npm re-attestation, a complete launch
+record, and successful lifecycle cleanup does the bootstrap emit its final JSON,
+containing the nested `policyObservationReceipt` and a domain-separated
+`policyObservationReceiptLinkSha256`. Retain the complete final bootstrap
+receipt for the activation envelope, including its protected commit, module
+tree/blob/archive identities, exact command, cleaned lifecycle outcome, nested
+observation, and recomputable link. A naked nested observer receipt is never
+eligible or displayed.
+
 Do not stop the monitor before the census boundary. Use the reviewed,
-no-argument private census/export lane twice and compare the private results for
-a stable boundary. Copy the owner-requested human-readable applicant TXT only
+no-argument private census/export lane twice at the exact preparation source
+and retain two distinct private opaque-proof receipts. The two receipts must
+have distinct canonical timestamps and nonces but exact-equal private
+count/size/raw-SHA references; only the later opaque digest enters the public
+binding. Copy the owner-requested human-readable applicant TXT only
 to the owner-private Desktop location. Preserve the private JSON/TXT with owner
 mode and do not print or copy applicant FIDs, usernames, timestamps, raw file
 digests, or applicant counts into Git, CI, Pages, receipts, issue comments, or
@@ -146,11 +202,27 @@ of them as `g001CensusPrivacySafeReceiptDigest` is prohibited because it would
 provide a public offline-guess verifier. The binding uses only the emitted
 `opaqueProofDigest`.
 
+The live-policy observation timestamp must be no later than the first census,
+at most five minutes before it, and at most ten minutes old at activation
+generation. The first census must precede the second by at least 60 seconds and
+at most five minutes; the second census must be no later than the
+monitor-suspension timestamp. The exact current-state observation must be no
+earlier than suspension, no later than activation generation, and at most five
+minutes old when the generator validates it. Impossible calendar timestamps,
+reordered or weakly separated proofs, a zero nonce, a stale policy wrapper, and
+a mismatched private reference fail closed.
+
 Only after the second stable export, reversibly suspend the retained
 `com.warpkeep.hermes-admission-monitor` LaunchAgent: disable its service target,
 boot it out, and keep the plist installed. The suspension receipt must prove
-both `disabled=true` and `loaded=false`. Do not delete the plist or its private
-state, and do not run any admit/allow mutation.
+both `disabled=true` and `loaded=false`. Run a fresh read-only state check in
+the same protected operator session immediately before activation generation;
+an old valid suspension receipt must not be treated as proof that a subsequently
+re-enabled monitor is still suspended. The inspect result must be the exact
+canonical `warpkeep-genesis001-admission-monitor-current-state-v1` receipt,
+bound to `S`, the G001 0.3.43 target, the fixed label and program/plist hashes,
+and its production-generated observation time. Do not delete the plist or its
+private state, and do not run any admit/allow mutation.
 
 ## Phase 3: deploy and prove the auth-bridge request kill switch
 
@@ -265,6 +337,32 @@ import receipt under the domain (including its trailing newline)
 `warpkeep.genesis-002.production-import-receipt.v1\n`. Never hash or otherwise
 derive a binding from the import operator's pretty-printed CLI stdout.
 
+## Phase 5b: publish, finalize, and provision owner-only PTR
+
+Publish `warpkeep-ptr` exactly once from protected preparation source. Its
+lowercase 64-hex identity must differ from both Genesis identities. The module
+receipt must bind module identity `warpkeep-ptr-owner-view-v1`, fresh-database
+status, module/tree/dependency/toolchain digests, `--delete-data=never`, and
+zero admission and access-request ABI surfaces.
+
+Export and import the dedicated `PTR_GREATER_REALM` runtime release at exact
+`0.4.0-ptr.1`. Bind `ptrAtlasSourceCommit` to the manifest source commit,
+`ptrReleaseManifestSha256` to the canonical manifest bytes,
+`ptrExpectedReleaseSha256` to the manifest's `releaseSha256`, and retain the
+header and verification digests. Final status must prove exact imports, ready
+and finalized atlas state, writes closed by finalization, zero gameplay and
+admission population, zero public atlas roots, and no activation mutation
+surface.
+
+Provision the singleton owner anchor only after the zero boundary and final
+atlas state are proven. The private operator must emit a privacy-safe provision
+receipt with one enabled owner anchor and an opaque owner proof shared with the
+final live receipt. Never place the owner FID, auth epoch, token, raw status DTO,
+or opaque owner proof in Git, Pages variables, logs, or the public binding. Only
+the provision receipt digest, its release-wide commitment, and the public
+booleans `ptrOwnerProvisioned=true`, `ptrOwnerEnabled=true`, and
+`ptrOwnerAnchorRows=1` may leave the private evidence envelope.
+
 ## Phase 6: final local and live gates
 
 From exact clean protected main, require all of the following before changing
@@ -279,13 +377,20 @@ npm run verify:sealed-launch:preparation
 git diff --check
 ```
 
-Also require the full focused/adversarial test set, generated G002 binding diff
-check, source-built locked-cache exercise, exact G001 frozen receipt inspection,
-second stable census proof, monitor suspension receipt, live auth suspension
+Also require the full focused/adversarial test set, generated activation binding
+diff check, source-built locked-cache exercise, exact historical G001 freeze
+receipt inspection, a fresh sanitized live-policy observation, both stable
+census proofs, a fresh monitor suspension/state check, live auth suspension
 probe, G002 fresh publish receipt, G002 import receipt, and final sealed live
 receipt. Receipts committed to the release binding must contain no applicant
 data, raw census digest, applicant count, administrator secret, CLI config
 contents, token, or private filesystem path.
+
+The public receipt commitments prove deterministic consistency and detect
+tampering or receipt swaps; they do not cryptographically prove that a private
+operator ran. Release authority is the protected-main review plus the protected
+production environment/operator that performs these live checks. A stronger
+claim would require a separately reviewed signing or remote-attestation key.
 
 ## Phase 7: atomic 0.4.0 activation successor
 
@@ -294,40 +399,74 @@ reviewed successor that atomically:
 
 1. changes root package/lock/release identity from 0.3.43 to exact 0.4.0;
 2. preserves truthful copy: Genesis 001 at 0.3.43, Genesis 002 sealed at 0.4.0,
-   and new admissions suspended;
+   PTR owner-only at 0.4.0-ptr.1, and new admissions suspended;
 3. fills every exact non-null privacy-safe operational binding and its
    domain-separated commitment;
 4. proves the preparation commit and frozen G001 baseline are ancestors;
-5. retains all G002, legacy presentation, and notification gates false; and
-6. sets `pagesDeploymentApproved: true`.
+5. retains all G002, legacy presentation, and notification gates false;
+6. sets only the receipt-proven PTR presentation gate true; and
+7. sets `pagesDeploymentApproved: true`.
 
 Construct one private activation evidence envelope in this exact key order:
 
 1. `schemaVersion` with exact value `1`;
 2. `profile` with exact value
    `warpkeep-0.4.0-sealed-launch-activation-evidence-v1`;
-3. `bindingCandidate` in the exact checked-in binding key order, with the G001
-   and admission-suspension evidence filled but every field from
-   `g002PublishReceiptDigest` through `admissionNotificationsEnabled` still
-   `null`;
-4. `g002PublishReceipt`, copied from the successful publisher CLI result's
+3. `bindingCandidate` in the exact checked-in binding key order. Every
+   G001-derived field and commitment, every monitor-derived field and
+   commitment, the admission-request suspension commitment, and every
+   G002/PTR-derived field and commitment (including PTR presentation) must
+   still be `null`; caller-supplied values are rejected;
+4. `g001FreezePublishReceipt`, the exact retained private receipt wrapper with
+   its pinned basename, canonical-file digest, and full historical receipt;
+5. `g001PolicyObservationBootstrapReceipt`, the complete exact successful
+   bootstrap result. It must have profile
+   `warpkeep-greater-realm-production-bootstrap-v1`, protected commit `S`,
+   valid module tree/bootstrap blob/bootstrap SHA identities, exactly 16 module
+   archives, command `g001-policy-observe`, an exact `cleaned` launch cleanup
+   result with run ID and both hashes, the nested sanitized live read-only
+   policy observation, and the recomputed length-framed observation link;
+6. `g001CensusPrivacySafePrivateReceipt`, an exact ordered `{first,second}`
+   pair of private proofs from the stable census boundary;
+7. `g001AdmissionMonitorSuspensionReceipt`, the exact basename/digest/full
+   suspension receipt from the fresh final monitor gate;
+8. `g001AdmissionMonitorCurrentStateReceipt`, the exact fresh canonical
+   `inspect` receipt proving `disabled=true`, `loaded=false`, fixed target
+   hashes, source `S`, and an observation no more than five minutes before the
+   trusted generator time;
+9. `g002PublishReceipt`, copied from the successful publisher CLI result's
    exact nested `publishReceipt` object, including its final
    `publishReceiptDigest` field; require that nested digest to equal the
    result's top-level `publishReceiptDigest` and do not include the flattened
    compatibility or operational-extra fields;
-5. `g002AtlasImportReceipt`, the exact nested import receipt including its
+10. `g002AtlasImportReceipt`, the exact nested import receipt including its
    final `importReceiptDigest` field (which must equal the operator result's
    top-level `importReceiptDigest`);
-6. `g002SealedLiveReceipt`, the exact final sealed-live receipt; and
-7. `g002SealedLiveReceiptDigest`, the digest emitted alongside that receipt.
+11. `g002SealedLiveReceipt`, the exact final sealed-live receipt;
+12. `g002SealedLiveReceiptDigest`, the digest emitted alongside that receipt;
+13. `ptrPublishReceipt`, the exact fresh PTR module receipt with its nested
+    `publishReceiptDigest`;
+14. `ptrAtlasImportReceipt`, the exact finalized PTR import receipt with its
+    nested `importReceiptDigest`;
+15. `ptrOwnerProvisionReceipt`, the privacy-safe singleton-owner receipt with
+    its nested `provisionReceiptDigest` and private opaque owner proof;
+16. `ptrSealedLiveReceipt`, the exact sanitized final PTR live receipt. It may
+    contain the same private opaque owner proof for cross-linking but no FID or
+    auth epoch; and
+17. `ptrSealedLiveReceiptDigest`, the exact digest of that live receipt.
 
-Do not prefill a G2 binding value and do not hash pretty CLI output. The
-generator recomputes each strict, domain-separated receipt digest, requires the
-supplied digest to match, cross-links the G2 database/module/artifact/atlas/
-release/zero-state/readiness/mutation/presentation/notification evidence, then
-derives all G2 binding fields and all nine commitments. Missing, extra,
-reordered, swapped, stale, or individually valid but mutually inconsistent
-receipts are rejected.
+Do not prefill a derived G1, G2, or PTR binding value and do not hash pretty CLI
+output. The generator validates the exact historical freeze authority,
+independently recomputes the bootstrap's length-framed nested-observation link,
+hashes the complete wrapper and fresh current monitor receipt in distinct
+public digest domains, verifies the stable census pair and complete
+policy/census/suspension/current-state chronology, then cross-links the G2 database/module/
+artifact/atlas/release/zero-state/readiness/mutation/presentation/notification
+evidence. It also recomputes and cross-links PTR module, atlas, live, and
+owner-provision receipts, rejects Genesis identity collisions, and strips the
+private owner proof. It derives all public fields and all sixteen commitments
+only after the whole envelope passes. Missing, extra, reordered, swapped, stale, or
+individually valid but mutually inconsistent receipts are rejected.
 
 Store the envelope as canonical pretty JSON with one trailing newline in a
 regular, owner-owned, single-link file with mode 0600 (and no more than 32 KiB).
@@ -346,9 +485,30 @@ output at `config/releases/0.4.0-sealed-launch.json`. The activation successor
 must change only that binding plus `package.json` and `package-lock.json`; any
 other changed path blocks activation review.
 
+Let `F` be the independently pinned historical G001 freeze source, `S` the
+preparation commit recorded by every fresh receipt, and `A` the activation
+successor. The verifier requires the frozen baseline to be an ancestor of `F`,
+`F` to be an ancestor of `S`, and `A` to have exactly one parent equal to `S`.
+No commit in the full `F..S` history may touch the closed G001 operational
+projection (including the complete `spacetimedb/src` and `spacetimedb/scripts`
+trees and legacy mutation-refusal entrypoints). The current protected bootstrap,
+which gains the read-only policy-observer route after the historical freeze, is
+excluded from that historical projection but remains an exact sealed-source and
+closure input. The raw Git tree projection
+including modes and object identities must be identical at both endpoints.
+The raw NUL-delimited `S..A` delta must contain exactly the three reviewed
+activation paths, and all three must be regular mode-100644 blobs in both `S`
+and `A`. Merge commits, attack-and-revert history, newline paths, symlinks,
+submodules, executable-bit drift, or an extra path fail closed.
+
 Require `npm run verify:sealed-launch:activation` on the exact activation
 commit. Pages must repeat that verifier and the direct live auth-bridge probe
-before build and again before deployment. Missing, partial, extra, swapped,
+before build and again before deployment. Before install/build, Pages must set
+`VITE_WARPKEEP_PTR_ENABLED` to exact `true`, source
+`VITE_PTR_SPACETIMEDB_DATABASE` only from repository variable
+`WARPKEEP_PTR_SPACETIMEDB_DATABASE`, and prove exact equality to the activated
+PTR database identity. PTR URI overrides, aliases, missing variables, uppercase
+or noncanonical identities, and collisions must fail closed. Missing, partial, extra, swapped,
 random, stale, populated, open, or wrong-target receipts must block deployment.
 
 Archive the private operational evidence outside the repository. The checked-in

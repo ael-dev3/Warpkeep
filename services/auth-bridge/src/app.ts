@@ -14,6 +14,7 @@ import {
   MAX_ADMIN_TOKEN_SECRET_BYTES,
   MAX_REQUEST_BYTES,
   PLAYER_TOKEN_TTL_SECONDS,
+  PTR_TOKEN_TTL_SECONDS,
   QA_OBSERVER_CHALLENGE_TTL_MILLISECONDS,
   QA_OBSERVER_MAX_REGISTRATION_LIFETIME_MILLISECONDS,
   QA_SNAPSHOT_RESOLVER_TOKEN_TTL_SECONDS,
@@ -24,7 +25,15 @@ import {
 } from './config'
 import { DurableObjectChallengeStore } from './challengeStore'
 import { FarcasterVerifierUnavailableError, createOfficialFarcasterVerifier } from './farcaster'
-import { adminClaims, playerClaims, randomId, randomSiweNonce, signEs256Jwt } from './jwt'
+import {
+  adminClaims,
+  playerClaims,
+  ptrAdminClaims,
+  ptrOwnerClaims,
+  randomId,
+  randomSiweNonce,
+  signEs256Jwt,
+} from './jwt'
 import {
   QA_OBSERVER_CHALLENGE_PATH,
   QA_OBSERVER_SCOPE,
@@ -127,6 +136,7 @@ export const REQUEST_BODY_TIMEOUT_MILLISECONDS = 8_000
 export const FARCASTER_VERIFICATION_TIMEOUT_MILLISECONDS = 8_000
 const AUTH_EPOCH_PROBE_PATH = '/v1/admin/auth-epoch-probe'
 const CONFIG_ATTESTATION_PATH = '/v1/admin/config-attestation'
+export const PTR_ADMIN_TOKEN_PATH = '/v1/admin/ptr-token'
 export const RELEASE_ATTESTATION_PATH = '/v1/release-attestation'
 export const RELEASE_ATTESTATION_PROFILE =
   'warpkeep-admission-notification-bridge-v1' as const
@@ -135,6 +145,7 @@ const V2_CHALLENGE_PATH = '/v2/farcaster/challenge'
 const V2_EXCHANGE_PATH = '/v2/farcaster/exchange'
 const V2_QUICK_AUTH_EXCHANGE_PATH = '/v2/farcaster/quick-auth/exchange'
 export const PLAYER_CANARY_QUICK_AUTH_EXCHANGE_PATH = '/v2/farcaster/player-canary/exchange'
+export const PTR_OWNER_QUICK_AUTH_EXCHANGE_PATH = '/v2/farcaster/ptr/exchange'
 const V2_REFRESH_PATH = '/v2/session/refresh'
 const V2_LOGOUT_PATH = '/v2/session/logout'
 const V2_ACCESS_STATUS_PATH = '/v2/access/status'
@@ -157,6 +168,7 @@ const QUICK_AUTH_ISSUER = 'https://auth.farcaster.xyz'
 const MAX_QUICK_AUTH_TOKEN_BYTES = 8 * 1024
 export const QUICK_AUTH_MAX_ISSUER_LIFETIME_SECONDS = 60 * 60
 export const PLAYER_CANARY_QUICK_AUTH_MAX_AGE_SECONDS = 2 * 60
+export const PTR_OWNER_QUICK_AUTH_MAX_AGE_SECONDS = PTR_TOKEN_TTL_SECONDS
 const QUICK_AUTH_VERIFIER_PACKAGE = '@farcaster/quick-auth@0.0.8'
 
 const ACCESS_REQUEST_FAILURE_EVENTS:
@@ -268,7 +280,7 @@ export type BridgeReleaseAttestation = Readonly<{
   schemaVersion: 1
   profile: typeof RELEASE_ATTESTATION_PROFILE
   bridgeSourceCommit: string
-  notificationDeliveryEnabled: true
+  notificationDeliveryEnabled: boolean
   notificationTransportConfigured: true
   admissionNotificationStoreConfigured: true
   notificationClientCount: 1
@@ -313,7 +325,6 @@ async function bridgeReleaseAttestation(
   if (
     typeof config.bridgeSourceCommit !== 'string'
     || !/^[a-f0-9]{40}$/.test(config.bridgeSourceCommit)
-    || !config.approvalNotificationsEnabled
     || notificationConfig === undefined
     || notificationConfig.hubUrls.length !== 2
     || notificationConfig.clients.length !== 1
@@ -334,7 +345,7 @@ async function bridgeReleaseAttestation(
     schemaVersion: 1,
     profile: RELEASE_ATTESTATION_PROFILE,
     bridgeSourceCommit: config.bridgeSourceCommit,
-    notificationDeliveryEnabled: true,
+    notificationDeliveryEnabled: config.approvalNotificationsEnabled,
     notificationTransportConfigured: true,
     admissionNotificationStoreConfigured: true,
     notificationClientCount: 1,
@@ -427,6 +438,7 @@ function routeCorsHeaders(request: Request, config: BridgeConfig, pathname = new
   if (
     pathname === V2_QUICK_AUTH_EXCHANGE_PATH
     || pathname === PLAYER_CANARY_QUICK_AUTH_EXCHANGE_PATH
+    || pathname === PTR_OWNER_QUICK_AUTH_EXCHANGE_PATH
   ) {
     const origin = request.headers.get('origin')
     return origin === QUICK_AUTH_BROWSER_ORIGIN ? quickAuthCorsHeaders(origin) : {}
@@ -481,6 +493,7 @@ function requireMiniAppWebhookNoOrigin(request: Request): void {
 
 function isServerOnlyAdminPath(pathname: string): boolean {
   return pathname === '/v1/admin/token'
+    || pathname === PTR_ADMIN_TOKEN_PATH
     || pathname === AUTH_EPOCH_PROBE_PATH
     || pathname === CONFIG_ATTESTATION_PATH
     || pathname === ADMISSION_NOTIFICATION_PATH
@@ -771,6 +784,42 @@ function requireFreshPlayerCanaryQuickAuth(
     || nowSeconds - verification.issuedAtSeconds > PLAYER_CANARY_QUICK_AUTH_MAX_AGE_SECONDS
   ) {
     throw invalidQuickAuthCredential()
+  }
+}
+
+function requireFreshPtrOwnerQuickAuth(
+  verification: ReturnType<typeof verifiedQuickAuthClaims>,
+  nowSeconds: number,
+): void {
+  if (
+    !Number.isSafeInteger(nowSeconds)
+    || nowSeconds < verification.issuedAtSeconds
+    || nowSeconds - verification.issuedAtSeconds > PTR_OWNER_QUICK_AUTH_MAX_AGE_SECONDS
+  ) {
+    throw invalidQuickAuthCredential()
+  }
+}
+
+function requirePtrQuickAuthOnly(request: Request): void {
+  if (request.headers.has('cookie') || request.headers.has('proxy-authorization')) {
+    throw invalidQuickAuthCredential()
+  }
+}
+
+function ptrUnavailable(): HttpError {
+  return new HttpError(503, 'ptr_unavailable', 'The Public Test Realm is unavailable.')
+}
+
+async function requirePtrOwnerAuthorization(
+  config: BridgeConfig,
+  verification: ReturnType<typeof verifiedQuickAuthClaims>,
+  nowSeconds: number,
+): Promise<void> {
+  requireFreshPtrOwnerQuickAuth(verification, nowSeconds)
+  const expectedOwnerFid = config.playerCanaryOwnerFid
+  if (expectedOwnerFid === undefined) throw ptrUnavailable()
+  if (!(await timingSafeSecretMatch(verification.fid, expectedOwnerFid))) {
+    throw new HttpError(403, 'ptr_forbidden', 'PTR authorization was not granted.')
   }
 }
 
@@ -1197,6 +1246,9 @@ async function configurationAttestation(
     signingPublicKeyThumbprint,
     spacetimeDbUri: config.spacetimeDbUri,
     spacetimeDbDatabase: config.spacetimeDbDatabase,
+    ptrEnabled: config.ptrEnabled === true,
+    ptrSpacetimeDbDatabase: config.ptrSpacetimeDb?.database ?? null,
+    ptrAudience: config.ptrSpacetimeDb?.audience ?? null,
     publicAuthEnabled: config.publicAuthEnabled,
     accessExpectedFidRequired: config.accessExpectedFidRequired,
     qaObserverEnabled: config.qaObserverEnabled,
@@ -1563,6 +1615,31 @@ async function playerCanaryQuickAuthResponseBody(
   }
 }
 
+async function ptrOwnerQuickAuthResponseBody(
+  config: BridgeConfig,
+  signer: typeof signEs256Jwt,
+  fid: string,
+  issuedAtMilliseconds: number,
+): Promise<Record<string, unknown>> {
+  const ptr = config.ptrSpacetimeDb
+  const issuedAt = Math.floor(issuedAtMilliseconds / 1_000)
+  if (!config.ptrEnabled || !ptr || !Number.isSafeInteger(issuedAt) || issuedAt < 0) {
+    throw new Error('Invalid PTR signing configuration.')
+  }
+  const claims = ptrOwnerClaims(config, issuedAt, fid)
+  const accessToken = await signer(config, claims)
+  return {
+    version: 1,
+    status: 'authorized',
+    realmId: 'PTR',
+    identity: browserIdentity({ fid }),
+    databaseIdentity: ptr.database,
+    accessToken,
+    tokenType: 'spacetime-access',
+    accessExpiresAt: claims.exp * 1_000,
+  }
+}
+
 function accessRequestResponseBody(
   result: AccessRequestResolution,
 ): Record<string, unknown> {
@@ -1749,6 +1826,9 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             'The read-only QA observer is disabled.',
           )
         }
+        if (url.pathname === PTR_OWNER_QUICK_AUTH_EXCHANGE_PATH && !config.ptrEnabled) {
+          throw ptrUnavailable()
+        }
         if (
           url.pathname === V2_ACCESS_REQUEST_PATH
           && (request.method === 'POST' || request.method === 'OPTIONS')
@@ -1768,6 +1848,7 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           && (
             url.pathname === V2_QUICK_AUTH_EXCHANGE_PATH
             || url.pathname === PLAYER_CANARY_QUICK_AUTH_EXCHANGE_PATH
+            || url.pathname === PTR_OWNER_QUICK_AUTH_EXCHANGE_PATH
           )
         ) {
           return allowedQuickAuthPreflight(request)
@@ -2230,6 +2311,101 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             throw new HttpError(403, 'player_canary_forbidden', 'Canary authorization was not granted.')
           }
           logger.event('player_canary_exchange_succeeded')
+          return json(responseBody, 200, quickAuthCorsHeaders(origin))
+        }
+
+        if (request.method === 'POST' && url.pathname === PTR_OWNER_QUICK_AUTH_EXCHANGE_PATH) {
+          const origin = requireQuickAuthBrowserOrigin(request)
+          if (url.search || request.url.includes('?')) {
+            throw new HttpError(400, 'ptr_query_not_allowed', 'This endpoint does not accept query parameters.')
+          }
+          if (!config.ptrSpacetimeDb || config.playerCanaryOwnerFid === undefined) {
+            throw ptrUnavailable()
+          }
+          await enforceRateLimit(request, 'exchange', env, dependencies.rateLimiter, logger)
+          requirePtrQuickAuthOnly(request)
+          requireExactKeys(await parseObjectBody(request), [])
+
+          let token = quickAuthCredential(request)
+          let verifiedPayload: unknown
+          try {
+            verifiedPayload = await verifyQuickAuthWithDeadline(
+              dependencies.quickAuthVerifier ?? defaultQuickAuthVerifier(),
+              {
+                token,
+                domain: QUICK_AUTH_DOMAIN,
+              },
+            )
+          } catch (error) {
+            if (error instanceof QuickAuthErrors.InvalidTokenError) {
+              throw invalidQuickAuthCredential()
+            }
+            logger.event('quick_auth_verifier_unavailable')
+            throw new HttpError(
+              503,
+              'verification_unavailable',
+              'Farcaster authentication is temporarily unavailable.',
+            )
+          } finally {
+            token = ''
+          }
+
+          const verifiedAt = now()
+          if (!Number.isSafeInteger(verifiedAt) || verifiedAt < 0) {
+            throw new HttpError(503, 'verification_unavailable', 'Farcaster authentication is temporarily unavailable.')
+          }
+          const verification = verifiedQuickAuthClaims(
+            verifiedPayload,
+            Math.floor(verifiedAt / 1_000),
+          )
+          await requirePtrOwnerAuthorization(
+            config,
+            verification,
+            Math.floor(verifiedAt / 1_000),
+          )
+
+          const signingTime = now()
+          if (!Number.isSafeInteger(signingTime) || signingTime < verifiedAt) {
+            throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')
+          }
+          const signingVerification = verifiedQuickAuthClaims(
+            verifiedPayload,
+            Math.floor(signingTime / 1_000),
+          )
+          await requirePtrOwnerAuthorization(
+            config,
+            signingVerification,
+            Math.floor(signingTime / 1_000),
+          )
+
+          let responseBody: Record<string, unknown>
+          try {
+            responseBody = await ptrOwnerQuickAuthResponseBody(
+              config,
+              dependencies.signer ?? signEs256Jwt,
+              signingVerification.fid,
+              signingTime,
+            )
+          } catch (error) {
+            if (error instanceof HttpError) throw error
+            logger.event('configuration_error')
+            throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')
+          }
+
+          const completedAt = now()
+          if (!Number.isSafeInteger(completedAt) || completedAt < signingTime) {
+            throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')
+          }
+          const completionVerification = verifiedQuickAuthClaims(
+            verifiedPayload,
+            Math.floor(completedAt / 1_000),
+          )
+          await requirePtrOwnerAuthorization(
+            config,
+            completionVerification,
+            Math.floor(completedAt / 1_000),
+          )
+          logger.event('ptr_exchange_succeeded')
           return json(responseBody, 200, quickAuthCorsHeaders(origin))
         }
 
@@ -2744,6 +2920,41 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
           return json({ token, tokenType: 'spacetime-access', expiresIn: ADMIN_TOKEN_TTL_SECONDS })
         }
 
+        if (request.method === 'POST' && url.pathname === PTR_ADMIN_TOKEN_PATH) {
+          requireAdminNoOrigin(request)
+          if (!config.ptrEnabled || !config.ptrSpacetimeDb) {
+            throw new HttpError(503, 'ptr_admin_unavailable', 'PTR administration is unavailable.')
+          }
+          if (url.search || request.url.includes('?')) {
+            throw new HttpError(400, 'ptr_admin_query_not_allowed', 'This endpoint does not accept query parameters.')
+          }
+          await enforceRateLimit(request, 'admin-token', env, dependencies.rateLimiter, logger)
+          await rejectAdminBody(request)
+          const credential = adminCredential(request)
+          if (!credential || !(await timingSafeSecretMatch(credential, config.adminTokenSecret))) {
+            logger.event('ptr_admin_token_rejected')
+            throw new HttpError(401, 'invalid_admin_credentials', 'Admin credentials are invalid.')
+          }
+          const issuedAtMilliseconds = now()
+          if (!Number.isSafeInteger(issuedAtMilliseconds) || issuedAtMilliseconds < 0) {
+            logger.event('configuration_error')
+            throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')
+          }
+          const issuedAt = Math.floor(issuedAtMilliseconds / 1_000)
+          let token: string
+          try {
+            token = await (dependencies.signer ?? signEs256Jwt)(
+              config,
+              ptrAdminClaims(config, issuedAt),
+            )
+          } catch {
+            logger.event('configuration_error')
+            throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')
+          }
+          logger.event('ptr_admin_token_issued')
+          return json({ token, tokenType: 'spacetime-access', expiresIn: ADMIN_TOKEN_TTL_SECONDS })
+        }
+
         if (request.method === 'POST' && url.pathname === ADMISSION_NOTIFICATION_PATH) {
           requireAdminNoOrigin(request)
           if (!config.approvalNotificationsEnabled) {
@@ -3126,6 +3337,9 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             admissionNotificationStatusPath: ADMISSION_NOTIFICATION_STATUS_PATH,
             publicAuthEnabled: config.publicAuthEnabled,
             accessExpectedFidRequired: config.accessExpectedFidRequired,
+            ptrEnabled: config.ptrEnabled === true,
+            ptrSpacetimeDbDatabase: config.ptrSpacetimeDb?.database ?? null,
+            ptrAudience: config.ptrSpacetimeDb?.audience ?? null,
             qaObserverEnabled: config.qaObserverEnabled,
             qaObserverSpacetimeDbUri: config.qaObserverSpacetimeDb?.uri ?? null,
             qaObserverSpacetimeDbDatabase: config.qaObserverSpacetimeDb?.database ?? null,
@@ -3146,6 +3360,9 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
         if (url.pathname === V2_QUICK_AUTH_EXCHANGE_PATH) logger.event('quick_auth_rejected')
         if (url.pathname === PLAYER_CANARY_QUICK_AUTH_EXCHANGE_PATH) {
           logger.event('player_canary_exchange_rejected')
+        }
+        if (url.pathname === PTR_OWNER_QUICK_AUTH_EXCHANGE_PATH) {
+          logger.event('ptr_exchange_rejected')
         }
         if (isAccessRequestPath(url.pathname)) logger.event('access_request_rejected')
         if (error instanceof HttpError) {

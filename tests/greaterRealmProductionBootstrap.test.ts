@@ -358,6 +358,114 @@ function bootstrapInputForRun(runRoot: string, command: string, ...arguments_: s
   return parseGreaterRealmProductionBootstrapArguments(values);
 }
 
+const G001_CLOSED_POLICY = Object.freeze({
+  realmId: 'GENESIS_001',
+  releaseVersion: '0.3.43',
+  playerAccessEnabled: true,
+  admissionStateMutationsEnabled: false,
+  accessRequestSubmissionsEnabled: false,
+  sourceBaselineCommit: '2ae51984e1fa6ce5b0028c1a250359fed79d819b',
+  freezeReleaseNonce:
+    '3f158f17acd5e1e63c74befef7cb3ccab7cb07feaaed432e7483467e1c856f00',
+});
+
+function g001PolicyObservationReceipt(sourceCommit = '1'.repeat(40)) {
+  return Object.freeze({
+    schemaVersion: 1,
+    profile: 'warpkeep-genesis-001-live-policy-observation-v1',
+    sourceCommit,
+    observedAt: '2026-08-28T12:00:00.000Z',
+    databaseIdentity:
+      'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+    procedure: 'genesis_001_access_policy_v1',
+    mutationSubmitted: false,
+    policy: G001_CLOSED_POLICY,
+    policyReceiptDigest:
+      'acf64ca8f02dcfc1e2a162067d2132d02a7155bebe8895c56a85dbbfefd35b60',
+  });
+}
+
+function g001PolicyObservationOutput(
+  receipt: ReturnType<typeof g001PolicyObservationReceipt> =
+    g001PolicyObservationReceipt(),
+): string {
+  return `${JSON.stringify(receipt)}\n`;
+}
+
+async function runG001FinalOperatorFixture(
+  output: string | Buffer,
+  options: Readonly<{
+    exitCode?: number;
+    hang?: boolean;
+    selfSignal?: NodeJS.Signals;
+    stderr?: string | Buffer;
+    operatorTimeoutMs?: number;
+  }> = {},
+) {
+  const home = privateDirectory();
+  const owner = Object.freeze({ pid: process.pid, start: processStart(process.pid) });
+  const runRoot = allocateLifecycle(home, owner, 'g001-policy-observe');
+  const cloneRoot = join(runRoot, 'repository');
+  mkdirSync(cloneRoot, { mode: 0o700 });
+  const outputPath = join(home, 'operator-output.bin');
+  writeFileSync(outputPath, output, { mode: 0o600 });
+  const stderrPath = join(home, 'operator-stderr.bin');
+  writeFileSync(stderrPath, options.stderr ?? '', { mode: 0o600 });
+  const fakeNode = join(home, 'g001-observer-fixture');
+  const selfSignal = options.selfSignal === undefined
+    ? ''
+    : `/bin/kill -${options.selfSignal.replace('SIG', '')} $$\n`;
+  const hang = options.hang === true
+    ? "trap '' INT TERM\nwhile :; do /bin/sleep 0.05; done\n"
+    : '';
+  writeFileSync(fakeNode, [
+    '#!/bin/sh',
+    `/bin/cat ${JSON.stringify(outputPath)}`,
+    `/bin/cat ${JSON.stringify(stderrPath)} >&2`,
+    selfSignal,
+    hang,
+    `exit ${options.exitCode ?? 0}`,
+    '',
+  ].join('\n'), { mode: 0o500 });
+  writeLaunchFixture(runRoot, {
+    ...readLaunchFixture(runRoot),
+    phase: 'operator-starting',
+  });
+  const input = bootstrapInputForRun(runRoot, 'g001-policy-observe');
+  const controller = greaterRealmProductionBootstrapTestSeams.createSignalController();
+  let actualStdio: unknown;
+  const spawnImpl = ((file: string, arguments_: readonly string[], spawnOptions: any) => {
+    actualStdio = spawnOptions.stdio;
+    return spawn(file, arguments_, spawnOptions);
+  }) as typeof spawn;
+  const invocation = greaterRealmProductionBootstrapTestSeams.runFinalOperator(
+    input,
+    { nodePath: fakeNode },
+    {
+      environment: {
+        HOME: join(runRoot, 'npm-home'),
+        PATH: '/usr/bin:/bin',
+        TMPDIR: join(runRoot, 'tmp'),
+      },
+      moduleCache: join(runRoot, 'module-cache'),
+    },
+    controller,
+    spawnImpl,
+    {
+      operatorTimeoutMs: options.operatorTimeoutMs ?? 5_000,
+      terminationGraceMs: 100,
+      killGraceMs: 2_000,
+    },
+  );
+  return Object.freeze({
+    actualStdio: () => actualStdio,
+    controller,
+    input,
+    invocation,
+    runRoot,
+  });
+}
+
 function appendLifecycleFixture(
   runRoot: string,
   phase: string,
@@ -411,7 +519,8 @@ function baseArguments(command: string, ...arguments_: string[]): string[] {
   const root = '/private/tmp/warpkeep-production-admin/run-' + 'a'.repeat(32);
   const adminCommands = new Set([
     'import-inspect', 'import-apply', 'import-recover', 'publish', 'publish-recover', 'relocation',
-    'relocation-recover', 'verify', 'pages-active-evidence', 'hermes-list-pending',
+    'relocation-recover', 'verify', 'pages-active-evidence', 'g001-policy-observe',
+    'hermes-list-pending',
     'hermes-admit-confirm', 'hermes-allow-confirm',
     'hermes-notification-recover-dry', 'hermes-notification-recover-confirm',
   ]);
@@ -460,6 +569,25 @@ describe('Greater Realm production bootstrap', () => {
       notificationSecretPath: undefined,
       privateInputPath: undefined,
     });
+    expect(parseGreaterRealmProductionBootstrapArguments(
+      baseArguments('g001-policy-observe'),
+    )).toMatchObject({
+      commandName: 'g001-policy-observe',
+      commandArguments: ['observe'],
+      adminSecretPath: '/private/credentials/admin-secret',
+      notificationSecretPath: undefined,
+      privateInputPath: undefined,
+      spacetimeExecutablePath: undefined,
+      spacetimeCliConfigPath: undefined,
+    });
+    expect(() => parseGreaterRealmProductionBootstrapArguments(
+      baseArguments('g001-policy-observe', '--confirm'),
+    )).toThrow(/COMMAND_ARGUMENTS_INVALID/u);
+    const g001WithoutAdminSecret = baseArguments('g001-policy-observe');
+    g001WithoutAdminSecret[9] = '-';
+    expect(() => parseGreaterRealmProductionBootstrapArguments(
+      g001WithoutAdminSecret,
+    )).toThrow(/COMMAND_ARGUMENTS_INVALID/u);
     expect(parseGreaterRealmProductionBootstrapArguments(
       baseArguments('publish-recover-inspect'),
     ).commandArguments).toEqual(['recover-inspect']);
@@ -1040,6 +1168,355 @@ describe('Greater Realm production bootstrap', () => {
         async () => 'operator-result',
         async () => undefined,
       )).resolves.toBe('operator-result');
+  });
+
+  it('accepts only one bounded canonical source-bound G001 observation line', () => {
+    const valid = g001PolicyObservationOutput();
+    expect(greaterRealmProductionBootstrapTestSeams
+      .parseGenesis001PolicyObservationOutput(
+        Buffer.from(valid, 'utf8'),
+        '1'.repeat(40),
+      )).toEqual(g001PolicyObservationReceipt());
+
+    const extended = {
+      ...g001PolicyObservationReceipt(),
+      privateCredential: 'must-not-escape',
+    };
+    const invalid = [
+      Buffer.alloc(0),
+      Buffer.alloc(16 * 1024 + 1, 0x61),
+      Buffer.from(`${valid}${valid}`, 'utf8'),
+      Buffer.from('{"schemaVersion":1}\n', 'utf8'),
+      Buffer.from(`${JSON.stringify(g001PolicyObservationReceipt(), null, 2)}\n`, 'utf8'),
+      Buffer.from(JSON.stringify(g001PolicyObservationReceipt()), 'utf8'),
+      Buffer.from(`${JSON.stringify(extended)}\n`, 'utf8'),
+      Buffer.from(g001PolicyObservationOutput(
+        g001PolicyObservationReceipt('7'.repeat(40)),
+      ), 'utf8'),
+      Buffer.from([0xff, 0x0a]),
+    ];
+    for (const bytes of invalid) {
+      expect(() => greaterRealmProductionBootstrapTestSeams
+        .parseGenesis001PolicyObservationOutput(bytes, '1'.repeat(40)))
+        .toThrow(/G001_POLICY_OBSERVATION_OUTPUT_INVALID/u);
+    }
+  });
+
+  it('pipes and withholds G001 stdout while preserving other operator stdout behavior', async () => {
+    const g001 = await runG001FinalOperatorFixture(g001PolicyObservationOutput());
+    try {
+      await expect(g001.invocation).resolves.toMatchObject({
+        launchRecord: {
+          phase: 'operator-terminal',
+          terminal: { code: 0, signal: null, reason: 'operator-exit' },
+        },
+        policyObservationReceipt: g001PolicyObservationReceipt(),
+      });
+      expect(g001.actualStdio()).toEqual(['ignore', 'pipe', 'pipe', 'pipe']);
+    } finally {
+      g001.controller.dispose();
+    }
+
+    const home = privateDirectory();
+    const owner = Object.freeze({ pid: process.pid, start: processStart(process.pid) });
+    const runRoot = allocateLifecycle(home, owner, 'import-inspect');
+    mkdirSync(join(runRoot, 'repository'), { mode: 0o700 });
+    const fakeNode = join(home, 'silent-operator-fixture');
+    writeFileSync(fakeNode, '#!/bin/sh\nexit 0\n', { mode: 0o500 });
+    writeLaunchFixture(runRoot, {
+      ...readLaunchFixture(runRoot),
+      phase: 'operator-starting',
+    });
+    const input = bootstrapInputForRun(runRoot, 'import-inspect');
+    const controller = greaterRealmProductionBootstrapTestSeams.createSignalController();
+    let actualStdio: unknown;
+    const spawnImpl = ((file: string, arguments_: readonly string[], spawnOptions: any) => {
+      actualStdio = spawnOptions.stdio;
+      return spawn(file, arguments_, spawnOptions);
+    }) as typeof spawn;
+    try {
+      await expect(greaterRealmProductionBootstrapTestSeams.runFinalOperator(
+        input,
+        { nodePath: fakeNode },
+        {
+          environment: {
+            HOME: join(runRoot, 'npm-home'),
+            PATH: '/usr/bin:/bin',
+            TMPDIR: join(runRoot, 'tmp'),
+          },
+          moduleCache: join(runRoot, 'module-cache'),
+        },
+        controller,
+        spawnImpl,
+      )).resolves.toMatchObject({ phase: 'operator-terminal' });
+      expect(actualStdio).toEqual(['ignore', 'inherit', 'inherit', 'pipe']);
+    } finally {
+      controller.dispose();
+    }
+  });
+
+  it('never yields a G001 observation on operator failure, signal, or timeout', async () => {
+    const cases = [
+      { name: 'failure', options: { exitCode: 7 }, code: /OPERATOR_FAILED/u },
+      { name: 'signal', options: { selfSignal: 'SIGTERM' as const }, code: /OPERATOR_FAILED/u },
+      {
+        name: 'timeout',
+        options: { hang: true, operatorTimeoutMs: 250 },
+        code: /OPERATOR_TIMED_OUT/u,
+      },
+    ];
+    for (const fixtureCase of cases) {
+      const fixture = await runG001FinalOperatorFixture(
+        g001PolicyObservationOutput(),
+        fixtureCase.options,
+      );
+      try {
+        await expect(fixture.invocation, fixtureCase.name)
+          .rejects.toThrow(fixtureCase.code);
+        expect(fixture.actualStdio()).toEqual(['ignore', 'pipe', 'pipe', 'pipe']);
+      } finally {
+        fixture.controller.dispose();
+      }
+    }
+  }, 15_000);
+
+  it('rejects missing, oversized, multiline, malformed, and noncanonical child output', async () => {
+    const valid = g001PolicyObservationOutput();
+    const cases: ReadonlyArray<readonly [string, string | Buffer]> = [
+      ['missing', ''],
+      ['oversized', Buffer.alloc(16 * 1024 + 1, 0x61)],
+      ['multiline', `${valid}${valid}`],
+      ['malformed', '{"schemaVersion":1}\n'],
+      ['noncanonical', `${JSON.stringify(g001PolicyObservationReceipt(), null, 2)}\n`],
+      ['extra', `${valid.trim()}extra\n`],
+    ];
+    for (const [name, output] of cases) {
+      const fixture = await runG001FinalOperatorFixture(output);
+      try {
+        await expect(fixture.invocation, name)
+          .rejects.toThrow(/G001_POLICY_OBSERVATION_OUTPUT_INVALID/u);
+        expect(fixture.actualStdio()).toEqual(['ignore', 'pipe', 'pipe', 'pipe']);
+      } finally {
+        fixture.controller.dispose();
+      }
+    }
+  }, 15_000);
+
+  it('bounds and suppresses every G001 child-stderr byte', async () => {
+    const privateSentinel = 'private-admin-token-sentinel-must-not-escape';
+    const nonempty = await runG001FinalOperatorFixture(
+      g001PolicyObservationOutput(),
+      { stderr: `${privateSentinel}\n` },
+    );
+    try {
+      let rejected: unknown;
+      try {
+        await nonempty.invocation;
+      } catch (error) {
+        rejected = error;
+      }
+      expect(rejected).toBeInstanceOf(Error);
+      expect((rejected as Error).message)
+        .toMatch(/G001_POLICY_OBSERVATION_STDERR_INVALID/u);
+      expect(JSON.stringify(rejected)).not.toContain(privateSentinel);
+      expect(nonempty.actualStdio()).toEqual(['ignore', 'pipe', 'pipe', 'pipe']);
+    } finally {
+      nonempty.controller.dispose();
+    }
+
+    const oversized = await runG001FinalOperatorFixture(
+      g001PolicyObservationOutput(),
+      { stderr: Buffer.alloc(16 * 1024 + 1, 0x73), hang: true },
+    );
+    try {
+      await expect(oversized.invocation)
+        .rejects.toThrow(/G001_POLICY_OBSERVATION_STDERR_INVALID/u);
+      expect(oversized.actualStdio()).toEqual(['ignore', 'pipe', 'pipe', 'pipe']);
+    } finally {
+      oversized.controller.dispose();
+    }
+  }, 15_000);
+
+  it('exposes one linked G001 receipt only after postflight, runtime, launch, and cleanup', async () => {
+    const events: string[] = [];
+    const launchCleanup = Object.freeze({
+      outcome: 'cleaned',
+      runId: `run-${'a'.repeat(32)}`,
+      cleanupConfirmationSha256: '5'.repeat(64),
+      treeInventorySha256: '6'.repeat(64),
+    });
+    const input = Object.freeze({
+      commit: '1'.repeat(40),
+      tree: '2'.repeat(40),
+      bootstrapBlob: '3'.repeat(40),
+      bootstrapSha256: '4'.repeat(64),
+      commandName: 'g001-policy-observe',
+    });
+    const receipt = await greaterRealmProductionBootstrapTestSeams.completeBootstrapLaunch({
+      input,
+      moduleArchiveCount: 16,
+      runOperator: async () => {
+        events.push('operator');
+        return Object.freeze({
+          launchRecord: Object.freeze({ phase: 'operator-terminal' }),
+          policyObservationReceipt: g001PolicyObservationReceipt(),
+        });
+      },
+      postflight: async () => { events.push('postflight'); },
+      reattestRuntime: async () => { events.push('runtime'); },
+      completeLaunchRecord: (launchRecord: unknown) => {
+        events.push('launch-complete');
+        return Object.freeze({ ...(launchRecord as object), phase: 'complete' });
+      },
+      cleanupCompletedRun: async () => {
+        events.push('cleanup');
+        return launchCleanup;
+      },
+    });
+    expect(events).toEqual([
+      'operator', 'postflight', 'runtime', 'launch-complete', 'cleanup',
+    ]);
+    expect(receipt).toEqual({
+      profile: 'warpkeep-greater-realm-production-bootstrap-v1',
+      protectedCommit: '1'.repeat(40),
+      moduleTreeId: '2'.repeat(40),
+      bootstrapBlob: '3'.repeat(40),
+      bootstrapSha256: '4'.repeat(64),
+      moduleArchiveCount: 16,
+      command: 'g001-policy-observe',
+      launchCleanup,
+      policyObservationReceipt: g001PolicyObservationReceipt(),
+      policyObservationReceiptLinkSha256:
+        '1c220bd6f1c110c7eb2afd5eb5d01ebecbf419ce14dc834e22b4331a5561b9e1',
+    });
+    expect(JSON.stringify(receipt).match(/warpkeep-genesis-001-live-policy-observation-v1/gu))
+      .toHaveLength(1);
+  });
+
+  it('does not construct a G001 receipt when postflight or cleanup fails or stays retained', async () => {
+    const input = Object.freeze({
+      commit: '1'.repeat(40),
+      tree: '2'.repeat(40),
+      bootstrapBlob: '3'.repeat(40),
+      bootstrapSha256: '4'.repeat(64),
+      commandName: 'g001-policy-observe',
+    });
+    const operatorResult = Object.freeze({
+      launchRecord: Object.freeze({ phase: 'operator-terminal' }),
+      policyObservationReceipt: g001PolicyObservationReceipt(),
+    });
+    const common = {
+      input,
+      moduleArchiveCount: 16,
+      runOperator: async () => operatorResult,
+      reattestRuntime: async () => undefined,
+      completeLaunchRecord: () => Object.freeze({ phase: 'complete' }),
+    };
+    const cleanup = Object.freeze({
+      outcome: 'cleaned',
+      runId: `run-${'a'.repeat(32)}`,
+      cleanupConfirmationSha256: '5'.repeat(64),
+      treeInventorySha256: '6'.repeat(64),
+    });
+    await expect(greaterRealmProductionBootstrapTestSeams.completeBootstrapLaunch({
+      ...common,
+      postflight: async () => { throw new Error('postflight-failed'); },
+      cleanupCompletedRun: async () => cleanup,
+    })).rejects.toThrow('postflight-failed');
+    await expect(greaterRealmProductionBootstrapTestSeams.completeBootstrapLaunch({
+      ...common,
+      postflight: async () => undefined,
+      reattestRuntime: async () => { throw new Error('runtime-reattest-failed'); },
+      cleanupCompletedRun: async () => cleanup,
+    })).rejects.toThrow('runtime-reattest-failed');
+    await expect(greaterRealmProductionBootstrapTestSeams.completeBootstrapLaunch({
+      ...common,
+      postflight: async () => undefined,
+      cleanupCompletedRun: async () => { throw new Error('cleanup-failed'); },
+    })).rejects.toThrow('cleanup-failed');
+    await expect(greaterRealmProductionBootstrapTestSeams.completeBootstrapLaunch({
+      ...common,
+      postflight: async () => undefined,
+      cleanupCompletedRun: async () => Object.freeze({
+        outcome: 'retained-active-cutover-authority',
+      }),
+    })).rejects.toThrow(/G001_POLICY_OBSERVATION_CLEANUP_INCOMPLETE/u);
+  });
+
+  it('withholds the G001 receipt when the bootstrap is signalled during later gates', async () => {
+    const input = Object.freeze({
+      commit: '1'.repeat(40),
+      tree: '2'.repeat(40),
+      bootstrapBlob: '3'.repeat(40),
+      bootstrapSha256: '4'.repeat(64),
+      commandName: 'g001-policy-observe',
+    });
+    const operatorResult = Object.freeze({
+      launchRecord: Object.freeze({ phase: 'operator-terminal' }),
+      policyObservationReceipt: g001PolicyObservationReceipt(),
+    });
+    const cleanup = Object.freeze({
+      outcome: 'cleaned',
+      runId: `run-${'a'.repeat(32)}`,
+      cleanupConfirmationSha256: '5'.repeat(64),
+      treeInventorySha256: '6'.repeat(64),
+    });
+    let interruptedBy: NodeJS.Signals | undefined;
+    let laterGateRan = false;
+    await expect(greaterRealmProductionBootstrapTestSeams.completeBootstrapLaunch({
+      input,
+      moduleArchiveCount: 16,
+      runOperator: async () => operatorResult,
+      postflight: async () => { interruptedBy = 'SIGTERM'; },
+      reattestRuntime: async () => { laterGateRan = true; },
+      completeLaunchRecord: () => Object.freeze({ phase: 'complete' }),
+      cleanupCompletedRun: async () => cleanup,
+      interruptedBy: () => interruptedBy,
+    })).rejects.toThrow(/BOOTSTRAP_INTERRUPTED/u);
+    expect(laterGateRan).toBe(false);
+
+    interruptedBy = undefined;
+    await expect(greaterRealmProductionBootstrapTestSeams.completeBootstrapLaunch({
+      input,
+      moduleArchiveCount: 16,
+      runOperator: async () => operatorResult,
+      postflight: async () => undefined,
+      reattestRuntime: async () => undefined,
+      completeLaunchRecord: () => Object.freeze({ phase: 'complete' }),
+      cleanupCompletedRun: async () => {
+        interruptedBy = 'SIGINT';
+        return cleanup;
+      },
+      interruptedBy: () => interruptedBy,
+    })).rejects.toThrow(/BOOTSTRAP_INTERRUPTED/u);
+  });
+
+  it('keeps the pre-existing final receipt schema for every non-G001 command', async () => {
+    const launchCleanup = Object.freeze({ outcome: 'retained-active-cutover-authority' });
+    await expect(greaterRealmProductionBootstrapTestSeams.completeBootstrapLaunch({
+      input: Object.freeze({
+        commit: '1'.repeat(40),
+        tree: '2'.repeat(40),
+        bootstrapBlob: '3'.repeat(40),
+        bootstrapSha256: '4'.repeat(64),
+        commandName: 'import-inspect',
+      }),
+      moduleArchiveCount: 16,
+      runOperator: async () => Object.freeze({ phase: 'operator-terminal' }),
+      postflight: async () => undefined,
+      reattestRuntime: async () => undefined,
+      completeLaunchRecord: () => Object.freeze({ phase: 'complete' }),
+      cleanupCompletedRun: async () => launchCleanup,
+    })).resolves.toEqual({
+      profile: 'warpkeep-greater-realm-production-bootstrap-v1',
+      protectedCommit: '1'.repeat(40),
+      moduleTreeId: '2'.repeat(40),
+      bootstrapBlob: '3'.repeat(40),
+      bootstrapSha256: '4'.repeat(64),
+      moduleArchiveCount: 16,
+      command: 'import-inspect',
+      launchCleanup,
+    });
   });
 
   it('fills an empty isolated module cache with all exact SHA-512 archives', async () => {

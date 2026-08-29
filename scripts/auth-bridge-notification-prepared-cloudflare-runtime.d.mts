@@ -65,6 +65,7 @@ export function attestAuthBridgeNotificationPreparedCandidateMultipartMetadata(
     metadata: unknown;
     contract: Readonly<Record<string, unknown>>;
     playerCanaryOwnerFid: string;
+    ptrSpacetimeDbDatabase: string;
   }>,
 ): true;
 
@@ -73,6 +74,7 @@ export function projectAuthBridgeNotificationPreparedCloudflareVersion(
     value: unknown;
     contract: Readonly<Record<string, unknown>>;
     sourceDigest: string;
+    ptrSpacetimeDbDatabase: string;
   }>,
 ): Readonly<Record<string, unknown>>;
 
@@ -81,6 +83,7 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime(
     contract: Readonly<Record<string, unknown>>;
     apiToken: string;
     playerCanaryOwnerFid: string;
+    ptrSpacetimeDbDatabase: string;
     repositoryRoot: string;
     serviceRoot: string;
     nodeExecutable: string;

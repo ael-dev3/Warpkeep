@@ -172,10 +172,16 @@ import {
   type RealmQuality
 } from './realmQuality';
 import {
+  resolvePtrRealmWorldSceneStrategy,
   resolveRealmWorldSceneStrategy,
   resolveRealmWorldSceneStrategyForPolicy,
   type RealmWorldSceneStrategy
 } from './greaterRealmSceneStrategy';
+import type { PtrRealmAuthority } from '../../ptr/ptrRealmAuthClient';
+import {
+  resolvePtrRealmPresentation,
+  type PtrRealmViewAnchor
+} from '../../ptr/ptrRealmPresentationPolicy';
 import type { RealmIdentity } from './realmTypes';
 import type {
   RealmCastleProjectionFrame,
@@ -312,6 +318,10 @@ type RealmMapScreenProps = Readonly<{
   realmContinuity?: WarpkeepRealmContinuityProjection;
   /** Generation-bound v17 bridge; literal gates currently force legacy presentation. */
   greaterRealm?: GreaterRealmProviderBridge;
+  /** Exact memory-branded owner authority for the isolated PTR renderer only. */
+  ptrRealmAuthority?: PtrRealmAuthority;
+  /** Server-projected virtual atlas anchor; it is never a player/castle row. */
+  ptrViewAnchor?: PtrRealmViewAnchor;
   /** Authenticated caller-only inventory, separate from the public snapshot. */
   resources?: ReadyRealmResourcePresentation;
   /** Exact caller-only Gold expedition procedure projection. */
@@ -539,13 +549,19 @@ const applyDevWorkerProjectionTelemetry = import.meta.env.DEV
   : undefined;
 
 function CanonicalRealmUnavailable({
-  onRequestReturn
-}: Readonly<{ onRequestReturn: () => void }>) {
+  onRequestReturn,
+  realm = 'Genesis 001'
+}: Readonly<{
+  onRequestReturn: () => void;
+  realm?: 'Genesis 001' | 'PTR';
+}>) {
   return (
     <main className="realm-map-screen realm-map-screen--unavailable" role="alert">
       <div className="realm-map-screen__loading">
-        <strong>Genesis 001 is unavailable</strong>
-        <span>The canonical realm records did not pass validation.</span>
+        <strong>{realm} is unavailable</strong>
+        <span>{realm === 'PTR'
+          ? 'The owner authority or atlas anchor did not pass validation.'
+          : 'The canonical realm records did not pass validation.'}</span>
         <button type="button" onClick={onRequestReturn}>Return to Menu</button>
       </div>
     </main>
@@ -559,14 +575,15 @@ function RetiredRealmWorldHost({
   strategy: Exclude<RealmWorldSceneStrategy, { kind: 'legacy-lowlands' }>;
   props: RealmMapScreenProps;
 }>) {
+  const greaterRealmViewAnchor = props.ptrViewAnchor ?? props.realmContinuity?.ownCastle;
   const greaterSceneKey = strategy.kind === 'greater-realm'
-    && props.realmContinuity !== undefined
+    && greaterRealmViewAnchor !== undefined
       ? [
           strategy.bridge.sessionGeneration,
           props.identity.fid,
-          props.realmContinuity.ownCastle.castleId,
-          props.realmContinuity.ownCastle.q,
-          props.realmContinuity.ownCastle.r
+          greaterRealmViewAnchor.castleId,
+          greaterRealmViewAnchor.q,
+          greaterRealmViewAnchor.r
         ].join(':')
       : undefined;
   const [greaterPhaseState, setGreaterPhaseState] = useState<Readonly<{
@@ -689,12 +706,12 @@ function RetiredRealmWorldHost({
       }
       data-greater-realm-client-phase={strategy.kind === 'greater-realm' ? greaterPhase : undefined}
     >
-      {strategy.kind === 'greater-realm' && props.realmContinuity !== undefined ? (
+      {strategy.kind === 'greater-realm' && greaterRealmViewAnchor !== undefined ? (
         <GreaterRealmWorldScene
           bridge={strategy.bridge}
           identityFid={props.identity.fid}
-          identityKey={`${props.identity.fid}:${props.realmContinuity.ownCastle.castleId}:${props.realmContinuity.ownCastle.q}:${props.realmContinuity.ownCastle.r}`}
-          ownCastle={props.realmContinuity.ownCastle}
+          identityKey={`${props.identity.fid}:${greaterRealmViewAnchor.castleId}:${greaterRealmViewAnchor.q}:${greaterRealmViewAnchor.r}`}
+          ownCastle={greaterRealmViewAnchor}
           resolvedGraphicsQuality={props.resolvedGraphicsQuality}
           onPhaseChange={handleGreaterPhaseChange}
         />
@@ -760,6 +777,58 @@ function RetiredRealmWorldHost({
  * terrain surface, or register WebGL/browser effects before failing closed.
  */
 export function RealmMapScreen(props: RealmMapScreenProps) {
+  const ptrBoundaryRequested = props.ptrRealmAuthority !== undefined
+    || props.ptrViewAnchor !== undefined;
+  const localQaSurfacePresent = import.meta.env.DEV && (
+    props.localQaWorkerProjectionTelemetry !== undefined
+    || props.localQaLivingVisualTimeSeconds !== undefined
+    || props.localQaGreaterRealmPresentationAllowed !== undefined
+  );
+  const legacySurfacePresent = props.snapshot !== undefined
+    || props.realmContinuity !== undefined
+    || props.resources !== undefined
+    || props.goldExpedition !== undefined
+    || props.onDispatchGoldExpedition !== undefined
+    || props.foodExpedition !== undefined
+    || props.onDispatchFoodExpedition !== undefined
+    || props.woodExpedition !== undefined
+    || props.onDispatchWoodExpedition !== undefined
+    || props.stoneExpedition !== undefined
+    || props.onDispatchStoneExpedition !== undefined
+    || props.workerProjection !== undefined
+    || props.workerRoster !== undefined
+    || props.workerResourceState !== undefined
+    || props.workerPrivateSync !== undefined
+    || props.onRetryWorkerPrivateSync !== undefined
+    || props.onDispatchWorker !== undefined
+    || props.onRecallWorker !== undefined
+    || props.onRecallAllWorkers !== undefined
+    || props.onReturnLegacyExpedition !== undefined
+    || props.innerKeep !== undefined
+    || props.onStartInnerKeepProject !== undefined
+    || props.onRequestInnerKeepSync !== undefined
+    || props.realmChat !== undefined
+    || props.onSendRealmChatMessage !== undefined
+    || props.onReportRealmChatMessage !== undefined
+    || props.onLoadEarlierRealmChat !== undefined
+    || props.presentationMode !== undefined
+    || localQaSurfacePresent;
+  const ptrPresentation = props.ptrRealmAuthority !== undefined
+    && props.ptrViewAnchor !== undefined
+      ? resolvePtrRealmPresentation({
+          authority: props.ptrRealmAuthority,
+          viewAnchor: props.ptrViewAnchor,
+          legacySurfacePresent
+        })
+      : null;
+  if (ptrBoundaryRequested && ptrPresentation === null) {
+    return (
+      <CanonicalRealmUnavailable
+        onRequestReturn={props.onRequestReturn}
+        realm="PTR"
+      />
+    );
+  }
   if (
     (props.snapshot !== undefined
       && !isCanonicalGenesisSnapshot(props.snapshot, props.identity.fid))
@@ -769,9 +838,12 @@ export function RealmMapScreen(props: RealmMapScreenProps) {
   }
   const strategyInput = {
     bridge: props.greaterRealm,
-    legacyAuthorityActive: props.snapshot?.realm.active === true
+    legacyAuthorityActive: ptrPresentation === null
+      && props.snapshot?.realm.active === true
   };
-  const worldSceneStrategy = import.meta.env.DEV
+  const worldSceneStrategy = ptrPresentation !== null
+    ? resolvePtrRealmWorldSceneStrategy(strategyInput, ptrPresentation.authority)
+    : import.meta.env.DEV
     && props.localQaGreaterRealmPresentationAllowed === true
     ? resolveRealmWorldSceneStrategyForPolicy(strategyInput, {
         clientPresentationAllowed: true,
@@ -1059,6 +1131,9 @@ function CanonicalRealmMapScreen(
   const workerProjectionTelemetryEnabled = import.meta.env.DEV
     ? props.localQaWorkerProjectionTelemetry === true
     : false;
+  const localQaLivingVisualTimeSeconds = import.meta.env.DEV
+    ? props.localQaLivingVisualTimeSeconds
+    : undefined;
   const workerProjectionTelemetryEnabledRef = useRef(
     workerProjectionTelemetryEnabled
   );
@@ -5415,7 +5490,7 @@ function CanonicalRealmMapScreen(
         quality: qualitySpec,
         reducedMotion,
         livingVisualTimeSeconds: observerMode
-          ? props.localQaLivingVisualTimeSeconds
+          ? localQaLivingVisualTimeSeconds
           : undefined,
         baseUrl: import.meta.env.BASE_URL || '/',
         isCoordPassable: isSceneCoordPassable,
@@ -5894,7 +5969,7 @@ function CanonicalRealmMapScreen(
     keepCoord,
     markRendererFailure,
     observerMode,
-    props.localQaLivingVisualTimeSeconds,
+    localQaLivingVisualTimeSeconds,
     ownCastle.castleId,
     peerCastles,
     projectedTileMetadata,

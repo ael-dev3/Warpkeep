@@ -57,6 +57,8 @@ const SECONDARY_FINGERPRINT = farcasterRpcEndpointFingerprint(
   DEFAULT_FARCASTER_RPC_SECONDARY_URL,
 );
 const HUB_FINGERPRINTS = ['1'.repeat(64), '2'.repeat(64)] as const;
+const PTR_DATABASE = 'b'.repeat(64);
+const PTR_AUDIENCE = 'warpkeep-ptr-spacetimedb';
 
 const RELEASE_HEADERS = Object.freeze({
   'content-type': 'application/json; charset=utf-8',
@@ -94,7 +96,7 @@ function releaseAttestation(overrides: Record<string, unknown> = {}) {
     schemaVersion: 1 as const,
     profile: 'warpkeep-admission-notification-bridge-v1' as const,
     bridgeSourceCommit: SOURCE_COMMIT,
-    notificationDeliveryEnabled: true as const,
+    notificationDeliveryEnabled: false as const,
     notificationTransportConfigured: true as const,
     admissionNotificationStoreConfigured: true as const,
     notificationClientCount: 1 as const,
@@ -162,7 +164,7 @@ function privateBody({
     accessRequestResolverTimeoutMilliseconds: 5_000,
     accessRequestStatusProcedure: 'access_request_get_status_v1',
     accessRequestSubmitProcedure: 'access_request_submit_v1',
-    approvalNotificationsEnabled: prepared,
+    approvalNotificationsEnabled: false,
     miniAppNotificationClientFids: [9_152],
     miniAppWebhookPath: '/v1/farcaster/miniapp/webhook',
     admissionNotificationPath: '/v1/admin/admission-notification',
@@ -171,6 +173,9 @@ function privateBody({
     admissionNotificationStatusPath: '/v1/admin/admission-notification-status',
     publicAuthEnabled,
     accessExpectedFidRequired,
+    ptrEnabled: prepared,
+    ptrSpacetimeDbDatabase: prepared ? PTR_DATABASE : null,
+    ptrAudience: prepared ? PTR_AUDIENCE : null,
     qaObserverEnabled: false,
     qaObserverSpacetimeDbUri: null,
     qaObserverSpacetimeDbDatabase: null,
@@ -221,6 +226,7 @@ async function authenticatedReceipt() {
   const fetchMock = preparationFetch();
   const prepared = await prepareAuthBridgeNotificationPreparedReceipt({
     adminToken: ADMIN_TOKEN,
+    expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
     deploy,
     expectedBridgeSourceCommit: SOURCE_COMMIT,
     fetchImpl: fetchMock as typeof fetch,
@@ -240,7 +246,7 @@ function receipt(
     bridgeSourceCommit: SOURCE_COMMIT,
     notificationDeliveryContractDigest: DELIVERY_CONTRACT_DIGEST,
     notificationClientCount: 1,
-    notificationDeliveryEnabled: true,
+    notificationDeliveryEnabled: false,
     notificationTransportConfigured: true,
     admissionNotificationStoreConfigured: true,
     publicAuthEnabledBefore: true,
@@ -428,6 +434,7 @@ describe('fresh public release-attestation binding', () => {
   it('prepares and verifies unchanged auth modes against a second fresh response', async () => {
     const { prepared, deploy, fetchMock } = await authenticatedReceipt();
     expect(prepared).toEqual(receipt());
+    expect(JSON.stringify(prepared)).not.toContain(PTR_DATABASE);
     expect(deploy).toHaveBeenCalledExactlyOnceWith({
       bridgeSourceCommit: SOURCE_COMMIT,
       publicAuthEnabled: true,
@@ -453,6 +460,7 @@ describe('fresh public release-attestation binding', () => {
     const deploy = vi.fn(async () => undefined);
     const prepared = await prepareAuthBridgeNotificationPreparedReceipt({
       adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
       deploy,
       expectedBridgeSourceCommit: SOURCE_COMMIT,
       expectedPredecessorBridgeSourceCommit: PREDECESSOR_SOURCE_COMMIT,
@@ -467,10 +475,37 @@ describe('fresh public release-attestation binding', () => {
     expect(prepared.bridgeSourceCommit).toBe(SOURCE_COMMIT);
   });
 
+  it('rejects any notification-enabled private or public prepared post-state', async () => {
+    const enabledPrivate = privateBody({ prepared: true });
+    enabledPrivate.approvalNotificationsEnabled = true;
+    await expect(prepareAuthBridgeNotificationPreparedReceipt({
+      adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
+      deploy: vi.fn(async () => undefined),
+      expectedBridgeSourceCommit: SOURCE_COMMIT,
+      fetchImpl: preparationFetch({ postPrivate: enabledPrivate }) as typeof fetch,
+      clock: () => NOW,
+    })).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_CONTRACT_INVALID',
+    });
+
+    await expect(prepareAuthBridgeNotificationPreparedReceipt({
+      adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
+      deploy: vi.fn(async () => undefined),
+      expectedBridgeSourceCommit: SOURCE_COMMIT,
+      fetchImpl: preparationFetch({
+        publicBody: releaseAttestation({ notificationDeliveryEnabled: true }),
+      }) as typeof fetch,
+      clock: () => NOW,
+    })).rejects.toThrow('AUTH_BRIDGE_PREPARED_PUBLIC_POSTSTATE_INVALID');
+  });
+
   it('cannot prepare writable evidence without authenticated preserved pre-state', async () => {
     const deploy = vi.fn(async () => undefined);
     await expect(prepareAuthBridgeNotificationPreparedReceipt({
       adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
       deploy,
       expectedBridgeSourceCommit: SOURCE_COMMIT,
       fetchImpl: preparationFetch({
@@ -488,6 +523,7 @@ describe('fresh public release-attestation binding', () => {
     const fetchMock = preparationFetch();
     await expect(prepareAuthBridgeNotificationPreparedReceipt({
       adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
       deploy: failedDeploy,
       expectedBridgeSourceCommit: SOURCE_COMMIT,
       fetchImpl: fetchMock as typeof fetch,
@@ -496,14 +532,57 @@ describe('fresh public release-attestation binding', () => {
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
+  it('requires B0-disabled PRE state and the exact protected PTR database in POST state', async () => {
+    const missingExpectedFetch = preparationFetch();
+    await expect(prepareAuthBridgeNotificationPreparedReceipt({
+      adminToken: ADMIN_TOKEN,
+      deploy: vi.fn(async () => undefined),
+      expectedBridgeSourceCommit: SOURCE_COMMIT,
+      fetchImpl: missingExpectedFetch as typeof fetch,
+      clock: () => NOW,
+    } as never)).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_INPUT_INVALID',
+    });
+    expect(missingExpectedFetch).not.toHaveBeenCalled();
+
+    for (const responses of [
+      { prePrivate: privateBody({ prepared: true }) },
+      {
+        postPrivate: privateBody({ prepared: true }) as Record<string, unknown>,
+        mutate: true,
+      },
+    ]) {
+      if (responses.mutate) {
+        responses.postPrivate!.ptrSpacetimeDbDatabase = 'c'.repeat(64);
+      }
+      const deploy = vi.fn(async () => undefined);
+      const fetchMock = preparationFetch(responses);
+      await expect(prepareAuthBridgeNotificationPreparedReceipt({
+        adminToken: ADMIN_TOKEN,
+        expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
+        deploy,
+        expectedBridgeSourceCommit: SOURCE_COMMIT,
+        fetchImpl: fetchMock as typeof fetch,
+        clock: () => NOW,
+      })).rejects.toMatchObject({
+        code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_CONTRACT_INVALID',
+      });
+      if (responses.prePrivate) expect(deploy).not.toHaveBeenCalled();
+    }
+  });
+
   it('keeps predecessor compatibility unavailable to the prepared PRE read', async () => {
     const predecessor = privateBody({ prepared: false });
     delete predecessor.admissionNotificationRecoveryPath;
+    delete predecessor.ptrEnabled;
+    delete predecessor.ptrSpacetimeDbDatabase;
+    delete predecessor.ptrAudience;
     const deploy = vi.fn(async () => undefined);
     const fetchMock = preparationFetch({ prePrivate: predecessor });
 
     await expect(prepareAuthBridgeNotificationPreparedReceipt({
       adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
       deploy,
       expectedBridgeSourceCommit: SOURCE_COMMIT,
       fetchImpl: fetchMock as typeof fetch,
@@ -528,6 +607,7 @@ describe('fresh public release-attestation binding', () => {
       const deploy = vi.fn(async () => undefined);
       await expect(prepareAuthBridgeNotificationPreparedReceipt({
         adminToken: ADMIN_TOKEN,
+        expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
         deploy,
         expectedBridgeSourceCommit: SOURCE_COMMIT,
         fetchImpl,
@@ -585,6 +665,7 @@ describe('private production-admin prepared receipt storage', () => {
   it('does not install authenticated evidence after its expiry', async () => {
     const prepared = await prepareAuthBridgeNotificationPreparedReceipt({
       adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
       deploy: vi.fn(async () => undefined),
       expectedBridgeSourceCommit: SOURCE_COMMIT,
       fetchImpl: preparationFetch() as typeof fetch,

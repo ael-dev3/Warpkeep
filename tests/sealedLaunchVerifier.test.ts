@@ -1,12 +1,33 @@
 // @vitest-environment node
 
-import { readFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import * as sealedLaunchVerifierModule from
+  '../scripts/verify-0.4.0-sealed-launch.mjs';
+
+import {
+  GENESIS_001_FREEZE_PUBLISH_RECEIPT_SHA256,
+  genesis001PolicyReceiptDigest,
+} from '../scripts/genesis001-sealed-launch-adoption.mjs';
+
 import {
   createSealedLaunchActivationBinding,
+  GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS,
+  inspectSealedLaunchGitHistoryForTesting,
   verifySealedLaunchActivationHistory,
   classifySealedLaunchPagesSources,
   sealedLaunchReceiptCommitment,
@@ -15,6 +36,24 @@ import {
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
 const source = (path: string) => readFileSync(resolve(repositoryRoot, path), 'utf8');
+
+function fixtureGit(root: string, arguments_: string[]): string {
+  return execFileSync('/usr/bin/git', [
+    '-c', 'user.name=Warpkeep Test',
+    '-c', 'user.email=warpkeep-test@example.invalid',
+    ...arguments_,
+  ], {
+    cwd: root,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      GIT_CONFIG_GLOBAL: '/dev/null',
+      GIT_CONFIG_NOSYSTEM: '1',
+      GIT_CONFIG_SYSTEM: '/dev/null',
+      GIT_NO_REPLACE_OBJECTS: '1',
+    },
+  }).trim();
+}
 
 function checkedInSources() {
   return {
@@ -40,6 +79,16 @@ function checkedInSources() {
       source('scripts/genesis001-census-privacy-safe-receipt.mjs'),
     genesis001AdmissionMonitorSuspensionSource:
       source('scripts/genesis001-admission-monitor-suspension.ts'),
+    genesis001AdmissionMonitorCurrentStateSource:
+      source('scripts/genesis001-admission-monitor-current-state.mjs'),
+    genesis001AdmissionMonitorCurrentStateDeclaration:
+      source('scripts/genesis001-admission-monitor-current-state.d.mts'),
+    genesis001SealedLaunchAdoptionSource:
+      source('scripts/genesis001-sealed-launch-adoption.mjs'),
+    genesis001PolicyObservationReceiptSource:
+      source('scripts/genesis001-policy-observation-receipt.mjs'),
+    genesis001PolicyObservationLaunchEnvelopeSource:
+      source('docs/operations/genesis-001-policy-observation-launch-envelope.sh.txt'),
     genesis001LegacyGreaterRealmProductionSealSource:
       source('scripts/greater-realm-legacy-production-seal.mjs'),
     legacyGreaterRealmProductionBootstrapSource:
@@ -94,6 +143,7 @@ function checkedInSources() {
     productionPublisherSource: source('scripts/greater-realm-production-publisher-core.ts'),
     downstreamPolicySource: source('scripts/greater-realm-downstream-release-policy.ts'),
     realmReleaseIdentitySource: source('src/release/realmReleaseIdentity.ts'),
+    ptrRealmConfigSource: source('src/ptr/ptrRealmConfig.ts'),
     admissionLaunchPolicySource: source('src/release/admissionLaunchPolicy.ts'),
     authBridgeSource: source('services/auth-bridge/src/app.ts'),
     admissionRequestSuspensionProbeSource:
@@ -123,10 +173,23 @@ function activationBinding() {
       'cb7d69d2bed316702ffa1aa8696a4e1ca1934a775b8312129b305a9c33eb0e03',
     g001FreezeReleaseNonce:
       '3f158f17acd5e1e63c74befef7cb3ccab7cb07feaaed432e7483467e1c856f00',
-    g001FreezePublishReceiptDigest: '0'.repeat(64),
+    g001FreezePublishReceiptDigest:
+      GENESIS_001_FREEZE_PUBLISH_RECEIPT_SHA256,
     g001FreezePublishReceiptCommitment: null,
-    g001PolicyReceiptDigest: '1'.repeat(64),
+    g001PolicyReceiptDigest: genesis001PolicyReceiptDigest({
+      realmId: 'GENESIS_001',
+      releaseVersion: '0.3.43',
+      playerAccessEnabled: true,
+      admissionStateMutationsEnabled: false,
+      accessRequestSubmissionsEnabled: false,
+      sourceBaselineCommit:
+        '2ae51984e1fa6ce5b0028c1a250359fed79d819b',
+      freezeReleaseNonce:
+        '3f158f17acd5e1e63c74befef7cb3ccab7cb07feaaed432e7483467e1c856f00',
+    }),
     g001PolicyReceiptCommitment: null,
+    g001PolicyObservationBootstrapReceiptDigest: 'a'.repeat(64),
+    g001PolicyObservationBootstrapReceiptCommitment: null,
     g001PolicySourceCommit: '7'.repeat(40),
     g001ReleaseVersion: '0.3.43',
     g001PlayerAccessEnabled: true,
@@ -138,6 +201,8 @@ function activationBinding() {
     g001CensusPrivacySafeReceiptCommitment: null,
     admissionMonitorSuspensionReceiptDigest: '4'.repeat(64),
     admissionMonitorSuspensionReceiptCommitment: null,
+    admissionMonitorCurrentStateReceiptDigest: '0'.repeat(64),
+    admissionMonitorCurrentStateReceiptCommitment: null,
     admissionMonitorDisabled: true,
     admissionMonitorLoaded: false,
     authBridgeSourceCommit: '7'.repeat(40),
@@ -186,7 +251,62 @@ function activationBinding() {
     g002AtlasActivationMutationsEnabled: false,
     g002PlayerAccessEnabled: false,
     g002AdmissionMutationsEnabled: false,
+    ptrPublishReceiptDigest: 'a'.repeat(64),
+    ptrPublishReceiptCommitment: null,
+    ptrFreshStatusDigest: 'b'.repeat(64),
+    ptrFreshStatusCommitment: null,
+    ptrAtlasImportReceiptDigest: 'c'.repeat(64),
+    ptrAtlasImportReceiptCommitment: null,
+    ptrSealedLiveReceiptDigest: 'd'.repeat(64),
+    ptrSealedLiveReceiptCommitment: null,
+    ptrOwnerProvisionReceiptDigest: 'e'.repeat(64),
+    ptrOwnerProvisionReceiptCommitment: null,
+    ptrDatabaseIdentity: '9'.repeat(64),
+    ptrModuleSourceCommit: '7'.repeat(40),
+    ptrModuleSha256: 'f'.repeat(64),
+    ptrModuleTreeId: 'b'.repeat(40),
+    ptrDependencyClosureDigest: '0'.repeat(64),
+    ptrSpacetimeExecutableSha256: '1'.repeat(64),
+    ptrSpacetimeCliConfigSha256: '2'.repeat(64),
+    ptrAtlasSourceCommit: '7'.repeat(40),
+    ptrAtlasId: 'PTR_GREATER_REALM',
+    ptrPublicReleaseId: `GRR-${'B'.repeat(26)}`,
+    ptrReleaseVersion: '0.4.0-ptr.1',
+    ptrReleaseManifestSha256: '3'.repeat(64),
+    ptrExpectedReleaseSha256: '4'.repeat(64),
+    ptrReleaseHeaderSha256: '5'.repeat(64),
+    ptrVerificationDigest: '6'.repeat(64),
+    ptrAllowedFids: 0,
+    ptrAccessRequests: 0,
+    ptrPlayersV1: 0,
+    ptrPlayersV2: 0,
+    ptrOwnershipBindings: 0,
+    ptrCastles: 0,
+    ptrRealmProfiles: 0,
+    ptrTermsAcceptances: 0,
+    ptrMarkAccounts: 0,
+    ptrResourceAccounts: 0,
+    ptrClaims: 0,
+    ptrOccupancies: 0,
+    ptrActivationRows: 0,
+    ptrPublicAtlasRows: 0,
+    ptrPublicRegionRows: 0,
+    ptrWorkerSystemRows: 0,
+    ptrAtlasReady: true,
+    ptrAtlasFinalized: true,
+    ptrAtlasWritesClosedByFinalization: true,
+    ptrAtlasImportsExact: true,
+    ptrAtlasImportMutationsCompiled: true,
+    ptrAtlasActivationMutationsCompiled: false,
+    ptrOwnerAnchorRows: 1,
+    ptrOwnerProvisioned: true,
+    ptrOwnerEnabled: true,
+    ptrAdmissionsOpen: false,
+    ptrAccessRequestsOpen: false,
+    ptrAdmissionSurfacePresent: false,
+    ptrAccessRequestSurfacePresent: false,
     g002PresentationEnabled: false,
+    ptrPresentationEnabled: true,
     legacyGreaterRealmClientPresentationEnabled: false,
     legacyGreaterRealmServerPresentationEnabled: false,
     admissionNotificationsEnabled: false,
@@ -194,13 +314,20 @@ function activationBinding() {
   for (const commitmentKey of [
     'g001FreezePublishReceiptCommitment',
     'g001PolicyReceiptCommitment',
+    'g001PolicyObservationBootstrapReceiptCommitment',
     'g001CensusPrivacySafeReceiptCommitment',
     'admissionMonitorSuspensionReceiptCommitment',
+    'admissionMonitorCurrentStateReceiptCommitment',
     'admissionRequestSuspensionReceiptCommitment',
     'g002PublishReceiptCommitment',
     'g002FreshStatusCommitment',
     'g002AtlasImportReceiptCommitment',
     'g002SealedLiveReceiptCommitment',
+    'ptrPublishReceiptCommitment',
+    'ptrFreshStatusCommitment',
+    'ptrAtlasImportReceiptCommitment',
+    'ptrSealedLiveReceiptCommitment',
+    'ptrOwnerProvisionReceiptCommitment',
   ]) {
     binding[commitmentKey] = sealedLaunchReceiptCommitment(
       commitmentKey,
@@ -212,6 +339,32 @@ function activationBinding() {
 
 function canonical(value: unknown): string {
   return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+function validActivationHistoryChecks() {
+  const entries = [
+    {
+      path: 'config/releases/0.4.0-sealed-launch.json',
+      mode: '100644',
+      type: 'blob',
+    },
+    { path: 'package-lock.json', mode: '100644', type: 'blob' },
+    { path: 'package.json', mode: '100644', type: 'blob' },
+  ];
+  return {
+    parentsOf: () => ['7'.repeat(40)],
+    historicalPathChanges: () => false,
+    sourceProjection: () => Buffer.from('same-g001-projection'),
+    activationDelta: () => ({
+      changedPaths: [
+        'config/releases/0.4.0-sealed-launch.json',
+        'package-lock.json',
+        'package.json',
+      ],
+      preparationEntries: entries,
+      activationEntries: entries,
+    }),
+  };
 }
 
 function activationSources() {
@@ -230,7 +383,122 @@ function activationSources() {
 }
 
 describe('0.4.0 sealed-launch verifier', () => {
+  it('pins G001 authority independently of the mutable adoption module', () => {
+    const verifierSource = source('scripts/verify-0.4.0-sealed-launch.mjs');
+    expect(verifierSource).not.toContain(
+      "from './genesis001-sealed-launch-adoption.mjs'",
+    );
+    expect(verifierSource).toContain(
+      GENESIS_001_FREEZE_PUBLISH_RECEIPT_SHA256,
+    );
+    expect(verifierSource).toContain(
+      'acf64ca8f02dcfc1e2a162067d2132d02a7155bebe8895c56a85dbbfefd35b60',
+    );
+  });
+
+  it('rejects a policy-observation envelope that is not the exact frozen-envelope derivation', () => {
+    const sources: Record<string, string> = activationSources();
+    sources.genesis001PolicyObservationLaunchEnvelopeSource =
+      '# untrusted policy-observation envelope\n';
+
+    expect(() => verifySealedLaunchSources(sources, 'activation')).toThrow(
+      'SEALED_LAUNCH_G001_POLICY_OBSERVATION_ENVELOPE_INVALID',
+    );
+  });
+
+  it('rejects a decoy cleanup call and forged bootstrap finalization', () => {
+    const sources: Record<string, string> = activationSources();
+    const original =
+      'const launchCleanup = await input.cleanupCompletedRun(completedLaunchRecord);';
+    expect(sources.legacyGreaterRealmProductionBootstrapSource.split(original))
+      .toHaveLength(2);
+    sources.legacyGreaterRealmProductionBootstrapSource =
+      sources.legacyGreaterRealmProductionBootstrapSource.replace(
+        original,
+        [
+          "const launchCleanup = Object.freeze({ outcome: 'cleaned' });",
+          '  void (false && await input.cleanupCompletedRun(completedLaunchRecord));',
+        ].join('\n'),
+      );
+    expect(() => verifySealedLaunchSources(sources, 'activation')).toThrow(
+      'SEALED_LAUNCH_G001_POLICY_OBSERVATION_BOOTSTRAP_INVALID',
+    );
+  });
+
+  it('rejects a forged cleanup callee outside the finalization slice', () => {
+    const sources: Record<string, string> = activationSources();
+    const original =
+      'async function cleanupCompletedBootstrapRun(input, completedLaunchRecord) {';
+    expect(sources.legacyGreaterRealmProductionBootstrapSource.split(original))
+      .toHaveLength(2);
+    sources.legacyGreaterRealmProductionBootstrapSource =
+      sources.legacyGreaterRealmProductionBootstrapSource.replace(
+        original,
+        [
+          original,
+          "  return Object.freeze({ outcome: 'cleaned' });",
+        ].join('\n'),
+      );
+    expect(() => verifySealedLaunchSources(sources, 'activation')).toThrow(
+      'SEALED_LAUNCH_G001_POLICY_OBSERVATION_BOOTSTRAP_INVALID',
+    );
+  });
+
+  it('rejects unreachable synthetic returns in every post-freeze evidence source', () => {
+    const cases = [
+      {
+        field: 'genesis001PolicyObservationReceiptSource',
+        prefix: 'export async function executeGenesis001PolicyObservation(input) {',
+        statement: '  return Object.freeze({ mutationSubmitted: false });',
+      },
+      {
+        field: 'genesis001AdmissionMonitorCurrentStateSource',
+        prefix: 'function inspectLiveMonitor() {',
+        statement: '  return Object.freeze({ disabled: true, loaded: false });',
+      },
+      {
+        field: 'genesis001SealedLaunchAdoptionSource',
+        prefix: [
+          'function deriveGenesis001SealedLaunchEvidenceWithAuthority(',
+          '  value,',
+          '  authority,',
+          '  verificationTime,',
+          ') {',
+        ].join('\n'),
+        statement: '  return Object.freeze({ admissionMonitorDisabled: true });',
+      },
+      {
+        field: 'activationGeneratorSource',
+        prefix: [
+          'export function createSealedLaunchActivationBindingFromEvidence(',
+          '  envelope,',
+          '  testOnlyPreparationBootstrapAuthority,',
+          ') {',
+        ].join('\n'),
+        statement: '  return Object.freeze({ pagesDeploymentApproved: true });',
+      },
+    ] as const;
+    for (const { field, prefix, statement } of cases) {
+      const sources: Record<string, string> = activationSources();
+      expect(sources[field]!.split(prefix), field).toHaveLength(2);
+      sources[field] = sources[field]!.replace(
+        prefix,
+        `${prefix}\n${statement}`,
+      );
+      expect(
+        () => verifySealedLaunchSources(sources, 'activation'),
+        field,
+      ).toThrow();
+    }
+  });
+
   it('accepts only inert 0.3.43 preparation and blocks Pages', () => {
+    const preparationBinding = JSON.parse(checkedInSources().bindingJson) as
+      Record<string, unknown>;
+    expect(Object.entries(preparationBinding)
+      .filter(([key]) => key.startsWith('ptr') && key !== 'ptrPresentationEnabled')
+      .every(([, value]) => value === null)).toBe(true);
+    expect(preparationBinding.ptrPresentationEnabled).toBe(false);
     expect(verifySealedLaunchSources(checkedInSources(), 'preparation')).toMatchObject({
       phase: 'preparation',
       packageVersion: '0.3.43',
@@ -239,18 +507,94 @@ describe('0.4.0 sealed-launch verifier', () => {
     expect(classifySealedLaunchPagesSources(checkedInSources())).toBe(
       'sealed-launch-blocked',
     );
+
+    const failOpenSources = checkedInSources();
+    const failOpenBinding = JSON.parse(failOpenSources.bindingJson) as Record<string, unknown>;
+    failOpenBinding.ptrPresentationEnabled = true;
+    failOpenSources.bindingJson = canonical(failOpenBinding);
+    expect(
+      () => verifySealedLaunchSources(failOpenSources, 'preparation'),
+    ).toThrow('SEALED_LAUNCH_PREPARATION_BINDING_INVALID');
   });
 
-  it('accepts exact 0.4.0 activation receipts in a new non-G001 database', () => {
+  it('accepts exact 0.4.0 activation receipts with an isolated owner-only PTR', () => {
     expect(verifySealedLaunchSources(activationSources(), 'activation')).toMatchObject({
       phase: 'activation',
       packageVersion: '0.4.0',
       pagesDeploymentApproved: true,
       g002DatabaseIdentity: '6'.repeat(64),
+      ptrDatabaseIdentity: '9'.repeat(64),
+      ptrPresentationEnabled: true,
     });
     expect(classifySealedLaunchPagesSources(activationSources())).toBe(
       'sealed-g002',
     );
+  });
+
+  it('requires the Pages PTR environment to equal the activated binding exactly', () => {
+    const verifyPagesEnvironment = (
+      sealedLaunchVerifierModule as unknown as {
+        verifySealedLaunchPagesBuildEnvironment?: (input: Readonly<{
+          bindingSource: string;
+          environment: Readonly<Record<string, string | undefined>>;
+        }>) => Readonly<Record<string, unknown>>;
+      }
+    ).verifySealedLaunchPagesBuildEnvironment;
+    expect(typeof verifyPagesEnvironment).toBe('function');
+    if (verifyPagesEnvironment === undefined) return;
+
+    const validEnvironment = {
+      VITE_WARPKEEP_PTR_ENABLED: 'true',
+      VITE_PTR_SPACETIMEDB_DATABASE: '9'.repeat(64),
+    };
+    expect(verifyPagesEnvironment({
+      bindingSource: canonical(activationBinding()),
+      environment: validEnvironment,
+    })).toEqual({
+      ptrEnabled: true,
+      ptrDatabaseIdentity: '9'.repeat(64),
+    });
+
+    const hostileEnvironments = [
+      {},
+      { ...validEnvironment, VITE_WARPKEEP_PTR_ENABLED: 'false' },
+      { ...validEnvironment, VITE_WARPKEEP_PTR_ENABLED: 'TRUE' },
+      { VITE_WARPKEEP_PTR_ENABLED: 'true' },
+      {
+        ...validEnvironment,
+        VITE_PTR_SPACETIMEDB_DATABASE: 'A'.repeat(64),
+      },
+      { ...validEnvironment, VITE_PTR_SPACETIMEDB_DATABASE: 'warpkeep-ptr' },
+      {
+        ...validEnvironment,
+        VITE_PTR_SPACETIMEDB_DATABASE:
+          'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+      },
+      { ...validEnvironment, VITE_PTR_SPACETIMEDB_DATABASE: '6'.repeat(64) },
+      {
+        ...validEnvironment,
+        VITE_PTR_SPACETIMEDB_URI: 'https://alternate.invalid',
+      },
+      {
+        ...validEnvironment,
+        VITE_WARPKEEP_PTR_SPACETIMEDB_DATABASE: '9'.repeat(64),
+      },
+      { ...validEnvironment, VITE_PTR_SPACETIMEDB_ALIAS: 'warpkeep-ptr' },
+      {
+        ...validEnvironment,
+        VITE_WARPKEEP_PTR_SPACETIMEDB_URI:
+          'https://maincloud.spacetimedb.com',
+      },
+    ];
+    for (const environment of hostileEnvironments) {
+      expect(
+        () => verifyPagesEnvironment({
+          bindingSource: canonical(activationBinding()),
+          environment,
+        }),
+        JSON.stringify(environment),
+      ).toThrow('SEALED_LAUNCH_PAGES_PTR_ENVIRONMENT_INVALID');
+    }
   });
 
   it('generates every receipt commitment from one exact activation candidate', () => {
@@ -310,16 +654,37 @@ describe('0.4.0 sealed-launch verifier', () => {
     });
   });
 
+  it('rejects activation successors that alter package behavior alongside the version bump', () => {
+    const hostile = activationSources();
+    const packageJson = JSON.parse(hostile.packageJson);
+    packageJson.scripts.build = 'node -e "process.stdout.write(\'unreviewed build\')"';
+    hostile.packageJson = `${JSON.stringify(packageJson, null, 2)}\n`;
+
+    expect(() => verifySealedLaunchSources(hostile, 'activation')).toThrow(
+      'SEALED_LAUNCH_RELEASE_IDENTITY_INVALID',
+    );
+  });
+
   it('binds the frozen G001 source and exact G002 preparation ancestry', () => {
     const binding = canonical(activationBinding());
     const isAncestor = vi.fn((ancestor: string, descendant: string) => (
       ancestor === '2ae51984e1fa6ce5b0028c1a250359fed79d819b'
-        || ancestor === '7'.repeat(40)
-    ) && descendant === 'f'.repeat(40));
+        && [
+          'd945256b217fa13ade944b9ed9880e8463b46123',
+          'f'.repeat(40),
+        ].includes(descendant)
+    ) || (
+      ancestor === '7'.repeat(40)
+        && descendant === 'f'.repeat(40)
+    ) || (
+      ancestor === 'd945256b217fa13ade944b9ed9880e8463b46123'
+        && descendant === '7'.repeat(40)
+    ));
     expect(verifySealedLaunchActivationHistory({
       bindingSource: binding,
       candidateActivationCommit: 'f'.repeat(40),
       isAncestor,
+      ...validActivationHistoryChecks(),
     })).toMatchObject({
       preparationSourceCommit: '7'.repeat(40),
       candidateActivationCommit: 'f'.repeat(40),
@@ -330,10 +695,194 @@ describe('0.4.0 sealed-launch verifier', () => {
     );
   });
 
+  it('requires a one-parent three-file activation and an untouched exact G001 history projection', () => {
+    expect(GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS).toEqual([
+      'package.json',
+      'package-lock.json',
+      'spacetimedb/package.json',
+      'spacetimedb/pnpm-lock.yaml',
+      'spacetimedb/pnpm-workspace.yaml',
+      'spacetimedb/tsconfig.json',
+      'spacetimedb/src',
+      'spacetimedb/scripts',
+      'scripts/genesis001-frozen-materializer.mjs',
+      'scripts/genesis001-frozen-materializer.d.mts',
+      'scripts/genesis001-frozen-publisher-core.ts',
+      'scripts/genesis001-frozen-publisher-runtime.ts',
+      'scripts/genesis001-frozen-publisher.ts',
+      'scripts/greater-realm-production-immutable-artifact.ts',
+      'scripts/greater-realm-production-provenance.ts',
+      'scripts/greater-realm-production-transport.ts',
+      'scripts/production-admin-token-budget.mjs',
+      'scripts/publish-spacetime-dev.mjs',
+      'scripts/spacetime-cli-attestation.mjs',
+      'scripts/hermes-admin.ts',
+      'scripts/hermes-machine-output.ts',
+      'scripts/founder-admission-authority.ts',
+      'scripts/profiles/founder-admission-plan.ts',
+      'scripts/access-requests/reset-plan.ts',
+      'scripts/admission-notifications/recovery-plan.ts',
+      'scripts/genesis001-census-privacy-safe-receipt.mjs',
+      'scripts/genesis001-admission-monitor-suspension.ts',
+      'scripts/greater-realm-legacy-production-seal.mjs',
+      'scripts/greater-realm-production-publisher.ts',
+      'scripts/greater-realm-production-publisher-core.ts',
+      'scripts/greater-realm-production-import-operator.ts',
+      'scripts/greater-realm-production-relocation-operator.ts',
+      'scripts/greater-realm-downstream-release-policy.ts',
+      'docs/operations/greater-realm-production-launch-envelope.sh.txt',
+    ]);
+    const valid = {
+      bindingSource: canonical(activationBinding()),
+      candidateActivationCommit: 'f'.repeat(40),
+      isAncestor: () => true,
+      ...validActivationHistoryChecks(),
+    };
+    const baselineDelta = validActivationHistoryChecks().activationDelta();
+    const cases = [
+      {
+        isAncestor: (ancestor: string, descendant: string) => !(
+          ancestor === '2ae51984e1fa6ce5b0028c1a250359fed79d819b'
+          && descendant === 'd945256b217fa13ade944b9ed9880e8463b46123'
+        ),
+      },
+      { parentsOf: () => ['7'.repeat(40), '8'.repeat(40)] },
+      { parentsOf: () => ['8'.repeat(40)] },
+      { historicalPathChanges: () => true },
+      {
+        sourceProjection: (commit: string) => Buffer.from(
+          commit === '7'.repeat(40) ? 'changed' : 'historical',
+        ),
+      },
+      {
+        activationDelta: () => ({
+          ...baselineDelta,
+          changedPaths: [...baselineDelta.changedPaths, 'src/extra.ts'],
+        }),
+      },
+      {
+        activationDelta: () => ({
+          ...baselineDelta,
+          changedPaths: [...baselineDelta.changedPaths, 'src/evil\nname.ts'],
+        }),
+      },
+      {
+        activationDelta: () => ({
+          ...baselineDelta,
+          activationEntries: [
+            ...baselineDelta.activationEntries.slice(0, 2),
+            { path: 'package.json', mode: '120000', type: 'blob' },
+          ],
+        }),
+      },
+      {
+        activationDelta: () => ({
+          ...baselineDelta,
+          preparationEntries: [
+            ...baselineDelta.preparationEntries.slice(0, 2),
+            { path: 'package.json', mode: '160000', type: 'commit' },
+          ],
+        }),
+      },
+    ];
+    for (const historyPatch of cases) {
+      expect(() => verifySealedLaunchActivationHistory({
+        ...valid,
+        ...historyPatch,
+      })).toThrow();
+    }
+    for (const protectedPath of GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS) {
+      const historicalPathChanges = vi.fn((
+        _ancestor: string,
+        _descendant: string,
+        paths: readonly string[],
+      ) => paths.includes(protectedPath));
+      expect(() => verifySealedLaunchActivationHistory({
+        ...valid,
+        historicalPathChanges,
+      }), protectedPath).toThrow();
+      expect(historicalPathChanges).toHaveBeenCalledWith(
+        'd945256b217fa13ade944b9ed9880e8463b46123',
+        '7'.repeat(40),
+        GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS,
+      );
+    }
+  });
+
+  it('uses raw Git history and tree adapters for attack-revert, extra path, and mode drift', () => {
+    const root = mkdtempSync(resolve(tmpdir(), 'warpkeep-g001-history-'));
+    try {
+      fixtureGit(root, ['init', '--quiet']);
+      mkdirSync(resolve(root, 'config/releases'), { recursive: true });
+      writeFileSync(resolve(root, 'protected.txt'), 'closed\n');
+      writeFileSync(resolve(root, 'package-lock.json'), '{}\n');
+      symlinkSync('package-lock.json', resolve(root, 'package.json'));
+      writeFileSync(
+        resolve(root, 'config/releases/0.4.0-sealed-launch.json'),
+        '{}\n',
+      );
+      fixtureGit(root, ['add', '.']);
+      fixtureGit(root, ['commit', '--quiet', '-m', 'base']);
+      const base = fixtureGit(root, ['rev-parse', 'HEAD']);
+
+      writeFileSync(resolve(root, 'protected.txt'), 'temporarily open\n');
+      fixtureGit(root, ['add', 'protected.txt']);
+      fixtureGit(root, ['commit', '--quiet', '-m', 'attack']);
+      writeFileSync(resolve(root, 'protected.txt'), 'closed\n');
+      fixtureGit(root, ['add', 'protected.txt']);
+      fixtureGit(root, ['commit', '--quiet', '-m', 'revert bytes']);
+      const preparation = fixtureGit(root, ['rev-parse', 'HEAD']);
+
+      unlinkSync(resolve(root, 'package.json'));
+      writeFileSync(resolve(root, 'package.json'), '{"version":"0.4.0"}\n');
+      writeFileSync(resolve(root, 'package-lock.json'), '{"version":"0.4.0"}\n');
+      writeFileSync(
+        resolve(root, 'config/releases/0.4.0-sealed-launch.json'),
+        '{"active":true}\n',
+      );
+      writeFileSync(resolve(root, 'extra.txt'), 'unexpected\n');
+      chmodSync(resolve(root, 'package.json'), 0o644);
+      fixtureGit(root, ['add', '.']);
+      fixtureGit(root, ['commit', '--quiet', '-m', 'activation']);
+      const activation = fixtureGit(root, ['rev-parse', 'HEAD']);
+
+      const inspection = inspectSealedLaunchGitHistoryForTesting({
+        repositoryRoot: root,
+        historicalCommit: base,
+        preparationCommit: preparation,
+        activationCommit: activation,
+        protectedPaths: ['protected.txt'],
+      });
+      expect(inspection.historicalPathChanges).toBe(true);
+      expect(inspection.historicalProjection.equals(
+        inspection.preparationProjection,
+      )).toBe(true);
+      expect(inspection.delta.changedPaths).toEqual([
+        'config/releases/0.4.0-sealed-launch.json',
+        'extra.txt',
+        'package-lock.json',
+        'package.json',
+      ]);
+      expect(inspection.delta.preparationEntries.at(-1)).toMatchObject({
+        path: 'package.json',
+        mode: '120000',
+        type: 'blob',
+      });
+      expect(inspection.delta.activationEntries.at(-1)).toMatchObject({
+        path: 'package.json',
+        mode: '100644',
+        type: 'blob',
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('rejects absent, partial, wrong-target, populated, or presentation-opening receipts', () => {
     const valid = activationBinding();
     for (const patch of [
       { g001PolicyReceiptDigest: null },
+      { g001PolicyObservationBootstrapReceiptDigest: null },
       { preparationSourceCommit: null },
       { g001DatabaseIdentity: '6'.repeat(64) },
       { g001SourceBaselineCommit: '2'.repeat(40) },
@@ -345,6 +894,7 @@ describe('0.4.0 sealed-launch verifier', () => {
       { g001AdmissionStateMutationsEnabled: true },
       { g001AccessRequestSubmissionsEnabled: true },
       { admissionMonitorSuspensionReceiptDigest: null },
+      { admissionMonitorCurrentStateReceiptDigest: null },
       { admissionMonitorDisabled: false },
       { admissionMonitorLoaded: true },
       { authBridgeSourceCommit: 'a'.repeat(40) },
@@ -375,6 +925,84 @@ describe('0.4.0 sealed-launch verifier', () => {
     }
   });
 
+  it('rejects missing, forged, colliding, populated, or closed PTR evidence', () => {
+    const valid = activationBinding();
+    const patches = [
+      { ptrPublishReceiptDigest: null },
+      { ptrFreshStatusDigest: null },
+      { ptrAtlasImportReceiptDigest: null },
+      { ptrSealedLiveReceiptDigest: null },
+      { ptrOwnerProvisionReceiptDigest: null },
+      { ptrDatabaseIdentity: valid.g001DatabaseIdentity },
+      { ptrDatabaseIdentity: valid.g002DatabaseIdentity },
+      { ptrModuleSourceCommit: '8'.repeat(40) },
+      { ptrAtlasSourceCommit: '8'.repeat(40) },
+      { ptrAtlasId: 'GENESIS_002_GREATER_REALM' },
+      { ptrReleaseVersion: '0.4.0' },
+      { ptrAllowedFids: 1 },
+      { ptrAccessRequests: 1 },
+      { ptrPlayersV2: 1 },
+      { ptrCastles: 1 },
+      { ptrClaims: 1 },
+      { ptrWorkerSystemRows: 1 },
+      { ptrPublicAtlasRows: 1 },
+      { ptrAtlasReady: false },
+      { ptrAtlasFinalized: false },
+      { ptrAtlasWritesClosedByFinalization: false },
+      { ptrAtlasImportsExact: false },
+      { ptrAtlasImportMutationsCompiled: false },
+      { ptrAtlasActivationMutationsCompiled: true },
+      { ptrOwnerAnchorRows: 0 },
+      { ptrOwnerAnchorRows: 2 },
+      { ptrOwnerProvisioned: false },
+      { ptrOwnerEnabled: false },
+      { ptrAdmissionsOpen: true },
+      { ptrAccessRequestsOpen: true },
+      { ptrAdmissionSurfacePresent: true },
+      { ptrAccessRequestSurfacePresent: true },
+      { ptrPresentationEnabled: false },
+    ];
+    for (const patch of patches) {
+      const candidate: Record<string, unknown> = { ...valid, ...patch };
+      for (const key of Object.keys(candidate)) {
+        if (key.endsWith('Commitment')) candidate[key] = null;
+      }
+      expect(
+        () => createSealedLaunchActivationBinding(candidate),
+        Object.keys(patch)[0],
+      ).toThrow();
+    }
+  });
+
+  it('rejects arbitrary G001 authority digests even when commitments are regenerated', () => {
+    for (const digestKey of [
+      'g001FreezePublishReceiptDigest',
+      'g001PolicyReceiptDigest',
+    ]) {
+      const candidate = activationBinding();
+      for (const commitmentKey of [
+        'g001FreezePublishReceiptCommitment',
+        'g001PolicyReceiptCommitment',
+        'g001PolicyObservationBootstrapReceiptCommitment',
+        'g001CensusPrivacySafeReceiptCommitment',
+        'admissionMonitorSuspensionReceiptCommitment',
+        'admissionMonitorCurrentStateReceiptCommitment',
+        'admissionRequestSuspensionReceiptCommitment',
+      'g002PublishReceiptCommitment',
+      'g002FreshStatusCommitment',
+      'g002AtlasImportReceiptCommitment',
+      'g002SealedLiveReceiptCommitment',
+      'ptrPublishReceiptCommitment',
+      'ptrFreshStatusCommitment',
+      'ptrAtlasImportReceiptCommitment',
+      'ptrSealedLiveReceiptCommitment',
+      'ptrOwnerProvisionReceiptCommitment',
+      ]) candidate[commitmentKey] = null;
+      candidate[digestKey] = 'f'.repeat(64);
+      expect(() => createSealedLaunchActivationBinding(candidate)).toThrow();
+    }
+  });
+
   it('rejects random or swapped G002 receipt commitments and ancestry', () => {
     const valid = activationBinding();
     for (const patch of [
@@ -397,11 +1025,13 @@ describe('0.4.0 sealed-launch verifier', () => {
       bindingSource: canonical(valid),
       candidateActivationCommit: 'f'.repeat(40),
       isAncestor: () => false,
+      ...validActivationHistoryChecks(),
     })).toThrow();
     expect(() => verifySealedLaunchActivationHistory({
       bindingSource: canonical(valid),
       candidateActivationCommit: String(valid.preparationSourceCommit),
       isAncestor: () => true,
+      ...validActivationHistoryChecks(),
     })).toThrow();
   });
 
@@ -457,12 +1087,32 @@ describe('0.4.0 sealed-launch verifier', () => {
       ['genesis001AdmissionMonitorSuspensionSource', 'disabled: true,', 'disabled: false,'],
       ['genesis001AdmissionMonitorSuspensionSource', 'loaded: false,', 'loaded: true,'],
       ['genesis001AdmissionMonitorSuspensionSource', "'bootout',", "'remove',"],
+      ['genesis001SealedLaunchAdoptionSource', 'warpkeep.genesis-001.census-export.privacy-safe.opaque-proof.v1\\n', 'warpkeep.genesis-001.census-export.privacy-safe.opaque-proof.v2\\n'],
+      ['genesis001SealedLaunchAdoptionSource', 'return sha256(`${canonicalJson(value)}\\n`);', 'return descriptorDigest(value);'],
+      ['genesis001SealedLaunchAdoptionSource', '/^0{64}$/u.test(receipt.privateBlindingNonceHex)', '/^never$/u.test(receipt.privateBlindingNonceHex)'],
+      ['genesis001PolicyObservationReceiptSource', 'await session.inspect(', 'await session.submit('],
+      ['genesis001PolicyObservationReceiptSource', "from './greater-realm-production-transport.ts'", "from './unreviewed-transport.ts'"],
+      ['genesis001PolicyObservationReceiptSource', "setGlobalLogLevel('error');", "setGlobalLogLevel('info');"],
+      ['genesis001PolicyObservationReceiptSource', "adminSecret = '';", 'adminSecret = adminSecret;'],
+      ['genesis001PolicyObservationReceiptSource', 'await session.close();', 'await Promise.resolve();'],
+      ['genesis001PolicyObservationReceiptSource', 'mutationSubmitted: false', 'mutationSubmitted: true'],
+      ['legacyGreaterRealmProductionBootstrapSource', "exactArguments: Object.freeze(['observe']),", "exactArguments: Object.freeze(['observe', '--confirm']),"],
+      ['legacyGreaterRealmProductionBootstrapSource', 'const MAXIMUM_G001_POLICY_OBSERVER_STREAM_BYTES = 16 * 1024;', 'const MAXIMUM_G001_POLICY_OBSERVER_STREAM_BYTES = 32 * 1024;'],
+      ['legacyGreaterRealmProductionBootstrapSource', "capturesPolicyObservation ? 'pipe' : 'inherit'", "capturesPolicyObservation ? 'inherit' : 'inherit'"],
+      ['legacyGreaterRealmProductionBootstrapSource', 'if (output.length !== 0) {', 'if (output.length < 0) {'],
+      ['legacyGreaterRealmProductionBootstrapSource', "launchCleanup.outcome !== 'cleaned'", "launchCleanup.outcome !== 'dirty'"],
+      ['legacyGreaterRealmProductionBootstrapSource', 'warpkeep-production-g001-policy-observation-bootstrap-link-v1', 'warpkeep-production-g001-policy-observation-bootstrap-link-v2'],
+      ['legacyGreaterRealmProductionBootstrapSource', 'return linked;', 'return receipt;'],
       ['genesis001LegacyGreaterRealmProductionSealSource', 'warpkeep-genesis-001-legacy-greater-realm-production-seal-v1', 'warpkeep-genesis-001-legacy-greater-realm-production-seal-v2'],
       ['legacyGreaterRealmProductionPublisherCliSource', "entrypoint: 'publisher'", "entrypoint: 'publisher-open'"],
       ['legacyGreaterRealmProductionImportOperatorSource', "entrypoint: 'import'", "entrypoint: 'import-open'"],
       ['legacyGreaterRealmProductionRelocationOperatorSource', "entrypoint: 'relocation'", "entrypoint: 'relocation-open'"],
       ['legacyGreaterRealmProductionBootstrapSource', "entrypoint: 'bootstrap'", "entrypoint: 'bootstrap-open'"],
       ['legacyGreaterRealmProductionLaunchEnvelopeSource', 'fail GENESIS_001_LEGACY_GREATER_REALM_PRODUCTION_MUTATION_SEALED', 'true # legacy mutations open'],
+      ['genesis001PolicyObservationLaunchEnvelopeSource', 'umask 077', 'umask 076'],
+      ['genesis001PolicyObservationLaunchEnvelopeSource', 'g001-policy-observe|launch-run-inspect|launch-run-cleanup) ;;', 'g001-policy-observe|verify|launch-run-inspect|launch-run-cleanup) ;;'],
+      ['genesis001PolicyObservationLaunchEnvelopeSource', '  g001-policy-observe)\n    [ "$admin_secret" != - ]', '  g001-policy-observe)\n    [ "$admin_secret" = - ]'],
+      ['genesis001PolicyObservationLaunchEnvelopeSource', '[ "$#" -eq 0 ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID', '[ "$#" -le 1 ] || fail GREATER_REALM_PRODUCTION_LAUNCH_ARGUMENTS_INVALID'],
       ['hermesSource', "commandOutput: 'basename-status-only-v1'", "commandOutput: 'raw-metadata-v1'"],
       ['hermesSource', 'Legacy access-request listing is suspended for the 0.4.0 sealed launch.', 'Legacy access-request listing remains available.'],
       ['viteConfigSource', '__WARPKEEP_PRODUCT_VERSION__: JSON.stringify(productVersion)', '__WARPKEEP_PRODUCT_VERSION__: JSON.stringify(\'0.3.43\')'],
@@ -483,12 +1133,16 @@ describe('0.4.0 sealed-launch verifier', () => {
       ['activationGeneratorSource', 'genesis002PublishReceiptDigest(publishReceipt)', 'publish.publishReceiptDigest'],
       ['activationGeneratorSource', 'publish.sourceCommit !== atlasImport.atlasSourceCommit', 'publish.sourceCommit === atlasImport.atlasSourceCommit'],
       ['activationGeneratorSource', 'g002DatabaseIdentity: publish.databaseIdentity', 'g002DatabaseIdentity: candidate.g002DatabaseIdentity'],
+      ['activationGeneratorSource', 'deriveGenesis001SealedLaunchEvidence(privateEvidence)', 'deriveGenesis001SealedLaunchEvidence(privateEvidence, evidence.authority)'],
       ['verifyWorkflowSource', '--exclude tests/authBridgeNotificationPreparedWorkflow.test.ts', '--exclude tests/unrelated.test.ts'],
       ['genesis002SchemaSource', "tableAccess: { tag: 'Private' }", "tableAccess: { tag: 'Public' }"],
       ['clientPresentationSource', 'GREATER_REALM_CLIENT_PRESENTATION_ALLOWED = false', 'GREATER_REALM_CLIENT_PRESENTATION_ALLOWED = true'],
       ['serverPresentationSource', 'GREATER_REALM_SERVER_PRESENTATION_ALLOWED = false', 'GREATER_REALM_SERVER_PRESENTATION_ALLOWED = true'],
       ['hermesSource', 'FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = false', 'FOUNDER_ADMISSION_NOTIFICATION_DELIVERY_APPROVED = true'],
       ['realmReleaseIdentitySource', "GENESIS_002_RELEASE_STATE = 'sealed-no-player-access'", "GENESIS_002_RELEASE_STATE = 'active'"],
+      ['realmReleaseIdentitySource', "PTR_RELEASE_STATE = 'owner-only-testing'", "PTR_RELEASE_STATE = 'public-testing'"],
+      ['ptrRealmConfigSource', "PTR_SPACETIME_URI = 'https://maincloud.spacetimedb.com'", "PTR_SPACETIME_URI = 'https://alternate.invalid'"],
+      ['ptrRealmConfigSource', "enabled !== 'true'", "enabled !== 'false'"],
       ['admissionLaunchPolicySource', 'ACCESS_REQUEST_CONTROLS_ENABLED = false', 'ACCESS_REQUEST_CONTROLS_ENABLED = true'],
       ['authBridgeSource', 'ACCESS_REQUEST_SUBMISSIONS_SUSPENDED = true', 'ACCESS_REQUEST_SUBMISSIONS_SUSPENDED = false'],
       ['admissionRequestSuspensionProbeSource', "const REQUEST_PATH = '/v2/access/request'", "const REQUEST_PATH = '/v2/access/status'"],
@@ -497,6 +1151,9 @@ describe('0.4.0 sealed-launch verifier', () => {
       ['realmMenuSource', 'selectedRealmId === GENESIS_002_ID', 'selectedRealmId === GENESIS_001_ID'],
       ['farcasterContractSource', 'Command four Workers, gather resources and return to a permanent keep in Genesis 001. Invite-only Alpha.', 'Explore a six-region world foundation.'],
       ['latestPatchNotesSource', "title: 'THE SECOND GENESIS WAITS'", "title: 'THE SECOND GENESIS OPENS'"],
+      ['pagesWorkflowSource', "VITE_WARPKEEP_PTR_ENABLED: 'true'", "VITE_WARPKEEP_PTR_ENABLED: 'false'"],
+      ['pagesWorkflowSource', 'VITE_PTR_SPACETIMEDB_DATABASE: ${{ vars.WARPKEEP_PTR_SPACETIMEDB_DATABASE }}', "VITE_PTR_SPACETIMEDB_DATABASE: ''"],
+      ['pagesWorkflowSource', 'node scripts/verify-0.4.0-sealed-launch.mjs --phase=pages-build', 'node scripts/verify-0.4.0-sealed-launch.mjs --phase=activation'],
     ] as const) {
       const candidate = { ...sources, [field]: sources[field].replace(before, after) };
       expect(
@@ -504,5 +1161,18 @@ describe('0.4.0 sealed-launch verifier', () => {
         `${field}: ${before}`,
       ).toThrow();
     }
+
+    const alternateAuthority = {
+      ...sources,
+      genesis001SealedLaunchAdoptionSource:
+        sources.genesis001SealedLaunchAdoptionSource.replace(
+          GENESIS_001_FREEZE_PUBLISH_RECEIPT_SHA256,
+          'f'.repeat(64),
+        ),
+    };
+    expect(() => verifySealedLaunchSources(
+      alternateAuthority,
+      'activation',
+    )).toThrow();
   });
 });

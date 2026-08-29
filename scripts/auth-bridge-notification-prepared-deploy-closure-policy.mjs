@@ -36,11 +36,39 @@ import {
   SEALED_LAUNCH_SOURCE_PATHS,
 } from './verify-0.4.0-sealed-launch.mjs';
 
-const MEMBER_PATH = /^(?:docs\/operations\/greater-realm-production-launch-envelope\.sh\.txt|(?:owner-canary\/)?index\.html|package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|vite\.config\.ts|spacetimedb\/(?:package\.json|pnpm-(?:lock|workspace)\.yaml|(?:src|genesis002)\/[A-Za-z0-9._/-]+)|(?:\.github\/workflows|config\/releases|scripts|services\/auth-bridge|src)\/[A-Za-z0-9._/-]+)$/u;
+const MEMBER_PATH = /^(?:docs\/operations\/(?:genesis-001-policy-observation-launch-envelope|greater-realm-production-launch-envelope)\.sh\.txt|(?:owner-canary\/)?index\.html|package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|vite\.config\.ts|spacetimedb\/(?:package\.json|pnpm-(?:lock|workspace)\.yaml|(?:src|genesis002|ptr\/generated-bindings)\/[A-Za-z0-9._/-]+)|(?:\.github\/workflows|config\/releases|scripts|services\/auth-bridge|src)\/[A-Za-z0-9._/-]+)$/u;
+// This is the exact generated client/operator ABI reached from shipped roots.
+// PTR module source, private table bindings, build output, and config stay out.
+const PTR_GENERATED_BINDING_MEMBER_PATHS = new Set([
+  'spacetimedb/ptr/generated-bindings/admin_begin_greater_realm_verification_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_finalize_greater_realm_release_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_get_greater_realm_status_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/admin_import_greater_realm_chunk_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_import_greater_realm_components_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_import_greater_realm_regions_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_provision_ptr_owner_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_stage_greater_realm_release_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_suspend_ptr_owner_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_verify_greater_realm_batch_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/get_ptr_owner_status_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_realm_atlas_bootstrap_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_realm_atlas_chunk_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_realm_atlas_resource_locations_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_realm_atlas_window_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/index.ts',
+  'spacetimedb/ptr/generated-bindings/plan_realm_route_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/types.ts',
+]);
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
-const MAX_MEMBERS = 956;
+const MAX_MEMBERS = 997;
 const SCRIPT_GRAPH_ROOTS = Object.freeze([
+  'scripts/auth-bridge-notification-b0-cloudflare-runtime.mjs',
+  'scripts/auth-bridge-notification-b0-deploy-adapter.mjs',
+  'scripts/auth-bridge-notification-b0-deploy-journal.mjs',
   'scripts/auth-bridge-notification-b0-deploy.mjs',
+  'scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs',
+  'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
+  'scripts/auth-bridge-notification-prepared-deploy-journal.mjs',
   'scripts/verify-auth-bridge-notification-b0-policy.mjs',
   'scripts/auth-bridge-notification-prepared-deploy.mjs',
   'scripts/genesis001-frozen-publisher.ts',
@@ -54,6 +82,8 @@ const SCRIPT_GRAPH_ROOTS = Object.freeze([
   'scripts/production-player-canary-activation-launcher.mjs',
   'scripts/production-player-canary-operator.mjs',
   'scripts/production-player-canary-browser-launcher.mjs',
+  'scripts/ptr-production-import-operator.ts',
+  'scripts/ptr-production-publisher-cli.ts',
   'scripts/profiles/profiles-operator.ts',
   'scripts/verify-0.4.0-sealed-launch.mjs',
   'scripts/verify-auth-bridge-notification-prepared-receipt.mjs',
@@ -186,6 +216,9 @@ const ATTESTED_INSTALLED_REQUIRES = new Map([
   ])],
 ]);
 const ATTESTED_DYNAMIC_IMPORT_EXPRESSIONS = new Map([
+  ['scripts/auth-bridge-notification-prepared-deploy-closure.mjs', new Set([
+    'pathToFileURL(resolve(authenticated.repositoryRoot, memberPath)).href',
+  ])],
   ['scripts/greater-realm-production-bootstrap.mjs', new Set([
     'yamlUrl.href',
   ])],
@@ -219,6 +252,8 @@ function canonicalMemberPath(repository, memberPath, code) {
   if (
     typeof memberPath !== 'string'
     || !MEMBER_PATH.test(memberPath)
+    || (memberPath.startsWith('spacetimedb/ptr/')
+      && !PTR_GENERATED_BINDING_MEMBER_PATHS.has(memberPath))
     || memberPath.includes('//')
     || memberPath.split('/').some(part => part === '.' || part === '..')
   ) fail(code);

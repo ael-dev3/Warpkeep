@@ -451,12 +451,16 @@ response. Delivery parsing accepts Farcaster's optional additive
 `failedTokens` field, ignores harmless provider metadata, and still rejects
 invalid reasons, contradictory known outcome categories, and token mismatches.
 
-The no-auth `GET /v1/release-attestation` route returns success only for the
-protected bridge-prepared phase. It requires an exact lowercase 40-hex
-`WARPKEEP_BRIDGE_SOURCE_COMMIT` injected by the trusted deployer, notification
-delivery enabled, the complete two-Hub/one-client/independent-secret transport,
-and the `ADMISSION_NOTIFICATIONS` binding. The source binding is intentionally
-absent from checked-in defaults and is not required for ordinary bridge health.
+The no-auth `GET /v1/release-attestation` route returns success only when the
+structural bridge preparation is complete. It requires an exact lowercase
+40-hex `WARPKEEP_BRIDGE_SOURCE_COMMIT` injected by the trusted deployer, the
+complete two-Hub/one-client/independent-secret transport, and the
+`ADMISSION_NOTIFICATIONS` binding, and reports the current notification-delivery
+mode. The protected 0.4 prepared verifier requires that mode to be `false`;
+the retained legacy B0 verifier requires `true`. A successful endpoint response
+alone therefore does not authorize either phase. The source binding is
+intentionally absent from checked-in defaults and is not required for ordinary
+bridge health.
 An incomplete preparation returns only
 `{"error":"release_not_prepared"}` with status `503`; it never reveals which
 requirement is missing. The exact successful response contains only schema and

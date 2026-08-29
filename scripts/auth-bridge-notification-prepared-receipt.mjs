@@ -31,8 +31,10 @@ import {
 import {
   DEFAULT_AUTH_BRIDGE_URL,
   parseAuthBridgeReleaseAttestation,
+  verifyAuthBridgeNotificationB0CurrentRpcRoleAttestation,
   verifyAuthBridgeNotificationB0RpcRoleAttestation,
-  verifyAuthBridgeRpcRoleAttestation,
+  verifyAuthBridgePreparedPredeployRpcRoleAttestation,
+  verifyAuthBridgePreparedRpcRoleAttestation,
 } from './auth-bridge-config-attestation.mjs';
 
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_RECEIPT_KIND =
@@ -511,7 +513,7 @@ export function parseAuthBridgeNotificationPreparedReceipt(value) {
     || value.notificationDeliveryContractDigest
       !== AUTH_BRIDGE_NOTIFICATION_DELIVERY_CONTRACT_DIGEST
     || value.notificationClientCount !== 1
-    || value.notificationDeliveryEnabled !== true
+    || typeof value.notificationDeliveryEnabled !== 'boolean'
     || value.notificationTransportConfigured !== true
     || value.admissionNotificationStoreConfigured !== true
     || typeof value.publicAuthEnabledBefore !== 'boolean'
@@ -548,7 +550,7 @@ export function parseAuthBridgeNotificationPreparedReceipt(value) {
     notificationDeliveryContractDigest:
       value.notificationDeliveryContractDigest,
     notificationClientCount: 1,
-    notificationDeliveryEnabled: true,
+    notificationDeliveryEnabled: value.notificationDeliveryEnabled,
     notificationTransportConfigured: true,
     admissionNotificationStoreConfigured: true,
     publicAuthEnabledBefore: value.publicAuthEnabledBefore,
@@ -981,7 +983,12 @@ async function prepareAuthBridgeNotificationReceipt({
   clock = () => new Date(),
   lifetimeMilliseconds =
     AUTH_BRIDGE_NOTIFICATION_PREPARED_RECEIPT_LIFETIME_MILLISECONDS,
-} = {}, verifyPredeployAttestation) {
+} = {}, {
+  verifyPredeployAttestation,
+  verifyPostdeployAttestation,
+  expectedPtrSpacetimeDbDatabase,
+  expectedNotificationDeliveryEnabled,
+}) {
   if (typeof deploy !== 'function') {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_OPERATION_REQUIRED');
   }
@@ -1002,6 +1009,9 @@ async function prepareAuthBridgeNotificationReceipt({
     bridgeUrl: DEFAULT_AUTH_BRIDGE_URL,
     adminToken,
     fetchImpl,
+    ...(expectedPtrSpacetimeDbDatabase === undefined
+      ? {}
+      : { expectedPtrSpacetimeDbDatabase }),
   });
   const beforeModes = Object.freeze({
     bridgeSourceCommit: expectedPredecessorBridgeSourceCommit,
@@ -1011,13 +1021,16 @@ async function prepareAuthBridgeNotificationReceipt({
 
   await deploy(beforeModes);
 
-  const after = await verifyAuthBridgeRpcRoleAttestation({
+  const after = await verifyPostdeployAttestation({
     bridgeUrl: DEFAULT_AUTH_BRIDGE_URL,
     adminToken,
     fetchImpl,
+    ...(expectedPtrSpacetimeDbDatabase === undefined
+      ? {}
+      : { expectedPtrSpacetimeDbDatabase }),
   });
   if (
-    after.notificationDeliveryEnabled !== true
+    after.notificationDeliveryEnabled !== expectedNotificationDeliveryEnabled
     || after.notificationTransportConfigured !== true
     || after.notificationClientCount !== 1
     || after.publicAuthEnabled !== beforeModes.publicAuthEnabled
@@ -1035,6 +1048,8 @@ async function prepareAuthBridgeNotificationReceipt({
   });
   if (
     live.attestation.bridgeSourceCommit !== expectedBridgeSourceCommit
+    || live.attestation.notificationDeliveryEnabled
+      !== expectedNotificationDeliveryEnabled
     || live.attestation.notificationDeliveryContractDigest
       !== AUTH_BRIDGE_NOTIFICATION_DELIVERY_CONTRACT_DIGEST
     || live.attestation.publicAuthEnabled !== beforeModes.publicAuthEnabled
@@ -1079,17 +1094,24 @@ async function prepareAuthBridgeNotificationReceipt({
 }
 
 export function prepareAuthBridgeNotificationPreparedReceipt(options) {
-  return prepareAuthBridgeNotificationReceipt(
-    options,
-    verifyAuthBridgeRpcRoleAttestation,
-  );
+  return prepareAuthBridgeNotificationReceipt(options, {
+    verifyPredeployAttestation:
+      verifyAuthBridgePreparedPredeployRpcRoleAttestation,
+    verifyPostdeployAttestation: verifyAuthBridgePreparedRpcRoleAttestation,
+    expectedPtrSpacetimeDbDatabase:
+      options?.expectedPtrSpacetimeDbDatabase,
+    expectedNotificationDeliveryEnabled: false,
+  });
 }
 
 export function prepareAuthBridgeNotificationB0Receipt(options) {
-  return prepareAuthBridgeNotificationReceipt(
-    options,
-    verifyAuthBridgeNotificationB0RpcRoleAttestation,
-  );
+  return prepareAuthBridgeNotificationReceipt(options, {
+    verifyPredeployAttestation:
+      verifyAuthBridgeNotificationB0RpcRoleAttestation,
+    verifyPostdeployAttestation:
+      verifyAuthBridgeNotificationB0CurrentRpcRoleAttestation,
+    expectedNotificationDeliveryEnabled: true,
+  });
 }
 
 /**
@@ -1110,13 +1132,14 @@ export async function authenticateAuthBridgeNotificationPreparedReceiptForPublic
     || !SOURCE_COMMIT.test(expectedBridgeSourceCommit)
     || parsed.bridgeSourceCommit !== expectedBridgeSourceCommit
   ) fail('AUTH_BRIDGE_PREPARED_EXPECTED_SOURCE_INVALID');
-  const privateAttestation = await verifyAuthBridgeRpcRoleAttestation({
+  const privateAttestation = await verifyAuthBridgeNotificationB0CurrentRpcRoleAttestation({
     bridgeUrl: DEFAULT_AUTH_BRIDGE_URL,
     adminToken,
     fetchImpl,
   });
   if (
-    privateAttestation.notificationDeliveryEnabled !== true
+    privateAttestation.notificationDeliveryEnabled
+      !== parsed.notificationDeliveryEnabled
     || privateAttestation.notificationTransportConfigured !== true
     || privateAttestation.notificationClientCount !== 1
     || privateAttestation.publicAuthEnabled !== parsed.publicAuthEnabledAfter

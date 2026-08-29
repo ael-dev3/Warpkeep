@@ -198,6 +198,8 @@ describe('production output exclusions', () => {
     '__warpkeepRenderedWebglSfxLifecycleV1',
     'realmLocalQaWorkerProjections',
     'localQaWorkerProjectionTelemetry',
+    'localQaLivingVisualTimeSeconds',
+    'localQaGreaterRealmPresentationAllowed',
     'createRenderedWebglQaNorthernWorkerLocomotionRealm',
     'createRenderedWebglQaSouthernWorkerLocomotionRealm',
     'worker-locomotion-northern',

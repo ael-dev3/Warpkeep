@@ -24,6 +24,9 @@ PUBLIC_AUTH_ENABLED = "false"
 # The protected configuration attestation makes the final state observable.
 ACCESS_EXPECTED_FID_REQUIRED = "false"
 QA_OBSERVER_ENABLED = "false"
+# Owner-only Public Test Realm. Configure its exact immutable database identity,
+# dedicated audience, and managed PLAYER_CANARY_OWNER_FID before enabling.
+PTR_ENABLED = "false"
 # Independent rollout gate. The public manifest must not advertise its webhook
 # until the matching Worker deployment has this enabled and attested.
 APPROVAL_NOTIFICATIONS_ENABLED = "false"

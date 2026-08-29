@@ -15,11 +15,13 @@ import {
   GENESIS_002_GREATER_REALM_ATLAS_ID,
   GREATER_REALM_ATLAS_ID,
   GREATER_REALM_MAXIMUM_ACTIVE_CELL_COUNT,
+  PTR_GREATER_REALM_ATLAS_ID,
 } from './greater-realm-contracts';
 
 type GreaterRealmRuntimeAtlasId =
   | typeof GREATER_REALM_ATLAS_ID
-  | typeof GENESIS_002_GREATER_REALM_ATLAS_ID;
+  | typeof GENESIS_002_GREATER_REALM_ATLAS_ID
+  | typeof PTR_GREATER_REALM_ATLAS_ID;
 import {
   GREATER_REALM_WATER_DEPTH_CLASS_ID,
   GREATER_REALM_WATER_REGIME_ID,
@@ -53,6 +55,17 @@ export const GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY =
   'genesis-002-runtime-release-v1' as const;
 export const GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH =
   'controls/genesis-002-runtime-release-public-seed-v1.wkgr-control' as const;
+export const PTR_GREATER_REALM_RUNTIME_RELEASE_VERSION = '0.4.0-ptr.1' as const;
+export const PTR_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY =
+  'ptr-0.4.0-ptr.1-runtime-release-v1' as const;
+export const PTR_GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH =
+  'controls/ptr-0.4.0-ptr.1-runtime-release-public-seed-v1.wkgr-control' as const;
+export const PTR_GREATER_REALM_RUNTIME_RELEASE_TARGET = Object.freeze({
+  atlasId: PTR_GREATER_REALM_ATLAS_ID,
+  releaseVersion: PTR_GREATER_REALM_RUNTIME_RELEASE_VERSION,
+  directory: PTR_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+  seedControlPath: PTR_GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH,
+});
 export const GREATER_REALM_RUNTIME_PARTITION_VERSION =
   'axial-bin-15-tier-one-filter-v1' as const;
 export const GREATER_REALM_RENDERER_CONTRACT_VERSION =
@@ -2043,6 +2056,18 @@ export function createGenesis002GreaterRealmRuntimeRelease(input: Readonly<{
   });
 }
 
+/** Owner-only PTR producer fixed to the 0.4.0-ptr.1 atlas identity. */
+export function createPtrGreaterRealmRuntimeRelease(input: Readonly<{
+  source: GreaterRealmRuntimeReleaseSource;
+  sourceCommit: string;
+  releaseSeed: Uint8Array;
+}>): GreaterRealmRuntimeReleaseArtifacts {
+  return createGreaterRealmRuntimeReleaseForAtlas({
+    ...input,
+    atlasId: PTR_GREATER_REALM_ATLAS_ID,
+  });
+}
+
 function runtimeReleasePath(
   path: string,
   directory: string = GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
@@ -2053,6 +2078,7 @@ function runtimeReleasePath(
   if (
     directory !== GREATER_REALM_RUNTIME_RELEASE_DIRECTORY
     && directory !== GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY
+    && directory !== PTR_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY
   ) fail('GREATER_REALM_RUNTIME_RELEASE_PATH_INVALID');
   return `${directory}/${path}`;
 }
@@ -2108,6 +2134,16 @@ export function openOrCreateGenesis002GreaterRealmRuntimeReleaseSeed(
     workspace,
     GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
     GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH,
+  );
+}
+
+export function openOrCreatePtrGreaterRealmRuntimeReleaseSeed(
+  workspace: GreaterRealmPrivateWorkspace,
+): Buffer {
+  return openOrCreateRuntimeReleaseSeed(
+    workspace,
+    PTR_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+    PTR_GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH,
   );
 }
 
@@ -2274,6 +2310,68 @@ export async function writeGenesis002GreaterRealmRuntimeRelease(input: Readonly<
     },
   );
   const installed = readGenesis002GreaterRealmRuntimeRelease(input.workspace);
+  if (!releaseArtifactsEqual(installed, input.artifacts)) {
+    fail('GREATER_REALM_RUNTIME_RELEASE_INSTALL_MISMATCH');
+  }
+  return 'installed';
+}
+
+export async function writePtrGreaterRealmRuntimeRelease(input: Readonly<{
+  workspace: GreaterRealmPrivateWorkspace;
+  artifacts: GreaterRealmRuntimeReleaseArtifacts;
+}>): Promise<GreaterRealmRuntimeReleaseWriteResult> {
+  verifyPtrGreaterRealmRuntimeReleaseArtifacts(input.artifacts);
+  const publication = input.workspace.recoverAtomicDirectoryPublish(
+    PTR_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+  );
+  assertReleaseSeedControlMatches(
+    input.workspace,
+    input.artifacts,
+    PTR_GREATER_REALM_RUNTIME_RELEASE_SEED_CONTROL_PATH,
+  );
+  if (publication === 'published') {
+    const installed = readPtrGreaterRealmRuntimeRelease(input.workspace);
+    if (!releaseArtifactsEqual(installed, input.artifacts)) {
+      fail('GREATER_REALM_RUNTIME_RELEASE_REPLAY_MISMATCH');
+    }
+    return 'unchanged';
+  }
+  await input.workspace.withAtomicDirectoryPublish(
+    PTR_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+    async staged => {
+      staged.ensureDirectory(runtimeReleasePath(
+        'chunks',
+        PTR_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+      ));
+      staged.writeFileAtomic(
+        runtimeReleasePath(
+          'import-manifest.json',
+          PTR_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+        ),
+        input.artifacts.manifestBytes,
+        MAXIMUM_RUNTIME_MANIFEST_BYTES,
+      );
+      for (const chunk of input.artifacts.chunks) {
+        staged.writeFileAtomic(
+          runtimeReleasePath(
+            chunk.path,
+            PTR_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+          ),
+          chunk.bytes,
+          MAXIMUM_RUNTIME_CHUNK_BYTES,
+        );
+      }
+      staged.writeFileAtomic(
+        runtimeReleasePath(
+          'status.json',
+          PTR_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+        ),
+        input.artifacts.statusBytes,
+        MAXIMUM_RUNTIME_STATUS_BYTES,
+      );
+    },
+  );
+  const installed = readPtrGreaterRealmRuntimeRelease(input.workspace);
   if (!releaseArtifactsEqual(installed, input.artifacts)) {
     fail('GREATER_REALM_RUNTIME_RELEASE_INSTALL_MISMATCH');
   }
@@ -3567,6 +3665,16 @@ export function verifyGenesis002GreaterRealmRuntimeReleaseArtifacts(
   );
 }
 
+/** Exact owner-only PTR verifier; G001 and G002 packages fail closed. */
+export function verifyPtrGreaterRealmRuntimeReleaseArtifacts(
+  artifacts: GreaterRealmRuntimeReleaseArtifacts,
+): void {
+  verifyGreaterRealmRuntimeReleaseArtifactsForAtlas(
+    artifacts,
+    PTR_GREATER_REALM_ATLAS_ID,
+  );
+}
+
 function readGreaterRealmRuntimeReleaseForAtlas(
   workspace: GreaterRealmPrivateWorkspace,
   directory: string,
@@ -3717,6 +3825,16 @@ export function readGenesis002GreaterRealmRuntimeRelease(
     workspace,
     GENESIS_002_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
     verifyGenesis002GreaterRealmRuntimeReleaseArtifacts,
+  );
+}
+
+export function readPtrGreaterRealmRuntimeRelease(
+  workspace: GreaterRealmPrivateWorkspace,
+): GreaterRealmRuntimeReleaseArtifacts {
+  return readGreaterRealmRuntimeReleaseForAtlas(
+    workspace,
+    PTR_GREATER_REALM_RUNTIME_RELEASE_DIRECTORY,
+    verifyPtrGreaterRealmRuntimeReleaseArtifacts,
   );
 }
 

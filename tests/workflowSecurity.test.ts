@@ -127,9 +127,15 @@ describe('GitHub workflow security policy', () => {
     expect(build).toContain('npm run verify:sealed-launch:activation');
     expect(build).not.toContain('npm run validate:pages-config');
     expect(build).not.toContain('npm run verify:greater-realm-release-gates');
+    const ptrPagesBuildGate =
+      'node scripts/verify-0.4.0-sealed-launch.mjs --phase=pages-build';
+    expect(build).toContain(ptrPagesBuildGate);
+    expect(build.indexOf(ptrPagesBuildGate)).toBeLessThan(
+      build.indexOf('\n      - name: Install\n'),
+    );
     expect(source.match(
       /scripts\/verify-0\.4\.0-sealed-launch\.mjs/g,
-    )).toHaveLength(3);
+    )).toHaveLength(4);
     expect(build.indexOf('npm run verify:sealed-launch:activation')).toBeLessThan(
       build.indexOf('npm run build'),
     );

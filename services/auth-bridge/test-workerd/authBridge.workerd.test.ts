@@ -371,7 +371,7 @@ describe('auth bridge production bindings in workerd', () => {
     const config: BridgeConfig = {
       ...CONFIG,
       bridgeSourceCommit: 'a'.repeat(40),
-      approvalNotificationsEnabled: true,
+      approvalNotificationsEnabled: false,
       miniAppNotifications: notificationConfig,
       publicAuthEnabled: false,
       accessExpectedFidRequired: true,
@@ -397,7 +397,7 @@ describe('auth bridge production bindings in workerd', () => {
       schemaVersion: 1,
       profile: 'warpkeep-admission-notification-bridge-v1',
       bridgeSourceCommit: 'a'.repeat(40),
-      notificationDeliveryEnabled: true,
+      notificationDeliveryEnabled: false,
       notificationTransportConfigured: true,
       admissionNotificationStoreConfigured: true,
       notificationClientCount: 1,
@@ -415,13 +415,13 @@ describe('auth bridge production bindings in workerd', () => {
     expect(before).toBeUndefined()
     expect(after).toBeUndefined()
 
-    const disabled = await createAuthBridge({
-      configReader: () => ({ ...config, approvalNotificationsEnabled: false }),
+    const incomplete = await createAuthBridge({
+      configReader: () => ({ ...config, bridgeSourceCommit: undefined }),
     }).fetch(new Request(
       `https://auth.warpkeep.test${RELEASE_ATTESTATION_PATH}`,
     ), bridgeEnv)
-    expect(disabled.status).toBe(503)
-    expect(await disabled.text()).toBe('{"error":"release_not_prepared"}')
+    expect(incomplete.status).toBe(503)
+    expect(await incomplete.text()).toBe('{"error":"release_not_prepared"}')
   })
 
   it('delivers through Cloudflare-compatible manual redirect handling in workerd', async () => {

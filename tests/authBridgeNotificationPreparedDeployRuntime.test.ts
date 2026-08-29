@@ -25,12 +25,12 @@ import {
 } from '../scripts/auth-bridge-notification-prepared-deploy-adapter.mjs';
 import {
   authBridgeNotificationPreparedSourceDigest,
-  attestAuthBridgeNotificationPreparedCandidateMultipartMetadata,
+  attestAuthBridgeNotificationPreparedCandidateMultipartMetadata as attestAuthBridgeNotificationPreparedCandidateMultipartMetadataRaw,
   buildAuthBridgeNotificationPreparedWranglerMultipart,
-  createAuthBridgeNotificationPreparedCloudflareRuntime,
+  createAuthBridgeNotificationPreparedCloudflareRuntime as createAuthBridgeNotificationPreparedCloudflareRuntimeRaw,
   inspectAuthBridgeNotificationPreparedMultipart,
   parseAuthBridgeNotificationPreparedMultipart,
-  projectAuthBridgeNotificationPreparedCloudflareVersion,
+  projectAuthBridgeNotificationPreparedCloudflareVersion as projectAuthBridgeNotificationPreparedCloudflareVersionRaw,
 } from '../scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs';
 import {
   AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_STATE_CHILD,
@@ -53,6 +53,9 @@ const OLD_DEPLOYMENT_ID = '323e4567-e89b-42d3-a456-426614174000';
 const DRIFTED_DEPLOYMENT_ID = '423e4567-e89b-42d3-a456-426614174000';
 const NOW = new Date('2026-08-13T00:00:00.000Z');
 const PLAYER_CANARY_OWNER_FID = '4242424242';
+const PTR_DATABASE = '9'.repeat(64);
+const MAIN_DATABASE =
+  'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
 const temporaryDirectories: string[] = [];
 
 type JournalPhase =
@@ -71,6 +74,39 @@ const BEFORE_MODES = Object.freeze({
   publicAuthEnabled: true,
   accessExpectedFidRequired: false,
 });
+
+function createAuthBridgeNotificationPreparedCloudflareRuntime(
+  options: Omit<Parameters<
+    typeof createAuthBridgeNotificationPreparedCloudflareRuntimeRaw
+  >[0], 'ptrSpacetimeDbDatabase'>,
+) {
+  return createAuthBridgeNotificationPreparedCloudflareRuntimeRaw({
+    ...options,
+    ptrSpacetimeDbDatabase: PTR_DATABASE,
+  });
+}
+
+function attestAuthBridgeNotificationPreparedCandidateMultipartMetadata(
+  options: Omit<Parameters<
+    typeof attestAuthBridgeNotificationPreparedCandidateMultipartMetadataRaw
+  >[0], 'ptrSpacetimeDbDatabase'>,
+) {
+  return attestAuthBridgeNotificationPreparedCandidateMultipartMetadataRaw({
+    ...options,
+    ptrSpacetimeDbDatabase: PTR_DATABASE,
+  });
+}
+
+function projectAuthBridgeNotificationPreparedCloudflareVersion(
+  options: Omit<Parameters<
+    typeof projectAuthBridgeNotificationPreparedCloudflareVersionRaw
+  >[0], 'ptrSpacetimeDbDatabase'>,
+) {
+  return projectAuthBridgeNotificationPreparedCloudflareVersionRaw({
+    ...options,
+    ptrSpacetimeDbDatabase: PTR_DATABASE,
+  });
+}
 const EXACT_DURABLE_OBJECT_BINDINGS = Object.freeze([
   Object.freeze({
     name: 'ADMISSION_NOTIFICATIONS',
@@ -206,6 +242,7 @@ function contract(sourceDigest: string) {
     compatibilityDate: string;
     compatibilityFlags: readonly string[];
     variables: Readonly<Record<string, string>>;
+    protectedPlainTextBindingNames: readonly string[];
     secretBindingNames: readonly string[];
     durableObjectBindings: readonly Readonly<{
       name: string;
@@ -267,6 +304,7 @@ function exactVersionDetail(
       'workers/triggered_by': 'version_upload',
     },
     bridgeSourceCommit = value.sourceCommit,
+    ptrDatabase = PTR_DATABASE,
     exports: runtimeExports,
   }: Readonly<{
     id?: string;
@@ -276,6 +314,7 @@ function exactVersionDetail(
     secretBindingNames?: readonly string[];
     annotations?: Readonly<Record<string, unknown>>;
     bridgeSourceCommit?: string;
+    ptrDatabase?: string | null;
     exports?: Readonly<Record<string, unknown>> | null;
   }> = {},
 ): ExactVersionDetail {
@@ -299,6 +338,11 @@ function exactVersionDetail(
             ? bridgeSourceCommit
             : text,
         })),
+        ...(ptrDatabase === null ? [] : [{
+          name: 'PTR_SPACETIMEDB_DATABASE',
+          type: 'plain_text',
+          text: ptrDatabase,
+        }]),
         ...secretBindingNames.map(name => ({ name, type: 'secret_text' })),
         ...value.durableObjectBindings.map(binding => ({
           name: binding.name,
@@ -415,6 +459,11 @@ function officialVersionUploadResult(
           text,
           type: 'plain_text',
         })),
+        {
+          name: 'PTR_SPACETIMEDB_DATABASE',
+          text: PTR_DATABASE,
+          type: 'plain_text',
+        },
         ...value.secretBindingNames.map(name => ({ name, type: 'secret_text' })),
         ...value.durableObjectBindings.map(binding => ({
           name: binding.name,
@@ -495,7 +544,7 @@ afterEach(() => {
 });
 
 describe('auth-bridge prepared protected environment', () => {
-  it('validates and immediately removes the owner FID with all credentials', () => {
+  it('validates and immediately removes the PTR database and owner FID with all credentials', () => {
     const environment: NodeJS.ProcessEnv = {
       GITHUB_ACTIONS: 'true',
       GITHUB_EVENT_NAME: 'workflow_dispatch',
@@ -512,16 +561,19 @@ describe('auth-bridge prepared protected environment', () => {
         'cloudflare-owner-test-token-value',
       WARPKEEP_AUTH_BRIDGE_ZONE_ID: ZONE_ID,
       WARPKEEP_PLAYER_CANARY_OWNER_FID: PLAYER_CANARY_OWNER_FID,
+      WARPKEEP_PTR_SPACETIMEDB_DATABASE: PTR_DATABASE,
       WARPKEEP_PRODUCTION_ADMIN_TOKEN: 'production-admin-test-token-value',
     };
     const values = authBridgeNotificationPreparedDeployTestSeams
       .copyAndScrubEnvironment(environment);
     expect(values.WARPKEEP_PLAYER_CANARY_OWNER_FID)
       .toBe(PLAYER_CANARY_OWNER_FID);
+    expect(values.WARPKEEP_PTR_SPACETIMEDB_DATABASE).toBe(PTR_DATABASE);
     for (const name of [
       'GITHUB_TOKEN',
       'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
       'WARPKEEP_PLAYER_CANARY_OWNER_FID',
+      'WARPKEEP_PTR_SPACETIMEDB_DATABASE',
       'WARPKEEP_PRODUCTION_ADMIN_TOKEN',
     ]) expect(environment).not.toHaveProperty(name);
 
@@ -531,12 +583,29 @@ describe('auth-bridge prepared protected environment', () => {
         WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN:
           'cloudflare-owner-test-token-value',
         WARPKEEP_PLAYER_CANARY_OWNER_FID: invalid,
+        WARPKEEP_PTR_SPACETIMEDB_DATABASE: PTR_DATABASE,
         WARPKEEP_PRODUCTION_ADMIN_TOKEN: 'production-admin-test-token-value',
       } };
       expect(() => authBridgeNotificationPreparedDeployTestSeams
         .copyAndScrubEnvironment(hostile))
         .toThrow(/ENVIRONMENT_INVALID/u);
       expect(hostile).not.toHaveProperty('WARPKEEP_PLAYER_CANARY_OWNER_FID');
+      expect(hostile).not.toHaveProperty('WARPKEEP_PTR_SPACETIMEDB_DATABASE');
+    }
+
+    for (const invalid of ['warpkeep-ptr', '9'.repeat(63), 'A'.repeat(64), MAIN_DATABASE]) {
+      const hostile = {
+        ...environment,
+        GITHUB_TOKEN: 'github-owner-test-token-value',
+        WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN:
+          'cloudflare-owner-test-token-value',
+        WARPKEEP_PLAYER_CANARY_OWNER_FID: PLAYER_CANARY_OWNER_FID,
+        WARPKEEP_PTR_SPACETIMEDB_DATABASE: invalid,
+        WARPKEEP_PRODUCTION_ADMIN_TOKEN: 'production-admin-test-token-value',
+      };
+      expect(() => authBridgeNotificationPreparedDeployTestSeams
+        .copyAndScrubEnvironment(hostile)).toThrow(/ENVIRONMENT_INVALID/u);
+      expect(hostile).not.toHaveProperty('WARPKEEP_PTR_SPACETIMEDB_DATABASE');
     }
   });
 });
@@ -585,6 +654,7 @@ describe('auth-bridge prepared durable deployment journal', () => {
     expect(journalText).not.toContain('secret-stage');
     expect(journalText).not.toContain('secret-remove');
     expect(journalText).not.toContain(PLAYER_CANARY_OWNER_FID);
+    expect(journalText).not.toContain(PTR_DATABASE);
   });
 
   it('persists only a fixed upload adjudication reason and never advances it', async () => {
@@ -844,6 +914,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
         '/node_modules/.pnpm/wrangler@4.110.0_',
       );
       expect(input.args).toContain('--dry-run');
+      expect(JSON.stringify(input)).not.toContain(PTR_DATABASE);
       return {
         code: 0,
         signal: null,
@@ -920,7 +991,11 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     ).sourceDigest;
     const value = contract(digest);
     const raw = exactVersionDetail(value);
-    expect(raw.resources.bindings).toHaveLength(28);
+    expect(raw.resources.bindings).toContainEqual({
+      name: 'PTR_SPACETIMEDB_DATABASE',
+      type: 'plain_text',
+      text: PTR_DATABASE,
+    });
     expect(raw.resources.script.named_handlers).toHaveLength(22);
     expect(raw.resources.script_runtime).not.toHaveProperty('exports');
     expect(projectAuthBridgeNotificationPreparedCloudflareVersion({
@@ -1308,6 +1383,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       },
       bridgeSourceCommit:
         AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
+      ptrDatabase: null,
     });
     let uploaded = false;
     let targetLive = false;
@@ -1664,6 +1740,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       },
       bridgeSourceCommit:
         AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
+      ptrDatabase: null,
     });
     const nonPredecessorDetail = exactVersionDetail(value, {
       id: NON_PREDECESSOR_VERSION_ID,
@@ -2050,6 +2127,11 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       text: PLAYER_CANARY_OWNER_FID,
       type: 'secret_text',
     }]);
+    expect(candidate.metadata.bindings).toContainEqual({
+      name: 'PTR_SPACETIMEDB_DATABASE',
+      text: PTR_DATABASE,
+      type: 'plain_text',
+    });
     expect(attestAuthBridgeNotificationPreparedCandidateMultipartMetadata({
       metadata: candidate.metadata,
       contract: value,
@@ -2058,6 +2140,9 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     const candidateBindings = candidate.metadata.bindings as Record<string, unknown>[];
     const canaryIndex = candidateBindings.findIndex(
       binding => binding.type === 'secret_text',
+    );
+    const ptrIndex = candidateBindings.findIndex(
+      binding => binding.name === 'PTR_SPACETIMEDB_DATABASE',
     );
     const hostileMetadata = [
       Object.fromEntries(Object.entries(candidate.metadata).filter(
@@ -2101,6 +2186,16 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
         ],
       },
       { ...candidate.metadata, bindings: [...candidateBindings, candidateBindings[canaryIndex]] },
+      {
+        ...candidate.metadata,
+        bindings: candidateBindings.filter((_, index) => index !== ptrIndex),
+      },
+      {
+        ...candidate.metadata,
+        bindings: candidateBindings.map((binding, index) => index === ptrIndex
+          ? { ...binding, text: '8'.repeat(64) }
+          : binding),
+      },
     ];
     for (const metadata of hostileMetadata) {
       expect(() => attestAuthBridgeNotificationPreparedCandidateMultipartMetadata({
@@ -2409,7 +2504,7 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
           10021,
           url,
           400,
-          `hostile echo ${PLAYER_CANARY_OWNER_FID}`,
+          `hostile echo ${PLAYER_CANARY_OWNER_FID} ${PTR_DATABASE}`,
         );
       }
       throw new Error(`unexpected request: ${method} ${url}`);
@@ -2446,6 +2541,13 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
           secret_echo: {
             nested: `forbidden-${PLAYER_CANARY_OWNER_FID}-echo`,
           },
+        },
+      },
+      {
+        ...officialEcho,
+        resources: {
+          ...officialEcho.resources,
+          ptr_database_echo: PTR_DATABASE,
         },
       },
     ];

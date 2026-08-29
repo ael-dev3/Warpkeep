@@ -795,6 +795,7 @@
     width: auto;
     max-height: min(36vh, 16rem);
     padding: 0.5rem;
+    padding-block-end: 4.5rem;
     overflow: auto;
   }
 
@@ -830,6 +831,12 @@
     width: auto;
     max-height: min(42vh, 21rem);
     padding: 0.65rem;
+  }
+}
+
+@media (width <= 760px) {
+  .greater-realm-world__zone-legend {
+    display: none;
   }
 }
 
