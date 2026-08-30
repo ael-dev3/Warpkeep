@@ -188,6 +188,9 @@ export const SEALED_LAUNCH_SOURCE_PATHS = Object.freeze({
   legacyGreaterRealmProductionLaunchEnvelopeSource:
     'docs/operations/greater-realm-production-launch-envelope.sh.txt',
   genesis002ContractSource: 'spacetimedb/genesis002/src/contract.ts',
+  genesis002AuthSource: 'spacetimedb/genesis002/src/auth.ts',
+  genesis002AdminPolicySource:
+    'spacetimedb/genesis002/src/adminPolicy.ts',
   genesis002PolicySource: 'spacetimedb/genesis002/src/policy.ts',
   genesis002PopulationSource: 'spacetimedb/genesis002/src/population.ts',
   genesis002StatusSource: 'spacetimedb/genesis002/src/reducers.ts',
@@ -232,6 +235,8 @@ export const SEALED_LAUNCH_SOURCE_PATHS = Object.freeze({
   ptrRealmConfigSource: 'src/ptr/ptrRealmConfig.ts',
   admissionLaunchPolicySource: 'src/release/admissionLaunchPolicy.ts',
   authBridgeSource: 'services/auth-bridge/src/app.ts',
+  authBridgeConfigSource: 'services/auth-bridge/src/config.ts',
+  authBridgeJwtSource: 'services/auth-bridge/src/jwt.ts',
   admissionRequestSuspensionProbeSource:
     'scripts/verify-admission-request-suspension.mjs',
   realmChoicePolicySource: 'src/components/menu/realmChoicePolicy.ts',
@@ -842,6 +847,99 @@ function verifyGenesis001SealedLaunchAdoption(sources) {
 }
 
 function verifyGenesis002Policy(sources) {
+  // Interim byte pins seal the complete G002 authority boundary until Task 7
+  // atomically adds these roots to the authenticated closure and refreezes it.
+  // Pinning the complete security-bearing sources prevents decoy token/name
+  // preservation from weakening a parser, call site, bridge control, or
+  // transport bound while the later closure update is intentionally deferred.
+  for (const [source, expectedSha256] of [
+    [sources.genesis002ContractSource,
+      'a8c810ed4f2fe67ce3e8b641f6885f9baef158b0f6a70bcdac5f0a7cf89721b1'],
+    [sources.genesis002AdminPolicySource,
+      'ae3df9186b0e0b31826dbf06403676ffe977074819414b0d5a86590437919f9c'],
+    [sources.genesis002AuthSource,
+      'b819fa23258c32b5d15a94669655c52c55cc0e6256e1b57aa370a8573f60f8a4'],
+    [sources.genesis002LifecycleSource,
+      'aa142bf3b138c82059f3571a4622a51d6095f36055f61513c7db07a9a2573aa1'],
+    [sources.genesis002AtlasImportSource,
+      'ba814224620ebf7ec837e326ca5e495c978da61097c0f88831f0ff013cad7b6c'],
+    [sources.authBridgeConfigSource,
+      '39036b69b0264eb712ae4ac08b29c6e2854488488e632b246fd77eac1ad50b65'],
+    [sources.authBridgeJwtSource,
+      '8f6b1ae12407be3a63f0dd425a72568d9050511ca8c4302267e942db3dd4c5a7'],
+    [sources.authBridgeSource,
+      '6251db88e158b8e88c14c7d0af5f96675a774d8b011b50f05119a7e481ef0b0f'],
+    [sources.genesis002TransportSource,
+      '39619dae34b4e59bf3b6f7cf4db3577d46ee18fa8e172e527c943467215b6c9a'],
+  ]) {
+    if (
+      typeof source !== 'string'
+      || createHash('sha256').update(source).digest('hex') !== expectedSha256
+    ) fail('SEALED_LAUNCH_G002_ADMIN_AUTHORITY_INVALID');
+  }
+  for (const [source, token] of [
+    [sources.genesis002ContractSource,
+      "GENESIS_002_AUDIENCE =\n  'warpkeep-genesis-002-spacetimedb'"],
+    [sources.genesis002AdminPolicySource,
+      'export function readFreshGenesis002AdminClaims('],
+    [sources.genesis002AdminPolicySource,
+      "const GENESIS_002_ISSUER = 'https://auth.warpkeep.com'"],
+    [sources.genesis002AdminPolicySource,
+      "const GENESIS_002_ADMIN_SUBJECT = 'service:hermes'"],
+    [sources.genesis002AdminPolicySource,
+      "const GENESIS_002_ADMIN_ROLE = 'warpkeep-admin'"],
+    [sources.genesis002AdminPolicySource,
+      "const GENESIS_002_TOKEN_TYPE = 'spacetime-access'"],
+    [sources.genesis002AdminPolicySource,
+      'const MAX_GENESIS_002_ADMIN_LIFETIME_SECONDS = 300'],
+    [sources.genesis002AdminPolicySource,
+      'const MAX_FUTURE_SKEW_MICROS = 1_000_000n'],
+    [sources.genesis002AdminPolicySource,
+      "readonly code = 'INVALID_GENESIS_002_ADMIN_SESSION'"],
+    [sources.genesis002AuthSource,
+      'readFreshGenesis002AdminClaims('],
+    [sources.genesis002AuthSource,
+      "throw new SenderError('INVALID_GENESIS_002_ADMIN_SESSION')"],
+    [sources.authBridgeConfigSource,
+      "GENESIS_002_OIDC_AUDIENCE = 'warpkeep-genesis-002-spacetimedb'"],
+    [sources.authBridgeJwtSource,
+      'export function genesis002AdminClaims('],
+    [sources.authBridgeSource,
+      "GENESIS_002_ADMIN_TOKEN_PATH = '/v1/admin/genesis-002-token'"],
+    [sources.authBridgeSource,
+      'genesis002AdminClaims(config, issuedAt)'],
+    [sources.authBridgeSource,
+      "logger.event('genesis002_admin_token_issued')"],
+    [sources.authBridgeSource,
+      "logger.event('genesis002_admin_token_rejected')"],
+    [sources.genesis002TransportSource,
+      "GENESIS_002_ADMIN_TOKEN_PATH =\n  '/v1/admin/genesis-002-token'"],
+    [sources.genesis002TransportSource,
+      'export async function requestGenesis002AdminToken('],
+    [sources.genesis002TransportSource,
+      "claims.aud[0] !== 'warpkeep-genesis-002-spacetimedb'"],
+  ]) requireOnce(
+    source,
+    token,
+    'SEALED_LAUNCH_G002_ADMIN_AUTHORITY_INVALID',
+  );
+  requireAbsent(
+    sources.genesis002AuthSource,
+    ["from '../../src/auth'", 'requireAdmin('],
+    'SEALED_LAUNCH_G002_ADMIN_AUTHORITY_INVALID',
+  );
+  for (const source of [
+    sources.genesis002PublisherCoreSource,
+    sources.genesis002PublisherCliSource,
+    sources.genesis002ImportCoreSource,
+    sources.genesis002ImportOperatorSource,
+    sources.genesis002TransportSource,
+    sources.genesis002LiveReceiptSource,
+  ]) requireAbsent(
+    source,
+    ["'/v1/admin/token'", "'warpkeep-spacetimedb'", "'./hermes-admin'"],
+    'SEALED_LAUNCH_G002_ADMIN_AUTHORITY_INVALID',
+  );
   for (const token of [
     'allowedFids: ctx.db.allowedFid.count()',
     'accessRequests: ctx.db.accessRequestV1.count()',

@@ -2,6 +2,7 @@
 
 import {
   chmodSync,
+  copyFileSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -13,7 +14,7 @@ import {
 } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -29,6 +30,7 @@ import {
   createSealedLaunchActivationBinding,
   classifySealedLaunchPagesDeployLane,
   GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS,
+  SEALED_LAUNCH_SOURCE_PATHS,
   inspectSealedLaunchGitHistoryForTesting,
   verifySealedLaunchActivationHistory,
   classifySealedLaunchPagesSources,
@@ -104,6 +106,9 @@ function checkedInSources() {
     legacyGreaterRealmProductionLaunchEnvelopeSource:
       source('docs/operations/greater-realm-production-launch-envelope.sh.txt'),
     genesis002ContractSource: source('spacetimedb/genesis002/src/contract.ts'),
+    genesis002AuthSource: source('spacetimedb/genesis002/src/auth.ts'),
+    genesis002AdminPolicySource:
+      source('spacetimedb/genesis002/src/adminPolicy.ts'),
     genesis002PolicySource: source('spacetimedb/genesis002/src/policy.ts'),
     genesis002PopulationSource: source('spacetimedb/genesis002/src/population.ts'),
     genesis002StatusSource: source('spacetimedb/genesis002/src/reducers.ts'),
@@ -148,6 +153,8 @@ function checkedInSources() {
     ptrRealmConfigSource: source('src/ptr/ptrRealmConfig.ts'),
     admissionLaunchPolicySource: source('src/release/admissionLaunchPolicy.ts'),
     authBridgeSource: source('services/auth-bridge/src/app.ts'),
+    authBridgeConfigSource: source('services/auth-bridge/src/config.ts'),
+    authBridgeJwtSource: source('services/auth-bridge/src/jwt.ts'),
     admissionRequestSuspensionProbeSource:
       source('scripts/verify-admission-request-suspension.mjs'),
     realmChoicePolicySource: source('src/components/menu/realmChoicePolicy.ts'),
@@ -384,7 +391,287 @@ function activationSources() {
   };
 }
 
+function mutateGenesis002BridgeRoute(
+  sourceText: string,
+  before: string,
+  after: string,
+): string {
+  const startToken =
+    "        if (request.method === 'POST' && url.pathname === GENESIS_002_ADMIN_TOKEN_PATH) {";
+  const endToken =
+    "\n        if (request.method === 'POST' && url.pathname === PTR_ADMIN_TOKEN_PATH) {";
+  const start = sourceText.indexOf(startToken);
+  const end = sourceText.indexOf(endToken, start);
+  if (start < 0 || end < 0) return sourceText;
+  const route = sourceText.slice(start, end);
+  const mutated = route.replace(before, after);
+  if (mutated === route) return sourceText;
+  return `${sourceText.slice(0, start)}${mutated}${sourceText.slice(end)}`;
+}
+
 describe('0.4.0 sealed-launch verifier', () => {
+  it('accepts the exact disjoint G002 administrator authority sources', () => {
+    expect(verifySealedLaunchSources(checkedInSources(), 'preparation')).toMatchObject({
+      phase: 'preparation',
+    });
+  });
+
+  it.each([
+      {
+        name: 'dedicated contract audience',
+        field: 'genesis002ContractSource',
+        mutate: (value: string) => value.replace(
+          'warpkeep-genesis-002-spacetimedb',
+          'warpkeep-spacetimedb',
+        ),
+      },
+      {
+        name: 'plain-record prototype',
+        field: 'genesis002AdminPolicySource',
+        mutate: (value: string) => value.replace(
+          'Object.getPrototypeOf(payload) !== Object.prototype',
+          'false',
+        ),
+      },
+      {
+        name: 'exact own-key set',
+        field: 'genesis002AdminPolicySource',
+        mutate: (value: string) => value.replace(
+          'const keys = Reflect.ownKeys(record);',
+          'const keys = Object.keys(record);',
+        ),
+      },
+      {
+        name: 'one-element audience and role arrays',
+        field: 'genesis002AdminPolicySource',
+        mutate: (value: string) => value
+          .replace('audience.length !== 1', 'audience.length < 1')
+          .replace('roles.length !== 1', 'roles.length < 1'),
+      },
+      {
+        name: 'safe-integer NumericDates',
+        field: 'genesis002AdminPolicySource',
+        mutate: (value: string) => value.replace(
+          '!Number.isSafeInteger(value)',
+          'false',
+        ),
+      },
+      {
+        name: 'bounded JTI',
+        field: 'genesis002AdminPolicySource',
+        mutate: (value: string) => value.replace('|| !JTI.test(jti)', '|| false'),
+      },
+      {
+        name: 'one-second parser freshness skew',
+        field: 'genesis002AdminPolicySource',
+        mutate: (value: string) => value.replace(
+          'const MAX_FUTURE_SKEW_MICROS = 1_000_000n',
+          'const MAX_FUTURE_SKEW_MICROS = 60_000_000n',
+        ),
+      },
+      {
+        name: 'parser lifetime ceiling',
+        field: 'genesis002AdminPolicySource',
+        mutate: (value: string) => value.replace(
+          'expiresAt - issuedAt > MAX_GENESIS_002_ADMIN_LIFETIME_SECONDS',
+          'expiresAt - issuedAt > 3_000',
+        ),
+      },
+      {
+        name: 'fullPayload-only local auth mapping',
+        field: 'genesis002AuthSource',
+        mutate: (value: string) => value.replace('jwt.fullPayload', 'ctx.senderAuth'),
+      },
+      {
+        name: 'lifecycle call site',
+        field: 'genesis002LifecycleSource',
+        mutate: (value: string) => value.replace(
+          'requireGenesis002Admin(ctx);',
+          'void ctx;',
+        ),
+      },
+      {
+        name: 'both atlas procedure call sites',
+        field: 'genesis002AtlasImportSource',
+        mutate: (value: string) => value.replace(
+          'requireGenesis002Admin(tx);',
+          'void tx;',
+        ),
+      },
+      {
+        name: 'all seven atlas reducer call sites',
+        field: 'genesis002AtlasImportSource',
+        mutate: (value: string) => value.replace(
+          'const admin = requireGenesis002Admin(ctx);',
+          "const admin = { jti: 'bypass' };",
+        ),
+      },
+      {
+        name: 'bridge POST-only route',
+        field: 'authBridgeSource',
+        mutate: (value: string) => mutateGenesis002BridgeRoute(value,
+          "request.method === 'POST' && url.pathname === GENESIS_002_ADMIN_TOKEN_PATH",
+          'url.pathname === GENESIS_002_ADMIN_TOKEN_PATH',
+        ),
+      },
+      {
+        name: 'bridge no-origin control',
+        field: 'authBridgeSource',
+        mutate: (value: string) => mutateGenesis002BridgeRoute(value,
+          'requireAdminNoOrigin(request)',
+          'void request.headers',
+        ),
+      },
+      {
+        name: 'bridge no-query control',
+        field: 'authBridgeSource',
+        mutate: (value: string) => mutateGenesis002BridgeRoute(value,
+          "if (url.search || request.url.includes('?')) {",
+          'if (false) {',
+        ),
+      },
+      {
+        name: 'bridge empty-body control',
+        field: 'authBridgeSource',
+        mutate: (value: string) => mutateGenesis002BridgeRoute(value,
+          'await rejectAdminBody(request)',
+          'void request.body',
+        ),
+      },
+      {
+        name: 'bridge rate limit',
+        field: 'authBridgeSource',
+        mutate: (value: string) => mutateGenesis002BridgeRoute(value,
+          "await enforceRateLimit(request, 'admin-token', env, dependencies.rateLimiter, logger)",
+          'void dependencies.rateLimiter',
+        ),
+      },
+      {
+        name: 'bridge timing-safe secret',
+        field: 'authBridgeSource',
+        mutate: (value: string) => mutateGenesis002BridgeRoute(value,
+          '!(await timingSafeSecretMatch(credential, config.adminTokenSecret))',
+          'credential !== config.adminTokenSecret',
+        ),
+      },
+      {
+        name: 'bridge signing control',
+        field: 'authBridgeSource',
+        mutate: (value: string) => mutateGenesis002BridgeRoute(value,
+          'token = await (dependencies.signer ?? signEs256Jwt)(\n              config,\n              genesis002AdminClaims(config, issuedAt),\n            )',
+          "token = 'unsigned'",
+        ),
+      },
+      {
+        name: 'bridge no-store response helper',
+        field: 'authBridgeSource',
+        mutate: (value: string) => mutateGenesis002BridgeRoute(value,
+          "return json({ token, tokenType: 'spacetime-access', expiresIn: ADMIN_TOKEN_TTL_SECONDS })",
+          "return Response.json({ token, tokenType: 'spacetime-access', expiresIn: ADMIN_TOKEN_TTL_SECONDS })",
+        ),
+      },
+      {
+        name: 'bridge five-minute response',
+        field: 'authBridgeSource',
+        mutate: (value: string) => mutateGenesis002BridgeRoute(value,
+          'expiresIn: ADMIN_TOKEN_TTL_SECONDS',
+          'expiresIn: 301',
+        ),
+      },
+      {
+        name: 'bridge typed safe logs',
+        field: 'authBridgeSource',
+        mutate: (value: string) => mutateGenesis002BridgeRoute(value,
+          "logger.event('genesis002_admin_token_issued')",
+          "logger.event('admin_token_issued')",
+        ),
+      },
+      {
+        name: 'bridge exact G002 claim factory',
+        field: 'authBridgeJwtSource',
+        mutate: (value: string) => value.replace(
+          'GENESIS_002_OIDC_AUDIENCE,',
+          'config.audience,',
+        ),
+      },
+      {
+        name: 'transport exact response contract',
+        field: 'genesis002TransportSource',
+        mutate: (value: string) => value.replace(
+          "response.status !== 200",
+          'response.status < 200',
+        ),
+      },
+      {
+        name: 'transport freshness',
+        field: 'genesis002TransportSource',
+        mutate: (value: string) => value.replace(
+          'currentTimeMicros + MAX_FUTURE_SKEW_MICROS',
+          'currentTimeMicros + 60_000_000n',
+        ),
+      },
+      {
+        name: 'transport abort control',
+        field: 'genesis002TransportSource',
+        mutate: (value: string) => value.replace(
+          'setTimeout(() => controller.abort(), timeoutMilliseconds)',
+          'setTimeout(() => undefined, timeoutMilliseconds)',
+        ),
+      },
+      {
+        name: 'transport response size bound',
+        field: 'genesis002TransportSource',
+        mutate: (value: string) => value.replace(
+          'const MAX_TOKEN_RESPONSE_BYTES = 32 * 1_024',
+          'const MAX_TOKEN_RESPONSE_BYTES = 32 * 1_024 * 1_024',
+        ),
+      },
+      {
+        name: 'transport dedicated route without fallback',
+        field: 'genesis002TransportSource',
+        mutate: (value: string) => value.replace(
+          '/v1/admin/genesis-002-token',
+          '/v1/admin/token',
+        ),
+      },
+      {
+        name: 'exact Hermes subject',
+        field: 'genesis002AdminPolicySource',
+        mutate: (value: string) => value.replace(
+          "const GENESIS_002_ADMIN_SUBJECT = 'service:hermes'",
+          "const GENESIS_002_ADMIN_SUBJECT = 'service:generic-admin'",
+        ),
+      },
+      {
+        name: 'absence of legacy root auth import',
+        field: 'genesis002AuthSource',
+        mutate: (value: string) => [
+          "import { requireAdmin } from '../../src/auth';",
+          value,
+        ].join('\n'),
+      },
+      {
+        name: 'dedicated bridge path',
+        field: 'authBridgeSource',
+        mutate: (value: string) => value.replace(
+          '/v1/admin/genesis-002-token',
+          '/v1/admin/token',
+        ),
+      },
+    ] as const)(
+      'rejects G002 authority weakening: $name',
+      ({ field, mutate }) => {
+        const hostile: Record<string, string> = checkedInSources();
+        hostile[field] = mutate(hostile[field]!);
+        expect(hostile[field], `${field} mutation must change the source`)
+          .not.toBe(checkedInSources()[field]);
+        expect(
+          () => verifySealedLaunchSources(hostile, 'preparation'),
+          field,
+        ).toThrow('SEALED_LAUNCH_G002_ADMIN_AUTHORITY_INVALID');
+      },
+    );
+
   it('pins G001 authority independently of the mutable adoption module', () => {
     const verifierSource = source('scripts/verify-0.4.0-sealed-launch.mjs');
     expect(verifierSource).not.toContain(
@@ -1013,6 +1300,13 @@ describe('0.4.0 sealed-launch verifier', () => {
       fixtureGit(fixtureParent, [
         'clone', '--quiet', '--shared', repositoryRoot, fixtureRoot,
       ]);
+      for (const path of Object.values(SEALED_LAUNCH_SOURCE_PATHS)) {
+        const destination = resolve(fixtureRoot, path);
+        mkdirSync(dirname(destination), { recursive: true });
+        copyFileSync(resolve(repositoryRoot, path), destination);
+      }
+      fixtureGit(fixtureRoot, ['add', '--', ...Object.values(SEALED_LAUNCH_SOURCE_PATHS)]);
+      fixtureGit(fixtureRoot, ['commit', '--quiet', '-m', 'Fixture current sealed sources']);
       const head = fixtureGit(fixtureRoot, ['rev-parse', 'HEAD']);
       mkdirSync(resolve(fixtureRoot, 'node_modules/checkout-probe'), {
         recursive: true,

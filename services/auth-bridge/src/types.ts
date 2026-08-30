@@ -139,6 +139,8 @@ export type SafeLogEvent =
   | 'session_revoke_failed'
   | 'admin_token_issued'
   | 'admin_token_rejected'
+  | 'genesis002_admin_token_issued'
+  | 'genesis002_admin_token_rejected'
   | 'ptr_admin_token_issued'
   | 'ptr_admin_token_rejected'
   | 'admin_probe_rejected'
@@ -447,6 +449,10 @@ export interface AdminTokenClaims {
   exp: number
   jti: string
 }
+
+export type Genesis002AdminTokenClaims = Omit<AdminTokenClaims, 'aud'> & Readonly<{
+  aud: ['warpkeep-genesis-002-spacetimedb']
+}>
 
 export interface PtrOwnerTokenClaims {
   iss: string

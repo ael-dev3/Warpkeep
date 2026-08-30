@@ -2,6 +2,7 @@ import type {
   AccessRequestOperation,
   AccessRequestResolverTokenClaims,
   AdminTokenClaims,
+  Genesis002AdminTokenClaims,
   AuthEpochResolverTokenClaims,
   PlayerTokenClaims,
   PtrOwnerTokenClaims,
@@ -9,6 +10,7 @@ import type {
 } from './types'
 import {
   ADMIN_TOKEN_TTL_SECONDS,
+  GENESIS_002_OIDC_AUDIENCE,
   INTERNAL_ACCESS_REQUEST_RESOLVER_TOKEN_TTL_SECONDS,
   INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS,
   PLAYER_TOKEN_TTL_SECONDS,
@@ -145,12 +147,12 @@ export function playerClaims(
   }
 }
 
-function hermesAdminClaims(
+function hermesAdminClaims<const TAudience extends string>(
   issuer: string,
-  audience: string,
+  audience: TAudience,
   nowSeconds: number,
   ttlSeconds: number,
-): AdminTokenClaims {
+): AdminTokenClaims & Readonly<{ aud: [TAudience] }> {
   return {
     iss: issuer,
     sub: 'service:hermes',
@@ -167,6 +169,19 @@ function hermesAdminClaims(
 /** Five-minute external Hermes token for the server-only admin endpoint. */
 export function adminClaims(config: BridgeConfig, nowSeconds: number): AdminTokenClaims {
   return hermesAdminClaims(config.issuer, config.audience, nowSeconds, ADMIN_TOKEN_TTL_SECONDS)
+}
+
+/** Five-minute Hermes token that grants authority only in sealed Genesis 002. */
+export function genesis002AdminClaims(
+  config: BridgeConfig,
+  nowSeconds: number,
+): Genesis002AdminTokenClaims {
+  return hermesAdminClaims(
+    config.issuer,
+    GENESIS_002_OIDC_AUDIENCE,
+    nowSeconds,
+    ADMIN_TOKEN_TTL_SECONDS,
+  )
 }
 
 /** Five-minute Hermes token for provisioning only the isolated PTR database. */
