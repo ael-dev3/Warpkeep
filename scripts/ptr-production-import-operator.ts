@@ -30,21 +30,12 @@ import {
   PtrProductionPublisherError,
 } from './ptr-production-publisher.mjs';
 import {
-  derivePtrOwnerOpaqueProofDigest,
-  executePtrOwnerProvision,
-  ptrOwnerProvisionReceiptDigest,
-  ptrSealedLiveReceiptDigest,
-  takePtrProductionLaunchEntropy,
-  takePtrProductionOwnerFid,
-  PtrProductionReleaseReceiptError,
-} from './ptr-production-release-receipts';
-import {
   writePrivatePtrProductionReceipt,
   readPrivatePtrProductionPublishReceipt,
   PtrProductionReceiptFileError,
 } from './ptr-production-receipt-file';
 import {
-  createPtrProductionTransport,
+  createPtrAtlasImportTransport,
   PtrProductionTransportError,
 } from './ptr-production-transport';
 import { greaterRealmProductionImportEngine } from './greater-realm-production-import-core';
@@ -122,7 +113,6 @@ type Authority = Readonly<{
 function assertLiveAtlasBinding(
   status: PtrProductionStatus,
   authority: Authority,
-  ownerFid: bigint,
 ): void {
   if (status.present && (
     status.atlasId !== authority.atlasId
@@ -134,13 +124,9 @@ function assertLiveAtlasBinding(
       .update(authority.headerJson).digest('hex')
     || status.importEpoch !== IMPORT_EPOCH
   )) fail('PTR_PRODUCTION_IMPORT_LIVE_BINDING_MISMATCH');
-  if (status.ownerProvisioned && (
-    !status.ownerEnabled
-    || status.ownerFid !== ownerFid
-    || !Number.isSafeInteger(status.ownerAuthEpoch)
-    || (status.ownerAuthEpoch as number) < 1
-    || (status.ownerAuthEpoch as number) > 0xffff_ffff
-  )) fail('PTR_PRODUCTION_OWNER_PRIVATE_STATUS_MISMATCH');
+  if (status.ownerProvisioned || status.ownerEnabled) {
+    fail('PTR_PRODUCTION_IMPORT_OWNER_STATE_NOT_ZERO');
+  }
 }
 
 function privacySafeStatus(
@@ -171,8 +157,6 @@ function privacySafeStatus(
     atlasActivationMutationsCompiled: status.activationMutationsCompiled,
     ownerProvisioned: status.ownerProvisioned,
     ownerEnabled: status.ownerEnabled,
-    ownerIdentityMatchesProtectedInput: status.ownerProvisioned,
-    ownerAuthEpochIsCanonical: status.ownerProvisioned,
   });
 }
 
@@ -241,8 +225,7 @@ function isStableOperatorError(error: unknown): boolean {
     || error instanceof PtrProductionImportError
     || error instanceof PtrProductionPublisherError
     || error instanceof PtrProductionAdminTokenError
-    || error instanceof PtrProductionTransportError
-    || error instanceof PtrProductionReleaseReceiptError;
+    || error instanceof PtrProductionTransportError;
 }
 
 function normalizeFailure(error: unknown, mutationStarted: boolean): never {
@@ -282,18 +265,14 @@ export async function executePtrProductionImportOperator(input: Readonly<{
     importAuthority?: typeof greaterRealmProductionImportEngine.importAuthority;
     readPublishReceipt?: typeof readPrivatePtrProductionPublishReceipt;
     attestSourceAncestry?: typeof attestGreaterRealmProductionSourceAncestry;
-    createTransport?: typeof createPtrProductionTransport;
+    createTransport?: typeof createPtrAtlasImportTransport;
     executeImport?: typeof executePtrProductionImport;
-    executeOwnerProvision?: typeof executePtrOwnerProvision;
-    deriveOwnerProof?: typeof derivePtrOwnerOpaqueProofDigest;
     writeReceipt?: typeof writePrivatePtrProductionReceipt;
   }>;
 }>): Promise<Readonly<Record<string, unknown>>> {
   let adminSecret = '';
-  let launchEntropy = '';
-  let ownerFid = 0n;
   let artifact: ReturnType<typeof preparePtrSourceBuiltArtifact> | undefined;
-  let session: ReturnType<typeof createPtrProductionTransport> | undefined;
+  let session: ReturnType<typeof createPtrAtlasImportTransport> | undefined;
   let mutationStarted = false;
   let failure: unknown;
   let failed = false;
@@ -301,15 +280,21 @@ export async function executePtrProductionImportOperator(input: Readonly<{
   let result: Readonly<Record<string, unknown>> | undefined;
   try {
     const arguments_ = parsePtrProductionImportArguments(input.arguments);
-    adminSecret = takePtrProductionAdminSecret(input.environment);
-    if (arguments_.command === 'apply') {
-      launchEntropy = takePtrProductionLaunchEntropy(input.environment);
-    } else {
-      delete input.environment.WARPKEEP_PTR_LAUNCH_ENTROPY;
+    const ownerAuthorityPresent = input.environment.WARPKEEP_PTR_LAUNCH_ENTROPY
+      !== undefined
+      || input.environment.WARPKEEP_PLAYER_CANARY_OWNER_FID !== undefined;
+    delete input.environment.WARPKEEP_PTR_LAUNCH_ENTROPY;
+    delete input.environment.WARPKEEP_PLAYER_CANARY_OWNER_FID;
+    if (ownerAuthorityPresent) {
+      fail('PTR_PRODUCTION_IMPORT_OWNER_AUTHORITY_FORBIDDEN');
     }
-    ownerFid = takePtrProductionOwnerFid(input.environment);
+    adminSecret = takePtrProductionAdminSecret(input.environment);
     const local = localEnvironment(input.environment);
     const dependencies = input.dependencies ?? {};
+    if (Reflect.ownKeys(dependencies).some(key => typeof key !== 'string'
+      || /owner|entropy|proof|token|callback/iu.test(key))) {
+      fail('PTR_PRODUCTION_IMPORT_OWNER_AUTHORITY_FORBIDDEN');
+    }
     const prepareArtifact = dependencies.prepareArtifact
       ?? preparePtrSourceBuiltArtifact;
     const openWorkspace = dependencies.openWorkspace
@@ -325,13 +310,9 @@ export async function executePtrProductionImportOperator(input: Readonly<{
     const attestSourceAncestry = dependencies.attestSourceAncestry
       ?? attestGreaterRealmProductionSourceAncestry;
     const createTransport = dependencies.createTransport
-      ?? createPtrProductionTransport;
+      ?? createPtrAtlasImportTransport;
     const executeImport = dependencies.executeImport
       ?? executePtrProductionImport;
-    const executeOwnerProvision = dependencies.executeOwnerProvision
-      ?? executePtrOwnerProvision;
-    const deriveOwnerProof = dependencies.deriveOwnerProof
-      ?? derivePtrOwnerOpaqueProofDigest;
     const writeReceipt = dependencies.writeReceipt
       ?? writePrivatePtrProductionReceipt;
     const attest = input.attestProtectedMain
@@ -416,23 +397,17 @@ export async function executePtrProductionImportOperator(input: Readonly<{
       arguments_.command === 'apply'
       && arguments_.confirmationDigest !== confirmationDigest
     ) fail('PTR_PRODUCTION_IMPORT_CONFIRMATION_INVALID');
-    const ownerOpaqueProofDigest = arguments_.command === 'apply'
-      ? deriveOwnerProof({
-        launchEntropy,
-        ownerFid,
-        databaseIdentity: arguments_.databaseIdentity,
-        moduleSourceCommit: sourceCommit,
-      })
-      : undefined;
-    launchEntropy = '';
     session = createTransport({
       databaseIdentity: arguments_.databaseIdentity,
       adminSecret,
       disallowedDatabaseIdentities,
     });
     adminSecret = '';
+    if (Object.hasOwn(session, 'provisionOwner')) {
+      fail('PTR_PRODUCTION_IMPORT_OWNER_AUTHORITY_FORBIDDEN');
+    }
     const initialStatus = projectPtrProductionStatus(await session.inspect());
-    assertLiveAtlasBinding(initialStatus, authority, ownerFid);
+    assertLiveAtlasBinding(initialStatus, authority);
     if (arguments_.command === 'inspect') {
       artifact.assertSourceAndArtifact();
       result = Object.freeze({
@@ -446,7 +421,7 @@ export async function executePtrProductionImportOperator(input: Readonly<{
         atlasId: PTR_PRODUCTION_IMPORT_TARGET.atlasId,
         confirmationDigest,
         currentAtlasStatus: privacySafeStatus(initialStatus),
-        mutationSurface: 'atlas-import-then-owner-provision-only',
+        mutationSurface: 'atlas-import-only',
         zeroPopulationBoundary: true,
         atlasImportMutationsCompiled: true,
         activationMutationsEnabled: false,
@@ -515,55 +490,12 @@ export async function executePtrProductionImportOperator(input: Readonly<{
           receipt: importReceipt,
         });
         assertNotInterrupted();
-        if (ownerOpaqueProofDigest === undefined) {
-          fail('PTR_PRODUCTION_OWNER_PROOF_MISSING', true);
-        }
-        const owner = await executeOwnerProvision({
-          databaseIdentity: arguments_.databaseIdentity,
-          moduleSourceCommit: sourceCommit,
-          moduleSha256: artifact.moduleSha256,
-          importReceipt,
-          ownerFid,
-          ownerOpaqueProofDigest,
-          transport: session,
-          assertCanStartWrite,
-        });
-        assertNotInterrupted();
-        ownerFid = 0n;
-        const {
-          provisionReceiptDigest,
-          ...ownerProvisionWithoutDigest
-        } = owner.ownerProvisionReceipt;
-        if (
-          ptrOwnerProvisionReceiptDigest(ownerProvisionWithoutDigest)
-            !== provisionReceiptDigest
-          || ptrSealedLiveReceiptDigest(owner.sealedLiveReceipt)
-            !== owner.sealedLiveReceiptDigest
-        ) fail('PTR_PRODUCTION_FINAL_RECEIPT_INVALID', true);
-        artifact.assertSourceAndArtifact();
-        const ptrOwnerProvisionReceiptFile = writeReceipt({
-          directory: local.receiptDirectory,
-          repositoryRoot: REPOSITORY_ROOT,
-          kind: 'owner-provision',
-          receipt: owner.ownerProvisionReceipt,
-        });
-        assertNotInterrupted();
-        const ptrSealedLiveReceiptFile = writeReceipt({
-          directory: local.receiptDirectory,
-          repositoryRoot: REPOSITORY_ROOT,
-          kind: 'sealed-live',
-          receipt: owner.sealedLiveReceipt,
-        });
-        assertNotInterrupted();
         result = Object.freeze({
           ptrAtlasImportReceipt: importReceipt,
-          ptrOwnerProvisionReceipt: owner.ownerProvisionReceipt,
-          ptrSealedLiveReceipt: owner.sealedLiveReceipt,
-          ptrSealedLiveReceiptDigest: owner.sealedLiveReceiptDigest,
-          ptrReceiptFiles: Object.freeze({
-            ptrAtlasImportReceiptFile,
-            ptrOwnerProvisionReceiptFile,
-            ptrSealedLiveReceiptFile,
+          ptrAtlasImportReceiptEvidence: Object.freeze({
+            receiptFileSha256:
+              ptrAtlasImportReceiptFile.receiptFileSha256,
+            result: ptrAtlasImportReceiptFile.result,
           }),
           privacySafe: true,
           activationWrites: 'none',
@@ -582,8 +514,6 @@ export async function executePtrProductionImportOperator(input: Readonly<{
     delete input.environment.WARPKEEP_PTR_LAUNCH_ENTROPY;
     delete input.environment.WARPKEEP_PLAYER_CANARY_OWNER_FID;
     adminSecret = '';
-    launchEntropy = '';
-    ownerFid = 0n;
     try { await session?.close(); } catch { cleanupFailed = true; }
     try { artifact?.cleanup(); } catch { cleanupFailed = true; }
   }
@@ -616,13 +546,11 @@ if (
       || error instanceof PtrProductionPublisherError
       || error instanceof PtrProductionAdminTokenError
       || error instanceof PtrProductionTransportError
-      || error instanceof PtrProductionReleaseReceiptError
       || error instanceof PtrProductionReceiptFileError
       ? error.code
       : 'PTR_PRODUCTION_IMPORT_OPERATOR_FAILED';
     const submitted = error instanceof PtrProductionImportOperatorError
       || error instanceof PtrProductionImportError
-      || error instanceof PtrProductionReleaseReceiptError
       ? error.submitted
       : false;
     process.stderr.write(`${code}${

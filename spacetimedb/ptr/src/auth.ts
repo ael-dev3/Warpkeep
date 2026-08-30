@@ -4,6 +4,7 @@ import { PTR_OWNER_SINGLETON_KEY } from './contract';
 import type { PtrContext } from './context';
 import {
   PtrOwnerPolicyError,
+  readFreshPtrAtlasAdminClaims,
   readFreshPtrAdminClaims,
   readFreshPtrOwnerClaims,
   requirePtrOwnerAnchor,
@@ -32,6 +33,17 @@ export function requirePtrAdmin(ctx: PtrContext) {
   }
 }
 
+export function requirePtrAtlasAdmin(ctx: PtrContext) {
+  try {
+    return readFreshPtrAtlasAdminClaims(
+      payload(ctx),
+      ctx.timestamp.microsSinceUnixEpoch,
+    );
+  } catch (error) {
+    return sender(error, 'INVALID_PTR_ATLAS_ADMIN_SESSION');
+  }
+}
+
 export function requirePtrOwner(ctx: PtrContext) {
   try {
     const claims = readFreshPtrOwnerClaims(
@@ -55,6 +67,12 @@ export function requirePtrOwner(ctx: PtrContext) {
 }
 
 export function requirePtrConnection(ctx: PtrContext): void {
+  try {
+    requirePtrAtlasAdmin(ctx);
+    return;
+  } catch {
+    // The owner-provisioning parser is an independently exact claim shape.
+  }
   try {
     requirePtrAdmin(ctx);
     return;

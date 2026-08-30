@@ -22,6 +22,10 @@ export function verifyGenesis001AdmittedPlayerCensusBoundary(
   }>,
 ): void;
 
+export function verifyPtrOwnerAuthoritySemantics(
+  sources: Readonly<Record<string, string>>,
+): void;
+
 export function sealedLaunchReceiptCommitment(
   commitmentKey: string,
   binding: Readonly<Record<string, unknown>>,

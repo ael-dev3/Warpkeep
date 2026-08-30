@@ -3,19 +3,23 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { BridgeConfig } from '../services/auth-bridge/src/config';
-import { ptrAdminClaims } from '../services/auth-bridge/src/jwt';
+import { ptrAdminClaims, ptrAtlasAdminClaims } from '../services/auth-bridge/src/jwt';
 
 import {
   PTR_ADMIN_TOKEN_ENDPOINT,
+  PTR_ATLAS_ADMIN_TOKEN_ENDPOINT,
   PtrProductionAdminTokenError,
+  readPtrAtlasImportAuthority,
   readPtrOwnerProvisionAuthority,
+  requestPtrAtlasProductionAdminToken,
   requestPtrProductionAdminToken,
   takePtrProductionAdminSecret,
 } from '../scripts/ptr-production-admin-token';
 import {
   PTR_PRODUCTION_ALLOWED_REDUCERS,
   PtrProductionTransportError,
-  createPtrProductionTransport,
+  createPtrAtlasImportTransport,
+  createPtrOwnerProvisionTransport,
 } from '../scripts/ptr-production-transport';
 import { readFreshPtrAdminClaims } from '../spacetimedb/ptr/src/ownerPolicy';
 
@@ -49,6 +53,21 @@ function adminJwt(overrides: Readonly<Record<string, unknown>> = {}): string {
   });
 }
 
+function atlasJwt(overrides: Readonly<Record<string, unknown>> = {}): string {
+  return jwtFromClaims({
+    iss: 'https://auth.warpkeep.com',
+    sub: 'service:hermes',
+    aud: ['warpkeep-ptr-spacetimedb'],
+    token_type: 'spacetime-access',
+    roles: ['warpkeep-admin'],
+    iat: NOW_SECONDS,
+    nbf: NOW_SECONDS,
+    exp: NOW_SECONDS + 300,
+    jti: 'ptr-atlas-admin-jti',
+    ...overrides,
+  });
+}
+
 function tokenResponse(overrides: Partial<Response> = {}): Response {
   const response = new Response(JSON.stringify({
     token: ADMIN_JWT,
@@ -65,6 +84,85 @@ function tokenResponse(overrides: Partial<Response> = {}): Response {
 }
 
 describe('PTR production admin token and transport', () => {
+  it('separates exact ownerless atlas and owner-bearing transport authority', async () => {
+    expect(PTR_ATLAS_ADMIN_TOKEN_ENDPOINT)
+      .toBe('https://auth.warpkeep.com/v1/admin/ptr-atlas-token');
+    expect(readPtrAtlasImportAuthority(atlasJwt(), NOW_SECONDS)).toEqual({
+      issuer: 'https://auth.warpkeep.com',
+      subject: 'service:hermes',
+      audience: ['warpkeep-ptr-spacetimedb'],
+      tokenType: 'spacetime-access',
+      roles: ['warpkeep-admin'],
+    });
+    expect(() => readPtrAtlasImportAuthority(adminJwt(), NOW_SECONDS))
+      .toThrow('PTR_PRODUCTION_ATLAS_ADMIN_TOKEN_CLAIMS_INVALID');
+
+    const connectDatabase = vi.fn(async () => ({
+      isDisconnectRequested: false,
+      disconnect: vi.fn(),
+      procedures: { adminGetGreaterRealmStatusV1: vi.fn(async () => ({})) },
+      reducers: { adminProvisionPtrOwnerV1: vi.fn(async () => undefined) },
+    }) as never);
+    const atlas = createPtrAtlasImportTransport({
+      databaseIdentity: DATABASE_IDENTITY,
+      adminSecret: ADMIN_SECRET,
+      disallowedDatabaseIdentities: [G002_IDENTITY],
+      requestToken: vi.fn(async () => atlasJwt()),
+      connectDatabase,
+      nowSeconds: () => NOW_SECONDS,
+    });
+    const owner = createPtrOwnerProvisionTransport({
+      databaseIdentity: DATABASE_IDENTITY,
+      adminSecret: ADMIN_SECRET,
+      disallowedDatabaseIdentities: [G002_IDENTITY],
+      requestToken: vi.fn(async () => adminJwt()),
+      connectDatabase,
+      nowSeconds: () => NOW_SECONDS,
+    });
+    expect(Object.keys(atlas)).toEqual(['inspect', 'prepareSubmission', 'submit', 'close']);
+    expect(Object.keys(owner)).toEqual(['provisionOwner', 'close']);
+    expect(atlas).not.toHaveProperty('provisionOwner');
+    expect(owner).not.toHaveProperty('inspect');
+    expect(owner).not.toHaveProperty('submit');
+    await atlas.close();
+    await owner.close();
+
+    const wrongAtlas = createPtrAtlasImportTransport({
+      databaseIdentity: DATABASE_IDENTITY,
+      adminSecret: ADMIN_SECRET,
+      disallowedDatabaseIdentities: [G002_IDENTITY],
+      requestToken: vi.fn(async () => adminJwt()),
+      connectDatabase,
+      nowSeconds: () => NOW_SECONDS,
+    });
+    await expect(wrongAtlas.inspect())
+      .rejects.toThrow('PTR_PRODUCTION_ATLAS_ADMIN_TOKEN_CLAIMS_INVALID');
+    const wrongOwner = createPtrOwnerProvisionTransport({
+      databaseIdentity: DATABASE_IDENTITY,
+      adminSecret: ADMIN_SECRET,
+      disallowedDatabaseIdentities: [G002_IDENTITY],
+      requestToken: vi.fn(async () => atlasJwt()),
+      connectDatabase,
+      nowSeconds: () => NOW_SECONDS,
+    });
+    await expect(wrongOwner.provisionOwner(BigInt(OWNER_FID), vi.fn()))
+      .rejects.toThrow('PTR_PRODUCTION_ADMIN_TOKEN_CLAIMS_INVALID');
+    await wrongAtlas.close();
+    await wrongOwner.close();
+  });
+
+  it('requests the ownerless atlas token from its dedicated endpoint', async () => {
+    const fetchImpl = vi.fn(async (_url: string | URL | Request) => new Response(JSON.stringify({
+      token: atlasJwt(), tokenType: 'spacetime-access', expiresIn: 300,
+    }), {
+      status: 200,
+      headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+    }));
+    await expect(requestPtrAtlasProductionAdminToken(ADMIN_SECRET, { fetchImpl }))
+      .resolves.toBe(atlasJwt());
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe(PTR_ATLAS_ADMIN_TOKEN_ENDPOINT);
+  });
+
   it('requests one five-minute token using bodyless, credentialless, no-store semantics', async () => {
     let capturedHeaders = new Headers();
     let liveHeaders: HeadersInit | undefined;
@@ -265,30 +363,18 @@ describe('PTR production admin token and transport', () => {
   });
 
   it('forces a fresh token and connection immediately before owner provision', async () => {
-    const oldToken = adminJwt({ ptr_owner_auth_epoch: 1, jti: 'old-session' });
     const freshToken = adminJwt({ ptr_owner_auth_epoch: 7, jti: 'fresh-session' });
-    const oldDisconnect = vi.fn();
     const freshDisconnect = vi.fn();
     const ownerReducer = vi.fn(async () => undefined);
-    const oldConnection = {
-      isDisconnectRequested: false,
-      disconnect: oldDisconnect,
-      procedures: { adminGetGreaterRealmStatusV1: vi.fn(async () => ({ status: 'old' })) },
-      reducers: {},
-    };
     const freshConnection = {
       isDisconnectRequested: false,
       disconnect: freshDisconnect,
       procedures: { adminGetGreaterRealmStatusV1: vi.fn(async () => ({ status: 'fresh' })) },
       reducers: { adminProvisionPtrOwnerV1: ownerReducer },
     };
-    const requestToken = vi.fn()
-      .mockResolvedValueOnce(oldToken)
-      .mockResolvedValueOnce(freshToken);
-    const connectDatabase = vi.fn()
-      .mockResolvedValueOnce(oldConnection as never)
-      .mockResolvedValueOnce(freshConnection as never);
-    const transport = createPtrProductionTransport({
+    const requestToken = vi.fn().mockResolvedValueOnce(freshToken);
+    const connectDatabase = vi.fn().mockResolvedValueOnce(freshConnection as never);
+    const transport = createPtrOwnerProvisionTransport({
       databaseIdentity: DATABASE_IDENTITY,
       adminSecret: ADMIN_SECRET,
       disallowedDatabaseIdentities: [G002_IDENTITY],
@@ -297,17 +383,14 @@ describe('PTR production admin token and transport', () => {
       nowSeconds: () => NOW_SECONDS,
     });
 
-    await expect(transport.inspect()).resolves.toEqual({ status: 'old' });
     const assertCanStartWrite = vi.fn();
     await expect(transport.provisionOwner(
       BigInt(OWNER_FID),
       assertCanStartWrite,
     )).resolves.toEqual({ ownerFid: BigInt(OWNER_FID), ownerAuthEpoch: 7 });
 
-    expect(oldDisconnect).toHaveBeenCalledOnce();
-    expect(requestToken).toHaveBeenCalledTimes(2);
+    expect(requestToken).toHaveBeenCalledOnce();
     expect(connectDatabase.mock.calls).toEqual([
-      [DATABASE_IDENTITY, oldToken],
       [DATABASE_IDENTITY, freshToken],
     ]);
     expect(ownerReducer).toHaveBeenCalledWith({
@@ -315,9 +398,9 @@ describe('PTR production admin token and transport', () => {
       authEpoch: 7,
     });
     expect(assertCanStartWrite).toHaveBeenCalledOnce();
-    expect(requestToken.mock.invocationCallOrder[1])
-      .toBeLessThan(connectDatabase.mock.invocationCallOrder[1]!);
-    expect(connectDatabase.mock.invocationCallOrder[1])
+    expect(requestToken.mock.invocationCallOrder[0])
+      .toBeLessThan(connectDatabase.mock.invocationCallOrder[0]!);
+    expect(connectDatabase.mock.invocationCallOrder[0])
       .toBeLessThan(ownerReducer.mock.invocationCallOrder[0]!);
     await transport.close();
   });
@@ -326,7 +409,6 @@ describe('PTR production admin token and transport', () => {
     const disconnect = vi.fn();
     const ownerReducer = vi.fn();
     const requestToken = vi.fn()
-      .mockResolvedValueOnce(adminJwt({ ptr_owner_auth_epoch: 1 }))
       .mockResolvedValueOnce(adminJwt({ ptr_owner_fid: '987654321' }));
     const connectDatabase = vi.fn(async () => ({
       isDisconnectRequested: false,
@@ -334,7 +416,7 @@ describe('PTR production admin token and transport', () => {
       procedures: { adminGetGreaterRealmStatusV1: vi.fn(async () => ({})) },
       reducers: { adminProvisionPtrOwnerV1: ownerReducer },
     }) as never);
-    const transport = createPtrProductionTransport({
+    const transport = createPtrOwnerProvisionTransport({
       databaseIdentity: DATABASE_IDENTITY,
       adminSecret: ADMIN_SECRET,
       disallowedDatabaseIdentities: [G002_IDENTITY],
@@ -342,18 +424,17 @@ describe('PTR production admin token and transport', () => {
       connectDatabase,
       nowSeconds: () => NOW_SECONDS,
     });
-    await transport.inspect();
     await expect(transport.provisionOwner(BigInt(OWNER_FID), vi.fn()))
       .rejects.toThrow('PTR_PRODUCTION_ADMIN_TOKEN_CLAIMS_INVALID');
-    expect(connectDatabase).toHaveBeenCalledTimes(1);
+    expect(connectDatabase).not.toHaveBeenCalled();
     expect(ownerReducer).not.toHaveBeenCalled();
-    expect(disconnect).toHaveBeenCalledOnce();
+    expect(disconnect).not.toHaveBeenCalled();
     await transport.close();
   });
 
   it('disconnects the fresh owner session when the reducer ABI is absent', async () => {
     const disconnect = vi.fn();
-    const transport = createPtrProductionTransport({
+    const transport = createPtrOwnerProvisionTransport({
       databaseIdentity: DATABASE_IDENTITY,
       adminSecret: ADMIN_SECRET,
       disallowedDatabaseIdentities: [G002_IDENTITY],
@@ -392,14 +473,15 @@ describe('PTR production admin token and transport', () => {
       ),
     };
     connection.reducers.adminProvisionPtrOwnerV1 = ownerProvision;
-    const requestToken = vi.fn(async () => ADMIN_JWT);
+    const requestToken = vi.fn(async () => atlasJwt());
     const connectDatabase = vi.fn(async () => connection as never);
-    const transport = createPtrProductionTransport({
+    const transport = createPtrAtlasImportTransport({
       databaseIdentity: DATABASE_IDENTITY,
       adminSecret: ADMIN_SECRET,
       disallowedDatabaseIdentities: [G002_IDENTITY],
       requestToken,
       connectDatabase,
+      nowSeconds: () => NOW_SECONDS,
     });
     if (false) {
       // @ts-expect-error Owner provisioning is exclusively fresh-token bound.
@@ -434,14 +516,14 @@ describe('PTR production admin token and transport', () => {
     expect(PTR_PRODUCTION_ALLOWED_REDUCERS).not.toContain(
       'admin_suspend_ptr_owner_v1',
     );
-    expect(connectDatabase).toHaveBeenCalledWith(DATABASE_IDENTITY, ADMIN_JWT);
+    expect(connectDatabase).toHaveBeenCalledWith(DATABASE_IDENTITY, atlasJwt());
     await transport.close();
     expect(disconnect).toHaveBeenCalledOnce();
   });
 
   it('rejects realm collisions before token issuance and disconnects after ambiguity', async () => {
-    const requestToken = vi.fn(async () => ADMIN_JWT);
-    expect(() => createPtrProductionTransport({
+    const requestToken = vi.fn(async () => atlasJwt());
+    expect(() => createPtrAtlasImportTransport({
       databaseIdentity: G002_IDENTITY,
       adminSecret: ADMIN_SECRET,
       disallowedDatabaseIdentities: [G002_IDENTITY],
@@ -451,11 +533,12 @@ describe('PTR production admin token and transport', () => {
     expect(requestToken).not.toHaveBeenCalled();
 
     const disconnect = vi.fn();
-    const transport = createPtrProductionTransport({
+    const transport = createPtrAtlasImportTransport({
       databaseIdentity: DATABASE_IDENTITY,
       adminSecret: ADMIN_SECRET,
       disallowedDatabaseIdentities: [G002_IDENTITY],
       requestToken,
+      nowSeconds: () => NOW_SECONDS,
       connectDatabase: vi.fn(async () => ({
         isDisconnectRequested: false,
         disconnect,
@@ -495,13 +578,14 @@ describe('PTR production admin token and transport', () => {
       databaseIdentity: originalIdentity,
       adminSecret: ADMIN_SECRET,
       disallowedDatabaseIdentities: [G002_IDENTITY],
-      requestToken: vi.fn(async () => ADMIN_JWT),
+      requestToken: vi.fn(async () => atlasJwt()),
       connectDatabase,
+      nowSeconds: () => NOW_SECONDS,
     };
-    const transport = createPtrProductionTransport(transportInput);
+    const transport = createPtrAtlasImportTransport(transportInput);
     transportInput.databaseIdentity = mutatedIdentity;
     await expect(transport.inspect()).resolves.toEqual({ status: 'ok' });
-    expect(connectDatabase).toHaveBeenCalledWith(originalIdentity, ADMIN_JWT);
+    expect(connectDatabase).toHaveBeenCalledWith(originalIdentity, atlasJwt());
     await transport.close();
   });
 

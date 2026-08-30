@@ -4,7 +4,9 @@ import {
 } from '../spacetimedb/ptr/generated-bindings';
 import {
   PtrProductionAdminTokenError,
+  readPtrAtlasImportAuthority,
   readPtrOwnerProvisionAuthority,
+  requestPtrAtlasProductionAdminToken,
   requestPtrProductionAdminToken,
   type PtrOwnerProvisionAuthority,
 } from './ptr-production-admin-token';
@@ -138,7 +140,7 @@ function validTarget(
     && !disallowedDatabaseIdentities.includes(databaseIdentity);
 }
 
-export type PtrProductionTransport = Readonly<{
+export type PtrAtlasImportTransport = Readonly<{
   inspect: () => Promise<unknown>;
   prepareSubmission: () => Promise<void>;
   submit: (
@@ -146,26 +148,22 @@ export type PtrProductionTransport = Readonly<{
     arguments_: Readonly<Record<string, unknown>>,
     assertCanStartWrite: () => void,
   ) => Promise<void>;
-  provisionOwner: (
-    expectedOwnerFid: bigint,
-    assertCanStartWrite: () => void,
-  ) => Promise<PtrOwnerProvisionAuthority>;
   close: () => Promise<void>;
 }>;
 
-/** A single serialized administrator session with no retry after mutation. */
-export function createPtrProductionTransport(input: Readonly<{
+/** A serialized ownerless atlas-import session with no owner mutation method. */
+export function createPtrAtlasImportTransport(input: Readonly<{
   databaseIdentity: string;
   adminSecret: string;
   disallowedDatabaseIdentities: readonly string[];
   requestToken?: RequestToken;
   connectDatabase?: typeof connectPtrProduction;
   nowSeconds?: () => number;
-}>): PtrProductionTransport {
+}>): PtrAtlasImportTransport {
   const databaseIdentity = input.databaseIdentity;
   const suppliedAdminSecret = input.adminSecret;
   const disallowedDatabaseIdentities = input.disallowedDatabaseIdentities;
-  const requestToken = input.requestToken ?? requestPtrProductionAdminToken;
+  const requestToken = input.requestToken ?? requestPtrAtlasProductionAdminToken;
   const connectDatabase = input.connectDatabase ?? connectPtrProduction;
   const nowSeconds = input.nowSeconds ?? (() => Math.floor(Date.now() / 1_000));
   if (
@@ -201,6 +199,7 @@ export function createPtrProductionTransport(input: Readonly<{
     let token = '';
     try {
       token = await requestToken(adminSecret);
+      readPtrAtlasImportAuthority(token, nowSeconds());
       connection = await connectDatabase(databaseIdentity, token);
       return connection as DynamicConnection;
     } finally {
@@ -219,6 +218,7 @@ export function createPtrProductionTransport(input: Readonly<{
         return await operationTimeout(procedure({}));
       } catch (error) {
         invalidate();
+        if (error instanceof PtrProductionAdminTokenError) throw error;
         if (error instanceof PtrProductionTransportError) throw error;
         return fail('PTR_PRODUCTION_INSPECTION_UNAVAILABLE');
       }
@@ -228,6 +228,7 @@ export function createPtrProductionTransport(input: Readonly<{
         void await requireConnection();
       } catch (error) {
         invalidate();
+        if (error instanceof PtrProductionAdminTokenError) throw error;
         if (error instanceof PtrProductionTransportError) throw error;
         return fail('PTR_PRODUCTION_CONNECTION_UNAVAILABLE');
       }
@@ -251,19 +252,74 @@ export function createPtrProductionTransport(input: Readonly<{
         return fail('PTR_PRODUCTION_OPERATION_OUTCOME_AMBIGUOUS');
       }
     }),
+    close: async () => {
+      const prior = serialized;
+      await prior;
+      if (closed) return;
+      closed = true;
+      adminSecret = '';
+      invalidate();
+    },
+  });
+}
+
+export type PtrOwnerProvisionTransport = Readonly<{
+  provisionOwner: (
+    expectedOwnerFid: bigint,
+    assertCanStartWrite: () => void,
+  ) => Promise<PtrOwnerProvisionAuthority>;
+  close: () => Promise<void>;
+}>;
+
+/** A one-purpose owner-bearing session with no atlas inspection/import method. */
+export function createPtrOwnerProvisionTransport(input: Readonly<{
+  databaseIdentity: string;
+  adminSecret: string;
+  disallowedDatabaseIdentities: readonly string[];
+  requestToken?: RequestToken;
+  connectDatabase?: typeof connectPtrProduction;
+  nowSeconds?: () => number;
+}>): PtrOwnerProvisionTransport {
+  const databaseIdentity = input.databaseIdentity;
+  const suppliedAdminSecret = input.adminSecret;
+  const disallowedDatabaseIdentities = input.disallowedDatabaseIdentities;
+  const requestToken = input.requestToken ?? requestPtrProductionAdminToken;
+  const connectDatabase = input.connectDatabase ?? connectPtrProduction;
+  const nowSeconds = input.nowSeconds ?? (() => Math.floor(Date.now() / 1_000));
+  if (
+    !Array.isArray(disallowedDatabaseIdentities)
+    || !validTarget(databaseIdentity, disallowedDatabaseIdentities)
+    || !validSecret(suppliedAdminSecret)
+  ) fail('PTR_PRODUCTION_TARGET_INVALID');
+  let adminSecret = suppliedAdminSecret;
+  let active: PtrDbConnection | undefined;
+  let closed = false;
+  let serialized = Promise.resolve();
+  const runSerialized = async <T>(operation: () => Promise<T>): Promise<T> => {
+    const prior = serialized;
+    let release!: () => void;
+    serialized = new Promise<void>(resolve => { release = resolve; });
+    await prior;
+    try {
+      if (closed) fail('PTR_PRODUCTION_SESSION_CLOSED');
+      return await operation();
+    } finally {
+      release();
+    }
+  };
+  const invalidate = (): void => {
+    disconnect(active);
+    active = undefined;
+  };
+  return Object.freeze({
     provisionOwner: (expectedOwnerFid, assertCanStartWrite) => runSerialized(async () => {
       invalidate();
       let token = '';
-      let active: DynamicConnection;
       let authority: PtrOwnerProvisionAuthority;
       try {
         token = await requestToken(adminSecret);
-        authority = readPtrOwnerProvisionAuthority(
-          token,
-          expectedOwnerFid,
-          nowSeconds(),
-        );
-        active = await connectDatabase(databaseIdentity, token) as DynamicConnection;
+        authority = readPtrOwnerProvisionAuthority(token, expectedOwnerFid, nowSeconds());
+        active = await connectDatabase(databaseIdentity, token);
       } catch (error) {
         invalidate();
         if (error instanceof PtrProductionAdminTokenError) throw error;
@@ -271,9 +327,9 @@ export function createPtrProductionTransport(input: Readonly<{
       } finally {
         token = '';
       }
-      const method = active.reducers.adminProvisionPtrOwnerV1;
+      const method = (active as DynamicConnection).reducers.adminProvisionPtrOwnerV1;
       if (typeof method !== 'function') {
-        disconnect(active);
+        invalidate();
         return fail('PTR_PRODUCTION_REDUCER_ABI_MISSING');
       }
       try {
@@ -282,17 +338,14 @@ export function createPtrProductionTransport(input: Readonly<{
           ownerFid: authority.ownerFid,
           authEpoch: authority.ownerAuthEpoch,
         })));
-        connection = active;
         return authority;
       } catch {
-        disconnect(active);
-        connection = undefined;
+        invalidate();
         return fail('PTR_PRODUCTION_OPERATION_OUTCOME_AMBIGUOUS');
       }
     }),
     close: async () => {
-      const prior = serialized;
-      await prior;
+      await serialized;
       if (closed) return;
       closed = true;
       adminSecret = '';

@@ -100,8 +100,6 @@ function readyStatus(owner = false) {
     activationMutationsCompiled: false,
     ownerProvisioned: owner,
     ownerEnabled: owner,
-    ownerFid: owner ? OWNER_FID : undefined,
-    ownerAuthEpoch: owner ? OWNER_AUTH_EPOCH : undefined,
   } as const;
 }
 
@@ -179,12 +177,21 @@ describe('PTR owner provisioning and sealed evidence', () => {
     const first = derivePtrOwnerOpaqueProofDigest({
       launchEntropy: LAUNCH_ENTROPY,
       ownerFid: OWNER_FID,
+      ownerAuthEpoch: OWNER_AUTH_EPOCH,
       databaseIdentity: DATABASE_IDENTITY,
       moduleSourceCommit: SOURCE_COMMIT,
     });
     const second = derivePtrOwnerOpaqueProofDigest({
       launchEntropy: `${LAUNCH_ENTROPY}x`,
       ownerFid: OWNER_FID,
+      ownerAuthEpoch: OWNER_AUTH_EPOCH,
+      databaseIdentity: DATABASE_IDENTITY,
+      moduleSourceCommit: SOURCE_COMMIT,
+    });
+    const nextEpoch = derivePtrOwnerOpaqueProofDigest({
+      launchEntropy: LAUNCH_ENTROPY,
+      ownerFid: OWNER_FID,
+      ownerAuthEpoch: OWNER_AUTH_EPOCH + 1,
       databaseIdentity: DATABASE_IDENTITY,
       moduleSourceCommit: SOURCE_COMMIT,
     });
@@ -192,6 +199,7 @@ describe('PTR owner provisioning and sealed evidence', () => {
     expect(first).not.toBe('0'.repeat(64));
     expect(first).not.toBe(createHash('sha256').update(OWNER_FID_STRING).digest('hex'));
     expect(second).not.toBe(first);
+    expect(nextEpoch).not.toBe(first);
     expect(first).not.toContain(OWNER_FID_STRING);
     expect(bigintToString).not.toHaveBeenCalled();
     bigintToString.mockRestore();
@@ -200,13 +208,6 @@ describe('PTR owner provisioning and sealed evidence', () => {
   it('provisions only after an exact finalized empty atlas and emits no owner FID', async () => {
     const statuses = [readyStatus(false), readyStatus(true)];
     const transport = {
-      inspect: vi.fn(async () => statuses.shift()),
-      prepareSubmission: vi.fn(async () => undefined),
-      submit: vi.fn(async (
-        _reducer: string,
-        _arguments: Readonly<Record<string, unknown>>,
-        _assertCanStartWrite: () => void,
-      ) => undefined),
       provisionOwner: vi.fn(async () => ({
         ownerFid: OWNER_FID,
         ownerAuthEpoch: OWNER_AUTH_EPOCH,
@@ -215,6 +216,7 @@ describe('PTR owner provisioning and sealed evidence', () => {
     const ownerOpaqueProofDigest = derivePtrOwnerOpaqueProofDigest({
       launchEntropy: LAUNCH_ENTROPY,
       ownerFid: OWNER_FID,
+      ownerAuthEpoch: OWNER_AUTH_EPOCH,
       databaseIdentity: DATABASE_IDENTITY,
       moduleSourceCommit: SOURCE_COMMIT,
     });
@@ -223,7 +225,9 @@ describe('PTR owner provisioning and sealed evidence', () => {
       moduleSourceCommit: SOURCE_COMMIT,
       moduleSha256: MODULE_SHA256,
       importReceipt: importReceipt(),
+      inspectStatus: vi.fn(async () => statuses.shift()),
       ownerFid: OWNER_FID,
+      ownerAuthEpoch: OWNER_AUTH_EPOCH,
       ownerOpaqueProofDigest,
       transport,
       assertCanStartWrite: vi.fn(),
@@ -233,11 +237,11 @@ describe('PTR owner provisioning and sealed evidence', () => {
       OWNER_FID,
       expect.any(Function),
     );
-    expect(transport.submit).not.toHaveBeenCalled();
     expect(Object.keys(result.ownerProvisionReceipt)).toEqual([
       'schemaVersion', 'profile', 'outcome', 'databaseIdentity',
       'databaseAlias', 'moduleIdentity', 'moduleSourceCommit',
-      'ownerOpaqueProofDigest', 'ownerAnchorRows', 'ownerProvisioned',
+      'atlasImportReceiptDigest', 'ownerOpaqueProofDigest',
+      'ownerAnchorRows', 'ownerProvisioned',
       'ownerEnabled', 'zeroPopulationBoundary', 'provisionReceiptDigest',
     ]);
     expect(Object.keys(result.sealedLiveReceipt)).toEqual([
@@ -252,7 +256,8 @@ describe('PTR owner provisioning and sealed evidence', () => {
       'realmProfiles', 'termsAcceptances', 'markAccounts', 'resourceAccounts',
       'claimRows', 'occupancyRows', 'activationRows', 'publicAtlasRows',
       'publicRegionRows', 'workerSystemRows', 'atlasImportMutationsCompiled',
-      'atlasActivationMutationsCompiled', 'ownerOpaqueProofDigest',
+      'atlasActivationMutationsCompiled', 'ownerProvisionReceiptDigest',
+      'ownerOpaqueProofDigest',
       'ownerAnchorRows', 'ownerProvisioned', 'ownerEnabled', 'admissionsOpen',
       'accessRequestsOpen', 'admissionSurfacePresent',
       'accessRequestSurfacePresent', 'playerPresentationEnabled',
@@ -267,6 +272,10 @@ describe('PTR owner provisioning and sealed evidence', () => {
     } = result.ownerProvisionReceipt;
     expect(provisionReceiptDigest)
       .toBe(ptrOwnerProvisionReceiptDigest(ownerReceiptWithoutDigest));
+    expect(result.ownerProvisionReceipt.atlasImportReceiptDigest)
+      .toBe(importReceipt().importReceiptDigest);
+    expect(result.sealedLiveReceipt.ownerProvisionReceiptDigest)
+      .toBe(provisionReceiptDigest);
     expect(result.sealedLiveReceiptDigest)
       .toBe(ptrSealedLiveReceiptDigest(result.sealedLiveReceipt));
   });
@@ -282,17 +291,38 @@ describe('PTR owner provisioning and sealed evidence', () => {
         moduleSourceCommit: SOURCE_COMMIT,
         moduleSha256: MODULE_SHA256,
         importReceipt: importReceipt(),
+        inspectStatus: vi.fn(async () => status),
         ownerFid: OWNER_FID,
+        ownerAuthEpoch: OWNER_AUTH_EPOCH,
         ownerOpaqueProofDigest: '7'.repeat(64),
         transport: {
-          inspect: vi.fn(async () => status),
-          submit,
           provisionOwner: vi.fn(),
         },
         assertCanStartWrite: vi.fn(),
       })).rejects.toThrow();
       expect(submit).not.toHaveBeenCalled();
     }
+  });
+
+  it('rejects a transport authority epoch that differs from the validated live epoch', async () => {
+    const statuses = [readyStatus(false), readyStatus(true)];
+    await expect(executePtrOwnerProvision({
+      databaseIdentity: DATABASE_IDENTITY,
+      moduleSourceCommit: SOURCE_COMMIT,
+      moduleSha256: MODULE_SHA256,
+      importReceipt: importReceipt(),
+      inspectStatus: vi.fn(async () => statuses.shift()),
+      ownerFid: OWNER_FID,
+      ownerAuthEpoch: OWNER_AUTH_EPOCH,
+      ownerOpaqueProofDigest: '7'.repeat(64),
+      transport: {
+        provisionOwner: vi.fn(async () => ({
+          ownerFid: OWNER_FID,
+          ownerAuthEpoch: OWNER_AUTH_EPOCH + 1,
+        })),
+      },
+      assertCanStartWrite: vi.fn(),
+    })).rejects.toThrow('PTR_PRODUCTION_OWNER_POSTCONDITION_FAILED');
   });
 
   it('accepts fresh publish status only when atlas and owner are absent', () => {
@@ -346,8 +376,6 @@ describe('PTR owner provisioning and sealed evidence', () => {
       ...fresh,
       ownerProvisioned: true,
       ownerEnabled: true,
-      ownerFid: OWNER_FID,
-      ownerAuthEpoch: OWNER_AUTH_EPOCH,
     })).toThrow();
     for (const inconsistent of [
       { expectedComponentCount: 1 },

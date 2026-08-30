@@ -17,7 +17,11 @@ import {
   executeGenesis002ProductionImportOperator,
 } from '../scripts/genesis002-production-import-operator';
 import {
+  createSealedRealmsPublicationPossiblySubmittedMarker,
+  digestSealedRealmsPublicationPossiblySubmittedMarker,
   genesis002PublishConfirmationDigest,
+  Genesis002ProductionPublisherError,
+  type SealedRealmsPublicationPossiblySubmittedMarker,
 } from '../scripts/genesis002-production-publisher.mjs';
 import {
   executeGenesis002ProductionPublisherCli,
@@ -381,7 +385,353 @@ function importDependencies(transport: ReturnType<typeof transitionTransport>) {
 }
 
 describe('Genesis 002 top-level production operators', () => {
-  it('runs the publish CLI through private source-build and exact fresh-status seams', async () => {
+  it('awaits the exact marker callback before releasing the publish implementation', async () => {
+    const built = sourceArtifact();
+    const events: string[] = [];
+    let delivered: SealedRealmsPublicationPossiblySubmittedMarker | undefined;
+    const confirmationDigest = genesis002PublishConfirmationDigest({
+      sourceCommit: MODULE_COMMIT,
+      moduleSha256: MODULE_SHA256,
+      moduleTreeId: MODULE_TREE_ID,
+      dependencyClosureDigest: DEPENDENCY_DIGEST,
+      spacetimeExecutableSha256: SPACETIME_DIGEST,
+      spacetimeCliConfigSha256: CLI_CONFIG_DIGEST,
+    });
+    const receipt = {
+      schemaVersion: 1,
+      profile: 'warpkeep-genesis-002-production-publish-v1',
+      databaseIdentity: DATABASE_IDENTITY,
+      database: 'warpkeep-genesis-002',
+      moduleIdentity: 'warpkeep-genesis-002-sealed-v1',
+      sourceCommit: MODULE_COMMIT,
+      moduleSha256: MODULE_SHA256,
+      moduleTreeId: MODULE_TREE_ID,
+      dependencyClosureDigest: DEPENDENCY_DIGEST,
+      spacetimeExecutableSha256: SPACETIME_DIGEST,
+      spacetimeCliConfigSha256: CLI_CONFIG_DIGEST,
+      deleteData: 'never',
+      outcome: 'verified',
+      freshStatusDigest: 'a'.repeat(64),
+      playerAccessEnabled: false,
+      admissionMutationsEnabled: false,
+      atlasImportMutationsEnabled: true,
+      atlasActivationMutationsEnabled: false,
+      playerPresentationEnabled: false,
+      publishReceiptDigest: 'b'.repeat(64),
+    } as const;
+    const executePublish = vi.fn(async () => {
+      events.push('publish');
+      expect(delivered).toBeDefined();
+      return receipt;
+    });
+
+    await executeGenesis002ProductionPublisherCli({
+      arguments: ['publish', `--confirm=${confirmationDigest}`],
+      environment: {
+        WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT: '/private/cache',
+        WARPKEEP_SPACETIME_CLI_CONFIG_PATH: '/private/source-cli.toml',
+      },
+      attemptNonce: 'c'.repeat(64),
+      markedAt: '2026-08-30T12:34:56.789Z',
+      onPossiblySubmittedMarker: async marker => {
+        events.push('marker-start');
+        await Promise.resolve();
+        delivered = marker;
+        events.push('marker-finish');
+      },
+      attestProtectedMain: () => MODULE_COMMIT,
+      dependencies: {
+        prepareArtifact: vi.fn(() => built),
+        executePublish,
+      },
+    });
+
+    expect(events).toEqual(['marker-start', 'marker-finish', 'publish']);
+    expect(delivered).toMatchObject({
+      lane: 'g002',
+      confirmationDigest,
+      attemptNonce: 'c'.repeat(64),
+      markedAt: '2026-08-30T12:34:56.789Z',
+    });
+    expect(digestSealedRealmsPublicationPossiblySubmittedMarker(delivered))
+      .toMatch(/^[0-9a-f]{64}$/u);
+  });
+
+  it('never calls publish when the marker callback rejects', async () => {
+    const built = sourceArtifact();
+    const confirmationDigest = genesis002PublishConfirmationDigest({
+      sourceCommit: MODULE_COMMIT,
+      moduleSha256: MODULE_SHA256,
+      moduleTreeId: MODULE_TREE_ID,
+      dependencyClosureDigest: DEPENDENCY_DIGEST,
+      spacetimeExecutableSha256: SPACETIME_DIGEST,
+      spacetimeCliConfigSha256: CLI_CONFIG_DIGEST,
+    });
+    const executePublish = vi.fn();
+    await expect(executeGenesis002ProductionPublisherCli({
+      arguments: ['publish', `--confirm=${confirmationDigest}`],
+      environment: {
+        WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT: '/private/cache',
+        WARPKEEP_SPACETIME_CLI_CONFIG_PATH: '/private/source-cli.toml',
+      },
+      attemptNonce: 'c'.repeat(64),
+      markedAt: '2026-08-30T12:34:56.789Z',
+      onPossiblySubmittedMarker: vi.fn(async () => {
+        throw new Error('private callback failure');
+      }),
+      attestProtectedMain: () => MODULE_COMMIT,
+      dependencies: { prepareArtifact: vi.fn(() => built), executePublish },
+    })).rejects.toThrow('GENESIS_002_PUBLISH_MARKER_CALLBACK_FAILED');
+    expect(executePublish).not.toHaveBeenCalled();
+  });
+
+  it('canonicalizes a supplied G002 marker once before callback and ambiguity', async () => {
+    const built = sourceArtifact();
+    const confirmationDigest = genesis002PublishConfirmationDigest({
+      sourceCommit: MODULE_COMMIT,
+      moduleSha256: MODULE_SHA256,
+      moduleTreeId: MODULE_TREE_ID,
+      dependencyClosureDigest: DEPENDENCY_DIGEST,
+      spacetimeExecutableSha256: SPACETIME_DIGEST,
+      spacetimeCliConfigSha256: CLI_CONFIG_DIGEST,
+    });
+    const canonicalMarker = createSealedRealmsPublicationPossiblySubmittedMarker({
+      lane: 'g002',
+      sourceCommit: MODULE_COMMIT,
+      databaseUri: 'https://maincloud.spacetimedb.com',
+      alias: 'warpkeep-genesis-002',
+      moduleIdentity: 'warpkeep-genesis-002-sealed-v1',
+      release: '0.4.0',
+      artifactDigest: MODULE_SHA256,
+      toolchainDigest:
+        '5a96f59a5fad7197609355c15bd227abbc75b0067529cf99cb2e2e3297b89678',
+      publishPlanDigest:
+        'd23fdd471e60592581a8d3bb892d6e433fb94404f063a9812f2df02054ef87df',
+      confirmationDigest,
+      attemptNonce: 'c'.repeat(64),
+      markedAt: '2026-08-30T12:34:56.789Z',
+    });
+    let laneReads = 0;
+    const suppliedMarker = new Proxy({ ...canonicalMarker }, {
+      get(target, key, receiver) {
+        if (key === 'lane') {
+          laneReads += 1;
+          return laneReads === 1 ? 'g002' : 'ptr';
+        }
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    const events: string[] = [];
+    let delivered: SealedRealmsPublicationPossiblySubmittedMarker | undefined;
+    let failure: unknown;
+    try {
+      await executeGenesis002ProductionPublisherCli({
+        arguments: ['publish', `--confirm=${confirmationDigest}`],
+        environment: {
+          WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT: '/private/cache',
+          WARPKEEP_SPACETIME_CLI_CONFIG_PATH: '/private/source-cli.toml',
+        },
+        possiblySubmittedMarker: suppliedMarker as never,
+        onPossiblySubmittedMarker: async marker => {
+          events.push('callback');
+          delivered = marker;
+        },
+        attestProtectedMain: () => MODULE_COMMIT,
+        dependencies: {
+          prepareArtifact: vi.fn(() => built),
+          executePublish: vi.fn(async () => {
+            events.push('publish');
+            throw new Error('post-submission failure');
+          }),
+        },
+      });
+    } catch (error) {
+      failure = error;
+    }
+    expect(events).toEqual(['callback', 'publish']);
+    expect(laneReads).toBe(0);
+    expect(delivered).not.toBe(suppliedMarker);
+    expect(Object.isFrozen(delivered)).toBe(true);
+    expect(delivered).toEqual(canonicalMarker);
+    expect(failure).toMatchObject({
+      code: 'GENESIS_002_PUBLISH_OUTCOME_AMBIGUOUS_MANUAL_RECONCILIATION_REQUIRED',
+      publishAttempted: true,
+    });
+    expect((failure as { possiblySubmittedMarker?: unknown }).possiblySubmittedMarker)
+      .toBe(delivered);
+  });
+
+  it('rejects a mutable supplied G002 nonce before callback or publish', async () => {
+    const built = sourceArtifact();
+    const confirmationDigest = genesis002PublishConfirmationDigest({
+      sourceCommit: MODULE_COMMIT,
+      moduleSha256: MODULE_SHA256,
+      moduleTreeId: MODULE_TREE_ID,
+      dependencyClosureDigest: DEPENDENCY_DIGEST,
+      spacetimeExecutableSha256: SPACETIME_DIGEST,
+      spacetimeCliConfigSha256: CLI_CONFIG_DIGEST,
+    });
+    const canonicalMarker = createSealedRealmsPublicationPossiblySubmittedMarker({
+      lane: 'g002',
+      sourceCommit: MODULE_COMMIT,
+      databaseUri: 'https://maincloud.spacetimedb.com',
+      alias: 'warpkeep-genesis-002',
+      moduleIdentity: 'warpkeep-genesis-002-sealed-v1',
+      release: '0.4.0',
+      artifactDigest: MODULE_SHA256,
+      toolchainDigest:
+        '5a96f59a5fad7197609355c15bd227abbc75b0067529cf99cb2e2e3297b89678',
+      publishPlanDigest:
+        'd23fdd471e60592581a8d3bb892d6e433fb94404f063a9812f2df02054ef87df',
+      confirmationDigest,
+      attemptNonce: 'c'.repeat(64),
+      markedAt: '2026-08-30T12:34:56.789Z',
+    });
+    const callerNonce = ['c'.repeat(64)];
+    const onPossiblySubmittedMarker = vi.fn(async marker => {
+      (marker.attemptNonce as unknown as string[])[0] = '0'.repeat(64);
+    });
+    const executePublish = vi.fn(async () => {
+      throw new Error('publish must not be reached');
+    });
+
+    await expect(executeGenesis002ProductionPublisherCli({
+      arguments: ['publish', `--confirm=${confirmationDigest}`],
+      environment: {
+        WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT: '/private/cache',
+        WARPKEEP_SPACETIME_CLI_CONFIG_PATH: '/private/source-cli.toml',
+      },
+      possiblySubmittedMarker: {
+        ...canonicalMarker,
+        attemptNonce: callerNonce,
+      } as never,
+      onPossiblySubmittedMarker,
+      attestProtectedMain: () => MODULE_COMMIT,
+      dependencies: {
+        prepareArtifact: vi.fn(() => built),
+        executePublish,
+      },
+    })).rejects.toThrow('GENESIS_002_PUBLISH_MARKER_INPUT_INVALID');
+    expect(onPossiblySubmittedMarker).not.toHaveBeenCalled();
+    expect(executePublish).not.toHaveBeenCalled();
+    expect(callerNonce).toEqual(['c'.repeat(64)]);
+  });
+
+  it.each(['generic', 'cleanup'] as const)(
+    'retains the exact G002 marker across a post-submission %s failure',
+    async failureMode => {
+      const built = sourceArtifact();
+      if (failureMode === 'cleanup') {
+        built.cleanup.mockImplementation(() => { throw new Error('cleanup'); });
+      }
+      const confirmationDigest = genesis002PublishConfirmationDigest({
+        sourceCommit: MODULE_COMMIT,
+        moduleSha256: MODULE_SHA256,
+        moduleTreeId: MODULE_TREE_ID,
+        dependencyClosureDigest: DEPENDENCY_DIGEST,
+        spacetimeExecutableSha256: SPACETIME_DIGEST,
+        spacetimeCliConfigSha256: CLI_CONFIG_DIGEST,
+      });
+      let marker: SealedRealmsPublicationPossiblySubmittedMarker | undefined;
+      const operation = executeGenesis002ProductionPublisherCli({
+        arguments: ['publish', `--confirm=${confirmationDigest}`],
+        environment: {
+          WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT: '/private/cache',
+          WARPKEEP_SPACETIME_CLI_CONFIG_PATH: '/private/source-cli.toml',
+        },
+        attemptNonce: 'c'.repeat(64),
+        markedAt: '2026-08-30T12:34:56.789Z',
+        onPossiblySubmittedMarker: async value => { marker = value; },
+        attestProtectedMain: () => MODULE_COMMIT,
+        dependencies: {
+          prepareArtifact: vi.fn(() => built),
+          executePublish: vi.fn(async () => {
+            if (failureMode === 'generic') throw new Error('generic');
+            const error = new Genesis002ProductionPublisherError(
+              'GENESIS_002_PUBLISH_OUTCOME_AMBIGUOUS_MANUAL_RECONCILIATION_REQUIRED',
+            );
+            Object.defineProperty(error, 'publishAttempted', { value: true });
+            throw error;
+          }),
+        },
+      });
+      await expect(operation).rejects.toMatchObject({
+        code: 'GENESIS_002_PUBLISH_OUTCOME_AMBIGUOUS_MANUAL_RECONCILIATION_REQUIRED',
+        publishAttempted: true,
+        possiblySubmittedMarker: marker,
+      });
+      expect(marker).toBeDefined();
+    },
+  );
+
+  it('retains the exact G002 marker when cleanup alone fails after submission', async () => {
+    const built = sourceArtifact();
+    built.cleanup.mockImplementation(() => { throw new Error('cleanup'); });
+    const confirmationDigest = genesis002PublishConfirmationDigest({
+      sourceCommit: MODULE_COMMIT,
+      moduleSha256: MODULE_SHA256,
+      moduleTreeId: MODULE_TREE_ID,
+      dependencyClosureDigest: DEPENDENCY_DIGEST,
+      spacetimeExecutableSha256: SPACETIME_DIGEST,
+      spacetimeCliConfigSha256: CLI_CONFIG_DIGEST,
+    });
+    let marker: SealedRealmsPublicationPossiblySubmittedMarker | undefined;
+    const operation = executeGenesis002ProductionPublisherCli({
+      arguments: ['publish', `--confirm=${confirmationDigest}`],
+      environment: {
+        WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT: '/private/cache',
+        WARPKEEP_SPACETIME_CLI_CONFIG_PATH: '/private/source-cli.toml',
+      },
+      attemptNonce: 'c'.repeat(64),
+      markedAt: '2026-08-30T12:34:56.789Z',
+      onPossiblySubmittedMarker: async value => { marker = value; },
+      attestProtectedMain: () => MODULE_COMMIT,
+      dependencies: {
+        prepareArtifact: vi.fn(() => built),
+        executePublish: vi.fn(async () => ({
+          schemaVersion: 1,
+          profile: 'warpkeep-genesis-002-production-publish-v1',
+          databaseIdentity: DATABASE_IDENTITY,
+          database: 'warpkeep-genesis-002',
+          moduleIdentity: 'warpkeep-genesis-002-sealed-v1',
+          sourceCommit: MODULE_COMMIT,
+          moduleSha256: MODULE_SHA256,
+          moduleTreeId: MODULE_TREE_ID,
+          dependencyClosureDigest: DEPENDENCY_DIGEST,
+          spacetimeExecutableSha256: SPACETIME_DIGEST,
+          spacetimeCliConfigSha256: CLI_CONFIG_DIGEST,
+          deleteData: 'never',
+          outcome: 'verified',
+          freshStatusDigest: 'a'.repeat(64),
+          playerAccessEnabled: false,
+          admissionMutationsEnabled: false,
+          atlasImportMutationsEnabled: true,
+          atlasActivationMutationsEnabled: false,
+          playerPresentationEnabled: false,
+          publishReceiptDigest: 'b'.repeat(64),
+        } as const)),
+      },
+    });
+    await expect(operation).rejects.toMatchObject({
+      code: 'GENESIS_002_PUBLISH_CLEANUP_FAILED_MANUAL_RECONCILIATION_REQUIRED',
+      publishAttempted: true,
+      possiblySubmittedMarker: marker,
+    });
+    expect(marker).toBeDefined();
+  });
+
+  it('keeps the G002 publication CLI free of bridge and admin-token authority', () => {
+    const source = readFileSync(
+      resolve(repositoryRoot, 'scripts/genesis002-production-publisher-cli.ts'),
+      'utf8',
+    );
+    expect(source).not.toContain('genesis002-production-transport');
+    expect(source).not.toContain('takeGenesis002ProductionAdminSecret');
+    expect(source).not.toContain('WARPKEEP_ADMIN_TOKEN_SECRET');
+    expect(source).not.toContain('AUTH_BRIDGE');
+  });
+
+  it('runs the publish CLI through private source-build and CLI-only publication seams', async () => {
     const built = sourceArtifact();
     const environment: NodeJS.ProcessEnv = {
       WKGR_PRODUCTION_DEPENDENCY_CACHE_ROOT: '/private/cache',
@@ -389,22 +739,6 @@ describe('Genesis 002 top-level production operators', () => {
       WARPKEEP_ADMIN_TOKEN_SECRET: ADMIN_SECRET,
       HOME: '/private/home',
     };
-    const createTransport = vi.fn(input => {
-      expect(input).toEqual({
-        databaseIdentity: DATABASE_IDENTITY,
-        adminSecret: ADMIN_SECRET,
-      });
-      return {
-        inspect: vi.fn(async () => ({ atlas: 'absent' })),
-        inspectRealm: vi.fn(async () => ({ realm: 'sealed-empty' })),
-        submit: vi.fn(),
-        close: vi.fn(async () => undefined),
-      };
-    });
-    const verifyFreshStatus = vi.fn(() => ({
-      profile: 'warpkeep-genesis-002-fresh-publish-v1',
-      zeroPopulationBoundary: true,
-    }));
     const publishReceipt = Object.freeze({
       schemaVersion: 1 as const,
       profile: 'warpkeep-genesis-002-production-publish-v1' as const,
@@ -431,8 +765,6 @@ describe('Genesis 002 top-level production operators', () => {
       expect(input.artifactPath).toBe('/dev/fd/3');
       expect(input.artifactDescriptor).toBe(3);
       expect(input.childEnvironment).toEqual({ PATH: '/usr/bin:/bin' });
-      const fresh = await input.postflight(DATABASE_IDENTITY);
-      expect(fresh).toMatchObject({ zeroPopulationBoundary: true });
       return publishReceipt;
     });
     const confirmationDigest = genesis002PublishConfirmationDigest({
@@ -446,6 +778,9 @@ describe('Genesis 002 top-level production operators', () => {
     const result = await executeGenesis002ProductionPublisherCli({
       arguments: ['publish', `--confirm=${confirmationDigest}`],
       environment,
+      attemptNonce: 'c'.repeat(64),
+      markedAt: '2026-08-30T12:34:56.789Z',
+      onPossiblySubmittedMarker: vi.fn(async () => undefined),
       attestProtectedMain: () => MODULE_COMMIT,
       dependencies: {
         prepareArtifact: vi.fn(input => {
@@ -461,14 +796,12 @@ describe('Genesis 002 top-level production operators', () => {
           return built;
         }),
         executePublish,
-        createTransport: createTransport as never,
-        verifyFreshStatus,
       },
     });
     expect(result).toMatchObject({
       profile: 'warpkeep-genesis-002-production-publish-v1',
       publishReceiptDigest: 'b'.repeat(64),
-      zeroPopulationPostflight: true,
+      authenticatedCliPostflight: true,
     });
     expect(Object.keys(
       result.publishReceipt as Readonly<Record<string, unknown>>,
@@ -501,7 +834,6 @@ describe('Genesis 002 top-level production operators', () => {
     );
     expect(environment).not.toHaveProperty('WARPKEEP_ADMIN_TOKEN_SECRET');
     expect(executePublish).toHaveBeenCalledTimes(1);
-    expect(verifyFreshStatus).toHaveBeenCalledTimes(1);
     expect(built.cleanup).toHaveBeenCalledTimes(1);
   });
 

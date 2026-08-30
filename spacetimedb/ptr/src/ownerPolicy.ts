@@ -29,6 +29,17 @@ const PTR_ADMIN_EXACT_CLAIM_KEYS = Object.freeze([
   'exp',
   'jti',
 ] as const);
+const PTR_ATLAS_ADMIN_EXACT_CLAIM_KEYS = Object.freeze([
+  'iss',
+  'sub',
+  'aud',
+  'token_type',
+  'roles',
+  'iat',
+  'nbf',
+  'exp',
+  'jti',
+] as const);
 
 export type WarpkeepBaseJwtClaims = Readonly<{
   issuer: string;
@@ -41,6 +52,7 @@ export type WarpkeepBaseJwtClaims = Readonly<{
 export type PtrOwnerPolicyErrorCode =
   | 'INVALID_PTR_OWNER_SESSION'
   | 'INVALID_PTR_ADMIN_SESSION'
+  | 'INVALID_PTR_ATLAS_ADMIN_SESSION'
   | 'PTR_OWNER_NOT_AUTHORIZED'
   | 'PTR_OWNER_ALREADY_PROVISIONED'
   | 'PTR_OWNER_PROVISION_INVALID'
@@ -67,6 +79,8 @@ export type PtrAdminClaims = WarpkeepBaseJwtClaims & Readonly<{
   ownerFid: bigint;
   ownerAuthEpoch: number;
 }>;
+
+export type PtrAtlasAdminClaims = WarpkeepBaseJwtClaims;
 
 export type PtrOwnerAnchorState = Readonly<{
   singletonKey: string;
@@ -97,6 +111,25 @@ function strictPtrAdminRecord(payload: unknown): JsonRecord {
       || !(PTR_ADMIN_EXACT_CLAIM_KEYS as readonly string[]).includes(key)
     ))
   ) throw new PtrOwnerPolicyError('INVALID_PTR_ADMIN_SESSION');
+  return record;
+}
+
+function strictPtrAtlasAdminRecord(payload: unknown): JsonRecord {
+  if (
+    payload === null
+    || typeof payload !== 'object'
+    || Array.isArray(payload)
+    || Object.getPrototypeOf(payload) !== Object.prototype
+  ) throw new PtrOwnerPolicyError('INVALID_PTR_ATLAS_ADMIN_SESSION');
+  const record = payload as JsonRecord;
+  const keys = Reflect.ownKeys(record);
+  if (
+    keys.length !== PTR_ATLAS_ADMIN_EXACT_CLAIM_KEYS.length
+    || keys.some(key => (
+      typeof key !== 'string'
+      || !(PTR_ATLAS_ADMIN_EXACT_CLAIM_KEYS as readonly string[]).includes(key)
+    ))
+  ) throw new PtrOwnerPolicyError('INVALID_PTR_ATLAS_ADMIN_SESSION');
   return record;
 }
 
@@ -252,6 +285,44 @@ export function readFreshPtrAdminClaims(
     });
   } catch {
     throw new PtrOwnerPolicyError('INVALID_PTR_ADMIN_SESSION');
+  }
+}
+
+/** Preserve ownerless Hermes authority for atlas import only. */
+export function readFreshPtrAtlasAdminClaims(
+  payload: unknown,
+  currentTimeMicros: bigint,
+): PtrAtlasAdminClaims {
+  try {
+    const record = strictPtrAtlasAdminRecord(payload);
+    const claims = readBaseClaims(record);
+    const issuedAt = numericDate(record, 'iat');
+    const notBefore = numericDate(record, 'nbf');
+    const expiresAt = numericDate(record, 'exp');
+    const jti = record.jti;
+    if (
+      claims.subject !== WARPKEEP_HERMES_SUBJECT
+      || claims.roles.length !== 1
+      || claims.roles[0] !== WARPKEEP_ADMIN_ROLE
+      || typeof jti !== 'string'
+      || !PTR_ADMIN_JTI.test(jti)
+      || currentTimeMicros < 0n
+      || currentTimeMicros + PTR_ADMIN_IAT_SKEW_MICROS
+        < BigInt(issuedAt) * 1_000_000n
+      || currentTimeMicros + PTR_ADMIN_IAT_SKEW_MICROS
+        < BigInt(notBefore) * 1_000_000n
+      || expiresAt <= issuedAt
+      || expiresAt <= notBefore
+      || expiresAt - issuedAt > PTR_ADMIN_MAX_SESSION_SECONDS
+      || currentTimeMicros >= BigInt(expiresAt) * 1_000_000n
+    ) throw new PtrOwnerPolicyError('INVALID_PTR_ATLAS_ADMIN_SESSION');
+    return Object.freeze({
+      ...claims,
+      audience: Object.freeze([...claims.audience]),
+      roles: Object.freeze([...claims.roles]),
+    });
+  } catch {
+    throw new PtrOwnerPolicyError('INVALID_PTR_ATLAS_ADMIN_SESSION');
   }
 }
 

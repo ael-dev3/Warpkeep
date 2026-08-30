@@ -69,6 +69,10 @@ export const adminProvisionPtrOwnerV1 = ptr.reducer(
       const admin = requirePtrAdmin(ctx);
       requirePtrOwnerProvisionBinding(admin, ownerFid, authEpoch);
       requirePtrPopulationEmpty(ctx);
+      const atlas = inspectGreaterRealmV17(sharedGreaterRealmContext(ctx));
+      if (!atlas.ready || !atlas.importsExact) {
+        throw new SenderError('PTR_OWNER_ATLAS_NOT_SEALED');
+      }
       const existing = ctx.db.ptrOwnerAnchorV1.singletonKey.find(
         PTR_OWNER_SINGLETON_KEY,
       );

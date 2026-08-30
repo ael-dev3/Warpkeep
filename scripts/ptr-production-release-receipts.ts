@@ -22,6 +22,7 @@ const OWNER_PROVISION_RECEIPT_KEYS = Object.freeze([
   'databaseAlias',
   'moduleIdentity',
   'moduleSourceCommit',
+  'atlasImportReceiptDigest',
   'ownerOpaqueProofDigest',
   'ownerAnchorRows',
   'ownerProvisioned',
@@ -68,6 +69,7 @@ const SEALED_LIVE_RECEIPT_KEYS = Object.freeze([
   'workerSystemRows',
   'atlasImportMutationsCompiled',
   'atlasActivationMutationsCompiled',
+  'ownerProvisionReceiptDigest',
   'ownerOpaqueProofDigest',
   'ownerAnchorRows',
   'ownerProvisioned',
@@ -158,6 +160,7 @@ export function takePtrProductionLaunchEntropy(
 export function derivePtrOwnerOpaqueProofDigest(input: Readonly<{
   launchEntropy: string;
   ownerFid: bigint;
+  ownerAuthEpoch: number;
   databaseIdentity: string;
   moduleSourceCommit: string;
 }>): string {
@@ -171,13 +174,18 @@ export function derivePtrOwnerOpaqueProofDigest(input: Readonly<{
     || typeof input.ownerFid !== 'bigint'
     || input.ownerFid < 1n
     || input.ownerFid > MAXIMUM_SAFE_FID
+    || !Number.isSafeInteger(input.ownerAuthEpoch)
+    || input.ownerAuthEpoch < 1
+    || input.ownerAuthEpoch > 0xffff_ffff
     || !SHA256.test(input.databaseIdentity)
     || !COMMIT.test(input.moduleSourceCommit)
   ) fail('PTR_PRODUCTION_OWNER_PROOF_INPUT_INVALID');
   const secretBytes = Buffer.from(input.launchEntropy, 'utf8');
   const ownerBytes = Buffer.alloc(8);
+  const ownerAuthEpochBytes = Buffer.alloc(4);
   try {
     ownerBytes.writeBigUInt64BE(input.ownerFid);
+    ownerAuthEpochBytes.writeUInt32BE(input.ownerAuthEpoch);
     const key = createSecretKey(secretBytes);
     return createHmac('sha256', key)
       .update('warpkeep.ptr.owner-opaque-proof.v1\n')
@@ -188,10 +196,13 @@ export function derivePtrOwnerOpaqueProofDigest(input: Readonly<{
       .update('\nmoduleIdentity\0warpkeep-ptr-owner-view-v1')
       .update('\nownerFidU64BE\0')
       .update(ownerBytes)
-      .update('\nauthEpochU32BE\0\x00\x00\x00\x01\n')
+      .update('\nauthEpochU32BE\0')
+      .update(ownerAuthEpochBytes)
+      .update('\n')
       .digest('hex');
   } finally {
     ownerBytes.fill(0);
+    ownerAuthEpochBytes.fill(0);
     secretBytes.fill(0);
   }
 }
@@ -215,6 +226,8 @@ export function ptrOwnerProvisionReceiptDigest(value: unknown): string {
     || typeof receipt.ownerOpaqueProofDigest !== 'string'
     || !SHA256.test(receipt.ownerOpaqueProofDigest)
     || /^0{64}$/u.test(receipt.ownerOpaqueProofDigest)
+    || typeof receipt.atlasImportReceiptDigest !== 'string'
+    || !SHA256.test(receipt.atlasImportReceiptDigest)
     || receipt.ownerAnchorRows !== 1
     || receipt.ownerProvisioned !== true
     || receipt.ownerEnabled !== true
@@ -268,6 +281,8 @@ export function ptrSealedLiveReceiptDigest(value: unknown): string {
     || typeof receipt.ownerOpaqueProofDigest !== 'string'
     || !SHA256.test(receipt.ownerOpaqueProofDigest)
     || /^0{64}$/u.test(receipt.ownerOpaqueProofDigest)
+    || typeof receipt.ownerProvisionReceiptDigest !== 'string'
+    || !SHA256.test(receipt.ownerProvisionReceiptDigest)
     || receipt.ownerAnchorRows !== 1
     || receipt.ownerProvisioned !== true
     || receipt.ownerEnabled !== true
@@ -386,6 +401,7 @@ export type PtrOwnerProvisionReceipt = Readonly<{
   databaseAlias: 'warpkeep-ptr';
   moduleIdentity: 'warpkeep-ptr-owner-view-v1';
   moduleSourceCommit: string;
+  atlasImportReceiptDigest: string;
   ownerOpaqueProofDigest: string;
   ownerAnchorRows: 1;
   ownerProvisioned: true;
@@ -398,21 +414,21 @@ export type PtrSealedLiveReceipt = Readonly<{
   [key: string]: unknown;
 }>;
 
-export type PtrOwnerProvisionTransport = Readonly<
-  PtrProductionImportTransport & {
-    provisionOwner: (
-      expectedOwnerFid: bigint,
-      assertCanStartWrite: () => void,
-    ) => Promise<Readonly<{ ownerFid: bigint; ownerAuthEpoch: number }>>;
-  }
->;
+export type PtrOwnerProvisionTransport = Readonly<{
+  provisionOwner: (
+    expectedOwnerFid: bigint,
+    assertCanStartWrite: () => void,
+  ) => Promise<Readonly<{ ownerFid: bigint; ownerAuthEpoch: number }>>;
+}>;
 
 export async function executePtrOwnerProvision(input: Readonly<{
   databaseIdentity: string;
   moduleSourceCommit: string;
   moduleSha256: string;
   importReceipt: PtrProductionImportReceipt;
+  inspectStatus: () => Promise<unknown>;
   ownerFid: bigint;
+  ownerAuthEpoch: number;
   ownerOpaqueProofDigest: string;
   transport: PtrOwnerProvisionTransport;
   assertCanStartWrite: () => void;
@@ -428,11 +444,14 @@ export async function executePtrOwnerProvision(input: Readonly<{
     || typeof input.ownerFid !== 'bigint'
     || input.ownerFid < 1n
     || input.ownerFid > MAXIMUM_SAFE_FID
+    || !Number.isSafeInteger(input.ownerAuthEpoch)
+    || input.ownerAuthEpoch < 1
+    || input.ownerAuthEpoch > 0xffff_ffff
     || !SHA256.test(input.ownerOpaqueProofDigest)
     || /^0{64}$/u.test(input.ownerOpaqueProofDigest)
   ) fail('PTR_PRODUCTION_OWNER_INPUT_INVALID');
   verifyImportReceipt(input.importReceipt, input);
-  const before = projectPtrProductionStatus(await input.transport.inspect());
+  const before = projectPtrProductionStatus(await input.inspectStatus());
   verifyReadyStatus(before, input.importReceipt);
   if (before.ownerProvisioned || before.ownerEnabled) {
     fail('PTR_PRODUCTION_OWNER_ALREADY_PROVISIONED');
@@ -452,7 +471,7 @@ export async function executePtrOwnerProvision(input: Readonly<{
   }
   let after: PtrProductionStatus;
   try {
-    after = projectPtrProductionStatus(await input.transport.inspect());
+    after = projectPtrProductionStatus(await input.inspectStatus());
   } catch {
     return fail(
       'PTR_PRODUCTION_OWNER_OUTCOME_AMBIGUOUS_MANUAL_RECONCILIATION_REQUIRED',
@@ -463,10 +482,9 @@ export async function executePtrOwnerProvision(input: Readonly<{
   if (
     !after.ownerProvisioned
     || !after.ownerEnabled
-    || after.ownerFid !== input.ownerFid
     || ownerAuthority === undefined
     || ownerAuthority.ownerFid !== input.ownerFid
-    || after.ownerAuthEpoch !== ownerAuthority.ownerAuthEpoch
+    || ownerAuthority.ownerAuthEpoch !== input.ownerAuthEpoch
   ) {
     return fail(
       submissionFailed
@@ -483,6 +501,7 @@ export async function executePtrOwnerProvision(input: Readonly<{
     databaseAlias: 'warpkeep-ptr' as const,
     moduleIdentity: 'warpkeep-ptr-owner-view-v1' as const,
     moduleSourceCommit: input.moduleSourceCommit,
+    atlasImportReceiptDigest: input.importReceipt.importReceiptDigest,
     ownerOpaqueProofDigest: input.ownerOpaqueProofDigest,
     ownerAnchorRows: 1 as const,
     ownerProvisioned: true as const,
@@ -533,6 +552,7 @@ export async function executePtrOwnerProvision(input: Readonly<{
     workerSystemRows: 0,
     atlasImportMutationsCompiled: true,
     atlasActivationMutationsCompiled: false,
+    ownerProvisionReceiptDigest: ownerProvisionReceipt.provisionReceiptDigest,
     ownerOpaqueProofDigest: input.ownerOpaqueProofDigest,
     ownerAnchorRows: 1,
     ownerProvisioned: true,

@@ -4,13 +4,18 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   GENESIS_002_PRODUCTION_TARGET,
+  createSealedRealmsPublicationMarkerReconciliation,
+  createSealedRealmsPublicationPossiblySubmittedMarker,
+  digestSealedRealmsPublicationPossiblySubmittedMarker,
   executeGenesis002Publish,
   genesis002PublishConfirmationDigest,
   genesis002PublishArguments,
   genesis002PublishReceiptDigest,
   parseGenesis002DatabaseList,
+  parseSealedRealmsPublicationPossiblySubmittedMarker,
   verifyGenesis002GeneratedAbi,
 } from '../scripts/genesis002-production-publisher.mjs';
+import { genesis002ProductionImportReceiptDigest } from '../scripts/genesis002-activation-receipts.mjs';
 
 const SOURCE_COMMIT = 'a'.repeat(40);
 const MODULE_SHA256 = 'b'.repeat(64);
@@ -29,6 +34,21 @@ const publishIdentity = {
   spacetimeExecutableSha256: EXECUTABLE_SHA256,
   spacetimeCliConfigSha256: CLI_CONFIG_SHA256,
 };
+
+const g002MarkerInput = Object.freeze({
+  lane: 'g002' as const,
+  sourceCommit: SOURCE_COMMIT,
+  databaseUri: 'https://maincloud.spacetimedb.com' as const,
+  alias: 'warpkeep-genesis-002' as const,
+  moduleIdentity: 'warpkeep-genesis-002-sealed-v1' as const,
+  release: '0.4.0' as const,
+  artifactDigest: MODULE_SHA256,
+  toolchainDigest: DEPENDENCY_SHA256,
+  publishPlanDigest: '1'.repeat(64),
+  confirmationDigest: '2'.repeat(64),
+  attemptNonce: '3'.repeat(64),
+  markedAt: '2026-08-30T12:34:56.789Z',
+});
 
 function publishReceipt() {
   return {
@@ -55,6 +75,278 @@ function publishReceipt() {
 }
 
 describe('Genesis 002 production publisher', () => {
+  it('creates, parses, and digests the exact canonical possibly-submitted marker', () => {
+    const marker = createSealedRealmsPublicationPossiblySubmittedMarker(
+      g002MarkerInput,
+    );
+    const canonical = `${JSON.stringify(marker)}\n`;
+
+    expect(Object.keys(marker)).toEqual([
+      'schemaVersion', 'profile', 'lane', 'sourceCommit', 'databaseUri',
+      'alias', 'moduleIdentity', 'release', 'artifactDigest',
+      'toolchainDigest', 'publishPlanDigest', 'confirmationDigest',
+      'attemptNonce', 'markedAt', 'submissionState',
+    ]);
+    expect(marker).toEqual({
+      schemaVersion: 1,
+      profile: 'warpkeep-sealed-realms-publication-possibly-submitted-v1',
+      ...g002MarkerInput,
+      submissionState: 'possibly-submitted',
+    });
+    expect(Buffer.byteLength(canonical, 'utf8')).toBeLessThanOrEqual(4_096);
+    expect(parseSealedRealmsPublicationPossiblySubmittedMarker(canonical))
+      .toEqual(marker);
+    expect(parseSealedRealmsPublicationPossiblySubmittedMarker(
+      new TextEncoder().encode(canonical),
+    )).toEqual(marker);
+    expect(digestSealedRealmsPublicationPossiblySubmittedMarker(marker))
+      .toMatch(/^[0-9a-f]{64}$/u);
+    expect(digestSealedRealmsPublicationPossiblySubmittedMarker(canonical))
+      .toBe(digestSealedRealmsPublicationPossiblySubmittedMarker(marker));
+  });
+
+  it('rejects every noncanonical, reordered, private, accessor, and cross-lane marker', () => {
+    const marker = createSealedRealmsPublicationPossiblySubmittedMarker(
+      g002MarkerInput,
+    );
+    const cases: unknown[] = [
+      { ...marker, lane: 'ptr' },
+      { ...marker, databaseUri: 'https://maincloud.spacetimedb.com/' },
+      { ...marker, sourceCommit: SOURCE_COMMIT.toUpperCase() },
+      { ...marker, markedAt: '2026-08-30T12:34:56Z' },
+      { ...marker, submissionState: 'submitted' },
+      { ...marker, ownerFid: '12345' },
+      Object.fromEntries(Object.entries(marker).reverse()),
+      Object.assign(Object.create({ inherited: true }), marker),
+    ];
+    const accessor = { ...marker } as Record<string, unknown>;
+    Object.defineProperty(accessor, 'attemptNonce', {
+      enumerable: true,
+      get: () => '3'.repeat(64),
+    });
+    cases.push(accessor);
+    const symbolic = { ...marker };
+    Object.defineProperty(symbolic, Symbol('private'), { value: true });
+    cases.push(symbolic);
+
+    for (const value of cases) {
+      expect(
+        () => digestSealedRealmsPublicationPossiblySubmittedMarker(value),
+      ).toThrow('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+    }
+    expect(() => parseSealedRealmsPublicationPossiblySubmittedMarker(
+      JSON.stringify(marker),
+    )).toThrow('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+    expect(() => parseSealedRealmsPublicationPossiblySubmittedMarker(
+      `${JSON.stringify(marker)}\n `,
+    )).toThrow('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+    expect(() => parseSealedRealmsPublicationPossiblySubmittedMarker(
+      `${' '.repeat(4_096)}${JSON.stringify(marker)}\n`,
+    )).toThrow('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+    expect(() => createSealedRealmsPublicationPossiblySubmittedMarker({
+      ...g002MarkerInput,
+      lane: 'ptr',
+      alias: 'warpkeep-ptr',
+      moduleIdentity: 'warpkeep-ptr-owner-view-v1',
+      release: '0.4.0-ptr.1',
+    })).toThrow('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+
+    const decode = vi.fn(() => '');
+    vi.stubGlobal('TextDecoder', class {
+      decode = decode;
+    });
+    try {
+      expect(() => parseSealedRealmsPublicationPossiblySubmittedMarker(
+        new Uint8Array(4_097),
+      )).toThrow('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+      expect(decode).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each([
+    ['sourceCommit', SOURCE_COMMIT],
+    ['artifactDigest', MODULE_SHA256],
+    ['toolchainDigest', DEPENDENCY_SHA256],
+    ['publishPlanDigest', '1'.repeat(64)],
+    ['confirmationDigest', '2'.repeat(64)],
+    ['attemptNonce', '3'.repeat(64)],
+  ] as const)(
+    'rejects non-primitive %s values across marker create, parse, and digest',
+    (field, valid) => {
+      const marker = createSealedRealmsPublicationPossiblySubmittedMarker(
+        g002MarkerInput,
+      );
+      for (const invalid of [[valid], new String(valid)]) {
+        expect(() => createSealedRealmsPublicationPossiblySubmittedMarker({
+          ...g002MarkerInput,
+          [field]: invalid,
+        } as never)).toThrow('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+        expect(() => digestSealedRealmsPublicationPossiblySubmittedMarker({
+          ...marker,
+          [field]: invalid,
+        })).toThrow('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+      }
+      expect(() => parseSealedRealmsPublicationPossiblySubmittedMarker(
+        `${JSON.stringify({ ...marker, [field]: [valid] })}\n`,
+      )).toThrow('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+    },
+  );
+
+  it('constructs only exact adopted or no-effect marker reconciliation evidence', () => {
+    const marker = createSealedRealmsPublicationPossiblySubmittedMarker(
+      g002MarkerInput,
+    );
+    const markerDigest = digestSealedRealmsPublicationPossiblySubmittedMarker(
+      marker,
+    );
+    expect(createSealedRealmsPublicationMarkerReconciliation({
+      marker,
+      markerDigest,
+      outcome: 'adopted',
+      databaseIdentity: G002_IDENTITY,
+      publicationReceiptDigest: '5'.repeat(64),
+      observationDigest: '4'.repeat(64),
+      observedAt: '2026-08-30T12:35:56.789Z',
+    })).toEqual({
+      schemaVersion: 1,
+      profile: 'warpkeep-sealed-realms-publication-marker-reconciliation-v1',
+      lane: 'g002',
+      markerDigest,
+      outcome: 'adopted',
+      databaseIdentity: G002_IDENTITY,
+      publicationReceiptDigest: '5'.repeat(64),
+      observationDigest: '4'.repeat(64),
+      observedAt: '2026-08-30T12:35:56.789Z',
+    });
+    expect(createSealedRealmsPublicationMarkerReconciliation({
+      marker,
+      markerDigest,
+      outcome: 'no-effect',
+      databaseIdentity: null,
+      publicationReceiptDigest: null,
+      observationDigest: '4'.repeat(64),
+      observedAt: '2026-08-30T12:35:56.789Z',
+    })).toMatchObject({ outcome: 'no-effect', databaseIdentity: null });
+    for (const invalid of [
+      { outcome: 'adopted', databaseIdentity: null, publicationReceiptDigest: '5'.repeat(64) },
+      { outcome: 'adopted', databaseIdentity: G002_IDENTITY, publicationReceiptDigest: null },
+      { outcome: 'no-effect', databaseIdentity: G002_IDENTITY, publicationReceiptDigest: null },
+      { outcome: 'no-effect', databaseIdentity: null, publicationReceiptDigest: '5'.repeat(64) },
+    ] as const) {
+      expect(() => createSealedRealmsPublicationMarkerReconciliation({
+        marker,
+        markerDigest,
+        ...invalid,
+        observationDigest: '4'.repeat(64),
+        observedAt: '2026-08-30T12:35:56.789Z',
+      })).toThrow('SEALED_REALMS_PUBLICATION_RECONCILIATION_INVALID');
+    }
+  });
+
+  it.each([
+    ['publicationReceiptDigest', '5'.repeat(64)],
+    ['observationDigest', '4'.repeat(64)],
+  ] as const)(
+    'rejects non-primitive reconciliation %s values',
+    (field, valid) => {
+      const marker = createSealedRealmsPublicationPossiblySubmittedMarker(
+        g002MarkerInput,
+      );
+      const markerDigest = digestSealedRealmsPublicationPossiblySubmittedMarker(
+        marker,
+      );
+      for (const invalid of [[valid], new String(valid)]) {
+        expect(() => createSealedRealmsPublicationMarkerReconciliation({
+          marker,
+          markerDigest,
+          outcome: 'adopted',
+          databaseIdentity: G002_IDENTITY,
+          publicationReceiptDigest: '5'.repeat(64),
+          observationDigest: '4'.repeat(64),
+          observedAt: '2026-08-30T12:35:56.789Z',
+          [field]: invalid,
+        } as never)).toThrow(
+          'SEALED_REALMS_PUBLICATION_RECONCILIATION_INVALID',
+        );
+      }
+    },
+  );
+
+  it('snapshots stateful marker and reconciliation inputs exactly once', () => {
+    const marker = createSealedRealmsPublicationPossiblySubmittedMarker(
+      g002MarkerInput,
+    );
+    let laneReads = 0;
+    const statefulMarker = new Proxy({ ...marker }, {
+      get(target, key, receiver) {
+        if (key === 'lane') {
+          laneReads += 1;
+          return laneReads <= 2 ? 'g002' : 'ptr';
+        }
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    expect(digestSealedRealmsPublicationPossiblySubmittedMarker(
+      statefulMarker,
+    )).toBe(digestSealedRealmsPublicationPossiblySubmittedMarker(marker));
+    expect(laneReads).toBe(0);
+
+    const markerDigest = digestSealedRealmsPublicationPossiblySubmittedMarker(
+      marker,
+    );
+    const reconciliation = {
+      marker,
+      markerDigest,
+      outcome: 'adopted',
+      databaseIdentity: G002_IDENTITY,
+      publicationReceiptDigest: '5'.repeat(64),
+      observationDigest: '4'.repeat(64),
+      observedAt: '2026-08-30T12:35:56.789Z',
+    } as Record<string, unknown>;
+    let outcomeReads = 0;
+    Object.defineProperty(reconciliation, 'outcome', {
+      enumerable: true,
+      get: () => (++outcomeReads < 3 ? 'adopted' : 'no-effect'),
+    });
+    expect(() => createSealedRealmsPublicationMarkerReconciliation(
+      reconciliation as never,
+    )).toThrow('SEALED_REALMS_PUBLICATION_RECONCILIATION_INVALID');
+    expect(outcomeReads).toBe(0);
+    expect(() => createSealedRealmsPublicationMarkerReconciliation({
+      marker,
+      markerDigest,
+      outcome: 'no-effect',
+      databaseIdentity: null,
+      publicationReceiptDigest: null,
+      observationDigest: '4'.repeat(64),
+      observedAt: '2026-08-30T12:35:56.789Z',
+      unexpected: true,
+    } as never)).toThrow('SEALED_REALMS_PUBLICATION_RECONCILIATION_INVALID');
+  });
+
+  it('never accepts a marker or reconciliation as a publication or import receipt', () => {
+    const marker = createSealedRealmsPublicationPossiblySubmittedMarker(
+      g002MarkerInput,
+    );
+    const reconciliation = createSealedRealmsPublicationMarkerReconciliation({
+      marker,
+      markerDigest: digestSealedRealmsPublicationPossiblySubmittedMarker(marker),
+      outcome: 'no-effect',
+      databaseIdentity: null,
+      publicationReceiptDigest: null,
+      observationDigest: '4'.repeat(64),
+      observedAt: '2026-08-30T12:35:56.789Z',
+    });
+    for (const value of [marker, reconciliation]) {
+      expect(() => genesis002PublishReceiptDigest(value))
+        .toThrow('GENESIS_002_PUBLISH_RECEIPT_INVALID');
+      expect(() => genesis002ProductionImportReceiptDigest(value))
+        .toThrow('GENESIS_002_PRODUCTION_IMPORT_RECEIPT_INVALID');
+    }
+  });
+
   it('pins the exact domain-separated publish receipt digest', () => {
     expect(genesis002PublishReceiptDigest(publishReceipt())).toBe(
       '013a3b8824135f0f1a782a915f9ce8d7908c19d39510423fc1f817e137a06bb1',
@@ -144,7 +436,7 @@ describe('Genesis 002 production publisher', () => {
     )).toThrow('GENESIS_002_DATABASE_LIST_INVALID');
   });
 
-  it('publishes only from an absent alias with exact confirmation and identity-bound status postflight', async () => {
+  it('publishes only from an absent alias with exact confirmation and CLI identity postflight', async () => {
     const confirmationDigest = genesis002PublishConfirmationDigest(publishIdentity);
     const spawn = vi.fn()
       .mockReturnValueOnce({ status: 0, stdout: '', stderr: '' })
@@ -154,12 +446,6 @@ describe('Genesis 002 production publisher', () => {
         stdout: `warpkeep-genesis-002 | ${G002_IDENTITY}\n`,
         stderr: '',
       });
-    const postflight = vi.fn(async () => ({
-      realmId: 'GENESIS_002',
-      launchState: 'sealed',
-      atlasPresent: false,
-      zeroPopulationBoundary: true,
-    }));
     await expect(executeGenesis002Publish({
       sourceCommit: SOURCE_COMMIT,
       moduleSha256: MODULE_SHA256,
@@ -173,7 +459,6 @@ describe('Genesis 002 production publisher', () => {
       spacetimeCliConfigPath: '/private/spacetime-cli.toml',
       spacetimeExecutable: '/private/spacetime',
       spawn,
-      postflight,
       assertSourceAndArtifact: vi.fn(),
       childEnvironment: { PATH: '/usr/bin:/bin' },
     })).resolves.toMatchObject({
@@ -189,8 +474,7 @@ describe('Genesis 002 production publisher', () => {
       spacetimeCliConfigSha256: CLI_CONFIG_SHA256,
       deleteData: 'never',
       outcome: 'verified',
-      publishReceiptDigest:
-        '11f932cacf0ef115fb6b67aec1df558456edb580bcec1da2fdbb185a664eec4d',
+      publishReceiptDigest: expect.stringMatching(/^[0-9a-f]{64}$/u),
     });
     expect(spawn).toHaveBeenCalledTimes(3);
     expect(spawn.mock.calls[1]?.[1]).toEqual(
@@ -200,7 +484,6 @@ describe('Genesis 002 production publisher', () => {
         '/private/spacetime-cli.toml',
       ),
     );
-    expect(postflight).toHaveBeenCalledWith(G002_IDENTITY);
     for (const call of spawn.mock.calls) {
       expect(call[2]?.env).toEqual({ PATH: '/usr/bin:/bin' });
     }
@@ -225,7 +508,6 @@ describe('Genesis 002 production publisher', () => {
       spacetimeCliConfigPath: '/private/spacetime-cli.toml',
       spacetimeExecutable: '/private/spacetime',
       spawn,
-      postflight: vi.fn(),
       assertSourceAndArtifact: vi.fn(),
       childEnvironment: {},
     })).rejects.toThrow('GENESIS_002_PUBLISH_CONFIRMATION_INVALID');
@@ -245,7 +527,6 @@ describe('Genesis 002 production publisher', () => {
       spacetimeCliConfigPath: '/private/spacetime-cli.toml',
       spacetimeExecutable: '/private/spacetime',
       spawn,
-      postflight: vi.fn(),
       assertSourceAndArtifact: vi.fn(),
       childEnvironment: {},
     })).rejects.toThrow('GENESIS_002_DATABASE_ALREADY_EXISTS');
@@ -271,7 +552,6 @@ describe('Genesis 002 production publisher', () => {
       spacetimeCliConfigPath: '/private/spacetime-cli.toml',
       spacetimeExecutable: '/private/spacetime',
       spawn,
-      postflight: vi.fn(),
       assertSourceAndArtifact: vi.fn(),
       childEnvironment: {},
     })).rejects.toMatchObject({
@@ -282,7 +562,7 @@ describe('Genesis 002 production publisher', () => {
     expect(spawn.mock.calls.filter(call => call[1]?.includes('publish'))).toHaveLength(1);
   });
 
-  it('accepts a lost publish response only after exact fresh identity status reconciliation', async () => {
+  it('returns only ambiguity after a lost publish response even when the alias appears', async () => {
     const confirmationDigest = genesis002PublishConfirmationDigest(publishIdentity);
     const spawn = vi.fn()
       .mockReturnValueOnce({ status: 0, stdout: '', stderr: '' })
@@ -305,12 +585,11 @@ describe('Genesis 002 production publisher', () => {
       spacetimeCliConfigPath: '/private/spacetime-cli.toml',
       spacetimeExecutable: '/private/spacetime',
       spawn,
-      postflight: vi.fn(async () => ({ zeroPopulationBoundary: true })),
       assertSourceAndArtifact: vi.fn(),
       childEnvironment: {},
-    })).resolves.toMatchObject({
-      outcome: 'verified-after-submission-error',
-      databaseIdentity: G002_IDENTITY,
+    })).rejects.toMatchObject({
+      code: 'GENESIS_002_PUBLISH_OUTCOME_AMBIGUOUS_MANUAL_RECONCILIATION_REQUIRED',
+      publishAttempted: true,
     });
     expect(spawn.mock.calls.filter(call => call[1]?.includes('publish'))).toHaveLength(1);
   });

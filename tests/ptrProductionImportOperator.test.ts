@@ -34,11 +34,7 @@ const RELEASE_HEADER_SHA256 = createHash('sha256')
 const VERIFICATION_DIGEST = '4'.repeat(64);
 const PUBLIC_RELEASE_ID = `GRR-${'A'.repeat(26)}`;
 const PUBLIC_APPROVAL_ID = `GRA-${'B'.repeat(26)}`;
-const OWNER_FID_STRING = '123456789';
-const OWNER_FID = BigInt(OWNER_FID_STRING);
-const OWNER_AUTH_EPOCH = 7;
 const ADMIN_SECRET = 's'.repeat(48);
-const LAUNCH_ENTROPY = 'p'.repeat(48);
 
 function publishReceipt(overrides: Readonly<Record<string, unknown>> = {}) {
   const receipt = {
@@ -85,8 +81,6 @@ function environment(): NodeJS.ProcessEnv {
     WARPKEEP_GREATER_REALM_WORKSPACE: '/private/atlas-workspace',
     WARPKEEP_PTR_RECEIPT_DIRECTORY: '/private/ptr-receipts',
     WARPKEEP_ADMIN_TOKEN_SECRET: ADMIN_SECRET,
-    WARPKEEP_PTR_LAUNCH_ENTROPY: LAUNCH_ENTROPY,
-    WARPKEEP_PLAYER_CANARY_OWNER_FID: OWNER_FID_STRING,
     HOME: '/untrusted/home',
   };
 }
@@ -138,7 +132,7 @@ function builtArtifact() {
   };
 }
 
-function status(owner = false, present = true) {
+function status(present = true) {
   return {
     present,
     atlasId: present ? 'PTR_GREATER_REALM' : undefined,
@@ -185,10 +179,8 @@ function status(owner = false, present = true) {
     ready: present,
     importMutationsCompiled: true,
     activationMutationsCompiled: false,
-    ownerProvisioned: owner,
-    ownerEnabled: owner,
-    ownerFid: owner ? OWNER_FID : undefined,
-    ownerAuthEpoch: owner ? OWNER_AUTH_EPOCH : undefined,
+    ownerProvisioned: false,
+    ownerEnabled: false,
   } as const;
 }
 
@@ -235,10 +227,6 @@ function baseDependencies(initialStatus: unknown) {
     inspect: vi.fn(async () => initialStatus),
     prepareSubmission: vi.fn(async () => undefined),
     submit: vi.fn(async () => undefined),
-    provisionOwner: vi.fn(async () => ({
-      ownerFid: OWNER_FID,
-      ownerAuthEpoch: OWNER_AUTH_EPOCH,
-    })),
     close,
   };
   return {
@@ -263,11 +251,10 @@ function baseDependencies(initialStatus: unknown) {
   };
 }
 
-describe('PTR production import/provision operator', () => {
-  it('inspects exact protected state without mutation entropy or private owner disclosure', async () => {
-    const fixture = baseDependencies(status(false, false));
+describe('PTR production atlas-import operator', () => {
+  it('inspects exact protected state without owner authority or private disclosure', async () => {
+    const fixture = baseDependencies(status(false));
     const env = environment();
-    delete env.WARPKEEP_PTR_LAUNCH_ENTROPY;
     const result = await executePtrProductionImportOperator({
       arguments: argumentsFor('inspect'),
       environment: env,
@@ -282,7 +269,7 @@ describe('PTR production import/provision operator', () => {
       moduleIdentity: 'warpkeep-ptr-owner-view-v1',
       atlasId: 'PTR_GREATER_REALM',
       confirmationDigest: expect.stringMatching(/^[0-9a-f]{64}$/u),
-      mutationSurface: 'atlas-import-then-owner-provision-only',
+      mutationSurface: 'atlas-import-only',
       activationMutationsEnabled: false,
       admissionsOpen: false,
       accessRequestsOpen: false,
@@ -293,7 +280,6 @@ describe('PTR production import/provision operator', () => {
     expect(fixture.session.submit).not.toHaveBeenCalled();
     expect(fixture.session.close).toHaveBeenCalledOnce();
     expect(fixture.artifact.cleanup).toHaveBeenCalledOnce();
-    expect(JSON.stringify(result)).not.toContain(OWNER_FID_STRING);
     expect(JSON.stringify(result)).not.toContain(ADMIN_SECRET);
     expect(JSON.stringify(result)).not.toContain('ownerFid');
     expect(env).not.toHaveProperty('WARPKEEP_ADMIN_TOKEN_SECRET');
@@ -306,17 +292,9 @@ describe('PTR production import/provision operator', () => {
     });
   });
 
-  it('imports, writes sealed import evidence, provisions one owner, and writes exact live evidence', async () => {
-    const fixture = baseDependencies(status(false, false));
-    const statuses = [status(false), status(true)];
-    fixture.session.inspect
-      .mockImplementation(async () => statuses.shift() ?? status(false, false));
-    // The operator consumes the fresh status before import; owner provisioning
-    // then consumes exact ready-without-owner and ready-with-owner statuses.
-    fixture.session.inspect
-      .mockResolvedValueOnce(status(false, false))
-      .mockResolvedValueOnce(status(false))
-      .mockResolvedValueOnce(status(true));
+  it('imports, writes the immutable atlas receipt, and stops before owner authority', async () => {
+    const fixture = baseDependencies(status(false));
+    fixture.session.inspect.mockResolvedValueOnce(status(false));
     const receipt = importReceipt();
     fixture.dependencies.executeImport.mockImplementation(async input => {
       input.assertCanStartWrite();
@@ -340,20 +318,10 @@ describe('PTR production import/provision operator', () => {
     });
     expect(result).toMatchObject({
       ptrAtlasImportReceipt: receipt,
-      ptrOwnerProvisionReceipt: {
-        profile: 'warpkeep-ptr-owner-provision-v1',
-        ownerProvisioned: true,
-        ownerEnabled: true,
+      ptrAtlasImportReceiptEvidence: {
+        receiptFileSha256: '6'.repeat(64),
+        result: 'installed',
       },
-      ptrSealedLiveReceipt: {
-        profile: 'warpkeep-ptr-sealed-live-v1',
-        atlasState: 'ready',
-        admissionsOpen: false,
-        accessRequestsOpen: false,
-        ownerProvisioned: true,
-        ownerEnabled: true,
-      },
-      ptrSealedLiveReceiptDigest: expect.stringMatching(/^[0-9a-f]{64}$/u),
       privacySafe: true,
       activationWrites: 'none',
       publicRootWrites: 'none',
@@ -367,50 +335,35 @@ describe('PTR production import/provision operator', () => {
         transport: fixture.session,
       }),
     );
-    expect(fixture.session.provisionOwner).toHaveBeenCalledWith(
-      OWNER_FID,
-      expect.any(Function),
-    );
-    expect(fixture.session.submit).not.toHaveBeenCalledWith(
-      'admin_provision_ptr_owner_v1',
-      expect.anything(),
-      expect.any(Function),
-    );
     expect(fixture.dependencies.writeReceipt.mock.calls.map(
       ([value]) => value.kind,
-    )).toEqual(['atlas-import', 'owner-provision', 'sealed-live']);
+    )).toEqual(['atlas-import']);
     expect(fixture.session.close).toHaveBeenCalledOnce();
     expect(fixture.artifact.cleanup).toHaveBeenCalledOnce();
     const serialized = JSON.stringify(result);
-    expect(serialized).not.toContain(OWNER_FID_STRING);
     expect(serialized).not.toContain(ADMIN_SECRET);
-    expect(serialized).not.toContain(LAUNCH_ENTROPY);
     expect(serialized).not.toContain('ownerFid');
     expect(serialized).not.toContain('ownerAuthEpoch');
+    expect(serialized).not.toContain('ownerProvisionReceipt');
+    expect(serialized).not.toContain('sealedLiveReceipt');
+    expect(serialized).not.toContain('/private/ptr-receipts');
+    expect(serialized).not.toMatch(/"path"\s*:/u);
   });
 
-  it('never reports success when SIGTERM arrives during the final owner write', async () => {
-    const fixture = baseDependencies(status(false, false));
-    fixture.session.inspect
-      .mockResolvedValueOnce(status(false, false))
-      .mockResolvedValueOnce(status(false))
-      .mockResolvedValueOnce(status(true));
+  it('never reports success when SIGTERM arrives during the import write', async () => {
+    const fixture = baseDependencies(status(false));
     fixture.dependencies.executeImport.mockImplementation(async input => {
       input.assertCanStartWrite();
       return importReceipt();
     });
-    fixture.session.provisionOwner.mockImplementation(async () => {
+    fixture.dependencies.writeReceipt.mockImplementation(({ kind }) => {
       process.emit('SIGTERM');
-      return {
-        ownerFid: OWNER_FID,
-        ownerAuthEpoch: OWNER_AUTH_EPOCH,
-      };
-    });
-    fixture.dependencies.writeReceipt.mockImplementation(({ kind }) => ({
+      return ({
       path: `/private/ptr-receipts/${kind}.json`,
       receiptFileSha256: '7'.repeat(64),
       result: 'installed',
-    }));
+      });
+    });
     const sigintListeners = process.listenerCount('SIGINT');
     const sigtermListeners = process.listenerCount('SIGTERM');
     await expect(executePtrProductionImportOperator({
@@ -426,10 +379,10 @@ describe('PTR production import/provision operator', () => {
   });
 
   it('redacts unknown post-write failures and always closes/cleans/scrubs', async () => {
-    const fixture = baseDependencies(status(false, false));
+    const fixture = baseDependencies(status(false));
     fixture.dependencies.executeImport.mockImplementation(async input => {
       input.assertCanStartWrite();
-      throw new Error(`private:${ADMIN_SECRET}:${OWNER_FID_STRING}`);
+      throw new Error(`private:${ADMIN_SECRET}`);
     });
     const env = environment();
     let diagnostic = '';
@@ -447,7 +400,6 @@ describe('PTR production import/provision operator', () => {
     expect(diagnostic)
       .toBe('PTR_PRODUCTION_OPERATOR_OUTCOME_AMBIGUOUS_MANUAL_RECONCILIATION_REQUIRED');
     expect(diagnostic).not.toContain(ADMIN_SECRET);
-    expect(diagnostic).not.toContain(OWNER_FID_STRING);
     expect(fixture.session.close).toHaveBeenCalledOnce();
     expect(fixture.artifact.cleanup).toHaveBeenCalledOnce();
     expect(fixture.dependencies.writeReceipt).not.toHaveBeenCalled();
@@ -457,7 +409,7 @@ describe('PTR production import/provision operator', () => {
   });
 
   it('rejects a publish receipt bound to another database before transport', async () => {
-    const fixture = baseDependencies(status(false, false));
+    const fixture = baseDependencies(status(false));
     const wrongReceipt = publishReceipt({ databaseIdentity: '8'.repeat(64) });
     fixture.dependencies.readPublishReceipt.mockReturnValue({
       receipt: wrongReceipt,
@@ -479,7 +431,7 @@ describe('PTR production import/provision operator', () => {
   });
 
   it('marks exact-ready ownerless prior state and stable post-write failures for reconciliation', async () => {
-    const priorReady = baseDependencies(status(false));
+    const priorReady = baseDependencies(status());
     await expect(executePtrProductionImportOperator({
       arguments: argumentsFor('apply'),
       environment: environment(),
@@ -491,7 +443,7 @@ describe('PTR production import/provision operator', () => {
     });
     expect(priorReady.dependencies.executeImport).not.toHaveBeenCalled();
 
-    const stableFailure = baseDependencies(status(false, false));
+    const stableFailure = baseDependencies(status(false));
     stableFailure.dependencies.executeImport.mockImplementation(async input => {
       input.assertCanStartWrite();
       throw new PtrProductionImportError('PTR_PRODUCTION_STATUS_SHAPE_CHANGED');

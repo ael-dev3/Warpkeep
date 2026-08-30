@@ -29,6 +29,7 @@ import {
   adminClaims,
   genesis002AdminClaims,
   playerClaims,
+  ptrAtlasAdminClaims,
   ptrAdminClaims,
   ptrOwnerClaims,
   randomId,
@@ -138,6 +139,7 @@ export const FARCASTER_VERIFICATION_TIMEOUT_MILLISECONDS = 8_000
 const AUTH_EPOCH_PROBE_PATH = '/v1/admin/auth-epoch-probe'
 const CONFIG_ATTESTATION_PATH = '/v1/admin/config-attestation'
 export const PTR_ADMIN_TOKEN_PATH = '/v1/admin/ptr-token'
+export const PTR_ATLAS_ADMIN_TOKEN_PATH = '/v1/admin/ptr-atlas-token'
 export const GENESIS_002_ADMIN_TOKEN_PATH = '/v1/admin/genesis-002-token'
 export const RELEASE_ATTESTATION_PATH = '/v1/release-attestation'
 export const RELEASE_ATTESTATION_PROFILE =
@@ -497,6 +499,7 @@ function isServerOnlyAdminPath(pathname: string): boolean {
   return pathname === '/v1/admin/token'
     || pathname === GENESIS_002_ADMIN_TOKEN_PATH
     || pathname === PTR_ADMIN_TOKEN_PATH
+    || pathname === PTR_ATLAS_ADMIN_TOKEN_PATH
     || pathname === AUTH_EPOCH_PROBE_PATH
     || pathname === CONFIG_ATTESTATION_PATH
     || pathname === ADMISSION_NOTIFICATION_PATH
@@ -2977,6 +2980,41 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')
           }
           logger.event('genesis002_admin_token_issued')
+          return json({ token, tokenType: 'spacetime-access', expiresIn: ADMIN_TOKEN_TTL_SECONDS })
+        }
+
+        if (request.method === 'POST' && url.pathname === PTR_ATLAS_ADMIN_TOKEN_PATH) {
+          requireAdminNoOrigin(request)
+          if (!config.ptrEnabled || !config.ptrSpacetimeDb) {
+            throw new HttpError(503, 'ptr_atlas_admin_unavailable', 'PTR atlas administration is unavailable.')
+          }
+          if (url.search || request.url.includes('?')) {
+            throw new HttpError(400, 'ptr_atlas_admin_query_not_allowed', 'This endpoint does not accept query parameters.')
+          }
+          await enforceRateLimit(request, 'admin-token', env, dependencies.rateLimiter, logger)
+          await rejectAdminBody(request)
+          const credential = adminCredential(request)
+          if (!credential || !(await timingSafeSecretMatch(credential, config.adminTokenSecret))) {
+            logger.event('ptr_atlas_admin_token_rejected')
+            throw new HttpError(401, 'invalid_admin_credentials', 'Admin credentials are invalid.')
+          }
+          const issuedAtMilliseconds = now()
+          if (!Number.isSafeInteger(issuedAtMilliseconds) || issuedAtMilliseconds < 0) {
+            logger.event('configuration_error')
+            throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')
+          }
+          const issuedAt = Math.floor(issuedAtMilliseconds / 1_000)
+          let token: string
+          try {
+            token = await (dependencies.signer ?? signEs256Jwt)(
+              config,
+              ptrAtlasAdminClaims(config, issuedAt),
+            )
+          } catch {
+            logger.event('configuration_error')
+            throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')
+          }
+          logger.event('ptr_atlas_admin_token_issued')
           return json({ token, tokenType: 'spacetime-access', expiresIn: ADMIN_TOKEN_TTL_SECONDS })
         }
 

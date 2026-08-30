@@ -154,11 +154,13 @@ function privateDirectory(directory: string, repositoryRoot: string): string {
   return canonical;
 }
 
-/** Reads one canonical publish receipt without trusting its embedded digest. */
-export function readPrivatePtrProductionPublishReceipt(input: Readonly<{
+function readPrivatePtrProductionReceiptByDigest(input: Readonly<{
   directory: string;
   repositoryRoot: string;
   expectedReceiptDigest: string;
+  kind: 'publish' | 'atlas-import';
+  digestField: 'publishReceiptDigest' | 'importReceiptDigest';
+  errorPrefix: 'PTR_PRODUCTION_PUBLISH_RECEIPT' | 'PTR_PRODUCTION_IMPORT_RECEIPT';
 }>): Readonly<{
   receipt: Readonly<Record<string, unknown>>;
   path: string;
@@ -167,7 +169,7 @@ export function readPrivatePtrProductionPublishReceipt(input: Readonly<{
   if (
     !/^[0-9a-f]{64}$/u.test(input.expectedReceiptDigest)
     || !existsSync(input.directory)
-  ) fail('PTR_PRODUCTION_PUBLISH_RECEIPT_NOT_FOUND');
+  ) fail(`${input.errorPrefix}_NOT_FOUND`);
   const directory = privateDirectory(input.directory, input.repositoryRoot);
   const matches: Array<Readonly<{
     receipt: Readonly<Record<string, unknown>>;
@@ -175,7 +177,7 @@ export function readPrivatePtrProductionPublishReceipt(input: Readonly<{
     receiptFileSha256: string;
   }>> = [];
   for (const name of readdirSync(directory)) {
-    const file = /^ptr-publish-([0-9a-f]{64})\.json$/u.exec(name);
+    const file = new RegExp(`^ptr-${input.kind}-([0-9a-f]{64})\\.json$`, 'u').exec(name);
     if (file === null) continue;
     const path = join(directory, name);
     let descriptor: number | undefined;
@@ -194,7 +196,7 @@ export function readPrivatePtrProductionPublishReceipt(input: Readonly<{
         || before.size > MAXIMUM_RECEIPT_BYTES
         || (before.mode & 0o7777) !== FILE_MODE
         || (process.getuid !== undefined && before.uid !== process.getuid())
-      ) fail('PTR_PRODUCTION_PUBLISH_RECEIPT_INVALID');
+      ) fail(`${input.errorPrefix}_INVALID`);
       bytes = readFileSync(descriptor);
       const after = fstatSync(descriptor);
       if (
@@ -204,23 +206,23 @@ export function readPrivatePtrProductionPublishReceipt(input: Readonly<{
         || before.mtimeMs !== after.mtimeMs
         || before.ctimeMs !== after.ctimeMs
         || createHash('sha256').update(bytes).digest('hex') !== file[1]
-      ) fail('PTR_PRODUCTION_PUBLISH_RECEIPT_INVALID');
+      ) fail(`${input.errorPrefix}_INVALID`);
       let parsed: unknown;
       try { parsed = JSON.parse(bytes.toString('utf8')); } catch {
-        fail('PTR_PRODUCTION_PUBLISH_RECEIPT_INVALID');
+        fail(`${input.errorPrefix}_INVALID`);
       }
       const canonical = canonicalJson(parsed);
       if (
         canonical === null
         || typeof canonical !== 'object'
         || Array.isArray(canonical)
-      ) fail('PTR_PRODUCTION_PUBLISH_RECEIPT_INVALID');
+      ) fail(`${input.errorPrefix}_INVALID`);
       expected = Buffer.from(`${JSON.stringify(canonical, null, 2)}\n`, 'utf8');
       if (!bytes.equals(expected)) {
-        fail('PTR_PRODUCTION_PUBLISH_RECEIPT_INVALID');
+        fail(`${input.errorPrefix}_INVALID`);
       }
       const receipt = canonical as Readonly<Record<string, unknown>>;
-      if (receipt.publishReceiptDigest === input.expectedReceiptDigest) {
+      if (receipt[input.digestField] === input.expectedReceiptDigest) {
         matches.push(Object.freeze({
           receipt: Object.freeze(receipt),
           path,
@@ -233,9 +235,37 @@ export function readPrivatePtrProductionPublishReceipt(input: Readonly<{
       expected?.fill(0);
     }
   }
-  if (matches.length === 0) fail('PTR_PRODUCTION_PUBLISH_RECEIPT_NOT_FOUND');
-  if (matches.length !== 1) fail('PTR_PRODUCTION_PUBLISH_RECEIPT_AMBIGUOUS');
+  if (matches.length === 0) fail(`${input.errorPrefix}_NOT_FOUND`);
+  if (matches.length !== 1) fail(`${input.errorPrefix}_AMBIGUOUS`);
   return matches[0]!;
+}
+
+/** Reads one canonical publish receipt without trusting its embedded digest. */
+export function readPrivatePtrProductionPublishReceipt(input: Readonly<{
+  directory: string;
+  repositoryRoot: string;
+  expectedReceiptDigest: string;
+}>) {
+  return readPrivatePtrProductionReceiptByDigest({
+    ...input,
+    kind: 'publish',
+    digestField: 'publishReceiptDigest',
+    errorPrefix: 'PTR_PRODUCTION_PUBLISH_RECEIPT',
+  });
+}
+
+/** Reopens one canonical immutable atlas-import receipt by semantic digest. */
+export function readPrivatePtrProductionImportReceipt(input: Readonly<{
+  directory: string;
+  repositoryRoot: string;
+  expectedReceiptDigest: string;
+}>) {
+  return readPrivatePtrProductionReceiptByDigest({
+    ...input,
+    kind: 'atlas-import',
+    digestField: 'importReceiptDigest',
+    errorPrefix: 'PTR_PRODUCTION_IMPORT_RECEIPT',
+  });
 }
 
 function canonicalJson(value: unknown, ancestors = new Set<object>()): unknown {

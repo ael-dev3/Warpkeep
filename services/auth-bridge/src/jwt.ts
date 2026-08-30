@@ -5,6 +5,7 @@ import type {
   Genesis002AdminTokenClaims,
   AuthEpochResolverTokenClaims,
   PlayerTokenClaims,
+  PtrAtlasAdminTokenClaims,
   PtrAdminTokenClaims,
   PtrOwnerTokenClaims,
   QaSnapshotResolverTokenClaims,
@@ -61,6 +62,7 @@ export async function signEs256Jwt(
   claims:
     | PlayerTokenClaims
     | PtrOwnerTokenClaims
+    | PtrAtlasAdminTokenClaims
     | PtrAdminTokenClaims
     | AdminTokenClaims
     | AuthEpochResolverTokenClaims
@@ -216,6 +218,23 @@ export function ptrAdminClaims(
     ptr_owner_fid: ownerFid,
     ptr_owner_auth_epoch: ownerAuthEpoch,
   }
+}
+
+/** Five-minute ownerless Hermes token for importing the isolated PTR atlas. */
+export function ptrAtlasAdminClaims(
+  config: BridgeConfig,
+  nowSeconds: number,
+): PtrAtlasAdminTokenClaims {
+  const ptr = config.ptrSpacetimeDb
+  if (!config.ptrEnabled || !ptr) {
+    throw new Error('Invalid PTR atlas admin-token configuration.')
+  }
+  return hermesAdminClaims(
+    config.issuer,
+    ptr.audience,
+    nowSeconds,
+    ADMIN_TOKEN_TTL_SECONDS,
+  ) as PtrAtlasAdminTokenClaims
 }
 
 /** Fresh 15-second resolver token bound to one canonical verified FID. */

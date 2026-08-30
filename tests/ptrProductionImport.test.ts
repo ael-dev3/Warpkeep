@@ -151,8 +151,6 @@ function absentStatus() {
     activationMutationsCompiled: false,
     ownerProvisioned: false,
     ownerEnabled: false,
-    ownerFid: undefined,
-    ownerAuthEpoch: undefined,
   } as const;
 }
 
@@ -334,9 +332,11 @@ describe('PTR production atlas import core', () => {
     expect(() => projectPtrProductionStatus({
       ...absentStatus(),
       ownerProvisioned: true,
-      ownerFid: 123n,
-      ownerAuthEpoch: 7,
     })).toThrow('PTR_PRODUCTION_STATUS_INCONSISTENT');
+    expect(() => projectPtrProductionStatus({
+      ...absentStatus(),
+      ownerFid: 123n,
+    })).toThrow('PTR_PRODUCTION_STATUS_SHAPE_CHANGED');
     expect(() => projectPtrProductionStatus({
       ...absentStatus(),
       claimRows: 1n,

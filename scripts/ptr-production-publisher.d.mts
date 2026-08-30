@@ -10,6 +10,59 @@ export const PTR_PRODUCTION_TARGET: Readonly<{
 export const PTR_PRODUCTION_PUBLISH_PROFILE:
   'warpkeep-ptr-production-publish-v1';
 
+export type SealedRealmsPublicationLane = 'g002' | 'ptr';
+export type SealedRealmsPublicationPossiblySubmittedMarker = Readonly<{
+  schemaVersion: 1;
+  profile: 'warpkeep-sealed-realms-publication-possibly-submitted-v1';
+  lane: SealedRealmsPublicationLane;
+  sourceCommit: string;
+  databaseUri: 'https://maincloud.spacetimedb.com';
+  alias: 'warpkeep-genesis-002' | 'warpkeep-ptr';
+  moduleIdentity:
+    | 'warpkeep-genesis-002-sealed-v1'
+    | 'warpkeep-ptr-owner-view-v1';
+  release: '0.4.0' | '0.4.0-ptr.1';
+  artifactDigest: string;
+  toolchainDigest: string;
+  publishPlanDigest: string;
+  confirmationDigest: string;
+  attemptNonce: string;
+  markedAt: string;
+  submissionState: 'possibly-submitted';
+}>;
+export function createSealedRealmsPublicationPossiblySubmittedMarker(
+  input: Omit<SealedRealmsPublicationPossiblySubmittedMarker,
+    'schemaVersion' | 'profile' | 'submissionState'>,
+): SealedRealmsPublicationPossiblySubmittedMarker;
+export function parseSealedRealmsPublicationPossiblySubmittedMarker(
+  bytes: string | Uint8Array,
+): SealedRealmsPublicationPossiblySubmittedMarker;
+export function digestSealedRealmsPublicationPossiblySubmittedMarker(
+  value: unknown,
+): string;
+export type SealedRealmsPublicationMarkerReconciliation = Readonly<{
+  schemaVersion: 1;
+  profile: 'warpkeep-sealed-realms-publication-marker-reconciliation-v1';
+  lane: SealedRealmsPublicationLane;
+  markerDigest: string;
+  outcome: 'adopted' | 'no-effect';
+  databaseIdentity: string | null;
+  publicationReceiptDigest: string | null;
+  observationDigest: string;
+  observedAt: string;
+}>;
+export function createSealedRealmsPublicationMarkerReconciliation(
+  input: Readonly<{
+    marker: SealedRealmsPublicationPossiblySubmittedMarker;
+    markerDigest: string;
+    outcome: 'adopted' | 'no-effect';
+    databaseIdentity: string | null;
+    publicationReceiptDigest: string | null;
+    observationDigest: string;
+    observedAt: string;
+  }>,
+): SealedRealmsPublicationMarkerReconciliation;
+
 export class PtrProductionPublisherError extends Error {
   readonly code: string;
   readonly publishAttempted: boolean;
@@ -122,11 +175,6 @@ export function executePtrProductionPublish(input: Readonly<
     spacetimeExecutable: string;
     childEnvironment: Readonly<Record<string, string>>;
     assertSourceAndArtifact: () => void;
-    postflight: (databaseIdentity: string) => Promise<Readonly<{
-      freshDatabase: true;
-      admissionSurfacePresent: false;
-      accessRequestSurfacePresent: false;
-    }>>;
     spawn?: Spawn;
     disallowedDatabaseIdentities?: readonly string[];
   }

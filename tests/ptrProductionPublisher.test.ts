@@ -4,8 +4,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   PTR_PRODUCTION_TARGET,
+  createSealedRealmsPublicationMarkerReconciliation,
+  createSealedRealmsPublicationPossiblySubmittedMarker,
+  digestSealedRealmsPublicationPossiblySubmittedMarker,
   executePtrProductionPublish,
   parsePtrDatabaseList,
+  parseSealedRealmsPublicationPossiblySubmittedMarker,
   ptrProductionPublishArguments,
   ptrProductionPublishConfirmationDigest,
   verifyPtrGeneratedAbi,
@@ -31,7 +35,183 @@ const identity = {
   spacetimeCliConfigSha256: CLI_CONFIG_DIGEST,
 };
 
+const ptrMarkerInput = Object.freeze({
+  lane: 'ptr' as const,
+  sourceCommit: SOURCE_COMMIT,
+  databaseUri: 'https://maincloud.spacetimedb.com' as const,
+  alias: 'warpkeep-ptr' as const,
+  moduleIdentity: 'warpkeep-ptr-owner-view-v1' as const,
+  release: '0.4.0-ptr.1' as const,
+  artifactDigest: MODULE_SHA256,
+  toolchainDigest: DEPENDENCY_DIGEST,
+  publishPlanDigest: '6'.repeat(64),
+  confirmationDigest: '7'.repeat(64),
+  attemptNonce: '8'.repeat(64),
+  markedAt: '2026-08-30T12:34:56.789Z',
+});
+
 describe('PTR production publisher', () => {
+  it('implements the same canonical marker ABI with the exact PTR lane tuple', () => {
+    const marker = createSealedRealmsPublicationPossiblySubmittedMarker(
+      ptrMarkerInput,
+    );
+    const bytes = `${JSON.stringify(marker)}\n`;
+    expect(parseSealedRealmsPublicationPossiblySubmittedMarker(bytes))
+      .toEqual(marker);
+    expect(digestSealedRealmsPublicationPossiblySubmittedMarker(bytes))
+      .toBe(digestSealedRealmsPublicationPossiblySubmittedMarker(marker));
+    expect(marker).toMatchObject({
+      lane: 'ptr',
+      alias: 'warpkeep-ptr',
+      moduleIdentity: 'warpkeep-ptr-owner-view-v1',
+      release: '0.4.0-ptr.1',
+      submissionState: 'possibly-submitted',
+    });
+    expect(createSealedRealmsPublicationMarkerReconciliation({
+      marker,
+      markerDigest: digestSealedRealmsPublicationPossiblySubmittedMarker(marker),
+      outcome: 'adopted',
+      databaseIdentity: PTR_IDENTITY,
+      publicationReceiptDigest: '9'.repeat(64),
+      observationDigest: '0'.repeat(64),
+      observedAt: '2026-08-30T12:35:56.789Z',
+    })).toMatchObject({ lane: 'ptr', outcome: 'adopted' });
+    expect(() => createSealedRealmsPublicationPossiblySubmittedMarker({
+      ...ptrMarkerInput,
+      alias: 'warpkeep-genesis-002',
+    })).toThrow('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+    expect(() => createSealedRealmsPublicationPossiblySubmittedMarker({
+      ...ptrMarkerInput,
+      lane: 'g002',
+      alias: 'warpkeep-genesis-002',
+      moduleIdentity: 'warpkeep-genesis-002-sealed-v1',
+      release: '0.4.0',
+    })).toThrow('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+
+    const decode = vi.fn(() => '');
+    vi.stubGlobal('TextDecoder', class {
+      decode = decode;
+    });
+    try {
+      expect(() => parseSealedRealmsPublicationPossiblySubmittedMarker(
+        new Uint8Array(4_097),
+      )).toThrow('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+      expect(decode).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it.each([
+    ['sourceCommit', SOURCE_COMMIT],
+    ['artifactDigest', MODULE_SHA256],
+    ['toolchainDigest', DEPENDENCY_DIGEST],
+    ['publishPlanDigest', '6'.repeat(64)],
+    ['confirmationDigest', '7'.repeat(64)],
+    ['attemptNonce', '8'.repeat(64)],
+  ] as const)(
+    'rejects non-primitive %s values across marker create, parse, and digest',
+    (field, valid) => {
+      const marker = createSealedRealmsPublicationPossiblySubmittedMarker(
+        ptrMarkerInput,
+      );
+      for (const invalid of [[valid], new String(valid)]) {
+        expect(() => createSealedRealmsPublicationPossiblySubmittedMarker({
+          ...ptrMarkerInput,
+          [field]: invalid,
+        } as never)).toThrow('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+        expect(() => digestSealedRealmsPublicationPossiblySubmittedMarker({
+          ...marker,
+          [field]: invalid,
+        })).toThrow('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+      }
+      expect(() => parseSealedRealmsPublicationPossiblySubmittedMarker(
+        `${JSON.stringify({ ...marker, [field]: [valid] })}\n`,
+      )).toThrow('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+    },
+  );
+
+  it.each([
+    ['publicationReceiptDigest', '9'.repeat(64)],
+    ['observationDigest', '0'.repeat(64)],
+  ] as const)(
+    'rejects non-primitive reconciliation %s values',
+    (field, valid) => {
+      const marker = createSealedRealmsPublicationPossiblySubmittedMarker(
+        ptrMarkerInput,
+      );
+      const markerDigest = digestSealedRealmsPublicationPossiblySubmittedMarker(
+        marker,
+      );
+      for (const invalid of [[valid], new String(valid)]) {
+        expect(() => createSealedRealmsPublicationMarkerReconciliation({
+          marker,
+          markerDigest,
+          outcome: 'adopted',
+          databaseIdentity: PTR_IDENTITY,
+          publicationReceiptDigest: '9'.repeat(64),
+          observationDigest: '0'.repeat(64),
+          observedAt: '2026-08-30T12:35:56.789Z',
+          [field]: invalid,
+        } as never)).toThrow(
+          'SEALED_REALMS_PUBLICATION_RECONCILIATION_INVALID',
+        );
+      }
+    },
+  );
+
+  it('snapshots stateful marker and reconciliation inputs exactly once', () => {
+    const marker = createSealedRealmsPublicationPossiblySubmittedMarker(
+      ptrMarkerInput,
+    );
+    let laneReads = 0;
+    const statefulMarker = new Proxy({ ...marker }, {
+      get(target, key, receiver) {
+        if (key === 'lane') {
+          laneReads += 1;
+          return laneReads <= 2 ? 'ptr' : 'g002';
+        }
+        return Reflect.get(target, key, receiver);
+      },
+    });
+    expect(digestSealedRealmsPublicationPossiblySubmittedMarker(
+      statefulMarker,
+    )).toBe(digestSealedRealmsPublicationPossiblySubmittedMarker(marker));
+    expect(laneReads).toBe(0);
+
+    const markerDigest = digestSealedRealmsPublicationPossiblySubmittedMarker(
+      marker,
+    );
+    const reconciliation = {
+      marker,
+      markerDigest,
+      outcome: 'adopted',
+      databaseIdentity: PTR_IDENTITY,
+      publicationReceiptDigest: '9'.repeat(64),
+      observationDigest: '0'.repeat(64),
+      observedAt: '2026-08-30T12:35:56.789Z',
+    } as Record<string, unknown>;
+    let outcomeReads = 0;
+    Object.defineProperty(reconciliation, 'outcome', {
+      enumerable: true,
+      get: () => (++outcomeReads < 3 ? 'adopted' : 'no-effect'),
+    });
+    expect(() => createSealedRealmsPublicationMarkerReconciliation(
+      reconciliation as never,
+    )).toThrow('SEALED_REALMS_PUBLICATION_RECONCILIATION_INVALID');
+    expect(outcomeReads).toBe(0);
+    expect(() => createSealedRealmsPublicationMarkerReconciliation({
+      marker,
+      markerDigest,
+      outcome: 'no-effect',
+      databaseIdentity: null,
+      publicationReceiptDigest: null,
+      observationDigest: '0'.repeat(64),
+      observedAt: '2026-08-30T12:35:56.789Z',
+      unexpected: true,
+    } as never)).toThrow('SEALED_REALMS_PUBLICATION_RECONCILIATION_INVALID');
+  });
+
   it('pins one fresh-only maincloud target and passes no destructive option', () => {
     expect(PTR_PRODUCTION_TARGET).toEqual({
       uri: 'https://maincloud.spacetimedb.com',
@@ -104,11 +284,6 @@ describe('PTR production publisher', () => {
         stdout: `warpkeep-ptr | ${PTR_IDENTITY}\n`,
         stderr: '',
       });
-    const postflight = vi.fn(async () => ({
-      freshDatabase: true as const,
-      admissionSurfacePresent: false as const,
-      accessRequestSurfacePresent: false as const,
-    }));
     const result = await executePtrProductionPublish({
       ...identity,
       confirmationDigest: ptrProductionPublishConfirmationDigest(identity),
@@ -118,7 +293,6 @@ describe('PTR production publisher', () => {
       spacetimeExecutable: '/private/spacetime',
       childEnvironment: { PATH: '/usr/bin:/bin' },
       assertSourceAndArtifact: vi.fn(),
-      postflight,
       spawn,
       disallowedDatabaseIdentities: [G002_IDENTITY],
     });
@@ -137,7 +311,6 @@ describe('PTR production publisher', () => {
     });
     expect(spawn.mock.calls.filter(call => call[1]?.includes('publish')))
       .toHaveLength(1);
-    expect(postflight).toHaveBeenCalledWith(PTR_IDENTITY);
   });
 
   it('does not publish over an existing alias or retry an ambiguous outcome', async () => {
@@ -156,7 +329,6 @@ describe('PTR production publisher', () => {
       spacetimeExecutable: '/private/spacetime',
       childEnvironment: {},
       assertSourceAndArtifact: vi.fn(),
-      postflight: vi.fn(),
       spawn: existing,
       disallowedDatabaseIdentities: [G002_IDENTITY],
     })).rejects.toThrow('PTR_PRODUCTION_DATABASE_ALREADY_EXISTS');
@@ -175,7 +347,6 @@ describe('PTR production publisher', () => {
       spacetimeExecutable: '/private/spacetime',
       childEnvironment: {},
       assertSourceAndArtifact: vi.fn(),
-      postflight: vi.fn(),
       spawn: ambiguous,
       disallowedDatabaseIdentities: [G002_IDENTITY],
     })).rejects.toMatchObject({
@@ -196,7 +367,6 @@ describe('PTR production publisher', () => {
       spacetimeExecutable: '/usr/bin/false',
       childEnvironment: { PATH: '/usr/bin:/bin' },
       assertSourceAndArtifact: vi.fn(),
-      postflight: vi.fn(),
       disallowedDatabaseIdentities: [G002_IDENTITY],
     })).rejects.toThrow('PTR_PRODUCTION_SPACETIME_COMMAND_FAILED');
   });
@@ -210,11 +380,6 @@ describe('PTR production publisher', () => {
         stdout: `warpkeep-ptr | ${PTR_IDENTITY}\n`,
         stderr: '',
       });
-    const postflight = vi.fn(async () => ({
-      freshDatabase: true as const,
-      admissionSurfacePresent: false as const,
-      accessRequestSurfacePresent: false as const,
-    }));
     await expect(executePtrProductionPublish({
       ...identity,
       confirmationDigest: ptrProductionPublishConfirmationDigest(identity),
@@ -224,7 +389,6 @@ describe('PTR production publisher', () => {
       spacetimeExecutable: '/private/spacetime',
       childEnvironment: {},
       assertSourceAndArtifact: vi.fn(),
-      postflight,
       spawn,
       disallowedDatabaseIdentities: [G002_IDENTITY],
     })).rejects.toMatchObject({
@@ -233,7 +397,6 @@ describe('PTR production publisher', () => {
     });
     expect(spawn.mock.calls.filter(call => call[1]?.includes('publish')))
       .toHaveLength(1);
-    expect(postflight).toHaveBeenCalledOnce();
   });
 
   it('pins the private generated ABI and rejects widened surfaces', () => {

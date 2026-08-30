@@ -5,7 +5,11 @@ import {
   readBridgeConfig,
   type BridgeConfig,
 } from '../src/config'
-import { createAuthBridge, type AuthBridgeDependencies } from '../src/app'
+import {
+  PTR_ATLAS_ADMIN_TOKEN_PATH,
+  createAuthBridge,
+  type AuthBridgeDependencies,
+} from '../src/app'
 import type {
   AdmissionResolution,
   QuickAuthVerifier,
@@ -131,6 +135,40 @@ function routeHarness(options: {
 }
 
 describe('owner-only PTR exchange', () => {
+  it('issues a dedicated ownerless atlas token without resolving G001 owner authority', async () => {
+    expect(PTR_ATLAS_ADMIN_TOKEN_PATH).toBe('/v1/admin/ptr-atlas-token')
+    const signer = vi.fn(async (_config, claims) => {
+      expect(claims).toEqual({
+        iss: 'https://auth.warpkeep.example',
+        sub: 'service:hermes',
+        aud: [PTR_AUDIENCE],
+        token_type: 'spacetime-access',
+        roles: ['warpkeep-admin'],
+        iat: 1_800_000_000,
+        nbf: 1_800_000_000,
+        exp: 1_800_000_300,
+        jti: expect.any(String),
+      })
+      expect(claims).not.toHaveProperty('ptr_owner_fid')
+      expect(claims).not.toHaveProperty('ptr_owner_auth_epoch')
+      return 'header.payload.signature'
+    })
+    const h = routeHarness({ signer })
+    const response = await h.app.fetch(new Request(
+      `https://auth.warpkeep.example${PTR_ATLAS_ADMIN_TOKEN_PATH}`,
+      { method: 'POST', headers: { authorization: `Bearer ${ADMIN_SECRET}` } },
+    ), ptrEnv())
+
+    expect(response.status).toBe(200)
+    expect(h.resolve).not.toHaveBeenCalled()
+    expect(signer).toHaveBeenCalledOnce()
+    await expect(response.json()).resolves.toEqual({
+      token: 'header.payload.signature',
+      tokenType: 'spacetime-access',
+      expiresIn: 300,
+    })
+  })
+
   it('defaults disabled and enables only a complete isolated PTR target', () => {
     const disabled = readBridgeConfig(env())
     expect(disabled.ptrEnabled).toBe(false)

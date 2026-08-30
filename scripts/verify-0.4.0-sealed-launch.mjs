@@ -245,13 +245,20 @@ export const SEALED_LAUNCH_SOURCE_PATHS = Object.freeze({
   authBridgeJwtSource: 'services/auth-bridge/src/jwt.ts',
   authBridgeTypesSource: 'services/auth-bridge/src/types.ts',
   ptrOwnerPolicySource: 'spacetimedb/ptr/src/ownerPolicy.ts',
+  ptrAuthSource: 'spacetimedb/ptr/src/auth.ts',
+  ptrAtlasImportReducersSource: 'spacetimedb/ptr/src/atlasImportReducers.ts',
   ptrOwnerReducersSource: 'spacetimedb/ptr/src/ownerReducers.ts',
+  ptrPublisherCoreSource: 'scripts/ptr-production-publisher.mjs',
+  ptrPublisherCliSource: 'scripts/ptr-production-publisher-cli.ts',
   ptrProductionAdminTokenSource: 'scripts/ptr-production-admin-token.ts',
   ptrProductionTransportSource: 'scripts/ptr-production-transport.ts',
+  ptrProductionImportCoreSource: 'scripts/ptr-production-import-core.ts',
   ptrProductionReleaseReceiptsSource:
     'scripts/ptr-production-release-receipts.ts',
   ptrProductionImportOperatorSource:
     'scripts/ptr-production-import-operator.ts',
+  ptrProductionReceiptFileSource: 'scripts/ptr-production-receipt-file.ts',
+  ptrOwnerProvisionOperatorSource: 'scripts/ptr-owner-provision-operator.ts',
   admissionRequestSuspensionProbeSource:
     'scripts/verify-admission-request-suspension.mjs',
   realmChoicePolicySource: 'src/components/menu/realmChoicePolicy.ts',
@@ -881,9 +888,13 @@ function verifyGenesis002Policy(sources) {
     [sources.authBridgeConfigSource,
       '39036b69b0264eb712ae4ac08b29c6e2854488488e632b246fd77eac1ad50b65'],
     [sources.authBridgeJwtSource,
-      'e006b919bdf3ad6bbe8d71849ce7189d8cb9862971b42909f7f9dd7923b12232'],
+      '30776921dc8d7fa237ad73fb2cd4515662ea5f523ee9f380cdaaddf33467dbb7'],
     [sources.authBridgeSource,
-      '18a488a371a55d1b2bd6e6313df2aac89d0c7bf54dffed92ea9a4a1d16e17ce2'],
+      '75bae3f93146fe841a98a633c4646f6746a76d373b4df5769e209243f088fb11'],
+    [sources.genesis002PublisherCoreSource,
+      'c7e07f7cd5dbeb05b9fd6e237b32b9332e4a8010c59f35cd89e2e3b49aa0a863'],
+    [sources.genesis002PublisherCliSource,
+      'f1d7156f3ee9f497d36bd6a224efa5dc4f22e2f47c0398623083c3031591be96'],
     [sources.genesis002TransportSource,
       '39619dae34b4e59bf3b6f7cf4db3577d46ee18fa8e172e527c943467215b6c9a'],
   ]) {
@@ -1333,19 +1344,37 @@ function verifyPtrOwnerAuthority(sources) {
   // adds these sources to the authenticated closure and refreezes it.
   for (const [source, expectedSha256] of [
     [sources.authBridgeTypesSource,
-      '5ab611b54baaf91554824afb0e7003c7c64c849f1083092f699f048c3596d758'],
+      'f4c4c9cd3071f4d85b4ca632133c573b5b9096f954c678d212c30298091dd9a9'],
+    [sources.authBridgeJwtSource,
+      '30776921dc8d7fa237ad73fb2cd4515662ea5f523ee9f380cdaaddf33467dbb7'],
+    [sources.authBridgeSource,
+      '75bae3f93146fe841a98a633c4646f6746a76d373b4df5769e209243f088fb11'],
     [sources.ptrOwnerPolicySource,
-      '8c556c9daf4b0df8b011319c3c5abb2522863529949b911e3df037237fa36407'],
+      '8e7103cb72bee2124bd1b0aa45efcc859c89ad2b4147145115805075b9dcb1c4'],
+    [sources.ptrAuthSource,
+      '7d3fb69d9d8fadc7a6801f146e8ba6e8efb8b66d990762b28dcd7d3f50c7eb89'],
+    [sources.ptrAtlasImportReducersSource,
+      '419abecc09643dda84ba00882bb5c0fffa493bfab879fb1031fe59f221803718'],
     [sources.ptrOwnerReducersSource,
-      'b5e1a919f367bd05baec3bd48f7cbf033193970d865908569700febc7129ee62'],
+      'b19b568e2ec396d0e205358b62647f506f8188ac444d929891b255b7c577d609'],
     [sources.ptrProductionAdminTokenSource,
-      'c351e96a0a90c75b571d7241c0024f1162c078081702694ffe6e1d529690fb3d'],
+      'e8f77b46fc117a8587f31b85cee646135ec9a5ce5cd21e548b0f67a0f63ed526'],
     [sources.ptrProductionTransportSource,
-      'a1a56edce59793520ff9f295f1161ac5bbdbc9a0b7b49ee3b8f40f6aa1167995'],
+      'c99573418d72ce9f2af357da22e6425f337e38bc0a8871ca83bf7beae6b2b41e'],
+    [sources.ptrProductionImportCoreSource,
+      '6bfc9c68dd7ac14c9ee97d0c9d4187382614ccf1cb1fc8268474effeeb9d4327'],
     [sources.ptrProductionReleaseReceiptsSource,
-      '0da108596aa03ea2045070cbb8e957ceb4fd0ede7e0cfd87d0e7865d77ccda2c'],
+      '33becc3d94131f62bbdfb5a8833804003ceed44e441ca85988037f495344f385'],
     [sources.ptrProductionImportOperatorSource,
-      '878b9780a2d8406aadbaae9e61e3754e91d1b18444d05aab75580d15f1a73e7f'],
+      'cffafcde404530098542374b9ba0ac29b804339aa50d14af912c5d5120b2be53'],
+    [sources.ptrProductionReceiptFileSource,
+      '2eb39b131a5768e1d9f4b9ba69bc9c53d94bb8d249a5c30af0db0d62ee3c60ab'],
+    [sources.ptrOwnerProvisionOperatorSource,
+      '40144be3eba3fb4beb0c3b7eccdba4a2c2fd6c72a09ef158eae31413b52e9f78'],
+    [sources.ptrPublisherCoreSource,
+      '6e53d72915a70b022f8853bd809ca06bea63488ba5c54a19aa664cb9215eb0c2'],
+    [sources.ptrPublisherCliSource,
+      '8a261a4e2a23a51f80101060e168107f144a3c9811ce22450ea741b25739afa4'],
   ]) {
     if (
       typeof source !== 'string'
@@ -1777,6 +1806,510 @@ function contractTopLevelDeclarations(tokens, code) {
 
 export function verifyPtrOwnerAuthoritySemantics(sources) {
   const code = 'SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID';
+  const requiredSources = [
+    'authBridgeSource', 'authBridgeJwtSource', 'authBridgeTypesSource',
+    'ptrOwnerPolicySource', 'ptrAuthSource', 'ptrAtlasImportReducersSource',
+    'ptrOwnerReducersSource', 'ptrPublisherCoreSource', 'ptrPublisherCliSource',
+    'ptrProductionAdminTokenSource', 'ptrProductionTransportSource',
+    'ptrProductionImportCoreSource', 'ptrProductionImportOperatorSource',
+    'ptrProductionReleaseReceiptsSource', 'ptrProductionReceiptFileSource',
+    'ptrOwnerProvisionOperatorSource', 'genesis002PublisherCoreSource',
+    'genesis002PublisherCliSource',
+  ];
+  if (requiredSources.some(key => typeof sources[key] !== 'string')) fail(code);
+
+  for (const [source, token] of [
+    [sources.authBridgeTypesSource, 'export type PtrAtlasAdminTokenClaims ='],
+    [sources.authBridgeJwtSource, 'export function ptrAtlasAdminClaims('],
+    [sources.authBridgeSource,
+      "export const PTR_ATLAS_ADMIN_TOKEN_PATH = '/v1/admin/ptr-atlas-token'"],
+    [sources.ptrOwnerPolicySource, 'export type PtrAtlasAdminClaims ='],
+    [sources.ptrOwnerPolicySource, 'export function readFreshPtrAtlasAdminClaims('],
+    [sources.ptrAuthSource, 'export function requirePtrAtlasAdmin('],
+    [sources.ptrOwnerReducersSource,
+      'requirePtrOwnerProvisionBinding(admin, ownerFid, authEpoch);'],
+    [sources.ptrProductionAdminTokenSource,
+      'export function readPtrAtlasImportAuthority('],
+    [sources.ptrProductionAdminTokenSource,
+      'export function requestPtrAtlasProductionAdminToken('],
+    [sources.ptrProductionTransportSource,
+      'export function createPtrAtlasImportTransport('],
+    [sources.ptrProductionTransportSource,
+      'export function createPtrOwnerProvisionTransport('],
+    [sources.ptrProductionImportCoreSource,
+      "'warpkeep.ptr.production-import-receipt.v1\\n'"],
+    [sources.ptrProductionImportOperatorSource,
+      "mutationSurface: 'atlas-import-only'"],
+    [sources.ptrProductionReceiptFileSource,
+      'export function readPrivatePtrProductionImportReceipt('],
+    [sources.ptrProductionReleaseReceiptsSource,
+      "'atlasImportReceiptDigest',"],
+    [sources.ptrProductionReleaseReceiptsSource,
+      "'ownerProvisionReceiptDigest',"],
+    [sources.ptrOwnerProvisionOperatorSource,
+      'const secondEvidence = readImportReceipt({'],
+    [sources.ptrOwnerProvisionOperatorSource,
+      'const ownerOpaqueProofDigest = deriveOwnerProof({'],
+    [sources.ptrOwnerProvisionOperatorSource,
+      'transport = createOwnerTransport({'],
+    [sources.ptrPublisherCoreSource,
+      'export function createSealedRealmsPublicationPossiblySubmittedMarker('],
+    [sources.genesis002PublisherCoreSource,
+      'export function createSealedRealmsPublicationPossiblySubmittedMarker('],
+  ]) requireOnce(source, token, code);
+  const markerKeys = [
+    'schemaVersion', 'profile', 'lane', 'sourceCommit', 'databaseUri',
+    'alias', 'moduleIdentity', 'release', 'artifactDigest', 'toolchainDigest',
+    'publishPlanDigest', 'confirmationDigest', 'attemptNonce', 'markedAt',
+    'submissionState',
+  ];
+  for (const [publisher, lane] of [
+    [sources.genesis002PublisherCoreSource, 'g002'],
+    [sources.ptrPublisherCoreSource, 'ptr'],
+  ]) {
+    const keys = contractSourceSlice(
+      publisher,
+      'const PUBLICATION_MARKER_KEYS = Object.freeze([',
+      'const PUBLICATION_RECONCILIATION_INPUT_KEYS',
+      code,
+    ).match(/'([^']+)'/gu)?.map(value => value.slice(1, -1));
+    const reconciliationKeys = contractSourceSlice(
+      publisher,
+      'const PUBLICATION_RECONCILIATION_INPUT_KEYS = Object.freeze([',
+      'const PUBLICATION_LANE_TUPLES',
+      code,
+    ).match(/'([^']+)'/gu)?.map(value => value.slice(1, -1));
+    const snapshot = contractSourceSlice(
+      publisher,
+      'function exactPublicationRecord(',
+      'function canonicalPublicationTimestamp(',
+      code,
+    );
+    const timestamp = contractSourceSlice(
+      publisher,
+      'function canonicalPublicationTimestamp(',
+      'function canonicalPublicationMarker(',
+      code,
+    );
+    const markerValidation = contractSourceSlice(
+      publisher,
+      'function canonicalPublicationMarker(',
+      'export function createSealedRealmsPublicationPossiblySubmittedMarker(',
+      code,
+    );
+    const reconciliation = contractSourceSlice(
+      publisher,
+      'export function createSealedRealmsPublicationMarkerReconciliation(',
+      lane === 'g002'
+        ? 'function genesis002ChildEnvironment('
+        : 'function exactRecord(',
+      code,
+    );
+    const laneCheck = publisher.indexOf(`if (marker.lane !== '${lane}')`);
+    const tupleLookup = publisher.indexOf(
+      'const tuple = PUBLICATION_LANE_TUPLES[marker.lane];',
+    );
+    const byteBound = publisher.indexOf(
+      'if (bytes.byteLength > PUBLICATION_MARKER_MAXIMUM_BYTES)',
+    );
+    const decoder = publisher.indexOf(
+      "new TextDecoder('utf-8', { fatal: true }).decode(bytes)",
+    );
+    if (
+      JSON.stringify(keys) !== JSON.stringify(markerKeys)
+      || JSON.stringify(reconciliationKeys) !== JSON.stringify([
+        'marker', 'markerDigest', 'outcome', 'databaseIdentity',
+        'publicationReceiptDigest', 'observationDigest', 'observedAt',
+      ])
+      || laneCheck < 0
+      || tupleLookup <= laneCheck
+      || byteBound < 0
+      || decoder <= byteBound
+    ) fail(code);
+    for (const token of [
+      'descriptors = Object.getOwnPropertyDescriptors(value);',
+      'const descriptorKeys = Reflect.ownKeys(descriptors);',
+      "!Object.hasOwn(descriptor, 'value')",
+      'Object.defineProperty(snapshot, key, {',
+      'return Object.freeze(snapshot);',
+    ]) requireOnce(snapshot, token, code);
+    requireAbsent(snapshot, ['{ ...value }', 'value[key]'], code);
+    requireOnce(timestamp, "typeof value === 'string'", code);
+    for (const field of [
+      'sourceCommit', 'artifactDigest', 'toolchainDigest',
+      'publishPlanDigest', 'confirmationDigest', 'attemptNonce',
+    ]) {
+      requireOnce(
+        markerValidation,
+        `typeof marker.${field} !== 'string'`,
+        code,
+      );
+    }
+    requireOnce(
+      reconciliation,
+      'const source = exactPublicationRecord(',
+      code,
+    );
+    requireOnce(
+      reconciliation,
+      'const marker = canonicalPublicationMarker(source.marker);',
+      code,
+    );
+    for (const field of [
+      'databaseIdentity', 'publicationReceiptDigest', 'observationDigest',
+    ]) {
+      requireOnce(
+        reconciliation,
+        `typeof source.${field} !== 'string'`,
+        code,
+      );
+    }
+    requireAbsent(reconciliation, ['input.marker', 'input.outcome'], code);
+  }
+  for (const [publisherCli, markerVariable] of [
+    [sources.genesis002PublisherCliSource, 'marker'],
+    [sources.ptrPublisherCliSource, 'possiblySubmittedMarker'],
+  ]) {
+    const keys = contractSourceSlice(
+      publisherCli,
+      'const PUBLICATION_MARKER_KEYS = Object.freeze([',
+      'export class',
+      code,
+    ).match(/'([^']+)'/gu)?.map(value => value.slice(1, -1));
+    const canonicalizer = contractSourceSlice(
+      publisherCli,
+      'function canonicalizeSuppliedPublicationMarker(',
+      'function canonicalDigest(',
+      code,
+    );
+    const transition = contractSourceSlice(
+      publisherCli,
+      'const suppliedMarker = input.possiblySubmittedMarker;',
+      'let receipt;',
+      code,
+    );
+    const canonicalizationToken =
+      ': canonicalizeSuppliedPublicationMarker(suppliedMarker);';
+    const canonicalization = transition.indexOf(canonicalizationToken);
+    if (
+      JSON.stringify(keys) !== JSON.stringify(markerKeys)
+      || canonicalization < 0
+      || transition.slice(
+        canonicalization + canonicalizationToken.length,
+      ).includes('suppliedMarker')
+    ) fail(code);
+    for (const token of [
+      'descriptors = Object.getOwnPropertyDescriptors(value);',
+      'const descriptorKeys = Reflect.ownKeys(descriptors);',
+      "!Object.hasOwn(descriptor, 'value')",
+      'Object.defineProperty(snapshot, key, {',
+      'Object.freeze(snapshot);',
+      'createSealedRealmsPublicationPossiblySubmittedMarker({',
+      'PUBLICATION_MARKER_KEYS.some(key => marker[key] !== snapshot[key])',
+    ]) requireOnce(canonicalizer, token, code);
+    requireAbsent(canonicalizer, ['{ ...value }', 'value[key]'], code);
+    requireOnce(
+      transition,
+      `await input.onPossiblySubmittedMarker(${markerVariable});`,
+      code,
+    );
+    requireAbsent(transition, [
+      'onPossiblySubmittedMarker(suppliedMarker)',
+      'marker = suppliedMarker ??',
+      'possiblySubmittedMarker = suppliedMarker ??',
+    ], code);
+  }
+  if (
+    sources.genesis002PublisherCliSource
+      .split('fail(error.code, true, marker)').length !== 3
+    || sources.ptrPublisherCliSource
+      .split('fail(error.code, true, possiblySubmittedMarker)').length !== 4
+    || !sources.genesis002PublisherCliSource.includes(
+      'if (cleanupFailed && !failurePending)',
+    )
+    || !sources.ptrPublisherCliSource.includes(
+      'error.publishAttempted && error.possiblySubmittedMarker === undefined',
+    )
+  ) fail(code);
+  for (const [source, token] of [
+    [sources.ptrPublisherCliSource,
+      'ptrPublishReceiptEvidence: Object.freeze({'],
+    [sources.ptrProductionImportOperatorSource,
+      'ptrAtlasImportReceiptEvidence: Object.freeze({'],
+    [sources.ptrOwnerProvisionOperatorSource,
+      '!Object.hasOwn(patterns, match[1]!)'],
+  ]) requireOnce(source, token, code);
+  requireAbsent(sources.ptrPublisherCliSource, [
+    'ptrPublishReceiptFile, ptrPublishReceiptEvidence:',
+  ], code);
+  requireAbsent(sources.ptrProductionImportOperatorSource, [
+    'ptrAtlasImportReceiptFile, ptrAtlasImportReceiptEvidence:',
+  ], code);
+  if (
+    !sources.ptrAtlasImportReducersSource.includes('requirePtrAtlasAdmin')
+    || !sources.ptrPublisherCliSource.includes('onPossiblySubmittedMarker')
+    || !sources.genesis002PublisherCliSource.includes('onPossiblySubmittedMarker')
+  ) fail(code);
+
+  requireAbsent(sources.ptrAtlasImportReducersSource, [
+    'requirePtrAdmin', 'ownerFid', 'ownerAuthEpoch',
+  ], code);
+  requireAbsent(sources.ptrProductionImportOperatorSource, [
+    'executePtrOwnerProvision', 'derivePtrOwnerOpaqueProofDigest',
+    'createPtrOwnerProvisionTransport', "kind: 'owner-provision'",
+    "kind: 'sealed-live'",
+  ], code);
+  for (const publisher of [
+    sources.genesis002PublisherCliSource,
+    sources.ptrPublisherCliSource,
+  ]) requireAbsent(publisher, [
+    'requestPtrProductionAdminToken', 'requestGenesis002ProductionAdminToken',
+    'createPtrAtlasImportTransport', 'createPtrOwnerProvisionTransport',
+  ], code);
+
+  const atlasRouteStart = sources.authBridgeSource.indexOf(
+    "if (request.method === 'POST' && url.pathname === PTR_ATLAS_ADMIN_TOKEN_PATH) {",
+  );
+  const atlasRouteEnd = sources.authBridgeSource.indexOf(
+    "if (request.method === 'POST' && url.pathname === PTR_ADMIN_TOKEN_PATH) {",
+    atlasRouteStart,
+  );
+  const atlasRoute = sources.authBridgeSource.slice(atlasRouteStart, atlasRouteEnd);
+  if (
+    atlasRouteStart < 0
+    || atlasRouteEnd <= atlasRouteStart
+    || !atlasRoute.includes('ptrAtlasAdminClaims(config, issuedAt)')
+    || atlasRoute.includes('resolveLivePtrOwnerAdmission(')
+    || atlasRoute.includes('ptrAdminClaims(')
+  ) fail(code);
+
+  const ownerRouteEnd = sources.authBridgeSource.indexOf(
+    "if (request.method === 'POST' && url.pathname === ADMISSION_NOTIFICATION_PATH) {",
+    atlasRouteEnd,
+  );
+  const ownerRoute = sources.authBridgeSource.slice(atlasRouteEnd, ownerRouteEnd);
+  if (
+    ownerRouteEnd <= atlasRouteEnd
+    || ownerRoute.indexOf('resolveLivePtrOwnerAdmission(') < 0
+    || ownerRoute.indexOf('ptrAdminClaims(')
+      <= ownerRoute.indexOf('resolveLivePtrOwnerAdmission(')
+  ) fail(code);
+
+  const ownerReducerStart = sources.ptrOwnerReducersSource.indexOf(
+    'export const adminProvisionPtrOwnerV1',
+  );
+  const ownerReducerEnd = sources.ptrOwnerReducersSource.indexOf(
+    '/** Disable the retained owner anchor', ownerReducerStart,
+  );
+  const ownerReducer = sources.ptrOwnerReducersSource.slice(
+    ownerReducerStart, ownerReducerEnd,
+  );
+  const adminIndex = ownerReducer.indexOf('const admin = requirePtrAdmin(ctx);');
+  const bindingIndex = ownerReducer.indexOf(
+    'requirePtrOwnerProvisionBinding(admin, ownerFid, authEpoch);',
+  );
+  const stateIndex = ownerReducer.indexOf('requirePtrPopulationEmpty(ctx);');
+  if (
+    ownerReducerStart < 0
+    || ownerReducerEnd <= ownerReducerStart
+    || adminIndex < 0
+    || bindingIndex <= adminIndex
+    || stateIndex <= bindingIndex
+  ) fail(code);
+
+  const ownerOperator = sources.ptrOwnerProvisionOperatorSource;
+  const orderedTokens = [
+    'const firstEvidence = readImportReceipt({',
+    'await inspectStatus()',
+    'const resolved = await resolveOwnerAuthority(ownerFid);',
+    'ownerToken = await requestOwnerToken(adminSecret);',
+    'const secondEvidence = readImportReceipt({',
+    'const ownerOpaqueProofDigest = deriveOwnerProof({',
+    'transport = createOwnerTransport({',
+    'const provision = await executeProvision({',
+  ];
+  let orderCursor = -1;
+  for (const token of orderedTokens) {
+    const next = ownerOperator.indexOf(token, orderCursor + 1);
+    if (next <= orderCursor) fail(code);
+    orderCursor = next;
+  }
+
+  const task6cTransportTokens = contractTokens(
+    sources.ptrProductionTransportSource,
+    code,
+  );
+  const task6cTransportDeclarations = contractTopLevelDeclarations(
+    task6cTransportTokens,
+    code,
+  );
+  const task6cExpectedTransportDeclarations = [
+    'import:../spacetimedb/ptr/generated-bindings',
+    'import:./ptr-production-admin-token',
+    'export const:PTR_PRODUCTION_TRANSPORT_TARGET',
+    'export const:PTR_PRODUCTION_ALLOWED_REDUCERS',
+    'const:SHA256',
+    'const:MINIMUM_SECRET_BYTES',
+    'const:MAXIMUM_SECRET_BYTES',
+    'const:CONNECT_TIMEOUT_MILLISECONDS',
+    'const:OPERATION_TIMEOUT_MILLISECONDS',
+    'type:PtrProductionReducer',
+    'const:PTR_PRODUCTION_ATLAS_REDUCER_METHODS',
+    'type:RequestToken',
+    'type:DynamicConnection',
+    'export class:PtrProductionTransportError',
+    'function:fail',
+    'function:operationTimeout',
+    'function:connectPtrProduction',
+    'function:disconnect',
+    'function:validSecret',
+    'function:validTarget',
+    'export type:PtrAtlasImportTransport',
+    'export function:createPtrAtlasImportTransport',
+    'export type:PtrOwnerProvisionTransport',
+    'export function:createPtrOwnerProvisionTransport',
+  ];
+  if (JSON.stringify(task6cTransportDeclarations.map(declaration => (
+    `${declaration.exported ? 'export ' : ''}${declaration.kind}:${declaration.name}`
+  ))) !== JSON.stringify(task6cExpectedTransportDeclarations)) fail(code);
+  const task6cDeclarationTokenPins = Object.freeze({
+    PTR_PRODUCTION_ALLOWED_REDUCERS:
+      '1c4faaa9592d30a0e236d64de2e3f4eb9888a705d86f61b7f4385a4fee7c7a7d',
+    PTR_PRODUCTION_ATLAS_REDUCER_METHODS:
+      'dd66c11bdbad0c73e1a83c14b83109a8e1d24301d8197766c6600972ef2d7358',
+    createPtrAtlasImportTransport:
+      '4e7152842700e892f2a79673430aa987c7927d7229da498c3fd2913439d7d6f0',
+    createPtrOwnerProvisionTransport:
+      'b6d582866d717e5a3084fe94bbf49feb4b6a91b76333b9cadd646886a843041d',
+  });
+  for (const [name, expectedDigest] of Object.entries(
+    task6cDeclarationTokenPins,
+  )) {
+    const declaration = task6cTransportDeclarations.find(
+      candidate => candidate.name === name,
+    );
+    if (
+      declaration === undefined
+      || createHash('sha256')
+        .update(JSON.stringify(declaration.tokens))
+        .digest('hex') !== expectedDigest
+    ) fail(code);
+  }
+
+  const ownerAuthorityParser = contractSourceSlice(
+    sources.ptrProductionAdminTokenSource,
+    'export function readPtrOwnerProvisionAuthority(',
+    'export function takePtrProductionAdminSecret(',
+    code,
+  );
+  requireOnce(
+    ownerAuthorityParser,
+    "record.token_type !== 'spacetime-access'",
+    code,
+  );
+  requireAbsent(ownerAuthorityParser, [
+    "record.token_type !== 'admin'",
+    "record.token_type === 'admin'",
+  ], code);
+  const atlasAuthorityParser = contractSourceSlice(
+    sources.ptrProductionAdminTokenSource,
+    'export function readPtrAtlasImportAuthority(',
+    'export function readPtrOwnerProvisionAuthority(',
+    code,
+  );
+  requireOnce(
+    atlasAuthorityParser,
+    "record.token_type !== 'spacetime-access'",
+    code,
+  );
+  requireAbsent(atlasAuthorityParser, [
+    'ptr_owner_fid', 'ptr_owner_auth_epoch',
+    "record.token_type !== 'admin'", "record.token_type === 'admin'",
+  ], code);
+  const atlasAuthorityClaimKeys = contractSourceSlice(
+    sources.ptrProductionAdminTokenSource,
+    'const PTR_ATLAS_ADMIN_CLAIM_KEYS = Object.freeze([',
+    '] as const);\n\nexport class PtrProductionAdminTokenError',
+    code,
+  );
+  requireAbsent(atlasAuthorityClaimKeys, [
+    'ptr_owner_fid', 'ptr_owner_auth_epoch',
+  ], code);
+  const moduleAtlasAuthorityClaimKeys = contractSourceSlice(
+    sources.ptrOwnerPolicySource,
+    'const PTR_ATLAS_ADMIN_EXACT_CLAIM_KEYS = Object.freeze([',
+    '] as const);\n\nexport type WarpkeepBaseJwtClaims',
+    code,
+  );
+  requireAbsent(moduleAtlasAuthorityClaimKeys, [
+    'ptr_owner_fid', 'ptr_owner_auth_epoch',
+  ], code);
+
+  const ptrStatusKeys = contractSourceSlice(
+    sources.ptrProductionImportCoreSource,
+    'const STATUS_KEYS = Object.freeze([',
+    'const OPTIONAL_STRINGS',
+    code,
+  );
+  requireAbsent(ptrStatusKeys, ['ownerFid', 'ownerAuthEpoch'], code);
+  const ptrImportReceiptKeys = contractSourceSlice(
+    sources.ptrProductionImportCoreSource,
+    'const IMPORT_RECEIPT_KEYS = Object.freeze([',
+    'export class PtrProductionImportError',
+    code,
+  );
+  requireAbsent(ptrImportReceiptKeys, [
+    'ownerFid', 'ownerAuthEpoch', 'entropy', 'ownerOpaqueProofDigest',
+    'ownerToken', 'ownerProvisionReceiptDigest',
+  ], code);
+  for (const token of [
+    "'ownerFid', 'ownerAuthEpoch', 'entropy', 'ownerOpaqueProofDigest',",
+    "'ownerToken', 'ownerTransport', 'ownerCallback',",
+    'Object.hasOwn(input.transport, \'provisionOwner\')',
+    'status.ownerProvisioned || status.ownerEnabled',
+  ]) requireOnce(sources.ptrProductionImportCoreSource, token, code);
+
+  const ownerReceiptKeys = contractSourceSlice(
+    sources.ptrProductionReleaseReceiptsSource,
+    'const OWNER_PROVISION_RECEIPT_KEYS = Object.freeze([',
+    'const SEALED_LIVE_RECEIPT_KEYS',
+    code,
+  );
+  requireOnce(ownerReceiptKeys, "'atlasImportReceiptDigest',", code);
+  const sealedLiveReceiptKeys = contractSourceSlice(
+    sources.ptrProductionReleaseReceiptsSource,
+    'const SEALED_LIVE_RECEIPT_KEYS = Object.freeze([',
+    'const ZERO_LIVE_FIELDS',
+    code,
+  );
+  requireOnce(sealedLiveReceiptKeys, "'ownerProvisionReceiptDigest',", code);
+  for (const token of [
+    'tokenAuthority.ownerAuthEpoch !== resolved.ownerAuthEpoch',
+    'ownerAuthEpoch: resolved.ownerAuthEpoch,\n      databaseIdentity',
+    'ownerAuthEpoch: resolved.ownerAuthEpoch,\n      ownerOpaqueProofDigest',
+    '!== secondReceipt.importReceiptDigest',
+    'provision.ownerProvisionReceipt.databaseIdentity',
+    'provision.sealedLiveReceipt.ownerOpaqueProofDigest\n        !== ownerOpaqueProofDigest',
+    'provision.sealedLiveReceipt.ownerProvisionReceiptDigest\n        !== provisionReceiptDigest',
+    'ptrSealedLiveReceiptDigest(provision.sealedLiveReceipt)',
+  ]) requireOnce(ownerOperator, token, code);
+  for (const [source, token] of [
+    [sources.ptrProductionReleaseReceiptsSource,
+      'ownerAuthority.ownerAuthEpoch !== input.ownerAuthEpoch'],
+    [sources.ptrAtlasImportReducersSource,
+      'ctx.db.ptrOwnerAnchorV1.count() !== 0n'],
+    [sources.ptrOwnerReducersSource,
+      '!atlas.ready || !atlas.importsExact'],
+  ]) requireOnce(source, token, code);
+
+  const ptrAdminClaims = contractSourceSlice(
+    sources.authBridgeJwtSource,
+    'export function ptrAdminClaims(',
+    '/** Fresh 15-second resolver token',
+    code,
+  );
+  requireAbsent(ptrAdminClaims, ["token_type: 'admin'"], code);
+
   for (const source of [
     sources.authBridgeJwtSource,
     sources.ptrOwnerPolicySource,
@@ -1818,7 +2351,7 @@ export function verifyPtrOwnerAuthoritySemantics(sources) {
     contractSourceSlice(
       sources.authBridgeJwtSource,
       'export function ptrAdminClaims(',
-      '/** Fresh 15-second resolver token',
+      '/** Five-minute ownerless Hermes token',
       code,
     ),
     'ptrAdminClaims',
@@ -2015,203 +2548,6 @@ export function verifyPtrOwnerAuthoritySemantics(sources) {
     ))
   ) fail(code);
 
-  const transportTokens = contractTokens(
-    sources.ptrProductionTransportSource,
-    code,
-  );
-  contractBalancedDelimiters(transportTokens, code);
-  const transportDeclarations = contractTopLevelDeclarations(
-    transportTokens,
-    code,
-  );
-  const expectedTransportDeclarations = [
-    'import:../spacetimedb/ptr/generated-bindings',
-    'import:./ptr-production-admin-token',
-    'export const:PTR_PRODUCTION_TRANSPORT_TARGET',
-    'export const:PTR_PRODUCTION_ALLOWED_REDUCERS',
-    'const:SHA256',
-    'const:MINIMUM_SECRET_BYTES',
-    'const:MAXIMUM_SECRET_BYTES',
-    'const:CONNECT_TIMEOUT_MILLISECONDS',
-    'const:OPERATION_TIMEOUT_MILLISECONDS',
-    'type:PtrProductionReducer',
-    'const:PTR_PRODUCTION_ATLAS_REDUCER_METHODS',
-    'type:RequestToken',
-    'type:DynamicConnection',
-    'export class:PtrProductionTransportError',
-    'function:fail',
-    'function:operationTimeout',
-    'function:connectPtrProduction',
-    'function:disconnect',
-    'function:validSecret',
-    'function:validTarget',
-    'export type:PtrProductionTransport',
-    'export function:createPtrProductionTransport',
-  ];
-  if (JSON.stringify(transportDeclarations.map(declaration => (
-    `${declaration.exported ? 'export ' : ''}${declaration.kind}:${declaration.name}`
-  ))) !== JSON.stringify(expectedTransportDeclarations)) fail(code);
-  const transportFactoryDeclaration = transportDeclarations.at(-1);
-  if (
-    transportFactoryDeclaration?.name !== 'createPtrProductionTransport'
-    || transportFactoryDeclaration.end !== transportTokens.length - 1
-  ) fail(code);
-  const transportPrefixTokens = transportTokens.slice(
-    0,
-    transportFactoryDeclaration.start,
-  );
-  if (
-    createHash('sha256')
-      .update(JSON.stringify(transportPrefixTokens))
-      .digest('hex') !==
-      'b03b2bd883f1d65b49e7c859a612a4855151b333d2e3f542e4eeb49fd9421a16'
-    || contractSequenceCount(transportPrefixTokens, [
-      'reducers', ':', 'Readonly', '<', 'Record', '<', 'string', ',',
-      '(', 'arguments_', ':', 'unknown', ')', '=>', 'Promise', '<',
-      'void', '>', '>', '>', ';',
-    ]) !== 1
-    || transportPrefixTokens.filter(token => token.value === 'reducers').length !== 1
-    || contractSequenceCount(transportPrefixTokens, [
-      'active', '.', 'reducers',
-    ]) !== 0
-    || contractSequenceCount(transportPrefixTokens, [
-      'adminProvisionPtrOwnerV1',
-    ]) !== 0
-  ) fail(code);
-  const transportReturn = contractFrozenReturnedObjectTokens(
-    transportFactoryDeclaration.tokens,
-    'createPtrProductionTransport',
-    code,
-  );
-  const transportMembers = transportReturn.parts.map(
-    part => contractObjectProperty(part, code),
-  );
-  if (JSON.stringify(transportMembers.map(member => member.name))
-    !== JSON.stringify([
-      'inspect',
-      'prepareSubmission',
-      'submit',
-      'provisionOwner',
-      'close',
-    ])) fail(code);
-  const expectedTransportReturn = contractTokens(`
-    return Object.freeze({
-      inspect: () => runSerialized(async () => {
-        try {
-          const active = await requireConnection();
-          const procedure = active.procedures.adminGetGreaterRealmStatusV1;
-          if (typeof procedure !== 'function') {
-            fail('PTR_PRODUCTION_STATUS_ABI_MISSING');
-          }
-          return await operationTimeout(procedure({}));
-        } catch (error) {
-          invalidate();
-          if (error instanceof PtrProductionTransportError) throw error;
-          return fail('PTR_PRODUCTION_INSPECTION_UNAVAILABLE');
-        }
-      }),
-      prepareSubmission: () => runSerialized(async () => {
-        try {
-          void await requireConnection();
-        } catch (error) {
-          invalidate();
-          if (error instanceof PtrProductionTransportError) throw error;
-          return fail('PTR_PRODUCTION_CONNECTION_UNAVAILABLE');
-        }
-      }),
-      submit: (reducer, arguments_, assertCanStartWrite) => runSerialized(async () => {
-        const methodName = PTR_PRODUCTION_ATLAS_REDUCER_METHODS[reducer];
-        if (typeof methodName !== 'string') {
-          fail('PTR_PRODUCTION_REDUCER_FORBIDDEN');
-        }
-        try {
-          const active = await requireConnection();
-          const method = active.reducers[methodName];
-          if (typeof method !== 'function') {
-            fail('PTR_PRODUCTION_REDUCER_ABI_MISSING');
-          }
-          assertCanStartWrite();
-          await operationTimeout(method(arguments_));
-        } catch (error) {
-          invalidate();
-          if (error instanceof PtrProductionTransportError) throw error;
-          return fail('PTR_PRODUCTION_OPERATION_OUTCOME_AMBIGUOUS');
-        }
-      }),
-      provisionOwner: (expectedOwnerFid, assertCanStartWrite) => runSerialized(async () => {
-        invalidate();
-        let token = '';
-        let active: DynamicConnection;
-        let authority: PtrOwnerProvisionAuthority;
-        try {
-          token = await requestToken(adminSecret);
-          authority = readPtrOwnerProvisionAuthority(
-            token,
-            expectedOwnerFid,
-            nowSeconds(),
-          );
-          active = await connectDatabase(databaseIdentity, token) as DynamicConnection;
-        } catch (error) {
-          invalidate();
-          if (error instanceof PtrProductionAdminTokenError) throw error;
-          return fail('PTR_PRODUCTION_CONNECTION_UNAVAILABLE');
-        } finally {
-          token = '';
-        }
-        const method = active.reducers.adminProvisionPtrOwnerV1;
-        if (typeof method !== 'function') {
-          disconnect(active);
-          return fail('PTR_PRODUCTION_REDUCER_ABI_MISSING');
-        }
-        try {
-          assertCanStartWrite();
-          await operationTimeout(method(Object.freeze({
-            ownerFid: authority.ownerFid,
-            authEpoch: authority.ownerAuthEpoch,
-          })));
-          connection = active;
-          return authority;
-        } catch {
-          disconnect(active);
-          connection = undefined;
-          return fail('PTR_PRODUCTION_OPERATION_OUTCOME_AMBIGUOUS');
-        }
-      }),
-      close: async () => {
-        const prior = serialized;
-        await prior;
-        if (closed) return;
-        closed = true;
-        adminSecret = '';
-        invalidate();
-      },
-    });
-  `, code);
-  if (
-    JSON.stringify(transportReturn.returnTokens)
-      !== JSON.stringify(expectedTransportReturn)
-    || contractSequenceCount(transportReturn.objectTokens, [
-      'PTR_PRODUCTION_ATLAS_REDUCER_METHODS', '[', 'reducer', ']',
-    ]) !== 1
-    || contractSequenceCount(transportReturn.objectTokens, [
-      'active', '.', 'reducers', '[', 'methodName', ']',
-    ]) !== 1
-    || contractSequenceCount(transportReturn.objectTokens, [
-      'active', '.', 'reducers', '.', 'adminProvisionPtrOwnerV1',
-    ]) !== 1
-    || contractSequenceCount(transportReturn.objectTokens, [
-      'active', '.', 'reducers',
-    ]) !== 2
-    || contractSequenceCount(transportTokens, [
-      'active', '.', 'reducers',
-    ]) !== 2
-    || contractSequenceCount(transportTokens, [
-      'active', '.', 'reducers', '.', 'adminProvisionPtrOwnerV1',
-    ]) !== 1
-    || transportTokens.filter(token => token.value === 'reducers').length !== 3
-    || transportTokens.some(token => token.value === 'replace')
-  ) fail(code);
-
   for (const [source, token] of [
     [sources.authBridgeTypesSource, 'export type PtrAdminTokenClaims ='],
     [sources.authBridgeTypesSource, 'ptr_owner_fid: string'],
@@ -2221,8 +2557,6 @@ export function verifyPtrOwnerAuthoritySemantics(sources) {
     [sources.authBridgeSource, 'resolver.resolve(expectedOwnerFid)'],
     [sources.authBridgeSource, 'ownerAdmission.authEpoch'],
     [sources.ptrOwnerPolicySource, 'export type PtrAdminClaims ='],
-    [sources.ptrOwnerPolicySource, 'Object.getPrototypeOf(payload) !== Object.prototype'],
-    [sources.ptrOwnerPolicySource, 'const keys = Reflect.ownKeys(record);'],
     [sources.ptrOwnerPolicySource, 'ownerFid !== admin.ownerFid'],
     [sources.ptrOwnerPolicySource, 'authEpoch !== admin.ownerAuthEpoch'],
     [sources.ptrOwnerReducersSource,
@@ -2238,16 +2572,22 @@ export function verifyPtrOwnerAuthoritySemantics(sources) {
     [sources.ptrProductionTransportSource,
       'authority = readPtrOwnerProvisionAuthority('],
     [sources.ptrProductionTransportSource,
-      'active = await connectDatabase(databaseIdentity, token) as DynamicConnection;'],
+      'active = await connectDatabase(databaseIdentity, token);'],
     [sources.ptrProductionTransportSource,
       'await operationTimeout(method(Object.freeze({'],
     [sources.ptrProductionReleaseReceiptsSource,
       'ownerAuthority = await input.transport.provisionOwner('],
     [sources.ptrProductionReleaseReceiptsSource,
-      'after.ownerAuthEpoch !== ownerAuthority.ownerAuthEpoch'],
-    [sources.ptrProductionImportOperatorSource,
-      'ownerAuthEpochIsCanonical: status.ownerProvisioned'],
+      'ownerAuthority.ownerAuthEpoch !== input.ownerAuthEpoch'],
+    [sources.ptrOwnerProvisionOperatorSource,
+      'ownerAuthEpoch: resolved.ownerAuthEpoch,\n      ownerOpaqueProofDigest'],
   ]) requireOnce(source, token, code);
+  for (const token of [
+    'Object.getPrototypeOf(payload) !== Object.prototype',
+    'const keys = Reflect.ownKeys(record);',
+  ]) {
+    if (sources.ptrOwnerPolicySource.split(token).length !== 3) fail(code);
+  }
 
   requireAbsent(sources.ptrProductionReleaseReceiptsSource, [
     'authEpoch: 1',

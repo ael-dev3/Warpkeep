@@ -163,15 +163,26 @@ function checkedInSources() {
     authBridgeJwtSource: source('services/auth-bridge/src/jwt.ts'),
     authBridgeTypesSource: source('services/auth-bridge/src/types.ts'),
     ptrOwnerPolicySource: source('spacetimedb/ptr/src/ownerPolicy.ts'),
+    ptrAuthSource: source('spacetimedb/ptr/src/auth.ts'),
+    ptrAtlasImportReducersSource:
+      source('spacetimedb/ptr/src/atlasImportReducers.ts'),
     ptrOwnerReducersSource: source('spacetimedb/ptr/src/ownerReducers.ts'),
+    ptrPublisherCoreSource: source('scripts/ptr-production-publisher.mjs'),
+    ptrPublisherCliSource: source('scripts/ptr-production-publisher-cli.ts'),
     ptrProductionAdminTokenSource:
       source('scripts/ptr-production-admin-token.ts'),
     ptrProductionTransportSource:
       source('scripts/ptr-production-transport.ts'),
+    ptrProductionImportCoreSource:
+      source('scripts/ptr-production-import-core.ts'),
     ptrProductionReleaseReceiptsSource:
       source('scripts/ptr-production-release-receipts.ts'),
     ptrProductionImportOperatorSource:
       source('scripts/ptr-production-import-operator.ts'),
+    ptrProductionReceiptFileSource:
+      source('scripts/ptr-production-receipt-file.ts'),
+    ptrOwnerProvisionOperatorSource:
+      source('scripts/ptr-owner-provision-operator.ts'),
     admissionRequestSuspensionProbeSource:
       source('scripts/verify-admission-request-suspension.mjs'),
     realmChoicePolicySource: source('src/components/menu/realmChoicePolicy.ts'),
@@ -427,6 +438,180 @@ function mutateGenesis002BridgeRoute(
 }
 
 describe('0.4.0 sealed-launch verifier', () => {
+  it('verifies the Task 6C publication, ownerless import, and owner ancestry transition', () => {
+    const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
+    const checkedIn: Readonly<Record<string, string>> = checkedInSources();
+    expect(() => verify(checkedIn)).not.toThrow();
+    const mutations: readonly [string, (value: string) => string][] = [
+      ['authBridgeSource', value => value.replace(
+        "export const PTR_ATLAS_ADMIN_TOKEN_PATH = '/v1/admin/ptr-atlas-token'",
+        "export const PTR_ATLAS_ADMIN_TOKEN_PATH = '/v1/admin/ptr-token'",
+      )],
+      ['ptrOwnerPolicySource', value => value.replace(
+        'export function readFreshPtrAtlasAdminClaims(',
+        'function readFreshPtrAtlasAdminClaims(',
+      )],
+      ['ptrAtlasImportReducersSource', value => value.replaceAll(
+        'requirePtrAtlasAdmin', 'requirePtrAdmin',
+      )],
+      ['ptrProductionAdminTokenSource', value => value.replace(
+        "const PTR_ATLAS_ADMIN_CLAIM_KEYS = Object.freeze([\n  'iss',",
+        "const PTR_ATLAS_ADMIN_CLAIM_KEYS = Object.freeze([\n  'ptr_owner_fid',\n  'iss',",
+      )],
+      ['ptrOwnerPolicySource', value => value.replace(
+        "const PTR_ATLAS_ADMIN_EXACT_CLAIM_KEYS = Object.freeze([\n  'iss',",
+        "const PTR_ATLAS_ADMIN_EXACT_CLAIM_KEYS = Object.freeze([\n  'ptr_owner_auth_epoch',\n  'iss',",
+      )],
+      ['ptrProductionTransportSource', value => value.replace(
+        'export function createPtrOwnerProvisionTransport(',
+        'export function createPtrProductionTransport(',
+      )],
+      ['ptrProductionImportCoreSource', value => value.replace(
+        "  'ownerEnabled',\n] as const);\nconst OPTIONAL_STRINGS",
+        "  'ownerEnabled',\n  'ownerFid',\n] as const);\nconst OPTIONAL_STRINGS",
+      )],
+      ['ptrProductionImportCoreSource', value => value.replace(
+        "  'activationMutationsCompiled',\n] as const);\n\nexport class PtrProductionImportError",
+        "  'activationMutationsCompiled',\n  'ownerToken',\n] as const);\n\nexport class PtrProductionImportError",
+      )],
+      ['ptrProductionReleaseReceiptsSource', value => value.replace(
+        "'atlasImportReceiptDigest',", '',
+      )],
+      ['ptrOwnerProvisionOperatorSource', value => value.replace(
+        'const secondEvidence = readImportReceipt({',
+        'const secondEvidence = firstEvidence; /* bypass */ void ({',
+      )],
+      ['ptrOwnerProvisionOperatorSource', value => value.replace(
+        'tokenAuthority.ownerAuthEpoch !== resolved.ownerAuthEpoch',
+        'false',
+      )],
+      ['ptrOwnerProvisionOperatorSource', value => value.replace(
+        '!== secondReceipt.importReceiptDigest',
+        '!== firstReceipt.importReceiptDigest',
+      )],
+      ['genesis002PublisherCoreSource', value => value.replace(
+        "if (marker.lane !== 'g002')",
+        'if (false)',
+      )],
+      ['ptrPublisherCoreSource', value => value.replace(
+        "if (marker.lane !== 'ptr')",
+        'if (false)',
+      )],
+      ['genesis002PublisherCoreSource', value => value.replace(
+        'if (bytes.byteLength > PUBLICATION_MARKER_MAXIMUM_BYTES)',
+        'if (false)',
+      )],
+      ['genesis002PublisherCliSource', value => value.replaceAll(
+        'fail(error.code, true, marker)',
+        'fail(error.code, true)',
+      )],
+      ['ptrPublisherCliSource', value => value.replaceAll(
+        'fail(error.code, true, possiblySubmittedMarker)',
+        'fail(error.code, true)',
+      )],
+      ['ptrProductionReleaseReceiptsSource', value => value.replace(
+        'ownerAuthority.ownerAuthEpoch !== input.ownerAuthEpoch',
+        'false',
+      )],
+      ['ptrOwnerProvisionOperatorSource', value => value.replace(
+        'ownerAuthEpoch: resolved.ownerAuthEpoch,\n      databaseIdentity',
+        'ownerAuthEpoch: 1,\n      databaseIdentity',
+      )],
+      ['ptrAtlasImportReducersSource', value => value.replace(
+        'ctx.db.ptrOwnerAnchorV1.count() !== 0n',
+        'false',
+      )],
+      ['ptrOwnerReducersSource', value => value.replace(
+        '!atlas.ready || !atlas.importsExact',
+        'false',
+      )],
+      ['ptrOwnerProvisionOperatorSource', value => value.replace(
+        'provision.ownerProvisionReceipt.databaseIdentity',
+        'arguments_.databaseIdentity',
+      )],
+      ['ptrOwnerProvisionOperatorSource', value => value.replace(
+        'provision.sealedLiveReceipt.ownerOpaqueProofDigest\n        !== ownerOpaqueProofDigest',
+        'false',
+      )],
+      ['genesis002PublisherCoreSource', value => value.replace(
+        'descriptors = Object.getOwnPropertyDescriptors(value);',
+        'descriptors = Object.getOwnPropertyDescriptors({ ...value });',
+      )],
+      ['ptrPublisherCoreSource', value => value.replace(
+        'descriptors = Object.getOwnPropertyDescriptors(value);',
+        'descriptors = Object.getOwnPropertyDescriptors({ ...value });',
+      )],
+      ['genesis002PublisherCoreSource', value => value.replace(
+        'const marker = canonicalPublicationMarker(source.marker);',
+        'const marker = canonicalPublicationMarker(input.marker);',
+      )],
+      ['ptrPublisherCoreSource', value => value.replace(
+        'const marker = canonicalPublicationMarker(source.marker);',
+        'const marker = canonicalPublicationMarker(input.marker);',
+      )],
+      ['ptrPublisherCliSource', value => value.replace(
+        'ptrPublishReceiptEvidence: Object.freeze({',
+        'ptrPublishReceiptFile, ptrPublishReceiptEvidence: Object.freeze({',
+      )],
+      ['ptrProductionImportOperatorSource', value => value.replace(
+        'ptrAtlasImportReceiptEvidence: Object.freeze({',
+        'ptrAtlasImportReceiptFile, ptrAtlasImportReceiptEvidence: Object.freeze({',
+      )],
+      ['ptrOwnerProvisionOperatorSource', value => value.replace(
+        '!Object.hasOwn(patterns, match[1]!)',
+        '!(match[1]! in patterns)',
+      )],
+      ['genesis002PublisherCliSource', value => value.replace(
+        'descriptors = Object.getOwnPropertyDescriptors(value);',
+        'descriptors = Object.getOwnPropertyDescriptors({ ...value });',
+      )],
+      ['ptrPublisherCliSource', value => value.replace(
+        'descriptors = Object.getOwnPropertyDescriptors(value);',
+        'descriptors = Object.getOwnPropertyDescriptors({ ...value });',
+      )],
+      ['genesis002PublisherCliSource', value => value.replace(
+        ': canonicalizeSuppliedPublicationMarker(suppliedMarker);',
+        ': suppliedMarker;',
+      )],
+      ['ptrPublisherCliSource', value => value.replace(
+        ': canonicalizeSuppliedPublicationMarker(suppliedMarker);',
+        ': suppliedMarker;',
+      )],
+      ['genesis002PublisherCoreSource', value => value.replace(
+        "function canonicalPublicationTimestamp(value) {\n  return typeof value === 'string'",
+        'function canonicalPublicationTimestamp(value) {\n  return true',
+      )],
+      ['ptrPublisherCoreSource', value => value.replace(
+        "function canonicalPublicationTimestamp(value) {\n  return typeof value === 'string'",
+        'function canonicalPublicationTimestamp(value) {\n  return true',
+      )],
+      ['genesis002PublisherCoreSource', value => value.replace(
+        "typeof marker.attemptNonce !== 'string'",
+        'false',
+      )],
+      ['ptrPublisherCoreSource', value => value.replace(
+        "typeof marker.sourceCommit !== 'string'",
+        'false',
+      )],
+      ['genesis002PublisherCoreSource', value => value.replace(
+        "typeof source.publicationReceiptDigest !== 'string'",
+        'false',
+      )],
+      ['ptrPublisherCoreSource', value => value.replace(
+        "typeof source.observationDigest !== 'string'",
+        'false',
+      )],
+      ['ptrPublisherCliSource', value => `${value}\nrequestPtrProductionAdminToken(secret);\n`],
+    ];
+    for (const [field, mutate] of mutations) {
+      const hostile: Record<string, string> = { ...checkedIn };
+      hostile[field] = mutate(hostile[field]!);
+      expect(hostile[field]).not.toBe(checkedIn[field]);
+      expect(() => verify(hostile), `${field} mutation must be rejected`)
+        .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+    }
+  });
+
   it('accepts the exact disjoint G002 administrator authority sources', () => {
     expect(verifySealedLaunchSources(checkedInSources(), 'preparation')).toMatchObject({
       phase: 'preparation',
@@ -774,16 +959,16 @@ describe('0.4.0 sealed-launch verifier', () => {
       name: 'expected owner FID cross-check',
       field: 'ptrProductionTransportSource',
       mutate: (value: string) => value.replace(
-        '          expectedOwnerFid,',
-        '          1n,',
+        'readPtrOwnerProvisionAuthority(token, expectedOwnerFid, nowSeconds())',
+        'readPtrOwnerProvisionAuthority(token, 1n, nowSeconds())',
       ),
     },
     {
       name: 'live epoch postcondition',
-      field: 'ptrProductionReleaseReceiptsSource',
+      field: 'ptrOwnerProvisionOperatorSource',
       mutate: (value: string) => value.replace(
-        'after.ownerAuthEpoch !== ownerAuthority.ownerAuthEpoch',
-        'after.ownerAuthEpoch !== 1',
+        'tokenAuthority.ownerAuthEpoch !== resolved.ownerAuthEpoch',
+        'false',
       ),
     },
     {
@@ -831,6 +1016,45 @@ describe('0.4.0 sealed-launch verifier', () => {
     expect(() => verifyPtrOwnerAuthoritySemantics(hostile))
       .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
   });
+
+  it.each([
+    {
+      name: 'configured owner FID equality',
+      field: 'ptrProductionAdminTokenSource',
+      mutate: (value: string) => value.replace(
+        'ownerFid !== expectedOwnerFid',
+        'false',
+      ),
+    },
+    {
+      name: 'Hermes spacetime-access token type',
+      field: 'authBridgeJwtSource',
+      mutate: (value: string) => value.replace(
+        "sub: 'service:hermes',\n    aud: [audience],\n    token_type: 'spacetime-access',",
+        "sub: 'service:hermes',\n    aud: [audience],\n    token_type: 'admin',",
+      ),
+    },
+  ] as const)(
+    'keeps prior Task 4 PTR semantics reachable: $name',
+    ({ field, mutate }) => {
+      const verifyPtrOwnerAuthoritySemantics = (
+        sealedLaunchVerifierModule as unknown as {
+          verifyPtrOwnerAuthoritySemantics?: (
+            sources: Record<string, string>,
+          ) => void;
+        }
+      ).verifyPtrOwnerAuthoritySemantics;
+      expect(typeof verifyPtrOwnerAuthoritySemantics).toBe('function');
+      if (verifyPtrOwnerAuthoritySemantics === undefined) return;
+      const checkedIn = checkedInSources();
+      expect(() => verifyPtrOwnerAuthoritySemantics(checkedIn)).not.toThrow();
+      const hostile = { ...checkedIn };
+      hostile[field] = mutate(hostile[field]!);
+      expect(hostile[field]).not.toBe(checkedIn[field]);
+      expect(() => verifyPtrOwnerAuthoritySemantics(hostile))
+        .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+    },
+  );
 
   it('semantically rejects reintroducing generic owner provisioning independently of source pins', () => {
     const verifyPtrOwnerAuthoritySemantics = (
@@ -1047,7 +1271,7 @@ describe('0.4.0 sealed-launch verifier', () => {
     {
       name: 'exported alias helper before the transport factory',
       mutate: (value: string) => value.replace(
-        '/** A single serialized administrator session with no retry after mutation. */',
+        '/** A serialized ownerless atlas-import session with no owner mutation method. */',
         `export async function leakedOwner(
   active: DynamicConnection,
   ownerFid: bigint,
@@ -1058,13 +1282,13 @@ describe('0.4.0 sealed-launch verifier', () => {
   await reducers[key]({ ownerFid, authEpoch });
 }
 
-/** A single serialized administrator session with no retry after mutation. */`,
+/** A serialized ownerless atlas-import session with no owner mutation method. */`,
       ),
     },
     {
       name: 'exported reflective helper before the transport factory',
       mutate: (value: string) => value.replace(
-        '/** A single serialized administrator session with no retry after mutation. */',
+        '/** A serialized ownerless atlas-import session with no owner mutation method. */',
         `export async function leakedOwner(
   active: DynamicConnection,
   ownerFid: bigint,
@@ -1074,19 +1298,19 @@ describe('0.4.0 sealed-launch verifier', () => {
   await reducers['adminProvision' + 'PtrOwnerV1']({ ownerFid, authEpoch });
 }
 
-/** A single serialized administrator session with no retry after mutation. */`,
+/** A serialized ownerless atlas-import session with no owner mutation method. */`,
       ),
     },
     {
       name: 'non-exported helper before the transport factory',
       mutate: (value: string) => value.replace(
-        '/** A single serialized administrator session with no retry after mutation. */',
+        '/** A serialized ownerless atlas-import session with no owner mutation method. */',
         `async function hiddenOwner(active: DynamicConnection): Promise<void> {
   const reducers = active.reducers;
   await reducers['adminProvision' + 'PtrOwnerV1']({});
 }
 
-/** A single serialized administrator session with no retry after mutation. */`,
+/** A serialized ownerless atlas-import session with no owner mutation method. */`,
       ),
     },
     {
@@ -1097,22 +1321,22 @@ describe('0.4.0 sealed-launch verifier', () => {
     {
       name: 'extra exported declaration',
       mutate: (value: string) => value.replace(
-        '/** A single serialized administrator session with no retry after mutation. */',
-        'export const TRANSPORT_EXTRA = 1;\n\n/** A single serialized administrator session with no retry after mutation. */',
+        '/** A serialized ownerless atlas-import session with no owner mutation method. */',
+        'export const TRANSPORT_EXTRA = 1;\n\n/** A serialized ownerless atlas-import session with no owner mutation method. */',
       ),
     },
     {
       name: 'extra private declaration',
       mutate: (value: string) => value.replace(
-        '/** A single serialized administrator session with no retry after mutation. */',
-        'const TRANSPORT_EXTRA = 1;\n\n/** A single serialized administrator session with no retry after mutation. */',
+        '/** A serialized ownerless atlas-import session with no owner mutation method. */',
+        'const TRANSPORT_EXTRA = 1;\n\n/** A serialized ownerless atlas-import session with no owner mutation method. */',
       ),
     },
     {
       name: 'executable top-level statement',
       mutate: (value: string) => value.replace(
-        '/** A single serialized administrator session with no retry after mutation. */',
-        'void PTR_PRODUCTION_TRANSPORT_TARGET;\n\n/** A single serialized administrator session with no retry after mutation. */',
+        '/** A serialized ownerless atlas-import session with no owner mutation method. */',
+        'void PTR_PRODUCTION_TRANSPORT_TARGET;\n\n/** A serialized ownerless atlas-import session with no owner mutation method. */',
       ),
     },
   ] as const)(
@@ -1188,8 +1412,8 @@ describe('0.4.0 sealed-launch verifier', () => {
       const commented = { ...checkedIn };
       commented.ptrProductionTransportSource =
         commented.ptrProductionTransportSource.replace(
-          '/** A single serialized administrator session with no retry after mutation. */',
-          `${comment}/** A single serialized administrator session with no retry after mutation. */`,
+          '/** A serialized ownerless atlas-import session with no owner mutation method. */',
+          `${comment}/** A serialized ownerless atlas-import session with no owner mutation method. */`,
         );
       expect(commented.ptrProductionTransportSource)
         .not.toBe(checkedIn.ptrProductionTransportSource);
@@ -1211,12 +1435,12 @@ describe('0.4.0 sealed-launch verifier', () => {
     const hostile = { ...checkedIn };
     hostile.ptrProductionTransportSource =
       hostile.ptrProductionTransportSource.replace(
-        'export function createPtrProductionTransport(',
-        `export function createPtrProductionTransport(): never {
+        'export function createPtrAtlasImportTransport(',
+        `export function createPtrAtlasImportTransport(): never {
   throw new Error('duplicate transport factory');
 }
 
-export function createPtrProductionTransport(`,
+export function createPtrAtlasImportTransport(`,
       );
     expect(hostile.ptrProductionTransportSource)
       .not.toBe(checkedIn.ptrProductionTransportSource);

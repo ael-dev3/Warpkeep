@@ -143,6 +143,8 @@ export type SafeLogEvent =
   | 'genesis002_admin_token_rejected'
   | 'ptr_admin_token_issued'
   | 'ptr_admin_token_rejected'
+  | 'ptr_atlas_admin_token_issued'
+  | 'ptr_atlas_admin_token_rejected'
   | 'admin_probe_rejected'
   | 'config_attestation_issued'
   | 'config_attestation_rejected'
@@ -457,6 +459,10 @@ export type Genesis002AdminTokenClaims = Omit<AdminTokenClaims, 'aud'> & Readonl
 export type PtrAdminTokenClaims = AdminTokenClaims & Readonly<{
   ptr_owner_fid: string
   ptr_owner_auth_epoch: number
+}>
+
+export type PtrAtlasAdminTokenClaims = Omit<AdminTokenClaims, 'aud'> & Readonly<{
+  aud: ['warpkeep-ptr-spacetimedb']
 }>
 
 export interface PtrOwnerTokenClaims {

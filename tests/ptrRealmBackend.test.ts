@@ -197,6 +197,10 @@ test('owner provisioning checks both signed bindings before every state access',
     'requirePtrOwnerProvisionBinding(admin, ownerFid, authEpoch);',
   );
   const populationRead = reducer.indexOf('requirePtrPopulationEmpty(ctx);');
+  const atlasRead = reducer.indexOf(
+    'inspectGreaterRealmV17(sharedGreaterRealmContext(ctx))',
+  );
+  const atlasReady = reducer.indexOf('!atlas.ready || !atlas.importsExact');
   const anchorRead = reducer.indexOf('ctx.db.ptrOwnerAnchorV1.singletonKey.find(');
   const anchorCount = reducer.indexOf('ctx.db.ptrOwnerAnchorV1.count()');
   const anchorWrite = reducer.indexOf('ctx.db.ptrOwnerAnchorV1.insert({');
@@ -206,11 +210,50 @@ test('owner provisioning checks both signed bindings before every state access',
   assert.ok(requireBinding > requireAdmin);
   for (const stateAccess of [
     populationRead,
+    atlasRead,
+    atlasReady,
     anchorRead,
     anchorCount,
     anchorWrite,
     auditWrite,
   ]) assert.ok(stateAccess > requireBinding);
+  assert.ok(atlasRead < anchorRead);
+  assert.ok(atlasReady > atlasRead && atlasReady < anchorRead);
+});
+
+test('atlas reducers use only ownerless authority and expose no owner values', () => {
+  const atlas = readFileSync(
+    join(process.cwd(), 'spacetimedb', 'ptr', 'src', 'atlasImportReducers.ts'),
+    'utf8',
+  );
+  const owner = readFileSync(
+    join(process.cwd(), 'spacetimedb', 'ptr', 'src', 'ownerReducers.ts'),
+    'utf8',
+  );
+  assert.match(atlas, /requirePtrAtlasAdmin/u);
+  assert.doesNotMatch(atlas, /requirePtrAdmin/u);
+  assert.doesNotMatch(atlas, /ownerFid|ownerAuthEpoch/u);
+  assert.match(owner, /requirePtrAdmin/u);
+  assert.doesNotMatch(owner, /requirePtrAtlasAdmin/u);
+});
+
+test('every atlas reducer effect is enclosed by exact zero-owner checks', () => {
+  const source = readFileSync(
+    join(process.cwd(), 'spacetimedb', 'ptr', 'src', 'atlasImportReducers.ts'),
+    'utf8',
+  );
+  const boundaryStart = source.indexOf('function importBoundary<T>');
+  const boundaryEnd = source.indexOf('/** Exact administrator status', boundaryStart);
+  const boundary = source.slice(boundaryStart, boundaryEnd);
+  const before = boundary.indexOf('requirePtrOwnerAnchorEmpty(ctx);');
+  const effect = boundary.indexOf('const result = effect();');
+  const after = boundary.indexOf('requirePtrOwnerAnchorEmpty(ctx);', effect);
+  assert.ok(before >= 0 && effect > before && after > effect);
+  assert.match(
+    source,
+    /function requirePtrOwnerAnchorEmpty[\s\S]*ptrOwnerAnchorV1\.count\(\) !== 0n/u,
+  );
+  assert.equal(source.match(/importBoundary\(ctx, \(\) => \{/gu)?.length, 7);
 });
 
 test('generated public PTR bindings expose no tables and only the approved calls', async () => {

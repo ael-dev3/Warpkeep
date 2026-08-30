@@ -39,6 +39,38 @@ export const PTR_PRODUCTION_PUBLISH_PROFILE =
 
 const SHA256 = /^[0-9a-f]{64}$/u;
 const COMMIT = /^[0-9a-f]{40}$/u;
+const PUBLICATION_MARKER_PROFILE =
+  'warpkeep-sealed-realms-publication-possibly-submitted-v1';
+const PUBLICATION_RECONCILIATION_PROFILE =
+  'warpkeep-sealed-realms-publication-marker-reconciliation-v1';
+const PUBLICATION_MARKER_MAXIMUM_BYTES = 4 * 1_024;
+const PUBLICATION_MARKER_INPUT_KEYS = Object.freeze([
+  'lane', 'sourceCommit', 'databaseUri', 'alias', 'moduleIdentity', 'release',
+  'artifactDigest', 'toolchainDigest', 'publishPlanDigest',
+  'confirmationDigest', 'attemptNonce', 'markedAt',
+]);
+const PUBLICATION_MARKER_KEYS = Object.freeze([
+  'schemaVersion', 'profile', 'lane', 'sourceCommit', 'databaseUri', 'alias',
+  'moduleIdentity', 'release', 'artifactDigest', 'toolchainDigest',
+  'publishPlanDigest', 'confirmationDigest', 'attemptNonce', 'markedAt',
+  'submissionState',
+]);
+const PUBLICATION_RECONCILIATION_INPUT_KEYS = Object.freeze([
+  'marker', 'markerDigest', 'outcome', 'databaseIdentity',
+  'publicationReceiptDigest', 'observationDigest', 'observedAt',
+]);
+const PUBLICATION_LANE_TUPLES = Object.freeze({
+  g002: Object.freeze({
+    alias: 'warpkeep-genesis-002',
+    moduleIdentity: 'warpkeep-genesis-002-sealed-v1',
+    release: '0.4.0',
+  }),
+  ptr: Object.freeze({
+    alias: 'warpkeep-ptr',
+    moduleIdentity: 'warpkeep-ptr-owner-view-v1',
+    release: '0.4.0-ptr.1',
+  }),
+});
 const MAXIMUM_DATABASE_LIST_BYTES = 256 * 1_024;
 const MAXIMUM_CLI_CONFIG_BYTES = 64 * 1_024;
 const REPOSITORY_ROOT = realpathSync(resolve(
@@ -99,6 +131,197 @@ export class PtrProductionPublisherError extends Error {
 
 function fail(code, publishAttempted = false) {
   throw new PtrProductionPublisherError(code, publishAttempted);
+}
+
+function exactPublicationRecord(value, keys, code) {
+  let descriptors;
+  try {
+    if (
+      value === null
+      || typeof value !== 'object'
+      || Array.isArray(value)
+      || Object.getPrototypeOf(value) !== Object.prototype
+    ) fail(code);
+    descriptors = Object.getOwnPropertyDescriptors(value);
+  } catch (error) {
+    if (error instanceof PtrProductionPublisherError) throw error;
+    return fail(code);
+  }
+  const descriptorKeys = Reflect.ownKeys(descriptors);
+  if (
+    descriptorKeys.length !== keys.length
+    || descriptorKeys.some((key, index) => (
+      typeof key !== 'string' || key !== keys[index]
+    ))
+  ) fail(code);
+  const snapshot = {};
+  for (const key of keys) {
+    const descriptor = descriptors[key];
+    if (
+      descriptor === undefined
+      || !Object.hasOwn(descriptor, 'value')
+      || descriptor.enumerable !== true
+    ) fail(code);
+    Object.defineProperty(snapshot, key, {
+      value: descriptor.value,
+      enumerable: true,
+      writable: false,
+      configurable: false,
+    });
+  }
+  return Object.freeze(snapshot);
+}
+
+function canonicalPublicationTimestamp(value) {
+  return typeof value === 'string'
+    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(value)
+    && !Number.isNaN(Date.parse(value))
+    && new Date(value).toISOString() === value;
+}
+
+function canonicalPublicationMarker(value) {
+  const marker = exactPublicationRecord(
+    value,
+    PUBLICATION_MARKER_KEYS,
+    'SEALED_REALMS_PUBLICATION_MARKER_INVALID',
+  );
+  if (marker.lane !== 'ptr') {
+    fail('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+  }
+  const tuple = PUBLICATION_LANE_TUPLES[marker.lane];
+  if (
+    marker.schemaVersion !== 1
+    || marker.profile !== PUBLICATION_MARKER_PROFILE
+    || tuple === undefined
+    || typeof marker.sourceCommit !== 'string'
+    || !COMMIT.test(marker.sourceCommit)
+    || marker.databaseUri !== 'https://maincloud.spacetimedb.com'
+    || marker.alias !== tuple.alias
+    || marker.moduleIdentity !== tuple.moduleIdentity
+    || marker.release !== tuple.release
+    || typeof marker.artifactDigest !== 'string'
+    || !SHA256.test(marker.artifactDigest)
+    || typeof marker.toolchainDigest !== 'string'
+    || !SHA256.test(marker.toolchainDigest)
+    || typeof marker.publishPlanDigest !== 'string'
+    || !SHA256.test(marker.publishPlanDigest)
+    || typeof marker.confirmationDigest !== 'string'
+    || !SHA256.test(marker.confirmationDigest)
+    || typeof marker.attemptNonce !== 'string'
+    || !SHA256.test(marker.attemptNonce)
+    || !canonicalPublicationTimestamp(marker.markedAt)
+    || marker.submissionState !== 'possibly-submitted'
+  ) fail('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+  const canonical = `${JSON.stringify(marker)}\n`;
+  if (Buffer.byteLength(canonical, 'utf8') > PUBLICATION_MARKER_MAXIMUM_BYTES) {
+    fail('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+  }
+  return marker;
+}
+
+export function createSealedRealmsPublicationPossiblySubmittedMarker(input) {
+  const source = exactPublicationRecord(
+    input,
+    PUBLICATION_MARKER_INPUT_KEYS,
+    'SEALED_REALMS_PUBLICATION_MARKER_INVALID',
+  );
+  return canonicalPublicationMarker({
+    schemaVersion: 1,
+    profile: PUBLICATION_MARKER_PROFILE,
+    lane: source.lane,
+    sourceCommit: source.sourceCommit,
+    databaseUri: source.databaseUri,
+    alias: source.alias,
+    moduleIdentity: source.moduleIdentity,
+    release: source.release,
+    artifactDigest: source.artifactDigest,
+    toolchainDigest: source.toolchainDigest,
+    publishPlanDigest: source.publishPlanDigest,
+    confirmationDigest: source.confirmationDigest,
+    attemptNonce: source.attemptNonce,
+    markedAt: source.markedAt,
+    submissionState: 'possibly-submitted',
+  });
+}
+
+export function parseSealedRealmsPublicationPossiblySubmittedMarker(bytes) {
+  let text;
+  try {
+    if (typeof bytes === 'string') text = bytes;
+    else if (bytes instanceof Uint8Array) {
+      if (bytes.byteLength > PUBLICATION_MARKER_MAXIMUM_BYTES) {
+        fail('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+      }
+      text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } else fail('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+    if (
+      Buffer.byteLength(text, 'utf8') > PUBLICATION_MARKER_MAXIMUM_BYTES
+      || !text.endsWith('\n')
+      || text.endsWith('\n\n')
+    ) fail('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+    const parsed = JSON.parse(text.slice(0, -1));
+    const marker = canonicalPublicationMarker(parsed);
+    if (`${JSON.stringify(marker)}\n` !== text) {
+      fail('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+    }
+    return marker;
+  } catch (error) {
+    if (
+      error instanceof PtrProductionPublisherError
+      && error.code === 'SEALED_REALMS_PUBLICATION_MARKER_INVALID'
+    ) throw error;
+    return fail('SEALED_REALMS_PUBLICATION_MARKER_INVALID');
+  }
+}
+
+export function digestSealedRealmsPublicationPossiblySubmittedMarker(value) {
+  const marker = typeof value === 'string' || value instanceof Uint8Array
+    ? parseSealedRealmsPublicationPossiblySubmittedMarker(value)
+    : canonicalPublicationMarker(value);
+  return createHash('sha256')
+    .update('warpkeep.sealed-realms.publication-possibly-submitted-marker.v1\n')
+    .update(`${JSON.stringify(marker)}\n`)
+    .digest('hex');
+}
+
+export function createSealedRealmsPublicationMarkerReconciliation(input) {
+  const source = exactPublicationRecord(
+    input,
+    PUBLICATION_RECONCILIATION_INPUT_KEYS,
+    'SEALED_REALMS_PUBLICATION_RECONCILIATION_INVALID',
+  );
+  const marker = canonicalPublicationMarker(source.marker);
+  const markerDigest = digestSealedRealmsPublicationPossiblySubmittedMarker(marker);
+  const adopted = source.outcome === 'adopted';
+  const noEffect = source.outcome === 'no-effect';
+  if (
+    source.markerDigest !== markerDigest
+    || (!adopted && !noEffect)
+    || (adopted && (
+      typeof source.databaseIdentity !== 'string'
+      || !SHA256.test(source.databaseIdentity)
+      || typeof source.publicationReceiptDigest !== 'string'
+      || !SHA256.test(source.publicationReceiptDigest)
+    ))
+    || (noEffect && (
+      source.databaseIdentity !== null
+      || source.publicationReceiptDigest !== null
+    ))
+    || typeof source.observationDigest !== 'string'
+    || !SHA256.test(source.observationDigest)
+    || !canonicalPublicationTimestamp(source.observedAt)
+  ) fail('SEALED_REALMS_PUBLICATION_RECONCILIATION_INVALID');
+  return Object.freeze({
+    schemaVersion: 1,
+    profile: PUBLICATION_RECONCILIATION_PROFILE,
+    lane: marker.lane,
+    markerDigest,
+    outcome: source.outcome,
+    databaseIdentity: source.databaseIdentity,
+    publicationReceiptDigest: source.publicationReceiptDigest,
+    observationDigest: source.observationDigest,
+    observedAt: source.observedAt,
+  });
 }
 
 function exactRecord(value, keys, code) {
@@ -809,7 +1032,6 @@ export async function executePtrProductionPublish(input) {
     || typeof input.spacetimeExecutable !== 'string'
     || !isAbsolute(input.spacetimeExecutable)
     || (input.spawn !== undefined && typeof input.spawn !== 'function')
-    || typeof input.postflight !== 'function'
     || typeof input.assertSourceAndArtifact !== 'function'
     || typeof input.spacetimeCliRootDirectory !== 'string'
     || !isAbsolute(input.spacetimeCliRootDirectory)
@@ -844,7 +1066,6 @@ export async function executePtrProductionPublish(input) {
     input.artifactDescriptor,
   );
   let databaseIdentity;
-  let freshStatus;
   try {
     const after = run(
       spawn,
@@ -865,15 +1086,6 @@ export async function executePtrProductionPublish(input) {
         true,
       );
     }
-    freshStatus = await input.postflight(databaseIdentity);
-    if (
-      freshStatus === null
-      || typeof freshStatus !== 'object'
-      || Array.isArray(freshStatus)
-      || freshStatus.freshDatabase !== true
-      || freshStatus.admissionSurfacePresent !== false
-      || freshStatus.accessRequestSurfacePresent !== false
-    ) fail('PTR_PRODUCTION_FRESH_STATUS_INVALID');
     input.assertSourceAndArtifact();
     if (publishResult.status !== 0) {
       fail(
@@ -908,7 +1120,11 @@ export async function executePtrProductionPublish(input) {
     freshDatabase: true,
     freshStatusDigest: createHash('sha256')
       .update('warpkeep.ptr.fresh-publish-status.v1\n')
-      .update(`${JSON.stringify(freshStatus)}\n`)
+      .update(`${JSON.stringify({
+        databaseIdentity,
+        databaseAlias: plan.databaseAlias,
+        observation: 'authenticated-spacetime-cli-list-identity-v1',
+      })}\n`)
       .digest('hex'),
     admissionSurfacePresent: false,
     accessRequestSurfacePresent: false,

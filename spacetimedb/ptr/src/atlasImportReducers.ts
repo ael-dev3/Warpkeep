@@ -11,7 +11,7 @@ import {
   stageGreaterRealmReleaseV1,
   verifyGreaterRealmBatchV1,
 } from './atlasAuthority';
-import { requirePtrAdmin } from './auth';
+import { requirePtrAtlasAdmin } from './auth';
 import {
   PTR_ATLAS_ID,
   PTR_ATLAS_POLICY,
@@ -114,8 +114,6 @@ const adminGreaterRealmStatusV1 = t.object('PtrAdminGreaterRealmStatusV1', {
   activationMutationsCompiled: t.bool(),
   ownerProvisioned: t.bool(),
   ownerEnabled: t.bool(),
-  ownerFid: t.option(t.u64()),
-  ownerAuthEpoch: t.option(t.u32()),
 });
 
 function fail(code: string): never {
@@ -170,6 +168,12 @@ function audit(
   });
 }
 
+function requirePtrOwnerAnchorEmpty(ctx: PtrContext): void {
+  if (ctx.db.ptrOwnerAnchorV1.count() !== 0n) {
+    fail('PTR_OWNER_CARDINALITY_INVALID');
+  }
+}
+
 function importBoundary<T>(ctx: PtrContext, effect: () => T): T {
   if (!PTR_ATLAS_POLICY.importMutationsEnabled) {
     fail('PTR_ATLAS_IMPORT_SEALED');
@@ -177,9 +181,15 @@ function importBoundary<T>(ctx: PtrContext, effect: () => T): T {
   assertPtrAtlasNotFinalized(
     inspectGreaterRealmV17(sharedGreaterRealmContext(ctx)).ready,
   );
+  requirePtrOwnerAnchorEmpty(ctx);
   return withPtrAtlasImportBoundary(
     () => ptrPopulationSnapshot(ctx),
-    effect,
+    () => {
+      requirePtrOwnerAnchorEmpty(ctx);
+      const result = effect();
+      requirePtrOwnerAnchorEmpty(ctx);
+      return result;
+    },
   );
 }
 
@@ -189,7 +199,7 @@ export const adminGetGreaterRealmStatusV1 = ptr.procedure(
   adminGreaterRealmStatusV1,
   ctx => ctx.withTx(tx => {
     try {
-      requirePtrAdmin(tx);
+      requirePtrAtlasAdmin(tx);
       requirePtrPopulationEmpty(tx);
       const releases = [...tx.db.greaterRealmReleaseV1.iter()];
       if (releases.length > 1) fail('GREATER_REALM_RELEASE_CARDINALITY_INVALID');
@@ -221,8 +231,6 @@ export const adminGetGreaterRealmStatusV1 = ptr.procedure(
         activationMutationsCompiled: PTR_ATLAS_POLICY.activationMutationsEnabled,
         ownerProvisioned: owner !== null,
         ownerEnabled: owner?.enabled ?? false,
-        ownerFid: owner?.ownerFid,
-        ownerAuthEpoch: owner?.authEpoch,
       };
     } catch (error) {
       return senderPtrAtlasError(error);
@@ -261,7 +269,7 @@ export const adminStageGreaterRealmReleaseV1 = ptr.reducer(
   }) => {
     try {
       requireTarget(input.atlasId, ptrReleaseVersion, ptrModuleIdentity);
-      const admin = requirePtrAdmin(ctx);
+      const admin = requirePtrAtlasAdmin(ctx);
       importBoundary(ctx, () => {
         const result = stageGreaterRealmReleaseV1(
           sharedGreaterRealmContext(ctx),
@@ -288,7 +296,7 @@ export const adminImportGreaterRealmComponentsV1 = ptr.reducer(
   (ctx, { atlasId, ptrReleaseVersion, ptrModuleIdentity, importEpoch, rows }) => {
     try {
       requireTarget(atlasId, ptrReleaseVersion, ptrModuleIdentity);
-      const admin = requirePtrAdmin(ctx);
+      const admin = requirePtrAtlasAdmin(ctx);
       importBoundary(ctx, () => {
         const inserted = importGreaterRealmComponentsV1(
           sharedGreaterRealmContext(ctx),
@@ -316,7 +324,7 @@ export const adminImportGreaterRealmRegionsV1 = ptr.reducer(
   (ctx, { atlasId, ptrReleaseVersion, ptrModuleIdentity, importEpoch, rows }) => {
     try {
       requireTarget(atlasId, ptrReleaseVersion, ptrModuleIdentity);
-      const admin = requirePtrAdmin(ctx);
+      const admin = requirePtrAtlasAdmin(ctx);
       importBoundary(ctx, () => {
         const inserted = importGreaterRealmRegionsV1(
           sharedGreaterRealmContext(ctx),
@@ -352,7 +360,7 @@ export const adminImportGreaterRealmChunkV1 = ptr.reducer(
   }) => {
     try {
       requireTarget(atlasId, ptrReleaseVersion, ptrModuleIdentity);
-      const admin = requirePtrAdmin(ctx);
+      const admin = requirePtrAtlasAdmin(ctx);
       importBoundary(ctx, () => {
         const result = importGreaterRealmChunkPayloadV1(
           sharedGreaterRealmContext(ctx),
@@ -376,7 +384,7 @@ export const adminBeginGreaterRealmVerificationV1 = ptr.reducer(
   (ctx, { atlasId, ptrReleaseVersion, ptrModuleIdentity, importEpoch }) => {
     try {
       requireTarget(atlasId, ptrReleaseVersion, ptrModuleIdentity);
-      const admin = requirePtrAdmin(ctx);
+      const admin = requirePtrAtlasAdmin(ctx);
       importBoundary(ctx, () => {
         beginGreaterRealmVerificationV1(
           sharedGreaterRealmContext(ctx),
@@ -409,7 +417,7 @@ export const adminVerifyGreaterRealmBatchV1 = ptr.reducer(
   }) => {
     try {
       requireTarget(atlasId, ptrReleaseVersion, ptrModuleIdentity);
-      const admin = requirePtrAdmin(ctx);
+      const admin = requirePtrAtlasAdmin(ctx);
       importBoundary(ctx, () => {
         const result = verifyGreaterRealmBatchV1(
           sharedGreaterRealmContext(ctx),
@@ -444,7 +452,7 @@ export const adminFinalizeGreaterRealmReleaseV1 = ptr.reducer(
         input.ptrReleaseVersion,
         input.ptrModuleIdentity,
       );
-      const admin = requirePtrAdmin(ctx);
+      const admin = requirePtrAtlasAdmin(ctx);
       importBoundary(ctx, () => {
         finalizeGreaterRealmReleaseV1(
           sharedGreaterRealmContext(ctx),

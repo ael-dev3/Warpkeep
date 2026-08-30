@@ -12,6 +12,7 @@ import {
   PtrOwnerPolicyError,
   planPtrOwnerProvision,
   planPtrOwnerSuspension,
+  readFreshPtrAtlasAdminClaims,
   readFreshPtrAdminClaims,
   readFreshPtrOwnerClaims,
   requirePtrOwnerAnchor,
@@ -62,6 +63,21 @@ function adminPayload(overrides: Readonly<Record<string, unknown>> = {}) {
   };
 }
 
+function atlasAdminPayload(overrides: Readonly<Record<string, unknown>> = {}) {
+  return {
+    iss: 'https://auth.warpkeep.com',
+    sub: 'service:hermes',
+    aud: [PTR_AUDIENCE],
+    token_type: 'spacetime-access',
+    roles: ['warpkeep-admin'],
+    iat: SESSION_IAT,
+    nbf: SESSION_IAT,
+    exp: SESSION_IAT + 300,
+    jti: 'ptr-atlas-admin-jti',
+    ...overrides,
+  };
+}
+
 function expectOwnerDenial(payload: unknown, nowMicros = NOW_MICROS) {
   assert.throws(
     () => readFreshPtrOwnerClaims(payload, nowMicros),
@@ -74,6 +90,40 @@ function expectOwnerDenial(payload: unknown, nowMicros = NOW_MICROS) {
 }
 
 describe('PTR owner JWT policy', () => {
+  test('mutually excludes ownerless atlas and owner-bearing provision claims', () => {
+    assert.deepEqual(readFreshPtrAtlasAdminClaims(
+      atlasAdminPayload(),
+      NOW_MICROS,
+    ), {
+      issuer: 'https://auth.warpkeep.com',
+      subject: 'service:hermes',
+      audience: [PTR_AUDIENCE],
+      tokenType: 'spacetime-access',
+      roles: ['warpkeep-admin'],
+    });
+    assert.throws(
+      () => readFreshPtrAtlasAdminClaims(adminPayload(), NOW_MICROS),
+      /INVALID_PTR_ATLAS_ADMIN_SESSION/u,
+    );
+    assert.throws(
+      () => readFreshPtrAdminClaims(atlasAdminPayload(), NOW_MICROS),
+      /INVALID_PTR_ADMIN_SESSION/u,
+    );
+    for (const payload of [
+      atlasAdminPayload({ aud: ['warpkeep-spacetimedb'] }),
+      atlasAdminPayload({ aud: PTR_AUDIENCE }),
+      atlasAdminPayload({ roles: [] }),
+      atlasAdminPayload({ roles: ['warpkeep-admin', 'warpkeep-ptr-owner'] }),
+      atlasAdminPayload({ sub: 'farcaster:4242' }),
+      atlasAdminPayload({ exp: SESSION_IAT + 301 }),
+      atlasAdminPayload({ exp: SESSION_IAT }),
+      atlasAdminPayload({ unknown_authority: true }),
+    ]) assert.throws(
+      () => readFreshPtrAtlasAdminClaims(payload, NOW_MICROS),
+      /INVALID_PTR_ATLAS_ADMIN_SESSION/u,
+    );
+  });
+
   test('accepts only the exact fresh owner claim set', () => {
     assert.equal(PTR_OWNER_MAX_SESSION_SECONDS, 120);
     assert.deepEqual(readFreshPtrOwnerClaims(ownerPayload(), NOW_MICROS), {

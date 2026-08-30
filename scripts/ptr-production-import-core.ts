@@ -84,8 +84,6 @@ const STATUS_KEYS = Object.freeze([
   'activationMutationsCompiled',
   'ownerProvisioned',
   'ownerEnabled',
-  'ownerFid',
-  'ownerAuthEpoch',
 ] as const);
 const OPTIONAL_STRINGS = Object.freeze([
   'atlasId', 'publicReleaseId', 'publicApprovalReceiptId', 'sourceCommit',
@@ -257,8 +255,6 @@ export type PtrProductionStatus = Readonly<{
   activationMutationsCompiled: boolean;
   ownerProvisioned: boolean;
   ownerEnabled: boolean;
-  ownerFid?: bigint;
-  ownerAuthEpoch?: number;
 }>;
 
 /** Exact protected server projection; a successful call also proves all hidden legacy tables empty. */
@@ -284,8 +280,6 @@ export function projectPtrProductionStatus(value: unknown): PtrProductionStatus 
     activationMutationsCompiled: source.activationMutationsCompiled,
     ownerProvisioned: source.ownerProvisioned,
     ownerEnabled: source.ownerEnabled,
-    ownerFid: optionalU64(source.ownerFid),
-    ownerAuthEpoch: optionalU32(source.ownerAuthEpoch),
   });
   if (
     typeof source.present !== 'boolean'
@@ -312,14 +306,11 @@ export function projectPtrProductionStatus(value: unknown): PtrProductionStatus 
   const atlasFieldsPresent = OPTIONAL_STRINGS.every(key => (
     status.present ? status[key] !== undefined : status[key] === undefined
   ));
-  const ownerFieldsPresent = status.ownerFid !== undefined
-    && status.ownerAuthEpoch !== undefined;
   if (
     status.present !== (status.state !== 'absent')
     || status.present !== (status.importEpoch !== undefined)
     || !atlasFieldsPresent
     || status.ready !== (status.state === 'ready')
-    || status.ownerProvisioned !== ownerFieldsPresent
     || (!status.ownerProvisioned && status.ownerEnabled)
     || (status.ownerProvisioned && status.state !== 'ready')
   ) fail('PTR_PRODUCTION_STATUS_INCONSISTENT');
@@ -728,8 +719,15 @@ export async function executePtrProductionImport(input: Readonly<{
     artifacts: GreaterRealmRuntimeReleaseArtifacts,
   ) => void;
 }>): Promise<PtrProductionImportReceipt> {
+  const forbiddenInputKeys = Object.freeze([
+    'ownerFid', 'ownerAuthEpoch', 'entropy', 'ownerOpaqueProofDigest',
+    'ownerToken', 'ownerTransport', 'ownerCallback',
+  ] as const);
   if (
-    !SHA256.test(input.databaseIdentity)
+    forbiddenInputKeys.some(key => Object.hasOwn(input, key))
+    || forbiddenInputKeys.some(key => Object.hasOwn(input.transport, key))
+    || Object.hasOwn(input.transport, 'provisionOwner')
+    || !SHA256.test(input.databaseIdentity)
     || input.databaseIdentity === PTR_PRODUCTION_IMPORT_TARGET.genesis001DatabaseIdentity
     || !COMMIT.test(input.moduleSourceCommit)
     || !SHA256.test(input.moduleSha256)

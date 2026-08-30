@@ -1,5 +1,7 @@
 export const PTR_ADMIN_TOKEN_ENDPOINT =
   'https://auth.warpkeep.com/v1/admin/ptr-token' as const;
+export const PTR_ATLAS_ADMIN_TOKEN_ENDPOINT =
+  'https://auth.warpkeep.com/v1/admin/ptr-atlas-token' as const;
 
 const MINIMUM_SECRET_BYTES = 32;
 const MAXIMUM_SECRET_BYTES = 512;
@@ -22,6 +24,9 @@ const PTR_ADMIN_CLAIM_KEYS = Object.freeze([
   'nbf',
   'exp',
   'jti',
+] as const);
+const PTR_ATLAS_ADMIN_CLAIM_KEYS = Object.freeze([
+  'iss', 'sub', 'aud', 'token_type', 'roles', 'iat', 'nbf', 'exp', 'jti',
 ] as const);
 
 export class PtrProductionAdminTokenError extends Error {
@@ -49,6 +54,106 @@ export type PtrOwnerProvisionAuthority = Readonly<{
   ownerFid: bigint;
   ownerAuthEpoch: number;
 }>;
+
+export type PtrAtlasImportAuthority = Readonly<{
+  issuer: typeof PTR_ADMIN_ISSUER;
+  subject: 'service:hermes';
+  audience: readonly [typeof PTR_ADMIN_AUDIENCE];
+  tokenType: 'spacetime-access';
+  roles: readonly ['warpkeep-admin'];
+}>;
+
+function decodeTokenPayload(token: string, code: string): Readonly<{
+  record: Readonly<Record<string, unknown>>;
+  payloadText: string;
+}> {
+  if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u.test(token)) {
+    fail(code);
+  }
+  const payloadSegment = token.split('.')[1]!;
+  const payloadBytes = Buffer.from(payloadSegment, 'base64url');
+  try {
+    if (
+      payloadBytes.byteLength < 2
+      || payloadBytes.byteLength > MAXIMUM_TOKEN_BYTES
+      || payloadBytes.toString('base64url') !== payloadSegment
+    ) fail(code);
+    const payloadText = new TextDecoder('utf-8', { fatal: true })
+      .decode(payloadBytes);
+    const payload = JSON.parse(payloadText) as unknown;
+    if (
+      payload === null
+      || typeof payload !== 'object'
+      || Array.isArray(payload)
+      || Object.getPrototypeOf(payload) !== Object.prototype
+    ) fail(code);
+    return Object.freeze({
+      record: payload as Readonly<Record<string, unknown>>,
+      payloadText,
+    });
+  } catch (error) {
+    if (error instanceof PtrProductionAdminTokenError && error.code === code) {
+      throw error;
+    }
+    return fail(code);
+  } finally {
+    payloadBytes.fill(0);
+  }
+}
+
+/** Validate the exact fresh ownerless token before opening an atlas session. */
+export function readPtrAtlasImportAuthority(
+  token: string,
+  currentTimeSeconds: number,
+): PtrAtlasImportAuthority {
+  const code = 'PTR_PRODUCTION_ATLAS_ADMIN_TOKEN_CLAIMS_INVALID';
+  try {
+    if (
+      typeof token !== 'string'
+      || !Number.isSafeInteger(currentTimeSeconds)
+      || currentTimeSeconds < 0
+    ) fail(code);
+    const { record, payloadText } = decodeTokenPayload(token, code);
+    const keys = Reflect.ownKeys(record);
+    if (
+      JSON.stringify(record) !== payloadText
+      || keys.length !== PTR_ATLAS_ADMIN_CLAIM_KEYS.length
+      || keys.some(key => typeof key !== 'string'
+        || !(PTR_ATLAS_ADMIN_CLAIM_KEYS as readonly string[]).includes(key))
+      || record.iss !== PTR_ADMIN_ISSUER
+      || record.sub !== 'service:hermes'
+      || !Array.isArray(record.aud)
+      || record.aud.length !== 1
+      || record.aud[0] !== PTR_ADMIN_AUDIENCE
+      || record.token_type !== 'spacetime-access'
+      || !Array.isArray(record.roles)
+      || record.roles.length !== 1
+      || record.roles[0] !== 'warpkeep-admin'
+      || !Number.isSafeInteger(record.iat)
+      || !Number.isSafeInteger(record.nbf)
+      || !Number.isSafeInteger(record.exp)
+      || (record.iat as number) > currentTimeSeconds
+      || (record.nbf as number) > currentTimeSeconds
+      || (record.exp as number) <= currentTimeSeconds
+      || record.nbf !== record.iat
+      || (record.exp as number) - (record.iat as number) !== 300
+      || typeof record.jti !== 'string'
+      || !/^[A-Za-z0-9_-]{1,128}$/u.test(record.jti)
+    ) fail(code);
+    return Object.freeze({
+      issuer: PTR_ADMIN_ISSUER,
+      subject: 'service:hermes',
+      audience: Object.freeze([PTR_ADMIN_AUDIENCE] as const),
+      tokenType: 'spacetime-access',
+      roles: Object.freeze(['warpkeep-admin'] as const),
+    });
+  } catch (error) {
+    if (error instanceof PtrProductionAdminTokenError && error.code === code) {
+      throw error;
+    }
+    return fail(code);
+  }
+}
 
 /**
  * Decode only the private reducer arguments from a fresh token. Signature
@@ -218,8 +323,9 @@ function exactTokenResponse(value: unknown): string {
   return record.token;
 }
 
-export async function requestPtrProductionAdminToken(
+async function requestPtrAdminTokenAtEndpoint(
   secret: string,
+  endpoint: typeof PTR_ADMIN_TOKEN_ENDPOINT | typeof PTR_ATLAS_ADMIN_TOKEN_ENDPOINT,
   options: Readonly<{
     fetchImpl?: typeof fetch;
     timeoutMilliseconds?: number;
@@ -244,7 +350,7 @@ export async function requestPtrProductionAdminToken(
     authorization: `Bearer ${secret}`,
   });
   try {
-    const response = await fetchImpl(PTR_ADMIN_TOKEN_ENDPOINT, {
+    const response = await fetchImpl(endpoint, {
       method: 'POST',
       headers,
       cache: 'no-store',
@@ -277,4 +383,28 @@ export async function requestPtrProductionAdminToken(
     secret = '';
     clearTimeout(timer);
   }
+}
+
+export function requestPtrProductionAdminToken(
+  secret: string,
+  options: Readonly<{
+    fetchImpl?: typeof fetch;
+    timeoutMilliseconds?: number;
+  }> = {},
+): Promise<string> {
+  return requestPtrAdminTokenAtEndpoint(secret, PTR_ADMIN_TOKEN_ENDPOINT, options);
+}
+
+export function requestPtrAtlasProductionAdminToken(
+  secret: string,
+  options: Readonly<{
+    fetchImpl?: typeof fetch;
+    timeoutMilliseconds?: number;
+  }> = {},
+): Promise<string> {
+  return requestPtrAdminTokenAtEndpoint(
+    secret,
+    PTR_ATLAS_ADMIN_TOKEN_ENDPOINT,
+    options,
+  );
 }
