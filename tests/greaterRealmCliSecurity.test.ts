@@ -407,7 +407,7 @@ describe('Greater Realm atlas CLI security boundary', () => {
     }
   });
 
-  it('binds the PTR release script to the fixed batch-only PTR command', () => {
+  it('keeps the PTR release parser batch-only without a root package alias', () => {
     expect(greaterRealmCliArgumentTestSeams.ptrRuntimeReleaseExport([
       '--batch',
       'GR-B-AAAAAAAAAAAAAAAA',
@@ -427,8 +427,8 @@ describe('Greater Realm atlas CLI security boundary', () => {
     const packageJson = JSON.parse(
       readFileSync(join(repositoryRoot, 'package.json'), 'utf8'),
     ) as { scripts: Record<string, string> };
-    expect(packageJson.scripts['atlas:export-ptr-runtime-release']).toBe(
-      'node scripts/atlas/greater-realm-toolchain-bootstrap.mjs export-ptr-runtime-release',
+    expect(packageJson.scripts).not.toHaveProperty(
+      'atlas:export-ptr-runtime-release',
     );
   });
 

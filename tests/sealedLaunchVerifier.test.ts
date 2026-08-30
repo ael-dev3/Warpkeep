@@ -2,6 +2,7 @@
 
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -26,6 +27,7 @@ import {
 
 import {
   createSealedLaunchActivationBinding,
+  classifySealedLaunchPagesDeployLane,
   GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS,
   inspectSealedLaunchGitHistoryForTesting,
   verifySealedLaunchActivationHistory,
@@ -806,6 +808,274 @@ describe('0.4.0 sealed-launch verifier', () => {
         '7'.repeat(40),
         GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS,
       );
+    }
+  });
+
+  it('accepts only an endpoint-identical regular G001 preparation projection', () => {
+    type PreparationProjectionInput = Readonly<{
+      repositoryRoot: string;
+      candidatePreparationCommit: string;
+      sources: ReturnType<typeof checkedInSources>;
+    }>;
+    const verifyPreparationProjection = (
+      sealedLaunchVerifierModule as unknown as {
+        verifyGenesis001PreparationProjection?: (
+          input: PreparationProjectionInput,
+        ) => Readonly<Record<string, unknown>>;
+      }
+    ).verifyGenesis001PreparationProjection;
+    expect(typeof verifyPreparationProjection).toBe('function');
+    if (verifyPreparationProjection === undefined) return;
+
+    const fixtureParent = mkdtempSync(resolve(tmpdir(), 'warpkeep-g001-preparation-'));
+    const fixtureRoot = resolve(fixtureParent, 'repository');
+    const freezeCommit = 'd945256b217fa13ade944b9ed9880e8463b46123';
+    try {
+      fixtureGit(fixtureParent, [
+        'clone', '--quiet', '--shared', '--no-checkout', repositoryRoot, fixtureRoot,
+      ]);
+      fixtureGit(fixtureRoot, ['checkout', '--quiet', '--detach', freezeCommit]);
+      fixtureGit(fixtureRoot, [
+        'commit', '--quiet', '--allow-empty', '-m', 'unchanged preparation',
+      ]);
+      const unchangedPreparation = fixtureGit(fixtureRoot, ['rev-parse', 'HEAD']);
+      const unchangedProjection = {
+        repositoryRoot: fixtureRoot,
+        candidatePreparationCommit: unchangedPreparation,
+        sources: checkedInSources(),
+      };
+      expect(verifyPreparationProjection(unchangedProjection)).toMatchObject({
+        candidatePreparationCommit: unchangedPreparation,
+        genesis001FreezePublishSourceCommit: freezeCommit,
+      });
+
+      for (const path of [
+        'spacetimedb/genesis002/src/index.ts',
+        'services/auth-bridge/src/index.ts',
+      ]) {
+        const absolute = resolve(fixtureRoot, path);
+        writeFileSync(absolute, `${readFileSync(absolute, 'utf8')}\n// unrelated realm edit\n`);
+      }
+      writeFileSync(
+        resolve(fixtureRoot, 'scripts/ptr-production-publisher-cli.ts'),
+        '// unrelated PTR entrypoint\n',
+      );
+      fixtureGit(fixtureRoot, ['add', '.']);
+      fixtureGit(fixtureRoot, ['commit', '--quiet', '-m', 'unrelated realms']);
+      const validProjectionCommit = fixtureGit(fixtureRoot, ['rev-parse', 'HEAD']);
+      const validProjection = {
+        ...unchangedProjection,
+        candidatePreparationCommit: validProjectionCommit,
+      };
+      expect(() => verifyPreparationProjection(validProjection)).not.toThrow();
+
+      const rootModule = resolve(fixtureRoot, 'spacetimedb/src/index.ts');
+      writeFileSync(rootModule, `${readFileSync(rootModule, 'utf8')}\n// future G001 source\n`);
+      fixtureGit(fixtureRoot, ['add', 'spacetimedb/src/index.ts']);
+      fixtureGit(fixtureRoot, ['commit', '--quiet', '-m', 'edit root module']);
+      const projectionWithRootModuleEdit = {
+        ...validProjection,
+        candidatePreparationCommit: fixtureGit(fixtureRoot, ['rev-parse', 'HEAD']),
+      };
+      expect(() => verifyPreparationProjection(projectionWithRootModuleEdit)).toThrow(
+        'SEALED_LAUNCH_GENESIS_001_HISTORY_INVALID',
+      );
+
+      fixtureGit(fixtureRoot, [
+        'checkout', validProjectionCommit, '--', 'spacetimedb/src/index.ts',
+      ]);
+      fixtureGit(fixtureRoot, ['add', 'spacetimedb/src/index.ts']);
+      fixtureGit(fixtureRoot, ['commit', '--quiet', '-m', 'revert root module bytes']);
+      expect(() => verifyPreparationProjection({
+        ...validProjection,
+        candidatePreparationCommit: fixtureGit(fixtureRoot, ['rev-parse', 'HEAD']),
+      })).not.toThrow();
+
+      fixtureGit(fixtureRoot, ['checkout', '--quiet', '--detach', validProjectionCommit]);
+      const publisher = resolve(
+        fixtureRoot,
+        'scripts/genesis001-frozen-publisher-core.ts',
+      );
+      writeFileSync(publisher, `${readFileSync(publisher, 'utf8')}\n// future publisher\n`);
+      fixtureGit(fixtureRoot, ['add', 'scripts/genesis001-frozen-publisher-core.ts']);
+      fixtureGit(fixtureRoot, ['commit', '--quiet', '-m', 'edit frozen publisher']);
+      const projectionWithPublisherEdit = {
+        ...validProjection,
+        candidatePreparationCommit: fixtureGit(fixtureRoot, ['rev-parse', 'HEAD']),
+      };
+      expect(() => verifyPreparationProjection(projectionWithPublisherEdit)).toThrow(
+        'SEALED_LAUNCH_GENESIS_001_HISTORY_INVALID',
+      );
+
+      fixtureGit(fixtureRoot, ['checkout', '--quiet', '--detach', validProjectionCommit]);
+      chmodSync(publisher, 0o755);
+      fixtureGit(fixtureRoot, ['add', 'scripts/genesis001-frozen-publisher-core.ts']);
+      fixtureGit(fixtureRoot, ['commit', '--quiet', '-m', 'make publisher executable']);
+      expect(() => verifyPreparationProjection({
+        ...validProjection,
+        candidatePreparationCommit: fixtureGit(fixtureRoot, ['rev-parse', 'HEAD']),
+      })).toThrow('SEALED_LAUNCH_GENESIS_001_HISTORY_INVALID');
+
+      const invalidFreezeSource = checkedInSources();
+      invalidFreezeSource.genesis001FrozenPublisherCoreSource =
+        invalidFreezeSource.genesis001FrozenPublisherCoreSource.replace(
+          'publishGenesis001Frozen',
+          'publishGenesis001Future',
+        );
+      expect(() => verifyPreparationProjection({
+        ...validProjection,
+        sources: invalidFreezeSource,
+      })).toThrow('SEALED_LAUNCH_G001_FROZEN_PUBLISHER_INVALID');
+
+      const invalidLegacyEntrypoint = checkedInSources();
+      invalidLegacyEntrypoint.legacyGreaterRealmProductionPublisherCliSource =
+        invalidLegacyEntrypoint.legacyGreaterRealmProductionPublisherCliSource.replace(
+          'requireGenesis001LegacyGreaterRealmProductionCliReadOnly({',
+          'openGenesis001LegacyGreaterRealmProductionMutation({',
+        );
+      expect(() => verifyPreparationProjection({
+        ...validProjection,
+        sources: invalidLegacyEntrypoint,
+      })).toThrow('SEALED_LAUNCH_G001_LEGACY_GREATER_REALM_ENTRYPOINT_OPEN');
+    } finally {
+      rmSync(fixtureParent, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects protected worktree drift hidden by tracked index flags', () => {
+    const fixtureParent = mkdtempSync(resolve(tmpdir(), 'warpkeep-checkout-flags-'));
+    const fixtureRoot = resolve(fixtureParent, 'repository');
+    try {
+      fixtureGit(fixtureParent, [
+        'clone', '--quiet', '--shared', repositoryRoot, fixtureRoot,
+      ]);
+      const head = fixtureGit(fixtureRoot, ['rev-parse', 'HEAD']);
+      const protectedPath = 'spacetimedb/src/worldSeedPolicy.ts';
+      const protectedSource = resolve(fixtureRoot, protectedPath);
+      const reviewedBytes = readFileSync(protectedSource);
+
+      for (const [setFlag, clearFlag, expectedTag] of [
+        ['--assume-unchanged', '--no-assume-unchanged', 'h'],
+        ['--skip-worktree', '--no-skip-worktree', 'S'],
+      ] as const) {
+        fixtureGit(fixtureRoot, ['update-index', setFlag, '--', protectedPath]);
+        writeFileSync(protectedSource, Buffer.concat([
+          reviewedBytes,
+          Buffer.from('// hidden future G001 worktree source\n'),
+        ]));
+        expect(fixtureGit(
+          fixtureRoot,
+          ['status', '--porcelain=v1', '--untracked-files=all'],
+        ), setFlag).toBe('');
+        expect(fixtureGit(fixtureRoot, ['ls-files', '-v', '--', protectedPath]))
+          .toBe(`${expectedTag} ${protectedPath}`);
+        expect(() => classifySealedLaunchPagesDeployLane({
+          repositoryRoot: fixtureRoot,
+          candidatePagesSourceCommit: head,
+        }), setFlag).toThrow('SEALED_LAUNCH_CHECKOUT_INVALID');
+        writeFileSync(protectedSource, reviewedBytes);
+        fixtureGit(fixtureRoot, ['update-index', clearFlag, '--', protectedPath]);
+      }
+
+      writeFileSync(protectedSource, Buffer.concat([
+        reviewedBytes,
+        Buffer.from('// visible future G001 worktree source\n'),
+      ]));
+      expect(() => classifySealedLaunchPagesDeployLane({
+        repositoryRoot: fixtureRoot,
+        candidatePagesSourceCommit: head,
+      })).toThrow('SEALED_LAUNCH_CHECKOUT_INVALID');
+      writeFileSync(protectedSource, reviewedBytes);
+
+      const untrackedPath = resolve(fixtureRoot, 'checkout-untracked.txt');
+      writeFileSync(untrackedPath, 'untracked checkout drift\n');
+      expect(() => classifySealedLaunchPagesDeployLane({
+        repositoryRoot: fixtureRoot,
+        candidatePagesSourceCommit: head,
+      })).toThrow('SEALED_LAUNCH_CHECKOUT_INVALID');
+      unlinkSync(untrackedPath);
+
+      for (const candidatePagesSourceCommit of ['f'.repeat(40), 'HEAD']) {
+        expect(() => classifySealedLaunchPagesDeployLane({
+          repositoryRoot: fixtureRoot,
+          candidatePagesSourceCommit,
+        })).toThrow('SEALED_LAUNCH_CHECKOUT_INVALID');
+      }
+    } finally {
+      rmSync(fixtureParent, { recursive: true, force: true });
+    }
+  });
+
+  it('disables checkout caches and rejects ignored protected-tree artifacts', () => {
+    const fixtureParent = mkdtempSync(resolve(tmpdir(), 'warpkeep-checkout-cache-'));
+    const fixtureRoot = resolve(fixtureParent, 'repository');
+    try {
+      fixtureGit(fixtureParent, [
+        'clone', '--quiet', '--shared', repositoryRoot, fixtureRoot,
+      ]);
+      const head = fixtureGit(fixtureRoot, ['rev-parse', 'HEAD']);
+      mkdirSync(resolve(fixtureRoot, 'node_modules/checkout-probe'), {
+        recursive: true,
+      });
+      writeFileSync(resolve(
+        fixtureRoot,
+        'node_modules/checkout-probe/artifact.js',
+      ), 'ignored dependency artifact\n');
+      const gitDirectory = resolve(fixtureRoot, '.git');
+      const excludePath = resolve(gitDirectory, 'info/exclude');
+      writeFileSync(
+        excludePath,
+        `${readFileSync(excludePath, 'utf8')}\n.superpowers/\n`,
+      );
+      mkdirSync(resolve(fixtureRoot, '.superpowers/checkout-probe'), {
+        recursive: true,
+      });
+      writeFileSync(resolve(
+        fixtureRoot,
+        '.superpowers/checkout-probe/artifact.txt',
+      ), 'ignored task artifact\n');
+      expect(fixtureGit(
+        fixtureRoot,
+        ['status', '--porcelain=v1', '--untracked-files=all'],
+      )).toBe('');
+
+      const fsmonitorMarker = resolve(gitDirectory, 'fsmonitor-invoked');
+      const fsmonitorHook = resolve(gitDirectory, 'fsmonitor-probe.sh');
+      writeFileSync(fsmonitorHook, [
+        '#!/bin/sh',
+        `/usr/bin/touch '${fsmonitorMarker}'`,
+        "/usr/bin/printf '\\0'",
+        '',
+      ].join('\n'), { mode: 0o700 });
+      fixtureGit(fixtureRoot, ['config', 'core.fsmonitor', fsmonitorHook]);
+      fixtureGit(fixtureRoot, ['config', 'core.untrackedCache', 'invalid-value']);
+
+      expect(classifySealedLaunchPagesDeployLane({
+        repositoryRoot: fixtureRoot,
+        candidatePagesSourceCommit: head,
+      })).toMatchObject({
+        candidatePagesSourceCommit: head,
+        mode: 'sealed-launch-blocked',
+      });
+      expect(existsSync(fsmonitorMarker)).toBe(false);
+
+      const protectedArtifact = 'spacetimedb/src/checkout-probe.tmp';
+      writeFileSync(
+        resolve(fixtureRoot, protectedArtifact),
+        'ignored protected-tree artifact\n',
+      );
+      expect(fixtureGit(fixtureRoot, [
+        '-c', 'core.fsmonitor=false',
+        '-c', 'core.untrackedCache=false',
+        'check-ignore', '--', protectedArtifact,
+      ])).toBe(protectedArtifact);
+      expect(() => classifySealedLaunchPagesDeployLane({
+        repositoryRoot: fixtureRoot,
+        candidatePagesSourceCommit: head,
+      })).toThrow('SEALED_LAUNCH_CHECKOUT_INVALID');
+      expect(existsSync(fsmonitorMarker)).toBe(false);
+    } finally {
+      rmSync(fixtureParent, { recursive: true, force: true });
     }
   });
 

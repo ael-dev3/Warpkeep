@@ -456,6 +456,7 @@ describe('PTR realm connection', () => {
   });
 
   it('publishes only a validated virtual view anchor and presentation-only bridge', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(NOW);
     const { authority } = await issuedAuthority();
     const harness = connectionHarness({ bootstrapResult: validBootstrap() });
     const session = await connectPtrRealm({

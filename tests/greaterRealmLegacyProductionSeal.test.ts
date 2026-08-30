@@ -1,8 +1,15 @@
 // @vitest-environment node
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
@@ -12,22 +19,61 @@ import {
 } from '../scripts/greater-realm-legacy-production-seal.mjs';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
-const tsxCli = resolve(repositoryRoot, 'node_modules/tsx/dist/cli.mjs');
 
-function direct(entrypoint: string, arguments_: readonly string[]) {
-  const executable = entrypoint.endsWith('.mjs') ? process.execPath : process.execPath;
-  const prefix = entrypoint.endsWith('.mjs') ? [] : [tsxCli];
-  return spawnSync(executable, [...prefix, entrypoint, ...arguments_], {
+function direct(
+  entrypoint: string,
+  arguments_: readonly string[],
+  authorityGuard?: string,
+) {
+  const prefix = entrypoint.endsWith('.mjs') ? [] : ['--import', 'tsx'];
+  return spawnSync(process.execPath, [...prefix, entrypoint, ...arguments_], {
     cwd: repositoryRoot,
     encoding: 'utf8',
     env: {
       PATH: process.env.PATH,
       TMPDIR: process.env.TMPDIR,
+      NODE_OPTIONS: authorityGuard === undefined
+        ? process.env.NODE_OPTIONS
+        : `${process.env.NODE_OPTIONS ?? ''} --import=${authorityGuard}`.trim(),
       WARPKEEP_ADMIN_TOKEN_SECRET: 'must-not-be-read',
-      WKGR_PRODUCTION_ADMIN_SECRET_PATH: '/must/not/be/read',
+      WKGR_PRODUCTION_ADMIN_SECRET_PATH: '/authority-probe/admin-secret',
     },
     timeout: 5_000,
   });
+}
+
+function createAuthorityGuard(root: string): string {
+  const path = resolve(root, 'authority-guard.mjs');
+  writeFileSync(path, [
+    "import fs from 'node:fs';",
+    "import net from 'node:net';",
+    "import tls from 'node:tls';",
+    "import { syncBuiltinESMExports } from 'node:module';",
+    "const sentinel = '/authority-probe/admin-secret';",
+    "const opened = () => { throw new Error('TEST_AUTHORITY_BOUNDARY_OPEN'); };",
+    "const sensitiveEnvironmentKeys = new Set(['WARPKEEP_ADMIN_TOKEN_SECRET', 'WKGR_PRODUCTION_ADMIN_SECRET_PATH']);",
+    'const sensitiveEnvironmentKey = property => typeof property === \'string\' && sensitiveEnvironmentKeys.has(property);',
+    'const environment = process.env;',
+    'process.env = new Proxy(environment, {',
+    '  get(target, property) { if (sensitiveEnvironmentKey(property)) opened(); return Reflect.get(target, property); },',
+    '  has(target, property) { if (sensitiveEnvironmentKey(property)) opened(); return Reflect.has(target, property); },',
+    '  getOwnPropertyDescriptor(target, property) { if (sensitiveEnvironmentKey(property)) opened(); return Reflect.getOwnPropertyDescriptor(target, property); },',
+    '  ownKeys(target) { if ([...sensitiveEnvironmentKeys].some(key => Reflect.has(target, key))) opened(); return Reflect.ownKeys(target); },',
+    '  deleteProperty(target, property) { if (sensitiveEnvironmentKey(property)) opened(); return Reflect.deleteProperty(target, property); },',
+    '});',
+    "const readFileSync = fs.readFileSync.bind(fs);",
+    "fs.readFileSync = (path, ...rest) => String(path) === sentinel ? opened() : readFileSync(path, ...rest);",
+    "const openSync = fs.openSync.bind(fs);",
+    "fs.openSync = (path, ...rest) => String(path) === sentinel ? opened() : openSync(path, ...rest);",
+    "const readFile = fs.promises.readFile.bind(fs.promises);",
+    "fs.promises.readFile = (path, ...rest) => String(path) === sentinel ? Promise.reject(new Error('TEST_AUTHORITY_BOUNDARY_OPEN')) : readFile(path, ...rest);",
+    'net.Socket.prototype.connect = opened;',
+    'tls.connect = opened;',
+    'globalThis.fetch = opened;',
+    'syncBuiltinESMExports();',
+    '',
+  ].join('\n'));
+  return pathToFileURL(path).href;
 }
 
 describe('sealed Genesis 001 legacy Greater Realm production entrypoints', () => {
@@ -92,69 +138,153 @@ describe('sealed Genesis 001 legacy Greater Realm production entrypoints', () =>
     }
   });
 
-  it('fails each direct mutation before private-workspace or credential handling', () => {
-    const bootstrapPrefix = [...Array(12).fill('-')];
-    for (const [entrypoint, arguments_] of [
-      ['scripts/greater-realm-production-publisher.ts', ['founded', '--confirm']],
-      ['scripts/greater-realm-production-import-operator.ts', ['apply', '--confirm']],
-      ['scripts/greater-realm-production-relocation-operator.ts', ['commit', '--confirm']],
-      ['scripts/greater-realm-production-bootstrap.mjs', [...bootstrapPrefix, 'publish']],
-    ] as const) {
-      const result = direct(entrypoint, arguments_);
-      expect(result.status, entrypoint).toBe(1);
-      expect(result.stdout, entrypoint).toBe('');
-      expect(result.stderr, entrypoint).toContain(
-        'GENESIS_001_LEGACY_GREATER_REALM_PRODUCTION_MUTATION_SEALED',
+  it('traps every sensitive environment authority operation in the preload guard', () => {
+    const guardRoot = mkdtempSync(resolve(tmpdir(), 'warpkeep-g001-env-guard-'));
+    try {
+      const authorityGuard = createAuthorityGuard(guardRoot);
+      const guardedEnvironment = {
+        PATH: process.env.PATH,
+        NODE_OPTIONS:
+          `${process.env.NODE_OPTIONS ?? ''} --import=${authorityGuard}`.trim(),
+        WARPKEEP_ADMIN_TOKEN_SECRET: 'must-not-be-read',
+        WKGR_PRODUCTION_ADMIN_SECRET_PATH: '/authority-probe/admin-secret',
+      };
+      const runControl = (source: string) => spawnSync(
+        process.execPath,
+        ['--input-type=module', '--eval', source],
+        {
+          cwd: repositoryRoot,
+          encoding: 'utf8',
+          env: guardedEnvironment,
+          timeout: 5_000,
+        },
       );
-      expect(result.stderr, entrypoint).not.toContain('must-not-be-read');
-      expect(result.stderr, entrypoint).not.toMatch(/PRIVATE_INVOCATION|ADMIN_SECRET|TRANSPORT/u);
+      expect(runControl("process.stdout.write('guard-ready')")).toMatchObject({
+        status: 0,
+        stdout: 'guard-ready',
+        stderr: '',
+      });
+      for (const [operation, source] of [
+        ['get', "Reflect.get(process.env, 'WARPKEEP_ADMIN_TOKEN_SECRET')"],
+        ['has', "Reflect.has(process.env, 'WARPKEEP_ADMIN_TOKEN_SECRET')"],
+        [
+          'descriptor',
+          "Reflect.getOwnPropertyDescriptor(process.env, 'WARPKEEP_ADMIN_TOKEN_SECRET')",
+        ],
+        ['enumeration', 'Reflect.ownKeys(process.env)'],
+        [
+          'deletion',
+          "Reflect.deleteProperty(process.env, 'WARPKEEP_ADMIN_TOKEN_SECRET')",
+        ],
+      ] as const) {
+        const result = runControl(source);
+        expect(result.status, operation).toBe(1);
+        expect(result.stdout, operation).toBe('');
+        expect(result.stderr, operation).toContain('TEST_AUTHORITY_BOUNDARY_OPEN');
+        expect(result.stderr, operation).not.toContain('must-not-be-read');
+      }
+    } finally {
+      rmSync(guardRoot, { recursive: true, force: true });
     }
   });
 
-  it('places the seal before every direct authority boundary and keeps aliases inert', () => {
-    for (const [path, after] of [
-      ['scripts/greater-realm-production-publisher.ts', 'assertGreaterRealmPrivateInvocation();'],
-      ['scripts/greater-realm-production-import-operator.ts', 'assertGreaterRealmPrivateInvocation();'],
-      ['scripts/greater-realm-production-relocation-operator.ts', 'assertGreaterRealmPrivateInvocation();'],
-      ['scripts/greater-realm-production-bootstrap.mjs', 'runGreaterRealmProductionBootstrap('],
-    ] as const) {
-      const source = readFileSync(resolve(repositoryRoot, path), 'utf8');
-      const main = source.slice(source.indexOf('async function main'));
-      expect(main.indexOf('requireGenesis001LegacyGreaterRealmProductionCliReadOnly('), path)
-        .toBeGreaterThanOrEqual(0);
-      expect(main.indexOf('requireGenesis001LegacyGreaterRealmProductionCliReadOnly('), path)
-        .toBeLessThan(main.indexOf(after));
+  it('fails each direct mutation before private-workspace or credential handling', () => {
+    const guardRoot = mkdtempSync(resolve(tmpdir(), 'warpkeep-g001-authority-'));
+    try {
+      const authorityGuard = createAuthorityGuard(guardRoot);
+      const bootstrapPrefix = [...Array(12).fill('-')];
+      for (const [entrypoint, arguments_] of [
+        ['scripts/greater-realm-production-publisher.ts', ['founded', '--confirm']],
+        ['scripts/greater-realm-production-import-operator.ts', ['apply', '--confirm']],
+        ['scripts/greater-realm-production-relocation-operator.ts', ['commit', '--confirm']],
+        ['scripts/greater-realm-production-bootstrap.mjs', [...bootstrapPrefix, 'publish']],
+      ] as const) {
+        const result = direct(entrypoint, arguments_, authorityGuard);
+        expect(result.status, entrypoint).toBe(1);
+        expect(result.stdout, entrypoint).toBe('');
+        expect(result.stderr, entrypoint).toContain(
+          'GENESIS_001_LEGACY_GREATER_REALM_PRODUCTION_MUTATION_SEALED',
+        );
+        expect(result.stderr, entrypoint).not.toContain('must-not-be-read');
+        expect(result.stderr, entrypoint).not.toContain('TEST_AUTHORITY_BOUNDARY_OPEN');
+        expect(result.stderr, entrypoint).not.toMatch(
+          /PRIVATE_INVOCATION|ADMIN_SECRET|TRANSPORT/u,
+        );
+      }
+    } finally {
+      rmSync(guardRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('enumerates every root script without exposing future G001 release authority', () => {
+    const manifest = JSON.parse(readFileSync(resolve(repositoryRoot, 'package.json'), 'utf8'));
+    const scripts = Object.entries(manifest.scripts) as [string, string][];
+    expect(scripts.length).toBeGreaterThan(100);
+
+    for (const removedAlias of [
+      'stdb:ptr:publish:inspect',
+      'stdb:ptr:publish:apply',
+      'stdb:ptr:import:apply',
+      'stdb:ptr:verify-live',
+      'atlas:export-ptr-runtime-release',
+    ]) {
+      expect(manifest.scripts).not.toHaveProperty(removedAlias);
     }
 
-    const manifest = JSON.parse(readFileSync(resolve(repositoryRoot, 'package.json'), 'utf8'));
-    for (const alias of [
+    const directLegacyEntrypoints = [
+      'scripts/greater-realm-production-publisher.ts',
+      'scripts/greater-realm-production-import-operator.ts',
+      'scripts/greater-realm-production-relocation-operator.ts',
+      'scripts/greater-realm-production-bootstrap.mjs',
+    ];
+    for (const [name, command] of scripts) {
+      expect(typeof command, name).toBe('string');
+      for (const entrypoint of directLegacyEntrypoints) {
+        expect(command, name).not.toContain(entrypoint);
+      }
+    }
+
+    expect(scripts.filter(([, command]) => command.includes('genesis001'))).toEqual([
+      [
+        'g001:census:privacy-safe-proof',
+        'node scripts/genesis001-census-privacy-safe-receipt.mjs',
+      ],
+      ['stdb:genesis001:freeze-publish', 'tsx scripts/genesis001-frozen-publisher.ts'],
+    ]);
+
+    const sealedAliases = scripts.filter(([, command]) => command.includes(
+      'PRODUCTION_COMMAND_REQUIRES_TRUSTED_ENV_I_LAUNCH',
+    ));
+    expect(sealedAliases.length).toBeGreaterThan(40);
+    for (const [name, command] of sealedAliases) {
+      const result = spawnSync('/bin/sh', ['-c', command], {
+        cwd: repositoryRoot,
+        encoding: 'utf8',
+        env: {
+          PATH: process.env.PATH,
+          WARPKEEP_ADMIN_TOKEN_SECRET: 'must-not-be-read',
+          WKGR_PRODUCTION_ADMIN_SECRET_PATH: '/authority-probe/admin-secret',
+        },
+        timeout: 5_000,
+      });
+      expect(result.status, name).toBe(1);
+      expect(result.stdout, name).toBe('');
+      expect(result.stderr, name).toContain(
+        'PRODUCTION_COMMAND_REQUIRES_TRUSTED_ENV_I_LAUNCH',
+      );
+      expect(result.stderr, name).not.toContain('must-not-be-read');
+      expect(result.stderr, name).not.toContain('TEST_AUTHORITY_BOUNDARY_OPEN');
+    }
+
+    expect(sealedAliases.map(([name]) => name)).toEqual(expect.arrayContaining([
       'stdb:greater-realm:import:inspect',
       'stdb:greater-realm:import:apply',
       'stdb:greater-realm:publish',
       'stdb:greater-realm:relocation',
-    ]) {
-      expect(manifest.scripts[alias]).toContain('PRODUCTION_COMMAND_REQUIRES_TRUSTED_ENV_I_LAUNCH');
-      expect(manifest.scripts[alias]).toContain('/usr/bin/false');
-    }
-
-    const envelope = readFileSync(resolve(
-      repositoryRoot,
-      'docs/operations/greater-realm-production-launch-envelope.sh.txt',
-    ), 'utf8');
-    const sealed = envelope.indexOf(
-      'fail GENESIS_001_LEGACY_GREATER_REALM_PRODUCTION_MUTATION_SEALED',
-    );
-    expect(sealed).toBeGreaterThan(envelope.indexOf('shift 11'));
-    expect(sealed).toBeLessThan(envelope.indexOf('/usr/bin/python3 -I -S -B'));
-    for (const command of [
-      'import-apply',
-      'import-recover',
-      'publish',
-      'publish-recover',
-      'relocation-recover',
-      'hermes-list-pending',
-      'hermes-admit-confirm',
-      'hermes-allow-confirm',
-    ]) expect(envelope.slice(envelope.indexOf('shift 11'), sealed + 200)).toContain(command);
+      'stdb:publish:dev',
+      'stdb:seed-world',
+      'stdb:admit-founder',
+      'stdb:allow-fid',
+    ]));
   });
 });

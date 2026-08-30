@@ -22,202 +22,6 @@ importers:
         specifier: 5.6.3
         version: 5.6.3
 
-  genesis002:
-    dependencies:
-      spacetimedb:
-        specifier: 2.6.1
-        version: 2.6.1
-    devDependencies:
-      esbuild:
-        specifier: 0.25.12
-        version: 0.25.12
-      tsx:
-        specifier: 4.20.6
-        version: 4.20.6
-      typescript:
-        specifier: 5.6.3
-        version: 5.6.3
-
-  migration-fixtures/additive-v10-schema:
-    dependencies:
-      spacetimedb:
-        specifier: 2.6.1
-        version: 2.6.1
-    devDependencies:
-      typescript:
-        specifier: 5.6.3
-        version: 5.6.3
-
-  migration-fixtures/additive-v11-schema:
-    dependencies:
-      spacetimedb:
-        specifier: 2.6.1
-        version: 2.6.1
-    devDependencies:
-      typescript:
-        specifier: 5.6.3
-        version: 5.6.3
-
-  migration-fixtures/additive-v12-schema:
-    dependencies:
-      spacetimedb:
-        specifier: 2.6.1
-        version: 2.6.1
-    devDependencies:
-      typescript:
-        specifier: 5.6.3
-        version: 5.6.3
-
-  migration-fixtures/additive-v13-schema:
-    dependencies:
-      spacetimedb:
-        specifier: 2.6.1
-        version: 2.6.1
-    devDependencies:
-      typescript:
-        specifier: 5.6.3
-        version: 5.6.3
-
-  migration-fixtures/additive-v14-schema:
-    dependencies:
-      spacetimedb:
-        specifier: 2.6.1
-        version: 2.6.1
-    devDependencies:
-      typescript:
-        specifier: 5.6.3
-        version: 5.6.3
-
-  migration-fixtures/additive-v15-schema:
-    dependencies:
-      spacetimedb:
-        specifier: 2.6.1
-        version: 2.6.1
-    devDependencies:
-      typescript:
-        specifier: 5.6.3
-        version: 5.6.3
-
-  migration-fixtures/additive-v16-schema:
-    dependencies:
-      spacetimedb:
-        specifier: 2.6.1
-        version: 2.6.1
-    devDependencies:
-      typescript:
-        specifier: 5.6.3
-        version: 5.6.3
-
-  migration-fixtures/additive-v17-schema:
-    dependencies:
-      spacetimedb:
-        specifier: 2.6.1
-        version: 2.6.1
-    devDependencies:
-      typescript:
-        specifier: 5.6.3
-        version: 5.6.3
-
-  migration-fixtures/additive-v2-schema:
-    dependencies:
-      spacetimedb:
-        specifier: 2.6.1
-        version: 2.6.1
-    devDependencies:
-      typescript:
-        specifier: 5.6.3
-        version: 5.6.3
-
-  migration-fixtures/additive-v3-schema:
-    dependencies:
-      spacetimedb:
-        specifier: 2.6.1
-        version: 2.6.1
-    devDependencies:
-      typescript:
-        specifier: 5.6.3
-        version: 5.6.3
-
-  migration-fixtures/additive-v4-schema:
-    dependencies:
-      spacetimedb:
-        specifier: 2.6.1
-        version: 2.6.1
-    devDependencies:
-      typescript:
-        specifier: 5.6.3
-        version: 5.6.3
-
-  migration-fixtures/additive-v5-schema:
-    dependencies:
-      spacetimedb:
-        specifier: 2.6.1
-        version: 2.6.1
-    devDependencies:
-      typescript:
-        specifier: 5.6.3
-        version: 5.6.3
-
-  migration-fixtures/additive-v6-schema:
-    dependencies:
-      spacetimedb:
-        specifier: 2.6.1
-        version: 2.6.1
-    devDependencies:
-      typescript:
-        specifier: 5.6.3
-        version: 5.6.3
-
-  migration-fixtures/additive-v7-schema:
-    dependencies:
-      spacetimedb:
-        specifier: 2.6.1
-        version: 2.6.1
-    devDependencies:
-      typescript:
-        specifier: 5.6.3
-        version: 5.6.3
-
-  migration-fixtures/additive-v8-schema:
-    dependencies:
-      spacetimedb:
-        specifier: 2.6.1
-        version: 2.6.1
-    devDependencies:
-      typescript:
-        specifier: 5.6.3
-        version: 5.6.3
-
-  migration-fixtures/additive-v9-schema:
-    dependencies:
-      spacetimedb:
-        specifier: 2.6.1
-        version: 2.6.1
-    devDependencies:
-      typescript:
-        specifier: 5.6.3
-        version: 5.6.3
-
-  migration-fixtures/current-candidate-inspection:
-    dependencies:
-      spacetimedb:
-        specifier: 2.6.1
-        version: 2.6.1
-    devDependencies:
-      typescript:
-        specifier: 5.6.3
-        version: 5.6.3
-
-  migration-fixtures/production-v1:
-    dependencies:
-      spacetimedb:
-        specifier: 2.6.1
-        version: 2.6.1
-    devDependencies:
-      typescript:
-        specifier: 5.6.3
-        version: 5.6.3
-
 packages:
 
   '@esbuild/aix-ppc64@0.25.12':
@@ -389,8 +193,8 @@ packages:
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
 
-  get-tsconfig@4.14.0:
-    resolution: {integrity: sha512-yTb+8DXzDREzgvYmh6s9vHsSVCHeC0G3PI5bEXNBHtmshPnO+S5O7qgLEOn0I5QvMy6kpZN8K1NKGyilLb93wA==}
+  get-tsconfig@4.14.3:
+    resolution: {integrity: sha512-++QEw4DIY7WGoukz+/+A/8dGYPT9l9yIadnmSgZ8Rjr3YVSVDipQSO9CdnJo9ePqFqUUqh+wk9uIaoiAwsiPkA==}
 
   headers-polyfill@4.0.3:
     resolution: {integrity: sha512-IScLbePpkvO846sIwOtOTDjutRMWdXdJmXdMvk6gCBHxFO8d+QKOQedyZSxFTTFYRSmlgSTDtXqqq4pcenBXLQ==}
@@ -399,8 +203,8 @@ packages:
     resolution: {integrity: sha512-W67iLl4J2EXEGTbfeHCffrjDfitvLANg0UlX3wFUUSTx92KXRFegMHUVgSqE+wvhAbi4WqjGg9czysTV2Epbew==}
     engines: {node: '>= 0.4'}
 
-  prettier@3.9.5:
-    resolution: {integrity: sha512-/FVl766LpUfB5vXgCYOYa0MeV/441Ia99AeICQIQFTY/Nw0roZwULcXpku5i1/m5kt/baz+s4Zogspd839HSMg==}
+  prettier@3.9.6:
+    resolution: {integrity: sha512-OpN0zzVdiaiAhxpuuj5efpIS4sY9j7bY6uR5mnj5yPzGkdkjNKSJeUThPb60Jw29QuAZgA4o+/iB49kFiaBX6g==}
     engines: {node: '>=14'}
     hasBin: true
 
@@ -571,7 +375,7 @@ snapshots:
   fsevents@2.3.3:
     optional: true
 
-  get-tsconfig@4.14.0:
+  get-tsconfig@4.14.3:
     dependencies:
       resolve-pkg-maps: 1.0.0
 
@@ -579,7 +383,7 @@ snapshots:
 
   object-inspect@1.13.4: {}
 
-  prettier@3.9.5: {}
+  prettier@3.9.6: {}
 
   pure-rand@7.0.1: {}
 
@@ -592,7 +396,7 @@ snapshots:
       base64-js: 1.5.1
       headers-polyfill: 4.0.3
       object-inspect: 1.13.4
-      prettier: 3.9.5
+      prettier: 3.9.6
       pure-rand: 7.0.1
       safe-stable-stringify: 2.5.0
       statuses: 2.0.2
@@ -603,7 +407,7 @@ snapshots:
   tsx@4.20.6:
     dependencies:
       esbuild: 0.25.12
-      get-tsconfig: 4.14.0
+      get-tsconfig: 4.14.3
     optionalDependencies:
       fsevents: 2.3.3
 

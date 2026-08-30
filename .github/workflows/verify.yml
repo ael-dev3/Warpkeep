@@ -77,8 +77,16 @@ jobs:
       - name: Install exact bridge runtime-test toolchain
         run: pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
 
-      - name: Install SpacetimeDB module dependencies
-        run: pnpm --dir spacetimedb install --frozen-lockfile
+      - name: Validate PTR lock and install SpacetimeDB module dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e spacetimedb/ptr/node_modules
+          pnpm --dir spacetimedb/ptr install \
+            --frozen-lockfile --lockfile-only --ignore-workspace
+          test ! -e spacetimedb/ptr/node_modules
+          pnpm --dir spacetimedb install --frozen-lockfile
+          test ! -e spacetimedb/ptr/node_modules
 
       - name: Re-attest runner-private Node after dependency install
         shell: bash
@@ -222,8 +230,16 @@ jobs:
       - name: Install root dependencies for generated client verification
         run: npm ci
 
-      - name: Install module dependencies
-        run: pnpm --dir spacetimedb install --frozen-lockfile
+      - name: Validate PTR lock and install module dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e spacetimedb/ptr/node_modules
+          pnpm --dir spacetimedb/ptr install \
+            --frozen-lockfile --lockfile-only --ignore-workspace
+          test ! -e spacetimedb/ptr/node_modules
+          pnpm --dir spacetimedb install --frozen-lockfile
+          test ! -e spacetimedb/ptr/node_modules
 
       - name: Install pinned SpacetimeDB CLI
         env:
@@ -247,6 +263,8 @@ jobs:
         run: |
           pnpm --dir spacetimedb run verify
           pnpm --dir spacetimedb/genesis002 run verify
+          pnpm --dir spacetimedb/ptr run verify
+          test ! -e spacetimedb/ptr/node_modules
           npm run stdb:verify-bindings
           npm run stdb:genesis002:verify-private-loopback
           npm run stdb:build-v14-migration-fixture

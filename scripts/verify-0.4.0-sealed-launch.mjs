@@ -42,7 +42,7 @@ const GENESIS_001_SEALED_LAUNCH_ADOPTION_SOURCE_SHA256 =
 const SEALED_LAUNCH_ACTIVATION_GENERATOR_SOURCE_SHA256 =
   '76ad949891c5818d0f9a52422d429994417b9a9214b2ea45fe796040a7b76061';
 const SEALED_LAUNCH_PACKAGE_STRUCTURE_SHA256 =
-  '6acda41b70c4b6689c3b46efa9ac997ab96172feed6af39b65f36ba9de1dd243';
+  '22663812042c8f910fdd555b01350a49c5d481013a8a52bbe99246561e58dd31';
 const SEALED_LAUNCH_LOCK_STRUCTURE_SHA256 =
   'ceae3fad060d69c711938973c04a70fbda46fbcfeb0e1ad19f87caa0c9252e1f';
 const RELEASE_VERSION_DIGEST_PLACEHOLDER = '<release-version>';
@@ -2382,6 +2382,67 @@ export function verifySealedLaunchActivationHistory({
   });
 }
 
+export function verifyGenesis001PreparationProjection({
+  repositoryRoot = REPOSITORY_ROOT,
+  candidatePreparationCommit,
+  sources,
+} = {}) {
+  let root;
+  let historicalProjection;
+  let preparationProjection;
+  let freezeIsAncestor;
+  try {
+    if (
+      typeof repositoryRoot !== 'string'
+      || resolve(repositoryRoot) !== repositoryRoot
+      || !COMMIT.test(candidatePreparationCommit ?? '')
+    ) fail('SEALED_LAUNCH_GENESIS_001_HISTORY_INVALID');
+    root = realpathSync(repositoryRoot);
+    if (root !== repositoryRoot) {
+      fail('SEALED_LAUNCH_GENESIS_001_HISTORY_INVALID');
+    }
+    freezeIsAncestor = gitIsAncestor(
+      root,
+      GENESIS_001_FREEZE_PUBLISH_SOURCE_COMMIT,
+      candidatePreparationCommit,
+    );
+    historicalProjection = gitSourceProjection(
+      root,
+      GENESIS_001_FREEZE_PUBLISH_SOURCE_COMMIT,
+      GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS,
+    );
+    preparationProjection = gitSourceProjection(
+      root,
+      candidatePreparationCommit,
+      GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS,
+    );
+  } catch (error) {
+    if (error instanceof SealedLaunchVerificationError) {
+      fail('SEALED_LAUNCH_GENESIS_001_HISTORY_INVALID');
+    }
+    fail('SEALED_LAUNCH_GENESIS_001_HISTORY_INVALID');
+  }
+  if (
+    freezeIsAncestor !== true
+    || !Buffer.isBuffer(historicalProjection)
+    || historicalProjection.byteLength < 1
+    || !Buffer.isBuffer(preparationProjection)
+    || !historicalProjection.equals(preparationProjection)
+  ) fail('SEALED_LAUNCH_GENESIS_001_HISTORY_INVALID');
+
+  const verifiedSources = sources ?? readSources(root);
+  verifyGenesis001Policy(verifiedSources);
+  verifyGenesis001LegacyGreaterRealmProductionSeal(verifiedSources);
+  return Object.freeze({
+    candidatePreparationCommit,
+    genesis001FreezePublishSourceCommit:
+      GENESIS_001_FREEZE_PUBLISH_SOURCE_COMMIT,
+    genesis001ProjectionSha256: createHash('sha256')
+      .update(historicalProjection)
+      .digest('hex'),
+  });
+}
+
 function readSources(repositoryRoot = REPOSITORY_ROOT) {
   return Object.freeze(Object.fromEntries(
     Object.entries(SEALED_LAUNCH_SOURCE_PATHS).map(([key, path]) => {
@@ -2401,7 +2462,12 @@ function readSources(repositoryRoot = REPOSITORY_ROOT) {
 }
 
 function git(arguments_, repositoryRoot) {
-  return spawnSync('/usr/bin/git', ['--no-optional-locks', ...arguments_], {
+  return spawnSync('/usr/bin/git', [
+    '--no-optional-locks',
+    '-c', 'core.fsmonitor=false',
+    '-c', 'core.untrackedCache=false',
+    ...arguments_,
+  ], {
     cwd: repositoryRoot,
     encoding: 'utf8',
     env: {
@@ -2619,15 +2685,36 @@ function assertExactCheckout(repositoryRoot, expectedCommit) {
     || !COMMIT.test(expectedCommit ?? '')
   ) fail('SEALED_LAUNCH_CHECKOUT_INVALID');
   const head = git(['rev-parse', '--verify', 'HEAD^{commit}'], repositoryRoot);
-  const status = git(
-    ['status', '--porcelain=v1', '--untracked-files=all'],
-    repositoryRoot,
-  );
+  let trackedEntries;
+  let trackedDifference;
+  let untrackedEntries;
+  let ignoredProtectedEntries;
+  try {
+    trackedEntries = splitNul(gitRaw(
+      ['ls-files', '-v', '-z'],
+      repositoryRoot,
+    ));
+    trackedDifference = gitRaw([
+      'diff', '--raw', '--no-ext-diff', '--no-textconv', '--exit-code',
+      '--ignore-submodules=none', 'HEAD', '--',
+    ], repositoryRoot);
+    untrackedEntries = gitRaw([
+      'ls-files', '--others', '--exclude-standard', '-z',
+    ], repositoryRoot);
+    ignoredProtectedEntries = gitRaw([
+      'ls-files', '--others', '--ignored', '--exclude-standard', '-z', '--',
+      ...GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS,
+    ], repositoryRoot);
+  } catch {
+    fail('SEALED_LAUNCH_CHECKOUT_INVALID');
+  }
   if (
     head.status !== 0
     || head.stdout.trim() !== expectedCommit
-    || status.status !== 0
-    || status.stdout !== ''
+    || trackedEntries.some(entry => entry[0] !== 72 || entry[1] !== 32)
+    || trackedDifference.byteLength !== 0
+    || untrackedEntries.byteLength !== 0
+    || ignoredProtectedEntries.byteLength !== 0
   ) fail('SEALED_LAUNCH_CHECKOUT_INVALID');
 }
 
@@ -2678,9 +2765,27 @@ function main(arguments_, environment) {
   if (phase !== 'pages' && phase !== 'pages-build') {
     const sources = readSources();
     const result = verifySealedLaunchSources(sources, phase);
+    let candidateCheckoutCommit;
+    if (
+      phase === 'preparation'
+      || phase === 'checked-in'
+      || result.phase === 'activation'
+    ) {
+      candidateCheckoutCommit = currentCommit(REPOSITORY_ROOT);
+      assertExactCheckout(REPOSITORY_ROOT, candidateCheckoutCommit);
+    }
+    if (phase === 'preparation' || phase === 'checked-in') {
+      const candidatePreparationCommit = result.phase === 'activation'
+        ? parseBinding(sources.bindingJson).preparationSourceCommit
+        : candidateCheckoutCommit;
+      verifyGenesis001PreparationProjection({
+        repositoryRoot: REPOSITORY_ROOT,
+        candidatePreparationCommit,
+        sources,
+      });
+    }
     if (result.phase === 'activation') {
-      const candidateActivationCommit = currentCommit(REPOSITORY_ROOT);
-      assertExactCheckout(REPOSITORY_ROOT, candidateActivationCommit);
+      const candidateActivationCommit = candidateCheckoutCommit;
       verifySealedLaunchActivationHistory({
         bindingSource: sources.bindingJson,
         candidateActivationCommit,
