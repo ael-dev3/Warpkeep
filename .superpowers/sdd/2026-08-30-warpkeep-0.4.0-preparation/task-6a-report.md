@@ -1,6 +1,9 @@
 # Task 6A implementation report
 
-Base: `b5921083509de1b46a254e59dce4baa1b0d9862b`
+Original Task 6A base: `b5921083509de1b46a254e59dce4baa1b0d9862b`
+
+Closure-sequencing follow-up base:
+`c0d07e56cbaf75f73532b9fab9e6f52b94654993`.
 
 Scope: normative documentation only. No Task 6B-6E code, test, workflow,
 configuration, package, lock, binding, generated artifact, manifest, pin, or
@@ -130,13 +133,17 @@ production/infrastructure mutation was performed.
   Task 6C's corrected exact tests include
   `tests/genesis002ProductionOperators.test.ts` and
   `tests/ptrProductionCli.test.ts`. Task 6E explicitly overrides Task 6D's
-  read-only receipt/journal limit only for the new writer ABIs. Because these
-  sources are raw-file closure members, Task 6D begins a deliberately stale-
-  pinned non-runnable interval that Task 6E continues. No prepared/live workflow
-  executes from either commit. Their focused review gates exclude full-green
-  closure claims and require pin-dependent cases to fail closed until Task 7
-  atomically refreezes every closure/pin consumer and full verification is
-  green. Revised Task 7 deterministically builds four
+  read-only receipt/journal limit only for the new writer ABIs. These sources
+  are raw-file closure members. Exact manifest intersection establishes
+  that Task 6B changes two current raw members and begins a deliberately stale-
+  pinned non-runnable interval. Task 6C's surface intersects 21 current raw
+  members total, including those same two; it adds 19 newly distinct members,
+  so the union through Task 6C is 21. Tasks 6C, 6D, and 6E continue the
+  interval. No prepared/live workflow executes
+  from any Task 6B-6E intermediate commit. Their focused review gates exclude
+  full-green closure claims and require pin-dependent cases to fail closed until
+  Task 7 atomically refreezes every closure/pin consumer and full verification
+  is green. Revised Task 7 deterministically builds four
   ABI-bearing bundles plus declarations and uses one closure-refreezer path to
   atomically derive/refreeze the closure policy/generator/manifest, full exact-
   count consumer set, bundle manifest/digests, workflows, dispatcher/bootstrap/
@@ -204,9 +211,10 @@ or protected workflow.
 
 ## Verification evidence
 
-- Complete read: the Task 6A brief and all six allowed documents were read
-  before editing; all six edited documents were re-read as one producer-to-
-  consumer graph.
+- Complete read: the original Task 6A brief, the closure-sequencing follow-up
+  brief, all six allowed normative documents, and this report were read before
+  the sequencing edit; the six documents and report were re-read as one
+  producer-to-consumer graph.
 - Contradiction scan: no stale `17-key`, `seventeen`, `sixteen commitments`,
   bridge-before-publish, combined PTR import/provision, all-operations-after-A,
   applicant-only, or unqualified generic no-shell statement remains. The sole
@@ -242,16 +250,34 @@ or protected workflow.
   only an authenticated missing PTR no-effect result permits one core/reducer
   call. Task 6E's recovery writers explicitly supersede Task 6D's read-only
   receipt/journal limit and continue the non-runnable raw-file-pinned interval
-  already begun by Task 6D until Task 7 atomically refreezes the full closure.
+  already begun by Task 6B and continued through Tasks 6C and 6D until Task 7
+  atomically refreezes the full closure.
   The marker
   producer binds exact publish-plan and confirmation digests and supplies pure
   parser/digest/reconciliation ABIs, including PTR submission-error adoption.
-- Fifth-amendment sequencing correction: Task 6D's read-only receipt/journal
-  edits themselves stale the raw prepared closure, so both Task 6D and Task 6E
-  are explicitly non-runnable. Each review gate permits focused source/module
-  success but requires closure-pin-dependent workflow/closure cases to remain
-  fail-closed. Task 7 is the sole restoration point through one complete green
-  atomic refreeze and a zero-diff second refreeze before workflow execution.
+- Post-Task-6B manifest-intersection sequencing correction: Task 6B's exact
+  six-file commit changes two existing raw closure members,
+  `scripts/verify-0.4.0-sealed-launch.mjs` and its declaration, so Task 6B
+  starts the stale-pin interval. Task 6C's planned surface intersects 21
+  current raw members total and overlaps Task 6B on those same two verifier
+  paths. It therefore adds 19 newly distinct members, making the union through
+  Task 6C exactly 21. Tasks 6C, 6D, and 6E continue the interval. This corrects
+  only the closure timeline, not realm authority,
+  receipts, publication markers, recovery, or operation semantics. Task 6B's
+  focused census/static-verifier/typecheck/diff/frozen-byte checks and Task
+  6C's focused publisher/import/owner/verifier suites may pass, while closure-
+  dependent cases remain expected fail-closed. Task 7 is the sole restoration
+  point through one complete green atomic refreeze and a zero-diff second
+  refreeze before workflow execution.
+- Raw-member evidence: intersecting the exact Task 6B six-file commit with
+  current `raw-file-sha256-v1` closure members yields exactly the verifier
+  implementation and declaration. Intersecting the Task 6C exact planned
+  surface yields 21 current raw members total: 18 explicitly named paths plus
+  the G002 publisher, PTR publisher, and sealed-launch verifier declarations.
+  The verifier implementation/declaration are the two-member overlap, leaving
+  19 newly distinct Task 6C members and a 21-member union through Task 6C. The
+  sequencing-only diff leaves all six Task 6B file bytes
+  identical to follow-up base `c0d07e56cbaf75f73532b9fab9e6f52b94654993`.
 - Exact allowlist: the base list and each new canonical list contain exactly 20
   entries and compare equal in spelling and order. A scan of backticked
   G001/G002/PTR/activation operation tokens found no additional operation name.
@@ -263,13 +289,13 @@ or protected workflow.
 
 ## Residual fail-closed infrastructure gates
 
-Task 6A does not verify or claim any live realm identity, alias absence,
-Spacetime query availability/shape, authenticated CLI postflight, production
-runner ownership/labels, fixed Node code signature, ChatGPT Node candidate,
+This Task 6A follow-up does not verify or claim any live realm identity, alias
+absence, Spacetime query availability/shape, authenticated CLI postflight,
+production runner ownership/labels, fixed Node code signature, ChatGPT Node candidate,
 `globalThis.WebSocket`, CLI configuration, private-root filesystem contract,
 bridge deployment/reconciliation, live suspension probe, receipt, confirmation,
 bundle build/attestation, deterministic refreeze, macOS native contract, Pages
-deployment, tag, or release. Tasks 6B-7 and the protected operations plan must
+deployment, tag, or release. Tasks 6C-7 and the protected operations plan must
 verify these in order. Every missing, ambiguous, stale, mismatched, leaking, or
 unavailable fact blocks release.
 
@@ -280,8 +306,11 @@ unavailable fact blocks release.
 - Cached G001 projection comparison against base: exit 0.
 - Cached package/lock/release-binding comparison against base: exit 0.
 - Cached reviewed-envelope comparison against base: exit 0.
-- Planned single commit parent:
-  `b5921083509de1b46a254e59dce4baa1b0d9862b`.
-- Planned exact subject: `Replan sealed realms production authority`.
+- Cached Task 6B six-file byte comparison against follow-up base: exit 0.
+- Cached raw-member sets: Task 6B intersection 2; Task 6C intersection 21;
+  overlap 2; Task 6C newly distinct 19; union through Task 6C 21.
+- Planned single follow-up commit parent:
+  `c0d07e56cbaf75f73532b9fab9e6f52b94654993`.
+- Planned exact subject: `Correct sealed realms closure sequencing`.
 - Clean worktree is verified immediately after the commit and reported to the
   delegating controller.

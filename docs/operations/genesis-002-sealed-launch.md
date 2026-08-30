@@ -12,14 +12,17 @@ The earlier C7 cutover and direct package-script commands are non-runnable
 historical context. Never publish future repository source to Genesis 001 and
 never rerun the completed G001 freeze publisher or B0 bridge workflow.
 
-This runbook is not executable from the Task 6D or Task 6E preparation commit.
-Task 6D changes raw-pinned prepared receipt/journal members without refreeze,
-starting a stale-pin interval that Task 6E continues. The protected prepared
-workflow and every sealed-realms/live production workflow must fail closed at
-both commits; focused source/module tests do not constitute full-green closure
-verification. Task 7 alone atomically refreezes the closure manifest, workflow
-pins, and downstream consumers. Its completely green first run and zero-diff
-second run are required before Phase 0 may begin.
+This runbook is not executable from any Task 6B-6E preparation commit. Task 6B
+changes two current raw closure members without refreeze and starts the stale-
+pin interval. Task 6C's surface intersects 21 current raw members total,
+including those same two, and adds 19 newly distinct members; the union through
+Task 6C is 21. Task 6C continues the interval, and Tasks 6D and 6E continue it.
+The protected prepared workflow and every sealed-realms/
+live production workflow must fail closed at all four intermediate commits;
+focused task-specific source/module/static tests do not constitute full-green
+closure verification. Task 7 alone atomically refreezes the closure manifest,
+workflow pins, and downstream consumers. Its completely green first run and
+zero-diff second run are required before Phase 0 may begin.
 
 ## Immutable identities and provenance
 

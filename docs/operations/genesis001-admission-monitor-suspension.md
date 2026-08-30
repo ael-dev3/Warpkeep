@@ -1,11 +1,14 @@
 # Genesis 001 admission-monitor suspension
 
-This operation is non-runnable from the Task 6D and Task 6E preparation
-commits. Task 6D changes raw-pinned prepared receipt/journal members without
-refreeze and begins a stale-pin interval that Task 6E continues. Protected
-prepared and sealed-realms/live workflows must fail closed at both commits;
-focused source/module tests cannot be reported as full-green workflow evidence.
-Task 7 alone atomically refreezes the closure manifest, workflow pins, and all
+This operation is non-runnable from every Task 6B-6E preparation intermediate
+commit. Task 6B changes two current raw closure members without refreeze and
+begins the stale-pin interval. Task 6C's surface intersects 21 current raw
+members total, including those same two, and adds 19 newly distinct members;
+the union through Task 6C is 21. Task 6C continues the interval, and Tasks 6D
+and 6E continue it. Protected prepared and sealed-realms/
+live workflows must fail closed throughout; focused task-specific source/
+module/static tests cannot be reported as full-green workflow evidence. Task 7
+alone atomically refreezes the closure manifest, workflow pins, and all
 downstream consumers. Only its green first run and zero-diff second run restore
 executability.
 

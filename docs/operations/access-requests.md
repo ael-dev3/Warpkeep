@@ -8,13 +8,17 @@
 > collect both the applicant and admitted-player evidence passes. Owner-canary
 > reset remains unavailable.
 
-The sealed-realms operations described here are non-runnable from preparation
-Task 6D and Task 6E. Task 6D's raw-pinned prepared receipt/journal edits begin a
-stale-pin interval that Task 6E continues; protected prepared and sealed-realms/
-live workflows must fail closed at both commits. Focused source/module tests are
-not full-green workflow evidence. Task 7 alone atomically refreezes the closure
-manifest, workflow pins, and downstream consumers, and only its green first run
-plus zero-diff second run restores executability.
+The sealed-realms operations described here are non-runnable from every
+preparation Task 6B-6E intermediate commit. Task 6B's two current raw closure
+member edits begin the stale-pin interval. Task 6C's surface intersects 21
+current raw members total, including those same two, and adds 19 newly distinct
+members; the union through Task 6C is 21. Task 6C and the Task 6D/6E changes
+continue the interval. Protected prepared and
+sealed-realms/live workflows must fail closed throughout. Focused task-specific
+source/module/static tests are not full-green workflow evidence. Task 7 alone
+atomically refreezes the closure manifest, workflow pins, and downstream
+consumers, and only its green first run plus zero-diff second run restores
+executability.
 
 An access request is a private expression of interest from a server-verified
 Farcaster account. It stores only the FID, a server-derived admission cycle,
