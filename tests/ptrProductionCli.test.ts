@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it, vi } from 'vitest';
+import { resolve } from 'node:path';
 
 import {
   executePtrProductionPublisherCli,
@@ -201,7 +202,7 @@ describe('PTR production publisher CLI', () => {
     expect(verifyFreshStatus).toHaveBeenCalledWith({ protected: 'fresh' });
     expect(writeReceipt).toHaveBeenCalledWith({
       directory: '/private/ptr-receipts',
-      repositoryRoot: expect.stringContaining('Warpkeep-prepared-keep-bindings-fix'),
+      repositoryRoot: resolve(import.meta.dirname, '..'),
       kind: 'publish',
       receipt,
     });

@@ -77,6 +77,9 @@ jobs:
       - name: Install exact bridge runtime-test toolchain
         run: pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
 
+      - name: Install SpacetimeDB module dependencies
+        run: pnpm --dir spacetimedb install --frozen-lockfile
+
       - name: Re-attest runner-private Node after dependency install
         shell: bash
         run: |
@@ -118,6 +121,24 @@ jobs:
         run: |
           npm run verify:runtime-assets
           npm run verify:file-sizes
+
+      - name: Install pinned SpacetimeDB CLI
+        env:
+          SPACETIMEDB_CLI_SHA256: cb03bb4706dc6bd6ef080c9bbd220a6e7d10430a65e7be2ba6be27ec7e3a9118
+          SPACETIMEDB_CLI_VERSION: 2.6.1
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/spacetime-${SPACETIMEDB_CLI_VERSION}.tar.gz"
+          bin_dir="$RUNNER_TEMP/spacetime-bin"
+          curl --fail --location --proto '=https' --tlsv1.2 --retry 3 \
+            --output "$archive" \
+            "https://github.com/clockworklabs/SpacetimeDB/releases/download/v${SPACETIMEDB_CLI_VERSION}/spacetime-x86_64-unknown-linux-gnu.tar.gz"
+          echo "${SPACETIMEDB_CLI_SHA256}  ${archive}" | sha256sum --check --strict -
+          mkdir -p "$bin_dir"
+          tar -xzf "$archive" -C "$bin_dir" spacetimedb-cli spacetimedb-standalone
+          mv "$bin_dir/spacetimedb-cli" "$bin_dir/spacetime"
+          echo "$bin_dir" >> "$GITHUB_PATH"
+          "$bin_dir/spacetime" --version
 
       - name: Run tests
         run: |

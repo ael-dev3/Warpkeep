@@ -63,13 +63,27 @@ function step(id: string): WorkflowStep {
   return value;
 }
 
+function emulateBsdNodeAttestationForLinux(source: string): string {
+  return source
+    .replaceAll(
+      "/usr/bin/stat -f '%u:%g:%l:%Lp:%HT' -- \"$component\"",
+      "/usr/bin/stat -c '%u:%g:%h:%a:%F' -- \"$component\"",
+    )
+    .replaceAll(
+      '/bin/ls -lde -- "$component"',
+      '/bin/ls -ld -- "$component"',
+    )
+    .replaceAll('Regular File', 'regular file')
+    .replaceAll('Directory', 'directory');
+}
+
 function protectedLaunchForTrustedNode(
   source: string,
   nodeExecutable: string,
   nodeDigest: string,
 ): string {
   const uid = String(process.getuid?.() ?? 0);
-  return source
+  return emulateBsdNodeAttestationForLinux(source
     .replaceAll(IMMUTABLE_NODE_22_22_3_DARWIN_ARM64_PATH, nodeExecutable)
     .replaceAll(OFFICIAL_NODE_22_22_3_DARWIN_ARM64_SHA256, nodeDigest)
     .replaceAll(
@@ -81,10 +95,19 @@ function protectedLaunchForTrustedNode(
       '0 -ne 0',
     )
     .replaceAll(
+      '"$path_mode" != \'555\'',
+      '"$path_mode" != \'555\' && "$path_mode" != \'755\'',
+    )
+    .replaceAll('/usr/bin/codesign --verify --strict --verbose=4 "$executable"', 'true')
+    .replaceAll(
+      'signature="$(/usr/bin/codesign -dv --verbose=4 "$executable" 2>&1)"',
+      "signature='Signature=adhoc'",
+    )
+    .replaceAll(
       '"$signature" != *$\'TeamIdentifier=HX7739G8FX\'*',
       () => '"$signature" != *$\'TeamIdentifier=HX7739G8FX\'* '
         + '&& "$signature" != *$\'Signature=adhoc\'*',
-    );
+    ));
 }
 
 function protectedLaunchForSameUidSwapTarget(
@@ -92,14 +115,14 @@ function protectedLaunchForSameUidSwapTarget(
   nodeExecutable: string,
   nodeDigest: string,
 ): string {
-  return source
+  return emulateBsdNodeAttestationForLinux(source
     .replaceAll(IMMUTABLE_NODE_22_22_3_DARWIN_ARM64_PATH, nodeExecutable)
     .replaceAll(OFFICIAL_NODE_22_22_3_DARWIN_ARM64_SHA256, nodeDigest)
     .replaceAll(
       '"$signature" != *$\'TeamIdentifier=HX7739G8FX\'*',
       () => '"$signature" != *$\'TeamIdentifier=HX7739G8FX\'* '
         + '&& "$signature" != *$\'Signature=adhoc\'*',
-    );
+    ));
 }
 
 function writeProtectedLaunchClosureFixture(

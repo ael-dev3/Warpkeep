@@ -24,6 +24,7 @@ const validEnvironment = Object.freeze({
   WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN:
     'cloudflare-owner-test-token-value',
   WARPKEEP_AUTH_BRIDGE_ZONE_ID: 'b'.repeat(32),
+  WARPKEEP_PTR_SPACETIMEDB_DATABASE: 'd'.repeat(64),
   WARPKEEP_PRODUCTION_ADMIN_TOKEN: 'production-admin-test-token-value',
 });
 
