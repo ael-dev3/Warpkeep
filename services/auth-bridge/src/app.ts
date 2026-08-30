@@ -826,6 +826,19 @@ async function requirePtrOwnerAuthorization(
   }
 }
 
+async function resolveLivePtrOwnerAdmission(
+  config: BridgeConfig,
+  resolver: AuthEpochResolver,
+): Promise<Extract<AdmissionResolution, { state: 'enabled' }>> {
+  const expectedOwnerFid = config.playerCanaryOwnerFid
+  if (expectedOwnerFid === undefined) throw ptrUnavailable()
+  const admission = requireAdmission(await resolver.resolve(expectedOwnerFid))
+  if (admission.state !== 'enabled') {
+    throw new Error('Configured PTR owner is not enabled.')
+  }
+  return admission
+}
+
 function requireString(value: unknown, name: string, maxLength: number): string {
   if (typeof value !== 'string' || value.length === 0 || value.length > maxLength) {
     throw new HttpError(400, 'invalid_request', `Invalid ${name}.`)
@@ -1622,6 +1635,7 @@ async function ptrOwnerQuickAuthResponseBody(
   config: BridgeConfig,
   signer: typeof signEs256Jwt,
   fid: string,
+  admission: Extract<AdmissionResolution, { state: 'enabled' }>,
   issuedAtMilliseconds: number,
 ): Promise<Record<string, unknown>> {
   const ptr = config.ptrSpacetimeDb
@@ -1629,13 +1643,12 @@ async function ptrOwnerQuickAuthResponseBody(
   if (!config.ptrEnabled || !ptr || !Number.isSafeInteger(issuedAt) || issuedAt < 0) {
     throw new Error('Invalid PTR signing configuration.')
   }
-  const claims = ptrOwnerClaims(config, issuedAt, fid)
+  const claims = ptrOwnerClaims(config, issuedAt, fid, admission.authEpoch)
   const accessToken = await signer(config, claims)
   return {
     version: 1,
     status: 'authorized',
     realmId: 'PTR',
-    identity: browserIdentity({ fid }),
     databaseIdentity: ptr.database,
     accessToken,
     tokenType: 'spacetime-access',
@@ -2381,12 +2394,24 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             Math.floor(signingTime / 1_000),
           )
 
+          let ownerAdmission: Extract<AdmissionResolution, { state: 'enabled' }>
+          try {
+            ownerAdmission = await resolveLivePtrOwnerAdmission(
+              config,
+              dependencies.authEpochResolver ?? defaultAuthEpochResolver(config),
+            )
+          } catch (error) {
+            logAuthEpochFailure(logger, error)
+            throw new HttpError(503, 'authorization_unavailable', 'Authorization is temporarily unavailable.')
+          }
+
           let responseBody: Record<string, unknown>
           try {
             responseBody = await ptrOwnerQuickAuthResponseBody(
               config,
               dependencies.signer ?? signEs256Jwt,
               signingVerification.fid,
+              ownerAdmission,
               signingTime,
             )
           } catch (error) {
@@ -2976,11 +3001,27 @@ export function createAuthBridge(dependencies: AuthBridgeDependencies = {}): Bri
             throw new HttpError(503, 'signing_unavailable', 'Authentication signing is temporarily unavailable.')
           }
           const issuedAt = Math.floor(issuedAtMilliseconds / 1_000)
+          let ownerAdmission: Extract<AdmissionResolution, { state: 'enabled' }>
+          try {
+            ownerAdmission = await resolveLivePtrOwnerAdmission(
+              config,
+              dependencies.authEpochResolver ?? defaultAuthEpochResolver(config),
+            )
+          } catch (error) {
+            logAuthEpochFailure(logger, error)
+            logger.event('ptr_admin_token_rejected')
+            throw new HttpError(503, 'ptr_admin_unavailable', 'PTR administration is unavailable.')
+          }
           let token: string
           try {
             token = await (dependencies.signer ?? signEs256Jwt)(
               config,
-              ptrAdminClaims(config, issuedAt),
+              ptrAdminClaims(
+                config,
+                issuedAt,
+                config.playerCanaryOwnerFid!,
+                ownerAdmission.authEpoch,
+              ),
             )
           } catch {
             logger.event('configuration_error')

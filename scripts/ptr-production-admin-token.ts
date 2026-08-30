@@ -6,6 +6,23 @@ const MAXIMUM_SECRET_BYTES = 512;
 const MAXIMUM_RESPONSE_BYTES = 32 * 1_024;
 const MAXIMUM_TOKEN_BYTES = 16 * 1_024;
 const REQUEST_TIMEOUT_MILLISECONDS = 8_000;
+const PTR_ADMIN_ISSUER = 'https://auth.warpkeep.com';
+const PTR_ADMIN_AUDIENCE = 'warpkeep-ptr-spacetimedb';
+const MAXIMUM_SUPPORTED_FID = BigInt(Number.MAX_SAFE_INTEGER);
+const MAXIMUM_AUTH_EPOCH = 0xffff_ffff;
+const PTR_ADMIN_CLAIM_KEYS = Object.freeze([
+  'iss',
+  'sub',
+  'aud',
+  'token_type',
+  'roles',
+  'ptr_owner_fid',
+  'ptr_owner_auth_epoch',
+  'iat',
+  'nbf',
+  'exp',
+  'jti',
+] as const);
 
 export class PtrProductionAdminTokenError extends Error {
   constructor(readonly code: string) {
@@ -26,6 +43,110 @@ function validSecret(secret: unknown): secret is string {
     && bytes >= MINIMUM_SECRET_BYTES
     && bytes <= MAXIMUM_SECRET_BYTES
     && !/[\u0000-\u0020\u007f]/u.test(secret);
+}
+
+export type PtrOwnerProvisionAuthority = Readonly<{
+  ownerFid: bigint;
+  ownerAuthEpoch: number;
+}>;
+
+/**
+ * Decode only the private reducer arguments from a fresh token. Signature
+ * enforcement remains SpacetimeDB's responsibility on this same token.
+ */
+export function readPtrOwnerProvisionAuthority(
+  token: string,
+  expectedOwnerFid: bigint,
+  currentTimeSeconds: number,
+): PtrOwnerProvisionAuthority {
+  try {
+    if (
+      typeof token !== 'string'
+      || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u.test(token)
+      || typeof expectedOwnerFid !== 'bigint'
+      || expectedOwnerFid < 1n
+      || expectedOwnerFid > MAXIMUM_SUPPORTED_FID
+      || !Number.isSafeInteger(currentTimeSeconds)
+      || currentTimeSeconds < 0
+    ) fail('PTR_PRODUCTION_ADMIN_TOKEN_CLAIMS_INVALID');
+    const payloadSegment = token.split('.')[1]!;
+    const payloadBytes = Buffer.from(payloadSegment, 'base64url');
+    if (
+      payloadBytes.byteLength < 2
+      || payloadBytes.byteLength > MAXIMUM_TOKEN_BYTES
+      || payloadBytes.toString('base64url') !== payloadSegment
+    ) fail('PTR_PRODUCTION_ADMIN_TOKEN_CLAIMS_INVALID');
+    let payload: unknown;
+    let payloadText = '';
+    try {
+      payloadText = new TextDecoder('utf-8', { fatal: true })
+        .decode(payloadBytes);
+      payload = JSON.parse(payloadText);
+    } finally {
+      payloadBytes.fill(0);
+    }
+    if (
+      payload === null
+      || typeof payload !== 'object'
+      || Array.isArray(payload)
+      || Object.getPrototypeOf(payload) !== Object.prototype
+    ) fail('PTR_PRODUCTION_ADMIN_TOKEN_CLAIMS_INVALID');
+    const record = payload as Readonly<Record<string, unknown>>;
+    const keys = Reflect.ownKeys(record);
+    if (
+      JSON.stringify(record) !== payloadText
+      || keys.length !== PTR_ADMIN_CLAIM_KEYS.length
+      || keys.some(key => (
+        typeof key !== 'string'
+        || !(PTR_ADMIN_CLAIM_KEYS as readonly string[]).includes(key)
+      ))
+    ) fail('PTR_PRODUCTION_ADMIN_TOKEN_CLAIMS_INVALID');
+    const ownerFidText = record.ptr_owner_fid;
+    const ownerFid = typeof ownerFidText === 'string'
+      && /^[1-9][0-9]{0,15}$/u.test(ownerFidText)
+      ? BigInt(ownerFidText)
+      : 0n;
+    const ownerAuthEpoch = record.ptr_owner_auth_epoch;
+    const issuedAt = record.iat;
+    const notBefore = record.nbf;
+    const expiresAt = record.exp;
+    if (
+      record.iss !== PTR_ADMIN_ISSUER
+      || record.sub !== 'service:hermes'
+      || !Array.isArray(record.aud)
+      || record.aud.length !== 1
+      || record.aud[0] !== PTR_ADMIN_AUDIENCE
+      || record.token_type !== 'spacetime-access'
+      || !Array.isArray(record.roles)
+      || record.roles.length !== 1
+      || record.roles[0] !== 'warpkeep-admin'
+      || ownerFid !== expectedOwnerFid
+      || ownerFid > MAXIMUM_SUPPORTED_FID
+      || !Number.isSafeInteger(ownerAuthEpoch)
+      || (ownerAuthEpoch as number) < 1
+      || (ownerAuthEpoch as number) > MAXIMUM_AUTH_EPOCH
+      || !Number.isSafeInteger(issuedAt)
+      || !Number.isSafeInteger(notBefore)
+      || !Number.isSafeInteger(expiresAt)
+      || (issuedAt as number) > currentTimeSeconds
+      || (notBefore as number) > currentTimeSeconds
+      || (expiresAt as number) <= currentTimeSeconds
+      || (notBefore as number) !== (issuedAt as number)
+      || (expiresAt as number) - (issuedAt as number) !== 300
+      || typeof record.jti !== 'string'
+      || !/^[A-Za-z0-9_-]{1,128}$/u.test(record.jti)
+    ) fail('PTR_PRODUCTION_ADMIN_TOKEN_CLAIMS_INVALID');
+    return Object.freeze({
+      ownerFid,
+      ownerAuthEpoch: ownerAuthEpoch as number,
+    });
+  } catch (error) {
+    if (
+      error instanceof PtrProductionAdminTokenError
+      && error.code === 'PTR_PRODUCTION_ADMIN_TOKEN_CLAIMS_INVALID'
+    ) throw error;
+    return fail('PTR_PRODUCTION_ADMIN_TOKEN_CLAIMS_INVALID');
+  }
 }
 
 export function takePtrProductionAdminSecret(

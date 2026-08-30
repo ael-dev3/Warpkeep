@@ -184,6 +184,35 @@ test('PTR registers only the approved admin and owner procedure surface', () => 
   );
 });
 
+test('owner provisioning checks both signed bindings before every state access', () => {
+  const source = readFileSync(
+    join(process.cwd(), 'spacetimedb', 'ptr', 'src', 'ownerReducers.ts'),
+    'utf8',
+  );
+  const start = source.indexOf('export const adminProvisionPtrOwnerV1');
+  const end = source.indexOf('/** Disable the retained owner anchor', start);
+  const reducer = source.slice(start, end);
+  const requireAdmin = reducer.indexOf('const admin = requirePtrAdmin(ctx);');
+  const requireBinding = reducer.indexOf(
+    'requirePtrOwnerProvisionBinding(admin, ownerFid, authEpoch);',
+  );
+  const populationRead = reducer.indexOf('requirePtrPopulationEmpty(ctx);');
+  const anchorRead = reducer.indexOf('ctx.db.ptrOwnerAnchorV1.singletonKey.find(');
+  const anchorCount = reducer.indexOf('ctx.db.ptrOwnerAnchorV1.count()');
+  const anchorWrite = reducer.indexOf('ctx.db.ptrOwnerAnchorV1.insert({');
+  const auditWrite = reducer.indexOf('audit(ctx, admin.subject');
+  assert.ok(start >= 0 && end > start);
+  assert.ok(requireAdmin >= 0);
+  assert.ok(requireBinding > requireAdmin);
+  for (const stateAccess of [
+    populationRead,
+    anchorRead,
+    anchorCount,
+    anchorWrite,
+    auditWrite,
+  ]) assert.ok(stateAccess > requireBinding);
+});
+
 test('generated public PTR bindings expose no tables and only the approved calls', async () => {
   const modulePath = join(process.cwd(), 'spacetimedb', 'ptr');
   const checkedInPath = join(modulePath, 'generated-bindings');

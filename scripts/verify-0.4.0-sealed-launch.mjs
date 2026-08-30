@@ -237,6 +237,15 @@ export const SEALED_LAUNCH_SOURCE_PATHS = Object.freeze({
   authBridgeSource: 'services/auth-bridge/src/app.ts',
   authBridgeConfigSource: 'services/auth-bridge/src/config.ts',
   authBridgeJwtSource: 'services/auth-bridge/src/jwt.ts',
+  authBridgeTypesSource: 'services/auth-bridge/src/types.ts',
+  ptrOwnerPolicySource: 'spacetimedb/ptr/src/ownerPolicy.ts',
+  ptrOwnerReducersSource: 'spacetimedb/ptr/src/ownerReducers.ts',
+  ptrProductionAdminTokenSource: 'scripts/ptr-production-admin-token.ts',
+  ptrProductionTransportSource: 'scripts/ptr-production-transport.ts',
+  ptrProductionReleaseReceiptsSource:
+    'scripts/ptr-production-release-receipts.ts',
+  ptrProductionImportOperatorSource:
+    'scripts/ptr-production-import-operator.ts',
   admissionRequestSuspensionProbeSource:
     'scripts/verify-admission-request-suspension.mjs',
   realmChoicePolicySource: 'src/components/menu/realmChoicePolicy.ts',
@@ -866,9 +875,9 @@ function verifyGenesis002Policy(sources) {
     [sources.authBridgeConfigSource,
       '39036b69b0264eb712ae4ac08b29c6e2854488488e632b246fd77eac1ad50b65'],
     [sources.authBridgeJwtSource,
-      '8f6b1ae12407be3a63f0dd425a72568d9050511ca8c4302267e942db3dd4c5a7'],
+      'e006b919bdf3ad6bbe8d71849ce7189d8cb9862971b42909f7f9dd7923b12232'],
     [sources.authBridgeSource,
-      '6251db88e158b8e88c14c7d0af5f96675a774d8b011b50f05119a7e481ef0b0f'],
+      '18a488a371a55d1b2bd6e6313df2aac89d0c7bf54dffed92ea9a4a1d16e17ce2'],
     [sources.genesis002TransportSource,
       '39619dae34b4e59bf3b6f7cf4db3577d46ee18fa8e172e527c943467215b6c9a'],
   ]) {
@@ -1310,6 +1319,995 @@ function verifyGenesis002Policy(sources) {
     token,
     'SEALED_LAUNCH_CLOSURE_TEST_LANE_INVALID',
   );
+}
+
+function verifyPtrOwnerAuthority(sources) {
+  const code = 'SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID';
+  // Interim pins cover the owner-binding authority until Task 7 atomically
+  // adds these sources to the authenticated closure and refreezes it.
+  for (const [source, expectedSha256] of [
+    [sources.authBridgeTypesSource,
+      '5ab611b54baaf91554824afb0e7003c7c64c849f1083092f699f048c3596d758'],
+    [sources.ptrOwnerPolicySource,
+      '8c556c9daf4b0df8b011319c3c5abb2522863529949b911e3df037237fa36407'],
+    [sources.ptrOwnerReducersSource,
+      'b5e1a919f367bd05baec3bd48f7cbf033193970d865908569700febc7129ee62'],
+    [sources.ptrProductionAdminTokenSource,
+      'c351e96a0a90c75b571d7241c0024f1162c078081702694ffe6e1d529690fb3d'],
+    [sources.ptrProductionTransportSource,
+      'a1a56edce59793520ff9f295f1161ac5bbdbc9a0b7b49ee3b8f40f6aa1167995'],
+    [sources.ptrProductionReleaseReceiptsSource,
+      '0da108596aa03ea2045070cbb8e957ceb4fd0ede7e0cfd87d0e7865d77ccda2c'],
+    [sources.ptrProductionImportOperatorSource,
+      '878b9780a2d8406aadbaae9e61e3754e91d1b18444d05aab75580d15f1a73e7f'],
+  ]) {
+    if (
+      typeof source !== 'string'
+      || createHash('sha256').update(source).digest('hex') !== expectedSha256
+    ) fail(code);
+  }
+  verifyPtrOwnerAuthoritySemantics(sources);
+}
+
+function contractSourceSlice(source, startMarker, endMarker, code) {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start + startMarker.length);
+  if (
+    start < 0
+    || source.indexOf(startMarker, start + startMarker.length) >= 0
+    || end <= start
+  ) fail(code);
+  return source.slice(start, end);
+}
+
+function contractTokens(source, code) {
+  const tokens = [];
+  let offset = 0;
+  while (offset < source.length) {
+    const character = source[offset];
+    if (/\s/u.test(character)) {
+      offset += 1;
+      continue;
+    }
+    if (character === '/' && source[offset + 1] === '/') {
+      const lineEnd = source.indexOf('\n', offset + 2);
+      offset = lineEnd < 0 ? source.length : lineEnd + 1;
+      continue;
+    }
+    if (character === '/' && source[offset + 1] === '*') {
+      const commentEnd = source.indexOf('*/', offset + 2);
+      if (commentEnd < 0) fail(code);
+      offset = commentEnd + 2;
+      continue;
+    }
+    if (/[A-Za-z_$]/u.test(character)) {
+      let end = offset + 1;
+      while (end < source.length && /[A-Za-z0-9_$]/u.test(source[end])) end += 1;
+      tokens.push(Object.freeze({
+        kind: 'identifier',
+        value: source.slice(offset, end),
+      }));
+      offset = end;
+      continue;
+    }
+    if (/[0-9]/u.test(character)) {
+      let end = offset + 1;
+      while (end < source.length && /[A-Za-z0-9_.]/u.test(source[end])) end += 1;
+      tokens.push(Object.freeze({
+        kind: 'number',
+        value: source.slice(offset, end),
+      }));
+      offset = end;
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      const quote = character;
+      let end = offset + 1;
+      let escaped = false;
+      let value = '';
+      while (end < source.length && source[end] !== quote) {
+        if (source[end] === '\\') {
+          escaped = true;
+          end += 2;
+          continue;
+        }
+        if (source[end] === '\n' || source[end] === '\r') fail(code);
+        value += source[end];
+        end += 1;
+      }
+      if (end >= source.length) fail(code);
+      tokens.push(Object.freeze({ kind: 'string', value, escaped }));
+      offset = end + 1;
+      continue;
+    }
+    if (character === '`') {
+      fail(code);
+    }
+    if (character === '/') {
+      const previous = tokens[tokens.length - 1]?.value;
+      const regexMayStart = previous === undefined || [
+        '=', '(', '[', '{', ',', ':', ';', '!', '&&', '||', '??',
+        '?', '=>', 'return',
+      ].includes(previous);
+      if (regexMayStart) {
+        let end = offset + 1;
+        let inCharacterClass = false;
+        while (end < source.length) {
+          if (source[end] === '\\') {
+            end += 2;
+            continue;
+          }
+          if (source[end] === '\n' || source[end] === '\r') fail(code);
+          if (source[end] === '[') inCharacterClass = true;
+          else if (source[end] === ']') inCharacterClass = false;
+          else if (source[end] === '/' && !inCharacterClass) break;
+          end += 1;
+        }
+        if (end >= source.length || inCharacterClass) fail(code);
+        end += 1;
+        while (end < source.length && /[A-Za-z]/u.test(source[end])) end += 1;
+        tokens.push(Object.freeze({
+          kind: 'regex',
+          value: source.slice(offset, end),
+        }));
+        offset = end;
+        continue;
+      }
+    }
+    const punctuator = [
+      '...', '!==', '===', '=>', '&&', '||', '<=', '>=', '!=', '==',
+      '?.', '??', '++', '--', '**',
+    ].find(candidate => source.startsWith(candidate, offset));
+    if (punctuator !== undefined) {
+      tokens.push(Object.freeze({ kind: 'punctuator', value: punctuator }));
+      offset += punctuator.length;
+      continue;
+    }
+    tokens.push(Object.freeze({ kind: 'punctuator', value: character }));
+    offset += 1;
+  }
+  return Object.freeze(tokens);
+}
+
+function contractBalancedDelimiters(tokens, code) {
+  const pairs = new Map([['(', ')'], ['[', ']'], ['{', '}']]);
+  const closers = new Set(pairs.values());
+  const stack = [];
+  for (const token of tokens) {
+    const expected = pairs.get(token.value);
+    if (expected !== undefined) stack.push(expected);
+    else if (closers.has(token.value)) {
+      if (stack.pop() !== token.value) fail(code);
+    }
+  }
+  if (stack.length !== 0) fail(code);
+}
+
+function contractMatchingMixedDelimiter(tokens, openIndex, code) {
+  const pairs = new Map([['(', ')'], ['[', ']'], ['{', '}']]);
+  const closers = new Set(pairs.values());
+  if (pairs.get(tokens[openIndex]?.value) === undefined) fail(code);
+  const stack = [];
+  for (let index = openIndex; index < tokens.length; index += 1) {
+    const expected = pairs.get(tokens[index].value);
+    if (expected !== undefined) stack.push(expected);
+    else if (closers.has(tokens[index].value)) {
+      if (stack.pop() !== tokens[index].value) fail(code);
+      if (stack.length === 0) return index;
+    }
+  }
+  return fail(code);
+}
+
+function contractMatchingDelimiter(tokens, openIndex, code) {
+  const pairs = Object.freeze({ '(': ')', '[': ']', '{': '}', '<': '>' });
+  const open = tokens[openIndex]?.value;
+  const close = pairs[open];
+  if (close === undefined) fail(code);
+  let depth = 0;
+  for (let index = openIndex; index < tokens.length; index += 1) {
+    if (tokens[index].value === open) depth += 1;
+    if (tokens[index].value === close) {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  return fail(code);
+}
+
+function contractTopLevelParts(tokens, start, end, separator, code) {
+  const parts = [];
+  const stack = [];
+  const pairs = Object.freeze({ '(': ')', '[': ']', '{': '}' });
+  let partStart = start;
+  for (let index = start; index < end; index += 1) {
+    const value = tokens[index].value;
+    if (pairs[value] !== undefined) stack.push(pairs[value]);
+    else if (value === ')' || value === ']' || value === '}') {
+      if (stack.pop() !== value) fail(code);
+    } else if (value === separator && stack.length === 0) {
+      if (index === partStart) fail(code);
+      parts.push(tokens.slice(partStart, index));
+      partStart = index + 1;
+    }
+  }
+  if (stack.length !== 0) fail(code);
+  if (partStart < end) parts.push(tokens.slice(partStart, end));
+  else if (separator !== ',' || parts.length === 0) fail(code);
+  return parts;
+}
+
+function contractFunctionBody(source, functionName, code) {
+  const tokens = contractTokens(source, code);
+  const starts = [];
+  for (let index = 0; index < tokens.length - 1; index += 1) {
+    if (
+      tokens[index].value === 'function'
+      && tokens[index + 1].value === functionName
+    ) starts.push(index + 1);
+  }
+  if (starts.length !== 1) fail(code);
+  let parametersOpen = starts[0] + 1;
+  if (tokens[parametersOpen]?.value === '<') {
+    parametersOpen = contractMatchingDelimiter(tokens, parametersOpen, code) + 1;
+  }
+  if (tokens[parametersOpen]?.value !== '(') fail(code);
+  const parametersClose = contractMatchingDelimiter(tokens, parametersOpen, code);
+  let angleDepth = 0;
+  let bodyOpen = -1;
+  for (let index = parametersClose + 1; index < tokens.length; index += 1) {
+    if (tokens[index].value === '<') angleDepth += 1;
+    else if (tokens[index].value === '>') angleDepth -= 1;
+    else if (tokens[index].value === '{' && angleDepth === 0) {
+      bodyOpen = index;
+      break;
+    }
+    if (angleDepth < 0) fail(code);
+  }
+  if (bodyOpen < 0 || angleDepth !== 0) fail(code);
+  const bodyClose = contractMatchingDelimiter(tokens, bodyOpen, code);
+  if (bodyClose !== tokens.length - 1) fail(code);
+  return Object.freeze({ tokens, bodyOpen, bodyClose });
+}
+
+function contractCompleteFunctionTokens(tokens, functionName, code) {
+  contractBalancedDelimiters(tokens, code);
+  const starts = [];
+  for (let index = 0; index < tokens.length - 1; index += 1) {
+    if (
+      tokens[index].value === 'function'
+      && tokens[index + 1].value === functionName
+    ) starts.push(index + 1);
+  }
+  if (starts.length !== 1) fail(code);
+  const parametersOpen = starts[0] + 1;
+  if (tokens[parametersOpen]?.value !== '(') fail(code);
+  const parametersClose = contractMatchingMixedDelimiter(
+    tokens,
+    parametersOpen,
+    code,
+  );
+  let angleDepth = 0;
+  let bodyOpen = -1;
+  for (let index = parametersClose + 1; index < tokens.length; index += 1) {
+    if (tokens[index].value === '<') angleDepth += 1;
+    else if (tokens[index].value === '>') angleDepth -= 1;
+    else if (tokens[index].value === '{' && angleDepth === 0) {
+      bodyOpen = index;
+      break;
+    }
+    if (angleDepth < 0) fail(code);
+  }
+  if (bodyOpen < 0 || angleDepth !== 0) fail(code);
+  const bodyClose = contractMatchingMixedDelimiter(tokens, bodyOpen, code);
+  if (bodyClose !== tokens.length - 1) fail(code);
+  return Object.freeze({ tokens, bodyOpen, bodyClose });
+}
+
+function contractFrozenReturnedObjectTokens(tokens, functionName, code) {
+  const { bodyOpen, bodyClose } = contractCompleteFunctionTokens(
+    tokens,
+    functionName,
+    code,
+  );
+  const returns = [];
+  const stack = [];
+  const pairs = new Map([['(', ')'], ['[', ']'], ['{', '}']]);
+  const closers = new Set(pairs.values());
+  for (let index = bodyOpen + 1; index < bodyClose; index += 1) {
+    const value = tokens[index].value;
+    const expected = pairs.get(value);
+    if (expected !== undefined) stack.push(expected);
+    else if (closers.has(value)) {
+      if (stack.pop() !== value) fail(code);
+    } else if (value === 'return' && stack.length === 0) returns.push(index);
+  }
+  if (stack.length !== 0 || returns.length !== 1) fail(code);
+  const returnIndex = returns[0];
+  if (JSON.stringify(contractValues(tokens.slice(returnIndex, returnIndex + 6)))
+    !== JSON.stringify(['return', 'Object', '.', 'freeze', '(', '{'])) fail(code);
+  const objectOpen = returnIndex + 5;
+  const objectClose = contractMatchingMixedDelimiter(tokens, objectOpen, code);
+  if (
+    tokens[objectClose + 1]?.value !== ')'
+    || tokens[objectClose + 2]?.value !== ';'
+    || objectClose + 3 !== bodyClose
+  ) fail(code);
+  return Object.freeze({
+    objectTokens: tokens.slice(objectOpen + 1, objectClose),
+    parts: contractTopLevelParts(
+      tokens,
+      objectOpen + 1,
+      objectClose,
+      ',',
+      code,
+    ),
+    returnTokens: tokens.slice(returnIndex, objectClose + 3),
+  });
+}
+
+function contractReturnedObject(source, functionName, code) {
+  const { tokens, bodyOpen, bodyClose } = contractFunctionBody(
+    source,
+    functionName,
+    code,
+  );
+  const returns = [];
+  const stack = [];
+  const pairs = Object.freeze({ '(': ')', '[': ']', '{': '}' });
+  for (let index = bodyOpen + 1; index < bodyClose; index += 1) {
+    const value = tokens[index].value;
+    if (pairs[value] !== undefined) stack.push(pairs[value]);
+    else if (value === ')' || value === ']' || value === '}') {
+      if (stack.pop() !== value) fail(code);
+    } else if (value === 'return' && stack.length === 0) returns.push(index);
+  }
+  if (stack.length !== 0 || returns.length !== 1) fail(code);
+  const objectOpen = returns[0] + 1;
+  if (tokens[objectOpen]?.value !== '{') fail(code);
+  const objectClose = contractMatchingDelimiter(tokens, objectOpen, code);
+  if (
+    objectClose >= bodyClose
+    || (tokens[objectClose + 1]?.value !== ';'
+      && tokens[objectClose + 1]?.value !== '}')
+  ) fail(code);
+  return contractTopLevelParts(tokens, objectOpen + 1, objectClose, ',', code);
+}
+
+function contractObjectProperty(part, code) {
+  if (
+    part.length < 3
+    || part[0].kind !== 'identifier'
+    || part[1].value !== ':'
+  ) fail(code);
+  return Object.freeze({ name: part[0].value, value: part.slice(2) });
+}
+
+function contractValues(tokens) {
+  return tokens.map(token => token.value);
+}
+
+function contractSequenceCount(tokens, values) {
+  let count = 0;
+  for (let index = 0; index <= tokens.length - values.length; index += 1) {
+    if (values.every((value, offset) => tokens[index + offset].value === value)) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function contractTopLevelSemicolonEnd(tokens, start, code) {
+  const pairs = new Map([['(', ')'], ['[', ']'], ['{', '}']]);
+  const closers = new Set(pairs.values());
+  const stack = [];
+  for (let index = start; index < tokens.length; index += 1) {
+    const value = tokens[index].value;
+    const expected = pairs.get(value);
+    if (expected !== undefined) stack.push(expected);
+    else if (closers.has(value)) {
+      if (stack.pop() !== value) fail(code);
+    } else if (value === ';' && stack.length === 0) return index;
+  }
+  return fail(code);
+}
+
+function contractTopLevelBodyEnd(tokens, start, code) {
+  const pairs = new Map([['(', ')'], ['[', ']'], ['{', '}']]);
+  const closers = new Set(pairs.values());
+  const stack = [];
+  for (let index = start; index < tokens.length; index += 1) {
+    const value = tokens[index].value;
+    if (value === '{' && stack.length === 0) {
+      return contractMatchingMixedDelimiter(tokens, index, code);
+    }
+    const expected = pairs.get(value);
+    if (expected !== undefined) stack.push(expected);
+    else if (closers.has(value) && stack.pop() !== value) fail(code);
+  }
+  return fail(code);
+}
+
+function contractTopLevelDeclarations(tokens, code) {
+  const declarations = [];
+  let start = 0;
+  while (start < tokens.length) {
+    let cursor = start;
+    let exported = false;
+    if (tokens[cursor]?.value === 'export') {
+      exported = true;
+      cursor += 1;
+    }
+    const kind = tokens[cursor]?.value;
+    let name;
+    let end;
+    if (kind === 'import' && !exported) {
+      end = contractTopLevelSemicolonEnd(tokens, start, code);
+      const modules = tokens.slice(start, end)
+        .filter(token => token.kind === 'string');
+      if (modules.length !== 1 || modules[0].escaped) fail(code);
+      name = modules[0].value;
+    } else if (kind === 'const' || kind === 'type') {
+      name = tokens[cursor + 1]?.value;
+      if (tokens[cursor + 1]?.kind !== 'identifier') fail(code);
+      end = contractTopLevelSemicolonEnd(tokens, start, code);
+    } else if (kind === 'class' || kind === 'function') {
+      name = tokens[cursor + 1]?.value;
+      if (tokens[cursor + 1]?.kind !== 'identifier') fail(code);
+      end = contractTopLevelBodyEnd(tokens, cursor + 2, code);
+    } else fail(code);
+    declarations.push(Object.freeze({
+      exported,
+      kind,
+      name,
+      start,
+      end,
+      tokens: tokens.slice(start, end + 1),
+    }));
+    start = end + 1;
+  }
+  return Object.freeze(declarations);
+}
+
+export function verifyPtrOwnerAuthoritySemantics(sources) {
+  const code = 'SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID';
+  for (const source of [
+    sources.authBridgeJwtSource,
+    sources.ptrOwnerPolicySource,
+    sources.ptrProductionAdminTokenSource,
+    sources.ptrProductionTransportSource,
+  ]) {
+    if (typeof source !== 'string') fail(code);
+  }
+  const hermesProperties = contractReturnedObject(
+    contractSourceSlice(
+      sources.authBridgeJwtSource,
+      'function hermesAdminClaims',
+      '/** Five-minute external Hermes token',
+      code,
+    ),
+    'hermesAdminClaims',
+    code,
+  ).map(part => contractObjectProperty(part, code));
+  if (JSON.stringify(hermesProperties.map(property => property.name)) !== JSON.stringify([
+    'iss',
+    'sub',
+    'aud',
+    'token_type',
+    'roles',
+    'iat',
+    'nbf',
+    'exp',
+    'jti',
+  ])) fail(code);
+  const hermesTokenType = hermesProperties[3].value;
+  if (
+    hermesTokenType.length !== 1
+    || hermesTokenType[0].kind !== 'string'
+    || hermesTokenType[0].escaped
+    || hermesTokenType[0].value !== 'spacetime-access'
+  ) fail(code);
+
+  const ptrAdminParts = contractReturnedObject(
+    contractSourceSlice(
+      sources.authBridgeJwtSource,
+      'export function ptrAdminClaims(',
+      '/** Fresh 15-second resolver token',
+      code,
+    ),
+    'ptrAdminClaims',
+    code,
+  );
+  if (
+    ptrAdminParts.length !== 3
+    || JSON.stringify(contractValues(ptrAdminParts[0])) !== JSON.stringify([
+      '...',
+      'hermesAdminClaims',
+      '(',
+      'config', '.', 'issuer',
+      ',',
+      'ptr', '.', 'audience',
+      ',',
+      'nowSeconds',
+      ',',
+      'ADMIN_TOKEN_TTL_SECONDS',
+      ')',
+    ])
+  ) fail(code);
+  const ptrAdminProperties = ptrAdminParts.slice(1)
+    .map(part => contractObjectProperty(part, code));
+  if (
+    JSON.stringify(ptrAdminProperties.map(property => property.name))
+      !== JSON.stringify(['ptr_owner_fid', 'ptr_owner_auth_epoch'])
+    || JSON.stringify(contractValues(ptrAdminProperties[0].value))
+      !== JSON.stringify(['ownerFid'])
+    || JSON.stringify(contractValues(ptrAdminProperties[1].value))
+      !== JSON.stringify(['ownerAuthEpoch'])
+  ) fail(code);
+
+  const ptrPolicyTokens = contractTokens(contractSourceSlice(
+    sources.ptrOwnerPolicySource,
+    'const WARPKEEP_TOKEN_TYPE',
+    'const WARPKEEP_AUTH_VERSION',
+    code,
+  ), code);
+  if (
+    ptrPolicyTokens.length !== 5
+    || JSON.stringify(contractValues(ptrPolicyTokens.slice(0, 3)))
+      !== JSON.stringify(['const', 'WARPKEEP_TOKEN_TYPE', '='])
+    || ptrPolicyTokens[3].kind !== 'string'
+    || ptrPolicyTokens[3].escaped
+    || ptrPolicyTokens[3].value !== 'spacetime-access'
+    || ptrPolicyTokens[4].value !== ';'
+  ) fail(code);
+
+  const localParserBody = contractFunctionBody(contractSourceSlice(
+    sources.ptrProductionAdminTokenSource,
+    'export function readPtrOwnerProvisionAuthority(',
+    'export function takePtrProductionAdminSecret(',
+    code,
+  ), 'readPtrOwnerProvisionAuthority', code);
+  const localTokens = localParserBody.tokens;
+  const localAuthorityTokens = localTokens.filter(token => (
+    (token.kind === 'identifier' || token.kind === 'string')
+    && token.value === 'token_type'
+  ));
+  const localMemberStarts = [];
+  for (let index = localParserBody.bodyOpen + 1;
+    index < localParserBody.bodyClose - 3;
+    index += 1) {
+    if (
+      JSON.stringify(contractValues(localTokens.slice(index, index + 3)))
+        === JSON.stringify(['record', '.', 'token_type'])
+    ) localMemberStarts.push(index);
+    if (
+      localTokens[index].value === 'record'
+      && localTokens[index + 1]?.value === '['
+    ) fail(code);
+  }
+  if (
+    localAuthorityTokens.length !== 1
+    || localMemberStarts.length !== 1
+    || localTokens[localMemberStarts[0] + 3]?.value !== '!=='
+    || localTokens[localMemberStarts[0] + 4]?.kind !== 'string'
+    || localTokens[localMemberStarts[0] + 4]?.escaped
+    || localTokens[localMemberStarts[0] + 4]?.value !== 'spacetime-access'
+  ) fail(code);
+  const authorityConditions = [];
+  for (let index = localParserBody.bodyOpen + 1;
+    index < localParserBody.bodyClose;
+    index += 1) {
+    if (localTokens[index].value !== 'if' || localTokens[index + 1]?.value !== '(') continue;
+    const conditionClose = contractMatchingDelimiter(localTokens, index + 1, code);
+    if (
+      localMemberStarts[0] > index + 1
+      && localMemberStarts[0] < conditionClose
+    ) authorityConditions.push([index + 2, conditionClose]);
+  }
+  if (authorityConditions.length !== 1) fail(code);
+  const authorityClauses = contractTopLevelParts(
+    localTokens,
+    authorityConditions[0][0],
+    authorityConditions[0][1],
+    '||',
+    code,
+  ).filter(part => part.some(token => token.value === 'token_type'));
+  if (
+    authorityClauses.length !== 1
+    || authorityClauses[0].length !== 5
+    || JSON.stringify(contractValues(authorityClauses[0].slice(0, 4)))
+      !== JSON.stringify(['record', '.', 'token_type', '!=='])
+    || authorityClauses[0][4].kind !== 'string'
+    || authorityClauses[0][4].escaped
+    || authorityClauses[0][4].value !== 'spacetime-access'
+  ) fail(code);
+
+  const allowedReducerTokens = contractTokens(contractSourceSlice(
+    sources.ptrProductionTransportSource,
+    'export const PTR_PRODUCTION_ALLOWED_REDUCERS',
+    'const SHA256',
+    code,
+  ), code);
+  if (JSON.stringify(contractValues(allowedReducerTokens.slice(0, 9))) !== JSON.stringify([
+    'export', 'const', 'PTR_PRODUCTION_ALLOWED_REDUCERS', '=',
+    'Object', '.', 'freeze', '(', '[',
+  ])) fail(code);
+  const allowedReducerClose = contractMatchingDelimiter(
+    allowedReducerTokens,
+    8,
+    code,
+  );
+  if (JSON.stringify(contractValues(allowedReducerTokens.slice(allowedReducerClose + 1)))
+    !== JSON.stringify(['as', 'const', ')', ';'])) fail(code);
+  const genericReducerParts = contractTopLevelParts(
+    allowedReducerTokens,
+    9,
+    allowedReducerClose,
+    ',',
+    code,
+  );
+  const expectedGenericReducers = [
+    'admin_stage_greater_realm_release_v1',
+    'admin_import_greater_realm_components_v1',
+    'admin_import_greater_realm_regions_v1',
+    'admin_import_greater_realm_chunk_v1',
+    'admin_begin_greater_realm_verification_v1',
+    'admin_verify_greater_realm_batch_v1',
+    'admin_finalize_greater_realm_release_v1',
+  ];
+  if (
+    genericReducerParts.length !== expectedGenericReducers.length
+    || genericReducerParts.some((part, index) => (
+      part.length !== 1
+      || part[0].kind !== 'string'
+      || part[0].escaped
+      || part[0].value !== expectedGenericReducers[index]
+    ))
+  ) fail(code);
+
+  const reducerMapTokens = contractTokens(contractSourceSlice(
+    sources.ptrProductionTransportSource,
+    'const PTR_PRODUCTION_ATLAS_REDUCER_METHODS',
+    'type RequestToken',
+    code,
+  ), code);
+  if (JSON.stringify(contractValues(reducerMapTokens.slice(0, 18))) !== JSON.stringify([
+    'const', 'PTR_PRODUCTION_ATLAS_REDUCER_METHODS', ':',
+    'Readonly', '<', 'Record', '<', 'PtrProductionReducer', ',', 'string', '>', '>',
+    '=', 'Object', '.', 'freeze', '(', '{',
+  ])) fail(code);
+  const reducerMapClose = contractMatchingDelimiter(reducerMapTokens, 17, code);
+  if (JSON.stringify(contractValues(reducerMapTokens.slice(reducerMapClose + 1)))
+    !== JSON.stringify(['as', 'const', ')', ';'])) fail(code);
+  const reducerMapParts = contractTopLevelParts(
+    reducerMapTokens,
+    18,
+    reducerMapClose,
+    ',',
+    code,
+  );
+  const expectedReducerMethods = [
+    'adminStageGreaterRealmReleaseV1',
+    'adminImportGreaterRealmComponentsV1',
+    'adminImportGreaterRealmRegionsV1',
+    'adminImportGreaterRealmChunkV1',
+    'adminBeginGreaterRealmVerificationV1',
+    'adminVerifyGreaterRealmBatchV1',
+    'adminFinalizeGreaterRealmReleaseV1',
+  ];
+  if (
+    reducerMapParts.length !== expectedGenericReducers.length
+    || reducerMapParts.some((part, index) => (
+      part.length !== 3
+      || part[0].kind !== 'string'
+      || part[0].escaped
+      || part[0].value !== expectedGenericReducers[index]
+      || part[1].value !== ':'
+      || part[2].kind !== 'string'
+      || part[2].escaped
+      || part[2].value !== expectedReducerMethods[index]
+    ))
+  ) fail(code);
+
+  const transportTokens = contractTokens(
+    sources.ptrProductionTransportSource,
+    code,
+  );
+  contractBalancedDelimiters(transportTokens, code);
+  const transportDeclarations = contractTopLevelDeclarations(
+    transportTokens,
+    code,
+  );
+  const expectedTransportDeclarations = [
+    'import:../spacetimedb/ptr/generated-bindings',
+    'import:./ptr-production-admin-token',
+    'export const:PTR_PRODUCTION_TRANSPORT_TARGET',
+    'export const:PTR_PRODUCTION_ALLOWED_REDUCERS',
+    'const:SHA256',
+    'const:MINIMUM_SECRET_BYTES',
+    'const:MAXIMUM_SECRET_BYTES',
+    'const:CONNECT_TIMEOUT_MILLISECONDS',
+    'const:OPERATION_TIMEOUT_MILLISECONDS',
+    'type:PtrProductionReducer',
+    'const:PTR_PRODUCTION_ATLAS_REDUCER_METHODS',
+    'type:RequestToken',
+    'type:DynamicConnection',
+    'export class:PtrProductionTransportError',
+    'function:fail',
+    'function:operationTimeout',
+    'function:connectPtrProduction',
+    'function:disconnect',
+    'function:validSecret',
+    'function:validTarget',
+    'export type:PtrProductionTransport',
+    'export function:createPtrProductionTransport',
+  ];
+  if (JSON.stringify(transportDeclarations.map(declaration => (
+    `${declaration.exported ? 'export ' : ''}${declaration.kind}:${declaration.name}`
+  ))) !== JSON.stringify(expectedTransportDeclarations)) fail(code);
+  const transportFactoryDeclaration = transportDeclarations.at(-1);
+  if (
+    transportFactoryDeclaration?.name !== 'createPtrProductionTransport'
+    || transportFactoryDeclaration.end !== transportTokens.length - 1
+  ) fail(code);
+  const transportPrefixTokens = transportTokens.slice(
+    0,
+    transportFactoryDeclaration.start,
+  );
+  if (
+    createHash('sha256')
+      .update(JSON.stringify(transportPrefixTokens))
+      .digest('hex') !==
+      'b03b2bd883f1d65b49e7c859a612a4855151b333d2e3f542e4eeb49fd9421a16'
+    || contractSequenceCount(transportPrefixTokens, [
+      'reducers', ':', 'Readonly', '<', 'Record', '<', 'string', ',',
+      '(', 'arguments_', ':', 'unknown', ')', '=>', 'Promise', '<',
+      'void', '>', '>', '>', ';',
+    ]) !== 1
+    || transportPrefixTokens.filter(token => token.value === 'reducers').length !== 1
+    || contractSequenceCount(transportPrefixTokens, [
+      'active', '.', 'reducers',
+    ]) !== 0
+    || contractSequenceCount(transportPrefixTokens, [
+      'adminProvisionPtrOwnerV1',
+    ]) !== 0
+  ) fail(code);
+  const transportReturn = contractFrozenReturnedObjectTokens(
+    transportFactoryDeclaration.tokens,
+    'createPtrProductionTransport',
+    code,
+  );
+  const transportMembers = transportReturn.parts.map(
+    part => contractObjectProperty(part, code),
+  );
+  if (JSON.stringify(transportMembers.map(member => member.name))
+    !== JSON.stringify([
+      'inspect',
+      'prepareSubmission',
+      'submit',
+      'provisionOwner',
+      'close',
+    ])) fail(code);
+  const expectedTransportReturn = contractTokens(`
+    return Object.freeze({
+      inspect: () => runSerialized(async () => {
+        try {
+          const active = await requireConnection();
+          const procedure = active.procedures.adminGetGreaterRealmStatusV1;
+          if (typeof procedure !== 'function') {
+            fail('PTR_PRODUCTION_STATUS_ABI_MISSING');
+          }
+          return await operationTimeout(procedure({}));
+        } catch (error) {
+          invalidate();
+          if (error instanceof PtrProductionTransportError) throw error;
+          return fail('PTR_PRODUCTION_INSPECTION_UNAVAILABLE');
+        }
+      }),
+      prepareSubmission: () => runSerialized(async () => {
+        try {
+          void await requireConnection();
+        } catch (error) {
+          invalidate();
+          if (error instanceof PtrProductionTransportError) throw error;
+          return fail('PTR_PRODUCTION_CONNECTION_UNAVAILABLE');
+        }
+      }),
+      submit: (reducer, arguments_, assertCanStartWrite) => runSerialized(async () => {
+        const methodName = PTR_PRODUCTION_ATLAS_REDUCER_METHODS[reducer];
+        if (typeof methodName !== 'string') {
+          fail('PTR_PRODUCTION_REDUCER_FORBIDDEN');
+        }
+        try {
+          const active = await requireConnection();
+          const method = active.reducers[methodName];
+          if (typeof method !== 'function') {
+            fail('PTR_PRODUCTION_REDUCER_ABI_MISSING');
+          }
+          assertCanStartWrite();
+          await operationTimeout(method(arguments_));
+        } catch (error) {
+          invalidate();
+          if (error instanceof PtrProductionTransportError) throw error;
+          return fail('PTR_PRODUCTION_OPERATION_OUTCOME_AMBIGUOUS');
+        }
+      }),
+      provisionOwner: (expectedOwnerFid, assertCanStartWrite) => runSerialized(async () => {
+        invalidate();
+        let token = '';
+        let active: DynamicConnection;
+        let authority: PtrOwnerProvisionAuthority;
+        try {
+          token = await requestToken(adminSecret);
+          authority = readPtrOwnerProvisionAuthority(
+            token,
+            expectedOwnerFid,
+            nowSeconds(),
+          );
+          active = await connectDatabase(databaseIdentity, token) as DynamicConnection;
+        } catch (error) {
+          invalidate();
+          if (error instanceof PtrProductionAdminTokenError) throw error;
+          return fail('PTR_PRODUCTION_CONNECTION_UNAVAILABLE');
+        } finally {
+          token = '';
+        }
+        const method = active.reducers.adminProvisionPtrOwnerV1;
+        if (typeof method !== 'function') {
+          disconnect(active);
+          return fail('PTR_PRODUCTION_REDUCER_ABI_MISSING');
+        }
+        try {
+          assertCanStartWrite();
+          await operationTimeout(method(Object.freeze({
+            ownerFid: authority.ownerFid,
+            authEpoch: authority.ownerAuthEpoch,
+          })));
+          connection = active;
+          return authority;
+        } catch {
+          disconnect(active);
+          connection = undefined;
+          return fail('PTR_PRODUCTION_OPERATION_OUTCOME_AMBIGUOUS');
+        }
+      }),
+      close: async () => {
+        const prior = serialized;
+        await prior;
+        if (closed) return;
+        closed = true;
+        adminSecret = '';
+        invalidate();
+      },
+    });
+  `, code);
+  if (
+    JSON.stringify(transportReturn.returnTokens)
+      !== JSON.stringify(expectedTransportReturn)
+    || contractSequenceCount(transportReturn.objectTokens, [
+      'PTR_PRODUCTION_ATLAS_REDUCER_METHODS', '[', 'reducer', ']',
+    ]) !== 1
+    || contractSequenceCount(transportReturn.objectTokens, [
+      'active', '.', 'reducers', '[', 'methodName', ']',
+    ]) !== 1
+    || contractSequenceCount(transportReturn.objectTokens, [
+      'active', '.', 'reducers', '.', 'adminProvisionPtrOwnerV1',
+    ]) !== 1
+    || contractSequenceCount(transportReturn.objectTokens, [
+      'active', '.', 'reducers',
+    ]) !== 2
+    || contractSequenceCount(transportTokens, [
+      'active', '.', 'reducers',
+    ]) !== 2
+    || contractSequenceCount(transportTokens, [
+      'active', '.', 'reducers', '.', 'adminProvisionPtrOwnerV1',
+    ]) !== 1
+    || transportTokens.filter(token => token.value === 'reducers').length !== 3
+    || transportTokens.some(token => token.value === 'replace')
+  ) fail(code);
+
+  for (const [source, token] of [
+    [sources.authBridgeTypesSource, 'export type PtrAdminTokenClaims ='],
+    [sources.authBridgeTypesSource, 'ptr_owner_fid: string'],
+    [sources.authBridgeTypesSource, 'ptr_owner_auth_epoch: number'],
+    [sources.authBridgeJwtSource, 'ptr_owner_fid: ownerFid'],
+    [sources.authBridgeJwtSource, 'ptr_owner_auth_epoch: ownerAuthEpoch'],
+    [sources.authBridgeSource, 'resolver.resolve(expectedOwnerFid)'],
+    [sources.authBridgeSource, 'ownerAdmission.authEpoch'],
+    [sources.ptrOwnerPolicySource, 'export type PtrAdminClaims ='],
+    [sources.ptrOwnerPolicySource, 'Object.getPrototypeOf(payload) !== Object.prototype'],
+    [sources.ptrOwnerPolicySource, 'const keys = Reflect.ownKeys(record);'],
+    [sources.ptrOwnerPolicySource, 'ownerFid !== admin.ownerFid'],
+    [sources.ptrOwnerPolicySource, 'authEpoch !== admin.ownerAuthEpoch'],
+    [sources.ptrOwnerReducersSource,
+      'requirePtrOwnerProvisionBinding(admin, ownerFid, authEpoch);'],
+    [sources.ptrProductionAdminTokenSource,
+      'export function readPtrOwnerProvisionAuthority('],
+    [sources.ptrProductionAdminTokenSource,
+      'ownerFid !== expectedOwnerFid'],
+    [sources.ptrProductionAdminTokenSource,
+      '(expiresAt as number) <= currentTimeSeconds'],
+    [sources.ptrProductionTransportSource,
+      'provisionOwner: (expectedOwnerFid, assertCanStartWrite) => runSerialized(async () => {'],
+    [sources.ptrProductionTransportSource,
+      'authority = readPtrOwnerProvisionAuthority('],
+    [sources.ptrProductionTransportSource,
+      'active = await connectDatabase(databaseIdentity, token) as DynamicConnection;'],
+    [sources.ptrProductionTransportSource,
+      'await operationTimeout(method(Object.freeze({'],
+    [sources.ptrProductionReleaseReceiptsSource,
+      'ownerAuthority = await input.transport.provisionOwner('],
+    [sources.ptrProductionReleaseReceiptsSource,
+      'after.ownerAuthEpoch !== ownerAuthority.ownerAuthEpoch'],
+    [sources.ptrProductionImportOperatorSource,
+      'ownerAuthEpochIsCanonical: status.ownerProvisioned'],
+  ]) requireOnce(source, token, code);
+
+  requireAbsent(sources.ptrProductionReleaseReceiptsSource, [
+    'authEpoch: 1',
+    'ownerAuthEpoch !== 1',
+  ], code);
+
+  const adminRouteStart = sources.authBridgeSource.indexOf(
+    "if (request.method === 'POST' && url.pathname === PTR_ADMIN_TOKEN_PATH) {",
+  );
+  const adminRouteEnd = sources.authBridgeSource.indexOf(
+    "if (request.method === 'POST' && url.pathname === ADMISSION_NOTIFICATION_PATH) {",
+    adminRouteStart,
+  );
+  const adminRoute = sources.authBridgeSource.slice(
+    adminRouteStart,
+    adminRouteEnd,
+  );
+  const adminResolve = adminRoute.indexOf('resolveLivePtrOwnerAdmission(');
+  const adminMint = adminRoute.indexOf('ptrAdminClaims(');
+  if (
+    adminRouteStart < 0
+    || adminRouteEnd <= adminRouteStart
+    || adminResolve < 0
+    || adminMint <= adminResolve
+  ) fail(code);
+
+  const ownerResponseStart = sources.authBridgeSource.indexOf(
+    'async function ptrOwnerQuickAuthResponseBody(',
+  );
+  const ownerResponseEnd = sources.authBridgeSource.indexOf(
+    'function accessRequestResponseBody(',
+    ownerResponseStart,
+  );
+  const ownerResponse = sources.authBridgeSource.slice(
+    ownerResponseStart,
+    ownerResponseEnd,
+  );
+  if (
+    ownerResponseStart < 0
+    || ownerResponseEnd <= ownerResponseStart
+    || ownerResponse.includes('identity:')
+  ) fail(code);
+
+  const reducerStart = sources.ptrOwnerReducersSource.indexOf(
+    'export const adminProvisionPtrOwnerV1',
+  );
+  const reducerEnd = sources.ptrOwnerReducersSource.indexOf(
+    '/** Disable the retained owner anchor',
+    reducerStart,
+  );
+  const reducer = sources.ptrOwnerReducersSource.slice(
+    reducerStart,
+    reducerEnd,
+  );
+  const requireAdmin = reducer.indexOf('const admin = requirePtrAdmin(ctx);');
+  const requireBinding = reducer.indexOf(
+    'requirePtrOwnerProvisionBinding(admin, ownerFid, authEpoch);',
+  );
+  const firstStateAccess = reducer.indexOf('requirePtrPopulationEmpty(ctx);');
+  if (
+    reducerStart < 0
+    || reducerEnd <= reducerStart
+    || requireAdmin < 0
+    || requireBinding <= requireAdmin
+    || firstStateAccess <= requireBinding
+  ) fail(code);
 }
 
 function verifyGenesis001CensusPrivacyBoundary(sources) {
@@ -2021,6 +3019,7 @@ function verifyStaticSources(sources) {
   verifyGenesis001LegacyGreaterRealmProductionSeal(sources);
   verifyGenesis001PolicyObservationLaunchEnvelope(sources);
   verifyGenesis002Policy(sources);
+  verifyPtrOwnerAuthority(sources);
   for (const token of [
     'createSealedLaunchActivationBindingFromEvidence',
   ]) {

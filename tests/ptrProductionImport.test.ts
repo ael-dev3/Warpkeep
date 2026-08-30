@@ -335,7 +335,7 @@ describe('PTR production atlas import core', () => {
       ...absentStatus(),
       ownerProvisioned: true,
       ownerFid: 123n,
-      ownerAuthEpoch: 1,
+      ownerAuthEpoch: 7,
     })).toThrow('PTR_PRODUCTION_STATUS_INCONSISTENT');
     expect(() => projectPtrProductionStatus({
       ...absentStatus(),

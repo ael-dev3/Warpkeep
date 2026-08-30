@@ -155,6 +155,17 @@ function checkedInSources() {
     authBridgeSource: source('services/auth-bridge/src/app.ts'),
     authBridgeConfigSource: source('services/auth-bridge/src/config.ts'),
     authBridgeJwtSource: source('services/auth-bridge/src/jwt.ts'),
+    authBridgeTypesSource: source('services/auth-bridge/src/types.ts'),
+    ptrOwnerPolicySource: source('spacetimedb/ptr/src/ownerPolicy.ts'),
+    ptrOwnerReducersSource: source('spacetimedb/ptr/src/ownerReducers.ts'),
+    ptrProductionAdminTokenSource:
+      source('scripts/ptr-production-admin-token.ts'),
+    ptrProductionTransportSource:
+      source('scripts/ptr-production-transport.ts'),
+    ptrProductionReleaseReceiptsSource:
+      source('scripts/ptr-production-release-receipts.ts'),
+    ptrProductionImportOperatorSource:
+      source('scripts/ptr-production-import-operator.ts'),
     admissionRequestSuspensionProbeSource:
       source('scripts/verify-admission-request-suspension.mjs'),
     realmChoicePolicySource: source('src/components/menu/realmChoicePolicy.ts'),
@@ -671,6 +682,691 @@ describe('0.4.0 sealed-launch verifier', () => {
         ).toThrow('SEALED_LAUNCH_G002_ADMIN_AUTHORITY_INVALID');
       },
     );
+
+  it.each([
+    {
+      name: 'dedicated bridge owner claim type',
+      field: 'authBridgeTypesSource',
+      mutate: (value: string) => value.replace(
+        'ptr_owner_fid: string',
+        'fid: string',
+      ),
+    },
+    {
+      name: 'plain-record PTR admin claims',
+      field: 'ptrOwnerPolicySource',
+      mutate: (value: string) => value.replace(
+        'Object.getPrototypeOf(payload) !== Object.prototype',
+        'false',
+      ),
+    },
+    {
+      name: 'exact PTR admin own-key set',
+      field: 'ptrOwnerPolicySource',
+      mutate: (value: string) => value.replace(
+        'const keys = Reflect.ownKeys(record);',
+        'const keys = Object.keys(record);',
+      ),
+    },
+    {
+      name: 'canonical nonzero owner FID',
+      field: 'ptrOwnerPolicySource',
+      mutate: (value: string) => value.replace(
+        '!/^[1-9][0-9]*$/u.test(value)',
+        'false',
+      ),
+    },
+    {
+      name: 'bounded integer owner auth epoch',
+      field: 'ptrOwnerPolicySource',
+      mutate: (value: string) => value.replace(
+        'value > MAX_AUTH_EPOCH',
+        'false',
+      ),
+    },
+    {
+      name: 'FID provisioning binding',
+      field: 'ptrOwnerPolicySource',
+      mutate: (value: string) => value.replace(
+        'ownerFid !== admin.ownerFid',
+        'false',
+      ),
+    },
+    {
+      name: 'auth-epoch provisioning binding',
+      field: 'ptrOwnerPolicySource',
+      mutate: (value: string) => value.replace(
+        'authEpoch !== admin.ownerAuthEpoch',
+        'false',
+      ),
+    },
+    {
+      name: 'pre-state reducer binding call',
+      field: 'ptrOwnerReducersSource',
+      mutate: (value: string) => value.replace(
+        'requirePtrOwnerProvisionBinding(admin, ownerFid, authEpoch);',
+        'void admin;',
+      ),
+    },
+    {
+      name: 'fresh owner-provision token request',
+      field: 'ptrProductionTransportSource',
+      mutate: (value: string) => value.replace(
+        "provisionOwner: (expectedOwnerFid, assertCanStartWrite) => runSerialized(async () => {\n      invalidate();",
+        "provisionOwner: (expectedOwnerFid, assertCanStartWrite) => runSerialized(async () => {\n      void expectedOwnerFid;",
+      ),
+    },
+    {
+      name: 'private claim-derived reducer arguments',
+      field: 'ptrProductionTransportSource',
+      mutate: (value: string) => value.replace(
+        'authority = readPtrOwnerProvisionAuthority(',
+        'authority = readPtrOwnerProvisionAuthorityUnsafe(',
+      ),
+    },
+    {
+      name: 'expected owner FID cross-check',
+      field: 'ptrProductionTransportSource',
+      mutate: (value: string) => value.replace(
+        '          expectedOwnerFid,',
+        '          1n,',
+      ),
+    },
+    {
+      name: 'live epoch postcondition',
+      field: 'ptrProductionReleaseReceiptsSource',
+      mutate: (value: string) => value.replace(
+        'after.ownerAuthEpoch !== ownerAuthority.ownerAuthEpoch',
+        'after.ownerAuthEpoch !== 1',
+      ),
+    },
+    {
+      name: 'private owner binding excluded from receipt',
+      field: 'ptrProductionReleaseReceiptsSource',
+      mutate: (value: string) => value.replace(
+        'ownerAnchorRows: 1 as const,',
+        'ownerAnchorRows: 1 as const, ownerAuthEpoch: ownerAuthority.ownerAuthEpoch,',
+      ),
+    },
+  ] as const)(
+    'rejects PTR owner authority weakening: $name',
+    ({ field, mutate }) => {
+      const hostile: Record<string, string> = checkedInSources();
+      hostile[field] = mutate(hostile[field]!);
+      expect(hostile[field], `${field} mutation must change the source`)
+        .not.toBe(checkedInSources()[field]);
+      expect(
+        () => verifySealedLaunchSources(hostile, 'preparation'),
+        field,
+      ).toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+    },
+  );
+
+  it('semantically rejects PTR admin token-type drift independently of source pins', () => {
+    const verifyPtrOwnerAuthoritySemantics = (
+      sealedLaunchVerifierModule as unknown as {
+        verifyPtrOwnerAuthoritySemantics?: (
+          sources: Record<string, string>,
+        ) => void;
+      }
+    ).verifyPtrOwnerAuthoritySemantics;
+    expect(typeof verifyPtrOwnerAuthoritySemantics).toBe('function');
+    if (verifyPtrOwnerAuthoritySemantics === undefined) return;
+    const checkedIn = checkedInSources();
+    expect(() => verifyPtrOwnerAuthoritySemantics(checkedIn)).not.toThrow();
+    const hostile = { ...checkedIn };
+    hostile.ptrProductionAdminTokenSource =
+      hostile.ptrProductionAdminTokenSource.replace(
+        "record.token_type !== 'spacetime-access'",
+        "record.token_type !== 'admin'",
+      );
+    expect(hostile.ptrProductionAdminTokenSource)
+      .not.toBe(checkedIn.ptrProductionAdminTokenSource);
+    expect(() => verifyPtrOwnerAuthoritySemantics(hostile))
+      .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+  });
+
+  it('semantically rejects reintroducing generic owner provisioning independently of source pins', () => {
+    const verifyPtrOwnerAuthoritySemantics = (
+      sealedLaunchVerifierModule as unknown as {
+        verifyPtrOwnerAuthoritySemantics?: (
+          sources: Record<string, string>,
+        ) => void;
+      }
+    ).verifyPtrOwnerAuthoritySemantics;
+    expect(typeof verifyPtrOwnerAuthoritySemantics).toBe('function');
+    if (verifyPtrOwnerAuthoritySemantics === undefined) return;
+    const checkedIn = checkedInSources();
+    expect(() => verifyPtrOwnerAuthoritySemantics(checkedIn)).not.toThrow();
+    const hostile = { ...checkedIn };
+    hostile.ptrProductionTransportSource =
+      hostile.ptrProductionTransportSource.replace(
+        "  'admin_finalize_greater_realm_release_v1',\n] as const);",
+        "  'admin_finalize_greater_realm_release_v1',\n  'admin_provision_ptr_owner_v1',\n] as const);",
+      );
+    expect(hostile.ptrProductionTransportSource)
+      .not.toBe(checkedIn.ptrProductionTransportSource);
+    expect(() => verifyPtrOwnerAuthoritySemantics(hostile))
+      .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+  });
+
+  it.each([
+    {
+      name: 'double-quoted eighth owner reducer',
+      mutate: (value: string) => value.replace(
+        "  'admin_finalize_greater_realm_release_v1',\n] as const);",
+        "  'admin_finalize_greater_realm_release_v1',\n  \"admin_provision_ptr_owner_v1\",\n] as const);",
+      ),
+    },
+    {
+      name: 'computed template owner reducer',
+      mutate: (value: string) => value.replace(
+        "  'admin_finalize_greater_realm_release_v1',\n] as const);",
+        "  'admin_finalize_greater_realm_release_v1',\n  `admin_${'provision_ptr_owner_v1'}`,\n] as const);",
+      ),
+    },
+    {
+      name: 'concatenated owner reducer',
+      mutate: (value: string) => value.replace(
+        "  'admin_finalize_greater_realm_release_v1',\n] as const);",
+        "  'admin_finalize_greater_realm_release_v1',\n  ('admin_' + 'provision_ptr_owner_v1'),\n] as const);",
+      ),
+    },
+    {
+      name: 'spread owner reducer',
+      mutate: (value: string) => value.replace(
+        "  'admin_finalize_greater_realm_release_v1',\n] as const);",
+        "  'admin_finalize_greater_realm_release_v1',\n  ...(['admin_provision_ptr_owner_v1'] as const),\n] as const);",
+      ),
+    },
+    {
+      name: 'ignored unknown reducer element',
+      mutate: (value: string) => value.replace(
+        "  'admin_finalize_greater_realm_release_v1',\n] as const);",
+        "  'admin_finalize_greater_realm_release_v1',\n  void 0,\n] as const);",
+      ),
+    },
+  ] as const)(
+    'structurally rejects $name independently of source pins',
+    ({ mutate }) => {
+      const verifyPtrOwnerAuthoritySemantics = (
+        sealedLaunchVerifierModule as unknown as {
+          verifyPtrOwnerAuthoritySemantics?: (
+            sources: Record<string, string>,
+          ) => void;
+        }
+      ).verifyPtrOwnerAuthoritySemantics;
+      expect(typeof verifyPtrOwnerAuthoritySemantics).toBe('function');
+      if (verifyPtrOwnerAuthoritySemantics === undefined) return;
+      const checkedIn = checkedInSources();
+      const hostile = { ...checkedIn };
+      hostile.ptrProductionTransportSource = mutate(
+        hostile.ptrProductionTransportSource,
+      );
+      expect(hostile.ptrProductionTransportSource)
+        .not.toBe(checkedIn.ptrProductionTransportSource);
+      expect(() => verifyPtrOwnerAuthoritySemantics(hostile))
+        .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+    },
+  );
+
+  it.each([
+    {
+      name: 'local parser accepts both production and fabricated token types',
+      field: 'ptrProductionAdminTokenSource',
+      mutate: (value: string) => value.replace(
+        "record.token_type !== 'spacetime-access'",
+        "record.token_type !== 'spacetime-access'\n      && record.token_type !== 'admin'",
+      ),
+    },
+    {
+      name: 'PTR issuer overrides the inherited token type after the spread',
+      field: 'authBridgeJwtSource',
+      mutate: (value: string) => value.replace(
+        '    ...hermesAdminClaims(config.issuer, ptr.audience, nowSeconds, ADMIN_TOKEN_TTL_SECONDS),\n    ptr_owner_fid: ownerFid,',
+        "    ...hermesAdminClaims(config.issuer, ptr.audience, nowSeconds, ADMIN_TOKEN_TTL_SECONDS),\n    token_type: 'admin' as 'spacetime-access',\n    ptr_owner_fid: ownerFid,",
+      ),
+    },
+  ] as const)(
+    'structurally rejects token authority drift: $name',
+    ({ field, mutate }) => {
+      const verifyPtrOwnerAuthoritySemantics = (
+        sealedLaunchVerifierModule as unknown as {
+          verifyPtrOwnerAuthoritySemantics?: (
+            sources: Record<string, string>,
+          ) => void;
+        }
+      ).verifyPtrOwnerAuthoritySemantics;
+      expect(typeof verifyPtrOwnerAuthoritySemantics).toBe('function');
+      if (verifyPtrOwnerAuthoritySemantics === undefined) return;
+      const checkedIn = checkedInSources();
+      const hostile = { ...checkedIn };
+      hostile[field] = mutate(hostile[field]!);
+      expect(hostile[field]).not.toBe(checkedIn[field]);
+      expect(() => verifyPtrOwnerAuthoritySemantics(hostile))
+        .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+    },
+  );
+
+  it.each([
+    {
+      name: 'owner exception appended to the canonical includes guard',
+      mutate: (value: string) => value.includes(
+        'if (!PTR_PRODUCTION_ALLOWED_REDUCERS.includes(reducer)) {',
+      )
+        ? value.replace(
+            'if (!PTR_PRODUCTION_ALLOWED_REDUCERS.includes(reducer)) {',
+            "if (\n        !PTR_PRODUCTION_ALLOWED_REDUCERS.includes(reducer)\n        && (reducer as string) !== 'admin_provision_ptr_owner_v1'\n      ) {",
+          )
+        : value
+            .replace(
+              '      const methodName = PTR_PRODUCTION_ATLAS_REDUCER_METHODS[reducer];',
+              "      const methodName = PTR_PRODUCTION_ATLAS_REDUCER_METHODS[reducer]\n        ?? ((reducer as string) === 'admin_provision_ptr_owner_v1'\n          ? 'adminProvisionPtr' + 'OwnerV1'\n          : undefined);",
+            )
+            .replace(
+              "      if (typeof methodName !== 'string') {",
+              "      if (\n        typeof methodName !== 'string'\n        && (reducer as string) !== 'admin_provision_ptr_owner_v1'\n      ) {",
+            ),
+    },
+    {
+      name: 'owner reducer appended to an alternate guard collection',
+      mutate: (value: string) => value.includes(
+        'if (!PTR_PRODUCTION_ALLOWED_REDUCERS.includes(reducer)) {',
+      )
+        ? value.replace(
+            'if (!PTR_PRODUCTION_ALLOWED_REDUCERS.includes(reducer)) {',
+            "if (![...PTR_PRODUCTION_ALLOWED_REDUCERS, 'admin_provision_ptr_owner_v1'].includes(reducer)) {",
+          )
+        : value
+            .replace(
+              '      const methodName = PTR_PRODUCTION_ATLAS_REDUCER_METHODS[reducer];',
+              "      const methodName = PTR_PRODUCTION_ATLAS_REDUCER_METHODS[reducer]\n        ?? ((reducer as string) === 'admin_provision_ptr_owner_v1'\n          ? 'adminProvisionPtr' + 'OwnerV1'\n          : undefined);",
+            )
+            .replace(
+              "      if (typeof methodName !== 'string') {",
+              "      if (![...PTR_PRODUCTION_ALLOWED_REDUCERS, 'admin_provision_ptr_owner_v1'].includes(reducer)) {",
+            ),
+    },
+    {
+      name: 'template-hidden owner method access outside provisionOwner',
+      mutate: (value: string) => value.replace(
+        '        const active = await requireConnection();\n        const method = active.reducers[methodName];',
+        '        const active = await requireConnection();\n        const hiddenOwnerMethod = `${typeof active.reducers.adminProvisionPtrOwnerV1}`;\n        void hiddenOwnerMethod;\n        const method = active.reducers[methodName];',
+      ),
+    },
+    {
+      name: 'widened gate plus concatenated dynamic owner-method fallback',
+      mutate: (value: string) => value.includes(
+        'if (!PTR_PRODUCTION_ALLOWED_REDUCERS.includes(reducer)) {',
+      )
+        ? value
+            .replace(
+              'if (!PTR_PRODUCTION_ALLOWED_REDUCERS.includes(reducer)) {',
+              "if (\n        !PTR_PRODUCTION_ALLOWED_REDUCERS.includes(reducer)\n        && (reducer as string) !== 'admin_provision_ptr_owner_v1'\n      ) {",
+            )
+            .replace(
+              '        const methodName = reducer.replace(\n          /_([a-z0-9])/gu,\n          (_match, child: string) => child.toUpperCase(),\n        );',
+              "        const methodName = reducer === 'admin_provision_ptr_owner_v1'\n          ? 'adminProvisionPtr' + 'OwnerV1'\n          : reducer.replace(\n            /_([a-z0-9])/gu,\n            (_match, child: string) => child.toUpperCase(),\n          );",
+            )
+        : value.replace(
+            '      const methodName = PTR_PRODUCTION_ATLAS_REDUCER_METHODS[reducer];',
+            "      const methodName = PTR_PRODUCTION_ATLAS_REDUCER_METHODS[reducer]\n        ?? ((reducer as string) === 'admin_provision_ptr_owner_v1'\n          ? 'adminProvisionPtr' + 'OwnerV1'\n          : undefined);",
+          ),
+    },
+  ] as const)(
+    'rejects generic submit widening independently of source pins: $name',
+    ({ mutate }) => {
+      const verifyPtrOwnerAuthoritySemantics = (
+        sealedLaunchVerifierModule as unknown as {
+          verifyPtrOwnerAuthoritySemantics?: (
+            sources: Record<string, string>,
+          ) => void;
+        }
+      ).verifyPtrOwnerAuthoritySemantics;
+      expect(typeof verifyPtrOwnerAuthoritySemantics).toBe('function');
+      if (verifyPtrOwnerAuthoritySemantics === undefined) return;
+      const checkedIn = checkedInSources();
+      const hostile = { ...checkedIn };
+      hostile.ptrProductionTransportSource = mutate(
+        hostile.ptrProductionTransportSource,
+      );
+      expect(hostile.ptrProductionTransportSource)
+        .not.toBe(checkedIn.ptrProductionTransportSource);
+      expect(() => verifyPtrOwnerAuthoritySemantics(hostile))
+        .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+    },
+  );
+
+  it.each([
+    {
+      name: 'exported alias helper before the transport factory',
+      mutate: (value: string) => value.replace(
+        '/** A single serialized administrator session with no retry after mutation. */',
+        `export async function leakedOwner(
+  active: DynamicConnection,
+  ownerFid: bigint,
+  authEpoch: number,
+): Promise<void> {
+  const reducers = active.reducers;
+  const key = 'adminProvision' + 'PtrOwnerV1';
+  await reducers[key]({ ownerFid, authEpoch });
+}
+
+/** A single serialized administrator session with no retry after mutation. */`,
+      ),
+    },
+    {
+      name: 'exported reflective helper before the transport factory',
+      mutate: (value: string) => value.replace(
+        '/** A single serialized administrator session with no retry after mutation. */',
+        `export async function leakedOwner(
+  active: DynamicConnection,
+  ownerFid: bigint,
+  authEpoch: number,
+): Promise<void> {
+  const reducers = Reflect.get(active, 'reducers') as DynamicConnection['reducers'];
+  await reducers['adminProvision' + 'PtrOwnerV1']({ ownerFid, authEpoch });
+}
+
+/** A single serialized administrator session with no retry after mutation. */`,
+      ),
+    },
+    {
+      name: 'non-exported helper before the transport factory',
+      mutate: (value: string) => value.replace(
+        '/** A single serialized administrator session with no retry after mutation. */',
+        `async function hiddenOwner(active: DynamicConnection): Promise<void> {
+  const reducers = active.reducers;
+  await reducers['adminProvision' + 'PtrOwnerV1']({});
+}
+
+/** A single serialized administrator session with no retry after mutation. */`,
+      ),
+    },
+    {
+      name: 'extra import declaration',
+      mutate: (value: string) =>
+        `import type { Stats } from 'node:fs';\n${value}`,
+    },
+    {
+      name: 'extra exported declaration',
+      mutate: (value: string) => value.replace(
+        '/** A single serialized administrator session with no retry after mutation. */',
+        'export const TRANSPORT_EXTRA = 1;\n\n/** A single serialized administrator session with no retry after mutation. */',
+      ),
+    },
+    {
+      name: 'extra private declaration',
+      mutate: (value: string) => value.replace(
+        '/** A single serialized administrator session with no retry after mutation. */',
+        'const TRANSPORT_EXTRA = 1;\n\n/** A single serialized administrator session with no retry after mutation. */',
+      ),
+    },
+    {
+      name: 'executable top-level statement',
+      mutate: (value: string) => value.replace(
+        '/** A single serialized administrator session with no retry after mutation. */',
+        'void PTR_PRODUCTION_TRANSPORT_TARGET;\n\n/** A single serialized administrator session with no retry after mutation. */',
+      ),
+    },
+  ] as const)(
+    'rejects complete-module authority escape: $name',
+    ({ mutate }) => {
+      const verifyPtrOwnerAuthoritySemantics = (
+        sealedLaunchVerifierModule as unknown as {
+          verifyPtrOwnerAuthoritySemantics?: (
+            sources: Record<string, string>,
+          ) => void;
+        }
+      ).verifyPtrOwnerAuthoritySemantics;
+      expect(typeof verifyPtrOwnerAuthoritySemantics).toBe('function');
+      if (verifyPtrOwnerAuthoritySemantics === undefined) return;
+      const checkedIn = checkedInSources();
+      expect(() => verifyPtrOwnerAuthoritySemantics(checkedIn)).not.toThrow();
+      const hostile = { ...checkedIn };
+      hostile.ptrProductionTransportSource = mutate(
+        hostile.ptrProductionTransportSource,
+      );
+      expect(hostile.ptrProductionTransportSource)
+        .not.toBe(checkedIn.ptrProductionTransportSource);
+      expect(() => verifyPtrOwnerAuthoritySemantics(hostile))
+        .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+    },
+  );
+
+  it('accepts harmless comments before the transport factory', () => {
+    const verifyPtrOwnerAuthoritySemantics = (
+      sealedLaunchVerifierModule as unknown as {
+        verifyPtrOwnerAuthoritySemantics?: (
+          sources: Record<string, string>,
+        ) => void;
+      }
+    ).verifyPtrOwnerAuthoritySemantics;
+    expect(typeof verifyPtrOwnerAuthoritySemantics).toBe('function');
+    if (verifyPtrOwnerAuthoritySemantics === undefined) return;
+    const checkedIn = checkedInSources();
+    expect(() => verifyPtrOwnerAuthoritySemantics(checkedIn)).not.toThrow();
+    const commented = { ...checkedIn };
+    commented.ptrProductionTransportSource =
+      commented.ptrProductionTransportSource.replace(
+        'const SHA256 = /^[0-9a-f]{64}$/u;',
+        '/* harmless complete-module control */\nconst SHA256 = /^[0-9a-f]{64}$/u;',
+      );
+    expect(commented.ptrProductionTransportSource)
+      .not.toBe(checkedIn.ptrProductionTransportSource);
+    expect(() => verifyPtrOwnerAuthoritySemantics(commented)).not.toThrow();
+  });
+
+  it.each([
+    {
+      name: 'line',
+      comment: '// export function createPtrProductionTransport(\n',
+    },
+    {
+      name: 'block',
+      comment: '/* export function createPtrProductionTransport( */\n',
+    },
+  ] as const)(
+    'accepts a harmless $name comment containing the factory marker',
+    ({ comment }) => {
+      const verifyPtrOwnerAuthoritySemantics = (
+        sealedLaunchVerifierModule as unknown as {
+          verifyPtrOwnerAuthoritySemantics?: (
+            sources: Record<string, string>,
+          ) => void;
+        }
+      ).verifyPtrOwnerAuthoritySemantics;
+      expect(typeof verifyPtrOwnerAuthoritySemantics).toBe('function');
+      if (verifyPtrOwnerAuthoritySemantics === undefined) return;
+      const checkedIn = checkedInSources();
+      const commented = { ...checkedIn };
+      commented.ptrProductionTransportSource =
+        commented.ptrProductionTransportSource.replace(
+          '/** A single serialized administrator session with no retry after mutation. */',
+          `${comment}/** A single serialized administrator session with no retry after mutation. */`,
+        );
+      expect(commented.ptrProductionTransportSource)
+        .not.toBe(checkedIn.ptrProductionTransportSource);
+      expect(() => verifyPtrOwnerAuthoritySemantics(commented)).not.toThrow();
+    },
+  );
+
+  it('rejects a real duplicate transport factory declaration', () => {
+    const verifyPtrOwnerAuthoritySemantics = (
+      sealedLaunchVerifierModule as unknown as {
+        verifyPtrOwnerAuthoritySemantics?: (
+          sources: Record<string, string>,
+        ) => void;
+      }
+    ).verifyPtrOwnerAuthoritySemantics;
+    expect(typeof verifyPtrOwnerAuthoritySemantics).toBe('function');
+    if (verifyPtrOwnerAuthoritySemantics === undefined) return;
+    const checkedIn = checkedInSources();
+    const hostile = { ...checkedIn };
+    hostile.ptrProductionTransportSource =
+      hostile.ptrProductionTransportSource.replace(
+        'export function createPtrProductionTransport(',
+        `export function createPtrProductionTransport(): never {
+  throw new Error('duplicate transport factory');
+}
+
+export function createPtrProductionTransport(`,
+      );
+    expect(hostile.ptrProductionTransportSource)
+      .not.toBe(checkedIn.ptrProductionTransportSource);
+    expect(() => verifyPtrOwnerAuthoritySemantics(hostile))
+      .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+  });
+
+  it.each([
+    {
+      name: 'extra split-literal owner member before submit',
+      mutate: (value: string) => value.replace(
+        '    submit: (reducer, arguments_, assertCanStartWrite)',
+        "    extra: async (ownerFid: bigint, authEpoch: number) => {\n      const active = await requireConnection();\n      const method = active.reducers['adminProvision' + 'PtrOwnerV1'];\n      await method({ ownerFid, authEpoch });\n    },\n    submit: (reducer, arguments_, assertCanStartWrite)",
+      ),
+    },
+    {
+      name: 'split-literal owner call inside prepareSubmission',
+      mutate: (value: string) => value.replace(
+        '        void await requireConnection();',
+        "        const active = await requireConnection();\n        const method = active.reducers['adminProvision' + 'PtrOwnerV1'];\n        await method({});",
+      ),
+    },
+    {
+      name: 'unmatched closing delimiter outside submit and provisionOwner',
+      mutate: (value: string) => value.replace(
+        '        void await requireConnection();',
+        '        void await requireConnection());',
+      ),
+    },
+    {
+      name: 'aliased reducers access in an extra member',
+      mutate: (value: string) => value.replace(
+        '    submit: (reducer, arguments_, assertCanStartWrite)',
+        "    alias: async () => {\n      const active = await requireConnection();\n      const reducers = active.reducers;\n      const key = 'adminProvision' + 'PtrOwnerV1';\n      await reducers[key]({});\n    },\n    submit: (reducer, arguments_, assertCanStartWrite)",
+      ),
+    },
+    {
+      name: 'Reflect-computed reducers access inside prepareSubmission',
+      mutate: (value: string) => value.replace(
+        '        void await requireConnection();',
+        "        const active = await requireConnection();\n        const reducers = Reflect.get(active, 'reducers') as DynamicConnection['reducers'];\n        const method = reducers['adminProvision' + 'PtrOwnerV1'];\n        await method({});",
+      ),
+    },
+  ] as const)(
+    'rejects transport-object authority outside its complete grammar: $name',
+    ({ mutate }) => {
+      const verifyPtrOwnerAuthoritySemantics = (
+        sealedLaunchVerifierModule as unknown as {
+          verifyPtrOwnerAuthoritySemantics?: (
+            sources: Record<string, string>,
+          ) => void;
+        }
+      ).verifyPtrOwnerAuthoritySemantics;
+      expect(typeof verifyPtrOwnerAuthoritySemantics).toBe('function');
+      if (verifyPtrOwnerAuthoritySemantics === undefined) return;
+      const checkedIn = checkedInSources();
+      const hostile = { ...checkedIn };
+      hostile.ptrProductionTransportSource = mutate(
+        hostile.ptrProductionTransportSource,
+      );
+      expect(hostile.ptrProductionTransportSource)
+        .not.toBe(checkedIn.ptrProductionTransportSource);
+      expect(() => verifyPtrOwnerAuthoritySemantics(hostile))
+        .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+    },
+  );
+
+  it('accepts harmless comments in the complete transport grammar', () => {
+    const verifyPtrOwnerAuthoritySemantics = (
+      sealedLaunchVerifierModule as unknown as {
+        verifyPtrOwnerAuthoritySemantics?: (
+          sources: Record<string, string>,
+        ) => void;
+      }
+    ).verifyPtrOwnerAuthoritySemantics;
+    expect(typeof verifyPtrOwnerAuthoritySemantics).toBe('function');
+    if (verifyPtrOwnerAuthoritySemantics === undefined) return;
+    const checkedIn = checkedInSources();
+    const commented = { ...checkedIn };
+    commented.ptrProductionTransportSource =
+      commented.ptrProductionTransportSource.replace(
+        '  return Object.freeze({',
+        '  return /* harmless complete-object control */ Object.freeze({',
+      );
+    expect(commented.ptrProductionTransportSource)
+      .not.toBe(checkedIn.ptrProductionTransportSource);
+    expect(() => verifyPtrOwnerAuthoritySemantics(commented)).not.toThrow();
+  });
+
+  it('rejects an unterminated comment in the critical transport source', () => {
+    const verifyPtrOwnerAuthoritySemantics = (
+      sealedLaunchVerifierModule as unknown as {
+        verifyPtrOwnerAuthoritySemantics?: (
+          sources: Record<string, string>,
+        ) => void;
+      }
+    ).verifyPtrOwnerAuthoritySemantics;
+    expect(typeof verifyPtrOwnerAuthoritySemantics).toBe('function');
+    if (verifyPtrOwnerAuthoritySemantics === undefined) return;
+    const hostile = { ...checkedInSources() };
+    hostile.ptrProductionTransportSource += '\n/* unterminated';
+    expect(() => verifyPtrOwnerAuthoritySemantics(hostile))
+      .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+  });
+
+  it('rejects a raw owner identity outside the private PTR access token', () => {
+    const hostile: Record<string, string> = checkedInSources();
+    hostile.authBridgeSource = hostile.authBridgeSource.replace(
+      "    databaseIdentity: ptr.database,",
+      "    identity: browserIdentity({ fid }),\n    databaseIdentity: ptr.database,",
+    );
+    expect(hostile.authBridgeSource).not.toBe(
+      checkedInSources().authBridgeSource,
+    );
+    expect(() => verifySealedLaunchSources(hostile, 'preparation'))
+      .toThrow('SEALED_LAUNCH_G002_ADMIN_AUTHORITY_INVALID');
+  });
+
+  it.each([
+    {
+      name: 'configured-FID live resolver',
+      field: 'authBridgeSource',
+      mutate: (value: string) => value.replace(
+        'resolver.resolve(expectedOwnerFid)',
+        "resolver.resolve('1')",
+      ),
+    },
+    {
+      name: 'signed private owner FID',
+      field: 'authBridgeJwtSource',
+      mutate: (value: string) => value.replace(
+        'ptr_owner_fid: ownerFid',
+        "ptr_owner_fid: '1'",
+      ),
+    },
+    {
+      name: 'signed private owner auth epoch',
+      field: 'authBridgeJwtSource',
+      mutate: (value: string) => value.replace(
+        'ptr_owner_auth_epoch: ownerAuthEpoch',
+        'ptr_owner_auth_epoch: 1',
+      ),
+    },
+  ] as const)(
+    'rejects pinned bridge PTR owner weakening: $name',
+    ({ field, mutate }) => {
+      const hostile: Record<string, string> = checkedInSources();
+      hostile[field] = mutate(hostile[field]!);
+      expect(hostile[field], `${field} mutation must change the source`)
+        .not.toBe(checkedInSources()[field]);
+      expect(
+        () => verifySealedLaunchSources(hostile, 'preparation'),
+        field,
+      ).toThrow('SEALED_LAUNCH_G002_ADMIN_AUTHORITY_INVALID');
+    },
+  );
 
   it('pins G001 authority independently of the mutable adoption module', () => {
     const verifierSource = source('scripts/verify-0.4.0-sealed-launch.mjs');

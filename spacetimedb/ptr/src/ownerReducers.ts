@@ -17,6 +17,7 @@ import {
   PtrOwnerPolicyError,
   planPtrOwnerProvision,
   planPtrOwnerSuspension,
+  requirePtrOwnerProvisionBinding,
 } from './ownerPolicy';
 import ptr from './schema';
 
@@ -66,6 +67,7 @@ export const adminProvisionPtrOwnerV1 = ptr.reducer(
   (ctx, { ownerFid, authEpoch }) => {
     try {
       const admin = requirePtrAdmin(ctx);
+      requirePtrOwnerProvisionBinding(admin, ownerFid, authEpoch);
       requirePtrPopulationEmpty(ctx);
       const existing = ctx.db.ptrOwnerAnchorV1.singletonKey.find(
         PTR_OWNER_SINGLETON_KEY,

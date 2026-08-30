@@ -7,6 +7,7 @@ import {
 } from '../src/config'
 import { createAuthBridge, type AuthBridgeDependencies } from '../src/app'
 import type {
+  AdmissionResolution,
   QuickAuthVerifier,
   SafeLogEvent,
   WorkerEnv,
@@ -14,6 +15,7 @@ import type {
 import * as jwt from '../src/jwt'
 
 const OWNER_FID = '12345'
+const OWNER_AUTH_EPOCH = 7
 const PTR_DATABASE_IDENTITY = '1'.repeat(64)
 const PTR_AUDIENCE = 'warpkeep-ptr-spacetimedb'
 const PTR_EXCHANGE_PATH = '/v2/farcaster/ptr/exchange'
@@ -104,22 +106,28 @@ function routeHarness(options: {
   nowValues?: readonly number[]
   payload?: Record<string, unknown>
   signer?: AuthBridgeDependencies['signer']
+  admission?: AdmissionResolution
 } = {}) {
   const values = options.nowValues ?? [1_800_000_000_000]
   let clockIndex = 0
   const now = vi.fn(() => values[Math.min(clockIndex++, values.length - 1)]!)
   const payload = options.payload ?? quickAuthPayload(values[0]!)
   const verifyJwt = vi.fn(async () => payload)
+  const resolve = vi.fn(async () => options.admission ?? ({
+    state: 'enabled' as const,
+    authEpoch: OWNER_AUTH_EPOCH,
+  }))
   const rateLimit = vi.fn(async (_request: Request, _action: string) => ({ allowed: true as const }))
   const events: SafeLogEvent[] = []
   const app = createAuthBridge({
     quickAuthVerifier: { verifyJwt },
+    authEpochResolver: { resolve },
     rateLimiter: { check: rateLimit },
     ...(options.signer ? { signer: options.signer } : {}),
     now,
     logger: { event: event => events.push(event) },
   })
-  return { app, events, now, payload, rateLimit, verifyJwt }
+  return { app, events, now, payload, rateLimit, resolve, verifyJwt }
 }
 
 describe('owner-only PTR exchange', () => {
@@ -184,11 +192,21 @@ describe('owner-only PTR exchange', () => {
       PLAYER_CANARY_OWNER_FID: OWNER_FID,
     }))
     const ptrOwnerClaims = (jwt as unknown as {
-      ptrOwnerClaims?: (config: BridgeConfig, nowSeconds: number, fid: string) => Record<string, unknown>
+      ptrOwnerClaims?: (
+        config: BridgeConfig,
+        nowSeconds: number,
+        fid: string,
+        authEpoch: number,
+      ) => Record<string, unknown>
     }).ptrOwnerClaims
     expect(ptrOwnerClaims).toBeTypeOf('function')
 
-    const claims = ptrOwnerClaims!(config, 1_800_000_000, OWNER_FID)
+    const claims = ptrOwnerClaims!(
+      config,
+      1_800_000_000,
+      OWNER_FID,
+      OWNER_AUTH_EPOCH,
+    )
     expect(claims).toMatchObject({
       iss: config.issuer,
       sub: `farcaster:${OWNER_FID}`,
@@ -197,7 +215,7 @@ describe('owner-only PTR exchange', () => {
       auth_version: 2,
       realm_id: 'PTR',
       fid: OWNER_FID,
-      auth_epoch: 1,
+      auth_epoch: OWNER_AUTH_EPOCH,
       roles: ['warpkeep-ptr-owner'],
       iat: 1_800_000_000,
       nbf: 1_800_000_000,
@@ -232,14 +250,25 @@ describe('owner-only PTR exchange', () => {
         config: BridgeConfig,
         nowSeconds: number,
         fid: string,
+        authEpoch: number,
         ttlSeconds?: number,
       ) => Record<string, unknown>
     }).ptrOwnerClaims
     for (const nowSeconds of [Number.NaN, -1, 1.5, Number.MAX_SAFE_INTEGER]) {
-      expect(() => ptrOwnerClaims(config, nowSeconds, OWNER_FID)).toThrow()
+      expect(() => ptrOwnerClaims(
+        config,
+        nowSeconds,
+        OWNER_FID,
+        OWNER_AUTH_EPOCH,
+      )).toThrow()
     }
     for (const fid of ['', '0', '012345', '1.5', '67890', '9007199254740992']) {
-      expect(() => ptrOwnerClaims(config, 1_800_000_000, fid)).toThrow()
+      expect(() => ptrOwnerClaims(
+        config,
+        1_800_000_000,
+        fid,
+        OWNER_AUTH_EPOCH,
+      )).toThrow()
     }
     const disabledConfig = readBridgeConfig(env({
       PTR_ENABLED: 'false',
@@ -247,16 +276,30 @@ describe('owner-only PTR exchange', () => {
       PTR_OIDC_AUDIENCE: PTR_AUDIENCE,
       PLAYER_CANARY_OWNER_FID: OWNER_FID,
     }))
-    expect(() => ptrOwnerClaims(disabledConfig, 1_800_000_000, OWNER_FID)).toThrow()
+    expect(() => ptrOwnerClaims(
+      disabledConfig,
+      1_800_000_000,
+      OWNER_FID,
+      OWNER_AUTH_EPOCH,
+    )).toThrow()
+    for (const authEpoch of [0, 1.5, 0x1_0000_0000, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(() => ptrOwnerClaims(
+        config,
+        1_800_000_000,
+        OWNER_FID,
+        authEpoch,
+      )).toThrow()
+    }
     expect(() => ptrOwnerClaims(
       config,
       1_800_000_000,
       OWNER_FID,
+      OWNER_AUTH_EPOCH,
       PTR_TOKEN_TTL_SECONDS + 1,
     )).toThrow()
   })
 
-  it('issues an exact owner response and PTR-only JWT without consulting Genesis admission', async () => {
+  it('resolves the configured owner live immediately before signing a PTR owner JWT', async () => {
     const now = 1_800_000_000_000
     const quickAuthVerifier: QuickAuthVerifier = {
       verifyJwt: vi.fn(async () => ({
@@ -269,11 +312,13 @@ describe('owner-only PTR exchange', () => {
     }
     const rateLimit = vi.fn(async (_request: Request, _action: string) => ({ allowed: true as const }))
     const events: SafeLogEvent[] = []
+    const resolve = vi.fn(async () => ({
+      state: 'enabled' as const,
+      authEpoch: OWNER_AUTH_EPOCH,
+    }))
     const app = createAuthBridge({
       quickAuthVerifier,
-      authEpochResolver: {
-        resolve: vi.fn(async () => { throw new Error('PTR must not consult Genesis admission') }),
-      },
+      authEpochResolver: { resolve },
       rateLimiter: { check: rateLimit },
       now: () => now,
       logger: { event: event => events.push(event) },
@@ -290,7 +335,6 @@ describe('owner-only PTR exchange', () => {
       'version',
       'status',
       'realmId',
-      'identity',
       'databaseIdentity',
       'accessToken',
       'tokenType',
@@ -300,7 +344,6 @@ describe('owner-only PTR exchange', () => {
       version: 1,
       status: 'authorized',
       realmId: 'PTR',
-      identity: { fid: Number(OWNER_FID) },
       databaseIdentity: PTR_DATABASE_IDENTITY,
       tokenType: 'spacetime-access',
       accessExpiresAt: now + PTR_TOKEN_TTL_SECONDS * 1_000,
@@ -311,14 +354,19 @@ describe('owner-only PTR exchange', () => {
       fid: OWNER_FID,
       realm_id: 'PTR',
       roles: ['warpkeep-ptr-owner'],
-      auth_epoch: 1,
+      auth_epoch: OWNER_AUTH_EPOCH,
       session_iat: now / 1_000,
       session_exp: now / 1_000 + PTR_TOKEN_TTL_SECONDS,
     })
+    const { accessToken: _privateAccessToken, ...publicResponse } = body
+    expect(JSON.stringify(publicResponse)).not.toContain(OWNER_FID)
+    expect(JSON.stringify(publicResponse)).not.toContain(String(OWNER_AUTH_EPOCH))
     expect(quickAuthVerifier.verifyJwt).toHaveBeenCalledWith({
       token: QUICK_AUTH_TOKEN,
       domain: QUICK_AUTH_DOMAIN,
     })
+    expect(resolve).toHaveBeenCalledOnce()
+    expect(resolve).toHaveBeenCalledWith(OWNER_FID)
     expect(rateLimit).toHaveBeenCalledOnce()
     expect(rateLimit.mock.calls[0]?.[1]).toBe('exchange')
     expect(events).toEqual(['ptr_exchange_succeeded'])
@@ -343,6 +391,7 @@ describe('owner-only PTR exchange', () => {
     expect(JSON.stringify(h.events)).not.toContain(OWNER_FID)
     expect(JSON.stringify(h.events)).not.toContain('67890')
     expect(h.events).toEqual(['ptr_exchange_rejected'])
+    expect(h.resolve).not.toHaveBeenCalled()
   })
 
   it('rejects absent, wrong, or mixed credentials before Quick Auth verification', async () => {
@@ -476,7 +525,7 @@ describe('owner-only PTR exchange', () => {
     }
   })
 
-  it('issues a distinct five-minute Hermes admin token scoped only to the PTR audience', async () => {
+  it('issues a five-minute Hermes token bound to the live configured PTR owner', async () => {
     const now = 1_800_000_000_000
     const h = routeHarness({ nowValues: [now] })
     const adminRequest = (path: string) => new Request(`https://auth.warpkeep.example${path}`, {
@@ -506,12 +555,96 @@ describe('owner-only PTR exchange', () => {
       sub: 'service:hermes',
       aud: [PTR_AUDIENCE],
       roles: ['warpkeep-admin'],
+      ptr_owner_fid: OWNER_FID,
+      ptr_owner_auth_epoch: OWNER_AUTH_EPOCH,
       iat: now / 1_000,
       nbf: now / 1_000,
       exp: now / 1_000 + 5 * 60,
     })
     expect(ptrClaims.aud).not.toEqual(mainClaims.aud)
+    expect(h.resolve).toHaveBeenCalledOnce()
+    expect(h.resolve).toHaveBeenCalledWith(OWNER_FID)
     expect(ptrResponse.headers.has('access-control-allow-origin')).toBe(false)
+  })
+
+  it('refuses PTR administration when live G001 does not enable the configured owner', async () => {
+    for (const admission of [
+      { state: 'missing' as const, authEpoch: 0 as const },
+      { state: 'disabled' as const, authEpoch: 0 as const },
+      { state: 'enabled' as const, authEpoch: 0 },
+      { state: 'enabled' as const, authEpoch: 1.5 },
+      { state: 'enabled' as const, authEpoch: 0x1_0000_0000 },
+    ]) {
+      const signer = vi.fn(async () => 'must-not-be-issued')
+      const h = routeHarness({ admission, signer })
+      const response = await h.app.fetch(new Request(
+        `https://auth.warpkeep.example${PTR_ADMIN_TOKEN_PATH}`,
+        { method: 'POST', headers: { authorization: `Bearer ${ADMIN_SECRET}` } },
+      ), ptrEnv())
+
+      expect(response.status).toBe(503)
+      expect(signer).not.toHaveBeenCalled()
+      expect(h.resolve).toHaveBeenCalledOnce()
+      expect(h.resolve).toHaveBeenCalledWith(OWNER_FID)
+      const text = await response.text()
+      expect(text).not.toContain(OWNER_FID)
+      expect(text).not.toContain(String(OWNER_AUTH_EPOCH))
+      expect(JSON.stringify(h.events)).not.toContain(OWNER_FID)
+    }
+  })
+
+  it('builds exact private PTR admin claims only from canonical owner authority', () => {
+    const config = readBridgeConfig(ptrEnv())
+    const ptrAdminClaims = (jwt as unknown as {
+      ptrAdminClaims: (
+        config: BridgeConfig,
+        nowSeconds: number,
+        ownerFid: string,
+        ownerAuthEpoch: number,
+      ) => Record<string, unknown>
+    }).ptrAdminClaims
+    const claims = ptrAdminClaims(
+      config,
+      1_800_000_000,
+      OWNER_FID,
+      OWNER_AUTH_EPOCH,
+    )
+    expect(claims).toMatchObject({
+      sub: 'service:hermes',
+      aud: [PTR_AUDIENCE],
+      roles: ['warpkeep-admin'],
+      ptr_owner_fid: OWNER_FID,
+      ptr_owner_auth_epoch: OWNER_AUTH_EPOCH,
+    })
+    expect(Object.keys(claims).sort()).toEqual([
+      'aud',
+      'exp',
+      'iat',
+      'iss',
+      'jti',
+      'nbf',
+      'ptr_owner_auth_epoch',
+      'ptr_owner_fid',
+      'roles',
+      'sub',
+      'token_type',
+    ])
+    for (const ownerFid of ['', '0', '012345', '+12345', ' 12345', '9007199254740992']) {
+      expect(() => ptrAdminClaims(
+        config,
+        1_800_000_000,
+        ownerFid,
+        OWNER_AUTH_EPOCH,
+      )).toThrow()
+    }
+    for (const ownerAuthEpoch of [0, 1.5, 0x1_0000_0000, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(() => ptrAdminClaims(
+        config,
+        1_800_000_000,
+        OWNER_FID,
+        ownerAuthEpoch,
+      )).toThrow()
+    }
   })
 
   it('denies PTR administration while disabled or malformed before credentials or signing', async () => {

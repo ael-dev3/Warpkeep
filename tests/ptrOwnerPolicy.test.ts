@@ -17,6 +17,7 @@ import {
   requirePtrOwnerAnchor,
   type PtrOwnerAnchorState,
 } from '../spacetimedb/ptr/src/ownerPolicy';
+import * as ownerPolicy from '../spacetimedb/ptr/src/ownerPolicy';
 
 const OWNER_FID = 4_242n;
 const OWNER_EPOCH = 1;
@@ -51,8 +52,12 @@ function adminPayload(overrides: Readonly<Record<string, unknown>> = {}) {
     aud: [PTR_AUDIENCE],
     token_type: 'spacetime-access',
     roles: ['warpkeep-admin'],
+    ptr_owner_fid: OWNER_FID.toString(),
+    ptr_owner_auth_epoch: OWNER_EPOCH,
     iat: SESSION_IAT,
+    nbf: SESSION_IAT,
     exp: SESSION_IAT + 300,
+    jti: 'ptr-admin-jti',
     ...overrides,
   };
 }
@@ -156,6 +161,8 @@ describe('PTR owner JWT policy', () => {
       audience: [PTR_AUDIENCE],
       tokenType: 'spacetime-access',
       roles: ['warpkeep-admin'],
+      ownerFid: OWNER_FID,
+      ownerAuthEpoch: OWNER_EPOCH,
     });
     for (const payload of [
       adminPayload({ aud: ['warpkeep-spacetimedb'] }),
@@ -171,6 +178,65 @@ describe('PTR owner JWT policy', () => {
       );
     }
   });
+
+  test('rejects every malformed or duplicate PTR owner authority claim', () => {
+    for (const payload of [
+      adminPayload({ ptr_owner_fid: undefined }),
+      adminPayload({ ptr_owner_fid: 4_242 }),
+      adminPayload({ ptr_owner_fid: '' }),
+      adminPayload({ ptr_owner_fid: '0' }),
+      adminPayload({ ptr_owner_fid: '04242' }),
+      adminPayload({ ptr_owner_fid: '+4242' }),
+      adminPayload({ ptr_owner_fid: ' 4242' }),
+      adminPayload({ ptr_owner_fid: '4242 ' }),
+      adminPayload({ ptr_owner_fid: '4_242' }),
+      adminPayload({ ptr_owner_fid: '4242.0' }),
+      adminPayload({
+        ptr_owner_fid: (BigInt(Number.MAX_SAFE_INTEGER) + 1n).toString(),
+      }),
+      adminPayload({ ptr_owner_auth_epoch: undefined }),
+      adminPayload({ ptr_owner_auth_epoch: '1' }),
+      adminPayload({ ptr_owner_auth_epoch: 0 }),
+      adminPayload({ ptr_owner_auth_epoch: 1.5 }),
+      adminPayload({ ptr_owner_auth_epoch: Number.MAX_SAFE_INTEGER + 1 }),
+      adminPayload({ ptr_owner_auth_epoch: 0x1_0000_0000 }),
+      adminPayload({ fid: OWNER_FID.toString() }),
+      adminPayload({ auth_epoch: OWNER_EPOCH }),
+      adminPayload({ auth_version: 2 }),
+      adminPayload({ realm_id: PTR_REALM_ID }),
+      adminPayload({ session_iat: SESSION_IAT }),
+      adminPayload({ session_exp: SESSION_EXP }),
+    ]) {
+      assert.throws(
+        () => readFreshPtrAdminClaims(payload, NOW_MICROS),
+        error => error instanceof PtrOwnerPolicyError
+          && error.code === 'INVALID_PTR_ADMIN_SESSION',
+      );
+    }
+  });
+
+  test('rejects inherited, non-enumerable, symbol, and non-plain admin claims', () => {
+    const inherited = Object.create(adminPayload()) as Record<string, unknown>;
+    const hidden = adminPayload();
+    Object.defineProperty(hidden, 'hidden_owner_authority', {
+      value: OWNER_FID.toString(),
+      enumerable: false,
+    });
+    const symbol = adminPayload() as Record<PropertyKey, unknown>;
+    symbol[Symbol('owner')] = OWNER_FID.toString();
+    const nullPrototype = Object.assign(Object.create(null), adminPayload());
+    for (const payload of [inherited, hidden, symbol, nullPrototype]) {
+      assert.throws(
+        () => readFreshPtrAdminClaims(payload, NOW_MICROS),
+        error => error instanceof PtrOwnerPolicyError
+          && error.code === 'INVALID_PTR_ADMIN_SESSION',
+      );
+    }
+  });
+
+  test('keeps Hermes out of the player-only owner policy', () => {
+    expectOwnerDenial(adminPayload());
+  });
 });
 
 describe('PTR singleton owner policy', () => {
@@ -184,6 +250,45 @@ describe('PTR singleton owner policy', () => {
   test('matches the sole enabled anchor to both FID and auth epoch', () => {
     const claims = readFreshPtrOwnerClaims(ownerPayload(), NOW_MICROS);
     assert.equal(requirePtrOwnerAnchor(claims, anchor, 1n), anchor);
+  });
+
+  test('denies an owner token carrying a changed live G001 auth epoch', () => {
+    const changedEpoch = readFreshPtrOwnerClaims(
+      ownerPayload({ auth_epoch: OWNER_EPOCH + 1 }),
+      NOW_MICROS,
+    );
+    assert.throws(
+      () => requirePtrOwnerAnchor(changedEpoch, anchor, 1n),
+      error => error instanceof PtrOwnerPolicyError
+        && error.code === 'PTR_OWNER_NOT_AUTHORIZED',
+    );
+  });
+
+  test('rejects either signed provisioning mismatch before state planning', () => {
+    const requirePtrOwnerProvisionBinding = (ownerPolicy as unknown as {
+      requirePtrOwnerProvisionBinding?: (
+        admin: ReturnType<typeof readFreshPtrAdminClaims>,
+        ownerFid: bigint,
+        authEpoch: number,
+      ) => void;
+    }).requirePtrOwnerProvisionBinding;
+    assert.equal(typeof requirePtrOwnerProvisionBinding, 'function');
+    const admin = readFreshPtrAdminClaims(adminPayload(), NOW_MICROS);
+    assert.doesNotThrow(() => requirePtrOwnerProvisionBinding!(
+      admin,
+      OWNER_FID,
+      OWNER_EPOCH,
+    ));
+    for (const [ownerFid, authEpoch] of [
+      [OWNER_FID + 1n, OWNER_EPOCH],
+      [OWNER_FID, OWNER_EPOCH + 1],
+    ] as const) {
+      assert.throws(
+        () => requirePtrOwnerProvisionBinding!(admin, ownerFid, authEpoch),
+        error => error instanceof PtrOwnerPolicyError
+          && error.code === 'PTR_OWNER_PROVISION_INVALID',
+      );
+    }
   });
 
   test('fails the anchor check closed without revealing which credential mismatched', () => {
@@ -215,6 +320,8 @@ describe('PTR singleton owner policy', () => {
       [1n, anchor, OWNER_FID, OWNER_EPOCH],
       [1n, anchor, OWNER_FID + 1n, OWNER_EPOCH],
       [2n, anchor, OWNER_FID, OWNER_EPOCH],
+      [0n, anchor, OWNER_FID, OWNER_EPOCH],
+      [1n, null, OWNER_FID, OWNER_EPOCH],
       [0n, null, 0n, OWNER_EPOCH],
       [0n, null, OWNER_FID, 0],
     ] as const) {

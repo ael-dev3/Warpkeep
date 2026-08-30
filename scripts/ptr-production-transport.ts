@@ -3,7 +3,10 @@ import {
   type DbConnection as PtrDbConnection,
 } from '../spacetimedb/ptr/generated-bindings';
 import {
+  PtrProductionAdminTokenError,
+  readPtrOwnerProvisionAuthority,
   requestPtrProductionAdminToken,
+  type PtrOwnerProvisionAuthority,
 } from './ptr-production-admin-token';
 
 export const PTR_PRODUCTION_TRANSPORT_TARGET = Object.freeze({
@@ -20,7 +23,6 @@ export const PTR_PRODUCTION_ALLOWED_REDUCERS = Object.freeze([
   'admin_begin_greater_realm_verification_v1',
   'admin_verify_greater_realm_batch_v1',
   'admin_finalize_greater_realm_release_v1',
-  'admin_provision_ptr_owner_v1',
 ] as const);
 
 const SHA256 = /^[0-9a-f]{64}$/u;
@@ -30,6 +32,17 @@ const CONNECT_TIMEOUT_MILLISECONDS = 10_000;
 const OPERATION_TIMEOUT_MILLISECONDS = 15_000;
 
 type PtrProductionReducer = typeof PTR_PRODUCTION_ALLOWED_REDUCERS[number];
+const PTR_PRODUCTION_ATLAS_REDUCER_METHODS: Readonly<
+  Record<PtrProductionReducer, string>
+> = Object.freeze({
+  'admin_stage_greater_realm_release_v1': 'adminStageGreaterRealmReleaseV1',
+  'admin_import_greater_realm_components_v1': 'adminImportGreaterRealmComponentsV1',
+  'admin_import_greater_realm_regions_v1': 'adminImportGreaterRealmRegionsV1',
+  'admin_import_greater_realm_chunk_v1': 'adminImportGreaterRealmChunkV1',
+  'admin_begin_greater_realm_verification_v1': 'adminBeginGreaterRealmVerificationV1',
+  'admin_verify_greater_realm_batch_v1': 'adminVerifyGreaterRealmBatchV1',
+  'admin_finalize_greater_realm_release_v1': 'adminFinalizeGreaterRealmReleaseV1',
+} as const);
 type RequestToken = (secret: string) => Promise<string>;
 type DynamicConnection = PtrDbConnection & Readonly<{
   procedures: Readonly<Record<string, (arguments_: unknown) => Promise<unknown>>>;
@@ -133,6 +146,10 @@ export type PtrProductionTransport = Readonly<{
     arguments_: Readonly<Record<string, unknown>>,
     assertCanStartWrite: () => void,
   ) => Promise<void>;
+  provisionOwner: (
+    expectedOwnerFid: bigint,
+    assertCanStartWrite: () => void,
+  ) => Promise<PtrOwnerProvisionAuthority>;
   close: () => Promise<void>;
 }>;
 
@@ -143,12 +160,14 @@ export function createPtrProductionTransport(input: Readonly<{
   disallowedDatabaseIdentities: readonly string[];
   requestToken?: RequestToken;
   connectDatabase?: typeof connectPtrProduction;
+  nowSeconds?: () => number;
 }>): PtrProductionTransport {
   const databaseIdentity = input.databaseIdentity;
   const suppliedAdminSecret = input.adminSecret;
   const disallowedDatabaseIdentities = input.disallowedDatabaseIdentities;
   const requestToken = input.requestToken ?? requestPtrProductionAdminToken;
   const connectDatabase = input.connectDatabase ?? connectPtrProduction;
+  const nowSeconds = input.nowSeconds ?? (() => Math.floor(Date.now() / 1_000));
   if (
     !Array.isArray(disallowedDatabaseIdentities)
     || !validTarget(databaseIdentity, disallowedDatabaseIdentities)
@@ -214,15 +233,12 @@ export function createPtrProductionTransport(input: Readonly<{
       }
     }),
     submit: (reducer, arguments_, assertCanStartWrite) => runSerialized(async () => {
-      if (!PTR_PRODUCTION_ALLOWED_REDUCERS.includes(reducer)) {
+      const methodName = PTR_PRODUCTION_ATLAS_REDUCER_METHODS[reducer];
+      if (typeof methodName !== 'string') {
         fail('PTR_PRODUCTION_REDUCER_FORBIDDEN');
       }
       try {
         const active = await requireConnection();
-        const methodName = reducer.replace(
-          /_([a-z0-9])/gu,
-          (_match, child: string) => child.toUpperCase(),
-        );
         const method = active.reducers[methodName];
         if (typeof method !== 'function') {
           fail('PTR_PRODUCTION_REDUCER_ABI_MISSING');
@@ -232,6 +248,45 @@ export function createPtrProductionTransport(input: Readonly<{
       } catch (error) {
         invalidate();
         if (error instanceof PtrProductionTransportError) throw error;
+        return fail('PTR_PRODUCTION_OPERATION_OUTCOME_AMBIGUOUS');
+      }
+    }),
+    provisionOwner: (expectedOwnerFid, assertCanStartWrite) => runSerialized(async () => {
+      invalidate();
+      let token = '';
+      let active: DynamicConnection;
+      let authority: PtrOwnerProvisionAuthority;
+      try {
+        token = await requestToken(adminSecret);
+        authority = readPtrOwnerProvisionAuthority(
+          token,
+          expectedOwnerFid,
+          nowSeconds(),
+        );
+        active = await connectDatabase(databaseIdentity, token) as DynamicConnection;
+      } catch (error) {
+        invalidate();
+        if (error instanceof PtrProductionAdminTokenError) throw error;
+        return fail('PTR_PRODUCTION_CONNECTION_UNAVAILABLE');
+      } finally {
+        token = '';
+      }
+      const method = active.reducers.adminProvisionPtrOwnerV1;
+      if (typeof method !== 'function') {
+        disconnect(active);
+        return fail('PTR_PRODUCTION_REDUCER_ABI_MISSING');
+      }
+      try {
+        assertCanStartWrite();
+        await operationTimeout(method(Object.freeze({
+          ownerFid: authority.ownerFid,
+          authEpoch: authority.ownerAuthEpoch,
+        })));
+        connection = active;
+        return authority;
+      } catch {
+        disconnect(active);
+        connection = undefined;
         return fail('PTR_PRODUCTION_OPERATION_OUTCOME_AMBIGUOUS');
       }
     }),

@@ -36,6 +36,7 @@ const PUBLIC_RELEASE_ID = `GRR-${'A'.repeat(26)}`;
 const PUBLIC_APPROVAL_ID = `GRA-${'B'.repeat(26)}`;
 const OWNER_FID_STRING = '123456789';
 const OWNER_FID = BigInt(OWNER_FID_STRING);
+const OWNER_AUTH_EPOCH = 7;
 const ADMIN_SECRET = 's'.repeat(48);
 const LAUNCH_ENTROPY = 'p'.repeat(48);
 
@@ -187,7 +188,7 @@ function status(owner = false, present = true) {
     ownerProvisioned: owner,
     ownerEnabled: owner,
     ownerFid: owner ? OWNER_FID : undefined,
-    ownerAuthEpoch: owner ? 1 : undefined,
+    ownerAuthEpoch: owner ? OWNER_AUTH_EPOCH : undefined,
   } as const;
 }
 
@@ -234,6 +235,10 @@ function baseDependencies(initialStatus: unknown) {
     inspect: vi.fn(async () => initialStatus),
     prepareSubmission: vi.fn(async () => undefined),
     submit: vi.fn(async () => undefined),
+    provisionOwner: vi.fn(async () => ({
+      ownerFid: OWNER_FID,
+      ownerAuthEpoch: OWNER_AUTH_EPOCH,
+    })),
     close,
   };
   return {
@@ -362,9 +367,13 @@ describe('PTR production import/provision operator', () => {
         transport: fixture.session,
       }),
     );
-    expect(fixture.session.submit).toHaveBeenCalledWith(
+    expect(fixture.session.provisionOwner).toHaveBeenCalledWith(
+      OWNER_FID,
+      expect.any(Function),
+    );
+    expect(fixture.session.submit).not.toHaveBeenCalledWith(
       'admin_provision_ptr_owner_v1',
-      { ownerFid: OWNER_FID, authEpoch: 1 },
+      expect.anything(),
       expect.any(Function),
     );
     expect(fixture.dependencies.writeReceipt.mock.calls.map(
@@ -390,8 +399,12 @@ describe('PTR production import/provision operator', () => {
       input.assertCanStartWrite();
       return importReceipt();
     });
-    fixture.session.submit.mockImplementation(async () => {
+    fixture.session.provisionOwner.mockImplementation(async () => {
       process.emit('SIGTERM');
+      return {
+        ownerFid: OWNER_FID,
+        ownerAuthEpoch: OWNER_AUTH_EPOCH,
+      };
     });
     fixture.dependencies.writeReceipt.mockImplementation(({ kind }) => ({
       path: `/private/ptr-receipts/${kind}.json`,

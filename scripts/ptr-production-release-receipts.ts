@@ -399,12 +399,11 @@ export type PtrSealedLiveReceipt = Readonly<{
 }>;
 
 export type PtrOwnerProvisionTransport = Readonly<
-  Omit<PtrProductionImportTransport, 'submit'> & {
-    submit: (
-      reducer: 'admin_provision_ptr_owner_v1',
-      arguments_: Readonly<{ ownerFid: bigint; authEpoch: 1 }>,
+  PtrProductionImportTransport & {
+    provisionOwner: (
+      expectedOwnerFid: bigint,
       assertCanStartWrite: () => void,
-    ) => Promise<void>;
+    ) => Promise<Readonly<{ ownerFid: bigint; ownerAuthEpoch: number }>>;
   }
 >;
 
@@ -438,13 +437,14 @@ export async function executePtrOwnerProvision(input: Readonly<{
   if (before.ownerProvisioned || before.ownerEnabled) {
     fail('PTR_PRODUCTION_OWNER_ALREADY_PROVISIONED');
   }
-  await input.transport.prepareSubmission?.();
-  input.assertCanStartWrite();
   let submissionFailed = false;
+  let ownerAuthority: Readonly<{
+    ownerFid: bigint;
+    ownerAuthEpoch: number;
+  }> | undefined;
   try {
-    await input.transport.submit(
-      'admin_provision_ptr_owner_v1',
-      Object.freeze({ ownerFid: input.ownerFid, authEpoch: 1 }),
+    ownerAuthority = await input.transport.provisionOwner(
+      input.ownerFid,
       input.assertCanStartWrite,
     );
   } catch {
@@ -464,7 +464,9 @@ export async function executePtrOwnerProvision(input: Readonly<{
     !after.ownerProvisioned
     || !after.ownerEnabled
     || after.ownerFid !== input.ownerFid
-    || after.ownerAuthEpoch !== 1
+    || ownerAuthority === undefined
+    || ownerAuthority.ownerFid !== input.ownerFid
+    || after.ownerAuthEpoch !== ownerAuthority.ownerAuthEpoch
   ) {
     return fail(
       submissionFailed

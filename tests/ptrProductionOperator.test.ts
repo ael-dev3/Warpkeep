@@ -49,6 +49,7 @@ const VERIFICATION_DIGEST = '4'.repeat(64);
 const PUBLIC_RELEASE_ID = `GRR-${'A'.repeat(26)}`;
 const OWNER_FID_STRING = '123456789';
 const OWNER_FID = BigInt(OWNER_FID_STRING);
+const OWNER_AUTH_EPOCH = 7;
 const ADMIN_SECRET = 's'.repeat(48);
 const LAUNCH_ENTROPY = 'p'.repeat(48);
 
@@ -100,7 +101,7 @@ function readyStatus(owner = false) {
     ownerProvisioned: owner,
     ownerEnabled: owner,
     ownerFid: owner ? OWNER_FID : undefined,
-    ownerAuthEpoch: owner ? 1 : undefined,
+    ownerAuthEpoch: owner ? OWNER_AUTH_EPOCH : undefined,
   } as const;
 }
 
@@ -206,6 +207,10 @@ describe('PTR owner provisioning and sealed evidence', () => {
         _arguments: Readonly<Record<string, unknown>>,
         _assertCanStartWrite: () => void,
       ) => undefined),
+      provisionOwner: vi.fn(async () => ({
+        ownerFid: OWNER_FID,
+        ownerAuthEpoch: OWNER_AUTH_EPOCH,
+      })),
     };
     const ownerOpaqueProofDigest = derivePtrOwnerOpaqueProofDigest({
       launchEntropy: LAUNCH_ENTROPY,
@@ -224,13 +229,11 @@ describe('PTR owner provisioning and sealed evidence', () => {
       assertCanStartWrite: vi.fn(),
     });
 
-    expect(transport.submit).toHaveBeenCalledOnce();
-    expect(transport.submit.mock.calls[0]?.[0])
-      .toBe('admin_provision_ptr_owner_v1');
-    expect(transport.submit.mock.calls[0]?.[1]).toEqual({
-      ownerFid: OWNER_FID,
-      authEpoch: 1,
-    });
+    expect(transport.provisionOwner).toHaveBeenCalledWith(
+      OWNER_FID,
+      expect.any(Function),
+    );
+    expect(transport.submit).not.toHaveBeenCalled();
     expect(Object.keys(result.ownerProvisionReceipt)).toEqual([
       'schemaVersion', 'profile', 'outcome', 'databaseIdentity',
       'databaseAlias', 'moduleIdentity', 'moduleSourceCommit',
@@ -284,6 +287,7 @@ describe('PTR owner provisioning and sealed evidence', () => {
         transport: {
           inspect: vi.fn(async () => status),
           submit,
+          provisionOwner: vi.fn(),
         },
         assertCanStartWrite: vi.fn(),
       })).rejects.toThrow();
@@ -343,7 +347,7 @@ describe('PTR owner provisioning and sealed evidence', () => {
       ownerProvisioned: true,
       ownerEnabled: true,
       ownerFid: OWNER_FID,
-      ownerAuthEpoch: 1,
+      ownerAuthEpoch: OWNER_AUTH_EPOCH,
     })).toThrow();
     for (const inconsistent of [
       { expectedComponentCount: 1 },

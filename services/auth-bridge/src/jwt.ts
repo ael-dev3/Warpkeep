@@ -5,6 +5,7 @@ import type {
   Genesis002AdminTokenClaims,
   AuthEpochResolverTokenClaims,
   PlayerTokenClaims,
+  PtrAdminTokenClaims,
   PtrOwnerTokenClaims,
   QaSnapshotResolverTokenClaims,
 } from './types'
@@ -20,6 +21,7 @@ import {
 } from './config'
 
 const encoder = new TextEncoder()
+const MAX_AUTH_EPOCH = 0xffff_ffff
 
 function base64Url(bytes: Uint8Array): string {
   let binary = ''
@@ -59,6 +61,7 @@ export async function signEs256Jwt(
   claims:
     | PlayerTokenClaims
     | PtrOwnerTokenClaims
+    | PtrAdminTokenClaims
     | AdminTokenClaims
     | AuthEpochResolverTokenClaims
     | AccessRequestResolverTokenClaims
@@ -80,6 +83,7 @@ export function ptrOwnerClaims(
   config: BridgeConfig,
   nowSeconds: number,
   fid: string,
+  authEpoch: number,
   ttlSeconds = PTR_TOKEN_TTL_SECONDS,
 ): PtrOwnerTokenClaims {
   const ptr = config.ptrSpacetimeDb
@@ -97,6 +101,9 @@ export function ptrOwnerClaims(
     || !/^[1-9]\d{0,15}$/.test(fid)
     || !Number.isSafeInteger(numericFid)
     || String(numericFid) !== fid
+    || !Number.isSafeInteger(authEpoch)
+    || authEpoch < 1
+    || authEpoch > MAX_AUTH_EPOCH
   ) {
     throw new Error('Invalid PTR access-token configuration.')
   }
@@ -108,7 +115,7 @@ export function ptrOwnerClaims(
     auth_version: 2,
     realm_id: 'PTR',
     fid,
-    auth_epoch: 1,
+    auth_epoch: authEpoch,
     roles: ['warpkeep-ptr-owner'],
     iat: nowSeconds,
     nbf: nowSeconds,
@@ -185,10 +192,30 @@ export function genesis002AdminClaims(
 }
 
 /** Five-minute Hermes token for provisioning only the isolated PTR database. */
-export function ptrAdminClaims(config: BridgeConfig, nowSeconds: number): AdminTokenClaims {
+export function ptrAdminClaims(
+  config: BridgeConfig,
+  nowSeconds: number,
+  ownerFid: string,
+  ownerAuthEpoch: number,
+): PtrAdminTokenClaims {
   const ptr = config.ptrSpacetimeDb
-  if (!config.ptrEnabled || !ptr) throw new Error('Invalid PTR admin-token configuration.')
-  return hermesAdminClaims(config.issuer, ptr.audience, nowSeconds, ADMIN_TOKEN_TTL_SECONDS)
+  const numericOwnerFid = Number(ownerFid)
+  if (
+    !config.ptrEnabled
+    || !ptr
+    || config.playerCanaryOwnerFid !== ownerFid
+    || !/^[1-9]\d{0,15}$/.test(ownerFid)
+    || !Number.isSafeInteger(numericOwnerFid)
+    || String(numericOwnerFid) !== ownerFid
+    || !Number.isSafeInteger(ownerAuthEpoch)
+    || ownerAuthEpoch < 1
+    || ownerAuthEpoch > MAX_AUTH_EPOCH
+  ) throw new Error('Invalid PTR admin-token configuration.')
+  return {
+    ...hermesAdminClaims(config.issuer, ptr.audience, nowSeconds, ADMIN_TOKEN_TTL_SECONDS),
+    ptr_owner_fid: ownerFid,
+    ptr_owner_auth_epoch: ownerAuthEpoch,
+  }
 }
 
 /** Fresh 15-second resolver token bound to one canonical verified FID. */

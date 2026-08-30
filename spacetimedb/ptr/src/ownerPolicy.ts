@@ -15,6 +15,20 @@ const WARPKEEP_ADMIN_ROLE = 'warpkeep-admin';
 const WARPKEEP_HERMES_SUBJECT = 'service:hermes';
 const MAX_SUPPORTED_FID = BigInt(Number.MAX_SAFE_INTEGER);
 const MAX_AUTH_EPOCH = 0xffff_ffff;
+const PTR_ADMIN_JTI = /^[A-Za-z0-9_-]{1,128}$/u;
+const PTR_ADMIN_EXACT_CLAIM_KEYS = Object.freeze([
+  'iss',
+  'sub',
+  'aud',
+  'token_type',
+  'roles',
+  'ptr_owner_fid',
+  'ptr_owner_auth_epoch',
+  'iat',
+  'nbf',
+  'exp',
+  'jti',
+] as const);
 
 export type WarpkeepBaseJwtClaims = Readonly<{
   issuer: string;
@@ -49,6 +63,11 @@ export type PtrOwnerClaims = WarpkeepBaseJwtClaims & Readonly<{
   sessionExpiresAt: number;
 }>;
 
+export type PtrAdminClaims = WarpkeepBaseJwtClaims & Readonly<{
+  ownerFid: bigint;
+  ownerAuthEpoch: number;
+}>;
+
 export type PtrOwnerAnchorState = Readonly<{
   singletonKey: string;
   ownerFid: bigint;
@@ -60,6 +79,25 @@ type JsonRecord = Readonly<Record<string, unknown>>;
 
 function isRecord(value: unknown): value is JsonRecord {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function strictPtrAdminRecord(payload: unknown): JsonRecord {
+  if (
+    payload === null
+    || typeof payload !== 'object'
+    || Array.isArray(payload)
+    || Object.getPrototypeOf(payload) !== Object.prototype
+  ) throw new PtrOwnerPolicyError('INVALID_PTR_ADMIN_SESSION');
+  const record = payload as JsonRecord;
+  const keys = Reflect.ownKeys(record);
+  if (
+    keys.length !== PTR_ADMIN_EXACT_CLAIM_KEYS.length
+    || keys.some(key => (
+      typeof key !== 'string'
+      || !(PTR_ADMIN_EXACT_CLAIM_KEYS as readonly string[]).includes(key)
+    ))
+  ) throw new PtrOwnerPolicyError('INVALID_PTR_ADMIN_SESSION');
+  return record;
 }
 
 function readBaseClaims(record: JsonRecord): WarpkeepBaseJwtClaims {
@@ -175,41 +213,33 @@ export function readFreshPtrOwnerClaims(
   }
 }
 
-const DISALLOWED_ADMIN_AUTHORITY_KEYS = Object.freeze([
-  'fid',
-  'auth_version',
-  'auth_epoch',
-  'realm_id',
-  'session_iat',
-  'session_exp',
-  'resolver_fid',
-  'request_fid',
-  'request_operation',
-  'device_thumbprint',
-] as const);
-
 /** Preserve the existing exact Hermes principal under the disjoint PTR audience. */
 export function readFreshPtrAdminClaims(
   payload: unknown,
   currentTimeMicros: bigint,
-): WarpkeepBaseJwtClaims {
+): PtrAdminClaims {
   try {
-    if (
-      !isRecord(payload)
-      || !exactPtrAudience(payload)
-      || DISALLOWED_ADMIN_AUTHORITY_KEYS.some(key => payload[key] !== undefined)
-    ) throw new PtrOwnerPolicyError('INVALID_PTR_ADMIN_SESSION');
-    const claims = readBaseClaims(payload);
-    const issuedAt = numericDate(payload, 'iat');
-    const expiresAt = numericDate(payload, 'exp');
+    const record = strictPtrAdminRecord(payload);
+    const claims = readBaseClaims(record);
+    const ownerFid = parseFidClaim(record.ptr_owner_fid);
+    const ownerAuthEpoch = parseAuthEpochClaim(record.ptr_owner_auth_epoch);
+    const issuedAt = numericDate(record, 'iat');
+    const notBefore = numericDate(record, 'nbf');
+    const expiresAt = numericDate(record, 'exp');
+    const jti = record.jti;
     if (
       claims.subject !== WARPKEEP_HERMES_SUBJECT
       || claims.roles.length !== 1
       || claims.roles[0] !== WARPKEEP_ADMIN_ROLE
+      || typeof jti !== 'string'
+      || !PTR_ADMIN_JTI.test(jti)
       || currentTimeMicros < 0n
       || currentTimeMicros + PTR_ADMIN_IAT_SKEW_MICROS
         < BigInt(issuedAt) * 1_000_000n
+      || currentTimeMicros + PTR_ADMIN_IAT_SKEW_MICROS
+        < BigInt(notBefore) * 1_000_000n
       || expiresAt <= issuedAt
+      || expiresAt <= notBefore
       || expiresAt - issuedAt > PTR_ADMIN_MAX_SESSION_SECONDS
       || currentTimeMicros >= BigInt(expiresAt) * 1_000_000n
     ) throw new PtrOwnerPolicyError('INVALID_PTR_ADMIN_SESSION');
@@ -217,10 +247,24 @@ export function readFreshPtrAdminClaims(
       ...claims,
       audience: Object.freeze([...claims.audience]),
       roles: Object.freeze([...claims.roles]),
+      ownerFid,
+      ownerAuthEpoch,
     });
   } catch {
     throw new PtrOwnerPolicyError('INVALID_PTR_ADMIN_SESSION');
   }
+}
+
+/** Reject reducer arguments not cryptographically bound into the admin token. */
+export function requirePtrOwnerProvisionBinding(
+  admin: PtrAdminClaims,
+  ownerFid: bigint,
+  authEpoch: number,
+): void {
+  if (
+    ownerFid !== admin.ownerFid
+    || authEpoch !== admin.ownerAuthEpoch
+  ) throw new PtrOwnerPolicyError('PTR_OWNER_PROVISION_INVALID');
 }
 
 /** Bind every owner operation to the one retained, enabled owner row. */

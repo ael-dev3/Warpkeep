@@ -454,6 +454,11 @@ export type Genesis002AdminTokenClaims = Omit<AdminTokenClaims, 'aud'> & Readonl
   aud: ['warpkeep-genesis-002-spacetimedb']
 }>
 
+export type PtrAdminTokenClaims = AdminTokenClaims & Readonly<{
+  ptr_owner_fid: string
+  ptr_owner_auth_epoch: number
+}>
+
 export interface PtrOwnerTokenClaims {
   iss: string
   sub: string
@@ -462,7 +467,7 @@ export interface PtrOwnerTokenClaims {
   auth_version: 2
   realm_id: 'PTR'
   fid: string
-  auth_epoch: 1
+  auth_epoch: number
   roles: ['warpkeep-ptr-owner']
   iat: number
   nbf: number

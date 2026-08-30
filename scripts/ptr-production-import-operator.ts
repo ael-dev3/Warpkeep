@@ -137,7 +137,9 @@ function assertLiveAtlasBinding(
   if (status.ownerProvisioned && (
     !status.ownerEnabled
     || status.ownerFid !== ownerFid
-    || status.ownerAuthEpoch !== 1
+    || !Number.isSafeInteger(status.ownerAuthEpoch)
+    || (status.ownerAuthEpoch as number) < 1
+    || (status.ownerAuthEpoch as number) > 0xffff_ffff
   )) fail('PTR_PRODUCTION_OWNER_PRIVATE_STATUS_MISMATCH');
 }
 
@@ -170,7 +172,7 @@ function privacySafeStatus(
     ownerProvisioned: status.ownerProvisioned,
     ownerEnabled: status.ownerEnabled,
     ownerIdentityMatchesProtectedInput: status.ownerProvisioned,
-    ownerAuthEpochIsOne: status.ownerProvisioned,
+    ownerAuthEpochIsCanonical: status.ownerProvisioned,
   });
 }
 
