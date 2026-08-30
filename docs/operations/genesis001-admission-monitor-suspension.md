@@ -1,16 +1,22 @@
 # Genesis 001 admission-monitor suspension
 
 This operation is non-runnable from every Task 6B-6E preparation intermediate
-commit. Task 6B changes two current raw closure members without refreeze and
-begins the stale-pin interval. Task 6C's surface intersects 21 current raw
-members total, including those same two, and adds 19 newly distinct members;
-the union through Task 6C is 21. Task 6C continues the interval, and Tasks 6D
-and 6E continue it. Protected prepared and sealed-realms/
-live workflows must fail closed throughout; focused task-specific source/
-module/static tests cannot be reported as full-green workflow evidence. Task 7
-alone atomically refreezes the closure manifest, workflow pins, and all
-downstream consumers. Only its green first run and zero-diff second run restore
-executability.
+commit. Task 6B changes two current raw closure members while refreeze remains
+forbidden. The committed raw-file closure manifest was
+current at `b450df45c` and first became stale at Task 1 commit `73792442b`
+(1/979); at Task 6B, only the verifier declaration adds a new mismatch because
+its implementation was already stale, moving 18/979 to 19/979. Task 6C's
+formal surface intersects 21 current raw members total, including those same
+two, and adds 19 newly distinct members to that surface; the planned set union
+remains `2 + 19 = 21`. Those set counts establish neither the actual stale-
+interval origin nor Task 6C's final changed-member count. The approved Task 6C
+tree changes 18 raw members: 10 already stale plus 8 newly stale, moving
+19/979 to 27/979. Tasks 6B through 6E continue the already-stale, fail-closed
+interval. Protected prepared and sealed-realms/live workflows must fail closed
+throughout; focused task-specific source/module/static tests cannot be reported
+as full-green workflow evidence. Task 7 alone atomically refreezes the closure
+manifest, workflow pins, and all downstream consumers. Only its green first
+run and zero-diff second run restore executability.
 
 The local Hermes admission monitor is read-only: it inventories pending access
 requests and emits private operator notifications, but it cannot admit, allow,

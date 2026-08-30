@@ -9,16 +9,22 @@
 > reset remains unavailable.
 
 The sealed-realms operations described here are non-runnable from every
-preparation Task 6B-6E intermediate commit. Task 6B's two current raw closure
-member edits begin the stale-pin interval. Task 6C's surface intersects 21
-current raw members total, including those same two, and adds 19 newly distinct
-members; the union through Task 6C is 21. Task 6C and the Task 6D/6E changes
-continue the interval. Protected prepared and
-sealed-realms/live workflows must fail closed throughout. Focused task-specific
-source/module/static tests are not full-green workflow evidence. Task 7 alone
-atomically refreezes the closure manifest, workflow pins, and downstream
-consumers, and only its green first run plus zero-diff second run restores
-executability.
+preparation Task 6B-6E intermediate commit. The committed raw-file closure
+manifest was current at `b450df45c` and first became stale at Task 1 commit
+`73792442b` (1/979). Task 6B changes two current raw closure members while
+refreeze remains forbidden; only its declaration adds a new mismatch because
+the verifier implementation was already stale, moving 18/979 to 19/979. Task
+6C's formal surface intersects 21 current raw members total, including those
+same two, and adds 19 newly distinct members to that surface; the planned set
+union remains `2 + 19 = 21`. Those set counts establish neither the actual
+stale-interval origin nor Task 6C's final changed-member count. The approved
+Task 6C tree changes 18 raw members: 10 already stale plus 8 newly
+stale, moving 19/979 to 27/979. Tasks 6B through 6E continue the already-stale,
+fail-closed interval. Protected prepared and sealed-realms/live workflows must
+fail closed throughout. Focused task-specific source/module/static tests are
+not full-green workflow evidence. Task 7 alone atomically refreezes the closure
+manifest, workflow pins, and downstream consumers, and only its green first
+run plus zero-diff second run restores executability.
 
 An access request is a private expression of interest from a server-verified
 Farcaster account. It stores only the FID, a server-derived admission cycle,

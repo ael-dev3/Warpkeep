@@ -13,16 +13,23 @@ historical context. Never publish future repository source to Genesis 001 and
 never rerun the completed G001 freeze publisher or B0 bridge workflow.
 
 This runbook is not executable from any Task 6B-6E preparation commit. Task 6B
-changes two current raw closure members without refreeze and starts the stale-
-pin interval. Task 6C's surface intersects 21 current raw members total,
-including those same two, and adds 19 newly distinct members; the union through
-Task 6C is 21. Task 6C continues the interval, and Tasks 6D and 6E continue it.
-The protected prepared workflow and every sealed-realms/
-live production workflow must fail closed at all four intermediate commits;
-focused task-specific source/module/static tests do not constitute full-green
-closure verification. Task 7 alone atomically refreezes the closure manifest,
-workflow pins, and downstream consumers. Its completely green first run and
-zero-diff second run are required before Phase 0 may begin.
+changes two current raw closure members while refreeze remains forbidden. The
+committed raw-file closure manifest was current at `b450df45c` and first became
+stale at Task 1 commit `73792442b` (1/979); at Task 6B, only the verifier
+declaration adds a new mismatch because its implementation was already stale,
+moving 18/979 to 19/979. Task 6C's formal surface intersects 21 current raw
+members total, including those same two, and adds 19 newly distinct members to
+that surface; the planned set union remains `2 + 19 = 21`. Those set counts
+establish neither the actual stale-interval origin nor Task 6C's final changed-
+member count. The approved Task 6C tree changes 18 raw members: 10
+already stale plus 8 newly stale, moving 19/979 to 27/979. Tasks 6B through 6E
+continue the already-stale, fail-closed interval. The protected prepared
+workflow and every sealed-realms/live production workflow must fail closed at
+all four intermediate commits; focused task-specific source/module/static tests
+do not constitute full-green closure verification. Task 7 alone atomically
+refreezes the closure manifest, workflow pins, and downstream consumers. Its
+completely green first run and zero-diff second run are required before Phase 0
+may begin.
 
 ## Immutable identities and provenance
 

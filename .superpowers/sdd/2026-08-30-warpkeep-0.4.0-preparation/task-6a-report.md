@@ -135,11 +135,15 @@ production/infrastructure mutation was performed.
   `tests/ptrProductionCli.test.ts`. Task 6E explicitly overrides Task 6D's
   read-only receipt/journal limit only for the new writer ABIs. These sources
   are raw-file closure members. Exact manifest intersection establishes
-  that Task 6B changes two current raw members and begins a deliberately stale-
-  pinned non-runnable interval. Task 6C's surface intersects 21 current raw
-  members total, including those same two; it adds 19 newly distinct members,
-  so the union through Task 6C is 21. Tasks 6C, 6D, and 6E continue the
-  interval. No prepared/live workflow executes
+  that Task 6B changes two current raw members while refreeze remains forbidden.
+  The raw closure was already stale from Task 1; only the Task 6B verifier
+  declaration becomes newly stale because the implementation was already
+  stale, moving 18/979 to 19/979. Task 6C's formal surface intersects 21 current
+  raw members total, including those same two; it adds 19 newly distinct members
+  to that surface, so the planned set union remains `2 + 19 = 21`. The approved
+  Task 6C final tree instead changes 18 raw members: 10 already stale plus 8
+  newly stale, moving 19/979 to 27/979. Tasks 6B through 6E continue the already-
+  stale, fail-closed interval. No prepared/live workflow executes
   from any Task 6B-6E intermediate commit. Their focused review gates exclude
   full-green closure claims and require pin-dependent cases to fail closed until
   Task 7 atomically refreezes every closure/pin consumer and full verification
@@ -249,20 +253,29 @@ or protected workflow.
   the existing operation names never call the current G002/PTR import cores;
   only an authenticated missing PTR no-effect result permits one core/reducer
   call. Task 6E's recovery writers explicitly supersede Task 6D's read-only
-  receipt/journal limit and continue the non-runnable raw-file-pinned interval
-  already begun by Task 6B and continued through Tasks 6C and 6D until Task 7
-  atomically refreezes the full closure.
+  receipt/journal limit and continue the already-stale, non-runnable raw-file-
+  pinned interval. That interval began at Task 1; Tasks 6B through 6E continue
+  it until Task 7 atomically refreezes the full closure.
   The marker
   producer binds exact publish-plan and confirmation digests and supplies pure
   parser/digest/reconciliation ABIs, including PTR submission-error adoption.
 - Post-Task-6B manifest-intersection sequencing correction: Task 6B's exact
   six-file commit changes two existing raw closure members,
-  `scripts/verify-0.4.0-sealed-launch.mjs` and its declaration, so Task 6B
-  starts the stale-pin interval. Task 6C's planned surface intersects 21
-  current raw members total and overlaps Task 6B on those same two verifier
-  paths. It therefore adds 19 newly distinct members, making the union through
-  Task 6C exactly 21. Tasks 6C, 6D, and 6E continue the interval. This corrects
-  only the closure timeline, not realm authority,
+  `scripts/verify-0.4.0-sealed-launch.mjs` and its declaration while refreeze
+  remains forbidden. Immutable Git-object recomputation shows the 979-member
+  manifest was current at `b450df45c` and first became stale at Task 1 commit
+  `73792442b` (1/979, `.github/workflows/verify.yml`), then progressed through
+  Tasks 2-5 as 4/979, 11/979, 16/979, and 18/979. Task 6A remained 18/979; only
+  the Task 6B verifier declaration became newly stale because the implementation
+  was already stale, moving the count to 19/979. Task 6C's formal planned
+  surface intersects 21 current raw members total and overlaps Task 6B on those
+  same two verifier paths. It therefore adds 19 newly distinct formal-surface
+  members, preserving the planned set union `2 + 19 = 21`. Those set counts
+  establish neither the actual stale-interval origin nor Task 6C's final changed-
+  member count. The approved Task 6C tree changes 18 raw members: 10 already
+  stale plus 8 newly stale, yielding 19/979 to 27/979. Tasks 6B through 6E
+  continue the already-stale, fail-closed interval. This corrects only the
+  closure timeline, not realm authority,
   receipts, publication markers, recovery, or operation semantics. Task 6B's
   focused census/static-verifier/typecheck/diff/frozen-byte checks and Task
   6C's focused publisher/import/owner/verifier suites may pass, while closure-
