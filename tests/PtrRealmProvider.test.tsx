@@ -463,8 +463,14 @@ describe('PTR realm provider', () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
     const authority = await issuedAuthority();
-    installHost();
-    const harness = runtimeHarness(authority);
+    const freshAuthority = await issuedAuthority();
+    const getToken = installHost();
+    const exchangeQuickAuth = vi.fn()
+      .mockResolvedValueOnce(authority)
+      .mockResolvedValueOnce(freshAuthority);
+    const harness = runtimeHarness(authority, {
+      createAuthClient: vi.fn(() => Object.freeze({ exchangeQuickAuth })),
+    });
     mount(CONFIG, harness.runtime);
     await act(async () => captured?.checkAccess());
     await act(async () => captured?.enter());
@@ -476,6 +482,35 @@ describe('PTR realm provider', () => {
     expect(captured?.bridge).toBeNull();
     expect(harness.runtime.closeSession).toHaveBeenCalled();
     expect(isCurrentPtrRealmAuthority(authority, NOW)).toBe(false);
+
+    await act(async () => captured?.checkAccess());
+
+    expect(getToken).toHaveBeenCalledTimes(2);
+    expect(exchangeQuickAuth).toHaveBeenCalledTimes(2);
+    expect(captured?.phase).toBe('admitted');
+    expect(harness.runtime.connect).toHaveBeenCalledTimes(1);
+  });
+
+  it('requires one explicit fresh access check after an access error', async () => {
+    const authority = await issuedAuthority();
+    installHost();
+    const exchangeQuickAuth = vi.fn()
+      .mockRejectedValueOnce(new Error('temporary access failure'))
+      .mockResolvedValueOnce(authority);
+    const harness = runtimeHarness(authority, {
+      createAuthClient: vi.fn(() => Object.freeze({ exchangeQuickAuth })),
+    });
+    mount(CONFIG, harness.runtime);
+
+    await act(async () => captured?.checkAccess());
+    expect(captured?.phase).toBe('error');
+    expect(exchangeQuickAuth).toHaveBeenCalledTimes(1);
+    expect(harness.runtime.connect).not.toHaveBeenCalled();
+
+    await act(async () => captured?.checkAccess());
+    expect(captured?.phase).toBe('admitted');
+    expect(exchangeQuickAuth).toHaveBeenCalledTimes(2);
+    expect(harness.runtime.connect).not.toHaveBeenCalled();
   });
 
   it('never publishes admitted when authority expires while the expiry timer is installed', async () => {

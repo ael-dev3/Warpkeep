@@ -40,6 +40,7 @@ describe('realm choice policy', () => {
       }),
       expect.objectContaining({
         id: PTR_ID,
+        label: 'Public Test Realm',
         version: '0.4.0-ptr.1',
         admission: 'unknown',
         statusLabel: 'Access unknown'

@@ -102,7 +102,7 @@ export type WarpkeepMainMenuProps = {
   ptrRealmAuthority?: PtrRealmAuthority;
   /** True while the PTR provider is checking or preparing a connection. */
   ptrRealmBusy?: boolean;
-  /** Optional provider refresh triggered when the dedicated realm panel opens. */
+  /** Provider refresh triggered only by explicit PTR Enter when authority is stale. */
   onCheckRealmAccess?: () => void;
   /** Revokes any checked or pending PTR authority when its intent is dismissed. */
   onCancelPtrRealm?: () => void;
@@ -161,6 +161,11 @@ type TermsRequest = {
 type SessionRestoreRequest = {
   sequence: number;
   keyboardDriven: boolean;
+};
+
+type PtrRealmStatusAttempt = {
+  generation: number;
+  observedBusy: boolean;
 };
 
 function termsContinueLabel(
@@ -350,6 +355,8 @@ export function WarpkeepMainMenu({
   const patchNotesCloseTimerRef = useRef<number | null>(null);
   const noticeSequenceRef = useRef(0);
   const sessionRestoreSequenceRef = useRef(0);
+  const ptrRealmStatusGenerationRef = useRef(0);
+  const ptrRealmStatusAttemptRef = useRef<PtrRealmStatusAttempt | null>(null);
   const didFocusOnRevealRef = useRef(false);
   const playbackBlockedRef = useRef(false);
   const didReportVideoReadyRef = useRef(false);
@@ -404,6 +411,48 @@ export function WarpkeepMainMenu({
     () => getRealmChoices(hasCurrentAuthenticatedAccess(), ptrRealmAuthority),
     [hasCurrentAuthenticatedAccess, ptrRealmAuthority]
   );
+  const invalidatePtrRealmStatusAttempt = useCallback(() => {
+    ptrRealmStatusGenerationRef.current += 1;
+    ptrRealmStatusAttemptRef.current = null;
+  }, []);
+  useEffect(() => {
+    const attempt = ptrRealmStatusAttemptRef.current;
+    if (
+      !attempt
+      || attempt.generation !== ptrRealmStatusGenerationRef.current
+      || selectedRealmId !== PTR_ID
+      || !realmChoiceOpen
+      || realmStatusMessage !== PTR_UNKNOWN_NOTICE
+    ) {
+      return;
+    }
+    if (ptrRealmBusy) {
+      attempt.observedBusy = true;
+      return;
+    }
+    if (!attempt.observedBusy) {
+      ptrRealmStatusAttemptRef.current = null;
+      return;
+    }
+
+    ptrRealmStatusAttemptRef.current = null;
+    if (ptrRealmAuthority?.source !== 'server-verified') return;
+    setRealmStatusMessage(
+      ptrRealmAuthority.admission === 'admitted'
+        ? undefined
+        : PTR_NOT_ADMITTED_NOTICE
+    );
+  }, [
+    ptrRealmAuthority,
+    ptrRealmBusy,
+    realmChoiceOpen,
+    realmStatusMessage,
+    selectedRealmId
+  ]);
+  useEffect(() => () => {
+    ptrRealmStatusGenerationRef.current += 1;
+    ptrRealmStatusAttemptRef.current = null;
+  }, []);
   const canReuseEntryAgreement = useCallback(() => (
     entryAgreementSatisfied && hasCurrentAuthenticatedAccess()
   ), [entryAgreementSatisfied, hasCurrentAuthenticatedAccess]);
@@ -659,21 +708,23 @@ export function WarpkeepMainMenu({
     setRealmStatusMessage(undefined);
     closePatchNotes();
     if (realmId !== PTR_ID) {
+      invalidatePtrRealmStatusAttempt();
       onCancelPtrRealm?.();
     }
     setSelectedRealmId(realmId);
-  }, [closePatchNotes, onCancelPtrRealm]);
+  }, [closePatchNotes, invalidatePtrRealmStatusAttempt, onCancelPtrRealm]);
 
   const openRealmChoice = useCallback((anchorElement: HTMLButtonElement) => {
+    invalidatePtrRealmStatusAttempt();
     surfaceTriggerRef.current = anchorElement;
     setActiveNotice(null);
     setRealmStatusMessage(undefined);
     closePatchNotes();
     setSurface('realm-choice');
-    onCheckRealmAccess?.();
-  }, [closePatchNotes, onCheckRealmAccess]);
+  }, [closePatchNotes, invalidatePtrRealmStatusAttempt]);
 
   const closeRealmChoice = useCallback(() => {
+    invalidatePtrRealmStatusAttempt();
     invalidateSessionRestore();
     onCancelPtrRealm?.();
     surfaceTriggerRef.current = null;
@@ -682,7 +733,7 @@ export function WarpkeepMainMenu({
     window.setTimeout(() => {
       commandRefs.current[0]?.focus({ preventScroll: true });
     }, 0);
-  }, [invalidateSessionRestore, onCancelPtrRealm]);
+  }, [invalidatePtrRealmStatusAttempt, invalidateSessionRestore, onCancelPtrRealm]);
 
   const closeCredits = useCallback(() => {
     setSurface('commands');
@@ -1043,17 +1094,27 @@ export function WarpkeepMainMenu({
       if (
         ptrRealmAuthority?.source === 'server-verified'
         && ptrRealmAuthority.admission === 'admitted'
-        && onRequestPtrRealm
       ) {
+        invalidatePtrRealmStatusAttempt();
         setRealmStatusMessage(undefined);
-        onRequestPtrRealm();
-      } else {
-        setRealmStatusMessage(
-          ptrRealmAuthority?.source === 'server-verified'
-          && ptrRealmAuthority.admission === 'not-admitted'
-            ? PTR_NOT_ADMITTED_NOTICE
-            : PTR_UNKNOWN_NOTICE
-        );
+        onRequestPtrRealm?.();
+        return;
+      }
+      if (
+        ptrRealmAuthority?.source === 'server-verified'
+        && ptrRealmAuthority.admission === 'not-admitted'
+      ) {
+        invalidatePtrRealmStatusAttempt();
+        setRealmStatusMessage(PTR_NOT_ADMITTED_NOTICE);
+        return;
+      }
+      if (ptrRealmBusy || ptrRealmStatusAttemptRef.current) return;
+      setRealmStatusMessage(PTR_UNKNOWN_NOTICE);
+      if (onCheckRealmAccess) {
+        const generation = ptrRealmStatusGenerationRef.current + 1;
+        ptrRealmStatusGenerationRef.current = generation;
+        ptrRealmStatusAttemptRef.current = { generation, observedBusy: false };
+        onCheckRealmAccess();
       }
       return;
     }
@@ -1098,14 +1159,17 @@ export function WarpkeepMainMenu({
     canReuseEntryAgreement,
     closePatchNotes,
     farcasterAuthEnabled,
+    invalidatePtrRealmStatusAttempt,
     onRequestEnterRealm,
     onCancelPtrRealm,
+    onCheckRealmAccess,
     onRequestPtrRealm,
     openAuthPanel,
     openNotice,
     openTerms,
     pendingIdentity,
     ptrRealmAuthority,
+    ptrRealmBusy,
     requestSelectedRealmEntry,
     selectedRealmId
   ]);

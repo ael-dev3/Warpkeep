@@ -75,8 +75,11 @@ function segment(value: unknown): string {
   return Buffer.from(JSON.stringify(value)).toString('base64url');
 }
 
-async function ownerAuthority(): Promise<PtrRealmAuthority> {
-  const issuedAt = NOW / 1_000;
+async function ownerAuthority(
+  now = NOW,
+  marker = 'ptr-experience-test-jti',
+): Promise<PtrRealmAuthority> {
+  const issuedAt = now / 1_000;
   const jwt = [
     segment({ alg: 'ES256', typ: 'JWT', kid: 'ptr-experience-test' }),
     segment({
@@ -94,13 +97,13 @@ async function ownerAuthority(): Promise<PtrRealmAuthority> {
       exp: issuedAt + 120,
       session_iat: issuedAt,
       session_exp: issuedAt + 120,
-      jti: 'ptr-experience-test-jti',
+      jti: marker,
     }),
     'test_signature',
   ].join('.');
   return createPtrRealmAuthClient({
     expectedDatabaseIdentity: DATABASE_IDENTITY,
-    now: () => NOW,
+    now: () => now,
     fetch: vi.fn(async () => new Response(JSON.stringify({
       version: 1,
       status: 'authorized',
@@ -109,7 +112,7 @@ async function ownerAuthority(): Promise<PtrRealmAuthority> {
       databaseIdentity: DATABASE_IDENTITY,
       accessToken: jwt,
       tokenType: 'spacetime-access',
-      accessExpiresAt: NOW + 120_000,
+      accessExpiresAt: now + 120_000,
     }), {
       status: 200,
       headers: {
@@ -210,10 +213,13 @@ function deferredRuntimeHarness(authority: PtrRealmAuthority): DeferredPtrRuntim
 
 async function beginDeferredPtrEntry(harness: DeferredPtrRuntimeHarness) {
   fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+  fireEvent.click(screen.getByRole('radio', {
+    name: /Public Test Realm.*Access unknown/i,
+  }));
+  fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
   await waitFor(() => expect(screen.getByRole('radio', {
-    name: /PTR.*Admitted/i,
+    name: /Public Test Realm.*Admitted/i,
   })).not.toBeNull());
-  fireEvent.click(screen.getByRole('radio', { name: /PTR.*Admitted/i }));
   fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
   await waitFor(() => expect(harness.runtime.connect).toHaveBeenCalledTimes(1));
 }
@@ -246,6 +252,9 @@ function installBrowserStubs() {
 beforeEach(() => {
   vi.useFakeTimers({ now: NOW, shouldAdvanceTime: true });
   window.history.replaceState({ warpkeepMenu: true }, '', '/#menu');
+  window.localStorage.clear();
+  window.sessionStorage.clear();
+  document.cookie = 'warpkeepRealmId=; Max-Age=0; Path=/';
   installBrowserStubs();
   hookState.miniAppBack = undefined;
   hookState.farcaster = Object.freeze({
@@ -339,6 +348,34 @@ afterEach(() => {
 });
 
 describe('Warpkeep PTR realm integration', () => {
+  it('keeps explicit Genesis 002 entry sealed before every auth and connection boundary', async () => {
+    const authority = await ownerAuthority();
+    const harness = runtimeHarness(authority);
+    render(
+      <PtrRealmProvider config={CONFIG} runtime={harness.runtime}>
+        <WarpkeepExperience />
+      </PtrRealmProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    fireEvent.click(screen.getByRole('radio', { name: /Genesis 002/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
+
+    expect(screen.getByRole('status').textContent).toMatch(/Genesis 002 is sealed/i);
+    expect(screen.getByRole('status').textContent).toMatch(/no access request or realm connection/i);
+    expect(hookState.farcaster.restoreSession).not.toHaveBeenCalled();
+    expect(hookState.farcaster.beginSignIn).not.toHaveBeenCalled();
+    expect(hookState.farcaster.checkAdmission).not.toHaveBeenCalled();
+    expect(hookState.farcaster.requestAccess).not.toHaveBeenCalled();
+    expect((hookState.miniApp.quickAuth as { getToken: ReturnType<typeof vi.fn> }).getToken)
+      .not.toHaveBeenCalled();
+    expect(harness.runtime.createAuthClient).not.toHaveBeenCalled();
+    expect(harness.runtime.connect).not.toHaveBeenCalled();
+    expect(hookState.backend.beginAlphaTermsAcceptance).not.toHaveBeenCalled();
+    expect(hookState.backend.checkAgain).not.toHaveBeenCalled();
+    expect(hookState.backend.disconnect).not.toHaveBeenCalled();
+  });
+
   it('checks and enters PTR without Genesis state, then tears PTR down on return', async () => {
     const authority = await ownerAuthority();
     const harness = runtimeHarness(authority);
@@ -349,10 +386,30 @@ describe('Warpkeep PTR realm integration', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(hookState.miniApp.quickAuth).toMatchObject({
+      getToken: expect.any(Function),
+    });
+    expect((hookState.miniApp.quickAuth as { getToken: ReturnType<typeof vi.fn> }).getToken)
+      .not.toHaveBeenCalled();
+    expect(harness.runtime.createAuthClient).not.toHaveBeenCalled();
+    expect(harness.runtime.connect).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('radio', {
+      name: /Public Test Realm.*Access unknown/i,
+    }));
+    expect((hookState.miniApp.quickAuth as { getToken: ReturnType<typeof vi.fn> }).getToken)
+      .not.toHaveBeenCalled();
+    expect(harness.runtime.createAuthClient).not.toHaveBeenCalled();
+    expect(harness.runtime.connect).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
     await waitFor(() => expect(screen.getByRole('radio', {
-      name: /PTR.*Admitted/i,
+      name: /Public Test Realm.*Admitted/i,
     })).not.toBeNull());
-    fireEvent.click(screen.getByRole('radio', { name: /PTR.*Admitted/i }));
+    await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
+    expect((hookState.miniApp.quickAuth as { getToken: ReturnType<typeof vi.fn> }).getToken)
+      .toHaveBeenCalledTimes(1);
+    expect(harness.runtime.createAuthClient).toHaveBeenCalledTimes(1);
+    expect(harness.runtime.connect).not.toHaveBeenCalled();
+    expect(harness.runtime.preflight).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
 
     const ptrSurface = await screen.findByRole('main', { name: 'PTR realm test surface' });
@@ -367,6 +424,175 @@ describe('Warpkeep PTR realm integration', () => {
     expect(harness.runtime.closeSession).toHaveBeenCalled();
   });
 
+  it('reconciles an explicit unknown PTR check to server denial without retry or entry', async () => {
+    const authority = await ownerAuthority();
+    const harness = runtimeHarness(authority);
+    const deniedClient = createPtrRealmAuthClient({
+      expectedDatabaseIdentity: DATABASE_IDENTITY,
+      now: () => NOW,
+      fetch: vi.fn(async () => new Response(null, { status: 403 })) as typeof fetch,
+    });
+    const runtime: PtrRealmProviderRuntime = Object.freeze({
+      ...harness.runtime,
+      createAuthClient: vi.fn(() => deniedClient),
+    });
+    render(
+      <PtrRealmProvider config={CONFIG} runtime={runtime}>
+        <WarpkeepExperience />
+      </PtrRealmProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    fireEvent.click(screen.getByRole('radio', {
+      name: /Public Test Realm.*Access unknown/i,
+    }));
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
+
+    await waitFor(() => expect(screen.getByRole('radio', {
+      name: /Public Test Realm.*Not admitted/i,
+    })).not.toBeNull());
+    await waitFor(() => expect(screen.getByRole('status').textContent)
+      .toMatch(/PTR access was not granted/i));
+    expect((hookState.miniApp.quickAuth as { getToken: ReturnType<typeof vi.fn> }).getToken)
+      .toHaveBeenCalledTimes(1);
+    expect(runtime.createAuthClient).toHaveBeenCalledTimes(1);
+    expect(runtime.connect).not.toHaveBeenCalled();
+    expect(runtime.preflight).not.toHaveBeenCalled();
+  });
+
+  it('releases synchronous unavailable PTR checks so a later eligible host can check', async () => {
+    const authority = await ownerAuthority();
+    const harness = runtimeHarness(authority);
+    const eligibleHost = hookState.miniApp;
+    hookState.miniApp = Object.freeze({
+      ...eligibleHost,
+      state: 'regular-web',
+      isMiniApp: false,
+      context: null,
+    });
+    const view = render(
+      <PtrRealmProvider config={CONFIG} runtime={harness.runtime}>
+        <WarpkeepExperience />
+      </PtrRealmProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    fireEvent.click(screen.getByRole('radio', {
+      name: /Public Test Realm.*Access unknown/i,
+    }));
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
+
+    expect(harness.runtime.createAuthClient).not.toHaveBeenCalled();
+    expect(harness.runtime.connect).not.toHaveBeenCalled();
+    expect(harness.runtime.preflight).not.toHaveBeenCalled();
+
+    hookState.miniApp = eligibleHost;
+    view.rerender(
+      <PtrRealmProvider config={CONFIG} runtime={harness.runtime}>
+        <WarpkeepExperience />
+      </PtrRealmProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
+
+    await waitFor(() => expect(screen.getByRole('radio', {
+      name: /Public Test Realm.*Admitted/i,
+    })).not.toBeNull());
+    expect((hookState.miniApp.quickAuth as { getToken: ReturnType<typeof vi.fn> }).getToken)
+      .toHaveBeenCalledTimes(1);
+    expect(harness.runtime.createAuthClient).toHaveBeenCalledTimes(1);
+    expect(harness.runtime.connect).not.toHaveBeenCalled();
+    expect(harness.runtime.preflight).not.toHaveBeenCalled();
+  });
+
+  it('requires one fresh explicit check after a real PTR access error', async () => {
+    const renewedAuthority = await ownerAuthority();
+    const exchangeQuickAuth = vi.fn()
+      .mockRejectedValueOnce(new Error('temporary PTR access failure'))
+      .mockResolvedValueOnce(renewedAuthority);
+    const harness = runtimeHarness(renewedAuthority);
+    const runtime: PtrRealmProviderRuntime = Object.freeze({
+      ...harness.runtime,
+      createAuthClient: vi.fn(() => Object.freeze({ exchangeQuickAuth })),
+    });
+    render(
+      <PtrRealmProvider config={CONFIG} runtime={runtime}>
+        <WarpkeepExperience />
+      </PtrRealmProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    fireEvent.click(screen.getByRole('radio', {
+      name: /Public Test Realm.*Access unknown/i,
+    }));
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
+
+    await waitFor(() => expect(exchangeQuickAuth).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByRole('radio', {
+      name: /Public Test Realm.*Access unknown/i,
+    })).not.toBeNull());
+    expect(runtime.connect).not.toHaveBeenCalled();
+    expect(runtime.preflight).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
+
+    await waitFor(() => expect(screen.getByRole('radio', {
+      name: /Public Test Realm.*Admitted/i,
+    })).not.toBeNull());
+    expect(exchangeQuickAuth).toHaveBeenCalledTimes(2);
+    expect(runtime.createAuthClient).toHaveBeenCalledTimes(2);
+    expect(runtime.connect).not.toHaveBeenCalled();
+    expect(runtime.preflight).not.toHaveBeenCalled();
+  });
+
+  it('retires expired PTR authority and requires one fresh explicit check before entry', async () => {
+    const expiredAuthority = await ownerAuthority(NOW, 'ptr-expired-authority');
+    const renewedAuthority = await ownerAuthority(NOW + 120_000, 'ptr-renewed-authority');
+    const exchangeQuickAuth = vi.fn()
+      .mockResolvedValueOnce(expiredAuthority)
+      .mockResolvedValueOnce(renewedAuthority);
+    const harness = runtimeHarness(renewedAuthority);
+    const runtime: PtrRealmProviderRuntime = Object.freeze({
+      ...harness.runtime,
+      now: Date.now,
+      createAuthClient: vi.fn(() => Object.freeze({ exchangeQuickAuth })),
+    });
+    render(
+      <PtrRealmProvider config={CONFIG} runtime={runtime}>
+        <WarpkeepExperience />
+      </PtrRealmProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    fireEvent.click(screen.getByRole('radio', {
+      name: /Public Test Realm.*Access unknown/i,
+    }));
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
+    await waitFor(() => expect(screen.getByRole('radio', {
+      name: /Public Test Realm.*Admitted/i,
+    })).not.toBeNull());
+
+    await act(async () => vi.advanceTimersByTimeAsync(120_000));
+
+    await waitFor(() => expect(screen.getByRole('radio', {
+      name: /Public Test Realm.*Access unknown/i,
+    })).not.toBeNull());
+    expect(isCurrentPtrRealmAuthority(expiredAuthority, Date.now())).toBe(false);
+    expect(exchangeQuickAuth).toHaveBeenCalledTimes(1);
+    expect(runtime.connect).not.toHaveBeenCalled();
+    expect(runtime.preflight).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
+
+    await waitFor(() => expect(screen.getByRole('radio', {
+      name: /Public Test Realm.*Admitted/i,
+    })).not.toBeNull());
+    expect(exchangeQuickAuth).toHaveBeenCalledTimes(2);
+    expect(runtime.createAuthClient).toHaveBeenCalledTimes(2);
+    expect(isCurrentPtrRealmAuthority(renewedAuthority, Date.now())).toBe(true);
+    expect(runtime.connect).not.toHaveBeenCalled();
+    expect(runtime.preflight).not.toHaveBeenCalled();
+  });
+
   it('revokes the mounted PTR surface and normalizes history on transport failure', async () => {
     const authority = await ownerAuthority();
     const harness = runtimeHarness(authority);
@@ -377,10 +603,13 @@ describe('Warpkeep PTR realm integration', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    fireEvent.click(screen.getByRole('radio', {
+      name: /Public Test Realm.*Access unknown/i,
+    }));
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
     await waitFor(() => expect(screen.getByRole('radio', {
-      name: /PTR.*Admitted/i,
+      name: /Public Test Realm.*Admitted/i,
     })).not.toBeNull());
-    fireEvent.click(screen.getByRole('radio', { name: /PTR.*Admitted/i }));
     fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
     await screen.findByRole('main', { name: 'PTR realm test surface' });
 
@@ -395,15 +624,18 @@ describe('Warpkeep PTR realm integration', () => {
     expect(hookState.backend.disconnect).not.toHaveBeenCalled();
   });
 
-  it('treats forged PTR history state and a realm hash as untrusted navigation', async () => {
+  it('rejects forged browser persistence and resets PTR selection on remount', async () => {
+    window.localStorage.setItem('warpkeepRealmId', 'ptr');
+    window.sessionStorage.setItem('warpkeepRealmId', 'ptr');
+    document.cookie = 'warpkeepRealmId=ptr; Path=/';
     window.history.replaceState({
       warpkeepRealm: true,
       warpkeepRealmId: 'ptr',
-    }, '', '/#realm');
+    }, '', '/?realm=ptr#realm');
     const authority = await ownerAuthority();
     const harness = runtimeHarness(authority);
 
-    render(
+    const first = render(
       <PtrRealmProvider config={CONFIG} runtime={harness.runtime}>
         <WarpkeepExperience />
       </PtrRealmProvider>,
@@ -413,6 +645,36 @@ describe('Warpkeep PTR realm integration', () => {
     expect(screen.queryByRole('main', { name: 'PTR realm test surface' })).toBeNull();
     expect(document.querySelector('.warpkeep-experience')?.getAttribute('data-active-realm'))
       .toBe('none');
+    expect((hookState.miniApp.quickAuth as { getToken: ReturnType<typeof vi.fn> }).getToken)
+      .not.toHaveBeenCalled();
+    expect(harness.runtime.createAuthClient).not.toHaveBeenCalled();
+    expect(harness.runtime.connect).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(screen.getByRole('radio', { name: /Genesis 001/i })
+      .getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: /Genesis 002/i })).not.toBeNull();
+    expect(screen.getByRole('radio', { name: /Public Test Realm/i })).not.toBeNull();
+    fireEvent.click(screen.getByRole('radio', { name: /Public Test Realm/i }));
+    expect(harness.runtime.createAuthClient).not.toHaveBeenCalled();
+    expect(harness.runtime.connect).not.toHaveBeenCalled();
+
+    first.unmount();
+    window.history.replaceState({
+      warpkeepMenu: true,
+      warpkeepRealmId: 'ptr',
+    }, '', '/?realm=ptr#menu');
+    render(
+      <PtrRealmProvider config={CONFIG} runtime={harness.runtime}>
+        <WarpkeepExperience />
+      </PtrRealmProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expect(screen.getByRole('radio', { name: /Genesis 001/i })
+      .getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: /Public Test Realm.*Access unknown/i }))
+      .not.toBeNull();
+    expect(harness.runtime.createAuthClient).not.toHaveBeenCalled();
     expect(harness.runtime.connect).not.toHaveBeenCalled();
   });
 

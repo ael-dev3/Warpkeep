@@ -71,7 +71,7 @@ export function getRealmChoices(
     }),
     Object.freeze({
       id: PTR_ID,
-      label: 'PTR',
+      label: 'Public Test Realm',
       version: PTR_RELEASE_VERSION,
       admission: ptrAdmission,
       statusLabel: ptrAdmission === 'admitted'

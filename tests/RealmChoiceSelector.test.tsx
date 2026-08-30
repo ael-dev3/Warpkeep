@@ -35,7 +35,7 @@ describe('RealmChoiceSelector', () => {
     expect(baseRules).toMatch(/last-child[\s\S]*?right:\s*0;[\s\S]*?left:\s*auto;/);
   });
 
-  it('renders both realm choices with visible, described admission marks', () => {
+  it('renders all three exact accessible realm names with visible, described admission marks', () => {
     render(
       <RealmChoiceSelector
         choices={getRealmChoices(true)}
@@ -55,7 +55,7 @@ describe('RealmChoiceSelector', () => {
       name: /Genesis 002.*version 0\.4\.0.*Not admitted/i
     });
     const ptr = within(selector).getByRole('radio', {
-      name: /PTR.*version 0\.4\.0-ptr\.1.*Access unknown/i
+      name: /Public Test Realm.*version 0\.4\.0-ptr\.1.*Access unknown/i
     });
 
     expect(genesis001.getAttribute('aria-checked')).toBe('true');
@@ -108,7 +108,7 @@ describe('RealmChoiceSelector', () => {
     );
     const genesis001 = screen.getByRole('radio', { name: /Genesis 001/i });
     const genesis002 = screen.getByRole('radio', { name: /Genesis 002/i });
-    const ptr = screen.getByRole('radio', { name: /PTR/i });
+    const ptr = screen.getByRole('radio', { name: /Public Test Realm/i });
 
     genesis001.focus();
     fireEvent.keyDown(genesis001, { key: 'ArrowRight' });
