@@ -21,6 +21,8 @@ export const GENESIS_001_FREEZE_RELEASE_NONCE =
   '3f158f17acd5e1e63c74befef7cb3ccab7cb07feaaed432e7483467e1c856f00';
 export const GENESIS_001_CENSUS_PRIVACY_SAFE_RECEIPT_PROFILE =
   'warpkeep-genesis-001-census-export-privacy-safe-v1';
+export const GENESIS_001_ADMITTED_PLAYER_CENSUS_PUBLIC_PROFILE =
+  'warpkeep-genesis-001-admitted-player-census-privacy-safe-v1';
 const GENESIS_001_FREEZE_PUBLISH_SOURCE_COMMIT =
   'd945256b217fa13ade944b9ed9880e8463b46123';
 const GENESIS_001_FREEZE_PUBLISH_RECEIPT_SHA256 =
@@ -163,6 +165,10 @@ export const SEALED_LAUNCH_SOURCE_PATHS = Object.freeze({
     'scripts/genesis001-frozen-publisher.ts',
   genesis001CensusPrivacySafeReceiptSource:
     'scripts/genesis001-census-privacy-safe-receipt.mjs',
+  genesis001AdmittedPlayerCensusSource:
+    'scripts/genesis001-admitted-player-census.mjs',
+  genesis001AdmittedPlayerCensusDeclaration:
+    'scripts/genesis001-admitted-player-census.d.mts',
   genesis001AdmissionMonitorSuspensionSource:
     'scripts/genesis001-admission-monitor-suspension.ts',
   genesis001AdmissionMonitorCurrentStateSource:
@@ -2401,6 +2407,283 @@ function verifyGenesis001CensusPrivacyBoundary(sources) {
   ) fail('SEALED_LAUNCH_G001_LEGACY_LISTING_SUSPENSION_INVALID');
 }
 
+export function verifyGenesis001AdmittedPlayerCensusBoundary(sources) {
+  const code = 'SEALED_LAUNCH_G001_ADMITTED_PLAYER_CENSUS_BOUNDARY_INVALID';
+  const source = sources.genesis001AdmittedPlayerCensusSource;
+  const declaration = sources.genesis001AdmittedPlayerCensusDeclaration;
+  for (const token of [
+    "'warpkeep-genesis-001-admitted-player-census-private-proof-v1'",
+    `'${GENESIS_001_ADMITTED_PLAYER_CENSUS_PUBLIC_PROFILE}'`,
+    "'SELECT fid, enabled, auth_epoch FROM allowed_fid'",
+    "'SELECT fid FROM player_v2'",
+    "'admin_get_access_request_admission_status_v1'",
+    "'warpkeep.genesis-001.admitted-player-census.normalized-set.v1\\n'",
+    "'warpkeep.genesis-001.admitted-player-census.raw-evidence.v1\\n'",
+    "'warpkeep.genesis-001.admitted-player-census.private-proof.v1\\n'",
+    'GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_ROWS = 4_096;',
+    'GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_QUERY_OUTPUT_BYTES =\n  1_024 * 1_024;',
+    'GENESIS_001_ADMITTED_PLAYER_CENSUS_MINIMUM_STABLE_SEPARATION_MS =\n  60_000;',
+    'GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_STABLE_SEPARATION_MS =\n  300_000;',
+    "if (value?.outcome === 'unsupported-exact-query') {",
+    "result.outcome !== 'exact-query-supported'",
+    "new TextDecoder('utf-8', { fatal: true })",
+    'output.byteLength > GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_QUERY_OUTPUT_BYTES',
+    'output.some(byte => byte > 0x7f)',
+    "parsed.lines.shift() !== 'fid\\tenabled\\tauth_epoch'",
+    "parsed.lines.shift() !== 'fid'",
+    'parsed.lines.length > GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_ROWS',
+    'MAXIMUM_FID = 9_007_199_254_740_991n',
+    'MAXIMUM_AUTH_EPOCH = 4_294_967_295n',
+    "enabled !== 'true'",
+    'seen.has(fid)',
+    '.update(GENESIS_001_ADMITTED_PLAYER_CENSUS_NORMALIZED_SET_DOMAIN)',
+    '.update(GENESIS_001_ADMITTED_PLAYER_CENSUS_RAW_EVIDENCE_DOMAIN)',
+    '.update(GENESIS_001_ADMITTED_PLAYER_CENSUS_OPAQUE_PROOF_DOMAIN)',
+    "['allowedFids', 'enabledAllowedFids']",
+    'allowedFids < 1n',
+    'enabledAllowedFids !== allowedFids',
+    "'admissionState',\n      'authEpoch',\n      'requestCycle',\n      'requestState',\n      'requestedAtMicros',",
+    "status.admissionState !== 'enabled'",
+    'for (const fid of enumeration.fids) {',
+    'const status = exactProcedureStatus(await input.readAdmissionStatus(',
+    'statuses.push(canonicalFallbackStatus(status));',
+    'fallbackEntries.push({ fid, authEpoch: String(status.authEpoch) });',
+    "typeof status.authEpoch !== 'number'",
+    '!Number.isInteger(status.authEpoch)',
+    'status.authEpoch > Number(MAXIMUM_AUTH_EPOCH)',
+    '(requestCycle === undefined) !== (requestedAtMicros === undefined)',
+    "typeof requestCycle !== 'bigint'",
+    'requestCycle > MAXIMUM_U64',
+    "typeof requestedAtMicros !== 'bigint'",
+    'requestCycle > maximumCycle',
+    'requestedAtMicros > MAXIMUM_U64',
+    "!['not_requested', 'pending', 'resolved'].includes(status.requestState)",
+    'const expectedRequestState = requestCycle === undefined',
+    'status.requestState !== expectedRequestState',
+    'const beforeAggregate = exactAggregate(await input.readAggregates());',
+    'await input.queryPreferred(GENESIS_001_ADMITTED_PLAYER_CENSUS_PREFERRED_SQL)',
+    'const afterAggregate = exactAggregate(await input.readAggregates());',
+    'JSON.stringify(beforeAggregate) !== JSON.stringify(afterAggregate)',
+    'BigInt(beforeAggregate.allowedFids) !== BigInt(entries.length)',
+    'randomBytes(NONCE_BYTES)',
+    'output.every(byte => byte === 0)',
+    'opaqueProofDigest(privateProof(canonicalReceipt))',
+    'normalizedSetDigest(normalized) !== receipt.normalizedSetDigest',
+    'separation < GENESIS_001_ADMITTED_PLAYER_CENSUS_MINIMUM_STABLE_SEPARATION_MS',
+    'separation > GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_STABLE_SEPARATION_MS',
+    'first.nonceHex === second.nonceHex',
+    'first.opaqueProofDigest === second.opaqueProofDigest',
+    'profile: GENESIS_001_ADMITTED_PLAYER_CENSUS_PUBLIC_PROFILE,',
+    'opaqueProofDigest: second.opaqueProofDigest,',
+  ]) {
+    if (!source.includes(token)) fail(code);
+  }
+  if (
+    source.match(/^import /gmu)?.length !== 1
+    || !source.startsWith("import { createHash } from 'node:crypto';\n")
+    || source.split(
+      'JSON.stringify(beforeAggregate) !== JSON.stringify(afterAggregate)',
+    ).length !== 3
+  ) fail(code);
+  requireAbsent(source, [
+    'node:fs',
+    'node:child_process',
+    'node:http',
+    'node:https',
+    'node:path',
+    'pathToFileURL',
+    'import.meta',
+    'process.',
+    'process[',
+    'console.',
+    'stdout',
+    'stderr',
+    'systemRandom',
+    'Date()',
+    'Date.now(',
+    'new Date()',
+    'globalThis.Date',
+    'global.Date',
+    'Math.random(',
+    'randomUUID(',
+    'crypto.randomUUID',
+    'globalThis.crypto',
+    'crypto.getRandomValues',
+    'getRandomValues',
+    'performance.now(',
+    'fetch(',
+    'WebSocket',
+    'import(',
+    'require(',
+    '--format',
+  ], code);
+  const statusStart = source.indexOf('function exactProcedureStatus(value) {');
+  const statusEnd = source.indexOf(
+    '\nfunction canonicalFallbackStatus(status) {',
+    statusStart,
+  );
+  if (statusStart < 0 || statusEnd <= statusStart) fail(code);
+  const statusSource = source.slice(statusStart, statusEnd);
+  for (const token of [
+    "!['missing', 'enabled', 'disabled'].includes(status.admissionState)",
+    "typeof status.authEpoch !== 'number'",
+    '!Number.isInteger(status.authEpoch)',
+    'status.authEpoch < 0',
+    'status.authEpoch > Number(MAXIMUM_AUTH_EPOCH)',
+    "status.admissionState === 'missing' && status.authEpoch !== 0",
+    "status.admissionState !== 'missing' && status.authEpoch < 1",
+    '(requestCycle === undefined) !== (requestedAtMicros === undefined)',
+    "typeof requestCycle !== 'bigint'",
+    'requestCycle < 0n',
+    'requestCycle > MAXIMUM_U64',
+    "typeof requestedAtMicros !== 'bigint'",
+    'requestedAtMicros < 1n',
+    'requestedAtMicros > MAXIMUM_U64',
+    "!['not_requested', 'pending', 'resolved'].includes(status.requestState)",
+    "const maximumCycle = status.admissionState === 'disabled'",
+    'requestCycle !== undefined && requestCycle > maximumCycle',
+    "const currentCycle = status.admissionState === 'missing'",
+    'const expectedRequestState = requestCycle === undefined',
+    'status.requestState !== expectedRequestState',
+  ]) {
+    if (!statusSource.includes(token)) fail(code);
+  }
+  requireOnce(
+    statusSource,
+    'status.requestState !== expectedRequestState',
+    code,
+  );
+
+  const rawDigestStart = source.indexOf('function rawDigest(output, statuses = []) {');
+  const rawDigestEnd = source.indexOf('\nfunction exactNonce(randomBytes) {', rawDigestStart);
+  if (rawDigestStart < 0 || rawDigestEnd <= rawDigestStart) fail(code);
+  requireOnce(
+    source.slice(rawDigestStart, rawDigestEnd),
+    [
+      '.update(GENESIS_001_ADMITTED_PLAYER_CENSUS_RAW_EVIDENCE_DOMAIN)',
+      '    .update(output);',
+    ].join('\n'),
+    code,
+  );
+
+  requireOnce(source, 'for (const fid of enumeration.fids) {', code);
+  const fallbackLoopStart = source.indexOf('for (const fid of enumeration.fids) {');
+  const fallbackLoopEnd = source.indexOf(
+    "    collectionMethod = 'fallback-player-v2-status-v1';",
+    fallbackLoopStart,
+  );
+  if (fallbackLoopStart < 0 || fallbackLoopEnd <= fallbackLoopStart) fail(code);
+  const fallbackLoop = source.slice(fallbackLoopStart, fallbackLoopEnd);
+  requireOnce(
+    fallbackLoop,
+    [
+      'await input.readAdmissionStatus(',
+      '        GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_PROCEDURE,',
+      '        fid,',
+      '      )',
+    ].join('\n'),
+    code,
+  );
+  requireOnce(
+    fallbackLoop,
+    'statuses.push(canonicalFallbackStatus(status));',
+    code,
+  );
+  requireOnce(
+    fallbackLoop,
+    'fallbackEntries.push({ fid, authEpoch: String(status.authEpoch) });',
+    code,
+  );
+  if (source.split('await input.readAdmissionStatus(').length !== 2) fail(code);
+
+  const beforeAggregate = source.indexOf(
+    'const beforeAggregate = exactAggregate(await input.readAggregates());',
+  );
+  const preferredQuery = source.indexOf(
+    'await input.queryPreferred(GENESIS_001_ADMITTED_PLAYER_CENSUS_PREFERRED_SQL)',
+  );
+  const afterAggregate = source.indexOf(
+    'const afterAggregate = exactAggregate(await input.readAggregates());',
+  );
+  if (
+    beforeAggregate < 0
+    || preferredQuery <= beforeAggregate
+    || afterAggregate <= preferredQuery
+  ) fail(code);
+  requireOnce(
+    source,
+    [
+      'return Object.freeze({',
+      '    profile: GENESIS_001_ADMITTED_PLAYER_CENSUS_PUBLIC_PROFILE,',
+      '    opaqueProofDigest: second.opaqueProofDigest,',
+      '  });',
+    ].join('\n'),
+    code,
+  );
+
+  for (const token of [
+    "'warpkeep-genesis-001-admitted-player-census-private-proof-v1'",
+    "'warpkeep-genesis-001-admitted-player-census-privacy-safe-v1'",
+    "'warpkeep.genesis-001.admitted-player-census.normalized-set.v1\\n'",
+    "'warpkeep.genesis-001.admitted-player-census.raw-evidence.v1\\n'",
+    "'warpkeep.genesis-001.admitted-player-census.private-proof.v1\\n'",
+    "'SELECT fid, enabled, auth_epoch FROM allowed_fid'",
+    "'SELECT fid FROM player_v2'",
+    "'admin_get_access_request_admission_status_v1'",
+    'GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_ROWS: 4096;',
+    'GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_QUERY_OUTPUT_BYTES: 1048576;',
+    'GENESIS_001_ADMITTED_PLAYER_CENSUS_MINIMUM_STABLE_SEPARATION_MS: 60000;',
+    'GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_STABLE_SEPARATION_MS: 300000;',
+    'allowedFids: string;',
+    'enabledAllowedFids: string;',
+    "'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';",
+    "outcome: 'exact-query-supported';",
+    "outcome: 'unsupported-exact-query'",
+    "collectionMethod: 'preferred-exact-query' | 'fallback-player-v2-status-v1';",
+    "admissionState: 'missing' | 'enabled' | 'disabled';",
+    "requestState: 'not_requested' | 'pending' | 'resolved';",
+    'requestCycle: bigint | undefined;',
+    'requestedAtMicros: bigint | undefined;',
+    'sql: typeof GENESIS_001_ADMITTED_PLAYER_CENSUS_PREFERRED_SQL,',
+    'sql: typeof GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_SQL,',
+    'procedure: typeof GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_PROCEDURE,',
+    'parseGenesis001AdmittedPlayerPreferredResult(',
+    'collectGenesis001AdmittedPlayerCensus(input:',
+    'verifyGenesis001AdmittedPlayerCensusReceipt(',
+    'serializeGenesis001AdmittedPlayerCensusPrivateReceipt(',
+    'randomBytes: (size: 32) => Uint8Array;',
+    'projectGenesis001AdmittedPlayerCensusStablePair(',
+  ]) {
+    if (!declaration.includes(token)) fail(code);
+  }
+  if (
+    declaration.split('opaqueProofDigest: string;').length !== 3
+    || declaration.split('rawEvidenceDigest: string;').length !== 2
+  ) fail(code);
+  requireOnce(
+    declaration,
+    [
+      '): Readonly<{',
+      '  profile: typeof GENESIS_001_ADMITTED_PLAYER_CENSUS_PUBLIC_PROFILE;',
+      '  opaqueProofDigest: string;',
+      '}>;',
+    ].join('\n'),
+    code,
+  );
+  const publicDeclaration = declaration.slice(declaration.indexOf(
+    'export function projectGenesis001AdmittedPlayerCensusStablePair(',
+  ));
+  if (
+    publicDeclaration.length < 1
+    || publicDeclaration.includes('fid:')
+    || publicDeclaration.includes('authEpoch:')
+    || publicDeclaration.includes('admittedPlayerCount:')
+    || publicDeclaration.includes('rawEvidenceDigest:')
+    || publicDeclaration.includes('normalizedSetDigest:')
+    || publicDeclaration.includes('nonceHex:')
+  ) fail(code);
+}
+
 function verifyGenesis001AdmissionMonitorSuspension(sources) {
   const source = sources.genesis001AdmissionMonitorSuspensionSource;
   for (const token of [
@@ -3014,6 +3297,7 @@ function verifyStaticSources(sources) {
   verifyGenesis001Policy(sources);
   verifyGenesis001SealedLaunchAdoption(sources);
   verifyGenesis001CensusPrivacyBoundary(sources);
+  verifyGenesis001AdmittedPlayerCensusBoundary(sources);
   verifyGenesis001AdmissionMonitorSuspension(sources);
   verifyGenesis001AdmissionMonitorCurrentState(sources);
   verifyGenesis001LegacyGreaterRealmProductionSeal(sources);

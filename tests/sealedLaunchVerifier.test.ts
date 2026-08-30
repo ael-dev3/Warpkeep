@@ -29,12 +29,14 @@ import {
 import {
   createSealedLaunchActivationBinding,
   classifySealedLaunchPagesDeployLane,
+  GENESIS_001_ADMITTED_PLAYER_CENSUS_PUBLIC_PROFILE,
   GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS,
   SEALED_LAUNCH_SOURCE_PATHS,
   inspectSealedLaunchGitHistoryForTesting,
   verifySealedLaunchActivationHistory,
   classifySealedLaunchPagesSources,
   sealedLaunchReceiptCommitment,
+  verifyGenesis001AdmittedPlayerCensusBoundary,
   verifySealedLaunchSources,
 } from '../scripts/verify-0.4.0-sealed-launch.mjs';
 
@@ -81,6 +83,10 @@ function checkedInSources() {
       source('scripts/genesis001-frozen-publisher.ts'),
     genesis001CensusPrivacySafeReceiptSource:
       source('scripts/genesis001-census-privacy-safe-receipt.mjs'),
+    genesis001AdmittedPlayerCensusSource:
+      source('scripts/genesis001-admitted-player-census.mjs'),
+    genesis001AdmittedPlayerCensusDeclaration:
+      source('scripts/genesis001-admitted-player-census.d.mts'),
     genesis001AdmissionMonitorSuspensionSource:
       source('scripts/genesis001-admission-monitor-suspension.ts'),
     genesis001AdmissionMonitorCurrentStateSource:
@@ -1717,6 +1723,18 @@ export function createPtrProductionTransport(`,
       'scripts/greater-realm-downstream-release-policy.ts',
       'docs/operations/greater-realm-production-launch-envelope.sh.txt',
     ]);
+    expect(SEALED_LAUNCH_SOURCE_PATHS).toMatchObject({
+      genesis001AdmittedPlayerCensusSource:
+        'scripts/genesis001-admitted-player-census.mjs',
+      genesis001AdmittedPlayerCensusDeclaration:
+        'scripts/genesis001-admitted-player-census.d.mts',
+    });
+    expect(GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS).not.toContain(
+      'scripts/genesis001-admitted-player-census.mjs',
+    );
+    expect(GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS).not.toContain(
+      'scripts/genesis001-admitted-player-census.d.mts',
+    );
     const valid = {
       bindingSource: canonical(activationBinding()),
       candidateActivationCommit: 'f'.repeat(40),
@@ -2332,6 +2350,201 @@ export function createPtrProductionTransport(`,
     const sources = activationSources();
     sources.bindingJson = canonical(rawDigestCandidate);
     expect(() => verifySealedLaunchSources(sources, 'activation')).toThrow();
+  });
+
+  it('independently verifies the admitted-player census static privacy boundary', () => {
+    const valid = checkedInSources();
+    expect(GENESIS_001_ADMITTED_PLAYER_CENSUS_PUBLIC_PROFILE).toBe(
+      'warpkeep-genesis-001-admitted-player-census-privacy-safe-v1',
+    );
+    expect(() => verifyGenesis001AdmittedPlayerCensusBoundary(valid)).not.toThrow();
+
+    for (const field of [
+      'genesis001AdmittedPlayerCensusSource',
+      'genesis001AdmittedPlayerCensusDeclaration',
+    ] as const) {
+      expect(() => verifyGenesis001AdmittedPlayerCensusBoundary({
+        ...valid,
+        [field]: '',
+      }))
+        .toThrow();
+    }
+
+    const sourceMutations = [
+      [
+        'warpkeep-genesis-001-admitted-player-census-private-proof-v1',
+        'warpkeep-genesis-001-admitted-player-census-private-proof-v2',
+      ],
+      [
+        'warpkeep-genesis-001-admitted-player-census-privacy-safe-v1',
+        'warpkeep-genesis-001-admitted-player-census-privacy-safe-v2',
+      ],
+      [
+        'warpkeep.genesis-001.admitted-player-census.normalized-set.v1\\n',
+        'warpkeep.genesis-001.admitted-player-census.normalized-set.v2\\n',
+      ],
+      [
+        'warpkeep.genesis-001.admitted-player-census.raw-evidence.v1\\n',
+        'warpkeep.genesis-001.admitted-player-census.raw-evidence.v2\\n',
+      ],
+      [
+        'warpkeep.genesis-001.admitted-player-census.private-proof.v1\\n',
+        'warpkeep.genesis-001.admitted-player-census.private-proof.v2\\n',
+      ],
+      [
+        'SELECT fid, enabled, auth_epoch FROM allowed_fid',
+        'SELECT fid, auth_epoch FROM allowed_fid',
+      ],
+      ['SELECT fid FROM player_v2', 'SELECT fid FROM allowed_fid'],
+      [
+        'admin_get_access_request_admission_status_v1',
+        'admin_get_fid_auth_epoch',
+      ],
+      ['= 4_096;', '= 4_097;'],
+      ['1_024 * 1_024;', '2_024 * 1_024;'],
+      ['=\n  60_000;', '=\n  59_000;'],
+      ['=\n  300_000;', '=\n  301_000;'],
+      ['enabledAllowedFids !== allowedFids', 'enabledAllowedFids === allowedFids'],
+      ['JSON.stringify(beforeAggregate) !== JSON.stringify(afterAggregate)',
+        'JSON.stringify(beforeAggregate) === JSON.stringify(afterAggregate)'],
+      ['randomBytes(NONCE_BYTES)', 'randomBytes(16)'],
+      ['output.every(byte => byte === 0)', 'output.every(byte => byte < 0)'],
+      [
+        "if (value?.outcome === 'unsupported-exact-query') {",
+        "if (value?.outcome === 'unsupported-exact-query' || value?.outcome === 'timeout') {",
+      ],
+      [
+        "status.admissionState !== 'enabled'",
+        "status.admissionState === 'enabled'",
+      ],
+      [
+        'BigInt(beforeAggregate.allowedFids) !== BigInt(entries.length)',
+        'BigInt(beforeAggregate.allowedFids) === BigInt(entries.length)',
+      ],
+      [
+        'normalizedSetDigest(normalized) !== receipt.normalizedSetDigest',
+        'normalizedSetDigest(normalized) === receipt.normalizedSetDigest',
+      ],
+      [
+        'separation < GENESIS_001_ADMITTED_PLAYER_CENSUS_MINIMUM_STABLE_SEPARATION_MS',
+        'separation <= GENESIS_001_ADMITTED_PLAYER_CENSUS_MINIMUM_STABLE_SEPARATION_MS',
+      ],
+      [
+        'separation > GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_STABLE_SEPARATION_MS',
+        'separation >= GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_STABLE_SEPARATION_MS',
+      ],
+      [
+        'profile: GENESIS_001_ADMITTED_PLAYER_CENSUS_PUBLIC_PROFILE,',
+        'profile: GENESIS_001_ADMITTED_PLAYER_CENSUS_PRIVATE_PROFILE,',
+      ],
+      [
+        'opaqueProofDigest: second.opaqueProofDigest,',
+        'opaqueProofDigest: first.opaqueProofDigest,',
+      ],
+      [
+        'opaqueProofDigest: second.opaqueProofDigest,\n  });',
+        'opaqueProofDigest: second.opaqueProofDigest,\n    rawEvidenceDigest: second.rawEvidenceDigest,\n  });',
+      ],
+    ] as const;
+    for (const [before, after] of sourceMutations) {
+      expect(valid.genesis001AdmittedPlayerCensusSource).toContain(before);
+      expect(() => verifyGenesis001AdmittedPlayerCensusBoundary({
+        ...valid,
+        genesis001AdmittedPlayerCensusSource:
+          valid.genesis001AdmittedPlayerCensusSource.replace(before, after),
+      }), before).toThrow();
+    }
+    for (const ambient of [
+      'void globalThis.crypto.getRandomValues(new Uint8Array(32));',
+      'void performance.now();',
+    ]) {
+      expect(() => verifyGenesis001AdmittedPlayerCensusBoundary({
+        ...valid,
+        genesis001AdmittedPlayerCensusSource:
+          `${valid.genesis001AdmittedPlayerCensusSource}\n${ambient}\n`,
+      }), ambient).toThrow();
+    }
+
+    for (const [before, after] of [
+      [
+        'warpkeep-genesis-001-admitted-player-census-private-proof-v1',
+        'warpkeep-genesis-001-admitted-player-census-private-proof-v2',
+      ],
+      ['outcome: \'unsupported-exact-query\'', 'outcome: \'timeout\''],
+      ['randomBytes: (size: 32) => Uint8Array;', 'randomBytes: (size: 16) => Uint8Array;'],
+      [
+        "sql: typeof GENESIS_001_ADMITTED_PLAYER_CENSUS_PREFERRED_SQL,",
+        'sql: string,',
+      ],
+      ['allowedFids: string;', 'allowedFids: number;'],
+      ['opaqueProofDigest: string;', 'rawEvidenceDigest: string;'],
+      [
+        '  profile: typeof GENESIS_001_ADMITTED_PLAYER_CENSUS_PUBLIC_PROFILE;\n'
+          + '  opaqueProofDigest: string;\n}>;',
+        '  profile: typeof GENESIS_001_ADMITTED_PLAYER_CENSUS_PUBLIC_PROFILE;\n'
+          + '  opaqueProofDigest: string;\n  diagnostic: string;\n}>;',
+      ],
+    ] as const) {
+      expect(valid.genesis001AdmittedPlayerCensusDeclaration).toContain(before);
+      expect(() => verifyGenesis001AdmittedPlayerCensusBoundary({
+        ...valid,
+        genesis001AdmittedPlayerCensusDeclaration:
+          valid.genesis001AdmittedPlayerCensusDeclaration.replace(before, after),
+      }), before).toThrow();
+    }
+  });
+
+  it.each([
+    {
+      name: 'direct Date call',
+      mutate: (source: string) => `${source}\nvoid Date();\n`,
+    },
+    {
+      name: 'crypto randomUUID call',
+      mutate: (source: string) => `${source}\nvoid crypto.randomUUID();\n`,
+    },
+    {
+      name: 'globalThis crypto randomUUID call',
+      mutate: (source: string) =>
+        `${source}\nvoid globalThis.crypto.randomUUID();\n`,
+    },
+    {
+      name: 'global crypto randomUUID call',
+      mutate: (source: string) => `${source}\nvoid global.crypto.randomUUID();\n`,
+    },
+    {
+      name: 'bare randomUUID call',
+      mutate: (source: string) => `${source}\nvoid randomUUID();\n`,
+    },
+    {
+      name: 'empty fallback iteration',
+      mutate: (source: string) => source.replace(
+        'for (const fid of enumeration.fids) {',
+        'for (const fid of []) {',
+      ),
+    },
+    {
+      name: 'reversed request-state validation',
+      mutate: (source: string) => source.replace(
+        'status.requestState !== expectedRequestState',
+        'status.requestState === expectedRequestState',
+      ),
+    },
+    {
+      name: 'empty raw-evidence payload update',
+      mutate: (source: string) => source.replace(
+        '.update(output);',
+        '.update(new Uint8Array());',
+      ),
+    },
+  ])('rejects reviewed admitted-player census mutation: $name', ({ mutate }) => {
+    const valid = checkedInSources();
+    const mutated = mutate(valid.genesis001AdmittedPlayerCensusSource);
+    expect(mutated).not.toBe(valid.genesis001AdmittedPlayerCensusSource);
+    expect(() => verifyGenesis001AdmittedPlayerCensusBoundary({
+      ...valid,
+      genesis001AdmittedPlayerCensusSource: mutated,
+    })).toThrow('SEALED_LAUNCH_G001_ADMITTED_PLAYER_CENSUS_BOUNDARY_INVALID');
   });
 
   it('rejects any static gate drift even with complete receipts', () => {

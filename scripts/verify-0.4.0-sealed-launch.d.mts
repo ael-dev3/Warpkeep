@@ -5,6 +5,8 @@ export const GENESIS_001_BASELINE_ABI_SHA256: string;
 export const GENESIS_001_FREEZE_RELEASE_NONCE: string;
 export const GENESIS_001_CENSUS_PRIVACY_SAFE_RECEIPT_PROFILE:
   'warpkeep-genesis-001-census-export-privacy-safe-v1';
+export const GENESIS_001_ADMITTED_PLAYER_CENSUS_PUBLIC_PROFILE:
+  'warpkeep-genesis-001-admitted-player-census-privacy-safe-v1';
 export const GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS:
   readonly string[];
 export const SEALED_LAUNCH_SOURCE_PATHS: Readonly<Record<string, string>>;
@@ -12,6 +14,13 @@ export const SEALED_LAUNCH_SOURCE_PATHS: Readonly<Record<string, string>>;
 export class SealedLaunchVerificationError extends Error {
   readonly code: string;
 }
+
+export function verifyGenesis001AdmittedPlayerCensusBoundary(
+  sources: Readonly<{
+    genesis001AdmittedPlayerCensusSource: string;
+    genesis001AdmittedPlayerCensusDeclaration: string;
+  }>,
+): void;
 
 export function sealedLaunchReceiptCommitment(
   commitmentKey: string,
