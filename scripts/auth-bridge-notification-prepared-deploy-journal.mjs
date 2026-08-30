@@ -27,6 +27,7 @@ import {
 } from 'node:path';
 
 import {
+  canonicalProductionAdminAccountHome,
   ensureCanonicalProductionAdminStateDirectory,
   probeProductionAdminProcessIdentity,
   productionAdminRecordedOwnerIsDead,
@@ -835,6 +836,111 @@ function loadHistories(directory, uid) {
     }
   }
   return histories;
+}
+
+function existingJournalDirectory({ repositoryRoot, reportedHome }) {
+  if (typeof repositoryRoot !== 'string' || !isAbsolute(repositoryRoot)) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_REPOSITORY_INVALID');
+  }
+  const uid = ownerUid();
+  let parent;
+  try {
+    parent = canonicalProductionAdminAccountHome(reportedHome);
+    for (const name of [
+      '.warpkeep',
+      'private',
+      'production-admin-v1',
+      AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_STATE_CHILD,
+    ]) {
+      parent = assertPrivateDirectory(join(parent, name), uid, parent);
+    }
+  } catch (error) {
+    if (error instanceof AuthBridgeNotificationPreparedDeployJournalError) {
+      throw error;
+    }
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_INVALID');
+  }
+  let repository;
+  try {
+    const requested = resolve(repositoryRoot);
+    repository = realpathSync(requested);
+    const status = lstatSync(requested);
+    if (
+      repository !== requested
+      || status.isSymbolicLink()
+      || !status.isDirectory()
+    ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_REPOSITORY_INVALID');
+  } catch (error) {
+    if (error instanceof AuthBridgeNotificationPreparedDeployJournalError) {
+      throw error;
+    }
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_REPOSITORY_INVALID');
+  }
+  if (inside(repository, parent) || inside(parent, repository)) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_REPOSITORY_OVERLAP');
+  }
+  return Object.freeze({ directory: parent, uid });
+}
+
+/**
+ * Authenticates the sole completed existing journal without opening a lock,
+ * repairing a publication, or accepting a journal name/digest from the caller.
+ */
+export function resolveExistingAuthBridgeNotificationPreparedDeployJournal({
+  repositoryRoot,
+  reportedHome,
+} = {}) {
+  const state = existingJournalDirectory({ repositoryRoot, reportedHome });
+  let names;
+  try {
+    names = readdirSync(state.directory);
+  } catch {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_INVALID');
+  }
+  if (
+    names.includes(LOCK_FILE)
+    || names.some(name => LOCK_TEMPORARY_FILE.test(name)
+      || RECORD_TEMPORARY_FILE.test(name))
+  ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_AMBIGUOUS');
+
+  let histories;
+  try {
+    histories = loadHistories(state.directory, state.uid);
+  } catch (error) {
+    if (error instanceof AuthBridgeNotificationPreparedDeployJournalError) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_INVALID');
+    }
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_INVALID');
+  }
+  if (histories.size !== 1) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_AMBIGUOUS');
+  }
+  const records = [...histories.values()][0];
+  const completed = records.filter(record => record.value.phase === 'completed');
+  if (completed.length !== 1 || records.at(-1) !== completed[0]) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_AMBIGUOUS');
+  }
+  const head = completed[0];
+  const previous = records.at(-2);
+  const outcome = previous?.value.phase === 'uploaded'
+    ? 'verified'
+    : previous?.value.phase === 'release-invoked'
+      ? 'verified-after-release-error'
+      : null;
+  if (outcome === null) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_INVALID');
+  }
+  return Object.freeze({
+    journalHeadDigest: head.digest,
+    profile: AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_PROFILE,
+    outcome,
+    predecessorDigest: head.value.previousRecordDigest,
+    runId: head.value.runId,
+    runAttempt: head.value.runAttempt,
+    completedAt: head.value.recordedAt,
+    sourceCommit: head.value.payload.sourceCommit,
+    workerVersionId: head.value.payload.versionId,
+  });
 }
 
 function createJournal({

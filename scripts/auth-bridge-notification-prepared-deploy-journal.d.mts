@@ -9,6 +9,24 @@ export class AuthBridgeNotificationPreparedDeployJournalError extends Error {
   constructor(code: string, deploymentMayHaveChanged?: boolean);
 }
 
+export function resolveExistingAuthBridgeNotificationPreparedDeployJournal(
+  options: Readonly<{
+    repositoryRoot: string;
+    /** Test-only substitute for the OS account home. */
+    reportedHome?: string;
+  }>,
+): Readonly<{
+  journalHeadDigest: string;
+  profile: 'warpkeep-auth-bridge-notification-prepared-deploy-journal-v3';
+  outcome: 'verified' | 'verified-after-release-error';
+  predecessorDigest: string | null;
+  runId: string;
+  runAttempt: number;
+  completedAt: string;
+  sourceCommit: string;
+  workerVersionId: string;
+}>;
+
 export type AuthBridgeNotificationPreparedDeployJournal = Readonly<{
   operationId: string;
   directory: string;

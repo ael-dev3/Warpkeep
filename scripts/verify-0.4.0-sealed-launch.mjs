@@ -33,6 +33,13 @@ const GENESIS_001_LEGACY_LAUNCH_ENVELOPE_SHA256 =
   'ffaa86e602b08d5a3b5994120a822194860b64d8ee117dea4d454b28fde7594a';
 const GENESIS_001_POLICY_OBSERVATION_BOOTSTRAP_FINALIZATION_SHA256 =
   '9c126f8ab9a5b3504c47585c84b721c8d5b0dc005ce4e3af3207e7fab6c7cdff';
+// Task 6D pins the reviewed narrow S/A producer byte-for-byte. This avoids
+// accepting decoy tokens or an early-return control-flow bypass before Task 7
+// freezes the complete dispatcher closure.
+const SEALED_REALMS_SOURCE_AUTHORITY_SOURCE_SHA256 =
+  '2b0013d56f2c5be80fef56d0d85d481ecbc663f30814bc61792e21df811403e5';
+const SEALED_REALMS_SOURCE_AUTHORITY_DECLARATION_SHA256 =
+  'e06c540bf17a13b364b32d52a89ec3e6c3d288665dc7d9ef06a22e07a58b494c';
 const GENESIS_001_POLICY_OBSERVATION_BOOTSTRAP_SOURCE_SHA256 =
   'be9efaf1ecad13c2cd94bfb457353b8946f12b3304f47b34e8b9422041712c1a';
 const GENESIS_001_POLICY_OBSERVATION_SOURCE_SHA256 =
@@ -261,6 +268,10 @@ export const SEALED_LAUNCH_SOURCE_PATHS = Object.freeze({
   ptrOwnerProvisionOperatorSource: 'scripts/ptr-owner-provision-operator.ts',
   admissionRequestSuspensionProbeSource:
     'scripts/verify-admission-request-suspension.mjs',
+  sealedRealmsProductionSourceAuthoritySource:
+    'scripts/sealed-realms-production-source-authority.mjs',
+  sealedRealmsProductionSourceAuthorityDeclaration:
+    'scripts/sealed-realms-production-source-authority.d.mts',
   realmChoicePolicySource: 'src/components/menu/realmChoicePolicy.ts',
   realmChoiceSelectorSource: 'src/components/menu/RealmChoiceSelector.tsx',
   realmMenuSource: 'src/components/menu/WarpkeepMainMenu.tsx',
@@ -3630,10 +3641,103 @@ function verifyPagesTwoPhaseBoundary(sources) {
   ) fail('SEALED_LAUNCH_PAGES_LIVE_POSTFLIGHT_ORDER_INVALID');
 }
 
+/**
+ * Task 6D deliberately pins only the narrow S/A authority producer here.  The
+ * remaining dispatcher and lane sources remain outside the sealed verifier
+ * until Task 7 can freeze their complete derived closure together.
+ */
+function verifySealedRealmsProductionSourceAuthority(sources) {
+  const source = sources.sealedRealmsProductionSourceAuthoritySource;
+  const declaration = sources.sealedRealmsProductionSourceAuthorityDeclaration;
+  // The Task 6D authority producer is deliberately sealed as one reviewed
+  // unit.  Token checks below still make the ABI self-documenting, but a
+  // source digest prevents an early-return, duplicate declaration, or decoy
+  // token from preserving those strings while bypassing the control flow.
+  if (
+    createHash('sha256').update(source, 'utf8').digest('hex')
+      !== SEALED_REALMS_SOURCE_AUTHORITY_SOURCE_SHA256
+    || createHash('sha256').update(declaration, 'utf8').digest('hex')
+      !== SEALED_REALMS_SOURCE_AUTHORITY_DECLARATION_SHA256
+  ) fail('SEALED_LAUNCH_SOURCE_AUTHORITY_INVALID');
+  const operations = [
+    'preflight',
+    'g001-policy-observe',
+    'g001-census-first',
+    'g001-census-second-inspect',
+    'g001-census-second-suspend',
+    'g001-current-state',
+    'g002-publish-inspect',
+    'g002-publish-apply',
+    'g002-import-inspect',
+    'g002-import-apply',
+    'g002-live-inspect',
+    'ptr-publish-inspect',
+    'ptr-publish-apply',
+    'ptr-import-inspect',
+    'ptr-import-apply',
+    'ptr-owner-provision-inspect',
+    'ptr-owner-provision',
+    'ptr-live-inspect',
+    'activation-evidence-inspect',
+    'activation-evidence-generate',
+  ];
+  const activated = [
+    'preflight',
+    'g001-current-state',
+    'g002-live-inspect',
+    'ptr-live-inspect',
+  ];
+  const parseAllowlist = (name) => {
+    const match = source.match(new RegExp(
+      `export const ${name} = Object\\.freeze\\(\\[([\\s\\S]*?)\\]\\);`,
+      'u',
+    ));
+    if (match === null) fail('SEALED_LAUNCH_SOURCE_AUTHORITY_INVALID');
+    return [...match[1].matchAll(/'([^']+)'/gu)].map(value => value[1]);
+  };
+  if (
+    JSON.stringify(parseAllowlist('SEALED_REALMS_OPERATIONS')) !== JSON.stringify(operations)
+    || JSON.stringify(parseAllowlist('SEALED_REALMS_ACTIVATED_OPERATIONS'))
+      !== JSON.stringify(activated)
+  ) fail('SEALED_LAUNCH_SOURCE_AUTHORITY_INVALID');
+
+  for (const token of [
+    "'refs/remotes/origin/main^{commit}'",
+    "['rev-parse', '--verify', 'HEAD^{commit}']",
+    "'diff-tree', '--no-commit-id', '--raw', '--no-renames', '-r', '-z',",
+    "bytes.toString('utf8').split('\\0')",
+    "const authenticatedAuthorities = new WeakSet();",
+    'const authenticatedSourceCommits = new WeakMap();',
+    'const authenticatedPreparationSourceCommits = new WeakMap();',
+    "JSON.stringify(Object.keys(value)) !== JSON.stringify(['verifiedSha'])",
+    'value.verifiedSha !== commit',
+    "binding.preparationSourceCommit !== commit",
+    "binding.preparationSourceCommit !== preparationCommit",
+    'authenticatePreparationParent(',
+    'authenticatedAuthorities.has(authority)',
+    "fail('SEALED_REALMS_SOURCE_AUTHORITY_OPAQUE_RESULT_REQUIRED')",
+  ]) {
+    if (!source.includes(token)) fail('SEALED_LAUNCH_SOURCE_AUTHORITY_INVALID');
+  }
+  if (source.split('authenticatedAuthorities.has(authority)').length !== 3) {
+    fail('SEALED_LAUNCH_SOURCE_AUTHORITY_INVALID');
+  }
+  for (const token of [
+    'declare const sealedRealmsSourceAuthority: unique symbol;',
+    'readonly [sealedRealmsSourceAuthority]: true;',
+    'preparationSourceCommitFromSealedRealmsProductionAuthority',
+    'SEALED_REALMS_ACTIVATED_OPERATIONS: readonly [',
+    "'activation-evidence-generate',",
+  ]) {
+    if (!declaration.includes(token)) fail('SEALED_LAUNCH_SOURCE_AUTHORITY_INVALID');
+  }
+}
+
 function verifyStaticSources(sources) {
   for (const key of Object.keys(SEALED_LAUNCH_SOURCE_PATHS)) {
     if (typeof sources[key] !== 'string') fail('SEALED_LAUNCH_SOURCE_SET_INVALID');
   }
+  verifySealedRealmsProductionSourceAuthority(sources);
   verifyGenesis001Policy(sources);
   verifyGenesis001SealedLaunchAdoption(sources);
   verifyGenesis001CensusPrivacyBoundary(sources);

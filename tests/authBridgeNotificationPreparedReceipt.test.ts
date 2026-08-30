@@ -9,6 +9,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   realpathSync,
   rmSync,
   statSync,
@@ -38,10 +39,14 @@ import {
   parseAuthBridgeNotificationPreparedReceipt,
   prepareAuthBridgeNotificationPreparedReceipt,
   readPrivateAuthBridgeNotificationPreparedReceipt,
+  resolveExistingAuthBridgeNotificationPreparedReceipt,
   verifyAuthBridgeNotificationPreparedReceipt,
   writePrivateAuthBridgeNotificationPreparedReceipt,
   type AuthBridgeNotificationPreparedReceipt,
 } from '../scripts/auth-bridge-notification-prepared-receipt.mjs';
+import {
+  resolveExistingAuthBridgeNotificationPreparedDeployJournal,
+} from '../scripts/auth-bridge-notification-prepared-deploy-journal.mjs';
 
 const NOW = new Date('2026-08-11T12:00:00.000Z');
 const ADMIN_TOKEN = 'test-admin-token-that-is-long-enough-for-production';
@@ -653,6 +658,91 @@ describe('fresh public release-attestation binding', () => {
 });
 
 describe('private production-admin prepared receipt storage', () => {
+  it('enumerates exactly one existing eligible receipt without creating or repairing state', async () => {
+    const home = temporaryHome('warpkeep-bridge-read-only-');
+    const { prepared } = await authenticatedReceipt();
+    const written = writePrivateAuthBridgeNotificationPreparedReceipt({
+      receipt: prepared,
+      repositoryRoot: process.cwd(),
+      reportedHome: home,
+      now: NOW,
+    });
+    const directory = dirname(written.path);
+    const before = readdirSync(directory).sort();
+
+    expect(resolveExistingAuthBridgeNotificationPreparedReceipt({
+      repositoryRoot: process.cwd(),
+      reportedHome: home,
+      expectedSourceCommit: SOURCE_COMMIT,
+      now: NOW,
+    })).toEqual({ receipt: receipt(), receiptDigest: written.receiptDigest });
+    expect(readdirSync(directory).sort()).toEqual(before);
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'resolves a canonical receipt-only state and rejects the missing completed journal without changing bytes',
+    async () => {
+      const home = temporaryHome('warpkeep-bridge-read-only-orphan-receipt-');
+      const { prepared } = await authenticatedReceipt();
+      const written = writePrivateAuthBridgeNotificationPreparedReceipt({
+        receipt: prepared,
+        repositoryRoot: process.cwd(),
+        reportedHome: home,
+        now: NOW,
+      });
+      const directory = dirname(written.path);
+      const before = new Map(readdirSync(directory).sort().map(name => [
+        name,
+        readFileSync(join(directory, name)),
+      ] as const));
+
+      expect(resolveExistingAuthBridgeNotificationPreparedReceipt({
+        repositoryRoot: process.cwd(),
+        reportedHome: home,
+        expectedSourceCommit: SOURCE_COMMIT,
+        now: NOW,
+      })).toEqual({ receipt: receipt(), receiptDigest: written.receiptDigest });
+      expect(() => resolveExistingAuthBridgeNotificationPreparedDeployJournal({
+        repositoryRoot: realpathSync(process.cwd()),
+        reportedHome: home,
+      })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_INVALID');
+      expect(readdirSync(directory).sort()).toEqual([...before.keys()]);
+      for (const [name, bytes] of before) {
+        expect(readFileSync(join(directory, name))).toEqual(bytes);
+      }
+    },
+  );
+
+  it.skipIf(process.platform === 'win32')(
+    'rejects two eligible prepared receipts without invoking deployment or changing bytes', async () => {
+    const home = temporaryHome('warpkeep-bridge-read-only-duplicate-');
+    const first = await authenticatedReceipt();
+    const secondDeploy = vi.fn(async () => undefined);
+    const second = await prepareAuthBridgeNotificationPreparedReceipt({
+      adminToken: ADMIN_TOKEN, expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
+      deploy: secondDeploy, expectedBridgeSourceCommit: SOURCE_COMMIT,
+      fetchImpl: preparationFetch() as typeof fetch,
+      clock: () => new Date(NOW.getTime() + 1),
+    });
+    const firstWritten = writePrivateAuthBridgeNotificationPreparedReceipt({
+      receipt: first.prepared, repositoryRoot: process.cwd(), reportedHome: home, now: NOW,
+    });
+    writePrivateAuthBridgeNotificationPreparedReceipt({
+      receipt: second, repositoryRoot: process.cwd(), reportedHome: home,
+      now: new Date(NOW.getTime() + 1),
+    });
+    const directory = dirname(firstWritten.path);
+    const before = readdirSync(directory).sort();
+    expect(() => resolveExistingAuthBridgeNotificationPreparedReceipt({
+      repositoryRoot: process.cwd(), reportedHome: home,
+      expectedSourceCommit: SOURCE_COMMIT, now: new Date(NOW.getTime() + 1),
+    })).toThrow(/MULTIPLE|STATE_INVALID|AMBIGUOUS/u);
+    expect(readdirSync(directory).sort()).toEqual(before);
+    expect(first.deploy).toHaveBeenCalledTimes(1);
+    expect(secondDeploy).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it('rejects arbitrary parsed receipts without authenticated predeploy evidence', () => {
     expect(() => writePrivateAuthBridgeNotificationPreparedReceipt({
       receipt: receipt() as never,

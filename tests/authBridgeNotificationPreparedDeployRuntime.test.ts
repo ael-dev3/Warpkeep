@@ -34,8 +34,12 @@ import {
 } from '../scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs';
 import {
   AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_STATE_CHILD,
+  resolveExistingAuthBridgeNotificationPreparedDeployJournal,
   withAuthBridgeNotificationPreparedDeployJournal,
 } from '../scripts/auth-bridge-notification-prepared-deploy-journal.mjs';
+import {
+  resolveExistingAuthBridgeNotificationPreparedReceipt,
+} from '../scripts/auth-bridge-notification-prepared-receipt.mjs';
 import {
   attestAuthBridgeNotificationPreparedDeployCheckout,
   authBridgeNotificationPreparedDeployTestSeams,
@@ -611,6 +615,138 @@ describe('auth-bridge prepared protected environment', () => {
 });
 
 describe('auth-bridge prepared durable deployment journal', () => {
+  it('enumerates one completed existing journal without creating or repairing state', async () => {
+    const home = temporaryHome();
+    const value = contract('d'.repeat(64));
+    await withAuthBridgeNotificationPreparedDeployJournal({
+      ...journalOptions(home, value),
+      operation: async journal => {
+        await journal.prepared(value);
+        await journal.remoteReconcileStarted({
+          predecessorDeploymentId: OLD_DEPLOYMENT_ID,
+          predecessorVersionId: OLD_VERSION_ID,
+          sourceCommit: SOURCE_COMMIT,
+          sourceDigest: value.sourceDigest,
+          versionTag: value.versionTag,
+        });
+        await journal.uploaded(version(value));
+        await journal.completed(deployment());
+      },
+    });
+    const directory = join(
+      home,
+      '.warpkeep',
+      'private',
+      'production-admin-v1',
+      AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_STATE_CHILD,
+    );
+    const before = readdirSync(directory).sort();
+
+    const resolved = resolveExistingAuthBridgeNotificationPreparedDeployJournal({
+      repositoryRoot: realpathSync(process.cwd()),
+      reportedHome: home,
+    });
+
+    expect(resolved).toMatchObject({
+      profile: 'warpkeep-auth-bridge-notification-prepared-deploy-journal-v3',
+      outcome: 'verified',
+      sourceCommit: SOURCE_COMMIT,
+      runId: '1001',
+      runAttempt: 1,
+      workerVersionId: VERSION_ID,
+    });
+    expect(resolved).not.toHaveProperty('directory');
+    expect(readdirSync(directory).sort()).toEqual(before);
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'resolves a canonical completed-head-only journal and rejects the missing receipt without changing bytes',
+    async () => {
+      const home = temporaryHome();
+      const value = contract('e'.repeat(64));
+      await withAuthBridgeNotificationPreparedDeployJournal({
+        ...journalOptions(home, value),
+        operation: async journal => {
+          await journal.prepared(value);
+          await journal.remoteReconcileStarted({
+            predecessorDeploymentId: OLD_DEPLOYMENT_ID,
+            predecessorVersionId: OLD_VERSION_ID,
+            sourceCommit: SOURCE_COMMIT,
+            sourceDigest: value.sourceDigest,
+            versionTag: value.versionTag,
+          });
+          await journal.uploaded(version(value));
+          await journal.completed(deployment());
+        },
+      });
+      const directory = join(
+        home,
+        '.warpkeep',
+        'private',
+        'production-admin-v1',
+        AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_STATE_CHILD,
+      );
+      const before = new Map(readdirSync(directory).sort().map(name => [
+        name,
+        readFileSync(join(directory, name)),
+      ] as const));
+
+      expect(resolveExistingAuthBridgeNotificationPreparedDeployJournal({
+        repositoryRoot: realpathSync(process.cwd()),
+        reportedHome: home,
+      })).toMatchObject({
+        profile: 'warpkeep-auth-bridge-notification-prepared-deploy-journal-v3',
+        outcome: 'verified',
+        sourceCommit: SOURCE_COMMIT,
+        runId: '1001',
+        runAttempt: 1,
+      });
+      expect(() => resolveExistingAuthBridgeNotificationPreparedReceipt({
+        repositoryRoot: realpathSync(process.cwd()),
+        reportedHome: home,
+        expectedSourceCommit: SOURCE_COMMIT,
+        now: NOW,
+      })).toThrow('AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID');
+      expect(readdirSync(directory).sort()).toEqual([...before.keys()]);
+      for (const [name, bytes] of before) {
+        expect(readFileSync(join(directory, name))).toEqual(bytes);
+      }
+    },
+  );
+
+  it.skipIf(process.platform === 'win32')(
+    'rejects two completed recovery-eligible journal heads without changing bytes', async () => {
+    const home = temporaryHome();
+    for (const [runId, value] of [
+      ['1001', contract('d'.repeat(64))],
+      ['1002', contract('e'.repeat(64))],
+    ] as const) {
+      await withAuthBridgeNotificationPreparedDeployJournal({
+        ...journalOptions(home, value), runId,
+        operation: async journal => {
+          await journal.prepared(value);
+          await journal.remoteReconcileStarted({
+            predecessorDeploymentId: OLD_DEPLOYMENT_ID,
+            predecessorVersionId: OLD_VERSION_ID,
+            sourceCommit: SOURCE_COMMIT,
+            sourceDigest: value.sourceDigest,
+            versionTag: value.versionTag,
+          });
+          await journal.uploaded(version(value));
+          await journal.completed(deployment());
+        },
+      });
+    }
+    const directory = join(home, '.warpkeep', 'private', 'production-admin-v1',
+      AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_STATE_CHILD);
+    const before = readdirSync(directory).sort();
+    expect(() => resolveExistingAuthBridgeNotificationPreparedDeployJournal({
+      repositoryRoot: realpathSync(process.cwd()), reportedHome: home,
+    })).toThrow(/MULTIPLE|STATE_INVALID|AMBIGUOUS/u);
+    expect(readdirSync(directory).sort()).toEqual(before);
+    },
+  );
+
   it('persists the exact predecessor without any global-secret phase', async () => {
     const home = temporaryHome();
     const value = contract('d'.repeat(64));

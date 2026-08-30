@@ -191,6 +191,10 @@ function checkedInSources() {
     farcasterManifestSource: source('public/.well-known/farcaster.json'),
     farcasterContractSource: source('scripts/farcaster-miniapp-contract.mjs'),
     latestPatchNotesSource: source('src/components/menu/latestPatchNotes.ts'),
+    sealedRealmsProductionSourceAuthoritySource:
+      source('scripts/sealed-realms-production-source-authority.mjs'),
+    sealedRealmsProductionSourceAuthorityDeclaration:
+      source('scripts/sealed-realms-production-source-authority.d.mts'),
     verifyWorkflowSource: source('.github/workflows/verify.yml'),
     pagesWorkflowSource: source('.github/workflows/deploy-pages.yml'),
   };
@@ -616,6 +620,51 @@ describe('0.4.0 sealed-launch verifier', () => {
     expect(verifySealedLaunchSources(checkedInSources(), 'preparation')).toMatchObject({
       phase: 'preparation',
     });
+  });
+
+  it.each([
+    (value: string) => value.replace(
+      "'refs/remotes/origin/main^{commit}'",
+      "'refs/heads/main^{commit}'",
+    ),
+    (value: string) => value.replace("'--no-renames'", "'--find-renames'"),
+    (value: string) => value.replace(
+      "bytes.toString('utf8').split('\\0')",
+      "bytes.toString('utf8').split('\\n')",
+    ),
+    (value: string) => value.replace('value.verifiedSha !== commit', 'false'),
+    (value: string) => value.replace(
+      'binding.preparationSourceCommit !== commit',
+      'false',
+    ),
+    (value: string) => value.replace('authenticatedAuthorities = new WeakSet()', 'authenticatedAuthorities = new Set()'),
+    (value: string) => value.replace('authenticatedAuthorities.has(authority)', 'true'),
+    (value: string) => value.replace("'ptr-live-inspect',\n]);", "'ptr-live-inspect',\n  'g002-import-apply',\n]);"),
+  ])('rejects weakened Task 6D source authority proof', mutate => {
+    const hostile = checkedInSources();
+    hostile.sealedRealmsProductionSourceAuthoritySource = mutate(
+      hostile.sealedRealmsProductionSourceAuthoritySource,
+    );
+    expect(() => verifySealedLaunchSources(hostile, 'preparation')).toThrow(
+      'SEALED_LAUNCH_SOURCE_AUTHORITY_INVALID',
+    );
+  });
+
+  it.each([
+    (value: string) => value.replace(
+      'export function authenticateSealedRealmsProductionSourceAuthority(input) {',
+      'export function authenticateSealedRealmsProductionSourceAuthority(input) {\n  return Object.freeze({});',
+    ),
+    (value: string) => `${value}\nfunction authenticatePreparationParent() { return undefined; }\n`,
+    (value: string) => `${value}\n// authenticatedAuthorities.has(authority)\n`,
+  ])('rejects decoy or early-return source-authority control flow', mutate => {
+    const hostile = checkedInSources();
+    hostile.sealedRealmsProductionSourceAuthoritySource = mutate(
+      hostile.sealedRealmsProductionSourceAuthoritySource,
+    );
+    expect(() => verifySealedLaunchSources(hostile, 'preparation')).toThrow(
+      'SEALED_LAUNCH_SOURCE_AUTHORITY_INVALID',
+    );
   });
 
   it.each([

@@ -69,6 +69,20 @@ export class AuthBridgeNotificationPreparedReceiptError extends Error {
   constructor(code: string);
 }
 
+/** Reads exactly one existing eligible receipt without creating or repairing state. */
+export function resolveExistingAuthBridgeNotificationPreparedReceipt(
+  options: Readonly<{
+    repositoryRoot: string;
+    /** Test-only substitute for the OS account home. */
+    reportedHome?: string;
+    expectedSourceCommit: string;
+    now?: Date;
+  }>,
+): Readonly<{
+  receipt: AuthBridgeNotificationPreparedReceipt;
+  receiptDigest: string;
+}>;
+
 export function ensureAuthBridgeNotificationPreparedReceiptDirectory(
   options: Readonly<{
     repositoryRoot: string;

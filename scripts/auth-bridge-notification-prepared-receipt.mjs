@@ -440,6 +440,157 @@ function repairIncompleteReceiptPublications(directory, uid) {
   }
 }
 
+function existingPrivateChild(parent, name, uid) {
+  return assertPrivateDirectory(
+    join(parent, name),
+    uid,
+    parent,
+    'AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID',
+  );
+}
+
+function existingPreparedReceiptDirectory({ repositoryRoot, reportedHome }) {
+  if (typeof repositoryRoot !== 'string' || !isAbsolute(repositoryRoot)) {
+    fail('AUTH_BRIDGE_PREPARED_REPOSITORY_INVALID');
+  }
+  const account = ownerUid();
+  if (
+    reportedHome !== undefined
+    && (typeof reportedHome !== 'string' || !isAbsolute(reportedHome))
+  ) fail('AUTH_BRIDGE_PREPARED_ACCOUNT_HOME_INVALID');
+  const requestedHome = reportedHome === undefined
+    ? account.home
+    : resolve(reportedHome);
+  let home;
+  try {
+    const metadata = lstatSync(requestedHome);
+    home = realpathSync(requestedHome);
+    if (
+      !metadata.isDirectory()
+      || metadata.isSymbolicLink()
+      || metadata.uid !== account.uid
+      || (metadata.mode & 0o7022) !== 0
+      || home !== requestedHome
+    ) fail('AUTH_BRIDGE_PREPARED_ACCOUNT_HOME_INVALID');
+  } catch (error) {
+    if (error instanceof AuthBridgeNotificationPreparedReceiptError) throw error;
+    fail('AUTH_BRIDGE_PREPARED_ACCOUNT_HOME_INVALID');
+  }
+  const warpkeep = existingPrivateChild(home, '.warpkeep', account.uid);
+  const privateRoot = existingPrivateChild(warpkeep, 'private', account.uid);
+  const productionAdmin = existingPrivateChild(
+    privateRoot,
+    'production-admin-v1',
+    account.uid,
+  );
+  assertNoRepositoryOverlap(productionAdmin, repositoryRoot);
+  const directory = existingPrivateChild(
+    productionAdmin,
+    AUTH_BRIDGE_NOTIFICATION_PREPARED_STATE_CHILD,
+    account.uid,
+  );
+  assertNoRepositoryOverlap(directory, repositoryRoot);
+  return Object.freeze({ directory, uid: account.uid });
+}
+
+function readExistingPreparedReceipt(directory, name, uid) {
+  if (!RECEIPT_FILE.test(name)) {
+    fail('AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID');
+  }
+  const path = join(directory, name);
+  let descriptor;
+  let bytes;
+  try {
+    const named = lstatSync(path);
+    if (
+      !named.isFile() || named.isSymbolicLink() || named.uid !== uid
+      || (named.mode & 0o7777) !== FILE_MODE || named.nlink !== 1
+      || named.size < 1 || named.size > MAX_RECEIPT_BYTES
+    ) fail('AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID');
+    descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const before = fstatSync(descriptor);
+    if (
+      !before.isFile() || before.uid !== uid || (before.mode & 0o7777) !== FILE_MODE
+      || before.nlink !== 1 || before.dev !== named.dev || before.ino !== named.ino
+      || before.size !== named.size
+    ) fail('AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID');
+    bytes = readFileSync(descriptor);
+    const after = fstatSync(descriptor);
+    const afterNamed = lstatSync(path);
+    if (
+      bytes.byteLength !== before.size || after.dev !== before.dev || after.ino !== before.ino
+      || after.size !== before.size || after.mtimeMs !== before.mtimeMs
+      || after.ctimeMs !== before.ctimeMs || afterNamed.dev !== before.dev
+      || afterNamed.ino !== before.ino
+    ) fail('AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID');
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    const receipt = parseAuthBridgeNotificationPreparedReceipt(JSON.parse(source));
+    const canonical = receiptBytes(receipt);
+    try {
+      if (!bytes.equals(canonical)) fail('AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID');
+    } finally {
+      canonical.fill(0);
+    }
+    const receiptDigest = createHash('sha256').update(bytes).digest('hex');
+    if (name !== `auth-bridge-notification-prepared-${receiptDigest}.json`) {
+      fail('AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID');
+    }
+    return Object.freeze({ receipt, receiptDigest });
+  } catch (error) {
+    if (error instanceof AuthBridgeNotificationPreparedReceiptError) throw error;
+    fail('AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID');
+  } finally {
+    bytes?.fill(0);
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+/**
+ * Finds one eligible existing prepared receipt without creating, repairing, or
+ * accepting a caller-selected receipt path/digest. The caller supplies only the
+ * already-authenticated source commit expected by the dispatcher.
+ */
+export function resolveExistingAuthBridgeNotificationPreparedReceipt({
+  repositoryRoot,
+  reportedHome,
+  expectedSourceCommit,
+  now = new Date(),
+} = {}) {
+  if (typeof expectedSourceCommit !== 'string' || !SOURCE_COMMIT.test(expectedSourceCommit)) {
+    fail('AUTH_BRIDGE_PREPARED_EXPECTED_SOURCE_INVALID');
+  }
+  const state = existingPreparedReceiptDirectory({ repositoryRoot, reportedHome });
+  let names;
+  try { names = readdirSync(state.directory); } catch {
+    fail('AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID');
+  }
+  if (names.length > 64) fail('AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID');
+  const candidates = [];
+  for (const name of names.sort()) {
+    if (!RECEIPT_FILE.test(name)) {
+      // A temporary or foreign file proves a concurrently mutable / non-dedicated
+      // namespace. The read-only resolver must never repair it.
+      fail('AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID');
+    }
+    const candidate = readExistingPreparedReceipt(state.directory, name, state.uid);
+    if (
+      candidate.receipt.bridgeSourceCommit === expectedSourceCommit
+      && Date.parse(candidate.receipt.preparedAt) <= dateValue(
+        now,
+        'AUTH_BRIDGE_PREPARED_VERIFICATION_TIME_INVALID',
+      )
+      && Date.parse(candidate.receipt.expiresAt) > dateValue(
+        now,
+        'AUTH_BRIDGE_PREPARED_VERIFICATION_TIME_INVALID',
+      )
+    ) candidates.push(candidate);
+  }
+  if (candidates.length !== 1) {
+    fail('AUTH_BRIDGE_PREPARED_EXISTING_RECEIPT_AMBIGUOUS');
+  }
+  return Object.freeze(candidates[0]);
+}
+
 /**
  * Resolves the receipt directory below the OS account home, never ambient HOME.
  * `reportedHome` exists only so tests can exercise the same checks in isolation.
