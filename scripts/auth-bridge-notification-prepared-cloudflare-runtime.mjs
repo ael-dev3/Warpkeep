@@ -22,6 +22,12 @@ import {
   AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
   AUTH_BRIDGE_NOTIFICATION_PREPARED_WRANGLER_VERSION,
 } from './auth-bridge-notification-prepared-deploy-adapter.mjs';
+import {
+  verifyAuthBridgePreparedRpcRoleAttestation,
+} from './auth-bridge-config-attestation.mjs';
+import {
+  fetchFreshAuthBridgeReleaseAttestation,
+} from './auth-bridge-notification-prepared-receipt.mjs';
 
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_CLOUDFLARE_API_ORIGIN =
   'https://api.cloudflare.com';
@@ -39,6 +45,10 @@ const RECOVERY_SETTLE_MILLISECONDS = 1_000;
 const ACCOUNT_ID = /^[a-f0-9]{32}$/u;
 const SOURCE_COMMIT = /^[a-f0-9]{40}$/u;
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
+const RECOVERY_STRICT_UTC = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3}Z$/u;
+const recoveryRuntimeTestCapabilities = new WeakSet();
+const productionRecoveryCapability = Object.freeze({});
+recoveryRuntimeTestCapabilities.add(productionRecoveryCapability);
 const VERSION_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/u;
 const CLOUDFLARE_UTC = /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?Z$/u;
 const SECRET_TOKEN = /^[A-Za-z0-9._~+\-/=]{20,4096}$/u;
@@ -131,6 +141,15 @@ function fail(code, deploymentMayHaveChanged = false) {
     code,
     deploymentMayHaveChanged,
   );
+}
+
+export function createAuthBridgeNotificationPreparedRecoveryRuntimeTestCapability() {
+  if (process.env.NODE_ENV !== 'test') {
+    fail('AUTH_BRIDGE_PREPARED_RECOVERY_TEST_ONLY_FORBIDDEN');
+  }
+  const capability = Object.freeze({});
+  recoveryRuntimeTestCapabilities.add(capability);
+  return capability;
 }
 
 function isRecord(value) {
@@ -477,6 +496,366 @@ export function inspectAuthBridgeNotificationPreparedMultipart(body, contentType
     metadata,
     sourceDigest: authBridgeNotificationPreparedSourceDigest(modules),
     modules,
+  });
+}
+
+function recoveryFreshTime(value, now) {
+  if (
+    typeof value !== 'string'
+    || !RECOVERY_STRICT_UTC.test(value)
+    || new Date(Date.parse(value)).toISOString() !== value
+  ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_ATTESTATION_INVALID');
+  const observed = Date.parse(value);
+  if (
+    observed > now.getTime()
+    || now.getTime() - observed >= 5 * 60 * 1_000
+  ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_ATTESTATION_STALE');
+  return value;
+}
+
+function recoveryResponseObservedAt(response, now) {
+  const value = response.headers.get('date');
+  if (
+    value === null
+    || new Date(Date.parse(value)).toUTCString() !== value
+    || Date.parse(value) > now.getTime()
+    || now.getTime() - Date.parse(value) >= 5 * 60 * 1_000
+  ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_ATTESTATION_STALE');
+  return new Date(Date.parse(value)).toISOString();
+}
+
+async function productionRecoveryInspection(input) {
+  const api = async path => {
+    const url =
+      `${AUTH_BRIDGE_NOTIFICATION_PREPARED_CLOUDFLARE_API_ORIGIN}${API_PREFIX}${path}`;
+    const response = await input.fetchImpl(
+      url,
+      {
+        method: 'GET', redirect: 'error', cache: 'no-store',
+        headers: { authorization: `Bearer ${input.apiToken}` },
+      },
+    );
+    if (
+      !(response instanceof Response)
+      || !response.ok || response.status !== 200 || response.redirected
+      || (response.url !== '' && response.url !== url)
+      || !/^application\/json(?:;\s*charset=utf-8)?$/iu.test(
+        response.headers.get('content-type') ?? '',
+      )
+    ) {
+      fail('AUTH_BRIDGE_PREPARED_RECOVERY_CONTROL_PLANE_INVALID');
+    }
+    const advertised = response.headers.get('content-length');
+    if (
+      advertised !== null
+      && (!/^\d+$/u.test(advertised) || Number(advertised) > MAX_JSON_BYTES)
+    ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_CONTROL_PLANE_INVALID');
+    const observedAt = recoveryResponseObservedAt(response, input.now);
+    const body = await boundedBody(response, MAX_JSON_BYTES);
+    let value;
+    try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(body)); }
+    catch { fail('AUTH_BRIDGE_PREPARED_RECOVERY_CONTROL_PLANE_INVALID'); }
+    finally { body.fill(0); }
+    if (
+      !isRecord(value)
+      || Object.keys(value).some(key => ![
+        'success', 'errors', 'messages', 'result', 'result_info',
+      ].includes(key))
+      || value.success !== true
+      || !Array.isArray(value.errors) || value.errors.length !== 0
+      || !Array.isArray(value.messages) || value.messages.length !== 0
+      || !Object.hasOwn(value, 'result')
+    ) {
+      fail('AUTH_BRIDGE_PREPARED_RECOVERY_CONTROL_PLANE_INVALID');
+    }
+    return Object.freeze({ result: value.result, observedAt });
+  };
+  const base = `/accounts/${input.accountId}/workers/scripts/warpkeep-auth-bridge`;
+  let versionProjection;
+  const inspectVersion = async workerVersionId => {
+    const response = await api(`${base}/versions/${workerVersionId}`);
+    const detail = response.result;
+    const bindings = detail?.resources?.bindings;
+    const ptr = Array.isArray(bindings) ? bindings.filter(binding =>
+      binding?.name === AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_DATABASE_BINDING
+      && binding?.type === 'plain_text'
+      && SPACETIMEDB_DATABASE_IDENTITY.test(binding?.text ?? '')) : [];
+    if (
+      detail?.id !== workerVersionId || ptr.length !== 1
+      || detail?.annotations?.['workers/tag']
+        !== `notification-prepared-${input.expected.bridgeSourceCommit}`
+      || detail?.annotations?.['workers/message']
+        !== `Warpkeep notification preparation ${input.expected.bridgeSourceCommit}`
+    ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_VERSION_MISMATCH');
+    const ptrBindingDigest = createHash('sha256')
+      .update('warpkeep.auth-bridge.ptr-binding.v1\n')
+      .update(`${JSON.stringify([
+        workerVersionId, input.expected.bridgeSourceCommit, ptr[0].text,
+        AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_OIDC_AUDIENCE,
+      ])}\n`)
+      .digest('hex');
+    versionProjection = Object.freeze({
+      workerVersionId,
+      bridgeSourceCommit: input.expected.bridgeSourceCommit,
+      ptrDatabaseIdentity: ptr[0].text,
+      ptrBindingDigest,
+    });
+    versionObservedAt = response.observedAt;
+    return versionProjection;
+  };
+  let versionObservedAt;
+  const deploymentsReader = async () => {
+    const { result } = await api(`${base}/deployments`);
+    const values = Array.isArray(result) ? result : result?.deployments;
+    const latest = values?.[0];
+    if (
+      !Array.isArray(values) || values.length < 1
+      || !VERSION_ID.test(latest?.id ?? '')
+      || latest?.strategy !== 'percentage'
+      || !Array.isArray(latest?.versions)
+      || latest.versions.length !== 1
+      || latest.versions[0]?.percentage !== 100
+      || !VERSION_ID.test(latest.versions[0]?.version_id ?? '')
+    ) {
+      fail('AUTH_BRIDGE_PREPARED_RECOVERY_DEPLOYMENT_AMBIGUOUS');
+    }
+    return [{
+      deploymentId: latest.id,
+      workerVersionId: latest.versions[0].version_id,
+    }];
+  };
+  const deployableReader = async () => {
+    const { result } = await api(`${base}/versions?deployable=true&page=1&per_page=100`);
+    const values = Array.isArray(result) ? result : result?.items;
+    if (!Array.isArray(values)) {
+      fail('AUTH_BRIDGE_PREPARED_RECOVERY_LATEST_VERSION_AMBIGUOUS');
+    }
+    const matches = values.filter(value => value?.id === input.expected.workerVersionId);
+    const { result: latest } = await api(`${base}/versions?page=1&per_page=1`);
+    const latestValues = Array.isArray(latest) ? latest : latest?.items;
+    if (matches.length !== 1 || !Array.isArray(latestValues)
+      || latestValues.length !== 1
+      || latestValues[0]?.id !== input.expected.workerVersionId) {
+      fail('AUTH_BRIDGE_PREPARED_RECOVERY_LATEST_VERSION_AMBIGUOUS');
+    }
+    return [{ workerVersionId: input.expected.workerVersionId }];
+  };
+  const control = async () => {
+    const response = await api(`${base}/deployments`);
+    const values = Array.isArray(response.result)
+      ? response.result : response.result?.deployments;
+    const latest = values?.[0];
+    if (
+      !Array.isArray(values) || values.length < 1
+      || !VERSION_ID.test(latest?.id ?? '')
+      || latest?.strategy !== 'percentage'
+      || !Array.isArray(latest?.versions) || latest.versions.length !== 1
+      || latest.versions[0]?.percentage !== 100
+      || !VERSION_ID.test(latest.versions[0]?.version_id ?? '')
+    ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_DEPLOYMENT_AMBIGUOUS');
+    const value = {
+      deploymentId: latest.id,
+      workerVersionId: latest.versions[0].version_id,
+      bridgeSourceCommit: input.expected.bridgeSourceCommit,
+      observedAt: response.observedAt,
+    };
+    return { ...value, digest: createHash('sha256')
+      .update(`${JSON.stringify(value)}\n`).digest('hex') };
+  };
+  const publicReader = async () => {
+    const live = await fetchFreshAuthBridgeReleaseAttestation({
+      fetchImpl: input.fetchImpl, now: input.now,
+    });
+    return {
+      bridgeSourceCommit: live.attestation.bridgeSourceCommit,
+      observedAt: new Date(Date.parse(live.responseDate)).toISOString(),
+      digest: live.digest,
+      liveAttestation: live.attestation,
+    };
+  };
+  const privateReader = async () => {
+    if (versionProjection === undefined) {
+      await inspectVersion(input.expected.workerVersionId);
+    }
+    let privateObservedAt;
+    const privateFetch = async (...args) => {
+      const response = await input.fetchImpl(...args);
+      if (!(response instanceof Response)) {
+        fail('AUTH_BRIDGE_PREPARED_RECOVERY_ATTESTATION_INVALID');
+      }
+      privateObservedAt = recoveryResponseObservedAt(response, input.now);
+      return response;
+    };
+    const value = await verifyAuthBridgePreparedRpcRoleAttestation({
+      adminToken: input.adminToken,
+      expectedBridgeSourceCommit: input.expected.bridgeSourceCommit,
+      expectedPtrSpacetimeDbDatabase: versionProjection.ptrDatabaseIdentity,
+      fetchImpl: privateFetch,
+      now: input.now,
+    });
+    return {
+      bridgeSourceCommit: input.expected.bridgeSourceCommit,
+      ptrDatabaseIdentity: versionProjection.ptrDatabaseIdentity,
+      ptrBindingDigest: versionProjection.ptrBindingDigest,
+      observedAt: privateObservedAt, digest: value.digest,
+    };
+  };
+  const ptrReader = async () => {
+    const independent = await inspectVersion(input.expected.workerVersionId);
+    const value = {
+      ptrDatabaseIdentity: independent.ptrDatabaseIdentity,
+      ptrBindingDigest: independent.ptrBindingDigest,
+      observedAt: versionObservedAt,
+    };
+    return { ...value, digest: createHash('sha256')
+      .update(`${JSON.stringify(value)}\n`).digest('hex') };
+  };
+  return inspectAuthBridgeNotificationPreparedRecoveryAuthority({
+    testOnlyCapability: productionRecoveryCapability,
+    expected: input.expected,
+    now: input.now,
+    enumerateDeployments: deploymentsReader,
+    enumerateDeployableVersions: deployableReader,
+    inspectVersion,
+    inspectControlPlaneAttestation: control,
+    inspectPublicAttestation: publicReader,
+    inspectPrivateAttestation: privateReader,
+    inspectPtrBindingAttestation: ptrReader,
+  });
+}
+
+/**
+ * Read-only recovery inspection boundary. Every provider operation is an
+ * enumerator, exact-version read, or attestation read; mutation callbacks are
+ * deliberately outside the accepted input shape.
+ */
+export async function inspectAuthBridgeNotificationPreparedRecoveryAuthority(
+  input = {},
+) {
+  if (exactKeys(input, [
+    'expected', 'now', 'accountId', 'zoneId', 'apiToken', 'adminToken',
+    'fetchImpl',
+  ])) {
+    if (
+      !ACCOUNT_ID.test(input.accountId ?? '')
+      || !ACCOUNT_ID.test(input.zoneId ?? '')
+      || !SECRET_TOKEN.test(input.apiToken ?? '')
+      || !SECRET_TOKEN.test(input.adminToken ?? '')
+      || typeof input.fetchImpl !== 'function'
+    ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_INPUT_INVALID');
+    return productionRecoveryInspection(input);
+  }
+  if (!exactKeys(input, [
+    'testOnlyCapability', 'expected', 'now', 'enumerateDeployments', 'enumerateDeployableVersions',
+    'inspectVersion', 'inspectControlPlaneAttestation',
+    'inspectPublicAttestation', 'inspectPrivateAttestation',
+    'inspectPtrBindingAttestation',
+  ]) || !recoveryRuntimeTestCapabilities.has(input.testOnlyCapability)) {
+    fail('AUTH_BRIDGE_PREPARED_RECOVERY_INPUT_INVALID');
+  }
+  const expected = input.expected;
+  if (
+    !exactKeys(expected, ['workerVersionId', 'bridgeSourceCommit'])
+    || !VERSION_ID.test(expected.workerVersionId ?? '')
+    || !SOURCE_COMMIT.test(expected.bridgeSourceCommit ?? '')
+    || !(input.now instanceof Date)
+    || Number.isNaN(input.now.getTime())
+    || [
+      input.enumerateDeployments,
+      input.enumerateDeployableVersions,
+      input.inspectVersion,
+      input.inspectControlPlaneAttestation,
+      input.inspectPublicAttestation,
+      input.inspectPrivateAttestation,
+      input.inspectPtrBindingAttestation,
+    ].some(value => typeof value !== 'function')
+  ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_INPUT_INVALID');
+
+  const deployments = await input.enumerateDeployments();
+  if (
+    !Array.isArray(deployments)
+    || deployments.length !== 1
+    || !exactKeys(deployments[0], ['deploymentId', 'workerVersionId'])
+    || !VERSION_ID.test(deployments[0].deploymentId ?? '')
+    || deployments[0].workerVersionId !== expected.workerVersionId
+  ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_DEPLOYMENT_AMBIGUOUS');
+  const deployable = await input.enumerateDeployableVersions();
+  if (
+    !Array.isArray(deployable)
+    || deployable.length !== 1
+    || !exactKeys(deployable[0], ['workerVersionId'])
+    || deployable[0].workerVersionId !== expected.workerVersionId
+  ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_LATEST_VERSION_AMBIGUOUS');
+  const version = await input.inspectVersion(expected.workerVersionId);
+  if (
+    !exactKeys(version, [
+      'workerVersionId', 'bridgeSourceCommit', 'ptrDatabaseIdentity',
+      'ptrBindingDigest',
+    ])
+    || version.workerVersionId !== expected.workerVersionId
+    || version.bridgeSourceCommit !== expected.bridgeSourceCommit
+    || !SHA256_HEX.test(version.ptrDatabaseIdentity ?? '')
+    || !SHA256_HEX.test(version.ptrBindingDigest ?? '')
+  ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_VERSION_MISMATCH');
+
+  const [control, publicAttestation, privateAttestation, ptrAttestation] =
+    await Promise.all([
+      input.inspectControlPlaneAttestation(),
+      input.inspectPublicAttestation(),
+      input.inspectPrivateAttestation(),
+      input.inspectPtrBindingAttestation(),
+    ]);
+  if (
+    !exactKeys(control, [
+      'deploymentId', 'workerVersionId', 'bridgeSourceCommit', 'observedAt',
+      'digest',
+    ])
+    || control.deploymentId !== deployments[0].deploymentId
+    || control.workerVersionId !== expected.workerVersionId
+    || control.bridgeSourceCommit !== expected.bridgeSourceCommit
+    || !SHA256_HEX.test(control.digest ?? '')
+    || !exactKeys(publicAttestation, [
+      'bridgeSourceCommit', 'observedAt', 'digest', 'liveAttestation',
+    ])
+    || publicAttestation.bridgeSourceCommit !== expected.bridgeSourceCommit
+    || !SHA256_HEX.test(publicAttestation.digest ?? '')
+    || !isRecord(publicAttestation.liveAttestation)
+    || publicAttestation.liveAttestation.bridgeSourceCommit
+      !== expected.bridgeSourceCommit
+    || !exactKeys(privateAttestation, [
+      'bridgeSourceCommit', 'ptrDatabaseIdentity', 'ptrBindingDigest',
+      'observedAt', 'digest',
+    ])
+    || privateAttestation.bridgeSourceCommit !== expected.bridgeSourceCommit
+    || privateAttestation.ptrDatabaseIdentity !== version.ptrDatabaseIdentity
+    || privateAttestation.ptrBindingDigest !== version.ptrBindingDigest
+    || !SHA256_HEX.test(privateAttestation.digest ?? '')
+    || !exactKeys(ptrAttestation, [
+      'ptrDatabaseIdentity', 'ptrBindingDigest', 'observedAt', 'digest',
+    ])
+    || ptrAttestation.ptrDatabaseIdentity !== version.ptrDatabaseIdentity
+    || ptrAttestation.ptrBindingDigest !== version.ptrBindingDigest
+    || !SHA256_HEX.test(ptrAttestation.digest ?? '')
+  ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_ATTESTATION_INVALID');
+  for (const attestation of [
+    control, publicAttestation, privateAttestation, ptrAttestation,
+  ]) recoveryFreshTime(attestation.observedAt, input.now);
+  const oldestObservedAt = new Date(Math.min(...[
+    control, publicAttestation, privateAttestation, ptrAttestation,
+  ].map(attestation => Date.parse(attestation.observedAt)))).toISOString();
+  return Object.freeze({
+    deploymentId: deployments[0].deploymentId,
+    workerVersionId: expected.workerVersionId,
+    bridgeSourceCommit: expected.bridgeSourceCommit,
+    ptrDatabaseIdentity: version.ptrDatabaseIdentity,
+    ptrBindingDigest: version.ptrBindingDigest,
+    controlPlaneAttestationDigest: control.digest,
+    publicAttestationDigest: publicAttestation.digest,
+    privateAttestationDigest: privateAttestation.digest,
+    ptrBindingAttestationDigest: ptrAttestation.digest,
+    liveAttestation: Object.freeze({ ...publicAttestation.liveAttestation }),
+    oldestObservedAt,
+    inspectedAt: input.now.toISOString(),
   });
 }
 

@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: notification-bridge-b0
+  group: warpkeep-production-state
   cancel-in-progress: false
 
 jobs:

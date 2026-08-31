@@ -240,6 +240,10 @@ function activationBinding() {
       'warpkeep-genesis-001-census-export-privacy-safe-v1',
     g001CensusPrivacySafeReceiptDigest: '3'.repeat(64),
     g001CensusPrivacySafeReceiptCommitment: null,
+    g001AdmittedPlayerCensusReceiptProfile:
+      'warpkeep-genesis-001-admitted-player-census-privacy-safe-v1',
+    g001AdmittedPlayerCensusReceiptDigest: '2'.repeat(64),
+    g001AdmittedPlayerCensusReceiptCommitment: null,
     admissionMonitorSuspensionReceiptDigest: '4'.repeat(64),
     admissionMonitorSuspensionReceiptCommitment: null,
     admissionMonitorCurrentStateReceiptDigest: '0'.repeat(64),
@@ -357,6 +361,7 @@ function activationBinding() {
     'g001PolicyReceiptCommitment',
     'g001PolicyObservationBootstrapReceiptCommitment',
     'g001CensusPrivacySafeReceiptCommitment',
+    'g001AdmittedPlayerCensusReceiptCommitment',
     'admissionMonitorSuspensionReceiptCommitment',
     'admissionMonitorCurrentStateReceiptCommitment',
     'admissionRequestSuspensionReceiptCommitment',
@@ -375,6 +380,8 @@ function activationBinding() {
       binding,
     );
   }
+  expect(Object.keys(binding).filter(key => key.endsWith('Commitment')))
+    .toHaveLength(17);
   return binding;
 }
 
@@ -2552,6 +2559,16 @@ export function createPtrAtlasImportTransport(`,
       candidate[digestKey] = 'f'.repeat(64);
       expect(() => createSealedLaunchActivationBinding(candidate)).toThrow();
     }
+  });
+
+  it('keeps the admitted-player census digest in the explicit activation digest gate', () => {
+    const verifierSource = source('scripts/verify-0.4.0-sealed-launch.mjs');
+    const digestGate = verifierSource.match(
+      /function verifyActivationBinding\(binding\) \{\n  const digestKeys = \[([\s\S]*?)\n  \];/u,
+    )?.[1] ?? '';
+    expect(digestGate).toContain(
+      "'g001AdmittedPlayerCensusReceiptDigest'",
+    );
   });
 
   it('rejects random or swapped G002 receipt commitments and ancestry', () => {

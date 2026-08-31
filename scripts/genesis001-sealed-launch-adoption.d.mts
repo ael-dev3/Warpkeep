@@ -46,6 +46,9 @@ export type Genesis001SealedLaunchPublicEvidence = Readonly<{
   g001AccessRequestSubmissionsEnabled: false;
   g001CensusPrivacySafeReceiptProfile: string;
   g001CensusPrivacySafeReceiptDigest: string;
+  g001AdmittedPlayerCensusReceiptProfile:
+    'warpkeep-genesis-001-admitted-player-census-privacy-safe-v1';
+  g001AdmittedPlayerCensusReceiptDigest: string;
   admissionMonitorSuspensionReceiptDigest: string;
   admissionMonitorCurrentStateReceiptDigest: string;
   admissionMonitorDisabled: true;

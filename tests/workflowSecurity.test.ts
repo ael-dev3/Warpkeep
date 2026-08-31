@@ -139,7 +139,7 @@ describe('GitHub workflow security policy', () => {
     expect(build.indexOf('npm run verify:sealed-launch:activation')).toBeLessThan(
       build.indexOf('npm run build'),
     );
-    expect(source).toContain('group: pages-main');
+    expect(source).toContain('group: warpkeep-production-state');
     expect(source).not.toMatch(/^\s+group:\s*pages\s*$/m);
   });
 
@@ -158,7 +158,9 @@ describe('GitHub workflow security policy', () => {
     expect(source.match(/^concurrency:\s*$/gm)).toHaveLength(1);
     expect(source).not.toMatch(/^[ \t]+concurrency:\s*$/gm);
     expect(source.match(/^[ \t]+cancel-in-progress:\s*/gm)).toHaveLength(1);
-    expect(concurrency).toMatch(/^\s+group:\s*pages-main\s*$/m);
+    expect(concurrency).toMatch(
+      /^\s+group:\s*warpkeep-production-state\s*$/m,
+    );
     expect(concurrency).toMatch(/^\s+cancel-in-progress:\s*false\s*$/m);
     expect(concurrency).not.toMatch(/^\s+cancel-in-progress:\s*true\s*$/m);
 
@@ -357,7 +359,7 @@ describe('GitHub workflow security policy', () => {
   it('gives the complete root suite a bounded hosted-runner allowance', () => {
     for (const { job, timeoutMinutes, stepName, run } of [
       {
-        job: workflowJob('verify.yml', 'verify'),
+        job: workflowJob('verify.yml', 'linux'),
         timeoutMinutes: 75,
         stepName: 'Run tests',
         run: splitRootTestRun,
@@ -400,7 +402,7 @@ describe('GitHub workflow security policy', () => {
     const rootTestWorkflows = [
       {
         source: workflow('verify.yml'),
-        job: workflowJob('verify.yml', 'verify'),
+        job: workflowJob('verify.yml', 'linux'),
         stepName: 'Run tests',
         run: splitRootTestRun,
       },

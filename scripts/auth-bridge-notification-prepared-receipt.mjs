@@ -591,6 +591,112 @@ export function resolveExistingAuthBridgeNotificationPreparedReceipt({
   return Object.freeze(candidates[0]);
 }
 
+/** Read-only crash-resume probe: zero or one fresh receipt, never repair. */
+export function resolvePendingAuthBridgeNotificationPreparedRecoveryReceipt({
+  repositoryRoot,
+  reportedHome,
+  expectedSourceCommit,
+  excludedReceiptDigest,
+  now = new Date(),
+} = {}) {
+  if (
+    !SOURCE_COMMIT.test(expectedSourceCommit ?? '')
+    || !SHA256_HEX.test(excludedReceiptDigest ?? '')
+  ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_RECEIPT_INVALID');
+  const current = dateValue(now, 'AUTH_BRIDGE_PREPARED_RECOVERY_TIME_INVALID');
+  const state = existingPreparedReceiptDirectory({ repositoryRoot, reportedHome });
+  let names;
+  try { names = readdirSync(state.directory).sort(); } catch {
+    fail('AUTH_BRIDGE_PREPARED_RECOVERY_RECEIPT_INVALID');
+  }
+  if (
+    names.length < 1 || names.length > 64
+    || names.some(name => !RECEIPT_FILE.test(name))
+  ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_RECEIPT_INVALID');
+  const candidates = names.map(name =>
+    readExistingPreparedReceipt(state.directory, name, state.uid)).filter(candidate => (
+    candidate.receiptDigest !== excludedReceiptDigest
+    && candidate.receipt.bridgeSourceCommit === expectedSourceCommit
+    && Date.parse(candidate.receipt.preparedAt) <= current
+    && Date.parse(candidate.receipt.expiresAt) > current
+  ));
+  if (candidates.length > 1) {
+    fail('AUTH_BRIDGE_PREPARED_RECOVERY_RECEIPT_AMBIGUOUS');
+  }
+  return candidates[0] ?? null;
+}
+
+function resolveAuthBridgeNotificationPreparedReceiptByDigestExistingOnly({
+  repositoryRoot,
+  reportedHome,
+  receiptDigest,
+  expectedSourceCommit,
+  now = new Date(),
+  requiredState,
+} = {}) {
+  const digest = exactReceiptDigest(receiptDigest);
+  if (!SOURCE_COMMIT.test(expectedSourceCommit ?? '')) {
+    fail('AUTH_BRIDGE_PREPARED_RECOVERY_RECEIPT_INVALID');
+  }
+  const current = dateValue(now, 'AUTH_BRIDGE_PREPARED_RECOVERY_TIME_INVALID');
+  const state = existingPreparedReceiptDirectory({ repositoryRoot, reportedHome });
+  let names;
+  try { names = readdirSync(state.directory).sort(); } catch {
+    fail('AUTH_BRIDGE_PREPARED_RECOVERY_RECEIPT_INVALID');
+  }
+  if (
+    names.length < 1 || names.length > 64
+    || names.some(name => !RECEIPT_FILE.test(name))
+  ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_RECEIPT_INVALID');
+  const candidates = names.map(name => ({
+    name,
+    ...readExistingPreparedReceipt(state.directory, name, state.uid),
+  }));
+  const target = candidates.filter(candidate =>
+    candidate.receiptDigest === digest);
+  const targetExpiry = Date.parse(target[0]?.receipt?.expiresAt ?? '');
+  const targetPrepared = Date.parse(target[0]?.receipt?.preparedAt ?? '');
+  const stateValid = requiredState === 'expired'
+    ? targetExpiry <= current
+    : requiredState === 'fresh'
+      && targetPrepared <= current && targetExpiry > current;
+  if (
+    target.length !== 1
+    || target[0].receipt.bridgeSourceCommit !== expectedSourceCommit
+    || !stateValid
+    || candidates.some(candidate => (
+      candidate.receiptDigest !== digest
+      && candidate.receipt.bridgeSourceCommit === expectedSourceCommit
+      && Date.parse(candidate.receipt.preparedAt) <= current
+      && Date.parse(candidate.receipt.expiresAt) > current
+    ))
+  ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_RECEIPT_AMBIGUOUS');
+  return Object.freeze({
+    receipt: target[0].receipt,
+    receiptDigest: target[0].receiptDigest,
+  });
+}
+
+/** Internally digest-selected expired authority for the no-deploy recovery. */
+export function resolveExpiredAuthBridgeNotificationPreparedReceiptByDigest(
+  options = {},
+) {
+  return resolveAuthBridgeNotificationPreparedReceiptByDigestExistingOnly({
+    ...options,
+    requiredState: 'expired',
+  });
+}
+
+/** Existing-only exact fresh pair adoption; never creates or repairs storage. */
+export function resolveFreshAuthBridgeNotificationPreparedReceiptByDigest(
+  options = {},
+) {
+  return resolveAuthBridgeNotificationPreparedReceiptByDigestExistingOnly({
+    ...options,
+    requiredState: 'fresh',
+  });
+}
+
 /**
  * Resolves the receipt directory below the OS account home, never ambient HOME.
  * `reportedHome` exists only so tests can exercise the same checks in isolation.
@@ -719,6 +825,68 @@ export function parseAuthBridgeNotificationPreparedReceipt(value) {
 export function canonicalAuthBridgeReleaseAttestationDigest(attestation) {
   const parsed = parseAuthBridgeReleaseAttestation(attestation);
   return createHash('sha256').update(JSON.stringify(parsed), 'utf8').digest('hex');
+}
+
+/**
+ * Reissues only the short-lived receipt envelope after a read-only recovery
+ * has freshly authenticated the unchanged public bridge contract. No deploy
+ * callback exists on this ABI.
+ */
+export function createAuthBridgeNotificationPreparedReadOnlyRecoveryReceipt({
+  priorReceipt,
+  liveAttestation,
+  preparedAt,
+  now = new Date(),
+  lifetimeMilliseconds =
+    AUTH_BRIDGE_NOTIFICATION_PREPARED_RECEIPT_LIFETIME_MILLISECONDS,
+} = {}) {
+  const prior = parseAuthBridgeNotificationPreparedReceipt(priorReceipt);
+  const current = dateValue(
+    now,
+    'AUTH_BRIDGE_PREPARED_RECOVERY_TIME_INVALID',
+  );
+  const prepared = dateValue(
+    preparedAt,
+    'AUTH_BRIDGE_PREPARED_RECOVERY_TIME_INVALID',
+  );
+  if (
+    current !== prepared
+    || Date.parse(prior.expiresAt) > current
+    || !Number.isSafeInteger(lifetimeMilliseconds)
+    || lifetimeMilliseconds <= 0
+    || lifetimeMilliseconds
+      > AUTH_BRIDGE_NOTIFICATION_PREPARED_RECEIPT_LIFETIME_MILLISECONDS
+  ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_TIME_INVALID');
+  let live;
+  try {
+    live = parseAuthBridgeReleaseAttestation(liveAttestation);
+  } catch {
+    fail('AUTH_BRIDGE_PREPARED_RECOVERY_ATTESTATION_MISMATCH');
+  }
+  if (
+    prior.bridgeOrigin !== DEFAULT_AUTH_BRIDGE_URL
+    || live.bridgeSourceCommit !== prior.bridgeSourceCommit
+    || live.notificationDeliveryContractDigest
+      !== prior.notificationDeliveryContractDigest
+    || live.notificationClientCount !== prior.notificationClientCount
+    || live.notificationDeliveryEnabled !== prior.notificationDeliveryEnabled
+    || live.notificationTransportConfigured
+      !== prior.notificationTransportConfigured
+    || live.admissionNotificationStoreConfigured
+      !== prior.admissionNotificationStoreConfigured
+    || live.publicAuthEnabled !== prior.publicAuthEnabledAfter
+    || live.accessExpectedFidRequired
+      !== prior.accessExpectedFidRequiredAfter
+  ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_ATTESTATION_MISMATCH');
+  const recovered = parseAuthBridgeNotificationPreparedReceipt({
+    ...prior,
+    liveAttestationDigest:
+      canonicalAuthBridgeReleaseAttestationDigest(live),
+    preparedAt: preparedAt.toISOString(),
+    expiresAt: new Date(prepared + lifetimeMilliseconds).toISOString(),
+  });
+  authenticatedPreparedReceipts.add(recovered);
+  return recovered;
 }
 
 function validateReceiptFreshness(receipt, now) {

@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  linux:
     runs-on: ubuntu-latest
     # The complete root security suite plus serial signed-closure derivation
     # can exceed 45 minutes on a cold hosted runner.
@@ -291,3 +291,59 @@ jobs:
 
       - name: Audit module dependencies
         run: pnpm --dir spacetimedb audit --audit-level low
+
+  native-contract:
+    runs-on: macos-14-xlarge
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Require disposable ARM64 macOS authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$RUNNER_OS" = 'macOS'
+          test "$RUNNER_ARCH" = 'ARM64'
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.22.3
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify native production contracts
+        run: >-
+          npm test --
+          tests/sealedRealmsPublicActivationArtifactVerifier.test.ts
+          tests/authBridgeNotificationPreparedReceipt.test.ts
+          tests/authBridgeNotificationPreparedDeployRuntime.test.ts
+          --maxWorkers=1
+
+  verify:
+    name: Verify
+    needs: [linux, auth-bridge, spacetimedb-module, native-contract]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Accept every successful verification predecessor
+        if: >-
+          needs.linux.result == 'success' &&
+          needs.auth-bridge.result == 'success' &&
+          needs.spacetimedb-module.result == 'success' &&
+          needs.native-contract.result == 'success'
+        run: exit 0
+
+      - name: Reject any unsuccessful verification predecessor
+        if: >-
+          needs.linux.result != 'success' ||
+          needs.auth-bridge.result != 'success' ||
+          needs.spacetimedb-module.result != 'success' ||
+          needs.native-contract.result != 'success'
+        run: exit 1

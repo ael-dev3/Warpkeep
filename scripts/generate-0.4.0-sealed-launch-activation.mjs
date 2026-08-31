@@ -15,6 +15,9 @@ import {
   deriveGenesis001SealedLaunchEvidence,
 } from './genesis001-sealed-launch-adoption.mjs';
 import {
+  readSealedRealmsProductionActivationEvidenceMember,
+} from './sealed-realms-production-auth-bridge-state.mjs';
+import {
   genesis002ProductionImportReceiptDigest,
   genesis002PublishReceiptDigest,
   genesis002SealedLiveReceiptDigest,
@@ -53,8 +56,10 @@ const EVIDENCE_KEYS = Object.freeze([
   'g001FreezePublishReceipt',
   'g001PolicyObservationBootstrapReceipt',
   'g001CensusPrivacySafePrivateReceipt',
+  'g001AdmittedPlayerCensusPrivateReceipt',
   'g001AdmissionMonitorSuspensionReceipt',
   'g001AdmissionMonitorCurrentStateReceipt',
+  'authBridgeSuspensionPrivateReceipt',
   'g002PublishReceipt',
   'g002AtlasImportReceipt',
   'g002SealedLiveReceipt',
@@ -261,6 +266,9 @@ const G001_DERIVED_BINDING_KEYS = Object.freeze([
   'g001CensusPrivacySafeReceiptProfile',
   'g001CensusPrivacySafeReceiptDigest',
   'g001CensusPrivacySafeReceiptCommitment',
+  'g001AdmittedPlayerCensusReceiptProfile',
+  'g001AdmittedPlayerCensusReceiptDigest',
+  'g001AdmittedPlayerCensusReceiptCommitment',
   'admissionMonitorSuspensionReceiptDigest',
   'admissionMonitorSuspensionReceiptCommitment',
   'admissionMonitorCurrentStateReceiptDigest',
@@ -689,6 +697,10 @@ export function createSealedLaunchActivationBindingFromEvidence(
     candidate.preparationSourceCommit,
     testOnlyPreparationBootstrapAuthority,
   );
+  if (
+    candidate.authBridgeSourceCommit !== null
+    || candidate.admissionRequestSuspensionReceiptDigest !== null
+  ) fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
 
   let genesis001;
   try {
@@ -703,12 +715,30 @@ export function createSealedLaunchActivationBindingFromEvidence(
         evidence.g001AdmissionMonitorSuspensionReceipt,
       admissionMonitorCurrentStateReceipt:
         evidence.g001AdmissionMonitorCurrentStateReceipt,
+      admittedPlayerCensusPrivateReceipt:
+        evidence.g001AdmittedPlayerCensusPrivateReceipt,
     };
     genesis001 = deriveGenesis001SealedLaunchEvidence(privateEvidence);
   } catch {
     fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
   }
   const observationBootstrap = evidence.g001PolicyObservationBootstrapReceipt;
+  let bridge;
+  try {
+    const projection = readSealedRealmsProductionActivationEvidenceMember(
+      evidence.authBridgeSuspensionPrivateReceipt,
+    );
+    bridge = projection.authBridgeSuspensionPrivateReceipt;
+  } catch {
+    fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
+  }
+  if (bridge.sourceCommit !== candidate.preparationSourceCommit) {
+    fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
+  }
+  const bridgeDigest = createHash('sha256')
+    .update('warpkeep.sealed-realms.auth-bridge-suspension-private-receipt.v1\n')
+    .update(`${JSON.stringify(bridge)}\n`)
+    .digest('hex');
   if (
     observationBootstrap.moduleTreeId !== preparationAuthority.moduleTreeId
     || observationBootstrap.bootstrapBlob !== preparationAuthority.bootstrapBlob
@@ -983,9 +1013,32 @@ export function createSealedLaunchActivationBindingFromEvidence(
       !== ptrSealedLive.accessRequestSurfacePresent
   ) fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
 
+  const bridgeDeployment = bridge.deploymentAuthority;
+  const expectedPtrBindingDigest = createHash('sha256')
+    .update('warpkeep.auth-bridge.ptr-binding.v1\n')
+    .update(`${JSON.stringify([
+      bridgeDeployment.workerVersionId,
+      candidate.preparationSourceCommit,
+      ptrPublish.databaseIdentity,
+      'warpkeep-ptr-spacetimedb',
+    ])}\n`)
+    .digest('hex');
+  if (
+    bridge.g002ImportAuthorityCrossLink.realmImportReceiptDigest
+      !== atlasImportDigest
+    || bridge.ptrImportAuthorityCrossLink.realmImportReceiptDigest
+      !== ptrAtlasImportDigest
+    || bridgeDeployment.sourceCommit !== candidate.preparationSourceCommit
+    || bridgeDeployment.bridgeSourceCommit !== candidate.preparationSourceCommit
+    || bridgeDeployment.ptrDatabaseIdentity !== ptrPublish.databaseIdentity
+    || bridgeDeployment.ptrBindingDigest !== expectedPtrBindingDigest
+  ) fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
+
   const binding = {
     ...candidate,
     ...genesis001,
+    authBridgeSourceCommit: bridge.sourceCommit,
+    admissionRequestSuspensionReceiptDigest: bridgeDigest,
     g002PublishReceiptDigest: publishDigest,
     g002FreshStatusDigest: publish.freshStatusDigest,
     g002DatabaseIdentity: publish.databaseIdentity,
@@ -1109,6 +1162,7 @@ function sameFile(left, right) {
 export function generateSealedLaunchActivationBindingFromDescriptor(
   descriptor = 0,
   testOnlyPreparationBootstrapAuthority,
+  activationEvidenceMember,
 ) {
   let storage;
   let bytes;
@@ -1156,12 +1210,22 @@ export function generateSealedLaunchActivationBindingFromDescriptor(
     } catch {
       fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
     }
+    envelope = exactRecord(envelope, EVIDENCE_KEYS);
     if (`${JSON.stringify(envelope, null, 2)}\n` !== bytes.toString('utf8')) {
       fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_NONCANONICAL');
     }
+    if (envelope?.authBridgeSuspensionPrivateReceipt !== null) {
+      fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
+    }
+    const hydratedEnvelope = Object.fromEntries(EVIDENCE_KEYS.map(key => [
+      key,
+      key === 'authBridgeSuspensionPrivateReceipt'
+        ? activationEvidenceMember
+        : envelope[key],
+    ]));
     try {
       return createSealedLaunchActivationBindingFromEvidence(
-        envelope,
+        hydratedEnvelope,
         testOnlyPreparationBootstrapAuthority,
       );
     } catch {

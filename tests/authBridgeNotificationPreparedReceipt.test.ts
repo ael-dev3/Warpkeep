@@ -32,6 +32,7 @@ import {
   AUTH_BRIDGE_NOTIFICATION_DELIVERY_CONTRACT_DIGEST,
   AUTH_BRIDGE_RELEASE_ATTESTATION_URL,
   canonicalAuthBridgeReleaseAttestationDigest,
+  createAuthBridgeNotificationPreparedReadOnlyRecoveryReceipt,
   fetchFreshAuthBridgeReleaseAttestation,
   ensureAuthBridgeNotificationPreparedReceiptDirectory,
   inspectPrivateAuthBridgeNotificationPreparedReceipt,
@@ -39,6 +40,7 @@ import {
   parseAuthBridgeNotificationPreparedReceipt,
   prepareAuthBridgeNotificationPreparedReceipt,
   readPrivateAuthBridgeNotificationPreparedReceipt,
+  resolveExpiredAuthBridgeNotificationPreparedReceiptByDigest,
   resolveExistingAuthBridgeNotificationPreparedReceipt,
   verifyAuthBridgeNotificationPreparedReceipt,
   writePrivateAuthBridgeNotificationPreparedReceipt,
@@ -269,6 +271,31 @@ function receipt(
 }
 
 describe('auth bridge notification-prepared receipt ABI', () => {
+  it('reissues an expired receipt only from a fresh unchanged public attestation', () => {
+    const prior = receipt({
+      preparedAt: '2026-08-10T00:00:00.000Z',
+      expiresAt: '2026-08-11T00:00:00.000Z',
+    });
+    const recovered = createAuthBridgeNotificationPreparedReadOnlyRecoveryReceipt({
+      priorReceipt: prior,
+      liveAttestation: releaseAttestation(),
+      preparedAt: NOW,
+      now: NOW,
+    });
+
+    expect(recovered).toEqual(receipt());
+    expect(Object.keys(recovered)).toEqual(
+      AUTH_BRIDGE_NOTIFICATION_PREPARED_RECEIPT_KEYS,
+    );
+    expect(JSON.stringify(recovered)).not.toContain('adminToken');
+    expect(() => createAuthBridgeNotificationPreparedReadOnlyRecoveryReceipt({
+      priorReceipt: prior,
+      liveAttestation: releaseAttestation({ bridgeSourceCommit: 'b'.repeat(40) }),
+      preparedAt: NOW,
+      now: NOW,
+    })).toThrow('AUTH_BRIDGE_PREPARED_RECOVERY_ATTESTATION_MISMATCH');
+  });
+
   it('parses only the exact ordered object and preserves the reviewed digest vector', () => {
     const value = receipt();
     expect(Object.keys(value)).toEqual(
@@ -658,6 +685,47 @@ describe('fresh public release-attestation binding', () => {
 });
 
 describe('private production-admin prepared receipt storage', () => {
+  it.skipIf(process.platform === 'win32')(
+    'resolves only the exact digest-addressed expired receipt and rejects a fresh competitor',
+    async () => {
+      const home = temporaryHome();
+      const { prepared } = await authenticatedReceipt();
+      const written = writePrivateAuthBridgeNotificationPreparedReceipt({
+        receipt: prepared,
+        repositoryRoot: realpathSync(process.cwd()),
+        reportedHome: home,
+        now: NOW,
+      });
+      const expiredAt = new Date('2026-08-15T00:00:00.000Z');
+      expect(resolveExpiredAuthBridgeNotificationPreparedReceiptByDigest({
+        receiptDigest: written.receiptDigest,
+        expectedSourceCommit: SOURCE_COMMIT,
+        repositoryRoot: realpathSync(process.cwd()),
+        reportedHome: home,
+        now: expiredAt,
+      })).toMatchObject({ receiptDigest: written.receiptDigest });
+
+      const recovered = createAuthBridgeNotificationPreparedReadOnlyRecoveryReceipt({
+        priorReceipt: prepared,
+        liveAttestation: releaseAttestation(),
+        preparedAt: expiredAt,
+        now: expiredAt,
+      });
+      writePrivateAuthBridgeNotificationPreparedReceipt({
+        receipt: recovered,
+        repositoryRoot: realpathSync(process.cwd()),
+        reportedHome: home,
+        now: expiredAt,
+      });
+      expect(() => resolveExpiredAuthBridgeNotificationPreparedReceiptByDigest({
+        receiptDigest: written.receiptDigest,
+        expectedSourceCommit: SOURCE_COMMIT,
+        repositoryRoot: realpathSync(process.cwd()),
+        reportedHome: home,
+        now: expiredAt,
+      })).toThrow('AUTH_BRIDGE_PREPARED_RECOVERY_RECEIPT_AMBIGUOUS');
+    },
+  );
   it('enumerates exactly one existing eligible receipt without creating or repairing state', async () => {
     const home = temporaryHome('warpkeep-bridge-read-only-');
     const { prepared } = await authenticatedReceipt();

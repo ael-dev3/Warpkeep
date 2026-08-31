@@ -1,3 +1,7 @@
+import type {
+  SealedRealmsActivationEvidenceMember,
+} from './sealed-realms-production-auth-bridge-state.mjs';
+
 export class SealedLaunchActivationGeneratorError extends Error {
   readonly code: string;
 }
@@ -36,4 +40,5 @@ export function generateSealedLaunchActivationBindingFromDescriptor(
     bootstrapBlob: string;
     bootstrapSha256: string;
   }>,
+  activationEvidenceMember?: SealedRealmsActivationEvidenceMember,
 ): Readonly<Record<string, unknown>>;

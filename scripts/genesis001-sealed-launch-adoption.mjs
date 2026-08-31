@@ -1,4 +1,8 @@
 import { createHash } from 'node:crypto';
+import {
+  projectGenesis001AdmittedPlayerCensusStablePair,
+  verifyGenesis001AdmittedPlayerCensusReceipt,
+} from './genesis001-admitted-player-census.mjs';
 
 export const GENESIS_001_FREEZE_PUBLISH_SOURCE_COMMIT =
   'd945256b217fa13ade944b9ed9880e8463b46123';
@@ -32,6 +36,10 @@ const DEPENDENCY_INSTALLER_PROFILE =
   'warpkeep-genesis-001-historical-root-dependency-closure-v1';
 const CENSUS_PRIVATE_RECEIPT_PROFILE =
   'warpkeep-genesis-001-census-export-private-proof-v1';
+const CENSUS_JOINT_RECORD_PROFILE =
+  'warpkeep-sealed-realms-g001-census-private-v1';
+const CENSUS_ACTIVATION_PRIVATE_PROFILE =
+  'warpkeep-sealed-realms-g001-census-activation-private-v1';
 const CENSUS_PROOF_DOMAIN =
   'warpkeep.genesis-001.census-export.privacy-safe.opaque-proof.v1\n';
 const MONITOR_PROFILE =
@@ -444,6 +452,16 @@ function exactCensusPrivateProof(value, preparationSourceCommit) {
   return receipt;
 }
 
+function censusObservedAt(receipt) {
+  const match = /^warpkeep-access-request-census-([0-9]{4})([0-9]{2})([0-9]{2})T([0-9]{2})([0-9]{2})([0-9]{2})Z\.txt$/u
+    .exec(receipt.privateCensusReference.pathBasename);
+  if (match === null) fail();
+  const iso = `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}.000Z`;
+  const parsed = new Date(iso);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString() !== iso) fail();
+  return parsed.getTime();
+}
+
 function exactStableCensusEvidence(value, preparationSourceCommit) {
   const evidence = plainRecord(value, ['first', 'second'], true);
   const first = exactCensusPrivateProof(
@@ -456,17 +474,8 @@ function exactStableCensusEvidence(value, preparationSourceCommit) {
   );
   const firstReference = first.privateCensusReference;
   const secondReference = second.privateCensusReference;
-  const censusTime = reference => {
-    const match = /^warpkeep-access-request-census-([0-9]{4})([0-9]{2})([0-9]{2})T([0-9]{2})([0-9]{2})([0-9]{2})Z\.txt$/u
-      .exec(reference.pathBasename);
-    if (match === null) fail();
-    const iso = `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}.000Z`;
-    const parsed = new Date(iso);
-    if (!Number.isFinite(parsed.getTime()) || parsed.toISOString() !== iso) fail();
-    return parsed.getTime();
-  };
-  const firstObservedAt = censusTime(firstReference);
-  const secondObservedAt = censusTime(secondReference);
+  const firstObservedAt = censusObservedAt(first);
+  const secondObservedAt = censusObservedAt(second);
   const separation = secondObservedAt - firstObservedAt;
   if (
     firstReference.count !== secondReference.count
@@ -479,6 +488,187 @@ function exactStableCensusEvidence(value, preparationSourceCommit) {
     || separation > MAXIMUM_STABLE_CENSUS_SEPARATION_MS
   ) fail();
   return Object.freeze({ first, second, firstObservedAt, secondObservedAt });
+}
+
+function physicalRecordDigest(record) {
+  return sha256(`${JSON.stringify(record)}\n`);
+}
+
+function exactPhysicalRecord(value, recordKeys) {
+  const envelope = plainRecord(value, ['recordDigest', 'record'], true);
+  if (!SHA256.test(envelope.recordDigest ?? '')) fail();
+  const record = plainRecord(envelope.record, recordKeys, true);
+  if (envelope.recordDigest !== physicalRecordDigest(record)) fail();
+  return Object.freeze({ recordDigest: envelope.recordDigest, record });
+}
+
+function censusConfirmationDigest(
+  sourceCommit,
+  firstDigest,
+  secondDigest,
+  expiresAt,
+) {
+  return sha256([
+    'warpkeep.sealed-realms.g001-census-confirmation.v1',
+    sourceCommit,
+    firstDigest,
+    secondDigest,
+    expiresAt,
+  ].join('\n'));
+}
+
+function exactCensusJointPass(value, applicant, preparationSourceCommit) {
+  const envelope = exactPhysicalRecord(value, [
+    'schemaVersion',
+    'profile',
+    'sourceCommit',
+    'applicant',
+    'admitted',
+    'observedAt',
+  ]);
+  const record = envelope.record;
+  const embeddedApplicant = exactCensusPrivateProof(
+    record.applicant,
+    preparationSourceCommit,
+  );
+  let admitted;
+  try {
+    admitted = verifyGenesis001AdmittedPlayerCensusReceipt(record.admitted);
+  } catch {
+    fail();
+  }
+  const observedAt = Date.parse(exactTimestamp(record.observedAt));
+  const admittedObservedAt = Date.parse(exactTimestamp(admitted.observedAt));
+  if (
+    record.schemaVersion !== 1
+    || record.profile !== CENSUS_JOINT_RECORD_PROFILE
+    || record.sourceCommit !== preparationSourceCommit
+    || admitted.preparationSourceCommit !== preparationSourceCommit
+    || JSON.stringify(embeddedApplicant) !== JSON.stringify(applicant)
+    || observedAt !== Math.max(
+      censusObservedAt(embeddedApplicant),
+      admittedObservedAt,
+    )
+  ) fail();
+  return Object.freeze({
+    ...envelope,
+    applicant: embeddedApplicant,
+    admitted,
+    observedAt,
+    admittedObservedAt,
+  });
+}
+
+function exactCensusActivationEvidence(
+  value,
+  census,
+  preparationSourceCommit,
+) {
+  const wrapper = plainRecord(value, [
+    'schemaVersion',
+    'profile',
+    'first',
+    'second',
+    'confirmation',
+    'consumed',
+  ], true);
+  if (
+    wrapper.schemaVersion !== 1
+    || wrapper.profile !== CENSUS_ACTIVATION_PRIVATE_PROFILE
+  ) fail();
+  const first = exactCensusJointPass(
+    wrapper.first,
+    census.first,
+    preparationSourceCommit,
+  );
+  const second = exactCensusJointPass(
+    wrapper.second,
+    census.second,
+    preparationSourceCommit,
+  );
+  const separation = second.observedAt - first.observedAt;
+  if (
+    separation < MINIMUM_STABLE_CENSUS_SEPARATION_MS
+    || separation > MAXIMUM_STABLE_CENSUS_SEPARATION_MS
+  ) fail();
+  let admittedPlayers;
+  try {
+    admittedPlayers = projectGenesis001AdmittedPlayerCensusStablePair({
+      first: first.admitted,
+      second: second.admitted,
+    });
+  } catch {
+    fail();
+  }
+  const privateValues = [
+    first.applicant.privateBlindingNonceHex,
+    second.applicant.privateBlindingNonceHex,
+    first.admitted.nonceHex,
+    second.admitted.nonceHex,
+    first.applicant.opaqueProofDigest,
+    second.applicant.opaqueProofDigest,
+    first.admitted.opaqueProofDigest,
+    second.admitted.opaqueProofDigest,
+  ];
+  if (new Set(privateValues).size !== privateValues.length) fail();
+
+  const confirmation = exactPhysicalRecord(wrapper.confirmation, [
+    'schemaVersion',
+    'profile',
+    'sourceCommit',
+    'firstDigest',
+    'secondDigest',
+    'secondObservedAt',
+    'expiresAt',
+    'confirmationDigest',
+  ]);
+  const confirmationRecord = confirmation.record;
+  const secondObservedAt = exactTimestamp(confirmationRecord.secondObservedAt);
+  const expiresAt = exactTimestamp(confirmationRecord.expiresAt);
+  if (
+    confirmationRecord.schemaVersion !== 1
+    || confirmationRecord.profile !== CENSUS_JOINT_RECORD_PROFILE
+    || confirmationRecord.sourceCommit !== preparationSourceCommit
+    || confirmationRecord.firstDigest !== first.recordDigest
+    || confirmationRecord.secondDigest !== second.recordDigest
+    || secondObservedAt !== new Date(second.observedAt).toISOString()
+    || expiresAt !== new Date(second.observedAt + 300_000).toISOString()
+    || confirmationRecord.confirmationDigest !== censusConfirmationDigest(
+      preparationSourceCommit,
+      first.recordDigest,
+      second.recordDigest,
+      expiresAt,
+    )
+  ) fail();
+
+  const consumed = exactPhysicalRecord(wrapper.consumed, [
+    'schemaVersion',
+    'profile',
+    'sourceCommit',
+    'firstDigest',
+    'secondDigest',
+    'confirmationDigest',
+    'consumedAt',
+  ]);
+  const consumedRecord = consumed.record;
+  const consumedAt = Date.parse(exactTimestamp(consumedRecord.consumedAt));
+  if (
+    consumedRecord.schemaVersion !== 1
+    || consumedRecord.profile !== CENSUS_JOINT_RECORD_PROFILE
+    || consumedRecord.sourceCommit !== preparationSourceCommit
+    || consumedRecord.firstDigest !== first.recordDigest
+    || consumedRecord.secondDigest !== second.recordDigest
+    || consumedRecord.confirmationDigest
+      !== confirmationRecord.confirmationDigest
+    || consumedAt < second.observedAt
+    || consumedAt >= Date.parse(expiresAt)
+  ) fail();
+  return Object.freeze({
+    admittedPlayers,
+    first,
+    second,
+    consumedAt,
+  });
 }
 
 export function genesis001CensusOpaqueProofDigest(value) {
@@ -591,6 +781,7 @@ function deriveGenesis001SealedLaunchEvidenceWithAuthority(
     'censusPrivacySafePrivateReceipt',
     'admissionMonitorSuspensionReceipt',
     'admissionMonitorCurrentStateReceipt',
+    'admittedPlayerCensusPrivateReceipt',
   ], true);
   if (!COMMIT.test(evidence.preparationSourceCommit ?? '')) fail();
   const freeze = exactFreezeEvidence(evidence.freezePublishReceipt, authority);
@@ -611,18 +802,38 @@ function deriveGenesis001SealedLaunchEvidenceWithAuthority(
     evidence.admissionMonitorCurrentStateReceipt,
     evidence.preparationSourceCommit,
   );
+  const censusActivation = exactCensusActivationEvidence(
+    evidence.admittedPlayerCensusPrivateReceipt,
+    census,
+    evidence.preparationSourceCommit,
+  );
+  const admittedFirst = censusActivation.first.admitted;
+  const admittedSecond = censusActivation.second.admitted;
+  const admittedPlayers = censusActivation.admittedPlayers;
   const verifiedAt = verificationTime.getTime();
   const policyObservedAt = Date.parse(observation.observedAt);
+  const admittedFirstObservedAt = Date.parse(admittedFirst.observedAt);
+  const admittedSecondObservedAt = Date.parse(admittedSecond.observedAt);
+  const monitorSuspendedAt = Date.parse(monitor.evidence.receipt.suspendedAt);
   if (!Number.isFinite(verifiedAt)) fail();
   if (
-    policyObservedAt > census.firstObservedAt
+    admittedFirst.preparationSourceCommit !== evidence.preparationSourceCommit
+    || admittedSecond.preparationSourceCommit
+      !== evidence.preparationSourceCommit
+    || policyObservedAt > census.firstObservedAt
     || census.firstObservedAt - policyObservedAt
       > MAXIMUM_POLICY_TO_FIRST_CENSUS_AGE_MS
     || verifiedAt - policyObservedAt > MAXIMUM_POLICY_OBSERVATION_AGE_MS
-    || census.secondObservedAt
-      > Date.parse(monitor.evidence.receipt.suspendedAt)
-    || Date.parse(monitor.evidence.receipt.suspendedAt)
-      > monitorCurrent.observedAt
+    || census.secondObservedAt > monitorSuspendedAt
+    || policyObservedAt > admittedFirstObservedAt
+    || admittedFirstObservedAt - policyObservedAt
+      > MAXIMUM_POLICY_TO_FIRST_CENSUS_AGE_MS
+    || admittedFirstObservedAt > admittedSecondObservedAt
+    || admittedSecondObservedAt > monitorSuspendedAt
+    || policyObservedAt > censusActivation.first.observedAt
+    || censusActivation.second.observedAt > monitorSuspendedAt
+    || censusActivation.consumedAt > monitorSuspendedAt
+    || monitorSuspendedAt > monitorCurrent.observedAt
     || monitorCurrent.observedAt > verifiedAt
     || verifiedAt - monitorCurrent.observedAt
       > MAXIMUM_MONITOR_CURRENT_STATE_AGE_MS
@@ -646,6 +857,8 @@ function deriveGenesis001SealedLaunchEvidenceWithAuthority(
     g001CensusPrivacySafeReceiptProfile:
       GENESIS_001_CENSUS_PRIVACY_SAFE_RECEIPT_PROFILE,
     g001CensusPrivacySafeReceiptDigest: census.second.opaqueProofDigest,
+    g001AdmittedPlayerCensusReceiptProfile: admittedPlayers.profile,
+    g001AdmittedPlayerCensusReceiptDigest: admittedPlayers.opaqueProofDigest,
     admissionMonitorSuspensionReceiptDigest: monitor.digest,
     admissionMonitorCurrentStateReceiptDigest: monitorCurrent.digest,
     admissionMonitorDisabled: true,

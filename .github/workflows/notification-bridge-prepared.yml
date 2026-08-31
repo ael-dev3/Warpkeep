@@ -7,13 +7,21 @@ on:
         description: Exact protected main commit to prepare
         required: true
         type: string
+      operation:
+        description: Deploy or perform expired-authority read-only recovery
+        required: true
+        default: deploy
+        type: choice
+        options:
+          - deploy
+          - recover-expired-authority-read-only
 
 permissions:
   actions: read
   contents: read
 
 concurrency:
-  group: notification-bridge-prepared
+  group: warpkeep-production-state
   cancel-in-progress: false
 
 jobs:
@@ -493,6 +501,7 @@ jobs:
 
       - name: Run guarded prepared bridge deployment
         id: deploy
+        if: ${{ inputs.operation == 'deploy' }}
         continue-on-error: true
         shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}
         env:
@@ -848,9 +857,9 @@ jobs:
           unset PWD
           exec -c "$node_executable" --input-type=module <&17 >/dev/null
 
-      - name: Recover and re-attest a failed deployment attempt
+      - name: Recover expired authority without deployment
         id: recovery
-        if: ${{ always() && steps.deploy.outputs.attempted == 'true' && steps.deploy.outcome != 'success' }}
+        if: ${{ inputs.operation == 'recover-expired-authority-read-only' }}
         continue-on-error: true
         shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}
         env:
@@ -859,8 +868,6 @@ jobs:
           WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: ${{ secrets.WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID }}
           WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: ${{ secrets.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN }}
           WARPKEEP_AUTH_BRIDGE_ZONE_ID: ${{ secrets.WARPKEEP_AUTH_BRIDGE_ZONE_ID }}
-          WARPKEEP_PLAYER_CANARY_OWNER_FID: ${{ secrets.WARPKEEP_PLAYER_CANARY_OWNER_FID }}
-          WARPKEEP_PTR_SPACETIMEDB_DATABASE: ${{ secrets.WARPKEEP_PTR_SPACETIMEDB_DATABASE }}
           WARPKEEP_PRODUCTION_ADMIN_TOKEN: ${{ secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN }}
         run: |
           set -euo pipefail
@@ -877,8 +884,6 @@ jobs:
             "$WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID" \
             "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN" \
             "$WARPKEEP_AUTH_BRIDGE_ZONE_ID" \
-            "$WARPKEEP_PLAYER_CANARY_OWNER_FID" \
-            "$WARPKEEP_PTR_SPACETIMEDB_DATABASE" \
             "$WARPKEEP_PRODUCTION_ADMIN_TOKEN"; do
             if [[ -z "$protected_binding" \
               || "$protected_binding" == *$'\n'* \
@@ -892,9 +897,6 @@ jobs:
             || -z "$WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID" \
             || -z "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN" \
             || -z "$WARPKEEP_AUTH_BRIDGE_ZONE_ID" \
-            || ! "$WARPKEEP_PLAYER_CANARY_OWNER_FID" =~ ^[1-9][0-9]{0,15}$ \
-            || ! "$WARPKEEP_PTR_SPACETIMEDB_DATABASE" =~ ^[a-f0-9]{64}$ \
-            || "$WARPKEEP_PTR_SPACETIMEDB_DATABASE" == 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e' \
             || -z "$WARPKEEP_PRODUCTION_ADMIN_TOKEN" \
             || "$GITHUB_TOKEN" == "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN" \
             || "$GITHUB_TOKEN" == "$WARPKEEP_PRODUCTION_ADMIN_TOKEN" \
@@ -915,8 +917,6 @@ jobs:
             WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID \
             WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN \
             WARPKEEP_AUTH_BRIDGE_ZONE_ID \
-            WARPKEEP_PLAYER_CANARY_OWNER_FID \
-            WARPKEEP_PTR_SPACETIMEDB_DATABASE \
             WARPKEEP_PRODUCTION_ADMIN_TOKEN
           node_executable="$WARPKEEP_NODE_EXECUTABLE"
           verify_immutable_executable_path() {
@@ -1009,9 +1009,7 @@ jobs:
             ['WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID', 30],
             ['WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN', 31],
             ['WARPKEEP_AUTH_BRIDGE_ZONE_ID', 32],
-            ['WARPKEEP_PLAYER_CANARY_OWNER_FID', 33],
-            ['WARPKEEP_PTR_SPACETIMEDB_DATABASE', 34],
-            ['WARPKEEP_PRODUCTION_ADMIN_TOKEN', 35],
+            ['WARPKEEP_PRODUCTION_ADMIN_TOKEN', 33],
           ]);
 
           function fail(code) {
@@ -1144,7 +1142,7 @@ jobs:
                   memberPaths: [entrypointPath],
                 });
             if (
-              typeof entrypoint.runAuthBridgeNotificationPreparedDeploy
+              typeof entrypoint.runAuthBridgeNotificationPreparedReadOnlyRecovery
                 !== 'function'
             ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_ENTRYPOINT_INVALID');
             const values = Object.create(null);
@@ -1155,15 +1153,7 @@ jobs:
               );
             }
             if (
-              !/^[1-9][0-9]{0,15}$/u.test(
-                values.WARPKEEP_PLAYER_CANARY_OWNER_FID,
-              )
-              || !/^[a-f0-9]{64}$/u.test(
-                values.WARPKEEP_PTR_SPACETIMEDB_DATABASE,
-              )
-              || values.WARPKEEP_PTR_SPACETIMEDB_DATABASE
-                === 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e'
-              || values.GITHUB_TOKEN
+              values.GITHUB_TOKEN
                 === values.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN
               || values.GITHUB_TOKEN
                 === values.WARPKEEP_PRODUCTION_ADMIN_TOKEN
@@ -1171,7 +1161,11 @@ jobs:
                 === values.WARPKEEP_PRODUCTION_ADMIN_TOKEN
             ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CREDENTIALS_INVALID');
             for (const [name] of bindings) process.env[name] = values[name];
-            await entrypoint.runAuthBridgeNotificationPreparedDeploy();
+            const result = await entrypoint
+              .runAuthBridgeNotificationPreparedReadOnlyRecovery();
+            if (result?.outcome !== 'verified-read-only-recovery') {
+              fail('AUTH_BRIDGE_PREPARED_READ_ONLY_RECOVERY_INVALID');
+            }
           } catch (error) {
             const code = typeof error?.code === 'string'
               && /^[A-Z0-9_]{8,128}$/u.test(error.code)
@@ -1198,9 +1192,7 @@ jobs:
           exec 30< <(printf '%s\n' "$WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID")
           exec 31< <(printf '%s\n' "$WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN")
           exec 32< <(printf '%s\n' "$WARPKEEP_AUTH_BRIDGE_ZONE_ID")
-          exec 33< <(printf '%s\n' "$WARPKEEP_PLAYER_CANARY_OWNER_FID")
-          exec 34< <(printf '%s\n' "$WARPKEEP_PTR_SPACETIMEDB_DATABASE")
-          exec 35< <(printf '%s\n' "$WARPKEEP_PRODUCTION_ADMIN_TOKEN")
+          exec 33< <(printf '%s\n' "$WARPKEEP_PRODUCTION_ADMIN_TOKEN")
           verify_immutable_executable_path "$node_executable"
           unset PWD
           exec -c "$node_executable" --input-type=module <&17 >/dev/null
@@ -1209,13 +1201,18 @@ jobs:
         if: ${{ always() }}
         shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}
         env:
+          WARPKEEP_OPERATION: ${{ inputs.operation }}
           DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
           DEPLOYMENT_ATTEMPTED: ${{ steps.deploy.outputs.attempted }}
           RECOVERY_OUTCOME: ${{ steps.recovery.outcome }}
         run: |
           set -euo pipefail
+          if [[ "$WARPKEEP_OPERATION" == 'recover-expired-authority-read-only' \
+            && "$RECOVERY_OUTCOME" == 'success' ]]; then
+            exit 0
+          fi
           if [[ "$DEPLOYMENT_ATTEMPTED" == 'true' \
-            && ("$DEPLOY_OUTCOME" == 'success' || "$RECOVERY_OUTCOME" == 'success') ]]; then
+            && "$DEPLOY_OUTCOME" == 'success' ]]; then
             exit 0
           fi
           echo 'AUTH_BRIDGE_PREPARED_DEPLOY_OR_RECOVERY_UNVERIFIED' >&2

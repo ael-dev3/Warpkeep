@@ -101,6 +101,16 @@ export function canonicalAuthBridgeReleaseAttestationDigest(
   attestation: AuthBridgeReleaseAttestation,
 ): string;
 
+export function createAuthBridgeNotificationPreparedReadOnlyRecoveryReceipt(
+  options: Readonly<{
+    priorReceipt: AuthBridgeNotificationPreparedReceipt;
+    liveAttestation: AuthBridgeReleaseAttestation;
+    preparedAt: Date;
+    now?: Date;
+    lifetimeMilliseconds?: number;
+  }>,
+): AuthenticatedAuthBridgeNotificationPreparedReceipt;
+
 export function canonicalAuthBridgeNotificationPreparedReceiptPublication(
   receipt: AuthBridgeNotificationPreparedReceipt,
 ): Readonly<{
@@ -219,3 +229,42 @@ export function inspectPrivateAuthBridgeNotificationPreparedReceiptByDigest(
   liveAttestation: AuthBridgeReleaseAttestation;
   receiptDigest: string;
 }>>;
+
+export function resolveExpiredAuthBridgeNotificationPreparedReceiptByDigest(
+  options: Readonly<{
+    receiptDigest: string;
+    expectedSourceCommit: string;
+    repositoryRoot: string;
+    reportedHome?: string;
+    now?: Date;
+  }>,
+): Readonly<{
+  receipt: AuthBridgeNotificationPreparedReceipt;
+  receiptDigest: string;
+}>;
+
+export function resolveFreshAuthBridgeNotificationPreparedReceiptByDigest(
+  options: Readonly<{
+    receiptDigest: string;
+    expectedSourceCommit: string;
+    repositoryRoot: string;
+    reportedHome?: string;
+    now?: Date;
+  }>,
+): Readonly<{
+  receipt: AuthBridgeNotificationPreparedReceipt;
+  receiptDigest: string;
+}>;
+
+export function resolvePendingAuthBridgeNotificationPreparedRecoveryReceipt(
+  options: Readonly<{
+    expectedSourceCommit: string;
+    excludedReceiptDigest: string;
+    repositoryRoot: string;
+    reportedHome?: string;
+    now?: Date;
+  }>,
+): Readonly<{
+  receipt: AuthBridgeNotificationPreparedReceipt;
+  receiptDigest: string;
+}> | null;

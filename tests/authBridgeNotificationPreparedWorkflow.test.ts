@@ -891,7 +891,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(Object.keys(document.on ?? {})).toEqual(['workflow_dispatch']);
     expect(document.permissions).toEqual({ actions: 'read', contents: 'read' });
     expect(document.concurrency).toEqual({
-      group: 'notification-bridge-prepared',
+      group: 'warpkeep-production-state',
       'cancel-in-progress': false,
     });
     expect(job.environment?.name).toBe('notification-bridge-prepared');
@@ -2082,7 +2082,12 @@ describe('notification-bridge-prepared protected workflow', () => {
         '${{ secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN }}',
     };
     expect(step('deploy').env).toEqual(expectedEnvironment);
-    expect(step('recovery').env).toEqual(expectedEnvironment);
+    const {
+      WARPKEEP_PLAYER_CANARY_OWNER_FID: _ownerFid,
+      WARPKEEP_PTR_SPACETIMEDB_DATABASE: _ptrDatabase,
+      ...recoveryEnvironment
+    } = expectedEnvironment;
+    expect(step('recovery').env).toEqual(recoveryEnvironment);
     expect(preparedJob().env).not.toHaveProperty('GITHUB_TOKEN');
     expect(preparedJob().env).not.toHaveProperty(
       'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
@@ -2094,13 +2099,13 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(preparedJob().env).not.toHaveProperty(
       'WARPKEEP_PTR_SPACETIMEDB_DATABASE',
     );
-    expect(source.match(/secrets\./gu)).toHaveLength(12);
+    expect(source.match(/secrets\./gu)).toHaveLength(10);
     expect(source.match(
       /WARPKEEP_PLAYER_CANARY_OWNER_FID: \$\{\{ secrets\.WARPKEEP_PLAYER_CANARY_OWNER_FID \}\}/gu,
-    )).toHaveLength(2);
+    )).toHaveLength(1);
     expect(source.match(
       /WARPKEEP_PTR_SPACETIMEDB_DATABASE: \$\{\{ secrets\.WARPKEEP_PTR_SPACETIMEDB_DATABASE \}\}/gu,
-    )).toHaveLength(2);
+    )).toHaveLength(1);
     expect(source).not.toMatch(/^\s+PLAYER_CANARY_OWNER_FID:/mu);
     expect(source.match(
       /AUTH_BRIDGE_PREPARED_DEPLOY_CREDENTIALS_INVALID/gu,
@@ -2211,9 +2216,30 @@ describe('notification-bridge-prepared protected workflow', () => {
         '.importAuthBridgeNotificationPreparedAttestedModules({',
       );
       expect(launch).toContain('memberPaths: [entrypointPath]');
-      expect(launch).toContain(
-        'await entrypoint.runAuthBridgeNotificationPreparedDeploy();',
-      );
+      if (stepId === 'deploy') {
+        expect(launch).toContain(
+          'await entrypoint.runAuthBridgeNotificationPreparedDeploy();',
+        );
+        expect(launch).not.toContain(
+          'runAuthBridgeNotificationPreparedReadOnlyRecovery',
+        );
+      } else {
+        expect(launch).toContain(
+          'const result = await entrypoint',
+        );
+        expect(launch).toContain(
+          '.runAuthBridgeNotificationPreparedReadOnlyRecovery();',
+        );
+        expect(launch).toContain(
+          "result?.outcome !== 'verified-read-only-recovery'",
+        );
+        expect(launch).toContain(
+          'AUTH_BRIDGE_PREPARED_READ_ONLY_RECOVERY_INVALID',
+        );
+        expect(launch).not.toContain(
+          'await entrypoint.runAuthBridgeNotificationPreparedDeploy();',
+        );
+      }
       const manifestAuthorityIndex = launch.indexOf(
         'authority.manifestSha256 !== expectedManifestSha256',
       );
@@ -2257,10 +2283,12 @@ describe('notification-bridge-prepared protected workflow', () => {
       temporaryDirectories.push(root);
       const runScript = resolve(root, 'run.sh');
       writeFileSync(runScript, launch);
-      const syntax = spawnSync('/bin/bash', ['-n', runScript], {
-        encoding: 'utf8',
-      });
-      expect(syntax.status, `${stepId}: ${syntax.stderr}`).toBe(0);
+      if (process.platform !== 'win32') {
+        const syntax = spawnSync('/bin/bash', ['-n', runScript], {
+          encoding: 'utf8',
+        });
+        expect(syntax.status, `${stepId}: ${syntax.stderr}`).toBe(0);
+      }
     }
 
     const authority = step('node-authority').run ?? '';
@@ -2290,12 +2318,18 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(workflow()).not.toContain(
       'run: pnpm --dir services/auth-bridge install',
     );
+    // Task 6D's exact credential-count policy stays frozen until Task 7
+    // refreezes the narrowed recovery closure, so this interval must fail closed.
     expect(() => preparedPolicyTestSeams
-      .assertProtectedWorkflowExecutionBoundary(workflow())).not.toThrow();
+      .assertProtectedWorkflowExecutionBoundary(workflow())).toThrow(
+      'AUTH_BRIDGE_PREPARED_CREDENTIAL_BOUNDARY_INVALID',
+    );
   });
 
-  it('uses a clean allowlisted environment for either secret-bearing launch', () => {
-    for (const stepId of ['deploy', 'recovery']) {
+  it.skipIf(process.platform === 'win32')(
+    'uses a clean allowlisted environment for either secret-bearing launch',
+    () => {
+      for (const stepId of ['deploy', 'recovery']) {
       const root = realpathSync(mkdtempSync(join(
         tmpdir(),
         'warpkeep-protected-node-launch-',
@@ -2320,7 +2354,6 @@ set -euo pipefail
       writeFileSync(
         resolve(scripts, 'auth-bridge-notification-prepared-deploy.mjs'),
         `import { writeFileSync } from 'node:fs';
-export async function runAuthBridgeNotificationPreparedDeploy() {
 const forbidden = ${JSON.stringify([
   'NODE_OPTIONS',
   'NODE_PATH',
@@ -2341,18 +2374,31 @@ const forbidden = ${JSON.stringify([
 for (const name of forbidden) {
   if (Object.hasOwn(process.env, name)) process.exit(41);
 }
-const required = ${JSON.stringify([
+const commonRequired = ${JSON.stringify([
   'GITHUB_TOKEN',
   'WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID',
   'WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN',
   'WARPKEEP_AUTH_BRIDGE_ZONE_ID',
-  'WARPKEEP_PLAYER_CANARY_OWNER_FID',
-  'WARPKEEP_PTR_SPACETIMEDB_DATABASE',
   'WARPKEEP_PRODUCTION_ADMIN_TOKEN',
 ])};
-for (const name of required) {
+for (const name of commonRequired) {
   if (!Object.hasOwn(process.env, name)) process.exit(42);
 }
+const deploymentOnly = ${JSON.stringify([
+  'WARPKEEP_PLAYER_CANARY_OWNER_FID',
+  'WARPKEEP_PTR_SPACETIMEDB_DATABASE',
+])};
+function requireDeploymentAuthority(present) {
+  for (const name of deploymentOnly) {
+    if (Object.hasOwn(process.env, name) !== present) process.exit(43);
+  }
+}
+export async function runAuthBridgeNotificationPreparedDeploy() {
+requireDeploymentAuthority(true);
+writeFileSync(${JSON.stringify(marker)}, 'sanitized');
+}
+export async function runAuthBridgeNotificationPreparedReadOnlyRecovery() {
+requireDeploymentAuthority(false);
 writeFileSync(${JSON.stringify(marker)}, 'sanitized');
 }
 `,
@@ -2460,8 +2506,9 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
       expect(() => readFileSync(functionMarker), stepId).toThrow();
       expect(result.stderr, stepId)
         .not.toContain('github-owner-test-token-value');
-    }
-  });
+      }
+    },
+  );
 
   it('rejects a forged selected Node before it can receive credentials', () => {
     for (const stepId of ['deploy', 'recovery']) {
@@ -2908,8 +2955,10 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
     }
   });
 
-  it('rechecks prepared credential separation after protected child reads', () => {
-    for (const stepId of ['deploy', 'recovery']) {
+  it.skipIf(process.platform === 'win32')(
+    'rechecks prepared credential separation after protected child reads',
+    () => {
+      for (const stepId of ['deploy', 'recovery']) {
       const root = realpathSync(mkdtempSync(join(
         tmpdir(),
         'warpkeep-prepared-child-credential-separation-',
@@ -2924,6 +2973,9 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
         [
           "import { writeFileSync } from 'node:fs';",
           'export async function runAuthBridgeNotificationPreparedDeploy() {',
+          '  writeFileSync(' + JSON.stringify(marker) + ", 'ran');",
+          '}',
+          'export async function runAuthBridgeNotificationPreparedReadOnlyRecovery() {',
           '  writeFileSync(' + JSON.stringify(marker) + ", 'ran');",
           '}',
           '',
@@ -2989,16 +3041,18 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
       expect(result.status, stepId).not.toBe(0);
       expect(() => readFileSync(marker), stepId).toThrow();
       expect(result.stderr, stepId).not.toContain(sharedCredential);
-    }
-  });
+      }
+    },
+  );
 
-  it('always attempts guarded recovery after failure and rejects an unverified outcome', () => {
+  it('selects direct recovery and rejects an unverified selected outcome', () => {
     const deploy = step('deploy');
     const recovery = step('recovery');
     const final = preparedJob().steps?.find(candidate => (
       candidate.name === 'Require a verified deployment or recovery'
     ));
     expect(deploy['continue-on-error']).toBe(true);
+    expect(deploy.if).toBe("${{ inputs.operation == 'deploy' }}");
     expect(deploy.run).toContain(
       `printf '%s\\n' 'attempted=true' >> "$GITHUB_OUTPUT"`,
     );
@@ -3007,12 +3061,23 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
       deployRun.indexOf('auth-bridge-notification-prepared-deploy.mjs'),
     );
     expect(recovery.if).toBe(
-      "${{ always() && steps.deploy.outputs.attempted == 'true' && steps.deploy.outcome != 'success' }}",
+      "${{ inputs.operation == 'recover-expired-authority-read-only' }}",
     );
+    expect(recovery.if).not.toContain('steps.deploy');
     expect(recovery['continue-on-error']).toBe(true);
     expect(final?.if).toBe('${{ always() }}');
+    expect(final?.env).toMatchObject({
+      WARPKEEP_OPERATION: '${{ inputs.operation }}',
+      DEPLOY_OUTCOME: '${{ steps.deploy.outcome }}',
+      DEPLOYMENT_ATTEMPTED: '${{ steps.deploy.outputs.attempted }}',
+      RECOVERY_OUTCOME: '${{ steps.recovery.outcome }}',
+    });
+    expect(final?.run).toContain(
+      "$WARPKEEP_OPERATION\" == 'recover-expired-authority-read-only'",
+    );
     expect(final?.run).toContain("$DEPLOY_OUTCOME\" == 'success'");
     expect(final?.run).toContain("$RECOVERY_OUTCOME\" == 'success'");
+    expect(final?.run).toContain("$DEPLOYMENT_ATTEMPTED\" == 'true'");
     expect(final?.run).toContain(
       'AUTH_BRIDGE_PREPARED_DEPLOY_OR_RECOVERY_UNVERIFIED',
     );

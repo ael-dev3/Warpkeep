@@ -14,6 +14,11 @@ import {
   genesis001PolicyObservationBootstrapReceiptDigest,
   genesis001PolicyReceiptDigest,
 } from '../scripts/genesis001-sealed-launch-adoption.mjs';
+import {
+  GENESIS_001_ADMITTED_PLAYER_CENSUS_NORMALIZED_SET_DOMAIN,
+  GENESIS_001_ADMITTED_PLAYER_CENSUS_OPAQUE_PROOF_DOMAIN,
+  GENESIS_001_ADMITTED_PLAYER_CENSUS_RAW_EVIDENCE_DOMAIN,
+} from '../scripts/genesis001-admitted-player-census.mjs';
 
 const FREEZE_SOURCE_COMMIT = 'd945256b217fa13ade944b9ed9880e8463b46123';
 const PREPARATION_SOURCE_COMMIT = 'a'.repeat(40);
@@ -191,13 +196,14 @@ function policyObservationBootstrapReceipt() {
 function censusReceipt(
   stamp = '20260828T120000Z',
   nonceHex = '7'.repeat(64),
+  sourceCommit = PREPARATION_SOURCE_COMMIT,
 ) {
   const receipt = {
     schemaVersion: 1,
     profile: 'warpkeep-genesis-001-census-export-private-proof-v1',
     realmId: 'GENESIS_001',
     releaseVersion: '0.3.43',
-    sourceCommit: PREPARATION_SOURCE_COMMIT,
+    sourceCommit,
     privateCensusReference: {
       count: 1,
       pathBasename: `warpkeep-access-request-census-${stamp}.txt`,
@@ -247,11 +253,136 @@ function monitorCurrentStateReceipt() {
   };
 }
 
+function admittedReceipt(
+  observedAt: string,
+  nonceHex: string,
+  preparationSourceCommit = PREPARATION_SOURCE_COMMIT,
+) {
+  const entries = [{ fid: '4242', authEpoch: '7' }];
+  const normalizedSetDigest = createHash('sha256')
+    .update(GENESIS_001_ADMITTED_PLAYER_CENSUS_NORMALIZED_SET_DOMAIN)
+    .update(`${JSON.stringify(entries[0])}\n`).digest('hex');
+  const proof = {
+    schemaVersion: 1,
+    profile: 'warpkeep-genesis-001-admitted-player-census-private-proof-v1',
+    realmId: 'GENESIS_001', releaseVersion: '0.3.43',
+    databaseIdentity: G001_DATABASE_IDENTITY,
+    preparationSourceCommit,
+    observedAt, collectionMethod: 'preferred-exact-query',
+    beforeAggregate: { allowedFids: '1', enabledAllowedFids: '1' },
+    afterAggregate: { allowedFids: '1', enabledAllowedFids: '1' },
+    admittedPlayerCount: '1', entries, normalizedSetDigest,
+    rawEvidenceDigest: createHash('sha256')
+      .update(GENESIS_001_ADMITTED_PLAYER_CENSUS_RAW_EVIDENCE_DOMAIN)
+      .update(observedAt).digest('hex'),
+    nonceHex,
+  };
+  return { ...proof, opaqueProofDigest: createHash('sha256')
+    .update(GENESIS_001_ADMITTED_PLAYER_CENSUS_OPAQUE_PROOF_DOMAIN)
+    .update(`${JSON.stringify(proof)}\n`).digest('hex') };
+}
+
+const G001_CENSUS_PRIVATE_PROFILE =
+  'warpkeep-sealed-realms-g001-census-private-v1';
+const G001_CENSUS_ACTIVATION_PROFILE =
+  'warpkeep-sealed-realms-g001-census-activation-private-v1';
+
+function recordDigest(record: object) {
+  return createHash('sha256').update(`${JSON.stringify(record)}\n`).digest('hex');
+}
+
+function applicantObservedAt(applicant: ReturnType<typeof censusReceipt>) {
+  const stamp = applicant.privateCensusReference.pathBasename
+    .slice('warpkeep-access-request-census-'.length, -'.txt'.length);
+  return new Date(stamp.replace(
+    /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/u,
+    '$1-$2-$3T$4:$5:$6.000Z',
+  ));
+}
+
+function censusActivationWrapper(
+  applicant: { first: ReturnType<typeof censusReceipt>; second: ReturnType<typeof censusReceipt> },
+  admitted: { first: ReturnType<typeof admittedReceipt>; second: ReturnType<typeof admittedReceipt> },
+  consumedAt?: string,
+  sourceCommit = PREPARATION_SOURCE_COMMIT,
+) {
+  const wrapPass = (
+    applicantReceipt: ReturnType<typeof censusReceipt>,
+    admittedReceiptValue: ReturnType<typeof admittedReceipt>,
+  ) => {
+    const observedAt = new Date(Math.max(
+      applicantObservedAt(applicantReceipt).getTime(),
+      Date.parse(admittedReceiptValue.observedAt),
+    )).toISOString();
+    const record = {
+      schemaVersion: 1,
+      profile: G001_CENSUS_PRIVATE_PROFILE,
+      sourceCommit,
+      applicant: applicantReceipt,
+      admitted: admittedReceiptValue,
+      observedAt,
+    };
+    return { recordDigest: recordDigest(record), record };
+  };
+  const first = wrapPass(applicant.first, admitted.first);
+  const second = wrapPass(applicant.second, admitted.second);
+  const expiresAt = new Date(Date.parse(second.record.observedAt) + 300_000)
+    .toISOString();
+  const confirmationDigest = createHash('sha256').update([
+    'warpkeep.sealed-realms.g001-census-confirmation.v1',
+    sourceCommit,
+    first.recordDigest,
+    second.recordDigest,
+    expiresAt,
+  ].join('\n')).digest('hex');
+  const confirmationRecord = {
+    schemaVersion: 1,
+    profile: G001_CENSUS_PRIVATE_PROFILE,
+    sourceCommit,
+    firstDigest: first.recordDigest,
+    secondDigest: second.recordDigest,
+    secondObservedAt: second.record.observedAt,
+    expiresAt,
+    confirmationDigest,
+  };
+  const consumedRecord = {
+    schemaVersion: 1,
+    profile: G001_CENSUS_PRIVATE_PROFILE,
+    sourceCommit,
+    firstDigest: first.recordDigest,
+    secondDigest: second.recordDigest,
+    confirmationDigest,
+    consumedAt: consumedAt ?? second.record.observedAt,
+  };
+  return {
+    schemaVersion: 1,
+    profile: G001_CENSUS_ACTIVATION_PROFILE,
+    first,
+    second,
+    confirmation: {
+      recordDigest: recordDigest(confirmationRecord),
+      record: confirmationRecord,
+    },
+    consumed: {
+      recordDigest: recordDigest(consumedRecord),
+      record: consumedRecord,
+    },
+  };
+}
+
 function evidence() {
   const frozen = freezeReceipt();
   const freezeDigest = genesis001FreezePublishReceiptDigest(frozen);
   const monitor = monitorReceipt();
   const monitorDigest = genesis001MonitorSuspensionReceiptDigest(monitor);
+  const applicantPair = {
+    first: censusReceipt(),
+    second: censusReceipt('20260828T120100Z', '8'.repeat(64)),
+  };
+  const admittedPair = {
+    first: admittedReceipt('2026-08-28T12:00:00.000Z', '1'.repeat(64)),
+    second: admittedReceipt('2026-08-28T12:01:00.000Z', '2'.repeat(64)),
+  };
   const privateEvidence = {
     preparationSourceCommit: PREPARATION_SOURCE_COMMIT,
     freezePublishReceipt: {
@@ -261,10 +392,7 @@ function evidence() {
       receipt: frozen,
     },
     policyObservationBootstrapReceipt: policyObservationBootstrapReceipt(),
-    censusPrivacySafePrivateReceipt: {
-      first: censusReceipt(),
-      second: censusReceipt('20260828T120100Z', '8'.repeat(64)),
-    },
+    censusPrivacySafePrivateReceipt: applicantPair,
     admissionMonitorSuspensionReceipt: {
       receiptBasename:
         `genesis001-admission-monitor-suspended-20260828T120100000Z-${monitorDigest.slice(0, 12)}.json`,
@@ -272,6 +400,8 @@ function evidence() {
       receipt: monitor,
     },
     admissionMonitorCurrentStateReceipt: monitorCurrentStateReceipt(),
+    admittedPlayerCensusPrivateReceipt:
+      censusActivationWrapper(applicantPair, admittedPair),
   };
   const authority = {
     freezePublishSourceCommit: FREEZE_SOURCE_COMMIT,
@@ -313,6 +443,11 @@ describe('Genesis 001 sealed-launch adoption', () => {
         'warpkeep-genesis-001-census-export-privacy-safe-v1',
       g001CensusPrivacySafeReceiptDigest:
         privateEvidence.censusPrivacySafePrivateReceipt.second.opaqueProofDigest,
+      g001AdmittedPlayerCensusReceiptProfile:
+        'warpkeep-genesis-001-admitted-player-census-privacy-safe-v1',
+      g001AdmittedPlayerCensusReceiptDigest:
+        privateEvidence.admittedPlayerCensusPrivateReceipt
+          .second.record.admitted.opaqueProofDigest,
       admissionMonitorSuspensionReceiptDigest:
         genesis001MonitorSuspensionReceiptDigest(
           privateEvidence.admissionMonitorSuspensionReceipt.receipt,
@@ -427,6 +562,13 @@ describe('Genesis 001 sealed-launch adoption', () => {
         censusPrivacySafePrivateReceipt: {
           first: baseline.censusPrivacySafePrivateReceipt.second,
           second: baseline.censusPrivacySafePrivateReceipt.first,
+        },
+      },
+      {
+        ...baseline,
+        admittedPlayerCensusPrivateReceipt: {
+          first: baseline.admittedPlayerCensusPrivateReceipt.second,
+          second: baseline.admittedPlayerCensusPrivateReceipt.first,
         },
       },
       {
@@ -709,5 +851,143 @@ describe('Genesis 001 sealed-launch adoption', () => {
         new Date(verifiedAt),
       )).toThrow();
     }
+  });
+
+  it('rejects foreign-run, stale, future, and cross-run admitted-player pairs', () => {
+    const { privateEvidence: baseline, authority } = evidence();
+    const foreignSource = 'c'.repeat(40);
+    const jointEvidence = (
+      firstStamp: string,
+      secondStamp: string,
+      firstTime: string,
+      secondTime: string,
+      sourceCommit = PREPARATION_SOURCE_COMMIT,
+      secondAdmittedSource = sourceCommit,
+    ) => {
+      const applicant = {
+        first: censusReceipt(firstStamp, '7'.repeat(64), sourceCommit),
+        second: censusReceipt(secondStamp, '8'.repeat(64), sourceCommit),
+      };
+      const admitted = {
+        first: admittedReceipt(firstTime, '1'.repeat(64), sourceCommit),
+        second: admittedReceipt(
+          secondTime,
+          '2'.repeat(64),
+          secondAdmittedSource,
+        ),
+      };
+      return {
+        censusPrivacySafePrivateReceipt: applicant,
+        admittedPlayerCensusPrivateReceipt: censusActivationWrapper(
+          applicant,
+          admitted,
+          undefined,
+          sourceCommit,
+        ),
+      };
+    };
+    const cases = [
+      jointEvidence(
+        '20260828T120000Z', '20260828T120100Z',
+        '2026-08-28T12:00:00.000Z', '2026-08-28T12:01:00.000Z',
+        foreignSource,
+      ),
+      jointEvidence(
+        '20260828T115000Z', '20260828T115100Z',
+        '2026-08-28T11:50:00.000Z', '2026-08-28T11:51:00.000Z',
+      ),
+      jointEvidence(
+        '20260828T120200Z', '20260828T120300Z',
+        '2026-08-28T12:02:00.000Z', '2026-08-28T12:03:00.000Z',
+      ),
+      jointEvidence(
+        '20260828T120000Z', '20260828T120100Z',
+        '2026-08-28T12:00:00.000Z', '2026-08-28T12:01:00.000Z',
+        PREPARATION_SOURCE_COMMIT,
+        foreignSource,
+      ),
+    ];
+    for (const candidateEvidence of cases) {
+      expect(() => deriveGenesis001SealedLaunchEvidenceForTesting(
+        { ...baseline, ...candidateEvidence },
+        authority,
+        new Date('2026-08-28T12:02:00.000Z'),
+      )).toThrow();
+    }
+  });
+
+  it('rejects a same-source admitted pair displaced from its applicant passes', () => {
+    const { privateEvidence: baseline, authority } = evidence();
+    const displacedApplicant = {
+      first: censusReceipt('20260828T120030Z', '9'.repeat(64)),
+      second: censusReceipt('20260828T120130Z', 'a'.repeat(64)),
+    };
+    const wrapper = censusActivationWrapper(
+      displacedApplicant,
+      {
+        first: admittedReceipt(
+          '2026-08-28T12:00:30.000Z',
+          '3'.repeat(64),
+        ),
+        second: admittedReceipt(
+          '2026-08-28T12:01:30.000Z',
+          '4'.repeat(64),
+        ),
+      },
+    );
+    expect(wrapper.first.recordDigest).toBe(recordDigest(wrapper.first.record));
+    expect(wrapper.second.recordDigest).toBe(recordDigest(wrapper.second.record));
+    expect(wrapper.confirmation.recordDigest).toBe(
+      recordDigest(wrapper.confirmation.record),
+    );
+    expect(wrapper.consumed.recordDigest).toBe(
+      recordDigest(wrapper.consumed.record),
+    );
+    const candidate = {
+      ...baseline,
+      admittedPlayerCensusPrivateReceipt: wrapper,
+    };
+    expect(() => deriveGenesis001SealedLaunchEvidenceForTesting(
+      candidate,
+      authority,
+      new Date('2026-08-28T12:02:00.000Z'),
+    )).toThrow();
+  });
+
+  it('accepts genuine Task6D joint records with unequal within-pass timestamps', () => {
+    const { privateEvidence: baseline, authority } = evidence();
+    const admittedPair = {
+      first: admittedReceipt('2026-08-28T12:00:15.000Z', '3'.repeat(64)),
+      second: admittedReceipt('2026-08-28T12:01:15.000Z', '4'.repeat(64)),
+    };
+    const suspensionReceipt = {
+      ...baseline.admissionMonitorSuspensionReceipt.receipt,
+      suspendedAt: '2026-08-28T12:01:30.000Z',
+    };
+    const suspensionDigest = genesis001MonitorSuspensionReceiptDigest(
+      suspensionReceipt,
+    );
+    const candidate = {
+      ...baseline,
+      admittedPlayerCensusPrivateReceipt: censusActivationWrapper(
+        baseline.censusPrivacySafePrivateReceipt,
+        admittedPair,
+      ),
+      admissionMonitorSuspensionReceipt: {
+        receiptBasename:
+          `genesis001-admission-monitor-suspended-20260828T120130000Z-${suspensionDigest.slice(0, 12)}.json`,
+        receiptSha256: suspensionDigest,
+        receipt: suspensionReceipt,
+      },
+      admissionMonitorCurrentStateReceipt: {
+        ...baseline.admissionMonitorCurrentStateReceipt,
+        observedAt: '2026-08-28T12:02:00.000Z',
+      },
+    };
+    expect(() => deriveGenesis001SealedLaunchEvidenceForTesting(
+      candidate,
+      authority,
+      new Date('2026-08-28T12:02:30.000Z'),
+    )).not.toThrow();
   });
 });

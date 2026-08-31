@@ -47,9 +47,9 @@ const GENESIS_001_POLICY_OBSERVATION_SOURCE_SHA256 =
 const GENESIS_001_ADMISSION_MONITOR_CURRENT_STATE_SOURCE_SHA256 =
   '10c8286a38ac81a5672280dcede60f712a95bc78af2f263e3ee8cc40d4afd5ac';
 const GENESIS_001_SEALED_LAUNCH_ADOPTION_SOURCE_SHA256 =
-  'ddcf3040c98c98bb49ed2cf38dafeca0cd3b8c2a1d1a684d34be57adb0fa59bf';
+  'f9b3fc9bb02c9905aaa210daf05f71e2262f157e7bf9669058ce21e915593631';
 const SEALED_LAUNCH_ACTIVATION_GENERATOR_SOURCE_SHA256 =
-  '76ad949891c5818d0f9a52422d429994417b9a9214b2ea45fe796040a7b76061';
+  'be5fc56e7fc232b186b5446fc1ac4b71130e1385a0e0783421f9cfa2b6e247df';
 const SEALED_LAUNCH_PACKAGE_STRUCTURE_SHA256 =
   '22663812042c8f910fdd555b01350a49c5d481013a8a52bbe99246561e58dd31';
 const SEALED_LAUNCH_LOCK_STRUCTURE_SHA256 =
@@ -304,6 +304,9 @@ const BINDING_KEYS = Object.freeze([
   'g001CensusPrivacySafeReceiptProfile',
   'g001CensusPrivacySafeReceiptDigest',
   'g001CensusPrivacySafeReceiptCommitment',
+  'g001AdmittedPlayerCensusReceiptProfile',
+  'g001AdmittedPlayerCensusReceiptDigest',
+  'g001AdmittedPlayerCensusReceiptCommitment',
   'admissionMonitorSuspensionReceiptDigest',
   'admissionMonitorSuspensionReceiptCommitment',
   'admissionMonitorCurrentStateReceiptDigest',
@@ -427,6 +430,8 @@ const RECEIPT_COMMITMENT_DIGESTS = Object.freeze({
     'g001PolicyObservationBootstrapReceiptDigest',
   g001CensusPrivacySafeReceiptCommitment:
     'g001CensusPrivacySafeReceiptDigest',
+  g001AdmittedPlayerCensusReceiptCommitment:
+    'g001AdmittedPlayerCensusReceiptDigest',
   admissionMonitorSuspensionReceiptCommitment:
     'admissionMonitorSuspensionReceiptDigest',
   admissionMonitorCurrentStateReceiptCommitment:
@@ -744,7 +749,12 @@ function verifyGenesis001SealedLaunchAdoption(sources) {
     'separation > MAXIMUM_STABLE_CENSUS_SEPARATION_MS',
     'policyObservedAt > census.firstObservedAt',
     'census.secondObservedAt',
-    '> Date.parse(monitor.evidence.receipt.suspendedAt)',
+    "'warpkeep-sealed-realms-g001-census-activation-private-v1'",
+    'physicalRecordDigest(record)',
+    "'warpkeep.sealed-realms.g001-census-confirmation.v1'",
+    'JSON.stringify(embeddedApplicant) !== JSON.stringify(applicant)',
+    'consumedAt >= Date.parse(expiresAt)',
+    'censusActivation.consumedAt > monitorSuspendedAt',
     "'policyObservationBootstrapReceipt',",
     "'admissionMonitorCurrentStateReceipt',",
     "'warpkeep-production-g001-policy-observation-bootstrap-link-v1'",
@@ -3867,6 +3877,7 @@ function verifyActivationBinding(binding) {
     'g001PolicyReceiptDigest',
     'g001PolicyObservationBootstrapReceiptDigest',
     'g001CensusPrivacySafeReceiptDigest',
+    'g001AdmittedPlayerCensusReceiptDigest',
     'admissionMonitorSuspensionReceiptDigest',
     'admissionMonitorCurrentStateReceiptDigest',
     'admissionRequestSuspensionReceiptDigest',
@@ -3965,6 +3976,8 @@ function verifyActivationBinding(binding) {
     || binding.g001AccessRequestSubmissionsEnabled !== false
     || binding.g001CensusPrivacySafeReceiptProfile
       !== GENESIS_001_CENSUS_PRIVACY_SAFE_RECEIPT_PROFILE
+    || binding.g001AdmittedPlayerCensusReceiptProfile
+      !== GENESIS_001_ADMITTED_PLAYER_CENSUS_PUBLIC_PROFILE
     || binding.admissionMonitorDisabled !== true
     || binding.admissionMonitorLoaded !== false
     || binding.g002AtlasId !== 'GENESIS_002_GREATER_REALM'

@@ -7,16 +7,18 @@ import {
   chmodSync,
   closeSync,
   linkSync,
+  mkdirSync,
   mkdtempSync,
   openSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../scripts/genesis001-sealed-launch-adoption.mjs', async () => {
   const actual = await vi.importActual<typeof import(
@@ -68,6 +70,26 @@ import {
   genesis001PolicyObservationBootstrapReceiptDigest,
   genesis001PolicyReceiptDigest,
 } from '../scripts/genesis001-sealed-launch-adoption.mjs';
+import {
+  GENESIS_001_ADMITTED_PLAYER_CENSUS_NORMALIZED_SET_DOMAIN,
+  GENESIS_001_ADMITTED_PLAYER_CENSUS_OPAQUE_PROOF_DOMAIN,
+  GENESIS_001_ADMITTED_PLAYER_CENSUS_RAW_EVIDENCE_DOMAIN,
+} from '../scripts/genesis001-admitted-player-census.mjs';
+import {
+  canonicalAuthBridgeNotificationPreparedReceiptPublication,
+} from '../scripts/auth-bridge-notification-prepared-receipt.mjs';
+import {
+  createSealedRealmsProductionPrivateState,
+} from '../scripts/sealed-realms-production-private-state.mjs';
+import {
+  authenticateSealedRealmsProductionSourceAuthority,
+} from '../scripts/sealed-realms-production-source-authority.mjs';
+import {
+  consumeSealedRealmsProductionActivationEvidenceForGenerator,
+  createSealedRealmsProductionActivationEvidenceGenerator,
+  createSealedRealmsProductionAuthBridgeState,
+  createSealedRealmsProductionAuthBridgeStateTestCapability,
+} from '../scripts/sealed-realms-production-auth-bridge-state.mjs';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
 const temporaryDirectories: string[] = [];
@@ -122,6 +144,212 @@ const TEST_PREPARATION_BOOTSTRAP_AUTHORITY: Readonly<{
   bootstrapBlob: '2'.repeat(40),
   bootstrapSha256:
     'be9efaf1ecad13c2cd94bfb457353b8946f12b3304f47b34e8b9422041712c1a',
+});
+const BRIDGE_DEPLOYMENT_ID = '223e4567-e89b-42d3-a456-426614174000';
+const BRIDGE_WORKER_VERSION_ID = '123e4567-e89b-42d3-a456-426614174000';
+const BRIDGE_PTR_BINDING_DIGEST = createHash('sha256')
+  .update('warpkeep.auth-bridge.ptr-binding.v1\n')
+  .update(`${JSON.stringify([
+    BRIDGE_WORKER_VERSION_ID,
+    PREPARATION_COMMIT,
+    PTR_DATABASE_IDENTITY,
+    'warpkeep-ptr-spacetimedb',
+  ])}\n`)
+  .digest('hex');
+const BRIDGE_NOW = new Date('2026-08-28T12:01:30.000Z');
+const BRIDGE_SUSPENSION_BODY = JSON.stringify({
+  error: {
+    code: 'admission_requests_suspended',
+    message: 'New admission requests are temporarily suspended.',
+  },
+});
+let activationEvidenceMember: object;
+let releaseActivationEvidenceMember: (() => void) | undefined;
+let activationEvidenceConsumption: Promise<unknown> | undefined;
+let activationEvidenceHome: string | undefined;
+
+function bridgeSuspensionResponse() {
+  return new Response(BRIDGE_SUSPENSION_BODY, {
+    status: 503,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+      'access-control-allow-origin': 'https://warpkeep.com',
+    },
+  });
+}
+
+function bridgeImportProof(lane: 'g002' | 'ptr', adopted: boolean) {
+  const authority = {
+    sourceCommit: PREPARATION_COMMIT,
+    deploymentId: BRIDGE_DEPLOYMENT_ID,
+    workerVersionId: BRIDGE_WORKER_VERSION_ID,
+    ptrDatabaseIdentity: PTR_DATABASE_IDENTITY,
+    ptrBindingDigest: BRIDGE_PTR_BINDING_DIGEST,
+  };
+  return adopted
+    ? {
+      disposition: 'adopted' as const,
+      ...authority,
+      receiptDigest: lane === 'g002'
+        ? IMPORT_RECEIPT_DIGEST
+        : ptrAtlasImportReceipt().importReceiptDigest,
+    }
+    : {
+      disposition: 'no-effect' as const,
+      ...authority,
+      noEffectDigest: lane === 'g002' ? '6'.repeat(64) : '7'.repeat(64),
+    };
+}
+
+beforeAll(async () => {
+  const home = mkdtempSync(join(tmpdir(), 'warpkeep-activation-member-'));
+  activationEvidenceHome = home;
+  for (const root of [
+    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'audit', 'private'),
+    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'runtime'),
+    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'cache'),
+  ]) {
+    mkdirSync(root, { recursive: true, mode: 0o700 });
+    chmodSync(root, 0o700);
+  }
+  const privateState = createSealedRealmsProductionPrivateState({
+    reportedHome: home,
+    testOnlyOwnerUid: statSync(home).uid,
+    testOnlyFsync: () => {},
+    testOnlyAllowPlatformMode: true,
+  });
+  const preparedReceipt = {
+    schemaVersion: 1,
+    kind: 'warpkeep-auth-bridge-notification-prepared-v1',
+    bridgeOrigin: 'https://auth.warpkeep.com',
+    bridgeSourceCommit: PREPARATION_COMMIT,
+    notificationDeliveryContractDigest:
+      '13429727ea5257946e3b659e07f912cf8cd81985fadecb03c63311994a01f7d9',
+    notificationClientCount: 1,
+    notificationDeliveryEnabled: true,
+    notificationTransportConfigured: true,
+    admissionNotificationStoreConfigured: true,
+    publicAuthEnabledBefore: true,
+    publicAuthEnabledAfter: true,
+    accessExpectedFidRequiredBefore: false,
+    accessExpectedFidRequiredAfter: false,
+    hermesExecutionApproved: false,
+    pagesPresentationEnabled: false,
+    liveAttestationDigest: 'b'.repeat(64),
+    preparedAt: '2026-08-28T11:00:00.000Z',
+    expiresAt: '2026-08-28T13:00:00.000Z',
+  } as const;
+  const preparedPublication =
+    canonicalAuthBridgeNotificationPreparedReceiptPublication(preparedReceipt);
+  const sourceAuthority = authenticateSealedRealmsProductionSourceAuthority({
+    operation: 'g002-import-inspect',
+    workflowInputSha: PREPARATION_COMMIT,
+    readGit: args => args[0] === 'rev-parse'
+      ? `${PREPARATION_COMMIT}\n`
+      : (() => { throw new Error('unexpected git call'); })(),
+    readBinding: () => ({
+      schemaVersion: 1,
+      profile: 'warpkeep-0.4.0-sealed-launch-v1',
+      pagesDeploymentApproved: false,
+      preparationSourceCommit: PREPARATION_COMMIT,
+    }),
+    verifyEvidence: verifiedSha => ({ verifiedSha }),
+  });
+  let randomByte = 0;
+  const importAdopted: Record<'g002' | 'ptr', boolean> = {
+    g002: false,
+    ptr: false,
+  };
+  const bridge = createSealedRealmsProductionAuthBridgeState({
+    authority: sourceAuthority,
+    privateState,
+    repositoryRoot,
+    reportedHome: home,
+    deploymentAttester: () => ({
+      deploymentId: BRIDGE_DEPLOYMENT_ID,
+      workerVersionId: BRIDGE_WORKER_VERSION_ID,
+      bridgeSourceCommit: PREPARATION_COMMIT,
+      controlPlaneAttestationDigest: 'c'.repeat(64),
+      publicAttestationDigest: 'd'.repeat(64),
+      privateAttestationDigest: 'e'.repeat(64),
+      observedAt: BRIDGE_NOW.toISOString(),
+    }),
+    bindingAttester: () => ({
+      ptrDatabaseIdentity: PTR_DATABASE_IDENTITY,
+      ptrBindingDigest: BRIDGE_PTR_BINDING_DIGEST,
+      ptrBindingAttestationDigest: '2'.repeat(64),
+      observedAt: BRIDGE_NOW.toISOString(),
+    }),
+    fetchImpl: async () => bridgeSuspensionResponse(),
+    now: () => new Date(BRIDGE_NOW),
+    randomBytesImpl: () => Buffer.alloc(32, ++randomByte),
+    inspectImportReceipt: ({ lane }: { lane: 'g002' | 'ptr' }) =>
+      bridgeImportProof(lane, importAdopted[lane]),
+    authenticateImportResult: ({ lane }: { lane: 'g002' | 'ptr' }) =>
+      bridgeImportProof(lane, true),
+    resolveOwnerProvisionReceipt: () => ({
+      sourceCommit: PREPARATION_COMMIT,
+      deploymentId: BRIDGE_DEPLOYMENT_ID,
+      workerVersionId: BRIDGE_WORKER_VERSION_ID,
+      ptrDatabaseIdentity: PTR_DATABASE_IDENTITY,
+      ptrBindingDigest: BRIDGE_PTR_BINDING_DIGEST,
+      receiptDigest: '5'.repeat(64),
+      provisionReceiptDigest: '9'.repeat(64),
+    }),
+    testOnlyCapability: createSealedRealmsProductionAuthBridgeStateTestCapability(),
+    testOnlyResolvePreparedReceipt: () => ({
+      receipt: preparedReceipt,
+      receiptDigest: preparedPublication.receiptDigest,
+    }),
+    testOnlyResolveCompletedJournal: () => ({
+      journalHeadDigest: '3'.repeat(64),
+      profile: 'warpkeep-auth-bridge-notification-prepared-deploy-journal-v3',
+      outcome: 'verified',
+      predecessorDigest: null,
+      runId: '42',
+      runAttempt: 1,
+      completedAt: BRIDGE_NOW.toISOString(),
+      sourceCommit: PREPARATION_COMMIT,
+      workerVersionId: BRIDGE_WORKER_VERSION_ID,
+    }),
+  } as never);
+  const g002 = await bridge.inspectGate({ lane: 'g002' });
+  await bridge.applyGate({
+    confirmation: g002.confirmation,
+    apply: () => { importAdopted.g002 = true; },
+  });
+  const ptr = await bridge.inspectGate({ lane: 'ptr' });
+  await bridge.applyGate({
+    confirmation: ptr.confirmation,
+    apply: () => { importAdopted.ptr = true; },
+  });
+  const activation = await bridge.inspectActivationEvidence();
+  let memberReady!: () => void;
+  const ready = new Promise<void>(resolveReady => { memberReady = resolveReady; });
+  let release!: () => void;
+  const held = new Promise<void>(resolveHeld => { release = resolveHeld; });
+  releaseActivationEvidenceMember = release;
+  const generator = createSealedRealmsProductionActivationEvidenceGenerator({
+    generate: async ({ member }) => {
+      activationEvidenceMember = member;
+      memberReady();
+      await held;
+    },
+  });
+  activationEvidenceConsumption =
+    consumeSealedRealmsProductionActivationEvidenceForGenerator({
+      confirmation: activation.confirmation,
+      generator,
+    });
+  await ready;
+});
+
+afterAll(async () => {
+  releaseActivationEvidenceMember?.();
+  await activationEvidenceConsumption;
+  if (activationEvidenceHome !== undefined) {
+    rmSync(activationEvidenceHome, { recursive: true, force: true });
+  }
 });
 
 function sortedCanonical(value: unknown): unknown {
@@ -370,6 +598,152 @@ function g001MonitorCurrentStateReceipt() {
   };
 }
 
+function g001AdmittedPlayerReceipt(
+  observedAt: string,
+  nonceHex: string,
+) {
+  const entries = [{ fid: '4242', authEpoch: '7' }];
+  const normalizedSetDigest = createHash('sha256')
+    .update(GENESIS_001_ADMITTED_PLAYER_CENSUS_NORMALIZED_SET_DOMAIN)
+    .update(`${JSON.stringify(entries[0])}\n`)
+    .digest('hex');
+  const proof = {
+    schemaVersion: 1,
+    profile: 'warpkeep-genesis-001-admitted-player-census-private-proof-v1',
+    realmId: 'GENESIS_001',
+    releaseVersion: '0.3.43',
+    databaseIdentity: G001_DATABASE_IDENTITY,
+    preparationSourceCommit: PREPARATION_COMMIT,
+    observedAt,
+    collectionMethod: 'preferred-exact-query',
+    beforeAggregate: { allowedFids: '1', enabledAllowedFids: '1' },
+    afterAggregate: { allowedFids: '1', enabledAllowedFids: '1' },
+    admittedPlayerCount: '1',
+    entries,
+    normalizedSetDigest,
+    rawEvidenceDigest: createHash('sha256')
+      .update(GENESIS_001_ADMITTED_PLAYER_CENSUS_RAW_EVIDENCE_DOMAIN)
+      .update(`fixture-${observedAt}`)
+      .digest('hex'),
+    nonceHex,
+  };
+  return {
+    ...proof,
+    opaqueProofDigest: createHash('sha256')
+      .update(GENESIS_001_ADMITTED_PLAYER_CENSUS_OPAQUE_PROOF_DOMAIN)
+      .update(`${JSON.stringify(proof)}\n`)
+      .digest('hex'),
+  };
+}
+
+function g001AdmittedPlayerPair() {
+  return {
+    first: g001AdmittedPlayerReceipt(
+      '2026-08-28T12:00:00.000Z', '1'.repeat(64),
+    ),
+    second: g001AdmittedPlayerReceipt(
+      '2026-08-28T12:01:00.000Z', '2'.repeat(64),
+    ),
+  };
+}
+
+function g001ApplicantPair() {
+  return {
+    first: g001CensusReceipt(),
+    second: g001CensusReceipt('20260828T120100Z', '8'.repeat(64)),
+  };
+}
+
+function g001CensusActivationWrapper() {
+  const applicant = g001ApplicantPair();
+  const admitted = g001AdmittedPlayerPair();
+  const digest = (record: object) => createHash('sha256')
+    .update(`${JSON.stringify(record)}\n`).digest('hex');
+  const applicantTime = (receipt: ReturnType<typeof g001CensusReceipt>) => {
+    const stamp = receipt.privateCensusReference.pathBasename
+      .slice('warpkeep-access-request-census-'.length, -'.txt'.length);
+    return Date.parse(stamp.replace(
+      /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/u,
+      '$1-$2-$3T$4:$5:$6.000Z',
+    ));
+  };
+  const wrapPass = (
+    applicantReceipt: ReturnType<typeof g001CensusReceipt>,
+    admittedReceipt: ReturnType<typeof g001AdmittedPlayerReceipt>,
+  ) => {
+    const record = {
+      schemaVersion: 1,
+      profile: 'warpkeep-sealed-realms-g001-census-private-v1',
+      sourceCommit: PREPARATION_COMMIT,
+      applicant: applicantReceipt,
+      admitted: admittedReceipt,
+      observedAt: new Date(Math.max(
+        applicantTime(applicantReceipt),
+        Date.parse(admittedReceipt.observedAt),
+      )).toISOString(),
+    };
+    return { recordDigest: digest(record), record };
+  };
+  const first = wrapPass(applicant.first, admitted.first);
+  const second = wrapPass(applicant.second, admitted.second);
+  const expiresAt = new Date(Date.parse(second.record.observedAt) + 300_000)
+    .toISOString();
+  const confirmationDigest = createHash('sha256').update([
+    'warpkeep.sealed-realms.g001-census-confirmation.v1',
+    PREPARATION_COMMIT,
+    first.recordDigest,
+    second.recordDigest,
+    expiresAt,
+  ].join('\n')).digest('hex');
+  const confirmationRecord = {
+    schemaVersion: 1,
+    profile: 'warpkeep-sealed-realms-g001-census-private-v1',
+    sourceCommit: PREPARATION_COMMIT,
+    firstDigest: first.recordDigest,
+    secondDigest: second.recordDigest,
+    secondObservedAt: second.record.observedAt,
+    expiresAt,
+    confirmationDigest,
+  };
+  const consumedRecord = {
+    schemaVersion: 1,
+    profile: 'warpkeep-sealed-realms-g001-census-private-v1',
+    sourceCommit: PREPARATION_COMMIT,
+    firstDigest: first.recordDigest,
+    secondDigest: second.recordDigest,
+    confirmationDigest,
+    consumedAt: second.record.observedAt,
+  };
+  return {
+    schemaVersion: 1,
+    profile: 'warpkeep-sealed-realms-g001-census-activation-private-v1',
+    first,
+    second,
+    confirmation: {
+      recordDigest: digest(confirmationRecord),
+      record: confirmationRecord,
+    },
+    consumed: {
+      recordDigest: digest(consumedRecord),
+      record: consumedRecord,
+    },
+  };
+}
+
+function authBridgeSuspensionPrivateReceipt() {
+  return {
+    schemaVersion: 1,
+    profile: 'warpkeep-sealed-realms-auth-bridge-suspension-private-v1',
+    sourceCommit: PREPARATION_COMMIT,
+    deploymentAuthority: {},
+    g002Gate: {},
+    g002ImportAuthorityCrossLink: {},
+    ptrGate: {},
+    ptrImportAuthorityCrossLink: {},
+    activationGate: {},
+  };
+}
+
 function bindingCandidate() {
   const value = JSON.parse(readFileSync(
     resolve(repositoryRoot, 'config/releases/0.4.0-sealed-launch.json'),
@@ -378,8 +752,8 @@ function bindingCandidate() {
   Object.assign(value, {
     pagesDeploymentApproved: true,
     preparationSourceCommit: PREPARATION_COMMIT,
-    authBridgeSourceCommit: PREPARATION_COMMIT,
-    admissionRequestSuspensionReceiptDigest: 'e'.repeat(64),
+    authBridgeSourceCommit: null,
+    admissionRequestSuspensionReceiptDigest: null,
   });
   let clear = false;
   for (const key of Object.keys(value)) {
@@ -646,13 +1020,12 @@ function evidenceEnvelope() {
     },
     g001PolicyObservationBootstrapReceipt:
       g001PolicyObservationBootstrapReceipt(),
-    g001CensusPrivacySafePrivateReceipt: {
-      first: g001CensusReceipt(),
-      second: g001CensusReceipt('20260828T120100Z', '8'.repeat(64)),
-    },
+    g001CensusPrivacySafePrivateReceipt: g001ApplicantPair(),
+    g001AdmittedPlayerCensusPrivateReceipt: g001CensusActivationWrapper(),
     g001AdmissionMonitorSuspensionReceipt: g001MonitorEvidence(),
     g001AdmissionMonitorCurrentStateReceipt:
       g001MonitorCurrentStateReceipt(),
+    authBridgeSuspensionPrivateReceipt: activationEvidenceMember,
     g002PublishReceipt: publishReceipt(),
     g002AtlasImportReceipt: atlasImportReceipt(),
     g002SealedLiveReceipt: sealedLiveReceipt(),
@@ -681,7 +1054,15 @@ function generateBindingFromDescriptor(descriptor: number) {
   return generateSealedLaunchActivationBindingFromDescriptor(
     descriptor,
     TEST_PREPARATION_BOOTSTRAP_AUTHORITY,
+    activationEvidenceMember as never,
   );
+}
+
+function descriptorEvidenceEnvelope() {
+  return {
+    ...evidenceEnvelope(),
+    authBridgeSuspensionPrivateReceipt: null,
+  };
 }
 
 function canonical(value: unknown) {
@@ -704,10 +1085,117 @@ afterEach(() => {
 });
 
 describe('sealed 0.4.0 activation binding generator', () => {
+  it('rejects caller-provided bridge receipts and bridge authority fields', () => {
+    const rawBridge = evidenceEnvelope();
+    rawBridge.authBridgeSuspensionPrivateReceipt =
+      authBridgeSuspensionPrivateReceipt();
+    expect(() => createBindingFromEvidence(rawBridge)).toThrow();
+
+    for (const [key, value] of [
+      ['authBridgeSourceCommit', PREPARATION_COMMIT],
+      ['admissionRequestSuspensionReceiptDigest', 'e'.repeat(64)],
+      ['authBridgeDeploymentId', '123e4567-e89b-42d3-a456-426614174000'],
+      ['authBridgeRecoveryHeadDigest', 'f'.repeat(64)],
+      ['authBridgeProbeDigest', '0'.repeat(64)],
+    ] as const) {
+      const injected = evidenceEnvelope() as Record<string, unknown>;
+      const candidate = injected.bindingCandidate as Record<string, unknown>;
+      candidate[key] = value;
+      expect(
+        () => createBindingFromEvidence(injected as never),
+        key,
+      ).toThrow();
+    }
+  });
+
+  it('requires the exact 19-key private envelope and no caller bridge authority', () => {
+    const envelope = evidenceEnvelope() as Record<string, unknown>;
+    expect(Object.keys(envelope)).toEqual([
+      'schemaVersion',
+      'profile',
+      'bindingCandidate',
+      'g001FreezePublishReceipt',
+      'g001PolicyObservationBootstrapReceipt',
+      'g001CensusPrivacySafePrivateReceipt',
+      'g001AdmittedPlayerCensusPrivateReceipt',
+      'g001AdmissionMonitorSuspensionReceipt',
+      'g001AdmissionMonitorCurrentStateReceipt',
+      'authBridgeSuspensionPrivateReceipt',
+      'g002PublishReceipt',
+      'g002AtlasImportReceipt',
+      'g002SealedLiveReceipt',
+      'g002SealedLiveReceiptDigest',
+      'ptrPublishReceipt',
+      'ptrAtlasImportReceipt',
+      'ptrOwnerProvisionReceipt',
+      'ptrSealedLiveReceipt',
+      'ptrSealedLiveReceiptDigest',
+    ]);
+    const candidate = envelope.bindingCandidate as Record<string, unknown>;
+    expect(candidate.authBridgeSourceCommit).toBeNull();
+    expect(candidate.admissionRequestSuspensionReceiptDigest).toBeNull();
+  });
+
+  it('binds bridge cross-links and PTR deployment authority to the realm evidence', () => {
+    const g002Drift = evidenceEnvelope();
+    const { importReceiptDigest: _g002Digest, ...g002Body } =
+      g002Drift.g002AtlasImportReceipt;
+    g002Body.operationChainDigest = '9'.repeat(64);
+    g002Drift.g002AtlasImportReceipt = {
+      ...g002Body,
+      importReceiptDigest: genesis002ProductionImportReceiptDigest(g002Body),
+    };
+
+    const ptrDrift = evidenceEnvelope();
+    const { importReceiptDigest: _ptrDigest, ...ptrBody } =
+      ptrDrift.ptrAtlasImportReceipt;
+    ptrBody.operationChainDigest = '8'.repeat(64);
+    ptrDrift.ptrAtlasImportReceipt = {
+      ...ptrBody,
+      importReceiptDigest: ptrReceiptDigest(
+        'warpkeep.ptr.production-import-receipt.v1',
+        ptrBody,
+      ),
+    };
+
+    const ptrIdentityDrift = evidenceEnvelope();
+    const changedIdentity = '8'.repeat(64);
+    ptrIdentityDrift.ptrPublishReceipt.databaseIdentity = changedIdentity;
+    ptrIdentityDrift.ptrAtlasImportReceipt.databaseIdentity = changedIdentity;
+    ptrIdentityDrift.ptrOwnerProvisionReceipt.databaseIdentity = changedIdentity;
+    ptrIdentityDrift.ptrSealedLiveReceipt.databaseIdentity = changedIdentity;
+    const redigest = (
+      receipt: Record<string, unknown>,
+      digestKey: string,
+      domain: string,
+    ) => {
+      const body = Object.fromEntries(
+        Object.entries(receipt).filter(([key]) => key !== digestKey),
+      );
+      receipt[digestKey] = ptrReceiptDigest(domain, body);
+    };
+    redigest(ptrIdentityDrift.ptrPublishReceipt, 'publishReceiptDigest',
+      'warpkeep.ptr.production-publish-receipt.v1');
+    redigest(ptrIdentityDrift.ptrAtlasImportReceipt, 'importReceiptDigest',
+      'warpkeep.ptr.production-import-receipt.v1');
+    redigest(ptrIdentityDrift.ptrOwnerProvisionReceipt, 'provisionReceiptDigest',
+      'warpkeep.ptr.owner-provision-receipt.v1');
+    ptrIdentityDrift.ptrSealedLiveReceiptDigest = ptrReceiptDigest(
+      'warpkeep.ptr.sealed-live-receipt.v1',
+      ptrIdentityDrift.ptrSealedLiveReceipt,
+    );
+
+    for (const hostile of [g002Drift, ptrDrift, ptrIdentityDrift]) {
+      expect(() => createBindingFromEvidence(hostile)).toThrow();
+    }
+  });
+
   it('derives every G1/G2 field and commitment from one exact evidence envelope', () => {
-    const descriptor = inputDescriptor(canonical(evidenceEnvelope()));
+    const descriptor = inputDescriptor(canonical(descriptorEvidenceEnvelope()));
     try {
-      const result = generateBindingFromDescriptor(descriptor);
+      const result = process.platform === 'win32'
+        ? createBindingFromEvidence(evidenceEnvelope())
+        : generateBindingFromDescriptor(descriptor);
       expect(result.pagesDeploymentApproved).toBe(true);
       expect(result).toMatchObject({
         g001DatabaseIdentity: G001_DATABASE_IDENTITY,
@@ -734,6 +1222,10 @@ describe('sealed 0.4.0 activation binding generator', () => {
             '20260828T120100Z',
             '8'.repeat(64),
           ).opaqueProofDigest,
+        g001AdmittedPlayerCensusReceiptProfile:
+          'warpkeep-genesis-001-admitted-player-census-privacy-safe-v1',
+        g001AdmittedPlayerCensusReceiptDigest:
+          g001AdmittedPlayerPair().second.opaqueProofDigest,
         admissionMonitorSuspensionReceiptDigest:
           g001MonitorEvidence().receiptSha256,
         admissionMonitorCurrentStateReceiptDigest:
@@ -742,6 +1234,7 @@ describe('sealed 0.4.0 activation binding generator', () => {
           ),
         admissionMonitorDisabled: true,
         admissionMonitorLoaded: false,
+        authBridgeSourceCommit: PREPARATION_COMMIT,
         g002PublishReceiptDigest: PUBLISH_RECEIPT_DIGEST,
         g002FreshStatusDigest: FRESH_STATUS_DIGEST,
         g002DatabaseIdentity: DATABASE_IDENTITY,
@@ -851,9 +1344,17 @@ describe('sealed 0.4.0 activation binding generator', () => {
       expect(result).not.toHaveProperty('ptrSealedLiveReceipt');
       expect(result).not.toHaveProperty('ownerOpaqueProofDigest');
       expect(result).not.toHaveProperty('operationChainDigest');
-      for (const [key, value] of Object.entries(result)) {
+      const commitmentEntries = Object.entries(result)
+        .filter(([key]) => key.endsWith('Commitment'));
+      expect(commitmentEntries).toHaveLength(17);
+      for (const [key, value] of commitmentEntries) {
         if (key.endsWith('Commitment')) expect(value).toMatch(/^[0-9a-f]{64}$/u);
       }
+      for (const privateKey of [
+        'admittedPlayerCount', 'entries', 'normalizedSetDigest',
+        'rawEvidenceDigest', 'nonceHex', 'deploymentAuthority',
+        'g002Gate', 'ptrGate', 'activationGate',
+      ]) expect(result).not.toHaveProperty(privateKey);
       expect(canonical(result)).toBe(`${JSON.stringify(result, null, 2)}\n`);
       const canonicalOutput = canonical(result);
       for (const privateValue of [
@@ -861,6 +1362,8 @@ describe('sealed 0.4.0 activation binding generator', () => {
         'warpkeep-access-request-census-20260828T120100Z.txt',
         '8'.repeat(64),
         PTR_OWNER_OPAQUE_PROOF_DIGEST,
+        '"fid":"4242"',
+        '"authEpoch":"7"',
       ]) expect(canonicalOutput).not.toContain(privateValue);
     } finally {
       closeSync(descriptor);
@@ -868,9 +1371,18 @@ describe('sealed 0.4.0 activation binding generator', () => {
   });
 
   it('rejects noncanonical, extra-field, or non-private evidence files', () => {
+    const descriptorEnvelope = descriptorEvidenceEnvelope();
+    const reorderedEntries = Object.entries(descriptorEnvelope);
+    [reorderedEntries[5], reorderedEntries[6]] = [
+      reorderedEntries[6]!, reorderedEntries[5]!,
+    ];
     for (const [contents, mode] of [
       [JSON.stringify(evidenceEnvelope()), 0o600],
-      [canonical({ ...evidenceEnvelope(), applicantNames: ['private'] }), 0o600],
+      [canonical({
+        ...descriptorEvidenceEnvelope(),
+        applicantNames: ['private'],
+      }), 0o600],
+      [canonical(Object.fromEntries(reorderedEntries)), 0o600],
       [canonical(evidenceEnvelope()), 0o644],
     ] as const) {
       const descriptor = inputDescriptor(contents, mode);
@@ -924,7 +1436,10 @@ describe('sealed 0.4.0 activation binding generator', () => {
     });
     linkSync(hardLinkSource, hardLinkAlias);
     const hardLinked = openSync(hardLinkSource, 'r');
-    const nonRegular = openSync('/dev/null', 'r');
+    const nonRegular = openSync(
+      process.platform === 'win32' ? '\\\\.\\NUL' : '/dev/null',
+      'r',
+    );
     try {
       for (const descriptor of [
         invalidUtf8,
