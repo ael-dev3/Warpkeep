@@ -93,3 +93,19 @@ condition = "AND"
 regexTarget = "secret"
 regexes = ['''^g002PublishReceiptDigest$''']
 paths = ['''^tests/sealedLaunchActivationGenerator\.test\.ts$''']
+
+[[allowlists]]
+description = "One non-secret UUID used only as a sealed-launch negative authority-field fixture"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^123e4567-e89b-42d3-a456-426614174000$''']
+paths = ['''^tests/sealedLaunchActivationGenerator\.test\.ts$''']
+
+[[allowlists]]
+description = "Non-secret sealed-launch boolean schema key in public activation artifact verification"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^g002AdmissionMutationsEnabled$''']
+paths = ['''^scripts/verify-sealed-realms-public-activation-artifact\.mjs$''']
