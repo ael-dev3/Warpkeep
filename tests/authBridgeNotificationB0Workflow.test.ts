@@ -6,6 +6,7 @@ import {
   chmodSync,
   cpSync,
   linkSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -15,7 +16,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
@@ -124,6 +125,74 @@ function protectedLaunchForSameUidSwapTarget(
       () => '"$signature" != *$\'TeamIdentifier=HX7739G8FX\'* '
         + '&& "$signature" != *$\'Signature=adhoc\'*',
     ));
+}
+
+type SanitizedNodeAncestryEntry = Readonly<{
+  depth: number;
+  mode: string;
+  nlink: number;
+  type: 'file' | 'directory' | 'symlink' | 'other';
+  owner: 'self' | 'root' | 'other';
+  group: 'self' | 'root' | 'other';
+}> | Readonly<{
+  depth: number;
+  error: 'missing' | 'permission' | 'unavailable';
+}>;
+
+function ownershipClass(value: number, self: number | undefined) {
+  if (value === 0) return 'root' as const;
+  return value === self ? 'self' as const : 'other' as const;
+}
+
+function observationErrorClass(error: unknown) {
+  const code = (error as { code?: unknown })?.code;
+  if (code === 'ENOENT' || code === 'ENOTDIR') return 'missing' as const;
+  if (code === 'EACCES' || code === 'EPERM') return 'permission' as const;
+  return 'unavailable' as const;
+}
+
+function sanitizedNodeAncestry(nodeExecutable: string): SanitizedNodeAncestryEntry[] {
+  const entries: SanitizedNodeAncestryEntry[] = [];
+  const uid = process.getuid?.();
+  const gid = process.getgid?.();
+  let current = nodeExecutable;
+  for (let depth = 0; ; depth += 1) {
+    try {
+      const metadata = lstatSync(current);
+      entries.push(Object.freeze({
+        depth,
+        mode: (metadata.mode & 0o7777).toString(8).padStart(4, '0'),
+        nlink: metadata.nlink,
+        type: metadata.isFile()
+          ? 'file'
+          : metadata.isDirectory()
+            ? 'directory'
+            : metadata.isSymbolicLink()
+              ? 'symlink'
+              : 'other',
+        owner: ownershipClass(metadata.uid, uid),
+        group: ownershipClass(metadata.gid, gid),
+      }));
+    } catch (error) {
+      entries.push(Object.freeze({ depth, error: observationErrorClass(error) }));
+    }
+    const parent = dirname(current);
+    if (parent === current) return entries;
+    current = parent;
+  }
+}
+
+function b0ReplayFailureMessage(
+  stepId: string,
+  result: ReturnType<typeof spawnSync>,
+  nodeExecutable: string,
+) {
+  if (result.signal === null && result.status === 0) return stepId;
+  const exit = typeof result.status === 'number' ? String(result.status) : 'unavailable';
+  const signal = result.signal ?? 'none';
+  return `${stepId}: B0_NODE_ANCESTRY=${JSON.stringify(
+    sanitizedNodeAncestry(nodeExecutable),
+  )}; exit=${exit}; signal=${signal}`;
 }
 
 function writeProtectedLaunchClosureFixture(
@@ -537,8 +606,9 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
           https_proxy: 'http://ambient.invalid',
         },
       });
-      expect(result.signal, stepId).toBeNull();
-      expect(result.status, `${stepId}: ${result.stderr}`).toBe(0);
+      const failureMessage = b0ReplayFailureMessage(stepId, result, trustedNode);
+      expect(result.signal, failureMessage).toBeNull();
+      expect(result.status, failureMessage).toBe(0);
       expect(readFileSync(marker, 'utf8'), stepId).toBe('sanitized');
       expect(() => readFileSync(hostileNodeMarker), stepId).toThrow();
       expect(() => readFileSync(preloadMarker), stepId).toThrow();
@@ -621,8 +691,9 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
             'production-admin-b0-runner-private-token',
         },
       });
-      expect(result.signal, stepId).toBeNull();
-      expect(result.status, `${stepId}: ${result.stderr}`).toBe(0);
+      const failureMessage = b0ReplayFailureMessage(stepId, result, node);
+      expect(result.signal, failureMessage).toBeNull();
+      expect(result.status, failureMessage).toBe(0);
       expect(readFileSync(marker, 'utf8'), stepId).toBe(stepId);
       expect(result.stderr, stepId).not.toContain(secret);
     }
