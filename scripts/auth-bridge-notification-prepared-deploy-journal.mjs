@@ -238,11 +238,16 @@ function fsyncDirectory(path) {
   }
 }
 
-function assertPrivateDirectory(path, uid, expectedParent) {
+function assertPrivateDirectory(path, uid, expectedParent, missingCode) {
   let metadata;
-  let canonical;
   try {
     metadata = lstatSync(path);
+  } catch (error) {
+    if (error?.code === 'ENOENT' && missingCode !== undefined) fail(missingCode);
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_DIRECTORY_INVALID');
+  }
+  let canonical;
+  try {
     canonical = realpathSync(path);
   } catch {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_DIRECTORY_INVALID');
@@ -948,7 +953,12 @@ function existingJournalDirectory({ repositoryRoot, reportedHome }) {
       'production-admin-v1',
       AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_STATE_CHILD,
     ]) {
-      parent = assertPrivateDirectory(join(parent, name), uid, parent);
+      parent = assertPrivateDirectory(
+        join(parent, name),
+        uid,
+        parent,
+        'AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_INVALID',
+      );
     }
   } catch (error) {
     if (error instanceof AuthBridgeNotificationPreparedDeployJournalError) {

@@ -47,6 +47,7 @@ import {
   type AuthBridgeNotificationPreparedReceipt,
 } from '../scripts/auth-bridge-notification-prepared-receipt.mjs';
 import {
+  AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_STATE_CHILD,
   resolveExistingAuthBridgeNotificationPreparedDeployJournal,
 } from '../scripts/auth-bridge-notification-prepared-deploy-journal.mjs';
 
@@ -774,6 +775,18 @@ describe('private production-admin prepared receipt storage', () => {
         repositoryRoot: realpathSync(process.cwd()),
         reportedHome: home,
       })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_INVALID');
+
+      const unsafeJournalDirectory = join(
+        dirname(directory),
+        AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_STATE_CHILD,
+      );
+      symlinkSync(join(home, 'missing-journal-target'), unsafeJournalDirectory);
+      expect(() => resolveExistingAuthBridgeNotificationPreparedDeployJournal({
+        repositoryRoot: realpathSync(process.cwd()),
+        reportedHome: home,
+      })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_DIRECTORY_INVALID');
+      expect(lstatSync(unsafeJournalDirectory).isSymbolicLink()).toBe(true);
+
       expect(readdirSync(directory).sort()).toEqual([...before.keys()]);
       for (const [name, bytes] of before) {
         expect(readFileSync(join(directory, name))).toEqual(bytes);
