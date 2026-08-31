@@ -7,6 +7,7 @@ const GENESIS_002_TOKEN_TYPE = 'spacetime-access';
 const MAX_GENESIS_002_ADMIN_LIFETIME_SECONDS = 300;
 const MAX_FUTURE_SKEW_MICROS = 1_000_000n;
 const JTI = /^[A-Za-z0-9_-]{1,128}$/;
+const HEX_IDENTITY = /^[0-9a-f]{64}$/;
 const EXACT_CLAIM_KEYS = Object.freeze([
   'iss',
   'sub',
@@ -17,6 +18,7 @@ const EXACT_CLAIM_KEYS = Object.freeze([
   'nbf',
   'exp',
   'jti',
+  'hex_identity',
 ] as const);
 
 type JsonRecord = Readonly<Record<string, unknown>>;
@@ -31,6 +33,7 @@ export type Genesis002AdminClaims = Readonly<{
   notBefore: number;
   expiresAt: number;
   jti: string;
+  hexIdentity: string;
 }>;
 
 export class Genesis002AdminClaimError extends Error {
@@ -62,6 +65,7 @@ function strictRecord(payload: unknown): JsonRecord {
     || keys.some(key => (
       typeof key !== 'string'
       || !(EXACT_CLAIM_KEYS as readonly string[]).includes(key)
+      || !Object.prototype.propertyIsEnumerable.call(record, key)
     ))
   ) return invalid();
   return record;
@@ -87,6 +91,7 @@ export function readFreshGenesis002AdminClaims(
   const notBefore = numericDate(record, 'nbf');
   const expiresAt = numericDate(record, 'exp');
   const jti = record.jti;
+  const hexIdentity = record.hex_identity;
   if (
     record.iss !== GENESIS_002_ISSUER
     || record.sub !== GENESIS_002_ADMIN_SUBJECT
@@ -99,6 +104,8 @@ export function readFreshGenesis002AdminClaims(
     || roles[0] !== GENESIS_002_ADMIN_ROLE
     || typeof jti !== 'string'
     || !JTI.test(jti)
+    || typeof hexIdentity !== 'string'
+    || !HEX_IDENTITY.test(hexIdentity)
     || currentTimeMicros < 0n
     || currentTimeMicros + MAX_FUTURE_SKEW_MICROS
       < BigInt(issuedAt) * 1_000_000n
@@ -122,5 +129,6 @@ export function readFreshGenesis002AdminClaims(
     notBefore,
     expiresAt,
     jti,
+    hexIdentity,
   });
 }

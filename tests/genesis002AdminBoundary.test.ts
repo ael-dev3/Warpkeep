@@ -19,6 +19,7 @@ import {
 
 const ISSUED_AT = 1_800_000_000;
 const NOW_MICROS = BigInt(ISSUED_AT) * 1_000_000n;
+const PROJECTED_IDENTITY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
 function validPayload(overrides: Readonly<Record<string, unknown>> = {}) {
   return {
@@ -31,15 +32,20 @@ function validPayload(overrides: Readonly<Record<string, unknown>> = {}) {
     nbf: ISSUED_AT,
     exp: ISSUED_AT + 300,
     jti: 'test-id',
+    hex_identity: PROJECTED_IDENTITY,
     ...overrides,
   };
 }
 
-function context(payload: unknown): unknown {
+function context(
+  payload: unknown,
+  senderIdentity = PROJECTED_IDENTITY,
+): unknown {
   return {
     senderAuth: { jwt: { fullPayload: payload } },
+    sender: { toHexString: () => senderIdentity },
     timestamp: { microsSinceUnixEpoch: NOW_MICROS },
-    withTx: (effect: (tx: unknown) => unknown) => effect(context(payload)),
+    withTx: (effect: (tx: unknown) => unknown) => effect(context(payload, senderIdentity)),
   };
 }
 
@@ -170,6 +176,7 @@ describe('Genesis 002 administrator confused-deputy boundary', () => {
       notBefore: ISSUED_AT,
       expiresAt: ISSUED_AT + 300,
       jti: 'test-id',
+      hexIdentity: PROJECTED_IDENTITY,
     });
   });
 
@@ -195,6 +202,22 @@ describe('Genesis 002 administrator confused-deputy boundary', () => {
     ['overlong jti', { jti: 'A'.repeat(129) }],
   ])('rejects %s', (_name, override) => {
     expectInvalid(validPayload(override));
+  });
+
+  it.each([
+    ['an omitted host-projected identity', () => {
+      const payload: Record<string, unknown> = { ...validPayload() };
+      delete payload.hex_identity;
+      return payload;
+    }],
+    ['a malformed host-projected identity', () => validPayload({
+      hex_identity: 'z'.repeat(64),
+    })],
+    ['an upper-case host-projected identity', () => validPayload({
+      hex_identity: '0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF',
+    })],
+  ])('rejects %s', (_name, payload) => {
+    expectInvalid(payload());
   });
 
   it.each([
@@ -234,10 +257,16 @@ describe('Genesis 002 administrator confused-deputy boundary', () => {
       value: '123',
       enumerable: false,
     });
+    const hiddenCanonical = validPayload();
+    Object.defineProperty(hiddenCanonical, 'hex_identity', {
+      value: PROJECTED_IDENTITY,
+      enumerable: false,
+    });
     const symbol = Object.assign(validPayload(), {
       [Symbol('authority')]: 'hostile',
     });
     expectInvalid(hidden);
+    expectInvalid(hiddenCanonical);
     expectInvalid(symbol);
   });
 
@@ -250,6 +279,18 @@ describe('Genesis 002 administrator confused-deputy boundary', () => {
         }),
       );
     }
+  });
+
+  it('rejects a host-projected identity that differs from the authenticated sender', () => {
+    expect(() => requireGenesis002Admin(context(
+      validPayload(),
+      'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210',
+    ) as never)).toThrowError(
+      expect.objectContaining({
+        name: 'SenderError',
+        message: 'INVALID_GENESIS_002_ADMIN_SESSION',
+      }),
+    );
   });
 
   it('enforces the same G002 parser in lifecycle and every atlas-import entrypoint', () => {

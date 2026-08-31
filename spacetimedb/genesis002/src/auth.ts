@@ -10,10 +10,14 @@ export function requireGenesis002Admin(ctx: Genesis002Context) {
   try {
     const jwt = ctx.senderAuth.jwt;
     if (jwt === undefined || jwt === null) throw new Error('JWT_REQUIRED');
-    return readFreshGenesis002AdminClaims(
+    const claims = readFreshGenesis002AdminClaims(
       jwt.fullPayload,
       ctx.timestamp.microsSinceUnixEpoch,
     );
+    if (claims.hexIdentity !== ctx.sender.toHexString()) {
+      throw new Error('IDENTITY_MISMATCH');
+    }
+    return claims;
   } catch {
     throw new SenderError('INVALID_GENESIS_002_ADMIN_SESSION');
   }
