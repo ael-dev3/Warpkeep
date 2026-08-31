@@ -11,9 +11,10 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
@@ -544,6 +545,86 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
       expect(() => readFileSync(functionMarker), stepId).toThrow();
       expect(result.stderr, stepId)
         .not.toContain('github-owner-test-token-value');
+    }
+  });
+
+  it('accepts a runner-private 0700 selected Node for both transformed B0 replays', () => {
+    for (const stepId of ['deploy', 'recovery']) {
+      const root = realpathSync(mkdtempSync(join(
+        homedir(),
+        'warpkeep-b0-runner-private-node-',
+      )));
+      temporaryDirectories.push(root);
+      const node = resolve(root, 'node');
+      const marker = resolve(root, `${stepId}-accepted`);
+      const runScript = resolve(root, 'run.sh');
+      const scripts = resolve(root, 'scripts');
+      mkdirSync(scripts);
+      cpSync(realpathSync(process.execPath), node);
+      chmodSync(node, 0o700);
+      expect(statSync(node).mode & 0o777, stepId).toBe(0o700);
+      writeFileSync(
+        resolve(scripts, 'auth-bridge-notification-b0-deploy.mjs'),
+        [
+          "import { writeFileSync } from 'node:fs';",
+          'export async function runAuthBridgeNotificationB0Deploy() {',
+          '  writeFileSync(' + JSON.stringify(marker) + ', '
+            + JSON.stringify(stepId) + ');',
+          '}',
+          '',
+        ].join('\n'),
+      );
+      const closureDigest = writeProtectedLaunchClosureFixture(
+        root,
+        'scripts/auth-bridge-notification-b0-deploy.mjs',
+      );
+      const nodeDigest = createHash('sha256')
+        .update(readFileSync(node))
+        .digest('hex');
+      writeFileSync(
+        runScript,
+        protectedLaunchForTrustedNode(
+          step(stepId).run ?? '',
+          node,
+          nodeDigest,
+        ),
+      );
+      const secret = `github-b0-runner-private-${stepId}-token`;
+      const result = spawnSync('/usr/bin/env', [
+        '-u', 'BASH_ENV', '-u', 'ENV', '-u', 'SHELLOPTS', '-u', 'BASHOPTS',
+        '-u', 'PS4', '/bin/bash', '--noprofile', '--norc', '-p', '-e', '-o',
+        'pipefail', runScript,
+      ], {
+        cwd: root,
+        encoding: 'utf8',
+        env: {
+          GITHUB_ACTIONS: 'true',
+          GITHUB_EVENT_NAME: 'workflow_dispatch',
+          GITHUB_OUTPUT: resolve(root, 'github-output'),
+          GITHUB_REF: 'refs/heads/main',
+          GITHUB_REPOSITORY: 'ael-dev3/Warpkeep',
+          GITHUB_RUN_ATTEMPT: '1',
+          GITHUB_RUN_ID: '1001',
+          GITHUB_SHA: 'c'.repeat(40),
+          GITHUB_TOKEN: secret,
+          GITHUB_WORKFLOW_REF:
+            'ael-dev3/Warpkeep/.github/workflows/notification-bridge-b0.yml@refs/heads/main',
+          WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: 'a'.repeat(32),
+          WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN:
+            'cloudflare-b0-runner-private-token',
+          WARPKEEP_AUTH_BRIDGE_ZONE_ID: 'b'.repeat(32),
+          WARPKEEP_NODE_EXECUTABLE: node,
+          WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256:
+            TEST_SOURCE_CLOSURE_MANIFEST_SHA256,
+          WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: closureDigest,
+          WARPKEEP_PRODUCTION_ADMIN_TOKEN:
+            'production-admin-b0-runner-private-token',
+        },
+      });
+      expect(result.signal, stepId).toBeNull();
+      expect(result.status, `${stepId}: ${result.stderr}`).toBe(0);
+      expect(readFileSync(marker, 'utf8'), stepId).toBe(stepId);
+      expect(result.stderr, stepId).not.toContain(secret);
     }
   });
 
