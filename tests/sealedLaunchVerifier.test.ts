@@ -2306,7 +2306,10 @@ export function createPtrAtlasImportTransport(`,
         mkdirSync(dirname(destination), { recursive: true });
         copyFileSync(resolve(repositoryRoot, path), destination);
       }
-      fixtureGit(fixtureRoot, ['add', '--', ...Object.values(SEALED_LAUNCH_SOURCE_PATHS)]);
+      copyFileSync(resolve(repositoryRoot, '.gitignore'), resolve(fixtureRoot, '.gitignore'));
+      fixtureGit(fixtureRoot, [
+        'add', '--', '.gitignore', ...Object.values(SEALED_LAUNCH_SOURCE_PATHS),
+      ]);
       fixtureGit(fixtureRoot, ['commit', '--quiet', '-m', 'Fixture current sealed sources']);
       const head = fixtureGit(fixtureRoot, ['rev-parse', 'HEAD']);
       mkdirSync(resolve(fixtureRoot, 'node_modules/checkout-probe'), {
