@@ -2299,7 +2299,7 @@ export function createPtrAtlasImportTransport(`,
     const fixtureRoot = resolve(fixtureParent, 'repository');
     try {
       fixtureGit(fixtureParent, [
-        'clone', '--quiet', '--shared', repositoryRoot, fixtureRoot,
+        'clone', '--quiet', '--shared', '--no-checkout', repositoryRoot, fixtureRoot,
       ]);
       for (const path of Object.values(SEALED_LAUNCH_SOURCE_PATHS)) {
         const destination = resolve(fixtureRoot, path);
