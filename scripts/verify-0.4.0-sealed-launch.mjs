@@ -1199,15 +1199,31 @@ function verifyGenesis002Policy(sources) {
       fail('SEALED_LAUNCH_G002_ACTIVATION_RECEIPTS_INVALID');
     }
   }
-  for (const token of [
+  const requiredPublisherTokens = [
     'WARPKEEP_SPACETIME_CLI_CONFIG_PATH',
-    'takeGenesis002ProductionAdminSecret',
     'attestGreaterRealmProductionProtectedMain',
-    'verifyGenesis002FreshPublishStatus',
+    "networkMode: 'protected-main-attestation-only'",
+    'authenticatedCliPostflight: true',
     'cliConfigSourcePath: local.cliConfigSourcePath',
     'spacetimeCliConfigSha256: artifact.spacetimeCliConfigSha256',
     'publishReceipt: receipt,',
     'publishReceiptDigest: receipt.publishReceiptDigest,',
+  ];
+  const forbiddenPublisherTokens = [
+    'takeGenesis002ProductionAdminSecret',
+    'verifyGenesis002FreshPublishStatus',
+  ];
+  for (const token of requiredPublisherTokens) {
+    if (!sources.genesis002PublisherCliSource.includes(token)) {
+      fail('SEALED_LAUNCH_G002_PUBLISHER_CLI_INVALID');
+    }
+  }
+  for (const token of forbiddenPublisherTokens) {
+    if (sources.genesis002PublisherCliSource.includes(token)) {
+      fail('SEALED_LAUNCH_G002_PUBLISHER_CLI_INVALID');
+    }
+  }
+  for (const token of [
     'environment.WARPKEEP_SPACETIMEDB_URI !== undefined',
     'environment.WARPKEEP_SPACETIMEDB_DATABASE !== undefined',
   ]) {

@@ -629,6 +629,13 @@ describe('0.4.0 sealed-launch verifier', () => {
     });
   });
 
+  it('rejects G002 publisher source with production admin secret authority', () => {
+    const hostile = checkedInSources();
+    hostile.genesis002PublisherCliSource += '\nvoid takeGenesis002ProductionAdminSecret;\n';
+    expect(() => verifySealedLaunchSources(hostile, 'preparation'))
+      .toThrow('SEALED_LAUNCH_G002_PUBLISHER_CLI_INVALID');
+  });
+
   it.each([
     (value: string) => value.replace(
       "'refs/remotes/origin/main^{commit}'",
