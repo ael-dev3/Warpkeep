@@ -15,6 +15,7 @@ import {
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -628,6 +629,55 @@ describe('0.4.0 sealed-launch verifier', () => {
       phase: 'preparation',
     });
   });
+
+  it.each([
+    'genesis002AdminPolicySource',
+    'genesis002AuthSource',
+  ] as const)(
+    'pins complete current G002 authority bytes and rejects a one-byte %s mutation',
+    async field => {
+      const fixtureRoot = mkdtempSync(resolve(
+        tmpdir(),
+        'warpkeep-sealed-launch-g002-policy-',
+      ));
+      const fixture = resolve(fixtureRoot, 'verify-g002-policy.mjs');
+      try {
+        writeFileSync(
+          fixture,
+          [
+            source('scripts/verify-0.4.0-sealed-launch.mjs'),
+            'export { verifyGenesis002Policy as verifyGenesis002PolicyForTesting };',
+            '',
+          ].join('\n'),
+          { encoding: 'utf8', mode: 0o600, flag: 'wx' },
+        );
+        const module = await import(pathToFileURL(fixture).href);
+        const verifyGenesis002PolicyForTesting = (
+          module as unknown as {
+            verifyGenesis002PolicyForTesting?: (
+              sources: Record<string, string>,
+            ) => void;
+          }
+        ).verifyGenesis002PolicyForTesting;
+        expect(typeof verifyGenesis002PolicyForTesting).toBe('function');
+        if (verifyGenesis002PolicyForTesting === undefined) return;
+
+        const exact = checkedInSources();
+        expect(() => verifyGenesis002PolicyForTesting(exact)).not.toThrow();
+
+        const hostile = { ...exact };
+        hostile[field] = `${exact[field]} `;
+        expect(Buffer.byteLength(hostile[field], 'utf8')).toBe(
+          Buffer.byteLength(exact[field], 'utf8') + 1,
+        );
+        expect(() => verifyGenesis002PolicyForTesting(hostile)).toThrow(
+          'SEALED_LAUNCH_G002_ADMIN_AUTHORITY_INVALID',
+        );
+      } finally {
+        rmSync(fixtureRoot, { recursive: true, force: true });
+      }
+    },
+  );
 
   it('rejects G002 publisher source with production admin secret authority', () => {
     const hostile = checkedInSources();
