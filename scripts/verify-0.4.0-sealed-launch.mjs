@@ -890,7 +890,7 @@ function verifyGenesis001SealedLaunchAdoption(sources) {
 }
 
 function verifyGenesis002Policy(sources) {
-  // Interim byte pins seal the complete G002 authority boundary until Task 7
+  // Interim byte pins seal the G002 administrator authority boundary until Task 7
   // atomically adds these roots to the authenticated closure and refreezes it.
   // Pinning the complete security-bearing sources prevents decoy token/name
   // preservation from weakening a parser, call site, bridge control, or
@@ -914,8 +914,6 @@ function verifyGenesis002Policy(sources) {
       '75bae3f93146fe841a98a633c4646f6746a76d373b4df5769e209243f088fb11'],
     [sources.genesis002PublisherCoreSource,
       'c7e07f7cd5dbeb05b9fd6e237b32b9332e4a8010c59f35cd89e2e3b49aa0a863'],
-    [sources.genesis002PublisherCliSource,
-      'f1d7156f3ee9f497d36bd6a224efa5dc4f22e2f47c0398623083c3031591be96'],
     [sources.genesis002TransportSource,
       '39619dae34b4e59bf3b6f7cf4db3577d46ee18fa8e172e527c943467215b6c9a'],
   ]) {
@@ -1213,6 +1211,10 @@ function verifyGenesis002Policy(sources) {
     'takeGenesis002ProductionAdminSecret',
     'verifyGenesis002FreshPublishStatus',
   ];
+  if (
+    createHash('sha256').update(sources.genesis002PublisherCliSource).digest('hex')
+      !== 'f1d7156f3ee9f497d36bd6a224efa5dc4f22e2f47c0398623083c3031591be96'
+  ) fail('SEALED_LAUNCH_G002_PUBLISHER_CLI_INVALID');
   for (const token of requiredPublisherTokens) {
     if (!sources.genesis002PublisherCliSource.includes(token)) {
       fail('SEALED_LAUNCH_G002_PUBLISHER_CLI_INVALID');
