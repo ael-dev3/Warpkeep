@@ -96,7 +96,7 @@ function protectedLaunchForTrustedNode(
     )
     .replaceAll(
       '"$path_mode" != \'555\'',
-      '"$path_mode" != \'555\' && "$path_mode" != \'755\'',
+      '"$path_mode" != \'555\' && "$path_mode" != \'755\' && "$path_mode" != \'700\'',
     )
     .replaceAll('/usr/bin/codesign --verify --strict --verbose=4 "$executable"', 'true')
     .replaceAll(

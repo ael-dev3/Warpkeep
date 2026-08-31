@@ -220,7 +220,7 @@ describe('Genesis 001 historical locked dependency closure', () => {
     ].join('\n');
     const noLocalInstall = 'test ! -e spacetimedb/ptr/node_modules';
     const parentInstall = 'pnpm --dir spacetimedb install --frozen-lockfile';
-    for (const job of ['verify', 'spacetimedb-module']) {
+    for (const job of ['linux', 'spacetimedb-module']) {
       const commands = workflow.jobs[job]!.steps
         .map(step => step.run)
         .filter((run): run is string => typeof run === 'string');

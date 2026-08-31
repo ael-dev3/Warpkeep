@@ -48,7 +48,7 @@ describe('Greater Realm host QA navigation', () => {
       name: /Genesis 002.*version 0\.4\.0.*Not admitted/i
     });
     const ptr = screen.getByRole('radio', {
-      name: /PTR.*version 0\.4\.0-ptr\.1.*Admitted/i
+      name: /Public Test Realm.*version 0\.4\.0-ptr\.1.*Admitted/i
     });
     expect(within(genesis001).getByText('✓').getAttribute('aria-hidden')).toBe('true');
     expect(within(genesis002).getByText('×').getAttribute('aria-hidden')).toBe('true');
