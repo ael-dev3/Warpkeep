@@ -19,13 +19,16 @@ import {
   preparationSourceCommitFromSealedRealmsProductionAuthority,
   sourceCommitFromSealedRealmsProductionAuthority,
 } from './sealed-realms-production-source-authority.mjs';
+import {
+  assertSealedRealmsProductionLane,
+  registerSealedRealmsProductionLane,
+} from './sealed-realms-production-lane-registry.mjs';
 
 const OPERATIONS = new Set([
   'ptr-publish-inspect', 'ptr-publish-apply', 'ptr-import-inspect',
   'ptr-import-apply', 'ptr-owner-provision-inspect', 'ptr-owner-provision',
   'ptr-live-inspect',
 ]);
-const lanes = new WeakSet();
 
 export class SealedRealmsProductionPtrLaneError extends Error {
   constructor(code) {
@@ -90,11 +93,12 @@ async function claimOrReconcile({ continuation, authority, kind, binding, effect
   }
 }
 
-async function classifyReconciliation(reconciliation, inspect) {
+async function classifyReconciliation(reconciliation, evidenceDigest, inspect) {
   const classification = await inspect();
   return classification.outcome === 'no-effect'
     ? classifySealedRealmsProductionContinuationNoEffect({
-      reconciliation, observationDigest: classification.observationDigest,
+      reconciliation, evidenceDigest,
+      observationDigest: classification.observationDigest,
     })
     : classification;
 }
@@ -161,7 +165,9 @@ export function createSealedRealmsProductionPtrLane(input) {
           ...binding,
           publish: ({ marker }) => options.publish(Object.freeze({ sourceCommit, marker })),
         }),
-        reconcile: reconciliation => reconciler.reconcileContinuation({ reconciliation }),
+        reconcile: reconciliation => reconciler.reconcileContinuation({
+          reconciliation, selection: binding,
+        }),
       });
       return Object.freeze({ status: result.status });
     }
@@ -192,7 +198,8 @@ export function createSealedRealmsProductionPtrLane(input) {
         }),
         reconcile: reconciliation => classifyReconciliation(
           reconciliation,
-          () => bridgeState.reconcileGateContinuation({ lane: 'ptr' }),
+          binding.evidenceDigest,
+          () => bridgeState.reconcileGateContinuation({ selection: binding }),
         ),
       });
       return Object.freeze({ status: result.status });
@@ -225,7 +232,8 @@ export function createSealedRealmsProductionPtrLane(input) {
         }),
         reconcile: reconciliation => classifyReconciliation(
           reconciliation,
-          () => bridgeState.reconcileOwnerProvisionContinuation(),
+          binding.evidenceDigest,
+          () => bridgeState.reconcileOwnerProvisionContinuation({ selection: binding }),
         ),
       });
       return Object.freeze({ status: result.status });
@@ -237,11 +245,13 @@ export function createSealedRealmsProductionPtrLane(input) {
     return Object.freeze({ status: 'live-inspected' });
   };
   const lane = Object.freeze({ execute });
-  lanes.add(lane);
-  return lane;
+  return registerSealedRealmsProductionLane(lane, 'ptr');
 }
 
 export function assertSealedRealmsProductionPtrLane(lane) {
-  if (!lanes.has(lane)) fail('SEALED_REALMS_PTR_LANE_CAPABILITY_INVALID');
-  return lane;
+  try {
+    return assertSealedRealmsProductionLane(lane, 'ptr');
+  } catch {
+    fail('SEALED_REALMS_PTR_LANE_CAPABILITY_INVALID');
+  }
 }

@@ -4,6 +4,7 @@ import {
   chmodSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   statSync,
 } from 'node:fs';
@@ -11,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { build as esbuild } from 'esbuild';
 
 import {
   createSealedRealmsProductionContinuationStore,
@@ -172,6 +174,44 @@ function preflightLane(preflight = vi.fn(async () => undefined)) {
 }
 
 describe('sealed-realms production dispatch continuation boundary', () => {
+  it('keeps the opaque lane registry graph-local without dispatcher imports of every lane', () => {
+    const dispatcher = readFileSync(
+      join(process.cwd(), 'scripts/sealed-realms-production-dispatch.mjs'),
+      'utf8',
+    );
+    expect(dispatcher).toContain("from './sealed-realms-production-lane-registry.mjs'");
+    expect(dispatcher).not.toMatch(
+      /from '.\/sealed-realms-production-(?:g001|g002|ptr|activation)-lane-entry\.mjs'/u,
+    );
+    for (const lane of ['g001', 'g002', 'ptr', 'activation']) {
+      const source = readFileSync(
+        join(process.cwd(), `scripts/sealed-realms-production-${lane}-lane-entry.mjs`),
+        'utf8',
+      );
+      expect(source).toContain("from './sealed-realms-production-lane-registry.mjs'");
+    }
+  });
+
+  it('rejects an authentic lane branded by a different bundled registry graph', async () => {
+    const { lane } = preflightLane();
+    const registryBuild = await esbuild({
+      entryPoints: ['scripts/sealed-realms-production-lane-registry.mjs'],
+      absWorkingDir: process.cwd(),
+      bundle: true,
+      format: 'esm',
+      platform: 'node',
+      target: 'node22',
+      write: false,
+    });
+    const registry = await import(
+      `data:text/javascript;base64,${Buffer.from(registryBuild.outputFiles[0]!.contents).toString('base64')}`
+    );
+    expect(() => registry.assertSealedRealmsProductionLane(lane, 'g001'))
+      .toThrow(expect.objectContaining({
+        code: 'SEALED_REALMS_LANE_REGISTRY_CAPABILITY_INVALID',
+      }));
+  });
+
   it('requires the internally branded permit/store and fixed run identity at construction', () => {
     const input = dispatcherInput();
     expect(() => createSealedRealmsProductionDispatcher(input as never))
@@ -190,6 +230,32 @@ describe('sealed-realms production dispatch continuation boundary', () => {
       code: 'SEALED_REALMS_DISPATCH_INPUT_INVALID',
     }));
     expect(effect).not.toHaveBeenCalled();
+  });
+
+  it('rejects structural, unbranded, and wrong-slot lanes at construction', async () => {
+    const context = await protectedContext();
+    const execute = vi.fn(async () => Object.freeze({ status: 'preflight-inspected' }));
+    const common = {
+      ...context,
+      runId: RUN_ID,
+      runAttempt: '1',
+    };
+
+    expect(() => createSealedRealmsProductionDispatcher(dispatcherInput({
+      ...common,
+      g001Lane: Object.freeze({ execute }),
+    }) as never)).toThrow(expect.objectContaining({
+      code: 'SEALED_REALMS_DISPATCH_INPUT_INVALID',
+    }));
+
+    const { lane } = preflightLane();
+    expect(() => createSealedRealmsProductionDispatcher(dispatcherInput({
+      ...common,
+      g002Lane: lane,
+    }) as never)).toThrow(expect.objectContaining({
+      code: 'SEALED_REALMS_DISPATCH_INPUT_INVALID',
+    }));
+    expect(execute).not.toHaveBeenCalled();
   });
 
   it('accepts no operational confirmation input and emits no confirmation material', async () => {

@@ -10,6 +10,9 @@ import {
 import {
   assertSealedRealmsProductionWorkflowPermit,
 } from './sealed-realms-production-workflow-authority.mjs';
+import {
+  assertSealedRealmsProductionLane,
+} from './sealed-realms-production-lane-registry.mjs';
 
 const G001_OPERATIONS = new Set([
   'g001-policy-observe',
@@ -154,10 +157,12 @@ export function createSealedRealmsProductionDispatcher(input) {
   };
   plainObject(configured, 'SEALED_REALMS_DISPATCH_INPUT_INVALID');
   for (const lane of ['g001', 'g002', 'ptr', 'activation']) {
-    if (
-      configured[lane] !== undefined
-      && (configured[lane] === null || typeof configured[lane].execute !== 'function')
-    ) fail('SEALED_REALMS_DISPATCH_INPUT_INVALID');
+    if (configured[lane] === undefined) continue;
+    try {
+      assertSealedRealmsProductionLane(configured[lane], lane);
+    } catch {
+      fail('SEALED_REALMS_DISPATCH_INPUT_INVALID');
+    }
   }
 
   const dispatch = async (request) => {

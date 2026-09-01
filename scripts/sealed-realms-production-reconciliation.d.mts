@@ -48,13 +48,6 @@ export function createSealedRealmsProductionPublicationReconciler(input: Readonl
     Readonly<{ confirmation: SealedRealmsPublicationConfirmation }>
     | Readonly<{ status: 'reconciled' }>
   >;
-  apply: (input: Readonly<{
-    confirmation: SealedRealmsPublicationConfirmation;
-    publish: (input: Readonly<{
-      confirmation: SealedRealmsPublicationConfirmation;
-    }>) => unknown | Promise<unknown>;
-    consumedAt?: string;
-  }>) => Promise<Readonly<{ status: 'submitted' }>>;
   reconcile: (input: Readonly<{
     confirmation: SealedRealmsPublicationConfirmation;
   }>) => Promise<Readonly<{
@@ -81,6 +74,7 @@ export function createSealedRealmsProductionPublicationReconciler(input: Readonl
   }>) => Promise<Readonly<{ status: 'submitted' }>>;
   reconcileContinuation: (input: Readonly<{
     reconciliation: SealedRealmsProductionContinuationReconciliation;
+    selection: SealedRealmsProductionContinuationEvidenceBinding;
   }>) => Promise<Readonly<{
     outcome: 'effect-applied' | 'no-effect';
     observationDigest: string;

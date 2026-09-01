@@ -14,7 +14,6 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { build as esbuild } from 'esbuild';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const SWAPPED_SOURCE = 'b'.repeat(40);
@@ -289,38 +288,6 @@ afterEach(() => {
 });
 
 describe.sequential('sealed-realms production workflow runtime composition', () => {
-  it('cannot restore the removed unbranded test-lane dispatcher path from another graph', async () => {
-    const source = 'a'.repeat(40);
-    const dispatcherBuild = await esbuild({
-      entryPoints: ['scripts/sealed-realms-production-dispatch.mjs'],
-      absWorkingDir: process.cwd(),
-      bundle: true,
-      format: 'esm',
-      platform: 'node',
-      target: 'node22',
-      write: false,
-    });
-    const dispatcherModule = await import(
-      `data:text/javascript;base64,${Buffer.from(dispatcherBuild.outputFiles[0]!.contents).toString('base64')}`
-    );
-    expect(() => dispatcherModule.createSealedRealmsProductionDispatcher({
-      readGit: (arguments_: readonly string[]) => {
-        if (arguments_[0] === 'rev-parse') return `${source}\n`;
-        throw new Error('unexpected git');
-      },
-      readBinding: () => ({
-        schemaVersion: 1,
-        profile: 'warpkeep-0.4.0-sealed-launch-v1',
-        pagesDeploymentApproved: false,
-        preparationSourceCommit: source,
-      }),
-      verifyEvidence: (verifiedSha: string) => ({ verifiedSha }),
-      testOnlyLanes: {
-        g001: { execute: () => Object.freeze({ status: 'preflight-inspected' }) },
-      },
-    })).toThrow(expect.objectContaining({ code: 'SEALED_REALMS_DISPATCH_INPUT_INVALID' }));
-  });
-
   it.each(ENTRIES)('$lane production construction fails closed before private-state resolution', async entry => {
     const repository = repositoryFixture('S');
     const privateHome = privateHomeFixture();

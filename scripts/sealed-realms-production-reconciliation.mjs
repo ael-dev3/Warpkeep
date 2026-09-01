@@ -206,6 +206,7 @@ export function createSealedRealmsProductionPublicationReconciler(input) {
   // durable unresolved marker discovered after restart is reconciliation-only;
   // it can never reissue a pre-crash publication token.
   const activeByMarker = new Map();
+  const continuationSelections = new WeakMap();
   const markerInventory = () => {
     const markerNames = privateState.list({
       root: 'runtime', relativeDirectory: `publication/${lane}/markers`,
@@ -483,12 +484,16 @@ export function createSealedRealmsProductionPublicationReconciler(input) {
     return Object.freeze({ confirmation });
   };
 
-  const continuationBinding = (entry) => Object.freeze({
-    subject: `${lane}-publication:0.4.0`,
-    evidenceDigest: entry.markerDigest,
-    receiptDigests: Object.freeze([entry.marker.confirmationDigest]),
-    predecessorDigests: Object.freeze([]),
-  });
+  const continuationBinding = (entry) => {
+    const binding = Object.freeze({
+      subject: `${lane}-publication:0.4.0`,
+      evidenceDigest: entry.markerDigest,
+      receiptDigests: Object.freeze([entry.marker.confirmationDigest]),
+      predecessorDigests: Object.freeze([]),
+    });
+    continuationSelections.set(binding, Object.freeze({ entry, binding }));
+    return binding;
+  };
 
   const continuationEntry = () => {
     const entries = [...markerInventory().values()];
@@ -607,10 +612,17 @@ export function createSealedRealmsProductionPublicationReconciler(input) {
   const reconcileContinuation = async (input) => {
     const request = exactObject(
       input,
-      ['reconciliation'],
+      ['reconciliation', 'selection'],
       'SEALED_REALMS_RECONCILIATION_CONTINUATION_INVALID',
     );
-    const entry = continuationEntry();
+    const selected = continuationSelections.get(request.selection);
+    if (
+      selected === undefined
+      || selected.binding !== request.selection
+      || selected.entry.markerDigest !== request.selection.evidenceDigest
+    ) fail('SEALED_REALMS_RECONCILIATION_CONTINUATION_INVALID');
+    continuationSelections.delete(request.selection);
+    const entry = selected.entry;
     const postflight = entry.reconciliation ?? await writeReconciliation(entry);
     if (
       !['adopted', 'no-effect'].includes(postflight.outcome)
@@ -619,61 +631,13 @@ export function createSealedRealmsProductionPublicationReconciler(input) {
     if (postflight.outcome === 'no-effect') {
       return classifySealedRealmsProductionContinuationNoEffect({
         reconciliation: request.reconciliation,
+        evidenceDigest: request.selection.evidenceDigest,
         observationDigest: postflight.observationDigest,
       });
     }
     return Object.freeze({
       outcome: 'effect-applied', observationDigest: postflight.observationDigest,
     });
-  };
-
-  const apply = async ({ confirmation, publish, consumedAt = new Date().toISOString() }) => {
-    const member = confirmations.get(confirmation);
-    if (
-      member === undefined || member.lane !== lane || typeof publish !== 'function'
-    ) fail('SEALED_REALMS_RECONCILIATION_CONFIRMATION_INVALID');
-    if (activeByMarker.get(member.markerDigest) !== confirmation) {
-      fail('SEALED_REALMS_RECONCILIATION_CONFIRMATION_CONSUMED');
-    }
-    // Claim before the first await/read so Promise.all cannot release the
-    // same marker to two publishers.
-    activeByMarker.delete(member.markerDigest);
-    confirmations.delete(confirmation);
-    const paths = markerPaths(lane, member.markerDigest);
-    const markerBytes = privateState.read({ root: 'runtime', relativePath: paths.marker });
-    try {
-      const marker = exactMarkerFromBytes(codec, markerBytes, member.markerDigest, lane);
-      if (marker.confirmationDigest !== member.confirmationDigest) {
-        fail('SEALED_REALMS_RECONCILIATION_CONFIRMATION_INVALID');
-      }
-    } finally {
-      markerBytes.fill(0);
-    }
-    if (privateState.exists({ root: 'runtime', relativePath: paths.consumed })) {
-      fail('SEALED_REALMS_RECONCILIATION_CONFIRMATION_CONSUMED');
-    }
-    const consumed = canonicalConsumedRecord({ ...member, consumedAt });
-    const bytes = Buffer.from(`${JSON.stringify(consumed)}\n`, 'utf8');
-    try {
-      privateState.write({ root: 'runtime', relativePath: paths.consumed, bytes });
-    } finally {
-      bytes.fill(0);
-    }
-    let callbackError;
-    try {
-      await publish(Object.freeze({ confirmation }));
-    } catch (error) {
-      callbackError = error;
-    }
-    const entry = markerInventory().get(member.markerDigest);
-    if (entry === undefined) fail('SEALED_REALMS_RECONCILIATION_STATE_INVALID');
-    try {
-      await writeReconciliation(entry);
-    } catch (error) {
-      if (callbackError !== undefined) fail('SEALED_REALMS_RECONCILIATION_PUBLICATION_AMBIGUOUS');
-      throw error;
-    }
-    return Object.freeze({ status: 'submitted' });
   };
 
   const reconcile = async (request) => {
@@ -714,7 +678,6 @@ export function createSealedRealmsProductionPublicationReconciler(input) {
 
   const reconciler = Object.freeze({
     inspect,
-    apply,
     reconcile,
     inspectForContinuation,
     reopenContinuation,

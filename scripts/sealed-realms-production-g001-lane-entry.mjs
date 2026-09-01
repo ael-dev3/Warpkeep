@@ -27,6 +27,10 @@ import {
 import {
   assertSealedRealmsProductionWorkflowPermit,
 } from './sealed-realms-production-workflow-authority.mjs';
+import {
+  assertSealedRealmsProductionLane,
+  registerSealedRealmsProductionLane,
+} from './sealed-realms-production-lane-registry.mjs';
 
 const OPERATIONS = new Set([
   'preflight', 'g001-policy-observe', 'g001-census-first',
@@ -65,7 +69,6 @@ const FIXED_ENVIRONMENT = Object.freeze({
   PATH: '/usr/bin:/bin',
 });
 const EMPTY_ENVIRONMENT = Object.freeze({});
-const lanes = new WeakSet();
 const launchAuthorities = new WeakMap();
 const currentStateReceipts = new WeakMap();
 const currentStateTestAdapters = new WeakMap();
@@ -1584,7 +1587,9 @@ export function createSealedRealmsProductionG001Lane(input) {
             readOnlyReconcile: reconciliation => effectApplied
               ? Object.freeze({ outcome: 'effect-applied', observationDigest })
               : classifySealedRealmsProductionContinuationNoEffect({
-                reconciliation, observationDigest,
+                reconciliation,
+                evidenceDigest: common.evidenceDigest,
+                observationDigest,
               }),
           });
           if (!effectApplied) return Object.freeze({ status: 'completed' });
@@ -1653,11 +1658,13 @@ export function createSealedRealmsProductionG001Lane(input) {
     }
   };
   const lane = Object.freeze({ execute });
-  lanes.add(lane);
-  return lane;
+  return registerSealedRealmsProductionLane(lane, 'g001');
 }
 
 export function assertSealedRealmsProductionG001Lane(lane) {
-  if (!lanes.has(lane)) fail('SEALED_REALMS_G001_LANE_CAPABILITY_INVALID');
-  return lane;
+  try {
+    return assertSealedRealmsProductionLane(lane, 'g001');
+  } catch {
+    fail('SEALED_REALMS_G001_LANE_CAPABILITY_INVALID');
+  }
 }

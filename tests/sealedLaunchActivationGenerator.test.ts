@@ -313,13 +313,22 @@ beforeAll(async () => {
       workerVersionId: BRIDGE_WORKER_VERSION_ID,
     }),
   } as never);
+  // Task 6 owns this legacy generator-unit bootstrap. It is deliberately not
+  // protected Task 5 workflow coverage, and the removed mutator is not
+  // restored to the production return type or declaration.
+  const legacyUnitBridge = bridge as unknown as {
+    applyGate(input: Readonly<{
+      confirmation: object;
+      apply: () => void;
+    }>): Promise<unknown>;
+  };
   const g002 = await bridge.inspectGate({ lane: 'g002' });
-  await bridge.applyGate({
+  await legacyUnitBridge.applyGate({
     confirmation: g002.confirmation,
     apply: () => { importAdopted.g002 = true; },
   });
   const ptr = await bridge.inspectGate({ lane: 'ptr' });
-  await bridge.applyGate({
+  await legacyUnitBridge.applyGate({
     confirmation: ptr.confirmation,
     apply: () => { importAdopted.ptr = true; },
   });

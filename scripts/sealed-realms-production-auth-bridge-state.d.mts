@@ -140,10 +140,6 @@ export type SealedRealmsProductionAuthBridgeState = Readonly<{
   inspectGate: (input: Readonly<{ lane: 'g002' | 'ptr' }>) => Promise<Readonly<{
     confirmation: SealedRealmsBridgeGateConfirmation;
   }>>;
-  applyGate: (input: Readonly<{
-    confirmation: SealedRealmsBridgeGateConfirmation;
-    apply: () => unknown | Promise<unknown>;
-  }>) => Promise<Readonly<{ status: 'cross-linked' }>>;
   inspectGateForContinuation: (input: Readonly<{
     lane: 'g002' | 'ptr';
   }>) => Promise<SealedRealmsProductionBridgeContinuationBinding>;
@@ -155,7 +151,7 @@ export type SealedRealmsProductionAuthBridgeState = Readonly<{
     apply: () => unknown | Promise<unknown>;
   }>) => Promise<Readonly<{ status: 'cross-linked' }>>;
   reconcileGateContinuation: (input: Readonly<{
-    lane: 'g002' | 'ptr';
+    selection: SealedRealmsProductionBridgeContinuationBinding;
   }>) => Promise<Readonly<{
     outcome: 'effect-applied' | 'no-effect';
     observationDigest: string;
@@ -164,11 +160,6 @@ export type SealedRealmsProductionAuthBridgeState = Readonly<{
     inspect: () => Readonly<{ receiptDigest: string; inspectionDigest: string }>
       | Promise<Readonly<{ receiptDigest: string; inspectionDigest: string }>>;
   }>) => Promise<Readonly<{ confirmation: SealedRealmsOwnerProvisionConfirmation }>>;
-  applyOwnerProvision: (input: Readonly<{
-    confirmation: SealedRealmsOwnerProvisionConfirmation;
-    provision: () => Readonly<{ receiptDigest: string; provisionReceiptDigest: string }>
-      | Promise<Readonly<{ receiptDigest: string; provisionReceiptDigest: string }>>;
-  }>) => Promise<Readonly<Record<never, never>>>;
   inspectOwnerProvisionEvidenceForContinuation: (input: Readonly<{
     inspect: () => Readonly<{ receiptDigest: string; inspectionDigest: string }>
       | Promise<Readonly<{ receiptDigest: string; inspectionDigest: string }>>;
@@ -180,7 +171,9 @@ export type SealedRealmsProductionAuthBridgeState = Readonly<{
     provision: () => Readonly<{ receiptDigest: string; provisionReceiptDigest: string }>
       | Promise<Readonly<{ receiptDigest: string; provisionReceiptDigest: string }>>;
   }>) => Promise<Readonly<Record<never, never>>>;
-  reconcileOwnerProvisionContinuation: () => Promise<Readonly<{
+  reconcileOwnerProvisionContinuation: (input: Readonly<{
+    selection: SealedRealmsProductionBridgeContinuationBinding;
+  }>) => Promise<Readonly<{
     outcome: 'effect-applied';
     observationDigest: string;
   }>>;

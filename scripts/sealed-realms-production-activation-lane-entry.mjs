@@ -12,11 +12,14 @@ import {
 import {
   assertSealedRealmsProductionWorkflowPermit,
 } from './sealed-realms-production-workflow-authority.mjs';
+import {
+  assertSealedRealmsProductionLane,
+  registerSealedRealmsProductionLane,
+} from './sealed-realms-production-lane-registry.mjs';
 
 const OPERATIONS = new Set([
   'activation-evidence-inspect', 'activation-evidence-generate',
 ]);
-const lanes = new WeakSet();
 
 export class SealedRealmsProductionActivationLaneError extends Error {
   constructor(code) {
@@ -98,11 +101,13 @@ export function createSealedRealmsProductionActivationLane(input = {}) {
     return Object.freeze({ status: 'activation-evidence-inspected' });
   };
   const lane = Object.freeze({ execute });
-  lanes.add(lane);
-  return lane;
+  return registerSealedRealmsProductionLane(lane, 'activation');
 }
 
 export function assertSealedRealmsProductionActivationLane(lane) {
-  if (!lanes.has(lane)) fail('SEALED_REALMS_ACTIVATION_LANE_CAPABILITY_INVALID');
-  return lane;
+  try {
+    return assertSealedRealmsProductionLane(lane, 'activation');
+  } catch {
+    fail('SEALED_REALMS_ACTIVATION_LANE_CAPABILITY_INVALID');
+  }
 }

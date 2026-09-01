@@ -861,6 +861,9 @@ export async function reconcileSealedRealmsProductionContinuation(input) {
     sourceAuthority: options.sourceAuthority,
     kind: options.kind,
     subject: binding.subject,
+    evidenceDigest: binding.evidenceDigest,
+    receiptDigests: binding.receiptDigests,
+    predecessorDigests: binding.predecessorDigests,
   });
   activeReconciliations.set(reconciliation, reconciliationMember);
   let classification;
@@ -884,11 +887,9 @@ export async function reconcileSealedRealmsProductionContinuation(input) {
     || !['effect-applied', 'no-effect'].includes(classification.outcome)
     || !SHA256.test(classification.observationDigest ?? '')
   ) fail('SEALED_REALMS_CONTINUATION_RECONCILIATION_INVALID');
-  if (
-    classification.outcome === 'no-effect'
-    && reconciliationResolution.decision !== 'reconcile'
-    && !brandedNoEffect
-  ) fail('SEALED_REALMS_CONTINUATION_RECONCILIATION_INVALID');
+  if (classification.outcome === 'no-effect' && !brandedNoEffect) {
+    fail('SEALED_REALMS_CONTINUATION_RECONCILIATION_INVALID');
+  }
   try {
     await attestSealedRealmsProductionWorkflowPermit({
       permit: options.permit,
@@ -939,9 +940,16 @@ export async function reconcileSealedRealmsProductionContinuation(input) {
  * independently attested reconciliation callback. It carries no effect claim.
  */
 export function classifySealedRealmsProductionContinuationNoEffect(input) {
-  const options = exactInput(input, ['reconciliation', 'observationDigest']);
+  const options = exactInput(input, [
+    'reconciliation', 'evidenceDigest', 'observationDigest',
+  ]);
   const member = activeReconciliations.get(options.reconciliation);
-  if (member === undefined || !SHA256.test(options.observationDigest ?? '')) {
+  if (
+    member === undefined
+    || options.evidenceDigest !== member.evidenceDigest
+    || !SHA256.test(options.evidenceDigest ?? '')
+    || !SHA256.test(options.observationDigest ?? '')
+  ) {
     fail('SEALED_REALMS_CONTINUATION_RECONCILIATION_INVALID');
   }
   const classification = Object.freeze({

@@ -9,7 +9,6 @@ import {
   createSealedRealmsProductionPrivateState,
 } from '../scripts/sealed-realms-production-private-state.mjs';
 import {
-  SealedRealmsProductionReconciliationError,
   createSealedRealmsProductionPublicationReconciler,
 } from '../scripts/sealed-realms-production-reconciliation.mjs';
 
@@ -100,7 +99,7 @@ function marker(confirmationDigest = D) {
 }
 
 describe('sealed-realms publication reconciliation', () => {
-  it('persists a marker and consumes its confirmation before releasing publication', async () => {
+  it('does not expose the legacy confirmation publisher mutator', () => {
     const local = fixture();
     try {
       const reconciler = createSealedRealmsProductionPublicationReconciler({
@@ -114,25 +113,41 @@ describe('sealed-realms publication reconciliation', () => {
           observedAt: '2026-08-30T00:01:00.000Z',
         }),
       });
-      const inspected = await reconciler.inspect({ marker: marker() });
-      if (!('confirmation' in inspected)) throw new Error('expected live confirmation');
-      const callback = vi.fn(async (_input: { confirmation: object }) => ({
-        stdout: 'private child output',
-      }));
+      expect(Object.keys(reconciler)).not.toContain('apply');
+      expect((reconciler as Record<string, unknown>).apply).toBeUndefined();
+    } finally {
+      local.cleanup();
+    }
+  });
 
-      await expect(reconciler.apply({
-        confirmation: inspected.confirmation,
-        publish: callback,
-      })).resolves.toEqual({ status: 'submitted' });
-      expect(callback).toHaveBeenCalledTimes(1);
-      const callbackConfirmation = callback.mock.calls[0]?.[0]?.confirmation;
-      expect(callbackConfirmation).toBe(inspected.confirmation);
-      expect(Object.keys(callbackConfirmation)).toEqual([]);
-      expect(JSON.stringify(callback.mock.calls[0]?.[0])).not.toContain(D);
-      await expect(reconciler.apply({
-        confirmation: inspected.confirmation,
-        publish: callback,
-      })).rejects.toThrow(SealedRealmsProductionReconciliationError);
+  it('persists a marker and exposes only its continuation evidence binding', async () => {
+    const local = fixture();
+    try {
+      const reconciler = createSealedRealmsProductionPublicationReconciler({
+        privateState: local.state,
+        lane: 'g002',
+        postflight: () => ({
+          outcome: 'no-effect',
+          databaseIdentity: null,
+          publicationReceiptDigest: null,
+          observationDigest: '9'.repeat(64),
+          observedAt: '2026-08-30T00:01:00.000Z',
+        }),
+      });
+      const existing = marker();
+      const markerDigest = codec('g002')
+        .digestSealedRealmsPublicationPossiblySubmittedMarker(existing);
+      const binding = await reconciler.inspectForContinuation({ marker: existing });
+      expect(binding).toEqual({
+        subject: 'g002-publication:0.4.0',
+        evidenceDigest: markerDigest,
+        receiptDigests: [D],
+        predecessorDigests: [],
+      });
+      expect(JSON.stringify(binding)).not.toMatch(/confirmation|path|token/iu);
+      expect(local.state.list({
+        root: 'runtime', relativeDirectory: 'publication/g002/consumed',
+      })).toEqual([]);
     } finally {
       local.cleanup();
     }
@@ -269,7 +284,7 @@ describe('sealed-realms publication reconciliation', () => {
     }
   });
 
-  it('claims a live confirmation before its first await and invokes publication exactly once', async () => {
+  it('releases one continuation binding when two inspections race for one marker', async () => {
     const local = fixture();
     try {
       const postflight = vi.fn(async () => ({
@@ -282,19 +297,16 @@ describe('sealed-realms publication reconciliation', () => {
       const reconciler = createSealedRealmsProductionPublicationReconciler({
         privateState: local.state, lane: 'g002', postflight,
       });
-      const inspected = await reconciler.inspect({ marker: marker() });
-      if (!('confirmation' in inspected)) throw new Error('expected live confirmation');
-      const publish = vi.fn(async () => undefined);
+      const existing = marker();
       const [first, second] = await Promise.allSettled([
-        reconciler.apply({ confirmation: inspected.confirmation, publish }),
-        reconciler.apply({ confirmation: inspected.confirmation, publish }),
+        reconciler.inspectForContinuation({ marker: existing }),
+        reconciler.inspectForContinuation({ marker: existing }),
       ]);
-      expect(first.status).toBe('fulfilled');
-      expect(second.status).toBe('rejected');
-      expect(publish).toHaveBeenCalledTimes(1);
-      expect(postflight).toHaveBeenCalledTimes(1);
-      await expect(reconciler.inspect({ marker: marker('f'.repeat(64)) }))
-        .rejects.toThrow('SEALED_REALMS_RECONCILIATION_ADOPTED_SEALED');
+      expect([first.status, second.status].sort()).toEqual(['fulfilled', 'rejected']);
+      expect(postflight).not.toHaveBeenCalled();
+      expect(local.state.list({
+        root: 'runtime', relativeDirectory: 'publication/g002/consumed',
+      })).toEqual([]);
     } finally {
       local.cleanup();
     }

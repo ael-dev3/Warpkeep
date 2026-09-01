@@ -636,7 +636,10 @@ describe('sealed-realms production recovery policy', () => {
         runAttempt: reconcileRun.runAttempt,
         ...reopened,
         readOnlyReconcile: reconciliation =>
-          restarted.reconcileContinuation({ reconciliation } as never),
+          restarted.reconcileContinuation({
+            reconciliation,
+            selection: reopened,
+          } as never),
       })).resolves.toEqual({ status: 'reconciled', outcome: 'effect-applied' });
       // The restart verifies the already-persisted canonical reconciliation;
       // it never re-derives evidence by rerunning postflight.
@@ -692,10 +695,25 @@ describe('sealed-realms production recovery policy', () => {
       })).rejects.toMatchObject({ code: 'SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS' });
       expect(publisher).toHaveBeenCalledTimes(1);
 
+      const latePostflight = vi.fn(() => Object.freeze({
+        ...noEffectPostflight(), observationDigest: '7'.repeat(64),
+      }));
       const restarted = createSealedRealmsProductionPublicationReconciler({
+        privateState: fixture.state(), lane: 'g002', postflight: latePostflight,
+      });
+      const selectedBinding = restarted.reopenContinuation();
+      expect(selectedBinding).toEqual(binding);
+
+      // A fresh pending marker arriving after old-generation selection must not
+      // be globally reselected inside the old generation's reconcile callback.
+      const freshMarker = publicationMarker('g002', {
+        attemptNonce: '4'.repeat(64),
+        markedAt: '2026-09-01T00:03:00.000Z',
+      });
+      const nextProcess = createSealedRealmsProductionPublicationReconciler({
         privateState: fixture.state(), lane: 'g002', postflight: noEffectPostflight,
       });
-      expect(restarted.reopenContinuation()).toEqual(binding);
+      const nextBinding = await nextProcess.inspectForContinuation({ marker: freshMarker });
       const reconciliationRun = await protectedRun(
         'g002-publish-apply', '8503', new Set(['8502']),
       );
@@ -707,28 +725,24 @@ describe('sealed-realms production recovery policy', () => {
         kind: 'g002-publication',
         runId: reconciliationRun.runId,
         runAttempt: reconciliationRun.runAttempt,
-        ...binding,
+        ...selectedBinding,
         readOnlyReconcile: reconciliation => {
           escapedReconciliation = reconciliation;
-          return restarted.reconcileContinuation({ reconciliation } as never);
+          return restarted.reconcileContinuation({
+            reconciliation, selection: selectedBinding,
+          } as never);
         },
       })).resolves.toEqual({ status: 'reconciled', outcome: 'no-effect' });
       expect(publisher).toHaveBeenCalledTimes(1);
+      expect(latePostflight).not.toHaveBeenCalled();
       expect(() => classifySealedRealmsProductionContinuationNoEffect({
         reconciliation: escapedReconciliation as never,
+        evidenceDigest: selectedBinding.evidenceDigest,
         observationDigest: 'f'.repeat(64),
       })).toThrow(expect.objectContaining({
         code: 'SEALED_REALMS_CONTINUATION_RECONCILIATION_INVALID',
       }));
 
-      const freshMarker = publicationMarker('g002', {
-        attemptNonce: '4'.repeat(64),
-        markedAt: '2026-09-01T00:03:00.000Z',
-      });
-      const nextProcess = createSealedRealmsProductionPublicationReconciler({
-        privateState: fixture.state(), lane: 'g002', postflight: noEffectPostflight,
-      });
-      const nextBinding = await nextProcess.inspectForContinuation({ marker: freshMarker });
       const nextRun = await protectedRun('g002-publish-inspect', '8504');
       await expect(issueSealedRealmsProductionContinuation({
         store: createSealedRealmsProductionContinuationStore({ privateState: fixture.state() }),

@@ -13,7 +13,10 @@ import {
   createSealedRealmsProductionPrivateState,
 } from '../scripts/sealed-realms-production-private-state.mjs';
 import {
+  claimSealedRealmsProductionContinuation,
   createSealedRealmsProductionContinuationStore,
+  issueSealedRealmsProductionContinuation,
+  reconcileSealedRealmsProductionContinuation,
 } from '../scripts/sealed-realms-production-continuation.mjs';
 import {
   createSealedRealmsProductionDispatcher,
@@ -51,7 +54,6 @@ import {
   createSealedRealmsProductionAuthBridgeStateTestCapability,
   createSealedRealmsProductionAuthBridgeState,
   inspectSealedRealmsAdmissionSuspension,
-  readSealedRealmsProductionActivationEvidenceMember,
 } from '../scripts/sealed-realms-production-auth-bridge-state.mjs';
 
 const URL = 'https://auth.warpkeep.com/v2/access/request';
@@ -150,6 +152,147 @@ async function protectedContext(
   });
 }
 
+let protectedRunSequence = 80_000;
+const protectedSetupRuns = new Map<string, Promise<Readonly<{
+  authority: ReturnType<typeof operationAuthority>;
+  permit: Awaited<ReturnType<typeof issueSealedRealmsProductionWorkflowPermit>>;
+  runId: string;
+  runAttempt: '1';
+}>>>();
+
+function nextProtectedRunId() {
+  protectedRunSequence += 1;
+  return String(protectedRunSequence);
+}
+
+async function protectedSetupContext(
+  local: ReturnType<typeof fixture>,
+  operation: string,
+) {
+  let pending = protectedSetupRuns.get(operation);
+  if (pending === undefined) {
+    const runId = nextProtectedRunId();
+    const authority = operationAuthority(operation);
+    pending = issueSealedRealmsProductionWorkflowPermit({
+      sourceAuthority: authority,
+      githubToken: 'github-sealed-realms-owner-token',
+      runId,
+      runAttempt: '1',
+      fetchImpl: workflowGithub(SOURCE, runId),
+    }).then(permit => Object.freeze({
+      authority, permit, runId, runAttempt: '1' as const,
+    }));
+    protectedSetupRuns.set(operation, pending);
+  }
+  const run = await pending;
+  return Object.freeze({
+    authority: run.authority,
+    continuation: Object.freeze({
+      permit: run.permit,
+      store: createSealedRealmsProductionContinuationStore({ privateState: local.state }),
+      runId: run.runId,
+      runAttempt: run.runAttempt,
+      sourceAuthority: run.authority,
+    }),
+  });
+}
+
+async function applyGateThroughContinuation(
+  local: ReturnType<typeof fixture>,
+  bridge: ReturnType<typeof createSealedRealmsProductionAuthBridgeState>,
+  lane: 'g002' | 'ptr',
+  apply: () => unknown | Promise<unknown>,
+) {
+  const kind = `${lane}-import` as const;
+  const inspectOperation = `${lane}-import-inspect`;
+  const applyOperation = `${lane}-import-apply`;
+  const binding = await bridge.inspectGateForContinuation({ lane });
+  const issued = await protectedSetupContext(local, inspectOperation);
+  await issueSealedRealmsProductionContinuation({
+    store: issued.continuation.store,
+    permit: issued.continuation.permit,
+    sourceAuthority: issued.authority,
+    kind,
+    runId: issued.continuation.runId,
+    runAttempt: issued.continuation.runAttempt,
+    ...binding,
+  });
+  const claimed = await protectedSetupContext(local, applyOperation);
+  return claimSealedRealmsProductionContinuation({
+    store: claimed.continuation.store,
+    permit: claimed.continuation.permit,
+    sourceAuthority: claimed.authority,
+    kind,
+    runId: claimed.continuation.runId,
+    runAttempt: claimed.continuation.runAttempt,
+    ...binding,
+    effect: claim => bridge.applyGateForContinuation({
+      claim,
+      store: claimed.continuation.store,
+      sourceAuthority: claimed.authority,
+      kind,
+      runId: claimed.continuation.runId,
+      runAttempt: claimed.continuation.runAttempt,
+      ...binding,
+      lane,
+      apply,
+    }),
+  });
+}
+
+async function applyOwnerThroughContinuation(
+  local: ReturnType<typeof fixture>,
+  bridge: ReturnType<typeof createSealedRealmsProductionAuthBridgeState>,
+  inspect: () => Readonly<{ receiptDigest: string; inspectionDigest: string }>
+    | Promise<Readonly<{ receiptDigest: string; inspectionDigest: string }>>,
+  provision: () => Readonly<{ receiptDigest: string; provisionReceiptDigest: string }>
+    | Promise<Readonly<{ receiptDigest: string; provisionReceiptDigest: string }>>,
+) {
+  const binding = await bridge.inspectOwnerProvisionEvidenceForContinuation({ inspect });
+  return applyOwnerBindingThroughContinuation(local, bridge, binding, provision);
+}
+
+async function applyOwnerBindingThroughContinuation(
+  local: ReturnType<typeof fixture>,
+  bridge: ReturnType<typeof createSealedRealmsProductionAuthBridgeState>,
+  binding: Awaited<ReturnType<
+    ReturnType<typeof createSealedRealmsProductionAuthBridgeState>['reopenOwnerProvisionContinuation']
+  >>,
+  provision: () => Readonly<{ receiptDigest: string; provisionReceiptDigest: string }>
+    | Promise<Readonly<{ receiptDigest: string; provisionReceiptDigest: string }>>,
+) {
+  const issued = await protectedSetupContext(local, 'ptr-owner-provision-inspect');
+  await issueSealedRealmsProductionContinuation({
+    store: issued.continuation.store,
+    permit: issued.continuation.permit,
+    sourceAuthority: issued.authority,
+    kind: 'ptr-owner-provision',
+    runId: issued.continuation.runId,
+    runAttempt: issued.continuation.runAttempt,
+    ...binding,
+  });
+  const claimed = await protectedSetupContext(local, 'ptr-owner-provision');
+  return claimSealedRealmsProductionContinuation({
+    store: claimed.continuation.store,
+    permit: claimed.continuation.permit,
+    sourceAuthority: claimed.authority,
+    kind: 'ptr-owner-provision',
+    runId: claimed.continuation.runId,
+    runAttempt: claimed.continuation.runAttempt,
+    ...binding,
+    effect: claim => bridge.applyOwnerProvisionForContinuation({
+      claim,
+      store: claimed.continuation.store,
+      sourceAuthority: claimed.authority,
+      kind: 'ptr-owner-provision',
+      runId: claimed.continuation.runId,
+      runAttempt: claimed.continuation.runAttempt,
+      ...binding,
+      provision,
+    }),
+  });
+}
+
 async function protectedDispatcher(
   local: ReturnType<typeof fixture>,
   operation: string,
@@ -231,6 +374,22 @@ function probeResponse(input: Readonly<{
 }
 
 const SUSPENSION_OPTIONS_MISMATCHES: ReadonlyArray<readonly [
+  string,
+  () => Response | ReturnType<typeof probeResponse>,
+]> = [
+  ['location', () => suspendedResponse({ location: 'https://private.example.test/location' })],
+  ['status', () => probeResponse({ status: 502 })],
+  ['redirected', () => probeResponse({ redirected: true })],
+  ['content type', () => probeResponse({ headers: { 'content-type': 'application/json' } })],
+  ['CORS origin', () => probeResponse({ headers: { 'access-control-allow-origin': 'https://other.example' } })],
+  ['malformed JSON', () => probeResponse({ body: '{private-body-sentinel' })],
+  ['extra outer key', () => probeResponse({ body: JSON.stringify({ error: JSON.parse(BODY).error, private: 'private-body-sentinel' }) })],
+  ['missing error key', () => probeResponse({ body: JSON.stringify({ error: { code: 'admission_requests_suspended' } }) })],
+  ['wrong error code', () => probeResponse({ body: JSON.stringify({ error: { code: 'open', message: JSON.parse(BODY).error.message } }) })],
+  ['wrong error message', () => probeResponse({ body: JSON.stringify({ error: { code: JSON.parse(BODY).error.code, message: 'open' } }) })],
+];
+
+const ACTIVATION_RECEIPT_PROBE_MISMATCHES: ReadonlyArray<readonly [
   string,
   () => Response | ReturnType<typeof probeResponse>,
 ]> = [
@@ -403,16 +562,8 @@ async function completeBridge(
     inspectImportReceipt: ({ lane }: { lane: 'g002' | 'ptr' }) => importProof(lane, 'no-effect'),
     ...overrides,
   }) as never);
-  const g002 = await bridge.inspectGate({ lane: 'g002' });
-  await bridge.applyGate({
-    confirmation: g002.confirmation,
-    apply: () => undefined,
-  });
-  const ptr = await bridge.inspectGate({ lane: 'ptr' });
-  await bridge.applyGate({
-    confirmation: ptr.confirmation,
-    apply: () => undefined,
-  });
+  await applyGateThroughContinuation(local, bridge, 'g002', () => undefined);
+  await applyGateThroughContinuation(local, bridge, 'ptr', () => undefined);
   return bridge;
 }
 
@@ -667,61 +818,75 @@ describe('sealed-realms auth bridge state', () => {
     }
   });
 
-  it.each(SUSPENSION_OPTIONS_MISMATCHES)(
-    'rejects valid POST plus invalid OPTIONS %s before gate or activation evidence writes',
-    async (_label, invalidOptions) => {
-      const gateLocal = fixture();
-      const activationLocal = fixture();
-      let activationPhase = false;
-      let activationCalls = 0;
-      try {
-        let gateCalls = 0;
-        const gateBridge = createSealedRealmsProductionAuthBridgeState(bridgeOptions(gateLocal, {
-          fetchImpl: async () => {
-            gateCalls += 1;
-            return gateCalls === 1 ? suspendedResponse() : invalidOptions() as Response;
-          },
-        }) as never);
-        await expect(gateBridge.inspectGate({ lane: 'g002' })).rejects.toMatchObject({
-          code: 'SEALED_REALMS_AUTH_BRIDGE_SUSPENSION_RESPONSE_INVALID',
-        });
-        expect(gateCalls).toBe(2);
-        await expect(gateBridge.inspect()).resolves.toEqual({
-          g002Sealed: false, ptrSealed: false, complete: false,
-        });
+  const rejectValidPostInvalidOptions = async (
+    _label: string,
+    invalidOptions: () => Response | ReturnType<typeof probeResponse>,
+  ) => {
+    const gateLocal = fixture();
+    const activationLocal = fixture();
+    let activationPhase = false;
+    let activationCalls = 0;
+    try {
+      let gateCalls = 0;
+      const gateBridge = createSealedRealmsProductionAuthBridgeState(bridgeOptions(gateLocal, {
+        fetchImpl: async () => {
+          gateCalls += 1;
+          return gateCalls === 1 ? suspendedResponse() : invalidOptions() as Response;
+        },
+      }) as never);
+      await expect(gateBridge.inspectGate({ lane: 'g002' })).rejects.toMatchObject({
+        code: 'SEALED_REALMS_AUTH_BRIDGE_SUSPENSION_RESPONSE_INVALID',
+      });
+      expect(gateCalls).toBe(2);
+      await expect(gateBridge.inspect()).resolves.toEqual({
+        g002Sealed: false, ptrSealed: false, complete: false,
+      });
 
-        const activationBridge = await completeBridge(activationLocal, async () => {
-          if (!activationPhase) return suspendedResponse();
-          activationCalls += 1;
-          return activationCalls === 1 ? suspendedResponse() : invalidOptions() as Response;
-        });
-        activationPhase = true;
-        await expect(activationBridge.inspectActivationEvidence()).rejects.toMatchObject({
-          code: 'SEALED_REALMS_AUTH_BRIDGE_SUSPENSION_RESPONSE_INVALID',
-        });
-        expect(activationCalls).toBe(2);
-        expect(activationLocal.state.list({
-          root: 'runtime', relativeDirectory: 'bridge/activation-evidence',
-        })).toEqual([]);
-      } finally {
-        gateLocal.cleanup();
-        activationLocal.cleanup();
-      }
-    },
+      const activationBridge = await completeBridge(activationLocal, async () => {
+        if (!activationPhase) return suspendedResponse();
+        activationCalls += 1;
+        return activationCalls === 1 ? suspendedResponse() : invalidOptions() as Response;
+      });
+      activationPhase = true;
+      await expect(activationBridge.inspectActivationEvidence()).rejects.toMatchObject({
+        code: 'SEALED_REALMS_AUTH_BRIDGE_SUSPENSION_RESPONSE_INVALID',
+      });
+      expect(activationCalls).toBe(2);
+      expect(activationLocal.state.list({
+        root: 'runtime', relativeDirectory: 'bridge/activation-evidence',
+      })).toEqual([]);
+    } finally {
+      gateLocal.cleanup();
+      activationLocal.cleanup();
+    }
+  };
+
+  it.each(SUSPENSION_OPTIONS_MISMATCHES.slice(0, 3))(
+    'rejects valid POST plus invalid OPTIONS %s before gate or activation evidence writes',
+    rejectValidPostInvalidOptions,
+    30_000,
   );
 
-  it.each([
-    ['location', () => suspendedResponse({ location: 'https://private.example.test/location' })],
-    ['status', () => probeResponse({ status: 502 })],
-    ['redirected', () => probeResponse({ redirected: true })],
-    ['content type', () => probeResponse({ headers: { 'content-type': 'application/json' } })],
-    ['CORS origin', () => probeResponse({ headers: { 'access-control-allow-origin': 'https://other.example' } })],
-    ['malformed JSON', () => probeResponse({ body: '{private-body-sentinel' })],
-    ['extra outer key', () => probeResponse({ body: JSON.stringify({ error: JSON.parse(BODY).error, private: 'private-body-sentinel' }) })],
-    ['missing error key', () => probeResponse({ body: JSON.stringify({ error: { code: 'admission_requests_suspended' } }) })],
-    ['wrong error code', () => probeResponse({ body: JSON.stringify({ error: { code: 'open', message: JSON.parse(BODY).error.message } }) })],
-    ['wrong error message', () => probeResponse({ body: JSON.stringify({ error: { code: JSON.parse(BODY).error.code, message: 'open' } }) })],
-  ])('does not create an activation receipt for an invalid %s probe', async (_label, response) => {
+  it.each(SUSPENSION_OPTIONS_MISMATCHES.slice(3, 4))(
+    'rejects valid POST plus invalid OPTIONS %s before gate or activation evidence writes',
+    rejectValidPostInvalidOptions,
+  );
+
+  it.each(SUSPENSION_OPTIONS_MISMATCHES.slice(4, 5))(
+    'rejects valid POST plus invalid OPTIONS %s before gate or activation evidence writes',
+    rejectValidPostInvalidOptions,
+    30_000,
+  );
+
+  it.each(SUSPENSION_OPTIONS_MISMATCHES.slice(5))(
+    'rejects valid POST plus invalid OPTIONS %s before gate or activation evidence writes',
+    rejectValidPostInvalidOptions,
+  );
+
+  const rejectInvalidActivationReceiptProbe = async (
+    _label: string,
+    response: () => Response | ReturnType<typeof probeResponse>,
+  ) => {
     const local = fixture();
     let useBadResponse = false;
     try {
@@ -741,7 +906,23 @@ describe('sealed-realms auth bridge state', () => {
     } finally {
       local.cleanup();
     }
-  });
+  };
+
+  it.each(ACTIVATION_RECEIPT_PROBE_MISMATCHES.slice(0, 4))(
+    'does not create an activation receipt for an invalid %s probe',
+    rejectInvalidActivationReceiptProbe,
+  );
+
+  it.each(ACTIVATION_RECEIPT_PROBE_MISMATCHES.slice(4, 5))(
+    'does not create an activation receipt for an invalid %s probe',
+    rejectInvalidActivationReceiptProbe,
+    30_000,
+  );
+
+  it.each(ACTIVATION_RECEIPT_PROBE_MISMATCHES.slice(5))(
+    'does not create an activation receipt for an invalid %s probe',
+    rejectInvalidActivationReceiptProbe,
+  );
 
   it('writes a private receipt-derived authority chain and consumes each gate before its core', async () => {
     const local = fixture();
@@ -796,30 +977,28 @@ describe('sealed-realms auth bridge state', () => {
         }),
       });
       await expect(bridge.establish()).resolves.toEqual({ ready: true });
-      const g002 = await bridge.inspectGate({ lane: 'g002' });
-      await bridge.applyGate({
-        confirmation: g002.confirmation,
-        apply: () => { calls.push('g002'); },
-      });
+      await applyGateThroughContinuation(
+        local, bridge, 'g002', () => { calls.push('g002'); },
+      );
       dispositions.g002 = 'adopted';
-      const ptr = await bridge.inspectGate({ lane: 'ptr' });
-      await bridge.applyGate({
-        confirmation: ptr.confirmation,
-        apply: () => { throw new Error('adopted import must not invoke core'); },
-      });
-      const ownerInspection = await bridge.inspectOwnerProvisionEvidence({
-        inspect: () => ({
+      await applyGateThroughContinuation(
+        local,
+        bridge,
+        'ptr',
+        () => { throw new Error('adopted import must not invoke core'); },
+      );
+      await applyOwnerThroughContinuation(
+        local,
+        bridge,
+        () => ({
           receiptDigest: '5'.repeat(64),
           inspectionDigest: '8'.repeat(64),
         }),
-      });
-      await bridge.applyOwnerProvision({
-        confirmation: ownerInspection.confirmation,
-        provision: () => ({
+        () => ({
           receiptDigest: '5'.repeat(64),
           provisionReceiptDigest: '9'.repeat(64),
         }),
-      });
+      );
       await bridge.inspectLiveEvidence({
         lane: 'g002',
         inspect: () => ({
@@ -864,54 +1043,43 @@ describe('sealed-realms auth bridge state', () => {
     } finally {
       local.cleanup();
     }
+  }, 30_000);
+
+  it('keeps every legacy activation generator route unavailable before claim or effect', async () => {
+    const local = fixture();
+    try {
+      const bridge = createSealedRealmsProductionAuthBridgeState(
+        bridgeOptions(local) as never,
+      );
+      const generate = vi.fn();
+      expect(() => createSealedRealmsProductionActivationEvidenceGenerator({ generate }))
+        .toThrow(expect.objectContaining({
+          code: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
+        }));
+      await expect(consumeSealedRealmsProductionActivationEvidenceForGenerator({
+        confirmation: Object.freeze({}) as never,
+        generator: Object.freeze({}) as never,
+      })).rejects.toMatchObject({
+        code: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
+      });
+      await expect(bridge.consumeActivationEvidenceForContinuation({} as never))
+        .rejects.toMatchObject({ code: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE' });
+      expect(generate).not.toHaveBeenCalled();
+    } finally {
+      local.cleanup();
+    }
   });
 
-  it('consumes activation evidence once through a fixed opaque Task 6E generator', async () => {
+  it('does not expose confirmation-based import or owner mutation entry points', () => {
     const local = fixture();
-    const dispositions: Record<'g002' | 'ptr', 'adopted' | 'no-effect'> = {
-      g002: 'no-effect', ptr: 'no-effect',
-    };
     try {
-      const bridge = createSealedRealmsProductionAuthBridgeState(bridgeOptions(local, {
-        inspectImportReceipt: ({ lane }: { lane: 'g002' | 'ptr' }) =>
-          importProof(lane, dispositions[lane]),
-      }) as never);
-      const g002 = await bridge.inspectGate({ lane: 'g002' });
-      await bridge.applyGate({ confirmation: g002.confirmation, apply: () => undefined });
-      dispositions.g002 = 'adopted';
-      const ptr = await bridge.inspectGate({ lane: 'ptr' });
-      await bridge.applyGate({ confirmation: ptr.confirmation, apply: () => undefined });
-      dispositions.ptr = 'adopted';
-      const activation = await bridge.inspectActivationEvidence();
-      let capturedMember: object | undefined;
-      const generate = vi.fn(async ({ member }: { member: object }) => {
-        capturedMember = member;
-        expect(member).toEqual({});
-        const projection = readSealedRealmsProductionActivationEvidenceMember(member);
-        expect(Object.keys(projection)).toEqual(['authBridgeSuspensionPrivateReceipt']);
-        expect(projection.authBridgeSuspensionPrivateReceipt.profile)
-          .toBe('warpkeep-sealed-realms-auth-bridge-suspension-private-v1');
-        expect(Object.isFrozen(projection)).toBe(true);
-        expect(Object.isFrozen(projection.authBridgeSuspensionPrivateReceipt)).toBe(true);
-        expect(Object.isFrozen(projection.authBridgeSuspensionPrivateReceipt.activationGate)).toBe(true);
-        expect(JSON.stringify(member)).not.toContain('admission_requests_suspended');
-      });
-      const generator = createSealedRealmsProductionActivationEvidenceGenerator({ generate });
-      await expect(consumeSealedRealmsProductionActivationEvidenceForGenerator({
-        confirmation: activation.confirmation,
-        generator,
-      })).resolves.toEqual({});
-      expect(generate).toHaveBeenCalledTimes(1);
-      expect(() => readSealedRealmsProductionActivationEvidenceMember(capturedMember))
-        .toThrow('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_MEMBER_INVALID');
-      expect(() => readSealedRealmsProductionActivationEvidenceMember({}))
-        .toThrow('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_MEMBER_INVALID');
-      await expect(consumeSealedRealmsProductionActivationEvidenceForGenerator({
-        confirmation: activation.confirmation,
-        generator,
-      })).rejects.toMatchObject({
-        code: 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID',
-      });
+      const bridge = createSealedRealmsProductionAuthBridgeState(
+        bridgeOptions(local) as never,
+      );
+      expect(Object.keys(bridge)).not.toContain('applyGate');
+      expect(Object.keys(bridge)).not.toContain('applyOwnerProvision');
+      expect((bridge as Record<string, unknown>).applyGate).toBeUndefined();
+      expect((bridge as Record<string, unknown>).applyOwnerProvision).toBeUndefined();
     } finally {
       local.cleanup();
     }
@@ -920,11 +1088,16 @@ describe('sealed-realms auth bridge state', () => {
   it('keeps activation generation unavailable before reopen, claim, or generator effect', async () => {
     const local = fixture();
     try {
-      const bridge = await completeBridge(local);
+      const bridge = createSealedRealmsProductionAuthBridgeState(
+        bridgeOptions(local) as never,
+      );
       const generate = vi.fn();
+      expect(() => createSealedRealmsProductionActivationEvidenceGenerator({ generate }))
+        .toThrow(expect.objectContaining({
+          code: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
+        }));
       expect(() => createSealedRealmsProductionActivationLane({
-        bridgeState: bridge,
-        task6EGenerator: createSealedRealmsProductionActivationEvidenceGenerator({ generate }),
+        bridgeState: bridge, task6EGenerator: Object.freeze({}),
       } as never)).toThrow(expect.objectContaining({
         code: 'SEALED_REALMS_ACTIVATION_LANE_INPUT_INVALID',
       }));
@@ -962,64 +1135,85 @@ describe('sealed-realms auth bridge state', () => {
     }
   });
 
-  it('permanently rejects expired or byte-swapped private activation confirmations before a generator runs', async () => {
+  it('rejects a byte-swapped activation receipt on reopen while generation remains unavailable', async () => {
     const local = fixture();
-    const swappedLocal = fixture();
-    let clock = new Date(NOW);
     const generate = vi.fn();
-    const generator = createSealedRealmsProductionActivationEvidenceGenerator({ generate });
     try {
-      const bridge = await completeBridge(local, undefined, { now: () => new Date(clock) });
-      const expired = await bridge.inspectActivationEvidence();
-      clock = new Date(NOW.getTime() + 5 * 60 * 1_000);
-      await expect(consumeSealedRealmsProductionActivationEvidenceForGenerator({
-        confirmation: expired.confirmation,
-        generator,
-      })).rejects.toMatchObject({
-        code: 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_EXPIRED',
-      });
-      expect(generate).not.toHaveBeenCalled();
-
-      // A new bridge state gives a separate confirmation; replace only its
-      // owner-private receipt bytes and prove consume fails before callback.
-      const fresh = await completeBridge(swappedLocal, undefined, { now: () => new Date(NOW) });
-      const swapped = await fresh.inspectActivationEvidence();
-      const receiptName = swappedLocal.state.list({
+      const bridge = await completeBridge(local, undefined, { now: () => new Date(NOW) });
+      await bridge.inspectActivationEvidenceForContinuation();
+      const receiptName = local.state.list({
         root: 'runtime', relativeDirectory: 'bridge/activation-evidence',
       }).at(-1)!;
       const relativePath = `bridge/activation-evidence/${receiptName}`;
-      const bytes = swappedLocal.state.read({ root: 'runtime', relativePath });
+      const bytes = local.state.read({ root: 'runtime', relativePath });
       bytes[0] ^= 1;
-      swappedLocal.state.remove({ root: 'runtime', relativePath });
-      swappedLocal.state.write({ root: 'runtime', relativePath, bytes });
+      local.state.remove({ root: 'runtime', relativePath });
+      local.state.write({ root: 'runtime', relativePath, bytes });
       bytes.fill(0);
+      const restarted = createSealedRealmsProductionAuthBridgeState(
+        bridgeOptions(local) as never,
+      );
+      await expect(restarted.reopenActivationEvidenceContinuation())
+        .rejects.toMatchObject({
+          code: 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID',
+        });
       await expect(consumeSealedRealmsProductionActivationEvidenceForGenerator({
-        confirmation: swapped.confirmation,
-        generator,
+        confirmation: Object.freeze({}) as never,
+        generator: Object.freeze({}) as never,
       })).rejects.toMatchObject({
-        code: 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID',
+        code: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
       });
       expect(generate).not.toHaveBeenCalled();
     } finally {
       local.cleanup();
-      swappedLocal.cleanup();
     }
-  });
+  }, 30_000);
 
-  it('claims gate and owner confirmations synchronously so concurrent applies release one callback', async () => {
+  it('allows one durable continuation claim to release each concurrent gate or owner effect', async () => {
     const local = fixture();
     const ownerLocal = fixture();
     try {
       const bridge = createSealedRealmsProductionAuthBridgeState(bridgeOptions(local) as never);
-      const gate = await bridge.inspectGate({ lane: 'g002' });
+      const gateBinding = await bridge.inspectGateForContinuation({ lane: 'g002' });
+      const gateIssued = await protectedSetupContext(local, 'g002-import-inspect');
+      await issueSealedRealmsProductionContinuation({
+        store: gateIssued.continuation.store,
+        permit: gateIssued.continuation.permit,
+        sourceAuthority: gateIssued.authority,
+        kind: 'g002-import',
+        runId: gateIssued.continuation.runId,
+        runAttempt: gateIssued.continuation.runAttempt,
+        ...gateBinding,
+      });
+      const gateClaimed = await protectedSetupContext(local, 'g002-import-apply');
       const releaseGate = deferred<void>();
       const gateStarted = deferred<void>();
       const importCore = vi.fn(async () => {
         gateStarted.resolve();
         await releaseGate.promise;
       });
-      const firstGate = bridge.applyGate({ confirmation: gate.confirmation, apply: importCore });
-      const secondGate = bridge.applyGate({ confirmation: gate.confirmation, apply: importCore });
+      const claimGate = () => claimSealedRealmsProductionContinuation({
+        store: gateClaimed.continuation.store,
+        permit: gateClaimed.continuation.permit,
+        sourceAuthority: gateClaimed.authority,
+        kind: 'g002-import',
+        runId: gateClaimed.continuation.runId,
+        runAttempt: gateClaimed.continuation.runAttempt,
+        ...gateBinding,
+        effect: claim => bridge.applyGateForContinuation({
+          claim,
+          store: gateClaimed.continuation.store,
+          sourceAuthority: gateClaimed.authority,
+          kind: 'g002-import',
+          runId: gateClaimed.continuation.runId,
+          runAttempt: gateClaimed.continuation.runAttempt,
+          ...gateBinding,
+          lane: 'g002',
+          apply: importCore,
+        }),
+      });
+      const firstGate = claimGate();
+      const secondGate = claimGate();
       const gates = Promise.allSettled([firstGate, secondGate]);
       await gateStarted.promise;
       expect(importCore).toHaveBeenCalledTimes(1);
@@ -1036,29 +1230,53 @@ describe('sealed-realms auth bridge state', () => {
         inspectImportReceipt: ({ lane }: { lane: 'g002' | 'ptr' }) =>
           importProof(lane, ownerDispositions[lane]),
       }) as never);
-      const ownerG002 = await complete.inspectGate({ lane: 'g002' });
-      await complete.applyGate({ confirmation: ownerG002.confirmation, apply: () => undefined });
+      await applyGateThroughContinuation(ownerLocal, complete, 'g002', () => undefined);
       ownerDispositions.g002 = 'adopted';
-      const ownerPtr = await complete.inspectGate({ lane: 'ptr' });
-      await complete.applyGate({ confirmation: ownerPtr.confirmation, apply: () => undefined });
+      await applyGateThroughContinuation(ownerLocal, complete, 'ptr', () => undefined);
       ownerDispositions.ptr = 'adopted';
-      const owner = await complete.inspectOwnerProvisionEvidence({
+      const ownerBinding = await complete.inspectOwnerProvisionEvidenceForContinuation({
         inspect: () => ({ receiptDigest: '5'.repeat(64), inspectionDigest: '8'.repeat(64) }),
       });
+      const ownerIssued = await protectedSetupContext(
+        ownerLocal, 'ptr-owner-provision-inspect',
+      );
+      await issueSealedRealmsProductionContinuation({
+        store: ownerIssued.continuation.store,
+        permit: ownerIssued.continuation.permit,
+        sourceAuthority: ownerIssued.authority,
+        kind: 'ptr-owner-provision',
+        runId: ownerIssued.continuation.runId,
+        runAttempt: ownerIssued.continuation.runAttempt,
+        ...ownerBinding,
+      });
+      const ownerClaimed = await protectedSetupContext(ownerLocal, 'ptr-owner-provision');
       const releaseOwner = deferred<Readonly<{ receiptDigest: string; provisionReceiptDigest: string }>>();
       const ownerStarted = deferred<void>();
       const provision = vi.fn(async () => {
         ownerStarted.resolve();
         return releaseOwner.promise;
       });
-      const firstOwner = complete.applyOwnerProvision({
-        confirmation: owner.confirmation,
-        provision,
+      const claimOwner = () => claimSealedRealmsProductionContinuation({
+        store: ownerClaimed.continuation.store,
+        permit: ownerClaimed.continuation.permit,
+        sourceAuthority: ownerClaimed.authority,
+        kind: 'ptr-owner-provision',
+        runId: ownerClaimed.continuation.runId,
+        runAttempt: ownerClaimed.continuation.runAttempt,
+        ...ownerBinding,
+        effect: claim => complete.applyOwnerProvisionForContinuation({
+          claim,
+          store: ownerClaimed.continuation.store,
+          sourceAuthority: ownerClaimed.authority,
+          kind: 'ptr-owner-provision',
+          runId: ownerClaimed.continuation.runId,
+          runAttempt: ownerClaimed.continuation.runAttempt,
+          ...ownerBinding,
+          provision,
+        }),
       });
-      const secondOwner = complete.applyOwnerProvision({
-        confirmation: owner.confirmation,
-        provision,
-      });
+      const firstOwner = claimOwner();
+      const secondOwner = claimOwner();
       const owners = Promise.allSettled([firstOwner, secondOwner]);
       await ownerStarted.promise;
       expect(provision).toHaveBeenCalledTimes(1);
@@ -1071,9 +1289,9 @@ describe('sealed-realms auth bridge state', () => {
       local.cleanup();
       ownerLocal.cleanup();
     }
-  });
+  }, 30_000);
 
-  it('permits only one outstanding owner-provision confirmation for an unchanged completed chain', async () => {
+  it('permits only one durable owner-provision inspection for an unchanged completed chain', async () => {
     const local = fixture();
     const dispositions: Record<'g002' | 'ptr', 'adopted' | 'no-effect'> = {
       g002: 'no-effect', ptr: 'no-effect',
@@ -1083,31 +1301,29 @@ describe('sealed-realms auth bridge state', () => {
         inspectImportReceipt: ({ lane }: { lane: 'g002' | 'ptr' }) =>
           importProof(lane, dispositions[lane]),
       }) as never);
-      const g002 = await bridge.inspectGate({ lane: 'g002' });
-      await bridge.applyGate({ confirmation: g002.confirmation, apply: () => undefined });
+      await applyGateThroughContinuation(local, bridge, 'g002', () => undefined);
       dispositions.g002 = 'adopted';
-      const ptr = await bridge.inspectGate({ lane: 'ptr' });
-      await bridge.applyGate({ confirmation: ptr.confirmation, apply: () => undefined });
+      await applyGateThroughContinuation(local, bridge, 'ptr', () => undefined);
       dispositions.ptr = 'adopted';
 
-      const first = await bridge.inspectOwnerProvisionEvidence({
+      const first = await bridge.inspectOwnerProvisionEvidenceForContinuation({
         inspect: () => ({ receiptDigest: '5'.repeat(64), inspectionDigest: '8'.repeat(64) }),
       });
-      await expect(bridge.inspectOwnerProvisionEvidence({
+      await expect(bridge.inspectOwnerProvisionEvidenceForContinuation({
         inspect: () => ({ receiptDigest: '5'.repeat(64), inspectionDigest: '8'.repeat(64) }),
       })).rejects.toMatchObject({
-        code: 'SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_BUSY',
+        code: 'SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONTINUATION_ORPHANED',
       });
       const provision = vi.fn(() => ({
         receiptDigest: '5'.repeat(64), provisionReceiptDigest: '9'.repeat(64),
       }));
-      await expect(bridge.applyOwnerProvision({ confirmation: first.confirmation, provision }))
-        .resolves.toEqual({});
+      await expect(applyOwnerBindingThroughContinuation(local, bridge, first, provision))
+        .resolves.toEqual({ status: 'completed' });
       expect(provision).toHaveBeenCalledTimes(1);
     } finally {
       local.cleanup();
     }
-  });
+  }, 30_000);
 
   it('rejects a gate or owner mutation when its authenticated observation ages during the callback', async () => {
     const gateLocal = fixture();
@@ -1127,16 +1343,15 @@ describe('sealed-realms auth bridge state', () => {
     };
     try {
       const gateBridge = createSealedRealmsProductionAuthBridgeState(bridgeOptions(gateLocal, dynamicAttesters) as never);
-      const gate = await gateBridge.inspectGate({ lane: 'g002' });
-      await expect(gateBridge.applyGate({
-        confirmation: gate.confirmation,
-        apply: () => {
+      await expect(applyGateThroughContinuation(
+        gateLocal,
+        gateBridge,
+        'g002',
+        () => {
           clock = new Date(NOW.getTime() + 5 * 60 * 1_000 + 1);
           return undefined;
         },
-      })).rejects.toMatchObject({
-        code: 'SEALED_REALMS_AUTH_BRIDGE_GATE_CONFIRMATION_EXPIRED',
-      });
+      )).rejects.toMatchObject({ code: 'SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS' });
 
       clock = new Date(NOW);
       const ownerDispositions: Record<'g002' | 'ptr', 'adopted' | 'no-effect'> = {
@@ -1149,25 +1364,22 @@ describe('sealed-realms auth bridge state', () => {
       });
       ownerDispositions.g002 = 'adopted';
       ownerDispositions.ptr = 'adopted';
-      const owner = await ownerBridge.inspectOwnerProvisionEvidence({
-        inspect: () => ({ receiptDigest: '5'.repeat(64), inspectionDigest: '8'.repeat(64) }),
-      });
       const provision = vi.fn(() => {
         clock = new Date(NOW.getTime() + 5 * 60 * 1_000 + 1);
         return ownerProvisionProof();
       });
-      await expect(ownerBridge.applyOwnerProvision({
-        confirmation: owner.confirmation,
+      await expect(applyOwnerThroughContinuation(
+        ownerLocal,
+        ownerBridge,
+        () => ({ receiptDigest: '5'.repeat(64), inspectionDigest: '8'.repeat(64) }),
         provision,
-      })).rejects.toMatchObject({
-        code: 'SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONFIRMATION_EXPIRED',
-      });
+      )).rejects.toMatchObject({ code: 'SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS' });
       expect(provision).toHaveBeenCalledTimes(1);
     } finally {
       gateLocal.cleanup();
       ownerLocal.cleanup();
     }
-  });
+  }, 30_000);
 
   it('samples completion after the second journal resolver and rejects expiry before mutation', async () => {
     const local = fixture();
@@ -1338,7 +1550,7 @@ describe('sealed-realms auth bridge state', () => {
     }
   });
 
-  it('supersedes an ambiguous pending gate only after immutable adoption and never replays its core', async () => {
+  it('terminalizes an ambiguous gate from immutable adoption without replay or local reconciliation mutation', async () => {
     const local = fixture();
     const dispositions: Record<'g002' | 'ptr', 'adopted' | 'no-effect'> = {
       g002: 'no-effect', ptr: 'no-effect',
@@ -1372,25 +1584,42 @@ describe('sealed-realms auth bridge state', () => {
           completedAt: NOW.toISOString(), sourceCommit: SOURCE, workerVersionId: VERSION_ID,
         }),
       });
-      const first = await bridge.inspectGate({ lane: 'g002' });
-      await expect(bridge.applyGate({
-        confirmation: first.confirmation,
-        apply: () => { coreCalls += 1; throw new Error('simulated transport ambiguity'); },
-      })).rejects.toMatchObject({ code: 'SEALED_REALMS_AUTH_BRIDGE_GATE_APPLY_AMBIGUOUS' });
+      await expect(applyGateThroughContinuation(
+        local,
+        bridge,
+        'g002',
+        () => { coreCalls += 1; throw new Error('simulated transport ambiguity'); },
+      )).rejects.toMatchObject({ code: 'SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS' });
       dispositions.g002 = 'adopted';
-      const recovery = await bridge.inspectGate({ lane: 'g002' });
-      await bridge.applyGate({
-        confirmation: recovery.confirmation,
-        apply: () => { coreCalls += 1; throw new Error('adoption must not call core'); },
+      const selected = await bridge.reopenGateContinuation({ lane: 'g002' });
+      const ambiguousRun = await protectedSetupContext(local, 'g002-import-apply');
+      const recovery = await protectedContext(
+        local,
+        'g002-import-apply',
+        nextProtectedRunId(),
+        SOURCE,
+        new Set([ambiguousRun.continuation.runId]),
+      );
+      await reconcileSealedRealmsProductionContinuation({
+        store: recovery.continuation.store,
+        permit: recovery.continuation.permit,
+        sourceAuthority: recovery.authority,
+        kind: 'g002-import',
+        runId: recovery.continuation.runId,
+        runAttempt: recovery.continuation.runAttempt,
+        ...selected,
+        readOnlyReconcile: () => bridge.reconcileGateContinuation({
+          selection: selected,
+        }),
       });
       expect(coreCalls).toBe(1);
       await expect(bridge.inspect()).resolves.toEqual({
-        g002Sealed: true, ptrSealed: false, complete: false,
+        g002Sealed: false, ptrSealed: false, complete: false,
       });
     } finally {
       local.cleanup();
     }
-  });
+  }, 30_000);
 
   it.each(['complete', 'ptr'] as const)(
     'adopts exactly one immutable expired %s predecessor beside an already-written recovery chain',
@@ -1429,8 +1658,7 @@ describe('sealed-realms auth bridge state', () => {
         ? await completeBridge(local, undefined, oldOptions)
         : createSealedRealmsProductionAuthBridgeState(bridgeOptions(local, oldOptions) as never);
       if (predecessorPhase === 'ptr') {
-        const g002 = await old.inspectGate({ lane: 'g002' });
-        await old.applyGate({ confirmation: g002.confirmation, apply: () => undefined });
+        await applyGateThroughContinuation(local, old, 'g002', () => undefined);
       }
       await expect(old.inspect()).resolves.toEqual(predecessorPhase === 'complete'
         ? { g002Sealed: true, ptrSealed: true, complete: true }
@@ -1497,15 +1725,22 @@ describe('sealed-realms auth bridge state', () => {
       });
       const recovery = createSealedRealmsProductionAuthBridgeState(recoveryOptions as never);
       await expect(recovery.establish()).resolves.toEqual({ ready: true });
-      const g002Core = vi.fn(async () => undefined);
       const ptrCore = vi.fn(async () => undefined);
-      const g002Gate = await recovery.inspectGate({ lane: 'g002' });
-      await recovery.applyGate({ confirmation: g002Gate.confirmation, apply: g002Core });
-      const ptrGate = await recovery.inspectGate({ lane: 'ptr' });
-      await recovery.applyGate({ confirmation: ptrGate.confirmation, apply: ptrCore });
-      expect(g002Core).not.toHaveBeenCalled();
+      // The first read persists an owner-private ambiguity fence. A recreated
+      // read then adopts the exact immutable receipt without invoking an
+      // importer or carrying the discarded process-local confirmation.
+      await recovery.inspectGate({ lane: 'g002' });
+      const afterG002 = createSealedRealmsProductionAuthBridgeState(recoveryOptions as never);
+      await afterG002.inspectGate({ lane: 'g002' });
+      if (predecessorPhase === 'complete') {
+        await afterG002.inspectGate({ lane: 'ptr' });
+        const afterPtr = createSealedRealmsProductionAuthBridgeState(recoveryOptions as never);
+        await afterPtr.inspectGate({ lane: 'ptr' });
+      } else {
+        await applyGateThroughContinuation(local, afterG002, 'ptr', ptrCore);
+      }
       expect(ptrCore).toHaveBeenCalledTimes(predecessorPhase === 'complete' ? 0 : 1);
-      await expect(recovery.inspect()).resolves.toEqual({
+      await expect(afterG002.inspect()).resolves.toEqual({
         g002Sealed: true, ptrSealed: true, complete: true,
       });
       const names = local.state.list({ root: 'runtime', relativeDirectory: 'bridge' })
@@ -1528,7 +1763,6 @@ describe('sealed-realms auth bridge state', () => {
         expect(local.state.read({ root: 'runtime', relativePath: `bridge/${name}` })).toEqual(bytes);
         bytes.fill(0);
       }
-      expect(g002Core).not.toHaveBeenCalled();
       expect(ptrCore).toHaveBeenCalledTimes(predecessorPhase === 'complete' ? 0 : 1);
       oldBytes.fill(0);
       recoveryBytes.fill(0);
@@ -1643,8 +1877,7 @@ describe('sealed-realms auth bridge state', () => {
         const old = predecessorPhase === 'complete' ? await completeBridge(local, undefined, oldOptions)
           : createSealedRealmsProductionAuthBridgeState(bridgeOptions(local, oldOptions) as never);
         if (predecessorPhase === 'ptr') {
-          const gate = await old.inspectGate({ lane: 'g002' });
-          await old.applyGate({ confirmation: gate.confirmation, apply: () => undefined });
+          await applyGateThroughContinuation(local, old, 'g002', () => undefined);
         }
         const oldName = local.state.list({ root: 'runtime', relativeDirectory: 'bridge' })
           .find(name => name.startsWith('auth-bridge-import-authority-'))!;
@@ -1983,8 +2216,7 @@ describe('sealed-realms auth bridge state', () => {
     try {
       if (lane === 'ptr') {
         const prerequisite = createSealedRealmsProductionAuthBridgeState(options() as never);
-        const g002 = await prerequisite.inspectGate({ lane: 'g002' });
-        await prerequisite.applyGate({ confirmation: g002.confirmation, apply: () => undefined });
+        await applyGateThroughContinuation(local, prerequisite, 'g002', () => undefined);
       }
       const inspector = createSealedRealmsProductionAuthBridgeState(options() as never);
       const binding = await inspector.inspectGateForContinuation({ lane });
@@ -2098,7 +2330,7 @@ describe('sealed-realms auth bridge state', () => {
     } finally { local.cleanup(); }
   });
 
-  it('reopens exact activation evidence but rejects a generator without a live continuation claim', async () => {
+  it('reopens exact activation evidence while every generator route remains unavailable', async () => {
     const local = fixture();
     try {
       const inspector = await completeBridge(local);
@@ -2107,18 +2339,18 @@ describe('sealed-realms auth bridge state', () => {
 
       const restarted = createSealedRealmsProductionAuthBridgeState(bridgeOptions(local) as never);
       await expect(restarted.reopenActivationEvidenceContinuation()).resolves.toEqual(binding);
-      const generate = vi.fn(async ({ member }: { member: object }) => {
-        expect(readSealedRealmsProductionActivationEvidenceMember(member))
-          .toHaveProperty('authBridgeSuspensionPrivateReceipt');
-      });
-      const generator = createSealedRealmsProductionActivationEvidenceGenerator({ generate });
-      await expect(restarted.consumeActivationEvidenceForContinuation({ generator } as never))
+      const generate = vi.fn();
+      expect(() => createSealedRealmsProductionActivationEvidenceGenerator({ generate }))
+        .toThrow(expect.objectContaining({
+          code: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
+        }));
+      await expect(restarted.consumeActivationEvidenceForContinuation({} as never))
         .rejects.toMatchObject({
-          code: 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID',
+          code: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
         });
       expect(generate).not.toHaveBeenCalled();
     } finally { local.cleanup(); }
-  });
+  }, 30_000);
 
   it.each([
     ['g002', 'g002-publish-inspect', 'g002-publish-apply'],

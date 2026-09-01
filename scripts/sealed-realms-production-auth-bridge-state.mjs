@@ -47,7 +47,6 @@ const testOnlyCapabilities = new WeakSet();
 const gateConfirmations = new WeakMap();
 const activationConfirmations = new WeakMap();
 const consumedActivationConfirmations = new WeakSet();
-const activationEvidenceGenerators = new WeakMap();
 const activationEvidenceMembers = new WeakMap();
 const ownerProvisionConfirmations = new WeakMap();
 const ownerProvisionChainClaims = new WeakMap();
@@ -832,6 +831,8 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     ownerClaims = new Map();
     ownerProvisionChainClaims.set(privateState, ownerClaims);
   }
+  const gateContinuationSelections = new WeakMap();
+  const ownerContinuationSelections = new WeakMap();
   const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(options.authority);
   if (options.authority.mode !== 'S') {
     fail('SEALED_REALMS_AUTH_BRIDGE_SOURCE_MODE_INVALID');
@@ -1521,21 +1522,22 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
       || gate.value.recordType !== (lane === 'g002' ? 'g002Gate' : 'ptrGate')
       || !phaseRetainsGate
     ) fail('SEALED_REALMS_AUTH_BRIDGE_GATE_STATE_INVALID');
-    return Object.freeze({
-      member: Object.freeze({
+    const member = Object.freeze({
         lane,
         relativePath: established.relativePath,
         chainDigest: established.chainDigest,
         gateDigest: gate.digest,
         observedAt: gate.value.observedAt,
-      }),
-      binding: Object.freeze({
+      });
+    const binding = Object.freeze({
         subject: `${lane}-import:0.4.0`,
         evidenceDigest: gate.digest,
         receiptDigests: Object.freeze([gate.value.confirmationDigest]),
         predecessorDigests: Object.freeze([gate.value.previousRecordDigest]),
-      }),
-    });
+      });
+    const selected = Object.freeze({ member, binding });
+    gateContinuationSelections.set(binding, selected);
+    return selected;
   };
 
   /** Persists the exact gate while discarding all process-local confirmation authority. */
@@ -1583,13 +1585,29 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   };
 
   /** The only crash resolver is the immutable receipt reader; it never imports. */
-  const reconcileGateContinuation = async ({ lane } = {}) => {
-    const reopened = await gateContinuationMember(lane);
-    const chain = readChain(reopened.member.relativePath);
+  const reconcileGateContinuation = async (input = {}) => {
+    exactObject(
+      input,
+      ['selection'],
+      'SEALED_REALMS_AUTH_BRIDGE_GATE_RECOVERY_INVALID',
+    );
+    const selected = gateContinuationSelections.get(input.selection);
+    if (
+      selected === undefined
+      || selected.binding !== input.selection
+      || selected.member.gateDigest !== input.selection.evidenceDigest
+    ) fail('SEALED_REALMS_AUTH_BRIDGE_GATE_RECOVERY_INVALID');
+    gateContinuationSelections.delete(input.selection);
+    const { member } = selected;
+    const chain = readChain(member.relativePath);
+    const gate = member.lane === 'g002' ? chain.g002Final : chain.ptrFinal;
+    if (gate?.digest !== member.gateDigest) {
+      fail('SEALED_REALMS_AUTH_BRIDGE_GATE_RECOVERY_INVALID');
+    }
     const facts = await resolveFacts();
     const authority = assertFactsMatchAuthority(facts, chain);
     const resolution = await inspectImmutableImportReceipt(
-      lane,
+      member.lane,
       authority,
       'SEALED_REALMS_AUTH_BRIDGE_GATE_RECOVERY_INVALID',
     );
@@ -1757,15 +1775,19 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     return Object.freeze({ record, evidenceDigest, relativePath });
   };
 
-  const ownerContinuationBinding = (evidence) => Object.freeze({
-    subject: 'ptr-owner-provision:0.4.0',
-    evidenceDigest: evidence.evidenceDigest,
-    receiptDigests: Object.freeze([
-      evidence.record.receiptDigest,
-      evidence.record.inspectionDigest,
-    ]),
-    predecessorDigests: Object.freeze([evidence.record.chainDigest]),
-  });
+  const ownerContinuationBinding = (evidence) => {
+    const binding = Object.freeze({
+      subject: 'ptr-owner-provision:0.4.0',
+      evidenceDigest: evidence.evidenceDigest,
+      receiptDigests: Object.freeze([
+        evidence.record.receiptDigest,
+        evidence.record.inspectionDigest,
+      ]),
+      predecessorDigests: Object.freeze([evidence.record.chainDigest]),
+    });
+    ownerContinuationSelections.set(binding, Object.freeze({ evidence, binding }));
+    return binding;
+  };
 
   const reopenOwnerContinuationEvidence = async () => {
     const names = privateState.list({
@@ -1875,8 +1897,20 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   };
 
   /** Resolves crash ambiguity from the immutable owner receipt without provisioning. */
-  const reconcileOwnerProvisionContinuation = async () => {
-    const evidence = await reopenOwnerContinuationEvidence();
+  const reconcileOwnerProvisionContinuation = async (input = {}) => {
+    exactObject(
+      input,
+      ['selection'],
+      'SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_RECOVERY_INVALID',
+    );
+    const selected = ownerContinuationSelections.get(input.selection);
+    if (
+      selected === undefined
+      || selected.binding !== input.selection
+      || selected.evidence.evidenceDigest !== input.selection.evidenceDigest
+    ) fail('SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_RECOVERY_INVALID');
+    ownerContinuationSelections.delete(input.selection);
+    const { evidence } = selected;
     const chain = readChain(evidence.member.relativePath);
     const imported = await authenticatedImportedReceipt(
       'ptr',
@@ -2139,22 +2173,8 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   );
 
   const consumeActivationEvidenceForContinuation = async (input = {}) => {
-    exactObject(input, [
-      'claim', 'store', 'sourceAuthority', 'kind', 'runId', 'runAttempt',
-      'subject', 'evidenceDigest', 'receiptDigests', 'predecessorDigests',
-      'generator',
-    ], 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
-    requireContinuationClaim(
-      input,
-      'activation-evidence',
-      'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID',
-    );
-    const member = await reopenActivationContinuationMember();
-    const confirmation = Object.freeze({});
-    activationConfirmations.set(confirmation, member);
-    return consumeSealedRealmsProductionActivationEvidenceForGenerator({
-      confirmation, generator: input.generator,
-    });
+    void input;
+    fail('SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE');
   };
 
   const state = Object.freeze({
@@ -2164,13 +2184,11 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     },
     inspect,
     inspectGate,
-    applyGate,
     inspectGateForContinuation,
     reopenGateContinuation,
     applyGateForContinuation,
     reconcileGateContinuation,
     inspectOwnerProvisionEvidence,
-    applyOwnerProvision,
     inspectOwnerProvisionEvidenceForContinuation,
     reopenOwnerProvisionContinuation,
     applyOwnerProvisionForContinuation,
@@ -2388,32 +2406,21 @@ async function consumeActivationEvidenceConfirmation(confirmation) {
 }
 
 /**
- * Task 6E may capture its fixed activation generator here. The capability is
- * opaque and cannot be supplied through dispatch/lane inputs.
+ * Task 6E has not supplied the canonical generator receipt and non-mutating
+ * reconciliation contract yet, so generator authority is intentionally absent.
  */
 export function createSealedRealmsProductionActivationEvidenceGenerator(input) {
-  const options = exactObject(
-    input,
-    ['generate'],
-    'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_GENERATOR_INVALID',
-  );
-  if (typeof options.generate !== 'function') {
-    fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_GENERATOR_INVALID');
-  }
-  const capability = Object.freeze({});
-  activationEvidenceGenerators.set(capability, options.generate);
-  return capability;
+  void input;
+  fail('SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE');
 }
 
 /**
- * The activation lane may retain this branded capability, but it is never an
- * operation input and cannot be reconstructed from dispatcher data.
+ * No activation-generator capability can be asserted before Task 6E installs
+ * its independently attested authority contract.
  */
 export function assertSealedRealmsProductionActivationEvidenceGenerator(generator) {
-  if (!activationEvidenceGenerators.has(generator)) {
-    fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_GENERATOR_INVALID');
-  }
-  return generator;
+  void generator;
+  fail('SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE');
 }
 
 /** Verifies an opaque member handed only to a captured Task 6E generator. */
@@ -2437,22 +2444,10 @@ export async function consumeSealedRealmsProductionActivationEvidenceConfirmatio
 }
 
 /**
- * The Task 6E escrow route: claim/reopen/re-attest first, then hand an opaque
- * member to its already captured fixed generator. Nothing from that callback
- * is returned through Task 6D's dispatcher boundary.
+ * The future Task 6E escrow route is closed before claim or effect until its
+ * canonical generator receipt and non-mutating reconciliation are available.
  */
 export async function consumeSealedRealmsProductionActivationEvidenceForGenerator(input) {
-  exactObject(input, ['confirmation', 'generator'], 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_GENERATOR_INVALID');
-  const generate = activationEvidenceGenerators.get(input.generator);
-  if (generate === undefined) {
-    fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_GENERATOR_INVALID');
-  }
-  const member = await consumeActivationEvidenceConfirmation(input.confirmation);
-  try {
-    await generate(Object.freeze({ member }));
-  } catch (error) {
-    if (error instanceof SealedRealmsProductionAuthBridgeStateError) throw error;
-    fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_GENERATOR_INVALID');
-  } finally { activationEvidenceMembers.delete(member); }
-  return Object.freeze({});
+  void input;
+  fail('SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE');
 }

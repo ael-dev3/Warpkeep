@@ -95,6 +95,7 @@ export function reconcileSealedRealmsProductionContinuation(
 
 export function classifySealedRealmsProductionContinuationNoEffect(input: Readonly<{
   reconciliation: SealedRealmsProductionContinuationReconciliation;
+  evidenceDigest: string;
   observationDigest: string;
 }>): SealedRealmsProductionContinuationNoEffect;
 

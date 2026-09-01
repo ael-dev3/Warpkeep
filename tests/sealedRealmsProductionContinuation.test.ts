@@ -929,13 +929,36 @@ describe('sealed-realms durable continuation core', () => {
           transition.kind, '2002'),
         effect,
       })).rejects.toThrow(/SEALED_REALMS_CONTINUATION_AMBIGUOUS/u);
+      const retryInput = issueInput(store(continuation, fixture.state(), now), retry,
+        transition.kind, '2002');
+      await expect(functionExport(
+        continuation, 'reconcileSealedRealmsProductionContinuation',
+      )!({
+        ...retryInput,
+        readOnlyReconcile: async () => ({
+          outcome: 'no-effect', observationDigest: '9'.repeat(64),
+        }),
+      })).rejects.toThrow(/SEALED_REALMS_CONTINUATION_RECONCILIATION_INVALID/u);
+
+      const reconcileRetry = await workflowPermit(workflow, transition.claim, '2003', {
+        runStatus: requestedRunId => requestedRunId === '2001'
+          ? 'completed'
+          : 'in_progress',
+      });
+      const reconcileRetryInput = issueInput(
+        store(continuation, fixture.state(), now), reconcileRetry,
+        transition.kind, '2003',
+      );
       const reconciled = await functionExport(
         continuation, 'reconcileSealedRealmsProductionContinuation',
       )!({
-        ...issueInput(store(continuation, fixture.state(), now), retry,
-          transition.kind, '2002'),
-        readOnlyReconcile: async () => ({
-          outcome: 'no-effect', observationDigest: '9'.repeat(64),
+        ...reconcileRetryInput,
+        readOnlyReconcile: async (reconciliation: unknown) => functionExport(
+          continuation, 'classifySealedRealmsProductionContinuationNoEffect',
+        )!({
+          reconciliation,
+          evidenceDigest: reconcileRetryInput.evidenceDigest,
+          observationDigest: '9'.repeat(64),
         }),
       });
       expect(reconciled).toEqual({ status: 'reconciled', outcome: 'no-effect' });
