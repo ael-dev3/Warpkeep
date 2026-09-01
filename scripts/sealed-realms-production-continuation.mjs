@@ -707,7 +707,7 @@ export async function claimSealedRealmsProductionContinuation(input) {
   if (activeClaimRecords.has(recordKey)) {
     fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
   }
-  activeClaims.set(claim, Object.freeze({
+  const claimMember = Object.freeze({
     store: options.store,
     scopeDigest: scope,
     recordDigest: issued.recordDigest,
@@ -728,15 +728,31 @@ export async function claimSealedRealmsProductionContinuation(input) {
     runAttempt: run.attemptNumber,
     issuedRecord: JSON.stringify(issued.record),
     claimRecord: JSON.stringify(claimRecord),
-  }));
+  });
+  const authorizationAt = sampleClock(state);
+  if (authorizationAt.getTime() < Date.parse(claimRecord.claimedAt)) {
+    fail('SEALED_REALMS_CONTINUATION_CLOCK_INVALID');
+  }
+  if (authorizationAt.getTime() >= Date.parse(issued.record.expiresAt)) {
+    fail('SEALED_REALMS_CONTINUATION_EXPIRED');
+  }
+  activeClaims.set(claim, claimMember);
   activeClaimRecords.add(recordKey);
+  let effectResult;
+  // The brand exists only for the callback's direct invocation. Returned work
+  // is awaited after revocation so detached microtasks cannot retain authority.
   try {
-    await options.effect(claim);
+    effectResult = options.effect(claim);
   } catch {
     fail('SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS');
   } finally {
     activeClaims.delete(claim);
     activeClaimRecords.delete(recordKey);
+  }
+  try {
+    await effectResult;
+  } catch {
+    fail('SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS');
   }
   try {
     await attestSealedRealmsProductionWorkflowPermit({

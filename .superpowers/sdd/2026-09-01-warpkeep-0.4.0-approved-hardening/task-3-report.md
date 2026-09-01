@@ -214,3 +214,72 @@ Duration    14.20s
 - `npm run verify:file-sizes` — tracked file-size policy passed.
 - Syntax checks for the workflow-authority, private-state, and continuation
   modules — exit 0.
+
+## 2026-09-01 — Fix Round 2
+
+Fix Round 2 addressed the two remaining authority-timing and capability-
+lifetime findings without changing durable claim ordering, reconciliation
+semantics, public continuation material, a workflow/call site, generated
+artifacts, infrastructure, deployment, push, or merge.
+
+### Regression-first evidence
+
+Two focused tests were added before production changes. They use the real
+private-state `write-before-open` race hook to advance the clock during the
+durable resolution-slot write and the real `queueMicrotask` scheduler to
+attempt detached claim reuse. The exact focused command was:
+
+```powershell
+npm test -- tests/sealedRealmsProductionWorkflowAuthority.test.ts tests/sealedRealmsProductionContinuation.test.ts --maxWorkers=1
+```
+
+Against the Fix Round 1 implementation it failed for both reviewed behaviors:
+
+```text
+Test Files  1 failed | 1 passed (2)
+Tests       2 failed | 33 passed (35)
+Start at    16:09:33
+Duration    12.68s
+```
+
+The resolution-write case returned `{ status: 'completed' }` instead of
+rejecting expiry, and the queued microtask observed the retained claim as
+`valid` instead of receiving `SEALED_REALMS_CONTINUATION_CLAIM_INVALID`.
+
+After the correction, the final run of the same exact command passed:
+
+```text
+Test Files  2 passed (2)
+Tests       35 passed (35)
+Start at    16:12:38
+Duration    14.76s
+```
+
+### Corrections and security decisions
+
+- The fail-fast expiry sample after workflow attestation remains, and a second
+  authoritative sample now occurs after the owner-private effect-resolution
+  O_EXCL write and immediately before callback brand activation. There is no
+  await, filesystem operation, network operation, or caller-controlled work
+  between that sample and the direct callback invocation. Crossing expiry
+  during the durable write leaves the claim/resolution ambiguity fence intact
+  but never invokes the callback.
+- Callback claim authority is now valid only during the callback's direct
+  invocation. The callback is called synchronously inside the active WeakMap
+  scope; both the brand and process-local live-record fence are revoked in its
+  `finally`; only then is its returned value awaited. Thus the callback can
+  synchronously assert and consume the complete continuation authority, while
+  a queued microtask, detached task, retained reference, or asynchronous
+  continuation cannot reuse the claim. A synchronous throw or rejected
+  returned promise still produces the same durable effect-ambiguity outcome.
+
+### Round 2 verification
+
+- Focused workflow-authority/continuation suite: 2 files, 35 tests passed
+  (14.76s).
+- Adjacent private-state/source-authority/reconciliation suite: 3 files,
+  42 tests passed (10.38s).
+- `npm run typecheck` — exit 0.
+- `npm run verify:file-sizes` — tracked file-size policy passed.
+- Syntax checks for the workflow-authority, private-state, and continuation
+  modules — exit 0.

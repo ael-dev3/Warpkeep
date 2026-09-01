@@ -180,12 +180,14 @@ function privateFixture() {
     mkdirSync(root, { recursive: true, mode: 0o700 });
     chmodSync(root, 0o700);
   }
-  const state = () => createSealedRealmsProductionPrivateState({
-    reportedHome: home,
-    testOnlyOwnerUid: statSync(home).uid,
-    testOnlyFsync: () => {},
-    testOnlyAllowPlatformMode: true,
-  });
+  const state = (testOnlyRace?: (phase: string, path: string) => void) =>
+    createSealedRealmsProductionPrivateState({
+      reportedHome: home,
+      testOnlyOwnerUid: statSync(home).uid,
+      testOnlyFsync: () => {},
+      testOnlyAllowPlatformMode: true,
+      ...(testOnlyRace === undefined ? {} : { testOnlyRace }),
+    });
   return { home, state, cleanup: () => rmSync(home, { recursive: true, force: true }) };
 }
 
@@ -569,6 +571,96 @@ describe('sealed-realms durable continuation core', () => {
       expect(effect).not.toHaveBeenCalled();
     } finally {
       releaseEffectAttestation.resolve();
+      fixture.cleanup();
+    }
+  });
+
+  it('rechecks expiry after the durable effect-resolution write', async () => {
+    const [workflow, continuation] = await Promise.all([
+      loadWorkflow(), loadContinuation(),
+    ]);
+    if (!requireModules(workflow, continuation)) return;
+    const fixture = privateFixture();
+    const transition = FIXED_KINDS[2]!;
+    const issuedAt = Date.parse('2026-09-01T00:00:00.000Z');
+    let nowValue = issuedAt;
+    let advancedDuringResolution = false;
+    const now = () => new Date(nowValue);
+    const effect = vi.fn();
+    try {
+      const issuedRun = await workflowPermit(workflow, transition.issue, '1001');
+      await functionExport(continuation, 'issueSealedRealmsProductionContinuation')!(
+        issueInput(store(continuation, fixture.state(), now), issuedRun,
+          transition.kind, '1001'),
+      );
+      nowValue += 1_000;
+      const claimRun = await workflowPermit(workflow, transition.claim, '2001');
+      const claimState = fixture.state((phase, path) => {
+        if (phase === 'write-before-open' && /resolution-[a-f0-9]{64}\.lock$/u.test(path)) {
+          advancedDuringResolution = true;
+          nowValue = issuedAt + 24 * 60 * 60 * 1_000;
+        }
+      });
+
+      await expect(functionExport(
+        continuation, 'claimSealedRealmsProductionContinuation',
+      )!({
+        ...issueInput(store(continuation, claimState, now), claimRun,
+          transition.kind, '2001'),
+        effect,
+      })).rejects.toThrow(/SEALED_REALMS_CONTINUATION_EXPIRED/u);
+      expect(advancedDuringResolution).toBe(true);
+      expect(effect).not.toHaveBeenCalled();
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it('revokes callback authority before a queued microtask can reuse it', async () => {
+    const [workflow, continuation] = await Promise.all([
+      loadWorkflow(), loadContinuation(),
+    ]);
+    if (!requireModules(workflow, continuation)) return;
+    const fixture = privateFixture();
+    const transition = FIXED_KINDS[2]!;
+    const now = () => new Date('2026-09-01T00:00:00.000Z');
+    const queuedFinished = deferred();
+    let queuedOutcome = 'not-run';
+    try {
+      const issuedRun = await workflowPermit(workflow, transition.issue, '1001');
+      await functionExport(continuation, 'issueSealedRealmsProductionContinuation')!(
+        issueInput(store(continuation, fixture.state(), now), issuedRun,
+          transition.kind, '1001'),
+      );
+      const claimRun = await workflowPermit(workflow, transition.claim, '2001');
+      const claimStore = store(continuation, fixture.state(), now);
+      await functionExport(continuation, 'claimSealedRealmsProductionContinuation')!({
+        ...issueInput(claimStore, claimRun, transition.kind, '2001'),
+        effect: (claim: object) => {
+          const exact = claimAssertionInput(
+            claim, claimStore, claimRun, transition.kind, '2001',
+          );
+          expect(functionExport(
+            continuation, 'assertSealedRealmsProductionContinuationClaim',
+          )!(exact)).toBe(true);
+          queueMicrotask(() => {
+            try {
+              functionExport(
+                continuation, 'assertSealedRealmsProductionContinuationClaim',
+              )!(exact);
+              queuedOutcome = 'valid';
+            } catch (error) {
+              queuedOutcome = String(error);
+            } finally {
+              queuedFinished.resolve();
+            }
+          });
+        },
+      });
+      await queuedFinished.promise;
+
+      expect(queuedOutcome).toMatch(/SEALED_REALMS_CONTINUATION_CLAIM_INVALID/u);
+    } finally {
       fixture.cleanup();
     }
   });
