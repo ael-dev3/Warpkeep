@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { dirname, relative, resolve } from 'node:path';
+import { dirname, relative, resolve, sep } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
@@ -142,7 +142,7 @@ test('every admission and request writer remains exhaustively known', () => {
   for (const path of allTypeScriptSources(sourceDirectory)) {
     const text = readFileSync(path, 'utf8');
     for (const match of text.matchAll(mutationPattern)) {
-      const key = `${relative(sourceDirectory, path)}:${match[1]}:${match[2]}`;
+      const key = `${relative(sourceDirectory, path).replaceAll(sep, '/')}:${match[1]}:${match[2]}`;
       mutations.set(key, (mutations.get(key) ?? 0) + 1);
     }
   }

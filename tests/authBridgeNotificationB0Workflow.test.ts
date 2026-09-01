@@ -15,7 +15,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
@@ -26,6 +26,17 @@ import {
 } from '../scripts/verify-auth-bridge-notification-b0-policy.mjs';
 
 const repository = resolve(import.meta.dirname, '..');
+const fixtureDirectory = resolve(import.meta.dirname, 'fixtures');
+const gitForWindowsDirectory = join(
+  process.env.ProgramFiles ?? 'C:\\Program Files',
+  'Git',
+);
+const bashExecutable = process.platform === 'win32'
+  ? join(gitForWindowsDirectory, 'bin', 'bash.exe')
+  : '/bin/bash';
+const cleanEnvironmentExecutable = process.platform === 'win32'
+  ? join(gitForWindowsDirectory, 'usr', 'bin', 'env.exe')
+  : '/usr/bin/env';
 const workflowPath = resolve(
   repository,
   '.github/workflows/notification-bridge-b0.yml',
@@ -79,6 +90,36 @@ function emulateBsdNodeAttestationForLinux(source: string): string {
     .replaceAll('Directory', 'directory');
 }
 
+function bashPath(path: string): string {
+  return path.replaceAll('\\', '/');
+}
+
+function setFixtureMode(path: string, mode: number): void {
+  if (process.platform !== 'win32') {
+    chmodSync(path, mode);
+    return;
+  }
+  const result = spawnSync(bashExecutable, [
+    '--noprofile', '--norc', '-c', 'chmod "$2" "$1"', 'bash',
+    path,
+    mode.toString(8),
+  ], { encoding: 'utf8' });
+  if (result.status !== 0 || result.signal !== null) {
+    throw new Error(`failed to set fixture mode for ${path}`);
+  }
+}
+
+function fixtureMode(path: string): number {
+  if (process.platform !== 'win32') return statSync(path).mode & 0o777;
+  const result = spawnSync(bashExecutable, [
+    '--noprofile', '--norc', '-c', '/usr/bin/stat -c %a -- "$1"', 'bash', path,
+  ], { encoding: 'utf8' });
+  if (result.status !== 0 || result.signal !== null) {
+    throw new Error(`failed to read fixture mode for ${path}`);
+  }
+  return Number.parseInt(result.stdout.trim(), 8);
+}
+
 function protectedLaunchForTrustedNode(
   source: string,
   nodeExecutable: string,
@@ -86,7 +127,10 @@ function protectedLaunchForTrustedNode(
 ): string {
   const uid = String(process.getuid?.() ?? 0);
   return emulateBsdNodeAttestationForLinux(source
-    .replaceAll(IMMUTABLE_NODE_22_22_3_DARWIN_ARM64_PATH, nodeExecutable)
+    .replaceAll(
+      IMMUTABLE_NODE_22_22_3_DARWIN_ARM64_PATH,
+      bashPath(nodeExecutable),
+    )
     .replaceAll(OFFICIAL_NODE_22_22_3_DARWIN_ARM64_SHA256, nodeDigest)
     .replaceAll(
       '"$path_uid" != \'0\'',
@@ -118,7 +162,10 @@ function protectedLaunchForSameUidSwapTarget(
   nodeDigest: string,
 ): string {
   return emulateBsdNodeAttestationForLinux(source
-    .replaceAll(IMMUTABLE_NODE_22_22_3_DARWIN_ARM64_PATH, nodeExecutable)
+    .replaceAll(
+      IMMUTABLE_NODE_22_22_3_DARWIN_ARM64_PATH,
+      bashPath(nodeExecutable),
+    )
     .replaceAll(OFFICIAL_NODE_22_22_3_DARWIN_ARM64_SHA256, nodeDigest)
     .replaceAll(
       '"$signature" != *$\'TeamIdentifier=HX7739G8FX\'*',
@@ -126,6 +173,18 @@ function protectedLaunchForSameUidSwapTarget(
         + '&& "$signature" != *$\'Signature=adhoc\'*',
     ));
 }
+
+it('renders a native selected Node path with forward slashes in generated Bash only', () => {
+  const nativeNodePath = 'C:\\runner\\private\\node';
+  const generatedBash = protectedLaunchForTrustedNode(
+    step('deploy').run ?? '',
+    nativeNodePath,
+    'a'.repeat(64),
+  );
+
+  expect(generatedBash).toContain('C:/runner/private/node');
+  expect(generatedBash).not.toContain(nativeNodePath);
+});
 
 type SanitizedNodeAncestryEntry = Readonly<{
   depth: number;
@@ -477,7 +536,7 @@ describe('notification bridge B0 protected workflow', () => {
       temporaryDirectories.push(root);
       const runScript = resolve(root, 'run.sh');
       writeFileSync(runScript, launch);
-      const syntax = spawnSync('/bin/bash', ['-n', runScript], {
+      const syntax = spawnSync(bashExecutable, ['-n', runScript], {
         encoding: 'utf8',
       });
       expect(syntax.status, `${stepId}: ${syntax.stderr}`).toBe(0);
@@ -514,10 +573,13 @@ describe('notification bridge B0 protected workflow', () => {
       .assertProtectedWorkflowExecutionBoundary(workflowSource)).not.toThrow();
   });
 
-  it('uses a clean allowlisted environment for both B0 launches', () => {
+  // Git-for-Windows cannot represent the POSIX uid/gid/mode/ACL facts that
+  // these replays attest; the source-only Windows path regression stays active.
+  it.skipIf(process.platform === 'win32')(
+    'uses a clean allowlisted environment for both B0 launches', () => {
     for (const stepId of ['deploy', 'recovery']) {
       const root = realpathSync(mkdtempSync(join(
-        tmpdir(),
+        fixtureDirectory,
         'warpkeep-b0-protected-node-launch-',
       )));
       temporaryDirectories.push(root);
@@ -533,7 +595,7 @@ describe('notification bridge B0 protected workflow', () => {
 set -euo pipefail
 /usr/bin/printenv GITHUB_TOKEN > ${JSON.stringify(hostileNodeMarker)}
 `);
-      chmodSync(resolve(bin, 'node'), 0o755);
+      setFixtureMode(resolve(bin, 'node'), 0o755);
       const scripts = resolve(root, 'scripts');
       mkdirSync(scripts);
       writeFileSync(
@@ -578,7 +640,12 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
         root,
         'scripts/auth-bridge-notification-b0-deploy.mjs',
       );
-      const trustedNode = realpathSync(process.execPath);
+      const trustedNode = resolve(root, 'node');
+      cpSync(realpathSync(process.execPath), trustedNode);
+      setFixtureMode(root, 0o700);
+      setFixtureMode(trustedNode, 0o700);
+      expect(fixtureMode(root), stepId).toBe(0o700);
+      expect(fixtureMode(trustedNode), stepId).toBe(0o700);
       const trustedNodeDigest = createHash('sha256')
         .update(readFileSync(trustedNode))
         .digest('hex');
@@ -598,7 +665,7 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
       expect(step(stepId).shell).toBe(
         '/usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}',
       );
-      const result = spawnSync('/usr/bin/env', [
+      const result = spawnSync(cleanEnvironmentExecutable, [
         '-u',
         'BASH_ENV',
         '-u',
@@ -609,7 +676,7 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
         'BASHOPTS',
         '-u',
         'PS4',
-        '/bin/bash',
+        bashExecutable,
         '--noprofile',
         '--norc',
         '-p',
@@ -677,12 +744,14 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
       expect(result.stderr, stepId)
         .not.toContain('github-owner-test-token-value');
     }
-  });
+    },
+  );
 
-  it('accepts a runner-private 0700 selected Node for both transformed B0 replays', () => {
+  it.skipIf(process.platform === 'win32')(
+    'accepts a runner-private 0700 selected Node for both transformed B0 replays', () => {
     for (const stepId of ['deploy', 'recovery']) {
       const root = realpathSync(mkdtempSync(join(
-        homedir(),
+        fixtureDirectory,
         'warpkeep-b0-runner-private-node-',
       )));
       temporaryDirectories.push(root);
@@ -690,10 +759,12 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
       const marker = resolve(root, `${stepId}-accepted`);
       const runScript = resolve(root, 'run.sh');
       const scripts = resolve(root, 'scripts');
+      setFixtureMode(root, 0o700);
       mkdirSync(scripts);
       cpSync(realpathSync(process.execPath), node);
-      chmodSync(node, 0o700);
-      expect(statSync(node).mode & 0o777, stepId).toBe(0o700);
+      setFixtureMode(node, 0o700);
+      expect(fixtureMode(root), stepId).toBe(0o700);
+      expect(fixtureMode(node), stepId).toBe(0o700);
       writeFileSync(
         resolve(scripts, 'auth-bridge-notification-b0-deploy.mjs'),
         [
@@ -721,9 +792,9 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
         ),
       );
       const secret = `github-b0-runner-private-${stepId}-token`;
-      const result = spawnSync('/usr/bin/env', [
+      const result = spawnSync(cleanEnvironmentExecutable, [
         '-u', 'BASH_ENV', '-u', 'ENV', '-u', 'SHELLOPTS', '-u', 'BASHOPTS',
-        '-u', 'PS4', '/bin/bash', '--noprofile', '--norc', '-p', '-e', '-o',
+        '-u', 'PS4', bashExecutable, '--noprofile', '--norc', '-p', '-e', '-o',
         'pipefail', runScript,
       ], {
         cwd: root,
@@ -758,7 +829,8 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
       expect(readFileSync(marker, 'utf8'), stepId).toBe(stepId);
       expect(result.stderr, stepId).not.toContain(secret);
     }
-  });
+    },
+  );
 
   it('rejects a forged selected Node before it can receive credentials', () => {
     for (const stepId of ['deploy', 'recovery']) {
@@ -783,11 +855,11 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
       writeFileSync(forgedNode, `#!/bin/bash -p
 /usr/bin/printenv GITHUB_TOKEN > ${JSON.stringify(marker)}
 `);
-      chmodSync(forgedNode, 0o755);
+      setFixtureMode(forgedNode, 0o755);
       writeFileSync(runScript, step(stepId).run ?? '');
-      const result = spawnSync('/usr/bin/env', [
+      const result = spawnSync(cleanEnvironmentExecutable, [
         '-u', 'BASH_ENV', '-u', 'ENV', '-u', 'SHELLOPTS', '-u', 'BASHOPTS',
-        '-u', 'PS4', '/bin/bash', '--noprofile', '--norc', '-p', '-e', '-o',
+        '-u', 'PS4', bashExecutable, '--noprofile', '--norc', '-p', '-e', '-o',
         'pipefail', runScript,
       ], {
         cwd: root,
@@ -825,20 +897,32 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
     }
   });
 
-  it.each(['hard-linked', 'group-writable'] as const)(
+  it.skipIf(process.platform === 'win32').each([
+    'hard-linked',
+    'group-writable',
+    'group-writable ancestor',
+  ] as const)(
     'rejects a %s selected Node even when its digest is pinned',
     nodeState => {
       for (const stepId of ['deploy', 'recovery']) {
         const root = realpathSync(mkdtempSync(join(
-          tmpdir(),
+          fixtureDirectory,
           'warpkeep-b0-untrusted-node-state-',
         )));
         temporaryDirectories.push(root);
-        const node = resolve(root, 'node');
+        setFixtureMode(root, 0o700);
+        const node = resolve(
+          root,
+          nodeState === 'group-writable ancestor' ? 'bin/node' : 'node',
+        );
         const marker = resolve(root, 'untrusted-node-ran');
         const runScript = resolve(root, 'run.sh');
+        if (nodeState === 'group-writable ancestor') mkdirSync(dirname(node));
         cpSync(realpathSync(process.execPath), node);
-        chmodSync(node, nodeState === 'group-writable' ? 0o575 : 0o555);
+        setFixtureMode(node, nodeState === 'group-writable' ? 0o575 : 0o555);
+        if (nodeState === 'group-writable ancestor') {
+          setFixtureMode(dirname(node), 0o775);
+        }
         if (nodeState === 'hard-linked') linkSync(node, resolve(root, 'node-alias'));
         const digest = createHash('sha256')
           .update(readFileSync(node))
@@ -852,9 +936,9 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
           ),
         );
         const secret = 'github-b0-untrusted-node-state-token';
-        const result = spawnSync('/usr/bin/env', [
+        const result = spawnSync(cleanEnvironmentExecutable, [
           '-u', 'BASH_ENV', '-u', 'ENV', '-u', 'SHELLOPTS', '-u', 'BASHOPTS',
-          '-u', 'PS4', '/bin/bash', '--noprofile', '--norc', '-p', '-e', '-o',
+          '-u', 'PS4', bashExecutable, '--noprofile', '--norc', '-p', '-e', '-o',
           'pipefail', runScript,
         ], {
           cwd: root,
@@ -894,7 +978,8 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
     },
   );
 
-  it('rejects a same-UID final-swap target before either B0 Node launch', () => {
+  it.skipIf(process.platform === 'win32')(
+    'rejects a same-UID final-swap target before either B0 Node launch', () => {
     for (const stepId of ['deploy', 'recovery']) {
       const root = realpathSync(mkdtempSync(join(
         tmpdir(),
@@ -904,7 +989,7 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
       const node = resolve(root, 'node');
       const runScript = resolve(root, 'run.sh');
       cpSync(realpathSync(process.execPath), node);
-      chmodSync(node, 0o555);
+      setFixtureMode(node, 0o555);
       const digest = createHash('sha256')
         .update(readFileSync(node))
         .digest('hex');
@@ -917,9 +1002,9 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
         ),
       );
       const secret = 'github-b0-final-swap-target-token';
-      const result = spawnSync('/usr/bin/env', [
+      const result = spawnSync(cleanEnvironmentExecutable, [
         '-u', 'BASH_ENV', '-u', 'ENV', '-u', 'SHELLOPTS', '-u', 'BASHOPTS',
-        '-u', 'PS4', '/bin/bash', '--noprofile', '--norc', '-p', '-e', '-o',
+        '-u', 'PS4', bashExecutable, '--noprofile', '--norc', '-p', '-e', '-o',
         'pipefail', runScript,
       ], {
         cwd: root,
@@ -954,9 +1039,11 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
       );
       expect(result.stderr, stepId).not.toContain(secret);
     }
-  });
+    },
+  );
 
-  it('rejects a byte-mutated B0 entrypoint before either secret launch', () => {
+  it.skipIf(process.platform === 'win32')(
+    'rejects a byte-mutated B0 entrypoint before either secret launch', () => {
     for (const stepId of ['deploy', 'recovery']) {
       const root = realpathSync(mkdtempSync(join(
         tmpdir(),
@@ -999,9 +1086,9 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
           trustedNodeDigest,
         ),
       );
-      const result = spawnSync('/usr/bin/env', [
+      const result = spawnSync(cleanEnvironmentExecutable, [
         '-u', 'BASH_ENV', '-u', 'ENV', '-u', 'SHELLOPTS', '-u', 'BASHOPTS',
-        '-u', 'PS4', '/bin/bash', '--noprofile', '--norc', '-p', '-e', '-o',
+        '-u', 'PS4', bashExecutable, '--noprofile', '--norc', '-p', '-e', '-o',
         'pipefail', runScript,
       ], {
         cwd: root,
@@ -1036,9 +1123,11 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
       expect(result.stderr, stepId)
         .not.toContain('github-b0-mutated-entrypoint-token');
     }
-  });
+    },
+  );
 
-  it('rejects a self-consistent refrozen closure before importing B0 code', () => {
+  it.skipIf(process.platform === 'win32')(
+    'rejects a self-consistent refrozen closure before importing B0 code', () => {
     for (const stepId of ['deploy', 'recovery']) {
       const root = realpathSync(mkdtempSync(join(
         tmpdir(),
@@ -1075,9 +1164,9 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
           trustedNodeDigest,
         ),
       );
-      const result = spawnSync('/usr/bin/env', [
+      const result = spawnSync(cleanEnvironmentExecutable, [
         '-u', 'BASH_ENV', '-u', 'ENV', '-u', 'SHELLOPTS', '-u', 'BASHOPTS',
-        '-u', 'PS4', '/bin/bash', '--noprofile', '--norc', '-p', '-e', '-o',
+        '-u', 'PS4', bashExecutable, '--noprofile', '--norc', '-p', '-e', '-o',
         'pipefail', runScript,
       ], {
         cwd: root,
@@ -1111,9 +1200,10 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
       expect(() => readFileSync(marker), stepId).toThrow();
       expect(result.stderr, stepId).not.toContain('github-b0-refrozen-token');
     }
-  });
+    },
+  );
 
-  it.each([
+  it.skipIf(process.platform === 'win32').each([
     ['LF', '\n'],
     ['CR', '\r'],
   ])('rejects a %s-bearing binding before either B0 relay', (_, separator) => {
@@ -1154,9 +1244,9 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
         ),
       );
       const sharedCredential = 'shared-owner-credential-value';
-      const result = spawnSync('/usr/bin/env', [
+      const result = spawnSync(cleanEnvironmentExecutable, [
         '-u', 'BASH_ENV', '-u', 'ENV', '-u', 'SHELLOPTS', '-u', 'BASHOPTS',
-        '-u', 'PS4', '/bin/bash', '--noprofile', '--norc', '-p', '-e', '-o',
+        '-u', 'PS4', bashExecutable, '--noprofile', '--norc', '-p', '-e', '-o',
         'pipefail', runScript,
       ], {
         cwd: root,
@@ -1192,7 +1282,8 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
     }
   });
 
-  it('rechecks B0 credential separation after protected child reads', () => {
+  it.skipIf(process.platform === 'win32')(
+    'rechecks B0 credential separation after protected child reads', () => {
     for (const stepId of ['deploy', 'recovery']) {
       const root = realpathSync(mkdtempSync(join(
         tmpdir(),
@@ -1237,9 +1328,9 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
         ),
       );
       const sharedCredential = 'shared-b0-child-credential-value';
-      const result = spawnSync('/usr/bin/env', [
+      const result = spawnSync(cleanEnvironmentExecutable, [
         '-u', 'BASH_ENV', '-u', 'ENV', '-u', 'SHELLOPTS', '-u', 'BASHOPTS',
-        '-u', 'PS4', '/bin/bash', '--noprofile', '--norc', '-p', '-e', '-o',
+        '-u', 'PS4', bashExecutable, '--noprofile', '--norc', '-p', '-e', '-o',
         'pipefail', runScript,
       ], {
         cwd: root,
@@ -1272,7 +1363,8 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
       expect(() => readFileSync(marker), stepId).toThrow();
       expect(result.stderr, stepId).not.toContain(sharedCredential);
     }
-  });
+    },
+  );
 
   it('keeps all downstream activation gates inert and executes only the B0 entrypoint', () => {
     expect(workflowSource).toContain(
