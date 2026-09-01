@@ -16,6 +16,25 @@ const WARPKEEP_HERMES_SUBJECT = 'service:hermes';
 const MAX_SUPPORTED_FID = BigInt(Number.MAX_SAFE_INTEGER);
 const MAX_AUTH_EPOCH = 0xffff_ffff;
 const PTR_ADMIN_JTI = /^[A-Za-z0-9_-]{1,128}$/u;
+const PTR_DATABASE_IDENTITY = /^[a-f0-9]{64}$/u;
+const PTR_OWNER_EXACT_CLAIM_KEYS = Object.freeze([
+  'iss',
+  'sub',
+  'aud',
+  'token_type',
+  'roles',
+  'auth_version',
+  'fid',
+  'auth_epoch',
+  'ptr_database_identity',
+  'realm_id',
+  'iat',
+  'nbf',
+  'exp',
+  'session_iat',
+  'session_exp',
+  'jti',
+] as const);
 const PTR_ADMIN_EXACT_CLAIM_KEYS = Object.freeze([
   'iss',
   'sub',
@@ -91,10 +110,6 @@ export type PtrOwnerAnchorState = Readonly<{
 
 type JsonRecord = Readonly<Record<string, unknown>>;
 
-function isRecord(value: unknown): value is JsonRecord {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
 function strictPtrAdminRecord(payload: unknown): JsonRecord {
   if (
     payload === null
@@ -111,6 +126,25 @@ function strictPtrAdminRecord(payload: unknown): JsonRecord {
       || !(PTR_ADMIN_EXACT_CLAIM_KEYS as readonly string[]).includes(key)
     ))
   ) throw new PtrOwnerPolicyError('INVALID_PTR_ADMIN_SESSION');
+  return record;
+}
+
+function strictPtrOwnerRecord(payload: unknown): JsonRecord {
+  if (
+    payload === null
+    || typeof payload !== 'object'
+    || Array.isArray(payload)
+    || Object.getPrototypeOf(payload) !== Object.prototype
+  ) throw new PtrOwnerPolicyError('INVALID_PTR_OWNER_SESSION');
+  const record = payload as JsonRecord;
+  const keys = Reflect.ownKeys(record);
+  if (
+    keys.length !== PTR_OWNER_EXACT_CLAIM_KEYS.length
+    || keys.some(key => (
+      typeof key !== 'string'
+      || !(PTR_OWNER_EXACT_CLAIM_KEYS as readonly string[]).includes(key)
+    ))
+  ) throw new PtrOwnerPolicyError('INVALID_PTR_OWNER_SESSION');
   return record;
 }
 
@@ -173,6 +207,13 @@ function parseAuthEpochClaim(value: unknown): number {
   return value;
 }
 
+function parsePtrDatabaseIdentityClaim(value: unknown): string {
+  if (typeof value !== 'string' || !PTR_DATABASE_IDENTITY.test(value)) {
+    throw new PtrOwnerPolicyError('INVALID_PTR_OWNER_SESSION');
+  }
+  return value;
+}
+
 function exactPtrAudience(record: JsonRecord): boolean {
   return Array.isArray(record.aud)
     && record.aud.length === 1
@@ -187,37 +228,31 @@ function numericDate(record: JsonRecord, key: string): number {
   return value as number;
 }
 
-const DISALLOWED_OWNER_AUTHORITY_KEYS = Object.freeze([
-  'resolver_fid',
-  'request_fid',
-  'request_operation',
-  'device_thumbprint',
-] as const);
-
 /** Parse the exact owner-only PTR token and recheck its absolute session time. */
 export function readFreshPtrOwnerClaims(
   payload: unknown,
   currentTimeMicros: bigint,
 ): PtrOwnerClaims {
   try {
-    if (!isRecord(payload) || !exactPtrAudience(payload)) {
+    const record = strictPtrOwnerRecord(payload);
+    if (!exactPtrAudience(record)) {
       throw new PtrOwnerPolicyError('INVALID_PTR_OWNER_SESSION');
     }
-    const base = readBaseClaims(payload);
-    const fid = parseFidClaim(payload.fid);
-    const authEpoch = parseAuthEpochClaim(payload.auth_epoch);
-    const issuedAt = numericDate(payload, 'iat');
-    const notBefore = numericDate(payload, 'nbf');
-    const expiresAt = numericDate(payload, 'exp');
-    const sessionIssuedAt = numericDate(payload, 'session_iat');
-    const sessionExpiresAt = numericDate(payload, 'session_exp');
+    const base = readBaseClaims(record);
+    const fid = parseFidClaim(record.fid);
+    const authEpoch = parseAuthEpochClaim(record.auth_epoch);
+    parsePtrDatabaseIdentityClaim(record.ptr_database_identity);
+    const issuedAt = numericDate(record, 'iat');
+    const notBefore = numericDate(record, 'nbf');
+    const expiresAt = numericDate(record, 'exp');
+    const sessionIssuedAt = numericDate(record, 'session_iat');
+    const sessionExpiresAt = numericDate(record, 'session_exp');
     if (
-      payload.auth_version !== WARPKEEP_AUTH_VERSION
-      || payload.realm_id !== PTR_REALM_ID
+      record.auth_version !== WARPKEEP_AUTH_VERSION
+      || record.realm_id !== PTR_REALM_ID
       || base.subject !== `farcaster:${fid.toString()}`
       || base.roles.length !== 1
       || base.roles[0] !== PTR_OWNER_ROLE
-      || DISALLOWED_OWNER_AUTHORITY_KEYS.some(key => payload[key] !== undefined)
       || expiresAt <= issuedAt
       || notBefore > expiresAt
       || sessionExpiresAt <= sessionIssuedAt

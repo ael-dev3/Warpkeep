@@ -73,9 +73,16 @@ function exactRecord(
   value: unknown,
   keys: readonly string[],
 ): value is Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
-  const actual = Object.keys(value);
-  return actual.length === keys.length && actual.every(key => keys.includes(key));
+  if (
+    typeof value !== 'object'
+    || value === null
+    || Array.isArray(value)
+    || Object.getPrototypeOf(value) !== Object.prototype
+  ) return false;
+  const actual = Reflect.ownKeys(value);
+  return actual.length === keys.length && actual.every(key => (
+    typeof key === 'string' && keys.includes(key)
+  ));
 }
 
 function safeBridgeOrigin(value: unknown): string | undefined {
@@ -136,7 +143,11 @@ function safeEpochMilliseconds(value: unknown): number | undefined {
   return value * 1_000;
 }
 
-function parsePtrJwt(jwt: unknown, now: number): Readonly<{
+function parsePtrJwt(
+  jwt: unknown,
+  now: number,
+  expectedDatabaseIdentity: string,
+): Readonly<{
   fid: number;
   expiresAt: number;
 }> | undefined {
@@ -160,7 +171,8 @@ function parsePtrJwt(jwt: unknown, now: number): Readonly<{
     || !BASE64URL_ID.test(header.kid)
     || !exactRecord(payload, [
       'iss', 'sub', 'aud', 'token_type', 'auth_version', 'realm_id', 'fid',
-      'auth_epoch', 'roles', 'iat', 'nbf', 'exp', 'session_iat', 'session_exp', 'jti',
+      'auth_epoch', 'ptr_database_identity', 'roles', 'iat', 'nbf', 'exp',
+      'session_iat', 'session_exp', 'jti',
     ])
     || payload.iss !== PTR_REALM_AUTH_ORIGIN
     || !Array.isArray(payload.aud)
@@ -169,7 +181,13 @@ function parsePtrJwt(jwt: unknown, now: number): Readonly<{
     || payload.token_type !== 'spacetime-access'
     || payload.auth_version !== 2
     || payload.realm_id !== PTR_REALM_ID
-    || payload.auth_epoch !== 1
+    || typeof payload.auth_epoch !== 'number'
+    || !Number.isSafeInteger(payload.auth_epoch)
+    || payload.auth_epoch < 1
+    || payload.auth_epoch > 0xffff_ffff
+    || typeof payload.ptr_database_identity !== 'string'
+    || !DATABASE_IDENTITY.test(payload.ptr_database_identity)
+    || payload.ptr_database_identity !== expectedDatabaseIdentity
     || !Array.isArray(payload.roles)
     || payload.roles.length !== 1
     || payload.roles[0] !== PTR_REALM_OWNER_ROLE
@@ -346,7 +364,7 @@ export function createPtrRealmAuthClient(
         }
         if (
           !exactRecord(decoded, [
-            'version', 'status', 'realmId', 'identity', 'databaseIdentity',
+            'version', 'status', 'realmId', 'databaseIdentity',
             'accessToken', 'tokenType', 'accessExpiresAt',
           ])
           || decoded.version !== 1
@@ -356,15 +374,10 @@ export function createPtrRealmAuthClient(
           || decoded.tokenType !== 'spacetime-access'
           || typeof decoded.accessExpiresAt !== 'number'
           || !Number.isSafeInteger(decoded.accessExpiresAt)
-          || !exactRecord(decoded.identity, ['fid'])
-          || typeof decoded.identity.fid !== 'number'
-          || !Number.isSafeInteger(decoded.identity.fid)
-          || decoded.identity.fid <= 0
         ) throw failure('invalid-response');
-        const claims = parsePtrJwt(decoded.accessToken, now);
+        const claims = parsePtrJwt(decoded.accessToken, now, expectedDatabaseIdentity);
         if (
           !claims
-          || claims.fid !== decoded.identity.fid
           || claims.expiresAt !== decoded.accessExpiresAt
         ) throw failure('invalid-response');
         const authority: PtrRealmAuthority = Object.freeze({

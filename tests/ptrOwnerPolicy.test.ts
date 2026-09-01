@@ -22,6 +22,7 @@ import * as ownerPolicy from '../spacetimedb/ptr/src/ownerPolicy';
 
 const OWNER_FID = 4_242n;
 const OWNER_EPOCH = 1;
+const PTR_DATABASE_IDENTITY = '1'.repeat(64);
 const SESSION_IAT = 1_000;
 const SESSION_EXP = SESSION_IAT + 120;
 const NOW_MICROS = 1_050_000_000n;
@@ -36,12 +37,14 @@ function ownerPayload(overrides: Readonly<Record<string, unknown>> = {}) {
     auth_version: 2,
     fid: OWNER_FID.toString(),
     auth_epoch: OWNER_EPOCH,
+    ptr_database_identity: PTR_DATABASE_IDENTITY,
     realm_id: PTR_REALM_ID,
     iat: SESSION_IAT,
     nbf: SESSION_IAT,
     exp: SESSION_EXP,
     session_iat: SESSION_IAT,
     session_exp: SESSION_EXP,
+    jti: 'ptr-owner-jti',
     ...overrides,
   };
 }
@@ -155,6 +158,7 @@ describe('PTR owner JWT policy', () => {
       ownerPayload({ resolver_fid: OWNER_FID.toString() }),
       ownerPayload({ request_fid: OWNER_FID.toString() }),
       ownerPayload({ device_thumbprint: 'A'.repeat(43) }),
+      ownerPayload({ unknown_authority: true }),
     ]) expectOwnerDenial(payload);
   });
 
@@ -168,6 +172,8 @@ describe('PTR owner JWT policy', () => {
       ownerPayload({ auth_epoch: 0 }),
       ownerPayload({ auth_epoch: 1.5 }),
       ownerPayload({ auth_epoch: 0x1_0000_0000 }),
+      ownerPayload({ ptr_database_identity: undefined }),
+      ownerPayload({ ptr_database_identity: 'A'.repeat(64) }),
     ]) expectOwnerDenial(payload);
   });
 
@@ -183,6 +189,14 @@ describe('PTR owner JWT policy', () => {
       ownerPayload(),
       BigInt(SESSION_EXP) * 1_000_000n - 1n,
     ));
+  });
+
+  test('requires the complete exact signed owner claim set', () => {
+    const { jti: _missingJti, ...missingJti } = ownerPayload();
+    const { ptr_database_identity: _missingDatabaseIdentity, ...missingDatabaseIdentity } = ownerPayload();
+    expectOwnerDenial(missingJti);
+    expectOwnerDenial(missingDatabaseIdentity);
+    expectOwnerDenial(ownerPayload({ arbitrary_extra_owner_claim: true }));
   });
 
   test('requires well-formed ordinary JWT dates without trusting them over the custom deadline', () => {

@@ -254,6 +254,7 @@ describe('owner-only PTR exchange', () => {
       realm_id: 'PTR',
       fid: OWNER_FID,
       auth_epoch: OWNER_AUTH_EPOCH,
+      ptr_database_identity: PTR_DATABASE_IDENTITY,
       roles: ['warpkeep-ptr-owner'],
       iat: 1_800_000_000,
       nbf: 1_800_000_000,
@@ -272,6 +273,7 @@ describe('owner-only PTR exchange', () => {
       'iss',
       'jti',
       'nbf',
+      'ptr_database_identity',
       'realm_id',
       'roles',
       'session_exp',
@@ -386,6 +388,8 @@ describe('owner-only PTR exchange', () => {
       tokenType: 'spacetime-access',
       accessExpiresAt: now + PTR_TOKEN_TTL_SECONDS * 1_000,
     })
+    expect(body).not.toHaveProperty('identity')
+    expect(body).not.toHaveProperty('auth_epoch')
     expect(decodeJwtPayload(String(body.accessToken))).toMatchObject({
       aud: [PTR_AUDIENCE],
       sub: `farcaster:${OWNER_FID}`,
@@ -393,6 +397,7 @@ describe('owner-only PTR exchange', () => {
       realm_id: 'PTR',
       roles: ['warpkeep-ptr-owner'],
       auth_epoch: OWNER_AUTH_EPOCH,
+      ptr_database_identity: PTR_DATABASE_IDENTITY,
       session_iat: now / 1_000,
       session_exp: now / 1_000 + PTR_TOKEN_TTL_SECONDS,
     })

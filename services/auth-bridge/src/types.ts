@@ -474,6 +474,7 @@ export interface PtrOwnerTokenClaims {
   realm_id: 'PTR'
   fid: string
   auth_epoch: number
+  ptr_database_identity: string
   roles: ['warpkeep-ptr-owner']
   iat: number
   nbf: number

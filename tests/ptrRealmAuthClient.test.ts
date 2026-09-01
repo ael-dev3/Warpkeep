@@ -30,7 +30,8 @@ function ptrJwt(overrides: Readonly<Record<string, unknown>> = {}): string {
       auth_version: 2,
       realm_id: PTR_REALM_ID,
       fid: String(FID),
-      auth_epoch: 1,
+      auth_epoch: 7,
+      ptr_database_identity: DATABASE,
       roles: ['warpkeep-ptr-owner'],
       iat: issuedAt,
       nbf: issuedAt,
@@ -49,7 +50,6 @@ function body(overrides: Readonly<Record<string, unknown>> = {}) {
     version: 1,
     status: 'authorized',
     realmId: PTR_REALM_ID,
-    identity: { fid: FID },
     databaseIdentity: DATABASE,
     accessToken: ptrJwt(),
     tokenType: 'spacetime-access',
@@ -116,19 +116,27 @@ describe('PTR realm auth client', () => {
   });
 
   it('rejects response, target, identity, and JWT authority drift', async () => {
+    const { databaseIdentity: _missingDatabaseIdentity, ...missingDatabaseIdentity } = body();
     const invalidBodies = [
-      body({ extra: true }),
-      body({ realmId: 'GENESIS_001' }),
-      body({ databaseIdentity: '2'.repeat(64) }),
-      body({ identity: { fid: FID + 1 } }),
-      body({ accessExpiresAt: NOW + 119_000 }),
-      body({ accessToken: ptrJwt({ aud: ['warpkeep-spacetimedb'] }) }),
-      body({ accessToken: ptrJwt({ roles: [] }) }),
-      body({ accessToken: ptrJwt({ realm_id: 'GENESIS_002' }) }),
-      body({ accessToken: ptrJwt({ session_exp: NOW / 1_000 + 121 }) }),
-      body({ accessToken: ptrJwt({ sub: `farcaster:${FID + 1}` }) }),
+      ['extra response field', body({ extra: true })],
+      ['wrong realm', body({ realmId: 'GENESIS_001' })],
+      ['missing response database identity', missingDatabaseIdentity],
+      ['mismatched response database identity', body({ databaseIdentity: '2'.repeat(64) })],
+      ['unexpected response identity', body({ identity: { fid: FID + 1 } })],
+      ['mismatched response expiry', body({ accessExpiresAt: NOW + 119_000 })],
+      ['missing signed database identity', body({ accessToken: ptrJwt({ ptr_database_identity: undefined }) })],
+      ['mismatched signed database identity', body({ accessToken: ptrJwt({ ptr_database_identity: '2'.repeat(64) }) })],
+      ['noncanonical signed database identity', body({ accessToken: ptrJwt({ ptr_database_identity: 'A'.repeat(64) }) })],
+      ['zero signed epoch', body({ accessToken: ptrJwt({ auth_epoch: 0 }) })],
+      ['fractional signed epoch', body({ accessToken: ptrJwt({ auth_epoch: 1.5 }) })],
+      ['overflow signed epoch', body({ accessToken: ptrJwt({ auth_epoch: 0x1_0000_0000 }) })],
+      ['wrong signed audience', body({ accessToken: ptrJwt({ aud: ['warpkeep-spacetimedb'] }) })],
+      ['wrong signed role', body({ accessToken: ptrJwt({ roles: [] }) })],
+      ['wrong signed realm', body({ accessToken: ptrJwt({ realm_id: 'GENESIS_002' }) })],
+      ['too-long signed session', body({ accessToken: ptrJwt({ session_exp: NOW / 1_000 + 121 }) })],
+      ['mismatched signed subject', body({ accessToken: ptrJwt({ sub: `farcaster:${FID + 1}` }) })],
     ];
-    for (const candidate of invalidBodies) {
+    for (const [name, candidate] of invalidBodies) {
       const client = createPtrRealmAuthClient({
         expectedDatabaseIdentity: DATABASE,
         fetch: vi.fn(async () => jsonResponse(candidate)),

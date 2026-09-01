@@ -118,6 +118,7 @@ export function ptrOwnerClaims(
     realm_id: 'PTR',
     fid,
     auth_epoch: authEpoch,
+    ptr_database_identity: ptr.database,
     roles: ['warpkeep-ptr-owner'],
     iat: nowSeconds,
     nbf: nowSeconds,
