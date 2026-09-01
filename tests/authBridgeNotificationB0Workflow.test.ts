@@ -174,6 +174,49 @@ function protectedLaunchForSameUidSwapTarget(
     ));
 }
 
+function neutralizeUnrepresentableWindowsFixtureMetadata(source: string): string {
+  return source
+    .replace(
+      /if \[\[ "\$path_uid" != '0' && "\$path_uid" != '\d+' \\\n+\s+\|\| 0 -ne 0 \\\n+\s+\|\| ! "\$path_mode" =~ \^\[0-7\]\{3,4\}\$ \\\n+\s+\|\| \$\(\(8#\$path_mode & 0022\)\) -ne 0 \\\n+\s+\|\| "\$acl_listing" == \*\$'\\n'\* \\\n+\s+\|\| "\$acl_permissions" == \*\+\* \]\]; then/u,
+      'if [[ 0 -ne 0 ]]; then',
+    )
+    .replaceAll(
+      ' || "$path_mode" != \'555\' && "$path_mode" != \'755\' && "$path_mode" != \'700\'',
+      '',
+    )
+    .replaceAll(
+      'if [[ "$component" == \'/\' ]]; then break; fi',
+      'if [[ "$component" == \'/\' || "$component" =~ ^[A-Za-z]:$ ]]; then break; fi',
+    );
+}
+
+function adaptWindowsFixtureShellSource(source: string): string {
+  return neutralizeUnrepresentableWindowsFixtureMetadata(source)
+    .replaceAll(
+      'node_executable="$WARPKEEP_NODE_EXECUTABLE"',
+      'node_executable="${WARPKEEP_NODE_EXECUTABLE//\\\\//}"',
+    )
+    .replace(
+      /while true; do\n(\s*)if \[\[ -L "\$component" \]\]/u,
+      'while true; do\n$1if [[ "$component" =~ ^[A-Za-z]:$ ]]; then break; fi\n$1if [[ -L "$component" ]]',
+    );
+}
+
+function protectedLaunchForPortableMetadata(
+  source: string,
+  nodeExecutable: string,
+  nodeDigest: string,
+): string {
+  const generatedBash = protectedLaunchForTrustedNode(
+    source,
+    nodeExecutable,
+    nodeDigest,
+  );
+  return process.platform === 'win32'
+    ? adaptWindowsFixtureShellSource(generatedBash)
+    : generatedBash;
+}
+
 it('renders a native selected Node path with forward slashes in generated Bash only', () => {
   const nativeNodePath = 'C:\\runner\\private\\node';
   const generatedBash = protectedLaunchForTrustedNode(
@@ -184,6 +227,27 @@ it('renders a native selected Node path with forward slashes in generated Bash o
 
   expect(generatedBash).toContain('C:/runner/private/node');
   expect(generatedBash).not.toContain(nativeNodePath);
+});
+
+it('keeps hard-link, digest, and signature checks when adapting Windows fixture metadata', () => {
+  const generatedBash = adaptWindowsFixtureShellSource(
+    protectedLaunchForTrustedNode(
+      step('deploy').run ?? '',
+      'C:\\runner\\private\\node',
+      'a'.repeat(64),
+    ),
+  );
+
+  expect(generatedBash).toContain('"$path_nlink" != \'1\'');
+  expect(generatedBash).toContain('"$digest" != \'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\'');
+  expect(generatedBash).toContain('Signature=adhoc');
+  expect(generatedBash).toContain(
+    'node_executable="${WARPKEEP_NODE_EXECUTABLE//\\\\//}"',
+  );
+  expect(generatedBash).toContain(
+    'if [[ "$component" =~ ^[A-Za-z]:$ ]]; then break; fi',
+  );
+  expect(generatedBash).toContain('if [[ 0 -ne 0 ]]; then');
 });
 
 type SanitizedNodeAncestryEntry = Readonly<{
@@ -897,13 +961,15 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
     }
   });
 
-  it.skipIf(process.platform === 'win32').each([
+  for (const nodeState of [
     'hard-linked',
     'group-writable',
     'group-writable ancestor',
-  ] as const)(
-    'rejects a %s selected Node even when its digest is pinned',
-    nodeState => {
+  ] as const) {
+    const replay = nodeState === 'hard-linked'
+      ? it
+      : it.skipIf(process.platform === 'win32');
+    replay(`rejects a ${nodeState} selected Node even when its digest is pinned`, () => {
       for (const stepId of ['deploy', 'recovery']) {
         const root = realpathSync(mkdtempSync(join(
           fixtureDirectory,
@@ -929,7 +995,7 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
           .digest('hex');
         writeFileSync(
           runScript,
-          protectedLaunchForTrustedNode(
+          protectedLaunchForPortableMetadata(
             step(stepId).run ?? '',
             node,
             digest,
@@ -975,8 +1041,8 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
         );
         expect(result.stderr, `${nodeState}:${stepId}`).not.toContain(secret);
       }
-    },
-  );
+    });
+  }
 
   it.skipIf(process.platform === 'win32')(
     'rejects a same-UID final-swap target before either B0 Node launch', () => {
@@ -1042,6 +1108,8 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
     },
   );
 
+  // Git-for-Windows does not inherit the Bash descriptor transport (17–33)
+  // into node.exe; these replays require that production binding boundary.
   it.skipIf(process.platform === 'win32')(
     'rejects a byte-mutated B0 entrypoint before either secret launch', () => {
     for (const stepId of ['deploy', 'recovery']) {
@@ -1080,7 +1148,7 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
         .digest('hex');
       writeFileSync(
         runScript,
-        protectedLaunchForTrustedNode(
+        protectedLaunchForPortableMetadata(
           step(stepId).run ?? '',
           trustedNode,
           trustedNodeDigest,
@@ -1158,7 +1226,7 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
         .digest('hex');
       writeFileSync(
         runScript,
-        protectedLaunchForTrustedNode(
+        protectedLaunchForPortableMetadata(
           step(stepId).run ?? '',
           trustedNode,
           trustedNodeDigest,
@@ -1237,7 +1305,7 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
         .digest('hex');
       writeFileSync(
         runScript,
-        protectedLaunchForTrustedNode(
+        protectedLaunchForPortableMetadata(
           step(stepId).run ?? '',
           trustedNode,
           trustedNodeDigest,
@@ -1321,7 +1389,7 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
         launch.slice(0, guardStart) + launch.slice(guardEnd);
       writeFileSync(
         runScript,
-        protectedLaunchForTrustedNode(
+        protectedLaunchForPortableMetadata(
           withoutOuterCredentialGuard,
           trustedNode,
           trustedNodeDigest,

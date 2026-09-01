@@ -80,3 +80,30 @@ Known unrelated Windows/baseline exceptions:
   Windows failures caused by the same unsupported POSIX uid/mode assumptions
   (plus direct `/usr/bin/git` lookup). It reported 66 passed and 6 skipped;
   no Task 2 code is involved.
+
+## Fix round 1 — narrow Windows skips to the actual transport boundary
+
+Review found the first Windows skip boundary was too broad. The hard-link
+replay is now active on Windows: NTFS supports hard links, and the test-only
+generated-source adapter performs source-only Windows path/drive handling and
+neutralizes only unrepresentable uid/gid/mode/ACL observations. It retains the
+leaf `nlink == 1`, file type, executable, digest, and signature checks. The
+focused adapter regression explicitly proves those retained checks and the
+source-only native-path normalization.
+
+The closure mutation, refrozen-closure, LF/CR binding, and protected-child
+credential replays remain Windows-skipped for a different, observed reason:
+Git-for-Windows does not inherit the generated Bash descriptor transport
+(`17` through `33`) into `node.exe`. After the node path and metadata adapter
+allowed the byte-mutation replay to enter the Node bootstrap, it failed at
+`readExactBinding(18)` with `EBADF: bad file descriptor, fstat`, before any
+closure/digest or credential behavior. An alternate transport would no longer
+exercise the production descriptor boundary, so none was added.
+
+Fresh verification:
+
+- `npm test -- tests/authBridgeNotificationB0Workflow.test.ts --maxWorkers=1 -t "renders a native selected Node path|keeps hard-link|hard-linked|reports unavailable|is manual-only|loads only|rejects a forged|keeps all downstream|rejects both stale|always attempts|rejects both missing"`
+  — 11 passed, 12 skipped.
+- `npm run typecheck` — exit 0.
+- `git diff --check` — clean; audited production workflow and policy remain
+  unchanged.
