@@ -3,11 +3,11 @@ import type {
   SealedRealmsProductionSourceAuthority,
 } from './sealed-realms-production-source-authority.mjs';
 import type {
-  SealedRealmsActivationEvidenceConfirmation,
-  SealedRealmsBridgeGateConfirmation,
-  SealedRealmsOwnerProvisionConfirmation,
-} from './sealed-realms-production-auth-bridge-state.mjs';
-import type { SealedRealmsPublicationConfirmation } from './sealed-realms-production-reconciliation.mjs';
+  SealedRealmsProductionContinuationStore,
+} from './sealed-realms-production-continuation.mjs';
+import type {
+  SealedRealmsProductionWorkflowPermit,
+} from './sealed-realms-production-workflow-authority.mjs';
 
 export class SealedRealmsProductionDispatcherError extends Error {
   readonly code: string;
@@ -29,25 +29,22 @@ export type SealedRealmsProductionSafeStatus =
   | 'publish-inspected'
   | 'submitted'
   | 'unavailable';
-export type SealedRealmsProductionOpaqueConfirmation =
-  | SealedRealmsPublicationConfirmation
-  | SealedRealmsBridgeGateConfirmation
-  | SealedRealmsOwnerProvisionConfirmation
-  | SealedRealmsActivationEvidenceConfirmation;
-
 export type SealedRealmsProductionLane = Readonly<{
   execute: (input: Readonly<{
     operation: SealedRealmsProductionOperation;
     authority: SealedRealmsProductionSourceAuthority;
-    input?: Readonly<{ confirmation: SealedRealmsProductionOpaqueConfirmation }>;
+    continuation?: Readonly<{
+      permit: SealedRealmsProductionWorkflowPermit;
+      store: SealedRealmsProductionContinuationStore;
+      runId: string;
+      runAttempt: string;
+    }>;
   }>) => Readonly<{
     status?: SealedRealmsProductionSafeStatus;
     ready?: boolean;
-    confirmation?: SealedRealmsProductionOpaqueConfirmation;
   }> | Promise<Readonly<{
     status?: SealedRealmsProductionSafeStatus;
     ready?: boolean;
-    confirmation?: SealedRealmsProductionOpaqueConfirmation;
   }>>;
 }>;
 
@@ -55,12 +52,10 @@ export type SealedRealmsProductionDispatcher = Readonly<{
   dispatch: (request: Readonly<{
     operation: SealedRealmsProductionOperation;
     workflowInputSha: string;
-    input?: Readonly<{ confirmation: SealedRealmsProductionOpaqueConfirmation }>;
   }>) => Promise<Readonly<{
     operation: string;
     status?: SealedRealmsProductionSafeStatus;
     ready?: boolean;
-    confirmation?: SealedRealmsProductionOpaqueConfirmation;
   }>>;
 }>;
 
@@ -68,6 +63,11 @@ export function createSealedRealmsProductionDispatcher(input: Readonly<{
   readGit: (arguments_: readonly string[]) => Uint8Array | string;
   readBinding: (commit: string) => Readonly<Record<string, unknown>>;
   verifyEvidence: (commit: string) => Readonly<{ verifiedSha: string }>;
+  permit?: SealedRealmsProductionWorkflowPermit;
+  continuationStore?: SealedRealmsProductionContinuationStore;
+  runId?: string;
+  runAttempt?: string | number;
+  sourceAuthority?: SealedRealmsProductionSourceAuthority;
   g001Lane?: SealedRealmsProductionLane;
   g002Lane?: SealedRealmsProductionLane;
   ptrLane?: SealedRealmsProductionLane;

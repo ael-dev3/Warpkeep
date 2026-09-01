@@ -7,6 +7,8 @@ import type {
   SealedRealmsPublicationConfirmation,
 } from './sealed-realms-production-reconciliation.mjs';
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
+import type { SealedRealmsProductionContinuationStore } from './sealed-realms-production-continuation.mjs';
+import type { SealedRealmsProductionWorkflowPermit } from './sealed-realms-production-workflow-authority.mjs';
 
 export class SealedRealmsProductionG002LaneError extends Error { readonly code: string; constructor(code: string); }
 export function createSealedRealmsProductionG002Lane(input: Readonly<{
@@ -15,7 +17,8 @@ export function createSealedRealmsProductionG002Lane(input: Readonly<{
   createPublishMarker: (context: Readonly<{ sourceCommit: string }>) => unknown | Promise<unknown>;
   publish: (context: Readonly<{
     sourceCommit: string;
-    confirmation: SealedRealmsPublicationConfirmation;
+    confirmation?: SealedRealmsPublicationConfirmation;
+    marker?: Readonly<Record<string, unknown>>;
   }>) => unknown | Promise<unknown>;
   importCore: (context: Readonly<{ sourceCommit: string }>) => unknown | Promise<unknown>;
   liveInspect: (context: Readonly<{ sourceCommit: string }>) => Readonly<{
@@ -31,8 +34,15 @@ export function createSealedRealmsProductionG002Lane(input: Readonly<{
       | 'g002-import-apply' | 'g002-live-inspect';
     authority: SealedRealmsProductionSourceAuthority;
     input?: Readonly<{ confirmation: SealedRealmsPublicationConfirmation | SealedRealmsBridgeGateConfirmation }>;
+    continuation?: Readonly<{
+      permit: SealedRealmsProductionWorkflowPermit;
+      store: SealedRealmsProductionContinuationStore;
+      runId: string;
+      runAttempt: string;
+    }>;
   }>) => Promise<Readonly<{
-    status: 'publish-inspected' | 'submitted' | 'import-inspected' | 'cross-linked' | 'live-inspected';
+    status: 'publish-inspected' | 'submitted' | 'import-inspected' | 'cross-linked'
+      | 'live-inspected' | 'completed';
     confirmation?: SealedRealmsPublicationConfirmation | SealedRealmsBridgeGateConfirmation;
   }>>;
 }>;

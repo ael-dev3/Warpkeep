@@ -541,6 +541,11 @@ export function createSealedRealmsProductionContinuationStore(input) {
   return store;
 }
 
+export function assertSealedRealmsProductionContinuationStore(store) {
+  storeState(store);
+  return store;
+}
+
 const COMMON_KEYS = Object.freeze([
   'store', 'permit', 'sourceAuthority', 'kind', 'runId', 'runAttempt',
   'subject', 'evidenceDigest', 'receiptDigests', 'predecessorDigests',

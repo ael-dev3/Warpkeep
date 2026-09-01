@@ -4,6 +4,8 @@ import type {
   SealedRealmsProductionAuthBridgeState,
 } from './sealed-realms-production-auth-bridge-state.mjs';
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
+import type { SealedRealmsProductionContinuationStore } from './sealed-realms-production-continuation.mjs';
+import type { SealedRealmsProductionWorkflowPermit } from './sealed-realms-production-workflow-authority.mjs';
 
 export class SealedRealmsProductionActivationLaneError extends Error { readonly code: string; constructor(code: string); }
 export function createSealedRealmsProductionActivationLane(input: Readonly<{
@@ -15,6 +17,12 @@ export function createSealedRealmsProductionActivationLane(input: Readonly<{
     operation: 'activation-evidence-inspect' | 'activation-evidence-generate';
     authority: SealedRealmsProductionSourceAuthority;
     input?: Readonly<{ confirmation: SealedRealmsActivationEvidenceConfirmation }>;
+    continuation?: Readonly<{
+      permit: SealedRealmsProductionWorkflowPermit;
+      store: SealedRealmsProductionContinuationStore;
+      runId: string;
+      runAttempt: string;
+    }>;
   }>) => Promise<Readonly<{
     status: 'activation-evidence-inspected' | 'completed';
     confirmation?: SealedRealmsActivationEvidenceConfirmation;

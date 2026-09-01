@@ -14,7 +14,7 @@ type G002WorkflowRuntime = Readonly<{ [g002WorkflowRuntimeBrand]: true }>;
 export function createSealedRealmsProductionG002WorkflowRuntime(input: Readonly<{
   operation: G002Operation;
   workflowInputSha: string;
-}>): G002WorkflowRuntime;
+}>): Promise<G002WorkflowRuntime>;
 
 export function runSealedRealmsProductionG002Operation(input: Readonly<{
   runtime: G002WorkflowRuntime;

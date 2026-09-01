@@ -13,7 +13,7 @@ type ActivationWorkflowRuntime = Readonly<{
 export function createSealedRealmsProductionActivationWorkflowRuntime(input: Readonly<{
   operation: SealedRealmsProductionActivationOperation;
   workflowInputSha: string;
-}>): ActivationWorkflowRuntime;
+}>): Promise<ActivationWorkflowRuntime>;
 
 export function runSealedRealmsProductionActivationOperation(input: Readonly<{
   runtime: ActivationWorkflowRuntime;

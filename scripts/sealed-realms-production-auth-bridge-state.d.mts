@@ -101,6 +101,13 @@ export type SealedRealmsOwnerProvisionReceipt = Readonly<
   }
 >;
 
+export type SealedRealmsProductionBridgeContinuationBinding = Readonly<{
+  subject: string;
+  evidenceDigest: string;
+  receiptDigests: readonly string[];
+  predecessorDigests: readonly string[];
+}>;
+
 declare const sealedRealmsOwnerProvisionConfirmation: unique symbol;
 export type SealedRealmsOwnerProvisionConfirmation = Readonly<{
   readonly [sealedRealmsOwnerProvisionConfirmation]: true;
@@ -120,6 +127,22 @@ export type SealedRealmsProductionAuthBridgeState = Readonly<{
     confirmation: SealedRealmsBridgeGateConfirmation;
     apply: () => unknown | Promise<unknown>;
   }>) => Promise<Readonly<{ status: 'cross-linked' }>>;
+  inspectGateForContinuation: (input: Readonly<{
+    lane: 'g002' | 'ptr';
+  }>) => Promise<SealedRealmsProductionBridgeContinuationBinding>;
+  reopenGateContinuation: (input: Readonly<{
+    lane: 'g002' | 'ptr';
+  }>) => Promise<SealedRealmsProductionBridgeContinuationBinding>;
+  applyGateForContinuation: (input: Readonly<{
+    lane: 'g002' | 'ptr';
+    apply: () => unknown | Promise<unknown>;
+  }>) => Promise<Readonly<{ status: 'cross-linked' }>>;
+  reconcileGateContinuation: (input: Readonly<{
+    lane: 'g002' | 'ptr';
+  }>) => Promise<Readonly<{
+    outcome: 'effect-applied' | 'no-effect';
+    observationDigest: string;
+  }>>;
   inspectOwnerProvisionEvidence: (input: Readonly<{
     inspect: () => Readonly<{ receiptDigest: string; inspectionDigest: string }>
       | Promise<Readonly<{ receiptDigest: string; inspectionDigest: string }>>;
@@ -129,6 +152,21 @@ export type SealedRealmsProductionAuthBridgeState = Readonly<{
     provision: () => Readonly<{ receiptDigest: string; provisionReceiptDigest: string }>
       | Promise<Readonly<{ receiptDigest: string; provisionReceiptDigest: string }>>;
   }>) => Promise<Readonly<Record<never, never>>>;
+  inspectOwnerProvisionEvidenceForContinuation: (input: Readonly<{
+    inspect: () => Readonly<{ receiptDigest: string; inspectionDigest: string }>
+      | Promise<Readonly<{ receiptDigest: string; inspectionDigest: string }>>;
+  }>) => Promise<SealedRealmsProductionBridgeContinuationBinding>;
+  reopenOwnerProvisionContinuation: () => Promise<
+    SealedRealmsProductionBridgeContinuationBinding
+  >;
+  applyOwnerProvisionForContinuation: (input: Readonly<{
+    provision: () => Readonly<{ receiptDigest: string; provisionReceiptDigest: string }>
+      | Promise<Readonly<{ receiptDigest: string; provisionReceiptDigest: string }>>;
+  }>) => Promise<Readonly<Record<never, never>>>;
+  reconcileOwnerProvisionContinuation: () => Promise<Readonly<{
+    outcome: 'effect-applied';
+    observationDigest: string;
+  }>>;
   inspectLiveEvidence: (input:
     | Readonly<{
       lane: 'g002';
@@ -151,6 +189,15 @@ export type SealedRealmsProductionAuthBridgeState = Readonly<{
   inspectActivationEvidence: () => Promise<Readonly<{
     confirmation: SealedRealmsActivationEvidenceConfirmation;
   }>>;
+  inspectActivationEvidenceForContinuation: () => Promise<
+    SealedRealmsProductionBridgeContinuationBinding
+  >;
+  reopenActivationEvidenceContinuation: () => Promise<
+    SealedRealmsProductionBridgeContinuationBinding
+  >;
+  consumeActivationEvidenceForContinuation: (input: Readonly<{
+    generator: SealedRealmsProductionActivationEvidenceGenerator;
+  }>) => Promise<Readonly<Record<never, never>>>;
 }>;
 
 export function createSealedRealmsProductionAuthBridgeState(options: Readonly<{

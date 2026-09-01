@@ -1,10 +1,18 @@
 import {
   SEALED_REALMS_OPERATIONS,
   authenticateSealedRealmsProductionSourceAuthority,
+  preparationSourceCommitFromSealedRealmsProductionAuthority,
+  sourceCommitFromSealedRealmsProductionAuthority,
 } from './sealed-realms-production-source-authority.mjs';
 import {
   assertSealedRealmsProductionActivationLane,
 } from './sealed-realms-production-activation-lane-entry.mjs';
+import {
+  assertSealedRealmsProductionContinuationStore,
+} from './sealed-realms-production-continuation.mjs';
+import {
+  assertSealedRealmsProductionWorkflowPermit,
+} from './sealed-realms-production-workflow-authority.mjs';
 
 const G001_OPERATIONS = new Set([
   'g001-policy-observe',
@@ -81,19 +89,14 @@ function boundedResult(operation, value) {
   if (
     value === null || typeof value !== 'object' || Array.isArray(value)
     || Object.getPrototypeOf(value) !== Object.prototype
-    || Object.keys(value).some(key => !['status', 'ready', 'confirmation'].includes(key))
+    || Object.keys(value).some(key => !['status', 'ready'].includes(key))
   ) fail('SEALED_REALMS_DISPATCH_RESULT_INVALID');
   const result = { operation };
-  for (const key of ['status', 'ready', 'confirmation']) {
+  for (const key of ['status', 'ready']) {
     if (Object.hasOwn(value, key)) {
       if (
         (key === 'status' && !SAFE_STATUSES.has(value[key]))
         || (key === 'ready' && typeof value[key] !== 'boolean')
-        || (key === 'confirmation' && (
-          value[key] === null || typeof value[key] !== 'object'
-          || Object.getPrototypeOf(value[key]) !== Object.prototype
-          || Object.keys(value[key]).length !== 0
-        ))
       ) {
         fail('SEALED_REALMS_DISPATCH_RESULT_INVALID');
       }
@@ -112,6 +115,7 @@ export function createSealedRealmsProductionDispatcher(input) {
   const allowed = [
     'readGit', 'readBinding', 'verifyEvidence',
     'g001Lane', 'g002Lane', 'ptrLane', 'activationLane', 'testOnlyLanes',
+    'permit', 'continuationStore', 'runId', 'runAttempt', 'sourceAuthority',
   ];
   if (
     Object.keys(options).some(key => !allowed.includes(key))
@@ -119,6 +123,41 @@ export function createSealedRealmsProductionDispatcher(input) {
     || typeof options.readBinding !== 'function'
     || typeof options.verifyEvidence !== 'function'
   ) fail('SEALED_REALMS_DISPATCH_INPUT_INVALID');
+  const protectedRuntime = options.testOnlyLanes === undefined;
+  const hasAnyProtectedContext = [
+    'permit', 'continuationStore', 'runId', 'runAttempt', 'sourceAuthority',
+  ].some(key => Object.hasOwn(options, key));
+  let continuation;
+  if (protectedRuntime || hasAnyProtectedContext) {
+    if (
+      !Object.hasOwn(options, 'permit')
+      || !Object.hasOwn(options, 'continuationStore')
+      || !Object.hasOwn(options, 'runId')
+      || !Object.hasOwn(options, 'runAttempt')
+      || !Object.hasOwn(options, 'sourceAuthority')
+      || typeof options.runId !== 'string'
+      || !/^[1-9][0-9]{0,19}$/u.test(options.runId)
+      || !/^[1-9][0-9]{0,3}$/u.test(String(options.runAttempt))
+      || Number(options.runAttempt) > 1_000
+      || options.continuationStore === null
+      || typeof options.continuationStore !== 'object'
+      || !Object.isFrozen(options.continuationStore)
+      || Reflect.ownKeys(options.continuationStore).length !== 0
+    ) fail('SEALED_REALMS_DISPATCH_INPUT_INVALID');
+    try {
+      assertSealedRealmsProductionWorkflowPermit(options.permit);
+      assertSealedRealmsProductionContinuationStore(options.continuationStore);
+    } catch {
+      fail('SEALED_REALMS_DISPATCH_INPUT_INVALID');
+    }
+    continuation = Object.freeze({
+      permit: options.permit,
+      store: options.continuationStore,
+      runId: options.runId,
+      runAttempt: String(options.runAttempt),
+      sourceAuthority: options.sourceAuthority,
+    });
+  }
   const configured = options.testOnlyLanes ?? {
     g001: options.g001Lane,
     g002: options.g002Lane,
@@ -135,33 +174,34 @@ export function createSealedRealmsProductionDispatcher(input) {
 
   const dispatch = async (request) => {
     const value = plainObject(request, 'SEALED_REALMS_DISPATCH_REQUEST_INVALID');
+    if (JSON.stringify(Object.keys(value)) !== JSON.stringify(['operation', 'workflowInputSha'])) {
+      fail('SEALED_REALMS_DISPATCH_REQUEST_INVALID');
+    }
     if (
-      Object.keys(value).some(key => !['operation', 'workflowInputSha', 'input'].includes(key))
-      || typeof value.operation !== 'string'
+      typeof value.operation !== 'string'
       || !SEALED_REALMS_OPERATIONS.includes(value.operation)
     ) fail('SEALED_REALMS_DISPATCH_OPERATION_INVALID');
-    if (value.input !== undefined) {
-      if (
-        value.input === null || typeof value.input !== 'object'
-        || Array.isArray(value.input)
-        || Object.getPrototypeOf(value.input) !== Object.prototype
-        || JSON.stringify(Object.keys(value.input)) !== JSON.stringify(['confirmation'])
-        || value.input.confirmation === null || typeof value.input.confirmation !== 'object'
-        || Object.getPrototypeOf(value.input.confirmation) !== Object.prototype
-        || Object.keys(value.input.confirmation).length !== 0
-      ) fail('SEALED_REALMS_DISPATCH_REQUEST_INVALID');
-    }
     if (
       !['preflight', 'g001-current-state'].includes(value.operation)
       && typeof globalThis.WebSocket !== 'function'
     ) fail('SEALED_REALMS_DISPATCH_WEBSOCKET_UNAVAILABLE');
-    const authority = authenticateSealedRealmsProductionSourceAuthority({
+    const reauthenticated = authenticateSealedRealmsProductionSourceAuthority({
       operation: value.operation,
       workflowInputSha: value.workflowInputSha,
       readGit: options.readGit,
       readBinding: options.readBinding,
       verifyEvidence: options.verifyEvidence,
     });
+    const authority = protectedRuntime ? continuation.sourceAuthority : reauthenticated;
+    if (protectedRuntime && (
+      authority?.operation !== reauthenticated.operation
+      || authority?.mode !== reauthenticated.mode
+      || authority?.authorityDigest !== reauthenticated.authorityDigest
+      || sourceCommitFromSealedRealmsProductionAuthority(authority)
+        !== sourceCommitFromSealedRealmsProductionAuthority(reauthenticated)
+      || preparationSourceCommitFromSealedRealmsProductionAuthority(authority)
+        !== preparationSourceCommitFromSealedRealmsProductionAuthority(reauthenticated)
+    )) fail('SEALED_REALMS_DISPATCH_SOURCE_INVALID');
     // Generation is intentionally unavailable until Task 6E provides a real,
     // branded activation lane. Test-only lane replacement can never enable it.
     const lane = value.operation === 'activation-evidence-generate'
@@ -190,7 +230,7 @@ export function createSealedRealmsProductionDispatcher(input) {
       result = await lane.execute(Object.freeze({
         operation: value.operation,
         authority,
-        input: value.input,
+        ...(protectedRuntime ? { continuation } : {}),
       }));
     } catch (error) {
       if (error instanceof SealedRealmsProductionDispatcherError) throw error;

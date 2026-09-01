@@ -4,10 +4,16 @@ import {
   createSealedRealmsProductionDispatcher,
 } from './sealed-realms-production-dispatch.mjs';
 import {
+  createSealedRealmsProductionContinuationStore,
+} from './sealed-realms-production-continuation.mjs';
+import {
   createSealedRealmsProductionG001CensusAuthority,
   createSealedRealmsProductionG001Lane,
   createSealedRealmsProductionG001LaunchAuthority,
 } from './sealed-realms-production-g001-lane-entry.mjs';
+import {
+  executeGenesis001AdmissionMonitorCurrentState,
+} from './genesis001-admission-monitor-current-state.mjs';
 import {
   authenticateSealedRealmsProductionSourceAuthority,
 } from './sealed-realms-production-source-authority.mjs';
@@ -17,6 +23,9 @@ import {
 import {
   resolveSealedRealmsProductionWorkflowPrivateState,
 } from './sealed-realms-production-workflow-private-state.mjs';
+import {
+  issueSealedRealmsProductionWorkflowPermit,
+} from './sealed-realms-production-workflow-authority.mjs';
 
 const OPERATIONS = new Set([
   'preflight',
@@ -126,15 +135,28 @@ function unavailable() {
   fail('SEALED_REALMS_G001_WORKFLOW_ADAPTER_UNAVAILABLE');
 }
 
-function buildDispatcher(operation, workflowInputSha) {
-  authenticateSealedRealmsProductionSourceAuthority({
+async function buildDispatcher(operation, workflowInputSha) {
+  // Evidence is deliberately the first gate. Production cannot read workflow
+  // credentials or contact GitHub until Tasks 7-9 install exact bundle evidence.
+  const authority = authenticateSealedRealmsProductionSourceAuthority({
     operation,
     workflowInputSha,
     readGit,
     readBinding,
     verifyEvidence: verifySealedRealmsProductionWorkflowEvidence,
   });
+  const githubToken = process.env.GITHUB_TOKEN;
+  const runId = process.env.GITHUB_RUN_ID;
+  const runAttempt = process.env.GITHUB_RUN_ATTEMPT;
+  const permit = await issueSealedRealmsProductionWorkflowPermit({
+    sourceAuthority: authority,
+    githubToken,
+    runId,
+    runAttempt,
+    fetchImpl: globalThis.fetch,
+  });
   const privateState = resolveSealedRealmsProductionWorkflowPrivateState();
+  const continuationStore = createSealedRealmsProductionContinuationStore({ privateState });
   const launchAuthority = createSealedRealmsProductionG001LaunchAuthority({
     readRawGit: readGit,
     resolveAdminSecretPath: unavailable,
@@ -162,17 +184,23 @@ function buildDispatcher(operation, workflowInputSha) {
       sourceSha(sourceCommit);
       return Object.freeze({});
     },
+    currentStateOperator: executeGenesis001AdmissionMonitorCurrentState,
   });
   return createSealedRealmsProductionDispatcher({
     readGit,
     readBinding,
     verifyEvidence: verifySealedRealmsProductionWorkflowEvidence,
     g001Lane: lane,
+    permit,
+    continuationStore,
+    runId,
+    runAttempt,
+    sourceAuthority: authority,
   });
 }
 
 /** Creates one opaque, process-local G001 runtime bound to one source/operation. */
-export function createSealedRealmsProductionG001WorkflowRuntime(input) {
+export async function createSealedRealmsProductionG001WorkflowRuntime(input) {
   const options = exactObject(input, ['operation', 'workflowInputSha']);
   const operation = operationName(options.operation);
   const workflowInputSha = sourceSha(options.workflowInputSha);
@@ -180,7 +208,7 @@ export function createSealedRealmsProductionG001WorkflowRuntime(input) {
   runtimes.set(runtime, Object.freeze({
     operation,
     workflowInputSha,
-    dispatcher: buildDispatcher(operation, workflowInputSha),
+    dispatcher: await buildDispatcher(operation, workflowInputSha),
   }));
   return runtime;
 }

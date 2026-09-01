@@ -217,6 +217,46 @@ function installPrivateResolver(home: string) {
   return resolutions;
 }
 
+function githubResponse(url: string, value: unknown) {
+  const body = JSON.stringify(value);
+  const result = new Response(body, {
+    status: 200,
+    headers: {
+      'content-type': 'application/json',
+      'content-length': String(Buffer.byteLength(body)),
+    },
+  });
+  Object.defineProperty(result, 'url', { value: url });
+  return result;
+}
+
+function installWorkflowContext(sourceCommit: string, runId = '7001') {
+  vi.stubEnv('GITHUB_TOKEN', 'github-sealed-realms-owner-token');
+  vi.stubEnv('GITHUB_RUN_ID', runId);
+  vi.stubEnv('GITHUB_RUN_ATTEMPT', '1');
+  const fetchImpl = vi.fn(async (request: string | URL | Request) => {
+    const url = String(request);
+    if (url.endsWith('/branches/main')) {
+      return githubResponse(url, {
+        name: 'main', protected: true, commit: { sha: sourceCommit },
+      });
+    }
+    return githubResponse(url, {
+      id: Number(runId),
+      run_attempt: 1,
+      event: 'workflow_dispatch',
+      status: 'in_progress',
+      conclusion: null,
+      head_branch: 'main',
+      head_sha: sourceCommit,
+      path: '.github/workflows/sealed-realms-production.yml',
+      repository: { full_name: 'ael-dev3/Warpkeep' },
+    });
+  });
+  vi.stubGlobal('fetch', fetchImpl);
+  return fetchImpl;
+}
+
 async function loadEntry(path: string): Promise<RuntimeModule> {
   return import(path) as Promise<RuntimeModule>;
 }
@@ -238,6 +278,7 @@ async function inRepository<T>(repositoryRoot: string, action: () => T | Promise
 }
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.doUnmock(EVIDENCE_MODULE);
   vi.doUnmock(PRIVATE_RESOLVER_MODULE);
@@ -314,18 +355,20 @@ describe.sequential('sealed-realms production workflow runtime composition', () 
     const repository = repositoryFixture('S');
     const privateHome = privateHomeFixture();
     const privateResolutions = installPrivateResolver(privateHome.home);
+    const github = installWorkflowContext(repository.sourceCommit);
     try {
       await inRepository(repository.repositoryRoot, async () => {
         const module = await loadEntry(entry.path);
         const factory = functionExport(module, entry.factory);
-        expect(() => factory({
+        await expect(factory({
           operation: entry.operation,
           workflowInputSha: repository.sourceCommit,
-        })).toThrow(expect.objectContaining({
+        })).rejects.toMatchObject({
           code: 'SEALED_REALMS_SOURCE_AUTHORITY_VERIFY_INVALID',
-        }));
+        });
       });
       expect(privateResolutions).toEqual([]);
+      expect(github).not.toHaveBeenCalled();
     } finally {
       repository.cleanup();
       privateHome.cleanup();
@@ -342,13 +385,14 @@ describe.sequential('sealed-realms production workflow runtime composition', () 
     const privateHome = privateHomeFixture();
     const verifiedCommits = installEvidenceVerifier();
     const privateResolutions = installPrivateResolver(privateHome.home);
+    installWorkflowContext(repository.sourceCommit);
     vi.stubGlobal('WebSocket', class WebSocket {});
     try {
       await inRepository(repository.repositoryRoot, async () => {
         const module = await loadEntry(entry.path);
         const factory = functionExport(module, entry.factory);
         const run = functionExport(module, entry.run);
-        const runtime = factory({
+        const runtime = await factory({
           operation: entry.operation,
           workflowInputSha: repository.sourceCommit,
         });
@@ -389,13 +433,14 @@ describe.sequential('sealed-realms production workflow runtime composition', () 
     const privateHome = privateHomeFixture();
     const verifiedCommits = installEvidenceVerifier();
     const privateResolutions = installPrivateResolver(privateHome.home);
+    installWorkflowContext(repository.sourceCommit);
     vi.stubGlobal('WebSocket', class WebSocket {});
     try {
       await inRepository(repository.repositoryRoot, async () => {
         const module = await loadEntry(entry.path);
         const factory = functionExport(module, entry.factory);
         const run = functionExport(module, entry.run);
-        const runtime = factory({
+        const runtime = await factory({
           operation: entry.operation,
           workflowInputSha: repository.sourceCommit,
         });
@@ -430,12 +475,12 @@ describe.sequential('sealed-realms production workflow runtime composition', () 
       await inRepository(repository.repositoryRoot, async () => {
         const module = await loadEntry(entry.path);
         const factory = functionExport(module, entry.factory);
-        expect(() => factory({
+        await expect(factory({
           operation: entry.operation,
           workflowInputSha: repository.sourceCommit,
-        })).toThrow(expect.objectContaining({
+        })).rejects.toMatchObject({
           code: 'SEALED_REALMS_SOURCE_AUTHORITY_BINDING_INVALID',
-        }));
+        });
       });
       expect(privateResolutions).toEqual([]);
     } finally {
@@ -453,12 +498,12 @@ describe.sequential('sealed-realms production workflow runtime composition', () 
       await inRepository(repository.repositoryRoot, async () => {
         const module = await loadEntry(entry.path);
         const factory = functionExport(module, entry.factory);
-        expect(() => factory({
+        await expect(factory({
           operation: entry.operation,
           workflowInputSha: repository.sourceCommit,
-        })).toThrow(expect.objectContaining({
+        })).rejects.toMatchObject({
           code: 'SEALED_REALMS_SOURCE_AUTHORITY_ACTIVATION_DIFF_INVALID',
-        }));
+        });
       });
       expect(privateResolutions).toEqual([]);
     } finally {
@@ -482,20 +527,20 @@ describe.sequential('sealed-realms production workflow runtime composition', () 
       { privateStateResolver: () => Object.freeze({}) },
       { evidenceVerifier: () => Object.freeze({}) },
     ]) {
-      expect(() => factory({
+      await expect(factory({
         operation: entry.operation,
         workflowInputSha: 'a'.repeat(40),
         ...injected,
-      })).toThrow(expect.objectContaining({ code: expect.stringMatching(/WORKFLOW_INPUT_INVALID$/u) }));
+      })).rejects.toMatchObject({ code: expect.stringMatching(/WORKFLOW_INPUT_INVALID$/u) });
     }
     const symbolInjected = {
       operation: entry.operation,
       workflowInputSha: 'a'.repeat(40),
       [Symbol('resolver')]: () => Object.freeze({}),
     };
-    expect(() => factory(symbolInjected)).toThrow(expect.objectContaining({
+    await expect(factory(symbolInjected)).rejects.toMatchObject({
       code: expect.stringMatching(/WORKFLOW_INPUT_INVALID$/u),
-    }));
+    });
     const hiddenInjected = {
       operation: entry.operation,
       workflowInputSha: 'a'.repeat(40),
@@ -503,22 +548,22 @@ describe.sequential('sealed-realms production workflow runtime composition', () 
     Object.defineProperty(hiddenInjected, 'privateStateResolver', {
       value: () => Object.freeze({}),
     });
-    expect(() => factory(hiddenInjected)).toThrow(expect.objectContaining({
+    await expect(factory(hiddenInjected)).rejects.toMatchObject({
       code: expect.stringMatching(/WORKFLOW_INPUT_INVALID$/u),
-    }));
+    });
     const accessorInjected = Object.defineProperties({}, {
       operation: { enumerable: true, get: () => entry.operation },
       workflowInputSha: { enumerable: true, get: () => 'a'.repeat(40) },
     });
-    expect(() => factory(accessorInjected)).toThrow(expect.objectContaining({
+    await expect(factory(accessorInjected)).rejects.toMatchObject({
       code: expect.stringMatching(/WORKFLOW_INPUT_INVALID$/u),
-    }));
-    expect(() => factory({
+    });
+    await expect(factory({
       operation: entry.crossedOperation,
       workflowInputSha: 'a'.repeat(40),
-    })).toThrow(expect.objectContaining({ code: expect.stringMatching(/WORKFLOW_OPERATION_INVALID$/u) }));
-    expect(() => factory({ operation: entry.operation, workflowInputSha: 'not-a-sha' }))
-      .toThrow(expect.objectContaining({ code: expect.stringMatching(/WORKFLOW_SOURCE_INVALID$/u) }));
+    })).rejects.toMatchObject({ code: expect.stringMatching(/WORKFLOW_OPERATION_INVALID$/u) });
+    await expect(factory({ operation: entry.operation, workflowInputSha: 'not-a-sha' }))
+      .rejects.toMatchObject({ code: expect.stringMatching(/WORKFLOW_SOURCE_INVALID$/u) });
 
     await expect(run({
       runtime: Object.freeze({}),
@@ -551,6 +596,7 @@ describe.sequential('sealed-realms production workflow runtime composition', () 
     const privateHome = privateHomeFixture();
     installEvidenceVerifier();
     installPrivateResolver(privateHome.home);
+    installWorkflowContext(repository.sourceCommit);
     vi.stubGlobal('WebSocket', class WebSocket {});
     try {
       await inRepository(repository.repositoryRoot, async () => {
@@ -558,7 +604,7 @@ describe.sequential('sealed-realms production workflow runtime composition', () 
         const factory = functionExport(module, entry.factory);
         const run = functionExport(module, entry.factory.replace('create', 'run').replace('WorkflowRuntime', 'Operation'));
         const operation = `${entry.lane}-publish-inspect`;
-        const runtime = factory({ operation, workflowInputSha: repository.sourceCommit });
+        const runtime = await factory({ operation, workflowInputSha: repository.sourceCommit });
         await expect(run({ runtime, operation, workflowInputSha: repository.sourceCommit }))
           .rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
       });

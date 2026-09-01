@@ -10,6 +10,9 @@ import {
   createSealedRealmsProductionDispatcher,
 } from './sealed-realms-production-dispatch.mjs';
 import {
+  createSealedRealmsProductionContinuationStore,
+} from './sealed-realms-production-continuation.mjs';
+import {
   authenticateSealedRealmsProductionSourceAuthority,
 } from './sealed-realms-production-source-authority.mjs';
 import {
@@ -18,6 +21,9 @@ import {
 import {
   resolveSealedRealmsProductionWorkflowPrivateState,
 } from './sealed-realms-production-workflow-private-state.mjs';
+import {
+  issueSealedRealmsProductionWorkflowPermit,
+} from './sealed-realms-production-workflow-authority.mjs';
 
 const OPERATIONS = new Set([
   'activation-evidence-inspect',
@@ -133,9 +139,20 @@ function unavailable() {
   fail('SEALED_REALMS_ACTIVATION_WORKFLOW_ADAPTER_UNAVAILABLE');
 }
 
-function buildDispatcher(operation, workflowInputSha) {
+async function buildDispatcher(operation, workflowInputSha) {
   const authority = sourceAuthority(operation, workflowInputSha);
+  const githubToken = process.env.GITHUB_TOKEN;
+  const runId = process.env.GITHUB_RUN_ID;
+  const runAttempt = process.env.GITHUB_RUN_ATTEMPT;
+  const permit = await issueSealedRealmsProductionWorkflowPermit({
+    sourceAuthority: authority,
+    githubToken,
+    runId,
+    runAttempt,
+    fetchImpl: globalThis.fetch,
+  });
   const privateState = resolveSealedRealmsProductionWorkflowPrivateState();
+  const continuationStore = createSealedRealmsProductionContinuationStore({ privateState });
   const bridgeState = createSealedRealmsProductionAuthBridgeState({
     authority,
     privateState,
@@ -153,10 +170,15 @@ function buildDispatcher(operation, workflowInputSha) {
     readBinding,
     verifyEvidence: verifySealedRealmsProductionWorkflowEvidence,
     activationLane: lane,
+    permit,
+    continuationStore,
+    runId,
+    runAttempt,
+    sourceAuthority: authority,
   });
 }
 
-export function createSealedRealmsProductionActivationWorkflowRuntime(input) {
+export async function createSealedRealmsProductionActivationWorkflowRuntime(input) {
   const options = exactObject(input, ['operation', 'workflowInputSha']);
   const operation = operationName(options.operation);
   const workflowInputSha = sourceSha(options.workflowInputSha);
@@ -164,7 +186,7 @@ export function createSealedRealmsProductionActivationWorkflowRuntime(input) {
   runtimes.set(runtime, Object.freeze({
     operation,
     workflowInputSha,
-    dispatcher: buildDispatcher(operation, workflowInputSha),
+    dispatcher: await buildDispatcher(operation, workflowInputSha),
   }));
   return runtime;
 }

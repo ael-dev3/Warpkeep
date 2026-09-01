@@ -7,6 +7,10 @@ import {
 import {
   sourceCommitFromSealedRealmsProductionAuthority,
 } from './sealed-realms-production-source-authority.mjs';
+import {
+  claimSealedRealmsProductionContinuation,
+  issueSealedRealmsProductionContinuation,
+} from './sealed-realms-production-continuation.mjs';
 
 const OPERATIONS = new Set([
   'activation-evidence-inspect', 'activation-evidence-generate',
@@ -23,6 +27,18 @@ export class SealedRealmsProductionActivationLaneError extends Error {
 
 function fail(code) { throw new SealedRealmsProductionActivationLaneError(code); }
 
+function continuationInput(continuation, authority, binding) {
+  return Object.freeze({
+    store: continuation.store,
+    permit: continuation.permit,
+    sourceAuthority: authority,
+    kind: 'activation-evidence',
+    runId: continuation.runId,
+    runAttempt: continuation.runAttempt,
+    ...binding,
+  });
+}
+
 /**
  * Holds the Task 6D private activation evidence boundary.  A branded Task 6E
  * generator is an initialization-time escrow capability, never caller input.
@@ -38,7 +54,7 @@ export function createSealedRealmsProductionActivationLane(input = {}) {
   const generator = task6EGenerator === undefined
     ? undefined
     : assertSealedRealmsProductionActivationEvidenceGenerator(task6EGenerator);
-  const execute = async ({ operation, authority, input: operationInput } = {}) => {
+  const execute = async ({ operation, authority, input: operationInput, continuation } = {}) => {
     if (!OPERATIONS.has(operation)) fail('SEALED_REALMS_ACTIVATION_LANE_OPERATION_INVALID');
     sourceCommitFromSealedRealmsProductionAuthority(authority);
     if (authority.operation !== operation) {
@@ -48,6 +64,14 @@ export function createSealedRealmsProductionActivationLane(input = {}) {
     if (authority.mode !== 'S') fail('SEALED_REALMS_ACTIVATION_LANE_SOURCE_MODE_INVALID');
     if (operation === 'activation-evidence-generate') {
       if (generator === undefined) fail('SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE');
+      if (continuation !== undefined) {
+        const binding = await state.reopenActivationEvidenceContinuation();
+        const result = await claimSealedRealmsProductionContinuation({
+          ...continuationInput(continuation, authority, binding),
+          effect: () => state.consumeActivationEvidenceForContinuation({ generator }),
+        });
+        return Object.freeze({ status: result.status });
+      }
       if (
         operationInput === null || typeof operationInput !== 'object'
         || Array.isArray(operationInput)
@@ -59,6 +83,13 @@ export function createSealedRealmsProductionActivationLane(input = {}) {
         generator,
       }));
       return Object.freeze({ status: 'completed' });
+    }
+    if (continuation !== undefined) {
+      const binding = await state.inspectActivationEvidenceForContinuation();
+      await issueSealedRealmsProductionContinuation(
+        continuationInput(continuation, authority, binding),
+      );
+      return Object.freeze({ status: 'activation-evidence-inspected' });
     }
     const result = await state.inspectActivationEvidence();
     return Object.freeze({ status: 'activation-evidence-inspected', confirmation: result.confirmation });

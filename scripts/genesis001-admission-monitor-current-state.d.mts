@@ -36,6 +36,10 @@ export function createGenesis001AdmissionMonitorCurrentStateReceiptForTesting(
   observedAt: Date,
 ): Genesis001AdmissionMonitorCurrentStateReceipt;
 
+export function executeGenesis001AdmissionMonitorCurrentState(input: Readonly<{
+  sourceCommit: string;
+}>): Genesis001AdmissionMonitorCurrentStateReceipt;
+
 export function parseGenesis001AdmissionMonitorDisabledState(
   output: string,
 ): boolean;

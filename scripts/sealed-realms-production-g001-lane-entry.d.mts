@@ -1,4 +1,6 @@
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
+import type { SealedRealmsProductionContinuationStore } from './sealed-realms-production-continuation.mjs';
+import type { SealedRealmsProductionWorkflowPermit } from './sealed-realms-production-workflow-authority.mjs';
 
 export class SealedRealmsProductionG001LaneError extends Error {
   readonly code: string;
@@ -129,12 +131,43 @@ export function createSealedRealmsProductionG001Lane(input: Readonly<{
   censusAuthority?: SealedRealmsProductionG001CensusAuthority;
   currentState: SealedRealmsG001CurrentStateConfiguration;
   preflight: (context: Readonly<{ sourceCommit: string }>) => unknown | Promise<unknown>;
+  currentStateOperator?: (context: Readonly<{ sourceCommit: string }>) => Readonly<{
+    schemaVersion: 1;
+    profile: string;
+    realmId: 'GENESIS_001';
+    release: '0.3.43';
+    sourceCommit: string;
+    observedAt: string;
+    label: string;
+    disabled: boolean;
+    loaded: boolean;
+    monitorPlistSha256: string;
+    monitorProgramSha256: string;
+  }> | Promise<Readonly<{
+    schemaVersion: 1;
+    profile: string;
+    realmId: 'GENESIS_001';
+    release: '0.3.43';
+    sourceCommit: string;
+    observedAt: string;
+    label: string;
+    disabled: boolean;
+    loaded: boolean;
+    monitorPlistSha256: string;
+    monitorProgramSha256: string;
+  }>>;
 }>): Readonly<{
   execute: (input: Readonly<{
     operation: 'preflight' | 'g001-policy-observe' | 'g001-census-first'
       | 'g001-census-second-inspect' | 'g001-census-second-suspend' | 'g001-current-state';
     authority: SealedRealmsProductionSourceAuthority;
     input?: Readonly<{ confirmation: object }>;
+    continuation?: Readonly<{
+      permit: SealedRealmsProductionWorkflowPermit;
+      store: SealedRealmsProductionContinuationStore;
+      runId: string;
+      runAttempt: string;
+    }>;
   }>) => Promise<Readonly<{
     status: 'preflight-inspected' | 'completed' | 'current-state-inspected';
     confirmation?: object;

@@ -493,11 +493,28 @@ function parseArguments(arguments_) {
   return sourceCommit;
 }
 
-async function main() {
-  const sourceCommit = parseArguments(process.argv.slice(2));
+/**
+ * Runtime-imported production operator. It returns the canonical receipt
+ * directly so trusted callers can persist it before any output redaction.
+ */
+export function executeGenesis001AdmissionMonitorCurrentState(input) {
+  if (
+    input === null || typeof input !== 'object' || Array.isArray(input)
+    || Object.getPrototypeOf(input) !== Object.prototype
+    || JSON.stringify(Object.keys(input)) !== JSON.stringify(['sourceCommit'])
+  ) fail('GENESIS_001_ADMISSION_MONITOR_CURRENT_STATE_ARGUMENTS_INVALID');
+  const { sourceCommit } = input;
+  if (!COMMIT.test(sourceCommit ?? '')) {
+    fail('GENESIS_001_ADMISSION_MONITOR_CURRENT_STATE_ARGUMENTS_INVALID');
+  }
   attestProtectedPreparationSource(sourceCommit);
   const snapshot = inspectLiveMonitor();
-  const receipt = createCurrentStateReceipt(snapshot, sourceCommit, new Date());
+  return createCurrentStateReceipt(snapshot, sourceCommit, new Date());
+}
+
+async function main() {
+  const sourceCommit = parseArguments(process.argv.slice(2));
+  const receipt = executeGenesis001AdmissionMonitorCurrentState({ sourceCommit });
   process.stdout.write(`${JSON.stringify(receipt)}\n`);
 }
 

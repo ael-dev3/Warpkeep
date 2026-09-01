@@ -41,6 +41,10 @@ export function createSealedRealmsProductionContinuationStore(input: Readonly<{
   randomBytes?: (length: number) => Uint8Array;
 }>): SealedRealmsProductionContinuationStore;
 
+export function assertSealedRealmsProductionContinuationStore(
+  store: unknown,
+): SealedRealmsProductionContinuationStore;
+
 export type SealedRealmsProductionContinuationInput = Readonly<{
   store: SealedRealmsProductionContinuationStore;
   permit: SealedRealmsProductionWorkflowPermit;

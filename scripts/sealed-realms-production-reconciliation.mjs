@@ -479,6 +479,111 @@ export function createSealedRealmsProductionPublicationReconciler(input) {
     return Object.freeze({ confirmation });
   };
 
+  const continuationBinding = (entry) => Object.freeze({
+    subject: `${lane}-publication:0.4.0`,
+    evidenceDigest: entry.markerDigest,
+    receiptDigests: Object.freeze([entry.marker.confirmationDigest]),
+    predecessorDigests: Object.freeze([]),
+  });
+
+  const continuationEntry = () => {
+    const entries = [...markerInventory().values()];
+    const pending = entries.filter(entry => (
+      entry.reconciliation === undefined
+    ));
+    if (pending.length === 1) return pending[0];
+    if (pending.length > 1) {
+      fail('SEALED_REALMS_RECONCILIATION_CONTINUATION_AMBIGUOUS');
+    }
+    // Publication reconciliation is persisted before the continuation core can
+    // write its terminal record.  Reopen that sole adopted marker after a crash
+    // so the core can classify it through postflight without replaying publish.
+    const adopted = entries.filter(entry => entry.reconciliation?.outcome === 'adopted');
+    if (adopted.length === 1) return adopted[0];
+    fail(adopted.length === 0
+      ? 'SEALED_REALMS_RECONCILIATION_CONTINUATION_MISSING'
+      : 'SEALED_REALMS_RECONCILIATION_CONTINUATION_AMBIGUOUS');
+  };
+
+  /** Persists evidence and discards the old process-local confirmation. */
+  const inspectForContinuation = async ({ marker }) => {
+    const inspected = await inspect({ marker });
+    if (inspected.confirmation === undefined) {
+      fail('SEALED_REALMS_RECONCILIATION_CONTINUATION_AMBIGUOUS');
+    }
+    const member = confirmations.get(inspected.confirmation);
+    if (member === undefined || activeByMarker.get(member.markerDigest) !== inspected.confirmation) {
+      fail('SEALED_REALMS_RECONCILIATION_STATE_INVALID');
+    }
+    activeByMarker.delete(member.markerDigest);
+    confirmations.delete(inspected.confirmation);
+    return continuationBinding(continuationEntry());
+  };
+
+  /** Reopens the sole exact private marker without minting apply authority. */
+  const reopenContinuation = () => continuationBinding(continuationEntry());
+
+  /** Consumes the marker before the first publisher await. */
+  const consumeContinuationEntry = async ({ publish }) => {
+    if (typeof publish !== 'function') {
+      fail('SEALED_REALMS_RECONCILIATION_CONFIRMATION_INVALID');
+    }
+    const entry = continuationEntry();
+    if (entry.consumed !== undefined) {
+      fail('SEALED_REALMS_RECONCILIATION_CONFIRMATION_CONSUMED');
+    }
+    const paths = markerPaths(lane, entry.markerDigest);
+    const consumed = canonicalConsumedRecord({
+      lane,
+      markerDigest: entry.markerDigest,
+      confirmationDigest: entry.marker.confirmationDigest,
+      consumedAt: new Date().toISOString(),
+    });
+    const bytes = Buffer.from(`${JSON.stringify(consumed)}\n`, 'utf8');
+    try {
+      privateState.write({ root: 'runtime', relativePath: paths.consumed, bytes });
+    } finally { bytes.fill(0); }
+    let callbackError;
+    try {
+      await publish(Object.freeze({ marker: entry.marker }));
+    } catch (error) {
+      callbackError = error;
+    }
+    let resolution;
+    try {
+      resolution = await writeReconciliation(markerInventory().get(entry.markerDigest));
+    } catch {
+      fail('SEALED_REALMS_RECONCILIATION_PUBLICATION_AMBIGUOUS');
+    }
+    if (callbackError !== undefined || resolution.outcome !== 'adopted') {
+      fail('SEALED_REALMS_RECONCILIATION_PUBLICATION_AMBIGUOUS');
+    }
+    return Object.freeze({ status: 'submitted' });
+  };
+
+  /** Classifies an ambiguous claim through the fixed non-mutating postflight. */
+  const reconcileContinuation = async () => {
+    const entry = continuationEntry();
+    let postflight;
+    try {
+      postflight = await options.postflight(Object.freeze({ lane, marker: entry.marker }));
+    } catch {
+      fail('SEALED_REALMS_RECONCILIATION_POSTFLIGHT_AMBIGUOUS');
+    }
+    exactObject(postflight, [
+      'outcome', 'databaseIdentity', 'publicationReceiptDigest',
+      'observationDigest', 'observedAt',
+    ], 'SEALED_REALMS_RECONCILIATION_POSTFLIGHT_INVALID');
+    if (
+      !['adopted', 'no-effect'].includes(postflight.outcome)
+      || !SHA256.test(postflight.observationDigest ?? '')
+    ) fail('SEALED_REALMS_RECONCILIATION_POSTFLIGHT_INVALID');
+    return Object.freeze({
+      outcome: postflight.outcome === 'adopted' ? 'effect-applied' : 'no-effect',
+      observationDigest: postflight.observationDigest,
+    });
+  };
+
   const apply = async ({ confirmation, publish, consumedAt = new Date().toISOString() }) => {
     const member = confirmations.get(confirmation);
     if (
@@ -564,7 +669,15 @@ export function createSealedRealmsProductionPublicationReconciler(input) {
     return Object.freeze({ status: 'reconciled' });
   };
 
-  const reconciler = Object.freeze({ inspect, apply, reconcile });
+  const reconciler = Object.freeze({
+    inspect,
+    apply,
+    reconcile,
+    inspectForContinuation,
+    reopenContinuation,
+    consumeContinuationEntry,
+    reconcileContinuation,
+  });
   reconcilers.add(reconciler);
   return reconciler;
 }

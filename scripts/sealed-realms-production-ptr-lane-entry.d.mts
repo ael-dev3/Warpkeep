@@ -8,6 +8,8 @@ import type {
   SealedRealmsPublicationConfirmation,
 } from './sealed-realms-production-reconciliation.mjs';
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
+import type { SealedRealmsProductionContinuationStore } from './sealed-realms-production-continuation.mjs';
+import type { SealedRealmsProductionWorkflowPermit } from './sealed-realms-production-workflow-authority.mjs';
 
 export class SealedRealmsProductionPtrLaneError extends Error { readonly code: string; constructor(code: string); }
 export function createSealedRealmsProductionPtrLane(input: Readonly<{
@@ -16,7 +18,8 @@ export function createSealedRealmsProductionPtrLane(input: Readonly<{
   createPublishMarker: (context: Readonly<{ sourceCommit: string }>) => unknown | Promise<unknown>;
   publish: (context: Readonly<{
     sourceCommit: string;
-    confirmation: SealedRealmsPublicationConfirmation;
+    confirmation?: SealedRealmsPublicationConfirmation;
+    marker?: Readonly<Record<string, unknown>>;
   }>) => unknown | Promise<unknown>;
   importCore: (context: Readonly<{ sourceCommit: string }>) => unknown | Promise<unknown>;
   inspectOwnerProvision: (context: Readonly<{ sourceCommit: string }>) => Readonly<{
@@ -46,9 +49,16 @@ export function createSealedRealmsProductionPtrLane(input: Readonly<{
       confirmation: SealedRealmsPublicationConfirmation | SealedRealmsBridgeGateConfirmation
         | SealedRealmsOwnerProvisionConfirmation;
     }>;
+    continuation?: Readonly<{
+      permit: SealedRealmsProductionWorkflowPermit;
+      store: SealedRealmsProductionContinuationStore;
+      runId: string;
+      runAttempt: string;
+    }>;
   }>) => Promise<Readonly<{
     status: 'publish-inspected' | 'submitted' | 'import-inspected' | 'cross-linked'
-      | 'owner-provision-inspected' | 'owner-provisioned' | 'live-inspected';
+      | 'owner-provision-inspected' | 'owner-provisioned' | 'live-inspected'
+      | 'completed';
     confirmation?: SealedRealmsPublicationConfirmation | SealedRealmsBridgeGateConfirmation
       | SealedRealmsOwnerProvisionConfirmation;
   }>>;

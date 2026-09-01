@@ -7,6 +7,7 @@ import {
   verifyGenesis001AdmittedPlayerCensusReceipt,
 } from './genesis001-admitted-player-census.mjs';
 import {
+  genesis001AdmissionMonitorCurrentStateReceiptDigest,
   genesis001CensusOpaqueProofDigest,
 } from './genesis001-sealed-launch-adoption.mjs';
 import {
@@ -15,6 +16,11 @@ import {
 import {
   sourceCommitFromSealedRealmsProductionAuthority,
 } from './sealed-realms-production-source-authority.mjs';
+import {
+  claimSealedRealmsProductionContinuation,
+  issueSealedRealmsProductionContinuation,
+  reconcileSealedRealmsProductionContinuation,
+} from './sealed-realms-production-continuation.mjs';
 
 const OPERATIONS = new Set([
   'preflight', 'g001-policy-observe', 'g001-census-first',
@@ -82,6 +88,15 @@ function exactObject(value, keys, code) {
     value === null || typeof value !== 'object' || Array.isArray(value)
     || Object.getPrototypeOf(value) !== Object.prototype
     || JSON.stringify(Object.keys(value)) !== JSON.stringify(keys)
+  ) fail(code);
+  return value;
+}
+
+function allowedObject(value, keys, code) {
+  if (
+    value === null || typeof value !== 'object' || Array.isArray(value)
+    || Object.getPrototypeOf(value) !== Object.prototype
+    || Object.keys(value).some(key => !keys.includes(key))
   ) fail(code);
   return value;
 }
@@ -398,6 +413,107 @@ function censusAuthorityMember(capability) {
   if (member === undefined) fail('SEALED_REALMS_G001_CENSUS_AUTHORITY_INVALID');
   return member;
 }
+
+function continuationInput(continuation, authority, kind, binding) {
+  return Object.freeze({
+    store: continuation.store,
+    permit: continuation.permit,
+    sourceAuthority: authority,
+    kind,
+    runId: continuation.runId,
+    runAttempt: continuation.runAttempt,
+    ...binding,
+  });
+}
+
+function soleCensusDigest(state, kind) {
+  const names = state.list({
+    root: 'runtime', relativeDirectory: `g001/census/${kind}`,
+  });
+  const expression = new RegExp(`^census-${kind}-([a-f0-9]{64})\\.json$`, 'u');
+  if (names.length !== 1) fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
+  const match = expression.exec(names[0]);
+  if (match === null) fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
+  return Object.freeze({
+    digest: match[1],
+    relativePath: censusPrivateRelative(kind, match[1]),
+  });
+}
+
+function reopenFirstCensusMember(capability, sourceCommit) {
+  const member = censusAuthorityMember(capability);
+  const persisted = soleCensusDigest(member.privateState, 'first');
+  firstCensusRecord(readCensusRecord(
+    member.privateState,
+    persisted.relativePath,
+    persisted.digest,
+    ['schemaVersion', 'profile', 'sourceCommit', 'applicant', 'admitted', 'observedAt'],
+  ), sourceCommit);
+  return Object.freeze({
+    capability,
+    sourceCommit,
+    firstDigest: persisted.digest,
+    firstRelativePath: persisted.relativePath,
+  });
+}
+
+function reopenSecondCensusMember(capability, sourceCommit) {
+  const member = censusAuthorityMember(capability);
+  const persisted = soleCensusDigest(member.privateState, 'confirmation');
+  const record = readCensusRecord(
+    member.privateState,
+    persisted.relativePath,
+    persisted.digest,
+    ['schemaVersion', 'profile', 'sourceCommit', 'firstDigest', 'secondDigest',
+      'secondObservedAt', 'expiresAt', 'confirmationDigest'],
+  );
+  if (
+    record.schemaVersion !== 1 || record.profile !== CENSUS_PROFILE
+    || record.sourceCommit !== sourceCommit
+  ) fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
+  exactDigest(record.firstDigest, 'SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
+  exactDigest(record.secondDigest, 'SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
+  exactDigest(record.confirmationDigest, 'SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
+  if (
+    censusConfirmationDigest(
+      sourceCommit,
+      record.firstDigest,
+      record.secondDigest,
+      record.expiresAt,
+    ) !== record.confirmationDigest
+  ) fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
+  return Object.freeze({
+    capability,
+    sourceCommit,
+    firstDigest: record.firstDigest,
+    firstRelativePath: censusPrivateRelative('first', record.firstDigest),
+    secondDigest: record.secondDigest,
+    secondRelativePath: censusPrivateRelative('second', record.secondDigest),
+    secondObservedAt: record.secondObservedAt,
+    expiresAt: record.expiresAt,
+    confirmationDigest: record.confirmationDigest,
+    confirmationRelativePath: persisted.relativePath,
+    confirmationRecordDigest: persisted.digest,
+  });
+}
+
+const firstContinuationBinding = (member) => Object.freeze({
+  subject: 'g001-census-first:0.4.0',
+  evidenceDigest: member.firstDigest,
+  receiptDigests: Object.freeze([]),
+  predecessorDigests: Object.freeze([]),
+});
+
+const secondContinuationBinding = (member) => Object.freeze({
+  subject: 'g001-census-second:0.4.0',
+  evidenceDigest: member.confirmationRecordDigest,
+  receiptDigests: Object.freeze([
+    member.firstDigest,
+    member.secondDigest,
+    member.confirmationDigest,
+  ]),
+  predecessorDigests: Object.freeze([member.firstDigest]),
+});
 
 async function collectCensusSample(member, sourceCommit) {
   let raw;
@@ -1211,22 +1327,99 @@ function currentStateConfiguration(value) {
   return value;
 }
 
+function canonicalCurrentStateReceipt(value, sourceCommit, earliest, latest) {
+  exactObject(value, [
+    'schemaVersion', 'profile', 'realmId', 'release', 'sourceCommit', 'observedAt',
+    'label', 'disabled', 'loaded', 'monitorPlistSha256', 'monitorProgramSha256',
+  ], 'SEALED_REALMS_G001_CURRENT_STATE_RECEIPT_INVALID');
+  const observed = Date.parse(value.observedAt);
+  if (
+    value.schemaVersion !== 1
+    || value.profile !== 'warpkeep-genesis001-admission-monitor-current-state-v1'
+    || value.realmId !== 'GENESIS_001'
+    || value.release !== '0.3.43'
+    || value.sourceCommit !== sourceCommit
+    || value.label !== LABEL
+    || value.disabled !== true
+    || value.loaded !== false
+    || value.monitorPlistSha256 !== EXPECTED_PLIST_SHA256
+    || value.monitorProgramSha256 !== EXPECTED_PROGRAM_SHA256
+    || !Number.isFinite(observed)
+    || new Date(observed).toISOString() !== value.observedAt
+    || observed < earliest
+    || observed > latest
+  ) fail('SEALED_REALMS_G001_CURRENT_STATE_RECEIPT_INVALID');
+  return Object.freeze({ ...value });
+}
+
+function persistCurrentStateReceipt(privateState, receipt) {
+  const bytes = Buffer.from(`${JSON.stringify(receipt)}\n`, 'utf8');
+  const receiptDigest = genesis001AdmissionMonitorCurrentStateReceiptDigest(receipt);
+  const relativePath = `g001/current-state/admission-monitor-current-state-${receiptDigest}.json`;
+  try {
+    privateState.write({ root: 'runtime', relativePath, bytes });
+    const reopened = privateState.read({ root: 'runtime', relativePath });
+    try {
+      if (!reopened.equals(bytes)) fail('SEALED_REALMS_G001_CURRENT_STATE_RECEIPT_INVALID');
+    } finally { reopened.fill(0); }
+  } finally { bytes.fill(0); }
+  return receiptDigest;
+}
+
+function reopenCurrentStateReceipt(privateState, sourceCommit, secondMember) {
+  const names = privateState.list({
+    root: 'runtime', relativeDirectory: 'g001/current-state',
+  });
+  if (
+    names.length !== 1
+    || !/^admission-monitor-current-state-[a-f0-9]{64}\.json$/u.test(names[0])
+  ) fail('SEALED_REALMS_G001_CURRENT_STATE_RECEIPT_INVALID');
+  const receiptDigest = names[0].slice(
+    'admission-monitor-current-state-'.length,
+    -'.json'.length,
+  );
+  const bytes = privateState.read({
+    root: 'runtime', relativePath: `g001/current-state/${names[0]}`,
+  });
+  try {
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    const receipt = JSON.parse(text);
+    if (`${JSON.stringify(receipt)}\n` !== text) {
+      fail('SEALED_REALMS_G001_CURRENT_STATE_RECEIPT_INVALID');
+    }
+    const canonical = canonicalCurrentStateReceipt(
+      receipt,
+      sourceCommit,
+      Date.parse(secondMember.secondObservedAt),
+      Date.parse(secondMember.expiresAt),
+    );
+    if (genesis001AdmissionMonitorCurrentStateReceiptDigest(canonical) !== receiptDigest) {
+      fail('SEALED_REALMS_G001_CURRENT_STATE_RECEIPT_INVALID');
+    }
+    return receiptDigest;
+  } catch (error) {
+    if (error instanceof SealedRealmsProductionG001LaneError) throw error;
+    fail('SEALED_REALMS_G001_CURRENT_STATE_RECEIPT_INVALID');
+  } finally { bytes.fill(0); }
+}
+
 /** Owns narrow G001 lifecycle seams and blocks any non-S mutation. */
 export function createSealedRealmsProductionG001Lane(input) {
-  const options = exactObject(input, [
+  const options = allowedObject(input, [
     'launchAuthority', 'attestDispatcherNode', 'runEnvelopeChild',
-    'censusAuthority', 'currentState', 'preflight',
+    'censusAuthority', 'currentState', 'preflight', 'currentStateOperator',
   ], 'SEALED_REALMS_G001_LANE_INPUT_INVALID');
   if (
     launchAuthorities.get(options.launchAuthority) === undefined
     || typeof options.attestDispatcherNode !== 'function'
     || typeof options.runEnvelopeChild !== 'function'
     || (options.censusAuthority !== undefined && censusAuthorities.get(options.censusAuthority) === undefined)
+    || (options.currentStateOperator !== undefined && typeof options.currentStateOperator !== 'function')
     || typeof options.preflight !== 'function'
   ) fail('SEALED_REALMS_G001_LANE_INPUT_INVALID');
   const currentState = currentStateConfiguration(options.currentState);
 
-  const execute = async ({ operation, authority, input } = {}) => {
+  const execute = async ({ operation, authority, input, continuation } = {}) => {
     if (!OPERATIONS.has(operation)) fail('SEALED_REALMS_G001_LANE_OPERATION_INVALID');
     const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(authority);
     if (authority.operation !== operation) {
@@ -1240,6 +1433,25 @@ export function createSealedRealmsProductionG001Lane(input) {
       return Object.freeze({ status: 'preflight-inspected' });
     }
     if (operation === 'g001-current-state') {
+      if (options.currentStateOperator !== undefined) {
+        if (options.censusAuthority === undefined) {
+          fail('SEALED_REALMS_G001_CURRENT_STATE_RECEIPT_INVALID');
+        }
+        const earliest = Date.now();
+        let raw;
+        try {
+          raw = await options.currentStateOperator(Object.freeze({ sourceCommit }));
+        } catch {
+          fail('SEALED_REALMS_G001_CURRENT_STATE_INVALID');
+        }
+        const latest = Date.now();
+        const receipt = canonicalCurrentStateReceipt(raw, sourceCommit, earliest, latest);
+        persistCurrentStateReceipt(
+          censusAuthorityMember(options.censusAuthority).privateState,
+          receipt,
+        );
+        return Object.freeze({ status: 'current-state-inspected' });
+      }
       return inspectSealedRealmsProductionG001CurrentState(Object.freeze({
         authority,
         runChild: currentState.runChild,
@@ -1263,12 +1475,135 @@ export function createSealedRealmsProductionG001Lane(input) {
       fail('SEALED_REALMS_G001_CENSUS_UNAVAILABLE');
     }
     if (operation === 'g001-census-first') {
-      return censusFirst(authority, options.censusAuthority);
+      if (continuation !== undefined) {
+        const priorEvidence = censusAuthorityMember(options.censusAuthority).privateState.list({
+          root: 'runtime', relativeDirectory: 'g001/census',
+        });
+        if (priorEvidence.length !== 0) {
+          fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
+        }
+      }
+      const result = await censusFirst(authority, options.censusAuthority);
+      if (continuation === undefined) return result;
+      const member = censusFirstConfirmations.get(result.confirmation);
+      if (member === undefined) fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
+      await issueSealedRealmsProductionContinuation(continuationInput(
+        continuation,
+        authority,
+        'g001-census-first-to-second',
+        firstContinuationBinding(member),
+      ));
+      censusFirstConfirmations.delete(result.confirmation);
+      return Object.freeze({ status: result.status });
     }
     if (operation === 'g001-census-second-inspect') {
-      return censusSecondInspect(authority, options.censusAuthority, input);
+      if (continuation === undefined) {
+        return censusSecondInspect(authority, options.censusAuthority, input);
+      }
+      const firstMember = reopenFirstCensusMember(options.censusAuthority, sourceCommit);
+      const firstConfirmation = Object.freeze({});
+      censusFirstConfirmations.set(firstConfirmation, firstMember);
+      let secondResult;
+      const common = continuationInput(
+        continuation,
+        authority,
+        'g001-census-first-to-second',
+        firstContinuationBinding(firstMember),
+      );
+      try {
+        await claimSealedRealmsProductionContinuation({
+          ...common,
+          effect: async () => {
+            secondResult = await censusSecondInspect(
+              authority,
+              options.censusAuthority,
+              Object.freeze({ confirmation: firstConfirmation }),
+            );
+          },
+        });
+      } catch (error) {
+        censusFirstConfirmations.delete(firstConfirmation);
+        if (error?.code === 'SEALED_REALMS_CONTINUATION_AMBIGUOUS') {
+          const member = censusAuthorityMember(options.censusAuthority);
+          const secondNames = member.privateState.list({
+            root: 'runtime', relativeDirectory: 'g001/census/second',
+          });
+          const confirmationNames = member.privateState.list({
+            root: 'runtime', relativeDirectory: 'g001/census/confirmation',
+          });
+          if (
+            secondNames.length > 1 || confirmationNames.length > 1
+            || secondNames.length !== confirmationNames.length
+          ) fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
+          const effectApplied = confirmationNames.length === 1;
+          const observationDigest = effectApplied
+            ? soleCensusDigest(member.privateState, 'confirmation').digest
+            : firstMember.firstDigest;
+          await reconcileSealedRealmsProductionContinuation({
+            ...common,
+            readOnlyReconcile: () => Object.freeze({
+              outcome: effectApplied ? 'effect-applied' : 'no-effect',
+              observationDigest,
+            }),
+          });
+          if (!effectApplied) return Object.freeze({ status: 'completed' });
+        } else if (error?.code !== 'SEALED_REALMS_CONTINUATION_TERMINAL') {
+          throw error;
+        }
+      }
+      const secondMember = secondResult === undefined
+        ? reopenSecondCensusMember(options.censusAuthority, sourceCommit)
+        : censusSecondConfirmations.get(secondResult.confirmation);
+      if (secondMember === undefined) fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
+      await issueSealedRealmsProductionContinuation(continuationInput(
+        continuation,
+        authority,
+        'g001-census-second-to-suspension',
+        secondContinuationBinding(secondMember),
+      ));
+      if (secondResult !== undefined) {
+        censusSecondConfirmations.delete(secondResult.confirmation);
+      }
+      return Object.freeze({ status: 'completed' });
     }
-    return censusSecondSuspend(authority, options.censusAuthority, input);
+    if (continuation === undefined) {
+      return censusSecondSuspend(authority, options.censusAuthority, input);
+    }
+    const secondMember = reopenSecondCensusMember(options.censusAuthority, sourceCommit);
+    const secondConfirmation = Object.freeze({});
+    censusSecondConfirmations.set(secondConfirmation, secondMember);
+    const common = continuationInput(
+      continuation,
+      authority,
+      'g001-census-second-to-suspension',
+      secondContinuationBinding(secondMember),
+    );
+    try {
+      const result = await claimSealedRealmsProductionContinuation({
+        ...common,
+        effect: () => censusSecondSuspend(
+          authority,
+          options.censusAuthority,
+          Object.freeze({ confirmation: secondConfirmation }),
+        ),
+      });
+      return Object.freeze({ status: result.status });
+    } catch (error) {
+      censusSecondConfirmations.delete(secondConfirmation);
+      if (error?.code !== 'SEALED_REALMS_CONTINUATION_AMBIGUOUS') throw error;
+      const observationDigest = reopenCurrentStateReceipt(
+        censusAuthorityMember(options.censusAuthority).privateState,
+        sourceCommit,
+        secondMember,
+      );
+      await reconcileSealedRealmsProductionContinuation({
+        ...common,
+        readOnlyReconcile: () => Object.freeze({
+          outcome: 'effect-applied', observationDigest,
+        }),
+      });
+      return Object.freeze({ status: 'completed' });
+    }
   };
   const lane = Object.freeze({ execute });
   lanes.add(lane);

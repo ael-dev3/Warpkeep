@@ -16,7 +16,7 @@ type PtrWorkflowRuntime = Readonly<{ [ptrWorkflowRuntimeBrand]: true }>;
 export function createSealedRealmsProductionPtrWorkflowRuntime(input: Readonly<{
   operation: PtrOperation;
   workflowInputSha: string;
-}>): PtrWorkflowRuntime;
+}>): Promise<PtrWorkflowRuntime>;
 
 export function runSealedRealmsProductionPtrOperation(input: Readonly<{
   runtime: PtrWorkflowRuntime;

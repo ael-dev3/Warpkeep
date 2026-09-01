@@ -1083,7 +1083,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
           fail('SEALED_REALMS_AUTH_BRIDGE_CHAIN_INVALID');
         }
         chains.push(Object.freeze({ relativePath, chain }));
-      } else if (!['locks', 'activation-evidence'].includes(name)) {
+      } else if (!['locks', 'activation-evidence', 'owner-provision-evidence'].includes(name)) {
         fail('SEALED_REALMS_AUTH_BRIDGE_CHAIN_INVALID');
       }
     }
@@ -1483,6 +1483,91 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     }
   };
 
+  const gateContinuationMember = async (lane) => {
+    if (!['g002', 'ptr'].includes(lane)) {
+      fail('SEALED_REALMS_AUTH_BRIDGE_GATE_INPUT_INVALID');
+    }
+    const established = await establish();
+    const chain = established.chain;
+    const gate = lane === 'g002' ? chain.g002Final : chain.ptrFinal;
+    const phaseRetainsGate = lane === 'g002'
+      ? ['g002', 'ptr', 'complete'].includes(chain.phase)
+      : ['ptr', 'complete'].includes(chain.phase);
+    if (
+      gate === null
+      || gate.value.recordType !== (lane === 'g002' ? 'g002Gate' : 'ptrGate')
+      || !phaseRetainsGate
+    ) fail('SEALED_REALMS_AUTH_BRIDGE_GATE_STATE_INVALID');
+    return Object.freeze({
+      member: Object.freeze({
+        lane,
+        relativePath: established.relativePath,
+        chainDigest: established.chainDigest,
+        gateDigest: gate.digest,
+        observedAt: gate.value.observedAt,
+      }),
+      binding: Object.freeze({
+        subject: `${lane}-import:0.4.0`,
+        evidenceDigest: gate.digest,
+        receiptDigests: Object.freeze([gate.value.confirmationDigest]),
+        predecessorDigests: Object.freeze([gate.value.previousRecordDigest]),
+      }),
+    });
+  };
+
+  /** Persists the exact gate while discarding all process-local confirmation authority. */
+  const inspectGateForContinuation = async ({ lane } = {}) => {
+    if (!['g002', 'ptr'].includes(lane)) {
+      fail('SEALED_REALMS_AUTH_BRIDGE_GATE_INPUT_INVALID');
+    }
+    const prior = (await establish()).chain;
+    if ((lane === 'g002' ? prior.g002Final : prior.ptrFinal) !== null) {
+      // A gate without its continuation is an orphaned durable decision. Only
+      // the apply/reconciliation transition may reopen it; never probe again.
+      fail('SEALED_REALMS_AUTH_BRIDGE_GATE_CONTINUATION_ORPHANED');
+    }
+    const inspected = await inspectGate({ lane });
+    const member = gateConfirmations.get(inspected.confirmation);
+    if (member === undefined || member.adopted === true) {
+      fail('SEALED_REALMS_AUTH_BRIDGE_GATE_STATE_INVALID');
+    }
+    gateConfirmations.delete(inspected.confirmation);
+    return (await gateContinuationMember(lane)).binding;
+  };
+
+  const reopenGateContinuation = async ({ lane } = {}) => (
+    await gateContinuationMember(lane)
+  ).binding;
+
+  const applyGateForContinuation = async ({ lane, apply } = {}) => {
+    if (typeof apply !== 'function') {
+      fail('SEALED_REALMS_AUTH_BRIDGE_GATE_CONFIRMATION_INVALID');
+    }
+    const reopened = await gateContinuationMember(lane);
+    const confirmation = Object.freeze({});
+    gateConfirmations.set(confirmation, reopened.member);
+    return applyGate({ confirmation, apply });
+  };
+
+  /** The only crash resolver is the immutable receipt reader; it never imports. */
+  const reconcileGateContinuation = async ({ lane } = {}) => {
+    const reopened = await gateContinuationMember(lane);
+    const chain = readChain(reopened.member.relativePath);
+    const facts = await resolveFacts();
+    const authority = assertFactsMatchAuthority(facts, chain);
+    const resolution = await inspectImmutableImportReceipt(
+      lane,
+      authority,
+      'SEALED_REALMS_AUTH_BRIDGE_GATE_RECOVERY_INVALID',
+    );
+    return Object.freeze({
+      outcome: resolution.disposition === 'adopted' ? 'effect-applied' : 'no-effect',
+      observationDigest: resolution.disposition === 'adopted'
+        ? resolution.receiptDigest
+        : resolution.noEffectDigest,
+    });
+  };
+
   const inspect = async () => {
     const established = await establish();
     return privateChainSummary(established.chain);
@@ -1533,6 +1618,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
       relativePath: established.relativePath,
       chainDigest: established.chainDigest,
       receiptDigest: finalImported.receiptDigest,
+      inspectionDigest: evidence.inspectionDigest,
       claimKey,
       observedAt,
     }));
@@ -1611,6 +1697,161 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     } finally {
       releaseChainLock(lock);
     }
+  };
+
+  const ownerContinuationEvidence = (member) => Object.freeze({
+    schemaVersion: 1,
+    profile: 'warpkeep-sealed-realms-ptr-owner-provision-inspection-v1',
+    sourceCommit,
+    chainDigest: member.chainDigest,
+    receiptDigest: member.receiptDigest,
+    inspectionDigest: member.inspectionDigest,
+    observedAt: member.observedAt,
+  });
+
+  const persistOwnerContinuationEvidence = (member) => {
+    const record = ownerContinuationEvidence(member);
+    const bytes = canonicalJsonBytes(
+      record,
+      8 * 1_024,
+      'SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_INSPECTION_INVALID',
+    );
+    const evidenceDigest = digest(bytes);
+    const relativePath = `bridge/owner-provision-evidence/ptr-owner-provision-inspection-${evidenceDigest}.json`;
+    try {
+      privateState.write({ root: 'runtime', relativePath, bytes });
+    } finally { bytes.fill(0); }
+    return Object.freeze({ record, evidenceDigest, relativePath });
+  };
+
+  const ownerContinuationBinding = (evidence) => Object.freeze({
+    subject: 'ptr-owner-provision:0.4.0',
+    evidenceDigest: evidence.evidenceDigest,
+    receiptDigests: Object.freeze([
+      evidence.record.receiptDigest,
+      evidence.record.inspectionDigest,
+    ]),
+    predecessorDigests: Object.freeze([evidence.record.chainDigest]),
+  });
+
+  const reopenOwnerContinuationEvidence = async () => {
+    const names = privateState.list({
+      root: 'runtime', relativeDirectory: 'bridge/owner-provision-evidence',
+    });
+    if (
+      names.length !== 1
+      || !/^ptr-owner-provision-inspection-[a-f0-9]{64}\.json$/u.test(names[0])
+    ) fail('SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONTINUATION_INVALID');
+    const evidenceDigest = names[0].slice(
+      'ptr-owner-provision-inspection-'.length,
+      -'.json'.length,
+    );
+    const relativePath = `bridge/owner-provision-evidence/${names[0]}`;
+    const bytes = privateState.read({ root: 'runtime', relativePath });
+    let record;
+    try {
+      if (digest(bytes) !== evidenceDigest) {
+        fail('SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONTINUATION_INVALID');
+      }
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      record = JSON.parse(text);
+      exactObject(record, [
+        'schemaVersion', 'profile', 'sourceCommit', 'chainDigest',
+        'receiptDigest', 'inspectionDigest', 'observedAt',
+      ], 'SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONTINUATION_INVALID');
+      if (
+        `${JSON.stringify(record)}\n` !== text
+        || record.schemaVersion !== 1
+        || record.profile !== 'warpkeep-sealed-realms-ptr-owner-provision-inspection-v1'
+        || record.sourceCommit !== sourceCommit
+      ) fail('SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONTINUATION_INVALID');
+      requiredDigest(record.chainDigest, 'SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONTINUATION_INVALID');
+      requiredDigest(record.receiptDigest, 'SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONTINUATION_INVALID');
+      requiredDigest(record.inspectionDigest, 'SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONTINUATION_INVALID');
+      strictUtc(record.observedAt, 'SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONTINUATION_INVALID');
+    } catch (error) {
+      if (error instanceof SealedRealmsProductionAuthBridgeStateError) throw error;
+      fail('SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONTINUATION_INVALID');
+    } finally { bytes.fill(0); }
+    const established = await establish();
+    if (established.chainDigest !== record.chainDigest || established.chain.phase !== 'complete') {
+      fail('SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONTINUATION_INVALID');
+    }
+    const imported = await authenticatedImportedReceipt(
+      'ptr',
+      established.chain,
+      'SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONTINUATION_INVALID',
+    );
+    if (imported.receiptDigest !== record.receiptDigest) {
+      fail('SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONTINUATION_INVALID');
+    }
+    return Object.freeze({
+      evidenceDigest,
+      record: Object.freeze(record),
+      member: Object.freeze({
+        relativePath: established.relativePath,
+        chainDigest: established.chainDigest,
+        receiptDigest: record.receiptDigest,
+        inspectionDigest: record.inspectionDigest,
+        claimKey: `${established.chainDigest}:${record.receiptDigest}`,
+        observedAt: record.observedAt,
+      }),
+    });
+  };
+
+  const inspectOwnerProvisionEvidenceForContinuation = async (input = {}) => {
+    if (privateState.list({
+      root: 'runtime', relativeDirectory: 'bridge/owner-provision-evidence',
+    }).length !== 0) {
+      fail('SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONTINUATION_ORPHANED');
+    }
+    const inspected = await inspectOwnerProvisionEvidence(input);
+    const member = ownerProvisionConfirmations.get(inspected.confirmation);
+    if (member === undefined) {
+      fail('SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONTINUATION_INVALID');
+    }
+    const evidence = persistOwnerContinuationEvidence(member);
+    ownerProvisionConfirmations.delete(inspected.confirmation);
+    ownerClaims.delete(member.claimKey);
+    return ownerContinuationBinding(evidence);
+  };
+
+  const reopenOwnerProvisionContinuation = async () => ownerContinuationBinding(
+    await reopenOwnerContinuationEvidence(),
+  );
+
+  const applyOwnerProvisionForContinuation = async ({ provision } = {}) => {
+    if (typeof provision !== 'function') {
+      fail('SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONFIRMATION_INVALID');
+    }
+    const evidence = await reopenOwnerContinuationEvidence();
+    const confirmation = Object.freeze({});
+    ownerClaims.set(evidence.member.claimKey, Object.freeze({ confirmation }));
+    ownerProvisionConfirmations.set(confirmation, evidence.member);
+    return applyOwnerProvision({ confirmation, provision });
+  };
+
+  /** Resolves crash ambiguity from the immutable owner receipt without provisioning. */
+  const reconcileOwnerProvisionContinuation = async () => {
+    const evidence = await reopenOwnerContinuationEvidence();
+    const chain = readChain(evidence.member.relativePath);
+    const imported = await authenticatedImportedReceipt(
+      'ptr',
+      chain,
+      'SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_RECOVERY_INVALID',
+    );
+    if (imported.receiptDigest !== evidence.record.receiptDigest) {
+      fail('SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_RECOVERY_INVALID');
+    }
+    const persisted = await authenticatedOwnerProvisionReceipt(
+      chain,
+      imported,
+      'SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_RECOVERY_INVALID',
+    );
+    return Object.freeze({
+      outcome: 'effect-applied',
+      observationDigest: persisted.provisionReceiptDigest,
+    });
   };
 
   const inspectLiveEvidence = async (input = {}) => {
@@ -1771,6 +2012,96 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     return Object.freeze({ confirmation });
   };
 
+  const activationContinuationBinding = (member) => Object.freeze({
+    subject: 'activation-evidence:0.4.0',
+    evidenceDigest: member.receiptDigest,
+    receiptDigests: Object.freeze([
+      member.deploymentDigest,
+      member.g002GateDigest,
+      member.g002CrossDigest,
+      member.ptrGateDigest,
+      member.ptrCrossDigest,
+    ]),
+    predecessorDigests: Object.freeze([member.chainDigest]),
+  });
+
+  const inspectActivationEvidenceForContinuation = async () => {
+    const inspected = await inspectActivationEvidence();
+    const member = activationConfirmations.get(inspected.confirmation);
+    if (member === undefined) {
+      fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
+    }
+    activationConfirmations.delete(inspected.confirmation);
+    return activationContinuationBinding(member);
+  };
+
+  const reopenActivationContinuationMember = async () => {
+    const names = privateState.list({
+      root: 'runtime', relativeDirectory: 'bridge/activation-evidence',
+    });
+    if (
+      names.length !== 1
+      || !/^auth-bridge-suspension-[a-f0-9]{64}\.json$/u.test(names[0])
+    ) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
+    const receiptDigest = names[0].slice('auth-bridge-suspension-'.length, -'.json'.length);
+    const receiptPath = `bridge/activation-evidence/${names[0]}`;
+    const bytes = privateState.read({ root: 'runtime', relativePath: receiptPath });
+    let receipt;
+    try {
+      if (
+        createHash('sha256').update(SUSPENSION_RECEIPT_PREFIX).update(bytes).digest('hex')
+          !== receiptDigest
+      ) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      receipt = JSON.parse(text);
+      if (`${JSON.stringify(receipt)}\n` !== text) {
+        fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
+      }
+    } catch (error) {
+      if (error instanceof SealedRealmsProductionAuthBridgeStateError) throw error;
+      fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
+    } finally { bytes.fill(0); }
+    const established = await establish();
+    const chain = established.chain;
+    if (
+      chain.phase !== 'complete' || chain.g002Final === null || chain.g002Cross === null
+      || chain.ptrFinal === null || chain.ptrCross === null
+    ) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
+    const member = Object.freeze({
+      sourceCommit,
+      relativePath: established.relativePath,
+      receiptDigest,
+      observedAt: receipt.activationGate?.observedAt,
+      chainDigest: established.chainDigest,
+      privateState,
+      now,
+      deploymentDigest: chain.deployment.digest,
+      g002GateDigest: chain.g002Final.digest,
+      g002CrossDigest: chain.g002Cross.digest,
+      ptrGateDigest: chain.ptrFinal.digest,
+      ptrCrossDigest: chain.ptrCross.digest,
+      memberCommitment: receipt.activationGate?.confirmationDigest,
+      reauthenticate: async (reopenedChain) => {
+        const reopenedFacts = await resolveFacts();
+        assertFactsMatchAuthority(reopenedFacts, reopenedChain);
+        return reopenedFacts;
+      },
+    });
+    validateActivationReceipt(receipt, member);
+    return member;
+  };
+
+  const reopenActivationEvidenceContinuation = async () => activationContinuationBinding(
+    await reopenActivationContinuationMember(),
+  );
+
+  const consumeActivationEvidenceForContinuation = async ({ generator } = {}) => {
+    const member = await reopenActivationContinuationMember();
+    const confirmation = Object.freeze({});
+    activationConfirmations.set(confirmation, member);
+    return consumeSealedRealmsProductionActivationEvidenceForGenerator({ confirmation, generator });
+  };
+
   const state = Object.freeze({
     establish: async () => {
       await establish();
@@ -1779,10 +2110,21 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     inspect,
     inspectGate,
     applyGate,
+    inspectGateForContinuation,
+    reopenGateContinuation,
+    applyGateForContinuation,
+    reconcileGateContinuation,
     inspectOwnerProvisionEvidence,
     applyOwnerProvision,
+    inspectOwnerProvisionEvidenceForContinuation,
+    reopenOwnerProvisionContinuation,
+    applyOwnerProvisionForContinuation,
+    reconcileOwnerProvisionContinuation,
     inspectLiveEvidence,
     inspectActivationEvidence,
+    inspectActivationEvidenceForContinuation,
+    reopenActivationEvidenceContinuation,
+    consumeActivationEvidenceForContinuation,
   });
   bridgeStates.add(state);
   bridgeStateSources.set(state, sourceCommit);

@@ -10,6 +10,13 @@ export type SealedRealmsPublicationConfirmation = Readonly<{
   readonly [sealedRealmsPublicationConfirmation]: true;
 }>;
 
+export type SealedRealmsProductionContinuationEvidenceBinding = Readonly<{
+  subject: string;
+  evidenceDigest: string;
+  receiptDigests: readonly string[];
+  predecessorDigests: readonly string[];
+}>;
+
 export function createSealedRealmsProductionPublicationReconciler(input: Readonly<{
   privateState: SealedRealmsProductionPrivateState;
   lane: 'g002' | 'ptr';
@@ -45,6 +52,19 @@ export function createSealedRealmsProductionPublicationReconciler(input: Readonl
     confirmation: SealedRealmsPublicationConfirmation;
   }>) => Promise<Readonly<{
     status: 'reconciled';
+  }>>;
+  inspectForContinuation: (input: Readonly<{
+    marker: Readonly<Record<string, unknown>>;
+  }>) => Promise<SealedRealmsProductionContinuationEvidenceBinding>;
+  reopenContinuation: () => SealedRealmsProductionContinuationEvidenceBinding;
+  consumeContinuationEntry: (input: Readonly<{
+    publish: (input: Readonly<{
+      marker: Readonly<Record<string, unknown>>;
+    }>) => unknown | Promise<unknown>;
+  }>) => Promise<Readonly<{ status: 'submitted' }>>;
+  reconcileContinuation: () => Promise<Readonly<{
+    outcome: 'effect-applied' | 'no-effect';
+    observationDigest: string;
   }>>;
 }>;
 
