@@ -10,25 +10,22 @@ import {
 
 const MIN_SECRET_BYTES = 32;
 const MAX_SECRET_BYTES = 512;
+const MAX_TOKEN_RESPONSE_BYTES = 32 * 1_024;
+const MAX_TOKEN_BYTES = 16 * 1_024;
+const TOKEN_REQUEST_TIMEOUT_MILLISECONDS = 8_000;
 const OPERATION_TIMEOUT_MILLISECONDS = 15_000;
+const MAX_FUTURE_SKEW_MICROS = 1_000_000n;
+const MICROS_PER_MILLISECOND = 1_000n;
+const MICROS_PER_SECOND = 1_000_000n;
 const STATUS_PROCEDURE = 'adminGetGreaterRealmStatusV1';
 const REALM_STATUS_PROCEDURE = 'getRealmStatusV1';
+export const GENESIS_002_ADMIN_TOKEN_PATH =
+  '/v1/admin/genesis-002-token' as const;
 
 type RequestAdminToken = (
   bridge: string,
   secret: string,
 ) => Promise<string>;
-
-async function requestGenesis002AdminToken(
-  bridge: string,
-  secret: string,
-): Promise<string> {
-  // Keep the large legacy Hermes mutation surface out of the G002 module load.
-  // The default live path still delegates token issuance and its persistent
-  // attempt budget to the existing production-reviewed implementation.
-  const hermes = await import('./hermes-admin');
-  return hermes.requestAdminToken(bridge, secret);
-}
 
 function withGenesis002OperationTimeout<T>(operation: Promise<T>): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -53,20 +50,242 @@ function fail(code: string): never {
   throw new Genesis002ProductionTransportError(code);
 }
 
+function validGenesis002AdminSecret(secret: unknown): secret is string {
+  const length = typeof secret === 'string'
+    ? Buffer.byteLength(secret, 'utf8')
+    : 0;
+  return typeof secret === 'string'
+    && length >= MIN_SECRET_BYTES
+    && length <= MAX_SECRET_BYTES
+    && !/[\u0000-\u0020\u007f]/u.test(secret);
+}
+
+async function readGenesis002TokenResponse(response: Response): Promise<string> {
+  if (response.body === null) {
+    fail('GENESIS_002_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let bytes: Uint8Array | undefined;
+  let total = 0;
+  try {
+    const contentLength = response.headers.get('content-length');
+    if (
+      contentLength !== null
+      && (!/^(?:0|[1-9][0-9]{0,9})$/u.test(contentLength)
+        || Number(contentLength) > MAX_TOKEN_RESPONSE_BYTES)
+    ) fail('GENESIS_002_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!(value instanceof Uint8Array)) {
+        fail('GENESIS_002_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
+      }
+      chunks.push(value);
+      total += value.byteLength;
+      if (total > MAX_TOKEN_RESPONSE_BYTES) {
+        fail('GENESIS_002_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
+      }
+    }
+    bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return fail('GENESIS_002_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
+  } finally {
+    bytes?.fill(0);
+    for (const chunk of chunks) chunk.fill(0);
+    try { await reader.cancel(); } catch { /* Cleanup must not reveal cause. */ }
+  }
+}
+
+function exactGenesis002TokenResponse(
+  value: unknown,
+  currentTimeMilliseconds: number,
+): string {
+  const responseKeys = ['token', 'tokenType', 'expiresIn'];
+  if (
+    value === null
+    || typeof value !== 'object'
+    || Array.isArray(value)
+    || Object.getPrototypeOf(value) !== Object.prototype
+    || Reflect.ownKeys(value).length !== responseKeys.length
+    || Reflect.ownKeys(value).some(key => (
+      typeof key !== 'string' || !responseKeys.includes(key)
+    ))
+  ) fail('GENESIS_002_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
+  const record = value as Readonly<Record<string, unknown>>;
+  if (
+    typeof record.token !== 'string'
+    || Buffer.byteLength(record.token, 'utf8') > MAX_TOKEN_BYTES
+    || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u.test(record.token)
+    || record.tokenType !== 'spacetime-access'
+    || record.expiresIn !== 300
+  ) fail('GENESIS_002_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
+  const payloadSegment = record.token.split('.')[1];
+  let payloadBytes: Buffer | undefined;
+  let payload: unknown;
+  try {
+    payloadBytes = Buffer.from(payloadSegment, 'base64url');
+    payload = JSON.parse(
+      new TextDecoder('utf-8', { fatal: true }).decode(payloadBytes),
+    );
+  } catch {
+    return fail('GENESIS_002_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
+  } finally {
+    payloadBytes?.fill(0);
+  }
+  if (
+    payload === null
+    || typeof payload !== 'object'
+    || Array.isArray(payload)
+    || Object.getPrototypeOf(payload) !== Object.prototype
+  ) fail('GENESIS_002_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
+  const claims = payload as Readonly<Record<string, unknown>>;
+  const claimKeys = Reflect.ownKeys(claims);
+  const exactKeys = [
+    'iss', 'sub', 'aud', 'token_type', 'roles', 'iat', 'nbf', 'exp', 'jti',
+  ];
+  if (
+    claimKeys.length !== exactKeys.length
+    || claimKeys.some(key => typeof key !== 'string' || !exactKeys.includes(key))
+    || claims.iss !== 'https://auth.warpkeep.com'
+    || claims.sub !== 'service:hermes'
+    || !Array.isArray(claims.aud)
+    || claims.aud.length !== 1
+    || claims.aud[0] !== 'warpkeep-genesis-002-spacetimedb'
+    || claims.token_type !== 'spacetime-access'
+    || !Array.isArray(claims.roles)
+    || claims.roles.length !== 1
+    || claims.roles[0] !== 'warpkeep-admin'
+    || typeof claims.iat !== 'number'
+    || !Number.isSafeInteger(claims.iat)
+    || claims.iat < 0
+    || typeof claims.nbf !== 'number'
+    || !Number.isSafeInteger(claims.nbf)
+    || claims.nbf !== claims.iat
+    || typeof claims.exp !== 'number'
+    || !Number.isSafeInteger(claims.exp)
+    || claims.exp - claims.iat !== 300
+    || typeof claims.jti !== 'string'
+    || !/^[A-Za-z0-9_-]{1,128}$/u.test(claims.jti)
+  ) fail('GENESIS_002_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
+  const currentTimeMicros = BigInt(currentTimeMilliseconds)
+    * MICROS_PER_MILLISECOND;
+  if (
+    currentTimeMicros + MAX_FUTURE_SKEW_MICROS
+      < BigInt(claims.iat) * MICROS_PER_SECOND
+    || currentTimeMicros + MAX_FUTURE_SKEW_MICROS
+      < BigInt(claims.nbf) * MICROS_PER_SECOND
+    || currentTimeMicros >= BigInt(claims.exp) * MICROS_PER_SECOND
+  ) fail('GENESIS_002_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
+  return record.token;
+}
+
+/** Request only the realm-scoped G002 token; no generic-admin fallback exists. */
+export async function requestGenesis002AdminToken(
+  bridge: string,
+  secret: string,
+  options: Readonly<{
+    fetchImpl?: typeof fetch;
+    timeoutMilliseconds?: number;
+    nowMilliseconds?: () => number;
+  }> = {},
+): Promise<string> {
+  if (!validGenesis002AdminSecret(secret)) {
+    fail('GENESIS_002_PRODUCTION_ADMIN_SECRET_INVALID');
+  }
+  let bridgeUrl: URL;
+  try {
+    bridgeUrl = new URL(bridge);
+  } catch {
+    return fail('GENESIS_002_PRODUCTION_ADMIN_TOKEN_REQUEST_INVALID');
+  }
+  if (
+    bridgeUrl.protocol !== 'https:'
+    || bridgeUrl.username !== ''
+    || bridgeUrl.password !== ''
+    || bridgeUrl.pathname !== '/'
+    || bridgeUrl.search !== ''
+    || bridgeUrl.hash !== ''
+    || bridge !== bridgeUrl.origin
+  ) fail('GENESIS_002_PRODUCTION_ADMIN_TOKEN_REQUEST_INVALID');
+  const timeoutMilliseconds = options.timeoutMilliseconds
+    ?? TOKEN_REQUEST_TIMEOUT_MILLISECONDS;
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const nowMilliseconds = options.nowMilliseconds ?? Date.now;
+  if (
+    !Number.isSafeInteger(timeoutMilliseconds)
+    || timeoutMilliseconds < 1
+    || timeoutMilliseconds > TOKEN_REQUEST_TIMEOUT_MILLISECONDS
+    || typeof fetchImpl !== 'function'
+    || typeof nowMilliseconds !== 'function'
+  ) fail('GENESIS_002_PRODUCTION_ADMIN_TOKEN_REQUEST_INVALID');
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMilliseconds);
+  const headers = new Headers({
+    accept: 'application/json',
+    authorization: `Bearer ${secret}`,
+  });
+  try {
+    const response = await fetchImpl(`${bridge}${GENESIS_002_ADMIN_TOKEN_PATH}`, {
+      method: 'POST',
+      headers,
+      cache: 'no-store',
+      credentials: 'omit',
+      redirect: 'error',
+      referrerPolicy: 'no-referrer',
+      signal: controller.signal,
+    });
+    if (
+      response.status !== 200
+      || response.redirected
+      || response.headers.get('cache-control') !== 'no-store'
+      || !/^application\/json(?:;|$)/iu.test(
+        response.headers.get('content-type') ?? '',
+      )
+    ) fail('GENESIS_002_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
+    const source = await readGenesis002TokenResponse(response);
+    let currentTimeMilliseconds: number;
+    try {
+      currentTimeMilliseconds = nowMilliseconds();
+    } catch {
+      return fail('GENESIS_002_PRODUCTION_ADMIN_TOKEN_REQUEST_INVALID');
+    }
+    if (
+      !Number.isSafeInteger(currentTimeMilliseconds)
+      || currentTimeMilliseconds < 0
+    ) fail('GENESIS_002_PRODUCTION_ADMIN_TOKEN_REQUEST_INVALID');
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(source);
+    } catch {
+      return fail('GENESIS_002_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
+    }
+    return exactGenesis002TokenResponse(parsed, currentTimeMilliseconds);
+  } catch (error) {
+    if (error instanceof Genesis002ProductionTransportError) throw error;
+    return fail('GENESIS_002_PRODUCTION_ADMIN_TOKEN_UNAVAILABLE');
+  } finally {
+    headers.delete('authorization');
+    secret = '';
+    clearTimeout(timer);
+  }
+}
+
 export function takeGenesis002ProductionAdminSecret(
   environment: NodeJS.ProcessEnv,
 ): string {
   const secret = environment.WARPKEEP_ADMIN_TOKEN_SECRET;
   delete environment.WARPKEEP_ADMIN_TOKEN_SECRET;
-  const length = typeof secret === 'string'
-    ? new TextEncoder().encode(secret).byteLength
-    : 0;
-  if (
-    typeof secret !== 'string'
-    || length < MIN_SECRET_BYTES
-    || length > MAX_SECRET_BYTES
-    || /[\u0000-\u0020\u007f]/u.test(secret)
-  ) fail('GENESIS_002_PRODUCTION_ADMIN_SECRET_INVALID');
+  if (!validGenesis002AdminSecret(secret)) {
+    fail('GENESIS_002_PRODUCTION_ADMIN_SECRET_INVALID');
+  }
   return secret;
 }
 

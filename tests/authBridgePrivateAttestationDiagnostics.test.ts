@@ -12,6 +12,7 @@ import {
 
 const ADMIN_TOKEN = 'owner-private-test-admin-token-value'
 const SOURCE_COMMIT = 'c'.repeat(40)
+const PTR_DATABASE = '9'.repeat(64)
 const NOW = new Date('2026-08-21T00:00:00.000Z')
 
 describe('private bridge PRE-attestation diagnostics', () => {
@@ -45,6 +46,7 @@ describe('private bridge PRE-attestation diagnostics', () => {
       expectedBridgeSourceCommit: SOURCE_COMMIT,
       expectedPredecessorBridgeSourceCommit:
         AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
       fetchImpl: vi.fn(async () => new Response(null, { status: 429 })) as typeof fetch,
       clock: () => NOW,
       repositoryRoot: process.cwd(),

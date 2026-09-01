@@ -22,6 +22,12 @@ SESSION_COOKIE_KEY=replace-me-separately
 # Optional owner-only production player canary gate. Never put a real FID in
 # this checked-in example or in wrangler.toml; production uses a managed secret.
 # PLAYER_CANARY_OWNER_FID=<canonical-decimal-fid>
+# Owner-only Public Test Realm. Its exact 64-hex database identity must differ
+# from gameplay and QA. Keep disabled until both values and the owner secret are
+# configured; the audience value is intentionally fixed by the bridge contract.
+PTR_ENABLED=false
+# PTR_SPACETIMEDB_DATABASE=<immutable-64-hex-database-identity>
+# PTR_OIDC_AUDIENCE=warpkeep-ptr-spacetimedb
 # Independent fail-closed QA observer gate. Enabling additionally requires one
 # complete dedicated SpacetimeDB URI/database/audience tuple and one exact public
 # P-256 JWK plus canonical RFC 3339 registration and expiry times. The dedicated

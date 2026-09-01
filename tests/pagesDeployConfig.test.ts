@@ -59,7 +59,7 @@ function releaseAttestation(overrides: Record<string, unknown> = {}) {
     schemaVersion: 1 as const,
     profile: 'warpkeep-admission-notification-bridge-v1' as const,
     bridgeSourceCommit: PREPARED_BRIDGE_SOURCE_COMMIT,
-    notificationDeliveryEnabled: true as const,
+    notificationDeliveryEnabled: false as const,
     notificationTransportConfigured: true as const,
     admissionNotificationStoreConfigured: true as const,
     notificationClientCount: 1 as const,
@@ -580,6 +580,15 @@ describe('Pages deployment configuration validation', () => {
     await expect(verifyGreaterRealmReleaseGateEnvelope(pagesEnvelope, {
       fetchImpl: vi.fn(async () => releaseResponse({
         body: releaseAttestation({ bridgeSourceCommit: 'd'.repeat(40) }),
+      })) as typeof fetch,
+      now: NOW,
+    }, preparedGateDependencies())).rejects.toThrow(
+      'GREATER_REALM_NOTIFICATION_PREPARED_LIVE_ATTESTATION_MISMATCH',
+    );
+
+    await expect(verifyGreaterRealmReleaseGateEnvelope(pagesEnvelope, {
+      fetchImpl: vi.fn(async () => releaseResponse({
+        body: releaseAttestation({ notificationDeliveryEnabled: true }),
       })) as typeof fetch,
       now: NOW,
     }, preparedGateDependencies())).rejects.toThrow(

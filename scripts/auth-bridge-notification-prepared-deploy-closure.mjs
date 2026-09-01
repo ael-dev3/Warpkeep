@@ -8,6 +8,7 @@ import {
   readSync,
   realpathSync,
 } from 'node:fs';
+import { registerHooks } from 'node:module';
 import {
   dirname,
   isAbsolute,
@@ -22,11 +23,33 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_PROFILE =
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH =
   'scripts/auth-bridge-notification-prepared-deploy-closure-v1.json';
 
-const MEMBER_PATH = /^(?:docs\/operations\/greater-realm-production-launch-envelope\.sh\.txt|(?:owner-canary\/)?index\.html|package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|vite\.config\.ts|spacetimedb\/(?:package\.json|pnpm-(?:lock|workspace)\.yaml|(?:src|genesis002)\/[A-Za-z0-9._/-]+)|(?:\.github\/workflows|config\/releases|scripts|services\/auth-bridge|src)\/[A-Za-z0-9._/-]+)$/u;
+const MEMBER_PATH = /^(?:docs\/operations\/(?:genesis-001-policy-observation-launch-envelope|greater-realm-production-launch-envelope)\.sh\.txt|(?:owner-canary\/)?index\.html|package(?:-lock)?\.json|public\/\.well-known\/farcaster\.json|vite\.config\.ts|spacetimedb\/(?:package\.json|pnpm-(?:lock|workspace)\.yaml|(?:src|genesis002|ptr\/generated-bindings)\/[A-Za-z0-9._/-]+)|(?:\.github\/workflows|config\/releases|scripts|services\/auth-bridge|src)\/[A-Za-z0-9._/-]+)$/u;
+// This is the exact generated client/operator ABI reached from shipped roots.
+// PTR module source, private table bindings, build output, and config stay out.
+const PTR_GENERATED_BINDING_MEMBER_PATHS = new Set([
+  'spacetimedb/ptr/generated-bindings/admin_begin_greater_realm_verification_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_finalize_greater_realm_release_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_get_greater_realm_status_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/admin_import_greater_realm_chunk_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_import_greater_realm_components_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_import_greater_realm_regions_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_provision_ptr_owner_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_stage_greater_realm_release_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_suspend_ptr_owner_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/admin_verify_greater_realm_batch_v_1_reducer.ts',
+  'spacetimedb/ptr/generated-bindings/get_ptr_owner_status_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_realm_atlas_bootstrap_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_realm_atlas_chunk_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_realm_atlas_resource_locations_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/get_realm_atlas_window_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/index.ts',
+  'spacetimedb/ptr/generated-bindings/plan_realm_route_v_1_procedure.ts',
+  'spacetimedb/ptr/generated-bindings/types.ts',
+]);
 const SHA256_HEX = /^[a-f0-9]{64}$/u;
 const MAX_MANIFEST_BYTES = 256 * 1_024;
 const MAX_MEMBER_BYTES = 4 * 1_024 * 1_024;
-const MAX_MEMBERS = 956;
+const MAX_MEMBERS = 997;
 const MANIFEST_KEYS = Object.freeze(['schemaVersion', 'profile', 'members']);
 const MEMBER_KEYS = Object.freeze(['path', 'digestProfile', 'sha256']);
 const RAW_FILE_DIGEST_PROFILE = 'raw-file-sha256-v1';
@@ -37,6 +60,9 @@ const REVIEWED_RELEASE_TRANSITION_DIGEST_PROFILE =
 const REVIEWED_RELEASE_TRANSITION_PLUS_BOOTSTRAP_PIN_DIGEST_PROFILE =
   'reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1';
 const authenticatedSourceClosureAuthorities = new WeakSet();
+const authenticatedSourceClosureRawMemberDigests = new WeakMap();
+let activeAttestedModuleLoad;
+let attestedModuleLoadHookRegistered = false;
 const BOOTSTRAP_PIN_CANONICAL_VALUE = '0'.repeat(64);
 const BOOTSTRAP_PIN_BINDINGS = Object.freeze([
   Object.freeze({
@@ -153,6 +179,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     '.github/workflows/notification-bridge-prepared.yml',
     '.github/workflows/verify.yml',
     'config/releases/0.4.0-sealed-launch.json',
+    'docs/operations/genesis-001-policy-observation-launch-envelope.sh.txt',
     'docs/operations/greater-realm-production-launch-envelope.sh.txt',
     'index.html',
     'owner-canary/index.html',
@@ -234,6 +261,8 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/founder-admission-authority.ts',
     'scripts/generate-0.4.0-sealed-launch-activation.d.mts',
     'scripts/generate-0.4.0-sealed-launch-activation.mjs',
+    'scripts/genesis001-admission-monitor-current-state.d.mts',
+    'scripts/genesis001-admission-monitor-current-state.mjs',
     'scripts/genesis001-admission-monitor-suspension.ts',
     'scripts/genesis001-census-privacy-safe-receipt.d.mts',
     'scripts/genesis001-census-privacy-safe-receipt.mjs',
@@ -242,6 +271,10 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/genesis001-frozen-publisher-core.ts',
     'scripts/genesis001-frozen-publisher-runtime.ts',
     'scripts/genesis001-frozen-publisher.ts',
+    'scripts/genesis001-policy-observation-receipt.d.mts',
+    'scripts/genesis001-policy-observation-receipt.mjs',
+    'scripts/genesis001-sealed-launch-adoption.d.mts',
+    'scripts/genesis001-sealed-launch-adoption.mjs',
     'scripts/genesis002-activation-receipts.d.mts',
     'scripts/genesis002-activation-receipts.mjs',
     'scripts/genesis002-private-loopback-verifier.ts',
@@ -392,6 +425,15 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'scripts/profiles/profile-plan-artifact.ts',
     'scripts/profiles/profile-transport.ts',
     'scripts/profiles/profiles-operator.ts',
+    'scripts/ptr-production-admin-token.ts',
+    'scripts/ptr-production-import-core.ts',
+    'scripts/ptr-production-import-operator.ts',
+    'scripts/ptr-production-publisher-cli.ts',
+    'scripts/ptr-production-publisher.d.mts',
+    'scripts/ptr-production-publisher.mjs',
+    'scripts/ptr-production-receipt-file.ts',
+    'scripts/ptr-production-release-receipts.ts',
+    'scripts/ptr-production-transport.ts',
     'scripts/publish-spacetime-dev.d.mts',
     'scripts/publish-spacetime-dev.mjs',
     'scripts/qa-observer/local-fullstack-spacetime.d.mts',
@@ -457,6 +499,7 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'services/auth-bridge/test/challengeStore.test.ts',
     'services/auth-bridge/test/farcaster.test.ts',
     'services/auth-bridge/test/miniAppWebhook.test.ts',
+    'services/auth-bridge/test/ptrOwnerExchange.test.ts',
     'services/auth-bridge/test/qaObserver.test.ts',
     'services/auth-bridge/test/rateLimit.test.ts',
     'services/auth-bridge/test/sessionFamily.test.ts',
@@ -481,6 +524,24 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'spacetimedb/package.json',
     'spacetimedb/pnpm-lock.yaml',
     'spacetimedb/pnpm-workspace.yaml',
+    'spacetimedb/ptr/generated-bindings/admin_begin_greater_realm_verification_v_1_reducer.ts',
+    'spacetimedb/ptr/generated-bindings/admin_finalize_greater_realm_release_v_1_reducer.ts',
+    'spacetimedb/ptr/generated-bindings/admin_get_greater_realm_status_v_1_procedure.ts',
+    'spacetimedb/ptr/generated-bindings/admin_import_greater_realm_chunk_v_1_reducer.ts',
+    'spacetimedb/ptr/generated-bindings/admin_import_greater_realm_components_v_1_reducer.ts',
+    'spacetimedb/ptr/generated-bindings/admin_import_greater_realm_regions_v_1_reducer.ts',
+    'spacetimedb/ptr/generated-bindings/admin_provision_ptr_owner_v_1_reducer.ts',
+    'spacetimedb/ptr/generated-bindings/admin_stage_greater_realm_release_v_1_reducer.ts',
+    'spacetimedb/ptr/generated-bindings/admin_suspend_ptr_owner_v_1_reducer.ts',
+    'spacetimedb/ptr/generated-bindings/admin_verify_greater_realm_batch_v_1_reducer.ts',
+    'spacetimedb/ptr/generated-bindings/get_ptr_owner_status_v_1_procedure.ts',
+    'spacetimedb/ptr/generated-bindings/get_realm_atlas_bootstrap_v_1_procedure.ts',
+    'spacetimedb/ptr/generated-bindings/get_realm_atlas_chunk_v_1_procedure.ts',
+    'spacetimedb/ptr/generated-bindings/get_realm_atlas_resource_locations_v_1_procedure.ts',
+    'spacetimedb/ptr/generated-bindings/get_realm_atlas_window_v_1_procedure.ts',
+    'spacetimedb/ptr/generated-bindings/index.ts',
+    'spacetimedb/ptr/generated-bindings/plan_realm_route_v_1_procedure.ts',
+    'spacetimedb/ptr/generated-bindings/types.ts',
     'spacetimedb/src/accessRequestPolicy.ts',
     'spacetimedb/src/adminPolicy.ts',
     'spacetimedb/src/admissionPolicy.ts',
@@ -899,6 +960,12 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS =
     'src/owner-canary/ownerCanaryProductionRuntime.ts',
     'src/owner-canary/ownerCanaryRuntime.ts',
     'src/owner-canary/ownerCanaryRuntimePlan.ts',
+    'src/ptr/PtrRealmProvider.tsx',
+    'src/ptr/ptrGreaterRealmBridge.ts',
+    'src/ptr/ptrRealmAuthClient.ts',
+    'src/ptr/ptrRealmConfig.ts',
+    'src/ptr/ptrRealmConnection.ts',
+    'src/ptr/ptrRealmPresentationPolicy.ts',
     'src/release/admissionLaunchPolicy.ts',
     'src/release/realmReleaseIdentity.ts',
     'src/security/publicImageUrl.ts',
@@ -1152,6 +1219,8 @@ function canonicalMemberPath(repository, memberPath, code) {
   if (
     typeof memberPath !== 'string'
     || !MEMBER_PATH.test(memberPath)
+    || (memberPath.startsWith('spacetimedb/ptr/')
+      && !PTR_GENERATED_BINDING_MEMBER_PATHS.has(memberPath))
     || memberPath.includes('//')
     || memberPath.split('/').some(part => part === '.' || part === '..')
   ) fail(code);
@@ -1292,6 +1361,69 @@ function sha256Body(body) {
   return createHash('sha256').update(body).digest('hex');
 }
 
+function moduleSourceBody(source) {
+  if (typeof source === 'string') return Buffer.from(source, 'utf8');
+  if (source instanceof ArrayBuffer) {
+    return Buffer.from(new Uint8Array(source));
+  }
+  if (ArrayBuffer.isView(source)) {
+    return Buffer.from(new Uint8Array(
+      source.buffer,
+      source.byteOffset,
+      source.byteLength,
+    ));
+  }
+  fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_SOURCE_INVALID');
+}
+
+function ensureAttestedModuleLoadHook() {
+  if (attestedModuleLoadHookRegistered) return;
+  registerHooks({
+    load(url, context, nextLoad) {
+      const result = nextLoad(url, context);
+      const active = activeAttestedModuleLoad;
+      if (active === undefined) return result;
+      if (url.startsWith('node:')) return result;
+      let moduleUrl;
+      let memberPath;
+      try {
+        moduleUrl = new URL(url);
+        if (
+          moduleUrl.protocol !== 'file:'
+          || moduleUrl.search !== ''
+          || moduleUrl.hash !== ''
+        ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_PATH_INVALID');
+        const modulePath = fileURLToPath(moduleUrl);
+        const difference = relative(active.repositoryRoot, modulePath);
+        if (
+          difference === ''
+          || difference === '..'
+          || difference.startsWith(`..${sep}`)
+          || isAbsolute(difference)
+        ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_PATH_INVALID');
+        memberPath = difference.split(sep).join('/');
+      } catch (error) {
+        if (error instanceof AuthBridgeNotificationPreparedDeployClosureError) {
+          throw error;
+        }
+        fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_PATH_INVALID');
+      }
+      const expectedDigest = active.rawMemberDigests.get(memberPath);
+      if (expectedDigest === undefined || result.format !== 'module') {
+        fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_UNATTESTED');
+      }
+      const body = moduleSourceBody(result.source);
+      if (sha256Body(body) !== expectedDigest) {
+        body.fill(0);
+        fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_DIGEST_MISMATCH');
+      }
+      active.observedMemberPaths.add(memberPath);
+      return { ...result, source: body };
+    },
+  });
+  attestedModuleLoadHookRegistered = true;
+}
+
 function reviewedReleaseSource(body) {
   try {
     const source = new TextDecoder('utf-8', { fatal: true }).decode(body);
@@ -1355,17 +1487,21 @@ function projectSealedLaunchBinding(body) {
     || value.profile !== 'warpkeep-0.4.0-sealed-launch-v1'
     || typeof value.pagesDeploymentApproved !== 'boolean'
     || value.g002PresentationEnabled !== false
+    || typeof value.ptrPresentationEnabled !== 'boolean'
     || value.legacyGreaterRealmClientPresentationEnabled !== false
     || value.legacyGreaterRealmServerPresentationEnabled !== false
     || value.admissionNotificationsEnabled !== false
   ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID');
   const keys = Object.keys(value);
   const firstOperational = keys.indexOf('preparationSourceCommit');
-  const lastOperational = keys.indexOf('g002AdmissionMutationsEnabled');
+  const lastOperational = keys.indexOf('ptrAccessRequestSurfacePresent');
   if (
     firstOperational !== 3
     || lastOperational <= firstOperational
     || keys[lastOperational + 1] !== 'g002PresentationEnabled'
+    || keys[lastOperational + 2] !== 'ptrPresentationEnabled'
+    || keys.at(-5) !== 'g002PresentationEnabled'
+    || keys.at(-4) !== 'ptrPresentationEnabled'
     || keys.at(-3) !== 'legacyGreaterRealmClientPresentationEnabled'
     || keys.at(-2) !== 'legacyGreaterRealmServerPresentationEnabled'
     || keys.at(-1) !== 'admissionNotificationsEnabled'
@@ -1373,9 +1509,12 @@ function projectSealedLaunchBinding(body) {
   const operationalKeys = keys.slice(firstOperational, lastOperational + 1);
   const nulls = operationalKeys.filter(key => value[key] === null).length;
   const state = value.pagesDeploymentApproved === false
+    && value.ptrPresentationEnabled === false
     && nulls === operationalKeys.length
     ? 'N'
-    : value.pagesDeploymentApproved === true && nulls === 0
+    : value.pagesDeploymentApproved === true
+      && value.ptrPresentationEnabled === true
+      && nulls === 0
       ? 'P'
       : undefined;
   if (state === undefined) {
@@ -1383,6 +1522,7 @@ function projectSealedLaunchBinding(body) {
   }
   const canonical = { ...value, pagesDeploymentApproved: false };
   for (const key of operationalKeys) canonical[key] = null;
+  canonical.ptrPresentationEnabled = false;
   return Object.freeze({
     body: Buffer.from(`${JSON.stringify(canonical, null, 2)}\n`, 'utf8'),
     state,
@@ -1807,6 +1947,11 @@ export function verifyAuthBridgeNotificationPreparedDeployClosure({
     ownerUid: process.getuid(),
   });
   authenticatedSourceClosureAuthorities.add(authority);
+  authenticatedSourceClosureRawMemberDigests.set(authority, new Map(
+    manifest.members
+      .filter(member => member.digestProfile === RAW_FILE_DIGEST_PROFILE)
+      .map(member => [member.path, member.sha256]),
+  ));
   return authority;
 }
 
@@ -1820,6 +1965,54 @@ export function assertAuthBridgeNotificationPreparedDeployClosureAuthority(
     || authority.ownerUid !== process.getuid()
   ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_AUTHORITY_INVALID');
   return authority;
+}
+
+export async function importAuthBridgeNotificationPreparedAttestedModules({
+  authority,
+  repositoryRoot,
+  memberPaths,
+} = {}) {
+  const authenticated = assertAuthBridgeNotificationPreparedDeployClosureAuthority(
+    authority,
+    { repositoryRoot },
+  );
+  const rawMemberDigests =
+    authenticatedSourceClosureRawMemberDigests.get(authenticated);
+  if (
+    rawMemberDigests === undefined
+    || !Array.isArray(memberPaths)
+    || memberPaths.length < 1
+    || memberPaths.length > 16
+    || memberPaths.some(memberPath => (
+      typeof memberPath !== 'string'
+      || !rawMemberDigests.has(memberPath)
+    ))
+    || new Set(memberPaths).size !== memberPaths.length
+  ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_SET_INVALID');
+  ensureAttestedModuleLoadHook();
+  if (activeAttestedModuleLoad !== undefined) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_LOAD_BUSY');
+  }
+  const observedMemberPaths = new Set();
+  activeAttestedModuleLoad = {
+    repositoryRoot: authenticated.repositoryRoot,
+    rawMemberDigests,
+    observedMemberPaths,
+  };
+  try {
+    const modules = [];
+    for (const memberPath of memberPaths) {
+      modules.push(await import(
+        pathToFileURL(resolve(authenticated.repositoryRoot, memberPath)).href
+      ));
+    }
+    if (memberPaths.some(memberPath => !observedMemberPaths.has(memberPath))) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MODULE_NOT_LOADED');
+    }
+    return Object.freeze(modules);
+  } finally {
+    activeAttestedModuleLoad = undefined;
+  }
 }
 
 export const authBridgeNotificationPreparedDeployClosureTestSeams =

@@ -311,7 +311,7 @@ function setSealedLaunchBinding(root: string, active: boolean): void {
   const value = JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
   const keys = Object.keys(value);
   const firstOperational = keys.indexOf('preparationSourceCommit');
-  const lastOperational = keys.indexOf('g002AdmissionMutationsEnabled');
+  const lastOperational = keys.indexOf('ptrAccessRequestSurfacePresent');
   if (firstOperational !== 3 || lastOperational <= firstOperational) {
     throw new Error('fixture sealed launch binding was invalid');
   }
@@ -319,6 +319,7 @@ function setSealedLaunchBinding(root: string, active: boolean): void {
   for (const key of keys.slice(firstOperational, lastOperational + 1)) {
     value[key] = active ? 'reviewed-fixture-value' : null;
   }
+  value.ptrPresentationEnabled = active;
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 }
 
@@ -451,7 +452,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
     for (let phase = 0; phase <= 7; phase += 1) {
       const root = createTransitionFixture(phase);
       const authority = verify(root);
-      expect(authority.memberCount).toBe(956);
+      expect(authority.memberCount).toBe(997);
       manifestDigests.add(authority.manifestSha256);
       for (const relativePath of REVIEWED_RELEASE_TRANSITION_PATHS) {
         const source = readFileSync(resolve(root, relativePath), 'utf8');
@@ -467,7 +468,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
   it('retains one closure authority through every exact reviewed phase', () => {
     const root = createTransitionFixture();
     const baseline = verify(root);
-    expect(baseline.memberCount).toBe(956);
+    expect(baseline.memberCount).toBe(997);
     const expectActiveIdentityRejectedBeforeActivation = (): void => {
       setLauncherReleaseIdentity(root, true);
       expect(() => verify(root)).toThrow(
@@ -740,7 +741,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
       replaceFile(root, relativePath, after, before);
     };
 
-    expect(verify(root).memberCount).toBe(956);
+    expect(verify(root).memberCount).toBe(997);
     expectIdentityMutationRejected(
       'package.json',
       '  "version": "0.4.0",',
@@ -768,6 +769,12 @@ describe('auth-bridge reviewed release-transition source projection', () => {
       'public/.well-known/farcaster.json',
       `    "description": "${INERT_FARCASTER_DESCRIPTION}",`,
       `    "description": "${ACTIVE_FARCASTER_DESCRIPTION}",`,
+      'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID',
+    );
+    expectIdentityMutationRejected(
+      'config/releases/0.4.0-sealed-launch.json',
+      '  "ptrPresentationEnabled": true,',
+      '  "ptrPresentationEnabled": false,',
       'AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_RELEASE_SOURCE_INVALID',
     );
 
@@ -853,7 +860,7 @@ describe('auth-bridge reviewed release-transition source projection', () => {
 
   it('keeps Pages bootstrap pins exact after activation-client projection', () => {
     const root = createTransitionFixture(7);
-    expect(verify(root).memberCount).toBe(956);
+    expect(verify(root).memberCount).toBe(997);
     const path = resolve(root, '.github/workflows/deploy-pages.yml');
     const source = readFileSync(path, 'utf8');
     const name = 'WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256';

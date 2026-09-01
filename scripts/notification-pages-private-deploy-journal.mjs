@@ -37,11 +37,10 @@ const DIRECTORY_MODE = 0o700;
 const FILE_MODE = 0o600;
 const MAX_FILE_BYTES = 64 * 1024;
 const MAX_DIRECTORY_ENTRIES = 1_024;
-// The receipt chain supports generations 0..255. One compact terminal per
-// completed generation plus one bounded active history and all recognized
-// repair temporaries stays well below the hard directory bound:
-// 512 + 128 + 64 + 32 + 1 = 737 entries.
-const MAX_TERMINAL_OPERATIONS = 512;
+// The receipt chain supports generations 0..255. At most 512 unique operation
+// authorities are retained. A crash-safe abandonment-to-terminal replacement
+// may briefly leave both authorities for the same operation until compaction.
+const MAX_RETAINED_OPERATIONS = 512;
 const MAX_ACTIVE_RECORDS = 128;
 const SHA256 = /^[0-9a-f]{64}$/u;
 const RUN_ID = /^[1-9][0-9]{0,19}$/u;
@@ -937,7 +936,21 @@ function loadJournalState(directory, uid) {
     }
     abandonments.set(operationId, latest);
   }
-  if (terminals.size + abandonments.size > MAX_TERMINAL_OPERATIONS) {
+  for (const [operationId, abandonment] of abandonments) {
+    const terminal = terminals.get(operationId);
+    if (terminal === undefined) continue;
+    if (
+      abandonment.value.contractDigest !== terminal.value.contractDigest
+      || terminal.value.finalSequence < abandonment.value.checkpointSequence + 3
+      || Date.parse(terminal.value.completedAt)
+        < Date.parse(abandonment.value.retiredAt)
+    ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_COMPACTION_INVALID');
+  }
+  const retainedOperationCount = new Set([
+    ...terminals.keys(),
+    ...abandonments.keys(),
+  ]).size;
+  if (retainedOperationCount > MAX_RETAINED_OPERATIONS) {
     fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED');
   }
   let activeRecordCount = 0;
@@ -947,11 +960,6 @@ function loadJournalState(directory, uid) {
     const abandonment = abandonments.get(operationId);
     const terminal = terminals.get(operationId);
     if (terminal !== undefined) {
-      if (
-        abandonment !== undefined
-        && (abandonment.value.contractDigest !== terminal.value.contractDigest
-          || abandonment.value.checkpointSequence >= terminal.value.finalSequence)
-      ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_COMPACTION_INVALID');
       for (const record of allRecords) {
         if (
           record.value.contractDigest !== terminal.value.contractDigest
@@ -1022,6 +1030,7 @@ function loadJournalState(directory, uid) {
     compactedRecords: Object.freeze(compactedRecords),
     histories,
     obsoleteAbandonments: Object.freeze(obsoleteAbandonments),
+    retainedOperationCount,
     terminals,
   });
 }
@@ -1058,6 +1067,17 @@ function installCompletedTerminal(state, records, randomBytesImpl) {
     fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_COMPACTION_INVALID');
   }
   validateHistory(records, final.value.contractDigest);
+  const before = loadJournalState(state.directory, state.uid);
+  if (
+    !before.terminals.has(final.value.operationId)
+    && !before.abandonments.has(final.value.operationId)
+    && before.retainedOperationCount >= MAX_RETAINED_OPERATIONS
+  ) {
+    fail(
+      'NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED',
+      records.some(record => record.value.phase === 'deploy-invoked'),
+    );
+  }
   const candidate = [...records].reverse().find(
     record => record.value.phase === 'candidate-authorized',
   );
@@ -1267,7 +1287,12 @@ function createJournal({
     ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_CONTRACT_MISMATCH');
     const records = journalState.histories.get(operationId) ?? [];
     validateHistory(records, contractDigest);
-    return Object.freeze({ abandonment, records, terminal });
+    return Object.freeze({
+      abandonment,
+      records,
+      retainedOperationCount: journalState.retainedOperationCount,
+      terminal,
+    });
   };
   const append = (phase, payload, { effectBoundary = false } = {}) => {
     const validatedPayload = validatePayload(phase, payload);
@@ -1276,9 +1301,6 @@ function createJournal({
       fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_ALREADY_COMPLETED');
     }
     const { records } = operationState;
-    if (records.length >= MAX_ACTIVE_RECORDS) {
-      fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED');
-    }
     const sameRun = records.filter(
       record => `${record.value.runId}/${record.value.runAttempt}` === runKey,
     );
@@ -1316,6 +1338,24 @@ function createJournal({
       phase === 'deploy-invoked'
       && records.some(record => record.value.phase === 'deploy-invoked')
     ) fail('NOTIFICATION_PAGES_DEPLOY_ALREADY_INVOKED', true);
+    const deploymentMayHaveChanged = records.some(
+      record => record.value.phase === 'deploy-invoked',
+    );
+    if (records.length >= MAX_ACTIVE_RECORDS) {
+      fail(
+        'NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED',
+        deploymentMayHaveChanged,
+      );
+    }
+    if (
+      operationState.abandonment === null
+      && operationState.retainedOperationCount >= MAX_RETAINED_OPERATIONS
+    ) {
+      fail(
+        'NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED',
+        deploymentMayHaveChanged,
+      );
+    }
     const previous = records.at(-1) ?? operationState.abandonment ?? undefined;
     const sampled = clock();
     if (!(sampled instanceof Date) || Number.isNaN(sampled.getTime())) {
@@ -1332,7 +1372,12 @@ function createJournal({
       ?? previous?.value.sequence
       ?? 0
     ) + 1;
-    if (sequence > 99_999_999) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED');
+    if (sequence > 99_999_999) {
+      fail(
+        'NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED',
+        deploymentMayHaveChanged,
+      );
+    }
     const record = Object.freeze(canonicalValue({
       contractDigest,
       operationId,
@@ -1570,6 +1615,13 @@ export async function recoverNotificationPagesPrivateDeploySkippedInvocation({
       fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_ABANDONMENT_AMBIGUOUS', true);
     }
     const [operationId, records] = invoked[0];
+    if (
+      !journalState.terminals.has(operationId)
+      && !journalState.abandonments.has(operationId)
+      && journalState.retainedOperationCount >= MAX_RETAINED_OPERATIONS
+    ) {
+      fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED', true);
+    }
     const deploy = [...records].reverse().find(
       record => record.value.phase === 'deploy-invoked',
     );
@@ -1582,6 +1634,11 @@ export async function recoverNotificationPagesPrivateDeploySkippedInvocation({
     if (afterDeploy.some(
       record => record.value.phase === 'reconciled-exact-current',
     )) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_ABANDONMENT_AMBIGUOUS', true);
+    const previous = records.at(-1);
+    const checkpointSequence = previous.value.sequence + 1;
+    if (checkpointSequence > 99_999_999 || records.length >= MAX_ACTIVE_RECORDS) {
+      fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED', true);
+    }
     const request = Object.freeze({
       candidatePagesSourceCommit:
         deploy.value.payload.candidatePagesSourceCommit,
@@ -1638,7 +1695,6 @@ export async function recoverNotificationPagesPrivateDeploySkippedInvocation({
       || proof.candidatePagesSourceCommit
         !== deploy.value.payload.candidatePagesSourceCommit
     ) fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_ABANDONMENT_AMBIGUOUS', true);
-    const previous = records.at(-1);
     const sampled = clock();
     if (!(sampled instanceof Date) || Number.isNaN(sampled.getTime())) {
       fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_CLOCK_INVALID');
@@ -1646,10 +1702,6 @@ export async function recoverNotificationPagesPrivateDeploySkippedInvocation({
     const recordedAt = sampled.getTime() < Date.parse(previous.value.recordedAt)
       ? previous.value.recordedAt
       : sampled.toISOString();
-    const checkpointSequence = previous.value.sequence + 1;
-    if (checkpointSequence > 99_999_999 || records.length >= MAX_ACTIVE_RECORDS) {
-      fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED');
-    }
     const checkpoint = Object.freeze(canonicalValue({
       adjudicationDigest: digestValue(proof),
       candidatePagesSourceCommit:

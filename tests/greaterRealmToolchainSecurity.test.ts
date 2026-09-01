@@ -209,6 +209,21 @@ describe('Greater Realm toolchain provenance', () => {
     expect(receipt.tsxCli).toMatch(/[/\\]tsx[/\\]dist[/\\]cli\.mjs$/u);
   });
 
+  it('accepts only the exact PTR runtime export command at the bootstrap boundary', () => {
+    expect(() => greaterRealmToolchainBootstrapTestSeams.assertCommand(
+      'export-ptr-runtime-release',
+    )).not.toThrow();
+    for (const rejected of [
+      'EXPORT-PTR-RUNTIME-RELEASE',
+      'export-ptr-runtime-release-next',
+      'export-genesis002-runtime-release-ptr',
+      '',
+    ]) {
+      expect(() => greaterRealmToolchainBootstrapTestSeams.assertCommand(rejected))
+        .toThrow('GREATER_REALM_TOOLCHAIN_BOOTSTRAP_ARGUMENTS_INVALID');
+    }
+  });
+
   it('rejects a malicious tsx tree before its injected module can execute', () => {
     const fixture = toolchainFixture();
     const marker = join(fixture.repositoryRoot, 'malicious-tsx-ran');

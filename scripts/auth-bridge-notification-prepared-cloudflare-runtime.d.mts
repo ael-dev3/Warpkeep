@@ -8,12 +8,44 @@ export class AuthBridgeNotificationPreparedCloudflareRuntimeError extends Error 
   readonly deploymentMayHaveChanged: boolean;
   constructor(code: string, deploymentMayHaveChanged?: boolean);
 }
+declare const recoveryRuntimeTestCapability: unique symbol;
+export type AuthBridgeNotificationPreparedRecoveryRuntimeTestCapability =
+  Readonly<{ readonly [recoveryRuntimeTestCapability]: true }>;
+export function createAuthBridgeNotificationPreparedRecoveryRuntimeTestCapability():
+  AuthBridgeNotificationPreparedRecoveryRuntimeTestCapability;
 
 export type AuthBridgeNotificationPreparedModule = Readonly<{
   name: string;
   field?: string;
   contentType: string;
   bytes: Buffer;
+}>;
+
+type AuthBridgeNotificationPreparedRecoveryControlPlaneAttestation = Readonly<{
+  deploymentId: string;
+  workerVersionId: string;
+  bridgeSourceCommit: string;
+  observedAt: string;
+  digest: string;
+}>;
+type AuthBridgeNotificationPreparedRecoveryPublicAttestation = Readonly<{
+  bridgeSourceCommit: string;
+  observedAt: string;
+  digest: string;
+  liveAttestation: AuthBridgeReleaseAttestation;
+}>;
+type AuthBridgeNotificationPreparedRecoveryPrivateAttestation = Readonly<{
+  bridgeSourceCommit: string;
+  ptrDatabaseIdentity: string;
+  ptrBindingDigest: string;
+  observedAt: string;
+  digest: string;
+}>;
+type AuthBridgeNotificationPreparedRecoveryPtrBindingAttestation = Readonly<{
+  ptrDatabaseIdentity: string;
+  ptrBindingDigest: string;
+  observedAt: string;
+  digest: string;
 }>;
 
 export function authBridgeNotificationPreparedSourceDigest(
@@ -33,6 +65,62 @@ export function inspectAuthBridgeNotificationPreparedMultipart(
   sourceDigest: string;
   modules: readonly AuthBridgeNotificationPreparedModule[];
 }>;
+
+export function inspectAuthBridgeNotificationPreparedRecoveryAuthority(
+  input: Readonly<{
+    expected: Readonly<{
+      workerVersionId: string;
+      bridgeSourceCommit: string;
+    }>;
+    now: Date;
+    accountId: string;
+    zoneId: string;
+    apiToken: string;
+    adminToken: string;
+    fetchImpl: typeof fetch;
+  }> | Readonly<{
+    testOnlyCapability: AuthBridgeNotificationPreparedRecoveryRuntimeTestCapability;
+    expected: Readonly<{
+      workerVersionId: string;
+      bridgeSourceCommit: string;
+    }>;
+    now: Date;
+    enumerateDeployments: () => Promise<readonly Readonly<{
+      deploymentId: string;
+      workerVersionId: string;
+    }>[]>;
+    enumerateDeployableVersions: () => Promise<readonly Readonly<{
+      workerVersionId: string;
+    }>[]>;
+    inspectVersion: (workerVersionId: string) => Promise<Readonly<{
+      workerVersionId: string;
+      bridgeSourceCommit: string;
+      ptrDatabaseIdentity: string;
+      ptrBindingDigest: string;
+    }>>;
+    inspectControlPlaneAttestation: () =>
+      Promise<AuthBridgeNotificationPreparedRecoveryControlPlaneAttestation>;
+    inspectPublicAttestation: () =>
+      Promise<AuthBridgeNotificationPreparedRecoveryPublicAttestation>;
+    inspectPrivateAttestation: () =>
+      Promise<AuthBridgeNotificationPreparedRecoveryPrivateAttestation>;
+    inspectPtrBindingAttestation: () =>
+      Promise<AuthBridgeNotificationPreparedRecoveryPtrBindingAttestation>;
+  }>,
+): Promise<Readonly<{
+  deploymentId: string;
+  workerVersionId: string;
+  bridgeSourceCommit: string;
+  ptrDatabaseIdentity: string;
+  ptrBindingDigest: string;
+  controlPlaneAttestationDigest: string;
+  publicAttestationDigest: string;
+  privateAttestationDigest: string;
+  ptrBindingAttestationDigest: string;
+  liveAttestation: AuthBridgeReleaseAttestation;
+  oldestObservedAt: string;
+  inspectedAt: string;
+}>>;
 
 export function buildAuthBridgeNotificationPreparedWranglerMultipart(
   options: Readonly<{
@@ -65,7 +153,7 @@ export function attestAuthBridgeNotificationPreparedCandidateMultipartMetadata(
     metadata: unknown;
     contract: Readonly<Record<string, unknown>>;
     playerCanaryOwnerFid: string;
-    predecessorVersionId: string;
+    ptrSpacetimeDbDatabase: string;
   }>,
 ): true;
 
@@ -74,6 +162,7 @@ export function projectAuthBridgeNotificationPreparedCloudflareVersion(
     value: unknown;
     contract: Readonly<Record<string, unknown>>;
     sourceDigest: string;
+    ptrSpacetimeDbDatabase: string;
   }>,
 ): Readonly<Record<string, unknown>>;
 
@@ -82,6 +171,7 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime(
     contract: Readonly<Record<string, unknown>>;
     apiToken: string;
     playerCanaryOwnerFid: string;
+    ptrSpacetimeDbDatabase: string;
     repositoryRoot: string;
     serviceRoot: string;
     nodeExecutable: string;
@@ -142,3 +232,4 @@ export function createAuthBridgeNotificationPreparedCloudflareRuntime(
   inspectDeployment: () => Promise<unknown>;
   dispose: () => void;
 }>;
+import type { AuthBridgeReleaseAttestation } from './auth-bridge-config-attestation.mjs';

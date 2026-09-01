@@ -401,6 +401,7 @@ describe('Warpkeep auth bridge', () => {
         },
       })
       const prepared = releaseAttestationEnv({
+        APPROVAL_NOTIFICATIONS_ENABLED: 'false',
         PUBLIC_AUTH_ENABLED: 'false',
         ACCESS_EXPECTED_FID_REQUIRED: 'true',
       })
@@ -415,7 +416,7 @@ describe('Warpkeep auth bridge', () => {
         schemaVersion: 1,
         profile: RELEASE_ATTESTATION_PROFILE,
         bridgeSourceCommit: BRIDGE_SOURCE_COMMIT,
-        notificationDeliveryEnabled: true,
+        notificationDeliveryEnabled: false,
         notificationTransportConfigured: true,
         admissionNotificationStoreConfigured: true,
         notificationClientCount: 1,
@@ -479,7 +480,6 @@ describe('Warpkeep auth bridge', () => {
         { WARPKEEP_BRIDGE_SOURCE_COMMIT: undefined },
         { WARPKEEP_BRIDGE_SOURCE_COMMIT: 'A'.repeat(40) },
         { WARPKEEP_BRIDGE_SOURCE_COMMIT: ` ${BRIDGE_SOURCE_COMMIT}` },
-        { APPROVAL_NOTIFICATIONS_ENABLED: 'false' },
         { MINIAPP_NOTIFICATION_HUB_URLS: undefined },
         { MINIAPP_NOTIFICATION_CLIENTS: undefined },
         { NOTIFICATION_OPERATOR_SECRET: undefined },
@@ -1656,6 +1656,9 @@ describe('Warpkeep auth bridge', () => {
       accessRequestSubmitProcedure: 'access_request_submit_v1',
       publicAuthEnabled: true,
       accessExpectedFidRequired: false,
+      ptrEnabled: false,
+      ptrSpacetimeDbDatabase: null,
+      ptrAudience: null,
       qaObserverEnabled: false,
       qaObserverSpacetimeDbUri: null,
       qaObserverSpacetimeDbDatabase: null,
@@ -1681,6 +1684,9 @@ describe('Warpkeep auth bridge', () => {
       signingPublicKeyThumbprint,
       spacetimeDbUri: 'https://maincloud.spacetimedb.com',
       spacetimeDbDatabase: PRODUCTION_SPACETIMEDB_DATABASE,
+      ptrEnabled: false,
+      ptrSpacetimeDbDatabase: null,
+      ptrAudience: null,
       publicAuthEnabled: true,
       accessExpectedFidRequired: false,
       qaObserverEnabled: false,
@@ -2709,13 +2715,38 @@ describe('Warpkeep auth bridge', () => {
       }),
     })
 
-    it('keeps every notification endpoint independently fail-closed while rollout is paused', async () => {
+    it('keeps every notification endpoint fail-closed in the sealed PTR configuration', async () => {
       const verify = vi.fn(async () => verifiedEnableEvent)
       const applyEvent = vi.fn(async () => undefined)
       const queueAdmission = vi.fn(async () => 'queued' as const)
+      const recoverAdmission = vi.fn(async () => 'queued' as const)
+      const inspect = vi.fn(async () => ({}) as never)
+      const getStatus = vi.fn(async () => ({
+        status: 'requested',
+        requestedAtMicros: 1_785_414_896_000_000,
+      } as const))
       const h = harness({
         miniAppWebhookVerifier: { verify },
-        admissionNotificationStore: { applyEvent, queueAdmission },
+        accessRequestResolver: {
+          getStatus,
+          submit: vi.fn(async () => ({
+            status: 'requested',
+            requestedAtMicros: 1_785_414_896_000_000,
+          } as const)),
+        },
+        admissionNotificationStore: {
+          applyEvent,
+          queueAdmission,
+          recoverAdmission,
+          inspect,
+        },
+      })
+      const sealedPtrEnv = notificationEnv({
+        APPROVAL_NOTIFICATIONS_ENABLED: 'false',
+        PTR_ENABLED: 'true',
+        PTR_SPACETIMEDB_DATABASE: '9'.repeat(64),
+        PTR_OIDC_AUDIENCE: 'warpkeep-ptr-spacetimedb',
+        PLAYER_CANARY_OWNER_FID: FID,
       })
 
       for (const candidate of [
@@ -2734,7 +2765,7 @@ describe('Warpkeep auth bridge', () => {
           headers: { authorization: `Bearer ${NOTIFICATION_OPERATOR_SECRET}` },
         }),
       ]) {
-        const response = await h.app.fetch(candidate, env())
+        const response = await h.app.fetch(candidate, sealedPtrEnv)
         expect(response.status).toBe(503)
         await expect(response.json()).resolves.toMatchObject({
           error: { code: 'approval_notifications_paused' },
@@ -2746,6 +2777,9 @@ describe('Warpkeep auth bridge', () => {
       expect(verify).toHaveBeenCalledOnce()
       expect(applyEvent).not.toHaveBeenCalled()
       expect(queueAdmission).not.toHaveBeenCalled()
+      expect(recoverAdmission).not.toHaveBeenCalled()
+      expect(inspect).not.toHaveBeenCalled()
+      expect(getStatus).not.toHaveBeenCalled()
     })
 
     it('accepts only a server-to-server verified webhook and returns no token material', async () => {

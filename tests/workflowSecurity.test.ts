@@ -127,13 +127,19 @@ describe('GitHub workflow security policy', () => {
     expect(build).toContain('npm run verify:sealed-launch:activation');
     expect(build).not.toContain('npm run validate:pages-config');
     expect(build).not.toContain('npm run verify:greater-realm-release-gates');
+    const ptrPagesBuildGate =
+      'node scripts/verify-0.4.0-sealed-launch.mjs --phase=pages-build';
+    expect(build).toContain(ptrPagesBuildGate);
+    expect(build.indexOf(ptrPagesBuildGate)).toBeLessThan(
+      build.indexOf('\n      - name: Install\n'),
+    );
     expect(source.match(
       /scripts\/verify-0\.4\.0-sealed-launch\.mjs/g,
-    )).toHaveLength(3);
+    )).toHaveLength(4);
     expect(build.indexOf('npm run verify:sealed-launch:activation')).toBeLessThan(
       build.indexOf('npm run build'),
     );
-    expect(source).toContain('group: pages-main');
+    expect(source).toContain('group: warpkeep-production-state');
     expect(source).not.toMatch(/^\s+group:\s*pages\s*$/m);
   });
 
@@ -152,7 +158,9 @@ describe('GitHub workflow security policy', () => {
     expect(source.match(/^concurrency:\s*$/gm)).toHaveLength(1);
     expect(source).not.toMatch(/^[ \t]+concurrency:\s*$/gm);
     expect(source.match(/^[ \t]+cancel-in-progress:\s*/gm)).toHaveLength(1);
-    expect(concurrency).toMatch(/^\s+group:\s*pages-main\s*$/m);
+    expect(concurrency).toMatch(
+      /^\s+group:\s*warpkeep-production-state\s*$/m,
+    );
     expect(concurrency).toMatch(/^\s+cancel-in-progress:\s*false\s*$/m);
     expect(concurrency).not.toMatch(/^\s+cancel-in-progress:\s*true\s*$/m);
 
@@ -351,7 +359,7 @@ describe('GitHub workflow security policy', () => {
   it('gives the complete root suite a bounded hosted-runner allowance', () => {
     for (const { job, timeoutMinutes, stepName, run } of [
       {
-        job: workflowJob('verify.yml', 'verify'),
+        job: workflowJob('verify.yml', 'linux'),
         timeoutMinutes: 75,
         stepName: 'Run tests',
         run: splitRootTestRun,
@@ -394,7 +402,7 @@ describe('GitHub workflow security policy', () => {
     const rootTestWorkflows = [
       {
         source: workflow('verify.yml'),
-        job: workflowJob('verify.yml', 'verify'),
+        job: workflowJob('verify.yml', 'linux'),
         stepName: 'Run tests',
         run: splitRootTestRun,
       },

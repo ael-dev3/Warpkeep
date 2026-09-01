@@ -27,6 +27,7 @@ import {
 } from 'node:path';
 
 import {
+  canonicalProductionAdminAccountHome,
   ensureCanonicalProductionAdminStateDirectory,
   probeProductionAdminProcessIdentity,
   productionAdminRecordedOwnerIsDead,
@@ -37,6 +38,8 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_PROFILE =
   'warpkeep-auth-bridge-notification-prepared-deploy-journal-v3';
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_STATE_CHILD =
   'bridge-prepared-deploy-journal-v3';
+export const AUTH_BRIDGE_NOTIFICATION_PREPARED_READ_ONLY_RECOVERY_PROFILE =
+  'warpkeep-auth-bridge-notification-prepared-read-only-recovery-v1';
 
 const DIRECTORY_MODE = 0o700;
 const FILE_MODE = 0o600;
@@ -55,16 +58,21 @@ const PHASES = Object.freeze({
   'release-uncertain': 5,
   'release-invoked': 6,
   completed: 7,
+  'upload-adjudication-required': 8,
 });
-const PHASE_PATTERN = '(prepared|remote-reconcile-started|upload-invoked|uploaded|release-uncertain|release-invoked|completed)';
+const PHASE_PATTERN = '(prepared|remote-reconcile-started|upload-invoked|uploaded|release-uncertain|release-invoked|completed|upload-adjudication-required)';
 const RECORD_FILE = new RegExp(
-  `^auth-bridge-prepared-deploy-([a-f0-9]{64})-(0[1-7])-${PHASE_PATTERN}\\.json$`,
+  `^auth-bridge-prepared-deploy-([a-f0-9]{64})-(0[1-8])-${PHASE_PATTERN}\\.json$`,
   'u',
 );
 const RECORD_TEMPORARY_FILE = new RegExp(
-  `^\\.auth-bridge-prepared-deploy-([a-f0-9]{64})-(0[1-7])-${PHASE_PATTERN}-([a-f0-9]{24})\\.json\\.tmp$`,
+  `^\\.auth-bridge-prepared-deploy-([a-f0-9]{64})-(0[1-8])-${PHASE_PATTERN}-([a-f0-9]{24})\\.json\\.tmp$`,
   'u',
 );
+const RECOVERY_FILE =
+  /^auth-bridge-prepared-read-only-recovery-([a-f0-9]{64})\.json$/u;
+const RECOVERY_TEMPORARY_FILE =
+  /^\.auth-bridge-prepared-read-only-recovery-([a-f0-9]{64})-([a-f0-9]{24})\.json\.tmp$/u;
 const LOCK_FILE = '.auth-bridge-prepared-deploy.lock';
 const LOCK_TEMPORARY_FILE = /^\.auth-bridge-prepared-deploy-lock-([a-f0-9]{24})\.tmp$/u;
 const RECORD_KEYS = Object.freeze([
@@ -85,6 +93,28 @@ const LOCK_KEYS = Object.freeze([
   'owner',
   'profile',
   'schemaVersion',
+]);
+const RECOVERY_KEYS = Object.freeze([
+  'schemaVersion',
+  'profile',
+  'sourceCommit',
+  'runId',
+  'runAttempt',
+  'priorPreparedReceiptDigest',
+  'priorCompletedJournalHeadDigest',
+  'preparedReceiptDigest',
+  'deploymentId',
+  'workerVersionId',
+  'bridgeSourceCommit',
+  'ptrDatabaseIdentity',
+  'ptrBindingDigest',
+  'controlPlaneAttestationDigest',
+  'publicAttestationDigest',
+  'privateAttestationDigest',
+  'ptrBindingAttestationDigest',
+  'completedAt',
+  'noDeploy',
+  'outcome',
 ]);
 
 export class AuthBridgeNotificationPreparedDeployJournalError extends Error {
@@ -208,11 +238,16 @@ function fsyncDirectory(path) {
   }
 }
 
-function assertPrivateDirectory(path, uid, expectedParent) {
+function assertPrivateDirectory(path, uid, expectedParent, missingCode) {
   let metadata;
-  let canonical;
   try {
     metadata = lstatSync(path);
+  } catch (error) {
+    if (error?.code === 'ENOENT' && missingCode !== undefined) fail(missingCode);
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_DIRECTORY_INVALID');
+  }
+  let canonical;
+  try {
     canonical = realpathSync(path);
   } catch {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_DIRECTORY_INVALID');
@@ -414,10 +449,13 @@ function publishNoReplace({
   temporaryName,
   value,
   uid,
+  exactBody,
 }) {
   const destination = join(directory, destinationName);
   const temporary = join(directory, temporaryName);
-  const body = canonicalBody(value);
+  const body = exactBody === undefined
+    ? canonicalBody(value)
+    : Buffer.from(exactBody);
   let descriptor;
   let identity;
   let linked = false;
@@ -482,6 +520,71 @@ function publishNoReplace({
   } finally {
     body.fill(0);
   }
+}
+
+function recoveryHead(value) {
+  if (
+    !exactKeys(value, RECOVERY_KEYS)
+    || value.schemaVersion !== 1
+    || value.profile
+      !== AUTH_BRIDGE_NOTIFICATION_PREPARED_READ_ONLY_RECOVERY_PROFILE
+    || !SOURCE_COMMIT.test(value.sourceCommit ?? '')
+    || !RUN_ID.test(value.runId ?? '')
+    || !Number.isSafeInteger(value.runAttempt)
+    || value.runAttempt < 1
+    || value.runAttempt > 1_000
+    || !SHA256_HEX.test(value.priorPreparedReceiptDigest ?? '')
+    || !SHA256_HEX.test(value.priorCompletedJournalHeadDigest ?? '')
+    || !SHA256_HEX.test(value.preparedReceiptDigest ?? '')
+    || !VERSION_ID.test(value.deploymentId ?? '')
+    || !VERSION_ID.test(value.workerVersionId ?? '')
+    || !SOURCE_COMMIT.test(value.bridgeSourceCommit ?? '')
+    || !SHA256_HEX.test(value.ptrDatabaseIdentity ?? '')
+    || !SHA256_HEX.test(value.ptrBindingDigest ?? '')
+    || !SHA256_HEX.test(value.controlPlaneAttestationDigest ?? '')
+    || !SHA256_HEX.test(value.publicAttestationDigest ?? '')
+    || !SHA256_HEX.test(value.privateAttestationDigest ?? '')
+    || !SHA256_HEX.test(value.ptrBindingAttestationDigest ?? '')
+    || value.noDeploy !== true
+    || value.outcome !== 'verified-read-only-recovery'
+  ) fail('AUTH_BRIDGE_PREPARED_READ_ONLY_RECOVERY_HEAD_INVALID');
+  strictUtc(value.completedAt);
+  return Object.freeze(Object.fromEntries(
+    RECOVERY_KEYS.map(key => [key, value[key]]),
+  ));
+}
+
+function recoveryBody(value) {
+  const parsed = recoveryHead(value);
+  const body = Buffer.from(`${JSON.stringify(parsed)}\n`, 'utf8');
+  if (body.byteLength > MAX_FILE_BYTES) {
+    body.fill(0);
+    fail('AUTH_BRIDGE_PREPARED_READ_ONLY_RECOVERY_HEAD_INVALID');
+  }
+  return body;
+}
+
+function inspectRecoveryFile(directory, name, uid) {
+  const match = RECOVERY_FILE.exec(name);
+  if (match === null) {
+    fail('AUTH_BRIDGE_PREPARED_READ_ONLY_RECOVERY_HEAD_INVALID');
+  }
+  const opened = readExactFile(join(directory, name), uid);
+  try {
+    let value;
+    try { value = JSON.parse(opened.body.toString('utf8')); } catch {
+      fail('AUTH_BRIDGE_PREPARED_READ_ONLY_RECOVERY_HEAD_INVALID');
+    }
+    const parsed = recoveryHead(value);
+    const expected = recoveryBody(parsed);
+    try {
+      const digest = digestBody(opened.body);
+      if (!expected.equals(opened.body) || digest !== match[1]) {
+        fail('AUTH_BRIDGE_PREPARED_READ_ONLY_RECOVERY_HEAD_INVALID');
+      }
+      return Object.freeze({ value: parsed, digest, name });
+    } finally { expected.fill(0); }
+  } finally { opened.body.fill(0); }
 }
 
 function lockValue(value) {
@@ -634,6 +737,7 @@ function phasePayload(phase, value) {
       'sourceDigest', 'versionTag',
     ],
     'upload-invoked': ['sourceCommit', 'sourceDigest', 'uploadMode', 'versionTag'],
+    'upload-adjudication-required': ['reason'],
     'release-uncertain': ['sourceCommit', 'versionId', 'versionTag'],
     'release-invoked': ['sourceCommit', 'versionId', 'versionTag'],
   }[phase];
@@ -654,6 +758,13 @@ function phasePayload(phase, value) {
   if (
     phase === 'upload-invoked'
     && payload.uploadMode !== 'version'
+  ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_PAYLOAD_INVALID');
+  if (
+    phase === 'upload-adjudication-required'
+    && ![
+      'invalid-upload-response',
+      'definitive-provider-rejection',
+    ].includes(payload.reason)
   ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_PAYLOAD_INVALID');
   if (
     ['release-uncertain', 'release-invoked'].includes(phase)
@@ -781,8 +892,8 @@ function repairRecordPublications(directory, uid) {
   }
 }
 
-function loadHistories(directory, uid) {
-  const names = readdirSync(directory);
+function loadHistories(directory, uid, selectedNames) {
+  const names = selectedNames ?? readdirSync(directory);
   if (names.length > MAX_DIRECTORY_ENTRIES) {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_DIRECTORY_INVALID');
   }
@@ -826,6 +937,283 @@ function loadHistories(directory, uid) {
     }
   }
   return histories;
+}
+
+function existingJournalDirectory({ repositoryRoot, reportedHome }) {
+  if (typeof repositoryRoot !== 'string' || !isAbsolute(repositoryRoot)) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_REPOSITORY_INVALID');
+  }
+  const uid = ownerUid();
+  let parent;
+  try {
+    parent = canonicalProductionAdminAccountHome(reportedHome);
+    for (const name of [
+      '.warpkeep',
+      'private',
+      'production-admin-v1',
+      AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_STATE_CHILD,
+    ]) {
+      parent = assertPrivateDirectory(
+        join(parent, name),
+        uid,
+        parent,
+        'AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_INVALID',
+      );
+    }
+  } catch (error) {
+    if (error instanceof AuthBridgeNotificationPreparedDeployJournalError) {
+      throw error;
+    }
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_INVALID');
+  }
+  let repository;
+  try {
+    const requested = resolve(repositoryRoot);
+    repository = realpathSync(requested);
+    const status = lstatSync(requested);
+    if (
+      repository !== requested
+      || status.isSymbolicLink()
+      || !status.isDirectory()
+    ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_REPOSITORY_INVALID');
+  } catch (error) {
+    if (error instanceof AuthBridgeNotificationPreparedDeployJournalError) {
+      throw error;
+    }
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_REPOSITORY_INVALID');
+  }
+  if (inside(repository, parent) || inside(parent, repository)) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_REPOSITORY_OVERLAP');
+  }
+  return Object.freeze({ directory: parent, uid });
+}
+
+/**
+ * Authenticates the sole completed existing journal without opening a lock,
+ * repairing a publication, or accepting a journal name/digest from the caller.
+ */
+function resolveExistingAuthBridgeNotificationPreparedDeployJournalInternal({
+  repositoryRoot,
+  reportedHome,
+} = {}, allowLock = false, includeRecoveryAuthority = false) {
+  const state = existingJournalDirectory({ repositoryRoot, reportedHome });
+  let names;
+  try {
+    names = readdirSync(state.directory);
+  } catch {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_INVALID');
+  }
+  if (
+    (!allowLock && names.includes(LOCK_FILE))
+    || names.some(name => LOCK_TEMPORARY_FILE.test(name)
+      || RECORD_TEMPORARY_FILE.test(name)
+      || RECOVERY_TEMPORARY_FILE.test(name))
+  ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_AMBIGUOUS');
+
+  let histories;
+  let recoveries;
+  try {
+    const deploymentNames = names.filter(name => RECORD_FILE.test(name));
+    const recoveryNames = names.filter(name => RECOVERY_FILE.test(name));
+    const allowedLockEntries = allowLock && names.includes(LOCK_FILE) ? 1 : 0;
+    if (
+      deploymentNames.length + recoveryNames.length + allowedLockEntries
+        !== names.length
+    ) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_INVALID');
+    }
+    histories = loadHistories(state.directory, state.uid, deploymentNames);
+    recoveries = recoveryNames.map(name =>
+      inspectRecoveryFile(state.directory, name, state.uid));
+  } catch (error) {
+    if (error instanceof AuthBridgeNotificationPreparedDeployJournalError) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_INVALID');
+    }
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_INVALID');
+  }
+  if (histories.size !== 1) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_AMBIGUOUS');
+  }
+  const records = [...histories.values()][0];
+  const completed = records.filter(record => record.value.phase === 'completed');
+  if (completed.length !== 1 || records.at(-1) !== completed[0]) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_AMBIGUOUS');
+  }
+  const head = completed[0];
+  const previous = records.at(-2);
+  const outcome = previous?.value.phase === 'uploaded'
+    ? 'verified'
+    : previous?.value.phase === 'release-invoked'
+      ? 'verified-after-release-error'
+      : null;
+  if (outcome === null) {
+    fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_INVALID');
+  }
+  let resolved = Object.freeze({
+    journalHeadDigest: head.digest,
+    profile: AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_JOURNAL_PROFILE,
+    outcome,
+    predecessorDigest: head.value.previousRecordDigest,
+    runId: head.value.runId,
+    runAttempt: head.value.runAttempt,
+    completedAt: head.value.recordedAt,
+    sourceCommit: head.value.payload.sourceCommit,
+    workerVersionId: head.value.payload.versionId,
+  });
+  let recoveryAuthority = null;
+  const pending = [...recoveries];
+  while (pending.length > 0) {
+    const successors = pending.filter(record =>
+      record.value.priorCompletedJournalHeadDigest
+        === resolved.journalHeadDigest);
+    if (successors.length !== 1) {
+      fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_AMBIGUOUS');
+    }
+    const [next] = successors;
+    if (
+      next.value.sourceCommit !== resolved.sourceCommit
+      || next.value.bridgeSourceCommit !== resolved.sourceCommit
+      || next.value.workerVersionId !== resolved.workerVersionId
+      || Date.parse(next.value.completedAt) < Date.parse(resolved.completedAt)
+    ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_EXISTING_STATE_INVALID');
+    resolved = Object.freeze({
+      journalHeadDigest: next.digest,
+      profile: AUTH_BRIDGE_NOTIFICATION_PREPARED_READ_ONLY_RECOVERY_PROFILE,
+      outcome: 'verified-read-only-recovery',
+      predecessorDigest: next.value.priorCompletedJournalHeadDigest,
+      runId: next.value.runId,
+      runAttempt: next.value.runAttempt,
+      completedAt: next.value.completedAt,
+      sourceCommit: next.value.sourceCommit,
+      workerVersionId: next.value.workerVersionId,
+    });
+    recoveryAuthority = next.value;
+    pending.splice(pending.indexOf(next), 1);
+  }
+  if (!includeRecoveryAuthority) return resolved;
+  return Object.freeze({
+    ...resolved,
+    schemaVersion: recoveryAuthority?.schemaVersion ?? null,
+    priorPreparedReceiptDigest:
+      recoveryAuthority?.priorPreparedReceiptDigest ?? null,
+    preparedReceiptDigest: recoveryAuthority?.preparedReceiptDigest ?? null,
+    deploymentId: recoveryAuthority?.deploymentId ?? null,
+    ptrDatabaseIdentity: recoveryAuthority?.ptrDatabaseIdentity ?? null,
+    ptrBindingDigest: recoveryAuthority?.ptrBindingDigest ?? null,
+    bridgeSourceCommit: recoveryAuthority?.bridgeSourceCommit ?? null,
+    controlPlaneAttestationDigest:
+      recoveryAuthority?.controlPlaneAttestationDigest ?? null,
+    publicAttestationDigest:
+      recoveryAuthority?.publicAttestationDigest ?? null,
+    privateAttestationDigest:
+      recoveryAuthority?.privateAttestationDigest ?? null,
+    ptrBindingAttestationDigest:
+      recoveryAuthority?.ptrBindingAttestationDigest ?? null,
+    noDeploy: recoveryAuthority?.noDeploy ?? null,
+  });
+}
+
+export function resolveExistingAuthBridgeNotificationPreparedDeployJournal(
+  options = {},
+) {
+  return resolveExistingAuthBridgeNotificationPreparedDeployJournalInternal(
+    options,
+    false,
+  );
+}
+
+/** Entrypoint-only enrichment; the Task 6D resolver above remains exact. */
+export function resolveAuthBridgeNotificationPreparedRecoveryJournalAuthority(
+  options = {},
+) {
+  return resolveExistingAuthBridgeNotificationPreparedDeployJournalInternal(
+    options,
+    false,
+    true,
+  );
+}
+
+/**
+ * Publishes one exact no-deploy recovery head under the existing global
+ * journal lock. A byte-identical rerun adopts the content-addressed head.
+ */
+export function writeAuthBridgeNotificationPreparedReadOnlyRecoveryHead({
+  head,
+  repositoryRoot,
+  reportedHome,
+  randomBytesImpl = randomBytes,
+  processIdentity,
+  processIdentityProbe = probeProductionAdminProcessIdentity,
+} = {}) {
+  const parsed = recoveryHead(head);
+  const body = recoveryBody(parsed);
+  const digest = digestBody(body);
+  const destinationName =
+    `auth-bridge-prepared-read-only-recovery-${digest}.json`;
+  const state = ensureJournalDirectory({ repositoryRoot, reportedHome });
+  const identity = processIdentity
+    ?? requireCurrentProductionAdminProcessIdentity(processIdentityProbe);
+  if (
+    typeof identity !== 'string'
+    || identity.length < 8
+    || identity.length > 128
+  ) fail('AUTH_BRIDGE_PREPARED_DEPLOY_JOURNAL_PROCESS_INVALID');
+  const lock = acquireLock({
+    ...state,
+    operationId: digest,
+    randomBytesImpl,
+    processIdentity: identity,
+    processIdentityProbe,
+  });
+  try {
+    const destination = join(state.directory, destinationName);
+    const current = resolveExistingAuthBridgeNotificationPreparedDeployJournalInternal({
+      repositoryRoot,
+      reportedHome,
+    }, true);
+    if (existsSync(destination)) {
+      const existing = inspectRecoveryFile(
+        state.directory,
+        destinationName,
+        state.uid,
+      );
+      if (
+        existing.digest !== digest
+        || current.journalHeadDigest !== digest
+      ) {
+        fail('AUTH_BRIDGE_PREPARED_READ_ONLY_RECOVERY_HEAD_INVALID');
+      }
+      return Object.freeze({
+        path: destination,
+        journalHeadDigest: digest,
+        result: 'unchanged',
+      });
+    }
+    if (
+      parsed.priorCompletedJournalHeadDigest !== current.journalHeadDigest
+      || parsed.sourceCommit !== current.sourceCommit
+      || parsed.bridgeSourceCommit !== current.sourceCommit
+      || parsed.workerVersionId !== current.workerVersionId
+      || Date.parse(parsed.completedAt) < Date.parse(current.completedAt)
+    ) fail('AUTH_BRIDGE_PREPARED_READ_ONLY_RECOVERY_PREDECESSOR_INVALID');
+    publishNoReplace({
+      directory: state.directory,
+      destinationName,
+      temporaryName:
+        `.${destinationName.slice(0, -5)}-${randomId(randomBytesImpl)}.json.tmp`,
+      value: parsed,
+      uid: state.uid,
+      exactBody: body,
+    });
+    return Object.freeze({
+      path: destination,
+      journalHeadDigest: digest,
+      result: 'installed',
+    });
+  } finally {
+    body.fill(0);
+    releaseLock(state.directory, state.uid, lock);
+  }
 }
 
 function createJournal({
@@ -882,6 +1270,8 @@ function createJournal({
       || (phase === 'uploaded'
         && !['remote-reconcile-started', 'upload-invoked']
           .includes(previous?.value.phase))
+      || (phase === 'upload-adjudication-required'
+        && previous?.value.phase !== 'upload-invoked')
       || (phase === 'release-uncertain' && previous?.value.phase !== 'uploaded')
       || (phase === 'release-invoked'
         && previous?.value.phase !== 'release-uncertain')
@@ -938,6 +1328,9 @@ function createJournal({
         predecessorVersionId: records.find(
           record => record.value.phase === 'remote-reconcile-started',
         )?.value.payload.predecessorVersionId ?? null,
+        uploadAdjudicationReason: records.find(
+          record => record.value.phase === 'upload-adjudication-required',
+        )?.value.payload.reason ?? null,
       });
     },
     prepared(value) {
@@ -951,6 +1344,9 @@ function createJournal({
     },
     uploadInvoked(value) {
       return transition('upload-invoked', value, 'effect-boundary');
+    },
+    uploadAdjudicationRequired(value) {
+      return transition('upload-adjudication-required', value);
     },
     uploaded(value) { return transition('uploaded', value); },
     releaseUncertain(value) { return transition('release-uncertain', value); },

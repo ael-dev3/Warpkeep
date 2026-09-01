@@ -5,8 +5,11 @@ import {
   DEFAULT_FARCASTER_RPC_SECONDARY_URL,
   farcasterRpcEndpointFingerprint,
   parseAuthBridgeReleaseAttestation,
+  verifyAuthBridgeNotificationB0CurrentRpcRoleAttestation,
   verifyAuthBridgeNotificationB0RpcRoleAttestation,
   verifyAuthBridgePreparedConfigAttestation,
+  verifyAuthBridgePreparedPredeployRpcRoleAttestation,
+  verifyAuthBridgePreparedRpcRoleAttestation,
   verifyAuthBridgeReleaseAttestation,
   verifyAuthBridgeRpcRoleAttestation,
 } from '../scripts/auth-bridge-config-attestation.mjs'
@@ -22,6 +25,8 @@ const SECONDARY_FINGERPRINT = farcasterRpcEndpointFingerprint(
   DEFAULT_FARCASTER_RPC_SECONDARY_URL,
 )
 const HUB_FINGERPRINTS = ['1'.repeat(64), '2'.repeat(64)] as const
+const PTR_DATABASE = 'b'.repeat(64)
+const PTR_AUDIENCE = 'warpkeep-ptr-spacetimedb'
 
 function privateBody(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -59,6 +64,9 @@ function privateBody(overrides: Record<string, unknown> = {}): Record<string, un
     admissionNotificationStatusPath: '/v1/admin/admission-notification-status',
     publicAuthEnabled: true,
     accessExpectedFidRequired: false,
+    ptrEnabled: false,
+    ptrSpacetimeDbDatabase: null,
+    ptrAudience: null,
     qaObserverEnabled: false,
     qaObserverSpacetimeDbUri: null,
     qaObserverSpacetimeDbDatabase: null,
@@ -90,6 +98,9 @@ function b0PredecessorPrivateBody(
 ): Record<string, unknown> {
   const body = privateBody(overrides)
   delete body.admissionNotificationRecoveryPath
+  delete body.ptrEnabled
+  delete body.ptrSpacetimeDbDatabase
+  delete body.ptrAudience
   return body
 }
 
@@ -137,15 +148,18 @@ function releaseResponse(
 
 function preparedPrivateBody(overrides: Record<string, unknown> = {}) {
   return privateBody({
-    approvalNotificationsEnabled: true,
+    approvalNotificationsEnabled: false,
     miniAppHubEndpointFingerprints: [...HUB_FINGERPRINTS],
     miniAppNotificationClientFids: [9_152],
+    ptrEnabled: true,
+    ptrSpacetimeDbDatabase: PTR_DATABASE,
+    ptrAudience: PTR_AUDIENCE,
     ...overrides,
   })
 }
 
 describe('private auth bridge RPC role attestation', () => {
-  it('strictly verifies the RPC roles and returns all five release modes', async () => {
+  it('strictly verifies the ordered RPC/PTR contract and returns every release mode', async () => {
     const fetchMock = vi.fn(async (
       _input: RequestInfo | URL,
       _init?: RequestInit,
@@ -167,6 +181,9 @@ describe('private auth bridge RPC role attestation', () => {
       notificationClientCount: 0,
       publicAuthEnabled: true,
       accessExpectedFidRequired: false,
+      ptrEnabled: false,
+      ptrSpacetimeDbDatabase: null,
+      ptrAudience: null,
     })
 
     expect(fetchMock).toHaveBeenCalledOnce()
@@ -196,6 +213,9 @@ describe('private auth bridge RPC role attestation', () => {
       notificationClientCount: 0,
       publicAuthEnabled: true,
       accessExpectedFidRequired: false,
+      ptrEnabled: false,
+      ptrSpacetimeDbDatabase: null,
+      ptrAudience: null,
     })
 
     await expect(verifyAuthBridgeRpcRoleAttestation({
@@ -226,6 +246,9 @@ describe('private auth bridge RPC role attestation', () => {
       notificationDeliveryEnabled: false,
       publicAuthEnabled: true,
       accessExpectedFidRequired: false,
+      ptrEnabled: false,
+      ptrSpacetimeDbDatabase: null,
+      ptrAudience: null,
     })
 
     const missingStatus = b0PredecessorPrivateBody()
@@ -238,13 +261,14 @@ describe('private auth bridge RPC role attestation', () => {
     })
   })
 
-  it('rejects missing, extra, and malformed private fields', async () => {
+  it('rejects missing, extra, reordered, and malformed private fields', async () => {
     const missing = privateBody()
     delete missing.publicAuthEnabled
     const extra = privateBody({ bridgeSourceCommit: SOURCE_COMMIT })
     const malformed = privateBody({ approvalNotificationsEnabled: 'false' })
+    const reordered = Object.fromEntries(Object.entries(privateBody()).reverse())
 
-    for (const body of [missing, extra, malformed]) {
+    for (const body of [missing, extra, reordered, malformed]) {
       const fetchImpl = vi.fn(async () => privateResponse(body)) as typeof fetch
       await expect(verifyAuthBridgeRpcRoleAttestation({
         adminToken: ADMIN_TOKEN,
@@ -253,6 +277,108 @@ describe('private auth bridge RPC role attestation', () => {
         code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_CONTRACT_INVALID',
       })
     }
+  })
+
+  it('binds prepared PTR activation to the exact immutable database and fixed audience', async () => {
+    await expect(verifyAuthBridgePreparedRpcRoleAttestation({
+      adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
+      fetchImpl: vi.fn(async () => privateResponse(
+        preparedPrivateBody(),
+      )) as typeof fetch,
+    })).resolves.toMatchObject({
+      ptrEnabled: true,
+      ptrSpacetimeDbDatabase: PTR_DATABASE,
+      ptrAudience: PTR_AUDIENCE,
+    })
+
+    for (const body of [
+      preparedPrivateBody({ approvalNotificationsEnabled: true }),
+      preparedPrivateBody({ ptrEnabled: false }),
+      preparedPrivateBody({ ptrSpacetimeDbDatabase: 'c'.repeat(64) }),
+      preparedPrivateBody({ ptrSpacetimeDbDatabase: 'warpkeep-ptr' }),
+      preparedPrivateBody({ ptrSpacetimeDbDatabase: null }),
+      preparedPrivateBody({ ptrAudience: 'alternate-audience' }),
+      b0PredecessorPrivateBody(),
+    ]) {
+      await expect(verifyAuthBridgePreparedRpcRoleAttestation({
+        adminToken: ADMIN_TOKEN,
+        expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
+        fetchImpl: vi.fn(async () => privateResponse(body)) as typeof fetch,
+      })).rejects.toMatchObject({
+        code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_CONTRACT_INVALID',
+      })
+    }
+
+    for (const body of [
+      privateBody({ ptrEnabled: true }),
+      privateBody({ ptrSpacetimeDbDatabase: PTR_DATABASE }),
+      privateBody({ ptrAudience: PTR_AUDIENCE }),
+      preparedPrivateBody(),
+    ]) {
+      await expect(verifyAuthBridgeNotificationB0RpcRoleAttestation({
+        adminToken: ADMIN_TOKEN,
+        fetchImpl: vi.fn(async () => privateResponse(body)) as typeof fetch,
+      })).rejects.toMatchObject({
+        code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_CONTRACT_INVALID',
+      })
+    }
+
+    for (const expectedPtrSpacetimeDbDatabase of [
+      undefined,
+      'warpkeep-ptr',
+      'B'.repeat(64),
+      'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
+    ]) {
+      const fetchImpl = vi.fn(async () => privateResponse(
+        preparedPrivateBody(),
+      )) as typeof fetch
+      await expect(verifyAuthBridgePreparedRpcRoleAttestation({
+        adminToken: ADMIN_TOKEN,
+        expectedPtrSpacetimeDbDatabase:
+          expectedPtrSpacetimeDbDatabase as string,
+        fetchImpl,
+      })).rejects.toMatchObject({
+        code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_INPUT_INVALID',
+      })
+      expect(fetchImpl).not.toHaveBeenCalled()
+    }
+  })
+
+  it('keeps legacy B0 delivery enabled while the prepared transition disables its post-state', async () => {
+    const enabledB0 = privateBody({
+      approvalNotificationsEnabled: true,
+      miniAppHubEndpointFingerprints: [...HUB_FINGERPRINTS],
+      miniAppNotificationClientFids: [9_152],
+    })
+
+    await expect(verifyAuthBridgeNotificationB0CurrentRpcRoleAttestation({
+      adminToken: ADMIN_TOKEN,
+      fetchImpl: vi.fn(async () => privateResponse(enabledB0)) as typeof fetch,
+    })).resolves.toMatchObject({ notificationDeliveryEnabled: true })
+
+    await expect(verifyAuthBridgeNotificationB0CurrentRpcRoleAttestation({
+      adminToken: ADMIN_TOKEN,
+      fetchImpl: vi.fn(async () => privateResponse(privateBody())) as typeof fetch,
+    })).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_CONTRACT_INVALID',
+    })
+
+    await expect(verifyAuthBridgePreparedPredeployRpcRoleAttestation({
+      adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
+      fetchImpl: vi.fn(async () => privateResponse(enabledB0)) as typeof fetch,
+    })).resolves.toMatchObject({ notificationDeliveryEnabled: true })
+
+    await expect(verifyAuthBridgePreparedRpcRoleAttestation({
+      adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
+      fetchImpl: vi.fn(async () => privateResponse(
+        preparedPrivateBody({ approvalNotificationsEnabled: true }),
+      )) as typeof fetch,
+    })).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_CONTRACT_INVALID',
+    })
   })
 
   it('rejects inconsistent or noncanonical notification transport fields', async () => {
@@ -433,6 +559,8 @@ describe('public auth bridge release attestation', () => {
     const expected = releaseAttestation()
     expect(AUTH_BRIDGE_RELEASE_ATTESTATION_KEYS).toEqual(Object.keys(expected))
     expect(parseAuthBridgeReleaseAttestation(expected)).toEqual(expected)
+    const sealed = releaseAttestation({ notificationDeliveryEnabled: false })
+    expect(parseAuthBridgeReleaseAttestation(sealed)).toEqual(sealed)
   })
 
   it('rejects missing, extra, malformed, and reordered public fields', () => {
@@ -529,8 +657,22 @@ describe('prepared auth bridge configuration attestation', () => {
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 
+  it('rejects a notification-enabled prepared expectation before making I/O', async () => {
+    const fetchImpl = vi.fn(async () => releaseResponse()) as typeof fetch
+    await expect(verifyAuthBridgePreparedConfigAttestation({
+      adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
+      expectedReleaseAttestation: releaseAttestation({
+        notificationDeliveryEnabled: true,
+      }),
+      fetchImpl,
+    })).rejects.toThrow('prepared notification delivery mode')
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
   it('binds the strict private modes to the exact public deployment contract', async () => {
     const expected = releaseAttestation({
+      notificationDeliveryEnabled: false,
       publicAuthEnabled: false,
       accessExpectedFidRequired: true,
     })
@@ -545,6 +687,7 @@ describe('prepared auth bridge configuration attestation', () => {
 
     await expect(verifyAuthBridgePreparedConfigAttestation({
       adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
       expectedReleaseAttestation: expected,
       fetchImpl: fetchMock as typeof fetch,
     })).resolves.toEqual({
@@ -564,7 +707,11 @@ describe('prepared auth bridge configuration attestation', () => {
     })))
     await expect(verifyAuthBridgePreparedConfigAttestation({
       adminToken: ADMIN_TOKEN,
-      expectedReleaseAttestation: releaseAttestation({ publicAuthEnabled: true }),
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
+      expectedReleaseAttestation: releaseAttestation({
+        notificationDeliveryEnabled: false,
+        publicAuthEnabled: true,
+      }),
       fetchImpl: fetchMock as typeof fetch,
     })).rejects.toThrow('private and public bridge release modes did not match')
     expect(fetchMock).toHaveBeenCalledOnce()

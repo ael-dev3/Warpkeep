@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
 import {
+  importAuthBridgeNotificationPreparedAttestedModules,
   verifyAuthBridgeNotificationPreparedDeployClosure,
 } from './auth-bridge-notification-prepared-deploy-closure.mjs';
 import {
@@ -39,6 +40,12 @@ const REQUIRED_ENVIRONMENT = Object.freeze([
   'WARPKEEP_PRODUCTION_ADMIN_TOKEN',
 ]);
 const FORBIDDEN_ENVIRONMENT = Object.freeze([
+  'PLAYER_CANARY_OWNER_FID',
+  'PTR_ENABLED',
+  'PTR_OIDC_AUDIENCE',
+  'PTR_SPACETIMEDB_DATABASE',
+  'WARPKEEP_PLAYER_CANARY_OWNER_FID',
+  'WARPKEEP_PTR_SPACETIMEDB_DATABASE',
   'CLOUDFLARE_API_BASE_URL',
   'CLOUDFLARE_API_KEY',
   'CLOUDFLARE_EMAIL',
@@ -47,15 +54,33 @@ const FORBIDDEN_ENVIRONMENT = Object.freeze([
   'WRANGLER_AUTH_DOMAIN',
   'WRANGLER_PROFILE',
   'WRANGLER_SEND_METRICS',
+  'BASH_ENV',
+  'ENV',
   'NODE_OPTIONS',
+  'NODE_PATH',
   'NODE_EXTRA_CA_CERTS',
   'NODE_TLS_REJECT_UNAUTHORIZED',
+  'NODE_DEBUG',
+  'NODE_DEBUG_NATIVE',
+  'OPENSSL_CONF',
+  'SSL_CERT_FILE',
+  'SSL_CERT_DIR',
+  'SSLKEYLOGFILE',
   'HTTP_PROXY',
   'HTTPS_PROXY',
   'ALL_PROXY',
+  'NO_PROXY',
   'http_proxy',
   'https_proxy',
   'all_proxy',
+  'no_proxy',
+  'DYLD_INSERT_LIBRARIES',
+  'DYLD_LIBRARY_PATH',
+  'DYLD_FRAMEWORK_PATH',
+  'DYLD_FALLBACK_LIBRARY_PATH',
+  'DYLD_FALLBACK_FRAMEWORK_PATH',
+  'LD_PRELOAD',
+  'LD_LIBRARY_PATH',
 ]);
 
 export class AuthBridgeNotificationB0DeployEntrypointError extends Error {
@@ -185,6 +210,7 @@ async function settleGitInspections(inspections) {
 }
 
 export const authBridgeNotificationB0DeployTestSeams = Object.freeze({
+  copyAndScrubEnvironment,
   settleGitInspections,
 });
 
@@ -385,11 +411,16 @@ export async function runAuthBridgeNotificationB0Deploy({
   if (values.GITHUB_SHA !== sourceCommit) {
     fail('AUTH_BRIDGE_NOTIFICATION_B0_DEPLOY_SOURCE_COMMIT_INVALID');
   }
-  const [adapter, cloudflareRuntime, deployJournal] = await Promise.all([
-    import('./auth-bridge-notification-b0-deploy-adapter.mjs'),
-    import('./auth-bridge-notification-b0-cloudflare-runtime.mjs'),
-    import('./auth-bridge-notification-b0-deploy-journal.mjs'),
-  ]);
+  const [adapter, cloudflareRuntime, deployJournal] =
+    await importAuthBridgeNotificationPreparedAttestedModules({
+      authority: sourceClosureAfterToolchain,
+      repositoryRoot: repository,
+      memberPaths: [
+        'scripts/auth-bridge-notification-b0-deploy-adapter.mjs',
+        'scripts/auth-bridge-notification-b0-cloudflare-runtime.mjs',
+        'scripts/auth-bridge-notification-b0-deploy-journal.mjs',
+      ],
+    });
   const {
     authBridgeNotificationB0VersionContract,
     executeAuthBridgeNotificationB0DeployAdapter,

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   chmodSync,
   existsSync,
@@ -15,6 +16,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   NOTIFICATION_PAGES_PRIVATE_DEPLOY_ABANDONMENT_PROOF_PROFILE,
+  NOTIFICATION_PAGES_PRIVATE_DEPLOY_JOURNAL_PROFILE,
   NotificationPagesPrivateDeployJournalError,
   recoverNotificationPagesPrivateDeploySkippedInvocation,
   withNotificationPagesPrivateDeployJournal,
@@ -116,6 +118,259 @@ function recover(input: {
   });
 }
 
+function fixtureDigest(label: string): string {
+  return createHash('sha256').update(label, 'utf8').digest('hex');
+}
+
+function fixtureOperationId(contractDigest: string): string {
+  return createHash('sha256')
+    .update(
+      `${NOTIFICATION_PAGES_PRIVATE_DEPLOY_JOURNAL_PROFILE}\n`
+        + `${contractDigest}\n`,
+      'utf8',
+    )
+    .digest('hex');
+}
+
+function canonicalFixtureValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalFixtureValue);
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, item]) => [key, canonicalFixtureValue(item)]),
+    );
+  }
+  return value;
+}
+
+function fixtureValueDigest(value: Readonly<Record<string, unknown>>): string {
+  return createHash('sha256')
+    .update(`${JSON.stringify(canonicalFixtureValue(value))}\n`, 'utf8')
+    .digest('hex');
+}
+
+function writeCanonicalFixture(
+  directory: string,
+  name: string,
+  value: Readonly<Record<string, unknown>>,
+): void {
+  writeFileSync(
+    join(directory, name),
+    `${JSON.stringify(value)}\n`,
+    { encoding: 'utf8', flag: 'wx', mode: 0o600 },
+  );
+}
+
+function seedTerminalFixture(
+  directory: string,
+  generation: number,
+  options: {
+    completedAt?: string;
+    contractDigest?: string;
+    finalSequence?: number;
+  } = {},
+): void {
+  const contractDigest = options.contractDigest
+    ?? fixtureDigest(`terminal-contract-${generation}`);
+  const operationId = fixtureOperationId(contractDigest);
+  writeCanonicalFixture(
+    directory,
+    `notification-pages-private-deploy-${operationId}-terminal.json`,
+    {
+      candidateAuthorityDigest: null,
+      completedAt: options.completedAt ?? '2026-08-13T12:00:00.000Z',
+      contractDigest,
+      deploymentInvoked: false,
+      finalRecordDigest: fixtureDigest(`terminal-record-${generation}`),
+      finalSequence: options.finalSequence ?? 3,
+      operationId,
+      profile: NOTIFICATION_PAGES_PRIVATE_DEPLOY_JOURNAL_PROFILE,
+      receiptDigest: fixtureDigest(`terminal-receipt-${generation}`),
+      receiptResult: 'installed',
+      runAttempt: 1,
+      runId: String(10_000 + generation),
+      schemaVersion: 1,
+    },
+  );
+}
+
+function seedAbandonmentFixture(
+  directory: string,
+  generation: number,
+  options: { contractDigest?: string } = {},
+): {
+  checkpointDigest: string;
+  checkpointSequence: number;
+  contractDigest: string;
+  operationId: string;
+} {
+  const contractDigest = options.contractDigest
+    ?? fixtureDigest(`abandonment-contract-${generation}`);
+  const operationId = fixtureOperationId(contractDigest);
+  const checkpointSequence = 5;
+  const checkpoint = {
+    adjudicationDigest: fixtureDigest(`abandonment-proof-${generation}`),
+    candidatePagesSourceCommit: generation.toString(16).padStart(40, '0'),
+    checkpointSequence,
+    contractDigest,
+    deployRecordDigest: fixtureDigest(`abandonment-deploy-${generation}`),
+    deploySequence: 4,
+    operationId,
+    profile: NOTIFICATION_PAGES_PRIVATE_DEPLOY_JOURNAL_PROFILE,
+    reason: 'github-actions-deploy-step-skipped',
+    retiredAt: '2026-08-13T12:00:00.000Z',
+    retiredRecordDigest: fixtureDigest(`abandonment-retired-${generation}`),
+    retiredSequence: 4,
+    runAttempt: 1,
+    runId: String(20_000 + generation),
+    schemaVersion: 1,
+  };
+  writeCanonicalFixture(
+    directory,
+    `notification-pages-private-deploy-${operationId}`
+      + `-abandonment-${String(checkpointSequence).padStart(8, '0')}.json`,
+    checkpoint,
+  );
+  return {
+    checkpointDigest: fixtureValueDigest(checkpoint),
+    checkpointSequence,
+    contractDigest,
+    operationId,
+  };
+}
+
+function seedCompletedHistoryFixture(
+  directory: string,
+  generation: number,
+  options: {
+    contractDigest?: string;
+    deploymentInvoked?: boolean;
+    previousRecordDigest?: string | null;
+    startSequence?: number;
+  } = {},
+): void {
+  const contractDigest = options.contractDigest
+    ?? fixtureDigest(`completed-history-contract-${generation}`);
+  const operationId = fixtureOperationId(contractDigest);
+  const runId = String(30_000 + generation);
+  let previousRecordDigest = options.previousRecordDigest ?? null;
+  let sequence = options.startSequence ?? 0;
+  const append = (
+    phase: string,
+    payload: Readonly<Record<string, unknown>>,
+    recordRunId = runId,
+  ) => {
+    sequence += 1;
+    const record = {
+      contractDigest,
+      operationId,
+      payload,
+      phase,
+      previousRecordDigest,
+      profile: NOTIFICATION_PAGES_PRIVATE_DEPLOY_JOURNAL_PROFILE,
+      recordedAt: '2026-08-13T12:00:00.000Z',
+      runAttempt: 1,
+      runId: recordRunId,
+      schemaVersion: 1,
+      sequence,
+    };
+    writeCanonicalFixture(
+      directory,
+      `notification-pages-private-deploy-${operationId}`
+        + `-${String(sequence).padStart(8, '0')}-${phase}.json`,
+      record,
+    );
+    previousRecordDigest = fixtureValueDigest(record);
+  };
+  if (options.deploymentInvoked === true) {
+    append('prepared', { handoff: null });
+    append('reconciled-not-current', { mode: 'durable' });
+    append('candidate-authorized', {
+      candidateAuthorityDigest: 'd'.repeat(64),
+    });
+    append('deploy-invoked', {
+      candidateAuthorityDigest: 'd'.repeat(64),
+      candidatePagesSourceCommit: CANDIDATE,
+    });
+  }
+  const completionRunId = options.deploymentInvoked === true
+    ? String(40_000 + generation)
+    : runId;
+  append('prepared', { handoff: null }, completionRunId);
+  append('reconciled-exact-current', { mode: 'durable' }, completionRunId);
+  append('postflight-completed', {
+    receiptDigest: fixtureDigest(`completed-history-receipt-${generation}`),
+    receiptResult: 'installed',
+  }, completionRunId);
+}
+
+function seedSaturatedActiveHistoryFixture(directory: string): {
+  firstRunId: string;
+  lastRunId: string;
+} {
+  const contractDigest = fixtureValueDigest(contract());
+  const operationId = fixtureOperationId(contractDigest);
+  let previousRecordDigest: string | null = null;
+  let sequence = 0;
+  const append = (
+    runId: string,
+    phase: string,
+    payload: Readonly<Record<string, unknown>>,
+  ) => {
+    sequence += 1;
+    const record = {
+      contractDigest,
+      operationId,
+      payload,
+      phase,
+      previousRecordDigest,
+      profile: NOTIFICATION_PAGES_PRIVATE_DEPLOY_JOURNAL_PROFILE,
+      recordedAt: '2026-08-13T12:00:00.000Z',
+      runAttempt: 1,
+      runId,
+      schemaVersion: 1,
+      sequence,
+    };
+    writeCanonicalFixture(
+      directory,
+      `notification-pages-private-deploy-${operationId}`
+        + `-${String(sequence).padStart(8, '0')}-${phase}.json`,
+      record,
+    );
+    previousRecordDigest = fixtureValueDigest(record);
+  };
+  const firstRunId = '50000';
+  append(firstRunId, 'prepared', { handoff: null });
+  append(firstRunId, 'reconciled-not-current', { mode: 'durable' });
+  append(firstRunId, 'candidate-authorized', {
+    candidateAuthorityDigest: 'd'.repeat(64),
+  });
+  append(firstRunId, 'deploy-invoked', {
+    candidateAuthorityDigest: 'd'.repeat(64),
+    candidatePagesSourceCommit: CANDIDATE,
+  });
+  let lastRunId = firstRunId;
+  for (let retry = 1; retry <= 62; retry += 1) {
+    lastRunId = String(50_000 + retry);
+    append(lastRunId, 'prepared', { handoff: null });
+    append(lastRunId, 'reconciled-not-current', { mode: 'durable' });
+  }
+  expect(sequence).toBe(128);
+  return { firstRunId, lastRunId };
+}
+
+async function emptyJournalDirectory(home: string): Promise<string> {
+  let directory = '';
+  await run({
+    home,
+    operation(journal) {
+      directory = journal.directory;
+    },
+  });
+  return directory;
+}
+
 describe('notification Pages private deployment journal', () => {
   it('persists one effect boundary and completes through exact-current recovery', async () => {
     const home = privateHome();
@@ -211,6 +466,66 @@ describe('notification Pages private deployment journal', () => {
     }
   });
 
+  it('prunes a valid crash-left abandonment superseded by its terminal', async () => {
+    const home = privateHome();
+    const directory = await emptyJournalDirectory(home);
+    const contractDigest = fixtureDigest('valid-overlap-contract');
+    seedAbandonmentFixture(directory, 900, { contractDigest });
+    seedTerminalFixture(directory, 900, {
+      contractDigest,
+      finalSequence: 8,
+    });
+    await run({
+      home,
+      runId: '901',
+      operation: () => undefined,
+    });
+    const names = readdirSync(directory);
+    expect(names).toHaveLength(1);
+    expect(names[0]).toMatch(/-terminal\.json$/u);
+  });
+
+  it('rejects an abandonment that is not older than its overlapping terminal', async () => {
+    const home = privateHome();
+    const directory = await emptyJournalDirectory(home);
+    const contractDigest = fixtureDigest('invalid-overlap-contract');
+    seedAbandonmentFixture(directory, 901, { contractDigest });
+    seedTerminalFixture(directory, 901, {
+      contractDigest,
+      finalSequence: 7,
+    });
+    let invoked = false;
+    await expect(run({
+      home,
+      runId: '902',
+      operation() {
+        invoked = true;
+      },
+    })).rejects.toMatchObject({
+      code: 'NOTIFICATION_PAGES_DEPLOY_JOURNAL_COMPACTION_INVALID',
+    });
+    expect(invoked).toBe(false);
+  });
+
+  it('rejects an overlapping terminal that predates its abandonment', async () => {
+    const home = privateHome();
+    const directory = await emptyJournalDirectory(home);
+    const contractDigest = fixtureDigest('predating-overlap-contract');
+    seedAbandonmentFixture(directory, 903, { contractDigest });
+    seedTerminalFixture(directory, 903, {
+      completedAt: '2026-08-13T11:59:59.999Z',
+      contractDigest,
+      finalSequence: 8,
+    });
+    await expect(run({
+      home,
+      runId: '904',
+      operation: () => undefined,
+    })).rejects.toMatchObject({
+      code: 'NOTIFICATION_PAGES_DEPLOY_JOURNAL_COMPACTION_INVALID',
+    });
+  });
+
   it('repairs a crash after terminal publication while record unlinking', async () => {
     const home = privateHome();
     let directory = '';
@@ -249,28 +564,29 @@ describe('notification Pages private deployment journal', () => {
 
   it('keeps receipt generation 255 reachable within the directory bound', async () => {
     const home = privateHome();
-    let directory = '';
-    for (let generation = 0; generation <= 255; generation += 1) {
-      const source = generation.toString(16).padStart(40, '0');
-      await run({
-        home,
-        runId: String(1_000 + generation),
-        contract: {
-          ...contract(),
-          candidatePagesSourceCommit: source,
-        },
-        operation(journal) {
-          directory = journal.directory;
-          journal.prepared(null);
-          journal.reconciledExactCurrent('durable');
-          journal.completed(source.padStart(64, '0'), 'installed');
-        },
-      });
+    const directory = await emptyJournalDirectory(home);
+    for (let generation = 0; generation < 255; generation += 1) {
+      seedTerminalFixture(directory, generation);
     }
+    const generation = 255;
+    const source = generation.toString(16).padStart(40, '0');
+    await run({
+      home,
+      runId: String(1_000 + generation),
+      contract: {
+        ...contract(),
+        candidatePagesSourceCommit: source,
+      },
+      operation(journal) {
+        journal.prepared(null);
+        journal.reconciledExactCurrent('durable');
+        journal.completed(source.padStart(64, '0'), 'installed');
+      },
+    });
     const names = readdirSync(directory);
     expect(names).toHaveLength(256);
     expect(names.every(name => name.endsWith('-terminal.json'))).toBe(true);
-  }, 120_000);
+  });
 
   it('retires only an invocation whose exact deploy action was skipped', async () => {
     const home = privateHome();
@@ -357,57 +673,293 @@ describe('notification Pages private deployment journal', () => {
 
   it('retains 256 abandoned operations without blocking generation 255', async () => {
     const home = privateHome();
-    let directory = '';
+    const directory = await emptyJournalDirectory(home);
     for (let generation = 0; generation <= 255; generation += 1) {
-      const candidate = generation.toString(16).padStart(40, '0');
-      const runId = String(2_000 + generation);
-      await run({
-        home,
-        runId,
-        contract: { ...contract(), candidatePagesSourceCommit: candidate },
-        operation(journal) {
-          directory = journal.directory;
-          journal.prepared(null);
-          journal.reconciledNotCurrent('durable');
-          journal.candidateAuthorized('d'.repeat(64));
-          journal.deployInvoked('d'.repeat(64));
-        },
-      });
-      await recoverNotificationPagesPrivateDeploySkippedInvocation({
-        repositoryRoot: REPOSITORY_ROOT,
-        reportedHome: home,
-        clock: () => new Date('2026-08-13T12:00:00.000Z'),
-        randomBytesImpl: deterministicRandom(),
-        processIdentity: 'test-process-start-identity',
-        processIdentityProbe: () => ({
-          state: 'present' as const,
-          identity: 'test-process-start-identity',
-        }),
-        adjudicate: async () => skippedProof({
-          candidatePagesSourceCommit: candidate,
-          runId,
-        }),
-      });
+      seedAbandonmentFixture(directory, generation);
     }
-    expect(readdirSync(directory)).toHaveLength(256);
-    for (let generation = 0; generation <= 255; generation += 1) {
-      const candidate = `f${generation.toString(16).padStart(39, '0')}`;
-      await run({
-        home,
-        runId: String(3_000 + generation),
-        contract: { ...contract(), candidatePagesSourceCommit: candidate },
-        operation(journal) {
-          journal.prepared(null);
-          journal.reconciledExactCurrent('durable');
-          journal.completed(candidate.padStart(64, '0'), 'installed');
-        },
-      });
+    for (let generation = 0; generation < 255; generation += 1) {
+      seedTerminalFixture(directory, generation);
     }
+    const generation = 255;
+    const candidate = `f${generation.toString(16).padStart(39, '0')}`;
+    await run({
+      home,
+      runId: String(3_000 + generation),
+      contract: { ...contract(), candidatePagesSourceCommit: candidate },
+      operation(journal) {
+        journal.prepared(null);
+        journal.reconciledExactCurrent('durable');
+        journal.completed(candidate.padStart(64, '0'), 'installed');
+      },
+    });
     const names = readdirSync(directory);
     expect(names).toHaveLength(512);
     expect(names.filter(name => name.includes('-abandonment-'))).toHaveLength(256);
     expect(names.filter(name => name.endsWith('-terminal.json'))).toHaveLength(256);
-  }, 180_000);
+  });
+
+  it('rejects 513 preexisting retained operations before invoking its callback', async () => {
+    const home = privateHome();
+    const directory = await emptyJournalDirectory(home);
+    for (let generation = 0; generation <= 255; generation += 1) {
+      seedAbandonmentFixture(directory, generation);
+      seedTerminalFixture(directory, generation);
+    }
+    seedTerminalFixture(directory, 256);
+    let invoked = false;
+    await expect(run({
+      home,
+      runId: '4000',
+      operation() {
+        invoked = true;
+      },
+    })).rejects.toMatchObject({
+      code: 'NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED',
+    });
+    expect(invoked).toBe(false);
+  });
+
+  it('rejects a new operation at retained capacity before its first record', async () => {
+    const home = privateHome();
+    const directory = await emptyJournalDirectory(home);
+    for (let generation = 0; generation <= 255; generation += 1) {
+      seedAbandonmentFixture(directory, generation);
+      seedTerminalFixture(directory, generation);
+    }
+    const before = readdirSync(directory).sort();
+    await expect(run({
+      home,
+      runId: '4001',
+      operation(journal) {
+        journal.prepared(null);
+      },
+    })).rejects.toMatchObject({
+      code: 'NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED',
+    });
+    expect(readdirSync(directory).sort()).toEqual(before);
+  });
+
+  it('preserves idempotency and ambiguity at active-record capacity', async () => {
+    const home = privateHome();
+    const directory = await emptyJournalDirectory(home);
+    const { firstRunId, lastRunId } = seedSaturatedActiveHistoryFixture(directory);
+    const before = readdirSync(directory).sort();
+    await expect(run({
+      home,
+      runId: lastRunId,
+      operation(journal) {
+        journal.prepared(null);
+      },
+    })).resolves.toBeUndefined();
+    await expect(run({
+      home,
+      runId: firstRunId,
+      operation(journal) {
+        journal.deployInvoked('d'.repeat(64));
+      },
+    })).rejects.toMatchObject({
+      code: 'NOTIFICATION_PAGES_DEPLOY_ALREADY_INVOKED',
+      deploymentMayHaveChanged: true,
+    });
+    await expect(run({
+      home,
+      runId: lastRunId,
+      operation(journal) {
+        journal.candidateAuthorized('d'.repeat(64));
+      },
+    })).rejects.toMatchObject({
+      code: 'NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED',
+      deploymentMayHaveChanged: true,
+    });
+    expect(readdirSync(directory).sort()).toEqual(before);
+  });
+
+  it('rejects saturated recovery before adjudication with ambiguity preserved', async () => {
+    const home = privateHome();
+    const directory = await emptyJournalDirectory(home);
+    const { firstRunId } = seedSaturatedActiveHistoryFixture(directory);
+    const before = readdirSync(directory).sort();
+    let adjudicated = false;
+    await expect(recoverNotificationPagesPrivateDeploySkippedInvocation({
+      repositoryRoot: REPOSITORY_ROOT,
+      reportedHome: home,
+      clock: () => new Date('2026-08-13T12:00:00.000Z'),
+      randomBytesImpl: deterministicRandom(),
+      processIdentity: 'test-process-start-identity',
+      processIdentityProbe: () => ({
+        state: 'present' as const,
+        identity: 'test-process-start-identity',
+      }),
+      adjudicate: async () => {
+        adjudicated = true;
+        return skippedProof({ runId: firstRunId });
+      },
+    })).rejects.toMatchObject({
+      code: 'NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED',
+      deploymentMayHaveChanged: true,
+    });
+    expect(adjudicated).toBe(false);
+    expect(readdirSync(directory).sort()).toEqual(before);
+  });
+
+  it('does not compact a crash-left new terminal into a full retained set', async () => {
+    const home = privateHome();
+    const directory = await emptyJournalDirectory(home);
+    for (let generation = 0; generation <= 255; generation += 1) {
+      seedAbandonmentFixture(directory, generation);
+      seedTerminalFixture(directory, generation);
+    }
+    seedCompletedHistoryFixture(directory, 902, {
+      deploymentInvoked: true,
+    });
+    const before = readdirSync(directory).sort();
+    let invoked = false;
+    await expect(run({
+      home,
+      runId: '4005',
+      operation() {
+        invoked = true;
+      },
+    })).rejects.toMatchObject({
+      code: 'NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED',
+      deploymentMayHaveChanged: true,
+    });
+    expect(invoked).toBe(false);
+    expect(readdirSync(directory).sort()).toEqual(before);
+  });
+
+  it('repairs its own crash-left terminal replacement at retained capacity', async () => {
+    const home = privateHome();
+    const directory = await emptyJournalDirectory(home);
+    const contractDigest = fixtureDigest('repair-at-capacity-contract');
+    const abandonment = seedAbandonmentFixture(directory, 905, {
+      contractDigest,
+    });
+    for (let generation = 0; generation < 511; generation += 1) {
+      seedTerminalFixture(directory, generation);
+    }
+    seedCompletedHistoryFixture(directory, 905, {
+      contractDigest,
+      previousRecordDigest: abandonment.checkpointDigest,
+      startSequence: abandonment.checkpointSequence,
+    });
+    await run({
+      home,
+      runId: '4006',
+      operation: () => undefined,
+    });
+    const names = readdirSync(directory);
+    expect(names).toHaveLength(512);
+    expect(names.some(name => name.includes('-abandonment-'))).toBe(false);
+    expect(names.every(name => name.endsWith('-terminal.json'))).toBe(true);
+  });
+
+  it('does not publish an abandonment into a full retained set', async () => {
+    const home = privateHome();
+    let directory = '';
+    await run({
+      home,
+      runId: '4002',
+      operation(journal) {
+        directory = journal.directory;
+        journal.prepared(null);
+        journal.reconciledNotCurrent('durable');
+        journal.candidateAuthorized('d'.repeat(64));
+        journal.deployInvoked('d'.repeat(64));
+      },
+    });
+    for (let generation = 0; generation <= 255; generation += 1) {
+      seedAbandonmentFixture(directory, generation);
+      seedTerminalFixture(directory, generation);
+    }
+    const before = readdirSync(directory).sort();
+    await expect(run({
+      home,
+      runId: '4002',
+      operation(journal) {
+        journal.prepared(null);
+      },
+    })).resolves.toBeUndefined();
+    await expect(run({
+      home,
+      runId: '4002',
+      operation(journal) {
+        journal.deployInvoked('d'.repeat(64));
+      },
+    })).rejects.toMatchObject({
+      code: 'NOTIFICATION_PAGES_DEPLOY_ALREADY_INVOKED',
+      deploymentMayHaveChanged: true,
+    });
+    await expect(run({
+      home,
+      runId: '4002',
+      operation(journal) {
+        journal.postflightNotCurrent('durable');
+      },
+    })).rejects.toMatchObject({
+      code: 'NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED',
+      deploymentMayHaveChanged: true,
+    });
+    expect(readdirSync(directory).sort()).toEqual(before);
+    let adjudicated = false;
+    await expect(recoverNotificationPagesPrivateDeploySkippedInvocation({
+      repositoryRoot: REPOSITORY_ROOT,
+      reportedHome: home,
+      clock: () => new Date('2026-08-13T12:00:00.000Z'),
+      randomBytesImpl: deterministicRandom(),
+      processIdentity: 'test-process-start-identity',
+      processIdentityProbe: () => ({
+        state: 'present' as const,
+        identity: 'test-process-start-identity',
+      }),
+      adjudicate: async () => {
+        adjudicated = true;
+        return skippedProof({ runId: '4002' });
+      },
+    })).rejects.toMatchObject({
+      code: 'NOTIFICATION_PAGES_DEPLOY_JOURNAL_CAPACITY_EXCEEDED',
+      deploymentMayHaveChanged: true,
+    });
+    expect(adjudicated).toBe(false);
+    expect(readdirSync(directory).sort()).toEqual(before);
+  });
+
+  it('replaces its own abandonment terminal at retained capacity', async () => {
+    const home = privateHome();
+    let directory = '';
+    await run({
+      home,
+      runId: '4003',
+      operation(journal) {
+        directory = journal.directory;
+        journal.prepared(null);
+        journal.reconciledNotCurrent('durable');
+        journal.candidateAuthorized('d'.repeat(64));
+        journal.deployInvoked('d'.repeat(64));
+      },
+    });
+    await recover({
+      home,
+      proof: skippedProof({ runId: '4003' }),
+    });
+    for (let generation = 0; generation < 511; generation += 1) {
+      seedTerminalFixture(directory, generation);
+    }
+    expect(readdirSync(directory)).toHaveLength(512);
+    await run({
+      home,
+      runId: '4004',
+      operation(journal) {
+        journal.prepared(null);
+        journal.reconciledExactCurrent('durable');
+        journal.completed('f'.repeat(64), 'installed');
+      },
+    });
+    const names = readdirSync(directory);
+    expect(names).toHaveLength(512);
+    expect(names.some(name => name.includes('-abandonment-'))).toBe(false);
+    expect(names.every(name => name.endsWith('-terminal.json'))).toBe(true);
+  });
 
   it.each([
     ['cancelled', 'action may have started'],

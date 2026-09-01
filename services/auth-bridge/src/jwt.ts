@@ -2,20 +2,27 @@ import type {
   AccessRequestOperation,
   AccessRequestResolverTokenClaims,
   AdminTokenClaims,
+  Genesis002AdminTokenClaims,
   AuthEpochResolverTokenClaims,
   PlayerTokenClaims,
+  PtrAtlasAdminTokenClaims,
+  PtrAdminTokenClaims,
+  PtrOwnerTokenClaims,
   QaSnapshotResolverTokenClaims,
 } from './types'
 import {
   ADMIN_TOKEN_TTL_SECONDS,
+  GENESIS_002_OIDC_AUDIENCE,
   INTERNAL_ACCESS_REQUEST_RESOLVER_TOKEN_TTL_SECONDS,
   INTERNAL_AUTH_EPOCH_RESOLVER_TOKEN_TTL_SECONDS,
   PLAYER_TOKEN_TTL_SECONDS,
+  PTR_TOKEN_TTL_SECONDS,
   QA_SNAPSHOT_RESOLVER_TOKEN_TTL_SECONDS,
   type BridgeConfig,
 } from './config'
 
 const encoder = new TextEncoder()
+const MAX_AUTH_EPOCH = 0xffff_ffff
 
 function base64Url(bytes: Uint8Array): string {
   let binary = ''
@@ -54,6 +61,9 @@ export async function signEs256Jwt(
   config: BridgeConfig,
   claims:
     | PlayerTokenClaims
+    | PtrOwnerTokenClaims
+    | PtrAtlasAdminTokenClaims
+    | PtrAdminTokenClaims
     | AdminTokenClaims
     | AuthEpochResolverTokenClaims
     | AccessRequestResolverTokenClaims
@@ -68,6 +78,54 @@ export async function signEs256Jwt(
     encoder.encode(signingInput),
   )
   return `${signingInput}.${base64Url(new Uint8Array(signature))}`
+}
+
+/** Short, owner-bound token for the independently isolated Public Test Realm. */
+export function ptrOwnerClaims(
+  config: BridgeConfig,
+  nowSeconds: number,
+  fid: string,
+  authEpoch: number,
+  ttlSeconds = PTR_TOKEN_TTL_SECONDS,
+): PtrOwnerTokenClaims {
+  const ptr = config.ptrSpacetimeDb
+  const numericFid = Number(fid)
+  if (
+    !ptr
+    || config.ptrEnabled !== true
+    || config.playerCanaryOwnerFid !== fid
+    || !Number.isSafeInteger(nowSeconds)
+    || nowSeconds < 0
+    || !Number.isSafeInteger(ttlSeconds)
+    || ttlSeconds < 1
+    || ttlSeconds > PTR_TOKEN_TTL_SECONDS
+    || nowSeconds > Number.MAX_SAFE_INTEGER - ttlSeconds
+    || !/^[1-9]\d{0,15}$/.test(fid)
+    || !Number.isSafeInteger(numericFid)
+    || String(numericFid) !== fid
+    || !Number.isSafeInteger(authEpoch)
+    || authEpoch < 1
+    || authEpoch > MAX_AUTH_EPOCH
+  ) {
+    throw new Error('Invalid PTR access-token configuration.')
+  }
+  return {
+    iss: config.issuer,
+    sub: `farcaster:${fid}`,
+    aud: [ptr.audience],
+    token_type: 'spacetime-access',
+    auth_version: 2,
+    realm_id: 'PTR',
+    fid,
+    auth_epoch: authEpoch,
+    roles: ['warpkeep-ptr-owner'],
+    iat: nowSeconds,
+    nbf: nowSeconds,
+    exp: nowSeconds + ttlSeconds,
+    session_iat: nowSeconds,
+    session_exp: nowSeconds + ttlSeconds,
+    jti: randomId(),
+  }
 }
 
 export function playerClaims(
@@ -98,12 +156,12 @@ export function playerClaims(
   }
 }
 
-function hermesAdminClaims(
+function hermesAdminClaims<const TAudience extends string>(
   issuer: string,
-  audience: string,
+  audience: TAudience,
   nowSeconds: number,
   ttlSeconds: number,
-): AdminTokenClaims {
+): AdminTokenClaims & Readonly<{ aud: [TAudience] }> {
   return {
     iss: issuer,
     sub: 'service:hermes',
@@ -120,6 +178,63 @@ function hermesAdminClaims(
 /** Five-minute external Hermes token for the server-only admin endpoint. */
 export function adminClaims(config: BridgeConfig, nowSeconds: number): AdminTokenClaims {
   return hermesAdminClaims(config.issuer, config.audience, nowSeconds, ADMIN_TOKEN_TTL_SECONDS)
+}
+
+/** Five-minute Hermes token that grants authority only in sealed Genesis 002. */
+export function genesis002AdminClaims(
+  config: BridgeConfig,
+  nowSeconds: number,
+): Genesis002AdminTokenClaims {
+  return hermesAdminClaims(
+    config.issuer,
+    GENESIS_002_OIDC_AUDIENCE,
+    nowSeconds,
+    ADMIN_TOKEN_TTL_SECONDS,
+  )
+}
+
+/** Five-minute Hermes token for provisioning only the isolated PTR database. */
+export function ptrAdminClaims(
+  config: BridgeConfig,
+  nowSeconds: number,
+  ownerFid: string,
+  ownerAuthEpoch: number,
+): PtrAdminTokenClaims {
+  const ptr = config.ptrSpacetimeDb
+  const numericOwnerFid = Number(ownerFid)
+  if (
+    !config.ptrEnabled
+    || !ptr
+    || config.playerCanaryOwnerFid !== ownerFid
+    || !/^[1-9]\d{0,15}$/.test(ownerFid)
+    || !Number.isSafeInteger(numericOwnerFid)
+    || String(numericOwnerFid) !== ownerFid
+    || !Number.isSafeInteger(ownerAuthEpoch)
+    || ownerAuthEpoch < 1
+    || ownerAuthEpoch > MAX_AUTH_EPOCH
+  ) throw new Error('Invalid PTR admin-token configuration.')
+  return {
+    ...hermesAdminClaims(config.issuer, ptr.audience, nowSeconds, ADMIN_TOKEN_TTL_SECONDS),
+    ptr_owner_fid: ownerFid,
+    ptr_owner_auth_epoch: ownerAuthEpoch,
+  }
+}
+
+/** Five-minute ownerless Hermes token for importing the isolated PTR atlas. */
+export function ptrAtlasAdminClaims(
+  config: BridgeConfig,
+  nowSeconds: number,
+): PtrAtlasAdminTokenClaims {
+  const ptr = config.ptrSpacetimeDb
+  if (!config.ptrEnabled || !ptr) {
+    throw new Error('Invalid PTR atlas admin-token configuration.')
+  }
+  return hermesAdminClaims(
+    config.issuer,
+    ptr.audience,
+    nowSeconds,
+    ADMIN_TOKEN_TTL_SECONDS,
+  ) as PtrAtlasAdminTokenClaims
 }
 
 /** Fresh 15-second resolver token bound to one canonical verified FID. */

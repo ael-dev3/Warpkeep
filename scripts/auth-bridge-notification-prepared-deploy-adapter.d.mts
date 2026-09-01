@@ -7,6 +7,10 @@ export const AUTH_BRIDGE_NOTIFICATION_PREPARED_PREEXISTING_SECRET_BINDING_NAMES:
   readonly ['ADMIN_TOKEN_SECRET', 'FARCASTER_RPC_URL', 'FARCASTER_RPC_URL_SECONDARY', 'NOTIFICATION_OPERATOR_SECRET', 'SESSION_COOKIE_KEY', 'SIGNING_KEY_JWK'];
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_PLAYER_CANARY_SECRET_BINDING:
   'PLAYER_CANARY_OWNER_FID';
+export const AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_DATABASE_BINDING:
+  'PTR_SPACETIMEDB_DATABASE';
+export const AUTH_BRIDGE_NOTIFICATION_PREPARED_PTR_OIDC_AUDIENCE:
+  'warpkeep-ptr-spacetimedb';
 
 export class AuthBridgeNotificationPreparedDeployError extends Error {
   readonly code: string;
@@ -77,13 +81,23 @@ export function executeAuthBridgeNotificationPreparedDeployAdapter(
     inspectDeployment: () => Promise<unknown>;
     journal: Readonly<{
       inspect: () => Readonly<{
-        phase: 'prepared' | 'remote-reconcile-started' | 'upload-invoked' | 'uploaded' | 'release-uncertain' | 'release-invoked' | 'completed' | null;
+        phase: 'prepared' | 'remote-reconcile-started' | 'upload-invoked' | 'uploaded' | 'release-uncertain' | 'release-invoked' | 'completed' | 'upload-adjudication-required' | null;
         predecessorDeploymentId: string | null;
         predecessorVersionId: string | null;
+        uploadAdjudicationReason: 'invalid-upload-response' | 'definitive-provider-rejection' | null;
       }>;
       prepared: (contract: Readonly<Record<string, unknown>>) => Promise<void>;
-      remoteReconcileStarted: (input: Readonly<Record<string, unknown>>) => Promise<void>;
+      remoteReconcileStarted: (input: Readonly<{
+        predecessorDeploymentId: string;
+        predecessorVersionId: string;
+        sourceCommit: string;
+        sourceDigest: string;
+        versionTag: string;
+      }>) => Promise<void>;
       uploadInvoked: (input: Readonly<Record<string, unknown>>) => Promise<void>;
+      uploadAdjudicationRequired: (input: Readonly<{
+        reason: 'invalid-upload-response' | 'definitive-provider-rejection';
+      }>) => Promise<void>;
       uploaded: (version: Readonly<Record<string, unknown>>) => Promise<void>;
       releaseUncertain: (input: Readonly<Record<string, unknown>>) => Promise<void>;
       releaseInvoked: (input: Readonly<Record<string, unknown>>) => Promise<void>;
@@ -97,6 +111,7 @@ export function executeAuthBridgeNotificationPreparedDeployAdapter(
 export function prepareAndWriteAuthBridgeNotificationPreparedReceipt(
   options: Readonly<{
     adminToken: string;
+    expectedPtrSpacetimeDbDatabase: string;
     expectedBridgeSourceCommit: string;
     expectedPredecessorBridgeSourceCommit: string;
     fetchImpl?: typeof fetch;

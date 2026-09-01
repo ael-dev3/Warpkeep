@@ -263,6 +263,7 @@ describe('Warpkeep local QA journey lab', () => {
       'SYNTHETIC · LOOPBACK ONLY · EXTERNAL LINKS DISABLED'
     )).not.toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
     const firstTerms = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
     expect((within(firstTerms).getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
     expect((within(firstTerms).getByRole('button', {

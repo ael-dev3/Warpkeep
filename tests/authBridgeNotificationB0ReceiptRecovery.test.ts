@@ -93,6 +93,11 @@ function privateBody(prepared: boolean) {
     admissionNotificationStatusPath: '/v1/admin/admission-notification-status',
     publicAuthEnabled: true,
     accessExpectedFidRequired: false,
+    ...(prepared ? {
+      ptrEnabled: false,
+      ptrSpacetimeDbDatabase: null,
+      ptrAudience: null,
+    } : {}),
     qaObserverEnabled: false,
     qaObserverSpacetimeDbUri: null,
     qaObserverSpacetimeDbDatabase: null,

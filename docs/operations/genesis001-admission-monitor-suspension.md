@@ -1,53 +1,116 @@
 # Genesis 001 admission-monitor suspension
 
+This operation is non-runnable from every Task 6B-6E preparation intermediate
+commit. Task 6B changes two current raw closure members while refreeze remains
+forbidden. The committed raw-file closure manifest was
+current at `b450df45c` and first became stale at Task 1 commit `73792442b`
+(1/979); at Task 6B, only the verifier declaration adds a new mismatch because
+its implementation was already stale, moving 18/979 to 19/979. Task 6C's
+formal surface intersects 21 current raw members total, including those same
+two, and adds 19 newly distinct members to that surface; the planned set union
+remains `2 + 19 = 21`. Those set counts establish neither the actual stale-
+interval origin nor Task 6C's final changed-member count. The approved Task 6C
+tree changes 18 raw members: 10 already stale plus 8 newly stale, moving
+19/979 to 27/979. Tasks 6B through 6E continue the already-stale, fail-closed
+interval. Protected prepared and sealed-realms/live workflows must fail closed
+throughout; focused task-specific source/module/static tests cannot be reported
+as full-green workflow evidence. Task 7 alone atomically refreezes the closure
+manifest, workflow pins, and all downstream consumers. Only its green first
+run and zero-diff second run restore executability.
+
 The local Hermes admission monitor is read-only: it inventories pending access
 requests and emits private operator notifications, but it cannot admit, allow,
-reset, disable, or otherwise mutate a player. Even so, the 0.4.0 cutover treats
-it as part of the admission process and persistently suspends it before Pages can
-present Genesis 002.
+reset, disable, re-enable, or otherwise mutate a player. The sealed-realms
+release nevertheless requires it disabled and unloaded before the activation/
+PTR presentation boundary.
 
-Keep the monitor running until both of these operations have completed:
+Keep the monitor loaded until all of the following are true in exact source
+mode `S`:
 
-1. the exact same-schema Genesis 001 freeze is deployed and independently
-   verified; and
-2. the stable, two-pass applicant census has been written to the private
-   administrator Desktop.
+1. checkout `HEAD`, protected remote `main`, workflow input commit, inert
+   preparation binding, and successful Verify SHA are identical;
+2. both G002 and PTR are published, the fresh PTR identity is bound to the
+   deployed prepared bridge, and `g002-import-inspect` has authenticated the
+   exact prepared receipt/source/expiry, completed deploy-or-recovery journal,
+   fresh deployment and PTR-binding attestations, plus authoritative POST/
+   OPTIONS suspension evidence;
+3. G002 and ownerless PTR atlas imports are finalized and live-inspected;
+   their independent fresh `g002Gate`/`ptrGate` confirmations were consumed by
+   the corresponding applies, and both immutable receipt cross-links bind one
+   unchanged `deploymentAuthority`;
+4. PTR configured-owner provisioning and live inspection have succeeded; and
+5. both passes of both mandatory G001 evidence pairs are stable: the unchanged
+   applicant archive and the distinct admitted-player census.
 
-Then run the suspension operator from a clean, detached checkout whose `HEAD`
-and local `origin/main` both equal the reviewed protected-main commit. Inspect
-first:
+The authenticated bridge history must obey one exact physical grammar: one
+deployment authority, zero-or-more abandoned G002 gates, one final consumed
+G002 gate, one `g002ImportAuthorityCrossLink`, zero-or-more abandoned PTR gates,
+one final consumed PTR gate, then one `ptrImportAuthorityCrossLink`. Each new
+gate names its immediately superseded same-lane predecessor; the old gate is
+never modified and only the final gate is cross-linked. Forks, cycles, skipped
+predecessors, or a gate after its lane cross-link fail closed.
 
-```sh
-node node_modules/tsx/dist/cli.mjs \
-  scripts/genesis001-admission-monitor-suspension.ts \
-  inspect \
-  --source-commit <40-hex-protected-main-commit>
-```
+If the prepared receipt expires before both realm cross-links exist, the old
+authority chain cannot receive another gate and the release stops. The only
+recovery is the protected prepared workflow's internal
+`recover-expired-authority-read-only` action and
+`runAuthBridgeNotificationPreparedReadOnlyRecovery`, exact outcome
+`verified-read-only-recovery`; it is not another dispatcher operation. The
+ordinary receipt writer always invokes its deploy callback and is not used.
+Fresh protected-run/`S`, Cloudflare control-plane, public Worker, credentialed
+private Worker, and PTR-binding attestations must prove the unchanged
+deployment/source/PTR binding before one new content-addressed receipt and
+completed no-deploy recovery head are appended.
 
-The operator accepts only the fixed launchd label, mode-0600 plist, mode-0700
-program, and reviewed SHA-256 values checked into its source. It ignores ambient
-`HOME`, passes a minimal environment to system children, and emits no monitor
-output or applicant data.
+The expired receipt/head/authority file remains byte-identical and terminal.
+The new physical authority filename is deterministically derived as
+`auth-bridge-import-authority-<authorityChainDigest>.jsonl`; orphan or duplicate
+eligible pairs, revival, mutation, deploy/reducer replay, or drift fails closed.
+Existing G002 inspect/apply freshly adopts an already-completed G002 receipt on
+the new chain through a dispatcher branch that never calls its import core or
+reducer. Existing PTR inspect/apply may then use the equivalent branch for a
+completed receipt, or prove no effect and call its missing import core/reducer
+once.
 
-After the census file has been verified, persistently disable and unload the
-exact job:
+`g001-census-first` collects pass one of both pairs. After 60-300 seconds,
+`g001-census-second-inspect` collects pass two, requires distinct timestamps
+and nonces plus private stability within each pair, and issues the fresh
+one-time suspension confirmation. The applicant proof and admitted-player proof
+do not substitute for one another. The admitted-player proof preserves the
+complete existing enabled set and stable auth epochs without exposing a FID,
+epoch, player count, or normalized/raw private digest.
 
-```sh
-node node_modules/tsx/dist/cli.mjs \
-  scripts/genesis001-admission-monitor-suspension.ts \
-  suspend \
-  --source-commit <40-hex-protected-main-commit> \
-  --confirm GENESIS_001_ADMISSION_MONITOR_SUSPEND
-```
+Only `g001-census-second-suspend` may consume that exact confirmation, and it
+must consume it before releasing any monitor mutation authority. The fixed G001
+bundle then disables the exact launchd service target and boots it out while
+keeping the plist and program installed. It must prove two final observations
+with `disabled=true` and `loaded=false` and must not invoke an admission,
+allow-list, auth-epoch, disable, re-enable, or player reducer.
 
-The operator reconciles an ambiguous `launchctl` response only from fresh exact
-state, requires two final disabled-and-unloaded observations, and never deletes
-the plist or program. It writes a non-overwritable mode-0600 receipt beneath the
-canonical administrator `Library/Application Support/Warpkeep/operations/audit/private`
-directory. Terminal output contains only the receipt basename and digest. Bind
-that digest into the 0.4.0 activation receipt; do not copy the private receipt
-into Git, CI, tickets, or chat.
+An ambiguous launchctl result writes reconciliation state, invalidates the
+consumed confirmation permanently, and permits only read-only adoption/resume/
+no-effect proof through the same existing operation lane. It never authorizes a
+retry with the old digest.
 
-The retained files make suspension reversible, but this release intentionally
-contains no re-enable command. Re-enabling requires the future reviewed
-admission implementation and a new operator contract.
+Immediately before activation evidence inspection/generation, run
+`g001-current-state` in `S`. Require its fresh canonical receipt to prove the
+same fixed label, program/plist hashes, G001 0.3.43 target, exact source `S`,
+`disabled=true`, and `loaded=false`, with observation no more than five minutes
+old at generation. A historical suspension receipt cannot substitute for this
+current-state proof.
+
+After that current-state receipt, `activation-evidence-inspect` must reopen the
+same deployment authority, both lane gates, and both immutable receipt cross-
+links, then freshly reattest and repeat both POST and OPTIONS probes. A changed
+source, PTR binding, deployed version, cross-lane substitution, expired/
+abandoned confirmation revival, stale/swapped proof, replay/redeploy ambiguity,
+or ambiguous result blocks
+generation; none may be supplied by the caller. This bridge re-probe neither
+changes the two census pairs nor adds an operation name.
+
+The suspension and current-state receipts remain canonical bounded owner-owned
+regular single-link mode-`0600` private files below the existing audit root.
+Terminal/public output contains only approved opaque commitments and booleans,
+never applicant/admitted-player data, FIDs, epochs, counts, raw digests, receipt
+bodies, or absolute paths. Re-enabling requires a future reviewed release and
+has no operation in this workflow.

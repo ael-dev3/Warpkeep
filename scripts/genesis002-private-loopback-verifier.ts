@@ -30,6 +30,7 @@ import {
   createGenesis002ProductionTransport,
 } from './genesis002-production-transport';
 import { DbConnection } from './genesis002_module_bindings';
+import { GENESIS_002_AUDIENCE } from '../spacetimedb/genesis002/src/contract';
 import { attestPinnedSpacetimeCli } from './spacetime-cli-attestation.mjs';
 import {
   runDisposableLocalFullstackCli,
@@ -187,6 +188,7 @@ async function acquireOwner(server: string) {
 function jwt(privateKey: string, input: Readonly<{
   subject: string;
   roles: readonly string[];
+  audience: string;
   fid?: string;
 }>) {
   // Give the disposable credential enough backward clock tolerance for the
@@ -196,10 +198,35 @@ function jwt(privateKey: string, input: Readonly<{
   );
   const header = Buffer.from(JSON.stringify({ alg: 'ES256', typ: 'JWT' }))
     .toString('base64url');
-  const payload = Buffer.from(JSON.stringify({
+  const payload = Buffer.from(JSON.stringify(genesis002PrivateLoopbackJwtClaims(
+    input,
+    times,
+  ))).toString('base64url');
+  const signed = `${header}.${payload}`;
+  const signature = signBytes('sha256', Buffer.from(signed), {
+    key: privateKey,
+    dsaEncoding: 'ieee-p1363',
+  }).toString('base64url');
+  return `${signed}.${signature}`;
+}
+
+export function genesis002PrivateLoopbackJwtClaims(
+  input: Readonly<{
+    subject: string;
+    roles: readonly string[];
+    audience: string;
+    fid?: string;
+  }>,
+  times: Readonly<{
+    issuedAt: number;
+    notBefore: number;
+    expiresAt: number;
+  }>,
+) {
+  return Object.freeze({
     iss: 'https://auth.warpkeep.com',
     sub: input.subject,
-    aud: ['warpkeep-spacetimedb'],
+    aud: Object.freeze([input.audience]),
     token_type: 'spacetime-access',
     roles: input.roles,
     iat: times.issuedAt,
@@ -213,13 +240,7 @@ function jwt(privateKey: string, input: Readonly<{
       session_iat: times.issuedAt,
       session_exp: times.issuedAt + 300,
     }),
-  })).toString('base64url');
-  const signed = `${header}.${payload}`;
-  const signature = signBytes('sha256', Buffer.from(signed), {
-    key: privateKey,
-    dsaEncoding: 'ieee-p1363',
-  }).toString('base64url');
-  return `${signed}.${signature}`;
+  });
 }
 
 function connect(
@@ -402,6 +423,7 @@ export async function verifyGenesis002PrivateLoopback() {
     const nonAdminToken = jwt(privateKey, {
       subject: 'farcaster:9900002',
       roles: [],
+      audience: 'warpkeep-spacetimedb',
       fid: '9900002',
     });
     const activeTransport = createGenesis002ProductionTransport({
@@ -410,6 +432,7 @@ export async function verifyGenesis002PrivateLoopback() {
       requestToken: async () => jwt(privateKey, {
         subject: 'service:hermes',
         roles: ['warpkeep-admin'],
+        audience: GENESIS_002_AUDIENCE,
       }),
       connectDatabase: async (_databaseIdentity, token) => (
         connect(server, DATABASE_ALIAS, token)

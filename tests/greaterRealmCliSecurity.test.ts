@@ -407,6 +407,31 @@ describe('Greater Realm atlas CLI security boundary', () => {
     }
   });
 
+  it('keeps the PTR release parser batch-only without a root package alias', () => {
+    expect(greaterRealmCliArgumentTestSeams.ptrRuntimeReleaseExport([
+      '--batch',
+      'GR-B-AAAAAAAAAAAAAAAA',
+    ])).toEqual(expect.objectContaining({
+      command: 'export-ptr-runtime-release',
+      batchHandle: 'GR-B-AAAAAAAAAAAAAAAA',
+    }));
+    for (const rejected of [
+      [],
+      ['--batch', 'GR-B-AAAAAAAAAAAAAAAA', '--candidate', 'GR-A-AAAAAAAAAAAAAAAA'],
+      ['--batch', 'GR-B-AAAAAAAAAAAAAAAA', '--output', '/tmp/ptr-release'],
+      ['--batch', 'GR-B-AAAAAAAAAAAAAAAA', '--resume'],
+    ]) {
+      expect(() => greaterRealmCliArgumentTestSeams.ptrRuntimeReleaseExport(rejected))
+        .toThrow('GREATER_REALM_CLI_ARGUMENTS_INVALID');
+    }
+    const packageJson = JSON.parse(
+      readFileSync(join(repositoryRoot, 'package.json'), 'utf8'),
+    ) as { scripts: Record<string, string> };
+    expect(packageJson.scripts).not.toHaveProperty(
+      'atlas:export-ptr-runtime-release',
+    );
+  });
+
   it('accepts only one verified batch handle for the fixed pending-owner export', () => {
     expect(greaterRealmCliArgumentTestSeams.pendingOwnerReportExport([
       '--batch',

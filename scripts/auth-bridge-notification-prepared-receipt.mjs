@@ -31,8 +31,10 @@ import {
 import {
   DEFAULT_AUTH_BRIDGE_URL,
   parseAuthBridgeReleaseAttestation,
+  verifyAuthBridgeNotificationB0CurrentRpcRoleAttestation,
   verifyAuthBridgeNotificationB0RpcRoleAttestation,
-  verifyAuthBridgeRpcRoleAttestation,
+  verifyAuthBridgePreparedPredeployRpcRoleAttestation,
+  verifyAuthBridgePreparedRpcRoleAttestation,
 } from './auth-bridge-config-attestation.mjs';
 
 export const AUTH_BRIDGE_NOTIFICATION_PREPARED_RECEIPT_KIND =
@@ -438,6 +440,263 @@ function repairIncompleteReceiptPublications(directory, uid) {
   }
 }
 
+function existingPrivateChild(parent, name, uid) {
+  return assertPrivateDirectory(
+    join(parent, name),
+    uid,
+    parent,
+    'AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID',
+  );
+}
+
+function existingPreparedReceiptDirectory({ repositoryRoot, reportedHome }) {
+  if (typeof repositoryRoot !== 'string' || !isAbsolute(repositoryRoot)) {
+    fail('AUTH_BRIDGE_PREPARED_REPOSITORY_INVALID');
+  }
+  const account = ownerUid();
+  if (
+    reportedHome !== undefined
+    && (typeof reportedHome !== 'string' || !isAbsolute(reportedHome))
+  ) fail('AUTH_BRIDGE_PREPARED_ACCOUNT_HOME_INVALID');
+  const requestedHome = reportedHome === undefined
+    ? account.home
+    : resolve(reportedHome);
+  let home;
+  try {
+    const metadata = lstatSync(requestedHome);
+    home = realpathSync(requestedHome);
+    if (
+      !metadata.isDirectory()
+      || metadata.isSymbolicLink()
+      || metadata.uid !== account.uid
+      || (metadata.mode & 0o7022) !== 0
+      || home !== requestedHome
+    ) fail('AUTH_BRIDGE_PREPARED_ACCOUNT_HOME_INVALID');
+  } catch (error) {
+    if (error instanceof AuthBridgeNotificationPreparedReceiptError) throw error;
+    fail('AUTH_BRIDGE_PREPARED_ACCOUNT_HOME_INVALID');
+  }
+  const warpkeep = existingPrivateChild(home, '.warpkeep', account.uid);
+  const privateRoot = existingPrivateChild(warpkeep, 'private', account.uid);
+  const productionAdmin = existingPrivateChild(
+    privateRoot,
+    'production-admin-v1',
+    account.uid,
+  );
+  assertNoRepositoryOverlap(productionAdmin, repositoryRoot);
+  const directory = existingPrivateChild(
+    productionAdmin,
+    AUTH_BRIDGE_NOTIFICATION_PREPARED_STATE_CHILD,
+    account.uid,
+  );
+  assertNoRepositoryOverlap(directory, repositoryRoot);
+  return Object.freeze({ directory, uid: account.uid });
+}
+
+function readExistingPreparedReceipt(directory, name, uid) {
+  if (!RECEIPT_FILE.test(name)) {
+    fail('AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID');
+  }
+  const path = join(directory, name);
+  let descriptor;
+  let bytes;
+  try {
+    const named = lstatSync(path);
+    if (
+      !named.isFile() || named.isSymbolicLink() || named.uid !== uid
+      || (named.mode & 0o7777) !== FILE_MODE || named.nlink !== 1
+      || named.size < 1 || named.size > MAX_RECEIPT_BYTES
+    ) fail('AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID');
+    descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const before = fstatSync(descriptor);
+    if (
+      !before.isFile() || before.uid !== uid || (before.mode & 0o7777) !== FILE_MODE
+      || before.nlink !== 1 || before.dev !== named.dev || before.ino !== named.ino
+      || before.size !== named.size
+    ) fail('AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID');
+    bytes = readFileSync(descriptor);
+    const after = fstatSync(descriptor);
+    const afterNamed = lstatSync(path);
+    if (
+      bytes.byteLength !== before.size || after.dev !== before.dev || after.ino !== before.ino
+      || after.size !== before.size || after.mtimeMs !== before.mtimeMs
+      || after.ctimeMs !== before.ctimeMs || afterNamed.dev !== before.dev
+      || afterNamed.ino !== before.ino
+    ) fail('AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID');
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    const receipt = parseAuthBridgeNotificationPreparedReceipt(JSON.parse(source));
+    const canonical = receiptBytes(receipt);
+    try {
+      if (!bytes.equals(canonical)) fail('AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID');
+    } finally {
+      canonical.fill(0);
+    }
+    const receiptDigest = createHash('sha256').update(bytes).digest('hex');
+    if (name !== `auth-bridge-notification-prepared-${receiptDigest}.json`) {
+      fail('AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID');
+    }
+    return Object.freeze({ receipt, receiptDigest });
+  } catch (error) {
+    if (error instanceof AuthBridgeNotificationPreparedReceiptError) throw error;
+    fail('AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID');
+  } finally {
+    bytes?.fill(0);
+    if (descriptor !== undefined) closeSync(descriptor);
+  }
+}
+
+/**
+ * Finds one eligible existing prepared receipt without creating, repairing, or
+ * accepting a caller-selected receipt path/digest. The caller supplies only the
+ * already-authenticated source commit expected by the dispatcher.
+ */
+export function resolveExistingAuthBridgeNotificationPreparedReceipt({
+  repositoryRoot,
+  reportedHome,
+  expectedSourceCommit,
+  now = new Date(),
+} = {}) {
+  if (typeof expectedSourceCommit !== 'string' || !SOURCE_COMMIT.test(expectedSourceCommit)) {
+    fail('AUTH_BRIDGE_PREPARED_EXPECTED_SOURCE_INVALID');
+  }
+  const state = existingPreparedReceiptDirectory({ repositoryRoot, reportedHome });
+  let names;
+  try { names = readdirSync(state.directory); } catch {
+    fail('AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID');
+  }
+  if (names.length > 64) fail('AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID');
+  const candidates = [];
+  for (const name of names.sort()) {
+    if (!RECEIPT_FILE.test(name)) {
+      // A temporary or foreign file proves a concurrently mutable / non-dedicated
+      // namespace. The read-only resolver must never repair it.
+      fail('AUTH_BRIDGE_PREPARED_EXISTING_STATE_INVALID');
+    }
+    const candidate = readExistingPreparedReceipt(state.directory, name, state.uid);
+    if (
+      candidate.receipt.bridgeSourceCommit === expectedSourceCommit
+      && Date.parse(candidate.receipt.preparedAt) <= dateValue(
+        now,
+        'AUTH_BRIDGE_PREPARED_VERIFICATION_TIME_INVALID',
+      )
+      && Date.parse(candidate.receipt.expiresAt) > dateValue(
+        now,
+        'AUTH_BRIDGE_PREPARED_VERIFICATION_TIME_INVALID',
+      )
+    ) candidates.push(candidate);
+  }
+  if (candidates.length !== 1) {
+    fail('AUTH_BRIDGE_PREPARED_EXISTING_RECEIPT_AMBIGUOUS');
+  }
+  return Object.freeze(candidates[0]);
+}
+
+/** Read-only crash-resume probe: zero or one fresh receipt, never repair. */
+export function resolvePendingAuthBridgeNotificationPreparedRecoveryReceipt({
+  repositoryRoot,
+  reportedHome,
+  expectedSourceCommit,
+  excludedReceiptDigest,
+  now = new Date(),
+} = {}) {
+  if (
+    !SOURCE_COMMIT.test(expectedSourceCommit ?? '')
+    || !SHA256_HEX.test(excludedReceiptDigest ?? '')
+  ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_RECEIPT_INVALID');
+  const current = dateValue(now, 'AUTH_BRIDGE_PREPARED_RECOVERY_TIME_INVALID');
+  const state = existingPreparedReceiptDirectory({ repositoryRoot, reportedHome });
+  let names;
+  try { names = readdirSync(state.directory).sort(); } catch {
+    fail('AUTH_BRIDGE_PREPARED_RECOVERY_RECEIPT_INVALID');
+  }
+  if (
+    names.length < 1 || names.length > 64
+    || names.some(name => !RECEIPT_FILE.test(name))
+  ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_RECEIPT_INVALID');
+  const candidates = names.map(name =>
+    readExistingPreparedReceipt(state.directory, name, state.uid)).filter(candidate => (
+    candidate.receiptDigest !== excludedReceiptDigest
+    && candidate.receipt.bridgeSourceCommit === expectedSourceCommit
+    && Date.parse(candidate.receipt.preparedAt) <= current
+    && Date.parse(candidate.receipt.expiresAt) > current
+  ));
+  if (candidates.length > 1) {
+    fail('AUTH_BRIDGE_PREPARED_RECOVERY_RECEIPT_AMBIGUOUS');
+  }
+  return candidates[0] ?? null;
+}
+
+function resolveAuthBridgeNotificationPreparedReceiptByDigestExistingOnly({
+  repositoryRoot,
+  reportedHome,
+  receiptDigest,
+  expectedSourceCommit,
+  now = new Date(),
+  requiredState,
+} = {}) {
+  const digest = exactReceiptDigest(receiptDigest);
+  if (!SOURCE_COMMIT.test(expectedSourceCommit ?? '')) {
+    fail('AUTH_BRIDGE_PREPARED_RECOVERY_RECEIPT_INVALID');
+  }
+  const current = dateValue(now, 'AUTH_BRIDGE_PREPARED_RECOVERY_TIME_INVALID');
+  const state = existingPreparedReceiptDirectory({ repositoryRoot, reportedHome });
+  let names;
+  try { names = readdirSync(state.directory).sort(); } catch {
+    fail('AUTH_BRIDGE_PREPARED_RECOVERY_RECEIPT_INVALID');
+  }
+  if (
+    names.length < 1 || names.length > 64
+    || names.some(name => !RECEIPT_FILE.test(name))
+  ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_RECEIPT_INVALID');
+  const candidates = names.map(name => ({
+    name,
+    ...readExistingPreparedReceipt(state.directory, name, state.uid),
+  }));
+  const target = candidates.filter(candidate =>
+    candidate.receiptDigest === digest);
+  const targetExpiry = Date.parse(target[0]?.receipt?.expiresAt ?? '');
+  const targetPrepared = Date.parse(target[0]?.receipt?.preparedAt ?? '');
+  const stateValid = requiredState === 'expired'
+    ? targetExpiry <= current
+    : requiredState === 'fresh'
+      && targetPrepared <= current && targetExpiry > current;
+  if (
+    target.length !== 1
+    || target[0].receipt.bridgeSourceCommit !== expectedSourceCommit
+    || !stateValid
+    || candidates.some(candidate => (
+      candidate.receiptDigest !== digest
+      && candidate.receipt.bridgeSourceCommit === expectedSourceCommit
+      && Date.parse(candidate.receipt.preparedAt) <= current
+      && Date.parse(candidate.receipt.expiresAt) > current
+    ))
+  ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_RECEIPT_AMBIGUOUS');
+  return Object.freeze({
+    receipt: target[0].receipt,
+    receiptDigest: target[0].receiptDigest,
+  });
+}
+
+/** Internally digest-selected expired authority for the no-deploy recovery. */
+export function resolveExpiredAuthBridgeNotificationPreparedReceiptByDigest(
+  options = {},
+) {
+  return resolveAuthBridgeNotificationPreparedReceiptByDigestExistingOnly({
+    ...options,
+    requiredState: 'expired',
+  });
+}
+
+/** Existing-only exact fresh pair adoption; never creates or repairs storage. */
+export function resolveFreshAuthBridgeNotificationPreparedReceiptByDigest(
+  options = {},
+) {
+  return resolveAuthBridgeNotificationPreparedReceiptByDigestExistingOnly({
+    ...options,
+    requiredState: 'fresh',
+  });
+}
+
 /**
  * Resolves the receipt directory below the OS account home, never ambient HOME.
  * `reportedHome` exists only so tests can exercise the same checks in isolation.
@@ -511,7 +770,7 @@ export function parseAuthBridgeNotificationPreparedReceipt(value) {
     || value.notificationDeliveryContractDigest
       !== AUTH_BRIDGE_NOTIFICATION_DELIVERY_CONTRACT_DIGEST
     || value.notificationClientCount !== 1
-    || value.notificationDeliveryEnabled !== true
+    || typeof value.notificationDeliveryEnabled !== 'boolean'
     || value.notificationTransportConfigured !== true
     || value.admissionNotificationStoreConfigured !== true
     || typeof value.publicAuthEnabledBefore !== 'boolean'
@@ -548,7 +807,7 @@ export function parseAuthBridgeNotificationPreparedReceipt(value) {
     notificationDeliveryContractDigest:
       value.notificationDeliveryContractDigest,
     notificationClientCount: 1,
-    notificationDeliveryEnabled: true,
+    notificationDeliveryEnabled: value.notificationDeliveryEnabled,
     notificationTransportConfigured: true,
     admissionNotificationStoreConfigured: true,
     publicAuthEnabledBefore: value.publicAuthEnabledBefore,
@@ -566,6 +825,68 @@ export function parseAuthBridgeNotificationPreparedReceipt(value) {
 export function canonicalAuthBridgeReleaseAttestationDigest(attestation) {
   const parsed = parseAuthBridgeReleaseAttestation(attestation);
   return createHash('sha256').update(JSON.stringify(parsed), 'utf8').digest('hex');
+}
+
+/**
+ * Reissues only the short-lived receipt envelope after a read-only recovery
+ * has freshly authenticated the unchanged public bridge contract. No deploy
+ * callback exists on this ABI.
+ */
+export function createAuthBridgeNotificationPreparedReadOnlyRecoveryReceipt({
+  priorReceipt,
+  liveAttestation,
+  preparedAt,
+  now = new Date(),
+  lifetimeMilliseconds =
+    AUTH_BRIDGE_NOTIFICATION_PREPARED_RECEIPT_LIFETIME_MILLISECONDS,
+} = {}) {
+  const prior = parseAuthBridgeNotificationPreparedReceipt(priorReceipt);
+  const current = dateValue(
+    now,
+    'AUTH_BRIDGE_PREPARED_RECOVERY_TIME_INVALID',
+  );
+  const prepared = dateValue(
+    preparedAt,
+    'AUTH_BRIDGE_PREPARED_RECOVERY_TIME_INVALID',
+  );
+  if (
+    current !== prepared
+    || Date.parse(prior.expiresAt) > current
+    || !Number.isSafeInteger(lifetimeMilliseconds)
+    || lifetimeMilliseconds <= 0
+    || lifetimeMilliseconds
+      > AUTH_BRIDGE_NOTIFICATION_PREPARED_RECEIPT_LIFETIME_MILLISECONDS
+  ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_TIME_INVALID');
+  let live;
+  try {
+    live = parseAuthBridgeReleaseAttestation(liveAttestation);
+  } catch {
+    fail('AUTH_BRIDGE_PREPARED_RECOVERY_ATTESTATION_MISMATCH');
+  }
+  if (
+    prior.bridgeOrigin !== DEFAULT_AUTH_BRIDGE_URL
+    || live.bridgeSourceCommit !== prior.bridgeSourceCommit
+    || live.notificationDeliveryContractDigest
+      !== prior.notificationDeliveryContractDigest
+    || live.notificationClientCount !== prior.notificationClientCount
+    || live.notificationDeliveryEnabled !== prior.notificationDeliveryEnabled
+    || live.notificationTransportConfigured
+      !== prior.notificationTransportConfigured
+    || live.admissionNotificationStoreConfigured
+      !== prior.admissionNotificationStoreConfigured
+    || live.publicAuthEnabled !== prior.publicAuthEnabledAfter
+    || live.accessExpectedFidRequired
+      !== prior.accessExpectedFidRequiredAfter
+  ) fail('AUTH_BRIDGE_PREPARED_RECOVERY_ATTESTATION_MISMATCH');
+  const recovered = parseAuthBridgeNotificationPreparedReceipt({
+    ...prior,
+    liveAttestationDigest:
+      canonicalAuthBridgeReleaseAttestationDigest(live),
+    preparedAt: preparedAt.toISOString(),
+    expiresAt: new Date(prepared + lifetimeMilliseconds).toISOString(),
+  });
+  authenticatedPreparedReceipts.add(recovered);
+  return recovered;
 }
 
 function validateReceiptFreshness(receipt, now) {
@@ -981,7 +1302,12 @@ async function prepareAuthBridgeNotificationReceipt({
   clock = () => new Date(),
   lifetimeMilliseconds =
     AUTH_BRIDGE_NOTIFICATION_PREPARED_RECEIPT_LIFETIME_MILLISECONDS,
-} = {}, verifyPredeployAttestation) {
+} = {}, {
+  verifyPredeployAttestation,
+  verifyPostdeployAttestation,
+  expectedPtrSpacetimeDbDatabase,
+  expectedNotificationDeliveryEnabled,
+}) {
   if (typeof deploy !== 'function') {
     fail('AUTH_BRIDGE_PREPARED_DEPLOY_OPERATION_REQUIRED');
   }
@@ -1002,6 +1328,9 @@ async function prepareAuthBridgeNotificationReceipt({
     bridgeUrl: DEFAULT_AUTH_BRIDGE_URL,
     adminToken,
     fetchImpl,
+    ...(expectedPtrSpacetimeDbDatabase === undefined
+      ? {}
+      : { expectedPtrSpacetimeDbDatabase }),
   });
   const beforeModes = Object.freeze({
     bridgeSourceCommit: expectedPredecessorBridgeSourceCommit,
@@ -1011,13 +1340,16 @@ async function prepareAuthBridgeNotificationReceipt({
 
   await deploy(beforeModes);
 
-  const after = await verifyAuthBridgeRpcRoleAttestation({
+  const after = await verifyPostdeployAttestation({
     bridgeUrl: DEFAULT_AUTH_BRIDGE_URL,
     adminToken,
     fetchImpl,
+    ...(expectedPtrSpacetimeDbDatabase === undefined
+      ? {}
+      : { expectedPtrSpacetimeDbDatabase }),
   });
   if (
-    after.notificationDeliveryEnabled !== true
+    after.notificationDeliveryEnabled !== expectedNotificationDeliveryEnabled
     || after.notificationTransportConfigured !== true
     || after.notificationClientCount !== 1
     || after.publicAuthEnabled !== beforeModes.publicAuthEnabled
@@ -1035,6 +1367,8 @@ async function prepareAuthBridgeNotificationReceipt({
   });
   if (
     live.attestation.bridgeSourceCommit !== expectedBridgeSourceCommit
+    || live.attestation.notificationDeliveryEnabled
+      !== expectedNotificationDeliveryEnabled
     || live.attestation.notificationDeliveryContractDigest
       !== AUTH_BRIDGE_NOTIFICATION_DELIVERY_CONTRACT_DIGEST
     || live.attestation.publicAuthEnabled !== beforeModes.publicAuthEnabled
@@ -1079,17 +1413,24 @@ async function prepareAuthBridgeNotificationReceipt({
 }
 
 export function prepareAuthBridgeNotificationPreparedReceipt(options) {
-  return prepareAuthBridgeNotificationReceipt(
-    options,
-    verifyAuthBridgeRpcRoleAttestation,
-  );
+  return prepareAuthBridgeNotificationReceipt(options, {
+    verifyPredeployAttestation:
+      verifyAuthBridgePreparedPredeployRpcRoleAttestation,
+    verifyPostdeployAttestation: verifyAuthBridgePreparedRpcRoleAttestation,
+    expectedPtrSpacetimeDbDatabase:
+      options?.expectedPtrSpacetimeDbDatabase,
+    expectedNotificationDeliveryEnabled: false,
+  });
 }
 
 export function prepareAuthBridgeNotificationB0Receipt(options) {
-  return prepareAuthBridgeNotificationReceipt(
-    options,
-    verifyAuthBridgeNotificationB0RpcRoleAttestation,
-  );
+  return prepareAuthBridgeNotificationReceipt(options, {
+    verifyPredeployAttestation:
+      verifyAuthBridgeNotificationB0RpcRoleAttestation,
+    verifyPostdeployAttestation:
+      verifyAuthBridgeNotificationB0CurrentRpcRoleAttestation,
+    expectedNotificationDeliveryEnabled: true,
+  });
 }
 
 /**
@@ -1110,13 +1451,14 @@ export async function authenticateAuthBridgeNotificationPreparedReceiptForPublic
     || !SOURCE_COMMIT.test(expectedBridgeSourceCommit)
     || parsed.bridgeSourceCommit !== expectedBridgeSourceCommit
   ) fail('AUTH_BRIDGE_PREPARED_EXPECTED_SOURCE_INVALID');
-  const privateAttestation = await verifyAuthBridgeRpcRoleAttestation({
+  const privateAttestation = await verifyAuthBridgeNotificationB0CurrentRpcRoleAttestation({
     bridgeUrl: DEFAULT_AUTH_BRIDGE_URL,
     adminToken,
     fetchImpl,
   });
   if (
-    privateAttestation.notificationDeliveryEnabled !== true
+    privateAttestation.notificationDeliveryEnabled
+      !== parsed.notificationDeliveryEnabled
     || privateAttestation.notificationTransportConfigured !== true
     || privateAttestation.notificationClientCount !== 1
     || privateAttestation.publicAuthEnabled !== parsed.publicAuthEnabledAfter

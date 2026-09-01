@@ -59,6 +59,12 @@ describe('Greater Realm browser QA contract', () => {
     expect(main).toContain('localQaGreaterRealmPresentationAllowed');
     expect(main).toContain('createGreaterRealmSyntheticTransport');
     expect(main).toContain('getResourceLocations: source.getResourceLocations');
+    expect(main).toMatch(/import\.meta\.hot\?\.dispose\(\(\) => root\.unmount\(\)\)/u);
+    expect(main).toContain('const LOCAL_QA_PTR_AUTHORITY');
+    expect(main).toContain("source: 'server-verified'");
+    expect(main).toContain("admission: 'admitted'");
+    expect(main).toContain('onRequestPtrRealm={onRequestPtrRealm ?? openRealm}');
+    expect(main).toContain('ptrRealmAuthority={LOCAL_QA_PTR_AUTHORITY}');
     expect(main).not.toMatch(/scripts\/atlas|greater-realm-private|nodeId|componentKey/u);
     expect(scene).toContain('snapshotCurrent.resourceLocations');
     expect(scene).not.toContain('chunk.resourceLocations');

@@ -1,0 +1,194 @@
+name: Sealed Realms Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: Exact protected Verify source commit
+        required: true
+        type: string
+      operation:
+        description: One authenticated sealed-realms operation
+        required: true
+        default: preflight
+        type: choice
+        options:
+          - preflight
+          - g001-policy-observe
+          - g001-census-first
+          - g001-census-second-inspect
+          - g001-census-second-suspend
+          - g001-current-state
+          - g002-publish-inspect
+          - g002-publish-apply
+          - g002-import-inspect
+          - g002-import-apply
+          - g002-live-inspect
+          - ptr-publish-inspect
+          - ptr-publish-apply
+          - ptr-import-inspect
+          - ptr-import-apply
+          - ptr-owner-provision-inspect
+          - ptr-owner-provision
+          - ptr-live-inspect
+          - activation-evidence-inspect
+          - activation-evidence-generate
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: warpkeep-production-state
+  cancel-in-progress: false
+
+jobs:
+  operate:
+    environment: notification-bridge-prepared
+    runs-on:
+      - self-hosted
+      - macOS
+      - ARM64
+      - warpkeep-production-admin
+      - warpkeep-repository-exclusive
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact selected authority
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.inputs.source_commit }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Task 6E deliberately has no executable lane composition. Task 7 must
+      # authenticate the generated lane bundles and replace this stale-closure
+      # fence before this protected workflow can execute any operation.
+      - name: Refuse stale closure before sealed-realms dispatch
+        env:
+          WARPKEEP_OPERATION: ${{ github.event.inputs.operation }}
+          WARPKEEP_SOURCE_COMMIT: ${{ github.event.inputs.source_commit }}
+        shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}
+        run: |
+          set -euo pipefail
+          [[ "$WARPKEEP_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          test -f scripts/sealed-realms-production-dispatch.mjs
+          result="{\"operation\":\"$WARPKEEP_OPERATION\",\"status\":\"SEALED_REALMS_TASK_7_CLOSURE_UNAVAILABLE\"}"
+          test "${#result}" -le 1024
+          [[ "$result" != *$'\n'* && "$result" != *$'\r'* ]]
+          printf 'WARPKEEP_OPERATION_RESULT %s\n' "$result"
+          exit 1
+
+      - name: Attest immutable Node authority for public artifact verification
+        id: node-authority
+        if: ${{ github.event.inputs.operation == 'activation-evidence-generate' }}
+        shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}
+        run: |
+          set -euo pipefail
+          node_executable='/private/var/db/warpkeep/runtime/node-v22.22.3-darwin-arm64/bin/node'
+          component="$node_executable"
+          while true; do
+            if [[ -L "$component" ]]; then
+              echo 'SEALED_REALMS_IMMUTABLE_NODE_INVALID' >&2
+              exit 1
+            fi
+            IFS=: read -r path_uid path_gid path_nlink path_mode path_type < <(
+              /usr/bin/stat -f '%u:%g:%l:%Lp:%HT' -- "$component"
+            )
+            acl_listing="$(/bin/ls -lde -- "$component")"
+            acl_permissions="${acl_listing%% *}"
+            if [[ "$path_uid" != '0' \
+              || "$path_gid" != '0' \
+              || ! "$path_mode" =~ ^[0-7]{3,4}$ \
+              || $((8#$path_mode & 0022)) -ne 0 \
+              || "$acl_listing" == *$'\n'* \
+              || "$acl_permissions" == *+* ]]; then
+              echo 'SEALED_REALMS_IMMUTABLE_NODE_INVALID' >&2
+              exit 1
+            fi
+            if [[ "$component" == "$node_executable" ]]; then
+              if [[ "$path_type" != 'Regular File' \
+                || "$path_nlink" != '1' \
+                || "$path_mode" != '555' \
+                || ! -x "$component" ]]; then
+                echo 'SEALED_REALMS_IMMUTABLE_NODE_INVALID' >&2
+                exit 1
+              fi
+            elif [[ "$path_type" != 'Directory' ]]; then
+              echo 'SEALED_REALMS_IMMUTABLE_NODE_INVALID' >&2
+              exit 1
+            fi
+            if [[ "$component" == '/' ]]; then break; fi
+            component="${component%/*}"
+            if [[ -z "$component" ]]; then component='/'; fi
+          done
+          digest_output="$(
+            /usr/bin/env -i PATH=/usr/bin:/bin \
+              /usr/bin/shasum -a 256 -- "$node_executable"
+          )"
+          digest="${digest_output%% *}"
+          file_type="$(/usr/bin/file -b -- "$node_executable")"
+          /usr/bin/codesign --verify --strict --verbose=4 "$node_executable" \
+            >/dev/null 2>&1
+          signature="$(/usr/bin/codesign -dv --verbose=4 "$node_executable" 2>&1)"
+          if [[ "$digest" != '5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c' \
+            || "$file_type" != 'Mach-O 64-bit executable arm64' \
+            || "$signature" != *$'TeamIdentifier=HX7739G8FX'* ]]; then
+            echo 'SEALED_REALMS_IMMUTABLE_NODE_INVALID' >&2
+            exit 1
+          fi
+          printf 'path=%s\n' "$node_executable" >> "$GITHUB_OUTPUT"
+
+      - name: Independently verify fixed public activation artifact
+        id: activation-artifact
+        if: ${{ github.event.inputs.operation == 'activation-evidence-generate' }}
+        shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}
+        env:
+          WARPKEEP_NODE_EXECUTABLE: ${{ steps.node-authority.outputs.path }}
+        run: |
+          set -euo pipefail
+          node_executable="$WARPKEEP_NODE_EXECUTABLE"
+          if [[ "$node_executable" != '/private/var/db/warpkeep/runtime/node-v22.22.3-darwin-arm64/bin/node' \
+            || -L "$node_executable" ]]; then
+            echo 'SEALED_REALMS_ARTIFACT_VERIFIER_NODE_INVALID' >&2
+            exit 1
+          fi
+          IFS=: read -r node_uid node_gid node_nlink node_mode node_type < <(
+            /usr/bin/stat -f '%u:%g:%l:%Lp:%HT' -- "$node_executable"
+          )
+          node_digest_output="$(
+            /usr/bin/env -i PATH=/usr/bin:/bin \
+              /usr/bin/shasum -a 256 -- "$node_executable"
+          )"
+          node_digest="${node_digest_output%% *}"
+          /usr/bin/codesign --verify --strict --verbose=4 "$node_executable" \
+            >/dev/null 2>&1
+          node_signature="$(/usr/bin/codesign -dv --verbose=4 "$node_executable" 2>&1)"
+          if [[ "$node_uid" != '0' \
+            || "$node_gid" != '0' \
+            || "$node_nlink" != '1' \
+            || "$node_mode" != '555' \
+            || "$node_type" != 'Regular File' \
+            || "$node_digest" != '5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c' \
+            || "$node_signature" != *$'TeamIdentifier=HX7739G8FX'* ]]; then
+            echo 'SEALED_REALMS_ARTIFACT_VERIFIER_NODE_INVALID' >&2
+            exit 1
+          fi
+          umask 077
+          verified_directory="$(
+            /usr/bin/mktemp -d \
+              "${RUNNER_TEMP%/}/warpkeep-sealed-realms-verified.XXXXXX"
+          )"
+          verified_path="$verified_directory/0.4.0-sealed-launch.json"
+          "$node_executable" scripts/verify-sealed-realms-public-activation-artifact.mjs \
+            >"$verified_path"
+          test -s "$verified_path"
+          printf 'path=%s\n' "$verified_path" >> "$GITHUB_OUTPUT"
+
+      - name: Upload verified public activation artifact
+        if: ${{ github.event.inputs.operation == 'activation-evidence-generate' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sealed-realms-public-activation
+          path: ${{ steps.activation-artifact.outputs.path }}
+          if-no-files-found: error
+          retention-days: 7

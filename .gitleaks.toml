@@ -28,12 +28,20 @@ regexes = ['''^018f7b44-5f2f-4c54-8c0d-3f521d46b193$''']
 paths = ['''^tests/realmChatSendIdempotency\.test\.ts$''']
 
 [[allowlists]]
+description = "One non-secret UUID used only as a historical additive-migration Realm Chat request fixture"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^018f7b44-5f2f-7c54-8c0d-3f521d46b194$''']
+paths = ['''^spacetimedb/migration-fixtures/additive-v15-schema/src/index\.ts$''']
+
+[[allowlists]]
 description = "Public Farcaster custody address inside the signed domain-association header"
 targetRules = ["generic-api-key"]
 condition = "AND"
 regexTarget = "secret"
 regexes = ['''^0x7a9E6965FCF1ad2cfbff67f0C0aA102F0DEa23d4$''']
-paths = ['''^public/\.well-known/farcaster\.json$''']
+paths = ['''^(?:public|dist)/\.well-known/farcaster\.json$''']
 
 [[allowlists]]
 description = "Fixed owner-private launch directory label, never credential material"
@@ -85,3 +93,19 @@ condition = "AND"
 regexTarget = "secret"
 regexes = ['''^g002PublishReceiptDigest$''']
 paths = ['''^tests/sealedLaunchActivationGenerator\.test\.ts$''']
+
+[[allowlists]]
+description = "One non-secret UUID used only as a sealed-launch negative authority-field fixture"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^123e4567-e89b-42d3-a456-426614174000$''']
+paths = ['''^tests/sealedLaunchActivationGenerator\.test\.ts$''']
+
+[[allowlists]]
+description = "Non-secret sealed-launch boolean schema key in public activation artifact verification"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^g002AdmissionMutationsEnabled$''']
+paths = ['''^scripts/verify-sealed-realms-public-activation-artifact\.mjs$''']

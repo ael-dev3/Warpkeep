@@ -26,6 +26,9 @@ import {
   DEFAULT_FARCASTER_RPC_SECONDARY_URL,
   farcasterRpcEndpointFingerprint,
 } from '../scripts/auth-bridge-config-attestation.mjs';
+import {
+  withAuthBridgeNotificationPreparedDeployJournal,
+} from '../scripts/auth-bridge-notification-prepared-deploy-journal.mjs';
 
 const ACCOUNT_ID = 'a'.repeat(32);
 const ZONE_ID = 'b'.repeat(32);
@@ -38,12 +41,15 @@ const NOW = new Date('2026-08-12T12:00:00.000Z');
 const CREATED_AT = '2026-08-12T11:58:00.000Z';
 const OBSERVED_AT = '2026-08-12T11:59:00.000Z';
 const ADMIN_TOKEN = 'owner-private-test-admin-token-value';
+const PTR_DATABASE = '9'.repeat(64);
+const PTR_AUDIENCE = 'warpkeep-ptr-spacetimedb';
 const temporaryDirectories: string[] = [];
 
 type JournalPhase =
   | 'prepared'
   | 'remote-reconcile-started'
   | 'upload-invoked'
+  | 'upload-adjudication-required'
   | 'uploaded'
   | 'release-uncertain'
   | 'release-invoked'
@@ -111,6 +117,10 @@ function harness({
   let inspectDeploymentCall = 0;
   let phase: JournalPhase = initialPhase;
   let uploadMode = initialUploadMode;
+  let uploadAdjudicationReason:
+    | 'invalid-upload-response'
+    | 'definitive-provider-rejection'
+    | null = null;
   let predecessorDeploymentId = initialPhase === 'prepared'
     ? null
     : NON_TARGET_DEPLOYMENT_ID;
@@ -123,6 +133,7 @@ function harness({
       uploadMode,
       predecessorDeploymentId,
       predecessorVersionId,
+      uploadAdjudicationReason,
     })),
     prepared: vi.fn(async () => {
       events.push('prepared');
@@ -142,8 +153,25 @@ function harness({
       phase = 'upload-invoked';
       uploadMode = input.uploadMode;
     }),
+    uploadAdjudicationRequired: vi.fn(async (
+      input: Readonly<Record<string, unknown>>,
+    ) => {
+      events.push('upload-adjudication-required');
+      if (
+        phase !== 'upload-invoked'
+        || ![
+          'invalid-upload-response',
+          'definitive-provider-rejection',
+        ].includes(String(input.reason))
+      ) throw new Error('test harness requires an exact adjudication reason');
+      phase = 'upload-adjudication-required';
+      uploadAdjudicationReason = input.reason as typeof uploadAdjudicationReason;
+    }),
     uploaded: vi.fn(async () => {
       events.push('uploaded');
+      if (phase === 'upload-adjudication-required') {
+        throw new Error('test harness terminal upload adjudication cannot advance');
+      }
       if (!['release-uncertain', 'release-invoked', 'completed'].includes(phase ?? '')) {
         phase = 'uploaded';
       }
@@ -212,6 +240,32 @@ function harness({
   };
 }
 
+function temporaryJournalHome() {
+  const home = realpathSync(mkdtempSync(join(
+    realpathSync(tmpdir()),
+    'warpkeep-prepared-adapter-restart-',
+  )));
+  chmodSync(home, 0o700);
+  temporaryDirectories.push(home);
+  return home;
+}
+
+function durableJournalOptions(
+  home: string,
+  value: Readonly<Record<string, unknown>>,
+  runAttempt: number,
+) {
+  return {
+    contract: value,
+    repositoryRoot: realpathSync(process.cwd()),
+    reportedHome: home,
+    runId: '1001',
+    runAttempt,
+    clock: () => new Date(NOW),
+    processIdentity: 'test-process-start-identity',
+  } as const;
+}
+
 function privateBody(prepared: boolean) {
   const primary = farcasterRpcEndpointFingerprint(
     DEFAULT_FARCASTER_RPC_PRIMARY_URL,
@@ -242,7 +296,7 @@ function privateBody(prepared: boolean) {
     accessRequestResolverTimeoutMilliseconds: 5_000,
     accessRequestStatusProcedure: 'access_request_get_status_v1',
     accessRequestSubmitProcedure: 'access_request_submit_v1',
-    approvalNotificationsEnabled: prepared,
+    approvalNotificationsEnabled: false,
     miniAppNotificationClientFids: [9_152],
     miniAppWebhookPath: '/v1/farcaster/miniapp/webhook',
     admissionNotificationPath: '/v1/admin/admission-notification',
@@ -251,6 +305,9 @@ function privateBody(prepared: boolean) {
     admissionNotificationStatusPath: '/v1/admin/admission-notification-status',
     publicAuthEnabled: true,
     accessExpectedFidRequired: false,
+    ptrEnabled: prepared,
+    ptrSpacetimeDbDatabase: prepared ? PTR_DATABASE : null,
+    ptrAudience: prepared ? PTR_AUDIENCE : null,
     qaObserverEnabled: false,
     qaObserverSpacetimeDbUri: null,
     qaObserverSpacetimeDbDatabase: null,
@@ -268,7 +325,7 @@ function publicBody() {
     schemaVersion: 1,
     profile: 'warpkeep-admission-notification-bridge-v1',
     bridgeSourceCommit: SOURCE_COMMIT,
-    notificationDeliveryEnabled: true,
+    notificationDeliveryEnabled: false,
     notificationTransportConfigured: true,
     admissionNotificationStoreConfigured: true,
     notificationClientCount: 1,
@@ -317,11 +374,14 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
       compatibilityDate: '2026-07-11',
       compatibilityFlags: ['nodejs_compat'],
       variables: expect.objectContaining({
-        APPROVAL_NOTIFICATIONS_ENABLED: 'true',
+        APPROVAL_NOTIFICATIONS_ENABLED: 'false',
         PUBLIC_AUTH_ENABLED: 'true',
         ACCESS_EXPECTED_FID_REQUIRED: 'false',
+        PTR_ENABLED: 'true',
+        PTR_OIDC_AUDIENCE: PTR_AUDIENCE,
         WARPKEEP_BRIDGE_SOURCE_COMMIT: SOURCE_COMMIT,
       }),
+      protectedPlainTextBindingNames: ['PTR_SPACETIMEDB_DATABASE'],
       secretBindingNames: [
         'ADMIN_TOKEN_SECRET',
         'FARCASTER_RPC_URL',
@@ -346,6 +406,7 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
         { tag: 'v5', newSqliteClasses: ['AdmissionNotification'] },
       ],
     });
+    expect(JSON.stringify(contract())).not.toContain(PTR_DATABASE);
     const wrangler = readFileSync(
       join(process.cwd(), 'services/auth-bridge/wrangler.toml'),
       'utf8',
@@ -490,6 +551,183 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
     expect(duplicateAfterUpload.releaseVersion).not.toHaveBeenCalled();
   });
 
+  it('hard-stops a lineage-mismatched upload response before reconciliation', async () => {
+    const values = harness();
+    values.uploadVersion.mockRejectedValueOnce(Object.assign(
+      new Error('upload response version number skipped the predecessor'),
+      {
+        code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_LINEAGE_MISMATCH',
+        deploymentMayHaveChanged: false,
+      },
+    ));
+    values.reconcileVersion
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([VERSION_ID]);
+
+    await expect(executeAuthBridgeNotificationPreparedDeployAdapter({
+      contract: contract(),
+      ...values,
+    })).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_RESPONSE_INVALID',
+      deploymentMayHaveChanged: false,
+    });
+    expect(values.reconcileVersion).toHaveBeenCalledOnce();
+    expect(values.inspectVersion).not.toHaveBeenCalled();
+    expect(values.journal.uploaded).not.toHaveBeenCalled();
+    expect(values.releaseVersion).not.toHaveBeenCalled();
+  });
+
+  it('hard-stops a definitive provider rejection before reconciliation', async () => {
+    const values = harness();
+    const rejection = Object.assign(new Error('redacted provider rejection'), {
+      code:
+        'AUTH_BRIDGE_PREPARED_CLOUDFLARE_MUTATION_REJECTED_HTTP_400_CODE_10021',
+      deploymentMayHaveChanged: false,
+    });
+    values.uploadVersion.mockRejectedValueOnce(rejection);
+    values.reconcileVersion
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([VERSION_ID]);
+
+    const surfaced = await executeAuthBridgeNotificationPreparedDeployAdapter({
+      contract: contract(),
+      ...values,
+    }).catch(error => error as Error & {
+      code?: string;
+      deploymentMayHaveChanged?: boolean;
+    });
+    expect(surfaced).not.toBe(rejection);
+    expect(surfaced).toMatchObject({
+      code:
+        'AUTH_BRIDGE_PREPARED_CLOUDFLARE_MUTATION_REJECTED_HTTP_400_CODE_10021',
+      deploymentMayHaveChanged: false,
+    });
+    expect(String(surfaced)).not.toContain('redacted provider rejection');
+    expect(values.reconcileVersion).toHaveBeenCalledOnce();
+    expect(values.inspectVersion).not.toHaveBeenCalled();
+    expect(values.journal.uploaded).not.toHaveBeenCalled();
+    expect(values.releaseVersion).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      name: 'an invalid upload-response lineage',
+      uploadError: Object.assign(
+        new Error('upload response version number skipped the predecessor'),
+        {
+          code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_LINEAGE_MISMATCH',
+          deploymentMayHaveChanged: false,
+        },
+      ),
+      firstCode: 'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_RESPONSE_INVALID',
+      reason: 'invalid-upload-response',
+    },
+    {
+      name: 'a definitive sanitized provider rejection',
+      uploadError: Object.assign(new Error('redacted provider rejection'), {
+        code:
+          'AUTH_BRIDGE_PREPARED_CLOUDFLARE_MUTATION_REJECTED_HTTP_400_CODE_10021',
+        deploymentMayHaveChanged: false,
+      }),
+      firstCode:
+        'AUTH_BRIDGE_PREPARED_CLOUDFLARE_MUTATION_REJECTED_HTTP_400_CODE_10021',
+      reason: 'definitive-provider-rejection',
+    },
+  ] as const)(
+    'durably refuses candidate adoption after $name and a fresh restart',
+    async ({ uploadError, firstCode, reason }) => {
+      const value = contract();
+      const home = temporaryJournalHome();
+      const values = harness();
+      values.uploadVersion.mockRejectedValueOnce(uploadError);
+      values.reconcileVersion
+        .mockResolvedValueOnce([])
+        .mockResolvedValue([VERSION_ID]);
+
+      let firstState: unknown;
+      await withAuthBridgeNotificationPreparedDeployJournal({
+        ...durableJournalOptions(home, value, 1),
+        operation: async journal => {
+          const outcome = await executeAuthBridgeNotificationPreparedDeployAdapter({
+            contract: value,
+            ...values,
+            journal,
+          }).then(
+            resolved => ({ kind: 'resolved' as const, resolved }),
+            error => ({ kind: 'rejected' as const, error }),
+          );
+          expect(outcome).toMatchObject({
+            kind: 'rejected',
+            error: {
+              code: firstCode,
+              deploymentMayHaveChanged: false,
+            },
+          });
+          firstState = journal.inspect();
+        },
+      });
+
+      let restartEntryState: unknown;
+      let restartExitState: unknown;
+      let restartOutcome: unknown;
+      await withAuthBridgeNotificationPreparedDeployJournal({
+        ...durableJournalOptions(home, value, 2),
+        operation: async journal => {
+          restartEntryState = journal.inspect();
+          restartOutcome = await executeAuthBridgeNotificationPreparedDeployAdapter({
+            contract: value,
+            ...values,
+            journal,
+          }).then(
+            resolved => ({ kind: 'resolved' as const, resolved }),
+            error => ({ kind: 'rejected' as const, error }),
+          );
+          restartExitState = journal.inspect();
+        },
+      });
+
+      for (const state of [firstState, restartEntryState, restartExitState]) {
+        expect.soft(state).toMatchObject({
+          phase: 'upload-adjudication-required',
+          uploadAdjudicationReason: reason,
+        });
+      }
+      expect.soft(restartOutcome).toMatchObject({
+        kind: 'rejected',
+        error: {
+          code: 'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',
+          deploymentMayHaveChanged: true,
+        },
+      });
+      expect.soft(values.prepareUpload).toHaveBeenCalledTimes(1);
+      expect.soft(values.uploadVersion).toHaveBeenCalledTimes(1);
+      expect.soft(values.reconcileVersion).toHaveBeenCalledOnce();
+      expect.soft(values.inspectVersion).not.toHaveBeenCalled();
+      expect.soft(values.inspectDeployment).not.toHaveBeenCalled();
+      expect.soft(values.assertPredecessorStable).not.toHaveBeenCalled();
+      expect.soft(values.releaseVersion).not.toHaveBeenCalled();
+      expect.soft(values.assertCanStartWrite).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('rejects a matching candidate before an upload-invoked WAL marker exists', async () => {
+    const values = harness();
+    values.reconcileVersion.mockResolvedValueOnce([VERSION_ID]);
+
+    await expect(executeAuthBridgeNotificationPreparedDeployAdapter({
+      contract: contract(),
+      ...values,
+    })).rejects.toMatchObject({
+      code: expect.stringMatching(
+        /^AUTH_BRIDGE_PREPARED_DEPLOY_(?:UNINVOKED_CANDIDATE|VERSION_WITHOUT_UPLOAD_MARKER)$/u,
+      ),
+    });
+    expect(values.journal.uploadInvoked).not.toHaveBeenCalled();
+    expect(values.uploadVersion).not.toHaveBeenCalled();
+    expect(values.inspectVersion).not.toHaveBeenCalled();
+    expect(values.releaseVersion).not.toHaveBeenCalled();
+  });
+
   it('retains typed ambiguity when both release and postflight fail', async () => {
     const values = harness({
       releaseError: new Error('transport closed'),
@@ -618,6 +856,36 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
     expect(values.releaseVersion).not.toHaveBeenCalled();
   });
 
+  it('refuses a fresh bare upload marker before any adapter dependency', async () => {
+    const values = harness({
+      initialPhase: 'upload-invoked',
+      initialUploadMode: 'version',
+    });
+    values.reconcileVersion.mockResolvedValue([VERSION_ID]);
+
+    await expect(executeAuthBridgeNotificationPreparedDeployAdapter({
+      contract: contract(),
+      ...values,
+    })).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',
+      deploymentMayHaveChanged: true,
+    });
+    expect(values.prepareUpload).not.toHaveBeenCalled();
+    expect(values.reconcileVersion).not.toHaveBeenCalled();
+    expect(values.uploadVersion).not.toHaveBeenCalled();
+    expect(values.inspectVersion).not.toHaveBeenCalled();
+    expect(values.inspectDeployment).not.toHaveBeenCalled();
+    expect(values.assertPredecessorStable).not.toHaveBeenCalled();
+    expect(values.releaseVersion).not.toHaveBeenCalled();
+    expect(values.assertCanStartWrite).not.toHaveBeenCalled();
+    expect(values.journal.remoteReconcileStarted).not.toHaveBeenCalled();
+    expect(values.journal.uploadInvoked).not.toHaveBeenCalled();
+    expect(values.journal.uploaded).not.toHaveBeenCalled();
+    expect(values.journal.releaseUncertain).not.toHaveBeenCalled();
+    expect(values.journal.releaseInvoked).not.toHaveBeenCalled();
+    expect(values.journal.completed).not.toHaveBeenCalled();
+  });
+
   it('never repeats a marked upload or release without remote proof', async () => {
     const uploadRestart = harness({
       initialPhase: 'upload-invoked',
@@ -664,20 +932,23 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
   });
 
   it('preserves typed runtime adjudication errors for the operator', async () => {
-    const uploadRestart = harness({
-      initialPhase: 'upload-invoked',
-      initialUploadMode: 'version',
-    });
+    const uploadAttempt = harness();
+    uploadAttempt.uploadVersion.mockRejectedValueOnce(
+      new Error('upload response lost'),
+    );
     const uploadAdjudication = Object.assign(new Error('settle window expired'), {
       code: 'AUTH_BRIDGE_PREPARED_DEPLOY_UPLOAD_OPERATOR_ADJUDICATION_REQUIRED',
       deploymentMayHaveChanged: true,
     });
-    uploadRestart.reconcileVersion.mockRejectedValueOnce(uploadAdjudication);
+    uploadAttempt.reconcileVersion
+      .mockResolvedValueOnce([])
+      .mockRejectedValueOnce(uploadAdjudication);
     await expect(executeAuthBridgeNotificationPreparedDeployAdapter({
       contract: contract(),
-      ...uploadRestart,
+      ...uploadAttempt,
     })).rejects.toBe(uploadAdjudication);
-
+    expect(uploadAttempt.uploadVersion).toHaveBeenCalledOnce();
+    expect(uploadAttempt.reconcileVersion).toHaveBeenCalledTimes(2);
   });
 
   it('retains typed ambiguity while reconciling an uploaded or already-live version', async () => {
@@ -764,6 +1035,7 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
 
     const result = await prepareAndWriteAuthBridgeNotificationPreparedReceipt({
       adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
       expectedBridgeSourceCommit: SOURCE_COMMIT,
       expectedPredecessorBridgeSourceCommit:
         AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
@@ -779,6 +1051,7 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
     const receipt = JSON.parse(readFileSync(result.path, 'utf8'));
     expect(receipt.bridgeSourceCommit).toBe(SOURCE_COMMIT);
     expect(receipt.preparedAt).toBe(NOW.toISOString());
+    expect(JSON.stringify(receipt)).not.toContain(PTR_DATABASE);
   });
 
   it('surfaces only a fixed sanitized provider rejection code after deploy starts', async () => {
@@ -795,6 +1068,7 @@ describe('auth-bridge notification-prepared deploy adapter', () => {
     });
     const surfacedRejection = await prepareAndWriteAuthBridgeNotificationPreparedReceipt({
       adminToken: ADMIN_TOKEN,
+      expectedPtrSpacetimeDbDatabase: PTR_DATABASE,
       expectedBridgeSourceCommit: SOURCE_COMMIT,
       expectedPredecessorBridgeSourceCommit:
         AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,

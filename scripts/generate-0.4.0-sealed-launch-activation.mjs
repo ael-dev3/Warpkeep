@@ -1,7 +1,10 @@
 import {
   fstatSync,
+  realpathSync,
   readSync,
 } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -9,22 +12,63 @@ import {
   createSealedLaunchActivationBinding,
 } from './verify-0.4.0-sealed-launch.mjs';
 import {
+  deriveGenesis001SealedLaunchEvidence,
+} from './genesis001-sealed-launch-adoption.mjs';
+import {
+  readSealedRealmsProductionActivationEvidenceMember,
+} from './sealed-realms-production-auth-bridge-state.mjs';
+import {
   genesis002ProductionImportReceiptDigest,
   genesis002PublishReceiptDigest,
   genesis002SealedLiveReceiptDigest,
 } from './genesis002-activation-receipts.mjs';
 
 const MAXIMUM_CANDIDATE_BYTES = 32 * 1_024;
+const PTR_IMPORT_EPOCH_MAXIMUM = (1n << 64n) - 1n;
+const PTR_IMPORT_OPERATION_MAXIMUM = 4_096;
+const SYSTEM_GIT = '/usr/bin/git';
+const CANONICAL_ORIGIN_URL = 'https://github.com/ael-dev3/Warpkeep.git';
+const BOOTSTRAP_SOURCE_PATH =
+  'scripts/greater-realm-production-bootstrap.mjs';
+const EXPECTED_BOOTSTRAP_SHA256 =
+  'be9efaf1ecad13c2cd94bfb457353b8946f12b3304f47b34e8b9422041712c1a';
+const COMMIT = /^[0-9a-f]{40}$/u;
+const SHA256 = /^[0-9a-f]{64}$/u;
+const PUBLIC_RELEASE_ID = /^GRR-[A-Z2-7]{26}$/u;
+const REPOSITORY_ROOT = realpathSync(resolve(import.meta.dirname, '..'));
+const GIT_ENVIRONMENT = Object.freeze({
+  GIT_CONFIG_GLOBAL: '/dev/null',
+  GIT_CONFIG_NOSYSTEM: '1',
+  GIT_CONFIG_SYSTEM: '/dev/null',
+  GIT_ASKPASS: '/usr/bin/false',
+  GIT_NO_REPLACE_OBJECTS: '1',
+  GIT_TERMINAL_PROMPT: '0',
+  LANG: 'C',
+  LC_ALL: 'C',
+  PATH: '/usr/bin:/bin',
+});
 const EVIDENCE_PROFILE =
   'warpkeep-0.4.0-sealed-launch-activation-evidence-v1';
 const EVIDENCE_KEYS = Object.freeze([
   'schemaVersion',
   'profile',
   'bindingCandidate',
+  'g001FreezePublishReceipt',
+  'g001PolicyObservationBootstrapReceipt',
+  'g001CensusPrivacySafePrivateReceipt',
+  'g001AdmittedPlayerCensusPrivateReceipt',
+  'g001AdmissionMonitorSuspensionReceipt',
+  'g001AdmissionMonitorCurrentStateReceipt',
+  'authBridgeSuspensionPrivateReceipt',
   'g002PublishReceipt',
   'g002AtlasImportReceipt',
   'g002SealedLiveReceipt',
   'g002SealedLiveReceiptDigest',
+  'ptrPublishReceipt',
+  'ptrAtlasImportReceipt',
+  'ptrOwnerProvisionReceipt',
+  'ptrSealedLiveReceipt',
+  'ptrSealedLiveReceiptDigest',
 ]);
 const PUBLISH_RECEIPT_KEYS = Object.freeze([
   'schemaVersion',
@@ -79,6 +123,159 @@ const IMPORT_RESULT_KEYS = Object.freeze([
   ...IMPORT_RECEIPT_KEYS,
   'importReceiptDigest',
 ]);
+const PTR_PUBLISH_RECEIPT_KEYS = Object.freeze([
+  'schemaVersion',
+  'profile',
+  'databaseIdentity',
+  'databaseAlias',
+  'moduleIdentity',
+  'sourceCommit',
+  'moduleSha256',
+  'moduleTreeId',
+  'dependencyClosureDigest',
+  'spacetimeExecutableSha256',
+  'spacetimeCliConfigSha256',
+  'deleteData',
+  'outcome',
+  'freshDatabase',
+  'freshStatusDigest',
+  'admissionSurfacePresent',
+  'accessRequestSurfacePresent',
+]);
+const PTR_PUBLISH_RESULT_KEYS = Object.freeze([
+  ...PTR_PUBLISH_RECEIPT_KEYS,
+  'publishReceiptDigest',
+]);
+const PTR_IMPORT_RECEIPT_KEYS = Object.freeze([
+  'schemaVersion',
+  'profile',
+  'outcome',
+  'databaseIdentity',
+  'moduleIdentity',
+  'moduleSourceCommit',
+  'moduleSha256',
+  'moduleTreeId',
+  'dependencyClosureDigest',
+  'spacetimeExecutableSha256',
+  'atlasId',
+  'atlasSourceCommit',
+  'publicReleaseId',
+  'releaseManifestSha256',
+  'expectedReleaseSha256',
+  'releaseHeaderSha256',
+  'verificationDigest',
+  'importEpoch',
+  'operationsSubmitted',
+  'operationChainDigest',
+  'zeroPopulationBoundary',
+  'importsExact',
+  'ready',
+  'atlasFinalized',
+  'atlasWritesClosedByFinalization',
+  'importMutationsCompiled',
+  'activationMutationsCompiled',
+]);
+const PTR_IMPORT_RESULT_KEYS = Object.freeze([
+  ...PTR_IMPORT_RECEIPT_KEYS,
+  'importReceiptDigest',
+]);
+const PTR_OWNER_PROVISION_RECEIPT_KEYS = Object.freeze([
+  'schemaVersion',
+  'profile',
+  'outcome',
+  'databaseIdentity',
+  'databaseAlias',
+  'moduleIdentity',
+  'moduleSourceCommit',
+  'ownerOpaqueProofDigest',
+  'ownerAnchorRows',
+  'ownerProvisioned',
+  'ownerEnabled',
+  'zeroPopulationBoundary',
+]);
+const PTR_OWNER_PROVISION_RESULT_KEYS = Object.freeze([
+  ...PTR_OWNER_PROVISION_RECEIPT_KEYS,
+  'provisionReceiptDigest',
+]);
+const PTR_SEALED_LIVE_RECEIPT_KEYS = Object.freeze([
+  'schemaVersion',
+  'profile',
+  'uri',
+  'databaseIdentity',
+  'databaseAlias',
+  'moduleIdentity',
+  'moduleSourceCommit',
+  'moduleSha256',
+  'releaseVersion',
+  'realmId',
+  'atlasSourceCommit',
+  'atlasId',
+  'publicReleaseId',
+  'releaseManifestSha256',
+  'expectedReleaseSha256',
+  'releaseHeaderSha256',
+  'verificationDigest',
+  'atlasState',
+  'atlasFinalized',
+  'atlasImportsExact',
+  'atlasWritesClosedByFinalization',
+  'allowedFids',
+  'accessRequests',
+  'playersV1',
+  'playersV2',
+  'ownershipBindings',
+  'castles',
+  'realmProfiles',
+  'termsAcceptances',
+  'markAccounts',
+  'resourceAccounts',
+  'claimRows',
+  'occupancyRows',
+  'activationRows',
+  'publicAtlasRows',
+  'publicRegionRows',
+  'workerSystemRows',
+  'atlasImportMutationsCompiled',
+  'atlasActivationMutationsCompiled',
+  'ownerOpaqueProofDigest',
+  'ownerAnchorRows',
+  'ownerProvisioned',
+  'ownerEnabled',
+  'admissionsOpen',
+  'accessRequestsOpen',
+  'admissionSurfacePresent',
+  'accessRequestSurfacePresent',
+  'playerPresentationEnabled',
+]);
+const G001_DERIVED_BINDING_KEYS = Object.freeze([
+  'g001DatabaseIdentity',
+  'g001SourceBaselineCommit',
+  'g001BaselineAbiSha256',
+  'g001FreezeReleaseNonce',
+  'g001FreezePublishReceiptDigest',
+  'g001FreezePublishReceiptCommitment',
+  'g001PolicyReceiptDigest',
+  'g001PolicyReceiptCommitment',
+  'g001PolicyObservationBootstrapReceiptDigest',
+  'g001PolicyObservationBootstrapReceiptCommitment',
+  'g001PolicySourceCommit',
+  'g001ReleaseVersion',
+  'g001PlayerAccessEnabled',
+  'g001AdmissionStateMutationsEnabled',
+  'g001AccessRequestSubmissionsEnabled',
+  'g001CensusPrivacySafeReceiptProfile',
+  'g001CensusPrivacySafeReceiptDigest',
+  'g001CensusPrivacySafeReceiptCommitment',
+  'g001AdmittedPlayerCensusReceiptProfile',
+  'g001AdmittedPlayerCensusReceiptDigest',
+  'g001AdmittedPlayerCensusReceiptCommitment',
+  'admissionMonitorSuspensionReceiptDigest',
+  'admissionMonitorSuspensionReceiptCommitment',
+  'admissionMonitorCurrentStateReceiptDigest',
+  'admissionMonitorCurrentStateReceiptCommitment',
+  'admissionMonitorDisabled',
+  'admissionMonitorLoaded',
+]);
 const G002_DERIVED_BINDING_KEYS = Object.freeze([
   'g002PublishReceiptDigest',
   'g002PublishReceiptCommitment',
@@ -128,6 +325,63 @@ const G002_DERIVED_BINDING_KEYS = Object.freeze([
   'legacyGreaterRealmServerPresentationEnabled',
   'admissionNotificationsEnabled',
 ]);
+const PTR_DERIVED_BINDING_KEYS = Object.freeze([
+  'ptrPublishReceiptDigest',
+  'ptrPublishReceiptCommitment',
+  'ptrFreshStatusDigest',
+  'ptrFreshStatusCommitment',
+  'ptrAtlasImportReceiptDigest',
+  'ptrAtlasImportReceiptCommitment',
+  'ptrSealedLiveReceiptDigest',
+  'ptrSealedLiveReceiptCommitment',
+  'ptrOwnerProvisionReceiptDigest',
+  'ptrOwnerProvisionReceiptCommitment',
+  'ptrDatabaseIdentity',
+  'ptrModuleSourceCommit',
+  'ptrModuleSha256',
+  'ptrModuleTreeId',
+  'ptrDependencyClosureDigest',
+  'ptrSpacetimeExecutableSha256',
+  'ptrSpacetimeCliConfigSha256',
+  'ptrAtlasSourceCommit',
+  'ptrAtlasId',
+  'ptrPublicReleaseId',
+  'ptrReleaseVersion',
+  'ptrReleaseManifestSha256',
+  'ptrExpectedReleaseSha256',
+  'ptrReleaseHeaderSha256',
+  'ptrVerificationDigest',
+  'ptrAllowedFids',
+  'ptrAccessRequests',
+  'ptrPlayersV1',
+  'ptrPlayersV2',
+  'ptrOwnershipBindings',
+  'ptrCastles',
+  'ptrRealmProfiles',
+  'ptrTermsAcceptances',
+  'ptrMarkAccounts',
+  'ptrResourceAccounts',
+  'ptrClaims',
+  'ptrOccupancies',
+  'ptrActivationRows',
+  'ptrPublicAtlasRows',
+  'ptrPublicRegionRows',
+  'ptrWorkerSystemRows',
+  'ptrAtlasReady',
+  'ptrAtlasFinalized',
+  'ptrAtlasWritesClosedByFinalization',
+  'ptrAtlasImportsExact',
+  'ptrAtlasImportMutationsCompiled',
+  'ptrAtlasActivationMutationsCompiled',
+  'ptrOwnerAnchorRows',
+  'ptrOwnerProvisioned',
+  'ptrOwnerEnabled',
+  'ptrAdmissionsOpen',
+  'ptrAccessRequestsOpen',
+  'ptrAdmissionSurfacePresent',
+  'ptrAccessRequestSurfacePresent',
+  'ptrPresentationEnabled',
+]);
 
 export class SealedLaunchActivationGeneratorError extends Error {
   constructor(code) {
@@ -163,8 +417,259 @@ function receiptWithoutDigest(value, resultKeys, receiptKeys) {
   ));
 }
 
-/** Derive every G2 public binding field solely from recomputed receipts. */
-export function createSealedLaunchActivationBindingFromEvidence(envelope) {
+function ptrReceiptDigest(domain, receipt, keys) {
+  exactRecord(receipt, keys);
+  return createHash('sha256')
+    .update(`${domain}\n`)
+    .update(`${JSON.stringify(receipt)}\n`)
+    .digest('hex');
+}
+
+export function ptrProductionPublishReceiptDigest(receipt) {
+  return ptrReceiptDigest(
+    'warpkeep.ptr.production-publish-receipt.v1',
+    receipt,
+    PTR_PUBLISH_RECEIPT_KEYS,
+  );
+}
+
+export function ptrProductionAtlasImportReceiptDigest(receipt) {
+  return ptrReceiptDigest(
+    'warpkeep.ptr.production-import-receipt.v1',
+    receipt,
+    PTR_IMPORT_RECEIPT_KEYS,
+  );
+}
+
+export function ptrOwnerProvisionReceiptDigest(receipt) {
+  return ptrReceiptDigest(
+    'warpkeep.ptr.owner-provision-receipt.v1',
+    receipt,
+    PTR_OWNER_PROVISION_RECEIPT_KEYS,
+  );
+}
+
+export function ptrSealedLiveReceiptDigest(receipt) {
+  return ptrReceiptDigest(
+    'warpkeep.ptr.sealed-live-receipt.v1',
+    receipt,
+    PTR_SEALED_LIVE_RECEIPT_KEYS,
+  );
+}
+
+function exactGit(arguments_, binary = false, allowFailure = false) {
+  const result = spawnSync(SYSTEM_GIT, [
+    '--no-optional-locks',
+    '-c',
+    'core.fsmonitor=false',
+    '-c',
+    'core.untrackedCache=false',
+    '-c',
+    'http.proxy=',
+    '-c',
+    'http.sslVerify=true',
+    '-c',
+    'credential.helper=',
+    '-C',
+    REPOSITORY_ROOT,
+    ...arguments_,
+  ], {
+    encoding: binary ? null : 'utf8',
+    env: GIT_ENVIRONMENT,
+    maxBuffer: 2 * 1_024 * 1_024,
+    timeout: 30_000,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  if (
+    result.error !== undefined
+    || result.signal !== null
+    || typeof result.status !== 'number'
+    || (!allowFailure && result.status !== 0)
+    || (binary ? !Buffer.isBuffer(result.stdout) : typeof result.stdout !== 'string')
+    || (binary ? !Buffer.isBuffer(result.stderr) : typeof result.stderr !== 'string')
+    || (binary ? result.stderr.length !== 0 : result.stderr !== '')
+  ) fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_SOURCE_AUTHORITY_INVALID');
+  return Object.freeze({
+    status: result.status,
+    stdout: binary ? result.stdout : result.stdout.trim(),
+    stderr: binary ? result.stderr : result.stderr.trim(),
+  });
+}
+
+function exactLocalGitConfiguration() {
+  const bytes = exactGit(
+    ['config', '--local', '--null', '--list'],
+    true,
+  ).stdout;
+  let source;
+  try {
+    source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_SOURCE_AUTHORITY_INVALID');
+  } finally {
+    bytes.fill(0);
+  }
+  const records = source.split('\0');
+  if (records.at(-1) !== '') {
+    fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_SOURCE_AUTHORITY_INVALID');
+  }
+  records.pop();
+  const seen = new Set();
+  const required = new Map([
+    ['core.repositoryformatversion', '0'],
+    ['core.filemode', 'true'],
+    ['core.bare', 'false'],
+    ['core.logallrefupdates', 'true'],
+    ['core.ignorecase', 'true'],
+    ['core.precomposeunicode', 'true'],
+    ['remote.origin.url', CANONICAL_ORIGIN_URL],
+    ['remote.origin.fetch', '+refs/heads/*:refs/remotes/origin/*'],
+  ]);
+  for (const record of records) {
+    const separator = record.indexOf('\n');
+    if (
+      separator < 1
+      || separator !== record.lastIndexOf('\n')
+    ) fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_SOURCE_AUTHORITY_INVALID');
+    const key = record.slice(0, separator);
+    const value = record.slice(separator + 1);
+    if (seen.has(key)) {
+      fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_SOURCE_AUTHORITY_INVALID');
+    }
+    seen.add(key);
+    if (required.has(key)) {
+      if (required.get(key) !== value) {
+        fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_SOURCE_AUTHORITY_INVALID');
+      }
+      continue;
+    }
+    const branch = /^branch\.([A-Za-z0-9][A-Za-z0-9._/-]{0,199})\.(remote|merge)$/u
+      .exec(key);
+    if (
+      branch === null
+      || (branch[2] === 'remote' && value !== 'origin')
+      || (branch[2] === 'merge'
+        && !/^refs\/heads\/[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/u.test(value))
+    ) fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_SOURCE_AUTHORITY_INVALID');
+  }
+  if ([...required.keys()].some(key => !seen.has(key))) {
+    fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_SOURCE_AUTHORITY_INVALID');
+  }
+  return source;
+}
+
+function exactPreparationBootstrapAuthority(
+  preparationSourceCommit,
+  testOnlyAuthority,
+) {
+  if (!COMMIT.test(preparationSourceCommit ?? '')) {
+    fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_SOURCE_AUTHORITY_INVALID');
+  }
+  if (testOnlyAuthority !== undefined) {
+    if (process.env.NODE_ENV !== 'test') {
+      fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_TEST_AUTHORITY_FORBIDDEN');
+    }
+    const authority = exactRecord(testOnlyAuthority, [
+      'preparationSourceCommit',
+      'moduleTreeId',
+      'bootstrapBlob',
+      'bootstrapSha256',
+    ]);
+    if (
+      authority.preparationSourceCommit !== preparationSourceCommit
+      || !COMMIT.test(authority.moduleTreeId ?? '')
+      || !COMMIT.test(authority.bootstrapBlob ?? '')
+      || authority.bootstrapSha256 !== EXPECTED_BOOTSTRAP_SHA256
+    ) fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_SOURCE_AUTHORITY_INVALID');
+    return authority;
+  }
+
+  const localConfiguration = exactLocalGitConfiguration();
+  const root = exactGit(['rev-parse', '--show-toplevel']).stdout;
+  const head = exactGit(['rev-parse', '--verify', 'HEAD^{commit}']).stdout;
+  const remoteMain = exactGit([
+    'rev-parse',
+    '--verify',
+    'refs/remotes/origin/main',
+  ]).stdout;
+  const status = exactGit([
+    'status',
+    '--porcelain=v1',
+    '--untracked-files=all',
+  ]).stdout;
+  const origin = exactGit(['remote', 'get-url', 'origin']).stdout;
+  const remoteHead = exactGit([
+    'ls-remote',
+    '--refs',
+    CANONICAL_ORIGIN_URL,
+    'refs/heads/main',
+  ]).stdout;
+  const tracked = exactGit(['ls-files', '-v', '-z']).stdout;
+  const trackedEntries = tracked.split('\0');
+  if (trackedEntries.at(-1) !== '') {
+    fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_SOURCE_AUTHORITY_INVALID');
+  }
+  trackedEntries.pop();
+  const moduleTreeId = exactGit([
+    'rev-parse',
+    '--verify',
+    `${preparationSourceCommit}^{tree}`,
+  ]).stdout;
+  const bootstrapTreeEntry = exactGit([
+    'ls-tree',
+    '-z',
+    preparationSourceCommit,
+    '--',
+    BOOTSTRAP_SOURCE_PATH,
+  ]).stdout;
+  const bootstrapEntryMatch = new RegExp(
+    `^100644 blob ([0-9a-f]{40})\\t${BOOTSTRAP_SOURCE_PATH}\\0$`,
+    'u',
+  ).exec(bootstrapTreeEntry);
+  if (bootstrapEntryMatch === null) {
+    fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_SOURCE_AUTHORITY_INVALID');
+  }
+  const bootstrapBlob = bootstrapEntryMatch[1];
+  const objectType = exactGit(['cat-file', '-t', bootstrapBlob]).stdout;
+  const bootstrapBytes = exactGit(
+    ['cat-file', 'blob', bootstrapBlob],
+    true,
+  ).stdout;
+  try {
+    const bootstrapSha256 = createHash('sha256')
+      .update(bootstrapBytes)
+      .digest('hex');
+    if (
+      root !== REPOSITORY_ROOT
+      || head !== preparationSourceCommit
+      || remoteMain !== preparationSourceCommit
+      || origin !== CANONICAL_ORIGIN_URL
+      || remoteHead !== `${preparationSourceCommit}\trefs/heads/main`
+      || status !== ''
+      || trackedEntries.length < 1
+      || trackedEntries.some(entry => !entry.startsWith('H '))
+      || !COMMIT.test(moduleTreeId ?? '')
+      || !COMMIT.test(bootstrapBlob ?? '')
+      || objectType !== 'blob'
+      || bootstrapSha256 !== EXPECTED_BOOTSTRAP_SHA256
+      || exactLocalGitConfiguration() !== localConfiguration
+    ) fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_SOURCE_AUTHORITY_INVALID');
+    return Object.freeze({
+      preparationSourceCommit,
+      moduleTreeId,
+      bootstrapBlob,
+      bootstrapSha256,
+    });
+  } finally {
+    bootstrapBytes.fill(0);
+  }
+}
+
+/** Derive every G1, G2, and PTR public field solely from exact evidence. */
+export function createSealedLaunchActivationBindingFromEvidence(
+  envelope,
+  testOnlyPreparationBootstrapAuthority,
+) {
   const evidence = exactRecord(envelope, EVIDENCE_KEYS);
   if (
     evidence.schemaVersion !== 1
@@ -181,9 +686,65 @@ export function createSealedLaunchActivationBindingFromEvidence(envelope) {
     evidence.bindingCandidate,
     Reflect.ownKeys(evidence.bindingCandidate),
   );
-  if (G002_DERIVED_BINDING_KEYS.some(key => candidate[key] !== null)) {
+  if (
+    G001_DERIVED_BINDING_KEYS.some(key => candidate[key] !== null)
+    || G002_DERIVED_BINDING_KEYS.some(key => candidate[key] !== null)
+    || PTR_DERIVED_BINDING_KEYS.some(key => candidate[key] !== null)
+  ) {
     fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
   }
+  const preparationAuthority = exactPreparationBootstrapAuthority(
+    candidate.preparationSourceCommit,
+    testOnlyPreparationBootstrapAuthority,
+  );
+  if (
+    candidate.authBridgeSourceCommit !== null
+    || candidate.admissionRequestSuspensionReceiptDigest !== null
+  ) fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
+
+  let genesis001;
+  try {
+    const privateEvidence = {
+      preparationSourceCommit: candidate.preparationSourceCommit,
+      freezePublishReceipt: evidence.g001FreezePublishReceipt,
+      policyObservationBootstrapReceipt:
+        evidence.g001PolicyObservationBootstrapReceipt,
+      censusPrivacySafePrivateReceipt:
+        evidence.g001CensusPrivacySafePrivateReceipt,
+      admissionMonitorSuspensionReceipt:
+        evidence.g001AdmissionMonitorSuspensionReceipt,
+      admissionMonitorCurrentStateReceipt:
+        evidence.g001AdmissionMonitorCurrentStateReceipt,
+      admittedPlayerCensusPrivateReceipt:
+        evidence.g001AdmittedPlayerCensusPrivateReceipt,
+    };
+    genesis001 = deriveGenesis001SealedLaunchEvidence(privateEvidence);
+  } catch {
+    fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
+  }
+  const observationBootstrap = evidence.g001PolicyObservationBootstrapReceipt;
+  let bridge;
+  try {
+    const projection = readSealedRealmsProductionActivationEvidenceMember(
+      evidence.authBridgeSuspensionPrivateReceipt,
+    );
+    bridge = projection.authBridgeSuspensionPrivateReceipt;
+  } catch {
+    fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
+  }
+  if (bridge.sourceCommit !== candidate.preparationSourceCommit) {
+    fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
+  }
+  const bridgeDigest = createHash('sha256')
+    .update('warpkeep.sealed-realms.auth-bridge-suspension-private-receipt.v1\n')
+    .update(`${JSON.stringify(bridge)}\n`)
+    .digest('hex');
+  if (
+    observationBootstrap.moduleTreeId !== preparationAuthority.moduleTreeId
+    || observationBootstrap.bootstrapBlob !== preparationAuthority.bootstrapBlob
+    || observationBootstrap.bootstrapSha256
+      !== preparationAuthority.bootstrapSha256
+  ) fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_SOURCE_AUTHORITY_INVALID');
 
   const publish = exactRecord(evidence.g002PublishReceipt, PUBLISH_RESULT_KEYS);
   const publishReceipt = receiptWithoutDigest(
@@ -251,8 +812,233 @@ export function createSealedLaunchActivationBindingFromEvidence(envelope) {
       !== sealedLive.atlasWritesClosedByFinalization
   ) fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
 
+  const ptrPublish = exactRecord(
+    evidence.ptrPublishReceipt,
+    PTR_PUBLISH_RESULT_KEYS,
+  );
+  const ptrPublishReceipt = receiptWithoutDigest(
+    ptrPublish,
+    PTR_PUBLISH_RESULT_KEYS,
+    PTR_PUBLISH_RECEIPT_KEYS,
+  );
+  const ptrPublishDigest = ptrProductionPublishReceiptDigest(
+    ptrPublishReceipt,
+  );
+  if (ptrPublish.publishReceiptDigest !== ptrPublishDigest) {
+    fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
+  }
+
+  const ptrAtlasImport = exactRecord(
+    evidence.ptrAtlasImportReceipt,
+    PTR_IMPORT_RESULT_KEYS,
+  );
+  const ptrAtlasImportReceipt = receiptWithoutDigest(
+    ptrAtlasImport,
+    PTR_IMPORT_RESULT_KEYS,
+    PTR_IMPORT_RECEIPT_KEYS,
+  );
+  const ptrAtlasImportDigest = ptrProductionAtlasImportReceiptDigest(
+    ptrAtlasImportReceipt,
+  );
+  if (ptrAtlasImport.importReceiptDigest !== ptrAtlasImportDigest) {
+    fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
+  }
+
+  const ptrOwnerProvision = exactRecord(
+    evidence.ptrOwnerProvisionReceipt,
+    PTR_OWNER_PROVISION_RESULT_KEYS,
+  );
+  const ptrOwnerProvisionReceipt = receiptWithoutDigest(
+    ptrOwnerProvision,
+    PTR_OWNER_PROVISION_RESULT_KEYS,
+    PTR_OWNER_PROVISION_RECEIPT_KEYS,
+  );
+  const ptrOwnerProvisionDigest = ptrOwnerProvisionReceiptDigest(
+    ptrOwnerProvisionReceipt,
+  );
+  if (ptrOwnerProvision.provisionReceiptDigest !== ptrOwnerProvisionDigest) {
+    fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
+  }
+
+  const ptrSealedLive = exactRecord(
+    evidence.ptrSealedLiveReceipt,
+    PTR_SEALED_LIVE_RECEIPT_KEYS,
+  );
+  const ptrLiveDigest = ptrSealedLiveReceiptDigest(ptrSealedLive);
+  if (evidence.ptrSealedLiveReceiptDigest !== ptrLiveDigest) {
+    fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
+  }
+
+  const ptrLiveZeroFields = [
+    'allowedFids',
+    'accessRequests',
+    'playersV1',
+    'playersV2',
+    'ownershipBindings',
+    'castles',
+    'realmProfiles',
+    'termsAcceptances',
+    'markAccounts',
+    'resourceAccounts',
+    'claimRows',
+    'occupancyRows',
+    'activationRows',
+    'publicAtlasRows',
+    'publicRegionRows',
+    'workerSystemRows',
+  ];
+  if (
+    ptrPublish.schemaVersion !== 1
+    || ptrPublish.profile !== 'warpkeep-ptr-production-publish-v1'
+    || !SHA256.test(ptrPublish.databaseIdentity ?? '')
+    || ptrPublish.databaseAlias !== 'warpkeep-ptr'
+    || ptrPublish.moduleIdentity !== 'warpkeep-ptr-owner-view-v1'
+    || ptrPublish.sourceCommit !== candidate.preparationSourceCommit
+    || !SHA256.test(ptrPublish.moduleSha256 ?? '')
+    || !COMMIT.test(ptrPublish.moduleTreeId ?? '')
+    || !SHA256.test(ptrPublish.dependencyClosureDigest ?? '')
+    || !SHA256.test(ptrPublish.spacetimeExecutableSha256 ?? '')
+    || !SHA256.test(ptrPublish.spacetimeCliConfigSha256 ?? '')
+    || ptrPublish.deleteData !== 'never'
+    || ptrPublish.outcome !== 'verified'
+    || ptrPublish.freshDatabase !== true
+    || !SHA256.test(ptrPublish.freshStatusDigest ?? '')
+    || ptrPublish.admissionSurfacePresent !== false
+    || ptrPublish.accessRequestSurfacePresent !== false
+    || ptrAtlasImport.schemaVersion !== 1
+    || ptrAtlasImport.profile !== 'warpkeep.ptr.production-import.v1'
+    || ptrAtlasImport.outcome !== 'ready'
+    || ptrAtlasImport.atlasId !== 'PTR_GREATER_REALM'
+    || ptrAtlasImport.atlasSourceCommit !== candidate.preparationSourceCommit
+    || !PUBLIC_RELEASE_ID.test(ptrAtlasImport.publicReleaseId ?? '')
+    || !SHA256.test(ptrAtlasImport.releaseManifestSha256 ?? '')
+    || !SHA256.test(ptrAtlasImport.expectedReleaseSha256 ?? '')
+    || !SHA256.test(ptrAtlasImport.releaseHeaderSha256 ?? '')
+    || !SHA256.test(ptrAtlasImport.verificationDigest ?? '')
+    || !/^[1-9][0-9]{0,19}$/u.test(ptrAtlasImport.importEpoch ?? '')
+    || BigInt(ptrAtlasImport.importEpoch) > PTR_IMPORT_EPOCH_MAXIMUM
+    || !Number.isSafeInteger(ptrAtlasImport.operationsSubmitted)
+    || ptrAtlasImport.operationsSubmitted < 1
+    || ptrAtlasImport.operationsSubmitted > PTR_IMPORT_OPERATION_MAXIMUM
+    || !SHA256.test(ptrAtlasImport.operationChainDigest ?? '')
+    || ptrAtlasImport.zeroPopulationBoundary !== true
+    || ptrAtlasImport.importsExact !== true
+    || ptrAtlasImport.ready !== true
+    || ptrAtlasImport.atlasFinalized !== true
+    || ptrAtlasImport.atlasWritesClosedByFinalization !== true
+    || ptrAtlasImport.importMutationsCompiled !== true
+    || ptrAtlasImport.activationMutationsCompiled !== false
+    || ptrOwnerProvision.schemaVersion !== 1
+    || ptrOwnerProvision.profile !== 'warpkeep-ptr-owner-provision-v1'
+    || ptrOwnerProvision.outcome !== 'verified'
+    || !SHA256.test(ptrOwnerProvision.ownerOpaqueProofDigest ?? '')
+    || /^0{64}$/u.test(ptrOwnerProvision.ownerOpaqueProofDigest)
+    || ptrOwnerProvision.ownerAnchorRows !== 1
+    || ptrOwnerProvision.ownerProvisioned !== true
+    || ptrOwnerProvision.ownerEnabled !== true
+    || ptrOwnerProvision.zeroPopulationBoundary !== true
+    || ptrSealedLive.schemaVersion !== 1
+    || ptrSealedLive.profile !== 'warpkeep-ptr-sealed-live-v1'
+    || ptrSealedLive.uri !== 'https://maincloud.spacetimedb.com'
+    || ptrSealedLive.databaseAlias !== 'warpkeep-ptr'
+    || ptrSealedLive.moduleIdentity !== 'warpkeep-ptr-owner-view-v1'
+    || ptrSealedLive.moduleSourceCommit !== candidate.preparationSourceCommit
+    || ptrSealedLive.releaseVersion !== '0.4.0-ptr.1'
+    || ptrSealedLive.realmId !== 'PTR'
+    || ptrSealedLive.atlasId !== 'PTR_GREATER_REALM'
+    || ptrSealedLive.atlasState !== 'ready'
+    || ptrSealedLive.atlasFinalized !== true
+    || ptrSealedLive.atlasImportsExact !== true
+    || ptrSealedLive.atlasWritesClosedByFinalization !== true
+    || ptrLiveZeroFields.some(field => (
+      ptrSealedLive[field] !== 0 || Object.is(ptrSealedLive[field], -0)
+    ))
+    || ptrSealedLive.atlasImportMutationsCompiled !== true
+    || ptrSealedLive.atlasActivationMutationsCompiled !== false
+    || ptrSealedLive.ownerAnchorRows !== 1
+    || ptrSealedLive.ownerProvisioned !== true
+    || ptrSealedLive.ownerEnabled !== true
+    || ptrSealedLive.admissionsOpen !== false
+    || ptrSealedLive.accessRequestsOpen !== false
+    || ptrSealedLive.admissionSurfacePresent !== false
+    || ptrSealedLive.accessRequestSurfacePresent !== false
+    || ptrSealedLive.playerPresentationEnabled !== true
+    || ptrPublish.databaseIdentity === genesis001.g001DatabaseIdentity
+    || ptrPublish.databaseIdentity === publish.databaseIdentity
+    || ptrPublish.databaseIdentity !== ptrAtlasImport.databaseIdentity
+    || ptrPublish.databaseIdentity !== ptrOwnerProvision.databaseIdentity
+    || ptrPublish.databaseIdentity !== ptrSealedLive.databaseIdentity
+    || ptrPublish.databaseAlias !== ptrOwnerProvision.databaseAlias
+    || ptrPublish.databaseAlias !== ptrSealedLive.databaseAlias
+    || ptrPublish.moduleIdentity !== ptrAtlasImport.moduleIdentity
+    || ptrPublish.moduleIdentity !== ptrOwnerProvision.moduleIdentity
+    || ptrPublish.moduleIdentity !== ptrSealedLive.moduleIdentity
+    || ptrPublish.sourceCommit !== ptrAtlasImport.moduleSourceCommit
+    || ptrPublish.sourceCommit !== ptrOwnerProvision.moduleSourceCommit
+    || ptrPublish.sourceCommit !== ptrSealedLive.moduleSourceCommit
+    || ptrPublish.moduleSha256 !== ptrAtlasImport.moduleSha256
+    || ptrPublish.moduleSha256 !== ptrSealedLive.moduleSha256
+    || ptrPublish.moduleTreeId !== ptrAtlasImport.moduleTreeId
+    || ptrPublish.dependencyClosureDigest
+      !== ptrAtlasImport.dependencyClosureDigest
+    || ptrPublish.spacetimeExecutableSha256
+      !== ptrAtlasImport.spacetimeExecutableSha256
+    || ptrAtlasImport.atlasSourceCommit !== ptrSealedLive.atlasSourceCommit
+    || ptrAtlasImport.atlasId !== ptrSealedLive.atlasId
+    || ptrAtlasImport.publicReleaseId !== ptrSealedLive.publicReleaseId
+    || ptrAtlasImport.releaseManifestSha256
+      !== ptrSealedLive.releaseManifestSha256
+    || ptrAtlasImport.expectedReleaseSha256
+      !== ptrSealedLive.expectedReleaseSha256
+    || ptrAtlasImport.releaseHeaderSha256
+      !== ptrSealedLive.releaseHeaderSha256
+    || ptrAtlasImport.verificationDigest
+      !== ptrSealedLive.verificationDigest
+    || ptrAtlasImport.importsExact !== ptrSealedLive.atlasImportsExact
+    || ptrAtlasImport.atlasFinalized !== ptrSealedLive.atlasFinalized
+    || ptrAtlasImport.atlasWritesClosedByFinalization
+      !== ptrSealedLive.atlasWritesClosedByFinalization
+    || ptrAtlasImport.importMutationsCompiled
+      !== ptrSealedLive.atlasImportMutationsCompiled
+    || ptrAtlasImport.activationMutationsCompiled
+      !== ptrSealedLive.atlasActivationMutationsCompiled
+    || ptrOwnerProvision.ownerOpaqueProofDigest
+      !== ptrSealedLive.ownerOpaqueProofDigest
+    || ptrOwnerProvision.ownerAnchorRows !== ptrSealedLive.ownerAnchorRows
+    || ptrOwnerProvision.ownerProvisioned !== ptrSealedLive.ownerProvisioned
+    || ptrOwnerProvision.ownerEnabled !== ptrSealedLive.ownerEnabled
+    || ptrPublish.admissionSurfacePresent
+      !== ptrSealedLive.admissionSurfacePresent
+    || ptrPublish.accessRequestSurfacePresent
+      !== ptrSealedLive.accessRequestSurfacePresent
+  ) fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
+
+  const bridgeDeployment = bridge.deploymentAuthority;
+  const expectedPtrBindingDigest = createHash('sha256')
+    .update('warpkeep.auth-bridge.ptr-binding.v1\n')
+    .update(`${JSON.stringify([
+      bridgeDeployment.workerVersionId,
+      candidate.preparationSourceCommit,
+      ptrPublish.databaseIdentity,
+      'warpkeep-ptr-spacetimedb',
+    ])}\n`)
+    .digest('hex');
+  if (
+    bridge.g002ImportAuthorityCrossLink.realmImportReceiptDigest
+      !== atlasImportDigest
+    || bridge.ptrImportAuthorityCrossLink.realmImportReceiptDigest
+      !== ptrAtlasImportDigest
+    || bridgeDeployment.sourceCommit !== candidate.preparationSourceCommit
+    || bridgeDeployment.bridgeSourceCommit !== candidate.preparationSourceCommit
+    || bridgeDeployment.ptrDatabaseIdentity !== ptrPublish.databaseIdentity
+    || bridgeDeployment.ptrBindingDigest !== expectedPtrBindingDigest
+  ) fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
+
   const binding = {
     ...candidate,
+    ...genesis001,
+    authBridgeSourceCommit: bridge.sourceCommit,
+    admissionRequestSuspensionReceiptDigest: bridgeDigest,
     g002PublishReceiptDigest: publishDigest,
     g002FreshStatusDigest: publish.freshStatusDigest,
     g002DatabaseIdentity: publish.databaseIdentity,
@@ -294,7 +1080,61 @@ export function createSealedLaunchActivationBindingFromEvidence(envelope) {
       sealedLive.activationMutationsEnabled,
     g002PlayerAccessEnabled: publish.playerAccessEnabled,
     g002AdmissionMutationsEnabled: publish.admissionMutationsEnabled,
+    ptrPublishReceiptDigest: ptrPublishDigest,
+    ptrFreshStatusDigest: ptrPublish.freshStatusDigest,
+    ptrAtlasImportReceiptDigest: ptrAtlasImportDigest,
+    ptrSealedLiveReceiptDigest: ptrLiveDigest,
+    ptrOwnerProvisionReceiptDigest: ptrOwnerProvisionDigest,
+    ptrDatabaseIdentity: ptrPublish.databaseIdentity,
+    ptrModuleSourceCommit: ptrPublish.sourceCommit,
+    ptrModuleSha256: ptrPublish.moduleSha256,
+    ptrModuleTreeId: ptrPublish.moduleTreeId,
+    ptrDependencyClosureDigest: ptrPublish.dependencyClosureDigest,
+    ptrSpacetimeExecutableSha256: ptrPublish.spacetimeExecutableSha256,
+    ptrSpacetimeCliConfigSha256: ptrPublish.spacetimeCliConfigSha256,
+    ptrAtlasSourceCommit: ptrAtlasImport.atlasSourceCommit,
+    ptrAtlasId: ptrAtlasImport.atlasId,
+    ptrPublicReleaseId: ptrAtlasImport.publicReleaseId,
+    ptrReleaseVersion: ptrSealedLive.releaseVersion,
+    ptrReleaseManifestSha256: ptrAtlasImport.releaseManifestSha256,
+    ptrExpectedReleaseSha256: ptrAtlasImport.expectedReleaseSha256,
+    ptrReleaseHeaderSha256: ptrAtlasImport.releaseHeaderSha256,
+    ptrVerificationDigest: ptrAtlasImport.verificationDigest,
+    ptrAllowedFids: ptrSealedLive.allowedFids,
+    ptrAccessRequests: ptrSealedLive.accessRequests,
+    ptrPlayersV1: ptrSealedLive.playersV1,
+    ptrPlayersV2: ptrSealedLive.playersV2,
+    ptrOwnershipBindings: ptrSealedLive.ownershipBindings,
+    ptrCastles: ptrSealedLive.castles,
+    ptrRealmProfiles: ptrSealedLive.realmProfiles,
+    ptrTermsAcceptances: ptrSealedLive.termsAcceptances,
+    ptrMarkAccounts: ptrSealedLive.markAccounts,
+    ptrResourceAccounts: ptrSealedLive.resourceAccounts,
+    ptrClaims: ptrSealedLive.claimRows,
+    ptrOccupancies: ptrSealedLive.occupancyRows,
+    ptrActivationRows: ptrSealedLive.activationRows,
+    ptrPublicAtlasRows: ptrSealedLive.publicAtlasRows,
+    ptrPublicRegionRows: ptrSealedLive.publicRegionRows,
+    ptrWorkerSystemRows: ptrSealedLive.workerSystemRows,
+    ptrAtlasReady: ptrSealedLive.atlasState === 'ready',
+    ptrAtlasFinalized: ptrSealedLive.atlasFinalized,
+    ptrAtlasWritesClosedByFinalization:
+      ptrSealedLive.atlasWritesClosedByFinalization,
+    ptrAtlasImportsExact: ptrSealedLive.atlasImportsExact,
+    ptrAtlasImportMutationsCompiled:
+      ptrSealedLive.atlasImportMutationsCompiled,
+    ptrAtlasActivationMutationsCompiled:
+      ptrSealedLive.atlasActivationMutationsCompiled,
+    ptrOwnerAnchorRows: ptrSealedLive.ownerAnchorRows,
+    ptrOwnerProvisioned: ptrSealedLive.ownerProvisioned,
+    ptrOwnerEnabled: ptrSealedLive.ownerEnabled,
+    ptrAdmissionsOpen: ptrSealedLive.admissionsOpen,
+    ptrAccessRequestsOpen: ptrSealedLive.accessRequestsOpen,
+    ptrAdmissionSurfacePresent: ptrSealedLive.admissionSurfacePresent,
+    ptrAccessRequestSurfacePresent:
+      ptrSealedLive.accessRequestSurfacePresent,
     g002PresentationEnabled: sealedLive.playerPresentationEnabled,
+    ptrPresentationEnabled: ptrSealedLive.playerPresentationEnabled,
     legacyGreaterRealmClientPresentationEnabled:
       sealedLive.playerPresentationEnabled,
     legacyGreaterRealmServerPresentationEnabled:
@@ -321,6 +1161,8 @@ function sameFile(left, right) {
  */
 export function generateSealedLaunchActivationBindingFromDescriptor(
   descriptor = 0,
+  testOnlyPreparationBootstrapAuthority,
+  activationEvidenceMember,
 ) {
   let storage;
   let bytes;
@@ -368,11 +1210,24 @@ export function generateSealedLaunchActivationBindingFromDescriptor(
     } catch {
       fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
     }
+    envelope = exactRecord(envelope, EVIDENCE_KEYS);
     if (`${JSON.stringify(envelope, null, 2)}\n` !== bytes.toString('utf8')) {
       fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_NONCANONICAL');
     }
+    if (envelope?.authBridgeSuspensionPrivateReceipt !== null) {
+      fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
+    }
+    const hydratedEnvelope = Object.fromEntries(EVIDENCE_KEYS.map(key => [
+      key,
+      key === 'authBridgeSuspensionPrivateReceipt'
+        ? activationEvidenceMember
+        : envelope[key],
+    ]));
     try {
-      return createSealedLaunchActivationBindingFromEvidence(envelope);
+      return createSealedLaunchActivationBindingFromEvidence(
+        hydratedEnvelope,
+        testOnlyPreparationBootstrapAuthority,
+      );
     } catch {
       fail('SEALED_LAUNCH_ACTIVATION_GENERATOR_INPUT_INVALID');
     }

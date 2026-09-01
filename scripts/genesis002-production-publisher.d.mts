@@ -8,6 +8,58 @@ export const GENESIS_002_PRODUCTION_TARGET: Readonly<{
 }>;
 export const GENESIS_002_PUBLISH_PROFILE:
   'warpkeep-genesis-002-production-publish-v1';
+export type SealedRealmsPublicationLane = 'g002' | 'ptr';
+export type SealedRealmsPublicationPossiblySubmittedMarker = Readonly<{
+  schemaVersion: 1;
+  profile: 'warpkeep-sealed-realms-publication-possibly-submitted-v1';
+  lane: SealedRealmsPublicationLane;
+  sourceCommit: string;
+  databaseUri: 'https://maincloud.spacetimedb.com';
+  alias: 'warpkeep-genesis-002' | 'warpkeep-ptr';
+  moduleIdentity:
+    | 'warpkeep-genesis-002-sealed-v1'
+    | 'warpkeep-ptr-owner-view-v1';
+  release: '0.4.0' | '0.4.0-ptr.1';
+  artifactDigest: string;
+  toolchainDigest: string;
+  publishPlanDigest: string;
+  confirmationDigest: string;
+  attemptNonce: string;
+  markedAt: string;
+  submissionState: 'possibly-submitted';
+}>;
+export function createSealedRealmsPublicationPossiblySubmittedMarker(
+  input: Omit<SealedRealmsPublicationPossiblySubmittedMarker,
+    'schemaVersion' | 'profile' | 'submissionState'>,
+): SealedRealmsPublicationPossiblySubmittedMarker;
+export function parseSealedRealmsPublicationPossiblySubmittedMarker(
+  bytes: string | Uint8Array,
+): SealedRealmsPublicationPossiblySubmittedMarker;
+export function digestSealedRealmsPublicationPossiblySubmittedMarker(
+  value: unknown,
+): string;
+export type SealedRealmsPublicationMarkerReconciliation = Readonly<{
+  schemaVersion: 1;
+  profile: 'warpkeep-sealed-realms-publication-marker-reconciliation-v1';
+  lane: SealedRealmsPublicationLane;
+  markerDigest: string;
+  outcome: 'adopted' | 'no-effect';
+  databaseIdentity: string | null;
+  publicationReceiptDigest: string | null;
+  observationDigest: string;
+  observedAt: string;
+}>;
+export function createSealedRealmsPublicationMarkerReconciliation(
+  input: Readonly<{
+    marker: SealedRealmsPublicationPossiblySubmittedMarker;
+    markerDigest: string;
+    outcome: 'adopted' | 'no-effect';
+    databaseIdentity: string | null;
+    publicationReceiptDigest: string | null;
+    observationDigest: string;
+    observedAt: string;
+  }>,
+): SealedRealmsPublicationMarkerReconciliation;
 export class Genesis002ProductionPublisherError extends Error {
   readonly code: string;
   readonly publishAttempted: boolean;
@@ -38,7 +90,7 @@ export type Genesis002PublishReceipt = Readonly<{
   spacetimeExecutableSha256: string;
   spacetimeCliConfigSha256: string;
   deleteData: 'never';
-  outcome: 'verified' | 'verified-after-submission-error';
+  outcome: 'verified';
   freshStatusDigest: string;
   playerAccessEnabled: false;
   admissionMutationsEnabled: false;
@@ -64,7 +116,6 @@ export function executeGenesis002Publish(input: Readonly<{
   spacetimeCliConfigPath: string;
   spacetimeExecutable: string;
   spawn?: (...arguments_: unknown[]) => unknown;
-  postflight: (databaseIdentity: string) => Promise<unknown>;
   assertSourceAndArtifact: () => void;
   childEnvironment: Readonly<Record<string, string>>;
   artifactDescriptor?: number;

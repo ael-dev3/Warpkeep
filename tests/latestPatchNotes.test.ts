@@ -57,6 +57,9 @@ describe('latest in-menu patch notes', () => {
     expect(alpha040?.highlights.join(' ')).toMatch(
       /Genesis 002.*0\.4\.0.*zero admitted players.*private.*cannot be entered/i
     );
+    expect(alpha040?.highlights.join(' ')).toMatch(
+      /dedicated PTR.*future patch testing.*owner authority.*no player admission.*access-request path/i
+    );
     expect(alpha040?.alphaNotice).toMatch(
       /new admissions.*suspended.*Genesis 002.*no admitted users.*cannot be entered/i
     );

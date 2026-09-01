@@ -14,10 +14,11 @@ const ALPHA_0_4_0_PATCH_NOTES: LatestPatchNotes = Object.freeze({
   highlights: Object.freeze([
     'A new realm chooser shows a green check when the signed-in keeper is admitted, a red X when they are not admitted, and clear tooltips explaining each realm-specific state.',
     'Existing Genesis 001 keepers retain their 0.3.43 Realm access; new admissions and access requests are suspended while the future admission path is rebuilt.',
-    'Genesis 002 carries the 0.4.0 world foundation with zero admitted players. Its data remains private, and it cannot be entered, queried by players, or reached through an access request.'
+    'Genesis 002 carries the 0.4.0 world foundation with zero admitted players. Its data remains private, and it cannot be entered, queried by players, or reached through an access request.',
+    'A dedicated PTR carries future patch testing behind short-lived owner authority. It has no player admission or access-request path and is not available to other users.'
   ]),
   alphaNotice:
-    'Alpha 0.4.0 remains unfinished. New admissions are suspended, Genesis 002 has no admitted users and cannot be entered, and construction, units, combat, alliances, chat, and the larger strategy loop are not live.'
+    'Alpha 0.4.0 remains unfinished. New admissions are suspended, Genesis 002 has no admitted users and cannot be entered, PTR is owner-only, and construction, units, combat, alliances, chat, and the larger strategy loop are not live.'
 });
 
 const ALPHA_0_3_43_PATCH_NOTES: LatestPatchNotes = Object.freeze({

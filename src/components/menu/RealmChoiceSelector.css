@@ -1,25 +1,64 @@
 .realm-choice-selector {
   display: grid;
-  gap: 0.35rem;
-  width: 100%;
-  margin: 0 0 clamp(0.55rem, 1.25vh, 0.95rem);
+  gap: clamp(1rem, 2.4vh, 1.55rem);
+  box-sizing: border-box;
+  width: min(56rem, 100%);
+  margin: auto;
+  padding: clamp(1.25rem, 3vw, 2.25rem);
+  border: 1px solid rgba(214, 172, 101, 0.42);
+  border-radius: 0.8rem;
+  color: #ead8b8;
+  background: linear-gradient(145deg, rgba(31, 20, 35, 0.97), rgba(9, 8, 14, 0.98));
+  box-shadow: inset 0 0 0 1px rgba(246, 216, 160, 0.06), 0 1.5rem 5rem rgba(0, 0, 0, 0.58);
+}
+
+.realm-choice-selector__header {
+  display: grid;
+  justify-items: center;
+  gap: 0.45rem;
+  text-align: center;
+}
+
+.realm-choice-selector__eyebrow,
+.realm-choice-selector__intro,
+.realm-choice-selector__status {
+  margin: 0;
 }
 
 .realm-choice-selector__eyebrow {
-  margin: 0;
   color: rgba(211, 179, 120, 0.78);
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(0.5rem, 0.64vw, 0.62rem);
+  font-size: 0.66rem;
   font-weight: 700;
-  letter-spacing: 0.24em;
-  line-height: 1.2;
-  text-align: center;
+  letter-spacing: 0.28em;
+}
+
+.realm-choice-selector__heading {
+  margin: 0;
+  color: #f2d59d;
+  font-size: clamp(1.45rem, 3.2vw, 2.25rem);
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  line-height: 1.1;
+  text-shadow: 0 0.35rem 1.4rem rgba(0, 0, 0, 0.7);
+}
+
+.realm-choice-selector__heading:focus-visible {
+  outline: 2px solid rgba(250, 220, 163, 0.9);
+  outline-offset: 0.35rem;
+}
+
+.realm-choice-selector__intro {
+  max-width: 38rem;
+  color: rgba(228, 205, 164, 0.72);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.78rem;
+  line-height: 1.5;
 }
 
 .realm-choice-selector__choices {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(0.65rem, 1.8vw, 1rem);
 }
 
 .realm-choice-selector__choice {
@@ -30,93 +69,89 @@
 .warpkeep-menu .realm-choice-selector__button {
   display: grid;
   position: relative;
-  grid-template-columns: minmax(0, 1fr);
   align-content: center;
-  align-items: center;
-  gap: 0.28rem;
+  gap: 0.8rem;
   width: 100%;
-  min-height: 3.45rem;
+  min-height: 9.25rem;
   margin: 0;
-  padding: 0.48rem 0.62rem;
-  border: 1px solid rgba(202, 157, 85, 0.32);
-  border-radius: 0.35rem;
+  padding: 1rem;
+  border: 1px solid rgba(202, 157, 85, 0.3);
+  border-radius: 0.55rem;
   color: #d9bd89;
-  background: rgba(8, 5, 11, 0.54);
-  box-shadow: inset 0 0 0 1px rgba(5, 3, 8, 0.38);
+  background: rgba(8, 5, 11, 0.62);
+  box-shadow: inset 0 0 0 1px rgba(5, 3, 8, 0.42);
   font-family: Georgia, "Times New Roman", serif;
   text-align: left;
   cursor: pointer;
-  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+  transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 }
 
 .warpkeep-menu .realm-choice-selector__button[aria-checked="true"] {
-  border-color: rgba(239, 204, 139, 0.82);
-  background: rgba(39, 24, 38, 0.76);
-  box-shadow: inset 0 0 0 1px rgba(246, 215, 158, 0.12), 0 0 0.75rem rgba(117, 62, 139, 0.22);
+  border-color: rgba(239, 204, 139, 0.88);
+  background: rgba(54, 32, 49, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(246, 215, 158, 0.14), 0 0 1.5rem rgba(117, 62, 139, 0.26);
+  transform: translateY(-0.12rem);
 }
 
-.warpkeep-menu .realm-choice-selector__button:focus-visible {
-  outline: 2px solid rgba(250, 220, 163, 0.9);
-  outline-offset: 2px;
+.warpkeep-menu .realm-choice-selector__button:focus-visible,
+.warpkeep-menu .realm-choice-selector__action:focus-visible {
+  outline: 2px solid rgba(250, 220, 163, 0.92);
+  outline-offset: 3px;
 }
 
-.warpkeep-menu .realm-choice-selector__button:disabled {
+.warpkeep-menu .realm-choice-selector__button:disabled,
+.warpkeep-menu .realm-choice-selector__action:disabled {
   cursor: wait;
-  opacity: 0.7;
+  opacity: 0.62;
 }
 
 .realm-choice-selector__identity {
   display: grid;
-  min-width: 0;
+  gap: 0.3rem;
 }
 
 .realm-choice-selector__name {
-  overflow: visible;
-  color: #f0d9ae;
-  font-size: clamp(0.69rem, 0.9vw, 0.84rem);
+  color: #f3dcaf;
+  font-size: clamp(1rem, 1.75vw, 1.28rem);
   font-weight: 700;
   letter-spacing: 0.08em;
   line-height: 1.15;
-  text-overflow: clip;
-  white-space: nowrap;
 }
 
 .realm-choice-selector__version {
-  margin-top: 0.2rem;
-  color: rgba(217, 189, 137, 0.68);
-  font-size: 0.58rem;
+  color: rgba(217, 189, 137, 0.66);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.6rem;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.08em;
-  line-height: 1;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
 .realm-choice-selector__admission {
   display: flex;
-  min-width: 0;
   align-items: center;
-  justify-content: flex-start;
-  gap: 0.3rem;
-  color: #ff7676;
+  gap: 0.45rem;
+  color: #ff8585;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  font-size: 0.47rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  line-height: 1.1;
-  text-align: center;
+  font-size: 0.58rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
   text-transform: uppercase;
-  white-space: nowrap;
 }
 
 .realm-choice-selector__button[data-admission="admitted"] .realm-choice-selector__admission {
-  color: #7ee7a7;
+  color: #83e9a9;
+}
+
+.realm-choice-selector__button[data-admission="unknown"] .realm-choice-selector__admission {
+  color: #d8b67b;
 }
 
 .realm-choice-selector__mark {
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  font-size: 1.15rem;
+  font-size: 1.45rem;
   font-weight: 800;
-  line-height: 0.85;
+  line-height: 0.9;
   text-shadow: 0 0 0.6rem currentColor;
 }
 
@@ -124,22 +159,20 @@
   position: absolute;
   z-index: 12;
   right: 0;
-  bottom: calc(100% + 0.5rem);
+  bottom: calc(100% + 0.55rem);
   left: 0;
   width: max-content;
-  max-width: min(19rem, calc(100vw - 2rem));
+  max-width: min(20rem, calc(100vw - 2rem));
   margin-inline: auto;
-  padding: 0.58rem 0.68rem;
+  padding: 0.65rem 0.75rem;
   border: 1px solid rgba(226, 197, 139, 0.48);
   border-radius: 0.4rem;
   color: #ead8b8;
-  background: rgba(7, 9, 15, 0.97);
+  background: rgba(7, 9, 15, 0.98);
   box-shadow: 0 0.8rem 2rem rgba(0, 0, 0, 0.42);
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   font-size: 0.7rem;
-  letter-spacing: 0.01em;
-  line-height: 1.35;
-  text-align: left;
+  line-height: 1.4;
   pointer-events: none;
   opacity: 0;
   transform: translateY(0.2rem);
@@ -152,82 +185,107 @@
   transform: none;
 }
 
-@media (max-height: 650px), (orientation: portrait) {
+.realm-choice-selector__choice:first-child .realm-choice-selector__tooltip {
+  right: auto;
+  left: 0;
+  margin-inline: 0;
+}
+
+.realm-choice-selector__choice:last-child .realm-choice-selector__tooltip {
+  right: 0;
+  left: auto;
+  margin-inline: 0;
+}
+
+.realm-choice-selector__status {
+  min-height: 1.35rem;
+  color: #e3bf82;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.realm-choice-selector__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.warpkeep-menu .realm-choice-selector__action {
+  min-height: 2.8rem;
+  margin: 0;
+  padding: 0.7rem 1.15rem;
+  border: 1px solid rgba(202, 157, 85, 0.5);
+  border-radius: 0.35rem;
+  color: #ead0a0;
+  background: rgba(13, 9, 16, 0.82);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  cursor: pointer;
+}
+
+.warpkeep-menu .realm-choice-selector__action--primary {
+  min-width: 14rem;
+  color: #23170d;
+  background: linear-gradient(180deg, #e5c37f, #bd8f49);
+  box-shadow: 0 0.55rem 1.5rem rgba(0, 0, 0, 0.3);
+}
+
+@media (max-width: 720px) {
   .realm-choice-selector {
-    gap: 0.22rem;
-    margin-bottom: 0.4rem;
+    padding: 1rem;
   }
 
-  .warpkeep-menu .realm-choice-selector__button {
-    min-height: 3rem;
-    padding-block: 0.38rem;
-  }
-}
-
-@media (max-width: 380px) {
   .realm-choice-selector__choices {
-    gap: 0.35rem;
+    grid-template-columns: 1fr;
   }
 
   .warpkeep-menu .realm-choice-selector__button {
-    gap: 0.3rem;
-    padding-inline: 0.45rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    min-height: 5.4rem;
   }
 
-  .realm-choice-selector__name {
-    font-size: 0.65rem;
+  .realm-choice-selector__tooltip {
+    right: 0;
+    left: 0;
+    max-width: calc(100vw - 3rem);
+    margin-inline: auto;
   }
 
-  .realm-choice-selector__version {
-    font-size: 0.52rem;
+  .realm-choice-selector__actions {
+    display: grid;
+    grid-template-columns: 0.72fr 1.28fr;
   }
 
-  .realm-choice-selector__admission {
-    font-size: 0.42rem;
+  .warpkeep-menu .realm-choice-selector__action--primary {
+    min-width: 0;
   }
 }
 
-@media (max-width: 520px) {
+@media (max-height: 650px) and (orientation: landscape) {
+  .realm-choice-selector {
+    gap: 0.7rem;
+    padding: 0.85rem 1rem;
+  }
+
+  .realm-choice-selector__intro {
+    display: none;
+  }
+
   .warpkeep-menu .realm-choice-selector__button {
-    grid-template-columns: minmax(0, 1fr);
-    align-content: center;
-    gap: 0.28rem;
-    min-height: 3.75rem;
-  }
-
-  .realm-choice-selector__name {
-    overflow: visible;
-    text-overflow: clip;
-  }
-
-  .realm-choice-selector__admission {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 0.3rem;
-    white-space: nowrap;
-  }
-
-  .realm-choice-selector__mark {
-    font-size: 0.9rem;
-  }
-
-  .realm-choice-selector__choice:first-child .realm-choice-selector__tooltip {
-    right: auto;
-    left: 0;
-    margin-inline: 0;
-  }
-
-  .realm-choice-selector__choice:last-child .realm-choice-selector__tooltip {
-    right: 0;
-    left: auto;
-    margin-inline: 0;
+    min-height: 6rem;
+    padding: 0.7rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .realm-choice-selector__button,
+  .warpkeep-menu .realm-choice-selector__button,
   .realm-choice-selector__tooltip {
     transition-duration: 1ms;
+    transition-delay: 0ms;
   }
 }
