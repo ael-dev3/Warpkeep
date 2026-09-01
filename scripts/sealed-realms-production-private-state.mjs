@@ -30,6 +30,9 @@ const MAXIMUM_FILE_BYTES = 512 * 1_024;
 const MAXIMUM_FAMILY_MEMBER_BYTES = 2 * 1_024 * 1_024;
 const MAXIMUM_FAMILY_BYTES = 8 * 1_024 * 1_024;
 const SAFE_COMPONENT = /^(?:[a-z0-9][a-z0-9._-]{0,127})$/u;
+const CONTINUATION_DIGEST = /^[a-f0-9]{64}$/u;
+const CONTINUATION_STATE = Object.freeze(['issued', 'claimed', 'terminal']);
+const CONTINUATION_RECORD = /^(issued|claimed|terminal)-([a-f0-9]{64})\.json$/u;
 const stateCapabilities = new WeakSet();
 
 export class SealedRealmsProductionPrivateStateError extends Error {
@@ -860,7 +863,61 @@ export function createSealedRealmsProductionPrivateState(input) {
     }
   };
 
-  const capability = Object.freeze({ write, read, list, exists, append, remove, writeFamily });
+  /** Fixed-tree, no-clobber writer used only by the durable continuation core. */
+  const writeContinuationRecord = (input_) => {
+    const input = exactInput(input_, ['scopeDigest', 'state', 'recordDigest', 'bytes']);
+    if (
+      !CONTINUATION_DIGEST.test(input.scopeDigest ?? '')
+      || !CONTINUATION_STATE.includes(input.state)
+      || !CONTINUATION_DIGEST.test(input.recordDigest ?? '')
+    ) fail('SEALED_REALMS_PRIVATE_STATE_CONTINUATION_INVALID');
+    return write({
+      root: 'runtime',
+      relativePath:
+        `continuations/${input.scopeDigest}/${input.state}-${input.recordDigest}.json`,
+      bytes: input.bytes,
+    });
+  };
+
+  /** Reads one fixed continuation scope without accepting a path or basename. */
+  const readContinuationRecords = (input_) => {
+    const input = exactInput(input_, ['scopeDigest']);
+    if (!CONTINUATION_DIGEST.test(input.scopeDigest ?? '')) {
+      fail('SEALED_REALMS_PRIVATE_STATE_CONTINUATION_INVALID');
+    }
+    const relativeDirectory = `continuations/${input.scopeDigest}`;
+    const names = list({ root: 'runtime', relativeDirectory });
+    const records = [];
+    try {
+      for (const name of names) {
+        const match = CONTINUATION_RECORD.exec(name);
+        if (match === null) {
+          fail('SEALED_REALMS_PRIVATE_STATE_CONTINUATION_INVALID');
+        }
+        records.push(Object.freeze({
+          state: match[1],
+          recordDigest: match[2],
+          bytes: read({ root: 'runtime', relativePath: `${relativeDirectory}/${name}` }),
+        }));
+      }
+      return Object.freeze(records);
+    } catch (error) {
+      for (const record of records) record.bytes.fill(0);
+      throw error;
+    }
+  };
+
+  const capability = Object.freeze({
+    write,
+    read,
+    list,
+    exists,
+    append,
+    remove,
+    writeFamily,
+    writeContinuationRecord,
+    readContinuationRecords,
+  });
   stateCapabilities.add(capability);
   return capability;
 }

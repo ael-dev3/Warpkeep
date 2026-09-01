@@ -1,0 +1,799 @@
+import { createHash, randomBytes } from 'node:crypto';
+
+import {
+  assertSealedRealmsProductionPrivateState,
+} from './sealed-realms-production-private-state.mjs';
+import {
+  preparationSourceCommitFromSealedRealmsProductionAuthority,
+  sourceCommitFromSealedRealmsProductionAuthority,
+} from './sealed-realms-production-source-authority.mjs';
+import {
+  SEALED_REALMS_PRODUCTION_REPOSITORY,
+  SEALED_REALMS_PRODUCTION_WORKFLOW_PATH,
+  attestSealedRealmsProductionWorkflowPermit,
+} from './sealed-realms-production-workflow-authority.mjs';
+
+export const SEALED_REALMS_PRODUCTION_CONTINUATION_KINDS = Object.freeze([
+  'g001-census-first-to-second',
+  'g001-census-second-to-suspension',
+  'g002-publication',
+  'g002-import',
+  'ptr-publication',
+  'ptr-import',
+  'ptr-owner-provision',
+  'activation-evidence',
+]);
+
+const CONTINUATION_TTL_MILLISECONDS = 24 * 60 * 60 * 1_000;
+const SHA256 = /^[a-f0-9]{64}$/u;
+const COMMIT = /^[a-f0-9]{40}$/u;
+const RUN_ID = /^[1-9][0-9]{0,19}$/u;
+const SUBJECT = /^[a-z0-9][a-z0-9:._-]{0,127}$/u;
+const SPECS = Object.freeze({
+  'g001-census-first-to-second': Object.freeze({
+    issueOperation: 'g001-census-first',
+    claimOperation: 'g001-census-second-inspect',
+    lane: 'g001',
+  }),
+  'g001-census-second-to-suspension': Object.freeze({
+    issueOperation: 'g001-census-second-inspect',
+    claimOperation: 'g001-census-second-suspend',
+    lane: 'g001',
+  }),
+  'g002-publication': Object.freeze({
+    issueOperation: 'g002-publish-inspect',
+    claimOperation: 'g002-publish-apply',
+    lane: 'g002',
+  }),
+  'g002-import': Object.freeze({
+    issueOperation: 'g002-import-inspect',
+    claimOperation: 'g002-import-apply',
+    lane: 'g002',
+  }),
+  'ptr-publication': Object.freeze({
+    issueOperation: 'ptr-publish-inspect',
+    claimOperation: 'ptr-publish-apply',
+    lane: 'ptr',
+  }),
+  'ptr-import': Object.freeze({
+    issueOperation: 'ptr-import-inspect',
+    claimOperation: 'ptr-import-apply',
+    lane: 'ptr',
+  }),
+  'ptr-owner-provision': Object.freeze({
+    issueOperation: 'ptr-owner-provision-inspect',
+    claimOperation: 'ptr-owner-provision',
+    lane: 'ptr',
+  }),
+  'activation-evidence': Object.freeze({
+    issueOperation: 'activation-evidence-inspect',
+    claimOperation: 'activation-evidence-generate',
+    lane: 'activation',
+  }),
+});
+const storeStates = new WeakMap();
+const activeClaims = new WeakMap();
+
+export class SealedRealmsProductionContinuationError extends Error {
+  constructor(code) {
+    super(code);
+    this.name = 'SealedRealmsProductionContinuationError';
+    this.code = code;
+  }
+}
+
+function fail(code) {
+  throw new SealedRealmsProductionContinuationError(code);
+}
+
+function exactInput(value, keys) {
+  if (
+    value === null
+    || typeof value !== 'object'
+    || Array.isArray(value)
+    || Object.getPrototypeOf(value) !== Object.prototype
+    || Object.keys(value).length !== keys.length
+    || keys.some(key => !Object.hasOwn(value, key))
+    || Object.keys(value).some(key => !keys.includes(key))
+  ) fail('SEALED_REALMS_CONTINUATION_INPUT_INVALID');
+  return value;
+}
+
+function optionalInput(value, required, allowed) {
+  if (
+    value === null
+    || typeof value !== 'object'
+    || Array.isArray(value)
+    || Object.getPrototypeOf(value) !== Object.prototype
+    || required.some(key => !Object.hasOwn(value, key))
+    || Object.keys(value).some(key => !allowed.includes(key))
+  ) fail('SEALED_REALMS_CONTINUATION_INPUT_INVALID');
+  return value;
+}
+
+function kindSpec(kind) {
+  if (!SEALED_REALMS_PRODUCTION_CONTINUATION_KINDS.includes(kind)) {
+    fail('SEALED_REALMS_CONTINUATION_INPUT_INVALID');
+  }
+  return SPECS[kind];
+}
+
+function exactRun(runId, runAttempt) {
+  const attempt = String(runAttempt ?? '');
+  if (!RUN_ID.test(runId ?? '') || !RUN_ID.test(attempt) || Number(attempt) > 1_000) {
+    fail('SEALED_REALMS_CONTINUATION_INPUT_INVALID');
+  }
+  return Object.freeze({ id: runId, attempt, attemptNumber: Number(attempt) });
+}
+
+function exactDigestArray(value) {
+  if (
+    !Array.isArray(value)
+    || value.length > 16
+    || value.some(member => typeof member !== 'string' || !SHA256.test(member))
+    || new Set(value).size !== value.length
+  ) fail('SEALED_REALMS_CONTINUATION_INPUT_INVALID');
+  return Object.freeze([...value]);
+}
+
+function bindingFrom(input) {
+  if (!SUBJECT.test(input.subject ?? '') || !SHA256.test(input.evidenceDigest ?? '')) {
+    fail('SEALED_REALMS_CONTINUATION_INPUT_INVALID');
+  }
+  return Object.freeze({
+    subject: input.subject,
+    evidenceDigest: input.evidenceDigest,
+    receiptDigests: exactDigestArray(input.receiptDigests),
+    predecessorDigests: exactDigestArray(input.predecessorDigests),
+  });
+}
+
+function authorityInfo(authority, expectedOperation) {
+  const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(authority);
+  const preparationSourceCommit =
+    preparationSourceCommitFromSealedRealmsProductionAuthority(authority);
+  if (
+    authority.operation !== expectedOperation
+    || !['S', 'A'].includes(authority.mode)
+    || !SHA256.test(authority.authorityDigest ?? '')
+    || !COMMIT.test(sourceCommit)
+    || !COMMIT.test(preparationSourceCommit)
+  ) fail('SEALED_REALMS_CONTINUATION_OPERATION_INVALID');
+  return Object.freeze({
+    authority,
+    authorityDigest: authority.authorityDigest,
+    mode: authority.mode,
+    operation: authority.operation,
+    sourceCommit,
+    preparationSourceCommit,
+  });
+}
+
+function digest(...values) {
+  const hash = createHash('sha256');
+  for (const value of values) hash.update(value).update('\n');
+  return hash.digest('hex');
+}
+
+function scopeDigest(authorityDigest, kind) {
+  return digest('warpkeep.sealed-realms.continuation-scope.v1', authorityDigest, kind);
+}
+
+function workflowAuthorityDigest({
+  sourceCommit,
+  authorityDigest,
+  operation,
+  runId,
+  runAttempt,
+}) {
+  return digest(
+    'warpkeep.sealed-realms.workflow-authority.v1',
+    SEALED_REALMS_PRODUCTION_REPOSITORY,
+    SEALED_REALMS_PRODUCTION_WORKFLOW_PATH,
+    sourceCommit,
+    authorityDigest,
+    operation,
+    runId,
+    String(runAttempt),
+  );
+}
+
+function canonicalBytes(record) {
+  return Buffer.from(`${JSON.stringify(record)}\n`, 'utf8');
+}
+
+function canonicalRecord(bytes, keys) {
+  let source;
+  let value;
+  try {
+    source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    value = JSON.parse(source);
+  } catch {
+    fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
+  }
+  if (
+    value === null
+    || typeof value !== 'object'
+    || Array.isArray(value)
+    || Object.getPrototypeOf(value) !== Object.prototype
+    || JSON.stringify(Object.keys(value)) !== JSON.stringify(keys)
+    || `${JSON.stringify(value)}\n` !== source
+  ) fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
+  return value;
+}
+
+function canonicalTimestamp(value) {
+  if (typeof value !== 'string') return false;
+  try { return new Date(value).toISOString() === value; } catch { return false; }
+}
+
+function validDigestList(value) {
+  return Array.isArray(value)
+    && value.length <= 16
+    && value.every(member => typeof member === 'string' && SHA256.test(member))
+    && new Set(value).size === value.length;
+}
+
+const ISSUED_KEYS = Object.freeze([
+  'schemaVersion', 'profile', 'kind', 'sourceAuthorityDigest', 'sourceMode',
+  'sourceCommit', 'preparationSourceCommit', 'issueOperation', 'claimOperation',
+  'lane', 'subject', 'evidenceDigest', 'receiptDigests', 'predecessorDigests',
+  'issuanceWorkflowAuthorityDigest', 'issuanceRunId', 'issuanceRunAttempt',
+  'nonce', 'issuedAt', 'expiresAt',
+]);
+const CLAIMED_KEYS = Object.freeze([
+  'schemaVersion', 'profile', 'recordDigest', 'kind', 'sourceAuthorityDigest',
+  'claimOperation', 'lane', 'subject', 'claimWorkflowAuthorityDigest',
+  'claimRunId', 'claimRunAttempt', 'claimedAt',
+]);
+const TERMINAL_KEYS = Object.freeze([
+  'schemaVersion', 'profile', 'recordDigest', 'kind', 'sourceAuthorityDigest',
+  'outcome', 'terminalWorkflowAuthorityDigest', 'terminalRunId',
+  'terminalRunAttempt', 'observationDigest', 'terminalAt',
+]);
+
+function validateIssued(record) {
+  const spec = SPECS[record.kind];
+  const issued = Date.parse(record.issuedAt);
+  const expires = Date.parse(record.expiresAt);
+  if (
+    record.schemaVersion !== 1
+    || record.profile !== 'warpkeep-sealed-realms-continuation-issued-v1'
+    || spec === undefined
+    || !SHA256.test(record.sourceAuthorityDigest ?? '')
+    || !['S', 'A'].includes(record.sourceMode)
+    || !COMMIT.test(record.sourceCommit ?? '')
+    || !COMMIT.test(record.preparationSourceCommit ?? '')
+    || record.issueOperation !== spec.issueOperation
+    || record.claimOperation !== spec.claimOperation
+    || record.lane !== spec.lane
+    || !SUBJECT.test(record.subject ?? '')
+    || !SHA256.test(record.evidenceDigest ?? '')
+    || !validDigestList(record.receiptDigests)
+    || !validDigestList(record.predecessorDigests)
+    || !RUN_ID.test(record.issuanceRunId ?? '')
+    || !Number.isSafeInteger(record.issuanceRunAttempt)
+    || record.issuanceRunAttempt < 1
+    || record.issuanceRunAttempt > 1_000
+    || !SHA256.test(record.nonce ?? '')
+    || !canonicalTimestamp(record.issuedAt)
+    || !canonicalTimestamp(record.expiresAt)
+    || expires - issued !== CONTINUATION_TTL_MILLISECONDS
+    || record.issuanceWorkflowAuthorityDigest !== workflowAuthorityDigest({
+      sourceCommit: record.sourceCommit,
+      authorityDigest: record.sourceAuthorityDigest,
+      operation: record.issueOperation,
+      runId: record.issuanceRunId,
+      runAttempt: record.issuanceRunAttempt,
+    })
+  ) fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
+  return record;
+}
+
+function validateClaim(record, issued) {
+  if (
+    record.schemaVersion !== 1
+    || record.profile !== 'warpkeep-sealed-realms-continuation-claimed-v1'
+    || record.recordDigest !== issued.recordDigest
+    || record.kind !== issued.record.kind
+    || record.sourceAuthorityDigest !== issued.record.sourceAuthorityDigest
+    || record.claimOperation !== issued.record.claimOperation
+    || record.lane !== issued.record.lane
+    || record.subject !== issued.record.subject
+    || !RUN_ID.test(record.claimRunId ?? '')
+    || !Number.isSafeInteger(record.claimRunAttempt)
+    || record.claimRunAttempt < 1
+    || record.claimRunAttempt > 1_000
+    || record.claimRunId === issued.record.issuanceRunId
+    || !canonicalTimestamp(record.claimedAt)
+    || Date.parse(record.claimedAt) < Date.parse(issued.record.issuedAt)
+    || record.claimWorkflowAuthorityDigest !== workflowAuthorityDigest({
+      sourceCommit: issued.record.sourceCommit,
+      authorityDigest: issued.record.sourceAuthorityDigest,
+      operation: issued.record.claimOperation,
+      runId: record.claimRunId,
+      runAttempt: record.claimRunAttempt,
+    })
+  ) fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
+  return record;
+}
+
+function validateTerminal(record, issued, claim) {
+  const reconciled = record.outcome === 'reconciled-effect-applied'
+    || record.outcome === 'reconciled-no-effect';
+  if (
+    record.schemaVersion !== 1
+    || record.profile !== 'warpkeep-sealed-realms-continuation-terminal-v1'
+    || record.recordDigest !== issued.recordDigest
+    || record.kind !== issued.record.kind
+    || record.sourceAuthorityDigest !== issued.record.sourceAuthorityDigest
+    || !['completed', 'reconciled-effect-applied', 'reconciled-no-effect']
+      .includes(record.outcome)
+    || !RUN_ID.test(record.terminalRunId ?? '')
+    || !Number.isSafeInteger(record.terminalRunAttempt)
+    || record.terminalRunAttempt < 1
+    || record.terminalRunAttempt > 1_000
+    || (reconciled && record.terminalRunId === claim.record.claimRunId)
+    || (!reconciled && (
+      record.terminalRunId !== claim.record.claimRunId
+      || record.terminalRunAttempt !== claim.record.claimRunAttempt
+    ))
+    || (reconciled
+      ? !SHA256.test(record.observationDigest ?? '')
+      : record.observationDigest !== null)
+    || !canonicalTimestamp(record.terminalAt)
+    || Date.parse(record.terminalAt) < Date.parse(claim.record.claimedAt)
+    || record.terminalWorkflowAuthorityDigest !== workflowAuthorityDigest({
+      sourceCommit: issued.record.sourceCommit,
+      authorityDigest: issued.record.sourceAuthorityDigest,
+      operation: issued.record.claimOperation,
+      runId: record.terminalRunId,
+      runAttempt: record.terminalRunAttempt,
+    })
+  ) fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
+  return record;
+}
+
+function inventory(state, scope) {
+  let records;
+  try {
+    records = state.privateState.readContinuationRecords({ scopeDigest: scope });
+    const groups = new Map();
+    for (const item of records) {
+      const keys = item.state === 'issued'
+        ? ISSUED_KEYS
+        : item.state === 'claimed' ? CLAIMED_KEYS : TERMINAL_KEYS;
+      const parsed = canonicalRecord(item.bytes, keys);
+      const group = groups.get(item.recordDigest) ?? {};
+      if (group[item.state] !== undefined) {
+        fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
+      }
+      group[item.state] = Object.freeze({
+        recordDigest: item.recordDigest,
+        record: parsed,
+        byteDigest: createHash('sha256').update(item.bytes).digest('hex'),
+      });
+      groups.set(item.recordDigest, group);
+    }
+    for (const group of groups.values()) {
+      if (group.issued === undefined) fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
+      if (group.issued.byteDigest !== group.issued.recordDigest) {
+        fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
+      }
+      validateIssued(group.issued.record);
+      if (group.claimed !== undefined) validateClaim(group.claimed.record, group.issued);
+      if (group.terminal !== undefined) {
+        if (group.claimed === undefined) fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
+        validateTerminal(group.terminal.record, group.issued, group.claimed);
+      }
+    }
+    const values = [...groups.values()];
+    const unresolved = values.filter(group => group.terminal === undefined);
+    if (unresolved.length > 1) fail('SEALED_REALMS_CONTINUATION_DUPLICATE');
+    return Object.freeze({
+      groups: Object.freeze(values),
+      unresolved: unresolved[0],
+      sealed: values.some(group => ['completed', 'reconciled-effect-applied']
+        .includes(group.terminal?.record.outcome)),
+    });
+  } catch (error) {
+    if (error instanceof SealedRealmsProductionContinuationError) throw error;
+    fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
+  } finally {
+    if (records !== undefined) {
+      for (const record of records) record.bytes.fill(0);
+    }
+  }
+}
+
+function storeState(store) {
+  const state = storeStates.get(store);
+  if (state === undefined) fail('SEALED_REALMS_CONTINUATION_STORE_INVALID');
+  return state;
+}
+
+function sampleClock(state) {
+  let value;
+  try { value = state.clock(); } catch {
+    fail('SEALED_REALMS_CONTINUATION_CLOCK_INVALID');
+  }
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+    fail('SEALED_REALMS_CONTINUATION_CLOCK_INVALID');
+  }
+  return new Date(value.getTime());
+}
+
+function sampleNonce(state) {
+  let value;
+  try { value = state.randomBytes(32); } catch {
+    fail('SEALED_REALMS_CONTINUATION_NONCE_INVALID');
+  }
+  if (!(value instanceof Uint8Array) && !Buffer.isBuffer(value)) {
+    fail('SEALED_REALMS_CONTINUATION_NONCE_INVALID');
+  }
+  const bytes = Buffer.from(value);
+  try {
+    if (bytes.byteLength !== 32) fail('SEALED_REALMS_CONTINUATION_NONCE_INVALID');
+    return bytes.toString('hex');
+  } finally {
+    bytes.fill(0);
+  }
+}
+
+function sameArray(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function requireBinding(issued, authority, binding) {
+  if (
+    issued.sourceAuthorityDigest !== authority.authorityDigest
+    || issued.sourceMode !== authority.mode
+    || issued.sourceCommit !== authority.sourceCommit
+    || issued.preparationSourceCommit !== authority.preparationSourceCommit
+    || issued.subject !== binding.subject
+    || issued.evidenceDigest !== binding.evidenceDigest
+    || !sameArray(issued.receiptDigests, binding.receiptDigests)
+    || !sameArray(issued.predecessorDigests, binding.predecessorDigests)
+  ) fail('SEALED_REALMS_CONTINUATION_BINDING_INVALID');
+}
+
+function writeRecord(state, scope, stateName, recordDigest, record) {
+  const bytes = canonicalBytes(record);
+  try {
+    state.privateState.writeContinuationRecord({
+      scopeDigest: scope,
+      state: stateName,
+      recordDigest,
+      bytes,
+    });
+  } finally {
+    bytes.fill(0);
+  }
+}
+
+export function createSealedRealmsProductionContinuationStore(input) {
+  const options = optionalInput(input, ['privateState'], [
+    'privateState', 'clock', 'randomBytes',
+  ]);
+  const privateState = assertSealedRealmsProductionPrivateState(options.privateState);
+  if (
+    (options.clock !== undefined && typeof options.clock !== 'function')
+    || (options.randomBytes !== undefined && typeof options.randomBytes !== 'function')
+  ) fail('SEALED_REALMS_CONTINUATION_INPUT_INVALID');
+  const store = Object.freeze({});
+  storeStates.set(store, Object.freeze({
+    privateState,
+    clock: options.clock ?? (() => new Date()),
+    randomBytes: options.randomBytes ?? randomBytes,
+  }));
+  return store;
+}
+
+const COMMON_KEYS = Object.freeze([
+  'store', 'permit', 'sourceAuthority', 'kind', 'runId', 'runAttempt',
+  'subject', 'evidenceDigest', 'receiptDigests', 'predecessorDigests',
+]);
+
+export async function issueSealedRealmsProductionContinuation(input) {
+  const options = exactInput(input, COMMON_KEYS);
+  const state = storeState(options.store);
+  const spec = kindSpec(options.kind);
+  const authority = authorityInfo(options.sourceAuthority, spec.issueOperation);
+  const run = exactRun(options.runId, options.runAttempt);
+  const binding = bindingFrom(options);
+  const scope = scopeDigest(authority.authorityDigest, options.kind);
+  const existing = inventory(state, scope);
+  if (existing.sealed) fail('SEALED_REALMS_CONTINUATION_TERMINAL');
+  if (existing.unresolved?.claimed !== undefined) {
+    fail('SEALED_REALMS_CONTINUATION_AMBIGUOUS');
+  }
+  if (existing.unresolved !== undefined) fail('SEALED_REALMS_CONTINUATION_DUPLICATE');
+  const now = sampleClock(state);
+  const record = Object.freeze({
+    schemaVersion: 1,
+    profile: 'warpkeep-sealed-realms-continuation-issued-v1',
+    kind: options.kind,
+    sourceAuthorityDigest: authority.authorityDigest,
+    sourceMode: authority.mode,
+    sourceCommit: authority.sourceCommit,
+    preparationSourceCommit: authority.preparationSourceCommit,
+    issueOperation: spec.issueOperation,
+    claimOperation: spec.claimOperation,
+    lane: spec.lane,
+    subject: binding.subject,
+    evidenceDigest: binding.evidenceDigest,
+    receiptDigests: binding.receiptDigests,
+    predecessorDigests: binding.predecessorDigests,
+    issuanceWorkflowAuthorityDigest: workflowAuthorityDigest({
+      sourceCommit: authority.sourceCommit,
+      authorityDigest: authority.authorityDigest,
+      operation: spec.issueOperation,
+      runId: run.id,
+      runAttempt: run.attemptNumber,
+    }),
+    issuanceRunId: run.id,
+    issuanceRunAttempt: run.attemptNumber,
+    nonce: sampleNonce(state),
+    issuedAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + CONTINUATION_TTL_MILLISECONDS).toISOString(),
+  });
+  await attestSealedRealmsProductionWorkflowPermit({
+    permit: options.permit,
+    sourceAuthority: options.sourceAuthority,
+    phase: 'continuation-issue',
+    runId: run.id,
+    runAttempt: run.attempt,
+  });
+  const bytes = canonicalBytes(record);
+  const recordDigest = createHash('sha256').update(bytes).digest('hex');
+  try {
+    state.privateState.writeContinuationRecord({
+      scopeDigest: scope, state: 'issued', recordDigest, bytes,
+    });
+  } catch (error) {
+    if (error?.code === 'SEALED_REALMS_PRIVATE_STATE_FILE_EXISTS') {
+      fail('SEALED_REALMS_CONTINUATION_DUPLICATE');
+    }
+    throw error;
+  } finally {
+    bytes.fill(0);
+  }
+  return Object.freeze({ status: 'issued' });
+}
+
+export async function claimSealedRealmsProductionContinuation(input) {
+  const options = exactInput(input, [...COMMON_KEYS, 'effect']);
+  if (typeof options.effect !== 'function') fail('SEALED_REALMS_CONTINUATION_INPUT_INVALID');
+  const state = storeState(options.store);
+  const spec = kindSpec(options.kind);
+  const authority = authorityInfo(options.sourceAuthority, spec.claimOperation);
+  const run = exactRun(options.runId, options.runAttempt);
+  const binding = bindingFrom(options);
+  const scope = scopeDigest(authority.authorityDigest, options.kind);
+  const current = inventory(state, scope);
+  if (current.sealed) fail('SEALED_REALMS_CONTINUATION_TERMINAL');
+  if (current.unresolved === undefined) fail('SEALED_REALMS_CONTINUATION_MISSING');
+  if (current.unresolved.claimed !== undefined) {
+    fail('SEALED_REALMS_CONTINUATION_AMBIGUOUS');
+  }
+  const issued = current.unresolved.issued;
+  requireBinding(issued.record, authority, binding);
+  if (run.id === issued.record.issuanceRunId) {
+    fail('SEALED_REALMS_CONTINUATION_RUN_INVALID');
+  }
+  await attestSealedRealmsProductionWorkflowPermit({
+    permit: options.permit,
+    sourceAuthority: options.sourceAuthority,
+    phase: 'continuation-claim',
+    runId: run.id,
+    runAttempt: run.attempt,
+  });
+  const claimedAt = sampleClock(state);
+  if (
+    claimedAt.getTime() < Date.parse(issued.record.issuedAt)
+    || claimedAt.getTime() >= Date.parse(issued.record.expiresAt)
+  ) fail('SEALED_REALMS_CONTINUATION_EXPIRED');
+  const claimRecord = Object.freeze({
+    schemaVersion: 1,
+    profile: 'warpkeep-sealed-realms-continuation-claimed-v1',
+    recordDigest: issued.recordDigest,
+    kind: options.kind,
+    sourceAuthorityDigest: authority.authorityDigest,
+    claimOperation: spec.claimOperation,
+    lane: spec.lane,
+    subject: binding.subject,
+    claimWorkflowAuthorityDigest: workflowAuthorityDigest({
+      sourceCommit: authority.sourceCommit,
+      authorityDigest: authority.authorityDigest,
+      operation: spec.claimOperation,
+      runId: run.id,
+      runAttempt: run.attemptNumber,
+    }),
+    claimRunId: run.id,
+    claimRunAttempt: run.attemptNumber,
+    claimedAt: claimedAt.toISOString(),
+  });
+  try {
+    writeRecord(state, scope, 'claimed', issued.recordDigest, claimRecord);
+  } catch (error) {
+    if (error?.code === 'SEALED_REALMS_PRIVATE_STATE_FILE_EXISTS') {
+      fail('SEALED_REALMS_CONTINUATION_CLAIM_CONFLICT');
+    }
+    throw error;
+  }
+  const claimedInventory = inventory(state, scope);
+  if (
+    claimedInventory.unresolved?.claimed === undefined
+    || claimedInventory.unresolved.issued.recordDigest !== issued.recordDigest
+    || JSON.stringify(claimedInventory.unresolved.claimed.record)
+      !== JSON.stringify(claimRecord)
+  ) fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
+
+  const claim = Object.freeze({});
+  activeClaims.set(claim, Object.freeze({
+    sourceAuthority: options.sourceAuthority,
+    sourceAuthorityDigest: authority.authorityDigest,
+    kind: options.kind,
+  }));
+  try {
+    await attestSealedRealmsProductionWorkflowPermit({
+      permit: options.permit,
+      sourceAuthority: options.sourceAuthority,
+      phase: 'continuation-effect',
+      runId: run.id,
+      runAttempt: run.attempt,
+    });
+  } catch (error) {
+    activeClaims.delete(claim);
+    throw error;
+  }
+  try {
+    await options.effect(claim);
+  } catch {
+    activeClaims.delete(claim);
+    fail('SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS');
+  }
+  try {
+    await attestSealedRealmsProductionWorkflowPermit({
+      permit: options.permit,
+      sourceAuthority: options.sourceAuthority,
+      phase: 'continuation-terminal',
+      runId: run.id,
+      runAttempt: run.attempt,
+    });
+    const terminalAt = sampleClock(state);
+    if (terminalAt.getTime() < Date.parse(claimRecord.claimedAt)) {
+      fail('SEALED_REALMS_CONTINUATION_CLOCK_INVALID');
+    }
+    const terminalRecord = Object.freeze({
+      schemaVersion: 1,
+      profile: 'warpkeep-sealed-realms-continuation-terminal-v1',
+      recordDigest: issued.recordDigest,
+      kind: options.kind,
+      sourceAuthorityDigest: authority.authorityDigest,
+      outcome: 'completed',
+      terminalWorkflowAuthorityDigest: workflowAuthorityDigest({
+        sourceCommit: authority.sourceCommit,
+        authorityDigest: authority.authorityDigest,
+        operation: spec.claimOperation,
+        runId: run.id,
+        runAttempt: run.attemptNumber,
+      }),
+      terminalRunId: run.id,
+      terminalRunAttempt: run.attemptNumber,
+      observationDigest: null,
+      terminalAt: terminalAt.toISOString(),
+    });
+    writeRecord(state, scope, 'terminal', issued.recordDigest, terminalRecord);
+    const terminal = inventory(state, scope);
+    if (!terminal.sealed || terminal.unresolved !== undefined) {
+      fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
+    }
+  } catch {
+    activeClaims.delete(claim);
+    fail('SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS');
+  }
+  activeClaims.delete(claim);
+  return Object.freeze({ status: 'completed' });
+}
+
+export async function reconcileSealedRealmsProductionContinuation(input) {
+  const options = exactInput(input, [...COMMON_KEYS, 'readOnlyReconcile']);
+  if (typeof options.readOnlyReconcile !== 'function') {
+    fail('SEALED_REALMS_CONTINUATION_INPUT_INVALID');
+  }
+  const state = storeState(options.store);
+  const spec = kindSpec(options.kind);
+  const authority = authorityInfo(options.sourceAuthority, spec.claimOperation);
+  const run = exactRun(options.runId, options.runAttempt);
+  const binding = bindingFrom(options);
+  const scope = scopeDigest(authority.authorityDigest, options.kind);
+  const current = inventory(state, scope);
+  if (current.sealed) fail('SEALED_REALMS_CONTINUATION_TERMINAL');
+  if (current.unresolved === undefined) fail('SEALED_REALMS_CONTINUATION_MISSING');
+  if (current.unresolved.claimed === undefined) {
+    fail('SEALED_REALMS_CONTINUATION_RECONCILIATION_NOT_REQUIRED');
+  }
+  const issued = current.unresolved.issued;
+  const claimed = current.unresolved.claimed;
+  requireBinding(issued.record, authority, binding);
+  if (run.id === claimed.record.claimRunId) {
+    fail('SEALED_REALMS_CONTINUATION_RUN_INVALID');
+  }
+  await attestSealedRealmsProductionWorkflowPermit({
+    permit: options.permit,
+    sourceAuthority: options.sourceAuthority,
+    phase: 'continuation-reconcile',
+    runId: run.id,
+    runAttempt: run.attempt,
+  });
+  let classification;
+  try { classification = await options.readOnlyReconcile(); } catch {
+    fail('SEALED_REALMS_CONTINUATION_RECONCILIATION_AMBIGUOUS');
+  }
+  if (
+    classification === null
+    || typeof classification !== 'object'
+    || Array.isArray(classification)
+    || Object.getPrototypeOf(classification) !== Object.prototype
+    || JSON.stringify(Object.keys(classification))
+      !== JSON.stringify(['outcome', 'observationDigest'])
+    || !['effect-applied', 'no-effect'].includes(classification.outcome)
+    || !SHA256.test(classification.observationDigest ?? '')
+  ) fail('SEALED_REALMS_CONTINUATION_RECONCILIATION_INVALID');
+  try {
+    await attestSealedRealmsProductionWorkflowPermit({
+      permit: options.permit,
+      sourceAuthority: options.sourceAuthority,
+      phase: 'continuation-reconcile-terminal',
+      runId: run.id,
+      runAttempt: run.attempt,
+    });
+    const terminalAt = sampleClock(state);
+    if (terminalAt.getTime() < Date.parse(claimed.record.claimedAt)) {
+      fail('SEALED_REALMS_CONTINUATION_CLOCK_INVALID');
+    }
+    const terminalRecord = Object.freeze({
+      schemaVersion: 1,
+      profile: 'warpkeep-sealed-realms-continuation-terminal-v1',
+      recordDigest: issued.recordDigest,
+      kind: options.kind,
+      sourceAuthorityDigest: authority.authorityDigest,
+      outcome: classification.outcome === 'effect-applied'
+        ? 'reconciled-effect-applied'
+        : 'reconciled-no-effect',
+      terminalWorkflowAuthorityDigest: workflowAuthorityDigest({
+        sourceCommit: authority.sourceCommit,
+        authorityDigest: authority.authorityDigest,
+        operation: spec.claimOperation,
+        runId: run.id,
+        runAttempt: run.attemptNumber,
+      }),
+      terminalRunId: run.id,
+      terminalRunAttempt: run.attemptNumber,
+      observationDigest: classification.observationDigest,
+      terminalAt: terminalAt.toISOString(),
+    });
+    writeRecord(state, scope, 'terminal', issued.recordDigest, terminalRecord);
+    const terminal = inventory(state, scope);
+    if (terminal.unresolved !== undefined) fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
+  } catch (error) {
+    if (error instanceof SealedRealmsProductionContinuationError) throw error;
+    fail('SEALED_REALMS_CONTINUATION_RECONCILIATION_AMBIGUOUS');
+  }
+  return Object.freeze({ status: 'reconciled', outcome: classification.outcome });
+}
+
+export function assertSealedRealmsProductionContinuationClaim(input) {
+  const options = exactInput(input, ['claim', 'sourceAuthority', 'kind']);
+  const member = activeClaims.get(options.claim);
+  if (member === undefined) fail('SEALED_REALMS_CONTINUATION_CLAIM_INVALID');
+  const spec = kindSpec(options.kind);
+  const authority = authorityInfo(options.sourceAuthority, spec.claimOperation);
+  if (
+    member.sourceAuthority !== options.sourceAuthority
+    || member.sourceAuthorityDigest !== authority.authorityDigest
+    || member.kind !== options.kind
+  ) fail('SEALED_REALMS_CONTINUATION_CLAIM_INVALID');
+  return true;
+}

@@ -38,6 +38,19 @@ export type SealedRealmsProductionPrivateState = Readonly<{
     relativeDirectory: string;
     members: readonly Readonly<{ basename: string; bytes: Uint8Array }>[];
   }>) => Readonly<{ members: readonly string[] }>;
+  writeContinuationRecord: (input: Readonly<{
+    scopeDigest: string;
+    state: 'issued' | 'claimed' | 'terminal';
+    recordDigest: string;
+    bytes: Uint8Array;
+  }>) => Readonly<{ byteLength: number }>;
+  readContinuationRecords: (input: Readonly<{
+    scopeDigest: string;
+  }>) => readonly Readonly<{
+    state: 'issued' | 'claimed' | 'terminal';
+    recordDigest: string;
+    bytes: Buffer;
+  }>[];
 }>;
 
 export function createSealedRealmsProductionPrivateState(input: Readonly<{
