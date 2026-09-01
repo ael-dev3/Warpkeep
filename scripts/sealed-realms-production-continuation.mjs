@@ -73,6 +73,7 @@ const SPECS = Object.freeze({
 });
 const storeStates = new WeakMap();
 const activeClaims = new WeakMap();
+const activeClaimRecords = new Set();
 
 export class SealedRealmsProductionContinuationError extends Error {
   constructor(code) {
@@ -406,6 +407,20 @@ function inventory(state, scope) {
   }
 }
 
+function issuanceGeneration(current, scope) {
+  const history = current.groups.map((group) => {
+    if (group.terminal?.record.outcome !== 'reconciled-no-effect') {
+      fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
+    }
+    return `${group.issued.recordDigest}:${group.terminal.byteDigest}`;
+  }).sort();
+  return digest(
+    'warpkeep.sealed-realms.continuation-issuance-generation.v1',
+    scope,
+    ...history,
+  );
+}
+
 function storeState(store) {
   const state = storeStates.get(store);
   if (state === undefined) fail('SEALED_REALMS_CONTINUATION_STORE_INVALID');
@@ -471,6 +486,43 @@ function writeRecord(state, scope, stateName, recordDigest, record) {
   }
 }
 
+function reserveIssuance(state, scope, generationDigest) {
+  try {
+    state.privateState.reserveContinuationIssuance({
+      scopeDigest: scope, generationDigest,
+    });
+  } catch (error) {
+    if (error?.code === 'SEALED_REALMS_PRIVATE_STATE_FILE_EXISTS') {
+      fail('SEALED_REALMS_CONTINUATION_DUPLICATE');
+    }
+    throw error;
+  }
+}
+
+function resolution(state, scope, recordDigest) {
+  try {
+    return state.privateState.readContinuationResolution({
+      scopeDigest: scope, recordDigest,
+    });
+  } catch {
+    fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
+  }
+}
+
+function reserveResolution(state, scope, recordDigest, decision) {
+  try {
+    state.privateState.reserveContinuationResolution({
+      scopeDigest: scope, recordDigest, decision,
+    });
+    return Object.freeze({ decision, created: true });
+  } catch (error) {
+    if (error?.code !== 'SEALED_REALMS_PRIVATE_STATE_FILE_EXISTS') throw error;
+    const retained = resolution(state, scope, recordDigest);
+    if (retained === undefined) fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
+    return Object.freeze({ decision: retained, created: false });
+  }
+}
+
 export function createSealedRealmsProductionContinuationStore(input) {
   const options = optionalInput(input, ['privateState'], [
     'privateState', 'clock', 'randomBytes',
@@ -508,6 +560,14 @@ export async function issueSealedRealmsProductionContinuation(input) {
     fail('SEALED_REALMS_CONTINUATION_AMBIGUOUS');
   }
   if (existing.unresolved !== undefined) fail('SEALED_REALMS_CONTINUATION_DUPLICATE');
+  await attestSealedRealmsProductionWorkflowPermit({
+    permit: options.permit,
+    sourceAuthority: options.sourceAuthority,
+    phase: 'continuation-issue',
+    runId: run.id,
+    runAttempt: run.attempt,
+  });
+  reserveIssuance(state, scope, issuanceGeneration(existing, scope));
   const now = sampleClock(state);
   const record = Object.freeze({
     schemaVersion: 1,
@@ -536,13 +596,6 @@ export async function issueSealedRealmsProductionContinuation(input) {
     nonce: sampleNonce(state),
     issuedAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + CONTINUATION_TTL_MILLISECONDS).toISOString(),
-  });
-  await attestSealedRealmsProductionWorkflowPermit({
-    permit: options.permit,
-    sourceAuthority: options.sourceAuthority,
-    phase: 'continuation-issue',
-    runId: run.id,
-    runAttempt: run.attempt,
   });
   const bytes = canonicalBytes(record);
   const recordDigest = createHash('sha256').update(bytes).digest('hex');
@@ -629,29 +682,61 @@ export async function claimSealedRealmsProductionContinuation(input) {
       !== JSON.stringify(claimRecord)
   ) fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
 
+  await attestSealedRealmsProductionWorkflowPermit({
+    permit: options.permit,
+    sourceAuthority: options.sourceAuthority,
+    phase: 'continuation-effect',
+    runId: run.id,
+    runAttempt: run.attempt,
+  });
+  const effectAt = sampleClock(state);
+  if (effectAt.getTime() < Date.parse(claimRecord.claimedAt)) {
+    fail('SEALED_REALMS_CONTINUATION_CLOCK_INVALID');
+  }
+  if (effectAt.getTime() >= Date.parse(issued.record.expiresAt)) {
+    fail('SEALED_REALMS_CONTINUATION_EXPIRED');
+  }
+  const effectResolution = reserveResolution(
+    state, scope, issued.recordDigest, 'effect',
+  );
+  if (!effectResolution.created || effectResolution.decision !== 'effect') {
+    fail('SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS');
+  }
   const claim = Object.freeze({});
+  const recordKey = `${scope}:${issued.recordDigest}`;
+  if (activeClaimRecords.has(recordKey)) {
+    fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
+  }
   activeClaims.set(claim, Object.freeze({
+    store: options.store,
+    scopeDigest: scope,
+    recordDigest: issued.recordDigest,
     sourceAuthority: options.sourceAuthority,
     sourceAuthorityDigest: authority.authorityDigest,
+    sourceMode: authority.mode,
+    sourceCommit: authority.sourceCommit,
+    preparationSourceCommit: authority.preparationSourceCommit,
     kind: options.kind,
+    issueOperation: spec.issueOperation,
+    claimOperation: spec.claimOperation,
+    lane: spec.lane,
+    subject: binding.subject,
+    evidenceDigest: binding.evidenceDigest,
+    receiptDigests: binding.receiptDigests,
+    predecessorDigests: binding.predecessorDigests,
+    runId: run.id,
+    runAttempt: run.attemptNumber,
+    issuedRecord: JSON.stringify(issued.record),
+    claimRecord: JSON.stringify(claimRecord),
   }));
-  try {
-    await attestSealedRealmsProductionWorkflowPermit({
-      permit: options.permit,
-      sourceAuthority: options.sourceAuthority,
-      phase: 'continuation-effect',
-      runId: run.id,
-      runAttempt: run.attempt,
-    });
-  } catch (error) {
-    activeClaims.delete(claim);
-    throw error;
-  }
+  activeClaimRecords.add(recordKey);
   try {
     await options.effect(claim);
   } catch {
-    activeClaims.delete(claim);
     fail('SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS');
+  } finally {
+    activeClaims.delete(claim);
+    activeClaimRecords.delete(recordKey);
   }
   try {
     await attestSealedRealmsProductionWorkflowPermit({
@@ -690,10 +775,8 @@ export async function claimSealedRealmsProductionContinuation(input) {
       fail('SEALED_REALMS_CONTINUATION_STATE_INVALID');
     }
   } catch {
-    activeClaims.delete(claim);
     fail('SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS');
   }
-  activeClaims.delete(claim);
   return Object.freeze({ status: 'completed' });
 }
 
@@ -720,13 +803,33 @@ export async function reconcileSealedRealmsProductionContinuation(input) {
   if (run.id === claimed.record.claimRunId) {
     fail('SEALED_REALMS_CONTINUATION_RUN_INVALID');
   }
-  await attestSealedRealmsProductionWorkflowPermit({
-    permit: options.permit,
-    sourceAuthority: options.sourceAuthority,
-    phase: 'continuation-reconcile',
-    runId: run.id,
-    runAttempt: run.attempt,
-  });
+  const recordKey = `${scope}:${issued.recordDigest}`;
+  if (activeClaimRecords.has(recordKey)) {
+    fail('SEALED_REALMS_CONTINUATION_CLAIM_LIVE');
+  }
+  try {
+    await attestSealedRealmsProductionWorkflowPermit({
+      permit: options.permit,
+      sourceAuthority: options.sourceAuthority,
+      phase: 'continuation-reconcile',
+      runId: run.id,
+      runAttempt: run.attempt,
+      claimRunId: claimed.record.claimRunId,
+      claimRunAttempt: claimed.record.claimRunAttempt,
+    });
+  } catch (error) {
+    if (error?.code === 'SEALED_REALMS_WORKFLOW_AUTHORITY_CLAIM_RUN_LIVE') {
+      fail('SEALED_REALMS_CONTINUATION_CLAIM_LIVE');
+    }
+    throw error;
+  }
+  if (activeClaimRecords.has(recordKey)) {
+    fail('SEALED_REALMS_CONTINUATION_CLAIM_LIVE');
+  }
+  const retainedResolution = resolution(state, scope, issued.recordDigest);
+  const reconciliationResolution = retainedResolution === undefined
+    ? reserveResolution(state, scope, issued.recordDigest, 'reconcile')
+    : Object.freeze({ decision: retainedResolution, created: false });
   let classification;
   try { classification = await options.readOnlyReconcile(); } catch {
     fail('SEALED_REALMS_CONTINUATION_RECONCILIATION_AMBIGUOUS');
@@ -741,6 +844,10 @@ export async function reconcileSealedRealmsProductionContinuation(input) {
     || !['effect-applied', 'no-effect'].includes(classification.outcome)
     || !SHA256.test(classification.observationDigest ?? '')
   ) fail('SEALED_REALMS_CONTINUATION_RECONCILIATION_INVALID');
+  if (
+    classification.outcome === 'no-effect'
+    && reconciliationResolution.decision !== 'reconcile'
+  ) fail('SEALED_REALMS_CONTINUATION_RECONCILIATION_INVALID');
   try {
     await attestSealedRealmsProductionWorkflowPermit({
       permit: options.permit,
@@ -748,6 +855,8 @@ export async function reconcileSealedRealmsProductionContinuation(input) {
       phase: 'continuation-reconcile-terminal',
       runId: run.id,
       runAttempt: run.attempt,
+      claimRunId: claimed.record.claimRunId,
+      claimRunAttempt: claimed.record.claimRunAttempt,
     });
     const terminalAt = sampleClock(state);
     if (terminalAt.getTime() < Date.parse(claimed.record.claimedAt)) {
@@ -785,15 +894,50 @@ export async function reconcileSealedRealmsProductionContinuation(input) {
 }
 
 export function assertSealedRealmsProductionContinuationClaim(input) {
-  const options = exactInput(input, ['claim', 'sourceAuthority', 'kind']);
+  const options = exactInput(input, [
+    'claim', 'store', 'sourceAuthority', 'kind', 'runId', 'runAttempt',
+    'subject', 'evidenceDigest', 'receiptDigests', 'predecessorDigests',
+  ]);
   const member = activeClaims.get(options.claim);
   if (member === undefined) fail('SEALED_REALMS_CONTINUATION_CLAIM_INVALID');
-  const spec = kindSpec(options.kind);
-  const authority = authorityInfo(options.sourceAuthority, spec.claimOperation);
-  if (
-    member.sourceAuthority !== options.sourceAuthority
-    || member.sourceAuthorityDigest !== authority.authorityDigest
-    || member.kind !== options.kind
-  ) fail('SEALED_REALMS_CONTINUATION_CLAIM_INVALID');
+  try {
+    const state = storeState(options.store);
+    const spec = kindSpec(options.kind);
+    const authority = authorityInfo(options.sourceAuthority, spec.claimOperation);
+    const run = exactRun(options.runId, options.runAttempt);
+    const binding = bindingFrom(options);
+    const scope = scopeDigest(authority.authorityDigest, options.kind);
+    const current = inventory(state, scope);
+    const group = current.groups.find(
+      value => value.issued.recordDigest === member.recordDigest,
+    );
+    if (
+      member.store !== options.store
+      || member.scopeDigest !== scope
+      || member.sourceAuthority !== options.sourceAuthority
+      || member.sourceAuthorityDigest !== authority.authorityDigest
+      || member.sourceMode !== authority.mode
+      || member.sourceCommit !== authority.sourceCommit
+      || member.preparationSourceCommit !== authority.preparationSourceCommit
+      || member.kind !== options.kind
+      || member.issueOperation !== spec.issueOperation
+      || member.claimOperation !== spec.claimOperation
+      || member.lane !== spec.lane
+      || member.subject !== binding.subject
+      || member.evidenceDigest !== binding.evidenceDigest
+      || !sameArray(member.receiptDigests, binding.receiptDigests)
+      || !sameArray(member.predecessorDigests, binding.predecessorDigests)
+      || member.runId !== run.id
+      || member.runAttempt !== run.attemptNumber
+      || group === undefined
+      || group.issued.recordDigest !== member.recordDigest
+      || JSON.stringify(group.issued.record) !== member.issuedRecord
+      || group.claimed === undefined
+      || JSON.stringify(group.claimed.record) !== member.claimRecord
+      || group.terminal !== undefined
+    ) fail('SEALED_REALMS_CONTINUATION_CLAIM_INVALID');
+  } catch {
+    fail('SEALED_REALMS_CONTINUATION_CLAIM_INVALID');
+  }
   return true;
 }

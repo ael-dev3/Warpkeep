@@ -101,6 +101,8 @@ function github(input: Readonly<{
   runId: string;
   runAttempt: number;
   driftRunRequest?: number;
+  onRunRequest?: (requestNumber: number, runId: string) => void | Promise<void>;
+  runStatus?: (runId: string) => 'in_progress' | 'completed';
 }>) {
   let runRequests = 0;
   return vi.fn(async (request: string | URL | Request) => {
@@ -110,16 +112,21 @@ function github(input: Readonly<{
         name: 'main', protected: true, commit: { sha: input.sourceCommit },
       });
     }
-    if (url.endsWith(`/actions/runs/${input.runId}`)) {
+    const runMatch = /\/actions\/runs\/([1-9][0-9]*)$/u.exec(url);
+    if (runMatch !== null) {
       runRequests += 1;
+      const requestedRunId = runMatch[1]!;
+      await input.onRunRequest?.(runRequests, requestedRunId);
       const drift = input.driftRunRequest !== undefined
         && runRequests >= input.driftRunRequest;
+      const status = input.runStatus?.(requestedRunId)
+        ?? (drift ? 'completed' : 'in_progress');
       return response(url, {
-        id: Number(input.runId),
+        id: Number(requestedRunId),
         run_attempt: input.runAttempt,
         event: 'workflow_dispatch',
-        status: drift ? 'completed' : 'in_progress',
-        conclusion: drift ? 'success' : null,
+        status,
+        conclusion: status === 'completed' ? 'success' : null,
         head_branch: 'main',
         head_sha: input.sourceCommit,
         path: WORKFLOW_PATH,
@@ -134,12 +141,22 @@ async function workflowPermit(
   workflow: RuntimeModule,
   operation: string,
   runId: string,
-  options: Readonly<{ sourceCommit?: string; driftRunRequest?: number }> = {},
+  options: Readonly<{
+    sourceCommit?: string;
+    driftRunRequest?: number;
+    onRunRequest?: (requestNumber: number, requestedRunId: string) => void | Promise<void>;
+    runStatus?: (requestedRunId: string) => 'in_progress' | 'completed';
+  }> = {},
 ) {
   const sourceCommit = options.sourceCommit ?? S;
   const source = sourceAuthority(operation, sourceCommit);
   const fetchImpl = github({
-    sourceCommit, runId, runAttempt: 1, driftRunRequest: options.driftRunRequest,
+    sourceCommit,
+    runId,
+    runAttempt: 1,
+    driftRunRequest: options.driftRunRequest,
+    onRunRequest: options.onRunRequest,
+    runStatus: options.runStatus,
   });
   const permit = await functionExport(
     workflow, 'issueSealedRealmsProductionWorkflowPermit',
@@ -178,7 +195,10 @@ function recordNames(home: string) {
     'sealed-realms-v1', 'continuations',
   );
   if (!readdirSync(join(root, '..')).includes('continuations')) return [];
-  return readdirSync(root).flatMap(scope => readdirSync(join(root, scope))).sort();
+  return readdirSync(root)
+    .flatMap(scope => readdirSync(join(root, scope)))
+    .filter(name => name.endsWith('.json'))
+    .sort();
 }
 
 function issuedPath(home: string) {
@@ -256,6 +276,30 @@ function issueInput(
   };
 }
 
+function claimAssertionInput(
+  claim: object | undefined,
+  continuationStore: object,
+  run: Awaited<ReturnType<typeof workflowPermit>>,
+  kind: string,
+  runId: string,
+) {
+  return {
+    claim,
+    store: continuationStore,
+    sourceAuthority: run.source,
+    kind,
+    runId,
+    runAttempt: '1',
+    ...BINDING,
+  };
+}
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>(settle => { resolve = settle; });
+  return Object.freeze({ promise, resolve });
+}
+
 describe('sealed-realms durable continuation core', () => {
   it.each(FIXED_KINDS)(
     'issues, reopens, claims, and terminalizes $kind without public continuation material',
@@ -278,6 +322,7 @@ describe('sealed-realms durable continuation core', () => {
         now += 1_000;
         const claimedRun = await workflowPermit(workflow, transition.claim, '2001');
         let callbackClaim: object | undefined;
+        const claimStore = store(continuation, fixture.state(), () => new Date(now));
         const effect = vi.fn(async (claim: object) => {
           callbackClaim = claim;
           expect(Object.keys(claim)).toEqual([]);
@@ -285,13 +330,15 @@ describe('sealed-realms durable continuation core', () => {
           expect(recordNames(fixture.home).some(name => name.startsWith('claimed-'))).toBe(true);
           expect(functionExport(
             continuation, 'assertSealedRealmsProductionContinuationClaim',
-          )!({ claim, sourceAuthority: claimedRun.source, kind: transition.kind })).toBe(true);
+          )!(claimAssertionInput(
+            claim, claimStore, claimedRun, transition.kind, '2001',
+          ))).toBe(true);
         });
         const completed = await functionExport(
           continuation, 'claimSealedRealmsProductionContinuation',
         )!({
           ...issueInput(
-            store(continuation, fixture.state(), () => new Date(now)),
+            claimStore,
             claimedRun, transition.kind, '2001',
           ),
           effect,
@@ -303,7 +350,9 @@ describe('sealed-realms durable continuation core', () => {
         ]);
         expect(() => functionExport(
           continuation, 'assertSealedRealmsProductionContinuationClaim',
-        )!({ claim: callbackClaim, sourceAuthority: claimedRun.source, kind: transition.kind }))
+        )!(claimAssertionInput(
+          callbackClaim, claimStore, claimedRun, transition.kind, '2001',
+        )))
           .toThrow(/SEALED_REALMS_CONTINUATION_CLAIM_INVALID/u);
         expect(JSON.stringify({ issued, completed })).not.toMatch(/[a-f0-9]{40,64}/u);
         expect(JSON.stringify({ issued, completed })).not.toMatch(/path|token|confirmation|digest/iu);
@@ -312,6 +361,270 @@ describe('sealed-realms durable continuation core', () => {
       }
     },
   );
+
+  it('rejects live reconciliation and cannot terminalize no-effect ahead of its claimant', async () => {
+    const [workflow, continuation] = await Promise.all([
+      loadWorkflow(), loadContinuation(),
+    ]);
+    if (!requireModules(workflow, continuation)) return;
+    const fixture = privateFixture();
+    const transition = FIXED_KINDS[2]!;
+    const now = () => new Date('2026-09-01T00:00:00.000Z');
+    const effectAttestationEntered = deferred();
+    const releaseEffectAttestation = deferred();
+    let effects = 0;
+    try {
+      const issuedRun = await workflowPermit(workflow, transition.issue, '1001');
+      await functionExport(continuation, 'issueSealedRealmsProductionContinuation')!(
+        issueInput(store(continuation, fixture.state(), now), issuedRun,
+          transition.kind, '1001'),
+      );
+      const claimRun = await workflowPermit(workflow, transition.claim, '2001', {
+        onRunRequest: async requestNumber => {
+          if (requestNumber === 3) {
+            effectAttestationEntered.resolve();
+            await releaseEffectAttestation.promise;
+          }
+        },
+      });
+      const claimAttempt = functionExport(
+        continuation, 'claimSealedRealmsProductionContinuation',
+      )!({
+        ...issueInput(store(continuation, fixture.state(), now), claimRun,
+          transition.kind, '2001'),
+        effect: async () => { effects += 1; },
+      });
+      await effectAttestationEntered.promise;
+
+      const reconcileRun = await workflowPermit(workflow, transition.claim, '3001', {
+        runStatus: requestedRunId => requestedRunId === '2001'
+          ? 'in_progress'
+          : 'in_progress',
+      });
+      const readOnlyReconcile = vi.fn(async () => ({
+        outcome: 'no-effect', observationDigest: '9'.repeat(64),
+      }));
+      const reconciliation = await Promise.allSettled([
+        functionExport(continuation, 'reconcileSealedRealmsProductionContinuation')!({
+          ...issueInput(store(continuation, fixture.state(), now), reconcileRun,
+            transition.kind, '3001'),
+          readOnlyReconcile,
+        }),
+      ]);
+      releaseEffectAttestation.resolve();
+      const claimResult = await Promise.allSettled([claimAttempt]);
+
+      expect(reconciliation[0]?.status).toBe('rejected');
+      if (reconciliation[0]?.status === 'rejected') {
+        expect(String(reconciliation[0].reason)).toMatch(
+          /SEALED_REALMS_CONTINUATION_CLAIM_LIVE/u,
+        );
+      }
+      expect(readOnlyReconcile).not.toHaveBeenCalled();
+      expect(claimResult[0]?.status).toBe('fulfilled');
+      expect(effects).toBe(1);
+    } finally {
+      releaseEffectAttestation.resolve();
+      fixture.cleanup();
+    }
+  });
+
+  it('binds a callback claim to the exact store, record, transition, binding, and run', async () => {
+    const [workflow, continuation] = await Promise.all([
+      loadWorkflow(), loadContinuation(),
+    ]);
+    if (!requireModules(workflow, continuation)) return;
+    const fixture = privateFixture();
+    const transition = FIXED_KINDS[2]!;
+    const now = () => new Date('2026-09-01T00:00:00.000Z');
+    try {
+      const issuedRun = await workflowPermit(workflow, transition.issue, '1001');
+      await functionExport(continuation, 'issueSealedRealmsProductionContinuation')!(
+        issueInput(store(continuation, fixture.state(), now), issuedRun,
+          transition.kind, '1001'),
+      );
+      const claimRun = await workflowPermit(workflow, transition.claim, '2001');
+      const claimStore = store(continuation, fixture.state(), now);
+      const otherStore = store(continuation, fixture.state(), now);
+      const sameOperationOtherAuthority = sourceAuthority(transition.claim);
+      const otherTransition = FIXED_KINDS[5]!;
+      const otherOperationAuthority = sourceAuthority(otherTransition.claim);
+      await functionExport(continuation, 'claimSealedRealmsProductionContinuation')!({
+        ...issueInput(claimStore, claimRun, transition.kind, '2001'),
+        effect: async (claim: object) => {
+          const exact = claimAssertionInput(
+            claim, claimStore, claimRun, transition.kind, '2001',
+          );
+          expect(functionExport(
+            continuation, 'assertSealedRealmsProductionContinuationClaim',
+          )!(exact)).toBe(true);
+          for (const changed of [
+            { store: otherStore },
+            { sourceAuthority: sameOperationOtherAuthority },
+            { sourceAuthority: otherOperationAuthority, kind: otherTransition.kind },
+            { subject: 'release-other' },
+            { evidenceDigest: 'f'.repeat(64) },
+            { receiptDigests: ['e'.repeat(64)] },
+            { predecessorDigests: ['f'.repeat(64)] },
+            { runId: '2999' },
+            { runAttempt: '2' },
+          ]) {
+            expect(() => functionExport(
+              continuation, 'assertSealedRealmsProductionContinuationClaim',
+            )!({ ...exact, ...changed })).toThrow(
+              /SEALED_REALMS_CONTINUATION_CLAIM_INVALID/u,
+            );
+          }
+        },
+      });
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it('allows exactly one concurrent issuer for a scope generation', async () => {
+    const [workflow, continuation] = await Promise.all([
+      loadWorkflow(), loadContinuation(),
+    ]);
+    if (!requireModules(workflow, continuation)) return;
+    const fixture = privateFixture();
+    const transition = FIXED_KINDS[2]!;
+    const now = () => new Date('2026-09-01T00:00:00.000Z');
+    const bothAttestationsEntered = deferred();
+    const releaseAttestations = deferred();
+    let entered = 0;
+    const gate = async (requestNumber: number) => {
+      if (requestNumber !== 2) return;
+      entered += 1;
+      if (entered === 2) bothAttestationsEntered.resolve();
+      await releaseAttestations.promise;
+    };
+    try {
+      const [firstRun, secondRun] = await Promise.all([
+        workflowPermit(workflow, transition.issue, '1001', { onRunRequest: gate }),
+        workflowPermit(workflow, transition.issue, '1002', { onRunRequest: gate }),
+      ]);
+      const first = functionExport(
+        continuation, 'issueSealedRealmsProductionContinuation',
+      )!(issueInput(store(continuation, fixture.state(), now, { value: 1 }), firstRun,
+        transition.kind, '1001'));
+      const second = functionExport(
+        continuation, 'issueSealedRealmsProductionContinuation',
+      )!(issueInput(store(continuation, fixture.state(), now, { value: 2 }), secondRun,
+        transition.kind, '1002'));
+      await bothAttestationsEntered.promise;
+      releaseAttestations.resolve();
+      const settled = await Promise.allSettled([first, second]);
+
+      expect(settled.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+      expect(settled.filter(result => result.status === 'rejected')).toHaveLength(1);
+      expect(recordNames(fixture.home).filter(name => name.startsWith('issued-')))
+        .toHaveLength(1);
+    } finally {
+      releaseAttestations.resolve();
+      fixture.cleanup();
+    }
+  });
+
+  it('rechecks expiry after effect attestation and before invoking the callback', async () => {
+    const [workflow, continuation] = await Promise.all([
+      loadWorkflow(), loadContinuation(),
+    ]);
+    if (!requireModules(workflow, continuation)) return;
+    const fixture = privateFixture();
+    const transition = FIXED_KINDS[2]!;
+    const issuedAt = Date.parse('2026-09-01T00:00:00.000Z');
+    let nowValue = issuedAt;
+    const now = () => new Date(nowValue);
+    const effectAttestationEntered = deferred();
+    const releaseEffectAttestation = deferred();
+    const effect = vi.fn();
+    try {
+      const issuedRun = await workflowPermit(workflow, transition.issue, '1001');
+      await functionExport(continuation, 'issueSealedRealmsProductionContinuation')!(
+        issueInput(store(continuation, fixture.state(), now), issuedRun,
+          transition.kind, '1001'),
+      );
+      nowValue += 1_000;
+      const claimRun = await workflowPermit(workflow, transition.claim, '2001', {
+        onRunRequest: async requestNumber => {
+          if (requestNumber === 3) {
+            effectAttestationEntered.resolve();
+            await releaseEffectAttestation.promise;
+          }
+        },
+      });
+      const attempt = functionExport(
+        continuation, 'claimSealedRealmsProductionContinuation',
+      )!({
+        ...issueInput(store(continuation, fixture.state(), now), claimRun,
+          transition.kind, '2001'),
+        effect,
+      });
+      await effectAttestationEntered.promise;
+      nowValue = issuedAt + 24 * 60 * 60 * 1_000;
+      releaseEffectAttestation.resolve();
+
+      await expect(attempt).rejects.toThrow(/SEALED_REALMS_CONTINUATION_EXPIRED/u);
+      expect(effect).not.toHaveBeenCalled();
+    } finally {
+      releaseEffectAttestation.resolve();
+      fixture.cleanup();
+    }
+  });
+
+  it('revokes a retained callback claim before terminal attestation begins', async () => {
+    const [workflow, continuation] = await Promise.all([
+      loadWorkflow(), loadContinuation(),
+    ]);
+    if (!requireModules(workflow, continuation)) return;
+    const fixture = privateFixture();
+    const transition = FIXED_KINDS[2]!;
+    const now = () => new Date('2026-09-01T00:00:00.000Z');
+    const terminalAttestationEntered = deferred();
+    const releaseTerminalAttestation = deferred();
+    try {
+      const issuedRun = await workflowPermit(workflow, transition.issue, '1001');
+      await functionExport(continuation, 'issueSealedRealmsProductionContinuation')!(
+        issueInput(store(continuation, fixture.state(), now), issuedRun,
+          transition.kind, '1001'),
+      );
+      const claimRun = await workflowPermit(workflow, transition.claim, '2001', {
+        onRunRequest: async requestNumber => {
+          if (requestNumber === 4) {
+            terminalAttestationEntered.resolve();
+            await releaseTerminalAttestation.promise;
+          }
+        },
+      });
+      const claimStore = store(continuation, fixture.state(), now);
+      let retained: object | undefined;
+      const attempt = functionExport(
+        continuation, 'claimSealedRealmsProductionContinuation',
+      )!({
+        ...issueInput(claimStore, claimRun, transition.kind, '2001'),
+        effect: async (claim: object) => { retained = claim; },
+      });
+      await terminalAttestationEntered.promise;
+      let assertionError: unknown;
+      try {
+        functionExport(
+          continuation, 'assertSealedRealmsProductionContinuationClaim',
+        )!(claimAssertionInput(
+          retained, claimStore, claimRun, transition.kind, '2001',
+        ));
+      } catch (error) {
+        assertionError = error;
+      } finally {
+        releaseTerminalAttestation.resolve();
+      }
+      await expect(attempt).resolves.toEqual({ status: 'completed' });
+      expect(String(assertionError)).toMatch(/SEALED_REALMS_CONTINUATION_CLAIM_INVALID/u);
+    } finally {
+      releaseTerminalAttestation.resolve();
+      fixture.cleanup();
+    }
+  });
 
   it('allows exactly one concurrent durable claim before either callback effect', async () => {
     const [workflow, continuation] = await Promise.all([
@@ -512,7 +825,11 @@ describe('sealed-realms durable continuation core', () => {
       expect(effect).not.toHaveBeenCalled();
       expect(recordNames(fixture.home).some(name => name.startsWith('claimed-'))).toBe(true);
 
-      const retry = await workflowPermit(workflow, transition.claim, '2002');
+      const retry = await workflowPermit(workflow, transition.claim, '2002', {
+        runStatus: requestedRunId => requestedRunId === '2001'
+          ? 'completed'
+          : 'in_progress',
+      });
       await expect(functionExport(
         continuation, 'claimSealedRealmsProductionContinuation',
       )!({
@@ -578,7 +895,11 @@ describe('sealed-realms durable continuation core', () => {
       })).rejects.toThrow(/SEALED_REALMS_CONTINUATION_AMBIGUOUS/u);
       expect(effects).toBe(1);
 
-      const reconcileRun = await workflowPermit(workflow, transition.claim, '3001');
+      const reconcileRun = await workflowPermit(workflow, transition.claim, '3001', {
+        runStatus: requestedRunId => requestedRunId === '2001'
+          ? 'completed'
+          : 'in_progress',
+      });
       const readOnlyReconcile = vi.fn(async () => ({
         outcome: 'effect-applied', observationDigest: '8'.repeat(64),
       }));

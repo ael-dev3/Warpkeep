@@ -81,6 +81,13 @@ export function reconcileSealedRealmsProductionContinuation(
 
 export function assertSealedRealmsProductionContinuationClaim(input: Readonly<{
   claim: unknown;
+  store: SealedRealmsProductionContinuationStore;
   sourceAuthority: SealedRealmsProductionSourceAuthority;
   kind: SealedRealmsProductionContinuationKind;
+  runId: string;
+  runAttempt: string | number;
+  subject: string;
+  evidenceDigest: string;
+  receiptDigests: readonly string[];
+  predecessorDigests: readonly string[];
 }>): true;

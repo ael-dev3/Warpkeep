@@ -33,6 +33,14 @@ const SAFE_COMPONENT = /^(?:[a-z0-9][a-z0-9._-]{0,127})$/u;
 const CONTINUATION_DIGEST = /^[a-f0-9]{64}$/u;
 const CONTINUATION_STATE = Object.freeze(['issued', 'claimed', 'terminal']);
 const CONTINUATION_RECORD = /^(issued|claimed|terminal)-([a-f0-9]{64})\.json$/u;
+const CONTINUATION_ISSUANCE = /^issuance-([a-f0-9]{64})\.lock$/u;
+const CONTINUATION_RESOLUTION = /^resolution-([a-f0-9]{64})\.lock$/u;
+const CONTINUATION_ISSUANCE_BODY =
+  'warpkeep-sealed-realms-continuation-issuance-v1\n';
+const CONTINUATION_RESOLUTION_BODIES = Object.freeze({
+  effect: 'warpkeep-sealed-realms-continuation-resolution-v1:effect\n',
+  reconcile: 'warpkeep-sealed-realms-continuation-resolution-v1:reconcile\n',
+});
 const stateCapabilities = new WeakSet();
 
 export class SealedRealmsProductionPrivateStateError extends Error {
@@ -879,6 +887,74 @@ export function createSealedRealmsProductionPrivateState(input) {
     });
   };
 
+  /** Atomically reserves one internally-derived issuance generation. */
+  const reserveContinuationIssuance = (input_) => {
+    const input = exactInput(input_, ['scopeDigest', 'generationDigest']);
+    if (
+      !CONTINUATION_DIGEST.test(input.scopeDigest ?? '')
+      || !CONTINUATION_DIGEST.test(input.generationDigest ?? '')
+    ) fail('SEALED_REALMS_PRIVATE_STATE_CONTINUATION_INVALID');
+    const bytes = Buffer.from(CONTINUATION_ISSUANCE_BODY, 'utf8');
+    try {
+      return write({
+        root: 'runtime',
+        relativePath:
+          `continuations/${input.scopeDigest}/issuance-${input.generationDigest}.lock`,
+        bytes,
+      });
+    } finally {
+      bytes.fill(0);
+    }
+  };
+
+  /** Atomically chooses callback effect authority or reconciliation authority. */
+  const reserveContinuationResolution = (input_) => {
+    const input = exactInput(input_, [
+      'scopeDigest', 'recordDigest', 'decision',
+    ]);
+    if (
+      !CONTINUATION_DIGEST.test(input.scopeDigest ?? '')
+      || !CONTINUATION_DIGEST.test(input.recordDigest ?? '')
+      || typeof input.decision !== 'string'
+      || !Object.hasOwn(CONTINUATION_RESOLUTION_BODIES, input.decision)
+    ) fail('SEALED_REALMS_PRIVATE_STATE_CONTINUATION_INVALID');
+    const bytes = Buffer.from(CONTINUATION_RESOLUTION_BODIES[input.decision], 'utf8');
+    try {
+      return write({
+        root: 'runtime',
+        relativePath:
+          `continuations/${input.scopeDigest}/resolution-${input.recordDigest}.lock`,
+        bytes,
+      });
+    } finally {
+      bytes.fill(0);
+    }
+  };
+
+  /** Reads one fixed per-record resolution slot without accepting a path. */
+  const readContinuationResolution = (input_) => {
+    const input = exactInput(input_, ['scopeDigest', 'recordDigest']);
+    if (
+      !CONTINUATION_DIGEST.test(input.scopeDigest ?? '')
+      || !CONTINUATION_DIGEST.test(input.recordDigest ?? '')
+    ) fail('SEALED_REALMS_PRIVATE_STATE_CONTINUATION_INVALID');
+    const relativePath =
+      `continuations/${input.scopeDigest}/resolution-${input.recordDigest}.lock`;
+    if (!exists({ root: 'runtime', relativePath })) return undefined;
+    const bytes = read({ root: 'runtime', relativePath });
+    try {
+      const source = bytes.toString('utf8');
+      const decision = Object.entries(CONTINUATION_RESOLUTION_BODIES)
+        .find(([, body]) => body === source)?.[0];
+      if (decision === undefined) {
+        fail('SEALED_REALMS_PRIVATE_STATE_CONTINUATION_INVALID');
+      }
+      return decision;
+    } finally {
+      bytes.fill(0);
+    }
+  };
+
   /** Reads one fixed continuation scope without accepting a path or basename. */
   const readContinuationRecords = (input_) => {
     const input = exactInput(input_, ['scopeDigest']);
@@ -890,6 +966,24 @@ export function createSealedRealmsProductionPrivateState(input) {
     const records = [];
     try {
       for (const name of names) {
+        const issuance = CONTINUATION_ISSUANCE.exec(name);
+        const resolution = CONTINUATION_RESOLUTION.exec(name);
+        if (issuance !== null || resolution !== null) {
+          const bytes = read({
+            root: 'runtime', relativePath: `${relativeDirectory}/${name}`,
+          });
+          try {
+            const source = bytes.toString('utf8');
+            if (
+              (issuance !== null && source !== CONTINUATION_ISSUANCE_BODY)
+              || (resolution !== null
+                && !Object.values(CONTINUATION_RESOLUTION_BODIES).includes(source))
+            ) fail('SEALED_REALMS_PRIVATE_STATE_CONTINUATION_INVALID');
+          } finally {
+            bytes.fill(0);
+          }
+          continue;
+        }
         const match = CONTINUATION_RECORD.exec(name);
         if (match === null) {
           fail('SEALED_REALMS_PRIVATE_STATE_CONTINUATION_INVALID');
@@ -916,6 +1010,9 @@ export function createSealedRealmsProductionPrivateState(input) {
     remove,
     writeFamily,
     writeContinuationRecord,
+    reserveContinuationIssuance,
+    reserveContinuationResolution,
+    readContinuationResolution,
     readContinuationRecords,
   });
   stateCapabilities.add(capability);

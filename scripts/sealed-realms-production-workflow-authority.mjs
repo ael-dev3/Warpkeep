@@ -91,7 +91,7 @@ async function boundedGithubJson(response, expectedUrl) {
   }
 }
 
-async function reattest(state) {
+async function reattest(state, inactiveClaimRun) {
   let interrupted;
   try { interrupted = state.isInterrupted(); } catch {
     fail('SEALED_REALMS_WORKFLOW_AUTHORITY_ATTESTATION_REJECTED');
@@ -124,9 +124,14 @@ async function reattest(state) {
     }
     return boundedGithubJson(response, url);
   };
-  const [branch, run] = await Promise.all([
+  const [branch, run, claimRun] = await Promise.all([
     request(`/repos/${SEALED_REALMS_PRODUCTION_REPOSITORY}/branches/main`),
     request(`/repos/${SEALED_REALMS_PRODUCTION_REPOSITORY}/actions/runs/${state.runId}`),
+    inactiveClaimRun === undefined
+      ? Promise.resolve(undefined)
+      : request(
+        `/repos/${SEALED_REALMS_PRODUCTION_REPOSITORY}/actions/runs/${inactiveClaimRun.runId}`,
+      ),
   ]);
   try { interrupted = state.isInterrupted(); } catch {
     fail('SEALED_REALMS_WORKFLOW_AUTHORITY_ATTESTATION_REJECTED');
@@ -152,6 +157,23 @@ async function reattest(state) {
     || run.repository?.full_name !== SEALED_REALMS_PRODUCTION_REPOSITORY
     || interrupted
   ) fail('SEALED_REALMS_WORKFLOW_AUTHORITY_ATTESTATION_REJECTED');
+  if (inactiveClaimRun !== undefined && (
+    claimRun === null
+    || typeof claimRun !== 'object'
+    || Array.isArray(claimRun)
+    || String(claimRun.id) !== inactiveClaimRun.runId
+    || claimRun.run_attempt !== Number(inactiveClaimRun.runAttempt)
+    || claimRun.event !== 'workflow_dispatch'
+    || claimRun.status !== 'completed'
+    || ![
+      'success', 'failure', 'cancelled', 'skipped', 'timed_out',
+      'action_required', 'neutral', 'stale', 'startup_failure',
+    ].includes(claimRun.conclusion)
+    || claimRun.head_branch !== 'main'
+    || claimRun.head_sha !== state.sourceCommit
+    || claimRun.path !== SEALED_REALMS_PRODUCTION_WORKFLOW_PATH
+    || claimRun.repository?.full_name !== SEALED_REALMS_PRODUCTION_REPOSITORY
+  )) fail('SEALED_REALMS_WORKFLOW_AUTHORITY_CLAIM_RUN_LIVE');
 }
 
 /** Issues one process-local permit only after a fresh sealed-realms GitHub attestation. */
@@ -190,10 +212,21 @@ export async function issueSealedRealmsProductionWorkflowPermit(input) {
 export async function attestSealedRealmsProductionWorkflowPermit(input) {
   const options = inputRecord(input, [
     'permit', 'sourceAuthority', 'phase', 'runId', 'runAttempt',
+    'claimRunId', 'claimRunAttempt',
   ]);
   const state = permitStates.get(options.permit);
   if (state === undefined) fail('SEALED_REALMS_WORKFLOW_AUTHORITY_PERMIT_INVALID');
   const run = exactRunIdentity(options.runId, options.runAttempt);
+  const reconciliation = options.phase === 'continuation-reconcile'
+    || options.phase === 'continuation-reconcile-terminal';
+  const hasAnyClaimRun = Object.hasOwn(options, 'claimRunId')
+    || Object.hasOwn(options, 'claimRunAttempt');
+  const hasClaimRun = Object.hasOwn(options, 'claimRunId')
+    && Object.hasOwn(options, 'claimRunAttempt');
+  let claimRun;
+  if (reconciliation && hasClaimRun) {
+    claimRun = exactRunIdentity(options.claimRunId, options.claimRunAttempt);
+  }
   if (
     options.sourceAuthority !== state.sourceAuthority
     || !SEALED_REALMS_PRODUCTION_WORKFLOW_PHASES.includes(options.phase)
@@ -203,8 +236,11 @@ export async function attestSealedRealmsProductionWorkflowPermit(input) {
     || sourceCommitFromSealedRealmsProductionAuthority(options.sourceAuthority)
       !== state.sourceCommit
     || options.sourceAuthority.operation !== state.operation
+    || reconciliation !== hasClaimRun
+    || hasAnyClaimRun !== hasClaimRun
+    || (claimRun !== undefined && claimRun.runId === state.runId)
   ) fail('SEALED_REALMS_WORKFLOW_AUTHORITY_PERMIT_INVALID');
-  await reattest(state);
+  await reattest(state, claimRun);
   return true;
 }
 

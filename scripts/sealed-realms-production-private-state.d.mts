@@ -44,6 +44,19 @@ export type SealedRealmsProductionPrivateState = Readonly<{
     recordDigest: string;
     bytes: Uint8Array;
   }>) => Readonly<{ byteLength: number }>;
+  reserveContinuationIssuance: (input: Readonly<{
+    scopeDigest: string;
+    generationDigest: string;
+  }>) => Readonly<{ byteLength: number }>;
+  reserveContinuationResolution: (input: Readonly<{
+    scopeDigest: string;
+    recordDigest: string;
+    decision: 'effect' | 'reconcile';
+  }>) => Readonly<{ byteLength: number }>;
+  readContinuationResolution: (input: Readonly<{
+    scopeDigest: string;
+    recordDigest: string;
+  }>) => 'effect' | 'reconcile' | undefined;
   readContinuationRecords: (input: Readonly<{
     scopeDigest: string;
   }>) => readonly Readonly<{

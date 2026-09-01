@@ -37,9 +37,20 @@ export function issueSealedRealmsProductionWorkflowPermit(input: Readonly<{
 export function attestSealedRealmsProductionWorkflowPermit(input: Readonly<{
   permit: SealedRealmsProductionWorkflowPermit;
   sourceAuthority: SealedRealmsProductionSourceAuthority;
-  phase: Exclude<(typeof SEALED_REALMS_PRODUCTION_WORKFLOW_PHASES)[number], 'permit-issue'>;
+  phase: Exclude<
+    (typeof SEALED_REALMS_PRODUCTION_WORKFLOW_PHASES)[number],
+    'permit-issue' | 'continuation-reconcile' | 'continuation-reconcile-terminal'
+  >;
   runId: string;
   runAttempt: string | number;
+}> | Readonly<{
+  permit: SealedRealmsProductionWorkflowPermit;
+  sourceAuthority: SealedRealmsProductionSourceAuthority;
+  phase: 'continuation-reconcile' | 'continuation-reconcile-terminal';
+  runId: string;
+  runAttempt: string | number;
+  claimRunId: string;
+  claimRunAttempt: string | number;
 }>): Promise<true>;
 
 export function assertSealedRealmsProductionWorkflowPermit(
