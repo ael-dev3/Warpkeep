@@ -33,11 +33,12 @@ export type SealedRealmsProductionLane = Readonly<{
   execute: (input: Readonly<{
     operation: SealedRealmsProductionOperation;
     authority: SealedRealmsProductionSourceAuthority;
-    continuation?: Readonly<{
+    continuation: Readonly<{
       permit: SealedRealmsProductionWorkflowPermit;
       store: SealedRealmsProductionContinuationStore;
       runId: string;
       runAttempt: string;
+      sourceAuthority: SealedRealmsProductionSourceAuthority;
     }>;
   }>) => Readonly<{
     status?: SealedRealmsProductionSafeStatus;
@@ -63,22 +64,15 @@ export function createSealedRealmsProductionDispatcher(input: Readonly<{
   readGit: (arguments_: readonly string[]) => Uint8Array | string;
   readBinding: (commit: string) => Readonly<Record<string, unknown>>;
   verifyEvidence: (commit: string) => Readonly<{ verifiedSha: string }>;
-  permit?: SealedRealmsProductionWorkflowPermit;
-  continuationStore?: SealedRealmsProductionContinuationStore;
-  runId?: string;
-  runAttempt?: string | number;
-  sourceAuthority?: SealedRealmsProductionSourceAuthority;
+  permit: SealedRealmsProductionWorkflowPermit;
+  continuationStore: SealedRealmsProductionContinuationStore;
+  runId: string;
+  runAttempt: string | number;
+  sourceAuthority: SealedRealmsProductionSourceAuthority;
   g001Lane?: SealedRealmsProductionLane;
   g002Lane?: SealedRealmsProductionLane;
   ptrLane?: SealedRealmsProductionLane;
   activationLane?: SealedRealmsProductionLane;
-  /** Test-only narrow lane seams. */
-  testOnlyLanes?: Readonly<{
-    g001?: SealedRealmsProductionLane;
-    g002?: SealedRealmsProductionLane;
-    ptr?: SealedRealmsProductionLane;
-    activation?: SealedRealmsProductionLane;
-  }>;
 }>): SealedRealmsProductionDispatcher;
 
 export function assertSealedRealmsProductionDispatcher(

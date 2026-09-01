@@ -12,6 +12,10 @@ import {
 } from './ptr-production-publisher.mjs';
 import { assertSealedRealmsProductionPrivateState } from
   './sealed-realms-production-private-state.mjs';
+import {
+  assertSealedRealmsProductionContinuationClaim,
+  classifySealedRealmsProductionContinuationNoEffect,
+} from './sealed-realms-production-continuation.mjs';
 
 const SHA256 = /^[0-9a-f]{64}$/u;
 const confirmations = new WeakMap();
@@ -496,13 +500,31 @@ export function createSealedRealmsProductionPublicationReconciler(input) {
       fail('SEALED_REALMS_RECONCILIATION_CONTINUATION_AMBIGUOUS');
     }
     // Publication reconciliation is persisted before the continuation core can
-    // write its terminal record.  Reopen that sole adopted marker after a crash
-    // so the core can classify it through postflight without replaying publish.
+    // write its terminal record. Reopen the sole adopted marker after a crash.
     const adopted = entries.filter(entry => entry.reconciliation?.outcome === 'adopted');
     if (adopted.length === 1) return adopted[0];
-    fail(adopted.length === 0
-      ? 'SEALED_REALMS_RECONCILIATION_CONTINUATION_MISSING'
-      : 'SEALED_REALMS_RECONCILIATION_CONTINUATION_AMBIGUOUS');
+    if (adopted.length > 1) {
+      fail('SEALED_REALMS_RECONCILIATION_CONTINUATION_AMBIGUOUS');
+    }
+    // A no-effect publication may likewise be durable before the core terminal
+    // write. Only consumed entries can belong to an effect-reserved claim. When
+    // historical no-effect generations exist, real consumed chronology selects
+    // the newest record and the continuation binding revalidates its identity.
+    const noEffect = entries
+      .filter(entry => (
+        entry.consumed !== undefined && entry.reconciliation?.outcome === 'no-effect'
+      ))
+      .sort((left, right) => (
+        Date.parse(right.consumed.consumedAt) - Date.parse(left.consumed.consumedAt)
+      ));
+    if (noEffect.length > 0) {
+      if (
+        noEffect.length > 1
+        && noEffect[0].consumed.consumedAt === noEffect[1].consumed.consumedAt
+      ) fail('SEALED_REALMS_RECONCILIATION_CONTINUATION_AMBIGUOUS');
+      return noEffect[0];
+    }
+    fail('SEALED_REALMS_RECONCILIATION_CONTINUATION_MISSING');
   };
 
   /** Persists evidence and discards the old process-local confirmation. */
@@ -524,8 +546,28 @@ export function createSealedRealmsProductionPublicationReconciler(input) {
   const reopenContinuation = () => continuationBinding(continuationEntry());
 
   /** Consumes the marker before the first publisher await. */
-  const consumeContinuationEntry = async ({ publish }) => {
-    if (typeof publish !== 'function') {
+  const consumeContinuationEntry = async (input) => {
+    const request = exactObject(input, [
+      'claim', 'store', 'sourceAuthority', 'kind', 'runId', 'runAttempt',
+      'subject', 'evidenceDigest', 'receiptDigests', 'predecessorDigests', 'publish',
+    ], 'SEALED_REALMS_RECONCILIATION_CONFIRMATION_INVALID');
+    if (typeof request.publish !== 'function') {
+      fail('SEALED_REALMS_RECONCILIATION_CONFIRMATION_INVALID');
+    }
+    try {
+      assertSealedRealmsProductionContinuationClaim({
+        claim: request.claim,
+        store: request.store,
+        sourceAuthority: request.sourceAuthority,
+        kind: request.kind,
+        runId: request.runId,
+        runAttempt: request.runAttempt,
+        subject: request.subject,
+        evidenceDigest: request.evidenceDigest,
+        receiptDigests: request.receiptDigests,
+        predecessorDigests: request.predecessorDigests,
+      });
+    } catch {
       fail('SEALED_REALMS_RECONCILIATION_CONFIRMATION_INVALID');
     }
     const entry = continuationEntry();
@@ -545,7 +587,7 @@ export function createSealedRealmsProductionPublicationReconciler(input) {
     } finally { bytes.fill(0); }
     let callbackError;
     try {
-      await publish(Object.freeze({ marker: entry.marker }));
+      await request.publish(Object.freeze({ marker: entry.marker }));
     } catch (error) {
       callbackError = error;
     }
@@ -562,25 +604,26 @@ export function createSealedRealmsProductionPublicationReconciler(input) {
   };
 
   /** Classifies an ambiguous claim through the fixed non-mutating postflight. */
-  const reconcileContinuation = async () => {
+  const reconcileContinuation = async (input) => {
+    const request = exactObject(
+      input,
+      ['reconciliation'],
+      'SEALED_REALMS_RECONCILIATION_CONTINUATION_INVALID',
+    );
     const entry = continuationEntry();
-    let postflight;
-    try {
-      postflight = await options.postflight(Object.freeze({ lane, marker: entry.marker }));
-    } catch {
-      fail('SEALED_REALMS_RECONCILIATION_POSTFLIGHT_AMBIGUOUS');
-    }
-    exactObject(postflight, [
-      'outcome', 'databaseIdentity', 'publicationReceiptDigest',
-      'observationDigest', 'observedAt',
-    ], 'SEALED_REALMS_RECONCILIATION_POSTFLIGHT_INVALID');
+    const postflight = entry.reconciliation ?? await writeReconciliation(entry);
     if (
       !['adopted', 'no-effect'].includes(postflight.outcome)
       || !SHA256.test(postflight.observationDigest ?? '')
     ) fail('SEALED_REALMS_RECONCILIATION_POSTFLIGHT_INVALID');
+    if (postflight.outcome === 'no-effect') {
+      return classifySealedRealmsProductionContinuationNoEffect({
+        reconciliation: request.reconciliation,
+        observationDigest: postflight.observationDigest,
+      });
+    }
     return Object.freeze({
-      outcome: postflight.outcome === 'adopted' ? 'effect-applied' : 'no-effect',
-      observationDigest: postflight.observationDigest,
+      outcome: 'effect-applied', observationDigest: postflight.observationDigest,
     });
   };
 

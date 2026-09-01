@@ -6,10 +6,15 @@ import {
   assertSealedRealmsProductionPublicationReconciler,
 } from './sealed-realms-production-reconciliation.mjs';
 import {
+  assertSealedRealmsProductionContinuationStore,
   claimSealedRealmsProductionContinuation,
+  classifySealedRealmsProductionContinuationNoEffect,
   issueSealedRealmsProductionContinuation,
   reconcileSealedRealmsProductionContinuation,
 } from './sealed-realms-production-continuation.mjs';
+import {
+  assertSealedRealmsProductionWorkflowPermit,
+} from './sealed-realms-production-workflow-authority.mjs';
 import {
   preparationSourceCommitFromSealedRealmsProductionAuthority,
   sourceCommitFromSealedRealmsProductionAuthority,
@@ -40,15 +45,22 @@ function record(value, code) {
   return value;
 }
 
-function confirmationInput(value, code) {
-  const request = record(value, code);
+function requireContinuation(value, authority) {
+  const request = record(value, 'SEALED_REALMS_PTR_LANE_REQUEST_INVALID');
   if (
-    JSON.stringify(Object.keys(request)) !== JSON.stringify(['confirmation'])
-    || request.confirmation === null || typeof request.confirmation !== 'object'
-    || Array.isArray(request.confirmation)
-    || Object.getPrototypeOf(request.confirmation) !== Object.prototype
-    || Object.keys(request.confirmation).length !== 0
-  ) fail(code);
+    JSON.stringify(Object.keys(request))
+      !== JSON.stringify(['permit', 'store', 'runId', 'runAttempt', 'sourceAuthority'])
+    || !Object.isFrozen(request)
+    || request.sourceAuthority !== authority
+    || typeof request.runId !== 'string'
+    || typeof request.runAttempt !== 'string'
+  ) fail('SEALED_REALMS_PTR_LANE_REQUEST_INVALID');
+  try {
+    assertSealedRealmsProductionWorkflowPermit(request.permit);
+    assertSealedRealmsProductionContinuationStore(request.store);
+  } catch {
+    fail('SEALED_REALMS_PTR_LANE_REQUEST_INVALID');
+  }
   return request;
 }
 
@@ -78,6 +90,15 @@ async function claimOrReconcile({ continuation, authority, kind, binding, effect
   }
 }
 
+async function classifyReconciliation(reconciliation, inspect) {
+  const classification = await inspect();
+  return classification.outcome === 'no-effect'
+    ? classifySealedRealmsProductionContinuationNoEffect({
+      reconciliation, observationDigest: classification.observationDigest,
+    })
+    : classification;
+}
+
 /** Owns PTR's publication, gate, import, and owner-provision seams. */
 export function createSealedRealmsProductionPtrLane(input) {
   const options = record(input, 'SEALED_REALMS_PTR_LANE_INPUT_INVALID');
@@ -97,8 +118,15 @@ export function createSealedRealmsProductionPtrLane(input) {
   const reconciler = assertSealedRealmsProductionPublicationReconciler(options.reconciler);
   const bridgeState = assertSealedRealmsProductionAuthBridgeState(options.bridgeState);
 
-  const execute = async ({ operation, authority, input, continuation } = {}) => {
+  const execute = async (input = {}) => {
+    const request = record(input, 'SEALED_REALMS_PTR_LANE_REQUEST_INVALID');
+    if (
+      JSON.stringify(Object.keys(request))
+        !== JSON.stringify(['operation', 'authority', 'continuation'])
+    ) fail('SEALED_REALMS_PTR_LANE_REQUEST_INVALID');
+    const { operation, authority } = request;
     if (!OPERATIONS.has(operation)) fail('SEALED_REALMS_PTR_LANE_OPERATION_INVALID');
+    const continuation = requireContinuation(request.continuation, authority);
     const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(authority);
     const bridgeSourceCommit = preparationSourceCommitFromSealedRealmsProductionAuthority(authority);
     if (authority.operation !== operation) {
@@ -110,110 +138,97 @@ export function createSealedRealmsProductionPtrLane(input) {
     }
     if (operation === 'ptr-publish-inspect') {
       const marker = await options.createPublishMarker(Object.freeze({ sourceCommit }));
-      if (continuation !== undefined) {
-        const binding = await reconciler.inspectForContinuation({ marker });
-        await issueSealedRealmsProductionContinuation(
-          continuationInput(continuation, authority, 'ptr-publication', binding),
-        );
-        return Object.freeze({ status: 'publish-inspected' });
-      }
-      const inspected = await reconciler.inspect({ marker });
-      return inspected.confirmation === undefined
-        ? Object.freeze({ status: 'publish-inspected' })
-        : Object.freeze({ status: 'publish-inspected', confirmation: inspected.confirmation });
+      const binding = await reconciler.inspectForContinuation({ marker });
+      await issueSealedRealmsProductionContinuation(
+        continuationInput(continuation, authority, 'ptr-publication', binding),
+      );
+      return Object.freeze({ status: 'publish-inspected' });
     }
     if (operation === 'ptr-publish-apply') {
-      if (continuation !== undefined) {
-        const binding = reconciler.reopenContinuation();
-        const result = await claimOrReconcile({
-          continuation,
-          authority,
+      const binding = reconciler.reopenContinuation();
+      const result = await claimOrReconcile({
+        continuation,
+        authority,
+        kind: 'ptr-publication',
+        binding,
+        effect: claim => reconciler.consumeContinuationEntry({
+          claim,
+          store: continuation.store,
+          sourceAuthority: authority,
           kind: 'ptr-publication',
-          binding,
-          effect: () => reconciler.consumeContinuationEntry({
-            publish: ({ marker }) => options.publish(Object.freeze({ sourceCommit, marker })),
-          }),
-          reconcile: () => reconciler.reconcileContinuation(),
-        });
-        return Object.freeze({ status: result.status });
-      }
-      const value = confirmationInput(input, 'SEALED_REALMS_PTR_LANE_REQUEST_INVALID');
-      const result = await reconciler.apply({
-        confirmation: value.confirmation,
-        publish: ({ confirmation }) => options.publish(Object.freeze({ sourceCommit, confirmation })),
+          runId: continuation.runId,
+          runAttempt: continuation.runAttempt,
+          ...binding,
+          publish: ({ marker }) => options.publish(Object.freeze({ sourceCommit, marker })),
+        }),
+        reconcile: reconciliation => reconciler.reconcileContinuation({ reconciliation }),
       });
       return Object.freeze({ status: result.status });
     }
     if (operation === 'ptr-import-inspect') {
-      if (continuation !== undefined) {
-        const binding = await bridgeState.inspectGateForContinuation({ lane: 'ptr' });
-        await issueSealedRealmsProductionContinuation(
-          continuationInput(continuation, authority, 'ptr-import', binding),
-        );
-        return Object.freeze({ status: 'import-inspected' });
-      }
-      const result = await bridgeState.inspectGate({ lane: 'ptr' });
-      return Object.freeze({ status: 'import-inspected', confirmation: result.confirmation });
+      const binding = await bridgeState.inspectGateForContinuation({ lane: 'ptr' });
+      await issueSealedRealmsProductionContinuation(
+        continuationInput(continuation, authority, 'ptr-import', binding),
+      );
+      return Object.freeze({ status: 'import-inspected' });
     }
     if (operation === 'ptr-import-apply') {
-      if (continuation !== undefined) {
-        const binding = await bridgeState.reopenGateContinuation({ lane: 'ptr' });
-        const result = await claimOrReconcile({
-          continuation,
-          authority,
+      const binding = await bridgeState.reopenGateContinuation({ lane: 'ptr' });
+      const result = await claimOrReconcile({
+        continuation,
+        authority,
+        kind: 'ptr-import',
+        binding,
+        effect: claim => bridgeState.applyGateForContinuation({
+          claim,
+          store: continuation.store,
+          sourceAuthority: authority,
           kind: 'ptr-import',
-          binding,
-          effect: () => bridgeState.applyGateForContinuation({
-            lane: 'ptr',
-            apply: () => options.importCore(Object.freeze({ sourceCommit })),
-          }),
-          reconcile: () => bridgeState.reconcileGateContinuation({ lane: 'ptr' }),
-        });
-        return Object.freeze({ status: result.status });
-      }
-      const value = confirmationInput(input, 'SEALED_REALMS_PTR_LANE_REQUEST_INVALID');
-      const result = await bridgeState.applyGate({
-        confirmation: value.confirmation,
-        apply: () => options.importCore(Object.freeze({ sourceCommit })),
+          runId: continuation.runId,
+          runAttempt: continuation.runAttempt,
+          ...binding,
+          lane: 'ptr',
+          apply: () => options.importCore(Object.freeze({ sourceCommit })),
+        }),
+        reconcile: reconciliation => classifyReconciliation(
+          reconciliation,
+          () => bridgeState.reconcileGateContinuation({ lane: 'ptr' }),
+        ),
       });
       return Object.freeze({ status: result.status });
     }
     if (operation === 'ptr-owner-provision-inspect') {
-      if (continuation !== undefined) {
-        const binding = await bridgeState.inspectOwnerProvisionEvidenceForContinuation({
-          inspect: () => options.inspectOwnerProvision(Object.freeze({ sourceCommit })),
-        });
-        await issueSealedRealmsProductionContinuation(
-          continuationInput(continuation, authority, 'ptr-owner-provision', binding),
-        );
-        return Object.freeze({ status: 'owner-provision-inspected' });
-      }
-      const result = await bridgeState.inspectOwnerProvisionEvidence({
+      const binding = await bridgeState.inspectOwnerProvisionEvidenceForContinuation({
         inspect: () => options.inspectOwnerProvision(Object.freeze({ sourceCommit })),
       });
-      return Object.freeze({ status: 'owner-provision-inspected', confirmation: result.confirmation });
+      await issueSealedRealmsProductionContinuation(
+        continuationInput(continuation, authority, 'ptr-owner-provision', binding),
+      );
+      return Object.freeze({ status: 'owner-provision-inspected' });
     }
     if (operation === 'ptr-owner-provision') {
-      if (continuation !== undefined) {
-        const binding = await bridgeState.reopenOwnerProvisionContinuation();
-        const result = await claimOrReconcile({
-          continuation,
-          authority,
+      const binding = await bridgeState.reopenOwnerProvisionContinuation();
+      const result = await claimOrReconcile({
+        continuation,
+        authority,
+        kind: 'ptr-owner-provision',
+        binding,
+        effect: claim => bridgeState.applyOwnerProvisionForContinuation({
+          claim,
+          store: continuation.store,
+          sourceAuthority: authority,
           kind: 'ptr-owner-provision',
-          binding,
-          effect: () => bridgeState.applyOwnerProvisionForContinuation({
-            provision: () => options.provisionOwner(Object.freeze({ sourceCommit })),
-          }),
-          reconcile: () => bridgeState.reconcileOwnerProvisionContinuation(),
-        });
-        return Object.freeze({ status: result.status });
-      }
-      const value = confirmationInput(input, 'SEALED_REALMS_PTR_LANE_REQUEST_INVALID');
-      await bridgeState.applyOwnerProvision({
-        confirmation: value.confirmation,
-        provision: () => options.provisionOwner(Object.freeze({ sourceCommit })),
+          runId: continuation.runId,
+          runAttempt: continuation.runAttempt,
+          ...binding,
+          provision: () => options.provisionOwner(Object.freeze({ sourceCommit })),
+        }),
+        reconcile: reconciliation => classifyReconciliation(
+          reconciliation,
+          () => bridgeState.reconcileOwnerProvisionContinuation(),
+        ),
       });
-      return Object.freeze({ status: 'owner-provisioned' });
+      return Object.freeze({ status: result.status });
     }
     await bridgeState.inspectLiveEvidence({
       lane: 'ptr',

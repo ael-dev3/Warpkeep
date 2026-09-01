@@ -34,6 +34,16 @@ declare const sealedRealmsProductionContinuationClaim: unique symbol;
 export type SealedRealmsProductionContinuationClaim = Readonly<{
   readonly [sealedRealmsProductionContinuationClaim]: true;
 }>;
+declare const sealedRealmsProductionContinuationReconciliation: unique symbol;
+export type SealedRealmsProductionContinuationReconciliation = Readonly<{
+  readonly [sealedRealmsProductionContinuationReconciliation]: true;
+}>;
+declare const sealedRealmsProductionContinuationNoEffect: unique symbol;
+export type SealedRealmsProductionContinuationNoEffect = Readonly<{
+  outcome: 'no-effect';
+  observationDigest: string;
+  readonly [sealedRealmsProductionContinuationNoEffect]: true;
+}>;
 
 export function createSealedRealmsProductionContinuationStore(input: Readonly<{
   privateState: SealedRealmsProductionPrivateState;
@@ -70,7 +80,7 @@ export function claimSealedRealmsProductionContinuation(
 
 export function reconcileSealedRealmsProductionContinuation(
   input: SealedRealmsProductionContinuationInput & Readonly<{
-    readOnlyReconcile: () => Readonly<{
+    readOnlyReconcile: (reconciliation: SealedRealmsProductionContinuationReconciliation) => Readonly<{
       outcome: 'effect-applied' | 'no-effect';
       observationDigest: string;
     }> | Promise<Readonly<{
@@ -82,6 +92,11 @@ export function reconcileSealedRealmsProductionContinuation(
   status: 'reconciled';
   outcome: 'effect-applied' | 'no-effect';
 }>>;
+
+export function classifySealedRealmsProductionContinuationNoEffect(input: Readonly<{
+  reconciliation: SealedRealmsProductionContinuationReconciliation;
+  observationDigest: string;
+}>): SealedRealmsProductionContinuationNoEffect;
 
 export function assertSealedRealmsProductionContinuationClaim(input: Readonly<{
   claim: unknown;

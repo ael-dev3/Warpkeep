@@ -15,6 +15,9 @@ import {
   preparationSourceCommitFromSealedRealmsProductionAuthority,
   sourceCommitFromSealedRealmsProductionAuthority,
 } from './sealed-realms-production-source-authority.mjs';
+import {
+  assertSealedRealmsProductionContinuationClaim,
+} from './sealed-realms-production-continuation.mjs';
 
 export const SEALED_REALMS_AUTH_BRIDGE_AUTHORITY_PROFILE =
   'warpkeep-sealed-realms-auth-bridge-import-authority-v1';
@@ -59,6 +62,26 @@ export class SealedRealmsProductionAuthBridgeStateError extends Error {
 
 function fail(code) {
   throw new SealedRealmsProductionAuthBridgeStateError(code);
+}
+
+function requireContinuationClaim(input, expectedKind, code) {
+  if (input.kind !== expectedKind) fail(code);
+  try {
+    assertSealedRealmsProductionContinuationClaim({
+      claim: input.claim,
+      store: input.store,
+      sourceAuthority: input.sourceAuthority,
+      kind: input.kind,
+      runId: input.runId,
+      runAttempt: input.runAttempt,
+      subject: input.subject,
+      evidenceDigest: input.evidenceDigest,
+      receiptDigests: input.receiptDigests,
+      predecessorDigests: input.predecessorDigests,
+    });
+  } catch {
+    fail(code);
+  }
 }
 
 /** Test-only fixture authority; production construction cannot forge it. */
@@ -1539,14 +1562,24 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     await gateContinuationMember(lane)
   ).binding;
 
-  const applyGateForContinuation = async ({ lane, apply } = {}) => {
-    if (typeof apply !== 'function') {
+  const applyGateForContinuation = async (input = {}) => {
+    exactObject(input, [
+      'claim', 'store', 'sourceAuthority', 'kind', 'runId', 'runAttempt',
+      'subject', 'evidenceDigest', 'receiptDigests', 'predecessorDigests',
+      'lane', 'apply',
+    ], 'SEALED_REALMS_AUTH_BRIDGE_GATE_CONFIRMATION_INVALID');
+    if (typeof input.apply !== 'function') {
       fail('SEALED_REALMS_AUTH_BRIDGE_GATE_CONFIRMATION_INVALID');
     }
-    const reopened = await gateContinuationMember(lane);
+    requireContinuationClaim(
+      input,
+      `${input.lane}-import`,
+      'SEALED_REALMS_AUTH_BRIDGE_GATE_CONFIRMATION_INVALID',
+    );
+    const reopened = await gateContinuationMember(input.lane);
     const confirmation = Object.freeze({});
     gateConfirmations.set(confirmation, reopened.member);
-    return applyGate({ confirmation, apply });
+    return applyGate({ confirmation, apply: input.apply });
   };
 
   /** The only crash resolver is the immutable receipt reader; it never imports. */
@@ -1820,15 +1853,25 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     await reopenOwnerContinuationEvidence(),
   );
 
-  const applyOwnerProvisionForContinuation = async ({ provision } = {}) => {
-    if (typeof provision !== 'function') {
+  const applyOwnerProvisionForContinuation = async (input = {}) => {
+    exactObject(input, [
+      'claim', 'store', 'sourceAuthority', 'kind', 'runId', 'runAttempt',
+      'subject', 'evidenceDigest', 'receiptDigests', 'predecessorDigests',
+      'provision',
+    ], 'SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONFIRMATION_INVALID');
+    if (typeof input.provision !== 'function') {
       fail('SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONFIRMATION_INVALID');
     }
+    requireContinuationClaim(
+      input,
+      'ptr-owner-provision',
+      'SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONFIRMATION_INVALID',
+    );
     const evidence = await reopenOwnerContinuationEvidence();
     const confirmation = Object.freeze({});
     ownerClaims.set(evidence.member.claimKey, Object.freeze({ confirmation }));
     ownerProvisionConfirmations.set(confirmation, evidence.member);
-    return applyOwnerProvision({ confirmation, provision });
+    return applyOwnerProvision({ confirmation, provision: input.provision });
   };
 
   /** Resolves crash ambiguity from the immutable owner receipt without provisioning. */
@@ -2095,11 +2138,23 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     await reopenActivationContinuationMember(),
   );
 
-  const consumeActivationEvidenceForContinuation = async ({ generator } = {}) => {
+  const consumeActivationEvidenceForContinuation = async (input = {}) => {
+    exactObject(input, [
+      'claim', 'store', 'sourceAuthority', 'kind', 'runId', 'runAttempt',
+      'subject', 'evidenceDigest', 'receiptDigests', 'predecessorDigests',
+      'generator',
+    ], 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
+    requireContinuationClaim(
+      input,
+      'activation-evidence',
+      'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID',
+    );
     const member = await reopenActivationContinuationMember();
     const confirmation = Object.freeze({});
     activationConfirmations.set(confirmation, member);
-    return consumeSealedRealmsProductionActivationEvidenceForGenerator({ confirmation, generator });
+    return consumeSealedRealmsProductionActivationEvidenceForGenerator({
+      confirmation, generator: input.generator,
+    });
   };
 
   const state = Object.freeze({

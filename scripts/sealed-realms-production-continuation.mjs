@@ -74,6 +74,8 @@ const SPECS = Object.freeze({
 const storeStates = new WeakMap();
 const activeClaims = new WeakMap();
 const activeClaimRecords = new Set();
+const activeReconciliations = new WeakMap();
+const reconciliationClassifications = new WeakMap();
 
 export class SealedRealmsProductionContinuationError extends Error {
   constructor(code) {
@@ -851,10 +853,27 @@ export async function reconcileSealedRealmsProductionContinuation(input) {
   const reconciliationResolution = retainedResolution === undefined
     ? reserveResolution(state, scope, issued.recordDigest, 'reconcile')
     : Object.freeze({ decision: retainedResolution, created: false });
+  const reconciliation = Object.freeze({});
+  const reconciliationMember = Object.freeze({
+    store: options.store,
+    recordKey,
+    recordDigest: issued.recordDigest,
+    sourceAuthority: options.sourceAuthority,
+    kind: options.kind,
+    subject: binding.subject,
+  });
+  activeReconciliations.set(reconciliation, reconciliationMember);
   let classification;
-  try { classification = await options.readOnlyReconcile(); } catch {
+  try {
+    classification = await options.readOnlyReconcile(reconciliation);
+  } catch {
     fail('SEALED_REALMS_CONTINUATION_RECONCILIATION_AMBIGUOUS');
+  } finally {
+    activeReconciliations.delete(reconciliation);
   }
+  const brandedNoEffect = reconciliationClassifications.get(classification)
+    === reconciliationMember;
+  reconciliationClassifications.delete(classification);
   if (
     classification === null
     || typeof classification !== 'object'
@@ -868,6 +887,7 @@ export async function reconcileSealedRealmsProductionContinuation(input) {
   if (
     classification.outcome === 'no-effect'
     && reconciliationResolution.decision !== 'reconcile'
+    && !brandedNoEffect
   ) fail('SEALED_REALMS_CONTINUATION_RECONCILIATION_INVALID');
   try {
     await attestSealedRealmsProductionWorkflowPermit({
@@ -912,6 +932,24 @@ export async function reconcileSealedRealmsProductionContinuation(input) {
     fail('SEALED_REALMS_CONTINUATION_RECONCILIATION_AMBIGUOUS');
   }
   return Object.freeze({ status: 'reconciled', outcome: classification.outcome });
+}
+
+/**
+ * Mints only a no-effect terminal classification tied to the live,
+ * independently attested reconciliation callback. It carries no effect claim.
+ */
+export function classifySealedRealmsProductionContinuationNoEffect(input) {
+  const options = exactInput(input, ['reconciliation', 'observationDigest']);
+  const member = activeReconciliations.get(options.reconciliation);
+  if (member === undefined || !SHA256.test(options.observationDigest ?? '')) {
+    fail('SEALED_REALMS_CONTINUATION_RECONCILIATION_INVALID');
+  }
+  const classification = Object.freeze({
+    outcome: 'no-effect',
+    observationDigest: options.observationDigest,
+  });
+  reconciliationClassifications.set(classification, member);
+  return classification;
 }
 
 export function assertSealedRealmsProductionContinuationClaim(input) {

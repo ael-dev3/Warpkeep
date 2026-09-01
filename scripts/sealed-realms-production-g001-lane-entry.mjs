@@ -17,10 +17,16 @@ import {
   sourceCommitFromSealedRealmsProductionAuthority,
 } from './sealed-realms-production-source-authority.mjs';
 import {
+  assertSealedRealmsProductionContinuationStore,
+  assertSealedRealmsProductionContinuationClaim,
   claimSealedRealmsProductionContinuation,
+  classifySealedRealmsProductionContinuationNoEffect,
   issueSealedRealmsProductionContinuation,
   reconcileSealedRealmsProductionContinuation,
 } from './sealed-realms-production-continuation.mjs';
+import {
+  assertSealedRealmsProductionWorkflowPermit,
+} from './sealed-realms-production-workflow-authority.mjs';
 
 const OPERATIONS = new Set([
   'preflight', 'g001-policy-observe', 'g001-census-first',
@@ -105,6 +111,26 @@ function requireWebSocket() {
   if (typeof globalThis.WebSocket !== 'function') {
     fail('SEALED_REALMS_G001_WEBSOCKET_UNAVAILABLE');
   }
+}
+
+function requireContinuation(value, authority) {
+  if (
+    value === null || typeof value !== 'object' || Array.isArray(value)
+    || Object.getPrototypeOf(value) !== Object.prototype
+    || JSON.stringify(Object.keys(value))
+      !== JSON.stringify(['permit', 'store', 'runId', 'runAttempt', 'sourceAuthority'])
+    || !Object.isFrozen(value)
+    || value.sourceAuthority !== authority
+    || typeof value.runId !== 'string'
+    || typeof value.runAttempt !== 'string'
+  ) fail('SEALED_REALMS_G001_LANE_REQUEST_INVALID');
+  try {
+    assertSealedRealmsProductionWorkflowPermit(value.permit);
+    assertSealedRealmsProductionContinuationStore(value.store);
+  } catch {
+    fail('SEALED_REALMS_G001_LANE_REQUEST_INVALID');
+  }
+  return value;
 }
 
 function exactNode(value, expected, code) {
@@ -424,6 +450,22 @@ function continuationInput(continuation, authority, kind, binding) {
     runAttempt: continuation.runAttempt,
     ...binding,
   });
+}
+
+function requireContinuationClaim(claim, continuation, authority, kind, binding) {
+  try {
+    assertSealedRealmsProductionContinuationClaim({
+      claim,
+      store: continuation.store,
+      sourceAuthority: authority,
+      kind,
+      runId: continuation.runId,
+      runAttempt: continuation.runAttempt,
+      ...binding,
+    });
+  } catch {
+    fail('SEALED_REALMS_G001_LANE_REQUEST_INVALID');
+  }
 }
 
 function soleCensusDigest(state, kind) {
@@ -1414,13 +1456,20 @@ export function createSealedRealmsProductionG001Lane(input) {
     || typeof options.attestDispatcherNode !== 'function'
     || typeof options.runEnvelopeChild !== 'function'
     || (options.censusAuthority !== undefined && censusAuthorities.get(options.censusAuthority) === undefined)
-    || (options.currentStateOperator !== undefined && typeof options.currentStateOperator !== 'function')
+    || typeof options.currentStateOperator !== 'function'
     || typeof options.preflight !== 'function'
   ) fail('SEALED_REALMS_G001_LANE_INPUT_INVALID');
   const currentState = currentStateConfiguration(options.currentState);
 
-  const execute = async ({ operation, authority, input, continuation } = {}) => {
+  const execute = async (input = {}) => {
+    const request = exactObject(
+      input,
+      ['operation', 'authority', 'continuation'],
+      'SEALED_REALMS_G001_LANE_REQUEST_INVALID',
+    );
+    const { operation, authority } = request;
     if (!OPERATIONS.has(operation)) fail('SEALED_REALMS_G001_LANE_OPERATION_INVALID');
+    const continuation = requireContinuation(request.continuation, authority);
     const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(authority);
     if (authority.operation !== operation) {
       fail('SEALED_REALMS_G001_LANE_SOURCE_OPERATION_INVALID');
@@ -1433,33 +1482,23 @@ export function createSealedRealmsProductionG001Lane(input) {
       return Object.freeze({ status: 'preflight-inspected' });
     }
     if (operation === 'g001-current-state') {
-      if (options.currentStateOperator !== undefined) {
-        if (options.censusAuthority === undefined) {
-          fail('SEALED_REALMS_G001_CURRENT_STATE_RECEIPT_INVALID');
-        }
-        const earliest = Date.now();
-        let raw;
-        try {
-          raw = await options.currentStateOperator(Object.freeze({ sourceCommit }));
-        } catch {
-          fail('SEALED_REALMS_G001_CURRENT_STATE_INVALID');
-        }
-        const latest = Date.now();
-        const receipt = canonicalCurrentStateReceipt(raw, sourceCommit, earliest, latest);
-        persistCurrentStateReceipt(
-          censusAuthorityMember(options.censusAuthority).privateState,
-          receipt,
-        );
-        return Object.freeze({ status: 'current-state-inspected' });
+      if (options.censusAuthority === undefined) {
+        fail('SEALED_REALMS_G001_CURRENT_STATE_RECEIPT_INVALID');
       }
-      return inspectSealedRealmsProductionG001CurrentState(Object.freeze({
-        authority,
-        runChild: currentState.runChild,
-        readFixedFile: currentState.readFixedFile,
-        resolveAccountUid: currentState.resolveAccountUid,
-        resolveAccountHome: currentState.resolveAccountHome,
-        testOnlyAdapter: currentState.testOnlyAdapter,
-      }));
+      const earliest = Date.now();
+      let raw;
+      try {
+        raw = await options.currentStateOperator(Object.freeze({ sourceCommit }));
+      } catch {
+        fail('SEALED_REALMS_G001_CURRENT_STATE_INVALID');
+      }
+      const latest = Date.now();
+      const receipt = canonicalCurrentStateReceipt(raw, sourceCommit, earliest, latest);
+      persistCurrentStateReceipt(
+        censusAuthorityMember(options.censusAuthority).privateState,
+        receipt,
+      );
+      return Object.freeze({ status: 'current-state-inspected' });
     }
     requireWebSocket();
     if (operation === 'g001-policy-observe') {
@@ -1475,16 +1514,13 @@ export function createSealedRealmsProductionG001Lane(input) {
       fail('SEALED_REALMS_G001_CENSUS_UNAVAILABLE');
     }
     if (operation === 'g001-census-first') {
-      if (continuation !== undefined) {
-        const priorEvidence = censusAuthorityMember(options.censusAuthority).privateState.list({
-          root: 'runtime', relativeDirectory: 'g001/census',
-        });
-        if (priorEvidence.length !== 0) {
-          fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
-        }
+      const priorEvidence = censusAuthorityMember(options.censusAuthority).privateState.list({
+        root: 'runtime', relativeDirectory: 'g001/census',
+      });
+      if (priorEvidence.length !== 0) {
+        fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
       }
       const result = await censusFirst(authority, options.censusAuthority);
-      if (continuation === undefined) return result;
       const member = censusFirstConfirmations.get(result.confirmation);
       if (member === undefined) fail('SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID');
       await issueSealedRealmsProductionContinuation(continuationInput(
@@ -1497,9 +1533,6 @@ export function createSealedRealmsProductionG001Lane(input) {
       return Object.freeze({ status: result.status });
     }
     if (operation === 'g001-census-second-inspect') {
-      if (continuation === undefined) {
-        return censusSecondInspect(authority, options.censusAuthority, input);
-      }
       const firstMember = reopenFirstCensusMember(options.censusAuthority, sourceCommit);
       const firstConfirmation = Object.freeze({});
       censusFirstConfirmations.set(firstConfirmation, firstMember);
@@ -1513,7 +1546,14 @@ export function createSealedRealmsProductionG001Lane(input) {
       try {
         await claimSealedRealmsProductionContinuation({
           ...common,
-          effect: async () => {
+          effect: async claim => {
+            requireContinuationClaim(
+              claim,
+              continuation,
+              authority,
+              'g001-census-first-to-second',
+              firstContinuationBinding(firstMember),
+            );
             secondResult = await censusSecondInspect(
               authority,
               options.censusAuthority,
@@ -1541,10 +1581,11 @@ export function createSealedRealmsProductionG001Lane(input) {
             : firstMember.firstDigest;
           await reconcileSealedRealmsProductionContinuation({
             ...common,
-            readOnlyReconcile: () => Object.freeze({
-              outcome: effectApplied ? 'effect-applied' : 'no-effect',
-              observationDigest,
-            }),
+            readOnlyReconcile: reconciliation => effectApplied
+              ? Object.freeze({ outcome: 'effect-applied', observationDigest })
+              : classifySealedRealmsProductionContinuationNoEffect({
+                reconciliation, observationDigest,
+              }),
           });
           if (!effectApplied) return Object.freeze({ status: 'completed' });
         } else if (error?.code !== 'SEALED_REALMS_CONTINUATION_TERMINAL') {
@@ -1566,9 +1607,6 @@ export function createSealedRealmsProductionG001Lane(input) {
       }
       return Object.freeze({ status: 'completed' });
     }
-    if (continuation === undefined) {
-      return censusSecondSuspend(authority, options.censusAuthority, input);
-    }
     const secondMember = reopenSecondCensusMember(options.censusAuthority, sourceCommit);
     const secondConfirmation = Object.freeze({});
     censusSecondConfirmations.set(secondConfirmation, secondMember);
@@ -1581,11 +1619,20 @@ export function createSealedRealmsProductionG001Lane(input) {
     try {
       const result = await claimSealedRealmsProductionContinuation({
         ...common,
-        effect: () => censusSecondSuspend(
-          authority,
-          options.censusAuthority,
-          Object.freeze({ confirmation: secondConfirmation }),
-        ),
+        effect: claim => {
+          requireContinuationClaim(
+            claim,
+            continuation,
+            authority,
+            'g001-census-second-to-suspension',
+            secondContinuationBinding(secondMember),
+          );
+          return censusSecondSuspend(
+            authority,
+            options.censusAuthority,
+            Object.freeze({ confirmation: secondConfirmation }),
+          );
+        },
       });
       return Object.freeze({ status: result.status });
     } catch (error) {

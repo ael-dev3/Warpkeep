@@ -17,6 +17,7 @@ import {
 } from '../scripts/sealed-realms-production-dispatch.mjs';
 import {
   claimSealedRealmsProductionContinuation,
+  classifySealedRealmsProductionContinuationNoEffect,
   createSealedRealmsProductionContinuationStore,
   issueSealedRealmsProductionContinuation,
   reconcileSealedRealmsProductionContinuation,
@@ -86,7 +87,7 @@ function authority(operation: string) {
       pagesDeploymentApproved: false,
       preparationSourceCommit: S,
     }),
-    verifyEvidence: commit => ({ verifiedSha: commit }),
+    verifyEvidence: (commit: string) => ({ verifiedSha: commit }),
   });
 }
 
@@ -144,7 +145,10 @@ async function protectedRun(
   return Object.freeze({ sourceAuthority, permit, runId, runAttempt: '1' });
 }
 
-function publicationMarker(lane: 'g002' | 'ptr') {
+function publicationMarker(
+  lane: 'g002' | 'ptr',
+  overrides: Readonly<Record<string, unknown>> = {},
+) {
   const common = {
     lane,
     sourceCommit: S,
@@ -160,6 +164,7 @@ function publicationMarker(lane: 'g002' | 'ptr') {
     confirmationDigest: 'd'.repeat(64),
     attemptNonce: 'e'.repeat(64),
     markedAt: '2026-09-01T00:00:00.000Z',
+    ...overrides,
   };
   return lane === 'g002'
     ? createG002Marker(common as never)
@@ -173,6 +178,16 @@ function postflight() {
     publicationReceiptDigest: '1'.repeat(64),
     observationDigest: '2'.repeat(64),
     observedAt: '2026-09-01T00:01:00.000Z',
+  });
+}
+
+function noEffectPostflight() {
+  return Object.freeze({
+    outcome: 'no-effect' as const,
+    databaseIdentity: null,
+    publicationReceiptDigest: null,
+    observationDigest: '3'.repeat(64),
+    observedAt: '2026-09-01T00:02:00.000Z',
   });
 }
 
@@ -227,7 +242,8 @@ function g001Lane(
   privateState: ReturnType<ReturnType<typeof privateFixture>['state']>,
   collect: () => unknown,
   suspend: () => unknown,
-  currentStateOperator?: (context: Readonly<{ sourceCommit: string }>) => unknown,
+  currentStateOperator: (context: Readonly<{ sourceCommit: string }>) => unknown =
+    () => { throw new Error('unreachable'); },
 ) {
   const launchAuthority = createSealedRealmsProductionG001LaunchAuthority({
     readRawGit: () => `${S}\n`,
@@ -259,6 +275,33 @@ function g001Lane(
   } as never);
 }
 
+async function dispatchG001(
+  lane: ReturnType<typeof createSealedRealmsProductionG001Lane>,
+  run: Awaited<ReturnType<typeof protectedRun>>,
+  privateState: ReturnType<ReturnType<typeof privateFixture>['state']>,
+) {
+  const dispatcher = createSealedRealmsProductionDispatcher({
+    readGit: () => `${S}\n`,
+    readBinding: () => ({
+      schemaVersion: 1,
+      profile: 'warpkeep-0.4.0-sealed-launch-v1',
+      pagesDeploymentApproved: false,
+      preparationSourceCommit: S,
+    }),
+    verifyEvidence: (commit: string) => ({ verifiedSha: commit }),
+    g001Lane: lane,
+    permit: run.permit,
+    continuationStore: createSealedRealmsProductionContinuationStore({ privateState }),
+    runId: run.runId,
+    runAttempt: run.runAttempt,
+    sourceAuthority: run.sourceAuthority,
+  } as never);
+  return dispatcher.dispatch({
+    operation: run.sourceAuthority.operation,
+    workflowInputSha: S,
+  });
+}
+
 function currentStateReceipt(overrides: Readonly<Record<string, unknown>> = {}) {
   return {
     schemaVersion: 1,
@@ -276,33 +319,7 @@ function currentStateReceipt(overrides: Readonly<Record<string, unknown>> = {}) 
   };
 }
 
-function rawDispatcher(lane: Readonly<{ execute: (...arguments_: any[]) => any }>) {
-  return createSealedRealmsProductionDispatcher({
-    readGit: () => `${S}\n`,
-    readBinding: () => ({
-      schemaVersion: 1,
-      profile: 'warpkeep-0.4.0-sealed-launch-v1',
-      pagesDeploymentApproved: false,
-      preparationSourceCommit: S,
-    }),
-    verifyEvidence: commit => ({ verifiedSha: commit }),
-    testOnlyLanes: { g001: lane },
-  });
-}
-
 describe('sealed-realms production recovery policy', () => {
-  it('rejects a lane result that attempts to serialize process-local authority', async () => {
-    const dispatcher = rawDispatcher({
-      execute: async () => Object.freeze({
-        status: 'preflight-inspected',
-        confirmation: Object.freeze({}),
-      }),
-    });
-
-    await expect(dispatcher.dispatch({ operation: 'preflight', workflowInputSha: S }))
-      .rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_RESULT_INVALID' });
-  });
-
   it('reopens both G001 census transitions across independently attested processes exactly once', async () => {
     const fixture = privateFixture();
     const originalWebSocket = Object.getOwnPropertyDescriptor(globalThis, 'WebSocket');
@@ -316,75 +333,35 @@ describe('sealed-realms production recovery policy', () => {
       const suspend = vi.fn(async () => undefined);
 
       const firstRun = await protectedRun('g001-census-first', '9101');
-      const first = await g001Lane(
-        fixture.state(), firstCollect, suspend,
-      ).execute({
-        operation: 'g001-census-first',
-        authority: firstRun.sourceAuthority,
-        continuation: {
-          permit: firstRun.permit,
-          store: createSealedRealmsProductionContinuationStore({
-            privateState: fixture.state(),
-          }),
-          runId: firstRun.runId,
-          runAttempt: firstRun.runAttempt,
-        },
-      });
-      expect(first).toEqual({ status: 'completed' });
+      const first = await dispatchG001(
+        g001Lane(fixture.state(), firstCollect, suspend), firstRun, fixture.state(),
+      );
+      expect(first).toEqual({ operation: 'g001-census-first', status: 'completed' });
       expect(JSON.stringify(first)).not.toMatch(/confirmation|continuation|digest|path|token/iu);
 
       const secondRun = await protectedRun('g001-census-second-inspect', '9201');
-      const second = await g001Lane(
-        fixture.state(), secondCollect, suspend,
-      ).execute({
-        operation: 'g001-census-second-inspect',
-        authority: secondRun.sourceAuthority,
-        continuation: {
-          permit: secondRun.permit,
-          store: createSealedRealmsProductionContinuationStore({
-            privateState: fixture.state(),
-          }),
-          runId: secondRun.runId,
-          runAttempt: secondRun.runAttempt,
-        },
+      const second = await dispatchG001(
+        g001Lane(fixture.state(), secondCollect, suspend), secondRun, fixture.state(),
+      );
+      expect(second).toEqual({
+        operation: 'g001-census-second-inspect', status: 'completed',
       });
-      expect(second).toEqual({ status: 'completed' });
 
       const suspensionRun = await protectedRun('g001-census-second-suspend', '9301');
-      const suspended = await g001Lane(
-        fixture.state(), vi.fn(), suspend,
-      ).execute({
-        operation: 'g001-census-second-suspend',
-        authority: suspensionRun.sourceAuthority,
-        continuation: {
-          permit: suspensionRun.permit,
-          store: createSealedRealmsProductionContinuationStore({
-            privateState: fixture.state(),
-          }),
-          runId: suspensionRun.runId,
-          runAttempt: suspensionRun.runAttempt,
-        },
+      const suspended = await dispatchG001(
+        g001Lane(fixture.state(), vi.fn(), suspend), suspensionRun, fixture.state(),
+      );
+      expect(suspended).toEqual({
+        operation: 'g001-census-second-suspend', status: 'completed',
       });
-      expect(suspended).toEqual({ status: 'completed' });
       expect(firstCollect).toHaveBeenCalledTimes(1);
       expect(secondCollect).toHaveBeenCalledTimes(1);
       expect(suspend).toHaveBeenCalledTimes(1);
 
       const retryRun = await protectedRun('g001-census-second-suspend', '9401');
-      await expect(g001Lane(
-        fixture.state(), vi.fn(), suspend,
-      ).execute({
-        operation: 'g001-census-second-suspend',
-        authority: retryRun.sourceAuthority,
-        continuation: {
-          permit: retryRun.permit,
-          store: createSealedRealmsProductionContinuationStore({
-            privateState: fixture.state(),
-          }),
-          runId: retryRun.runId,
-          runAttempt: retryRun.runAttempt,
-        },
-      })).rejects.toMatchObject({ code: 'SEALED_REALMS_CONTINUATION_TERMINAL' });
+      await expect(dispatchG001(
+        g001Lane(fixture.state(), vi.fn(), suspend), retryRun, fixture.state(),
+      )).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
       expect(suspend).toHaveBeenCalledTimes(1);
     } finally {
       if (originalWebSocket === undefined) delete (globalThis as { WebSocket?: unknown }).WebSocket;
@@ -402,15 +379,42 @@ describe('sealed-realms production recovery policy', () => {
     try {
       const samples = await censusSamples();
       const firstCollect = vi.fn(async () => samples[0]);
-      await g001Lane(fixture.state(), firstCollect, vi.fn()).execute({
+      const orphanAuthority = authority('g001-census-first');
+      let interrupted = false;
+      const orphanPermit = await issueSealedRealmsProductionWorkflowPermit({
+        sourceAuthority: orphanAuthority,
+        githubToken: 'github-sealed-realms-owner-token',
+        runId: '9501',
+        runAttempt: '1',
+        fetchImpl: github(S, '9501'),
+        isInterrupted: () => interrupted,
+      });
+      interrupted = true;
+      await expect(g001Lane(fixture.state(), firstCollect, vi.fn()).execute({
         operation: 'g001-census-first',
-        authority: authority('g001-census-first'),
+        authority: orphanAuthority,
+        continuation: Object.freeze({
+          permit: orphanPermit,
+          store: createSealedRealmsProductionContinuationStore({ privateState: fixture.state() }),
+          runId: '9501',
+          runAttempt: '1',
+          sourceAuthority: orphanAuthority,
+        }),
+      })).rejects.toMatchObject({
+        code: 'SEALED_REALMS_WORKFLOW_AUTHORITY_ATTESTATION_REJECTED',
       });
       const replay = vi.fn(async () => samples[1]);
+      const retryRun = await protectedRun('g001-census-first', '9502');
       await expect(g001Lane(fixture.state(), replay, vi.fn()).execute({
         operation: 'g001-census-first',
-        authority: authority('g001-census-first'),
-        continuation: Object.freeze({}) as never,
+        authority: retryRun.sourceAuthority,
+        continuation: Object.freeze({
+          permit: retryRun.permit,
+          store: createSealedRealmsProductionContinuationStore({ privateState: fixture.state() }),
+          runId: retryRun.runId,
+          runAttempt: retryRun.runAttempt,
+          sourceAuthority: retryRun.sourceAuthority,
+        }),
       })).rejects.toMatchObject({
         code: 'SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID',
       });
@@ -427,11 +431,19 @@ describe('sealed-realms production recovery policy', () => {
     const fixture = privateFixture();
     try {
       const operator = vi.fn(() => currentStateReceipt());
+      const run = await protectedRun('g001-current-state', '9601');
       const result = await g001Lane(
         fixture.state(), vi.fn(), vi.fn(), operator,
       ).execute({
         operation: 'g001-current-state',
-        authority: authority('g001-current-state'),
+        authority: run.sourceAuthority,
+        continuation: Object.freeze({
+          permit: run.permit,
+          store: createSealedRealmsProductionContinuationStore({ privateState: fixture.state() }),
+          runId: run.runId,
+          runAttempt: run.runAttempt,
+          sourceAuthority: run.sourceAuthority,
+        }),
       });
       expect(result).toEqual({ status: 'current-state-inspected' });
       expect(JSON.stringify(result)).not.toMatch(/confirmation|digest|path|token/iu);
@@ -457,11 +469,19 @@ describe('sealed-realms production recovery policy', () => {
     const fixture = privateFixture();
     try {
       const operator = vi.fn(() => currentStateReceipt(mutation));
+      const run = await protectedRun('g001-current-state', `97${_label.length}1`);
       await expect(g001Lane(
         fixture.state(), vi.fn(), vi.fn(), operator,
       ).execute({
         operation: 'g001-current-state',
-        authority: authority('g001-current-state'),
+        authority: run.sourceAuthority,
+        continuation: Object.freeze({
+          permit: run.permit,
+          store: createSealedRealmsProductionContinuationStore({ privateState: fixture.state() }),
+          runId: run.runId,
+          runAttempt: run.runAttempt,
+          sourceAuthority: run.sourceAuthority,
+        }),
       })).rejects.toMatchObject({
         code: 'SEALED_REALMS_G001_CURRENT_STATE_RECEIPT_INVALID',
       });
@@ -520,7 +540,16 @@ describe('sealed-realms production recovery policy', () => {
           runId: claimedRun.runId,
           runAttempt: claimedRun.runAttempt,
           ...reopened,
-          effect: () => secondProcess.consumeContinuationEntry({ publish: publisher }),
+          effect: claim => secondProcess.consumeContinuationEntry({
+            claim,
+            store: claimedStore,
+            sourceAuthority: claimedRun.sourceAuthority,
+            kind,
+            runId: claimedRun.runId,
+            runAttempt: claimedRun.runAttempt,
+            ...reopened,
+            publish: publisher,
+          } as never),
         });
         expect(completed).toEqual({ status: 'completed' });
         expect(publisher).toHaveBeenCalledTimes(1);
@@ -574,7 +603,16 @@ describe('sealed-realms production recovery policy', () => {
         runId: claimedRun.runId,
         runAttempt: claimedRun.runAttempt,
         ...binding,
-        effect: () => firstProcess.consumeContinuationEntry({ publish: publisher }),
+        effect: claim => firstProcess.consumeContinuationEntry({
+          claim,
+          store: claimedStore,
+          sourceAuthority: claimedRun.sourceAuthority,
+          kind: 'g002-publication',
+          runId: claimedRun.runId,
+          runAttempt: claimedRun.runAttempt,
+          ...binding,
+          publish: publisher,
+        } as never),
       })).rejects.toMatchObject({ code: 'SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS' });
       expect(publisher).toHaveBeenCalledTimes(1);
 
@@ -597,9 +635,111 @@ describe('sealed-realms production recovery policy', () => {
         runId: reconcileRun.runId,
         runAttempt: reconcileRun.runAttempt,
         ...reopened,
-        readOnlyReconcile: () => restarted.reconcileContinuation(),
+        readOnlyReconcile: reconciliation =>
+          restarted.reconcileContinuation({ reconciliation } as never),
       })).resolves.toEqual({ status: 'reconciled', outcome: 'effect-applied' });
-      expect(postflightInspector).toHaveBeenCalledTimes(1);
+      // The restart verifies the already-persisted canonical reconciliation;
+      // it never re-derives evidence by rerunning postflight.
+      expect(postflightInspector).not.toHaveBeenCalled();
+      expect(publisher).toHaveBeenCalledTimes(1);
+    } finally {
+      fixture.cleanup();
+    }
+  });
+
+  it('terminalizes exact durable no-effect after an effect-reserved publication crash and only a fresh generation may issue', async () => {
+    const fixture = privateFixture();
+    try {
+      const marker = publicationMarker('g002');
+      const issuedRun = await protectedRun('g002-publish-inspect', '8501');
+      const firstProcess = createSealedRealmsProductionPublicationReconciler({
+        privateState: fixture.state(), lane: 'g002', postflight: noEffectPostflight,
+      });
+      const binding = await firstProcess.inspectForContinuation({ marker });
+      await issueSealedRealmsProductionContinuation({
+        store: createSealedRealmsProductionContinuationStore({ privateState: fixture.state() }),
+        permit: issuedRun.permit,
+        sourceAuthority: issuedRun.sourceAuthority,
+        kind: 'g002-publication',
+        runId: issuedRun.runId,
+        runAttempt: issuedRun.runAttempt,
+        ...binding,
+      });
+
+      const publisher = vi.fn(async () => undefined);
+      const claimedRun = await protectedRun('g002-publish-apply', '8502');
+      const claimStore = createSealedRealmsProductionContinuationStore({
+        privateState: fixture.state(),
+      });
+      await expect(claimSealedRealmsProductionContinuation({
+        store: claimStore,
+        permit: claimedRun.permit,
+        sourceAuthority: claimedRun.sourceAuthority,
+        kind: 'g002-publication',
+        runId: claimedRun.runId,
+        runAttempt: claimedRun.runAttempt,
+        ...binding,
+        effect: claim => firstProcess.consumeContinuationEntry({
+          claim,
+          store: claimStore,
+          sourceAuthority: claimedRun.sourceAuthority,
+          kind: 'g002-publication',
+          runId: claimedRun.runId,
+          runAttempt: claimedRun.runAttempt,
+          ...binding,
+          publish: publisher,
+        } as never),
+      })).rejects.toMatchObject({ code: 'SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS' });
+      expect(publisher).toHaveBeenCalledTimes(1);
+
+      const restarted = createSealedRealmsProductionPublicationReconciler({
+        privateState: fixture.state(), lane: 'g002', postflight: noEffectPostflight,
+      });
+      expect(restarted.reopenContinuation()).toEqual(binding);
+      const reconciliationRun = await protectedRun(
+        'g002-publish-apply', '8503', new Set(['8502']),
+      );
+      let escapedReconciliation: unknown;
+      await expect(reconcileSealedRealmsProductionContinuation({
+        store: createSealedRealmsProductionContinuationStore({ privateState: fixture.state() }),
+        permit: reconciliationRun.permit,
+        sourceAuthority: reconciliationRun.sourceAuthority,
+        kind: 'g002-publication',
+        runId: reconciliationRun.runId,
+        runAttempt: reconciliationRun.runAttempt,
+        ...binding,
+        readOnlyReconcile: reconciliation => {
+          escapedReconciliation = reconciliation;
+          return restarted.reconcileContinuation({ reconciliation } as never);
+        },
+      })).resolves.toEqual({ status: 'reconciled', outcome: 'no-effect' });
+      expect(publisher).toHaveBeenCalledTimes(1);
+      expect(() => classifySealedRealmsProductionContinuationNoEffect({
+        reconciliation: escapedReconciliation as never,
+        observationDigest: 'f'.repeat(64),
+      })).toThrow(expect.objectContaining({
+        code: 'SEALED_REALMS_CONTINUATION_RECONCILIATION_INVALID',
+      }));
+
+      const freshMarker = publicationMarker('g002', {
+        attemptNonce: '4'.repeat(64),
+        markedAt: '2026-09-01T00:03:00.000Z',
+      });
+      const nextProcess = createSealedRealmsProductionPublicationReconciler({
+        privateState: fixture.state(), lane: 'g002', postflight: noEffectPostflight,
+      });
+      const nextBinding = await nextProcess.inspectForContinuation({ marker: freshMarker });
+      const nextRun = await protectedRun('g002-publish-inspect', '8504');
+      await expect(issueSealedRealmsProductionContinuation({
+        store: createSealedRealmsProductionContinuationStore({ privateState: fixture.state() }),
+        permit: nextRun.permit,
+        sourceAuthority: nextRun.sourceAuthority,
+        kind: 'g002-publication',
+        runId: nextRun.runId,
+        runAttempt: nextRun.runAttempt,
+        ...nextBinding,
+      })).resolves.toEqual({ status: 'issued' });
+      expect(nextBinding).not.toEqual(binding);
       expect(publisher).toHaveBeenCalledTimes(1);
     } finally {
       fixture.cleanup();

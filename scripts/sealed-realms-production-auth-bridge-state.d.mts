@@ -1,5 +1,10 @@
 import type { SealedRealmsProductionPrivateState } from './sealed-realms-production-private-state.mjs';
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
+import type {
+  SealedRealmsProductionContinuationClaim,
+  SealedRealmsProductionContinuationKind,
+  SealedRealmsProductionContinuationStore,
+} from './sealed-realms-production-continuation.mjs';
 
 export const SEALED_REALMS_AUTH_BRIDGE_AUTHORITY_PROFILE:
   'warpkeep-sealed-realms-auth-bridge-import-authority-v1';
@@ -107,6 +112,18 @@ export type SealedRealmsProductionBridgeContinuationBinding = Readonly<{
   receiptDigests: readonly string[];
   predecessorDigests: readonly string[];
 }>;
+type SealedRealmsProductionBridgeContinuationClaim = Readonly<{
+  claim: SealedRealmsProductionContinuationClaim;
+  store: SealedRealmsProductionContinuationStore;
+  sourceAuthority: SealedRealmsProductionSourceAuthority;
+  kind: SealedRealmsProductionContinuationKind;
+  runId: string;
+  runAttempt: string | number;
+  subject: string;
+  evidenceDigest: string;
+  receiptDigests: readonly string[];
+  predecessorDigests: readonly string[];
+}>;
 
 declare const sealedRealmsOwnerProvisionConfirmation: unique symbol;
 export type SealedRealmsOwnerProvisionConfirmation = Readonly<{
@@ -133,7 +150,7 @@ export type SealedRealmsProductionAuthBridgeState = Readonly<{
   reopenGateContinuation: (input: Readonly<{
     lane: 'g002' | 'ptr';
   }>) => Promise<SealedRealmsProductionBridgeContinuationBinding>;
-  applyGateForContinuation: (input: Readonly<{
+  applyGateForContinuation: (input: SealedRealmsProductionBridgeContinuationClaim & Readonly<{
     lane: 'g002' | 'ptr';
     apply: () => unknown | Promise<unknown>;
   }>) => Promise<Readonly<{ status: 'cross-linked' }>>;
@@ -159,7 +176,7 @@ export type SealedRealmsProductionAuthBridgeState = Readonly<{
   reopenOwnerProvisionContinuation: () => Promise<
     SealedRealmsProductionBridgeContinuationBinding
   >;
-  applyOwnerProvisionForContinuation: (input: Readonly<{
+  applyOwnerProvisionForContinuation: (input: SealedRealmsProductionBridgeContinuationClaim & Readonly<{
     provision: () => Readonly<{ receiptDigest: string; provisionReceiptDigest: string }>
       | Promise<Readonly<{ receiptDigest: string; provisionReceiptDigest: string }>>;
   }>) => Promise<Readonly<Record<never, never>>>;
@@ -195,7 +212,7 @@ export type SealedRealmsProductionAuthBridgeState = Readonly<{
   reopenActivationEvidenceContinuation: () => Promise<
     SealedRealmsProductionBridgeContinuationBinding
   >;
-  consumeActivationEvidenceForContinuation: (input: Readonly<{
+  consumeActivationEvidenceForContinuation: (input: SealedRealmsProductionBridgeContinuationClaim & Readonly<{
     generator: SealedRealmsProductionActivationEvidenceGenerator;
   }>) => Promise<Readonly<Record<never, never>>>;
 }>;

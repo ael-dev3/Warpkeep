@@ -19,6 +19,10 @@ import {
   createSealedRealmsProductionDispatcher,
 } from '../scripts/sealed-realms-production-dispatch.mjs';
 import {
+  createSealedRealmsProductionG001Lane,
+  createSealedRealmsProductionG001LaunchAuthority,
+} from '../scripts/sealed-realms-production-g001-lane-entry.mjs';
+import {
   createSealedRealmsProductionPrivateState,
 } from '../scripts/sealed-realms-production-private-state.mjs';
 import {
@@ -138,31 +142,64 @@ function dispatcherInput(extra: Readonly<Record<string, unknown>> = {}) {
       preparationSourceCommit: S,
     }),
     verifyEvidence: (commit: string) => ({ verifiedSha: commit }),
-    testOnlyLanes: {
-      g001: { execute: vi.fn(async () => Object.freeze({ status: 'preflight-inspected' })) },
-    },
     ...extra,
   };
+}
+
+function preflightLane(preflight = vi.fn(async () => undefined)) {
+  return Object.freeze({
+    lane: createSealedRealmsProductionG001Lane({
+      launchAuthority: createSealedRealmsProductionG001LaunchAuthority({
+        readRawGit: () => `${S}\n`,
+        resolveAdminSecretPath: () => ({ sourceCommit: S, path: '/private/unreachable' }),
+        persistPolicyObservation: () => undefined,
+      }),
+      attestDispatcherNode: () => { throw new Error('unreachable'); },
+      runEnvelopeChild: () => { throw new Error('unreachable'); },
+      censusAuthority: undefined,
+      currentState: {
+        runChild: () => { throw new Error('unreachable'); },
+        readFixedFile: () => { throw new Error('unreachable'); },
+        resolveAccountUid: () => { throw new Error('unreachable'); },
+        resolveAccountHome: () => { throw new Error('unreachable'); },
+        testOnlyAdapter: undefined,
+      },
+      currentStateOperator: () => { throw new Error('unreachable'); },
+      preflight,
+    } as never),
+    preflight,
+  });
 }
 
 describe('sealed-realms production dispatch continuation boundary', () => {
   it('requires the internally branded permit/store and fixed run identity at construction', () => {
     const input = dispatcherInput();
-    delete (input as { testOnlyLanes?: unknown }).testOnlyLanes;
-    expect(() => createSealedRealmsProductionDispatcher(input))
+    expect(() => createSealedRealmsProductionDispatcher(input as never))
       .toThrow(expect.objectContaining({ code: 'SEALED_REALMS_DISPATCH_INPUT_INVALID' }));
+  });
+
+  it('rejects the legacy unbranded test lane bypass even with a real protected context', async () => {
+    const context = await protectedContext();
+    const effect = vi.fn(async () => Object.freeze({ status: 'preflight-inspected' }));
+    expect(() => createSealedRealmsProductionDispatcher(dispatcherInput({
+      ...context,
+      runId: RUN_ID,
+      runAttempt: '1',
+      testOnlyLanes: { g001: { execute: effect } },
+    }) as never)).toThrow(expect.objectContaining({
+      code: 'SEALED_REALMS_DISPATCH_INPUT_INVALID',
+    }));
+    expect(effect).not.toHaveBeenCalled();
   });
 
   it('accepts no operational confirmation input and emits no confirmation material', async () => {
     const context = await protectedContext();
-    const lane = {
-      execute: vi.fn(async () => Object.freeze({ status: 'preflight-inspected' })),
-    };
+    const { lane, preflight } = preflightLane();
     const dispatcher = createSealedRealmsProductionDispatcher(dispatcherInput({
       ...context,
       runId: RUN_ID,
       runAttempt: '1',
-      testOnlyLanes: { g001: lane },
+      g001Lane: lane,
     }) as never);
 
     await expect(dispatcher.dispatch({
@@ -170,10 +207,11 @@ describe('sealed-realms production dispatch continuation boundary', () => {
       workflowInputSha: S,
       input: { confirmation: {} },
     } as never)).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_REQUEST_INVALID' });
-    expect(lane.execute).not.toHaveBeenCalled();
+    expect(preflight).not.toHaveBeenCalled();
 
     const result = await dispatcher.dispatch({ operation: 'preflight', workflowInputSha: S });
     expect(result).toEqual({ operation: 'preflight', status: 'preflight-inspected' });
+    expect(preflight).toHaveBeenCalledTimes(1);
     expect(JSON.stringify(result)).not.toMatch(/confirmation|continuation|digest|path|token/iu);
   });
 });

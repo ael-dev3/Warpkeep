@@ -13,6 +13,12 @@ import {
   createSealedRealmsProductionPrivateState,
 } from '../scripts/sealed-realms-production-private-state.mjs';
 import {
+  createSealedRealmsProductionContinuationStore,
+} from '../scripts/sealed-realms-production-continuation.mjs';
+import {
+  createSealedRealmsProductionDispatcher,
+} from '../scripts/sealed-realms-production-dispatch.mjs';
+import {
   createSealedRealmsProductionPublicationReconciler,
 } from '../scripts/sealed-realms-production-reconciliation.mjs';
 import {
@@ -27,6 +33,15 @@ import {
 import {
   authenticateSealedRealmsProductionSourceAuthority,
 } from '../scripts/sealed-realms-production-source-authority.mjs';
+import {
+  issueSealedRealmsProductionWorkflowPermit,
+} from '../scripts/sealed-realms-production-workflow-authority.mjs';
+import {
+  createSealedRealmsPublicationPossiblySubmittedMarker as createG002Marker,
+} from '../scripts/genesis002-production-publisher.mjs';
+import {
+  createSealedRealmsPublicationPossiblySubmittedMarker as createPtrMarker,
+} from '../scripts/ptr-production-publisher.mjs';
 
 import {
   SealedRealmsProductionAuthBridgeStateError,
@@ -51,6 +66,138 @@ const SWAPPED_SOURCE = 'c'.repeat(40);
 const NOW = new Date('2026-08-30T00:00:00.000Z');
 const VERSION_ID = '123e4567-e89b-42d3-a456-426614174000';
 const DEPLOYMENT_ID = '223e4567-e89b-42d3-a456-426614174000';
+
+function operationAuthority(operation: string, sourceCommit = SOURCE) {
+  return authenticateSealedRealmsProductionSourceAuthority({
+    operation: operation as never,
+    workflowInputSha: sourceCommit,
+    readGit: args => args[0] === 'rev-parse'
+      ? `${sourceCommit}\n`
+      : (() => { throw new Error('unexpected git call'); })(),
+    readBinding: () => ({
+      schemaVersion: 1,
+      profile: 'warpkeep-0.4.0-sealed-launch-v1',
+      pagesDeploymentApproved: false,
+      preparationSourceCommit: sourceCommit,
+    }),
+    verifyEvidence: (verifiedSha: string) => ({ verifiedSha }),
+  });
+}
+
+function workflowResponse(url: string, body: unknown) {
+  const encoded = JSON.stringify(body);
+  const response = new Response(encoded, {
+    status: 200,
+    headers: {
+      'content-type': 'application/json',
+      'content-length': String(Buffer.byteLength(encoded)),
+    },
+  });
+  Object.defineProperty(response, 'url', { value: url });
+  return response;
+}
+
+function workflowGithub(
+  sourceCommit: string,
+  runId: string,
+  completedRunIds: ReadonlySet<string> = new Set(),
+) {
+  return vi.fn(async (request: string | URL | Request) => {
+    const url = String(request);
+    if (url.endsWith('/branches/main')) {
+      return workflowResponse(url, {
+        name: 'main', protected: true, commit: { sha: sourceCommit },
+      });
+    }
+    const requestedRunId = /\/actions\/runs\/([1-9][0-9]*)$/u.exec(url)?.[1] ?? runId;
+    const completed = completedRunIds.has(requestedRunId);
+    return workflowResponse(url, {
+      id: Number(requestedRunId), run_attempt: 1, event: 'workflow_dispatch',
+      status: completed ? 'completed' : 'in_progress',
+      conclusion: completed ? 'failure' : null,
+      head_branch: 'main',
+      head_sha: sourceCommit,
+      path: '.github/workflows/sealed-realms-production.yml',
+      repository: { full_name: 'ael-dev3/Warpkeep' },
+    });
+  });
+}
+
+async function protectedContext(
+  local: ReturnType<typeof fixture>,
+  operation: string,
+  runId: string,
+  sourceCommit = SOURCE,
+  completedRunIds: ReadonlySet<string> = new Set(),
+) {
+  const sourceAuthority = operationAuthority(operation, sourceCommit);
+  const permit = await issueSealedRealmsProductionWorkflowPermit({
+    sourceAuthority,
+    githubToken: 'github-sealed-realms-owner-token',
+    runId,
+    runAttempt: '1',
+    fetchImpl: workflowGithub(sourceCommit, runId, completedRunIds),
+  });
+  return Object.freeze({
+    authority: sourceAuthority,
+    continuation: Object.freeze({
+      permit,
+      store: createSealedRealmsProductionContinuationStore({ privateState: local.state }),
+      runId,
+      runAttempt: '1',
+      sourceAuthority,
+    }),
+  });
+}
+
+async function protectedDispatcher(
+  local: ReturnType<typeof fixture>,
+  operation: string,
+  runId: string,
+  lanes: Readonly<Record<string, unknown>>,
+  sourceCommit = SOURCE,
+  completedRunIds: ReadonlySet<string> = new Set(),
+) {
+  const context = await protectedContext(
+    local, operation, runId, sourceCommit, completedRunIds,
+  );
+  return createSealedRealmsProductionDispatcher({
+    readGit: () => `${sourceCommit}\n`,
+    readBinding: () => ({
+      schemaVersion: 1,
+      profile: 'warpkeep-0.4.0-sealed-launch-v1',
+      pagesDeploymentApproved: false,
+      preparationSourceCommit: sourceCommit,
+    }),
+    verifyEvidence: (verifiedSha: string) => ({ verifiedSha }),
+    ...lanes,
+    permit: context.continuation.permit,
+    continuationStore: context.continuation.store,
+    runId,
+    runAttempt: '1',
+    sourceAuthority: context.authority,
+  } as never);
+}
+
+function publicationMarker(lane: 'g002' | 'ptr') {
+  const input = {
+    lane,
+    sourceCommit: SOURCE,
+    databaseUri: 'https://maincloud.spacetimedb.com' as const,
+    alias: lane === 'g002' ? 'warpkeep-genesis-002' : 'warpkeep-ptr',
+    moduleIdentity: lane === 'g002'
+      ? 'warpkeep-genesis-002-sealed-v1'
+      : 'warpkeep-ptr-owner-view-v1',
+    release: lane === 'g002' ? '0.4.0' : '0.4.0-ptr.1',
+    artifactDigest: 'a'.repeat(64),
+    toolchainDigest: 'b'.repeat(64),
+    publishPlanDigest: 'c'.repeat(64),
+    confirmationDigest: 'd'.repeat(64),
+    attemptNonce: 'e'.repeat(64),
+    markedAt: '2026-09-01T00:00:00.000Z',
+  };
+  return lane === 'g002' ? createG002Marker(input as never) : createPtrMarker(input as never);
+}
 
 function suspendedResponse(headers: Record<string, string> = {}) {
   return new Response(BODY, {
@@ -770,44 +917,46 @@ describe('sealed-realms auth bridge state', () => {
     }
   });
 
-  it('routes Task 6E generation only through a captured branded activation lane generator', async () => {
+  it('keeps activation generation unavailable before reopen, claim, or generator effect', async () => {
     const local = fixture();
     try {
       const bridge = await completeBridge(local);
-      const activation = await bridge.inspectActivationEvidence();
-      const generate = vi.fn(async ({ member }: { member: object }) => {
-        expect(member).toEqual({});
-      });
-      const lane = createSealedRealmsProductionActivationLane({
+      const generate = vi.fn();
+      expect(() => createSealedRealmsProductionActivationLane({
         bridgeState: bridge,
         task6EGenerator: createSealedRealmsProductionActivationEvidenceGenerator({ generate }),
-      });
-      const authority = authenticateSealedRealmsProductionSourceAuthority({
+      } as never)).toThrow(expect.objectContaining({
+        code: 'SEALED_REALMS_ACTIVATION_LANE_INPUT_INVALID',
+      }));
+      const lane = createSealedRealmsProductionActivationLane({ bridgeState: bridge });
+      const dispatcher = await protectedDispatcher(
+        local,
+        'activation-evidence-generate',
+        '7001',
+        { activationLane: lane },
+      );
+      await expect(dispatcher.dispatch({
+        operation: 'activation-evidence-generate', workflowInputSha: SOURCE,
+      })).resolves.toEqual({
         operation: 'activation-evidence-generate',
-        workflowInputSha: SOURCE,
-        readGit: args => args[0] === 'rev-parse' ? `${SOURCE}\n` : (() => { throw new Error('git'); })(),
-        readBinding: () => ({
-          schemaVersion: 1,
-          profile: 'warpkeep-0.4.0-sealed-launch-v1',
-          pagesDeploymentApproved: false,
-          preparationSourceCommit: SOURCE,
-        }),
-        verifyEvidence: verifiedSha => ({ verifiedSha }),
+        status: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
       });
+      const direct = await protectedContext(
+        local, 'activation-evidence-generate', '7002',
+      );
       await expect(lane.execute({
         operation: 'activation-evidence-generate',
-        authority,
-        input: { confirmation: activation.confirmation },
-      })).resolves.toEqual({ status: 'completed' });
-      expect(generate).toHaveBeenCalledTimes(1);
+        authority: direct.authority,
+        continuation: direct.continuation,
+      })).rejects.toMatchObject({ code: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE' });
+      // The transition fails before reopen/claim, so the same protected run is
+      // not stranded behind a reserved effect and still fails at the fixed gate.
       await expect(lane.execute({
         operation: 'activation-evidence-generate',
-        authority,
-        input: { confirmation: activation.confirmation },
-      })).rejects.toMatchObject({
-        code: 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID',
-      });
-      expect(generate).toHaveBeenCalledTimes(1);
+        authority: direct.authority,
+        continuation: direct.continuation,
+      })).rejects.toMatchObject({ code: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE' });
+      expect(generate).not.toHaveBeenCalled();
     } finally {
       local.cleanup();
     }
@@ -1116,24 +1265,35 @@ describe('sealed-realms auth bridge state', () => {
         liveInspect: async () => { calls.push('ptr-live'); return { receiptDigest: '5'.repeat(64), provisionReceiptDigest: '9'.repeat(64), evidenceDigest: 'a'.repeat(64) }; },
       });
       const activation = createSealedRealmsProductionActivationLane({ bridgeState: bridge });
-      const swappedAuthority = (operation: 'g002-import-inspect' | 'ptr-import-inspect' | 'activation-evidence-inspect') =>
-        authenticateSealedRealmsProductionSourceAuthority({
-        operation, workflowInputSha: SWAPPED_SOURCE,
-        readGit: args => args[0] === 'rev-parse' ? `${SWAPPED_SOURCE}\n` : (() => { throw new Error('git'); })(),
-        readBinding: () => ({
-          schemaVersion: 1, profile: 'warpkeep-0.4.0-sealed-launch-v1',
-          pagesDeploymentApproved: false, preparationSourceCommit: SWAPPED_SOURCE,
-        }),
-        verifyEvidence: verifiedSha => ({ verifiedSha }),
-      });
-      await expect(g002.execute({ operation: 'g002-import-inspect', authority: swappedAuthority('g002-import-inspect') }))
-        .rejects.toMatchObject({ code: 'SEALED_REALMS_AUTH_BRIDGE_SOURCE_MISMATCH' });
-      await expect(ptr.execute({ operation: 'ptr-import-inspect', authority: swappedAuthority('ptr-import-inspect') }))
-        .rejects.toMatchObject({ code: 'SEALED_REALMS_AUTH_BRIDGE_SOURCE_MISMATCH' });
-      await expect(activation.execute({ operation: 'activation-evidence-inspect', authority: swappedAuthority('activation-evidence-inspect') }))
-        .rejects.toMatchObject({ code: 'SEALED_REALMS_AUTH_BRIDGE_SOURCE_MISMATCH' });
+      vi.stubGlobal('WebSocket', class WebSocket {});
+      const g002Dispatcher = await protectedDispatcher(
+        local, 'g002-import-inspect', '7101', { g002Lane: g002 }, SWAPPED_SOURCE,
+      );
+      const ptrDispatcher = await protectedDispatcher(
+        local, 'ptr-import-inspect', '7102', { ptrLane: ptr }, SWAPPED_SOURCE,
+      );
+      const activationDispatcher = await protectedDispatcher(
+        local,
+        'activation-evidence-inspect',
+        '7103',
+        { activationLane: activation },
+        SWAPPED_SOURCE,
+      );
+      await expect(g002Dispatcher.dispatch({
+        operation: 'g002-import-inspect', workflowInputSha: SWAPPED_SOURCE,
+      }))
+        .rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+      await expect(ptrDispatcher.dispatch({
+        operation: 'ptr-import-inspect', workflowInputSha: SWAPPED_SOURCE,
+      }))
+        .rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+      await expect(activationDispatcher.dispatch({
+        operation: 'activation-evidence-inspect', workflowInputSha: SWAPPED_SOURCE,
+      }))
+        .rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
       expect(calls).toEqual([]);
     } finally {
+      vi.unstubAllGlobals();
       local.cleanup();
     }
   });
@@ -1588,7 +1748,6 @@ describe('sealed-realms auth bridge state', () => {
             provisionReceiptDigest: '9'.repeat(64),
             evidenceDigest: 'a'.repeat(64),
           }));
-          const activationGenerator = vi.fn(async () => undefined);
           const g002 = createSealedRealmsProductionG002Lane({
             reconciler: createSealedRealmsProductionPublicationReconciler({
               privateState: local.state, lane: 'g002', postflight: noEffectPostflight,
@@ -1611,39 +1770,29 @@ describe('sealed-realms auth bridge state', () => {
             provisionOwner: ptrOwnerProvisioner,
             liveInspect: ptrLiveInspector,
           });
-          const activation = createSealedRealmsProductionActivationLane({
-            bridgeState: bridge,
-            task6EGenerator: createSealedRealmsProductionActivationEvidenceGenerator({
-              generate: activationGenerator,
-            }),
-          });
-          const sourceAuthority = (operation: 'g002-import-inspect' | 'ptr-import-inspect' | 'activation-evidence-inspect') =>
-            authenticateSealedRealmsProductionSourceAuthority({
-              operation,
-              workflowInputSha: SOURCE,
-              readGit: args => args[0] === 'rev-parse'
-                ? `${SOURCE}\n`
-                : (() => { throw new Error('unexpected git call'); })(),
-              readBinding: () => ({
-                schemaVersion: 1,
-                profile: 'warpkeep-0.4.0-sealed-launch-v1',
-                pagesDeploymentApproved: false,
-                preparationSourceCommit: SOURCE,
-              }),
-              verifyEvidence: verifiedSha => ({ verifiedSha }),
-            });
-          await expect(g002.execute({
-            operation: 'g002-import-inspect',
-            authority: sourceAuthority('g002-import-inspect'),
-          })).rejects.toMatchObject({ code: 'SEALED_REALMS_AUTH_BRIDGE_CHAIN_CONFLICT' });
-          await expect(ptr.execute({
-            operation: 'ptr-import-inspect',
-            authority: sourceAuthority('ptr-import-inspect'),
-          })).rejects.toMatchObject({ code: 'SEALED_REALMS_AUTH_BRIDGE_CHAIN_CONFLICT' });
-          await expect(activation.execute({
-            operation: 'activation-evidence-inspect',
-            authority: sourceAuthority('activation-evidence-inspect'),
-          })).rejects.toMatchObject({ code: 'SEALED_REALMS_AUTH_BRIDGE_CHAIN_CONFLICT' });
+          const activation = createSealedRealmsProductionActivationLane({ bridgeState: bridge });
+          vi.stubGlobal('WebSocket', class WebSocket {});
+          const g002Dispatcher = await protectedDispatcher(
+            local, 'g002-import-inspect', '7201', { g002Lane: g002 },
+          );
+          const ptrDispatcher = await protectedDispatcher(
+            local, 'ptr-import-inspect', '7202', { ptrLane: ptr },
+          );
+          const activationDispatcher = await protectedDispatcher(
+            local,
+            'activation-evidence-inspect',
+            '7203',
+            { activationLane: activation },
+          );
+          await expect(g002Dispatcher.dispatch({
+            operation: 'g002-import-inspect', workflowInputSha: SOURCE,
+          })).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+          await expect(ptrDispatcher.dispatch({
+            operation: 'ptr-import-inspect', workflowInputSha: SOURCE,
+          })).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+          await expect(activationDispatcher.dispatch({
+            operation: 'activation-evidence-inspect', workflowInputSha: SOURCE,
+          })).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
           for (const callback of [
             g002CreatePublishMarker,
             g002Publisher,
@@ -1655,7 +1804,6 @@ describe('sealed-realms auth bridge state', () => {
             ptrOwnerProvisionInspector,
             ptrOwnerProvisioner,
             ptrLiveInspector,
-            activationGenerator,
           ]) expect(callback).not.toHaveBeenCalled();
         }
         await expect(bridge.establish()).rejects.toMatchObject({
@@ -1671,7 +1819,10 @@ describe('sealed-realms auth bridge state', () => {
           expect(local.state.read({ root: 'runtime', relativePath: `bridge/${name}` })).toEqual(bytes);
           bytes.fill(0);
         }
-      } finally { local.cleanup(); }
+      } finally {
+        vi.unstubAllGlobals();
+        local.cleanup();
+      }
     },
   );
 
@@ -1824,40 +1975,27 @@ describe('sealed-realms auth bridge state', () => {
     } finally { local.cleanup(); }
   });
 
-  it('reopens exact G002/PTR gate evidence across processes, including after apply ambiguity', async () => {
+  it.each(['g002', 'ptr'] as const)(
+    'rejects direct %s gate mutation without a live continuation claim',
+    async lane => {
     const local = fixture();
-    const dispositions: Record<'g002' | 'ptr', 'adopted' | 'no-effect'> = {
-      g002: 'no-effect', ptr: 'no-effect',
-    };
-    const options = () => bridgeOptions(local, {
-      inspectImportReceipt: ({ lane }: { lane: 'g002' | 'ptr' }) =>
-        importProof(lane, dispositions[lane]),
-    });
+    const options = () => bridgeOptions(local);
     try {
-      for (const lane of ['g002', 'ptr'] as const) {
-        const inspector = createSealedRealmsProductionAuthBridgeState(options() as never);
-        const binding = await inspector.inspectGateForContinuation({ lane });
-        expect(JSON.stringify(binding)).not.toMatch(/confirmation|token|path/iu);
-
-        const applier = createSealedRealmsProductionAuthBridgeState(options() as never);
-        await expect(applier.reopenGateContinuation({ lane })).resolves.toEqual(binding);
-        const apply = vi.fn(() => undefined);
-        await expect(applier.applyGateForContinuation({ lane, apply }))
-          .resolves.toEqual({ status: 'cross-linked' });
-        expect(apply).toHaveBeenCalledTimes(1);
-        dispositions[lane] = 'adopted';
-
-        // A process can die after the cross-link was persisted but before the
-        // continuation terminal record. Reopening must retain the same binding
-        // for read-only reconciliation and must never invoke import again.
-        const reconciler = createSealedRealmsProductionAuthBridgeState(options() as never);
-        await expect(reconciler.reopenGateContinuation({ lane })).resolves.toEqual(binding);
-        await expect(reconciler.reconcileGateContinuation({ lane })).resolves.toEqual({
-          outcome: 'effect-applied',
-          observationDigest: lane === 'g002' ? '4'.repeat(64) : '5'.repeat(64),
-        });
-        expect(apply).toHaveBeenCalledTimes(1);
+      if (lane === 'ptr') {
+        const prerequisite = createSealedRealmsProductionAuthBridgeState(options() as never);
+        const g002 = await prerequisite.inspectGate({ lane: 'g002' });
+        await prerequisite.applyGate({ confirmation: g002.confirmation, apply: () => undefined });
       }
+      const inspector = createSealedRealmsProductionAuthBridgeState(options() as never);
+      const binding = await inspector.inspectGateForContinuation({ lane });
+      expect(JSON.stringify(binding)).not.toMatch(/confirmation|token|path/iu);
+      const apply = vi.fn();
+      await expect(createSealedRealmsProductionAuthBridgeState(options() as never)
+        .applyGateForContinuation({ lane, apply } as never))
+        .rejects.toMatchObject({
+          code: 'SEALED_REALMS_AUTH_BRIDGE_GATE_CONFIRMATION_INVALID',
+        });
+      expect(apply).not.toHaveBeenCalled();
     } finally { local.cleanup(); }
   });
 
@@ -1902,8 +2040,11 @@ describe('sealed-realms auth bridge state', () => {
         receiptDigest: '5'.repeat(64),
         provisionReceiptDigest: '9'.repeat(64),
       }));
-      await expect(applier.applyOwnerProvisionForContinuation({ provision })).resolves.toEqual({});
-      expect(provision).toHaveBeenCalledTimes(1);
+      await expect(applier.applyOwnerProvisionForContinuation({ provision } as never))
+        .rejects.toMatchObject({
+          code: 'SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONFIRMATION_INVALID',
+        });
+      expect(provision).not.toHaveBeenCalled();
     } finally { local.cleanup(); }
   });
 
@@ -1930,7 +2071,7 @@ describe('sealed-realms auth bridge state', () => {
     } finally { local.cleanup(); }
   });
 
-  it('classifies ambiguous owner provision only through the immutable receipt resolver', async () => {
+  it('cannot manufacture owner-provision ambiguity without a live continuation claim', async () => {
     const local = fixture();
     try {
       await completeBridge(local);
@@ -1949,22 +2090,15 @@ describe('sealed-realms auth bridge state', () => {
         throw new Error('process crash after owner provision');
       });
       const applier = createSealedRealmsProductionAuthBridgeState(options() as never);
-      await expect(applier.applyOwnerProvisionForContinuation({ provision }))
+      await expect(applier.applyOwnerProvisionForContinuation({ provision } as never))
         .rejects.toMatchObject({
-          code: 'SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_AMBIGUOUS',
+          code: 'SEALED_REALMS_AUTH_BRIDGE_OWNER_PROVISION_CONFIRMATION_INVALID',
         });
-      expect(provision).toHaveBeenCalledTimes(1);
-
-      const reconciler = createSealedRealmsProductionAuthBridgeState(options() as never);
-      await expect(reconciler.reconcileOwnerProvisionContinuation()).resolves.toEqual({
-        outcome: 'effect-applied',
-        observationDigest: '9'.repeat(64),
-      });
-      expect(provision).toHaveBeenCalledTimes(1);
+      expect(provision).not.toHaveBeenCalled();
     } finally { local.cleanup(); }
   });
 
-  it('reopens exact activation evidence across a process boundary and invokes a generator once', async () => {
+  it('reopens exact activation evidence but rejects a generator without a live continuation claim', async () => {
     const local = fixture();
     try {
       const inspector = await completeBridge(local);
@@ -1978,9 +2112,296 @@ describe('sealed-realms auth bridge state', () => {
           .toHaveProperty('authBridgeSuspensionPrivateReceipt');
       });
       const generator = createSealedRealmsProductionActivationEvidenceGenerator({ generate });
-      await expect(restarted.consumeActivationEvidenceForContinuation({ generator }))
-        .resolves.toEqual({});
-      expect(generate).toHaveBeenCalledTimes(1);
+      await expect(restarted.consumeActivationEvidenceForContinuation({ generator } as never))
+        .rejects.toMatchObject({
+          code: 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID',
+        });
+      expect(generate).not.toHaveBeenCalled();
     } finally { local.cleanup(); }
   });
+
+  it.each([
+    ['g002', 'g002-publish-inspect', 'g002-publish-apply'],
+    ['ptr', 'ptr-publish-inspect', 'ptr-publish-apply'],
+  ] as const)(
+    'runs %s publication inspect/apply through dispatcher, lane, and one core claim',
+    async (laneName, inspectOperation, applyOperation) => {
+      const local = fixture();
+      const publisher = vi.fn();
+      const postflight = () => ({
+        outcome: 'adopted' as const,
+        databaseIdentity: 'f'.repeat(64),
+        publicationReceiptDigest: '1'.repeat(64),
+        observationDigest: '2'.repeat(64),
+        observedAt: '2026-09-01T00:01:00.000Z',
+      });
+      const makeLane = () => {
+        const common = {
+          reconciler: createSealedRealmsProductionPublicationReconciler({
+            privateState: local.state, lane: laneName, postflight,
+          }),
+          bridgeState: createSealedRealmsProductionAuthBridgeState(bridgeOptions(local) as never),
+          createPublishMarker: () => publicationMarker(laneName),
+          publish: publisher,
+          importCore: () => { throw new Error('unreachable'); },
+          liveInspect: () => { throw new Error('unreachable'); },
+        };
+        return laneName === 'g002'
+          ? createSealedRealmsProductionG002Lane(common)
+          : createSealedRealmsProductionPtrLane({
+            ...common,
+            inspectOwnerProvision: () => { throw new Error('unreachable'); },
+            provisionOwner: () => { throw new Error('unreachable'); },
+          });
+      };
+      const configured = () => laneName === 'g002'
+        ? { g002Lane: makeLane() }
+        : { ptrLane: makeLane() };
+      vi.stubGlobal('WebSocket', class WebSocket {});
+      try {
+        const inspected = await protectedDispatcher(
+          local, inspectOperation, laneName === 'g002' ? '7401' : '7411', configured(),
+        );
+        await expect(inspected.dispatch({
+          operation: inspectOperation, workflowInputSha: SOURCE,
+        })).resolves.toEqual({ operation: inspectOperation, status: 'publish-inspected' });
+        expect(publisher).not.toHaveBeenCalled();
+
+        const applied = await protectedDispatcher(
+          local, applyOperation, laneName === 'g002' ? '7402' : '7412', configured(),
+        );
+        const result = await applied.dispatch({ operation: applyOperation, workflowInputSha: SOURCE });
+        expect(result).toEqual({ operation: applyOperation, status: 'completed' });
+        expect(JSON.stringify(result)).not.toMatch(/confirmation|continuation|digest|path|token/iu);
+        expect(publisher).toHaveBeenCalledTimes(1);
+
+        const retried = await protectedDispatcher(
+          local, applyOperation, laneName === 'g002' ? '7403' : '7413', configured(),
+        );
+        await expect(retried.dispatch({
+          operation: applyOperation, workflowInputSha: SOURCE,
+        })).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+        expect(publisher).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.unstubAllGlobals();
+        local.cleanup();
+      }
+    },
+    30_000,
+  );
+
+  it.each(['no-effect', 'adopted'] as const)(
+    'terminalizes a G002 import crash as exact durable %s evidence without replay',
+    async terminalOutcome => {
+      const local = fixture();
+      let disposition: 'no-effect' | 'adopted' = 'no-effect';
+      const importer = vi.fn(async () => {
+        if (terminalOutcome === 'adopted') disposition = 'adopted';
+        throw new Error('simulated process loss after claim');
+      });
+      const lane = () => createSealedRealmsProductionG002Lane({
+        reconciler: createSealedRealmsProductionPublicationReconciler({
+          privateState: local.state,
+          lane: 'g002',
+          postflight: () => ({
+            outcome: 'no-effect' as const,
+            databaseIdentity: null,
+            publicationReceiptDigest: null,
+            observationDigest: '8'.repeat(64),
+            observedAt: NOW.toISOString(),
+          }),
+        }),
+        bridgeState: createSealedRealmsProductionAuthBridgeState(bridgeOptions(local, {
+          inspectImportReceipt: () => importProof('g002', disposition),
+        }) as never),
+        createPublishMarker: async () => publicationMarker('g002'),
+        publish: async () => undefined,
+        importCore: importer,
+        liveInspect: async () => ({
+          receiptDigest: '4'.repeat(64), evidenceDigest: '9'.repeat(64),
+        }),
+      });
+      vi.stubGlobal('WebSocket', class WebSocket {});
+      try {
+        const inspected = await protectedDispatcher(
+          local, 'g002-import-inspect', '7501', { g002Lane: lane() },
+        );
+        await expect(inspected.dispatch({
+          operation: 'g002-import-inspect', workflowInputSha: SOURCE,
+        })).resolves.toEqual({
+          operation: 'g002-import-inspect', status: 'import-inspected',
+        });
+
+        const crashed = await protectedDispatcher(
+          local, 'g002-import-apply', '7502', { g002Lane: lane() },
+        );
+        await expect(crashed.dispatch({
+          operation: 'g002-import-apply', workflowInputSha: SOURCE,
+        })).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+        expect(importer).toHaveBeenCalledTimes(1);
+
+        const restarted = await protectedDispatcher(
+          local,
+          'g002-import-apply',
+          '7503',
+          { g002Lane: lane() },
+          SOURCE,
+          new Set(['7502']),
+        );
+        const terminal = await restarted.dispatch({
+          operation: 'g002-import-apply', workflowInputSha: SOURCE,
+        });
+        expect(terminal).toEqual({
+          operation: 'g002-import-apply', status: 'completed',
+        });
+        expect(JSON.stringify(terminal))
+          .not.toMatch(/confirmation|continuation|digest|path|token/iu);
+        expect(importer).toHaveBeenCalledTimes(1);
+
+        const retried = await protectedDispatcher(
+          local, 'g002-import-apply', '7504', { g002Lane: lane() },
+        );
+        await expect(retried.dispatch({
+          operation: 'g002-import-apply', workflowInputSha: SOURCE,
+        })).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+        expect(importer).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.unstubAllGlobals();
+        local.cleanup();
+      }
+    },
+    30_000,
+  );
+
+  it('runs G002/PTR import, PTR owner, and activation issuance only through dispatcher continuation claims', async () => {
+    const local = fixture();
+    const imports = { g002: vi.fn(), ptr: vi.fn() };
+    const dispositions: Record<'g002' | 'ptr', 'adopted' | 'no-effect'> = {
+      g002: 'no-effect', ptr: 'no-effect',
+    };
+    const ownerInspect = vi.fn(() => ({
+      receiptDigest: '5'.repeat(64), inspectionDigest: '8'.repeat(64),
+    }));
+    const ownerProvision = vi.fn(() => ({
+      receiptDigest: '5'.repeat(64), provisionReceiptDigest: '9'.repeat(64),
+    }));
+    const postflight = () => ({
+      outcome: 'no-effect' as const,
+      databaseIdentity: null,
+      publicationReceiptDigest: null,
+      observationDigest: '8'.repeat(64),
+      observedAt: NOW.toISOString(),
+    });
+    const g002Lane = () => createSealedRealmsProductionG002Lane({
+      reconciler: createSealedRealmsProductionPublicationReconciler({
+        privateState: local.state, lane: 'g002', postflight,
+      }),
+      bridgeState: createSealedRealmsProductionAuthBridgeState(bridgeOptions(local, {
+        inspectImportReceipt: ({ lane }: { lane: 'g002' | 'ptr' }) =>
+          importProof(lane, dispositions[lane]),
+      }) as never),
+      createPublishMarker: () => { throw new Error('unreachable'); },
+      publish: () => { throw new Error('unreachable'); },
+      importCore: () => {
+        imports.g002();
+        dispositions.g002 = 'adopted';
+      },
+      liveInspect: () => { throw new Error('unreachable'); },
+    });
+    const ptrLane = () => createSealedRealmsProductionPtrLane({
+      reconciler: createSealedRealmsProductionPublicationReconciler({
+        privateState: local.state, lane: 'ptr', postflight,
+      }),
+      bridgeState: createSealedRealmsProductionAuthBridgeState(bridgeOptions(local, {
+        inspectImportReceipt: ({ lane }: { lane: 'g002' | 'ptr' }) =>
+          importProof(lane, dispositions[lane]),
+      }) as never),
+      createPublishMarker: () => { throw new Error('unreachable'); },
+      publish: () => { throw new Error('unreachable'); },
+      importCore: () => {
+        imports.ptr();
+        dispositions.ptr = 'adopted';
+      },
+      inspectOwnerProvision: ownerInspect,
+      provisionOwner: ownerProvision,
+      liveInspect: () => { throw new Error('unreachable'); },
+    });
+    const run = async (
+      operation: string,
+      runId: string,
+      laneInput: Readonly<Record<string, unknown>>,
+    ) => {
+      const dispatcher = await protectedDispatcher(local, operation, runId, laneInput);
+      const result = await dispatcher.dispatch({ operation: operation as never, workflowInputSha: SOURCE });
+      expect(JSON.stringify(result)).not.toMatch(/confirmation|continuation|digest|path|token/iu);
+      return result;
+    };
+    vi.stubGlobal('WebSocket', class WebSocket {});
+    try {
+      await expect(g002Lane().execute({
+        operation: 'g002-import-apply',
+        authority: operationAuthority('g002-import-apply'),
+        input: { confirmation: Object.freeze({}) },
+      } as never)).rejects.toMatchObject({
+        code: 'SEALED_REALMS_G002_LANE_REQUEST_INVALID',
+      });
+      expect(imports.g002).not.toHaveBeenCalled();
+
+      await expect(run('g002-import-inspect', '7301', { g002Lane: g002Lane() }))
+        .resolves.toEqual({ operation: 'g002-import-inspect', status: 'import-inspected' });
+      await expect(run('g002-import-apply', '7302', { g002Lane: g002Lane() }))
+        .resolves.toEqual({ operation: 'g002-import-apply', status: 'completed' });
+      expect(imports.g002).toHaveBeenCalledTimes(1);
+      await expect(run('g002-import-apply', '7303', { g002Lane: g002Lane() }))
+        .rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+      expect(imports.g002).toHaveBeenCalledTimes(1);
+
+      await expect(run('ptr-import-inspect', '7311', { ptrLane: ptrLane() }))
+        .resolves.toEqual({ operation: 'ptr-import-inspect', status: 'import-inspected' });
+      await expect(run('ptr-import-apply', '7312', { ptrLane: ptrLane() }))
+        .resolves.toEqual({ operation: 'ptr-import-apply', status: 'completed' });
+      expect(imports.ptr).toHaveBeenCalledTimes(1);
+
+      await expect(run('ptr-owner-provision-inspect', '7321', { ptrLane: ptrLane() }))
+        .resolves.toEqual({
+          operation: 'ptr-owner-provision-inspect', status: 'owner-provision-inspected',
+        });
+      await expect(run('ptr-owner-provision', '7322', { ptrLane: ptrLane() }))
+        .resolves.toEqual({ operation: 'ptr-owner-provision', status: 'completed' });
+      expect(ownerInspect).toHaveBeenCalledTimes(1);
+      expect(ownerProvision).toHaveBeenCalledTimes(1);
+
+      const activationInspect = createSealedRealmsProductionActivationLane({
+        bridgeState: createSealedRealmsProductionAuthBridgeState(bridgeOptions(local, {
+          inspectImportReceipt: ({ lane }: { lane: 'g002' | 'ptr' }) =>
+            importProof(lane, dispositions[lane]),
+        }) as never),
+      });
+      await expect(run(
+        'activation-evidence-inspect',
+        '7331',
+        { activationLane: activationInspect },
+      )).resolves.toEqual({
+        operation: 'activation-evidence-inspect', status: 'activation-evidence-inspected',
+      });
+      const activationGenerate = createSealedRealmsProductionActivationLane({
+        bridgeState: createSealedRealmsProductionAuthBridgeState(bridgeOptions(local, {
+          inspectImportReceipt: ({ lane }: { lane: 'g002' | 'ptr' }) =>
+            importProof(lane, dispositions[lane]),
+        }) as never),
+      });
+      await expect(run(
+        'activation-evidence-generate',
+        '7332',
+        { activationLane: activationGenerate },
+      )).resolves.toEqual({
+        operation: 'activation-evidence-generate',
+        status: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
+      });
+      expect(ownerProvision).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+      local.cleanup();
+    }
+  }, 30_000);
 });

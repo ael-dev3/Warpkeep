@@ -5,9 +5,6 @@ import {
   sourceCommitFromSealedRealmsProductionAuthority,
 } from './sealed-realms-production-source-authority.mjs';
 import {
-  assertSealedRealmsProductionActivationLane,
-} from './sealed-realms-production-activation-lane-entry.mjs';
-import {
   assertSealedRealmsProductionContinuationStore,
 } from './sealed-realms-production-continuation.mjs';
 import {
@@ -114,7 +111,7 @@ export function createSealedRealmsProductionDispatcher(input) {
   const options = plainObject(input, 'SEALED_REALMS_DISPATCH_INPUT_INVALID');
   const allowed = [
     'readGit', 'readBinding', 'verifyEvidence',
-    'g001Lane', 'g002Lane', 'ptrLane', 'activationLane', 'testOnlyLanes',
+    'g001Lane', 'g002Lane', 'ptrLane', 'activationLane',
     'permit', 'continuationStore', 'runId', 'runAttempt', 'sourceAuthority',
   ];
   if (
@@ -122,43 +119,34 @@ export function createSealedRealmsProductionDispatcher(input) {
     || typeof options.readGit !== 'function'
     || typeof options.readBinding !== 'function'
     || typeof options.verifyEvidence !== 'function'
+    || !Object.hasOwn(options, 'permit')
+    || !Object.hasOwn(options, 'continuationStore')
+    || !Object.hasOwn(options, 'runId')
+    || !Object.hasOwn(options, 'runAttempt')
+    || !Object.hasOwn(options, 'sourceAuthority')
+    || typeof options.runId !== 'string'
+    || !/^[1-9][0-9]{0,19}$/u.test(options.runId)
+    || !/^[1-9][0-9]{0,3}$/u.test(String(options.runAttempt))
+    || Number(options.runAttempt) > 1_000
+    || options.continuationStore === null
+    || typeof options.continuationStore !== 'object'
+    || !Object.isFrozen(options.continuationStore)
+    || Reflect.ownKeys(options.continuationStore).length !== 0
   ) fail('SEALED_REALMS_DISPATCH_INPUT_INVALID');
-  const protectedRuntime = options.testOnlyLanes === undefined;
-  const hasAnyProtectedContext = [
-    'permit', 'continuationStore', 'runId', 'runAttempt', 'sourceAuthority',
-  ].some(key => Object.hasOwn(options, key));
-  let continuation;
-  if (protectedRuntime || hasAnyProtectedContext) {
-    if (
-      !Object.hasOwn(options, 'permit')
-      || !Object.hasOwn(options, 'continuationStore')
-      || !Object.hasOwn(options, 'runId')
-      || !Object.hasOwn(options, 'runAttempt')
-      || !Object.hasOwn(options, 'sourceAuthority')
-      || typeof options.runId !== 'string'
-      || !/^[1-9][0-9]{0,19}$/u.test(options.runId)
-      || !/^[1-9][0-9]{0,3}$/u.test(String(options.runAttempt))
-      || Number(options.runAttempt) > 1_000
-      || options.continuationStore === null
-      || typeof options.continuationStore !== 'object'
-      || !Object.isFrozen(options.continuationStore)
-      || Reflect.ownKeys(options.continuationStore).length !== 0
-    ) fail('SEALED_REALMS_DISPATCH_INPUT_INVALID');
-    try {
-      assertSealedRealmsProductionWorkflowPermit(options.permit);
-      assertSealedRealmsProductionContinuationStore(options.continuationStore);
-    } catch {
-      fail('SEALED_REALMS_DISPATCH_INPUT_INVALID');
-    }
-    continuation = Object.freeze({
-      permit: options.permit,
-      store: options.continuationStore,
-      runId: options.runId,
-      runAttempt: String(options.runAttempt),
-      sourceAuthority: options.sourceAuthority,
-    });
+  try {
+    assertSealedRealmsProductionWorkflowPermit(options.permit);
+    assertSealedRealmsProductionContinuationStore(options.continuationStore);
+  } catch {
+    fail('SEALED_REALMS_DISPATCH_INPUT_INVALID');
   }
-  const configured = options.testOnlyLanes ?? {
+  const continuation = Object.freeze({
+    permit: options.permit,
+    store: options.continuationStore,
+    runId: options.runId,
+    runAttempt: String(options.runAttempt),
+    sourceAuthority: options.sourceAuthority,
+  });
+  const configured = {
     g001: options.g001Lane,
     g002: options.g002Lane,
     ptr: options.ptrLane,
@@ -192,8 +180,8 @@ export function createSealedRealmsProductionDispatcher(input) {
       readBinding: options.readBinding,
       verifyEvidence: options.verifyEvidence,
     });
-    const authority = protectedRuntime ? continuation.sourceAuthority : reauthenticated;
-    if (protectedRuntime && (
+    const authority = continuation.sourceAuthority;
+    if (
       authority?.operation !== reauthenticated.operation
       || authority?.mode !== reauthenticated.mode
       || authority?.authorityDigest !== reauthenticated.authorityDigest
@@ -201,36 +189,26 @@ export function createSealedRealmsProductionDispatcher(input) {
         !== sourceCommitFromSealedRealmsProductionAuthority(reauthenticated)
       || preparationSourceCommitFromSealedRealmsProductionAuthority(authority)
         !== preparationSourceCommitFromSealedRealmsProductionAuthority(reauthenticated)
-    )) fail('SEALED_REALMS_DISPATCH_SOURCE_INVALID');
-    // Generation is intentionally unavailable until Task 6E provides a real,
-    // branded activation lane. Test-only lane replacement can never enable it.
-    const lane = value.operation === 'activation-evidence-generate'
-      ? options.activationLane
-      : laneFor(value.operation, configured);
+    ) fail('SEALED_REALMS_DISPATCH_SOURCE_INVALID');
+    if (value.operation === 'activation-evidence-generate') {
+      return Object.freeze({
+        operation: value.operation,
+        status: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
+      });
+    }
+    const lane = laneFor(value.operation, configured);
     if (lane === undefined) {
       return Object.freeze({
         operation: value.operation,
-        status: value.operation === 'activation-evidence-generate'
-          ? 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE'
-          : 'unavailable',
+        status: 'unavailable',
       });
-    }
-    if (value.operation === 'activation-evidence-generate') {
-      try {
-        assertSealedRealmsProductionActivationLane(lane);
-      } catch {
-        return Object.freeze({
-          operation: value.operation,
-          status: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
-        });
-      }
     }
     let result;
     try {
       result = await lane.execute(Object.freeze({
         operation: value.operation,
         authority,
-        ...(protectedRuntime ? { continuation } : {}),
+        continuation,
       }));
     } catch (error) {
       if (error instanceof SealedRealmsProductionDispatcherError) throw error;

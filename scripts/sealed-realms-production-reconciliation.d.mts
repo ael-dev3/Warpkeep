@@ -1,4 +1,11 @@
 import type { SealedRealmsProductionPrivateState } from './sealed-realms-production-private-state.mjs';
+import type {
+  SealedRealmsProductionContinuationClaim,
+  SealedRealmsProductionContinuationKind,
+  SealedRealmsProductionContinuationReconciliation,
+  SealedRealmsProductionContinuationStore,
+} from './sealed-realms-production-continuation.mjs';
+import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
 
 export class SealedRealmsProductionReconciliationError extends Error {
   readonly code: string;
@@ -58,11 +65,23 @@ export function createSealedRealmsProductionPublicationReconciler(input: Readonl
   }>) => Promise<SealedRealmsProductionContinuationEvidenceBinding>;
   reopenContinuation: () => SealedRealmsProductionContinuationEvidenceBinding;
   consumeContinuationEntry: (input: Readonly<{
+    claim: SealedRealmsProductionContinuationClaim;
+    store: SealedRealmsProductionContinuationStore;
+    sourceAuthority: SealedRealmsProductionSourceAuthority;
+    kind: SealedRealmsProductionContinuationKind;
+    runId: string;
+    runAttempt: string | number;
+    subject: string;
+    evidenceDigest: string;
+    receiptDigests: readonly string[];
+    predecessorDigests: readonly string[];
     publish: (input: Readonly<{
       marker: Readonly<Record<string, unknown>>;
     }>) => unknown | Promise<unknown>;
   }>) => Promise<Readonly<{ status: 'submitted' }>>;
-  reconcileContinuation: () => Promise<Readonly<{
+  reconcileContinuation: (input: Readonly<{
+    reconciliation: SealedRealmsProductionContinuationReconciliation;
+  }>) => Promise<Readonly<{
     outcome: 'effect-applied' | 'no-effect';
     observationDigest: string;
   }>>;

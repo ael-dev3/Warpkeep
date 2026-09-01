@@ -62,7 +62,10 @@ const ENTRIES = Object.freeze([
     run: 'runSealedRealmsProductionActivationOperation',
     operation: 'activation-evidence-generate',
     crossedOperation: 'preflight',
-    expectedFailure: 'SEALED_REALMS_DISPATCH_LANE_FAILED',
+    expected: Object.freeze({
+      operation: 'activation-evidence-generate',
+      status: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
+    }),
   }),
 ] as const);
 
@@ -286,53 +289,21 @@ afterEach(() => {
 });
 
 describe.sequential('sealed-realms production workflow runtime composition', () => {
-  it('rejects a lane from an independently built graph at its private source brand', async () => {
+  it('cannot restore the removed unbranded test-lane dispatcher path from another graph', async () => {
     const source = 'a'.repeat(40);
-    const [dispatcherBuild, laneBuild] = await Promise.all([
-      esbuild({
-        entryPoints: ['scripts/sealed-realms-production-dispatch.mjs'],
-        absWorkingDir: process.cwd(),
-        bundle: true,
-        format: 'esm',
-        platform: 'node',
-        target: 'node22',
-        write: false,
-      }),
-      esbuild({
-        entryPoints: ['scripts/sealed-realms-production-g001-lane-entry.mjs'],
-        absWorkingDir: process.cwd(),
-        bundle: true,
-        format: 'esm',
-        platform: 'node',
-        target: 'node22',
-        write: false,
-      }),
-    ]);
+    const dispatcherBuild = await esbuild({
+      entryPoints: ['scripts/sealed-realms-production-dispatch.mjs'],
+      absWorkingDir: process.cwd(),
+      bundle: true,
+      format: 'esm',
+      platform: 'node',
+      target: 'node22',
+      write: false,
+    });
     const dispatcherModule = await import(
       `data:text/javascript;base64,${Buffer.from(dispatcherBuild.outputFiles[0]!.contents).toString('base64')}`
     );
-    const laneModule = await import(
-      `data:text/javascript;base64,${Buffer.from(laneBuild.outputFiles[0]!.contents).toString('base64')}`
-    );
-    const lane = laneModule.createSealedRealmsProductionG001Lane({
-      launchAuthority: laneModule.createSealedRealmsProductionG001LaunchAuthority({
-        readRawGit: () => { throw new Error('unreached'); },
-        resolveAdminSecretPath: () => { throw new Error('unreached'); },
-        persistPolicyObservation: () => { throw new Error('unreached'); },
-      }),
-      attestDispatcherNode: () => { throw new Error('unreached'); },
-      runEnvelopeChild: () => { throw new Error('unreached'); },
-      censusAuthority: undefined,
-      currentState: {
-        runChild: () => { throw new Error('unreached'); },
-        readFixedFile: () => { throw new Error('unreached'); },
-        resolveAccountUid: () => { throw new Error('unreached'); },
-        resolveAccountHome: () => { throw new Error('unreached'); },
-        testOnlyAdapter: undefined,
-      },
-      preflight: () => Object.freeze({}),
-    });
-    const dispatcher = dispatcherModule.createSealedRealmsProductionDispatcher({
+    expect(() => dispatcherModule.createSealedRealmsProductionDispatcher({
       readGit: (arguments_: readonly string[]) => {
         if (arguments_[0] === 'rev-parse') return `${source}\n`;
         throw new Error('unexpected git');
@@ -344,11 +315,10 @@ describe.sequential('sealed-realms production workflow runtime composition', () 
         preparationSourceCommit: source,
       }),
       verifyEvidence: (verifiedSha: string) => ({ verifiedSha }),
-      testOnlyLanes: { g001: lane },
-    });
-
-    await expect(dispatcher.dispatch({ operation: 'preflight', workflowInputSha: source }))
-      .rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+      testOnlyLanes: {
+        g001: { execute: () => Object.freeze({ status: 'preflight-inspected' }) },
+      },
+    })).toThrow(expect.objectContaining({ code: 'SEALED_REALMS_DISPATCH_INPUT_INVALID' }));
   });
 
   it.each(ENTRIES)('$lane production construction fails closed before private-state resolution', async entry => {

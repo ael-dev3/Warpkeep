@@ -6,10 +6,15 @@ import {
   assertSealedRealmsProductionPublicationReconciler,
 } from './sealed-realms-production-reconciliation.mjs';
 import {
+  assertSealedRealmsProductionContinuationStore,
   claimSealedRealmsProductionContinuation,
+  classifySealedRealmsProductionContinuationNoEffect,
   issueSealedRealmsProductionContinuation,
   reconcileSealedRealmsProductionContinuation,
 } from './sealed-realms-production-continuation.mjs';
+import {
+  assertSealedRealmsProductionWorkflowPermit,
+} from './sealed-realms-production-workflow-authority.mjs';
 import {
   preparationSourceCommitFromSealedRealmsProductionAuthority,
   sourceCommitFromSealedRealmsProductionAuthority,
@@ -39,15 +44,22 @@ function record(value, code) {
   return value;
 }
 
-function confirmationInput(value, code) {
-  const request = record(value, code);
+function requireContinuation(value, authority) {
+  const request = record(value, 'SEALED_REALMS_G002_LANE_REQUEST_INVALID');
   if (
-    JSON.stringify(Object.keys(request)) !== JSON.stringify(['confirmation'])
-    || request.confirmation === null || typeof request.confirmation !== 'object'
-    || Array.isArray(request.confirmation)
-    || Object.getPrototypeOf(request.confirmation) !== Object.prototype
-    || Object.keys(request.confirmation).length !== 0
-  ) fail(code);
+    JSON.stringify(Object.keys(request))
+      !== JSON.stringify(['permit', 'store', 'runId', 'runAttempt', 'sourceAuthority'])
+    || !Object.isFrozen(request)
+    || request.sourceAuthority !== authority
+    || typeof request.runId !== 'string'
+    || typeof request.runAttempt !== 'string'
+  ) fail('SEALED_REALMS_G002_LANE_REQUEST_INVALID');
+  try {
+    assertSealedRealmsProductionWorkflowPermit(request.permit);
+    assertSealedRealmsProductionContinuationStore(request.store);
+  } catch {
+    fail('SEALED_REALMS_G002_LANE_REQUEST_INVALID');
+  }
   return request;
 }
 
@@ -77,6 +89,15 @@ async function claimOrReconcile({ continuation, authority, kind, binding, effect
   }
 }
 
+async function classifyReconciliation(reconciliation, inspect) {
+  const classification = await inspect();
+  return classification.outcome === 'no-effect'
+    ? classifySealedRealmsProductionContinuationNoEffect({
+      reconciliation, observationDigest: classification.observationDigest,
+    })
+    : classification;
+}
+
 /** Owns only G002's receipt-derived marker and bridge-gate seams. */
 export function createSealedRealmsProductionG002Lane(input) {
   const options = record(input, 'SEALED_REALMS_G002_LANE_INPUT_INVALID');
@@ -93,8 +114,15 @@ export function createSealedRealmsProductionG002Lane(input) {
   const reconciler = assertSealedRealmsProductionPublicationReconciler(options.reconciler);
   const bridgeState = assertSealedRealmsProductionAuthBridgeState(options.bridgeState);
 
-  const execute = async ({ operation, authority, input, continuation } = {}) => {
+  const execute = async (input = {}) => {
+    const request = record(input, 'SEALED_REALMS_G002_LANE_REQUEST_INVALID');
+    if (
+      JSON.stringify(Object.keys(request))
+        !== JSON.stringify(['operation', 'authority', 'continuation'])
+    ) fail('SEALED_REALMS_G002_LANE_REQUEST_INVALID');
+    const { operation, authority } = request;
     if (!OPERATIONS.has(operation)) fail('SEALED_REALMS_G002_LANE_OPERATION_INVALID');
+    const continuation = requireContinuation(request.continuation, authority);
     const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(authority);
     const bridgeSourceCommit = preparationSourceCommitFromSealedRealmsProductionAuthority(authority);
     if (authority.operation !== operation) {
@@ -106,71 +134,62 @@ export function createSealedRealmsProductionG002Lane(input) {
     }
     if (operation === 'g002-publish-inspect') {
       const marker = await options.createPublishMarker(Object.freeze({ sourceCommit }));
-      if (continuation !== undefined) {
-        const binding = await reconciler.inspectForContinuation({ marker });
-        await issueSealedRealmsProductionContinuation(
-          continuationInput(continuation, authority, 'g002-publication', binding),
-        );
-        return Object.freeze({ status: 'publish-inspected' });
-      }
-      const inspected = await reconciler.inspect({ marker });
-      return inspected.confirmation === undefined
-        ? Object.freeze({ status: 'publish-inspected' })
-        : Object.freeze({ status: 'publish-inspected', confirmation: inspected.confirmation });
+      const binding = await reconciler.inspectForContinuation({ marker });
+      await issueSealedRealmsProductionContinuation(
+        continuationInput(continuation, authority, 'g002-publication', binding),
+      );
+      return Object.freeze({ status: 'publish-inspected' });
     }
     if (operation === 'g002-publish-apply') {
-      if (continuation !== undefined) {
-        const binding = reconciler.reopenContinuation();
-        const result = await claimOrReconcile({
-          continuation,
-          authority,
-          kind: 'g002-publication',
-          binding,
-          effect: () => reconciler.consumeContinuationEntry({
+      const binding = reconciler.reopenContinuation();
+      const result = await claimOrReconcile({
+        continuation,
+        authority,
+        kind: 'g002-publication',
+        binding,
+          effect: claim => reconciler.consumeContinuationEntry({
+            claim,
+            store: continuation.store,
+            sourceAuthority: authority,
+            kind: 'g002-publication',
+            runId: continuation.runId,
+            runAttempt: continuation.runAttempt,
+            ...binding,
             publish: ({ marker }) => options.publish(Object.freeze({ sourceCommit, marker })),
           }),
-          reconcile: () => reconciler.reconcileContinuation(),
-        });
-        return Object.freeze({ status: result.status });
-      }
-      const value = confirmationInput(input, 'SEALED_REALMS_G002_LANE_REQUEST_INVALID');
-      const result = await reconciler.apply({
-        confirmation: value.confirmation,
-        publish: ({ confirmation }) => options.publish(Object.freeze({ sourceCommit, confirmation })),
+        reconcile: reconciliation => reconciler.reconcileContinuation({ reconciliation }),
       });
       return Object.freeze({ status: result.status });
     }
     if (operation === 'g002-import-inspect') {
-      if (continuation !== undefined) {
-        const binding = await bridgeState.inspectGateForContinuation({ lane: 'g002' });
-        await issueSealedRealmsProductionContinuation(
-          continuationInput(continuation, authority, 'g002-import', binding),
-        );
-        return Object.freeze({ status: 'import-inspected' });
-      }
-      const result = await bridgeState.inspectGate({ lane: 'g002' });
-      return Object.freeze({ status: 'import-inspected', confirmation: result.confirmation });
+      const binding = await bridgeState.inspectGateForContinuation({ lane: 'g002' });
+      await issueSealedRealmsProductionContinuation(
+        continuationInput(continuation, authority, 'g002-import', binding),
+      );
+      return Object.freeze({ status: 'import-inspected' });
     }
     if (operation === 'g002-import-apply') {
-      if (continuation !== undefined) {
-        const binding = await bridgeState.reopenGateContinuation({ lane: 'g002' });
-        const result = await claimOrReconcile({
-          continuation,
-          authority,
+      const binding = await bridgeState.reopenGateContinuation({ lane: 'g002' });
+      const result = await claimOrReconcile({
+        continuation,
+        authority,
+        kind: 'g002-import',
+        binding,
+        effect: claim => bridgeState.applyGateForContinuation({
+          claim,
+          store: continuation.store,
+          sourceAuthority: authority,
           kind: 'g002-import',
-          binding,
-          effect: () => bridgeState.applyGateForContinuation({
-            lane: 'g002',
-            apply: () => options.importCore(Object.freeze({ sourceCommit })),
-          }),
-          reconcile: () => bridgeState.reconcileGateContinuation({ lane: 'g002' }),
-        });
-        return Object.freeze({ status: result.status });
-      }
-      const value = confirmationInput(input, 'SEALED_REALMS_G002_LANE_REQUEST_INVALID');
-      const result = await bridgeState.applyGate({
-        confirmation: value.confirmation,
-        apply: () => options.importCore(Object.freeze({ sourceCommit })),
+          runId: continuation.runId,
+          runAttempt: continuation.runAttempt,
+          ...binding,
+          lane: 'g002',
+          apply: () => options.importCore(Object.freeze({ sourceCommit })),
+        }),
+        reconcile: reconciliation => classifyReconciliation(
+          reconciliation,
+          () => bridgeState.reconcileGateContinuation({ lane: 'g002' }),
+        ),
       });
       return Object.freeze({ status: result.status });
     }

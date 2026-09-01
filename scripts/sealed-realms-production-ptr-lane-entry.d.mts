@@ -1,11 +1,6 @@
-import type {
-  SealedRealmsBridgeGateConfirmation,
-  SealedRealmsOwnerProvisionConfirmation,
-  SealedRealmsProductionAuthBridgeState,
-} from './sealed-realms-production-auth-bridge-state.mjs';
+import type { SealedRealmsProductionAuthBridgeState } from './sealed-realms-production-auth-bridge-state.mjs';
 import type {
   createSealedRealmsProductionPublicationReconciler,
-  SealedRealmsPublicationConfirmation,
 } from './sealed-realms-production-reconciliation.mjs';
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
 import type { SealedRealmsProductionContinuationStore } from './sealed-realms-production-continuation.mjs';
@@ -18,7 +13,6 @@ export function createSealedRealmsProductionPtrLane(input: Readonly<{
   createPublishMarker: (context: Readonly<{ sourceCommit: string }>) => unknown | Promise<unknown>;
   publish: (context: Readonly<{
     sourceCommit: string;
-    confirmation?: SealedRealmsPublicationConfirmation;
     marker?: Readonly<Record<string, unknown>>;
   }>) => unknown | Promise<unknown>;
   importCore: (context: Readonly<{ sourceCommit: string }>) => unknown | Promise<unknown>;
@@ -45,22 +39,17 @@ export function createSealedRealmsProductionPtrLane(input: Readonly<{
       | 'ptr-import-apply' | 'ptr-owner-provision-inspect' | 'ptr-owner-provision'
       | 'ptr-live-inspect';
     authority: SealedRealmsProductionSourceAuthority;
-    input?: Readonly<{
-      confirmation: SealedRealmsPublicationConfirmation | SealedRealmsBridgeGateConfirmation
-        | SealedRealmsOwnerProvisionConfirmation;
-    }>;
-    continuation?: Readonly<{
+    continuation: Readonly<{
       permit: SealedRealmsProductionWorkflowPermit;
       store: SealedRealmsProductionContinuationStore;
       runId: string;
       runAttempt: string;
+      sourceAuthority: SealedRealmsProductionSourceAuthority;
     }>;
   }>) => Promise<Readonly<{
     status: 'publish-inspected' | 'submitted' | 'import-inspected' | 'cross-linked'
       | 'owner-provision-inspected' | 'owner-provisioned' | 'live-inspected'
       | 'completed';
-    confirmation?: SealedRealmsPublicationConfirmation | SealedRealmsBridgeGateConfirmation
-      | SealedRealmsOwnerProvisionConfirmation;
   }>>;
 }>;
 export function assertSealedRealmsProductionPtrLane(

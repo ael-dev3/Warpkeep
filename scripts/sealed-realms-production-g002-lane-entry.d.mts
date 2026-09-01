@@ -1,10 +1,6 @@
-import type {
-  SealedRealmsBridgeGateConfirmation,
-  SealedRealmsProductionAuthBridgeState,
-} from './sealed-realms-production-auth-bridge-state.mjs';
+import type { SealedRealmsProductionAuthBridgeState } from './sealed-realms-production-auth-bridge-state.mjs';
 import type {
   createSealedRealmsProductionPublicationReconciler,
-  SealedRealmsPublicationConfirmation,
 } from './sealed-realms-production-reconciliation.mjs';
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
 import type { SealedRealmsProductionContinuationStore } from './sealed-realms-production-continuation.mjs';
@@ -17,7 +13,6 @@ export function createSealedRealmsProductionG002Lane(input: Readonly<{
   createPublishMarker: (context: Readonly<{ sourceCommit: string }>) => unknown | Promise<unknown>;
   publish: (context: Readonly<{
     sourceCommit: string;
-    confirmation?: SealedRealmsPublicationConfirmation;
     marker?: Readonly<Record<string, unknown>>;
   }>) => unknown | Promise<unknown>;
   importCore: (context: Readonly<{ sourceCommit: string }>) => unknown | Promise<unknown>;
@@ -33,17 +28,16 @@ export function createSealedRealmsProductionG002Lane(input: Readonly<{
     operation: 'g002-publish-inspect' | 'g002-publish-apply' | 'g002-import-inspect'
       | 'g002-import-apply' | 'g002-live-inspect';
     authority: SealedRealmsProductionSourceAuthority;
-    input?: Readonly<{ confirmation: SealedRealmsPublicationConfirmation | SealedRealmsBridgeGateConfirmation }>;
-    continuation?: Readonly<{
+    continuation: Readonly<{
       permit: SealedRealmsProductionWorkflowPermit;
       store: SealedRealmsProductionContinuationStore;
       runId: string;
       runAttempt: string;
+      sourceAuthority: SealedRealmsProductionSourceAuthority;
     }>;
   }>) => Promise<Readonly<{
     status: 'publish-inspected' | 'submitted' | 'import-inspected' | 'cross-linked'
       | 'live-inspected' | 'completed';
-    confirmation?: SealedRealmsPublicationConfirmation | SealedRealmsBridgeGateConfirmation;
   }>>;
 }>;
 export function assertSealedRealmsProductionG002Lane(
