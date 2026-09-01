@@ -1,6 +1,10 @@
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
 import type { SealedRealmsProductionContinuationStore } from './sealed-realms-production-continuation.mjs';
 import type { SealedRealmsProductionWorkflowPermit } from './sealed-realms-production-workflow-authority.mjs';
+import type {
+  SealedRealmsProductionDispatchContext,
+  SealedRealmsProductionDispatcher,
+} from './sealed-realms-production-dispatch.mjs';
 
 export class SealedRealmsProductionG001LaneError extends Error {
   readonly code: string;
@@ -176,3 +180,7 @@ export function createSealedRealmsProductionG001Lane(input: Readonly<{
 export function assertSealedRealmsProductionG001Lane(
   lane: unknown,
 ): ReturnType<typeof createSealedRealmsProductionG001Lane>;
+export function createSealedRealmsProductionG001Dispatcher(input: Readonly<{
+  context: SealedRealmsProductionDispatchContext;
+  lane: ReturnType<typeof createSealedRealmsProductionG001Lane>;
+}>): SealedRealmsProductionDispatcher;

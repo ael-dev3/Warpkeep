@@ -13,13 +13,19 @@ import {
   assertSealedRealmsProductionWorkflowPermit,
 } from './sealed-realms-production-workflow-authority.mjs';
 import {
-  assertSealedRealmsProductionLane,
-  registerSealedRealmsProductionLane,
-} from './sealed-realms-production-lane-registry.mjs';
+  SealedRealmsProductionDispatcherError,
+  assertSealedRealmsProductionDispatchContext,
+  completeSealedRealmsProductionDispatch,
+  earlySealedRealmsProductionDispatchResult,
+  openSealedRealmsProductionPreparedDispatch,
+  prepareSealedRealmsProductionDispatch,
+  rejectSealedRealmsProductionLaneFailure,
+} from './sealed-realms-production-dispatch.mjs';
 
 const OPERATIONS = new Set([
   'activation-evidence-inspect', 'activation-evidence-generate',
 ]);
+const lanes = new WeakSet();
 
 export class SealedRealmsProductionActivationLaneError extends Error {
   constructor(code) {
@@ -101,13 +107,53 @@ export function createSealedRealmsProductionActivationLane(input = {}) {
     return Object.freeze({ status: 'activation-evidence-inspected' });
   };
   const lane = Object.freeze({ execute });
-  return registerSealedRealmsProductionLane(lane, 'activation');
+  lanes.add(lane);
+  return lane;
 }
 
 export function assertSealedRealmsProductionActivationLane(lane) {
+  if (!lanes.has(lane)) fail('SEALED_REALMS_ACTIVATION_LANE_CAPABILITY_INVALID');
+  return lane;
+}
+
+/** Composes only an authentic activation lane with an opaque fixed dispatch context. */
+export function createSealedRealmsProductionActivationDispatcher(input) {
+  let context;
+  let lane;
   try {
-    return assertSealedRealmsProductionLane(lane, 'activation');
+    if (
+      input === null || typeof input !== 'object' || Array.isArray(input)
+      || Object.getPrototypeOf(input) !== Object.prototype
+    ) throw new Error('invalid input');
+    const descriptors = Object.getOwnPropertyDescriptors(input);
+    if (
+      JSON.stringify(Reflect.ownKeys(descriptors)) !== JSON.stringify(['context', 'lane'])
+      || !Object.hasOwn(descriptors.context, 'value') || !descriptors.context.enumerable
+      || !Object.hasOwn(descriptors.lane, 'value') || !descriptors.lane.enumerable
+    ) throw new Error('invalid input');
+    context = descriptors.context.value;
+    lane = descriptors.lane.value;
+    assertSealedRealmsProductionDispatchContext(context);
+    assertSealedRealmsProductionActivationLane(lane);
   } catch {
-    fail('SEALED_REALMS_ACTIVATION_LANE_CAPABILITY_INVALID');
+    throw new SealedRealmsProductionDispatcherError('SEALED_REALMS_DISPATCH_INPUT_INVALID');
   }
+  return Object.freeze({
+    dispatch: async request => {
+      const prepared = prepareSealedRealmsProductionDispatch(context, request);
+      const early = earlySealedRealmsProductionDispatchResult(prepared);
+      if (early !== undefined) return early;
+      const opened = openSealedRealmsProductionPreparedDispatch(prepared);
+      if (opened.lane !== 'activation') {
+        return completeSealedRealmsProductionDispatch(prepared, { status: 'unavailable' });
+      }
+      let result;
+      try {
+        result = await lane.execute(opened.request);
+      } catch (error) {
+        rejectSealedRealmsProductionLaneFailure(error);
+      }
+      return completeSealedRealmsProductionDispatch(prepared, result);
+    },
+  });
 }

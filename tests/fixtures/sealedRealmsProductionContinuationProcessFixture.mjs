@@ -14,20 +14,24 @@ import {
   createSealedRealmsProductionContinuationStore,
 } from '../../scripts/sealed-realms-production-continuation.mjs';
 import {
-  createSealedRealmsProductionDispatcher,
+  createSealedRealmsProductionDispatchContext,
 } from '../../scripts/sealed-realms-production-dispatch.mjs';
 import {
   createSealedRealmsProductionG001CensusAuthority,
+  createSealedRealmsProductionG001Dispatcher,
   createSealedRealmsProductionG001Lane,
   createSealedRealmsProductionG001LaunchAuthority,
 } from '../../scripts/sealed-realms-production-g001-lane-entry.mjs';
 import {
+  createSealedRealmsProductionG002Dispatcher,
   createSealedRealmsProductionG002Lane,
 } from '../../scripts/sealed-realms-production-g002-lane-entry.mjs';
 import {
+  createSealedRealmsProductionPtrDispatcher,
   createSealedRealmsProductionPtrLane,
 } from '../../scripts/sealed-realms-production-ptr-lane-entry.mjs';
 import {
+  createSealedRealmsProductionActivationDispatcher,
   createSealedRealmsProductionActivationLane,
 } from '../../scripts/sealed-realms-production-activation-lane-entry.mjs';
 import {
@@ -499,7 +503,7 @@ async function run() {
     });
   }
 
-  const dispatcher = createSealedRealmsProductionDispatcher({
+  const dispatchContext = createSealedRealmsProductionDispatchContext({
     readGit: () => `${sourceCommit}\n`,
     readBinding: () => ({
       schemaVersion: 1,
@@ -508,13 +512,19 @@ async function run() {
       preparationSourceCommit: sourceCommit,
     }),
     verifyEvidence: verifiedSha => ({ verifiedSha }),
-    [laneKey]: lane,
     permit: protectedContext.continuation.permit,
     continuationStore: protectedContext.continuation.store,
     runId,
     runAttempt: '1',
     sourceAuthority: protectedContext.authority,
   });
+  const composer = {
+    g001Lane: createSealedRealmsProductionG001Dispatcher,
+    g002Lane: createSealedRealmsProductionG002Dispatcher,
+    ptrLane: createSealedRealmsProductionPtrDispatcher,
+    activationLane: createSealedRealmsProductionActivationDispatcher,
+  }[laneKey];
+  const dispatcher = composer({ context: dispatchContext, lane });
   return dispatcher.dispatch({ operation, workflowInputSha: sourceCommit });
 }
 

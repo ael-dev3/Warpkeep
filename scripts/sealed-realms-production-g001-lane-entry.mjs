@@ -28,9 +28,14 @@ import {
   assertSealedRealmsProductionWorkflowPermit,
 } from './sealed-realms-production-workflow-authority.mjs';
 import {
-  assertSealedRealmsProductionLane,
-  registerSealedRealmsProductionLane,
-} from './sealed-realms-production-lane-registry.mjs';
+  SealedRealmsProductionDispatcherError,
+  assertSealedRealmsProductionDispatchContext,
+  completeSealedRealmsProductionDispatch,
+  earlySealedRealmsProductionDispatchResult,
+  openSealedRealmsProductionPreparedDispatch,
+  prepareSealedRealmsProductionDispatch,
+  rejectSealedRealmsProductionLaneFailure,
+} from './sealed-realms-production-dispatch.mjs';
 
 const OPERATIONS = new Set([
   'preflight', 'g001-policy-observe', 'g001-census-first',
@@ -77,6 +82,7 @@ const censusFirstConfirmations = new WeakMap();
 const censusSecondConfirmations = new WeakMap();
 const censusFirstClaims = new WeakSet();
 const censusSecondClaims = new WeakSet();
+const lanes = new WeakSet();
 const CENSUS_PROFILE = 'warpkeep-sealed-realms-g001-census-private-v1';
 const CENSUS_MINIMUM_STABLE_SEPARATION_MS = 60_000;
 const CENSUS_MAXIMUM_STABLE_SEPARATION_MS = 300_000;
@@ -1658,13 +1664,53 @@ export function createSealedRealmsProductionG001Lane(input) {
     }
   };
   const lane = Object.freeze({ execute });
-  return registerSealedRealmsProductionLane(lane, 'g001');
+  lanes.add(lane);
+  return lane;
 }
 
 export function assertSealedRealmsProductionG001Lane(lane) {
+  if (!lanes.has(lane)) fail('SEALED_REALMS_G001_LANE_CAPABILITY_INVALID');
+  return lane;
+}
+
+/** Composes only an authentic G001 lane with an opaque fixed dispatch context. */
+export function createSealedRealmsProductionG001Dispatcher(input) {
+  let context;
+  let lane;
   try {
-    return assertSealedRealmsProductionLane(lane, 'g001');
+    if (
+      input === null || typeof input !== 'object' || Array.isArray(input)
+      || Object.getPrototypeOf(input) !== Object.prototype
+    ) throw new Error('invalid input');
+    const descriptors = Object.getOwnPropertyDescriptors(input);
+    if (
+      JSON.stringify(Reflect.ownKeys(descriptors)) !== JSON.stringify(['context', 'lane'])
+      || !Object.hasOwn(descriptors.context, 'value') || !descriptors.context.enumerable
+      || !Object.hasOwn(descriptors.lane, 'value') || !descriptors.lane.enumerable
+    ) throw new Error('invalid input');
+    context = descriptors.context.value;
+    lane = descriptors.lane.value;
+    assertSealedRealmsProductionDispatchContext(context);
+    assertSealedRealmsProductionG001Lane(lane);
   } catch {
-    fail('SEALED_REALMS_G001_LANE_CAPABILITY_INVALID');
+    throw new SealedRealmsProductionDispatcherError('SEALED_REALMS_DISPATCH_INPUT_INVALID');
   }
+  return Object.freeze({
+    dispatch: async request => {
+      const prepared = prepareSealedRealmsProductionDispatch(context, request);
+      const early = earlySealedRealmsProductionDispatchResult(prepared);
+      if (early !== undefined) return early;
+      const opened = openSealedRealmsProductionPreparedDispatch(prepared);
+      if (opened.lane !== 'g001') {
+        return completeSealedRealmsProductionDispatch(prepared, { status: 'unavailable' });
+      }
+      let result;
+      try {
+        result = await lane.execute(opened.request);
+      } catch (error) {
+        rejectSealedRealmsProductionLaneFailure(error);
+      }
+      return completeSealedRealmsProductionDispatch(prepared, result);
+    },
+  });
 }

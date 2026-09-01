@@ -34,6 +34,7 @@ import {
 } from '../scripts/sealed-realms-production-workflow-authority.mjs';
 import {
   createSealedRealmsProductionG001CensusAuthority,
+  createSealedRealmsProductionG001Dispatcher,
   createSealedRealmsProductionG001LaunchAuthority,
   createSealedRealmsProductionG001Lane,
   createSealedRealmsProductionG001CurrentStateTestAdapter,
@@ -41,7 +42,7 @@ import {
 } from '../scripts/sealed-realms-production-g001-lane-entry.mjs';
 import {
   SealedRealmsProductionDispatcherError,
-  createSealedRealmsProductionDispatcher,
+  createSealedRealmsProductionDispatchContext,
 } from '../scripts/sealed-realms-production-dispatch.mjs';
 import type {
   SealedRealmsProductionSafeStatus,
@@ -555,33 +556,34 @@ async function dispatcherFixture(operation = 'preflight') {
     runAttempt: '1',
     fetchImpl: workflowGithub(runId, new Set()),
   });
+  const context = createSealedRealmsProductionDispatchContext({
+    readGit: (args: readonly string[]) => {
+      if (args[0] === 'rev-parse') return `${SOURCE}\n`;
+      throw new Error('unexpected git command');
+    },
+    readBinding: () => ({
+      schemaVersion: 1,
+      profile: 'warpkeep-0.4.0-sealed-launch-v1',
+      pagesDeploymentApproved: false,
+      preparationSourceCommit: SOURCE,
+    }),
+    verifyEvidence,
+    permit,
+    continuationStore: createSealedRealmsProductionContinuationStore({
+      privateState: local.state,
+    }),
+    runId,
+    runAttempt: '1',
+    sourceAuthority,
+  });
+  const lane = g001PolicyLane({
+    preflight,
+    runEnvelopeChild: async () => ({ status: 0, stdout: '', stderr: '' }),
+  });
   return {
     preflight,
     verifyEvidence,
-    dispatcher: createSealedRealmsProductionDispatcher({
-      readGit: (args: readonly string[]) => {
-        if (args[0] === 'rev-parse') return `${SOURCE}\n`;
-        throw new Error('unexpected git command');
-      },
-      readBinding: () => ({
-        schemaVersion: 1,
-        profile: 'warpkeep-0.4.0-sealed-launch-v1',
-        pagesDeploymentApproved: false,
-        preparationSourceCommit: SOURCE,
-      }),
-      verifyEvidence,
-      g001Lane: g001PolicyLane({
-        preflight,
-        runEnvelopeChild: async () => ({ status: 0, stdout: '', stderr: '' }),
-      }),
-      permit,
-      continuationStore: createSealedRealmsProductionContinuationStore({
-        privateState: local.state,
-      }),
-      runId,
-      runAttempt: '1',
-      sourceAuthority,
-    } as never),
+    dispatcher: createSealedRealmsProductionG001Dispatcher({ context, lane }),
     cleanup: local.cleanup,
   };
 }

@@ -1,13 +1,14 @@
 import { execFileSync } from 'node:child_process';
 
 import {
-  createSealedRealmsProductionDispatcher,
+  createSealedRealmsProductionDispatchContext,
 } from './sealed-realms-production-dispatch.mjs';
 import {
   createSealedRealmsProductionContinuationStore,
 } from './sealed-realms-production-continuation.mjs';
 import {
   createSealedRealmsProductionG001CensusAuthority,
+  createSealedRealmsProductionG001Dispatcher,
   createSealedRealmsProductionG001Lane,
   createSealedRealmsProductionG001LaunchAuthority,
 } from './sealed-realms-production-g001-lane-entry.mjs';
@@ -186,17 +187,17 @@ async function buildDispatcher(operation, workflowInputSha) {
     },
     currentStateOperator: executeGenesis001AdmissionMonitorCurrentState,
   });
-  return createSealedRealmsProductionDispatcher({
+  const context = createSealedRealmsProductionDispatchContext({
     readGit,
     readBinding,
     verifyEvidence: verifySealedRealmsProductionWorkflowEvidence,
-    g001Lane: lane,
     permit,
     continuationStore,
     runId,
     runAttempt,
     sourceAuthority: authority,
   });
+  return createSealedRealmsProductionG001Dispatcher({ context, lane });
 }
 
 /** Creates one opaque, process-local G001 runtime bound to one source/operation. */

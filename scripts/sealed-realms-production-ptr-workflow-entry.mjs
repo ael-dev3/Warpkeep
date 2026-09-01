@@ -3,12 +3,13 @@ import {
   createSealedRealmsProductionAuthBridgeState,
 } from './sealed-realms-production-auth-bridge-state.mjs';
 import {
-  createSealedRealmsProductionDispatcher,
+  createSealedRealmsProductionDispatchContext,
 } from './sealed-realms-production-dispatch.mjs';
 import {
   createSealedRealmsProductionContinuationStore,
 } from './sealed-realms-production-continuation.mjs';
 import {
+  createSealedRealmsProductionPtrDispatcher,
   createSealedRealmsProductionPtrLane,
 } from './sealed-realms-production-ptr-lane-entry.mjs';
 import {
@@ -243,17 +244,17 @@ async function buildDispatcher(operation, workflowInputSha) {
     provisionOwner: unavailable,
     liveInspect: unavailable,
   });
-  return createSealedRealmsProductionDispatcher({
+  const context = createSealedRealmsProductionDispatchContext({
     readGit,
     readBinding,
     verifyEvidence: verifySealedRealmsProductionWorkflowEvidence,
-    ptrLane: lane,
     permit,
     continuationStore,
     runId,
     runAttempt,
     sourceAuthority: authority,
   });
+  return createSealedRealmsProductionPtrDispatcher({ context, lane });
 }
 
 export async function createSealedRealmsProductionPtrWorkflowRuntime(input) {

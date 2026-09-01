@@ -4,7 +4,6 @@ import {
   chmodSync,
   mkdirSync,
   mkdtempSync,
-  readFileSync,
   rmSync,
   statSync,
 } from 'node:fs';
@@ -18,12 +17,18 @@ import {
   createSealedRealmsProductionContinuationStore,
 } from '../scripts/sealed-realms-production-continuation.mjs';
 import {
-  createSealedRealmsProductionDispatcher,
+  createSealedRealmsProductionDispatchContext,
 } from '../scripts/sealed-realms-production-dispatch.mjs';
+import * as dispatchSurface from '../scripts/sealed-realms-production-dispatch.mjs';
 import {
+  createSealedRealmsProductionG001Dispatcher,
   createSealedRealmsProductionG001Lane,
   createSealedRealmsProductionG001LaunchAuthority,
 } from '../scripts/sealed-realms-production-g001-lane-entry.mjs';
+import * as g001Surface from '../scripts/sealed-realms-production-g001-lane-entry.mjs';
+import * as g002Surface from '../scripts/sealed-realms-production-g002-lane-entry.mjs';
+import * as ptrSurface from '../scripts/sealed-realms-production-ptr-lane-entry.mjs';
+import * as activationSurface from '../scripts/sealed-realms-production-activation-lane-entry.mjs';
 import {
   createSealedRealmsProductionPrivateState,
 } from '../scripts/sealed-realms-production-private-state.mjs';
@@ -174,28 +179,32 @@ function preflightLane(preflight = vi.fn(async () => undefined)) {
 }
 
 describe('sealed-realms production dispatch continuation boundary', () => {
-  it('keeps the opaque lane registry graph-local without dispatcher imports of every lane', () => {
-    const dispatcher = readFileSync(
-      join(process.cwd(), 'scripts/sealed-realms-production-dispatch.mjs'),
-      'utf8',
-    );
-    expect(dispatcher).toContain("from './sealed-realms-production-lane-registry.mjs'");
-    expect(dispatcher).not.toMatch(
-      /from '.\/sealed-realms-production-(?:g001|g002|ptr|activation)-lane-entry\.mjs'/u,
-    );
-    for (const lane of ['g001', 'g002', 'ptr', 'activation']) {
-      const source = readFileSync(
-        join(process.cwd(), `scripts/sealed-realms-production-${lane}-lane-entry.mjs`),
-        'utf8',
-      );
-      expect(source).toContain("from './sealed-realms-production-lane-registry.mjs'");
+  it('keeps each workflow bundle limited to its one applicable lane graph', async () => {
+    const lanes = ['g001', 'g002', 'ptr', 'activation'] as const;
+    const builds = await Promise.all(lanes.map(lane => esbuild({
+      entryPoints: [`scripts/sealed-realms-production-${lane}-workflow-entry.mjs`],
+      absWorkingDir: process.cwd(),
+      bundle: true,
+      format: 'esm',
+      platform: 'node',
+      target: 'node22',
+      write: false,
+      metafile: true,
+    })));
+    for (const [index, build] of builds.entries()) {
+      const lane = lanes[index]!;
+      const inputs = Object.keys(build.metafile!.inputs).map(input => input.replaceAll('\\', '/'));
+      for (const candidate of lanes) {
+        expect(inputs.some(input => input.endsWith(
+          `/sealed-realms-production-${candidate}-lane-entry.mjs`,
+        ))).toBe(candidate === lane);
+      }
     }
   });
 
-  it('rejects an authentic lane branded by a different bundled registry graph', async () => {
-    const { lane } = preflightLane();
-    const registryBuild = await esbuild({
-      entryPoints: ['scripts/sealed-realms-production-lane-registry.mjs'],
+  it('rejects an authentic lane branded by a different bundled lane graph', async () => {
+    const laneBuild = await esbuild({
+      entryPoints: ['scripts/sealed-realms-production-g001-lane-entry.mjs'],
       absWorkingDir: process.cwd(),
       bundle: true,
       format: 'esm',
@@ -203,30 +212,62 @@ describe('sealed-realms production dispatch continuation boundary', () => {
       target: 'node22',
       write: false,
     });
-    const registry = await import(
-      `data:text/javascript;base64,${Buffer.from(registryBuild.outputFiles[0]!.contents).toString('base64')}`
+    const bundledLane = await import(
+      `data:text/javascript;base64,${Buffer.from(laneBuild.outputFiles[0]!.contents).toString('base64')}`
     );
-    expect(() => registry.assertSealedRealmsProductionLane(lane, 'g001'))
+    const lane = bundledLane.createSealedRealmsProductionG001Lane({
+      launchAuthority: bundledLane.createSealedRealmsProductionG001LaunchAuthority({
+        readRawGit: () => `${S}\n`,
+        resolveAdminSecretPath: () => ({ sourceCommit: S, path: '/private/unreachable' }),
+        persistPolicyObservation: () => undefined,
+      }),
+      attestDispatcherNode: () => { throw new Error('unreachable'); },
+      runEnvelopeChild: () => { throw new Error('unreachable'); },
+      censusAuthority: undefined,
+      currentState: {
+        runChild: () => { throw new Error('unreachable'); },
+        readFixedFile: () => { throw new Error('unreachable'); },
+        resolveAccountUid: () => { throw new Error('unreachable'); },
+        resolveAccountHome: () => { throw new Error('unreachable'); },
+        testOnlyAdapter: undefined,
+      },
+      currentStateOperator: () => { throw new Error('unreachable'); },
+      preflight: () => undefined,
+    });
+    const protectedMember = await protectedContext();
+    const context = createSealedRealmsProductionDispatchContext(dispatcherInput({
+      ...protectedMember,
+      runId: RUN_ID,
+      runAttempt: '1',
+    }) as never);
+    expect(() => createSealedRealmsProductionG001Dispatcher({ context, lane } as never))
       .toThrow(expect.objectContaining({
-        code: 'SEALED_REALMS_LANE_REGISTRY_CAPABILITY_INVALID',
+        code: 'SEALED_REALMS_DISPATCH_INPUT_INVALID',
       }));
   });
 
   it('requires the internally branded permit/store and fixed run identity at construction', () => {
-    const input = dispatcherInput();
-    expect(() => createSealedRealmsProductionDispatcher(input as never))
+    const { lane } = preflightLane();
+    expect(() => createSealedRealmsProductionG001Dispatcher({
+      context: Object.freeze({}), lane,
+    } as never))
       .toThrow(expect.objectContaining({ code: 'SEALED_REALMS_DISPATCH_INPUT_INVALID' }));
   });
 
   it('rejects the legacy unbranded test lane bypass even with a real protected context', async () => {
     const context = await protectedContext();
     const effect = vi.fn(async () => Object.freeze({ status: 'preflight-inspected' }));
-    expect(() => createSealedRealmsProductionDispatcher(dispatcherInput({
+    const dispatchContext = createSealedRealmsProductionDispatchContext(dispatcherInput({
       ...context,
       runId: RUN_ID,
       runAttempt: '1',
+    }) as never);
+    const { lane } = preflightLane();
+    expect(() => createSealedRealmsProductionG001Dispatcher({
+      context: dispatchContext,
+      lane,
       testOnlyLanes: { g001: { execute: effect } },
-    }) as never)).toThrow(expect.objectContaining({
+    } as never)).toThrow(expect.objectContaining({
       code: 'SEALED_REALMS_DISPATCH_INPUT_INVALID',
     }));
     expect(effect).not.toHaveBeenCalled();
@@ -240,33 +281,93 @@ describe('sealed-realms production dispatch continuation boundary', () => {
       runId: RUN_ID,
       runAttempt: '1',
     };
+    const dispatchContext = createSealedRealmsProductionDispatchContext(
+      dispatcherInput(common) as never,
+    );
 
-    expect(() => createSealedRealmsProductionDispatcher(dispatcherInput({
-      ...common,
-      g001Lane: Object.freeze({ execute }),
-    }) as never)).toThrow(expect.objectContaining({
+    expect(() => createSealedRealmsProductionG001Dispatcher({
+      context: dispatchContext,
+      lane: Object.freeze({ execute }),
+    } as never)).toThrow(expect.objectContaining({
       code: 'SEALED_REALMS_DISPATCH_INPUT_INVALID',
     }));
 
     const { lane } = preflightLane();
-    expect(() => createSealedRealmsProductionDispatcher(dispatcherInput({
-      ...common,
-      g002Lane: lane,
-    }) as never)).toThrow(expect.objectContaining({
+    expect(() => g002Surface.createSealedRealmsProductionG002Dispatcher({
+      context: dispatchContext,
+      lane,
+    } as never)).toThrow(expect.objectContaining({
       code: 'SEALED_REALMS_DISPATCH_INPUT_INVALID',
     }));
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('rejects a structural lane even after a same-graph caller imports every minting surface', async () => {
+    const context = await protectedContext();
+    const execute = vi.fn(async () => Object.freeze({ status: 'preflight-inspected' }));
+    const forged = Object.freeze({ execute });
+    const surfaces = [
+      dispatchSurface, g001Surface, g002Surface, ptrSurface, activationSurface,
+    ];
+    expect(surfaces.flatMap(surface => Object.keys(surface)))
+      .not.toEqual(expect.arrayContaining([
+        'registerSealedRealmsProductionLane',
+        'createSealedRealmsProductionDispatcher',
+      ]));
+    expect(surfaces.flatMap(surface => Object.keys(surface)).some(
+      name => /(?:register|registrar|mint).*lane/iu.test(name),
+    )).toBe(false);
+    const dispatchContext = createSealedRealmsProductionDispatchContext(dispatcherInput({
+      ...context,
+      runId: RUN_ID,
+      runAttempt: '1',
+    }) as never);
+
+    expect(() => createSealedRealmsProductionG001Dispatcher({
+      context: dispatchContext,
+      lane: forged,
+    } as never)).toThrow(expect.objectContaining({
+      code: 'SEALED_REALMS_DISPATCH_INPUT_INVALID',
+    }));
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('rejects a same-graph accessor that swaps an authentic lane for a structural fake', async () => {
+    const context = await protectedContext();
+    const execute = vi.fn(async () => Object.freeze({ status: 'preflight-inspected' }));
+    const forged = Object.freeze({ execute });
+    const { lane } = preflightLane();
+    const dispatchContext = createSealedRealmsProductionDispatchContext(dispatcherInput({
+      ...context,
+      runId: RUN_ID,
+      runAttempt: '1',
+    }) as never);
+    let laneRead = 0;
+    const swappingInput = {};
+    Object.defineProperties(swappingInput, {
+      context: { enumerable: true, get: () => dispatchContext },
+      lane: { enumerable: true, get: () => (++laneRead === 1 ? lane : forged) },
+    });
+
+    expect(() => createSealedRealmsProductionG001Dispatcher(swappingInput as never))
+      .toThrow(expect.objectContaining({
+        code: 'SEALED_REALMS_DISPATCH_INPUT_INVALID',
+      }));
     expect(execute).not.toHaveBeenCalled();
   });
 
   it('accepts no operational confirmation input and emits no confirmation material', async () => {
     const context = await protectedContext();
     const { lane, preflight } = preflightLane();
-    const dispatcher = createSealedRealmsProductionDispatcher(dispatcherInput({
+    const dispatchContext = createSealedRealmsProductionDispatchContext(dispatcherInput({
       ...context,
       runId: RUN_ID,
       runAttempt: '1',
-      g001Lane: lane,
     }) as never);
+    const dispatcher = createSealedRealmsProductionG001Dispatcher({
+      context: dispatchContext,
+      lane,
+    });
 
     await expect(dispatcher.dispatch({
       operation: 'preflight',

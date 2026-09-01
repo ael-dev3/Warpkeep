@@ -20,15 +20,21 @@ import {
   sourceCommitFromSealedRealmsProductionAuthority,
 } from './sealed-realms-production-source-authority.mjs';
 import {
-  assertSealedRealmsProductionLane,
-  registerSealedRealmsProductionLane,
-} from './sealed-realms-production-lane-registry.mjs';
+  SealedRealmsProductionDispatcherError,
+  assertSealedRealmsProductionDispatchContext,
+  completeSealedRealmsProductionDispatch,
+  earlySealedRealmsProductionDispatchResult,
+  openSealedRealmsProductionPreparedDispatch,
+  prepareSealedRealmsProductionDispatch,
+  rejectSealedRealmsProductionLaneFailure,
+} from './sealed-realms-production-dispatch.mjs';
 
 const OPERATIONS = new Set([
   'ptr-publish-inspect', 'ptr-publish-apply', 'ptr-import-inspect',
   'ptr-import-apply', 'ptr-owner-provision-inspect', 'ptr-owner-provision',
   'ptr-live-inspect',
 ]);
+const lanes = new WeakSet();
 
 export class SealedRealmsProductionPtrLaneError extends Error {
   constructor(code) {
@@ -245,13 +251,53 @@ export function createSealedRealmsProductionPtrLane(input) {
     return Object.freeze({ status: 'live-inspected' });
   };
   const lane = Object.freeze({ execute });
-  return registerSealedRealmsProductionLane(lane, 'ptr');
+  lanes.add(lane);
+  return lane;
 }
 
 export function assertSealedRealmsProductionPtrLane(lane) {
+  if (!lanes.has(lane)) fail('SEALED_REALMS_PTR_LANE_CAPABILITY_INVALID');
+  return lane;
+}
+
+/** Composes only an authentic PTR lane with an opaque fixed dispatch context. */
+export function createSealedRealmsProductionPtrDispatcher(input) {
+  let context;
+  let lane;
   try {
-    return assertSealedRealmsProductionLane(lane, 'ptr');
+    if (
+      input === null || typeof input !== 'object' || Array.isArray(input)
+      || Object.getPrototypeOf(input) !== Object.prototype
+    ) throw new Error('invalid input');
+    const descriptors = Object.getOwnPropertyDescriptors(input);
+    if (
+      JSON.stringify(Reflect.ownKeys(descriptors)) !== JSON.stringify(['context', 'lane'])
+      || !Object.hasOwn(descriptors.context, 'value') || !descriptors.context.enumerable
+      || !Object.hasOwn(descriptors.lane, 'value') || !descriptors.lane.enumerable
+    ) throw new Error('invalid input');
+    context = descriptors.context.value;
+    lane = descriptors.lane.value;
+    assertSealedRealmsProductionDispatchContext(context);
+    assertSealedRealmsProductionPtrLane(lane);
   } catch {
-    fail('SEALED_REALMS_PTR_LANE_CAPABILITY_INVALID');
+    throw new SealedRealmsProductionDispatcherError('SEALED_REALMS_DISPATCH_INPUT_INVALID');
   }
+  return Object.freeze({
+    dispatch: async request => {
+      const prepared = prepareSealedRealmsProductionDispatch(context, request);
+      const early = earlySealedRealmsProductionDispatchResult(prepared);
+      if (early !== undefined) return early;
+      const opened = openSealedRealmsProductionPreparedDispatch(prepared);
+      if (opened.lane !== 'ptr') {
+        return completeSealedRealmsProductionDispatch(prepared, { status: 'unavailable' });
+      }
+      let result;
+      try {
+        result = await lane.execute(opened.request);
+      } catch (error) {
+        rejectSealedRealmsProductionLaneFailure(error);
+      }
+      return completeSealedRealmsProductionDispatch(prepared, result);
+    },
+  });
 }

@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-  createSealedRealmsProductionDispatcher,
+  createSealedRealmsProductionDispatchContext,
 } from '../scripts/sealed-realms-production-dispatch.mjs';
 import {
   claimSealedRealmsProductionContinuation,
@@ -30,6 +30,7 @@ import {
 } from '../scripts/sealed-realms-production-reconciliation.mjs';
 import {
   createSealedRealmsProductionG001CensusAuthority,
+  createSealedRealmsProductionG001Dispatcher,
   createSealedRealmsProductionG001Lane,
   createSealedRealmsProductionG001LaunchAuthority,
 } from '../scripts/sealed-realms-production-g001-lane-entry.mjs';
@@ -280,7 +281,7 @@ async function dispatchG001(
   run: Awaited<ReturnType<typeof protectedRun>>,
   privateState: ReturnType<ReturnType<typeof privateFixture>['state']>,
 ) {
-  const dispatcher = createSealedRealmsProductionDispatcher({
+  const context = createSealedRealmsProductionDispatchContext({
     readGit: () => `${S}\n`,
     readBinding: () => ({
       schemaVersion: 1,
@@ -289,13 +290,13 @@ async function dispatchG001(
       preparationSourceCommit: S,
     }),
     verifyEvidence: (commit: string) => ({ verifiedSha: commit }),
-    g001Lane: lane,
     permit: run.permit,
     continuationStore: createSealedRealmsProductionContinuationStore({ privateState }),
     runId: run.runId,
     runAttempt: run.runAttempt,
     sourceAuthority: run.sourceAuthority,
   } as never);
+  const dispatcher = createSealedRealmsProductionG001Dispatcher({ context, lane });
   return dispatcher.dispatch({
     operation: run.sourceAuthority.operation,
     workflowInputSha: S,

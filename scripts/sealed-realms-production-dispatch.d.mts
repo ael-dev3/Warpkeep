@@ -29,26 +29,27 @@ export type SealedRealmsProductionSafeStatus =
   | 'publish-inspected'
   | 'submitted'
   | 'unavailable';
-export type SealedRealmsProductionLane = Readonly<{
-  execute: (input: Readonly<{
-    operation: SealedRealmsProductionOperation;
-    authority: SealedRealmsProductionSourceAuthority;
-    continuation: Readonly<{
-      permit: SealedRealmsProductionWorkflowPermit;
-      store: SealedRealmsProductionContinuationStore;
-      runId: string;
-      runAttempt: string;
-      sourceAuthority: SealedRealmsProductionSourceAuthority;
-    }>;
-  }>) => Readonly<{
-    status?: SealedRealmsProductionSafeStatus;
-    ready?: boolean;
-  }> | Promise<Readonly<{
-    status?: SealedRealmsProductionSafeStatus;
-    ready?: boolean;
-  }>>;
-}>;
 
+declare const dispatchContextBrand: unique symbol;
+declare const preparedDispatchBrand: unique symbol;
+
+export type SealedRealmsProductionDispatchContext = Readonly<{
+  [dispatchContextBrand]: true;
+}>;
+export type SealedRealmsProductionPreparedDispatch = Readonly<{
+  [preparedDispatchBrand]: true;
+}>;
+export type SealedRealmsProductionLaneRequest = Readonly<{
+  operation: SealedRealmsProductionOperation;
+  authority: SealedRealmsProductionSourceAuthority;
+  continuation: Readonly<{
+    permit: SealedRealmsProductionWorkflowPermit;
+    store: SealedRealmsProductionContinuationStore;
+    runId: string;
+    runAttempt: string;
+    sourceAuthority: SealedRealmsProductionSourceAuthority;
+  }>;
+}>;
 export type SealedRealmsProductionDispatcher = Readonly<{
   dispatch: (request: Readonly<{
     operation: SealedRealmsProductionOperation;
@@ -60,7 +61,7 @@ export type SealedRealmsProductionDispatcher = Readonly<{
   }>>;
 }>;
 
-export function createSealedRealmsProductionDispatcher(input: Readonly<{
+export function createSealedRealmsProductionDispatchContext(input: Readonly<{
   readGit: (arguments_: readonly string[]) => Uint8Array | string;
   readBinding: (commit: string) => Readonly<Record<string, unknown>>;
   verifyEvidence: (commit: string) => Readonly<{ verifiedSha: string }>;
@@ -69,12 +70,35 @@ export function createSealedRealmsProductionDispatcher(input: Readonly<{
   runId: string;
   runAttempt: string | number;
   sourceAuthority: SealedRealmsProductionSourceAuthority;
-  g001Lane?: SealedRealmsProductionLane;
-  g002Lane?: SealedRealmsProductionLane;
-  ptrLane?: SealedRealmsProductionLane;
-  activationLane?: SealedRealmsProductionLane;
-}>): SealedRealmsProductionDispatcher;
-
-export function assertSealedRealmsProductionDispatcher(
-  dispatcher: unknown,
-): SealedRealmsProductionDispatcher;
+}>): SealedRealmsProductionDispatchContext;
+export function assertSealedRealmsProductionDispatchContext(
+  context: unknown,
+): SealedRealmsProductionDispatchContext;
+export function prepareSealedRealmsProductionDispatch(
+  context: SealedRealmsProductionDispatchContext,
+  request: Readonly<{
+    operation: SealedRealmsProductionOperation;
+    workflowInputSha: string;
+  }>,
+): SealedRealmsProductionPreparedDispatch;
+export function openSealedRealmsProductionPreparedDispatch(
+  prepared: SealedRealmsProductionPreparedDispatch,
+): Readonly<{
+  lane: 'g001' | 'g002' | 'ptr' | 'activation';
+  request: SealedRealmsProductionLaneRequest;
+}>;
+export function earlySealedRealmsProductionDispatchResult(
+  prepared: SealedRealmsProductionPreparedDispatch,
+): Readonly<{
+  operation: 'activation-evidence-generate';
+  status: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE';
+}> | undefined;
+export function completeSealedRealmsProductionDispatch(
+  prepared: SealedRealmsProductionPreparedDispatch,
+  value: Readonly<{ status?: SealedRealmsProductionSafeStatus; ready?: boolean }>,
+): Readonly<{
+  operation: string;
+  status?: SealedRealmsProductionSafeStatus;
+  ready?: boolean;
+}>;
+export function rejectSealedRealmsProductionLaneFailure(error: unknown): never;

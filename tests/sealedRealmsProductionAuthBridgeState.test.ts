@@ -19,18 +19,21 @@ import {
   reconcileSealedRealmsProductionContinuation,
 } from '../scripts/sealed-realms-production-continuation.mjs';
 import {
-  createSealedRealmsProductionDispatcher,
+  createSealedRealmsProductionDispatchContext,
 } from '../scripts/sealed-realms-production-dispatch.mjs';
 import {
   createSealedRealmsProductionPublicationReconciler,
 } from '../scripts/sealed-realms-production-reconciliation.mjs';
 import {
+  createSealedRealmsProductionG002Dispatcher,
   createSealedRealmsProductionG002Lane,
 } from '../scripts/sealed-realms-production-g002-lane-entry.mjs';
 import {
+  createSealedRealmsProductionPtrDispatcher,
   createSealedRealmsProductionPtrLane,
 } from '../scripts/sealed-realms-production-ptr-lane-entry.mjs';
 import {
+  createSealedRealmsProductionActivationDispatcher,
   createSealedRealmsProductionActivationLane,
 } from '../scripts/sealed-realms-production-activation-lane-entry.mjs';
 import {
@@ -304,7 +307,7 @@ async function protectedDispatcher(
   const context = await protectedContext(
     local, operation, runId, sourceCommit, completedRunIds,
   );
-  return createSealedRealmsProductionDispatcher({
+  const dispatchContext = createSealedRealmsProductionDispatchContext({
     readGit: () => `${sourceCommit}\n`,
     readBinding: () => ({
       schemaVersion: 1,
@@ -313,13 +316,28 @@ async function protectedDispatcher(
       preparationSourceCommit: sourceCommit,
     }),
     verifyEvidence: (verifiedSha: string) => ({ verifiedSha }),
-    ...lanes,
     permit: context.continuation.permit,
     continuationStore: context.continuation.store,
     runId,
     runAttempt: '1',
     sourceAuthority: context.authority,
   } as never);
+  if (Object.hasOwn(lanes, 'g002Lane')) {
+    return createSealedRealmsProductionG002Dispatcher({
+      context: dispatchContext, lane: lanes.g002Lane,
+    } as never);
+  }
+  if (Object.hasOwn(lanes, 'ptrLane')) {
+    return createSealedRealmsProductionPtrDispatcher({
+      context: dispatchContext, lane: lanes.ptrLane,
+    } as never);
+  }
+  if (Object.hasOwn(lanes, 'activationLane')) {
+    return createSealedRealmsProductionActivationDispatcher({
+      context: dispatchContext, lane: lanes.activationLane,
+    } as never);
+  }
+  throw new Error('protected dispatcher fixture requires one fixed lane');
 }
 
 function publicationMarker(lane: 'g002' | 'ptr') {
