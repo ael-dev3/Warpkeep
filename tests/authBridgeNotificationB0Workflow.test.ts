@@ -152,6 +152,19 @@ function observationErrorClass(error: unknown) {
   return 'unavailable' as const;
 }
 
+function aclStateFromListing(listing: string) {
+  const withoutTerminalNewlines = listing.replace(/\n+$/u, '');
+  if (withoutTerminalNewlines.includes('\n')) return 'multiline' as const;
+  const permissionToken = /^(\S+)\s+/u.exec(withoutTerminalNewlines)?.[1];
+  if (
+    permissionToken === undefined
+    || !/^[bcdlps?-][rwxStTs-]{9}[.+]?$/u.test(permissionToken)
+  ) {
+    return 'unavailable' as const;
+  }
+  return permissionToken.includes('+') ? 'extended' as const : 'plain' as const;
+}
+
 function aclObservation(component: string) {
   try {
     const listing = spawnSync('/bin/ls', ['-ld', '--', component], {
@@ -164,13 +177,7 @@ function aclObservation(component: string) {
     ) {
       return 'unavailable' as const;
     }
-    const withoutTerminalNewlines = listing.stdout.replace(/\n+$/u, '');
-    if (withoutTerminalNewlines.includes('\n')) return 'multiline' as const;
-    const permissionToken = withoutTerminalNewlines.split(/\s/u, 1)[0];
-    if (permissionToken === '') return 'unavailable' as const;
-    return permissionToken.includes('+')
-      ? 'extended' as const
-      : 'plain' as const;
+    return aclStateFromListing(listing.stdout);
   } catch {
     return 'unavailable' as const;
   }
@@ -307,6 +314,11 @@ afterEach(() => {
 });
 
 describe('notification bridge B0 protected workflow', () => {
+  it('reports unavailable for a malformed ACL permissions token', () => {
+    expect(aclStateFromListing('not-a-permissions-token node\n'))
+      .toBe('unavailable');
+  });
+
   it.skipIf(process.platform !== 'linux')(
     'reports finite ACL state for each observed selected Node ancestry entry',
     () => {
