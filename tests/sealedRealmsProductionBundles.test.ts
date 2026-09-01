@@ -21,7 +21,31 @@ const NODE_ATTESTATION = {
   sha256: '5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c',
   teamId: 'HX7739G8FX',
 } as const;
-const GRAPH_COUNTS = { activation: 8, g001: 5, g002: 122, ptr: 122 } as const;
+const GRAPH_COUNTS = { activation: 10, g001: 13, g002: 126, ptr: 127 } as const;
+const ENTRY_PATHS = {
+  activation: 'scripts/sealed-realms-production-activation-workflow-entry.mjs',
+  g001: 'scripts/sealed-realms-production-g001-workflow-entry.mjs',
+  g002: 'scripts/sealed-realms-production-g002-workflow-entry.mjs',
+  ptr: 'scripts/sealed-realms-production-ptr-workflow-entry.mjs',
+} as const;
+const EXPORT_NAMES = {
+  activation: [
+    'createSealedRealmsProductionActivationWorkflowRuntime',
+    'runSealedRealmsProductionActivationOperation',
+  ],
+  g001: [
+    'createSealedRealmsProductionG001WorkflowRuntime',
+    'runSealedRealmsProductionG001Operation',
+  ],
+  g002: [
+    'createSealedRealmsProductionG002WorkflowRuntime',
+    'runSealedRealmsProductionG002Operation',
+  ],
+  ptr: [
+    'createSealedRealmsProductionPtrWorkflowRuntime',
+    'runSealedRealmsProductionPtrOperation',
+  ],
+} as const;
 const BASENAMES = {
   activation: 'sealed-realms-production-activation-lane.bundle.mjs',
   g001: 'sealed-realms-production-g001-lane.bundle.mjs',
@@ -62,17 +86,24 @@ function fixture(testOnlyFsync: (path: string) => void = () => {}) {
 }
 
 describe('sealed-realms production bundles', () => {
-  it('builds four functional deterministic node-only lane graphs before one family publication', async () => {
+  it('builds four functional deterministic node-only workflow graphs before one family publication', async () => {
     const local = fixture();
     const loadHook = vi.fn(async (request: Parameters<Parameters<
       typeof buildSealedRealmsProductionBundles
     >[0]['loadHook']>[0]) => {
       const module = await import(`data:text/javascript;base64,${Buffer.from(request.bytes).toString('base64')}`);
       expect(Object.keys(module).sort()).toEqual(request.exportNames);
+      expect(request.exportNames).toEqual(EXPORT_NAMES[request.lane]);
       const factory = module[request.factoryExport];
       expect(typeof factory).toBe('function');
       expect(() => factory({})).toThrow(request.factoryFailureCode);
       expect(request.graphManifest).toHaveLength(GRAPH_COUNTS[request.lane]);
+      expect(request.graphManifest.some(member => member.path === ENTRY_PATHS[request.lane])).toBe(true);
+      const runExport = request.exportNames.find(name => name.startsWith('run'))!;
+      expect(typeof module[runExport]).toBe('function');
+      await expect(module[runExport]({})).rejects.toMatchObject({
+        code: expect.stringMatching(/WORKFLOW_(?:INPUT|RUNTIME)_INVALID$/u),
+      });
       return {
         node: NODE_ATTESTATION,
         lane: request.lane,
