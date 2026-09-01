@@ -15,7 +15,7 @@ const WARPKEEP_ADMIN_ROLE = 'warpkeep-admin';
 const WARPKEEP_HERMES_SUBJECT = 'service:hermes';
 const MAX_SUPPORTED_FID = BigInt(Number.MAX_SAFE_INTEGER);
 const MAX_AUTH_EPOCH = 0xffff_ffff;
-const PTR_ADMIN_JTI = /^[A-Za-z0-9_-]{1,128}$/u;
+const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;
 const PTR_DATABASE_IDENTITY = /^[a-f0-9]{64}$/u;
 const PTR_OWNER_EXACT_CLAIM_KEYS = Object.freeze([
   'iss',
@@ -247,12 +247,15 @@ export function readFreshPtrOwnerClaims(
     const expiresAt = numericDate(record, 'exp');
     const sessionIssuedAt = numericDate(record, 'session_iat');
     const sessionExpiresAt = numericDate(record, 'session_exp');
+    const jti = record.jti;
     if (
       record.auth_version !== WARPKEEP_AUTH_VERSION
       || record.realm_id !== PTR_REALM_ID
       || base.subject !== `farcaster:${fid.toString()}`
       || base.roles.length !== 1
       || base.roles[0] !== PTR_OWNER_ROLE
+      || typeof jti !== 'string'
+      || !PTR_JTI.test(jti)
       || expiresAt <= issuedAt
       || notBefore > expiresAt
       || sessionExpiresAt <= sessionIssuedAt
@@ -300,7 +303,7 @@ export function readFreshPtrAdminClaims(
       || claims.roles.length !== 1
       || claims.roles[0] !== WARPKEEP_ADMIN_ROLE
       || typeof jti !== 'string'
-      || !PTR_ADMIN_JTI.test(jti)
+      || !PTR_JTI.test(jti)
       || currentTimeMicros < 0n
       || currentTimeMicros + PTR_ADMIN_IAT_SKEW_MICROS
         < BigInt(issuedAt) * 1_000_000n
@@ -340,7 +343,7 @@ export function readFreshPtrAtlasAdminClaims(
       || claims.roles.length !== 1
       || claims.roles[0] !== WARPKEEP_ADMIN_ROLE
       || typeof jti !== 'string'
-      || !PTR_ADMIN_JTI.test(jti)
+      || !PTR_JTI.test(jti)
       || currentTimeMicros < 0n
       || currentTimeMicros + PTR_ADMIN_IAT_SKEW_MICROS
         < BigInt(issuedAt) * 1_000_000n

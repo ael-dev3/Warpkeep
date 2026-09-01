@@ -199,6 +199,16 @@ describe('PTR owner JWT policy', () => {
     expectOwnerDenial(ownerPayload({ arbitrary_extra_owner_claim: true }));
   });
 
+  test('rejects missing, malformed, or unbounded owner JTIs', () => {
+    for (const jti of [
+      null,
+      7,
+      '',
+      'not a base64url id',
+      'a'.repeat(129),
+    ]) expectOwnerDenial(ownerPayload({ jti }));
+  });
+
   test('requires well-formed ordinary JWT dates without trusting them over the custom deadline', () => {
     for (const payload of [
       ownerPayload({ iat: undefined }),
