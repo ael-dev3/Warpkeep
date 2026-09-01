@@ -19,20 +19,20 @@ import {
   reconcileSealedRealmsProductionContinuation,
 } from '../scripts/sealed-realms-production-continuation.mjs';
 import {
-  createSealedRealmsProductionDispatchContext,
-} from '../scripts/sealed-realms-production-dispatch.mjs';
-import {
   createSealedRealmsProductionPublicationReconciler,
 } from '../scripts/sealed-realms-production-reconciliation.mjs';
 import {
+  createSealedRealmsProductionG002DispatchContext,
   createSealedRealmsProductionG002Dispatcher,
   createSealedRealmsProductionG002Lane,
 } from '../scripts/sealed-realms-production-g002-lane-entry.mjs';
 import {
+  createSealedRealmsProductionPtrDispatchContext,
   createSealedRealmsProductionPtrDispatcher,
   createSealedRealmsProductionPtrLane,
 } from '../scripts/sealed-realms-production-ptr-lane-entry.mjs';
 import {
+  createSealedRealmsProductionActivationDispatchContext,
   createSealedRealmsProductionActivationDispatcher,
   createSealedRealmsProductionActivationLane,
 } from '../scripts/sealed-realms-production-activation-lane-entry.mjs';
@@ -307,7 +307,12 @@ async function protectedDispatcher(
   const context = await protectedContext(
     local, operation, runId, sourceCommit, completedRunIds,
   );
-  const dispatchContext = createSealedRealmsProductionDispatchContext({
+  const createDispatchContext = Object.hasOwn(lanes, 'g002Lane')
+    ? createSealedRealmsProductionG002DispatchContext
+    : Object.hasOwn(lanes, 'ptrLane')
+      ? createSealedRealmsProductionPtrDispatchContext
+      : createSealedRealmsProductionActivationDispatchContext;
+  const dispatchContext = createDispatchContext({
     readGit: () => `${sourceCommit}\n`,
     readBinding: () => ({
       schemaVersion: 1,
@@ -1126,27 +1131,19 @@ describe('sealed-realms auth bridge state', () => {
         '7001',
         { activationLane: lane },
       );
-      await expect(dispatcher.dispatch({
-        operation: 'activation-evidence-generate', workflowInputSha: SOURCE,
-      })).resolves.toEqual({
+      const request = Object.freeze({
+        operation: 'activation-evidence-generate' as const, workflowInputSha: SOURCE,
+      });
+      await expect(dispatcher.dispatch(request)).resolves.toEqual({
         operation: 'activation-evidence-generate',
         status: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
       });
-      const direct = await protectedContext(
-        local, 'activation-evidence-generate', '7002',
-      );
-      await expect(lane.execute({
-        operation: 'activation-evidence-generate',
-        authority: direct.authority,
-        continuation: direct.continuation,
-      })).rejects.toMatchObject({ code: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE' });
       // The transition fails before reopen/claim, so the same protected run is
       // not stranded behind a reserved effect and still fails at the fixed gate.
-      await expect(lane.execute({
+      await expect(dispatcher.dispatch(request)).resolves.toEqual({
         operation: 'activation-evidence-generate',
-        authority: direct.authority,
-        continuation: direct.continuation,
-      })).rejects.toMatchObject({ code: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE' });
+        status: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
+      });
       expect(generate).not.toHaveBeenCalled();
     } finally {
       local.cleanup();
@@ -2588,12 +2585,14 @@ describe('sealed-realms auth bridge state', () => {
     };
     vi.stubGlobal('WebSocket', class WebSocket {});
     try {
-      await expect(g002Lane().execute({
-        operation: 'g002-import-apply',
-        authority: operationAuthority('g002-import-apply'),
+      const legacyDispatcher = await protectedDispatcher(
+        local, 'g002-import-apply', '7300', { g002Lane: g002Lane() },
+      );
+      await expect(legacyDispatcher.dispatch({
+        operation: 'g002-import-apply', workflowInputSha: SOURCE,
         input: { confirmation: Object.freeze({}) },
       } as never)).rejects.toMatchObject({
-        code: 'SEALED_REALMS_G002_LANE_REQUEST_INVALID',
+        code: 'SEALED_REALMS_DISPATCH_REQUEST_INVALID',
       });
       expect(imports.g002).not.toHaveBeenCalled();
 

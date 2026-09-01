@@ -2,15 +2,20 @@ import type { SealedRealmsProductionAuthBridgeState } from './sealed-realms-prod
 import type {
   createSealedRealmsProductionPublicationReconciler,
 } from './sealed-realms-production-reconciliation.mjs';
-import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
-import type { SealedRealmsProductionContinuationStore } from './sealed-realms-production-continuation.mjs';
-import type { SealedRealmsProductionWorkflowPermit } from './sealed-realms-production-workflow-authority.mjs';
 import type {
-  SealedRealmsProductionDispatchContext,
+  SealedRealmsProductionDispatchContextInput,
   SealedRealmsProductionDispatcher,
 } from './sealed-realms-production-dispatch.mjs';
 
 export class SealedRealmsProductionPtrLaneError extends Error { readonly code: string; constructor(code: string); }
+declare const ptrLaneBrand: unique symbol;
+declare const ptrDispatchContextBrand: unique symbol;
+export type SealedRealmsProductionPtrLane = Readonly<{ [ptrLaneBrand]: true }>;
+export type SealedRealmsProductionPtrDispatchContext =
+  Readonly<{ [ptrDispatchContextBrand]: true }>;
+export function createSealedRealmsProductionPtrDispatchContext(
+  input: SealedRealmsProductionDispatchContextInput,
+): SealedRealmsProductionPtrDispatchContext;
 export function createSealedRealmsProductionPtrLane(input: Readonly<{
   reconciler: ReturnType<typeof createSealedRealmsProductionPublicationReconciler>;
   bridgeState: SealedRealmsProductionAuthBridgeState;
@@ -37,29 +42,11 @@ export function createSealedRealmsProductionPtrLane(input: Readonly<{
     provisionReceiptDigest: string;
     evidenceDigest: string;
   }>>;
-}>): Readonly<{
-  execute: (input: Readonly<{
-    operation: 'ptr-publish-inspect' | 'ptr-publish-apply' | 'ptr-import-inspect'
-      | 'ptr-import-apply' | 'ptr-owner-provision-inspect' | 'ptr-owner-provision'
-      | 'ptr-live-inspect';
-    authority: SealedRealmsProductionSourceAuthority;
-    continuation: Readonly<{
-      permit: SealedRealmsProductionWorkflowPermit;
-      store: SealedRealmsProductionContinuationStore;
-      runId: string;
-      runAttempt: string;
-      sourceAuthority: SealedRealmsProductionSourceAuthority;
-    }>;
-  }>) => Promise<Readonly<{
-    status: 'publish-inspected' | 'submitted' | 'import-inspected' | 'cross-linked'
-      | 'owner-provision-inspected' | 'owner-provisioned' | 'live-inspected'
-      | 'completed';
-  }>>;
-}>;
+}>): SealedRealmsProductionPtrLane;
 export function assertSealedRealmsProductionPtrLane(
   lane: unknown,
-): ReturnType<typeof createSealedRealmsProductionPtrLane>;
+): SealedRealmsProductionPtrLane;
 export function createSealedRealmsProductionPtrDispatcher(input: Readonly<{
-  context: SealedRealmsProductionDispatchContext;
-  lane: ReturnType<typeof createSealedRealmsProductionPtrLane>;
+  context: SealedRealmsProductionPtrDispatchContext;
+  lane: SealedRealmsProductionPtrLane;
 }>): SealedRealmsProductionDispatcher;

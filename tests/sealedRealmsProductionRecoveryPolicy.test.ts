@@ -13,9 +13,6 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
-  createSealedRealmsProductionDispatchContext,
-} from '../scripts/sealed-realms-production-dispatch.mjs';
-import {
   claimSealedRealmsProductionContinuation,
   classifySealedRealmsProductionContinuationNoEffect,
   createSealedRealmsProductionContinuationStore,
@@ -29,6 +26,7 @@ import {
   createSealedRealmsProductionPublicationReconciler,
 } from '../scripts/sealed-realms-production-reconciliation.mjs';
 import {
+  createSealedRealmsProductionG001DispatchContext,
   createSealedRealmsProductionG001CensusAuthority,
   createSealedRealmsProductionG001Dispatcher,
   createSealedRealmsProductionG001Lane,
@@ -281,7 +279,7 @@ async function dispatchG001(
   run: Awaited<ReturnType<typeof protectedRun>>,
   privateState: ReturnType<ReturnType<typeof privateFixture>['state']>,
 ) {
-  const context = createSealedRealmsProductionDispatchContext({
+  const context = createSealedRealmsProductionG001DispatchContext({
     readGit: () => `${S}\n`,
     readBinding: () => ({
       schemaVersion: 1,
@@ -391,33 +389,24 @@ describe('sealed-realms production recovery policy', () => {
         isInterrupted: () => interrupted,
       });
       interrupted = true;
-      await expect(g001Lane(fixture.state(), firstCollect, vi.fn()).execute({
-        operation: 'g001-census-first',
-        authority: orphanAuthority,
-        continuation: Object.freeze({
+      await expect(dispatchG001(
+        g001Lane(fixture.state(), firstCollect, vi.fn()),
+        Object.freeze({
           permit: orphanPermit,
-          store: createSealedRealmsProductionContinuationStore({ privateState: fixture.state() }),
           runId: '9501',
-          runAttempt: '1',
+          runAttempt: '1' as const,
           sourceAuthority: orphanAuthority,
         }),
-      })).rejects.toMatchObject({
-        code: 'SEALED_REALMS_WORKFLOW_AUTHORITY_ATTESTATION_REJECTED',
+        fixture.state(),
+      )).rejects.toMatchObject({
+        code: 'SEALED_REALMS_DISPATCH_LANE_FAILED',
       });
       const replay = vi.fn(async () => samples[1]);
       const retryRun = await protectedRun('g001-census-first', '9502');
-      await expect(g001Lane(fixture.state(), replay, vi.fn()).execute({
-        operation: 'g001-census-first',
-        authority: retryRun.sourceAuthority,
-        continuation: Object.freeze({
-          permit: retryRun.permit,
-          store: createSealedRealmsProductionContinuationStore({ privateState: fixture.state() }),
-          runId: retryRun.runId,
-          runAttempt: retryRun.runAttempt,
-          sourceAuthority: retryRun.sourceAuthority,
-        }),
-      })).rejects.toMatchObject({
-        code: 'SEALED_REALMS_G001_CENSUS_PRIVATE_STATE_INVALID',
+      await expect(dispatchG001(
+        g001Lane(fixture.state(), replay, vi.fn()), retryRun, fixture.state(),
+      )).rejects.toMatchObject({
+        code: 'SEALED_REALMS_DISPATCH_LANE_FAILED',
       });
       expect(firstCollect).toHaveBeenCalledTimes(1);
       expect(replay).not.toHaveBeenCalled();
@@ -433,20 +422,12 @@ describe('sealed-realms production recovery policy', () => {
     try {
       const operator = vi.fn(() => currentStateReceipt());
       const run = await protectedRun('g001-current-state', '9601');
-      const result = await g001Lane(
-        fixture.state(), vi.fn(), vi.fn(), operator,
-      ).execute({
-        operation: 'g001-current-state',
-        authority: run.sourceAuthority,
-        continuation: Object.freeze({
-          permit: run.permit,
-          store: createSealedRealmsProductionContinuationStore({ privateState: fixture.state() }),
-          runId: run.runId,
-          runAttempt: run.runAttempt,
-          sourceAuthority: run.sourceAuthority,
-        }),
+      const result = await dispatchG001(
+        g001Lane(fixture.state(), vi.fn(), vi.fn(), operator), run, fixture.state(),
+      );
+      expect(result).toEqual({
+        operation: 'g001-current-state', status: 'current-state-inspected',
       });
-      expect(result).toEqual({ status: 'current-state-inspected' });
       expect(JSON.stringify(result)).not.toMatch(/confirmation|digest|path|token/iu);
       expect(operator).toHaveBeenCalledTimes(1);
       const names = fixture.state().list({
@@ -471,20 +452,10 @@ describe('sealed-realms production recovery policy', () => {
     try {
       const operator = vi.fn(() => currentStateReceipt(mutation));
       const run = await protectedRun('g001-current-state', `97${_label.length}1`);
-      await expect(g001Lane(
-        fixture.state(), vi.fn(), vi.fn(), operator,
-      ).execute({
-        operation: 'g001-current-state',
-        authority: run.sourceAuthority,
-        continuation: Object.freeze({
-          permit: run.permit,
-          store: createSealedRealmsProductionContinuationStore({ privateState: fixture.state() }),
-          runId: run.runId,
-          runAttempt: run.runAttempt,
-          sourceAuthority: run.sourceAuthority,
-        }),
-      })).rejects.toMatchObject({
-        code: 'SEALED_REALMS_G001_CURRENT_STATE_RECEIPT_INVALID',
+      await expect(dispatchG001(
+        g001Lane(fixture.state(), vi.fn(), vi.fn(), operator), run, fixture.state(),
+      )).rejects.toMatchObject({
+        code: 'SEALED_REALMS_DISPATCH_LANE_FAILED',
       });
       expect(operator).toHaveBeenCalledTimes(1);
       expect(fixture.state().list({

@@ -2,15 +2,20 @@ import type { SealedRealmsProductionAuthBridgeState } from './sealed-realms-prod
 import type {
   createSealedRealmsProductionPublicationReconciler,
 } from './sealed-realms-production-reconciliation.mjs';
-import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
-import type { SealedRealmsProductionContinuationStore } from './sealed-realms-production-continuation.mjs';
-import type { SealedRealmsProductionWorkflowPermit } from './sealed-realms-production-workflow-authority.mjs';
 import type {
-  SealedRealmsProductionDispatchContext,
+  SealedRealmsProductionDispatchContextInput,
   SealedRealmsProductionDispatcher,
 } from './sealed-realms-production-dispatch.mjs';
 
 export class SealedRealmsProductionG002LaneError extends Error { readonly code: string; constructor(code: string); }
+declare const g002LaneBrand: unique symbol;
+declare const g002DispatchContextBrand: unique symbol;
+export type SealedRealmsProductionG002Lane = Readonly<{ [g002LaneBrand]: true }>;
+export type SealedRealmsProductionG002DispatchContext =
+  Readonly<{ [g002DispatchContextBrand]: true }>;
+export function createSealedRealmsProductionG002DispatchContext(
+  input: SealedRealmsProductionDispatchContextInput,
+): SealedRealmsProductionG002DispatchContext;
 export function createSealedRealmsProductionG002Lane(input: Readonly<{
   reconciler: ReturnType<typeof createSealedRealmsProductionPublicationReconciler>;
   bridgeState: SealedRealmsProductionAuthBridgeState;
@@ -27,27 +32,11 @@ export function createSealedRealmsProductionG002Lane(input: Readonly<{
     receiptDigest: string;
     evidenceDigest: string;
   }>>;
-}>): Readonly<{
-  execute: (input: Readonly<{
-    operation: 'g002-publish-inspect' | 'g002-publish-apply' | 'g002-import-inspect'
-      | 'g002-import-apply' | 'g002-live-inspect';
-    authority: SealedRealmsProductionSourceAuthority;
-    continuation: Readonly<{
-      permit: SealedRealmsProductionWorkflowPermit;
-      store: SealedRealmsProductionContinuationStore;
-      runId: string;
-      runAttempt: string;
-      sourceAuthority: SealedRealmsProductionSourceAuthority;
-    }>;
-  }>) => Promise<Readonly<{
-    status: 'publish-inspected' | 'submitted' | 'import-inspected' | 'cross-linked'
-      | 'live-inspected' | 'completed';
-  }>>;
-}>;
+}>): SealedRealmsProductionG002Lane;
 export function assertSealedRealmsProductionG002Lane(
   lane: unknown,
-): ReturnType<typeof createSealedRealmsProductionG002Lane>;
+): SealedRealmsProductionG002Lane;
 export function createSealedRealmsProductionG002Dispatcher(input: Readonly<{
-  context: SealedRealmsProductionDispatchContext;
-  lane: ReturnType<typeof createSealedRealmsProductionG002Lane>;
+  context: SealedRealmsProductionG002DispatchContext;
+  lane: SealedRealmsProductionG002Lane;
 }>): SealedRealmsProductionDispatcher;

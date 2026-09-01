@@ -3,12 +3,10 @@ import {
   createSealedRealmsProductionAuthBridgeState,
 } from './sealed-realms-production-auth-bridge-state.mjs';
 import {
-  createSealedRealmsProductionDispatchContext,
-} from './sealed-realms-production-dispatch.mjs';
-import {
   createSealedRealmsProductionContinuationStore,
 } from './sealed-realms-production-continuation.mjs';
 import {
+  createSealedRealmsProductionG002DispatchContext,
   createSealedRealmsProductionG002Dispatcher,
   createSealedRealmsProductionG002Lane,
 } from './sealed-realms-production-g002-lane-entry.mjs';
@@ -240,7 +238,7 @@ async function buildDispatcher(operation, workflowInputSha) {
     importCore: unavailable,
     liveInspect: unavailable,
   });
-  const context = createSealedRealmsProductionDispatchContext({
+  const context = createSealedRealmsProductionG002DispatchContext({
     readGit,
     readBinding,
     verifyEvidence: verifySealedRealmsProductionWorkflowEvidence,

@@ -16,11 +16,9 @@ import { build as esbuild } from 'esbuild';
 import {
   createSealedRealmsProductionContinuationStore,
 } from '../scripts/sealed-realms-production-continuation.mjs';
-import {
-  createSealedRealmsProductionDispatchContext,
-} from '../scripts/sealed-realms-production-dispatch.mjs';
 import * as dispatchSurface from '../scripts/sealed-realms-production-dispatch.mjs';
 import {
+  createSealedRealmsProductionG001DispatchContext,
   createSealedRealmsProductionG001Dispatcher,
   createSealedRealmsProductionG001Lane,
   createSealedRealmsProductionG001LaunchAuthority,
@@ -235,7 +233,7 @@ describe('sealed-realms production dispatch continuation boundary', () => {
       preflight: () => undefined,
     });
     const protectedMember = await protectedContext();
-    const context = createSealedRealmsProductionDispatchContext(dispatcherInput({
+    const context = createSealedRealmsProductionG001DispatchContext(dispatcherInput({
       ...protectedMember,
       runId: RUN_ID,
       runAttempt: '1',
@@ -257,7 +255,7 @@ describe('sealed-realms production dispatch continuation boundary', () => {
   it('rejects the legacy unbranded test lane bypass even with a real protected context', async () => {
     const context = await protectedContext();
     const effect = vi.fn(async () => Object.freeze({ status: 'preflight-inspected' }));
-    const dispatchContext = createSealedRealmsProductionDispatchContext(dispatcherInput({
+    const dispatchContext = createSealedRealmsProductionG001DispatchContext(dispatcherInput({
       ...context,
       runId: RUN_ID,
       runAttempt: '1',
@@ -281,7 +279,7 @@ describe('sealed-realms production dispatch continuation boundary', () => {
       runId: RUN_ID,
       runAttempt: '1',
     };
-    const dispatchContext = createSealedRealmsProductionDispatchContext(
+    const dispatchContext = createSealedRealmsProductionG001DispatchContext(
       dispatcherInput(common) as never,
     );
 
@@ -294,7 +292,9 @@ describe('sealed-realms production dispatch continuation boundary', () => {
 
     const { lane } = preflightLane();
     expect(() => g002Surface.createSealedRealmsProductionG002Dispatcher({
-      context: dispatchContext,
+      context: g002Surface.createSealedRealmsProductionG002DispatchContext(
+        dispatcherInput(common) as never,
+      ),
       lane,
     } as never)).toThrow(expect.objectContaining({
       code: 'SEALED_REALMS_DISPATCH_INPUT_INVALID',
@@ -317,7 +317,7 @@ describe('sealed-realms production dispatch continuation boundary', () => {
     expect(surfaces.flatMap(surface => Object.keys(surface)).some(
       name => /(?:register|registrar|mint).*lane/iu.test(name),
     )).toBe(false);
-    const dispatchContext = createSealedRealmsProductionDispatchContext(dispatcherInput({
+    const dispatchContext = createSealedRealmsProductionG001DispatchContext(dispatcherInput({
       ...context,
       runId: RUN_ID,
       runAttempt: '1',
@@ -332,12 +332,101 @@ describe('sealed-realms production dispatch continuation boundary', () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
+  it('exposes no prepared-request opener, invocation minter, or raw context handoff', async () => {
+    const surfaces = [
+      dispatchSurface, g001Surface, g002Surface, ptrSurface, activationSurface,
+    ];
+    const names = surfaces.flatMap(surface => Object.keys(surface));
+    expect(names).not.toContain('openSealedRealmsProductionPreparedDispatch');
+    expect(names.some(name => /(?:open|recover|mint|issue|create).*invocation/iu.test(name)))
+      .toBe(false);
+
+    const protectedMember = await protectedContext();
+    const context = createSealedRealmsProductionG001DispatchContext(dispatcherInput({
+      ...protectedMember,
+      runId: RUN_ID,
+      runAttempt: '1',
+    }) as never);
+    const { lane } = preflightLane();
+    const dispatcher = createSealedRealmsProductionG001Dispatcher({ context, lane });
+    expect(Object.isFrozen(context)).toBe(true);
+    expect(Reflect.ownKeys(context)).toEqual([]);
+    expect(Reflect.ownKeys(dispatcher)).toEqual(['dispatch']);
+    expect(JSON.stringify({ context, lane, dispatcher })).toBe(
+      '{"context":{},"lane":{},"dispatcher":{}}',
+    );
+  });
+
+  it('returns an opaque frozen G001 lane with no callable executor', () => {
+    const { lane, preflight } = preflightLane();
+    expect(Object.isFrozen(lane)).toBe(true);
+    expect(Reflect.ownKeys(lane)).toEqual([]);
+    expect((lane as Record<string, unknown>).execute).toBeUndefined();
+    expect(preflight).not.toHaveBeenCalled();
+  });
+
+  it('rejects forged prepared and invocation handoffs before any lane callback', async () => {
+    const context = await protectedContext();
+    const { lane, preflight } = preflightLane();
+    const dispatchContext = createSealedRealmsProductionG001DispatchContext(dispatcherInput({
+      ...context,
+      runId: RUN_ID,
+      runAttempt: '1',
+    }) as never);
+    const dispatcher = createSealedRealmsProductionG001Dispatcher({
+      context: dispatchContext,
+      lane,
+    });
+
+    for (const forged of [
+      { invocation: Object.freeze({}) },
+      { prepared: Object.freeze({}) },
+      { lane },
+      { authority: context.sourceAuthority, continuation: Object.freeze({}) },
+    ]) {
+      await expect(dispatcher.dispatch({
+        operation: 'preflight',
+        workflowInputSha: S,
+        ...forged,
+      } as never)).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_REQUEST_INVALID' });
+    }
+    expect(preflight).not.toHaveBeenCalled();
+  });
+
+  it('snapshots the public request and rejects accessor substitution before preparation', async () => {
+    const context = await protectedContext();
+    const { lane, preflight } = preflightLane();
+    const dispatchContext = createSealedRealmsProductionG001DispatchContext(dispatcherInput({
+      ...context,
+      runId: RUN_ID,
+      runAttempt: '1',
+    }) as never);
+    const dispatcher = createSealedRealmsProductionG001Dispatcher({
+      context: dispatchContext,
+      lane,
+    });
+    let operationRead = 0;
+    const request = {};
+    Object.defineProperties(request, {
+      operation: {
+        enumerable: true,
+        get: () => (++operationRead === 1 ? 'preflight' : 'g001-policy-observe'),
+      },
+      workflowInputSha: { enumerable: true, value: S },
+    });
+
+    await expect(dispatcher.dispatch(request as never)).rejects.toMatchObject({
+      code: 'SEALED_REALMS_DISPATCH_REQUEST_INVALID',
+    });
+    expect(preflight).not.toHaveBeenCalled();
+  });
+
   it('rejects a same-graph accessor that swaps an authentic lane for a structural fake', async () => {
     const context = await protectedContext();
     const execute = vi.fn(async () => Object.freeze({ status: 'preflight-inspected' }));
     const forged = Object.freeze({ execute });
     const { lane } = preflightLane();
-    const dispatchContext = createSealedRealmsProductionDispatchContext(dispatcherInput({
+    const dispatchContext = createSealedRealmsProductionG001DispatchContext(dispatcherInput({
       ...context,
       runId: RUN_ID,
       runAttempt: '1',
@@ -359,7 +448,7 @@ describe('sealed-realms production dispatch continuation boundary', () => {
   it('accepts no operational confirmation input and emits no confirmation material', async () => {
     const context = await protectedContext();
     const { lane, preflight } = preflightLane();
-    const dispatchContext = createSealedRealmsProductionDispatchContext(dispatcherInput({
+    const dispatchContext = createSealedRealmsProductionG001DispatchContext(dispatcherInput({
       ...context,
       runId: RUN_ID,
       runAttempt: '1',

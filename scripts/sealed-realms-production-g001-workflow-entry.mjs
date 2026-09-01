@@ -1,12 +1,10 @@
 import { execFileSync } from 'node:child_process';
 
 import {
-  createSealedRealmsProductionDispatchContext,
-} from './sealed-realms-production-dispatch.mjs';
-import {
   createSealedRealmsProductionContinuationStore,
 } from './sealed-realms-production-continuation.mjs';
 import {
+  createSealedRealmsProductionG001DispatchContext,
   createSealedRealmsProductionG001CensusAuthority,
   createSealedRealmsProductionG001Dispatcher,
   createSealedRealmsProductionG001Lane,
@@ -187,7 +185,7 @@ async function buildDispatcher(operation, workflowInputSha) {
     },
     currentStateOperator: executeGenesis001AdmissionMonitorCurrentState,
   });
-  const context = createSealedRealmsProductionDispatchContext({
+  const context = createSealedRealmsProductionG001DispatchContext({
     readGit,
     readBinding,
     verifyEvidence: verifySealedRealmsProductionWorkflowEvidence,

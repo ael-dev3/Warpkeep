@@ -52,8 +52,10 @@ const SAFE_STATUSES = new Set([
   'submitted',
   'unavailable',
 ]);
-const contexts = new WeakMap();
-const preparedDispatches = new WeakMap();
+const CONTEXT_KEYS = [
+  'readGit', 'readBinding', 'verifyEvidence',
+  'permit', 'continuationStore', 'runId', 'runAttempt', 'sourceAuthority',
+];
 
 export class SealedRealmsProductionDispatcherError extends Error {
   constructor(code) {
@@ -83,19 +85,11 @@ function laneFor(operation) {
   fail('SEALED_REALMS_DISPATCH_OPERATION_INVALID');
 }
 
-/**
- * Builds only an opaque, effect-free dispatch context. Lane enrollment and the
- * execute closure remain private to the matching lane module.
- */
-export function createSealedRealmsProductionDispatchContext(input) {
+/** Validates fixed context data without retaining or returning it. */
+export function assertSealedRealmsProductionDispatchContextInput(input) {
   const options = plainObject(input, 'SEALED_REALMS_DISPATCH_INPUT_INVALID');
-  const allowed = [
-    'readGit', 'readBinding', 'verifyEvidence',
-    'permit', 'continuationStore', 'runId', 'runAttempt', 'sourceAuthority',
-  ];
   if (
-    Object.keys(options).some(key => !allowed.includes(key))
-    || allowed.some(key => !Object.hasOwn(options, key))
+    JSON.stringify(Object.keys(options)) !== JSON.stringify(CONTEXT_KEYS)
     || typeof options.readGit !== 'function'
     || typeof options.readBinding !== 'function'
     || typeof options.verifyEvidence !== 'function'
@@ -114,51 +108,51 @@ export function createSealedRealmsProductionDispatchContext(input) {
   } catch {
     fail('SEALED_REALMS_DISPATCH_INPUT_INVALID');
   }
-  const context = Object.freeze({});
-  contexts.set(context, Object.freeze({
-    readGit: options.readGit,
-    readBinding: options.readBinding,
-    verifyEvidence: options.verifyEvidence,
-    continuation: Object.freeze({
-      permit: options.permit,
-      store: options.continuationStore,
-      runId: options.runId,
-      runAttempt: String(options.runAttempt),
-      sourceAuthority: options.sourceAuthority,
-    }),
-  }));
-  return context;
+  return undefined;
 }
 
-export function assertSealedRealmsProductionDispatchContext(context) {
-  if (!contexts.has(context)) fail('SEALED_REALMS_DISPATCH_INPUT_INVALID');
-  return context;
-}
-
-/** Reauthenticates and prepares data only; it cannot select or invoke a lane. */
-export function prepareSealedRealmsProductionDispatch(context, request) {
-  const member = contexts.get(context);
-  if (member === undefined) fail('SEALED_REALMS_DISPATCH_INPUT_INVALID');
-  const value = plainObject(request, 'SEALED_REALMS_DISPATCH_REQUEST_INVALID');
-  if (JSON.stringify(Object.keys(value)) !== JSON.stringify(['operation', 'workflowInputSha'])) {
+/** Reauthenticates one request and returns only its non-sensitive fixed slot. */
+export function authenticateSealedRealmsProductionDispatch(input) {
+  const options = plainObject(input, 'SEALED_REALMS_DISPATCH_INPUT_INVALID');
+  if (
+    JSON.stringify(Object.keys(options)) !== JSON.stringify([
+      'request', 'readGit', 'readBinding', 'verifyEvidence', 'sourceAuthority',
+    ])
+    || typeof options.readGit !== 'function'
+    || typeof options.readBinding !== 'function'
+    || typeof options.verifyEvidence !== 'function'
+  ) fail('SEALED_REALMS_DISPATCH_INPUT_INVALID');
+  const value = plainObject(options.request, 'SEALED_REALMS_DISPATCH_REQUEST_INVALID');
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const descriptorKeys = Reflect.ownKeys(descriptors);
+  if (
+    descriptorKeys.length !== 2
+    || descriptorKeys.some(key => !['operation', 'workflowInputSha'].includes(key))
+    || !Object.hasOwn(descriptors.operation, 'value')
+    || !descriptors.operation.enumerable
+    || !Object.hasOwn(descriptors.workflowInputSha, 'value')
+    || !descriptors.workflowInputSha.enumerable
+  ) {
     fail('SEALED_REALMS_DISPATCH_REQUEST_INVALID');
   }
+  const operation = descriptors.operation.value;
+  const workflowInputSha = descriptors.workflowInputSha.value;
   if (
-    typeof value.operation !== 'string'
-    || !SEALED_REALMS_OPERATIONS.includes(value.operation)
+    typeof operation !== 'string'
+    || !SEALED_REALMS_OPERATIONS.includes(operation)
   ) fail('SEALED_REALMS_DISPATCH_OPERATION_INVALID');
   if (
-    !['preflight', 'g001-current-state'].includes(value.operation)
+    !['preflight', 'g001-current-state'].includes(operation)
     && typeof globalThis.WebSocket !== 'function'
   ) fail('SEALED_REALMS_DISPATCH_WEBSOCKET_UNAVAILABLE');
   const reauthenticated = authenticateSealedRealmsProductionSourceAuthority({
-    operation: value.operation,
-    workflowInputSha: value.workflowInputSha,
-    readGit: member.readGit,
-    readBinding: member.readBinding,
-    verifyEvidence: member.verifyEvidence,
+    operation,
+    workflowInputSha,
+    readGit: options.readGit,
+    readBinding: options.readBinding,
+    verifyEvidence: options.verifyEvidence,
   });
-  const authority = member.continuation.sourceAuthority;
+  const authority = options.sourceAuthority;
   if (
     authority?.operation !== reauthenticated.operation
     || authority?.mode !== reauthenticated.mode
@@ -168,46 +162,31 @@ export function prepareSealedRealmsProductionDispatch(context, request) {
     || preparationSourceCommitFromSealedRealmsProductionAuthority(authority)
       !== preparationSourceCommitFromSealedRealmsProductionAuthority(reauthenticated)
   ) fail('SEALED_REALMS_DISPATCH_SOURCE_INVALID');
-  const prepared = Object.freeze({});
-  preparedDispatches.set(prepared, Object.freeze({
-    operation: value.operation,
-    lane: laneFor(value.operation),
-    request: Object.freeze({
-      operation: value.operation,
-      authority,
-      continuation: member.continuation,
-    }),
-  }));
-  return prepared;
-}
-
-/** Returns only the fixed request for a previously authenticated dispatch. */
-export function openSealedRealmsProductionPreparedDispatch(prepared) {
-  const member = preparedDispatches.get(prepared);
-  if (member === undefined) fail('SEALED_REALMS_DISPATCH_REQUEST_INVALID');
-  return Object.freeze({ lane: member.lane, request: member.request });
+  return Object.freeze({
+    operation,
+    lane: laneFor(operation),
+  });
 }
 
 /** Handles the one fixed pre-lane terminal outcome. */
-export function earlySealedRealmsProductionDispatchResult(prepared) {
-  const member = preparedDispatches.get(prepared);
-  if (member === undefined) fail('SEALED_REALMS_DISPATCH_REQUEST_INVALID');
-  if (member.operation !== 'activation-evidence-generate') return undefined;
+export function earlySealedRealmsProductionDispatchResult(operation) {
+  if (operation !== 'activation-evidence-generate') return undefined;
   return Object.freeze({
-    operation: member.operation,
+    operation,
     status: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
   });
 }
 
 /** Bounds and redacts a lane result without invoking a lane or callback. */
-export function completeSealedRealmsProductionDispatch(prepared, value) {
-  const member = preparedDispatches.get(prepared);
-  if (member === undefined) fail('SEALED_REALMS_DISPATCH_REQUEST_INVALID');
+export function completeSealedRealmsProductionDispatch(operation, value) {
+  if (typeof operation !== 'string' || !SEALED_REALMS_OPERATIONS.includes(operation)) {
+    fail('SEALED_REALMS_DISPATCH_OPERATION_INVALID');
+  }
   plainObject(value, 'SEALED_REALMS_DISPATCH_RESULT_INVALID');
   if (Object.keys(value).some(key => !['status', 'ready'].includes(key))) {
     fail('SEALED_REALMS_DISPATCH_RESULT_INVALID');
   }
-  const result = { operation: member.operation };
+  const result = { operation };
   for (const key of ['status', 'ready']) {
     if (!Object.hasOwn(value, key)) continue;
     if (

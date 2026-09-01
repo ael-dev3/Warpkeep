@@ -4,12 +4,10 @@ import {
   createSealedRealmsProductionAuthBridgeState,
 } from './sealed-realms-production-auth-bridge-state.mjs';
 import {
+  createSealedRealmsProductionActivationDispatchContext,
   createSealedRealmsProductionActivationDispatcher,
   createSealedRealmsProductionActivationLane,
 } from './sealed-realms-production-activation-lane-entry.mjs';
-import {
-  createSealedRealmsProductionDispatchContext,
-} from './sealed-realms-production-dispatch.mjs';
 import {
   createSealedRealmsProductionContinuationStore,
 } from './sealed-realms-production-continuation.mjs';
@@ -166,7 +164,7 @@ async function buildDispatcher(operation, workflowInputSha) {
     resolveOwnerProvisionReceipt: unavailable,
   });
   const lane = createSealedRealmsProductionActivationLane({ bridgeState });
-  const context = createSealedRealmsProductionDispatchContext({
+  const context = createSealedRealmsProductionActivationDispatchContext({
     readGit,
     readBinding,
     verifyEvidence: verifySealedRealmsProductionWorkflowEvidence,

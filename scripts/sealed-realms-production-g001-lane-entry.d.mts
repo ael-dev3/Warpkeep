@@ -1,8 +1,6 @@
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
-import type { SealedRealmsProductionContinuationStore } from './sealed-realms-production-continuation.mjs';
-import type { SealedRealmsProductionWorkflowPermit } from './sealed-realms-production-workflow-authority.mjs';
 import type {
-  SealedRealmsProductionDispatchContext,
+  SealedRealmsProductionDispatchContextInput,
   SealedRealmsProductionDispatcher,
 } from './sealed-realms-production-dispatch.mjs';
 
@@ -10,6 +8,15 @@ export class SealedRealmsProductionG001LaneError extends Error {
   readonly code: string;
   constructor(code: string);
 }
+
+declare const g001LaneBrand: unique symbol;
+declare const g001DispatchContextBrand: unique symbol;
+export type SealedRealmsProductionG001Lane = Readonly<{ [g001LaneBrand]: true }>;
+export type SealedRealmsProductionG001DispatchContext =
+  Readonly<{ [g001DispatchContextBrand]: true }>;
+export function createSealedRealmsProductionG001DispatchContext(
+  input: SealedRealmsProductionDispatchContextInput,
+): SealedRealmsProductionG001DispatchContext;
 
 declare const sealedRealmsG001LaunchAuthority: unique symbol;
 export type SealedRealmsProductionG001LaunchAuthority = Readonly<{
@@ -160,27 +167,12 @@ export function createSealedRealmsProductionG001Lane(input: Readonly<{
     monitorPlistSha256: string;
     monitorProgramSha256: string;
   }>>;
-}>): Readonly<{
-  execute: (input: Readonly<{
-    operation: 'preflight' | 'g001-policy-observe' | 'g001-census-first'
-      | 'g001-census-second-inspect' | 'g001-census-second-suspend' | 'g001-current-state';
-    authority: SealedRealmsProductionSourceAuthority;
-    continuation: Readonly<{
-      permit: SealedRealmsProductionWorkflowPermit;
-      store: SealedRealmsProductionContinuationStore;
-      runId: string;
-      runAttempt: string;
-      sourceAuthority: SealedRealmsProductionSourceAuthority;
-    }>;
-  }>) => Promise<Readonly<{
-    status: 'preflight-inspected' | 'completed' | 'current-state-inspected';
-  }>>;
-}>;
+}>): SealedRealmsProductionG001Lane;
 
 export function assertSealedRealmsProductionG001Lane(
   lane: unknown,
-): ReturnType<typeof createSealedRealmsProductionG001Lane>;
+): SealedRealmsProductionG001Lane;
 export function createSealedRealmsProductionG001Dispatcher(input: Readonly<{
-  context: SealedRealmsProductionDispatchContext;
-  lane: ReturnType<typeof createSealedRealmsProductionG001Lane>;
+  context: SealedRealmsProductionG001DispatchContext;
+  lane: SealedRealmsProductionG001Lane;
 }>): SealedRealmsProductionDispatcher;

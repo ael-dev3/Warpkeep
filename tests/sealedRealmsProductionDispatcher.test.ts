@@ -33,6 +33,7 @@ import {
   issueSealedRealmsProductionWorkflowPermit,
 } from '../scripts/sealed-realms-production-workflow-authority.mjs';
 import {
+  createSealedRealmsProductionG001DispatchContext,
   createSealedRealmsProductionG001CensusAuthority,
   createSealedRealmsProductionG001Dispatcher,
   createSealedRealmsProductionG001LaunchAuthority,
@@ -42,7 +43,6 @@ import {
 } from '../scripts/sealed-realms-production-g001-lane-entry.mjs';
 import {
   SealedRealmsProductionDispatcherError,
-  createSealedRealmsProductionDispatchContext,
 } from '../scripts/sealed-realms-production-dispatch.mjs';
 import type {
   SealedRealmsProductionSafeStatus,
@@ -335,7 +335,8 @@ function workflowGithub(runId: string, completedRunIds: ReadonlySet<string>) {
   });
 }
 
-async function protectedG001Request(
+async function protectedG001Dispatcher(
+  lane: ReturnType<typeof createSealedRealmsProductionG001Lane>,
   operation: string,
   authority: ReturnType<typeof authenticateSealedRealmsProductionSourceAuthority>,
   privateState: ReturnType<typeof createSealedRealmsProductionPrivateState>,
@@ -349,17 +350,36 @@ async function protectedG001Request(
     runAttempt: '1',
     fetchImpl: workflowGithub(runId, completedRunIds),
   });
-  return Object.freeze({
-    operation: operation as never,
-    authority,
-    continuation: Object.freeze({
-      permit,
-      store: createSealedRealmsProductionContinuationStore({ privateState }),
-      runId,
-      runAttempt: '1',
-      sourceAuthority: authority,
+  const context = createSealedRealmsProductionG001DispatchContext({
+    readGit: () => `${SOURCE}\n`,
+    readBinding: () => ({
+      schemaVersion: 1,
+      profile: 'warpkeep-0.4.0-sealed-launch-v1',
+      pagesDeploymentApproved: false,
+      preparationSourceCommit: SOURCE,
     }),
+    verifyEvidence: verifiedSha => ({ verifiedSha }),
+    permit,
+    continuationStore: createSealedRealmsProductionContinuationStore({ privateState }),
+    runId,
+    runAttempt: '1',
+    sourceAuthority: authority,
   });
+  return createSealedRealmsProductionG001Dispatcher({ context, lane });
+}
+
+async function dispatchProtectedG001(
+  lane: ReturnType<typeof createSealedRealmsProductionG001Lane>,
+  operation: string,
+  authority: ReturnType<typeof authenticateSealedRealmsProductionSourceAuthority>,
+  privateState: ReturnType<typeof createSealedRealmsProductionPrivateState>,
+  runId: string,
+  completedRunIds: ReadonlySet<string> = new Set(),
+) {
+  const dispatcher = await protectedG001Dispatcher(
+    lane, operation, authority, privateState, runId, completedRunIds,
+  );
+  return dispatcher.dispatch({ operation: operation as never, workflowInputSha: SOURCE });
 }
 
 async function runProtectedG001(
@@ -370,9 +390,7 @@ async function runProtectedG001(
 ) {
   const local = censusPrivateState();
   try {
-    return await lane.execute(await protectedG001Request(
-      operation, authority, local.state, runId,
-    ));
+    return await dispatchProtectedG001(lane, operation, authority, local.state, runId);
   } finally { local.cleanup(); }
 }
 
@@ -481,15 +499,15 @@ async function censusScenario(input: Readonly<{
 async function issueCensusContinuations(scenario: Awaited<ReturnType<typeof censusScenario>>) {
   const firstRunId = '6101';
   const firstAuthority = g001Authority('g001-census-first');
-  const first = await scenario.lane.execute(await protectedG001Request(
-    'g001-census-first', firstAuthority, scenario.local.state, firstRunId,
-  ));
+  const first = await dispatchProtectedG001(
+    scenario.lane, 'g001-census-first', firstAuthority, scenario.local.state, firstRunId,
+  );
   const secondRunId = '6102';
   const secondAuthority = g001Authority('g001-census-second-inspect');
-  const second = await scenario.lane.execute(await protectedG001Request(
-    'g001-census-second-inspect', secondAuthority, scenario.local.state,
+  const second = await dispatchProtectedG001(
+    scenario.lane, 'g001-census-second-inspect', secondAuthority, scenario.local.state,
     secondRunId, new Set([firstRunId]),
-  ));
+  );
   return { first, second, secondRunId };
 }
 
@@ -556,7 +574,7 @@ async function dispatcherFixture(operation = 'preflight') {
     runAttempt: '1',
     fetchImpl: workflowGithub(runId, new Set()),
   });
-  const context = createSealedRealmsProductionDispatchContext({
+  const context = createSealedRealmsProductionG001DispatchContext({
     readGit: (args: readonly string[]) => {
       if (args[0] === 'rev-parse') return `${SOURCE}\n`;
       throw new Error('unexpected git command');
@@ -636,7 +654,7 @@ describe('sealed-realms production dispatcher', () => {
     try {
       await expect(runProtectedG001(
         lane, 'g001-policy-observe', g001PolicyAuthority(), '6001',
-      )).rejects.toMatchObject({ code: 'SEALED_REALMS_G001_ENVELOPE_INVALID' });
+      )).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
       expect(secret).not.toHaveBeenCalled();
       expect(child).not.toHaveBeenCalled();
     } finally {
@@ -701,7 +719,7 @@ describe('sealed-realms production dispatcher', () => {
     Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: function WebSocket() {} });
     try {
       await expect(runProtectedG001(lane, 'g001-policy-observe', authority, '6002'))
-        .resolves.toEqual({ status: 'completed' });
+        .resolves.toEqual({ operation: 'g001-policy-observe', status: 'completed' });
       expect(runner).toHaveBeenCalledWith({
         file: '/usr/bin/env',
         args: [
@@ -774,7 +792,7 @@ describe('sealed-realms production dispatcher', () => {
     Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: function WebSocket() {} });
     try {
       await expect(runProtectedG001(lane, 'g001-policy-observe', authority, '6003'))
-        .resolves.toEqual({ status: 'completed' });
+        .resolves.toEqual({ operation: 'g001-policy-observe', status: 'completed' });
       expect(envelopeRunner).toHaveBeenCalledWith(expect.objectContaining({
         file: '/usr/bin/env',
         args: [
@@ -881,7 +899,7 @@ describe('sealed-realms production dispatcher', () => {
     Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: function WebSocket() {} });
     try {
       await expect(runProtectedG001(lane, 'g001-policy-observe', authority, '6004'))
-        .resolves.toEqual({ status: 'completed' });
+        .resolves.toEqual({ operation: 'g001-policy-observe', status: 'completed' });
       expect(runner.mock.calls.map(([request]) => request.args.slice(-3))).toEqual([
         ['-', '-', 'launch-run-inspect'],
         ['-', 'launch-run-inspect', runId],
@@ -919,7 +937,7 @@ describe('sealed-realms production dispatcher', () => {
     try {
       await expect(runProtectedG001(
         lane, 'g001-policy-observe', g001PolicyAuthority(), '6005',
-      )).rejects.toMatchObject({ code: 'SEALED_REALMS_G001_WEBSOCKET_UNAVAILABLE' });
+      )).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_WEBSOCKET_UNAVAILABLE' });
       expect(readRawGit).not.toHaveBeenCalled();
       expect(resolveAdminSecretPath).not.toHaveBeenCalled();
       expect(runner).not.toHaveBeenCalled();
@@ -942,7 +960,7 @@ describe('sealed-realms production dispatcher', () => {
       });
       await expect(runProtectedG001(
         badBootstrap, 'g001-policy-observe', g001PolicyAuthority(), '6006',
-      )).rejects.toMatchObject({ code: 'SEALED_REALMS_G001_LAUNCH_AUTHORITY_INVALID' });
+      )).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
       expect(badBootstrapRunner).not.toHaveBeenCalled();
 
       const badPathRunner = vi.fn();
@@ -954,7 +972,7 @@ describe('sealed-realms production dispatcher', () => {
       });
       await expect(runProtectedG001(
         badPath, 'g001-policy-observe', g001PolicyAuthority(), '6007',
-      )).rejects.toMatchObject({ code: 'SEALED_REALMS_G001_LAUNCH_AUTHORITY_INVALID' });
+      )).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
       expect(badPathRunner).not.toHaveBeenCalled();
 
       const badRuntimeRawGit = vi.fn();
@@ -965,7 +983,7 @@ describe('sealed-realms production dispatcher', () => {
       });
       await expect(runProtectedG001(
         badRuntime, 'g001-policy-observe', g001PolicyAuthority(), '6008',
-      )).rejects.toMatchObject({ code: 'SEALED_REALMS_G001_ENVELOPE_ATTESTATION_INVALID' });
+      )).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
       expect(badRuntimeRawGit).not.toHaveBeenCalled();
     } finally {
       Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: original });
@@ -992,7 +1010,7 @@ describe('sealed-realms production dispatcher', () => {
     try {
       await expect(runProtectedG001(
         lane, 'g001-policy-observe', g001PolicyAuthority(), '6009',
-      )).resolves.toEqual({ status: 'completed' });
+      )).resolves.toEqual({ operation: 'g001-policy-observe', status: 'completed' });
       expect(runner).toHaveBeenCalledTimes(1);
       expect(persistPolicyObservation).not.toHaveBeenCalled();
     } finally {
@@ -1031,7 +1049,7 @@ describe('sealed-realms production dispatcher', () => {
         });
         await expect(runProtectedG001(
           lane, 'g001-policy-observe', g001PolicyAuthority(), '6010',
-        )).rejects.toMatchObject({ code: 'SEALED_REALMS_G001_ENVELOPE_INVALID' });
+        )).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
         expect(persistPolicyObservation).not.toHaveBeenCalled();
       }
 
@@ -1051,7 +1069,7 @@ describe('sealed-realms production dispatcher', () => {
       });
       await expect(runProtectedG001(
         lane, 'g001-policy-observe', g001PolicyAuthority(), '6011',
-      )).resolves.toEqual({ status: 'completed' });
+      )).resolves.toEqual({ operation: 'g001-policy-observe', status: 'completed' });
       expect(persisted).toHaveLength(1);
       expect(Buffer.from(persisted[0]).toString('utf8')).toContain('policyObservationReceiptLinkSha256');
     } finally {
@@ -1092,25 +1110,30 @@ describe('sealed-realms production dispatcher', () => {
     Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: function WebSocket() {} });
     try {
       const firstAuthority = g001Authority('g001-census-first');
-      const first = await lane.execute(await protectedG001Request(
-        'g001-census-first', firstAuthority, local.state, '6201',
-      ));
-      expect(first).toEqual({ status: 'completed' });
+      const first = await dispatchProtectedG001(
+        lane, 'g001-census-first', firstAuthority, local.state, '6201',
+      );
+      expect(first).toEqual({ operation: 'g001-census-first', status: 'completed' });
       const secondAuthority = g001Authority('g001-census-second-inspect');
-      const second = await lane.execute(await protectedG001Request(
-        'g001-census-second-inspect', secondAuthority, local.state,
+      const second = await dispatchProtectedG001(
+        lane, 'g001-census-second-inspect', secondAuthority, local.state,
         '6202', new Set(['6201']),
-      ));
-      expect(second).toEqual({ status: 'completed' });
+      );
+      expect(second).toEqual({
+        operation: 'g001-census-second-inspect', status: 'completed',
+      });
       expect(JSON.stringify(second)).not.toContain('warpkeep-access-request-census');
       const suspendAuthority = g001Authority('g001-census-second-suspend');
-      const suspensionRequest = await protectedG001Request(
-        'g001-census-second-suspend', suspendAuthority, local.state,
+      const suspensionDispatcher = await protectedG001Dispatcher(
+        lane, 'g001-census-second-suspend', suspendAuthority, local.state,
         '6203', new Set(['6202']),
       );
+      const suspensionRequest = Object.freeze({
+        operation: 'g001-census-second-suspend' as const, workflowInputSha: SOURCE,
+      });
       const attempts = await Promise.allSettled([
-        lane.execute(suspensionRequest),
-        lane.execute(suspensionRequest),
+        suspensionDispatcher.dispatch(suspensionRequest),
+        suspensionDispatcher.dispatch(suspensionRequest),
       ]);
       expect(attempts.filter(attempt => attempt.status === 'fulfilled')).toHaveLength(1);
       expect(attempts.filter(attempt => attempt.status === 'rejected')).toHaveLength(1);
@@ -1136,15 +1159,15 @@ describe('sealed-realms production dispatcher', () => {
     Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: function WebSocket() {} });
     try {
       const firstAuthority = g001Authority('g001-census-first');
-      await scenario.lane.execute(await protectedG001Request(
-        'g001-census-first', firstAuthority, scenario.local.state, '6301',
-      ));
+      await dispatchProtectedG001(
+        scenario.lane, 'g001-census-first', firstAuthority, scenario.local.state, '6301',
+      );
       const secondAuthority = g001Authority('g001-census-second-inspect');
-      await expect(scenario.lane.execute(await protectedG001Request(
-        'g001-census-second-inspect', secondAuthority, scenario.local.state,
+      await expect(dispatchProtectedG001(
+        scenario.lane, 'g001-census-second-inspect', secondAuthority, scenario.local.state,
         '6302', new Set(['6301']),
-      ))).rejects.toMatchObject({
-        code: 'SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS',
+      )).rejects.toMatchObject({
+        code: 'SEALED_REALMS_DISPATCH_LANE_FAILED',
       });
       expect(scenario.suspend).not.toHaveBeenCalled();
     } finally {
@@ -1171,23 +1194,27 @@ describe('sealed-realms production dispatcher', () => {
     Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: function WebSocket() {} });
     try {
       const crossSourceAuthority = g001Authority('g001-census-first');
-      await expect(crossSource.lane.execute(await protectedG001Request(
-        'g001-census-first', crossSourceAuthority, crossSource.local.state, '6401',
-      ))).rejects.toMatchObject({ code: 'SEALED_REALMS_G001_CENSUS_INVALID' });
+      await expect(dispatchProtectedG001(
+        crossSource.lane, 'g001-census-first', crossSourceAuthority,
+        crossSource.local.state, '6401',
+      )).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
       expect(crossSource.suspend).not.toHaveBeenCalled();
 
       const { secondRunId } = await issueCensusContinuations(expiry);
       expiry.setClock(Date.parse('2026-08-30T00:06:00.000Z'));
       const expiryAuthority = g001Authority('g001-census-second-suspend');
-      const expiryRequest = await protectedG001Request(
-        'g001-census-second-suspend', expiryAuthority, expiry.local.state,
+      const expiryDispatcher = await protectedG001Dispatcher(
+        expiry.lane, 'g001-census-second-suspend', expiryAuthority, expiry.local.state,
         '6402', new Set([secondRunId]),
       );
-      await expect(expiry.lane.execute(expiryRequest)).rejects.toMatchObject({
-        code: 'SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS',
+      const expiryRequest = Object.freeze({
+        operation: 'g001-census-second-suspend' as const, workflowInputSha: SOURCE,
       });
-      await expect(expiry.lane.execute(expiryRequest)).rejects.toMatchObject({
-        code: 'SEALED_REALMS_G001_CURRENT_STATE_RECEIPT_INVALID',
+      await expect(expiryDispatcher.dispatch(expiryRequest)).rejects.toMatchObject({
+        code: 'SEALED_REALMS_DISPATCH_LANE_FAILED',
+      });
+      await expect(expiryDispatcher.dispatch(expiryRequest)).rejects.toMatchObject({
+        code: 'SEALED_REALMS_DISPATCH_LANE_FAILED',
       });
       expect(expiry.suspend).not.toHaveBeenCalled();
     } finally {
@@ -1215,10 +1242,10 @@ describe('sealed-realms production dispatcher', () => {
         bytes: Buffer.from('{}\n', 'utf8'),
       });
       const suspensionAuthority = g001Authority('g001-census-second-suspend');
-      await expect(scenario.lane.execute(await protectedG001Request(
-        'g001-census-second-suspend', suspensionAuthority, scenario.local.state,
+      await expect(dispatchProtectedG001(
+        scenario.lane, 'g001-census-second-suspend', suspensionAuthority, scenario.local.state,
         '6501', new Set([secondRunId]),
-      ))).rejects.toMatchObject({ code: 'SEALED_REALMS_CONTINUATION_EFFECT_AMBIGUOUS' });
+      )).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
       expect(scenario.suspend).not.toHaveBeenCalled();
     } finally {
       Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: original });
@@ -1234,14 +1261,18 @@ describe('sealed-realms production dispatcher', () => {
           .toHaveLength(1);
       });
       const consumedAuthority = g001Authority('g001-census-second-suspend');
-      const consumedRequest = await protectedG001Request(
-        'g001-census-second-suspend', consumedAuthority, consumed.local.state,
+      const consumedDispatcher = await protectedG001Dispatcher(
+        consumed.lane, 'g001-census-second-suspend', consumedAuthority, consumed.local.state,
         '6502', new Set([secondRunId]),
       );
-      await expect(consumed.lane.execute(consumedRequest))
-        .resolves.toEqual({ status: 'completed' });
-      await expect(consumed.lane.execute(consumedRequest)).rejects.toMatchObject({
-        code: 'SEALED_REALMS_CONTINUATION_TERMINAL',
+      const consumedRequest = Object.freeze({
+        operation: 'g001-census-second-suspend' as const, workflowInputSha: SOURCE,
+      });
+      await expect(consumedDispatcher.dispatch(consumedRequest)).resolves.toEqual({
+        operation: 'g001-census-second-suspend', status: 'completed',
+      });
+      await expect(consumedDispatcher.dispatch(consumedRequest)).rejects.toMatchObject({
+        code: 'SEALED_REALMS_DISPATCH_LANE_FAILED',
       });
       expect(consumed.suspend).toHaveBeenCalledTimes(1);
     } finally {

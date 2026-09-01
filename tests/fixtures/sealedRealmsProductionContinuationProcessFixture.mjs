@@ -14,23 +14,24 @@ import {
   createSealedRealmsProductionContinuationStore,
 } from '../../scripts/sealed-realms-production-continuation.mjs';
 import {
-  createSealedRealmsProductionDispatchContext,
-} from '../../scripts/sealed-realms-production-dispatch.mjs';
-import {
+  createSealedRealmsProductionG001DispatchContext,
   createSealedRealmsProductionG001CensusAuthority,
   createSealedRealmsProductionG001Dispatcher,
   createSealedRealmsProductionG001Lane,
   createSealedRealmsProductionG001LaunchAuthority,
 } from '../../scripts/sealed-realms-production-g001-lane-entry.mjs';
 import {
+  createSealedRealmsProductionG002DispatchContext,
   createSealedRealmsProductionG002Dispatcher,
   createSealedRealmsProductionG002Lane,
 } from '../../scripts/sealed-realms-production-g002-lane-entry.mjs';
 import {
+  createSealedRealmsProductionPtrDispatchContext,
   createSealedRealmsProductionPtrDispatcher,
   createSealedRealmsProductionPtrLane,
 } from '../../scripts/sealed-realms-production-ptr-lane-entry.mjs';
 import {
+  createSealedRealmsProductionActivationDispatchContext,
   createSealedRealmsProductionActivationDispatcher,
   createSealedRealmsProductionActivationLane,
 } from '../../scripts/sealed-realms-production-activation-lane-entry.mjs';
@@ -503,7 +504,13 @@ async function run() {
     });
   }
 
-  const dispatchContext = createSealedRealmsProductionDispatchContext({
+  const contextFactory = {
+    g001Lane: createSealedRealmsProductionG001DispatchContext,
+    g002Lane: createSealedRealmsProductionG002DispatchContext,
+    ptrLane: createSealedRealmsProductionPtrDispatchContext,
+    activationLane: createSealedRealmsProductionActivationDispatchContext,
+  }[laneKey];
+  const dispatchContext = contextFactory({
     readGit: () => `${sourceCommit}\n`,
     readBinding: () => ({
       schemaVersion: 1,
