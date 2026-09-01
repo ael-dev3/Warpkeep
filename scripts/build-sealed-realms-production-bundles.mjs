@@ -27,7 +27,7 @@ const LANE_SPECS = Object.freeze({
   activation: Object.freeze({
     entryPath: 'scripts/sealed-realms-production-activation-workflow-entry.mjs',
     basename: 'sealed-realms-production-activation-lane.bundle.mjs',
-    graphCount: 10,
+    graphCount: 12,
     factoryExport: 'createSealedRealmsProductionActivationWorkflowRuntime',
     factoryFailureCode: 'SEALED_REALMS_ACTIVATION_WORKFLOW_INPUT_INVALID',
     exportNames: Object.freeze([
@@ -38,7 +38,7 @@ const LANE_SPECS = Object.freeze({
   g001: Object.freeze({
     entryPath: 'scripts/sealed-realms-production-g001-workflow-entry.mjs',
     basename: 'sealed-realms-production-g001-lane.bundle.mjs',
-    graphCount: 13,
+    graphCount: 15,
     factoryExport: 'createSealedRealmsProductionG001WorkflowRuntime',
     factoryFailureCode: 'SEALED_REALMS_G001_WORKFLOW_INPUT_INVALID',
     exportNames: Object.freeze([
@@ -49,7 +49,7 @@ const LANE_SPECS = Object.freeze({
   g002: Object.freeze({
     entryPath: 'scripts/sealed-realms-production-g002-workflow-entry.mjs',
     basename: 'sealed-realms-production-g002-lane.bundle.mjs',
-    graphCount: 126,
+    graphCount: 127,
     factoryExport: 'createSealedRealmsProductionG002WorkflowRuntime',
     factoryFailureCode: 'SEALED_REALMS_G002_WORKFLOW_INPUT_INVALID',
     exportNames: Object.freeze([

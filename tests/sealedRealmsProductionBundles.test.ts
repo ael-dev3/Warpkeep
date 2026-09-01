@@ -21,13 +21,17 @@ const NODE_ATTESTATION = {
   sha256: '5d9d3872911e2340a43b707962e68143de8a4e8d54628845c0c4f2de1fb7cd5c',
   teamId: 'HX7739G8FX',
 } as const;
-const GRAPH_COUNTS = { activation: 10, g001: 13, g002: 126, ptr: 127 } as const;
+const GRAPH_COUNTS = { activation: 12, g001: 15, g002: 127, ptr: 127 } as const;
 const ENTRY_PATHS = {
   activation: 'scripts/sealed-realms-production-activation-workflow-entry.mjs',
   g001: 'scripts/sealed-realms-production-g001-workflow-entry.mjs',
   g002: 'scripts/sealed-realms-production-g002-workflow-entry.mjs',
   ptr: 'scripts/sealed-realms-production-ptr-workflow-entry.mjs',
 } as const;
+const PRIVATE_WORKFLOW_MEMBERS = [
+  'scripts/sealed-realms-production-workflow-evidence.mjs',
+  'scripts/sealed-realms-production-workflow-private-state.mjs',
+] as const;
 const EXPORT_NAMES = {
   activation: [
     'createSealedRealmsProductionActivationWorkflowRuntime',
@@ -99,6 +103,14 @@ describe('sealed-realms production bundles', () => {
       expect(() => factory({})).toThrow(request.factoryFailureCode);
       expect(request.graphManifest).toHaveLength(GRAPH_COUNTS[request.lane]);
       expect(request.graphManifest.some(member => member.path === ENTRY_PATHS[request.lane])).toBe(true);
+      for (const path of PRIVATE_WORKFLOW_MEMBERS) {
+        expect(request.graphManifest.some(member => member.path === path)).toBe(true);
+      }
+      if (request.lane === 'g002' || request.lane === 'ptr') {
+        expect(request.graphManifest.some(member => (
+          member.path.endsWith('production-publisher-cli.ts')
+        ))).toBe(false);
+      }
       const runExport = request.exportNames.find(name => name.startsWith('run'))!;
       expect(typeof module[runExport]).toBe('function');
       await expect(module[runExport]({})).rejects.toMatchObject({

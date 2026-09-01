@@ -1,5 +1,4 @@
 import { execFileSync } from 'node:child_process';
-import { userInfo } from 'node:os';
 
 import {
   createSealedRealmsProductionAuthBridgeState,
@@ -11,11 +10,14 @@ import {
   createSealedRealmsProductionDispatcher,
 } from './sealed-realms-production-dispatch.mjs';
 import {
-  createSealedRealmsProductionPrivateState,
-} from './sealed-realms-production-private-state.mjs';
-import {
   authenticateSealedRealmsProductionSourceAuthority,
 } from './sealed-realms-production-source-authority.mjs';
+import {
+  verifySealedRealmsProductionWorkflowEvidence,
+} from './sealed-realms-production-workflow-evidence.mjs';
+import {
+  resolveSealedRealmsProductionWorkflowPrivateState,
+} from './sealed-realms-production-workflow-private-state.mjs';
 
 const OPERATIONS = new Set([
   'activation-evidence-inspect',
@@ -117,17 +119,13 @@ function readBinding(commit) {
   return parsed;
 }
 
-function verifyEvidence(commit) {
-  return Object.freeze({ verifiedSha: commit });
-}
-
 function sourceAuthority(operation, workflowInputSha) {
   return authenticateSealedRealmsProductionSourceAuthority({
     operation,
     workflowInputSha,
     readGit,
     readBinding,
-    verifyEvidence,
+    verifyEvidence: verifySealedRealmsProductionWorkflowEvidence,
   });
 }
 
@@ -137,9 +135,7 @@ function unavailable() {
 
 function buildDispatcher(operation, workflowInputSha) {
   const authority = sourceAuthority(operation, workflowInputSha);
-  const privateState = createSealedRealmsProductionPrivateState({
-    reportedHome: userInfo().homedir,
-  });
+  const privateState = resolveSealedRealmsProductionWorkflowPrivateState();
   const bridgeState = createSealedRealmsProductionAuthBridgeState({
     authority,
     privateState,
@@ -155,7 +151,7 @@ function buildDispatcher(operation, workflowInputSha) {
   return createSealedRealmsProductionDispatcher({
     readGit,
     readBinding,
-    verifyEvidence,
+    verifyEvidence: verifySealedRealmsProductionWorkflowEvidence,
     activationLane: lane,
   });
 }

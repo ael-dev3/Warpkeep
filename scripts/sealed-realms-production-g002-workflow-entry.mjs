@@ -1,9 +1,4 @@
 import { execFileSync } from 'node:child_process';
-import { userInfo } from 'node:os';
-
-import {
-  executeGenesis002ProductionPublisherCli,
-} from './genesis002-production-publisher-cli.ts';
 import {
   createSealedRealmsProductionAuthBridgeState,
 } from './sealed-realms-production-auth-bridge-state.mjs';
@@ -14,14 +9,19 @@ import {
   createSealedRealmsProductionG002Lane,
 } from './sealed-realms-production-g002-lane-entry.mjs';
 import {
-  createSealedRealmsProductionPrivateState,
-} from './sealed-realms-production-private-state.mjs';
-import {
   createSealedRealmsProductionPublicationReconciler,
 } from './sealed-realms-production-reconciliation.mjs';
 import {
   authenticateSealedRealmsProductionSourceAuthority,
+  preparationSourceCommitFromSealedRealmsProductionAuthority,
+  sourceCommitFromSealedRealmsProductionAuthority,
 } from './sealed-realms-production-source-authority.mjs';
+import {
+  verifySealedRealmsProductionWorkflowEvidence,
+} from './sealed-realms-production-workflow-evidence.mjs';
+import {
+  resolveSealedRealmsProductionWorkflowPrivateState,
+} from './sealed-realms-production-workflow-private-state.mjs';
 
 const OPERATIONS = new Set([
   'g002-publish-inspect',
@@ -126,17 +126,13 @@ function readBinding(commit) {
   return parsed;
 }
 
-function verifyEvidence(commit) {
-  return Object.freeze({ verifiedSha: commit });
-}
-
 function sourceAuthority(operation, workflowInputSha) {
   return authenticateSealedRealmsProductionSourceAuthority({
     operation,
     workflowInputSha,
     readGit,
     readBinding,
-    verifyEvidence,
+    verifyEvidence: verifySealedRealmsProductionWorkflowEvidence,
   });
 }
 
@@ -144,37 +140,66 @@ function unavailable() {
   fail('SEALED_REALMS_G002_WORKFLOW_ADAPTER_UNAVAILABLE');
 }
 
-async function createPublishMarker({ sourceCommit }) {
-  let result;
-  try {
-    result = await executeGenesis002ProductionPublisherCli({
-      arguments: Object.freeze(['inspect']),
-      environment: { ...process.env },
-      attestProtectedMain: () => sourceCommit,
-    });
-  } catch {
-    fail('SEALED_REALMS_G002_WORKFLOW_ADAPTER_UNAVAILABLE');
-  }
-  try {
-    const value = exactObject(result, ['marker']);
+function createPublishMarker() {
+  // Task 5 owns the first real marker/publisher integration. No publisher or
+  // prepare effect is reachable while the fixed marker adapter is unavailable.
+  fail('SEALED_REALMS_G002_WORKFLOW_ADAPTER_UNAVAILABLE');
+}
+
+function exactGitArguments(value, expected) {
+  return Array.isArray(value)
+    && value.length === expected.length
+    && value.every((member, index) => member === expected[index]);
+}
+
+function bridgeAuthorityFromSourceAuthority(authority, operation) {
+  const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(authority);
+  const preparationSourceCommit =
+    preparationSourceCommitFromSealedRealmsProductionAuthority(authority);
+  if (authority.mode === 'S') return authority;
+  if (
+    authority.mode !== 'A'
+    || authority.operation !== operation
+    || operation !== 'g002-live-inspect'
+    || sourceCommit === preparationSourceCommit
+  ) fail('SEALED_REALMS_G002_WORKFLOW_SOURCE_INVALID');
+
+  const readHistoricalGit = arguments_ => {
     if (
-      value.marker === null || typeof value.marker !== 'object'
-      || Array.isArray(value.marker) || Object.getPrototypeOf(value.marker) !== Object.prototype
-    ) fail('SEALED_REALMS_G002_WORKFLOW_ADAPTER_UNAVAILABLE');
-    return value.marker;
-  } catch (error) {
-    if (error?.code === 'SEALED_REALMS_G002_WORKFLOW_ADAPTER_UNAVAILABLE') throw error;
-    fail('SEALED_REALMS_G002_WORKFLOW_ADAPTER_UNAVAILABLE');
-  }
+      exactGitArguments(arguments_, ['rev-parse', '--verify', 'HEAD^{commit}'])
+      || exactGitArguments(arguments_, [
+        'rev-parse', '--verify', 'refs/remotes/origin/main^{commit}',
+      ])
+    ) return `${preparationSourceCommit}\n`;
+    fail('SEALED_REALMS_G002_WORKFLOW_GIT_INVALID');
+  };
+  const readHistoricalBinding = commit => {
+    if (commit !== preparationSourceCommit) {
+      fail('SEALED_REALMS_G002_WORKFLOW_BINDING_INVALID');
+    }
+    return readBinding(commit);
+  };
+  const verifyHistoricalEvidence = commit => {
+    if (commit !== preparationSourceCommit) {
+      fail('SEALED_REALMS_G002_WORKFLOW_SOURCE_INVALID');
+    }
+    return verifySealedRealmsProductionWorkflowEvidence(commit);
+  };
+  return authenticateSealedRealmsProductionSourceAuthority({
+    operation,
+    workflowInputSha: preparationSourceCommit,
+    readGit: readHistoricalGit,
+    readBinding: readHistoricalBinding,
+    verifyEvidence: verifyHistoricalEvidence,
+  });
 }
 
 function buildDispatcher(operation, workflowInputSha) {
   const authority = sourceAuthority(operation, workflowInputSha);
-  const privateState = createSealedRealmsProductionPrivateState({
-    reportedHome: userInfo().homedir,
-  });
+  const bridgeAuthority = bridgeAuthorityFromSourceAuthority(authority, operation);
+  const privateState = resolveSealedRealmsProductionWorkflowPrivateState();
   const bridgeState = createSealedRealmsProductionAuthBridgeState({
-    authority,
+    authority: bridgeAuthority,
     privateState,
     repositoryRoot: process.cwd(),
     deploymentAttester: unavailable,
@@ -200,7 +225,7 @@ function buildDispatcher(operation, workflowInputSha) {
   return createSealedRealmsProductionDispatcher({
     readGit,
     readBinding,
-    verifyEvidence,
+    verifyEvidence: verifySealedRealmsProductionWorkflowEvidence,
     g002Lane: lane,
   });
 }

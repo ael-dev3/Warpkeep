@@ -1,17 +1,28 @@
 // @vitest-environment node
 
 import { Buffer } from 'node:buffer';
+import { execFileSync } from 'node:child_process';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { build as esbuild } from 'esbuild';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const SOURCE = 'a'.repeat(40);
 const SWAPPED_SOURCE = 'b'.repeat(40);
+const BINDING_PATH = 'config/releases/0.4.0-sealed-launch.json';
+const EVIDENCE_MODULE = '../scripts/sealed-realms-production-workflow-evidence.mjs';
+const PRIVATE_RESOLVER_MODULE = '../scripts/sealed-realms-production-workflow-private-state.mjs';
 const PRIVATE_STATE_MODULE = '../scripts/sealed-realms-production-private-state.mjs';
-const AUTH_BRIDGE_MODULE = '../scripts/sealed-realms-production-auth-bridge-state.mjs';
-const RECONCILIATION_MODULE = '../scripts/sealed-realms-production-reconciliation.mjs';
-const G002_PUBLISHER_MODULE = '../scripts/genesis002-production-publisher-cli.ts';
-const PTR_PUBLISHER_MODULE = '../scripts/ptr-production-publisher-cli.ts';
+const FIXTURE_TIMEOUT = 30_000;
 
 type AnyFunction = (...arguments_: any[]) => any;
 type RuntimeModule = Readonly<Record<string, unknown>>;
@@ -33,9 +44,7 @@ const ENTRIES = Object.freeze([
     run: 'runSealedRealmsProductionG002Operation',
     operation: 'g002-publish-inspect',
     crossedOperation: 'ptr-publish-inspect',
-    expected: Object.freeze({
-      operation: 'g002-publish-inspect', status: 'publish-inspected', confirmation: {},
-    }),
+    expectedFailure: 'SEALED_REALMS_DISPATCH_LANE_FAILED',
   }),
   Object.freeze({
     lane: 'ptr',
@@ -44,27 +53,172 @@ const ENTRIES = Object.freeze([
     run: 'runSealedRealmsProductionPtrOperation',
     operation: 'ptr-publish-inspect',
     crossedOperation: 'activation-evidence-inspect',
-    expected: Object.freeze({
-      operation: 'ptr-publish-inspect', status: 'publish-inspected', confirmation: {},
-    }),
+    expectedFailure: 'SEALED_REALMS_DISPATCH_LANE_FAILED',
   }),
   Object.freeze({
     lane: 'activation',
     path: '../scripts/sealed-realms-production-activation-workflow-entry.mjs',
     factory: 'createSealedRealmsProductionActivationWorkflowRuntime',
     run: 'runSealedRealmsProductionActivationOperation',
-    operation: 'activation-evidence-inspect',
+    operation: 'activation-evidence-generate',
     crossedOperation: 'preflight',
-    expected: Object.freeze({
-      operation: 'activation-evidence-inspect',
-      status: 'activation-evidence-inspected',
-      confirmation: {},
-    }),
+    expectedFailure: 'SEALED_REALMS_DISPATCH_LANE_FAILED',
   }),
 ] as const);
 
+const LIVE_ENTRIES = Object.freeze([
+  Object.freeze({
+    lane: 'g002',
+    path: '../scripts/sealed-realms-production-g002-workflow-entry.mjs',
+    factory: 'createSealedRealmsProductionG002WorkflowRuntime',
+    run: 'runSealedRealmsProductionG002Operation',
+    operation: 'g002-live-inspect',
+  }),
+  Object.freeze({
+    lane: 'ptr',
+    path: '../scripts/sealed-realms-production-ptr-workflow-entry.mjs',
+    factory: 'createSealedRealmsProductionPtrWorkflowRuntime',
+    run: 'runSealedRealmsProductionPtrOperation',
+    operation: 'ptr-live-inspect',
+  }),
+] as const);
+
+function git(repositoryRoot: string, arguments_: readonly string[], input?: string) {
+  return execFileSync('git', [...arguments_], {
+    cwd: repositoryRoot,
+    encoding: 'utf8',
+    input,
+    maxBuffer: 128 * 1_024,
+    timeout: 5_000,
+    windowsHide: true,
+  }).trim();
+}
+
+function binding(preparationSourceCommit: string, pagesDeploymentApproved: boolean) {
+  return `${JSON.stringify({
+    schemaVersion: 1,
+    profile: 'warpkeep-0.4.0-sealed-launch-v1',
+    pagesDeploymentApproved,
+    preparationSourceCommit,
+  })}\n`;
+}
+
+function repositoryFixture(
+  mode: 'S' | 'A',
+  options: Readonly<{ extraActivationPath?: boolean; invalidParentBinding?: boolean }> = {},
+) {
+  const repositoryRoot = mkdtempSync(join(tmpdir(), 'warpkeep-workflow-repository-'));
+  git(repositoryRoot, ['init', '--quiet']);
+  git(repositoryRoot, ['config', 'user.email', 'workflow-test@warpkeep.invalid']);
+  git(repositoryRoot, ['config', 'user.name', 'Warpkeep Workflow Test']);
+  git(repositoryRoot, ['config', 'core.autocrlf', 'false']);
+  const bindingFile = join(repositoryRoot, ...BINDING_PATH.split('/'));
+  mkdirSync(join(repositoryRoot, 'config', 'releases'), { recursive: true });
+  writeFileSync(bindingFile, binding('0'.repeat(40), false), 'utf8');
+  writeFileSync(join(repositoryRoot, 'package.json'), '{"fixture":1}\n', 'utf8');
+  writeFileSync(join(repositoryRoot, 'package-lock.json'), '{"fixture":1}\n', 'utf8');
+  git(repositoryRoot, ['add', '--', BINDING_PATH, 'package.json', 'package-lock.json']);
+  git(repositoryRoot, ['commit', '--quiet', '-m', 'placeholder preparation source']);
+  const preparationSourceCommit = git(repositoryRoot, ['rev-parse', 'HEAD']);
+
+  // Git's replacement-object mechanism gives the real git adapters a logical
+  // commit whose immutable name is also the exact binding value. This avoids
+  // mocking child_process while preserving the self-binding source invariant.
+  writeFileSync(
+    bindingFile,
+    binding(
+      options.invalidParentBinding === true ? SWAPPED_SOURCE : preparationSourceCommit,
+      false,
+    ),
+    'utf8',
+  );
+  git(repositoryRoot, ['add', '--', BINDING_PATH]);
+  const replacementTree = git(repositoryRoot, ['write-tree']);
+  const replacementCommit = git(
+    repositoryRoot,
+    ['commit-tree', replacementTree],
+    'logical preparation source\n',
+  );
+  git(repositoryRoot, ['reset', '--hard', preparationSourceCommit]);
+  git(repositoryRoot, ['replace', preparationSourceCommit, replacementCommit]);
+
+  let sourceCommit = preparationSourceCommit;
+  if (mode === 'A') {
+    writeFileSync(bindingFile, binding(preparationSourceCommit, true), 'utf8');
+    writeFileSync(join(repositoryRoot, 'package.json'), '{"fixture":2}\n', 'utf8');
+    writeFileSync(join(repositoryRoot, 'package-lock.json'), '{"fixture":2}\n', 'utf8');
+    const activationPaths = [BINDING_PATH, 'package.json', 'package-lock.json'];
+    if (options.extraActivationPath === true) {
+      writeFileSync(join(repositoryRoot, 'unexpected.txt'), 'unexpected\n', 'utf8');
+      activationPaths.push('unexpected.txt');
+    }
+    git(repositoryRoot, ['add', '--', ...activationPaths]);
+    git(repositoryRoot, ['commit', '--quiet', '-m', 'activate fixed source']);
+    sourceCommit = git(repositoryRoot, ['rev-parse', 'HEAD']);
+  }
+  git(repositoryRoot, ['update-ref', 'refs/remotes/origin/main', sourceCommit]);
+  return Object.freeze({
+    repositoryRoot,
+    sourceCommit,
+    preparationSourceCommit,
+    cleanup: () => rmSync(repositoryRoot, { recursive: true, force: true }),
+  });
+}
+
+function privateHomeFixture() {
+  const home = mkdtempSync(join(tmpdir(), 'warpkeep-workflow-private-'));
+  chmodSync(home, 0o700);
+  for (const root of [
+    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'audit', 'private'),
+    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'runtime'),
+    join(home, 'Library', 'Application Support', 'Warpkeep', 'operations', 'cache'),
+  ]) {
+    mkdirSync(root, { recursive: true, mode: 0o700 });
+    chmodSync(root, 0o700);
+  }
+  return Object.freeze({
+    home,
+    cleanup: () => rmSync(home, { recursive: true, force: true }),
+  });
+}
+
+function installEvidenceVerifier(
+  transform: (commit: string) => string = commit => commit,
+) {
+  const verifiedCommits: string[] = [];
+  vi.doMock(EVIDENCE_MODULE, () => ({
+    verifySealedRealmsProductionWorkflowEvidence: (commit: string) => {
+      verifiedCommits.push(commit);
+      return Object.freeze({ verifiedSha: transform(commit) });
+    },
+  }));
+  return verifiedCommits;
+}
+
+function installPrivateResolver(home: string) {
+  const resolutions: unknown[] = [];
+  vi.doMock(PRIVATE_RESOLVER_MODULE, async () => {
+    const actual = await vi.importActual<typeof import(
+      '../scripts/sealed-realms-production-private-state.mjs'
+    )>(PRIVATE_STATE_MODULE);
+    return {
+      resolveSealedRealmsProductionWorkflowPrivateState: () => {
+        const state = actual.createSealedRealmsProductionPrivateState({
+          reportedHome: home,
+          testOnlyOwnerUid: statSync(home).uid,
+          testOnlyFsync: () => {},
+          testOnlyAllowPlatformMode: true,
+        });
+        resolutions.push(state);
+        return state;
+      },
+    };
+  });
+  return resolutions;
+}
+
 async function loadEntry(path: string): Promise<RuntimeModule> {
-  return import(path).catch(() => Object.freeze({})) as Promise<RuntimeModule>;
+  return import(path) as Promise<RuntimeModule>;
 }
 
 function functionExport(module: RuntimeModule, name: string): AnyFunction {
@@ -73,147 +227,26 @@ function functionExport(module: RuntimeModule, name: string): AnyFunction {
   return value as AnyFunction;
 }
 
-function sourceGit(arguments_: readonly string[]) {
-  const command = arguments_.join('\0');
-  if (
-    command.endsWith('rev-parse\0--verify\0HEAD^{commit}')
-    || command.endsWith('rev-parse\0--verify\0refs/remotes/origin/main^{commit}')
-  ) return `${SOURCE}\n`;
-  if (command.includes('show\0') && command.endsWith(':config/releases/0.4.0-sealed-launch.json')) {
-    return `${JSON.stringify({
-      schemaVersion: 1,
-      profile: 'warpkeep-0.4.0-sealed-launch-v1',
-      pagesDeploymentApproved: false,
-      preparationSourceCommit: SOURCE,
-    })}\n`;
+async function inRepository<T>(repositoryRoot: string, action: () => T | Promise<T>) {
+  const previous = process.cwd();
+  process.chdir(repositoryRoot);
+  try {
+    return await action();
+  } finally {
+    process.chdir(previous);
   }
-  throw new Error(`unexpected fixed git request: ${arguments_.join(' ')}`);
-}
-
-async function installHarmlessRuntimeHarness() {
-  const execFileSync = vi.fn((file: string, arguments_: readonly string[]) => {
-    expect(file === 'git' || file.endsWith('/usr/bin/git')).toBe(true);
-    return sourceGit(arguments_);
-  });
-  vi.doMock('node:child_process', async () => ({
-    ...(await vi.importActual<typeof import('node:child_process')>('node:child_process')),
-    execFileSync,
-  }));
-
-  const privateStates = new WeakSet<object>();
-  const createPrivateState = vi.fn(() => {
-    const state = Object.freeze({});
-    privateStates.add(state);
-    return state;
-  });
-  vi.doMock(PRIVATE_STATE_MODULE, async () => ({
-    ...(await vi.importActual<Record<string, unknown>>(PRIVATE_STATE_MODULE)),
-    createSealedRealmsProductionPrivateState: createPrivateState,
-    assertSealedRealmsProductionPrivateState: (state: unknown) => {
-      if (state === null || typeof state !== 'object' || !privateStates.has(state)) {
-        throw Object.assign(new Error('SEALED_REALMS_PRIVATE_STATE_CAPABILITY_INVALID'), {
-          code: 'SEALED_REALMS_PRIVATE_STATE_CAPABILITY_INVALID',
-        });
-      }
-      return state;
-    },
-  }));
-
-  const states = new WeakSet<object>();
-  const generators = new WeakSet<object>();
-  const createBridgeState = vi.fn(() => {
-    const state = Object.freeze({
-      inspectGate: async () => Object.freeze({ confirmation: Object.freeze({}) }),
-      applyGate: async () => Object.freeze({ status: 'cross-linked' }),
-      inspectOwnerProvisionEvidence: async () => Object.freeze({ confirmation: Object.freeze({}) }),
-      applyOwnerProvision: async () => Object.freeze({}),
-      inspectLiveEvidence: async () => Object.freeze({}),
-      inspectActivationEvidence: async () => Object.freeze({ confirmation: Object.freeze({}) }),
-    });
-    states.add(state);
-    return state;
-  });
-  const assertBridgeState = (state: unknown) => {
-    if (state === null || typeof state !== 'object' || !states.has(state)) {
-      throw Object.assign(new Error('SEALED_REALMS_AUTH_BRIDGE_STATE_CAPABILITY_INVALID'), {
-        code: 'SEALED_REALMS_AUTH_BRIDGE_STATE_CAPABILITY_INVALID',
-      });
-    }
-    return state;
-  };
-  vi.doMock(AUTH_BRIDGE_MODULE, async () => ({
-    ...(await vi.importActual<Record<string, unknown>>(AUTH_BRIDGE_MODULE)),
-    createSealedRealmsProductionAuthBridgeState: createBridgeState,
-    assertSealedRealmsProductionAuthBridgeState: assertBridgeState,
-    assertSealedRealmsProductionAuthBridgeStateAuthority: assertBridgeState,
-    createSealedRealmsProductionActivationEvidenceGenerator: vi.fn(() => {
-      const generator = Object.freeze({});
-      generators.add(generator);
-      return generator;
-    }),
-    assertSealedRealmsProductionActivationEvidenceGenerator: (generator: unknown) => {
-      if (generator === null || typeof generator !== 'object' || !generators.has(generator)) {
-        throw new Error('SEALED_REALMS_ACTIVATION_GENERATOR_INVALID');
-      }
-      return generator;
-    },
-    consumeSealedRealmsProductionActivationEvidenceForGenerator: async () => Object.freeze({}),
-  }));
-
-  const reconcilers = new WeakSet<object>();
-  const createReconciler = vi.fn(() => {
-    const reconciler = Object.freeze({
-      inspect: async () => Object.freeze({ confirmation: Object.freeze({}) }),
-      apply: async () => Object.freeze({ status: 'submitted' }),
-      reconcile: async () => Object.freeze({ status: 'reconciled' }),
-    });
-    reconcilers.add(reconciler);
-    return reconciler;
-  });
-  vi.doMock(RECONCILIATION_MODULE, async () => ({
-    ...(await vi.importActual<Record<string, unknown>>(RECONCILIATION_MODULE)),
-    createSealedRealmsProductionPublicationReconciler: createReconciler,
-    assertSealedRealmsProductionPublicationReconciler: (reconciler: unknown) => {
-      if (
-        reconciler === null || typeof reconciler !== 'object'
-        || !reconcilers.has(reconciler)
-      ) throw new Error('SEALED_REALMS_RECONCILIATION_CAPABILITY_INVALID');
-      return reconciler;
-    },
-  }));
-
-  const inspectG002Publish = vi.fn(async () => Object.freeze({ marker: Object.freeze({}) }));
-  const inspectPtrPublish = vi.fn(async () => Object.freeze({ marker: Object.freeze({}) }));
-  vi.doMock(G002_PUBLISHER_MODULE, () => ({
-    executeGenesis002ProductionPublisherCli: inspectG002Publish,
-  }));
-  vi.doMock(PTR_PUBLISHER_MODULE, () => ({
-    executePtrProductionPublisherCli: inspectPtrPublish,
-  }));
-  vi.stubGlobal('WebSocket', class WebSocket {});
-  return Object.freeze({
-    execFileSync,
-    createPrivateState,
-    createBridgeState,
-    createReconciler,
-    inspectG002Publish,
-    inspectPtrPublish,
-  });
 }
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  vi.doUnmock('node:child_process');
-  vi.doUnmock(PRIVATE_STATE_MODULE);
-  vi.doUnmock(AUTH_BRIDGE_MODULE);
-  vi.doUnmock(RECONCILIATION_MODULE);
-  vi.doUnmock(G002_PUBLISHER_MODULE);
-  vi.doUnmock(PTR_PUBLISHER_MODULE);
+  vi.doUnmock(EVIDENCE_MODULE);
+  vi.doUnmock(PRIVATE_RESOLVER_MODULE);
   vi.resetModules();
 });
 
-describe('sealed-realms production workflow runtime composition', () => {
+describe.sequential('sealed-realms production workflow runtime composition', () => {
   it('rejects a lane from an independently built graph at its private source brand', async () => {
+    const source = 'a'.repeat(40);
     const [dispatcherBuild, laneBuild] = await Promise.all([
       esbuild({
         entryPoints: ['scripts/sealed-realms-production-dispatch.mjs'],
@@ -260,123 +293,287 @@ describe('sealed-realms production workflow runtime composition', () => {
     });
     const dispatcher = dispatcherModule.createSealedRealmsProductionDispatcher({
       readGit: (arguments_: readonly string[]) => {
-        if (arguments_[0] === 'rev-parse') return `${SOURCE}\n`;
+        if (arguments_[0] === 'rev-parse') return `${source}\n`;
         throw new Error('unexpected git');
       },
       readBinding: () => ({
         schemaVersion: 1,
         profile: 'warpkeep-0.4.0-sealed-launch-v1',
         pagesDeploymentApproved: false,
-        preparationSourceCommit: SOURCE,
+        preparationSourceCommit: source,
       }),
       verifyEvidence: (verifiedSha: string) => ({ verifiedSha }),
       testOnlyLanes: { g001: lane },
     });
 
-    await expect(dispatcher.dispatch({ operation: 'preflight', workflowInputSha: SOURCE }))
+    await expect(dispatcher.dispatch({ operation: 'preflight', workflowInputSha: source }))
       .rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
   });
 
-  it.each(ENTRIES)('$lane entry exports only its fixed runtime factory/run pair', async entry => {
-    await installHarmlessRuntimeHarness();
-    const module = await loadEntry(entry.path);
+  it.each(ENTRIES)('$lane production construction fails closed before private-state resolution', async entry => {
+    const repository = repositoryFixture('S');
+    const privateHome = privateHomeFixture();
+    const privateResolutions = installPrivateResolver(privateHome.home);
+    try {
+      await inRepository(repository.repositoryRoot, async () => {
+        const module = await loadEntry(entry.path);
+        const factory = functionExport(module, entry.factory);
+        expect(() => factory({
+          operation: entry.operation,
+          workflowInputSha: repository.sourceCommit,
+        })).toThrow(expect.objectContaining({
+          code: 'SEALED_REALMS_SOURCE_AUTHORITY_VERIFY_INVALID',
+        }));
+      });
+      expect(privateResolutions).toEqual([]);
+    } finally {
+      repository.cleanup();
+      privateHome.cleanup();
+    }
+  }, FIXTURE_TIMEOUT);
 
+  it.each(ENTRIES)('$lane entry exports only its fixed runtime factory/run pair', async entry => {
+    const module = await loadEntry(entry.path);
     expect(Object.keys(module).sort()).toEqual([entry.factory, entry.run].sort());
   });
 
-  it.each(ENTRIES)('$lane entry owns and runs one same-graph branded operation', async entry => {
-    await installHarmlessRuntimeHarness();
-    const module = await loadEntry(entry.path);
-    const factory = functionExport(module, entry.factory);
-    const run = functionExport(module, entry.run);
+  it.each(ENTRIES)('$lane entry composes its real same-graph core behind the two private resolvers', async entry => {
+    const repository = repositoryFixture('S');
+    const privateHome = privateHomeFixture();
+    const verifiedCommits = installEvidenceVerifier();
+    const privateResolutions = installPrivateResolver(privateHome.home);
+    vi.stubGlobal('WebSocket', class WebSocket {});
+    try {
+      await inRepository(repository.repositoryRoot, async () => {
+        const module = await loadEntry(entry.path);
+        const factory = functionExport(module, entry.factory);
+        const run = functionExport(module, entry.run);
+        const runtime = factory({
+          operation: entry.operation,
+          workflowInputSha: repository.sourceCommit,
+        });
+        expect(Object.isFrozen(runtime)).toBe(true);
+        expect(Reflect.ownKeys(runtime)).toEqual([]);
+        expect(JSON.stringify(runtime)).toBe('{}');
+        const request = {
+          runtime,
+          operation: entry.operation,
+          workflowInputSha: repository.sourceCommit,
+        };
+        await expect(run({ ...request, operation: entry.crossedOperation }))
+          .rejects.toMatchObject({ code: expect.stringMatching(/WORKFLOW_OPERATION_INVALID$/u) });
+        await expect(run({ ...request, workflowInputSha: SWAPPED_SOURCE }))
+          .rejects.toMatchObject({ code: expect.stringMatching(/WORKFLOW_SOURCE_INVALID$/u) });
+        if ('expected' in entry) {
+          await expect(run(request)).resolves.toEqual(entry.expected);
+        } else {
+          await expect(run(request)).rejects.toMatchObject({ code: entry.expectedFailure });
+        }
+        await expect(run(request)).rejects.toMatchObject({
+          code: expect.stringMatching(/RUNTIME_(?:INVALID|CONSUMED)$/u),
+        });
+      });
+      expect(verifiedCommits).toEqual([
+        repository.sourceCommit,
+        repository.sourceCommit,
+      ]);
+      expect(privateResolutions).toHaveLength(1);
+    } finally {
+      repository.cleanup();
+      privateHome.cleanup();
+    }
+  }, FIXTURE_TIMEOUT);
 
-    const runtime = await factory({ operation: entry.operation, workflowInputSha: SOURCE });
-    expect(Object.isFrozen(runtime)).toBe(true);
-    expect(Reflect.ownKeys(runtime)).toEqual([]);
-    expect(JSON.stringify(runtime)).toBe('{}');
-    await expect(run({ runtime, operation: entry.operation, workflowInputSha: SOURCE }))
-      .resolves.toEqual(entry.expected);
-    await expect(run({ runtime, operation: entry.operation, workflowInputSha: SOURCE }))
-      .rejects.toMatchObject({ code: expect.stringMatching(/RUNTIME_(?:INVALID|CONSUMED)$/u) });
-  });
+  it.each(LIVE_ENTRIES)('$lane constructs the real historical-S bridge only from an authenticated A parent', async entry => {
+    const repository = repositoryFixture('A');
+    const privateHome = privateHomeFixture();
+    const verifiedCommits = installEvidenceVerifier();
+    const privateResolutions = installPrivateResolver(privateHome.home);
+    vi.stubGlobal('WebSocket', class WebSocket {});
+    try {
+      await inRepository(repository.repositoryRoot, async () => {
+        const module = await loadEntry(entry.path);
+        const factory = functionExport(module, entry.factory);
+        const run = functionExport(module, entry.run);
+        const runtime = factory({
+          operation: entry.operation,
+          workflowInputSha: repository.sourceCommit,
+        });
+        expect(Object.isFrozen(runtime)).toBe(true);
+        expect(Reflect.ownKeys(runtime)).toEqual([]);
+        await expect(run({
+          runtime,
+          operation: entry.operation,
+          workflowInputSha: repository.sourceCommit,
+        })).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+      });
+      expect(verifiedCommits).toEqual([
+        repository.preparationSourceCommit,
+        repository.sourceCommit,
+        repository.preparationSourceCommit,
+        repository.preparationSourceCommit,
+        repository.sourceCommit,
+      ]);
+      expect(privateResolutions).toHaveLength(1);
+    } finally {
+      repository.cleanup();
+      privateHome.cleanup();
+    }
+  }, FIXTURE_TIMEOUT);
 
-  it.each(ENTRIES)('$lane entry rejects caller adapters and cross-lane selection', async entry => {
-    await installHarmlessRuntimeHarness();
+  it.each(LIVE_ENTRIES)('$lane rejects an A whose authenticated parent binding is not exact', async entry => {
+    const repository = repositoryFixture('A', { invalidParentBinding: true });
+    const privateHome = privateHomeFixture();
+    installEvidenceVerifier();
+    const privateResolutions = installPrivateResolver(privateHome.home);
+    try {
+      await inRepository(repository.repositoryRoot, async () => {
+        const module = await loadEntry(entry.path);
+        const factory = functionExport(module, entry.factory);
+        expect(() => factory({
+          operation: entry.operation,
+          workflowInputSha: repository.sourceCommit,
+        })).toThrow(expect.objectContaining({
+          code: 'SEALED_REALMS_SOURCE_AUTHORITY_BINDING_INVALID',
+        }));
+      });
+      expect(privateResolutions).toEqual([]);
+    } finally {
+      repository.cleanup();
+      privateHome.cleanup();
+    }
+  }, FIXTURE_TIMEOUT);
+
+  it.each(LIVE_ENTRIES)('$lane rejects an A with any non-activation path before resolving private state', async entry => {
+    const repository = repositoryFixture('A', { extraActivationPath: true });
+    const privateHome = privateHomeFixture();
+    installEvidenceVerifier();
+    const privateResolutions = installPrivateResolver(privateHome.home);
+    try {
+      await inRepository(repository.repositoryRoot, async () => {
+        const module = await loadEntry(entry.path);
+        const factory = functionExport(module, entry.factory);
+        expect(() => factory({
+          operation: entry.operation,
+          workflowInputSha: repository.sourceCommit,
+        })).toThrow(expect.objectContaining({
+          code: 'SEALED_REALMS_SOURCE_AUTHORITY_ACTIVATION_DIFF_INVALID',
+        }));
+      });
+      expect(privateResolutions).toEqual([]);
+    } finally {
+      repository.cleanup();
+      privateHome.cleanup();
+    }
+  }, FIXTURE_TIMEOUT);
+
+  it.each(ENTRIES)('$lane entry rejects resolver injection and cross-lane selection', async entry => {
     const module = await loadEntry(entry.path);
     const factory = functionExport(module, entry.factory);
     const run = functionExport(module, entry.run);
 
     for (const injected of [
-      { readGit: () => `${SOURCE}\n` },
+      { readGit: () => '' },
       { adapter: Object.freeze({}) },
       { callback: () => {} },
       { constructor: class Forged {} },
       { importPath: '../scripts/sealed-realms-production-dispatch.mjs' },
       { privateState: Object.freeze({}) },
+      { privateStateResolver: () => Object.freeze({}) },
+      { evidenceVerifier: () => Object.freeze({}) },
     ]) {
       expect(() => factory({
         operation: entry.operation,
-        workflowInputSha: SOURCE,
+        workflowInputSha: 'a'.repeat(40),
         ...injected,
       })).toThrow(expect.objectContaining({ code: expect.stringMatching(/WORKFLOW_INPUT_INVALID$/u) }));
     }
     const symbolInjected = {
       operation: entry.operation,
-      workflowInputSha: SOURCE,
-      [Symbol('callback')]: () => {},
+      workflowInputSha: 'a'.repeat(40),
+      [Symbol('resolver')]: () => Object.freeze({}),
     };
     expect(() => factory(symbolInjected)).toThrow(expect.objectContaining({
       code: expect.stringMatching(/WORKFLOW_INPUT_INVALID$/u),
     }));
-    const hiddenInjected = { operation: entry.operation, workflowInputSha: SOURCE };
-    Object.defineProperty(hiddenInjected, 'callback', { value: () => {} });
+    const hiddenInjected = {
+      operation: entry.operation,
+      workflowInputSha: 'a'.repeat(40),
+    };
+    Object.defineProperty(hiddenInjected, 'privateStateResolver', {
+      value: () => Object.freeze({}),
+    });
     expect(() => factory(hiddenInjected)).toThrow(expect.objectContaining({
       code: expect.stringMatching(/WORKFLOW_INPUT_INVALID$/u),
     }));
     const accessorInjected = Object.defineProperties({}, {
       operation: { enumerable: true, get: () => entry.operation },
-      workflowInputSha: { enumerable: true, get: () => SOURCE },
+      workflowInputSha: { enumerable: true, get: () => 'a'.repeat(40) },
     });
     expect(() => factory(accessorInjected)).toThrow(expect.objectContaining({
       code: expect.stringMatching(/WORKFLOW_INPUT_INVALID$/u),
     }));
     expect(() => factory({
       operation: entry.crossedOperation,
-      workflowInputSha: SOURCE,
+      workflowInputSha: 'a'.repeat(40),
     })).toThrow(expect.objectContaining({ code: expect.stringMatching(/WORKFLOW_OPERATION_INVALID$/u) }));
     expect(() => factory({ operation: entry.operation, workflowInputSha: 'not-a-sha' }))
       .toThrow(expect.objectContaining({ code: expect.stringMatching(/WORKFLOW_SOURCE_INVALID$/u) }));
 
-    const runtime = await factory({ operation: entry.operation, workflowInputSha: SOURCE });
-    await expect(run({ runtime: Object.freeze({}), operation: entry.operation, workflowInputSha: SOURCE }))
-      .rejects.toMatchObject({ code: expect.stringMatching(/WORKFLOW_RUNTIME_INVALID$/u) });
-    await expect(run({ runtime, operation: entry.crossedOperation, workflowInputSha: SOURCE }))
-      .rejects.toMatchObject({ code: expect.stringMatching(/WORKFLOW_OPERATION_INVALID$/u) });
-    await expect(run({ runtime, operation: entry.operation, workflowInputSha: SWAPPED_SOURCE }))
-      .rejects.toMatchObject({ code: expect.stringMatching(/WORKFLOW_SOURCE_INVALID$/u) });
     await expect(run({
-      runtime,
+      runtime: Object.freeze({}),
       operation: entry.operation,
-      workflowInputSha: SOURCE,
-      callback: () => {},
-    })).rejects.toMatchObject({ code: expect.stringMatching(/WORKFLOW_INPUT_INVALID$/u) });
+      workflowInputSha: 'a'.repeat(40),
+    })).rejects.toMatchObject({ code: expect.stringMatching(/WORKFLOW_RUNTIME_INVALID$/u) });
     await expect(run({
-      runtime,
+      runtime: Object.freeze({}),
       operation: entry.operation,
-      workflowInputSha: SOURCE,
-      [Symbol('callback')]: () => {},
+      workflowInputSha: 'a'.repeat(40),
+      evidenceVerifier: () => Object.freeze({}),
     })).rejects.toMatchObject({ code: expect.stringMatching(/WORKFLOW_INPUT_INVALID$/u) });
   });
 
-  it('imports all four entries without constructing a runtime or invoking an adapter', async () => {
-    const harness = await installHarmlessRuntimeHarness();
-    for (const entry of ENTRIES) await loadEntry(entry.path);
-
-    expect(harness.execFileSync).not.toHaveBeenCalled();
-    expect(harness.createPrivateState).not.toHaveBeenCalled();
-    expect(harness.createBridgeState).not.toHaveBeenCalled();
-    expect(harness.createReconciler).not.toHaveBeenCalled();
-    expect(harness.inspectG002Publish).not.toHaveBeenCalled();
-    expect(harness.inspectPtrPublish).not.toHaveBeenCalled();
+  it.each(ENTRIES)('$lane import is inert with no evidence or private-state resolution', async entry => {
+    const privateHome = privateHomeFixture();
+    const verifiedCommits = installEvidenceVerifier();
+    const privateResolutions = installPrivateResolver(privateHome.home);
+    try {
+      await loadEntry(entry.path);
+      expect(verifiedCommits).toEqual([]);
+      expect(privateResolutions).toEqual([]);
+    } finally {
+      privateHome.cleanup();
+    }
   });
+
+  it.each(LIVE_ENTRIES)('$lane missing publisher marker creates no publication state', async entry => {
+    const repository = repositoryFixture('S');
+    const privateHome = privateHomeFixture();
+    installEvidenceVerifier();
+    installPrivateResolver(privateHome.home);
+    vi.stubGlobal('WebSocket', class WebSocket {});
+    try {
+      await inRepository(repository.repositoryRoot, async () => {
+        const module = await loadEntry(entry.path);
+        const factory = functionExport(module, entry.factory);
+        const run = functionExport(module, entry.factory.replace('create', 'run').replace('WorkflowRuntime', 'Operation'));
+        const operation = `${entry.lane}-publish-inspect`;
+        const runtime = factory({ operation, workflowInputSha: repository.sourceCommit });
+        await expect(run({ runtime, operation, workflowInputSha: repository.sourceCommit }))
+          .rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+      });
+      const runtimeRoot = join(
+        privateHome.home,
+        'Library',
+        'Application Support',
+        'Warpkeep',
+        'operations',
+        'runtime',
+      );
+      expect(readdirSync(runtimeRoot)).toEqual([]);
+    } finally {
+      repository.cleanup();
+      privateHome.cleanup();
+    }
+  }, FIXTURE_TIMEOUT);
 });

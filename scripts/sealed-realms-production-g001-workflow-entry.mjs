@@ -1,5 +1,4 @@
 import { execFileSync } from 'node:child_process';
-import { userInfo } from 'node:os';
 
 import {
   createSealedRealmsProductionDispatcher,
@@ -10,8 +9,14 @@ import {
   createSealedRealmsProductionG001LaunchAuthority,
 } from './sealed-realms-production-g001-lane-entry.mjs';
 import {
-  createSealedRealmsProductionPrivateState,
-} from './sealed-realms-production-private-state.mjs';
+  authenticateSealedRealmsProductionSourceAuthority,
+} from './sealed-realms-production-source-authority.mjs';
+import {
+  verifySealedRealmsProductionWorkflowEvidence,
+} from './sealed-realms-production-workflow-evidence.mjs';
+import {
+  resolveSealedRealmsProductionWorkflowPrivateState,
+} from './sealed-realms-production-workflow-private-state.mjs';
 
 const OPERATIONS = new Set([
   'preflight',
@@ -117,21 +122,19 @@ function readBinding(commit) {
   return parsed;
 }
 
-function verifyEvidence(commit) {
-  // The Task 7/9 bootstrap is the fixed successful-Verify attester. This
-  // graph only accepts its already checkout-bound source and never accepts a
-  // caller callback or alternate verified SHA.
-  return Object.freeze({ verifiedSha: commit });
-}
-
 function unavailable() {
   fail('SEALED_REALMS_G001_WORKFLOW_ADAPTER_UNAVAILABLE');
 }
 
-function buildDispatcher() {
-  const privateState = createSealedRealmsProductionPrivateState({
-    reportedHome: userInfo().homedir,
+function buildDispatcher(operation, workflowInputSha) {
+  authenticateSealedRealmsProductionSourceAuthority({
+    operation,
+    workflowInputSha,
+    readGit,
+    readBinding,
+    verifyEvidence: verifySealedRealmsProductionWorkflowEvidence,
   });
+  const privateState = resolveSealedRealmsProductionWorkflowPrivateState();
   const launchAuthority = createSealedRealmsProductionG001LaunchAuthority({
     readRawGit: readGit,
     resolveAdminSecretPath: unavailable,
@@ -163,7 +166,7 @@ function buildDispatcher() {
   return createSealedRealmsProductionDispatcher({
     readGit,
     readBinding,
-    verifyEvidence,
+    verifyEvidence: verifySealedRealmsProductionWorkflowEvidence,
     g001Lane: lane,
   });
 }
@@ -177,7 +180,7 @@ export function createSealedRealmsProductionG001WorkflowRuntime(input) {
   runtimes.set(runtime, Object.freeze({
     operation,
     workflowInputSha,
-    dispatcher: buildDispatcher(),
+    dispatcher: buildDispatcher(operation, workflowInputSha),
   }));
   return runtime;
 }
