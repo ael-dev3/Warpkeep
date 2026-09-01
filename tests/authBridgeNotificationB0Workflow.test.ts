@@ -134,6 +134,7 @@ type SanitizedNodeAncestryEntry = Readonly<{
   type: 'file' | 'directory' | 'symlink' | 'other';
   owner: 'self' | 'root' | 'other';
   group: 'self' | 'root' | 'other';
+  acl: 'plain' | 'extended' | 'multiline' | 'unavailable';
 }> | Readonly<{
   depth: number;
   error: 'missing' | 'permission' | 'unavailable';
@@ -149,6 +150,30 @@ function observationErrorClass(error: unknown) {
   if (code === 'ENOENT' || code === 'ENOTDIR') return 'missing' as const;
   if (code === 'EACCES' || code === 'EPERM') return 'permission' as const;
   return 'unavailable' as const;
+}
+
+function aclObservation(component: string) {
+  try {
+    const listing = spawnSync('/bin/ls', ['-ld', '--', component], {
+      encoding: 'utf8',
+    });
+    if (
+      listing.status !== 0
+      || listing.signal !== null
+      || typeof listing.stdout !== 'string'
+    ) {
+      return 'unavailable' as const;
+    }
+    const withoutTerminalNewlines = listing.stdout.replace(/\n+$/u, '');
+    if (withoutTerminalNewlines.includes('\n')) return 'multiline' as const;
+    const permissionToken = withoutTerminalNewlines.split(/\s/u, 1)[0];
+    if (permissionToken === '') return 'unavailable' as const;
+    return permissionToken.includes('+')
+      ? 'extended' as const
+      : 'plain' as const;
+  } catch {
+    return 'unavailable' as const;
+  }
 }
 
 function sanitizedNodeAncestry(nodeExecutable: string): SanitizedNodeAncestryEntry[] {
@@ -172,6 +197,7 @@ function sanitizedNodeAncestry(nodeExecutable: string): SanitizedNodeAncestryEnt
               : 'other',
         owner: ownershipClass(metadata.uid, uid),
         group: ownershipClass(metadata.gid, gid),
+        acl: aclObservation(current),
       }));
     } catch (error) {
       entries.push(Object.freeze({ depth, error: observationErrorClass(error) }));
@@ -281,6 +307,29 @@ afterEach(() => {
 });
 
 describe('notification bridge B0 protected workflow', () => {
+  it.skipIf(process.platform !== 'linux')(
+    'reports finite ACL state for each observed selected Node ancestry entry',
+    () => {
+      const replay = spawnSync('/usr/bin/false', [], { encoding: 'utf8' });
+      const failureMessage = b0ReplayFailureMessage(
+        'acl-diagnostic',
+        replay,
+        process.execPath,
+      );
+      const ancestry = JSON.parse(
+        failureMessage.match(/B0_NODE_ANCESTRY=(\[[^;]+\])/u)?.[1] ?? '[]',
+      ) as SanitizedNodeAncestryEntry[];
+
+      expect(replay.status).not.toBe(0);
+      expect(ancestry.length).toBeGreaterThan(0);
+      for (const entry of ancestry) {
+        if ('error' in entry) continue;
+        expect(['plain', 'extended', 'multiline', 'unavailable'])
+          .toContain(entry.acl);
+      }
+    },
+  );
+
   it('is manual-only, protected-main-only, and repository-exclusive', () => {
     expect(workflowSource).toContain('workflow_dispatch:');
     expect(workflowSource).not.toMatch(/\b(?:push|schedule|pull_request):/u);
