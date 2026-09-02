@@ -89,6 +89,7 @@ export type PtrOwnerClaims = WarpkeepBaseJwtClaims & Readonly<{
   authVersion: number;
   fid: bigint;
   authEpoch: number;
+  databaseIdentity: string;
   realmId: typeof PTR_REALM_ID;
   sessionIssuedAt: number;
   sessionExpiresAt: number;
@@ -241,7 +242,9 @@ export function readFreshPtrOwnerClaims(
     const base = readBaseClaims(record);
     const fid = parseFidClaim(record.fid);
     const authEpoch = parseAuthEpochClaim(record.auth_epoch);
-    parsePtrDatabaseIdentityClaim(record.ptr_database_identity);
+    const databaseIdentity = parsePtrDatabaseIdentityClaim(
+      record.ptr_database_identity,
+    );
     const issuedAt = numericDate(record, 'iat');
     const notBefore = numericDate(record, 'nbf');
     const expiresAt = numericDate(record, 'exp');
@@ -271,6 +274,7 @@ export function readFreshPtrOwnerClaims(
       authVersion: WARPKEEP_AUTH_VERSION,
       fid,
       authEpoch,
+      databaseIdentity,
       realmId: PTR_REALM_ID,
       sessionIssuedAt,
       sessionExpiresAt,

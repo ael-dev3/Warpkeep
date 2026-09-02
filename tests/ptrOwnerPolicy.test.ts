@@ -1,5 +1,10 @@
+// @vitest-environment node
+
 import assert from 'node:assert/strict';
-import { describe, test } from 'vitest';
+import { resolve } from 'node:path';
+
+import { build, type Plugin } from 'esbuild';
+import { beforeAll, describe, test } from 'vitest';
 
 import {
   PTR_AUDIENCE,
@@ -19,6 +24,50 @@ import {
   type PtrOwnerAnchorState,
 } from '../spacetimedb/ptr/src/ownerPolicy';
 import * as ownerPolicy from '../spacetimedb/ptr/src/ownerPolicy';
+
+let requirePtrOwner: (ctx: unknown) => unknown;
+
+beforeAll(async () => {
+  const runtimeStub: Plugin = {
+    name: 'ptr-owner-policy-test-runtime',
+    setup(pluginBuild) {
+      pluginBuild.onResolve({ filter: /^spacetimedb\/server$/ }, () => ({
+        path: 'spacetimedb/server',
+        namespace: 'ptr-owner-policy-test-runtime',
+      }));
+      pluginBuild.onLoad(
+        { filter: /.*/, namespace: 'ptr-owner-policy-test-runtime' },
+        () => ({
+          loader: 'js',
+          contents: `
+            export class SenderError extends Error {
+              constructor(message) { super(message); this.name = 'SenderError'; }
+            }
+          `,
+        }),
+      );
+    },
+  };
+  const result = await build({
+    stdin: {
+      contents: `export { requirePtrOwner } from './spacetimedb/ptr/src/auth.ts';`,
+      loader: 'ts',
+      resolveDir: resolve(import.meta.dirname, '..'),
+      sourcefile: 'ptr-owner-policy-test-entry.ts',
+    },
+    bundle: true,
+    format: 'esm',
+    platform: 'node',
+    target: 'es2022',
+    write: false,
+    plugins: [runtimeStub],
+  });
+  const encoded = Buffer.from(result.outputFiles[0]!.text).toString('base64');
+  const module = await import(`data:text/javascript;base64,${encoded}`) as {
+    requirePtrOwner: (ctx: unknown) => unknown;
+  };
+  requirePtrOwner = module.requirePtrOwner;
+});
 
 const OWNER_FID = 4_242n;
 const OWNER_EPOCH = 1;
@@ -138,6 +187,7 @@ describe('PTR owner JWT policy', () => {
       authVersion: 2,
       fid: OWNER_FID,
       authEpoch: OWNER_EPOCH,
+      databaseIdentity: PTR_DATABASE_IDENTITY,
       realmId: PTR_REALM_ID,
       sessionIssuedAt: SESSION_IAT,
       sessionExpiresAt: SESSION_EXP,
@@ -324,6 +374,44 @@ describe('PTR singleton owner policy', () => {
   test('matches the sole enabled anchor to both FID and auth epoch', () => {
     const claims = readFreshPtrOwnerClaims(ownerPayload(), NOW_MICROS);
     assert.equal(requirePtrOwnerAnchor(claims, anchor, 1n), anchor);
+  });
+
+  test('binds a valid owner token to the immutable PTR database before anchor reads', () => {
+    let findCalls = 0;
+    let countCalls = 0;
+    const context = (databaseIdentity: string, payload = ownerPayload()) => ({
+      senderAuth: { jwt: { fullPayload: payload } },
+      timestamp: { microsSinceUnixEpoch: NOW_MICROS },
+      databaseIdentity: { toHexString: () => databaseIdentity },
+      db: {
+        ptrOwnerAnchorV1: {
+          singletonKey: {
+            find: () => {
+              findCalls += 1;
+              return anchor;
+            },
+          },
+          count: () => {
+            countCalls += 1;
+            return 1n;
+          },
+        },
+      },
+    });
+    assert.throws(
+      () => requirePtrOwner(context('2'.repeat(64))),
+      error => error instanceof Error
+        && error.message === 'PTR_OWNER_NOT_AUTHORIZED',
+    );
+    assert.equal(findCalls, 0);
+    assert.equal(countCalls, 0);
+
+    assert.deepEqual(requirePtrOwner(context(PTR_DATABASE_IDENTITY)), {
+      claims: readFreshPtrOwnerClaims(ownerPayload(), NOW_MICROS),
+      anchor,
+    });
+    assert.equal(findCalls, 1);
+    assert.equal(countCalls, 1);
   });
 
   test('denies an owner token carrying a changed live G001 auth epoch', () => {

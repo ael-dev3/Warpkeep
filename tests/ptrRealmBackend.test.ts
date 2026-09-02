@@ -223,6 +223,27 @@ test('owner provisioning checks both signed bindings before every state access',
   assert.ok(atlasReady > atlasRead && atlasReady < anchorRead);
 });
 
+test('owner database identity is checked against the immutable target before anchor reads', () => {
+  const source = readFileSync(
+    join(process.cwd(), 'spacetimedb', 'ptr', 'src', 'auth.ts'),
+    'utf8',
+  );
+  const start = source.indexOf('export function requirePtrOwner');
+  const end = source.indexOf('export function requirePtrConnection', start);
+  const owner = source.slice(start, end);
+  const claims = owner.indexOf('const claims = readFreshPtrOwnerClaims(');
+  const databaseBinding = owner.indexOf('claims.databaseIdentity !==');
+  const runtimeIdentity = owner.indexOf('ctx.databaseIdentity.toHexString()');
+  const anchorFind = owner.indexOf('ctx.db.ptrOwnerAnchorV1.singletonKey.find(');
+  const anchorCount = owner.indexOf('ctx.db.ptrOwnerAnchorV1.count()');
+  assert.ok(start >= 0 && end > start);
+  assert.ok(claims >= 0);
+  assert.ok(databaseBinding > claims);
+  assert.ok(runtimeIdentity > databaseBinding);
+  assert.ok(anchorFind > databaseBinding);
+  assert.ok(anchorCount > databaseBinding);
+});
+
 test('atlas reducers use only ownerless authority and expose no owner values', () => {
   const atlas = readFileSync(
     join(process.cwd(), 'spacetimedb', 'ptr', 'src', 'atlasImportReducers.ts'),

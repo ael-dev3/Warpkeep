@@ -50,6 +50,9 @@ export function requirePtrOwner(ctx: PtrContext) {
       payload(ctx),
       ctx.timestamp.microsSinceUnixEpoch,
     );
+    if (claims.databaseIdentity !== ctx.databaseIdentity.toHexString()) {
+      throw new PtrOwnerPolicyError('PTR_OWNER_NOT_AUTHORIZED');
+    }
     const anchor = ctx.db.ptrOwnerAnchorV1.singletonKey.find(
       PTR_OWNER_SINGLETON_KEY,
     );
