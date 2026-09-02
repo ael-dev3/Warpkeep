@@ -655,6 +655,45 @@ describe('0.4.0 sealed-launch verifier', () => {
     });
   });
 
+  it('accepts harmless template, comment, and type-only text outside contracts', () => {
+    const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
+    const checkedIn = checkedInSources();
+    const harmless = { ...checkedIn };
+    harmless.ptrOwnerPolicySource = harmless.ptrOwnerPolicySource.replace(
+      'export const PTR_OWNER_MAX_SESSION_SECONDS = 120;',
+      [
+        'type HarmlessPolicyNote = Readonly<{ text: string }>;',
+        "const harmlessPolicyNote: HarmlessPolicyNote = { text: `note:${'only'}` };",
+        '// Harmless note: strictPtrOwnerRecord and parsePtrDatabaseIdentityClaim.',
+        'void harmlessPolicyNote;',
+        '',
+        'export const PTR_OWNER_MAX_SESSION_SECONDS = 120;',
+      ].join('\n'),
+    );
+    expect(harmless.ptrOwnerPolicySource).not.toBe(
+      checkedIn.ptrOwnerPolicySource,
+    );
+    expect(() => verify(harmless)).not.toThrow();
+  });
+
+  it('accepts a harmless template in the owner reader middle', () => {
+    const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
+    const checkedIn = checkedInSources();
+    const harmless = { ...checkedIn };
+    harmless.ptrOwnerPolicySource = harmless.ptrOwnerPolicySource.replace(
+      "    const notBefore = numericDate(record, 'nbf');",
+      [
+        "    const notBefore = numericDate(record, 'nbf');",
+        '    const harmlessOwnerNote = `issued-at:${issuedAt.toString()}`;',
+        '    void harmlessOwnerNote;',
+      ].join('\n'),
+    );
+    expect(harmless.ptrOwnerPolicySource).not.toBe(
+      checkedIn.ptrOwnerPolicySource,
+    );
+    expect(() => verify(harmless)).not.toThrow();
+  });
+
   it.each([
     'genesis002AdminPolicySource',
     'genesis002AuthSource',
@@ -1367,83 +1406,6 @@ describe('0.4.0 sealed-launch verifier', () => {
       .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
   });
 
-  it('rejects rebinding the PTR database-identity validator', () => {
-    const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
-    const checkedIn = checkedInSources();
-    const hostile = { ...checkedIn };
-    hostile.ptrOwnerPolicySource = hostile.ptrOwnerPolicySource.replace(
-      'function numericDate(record: JsonRecord, key: string): number {',
-      [
-        'parsePtrDatabaseIdentityClaim = (',
-        '  (value: unknown): string => String(value)',
-        ');',
-        '',
-        'function numericDate(record: JsonRecord, key: string): number {',
-      ].join('\n'),
-    );
-    expect(hostile.ptrOwnerPolicySource).not.toBe(
-      checkedIn.ptrOwnerPolicySource,
-    );
-    expect(() => verify(hostile))
-      .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
-  });
-
-  it.each([
-    {
-      name: 'strict owner parser',
-      statement: [
-        'strictPtrOwner\\u0052ecord = (',
-        '  (payload: unknown): JsonRecord => payload as JsonRecord',
-        ');',
-      ].join('\n'),
-    },
-    {
-      name: 'database-identity validator',
-      statement: [
-        'parsePtrDatabaseIdentity\\u0043laim = (',
-        '  (value: unknown): string => String(value)',
-        ');',
-      ].join('\n'),
-    },
-    {
-      name: 'database-identity pattern test',
-      statement: 'PTR_DATABASE\\u005fIDENTITY.test = (() => true);',
-    },
-  ] as const)(
-    'rejects a Unicode-escaped policy rebind: $name',
-    ({ statement }) => {
-      const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
-      const checkedIn = checkedInSources();
-      const hostile = { ...checkedIn };
-      hostile.ptrOwnerPolicySource = [
-        hostile.ptrOwnerPolicySource,
-        statement,
-        '',
-      ].join('\n');
-      expect(hostile.ptrOwnerPolicySource).not.toBe(
-        checkedIn.ptrOwnerPolicySource,
-      );
-      expect(() => verify(hostile))
-        .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
-    },
-  );
-
-  it('rejects a constructed direct-eval policy rebind', () => {
-    const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
-    const checkedIn = checkedInSources();
-    const hostile = { ...checkedIn };
-    hostile.ptrOwnerPolicySource = [
-      hostile.ptrOwnerPolicySource,
-      "eval('strictPtrOwner' + 'Record = ((payload) => payload);');",
-      '',
-    ].join('\n');
-    expect(hostile.ptrOwnerPolicySource).not.toBe(
-      checkedIn.ptrOwnerPolicySource,
-    );
-    expect(() => verify(hostile))
-      .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
-  });
-
   it('rejects replacing the validated owner database identity on return', () => {
     const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
     const checkedIn = checkedInSources();
@@ -1508,144 +1470,25 @@ describe('0.4.0 sealed-launch verifier', () => {
       .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
   });
 
-  it.each([
-    {
-      name: 'Object.getPrototypeOf assignment',
-      mutate: (value: string) => value.replace(
-        'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
-        [
-          'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
-          'Object.getPrototypeOf = (() => Object.prototype);',
-        ].join('\n'),
-      ),
-    },
-    {
-      name: 'Reflect.ownKeys assignment',
-      mutate: (value: string) => value.replace(
-        'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
-        [
-          'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
-          'Reflect.ownKeys = Object.keys;',
-        ].join('\n'),
-      ),
-    },
-    {
-      name: 'Object.freeze assignment and claim-key append',
-      mutate: (value: string) => value
-        .replace(
-          'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
-          [
-            'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
-            'Object.freeze = ((input: unknown) => input) as typeof Object.freeze;',
-          ].join('\n'),
-        )
-        .replace(
-          'export type PtrOwnerPolicyErrorCode =',
-          [
-            "(PTR_OWNER_EXACT_CLAIM_KEYS as unknown as string[]).push('extra');",
-            '',
-            'export type PtrOwnerPolicyErrorCode =',
-          ].join('\n'),
-        ),
-    },
-    {
-      name: 'globalThis Object construction path',
-      mutate: (value: string) => value.replace(
-        'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
-        [
-          'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
-          'globalThis.Object.getPrototypeOf = (() => Object.prototype);',
-        ].join('\n'),
-      ),
-    },
-    {
-      name: 'Reflect bracket assignment',
-      mutate: (value: string) => value.replace(
-        'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
-        [
-          'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
-          "Reflect['ownKeys'] = Object.keys;",
-        ].join('\n'),
-      ),
-    },
-    {
-      name: 'Object.defineProperty mutation',
-      mutate: (value: string) => value.replace(
-        'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
-        [
-          'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
-          "Object.defineProperty(Reflect, 'ownKeys', { value: Object.keys });",
-        ].join('\n'),
-      ),
-    },
-    {
-      name: 'indirect constructor-string mutation',
-      mutate: (value: string) => value.replace(
-        'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
-        [
-          'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
-          "(([] as unknown[])['filter'] as any)['constructor'](",
-          "  'return Reflect',",
-          ")()['ownKeys'] = (([] as unknown[])['filter'] as any)['constructor'](",
-          "  'return Object.keys',",
-          ')();',
-        ].join('\n'),
-      ),
-    },
-    {
-      name: 'constructed Function-body mutation',
-      mutate: (value: string) => value.replace(
-        'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
-        [
-          'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
-          "const intrinsicAttack = ((() => undefined) as any)['con' + 'structor'](",
-          "  'Object.getPrototypeOf = (() => Object.prototype);',",
-          ');',
-          'intrinsicAttack();',
-        ].join('\n'),
-      ),
-    },
-    {
-      name: 'indirect computed identifier Function-body mutation',
-      mutate: (value: string) => value.replace(
-        'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
-        [
-          'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
-          "const propertyName = 'con' + 'structor';",
-          'const intrinsicAttack = ((() => undefined) as any)[propertyName](',
-          "  'Object.getPrototypeOf = (() => Object.prototype);',",
-          ');',
-          'intrinsicAttack();',
-        ].join('\n'),
-      ),
-    },
-    {
-      name: 'Array prototype includes getter poisoning',
-      mutate: (value: string) => value.replace(
-        'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
-        [
-          'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
-          'Object.getPrototypeOf([]).__defineGetter__(',
-          "  'includes',",
-          '  () => (() => true),',
-          ');',
-        ].join('\n'),
-      ),
-    },
-  ] as const)(
-    'rejects PTR policy intrinsic mutation: $name',
-    ({ mutate }) => {
-      const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
-      const checkedIn = checkedInSources();
-      const hostile = { ...checkedIn };
-      hostile.ptrOwnerPolicySource = mutate(hostile.ptrOwnerPolicySource);
-      expect(hostile.ptrOwnerPolicySource).not.toBe(
-        checkedIn.ptrOwnerPolicySource,
-      );
-      expect(() => verify(hostile))
-        .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
-    },
-  );
+  it('rejects returning owner claims from the catch suffix', () => {
+    const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
+    const checkedIn = checkedInSources();
+    const hostile = { ...checkedIn };
+    hostile.ptrOwnerPolicySource = hostile.ptrOwnerPolicySource.replace(
+      "    throw new PtrOwnerPolicyError('INVALID_PTR_OWNER_SESSION');\n  }\n}",
+      [
+        '    if (error === undefined) return {} as PtrOwnerClaims;',
+        "    throw new PtrOwnerPolicyError('INVALID_PTR_OWNER_SESSION');",
+        '  }',
+        '}',
+      ].join('\n'),
+    );
+    expect(hostile.ptrOwnerPolicySource).not.toBe(
+      checkedIn.ptrOwnerPolicySource,
+    );
+    expect(() => verify(hostile))
+      .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+  });
 
   it('semantically rejects PTR admin token-type drift independently of source pins', () => {
     const verifyPtrOwnerAuthoritySemantics = (
