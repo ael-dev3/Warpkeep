@@ -1206,6 +1206,130 @@ describe('0.4.0 sealed-launch verifier', () => {
       .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
   });
 
+  it.each([
+    {
+      name: 'line-comment parser proof',
+      replacement: [
+        'const record = payload as JsonRecord;',
+        '    // const record = strictPtrOwnerRecord(payload);',
+      ].join('\n'),
+    },
+    {
+      name: 'dead-branch parser proof',
+      replacement: [
+        'if (false) {',
+        '      const record = strictPtrOwnerRecord(payload);',
+        '      void record;',
+        '    }',
+        '    const record = payload as JsonRecord;',
+      ].join('\n'),
+    },
+    {
+      name: 'string parser proof',
+      replacement: [
+        "const parserProof = 'const record = strictPtrOwnerRecord(payload);';",
+        '    void parserProof;',
+        '    const record = payload as JsonRecord;',
+      ].join('\n'),
+    },
+    {
+      name: 'template parser proof',
+      replacement: [
+        'const parserProof = `const record = strictPtrOwnerRecord(payload);`;',
+        '    void parserProof;',
+        '    const record = payload as JsonRecord;',
+      ].join('\n'),
+    },
+  ] as const)(
+    'rejects non-live owner reader binding: $name',
+    ({ replacement }) => {
+      const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
+      const checkedIn = checkedInSources();
+      const hostile = { ...checkedIn };
+      hostile.ptrOwnerPolicySource = hostile.ptrOwnerPolicySource.replace(
+        'const record = strictPtrOwnerRecord(payload);',
+        replacement,
+      );
+      expect(hostile.ptrOwnerPolicySource).not.toBe(
+        checkedIn.ptrOwnerPolicySource,
+      );
+      expect(() => verify(hostile))
+        .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+    },
+  );
+
+  it('rejects a commented owner identity call beside a live String bypass', () => {
+    const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
+    const checkedIn = checkedInSources();
+    const hostile = { ...checkedIn };
+    hostile.ptrOwnerPolicySource = hostile.ptrOwnerPolicySource.replace(
+      [
+        'const databaseIdentity = parsePtrDatabaseIdentityClaim(',
+        '      record.ptr_database_identity,',
+        '    );',
+      ].join('\n'),
+      [
+        'const databaseIdentity = String(record.ptr_database_identity);',
+        '    // const databaseIdentity = parsePtrDatabaseIdentityClaim(record.ptr_database_identity,);',
+      ].join('\n'),
+    );
+    expect(hostile.ptrOwnerPolicySource).not.toBe(
+      checkedIn.ptrOwnerPolicySource,
+    );
+    expect(() => verify(hostile))
+      .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+  });
+
+  it('rejects a duplicate raw reader end marker hiding an atlas bypass', () => {
+    const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
+    const checkedIn = checkedInSources();
+    const hostile = { ...checkedIn };
+    hostile.ptrOwnerPolicySource = hostile.ptrOwnerPolicySource.replace(
+      'const record = strictPtrAtlasAdminRecord(payload);',
+      [
+        'const record = strictPtrAtlasAdminRecord(payload);',
+        '    // export function requirePtrOwnerProvisionBinding(',
+        '    const databaseIdentity = parsePtrDatabaseIdentityClaim(',
+        '      record.ptr_database_identity,',
+        '    );',
+        '    void databaseIdentity;',
+      ].join('\n'),
+    );
+    expect(hostile.ptrOwnerPolicySource).not.toBe(
+      checkedIn.ptrOwnerPolicySource,
+    );
+    expect(() => verify(hostile))
+      .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+  });
+
+  it('rejects a relaxed PTR database-identity validator return', () => {
+    const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
+    const checkedIn = checkedInSources();
+    const hostile = { ...checkedIn };
+    const start = hostile.ptrOwnerPolicySource.indexOf(
+      'function parsePtrDatabaseIdentityClaim(',
+    );
+    const end = hostile.ptrOwnerPolicySource.indexOf(
+      'function exactPtrAudience(',
+      start,
+    );
+    const validator = hostile.ptrOwnerPolicySource.slice(start, end);
+    const hostileValidator = validator.replace(
+      'return value;',
+      'return String(value);',
+    );
+    hostile.ptrOwnerPolicySource = [
+      hostile.ptrOwnerPolicySource.slice(0, start),
+      hostileValidator,
+      hostile.ptrOwnerPolicySource.slice(end),
+    ].join('');
+    expect(hostile.ptrOwnerPolicySource).not.toBe(
+      checkedIn.ptrOwnerPolicySource,
+    );
+    expect(() => verify(hostile))
+      .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+  });
+
   it('semantically rejects PTR admin token-type drift independently of source pins', () => {
     const verifyPtrOwnerAuthoritySemantics = (
       sealedLaunchVerifierModule as unknown as {

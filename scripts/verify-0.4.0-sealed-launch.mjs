@@ -1430,6 +1430,19 @@ function contractSourceSlice(source, startMarker, endMarker, code) {
   return source.slice(start, end);
 }
 
+function contractUniqueRawSlice(source, startMarker, endMarker, code) {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start + startMarker.length);
+  if (
+    start < 0
+    || source.indexOf(startMarker, start + startMarker.length) >= 0
+    || end <= start
+    || source.indexOf(endMarker) !== end
+    || source.indexOf(endMarker, end + endMarker.length) >= 0
+  ) fail(code);
+  return source.slice(start, end);
+}
+
 function contractTokens(source, code) {
   const tokens = [];
   let offset = 0;
@@ -1815,26 +1828,46 @@ function contractExactPtrRecordParser(
   ) fail(code);
 }
 
+function contractExactPtrDatabaseIdentityValidator(source, code) {
+  const expectedSource = `function parsePtrDatabaseIdentityClaim(value: unknown): string {
+  if (typeof value !== 'string' || !PTR_DATABASE_IDENTITY.test(value)) {
+    throw new PtrOwnerPolicyError('INVALID_PTR_OWNER_SESSION');
+  }
+  return value;
+}`;
+  if (
+    JSON.stringify(contractTokens(source, code))
+    !== JSON.stringify(contractTokens(expectedSource, code))
+  ) fail(code);
+}
+
 function contractPtrReaderBinding(
   source,
   readerName,
   nextFunctionName,
   parserName,
+  prefixEndMarker,
+  expectedPrefix,
   requireDatabaseIdentity,
   code,
 ) {
-  const reader = contractSourceSlice(
+  const startMarker = `export function ${readerName}(`;
+  const reader = contractUniqueRawSlice(
     source,
-    `export function ${readerName}(`,
+    startMarker,
     `export function ${nextFunctionName}(`,
     code,
   );
-  const compactReader = reader.replace(/\s/gu, '');
-  const parserCall = `constrecord=${parserName}(payload);`;
-  const parserIndex = compactReader.indexOf(parserCall);
+  const readerPrefix = contractUniqueRawSlice(
+    reader,
+    startMarker,
+    prefixEndMarker,
+    code,
+  );
   if (
-    parserIndex < 0
-    || compactReader.indexOf(parserCall, parserIndex + parserCall.length) >= 0
+    JSON.stringify(contractTokens(readerPrefix, code))
+    !== JSON.stringify(contractTokens(expectedPrefix, code))
+    || reader.split(`${parserName}(`).length !== 2
   ) fail(code);
   for (const candidate of [
     'strictPtrAdminRecord',
@@ -1846,18 +1879,10 @@ function contractPtrReaderBinding(
       && reader.includes(`${candidate}(`)
     ) fail(code);
   }
-  const identityCall =
-    'constdatabaseIdentity=parsePtrDatabaseIdentityClaim(record.ptr_database_identity,);';
-  const identityIndex = compactReader.indexOf(identityCall);
-  if (requireDatabaseIdentity) {
-    if (
-      identityIndex <= parserIndex
-      || compactReader.indexOf(
-        identityCall,
-        identityIndex + identityCall.length,
-      ) >= 0
-    ) fail(code);
-  } else if (reader.includes('parsePtrDatabaseIdentityClaim(')) fail(code);
+  if (
+    reader.split('parsePtrDatabaseIdentityClaim(').length
+    !== (requireDatabaseIdentity ? 2 : 1)
+  ) fail(code);
 }
 
 function contractTopLevelSemicolonEnd(tokens, start, code) {
@@ -2781,11 +2806,29 @@ export function verifyPtrOwnerAuthoritySemantics(sources) {
     );
   }
 
+  contractExactPtrDatabaseIdentityValidator(
+    contractUniqueRawSlice(
+      sources.ptrOwnerPolicySource,
+      'function parsePtrDatabaseIdentityClaim(',
+      'function exactPtrAudience(',
+      code,
+    ),
+    code,
+  );
+
   contractPtrReaderBinding(
     sources.ptrOwnerPolicySource,
     'readFreshPtrAdminClaims',
     'readFreshPtrAtlasAdminClaims',
     'strictPtrAdminRecord',
+    '    const claims = readBaseClaims(record);',
+    `export function readFreshPtrAdminClaims(
+  payload: unknown,
+  currentTimeMicros: bigint,
+): PtrAdminClaims {
+  try {
+    const record = strictPtrAdminRecord(payload);
+`,
     false,
     code,
   );
@@ -2794,6 +2837,23 @@ export function verifyPtrOwnerAuthoritySemantics(sources) {
     'readFreshPtrOwnerClaims',
     'readFreshPtrAdminClaims',
     'strictPtrOwnerRecord',
+    "    const issuedAt = numericDate(record, 'iat');",
+    `export function readFreshPtrOwnerClaims(
+  payload: unknown,
+  currentTimeMicros: bigint,
+): PtrOwnerClaims {
+  try {
+    const record = strictPtrOwnerRecord(payload);
+    if (!exactPtrAudience(record)) {
+      throw new PtrOwnerPolicyError('INVALID_PTR_OWNER_SESSION');
+    }
+    const base = readBaseClaims(record);
+    const fid = parseFidClaim(record.fid);
+    const authEpoch = parseAuthEpochClaim(record.auth_epoch);
+    const databaseIdentity = parsePtrDatabaseIdentityClaim(
+      record.ptr_database_identity,
+    );
+`,
     true,
     code,
   );
@@ -2802,6 +2862,14 @@ export function verifyPtrOwnerAuthoritySemantics(sources) {
     'readFreshPtrAtlasAdminClaims',
     'requirePtrOwnerProvisionBinding',
     'strictPtrAtlasAdminRecord',
+    '    const claims = readBaseClaims(record);',
+    `export function readFreshPtrAtlasAdminClaims(
+  payload: unknown,
+  currentTimeMicros: bigint,
+): PtrAtlasAdminClaims {
+  try {
+    const record = strictPtrAtlasAdminRecord(payload);
+`,
     false,
     code,
   );
