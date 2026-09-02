@@ -1,9 +1,12 @@
-import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { createHash, createPrivateKey, createPublicKey } from 'node:crypto';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
+
+import { isExactCurrentOwnerOnlyAcl } from '../scripts/recovery-bootstrap-acl.mjs';
 
 const repositoryRoot = resolve(__dirname, '..');
 const scriptPath = join(repositoryRoot, 'scripts', 'prepare-0.4.0-recovery-bootstrap.mjs');
@@ -37,6 +40,15 @@ describe('0.4.0 recovery bootstrap', () => {
     expect(result.stderr).toContain('RECOVERY_BOOTSTRAP_GENERATION_REQUIRED');
   });
 
+  it('requires --private-root before it will generate or validate key material', () => {
+    const root = fixtureRoot();
+    const result = run(['--generate'], { USERPROFILE: root });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('RECOVERY_BOOTSTRAP_ARGUMENTS_INVALID');
+    expect(existsSync(join(root, '.warpkeep'))).toBe(false);
+  });
+
   it('creates a mode-0600 P-256 private JWK and derives the pinned public values', () => {
     const root = fixtureRoot();
     const privateRoot = join(root, 'private', 'release-recovery-v1');
@@ -60,15 +72,39 @@ describe('0.4.0 recovery bootstrap', () => {
     expect(output.publicJwk).toMatchObject({ kty: 'EC', crv: 'P-256' });
     expect(output.publicJwk).not.toHaveProperty('d');
     expect(output.thumbprint).toMatch(/^[A-Za-z0-9_-]{43}$/u);
-    expect(JSON.parse(readFileSync(output.privateJwkPath, 'utf8'))).toMatchObject({
+    const privateJwk = JSON.parse(readFileSync(output.privateJwkPath, 'utf8')) as JsonWebKey;
+    expect(privateJwk).toMatchObject({
       kty: 'EC', crv: 'P-256', d: expect.any(String)
     });
+    const independentlyDerived = createPublicKey(createPrivateKey({ key: privateJwk, format: 'jwk' }))
+      .export({ format: 'jwk' });
+    const independentlyDerivedPublic = {
+      kty: independentlyDerived.kty,
+      crv: independentlyDerived.crv,
+      x: independentlyDerived.x,
+      y: independentlyDerived.y
+    };
+    const independentlyDerivedThumbprint = createHash('sha256')
+      .update(JSON.stringify({
+        crv: independentlyDerivedPublic.crv,
+        kty: independentlyDerivedPublic.kty,
+        x: independentlyDerivedPublic.x,
+        y: independentlyDerivedPublic.y
+      }), 'utf8')
+      .digest('base64url');
+    expect(output.publicJwk).toEqual(independentlyDerivedPublic);
+    expect(output.thumbprint).toBe(independentlyDerivedThumbprint);
     expect(JSON.parse(readFileSync(output.publicJwkPath, 'utf8'))).toEqual(output.publicJwk);
     expect(readFileSync(output.thumbprintPath, 'utf8')).toBe(`${output.thumbprint}\n`);
     if (process.platform !== 'win32') {
       [output.privateJwkPath, output.publicJwkPath, output.thumbprintPath].forEach((path) => {
         expect(statSync(path).mode & 0o777).toBe(0o600);
       });
+    }
+    if (process.platform === 'win32') {
+      const acl = spawnSync('icacls', [output.privateJwkPath], { encoding: 'utf8', windowsHide: true });
+      expect(acl.status).toBe(0);
+      expect(isExactCurrentOwnerOnlyAcl(acl.stdout, process.env.USERNAME!)).toBe(true);
     }
   });
 
@@ -107,5 +143,47 @@ describe('0.4.0 recovery bootstrap', () => {
       expect(result.stderr).toContain('RECOVERY_BOOTSTRAP_PRIVATE_ROOT_REJECTED');
       expect(`${result.stdout}${result.stderr}`).not.toContain('caller-private-material');
     });
+  });
+
+  it('rejects a root inside a separately linked Git worktree', () => {
+    const root = fixtureRoot();
+    const linkedWorktree = join(root, 'linked-worktree');
+    execFileSync('git', ['worktree', 'add', '--detach', linkedWorktree, 'HEAD'], {
+      cwd: repositoryRoot,
+      stdio: 'ignore'
+    });
+    try {
+      const result = run(['--generate', '--private-root', join(linkedWorktree, 'private-output')]);
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain('RECOVERY_BOOTSTRAP_PRIVATE_ROOT_REJECTED');
+    } finally {
+      execFileSync('git', ['worktree', 'remove', '--force', linkedWorktree], {
+        cwd: repositoryRoot,
+        stdio: 'ignore'
+      });
+    }
+  });
+
+  it('rejects a symlink or Windows junction in the private-root path chain', () => {
+    const root = fixtureRoot();
+    const target = join(root, 'target');
+    const link = join(root, 'linked');
+    mkdirSync(target);
+    symlinkSync(target, link, process.platform === 'win32' ? 'junction' : 'dir');
+
+    const result = run(['--generate', '--private-root', join(link, 'private-output')], {
+      USERPROFILE: root
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain('RECOVERY_BOOTSTRAP_PRIVATE_ROOT_REJECTED');
+  });
+
+  it('accepts only a deterministic exact current-owner full-control Windows ACL shape', () => {
+    expect(isExactCurrentOwnerOnlyAcl('C:\\key AEL\\heyas:(F)\r\n', 'heyas')).toBe(true);
+    expect(isExactCurrentOwnerOnlyAcl('C:\\key AEL\\heyas:(R,W)\r\n', 'heyas')).toBe(false);
+    expect(isExactCurrentOwnerOnlyAcl(
+      'C:\\key AEL\\heyas:(F)\r\n       BUILTIN\\Administrators:(F)\r\n',
+      'heyas'
+    )).toBe(false);
   });
 });

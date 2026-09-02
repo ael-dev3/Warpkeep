@@ -1,8 +1,10 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { constants, chmodSync, closeSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { constants, chmodSync, closeSync, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync } from 'node:crypto';
 import { homedir } from 'node:os';
 import { isAbsolute, join, parse, relative, resolve, sep } from 'node:path';
+
+import { isExactCurrentOwnerOnlyAcl } from './recovery-bootstrap-acl.mjs';
 
 const KEY_ID = 'warpkeep-0.4.0-recovery-2026-09-03-1';
 const PRIVATE_FILE = 'recovery-signing-private.jwk.json';
@@ -50,20 +52,20 @@ function assertNoSymlinkComponents(path) {
   }
 }
 
-function repositoryRoot() {
+function gitWorktreeRoots() {
   try {
-    return resolve(execFileSync('git', ['rev-parse', '--show-toplevel'], {
+    const output = execFileSync('git', ['worktree', 'list', '--porcelain'], {
       cwd: process.cwd(), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore']
-    }).trim());
+    });
+    const roots = output.split(/\r?\n\r?\n/u)
+      .map((record) => record.split(/\r?\n/u).find((line) => line.startsWith('worktree ')))
+      .filter((line) => line !== undefined)
+      .map((line) => resolve(line.slice('worktree '.length)));
+    if (roots.length === 0) fail('RECOVERY_BOOTSTRAP_REPOSITORY_UNAVAILABLE');
+    return roots;
   } catch {
     fail('RECOVERY_BOOTSTRAP_REPOSITORY_UNAVAILABLE');
   }
-}
-
-function defaultPrivateRoot() {
-  const userProfile = process.env.USERPROFILE || process.env.HOME || homedir();
-  if (!userProfile) fail('RECOVERY_BOOTSTRAP_PRIVATE_ROOT_UNAVAILABLE');
-  return join(userProfile, '.warpkeep', 'private', 'release-recovery-v1');
 }
 
 function parseArguments(argv) {
@@ -83,14 +85,14 @@ function parseArguments(argv) {
       unexpected.push(argument);
     }
   }
-  return { generate, privateRoot: resolve(privateRoot ?? defaultPrivateRoot()), unexpected };
+  return { generate, privateRoot: privateRoot === undefined ? undefined : resolve(privateRoot), unexpected };
 }
 
 function assertPrivateRoot(path) {
-  const repo = repositoryRoot();
+  const worktrees = gitWorktreeRoots();
   const userProfile = process.env.USERPROFILE || process.env.HOME || homedir();
   const desktops = [join(userProfile, 'Desktop'), join(userProfile, 'OneDrive', 'Desktop')];
-  if (isWithin(repo, path) || desktops.some((desktop) => isWithin(desktop, path))) {
+  if (worktrees.some((worktree) => isWithin(worktree, path)) || desktops.some((desktop) => isWithin(desktop, path))) {
     fail('RECOVERY_BOOTSTRAP_PRIVATE_ROOT_REJECTED');
   }
   assertNoSymlinkComponents(path);
@@ -101,7 +103,11 @@ function ensurePrivateDirectory(path) {
   mkdirSync(path, { recursive: true, mode: 0o700 });
   const stat = existingStat(path);
   if (!stat?.isDirectory() || stat.isSymbolicLink()) fail('RECOVERY_BOOTSTRAP_PRIVATE_ROOT_REJECTED');
-  if (process.platform !== 'win32') chmodSync(path, 0o700);
+  if (process.platform !== 'win32') {
+    chmodSync(path, 0o700);
+  } else {
+    configureWindowsOwnerOnlyAcl(path, true);
+  }
 }
 
 function assertSecureRegularFile(path) {
@@ -110,43 +116,81 @@ function assertSecureRegularFile(path) {
   if (process.platform !== 'win32' && (stat.mode & 0o077) !== 0) {
     fail('RECOVERY_BOOTSTRAP_PRIVATE_FILE_REJECTED');
   }
+  if (process.platform === 'win32') assertWindowsOwnerOnlyAcl(path);
 }
 
-function configureWindowsOwnerOnlyAcl(path) {
-  if (process.platform !== 'win32') return;
+function windowsUsername() {
   const username = process.env.USERNAME;
   if (!username) fail('RECOVERY_BOOTSTRAP_ACL_UNAVAILABLE');
-  const configured = spawnSync('icacls', [path, '/inheritance:r', '/grant:r', `${username}:(F)`], {
-    encoding: 'utf8', windowsHide: true
-  });
-  if (configured.status !== 0) fail('RECOVERY_BOOTSTRAP_ACL_UNAVAILABLE');
+  return username;
+}
+
+function assertWindowsOwnerOnlyAcl(path) {
+  if (process.platform !== 'win32') return;
   const inspected = spawnSync('icacls', [path], { encoding: 'utf8', windowsHide: true });
-  if (inspected.status !== 0) fail('RECOVERY_BOOTSTRAP_ACL_UNAVAILABLE');
-  const permissionLines = inspected.stdout.split(/\r?\n/u)
-    .filter((line) => /\([FRWMX]/u.test(line));
-  if (permissionLines.length === 0 || permissionLines.some((line) => !line.toLowerCase().includes(username.toLowerCase()))) {
+  if (inspected.status !== 0 || !isExactCurrentOwnerOnlyAcl(inspected.stdout, windowsUsername())) {
     fail('RECOVERY_BOOTSTRAP_ACL_UNAVAILABLE');
   }
 }
 
+function configureWindowsOwnerOnlyAcl(path, isDirectory = false) {
+  if (process.platform !== 'win32') return;
+  const grant = isDirectory ? '(OI)(CI)(F)' : '(F)';
+  const configured = spawnSync('icacls', [path, '/inheritance:r', '/grant:r', `${windowsUsername()}:${grant}`], {
+    encoding: 'utf8', windowsHide: true
+  });
+  if (configured.status !== 0) fail('RECOVERY_BOOTSTRAP_ACL_UNAVAILABLE');
+  assertWindowsOwnerOnlyAcl(path);
+}
+
 function writeExclusive(path, bytes) {
   let descriptor;
+  let created = false;
+  let completed = false;
   try {
     descriptor = openSync(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, 0o600);
+    created = true;
     chmodSync(path, 0o600);
+    configureWindowsOwnerOnlyAcl(path);
     writeFileSync(descriptor, bytes, 'utf8');
     fsyncSync(descriptor);
+    assertWindowsOwnerOnlyAcl(path);
+    completed = true;
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+    if (created && !completed) {
+      try { rmSync(path, { force: true }); } catch { /* preserve the primary fail-closed error */ }
+    }
+  }
+}
+
+function readSecureRegularFile(path) {
+  assertSecureRegularFile(path);
+  let descriptor;
+  try {
+    descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    const before = fstatSync(descriptor);
+    if (!before.isFile()) fail('RECOVERY_BOOTSTRAP_PRIVATE_FILE_REJECTED');
+    const bytes = readFileSync(descriptor);
+    const after = fstatSync(descriptor);
+    const pathStat = existingStat(path);
+    if (
+      before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size
+      || bytes.byteLength !== after.size || !pathStat?.isFile() || pathStat.isSymbolicLink()
+      || pathStat.dev !== after.dev || pathStat.ino !== after.ino || pathStat.size !== after.size
+    ) fail('RECOVERY_BOOTSTRAP_PRIVATE_FILE_REJECTED');
+    assertWindowsOwnerOnlyAcl(path);
+    return bytes;
   } finally {
     if (descriptor !== undefined) closeSync(descriptor);
   }
-  configureWindowsOwnerOnlyAcl(path);
 }
 
 function readJsonFile(path) {
-  assertSecureRegularFile(path);
   try {
-    return JSON.parse(readFileSync(path, 'utf8'));
-  } catch {
+    return JSON.parse(readSecureRegularFile(path).toString('utf8'));
+  } catch (error) {
+    if (error instanceof BootstrapError) throw error;
     fail('RECOVERY_BOOTSTRAP_PRIVATE_FILE_REJECTED');
   }
 }
@@ -195,15 +239,17 @@ function assertOrCreateThumbprintFile(path, expected) {
     writeExclusive(path, `${expected}\n`);
     return;
   }
-  assertSecureRegularFile(path);
-  if (readFileSync(path, 'utf8') !== `${expected}\n`) fail('RECOVERY_BOOTSTRAP_PUBLIC_OUTPUT_REJECTED');
+  if (readSecureRegularFile(path).toString('utf8') !== `${expected}\n`) {
+    fail('RECOVERY_BOOTSTRAP_PUBLIC_OUTPUT_REJECTED');
+  }
 }
 
 function main() {
   const options = parseArguments(process.argv.slice(2));
+  if (!options.generate) fail('RECOVERY_BOOTSTRAP_GENERATION_REQUIRED');
+  if (options.privateRoot === undefined) fail('RECOVERY_BOOTSTRAP_ARGUMENTS_INVALID');
   assertPrivateRoot(options.privateRoot);
   if (options.unexpected.length > 0) fail('RECOVERY_BOOTSTRAP_ARGUMENTS_INVALID');
-  if (!options.generate) fail('RECOVERY_BOOTSTRAP_GENERATION_REQUIRED');
   ensurePrivateDirectory(options.privateRoot);
 
   const privatePath = join(options.privateRoot, PRIVATE_FILE);
