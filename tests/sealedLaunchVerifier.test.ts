@@ -1330,6 +1330,64 @@ describe('0.4.0 sealed-launch verifier', () => {
       .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
   });
 
+  it('rejects a relaxed PTR database-identity pattern', () => {
+    const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
+    const checkedIn = checkedInSources();
+    const hostile = { ...checkedIn };
+    hostile.ptrOwnerPolicySource = hostile.ptrOwnerPolicySource.replace(
+      'const PTR_DATABASE_IDENTITY = /^[a-f0-9]{64}$/u;',
+      'const PTR_DATABASE_IDENTITY = /^.*$/u;',
+    );
+    expect(hostile.ptrOwnerPolicySource).not.toBe(
+      checkedIn.ptrOwnerPolicySource,
+    );
+    expect(() => verify(hostile))
+      .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+  });
+
+  it('rejects a parser rebind hidden behind a duplicate parser end marker', () => {
+    const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
+    const checkedIn = checkedInSources();
+    const hostile = { ...checkedIn };
+    hostile.ptrOwnerPolicySource = hostile.ptrOwnerPolicySource.replace(
+      'function readBaseClaims(record: JsonRecord): WarpkeepBaseJwtClaims {',
+      [
+        '// function readBaseClaims(',
+        'strictPtrOwnerRecord = (',
+        '  (payload: unknown): JsonRecord => payload as JsonRecord',
+        ');',
+        '',
+        'function readBaseClaims(record: JsonRecord): WarpkeepBaseJwtClaims {',
+      ].join('\n'),
+    );
+    expect(hostile.ptrOwnerPolicySource).not.toBe(
+      checkedIn.ptrOwnerPolicySource,
+    );
+    expect(() => verify(hostile))
+      .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+  });
+
+  it('rejects rebinding the PTR database-identity validator', () => {
+    const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
+    const checkedIn = checkedInSources();
+    const hostile = { ...checkedIn };
+    hostile.ptrOwnerPolicySource = hostile.ptrOwnerPolicySource.replace(
+      'function numericDate(record: JsonRecord, key: string): number {',
+      [
+        'parsePtrDatabaseIdentityClaim = (',
+        '  (value: unknown): string => String(value)',
+        ');',
+        '',
+        'function numericDate(record: JsonRecord, key: string): number {',
+      ].join('\n'),
+    );
+    expect(hostile.ptrOwnerPolicySource).not.toBe(
+      checkedIn.ptrOwnerPolicySource,
+    );
+    expect(() => verify(hostile))
+      .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+  });
+
   it('semantically rejects PTR admin token-type drift independently of source pins', () => {
     const verifyPtrOwnerAuthoritySemantics = (
       sealedLaunchVerifierModule as unknown as {

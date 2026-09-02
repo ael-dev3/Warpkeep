@@ -1841,6 +1841,24 @@ function contractExactPtrDatabaseIdentityValidator(source, code) {
   ) fail(code);
 }
 
+function contractExactPtrDatabaseIdentityPattern(source, code) {
+  const expectedSource =
+    'const PTR_DATABASE_IDENTITY = /^[a-f0-9]{64}$/u;';
+  if (
+    JSON.stringify(contractTokens(source, code))
+    !== JSON.stringify(contractTokens(expectedSource, code))
+  ) fail(code);
+}
+
+function contractExactRawIdentifierOccurrences(
+  source,
+  identifier,
+  expectedOccurrences,
+  code,
+) {
+  if (source.split(identifier).length !== expectedOccurrences + 1) fail(code);
+}
+
 function contractPtrReaderBinding(
   source,
   readerName,
@@ -2747,6 +2765,15 @@ export function verifyPtrOwnerAuthoritySemantics(sources) {
   const ptrAtlasAdminClaimKeys = [
     'iss', 'sub', 'aud', 'token_type', 'roles', 'iat', 'nbf', 'exp', 'jti',
   ];
+  contractExactPtrDatabaseIdentityPattern(
+    contractUniqueRawSlice(
+      sources.ptrOwnerPolicySource,
+      'const PTR_DATABASE_IDENTITY',
+      'const PTR_OWNER_EXACT_CLAIM_KEYS',
+      code,
+    ),
+    code,
+  );
   const ptrClaimKeyContracts = [];
   for (const [name, keys, startMarker, endMarker] of [
     [
@@ -2793,7 +2820,7 @@ export function verifyPtrOwnerAuthoritySemantics(sources) {
     ],
   ]) {
     contractExactPtrRecordParser(
-      contractSourceSlice(
+      contractUniqueRawSlice(
         sources.ptrOwnerPolicySource,
         `function ${functionName}(`,
         endMarker,
@@ -2815,6 +2842,20 @@ export function verifyPtrOwnerAuthoritySemantics(sources) {
     ),
     code,
   );
+  for (const identifier of [
+    'strictPtrAdminRecord',
+    'strictPtrOwnerRecord',
+    'strictPtrAtlasAdminRecord',
+    'parsePtrDatabaseIdentityClaim',
+    'PTR_DATABASE_IDENTITY',
+  ]) {
+    contractExactRawIdentifierOccurrences(
+      sources.ptrOwnerPolicySource,
+      identifier,
+      2,
+      code,
+    );
+  }
 
   contractPtrReaderBinding(
     sources.ptrOwnerPolicySource,
