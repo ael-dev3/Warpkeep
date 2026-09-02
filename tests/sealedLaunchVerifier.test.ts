@@ -1224,26 +1224,38 @@ describe('0.4.0 sealed-launch verifier', () => {
       .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
   });
 
-  it('rejects database-identity parsing in a non-owner PTR reader', () => {
-    const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
-    const checkedIn = checkedInSources();
-    const hostile = { ...checkedIn };
-    hostile.ptrOwnerPolicySource = hostile.ptrOwnerPolicySource.replace(
-      'const record = strictPtrAtlasAdminRecord(payload);',
-      [
-        'const record = strictPtrAtlasAdminRecord(payload);',
-        '    const databaseIdentity = parsePtrDatabaseIdentityClaim(',
-        '      record.ptr_database_identity,',
-        '    );',
-        '    void databaseIdentity;',
-      ].join('\n'),
-    );
-    expect(hostile.ptrOwnerPolicySource).not.toBe(
-      checkedIn.ptrOwnerPolicySource,
-    );
-    expect(() => verify(hostile))
-      .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
-  });
+  it.each([
+    {
+      name: 'owner-provision administrator',
+      parserName: 'strictPtrAdminRecord',
+    },
+    {
+      name: 'ownerless atlas administrator',
+      parserName: 'strictPtrAtlasAdminRecord',
+    },
+  ] as const)(
+    'rejects database-identity parsing in the $name reader',
+    ({ parserName }) => {
+      const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
+      const checkedIn = checkedInSources();
+      const hostile = { ...checkedIn };
+      hostile.ptrOwnerPolicySource = hostile.ptrOwnerPolicySource.replace(
+        `const record = ${parserName}(payload);`,
+        [
+          `const record = ${parserName}(payload);`,
+          '    const databaseIdentity = parsePtrDatabaseIdentityClaim(',
+          '      record.ptr_database_identity,',
+          '    );',
+          '    void databaseIdentity;',
+        ].join('\n'),
+      );
+      expect(hostile.ptrOwnerPolicySource).not.toBe(
+        checkedIn.ptrOwnerPolicySource,
+      );
+      expect(() => verify(hostile))
+        .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+    },
+  );
 
   it.each([
     {
