@@ -1864,6 +1864,66 @@ function contractPtrOwnerPolicyLexicalFence(source, code) {
     source.includes('\\')
     || /(?:^|[^A-Za-z0-9_$])eval(?:$|[^A-Za-z0-9_$])/u.test(source)
   ) fail(code);
+  const ownerSubjectTemplate = '`farcaster:${fid.toString()}`';
+  if (source.split(ownerSubjectTemplate).length !== 2) fail(code);
+  const lexicalTokens = contractTokens(
+    source.replace(
+      ownerSubjectTemplate,
+      "'__PTR_OWNER_SUBJECT_TEMPLATE__'",
+    ),
+    code,
+  );
+  const identifierCount = identifier => lexicalTokens.filter(token => (
+    token.kind === 'identifier' && token.value === identifier
+  )).length;
+  if (
+    identifierCount('Object') !== 23
+    || contractSequenceCount(
+      lexicalTokens,
+      ['Object', '.', 'freeze', '('],
+    ) !== 17
+    || contractSequenceCount(
+      lexicalTokens,
+      ['Object', '.', 'getPrototypeOf', '('],
+    ) !== 3
+    || contractSequenceCount(
+      lexicalTokens,
+      ['Object', '.', 'prototype'],
+    ) !== 3
+    || identifierCount('Reflect') !== 3
+    || contractSequenceCount(
+      lexicalTokens,
+      ['Reflect', '.', 'ownKeys', '('],
+    ) !== 3
+    || identifierCount('constructor') !== 1
+    || contractSequenceCount(lexicalTokens, [
+      'constructor', '(', 'readonly', 'code', ':',
+      'PtrOwnerPolicyErrorCode', ')', '{',
+    ]) !== 1
+    || identifierCount('prototype') !== 3
+    || [
+      'Function', '__proto__', 'global', 'globalThis', 'self', 'window',
+    ].some(identifier => identifierCount(identifier) !== 0)
+  ) fail(code);
+}
+
+function contractExactPtrOwnerReturnTail(source, code) {
+  const expectedSource = `return Object.freeze({
+  ...base,
+  audience: Object.freeze([...base.audience]),
+  roles: Object.freeze([...base.roles]),
+  authVersion: WARPKEEP_AUTH_VERSION,
+  fid,
+  authEpoch,
+  databaseIdentity,
+  realmId: PTR_REALM_ID,
+  sessionIssuedAt,
+  sessionExpiresAt,
+});`;
+  if (
+    JSON.stringify(contractTokens(source, code))
+    !== JSON.stringify(contractTokens(expectedSource, code))
+  ) fail(code);
 }
 
 function contractPtrReaderBinding(
@@ -1908,6 +1968,7 @@ function contractPtrReaderBinding(
     reader.split('parsePtrDatabaseIdentityClaim(').length
     !== (requireDatabaseIdentity ? 2 : 1)
   ) fail(code);
+  return reader;
 }
 
 function contractTopLevelSemicolonEnd(tokens, start, code) {
@@ -2881,7 +2942,7 @@ export function verifyPtrOwnerAuthoritySemantics(sources) {
     false,
     code,
   );
-  contractPtrReaderBinding(
+  const ptrOwnerReader = contractPtrReaderBinding(
     sources.ptrOwnerPolicySource,
     'readFreshPtrOwnerClaims',
     'readFreshPtrAdminClaims',
@@ -2904,6 +2965,15 @@ export function verifyPtrOwnerAuthoritySemantics(sources) {
     );
 `,
     true,
+    code,
+  );
+  contractExactPtrOwnerReturnTail(
+    contractUniqueRawSlice(
+      ptrOwnerReader,
+      '    return Object.freeze({',
+      '  } catch (error) {',
+      code,
+    ),
     code,
   );
   contractPtrReaderBinding(
