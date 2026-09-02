@@ -36,7 +36,7 @@ describe('realm choice policy', () => {
         id: GENESIS_002_ID,
         version: '0.4.0',
         admission: 'not-admitted',
-        statusLabel: 'Not admitted'
+        statusLabel: 'Sealed'
       }),
       expect.objectContaining({
         id: PTR_ID,

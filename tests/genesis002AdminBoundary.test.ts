@@ -5,8 +5,6 @@ import { resolve } from 'node:path';
 import { build, type Plugin } from 'esbuild';
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import { GENESIS_002_ADMISSION_MUTATIONS } from '../spacetimedb/genesis002/src/contract';
-
 const captured = {
   lifecycle: undefined as ((ctx: unknown) => unknown) | undefined,
   procedures: new Map<string, (ctx: unknown, input?: unknown) => unknown>(),
@@ -14,6 +12,7 @@ const captured = {
 };
 
 let requireGenesis002Admin: (ctx: never) => unknown;
+let moduleExportNames: readonly string[];
 
 import {
   readFreshGenesis002AdminClaims,
@@ -81,6 +80,7 @@ beforeAll(async () => {
     ['genesis002-schema', `
       const captured = globalThis.__genesis002AdminBoundaryCapture;
       export default {
+        moduleDef: { explicitNames: { entries: [] } },
         clientConnected(handler) { captured.lifecycle = handler; return handler; },
         procedure(options, ...args) {
           const registeredHandler = args[args.length - 1];
@@ -148,9 +148,7 @@ beforeAll(async () => {
   const result = await build({
     stdin: {
       contents: `
-        import './spacetimedb/genesis002/src/lifecycle.ts';
-        import './spacetimedb/genesis002/src/atlasImportReducers.ts';
-        import './spacetimedb/genesis002/src/reducers.ts';
+        export * as root from './spacetimedb/genesis002/src/index.ts';
         export { requireGenesis002Admin } from './spacetimedb/genesis002/src/auth.ts';
       `,
       resolveDir: resolve(import.meta.dirname, '..'),
@@ -167,8 +165,10 @@ beforeAll(async () => {
   const encoded = Buffer.from(result.outputFiles[0]!.text).toString('base64');
   const module = await import(`data:text/javascript;base64,${encoded}`) as Readonly<{
     requireGenesis002Admin: (ctx: never) => unknown;
+    root: Readonly<Record<string, unknown>>;
   }>;
   requireGenesis002Admin = module.requireGenesis002Admin;
+  moduleExportNames = Object.keys(module.root).sort();
 });
 
 describe('Genesis 002 administrator confused-deputy boundary', () => {
@@ -300,7 +300,36 @@ describe('Genesis 002 administrator confused-deputy boundary', () => {
     );
   });
 
-  it('enforces the same G002 parser in lifecycle and every atlas-import entrypoint', () => {
+  it('exports only the administrator atlas-import ABI', () => {
+    expect(moduleExportNames).toEqual([
+      'adminBeginGreaterRealmVerificationV1',
+      'adminFinalizeGreaterRealmReleaseV1',
+      'adminGetGreaterRealmImportPlanV1',
+      'adminGetGreaterRealmStatusV1',
+      'adminImportGreaterRealmChunkV1',
+      'adminImportGreaterRealmComponentsV1',
+      'adminImportGreaterRealmRegionsV1',
+      'adminStageGreaterRealmReleaseV1',
+      'adminVerifyGreaterRealmBatchV1',
+      'default',
+      'onConnect',
+    ]);
+    expect([...captured.procedures.keys()].sort()).toEqual([
+      'admin_get_greater_realm_import_plan_v1',
+      'admin_get_greater_realm_status_v1',
+    ]);
+    expect([...captured.reducers.keys()].sort()).toEqual([
+      'admin_begin_greater_realm_verification_v1',
+      'admin_finalize_greater_realm_release_v1',
+      'admin_import_greater_realm_chunk_v1',
+      'admin_import_greater_realm_components_v1',
+      'admin_import_greater_realm_regions_v1',
+      'admin_stage_greater_realm_release_v1',
+      'admin_verify_greater_realm_batch_v1',
+    ]);
+  });
+
+  it('enforces the same G002 parser in lifecycle and every retained atlas-import entrypoint', () => {
     const hostile = context(validPayload({ aud: ['warpkeep-spacetimedb'] }));
     expect(captured.lifecycle).toBeTypeOf('function');
     expect(() => captured.lifecycle?.(hostile)).toThrow(
@@ -334,44 +363,4 @@ describe('Genesis 002 administrator confused-deputy boundary', () => {
     }
   });
 
-  it('denies hostile claims in each registered legacy status procedure', () => {
-    const hostileContexts: ReadonlyArray<readonly [string, unknown]> = [
-      ['missing JWT', contextWithoutJwt()],
-      ['G001 audience', context(validPayload({ aud: ['warpkeep-spacetimedb'] }))],
-      ['PTR audience', context(validPayload({ aud: ['warpkeep-ptr-spacetimedb'] }))],
-      ['null claims', context(null)],
-    ];
-    const statusProcedures: ReadonlyArray<readonly [string, unknown]> = [
-      ['get_realm_status_v1', undefined],
-      ['get_my_admission_status_v2', undefined],
-      ['auth_resolver_get_fid_admission_v2', { fid: 0n }],
-      ['access_request_get_status_v1', undefined],
-    ];
-
-    for (const [procedureName, input] of statusProcedures) {
-      const procedure = captured.procedures.get(procedureName);
-      expect(procedure, procedureName).toBeTypeOf('function');
-      for (const [claimName, hostile] of hostileContexts) {
-        expect(() => procedure?.(hostile, input), `${procedureName}: ${claimName}`)
-          .toThrowError(expect.objectContaining({
-            name: 'SenderError',
-            message: 'INVALID_GENESIS_002_ADMIN_SESSION',
-          }));
-      }
-    }
-  });
-
-  it('registers every legacy admission mutation as an unreachable sealed denial', () => {
-    for (const mutation of GENESIS_002_ADMISSION_MUTATIONS) {
-      const handler = mutation === 'access_request_submit_v1'
-        ? captured.procedures.get(mutation)
-        : captured.reducers.get(mutation);
-      expect(handler, mutation).toBeTypeOf('function');
-      expect(() => handler?.(context(validPayload()), undefined), mutation)
-        .toThrowError(expect.objectContaining({
-          name: 'SenderError',
-          message: 'GENESIS_002_ADMISSIONS_SEALED',
-        }));
-    }
-  });
 });

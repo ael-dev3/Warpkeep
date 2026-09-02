@@ -26,7 +26,7 @@ export type RealmChoice = Readonly<{
   label: string;
   version: string;
   admission: RealmAdmission;
-  statusLabel: 'Admitted' | 'Not admitted' | 'Access unknown';
+  statusLabel: 'Admitted' | 'Not admitted' | 'Access unknown' | 'Sealed';
   tooltip: string;
 }>;
 
@@ -66,7 +66,7 @@ export function getRealmChoices(
       label: 'Genesis 002',
       version: GENESIS_002_SEALED_RELEASE_VERSION,
       admission: 'not-admitted',
-      statusLabel: 'Not admitted',
+      statusLabel: 'Sealed',
       tooltip: GENESIS_002_SEALED_TOOLTIP
     }),
     Object.freeze({

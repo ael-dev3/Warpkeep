@@ -496,7 +496,7 @@ describe('Warpkeep realm choice integration', () => {
 
     expect(screen.getByRole('radio', { name: /Genesis 001.*Not admitted/i })
       .getAttribute('aria-checked')).toBe('true');
-    expect(screen.getByRole('radio', { name: /Genesis 002.*Not admitted/i })
+    expect(screen.getByRole('radio', { name: /Genesis 002.*Sealed/i })
       .getAttribute('aria-checked')).toBe('false');
 
     rerender(
@@ -509,7 +509,7 @@ describe('Warpkeep realm choice integration', () => {
 
     expect(screen.getByRole('radio', { name: /Genesis 001.*Admitted/i })
       .getAttribute('data-admission')).toBe('admitted');
-    expect(screen.getByRole('radio', { name: /Genesis 002.*Not admitted/i })
+    expect(screen.getByRole('radio', { name: /Genesis 002.*Sealed/i })
       .getAttribute('data-admission')).toBe('not-admitted');
   });
 

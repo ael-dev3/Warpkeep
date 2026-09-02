@@ -594,25 +594,19 @@ describe('Genesis 002 production publisher', () => {
     expect(spawn.mock.calls.filter(call => call[1]?.includes('publish'))).toHaveLength(1);
   });
 
-  it('pins the exact generated module ABI and rejects activation or omitted sealed wires', () => {
+  it('pins the exact administrator atlas-import ABI and rejects extra or missing wires', () => {
     const reducers = [
-      'accept_alpha_terms_v1', 'admin_admit_founder_for_access_request_v2',
-      'admin_admit_founder_v1', 'admin_allow_fid',
-      'admin_allow_fid_for_access_request_v1',
-      'admin_begin_greater_realm_verification_v1', 'admin_bump_auth_epoch',
-      'admin_disable_fid', 'admin_finalize_greater_realm_release_v1',
+      'admin_begin_greater_realm_verification_v1',
+      'admin_finalize_greater_realm_release_v1',
       'admin_import_greater_realm_chunk_v1',
       'admin_import_greater_realm_components_v1',
-      'admin_import_greater_realm_regions_v1', 'admin_reset_access_request_v1',
-      'admin_stage_greater_realm_release_v1', 'admin_upsert_realm_profile_v1',
-      'admin_verify_greater_realm_batch_v1', 'bootstrap_player', 'bootstrap_player_v2',
+      'admin_import_greater_realm_regions_v1',
+      'admin_stage_greater_realm_release_v1',
+      'admin_verify_greater_realm_batch_v1',
     ];
     const procedures = [
-      'access_request_get_status_v_1', 'access_request_submit_v_1',
       'admin_get_greater_realm_import_plan_v_1',
       'admin_get_greater_realm_status_v_1',
-      'auth_resolver_get_fid_admission_v_2', 'get_my_admission_status_v_2',
-      'get_realm_status_v1',
     ];
     const tables = [
       'access_request_v1', 'admin_audit', 'allowed_fid',
@@ -631,8 +625,8 @@ describe('Genesis 002 production publisher', () => {
       tables,
       publicTables: [],
     })).toMatchObject({
-      reducerCount: 18,
-      procedureCount: 7,
+      reducerCount: 7,
+      procedureCount: 2,
       tableCount: 23,
       publicTableCount: 0,
     });

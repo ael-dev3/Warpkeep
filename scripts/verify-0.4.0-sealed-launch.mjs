@@ -206,7 +206,7 @@ export const SEALED_LAUNCH_SOURCE_PATHS = Object.freeze({
     'spacetimedb/genesis002/src/adminPolicy.ts',
   genesis002PolicySource: 'spacetimedb/genesis002/src/policy.ts',
   genesis002PopulationSource: 'spacetimedb/genesis002/src/population.ts',
-  genesis002StatusSource: 'spacetimedb/genesis002/src/reducers.ts',
+  genesis002StatusSource: 'spacetimedb/genesis002/src/atlasImportReducers.ts',
   genesis002SchemaSource: 'spacetimedb/genesis002/src/schema.ts',
   genesis002LifecycleSource: 'spacetimedb/genesis002/src/lifecycle.ts',
   genesis002IndexSource: 'spacetimedb/genesis002/src/index.ts',
@@ -1033,37 +1033,6 @@ function verifyGenesis002Policy(sources) {
     token,
     'SEALED_LAUNCH_G002_CONTRACT_INVALID',
   );
-  for (const mutation of [
-    'access_request_submit_v1',
-    'admin_allow_fid',
-    'admin_allow_fid_for_access_request_v1',
-    'admin_admit_founder_v1',
-    'admin_admit_founder_for_access_request_v2',
-    'admin_disable_fid',
-    'admin_bump_auth_epoch',
-    'admin_reset_access_request_v1',
-    'bootstrap_player',
-    'bootstrap_player_v2',
-    'accept_alpha_terms_v1',
-    'admin_upsert_realm_profile_v1',
-  ]) requireOnce(
-    sources.genesis002ContractSource,
-    `'${mutation}'`,
-    'SEALED_LAUNCH_G002_MUTATION_SET_INVALID',
-  );
-  requireOnce(
-    sources.genesis002PolicySource,
-    "readonly code = 'GENESIS_002_ADMISSIONS_SEALED'",
-    'SEALED_LAUNCH_G002_POLICY_INVALID',
-  );
-  if (
-    sources.genesis002PolicySource
-      .split('assertGenesis002PopulationEmpty(readPopulation());').length !== 3
-    || !sources.genesis002PolicySource.includes(
-      'throw new Genesis002AdmissionsSealedError(mutation);',
-    )
-  ) fail('SEALED_LAUNCH_G002_POLICY_INVALID');
-
   const modulePackage = parseJson(
     sources.genesis002PackageJson,
     'SEALED_LAUNCH_G002_PACKAGE_INVALID',
@@ -1286,7 +1255,6 @@ function verifyGenesis002Policy(sources) {
   for (const token of [
     '.withDatabaseName(databaseIdentity)',
     "const STATUS_PROCEDURE = 'adminGetGreaterRealmStatusV1'",
-    "const REALM_STATUS_PROCEDURE = 'getRealmStatusV1'",
     'Object.values(GENESIS_002_PRODUCTION_IMPORT_REDUCERS).includes(reducer)',
     'assertCanStartWrite();',
   ]) {

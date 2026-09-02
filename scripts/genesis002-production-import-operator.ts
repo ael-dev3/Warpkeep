@@ -187,12 +187,11 @@ export async function executeGenesis002ProductionImportOperator(input: Readonly<
       databaseIdentity: arguments_.databaseIdentity,
       adminSecret,
     });
-    const initialAtlasValue = await session.inspect();
-    const initialRealmValue = await session.inspectRealm();
-    const initialAtlas = projectGenesis002ProductionImportStatus(initialAtlasValue);
+    const initialStatusValue = await session.inspect();
+    const initialAtlas = projectGenesis002ProductionImportStatus(initialStatusValue);
     const initialRealm = verifyGenesis002ImportRealmBoundary({
       expectedPublicReleaseId: authority.publicReleaseId,
-      realmStatusValue: initialRealmValue,
+      realmStatusValue: initialStatusValue,
     });
     if (initialAtlas.present && (
       initialAtlas.atlasId !== authority.atlasId
@@ -217,8 +216,8 @@ export async function executeGenesis002ProductionImportOperator(input: Readonly<
           releaseHeaderSha256: createHash('sha256')
             .update(authority.headerJson).digest('hex'),
           verificationDigest: initialAtlas.verificationDigest,
-          realmStatusValue: initialRealmValue,
-          atlasStatusValue: initialAtlasValue,
+          realmStatusValue: initialStatusValue,
+          atlasStatusValue: initialStatusValue,
         })
         : undefined;
       artifact.assertArtifact();
@@ -268,10 +267,7 @@ export async function executeGenesis002ProductionImportOperator(input: Readonly<
           artifact.assertArtifact();
         },
       });
-      const [realmStatusValue, atlasStatusValue] = await Promise.all([
-        session.inspectRealm(),
-        session.inspect(),
-      ]);
+      const atlasStatusValue = await session.inspect();
       const live = verifyLiveStatus({
         databaseIdentity: arguments_.databaseIdentity,
         moduleSourceCommit: sourceCommit,
@@ -282,7 +278,7 @@ export async function executeGenesis002ProductionImportOperator(input: Readonly<
         releaseSha256: authority.releaseSha256,
         releaseHeaderSha256: createHash('sha256').update(authority.headerJson).digest('hex'),
         verificationDigest: receipt.verificationDigest,
-        realmStatusValue,
+        realmStatusValue: atlasStatusValue,
         atlasStatusValue,
       });
       artifact.assertArtifact();

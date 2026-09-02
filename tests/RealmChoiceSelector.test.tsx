@@ -52,7 +52,7 @@ describe('RealmChoiceSelector', () => {
       name: /Genesis 001.*version 0\.3\.43.*Admitted/i
     });
     const genesis002 = within(selector).getByRole('radio', {
-      name: /Genesis 002.*version 0\.4\.0.*Not admitted/i
+      name: /Genesis 002.*version 0\.4\.0.*Sealed/i
     });
     const ptr = within(selector).getByRole('radio', {
       name: /Public Test Realm.*version 0\.4\.0-ptr\.1.*Access unknown/i

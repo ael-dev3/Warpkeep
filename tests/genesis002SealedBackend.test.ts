@@ -4,7 +4,6 @@ import { resolve } from 'node:path';
 import { test } from 'vitest';
 
 import {
-  GENESIS_002_ADMISSION_MUTATIONS,
   GENESIS_002_ATLAS_ID,
   GENESIS_002_ATLAS_POLICY,
   GENESIS_002_STATUS,
@@ -13,8 +12,6 @@ import {
   assertGenesis002PopulationEmpty,
   assertGenesis002AtlasNotFinalized,
   type Genesis002PopulationSnapshot,
-  Genesis002AdmissionsSealedError,
-  executeGenesis002SealedMutation,
   withGenesis002AtlasImportBoundary,
 } from '../spacetimedb/genesis002/src/policy';
 
@@ -36,59 +33,6 @@ test('Genesis 002 identifies a distinct sealed zero-population realm', () => {
     playerPresentationEnabled: false,
   });
   assert.equal(GENESIS_002_ATLAS_ID, 'GENESIS_002_GREATER_REALM');
-});
-
-test('every admission-equivalent mutation fails before its supplied effect', () => {
-  assert.deepEqual(GENESIS_002_ADMISSION_MUTATIONS, [
-    'access_request_submit_v1',
-    'admin_allow_fid',
-    'admin_allow_fid_for_access_request_v1',
-    'admin_admit_founder_v1',
-    'admin_admit_founder_for_access_request_v2',
-    'admin_disable_fid',
-    'admin_bump_auth_epoch',
-    'admin_reset_access_request_v1',
-    'bootstrap_player',
-    'bootstrap_player_v2',
-    'accept_alpha_terms_v1',
-    'admin_upsert_realm_profile_v1',
-  ]);
-
-  for (const mutation of GENESIS_002_ADMISSION_MUTATIONS) {
-    const effects: string[] = [];
-    assert.throws(
-      () => executeGenesis002SealedMutation(mutation, () => {
-        effects.push('state-write');
-        effects.push('audit-write');
-        throw new Error('UNREACHABLE_EFFECT');
-      }),
-      error => {
-        assert.ok(error instanceof Genesis002AdmissionsSealedError);
-        assert.equal(error.name, 'Genesis002AdmissionsSealedError');
-        assert.equal(error.code, 'GENESIS_002_ADMISSIONS_SEALED');
-        assert.equal(error.mutation, mutation);
-        assert.equal(error.message, 'GENESIS_002_ADMISSIONS_SEALED');
-        return true;
-      },
-    );
-    assert.deepEqual(effects, []);
-  }
-});
-
-test('the mutation policy rejects unknown mutation names instead of widening authority', () => {
-  assert.throws(
-    () => executeGenesis002SealedMutation(
-      'admin_open_admissions_v2' as never,
-      () => {
-        throw new Error('UNREACHABLE_EFFECT');
-      },
-    ),
-    error => {
-      assert.ok(error instanceof Error);
-      assert.equal(error.message, 'GENESIS_002_UNKNOWN_MUTATION');
-      return true;
-    },
-  );
 });
 
 const EMPTY_POPULATION: Genesis002PopulationSnapshot = Object.freeze({

@@ -232,6 +232,21 @@ function sealedRealmStatus() {
   } as const;
 }
 
+function adminStatus(atlas: Readonly<Record<string, unknown>>) {
+  return {
+    ...sealedRealmStatus(),
+    atlasPresent: atlas.present,
+    atlasId: atlas.atlasId,
+    publicReleaseId: atlas.publicReleaseId,
+    atlasState: atlas.state,
+    atlasReady: atlas.ready,
+    atlasCellRows: atlas.cellRows,
+    atlasSlotRows: atlas.slotRows,
+    atlasResourceRows: atlas.resourceRows,
+    ...atlas,
+  };
+}
+
 function transitionTransport(ambiguousAfterFirstWrite = false) {
   let status: Record<string, unknown> = { ...absentAtlasStatus() };
   let sequence = 0;
@@ -246,9 +261,9 @@ function transitionTransport(ambiguousAfterFirstWrite = false) {
     reducers,
     inspect: vi.fn(async () => {
       if (ambiguousAfterFirstWrite && reducers.length === 1) throw new Error('link lost');
-      return { ...status };
+      return adminStatus(status);
     }),
-    inspectRealm: vi.fn(async () => ({ ...sealedRealmStatus() })),
+    inspectRealm: vi.fn(async () => adminStatus(status)),
     prepareSubmission: vi.fn(async () => undefined),
     submit: vi.fn(async (reducer: string, arguments_: Readonly<Record<string, unknown>>) => {
       reducers.push(reducer);
@@ -885,6 +900,7 @@ describe('Genesis 002 top-level production operators', () => {
     expect(new Set(transport.reducers)).toEqual(new Set(
       Object.values(GENESIS_002_PRODUCTION_IMPORT_REDUCERS),
     ));
+    expect(transport.inspectRealm).not.toHaveBeenCalled();
     expect(seam.verifyLiveStatus).toHaveBeenCalledTimes(1);
     expect(transport.close).toHaveBeenCalledTimes(1);
     expect(seam.built.cleanup).toHaveBeenCalledTimes(1);

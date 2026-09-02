@@ -76,13 +76,8 @@ export const GENESIS_002_PRIVATE_LOOPBACK_TABLES = Object.freeze([
 ] as const);
 
 export const GENESIS_002_PRIVATE_LOOPBACK_PROCEDURES = Object.freeze([
-  Object.freeze({ name: 'access_request_get_status_v_1', arguments: [] }),
-  Object.freeze({ name: 'access_request_submit_v_1', arguments: [] }),
   Object.freeze({ name: 'admin_get_greater_realm_import_plan_v_1', arguments: [] }),
   Object.freeze({ name: 'admin_get_greater_realm_status_v_1', arguments: [] }),
-  Object.freeze({ name: 'auth_resolver_get_fid_admission_v_2', arguments: ['1'] }),
-  Object.freeze({ name: 'get_my_admission_status_v_2', arguments: [] }),
-  Object.freeze({ name: 'get_realm_status_v1', arguments: [] }),
 ] as const);
 
 export class Genesis002PrivateLoopbackError extends Error {

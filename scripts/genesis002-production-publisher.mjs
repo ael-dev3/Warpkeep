@@ -550,33 +550,17 @@ export async function executeGenesis002Publish({
 }
 
 const EXPECTED_REDUCERS = Object.freeze([
-  'accept_alpha_terms_v1',
-  'admin_admit_founder_for_access_request_v2',
-  'admin_admit_founder_v1',
-  'admin_allow_fid',
-  'admin_allow_fid_for_access_request_v1',
   'admin_begin_greater_realm_verification_v1',
-  'admin_bump_auth_epoch',
-  'admin_disable_fid',
   'admin_finalize_greater_realm_release_v1',
   'admin_import_greater_realm_chunk_v1',
   'admin_import_greater_realm_components_v1',
   'admin_import_greater_realm_regions_v1',
-  'admin_reset_access_request_v1',
   'admin_stage_greater_realm_release_v1',
-  'admin_upsert_realm_profile_v1',
   'admin_verify_greater_realm_batch_v1',
-  'bootstrap_player',
-  'bootstrap_player_v2',
 ]);
 const EXPECTED_PROCEDURES = Object.freeze([
-  'access_request_get_status_v_1',
-  'access_request_submit_v_1',
   'admin_get_greater_realm_import_plan_v_1',
   'admin_get_greater_realm_status_v_1',
-  'auth_resolver_get_fid_admission_v_2',
-  'get_my_admission_status_v_2',
-  'get_realm_status_v1',
 ]);
 const EXPECTED_TABLES = Object.freeze([
   'access_request_v1', 'admin_audit', 'allowed_fid', 'alpha_terms_acceptance_v1',

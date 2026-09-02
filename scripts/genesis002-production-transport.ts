@@ -18,7 +18,6 @@ const MAX_FUTURE_SKEW_MICROS = 1_000_000n;
 const MICROS_PER_MILLISECOND = 1_000n;
 const MICROS_PER_SECOND = 1_000_000n;
 const STATUS_PROCEDURE = 'adminGetGreaterRealmStatusV1';
-const REALM_STATUS_PROCEDURE = 'getRealmStatusV1';
 export const GENESIS_002_ADMIN_TOKEN_PATH =
   '/v1/admin/genesis-002-token' as const;
 
@@ -417,7 +416,7 @@ export function createGenesis002ProductionTransport(input: Readonly<{
     inspectRealm: () => runSerialized(async () => {
       try {
         const active = await requireConnection();
-        const procedure = active.procedures[REALM_STATUS_PROCEDURE];
+        const procedure = active.procedures[STATUS_PROCEDURE];
         if (typeof procedure !== 'function') fail('GENESIS_002_PRODUCTION_STATUS_ABI_MISSING');
         return await withGenesis002OperationTimeout(procedure({}));
       } catch (error) {
