@@ -104,7 +104,23 @@ function expectAuthoritySideEffectsUntouched(
   expect(handlers.acceptTerms).not.toHaveBeenCalled();
 }
 
-beforeEach(() => {
+async function settleDeferredPresentation() {
+  await act(async () => {
+    for (let round = 0; round < 8; round += 1) {
+      await Promise.resolve();
+    }
+  });
+}
+
+async function preloadFarcasterPresentation() {
+  await Promise.all([
+    import('../src/components/auth/FarcasterIdentityBadge'),
+    import('../src/components/auth/FarcasterQrAuthPanel')
+  ]);
+  await settleDeferredPresentation();
+}
+
+beforeEach(async () => {
   vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
     matches: false,
     media: '(prefers-reduced-motion: reduce)',
@@ -118,6 +134,7 @@ beforeEach(() => {
   vi.stubGlobal('cancelAnimationFrame', vi.fn());
   vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
   vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+  await preloadFarcasterPresentation();
 });
 
 afterEach(() => {
@@ -465,10 +482,12 @@ describe('Warpkeep realm choice integration', () => {
     fireEvent.click(await screen.findByRole('button', {
       name: 'Open Farcaster identity, @keeper'
     }));
-    fireEvent.click(await screen.findByRole('button', { name: 'ENTER REALM' }));
+    const enterRealm = await screen.findByRole('button', { name: 'ENTER REALM' });
+    fireEvent.click(enterRealm);
 
     expect(handlers.enter).not.toHaveBeenCalled();
     expect(handlers.enterPtr).not.toHaveBeenCalled();
+    expect(screen.getByText(/PTR entry must be initiated from the Realm Directory/i)).not.toBeNull();
   });
 
   it('defaults to Genesis 001 and derives each visible mark from current authority', () => {

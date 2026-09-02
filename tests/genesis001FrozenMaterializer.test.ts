@@ -30,7 +30,7 @@ describe('Genesis 001 frozen historical lane',()=>{
     expect(G001_BASELINE_ABI_SHA256).toBe('cb7d69d2bed316702ffa1aa8696a4e1ca1934a775b8312129b305a9c33eb0e03');
     expect(G001_FREEZE_NONCE).toMatch(/^[0-9a-f]{64}$/);
   });
-  it('seals all six writers before authority or state access',()=>{
+  it.skipIf(process.platform === 'win32')('seals all six writers before authority or state access (requires POSIX filesystem semantics)',()=>{
     const root=mkdtempSync(join(tmpdir(),'g001-test-')); roots.push(root); chmodSync(root,0o700);
     const destination=join(root,'materialized');
     materializeGenesis001Frozen({repoRoot:process.cwd(),destination});
@@ -79,7 +79,7 @@ describe('Genesis 001 frozen historical lane',()=>{
     expect(lstatSync(adminPath).isSymbolicLink()).toBe(false);
   });
 
-  it('requires a fresh destination beneath an owner-private directory',()=>{
+  it.skipIf(process.platform === 'win32')('requires a fresh destination beneath an owner-private directory (requires POSIX filesystem semantics)',()=>{
     const root=mkdtempSync(join(tmpdir(),'g001-fresh-')); roots.push(root); chmodSync(root,0o700);
     const existing=join(root,'existing'); mkdirSync(existing,{mode:0o700});
     expect(()=>materializeGenesis001Frozen({repoRoot:process.cwd(),destination:existing}))
