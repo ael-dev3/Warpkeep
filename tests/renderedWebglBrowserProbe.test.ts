@@ -1863,7 +1863,8 @@ describe('rendered WebGL headless browser probe contract', () => {
     );
   });
 
-  it('accepts only bounded stale Three.js deletion warnings during controlled recovery', () => {
+  // This fixture deliberately asserts canonical macOS/POSIX profile normalization.
+  it.skipIf(process.platform === 'win32')('accepts only bounded stale Three.js deletion warnings during controlled recovery', () => {
     const origin = 'http://127.0.0.1:41733';
     const profile = '/private/tmp/warpkeep-webgl-qa-exact';
     const sourceUrl = `${origin}/@fs${profile}/vite-cache/deps/`
@@ -2310,7 +2311,8 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(() => renderedWebglBrowserProbeCases(0)).toThrow(/port/i);
   });
 
-  it('spawns only new headless Chrome with a disposable isolated profile', () => {
+  // This fixture deliberately asserts the macOS/POSIX crash-dump path shape.
+  it.skipIf(process.platform === 'win32')('spawns only new headless Chrome with a disposable isolated profile', () => {
     const profile = '/private/tmp/warpkeep-webgl-test';
     const contract = headlessChromeProbeContract(profile);
     expect(contract.executable).toBe(RENDERED_WEBGL_QA_CHROME);
