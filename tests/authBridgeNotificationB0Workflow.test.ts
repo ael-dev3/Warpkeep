@@ -94,6 +94,16 @@ function bashPath(path: string): string {
   return path.replaceAll('\\', '/');
 }
 
+function restrictSelectedNodeFixtureAncestry(
+  source: string,
+  fixtureRoot: string,
+): string {
+  return source.replace(
+    /(function verify_immutable_executable_path\(\) \{[\s\S]*?)if \[\[ "\$component" == '\/' \]\]; then break; fi/u,
+    `$1if [[ "$component" == ${JSON.stringify(bashPath(fixtureRoot))} || "$component" == '/' ]]; then break; fi`,
+  );
+}
+
 function setFixtureMode(path: string, mode: number): void {
   if (process.platform !== 'win32') {
     chmodSync(path, mode);
@@ -124,9 +134,10 @@ function protectedLaunchForTrustedNode(
   source: string,
   nodeExecutable: string,
   nodeDigest: string,
+  fixtureRoot?: string,
 ): string {
   const uid = String(process.getuid?.() ?? 0);
-  return emulateBsdNodeAttestationForLinux(source
+  const generatedBash = emulateBsdNodeAttestationForLinux(source
     .replaceAll(
       IMMUTABLE_NODE_22_22_3_DARWIN_ARM64_PATH,
       bashPath(nodeExecutable),
@@ -154,6 +165,9 @@ function protectedLaunchForTrustedNode(
       () => '"$signature" != *$\'TeamIdentifier=HX7739G8FX\'* '
         + '&& "$signature" != *$\'Signature=adhoc\'*',
     ));
+  return fixtureRoot === undefined
+    ? generatedBash
+    : restrictSelectedNodeFixtureAncestry(generatedBash, fixtureRoot);
 }
 
 function protectedLaunchForSameUidSwapTarget(
@@ -206,11 +220,13 @@ function protectedLaunchForPortableMetadata(
   source: string,
   nodeExecutable: string,
   nodeDigest: string,
+  fixtureRoot?: string,
 ): string {
   const generatedBash = protectedLaunchForTrustedNode(
     source,
     nodeExecutable,
     nodeDigest,
+    fixtureRoot,
   );
   return process.platform === 'win32'
     ? adaptWindowsFixtureShellSource(generatedBash)
@@ -728,6 +744,7 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
           protectedRun,
           trustedNode,
           trustedNodeDigest,
+          root,
         ),
       );
       expect(step(stepId).shell).toBe(
@@ -857,6 +874,7 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
           step(stepId).run ?? '',
           node,
           nodeDigest,
+          root,
         ),
       );
       const secret = `github-b0-runner-private-${stepId}-token`;
@@ -1003,6 +1021,7 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
             step(stepId).run ?? '',
             node,
             digest,
+            root,
           ),
         );
         const secret = 'github-b0-untrusted-node-state-token';
