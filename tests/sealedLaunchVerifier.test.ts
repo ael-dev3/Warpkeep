@@ -1459,6 +1459,55 @@ describe('0.4.0 sealed-launch verifier', () => {
       .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
   });
 
+  it('rejects an unsafe early owner return before the canonical tail', () => {
+    const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
+    const checkedIn = checkedInSources();
+    const hostile = { ...checkedIn };
+    hostile.ptrOwnerPolicySource = hostile.ptrOwnerPolicySource.replace(
+      '    return Object.freeze({',
+      [
+        "    if (jti === 'unsafe') {",
+        '      return {',
+        '        ...base,',
+        '        audience: base.audience,',
+        '        roles: base.roles,',
+        '        authVersion: WARPKEEP_AUTH_VERSION,',
+        '        fid,',
+        '        authEpoch,',
+        "        databaseIdentity: '2'.repeat(64),",
+        '        realmId: PTR_REALM_ID,',
+        '        sessionIssuedAt,',
+        '        sessionExpiresAt,',
+        '      } as PtrOwnerClaims;',
+        '    }',
+        '    return Object.freeze({',
+      ].join('\n'),
+    );
+    expect(hostile.ptrOwnerPolicySource).not.toBe(
+      checkedIn.ptrOwnerPolicySource,
+    );
+    expect(() => verify(hostile))
+      .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+  });
+
+  it('rejects shadowing the validated database identity at the canonical tail', () => {
+    const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
+    const checkedIn = checkedInSources();
+    const hostile = { ...checkedIn };
+    hostile.ptrOwnerPolicySource = hostile.ptrOwnerPolicySource.replace(
+      '    return Object.freeze({',
+      [
+        "    for (const databaseIdentity of ['2'.repeat(64)])",
+        '    return Object.freeze({',
+      ].join('\n'),
+    );
+    expect(hostile.ptrOwnerPolicySource).not.toBe(
+      checkedIn.ptrOwnerPolicySource,
+    );
+    expect(() => verify(hostile))
+      .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+  });
+
   it.each([
     {
       name: 'Object.getPrototypeOf assignment',
@@ -1506,6 +1555,67 @@ describe('0.4.0 sealed-launch verifier', () => {
         [
           'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
           'globalThis.Object.getPrototypeOf = (() => Object.prototype);',
+        ].join('\n'),
+      ),
+    },
+    {
+      name: 'Reflect bracket assignment',
+      mutate: (value: string) => value.replace(
+        'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
+        [
+          'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
+          "Reflect['ownKeys'] = Object.keys;",
+        ].join('\n'),
+      ),
+    },
+    {
+      name: 'Object.defineProperty mutation',
+      mutate: (value: string) => value.replace(
+        'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
+        [
+          'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
+          "Object.defineProperty(Reflect, 'ownKeys', { value: Object.keys });",
+        ].join('\n'),
+      ),
+    },
+    {
+      name: 'indirect constructor-string mutation',
+      mutate: (value: string) => value.replace(
+        'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
+        [
+          'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
+          "(([] as unknown[])['filter'] as any)['constructor'](",
+          "  'return Reflect',",
+          ")()['ownKeys'] = (([] as unknown[])['filter'] as any)['constructor'](",
+          "  'return Object.keys',",
+          ')();',
+        ].join('\n'),
+      ),
+    },
+    {
+      name: 'constructed Function-body mutation',
+      mutate: (value: string) => value.replace(
+        'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
+        [
+          'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
+          "const intrinsicAttack = ((() => undefined) as any)['con' + 'structor'](",
+          "  'Object.getPrototypeOf = (() => Object.prototype);',",
+          ');',
+          'intrinsicAttack();',
+        ].join('\n'),
+      ),
+    },
+    {
+      name: 'indirect computed identifier Function-body mutation',
+      mutate: (value: string) => value.replace(
+        'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
+        [
+          'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
+          "const propertyName = 'con' + 'structor';",
+          'const intrinsicAttack = ((() => undefined) as any)[propertyName](',
+          "  'Object.getPrototypeOf = (() => Object.prototype);',",
+          ');',
+          'intrinsicAttack();',
         ].join('\n'),
       ),
     },

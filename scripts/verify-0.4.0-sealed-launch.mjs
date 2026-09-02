@@ -1876,34 +1876,120 @@ function contractPtrOwnerPolicyLexicalFence(source, code) {
   const identifierCount = identifier => lexicalTokens.filter(token => (
     token.kind === 'identifier' && token.value === identifier
   )).length;
+  const sequenceAt = (index, values) => values.every((value, offset) => (
+    lexicalTokens[index + offset]?.value === value
+  ));
+  const allowedObjectUses = [
+    ['Object', '.', 'freeze', '('],
+    ['Object', '.', 'getPrototypeOf', '('],
+    ['Object', '.', 'prototype'],
+  ];
+  const forbiddenConstructionIdentifiers = new Set([
+    'Function', '__proto__', 'global', 'globalThis', 'self', 'window',
+  ]);
+  for (let index = 0; index < lexicalTokens.length; index += 1) {
+    const token = lexicalTokens[index];
+    if (token.value === '[') {
+      const closeIndex = contractMatchingMixedDelimiter(lexicalTokens, index, code);
+      const previous = lexicalTokens[index - 1];
+      const computedMember = (
+        previous?.kind === 'identifier'
+        || previous?.kind === 'string'
+        || previous?.kind === 'number'
+        || previous?.value === ')'
+        || previous?.value === ']'
+        || previous?.value === '}'
+        || previous?.value === '!'
+        || previous?.value === '?.'
+      );
+      const emptyTypeSuffix = closeIndex === index + 1;
+      const zeroIndex = (
+        closeIndex === index + 2
+        && lexicalTokens[index + 1]?.kind === 'number'
+        && lexicalTokens[index + 1]?.value === '0'
+      );
+      const recordKeyIndex = sequenceAt(index - 1, ['record', '[', 'key', ']']);
+      if (
+        computedMember
+        && !emptyTypeSuffix
+        && !zeroIndex
+        && !recordKeyIndex
+      ) fail(code);
+    }
+    if (
+      token.kind === 'identifier'
+      && token.value === 'Object'
+      && !allowedObjectUses.some(values => sequenceAt(index, values))
+    ) fail(code);
+    if (
+      token.kind === 'identifier'
+      && token.value === 'Reflect'
+      && !sequenceAt(index, ['Reflect', '.', 'ownKeys', '('])
+    ) fail(code);
+    if (
+      token.kind === 'identifier'
+      && token.value === 'prototype'
+      && !sequenceAt(index - 2, ['Object', '.', 'prototype'])
+    ) fail(code);
+    if (
+      token.kind === 'identifier'
+      && token.value === 'constructor'
+      && !sequenceAt(index, [
+        'constructor', '(', 'readonly', 'code', ':',
+        'PtrOwnerPolicyErrorCode', ')', '{',
+      ])
+    ) fail(code);
+    if (
+      token.kind === 'identifier'
+      && forbiddenConstructionIdentifiers.has(token.value)
+    ) fail(code);
+    if (
+      token.kind === 'string'
+      && (token.value === 'constructor' || token.value === '__proto__')
+    ) fail(code);
+    if (token.value === '++' || token.value === '--' || token.value === 'delete') {
+      fail(code);
+    }
+    if (token.value === '=') {
+      const simpleDeclaration = (
+        (lexicalTokens[index - 2]?.value === 'const'
+          || lexicalTokens[index - 2]?.value === 'type')
+        && lexicalTokens[index - 1]?.kind === 'identifier'
+      );
+      const exactErrorNameAssignment = (
+        sequenceAt(index - 3, ['this', '.', 'name', '='])
+        && lexicalTokens[index + 1]?.kind === 'string'
+        && lexicalTokens[index + 1]?.value === 'PtrOwnerPolicyError'
+        && lexicalTokens[index + 2]?.value === ';'
+      );
+      if (!simpleDeclaration && !exactErrorNameAssignment) fail(code);
+    }
+  }
+  for (const [identifier, expectedOccurrences] of [
+    ['PTR_OWNER_EXACT_CLAIM_KEYS', 3],
+    ['PTR_ADMIN_EXACT_CLAIM_KEYS', 3],
+    ['PTR_ATLAS_ADMIN_EXACT_CLAIM_KEYS', 3],
+    ['PTR_DATABASE_IDENTITY', 2],
+  ]) {
+    if (identifierCount(identifier) !== expectedOccurrences) fail(code);
+  }
+}
+
+function contractPtrOwnerReaderDataflow(reader, code) {
+  const ownerSubjectTemplate = '`farcaster:${fid.toString()}`';
+  if (reader.split(ownerSubjectTemplate).length !== 2) fail(code);
+  const tokens = contractTokens(
+    reader.replace(
+      ownerSubjectTemplate,
+      "'__PTR_OWNER_SUBJECT_TEMPLATE__'",
+    ),
+    code,
+  );
   if (
-    identifierCount('Object') !== 23
-    || contractSequenceCount(
-      lexicalTokens,
-      ['Object', '.', 'freeze', '('],
-    ) !== 17
-    || contractSequenceCount(
-      lexicalTokens,
-      ['Object', '.', 'getPrototypeOf', '('],
-    ) !== 3
-    || contractSequenceCount(
-      lexicalTokens,
-      ['Object', '.', 'prototype'],
-    ) !== 3
-    || identifierCount('Reflect') !== 3
-    || contractSequenceCount(
-      lexicalTokens,
-      ['Reflect', '.', 'ownKeys', '('],
-    ) !== 3
-    || identifierCount('constructor') !== 1
-    || contractSequenceCount(lexicalTokens, [
-      'constructor', '(', 'readonly', 'code', ':',
-      'PtrOwnerPolicyErrorCode', ')', '{',
-    ]) !== 1
-    || identifierCount('prototype') !== 3
-    || [
-      'Function', '__proto__', 'global', 'globalThis', 'self', 'window',
-    ].some(identifier => identifierCount(identifier) !== 0)
+    tokens.filter(token => token.value === 'return').length !== 1
+    || tokens.filter(token => (
+      token.kind === 'identifier' && token.value === 'databaseIdentity'
+    )).length !== 2
   ) fail(code);
 }
 
@@ -2967,6 +3053,7 @@ export function verifyPtrOwnerAuthoritySemantics(sources) {
     true,
     code,
   );
+  contractPtrOwnerReaderDataflow(ptrOwnerReader, code);
   contractExactPtrOwnerReturnTail(
     contractUniqueRawSlice(
       ptrOwnerReader,
