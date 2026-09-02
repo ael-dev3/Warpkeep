@@ -5,9 +5,11 @@ import { resolve } from 'node:path';
 import { build, type Plugin } from 'esbuild';
 import { beforeAll, describe, expect, it } from 'vitest';
 
+import { GENESIS_002_ADMISSION_MUTATIONS } from '../spacetimedb/genesis002/src/contract';
+
 const captured = {
   lifecycle: undefined as ((ctx: unknown) => unknown) | undefined,
-  procedures: new Map<string, (ctx: unknown) => unknown>(),
+  procedures: new Map<string, (ctx: unknown, input?: unknown) => unknown>(),
   reducers: new Map<string, (ctx: unknown, input: unknown) => unknown>(),
 };
 
@@ -49,6 +51,15 @@ function context(
   };
 }
 
+function contextWithoutJwt(senderIdentity = PROJECTED_IDENTITY): unknown {
+  return {
+    senderAuth: {},
+    sender: { toHexString: () => senderIdentity },
+    timestamp: { microsSinceUnixEpoch: NOW_MICROS },
+    withTx: (effect: (tx: unknown) => unknown) => effect(contextWithoutJwt(senderIdentity)),
+  };
+}
+
 function expectInvalid(payload: unknown): void {
   expect(() => readFreshGenesis002AdminClaims(payload, NOW_MICROS))
     .toThrow('INVALID_GENESIS_002_ADMIN_SESSION');
@@ -71,21 +82,19 @@ beforeAll(async () => {
       const captured = globalThis.__genesis002AdminBoundaryCapture;
       export default {
         clientConnected(handler) { captured.lifecycle = handler; return handler; },
-        procedure(options, _output, handler) {
-          captured.procedures.set(options.name, handler); return handler;
+        procedure(options, ...args) {
+          const registeredHandler = args[args.length - 1];
+          captured.procedures.set(options.name, registeredHandler); return registeredHandler;
         },
-        reducer(options, _input, handler) {
-          captured.reducers.set(options.name, handler); return handler;
+        reducer(options, inputOrHandler, handler) {
+          const registeredHandler = handler ?? inputOrHandler;
+          captured.reducers.set(options.name, registeredHandler); return registeredHandler;
         },
       };
     `],
     ['genesis002-population', `
       export const genesis002PopulationSnapshot = () => ({});
       export const requireGenesis002PopulationEmpty = () => undefined;
-    `],
-    ['genesis002-policy', `
-      export const assertGenesis002AtlasNotFinalized = () => undefined;
-      export const withGenesis002AtlasImportBoundary = (_snapshot, effect) => effect();
     `],
     ['greater-realm-policy', 'export const GREATER_REALM_PUBLIC_REGIONS = [];'],
     ['greater-realm-authority', `
@@ -122,9 +131,6 @@ beforeAll(async () => {
         if (arguments_.path === './population') {
           return { path: 'genesis002-population', namespace: 'g002-test' };
         }
-        if (arguments_.path === './policy') {
-          return { path: 'genesis002-policy', namespace: 'g002-test' };
-        }
         if (arguments_.path === '../../src/greaterRealmV17Policy') {
           return { path: 'greater-realm-policy', namespace: 'g002-test' };
         }
@@ -144,6 +150,7 @@ beforeAll(async () => {
       contents: `
         import './spacetimedb/genesis002/src/lifecycle.ts';
         import './spacetimedb/genesis002/src/atlasImportReducers.ts';
+        import './spacetimedb/genesis002/src/reducers.ts';
         export { requireGenesis002Admin } from './spacetimedb/genesis002/src/auth.ts';
       `,
       resolveDir: resolve(import.meta.dirname, '..'),
@@ -324,6 +331,47 @@ describe('Genesis 002 administrator confused-deputy boundary', () => {
       expect(() => reducer?.(hostile, {
         atlasId: 'GENESIS_002_GREATER_REALM',
       }), name).toThrow('INVALID_GENESIS_002_ADMIN_SESSION');
+    }
+  });
+
+  it('denies hostile claims in each registered legacy status procedure', () => {
+    const hostileContexts: ReadonlyArray<readonly [string, unknown]> = [
+      ['missing JWT', contextWithoutJwt()],
+      ['G001 audience', context(validPayload({ aud: ['warpkeep-spacetimedb'] }))],
+      ['PTR audience', context(validPayload({ aud: ['warpkeep-ptr-spacetimedb'] }))],
+      ['null claims', context(null)],
+    ];
+    const statusProcedures: ReadonlyArray<readonly [string, unknown]> = [
+      ['get_realm_status_v1', undefined],
+      ['get_my_admission_status_v2', undefined],
+      ['auth_resolver_get_fid_admission_v2', { fid: 0n }],
+      ['access_request_get_status_v1', undefined],
+    ];
+
+    for (const [procedureName, input] of statusProcedures) {
+      const procedure = captured.procedures.get(procedureName);
+      expect(procedure, procedureName).toBeTypeOf('function');
+      for (const [claimName, hostile] of hostileContexts) {
+        expect(() => procedure?.(hostile, input), `${procedureName}: ${claimName}`)
+          .toThrowError(expect.objectContaining({
+            name: 'SenderError',
+            message: 'INVALID_GENESIS_002_ADMIN_SESSION',
+          }));
+      }
+    }
+  });
+
+  it('registers every legacy admission mutation as an unreachable sealed denial', () => {
+    for (const mutation of GENESIS_002_ADMISSION_MUTATIONS) {
+      const handler = mutation === 'access_request_submit_v1'
+        ? captured.procedures.get(mutation)
+        : captured.reducers.get(mutation);
+      expect(handler, mutation).toBeTypeOf('function');
+      expect(() => handler?.(context(validPayload()), undefined), mutation)
+        .toThrowError(expect.objectContaining({
+          name: 'SenderError',
+          message: 'GENESIS_002_ADMISSIONS_SEALED',
+        }));
     }
   });
 });
