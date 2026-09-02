@@ -490,6 +490,33 @@ function requireAbsent(source, tokens, code) {
   if (tokens.some(token => source.includes(token))) fail(code);
 }
 
+const GENESIS_002_ROOT_ABI_SOURCE = [
+  "import genesis002 from './schema';",
+  '',
+  'export default genesis002;',
+  '',
+  "export { onConnect } from './lifecycle';",
+  'export {',
+  '  adminGetGreaterRealmStatusV1,',
+  '  adminGetGreaterRealmImportPlanV1,',
+  '  adminStageGreaterRealmReleaseV1,',
+  '  adminImportGreaterRealmComponentsV1,',
+  '  adminImportGreaterRealmRegionsV1,',
+  '  adminImportGreaterRealmChunkV1,',
+  '  adminBeginGreaterRealmVerificationV1,',
+  '  adminVerifyGreaterRealmBatchV1,',
+  '  adminFinalizeGreaterRealmReleaseV1,',
+  "} from './atlasImportReducers';",
+].join('\n');
+
+/** The frozen G002 root is the complete live SpacetimeDB ABI registration set. */
+export function verifyGenesis002RootAbiSource(source) {
+  if (
+    typeof source !== 'string'
+    || source.replace(/\r\n?/gu, '\n').trim() !== GENESIS_002_ROOT_ABI_SOURCE
+  ) fail('SEALED_LAUNCH_G002_ROOT_ABI_INVALID');
+}
+
 function exactUtf8Bytes(source, code) {
   if (typeof source !== 'string') fail(code);
   const bytes = Buffer.from(source, 'utf8');
@@ -890,6 +917,7 @@ function verifyGenesis001SealedLaunchAdoption(sources) {
 }
 
 function verifyGenesis002Policy(sources) {
+  verifyGenesis002RootAbiSource(sources.genesis002IndexSource);
   // Interim byte pins seal the G002 administrator authority boundary until Task 7
   // atomically adds these roots to the authenticated closure and refreezes it.
   // Pinning the complete security-bearing sources prevents decoy token/name

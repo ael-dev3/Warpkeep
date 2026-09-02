@@ -450,6 +450,23 @@ function mutateGenesis002BridgeRoute(
 }
 
 describe('0.4.0 sealed-launch verifier', () => {
+  it('rejects a widened G002 root ABI without requiring deferred closure artifacts', () => {
+    const verify = (sealedLaunchVerifierModule as typeof sealedLaunchVerifierModule & {
+      verifyGenesis002RootAbiSource?: (source: string) => void;
+    }).verifyGenesis002RootAbiSource;
+    const root = source('spacetimedb/genesis002/src/index.ts');
+    const widened = root.replace(
+      "export { onConnect } from './lifecycle';",
+      "export { onConnect, bootstrapPlayer } from './lifecycle';",
+    );
+
+    expect(verify).toBeTypeOf('function');
+    expect(() => verify!(root)).not.toThrow();
+    expect(() => verify!(widened)).toThrow(
+      'SEALED_LAUNCH_G002_ROOT_ABI_INVALID',
+    );
+  });
+
   it('verifies the Task 6C publication, ownerless import, and owner ancestry transition', () => {
     const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
     const checkedIn: Readonly<Record<string, string>> = checkedInSources();
