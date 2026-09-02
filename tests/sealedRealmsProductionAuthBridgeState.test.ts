@@ -1068,7 +1068,7 @@ describe('sealed-realms auth bridge state', () => {
     }
   }, 30_000);
 
-  it('keeps every legacy activation generator route unavailable before claim or effect', async () => {
+  it('keeps legacy activation generator routes unavailable and rejects a direct continuation call', async () => {
     const local = fixture();
     try {
       const bridge = createSealedRealmsProductionAuthBridgeState(
@@ -1086,7 +1086,9 @@ describe('sealed-realms auth bridge state', () => {
         code: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE',
       });
       await expect(bridge.consumeActivationEvidenceForContinuation({} as never))
-        .rejects.toMatchObject({ code: 'SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE' });
+        .rejects.toMatchObject({
+          code: 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID',
+        });
       expect(generate).not.toHaveBeenCalled();
     } finally {
       local.cleanup();

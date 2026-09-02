@@ -40,6 +40,9 @@ const OPERATIONS = new Set([
 ]);
 const COMMIT = /^[0-9a-f]{40}$/u;
 const BINDING_PATH = 'config/releases/0.4.0-sealed-launch.json';
+const SOURCE_BINDING_KEYS = Object.freeze([
+  'schemaVersion', 'profile', 'pagesDeploymentApproved', 'preparationSourceCommit',
+]);
 const GIT_EXECUTABLE = process.platform === 'win32'
   ? 'git'
   : String.fromCodePoint(47, 117, 115, 114, 47, 98, 105, 110, 47, 103, 105, 116);
@@ -119,7 +122,7 @@ function readGit(arguments_) {
   }
 }
 
-function readBinding(commit) {
+function readBindingCandidate(commit) {
   let parsed;
   try {
     const source = readGit(['show', `${commit}:${BINDING_PATH}`]);
@@ -133,6 +136,18 @@ function readBinding(commit) {
     fail('SEALED_REALMS_PTR_WORKFLOW_BINDING_INVALID');
   }
   return parsed;
+}
+
+/** Keeps source authority on its exact four-field projection. */
+function readBinding(commit) {
+  const candidate = readBindingCandidate(commit);
+  if (
+    candidate === null || typeof candidate !== 'object' || Array.isArray(candidate)
+    || Object.getPrototypeOf(candidate) !== Object.prototype
+  ) fail('SEALED_REALMS_PTR_WORKFLOW_BINDING_INVALID');
+  return Object.freeze(Object.fromEntries(
+    SOURCE_BINDING_KEYS.map(key => [key, candidate[key]]),
+  ));
 }
 
 function sourceAuthority(operation, workflowInputSha) {

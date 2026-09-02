@@ -23,7 +23,10 @@ import {
   genesis002SealedLiveReceiptDigest,
 } from './genesis002-activation-receipts.mjs';
 
-const MAXIMUM_CANDIDATE_BYTES = 32 * 1_024;
+// This FD is supplied only by the fixed private activation-descriptor writer.
+// The source-proven complete canonical envelope is below this ceiling; ordinary
+// private-state read/write records remain bounded independently at 512 KiB.
+const MAXIMUM_CANDIDATE_BYTES = 1 * 1_024 * 1_024;
 const PTR_IMPORT_EPOCH_MAXIMUM = (1n << 64n) - 1n;
 const PTR_IMPORT_OPERATION_MAXIMUM = 4_096;
 const SYSTEM_GIT = '/usr/bin/git';
@@ -187,6 +190,7 @@ const PTR_OWNER_PROVISION_RECEIPT_KEYS = Object.freeze([
   'databaseAlias',
   'moduleIdentity',
   'moduleSourceCommit',
+  'atlasImportReceiptDigest',
   'ownerOpaqueProofDigest',
   'ownerAnchorRows',
   'ownerProvisioned',
@@ -1002,6 +1006,7 @@ export function createSealedLaunchActivationBindingFromEvidence(
       !== ptrSealedLive.atlasImportMutationsCompiled
     || ptrAtlasImport.activationMutationsCompiled
       !== ptrSealedLive.atlasActivationMutationsCompiled
+    || ptrOwnerProvision.atlasImportReceiptDigest !== ptrAtlasImportDigest
     || ptrOwnerProvision.ownerOpaqueProofDigest
       !== ptrSealedLive.ownerOpaqueProofDigest
     || ptrOwnerProvision.ownerAnchorRows !== ptrSealedLive.ownerAnchorRows

@@ -5,6 +5,9 @@ import {
   createSealedRealmsProductionAuthBridgeState,
 } from './sealed-realms-production-auth-bridge-state.mjs';
 import {
+  createSealedRealmsProductionActivationRecords,
+} from './sealed-realms-production-activation-records.mjs';
+import {
   createSealedRealmsProductionActivationDispatchContext,
   createSealedRealmsProductionActivationDispatcher,
   createSealedRealmsProductionActivationLane,
@@ -31,6 +34,9 @@ const OPERATIONS = new Set([
 ]);
 const COMMIT = /^[0-9a-f]{40}$/u;
 const BINDING_PATH = 'config/releases/0.4.0-sealed-launch.json';
+const SOURCE_BINDING_KEYS = Object.freeze([
+  'schemaVersion', 'profile', 'pagesDeploymentApproved', 'preparationSourceCommit',
+]);
 const GIT_EXECUTABLE = process.platform === 'win32'
   ? 'git'
   : String.fromCodePoint(47, 117, 115, 114, 47, 98, 105, 110, 47, 103, 105, 116);
@@ -110,7 +116,8 @@ function readGit(arguments_) {
   }
 }
 
-function readBinding(commit) {
+/** Reads the complete static release candidate only for private descriptor construction. */
+function readBindingCandidate(commit) {
   let parsed;
   try {
     const source = readGit(['show', `${commit}:${BINDING_PATH}`]);
@@ -124,6 +131,18 @@ function readBinding(commit) {
     fail('SEALED_REALMS_ACTIVATION_WORKFLOW_BINDING_INVALID');
   }
   return parsed;
+}
+
+/** Returns the only four-field projection accepted by source authority. */
+function readBinding(commit) {
+  const candidate = readBindingCandidate(commit);
+  if (
+    candidate === null || typeof candidate !== 'object' || Array.isArray(candidate)
+    || Object.getPrototypeOf(candidate) !== Object.prototype
+  ) fail('SEALED_REALMS_ACTIVATION_WORKFLOW_BINDING_INVALID');
+  return Object.freeze(Object.fromEntries(
+    SOURCE_BINDING_KEYS.map(key => [key, candidate[key]]),
+  ));
 }
 
 function sourceAuthority(operation, workflowInputSha) {
@@ -153,6 +172,11 @@ async function buildDispatcher(operation, workflowInputSha) {
     fetchImpl: globalThis.fetch,
   });
   const privateState = resolveSealedRealmsProductionWorkflowPrivateState();
+  const activationRecords = createSealedRealmsProductionActivationRecords({
+    privateState,
+    authority,
+    readBindingCandidate,
+  });
   const continuationStore = createSealedRealmsProductionContinuationStore({ privateState });
   const bridgeState = createSealedRealmsProductionAuthBridgeState({
     authority,
@@ -164,6 +188,7 @@ async function buildDispatcher(operation, workflowInputSha) {
     inspectImportReceipt: unavailable,
     authenticateImportResult: unavailable,
     resolveOwnerProvisionReceipt: unavailable,
+    activationRecords,
   });
   const lane = createSealedRealmsProductionActivationLane({ bridgeState });
   const context = createSealedRealmsProductionActivationDispatchContext({

@@ -27,6 +27,13 @@ export const SEALED_REALMS_PRIVATE_ROOT_NAMES = Object.freeze([
 const DIRECTORY_MODE = 0o700;
 const FILE_MODE = 0o600;
 const MAXIMUM_FILE_BYTES = 512 * 1_024;
+// Activation descriptors are a single fixed, internally-authenticated artifact.
+// Their bounded full envelope is larger than ordinary private-state records, but
+// this exception must not widen the generic private-state API.
+const MAXIMUM_DESCRIPTOR_BYTES = 1 * 1_024 * 1_024;
+const ACTIVATION_DESCRIPTOR_ROOT = 'runtime';
+const ACTIVATION_DESCRIPTOR_RELATIVE_PATH =
+  'activation-evidence/0.4.0-sealed-launch-envelope.json';
 const MAXIMUM_FAMILY_MEMBER_BYTES = 2 * 1_024 * 1_024;
 const MAXIMUM_FAMILY_BYTES = 8 * 1_024 * 1_024;
 const SAFE_COMPONENT = /^(?:[a-z0-9][a-z0-9._-]{0,127})$/u;
@@ -64,6 +71,19 @@ function exactInput(value, keys) {
     || JSON.stringify(Object.keys(value)) !== JSON.stringify(keys)
   ) fail('SEALED_REALMS_PRIVATE_STATE_INPUT_INVALID');
   return value;
+}
+
+function fixedDescriptorInput(value) {
+  try {
+    if (
+      value !== null && typeof value === 'object' && !Array.isArray(value)
+      && (Object.hasOwn(value, 'root') || Object.hasOwn(value, 'relativePath'))
+    ) fail('SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_TARGET_INVALID');
+  } catch (error) {
+    if (error instanceof SealedRealmsProductionPrivateStateError) throw error;
+    fail('SEALED_REALMS_PRIVATE_STATE_INPUT_INVALID');
+  }
+  return exactInput(value, ['bytes', 'consume']);
 }
 
 function assertedOwner(testOnlyOwnerUid) {
@@ -240,6 +260,18 @@ function byteValue(value) {
   }
   const bytes = Buffer.from(value);
   if (bytes.byteLength < 1 || bytes.byteLength > MAXIMUM_FILE_BYTES) {
+    bytes.fill(0);
+    fail('SEALED_REALMS_PRIVATE_STATE_BYTES_INVALID');
+  }
+  return bytes;
+}
+
+function descriptorByteValue(value) {
+  if (!(value instanceof Uint8Array) && !Buffer.isBuffer(value)) {
+    fail('SEALED_REALMS_PRIVATE_STATE_BYTES_INVALID');
+  }
+  const bytes = Buffer.from(value);
+  if (bytes.byteLength < 1 || bytes.byteLength > MAXIMUM_DESCRIPTOR_BYTES) {
     bytes.fill(0);
     fail('SEALED_REALMS_PRIVATE_STATE_BYTES_INVALID');
   }
@@ -475,6 +507,130 @@ export function createSealedRealmsProductionPrivateState(input) {
     } finally {
       body.fill(0);
       if (descriptor !== undefined) closeSync(descriptor);
+    }
+  };
+
+  /**
+   * Installs one owner-private canonical descriptor and exposes its reopened
+   * descriptor only to a synchronous callback. Callers never receive a path
+   * or descriptor and therefore cannot retain an FD across an await.
+   */
+  const writeCanonicalNoClobberAndConsumeDescriptor = (input_) => {
+    const input = fixedDescriptorInput(input_);
+    if (typeof input.consume !== 'function') {
+      fail('SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_INVALID');
+    }
+    const target = descendant(
+      ACTIVATION_DESCRIPTOR_ROOT, ACTIVATION_DESCRIPTOR_RELATIVE_PATH, true,
+    );
+    const parentChain = captureDirectoryChain(
+      home, target.directory, owner, allowTestOnlyPlatformMode,
+    );
+    const body = descriptorByteValue(input.bytes);
+    let writer;
+    let reader;
+    let identity;
+    let callbackError;
+    try {
+      observeRace('descriptor-before-open', target.path);
+      writer = openSync(
+        target.path,
+        constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY
+          | (constants.O_NOFOLLOW ?? 0),
+        FILE_MODE,
+      );
+      revalidateDirectoryChain(parentChain, owner, allowTestOnlyPlatformMode);
+      fchmodSync(writer, FILE_MODE);
+      writeAll(writer, body);
+      const written = fstatSync(writer);
+      requirePrivateFile(
+        written, owner, body.byteLength,
+        'SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_INVALID', allowTestOnlyPlatformMode,
+      );
+      fsyncSync(writer);
+      revalidateDirectoryChain(parentChain, owner, allowTestOnlyPlatformMode);
+      const synced = fstatSync(writer);
+      if (
+        synced.dev !== written.dev || synced.ino !== written.ino
+        || synced.size !== written.size || synced.nlink !== written.nlink
+      ) fail('SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_REPLACED');
+      identity = Object.freeze({ dev: synced.dev, ino: synced.ino, size: synced.size });
+      closeSync(writer);
+      writer = undefined;
+      const named = lstatSync(target.path);
+      requirePrivateFile(
+        named, owner, body.byteLength,
+        'SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_REPLACED', allowTestOnlyPlatformMode,
+      );
+      if (named.dev !== identity.dev || named.ino !== identity.ino) {
+        fail('SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_REPLACED');
+      }
+      fsyncDirectory(target.directory);
+      revalidateDirectoryChain(parentChain, owner, allowTestOnlyPlatformMode);
+
+      reader = openSync(target.path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+      observeRace('descriptor-after-open', target.path);
+      revalidateDirectoryChain(parentChain, owner, allowTestOnlyPlatformMode);
+      let reopenedNamed;
+      try { reopenedNamed = lstatSync(target.path); } catch {
+        fail('SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_REPLACED');
+      }
+      requirePrivateFile(
+        reopenedNamed, owner, body.byteLength,
+        'SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_REPLACED', allowTestOnlyPlatformMode,
+      );
+      if (reopenedNamed.dev !== identity.dev || reopenedNamed.ino !== identity.ino) {
+        fail('SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_REPLACED');
+      }
+      const opened = fstatSync(reader);
+      requirePrivateFile(
+        opened, owner, body.byteLength,
+        'SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_REPLACED', allowTestOnlyPlatformMode,
+      );
+      if (
+        opened.dev !== identity.dev || opened.ino !== identity.ino
+        || opened.size !== identity.size
+      ) fail('SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_REPLACED');
+      let result;
+      try {
+        result = input.consume(reader);
+        if (result !== undefined && typeof result?.then === 'function') {
+          fail('SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_ASYNC_CONSUME');
+        }
+        if (result !== undefined) fail('SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_CONSUME_INVALID');
+      } catch (error) {
+        callbackError = error;
+      }
+      const afterConsume = fstatSync(reader);
+      requirePrivateFile(
+        afterConsume, owner, body.byteLength,
+        'SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_REPLACED', allowTestOnlyPlatformMode,
+      );
+      if (
+        afterConsume.dev !== identity.dev || afterConsume.ino !== identity.ino
+        || afterConsume.size !== identity.size
+      ) fail('SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_REPLACED');
+      closeSync(reader);
+      reader = undefined;
+      const finalNamed = lstatSync(target.path);
+      requirePrivateFile(
+        finalNamed, owner, body.byteLength,
+        'SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_REPLACED', allowTestOnlyPlatformMode,
+      );
+      if (finalNamed.dev !== identity.dev || finalNamed.ino !== identity.ino) {
+        fail('SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_REPLACED');
+      }
+      revalidateDirectoryChain(parentChain, owner, allowTestOnlyPlatformMode);
+      if (callbackError !== undefined) throw callbackError;
+      return Object.freeze({});
+    } catch (error) {
+      if (error instanceof SealedRealmsProductionPrivateStateError) throw error;
+      if (error?.code === 'EEXIST') fail('SEALED_REALMS_PRIVATE_STATE_FILE_EXISTS');
+      throw error;
+    } finally {
+      body.fill(0);
+      if (reader !== undefined) closeSync(reader);
+      if (writer !== undefined) closeSync(writer);
     }
   };
 
@@ -1003,6 +1159,7 @@ export function createSealedRealmsProductionPrivateState(input) {
 
   const capability = Object.freeze({
     write,
+    writeCanonicalNoClobberAndConsumeDescriptor,
     read,
     list,
     exists,

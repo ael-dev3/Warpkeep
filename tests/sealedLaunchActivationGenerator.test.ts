@@ -82,8 +82,16 @@ import {
   createSealedRealmsProductionPrivateState,
 } from '../scripts/sealed-realms-production-private-state.mjs';
 import {
+  claimSealedRealmsProductionContinuation,
+  createSealedRealmsProductionContinuationStore,
+  issueSealedRealmsProductionContinuation,
+} from '../scripts/sealed-realms-production-continuation.mjs';
+import {
   authenticateSealedRealmsProductionSourceAuthority,
 } from '../scripts/sealed-realms-production-source-authority.mjs';
+import {
+  issueSealedRealmsProductionWorkflowPermit,
+} from '../scripts/sealed-realms-production-workflow-authority.mjs';
 import {
   consumeSealedRealmsProductionActivationEvidenceForGenerator,
   createSealedRealmsProductionActivationEvidenceGenerator,
@@ -201,6 +209,121 @@ function bridgeImportProof(lane: 'g002' | 'ptr', adopted: boolean) {
     };
 }
 
+function activationSourceAuthority(operation: string) {
+  return authenticateSealedRealmsProductionSourceAuthority({
+    operation: operation as never,
+    workflowInputSha: PREPARATION_COMMIT,
+    readGit: args => args[0] === 'rev-parse'
+      ? `${PREPARATION_COMMIT}\n`
+      : (() => { throw new Error('unexpected git call'); })(),
+    readBinding: () => ({
+      schemaVersion: 1,
+      profile: 'warpkeep-0.4.0-sealed-launch-v1',
+      pagesDeploymentApproved: false,
+      preparationSourceCommit: PREPARATION_COMMIT,
+    }),
+    verifyEvidence: verifiedSha => ({ verifiedSha }),
+  });
+}
+
+function workflowResponse(url: string, body: unknown) {
+  const encoded = JSON.stringify(body);
+  const response = new Response(encoded, {
+    status: 200,
+    headers: {
+      'content-type': 'application/json',
+      'content-length': String(Buffer.byteLength(encoded)),
+    },
+  });
+  Object.defineProperty(response, 'url', { value: url });
+  return response;
+}
+
+function workflowGithub(runId: string) {
+  return async (request: string | URL | Request) => {
+    const url = String(request);
+    if (url.endsWith('/branches/main')) {
+      return workflowResponse(url, {
+        name: 'main', protected: true, commit: { sha: PREPARATION_COMMIT },
+      });
+    }
+    const requestedRunId = /\/actions\/runs\/([1-9][0-9]*)$/u.exec(url)?.[1] ?? runId;
+    return workflowResponse(url, {
+      id: Number(requestedRunId), run_attempt: 1, event: 'workflow_dispatch',
+      status: 'in_progress', conclusion: null, head_branch: 'main',
+      head_sha: PREPARATION_COMMIT,
+      path: '.github/workflows/sealed-realms-production.yml',
+      repository: { full_name: 'ael-dev3/Warpkeep' },
+    });
+  };
+}
+
+let continuationRun = 90_000;
+
+async function continuationContext(
+  privateState: ReturnType<typeof createSealedRealmsProductionPrivateState>,
+  operation: string,
+) {
+  continuationRun += 1;
+  const runId = String(continuationRun);
+  const sourceAuthority = activationSourceAuthority(operation);
+  const permit = await issueSealedRealmsProductionWorkflowPermit({
+    sourceAuthority,
+    githubToken: 'github-sealed-realms-owner-token',
+    runId,
+    runAttempt: '1',
+    fetchImpl: workflowGithub(runId),
+  });
+  return Object.freeze({
+    authority: sourceAuthority,
+    store: createSealedRealmsProductionContinuationStore({ privateState }),
+    permit,
+    runId,
+    runAttempt: '1' as const,
+  });
+}
+
+async function applyGateThroughRealContinuation(
+  privateState: ReturnType<typeof createSealedRealmsProductionPrivateState>,
+  bridge: ReturnType<typeof createSealedRealmsProductionAuthBridgeState>,
+  lane: 'g002' | 'ptr',
+  apply: () => void,
+) {
+  const kind = `${lane}-import` as const;
+  const binding = await bridge.inspectGateForContinuation({ lane });
+  const issued = await continuationContext(privateState, `${lane}-import-inspect`);
+  await issueSealedRealmsProductionContinuation({
+    store: issued.store,
+    permit: issued.permit,
+    sourceAuthority: issued.authority,
+    kind,
+    runId: issued.runId,
+    runAttempt: issued.runAttempt,
+    ...binding,
+  });
+  const claimed = await continuationContext(privateState, `${lane}-import-apply`);
+  await claimSealedRealmsProductionContinuation({
+    store: claimed.store,
+    permit: claimed.permit,
+    sourceAuthority: claimed.authority,
+    kind,
+    runId: claimed.runId,
+    runAttempt: claimed.runAttempt,
+    ...binding,
+    effect: claim => bridge.applyGateForContinuation({
+      claim,
+      store: claimed.store,
+      sourceAuthority: claimed.authority,
+      kind,
+      runId: claimed.runId,
+      runAttempt: claimed.runAttempt,
+      ...binding,
+      lane,
+      apply,
+    }),
+  });
+}
+
 beforeAll(async () => {
   const home = mkdtempSync(join(tmpdir(), 'warpkeep-activation-member-'));
   activationEvidenceHome = home;
@@ -241,20 +364,7 @@ beforeAll(async () => {
   } as const;
   const preparedPublication =
     canonicalAuthBridgeNotificationPreparedReceiptPublication(preparedReceipt);
-  const sourceAuthority = authenticateSealedRealmsProductionSourceAuthority({
-    operation: 'g002-import-inspect',
-    workflowInputSha: PREPARATION_COMMIT,
-    readGit: args => args[0] === 'rev-parse'
-      ? `${PREPARATION_COMMIT}\n`
-      : (() => { throw new Error('unexpected git call'); })(),
-    readBinding: () => ({
-      schemaVersion: 1,
-      profile: 'warpkeep-0.4.0-sealed-launch-v1',
-      pagesDeploymentApproved: false,
-      preparationSourceCommit: PREPARATION_COMMIT,
-    }),
-    verifyEvidence: verifiedSha => ({ verifiedSha }),
-  });
+  const sourceAuthority = activationSourceAuthority('g002-import-inspect');
   let randomByte = 0;
   const importAdopted: Record<'g002' | 'ptr', boolean> = {
     g002: false,
@@ -313,25 +423,12 @@ beforeAll(async () => {
       workerVersionId: BRIDGE_WORKER_VERSION_ID,
     }),
   } as never);
-  // Task 6 owns this legacy generator-unit bootstrap. It is deliberately not
-  // protected Task 5 workflow coverage, and the removed mutator is not
-  // restored to the production return type or declaration.
-  const legacyUnitBridge = bridge as unknown as {
-    applyGate(input: Readonly<{
-      confirmation: object;
-      apply: () => void;
-    }>): Promise<unknown>;
-  };
-  const g002 = await bridge.inspectGate({ lane: 'g002' });
-  await legacyUnitBridge.applyGate({
-    confirmation: g002.confirmation,
-    apply: () => { importAdopted.g002 = true; },
-  });
-  const ptr = await bridge.inspectGate({ lane: 'ptr' });
-  await legacyUnitBridge.applyGate({
-    confirmation: ptr.confirmation,
-    apply: () => { importAdopted.ptr = true; },
-  });
+  await applyGateThroughRealContinuation(
+    privateState, bridge, 'g002', () => { importAdopted.g002 = true; },
+  );
+  await applyGateThroughRealContinuation(
+    privateState, bridge, 'ptr', () => { importAdopted.ptr = true; },
+  );
   const activation = await bridge.inspectActivationEvidence();
   let memberReady!: () => void;
   const ready = new Promise<void>(resolveReady => { memberReady = resolveReady; });
@@ -949,6 +1046,7 @@ function ptrOwnerProvisionReceipt() {
     databaseAlias: 'warpkeep-ptr',
     moduleIdentity: 'warpkeep-ptr-owner-view-v1',
     moduleSourceCommit: PREPARATION_COMMIT,
+    atlasImportReceiptDigest: ptrAtlasImportReceipt().importReceiptDigest,
     ownerOpaqueProofDigest: PTR_OWNER_OPAQUE_PROOF_DIGEST,
     ownerAnchorRows: 1,
     ownerProvisioned: true,
@@ -1430,7 +1528,7 @@ describe('sealed 0.4.0 activation binding generator', () => {
 
   it('rejects invalid UTF-8, oversized, hard-linked, or non-regular input', () => {
     const invalidUtf8 = inputDescriptor(new Uint8Array([0xc3, 0x28]));
-    const oversized = inputDescriptor(new Uint8Array((32 * 1_024) + 1));
+    const oversized = inputDescriptor(new Uint8Array((1 * 1_024 * 1_024) + 1));
     const hardLinkDirectory = mkdtempSync(join(
       tmpdir(),
       'warpkeep-sealed-activation-hardlink-',
@@ -1580,6 +1678,10 @@ describe('sealed 0.4.0 activation binding generator', () => {
       'abcdef0123456789'.repeat(4);
     redigestOwner(forgedOwnerLink.ptrOwnerProvisionReceipt);
 
+    const swappedOwnerImport = evidenceEnvelope();
+    swappedOwnerImport.ptrOwnerProvisionReceipt.atlasImportReceiptDigest = '9'.repeat(64);
+    redigestOwner(swappedOwnerImport.ptrOwnerProvisionReceipt);
+
     const openedAdmissionSurface = evidenceEnvelope();
     openedAdmissionSurface.ptrPublishReceipt.admissionSurfacePresent = true;
     openedAdmissionSurface.ptrSealedLiveReceipt.admissionSurfacePresent = true;
@@ -1596,6 +1698,7 @@ describe('sealed 0.4.0 activation binding generator', () => {
       populated,
       disabledOwner,
       forgedOwnerLink,
+      swappedOwnerImport,
       openedAdmissionSurface,
       privacyUnsafe,
     ]) {

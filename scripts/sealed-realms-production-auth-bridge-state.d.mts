@@ -1,4 +1,5 @@
 import type { SealedRealmsProductionPrivateState } from './sealed-realms-production-private-state.mjs';
+import type { SealedRealmsProductionActivationRecords } from './sealed-realms-production-activation-records.mjs';
 import type { SealedRealmsProductionSourceAuthority } from './sealed-realms-production-source-authority.mjs';
 import type {
   SealedRealmsProductionContinuationClaim,
@@ -205,9 +206,9 @@ export type SealedRealmsProductionAuthBridgeState = Readonly<{
   reopenActivationEvidenceContinuation: () => Promise<
     SealedRealmsProductionBridgeContinuationBinding
   >;
-  consumeActivationEvidenceForContinuation: (input: SealedRealmsProductionBridgeContinuationClaim & Readonly<{
-    generator: SealedRealmsProductionActivationEvidenceGenerator;
-  }>) => Promise<Readonly<Record<never, never>>>;
+  consumeActivationEvidenceForContinuation: (
+    input: SealedRealmsProductionBridgeContinuationClaim,
+  ) => Promise<Readonly<Record<never, never>>>;
 }>;
 
 export function createSealedRealmsProductionAuthBridgeState(options: Readonly<{
@@ -234,6 +235,8 @@ export function createSealedRealmsProductionAuthBridgeState(options: Readonly<{
   resolveOwnerProvisionReceipt: (context: Readonly<SealedRealmsBridgeAuthorityContext & {
     receiptDigest: string;
   }>) => SealedRealmsOwnerProvisionReceipt | Promise<SealedRealmsOwnerProvisionReceipt>;
+  /** Internal fixed-record capability assembled only by a workflow entry. */
+  activationRecords?: SealedRealmsProductionActivationRecords;
   /** Test-only deterministic clock; requires testOnlyCapability. */
   now?: () => Date;
   /** Test-only deterministic randomness; requires testOnlyCapability. */

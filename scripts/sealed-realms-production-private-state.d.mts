@@ -12,6 +12,11 @@ export type SealedRealmsProductionPrivateState = Readonly<{
     relativePath: string;
     bytes: Uint8Array;
   }>) => Readonly<{ byteLength: number }>;
+  /** Writes once and exposes the reopened FD only to one synchronous callback. */
+  writeCanonicalNoClobberAndConsumeDescriptor: (input: Readonly<{
+    bytes: Uint8Array;
+    consume: (descriptor: number) => undefined;
+  }>) => Readonly<Record<never, never>>;
   read: (input: Readonly<{
     root: 'audit' | 'runtime' | 'cache';
     relativePath: string;
