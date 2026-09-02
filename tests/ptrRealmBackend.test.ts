@@ -9,7 +9,7 @@ import {
   rmSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
+import { isAbsolute, join, relative } from 'node:path';
 import { test } from 'vitest';
 
 import {
@@ -61,6 +61,8 @@ const EMPTY_POPULATION: PtrPopulationSnapshot = Object.freeze({
   activationRows: 0n,
   workerSystemRows: 0n,
 });
+
+const SPACETIME_BIN = process.env.SPACETIME_BIN ?? 'spacetime';
 
 function generatedSources(root: string): Readonly<Record<string, string>> {
   const result: Record<string, string> = {};
@@ -261,7 +263,7 @@ test('generated public PTR bindings expose no tables and only the approved calls
   const checkedInPath = join(modulePath, 'generated-bindings');
   const generatedPath = mkdtempSync(join(tmpdir(), 'warpkeep-ptr-bindings-'));
   try {
-    execFileSync('spacetime', [
+    execFileSync(SPACETIME_BIN, [
       'generate',
       '--lang', 'typescript',
       '--out-dir', generatedPath,
@@ -325,7 +327,7 @@ test('generated atlas writer ABI binds every phase to the PTR release target', a
 
 test('compiled PTR payload contains no shared production graph or forbidden policy family', () => {
   const modulePath = join(process.cwd(), 'spacetimedb', 'ptr');
-  execFileSync('spacetime', ['build', '--module-path', modulePath], {
+  execFileSync(SPACETIME_BIN, ['build', '--module-path', modulePath], {
     cwd: process.cwd(),
     encoding: 'utf8',
     stdio: 'pipe',
@@ -333,7 +335,11 @@ test('compiled PTR payload contains no shared production graph or forbidden poli
   const bundle = readFileSync(join(modulePath, 'dist', 'bundle.js'), 'utf8');
   const sourceSections = [...bundle.matchAll(
     /^\/\/#region (.+)$/gmu,
-  )].map(match => match[1]);
+  )].map(match => {
+    const label = match[1];
+    return (isAbsolute(label) ? relative(modulePath, label) : label)
+      .replaceAll('\\', '/');
+  });
   assert.deepEqual(sourceSections, [
     '../node_modules/.pnpm/headers-polyfill@4.0.3/node_modules/headers-polyfill/lib/index.mjs',
     '../node_modules/.pnpm/spacetimedb@2.6.1/node_modules/spacetimedb/dist/server/index.mjs',
