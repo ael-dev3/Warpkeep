@@ -1859,6 +1859,13 @@ function contractExactRawIdentifierOccurrences(
   if (source.split(identifier).length !== expectedOccurrences + 1) fail(code);
 }
 
+function contractPtrOwnerPolicyLexicalFence(source, code) {
+  if (
+    source.includes('\\')
+    || /(?:^|[^A-Za-z0-9_$])eval(?:$|[^A-Za-z0-9_$])/u.test(source)
+  ) fail(code);
+}
+
 function contractPtrReaderBinding(
   source,
   readerName,
@@ -1988,6 +1995,7 @@ export function verifyPtrOwnerAuthoritySemantics(sources) {
     'genesis002PublisherCliSource',
   ];
   if (requiredSources.some(key => typeof sources[key] !== 'string')) fail(code);
+  contractPtrOwnerPolicyLexicalFence(sources.ptrOwnerPolicySource, code);
 
   for (const [source, token] of [
     [sources.authBridgeTypesSource, 'export type PtrAtlasAdminTokenClaims ='],

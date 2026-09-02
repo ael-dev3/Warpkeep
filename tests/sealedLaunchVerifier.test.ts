@@ -1388,6 +1388,62 @@ describe('0.4.0 sealed-launch verifier', () => {
       .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
   });
 
+  it.each([
+    {
+      name: 'strict owner parser',
+      statement: [
+        'strictPtrOwner\\u0052ecord = (',
+        '  (payload: unknown): JsonRecord => payload as JsonRecord',
+        ');',
+      ].join('\n'),
+    },
+    {
+      name: 'database-identity validator',
+      statement: [
+        'parsePtrDatabaseIdentity\\u0043laim = (',
+        '  (value: unknown): string => String(value)',
+        ');',
+      ].join('\n'),
+    },
+    {
+      name: 'database-identity pattern test',
+      statement: 'PTR_DATABASE\\u005fIDENTITY.test = (() => true);',
+    },
+  ] as const)(
+    'rejects a Unicode-escaped policy rebind: $name',
+    ({ statement }) => {
+      const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
+      const checkedIn = checkedInSources();
+      const hostile = { ...checkedIn };
+      hostile.ptrOwnerPolicySource = [
+        hostile.ptrOwnerPolicySource,
+        statement,
+        '',
+      ].join('\n');
+      expect(hostile.ptrOwnerPolicySource).not.toBe(
+        checkedIn.ptrOwnerPolicySource,
+      );
+      expect(() => verify(hostile))
+        .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+    },
+  );
+
+  it('rejects a constructed direct-eval policy rebind', () => {
+    const verify = sealedLaunchVerifierModule.verifyPtrOwnerAuthoritySemantics;
+    const checkedIn = checkedInSources();
+    const hostile = { ...checkedIn };
+    hostile.ptrOwnerPolicySource = [
+      hostile.ptrOwnerPolicySource,
+      "eval('strictPtrOwner' + 'Record = ((payload) => payload);');",
+      '',
+    ].join('\n');
+    expect(hostile.ptrOwnerPolicySource).not.toBe(
+      checkedIn.ptrOwnerPolicySource,
+    );
+    expect(() => verify(hostile))
+      .toThrow('SEALED_LAUNCH_PTR_OWNER_AUTHORITY_INVALID');
+  });
+
   it('semantically rejects PTR admin token-type drift independently of source pins', () => {
     const verifyPtrOwnerAuthoritySemantics = (
       sealedLaunchVerifierModule as unknown as {
