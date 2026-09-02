@@ -595,6 +595,10 @@ export function createSealedRealmsProductionPrivateState(input) {
       try {
         result = input.consume(reader);
         if (result !== undefined && typeof result?.then === 'function') {
+          // Reject the asynchronous boundary immediately, but first observe a
+          // rejecting thenable so it cannot escape as an unhandled rejection
+          // after the owner-private FD has been closed.
+          void Promise.resolve(result).catch(() => undefined);
           fail('SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_ASYNC_CONSUME');
         }
         if (result !== undefined) fail('SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_CONSUME_INVALID');

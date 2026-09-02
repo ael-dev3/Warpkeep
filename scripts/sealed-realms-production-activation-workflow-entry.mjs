@@ -5,9 +5,6 @@ import {
   createSealedRealmsProductionAuthBridgeState,
 } from './sealed-realms-production-auth-bridge-state.mjs';
 import {
-  createSealedRealmsProductionActivationRecords,
-} from './sealed-realms-production-activation-records.mjs';
-import {
   createSealedRealmsProductionActivationDispatchContext,
   createSealedRealmsProductionActivationDispatcher,
   createSealedRealmsProductionActivationLane,
@@ -172,11 +169,6 @@ async function buildDispatcher(operation, workflowInputSha) {
     fetchImpl: globalThis.fetch,
   });
   const privateState = resolveSealedRealmsProductionWorkflowPrivateState();
-  const activationRecords = createSealedRealmsProductionActivationRecords({
-    privateState,
-    authority,
-    readBindingCandidate,
-  });
   const continuationStore = createSealedRealmsProductionContinuationStore({ privateState });
   const bridgeState = createSealedRealmsProductionAuthBridgeState({
     authority,
@@ -188,7 +180,6 @@ async function buildDispatcher(operation, workflowInputSha) {
     inspectImportReceipt: unavailable,
     authenticateImportResult: unavailable,
     resolveOwnerProvisionReceipt: unavailable,
-    activationRecords,
   });
   const lane = createSealedRealmsProductionActivationLane({ bridgeState });
   const context = createSealedRealmsProductionActivationDispatchContext({

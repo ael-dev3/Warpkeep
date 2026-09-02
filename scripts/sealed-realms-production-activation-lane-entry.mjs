@@ -7,7 +7,6 @@ import {
 } from './sealed-realms-production-source-authority.mjs';
 import {
   assertSealedRealmsProductionContinuationStore,
-  claimSealedRealmsProductionContinuation,
   issueSealedRealmsProductionContinuation,
 } from './sealed-realms-production-continuation.mjs';
 import {
@@ -188,7 +187,11 @@ function continuationInput(continuation, authority, binding) {
   });
 }
 
-/** Holds the fixed continuation-gated activation evidence transition. */
+/**
+ * Holds the Task 6D private activation evidence boundary. Generation remains
+ * unavailable until separately reviewed capture and activation work supplies
+ * its canonical receipt and reconciliation.
+ */
 export function createSealedRealmsProductionActivationLane(input = {}) {
   if (
     isProxy(input) || input === null || typeof input !== 'object' || Array.isArray(input)
@@ -215,15 +218,7 @@ export function createSealedRealmsProductionActivationLane(input = {}) {
     assertSealedRealmsProductionAuthBridgeStateAuthority(state, authority);
     if (authority.mode !== 'S') fail('SEALED_REALMS_ACTIVATION_LANE_SOURCE_MODE_INVALID');
     if (operation === 'activation-evidence-generate') {
-      const binding = await state.reopenActivationEvidenceContinuation();
-      await claimSealedRealmsProductionContinuation({
-        ...continuationInput(continuation, authority, binding),
-        effect: claim => state.consumeActivationEvidenceForContinuation({
-          ...continuationInput(continuation, authority, binding),
-          claim,
-        }),
-      });
-      return Object.freeze({ status: 'completed' });
+      fail('SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE');
     }
     const binding = await state.inspectActivationEvidenceForContinuation();
     await issueSealedRealmsProductionContinuation(
@@ -271,12 +266,7 @@ export function createSealedRealmsProductionActivationDispatcher(input) {
       if (preparedMember === undefined) {
         throw new SealedRealmsProductionDispatcherError('SEALED_REALMS_DISPATCH_REQUEST_INVALID');
       }
-      // Task 5's shared dispatcher remains unchanged and retains its global
-      // fail-closed pre-Task-6 result. This lane-local composition is the only
-      // place authorized to replace the activation generation branch.
-      const early = preparedMember.operation === 'activation-evidence-generate'
-        ? undefined
-        : earlySealedRealmsProductionDispatchResult(preparedMember.operation);
+      const early = earlySealedRealmsProductionDispatchResult(preparedMember.operation);
       if (early !== undefined) {
         consumePrepared(prepared);
         return early;

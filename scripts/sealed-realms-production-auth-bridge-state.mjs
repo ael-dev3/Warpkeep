@@ -18,13 +18,6 @@ import {
 import {
   assertSealedRealmsProductionContinuationClaim,
 } from './sealed-realms-production-continuation.mjs';
-import {
-  assertSealedRealmsProductionActivationRecords,
-  writeSealedRealmsProductionActivationDescriptor,
-} from './sealed-realms-production-activation-records.mjs';
-import {
-  generateSealedLaunchActivationBindingFromDescriptor,
-} from './generate-0.4.0-sealed-launch-activation.mjs';
 
 export const SEALED_REALMS_AUTH_BRIDGE_AUTHORITY_PROFILE =
   'warpkeep-sealed-realms-auth-bridge-import-authority-v1';
@@ -805,7 +798,7 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     'authority', 'privateState', 'repositoryRoot', 'reportedHome',
     'deploymentAttester', 'bindingAttester', 'fetchImpl', 'now', 'randomBytesImpl',
     'inspectImportReceipt', 'authenticateImportResult', 'resolveOwnerProvisionReceipt',
-    'activationRecords', 'testOnlyCapability', 'testOnlyResolvePreparedReceipt',
+    'testOnlyCapability', 'testOnlyResolvePreparedReceipt',
     'testOnlyResolveCompletedJournal',
   ], 'SEALED_REALMS_AUTH_BRIDGE_STATE_INPUT_INVALID');
   if (
@@ -823,12 +816,6 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
     || (options.testOnlyResolveCompletedJournal !== undefined
       && typeof options.testOnlyResolveCompletedJournal !== 'function')
   ) fail('SEALED_REALMS_AUTH_BRIDGE_STATE_INPUT_INVALID');
-  let activationRecords;
-  if (options.activationRecords !== undefined) {
-    try { activationRecords = assertSealedRealmsProductionActivationRecords(options.activationRecords); } catch {
-      fail('SEALED_REALMS_AUTH_BRIDGE_STATE_INPUT_INVALID');
-    }
-  }
   const testOnlyResolvers = options.testOnlyResolvePreparedReceipt !== undefined
     || options.testOnlyResolveCompletedJournal !== undefined;
   const testOnlySeams = testOnlyResolvers
@@ -2187,64 +2174,8 @@ export function createSealedRealmsProductionAuthBridgeState(input) {
   );
 
   const consumeActivationEvidenceForContinuation = async (input = {}) => {
-    exactObject(input, [
-      'claim', 'store', 'sourceAuthority', 'kind', 'runId', 'runAttempt',
-      'subject', 'evidenceDigest', 'receiptDigests', 'predecessorDigests',
-    ], 'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
-    requireContinuationClaim(
-      input,
-      'activation-evidence',
-      'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID',
-    );
-    const reopened = await reopenActivationContinuationMember();
-    const expected = activationContinuationBinding(reopened);
-    if (
-      input.subject !== expected.subject
-      || input.evidenceDigest !== expected.evidenceDigest
-      || JSON.stringify(input.receiptDigests) !== JSON.stringify(expected.receiptDigests)
-      || JSON.stringify(input.predecessorDigests) !== JSON.stringify(expected.predecessorDigests)
-    ) fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_CONFIRMATION_INVALID');
-    if (activationRecords === undefined) {
-      fail('SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_RECORDS_UNAVAILABLE');
-    }
-
-    // The receipt is reauthenticated and minted into an opaque projection only
-    // after the continuation claim is live.  The local confirmation never
-    // crosses the state boundary and cannot be replayed by a caller.
-    const confirmation = Object.freeze({});
-    activationConfirmations.set(confirmation, reopened);
-    const activationEvidenceMember = await consumeActivationEvidenceConfirmation(confirmation);
-    let binding;
-    try {
-      writeSealedRealmsProductionActivationDescriptor({
-        records: activationRecords,
-        consumeDescriptor: descriptor => {
-          binding = generateSealedLaunchActivationBindingFromDescriptor(
-            descriptor,
-            undefined,
-            activationEvidenceMember,
-          );
-          return undefined;
-        },
-      });
-      const bytes = canonicalJsonBytes(
-        binding,
-        64 * 1_024,
-        'SEALED_REALMS_AUTH_BRIDGE_ACTIVATION_BINDING_INVALID',
-      );
-      try {
-        privateState.write({
-          root: 'runtime',
-          relativePath: 'public/0.4.0-sealed-launch.json',
-          bytes,
-        });
-      } finally { bytes.fill(0); }
-    } finally {
-      // A bridge projection is one descriptor callback only, regardless of
-      // generator/write success. It carries no restartable authority.
-      activationEvidenceMembers.delete(activationEvidenceMember);
-    }
-    return Object.freeze({});
+    void input;
+    fail('SEALED_REALMS_TASK_6E_AUTHORITY_UNAVAILABLE');
   };
 
   const state = Object.freeze({

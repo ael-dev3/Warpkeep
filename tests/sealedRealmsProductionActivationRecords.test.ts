@@ -16,8 +16,33 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { join, resolve } from 'node:path';
+import { setImmediate } from 'node:timers';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../scripts/genesis001-sealed-launch-adoption.mjs', async () => {
+  const actual = await vi.importActual<typeof import(
+    '../scripts/genesis001-sealed-launch-adoption.mjs'
+  )>('../scripts/genesis001-sealed-launch-adoption.mjs');
+  return {
+    ...actual,
+    deriveGenesis001SealedLaunchEvidence: (value: {
+      freezePublishReceipt: {
+        receiptBasename: string;
+        receiptSha256: string;
+        receipt: { protectedMainCommit: string };
+      };
+    }) => actual.deriveGenesis001SealedLaunchEvidenceForTesting(
+      value,
+      {
+        freezePublishSourceCommit: value.freezePublishReceipt.receipt.protectedMainCommit,
+        freezePublishReceiptBasename: value.freezePublishReceipt.receiptBasename,
+        freezePublishReceiptDigest: value.freezePublishReceipt.receiptSha256,
+      },
+      new Date('2026-08-28T12:02:00.000Z'),
+    ),
+  };
+});
 
 import {
   GENESIS_001_ADMITTED_PLAYER_CENSUS_NORMALIZED_SET_DOMAIN,
@@ -26,10 +51,22 @@ import {
 } from '../scripts/genesis001-admitted-player-census.mjs';
 import {
   genesis001CensusOpaqueProofDigest,
+  genesis001AdmissionMonitorCurrentStateReceiptDigest,
+  genesis001FreezePublishReceiptDigest,
+  genesis001MonitorSuspensionReceiptDigest,
+  genesis001PolicyReceiptDigest,
 } from '../scripts/genesis001-sealed-launch-adoption.mjs';
 import {
   ptrOwnerProvisionReceiptDigest,
+  ptrProductionAtlasImportReceiptDigest,
+  ptrProductionPublishReceiptDigest,
+  ptrSealedLiveReceiptDigest,
 } from '../scripts/generate-0.4.0-sealed-launch-activation.mjs';
+import {
+  genesis002ProductionImportReceiptDigest,
+  genesis002PublishReceiptDigest,
+  genesis002SealedLiveReceiptDigest,
+} from '../scripts/genesis002-activation-receipts.mjs';
 import {
   createSealedRealmsProductionPrivateState,
 } from '../scripts/sealed-realms-production-private-state.mjs';
@@ -48,6 +85,714 @@ const FIXED_DESCRIPTOR_RELATIVE_PATH =
 const G001_DATABASE_IDENTITY =
   'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
 const G001_MAXIMUM_ROWS = 4_096;
+const FIXTURE_SOURCE_COMMIT = 'a'.repeat(40);
+const FIXTURE_G001_FREEZE_SOURCE_COMMIT =
+  'd945256b217fa13ade944b9ed9880e8463b46123';
+const FIXTURE_G001_BASELINE = '2ae51984e1fa6ce5b0028c1a250359fed79d819b';
+const FIXTURE_G001_BASELINE_ABI =
+  'cb7d69d2bed316702ffa1aa8696a4e1ca1934a775b8312129b305a9c33eb0e03';
+const FIXTURE_G001_FREEZE_NONCE =
+  '3f158f17acd5e1e63c74befef7cb3ccab7cb07feaaed432e7483467e1c856f00';
+const FIXTURE_G002_DATABASE = 'd'.repeat(64);
+const FIXTURE_G002_MODULE_SHA = 'b'.repeat(64);
+const FIXTURE_G002_TREE = 'c'.repeat(40);
+const FIXTURE_G002_DEPENDENCY = 'e'.repeat(64);
+const FIXTURE_G002_SPACETIME = 'f'.repeat(64);
+const FIXTURE_G002_CLI = '0'.repeat(64);
+const FIXTURE_G002_FRESH_STATUS = '1'.repeat(64);
+const FIXTURE_G002_RELEASE = `GRR-${'A'.repeat(26)}`;
+const FIXTURE_PTR_DATABASE = '9'.repeat(64);
+const FIXTURE_PTR_MODULE_SHA = 'a'.repeat(64);
+const FIXTURE_PTR_TREE = 'b'.repeat(40);
+const FIXTURE_PTR_DEPENDENCY = 'c'.repeat(64);
+const FIXTURE_PTR_SPACETIME = 'd'.repeat(64);
+const FIXTURE_PTR_CLI = 'e'.repeat(64);
+const FIXTURE_PTR_FRESH_STATUS = 'f'.repeat(64);
+const FIXTURE_PTR_RELEASE = `GRR-${'B'.repeat(26)}`;
+const ACTIVATION_RECORD_NAMES = Object.freeze({
+  g001FreezePublishReceipt: 'g001-freeze-publish-receipt.json',
+  g001PolicyObservationBootstrapReceipt: 'g001-policy-observation-bootstrap-receipt.json',
+  g001CensusPrivacySafePrivateReceipt: 'g001-census-privacy-safe-private-receipt.json',
+  g001AdmittedPlayerCensusPrivateReceipt: 'g001-admitted-player-census-private-receipt.json',
+  g001AdmissionMonitorSuspensionReceipt: 'g001-admission-monitor-suspension-receipt.json',
+  g001AdmissionMonitorCurrentStateReceipt: 'g001-admission-monitor-current-state-receipt.json',
+  g002PublishReceipt: 'g002-publish-receipt.json',
+  g002AtlasImportReceipt: 'g002-atlas-import-receipt.json',
+  g002SealedLiveReceipt: 'g002-sealed-live-receipt.json',
+  ptrPublishReceipt: 'ptr-publish-receipt.json',
+  ptrAtlasImportReceipt: 'ptr-atlas-import-receipt.json',
+  ptrOwnerProvisionReceipt: 'ptr-owner-provision-receipt.json',
+  ptrSealedLiveReceipt: 'ptr-sealed-live-receipt.json',
+});
+const ACTIVATION_RECORD_OPERATIONS = Object.freeze({
+  g001FreezePublishReceipt: 'g001-policy-observe',
+  g001PolicyObservationBootstrapReceipt: 'g001-policy-observe',
+  g001CensusPrivacySafePrivateReceipt: 'g001-census-second-inspect',
+  g001AdmittedPlayerCensusPrivateReceipt: 'g001-census-second-inspect',
+  g001AdmissionMonitorSuspensionReceipt: 'g001-census-second-suspend',
+  g001AdmissionMonitorCurrentStateReceipt: 'g001-current-state',
+  g002PublishReceipt: 'g002-publish-apply',
+  g002AtlasImportReceipt: 'g002-import-apply',
+  g002SealedLiveReceipt: 'g002-live-inspect',
+  ptrPublishReceipt: 'ptr-publish-apply',
+  ptrAtlasImportReceipt: 'ptr-import-apply',
+  ptrOwnerProvisionReceipt: 'ptr-owner-provision',
+  ptrSealedLiveReceipt: 'ptr-live-inspect',
+});
+
+function fullSortedCanonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(fullSortedCanonical);
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => [key, fullSortedCanonical(item)]));
+  }
+  return value;
+}
+
+function fullDescriptorDigest(value: unknown): string {
+  return createHash('sha256')
+    .update(JSON.stringify(fullSortedCanonical(value)))
+    .digest('hex');
+}
+
+function fullPtrDigest(domain: string, value: unknown): string {
+  return createHash('sha256')
+    .update(`${domain}\n`)
+    .update(`${JSON.stringify(value)}\n`)
+    .digest('hex');
+}
+
+function fullG001Policy() {
+  return {
+    realmId: 'GENESIS_001',
+    releaseVersion: '0.3.43',
+    playerAccessEnabled: true,
+    admissionStateMutationsEnabled: false,
+    accessRequestSubmissionsEnabled: false,
+    sourceBaselineCommit: FIXTURE_G001_BASELINE,
+    freezeReleaseNonce: FIXTURE_G001_FREEZE_NONCE,
+  };
+}
+
+function fullG001BuildProvenance() {
+  return {
+    schemaVersion: 2,
+    profile: 'warpkeep-genesis-001-frozen-build-provenance-v2',
+    platform: 'darwin',
+    architecture: 'arm64',
+    nodeVersion: 'v24.19.0',
+    nodeExecutableSha256:
+      '27db838bb204ef7c21df2931f5656e4c8fb32e6e947f363a402b49714d32b5b1',
+    spacetimeCliVersion: '2.6.1',
+    spacetimeCliCommit: '052c83fe984a4c4eb7bb4f9afa5c6b1903891d87',
+    spacetimeCliExecutableSha256:
+      '2e737ddbbd7d337bb19c8fc22da9de44be4b7b2062146e7f65aa3f298d7994d6',
+    spacetimeStandaloneExecutableSha256:
+      '15a0965f1deec6b79f67fc04b616fd1a6b8f633301b0cfd2ebb7f961b919a8fa',
+    dependencyInstallerProfile:
+      'warpkeep-genesis-001-historical-root-dependency-closure-v1',
+    dependencyLockfileSha256:
+      '7bbf5d888143d6342219dbba9f501d15bcc9627a7bb6f2be07ea197760d4e234',
+    lockedPackageCount: 16,
+    dependencyArchiveClosureSha256: '1'.repeat(64),
+    dependencyClosureSha256: '2'.repeat(64),
+    dependencyTreeEntryCount: 128,
+  };
+}
+
+function fullG001FreezeReceipt() {
+  const livePolicyReceipt = fullG001Policy();
+  const buildProvenance = fullG001BuildProvenance();
+  return {
+    schemaVersion: 2,
+    profile: 'warpkeep-genesis-001-freeze-publish-final-receipt-v2',
+    outcome: 'published',
+    target: {
+      uri: 'https://maincloud.spacetimedb.com',
+      database: G001_DATABASE_IDENTITY,
+    },
+    protectedMainCommit: FIXTURE_G001_FREEZE_SOURCE_COMMIT,
+    sourceBaselineCommit: FIXTURE_G001_BASELINE,
+    baselineAbiSha256: FIXTURE_G001_BASELINE_ABI,
+    freezeReleaseNonce: FIXTURE_G001_FREEZE_NONCE,
+    artifactSha256: '3'.repeat(64),
+    candidateDescriptorSha256: '4'.repeat(64),
+    postflightDescriptorSha256: '4'.repeat(64),
+    buildProvenance,
+    buildProvenanceSha256: fullDescriptorDigest(buildProvenance),
+    livePolicyReceipt,
+    livePolicyReceiptSha256: genesis001PolicyReceiptDigest(livePolicyReceipt),
+  };
+}
+
+function fullG001PolicyObservation() {
+  const policy = fullG001Policy();
+  return {
+    schemaVersion: 1,
+    profile: 'warpkeep-genesis-001-live-policy-observation-v1',
+    sourceCommit: FIXTURE_SOURCE_COMMIT,
+    observedAt: '2026-08-28T12:00:00.000Z',
+    databaseIdentity: G001_DATABASE_IDENTITY,
+    procedure: 'genesis_001_access_policy_v1',
+    mutationSubmitted: false,
+    policy,
+    policyReceiptDigest: genesis001PolicyReceiptDigest(policy),
+  };
+}
+
+function fullLengthFramed(hash: ReturnType<typeof createHash>, label: string, value: string) {
+  const labelBytes = Buffer.from(label, 'utf8');
+  const valueBytes = Buffer.from(value, 'utf8');
+  const length = Buffer.alloc(8);
+  length.writeBigUInt64BE(BigInt(labelBytes.length));
+  hash.update(length).update(labelBytes);
+  length.writeBigUInt64BE(BigInt(valueBytes.length));
+  hash.update(length).update(valueBytes);
+}
+
+function fullG001PolicyBootstrapReceipt() {
+  const receipt = {
+    profile: 'warpkeep-greater-realm-production-bootstrap-v1',
+    protectedCommit: FIXTURE_SOURCE_COMMIT,
+    moduleTreeId: '1'.repeat(40),
+    bootstrapBlob: '2'.repeat(40),
+    bootstrapSha256:
+      'be9efaf1ecad13c2cd94bfb457353b8946f12b3304f47b34e8b9422041712c1a',
+    moduleArchiveCount: 16,
+    command: 'g001-policy-observe',
+    launchCleanup: {
+      outcome: 'cleaned',
+      runId: `run-${'4'.repeat(32)}`,
+      cleanupConfirmationSha256: '5'.repeat(64),
+      treeInventorySha256: '6'.repeat(64),
+    },
+    policyObservationReceipt: fullG001PolicyObservation(),
+    policyObservationReceiptLinkSha256: '',
+  };
+  const hash = createHash('sha256');
+  fullLengthFramed(hash, 'domain', 'warpkeep-production-g001-policy-observation-bootstrap-link-v1');
+  fullLengthFramed(hash, 'protectedCommit', receipt.protectedCommit);
+  fullLengthFramed(hash, 'moduleTreeId', receipt.moduleTreeId);
+  fullLengthFramed(hash, 'bootstrapBlob', receipt.bootstrapBlob);
+  fullLengthFramed(hash, 'bootstrapSha256', receipt.bootstrapSha256);
+  fullLengthFramed(hash, 'command', receipt.command);
+  fullLengthFramed(hash, 'launchCleanup', `${JSON.stringify(fullSortedCanonical(receipt.launchCleanup))}\n`);
+  fullLengthFramed(hash, 'policyObservationReceipt', `${JSON.stringify(receipt.policyObservationReceipt)}\n`);
+  receipt.policyObservationReceiptLinkSha256 = hash.digest('hex');
+  return receipt;
+}
+
+function fullG001CensusReceipt(stamp = '20260828T120000Z', nonceHex = '7'.repeat(64)) {
+  const receipt = {
+    schemaVersion: 1,
+    profile: 'warpkeep-genesis-001-census-export-private-proof-v1',
+    realmId: 'GENESIS_001',
+    releaseVersion: '0.3.43',
+    sourceCommit: FIXTURE_SOURCE_COMMIT,
+    privateCensusReference: {
+      count: 1,
+      pathBasename: `warpkeep-access-request-census-${stamp}.txt`,
+      sha256: '89'.repeat(32),
+      size: 128,
+    },
+    privateBlindingNonceHex: nonceHex,
+  };
+  return { ...receipt, opaqueProofDigest: genesis001CensusOpaqueProofDigest(receipt) };
+}
+
+function fullG001AdmittedPlayerReceipt(observedAt: string, nonceHex: string) {
+  const entries = [{ fid: '4242', authEpoch: '7' }];
+  const normalizedSetDigest = createHash('sha256')
+    .update(GENESIS_001_ADMITTED_PLAYER_CENSUS_NORMALIZED_SET_DOMAIN)
+    .update(`${JSON.stringify(entries[0])}\n`)
+    .digest('hex');
+  const proof = {
+    schemaVersion: 1,
+    profile: 'warpkeep-genesis-001-admitted-player-census-private-proof-v1',
+    realmId: 'GENESIS_001',
+    releaseVersion: '0.3.43',
+    databaseIdentity: G001_DATABASE_IDENTITY,
+    preparationSourceCommit: FIXTURE_SOURCE_COMMIT,
+    observedAt,
+    collectionMethod: 'preferred-exact-query',
+    beforeAggregate: { allowedFids: '1', enabledAllowedFids: '1' },
+    afterAggregate: { allowedFids: '1', enabledAllowedFids: '1' },
+    admittedPlayerCount: '1',
+    entries,
+    normalizedSetDigest,
+    rawEvidenceDigest: createHash('sha256')
+      .update(GENESIS_001_ADMITTED_PLAYER_CENSUS_RAW_EVIDENCE_DOMAIN)
+      .update(`fixture-${observedAt}`)
+      .digest('hex'),
+    nonceHex,
+  };
+  return {
+    ...proof,
+    opaqueProofDigest: createHash('sha256')
+      .update(GENESIS_001_ADMITTED_PLAYER_CENSUS_OPAQUE_PROOF_DOMAIN)
+      .update(`${JSON.stringify(proof)}\n`)
+      .digest('hex'),
+  };
+}
+
+function fullG001CensusActivationReceipt() {
+  const applicant = {
+    first: fullG001CensusReceipt(),
+    second: fullG001CensusReceipt('20260828T120100Z', '8'.repeat(64)),
+  };
+  const admitted = {
+    first: fullG001AdmittedPlayerReceipt('2026-08-28T12:00:00.000Z', '1'.repeat(64)),
+    second: fullG001AdmittedPlayerReceipt('2026-08-28T12:01:00.000Z', '2'.repeat(64)),
+  };
+  const recordDigest = (record: object) => sha256(`${JSON.stringify(record)}\n`);
+  const joint = (applicantReceipt: typeof applicant.first, admittedReceipt: typeof admitted.first) => {
+    const record = {
+      schemaVersion: 1,
+      profile: 'warpkeep-sealed-realms-g001-census-private-v1',
+      sourceCommit: FIXTURE_SOURCE_COMMIT,
+      applicant: applicantReceipt,
+      admitted: admittedReceipt,
+      observedAt: admittedReceipt.observedAt,
+    };
+    return { recordDigest: recordDigest(record), record };
+  };
+  const first = joint(applicant.first, admitted.first);
+  const second = joint(applicant.second, admitted.second);
+  const expiresAt = '2026-08-28T12:06:00.000Z';
+  const confirmationDigest = sha256([
+    'warpkeep.sealed-realms.g001-census-confirmation.v1', FIXTURE_SOURCE_COMMIT,
+    first.recordDigest, second.recordDigest, expiresAt,
+  ].join('\n'));
+  const confirmation = {
+    schemaVersion: 1,
+    profile: 'warpkeep-sealed-realms-g001-census-private-v1',
+    sourceCommit: FIXTURE_SOURCE_COMMIT,
+    firstDigest: first.recordDigest,
+    secondDigest: second.recordDigest,
+    secondObservedAt: second.record.observedAt,
+    expiresAt,
+    confirmationDigest,
+  };
+  const consumed = {
+    schemaVersion: 1,
+    profile: 'warpkeep-sealed-realms-g001-census-private-v1',
+    sourceCommit: FIXTURE_SOURCE_COMMIT,
+    firstDigest: first.recordDigest,
+    secondDigest: second.recordDigest,
+    confirmationDigest,
+    consumedAt: second.record.observedAt,
+  };
+  return {
+    schemaVersion: 1,
+    profile: 'warpkeep-sealed-realms-g001-census-activation-private-v1',
+    first,
+    second,
+    confirmation: { recordDigest: recordDigest(confirmation), record: confirmation },
+    consumed: { recordDigest: recordDigest(consumed), record: consumed },
+  };
+}
+
+function fullG001MonitorSuspensionReceipt() {
+  const receipt = {
+    disabled: true,
+    label: 'com.warpkeep.hermes-admission-monitor',
+    loaded: false,
+    monitorPlistSha256: 'a85b1eb4810ed798185f762044d3dac9d29ebee15a09b95bfb2ddbb6de71acaf',
+    monitorProgramSha256: '1479a2b5fff85d15f8c04175962dfb898023d14cf418e27b7c1332202cb56de6',
+    profile: 'warpkeep-genesis001-admission-monitor-suspension-v1',
+    realmId: 'GENESIS_001',
+    release: '0.3.43',
+    sourceCommit: FIXTURE_SOURCE_COMMIT,
+    suspendedAt: '2026-08-28T12:01:00.000Z',
+  };
+  const receiptSha256 = genesis001MonitorSuspensionReceiptDigest(receipt);
+  return {
+    receiptBasename:
+      `genesis001-admission-monitor-suspended-20260828T120100000Z-${receiptSha256.slice(0, 12)}.json`,
+    receiptSha256,
+    receipt,
+  };
+}
+
+function fullG001MonitorCurrentStateReceipt() {
+  return {
+    schemaVersion: 1,
+    profile: 'warpkeep-genesis001-admission-monitor-current-state-v1',
+    realmId: 'GENESIS_001',
+    release: '0.3.43',
+    sourceCommit: FIXTURE_SOURCE_COMMIT,
+    observedAt: '2026-08-28T12:01:30.000Z',
+    label: 'com.warpkeep.hermes-admission-monitor',
+    disabled: true,
+    loaded: false,
+    monitorPlistSha256: 'a85b1eb4810ed798185f762044d3dac9d29ebee15a09b95bfb2ddbb6de71acaf',
+    monitorProgramSha256: '1479a2b5fff85d15f8c04175962dfb898023d14cf418e27b7c1332202cb56de6',
+  };
+}
+
+function fullG002PublishReceipt() {
+  const receipt = {
+    schemaVersion: 1,
+    profile: 'warpkeep-genesis-002-production-publish-v1',
+    databaseIdentity: FIXTURE_G002_DATABASE,
+    database: 'warpkeep-genesis-002',
+    moduleIdentity: 'warpkeep-genesis-002-sealed-v1',
+    sourceCommit: FIXTURE_SOURCE_COMMIT,
+    moduleSha256: FIXTURE_G002_MODULE_SHA,
+    moduleTreeId: FIXTURE_G002_TREE,
+    dependencyClosureDigest: FIXTURE_G002_DEPENDENCY,
+    spacetimeExecutableSha256: FIXTURE_G002_SPACETIME,
+    spacetimeCliConfigSha256: FIXTURE_G002_CLI,
+    deleteData: 'never',
+    outcome: 'verified',
+    freshStatusDigest: FIXTURE_G002_FRESH_STATUS,
+    playerAccessEnabled: false,
+    admissionMutationsEnabled: false,
+    atlasImportMutationsEnabled: true,
+    atlasActivationMutationsEnabled: false,
+    playerPresentationEnabled: false,
+  };
+  return { ...receipt, publishReceiptDigest: genesis002PublishReceiptDigest(receipt) };
+}
+
+function fullG002ImportReceipt() {
+  const receipt = {
+    schemaVersion: 1,
+    profile: 'warpkeep.genesis-002.production-import.v1',
+    outcome: 'ready',
+    databaseIdentity: FIXTURE_G002_DATABASE,
+    moduleIdentity: 'warpkeep-genesis-002-sealed-v1',
+    moduleSourceCommit: FIXTURE_SOURCE_COMMIT,
+    moduleSha256: FIXTURE_G002_MODULE_SHA,
+    moduleTreeId: FIXTURE_G002_TREE,
+    dependencyClosureDigest: FIXTURE_G002_DEPENDENCY,
+    spacetimeExecutableSha256: FIXTURE_G002_SPACETIME,
+    atlasId: 'GENESIS_002_GREATER_REALM',
+    atlasSourceCommit: FIXTURE_SOURCE_COMMIT,
+    publicReleaseId: FIXTURE_G002_RELEASE,
+    expectedReleaseSha256: '5'.repeat(64),
+    verificationDigest: '7'.repeat(64),
+    importEpoch: '1',
+    operationsSubmitted: 16,
+    operationChainDigest: '8'.repeat(64),
+    zeroPopulationBoundary: true,
+    activationMutationsEnabled: false,
+    playerPresentationEnabled: false,
+    atlasWritesClosedByFinalization: true,
+  };
+  return { ...receipt, importReceiptDigest: genesis002ProductionImportReceiptDigest(receipt) };
+}
+
+function fullG002SealedLiveReceipt() {
+  return {
+    schemaVersion: 1,
+    profile: 'warpkeep-genesis-002-sealed-live-v1',
+    uri: 'https://maincloud.spacetimedb.com',
+    databaseIdentity: FIXTURE_G002_DATABASE,
+    databaseAlias: 'warpkeep-genesis-002',
+    moduleIdentity: 'warpkeep-genesis-002-sealed-v1',
+    moduleSourceCommit: FIXTURE_SOURCE_COMMIT,
+    moduleSha256: FIXTURE_G002_MODULE_SHA,
+    releaseVersion: '0.4.0',
+    realmId: 'GENESIS_002',
+    atlasSourceCommit: FIXTURE_SOURCE_COMMIT,
+    atlasId: 'GENESIS_002_GREATER_REALM',
+    publicReleaseId: FIXTURE_G002_RELEASE,
+    releaseSha256: '5'.repeat(64),
+    releaseHeaderSha256: '6'.repeat(64),
+    verificationDigest: '7'.repeat(64),
+    atlasState: 'ready',
+    atlasFinalized: true,
+    atlasImportsExact: true,
+    atlasImportSurfaceCompiled: true,
+    atlasWritesClosedByFinalization: true,
+    admissionsOpen: false,
+    accessRequestsOpen: false,
+    admittedPlayers: 0,
+    founders: 0,
+    allowedFids: 0,
+    accessRequests: 0,
+    playersV1: 0,
+    playersV2: 0,
+    ownershipBindings: 0,
+    castles: 0,
+    realmProfiles: 0,
+    termsAcceptances: 0,
+    markAccounts: 0,
+    resourceAccounts: 0,
+    claimRows: 0,
+    occupancyRows: 0,
+    activationRows: 0,
+    workerSystemRows: 0,
+    activationMutationsEnabled: false,
+    playerPresentationEnabled: false,
+    admissionNotificationsEnabled: false,
+  };
+}
+
+function fullPtrPublishReceipt() {
+  const receipt = {
+    schemaVersion: 1,
+    profile: 'warpkeep-ptr-production-publish-v1',
+    databaseIdentity: FIXTURE_PTR_DATABASE,
+    databaseAlias: 'warpkeep-ptr',
+    moduleIdentity: 'warpkeep-ptr-owner-view-v1',
+    sourceCommit: FIXTURE_SOURCE_COMMIT,
+    moduleSha256: FIXTURE_PTR_MODULE_SHA,
+    moduleTreeId: FIXTURE_PTR_TREE,
+    dependencyClosureDigest: FIXTURE_PTR_DEPENDENCY,
+    spacetimeExecutableSha256: FIXTURE_PTR_SPACETIME,
+    spacetimeCliConfigSha256: FIXTURE_PTR_CLI,
+    deleteData: 'never',
+    outcome: 'verified',
+    freshDatabase: true,
+    freshStatusDigest: FIXTURE_PTR_FRESH_STATUS,
+    admissionSurfacePresent: false,
+    accessRequestSurfacePresent: false,
+  };
+  return { ...receipt, publishReceiptDigest: ptrProductionPublishReceiptDigest(receipt) };
+}
+
+function fullPtrImportReceipt() {
+  const receipt = {
+    schemaVersion: 1,
+    profile: 'warpkeep.ptr.production-import.v1',
+    outcome: 'ready',
+    databaseIdentity: FIXTURE_PTR_DATABASE,
+    moduleIdentity: 'warpkeep-ptr-owner-view-v1',
+    moduleSourceCommit: FIXTURE_SOURCE_COMMIT,
+    moduleSha256: FIXTURE_PTR_MODULE_SHA,
+    moduleTreeId: FIXTURE_PTR_TREE,
+    dependencyClosureDigest: FIXTURE_PTR_DEPENDENCY,
+    spacetimeExecutableSha256: FIXTURE_PTR_SPACETIME,
+    atlasId: 'PTR_GREATER_REALM',
+    atlasSourceCommit: FIXTURE_SOURCE_COMMIT,
+    publicReleaseId: FIXTURE_PTR_RELEASE,
+    releaseManifestSha256: '1'.repeat(64),
+    expectedReleaseSha256: '2'.repeat(64),
+    releaseHeaderSha256: '3'.repeat(64),
+    verificationDigest: '4'.repeat(64),
+    importEpoch: '1',
+    operationsSubmitted: 16,
+    operationChainDigest: '6'.repeat(64),
+    zeroPopulationBoundary: true,
+    importsExact: true,
+    ready: true,
+    atlasFinalized: true,
+    atlasWritesClosedByFinalization: true,
+    importMutationsCompiled: true,
+    activationMutationsCompiled: false,
+  };
+  return { ...receipt, importReceiptDigest: ptrProductionAtlasImportReceiptDigest(receipt) };
+}
+
+function fullPtrOwnerProvisionReceipt(importReceipt = fullPtrImportReceipt()) {
+  const receipt = {
+    schemaVersion: 1,
+    profile: 'warpkeep-ptr-owner-provision-v1',
+    outcome: 'verified',
+    databaseIdentity: FIXTURE_PTR_DATABASE,
+    databaseAlias: 'warpkeep-ptr',
+    moduleIdentity: 'warpkeep-ptr-owner-view-v1',
+    moduleSourceCommit: FIXTURE_SOURCE_COMMIT,
+    atlasImportReceiptDigest: importReceipt.importReceiptDigest,
+    ownerOpaqueProofDigest: '0123456789abcdef'.repeat(4),
+    ownerAnchorRows: 1,
+    ownerProvisioned: true,
+    ownerEnabled: true,
+    zeroPopulationBoundary: true,
+  };
+  return { ...receipt, provisionReceiptDigest: ptrOwnerProvisionReceiptDigest(receipt) };
+}
+
+function fullPtrSealedLiveReceipt() {
+  return {
+    schemaVersion: 1,
+    profile: 'warpkeep-ptr-sealed-live-v1',
+    uri: 'https://maincloud.spacetimedb.com',
+    databaseIdentity: FIXTURE_PTR_DATABASE,
+    databaseAlias: 'warpkeep-ptr',
+    moduleIdentity: 'warpkeep-ptr-owner-view-v1',
+    moduleSourceCommit: FIXTURE_SOURCE_COMMIT,
+    moduleSha256: FIXTURE_PTR_MODULE_SHA,
+    releaseVersion: '0.4.0-ptr.1',
+    realmId: 'PTR',
+    atlasSourceCommit: FIXTURE_SOURCE_COMMIT,
+    atlasId: 'PTR_GREATER_REALM',
+    publicReleaseId: FIXTURE_PTR_RELEASE,
+    releaseManifestSha256: '1'.repeat(64),
+    expectedReleaseSha256: '2'.repeat(64),
+    releaseHeaderSha256: '3'.repeat(64),
+    verificationDigest: '4'.repeat(64),
+    atlasState: 'ready',
+    atlasFinalized: true,
+    atlasImportsExact: true,
+    atlasWritesClosedByFinalization: true,
+    allowedFids: 0,
+    accessRequests: 0,
+    playersV1: 0,
+    playersV2: 0,
+    ownershipBindings: 0,
+    castles: 0,
+    realmProfiles: 0,
+    termsAcceptances: 0,
+    markAccounts: 0,
+    resourceAccounts: 0,
+    claimRows: 0,
+    occupancyRows: 0,
+    activationRows: 0,
+    publicAtlasRows: 0,
+    publicRegionRows: 0,
+    workerSystemRows: 0,
+    atlasImportMutationsCompiled: true,
+    atlasActivationMutationsCompiled: false,
+    ownerOpaqueProofDigest: '0123456789abcdef'.repeat(4),
+    ownerAnchorRows: 1,
+    ownerProvisioned: true,
+    ownerEnabled: true,
+    admissionsOpen: false,
+    accessRequestsOpen: false,
+    admissionSurfacePresent: false,
+    accessRequestSurfacePresent: false,
+    playerPresentationEnabled: true,
+  };
+}
+
+type ActivationRecordMember = keyof typeof ACTIVATION_RECORD_NAMES;
+
+function fullBindingCandidate() {
+  const candidate = JSON.parse(readFileSync(resolve(
+    import.meta.dirname,
+    '..',
+    'config',
+    'releases',
+    '0.4.0-sealed-launch.json',
+  ), 'utf8')) as Record<string, unknown>;
+  candidate.preparationSourceCommit = FIXTURE_SOURCE_COMMIT;
+  return candidate;
+}
+
+function fullRecordAuthority() {
+  return authenticateSealedRealmsProductionSourceAuthority({
+    operation: 'g002-publish-apply',
+    workflowInputSha: FIXTURE_SOURCE_COMMIT,
+    readGit: args => args[0] === 'rev-parse'
+      ? `${FIXTURE_SOURCE_COMMIT}\n`
+      : (() => { throw new Error('unexpected git request'); })(),
+    readBinding: () => {
+      const candidate = fullBindingCandidate();
+      return {
+        schemaVersion: candidate.schemaVersion,
+        profile: candidate.profile,
+        pagesDeploymentApproved: candidate.pagesDeploymentApproved,
+        preparationSourceCommit: candidate.preparationSourceCommit,
+      };
+    },
+    verifyEvidence: verifiedSha => ({ verifiedSha }),
+  });
+}
+
+function fullCorpus() {
+  const ptrAtlasImportReceipt = fullPtrImportReceipt();
+  return {
+    g001FreezePublishReceipt: {
+      receiptBasename: 'genesis-001-freeze-publish-00000000-0000-4000-8000-000000000001.json',
+      receiptSha256: genesis001FreezePublishReceiptDigest(fullG001FreezeReceipt()),
+      receipt: fullG001FreezeReceipt(),
+    },
+    g001PolicyObservationBootstrapReceipt: fullG001PolicyBootstrapReceipt(),
+    g001CensusPrivacySafePrivateReceipt: {
+      first: fullG001CensusReceipt(),
+      second: fullG001CensusReceipt('20260828T120100Z', '8'.repeat(64)),
+    },
+    g001AdmittedPlayerCensusPrivateReceipt: fullG001CensusActivationReceipt(),
+    g001AdmissionMonitorSuspensionReceipt: fullG001MonitorSuspensionReceipt(),
+    g001AdmissionMonitorCurrentStateReceipt: fullG001MonitorCurrentStateReceipt(),
+    g002PublishReceipt: fullG002PublishReceipt(),
+    g002AtlasImportReceipt: fullG002ImportReceipt(),
+    g002SealedLiveReceipt: fullG002SealedLiveReceipt(),
+    ptrPublishReceipt: fullPtrPublishReceipt(),
+    ptrAtlasImportReceipt,
+    ptrOwnerProvisionReceipt: fullPtrOwnerProvisionReceipt(ptrAtlasImportReceipt),
+    ptrSealedLiveReceipt: fullPtrSealedLiveReceipt(),
+  } satisfies Record<ActivationRecordMember, object>;
+}
+
+function activationRecordSemanticDigest(
+  member: ActivationRecordMember,
+  bodyDigest: string,
+) {
+  const hash = createHash('sha256');
+  for (const value of [
+    'warpkeep.sealed-realms.activation-record.v1',
+    member,
+    FIXTURE_SOURCE_COMMIT,
+    FIXTURE_SOURCE_COMMIT,
+    ACTIVATION_RECORD_OPERATIONS[member],
+    'b'.repeat(64),
+    bodyDigest,
+  ]) hash.update(value).update('\n');
+  return hash.digest('hex');
+}
+
+function writeActivationRecord(
+  state: ReturnType<typeof createSealedRealmsProductionPrivateState>,
+  member: ActivationRecordMember,
+  receipt: object,
+) {
+  const body = Buffer.from(`${JSON.stringify(receipt)}\n`, 'utf8');
+  const bodyDigest = createHash('sha256').update(body).digest('hex');
+  const record = {
+    schemaVersion: 1,
+    profile: 'warpkeep-sealed-realms-activation-record-v1',
+    member,
+    preparationSourceCommit: FIXTURE_SOURCE_COMMIT,
+    sourceCommit: FIXTURE_SOURCE_COMMIT,
+    operation: ACTIVATION_RECORD_OPERATIONS[member],
+    sourceAuthorityDigest: 'b'.repeat(64),
+    bodyDigest,
+    receipt,
+    semanticDigest: activationRecordSemanticDigest(member, bodyDigest),
+  };
+  const bytes = Buffer.from(`${JSON.stringify(record)}\n`, 'utf8');
+  try {
+    state.write({
+      root: 'runtime',
+      relativePath: `activation-evidence/records/${ACTIVATION_RECORD_NAMES[member]}`,
+      bytes,
+    });
+  } finally {
+    body.fill(0);
+    bytes.fill(0);
+  }
+}
+
+function fullCorpusFixture() {
+  const state = privateStateFixture();
+  const records = createSealedRealmsProductionActivationRecords({
+    privateState: state,
+    authority: fullRecordAuthority(),
+    readBindingCandidate: fullBindingCandidate,
+  });
+  const receipts = fullCorpus();
+  for (const member of Object.keys(receipts) as ActivationRecordMember[]) {
+    writeActivationRecord(state, member, receipts[member]);
+  }
+  return { state, records, receipts };
+}
+
+function replaceActivationRecord(
+  state: ReturnType<typeof createSealedRealmsProductionPrivateState>,
+  member: ActivationRecordMember,
+  receipt: object,
+) {
+  state.remove({
+    root: 'runtime',
+    relativePath: `activation-evidence/records/${ACTIVATION_RECORD_NAMES[member]}`,
+  });
+  writeActivationRecord(state, member, receipt);
+}
 
 function sha256(...parts: readonly string[]) {
   const hash = createHash('sha256');
@@ -254,6 +999,95 @@ describe('sealed-realms activation descriptor records', () => {
     })).toThrow('SEALED_REALMS_ACTIVATION_RECORDS_BINDING_INVALID');
   });
 
+  it('reopens one complete fixed thirteen-record corpus into the canonical private descriptor', () => {
+    const { state, records, receipts } = fullCorpusFixture();
+    let source = '';
+    expect(writeSealedRealmsProductionActivationDescriptor({
+      records,
+      consumeDescriptor: descriptor => {
+        source = readFileSync(descriptor, 'utf8');
+        return undefined;
+      },
+    })).toEqual({});
+    const descriptor = JSON.parse(source);
+    expect(Object.keys(descriptor)).toEqual([
+      'schemaVersion',
+      'profile',
+      'bindingCandidate',
+      'g001FreezePublishReceipt',
+      'g001PolicyObservationBootstrapReceipt',
+      'g001CensusPrivacySafePrivateReceipt',
+      'g001AdmittedPlayerCensusPrivateReceipt',
+      'g001AdmissionMonitorSuspensionReceipt',
+      'g001AdmissionMonitorCurrentStateReceipt',
+      'authBridgeSuspensionPrivateReceipt',
+      'g002PublishReceipt',
+      'g002AtlasImportReceipt',
+      'g002SealedLiveReceipt',
+      'g002SealedLiveReceiptDigest',
+      'ptrPublishReceipt',
+      'ptrAtlasImportReceipt',
+      'ptrOwnerProvisionReceipt',
+      'ptrSealedLiveReceipt',
+      'ptrSealedLiveReceiptDigest',
+    ]);
+    expect(source).toBe(`${JSON.stringify(descriptor, null, 2)}\n`);
+    expect(descriptor.bindingCandidate.pagesDeploymentApproved).toBe(true);
+    expect(descriptor.authBridgeSuspensionPrivateReceipt).toBeNull();
+    expect(descriptor.g002SealedLiveReceiptDigest)
+      .toBe(genesis002SealedLiveReceiptDigest(receipts.g002SealedLiveReceipt));
+    expect(descriptor.ptrSealedLiveReceiptDigest)
+      .toBe(ptrSealedLiveReceiptDigest(receipts.ptrSealedLiveReceipt));
+    expect(state.exists({
+      root: 'runtime', relativePath: 'public/0.4.0-sealed-launch.json',
+    })).toBe(false);
+  });
+
+  it('rejects a rehashed individual G002 sealed-live record tamper before descriptor exposure', () => {
+    const { state, records, receipts } = fullCorpusFixture();
+    replaceActivationRecord(state, 'g002SealedLiveReceipt', {
+      ...receipts.g002SealedLiveReceipt,
+      playerPresentationEnabled: true,
+    });
+    let consumed = false;
+    expect(() => writeSealedRealmsProductionActivationDescriptor({
+      records,
+      consumeDescriptor: () => {
+        consumed = true;
+        return undefined;
+      },
+    })).toThrow('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+    expect(consumed).toBe(false);
+    expect(state.exists({
+      root: 'runtime', relativePath: FIXED_DESCRIPTOR_RELATIVE_PATH,
+    })).toBe(false);
+  });
+
+  it('rejects a rehashed PTR owner/import cross-link swap before descriptor exposure', () => {
+    const { state, records, receipts } = fullCorpusFixture();
+    const { provisionReceiptDigest: _oldDigest, ...ownerBody } = receipts.ptrOwnerProvisionReceipt;
+    const swappedOwnerBody = {
+      ...ownerBody,
+      atlasImportReceiptDigest: 'f'.repeat(64),
+    };
+    replaceActivationRecord(state, 'ptrOwnerProvisionReceipt', {
+      ...swappedOwnerBody,
+      provisionReceiptDigest: ptrOwnerProvisionReceiptDigest(swappedOwnerBody),
+    });
+    let consumed = false;
+    expect(() => writeSealedRealmsProductionActivationDescriptor({
+      records,
+      consumeDescriptor: () => {
+        consumed = true;
+        return undefined;
+      },
+    })).toThrow('SEALED_REALMS_ACTIVATION_RECORDS_RECORD_INVALID');
+    expect(consumed).toBe(false);
+    expect(state.exists({
+      root: 'runtime', relativePath: FIXED_DESCRIPTOR_RELATIVE_PATH,
+    })).toBe(false);
+  });
+
   it('keeps a schema-valid maximum-width G001 census record below the generic cap', () => {
     const source = 'a'.repeat(40);
     const receipt = maximumG001CensusActivationWrapper(source);
@@ -339,6 +1173,36 @@ describe('sealed-realms activation descriptor records', () => {
       },
     })).toThrow('SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_ASYNC_CONSUME');
     expect(() => readFileSync(thenableDescriptor)).toThrow();
+  });
+
+  it('observes and suppresses a rejecting descriptor thenable before failing closed', async () => {
+    const state = privateStateFixture();
+    let descriptor = -1;
+    let assimilated = false;
+    let unhandled: unknown;
+    const observeUnhandled = (reason: unknown) => { unhandled = reason; };
+    const rejectingThenable = Object.freeze({
+      then(_resolve: unknown, reject: (reason: Error) => void) {
+        assimilated = true;
+        reject(new Error('late descriptor rejection'));
+      },
+    });
+    process.on('unhandledRejection', observeUnhandled);
+    try {
+      expect(() => state.writeCanonicalNoClobberAndConsumeDescriptor({
+        bytes: Buffer.from('{"private":true}\n', 'utf8'),
+        consume: reopened => {
+          descriptor = reopened;
+          return rejectingThenable as never;
+        },
+      })).toThrow('SEALED_REALMS_PRIVATE_STATE_DESCRIPTOR_ASYNC_CONSUME');
+      expect(() => readFileSync(descriptor)).toThrow();
+      await new Promise<void>(resolve => setImmediate(resolve));
+      expect(assimilated).toBe(true);
+      expect(unhandled).toBeUndefined();
+    } finally {
+      process.off('unhandledRejection', observeUnhandled);
+    }
   });
 
   it('allows only the fixed descriptor path to use its 1 MiB ceiling', () => {
