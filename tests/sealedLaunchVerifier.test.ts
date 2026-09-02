@@ -1619,6 +1619,19 @@ describe('0.4.0 sealed-launch verifier', () => {
         ].join('\n'),
       ),
     },
+    {
+      name: 'Array prototype includes getter poisoning',
+      mutate: (value: string) => value.replace(
+        'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
+        [
+          'const PTR_JTI = /^[A-Za-z0-9_-]{1,128}$/u;',
+          'Object.getPrototypeOf([]).__defineGetter__(',
+          "  'includes',",
+          '  () => (() => true),',
+          ');',
+        ].join('\n'),
+      ),
+    },
   ] as const)(
     'rejects PTR policy intrinsic mutation: $name',
     ({ mutate }) => {

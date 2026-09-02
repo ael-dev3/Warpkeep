@@ -1973,6 +1973,16 @@ function contractPtrOwnerPolicyLexicalFence(source, code) {
   ]) {
     if (identifierCount(identifier) !== expectedOccurrences) fail(code);
   }
+  for (const [sequence, expectedOccurrences] of [
+    [['Object', '.', 'freeze', '('], 17],
+    [['Object', '.', 'getPrototypeOf', '('], 3],
+    [['Object', '.', 'prototype'], 3],
+    [['Reflect', '.', 'ownKeys', '('], 3],
+  ]) {
+    if (contractSequenceCount(lexicalTokens, sequence) !== expectedOccurrences) {
+      fail(code);
+    }
+  }
 }
 
 function contractPtrOwnerReaderDataflow(reader, code) {
