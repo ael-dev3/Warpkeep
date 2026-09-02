@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { types } from 'node:util';
 
 import {
   createSealedRealmsProductionAuthBridgeState,
@@ -46,6 +47,7 @@ const GIT_ENVIRONMENT = process.platform === 'win32'
   });
 const runtimes = new WeakMap();
 const consumedRuntimes = new WeakSet();
+const isProxy = types.isProxy;
 
 function fail(code) {
   const error = new Error(code);
@@ -58,7 +60,7 @@ function exactObject(value, keys) {
   let descriptors;
   try {
     if (
-      value === null || typeof value !== 'object' || Array.isArray(value)
+      isProxy(value) || value === null || typeof value !== 'object' || Array.isArray(value)
       || Object.getPrototypeOf(value) !== Object.prototype
     ) fail('SEALED_REALMS_ACTIVATION_WORKFLOW_INPUT_INVALID');
     descriptors = Object.getOwnPropertyDescriptors(value);
@@ -192,6 +194,7 @@ export async function createSealedRealmsProductionActivationWorkflowRuntime(inpu
 
 export async function runSealedRealmsProductionActivationOperation(input) {
   const options = exactObject(input, ['runtime', 'operation', 'workflowInputSha']);
+  if (isProxy(options.runtime)) fail('SEALED_REALMS_ACTIVATION_WORKFLOW_INPUT_INVALID');
   const operation = operationName(options.operation);
   const workflowInputSha = sourceSha(options.workflowInputSha);
   const member = runtimes.get(options.runtime);

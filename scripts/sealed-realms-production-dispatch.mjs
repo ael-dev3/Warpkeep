@@ -10,6 +10,9 @@ import {
 import {
   assertSealedRealmsProductionWorkflowPermit,
 } from './sealed-realms-production-workflow-authority.mjs';
+import { types } from 'node:util';
+
+const isProxy = types.isProxy;
 
 const G001_OPERATIONS = new Set([
   'g001-policy-observe',
@@ -71,7 +74,7 @@ function fail(code) {
 
 function plainObject(value, code) {
   if (
-    value === null || typeof value !== 'object' || Array.isArray(value)
+    isProxy(value) || value === null || typeof value !== 'object' || Array.isArray(value)
     || Object.getPrototypeOf(value) !== Object.prototype
   ) fail(code);
   return value;
@@ -93,6 +96,12 @@ export function assertSealedRealmsProductionDispatchContextInput(input) {
     || typeof options.readGit !== 'function'
     || typeof options.readBinding !== 'function'
     || typeof options.verifyEvidence !== 'function'
+    || isProxy(options.readGit)
+    || isProxy(options.readBinding)
+    || isProxy(options.verifyEvidence)
+    || isProxy(options.permit)
+    || isProxy(options.continuationStore)
+    || isProxy(options.sourceAuthority)
     || typeof options.runId !== 'string'
     || !/^[1-9][0-9]{0,19}$/u.test(options.runId)
     || !/^[1-9][0-9]{0,3}$/u.test(String(options.runAttempt))
@@ -121,6 +130,10 @@ export function authenticateSealedRealmsProductionDispatch(input) {
     || typeof options.readGit !== 'function'
     || typeof options.readBinding !== 'function'
     || typeof options.verifyEvidence !== 'function'
+    || isProxy(options.readGit)
+    || isProxy(options.readBinding)
+    || isProxy(options.verifyEvidence)
+    || isProxy(options.sourceAuthority)
   ) fail('SEALED_REALMS_DISPATCH_INPUT_INVALID');
   const value = plainObject(options.request, 'SEALED_REALMS_DISPATCH_REQUEST_INVALID');
   const descriptors = Object.getOwnPropertyDescriptors(value);

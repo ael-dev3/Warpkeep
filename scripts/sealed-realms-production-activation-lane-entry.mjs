@@ -20,6 +20,9 @@ import {
   earlySealedRealmsProductionDispatchResult,
   rejectSealedRealmsProductionLaneFailure,
 } from './sealed-realms-production-dispatch.mjs';
+import { types } from 'node:util';
+
+const isProxy = types.isProxy;
 
 const OPERATIONS = new Set([
   'activation-evidence-inspect', 'activation-evidence-generate',
@@ -48,7 +51,7 @@ function fail(code) { throw new SealedRealmsProductionActivationLaneError(code);
 function exactDispatchContextInput(input) {
   try {
     if (
-      input === null || typeof input !== 'object' || Array.isArray(input)
+      isProxy(input) || input === null || typeof input !== 'object' || Array.isArray(input)
       || Object.getPrototypeOf(input) !== Object.prototype
     ) throw new Error('invalid input');
     const descriptors = Object.getOwnPropertyDescriptors(input);
@@ -154,7 +157,7 @@ async function consumeInvocation(invocation, prepared, lane) {
 
 function requireContinuation(value, authority) {
   if (
-    value === null || typeof value !== 'object' || Array.isArray(value)
+    isProxy(value) || value === null || typeof value !== 'object' || Array.isArray(value)
     || Object.getPrototypeOf(value) !== Object.prototype
     || JSON.stringify(Object.keys(value))
       !== JSON.stringify(['permit', 'store', 'runId', 'runAttempt', 'sourceAuthority'])
@@ -190,15 +193,16 @@ function continuationInput(continuation, authority, binding) {
  */
 export function createSealedRealmsProductionActivationLane(input = {}) {
   if (
-    input === null || typeof input !== 'object' || Array.isArray(input)
+    isProxy(input) || input === null || typeof input !== 'object' || Array.isArray(input)
     || Object.getPrototypeOf(input) !== Object.prototype
     || JSON.stringify(Object.keys(input)) !== JSON.stringify(['bridgeState'])
+    || isProxy(input.bridgeState)
   ) fail('SEALED_REALMS_ACTIVATION_LANE_INPUT_INVALID');
   const { bridgeState } = input;
   const state = assertSealedRealmsProductionAuthBridgeState(bridgeState);
   const execute = async (input = {}) => {
     if (
-      input === null || typeof input !== 'object' || Array.isArray(input)
+      isProxy(input) || input === null || typeof input !== 'object' || Array.isArray(input)
       || Object.getPrototypeOf(input) !== Object.prototype
       || JSON.stringify(Object.keys(input))
         !== JSON.stringify(['operation', 'authority', 'continuation'])
@@ -237,7 +241,7 @@ export function createSealedRealmsProductionActivationDispatcher(input) {
   let lane;
   try {
     if (
-      input === null || typeof input !== 'object' || Array.isArray(input)
+      isProxy(input) || input === null || typeof input !== 'object' || Array.isArray(input)
       || Object.getPrototypeOf(input) !== Object.prototype
     ) throw new Error('invalid input');
     const descriptors = Object.getOwnPropertyDescriptors(input);
@@ -248,6 +252,7 @@ export function createSealedRealmsProductionActivationDispatcher(input) {
     ) throw new Error('invalid input');
     context = descriptors.context.value;
     lane = descriptors.lane.value;
+    if (isProxy(context) || isProxy(lane)) throw new Error('invalid input');
     assertDispatchContext(context);
     assertSealedRealmsProductionActivationLane(lane);
   } catch {

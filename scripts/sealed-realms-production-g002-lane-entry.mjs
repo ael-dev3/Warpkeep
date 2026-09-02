@@ -27,6 +27,9 @@ import {
   earlySealedRealmsProductionDispatchResult,
   rejectSealedRealmsProductionLaneFailure,
 } from './sealed-realms-production-dispatch.mjs';
+import { types } from 'node:util';
+
+const isProxy = types.isProxy;
 
 const OPERATIONS = new Set([
   'g002-publish-inspect', 'g002-publish-apply', 'g002-import-inspect',
@@ -56,7 +59,7 @@ function fail(code) { throw new SealedRealmsProductionG002LaneError(code); }
 function exactDispatchContextInput(input) {
   try {
     if (
-      input === null || typeof input !== 'object' || Array.isArray(input)
+      isProxy(input) || input === null || typeof input !== 'object' || Array.isArray(input)
       || Object.getPrototypeOf(input) !== Object.prototype
     ) throw new Error('invalid input');
     const descriptors = Object.getOwnPropertyDescriptors(input);
@@ -162,7 +165,7 @@ async function consumeInvocation(invocation, prepared, lane) {
 
 function record(value, code) {
   if (
-    value === null || typeof value !== 'object' || Array.isArray(value)
+    isProxy(value) || value === null || typeof value !== 'object' || Array.isArray(value)
     || Object.getPrototypeOf(value) !== Object.prototype
   ) fail(code);
   return value;
@@ -231,6 +234,12 @@ export function createSealedRealmsProductionG002Lane(input) {
   ];
   if (
     Object.keys(options).some(key => !allowed.includes(key))
+    || isProxy(options.reconciler)
+    || isProxy(options.bridgeState)
+    || isProxy(options.createPublishMarker)
+    || isProxy(options.publish)
+    || isProxy(options.importCore)
+    || isProxy(options.liveInspect)
     || typeof options.createPublishMarker !== 'function'
     || typeof options.publish !== 'function'
     || typeof options.importCore !== 'function'
@@ -343,7 +352,7 @@ export function createSealedRealmsProductionG002Dispatcher(input) {
   let lane;
   try {
     if (
-      input === null || typeof input !== 'object' || Array.isArray(input)
+      isProxy(input) || input === null || typeof input !== 'object' || Array.isArray(input)
       || Object.getPrototypeOf(input) !== Object.prototype
     ) throw new Error('invalid input');
     const descriptors = Object.getOwnPropertyDescriptors(input);
@@ -354,6 +363,7 @@ export function createSealedRealmsProductionG002Dispatcher(input) {
     ) throw new Error('invalid input');
     context = descriptors.context.value;
     lane = descriptors.lane.value;
+    if (isProxy(context) || isProxy(lane)) throw new Error('invalid input');
     assertDispatchContext(context);
     assertSealedRealmsProductionG002Lane(lane);
   } catch {

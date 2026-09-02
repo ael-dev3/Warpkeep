@@ -16,6 +16,12 @@ import { build as esbuild } from 'esbuild';
 import {
   createSealedRealmsProductionContinuationStore,
 } from '../scripts/sealed-realms-production-continuation.mjs';
+import {
+  createSealedRealmsProductionPublicationReconciler,
+} from '../scripts/sealed-realms-production-reconciliation.mjs';
+import {
+  createSealedRealmsProductionAuthBridgeState,
+} from '../scripts/sealed-realms-production-auth-bridge-state.mjs';
 import * as dispatchSurface from '../scripts/sealed-realms-production-dispatch.mjs';
 import {
   createSealedRealmsProductionG001DispatchContext,
@@ -120,10 +126,10 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function protectedContext() {
+async function protectedContext(operation = 'preflight') {
   const fixture = privateFixture();
   cleanups.push(fixture.cleanup);
-  const source = sourceAuthority();
+  const source = sourceAuthority(operation);
   const permit = await issueSealedRealmsProductionWorkflowPermit({
     sourceAuthority: source,
     githubToken: TOKEN,
@@ -151,9 +157,9 @@ function dispatcherInput(extra: Readonly<Record<string, unknown>> = {}) {
   };
 }
 
-function preflightLane(preflight = vi.fn(async () => undefined)) {
+function g001LaneInput(preflight = vi.fn(async () => undefined)) {
   return Object.freeze({
-    lane: createSealedRealmsProductionG001Lane({
+    input: {
       launchAuthority: createSealedRealmsProductionG001LaunchAuthority({
         readRawGit: () => `${S}\n`,
         resolveAdminSecretPath: () => ({ sourceCommit: S, path: '/private/unreachable' }),
@@ -171,9 +177,44 @@ function preflightLane(preflight = vi.fn(async () => undefined)) {
       },
       currentStateOperator: () => { throw new Error('unreachable'); },
       preflight,
-    } as never),
+    },
     preflight,
   });
+}
+
+function preflightLane(preflight = vi.fn(async () => undefined)) {
+  const member = g001LaneInput(preflight);
+  return Object.freeze({
+    lane: createSealedRealmsProductionG001Lane(member.input as never),
+    preflight: member.preflight,
+  });
+}
+
+function unavailableCompositionAdapter() {
+  throw new Error('unreachable');
+}
+
+function bridgeForLaneComposition(
+  privateState: ReturnType<typeof createSealedRealmsProductionPrivateState>,
+  authority: ReturnType<typeof sourceAuthority>,
+) {
+  return createSealedRealmsProductionAuthBridgeState({
+    authority,
+    privateState,
+    repositoryRoot: process.cwd(),
+    deploymentAttester: unavailableCompositionAdapter,
+    bindingAttester: unavailableCompositionAdapter,
+    fetchImpl: unavailableCompositionAdapter,
+    inspectImportReceipt: unavailableCompositionAdapter,
+    authenticateImportResult: unavailableCompositionAdapter,
+    resolveOwnerProvisionReceipt: unavailableCompositionAdapter,
+  } as never);
+}
+
+function revokedProxy<T extends object>(value: T) {
+  const proxy = Proxy.revocable(value, {});
+  proxy.revoke();
+  return proxy.proxy;
 }
 
 describe('sealed-realms production dispatch continuation boundary', () => {
@@ -419,6 +460,125 @@ describe('sealed-realms production dispatch continuation boundary', () => {
       code: 'SEALED_REALMS_DISPATCH_REQUEST_INVALID',
     });
     expect(preflight).not.toHaveBeenCalled();
+  });
+
+  it('rejects transparent and revoked public request proxies before the preflight effect', async () => {
+    const context = await protectedContext();
+    const { lane, preflight } = preflightLane();
+    const dispatchContext = createSealedRealmsProductionG001DispatchContext(dispatcherInput({
+      ...context,
+      runId: RUN_ID,
+      runAttempt: '1',
+    }) as never);
+    const dispatcher = createSealedRealmsProductionG001Dispatcher({ context: dispatchContext, lane });
+    const request = { operation: 'preflight', workflowInputSha: S };
+
+    await expect(dispatcher.dispatch(new Proxy(request, {}) as never)).rejects.toMatchObject({
+      code: 'SEALED_REALMS_DISPATCH_REQUEST_INVALID',
+    });
+    await expect(dispatcher.dispatch(revokedProxy(request) as never)).rejects.toMatchObject({
+      code: 'SEALED_REALMS_DISPATCH_REQUEST_INVALID',
+    });
+    expect(preflight).not.toHaveBeenCalled();
+  });
+
+  it('rejects transparent and revoked context/composer proxies across all lane graphs', async () => {
+    const fixture = privateFixture();
+    cleanups.push(fixture.cleanup);
+    const g001 = g001LaneInput();
+    const g002Authority = sourceAuthority('g002-publish-inspect');
+    const ptrAuthority = sourceAuthority('ptr-publish-inspect');
+    const activationAuthority = sourceAuthority('activation-evidence-inspect');
+    const g002Bridge = bridgeForLaneComposition(fixture.privateState, g002Authority);
+    const ptrBridge = bridgeForLaneComposition(fixture.privateState, ptrAuthority);
+    const activationBridge = bridgeForLaneComposition(fixture.privateState, activationAuthority);
+    const g002Input = {
+      reconciler: createSealedRealmsProductionPublicationReconciler({
+        privateState: fixture.privateState,
+        lane: 'g002',
+        postflight: unavailableCompositionAdapter as never,
+      }),
+      bridgeState: g002Bridge,
+      createPublishMarker: unavailableCompositionAdapter,
+      publish: unavailableCompositionAdapter,
+      importCore: unavailableCompositionAdapter,
+      liveInspect: unavailableCompositionAdapter,
+    };
+    const ptrInput = {
+      reconciler: createSealedRealmsProductionPublicationReconciler({
+        privateState: fixture.privateState,
+        lane: 'ptr',
+        postflight: unavailableCompositionAdapter as never,
+      }),
+      bridgeState: ptrBridge,
+      createPublishMarker: unavailableCompositionAdapter,
+      publish: unavailableCompositionAdapter,
+      importCore: unavailableCompositionAdapter,
+      inspectOwnerProvision: unavailableCompositionAdapter,
+      provisionOwner: unavailableCompositionAdapter,
+      liveInspect: unavailableCompositionAdapter,
+    };
+    const activationInput = { bridgeState: activationBridge };
+    const compositions = [
+      {
+        operation: 'preflight',
+        context: createSealedRealmsProductionG001DispatchContext,
+        createLane: (input: never) => createSealedRealmsProductionG001Lane(input),
+        laneInput: g001.input,
+        laneInputError: 'SEALED_REALMS_G001_LANE_INPUT_INVALID',
+        dispatcher: createSealedRealmsProductionG001Dispatcher,
+      },
+      {
+        operation: 'g002-publish-inspect',
+        context: g002Surface.createSealedRealmsProductionG002DispatchContext,
+        createLane: (input: never) => g002Surface.createSealedRealmsProductionG002Lane(input),
+        laneInput: g002Input,
+        laneInputError: 'SEALED_REALMS_G002_LANE_INPUT_INVALID',
+        dispatcher: g002Surface.createSealedRealmsProductionG002Dispatcher,
+      },
+      {
+        operation: 'ptr-publish-inspect',
+        context: ptrSurface.createSealedRealmsProductionPtrDispatchContext,
+        createLane: (input: never) => ptrSurface.createSealedRealmsProductionPtrLane(input),
+        laneInput: ptrInput,
+        laneInputError: 'SEALED_REALMS_PTR_LANE_INPUT_INVALID',
+        dispatcher: ptrSurface.createSealedRealmsProductionPtrDispatcher,
+      },
+      {
+        operation: 'activation-evidence-inspect',
+        context: activationSurface.createSealedRealmsProductionActivationDispatchContext,
+        createLane: (input: never) => activationSurface.createSealedRealmsProductionActivationLane(input),
+        laneInput: activationInput,
+        laneInputError: 'SEALED_REALMS_ACTIVATION_LANE_INPUT_INVALID',
+        dispatcher: activationSurface.createSealedRealmsProductionActivationDispatcher,
+      },
+    ] as const;
+
+    for (const composition of compositions) {
+      const protectedMember = await protectedContext(composition.operation);
+      const contextInput = dispatcherInput({
+        ...protectedMember,
+        runId: RUN_ID,
+        runAttempt: '1',
+      });
+      expect(() => composition.context(new Proxy(contextInput, {}) as never))
+        .toThrow(expect.objectContaining({ code: 'SEALED_REALMS_DISPATCH_INPUT_INVALID' }));
+      expect(() => composition.context(revokedProxy(contextInput) as never))
+        .toThrow(expect.objectContaining({ code: 'SEALED_REALMS_DISPATCH_INPUT_INVALID' }));
+
+      const context = composition.context(contextInput as never);
+      expect(() => composition.createLane(new Proxy(composition.laneInput, {}) as never))
+        .toThrow(expect.objectContaining({ code: composition.laneInputError }));
+      expect(() => composition.createLane(revokedProxy(composition.laneInput) as never))
+        .toThrow(expect.objectContaining({ code: composition.laneInputError }));
+      const lane = composition.createLane(composition.laneInput as never);
+      const composerInput = { context, lane };
+      expect(() => composition.dispatcher(new Proxy(composerInput, {}) as never))
+        .toThrow(expect.objectContaining({ code: 'SEALED_REALMS_DISPATCH_INPUT_INVALID' }));
+      expect(() => composition.dispatcher(revokedProxy(composerInput) as never))
+        .toThrow(expect.objectContaining({ code: 'SEALED_REALMS_DISPATCH_INPUT_INVALID' }));
+    }
+    expect(g001.preflight).not.toHaveBeenCalled();
   });
 
   it('rejects a same-graph accessor that swaps an authentic lane for a structural fake', async () => {

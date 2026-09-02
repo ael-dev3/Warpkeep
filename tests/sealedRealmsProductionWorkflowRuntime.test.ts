@@ -269,6 +269,12 @@ function functionExport(module: RuntimeModule, name: string): AnyFunction {
   return value as AnyFunction;
 }
 
+function revokedProxy<T extends object>(value: T) {
+  const proxy = Proxy.revocable(value, {});
+  proxy.revoke();
+  return proxy.proxy;
+}
+
 async function inRepository<T>(repositoryRoot: string, action: () => T | Promise<T>) {
   const previous = process.cwd();
   process.chdir(repositoryRoot);
@@ -513,6 +519,58 @@ describe.sequential('sealed-realms production workflow runtime composition', () 
       workflowInputSha: 'a'.repeat(40),
       evidenceVerifier: () => Object.freeze({}),
     })).rejects.toMatchObject({ code: expect.stringMatching(/WORKFLOW_INPUT_INVALID$/u) });
+  });
+
+  it.each(ENTRIES)('$lane entry rejects transparent and revoked proxy factory/runtime inputs before authority work', async entry => {
+    const module = await loadEntry(entry.path);
+    const factory = functionExport(module, entry.factory);
+    const run = functionExport(module, entry.run);
+    const callback = vi.fn();
+    const factoryInput = {
+      operation: entry.operation,
+      workflowInputSha: 'not-a-sha',
+    };
+    const trappedFactoryInput = new Proxy(factoryInput, {
+      ownKeys(target) {
+        callback();
+        return Reflect.ownKeys(target);
+      },
+    });
+
+    await expect(factory(new Proxy(factoryInput, {}) as never)).rejects.toMatchObject({
+      code: expect.stringMatching(/WORKFLOW_INPUT_INVALID$/u),
+    });
+    await expect(factory(trappedFactoryInput as never)).rejects.toMatchObject({
+      code: expect.stringMatching(/WORKFLOW_INPUT_INVALID$/u),
+    });
+    await expect(factory(revokedProxy(factoryInput) as never)).rejects.toMatchObject({
+      code: expect.stringMatching(/WORKFLOW_INPUT_INVALID$/u),
+    });
+    expect(callback).not.toHaveBeenCalled();
+
+    const runtimeInput = {
+      runtime: Object.freeze({}),
+      operation: entry.operation,
+      workflowInputSha: 'a'.repeat(40),
+    };
+    await expect(run(new Proxy(runtimeInput, {}) as never)).rejects.toMatchObject({
+      code: expect.stringMatching(/WORKFLOW_INPUT_INVALID$/u),
+    });
+    await expect(run(revokedProxy(runtimeInput) as never)).rejects.toMatchObject({
+      code: expect.stringMatching(/WORKFLOW_INPUT_INVALID$/u),
+    });
+    await expect(run({
+      ...runtimeInput,
+      runtime: new Proxy(runtimeInput.runtime, {}),
+    } as never)).rejects.toMatchObject({
+      code: expect.stringMatching(/WORKFLOW_INPUT_INVALID$/u),
+    });
+    await expect(run({
+      ...runtimeInput,
+      runtime: revokedProxy(runtimeInput.runtime),
+    } as never)).rejects.toMatchObject({
+      code: expect.stringMatching(/WORKFLOW_INPUT_INVALID$/u),
+    });
   });
 
   it.each(ENTRIES)('$lane import is inert with no evidence or private-state resolution', async entry => {

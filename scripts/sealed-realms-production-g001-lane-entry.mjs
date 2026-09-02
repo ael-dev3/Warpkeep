@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { userInfo } from 'node:os';
 import { posix } from 'node:path';
+import { types } from 'node:util';
 
 import {
   projectGenesis001AdmittedPlayerCensusStablePair,
@@ -95,6 +96,7 @@ const CENSUS_PROFILE = 'warpkeep-sealed-realms-g001-census-private-v1';
 const CENSUS_MINIMUM_STABLE_SEPARATION_MS = 60_000;
 const CENSUS_MAXIMUM_STABLE_SEPARATION_MS = 300_000;
 const CENSUS_CONFIRMATION_TTL_MS = 300_000;
+const isProxy = types.isProxy;
 
 export class SealedRealmsProductionG001LaneError extends Error {
   constructor(code) {
@@ -109,7 +111,7 @@ function fail(code) { throw new SealedRealmsProductionG001LaneError(code); }
 function exactDispatchContextInput(input) {
   try {
     if (
-      input === null || typeof input !== 'object' || Array.isArray(input)
+      isProxy(input) || input === null || typeof input !== 'object' || Array.isArray(input)
       || Object.getPrototypeOf(input) !== Object.prototype
     ) throw new Error('invalid input');
     const descriptors = Object.getOwnPropertyDescriptors(input);
@@ -215,7 +217,7 @@ async function consumeInvocation(invocation, prepared, lane) {
 
 function exactObject(value, keys, code) {
   if (
-    value === null || typeof value !== 'object' || Array.isArray(value)
+    isProxy(value) || value === null || typeof value !== 'object' || Array.isArray(value)
     || Object.getPrototypeOf(value) !== Object.prototype
     || JSON.stringify(Object.keys(value)) !== JSON.stringify(keys)
   ) fail(code);
@@ -224,7 +226,7 @@ function exactObject(value, keys, code) {
 
 function allowedObject(value, keys, code) {
   if (
-    value === null || typeof value !== 'object' || Array.isArray(value)
+    isProxy(value) || value === null || typeof value !== 'object' || Array.isArray(value)
     || Object.getPrototypeOf(value) !== Object.prototype
     || Object.keys(value).some(key => !keys.includes(key))
   ) fail(code);
@@ -239,7 +241,7 @@ function requireWebSocket() {
 
 function requireContinuation(value, authority) {
   if (
-    value === null || typeof value !== 'object' || Array.isArray(value)
+    isProxy(value) || value === null || typeof value !== 'object' || Array.isArray(value)
     || Object.getPrototypeOf(value) !== Object.prototype
     || JSON.stringify(Object.keys(value))
       !== JSON.stringify(['permit', 'store', 'runId', 'runAttempt', 'sourceAuthority'])
@@ -541,7 +543,11 @@ export function createSealedRealmsProductionG001CensusAuthority(input) {
     'privateState', 'collect', 'suspend', 'now',
   ], 'SEALED_REALMS_G001_CENSUS_AUTHORITY_INPUT_INVALID');
   if (
-    typeof options.collect !== 'function' || typeof options.suspend !== 'function'
+    isProxy(options.privateState)
+    || isProxy(options.collect)
+    || isProxy(options.suspend)
+    || isProxy(options.now)
+    || typeof options.collect !== 'function' || typeof options.suspend !== 'function'
     || typeof options.now !== 'function'
   ) fail('SEALED_REALMS_G001_CENSUS_AUTHORITY_INPUT_INVALID');
   let privateState;
@@ -856,7 +862,7 @@ export function createSealedRealmsProductionG001CurrentStateTestAdapter(input) {
     fail('SEALED_REALMS_G001_CURRENT_STATE_TEST_ADAPTER_FORBIDDEN');
   }
   const options = exactObject(input, ['hashFixedFile'], 'SEALED_REALMS_G001_CURRENT_STATE_INPUT_INVALID');
-  if (typeof options.hashFixedFile !== 'function') {
+  if (isProxy(options.hashFixedFile) || typeof options.hashFixedFile !== 'function') {
     fail('SEALED_REALMS_G001_CURRENT_STATE_INPUT_INVALID');
   }
   const capability = Object.freeze({});
@@ -874,7 +880,10 @@ export function createSealedRealmsProductionG001LaunchAuthority(input) {
     'readRawGit', 'resolveAdminSecretPath', 'persistPolicyObservation',
   ], 'SEALED_REALMS_G001_LAUNCH_AUTHORITY_INPUT_INVALID');
   if (
-    typeof options.readRawGit !== 'function'
+    isProxy(options.readRawGit)
+    || isProxy(options.resolveAdminSecretPath)
+    || isProxy(options.persistPolicyObservation)
+    || typeof options.readRawGit !== 'function'
     || typeof options.resolveAdminSecretPath !== 'function'
     || typeof options.persistPolicyObservation !== 'function'
   ) {
@@ -1486,7 +1495,12 @@ function currentStateConfiguration(value) {
     'runChild', 'readFixedFile', 'resolveAccountUid', 'resolveAccountHome', 'testOnlyAdapter',
   ], 'SEALED_REALMS_G001_LANE_INPUT_INVALID');
   if (
-    typeof value.runChild !== 'function' || typeof value.readFixedFile !== 'function'
+    isProxy(value.runChild)
+    || isProxy(value.readFixedFile)
+    || isProxy(value.resolveAccountUid)
+    || isProxy(value.resolveAccountHome)
+    || isProxy(value.testOnlyAdapter)
+    || typeof value.runChild !== 'function' || typeof value.readFixedFile !== 'function'
     || typeof value.resolveAccountUid !== 'function' || typeof value.resolveAccountHome !== 'function'
     || (value.testOnlyAdapter !== undefined && !currentStateTestAdapters.has(value.testOnlyAdapter))
   ) fail('SEALED_REALMS_G001_LANE_INPUT_INVALID');
@@ -1576,7 +1590,14 @@ export function createSealedRealmsProductionG001Lane(input) {
     'censusAuthority', 'currentState', 'preflight', 'currentStateOperator',
   ], 'SEALED_REALMS_G001_LANE_INPUT_INVALID');
   if (
-    launchAuthorities.get(options.launchAuthority) === undefined
+    isProxy(options.launchAuthority)
+    || isProxy(options.attestDispatcherNode)
+    || isProxy(options.runEnvelopeChild)
+    || isProxy(options.censusAuthority)
+    || isProxy(options.currentState)
+    || isProxy(options.preflight)
+    || isProxy(options.currentStateOperator)
+    || launchAuthorities.get(options.launchAuthority) === undefined
     || typeof options.attestDispatcherNode !== 'function'
     || typeof options.runEnvelopeChild !== 'function'
     || (options.censusAuthority !== undefined && censusAuthorities.get(options.censusAuthority) === undefined)
@@ -1794,7 +1815,7 @@ export function createSealedRealmsProductionG001Dispatcher(input) {
   let lane;
   try {
     if (
-      input === null || typeof input !== 'object' || Array.isArray(input)
+      isProxy(input) || input === null || typeof input !== 'object' || Array.isArray(input)
       || Object.getPrototypeOf(input) !== Object.prototype
     ) throw new Error('invalid input');
     const descriptors = Object.getOwnPropertyDescriptors(input);
@@ -1805,6 +1826,7 @@ export function createSealedRealmsProductionG001Dispatcher(input) {
     ) throw new Error('invalid input');
     context = descriptors.context.value;
     lane = descriptors.lane.value;
+    if (isProxy(context) || isProxy(lane)) throw new Error('invalid input');
     assertDispatchContext(context);
     assertSealedRealmsProductionG001Lane(lane);
   } catch {
