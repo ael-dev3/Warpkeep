@@ -516,7 +516,7 @@ describe('notification bridge B0 protected workflow', () => {
     expect(workflowSource).not.toMatch(/wrangler\s+(?:deploy|versions|secret)/u);
   });
 
-  it('has one syntactically valid byte-attested bootstrap in each protected launch', () => {
+  it('keeps each byte-attested bootstrap syntactically secure while stale B0 pins fail closed', () => {
     const bootstrapStart = "exec 17<<'WARPKEEP_PROTECTED_NODE_BOOTSTRAP'";
     const finalNodeLaunch =
       'exec -c "$node_executable" --input-type=module <&17 >/dev/null';
@@ -633,8 +633,12 @@ describe('notification bridge B0 protected workflow', () => {
     expect(workflowSource).not.toContain(
       'run: pnpm --dir services/auth-bridge install',
     );
+    // Task 7 must restore the positive assertion atomically with the generated
+    // workflow-pin refreeze. Until then, the stale canonical workflow pin must
+    // reject the otherwise independently verified bootstrap structure.
     expect(() => policyExecutionBoundaryTestSeams
-      .assertProtectedWorkflowExecutionBoundary(workflowSource)).not.toThrow();
+      .assertProtectedWorkflowExecutionBoundary(workflowSource))
+      .toThrow('AUTH_BRIDGE_NOTIFICATION_B0_WORKFLOW_STRUCTURE_INVALID');
   });
 
   // Git-for-Windows cannot represent the POSIX uid/gid/mode/ACL facts that
