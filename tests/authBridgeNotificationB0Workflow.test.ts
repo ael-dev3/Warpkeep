@@ -94,13 +94,17 @@ function bashPath(path: string): string {
   return path.replaceAll('\\', '/');
 }
 
+function bashSingleQuoted(value: string): string {
+  return `'${value.replaceAll("'", "'\"'\"'")}'`;
+}
+
 function restrictSelectedNodeFixtureAncestry(
   source: string,
   fixtureRoot: string,
 ): string {
   return source.replace(
     /(function verify_immutable_executable_path\(\) \{[\s\S]*?)if \[\[ "\$component" == '\/' \]\]; then break; fi/u,
-    `$1if [[ "$component" == ${JSON.stringify(bashPath(fixtureRoot))} || "$component" == '/' ]]; then break; fi`,
+    `$1if [[ "$component" == ${bashSingleQuoted(bashPath(fixtureRoot))} || "$component" == '/' ]]; then break; fi`,
   );
 }
 
@@ -837,7 +841,7 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
     for (const stepId of ['deploy', 'recovery']) {
       const root = realpathSync(mkdtempSync(join(
         fixtureDirectory,
-        'warpkeep-b0-runner-private-node-',
+        'warpkeep-b0-runner-private-$fixture-root-',
       )));
       temporaryDirectories.push(root);
       const node = resolve(root, 'node');
@@ -987,6 +991,7 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
     'hard-linked',
     'group-writable',
     'group-writable ancestor',
+    'group-writable terminal root',
   ] as const) {
     const replay = nodeState === 'hard-linked'
       ? it
@@ -998,7 +1003,10 @@ writeFileSync(${JSON.stringify(marker)}, 'sanitized');
           'warpkeep-b0-untrusted-node-state-',
         )));
         temporaryDirectories.push(root);
-        setFixtureMode(root, 0o700);
+        setFixtureMode(
+          root,
+          nodeState === 'group-writable terminal root' ? 0o775 : 0o700,
+        );
         const node = resolve(
           root,
           nodeState === 'group-writable ancestor' ? 'bin/node' : 'node',
