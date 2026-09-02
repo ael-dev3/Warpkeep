@@ -482,6 +482,33 @@ describe('sealed-realms production dispatch continuation boundary', () => {
     expect(preflight).not.toHaveBeenCalled();
   });
 
+  it.each(['transparent', 'revoked'] as const)(
+    'rejects a %s nested runAttempt proxy before coercion or the preflight effect',
+    async label => {
+      const protectedMember = await protectedContext();
+      const { lane, preflight } = preflightLane();
+      const coerce = vi.fn(() => '1');
+      const target = { [Symbol.toPrimitive]: coerce };
+      const runAttempt = label === 'transparent'
+        ? new Proxy(target, {})
+        : revokedProxy(target);
+
+      await expect((async () => {
+        const context = createSealedRealmsProductionG001DispatchContext(dispatcherInput({
+          ...protectedMember,
+          runId: RUN_ID,
+          runAttempt,
+        }) as never);
+        const dispatcher = createSealedRealmsProductionG001Dispatcher({ context, lane });
+        return dispatcher.dispatch({ operation: 'preflight', workflowInputSha: S });
+      })()).rejects.toMatchObject({
+        code: 'SEALED_REALMS_DISPATCH_INPUT_INVALID',
+      });
+      expect(coerce).not.toHaveBeenCalled();
+      expect(preflight).not.toHaveBeenCalled();
+    },
+  );
+
   it('rejects transparent and revoked context/composer proxies across all lane graphs', async () => {
     const fixture = privateFixture();
     cleanups.push(fixture.cleanup);

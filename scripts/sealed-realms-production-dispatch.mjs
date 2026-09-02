@@ -104,6 +104,8 @@ export function assertSealedRealmsProductionDispatchContextInput(input) {
     || isProxy(options.sourceAuthority)
     || typeof options.runId !== 'string'
     || !/^[1-9][0-9]{0,19}$/u.test(options.runId)
+    || isProxy(options.runAttempt)
+    || !['string', 'number'].includes(typeof options.runAttempt)
     || !/^[1-9][0-9]{0,3}$/u.test(String(options.runAttempt))
     || Number(options.runAttempt) > 1_000
     || options.continuationStore === null
