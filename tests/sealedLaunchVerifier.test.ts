@@ -118,7 +118,8 @@ function checkedInSources() {
       source('spacetimedb/genesis002/src/adminPolicy.ts'),
     genesis002PolicySource: source('spacetimedb/genesis002/src/policy.ts'),
     genesis002PopulationSource: source('spacetimedb/genesis002/src/population.ts'),
-    genesis002StatusSource: source('spacetimedb/genesis002/src/reducers.ts'),
+    genesis002StatusSource:
+      source('spacetimedb/genesis002/src/atlasImportReducers.ts'),
     genesis002SchemaSource: source('spacetimedb/genesis002/src/schema.ts'),
     genesis002LifecycleSource: source('spacetimedb/genesis002/src/lifecycle.ts'),
     genesis002IndexSource: source('spacetimedb/genesis002/src/index.ts'),
@@ -450,6 +451,13 @@ function mutateGenesis002BridgeRoute(
 }
 
 describe('0.4.0 sealed-launch verifier', () => {
+  it('drives the aligned fixture to the current G001 admission-monitor pin boundary', () => {
+    expect(() => verifySealedLaunchSources(
+      checkedInSources(),
+      'checked-in',
+    )).toThrow('SEALED_LAUNCH_G001_ADMISSION_MONITOR_CURRENT_STATE_INVALID');
+  });
+
   it('rejects a widened G002 root ABI without requiring deferred closure artifacts', () => {
     const verify = (sealedLaunchVerifierModule as typeof sealedLaunchVerifierModule & {
       verifyGenesis002RootAbiSource?: (source: string) => void;
