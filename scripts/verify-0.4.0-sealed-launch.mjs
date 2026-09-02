@@ -1767,6 +1767,99 @@ function contractSequenceCount(tokens, values) {
   return count;
 }
 
+function contractExactPtrClaimKeys(source, name, expectedKeys, code) {
+  const expectedSource = [
+    `const ${name} = Object.freeze([`,
+    ...expectedKeys.map(key => `  '${key}',`),
+    '] as const);',
+  ].join('\n');
+  const actualTokens = contractTokens(source, code);
+  if (
+    JSON.stringify(actualTokens)
+    !== JSON.stringify(contractTokens(expectedSource, code))
+  ) fail(code);
+  return JSON.stringify(
+    actualTokens.filter(token => token.kind === 'string')
+      .map(token => token.value),
+  );
+}
+
+function contractExactPtrRecordParser(
+  source,
+  functionName,
+  claimKeysName,
+  denialCode,
+  code,
+) {
+  const expectedSource = `function ${functionName}(payload: unknown): JsonRecord {
+  if (
+    payload === null
+    || typeof payload !== 'object'
+    || Array.isArray(payload)
+    || Object.getPrototypeOf(payload) !== Object.prototype
+  ) throw new PtrOwnerPolicyError('${denialCode}');
+  const record = payload as JsonRecord;
+  const keys = Reflect.ownKeys(record);
+  if (
+    keys.length !== ${claimKeysName}.length
+    || keys.some(key => (
+      typeof key !== 'string'
+      || !(${claimKeysName} as readonly string[]).includes(key)
+    ))
+  ) throw new PtrOwnerPolicyError('${denialCode}');
+  return record;
+}`;
+  if (
+    JSON.stringify(contractTokens(source, code))
+    !== JSON.stringify(contractTokens(expectedSource, code))
+  ) fail(code);
+}
+
+function contractPtrReaderBinding(
+  source,
+  readerName,
+  nextFunctionName,
+  parserName,
+  requireDatabaseIdentity,
+  code,
+) {
+  const reader = contractSourceSlice(
+    source,
+    `export function ${readerName}(`,
+    `export function ${nextFunctionName}(`,
+    code,
+  );
+  const compactReader = reader.replace(/\s/gu, '');
+  const parserCall = `constrecord=${parserName}(payload);`;
+  const parserIndex = compactReader.indexOf(parserCall);
+  if (
+    parserIndex < 0
+    || compactReader.indexOf(parserCall, parserIndex + parserCall.length) >= 0
+  ) fail(code);
+  for (const candidate of [
+    'strictPtrAdminRecord',
+    'strictPtrOwnerRecord',
+    'strictPtrAtlasAdminRecord',
+  ]) {
+    if (
+      candidate !== parserName
+      && reader.includes(`${candidate}(`)
+    ) fail(code);
+  }
+  const identityCall =
+    'constdatabaseIdentity=parsePtrDatabaseIdentityClaim(record.ptr_database_identity,);';
+  const identityIndex = compactReader.indexOf(identityCall);
+  if (requireDatabaseIdentity) {
+    if (
+      identityIndex <= parserIndex
+      || compactReader.indexOf(
+        identityCall,
+        identityIndex + identityCall.length,
+      ) >= 0
+    ) fail(code);
+  } else if (reader.includes('parsePtrDatabaseIdentityClaim(')) fail(code);
+}
+
 function contractTopLevelSemicolonEnd(tokens, start, code) {
   const pairs = new Map([['(', ')'], ['[', ']'], ['{', '}']]);
   const closers = new Set(pairs.values());
@@ -2617,12 +2710,101 @@ export function verifyPtrOwnerAuthoritySemantics(sources) {
     [sources.ptrOwnerProvisionOperatorSource,
       'ownerAuthEpoch: resolved.ownerAuthEpoch,\n      ownerOpaqueProofDigest'],
   ]) requireOnce(source, token, code);
-  for (const token of [
-    'Object.getPrototypeOf(payload) !== Object.prototype',
-    'const keys = Reflect.ownKeys(record);',
+  const ptrOwnerClaimKeys = [
+    'iss', 'sub', 'aud', 'token_type', 'roles', 'auth_version', 'fid',
+    'auth_epoch', 'ptr_database_identity', 'realm_id', 'iat', 'nbf', 'exp',
+    'session_iat', 'session_exp', 'jti',
+  ];
+  const ptrAdminClaimKeys = [
+    'iss', 'sub', 'aud', 'token_type', 'roles', 'ptr_owner_fid',
+    'ptr_owner_auth_epoch', 'iat', 'nbf', 'exp', 'jti',
+  ];
+  const ptrAtlasAdminClaimKeys = [
+    'iss', 'sub', 'aud', 'token_type', 'roles', 'iat', 'nbf', 'exp', 'jti',
+  ];
+  const ptrClaimKeyContracts = [];
+  for (const [name, keys, startMarker, endMarker] of [
+    [
+      'PTR_OWNER_EXACT_CLAIM_KEYS', ptrOwnerClaimKeys,
+      'const PTR_OWNER_EXACT_CLAIM_KEYS', 'const PTR_ADMIN_EXACT_CLAIM_KEYS',
+    ],
+    [
+      'PTR_ADMIN_EXACT_CLAIM_KEYS', ptrAdminClaimKeys,
+      'const PTR_ADMIN_EXACT_CLAIM_KEYS',
+      'const PTR_ATLAS_ADMIN_EXACT_CLAIM_KEYS',
+    ],
+    [
+      'PTR_ATLAS_ADMIN_EXACT_CLAIM_KEYS', ptrAtlasAdminClaimKeys,
+      'const PTR_ATLAS_ADMIN_EXACT_CLAIM_KEYS',
+      'export type WarpkeepBaseJwtClaims',
+    ],
   ]) {
-    if (sources.ptrOwnerPolicySource.split(token).length !== 3) fail(code);
+    ptrClaimKeyContracts.push(contractExactPtrClaimKeys(
+      contractSourceSlice(
+        sources.ptrOwnerPolicySource,
+        startMarker,
+        endMarker,
+        code,
+      ),
+      name,
+      keys,
+      code,
+    ));
   }
+  if (new Set(ptrClaimKeyContracts).size !== 3) fail(code);
+
+  for (const [functionName, claimKeysName, denialCode, endMarker] of [
+    [
+      'strictPtrAdminRecord', 'PTR_ADMIN_EXACT_CLAIM_KEYS',
+      'INVALID_PTR_ADMIN_SESSION', 'function strictPtrOwnerRecord(',
+    ],
+    [
+      'strictPtrOwnerRecord', 'PTR_OWNER_EXACT_CLAIM_KEYS',
+      'INVALID_PTR_OWNER_SESSION', 'function strictPtrAtlasAdminRecord(',
+    ],
+    [
+      'strictPtrAtlasAdminRecord', 'PTR_ATLAS_ADMIN_EXACT_CLAIM_KEYS',
+      'INVALID_PTR_ATLAS_ADMIN_SESSION', 'function readBaseClaims(',
+    ],
+  ]) {
+    contractExactPtrRecordParser(
+      contractSourceSlice(
+        sources.ptrOwnerPolicySource,
+        `function ${functionName}(`,
+        endMarker,
+        code,
+      ),
+      functionName,
+      claimKeysName,
+      denialCode,
+      code,
+    );
+  }
+
+  contractPtrReaderBinding(
+    sources.ptrOwnerPolicySource,
+    'readFreshPtrAdminClaims',
+    'readFreshPtrAtlasAdminClaims',
+    'strictPtrAdminRecord',
+    false,
+    code,
+  );
+  contractPtrReaderBinding(
+    sources.ptrOwnerPolicySource,
+    'readFreshPtrOwnerClaims',
+    'readFreshPtrAdminClaims',
+    'strictPtrOwnerRecord',
+    true,
+    code,
+  );
+  contractPtrReaderBinding(
+    sources.ptrOwnerPolicySource,
+    'readFreshPtrAtlasAdminClaims',
+    'requirePtrOwnerProvisionBinding',
+    'strictPtrAtlasAdminRecord',
+    false,
+    code,
+  );
 
   requireAbsent(sources.ptrProductionReleaseReceiptsSource, [
     'authEpoch: 1',
