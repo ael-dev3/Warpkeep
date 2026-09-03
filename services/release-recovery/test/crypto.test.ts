@@ -157,13 +157,13 @@ describe('recovery ES256 signatures', () => {
       .rejects.toThrowError('RECOVERY_JWS_PAYLOAD_INVALID')
   })
 
-  it('rejects authorization evidence that is older than the approved 120-second freshness window', async () => {
-    await expect(signRecoveryAuthorizationJws({ ...authorizationPayload, observedFrom: 888, observedThrough: 889 }, TEST_ONLY_PRIVATE_JWK))
+  it('rejects an authorization observation interval that started 121 seconds before issuance even when its end is recent', async () => {
+    await expect(signRecoveryAuthorizationJws({ ...authorizationPayload, observedFrom: 889, observedThrough: 1_009 }, TEST_ONLY_PRIVATE_JWK))
       .rejects.toThrowError('RECOVERY_JWS_PAYLOAD_INVALID')
   })
 
-  it('accepts authorization evidence observed exactly 120 seconds before issuance', async () => {
-    await expect(signRecoveryAuthorizationJws({ ...authorizationPayload, observedFrom: 889, observedThrough: 890 }, TEST_ONLY_PRIVATE_JWK))
+  it('accepts an authorization observation interval that started exactly 120 seconds before issuance', async () => {
+    await expect(signRecoveryAuthorizationJws({ ...authorizationPayload, observedFrom: 890, observedThrough: 1_009 }, TEST_ONLY_PRIVATE_JWK))
       .resolves.toMatch(/^[^.]+\.[^.]+\.[^.]+$/)
   })
 

@@ -461,7 +461,7 @@ function assertAuthorizationFields(payload: RecoveryJsonObject): void {
   const observedFrom = requireNonNegative(payload, 'observedFrom')
   const observedThrough = requireNonNegative(payload, 'observedThrough')
   const issuedAt = payload.iat
-  if (!isSafeJsonNumber(issuedAt) || observedThrough < observedFrom || observedThrough > issuedAt || issuedAt - observedThrough > 120) fail('RECOVERY_JWS_PAYLOAD_INVALID')
+  if (!isSafeJsonNumber(issuedAt) || observedThrough < observedFrom || observedThrough > issuedAt || issuedAt - observedFrom > 120) fail('RECOVERY_JWS_PAYLOAD_INVALID')
 }
 
 function assertClaimFields(payload: RecoveryJsonObject): void {
