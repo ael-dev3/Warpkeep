@@ -13,6 +13,58 @@ No GitHub, Cloudflare, SpacetimeDB, deployment, workflow-dispatch, provisioning,
 push, or other remote operation was performed. All network behavior was exercised
 through deterministic local fakes with generated test-only keys.
 
+## Review fix round 4
+
+Round 4 started from `2e3d5d4` and closed the reviewed package-content and
+archive-response-ownership gaps without changing the schema-2 binding,
+deployment attestation, four digests, or metadata-only recheck.
+
+- RED command: bundled Node 22 ran `npm --prefix services/release-recovery test
+  -- --run test/githubEvidence.test.ts test/archive.test.ts
+  test/githubOidc.test.ts`.
+- RED result: 3 files, 370 tests, 21 intended failures and 349 passes. Nineteen
+  failures proved that changed scripts, dependencies, unrelated metadata,
+  package/lock names and shapes, old/new versions, lock resolution/integrity,
+  one-sided lock versions, and noncanonical/duplicate package JSON were not
+  content-constrained. Two failures proved that throwing `headers` and
+  `headers.get` accessors selected a stable error but left the archive body
+  uncancelled.
+- GREEN adds exact `body.getReader`, throwing body, cancellation rejection, and
+  cancellation-throw coverage. Final focused HTTP/OIDC/evidence/archive tests
+  are 407/407; the full service suite is 458/458 across 6 files.
+- A final size-consistency self-review added two candidate/preparation tree-size
+  regressions. Focused evidence was RED at 132 passed / 2 failed before the
+  stable tree-blob loader enforced exact recursive-tree-size equality, then
+  GREEN at 134/134.
+
+Round-4 decisions are pinned as follows:
+
+- Candidate and preparation `package.json` and `package-lock.json` blobs are
+  each loaded through the existing stable double-fetch path, including ETag,
+  body, canonical 60-column GitHub base64, declared size, Git blob SHA-1, and
+  bounded decoded bytes. Both JSON documents use the duplicate-free strict
+  parser and must equal exact `JSON.stringify(value, null, 2) + '\n'` bytes.
+- `package.json` must retain root name `warpkeep`; preparation version is exactly
+  `0.3.43`, candidate version is exactly `0.4.0`, and replacing that one
+  candidate property with `0.3.43` must reproduce the complete preparation
+  bytes. `package-lock.json` additionally requires lockfile version 3,
+  `requires: true`, `packages['']`, and both root names. Only its top-level and
+  root-package versions may make the same `0.3.43` to `0.4.0` transition; the
+  transformed candidate must reproduce every preparation byte.
+- Authenticated artifact byte length is now an explicit strict transport
+  expectation of the incremental archive inspector. The inspector captures the
+  response body before any header access, compares the single content-length
+  snapshot with authenticated metadata before acquiring a reader, and performs
+  one nonblocking sanitized cancellation on every owned-body failure. The
+  evidence layer maps all such failures to `RECOVERY_GITHUB_EVIDENCE_INVALID`.
+- Immutable sanitized literals independently pin the current 60-column LF blob
+  wrapping, `0x032d`/`0x81a40020` outer ZIP central tuple, sparse check suite,
+  hosted runner group `0`, and null unassigned sibling-job fields.
+
+Round 4 modified only `src/{archive,githubEvidence}.ts`, the archive, evidence,
+and OIDC test files, and this report. No dependency, package manifest, or lock
+file changed.
+
 ## Review fix round 3
 
 Round 3 started from `2334a4d` and corrected the last captured-wire differences
@@ -273,7 +325,8 @@ cleanup fix produced archive 68/68. Final verification results are recorded belo
 - Candidate evidence reauthenticates fixed repository/owner IDs, protected main,
   linear commit ancestry, actual recursive trees, exact three-blob delta with
   only necessary ancestor-tree SHA changes, stable Git blobs
-  with ETag/body/canonical 60-column LF-wrapped base64/size/Git-SHA-1 checks, schema-2 binding, protected workflow
+  with ETag/body/canonical 60-column LF-wrapped base64/size/Git-SHA-1 checks,
+  exact canonical package/lock version-only transforms, schema-2 binding, protected workflow
   structure, distinct successful source Verify attempt, and exactly one named
   unexpired Pages artifact with stable metadata and recorded `sha256:` digest.
 - Metadata-only recheck uses a canonical stored projection/digest, reloads current
@@ -310,9 +363,9 @@ service's npm scripts and the repository's existing installed toolchain.
 ## Final verification
 
 - Node `v22.23.2`: `npm --prefix services/release-recovery run typecheck` — exit 0.
-- Full service tests — 6 files, 428 tests passed.
-- Focused archive/evidence/OIDC/HTTP tests — 4 files, 377 tests passed.
-- `git diff --check 2334a4d` — no output, exit 0.
+- Full service tests — 6 files, 458 tests passed.
+- Focused archive/evidence/OIDC/HTTP tests — 4 files, 407 tests passed.
+- `git diff --check 2e3d5d4` — no output, exit 0.
 - Targeted coercion/full-body/mock/error-leak greps — no production GitHub ID
   `Number` coercion, no archive-response `arrayBuffer()`/`text()` use, no temporary archive
   inspector mock/seam, and no upstream token/body/error interpolation.

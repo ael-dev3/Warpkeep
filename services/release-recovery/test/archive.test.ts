@@ -10,6 +10,10 @@ const CANDIDATE_TREE = 'c'.repeat(40)
 const PREPARATION_PLACEHOLDER = 'b'.repeat(40)
 const CORE = '4'.repeat(64)
 const CLOSURE = '6'.repeat(64)
+const CAPTURED_PINNED_CENTRAL_PREFIX = Uint8Array.from([
+  0x50, 0x4b, 0x01, 0x02, 0x2d, 0x03, 0x14, 0x00, 0x08, 0x00, 0x08, 0x00,
+])
+const CAPTURED_PINNED_EXTERNAL_ATTRIBUTES = Uint8Array.from([0x20, 0x00, 0xa4, 0x81])
 const expected: PagesArtifactExpected = {
   candidateCommit: CANDIDATE,
   candidateTree: CANDIDATE_TREE,
@@ -350,6 +354,10 @@ describe('Pages recovery archive validator', () => {
     const zipBytes = makeZip(tar, { method: 8, bit3: true })
     const local = new DataView(zipBytes.buffer, zipBytes.byteOffset, zipBytes.byteLength)
     const centralOffset = 30 + ARTIFACT_NAME.length + deflateSync(tar).length + 16
+    expect(zipBytes.subarray(centralOffset, centralOffset + CAPTURED_PINNED_CENTRAL_PREFIX.length))
+      .toEqual(CAPTURED_PINNED_CENTRAL_PREFIX)
+    expect(zipBytes.subarray(centralOffset + 38, centralOffset + 42))
+      .toEqual(CAPTURED_PINNED_EXTERNAL_ATTRIBUTES)
     expect(local.getUint16(4, true)).toBe(20)
     expect(local.getUint16(6, true)).toBe(0x0008)
     expect(local.getUint16(8, true)).toBe(8)

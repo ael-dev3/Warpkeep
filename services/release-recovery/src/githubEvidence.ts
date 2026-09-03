@@ -37,6 +37,10 @@ const REPOSITORY_OWNER = 'ael-dev3'
 const BINDING_PATH = 'config/releases/0.4.0-sealed-launch.json'
 const WORKFLOW_PATH = '.github/workflows/deploy-pages.yml'
 const VERIFY_WORKFLOW_PATH = '.github/workflows/verify.yml'
+const PACKAGE_PATH = 'package.json'
+const PACKAGE_LOCK_PATH = 'package-lock.json'
+const PREPARATION_VERSION = '0.3.43'
+const ACTIVATION_VERSION = '0.4.0'
 const BINDING_PROFILE = 'warpkeep-0.4.0-sealed-launch-v2'
 const SOURCE_CLOSURE_PROFILE = 'warpkeep-0.4.0-recovery-source-closure-v1'
 const AUTHORIZATION_PROFILE = 'warpkeep-0.4.0-recovery-authorization-v1'
@@ -484,7 +488,7 @@ function validateActivationDelta(
       else changedBlobs.add(path)
     }
   }
-  const expected = new Set([BINDING_PATH, 'package.json', 'package-lock.json'])
+  const expected = new Set([BINDING_PATH, PACKAGE_PATH, PACKAGE_LOCK_PATH])
   if (changedBlobs.size !== expected.size || [...expected].some(path => !changedBlobs.has(path))) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   const expectedTrees = new Set<string>()
   for (const path of expected) {
@@ -578,6 +582,91 @@ async function loadStableBlob(
   const bytes = decodeCanonicalBase64(blob.content)
   if (blob.size !== bytes.length || await gitBlobSha1(bytes) !== blobSha) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   return Uint8Array.from(bytes)
+}
+
+async function loadStableTreeBlob(
+  fetchImplementation: typeof fetch,
+  init: RequestInit,
+  entry: TreeEntry,
+): Promise<Uint8Array> {
+  const bytes = await loadStableBlob(fetchImplementation, init, entry.sha)
+  if (entry.size !== bytes.length) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  return bytes
+}
+
+function canonicalJsonObject(bytes: Uint8Array): GitHubJsonObject {
+  const value = parseGitHubJsonObject(bytes, 'RECOVERY_GITHUB_EVIDENCE_INVALID', [])
+  let canonical: Uint8Array
+  try {
+    canonical = text.encode(`${JSON.stringify(value, null, 2)}\n`)
+  } catch {
+    githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  }
+  if (!equalBytes(bytes, canonical)) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  return value
+}
+
+function replaceJsonProperty(
+  value: GitHubJsonObject,
+  key: string,
+  replacement: GitHubJsonValue,
+): GitHubJsonObject {
+  if (!Object.hasOwn(value, key)) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  const result: Record<string, GitHubJsonValue> = Object.create(null)
+  for (const current of Object.keys(value)) result[current] = current === key ? replacement : value[current]!
+  return result
+}
+
+function canonicalJsonBytes(value: GitHubJsonObject): Uint8Array {
+  try {
+    return text.encode(`${JSON.stringify(value, null, 2)}\n`)
+  } catch {
+    githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  }
+}
+
+function validatePackageVersionTransform(preparationBytes: Uint8Array, candidateBytes: Uint8Array): void {
+  const preparation = canonicalJsonObject(preparationBytes)
+  const candidate = canonicalJsonObject(candidateBytes)
+  if (
+    preparation.name !== 'warpkeep'
+    || candidate.name !== 'warpkeep'
+    || preparation.version !== PREPARATION_VERSION
+    || candidate.version !== ACTIVATION_VERSION
+  ) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  const downgraded = replaceJsonProperty(candidate, 'version', PREPARATION_VERSION)
+  if (!equalBytes(preparationBytes, canonicalJsonBytes(downgraded))) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+}
+
+function validatePackageLockVersionTransform(preparationBytes: Uint8Array, candidateBytes: Uint8Array): void {
+  const preparation = canonicalJsonObject(preparationBytes)
+  const candidate = canonicalJsonObject(candidateBytes)
+  const preparationPackages = objectValue(preparation.packages)
+  const candidatePackages = objectValue(candidate.packages)
+  const preparationRoot = objectValue(preparationPackages[''])
+  const candidateRoot = objectValue(candidatePackages[''])
+  if (
+    preparation.name !== 'warpkeep'
+    || candidate.name !== 'warpkeep'
+    || preparationRoot.name !== 'warpkeep'
+    || candidateRoot.name !== 'warpkeep'
+    || preparation.version !== PREPARATION_VERSION
+    || candidate.version !== ACTIVATION_VERSION
+    || preparationRoot.version !== PREPARATION_VERSION
+    || candidateRoot.version !== ACTIVATION_VERSION
+    || preparation.lockfileVersion !== 3
+    || candidate.lockfileVersion !== 3
+    || preparation.requires !== true
+    || candidate.requires !== true
+  ) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  const downgradedRoot = replaceJsonProperty(candidateRoot, 'version', PREPARATION_VERSION)
+  const downgradedPackages = replaceJsonProperty(candidatePackages, '', downgradedRoot)
+  const downgraded = replaceJsonProperty(
+    replaceJsonProperty(candidate, 'version', PREPARATION_VERSION),
+    'packages',
+    downgradedPackages,
+  )
+  if (!equalBytes(preparationBytes, canonicalJsonBytes(downgraded))) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
 }
 
 function jsonRecord(value: GitHubJsonObject): Readonly<Record<string, JsonValue>> {
@@ -1002,11 +1091,17 @@ export async function loadGitHubCandidateEvidence(input: Readonly<{
     const candidateTree = treeMap(candidateTreeValue, candidate.tree)
     const preparationTree = treeMap(preparationTreeValue, preparation.tree)
     validateActivationDelta(candidateTree, preparationTree)
+    const candidatePackageBytes = await loadStableTreeBlob(fetchImplementation, init, candidateTree.get(PACKAGE_PATH)!)
+    const preparationPackageBytes = await loadStableTreeBlob(fetchImplementation, init, preparationTree.get(PACKAGE_PATH)!)
+    validatePackageVersionTransform(preparationPackageBytes, candidatePackageBytes)
+    const candidateLockBytes = await loadStableTreeBlob(fetchImplementation, init, candidateTree.get(PACKAGE_LOCK_PATH)!)
+    const preparationLockBytes = await loadStableTreeBlob(fetchImplementation, init, preparationTree.get(PACKAGE_LOCK_PATH)!)
+    validatePackageLockVersionTransform(preparationLockBytes, candidateLockBytes)
     const bindingEntry = candidateTree.get(BINDING_PATH)!
     const workflowEntry = candidateTree.get(WORKFLOW_PATH)!
-    const bindingBytes = await loadStableBlob(fetchImplementation, init, bindingEntry.sha)
+    const bindingBytes = await loadStableTreeBlob(fetchImplementation, init, bindingEntry)
     await validateBinding(bindingBytes, armed, snapshot.bindingRequestId)
-    const workflowBytes = await loadStableBlob(fetchImplementation, init, workflowEntry.sha)
+    const workflowBytes = await loadStableTreeBlob(fetchImplementation, init, workflowEntry)
     validateWorkflow(workflowBytes)
 
     const source = await json(
@@ -1032,28 +1127,18 @@ export async function loadGitHubCandidateEvidence(input: Readonly<{
     if (!sameArtifact(listedArtifact, direct.projection)) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
 
     const archiveResponse = await githubRedirect(fetchImplementation, direct.projection.archiveUrl, `Bearer ${token}`)
-    let archiveLength: string | null
+    let archive: Awaited<ReturnType<typeof inspectPagesArtifact>>
     try {
-      archiveLength = archiveResponse.headers.get('content-length')
+      archive = await inspectPagesArtifact(archiveResponse, {
+        candidateCommit,
+        candidateTree: candidate.tree,
+        recoveryAuthorizationCoreSha256: armed.recoveryAuthorizationCoreSha256 as string,
+        sourceClosureProfile: armed.sourceClosureProfile as string,
+        sourceClosureSha256: armed.sourceClosureSha256 as string,
+      }, undefined, { archiveByteLength: direct.projection.size })
     } catch {
       githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
     }
-    if (archiveLength !== String(direct.projection.size)) {
-      try {
-        const cancellation = archiveResponse.body?.cancel()
-        void Promise.resolve(cancellation).catch(() => undefined)
-      } catch {
-        // The stable evidence error is selected below.
-      }
-      githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
-    }
-    const archive = await inspectPagesArtifact(archiveResponse, {
-      candidateCommit,
-      candidateTree: candidate.tree,
-      recoveryAuthorizationCoreSha256: armed.recoveryAuthorizationCoreSha256 as string,
-      sourceClosureProfile: armed.sourceClosureProfile as string,
-      sourceClosureSha256: armed.sourceClosureSha256 as string,
-    })
     if (direct.projection.digest !== `sha256:${archive.githubArtifactArchiveSha256}`) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
     const githubMetadata: GitHubEvidenceMetadata = Object.freeze({
       repository: GITHUB_REPOSITORY,

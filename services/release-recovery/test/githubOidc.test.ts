@@ -8,6 +8,8 @@ const text = new TextEncoder()
 const candidateCommit = 'a'.repeat(40)
 const now = 1_700_000_000
 const repository = 'ael-dev3/Warpkeep'
+const CAPTURED_SPARSE_CHECK_RUN_JSON = '{"id":91,"node_id":"CR_kwDOfixture","name":"deploy-recovery","head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","external_id":"pages-deploy-recovery","url":"https://api.github.com/repos/ael-dev3/Warpkeep/check-runs/91","html_url":"https://github.com/ael-dev3/Warpkeep/actions/runs/41/job/91","details_url":"https://github.com/ael-dev3/Warpkeep/actions/runs/41/job/91","status":"in_progress","conclusion":null,"started_at":"2026-09-03T00:00:00Z","completed_at":null,"output":{"title":null,"summary":null,"text":null,"annotations_count":0,"annotations_url":"https://api.github.com/repos/ael-dev3/Warpkeep/check-runs/91/annotations"},"check_suite":{"id":77},"app":{"id":15368,"slug":"github-actions","name":"GitHub Actions"},"pull_requests":[]}'
+const CAPTURED_HOSTED_AND_SKIPPED_JOBS_JSON = '{"total_count":2,"jobs":[{"id":91,"run_id":41,"workflow_name":"Deploy GitHub Pages","head_branch":"main","run_url":"https://api.github.com/repos/ael-dev3/Warpkeep/actions/runs/41","run_attempt":2,"node_id":"CR_kwDOfixture","head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","url":"https://api.github.com/repos/ael-dev3/Warpkeep/actions/jobs/91","html_url":"https://github.com/ael-dev3/Warpkeep/actions/runs/41/job/91","status":"in_progress","conclusion":null,"created_at":"2026-09-03T00:00:00Z","started_at":"2026-09-03T00:00:10Z","completed_at":null,"name":"deploy-recovery","steps":[{"name":"Request recovery authority","status":"in_progress","conclusion":null,"number":6,"started_at":"2026-09-03T00:01:00Z","completed_at":null}],"check_run_url":"https://api.github.com/repos/ael-dev3/Warpkeep/check-runs/91","labels":["ubuntu-latest"],"runner_id":1001,"runner_name":"GitHub Actions 1","runner_group_id":0,"runner_group_name":"GitHub Actions"},{"id":92,"run_id":41,"workflow_name":"Deploy GitHub Pages","head_branch":"main","run_url":"https://api.github.com/repos/ael-dev3/Warpkeep/actions/runs/41","run_attempt":2,"node_id":"CR_kwDOskipped","head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","url":"https://api.github.com/repos/ael-dev3/Warpkeep/actions/jobs/92","html_url":"https://github.com/ael-dev3/Warpkeep/actions/runs/41/job/92","status":"completed","conclusion":"skipped","created_at":"2026-09-03T00:00:00Z","started_at":null,"completed_at":"2026-09-03T00:00:01Z","name":"build-skipped","steps":[],"check_run_url":"https://api.github.com/repos/ael-dev3/Warpkeep/check-runs/92","labels":["ubuntu-latest"],"runner_id":null,"runner_name":null,"runner_group_id":null,"runner_group_name":null}]}'
 const workflowRef = 'ael-dev3/Warpkeep/.github/workflows/deploy-pages.yml@refs/heads/main'
 const installationUrl = 'https://api.github.com/app/installations/23/access_tokens'
 
@@ -411,6 +413,13 @@ describe('GitHub recovery OIDC identity', () => {
 
   it('accepts a sparse check suite and a skipped sibling with null runner assignment', async () => {
     await expect(verify()).resolves.toMatchObject({ pagesRunId: '41', checkRunId: '91' })
+  })
+
+  it('accepts immutable sanitized current-wire sparse check and hosted/null-peer job JSON', async () => {
+    await expect(verify({
+      checkRunText: () => CAPTURED_SPARSE_CHECK_RUN_JSON,
+      jobsText: () => CAPTURED_HOSTED_AND_SKIPPED_JOBS_JSON,
+    })).resolves.toMatchObject({ pagesRunId: '41', checkRunId: '91' })
   })
 
   it.each([

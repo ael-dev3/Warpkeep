@@ -70,6 +70,10 @@ export type PagesArtifactTiming = Readonly<{
   idleTimeoutMilliseconds: number
 }>
 
+export type PagesArtifactTransportExpected = Readonly<{
+  archiveByteLength: number
+}>
+
 function snapshotTiming(input: PagesArtifactTiming | undefined): PagesArtifactTiming {
   if (input === undefined) return Object.freeze({ totalTimeoutMilliseconds: TOTAL_TIMEOUT_MS, idleTimeoutMilliseconds: IDLE_TIMEOUT_MS })
   const value = snapshotExactDataObject(input, ['totalTimeoutMilliseconds', 'idleTimeoutMilliseconds'], CODE)
@@ -103,6 +107,15 @@ function snapshotExpected(input: PagesArtifactExpected): PagesArtifactExpected {
     sourceClosureProfile: SOURCE_CLOSURE_PROFILE,
     sourceClosureSha256: value.sourceClosureSha256,
   })
+}
+
+function snapshotTransportExpected(input: PagesArtifactTransportExpected | undefined): PagesArtifactTransportExpected | undefined {
+  if (input === undefined) return undefined
+  const value = snapshotExactDataObject(input, ['archiveByteLength'], CODE)
+  if (!Number.isSafeInteger(value.archiveByteLength) || (value.archiveByteLength as number) < 1 || (value.archiveByteLength as number) > MAX_ARCHIVE_BYTES) {
+    githubFail(CODE)
+  }
+  return Object.freeze({ archiveByteLength: value.archiveByteLength as number })
 }
 
 const SHA256_INITIAL = new Uint32Array([
@@ -271,7 +284,12 @@ class ArchiveSource {
   #position = 0
   #ended = false
 
-  constructor(response: Response, body: ReadableStream<Uint8Array>, timing: PagesArtifactTiming) {
+  constructor(
+    response: Response,
+    body: ReadableStream<Uint8Array>,
+    timing: PagesArtifactTiming,
+    transportExpected: PagesArtifactTransportExpected | undefined,
+  ) {
     this.#totalDeadline = performance.now() + timing.totalTimeoutMilliseconds
     this.#idleTimeoutMilliseconds = timing.idleTimeoutMilliseconds
     try {
@@ -293,7 +311,10 @@ class ArchiveSource {
         || !/^application\/(?:zip|octet-stream|x-zip-compressed)$/iu.test(contentType)
       ) githubFail(CODE)
       const declared = BigInt(contentLength)
-      if (declared > BigInt(MAX_ARCHIVE_BYTES)) githubFail(CODE)
+      if (
+        declared > BigInt(MAX_ARCHIVE_BYTES)
+        || (transportExpected !== undefined && declared !== BigInt(transportExpected.archiveByteLength))
+      ) githubFail(CODE)
       this.#declaredLength = Number(declared)
       this.#reader = body.getReader()
     } catch {
@@ -873,6 +894,7 @@ export async function inspectPagesArtifact(
   response: Response,
   expected: PagesArtifactExpected,
   timingInput?: PagesArtifactTiming,
+  transportExpectedInput?: PagesArtifactTransportExpected,
 ): Promise<PagesArtifactDigests> {
   let source: ArchiveSource | undefined
   let body: ReadableStream<Uint8Array> | undefined
@@ -885,6 +907,7 @@ export async function inspectPagesArtifact(
       githubFail(CODE)
     }
     const trustedExpected = snapshotExpected(expected)
+    const transportExpected = snapshotTransportExpected(transportExpectedInput)
     const configuredTiming = snapshotTiming(timingInput)
     const transportRemaining = githubArchiveRemainingMilliseconds(response)
     if (transportRemaining === 0) githubFail(CODE)
@@ -894,7 +917,7 @@ export async function inspectPagesArtifact(
           totalTimeoutMilliseconds: Math.min(configuredTiming.totalTimeoutMilliseconds, transportRemaining),
           idleTimeoutMilliseconds: configuredTiming.idleTimeoutMilliseconds,
         })
-    source = new ArchiveSource(response, body, timing)
+    source = new ArchiveSource(response, body, timing, transportExpected)
     const localOffset = source.position
     if (localOffset !== 0) githubFail(CODE)
     const local = await source.readExactly(30)

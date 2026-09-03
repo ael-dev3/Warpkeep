@@ -31,6 +31,13 @@ const G002 = '7'.repeat(64)
 const PTR = '8'.repeat(64)
 const CLOSURE = '6'.repeat(64)
 const encoder = new TextEncoder()
+const CAPTURED_GITHUB_PACKAGE_BLOB_CONTENT = `ewogICJuYW1lIjogIndhcnBrZWVwIiwKICAicHJpdmF0ZSI6IHRydWUsCiAg
+InZlcnNpb24iOiAiMC40LjAiLAogICJzY3JpcHRzIjogewogICAgImJ1aWxk
+IjogInZpdGUgYnVpbGQiLAogICAgInRlc3QiOiAidml0ZXN0IC0tcnVuIgog
+IH0sCiAgImRlcGVuZGVuY2llcyI6IHsKICAgICJ2aXRlIjogIjguMC4xNiIK
+ICB9LAogICJkZXNjcmlwdGlvbiI6ICJXYXJwa2VlcCByZWNvdmVyeSBmaXh0
+dXJlIgp9Cg==
+`
 
 let privateKeyPem = ''
 
@@ -46,6 +53,10 @@ type State = {
   preparationTree: TreeEntry[]
   bindingBytes: Uint8Array
   workflowBytes: Uint8Array
+  candidatePackageBytes: Uint8Array
+  preparationPackageBytes: Uint8Array
+  candidateLockBytes: Uint8Array
+  preparationLockBytes: Uint8Array
   source: JsonObject
   artifact: JsonObject
   listedArtifacts: JsonObject[]
@@ -61,6 +72,7 @@ type State = {
   blobSecondEtag?: string
   archive: Uint8Array
   archiveLengthOverride?: string
+  archiveResponse?: () => Response
   forbidArchive: boolean
 }
 
@@ -95,6 +107,10 @@ function base64(bytes: Uint8Array): string {
 
 function githubBlobBase64(bytes: Uint8Array): string {
   return `${base64(bytes).match(/.{1,60}/gu)!.join('\n')}\n`
+}
+
+function canonicalJson(value: unknown): Uint8Array {
+  return encoder.encode(`${JSON.stringify(value, null, 2)}\n`)
 }
 
 function octal(value: number, length: number): Uint8Array {
@@ -260,10 +276,30 @@ async function makeFixture(): Promise<Readonly<{
 }>> {
   const binding = await validBinding()
   const workflow = workflowBytes()
-  const packageBytes = encoder.encode('{"version":"0.4.0"}\n')
-  const oldPackageBytes = encoder.encode('{"version":"0.3.43"}\n')
-  const lockBytes = encoder.encode('{"version":"0.4.0","lockfileVersion":3}\n')
-  const oldLockBytes = encoder.encode('{"version":"0.3.43","lockfileVersion":3}\n')
+  const packageValue = {
+    name: 'warpkeep', private: true, version: '0.4.0',
+    scripts: { build: 'vite build', test: 'vitest --run' },
+    dependencies: { vite: '8.0.16' },
+    description: 'Warpkeep recovery fixture',
+  }
+  const packageBytes = canonicalJson(packageValue)
+  const oldPackageBytes = canonicalJson({ ...packageValue, version: '0.3.43' })
+  const lockValue = {
+    name: 'warpkeep', version: '0.4.0', lockfileVersion: 3, requires: true,
+    packages: {
+      '': { name: 'warpkeep', version: '0.4.0', dependencies: { vite: '8.0.16' } },
+      'node_modules/vite': {
+        version: '8.0.16', resolved: 'https://registry.npmjs.org/vite/-/vite-8.0.16.tgz',
+        integrity: 'sha512-sanitized-fixture',
+      },
+    },
+  }
+  const lockBytes = canonicalJson(lockValue)
+  const oldLockBytes = canonicalJson({
+    ...lockValue,
+    version: '0.3.43',
+    packages: { ...lockValue.packages, '': { ...lockValue.packages[''], version: '0.3.43' } },
+  })
   const oldBindingBytes = encoder.encode('{"schemaVersion":1}\n')
   const readmeBytes = encoder.encode('Warpkeep\n')
   const [bindingSha, workflowSha, packageSha, oldPackageSha, lockSha, oldLockSha, oldBindingSha, readmeSha] = await Promise.all([
@@ -350,6 +386,10 @@ async function makeFixture(): Promise<Readonly<{
     preparationTree,
     bindingBytes: binding.bytes,
     workflowBytes: workflow,
+    candidatePackageBytes: packageBytes,
+    preparationPackageBytes: oldPackageBytes,
+    candidateLockBytes: lockBytes,
+    preparationLockBytes: oldLockBytes,
     source: {
       id: SOURCE_RUN_ID, run_attempt: 1, name: 'Verify', path: '.github/workflows/verify.yml@main',
       event: 'push', status: 'completed', conclusion: 'success', head_branch: 'main', head_sha: CANDIDATE,
@@ -403,9 +443,17 @@ async function makeFixture(): Promise<Readonly<{
       blobCalls.set(sha, count)
       const bindingEntry = state.candidateTree.find(value => value.path === BINDING_PATH)
       const workflowEntry = state.candidateTree.find(value => value.path === WORKFLOW_PATH)
+      const candidatePackageEntry = state.candidateTree.find(value => value.path === 'package.json')
+      const preparationPackageEntry = state.preparationTree.find(value => value.path === 'package.json')
+      const candidateLockEntry = state.candidateTree.find(value => value.path === 'package-lock.json')
+      const preparationLockEntry = state.preparationTree.find(value => value.path === 'package-lock.json')
       let bytes: Uint8Array
       if (sha === bindingEntry?.sha) bytes = state.bindingBytes
       else if (sha === workflowEntry?.sha) bytes = state.workflowBytes
+      else if (sha === candidatePackageEntry?.sha) bytes = state.candidatePackageBytes
+      else if (sha === preparationPackageEntry?.sha) bytes = state.preparationPackageBytes
+      else if (sha === candidateLockEntry?.sha) bytes = state.candidateLockBytes
+      else if (sha === preparationLockEntry?.sha) bytes = state.preparationLockBytes
       else throw new Error(`unexpected blob ${sha}`)
       const content = count === 2 && state.blobSecondContentOverride !== undefined
         ? state.blobSecondContentOverride
@@ -439,6 +487,7 @@ async function makeFixture(): Promise<Readonly<{
     }
     if (url === 'https://objects.githubusercontent.com/recovery.zip') {
       if (state.forbidArchive) throw new Error('archive download forbidden')
+      if (state.archiveResponse !== undefined) return state.archiveResponse()
       return withUrl(url, new Response(Uint8Array.from(state.archive).buffer, {
         headers: { 'content-length': state.archiveLengthOverride ?? String(state.archive.length), 'content-type': 'application/zip' },
       }))
@@ -508,6 +557,45 @@ async function replaceBinding(fixture: Awaited<ReturnType<typeof makeFixture>>, 
   entry.sha = await blobSha(fixture.state.bindingBytes)
   entry.size = fixture.state.bindingBytes.length
   entry.url = `${API}/git/blobs/${entry.sha}`
+}
+
+async function replacePackageBlob(
+  fixture: Awaited<ReturnType<typeof makeFixture>>,
+  path: 'package.json' | 'package-lock.json',
+  side: 'candidate' | 'preparation',
+  bytes: Uint8Array,
+): Promise<void> {
+  const field = path === 'package.json'
+    ? side === 'candidate' ? 'candidatePackageBytes' : 'preparationPackageBytes'
+    : side === 'candidate' ? 'candidateLockBytes' : 'preparationLockBytes'
+  fixture.state[field] = bytes
+  const tree = side === 'candidate' ? fixture.state.candidateTree : fixture.state.preparationTree
+  const entry = tree.find(value => value.path === path)!
+  entry.sha = await blobSha(bytes)
+  entry.size = bytes.length
+  entry.url = `${API}/git/blobs/${entry.sha}`
+}
+
+async function mutatePackageJson(
+  fixture: Awaited<ReturnType<typeof makeFixture>>,
+  side: 'candidate' | 'preparation',
+  mutate: (value: JsonObject) => void,
+): Promise<void> {
+  const bytes = side === 'candidate' ? fixture.state.candidatePackageBytes : fixture.state.preparationPackageBytes
+  const value = JSON.parse(new TextDecoder().decode(bytes)) as JsonObject
+  mutate(value)
+  await replacePackageBlob(fixture, 'package.json', side, canonicalJson(value))
+}
+
+async function mutatePackageLock(
+  fixture: Awaited<ReturnType<typeof makeFixture>>,
+  side: 'candidate' | 'preparation',
+  mutate: (value: JsonObject) => void,
+): Promise<void> {
+  const bytes = side === 'candidate' ? fixture.state.candidateLockBytes : fixture.state.preparationLockBytes
+  const value = JSON.parse(new TextDecoder().decode(bytes)) as JsonObject
+  mutate(value)
+  await replacePackageBlob(fixture, 'package-lock.json', side, canonicalJson(value))
 }
 
 async function rejects(mutator: (fixture: Awaited<ReturnType<typeof makeFixture>>) => void | Promise<void>): Promise<void> {
@@ -594,6 +682,90 @@ describe('GitHub candidate evidence', () => {
     })
   })
 
+  it('accepts package manifests whose only activation change is the pinned version transform', async () => {
+    const fixture = await makeFixture()
+    await expect(loadGitHubCandidateEvidence(fixture.input)).resolves.toBeDefined()
+  })
+
+  it.each(['candidate', 'preparation'] as const)('rejects a %s package tree size inconsistent with verified blob bytes', async side => {
+    await rejects(({ state }) => {
+      const tree = side === 'candidate' ? state.candidateTree : state.preparationTree
+      tree.find(value => value.path === 'package.json')!.size! += 1
+    })
+  })
+
+  it.each([
+    ['scripts', async (fixture: Awaited<ReturnType<typeof makeFixture>>) => mutatePackageJson(fixture, 'candidate', value => {
+      ;(value.scripts as JsonObject).build = 'node attacker.js'
+    })],
+    ['dependencies', async (fixture: Awaited<ReturnType<typeof makeFixture>>) => mutatePackageJson(fixture, 'candidate', value => {
+      ;(value.dependencies as JsonObject).vite = '9.0.0'
+    })],
+    ['unrelated metadata', async (fixture: Awaited<ReturnType<typeof makeFixture>>) => mutatePackageJson(fixture, 'candidate', value => {
+      value.description = 'changed'
+    })],
+    ['package name', async (fixture: Awaited<ReturnType<typeof makeFixture>>) => mutatePackageJson(fixture, 'candidate', value => {
+      value.name = 'attacker'
+    })],
+    ['old version', async (fixture: Awaited<ReturnType<typeof makeFixture>>) => mutatePackageJson(fixture, 'preparation', value => {
+      value.version = '0.3.42'
+    })],
+    ['new version', async (fixture: Awaited<ReturnType<typeof makeFixture>>) => mutatePackageJson(fixture, 'candidate', value => {
+      value.version = '0.4.1'
+    })],
+  ])('rejects package.json activation with changed %s', async (_name, mutate) => rejects(mutate))
+
+  it.each([
+    ['resolved URL', async (fixture: Awaited<ReturnType<typeof makeFixture>>) => mutatePackageLock(fixture, 'candidate', value => {
+      ;((value.packages as JsonObject)['node_modules/vite'] as JsonObject).resolved = 'https://attacker.invalid/vite.tgz'
+    })],
+    ['integrity', async (fixture: Awaited<ReturnType<typeof makeFixture>>) => mutatePackageLock(fixture, 'candidate', value => {
+      ;((value.packages as JsonObject)['node_modules/vite'] as JsonObject).integrity = 'sha512-changed'
+    })],
+    ['dependency content', async (fixture: Awaited<ReturnType<typeof makeFixture>>) => mutatePackageLock(fixture, 'candidate', value => {
+      ;(((value.packages as JsonObject)[''] as JsonObject).dependencies as JsonObject).vite = '9.0.0'
+    })],
+    ['only top-level version', async (fixture: Awaited<ReturnType<typeof makeFixture>>) => mutatePackageLock(fixture, 'candidate', value => {
+      value.version = '0.3.43'
+    })],
+    ['only root-package version', async (fixture: Awaited<ReturnType<typeof makeFixture>>) => mutatePackageLock(fixture, 'candidate', value => {
+      ;((value.packages as JsonObject)[''] as JsonObject).version = '0.3.43'
+    })],
+    ['old versions', async (fixture: Awaited<ReturnType<typeof makeFixture>>) => mutatePackageLock(fixture, 'preparation', value => {
+      value.version = '0.3.42'; ((value.packages as JsonObject)[''] as JsonObject).version = '0.3.42'
+    })],
+    ['new versions', async (fixture: Awaited<ReturnType<typeof makeFixture>>) => mutatePackageLock(fixture, 'candidate', value => {
+      value.version = '0.4.1'; ((value.packages as JsonObject)[''] as JsonObject).version = '0.4.1'
+    })],
+    ['top-level name', async (fixture: Awaited<ReturnType<typeof makeFixture>>) => mutatePackageLock(fixture, 'candidate', value => {
+      value.name = 'attacker'
+    })],
+    ['root-package name', async (fixture: Awaited<ReturnType<typeof makeFixture>>) => mutatePackageLock(fixture, 'candidate', value => {
+      ;((value.packages as JsonObject)[''] as JsonObject).name = 'attacker'
+    })],
+    ['lockfile version', async (fixture: Awaited<ReturnType<typeof makeFixture>>) => mutatePackageLock(fixture, 'candidate', value => {
+      value.lockfileVersion = 2
+    })],
+    ['root shape', async (fixture: Awaited<ReturnType<typeof makeFixture>>) => mutatePackageLock(fixture, 'candidate', value => {
+      delete value.packages
+    })],
+  ])('rejects package-lock.json activation with changed %s', async (_name, mutate) => rejects(mutate))
+
+  it.each(['package.json', 'package-lock.json'] as const)('rejects noncanonical and duplicate %s JSON', async path => {
+    await rejects(async fixture => {
+      const bytes = path === 'package.json' ? fixture.state.candidatePackageBytes : fixture.state.candidateLockBytes
+      await replacePackageBlob(fixture, path, 'candidate', encoder.encode(`${JSON.stringify(JSON.parse(new TextDecoder().decode(bytes)))}\n`))
+    })
+    await rejects(async fixture => {
+      const bytes = path === 'package.json' ? fixture.state.candidatePackageBytes : fixture.state.candidateLockBytes
+      const source = new TextDecoder().decode(bytes)
+      const duplicate = path === 'package.json'
+        ? source.replace('{\n', '{\n  "version": "0.4.0",\n')
+        : source.replace('{\n', '{\n  "lockfileVersion": 3,\n')
+      await replacePackageBlob(fixture, path, 'candidate', encoder.encode(duplicate))
+    })
+  })
+
   it('accepts a bounded realistic 2,419-entry recursive tree response over the generic JSON cap', async () => {
     const fixture = await makeFixture()
     const needed = 2_419 - fixture.state.candidateTree.length
@@ -617,8 +789,9 @@ describe('GitHub candidate evidence', () => {
     ['changed second ETag', (state: State) => { state.blobSecondEtag = '"changed"' }],
   ])('rejects blob evidence with %s', async (_name, mutate) => rejects(({ state }) => mutate(state)))
 
-  it('accepts literal GitHub 60-column LF wrapping for both authoritative blobs', async () => {
+  it('accepts an immutable captured 60-column LF GitHub blob independently of the wrapping helper', async () => {
     const fixture = await makeFixture()
+    expect(githubBlobBase64(fixture.state.candidatePackageBytes)).toBe(CAPTURED_GITHUB_PACKAGE_BLOB_CONTENT)
     const bindingWire = githubBlobBase64(fixture.state.bindingBytes)
     const workflowWire = githubBlobBase64(fixture.state.workflowBytes)
     expect(bindingWire.slice(0, 122)).toMatch(/^[A-Za-z0-9+/]{60}\n[A-Za-z0-9+/]{60}\n/u)
@@ -780,6 +953,59 @@ describe('GitHub candidate evidence', () => {
 
   it('rejects an archive response length that differs from authenticated artifact metadata', async () => {
     await rejects(({ state }) => { state.archiveLengthOverride = String(state.archive.length + 1) })
+  })
+
+  it.each(['headers accessor', 'headers.get', 'body.getReader', 'length mismatch', 'cancel rejection', 'cancel throw'] as const)(
+    'cancels the exact archive body once on %s and selects the evidence error',
+    async mode => {
+      const fixture = await makeFixture()
+      let cancellations = 0
+      fixture.state.archiveResponse = () => {
+        const body = mode === 'cancel throw' || mode === 'body.getReader'
+          ? ({
+              cancel() {
+                cancellations += 1
+                if (mode === 'cancel throw') throw new Error('secret cancel')
+              },
+              getReader() { throw new Error('must not acquire reader') },
+            } as unknown as ReadableStream<Uint8Array>)
+          : new ReadableStream<Uint8Array>({
+              cancel() {
+                cancellations += 1
+                if (mode === 'cancel rejection') return Promise.reject(new Error('secret cancel'))
+              },
+            })
+        const response = withUrl('https://objects.githubusercontent.com/recovery.zip', new Response(null, {
+          headers: {
+            'content-length': mode === 'length mismatch' || mode.startsWith('cancel')
+              ? String(fixture.state.archive.length + 1)
+              : String(fixture.state.archive.length),
+            'content-type': 'application/zip',
+          },
+        }))
+        Object.defineProperty(response, 'body', { value: body })
+        if (mode === 'headers accessor') {
+          Object.defineProperty(response, 'headers', { get() { throw new Error('secret headers') } })
+        } else if (mode === 'headers.get') {
+          Object.defineProperty(response, 'headers', { value: { get() { throw new Error('secret get') } } })
+        }
+        return response
+      }
+      await expect(loadGitHubCandidateEvidence(fixture.input)).rejects.toThrowError('RECOVERY_GITHUB_EVIDENCE_INVALID')
+      expect(cancellations).toBe(1)
+    },
+  )
+
+  it('maps a throwing archive body accessor to the stable evidence error', async () => {
+    const fixture = await makeFixture()
+    fixture.state.archiveResponse = () => {
+      const response = withUrl('https://objects.githubusercontent.com/recovery.zip', new Response(null, {
+        headers: { 'content-length': String(fixture.state.archive.length), 'content-type': 'application/zip' },
+      }))
+      Object.defineProperty(response, 'body', { get() { throw new Error('secret body') } })
+      return response
+    }
+    await expect(loadGitHubCandidateEvidence(fixture.input)).rejects.toThrowError('RECOVERY_GITHUB_EVIDENCE_INVALID')
   })
 
   it('rejects accessor and hostile Proxy caller input before fetching', async () => {
