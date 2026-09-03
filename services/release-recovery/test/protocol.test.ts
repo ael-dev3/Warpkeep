@@ -16,8 +16,13 @@ describe('recovery protocol canonicalization', () => {
   it('domain-separates hashes so the same bytes cannot satisfy two recovery commitments', async () => {
     const bytes = new TextEncoder().encode('same-input')
 
-    await expect(sha256Hex('recovery-core', bytes)).resolves.toBe('91e83d836c30f25f16e93860a2bf1c4166dd3eb293e8f8ace88aeb50afcf1a01')
-    await expect(sha256Hex('live-invariant', bytes)).resolves.not.toBe('91e83d836c30f25f16e93860a2bf1c4166dd3eb293e8f8ace88aeb50afcf1a01')
+    await expect(sha256Hex('recovery-core', bytes)).resolves.toBe('a5f89e0512c33374d8064d99b682b82ecdf1a6e664db48ac6eea60aab47dc0d7')
+    await expect(sha256Hex('live-invariant', bytes)).resolves.not.toBe('a5f89e0512c33374d8064d99b682b82ecdf1a6e664db48ac6eea60aab47dc0d7')
+  })
+
+  it('length-prefixes hash domains so delimiter-containing inputs cannot collide', async () => {
+    await expect(sha256Hex('a', new TextEncoder().encode('b:c')))
+      .resolves.not.toBe(await sha256Hex('a:b', new TextEncoder().encode('c')))
   })
 
   it('sorts map keys so differently inserted maps cannot change a commitment', () => {
@@ -76,6 +81,29 @@ describe('recovery protocol canonicalization', () => {
     const value = new Proxy({}, {
       ownKeys: () => {
         throw new Error('proxy trap')
+      },
+    })
+
+    expect(() => canonicalMapJsonBytes(value)).toThrowError('RECOVERY_JSON_INVALID')
+  })
+
+  it('rejects getter-backed array entries so canonicalization never executes payload code', () => {
+    const value: JsonValue[] = []
+    Object.defineProperty(value, '0', { enumerable: true, get: () => 'unsafe' })
+    value.length = 1
+
+    expect(() => canonicalMapJsonBytes(value)).toThrowError('RECOVERY_JSON_INVALID')
+  })
+
+  it('rejects a transparent proxy so a signed field cannot change after validation', () => {
+    const target = { kid: 'pinned', enabled: true }
+    const value = new Proxy(target, {
+      getOwnPropertyDescriptor(current, key) {
+        return Object.getOwnPropertyDescriptor(current, key)
+      },
+      get(current, key) {
+        if (key === 'kid') return 'attacker-selected'
+        return Reflect.get(current, key)
       },
     })
 

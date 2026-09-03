@@ -82,3 +82,68 @@ Vitest and TypeScript binaries from the service directory.
 ## Commit
 
 Commit message: `add recovery authorization protocol kernel`.
+
+## Review fix round 1
+
+### Scope
+
+Addressed only Task 1 review findings. The recovery protocol kernel now uses
+unambiguous length-prefixed hashing, snapshots only verified plain JSON data,
+rejects proxy/accessor input, validates exact signed schemas for all four JWS
+kinds, and keeps verification closed over the production recovery public key.
+The arbitrary-key verifier is a test-only Vitest module injection outside
+`src/crypto.ts`.
+
+### RED evidence
+
+- `npm --prefix services/release-recovery test -- --run test/protocol.test.ts test/crypto.test.ts`
+  initially failed 11 regression assertions, covering the colon-delimited hash
+  collision, array getters, proxy snapshot drift, an exported arbitrary-key
+  verifier, exclusive `exp`, relaxed signed schemas, and relaxed JWK handling.
+- `npm --prefix services/release-recovery test -- --run test/crypto.test.ts`
+  then failed 2 relationship regressions (an authorization observation after
+  `iat` and a zero-duration status token) before their checks were added.
+- A final targeted RED check for negative claim timing failed as intended:
+  `npm --prefix services/release-recovery test -- --run test/crypto.test.ts`
+  reported the signer resolving for `claimedAt: -1` instead of rejecting it.
+
+### GREEN evidence
+
+- The same final targeted command passed: 19 crypto tests.
+- `npm --prefix services/release-recovery test` passed: 33 tests across 2
+  files.
+- `npm --prefix services/release-recovery run typecheck` passed with no
+  output.
+- `git diff --check` passed with no output.
+
+### Self-review
+
+- Hash preimages now prefix the domain and value byte lengths, removing the
+  delimiter ambiguity without restricting caller domains.
+- Serialization and signing consume a one-time descriptor-based snapshot;
+  `structuredClone` is used only as a final transparent-proxy rejection check.
+  Arrays require data descriptors for every index, and objects reject symbols,
+  non-enumerable properties, and accessors.
+- Per-kind payload gates enforce exact key sets, canonical decimal identifiers,
+  UUIDs, lowercase SHA-256 digests and Git commits, fixed recovery targets,
+  counts/booleans, issuance lifetimes, and cross-field time relationships.
+  JWT expiration is exclusive (`nowSeconds >= exp` rejects).
+- JWK input is snapshotted before validation; metadata or aliases are rejected,
+  base64url coordinates are canonicalized byte-for-byte, and both public
+  verification and signer self-check require exact P-256 material.
+- Test-only key substitution is isolated to `test/cryptoFixture.ts`; production
+  exports only pinned verifier entrypoints. No production private JWK was read,
+  printed, staged, or copied.
+
+### Files
+
+- `services/release-recovery/src/protocol.ts`
+- `services/release-recovery/src/crypto.ts`
+- `services/release-recovery/test/protocol.test.ts`
+- `services/release-recovery/test/crypto.test.ts`
+- `services/release-recovery/test/cryptoFixture.ts`
+- `.superpowers/sdd/2026-09-03-warpkeep-0.4.0-recovery-service/task-1-report.md`
+
+### Commit
+
+Fix commit message: `harden recovery authorization protocol kernel`.

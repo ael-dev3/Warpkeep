@@ -104,46 +104,51 @@ function isSafeJsonNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && Number.isSafeInteger(value)
 }
 
-function hasOnlyDataProperties(value: object): boolean {
-  try {
-    const prototype = Object.getPrototypeOf(value)
-    if (prototype !== Object.prototype && prototype !== null) return false
-    if (Object.getOwnPropertySymbols(value).length !== 0) return false
-
-    for (const key of Reflect.ownKeys(value)) {
-      if (typeof key !== 'string') return false
-      const descriptor = Object.getOwnPropertyDescriptor(value, key)
-      if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) return false
-    }
-    return true
-  } catch {
-    return false
-  }
-}
-
-function assertJsonValue(value: unknown, seen = new Set<object>()): asserts value is JsonValue {
+function snapshotValue(value: unknown, seen: Set<object>): JsonValue {
   if (value === null || typeof value === 'boolean' || typeof value === 'string') {
     if (typeof value === 'string' && hasUnpairedSurrogate(value)) fail('RECOVERY_JSON_INVALID')
-    return
+    return value
   }
   if (typeof value === 'number') {
     if (!isSafeJsonNumber(value)) fail('RECOVERY_JSON_INVALID')
-    return
+    return value
   }
-  if (Array.isArray(value)) {
-    if (seen.has(value)) fail('RECOVERY_JSON_INVALID')
-    seen.add(value)
-    for (const item of value) assertJsonValue(item, seen)
-    seen.delete(value)
-    return
-  }
-  if (typeof value !== 'object' || value === null || !hasOnlyDataProperties(value)) {
-    fail('RECOVERY_JSON_INVALID')
-  }
+  if (typeof value !== 'object' || value === null) fail('RECOVERY_JSON_INVALID')
   if (seen.has(value)) fail('RECOVERY_JSON_INVALID')
   seen.add(value)
-  for (const key of Object.keys(value)) assertJsonValue((value as Record<string, unknown>)[key], seen)
-  seen.delete(value)
+  try {
+    const descriptors = Object.getOwnPropertyDescriptors(value)
+    if (Array.isArray(value)) {
+      if (Object.getPrototypeOf(value) !== Array.prototype) fail('RECOVERY_JSON_INVALID')
+      const lengthDescriptor = descriptors.length
+      if (lengthDescriptor === undefined || !('value' in lengthDescriptor) || !Number.isSafeInteger(lengthDescriptor.value) || lengthDescriptor.value < 0) fail('RECOVERY_JSON_INVALID')
+      const length = lengthDescriptor.value as number
+      const keys = Reflect.ownKeys(descriptors)
+      if (keys.length !== length + 1 || keys.some((key) => typeof key !== 'string')) fail('RECOVERY_JSON_INVALID')
+      const copy: JsonValue[] = []
+      for (let index = 0; index < length; index += 1) {
+        const descriptor = descriptors[String(index)]
+        if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) fail('RECOVERY_JSON_INVALID')
+        copy.push(snapshotValue(descriptor.value, seen))
+      }
+      return copy
+    }
+    const prototype = Object.getPrototypeOf(value)
+    if (prototype !== Object.prototype && prototype !== null) fail('RECOVERY_JSON_INVALID')
+    const copy: Record<string, JsonValue> = Object.create(null)
+    for (const key of Reflect.ownKeys(descriptors)) {
+      if (typeof key !== 'string') fail('RECOVERY_JSON_INVALID')
+      const descriptor = descriptors[key]
+      if (descriptor === undefined || !descriptor.enumerable || !('value' in descriptor)) fail('RECOVERY_JSON_INVALID')
+      copy[key] = snapshotValue(descriptor.value, seen)
+    }
+    return copy
+  } catch (error) {
+    if (error instanceof RecoveryProtocolError) throw error
+    fail('RECOVERY_JSON_INVALID')
+  } finally {
+    seen.delete(value)
+  }
 }
 
 function hasUnpairedSurrogate(value: string): boolean {
@@ -160,6 +165,17 @@ function hasUnpairedSurrogate(value: string): boolean {
   return false
 }
 
+/** Returns a safe JSON copy; transparent Proxy values are rejected by structured cloning. */
+export function snapshotJsonValue(value: unknown): JsonValue {
+  const copy = snapshotValue(value, new Set<object>())
+  try {
+    structuredClone(value)
+  } catch {
+    fail('RECOVERY_JSON_INVALID')
+  }
+  return copy
+}
+
 function encodeJson(value: JsonValue, sortObjectKeys: boolean): string {
   if (value === null) return 'null'
   if (typeof value === 'boolean') return value ? 'true' : 'false'
@@ -174,20 +190,19 @@ function encodeJson(value: JsonValue, sortObjectKeys: boolean): string {
 }
 
 export function canonicalMapJsonBytes(value: JsonValue): Uint8Array {
-  assertJsonValue(value)
-  return encoder.encode(encodeJson(value, true))
+  return encoder.encode(encodeJson(snapshotJsonValue(value), true))
 }
 
 export function serializeExactObject<K extends readonly string[]>(keys: K, value: ExactObjectFor<K>): Uint8Array {
   try {
-    if (!hasOnlyDataProperties(value as object)) fail('RECOVERY_JSON_INVALID')
     if (new Set(keys).size !== keys.length || keys.some((key) => typeof key !== 'string')) fail('RECOVERY_JSON_INVALID')
-    const record = value as Readonly<Record<string, JsonValue>>
+    const snapshot = snapshotJsonValue(value)
+    if (!isJsonObject(snapshot)) fail('RECOVERY_JSON_INVALID')
+    const record = snapshot as Readonly<Record<string, JsonValue>>
     const actualKeys = Object.keys(record)
-    if (actualKeys.length !== keys.length || keys.some((key) => !Object.hasOwn(value, key))) fail('RECOVERY_JSON_INVALID')
+    if (actualKeys.length !== keys.length || keys.some((key) => !Object.hasOwn(record, key))) fail('RECOVERY_JSON_INVALID')
     for (const key of actualKeys) {
       if (!keys.includes(key)) fail('RECOVERY_JSON_INVALID')
-      assertJsonValue(record[key])
     }
     const exact = `{${keys.map((key) => `${JSON.stringify(key)}:${encodeJson(record[key], true)}`).join(',')}}`
     return encoder.encode(exact)
@@ -382,6 +397,83 @@ export function base64UrlEncode(value: Uint8Array): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/u, '')
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+const DECIMAL = /^(?:0|[1-9][0-9]*)$/
+const SHA256 = /^[0-9a-f]{64}$/
+const COMMIT = /^[0-9a-f]{40}$/
+const G001_DATABASE = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e'
+const HISTORICAL_DIGEST = '5a9629c7ee695abc2b2369921274dcaa9c618b747387b90f9444429ab8e81d63'
+
+function requireString(payload: RecoveryJsonObject, key: string): string {
+  const value = payload[key]
+  if (typeof value !== 'string') fail('RECOVERY_JWS_PAYLOAD_INVALID')
+  return value
+}
+
+function requireSha(payload: RecoveryJsonObject, key: string): void {
+  if (!SHA256.test(requireString(payload, key))) fail('RECOVERY_JWS_PAYLOAD_INVALID')
+}
+
+function requireCommit(payload: RecoveryJsonObject, key: string): void {
+  if (!COMMIT.test(requireString(payload, key))) fail('RECOVERY_JWS_PAYLOAD_INVALID')
+}
+
+function requireDecimal(payload: RecoveryJsonObject, key: string): void {
+  const value = requireString(payload, key)
+  if (!DECIMAL.test(value) || value === '0') fail('RECOVERY_JWS_PAYLOAD_INVALID')
+}
+
+function requireUuid(payload: RecoveryJsonObject, key: string): void {
+  if (!UUID.test(requireString(payload, key))) fail('RECOVERY_JWS_PAYLOAD_INVALID')
+}
+
+function requireNonNegative(payload: RecoveryJsonObject, key: string): number {
+  const value = payload[key]
+  if (!isSafeJsonNumber(value) || value < 0) fail('RECOVERY_JWS_PAYLOAD_INVALID')
+  return value
+}
+
+function requireBoolean(payload: RecoveryJsonObject, key: string, expected: boolean): void {
+  if (payload[key] !== expected) fail('RECOVERY_JWS_PAYLOAD_INVALID')
+}
+
+function assertAuthorizationFields(payload: RecoveryJsonObject): void {
+  for (const key of ['requestId', 'jti'] as const) requireUuid(payload, key)
+  for (const key of ['repositoryId', 'repositoryOwnerId', 'pagesRunId', 'pagesRunAttempt', 'sourceVerifyRunId', 'sourceVerifyRunAttempt', 'artifactId'] as const) requireDecimal(payload, key)
+  for (const key of ['workflowSha', 'predecessorCommit', 'candidateCommit', 'candidateTree'] as const) requireCommit(payload, key)
+  for (const key of ['sourceClosureSha256', 'recoveryAuthorizationCoreSha256', 'githubArtifactArchiveSha256', 'innerArtifactTarSha256', 'contentManifestSha256', 'deploymentAttestationSha256', 'g001BaselineAbiSha256', 'issuanceEvidenceSnapshotDigest', 'liveInvariantDigest'] as const) requireSha(payload, key)
+  if (payload.repository !== 'ael-dev3/Warpkeep' || payload.repositoryId !== '1273513252' || payload.repositoryOwnerId !== '183124839' || payload.ref !== 'refs/heads/main' || payload.workflowRef !== 'ael-dev3/Warpkeep/.github/workflows/deploy-pages.yml@refs/heads/main' || payload.environment !== 'github-pages' || payload.eventName !== 'workflow_run' || payload.releaseVersion !== '0.4.0' || payload.operation !== 'github-pages-production-deploy' || payload.canonicalOrigin !== 'https://warpkeep.com' || payload.authWorker !== 'warpkeep-auth-bridge' || payload.genesis001Database !== G001_DATABASE || payload.historicalGenesis001ReceiptStatus !== 'unavailable' || payload.historicalGenesis001ReceiptExpectedSha256 !== HISTORICAL_DIGEST || payload.g001ReleaseVersion !== '0.3.43') fail('RECOVERY_JWS_PAYLOAD_INVALID')
+  if (!SHA256.test(requireString(payload, 'genesis002Database')) || !SHA256.test(requireString(payload, 'ptrDatabase')) || requireString(payload, 'genesis002Database') === G001_DATABASE || requireString(payload, 'ptrDatabase') === G001_DATABASE) fail('RECOVERY_JWS_PAYLOAD_INVALID')
+  if (requireString(payload, 'sourceClosureProfile').length === 0 || requireString(payload, 'artifactName') !== `github-pages-recovery-${payload.pagesRunId}-${payload.pagesRunAttempt}`) fail('RECOVERY_JWS_PAYLOAD_INVALID')
+  requireBoolean(payload, 'g001PlayerAccessEnabled', true)
+  requireBoolean(payload, 'g001AdmissionStateMutationsEnabled', false)
+  requireBoolean(payload, 'g001AccessRequestSubmissionsEnabled', false)
+  requireBoolean(payload, 'g002Sealed', true)
+  if (requireNonNegative(payload, 'g002PlayerCount') !== 0 || requireNonNegative(payload, 'g002GeneralAdmissionCount') !== 0 || requireNonNegative(payload, 'ptrSingletonOwnerCount') !== 1 || requireNonNegative(payload, 'ptrGeneralAdmissionCount') !== 0) fail('RECOVERY_JWS_PAYLOAD_INVALID')
+  const observedFrom = requireNonNegative(payload, 'observedFrom')
+  const observedThrough = requireNonNegative(payload, 'observedThrough')
+  const issuedAt = payload.iat
+  if (!isSafeJsonNumber(issuedAt) || observedThrough < observedFrom || observedThrough > issuedAt) fail('RECOVERY_JWS_PAYLOAD_INVALID')
+}
+
+function assertClaimFields(payload: RecoveryJsonObject): void {
+  for (const key of ['requestId', 'authorizationJti'] as const) requireUuid(payload, key)
+  for (const key of ['pagesRunId', 'pagesRunAttempt', 'sourceVerifyRunId', 'sourceVerifyRunAttempt', 'artifactId'] as const) requireDecimal(payload, key)
+  for (const key of ['candidateCommit', 'candidateTree'] as const) requireCommit(payload, key)
+  for (const key of ['authorizationJwsSha256', 'githubArtifactArchiveSha256', 'innerArtifactTarSha256', 'contentManifestSha256', 'deploymentAttestationSha256'] as const) requireSha(payload, key)
+  const claimedAt = requireNonNegative(payload, 'claimedAt')
+  const claimDeadline = requireNonNegative(payload, 'claimDeadline')
+  if (payload.operation !== 'github-pages-production-deploy' || payload.canonicalOrigin !== 'https://warpkeep.com' || requireString(payload, 'artifactName') !== `github-pages-recovery-${payload.pagesRunId}-${payload.pagesRunAttempt}` || !isPositiveSafeInteger(payload.claimSequence) || claimDeadline < claimedAt) fail('RECOVERY_JWS_PAYLOAD_INVALID')
+}
+
+function assertTerminalFields(payload: RecoveryJsonObject): void {
+  for (const key of ['requestId', 'authorizationJti'] as const) requireUuid(payload, key)
+  for (const key of ['artifactId', 'pagesRunId', 'pagesRunAttempt', 'sourceVerifyRunId', 'sourceVerifyRunAttempt'] as const) requireDecimal(payload, key)
+  for (const key of ['candidateCommit', 'candidateTree'] as const) requireCommit(payload, key)
+  for (const key of ['authorizationJwsSha256', 'githubArtifactArchiveSha256', 'innerArtifactTarSha256', 'contentManifestSha256', 'deploymentAttestationSha256'] as const) requireSha(payload, key)
+  if (payload.operation !== 'github-pages-production-deploy' || payload.canonicalOrigin !== 'https://warpkeep.com' || requireString(payload, 'artifactName') !== `github-pages-recovery-${payload.pagesRunId}-${payload.pagesRunAttempt}` || !isSafeJsonNumber(payload.completedAt) || payload.completedAt < 0 || (payload.outcome !== 'completed' && payload.outcome !== 'not-deployed')) fail('RECOVERY_JWS_PAYLOAD_INVALID')
+}
+
 function assertPayloadConstraints(kind: RecoverySignedKind, payload: RecoveryJsonObject): void {
   const [profile, subject] = KIND_PROFILE[kind]
   if (payload.schemaVersion !== 1 || payload.profile !== profile || payload.iss !== RECOVERY_ISSUER || payload.aud !== RECOVERY_AUDIENCE || payload.sub !== subject || payload.kid !== RECOVERY_KEY_ID) {
@@ -390,7 +482,7 @@ function assertPayloadConstraints(kind: RecoverySignedKind, payload: RecoveryJso
   const iat = payload.iat
   const exp = payload.exp
   const claimDeadline = payload.claimDeadline
-  if (!isPositiveSafeInteger(payload.authorizationEpoch) || !isSafeJsonNumber(iat) || payload.nbf !== iat || !isSafeJsonNumber(exp) || exp < iat) {
+  if (!isPositiveSafeInteger(payload.authorizationEpoch) || !isSafeJsonNumber(iat) || iat < 0 || payload.nbf !== iat || !isSafeJsonNumber(exp) || exp <= iat) {
     fail('RECOVERY_JWS_PAYLOAD_INVALID')
   }
   const lifetime = exp - iat
@@ -398,7 +490,9 @@ function assertPayloadConstraints(kind: RecoverySignedKind, payload: RecoveryJso
     fail('RECOVERY_JWS_PAYLOAD_INVALID')
   }
   if (kind === 'status' && typeof payload.enabled !== 'boolean') fail('RECOVERY_JWS_PAYLOAD_INVALID')
-  if (kind === 'terminal' && payload.outcome !== 'completed' && payload.outcome !== 'not-deployed') fail('RECOVERY_JWS_PAYLOAD_INVALID')
+  if (kind === 'authorization') assertAuthorizationFields(payload)
+  if (kind === 'claim') assertClaimFields(payload)
+  if (kind === 'terminal') assertTerminalFields(payload)
 }
 
 function isPositiveSafeInteger(value: JsonValue | undefined): value is number {
@@ -435,9 +529,13 @@ export function parseRecoveryCompactJws(value: unknown, kind: RecoverySignedKind
 export async function sha256Hex(domain: string, value: Uint8Array): Promise<string> {
   if (typeof domain !== 'string' || domain.length === 0 || hasUnpairedSurrogate(domain)) fail('RECOVERY_HASH_INPUT_INVALID')
   const domainBytes = encoder.encode(`warpkeep-recovery-v1:${domain}:`)
-  const input = new Uint8Array(domainBytes.length + value.length)
-  input.set(domainBytes)
-  input.set(value, domainBytes.length)
+  if (domainBytes.length > 0xffff_ffff || value.length > Number.MAX_SAFE_INTEGER) fail('RECOVERY_HASH_INPUT_INVALID')
+  const input = new Uint8Array(4 + domainBytes.length + 8 + value.length)
+  new DataView(input.buffer).setUint32(0, domainBytes.length, false)
+  input.set(domainBytes, 4)
+  const view = new DataView(input.buffer)
+  view.setBigUint64(4 + domainBytes.length, BigInt(value.length), false)
+  input.set(value, 12 + domainBytes.length)
   const digest = await crypto.subtle.digest('SHA-256', input)
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
 }

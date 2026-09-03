@@ -13,10 +13,11 @@ import {
   parseRecoveryCompactJws,
   parseRecoveryPayload,
   serializeExactObject,
+  snapshotJsonValue,
   type ExactObjectFor,
   type RecoveryJsonObject,
 } from './protocol.js'
-import { RECOVERY_KEY_THUMBPRINT, RECOVERY_PUBLIC_JWK } from './recoveryPublicKey.js'
+import { RECOVERY_KEY_ID, RECOVERY_KEY_THUMBPRINT, RECOVERY_PUBLIC_JWK } from './recoveryPublicKey.js'
 
 export const P256_ORDER = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n
 export const P256_HALF_ORDER = P256_ORDER / 2n
@@ -44,32 +45,53 @@ function arrayBuffer(value: Uint8Array): ArrayBuffer {
   return value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength) as ArrayBuffer
 }
 
-function assertExactJwk(value: JsonWebKey, privateKey: boolean): asserts value is RecoveryPrivateJwk {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) fail('RECOVERY_JWS_KEY_INVALID')
-  const keys = Object.keys(value).sort()
-  const expected = privateKey ? ['crv', 'd', 'kty', 'x', 'y'] : ['crv', 'kty', 'x', 'y']
-  if (keys.length !== expected.length || keys.some((key, index) => key !== expected[index])) fail('RECOVERY_JWS_KEY_INVALID')
-  if (value.kty !== 'EC' || value.crv !== 'P-256' || typeof value.x !== 'string' || typeof value.y !== 'string' || (privateKey && typeof value.d !== 'string')) {
+function decodeCanonicalCoordinate(value: string): void {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(value)) fail('RECOVERY_JWS_KEY_INVALID')
+  try {
+    const standard = value.replace(/-/g, '+').replace(/_/g, '/') + '='
+    const binary = atob(standard)
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
+    if (bytes.length !== 32 || base64UrlEncode(bytes) !== value) fail('RECOVERY_JWS_KEY_INVALID')
+  } catch (error) {
+    if (error instanceof RecoveryProtocolError) throw error
     fail('RECOVERY_JWS_KEY_INVALID')
-  }
-  for (const coordinate of privateKey ? [value.x, value.y, value.d as string] : [value.x, value.y]) {
-    if (!/^[A-Za-z0-9_-]{43}$/.test(coordinate)) fail('RECOVERY_JWS_KEY_INVALID')
   }
 }
 
-async function importPrivateKey(value: JsonWebKey): Promise<CryptoKey> {
-  assertExactJwk(value, true)
+function snapshotExactJwk(value: unknown, privateKey: boolean): JsonWebKey {
+  let snapshot: RecoveryJsonObject
   try {
-    return await crypto.subtle.importKey('jwk', value, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign'])
+    const candidate = snapshotJsonValue(value)
+    if (typeof candidate !== 'object' || candidate === null || Array.isArray(candidate)) fail('RECOVERY_JWS_KEY_INVALID')
+    snapshot = candidate as RecoveryJsonObject
+  } catch {
+    fail('RECOVERY_JWS_KEY_INVALID')
+  }
+  const keys = Object.keys(snapshot).sort()
+  const expected = privateKey ? ['crv', 'd', 'kty', 'x', 'y'] : ['crv', 'kty', 'x', 'y']
+  if (keys.length !== expected.length || keys.some((key, index) => key !== expected[index])) fail('RECOVERY_JWS_KEY_INVALID')
+  if (snapshot.kty !== 'EC' || snapshot.crv !== 'P-256' || typeof snapshot.x !== 'string' || typeof snapshot.y !== 'string' || (privateKey && typeof snapshot.d !== 'string')) {
+    fail('RECOVERY_JWS_KEY_INVALID')
+  }
+  for (const coordinate of privateKey ? [snapshot.x, snapshot.y, snapshot.d as string] : [snapshot.x, snapshot.y]) decodeCanonicalCoordinate(coordinate)
+  return privateKey
+    ? { kty: 'EC', crv: 'P-256', x: snapshot.x, y: snapshot.y, d: snapshot.d as string }
+    : { kty: 'EC', crv: 'P-256', x: snapshot.x, y: snapshot.y }
+}
+
+async function importPrivateKey(value: JsonWebKey): Promise<CryptoKey> {
+  const snapshot = snapshotExactJwk(value, true)
+  try {
+    return await crypto.subtle.importKey('jwk', snapshot as RecoveryPrivateJwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign'])
   } catch {
     fail('RECOVERY_JWS_KEY_INVALID')
   }
 }
 
 async function importPublicKey(value: JsonWebKey): Promise<CryptoKey> {
-  assertExactJwk(value, false)
+  const snapshot = snapshotExactJwk(value, false)
   try {
-    return await crypto.subtle.importKey('jwk', value, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify'])
+    return await crypto.subtle.importKey('jwk', { kty: snapshot.kty, crv: snapshot.crv, x: snapshot.x, y: snapshot.y }, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify'])
   } catch {
     fail('RECOVERY_JWS_KEY_INVALID')
   }
@@ -160,7 +182,7 @@ async function sign<K extends keyof RecoveryPayloadByKind>(kind: K, payload: Rec
   const protectedBytes = serializeExactObject(['alg', 'typ', 'kid'] as const, {
     alg: 'ES256',
     typ,
-    kid: payload.kid,
+    kid: RECOVERY_KEY_ID,
   })
   const payloadBytes = serializeExactObject(payloadKeys, payload)
   // Parsing the just-serialized bytes makes signing subject to the same strict payload gate as verification.
@@ -184,7 +206,7 @@ async function verify<K extends keyof RecoveryPayloadByKind>(publicJwk: JsonWebK
   const payload = parseRecoveryPayload(parsed.payloadBytes, kind)
   const iat = payload.iat as number
   const exp = payload.exp as number
-  if (nowSeconds < iat || nowSeconds > exp) fail('RECOVERY_JWS_TIME_INVALID')
+  if (nowSeconds < iat || nowSeconds >= exp) fail('RECOVERY_JWS_TIME_INVALID')
   assertLowS(parsed.signature)
   const [header, body] = compact.split('.')
   const signingInput = new TextEncoder().encode(`${header}.${body}`)
@@ -197,20 +219,6 @@ async function verify<K extends keyof RecoveryPayloadByKind>(publicJwk: JsonWebK
   }
   if (!valid) fail('RECOVERY_JWS_SIGNATURE_INVALID')
   return payload as RecoveryPayloadByKind[K]
-}
-
-export function createRecoveryJwsVerifier(publicJwk: JsonWebKey): Readonly<{
-  verifyRecoveryAuthorizationJws(compact: string, nowSeconds: number): Promise<RecoveryAuthorizationPayload>
-  verifyRecoveryStatusJws(compact: string, nowSeconds: number): Promise<RecoveryStatusPayload>
-  verifyRecoveryClaimJws(compact: string, nowSeconds: number): Promise<RecoveryClaimPayload>
-  verifyRecoveryTerminalJws(compact: string, nowSeconds: number): Promise<RecoveryTerminalPayload>
-}> {
-  return Object.freeze({
-    verifyRecoveryAuthorizationJws: (compact, nowSeconds) => verify(publicJwk, 'authorization', compact, nowSeconds),
-    verifyRecoveryStatusJws: (compact, nowSeconds) => verify(publicJwk, 'status', compact, nowSeconds),
-    verifyRecoveryClaimJws: (compact, nowSeconds) => verify(publicJwk, 'claim', compact, nowSeconds),
-    verifyRecoveryTerminalJws: (compact, nowSeconds) => verify(publicJwk, 'terminal', compact, nowSeconds),
-  })
 }
 
 export async function signRecoveryAuthorizationJws(payload: RecoveryAuthorizationPayload, privateJwk: JsonWebKey): Promise<string> {
@@ -229,22 +237,20 @@ export async function signRecoveryTerminalJws(payload: RecoveryTerminalPayload, 
   return sign('terminal', payload, privateJwk)
 }
 
-const pinnedVerifier = createRecoveryJwsVerifier(RECOVERY_PUBLIC_JWK)
-
-export const verifyRecoveryAuthorizationJws = pinnedVerifier.verifyRecoveryAuthorizationJws
-export const verifyRecoveryStatusJws = pinnedVerifier.verifyRecoveryStatusJws
-export const verifyRecoveryClaimJws = pinnedVerifier.verifyRecoveryClaimJws
-export const verifyRecoveryTerminalJws = pinnedVerifier.verifyRecoveryTerminalJws
+export const verifyRecoveryAuthorizationJws = (compact: string, nowSeconds: number) => verify(RECOVERY_PUBLIC_JWK, 'authorization', compact, nowSeconds)
+export const verifyRecoveryStatusJws = (compact: string, nowSeconds: number) => verify(RECOVERY_PUBLIC_JWK, 'status', compact, nowSeconds)
+export const verifyRecoveryClaimJws = (compact: string, nowSeconds: number) => verify(RECOVERY_PUBLIC_JWK, 'claim', compact, nowSeconds)
+export const verifyRecoveryTerminalJws = (compact: string, nowSeconds: number) => verify(RECOVERY_PUBLIC_JWK, 'terminal', compact, nowSeconds)
 
 export async function assertRecoveryPrivateKeyMatchesPinned(privateJwk: JsonWebKey): Promise<void> {
-  assertExactJwk(privateJwk, true)
-  const publicJwk: RecoveryPublicJwk = { kty: 'EC', crv: 'P-256', x: privateJwk.x, y: privateJwk.y }
+  const privateSnapshot = snapshotExactJwk(privateJwk, true) as RecoveryPrivateJwk
+  const publicJwk: RecoveryPublicJwk = { kty: 'EC', crv: 'P-256', x: privateSnapshot.x, y: privateSnapshot.y }
   if (publicJwk.x !== RECOVERY_PUBLIC_JWK.x || publicJwk.y !== RECOVERY_PUBLIC_JWK.y) fail('RECOVERY_SIGNING_KEY_MISMATCH')
   const thumbprintBytes = canonicalMapJsonBytes({ crv: publicJwk.crv, kty: publicJwk.kty, x: publicJwk.x, y: publicJwk.y })
   const thumbprint = base64UrlEncode(new Uint8Array(await crypto.subtle.digest('SHA-256', arrayBuffer(thumbprintBytes))))
   if (thumbprint !== RECOVERY_KEY_THUMBPRINT) fail('RECOVERY_SIGNING_KEY_MISMATCH')
 
-  const privateKey = await importPrivateKey(privateJwk)
+  const privateKey = await importPrivateKey(privateSnapshot)
   const publicKey = await importPublicKey(publicJwk)
   const challenge = new TextEncoder().encode('warpkeep-recovery-signing-key-self-check-v1')
   const signature = asP1363(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, privateKey, challenge))
