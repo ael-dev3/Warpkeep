@@ -8,6 +8,10 @@ import {
   recheckGitHubEvidenceMetadata,
   type GitHubCandidateEvidence,
 } from '../src/githubEvidence.js'
+import {
+  RECOVERY_REALM_BINDING_PROJECTION_KEYS,
+  type RecoveryRealmBindingProjection,
+} from '../src/config.js'
 import { serializeExactObject, sha256Hex, type JsonValue } from '../src/protocol.js'
 import { RECOVERY_KEY_ID, RECOVERY_KEY_THUMBPRINT } from '../src/recoveryPublicKey.js'
 
@@ -27,9 +31,30 @@ const ARTIFACT_ID = 44112233
 const SOURCE_RUN_ID = 52
 const PAGES_RUN_ID = 41
 const G001 = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e'
-const G002 = '7'.repeat(64)
-const PTR = '8'.repeat(64)
-const CLOSURE = '6'.repeat(64)
+const G002 = '70'.repeat(32)
+const PTR = '80'.repeat(32)
+const CLOSURE = '60'.repeat(32)
+const BRIDGE_VERSION = 'warpkeep-auth-bridge-release-recovery-v1'
+const BRIDGE_VERSION_ID = '123e4567-e89b-42d3-a456-426614174002'
+const BRIDGE_SOURCE_COMMIT = '1'.repeat(40)
+const BRIDGE_CONFIG_IDENTITY = '21'.repeat(32)
+const G001_PROGRAM = '31'.repeat(32)
+const G002_PROGRAM = '41'.repeat(32)
+const PTR_PROGRAM = '51'.repeat(32)
+const G002_ATLAS_ID = 'GENESIS_002_GREATER_REALM'
+const G002_PUBLIC_RELEASE_ID = `GRR-${'A'.repeat(26)}`
+const G002_PUBLIC_APPROVAL_RECEIPT_ID = `GRA-${'B'.repeat(26)}`
+const G002_ATLAS_SOURCE_COMMIT = '6'.repeat(40)
+const G002_RELEASE_SHA256 = 'a1'.repeat(32)
+const G002_RELEASE_HEADER_SHA256 = 'a2'.repeat(32)
+const G002_VERIFICATION_DIGEST = 'a3'.repeat(32)
+const PTR_ATLAS_ID = 'PTR_GREATER_REALM'
+const PTR_PUBLIC_RELEASE_ID = `GRR-${'C'.repeat(26)}`
+const PTR_PUBLIC_APPROVAL_RECEIPT_ID = `GRA-${'D'.repeat(26)}`
+const PTR_ATLAS_SOURCE_COMMIT = 'a'.repeat(40)
+const PTR_EXPECTED_RELEASE_SHA256 = 'b1'.repeat(32)
+const PTR_RELEASE_HEADER_SHA256 = 'b2'.repeat(32)
+const PTR_VERIFICATION_DIGEST = 'b3'.repeat(32)
 const encoder = new TextEncoder()
 const BASE64_CHUNK_BYTES = 24 * 1024
 const CAPTURED_GITHUB_PACKAGE_BLOB_CONTENT = `ewogICJuYW1lIjogIndhcnBrZWVwIiwKICAicHJpdmF0ZSI6IHRydWUsCiAg
@@ -44,6 +69,130 @@ let privateKeyPem = ''
 
 type TreeEntry = { path: string; mode: string; type: string; sha: string; size?: number; url: string }
 type JsonObject = Record<string, unknown>
+
+const EXPECTED_REALM_BINDING_PROJECTION_KEYS = [
+  'requestId', 'authorizationMode', 'recoveryAuthorizationProfile',
+  'recoveryKeyId', 'recoveryKeyThumbprint', 'authorizationEpoch',
+  'repository', 'repositoryId', 'repositoryOwnerId', 'ref', 'workflowRef',
+  'environment', 'releaseVersion', 'operation', 'canonicalOrigin', 'issuer',
+  'authWorker', 'bridgeWorkerVersion', 'bridgeWorkerVersionId',
+  'bridgeSourceCommit', 'bridgeConfigIdentity', 'bridgeConfigEpoch',
+  'preparationCommit', 'preparationTree', 'sourceClosureProfile',
+  'sourceClosureSha256', 'recoveryAuthorizationCoreSha256',
+  'pagesDeploymentApproved', 'genesis001Database', 'genesis002Database',
+  'ptrDatabase', 'g001ExpectedProgramKeccak256',
+  'g002ExpectedProgramKeccak256', 'ptrExpectedProgramKeccak256',
+  'g002AtlasId', 'g002PublicReleaseId', 'g002PublicApprovalReceiptId',
+  'g002AtlasSourceCommit', 'g002ReleaseSha256',
+  'g002ReleaseHeaderSha256', 'g002VerificationDigest', 'ptrAtlasId',
+  'ptrPublicReleaseId', 'ptrPublicApprovalReceiptId', 'ptrAtlasSourceCommit',
+  'ptrExpectedReleaseSha256', 'ptrReleaseHeaderSha256',
+  'ptrVerificationDigest',
+] as const
+
+function expectedRealmBinding(core: string): RecoveryRealmBindingProjection {
+  return {
+    requestId: REQUEST_ID,
+    authorizationMode: 'recovery-authorization-v1',
+    recoveryAuthorizationProfile: 'warpkeep-0.4.0-recovery-authorization-v1',
+    recoveryKeyId: RECOVERY_KEY_ID,
+    recoveryKeyThumbprint: RECOVERY_KEY_THUMBPRINT,
+    authorizationEpoch: 3,
+    repository: REPOSITORY,
+    repositoryId: '1273513252',
+    repositoryOwnerId: '183124839',
+    ref: 'refs/heads/main',
+    workflowRef: `${REPOSITORY}/${WORKFLOW_PATH}@refs/heads/main`,
+    environment: 'github-pages',
+    releaseVersion: '0.4.0',
+    operation: 'github-pages-production-deploy',
+    canonicalOrigin: 'https://warpkeep.com',
+    issuer: 'https://release-auth.warpkeep.com',
+    authWorker: 'warpkeep-auth-bridge',
+    bridgeWorkerVersion: BRIDGE_VERSION,
+    bridgeWorkerVersionId: BRIDGE_VERSION_ID,
+    bridgeSourceCommit: BRIDGE_SOURCE_COMMIT,
+    bridgeConfigIdentity: BRIDGE_CONFIG_IDENTITY,
+    bridgeConfigEpoch: 4,
+    preparationCommit: PREPARATION,
+    preparationTree: PREPARATION_TREE,
+    sourceClosureProfile: 'warpkeep-0.4.0-recovery-source-closure-v1',
+    sourceClosureSha256: CLOSURE,
+    recoveryAuthorizationCoreSha256: core,
+    pagesDeploymentApproved: true,
+    genesis001Database: G001,
+    genesis002Database: G002,
+    ptrDatabase: PTR,
+    g001ExpectedProgramKeccak256: G001_PROGRAM,
+    g002ExpectedProgramKeccak256: G002_PROGRAM,
+    ptrExpectedProgramKeccak256: PTR_PROGRAM,
+    g002AtlasId: G002_ATLAS_ID,
+    g002PublicReleaseId: G002_PUBLIC_RELEASE_ID,
+    g002PublicApprovalReceiptId: G002_PUBLIC_APPROVAL_RECEIPT_ID,
+    g002AtlasSourceCommit: G002_ATLAS_SOURCE_COMMIT,
+    g002ReleaseSha256: G002_RELEASE_SHA256,
+    g002ReleaseHeaderSha256: G002_RELEASE_HEADER_SHA256,
+    g002VerificationDigest: G002_VERIFICATION_DIGEST,
+    ptrAtlasId: PTR_ATLAS_ID,
+    ptrPublicReleaseId: PTR_PUBLIC_RELEASE_ID,
+    ptrPublicApprovalReceiptId: PTR_PUBLIC_APPROVAL_RECEIPT_ID,
+    ptrAtlasSourceCommit: PTR_ATLAS_SOURCE_COMMIT,
+    ptrExpectedReleaseSha256: PTR_EXPECTED_RELEASE_SHA256,
+    ptrReleaseHeaderSha256: PTR_RELEASE_HEADER_SHA256,
+    ptrVerificationDigest: PTR_VERIFICATION_DIGEST,
+  }
+}
+
+const REALM_BINDING_MUTATIONS: ReadonlyArray<readonly [keyof RecoveryRealmBindingProjection, unknown]> = [
+  ['requestId', '123e4567-e89b-42d3-a456-426614174099'],
+  ['authorizationMode', 'wrong'],
+  ['recoveryAuthorizationProfile', 'wrong'],
+  ['recoveryKeyId', 'wrong'],
+  ['recoveryKeyThumbprint', 'wrong'],
+  ['authorizationEpoch', 5],
+  ['repository', 'fork/Warpkeep'],
+  ['repositoryId', '9007199254740993'],
+  ['repositoryOwnerId', '9007199254740993'],
+  ['ref', 'refs/heads/other'],
+  ['workflowRef', 'wrong'],
+  ['environment', 'other'],
+  ['releaseVersion', '0.4.1'],
+  ['operation', 'wrong'],
+  ['canonicalOrigin', 'https://example.test'],
+  ['issuer', 'https://example.test'],
+  ['authWorker', 'other'],
+  ['bridgeWorkerVersion', 'other'],
+  ['bridgeWorkerVersionId', '123e4567-e89b-42d3-a456-426614174099'],
+  ['bridgeSourceCommit', 'f'.repeat(40)],
+  ['bridgeConfigIdentity', 'e'.repeat(64)],
+  ['bridgeConfigEpoch', 5],
+  ['preparationCommit', PREPARATION_PARENT],
+  ['preparationTree', CANDIDATE_TREE],
+  ['sourceClosureProfile', 'wrong'],
+  ['sourceClosureSha256', 'f'.repeat(64)],
+  ['recoveryAuthorizationCoreSha256', 'f'.repeat(64)],
+  ['pagesDeploymentApproved', false],
+  ['genesis001Database', G002],
+  ['genesis002Database', '9'.repeat(64)],
+  ['ptrDatabase', 'e'.repeat(64)],
+  ['g001ExpectedProgramKeccak256', 'a'.repeat(64)],
+  ['g002ExpectedProgramKeccak256', 'b'.repeat(64)],
+  ['ptrExpectedProgramKeccak256', 'c'.repeat(64)],
+  ['g002AtlasId', PTR_ATLAS_ID],
+  ['g002PublicReleaseId', `GRR-${'Z'.repeat(26)}`],
+  ['g002PublicApprovalReceiptId', `GRA-${'Z'.repeat(26)}`],
+  ['g002AtlasSourceCommit', 'e'.repeat(40)],
+  ['g002ReleaseSha256', '0'.repeat(64)],
+  ['g002ReleaseHeaderSha256', '1'.repeat(64)],
+  ['g002VerificationDigest', '2'.repeat(64)],
+  ['ptrAtlasId', G002_ATLAS_ID],
+  ['ptrPublicReleaseId', `GRR-${'Y'.repeat(26)}`],
+  ['ptrPublicApprovalReceiptId', `GRA-${'Y'.repeat(26)}`],
+  ['ptrAtlasSourceCommit', 'e'.repeat(40)],
+  ['ptrExpectedReleaseSha256', '0'.repeat(64)],
+  ['ptrReleaseHeaderSha256', '1'.repeat(64)],
+  ['ptrVerificationDigest', '2'.repeat(64)],
+]
 
 type State = {
   repository: JsonObject
@@ -238,14 +387,36 @@ async function validBinding(): Promise<Readonly<{ bytes: Uint8Array; core: strin
     recoveryCanonicalOrigin: 'https://warpkeep.com',
     recoveryIssuer: 'https://release-auth.warpkeep.com',
     recoveryAuthWorker: 'warpkeep-auth-bridge',
+    recoveryAuthWorkerVersion: BRIDGE_VERSION,
+    recoveryAuthWorkerVersionId: BRIDGE_VERSION_ID,
+    recoveryAuthWorkerSourceCommit: BRIDGE_SOURCE_COMMIT,
+    recoveryAuthWorkerConfigIdentity: BRIDGE_CONFIG_IDENTITY,
+    recoveryAuthWorkerConfigEpoch: 4,
     sourceClosureProfile: 'warpkeep-0.4.0-recovery-source-closure-v1',
     sourceClosureSha256: CLOSURE,
     pagesDeploymentApproved: true,
     preparationSourceCommit: PREPARATION,
     preparationSourceTree: PREPARATION_TREE,
     g001DatabaseIdentity: G001,
+    g001ExpectedProgramKeccak256: G001_PROGRAM,
     g002DatabaseIdentity: G002,
+    g002ExpectedProgramKeccak256: G002_PROGRAM,
     ptrDatabaseIdentity: PTR,
+    ptrExpectedProgramKeccak256: PTR_PROGRAM,
+    g002AtlasId: G002_ATLAS_ID,
+    g002PublicReleaseId: G002_PUBLIC_RELEASE_ID,
+    g002PublicApprovalReceiptId: G002_PUBLIC_APPROVAL_RECEIPT_ID,
+    g002AtlasSourceCommit: G002_ATLAS_SOURCE_COMMIT,
+    g002ReleaseSha256: G002_RELEASE_SHA256,
+    g002ReleaseHeaderSha256: G002_RELEASE_HEADER_SHA256,
+    g002VerificationDigest: G002_VERIFICATION_DIGEST,
+    ptrAtlasId: PTR_ATLAS_ID,
+    ptrPublicReleaseId: PTR_PUBLIC_RELEASE_ID,
+    ptrPublicApprovalReceiptId: PTR_PUBLIC_APPROVAL_RECEIPT_ID,
+    ptrAtlasSourceCommit: PTR_ATLAS_SOURCE_COMMIT,
+    ptrExpectedReleaseSha256: PTR_EXPECTED_RELEASE_SHA256,
+    ptrReleaseHeaderSha256: PTR_RELEASE_HEADER_SHA256,
+    ptrVerificationDigest: PTR_VERIFICATION_DIGEST,
     g001FreezePublishReceiptDigest: null,
     g001FreezePublishReceiptCommitment: null,
   })
@@ -547,33 +718,9 @@ async function makeFixture(): Promise<Readonly<{
     sourceVerifyRunAttempt: '1',
     bindingRequestId: REQUEST_ID,
     armed: {
-      requestId: REQUEST_ID,
-      authorizationMode: 'recovery-authorization-v1',
-      recoveryAuthorizationProfile: 'warpkeep-0.4.0-recovery-authorization-v1',
-      recoveryKeyId: RECOVERY_KEY_ID,
-      recoveryKeyThumbprint: RECOVERY_KEY_THUMBPRINT,
-      authorizationEpoch: 3,
-      repository: REPOSITORY,
-      repositoryId: String(REPOSITORY_ID),
-      repositoryOwnerId: String(OWNER_ID),
-      ref: 'refs/heads/main',
-      workflowRef: `${REPOSITORY}/${WORKFLOW_PATH}@refs/heads/main`,
-      environment: 'github-pages',
-      releaseVersion: '0.4.0',
-      operation: 'github-pages-production-deploy',
-      canonicalOrigin: 'https://warpkeep.com',
-      issuer: 'https://release-auth.warpkeep.com',
-      authWorker: 'warpkeep-auth-bridge',
-      preparationCommit: PREPARATION,
-      preparationTree: PREPARATION_TREE,
-      sourceClosureProfile: 'warpkeep-0.4.0-recovery-source-closure-v1',
-      sourceClosureSha256: CLOSURE,
-      recoveryAuthorizationCoreSha256: binding.core,
+      ...expectedRealmBinding(binding.core),
       bindingPath: BINDING_PATH,
       workflowPath: WORKFLOW_PATH,
-      genesis001Database: G001,
-      genesis002Database: G002,
-      ptrDatabase: PTR,
     },
     environment: { GITHUB_APP_ID: '1', GITHUB_APP_INSTALLATION_ID: '2', GITHUB_APP_PRIVATE_KEY_PEM: privateKeyPem },
     fetch: fetchImplementation,
@@ -683,6 +830,79 @@ describe('GitHub candidate evidence', () => {
     expect(tokenHeaders.get('content-type')).toBe('application/json')
     expect(tokenHeaders.get('x-github-api-version')).toBe('2022-11-28')
     expect(tokenHeaders.get('authorization')).toMatch(/^Bearer [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u)
+  })
+
+  it('returns the frozen exact static realm binding without candidate coordinates or source paths', async () => {
+    const fixture = await makeFixture()
+    const evidence = await loadGitHubCandidateEvidence(fixture.input)
+    const core = fixture.input.armed.recoveryAuthorizationCoreSha256
+
+    expect(RECOVERY_REALM_BINDING_PROJECTION_KEYS).toEqual(EXPECTED_REALM_BINDING_PROJECTION_KEYS)
+    expect(REALM_BINDING_MUTATIONS.map(([key]) => key)).toEqual(EXPECTED_REALM_BINDING_PROJECTION_KEYS)
+    expect(Object.isFrozen(RECOVERY_REALM_BINDING_PROJECTION_KEYS)).toBe(true)
+    expect(Object.keys(evidence.realmBinding)).toEqual(EXPECTED_REALM_BINDING_PROJECTION_KEYS)
+    expect(evidence.realmBinding).toEqual(expectedRealmBinding(core))
+    expect(Object.getPrototypeOf(evidence.realmBinding)).toBe(Object.prototype)
+    expect(Object.isFrozen(evidence.realmBinding)).toBe(true)
+    expect(Object.keys(evidence.realmBinding)).not.toEqual(expect.arrayContaining([
+      'candidateCommit', 'candidateTree', 'currentMainCommit', 'parentCommit',
+      'bindingPath', 'workflowPath',
+    ]))
+    expect(fixture.input.armed.bindingPath).toBe(BINDING_PATH)
+    expect(fixture.input.armed.workflowPath).toBe(WORKFLOW_PATH)
+  })
+
+  it('extends the exact schema-2 key order without a G002 release digest alias', () => {
+    const bridgeIndex = RECOVERY_BINDING_KEYS_V2.indexOf('recoveryAuthWorker')
+    expect(RECOVERY_BINDING_KEYS_V2.slice(bridgeIndex, bridgeIndex + 6)).toEqual([
+      'recoveryAuthWorker', 'recoveryAuthWorkerVersion',
+      'recoveryAuthWorkerVersionId', 'recoveryAuthWorkerSourceCommit',
+      'recoveryAuthWorkerConfigIdentity', 'recoveryAuthWorkerConfigEpoch',
+    ])
+    const g001DatabaseIndex = RECOVERY_BINDING_KEYS_V2.indexOf('g001DatabaseIdentity')
+    expect(RECOVERY_BINDING_KEYS_V2.slice(g001DatabaseIndex, g001DatabaseIndex + 2)).toEqual([
+      'g001DatabaseIdentity', 'g001ExpectedProgramKeccak256',
+    ])
+    const g002DatabaseIndex = RECOVERY_BINDING_KEYS_V2.indexOf('g002DatabaseIdentity')
+    expect(RECOVERY_BINDING_KEYS_V2.slice(g002DatabaseIndex, g002DatabaseIndex + 2)).toEqual([
+      'g002DatabaseIdentity', 'g002ExpectedProgramKeccak256',
+    ])
+    const g002AtlasIndex = RECOVERY_BINDING_KEYS_V2.indexOf('g002AtlasSourceCommit')
+    expect(RECOVERY_BINDING_KEYS_V2.slice(g002AtlasIndex, g002AtlasIndex + 8)).toEqual([
+      'g002AtlasSourceCommit', 'g002AtlasId', 'g002PublicReleaseId',
+      'g002PublicApprovalReceiptId', 'g002ReleaseSha256',
+      'g002ReleaseHeaderSha256', 'g002VerificationDigest', 'g002AllowedFids',
+    ])
+    const ptrDatabaseIndex = RECOVERY_BINDING_KEYS_V2.indexOf('ptrDatabaseIdentity')
+    expect(RECOVERY_BINDING_KEYS_V2.slice(ptrDatabaseIndex, ptrDatabaseIndex + 2)).toEqual([
+      'ptrDatabaseIdentity', 'ptrExpectedProgramKeccak256',
+    ])
+    const ptrAtlasIndex = RECOVERY_BINDING_KEYS_V2.indexOf('ptrAtlasSourceCommit')
+    expect(RECOVERY_BINDING_KEYS_V2.slice(ptrAtlasIndex, ptrAtlasIndex + 9)).toEqual([
+      'ptrAtlasSourceCommit', 'ptrAtlasId', 'ptrPublicReleaseId',
+      'ptrPublicApprovalReceiptId', 'ptrReleaseVersion',
+      'ptrReleaseManifestSha256', 'ptrExpectedReleaseSha256',
+      'ptrReleaseHeaderSha256', 'ptrVerificationDigest',
+    ])
+    expect(RECOVERY_BINDING_KEYS_V2.filter(key => key === 'g002ReleaseSha256')).toHaveLength(1)
+    expect(RECOVERY_BINDING_KEYS_V2).not.toContain('g002ExpectedReleaseSha256')
+    expect(new Set(RECOVERY_BINDING_KEYS_V2).size).toBe(RECOVERY_BINDING_KEYS_V2.length)
+  })
+
+  it.each(REALM_BINDING_MUTATIONS)(
+    'rejects an armed mismatch for realm projection field %s',
+    async (key, value) => rejects(({ input }) => {
+      ;(input.armed as unknown as JsonObject)[key] = value
+    }),
+  )
+
+  it('rejects duplicate G002 release aliases in protected and armed inputs', async () => {
+    await rejects(fixture => replaceBinding(fixture, binding => {
+      binding.g002ExpectedReleaseSha256 = binding.g002ReleaseSha256
+    }))
+    await rejects(({ input }) => {
+      ;(input.armed as unknown as JsonObject).g002ExpectedReleaseSha256 = G002_RELEASE_SHA256
+    })
   })
 
   it('rejects malformed and oversized PKCS#1 app keys with a stable evidence error', async () => {

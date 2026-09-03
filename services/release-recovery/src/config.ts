@@ -41,33 +41,79 @@ export function snapshotExactDataObject(
     githubFail(code)
   }
 }
-export type RecoveryArmingTuple=Readonly<{
-  requestId:string
-  authorizationMode:string
-  recoveryAuthorizationProfile:string
-  recoveryKeyId:string
-  recoveryKeyThumbprint:string
-  authorizationEpoch:number
-  repository:string
-  repositoryId:string
-  repositoryOwnerId:string
-  ref:string
-  workflowRef:string
-  environment:string
-  releaseVersion:string
-  operation:string
-  canonicalOrigin:string
-  issuer:string
-  authWorker:string
-  preparationCommit:string
-  preparationTree:string
-  sourceClosureProfile:string
-  sourceClosureSha256:string
-  recoveryAuthorizationCoreSha256:string
-  bindingPath:string
-  workflowPath:string
-  genesis001Database:string
-  genesis002Database:string
-  ptrDatabase:string
+export const RECOVERY_REALM_BINDING_PROJECTION_KEYS = Object.freeze([
+  'requestId', 'authorizationMode', 'recoveryAuthorizationProfile',
+  'recoveryKeyId', 'recoveryKeyThumbprint', 'authorizationEpoch',
+  'repository', 'repositoryId', 'repositoryOwnerId', 'ref', 'workflowRef',
+  'environment', 'releaseVersion', 'operation', 'canonicalOrigin', 'issuer',
+  'authWorker', 'bridgeWorkerVersion', 'bridgeWorkerVersionId',
+  'bridgeSourceCommit', 'bridgeConfigIdentity', 'bridgeConfigEpoch',
+  'preparationCommit', 'preparationTree', 'sourceClosureProfile',
+  'sourceClosureSha256', 'recoveryAuthorizationCoreSha256',
+  'pagesDeploymentApproved', 'genesis001Database', 'genesis002Database',
+  'ptrDatabase', 'g001ExpectedProgramKeccak256',
+  'g002ExpectedProgramKeccak256', 'ptrExpectedProgramKeccak256',
+  'g002AtlasId', 'g002PublicReleaseId', 'g002PublicApprovalReceiptId',
+  'g002AtlasSourceCommit', 'g002ReleaseSha256',
+  'g002ReleaseHeaderSha256', 'g002VerificationDigest', 'ptrAtlasId',
+  'ptrPublicReleaseId', 'ptrPublicApprovalReceiptId', 'ptrAtlasSourceCommit',
+  'ptrExpectedReleaseSha256', 'ptrReleaseHeaderSha256',
+  'ptrVerificationDigest',
+] as const)
+
+export type RecoveryRealmBindingProjection = Readonly<{
+  requestId: string
+  authorizationMode: 'recovery-authorization-v1'
+  recoveryAuthorizationProfile: 'warpkeep-0.4.0-recovery-authorization-v1'
+  recoveryKeyId: string
+  recoveryKeyThumbprint: string
+  authorizationEpoch: number
+  repository: 'ael-dev3/Warpkeep'
+  repositoryId: '1273513252'
+  repositoryOwnerId: '183124839'
+  ref: 'refs/heads/main'
+  workflowRef: 'ael-dev3/Warpkeep/.github/workflows/deploy-pages.yml@refs/heads/main'
+  environment: 'github-pages'
+  releaseVersion: '0.4.0'
+  operation: 'github-pages-production-deploy'
+  canonicalOrigin: 'https://warpkeep.com'
+  issuer: 'https://release-auth.warpkeep.com'
+  authWorker: 'warpkeep-auth-bridge'
+  bridgeWorkerVersion: 'warpkeep-auth-bridge-release-recovery-v1'
+  bridgeWorkerVersionId: string
+  bridgeSourceCommit: string
+  bridgeConfigIdentity: string
+  bridgeConfigEpoch: number
+  preparationCommit: string
+  preparationTree: string
+  sourceClosureProfile: string
+  sourceClosureSha256: string
+  recoveryAuthorizationCoreSha256: string
+  pagesDeploymentApproved: true
+  genesis001Database: string
+  genesis002Database: string
+  ptrDatabase: string
+  g001ExpectedProgramKeccak256: string
+  g002ExpectedProgramKeccak256: string
+  ptrExpectedProgramKeccak256: string
+  g002AtlasId: string
+  g002PublicReleaseId: string
+  g002PublicApprovalReceiptId: string
+  g002AtlasSourceCommit: string
+  g002ReleaseSha256: string
+  g002ReleaseHeaderSha256: string
+  g002VerificationDigest: string
+  ptrAtlasId: string
+  ptrPublicReleaseId: string
+  ptrPublicApprovalReceiptId: string
+  ptrAtlasSourceCommit: string
+  ptrExpectedReleaseSha256: string
+  ptrReleaseHeaderSha256: string
+  ptrVerificationDigest: string
+}>
+
+export type RecoveryArmingTuple = RecoveryRealmBindingProjection & Readonly<{
+  bindingPath: 'config/releases/0.4.0-sealed-launch.json'
+  workflowPath: '.github/workflows/deploy-pages.yml'
 }>
 export type GitHubAppEnvironment=Readonly<{GITHUB_APP_ID:string;GITHUB_APP_INSTALLATION_ID:string;GITHUB_APP_PRIVATE_KEY_PEM:string}>

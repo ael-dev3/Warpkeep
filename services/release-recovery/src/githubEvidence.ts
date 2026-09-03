@@ -1,8 +1,10 @@
 import {
   GITHUB_REPOSITORY,
+  RECOVERY_REALM_BINDING_PROJECTION_KEYS,
   RecoveryGitHubError,
   type GitHubAppEnvironment,
   type RecoveryArmingTuple,
+  type RecoveryRealmBindingProjection,
   commit,
   githubFail,
   positive,
@@ -28,7 +30,12 @@ import {
 import { RECOVERY_KEY_ID, RECOVERY_KEY_THUMBPRINT } from './recoveryPublicKey.js'
 import { parseDocument } from 'yaml'
 
-export { type GitHubAppEnvironment, type RecoveryArmingTuple } from './config.js'
+export {
+  RECOVERY_REALM_BINDING_PROJECTION_KEYS,
+  type GitHubAppEnvironment,
+  type RecoveryArmingTuple,
+  type RecoveryRealmBindingProjection,
+} from './config.js'
 
 const API = `https://api.github.com/repos/${GITHUB_REPOSITORY}`
 const REPOSITORY_ID = '1273513252'
@@ -45,6 +52,7 @@ const BINDING_PROFILE = 'warpkeep-0.4.0-sealed-launch-v2'
 const SOURCE_CLOSURE_PROFILE = 'warpkeep-0.4.0-recovery-source-closure-v1'
 const AUTHORIZATION_PROFILE = 'warpkeep-0.4.0-recovery-authorization-v1'
 const AUTHORIZATION_MODE = 'recovery-authorization-v1'
+const BRIDGE_WORKER_VERSION = 'warpkeep-auth-bridge-release-recovery-v1'
 const G001_DATABASE = 'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e'
 const MAX_TREE_ENTRIES = 20_000
 const MAX_TREE_JSON_BYTES = 7 * 1024 * 1024
@@ -52,6 +60,8 @@ const MAX_BLOB_BYTES = 1024 * 1024
 const MAX_BLOB_JSON_BYTES = 2 * 1024 * 1024
 const BASE64_ROUNDTRIP_CHUNK_BYTES = 24 * 1024
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
+const PUBLIC_RELEASE_ID = /^GRR-[A-Z2-7]{26}$/u
+const PUBLIC_APPROVAL_RECEIPT_ID = /^GRA-[A-Z2-7]{26}$/u
 const text = new TextEncoder()
 const utf8 = new TextDecoder('utf-8', { fatal: true })
 
@@ -71,17 +81,13 @@ const IDENTITY_KEYS = [
   'checkRunId', 'oidcJti',
 ] as const
 const ARMING_KEYS = [
-  'requestId', 'authorizationMode', 'recoveryAuthorizationProfile',
-  'recoveryKeyId', 'recoveryKeyThumbprint', 'authorizationEpoch', 'repository',
-  'repositoryId', 'repositoryOwnerId', 'ref', 'workflowRef', 'environment',
-  'releaseVersion', 'operation', 'canonicalOrigin', 'issuer', 'authWorker',
-  'preparationCommit', 'preparationTree', 'sourceClosureProfile',
-  'sourceClosureSha256', 'recoveryAuthorizationCoreSha256', 'bindingPath',
-  'workflowPath', 'genesis001Database', 'genesis002Database', 'ptrDatabase',
+  ...RECOVERY_REALM_BINDING_PROJECTION_KEYS,
+  'bindingPath', 'workflowPath',
 ] as const
 
 const V1_AFTER_PREPARATION = [
-  'g001DatabaseIdentity', 'g001SourceBaselineCommit', 'g001BaselineAbiSha256',
+  'g001DatabaseIdentity', 'g001ExpectedProgramKeccak256',
+  'g001SourceBaselineCommit', 'g001BaselineAbiSha256',
   'g001FreezeReleaseNonce', 'g001FreezePublishReceiptDigest',
   'g001FreezePublishReceiptCommitment', 'g001PolicyReceiptDigest',
   'g001PolicyReceiptCommitment', 'g001PolicyObservationBootstrapReceiptDigest',
@@ -101,12 +107,14 @@ const V1_AFTER_PREPARATION = [
   'admissionRequestSuspensionReceiptDigest',
   'admissionRequestSuspensionReceiptCommitment', 'g002PublishReceiptDigest',
   'g002PublishReceiptCommitment', 'g002FreshStatusDigest',
-  'g002FreshStatusCommitment', 'g002DatabaseIdentity', 'g002ModuleSourceCommit',
+  'g002FreshStatusCommitment', 'g002DatabaseIdentity',
+  'g002ExpectedProgramKeccak256', 'g002ModuleSourceCommit',
   'g002ModuleSha256', 'g002ModuleTreeId', 'g002DependencyClosureDigest',
   'g002SpacetimeExecutableSha256', 'g002SpacetimeCliConfigSha256',
   'g002AtlasImportReceiptDigest', 'g002AtlasImportReceiptCommitment',
   'g002SealedLiveReceiptDigest', 'g002SealedLiveReceiptCommitment',
   'g002AtlasSourceCommit', 'g002AtlasId', 'g002PublicReleaseId',
+  'g002PublicApprovalReceiptId',
   'g002ReleaseSha256', 'g002ReleaseHeaderSha256', 'g002VerificationDigest',
   'g002AllowedFids', 'g002AccessRequests', 'g002PlayersV1', 'g002PlayersV2',
   'g002OwnershipBindings', 'g002Founders', 'g002Castles', 'g002RealmProfiles',
@@ -120,10 +128,12 @@ const V1_AFTER_PREPARATION = [
   'ptrAtlasImportReceiptDigest', 'ptrAtlasImportReceiptCommitment',
   'ptrSealedLiveReceiptDigest', 'ptrSealedLiveReceiptCommitment',
   'ptrOwnerProvisionReceiptDigest', 'ptrOwnerProvisionReceiptCommitment',
-  'ptrDatabaseIdentity', 'ptrModuleSourceCommit', 'ptrModuleSha256',
+  'ptrDatabaseIdentity', 'ptrExpectedProgramKeccak256',
+  'ptrModuleSourceCommit', 'ptrModuleSha256',
   'ptrModuleTreeId', 'ptrDependencyClosureDigest', 'ptrSpacetimeExecutableSha256',
   'ptrSpacetimeCliConfigSha256', 'ptrAtlasSourceCommit', 'ptrAtlasId',
-  'ptrPublicReleaseId', 'ptrReleaseVersion', 'ptrReleaseManifestSha256',
+  'ptrPublicReleaseId', 'ptrPublicApprovalReceiptId', 'ptrReleaseVersion',
+  'ptrReleaseManifestSha256',
   'ptrExpectedReleaseSha256', 'ptrReleaseHeaderSha256', 'ptrVerificationDigest',
   'ptrAllowedFids', 'ptrAccessRequests', 'ptrPlayersV1', 'ptrPlayersV2',
   'ptrOwnershipBindings', 'ptrCastles', 'ptrRealmProfiles', 'ptrTermsAcceptances',
@@ -146,7 +156,10 @@ const BINDING_KEYS = [
   'recoveryRepository', 'recoveryRepositoryId', 'recoveryRepositoryOwnerId',
   'recoveryRef', 'recoveryWorkflowRef', 'recoveryEnvironment',
   'recoveryReleaseVersion', 'recoveryOperation', 'recoveryCanonicalOrigin',
-  'recoveryIssuer', 'recoveryAuthWorker', 'sourceClosureProfile',
+  'recoveryIssuer', 'recoveryAuthWorker', 'recoveryAuthWorkerVersion',
+  'recoveryAuthWorkerVersionId', 'recoveryAuthWorkerSourceCommit',
+  'recoveryAuthWorkerConfigIdentity', 'recoveryAuthWorkerConfigEpoch',
+  'sourceClosureProfile',
   'sourceClosureSha256', 'pagesDeploymentApproved', 'preparationSourceCommit',
   'preparationSourceTree', ...V1_AFTER_PREPARATION,
 ] as const
@@ -214,6 +227,7 @@ export type GitHubCandidateEvidence = Readonly<{
   parentCommit: string
   candidateTree: string
   recoveryBindingBytes: Uint8Array
+  realmBinding: RecoveryRealmBindingProjection
   protectedWorkflowBytes: Uint8Array
   sourceClosureSha256: string
   sourceVerifyRunId: string
@@ -688,7 +702,150 @@ function jsonRecord(value: GitHubJsonObject): Readonly<Record<string, JsonValue>
   return value as unknown as Readonly<Record<string, JsonValue>>
 }
 
-async function validateBinding(bytes: Uint8Array, armed: Readonly<Record<string, unknown>>, bindingRequestId: unknown): Promise<void> {
+function exactRealmBindingProjection(value: unknown): RecoveryRealmBindingProjection {
+  const source = snapshotExactDataObject(
+    value,
+    RECOVERY_REALM_BINDING_PROJECTION_KEYS,
+    'RECOVERY_GITHUB_EVIDENCE_INVALID',
+  )
+  const digestKeys = [
+    'bridgeConfigIdentity', 'sourceClosureSha256',
+    'recoveryAuthorizationCoreSha256', 'genesis001Database',
+    'genesis002Database', 'ptrDatabase', 'g001ExpectedProgramKeccak256',
+    'g002ExpectedProgramKeccak256', 'ptrExpectedProgramKeccak256',
+    'g002ReleaseSha256', 'g002ReleaseHeaderSha256',
+    'g002VerificationDigest', 'ptrExpectedReleaseSha256',
+    'ptrReleaseHeaderSha256', 'ptrVerificationDigest',
+  ] as const
+  if (
+    typeof source.requestId !== 'string'
+    || !UUID.test(source.requestId)
+    || source.authorizationMode !== AUTHORIZATION_MODE
+    || source.recoveryAuthorizationProfile !== AUTHORIZATION_PROFILE
+    || source.recoveryKeyId !== RECOVERY_KEY_ID
+    || source.recoveryKeyThumbprint !== RECOVERY_KEY_THUMBPRINT
+    || !Number.isSafeInteger(source.authorizationEpoch)
+    || (source.authorizationEpoch as number) < 1
+    || source.repository !== GITHUB_REPOSITORY
+    || source.repositoryId !== REPOSITORY_ID
+    || source.repositoryOwnerId !== REPOSITORY_OWNER_ID
+    || source.ref !== 'refs/heads/main'
+    || source.workflowRef !== `${GITHUB_REPOSITORY}/${WORKFLOW_PATH}@refs/heads/main`
+    || source.environment !== 'github-pages'
+    || source.releaseVersion !== '0.4.0'
+    || source.operation !== 'github-pages-production-deploy'
+    || source.canonicalOrigin !== 'https://warpkeep.com'
+    || source.issuer !== 'https://release-auth.warpkeep.com'
+    || source.authWorker !== 'warpkeep-auth-bridge'
+    || source.bridgeWorkerVersion !== BRIDGE_WORKER_VERSION
+    || typeof source.bridgeWorkerVersionId !== 'string'
+    || !UUID.test(source.bridgeWorkerVersionId)
+    || !commit(source.bridgeSourceCommit)
+    || !Number.isSafeInteger(source.bridgeConfigEpoch)
+    || (source.bridgeConfigEpoch as number) < 1
+    || !commit(source.preparationCommit)
+    || !commit(source.preparationTree)
+    || source.sourceClosureProfile !== SOURCE_CLOSURE_PROFILE
+    || source.pagesDeploymentApproved !== true
+    || digestKeys.some(key => !sha(source[key]))
+    || source.genesis001Database !== G001_DATABASE
+    || source.genesis002Database === source.genesis001Database
+    || source.ptrDatabase === source.genesis001Database
+    || source.ptrDatabase === source.genesis002Database
+    || source.g002AtlasId !== 'GENESIS_002_GREATER_REALM'
+    || typeof source.g002PublicReleaseId !== 'string'
+    || !PUBLIC_RELEASE_ID.test(source.g002PublicReleaseId)
+    || typeof source.g002PublicApprovalReceiptId !== 'string'
+    || !PUBLIC_APPROVAL_RECEIPT_ID.test(source.g002PublicApprovalReceiptId)
+    || !commit(source.g002AtlasSourceCommit)
+    || source.ptrAtlasId !== 'PTR_GREATER_REALM'
+    || typeof source.ptrPublicReleaseId !== 'string'
+    || !PUBLIC_RELEASE_ID.test(source.ptrPublicReleaseId)
+    || typeof source.ptrPublicApprovalReceiptId !== 'string'
+    || !PUBLIC_APPROVAL_RECEIPT_ID.test(source.ptrPublicApprovalReceiptId)
+    || !commit(source.ptrAtlasSourceCommit)
+  ) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  return Object.freeze({ ...source }) as RecoveryRealmBindingProjection
+}
+
+function pickRealmBindingProjection(value: Readonly<Record<string, unknown>>): RecoveryRealmBindingProjection {
+  const projection: Record<string, unknown> = Object.create(null)
+  for (const key of RECOVERY_REALM_BINDING_PROJECTION_KEYS) projection[key] = value[key]
+  return exactRealmBindingProjection(projection)
+}
+
+function bindingRealmProjection(binding: GitHubJsonObject): RecoveryRealmBindingProjection {
+  return exactRealmBindingProjection({
+    requestId: binding.recoveryAuthorizationRequestId,
+    authorizationMode: binding.authorizationMode,
+    recoveryAuthorizationProfile: binding.recoveryAuthorizationProfile,
+    recoveryKeyId: binding.recoveryKeyId,
+    recoveryKeyThumbprint: binding.recoveryKeyThumbprint,
+    authorizationEpoch: binding.recoveryAuthorizationEpoch,
+    repository: binding.recoveryRepository,
+    repositoryId: binding.recoveryRepositoryId,
+    repositoryOwnerId: binding.recoveryRepositoryOwnerId,
+    ref: binding.recoveryRef,
+    workflowRef: binding.recoveryWorkflowRef,
+    environment: binding.recoveryEnvironment,
+    releaseVersion: binding.recoveryReleaseVersion,
+    operation: binding.recoveryOperation,
+    canonicalOrigin: binding.recoveryCanonicalOrigin,
+    issuer: binding.recoveryIssuer,
+    authWorker: binding.recoveryAuthWorker,
+    bridgeWorkerVersion: binding.recoveryAuthWorkerVersion,
+    bridgeWorkerVersionId: binding.recoveryAuthWorkerVersionId,
+    bridgeSourceCommit: binding.recoveryAuthWorkerSourceCommit,
+    bridgeConfigIdentity: binding.recoveryAuthWorkerConfigIdentity,
+    bridgeConfigEpoch: binding.recoveryAuthWorkerConfigEpoch,
+    preparationCommit: binding.preparationSourceCommit,
+    preparationTree: binding.preparationSourceTree,
+    sourceClosureProfile: binding.sourceClosureProfile,
+    sourceClosureSha256: binding.sourceClosureSha256,
+    recoveryAuthorizationCoreSha256: binding.recoveryAuthorizationCoreSha256,
+    pagesDeploymentApproved: binding.pagesDeploymentApproved,
+    genesis001Database: binding.g001DatabaseIdentity,
+    genesis002Database: binding.g002DatabaseIdentity,
+    ptrDatabase: binding.ptrDatabaseIdentity,
+    g001ExpectedProgramKeccak256: binding.g001ExpectedProgramKeccak256,
+    g002ExpectedProgramKeccak256: binding.g002ExpectedProgramKeccak256,
+    ptrExpectedProgramKeccak256: binding.ptrExpectedProgramKeccak256,
+    g002AtlasId: binding.g002AtlasId,
+    g002PublicReleaseId: binding.g002PublicReleaseId,
+    g002PublicApprovalReceiptId: binding.g002PublicApprovalReceiptId,
+    g002AtlasSourceCommit: binding.g002AtlasSourceCommit,
+    g002ReleaseSha256: binding.g002ReleaseSha256,
+    g002ReleaseHeaderSha256: binding.g002ReleaseHeaderSha256,
+    g002VerificationDigest: binding.g002VerificationDigest,
+    ptrAtlasId: binding.ptrAtlasId,
+    ptrPublicReleaseId: binding.ptrPublicReleaseId,
+    ptrPublicApprovalReceiptId: binding.ptrPublicApprovalReceiptId,
+    ptrAtlasSourceCommit: binding.ptrAtlasSourceCommit,
+    ptrExpectedReleaseSha256: binding.ptrExpectedReleaseSha256,
+    ptrReleaseHeaderSha256: binding.ptrReleaseHeaderSha256,
+    ptrVerificationDigest: binding.ptrVerificationDigest,
+  })
+}
+
+function sameRealmBinding(
+  left: RecoveryRealmBindingProjection,
+  right: RecoveryRealmBindingProjection,
+): boolean {
+  try {
+    return equalBytes(
+      serializeExactObject(RECOVERY_REALM_BINDING_PROJECTION_KEYS, left as never),
+      serializeExactObject(RECOVERY_REALM_BINDING_PROJECTION_KEYS, right as never),
+    )
+  } catch {
+    githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  }
+}
+
+async function validateBinding(
+  bytes: Uint8Array,
+  armed: RecoveryArmingTuple,
+  bindingRequestId: unknown,
+): Promise<RecoveryRealmBindingProjection> {
   const binding = parseGitHubJsonObject(bytes, 'RECOVERY_GITHUB_EVIDENCE_INVALID', [])
   if (
     Object.keys(binding).length !== BINDING_KEYS.length
@@ -776,6 +933,11 @@ async function validateBinding(bytes: Uint8Array, armed: Readonly<Record<string,
     serializeExactObject(BINDING_KEYS, coreProjection as never),
   )
   if (binding.recoveryAuthorizationCoreSha256 !== expectedCore) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  const realmBinding = bindingRealmProjection(binding)
+  if (!sameRealmBinding(realmBinding, pickRealmBindingProjection(armed))) {
+    githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
+  }
+  return realmBinding
 }
 
 function validateWorkflow(bytes: Uint8Array): void {
@@ -979,43 +1141,18 @@ function snapshotIdentity(value: unknown, candidateCommit: string): Readonly<Rec
   return identity
 }
 
-function snapshotArmed(value: unknown): Readonly<Record<string, unknown>> {
-  const armed = snapshotExactDataObject(value, ARMING_KEYS, 'RECOVERY_GITHUB_EVIDENCE_INVALID')
+function snapshotArmed(value: unknown): RecoveryArmingTuple {
+  const source = snapshotExactDataObject(value, ARMING_KEYS, 'RECOVERY_GITHUB_EVIDENCE_INVALID')
+  const realmBinding = pickRealmBindingProjection(source)
   if (
-    armed.authorizationMode !== AUTHORIZATION_MODE
-    || armed.recoveryAuthorizationProfile !== AUTHORIZATION_PROFILE
-    || armed.recoveryKeyId !== RECOVERY_KEY_ID
-    || armed.recoveryKeyThumbprint !== RECOVERY_KEY_THUMBPRINT
-    || !Number.isSafeInteger(armed.authorizationEpoch)
-    || (armed.authorizationEpoch as number) < 1
-    || armed.repository !== GITHUB_REPOSITORY
-    || armed.repositoryId !== REPOSITORY_ID
-    || armed.repositoryOwnerId !== REPOSITORY_OWNER_ID
-    || armed.ref !== 'refs/heads/main'
-    || armed.workflowRef !== `${GITHUB_REPOSITORY}/${WORKFLOW_PATH}@refs/heads/main`
-    || armed.environment !== 'github-pages'
-    || armed.releaseVersion !== '0.4.0'
-    || armed.operation !== 'github-pages-production-deploy'
-    || armed.canonicalOrigin !== 'https://warpkeep.com'
-    || armed.issuer !== 'https://release-auth.warpkeep.com'
-    || armed.authWorker !== 'warpkeep-auth-bridge'
-    || typeof armed.requestId !== 'string'
-    || !UUID.test(armed.requestId)
-    || !commit(armed.preparationCommit)
-    || !commit(armed.preparationTree)
-    || armed.sourceClosureProfile !== SOURCE_CLOSURE_PROFILE
-    || !sha(armed.sourceClosureSha256)
-    || !sha(armed.recoveryAuthorizationCoreSha256)
-    || armed.bindingPath !== BINDING_PATH
-    || armed.workflowPath !== WORKFLOW_PATH
-    || armed.genesis001Database !== G001_DATABASE
-    || !sha(armed.genesis002Database)
-    || !sha(armed.ptrDatabase)
-    || armed.genesis002Database === armed.genesis001Database
-    || armed.ptrDatabase === armed.genesis001Database
-    || armed.ptrDatabase === armed.genesis002Database
+    source.bindingPath !== BINDING_PATH
+    || source.workflowPath !== WORKFLOW_PATH
   ) githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
-  return armed
+  return Object.freeze({
+    ...realmBinding,
+    bindingPath: BINDING_PATH,
+    workflowPath: WORKFLOW_PATH,
+  })
 }
 
 async function metadataDigest(metadata: GitHubEvidenceMetadata): Promise<string> {
@@ -1115,7 +1252,7 @@ export async function loadGitHubCandidateEvidence(input: Readonly<{
     const bindingEntry = candidateTree.get(BINDING_PATH)!
     const workflowEntry = candidateTree.get(WORKFLOW_PATH)!
     const bindingBytes = await loadStableTreeBlob(fetchImplementation, init, bindingEntry)
-    await validateBinding(bindingBytes, armed, snapshot.bindingRequestId)
+    const realmBinding = await validateBinding(bindingBytes, armed, snapshot.bindingRequestId)
     const workflowBytes = await loadStableTreeBlob(fetchImplementation, init, workflowEntry)
     validateWorkflow(workflowBytes)
 
@@ -1182,6 +1319,7 @@ export async function loadGitHubCandidateEvidence(input: Readonly<{
       parentCommit: candidate.parent,
       candidateTree: candidate.tree,
       recoveryBindingBytes: Uint8Array.from(bindingBytes),
+      realmBinding,
       protectedWorkflowBytes: Uint8Array.from(workflowBytes),
       sourceClosureSha256: armed.sourceClosureSha256 as string,
       sourceVerifyRunId,
